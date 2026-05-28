@@ -18,7 +18,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
 import {
-  Tag, Plus, Pencil, Trash2, Lock, MessageCircle, Link as LinkIcon,
+  Tag, Plus, Pencil, Trash2, Lock, MessageCircle, Link as LinkIcon, Star,
 } from 'lucide-react';
 
 interface SalesChannel {
@@ -32,6 +32,7 @@ interface SalesChannel {
   color: string | null;
   is_active: boolean;
   is_system: boolean;
+  is_default: boolean;
   sort_order: number;
 }
 
@@ -208,6 +209,28 @@ export default function SalesChannelsPage() {
     }
   };
 
+  const handleSetDefault = async (c: SalesChannel) => {
+    if (c.is_default) return;
+    if (!c.is_active) {
+      showToast('ต้องเปิดใช้งานก่อนถึงจะตั้งเป็นค่าเริ่มต้นได้', 'error');
+      return;
+    }
+    try {
+      const res = await apiFetch('/api/sales-channels', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: c.id, is_default: true }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'บันทึกไม่สำเร็จ');
+      // Local mirror of the constraint: exactly-one default.
+      setChannels(prev => prev.map(x => ({ ...x, is_default: x.id === c.id })));
+      showToast(`ตั้ง "${c.name}" เป็นค่าเริ่มต้นแล้ว`);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'บันทึกไม่สำเร็จ', 'error');
+    }
+  };
+
   const handleDelete = async () => {
     if (!deleteTarget) return;
     setDeleting(true);
@@ -256,6 +279,12 @@ export default function SalesChannelsPage() {
           <div>
             <div className="flex items-center gap-2">
               <span className="font-semibold text-[16px] text-gray-900 dark:text-white">{c.name}</span>
+              {c.is_default && (
+                <span title="ค่าเริ่มต้น" className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 text-xs font-medium">
+                  <Star className="w-3 h-3 fill-current" />
+                  ค่าเริ่มต้น
+                </span>
+              )}
               {c.is_system && (
                 <span title="ช่องทางของระบบ" className="inline-flex items-center text-gray-400">
                   <Lock className="w-3.5 h-3.5" />
@@ -312,8 +341,16 @@ export default function SalesChannelsPage() {
       hideMobile: true,
       render: (c) => {
         const items: ActionItem[] = [];
+        if (!c.is_default && c.is_active) {
+          items.push({
+            key: 'default',
+            label: 'ตั้งเป็นค่าเริ่มต้น',
+            icon: <Star className="w-4 h-4" />,
+            onClick: () => handleSetDefault(c),
+          });
+        }
         if (c.channel_type === 'manual' && !c.is_system) {
-          items.push({ key: 'edit', label: 'แก้ไข', icon: <Pencil className="w-4 h-4" />, onClick: () => openEdit(c) });
+          items.push({ key: 'edit', label: 'แก้ไข', icon: <Pencil className="w-4 h-4" />, onClick: () => openEdit(c), dividerBefore: items.length > 0 });
           items.push({
             key: 'delete',
             label: 'ลบ',

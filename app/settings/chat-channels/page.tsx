@@ -10,12 +10,19 @@ import { apiFetch } from '@/lib/api-client';
 import {
   Loader2, Eye, EyeOff, ExternalLink, Copy, Check, X,
   ChevronDown, ChevronUp, CheckCircle2, XCircle, Zap, Plus,
-  Trash2, Edit2, LogIn, Search
+  Trash2, Edit2, Search, Facebook as FacebookSolidIcon
 } from 'lucide-react';
 import Image from 'next/image';
+import dynamic from 'next/dynamic';
+import Button from '@/components/ui/Button';
 import Container from '@/components/ui/Container';
+import SearchInput from '@/components/ui/SearchInput';
 import { LoadingCard, NoPermissionCard } from '@/components/ui/StateCard';
 import Toggle from '@/components/ui/Toggle';
+
+// Lazy-load the page-selection modal — only needed after FB OAuth returns pages.
+// Loads in parallel with the OAuth round-trip so the modal is ready by the time pages arrive.
+const Modal = dynamic(() => import('@/components/ui/Modal'), { ssr: false });
 
 const FB_APP_ID = process.env.NEXT_PUBLIC_FACEBOOK_APP_ID || '';
 
@@ -25,13 +32,18 @@ function FbIcon({ size = 16 }: { size?: number }) {
 function LineIcon({ size = 16 }: { size?: number }) {
   return <Image src="/social/line_oa.svg" alt="LINE" width={size} height={size} />;
 }
+function IgIcon({ size = 16 }: { size?: number }) {
+  return <Image src="/social/instagram.svg" alt="Instagram" width={size} height={size} />;
+}
 
 interface FbPage {
   id: string;
   name: string;
+  username?: string | null;
   access_token: string;
   picture_url: string | null;
   instagram: { id: string; name: string; profile_picture_url: string } | null;
+  connected_by?: 'current' | 'other' | null;
 }
 
 
@@ -86,17 +98,17 @@ export default function ChatChannelsPage() {
 
   const [loading, setLoading] = useState(true);
   const [accounts, setAccounts] = useState<ChatAccount[]>([]);
-  const [activeTab, setActiveTabState] = useState<'line' | 'facebook'>('line');
+  const [activeTab, setActiveTabState] = useState<'line' | 'facebook'>('facebook');
 
-  // Read hash on mount
+  // Read hash on mount — allow #line to override the default
   useEffect(() => {
     const hash = window.location.hash.replace('#', '');
-    if (hash === 'facebook') setActiveTabState('facebook');
+    if (hash === 'line') setActiveTabState('line');
   }, []);
 
   const setActiveTab = (tab: 'line' | 'facebook') => {
     setActiveTabState(tab);
-    window.location.hash = tab === 'line' ? '' : tab;
+    window.location.hash = tab === 'facebook' ? '' : tab;
   };
 
   // Inline form state
@@ -282,6 +294,7 @@ export default function ChatChannelsPage() {
               page_access_token: page.access_token,
               page_id: page.id,
               page_name: page.name,
+              ...(page.username ? { page_username: page.username } : {}),
               ...(page.picture_url ? { page_picture_url: page.picture_url } : {}),
               ...(page.instagram ? {
                 ig_account_id: page.instagram.id,
@@ -513,166 +526,30 @@ export default function ChatChannelsPage() {
     : activeTab;
   const formConfig = PLATFORM_CONFIG[formPlatform];
 
-  // Render FB OAuth form (Login with Facebook → select page)
-  function renderFbOAuthForm() {
+  // Render FB-styled add button — clicks straight into OAuth (no intermediate form)
+  function renderFbAddButton() {
     return (
-      <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm p-4 space-y-4">
-        <div className="text-sm font-medium text-gray-700 dark:text-slate-300 flex items-center gap-2">
-          <FbIcon size={16} />
-          เพิ่ม Facebook / IG Account
+      <div className="space-y-2">
+        <button
+          onClick={handleFbLogin}
+          disabled={!fbSdkReady || fbLoading}
+          className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-facebook hover:bg-facebook-hover text-white font-medium rounded-lg transition-colors disabled:opacity-50"
+        >
+          {fbLoading ? (
+            <Loader2 className="w-5 h-5 animate-spin" />
+          ) : (
+            <FacebookSolidIcon className="w-5 h-5" fill="currentColor" stroke="none" />
+          )}
+          {fbLoading ? 'กำลังดึงข้อมูล...' : 'เพิ่ม Facebook / IG Account'}
+        </button>
+        <div className="flex items-center justify-center">
+          <button
+            onClick={() => { setFbMode('manual'); setShowForm(true); }}
+            className="helper-text text-gray-500 hover:text-primary transition-colors underline"
+          >
+            กรอกเอง (Manual)
+          </button>
         </div>
-
-        {/* If pages have been fetched → show page selection */}
-        {fbPages.length > 0 ? (
-          <div className="space-y-3">
-            <p className="text-sm text-gray-600 dark:text-slate-400">เลือก Page ที่ต้องการเชื่อมต่อ ({fbPages.length} Pages)</p>
-
-            {/* Search box */}
-            {fbPages.length > 5 && (
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <input
-                  type="text"
-                  value={fbSearch}
-                  onChange={e => setFbSearch(e.target.value)}
-                  placeholder="ค้นหา Page..."
-                  className="w-full pl-9 pr-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-facebook/50 focus:border-facebook"
-                />
-              </div>
-            )}
-
-            {/* Page list */}
-            <div className="max-h-80 overflow-y-auto space-y-1">
-              {(() => {
-                const connectedPageIds = new Set(
-                  fbAccounts.map(a => a.credentials.page_id as string).filter(Boolean)
-                );
-                return fbPages
-                  .filter(p => !fbSearch || p.name.toLowerCase().includes(fbSearch.toLowerCase()) || p.id.includes(fbSearch))
-                  .map(page => {
-                    const isConnected = connectedPageIds.has(page.id);
-                    return (
-                <button
-                  key={page.id}
-                  onClick={() => {
-                    if (isConnected) return;
-                    setSelectedPageIds(prev => {
-                      const next = new Set(prev);
-                      if (next.has(page.id)) next.delete(page.id);
-                      else next.add(page.id);
-                      return next;
-                    });
-                  }}
-                  disabled={isConnected}
-                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors text-left ${
-                    isConnected
-                      ? 'opacity-50 cursor-not-allowed'
-                      : selectedPageIds.has(page.id)
-                        ? 'bg-orange-50 dark:bg-orange-900/30'
-                        : 'hover:bg-gray-50 dark:hover:bg-slate-700/50'
-                  }`}
-                >
-                  <div className="relative flex-shrink-0">
-                    {page.picture_url ? (
-                      <img src={page.picture_url} alt={page.name} className={`w-9 h-9 rounded-full ${isConnected ? 'grayscale' : ''}`} />
-                    ) : (
-                      <div className="w-9 h-9 rounded-full bg-facebook/10 flex items-center justify-center">
-                        <FbIcon size={16} />
-                      </div>
-                    )}
-                    {page.instagram && (
-                      <img
-                        src={page.instagram.profile_picture_url}
-                        alt={page.instagram.name}
-                        className={`absolute -bottom-1 -right-1 w-5 h-5 rounded-full border-2 border-white dark:border-slate-800 ${isConnected ? 'grayscale' : ''}`}
-                      />
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className={`text-sm font-medium truncate ${isConnected ? 'text-gray-400 dark:text-slate-500' : 'text-gray-900 dark:text-white'}`}>{page.name}</p>
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-xs text-gray-400 dark:text-slate-500">{page.id}</span>
-                      {page.instagram && (
-                        <span className={`text-xs ${isConnected ? 'text-gray-400 dark:text-slate-500' : 'text-pink-500'}`}>• IG @{page.instagram.name}</span>
-                      )}
-                    </div>
-                  </div>
-                  {isConnected ? (
-                    <span className="text-xs text-gray-400 dark:text-slate-500 flex-shrink-0 whitespace-nowrap">เชื่อมต่อแล้ว</span>
-                  ) : selectedPageIds.has(page.id) ? (
-                    <div className="w-6 h-6 rounded-full bg-primary flex items-center justify-center flex-shrink-0">
-                      <Check className="w-4 h-4 text-white" />
-                    </div>
-                  ) : (
-                    <div className="w-6 h-6 rounded-full border-2 border-gray-300 dark:border-slate-600 flex-shrink-0" />
-                  )}
-                </button>
-                    );
-                  });
-              })()}
-            </div>
-
-            {/* Connect / Cancel */}
-            <div className="flex gap-2 pt-1">
-              <button
-                onClick={() => {
-                  const pages = fbPages.filter(p => selectedPageIds.has(p.id));
-                  if (pages.length > 0) handleSaveFbPages(pages);
-                }}
-                disabled={selectedPageIds.size === 0 || fbSavingPage}
-                className="px-4 py-2 bg-facebook hover:bg-facebook-hover text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
-              >
-                {fbSavingPage ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-                {fbSavingPage ? 'กำลังเชื่อมต่อ...' : `เชื่อมต่อ ${selectedPageIds.size > 0 ? selectedPageIds.size + ' ' : ''}Page`}
-              </button>
-              <button
-                onClick={resetForm}
-                className="px-4 py-2 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 text-sm font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors flex items-center gap-2"
-              >
-                <X className="w-4 h-4" /> ยกเลิก
-              </button>
-            </div>
-          </div>
-        ) : (
-          /* Login button */
-          <div className="space-y-3">
-            <p className="text-sm text-gray-500 dark:text-slate-400">
-              กดปุ่มด้านล่างเพื่อล็อกอิน Facebook แล้วเลือก Page ที่ต้องการเชื่อมต่อ
-            </p>
-            <button
-              onClick={handleFbLogin}
-              disabled={!fbSdkReady || fbLoading}
-              className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-facebook hover:bg-facebook-hover text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
-            >
-              {fbLoading ? (
-                <Loader2 className="w-5 h-5 animate-spin" />
-              ) : (
-                <LogIn className="w-5 h-5" />
-              )}
-              {fbLoading ? 'กำลังดึงข้อมูล...' : 'Login with Facebook'}
-            </button>
-
-            {!fbSdkReady && FB_APP_ID && (
-              <p className="text-xs text-gray-400 dark:text-slate-500 text-center">กำลังโหลด Facebook SDK...</p>
-            )}
-
-            {/* Manual fallback link */}
-            <div className="flex items-center justify-between pt-1">
-              <button
-                onClick={() => { setFbMode('manual'); setShowForm(true); }}
-                className="text-xs text-gray-400 dark:text-slate-500 hover:text-primary transition-colors underline"
-              >
-                กรอกเอง (Manual)
-              </button>
-              <button
-                onClick={resetForm}
-                className="text-xs text-gray-400 dark:text-slate-500 hover:text-red-500 transition-colors"
-              >
-                ยกเลิก
-              </button>
-            </div>
-          </div>
-        )}
       </div>
     );
   }
@@ -824,22 +701,6 @@ export default function ChatChannelsPage() {
         {/* Tabs */}
         <div className="flex border-b border-gray-200 dark:border-slate-700 mb-6">
           <button
-            onClick={() => { setActiveTab('line'); resetForm(); }}
-            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
-              activeTab === 'line'
-                ? 'border-line text-line'
-                : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200'
-            }`}
-          >
-            <LineIcon size={16} />
-            LINE
-            {lineAccounts.length > 0 && (
-              <span className={`text-xs px-1.5 py-0.5 rounded-full ${
-                activeTab === 'line' ? 'bg-line/10 text-line' : 'bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-slate-400'
-              }`}>{lineAccounts.length}</span>
-            )}
-          </button>
-          <button
             onClick={() => { setActiveTab('facebook'); resetForm(); }}
             className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
               activeTab === 'facebook'
@@ -855,6 +716,22 @@ export default function ChatChannelsPage() {
               }`}>{fbAccounts.length}</span>
             )}
           </button>
+          <button
+            onClick={() => { setActiveTab('line'); resetForm(); }}
+            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === 'line'
+                ? 'border-line text-line'
+                : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200'
+            }`}
+          >
+            <LineIcon size={16} />
+            LINE
+            {lineAccounts.length > 0 && (
+              <span className={`text-xs px-1.5 py-0.5 rounded-full ${
+                activeTab === 'line' ? 'bg-line/10 text-line' : 'bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-slate-400'
+              }`}>{lineAccounts.length}</span>
+            )}
+          </button>
         </div>
 
         {loading ? (
@@ -867,28 +744,30 @@ export default function ChatChannelsPage() {
               const isEditing = editingId === account.id;
               const isLast = account === tabAccounts[tabAccounts.length - 1];
 
-              // For FB add: show OAuth form when fbMode=oauth, manual form when fbMode=manual
+              // FB OAuth: button triggers OAuth directly (no intermediate form); manual mode uses inline form.
               const isFbOAuthAdd = activeTab === 'facebook' && fbMode === 'oauth' && !editingId;
-              const showAddForm = isLast && showForm && !editingId;
-              const showAddButton = isLast && !showForm && !(isFbOAuthAdd && fbPages.length > 0);
+              const showAddForm = isLast && showForm && !editingId && !isFbOAuthAdd;
+              const showAddButton = isLast && (isFbOAuthAdd || !showForm);
 
               return (
                 <div key={account.id} className="space-y-4">
                   {card}
                   {/* Inline edit form right below this card */}
                   {isEditing && showForm && renderInlineForm()}
-                  {/* Add button after last card (if not currently adding/editing) */}
+                  {/* Add button after last card */}
                   {showAddButton && (
-                    <button
-                      onClick={startAdd}
-                      className="w-full p-3 border-2 border-dashed border-gray-300 dark:border-slate-600 rounded-lg text-sm text-gray-500 dark:text-slate-400 hover:border-primary hover:text-primary transition-colors flex items-center justify-center gap-2"
-                    >
-                      <Plus className="w-4 h-4" />
-                      เพิ่ม {tabConfig.label} Account
-                    </button>
+                    isFbOAuthAdd ? renderFbAddButton() : (
+                      <button
+                        onClick={startAdd}
+                        className="w-full p-3 border-2 border-dashed border-gray-300 dark:border-slate-600 rounded-lg text-sm text-gray-500 dark:text-slate-400 hover:border-primary hover:text-primary transition-colors flex items-center justify-center gap-2"
+                      >
+                        <Plus className="w-4 h-4" />
+                        เพิ่ม {tabConfig.label} Account
+                      </button>
+                    )
                   )}
-                  {/* Add form after last card */}
-                  {showAddForm && (isFbOAuthAdd ? renderFbOAuthForm() : renderInlineForm())}
+                  {/* Manual form (FB manual mode or LINE) after last card */}
+                  {showAddForm && renderInlineForm()}
                 </div>
               );
             })}
@@ -896,9 +775,8 @@ export default function ChatChannelsPage() {
             {/* If no accounts, show add button or form */}
             {tabAccounts.length === 0 && (() => {
               const isFbOAuthAdd = activeTab === 'facebook' && fbMode === 'oauth' && !editingId;
-              if (showForm && !editingId) {
-                return isFbOAuthAdd ? renderFbOAuthForm() : renderInlineForm();
-              }
+              if (isFbOAuthAdd) return renderFbAddButton();
+              if (showForm && !editingId) return renderInlineForm();
               return (
                 <button
                   onClick={startAdd}
@@ -913,6 +791,133 @@ export default function ChatChannelsPage() {
         )}
       </Container>
       {confirmDialog}
+
+      {/* Facebook Page selection modal — opens after OAuth returns pages */}
+      <Modal
+        open={fbPages.length > 0}
+        onClose={() => { setFbPages([]); setSelectedPageIds(new Set()); setFbSearch(''); }}
+        title={`เลือก Page ที่ต้องการเชื่อมต่อ (${fbPages.length} Pages)`}
+        icon={<FacebookSolidIcon className="w-5 h-5 text-facebook" fill="currentColor" stroke="none" />}
+        size="xl"
+        disableBackdropClose={fbSavingPage}
+        hideCloseButton={fbSavingPage}
+        footer={
+          <div className="flex gap-2 justify-end p-4">
+            <Button
+              variant="secondary"
+              onClick={() => { setFbPages([]); setSelectedPageIds(new Set()); setFbSearch(''); }}
+              disabled={fbSavingPage}
+              icon={<X className="w-4 h-4" />}
+            >
+              ยกเลิก
+            </Button>
+            <Button
+              onClick={() => {
+                const pages = fbPages.filter(p => selectedPageIds.has(p.id));
+                if (pages.length > 0) handleSaveFbPages(pages);
+              }}
+              disabled={selectedPageIds.size === 0 || fbSavingPage}
+              loading={fbSavingPage}
+              icon={!fbSavingPage ? <Check className="w-4 h-4" /> : undefined}
+              className="!bg-facebook hover:!bg-facebook-hover"
+            >
+              {fbSavingPage ? 'กำลังเชื่อมต่อ...' : `เชื่อมต่อ ${selectedPageIds.size > 0 ? selectedPageIds.size + ' ' : ''}Page`}
+            </Button>
+          </div>
+        }
+      >
+        <div className="p-4 space-y-3">
+          {/* Search box */}
+          {fbPages.length > 5 && (
+            <SearchInput
+              value={fbSearch}
+              onChange={setFbSearch}
+              placeholder="ค้นหา Page..."
+              ringColor="focus:ring-facebook"
+            />
+          )}
+
+          {/* Page list — capped height so modal stays compact */}
+          <div className="max-h-[55vh] overflow-y-auto space-y-1 -mx-1 px-1">
+            {(() => {
+              const localConnectedIds = new Set(
+                fbAccounts.map(a => a.credentials.page_id as string).filter(Boolean)
+              );
+              return fbPages
+                .filter(p => !fbSearch || p.name.toLowerCase().includes(fbSearch.toLowerCase()) || p.id.includes(fbSearch))
+                .map(page => {
+                  const connectedBy = page.connected_by ?? (localConnectedIds.has(page.id) ? 'current' : null);
+                  const isConnected = connectedBy !== null;
+                  const remark = connectedBy === 'current'
+                    ? 'เชื่อมต่อแล้ว'
+                    : connectedBy === 'other'
+                      ? 'มีบัญชีอื่นเชื่อมต่อไปแล้ว'
+                      : null;
+                  return (
+                    <button
+                      key={page.id}
+                      onClick={() => {
+                        if (isConnected) return;
+                        setSelectedPageIds(prev => {
+                          const next = new Set(prev);
+                          if (next.has(page.id)) next.delete(page.id);
+                          else next.add(page.id);
+                          return next;
+                        });
+                      }}
+                      disabled={isConnected}
+                      title={connectedBy === 'other' ? 'Page นี้ถูกเชื่อมต่อกับบัญชีอื่นในระบบแล้ว — 1 Page เชื่อมต่อได้ทีละ 1 บัญชี' : undefined}
+                      className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors text-left ${
+                        isConnected
+                          ? 'opacity-50 cursor-not-allowed'
+                          : selectedPageIds.has(page.id)
+                            ? 'bg-orange-50 dark:bg-orange-900/30'
+                            : 'hover:bg-gray-50 dark:hover:bg-slate-700/50'
+                      }`}
+                    >
+                      <div className="relative flex-shrink-0">
+                        {page.picture_url ? (
+                          <img src={page.picture_url} alt={page.name} className={`w-9 h-9 rounded-full ${isConnected ? 'grayscale' : ''}`} />
+                        ) : (
+                          <div className="w-9 h-9 rounded-full bg-facebook/10 flex items-center justify-center">
+                            <FbIcon size={16} />
+                          </div>
+                        )}
+                        {page.instagram && (
+                          <img
+                            src={page.instagram.profile_picture_url}
+                            alt={page.instagram.name}
+                            className={`absolute -bottom-1 -right-1 w-5 h-5 rounded-full border-2 border-white dark:border-slate-800 ${isConnected ? 'grayscale' : ''}`}
+                          />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className={`body-text font-medium truncate ${isConnected ? 'text-gray-400 dark:text-slate-500' : 'text-gray-900 dark:text-white'}`}>{page.name}</p>
+                        <div className="flex items-center gap-1.5">
+                          <span className="helper-text text-gray-400 dark:text-slate-500">{page.id}</span>
+                          {page.instagram && (
+                            <span className={`helper-text ${isConnected ? 'text-gray-400 dark:text-slate-500' : 'text-pink-500'}`}>• IG @{page.instagram.name}</span>
+                          )}
+                        </div>
+                      </div>
+                      {remark ? (
+                        <span className={`subtitle-text flex-shrink-0 whitespace-nowrap ${connectedBy === 'other' ? 'text-amber-600 dark:text-amber-400' : 'text-gray-400 dark:text-slate-500'}`}>
+                          {remark}
+                        </span>
+                      ) : selectedPageIds.has(page.id) ? (
+                        <div className="w-6 h-6 rounded-full bg-primary flex items-center justify-center flex-shrink-0">
+                          <Check className="w-4 h-4 text-white" />
+                        </div>
+                      ) : (
+                        <div className="w-6 h-6 rounded-full border-2 border-gray-300 dark:border-slate-600 flex-shrink-0" />
+                      )}
+                    </button>
+                  );
+                });
+            })()}
+          </div>
+        </div>
+      </Modal>
     </Layout>
   );
 
@@ -937,6 +942,7 @@ export default function ChatChannelsPage() {
         : account.credentials.page_picture_url as string | undefined);
     const basicId = account.credentials.basic_id as string | undefined;
     const pageId = account.credentials.page_id as string | undefined;
+    const pageUsername = account.credentials.page_username as string | undefined;
     const igAccountId = account.credentials.ig_account_id as string | undefined;
     const igUsername = account.credentials.ig_username as string | undefined;
     const igPicture = account.credentials.ig_profile_picture_url as string | undefined;
@@ -986,14 +992,29 @@ export default function ChatChannelsPage() {
                 <span className="text-xs text-gray-400 dark:text-slate-500 truncate">({botName})</span>
               ) : null}
             </div>
-            <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-slate-400">
-              {account.is_active ? (
-                <span className="text-green-600 dark:text-green-400">เปิดใช้งาน</span>
+            <div className="flex items-center gap-2 subtitle-text text-gray-500 dark:text-slate-400">
+              {account.platform === 'line' ? (
+                <span className="inline-flex items-center gap-1">
+                  <LineIcon size={14} />
+                  <span className="text-line dark:text-line">LINE</span>
+                  {basicId ? <span className="text-gray-500 dark:text-slate-400">@{basicId}</span> : null}
+                </span>
               ) : (
-                <span className="text-gray-400">ปิดใช้งาน</span>
+                <>
+                  <span className="inline-flex items-center gap-1">
+                    <FbIcon size={14} />
+                    <span className="text-facebook dark:text-facebook">
+                      {pageUsername ? `@${pageUsername}` : 'Facebook'}
+                    </span>
+                  </span>
+                  {igUsername ? (
+                    <span className="inline-flex items-center gap-1">
+                      <IgIcon size={14} />
+                      <span className="text-pink-500">@{igUsername}</span>
+                    </span>
+                  ) : null}
+                </>
               )}
-              {basicId ? <span className="ml-1">@{basicId}</span> : null}
-              {igUsername ? <span className="text-pink-500">• IG @{igUsername}</span> : null}
             </div>
           </div>
 

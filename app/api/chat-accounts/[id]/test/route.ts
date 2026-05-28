@@ -92,7 +92,7 @@ async function testFbConnection(creds: Record<string, unknown>, accountId: strin
     return NextResponse.json({ error: 'Page Access Token is required' }, { status: 400 });
   }
 
-  const response = await fetch(`https://graph.facebook.com/v21.0/me?fields=id,name,picture&access_token=${token}`);
+  const response = await fetch(`https://graph.facebook.com/v21.0/me?fields=id,name,username,picture&access_token=${token}`);
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
@@ -104,6 +104,7 @@ async function testFbConnection(creds: Record<string, unknown>, accountId: strin
 
   const pageInfo = await response.json();
   const pictureUrl = pageInfo.picture?.data?.url || null;
+  const pageUsername: string | null = pageInfo.username || null;
 
   // Also fetch IG profile picture if ig_account_id exists
   const igAccountId = creds.ig_account_id as string | undefined;
@@ -130,6 +131,7 @@ async function testFbConnection(creds: Record<string, unknown>, accountId: strin
         ...creds,
         page_name: pageInfo.name,
         page_id: pageInfo.id,
+        ...(pageUsername ? { page_username: pageUsername } : {}),
         ...(pictureUrl ? { page_picture_url: pictureUrl } : {}),
         ...(igPictureUrl ? { ig_profile_picture_url: igPictureUrl } : {}),
         ...(igUsername ? { ig_username: igUsername } : {}),

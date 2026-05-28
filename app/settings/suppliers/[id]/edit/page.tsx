@@ -30,7 +30,7 @@ export default function EditSupplierPage() {
   useEffect(() => {
     if (authLoading) return;
     if (!userProfile) { router.push('/login'); return; }
-    if (!userProfile.roles?.some((r: string) => ['owner', 'admin'].includes(r))) {
+    if (!userProfile.roles?.some((r: string) => ['owner', 'admin', 'manager'].includes(r))) {
       router.push('/dashboard');
     }
   }, [userProfile, authLoading, router]);

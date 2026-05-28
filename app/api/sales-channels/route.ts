@@ -13,12 +13,16 @@ interface SalesChannelRow {
   color: string | null;
   is_active: boolean;
   is_system: boolean;
+  is_default: boolean;
   sort_order: number;
 }
 
 const CODE_REGEX = /^[a-z0-9_-]{2,32}$/;
 
 // GET — list channels. ?active=true to filter active; chat-linked rows always included.
+// Orphaned chat mirrors (chat_account_id IS NULL — chat_account was deleted but
+// historical orders still reference them) are hidden so the list only shows
+// currently-linked channels.
 export async function GET(request: NextRequest) {
   const auth = await checkAuthWithCompany(request);
   if (!auth.isAuth || !auth.companyId) {
@@ -30,8 +34,9 @@ export async function GET(request: NextRequest) {
 
   let query = supabaseAdmin
     .from('sales_channels')
-    .select('id, code, name, channel_type, platform, chat_account_id, icon, color, is_active, is_system, sort_order')
+    .select('id, code, name, channel_type, platform, chat_account_id, icon, color, is_active, is_system, is_default, sort_order')
     .eq('company_id', auth.companyId)
+    .or('channel_type.neq.chat,chat_account_id.not.is.null')
     .order('sort_order', { ascending: true })
     .order('name', { ascending: true });
 
@@ -106,7 +111,7 @@ export async function POST(request: NextRequest) {
       is_system: false,
       sort_order: nextSort,
     })
-    .select('id, code, name, channel_type, platform, chat_account_id, icon, color, is_active, is_system, sort_order')
+    .select('id, code, name, channel_type, platform, chat_account_id, icon, color, is_active, is_system, is_default, sort_order')
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -174,6 +179,19 @@ export async function PUT(request: NextRequest) {
     patch.is_active = body.is_active;
   }
 
+  // Default channel — at most one per company (enforced by partial unique index).
+  // Setting one as default unsets all the others first, in the same request.
+  if (body.is_default === true) {
+    await supabaseAdmin
+      .from('sales_channels')
+      .update({ is_default: false })
+      .eq('company_id', auth.companyId)
+      .neq('id', body.id);
+    patch.is_default = true;
+  } else if (body.is_default === false) {
+    patch.is_default = false;
+  }
+
   if (typeof body.sort_order === 'number') {
     // Allow reordering but keep ranges segregated: manual <200, chat ≥200.
     const minSort = isChatLinked ? 200 : 0;
@@ -189,7 +207,7 @@ export async function PUT(request: NextRequest) {
     .from('sales_channels')
     .update(patch)
     .eq('id', body.id)
-    .select('id, code, name, channel_type, platform, chat_account_id, icon, color, is_active, is_system, sort_order')
+    .select('id, code, name, channel_type, platform, chat_account_id, icon, color, is_active, is_system, is_default, sort_order')
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

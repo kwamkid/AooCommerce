@@ -30,6 +30,7 @@ export interface PrefillDeliveryFields {
 }
 
 export interface PrefillTaxFields {
+  taxType: 'personal' | 'corporate';
   taxName: string;
   taxTaxId: string;
   taxBranch: string;
@@ -61,6 +62,7 @@ export function useCustomerPrefill() {
   const [deliveryPostalCode, setDeliveryPostalCode] = useState('');
 
   // Tax fields
+  const [taxType, setTaxType] = useState<'personal' | 'corporate'>('corporate');
   const [taxName, setTaxName] = useState('');
   const [taxTaxId, setTaxTaxId] = useState('');
   const [taxBranch, setTaxBranch] = useState('สำนักงานใหญ่');
@@ -124,6 +126,7 @@ export function useCustomerPrefill() {
   // ── Fill tax fields from customer ──
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const fillTaxFromCustomer = useCallback((c: Record<string, any>) => {
+    if (c.tax_type === 'personal' || c.tax_type === 'corporate') setTaxType(c.tax_type);
     if (c.tax_company_name) setTaxName(c.tax_company_name);
     if (c.tax_id) setTaxTaxId(c.tax_id);
     if (c.tax_branch) setTaxBranch(c.tax_branch);
@@ -172,7 +175,7 @@ export function useCustomerPrefill() {
     setDeliveryName(''); setDeliveryPhone(''); setDeliveryEmail('');
     setDeliveryAddress(''); setDeliveryDistrict(''); setDeliveryAmphoe('');
     setDeliveryProvince(''); setDeliveryPostalCode('');
-    setTaxName(''); setTaxTaxId(''); setTaxBranch('สำนักงานใหญ่'); setTaxAddress('');
+    setTaxType('corporate'); setTaxName(''); setTaxTaxId(''); setTaxBranch('สำนักงานใหญ่'); setTaxAddress('');
   }, []);
 
   // ── onDeliveryChange handler for CustomerSelectionCard ──
@@ -189,6 +192,7 @@ export function useCustomerPrefill() {
 
   // ── onTaxFieldsChange handler for CustomerSelectionCard ──
   const handleTaxFieldsChange = useCallback((f: PrefillTaxFields) => {
+    setTaxType(f.taxType);
     setTaxName(f.taxName); setTaxTaxId(f.taxTaxId);
     setTaxBranch(f.taxBranch); setTaxAddress(f.taxAddress);
   }, []);
@@ -217,13 +221,13 @@ export function useCustomerPrefill() {
       deliveryAddress, deliveryDistrict, deliveryAmphoe,
       deliveryProvince, deliveryPostalCode,
     },
-    taxFields: { taxName, taxTaxId, taxBranch, taxAddress },
+    taxFields: { taxType, taxName, taxTaxId, taxBranch, taxAddress },
 
     // Individual setters (for edit mode population)
     setDeliveryName, setDeliveryPhone, setDeliveryEmail,
     setDeliveryAddress, setDeliveryDistrict, setDeliveryAmphoe,
     setDeliveryProvince, setDeliveryPostalCode,
-    setTaxName, setTaxTaxId, setTaxBranch, setTaxAddress,
+    setTaxType, setTaxName, setTaxTaxId, setTaxBranch, setTaxAddress,
     setShippingAddresses, setSelectedAddressId,
 
     // Actions

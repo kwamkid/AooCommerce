@@ -1,4 +1,4 @@
-import { checkAuthWithCompany, isAdminRole } from '@/lib/supabase-admin';
+import { checkAuthWithCompany, isAdminRole, supabaseAdmin } from '@/lib/supabase-admin';
 import { NextRequest, NextResponse } from 'next/server';
 
 // POST - Exchange short-lived FB token for long-lived token and return pages
@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
 
     // Fetch ALL user's managed pages (with pagination) + Instagram business account info
     const allPages: Record<string, unknown>[] = [];
-    let nextUrl: string | null = `https://graph.facebook.com/v21.0/me/accounts?fields=id,name,access_token,picture,instagram_business_account&limit=100&access_token=${longLivedToken}`;
+    let nextUrl: string | null = `https://graph.facebook.com/v21.0/me/accounts?fields=id,name,username,access_token,picture,instagram_business_account&limit=100&access_token=${longLivedToken}`;
 
     while (nextUrl) {
       const pagesRes: Response = await fetch(nextUrl);
@@ -51,6 +51,28 @@ export async function POST(request: NextRequest) {
     }
 
     console.log(`FB OAuth: fetched ${allPages.length} pages`);
+
+    // Look up which page_ids are already connected anywhere in the system so the
+    // frontend can disable them with a clear reason ("same company" vs "other account").
+    const pageIds = allPages.map(p => p.id as string).filter(Boolean);
+    const connectedMap = new Map<string, 'current' | 'other'>();
+    if (pageIds.length > 0) {
+      const { data: existingAccounts } = await supabaseAdmin
+        .from('chat_accounts')
+        .select('company_id, credentials')
+        .eq('platform', 'facebook')
+        .eq('is_active', true);
+
+      for (const acc of existingAccounts || []) {
+        const creds = acc.credentials as Record<string, unknown> | null;
+        const existingPageId = creds?.page_id as string | undefined;
+        if (!existingPageId || !pageIds.includes(existingPageId)) continue;
+        connectedMap.set(
+          existingPageId,
+          acc.company_id === companyId ? 'current' : 'other'
+        );
+      }
+    }
 
     // Page tokens from long-lived user token are already long-lived (non-expiring)
     // Also fetch IG profile for pages that have instagram_business_account
@@ -76,12 +98,16 @@ export async function POST(request: NextRequest) {
         }
       }
 
+      const connectedBy = connectedMap.get(page.id as string) ?? null;
+
       return {
         id: page.id,
         name: page.name,
+        username: (page.username as string | undefined) || null,
         access_token: page.access_token,
         picture_url: (page.picture as Record<string, Record<string, string>> | undefined)?.data?.url || null,
         instagram: igInfo,
+        connected_by: connectedBy,
       };
     }));
 

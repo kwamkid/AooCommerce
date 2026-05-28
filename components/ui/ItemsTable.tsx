@@ -815,47 +815,45 @@ export default function ItemsTable({
 
   // ── Render ────────────────────────────────────────────────────────────
 
+  // When the form has no items yet, the dashed-green ProductSearchInput is
+  // the entire empty state — render it WITHOUT the outer card border + the
+  // redundant "ยังไม่มีสินค้า" hint. The search input itself reads
+  // "+ เพิ่มสินค้าหรือโปรโมชั่น — พิมพ์ชื่อหรือรหัส..." which already
+  // explains what to do.
+  const isEmptyEditable = items.length === 0 && !readOnly && onAdd;
+
   return (
     <>
-      <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700">
-        {/* Empty state — search on top when no items */}
-        {items.length === 0 && !readOnly && onAdd && (
-          <>
-            <div className="px-4 py-3">
-              {searchDisabledMessage
-                ? <p className="text-sm text-gray-400 dark:text-slate-500">{searchDisabledMessage}</p>
-                : <ProductSearchInput
-                    products={products}
-                    onSelect={onAdd}
-                    loading={loadingProducts}
-                    placeholder={searchPlaceholder}
-                    inputRef={searchRef as React.RefObject<HTMLInputElement>}
-                    mode={searchMode}
-                    isAlreadyAdded={p => items.some(i => searchMode === 'product' ? i.product_id === p.product_id : i.variation_id === p.id)}
-                    isDisabled={disableOutOfStock ? p => (stockMap[p.id] ?? 1) <= 0 : undefined}
-                    renderExtra={shouldShowStockInSearch ? (p) => {
-                      const qty = stockMap[p.id];
-                      if (qty === undefined) return null;
-                      return (
-                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium flex-shrink-0 ${
-                          qty <= 0 ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400'
-                          : qty <= 5 ? 'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400'
-                          : 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400'
-                        }`}>
-                          {qty <= 0 ? 'หมด' : `สต๊อก ${qty}`}
-                        </span>
-                      );
-                    } : undefined}
-                  />
-              }
-            </div>
-            {/* No items yet — keep this compact (search above already prompts).
-                Old layout used py-12 + w-14 icon which left a huge empty card. */}
-            <div className="flex items-center justify-center gap-2 py-5 text-gray-400 dark:text-slate-500 border-t border-gray-100 dark:border-slate-700">
-              <Package className="w-5 h-5 opacity-50" />
-              <p className="text-sm">ยังไม่มีสินค้า</p>
-            </div>
-          </>
+      <div className={isEmptyEditable
+        ? ''
+        : 'bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700'}
+      >
+        {isEmptyEditable && (
+          searchDisabledMessage
+            ? <p className="text-sm text-gray-400 dark:text-slate-500 px-1 py-2">{searchDisabledMessage}</p>
+            : <ProductSearchInput
+                products={products}
+                onSelect={onAdd}
+                loading={loadingProducts}
+                placeholder={searchPlaceholder}
+                inputRef={searchRef as React.RefObject<HTMLInputElement>}
+                mode={searchMode}
+                isAlreadyAdded={p => items.some(i => searchMode === 'product' ? i.product_id === p.product_id : i.variation_id === p.id)}
+                isDisabled={disableOutOfStock ? p => (stockMap[p.id] ?? 1) <= 0 : undefined}
+                renderExtra={shouldShowStockInSearch ? (p) => {
+                  const qty = stockMap[p.id];
+                  if (qty === undefined) return null;
+                  return (
+                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium flex-shrink-0 ${
+                      qty <= 0 ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400'
+                      : qty <= 5 ? 'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400'
+                      : 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400'
+                    }`}>
+                      {qty <= 0 ? 'หมด' : `สต๊อก ${qty}`}
+                    </span>
+                  );
+                } : undefined}
+              />
         )}
 
         {items.length === 0 && readOnly && (

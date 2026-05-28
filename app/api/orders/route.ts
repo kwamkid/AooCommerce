@@ -47,6 +47,7 @@ interface OrderData {
   delivery_email?: string;
   address_action?: 'update' | 'new';
   tax_invoice_requested?: boolean;
+  tax_invoice_type?: 'personal' | 'corporate';
   tax_invoice_name?: string;
   tax_invoice_tax_id?: string;
   tax_invoice_branch?: string;
@@ -277,6 +278,7 @@ export async function POST(request: NextRequest) {
         delivery_postal_code: orderData.delivery_postal_code || null,
         delivery_email: orderData.delivery_email || null,
         tax_invoice_requested: orderData.tax_invoice_requested || false,
+        tax_invoice_type: orderData.tax_invoice_type || null,
         tax_invoice_name: orderData.tax_invoice_name || null,
         tax_invoice_tax_id: orderData.tax_invoice_tax_id || null,
         tax_invoice_branch: orderData.tax_invoice_branch || null,

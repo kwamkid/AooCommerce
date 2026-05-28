@@ -105,9 +105,9 @@ export default function TaxInfoForm({
             <label className={labelClassName}>เลขประจำตัวผู้เสียภาษี{required && <span className="text-red-500 ml-0.5">*</span>}</label>
             {readOnly
               ? <p className="text-sm text-gray-900 dark:text-white">{data.tax_id || '-'}</p>
-              : <input type="text" data-field="tax_id" value={data.tax_id}
+              : <input type="text" inputMode="numeric" data-field="tax_id" value={data.tax_id}
                   onChange={e => onChange({ tax_id: e.target.value })}
-                  className={`${inputClassName} ${taxIdError ? 'border-red-400 ring-1 ring-red-400' : ''}`} placeholder="X-XXXX-XXXXX-XX-X" maxLength={17} />
+                  className={`${inputClassName} ${taxIdError ? 'border-red-400 ring-1 ring-red-400' : ''}`} placeholder="1234567890123" maxLength={13} />
             }
             {taxIdError && <p className="text-red-500 text-xs mt-1">{taxIdError}</p>}
           </div>
@@ -126,9 +126,9 @@ export default function TaxInfoForm({
           <label className={labelClassName}>เลขประจำตัวประชาชน{required && <span className="text-red-500 ml-0.5">*</span>}</label>
           {readOnly
             ? <p className="text-sm text-gray-900 dark:text-white">{data.tax_id || '-'}</p>
-            : <input type="text" value={data.tax_id}
+            : <input type="text" inputMode="numeric" value={data.tax_id}
                 onChange={e => onChange({ tax_id: e.target.value })}
-                className={`${inputClassName} ${taxIdError ? 'border-red-400 ring-1 ring-red-400' : ''}`} placeholder="X-XXXX-XXXXX-XX-X" maxLength={17} />
+                className={`${inputClassName} ${taxIdError ? 'border-red-400 ring-1 ring-red-400' : ''}`} placeholder="1234567890123" maxLength={13} />
           }
           {taxIdError && <p className="text-red-500 text-xs mt-1">{taxIdError}</p>}
         </div>

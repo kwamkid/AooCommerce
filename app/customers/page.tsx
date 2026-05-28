@@ -264,7 +264,7 @@ function CustomersPageContent() {
     }
 
     // Check role permission
-    if (!userProfile.roles?.some((r: string) => ['owner', 'admin', 'sales', 'account'].includes(r))) {
+    if (!userProfile.roles?.some((r: string) => ['owner', 'admin', 'manager', 'sales', 'account'].includes(r))) {
       router.push('/dashboard');
     }
   }, [userProfile, authLoading, router]);

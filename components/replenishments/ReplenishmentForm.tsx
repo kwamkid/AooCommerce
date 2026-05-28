@@ -35,6 +35,7 @@ interface Customer {
   province: string | null;
   postal_code: string | null;
   customer_type: string | null;
+  tax_type?: 'personal' | 'corporate' | null;
   tax_company_name: string | null;
   tax_id: string | null;
   tax_branch: string | null;
@@ -744,6 +745,7 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
         showTaxInvoice
         vatRegistered={vatRegistered}
         taxFields={selectedCustomer?.tax_company_name ? {
+          taxType: (selectedCustomer.tax_type === 'personal' ? 'personal' : 'corporate'),
           taxName: selectedCustomer.tax_company_name || '',
           taxTaxId: selectedCustomer.tax_id || '',
           taxBranch: selectedCustomer.tax_branch || '',

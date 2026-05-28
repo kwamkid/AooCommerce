@@ -4,7 +4,7 @@ import crypto from 'crypto';
 import {
   createSalesChannelForChatAccount,
   syncSalesChannelFromChatAccount,
-  deactivateSalesChannelForChatAccount,
+  removeSalesChannelForChatAccount,
 } from '@/lib/sales-channels-sync';
 
 // GET - List chat accounts
@@ -307,12 +307,13 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Account ID is required' }, { status: 400 });
     }
 
-    // Deactivate the mirror first so it ends up is_active=false (the FK SET NULL
-    // fires on the delete below and clears chat_account_id automatically).
+    // Remove the mirror first (hard-deletes if no orders reference it; otherwise
+    // sets is_active=false). FK SET NULL on the chat_accounts delete below will
+    // also clear chat_account_id on any remaining historical mirror rows.
     try {
-      await deactivateSalesChannelForChatAccount({ companyId, chatAccountId: id });
+      await removeSalesChannelForChatAccount({ companyId, chatAccountId: id });
     } catch (e) {
-      console.warn('deactivateSalesChannelForChatAccount failed:', e);
+      console.warn('removeSalesChannelForChatAccount failed:', e);
     }
 
     const { error } = await supabaseAdmin

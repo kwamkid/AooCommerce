@@ -219,6 +219,7 @@ export default function OrderForm({
     platform: string | null;
     chat_account_id: string | null;
     is_active: boolean;
+    is_default: boolean;
   }>>([]);
   const [selectedSalesChannelId, setSelectedSalesChannelId] = useState<string>('');
   const salesChannelLocked = !!chatAccountId;
@@ -232,9 +233,14 @@ export default function OrderForm({
   const customerPrefill = useCustomerPrefill();
   const { shippingAddresses, selectedAddressId, delivery: deliveryFields, taxFields: taxFieldsState } = customerPrefill;
   const { deliveryName, deliveryPhone, deliveryEmail, deliveryAddress, deliveryDistrict, deliveryAmphoe, deliveryProvince, deliveryPostalCode } = deliveryFields;
-  const { taxName, taxTaxId, taxBranch, taxAddress } = taxFieldsState;
+  const { taxType, taxName, taxTaxId, taxBranch, taxAddress } = taxFieldsState;
   const { setDeliveryName, setDeliveryPhone, setDeliveryEmail, setDeliveryAddress, setDeliveryDistrict, setDeliveryAmphoe, setDeliveryProvince, setDeliveryPostalCode } = customerPrefill;
-  const { setTaxName, setTaxTaxId, setTaxBranch, setTaxAddress, setShippingAddresses, setSelectedAddressId } = customerPrefill;
+  const { setTaxType, setTaxName, setTaxTaxId, setTaxBranch, setTaxAddress, setShippingAddresses, setSelectedAddressId } = customerPrefill;
+
+  // True when the currently selected customer already has tax_id on file.
+  // Drives the tax-modal UX: false → 1st save auto-persists; true → modal
+  // shows extra "บันทึก + อัพเดทลูกค้า" button for explicit master update.
+  const [customerHasTax, setCustomerHasTax] = useState(false);
 
   // Products
   const [products, setProducts] = useState<Product[]>([]);
@@ -351,7 +357,8 @@ export default function OrderForm({
   // Pick the default sales channel once the list loads. Priority:
   //   1. edit mode → use the order's existing sales_channel_id (set later from preloadedOrder)
   //   2. chat context → match the chat-linked row by chat_account_id
-  //   3. default → 'direct'
+  //   3. company's default channel (is_default=true)
+  //   4. fallback: first active row (handles companies whose default was deleted/disabled)
   useEffect(() => {
     if (salesChannels.length === 0) return;
     if (selectedSalesChannelId) return; // already set (e.g. from edit hydration)
@@ -362,8 +369,9 @@ export default function OrderForm({
         return;
       }
     }
-    const direct = salesChannels.find(c => c.code === 'direct');
-    if (direct) setSelectedSalesChannelId(direct.id);
+    const def = salesChannels.find(c => c.is_default && c.is_active)
+      ?? salesChannels.find(c => c.is_active);
+    if (def) setSelectedSalesChannelId(def.id);
   }, [salesChannels, chatAccountId, selectedSalesChannelId]);
 
   // Auto-select preselected customer
@@ -435,11 +443,13 @@ export default function OrderForm({
             if (res.ok) {
               const data = await res.json();
               const c = data.customer || data;
+              if (c.tax_type === 'personal' || c.tax_type === 'corporate') setTaxType(c.tax_type);
               if (c.tax_company_name) setTaxName(c.tax_company_name);
               if (c.tax_id) setTaxTaxId(c.tax_id);
               if (c.tax_branch) setTaxBranch(c.tax_branch);
               const addrParts = [c.billing_address, c.billing_district, c.billing_amphoe, c.billing_province, c.billing_postal_code].filter(Boolean).join(' ');
               if (addrParts) setTaxAddress(addrParts);
+              setCustomerHasTax(!!c.tax_id);
             }
           } catch {
             // Ignore tax pre-fill errors
@@ -547,6 +557,7 @@ export default function OrderForm({
 
         if (order.tax_invoice_requested) {
           setTaxInvoiceRequested(true);
+          if (order.tax_invoice_type === 'personal' || order.tax_invoice_type === 'corporate') setTaxType(order.tax_invoice_type);
           if (order.tax_invoice_name) setTaxName(order.tax_invoice_name);
           if (order.tax_invoice_tax_id) setTaxTaxId(order.tax_invoice_tax_id);
           if (order.tax_invoice_branch) setTaxBranch(order.tax_invoice_branch);
@@ -755,6 +766,7 @@ export default function OrderForm({
     setCustomerPrices({});
     customerPrefill.clearPrefill();
     setTaxInvoiceRequested(false);
+    setCustomerHasTax(false);
   };
 
   const handleSelectCustomer = async (customerIdOrCustomer: string | Customer) => {
@@ -782,7 +794,8 @@ export default function OrderForm({
 
     // Fetch customer context (addresses + tax) via hook
     try {
-      await customerPrefill.prefillCustomer(customerId);
+      const result = await customerPrefill.prefillCustomer(customerId);
+      setCustomerHasTax(!!(result?.customer as { tax_id?: string } | undefined)?.tax_id);
     } catch (error) {
       console.error('Error fetching customer context:', error);
     }
@@ -1445,6 +1458,7 @@ export default function OrderForm({
         internal_notes: internalNotes || undefined,
         tax_invoice_requested: taxInvoiceRequested || undefined,
         ...(taxInvoiceRequested ? {
+          tax_invoice_type: taxType,
           tax_invoice_name: taxName.trim() || undefined,
           tax_invoice_tax_id: taxTaxId.trim() || undefined,
           tax_invoice_branch: taxBranch.trim() || undefined,
@@ -1777,7 +1791,7 @@ export default function OrderForm({
             disabled={isReadOnly || salesChannelLocked}
             options={salesChannels.map(c => ({
               id: c.id,
-              label: c.name,
+              label: `${c.is_default ? '⭐ ' : ''}${c.name}`,
               subtitle: c.channel_type === 'chat' ? 'Chat' : undefined,
             }))}
             icon={<Store className="w-4 h-4" />}
@@ -1827,6 +1841,29 @@ export default function OrderForm({
           showTaxCheckbox
           taxInvoiceRequested={taxInvoiceRequested}
           onTaxInvoiceRequestedChange={setTaxInvoiceRequested}
+          customerHasTax={customerHasTax}
+          onUpdateCustomerTax={selectedCustomer ? async (fields) => {
+            try {
+              const res = await apiFetch('/api/customers', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  id: selectedCustomer.id,
+                  tax_type: fields.taxType,
+                  tax_company_name: fields.taxName,
+                  tax_id: fields.taxTaxId,
+                  tax_branch: fields.taxBranch,
+                  tax_address: fields.taxAddress,
+                }),
+              });
+              if (res.ok) {
+                setCustomerHasTax(true);
+                showToast(customerHasTax ? 'อัพเดทข้อมูลภาษีของลูกค้าแล้ว' : 'บันทึกข้อมูลภาษีให้ลูกค้าแล้ว', 'success');
+              }
+            } catch {
+              // Silent — order snapshot still saved
+            }
+          } : undefined}
           readOnly={isReadOnly}
         />
 
@@ -1847,7 +1884,7 @@ export default function OrderForm({
               disabled={isReadOnly || salesChannelLocked}
               options={salesChannels.map(c => ({
                 id: c.id,
-                label: c.name,
+                label: `${c.is_default ? '⭐ ' : ''}${c.name}`,
                 subtitle: c.channel_type === 'chat' ? 'Chat' : undefined,
               }))}
               placeholder="-- เลือกช่องทาง --"

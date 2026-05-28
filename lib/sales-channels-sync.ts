@@ -107,18 +107,42 @@ export async function syncSalesChannelFromChatAccount(args: {
 }
 
 /**
- * Soft-delete the mirror row when its chat account is disconnected. We deactivate
- * rather than delete so that orders.sales_channel_id stays resolvable. The row will
- * be cleaned up only on company hard-delete (cascades).
+ * Remove the mirror row when its chat account is disconnected.
+ *
+ * - If no orders reference the mirror → hard-delete (clean removal; row disappears
+ *   from /settings/sales-channels and chat-channels list).
+ * - If any orders reference it → fall back to is_active=false (after the chat_account
+ *   delete, the FK SET NULL also clears chat_account_id, so the GET handler hides it
+ *   from the UI while orders.sales_channel_id stays resolvable for historical lookups).
  */
-export async function deactivateSalesChannelForChatAccount(args: {
+export async function removeSalesChannelForChatAccount(args: {
   companyId: string;
   chatAccountId: string;
 }): Promise<void> {
   const { companyId, chatAccountId } = args;
+
+  const { data: mirror } = await supabaseAdmin
+    .from('sales_channels')
+    .select('id')
+    .eq('company_id', companyId)
+    .eq('chat_account_id', chatAccountId)
+    .maybeSingle();
+
+  if (!mirror) return;
+
+  const { count } = await supabaseAdmin
+    .from('orders')
+    .select('id', { count: 'exact', head: true })
+    .eq('company_id', companyId)
+    .eq('sales_channel_id', mirror.id);
+
+  if ((count ?? 0) === 0) {
+    await supabaseAdmin.from('sales_channels').delete().eq('id', mirror.id);
+    return;
+  }
+
   await supabaseAdmin
     .from('sales_channels')
     .update({ is_active: false })
-    .eq('company_id', companyId)
-    .eq('chat_account_id', chatAccountId);
+    .eq('id', mirror.id);
 }
