@@ -1,16 +1,14 @@
 // Path: components/layout/Sidebar.tsx
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { useFetchOnce } from '@/lib/use-fetch-once';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { useCompany } from '@/lib/company-context';
 import { useFeatures } from '@/lib/features-context';
-import { apiFetch } from '@/lib/api-client';
-import { supabase } from '@/lib/supabase';
+import { useHeaderSummary } from '@/lib/header-summary-context';
 import {
   Home,
   Users,
@@ -131,11 +129,12 @@ export default function Sidebar() {
   const [dealerWholesaleOpen, setDealerWholesaleOpen] = useState(false);
   const [deptStoreOpen, setDeptStoreOpen] = useState(false);
   const [deptWholesaleOpen, setDeptWholesaleOpen] = useState(false);
-  const [lowStockCount, setLowStockCount] = useState(0);
-  const [chatUnreadCount, setChatUnreadCount] = useState(0);
-  const [orderReadyCount, setOrderReadyCount] = useState(0);
-  // Default เป็น true เพื่อไม่ให้เมนูกระพริบ → ถ้า API บอกปิดค่อยซ่อน
-  const [stockEnabled, setStockEnabled] = useState(true);
+  const { summary } = useHeaderSummary();
+  const lowStockCount = summary?.lowStockCount ?? 0;
+  const chatUnreadCount = summary?.chatUnread ?? 0;
+  const orderReadyCount = summary?.ordersReadyCount ?? 0;
+  // Default true ตอน summary ยังไม่มา เพื่อไม่ให้เมนูกระพริบ
+  const stockEnabled = summary?.stockConfig?.stockEnabled !== false;
   const pathname = usePathname();
   const router = useRouter();
   const { userProfile, loading: authLoading, signOut } = useAuth();
@@ -190,136 +189,9 @@ export default function Sidebar() {
     return () => document.removeEventListener('click', handleClick);
   }, []);
 
-  // Check stock enabled + fetch low stock count (once)
-  useFetchOnce(async () => {
-    try {
-      const res = await apiFetch('/api/warehouses');
-      if (res.ok) {
-        const data = await res.json();
-        const enabled = data.stockConfig?.stockEnabled !== false;
-        setStockEnabled(enabled);
-
-        if (enabled) {
-          try {
-            const invRes = await apiFetch('/api/inventory?low_stock=true&limit=1');
-            if (invRes.ok) {
-              const invData = await invRes.json();
-              setLowStockCount(invData.total || 0);
-            }
-          } catch {
-            // Ignore
-          }
-        }
-      }
-    } catch {
-      // API error → keep default (enabled)
-    }
-  }, !!userProfile);
-
-  // Fetch chat unread count via API
-  const fetchChatUnread = useCallback(async () => {
-    try {
-      const res = await apiFetch('/api/chat/unread-count');
-      if (res.ok) {
-        const data = await res.json();
-        setChatUnreadCount(data.unread || 0);
-      }
-    } catch { /* ignore */ }
-  }, []);
-
-  // Fetch order ready_to_ship count via API
-  const fetchOrderReadyCount = useCallback(async () => {
-    try {
-      const res = await apiFetch('/api/orders/ready-count');
-      if (res.ok) {
-        const data = await res.json();
-        setOrderReadyCount(data.count || 0);
-      }
-    } catch { /* ignore */ }
-  }, []);
-
-  // Initial fetch + Supabase Realtime subscription for unread changes
-  // Use stable IDs to prevent re-subscribing on every context re-render
-  const userId = userProfile?.id;
-  const companyId = currentCompany?.id;
-
-  useEffect(() => {
-    if (!userId || !companyId) return;
-
-    fetchChatUnread();
-
-    // Subscribe to unread_count changes on both contact tables
-    const channel = supabase
-      .channel('sidebar-unread')
-      .on('postgres_changes', {
-        event: 'UPDATE',
-        schema: 'public',
-        table: 'line_contacts',
-        filter: `company_id=eq.${companyId}`,
-      }, () => { fetchChatUnread(); })
-      .on('postgres_changes', {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'line_contacts',
-        filter: `company_id=eq.${companyId}`,
-      }, () => { fetchChatUnread(); })
-      .on('postgres_changes', {
-        event: 'UPDATE',
-        schema: 'public',
-        table: 'fb_contacts',
-        filter: `company_id=eq.${companyId}`,
-      }, () => { fetchChatUnread(); })
-      .on('postgres_changes', {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'fb_contacts',
-        filter: `company_id=eq.${companyId}`,
-      }, () => { fetchChatUnread(); })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [userId, companyId, fetchChatUnread]);
-
-  // Initial fetch + Supabase Realtime for order ready_to_ship count
-  useEffect(() => {
-    if (!userId || !companyId) return;
-
-    fetchOrderReadyCount();
-
-    // Debounced handler to avoid duplicate calls from Realtime events
-    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
-    const debouncedFetch = () => {
-      if (debounceTimer) clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(fetchOrderReadyCount, 500);
-    };
-
-    // Listen for custom event from order pages (e.g. after accepting orders)
-    window.addEventListener('orders-count-changed', debouncedFetch);
-
-    const channel = supabase
-      .channel('sidebar-order-ready')
-      .on('postgres_changes', {
-        event: 'UPDATE',
-        schema: 'public',
-        table: 'orders',
-        filter: `company_id=eq.${companyId}`,
-      }, debouncedFetch)
-      .on('postgres_changes', {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'orders',
-        filter: `company_id=eq.${companyId}`,
-      }, debouncedFetch)
-      .subscribe();
-
-    return () => {
-      if (debounceTimer) clearTimeout(debounceTimer);
-      window.removeEventListener('orders-count-changed', debouncedFetch);
-      supabase.removeChannel(channel);
-    };
-  }, [userId, companyId, fetchOrderReadyCount]);
+  // Badges (lowStockCount / chatUnread / orderReadyCount) + stockEnabled now
+  // come from useHeaderSummary (single consolidated /api/header/summary fetch
+  // + shared realtime subscriptions in the provider).
 
   const filteredSections = menuSections
     .filter(section => {

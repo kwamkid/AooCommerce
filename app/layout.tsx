@@ -6,6 +6,7 @@ import { CompanyProvider } from '@/lib/company-context';
 import { ToastProvider } from '@/lib/toast-context';
 import { ThemeProvider } from '@/lib/theme-context';
 import { FeaturesProvider } from '@/lib/features-context';
+import { HeaderSummaryProvider } from '@/lib/header-summary-context';
 import './globals.css';
 
 const ibmPlexSansThai = IBM_Plex_Sans_Thai({
@@ -52,9 +53,11 @@ export default function RootLayout({
           <AuthProvider>
             <CompanyProvider>
               <FeaturesProvider>
-                <ToastProvider>
-                  {children}
-                </ToastProvider>
+                <HeaderSummaryProvider>
+                  <ToastProvider>
+                    {children}
+                  </ToastProvider>
+                </HeaderSummaryProvider>
               </FeaturesProvider>
             </CompanyProvider>
           </AuthProvider>

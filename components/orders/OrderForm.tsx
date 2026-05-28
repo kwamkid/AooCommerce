@@ -349,13 +349,23 @@ export default function OrderForm({
     if (!isMarketplace) {
       fetchCustomers();
       fetchProducts();
-      fetchPromotions();
       fetchSalesChannels();
     } else {
       setLoadingProducts(false);
     }
     fetchWarehouses();
   }, !authLoading && !!userProfile);
+
+  // Promotions are non-critical for first paint — defer ~300ms so the
+  // critical fetch burst (customers / products / warehouses / sales-channels)
+  // can settle on the serverless side first.
+  useEffect(() => {
+    if (authLoading || !userProfile) return;
+    if (isMarketplaceSource(preloadedOrder?.source)) return;
+    const t = setTimeout(() => { fetchPromotions(); }, 300);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authLoading, userProfile]);
 
   const fetchSalesChannels = async () => {
     try {
@@ -723,12 +733,12 @@ export default function OrderForm({
   };
 
   // Top sellers — prefer this customer's history; backend falls back to
-  // company-wide if customer has none. We refetch when the customer changes
-  // so the suggestion list reflects who's ordering.
+  // company-wide if customer has none. Deferred ~300ms so it stays out of
+  // the critical fetch burst on mount; refetches when the customer changes.
   useEffect(() => {
     let aborted = false;
     const customerId = selectedCustomer?.id;
-    (async () => {
+    const timeout = setTimeout(async () => {
       try {
         const qs = new URLSearchParams();
         if (customerId) qs.set('customer_id', customerId);
@@ -756,8 +766,8 @@ export default function OrderForm({
         // non-fatal — suggestions are an enhancement, not a requirement
         console.error('Top sellers fetch failed:', e);
       }
-    })();
-    return () => { aborted = true; };
+    }, 300);
+    return () => { aborted = true; clearTimeout(timeout); };
   }, [selectedCustomer?.id]);
 
 

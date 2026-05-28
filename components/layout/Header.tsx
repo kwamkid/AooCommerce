@@ -1,7 +1,7 @@
 // Path: src/components/layout/Header.tsx
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
@@ -9,7 +9,7 @@ import { useCompany } from '@/lib/company-context';
 import ThemeToggle from '@/components/ThemeToggle';
 import UserAvatar from '@/components/ui/UserAvatar';
 import { useFeatures } from '@/lib/features-context';
-import { apiFetch } from '@/lib/api-client';
+import { useHeaderSummary } from '@/lib/header-summary-context';
 import {
   Bell,
   User,
@@ -33,56 +33,27 @@ interface Notification {
   href?: string;
 }
 
-interface MarketplaceHealth {
-  expired_count: number;
-  inactive_count: number;
-  error_count: number;
-  total_issues: number;
-  issues: Array<{
-    account_id: string;
-    shop_name: string | null;
-    platform: string;
-    type: 'expired' | 'disconnected';
-    message: string;
-  }>;
-}
-
 export default function Header() {
   const { userProfile, signOut } = useAuth();
   const { currentCompany, companyRoles } = useCompany();
   const { features } = useFeatures();
+  const { summary } = useHeaderSummary();
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
 
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-
-  const fetchMarketplaceHealth = useCallback(async () => {
-    if (!features.marketplace_sync) return;
-    try {
-      const res = await apiFetch('/api/marketplace/health');
-      if (!res.ok) return;
-      const data: MarketplaceHealth = await res.json();
-      const items: Notification[] = data.issues.map(issue => ({
-        id: `mp-${issue.account_id}`,
-        type: 'warning',
-        title: issue.type === 'expired' ? 'Token Shopee หมดอายุ' : 'ร้านถูกปิดการเชื่อมต่อ',
-        message: `${issue.shop_name || 'Shop'} — ${issue.message}`,
-        time: '',
-        read: false,
-        href: '/settings/integrations',
-      }));
-      setNotifications(items);
-    } catch (e) {
-      console.error('Failed to fetch marketplace health:', e);
-    }
-  }, [features.marketplace_sync]);
-
-  useEffect(() => {
-    fetchMarketplaceHealth();
-    // Refresh every 5 minutes
-    const interval = setInterval(fetchMarketplaceHealth, 5 * 60 * 1000);
-    return () => clearInterval(interval);
-  }, [fetchMarketplaceHealth]);
+  // Build marketplace notification list from shared header summary
+  const notifications = useMemo<Notification[]>(() => {
+    if (!features.marketplace_sync || !summary) return [];
+    return summary.marketplaceHealth.issues.map(issue => ({
+      id: `mp-${issue.account_id}`,
+      type: 'warning' as const,
+      title: issue.type === 'expired' ? 'Token Shopee หมดอายุ' : 'ร้านถูกปิดการเชื่อมต่อ',
+      message: `${issue.shop_name || 'Shop'} — ${issue.message}`,
+      time: '',
+      read: false,
+      href: '/settings/integrations',
+    }));
+  }, [features.marketplace_sync, summary]);
 
   const [currentTime, setCurrentTime] = useState('');
 
