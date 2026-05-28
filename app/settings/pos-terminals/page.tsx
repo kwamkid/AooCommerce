@@ -96,7 +96,7 @@ export default function PosTerminalsPage() {
     fetchTerminals();
     fetchWarehouses();
     fetchChannels();
-  }, !!(userProfile?.roles?.includes('admin') || userProfile?.roles?.includes('owner')));
+  }, !!(userProfile?.roles?.includes('admin') || userProfile?.roles?.includes('owner') || userProfile?.roles?.includes('manager')));
 
   // ── Terminal CRUD ──
 
@@ -377,7 +377,7 @@ export default function PosTerminalsPage() {
   };
 
   // Admin guard
-  if (userProfile && !userProfile.roles?.includes('admin') && !userProfile.roles?.includes('owner')) {
+  if (userProfile && !userProfile.roles?.includes('admin') && !userProfile.roles?.includes('owner') && !userProfile.roles?.includes('manager')) {
     return (
       <Layout title="เครื่อง POS">
         <NoPermissionCard />

@@ -139,7 +139,7 @@ export default function ChatChannelsPage() {
 
   useFetchOnce(() => {
     fetchAccounts();
-  }, !!(userProfile?.roles?.includes('admin') || userProfile?.roles?.includes('owner')));
+  }, !!(userProfile?.roles?.includes('admin') || userProfile?.roles?.includes('owner') || userProfile?.roles?.includes('manager')));
 
   // Load FB SDK when Facebook tab is active
   useEffect(() => {
@@ -499,9 +499,9 @@ export default function ChatChannelsPage() {
   const tabConfig = PLATFORM_CONFIG[activeTab];
 
   // Admin guard
-  if (userProfile && !userProfile.roles?.includes('admin') && !userProfile.roles?.includes('owner')) {
+  if (userProfile && !userProfile.roles?.includes('admin') && !userProfile.roles?.includes('owner') && !userProfile.roles?.includes('manager')) {
     return (
-      <Layout title="ช่องทาง Chat">
+      <Layout>
         <NoPermissionCard />
       </Layout>
     );
@@ -815,14 +815,12 @@ export default function ChatChannelsPage() {
   }
 
   return (
-    <Layout
-      title="ช่องทาง Chat"
-      breadcrumbs={[
-        { label: 'ตั้งค่าระบบ', href: '/settings' },
-        { label: 'ช่องทาง Chat' },
-      ]}
-    >
-      <Container size="2xl" gap="none">
+    <Layout>
+      <Container size="full">
+        <div>
+          <h1 className="heading-1">ช่องทาง Chat</h1>
+          <p className="page-subtitle">เชื่อมต่อ LINE OA และ Facebook / Instagram เพื่อรับข้อความจากลูกค้า</p>
+        </div>
         {/* Tabs */}
         <div className="flex border-b border-gray-200 dark:border-slate-700 mb-6">
           <button

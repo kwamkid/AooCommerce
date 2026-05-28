@@ -11,6 +11,8 @@ import { getImageUrl } from '@/lib/utils/image';
 import ImageUploader, { type ProductImage, uploadStagedImages } from '@/components/ui/ImageUploader';
 import Checkbox from '@/components/ui/Checkbox';
 import FormSelect from '@/components/ui/FormSelect';
+import Modal from '@/components/ui/Modal';
+import Button from '@/components/ui/Button';
 import {
   Plus,
   Trash2,
@@ -159,11 +161,17 @@ export default function ProductForm({
   const [showNewCategory, setShowNewCategory] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
   const [newCategoryParentId, setNewCategoryParentId] = useState('');
+  const [creatingCategory, setCreatingCategory] = useState(false);
   const [showNewBrand, setShowNewBrand] = useState(false);
   const [newBrandName, setNewBrandName] = useState('');
+  const [creatingBrand, setCreatingBrand] = useState(false);
   const [showNewVariationType, setShowNewVariationType] = useState(false);
   const [newVariationTypeName, setNewVariationTypeName] = useState('');
   const [creatingVariationType, setCreatingVariationType] = useState(false);
+
+  const closeNewCategory = () => { setShowNewCategory(false); setNewCategoryName(''); setNewCategoryParentId(''); };
+  const closeNewBrand = () => { setShowNewBrand(false); setNewBrandName(''); };
+  const closeNewVariationType = () => { setShowNewVariationType(false); setNewVariationTypeName(''); };
 
   // Image state
   const [productImages, setProductImages] = useState<ProductImage[]>(initialImages || []);
@@ -549,28 +557,34 @@ export default function ProductForm({
 
   // Handle create category (quick-add)
   const handleCreateCategory = async () => {
-    if (!newCategoryName.trim()) return;
+    const name = newCategoryName.trim();
+    if (!name || creatingCategory) return;
+    setCreatingCategory(true);
     try {
       const res = await apiFetch('/api/categories', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newCategoryName.trim(), parent_id: newCategoryParentId || null }),
+        body: JSON.stringify({ name, parent_id: newCategoryParentId || null }),
       });
-      if (res.ok) {
-        const { data } = await res.json();
-        // Refresh categories list
-        const catRes = await apiFetch('/api/categories');
-        if (catRes.ok) {
-          const catData = await catRes.json();
-          setCategories(catData.data || []);
-        }
-        setFormData(prev => ({ ...prev, category_id: data.id }));
-        setNewCategoryName('');
-        setNewCategoryParentId('');
-        setShowNewCategory(false);
+      const result = await res.json();
+      if (!res.ok) {
+        showToast(result.error || 'ไม่สามารถเพิ่มหมวดหมู่ได้', 'error');
+        return;
       }
+      const created = result.data;
+      // Refresh categories list (nested structure)
+      const catRes = await apiFetch('/api/categories');
+      if (catRes.ok) {
+        const catData = await catRes.json();
+        setCategories(catData.data || []);
+      }
+      setFormData(prev => ({ ...prev, category_id: created.id }));
+      closeNewCategory();
     } catch (e) {
       console.error('Failed to create category:', e);
+      showToast('ไม่สามารถเพิ่มหมวดหมู่ได้', 'error');
+    } finally {
+      setCreatingCategory(false);
     }
   };
 
@@ -608,8 +622,7 @@ export default function ProductForm({
         variations: updatedVariations,
       }));
       clearFieldError('variation_types');
-      setNewVariationTypeName('');
-      setShowNewVariationType(false);
+      closeNewVariationType();
     } catch (e) {
       console.error('Failed to create variation type:', e);
       showToast('ไม่สามารถเพิ่มประเภทตัวเลือกได้', 'error');
@@ -620,27 +633,34 @@ export default function ProductForm({
 
   // Handle create brand (quick-add)
   const handleCreateBrand = async () => {
-    if (!newBrandName.trim()) return;
+    const name = newBrandName.trim();
+    if (!name || creatingBrand) return;
+    setCreatingBrand(true);
     try {
       const res = await apiFetch('/api/brands', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newBrandName.trim() }),
+        body: JSON.stringify({ name }),
       });
-      if (res.ok) {
-        const { data } = await res.json();
-        // Refresh brands list
-        const brandRes = await apiFetch('/api/brands');
-        if (brandRes.ok) {
-          const brandData = await brandRes.json();
-          setBrands(brandData.data || []);
-        }
-        setFormData(prev => ({ ...prev, brand_id: data.id }));
-        setNewBrandName('');
-        setShowNewBrand(false);
+      const result = await res.json();
+      if (!res.ok) {
+        showToast(result.error || 'ไม่สามารถเพิ่มแบรนด์ได้', 'error');
+        return;
       }
+      const created = result.data;
+      // Refresh brands list
+      const brandRes = await apiFetch('/api/brands');
+      if (brandRes.ok) {
+        const brandData = await brandRes.json();
+        setBrands(brandData.data || []);
+      }
+      setFormData(prev => ({ ...prev, brand_id: created.id }));
+      closeNewBrand();
     } catch (e) {
       console.error('Failed to create brand:', e);
+      showToast('ไม่สามารถเพิ่มแบรนด์ได้', 'error');
+    } finally {
+      setCreatingBrand(false);
     }
   };
 
@@ -727,6 +747,7 @@ export default function ProductForm({
   };
 
   return (
+    <>
     <form ref={formRef} onSubmit={handleSave} className="space-y-6" noValidate>
       {/* Top: Image + Basic Info */}
       <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-5">
@@ -836,33 +857,11 @@ export default function ProductForm({
                 </div>
                 <button
                   type="button"
-                  onClick={() => setShowNewCategory(!showNewCategory)}
+                  onClick={() => setShowNewCategory(true)}
                   className="px-2 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm text-gray-500 hover:text-primary hover:border-primary transition-colors"
                   title="เพิ่มหมวดหมู่ใหม่"
                 >+</button>
               </div>
-              {/* Quick-add category inline form */}
-              {showNewCategory && (
-                <div className="mt-2 flex gap-2">
-                  <div className="w-40">
-                    <FormSelect
-                      value={newCategoryParentId}
-                      onChange={value => setNewCategoryParentId(value)}
-                      options={categories.map(c => ({ id: c.id, label: c.name }))}
-                      placeholder="หมวดหมู่หลัก"
-                      clearLabel="หมวดหมู่หลัก"
-                      searchThreshold={99}
-                    />
-                  </div>
-                  <input
-                    value={newCategoryName}
-                    onChange={e => setNewCategoryName(e.target.value)}
-                    placeholder="ชื่อหมวดหมู่"
-                    className="flex-1 px-2 py-1.5 border border-gray-300 dark:border-slate-600 rounded text-xs bg-white dark:bg-slate-700 text-gray-900 dark:text-white"
-                  />
-                  <button type="button" onClick={handleCreateCategory} className="px-2 py-1.5 bg-primary text-white rounded text-xs">เพิ่ม</button>
-                </div>
-              )}
             </div>
 
             {/* Brand (feature-gated) */}
@@ -881,22 +880,11 @@ export default function ProductForm({
                   </div>
                   <button
                     type="button"
-                    onClick={() => setShowNewBrand(!showNewBrand)}
+                    onClick={() => setShowNewBrand(true)}
                     className="px-2 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm text-gray-500 hover:text-primary hover:border-primary transition-colors"
                     title="เพิ่มแบรนด์ใหม่"
                   >+</button>
                 </div>
-                {showNewBrand && (
-                  <div className="mt-2 flex gap-2">
-                    <input
-                      value={newBrandName}
-                      onChange={e => setNewBrandName(e.target.value)}
-                      placeholder="ชื่อแบรนด์"
-                      className="flex-1 px-2 py-1.5 border border-gray-300 dark:border-slate-600 rounded text-xs bg-white dark:bg-slate-700 text-gray-900 dark:text-white"
-                    />
-                    <button type="button" onClick={handleCreateBrand} className="px-2 py-1.5 bg-primary text-white rounded text-xs">เพิ่ม</button>
-                  </div>
-                )}
                 {features.supplier && (() => {
                   const selectedBrand = brands.find(b => b.id === formData.brand_id);
                   if (!selectedBrand?.supplier) return null;
@@ -1097,7 +1085,7 @@ export default function ProductForm({
                 })}
               <button
                 type="button"
-                onClick={() => setShowNewVariationType(v => !v)}
+                onClick={() => setShowNewVariationType(true)}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border border-dashed border-gray-300 dark:border-slate-600 text-gray-500 dark:text-slate-400 hover:border-primary hover:text-primary transition-colors"
                 title="เพิ่มประเภทตัวเลือกใหม่"
               >
@@ -1105,36 +1093,6 @@ export default function ProductForm({
                 เพิ่มประเภท
               </button>
             </div>
-            {showNewVariationType && (
-              <div className="mt-3 flex gap-2">
-                <input
-                  autoFocus
-                  value={newVariationTypeName}
-                  onChange={e => setNewVariationTypeName(e.target.value)}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter') { e.preventDefault(); handleCreateVariationType(); }
-                    if (e.key === 'Escape') { setShowNewVariationType(false); setNewVariationTypeName(''); }
-                  }}
-                  placeholder="เช่น สี, ขนาด, รสชาติ"
-                  className="flex-1 px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-transparent"
-                />
-                <button
-                  type="button"
-                  onClick={handleCreateVariationType}
-                  disabled={!newVariationTypeName.trim() || creatingVariationType}
-                  className="px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium disabled:opacity-50"
-                >
-                  {creatingVariationType ? 'กำลังเพิ่ม...' : 'เพิ่ม'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { setShowNewVariationType(false); setNewVariationTypeName(''); }}
-                  className="px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm text-gray-600 dark:text-slate-300"
-                >
-                  ยกเลิก
-                </button>
-              </div>
-            )}
             <FieldError error={fieldErrors.variation_types} />
           </div>
 
@@ -1326,5 +1284,107 @@ export default function ProductForm({
         </button>
       </div>
     </form>
+
+    {/* Quick-add: Category */}
+    <Modal
+      open={showNewCategory}
+      onClose={() => { if (!creatingCategory) closeNewCategory(); }}
+      title="เพิ่มหมวดหมู่ใหม่"
+      size="md"
+      footer={
+        <div className="flex justify-end gap-2 p-4">
+          <Button variant="secondary" onClick={closeNewCategory} disabled={creatingCategory}>ยกเลิก</Button>
+          <Button variant="primary" onClick={handleCreateCategory} loading={creatingCategory} disabled={!newCategoryName.trim()}>
+            เพิ่มหมวดหมู่
+          </Button>
+        </div>
+      }
+    >
+      <div className="p-5 space-y-4">
+        <div>
+          <label className="field-label">ชื่อหมวดหมู่ *</label>
+          <input
+            autoFocus
+            value={newCategoryName}
+            onChange={e => setNewCategoryName(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter' && newCategoryName.trim()) { e.preventDefault(); handleCreateCategory(); } }}
+            placeholder="เช่น เสื้อผ้า, รองเท้า"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-transparent"
+          />
+        </div>
+        {categories.length > 0 && (
+          <div>
+            <label className="field-label">หมวดหมู่หลัก (ถ้าเป็นหมวดย่อย)</label>
+            <FormSelect
+              value={newCategoryParentId}
+              onChange={setNewCategoryParentId}
+              options={categories.map(c => ({ id: c.id, label: c.name }))}
+              placeholder="ไม่ระบุ (หมวดหลัก)"
+              clearLabel="ไม่ระบุ (หมวดหลัก)"
+            />
+          </div>
+        )}
+      </div>
+    </Modal>
+
+    {/* Quick-add: Brand */}
+    <Modal
+      open={showNewBrand}
+      onClose={() => { if (!creatingBrand) closeNewBrand(); }}
+      title="เพิ่มแบรนด์ใหม่"
+      size="md"
+      footer={
+        <div className="flex justify-end gap-2 p-4">
+          <Button variant="secondary" onClick={closeNewBrand} disabled={creatingBrand}>ยกเลิก</Button>
+          <Button variant="primary" onClick={handleCreateBrand} loading={creatingBrand} disabled={!newBrandName.trim()}>
+            เพิ่มแบรนด์
+          </Button>
+        </div>
+      }
+    >
+      <div className="p-5">
+        <label className="field-label">ชื่อแบรนด์ *</label>
+        <input
+          autoFocus
+          value={newBrandName}
+          onChange={e => setNewBrandName(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter' && newBrandName.trim()) { e.preventDefault(); handleCreateBrand(); } }}
+          placeholder="เช่น Nike, Apple"
+          className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-transparent"
+        />
+      </div>
+    </Modal>
+
+    {/* Quick-add: Variation Type */}
+    <Modal
+      open={showNewVariationType}
+      onClose={() => { if (!creatingVariationType) closeNewVariationType(); }}
+      title="เพิ่มประเภทตัวเลือกใหม่"
+      size="md"
+      footer={
+        <div className="flex justify-end gap-2 p-4">
+          <Button variant="secondary" onClick={closeNewVariationType} disabled={creatingVariationType}>ยกเลิก</Button>
+          <Button variant="primary" onClick={handleCreateVariationType} loading={creatingVariationType} disabled={!newVariationTypeName.trim()}>
+            เพิ่มประเภท
+          </Button>
+        </div>
+      }
+    >
+      <div className="p-5">
+        <label className="field-label">ชื่อประเภทตัวเลือก *</label>
+        <input
+          autoFocus
+          value={newVariationTypeName}
+          onChange={e => setNewVariationTypeName(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter' && newVariationTypeName.trim()) { e.preventDefault(); handleCreateVariationType(); } }}
+          placeholder="เช่น สี, ขนาด, รสชาติ"
+          className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-transparent"
+        />
+        <p className="text-xs text-gray-500 dark:text-slate-400 mt-2">
+          ใช้เป็นหัวข้อให้สินค้าระบุค่าได้ในแต่ละ variation (เช่น เลือก &quot;สี&quot; → variation จะกรอก &quot;แดง&quot; / &quot;น้ำเงิน&quot;)
+        </p>
+      </div>
+    </Modal>
+    </>
   );
 }

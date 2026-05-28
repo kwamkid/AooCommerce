@@ -163,7 +163,10 @@ export default function MembersPage() {
   const [warehouses, setWarehouses] = useState<WarehouseItem[]>([]);
   const [terminals, setTerminals] = useState<TerminalItem[]>([]);
 
-  const isOwnerOrAdmin = companyRoles.includes('owner') || companyRoles.includes('admin');
+  const isOwnerOrAdmin = companyRoles.includes('owner') || companyRoles.includes('admin') || companyRoles.includes('manager');
+  // Strict admin = can grant/revoke admin & owner roles. Manager has admin-level
+  // access but cannot manage owner/admin members (enforced at API too).
+  const isStrictAdmin = companyRoles.includes('owner') || companyRoles.includes('admin');
 
   // Fetch members and invitations
   const fetchMembers = useCallback(async () => {
@@ -656,17 +659,16 @@ export default function MembersPage() {
   };
 
   return (
-    <Layout
-      title="จัดการสมาชิก"
-      breadcrumbs={[
-        { label: 'ตั้งค่า', href: '/settings' },
-        { label: 'จัดการสมาชิก' },
-      ]}
-    >
+    <Layout>
+      <Container size="full">
+        <div className="mb-6">
+          <h1 className="heading-1">จัดการสมาชิก</h1>
+          <p className="page-subtitle">เชิญสมาชิกเข้าร่วมบริษัทและกำหนดสิทธิ์การใช้งาน</p>
+        </div>
       {isLoading ? (
         <LoadingCard />
       ) : (
-        <Container size="5xl">
+        <>
           {/* Members List */}
           <Card padding="none">
             <div className="p-5 sm:p-6 border-b border-gray-200 dark:border-slate-700">
@@ -759,7 +761,7 @@ export default function MembersPage() {
                           <div className="hidden sm:block">
                             <RoleBadges roles={member.roles} canViewCost={member.can_view_cost} />
                           </div>
-                          {isOwnerOrAdmin && !member.roles.includes('owner') && member.user?.id !== userProfile?.id && (
+                          {isOwnerOrAdmin && !member.roles.includes('owner') && (isStrictAdmin || !member.roles.includes('admin')) && member.user?.id !== userProfile?.id && (
                             <div className="flex items-center space-x-1">
                               <button
                                 onClick={() => handleOpenEditModal(member)}
@@ -847,7 +849,7 @@ export default function MembersPage() {
                             รอตอบรับ
                           </span>
                         </div>
-                        {isOwnerOrAdmin && (
+                        {isOwnerOrAdmin && (isStrictAdmin || (!invitation.roles?.includes('admin') && !invitation.roles?.includes('owner'))) && (
                           <div className="flex items-center space-x-1">
                             <button
                               onClick={() => copyInviteLink(invitation.token)}
@@ -872,8 +874,9 @@ export default function MembersPage() {
               </div>
             </Card>
           )}
-        </Container>
+        </>
       )}
+      </Container>
 
       {/* Add Member Modal */}
       <Modal

@@ -283,7 +283,7 @@ export default function Header() {
                     <span className="text-sm">โปรไฟล์</span>
                   </button>
 
-                  {(companyRoles.includes('owner') || companyRoles.includes('admin')) && (
+                  {(companyRoles.includes('owner') || companyRoles.includes('admin') || companyRoles.includes('manager')) && (
                     <button
                       className="w-full flex items-center space-x-3 px-3 py-2 text-gray-700 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
                     >
@@ -294,7 +294,7 @@ export default function Header() {
                 </div>
 
                 {/* Support / Logs */}
-                {(companyRoles.includes('owner') || companyRoles.includes('admin')) && features.marketplace_sync && (
+                {(companyRoles.includes('owner') || companyRoles.includes('admin') || companyRoles.includes('manager')) && features.marketplace_sync && (
                   <div className="border-t border-gray-200 dark:border-slate-700 p-2">
                     <p className="text-xs text-gray-400 dark:text-slate-500 px-3 mb-1">Support</p>
                     <Link

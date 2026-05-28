@@ -3,6 +3,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import Layout from '@/components/layout/Layout';
+import Container from '@/components/ui/Container';
 import { useCompany } from '@/lib/company-context';
 import { useFeatures } from '@/lib/features-context';
 import { apiFetch } from '@/lib/api-client';
@@ -181,7 +182,7 @@ export default function FeaturesPage() {
     }
   };
 
-  const isOwnerOrAdmin = companyRoles.includes('owner') || companyRoles.includes('admin');
+  const isOwnerOrAdmin = companyRoles.includes('owner') || companyRoles.includes('admin') || companyRoles.includes('manager');
 
   const isDirty = featuresLoaded && savedRef.current !== null && (
     JSON.stringify(featureFlags) !== JSON.stringify(savedRef.current.featureFlags) ||
@@ -259,17 +260,19 @@ export default function FeaturesPage() {
 
   if (!isOwnerOrAdmin && featuresLoaded) {
     return (
-      <Layout title="Feature เสริม" breadcrumbs={[{ label: 'ตั้งค่า', href: '/settings' }, { label: 'Feature เสริม' }]}>
-        <div className="card text-center py-12">
-          <p className="text-gray-500 dark:text-slate-400">เฉพาะเจ้าของและผู้ดูแลระบบเท่านั้น</p>
-        </div>
+      <Layout>
+        <NoPermissionCard subtitle="เฉพาะเจ้าของและผู้ดูแลระบบเท่านั้น" />
       </Layout>
     );
   }
 
   return (
-    <Layout title="Feature เสริม" breadcrumbs={[{ label: 'ตั้งค่า', href: '/settings' }, { label: 'Feature เสริม' }]}>
-      <div className="space-y-4">
+    <Layout>
+      <Container size="full">
+        <div>
+          <h1 className="heading-1">Feature เสริม</h1>
+          <p className="page-subtitle">เปิด/ปิดฟีเจอร์ที่ใช้กับธุรกิจของคุณ</p>
+        </div>
 
         {!featuresLoaded ? (
           <div className="flex items-center justify-center py-16">
@@ -467,7 +470,7 @@ export default function FeaturesPage() {
             )}
           </>
         )}
-      </div>
+      </Container>
     </Layout>
   );
 }

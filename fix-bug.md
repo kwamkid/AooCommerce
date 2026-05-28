@@ -16,6 +16,16 @@
 
 ---
 
+## 2026-05-28 — variation_types create error: "ชื่อประเภทนี้มีอยู่แล้ว" (ทั้งที่บริษัทยังไม่เคยสร้าง)
+
+**ที่เกิด**: [app/api/variation-types/route.ts](app/api/variation-types/route.ts) POST → DB `public.variation_types`
+**อาการ**: บริษัทใหม่ที่ยังไม่มี row ใน `variation_types` เลย → กดเพิ่ม "สี" (หรือชื่ออะไรก็ได้ที่บริษัทอื่นเคยสร้าง) → 400 `ชื่อประเภทนี้มีอยู่แล้ว` (`23505`)
+**Root cause**: Migration เดิม `_archive/20260211_variation_types.sql` ประกาศ `name TEXT NOT NULL UNIQUE` แบบ global + seed 4 รายการให้บริษัท default; ตอน multi-tenant migration `_archive/20260215_multi_tenant.sql` เพิ่ม `company_id` แต่**ไม่ได้แก้ unique constraint** → constraint `variation_types_name_key` ยังเป็น `UNIQUE (name)` ระดับทั้งระบบ บล็อกบริษัทอื่นที่ใช้ชื่อซ้ำกัน
+**วิธีแก้**: Migration `fix_variation_types_unique_per_company` (apply ผ่าน Supabase MCP) — DROP `variation_types_name_key` + ADD `variation_types_company_id_name_key UNIQUE (company_id, name)`
+**ป้องกัน regression**: pattern เดียวกับ [`sellable_products_code_key` bug ด้านล่าง](#2026-05-28--เพิ่มสินค้าแบบชุด-bulk_create_products-error-duplicate-key-sellable_products_code_key) — ทุก unique constraint บน multi-tenant table ต้องรวม `company_id`. ถ้าเจอ `xxx_name_key` / `xxx_code_key` / `xxx_sku_key` แบบ single-column = มรดกยุค single-tenant ตกค้าง → ต้อง audit ทั้งระบบ (เป็น bug pattern ซ้ำซากเป็นครั้งที่ 2 แล้ว — ครั้งหน้าเจอตารางที่ migrate มาจาก single-tenant ให้ list pg_constraint ก่อนเลย)
+
+---
+
 ## 2026-05-28 — เพิ่มสินค้าแบบชุด (bulk_create_products) error: duplicate key "sellable_products_code_key"
 
 **ที่เกิด**: `/products/bulk/create` → `POST /api/products/bulk/create/apply` → RPC `bulk_create_products`

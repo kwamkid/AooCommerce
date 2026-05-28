@@ -95,7 +95,7 @@ function ShopeeExportContent() {
   // Linked product IDs (already exported to this account)
   const [linkedProductIds, setLinkedProductIds] = useState<Set<string>>(new Set());
 
-  const isAdmin = userProfile?.roles?.includes('admin') || userProfile?.roles?.includes('owner');
+  const isAdmin = userProfile?.roles?.includes('admin') || userProfile?.roles?.includes('owner') || userProfile?.roles?.includes('manager');
 
   const fetchProducts = useCallback(async () => {
     setLoadingProducts(true);

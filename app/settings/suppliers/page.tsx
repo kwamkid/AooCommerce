@@ -216,7 +216,7 @@ export default function SuppliersPage() {
   // (Selection toggle handled by DataTable)
 
   // Admin guard
-  if (userProfile && !userProfile.roles?.includes('admin') && !userProfile.roles?.includes('owner')) {
+  if (userProfile && !userProfile.roles?.includes('admin') && !userProfile.roles?.includes('owner') && !userProfile.roles?.includes('manager')) {
     return (
       <Layout>
         <NoPermissionCard />

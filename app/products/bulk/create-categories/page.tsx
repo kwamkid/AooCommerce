@@ -100,12 +100,10 @@ export default function BulkCreateCategoriesPage() {
     const instructions = ['(จำเป็น)', '(ค่าว่าง = ไม่มีหมวดหมู่รอง)'];
     addTemplateHeader(ws, headers, instructions);
 
+    // Minimal template — 2 records: one parent with 2 subs, one without sub
     const samples: (string | number)[][] = [
       ['เสื้อผ้า', 'เสื้อยืด'],
       ['เสื้อผ้า', 'กางเกง'],
-      ['เสื้อผ้า', 'เสื้อแจ็คเก็ต'],
-      ['รองเท้า', 'รองเท้าผ้าใบ'],
-      ['รองเท้า', 'รองเท้าหนัง'],
       ['ของใช้ในบ้าน', ''],
     ];
     samples.forEach(s => ws.addRow(s));

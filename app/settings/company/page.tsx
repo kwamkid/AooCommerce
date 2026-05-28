@@ -234,18 +234,23 @@ export default function CompanySettingsPage() {
   };
 
   // Check permissions
-  const isOwnerOrAdmin = companyRoles.includes('owner') || companyRoles.includes('admin');
+  const isOwnerOrAdmin = companyRoles.includes('owner') || companyRoles.includes('admin') || companyRoles.includes('manager');
 
   if (!isOwnerOrAdmin && !isLoading) {
     return (
-      <Layout title="ข้อมูลบริษัท" breadcrumbs={[{ label: 'ตั้งค่า', href: '/settings' }, { label: 'ข้อมูลบริษัท' }]}>
+      <Layout>
         <NoPermissionCard subtitle="เฉพาะเจ้าของและผู้ดูแลระบบเท่านั้นที่สามารถแก้ไขข้อมูลบริษัทได้" />
       </Layout>
     );
   }
 
   return (
-    <Layout title="ข้อมูลบริษัท" breadcrumbs={[{ label: 'ตั้งค่า', href: '/settings' }, { label: 'ข้อมูลบริษัท' }]}>
+    <Layout>
+      <Container size="full" gap="none">
+        <div className="mb-6">
+          <h1 className="heading-1">ข้อมูลบริษัท</h1>
+          <p className="page-subtitle">ตั้งค่าชื่อบริษัท ที่อยู่ เลขประจำตัวผู้เสียภาษี และโลโก้</p>
+        </div>
       {isLoading ? (
         <LoadingCard />
       ) : (
@@ -259,7 +264,7 @@ export default function CompanySettingsPage() {
           )}
 
           {/* 2-Column Layout */}
-          <Container size="xl">
+          <Container size="full">
               {/* Logo */}
               <Card padding="md">
                 <h3 className="heading-3 mb-4">โลโก้บริษัท</h3>
@@ -429,10 +434,10 @@ export default function CompanySettingsPage() {
                 </div>
               </Card>
 
-          </Container>{/* end max-w-2xl */}
+          </Container>
 
           {/* Action Buttons */}
-          <div className="flex justify-end gap-3 mt-6 max-w-2xl">
+          <div className="flex justify-end gap-3 mt-6">
             <Button
               variant="secondary"
               size="lg"
@@ -459,6 +464,7 @@ export default function CompanySettingsPage() {
           </div>
         </form>
       )}
+      </Container>
     </Layout>
   );
 }

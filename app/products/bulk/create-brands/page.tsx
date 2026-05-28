@@ -66,11 +66,10 @@ export default function BulkCreateBrandsPage() {
     const instructions = ['(จำเป็น)'];
     addTemplateHeader(ws, headers, instructions);
 
+    // Minimal template — 2 sample brands
     const samples: string[][] = [
       ['Brand A'],
       ['Brand B'],
-      ['Brand C'],
-      ['Brand D'],
     ];
     samples.forEach(s => ws.addRow(s));
 

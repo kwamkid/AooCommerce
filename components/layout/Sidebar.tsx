@@ -108,6 +108,7 @@ const menuSections: MenuSection[] = [
 const ROLE_LABELS: Record<string, string> = {
   owner: 'เจ้าของ',
   admin: 'ผู้ดูแลระบบ',
+  manager: 'ผู้จัดการ',
   account: 'บัญชี',
   warehouse: 'คลังสินค้า',
   sales: 'แอดมินออนไลน์',
@@ -145,7 +146,7 @@ export default function Sidebar() {
   const effectiveRoles = (() => {
     const roles = new Set<string>();
     for (const r of companyRoles) {
-      if (r === 'owner' || r === 'admin') {
+      if (r === 'owner' || r === 'admin' || r === 'manager') {
         roles.add('admin');
       } else {
         roles.add(r);

@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useFetchOnce } from '@/lib/use-fetch-once';
 import Layout from '@/components/layout/Layout';
+import Container from '@/components/ui/Container';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import { LoadingCard, NoPermissionCard } from '@/components/ui/StateCard';
@@ -116,7 +117,7 @@ export default function PaymentChannelsPage() {
 
   useFetchOnce(() => {
     fetchChannels();
-  }, !!(userProfile?.roles?.includes('admin') || userProfile?.roles?.includes('owner')));
+  }, !!(userProfile?.roles?.includes('admin') || userProfile?.roles?.includes('owner') || userProfile?.roles?.includes('manager')));
 
   // Close bank dropdown on outside click
   useEffect(() => {
@@ -359,9 +360,9 @@ export default function PaymentChannelsPage() {
   };
 
   // Admin guard
-  if (userProfile && !userProfile.roles?.includes('admin') && !userProfile.roles?.includes('owner')) {
+  if (userProfile && !userProfile.roles?.includes('admin') && !userProfile.roles?.includes('owner') && !userProfile.roles?.includes('manager')) {
     return (
-      <Layout title="ช่องทางชำระเงิน">
+      <Layout>
         <NoPermissionCard />
       </Layout>
     );
@@ -375,14 +376,12 @@ export default function PaymentChannelsPage() {
   }, {} as Record<string, typeof BEAM_CHANNELS>);
 
   return (
-    <Layout
-      title="ช่องทางชำระเงิน"
-      breadcrumbs={[
-        { label: 'ตั้งค่าระบบ', href: '/settings' },
-        { label: 'ช่องทางชำระเงิน' },
-      ]}
-    >
-      <div className="max-w-4xl">
+    <Layout>
+      <Container size="full">
+        <div className="mb-6">
+          <h1 className="heading-1">ช่องทางชำระเงิน</h1>
+          <p className="page-subtitle">จัดการช่องทางรับชำระเงินสำหรับ Bill Online และ POS</p>
+        </div>
         {/* Tab header */}
         <div className="border-b border-gray-200 dark:border-slate-700 mb-6">
           <div className="px-1 py-2.5 text-base font-medium text-primary border-b-2 border-primary inline-block">
@@ -1084,7 +1083,7 @@ export default function PaymentChannelsPage() {
             )}
           </div>
         )}
-      </div>
+      </Container>
       {confirmDialog}
     </Layout>
   );

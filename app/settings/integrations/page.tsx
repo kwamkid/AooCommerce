@@ -92,7 +92,7 @@ export default function IntegrationsPage() {
   useFetchOnce(() => {
     fetchAccounts();
     fetchTiktokAccounts();
-  }, !!(userProfile?.roles?.includes('admin') || userProfile?.roles?.includes('owner')));
+  }, !!(userProfile?.roles?.includes('admin') || userProfile?.roles?.includes('owner') || userProfile?.roles?.includes('manager')));
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -429,9 +429,9 @@ export default function IntegrationsPage() {
   };
 
   // Admin guard
-  if (userProfile && !userProfile.roles?.includes('admin') && !userProfile.roles?.includes('owner')) {
+  if (userProfile && !userProfile.roles?.includes('admin') && !userProfile.roles?.includes('owner') && !userProfile.roles?.includes('manager')) {
     return (
-      <Layout title="Marketplace">
+      <Layout>
         <NoPermissionCard />
       </Layout>
     );
@@ -441,14 +441,12 @@ export default function IntegrationsPage() {
   const activeTiktokAccounts = tiktokAccounts.filter(a => a.is_active);
 
   return (
-    <Layout
-      title="Marketplace"
-      breadcrumbs={[
-        { label: 'ตั้งค่าระบบ', href: '/settings' },
-        { label: 'Marketplace' },
-      ]}
-    >
-      <Container size="2xl" gap="none">
+    <Layout>
+      <Container size="full">
+        <div>
+          <h1 className="heading-1">Marketplace</h1>
+          <p className="page-subtitle">เชื่อมต่อ Shopee, TikTok และช่องทางขายอื่นๆ</p>
+        </div>
         {/* Platform Tabs */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex border-b border-gray-200 dark:border-slate-700">

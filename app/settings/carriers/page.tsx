@@ -63,7 +63,7 @@ export default function CarriersSettingsPage() {
   const [formShippopCode, setFormShippopCode] = useState('');
   const [formActive, setFormActive] = useState(true);
 
-  const isAdmin = !!userProfile?.roles?.some(r => r === 'owner' || r === 'admin');
+  const isAdmin = !!userProfile?.roles?.some(r => r === 'owner' || r === 'admin' || r === 'manager');
 
   const loadCarriers = async () => {
     try {

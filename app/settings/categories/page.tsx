@@ -28,7 +28,7 @@ interface CategoryItem {
 export default function CategoriesPageWrapper() {
   return (
     <Suspense fallback={
-      <Layout title="หมวดหมู่สินค้า">
+      <Layout>
         <LoadingCard />
       </Layout>
     }>
@@ -108,7 +108,7 @@ function CategoriesPage() {
 
   useFetchOnce(() => {
     fetchCategories();
-  }, !!(userProfile?.roles?.includes('admin') || userProfile?.roles?.includes('owner')));
+  }, !!(userProfile?.roles?.includes('admin') || userProfile?.roles?.includes('owner') || userProfile?.roles?.includes('manager')));
 
   const fetchCategories = async () => {
     try {
@@ -272,23 +272,21 @@ function CategoriesPage() {
   };
 
   // Admin guard
-  if (userProfile && !userProfile.roles?.includes('admin') && !userProfile.roles?.includes('owner')) {
+  if (userProfile && !userProfile.roles?.includes('admin') && !userProfile.roles?.includes('owner') && !userProfile.roles?.includes('manager')) {
     return (
-      <Layout title="หมวดหมู่สินค้า">
+      <Layout>
         <NoPermissionCard />
       </Layout>
     );
   }
 
   return (
-    <Layout
-      title="หมวดหมู่สินค้า"
-      breadcrumbs={[
-        { label: 'ตั้งค่าระบบ', href: '/settings' },
-        { label: 'หมวดหมู่สินค้า' },
-      ]}
-    >
-      <Container size="2xl">
+    <Layout>
+      <Container size="full">
+        <div>
+          <h1 className="heading-1">หมวดหมู่สินค้า</h1>
+          <p className="page-subtitle">จัดการหมวดหมู่และหมวดหมู่ย่อยของสินค้า</p>
+        </div>
         {loading ? (
           <LoadingCard />
         ) : (

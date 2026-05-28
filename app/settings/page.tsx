@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useFetchOnce } from '@/lib/use-fetch-once';
 import Layout from '@/components/layout/Layout';
+import Container from '@/components/ui/Container';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
@@ -75,7 +76,7 @@ export default function SettingsPage() {
     fetchCRMSettings();
     fetchVariationTypes();
     fetchBillExpiry();
-  }, !!(userProfile?.roles?.includes('admin') || userProfile?.roles?.includes('owner')));
+  }, !!(userProfile?.roles?.includes('admin') || userProfile?.roles?.includes('owner') || userProfile?.roles?.includes('manager')));
 
   const fetchCRMSettings = async () => {
     try {
@@ -390,14 +391,13 @@ export default function SettingsPage() {
   }
 
   return (
-    <Layout
-      title="ทั่วไป"
-      breadcrumbs={[
-        { label: 'ตั้งค่าระบบ', href: '/settings' },
-        { label: 'ทั่วไป' },
-      ]}
-    >
-      <div className="space-y-6">
+    <Layout>
+      <Container size="full">
+        <div>
+          <h1 className="heading-1">ตั้งค่าทั่วไป</h1>
+          <p className="page-subtitle">จัดการช่วงวันติดตามลูกค้า ประเภทตัวเลือกสินค้า และการตั้งค่าระบบอื่นๆ</p>
+        </div>
+
         {/* Success Message */}
         {success && (
           <div className="bg-green-50 dark:bg-green-900/20 text-green-800 dark:text-green-400 px-4 py-3 rounded-lg">
@@ -745,7 +745,7 @@ export default function SettingsPage() {
           </Card>
         )}
 
-      </div>
+      </Container>
 
       {/* Clear All Data Confirmation Modal */}
       <Modal

@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
+import Container from '@/components/ui/Container';
+import PageHeader from '@/components/ui/PageHeader';
 import SearchInput from '@/components/ui/SearchInput';
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/lib/toast-context';
@@ -12,7 +14,7 @@ import { apiFetch } from '@/lib/api-client';
 import { getImageUrl } from '@/lib/utils/image';
 import EntitySearchInput, { EntitySearchOption } from '@/components/ui/EntitySearchInput';
 import {
-  Loader2, Award, Package2, X, ArrowLeft, Factory, ChevronLeft, ChevronRight,
+  Loader2, Award, Package2, X, Factory, ChevronLeft, ChevronRight,
 } from 'lucide-react';
 
 interface BrandDetail {
@@ -215,30 +217,20 @@ export default function BrandDetailPage() {
 
   if (!brand) return null;
 
-  const isAdmin = userProfile?.roles?.includes('admin') || userProfile?.roles?.includes('owner');
+  const isAdmin = userProfile?.roles?.includes('admin') || userProfile?.roles?.includes('owner') || userProfile?.roles?.includes('manager');
   if (!isAdmin || !features.product_brand) {
     router.replace('/settings/brands');
     return null;
   }
 
   return (
-    <Layout
-      title={brand.name}
-      breadcrumbs={[
-        { label: 'ตั้งค่าระบบ', href: '/settings' },
-        { label: 'แบรนด์', href: '/settings/brands' },
-        { label: brand.name },
-      ]}
-    >
-      <div className="max-w-3xl space-y-6">
-        {/* Back button */}
-        <button
-          onClick={() => router.push('/settings/brands')}
-          className="flex items-center gap-1.5 text-sm text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-300 transition-colors"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          กลับหน้าแบรนด์
-        </button>
+    <Layout>
+      <Container size="full">
+        <PageHeader
+          title={brand.name}
+          subtitle={brand.supplier ? `Supplier: ${brand.supplier.name}` : 'จัดการสินค้าใน Brand'}
+          backHref="/settings/brands"
+        />
 
         {/* Brand Info Card */}
         <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-5">
@@ -376,7 +368,7 @@ export default function BrandDetailPage() {
             </>
           )}
         </div>
-      </div>
+      </Container>
       {confirmDialog}
     </Layout>
   );

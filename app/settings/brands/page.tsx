@@ -37,7 +37,7 @@ interface BrandItem {
 export default function BrandsPage() {
   return (
     <Suspense fallback={
-      <Layout title="แบรนด์" breadcrumbs={[{ label: 'ตั้งค่าระบบ', href: '/settings' }, { label: 'แบรนด์' }]}>
+      <Layout>
         <LoadingCard />
       </Layout>
     }>
@@ -101,7 +101,7 @@ function BrandsPageInner() {
     : brands;
 
   useEffect(() => {
-    if (userProfile?.roles?.includes('admin') || userProfile?.roles?.includes('owner')) {
+    if (userProfile?.roles?.includes('admin') || userProfile?.roles?.includes('owner') || userProfile?.roles?.includes('manager')) {
       fetchBrands();
       if (features.supplier) fetchSuppliers();
     }
@@ -232,9 +232,9 @@ function BrandsPageInner() {
   };
 
   // Admin guard
-  if (userProfile && !userProfile.roles?.includes('admin') && !userProfile.roles?.includes('owner')) {
+  if (userProfile && !userProfile.roles?.includes('admin') && !userProfile.roles?.includes('owner') && !userProfile.roles?.includes('manager')) {
     return (
-      <Layout title="แบรนด์">
+      <Layout>
         <NoPermissionCard />
       </Layout>
     );
@@ -243,14 +243,12 @@ function BrandsPageInner() {
   // Feature gate
   if (featuresFetched && !features.product_brand) {
     return (
-      <Layout
-        title="แบรนด์"
-        breadcrumbs={[
-          { label: 'ตั้งค่าระบบ', href: '/settings' },
-          { label: 'แบรนด์' },
-        ]}
-      >
-        <Container size="2xl">
+      <Layout>
+        <Container size="full">
+          <div>
+            <h1 className="heading-1">แบรนด์</h1>
+            <p className="page-subtitle">จัดการแบรนด์สินค้า</p>
+          </div>
           <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4 flex items-start gap-3">
             <Award className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
             <div>
@@ -264,14 +262,12 @@ function BrandsPageInner() {
   }
 
   return (
-    <Layout
-      title="แบรนด์"
-      breadcrumbs={[
-        { label: 'ตั้งค่าระบบ', href: '/settings' },
-        { label: 'แบรนด์' },
-      ]}
-    >
-      <Container size="2xl">
+    <Layout>
+      <Container size="full">
+        <div>
+          <h1 className="heading-1">แบรนด์</h1>
+          <p className="page-subtitle">จัดการแบรนด์สินค้า กำหนด supplier และ GP rate</p>
+        </div>
         {loading ? (
           <LoadingCard />
         ) : (

@@ -118,7 +118,21 @@ export async function checkAuthWithCompany(request: NextRequest): Promise<AuthRe
 /**
  * Check if roles include admin-level access (owner or admin).
  */
+/**
+ * Admin-level access: owner, admin, or manager.
+ * Manager has the same operational access as admin EXCEPT cannot invite/remove
+ * owner or admin members — that is enforced separately in the members API.
+ */
 export function isAdminRole(roles?: string[]): boolean {
+  if (!roles) return false;
+  return roles.includes('admin') || roles.includes('owner') || roles.includes('manager');
+}
+
+/**
+ * Strict admin: owner or admin only (excludes manager).
+ * Use for operations that grant/revoke admin-level access (member management).
+ */
+export function isStrictAdmin(roles?: string[]): boolean {
   if (!roles) return false;
   return roles.includes('admin') || roles.includes('owner');
 }

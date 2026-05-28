@@ -56,7 +56,7 @@ export default function WarehouseSettingsPage() {
 
   useFetchOnce(() => {
     fetchWarehouses();
-  }, !!(userProfile?.roles?.includes('admin') || userProfile?.roles?.includes('owner')));
+  }, !!(userProfile?.roles?.includes('admin') || userProfile?.roles?.includes('owner') || userProfile?.roles?.includes('manager')));
 
   const fetchWarehouses = async () => {
     try {
@@ -197,7 +197,7 @@ export default function WarehouseSettingsPage() {
   };
 
   // Admin guard
-  if (userProfile && !userProfile.roles?.includes('admin') && !userProfile.roles?.includes('owner')) {
+  if (userProfile && !userProfile.roles?.includes('admin') && !userProfile.roles?.includes('owner') && !userProfile.roles?.includes('manager')) {
     return (
       <Layout title="คลังสินค้า">
         <NoPermissionCard />
