@@ -133,9 +133,11 @@ html, body {
   gap: 0.5rem;
 }
 
-/* Form-control trigger sizes (FormSelect) — heights MUST match .btn-{size} */
-.form-control-sm { height: 2rem;    font-size: 0.75rem; }
-.form-control-md { height: 2.5rem;  font-size: 0.875rem; }
+/* Form-control trigger sizes (FormSelect, etc.) — heights MUST match .btn-{size}.
+   Font sizes match FormInput (sm: text-sm, md/lg: text-base) — buttons can stay
+   smaller (label text), but inputs/selects display user values that need parity. */
+.form-control-sm { height: 2rem;    font-size: 0.875rem; }
+.form-control-md { height: 2.5rem;  font-size: 1rem; }
 .form-control-lg { height: 2.75rem; font-size: 1rem; }
 
 /* Variants */

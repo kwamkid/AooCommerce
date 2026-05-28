@@ -71,7 +71,7 @@ export default function CustomerEditPage() {
   const params = useParams();
   const customerId = params.id as string;
 
-  const canEdit = userProfile?.roles?.includes('owner') || userProfile?.roles?.includes('admin') || userProfile?.roles?.includes('sales');
+  const canEdit = userProfile?.roles?.includes('owner') || userProfile?.roles?.includes('admin') || userProfile?.roles?.includes('manager') || userProfile?.roles?.includes('sales');
 
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [linkedContacts, setLinkedContacts] = useState<LinkedContact[]>([]);

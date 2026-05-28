@@ -623,8 +623,14 @@ function ProductsPageContent() {
         return (
           <div className="space-y-1">
             {product.variations.map((v) => (
-              <div key={v.variation_id || `${product.product_id}-${v.variation_label}`} className="text-base text-gray-700 dark:text-slate-300 whitespace-nowrap">
-                {v.variation_label}
+              <div
+                key={v.variation_id || `${product.product_id}-${v.variation_label}`}
+                className={`text-base whitespace-nowrap flex items-center gap-1.5 ${v.is_active ? 'text-gray-700 dark:text-slate-300' : 'text-gray-400 dark:text-slate-500'}`}
+              >
+                <span>{v.variation_label}</span>
+                {!v.is_active && (
+                  <Badge tone="gray" shape="square" size="sm">ปิด</Badge>
+                )}
               </div>
             ))}
           </div>
@@ -638,10 +644,10 @@ function ProductsPageContent() {
       reorderable: true,
       resizable: true,
       render: (product) => {
-        const renderPrice = (def: number | null | undefined, disc: number | null | undefined, key: string) => {
+        const renderPrice = (def: number | null | undefined, disc: number | null | undefined, key: string, dimmed = false) => {
           const hasDiscount = disc != null && disc > 0;
           return (
-            <div key={key} className="text-base flex items-center space-x-1 whitespace-nowrap">
+            <div key={key} className={`text-base flex items-center space-x-1 whitespace-nowrap ${dimmed ? 'opacity-50' : ''}`}>
               <span className="text-gray-400 font-medium">฿</span>
               <span className={hasDiscount ? 'text-gray-400 line-through dark:text-slate-500' : ''}>
                 {formatNumber(def)}
@@ -661,7 +667,7 @@ function ProductsPageContent() {
         return (
           <div className="space-y-1">
             {product.variations.map((v) =>
-              renderPrice(v.default_price, v.discount_price, v.variation_id || `${product.product_id}-${v.variation_label}`)
+              renderPrice(v.default_price, v.discount_price, v.variation_id || `${product.product_id}-${v.variation_label}`, !v.is_active)
             )}
           </div>
         );
@@ -691,7 +697,7 @@ function ProductsPageContent() {
         return (
           <div className="space-y-1">
             {product.variations.map((v) => (
-              <div key={v.variation_id || `${product.product_id}-${v.variation_label}`} className="text-base flex items-center space-x-1 whitespace-nowrap">
+              <div key={v.variation_id || `${product.product_id}-${v.variation_label}`} className={`text-base flex items-center space-x-1 whitespace-nowrap ${v.is_active ? '' : 'opacity-50'}`}>
                 <span className="text-gray-400 font-medium">฿</span>
                 <span>{v.cost_price != null ? formatNumber(v.cost_price) : '-'}</span>
               </div>
@@ -708,14 +714,16 @@ function ProductsPageContent() {
       reorderable: true,
       resizable: true,
       render: (product) => {
-        const skus = product.product_type === 'simple'
-          ? [product.simple_sku].filter(Boolean) as string[]
-          : product.variations.map(v => v.sku).filter(Boolean) as string[];
-        if (!skus.length) return <span className="data-muted text-gray-400">-</span>;
+        if (product.product_type === 'simple') {
+          if (!product.simple_sku) return <span className="data-muted text-gray-400">-</span>;
+          return <div className="code-text">{product.simple_sku}</div>;
+        }
+        const skuRows = product.variations.filter(v => v.sku);
+        if (!skuRows.length) return <span className="data-muted text-gray-400">-</span>;
         return (
           <div className="space-y-0.5">
-            {skus.map((sku, i) => (
-              <div key={i} className="code-text">{sku}</div>
+            {skuRows.map((v, i) => (
+              <div key={v.variation_id || i} className={`code-text ${v.is_active ? '' : 'opacity-50'}`}>{v.sku}</div>
             ))}
           </div>
         );
@@ -729,14 +737,16 @@ function ProductsPageContent() {
       reorderable: true,
       resizable: true,
       render: (product) => {
-        const bcs = product.product_type === 'simple'
-          ? [product.simple_barcode].filter(Boolean) as string[]
-          : product.variations.map(v => v.barcode).filter(Boolean) as string[];
-        if (!bcs.length) return <span className="data-muted text-gray-400">-</span>;
+        if (product.product_type === 'simple') {
+          if (!product.simple_barcode) return <span className="data-muted text-gray-400">-</span>;
+          return <div className="code-text">{product.simple_barcode}</div>;
+        }
+        const bcRows = product.variations.filter(v => v.barcode);
+        if (!bcRows.length) return <span className="data-muted text-gray-400">-</span>;
         return (
           <div className="space-y-0.5">
-            {bcs.map((bc, i) => (
-              <div key={i} className="code-text">{bc}</div>
+            {bcRows.map((v, i) => (
+              <div key={v.variation_id || i} className={`code-text ${v.is_active ? '' : 'opacity-50'}`}>{v.barcode}</div>
             ))}
           </div>
         );

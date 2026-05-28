@@ -69,7 +69,8 @@ async function checkDuplicateSkuBarcode(
       .from('product_variations')
       .select('sku, product_id')
       .eq('company_id', companyId)
-      .in('sku', validSkus);
+      .in('sku', validSkus)
+      .is('deleted_at', null); // deleted variations don't block SKU reuse
     if (excludeProductId) {
       query = query.neq('product_id', excludeProductId);
     }
@@ -84,7 +85,8 @@ async function checkDuplicateSkuBarcode(
       .from('product_variations')
       .select('barcode, product_id')
       .eq('company_id', companyId)
-      .in('barcode', validBarcodes);
+      .in('barcode', validBarcodes)
+      .is('deleted_at', null);
     if (excludeProductId) {
       query = query.neq('product_id', excludeProductId);
     }
@@ -531,30 +533,24 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Group by product_id and aggregate variations
+    // Group by product_id and aggregate variations.
+    // SHOW paused (is_active=false) variations — list renders them with a "ปิด"
+    // badge so user can see what they paused and re-enable via toggle.
+    // HIDE truly-deleted (deleted_at IS NOT NULL) ones — those are gone from UI
+    // (rows linger in DB only for FK history).
     const productMap = new Map<string, any>();
     for (const row of viewResult.data || []) {
-      const existing = productMap.get(row.product_id);
+      const variationVisible = row.variation_id && !row.variation_deleted_at;
+      // For simple-product `simple_*` fields we want the ACTIVE row specifically
+      // (paused/deleted rows from prior type-switches would feed stale values).
+      const variationActiveAndVisible = variationVisible && row.variation_is_active !== false;
 
-      if (existing) {
-        if (row.variation_id) {
-          existing.variations.push({
-            variation_id: row.variation_id,
-            variation_label: row.variation_label,
-            sku: row.sku,
-            barcode: row.barcode,
-            attributes: row.attributes,
-            default_price: row.default_price,
-            discount_price: row.discount_price,
-            cost_price: row.cost_price,
-            stock: row.stock,
-            min_stock: row.min_stock,
-            is_active: row.variation_is_active,
-            image_url: variationImageMap.get(row.variation_id) || null,
-          });
-        }
-      } else {
-        const newProduct: any = {
+      let existing = productMap.get(row.product_id);
+      if (!existing) {
+        // Register product on first sighting regardless of variation status —
+        // products with no visible variations still need to appear (edit form
+        // is how user adds new ones back).
+        existing = {
           product_id: row.product_id,
           code: row.code,
           name: row.name,
@@ -569,45 +565,52 @@ export async function GET(request: NextRequest) {
           created_at: row.created_at,
           updated_at: row.updated_at,
           main_image_url: productImageMap.get(row.product_id) || null,
+          variations: [],
         };
-
         if (row.product_type === 'simple') {
-          newProduct.simple_variation_label = row.simple_variation_label;
-          newProduct.simple_sku = row.sku;
-          newProduct.simple_barcode = row.barcode;
-          newProduct.simple_default_price = row.simple_default_price;
-          newProduct.simple_discount_price = row.simple_discount_price;
-          newProduct.simple_stock = row.simple_stock;
-          newProduct.simple_min_stock = row.simple_min_stock;
-          newProduct.variations = row.variation_id ? [{
-            variation_id: row.variation_id,
-            variation_label: row.simple_variation_label,
-            default_price: row.simple_default_price,
-            discount_price: row.simple_discount_price,
-            cost_price: row.cost_price,
-            stock: row.simple_stock,
-            min_stock: row.simple_min_stock,
-            is_active: row.variation_is_active,
-            image_url: variationImageMap.get(row.variation_id) || null,
-          }] : [];
-        } else {
-          newProduct.variations = row.variation_id ? [{
-            variation_id: row.variation_id,
-            variation_label: row.variation_label,
-            sku: row.sku,
-            barcode: row.barcode,
-            attributes: row.attributes,
-            default_price: row.default_price,
-            discount_price: row.discount_price,
-            cost_price: row.cost_price,
-            stock: row.stock,
-            min_stock: row.min_stock,
-            is_active: row.variation_is_active,
-            image_url: variationImageMap.get(row.variation_id) || null,
-          }] : [];
+          existing.simple_variation_label = row.simple_variation_label;
         }
+        productMap.set(row.product_id, existing);
+      }
 
-        productMap.set(row.product_id, newProduct);
+      if (!variationVisible) continue;
+
+      if (row.product_type === 'simple') {
+        // Only the active simple row should drive the displayed price/stock.
+        if (variationActiveAndVisible) {
+          existing.simple_sku = row.sku;
+          existing.simple_barcode = row.barcode;
+          existing.simple_default_price = row.simple_default_price;
+          existing.simple_discount_price = row.simple_discount_price;
+          existing.simple_stock = row.simple_stock;
+          existing.simple_min_stock = row.simple_min_stock;
+        }
+        existing.variations.push({
+          variation_id: row.variation_id,
+          variation_label: row.simple_variation_label,
+          default_price: row.simple_default_price,
+          discount_price: row.simple_discount_price,
+          cost_price: row.cost_price,
+          stock: row.simple_stock,
+          min_stock: row.simple_min_stock,
+          is_active: row.variation_is_active,
+          image_url: variationImageMap.get(row.variation_id) || null,
+        });
+      } else {
+        existing.variations.push({
+          variation_id: row.variation_id,
+          variation_label: row.variation_label,
+          sku: row.sku,
+          barcode: row.barcode,
+          attributes: row.attributes,
+          default_price: row.default_price,
+          discount_price: row.discount_price,
+          cost_price: row.cost_price,
+          stock: row.stock,
+          min_stock: row.min_stock,
+          is_active: row.variation_is_active,
+          image_url: variationImageMap.get(row.variation_id) || null,
+        });
       }
     }
 
@@ -804,11 +807,16 @@ export async function PUT(request: NextRequest) {
       ((prevWasSimple && !isSimpleProduct) || (!prevWasSimple && isSimpleProduct));
 
     if (typeSwitched) {
+      // Type-switch: old variations no longer make sense in the new shape.
+      // Mark them deleted (not just paused) — the user is replacing them,
+      // not "pausing for later" — and we never want them to reappear in UI.
+      const now = new Date().toISOString();
       await supabaseAdmin
         .from('product_variations')
-        .update({ is_active: false, updated_at: new Date().toISOString() })
+        .update({ deleted_at: now, updated_at: now })
         .eq('product_id', id)
-        .eq('company_id', auth.companyId);
+        .eq('company_id', auth.companyId)
+        .is('deleted_at', null);
     }
 
     if (isSimpleProduct) {
@@ -829,6 +837,7 @@ export async function PUT(request: NextRequest) {
               .eq('product_id', id)
               .eq('company_id', auth.companyId)
               .eq('is_active', true)
+              .is('deleted_at', null)
               .maybeSingle();
 
         if (!existingVariation) {
@@ -873,26 +882,31 @@ export async function PUT(request: NextRequest) {
     } else {
       // For variation products: update multiple variation rows
       if (variations && Array.isArray(variations)) {
-        // Get existing variations
+        // Get existing (non-deleted) variations — already-deleted ones are
+        // out of scope; never resurrect them just because they're missing
+        // from the incoming list.
         const { data: existingVariations } = await supabaseAdmin
           .from('product_variations')
           .select('id, variation_label')
           .eq('product_id', id)
-          .eq('company_id', auth.companyId);
+          .eq('company_id', auth.companyId)
+          .is('deleted_at', null);
 
         const existingIds = existingVariations?.map(v => v.id) || [];
         const providedIds = variations.filter(v => v.id).map(v => v.id);
 
-        // Soft-archive variations that are no longer in the list (instead of
-        // hard-delete). Hard-delete would either be rejected by RESTRICT FKs
-        // (order_items, supplier_snapshot_*) or cascade-wipe historical rows
-        // (inventory, reports). Archiving keeps history intact.
-        const toArchive = existingIds.filter(id => !providedIds.includes(id));
-        if (toArchive.length > 0) {
+        // Variations missing from the incoming list = user clicked the trash
+        // icon. Mark deleted_at (soft-delete) — FK refs on 19 history tables
+        // forbid hard-delete; "ปิด" (is_active=false) is a different state
+        // that the user keeps visible by sending it in the array with
+        // is_active=false.
+        const toDelete = existingIds.filter(id => !providedIds.includes(id));
+        if (toDelete.length > 0) {
+          const now = new Date().toISOString();
           await supabaseAdmin
             .from('product_variations')
-            .update({ is_active: false, updated_at: new Date().toISOString() })
-            .in('id', toArchive)
+            .update({ deleted_at: now, updated_at: now })
+            .in('id', toDelete)
             .eq('company_id', auth.companyId);
         }
 
@@ -1033,12 +1047,14 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    // Also deactivate all variations
+    // Also deactivate all (non-deleted) variations — don't touch already-deleted
+    // ones, they should stay deleted even if the product is reactivated later.
     await supabaseAdmin
       .from('product_variations')
       .update({ is_active: false, updated_at: now })
       .in('product_id', productIds)
-      .eq('company_id', auth.companyId);
+      .eq('company_id', auth.companyId)
+      .is('deleted_at', null);
 
     return NextResponse.json({ success: true, count: productIds.length });
   } catch (error) {

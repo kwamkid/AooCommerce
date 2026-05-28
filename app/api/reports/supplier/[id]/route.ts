@@ -197,7 +197,7 @@ export async function PATCH(
     if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    if (!hasAnyRole(auth.companyRoles, ['owner', 'admin', 'account'])) {
+    if (!hasAnyRole(auth.companyRoles, ['owner', 'admin', 'manager', 'account'])) {
       return NextResponse.json({ error: 'ไม่มีสิทธิ์' }, { status: 403 });
     }
 
@@ -250,7 +250,7 @@ export async function DELETE(
     if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    if (!hasAnyRole(auth.companyRoles, ['owner', 'admin'])) {
+    if (!hasAnyRole(auth.companyRoles, ['owner', 'admin', 'manager'])) {
       return NextResponse.json({ error: 'ไม่มีสิทธิ์' }, { status: 403 });
     }
 

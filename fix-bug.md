@@ -16,6 +16,51 @@
 
 ---
 
+## 2026-05-28 — สินค้า variation: แยก "ลบ" vs "ปิด" ด้วย deleted_at column ใหม่ (overwrite ของ fix ก่อนหน้านี้)
+
+**ที่เกิด**: หน้า edit `/products/[id]/edit` + list `/products` + RPC `get_product_for_edit` + view `products_with_variations`
+**อาการรอบที่ 2 (หลัง fix รอบแรก)**: รอบแรกแก้โดย filter `is_active=false` ออกจากฟอร์ม edit + list → user complain ใหญ่ว่า toggle "ใช้งาน/ไม่ใช้งาน" ทำงานไม่ได้ — ถ้า untick = ซ่อนไป จะ retick กลับมาได้ยังไง? และ list ก็ควรเห็น inactive ด้วย (แค่เป็น "ปิด") ส่วน "ลบ" ต้องเป็นเหตุการณ์ต่างหากที่หายจริง
+**Root cause (เชิงดีไซน์)**: ใช้ `is_active` column เดียวสำหรับทั้ง 2 ความหมาย (ลบ + ปิด) → ขัดแย้งกัน. ผู้ใช้คาดหวัง 2 states แยกกัน:
+- `inactive` = แค่ปิดการขาย (ค้นหาไม่เจอ ขายไม่ได้ แต่ยังเห็นในหน้า list/edit เพื่อกดเปิดกลับมาได้)
+- `deleted` = ลบจริง (หายจาก UI ทุกที่)
+แต่ hard-delete ทำไม่ได้เพราะ variation_id เป็น FK ของ 19 ตาราง → ใช้ `deleted_at` เป็น soft-delete marker
+**วิธีแก้** (overwrite fix รอบก่อน):
+1. Migration `product_variations_add_deleted_at_split_delete_from_inactive` (apply ผ่าน Supabase MCP) — เพิ่ม column `deleted_at TIMESTAMPTZ` + partial index + **backfill** `deleted_at = updated_at WHERE is_active=false` (ของเดิมที่ user กดถังขยะมาก่อนหน้านี้ ถือเป็น "ลบ" ตามเจตนา)
+2. Migration `get_product_for_edit_filter_deleted_at` — RPC subquery variations ใช้ `WHERE pv.deleted_at IS NULL` (ไม่ filter is_active แล้ว — ให้ paused ขึ้นมาให้ user toggle ได้) + order `is_active DESC, created_at`
+3. Migration `products_with_variations_expose_deleted_at` — view เพิ่ม column `variation_deleted_at`
+4. [app/api/products/route.ts](app/api/products/route.ts) GET list: `variationVisible = row.variation_id && !row.variation_deleted_at` (รวม paused), `variationActiveAndVisible` (เฉพาะ active) ใช้สำหรับ `simple_*` fields
+5. [app/api/products/route.ts](app/api/products/route.ts) PUT — `toArchive` เปลี่ยนเป็น `toDelete` = `update { deleted_at: now() }`; type-switch ก็เปลี่ยนเป็น deleted_at ด้วย; SKU/barcode dup check ใส่ `.is('deleted_at', null)` (deleted variations ไม่บล็อก SKU reuse); existing-variation lookup ใส่ `.is('deleted_at', null)`
+6. [app/products/page.tsx](app/products/page.tsx) list UI — variation rows ที่ `!is_active` → badge "ปิด" (tone=gray) + `opacity-50` ที่ราคา/SKU/Barcode/cost
+7. [components/products/ProductForm.tsx](components/products/ProductForm.tsx) — `removeVariation` เพิ่ม `useConfirmDialog` ถ้า variation มี id (existing in DB) → ถาม "ลบ X? — ลบถาวร..." ก่อนค่อย proceed; variation card ที่ `!is_active` → bg เข้มขึ้น + badge "ปิด" header; type-switch modal warning text เปลี่ยนจาก "ปิดใช้งาน" → "ลบ"
+**สรุป semantic ใหม่**:
+| Action | DB state | List | Edit form | Search/Sale |
+|--------|----------|------|-----------|-------------|
+| Active | `is_active=true, deleted_at=NULL` | ขึ้นปกติ | toggle on | ใช้ได้ |
+| Paused (toggle off) | `is_active=false, deleted_at=NULL` | "ปิด" badge + grey | toggle off | ไม่ขึ้น |
+| Deleted (ถังขยะ) | `deleted_at=now()` | ไม่ขึ้น | ไม่ขึ้น | ไม่ขึ้น |
+**ป้องกัน regression**:
+- ทุก SQL/RPC ที่ join `product_variations` ต้องตอบคำถาม: "ต้องการรวม deleted ด้วยมั้ย?" — ส่วนใหญ่ "ไม่" ต้องใส่ `WHERE deleted_at IS NULL`
+- ถ้าเป็น query สำหรับขาย/ค้นหา → ต้อง `WHERE is_active=true AND deleted_at IS NULL`
+- ถ้าเป็น query สำหรับรายงาน history (orders, inventory) → join ปกติได้ ไม่ filter อะไรเลย (variation_id stays FK-valid)
+- **ผ่าน soft-delete pattern นี้อาจต้อง audit consumers อื่น** เช่น product search ใน OrderForm, promotion picker, marketplace export ฯลฯ — แต่ระยะแรกที่ filter `is_active=true` อยู่ตอนนี้ก็จะ exclude deleted ones โดยอัตโนมัติ (เพราะ backfill ทำให้ deleted_at IS NOT NULL ⟹ is_active=false จากเดิม). New consumers ต้อง filter ทั้ง 2 conditions
+
+---
+
+## 2026-05-28 — สินค้า variation: ลบ variation ไม่ได้ — soft-archived แสดงซ้ำหลังบันทึก (SUPERSEDED โดย entry ด้านบน)
+
+**ที่เกิด**: RPC `public.get_product_for_edit` + [app/api/products/route.ts:534-612](app/api/products/route.ts#L534) GET list — ทั้งหน้า edit `/products/[id]/edit` และ list `/products`
+**อาการ**: สร้าง/แก้สินค้าแบบ variation → กดถังขยะลบ variation → save → reload → variation ที่ลบกลับมาแสดงเหมือนเดิม (checkbox "ใช้งาน" ไม่ติ๊ก) → ลบยังไงก็ไม่หาย
+**Root cause**: ตามกฎ [code-simplicity.md](../.claude/rules/code-simplicity.md) + CLAUDE.md → variation_id เป็น FK ของ 19 ตาราง (orders, inventory, snapshots…) → ห้าม hard-delete ใช้ `is_active=false` แทน → API PUT (`/api/products`) ทำถูกแล้ว (soft-archive). **แต่ฝั่งอ่านไม่ได้ filter inactive:**
+1. RPC `get_product_for_edit` subquery variations ไม่มี `WHERE pv.is_active = true` → ส่ง archived rows กลับมาด้วย
+2. View `products_with_variations` (ใช้ใน /api/products GET list) ก็เป็น LEFT JOIN ตรงๆ ไม่กรอง
+→ ProductForm `initFormData` ([components/products/ProductForm.tsx:245](components/products/ProductForm.tsx#L245)) map `editingProduct.variations` ตรงๆ รวม inactive → ผู้ใช้ลบในฟอร์ม → save (API archive ซ้ำ) → next load show ใหม่ — loop ตลอด
+**วิธีแก้รอบแรก (แล้วโดน revert)**:
+1. Migration `fix_get_product_for_edit_filter_inactive_variations` — `CREATE OR REPLACE FUNCTION` เพิ่ม `AND pv.is_active = true`
+2. [app/api/products/route.ts](app/api/products/route.ts) — refactor grouping loop, skip inactive variations
+**ทำไมโดน revert**: ผู้ใช้ feedback ว่า toggle "ใช้งาน" ใน form กลายเป็น useless (untick = หาย, retick ไม่ได้) → ต้องแยก "ลบ" vs "ปิด" เป็น 2 states ต่างหาก → ทำเป็น `deleted_at` column ใหม่ตาม entry ด้านบน
+
+---
+
 ## 2026-05-28 — FormSelect portal dropdown scroll ดูข้อมูลไม่ได้ — โดน auto-close
 
 **ที่เกิด**: [components/ui/FormSelect.tsx:120-128](components/ui/FormSelect.tsx#L120-L128) — เห็นชัดใน modal "เพิ่มหมวดหมู่ใหม่" บน ProductForm (categories > 8 รายการ)

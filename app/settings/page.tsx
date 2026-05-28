@@ -382,7 +382,7 @@ export default function SettingsPage() {
   };
 
   // Only allow admin to access this page
-  if (!userProfile?.roles?.includes('admin') && !userProfile?.roles?.includes('owner')) {
+  if (!userProfile?.roles?.includes('admin') && !userProfile?.roles?.includes('owner') && !userProfile?.roles?.includes('manager')) {
     return (
       <Layout>
         <NoPermissionCard />

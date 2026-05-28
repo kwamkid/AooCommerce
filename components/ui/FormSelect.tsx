@@ -271,7 +271,7 @@ export default function FormSelect({
                   // Mouse-hover highlight is CSS-only (no setState on every
                   // mouseenter) — avoids re-rendering the whole list on hover.
                   // Keyboard nav still uses `highlightIdx` state.
-                  className={`w-full flex items-center gap-2.5 px-4 py-2 pr-8 text-sm transition-colors hover:bg-gray-50 dark:hover:bg-slate-700 ${
+                  className={`w-full flex items-center gap-2.5 px-4 py-2 pr-8 text-base transition-colors hover:bg-gray-50 dark:hover:bg-slate-700 ${
                     idx === highlightIdx
                       ? 'bg-gray-50 dark:bg-slate-700'
                       : ''
@@ -300,7 +300,7 @@ export default function FormSelect({
                 );
               })}
               {allItems.length === 0 && (
-                <div className="px-3 py-4 text-sm text-gray-400 dark:text-slate-500 text-center">
+                <div className="px-3 py-4 text-base text-gray-400 dark:text-slate-500 text-center">
                   ไม่พบผลลัพธ์
                 </div>
               )}

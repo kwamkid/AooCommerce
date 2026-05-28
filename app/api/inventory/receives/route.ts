@@ -1,6 +1,6 @@
 // Path: app/api/inventory/receives/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin, checkAuthWithCompany, isAdminRole, hasAnyRole } from '@/lib/supabase-admin';
+import { supabaseAdmin, checkAuthWithCompany, isAdminRole, canManageInventory } from '@/lib/supabase-admin';
 import { getStockConfig } from '@/lib/stock-utils';
 import { addStock, updateWeightedAverageCost } from '@/lib/stock-service';
 
@@ -138,7 +138,7 @@ export async function POST(request: NextRequest) {
     if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    if (!hasAnyRole(auth.companyRoles, ['owner','admin','warehouse'])) {
+    if (!canManageInventory(auth.companyRoles)) {
       return NextResponse.json({ error: 'ไม่มีสิทธิ์รับเข้าสินค้า' }, { status: 403 });
     }
 

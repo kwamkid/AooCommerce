@@ -14,6 +14,8 @@ import FormSelect from '@/components/ui/FormSelect';
 import Modal from '@/components/ui/Modal';
 import Button from '@/components/ui/Button';
 import NumberInput from '@/components/ui/NumberInput';
+import Badge from '@/components/ui/Badge';
+import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import {
   Plus,
   Trash2,
@@ -156,6 +158,7 @@ export default function ProductForm({
   const [variationTypes, setVariationTypes] = useState<VariationTypeItem[]>([]);
   const [saving, setSaving] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  const { confirmDialog, confirm } = useConfirmDialog();
 
   // Track the product_type the form was loaded with — used to detect when the
   // user is changing simple ↔ variation in edit mode (needs confirmation).
@@ -382,22 +385,35 @@ export default function ProductForm({
     }, 50);
   };
 
-  // Remove variation
-  const removeVariation = (index: number) => {
-    const removed = formData.variations[index];
-    // Clean up variation images for this temp ID
-    if (removed) {
-      setVariationImages(prev => {
-        const updated = { ...prev };
-        delete updated[removed._tempId];
-        return updated;
+  // Remove variation. "Delete" = ลบจริง (deleted_at = now on save) — hidden
+  // everywhere afterwards. For temporary pause use the "ใช้งาน" checkbox.
+  // Confirm only for existing (DB-persisted) rows; brand-new in-form ones can
+  // be discarded freely.
+  const removeVariation = async (index: number) => {
+    const target = formData.variations[index];
+    if (!target) return;
+
+    if (target.id) {
+      const label = target.variation_label || target.sku || `#${index + 1}`;
+      const ok = await confirm({
+        title: `ลบ variation "${label}"?`,
+        description: 'ลบถาวร — variation จะหายจากหน้าสินค้าและการขาย (แต่ระบบเก็บไว้ใน DB เพื่อรักษาประวัติ orders/inventory)\n\nหากต้องการแค่ปิดการขายชั่วคราว ให้ยกเลิกติ๊ก "ใช้งาน" แทน',
+        variant: 'danger',
+        confirmLabel: 'ลบ',
+        cancelLabel: 'ยกเลิก',
       });
+      if (!ok) return;
     }
+
+    setVariationImages(prev => {
+      const updated = { ...prev };
+      delete updated[target._tempId];
+      return updated;
+    });
     setFormData(prev => ({
       ...prev,
       variations: prev.variations.filter((_, i) => i !== index)
     }));
-    // Clear any errors for this variation
     setFieldErrors(prev => {
       const next = { ...prev };
       for (const key of Object.keys(next)) {
@@ -1156,11 +1172,22 @@ export default function ProductForm({
                     const selectedNames = getSelectedTypeNames();
                     const imageKey = variation._tempId;
                     return (
-                      <div key={variation._tempId} data-variation-id={variation._tempId} className="bg-gray-50 dark:bg-slate-700/50 border border-gray-200 dark:border-slate-600 rounded-xl p-4 hover:border-gray-300 dark:hover:border-slate-500 transition-colors">
+                      <div
+                        key={variation._tempId}
+                        data-variation-id={variation._tempId}
+                        className={`border rounded-xl p-4 transition-colors ${
+                          variation.is_active
+                            ? 'bg-gray-50 dark:bg-slate-700/50 border-gray-200 dark:border-slate-600 hover:border-gray-300 dark:hover:border-slate-500'
+                            : 'bg-gray-100/60 dark:bg-slate-800/40 border-gray-300 dark:border-slate-700'
+                        }`}
+                      >
                         {/* Header — number + inline attribute inputs + controls */}
                         <div className="flex items-center justify-between mb-3 gap-2">
                           <div className="flex items-center gap-2 flex-1 min-w-0 flex-wrap">
                             <span className="w-6 h-6 bg-white dark:bg-slate-600 rounded-full flex items-center justify-center text-xs font-bold text-gray-500 dark:text-slate-200 border dark:border-slate-500 flex-shrink-0">{index + 1}</span>
+                            {!variation.is_active && (
+                              <Badge tone="gray" shape="square" size="sm">ปิด</Badge>
+                            )}
                             {selectedNames.map(typeName => {
                               const errKey = `variation.${index}.${typeName}`;
                               return (
@@ -1317,9 +1344,9 @@ export default function ProductForm({
       </div>
     </form>
 
-    {/* Type-change confirmation (edit mode only) — see soft-archive behavior
-        on the API side: old variations are deactivated, not hard-deleted, so
-        existing orders/inventory references stay intact. */}
+    {/* Type-change confirmation (edit mode only) — API soft-DELETES the old
+        variations (deleted_at = now) so they vanish from the new shape's UI
+        but stay in DB for FK history (orders, inventory, reports). */}
     <Modal
       open={!!pendingTypeChange}
       onClose={() => setPendingTypeChange(null)}
@@ -1365,15 +1392,15 @@ export default function ProductForm({
           <ul className="list-disc list-inside space-y-1 text-xs">
             {pendingTypeChange === 'simple' ? (
               <>
-                <li>ตัวเลือกย่อย (variations) ทั้งหมดจะถูก<strong>ปิดใช้งาน</strong>เมื่อกดบันทึก</li>
-                <li>ระบบจะ<strong>ไม่ลบ</strong>ตัวเลือกย่อยเก่า — เพื่อรักษา order/stock/รายงานเก่าไว้ครบ</li>
+                <li>ตัวเลือกย่อย (variations) ทั้งหมดจะถูก<strong>ลบ</strong>เมื่อกดบันทึก (หายจากหน้าสินค้า)</li>
+                <li>ระบบยัง<strong>เก็บข้อมูลเก่าไว้ใน DB</strong> — order/stock/รายงานยังอ้างอิงได้ครบ</li>
                 <li>ราคา/สต็อกของสินค้านี้จะกลายเป็นค่าเดียวตามที่กรอกใหม่</li>
               </>
             ) : (
               <>
-                <li>ราคา/สต็อกของแบบ Simple ปัจจุบันจะถูก<strong>ปิดใช้งาน</strong>เมื่อกดบันทึก</li>
+                <li>ราคา/สต็อกของแบบ Simple ปัจจุบันจะถูก<strong>ลบ</strong>เมื่อกดบันทึก</li>
                 <li>ต้องสร้างตัวเลือกย่อย (variations) ใหม่ทั้งหมด</li>
-                <li>ระบบจะ<strong>ไม่ลบ</strong>ของเก่า — order/stock/รายงานเก่ายังอยู่ครบ</li>
+                <li>ระบบยัง<strong>เก็บข้อมูลเก่าไว้ใน DB</strong> — order/stock/รายงานยังอ้างอิงได้ครบ</li>
               </>
             )}
             <li className="text-amber-900 dark:text-amber-200 font-medium">การเปลี่ยนแปลงจะมีผลตอนกด &quot;บันทึก&quot; เท่านั้น (ยังไม่บันทึกตอนนี้)</li>
@@ -1483,6 +1510,7 @@ export default function ProductForm({
         </p>
       </div>
     </Modal>
+    {confirmDialog}
     </>
   );
 }
