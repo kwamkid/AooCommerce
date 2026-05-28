@@ -1,5 +1,5 @@
 // Path: app/api/settings/features/route.ts
-import { supabaseAdmin, checkAuthWithCompany, isAdminRole } from '@/lib/supabase-admin';
+import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
 import { NextRequest, NextResponse } from 'next/server';
 import { parseFeatures, DEFAULT_PRESET, DEFAULT_FEATURES, type FeatureFlags } from '@/lib/features';
 import { gatesFromPackageFeatures, applyPackageGates, PERMISSIVE_GATES } from '@/lib/package-features';
@@ -67,7 +67,7 @@ export async function PUT(request: NextRequest) {
     if (!companyId) {
       return NextResponse.json({ error: 'No company context' }, { status: 403 });
     }
-    if (!isAdminRole(companyRoles)) {
+    if (!can(companyRoles, 'settings.access')) {
       return NextResponse.json({ error: 'Only admin can update settings' }, { status: 403 });
     }
 

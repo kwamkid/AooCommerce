@@ -4,6 +4,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Minus, Plus, Trash2, User, Tag } from 'lucide-react';
 import { formatPrice } from '@/lib/utils/format';
+import Button from '@/components/ui/Button';
 import NumberInput from '@/components/ui/NumberInput';
 
 export interface CartItemComponent {
@@ -136,12 +137,9 @@ function DiscountPopover({ item, onUpdate }: { item: CartItem; onUpdate: (type: 
               {type === 'percent' ? '%' : '฿'}
             </button>
           </div>
-          <button
-            onClick={handleSave}
-            className="w-full mt-2 py-1.5 bg-primary text-white text-xs rounded-lg hover:bg-primary-hover transition-colors font-medium"
-          >
+          <Button variant="primary" size="sm" fullWidth className="mt-2" onClick={handleSave}>
             ตกลง
-          </button>
+          </Button>
         </div>
       )}
     </div>

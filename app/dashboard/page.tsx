@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Layout from '@/components/layout/Layout';
 import { useAuth } from '@/lib/auth-context';
+import { can } from '@/lib/permissions';
 import { useFetchOnce } from '@/lib/use-fetch-once';
 import { apiFetch } from '@/lib/api-client';
 import { formatPrice } from '@/lib/utils/format';
@@ -136,7 +137,7 @@ export default function DashboardPage() {
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Dashboard</h1>
         <p className="text-gray-600 dark:text-slate-400 mt-1">
-          สวัสดี, {userProfile.name || 'ผู้ใช้งาน'} — {(userProfile.roles?.includes('owner') || userProfile.roles?.includes('admin')) && 'ภาพรวมระบบทั้งหมด'}
+          สวัสดี, {userProfile.name || 'ผู้ใช้งาน'} — {can(userProfile.roles, 'settings.access') && 'ภาพรวมระบบทั้งหมด'}
           {userProfile.roles?.includes('sales') && 'ภาพรวมการขายและลูกค้า'}
         </p>
       </div>

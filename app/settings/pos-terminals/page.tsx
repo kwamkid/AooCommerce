@@ -9,6 +9,7 @@ import Button from '@/components/ui/Button';
 import { LoadingCard, NoPermissionCard } from '@/components/ui/StateCard';
 import Toggle from '@/components/ui/Toggle';
 import { useAuth } from '@/lib/auth-context';
+import { can } from '@/lib/permissions';
 import { useFeatures } from '@/lib/features-context';
 import { useFetchOnce } from '@/lib/use-fetch-once';
 import { useToast } from '@/lib/toast-context';
@@ -97,7 +98,7 @@ export default function PosTerminalsPage() {
     fetchTerminals();
     fetchWarehouses();
     fetchChannels();
-  }, !!(userProfile?.roles?.includes('admin') || userProfile?.roles?.includes('owner') || userProfile?.roles?.includes('manager')));
+  }, can(userProfile?.roles, 'masterdata.pos_terminals'));
 
   // ── Terminal CRUD ──
 
@@ -378,7 +379,7 @@ export default function PosTerminalsPage() {
   };
 
   // Admin guard
-  if (userProfile && !userProfile.roles?.includes('admin') && !userProfile.roles?.includes('owner') && !userProfile.roles?.includes('manager')) {
+  if (userProfile && !can(userProfile.roles, 'masterdata.pos_terminals')) {
     return (
       <Layout>
         <NoPermissionCard />

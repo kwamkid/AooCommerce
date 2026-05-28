@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useFetchOnce } from '@/lib/use-fetch-once';
 import Layout from '@/components/layout/Layout';
 import { useAuth } from '@/lib/auth-context';
+import { can } from '@/lib/permissions';
 import { useToast } from '@/lib/toast-context';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { apiFetch } from '@/lib/api-client';
@@ -92,7 +93,7 @@ export default function IntegrationsPage() {
   useFetchOnce(() => {
     fetchAccounts();
     fetchTiktokAccounts();
-  }, !!(userProfile?.roles?.includes('admin') || userProfile?.roles?.includes('owner') || userProfile?.roles?.includes('manager')));
+  }, can(userProfile?.roles, 'settings.access'));
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -429,7 +430,7 @@ export default function IntegrationsPage() {
   };
 
   // Admin guard
-  if (userProfile && !userProfile.roles?.includes('admin') && !userProfile.roles?.includes('owner') && !userProfile.roles?.includes('manager')) {
+  if (userProfile && !can(userProfile.roles, 'settings.access')) {
     return (
       <Layout>
         <NoPermissionCard />

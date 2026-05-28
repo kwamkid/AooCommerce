@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
+import Button from '@/components/ui/Button';
 import SearchInput from '@/components/ui/SearchInput';
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/lib/toast-context';
@@ -2312,13 +2313,14 @@ function LineChatPageContent() {
 
                 {/* Action buttons */}
                 <div className="pt-4 border-t border-gray-100 dark:border-slate-700 space-y-2">
-                  <button
+                  <Button
+                    variant="primary"
+                    fullWidth
+                    icon={<ShoppingCart className="w-4 h-4" />}
                     onClick={() => { setOrderFormKey(k => k + 1); setMobileView('order'); }}
-                    className="w-full py-2 bg-primary text-white rounded-lg font-medium hover:bg-primary-hover transition-colors flex items-center justify-center gap-2"
                   >
-                    <ShoppingCart className="w-4 h-4" />
                     เปิดบิล
-                  </button>
+                  </Button>
                   <button
                     onClick={() => window.open(`/customers/${selectedContact.customer!.id}`, '_blank')}
                     className="w-full py-2 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors"
@@ -2759,19 +2761,21 @@ function LineChatPageContent() {
 
                 {/* Action buttons */}
                 <div className="pt-4 border-t border-gray-100 dark:border-slate-700 space-y-2">
-                  <button
+                  <Button
+                    variant="primary"
+                    fullWidth
+                    icon={<ShoppingCart className="w-4 h-4" />}
                     onClick={() => { setOrderFormKey(k => k + 1); setRightPanel('order'); }}
-                    className="w-full py-2 bg-primary text-white rounded-lg font-medium hover:bg-primary-hover transition-colors flex items-center justify-center gap-2"
                   >
-                    <ShoppingCart className="w-4 h-4" />
                     เปิดบิล
-                  </button>
-                  <button
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    fullWidth
                     onClick={() => window.open(`/customers/${selectedContact.customer!.id}`, '_blank')}
-                    className="w-full py-2 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors"
                   >
                     ดูรายละเอียดเต็ม
-                  </button>
+                  </Button>
                   <div className="flex gap-2 pt-2">
                     <button
                       onClick={handleUnlinkCustomer}

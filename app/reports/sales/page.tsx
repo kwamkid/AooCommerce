@@ -7,6 +7,7 @@ import { useAuth } from '@/lib/auth-context';
 import { apiFetch } from '@/lib/api-client';
 import { formatPrice } from '@/lib/utils/format';
 import Layout from '@/components/layout/Layout';
+import Button from '@/components/ui/Button';
 import DateRangePicker, { DateValueType } from '@/components/ui/DateRangePicker';
 import {
   BarChart3,
@@ -277,18 +278,15 @@ export default function SalesReportPage() {
           </div>
         </div>
 
-        <button
+        <Button
+          variant="primary"
+          loading={exporting}
+          disabled={loading}
+          icon={<Download className="w-5 h-5" />}
           onClick={exportToCSV}
-          disabled={exporting || loading}
-          className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors font-medium disabled:opacity-50"
         >
-          {exporting ? (
-            <Loader2 className="w-5 h-5 animate-spin" />
-          ) : (
-            <Download className="w-5 h-5" />
-          )}
           Export CSV
-        </button>
+        </Button>
       </div>
 
       {/* Filters */}

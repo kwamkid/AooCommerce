@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { checkAuthWithCompany, isAdminRole } from '@/lib/supabase-admin';
+import { checkAuthWithCompany, can } from '@/lib/supabase-admin';
 import { generateAuthUrl } from '@/lib/tiktok/api';
 
 export async function GET(request: NextRequest) {
   try {
     const { isAuth, companyId, companyRoles } = await checkAuthWithCompany(request);
-    if (!isAuth || !companyId || !isAdminRole(companyRoles)) {
+    if (!isAuth || !companyId || !can(companyRoles, 'marketplace.connect')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 

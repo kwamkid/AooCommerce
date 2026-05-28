@@ -1,5 +1,5 @@
 // Path: app/api/users/route.ts
-import { supabaseAdmin, checkAuthWithCompany, isAdminRole, validateRoles } from '@/lib/supabase-admin';
+import { supabaseAdmin, checkAuthWithCompany, can, validateRoles } from '@/lib/supabase-admin';
 import { NextRequest, NextResponse } from 'next/server';
 
 // Type definitions
@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
         { status: 403 }
       );
     }
-    if (!isAdminRole(companyRoles)) {
+    if (!can(companyRoles, 'members.invite')) {
       return NextResponse.json(
         { error: 'Unauthorized. Admin access required.' },
         { status: 401 }
@@ -188,7 +188,7 @@ export async function GET(request: NextRequest) {
         { status: 403 }
       );
     }
-    if (!isAdminRole(companyRoles)) {
+    if (!can(companyRoles, 'members.invite')) {
       return NextResponse.json(
         { error: 'Unauthorized. Admin access required.' },
         { status: 401 }
@@ -264,7 +264,7 @@ export async function PUT(request: NextRequest) {
         { status: 403 }
       );
     }
-    if (!isAdminRole(companyRoles)) {
+    if (!can(companyRoles, 'members.invite')) {
       return NextResponse.json(
         { error: 'Unauthorized. Admin access required.' },
         { status: 401 }
@@ -372,7 +372,7 @@ export async function DELETE(request: NextRequest) {
         { status: 403 }
       );
     }
-    if (!isAdminRole(companyRoles)) {
+    if (!can(companyRoles, 'members.invite')) {
       return NextResponse.json(
         { error: 'Unauthorized. Admin access required.' },
         { status: 401 }

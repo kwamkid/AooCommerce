@@ -1,4 +1,4 @@
-import { supabaseAdmin, checkAuthWithCompany, isAdminRole } from '@/lib/supabase-admin';
+import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
 import { NextRequest, NextResponse } from 'next/server';
 
 // GET - read bill_expiry_days from companies.settings
@@ -27,7 +27,7 @@ export async function PUT(request: NextRequest) {
     const { isAuth, companyId, companyRoles } = await checkAuthWithCompany(request);
     if (!isAuth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     if (!companyId) return NextResponse.json({ error: 'No company context' }, { status: 403 });
-    if (!isAdminRole(companyRoles)) return NextResponse.json({ error: 'Only admin can update settings' }, { status: 403 });
+    if (!can(companyRoles, 'settings.access')) return NextResponse.json({ error: 'Only admin can update settings' }, { status: 403 });
 
     const body = await request.json();
     const { bill_expiry_days } = body as { bill_expiry_days: number | null };

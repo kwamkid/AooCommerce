@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { checkAuthWithCompany, isAdminRole, supabaseAdmin } from '@/lib/supabase-admin';
+import { checkAuthWithCompany, can, supabaseAdmin } from '@/lib/supabase-admin';
 import { TikTokAccountRow } from '@/lib/tiktok/api';
 import { syncOrdersByTimeRange } from '@/lib/tiktok/sync';
 import { logIntegration } from '@/lib/integration-logger';
@@ -12,7 +12,7 @@ export const maxDuration = 120;
  */
 export async function POST(request: NextRequest) {
   const { isAuth, companyId, companyRoles } = await checkAuthWithCompany(request);
-  if (!isAuth || !companyId || !isAdminRole(companyRoles)) {
+  if (!isAuth || !companyId || !can(companyRoles, 'marketplace.sync')) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

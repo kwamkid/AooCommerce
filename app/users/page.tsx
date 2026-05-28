@@ -4,9 +4,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
+import Button from '@/components/ui/Button';
 import SearchInput from '@/components/ui/SearchInput';
 import { useAuth } from '@/lib/auth-context';
 import { useCompany } from '@/lib/company-context';
+import { can } from '@/lib/permissions';
 import { useFetchOnce } from '@/lib/use-fetch-once';
 import { apiFetch } from '@/lib/api-client';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
@@ -166,7 +168,7 @@ export default function UsersPage() {
       return;
     }
     
-    if (!userProfile.roles?.includes('admin') && !userProfile.roles?.includes('owner') && !userProfile.roles?.includes('manager')) {
+    if (!can(userProfile.roles, 'members.view')) {
       router.push('/dashboard');
       return;
     }
@@ -175,7 +177,7 @@ export default function UsersPage() {
   // Fetch users
   useFetchOnce(() => {
     fetchUsers();
-  }, !authLoading && !!(userProfile?.roles?.includes('admin') || userProfile?.roles?.includes('owner') || userProfile?.roles?.includes('manager')) && !dataFetched);
+  }, !authLoading && can(userProfile?.roles, 'members.view') && !dataFetched);
 
   // Handle create/update user
   const handleSaveUser = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -406,7 +408,7 @@ export default function UsersPage() {
   }
 
   // Not authorized
-  if (!userProfile || (!userProfile.roles?.includes('admin') && !userProfile.roles?.includes('owner') && !userProfile.roles?.includes('manager'))) {
+  if (!userProfile || !can(userProfile.roles, 'members.view')) {
     return null;
   }
 
@@ -441,7 +443,9 @@ export default function UsersPage() {
           </div>
         </div>
 
-        <button
+        <Button
+          variant="primary"
+          icon={<Plus className="w-5 h-5" />}
           onClick={() => {
             setEditingUser(null);
             setFormData({
@@ -454,11 +458,9 @@ export default function UsersPage() {
             });
             setShowModal(true);
           }}
-          className="flex items-center px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 font-medium transition-colors"
         >
-          <Plus className="w-5 h-5 mr-2" />
           เพิ่ม<span className="hidden md:inline">ผู้ใช้ใหม่</span>
-        </button>
+        </Button>
       </div>
 
       {/* Alerts */}
@@ -756,21 +758,16 @@ export default function UsersPage() {
                 </div>
 
                 <div className="flex justify-end space-x-3 mt-6">
-                  <button
-                    type="button"
-                    onClick={() => setShowModal(false)}
-                    className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium transition-colors"
-                  >
+                  <Button variant="secondary" onClick={() => setShowModal(false)}>
                     ยกเลิก
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     type="submit"
-                    disabled={saving}
-                    className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+                    variant="primary"
+                    loading={saving}
                   >
-                    {saving && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
                     {editingUser ? 'บันทึก' : 'เพิ่มผู้ใช้'}
-                  </button>
+                  </Button>
                 </div>
               </form>
             </div>

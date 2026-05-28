@@ -1,617 +1,60 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
 import Container from '@/components/ui/Container';
-import Button from '@/components/ui/Button';
 import PageHeader from '@/components/ui/PageHeader';
-import { LoadingCard } from '@/components/ui/StateCard';
 import Alert from '@/components/ui/Alert';
-import FormInput from '@/components/ui/FormInput';
-import NumberInput from '@/components/ui/NumberInput';
-import { useAuth } from '@/lib/auth-context';
-import { useCompany } from '@/lib/company-context';
+import { LoadingCard } from '@/components/ui/StateCard';
+import OrderForm from '@/components/orders/OrderForm';
 import { apiFetch } from '@/lib/api-client';
-import {
-  Plus,
-  Trash2,
-  Loader2,
-  Package,
-  MapPin,
-  X,
-  Save,
-} from 'lucide-react';
-import { formatPrice, formatNumber } from '@/lib/utils/format';
-import OrderSummaryBox from '@/components/ui/OrderSummaryBox';
-import ProductSearchInput, { ProductSearchItem } from '@/components/ui/ProductSearchInput';
-import FormSelect from '@/components/ui/FormSelect';
-
-// Interfaces
-interface Customer {
-  id: string;
-  customer_code: string;
-  name: string;
-  contact_person?: string;
-  phone?: string;
-}
-
-interface ShippingAddress {
-  id: string;
-  address_name: string;
-  contact_person?: string;
-  phone?: string;
-  address_line1: string;
-  district?: string;
-  amphoe?: string;
-  province: string;
-  postal_code?: string;
-  is_default: boolean;
-  created_at: string;
-}
-
-interface Product {
-  id: string; // variation_id for variations, product_id for simple products
-  product_id: string;
-  code: string;
-  name: string;
-  variation_label?: string;
-  product_type: 'simple' | 'variation';
-  default_price: number;
-  discount_price?: number;
-  stock: number;
-}
-
-// Branch-First structure
-interface BranchProduct {
-  variation_id: string;
-  product_id: string;
-  product_code: string;
-  product_name: string;
-  variation_label?: string;
-  quantity: number;
-  unit_price: number;
-  discount_percent: number;
-}
-
-interface BranchOrder {
-  shipping_address_id: string;
-  address_name: string;
-  delivery_notes: string;
-  shipping_fee: number;
-  products: BranchProduct[];
-}
-
-interface OrderItemShipment {
-  id: string;
-  shipping_address_id: string;
-  quantity: number;
-  shipping_fee?: number;
-  delivery_status: string;
-  delivery_date?: string;
-  received_date?: string;
-  delivery_notes?: string;
-  shipping_address: {
-    id: string;
-    address_name: string;
-    contact_person?: string;
-    phone?: string;
-    address_line1: string;
-    district?: string;
-    amphoe?: string;
-    province: string;
-    postal_code?: string;
-  };
-}
-
-interface OrderItem {
-  id: string;
-  variation_id: string;
-  product_id: string;
-  product_code: string;
-  product_name: string;
-  variation_label?: string;
-  quantity: number;
-  unit_price: number;
-  discount_percent: number;
-  discount_amount: number;
-  subtotal: number;
-  total: number;
-  shipments: OrderItemShipment[];
-}
-
-interface Order {
-  id: string;
-  order_number: string;
-  order_date: string;
-  delivery_date?: string;
-  total_amount: number;
-  payment_status: string;
-  order_status: string;
-  notes?: string;
-  internal_notes?: string;
-  vat_amount: number;
-  discount_amount: number;
-  subtotal: number;
-  customer: Customer;
-  items: OrderItem[];
-}
 
 export default function EditOrderPage() {
+  return (
+    <Suspense fallback={
+      <Layout>
+        <Container size="full">
+          <LoadingCard />
+        </Container>
+      </Layout>
+    }>
+      <EditOrderContent />
+    </Suspense>
+  );
+}
+
+function EditOrderContent() {
   const router = useRouter();
   const params = useParams();
   const orderId = params.id as string;
-  const { userProfile, loading: authLoading } = useAuth();
-  const { currentCompany } = useCompany();
-  const vatRegistered = currentCompany?.vat_registered || false;
+  const warehouseRef = useRef<HTMLDivElement>(null);
+  const salesChannelRef = useRef<HTMLDivElement>(null);
 
-  // State
+  // Pre-fetch order so PageHeader can show order_number/date.
+  // OrderForm reuses this via preloadedOrder — no duplicate fetch.
+  const [order, setOrder] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
-  const [statusError, setStatusError] = useState('');
 
-  // Original order data
-  const [originalOrder, setOriginalOrder] = useState<Order | null>(null);
-
-  // Customer (read-only in edit mode)
-  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
-
-  // Shipping addresses
-  const [shippingAddresses, setShippingAddresses] = useState<ShippingAddress[]>([]);
-
-  // Products
-  const [products, setProducts] = useState<Product[]>([]);
-
-  // Customer pricing (last prices paid by customer for each product)
-  const [customerPrices, setCustomerPrices] = useState<Record<string, { unit_price: number; discount_percent: number }>>({});
-
-  // Branch Orders (Branch-First approach)
-  const [branchOrders, setBranchOrders] = useState<BranchOrder[]>([]);
-  const [activeBranchIndex, setActiveBranchIndex] = useState(0);
-
-  // Order details
-  const [deliveryDate, setDeliveryDate] = useState('');
-  const [notes, setNotes] = useState('');
-  const [internalNotes, setInternalNotes] = useState('');
-  const [orderDiscount, setOrderDiscount] = useState(0);
-
-
-  // Refs for quantity inputs (to focus after adding product)
-  const quantityInputRefs = useRef<{ [key: string]: HTMLInputElement | null }>({});
-
-  // Fetch order data and initialize
   useEffect(() => {
-    if (!authLoading && userProfile && orderId) {
-      fetchOrderAndInitialize();
-    }
-  }, [authLoading, userProfile, orderId]);
-
-  const fetchOrderAndInitialize = async () => {
-    try {
-      setLoading(true);
-
-      // Fetch order details
-      const response = await apiFetch(`/api/orders?id=${orderId}`);
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch order');
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await apiFetch(`/api/orders?id=${orderId}`);
+        if (!res.ok) throw new Error('ไม่พบคำสั่งซื้อ');
+        const data = await res.json();
+        if (!cancelled) setOrder(data.order);
+      } catch (err) {
+        if (!cancelled) setError(err instanceof Error ? err.message : 'ไม่สามารถโหลดข้อมูลคำสั่งซื้อได้');
+      } finally {
+        if (!cancelled) setLoading(false);
       }
+    })();
+    return () => { cancelled = true; };
+  }, [orderId]);
 
-      const result = await response.json();
-      const order: Order = result.order;
-
-      // Check if order can be edited (only "new" status can be edited)
-      if (order.order_status !== 'new') {
-        const statusLabels: Record<string, string> = {
-          new: 'ใหม่',
-          shipping: 'กำลังส่ง',
-          completed: 'สำเร็จ',
-          cancelled: 'ยกเลิก'
-        };
-        setStatusError(
-          `ไม่สามารถแก้ไขคำสั่งซื้อนี้ได้ เนื่องจากอยู่ในสถานะ ${statusLabels[order.order_status] || order.order_status} กรุณายกเลิกและสร้างคำสั่งซื้อใหม่`
-        );
-        setLoading(false);
-        return;
-      }
-
-      setOriginalOrder(order);
-      setSelectedCustomer(order.customer);
-      setDeliveryDate(order.delivery_date || '');
-      setNotes(order.notes || '');
-      setInternalNotes(order.internal_notes || '');
-      setOrderDiscount(order.discount_amount || 0);
-
-      // Fetch products
-      await fetchProducts();
-
-      // Fetch shipping addresses
-      await fetchShippingAddresses(order.customer.id);
-
-      // Fetch customer prices
-      await fetchCustomerPrices(order.customer.id);
-
-      // Convert order items back to Branch-First structure
-      const branchMap: Map<string, BranchOrder> = new Map();
-
-      order.items.forEach(item => {
-        item.shipments.forEach(shipment => {
-          const addressId = shipment.shipping_address_id;
-
-          if (!branchMap.has(addressId)) {
-            branchMap.set(addressId, {
-              shipping_address_id: addressId,
-              address_name: shipment.shipping_address.address_name,
-              delivery_notes: shipment.delivery_notes || '',
-              shipping_fee: shipment.shipping_fee || 0,
-              products: []
-            });
-          }
-
-          const branch = branchMap.get(addressId)!;
-
-          // Check if product already exists in this branch
-          const existingProduct = branch.products.find(p => p.variation_id === item.variation_id);
-
-          if (existingProduct) {
-            // Add to existing product quantity
-            existingProduct.quantity += shipment.quantity;
-          } else {
-            // Add new product to branch
-            branch.products.push({
-              variation_id: item.variation_id,
-              product_id: item.product_id,
-              product_code: item.product_code,
-              product_name: item.product_name,
-              variation_label: item.variation_label,
-              quantity: shipment.quantity,
-              unit_price: item.unit_price,
-              discount_percent: item.discount_percent
-            });
-          }
-        });
-      });
-
-      const branchOrdersArray = Array.from(branchMap.values());
-      setBranchOrders(branchOrdersArray);
-
-    } catch (error) {
-      console.error('Error fetching order:', error);
-      setError('ไม่สามารถโหลดข้อมูลคำสั่งซื้อได้');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchProducts = async () => {
-    try {
-      const response = await apiFetch('/api/products');
-
-      if (!response.ok) throw new Error('Failed to fetch products');
-
-      const result = await response.json();
-      const fetchedProducts = result.products || [];
-
-      // Flatten variations into individual products
-      const flatProducts: Product[] = [];
-
-      fetchedProducts.forEach((sp: any) => {
-        if (sp.product_type === 'simple') {
-          const variation_id = sp.variations && sp.variations.length > 0 ? sp.variations[0].variation_id : null;
-          flatProducts.push({
-            id: variation_id || sp.product_id,
-            product_id: sp.product_id,
-            code: sp.code,
-            name: sp.name,
-            variation_label: sp.simple_variation_label,
-            product_type: 'simple',
-            default_price: sp.simple_default_price || 0,
-            discount_price: sp.simple_discount_price || 0,
-            stock: sp.simple_stock || 0
-          });
-        } else {
-          (sp.variations || []).forEach((v: any) => {
-            flatProducts.push({
-              id: v.variation_id,
-              product_id: sp.product_id,
-              code: `${sp.code}-${v.variation_label}`,
-              name: `${sp.name} (${v.variation_label})`,
-              variation_label: v.variation_label,
-              product_type: 'variation',
-              default_price: v.default_price || 0,
-              discount_price: v.discount_price || 0,
-              stock: v.stock || 0
-            });
-          });
-        }
-      });
-
-      setProducts(flatProducts);
-    } catch (error) {
-      console.error('Error fetching products:', error);
-    }
-  };
-
-  const fetchShippingAddresses = async (customerId: string) => {
-    try {
-      const response = await apiFetch(`/api/shipping-addresses?customer_id=${customerId}`);
-
-      if (response.ok) {
-        const result = await response.json();
-        const addresses = result.addresses || [];
-        setShippingAddresses(addresses);
-      }
-    } catch (error) {
-      console.error('Error fetching shipping addresses:', error);
-    }
-  };
-
-  const fetchCustomerPrices = async (customerId: string) => {
-    try {
-      const response = await apiFetch(`/api/customer-prices?customer_id=${customerId}`);
-
-      if (response.ok) {
-        const result = await response.json();
-        setCustomerPrices(result.prices || {});
-      }
-    } catch (error) {
-      console.error('Error fetching customer prices:', error);
-    }
-  };
-
-  // Branch management
-  const handleAddBranch = () => {
-    if (shippingAddresses.length === 0) {
-      setError('ลูกค้านี้ยังไม่มีที่อยู่จัดส่ง');
-      return;
-    }
-
-    // Find first available address not used yet
-    const usedAddressIds = branchOrders.map(b => b.shipping_address_id);
-    const availableAddress = shippingAddresses.find(a => !usedAddressIds.includes(a.id)) || shippingAddresses[0];
-
-    const newBranch: BranchOrder = {
-      shipping_address_id: availableAddress.id,
-      address_name: availableAddress.address_name,
-      delivery_notes: '',
-      shipping_fee: 0,
-      products: []
-    };
-
-    setBranchOrders([...branchOrders, newBranch]);
-    setActiveBranchIndex(branchOrders.length);
-  };
-
-  const handleRemoveBranch = (index: number) => {
-    if (branchOrders.length === 1) {
-      setError('ต้องมีอย่างน้อย 1 สาขา');
-      setTimeout(() => setError(''), 3000);
-      return;
-    }
-
-    setBranchOrders(branchOrders.filter((_, i) => i !== index));
-
-    if (activeBranchIndex >= branchOrders.length - 1) {
-      setActiveBranchIndex(Math.max(0, branchOrders.length - 2));
-    }
-  };
-
-  const handleUpdateBranchAddress = (index: number, addressId: string) => {
-    const newBranchOrders = [...branchOrders];
-    const address = shippingAddresses.find(a => a.id === addressId);
-    if (address) {
-      newBranchOrders[index].shipping_address_id = addressId;
-      newBranchOrders[index].address_name = address.address_name;
-      setBranchOrders(newBranchOrders);
-    }
-  };
-
-  const handleUpdateBranchNotes = (index: number, notes: string) => {
-    const newBranchOrders = [...branchOrders];
-    newBranchOrders[index].delivery_notes = notes;
-    setBranchOrders(newBranchOrders);
-  };
-
-  // Product management per branch
-  const handleAddProductToBranch = (branchIndex: number, product: Product) => {
-    const existingProduct = branchOrders[branchIndex].products.find(
-      p => p.variation_id === product.id
-    );
-
-    if (existingProduct) {
-      setError('สินค้านี้มีอยู่ในสาขานี้แล้ว');
-      setTimeout(() => setError(''), 3000);
-      return;
-    }
-
-    // Determine price
-    let unit_price = 0;
-    let discount_percent = 0;
-
-    const customerLastPrice = customerPrices[product.id];
-    if (customerLastPrice) {
-      unit_price = customerLastPrice.unit_price;
-      discount_percent = customerLastPrice.discount_percent;
-    } else if (product.discount_price && product.discount_price > 0) {
-      unit_price = product.discount_price;
-    } else {
-      unit_price = product.default_price;
-    }
-
-    const newProduct: BranchProduct = {
-      variation_id: product.id,
-      product_id: product.product_id,
-      product_code: product.code,
-      product_name: product.name,
-      variation_label: product.variation_label,
-      quantity: 1,
-      unit_price,
-      discount_percent
-    };
-
-    const newBranchOrders = [...branchOrders];
-    newBranchOrders[branchIndex].products.push(newProduct);
-    setBranchOrders(newBranchOrders);
-
-    // Focus on quantity input after adding product
-    setTimeout(() => {
-      const productIndex = newBranchOrders[branchIndex].products.length - 1;
-      const inputKey = `${branchIndex}-${productIndex}`;
-      const inputElement = quantityInputRefs.current[inputKey];
-      if (inputElement) {
-        inputElement.focus();
-        inputElement.select(); // Highlight all text
-      }
-    }, 100);
-  };
-
-  const handleRemoveProductFromBranch = (branchIndex: number, productIndex: number) => {
-    const newBranchOrders = [...branchOrders];
-    newBranchOrders[branchIndex].products = newBranchOrders[branchIndex].products.filter(
-      (_, i) => i !== productIndex
-    );
-    setBranchOrders(newBranchOrders);
-  };
-
-  const handleUpdateProductQuantity = (branchIndex: number, productIndex: number, quantity: number) => {
-    const newBranchOrders = [...branchOrders];
-    newBranchOrders[branchIndex].products[productIndex].quantity = Math.max(1, quantity);
-    setBranchOrders(newBranchOrders);
-  };
-
-  const handleUpdateProductPrice = (branchIndex: number, productIndex: number, price: number) => {
-    const newBranchOrders = [...branchOrders];
-    newBranchOrders[branchIndex].products[productIndex].unit_price = Math.max(0, price);
-    setBranchOrders(newBranchOrders);
-  };
-
-  const handleUpdateProductDiscount = (branchIndex: number, productIndex: number, discount: number) => {
-    const newBranchOrders = [...branchOrders];
-    newBranchOrders[branchIndex].products[productIndex].discount_percent = Math.max(0, Math.min(100, discount));
-    setBranchOrders(newBranchOrders);
-  };
-
-  const handleUpdateBranchShippingFee = (branchIndex: number, fee: number) => {
-    const newBranchOrders = [...branchOrders];
-    newBranchOrders[branchIndex].shipping_fee = Math.max(0, fee);
-    setBranchOrders(newBranchOrders);
-  };
-
-  // Calculate totals
-  const calculateProductSubtotal = (product: BranchProduct) => {
-    return product.quantity * product.unit_price;
-  };
-
-  const calculateProductDiscount = (product: BranchProduct) => {
-    return calculateProductSubtotal(product) * (product.discount_percent / 100);
-  };
-
-  const calculateProductTotal = (product: BranchProduct) => {
-    return calculateProductSubtotal(product) - calculateProductDiscount(product);
-  };
-
-  const calculateBranchTotal = (branch: BranchOrder) => {
-    return branch.products.reduce((sum, p) => sum + calculateProductTotal(p), 0);
-  };
-
-  // Prices already include VAT, so we need to calculate backwards
-  const itemsTotal = branchOrders.reduce((sum, branch) => sum + calculateBranchTotal(branch), 0);
-  const totalShippingFee = branchOrders.reduce((sum, branch) => sum + (branch.shipping_fee || 0), 0);
-  const totalWithVAT = itemsTotal - orderDiscount + totalShippingFee; // This is the final total (already includes VAT)
-  const subtotal = vatRegistered ? Math.round((totalWithVAT / 1.07) * 100) / 100 : totalWithVAT;
-  const vat = vatRegistered ? totalWithVAT - subtotal : 0;
-  const total = totalWithVAT;
-
-  // Validate and submit
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!selectedCustomer) {
-      setError('กรุณาเลือกลูกค้า');
-      return;
-    }
-
-    if (!deliveryDate) {
-      setError('กรุณาเลือกวันที่ส่งของ');
-      return;
-    }
-
-    if (branchOrders.length === 0) {
-      setError('กรุณาเพิ่มอย่างน้อย 1 สาขา');
-      return;
-    }
-
-    // Check if all branches have products
-    for (let i = 0; i < branchOrders.length; i++) {
-      if (branchOrders[i].products.length === 0) {
-        setError(`กรุณาเพิ่มสินค้าสำหรับสาขา: ${branchOrders[i].address_name}`);
-        return;
-      }
-    }
-
-    try {
-      setSaving(true);
-      setError('');
-
-      // Convert branch-first structure to flat order items
-      const items = branchOrders.flatMap(branch =>
-        branch.products.map(product => ({
-          variation_id: product.variation_id,
-          product_id: product.product_id,
-          product_code: product.product_code,
-          product_name: product.product_name,
-          variation_label: product.variation_label,
-          quantity: product.quantity,
-          unit_price: product.unit_price,
-          discount_percent: product.discount_percent,
-          shipments: [{
-            shipping_address_id: branch.shipping_address_id,
-            quantity: product.quantity,
-            delivery_notes: branch.delivery_notes || undefined,
-            shipping_fee: branch.shipping_fee || 0
-          }]
-        }))
-      );
-
-      const orderData = {
-        id: orderId,
-        customer_id: selectedCustomer.id,
-        delivery_date: deliveryDate || undefined,
-        discount_amount: orderDiscount,
-        notes: notes || undefined,
-        internal_notes: internalNotes || undefined,
-        items
-      };
-
-      const response = await apiFetch('/api/orders', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(orderData)
-      });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || 'เกิดข้อผิดพลาด');
-      }
-
-      setSuccess('บันทึกการแก้ไขสำเร็จ');
-      setTimeout(() => {
-        router.push(`/orders/${orderId}`);
-      }, 1500);
-    } catch (error) {
-      console.error('Error updating order:', error);
-      setError(error instanceof Error ? error.message : 'เกิดข้อผิดพลาด');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  if (authLoading || loading) {
+  if (loading) {
     return (
       <Layout>
         <Container size="full">
@@ -621,376 +64,45 @@ export default function EditOrderPage() {
     );
   }
 
-  // Show error if order status is not "confirmed"
-  if (statusError) {
+  if (error || !order) {
     return (
       <Layout>
-        <Container size="full">
+        <Container size="full" gap="sm">
           <PageHeader title="แก้ไขคำสั่งซื้อ" backHref={`/orders/${orderId}`} />
-
-          <Alert tone="danger" title="ไม่สามารถแก้ไขได้">{statusError}</Alert>
-
-          <div className="flex gap-3">
-            <Button variant="secondary" onClick={() => router.push('/orders')}>
-              กลับไปหน้ารายการคำสั่งซื้อ
-            </Button>
-            <Button variant="primary" onClick={() => router.push(`/orders/${orderId}`)}>
-              ดูรายละเอียดคำสั่งซื้อ
-            </Button>
-          </div>
+          <Alert tone="danger">{error || 'ไม่พบคำสั่งซื้อ'}</Alert>
         </Container>
       </Layout>
     );
   }
 
+  const subtitle = order.order_date
+    ? `สร้างเมื่อ: ${new Date(order.order_date).toLocaleDateString('th-TH', {
+        year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit',
+      })}`
+    : undefined;
+
   return (
     <Layout>
-      <Container size="full">
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Header */}
-          <PageHeader
-            title={`แก้ไขคำสั่งซื้อ #${originalOrder?.order_number ?? ''}`}
-            subtitle={originalOrder ? (
-              <>สร้างเมื่อ: {new Date(originalOrder.order_date).toLocaleDateString('th-TH', {
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit'
-              })}</>
-            ) : undefined}
-            backHref="/orders"
-          />
-
-        {/* Messages */}
-        {error && <Alert tone="danger">{error}</Alert>}
-        {success && <Alert tone="success">{success}</Alert>}
-
-        {/* Customer Information (Read-only) */}
-        <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-6">
-          <h2 className="text-lg font-semibold mb-4">ข้อมูลลูกค้า</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="bg-gray-50 dark:bg-slate-700/50 p-4 rounded-lg">
-              <div className="text-sm text-gray-600 dark:text-slate-400 mb-1">ชื่อลูกค้า</div>
-              <div className="font-medium">{selectedCustomer?.name}</div>
-              <div className="text-sm text-gray-500 dark:text-slate-400">{selectedCustomer?.customer_code}</div>
+      <Container size="full" gap="sm">
+        <PageHeader
+          title={`แก้ไขคำสั่งซื้อ #${order.order_number}`}
+          subtitle={subtitle}
+          backHref={`/orders/${orderId}`}
+          actions={
+            <div className="flex items-center gap-2">
+              <div ref={warehouseRef} />
+              <div ref={salesChannelRef} />
             </div>
+          }
+        />
 
-            {selectedCustomer && (
-              <div className="bg-gray-50 dark:bg-slate-700/50 p-4 rounded-lg">
-                <div className="text-sm text-gray-600 dark:text-slate-400 mb-1">ผู้ติดต่อ</div>
-                <div className="font-medium dark:text-white">{selectedCustomer.contact_person || '-'}</div>
-                <div className="text-sm text-gray-600 dark:text-slate-400">{selectedCustomer.phone || '-'}</div>
-              </div>
-            )}
-          </div>
-
-          {selectedCustomer && shippingAddresses.length > 0 && (
-            <div className="mt-4">
-              <div className="text-sm text-gray-600 dark:text-slate-400 mb-2">ที่อยู่จัดส่ง ({shippingAddresses.length} แห่ง)</div>
-              <div className="flex flex-wrap gap-2">
-                {shippingAddresses.map(addr => (
-                  <div key={addr.id} className="bg-blue-50 text-blue-700 px-3 py-1 rounded-full text-sm flex items-center gap-1">
-                    <MapPin className="w-3 h-3" />
-                    {addr.address_name}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Branch Orders */}
-        {selectedCustomer && branchOrders.length > 0 && (
-          <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-6 overflow-visible">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold">รายการสินค้าแยกตามสาขา</h2>
-              <button
-                type="button"
-                onClick={handleAddBranch}
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 text-sm font-medium"
-              >
-                <Plus className="w-4 h-4" />
-                เพิ่มสาขา
-              </button>
-            </div>
-
-            {/* Branch Tabs (only show if more than one branch) */}
-            {branchOrders.length > 1 && (
-              <div className="flex gap-2 mb-4 border-b overflow-x-auto">
-                {branchOrders.map((branch, index) => (
-                  <button
-                    key={index}
-                    type="button"
-                    onClick={() => setActiveBranchIndex(index)}
-                    className={`px-4 py-2 font-medium whitespace-nowrap border-b-2 transition-colors ${
-                      activeBranchIndex === index
-                        ? 'border-primary text-primary'
-                        : 'border-transparent text-gray-600 hover:text-gray-900'
-                    }`}
-                  >
-                    {branch.address_name}
-                    {branch.products.length > 0 && (
-                      <span className="ml-2 text-xs bg-gray-200 px-2 py-0.5 rounded-full">
-                        {branch.products.length}
-                      </span>
-                    )}
-                  </button>
-                ))}
-              </div>
-            )}
-
-            {/* Active Branch */}
-            {branchOrders.map((branch, branchIndex) => (
-              <div
-                key={branchIndex}
-                className={branchIndex === activeBranchIndex ? 'block' : 'hidden'}
-              >
-                {/* Branch Details */}
-                <div className="bg-gray-50 p-4 rounded-lg mb-4">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="md:col-span-1">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        สาขา <span className="text-red-500">*</span>
-                      </label>
-                      <FormSelect
-                        value={branch.shipping_address_id}
-                        onChange={(val) => handleUpdateBranchAddress(branchIndex, val)}
-                        options={shippingAddresses.map(addr => ({
-                          id: addr.id,
-                          label: addr.address_name,
-                          subtitle: `${addr.address_line1}, ${addr.district}, ${addr.amphoe}, ${addr.province}`,
-                        }))}
-                        placeholder="-- เลือกสาขา --"
-                      />
-                    </div>
-                    <FormInput
-                      label="ค่าจัดส่ง"
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={branch.shipping_fee || ''}
-                      onChange={(e) => handleUpdateBranchShippingFee(branchIndex, parseFloat(e.target.value) || 0)}
-                      placeholder="0.00"
-                      icon={<span className="text-sm">฿</span>}
-                    />
-                    <FormInput
-                      label="หมายเหตุการจัดส่ง"
-                      type="text"
-                      value={branch.delivery_notes}
-                      onChange={(e) => handleUpdateBranchNotes(branchIndex, e.target.value)}
-                      placeholder="หมายเหตุสำหรับสาขานี้..."
-                    />
-                  </div>
-                  {branchOrders.length > 1 && (
-                    <div className="mt-3 flex justify-end">
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveBranch(branchIndex)}
-                        className="text-red-600 hover:text-red-700 text-sm flex items-center gap-1"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                        ลบสาขานี้
-                      </button>
-                    </div>
-                  )}
-                </div>
-
-                {/* Products Table */}
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead className="data-thead">
-                      <tr>
-                        <th className="data-th">สินค้า</th>
-                        <th className="data-th text-center w-24">จำนวน</th>
-                        <th className="data-th text-right w-32">ราคา/หน่วย</th>
-                        <th className="data-th text-center w-24">ส่วนลด%</th>
-                        <th className="data-th text-right w-32">รวม</th>
-                        <th className="data-th text-center w-16">ลบ</th>
-                      </tr>
-                    </thead>
-                    <tbody className="data-tbody">
-                      {branch.products.map((product, productIndex) => (
-                        <tr key={product.variation_id}>
-                          <td className="px-4 py-3">
-                            <div className="font-medium">{product.product_name}</div>
-                            <div className="text-sm text-gray-500 dark:text-slate-400">{product.product_code}</div>
-                          </td>
-                          <td className="px-4 py-3 text-center">
-                            <NumberInput
-                              ref={(el) => {
-                                const key = `${branchIndex}-${productIndex}`;
-                                quantityInputRefs.current[key] = el;
-                              }}
-                              min="1"
-                              value={product.quantity}
-                              onChange={(n) => handleUpdateProductQuantity(branchIndex, productIndex, n || 1)}
-                              className="w-20 px-2 py-1 border border-gray-300 rounded text-center focus:outline-none focus:ring-2 focus:ring-primary"
-                            />
-                          </td>
-                          <td className="px-4 py-3 text-right">
-                            <div className="inline-flex items-stretch">
-                              <NumberInput
-                                min="0"
-                                step="0.01"
-                                value={product.unit_price}
-                                onChange={(n) => handleUpdateProductPrice(branchIndex, productIndex, Math.max(0, n))}
-                                className="w-20 px-2 py-1 border border-gray-300 dark:border-slate-600 rounded-l bg-white dark:bg-slate-800 text-gray-900 dark:text-white text-right focus:outline-none focus:ring-2 focus:ring-primary"
-                              />
-                              <span className="px-1.5 border border-l-0 border-gray-300 dark:border-slate-600 rounded-r bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-300 text-sm font-bold flex items-center">฿</span>
-                            </div>
-                          </td>
-                          <td className="px-4 py-3 text-center">
-                            <div className="inline-flex items-stretch">
-                              <NumberInput
-                                min="0"
-                                max="100"
-                                step="0.01"
-                                value={product.discount_percent}
-                                onChange={(n) => handleUpdateProductDiscount(branchIndex, productIndex, Math.max(0, n))}
-                                className="w-16 px-2 py-1 border border-gray-300 dark:border-slate-600 rounded-l bg-white dark:bg-slate-800 text-gray-900 dark:text-white text-center focus:outline-none focus:ring-2 focus:ring-primary"
-                              />
-                              <span className="px-2 border border-l-0 border-gray-300 dark:border-slate-600 rounded-r bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-300 text-sm font-bold flex items-center">%</span>
-                            </div>
-                          </td>
-                          <td className="px-4 py-3 text-right font-medium">
-                            ฿{formatPrice(calculateProductTotal(product))}
-                          </td>
-                          <td className="px-4 py-3 text-center">
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveProductFromBranch(branchIndex, productIndex)}
-                              className="text-red-600 hover:text-red-700 p-1"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* Add Product Search */}
-                <div className="mt-4">
-                  <ProductSearchInput
-                    products={products as ProductSearchItem[]}
-                    onSelect={(product) => handleAddProductToBranch(branchIndex, product as unknown as Product)}
-                    placeholder="ค้นหาชื่อหรือรหัสสินค้า..."
-                    isAlreadyAdded={(p) => branchOrders[branchIndex].products.some(bp => bp.variation_id === p.id)}
-                    formatSubtitle={(p) => {
-                      const prod = products.find(pr => pr.id === p.id);
-                      return `${p.code} • คงเหลือ: ${prod?.stock ?? 0}`;
-                    }}
-                  />
-                  {branch.products.length === 0 && (
-                    <div className="text-center py-8 text-gray-400 dark:text-slate-500">
-                      <Package className="w-10 h-10 mx-auto mb-2" />
-                      <p className="text-sm">เพิ่มสินค้าโดยพิมพ์ค้นหาด้านบน</p>
-                    </div>
-                  )}
-                </div>
-
-                {/* Branch Total */}
-                {branch.products.length > 0 && (
-                  <div className="mt-4 p-3 bg-gray-50 rounded-lg flex justify-between items-center">
-                    <span className="font-medium">
-                      ยอดรวมสาขานี้:
-                      {branch.shipping_fee > 0 && (
-                        <span className="text-gray-400 font-normal ml-2">(รวมค่าส่ง ฿{formatPrice(branch.shipping_fee)})</span>
-                      )}
-                    </span>
-                    <span className="text-lg font-bold text-primary">
-                      ฿{formatPrice(calculateBranchTotal(branch) + (branch.shipping_fee || 0))}
-                    </span>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Order Summary and Details */}
-        {branchOrders.length > 0 && branchOrders.some(b => b.products.length > 0) && (
-          <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Left Column (Desktop) / Second on Mobile - Delivery & Payment Info */}
-              <div className="order-2 md:order-1 space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    วันที่ส่งของ <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="date"
-                    value={deliveryDate}
-                    onChange={(e) => setDeliveryDate(e.target.value)}
-                    required
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    หมายเหตุ
-                  </label>
-                  <textarea
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                    rows={2}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                    placeholder="หมายเหตุสำหรับลูกค้า..."
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    หมายเหตุภายใน
-                  </label>
-                  <textarea
-                    value={internalNotes}
-                    onChange={(e) => setInternalNotes(e.target.value)}
-                    rows={2}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                    placeholder="หมายเหตุภายใน (ไม่แสดงให้ลูกค้า)..."
-                  />
-                </div>
-              </div>
-
-              {/* Right Column (Desktop) / First on Mobile - Order Summary */}
-              <div className="order-1 md:order-2">
-                <OrderSummaryBox
-                  title="สรุปคำสั่งซื้อ"
-                  subtotalAmount={itemsTotal}
-                  vatRegistered={vatRegistered}
-                  shippingFee={totalShippingFee}
-                  discountValue={orderDiscount}
-                  discountType="amount"
-                  onDiscountChange={(v) => setOrderDiscount(Math.min(itemsTotal, Math.max(0, v)))}
-                />
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Action Buttons */}
-        {branchOrders.length > 0 && branchOrders.some(b => b.products.length > 0) && (
-          <div className="flex justify-end gap-3">
-            <Button
-              variant="secondary"
-              icon={<X className="w-5 h-5" />}
-              onClick={() => router.push('/orders')}
-            >
-              ยกเลิก
-            </Button>
-            <Button
-              type="submit"
-              variant="primary"
-              loading={saving}
-              icon={!saving ? <Save className="w-5 h-5" /> : undefined}
-            >
-              {saving ? 'กำลังบันทึก...' : 'บันทึกการแก้ไข'}
-            </Button>
-          </div>
-        )}
-        </form>
+        <OrderForm
+          editOrderId={orderId}
+          preloadedOrder={order}
+          warehousePortalRef={warehouseRef}
+          salesChannelPortalRef={salesChannelRef}
+          onSuccess={() => router.push(`/orders/${orderId}`)}
+        />
       </Container>
     </Layout>
   );

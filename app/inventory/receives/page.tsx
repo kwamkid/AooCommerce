@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
+import Button from '@/components/ui/Button';
 import { useAuth } from '@/lib/auth-context';
 import { useFetchOnce } from '@/lib/use-fetch-once';
 import { useToast } from '@/lib/toast-context';
@@ -167,14 +168,15 @@ export default function ReceiveListPage() {
               />
             </div>
           )}
-          <button
+          <Button
+            variant="primary"
             onClick={() => router.push('/inventory/receive')}
-            className="bg-primary text-white p-2.5 md:px-4 md:py-2.5 rounded-lg hover:bg-primary-hover transition-colors flex items-center gap-2 text-sm font-medium whitespace-nowrap flex-shrink-0"
             title="รับเข้าสินค้า"
+            icon={<Plus className="w-4 h-4" />}
+            className="whitespace-nowrap flex-shrink-0"
           >
-            <Plus className="w-4 h-4" />
             <span className="hidden md:inline">รับเข้าสินค้า</span>
-          </button>
+          </Button>
         </div>
 
         <DataTable<Receive>

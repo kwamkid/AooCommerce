@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
 import { useAuth } from '@/lib/auth-context';
 import { useCompany } from '@/lib/company-context';
+import { can } from '@/lib/permissions';
 import { useFeatures } from '@/lib/features-context';
 import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
@@ -76,7 +77,7 @@ export default function BulkCreateProductsPage() {
   const { showToast } = useToast();
   const brandEnabled = features.product_brand;
 
-  const isAdmin = companyRoles.includes('owner') || companyRoles.includes('admin') || companyRoles.includes('manager') || companyRoles.includes('warehouse');
+  const isAdmin = can(companyRoles, 'product.bulk_edit');
   const canEditCost = userProfile?.canViewCost === true;
 
   const [step, setStep] = useState<'upload' | 'checking' | 'preview' | 'importing' | 'done'>('upload');

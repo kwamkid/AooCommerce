@@ -7,6 +7,7 @@ import Container from '@/components/ui/Container';
 import PageHeader from '@/components/ui/PageHeader';
 import SearchInput from '@/components/ui/SearchInput';
 import { useAuth } from '@/lib/auth-context';
+import { can } from '@/lib/permissions';
 import { useToast } from '@/lib/toast-context';
 import { useFeatures } from '@/lib/features-context';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
@@ -217,7 +218,7 @@ export default function BrandDetailPage() {
 
   if (!brand) return null;
 
-  const isAdmin = userProfile?.roles?.includes('admin') || userProfile?.roles?.includes('owner') || userProfile?.roles?.includes('manager');
+  const isAdmin = can(userProfile?.roles, 'masterdata.brands');
   if (!isAdmin || !features.product_brand) {
     router.replace('/settings/brands');
     return null;

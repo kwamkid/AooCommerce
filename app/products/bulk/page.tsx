@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import Layout from '@/components/layout/Layout';
 import { useCompany } from '@/lib/company-context';
+import { can } from '@/lib/permissions';
 import { useFeatures } from '@/lib/features-context';
 import {
   FileText,
@@ -99,10 +100,7 @@ function ActionCard({ a }: { a: BulkAction }) {
 export default function BulkProductsHub() {
   const { companyRoles } = useCompany();
   const { features } = useFeatures();
-  const canEdit = companyRoles.includes('owner')
-    || companyRoles.includes('admin')
-    || companyRoles.includes('manager')
-    || companyRoles.includes('warehouse');
+  const canEdit = can(companyRoles, 'product.bulk_edit');
   const visibleEditActions = EDIT_ACTIONS.filter(a => !a.requiresStock || features.stock);
 
   if (!canEdit) {

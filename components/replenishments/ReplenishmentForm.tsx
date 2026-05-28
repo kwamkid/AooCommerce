@@ -9,6 +9,7 @@ import {
   QrCode, Copy, Camera, Link2, AlertTriangle, Eye, Printer,
 } from 'lucide-react';
 import Modal from '@/components/ui/Modal';
+import Button from '@/components/ui/Button';
 import NumberInput from '@/components/ui/NumberInput';
 import { useCompany } from '@/lib/company-context';
 import { formatNumber } from '@/lib/utils/format';
@@ -1097,29 +1098,35 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
       {/* Footer actions (create/edit only) */}
       {!isEditMode && (
         <div className="flex justify-end gap-3">
-          <button type="button" onClick={() => router.push(isDeptOrder ? '/department-orders' : '/replenishments')} disabled={submitting} className="btn-secondary">ยกเลิก</button>
-          <button
-            type="button"
-            onClick={handleSubmit}
-            disabled={submitting || !selectedCustomerId || items.length === 0}
-            className="btn-primary"
+          <Button
+            variant="secondary"
+            onClick={() => router.push(isDeptOrder ? '/department-orders' : '/replenishments')}
+            disabled={submitting}
           >
-            {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+            ยกเลิก
+          </Button>
+          <Button
+            variant="primary"
+            onClick={handleSubmit}
+            disabled={!selectedCustomerId || items.length === 0}
+            loading={submitting}
+            icon={<Save className="w-4 h-4" />}
+          >
             สร้างใบเติมสินค้า
-          </button>
+          </Button>
         </div>
       )}
       {isEditMode && existingStatus === 'pending' && !viewMode && (
         <div className="flex justify-end gap-3">
-          <button
-            type="button"
+          <Button
+            variant="primary"
             onClick={handleSaveEdit}
-            disabled={submitting || !selectedCustomerId || items.length === 0}
-            className="btn-primary"
+            disabled={!selectedCustomerId || items.length === 0}
+            loading={submitting}
+            icon={<Save className="w-4 h-4" />}
           >
-            {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
             บันทึก
-          </button>
+          </Button>
         </div>
       )}
 

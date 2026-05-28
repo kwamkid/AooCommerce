@@ -11,6 +11,7 @@ import {
   Loader2, PackageMinus, CheckCircle2, Warehouse, Star,
 } from 'lucide-react';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
+import Button from '@/components/ui/Button';
 import FormSelect from '@/components/ui/FormSelect';
 import ItemsTable, { type TableItem } from '@/components/ui/ItemsTable';
 import type { ProductSearchItem } from '@/components/ui/ProductSearchInput';
@@ -292,14 +293,18 @@ export default function StockIssuePage() {
         {/* Action Buttons */}
         {selectedWarehouse && (
           <div className="flex justify-end gap-3 pb-4">
-            <button type="button" onClick={() => router.push('/inventory/issues')}
-              className="px-5 py-2.5 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors text-sm font-medium">
+            <Button variant="secondary" onClick={() => router.push('/inventory/issues')}>
               ยกเลิก
-            </button>
-            <button type="button" onClick={handleSubmit} disabled={!canSubmit || submitting}
-              className="bg-primary text-white px-5 py-2.5 rounded-lg hover:bg-primary-hover transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium">
-              {submitting ? <><Loader2 className="w-4 h-4 animate-spin" />กำลังบันทึก...</> : <><PackageMinus className="w-4 h-4" />บันทึกเบิกออก</>}
-            </button>
+            </Button>
+            <Button
+              variant="primary"
+              onClick={handleSubmit}
+              disabled={!canSubmit}
+              loading={submitting}
+              icon={<PackageMinus className="w-4 h-4" />}
+            >
+              {submitting ? 'กำลังบันทึก...' : 'บันทึกเบิกออก'}
+            </Button>
           </div>
         )}
       </div>

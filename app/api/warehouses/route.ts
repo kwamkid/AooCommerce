@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin, checkAuthWithCompany, isAdminRole } from '@/lib/supabase-admin';
+import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
 import { canCreateWarehouse, getStockConfig } from '@/lib/stock-utils';
 
 // GET - List warehouses
@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
     if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    if (!isAdminRole(auth.companyRoles)) {
+    if (!can(auth.companyRoles, 'masterdata.warehouses')) {
       return NextResponse.json({ error: 'Admin only' }, { status: 403 });
     }
 
@@ -132,7 +132,7 @@ export async function PUT(request: NextRequest) {
     if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    if (!isAdminRole(auth.companyRoles)) {
+    if (!can(auth.companyRoles, 'masterdata.warehouses')) {
       return NextResponse.json({ error: 'Admin only' }, { status: 403 });
     }
 
@@ -210,7 +210,7 @@ export async function DELETE(request: NextRequest) {
     if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    if (!isAdminRole(auth.companyRoles)) {
+    if (!can(auth.companyRoles, 'masterdata.warehouses')) {
       return NextResponse.json({ error: 'Admin only' }, { status: 403 });
     }
 

@@ -12,6 +12,7 @@ import Container from '@/components/ui/Container';
 import Button from '@/components/ui/Button';
 import { LoadingCard, NoPermissionCard } from '@/components/ui/StateCard';
 import { useAuth } from '@/lib/auth-context';
+import { can } from '@/lib/permissions';
 import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
 import {
@@ -63,7 +64,7 @@ export default function CarriersSettingsPage() {
   const [formShippopCode, setFormShippopCode] = useState('');
   const [formActive, setFormActive] = useState(true);
 
-  const isAdmin = !!userProfile?.roles?.some(r => r === 'owner' || r === 'admin' || r === 'manager');
+  const isAdmin = can(userProfile?.roles, 'masterdata.carriers');
 
   const loadCarriers = async () => {
     try {

@@ -1,6 +1,6 @@
 // Path: app/api/pos/orders/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin, checkAuthWithCompany, isAdminRole } from '@/lib/supabase-admin';
+import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
 import { getStockConfig } from '@/lib/stock-utils';
 import { deductStock } from '@/lib/stock-service';
 import { fetchCostMap } from '@/lib/cost-utils';
@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
 
     // Check warehouse permission for cashier role
     let allowedWarehouseIds: string[] | null = null; // null = all
-    if (!isAdminRole(auth.companyRoles)) {
+    if (!can(auth.companyRoles, 'pos.manage')) {
       const { data: membership } = await supabaseAdmin
         .from('company_members')
         .select('warehouse_ids')

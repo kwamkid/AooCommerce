@@ -1,6 +1,6 @@
 // Path: app/api/shopee/orders/bulk-shipping-document/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { checkAuthWithCompany, isAdminRole, supabaseAdmin } from '@/lib/supabase-admin';
+import { checkAuthWithCompany, can, supabaseAdmin } from '@/lib/supabase-admin';
 import {
   type ShopeeAccountRow,
   type ShopeeCredentials,
@@ -36,7 +36,7 @@ const STEP_LABELS = {
 export async function POST(request: NextRequest) {
   // Auth + validation (must happen before streaming)
   const auth = await checkAuthWithCompany(request);
-  if (!auth.isAuth || !auth.companyId || !isAdminRole(auth.companyRoles)) {
+  if (!auth.isAuth || !auth.companyId || !can(auth.companyRoles, 'marketplace.ship')) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
   const companyId = auth.companyId;

@@ -9,7 +9,7 @@ import Modal from '@/components/ui/Modal';
 import Badge from '@/components/ui/Badge';
 import ImageLightbox from '@/components/ui/ImageLightbox';
 import StatusTabs from '@/components/ui/StatusTabs';
-import { LoadingCard } from '@/components/ui/StateCard';
+import { LoadingCard, EmptyCard } from '@/components/ui/StateCard';
 import Alert from '@/components/ui/Alert';
 import FormInput from '@/components/ui/FormInput';
 import SearchInput, { SearchInputHandle } from '@/components/ui/SearchInput';
@@ -21,14 +21,11 @@ import DateRangePicker, { DateValueType } from '@/components/ui/DateRangePicker'
 import {
   ShoppingCart,
   Plus,
-  Loader2,
   Trash2,
   Edit2,
   ChevronRight,
   Link2,
-  CheckCircle,
   X,
-  ChevronDown,
   Package,
   CreditCard,
   User,
@@ -71,15 +68,16 @@ import { useCompany } from '@/lib/company-context';
 import LoadingOverlay from '@/components/ui/LoadingOverlay';
 import FormSelect from '@/components/ui/FormSelect';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
+import { getStatusBadgeTone } from '@/lib/status-tab-colors';
 
-// Sort options
+// Sort options (id/label so FormSelect can consume directly)
 const SORT_OPTIONS = [
-  { value: 'created_at:desc', label: 'ล่าสุด' },
-  { value: 'created_at:asc', label: 'เก่าสุด' },
-  { value: 'delivery_date:asc', label: 'ส่งเร็วสุด' },
-  { value: 'delivery_date:desc', label: 'ส่งช้าสุด' },
-  { value: 'total_amount:desc', label: 'ยอดมากสุด' },
-  { value: 'total_amount:asc', label: 'ยอดน้อยสุด' },
+  { id: 'created_at:desc', label: 'ล่าสุด' },
+  { id: 'created_at:asc', label: 'เก่าสุด' },
+  { id: 'delivery_date:asc', label: 'ส่งเร็วสุด' },
+  { id: 'delivery_date:desc', label: 'ส่งช้าสุด' },
+  { id: 'total_amount:desc', label: 'ยอดมากสุด' },
+  { id: 'total_amount:asc', label: 'ยอดน้อยสุด' },
 ];
 
 const VALID_TABS = ['all', 'new', 'ready_to_ship', 'processing', 'shipping', 'completed', 'cancelled'];
@@ -161,9 +159,6 @@ function OrdersPageContent() {
     endDate: null,
   });
 
-  // Sort dropdown
-  const [showSortDropdown, setShowSortDropdown] = useState(false);
-
   // Status update modal
   const [statusUpdateModal, setStatusUpdateModal] = useState<{
     show: boolean;
@@ -182,7 +177,6 @@ function OrdersPageContent() {
   // Server-side pagination
   const [totalOrders, setTotalOrders] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
-  const [toast, setToast] = useState('');
 
   // Status counts
   const [statusCounts, setStatusCounts] = useState<Record<string, number>>({ all: 0, new: 0, ready_to_ship: 0, processing: 0, shipping: 0, completed: 0, cancelled: 0 });
@@ -205,14 +199,6 @@ function OrdersPageContent() {
     document.addEventListener('keydown', handleEsc);
     return () => document.removeEventListener('keydown', handleEsc);
   }, [statusUpdateModal.show]);
-
-  // Close sort dropdown on outside click
-  useEffect(() => {
-    if (!showSortDropdown) return;
-    const handleClick = () => setShowSortDropdown(false);
-    document.addEventListener('click', handleClick);
-    return () => document.removeEventListener('click', handleClick);
-  }, [showSortDropdown]);
 
   // Search on Enter (immediate)
   const handleSearchSubmit = useCallback(() => {
@@ -575,8 +561,7 @@ function OrdersPageContent() {
             e.stopPropagation();
             const billUrl = `${window.location.origin}/bills/${order.id}`;
             navigator.clipboard.writeText(billUrl).then(() => {
-              setToast('คัดลอกลิงก์บิลออนไลน์แล้ว');
-              setTimeout(() => setToast(''), 2500);
+              showToast('คัดลอกลิงก์บิลออนไลน์แล้ว', 'success');
             });
           }}
           className="p-2 text-gray-500 hover:text-primary rounded-lg transition-colors"
@@ -693,15 +678,12 @@ function OrdersPageContent() {
     }
 
     if (displayedOrders.length === 0) {
+      const isFiltered = !!(searchTerm || statusFilter !== 'all' || paymentFilter !== 'all' || channelFilter !== 'all' || createdByFilter !== 'all' || deliveryDateRange?.startDate);
       return (
-        <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 py-16 text-center">
-          <ShoppingCart className="w-12 h-12 text-gray-300 dark:text-slate-600 mx-auto mb-3" />
-          <p className="text-gray-500 dark:text-slate-400">
-            {searchTerm || statusFilter !== 'all' || paymentFilter !== 'all' || channelFilter !== 'all' || createdByFilter !== 'all' || deliveryDateRange?.startDate
-              ? 'ไม่พบคำสั่งซื้อที่ค้นหา'
-              : 'ยังไม่มีคำสั่งซื้อ'}
-          </p>
-        </div>
+        <EmptyCard
+          icon={<ShoppingCart className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
+          title={isFiltered ? 'ไม่พบคำสั่งซื้อที่ค้นหา' : 'ยังไม่มีคำสั่งซื้อ'}
+        />
       );
     }
 
@@ -755,22 +737,23 @@ function OrdersPageContent() {
             <ShoppingCart className="w-8 h-8 text-primary" />
             <h1 className="heading-1">คำสั่งซื้อ</h1>
           </div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="secondary"
-              size="sm"
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
               onClick={() => fetchOrders()}
               disabled={fetching}
-              icon={<RefreshCw className={`w-5 h-5 ${fetching ? 'animate-spin' : ''}`} />}
               title="รีเฟรช"
               aria-label="รีเฟรช"
-            />
+              className="text-gray-500 hover:text-primary dark:text-slate-400 dark:hover:text-primary disabled:opacity-50 transition-colors"
+            >
+              <RefreshCw className={`w-5 h-5 ${fetching ? 'animate-spin' : ''}`} />
+            </button>
             <Button
               variant="primary"
               icon={<Plus className="w-5 h-5" />}
               onClick={() => router.push('/orders/new')}
             >
-              สร้าง<span className="hidden md:inline">คำสั่งซื้อ</span>
+              <span>สร้าง<span className="hidden md:inline">คำสั่งซื้อ</span></span>
             </Button>
           </div>
         </div>
@@ -825,22 +808,6 @@ function OrdersPageContent() {
                 />
               </div>
             )}
-            {/* Clear filters button */}
-            {hasActiveFilters && (
-              <Button
-                variant="ghost"
-                size="sm"
-                icon={<FilterX className="w-3.5 h-3.5" />}
-                onClick={() => {
-                  setSearchTerm('');
-                  setDeliveryDateRange({ startDate: null, endDate: null });
-                  router.replace('/orders', { scroll: false });
-                }}
-                className="!text-red-600 dark:!text-red-400 hover:!bg-red-50 dark:hover:!bg-red-900/20"
-              >
-                ล้างตัวกรอง
-              </Button>
-            )}
             {(() => {
               const advCount = [paymentFilter !== 'all', createdByFilter !== 'all', orderTypeFilter !== 'all', !!deliveryDateRange?.startDate].filter(Boolean).length;
               return (
@@ -859,12 +826,28 @@ function OrdersPageContent() {
                 </Button>
               );
             })()}
+            {/* Clear filters — icon only, far right */}
+            {hasActiveFilters && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchTerm('');
+                  setDeliveryDateRange({ startDate: null, endDate: null });
+                  router.replace('/orders', { scroll: false });
+                }}
+                title="ล้างตัวกรอง"
+                aria-label="ล้างตัวกรอง"
+                className="text-gray-400 hover:text-red-500 dark:text-slate-400 dark:hover:text-red-400 transition-colors"
+              >
+                <FilterX className="w-4 h-4" />
+              </button>
+            )}
           </div>
 
           {/* Row 2 */}
           {/* Mobile: All Channel + Platform dropdown */}
           {/* Desktop: Platform chips */}
-          <div className="flex items-center gap-2 mt-2">
+          <div className="flex items-center gap-2 mt-4">
             {/* Mobile only: All Channel in row 2 */}
             {channelDropdownOptions.length > 0 && (
               <div className="sm:hidden">
@@ -896,7 +879,7 @@ function OrdersPageContent() {
           title="ตัวกรองเพิ่มเติม"
           size="md"
           footer={
-            <div className="flex items-center justify-between px-5 py-3 bg-gray-50 dark:bg-slate-800/50">
+            <div className="px-5 py-4 flex items-center justify-between">
               {(paymentFilter !== 'all' || createdByFilter !== 'all' || orderTypeFilter !== 'all' || deliveryDateRange?.startDate) ? (
                 <Button
                   variant="ghost"
@@ -939,6 +922,7 @@ function OrdersPageContent() {
                 clearValue="all"
                 icon={<CreditCard className="w-4 h-4" />}
                 searchThreshold={99}
+                portal
               />
             </div>
             {/* Order type */}
@@ -956,6 +940,7 @@ function OrdersPageContent() {
                 clearValue="all"
                 icon={<Repeat className="w-4 h-4" />}
                 searchThreshold={99}
+                portal
               />
             </div>
             {/* Created by */}
@@ -971,7 +956,7 @@ function OrdersPageContent() {
                   defaultIcon={<User className="w-4 h-4" />}
                 />
               ) : (
-                <FormSelect value="" onChange={() => {}} options={[]} placeholder="ทั้งหมด" disabled icon={<User className="w-4 h-4" />} searchThreshold={99} />
+                <FormSelect value="" onChange={() => {}} options={[]} placeholder="ทั้งหมด" disabled icon={<User className="w-4 h-4" />} searchThreshold={99} portal />
               )}
             </div>
             {/* Delivery date */}
@@ -989,41 +974,22 @@ function OrdersPageContent() {
         </Modal>
 
         {fetching ? (
-          <div className="flex items-center justify-center py-20">
-            <Loader2 className="w-8 h-8 text-primary animate-spin" />
-          </div>
+          <LoadingCard compact />
         ) : (
         <>
           {/* Sort bar + count (hidden for processing tab -- it has own pagination) */}
           {statusFilter !== 'processing' && (
             <div className="flex items-center justify-between">
-              <p className="text-sm text-gray-500 dark:text-slate-400">
+              <p className="subtitle-text">
                 {totalOrders > 0 ? `${startIndex + 1}-${endIndex} จาก ${totalOrders} รายการ` : 'ไม่พบรายการ'}
               </p>
-              <div className="relative">
-                <button
-                  onClick={(e) => { e.stopPropagation(); setShowSortDropdown(!showSortDropdown); }}
-                  className="flex items-center gap-1.5 text-sm text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white px-3 py-1.5 rounded-lg border border-gray-200 dark:border-slate-700 hover:border-gray-300 dark:hover:border-slate-600 transition-colors"
-                >
-                  {SORT_OPTIONS.find(o => o.value === sortValue)?.label || 'เรียงตาม'}
-                  <ChevronDown className="w-4 h-4" />
-                </button>
-                {showSortDropdown && (
-                  <div className="absolute right-0 top-full mt-1 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg py-1 z-20 min-w-[140px]">
-                    {SORT_OPTIONS.map(opt => (
-                      <button
-                        key={opt.value}
-                        onClick={() => { setParams({ sort: opt.value }); setShowSortDropdown(false); }}
-                        className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors ${
-                          sortValue === opt.value ? 'text-primary font-medium' : 'text-gray-700 dark:text-slate-300'
-                        }`}
-                      >
-                        {opt.label}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
+              <FormSelect
+                value={sortValue}
+                onChange={(v) => setParams({ sort: v })}
+                options={SORT_OPTIONS}
+                size="sm"
+                searchThreshold={99}
+              />
             </div>
           )}
 
@@ -1068,7 +1034,7 @@ function OrdersPageContent() {
           title="ยืนยันการเปลี่ยนสถานะคำสั่งซื้อ"
           size="lg"
           footer={
-            <div className="flex gap-3 justify-end p-4">
+            <div className="px-5 py-4 flex gap-3 justify-end">
               <Button
                 variant="secondary"
                 disabled={updatingStatus}
@@ -1087,21 +1053,21 @@ function OrdersPageContent() {
           }
         >
           <div className="p-5 space-y-3">
-            <p className="text-gray-700 dark:text-slate-300">
+            <p className="body-text">
               คำสั่งซื้อ: <span className="font-medium">{statusUpdateModal.order?.order_number}</span>
             </p>
-            <p className="text-gray-700 dark:text-slate-300">
+            <p className="body-text">
               ลูกค้า: <span className="font-medium">{statusUpdateModal.order?.customer_name || statusUpdateModal.order?.delivery_name}</span>
             </p>
-            <div className="flex items-center gap-2 text-sm">
-              <span className="text-gray-600 dark:text-slate-400">เปลี่ยนจาก:</span>
-              <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${ORDER_STATUS_CONFIG[statusUpdateModal.order?.order_status || '']?.bg || ''} ${ORDER_STATUS_CONFIG[statusUpdateModal.order?.order_status || '']?.color || ''}`}>
+            <div className="flex items-center gap-2">
+              <span className="subtitle-text">เปลี่ยนจาก:</span>
+              <Badge tone={getStatusBadgeTone(statusUpdateModal.order?.order_status || '')} size="sm">
                 {ORDER_STATUS_CONFIG[statusUpdateModal.order?.order_status || '']?.label || ''}
-              </span>
+              </Badge>
               <ChevronRight className="w-4 h-4 text-gray-400" />
-              <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${ORDER_STATUS_CONFIG[statusUpdateModal.nextStatus]?.bg || ''} ${ORDER_STATUS_CONFIG[statusUpdateModal.nextStatus]?.color || ''}`}>
+              <Badge tone={getStatusBadgeTone(statusUpdateModal.nextStatus)} size="sm">
                 {ORDER_STATUS_CONFIG[statusUpdateModal.nextStatus]?.label || ''}
-              </span>
+              </Badge>
             </div>
 
             {/* Shipping Details Form (processing -> shipping) */}
@@ -1177,14 +1143,6 @@ function OrdersPageContent() {
           />
         )}
       </Container>
-
-      {/* Toast */}
-      {toast && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-gray-900 text-white px-5 py-3 rounded-lg shadow-lg flex items-center gap-2 text-sm animate-fade-in">
-          <CheckCircle className="w-4 h-4 text-green-400" />
-          {toast}
-        </div>
-      )}
 
       <ImageLightbox src={lightboxImage} onClose={() => setLightboxImage(null)} alt="Product" />
 

@@ -36,6 +36,7 @@ import SplitParcelModal from './SplitParcelModal';
 import PrintAfterActionModal from '@/components/orders/PrintAfterActionModal';
 import Pagination from '@/app/components/Pagination';
 import LoadingOverlay from '@/components/ui/LoadingOverlay';
+import Button from '@/components/ui/Button';
 import { Order } from './types';
 import { isMarketplaceSource } from '@/lib/marketplace/types';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
@@ -953,20 +954,21 @@ export default function ReadyToShipTab({
 
       // Primary: Accept (same button for both Shopee and manual)
       primaryActions.push(
-        <button
+        <Button
           key="accept"
+          size="sm"
+          variant="primary"
+          disabled={actionLoading}
+          icon={<Package className="w-4 h-4" />}
+          title="รับออเดอร์"
           onClick={(e) => {
             e.stopPropagation();
             if (isShopee) handleSingleAcceptShopee(order.id);
             else onStatusClick(order);
           }}
-          disabled={actionLoading}
-          className="px-2.5 py-2 md:px-4 text-sm font-medium rounded-lg bg-primary text-white hover:bg-primary-hover transition-colors flex items-center gap-1.5 disabled:opacity-50"
-          title="รับออเดอร์"
         >
-          <Package className="w-4 h-4" />
           <span className="hidden md:inline">รับออเดอร์</span>
-        </button>
+        </Button>
       );
     }
 
@@ -1219,14 +1221,15 @@ export default function ReadyToShipTab({
               clear all
             </button>
             <div className="flex items-center gap-2">
-              <button
-                onClick={() => setConfirmModal({ type: 'accept', ids: Array.from(selectedIds) })}
+              <Button
+                size="sm"
+                variant="primary"
                 disabled={bulkLoading}
-                className="px-2.5 py-2 md:px-4 text-sm font-medium rounded-lg bg-primary text-white hover:bg-primary-hover transition-colors flex items-center gap-1.5 disabled:opacity-50"
+                icon={<Package className="w-4 h-4" />}
+                onClick={() => setConfirmModal({ type: 'accept', ids: Array.from(selectedIds) })}
               >
-                <Package className="w-4 h-4" />
                 <span className="hidden md:inline">รับออเดอร์</span> ({selectedIds.size})
-              </button>
+              </Button>
             </div>
           </div>
         </div>

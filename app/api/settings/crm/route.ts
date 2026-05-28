@@ -1,5 +1,5 @@
 // Path: app/api/settings/crm/route.ts
-import { supabaseAdmin, checkAuthWithCompany, isAdminRole } from '@/lib/supabase-admin';
+import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
 import { NextRequest, NextResponse } from 'next/server';
 
 interface DayRange {
@@ -76,7 +76,7 @@ export async function PUT(request: NextRequest) {
     }
 
     // Check admin role
-    if (!isAdminRole(companyRoles)) {
+    if (!can(companyRoles, 'settings.access')) {
       return NextResponse.json(
         { error: 'Only admin can update settings' },
         { status: 403 }

@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Layout from '@/components/layout/Layout';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
@@ -292,10 +291,9 @@ export default function DealerOrdersPage() {
             <Button variant="secondary" icon={<UserPlus className="w-4 h-4" />} onClick={() => router.push('/customers/new?type=wholesale_dealer')}>
               เพิ่มตัวแทน
             </Button>
-            <Link href="/dealer-orders/new"
-              className="flex items-center gap-1.5 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors text-sm font-medium">
-              <Plus className="w-4 h-4" /> สร้างคำสั่งซื้อ
-            </Link>
+            <Button variant="primary" icon={<Plus className="w-4 h-4" />} onClick={() => router.push('/dealer-orders/new')}>
+              สร้างคำสั่งซื้อ
+            </Button>
           </div>
         </div>
 

@@ -5,6 +5,7 @@ import { useState, useEffect, useRef } from 'react';
 import Layout from '@/components/layout/Layout';
 import Container from '@/components/ui/Container';
 import { useCompany } from '@/lib/company-context';
+import { can } from '@/lib/permissions';
 import { useFeatures } from '@/lib/features-context';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
@@ -183,7 +184,7 @@ export default function FeaturesPage() {
     }
   };
 
-  const isOwnerOrAdmin = companyRoles.includes('owner') || companyRoles.includes('admin') || companyRoles.includes('manager');
+  const isOwnerOrAdmin = can(companyRoles, 'settings.access');
 
   const isDirty = featuresLoaded && savedRef.current !== null && (
     JSON.stringify(featureFlags) !== JSON.stringify(savedRef.current.featureFlags) ||

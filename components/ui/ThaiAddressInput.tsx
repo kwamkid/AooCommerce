@@ -197,7 +197,7 @@ export default function ThaiAddressInput({
           />
         </div>
         <div ref={(el) => { fieldRefs.current.province = el; }}>
-          {showLabels && <label className={lblClass}>จังหวัด <span className="text-red-500">*</span></label>}
+          {showLabels && <label className={lblClass}>จังหวัด</label>}
           <input
             type="text"
             value={province}

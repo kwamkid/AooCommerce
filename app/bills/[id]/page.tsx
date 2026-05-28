@@ -10,6 +10,7 @@ import { generateOrderInvoicePdf } from '@/lib/order-invoice-pdf';
 import { showPdfPreview } from '@/lib/print-pdf';
 import { getInvoiceMenuLabel } from '@/lib/invoice-utils';
 import ThaiAddressInput from '@/components/ui/ThaiAddressInput';
+import Button from '@/components/ui/Button';
 import DateRangePicker, { DateValueType } from '@/components/ui/DateRangePicker';
 import TimePicker from '@/components/ui/TimePicker';
 import { getBankByCode } from '@/lib/constants/banks';
@@ -659,14 +660,15 @@ export default function BillOnlinePage() {
             {dark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
           </button>
           <div className="relative">
-            <button
+            <Button
+              size="sm"
+              variant="primary"
               onClick={() => setShowPrintMenu(!showPrintMenu)}
-              className="bg-primary text-white px-3 py-1.5 rounded-lg hover:bg-primary-hover transition-colors flex items-center gap-1.5 text-sm font-medium"
+              icon={<Printer className="w-4 h-4" />}
+              iconRight={<ChevronDown className="w-3.5 h-3.5" />}
             >
-              <Printer className="w-4 h-4" />
               พิมพ์
-              <ChevronDown className="w-3.5 h-3.5" />
-            </button>
+            </Button>
             {showPrintMenu && (
               <>
                 <div className="fixed inset-0 z-40" onClick={() => setShowPrintMenu(false)} />
@@ -810,8 +812,11 @@ export default function BillOnlinePage() {
                 {(deliveryErrors.province || deliveryErrors.postal_code) && (
                   <p className="text-red-500 text-xs -mt-1 mb-2">{deliveryErrors.province || deliveryErrors.postal_code}</p>
                 )}
-                <button
-                  type="button"
+                <Button
+                  variant="primary"
+                  fullWidth
+                  loading={savingDelivery}
+                  disabled={!deliveryName || !deliveryPhone || !deliveryAddress || !deliveryProvince || !deliveryPostalCode}
                   onClick={async () => {
                     const errors: Record<string, string> = {};
                     if (!deliveryName.trim()) errors.name = 'กรุณากรอกชื่อผู้รับ';
@@ -866,20 +871,13 @@ export default function BillOnlinePage() {
                       setSavingDelivery(false);
                     }
                   }}
-                  disabled={savingDelivery || !deliveryName || !deliveryPhone || !deliveryAddress || !deliveryProvince || !deliveryPostalCode}
-                  className="w-full bg-primary text-white py-2.5 rounded-lg font-medium text-sm hover:bg-primary-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
-                  {savingDelivery ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
                   {savingDelivery ? 'กำลังบันทึก...' : 'บันทึกข้อมูลจัดส่ง'}
-                </button>
+                </Button>
                 {editingDelivery && (
-                  <button
-                    type="button"
-                    onClick={() => setEditingDelivery(false)}
-                    className={`w-full py-2.5 rounded-lg font-medium text-sm transition-colors border ${dark ? 'border-slate-600 text-slate-400 hover:bg-slate-700/50' : 'border-gray-300 text-gray-600 hover:bg-gray-50'}`}
-                  >
+                  <Button variant="secondary" fullWidth onClick={() => setEditingDelivery(false)}>
                     ยกเลิก
-                  </button>
+                  </Button>
                 )}
               </div>
             </div>

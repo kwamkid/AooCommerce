@@ -2,6 +2,7 @@
 
 import { useState, useRef } from 'react';
 import { Loader2, Camera, X } from 'lucide-react';
+import Button from '@/components/ui/Button';
 import imageCompression from 'browser-image-compression';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
@@ -153,24 +154,12 @@ export default function PaymentModal({
       disableBackdropClose={submitting}
       footer={
         <div className="flex gap-3 justify-end p-5">
-          <button
-            onClick={handleClose}
-            disabled={submitting}
-            className="px-4 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors disabled:opacity-50"
-          >
+          <Button variant="secondary" onClick={handleClose} disabled={submitting}>
             ยกเลิก
-          </button>
-          <button
-            onClick={handleSubmit}
-            disabled={submitting}
-            className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors disabled:opacity-50 flex items-center gap-2"
-          >
-            {submitting ? (
-              <><Loader2 className="w-4 h-4 animate-spin" /> กำลังดำเนินการ...</>
-            ) : (
-              <span>ยืนยัน</span>
-            )}
-          </button>
+          </Button>
+          <Button variant="primary" onClick={handleSubmit} loading={submitting}>
+            {submitting ? 'กำลังดำเนินการ...' : 'ยืนยัน'}
+          </Button>
         </div>
       }
     >

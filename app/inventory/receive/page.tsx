@@ -11,6 +11,7 @@ import {
   Loader2, Package2, Save, Warehouse, FileText, CheckCircle2, ClipboardList, Star, Plus, AlertTriangle,
 } from 'lucide-react';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
+import Button from '@/components/ui/Button';
 import FormSelect from '@/components/ui/FormSelect';
 import EntitySearchInput from '@/components/ui/EntitySearchInput';
 import ItemsTable, { type TableItem } from '@/components/ui/ItemsTable';
@@ -429,14 +430,18 @@ export default function StockReceivePage() {
 
         {/* Action Buttons */}
         <div className="flex justify-end gap-3 pb-4">
-          <button type="button" onClick={() => router.push('/inventory/receives')}
-            className="px-5 py-2.5 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors text-sm font-medium">
+          <Button variant="secondary" onClick={() => router.push('/inventory/receives')}>
             ยกเลิก
-          </button>
-          <button type="button" onClick={handleSubmit} disabled={!canSubmit}
-            className="bg-primary text-white px-5 py-2.5 rounded-lg hover:bg-primary-hover transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium">
-            {submitting ? <><Loader2 className="w-4 h-4 animate-spin" />กำลังบันทึก...</> : <><Save className="w-4 h-4" />บันทึกรับเข้า</>}
-          </button>
+          </Button>
+          <Button
+            variant="primary"
+            onClick={handleSubmit}
+            disabled={!canSubmit}
+            loading={submitting}
+            icon={<Save className="w-4 h-4" />}
+          >
+            {submitting ? 'กำลังบันทึก...' : 'บันทึกรับเข้า'}
+          </Button>
         </div>
       </div>
 

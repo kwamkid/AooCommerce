@@ -10,6 +10,7 @@ import {
   Loader2, FileText, ArrowRightLeft, AlertTriangle, Star, Warehouse,
 } from 'lucide-react';
 import FormSelect from '@/components/ui/FormSelect';
+import Button from '@/components/ui/Button';
 import ItemsTable, { type TableItem } from '@/components/ui/ItemsTable';
 import type { ProductSearchItem } from '@/components/ui/ProductSearchInput';
 
@@ -376,14 +377,18 @@ export default function StockTransferPage() {
 
         {/* Action Buttons */}
         <div className="flex justify-end gap-3 pb-4">
-          <button type="button" onClick={() => router.push('/inventory/transfers')}
-            className="px-5 py-2.5 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors text-sm font-medium">
+          <Button variant="secondary" onClick={() => router.push('/inventory/transfers')}>
             ยกเลิก
-          </button>
-          <button type="button" onClick={handleSubmit} disabled={!canSubmit}
-            className="bg-primary text-white px-5 py-2.5 rounded-lg hover:bg-primary-hover transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium">
-            {submitting ? <><Loader2 className="w-4 h-4 animate-spin" />กำลังสร้างใบโอนย้าย...</> : <><ArrowRightLeft className="w-4 h-4" />สร้างใบโอนย้าย</>}
-          </button>
+          </Button>
+          <Button
+            variant="primary"
+            onClick={handleSubmit}
+            disabled={!canSubmit}
+            loading={submitting}
+            icon={<ArrowRightLeft className="w-4 h-4" />}
+          >
+            {submitting ? 'กำลังสร้างใบโอนย้าย...' : 'สร้างใบโอนย้าย'}
+          </Button>
         </div>
       </div>
     </Layout>

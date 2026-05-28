@@ -1,5 +1,5 @@
 // Path: app/api/settings/delete-all-data/route.ts
-import { supabaseAdmin, checkAuthWithCompany, isAdminRole } from '@/lib/supabase-admin';
+import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
 import { NextRequest, NextResponse } from 'next/server';
 
 // Helper to delete all rows of a table scoped to company
@@ -35,7 +35,7 @@ export async function DELETE(request: NextRequest) {
         { status: 403 }
       );
     }
-    if (!isAdminRole(companyRoles)) {
+    if (!can(companyRoles, 'settings.delete_all_data')) {
       return NextResponse.json(
         { error: 'Forbidden. Admin access required.' },
         { status: 403 }

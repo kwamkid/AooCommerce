@@ -9,6 +9,7 @@ import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
 import type { ProductSearchItem } from '@/components/ui/ProductSearchInput';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
+import Button from '@/components/ui/Button';
 import type { DateValueType } from '@/components/ui/DateRangePicker';
 import { Loader2, ClipboardList, CheckCircle2, Save, FileText } from 'lucide-react';
 
@@ -235,21 +236,18 @@ export default function CreatePurchaseOrderPage() {
 
         {/* Action Buttons */}
         <div className="flex justify-end gap-3 pb-4">
-          <button
-            type="button"
-            onClick={() => router.push('/inventory/purchase-orders')}
-            className="px-5 py-2.5 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors text-sm font-medium"
-          >
+          <Button variant="secondary" onClick={() => router.push('/inventory/purchase-orders')}>
             ยกเลิก
-          </button>
-          <button
-            type="button"
+          </Button>
+          <Button
+            variant="primary"
             onClick={handleSubmit}
             disabled={!canSubmit}
-            className="bg-primary text-white px-5 py-2.5 rounded-lg hover:bg-primary-hover transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
+            loading={saving}
+            icon={<Save className="w-4 h-4" />}
           >
-            {saving ? <><Loader2 className="w-4 h-4 animate-spin" /> กำลังบันทึก...</> : <><Save className="w-4 h-4" /> สร้างใบสั่งซื้อ</>}
-          </button>
+            {saving ? 'กำลังบันทึก...' : 'สร้างใบสั่งซื้อ'}
+          </Button>
         </div>
       </div>
 

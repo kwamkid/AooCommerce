@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
+import Button from '@/components/ui/Button';
 import SearchInput from '@/components/ui/SearchInput';
 import FormSelect from '@/components/ui/FormSelect';
 import ActionMenu, { ActionItem } from '@/components/ui/ActionMenu';
@@ -955,25 +956,27 @@ function DepartmentOrdersContent() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <button
+            <Button
+              variant="ghost"
               onClick={() => fetchData(true)}
               disabled={isRefreshing}
-              className="p-2 rounded-lg border border-gray-200 dark:border-slate-700 text-gray-500 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors disabled:opacity-50"
-            >
-              <RefreshCw className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} />
-            </button>
-            <button
+              title="รีเฟรช"
+              icon={<RefreshCw className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} />}
+            />
+            <Button
+              variant="secondary"
+              icon={<UserPlus className="w-4 h-4" />}
               onClick={() => router.push('/customers/new?type=department_store')}
-              className="px-4 py-2 rounded-lg border border-gray-200 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors flex items-center gap-2"
             >
-              <UserPlus className="w-4 h-4" /> เพิ่มลูกค้าห้าง
-            </button>
-            <button
+              เพิ่มลูกค้าห้าง
+            </Button>
+            <Button
+              variant="primary"
+              icon={<Plus className="w-4 h-4" />}
               onClick={() => router.push('/department-orders/new')}
-              className="bg-primary text-white px-4 py-2 rounded-lg hover:bg-primary-hover transition-colors flex items-center gap-2"
             >
-              <Plus className="w-4 h-4" /> สร้างใบส่งห้าง
-            </button>
+              สร้างใบส่งห้าง
+            </Button>
           </div>
         </div>
 

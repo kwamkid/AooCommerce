@@ -10,6 +10,7 @@ import CustomerForm, { CustomerFormData, buildCustomerPayload } from '@/componen
 import { type BrandGpRow } from '@/components/customers/BrandGpCommissions';
 import { Tag } from '@/components/ui/TagBadge';
 import { useAuth } from '@/lib/auth-context';
+import { useAuthGuard } from '@/lib/useAuthGuard';
 import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
 
@@ -18,6 +19,7 @@ function NewCustomerContent() {
   const searchParams = useSearchParams();
   const { userProfile, loading: authLoading } = useAuth();
   const { showToast } = useToast();
+  useAuthGuard('customer.view');
 
   // Pre-select customer type from query param (e.g. ?type=department_store)
   const presetType = searchParams.get('type') || '';
@@ -33,17 +35,6 @@ function NewCustomerContent() {
       if (d.tags) setAllTags(d.tags);
     }).catch(() => {});
   }, [authLoading, userProfile]);
-
-  useEffect(() => {
-    if (authLoading) return;
-    if (!userProfile) {
-      router.push('/login');
-      return;
-    }
-    if (!userProfile.roles?.some((r: string) => ['owner', 'admin', 'manager', 'sales', 'account'].includes(r))) {
-      router.push('/dashboard');
-    }
-  }, [userProfile, authLoading, router]);
 
   const handleCreateCustomer = async (data: CustomerFormData, resolvedCustomerId: string, brandGpRows?: BrandGpRow[]) => {
     setSaving(true);

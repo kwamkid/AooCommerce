@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback, ReactNode } from 'react';
-import { Plus, Package, Loader2 } from 'lucide-react';
+import { Plus, Package, Loader2, Flame } from 'lucide-react';
 import { formatNumber } from '@/lib/utils/format';
 
 export interface ProductSearchItem {
@@ -20,6 +20,8 @@ export interface ProductSearchItem {
   brand_id?: string | null;
   /** Number of variations for this product (populated in product mode) */
   variation_count?: number;
+  /** Top seller source — used to label suggestion rows */
+  top_seller_source?: 'customer' | 'company';
 }
 
 export type SearchMode = 'variation' | 'product';
@@ -46,6 +48,10 @@ interface ProductSearchInputProps {
   inputRef?: React.RefObject<HTMLInputElement | null>;
   /** Search mode: 'variation' (default) = each variation as row, 'product' = grouped by product */
   mode?: SearchMode;
+  /** Suggestions shown when input is focused with empty query (e.g. top sellers). */
+  suggestions?: ProductSearchItem[];
+  /** Header label rendered above the suggestion list. */
+  suggestionsLabel?: string;
 }
 
 export default function ProductSearchInput({
@@ -61,6 +67,8 @@ export default function ProductSearchInput({
   autoFocus,
   inputRef: externalRef,
   mode = 'variation',
+  suggestions,
+  suggestionsLabel = 'ขายดี 30 วันล่าสุด',
 }: ProductSearchInputProps) {
   const [search, setSearch] = useState('');
   const [showDropdown, setShowDropdown] = useState(false);
@@ -119,10 +127,18 @@ export default function ProductSearchInput({
       })()
     : filteredRaw;
 
-  // Reset highlight when filtered list changes
+  // When input is empty AND the parent supplied suggestions (e.g. top sellers),
+  // show them instead of an empty dropdown. Search results take over once the
+  // user types anything.
+  const isSuggestionMode = !search && (suggestions?.length ?? 0) > 0;
+  const displayItems: ProductSearchItem[] = isSuggestionMode
+    ? (suggestions ?? [])
+    : filtered;
+
+  // Reset highlight when displayed list changes
   useEffect(() => {
     setHighlightIndex(-1);
-  }, [filtered.length, search]);
+  }, [displayItems.length, search, isSuggestionMode]);
 
   // Scroll highlighted item into view
   useEffect(() => {
@@ -156,25 +172,25 @@ export default function ProductSearchInput({
       return;
     }
 
-    if (!showDropdown || filtered.length === 0) return;
+    if (!showDropdown || displayItems.length === 0) return;
 
     if (e.key === 'ArrowDown') {
       e.preventDefault();
-      setHighlightIndex(prev => (prev < filtered.length - 1 ? prev + 1 : 0));
+      setHighlightIndex(prev => (prev < displayItems.length - 1 ? prev + 1 : 0));
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
-      setHighlightIndex(prev => (prev > 0 ? prev - 1 : filtered.length - 1));
+      setHighlightIndex(prev => (prev > 0 ? prev - 1 : displayItems.length - 1));
     } else if (e.key === 'Enter') {
       e.preventDefault();
-      if (highlightIndex >= 0 && highlightIndex < filtered.length) {
-        const product = filtered[highlightIndex];
+      if (highlightIndex >= 0 && highlightIndex < displayItems.length) {
+        const product = displayItems[highlightIndex];
         const disabled = isDisabled?.(product) ?? false;
         if (!disabled) {
           handleSelect(product);
         }
       }
     }
-  }, [showDropdown, filtered, highlightIndex, isDisabled, handleSelect]);
+  }, [showDropdown, displayItems, highlightIndex, isDisabled, handleSelect]);
 
   return (
     <div className="relative">
@@ -207,22 +223,28 @@ export default function ProductSearchInput({
       </div>
 
       {/* Dropdown results */}
-      {showDropdown && search && (
+      {showDropdown && (search || isSuggestionMode) && (
         <div
           ref={dropdownRef}
           className="absolute z-50 w-full mt-1 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg max-h-72 overflow-auto"
         >
-          {loading && filtered.length === 0 ? (
+          {isSuggestionMode && (
+            <div className="px-3 py-1.5 flex items-center gap-1.5 text-xs font-medium text-gray-500 dark:text-slate-400 bg-gray-50 dark:bg-slate-700/40 border-b border-gray-100 dark:border-slate-700 sticky top-0">
+              <Flame className="w-3.5 h-3.5 text-orange-500" />
+              {suggestionsLabel}
+            </div>
+          )}
+          {loading && displayItems.length === 0 ? (
             <div className="px-4 py-3 flex items-center gap-2 text-sm text-gray-500 dark:text-slate-400">
               <Loader2 className="w-4 h-4 animate-spin" />
               กำลังโหลดสินค้า...
             </div>
-          ) : filtered.length === 0 ? (
+          ) : displayItems.length === 0 ? (
             <div className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">
               ไม่พบสินค้า
             </div>
           ) : (
-            filtered.map((product, index) => {
+            displayItems.map((product, index) => {
               const disabled = isDisabled?.(product) ?? false;
               const alreadyAdded = isAlreadyAdded?.(product) ?? false;
               const rawLabel = product.variation_label || '';

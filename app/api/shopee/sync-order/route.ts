@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { checkAuthWithCompany, isAdminRole, supabaseAdmin } from '@/lib/supabase-admin';
+import { checkAuthWithCompany, can, supabaseAdmin } from '@/lib/supabase-admin';
 import { ShopeeAccountRow } from '@/lib/shopee/api';
 import { syncOrdersByOrderSn, syncOrdersByTimeRange } from '@/lib/shopee/sync';
 import { logIntegration } from '@/lib/integration-logger';
@@ -13,7 +13,7 @@ export const maxDuration = 60;
 
 export async function POST(request: NextRequest) {
   const { isAuth, companyId, companyRoles } = await checkAuthWithCompany(request);
-  if (!isAuth || !companyId || !isAdminRole(companyRoles)) {
+  if (!isAuth || !companyId || !can(companyRoles, 'marketplace.sync')) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

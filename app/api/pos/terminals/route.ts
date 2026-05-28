@@ -1,6 +1,6 @@
 // Path: app/api/pos/terminals/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin, checkAuthWithCompany, isAdminRole } from '@/lib/supabase-admin';
+import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
 
 // GET — List POS terminals
 export async function GET(request: NextRequest) {
@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
     if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    if (!isAdminRole(auth.companyRoles)) {
+    if (!can(auth.companyRoles, 'masterdata.pos_terminals')) {
       return NextResponse.json({ error: 'Admin only' }, { status: 403 });
     }
 
@@ -102,7 +102,7 @@ export async function PUT(request: NextRequest) {
     if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    if (!isAdminRole(auth.companyRoles)) {
+    if (!can(auth.companyRoles, 'masterdata.pos_terminals')) {
       return NextResponse.json({ error: 'Admin only' }, { status: 403 });
     }
 
@@ -164,7 +164,7 @@ export async function PATCH(request: NextRequest) {
     if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    if (!isAdminRole(auth.companyRoles)) {
+    if (!can(auth.companyRoles, 'masterdata.pos_terminals')) {
       return NextResponse.json({ error: 'Admin only' }, { status: 403 });
     }
 
@@ -197,7 +197,7 @@ export async function DELETE(request: NextRequest) {
     if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    if (!isAdminRole(auth.companyRoles)) {
+    if (!can(auth.companyRoles, 'masterdata.pos_terminals')) {
       return NextResponse.json({ error: 'Admin only' }, { status: 403 });
     }
 

@@ -9,7 +9,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { checkAuthWithCompany, isAdminRole, supabaseAdmin } from '@/lib/supabase-admin';
+import { checkAuthWithCompany, can, supabaseAdmin } from '@/lib/supabase-admin';
 
 export async function POST(request: NextRequest) {
   try {
@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Only allow admin
-    if (!isAdminRole(auth.companyRoles)) {
+    if (!can(auth.companyRoles, 'invoice.backfill')) {
       return NextResponse.json({ error: 'Admin only' }, { status: 403 });
     }
 

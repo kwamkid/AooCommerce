@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Clock, CheckCircle, Loader2, Package, ChevronDown, ChevronUp } from 'lucide-react';
+import { Clock, CheckCircle, Package, ChevronDown, ChevronUp } from 'lucide-react';
 import Modal from '@/components/ui/Modal';
+import Button from '@/components/ui/Button';
 
 export interface TimeSlot {
   pickup_time_id: string;
@@ -118,17 +119,15 @@ export default function TimeSlotPickerPanel({
           >
             ยังไม่รับ
           </button>
-          <button
+          <Button
+            variant="primary"
             onClick={() => onConfirm(selections)}
-            disabled={loading || !allSelected}
-            className="px-5 py-2.5 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors disabled:opacity-50 flex items-center gap-2 text-sm font-medium"
+            disabled={!allSelected}
+            loading={loading}
+            icon={<Package className="w-4 h-4" />}
           >
-            {loading ? (
-              <><Loader2 className="w-4 h-4 animate-spin" /> กำลังดำเนินการ...</>
-            ) : (
-              <><Package className="w-4 h-4" /> รับออเดอร์ ({selectedCount}/{orders.length})</>
-            )}
-          </button>
+            {loading ? 'กำลังดำเนินการ...' : `รับออเดอร์ (${selectedCount}/${orders.length})`}
+          </Button>
         </div>
       }
     >

@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
+import Button from '@/components/ui/Button';
 import { useAuth } from '@/lib/auth-context';
 import { useFeatures } from '@/lib/features-context';
 import { useToast } from '@/lib/toast-context';
@@ -328,10 +329,15 @@ export default function PurchaseOrderDetailPage() {
         {/* Save button (editable only) */}
         {isEditable && (
           <div className="flex justify-end gap-3 pb-4">
-            <button type="button" onClick={handleSave} disabled={!canSave}
-              className="bg-primary text-white px-5 py-2.5 rounded-lg hover:bg-primary-hover transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium">
-              {saving ? <><Loader2 className="w-4 h-4 animate-spin" /> กำลังบันทึก...</> : <><Save className="w-4 h-4" /> บันทึก</>}
-            </button>
+            <Button
+              variant="primary"
+              onClick={handleSave}
+              disabled={!canSave}
+              loading={saving}
+              icon={<Save className="w-4 h-4" />}
+            >
+              {saving ? 'กำลังบันทึก...' : 'บันทึก'}
+            </Button>
           </div>
         )}
       </div>

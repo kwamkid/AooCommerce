@@ -3,6 +3,7 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Check, Package, Users, ShoppingCart, ArrowRight } from 'lucide-react';
+import Button from '@/components/ui/Button';
 import { useAuth } from '@/lib/auth-context';
 import { clearWizardState } from '@/components/onboarding/wizard-storage';
 
@@ -64,12 +65,9 @@ export default function OnboardingCompletePage() {
           </button>
         </div>
 
-        <button
-          onClick={() => router.push('/dashboard')}
-          className="w-full px-4 py-3 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors font-medium"
-        >
+        <Button variant="primary" fullWidth size="lg" onClick={() => router.push('/dashboard')}>
           ไปยังแดชบอร์ด
-        </button>
+        </Button>
       </div>
     </div>
   );

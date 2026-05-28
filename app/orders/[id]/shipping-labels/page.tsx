@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { apiFetch } from '@/lib/api-client';
 import { ArrowLeft, Printer } from 'lucide-react';
+import Button from '@/components/ui/Button';
 import QRCode from 'qrcode';
 
 interface ShippingAddress {
@@ -174,13 +175,9 @@ export default function ShippingLabelsPage() {
           <span className="text-sm text-gray-600 dark:text-slate-400">
             {labels.length} ใบปะหน้า
           </span>
-          <button
-            onClick={handlePrint}
-            className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors"
-          >
-            <Printer className="w-5 h-5" />
+          <Button variant="primary" icon={<Printer className="w-5 h-5" />} onClick={handlePrint}>
             พิมพ์ทั้งหมด
-          </button>
+          </Button>
         </div>
       </div>
 

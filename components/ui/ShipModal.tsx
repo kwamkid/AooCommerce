@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Loader2, Send } from 'lucide-react';
+import { Send } from 'lucide-react';
 import FormSelect from '@/components/ui/FormSelect';
+import Button from '@/components/ui/Button';
 import Modal from './Modal';
 import { apiFetch } from '@/lib/api-client';
 
@@ -122,15 +123,18 @@ export default function ShipModal({ orderNumber, customerName, onSubmit, onClose
       disableBackdropClose={submitting}
       footer={
         <div className="flex gap-3 p-5">
-          <button onClick={onClose} disabled={submitting}
-            className="flex-1 px-4 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors">
+          <Button variant="secondary" className="flex-1" onClick={onClose} disabled={submitting}>
             ยกเลิก
-          </button>
-          <button onClick={handleSubmit} disabled={submitting}
-            className="flex-1 px-4 py-2.5 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
-            {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+          </Button>
+          <Button
+            variant="primary"
+            className="flex-1"
+            onClick={handleSubmit}
+            loading={submitting}
+            icon={<Send className="w-4 h-4" />}
+          >
             จัดส่ง
-          </button>
+          </Button>
         </div>
       }
     >

@@ -15,6 +15,7 @@ import EntitySearchInput from '@/components/ui/EntitySearchInput';
 import ItemsTable, { type TableItem as OrderTableItem, type PromotionComponent } from '@/components/ui/ItemsTable';
 import PromotionSelectModal, { type PromoData, type PromoItemData, type PromotionSelectResult } from '@/components/ui/PromotionSelectModal';
 import Modal from '@/components/ui/Modal';
+import Button from '@/components/ui/Button';
 import NumberInput from '@/components/ui/NumberInput';
 import { calculateQtyDiscount, type PromotionTier } from '@/lib/promotions';
 import DateRangePicker, { DateValueType } from '@/components/ui/DateRangePicker';
@@ -246,6 +247,9 @@ export default function OrderForm({
   const [products, setProducts] = useState<Product[]>([]);
   const [loadingProducts, setLoadingProducts] = useState(true);
 
+  // Top sellers (30d, prefer this customer's history, fall back to company)
+  const [topSellers, setTopSellers] = useState<Product[]>([]);
+
   // Promotions (merged into product search)
   const [promotions, setPromotions] = useState<any[]>([]);
   const [promoModal, setPromoModal] = useState<{ promo: PromoData; triggerProduct?: { variation_id: string; product_name: string } } | null>(null);
@@ -272,8 +276,18 @@ export default function OrderForm({
 
   // Bill expiry advance settings
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
-  const [expiryMode, setExpiryMode] = useState<'default' | 'custom' | 'none'>('default');
-  const [customExpiryDays, setCustomExpiryDays] = useState(7);
+  const [expiryMode, setExpiryMode] = useState<'days' | 'none'>('days');
+  const [expiryDays, setExpiryDays] = useState(7);
+  const expirySyncedRef = useRef(false);
+
+  // Sync expiry settings from company defaults on first load — preserve user edits after
+  useEffect(() => {
+    if (expirySyncedRef.current) return;
+    if (billExpiryDays === undefined || billExpiryDays === null) return;
+    expirySyncedRef.current = true;
+    if (billExpiryDays === 0) setExpiryMode('none');
+    else if (billExpiryDays > 0) setExpiryDays(billExpiryDays);
+  }, [billExpiryDays]);
 
   // New customer mode
   const [newCustomerMode, setNewCustomerMode] = useState(false);
@@ -708,6 +722,45 @@ export default function OrderForm({
     }
   };
 
+  // Top sellers — prefer this customer's history; backend falls back to
+  // company-wide if customer has none. We refetch when the customer changes
+  // so the suggestion list reflects who's ordering.
+  useEffect(() => {
+    let aborted = false;
+    const customerId = selectedCustomer?.id;
+    (async () => {
+      try {
+        const qs = new URLSearchParams();
+        if (customerId) qs.set('customer_id', customerId);
+        qs.set('days', '30');
+        qs.set('limit', '5');
+        const res = await apiFetch(`/api/products/top-sellers?${qs.toString()}`);
+        if (!res.ok) return;
+        const json = await res.json();
+        if (aborted) return;
+        const items: Product[] = (json.items || []).map((row: any) => ({
+          id: row.id,
+          product_id: row.product_id,
+          code: row.code,
+          name: row.name,
+          image: row.image || undefined,
+          variation_label: row.variation_label || undefined,
+          product_type: 'variation' as const,
+          sku: row.sku || undefined,
+          default_price: Number(row.default_price) || 0,
+          discount_price: Number(row.discount_price) || 0,
+          stock: 0,
+        }));
+        setTopSellers(items);
+      } catch (e) {
+        // non-fatal — suggestions are an enhancement, not a requirement
+        console.error('Top sellers fetch failed:', e);
+      }
+    })();
+    return () => { aborted = true; };
+  }, [selectedCustomer?.id]);
+
+
   const fetchPromotions = async () => {
     try {
       const res = await apiFetch('/api/promotions?status=active&limit=200');
@@ -941,6 +994,19 @@ export default function OrderForm({
     });
     return [...promoAsProducts, ...products];
   }, [products, promotions]);
+
+  // Resolve top sellers against the loaded product list — pick up current
+  // stock/price and drop ones that no longer exist in the catalog.
+  const resolvedTopSellers = useMemo<Product[]>(() => {
+    if (!topSellers.length || !products.length) return [];
+    const byId = new Map(products.map(p => [p.id, p]));
+    const out: Product[] = [];
+    for (const t of topSellers) {
+      const live = byId.get(t.id);
+      if (live) out.push(live);
+    }
+    return out;
+  }, [topSellers, products]);
 
   // Promotion modal confirm handler
   const handlePromoConfirm = (result: PromotionSelectResult) => {
@@ -1486,11 +1552,11 @@ export default function OrderForm({
         // Sales channel — manual order origin (NULL if list hadn't loaded yet)
         sales_channel_id: selectedSalesChannelId || null,
         // Bill expiry: compute expires_at based on mode
-        ...(expiryMode === 'custom' ? {
-          expires_at: new Date(Date.now() + customExpiryDays * 86400000).toISOString(),
-        } : expiryMode === 'none' ? {
+        ...(expiryMode === 'none' ? {
           expires_at: null, // explicitly no expiry
-        } : {}), // 'default' = let API use company setting
+        } : {
+          expires_at: new Date(Date.now() + expiryDays * 86400000).toISOString(),
+        }),
         // Exchange: items to return from original order → API creates CN atomically
         ...(exchangeData ? { exchange: exchangeData } : {}),
       };
@@ -1941,6 +2007,7 @@ export default function OrderForm({
             products={isReadOnly ? [] : allSearchItems}
             loadingProducts={loadingProducts}
             searchPlaceholder="เพิ่มสินค้าหรือโปรโมชั่น — พิมพ์ชื่อหรือรหัส..."
+            searchSuggestions={isReadOnly ? undefined : resolvedTopSellers}
             onAdd={isReadOnly ? undefined : (p) => handleAddProductToBranch(p as Product)}
             onUpdateField={isReadOnly ? undefined : (idx, field, value) => {
               if (field === 'quantity') handleUpdateProductQuantity(idx, value as number);
@@ -1959,31 +2026,35 @@ export default function OrderForm({
       {hasProducts && (
         <div className={`bg-white dark:bg-slate-800 rounded-lg ${embedded ? '' : 'border border-gray-200 dark:border-slate-700'} p-4`}>
           <div className="space-y-3">
-              <div>
-                <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">
-                  หมายเหตุ <span className="text-gray-400 dark:text-slate-500 font-normal">(แสดงในบิล / การจัดส่ง)</span>
-                </label>
-                <textarea
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  rows={3}
-                  disabled={isReadOnly}
-                  className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary text-base disabled:bg-gray-100 dark:disabled:bg-slate-800 disabled:text-gray-500 dark:disabled:text-slate-500"
-                  placeholder="หมายเหตุสำหรับลูกค้า, การจัดส่ง..."
-                />
-              </div>
-              <div>
-                <label className="block text-base font-medium text-orange-700 dark:text-orange-400 mb-1">
-                  หมายเหตุภายใน <span className="text-orange-400 dark:text-orange-500 font-normal">(ไม่แสดงในบิล)</span>
-                </label>
-                <textarea
-                  value={internalNotes}
-                  onChange={(e) => setInternalNotes(e.target.value)}
-                  rows={2}
-                  disabled={isReadOnly}
-                  className="w-full px-3 py-2.5 border border-orange-300 dark:border-orange-700/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-400 text-base bg-orange-50 dark:bg-orange-900/20 text-gray-900 dark:text-slate-200 disabled:bg-gray-100 dark:disabled:bg-slate-800 disabled:text-gray-500 dark:disabled:text-slate-500 disabled:border-gray-300 dark:disabled:border-slate-600"
-                  placeholder="หมายเหตุภายใน..."
-                />
+              {/* Notes side-by-side on desktop, stacked on mobile.
+                  Both textareas use rows=3 so they line up visually. */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">
+                    หมายเหตุ <span className="text-gray-400 dark:text-slate-500 font-normal">(แสดงในบิล / การจัดส่ง)</span>
+                  </label>
+                  <textarea
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    rows={3}
+                    disabled={isReadOnly}
+                    className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary text-base font-sans disabled:bg-gray-100 dark:disabled:bg-slate-800 disabled:text-gray-500 dark:disabled:text-slate-500 resize-none"
+                    placeholder="หมายเหตุสำหรับลูกค้า, การจัดส่ง..."
+                  />
+                </div>
+                <div>
+                  <label className="block text-base font-medium text-orange-700 dark:text-orange-400 mb-1">
+                    หมายเหตุภายใน <span className="text-orange-400 dark:text-orange-500 font-normal">(ไม่แสดงในบิล)</span>
+                  </label>
+                  <textarea
+                    value={internalNotes}
+                    onChange={(e) => setInternalNotes(e.target.value)}
+                    rows={3}
+                    disabled={isReadOnly}
+                    className="w-full px-3 py-2.5 border border-orange-300 dark:border-orange-700/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-400 text-base font-sans bg-orange-50 dark:bg-orange-900/20 text-gray-900 dark:text-slate-200 disabled:bg-gray-100 dark:disabled:bg-slate-800 disabled:text-gray-500 dark:disabled:text-slate-500 disabled:border-gray-300 dark:disabled:border-slate-600 resize-none"
+                    placeholder="หมายเหตุภายใน..."
+                  />
+                </div>
               </div>
 
               {/* Advance settings toggle */}
@@ -2001,54 +2072,35 @@ export default function OrderForm({
 
               {/* Advance settings panel */}
               {showAdvancedSettings && !isReadOnly && (
-                <div className="border border-gray-200 dark:border-slate-600 rounded-lg p-3 space-y-2 bg-gray-50 dark:bg-slate-700/30">
-                  <div className="flex items-center gap-2 text-sm font-medium text-gray-600 dark:text-slate-300">
+                <div className="border border-gray-200 dark:border-slate-600 rounded-lg p-4 space-y-3 bg-gray-50 dark:bg-slate-700/30">
+                  <div className="flex items-center gap-2 heading-4 text-gray-700 dark:text-slate-200">
                     <Clock className="w-4 h-4" />
                     วันหมดอายุบิล
                   </div>
-                  <div className="space-y-1.5">
-                    <label className="flex items-center gap-2 text-sm cursor-pointer">
+                  <div className="space-y-2.5">
+                    <label className="flex items-center gap-2 cursor-pointer body-text text-gray-700 dark:text-slate-300">
                       <input
                         type="radio"
                         name="expiryMode"
-                        checked={expiryMode === 'default'}
-                        onChange={() => setExpiryMode('default')}
+                        checked={expiryMode === 'days'}
+                        onChange={() => setExpiryMode('days')}
                         className="accent-primary"
                       />
-                      <span className="text-gray-700 dark:text-slate-300">
-                        ใช้ที่ตั้งค่าไว้
-                        {billExpiryDays && billExpiryDays > 0 ? (
-                          <span className="text-gray-400 dark:text-slate-500 ml-1">({billExpiryDays} วัน)</span>
-                        ) : billExpiryDays === 0 ? (
-                          <span className="text-gray-400 dark:text-slate-500 ml-1">(ปิดใช้งาน)</span>
-                        ) : (
-                          <span className="text-gray-400 dark:text-slate-500 ml-1">(7 วัน)</span>
-                        )}
-                      </span>
-                    </label>
-                    <label className="flex items-center gap-2 text-sm cursor-pointer">
-                      <input
-                        type="radio"
-                        name="expiryMode"
-                        checked={expiryMode === 'custom'}
-                        onChange={() => setExpiryMode('custom')}
-                        className="accent-primary"
+                      <span>หมดอายุภายใน</span>
+                      <NumberInput
+                        min={1}
+                        max={90}
+                        value={expiryDays}
+                        onChange={(n) => {
+                          setExpiryDays(Math.max(1, Math.min(90, n || 1)));
+                          setExpiryMode('days');
+                        }}
+                        onFocus={() => setExpiryMode('days')}
+                        className="w-16 px-2 py-1 border border-gray-300 dark:border-slate-600 rounded text-center bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-primary"
                       />
-                      <span className="text-gray-700 dark:text-slate-300">กำหนดเอง</span>
-                      {expiryMode === 'custom' && (
-                        <span className="flex items-center gap-1 ml-1">
-                          <NumberInput
-                            min={1}
-                            max={90}
-                            value={customExpiryDays}
-                            onChange={(n) => setCustomExpiryDays(Math.max(1, Math.min(90, n || 1)))}
-                            className="w-14 px-2 py-1 border border-gray-300 dark:border-slate-600 rounded text-sm text-center bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-primary"
-                          />
-                          <span className="text-gray-500 dark:text-slate-400 text-xs">วัน</span>
-                        </span>
-                      )}
+                      <span>วัน</span>
                     </label>
-                    <label className="flex items-center gap-2 text-sm cursor-pointer">
+                    <label className="flex items-center gap-2 cursor-pointer body-text text-gray-700 dark:text-slate-300">
                       <input
                         type="radio"
                         name="expiryMode"
@@ -2056,7 +2108,7 @@ export default function OrderForm({
                         onChange={() => setExpiryMode('none')}
                         className="accent-primary"
                       />
-                      <span className="text-gray-700 dark:text-slate-300">ไม่หมดอายุ</span>
+                      <span>ไม่หมดอายุ</span>
                     </label>
                   </div>
                 </div>
@@ -2114,30 +2166,17 @@ export default function OrderForm({
       {/* Action Buttons */}
       {!isReadOnly && hasProducts && (
         <div className="flex justify-end gap-3">
-          <button
-            type="button"
-            onClick={handleCancel}
-            className="px-5 py-2 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors text-sm font-medium"
-          >
+          <Button variant="secondary" onClick={handleCancel}>
             ยกเลิก
-          </button>
-          <button
+          </Button>
+          <Button
             type="submit"
-            disabled={saving}
-            className="bg-primary text-white px-5 py-2 rounded-lg hover:bg-primary-hover transition-colors flex items-center gap-2 disabled:opacity-50 text-sm font-medium"
+            variant="primary"
+            loading={saving}
+            icon={<Save className="w-4 h-4" />}
           >
-            {saving ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                กำลังบันทึก...
-              </>
-            ) : (
-              <>
-                <Save className="w-4 h-4" />
-                {isEditMode ? 'บันทึกการแก้ไข' : 'บันทึกคำสั่งซื้อ'}
-              </>
-            )}
-          </button>
+            {saving ? 'กำลังบันทึก...' : isEditMode ? 'บันทึกการแก้ไข' : 'บันทึกคำสั่งซื้อ'}
+          </Button>
         </div>
       )}
       {/* Address Conflict Dialog */}
@@ -2152,30 +2191,30 @@ export default function OrderForm({
             <h3 className="text-base font-bold text-gray-900 dark:text-slate-100 mb-2">ที่อยู่ไม่ตรงกับ &quot;{addressConflict.addressName}&quot;</h3>
             <p className="text-sm text-gray-500 dark:text-slate-400 mb-4">ที่อยู่ที่กรอกไม่ตรงกับที่อยู่เดิม ต้องการดำเนินการอย่างไร?</p>
             <div className="space-y-2">
-              <button
-                type="button"
+              <Button
+                variant="primary"
+                fullWidth
                 onClick={() => doSave('update')}
-                disabled={saving}
-                className="w-full px-4 py-2.5 text-sm font-medium text-white bg-primary rounded-lg hover:bg-primary-hover transition-colors disabled:opacity-50"
+                loading={saving}
               >
                 อัพเดท &quot;{addressConflict.addressName}&quot;
-              </button>
-              <button
-                type="button"
+              </Button>
+              <Button
+                variant="secondary"
+                fullWidth
                 onClick={() => doSave('new')}
                 disabled={saving}
-                className="w-full px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-slate-300 bg-gray-100 dark:bg-slate-700 rounded-lg hover:bg-gray-200 dark:hover:bg-slate-600 transition-colors disabled:opacity-50"
               >
                 บันทึกเป็นที่อยู่ใหม่
-              </button>
-              <button
-                type="button"
+              </Button>
+              <Button
+                variant="ghost"
+                fullWidth
                 onClick={() => setAddressConflict(null)}
                 disabled={saving}
-                className="w-full px-4 py-2.5 text-sm text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200 transition-colors disabled:opacity-50"
               >
                 ยกเลิก
-              </button>
+              </Button>
             </div>
           </div>
         )}
@@ -2232,8 +2271,10 @@ export default function OrderForm({
                 </div>
 
                 {onSendBillToChat && (
-                  <button
-                    type="button"
+                  <Button
+                    variant="primary"
+                    fullWidth
+                    icon={<Send className="w-4 h-4" />}
                     onClick={() => {
                       const billUrl = `${window.location.origin}/bills/${savedOrderId}`;
                       setShowSuccessModal(false);
@@ -2242,19 +2283,17 @@ export default function OrderForm({
                         onSuccess(savedOrderId, selectedCustomer?.id, deliveryName ? { name: deliveryName, phone: deliveryPhone, email: deliveryEmail } : undefined);
                       }
                     }}
-                    className="w-full px-4 py-2.5 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors font-medium flex items-center justify-center gap-2"
                   >
-                    <Send className="w-4 h-4" />
                     ส่งบิลให้ลูกค้า
-                  </button>
+                  </Button>
                 )}
-                <button
-                  type="button"
+                <Button
+                  variant="secondary"
+                  fullWidth
                   onClick={() => { setShowSuccessModal(false); router.push(`/orders/${savedOrderId}`); }}
-                  className="w-full px-4 py-2.5 rounded-lg transition-colors font-medium border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-700 text-center"
                 >
                   ดูคำสั่งซื้อ
-                </button>
+                </Button>
               </div>
             </div>
         </div>

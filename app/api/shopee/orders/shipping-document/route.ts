@@ -1,6 +1,6 @@
 // Path: app/api/shopee/orders/shipping-document/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { checkAuthWithCompany, isAdminRole, supabaseAdmin } from '@/lib/supabase-admin';
+import { checkAuthWithCompany, can, supabaseAdmin } from '@/lib/supabase-admin';
 import {
   type ShopeeAccountRow,
   type ShopeeCredentials,
@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const auth = await checkAuthWithCompany(request);
-    if (!auth.isAuth || !auth.companyId || !isAdminRole(auth.companyRoles)) {
+    if (!auth.isAuth || !auth.companyId || !can(auth.companyRoles, 'marketplace.ship')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     companyId = auth.companyId;

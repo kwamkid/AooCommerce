@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin, checkAuthWithCompany, isAdminRole } from '@/lib/supabase-admin';
+import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
 import { splitOrder, getPackageDetail, ensureValidToken } from '@/lib/shopee/api';
 
 interface ParcelInput {
@@ -13,7 +13,7 @@ interface SplitRequest {
 
 export async function POST(req: NextRequest) {
   const { isAuth, companyId, companyRoles } = await checkAuthWithCompany(req);
-  if (!isAuth || !companyId || !isAdminRole(companyRoles)) {
+  if (!isAuth || !companyId || !can(companyRoles, 'order.split')) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

@@ -1,6 +1,6 @@
 // Path: app/api/reports/supplier/[id]/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin, checkAuthWithCompany, hasAnyRole } from '@/lib/supabase-admin';
+import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
 
 // GET - Snapshot detail
 export async function GET(
@@ -197,7 +197,7 @@ export async function PATCH(
     if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    if (!hasAnyRole(auth.companyRoles, ['owner', 'admin', 'manager', 'account'])) {
+    if (!can(auth.companyRoles, 'report.supplier.create')) {
       return NextResponse.json({ error: 'ไม่มีสิทธิ์' }, { status: 403 });
     }
 
@@ -250,7 +250,7 @@ export async function DELETE(
     if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    if (!hasAnyRole(auth.companyRoles, ['owner', 'admin', 'manager'])) {
+    if (!can(auth.companyRoles, 'report.supplier.delete')) {
       return NextResponse.json({ error: 'ไม่มีสิทธิ์' }, { status: 403 });
     }
 

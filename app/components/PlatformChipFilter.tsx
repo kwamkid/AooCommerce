@@ -74,7 +74,7 @@ function MobileDropdown({ value, onChange, selected }: {
       <button
         type="button"
         onClick={() => setOpen(v => !v)}
-        className={`flex items-center gap-2 px-3 h-[42px] rounded-lg border text-sm font-medium transition-colors ${
+        className={`flex items-center gap-2 px-3 h-10 rounded-lg border text-sm font-medium transition-colors ${
           value !== 'all'
             ? 'border-gray-800 dark:border-white bg-gray-800 dark:bg-white text-white dark:text-gray-900'
             : 'border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 bg-white dark:bg-slate-700'

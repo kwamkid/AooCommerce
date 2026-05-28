@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import TaxInfoForm, { type TaxInfoData } from './TaxInfoForm';
 import Modal from './Modal';
+import Button from './Button';
 
 export interface TaxInvoiceSnapshot {
   tax_type: 'personal' | 'corporate';
@@ -72,20 +73,24 @@ export default function TaxInvoiceEditModal({ data, onSave, onClose, onSaveAndUp
       size="lg"
       footer={
         <div className="flex justify-end gap-2 px-6 py-4 flex-wrap">
-          <button type="button" onClick={onClose}
-            className="px-4 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors">
+          <Button variant="secondary" onClick={onClose}>
             ยกเลิก
-          </button>
-          <button type="button" onClick={handleSave}
-            className="px-4 py-2 border border-primary text-primary rounded-lg hover:bg-orange-50 dark:hover:bg-orange-900/20 transition-colors">
+          </Button>
+          <Button
+            variant="secondary"
+            onClick={handleSave}
+            className="border-primary text-primary hover:bg-orange-50 dark:hover:bg-orange-900/20"
+          >
             บันทึก
-          </button>
+          </Button>
           {onSaveAndUpdateCustomer && (
-            <button type="button" onClick={handleSaveAndUpdate}
-              className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors"
-              title="บันทึกในออเดอร์นี้ และอัพเดทข้อมูลลูกค้าด้วย">
+            <Button
+              variant="primary"
+              onClick={handleSaveAndUpdate}
+              title="บันทึกในออเดอร์นี้ และอัพเดทข้อมูลลูกค้าด้วย"
+            >
               บันทึก + อัพเดทลูกค้า
-            </button>
+            </Button>
           )}
         </div>
       }

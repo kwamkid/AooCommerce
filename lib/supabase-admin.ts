@@ -1,6 +1,11 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextRequest } from 'next/server';
 
+// Re-export capability checker so existing imports can migrate one helper at a time.
+// New code should prefer `import { can } from '@/lib/permissions'` directly.
+export { can } from '@/lib/permissions';
+export type { Capability } from '@/lib/permissions';
+
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
@@ -116,12 +121,12 @@ export async function checkAuthWithCompany(request: NextRequest): Promise<AuthRe
 }
 
 /**
- * Check if roles include admin-level access (owner or admin).
- */
-/**
  * Admin-level access: owner, admin, or manager.
  * Manager has the same operational access as admin EXCEPT cannot invite/remove
  * owner or admin members — that is enforced separately in the members API.
+ *
+ * @deprecated Prefer `can(roles, '<specific.capability>')` from `lib/permissions`.
+ *             Centralizes permissions in one matrix; see todo.md migration plan.
  */
 export function isAdminRole(roles?: string[]): boolean {
   if (!roles) return false;
@@ -131,6 +136,8 @@ export function isAdminRole(roles?: string[]): boolean {
 /**
  * Strict admin: owner or admin only (excludes manager).
  * Use for operations that grant/revoke admin-level access (member management).
+ *
+ * @deprecated Prefer `can(roles, 'members.grant_admin')` from `lib/permissions`.
  */
 export function isStrictAdmin(roles?: string[]): boolean {
   if (!roles) return false;
@@ -139,6 +146,10 @@ export function isStrictAdmin(roles?: string[]): boolean {
 
 /**
  * Check if user roles include any of the required roles.
+ *
+ * @deprecated Prefer a named capability via `can(roles, '<capability>')` from
+ *             `lib/permissions`. Inline role arrays are hard to audit and easy to
+ *             drift apart from intent.
  */
 export function hasAnyRole(userRoles: string[] | undefined, requiredRoles: string[]): boolean {
   if (!userRoles) return false;
@@ -148,6 +159,8 @@ export function hasAnyRole(userRoles: string[] | undefined, requiredRoles: strin
 /**
  * Can access bulk edit (Excel template import/update).
  * owner + admin + manager + warehouse.
+ *
+ * @deprecated Prefer `can(roles, 'product.bulk_edit')` from `lib/permissions`.
  */
 export function canBulkEdit(roles?: string[]): boolean {
   if (!roles) return false;
@@ -157,6 +170,8 @@ export function canBulkEdit(roles?: string[]): boolean {
 /**
  * Can manage inventory operations (transfer, receive, issue, adjust stock).
  * owner + admin + manager + warehouse.
+ *
+ * @deprecated Prefer `can(roles, 'inventory.manage')` from `lib/permissions`.
  */
 export function canManageInventory(roles?: string[]): boolean {
   if (!roles) return false;

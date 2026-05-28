@@ -79,4 +79,22 @@ export function getBadgeColor(key: string): { color: string; bg: string } {
   return STATUS_BADGE_COLORS[key] || STATUS_BADGE_COLORS.cancelled;
 }
 
+/**
+ * Map status key → Badge tone (for `<Badge tone={...}>` from `components/ui/Badge.tsx`).
+ * Colors stay in sync with tab + badge mapping above.
+ */
+type StatusBadgeTone = 'gray' | 'red' | 'amber' | 'emerald' | 'blue' | 'indigo' | 'orange';
+const STATUS_BADGE_TONE: Record<string, StatusBadgeTone> = {
+  new: 'blue', draft: 'blue', billed: 'blue', sent: 'blue', invoiced: 'blue',
+  ready_to_ship: 'orange', pending_confirm: 'orange', received: 'orange',
+  processing: 'indigo', pending: 'indigo',
+  shipping: 'amber', shipped: 'amber', partially_paid: 'amber',
+  completed: 'emerald', paid: 'emerald', confirmed: 'emerald', partial_received: 'emerald',
+  overdue: 'red',
+  cancelled: 'gray',
+};
+export function getStatusBadgeTone(key: string): StatusBadgeTone {
+  return STATUS_BADGE_TONE[key] || 'gray';
+}
+
 export default STATUS_TAB_COLORS;

@@ -1,6 +1,6 @@
 // Path: app/api/shopee/orders/bulk-ship/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { checkAuthWithCompany, isAdminRole, supabaseAdmin } from '@/lib/supabase-admin';
+import { checkAuthWithCompany, can, supabaseAdmin } from '@/lib/supabase-admin';
 import {
   type ShopeeAccountRow,
   type MassShipPackage,
@@ -58,7 +58,7 @@ function formatTimeSlot(slot: { pickup_time_id: string; date: number; time_text?
 export async function POST(request: NextRequest) {
   try {
     const { isAuth, companyId, companyRoles } = await checkAuthWithCompany(request);
-    if (!isAuth || !companyId || !isAdminRole(companyRoles)) {
+    if (!isAuth || !companyId || !can(companyRoles, 'marketplace.ship')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 

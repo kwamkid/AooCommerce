@@ -1,7 +1,7 @@
 // Path: app/api/users/warehouse-permissions/route.ts
 // Manage user-warehouse permissions (which warehouses a user can access)
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin, checkAuthWithCompany, isAdminRole } from '@/lib/supabase-admin';
+import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
 
 // GET - Get warehouse permissions for a user
 export async function GET(request: NextRequest) {
@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
     if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    if (!isAdminRole(auth.companyRoles)) {
+    if (!can(auth.companyRoles, 'members.invite')) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
 
@@ -58,7 +58,7 @@ export async function PUT(request: NextRequest) {
     if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    if (!isAdminRole(auth.companyRoles)) {
+    if (!can(auth.companyRoles, 'members.invite')) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
 

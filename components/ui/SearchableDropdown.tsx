@@ -102,7 +102,7 @@ export default function SearchableDropdown({
           setSearch('');
           setTimeout(() => searchRef.current?.focus(), 50);
         }}
-        className={`flex items-center gap-2 border rounded-lg px-3 h-[42px] text-sm transition-colors ${
+        className={`flex items-center gap-2 border rounded-lg px-3 h-10 text-sm transition-colors ${
           isActive
             ? 'border-gray-400 dark:border-slate-400 bg-white dark:bg-slate-700 text-gray-700 dark:text-slate-200'
             : 'border-gray-300 dark:border-slate-500 bg-white dark:bg-slate-700 text-gray-700 dark:text-slate-200 hover:border-gray-400 dark:hover:border-slate-400'

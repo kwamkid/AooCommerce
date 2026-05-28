@@ -2,7 +2,8 @@
 
 import { type ReactNode, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Loader2, Check, ArrowLeft, ArrowRight } from 'lucide-react';
+import { Check, ArrowLeft, ArrowRight } from 'lucide-react';
+import Button from '@/components/ui/Button';
 import { useToast } from '@/lib/toast-context';
 import { useCompany } from '@/lib/company-context';
 import { WIZARD_KEYS } from '@/components/onboarding/wizard-storage';
@@ -180,23 +181,23 @@ export default function WizardShell({ step, nextDisabled, onNext, nextHref, fini
 
         {/* Footer nav */}
         <div className="flex items-center justify-between mt-6">
-          <button
+          <Button
+            variant="ghost"
             onClick={handleBack}
             disabled={(!prevStep && !canExitToPicker) || submitting}
-            className="flex items-center gap-2 px-4 py-2.5 text-gray-600 dark:text-slate-300 hover:text-gray-900 dark:hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            icon={<ArrowLeft className="w-4 h-4" />}
           >
-            <ArrowLeft className="w-4 h-4" />
             {canExitToPicker && !prevStep ? 'กลับไปเลือกบริษัท' : 'ย้อนกลับ'}
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="primary"
             onClick={handleNext}
-            disabled={nextDisabled || submitting}
-            className="flex items-center gap-2 px-6 py-2.5 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors disabled:opacity-50"
+            disabled={nextDisabled}
+            loading={submitting}
+            iconRight={!isLastStep ? <ArrowRight className="w-4 h-4" /> : undefined}
           >
-            {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
             {isLastStep ? (finishLabel || 'เสร็จสิ้น') : 'ถัดไป'}
-            {!submitting && !isLastStep && <ArrowRight className="w-4 h-4" />}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

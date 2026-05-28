@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useMemo, useCallback, Suspense } from 'rea
 import { useRouter, useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import Layout from '@/components/layout/Layout';
+import Button from '@/components/ui/Button';
 import SearchInput from '@/components/ui/SearchInput';
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/lib/toast-context';
@@ -1700,8 +1701,8 @@ function UnifiedChatPageContent() {
               <div className="mt-4 space-y-2">
                 {selectedContact.customer ? (
                   <>
-                    <button onClick={() => { setOrderFormKey(k => k + 1); setRightPanel('order'); }} className="w-full py-2 bg-primary text-white rounded-lg font-medium hover:bg-primary-hover transition-colors flex items-center justify-center gap-2"><ShoppingCart className="w-4 h-4" />เปิดบิล</button>
-                    <button onClick={() => window.open(`/customers/${selectedContact.customer!.id}`, '_blank')} className="w-full py-2 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 rounded-lg font-medium hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors">ดูรายละเอียดเต็ม</button>
+                    <Button variant="primary" fullWidth icon={<ShoppingCart className="w-4 h-4" />} onClick={() => { setOrderFormKey(k => k + 1); setRightPanel('order'); }}>เปิดบิล</Button>
+                    <Button variant="secondary" fullWidth onClick={() => window.open(`/customers/${selectedContact.customer!.id}`, '_blank')}>ดูรายละเอียดเต็ม</Button>
                     <div className="flex gap-2 pt-2">
                       <button onClick={handleUnlinkCustomer} className="flex-1 py-2 text-sm text-gray-500 hover:text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-lg transition-colors flex items-center justify-center gap-1.5"><Unlink className="w-3.5 h-3.5" />ยกเลิกเชื่อมต่อ</button>
                       <button onClick={handleDeleteCustomer} className="flex-1 py-2 text-sm text-gray-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors flex items-center justify-center gap-1.5"><Trash2 className="w-3.5 h-3.5" />ลบลูกค้า</button>
@@ -1783,8 +1784,8 @@ function UnifiedChatPageContent() {
               <div className="mt-4 space-y-2">
                 {selectedContact.customer ? (
                   <>
-                    <button onClick={() => { setOrderFormKey(k => k + 1); setRightPanel('order'); }} className="w-full py-2 bg-primary text-white rounded-lg font-medium hover:bg-primary-hover transition-colors flex items-center justify-center gap-2"><ShoppingCart className="w-4 h-4" />เปิดบิล</button>
-                    <button onClick={() => window.open(`/customers/${selectedContact.customer!.id}`, '_blank')} className="w-full py-2 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 rounded-lg font-medium hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors">ดูรายละเอียดเต็ม</button>
+                    <Button variant="primary" fullWidth icon={<ShoppingCart className="w-4 h-4" />} onClick={() => { setOrderFormKey(k => k + 1); setRightPanel('order'); }}>เปิดบิล</Button>
+                    <Button variant="secondary" fullWidth onClick={() => window.open(`/customers/${selectedContact.customer!.id}`, '_blank')}>ดูรายละเอียดเต็ม</Button>
                     <div className="flex gap-2 pt-2">
                       <button onClick={handleUnlinkCustomer} className="flex-1 py-2 text-sm text-gray-500 hover:text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-lg transition-colors flex items-center justify-center gap-1.5"><Unlink className="w-3.5 h-3.5" />ยกเลิกเชื่อมต่อ</button>
                       <button onClick={handleDeleteCustomer} className="flex-1 py-2 text-sm text-gray-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors flex items-center justify-center gap-1.5"><Trash2 className="w-3.5 h-3.5" />ลบลูกค้า</button>

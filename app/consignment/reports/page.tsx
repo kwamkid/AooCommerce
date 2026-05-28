@@ -17,7 +17,6 @@ import { markPrinted as markPrintedDB } from '@/lib/print-tracking';
 import Pagination from '@/app/components/Pagination';
 import Tooltip from '@/components/ui/Tooltip';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
-import Link from 'next/link';
 import ActionMenu, { type ActionItem } from '@/components/ui/ActionMenu';
 import { getBadgeColor } from '@/lib/status-tab-colors';
 import StatusTabs from '@/components/ui/StatusTabs';
@@ -656,13 +655,13 @@ function ConsignmentReportsContent() {
             <Button variant="secondary" icon={<UserPlus className="w-4 h-4" />} onClick={() => router.push('/customers/new?type=consignment_dealer')}>
               เพิ่มตัวแทน
             </Button>
-            <Link
-              href="/consignment/reports/new"
-              className="bg-primary text-white px-4 py-2 rounded-lg hover:bg-primary-hover transition-colors flex items-center gap-2"
+            <Button
+              variant="primary"
+              icon={<Plus className="w-5 h-5" />}
+              onClick={() => router.push('/consignment/reports/new')}
             >
-              <Plus className="w-5 h-5" />
               คีย์ยอดตัวแทน
-            </Link>
+            </Button>
           </div>
         </div>
 

@@ -8,6 +8,7 @@ import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
 import { formatPrice } from '@/lib/utils/format';
 import DateRangePicker, { DateValueType } from '@/components/ui/DateRangePicker';
+import Button from '@/components/ui/Button';
 import { getImageUrl } from '@/lib/utils/image';
 import {
   DndContext,
@@ -1059,17 +1060,16 @@ export default function DeliverySummaryPage() {
             {/* Action buttons - contextual per tab */}
             <div className="sm:ml-auto flex items-center gap-2">
               {activeTab === 'packing' ? (
-                <button
+                <Button
+                  variant="primary"
+                  size="sm"
+                  loading={generatingPdf}
+                  disabled={!reportData || reportData.productSummary.length === 0}
+                  icon={<FileText className="w-4 h-4" />}
                   onClick={handleExportPackingPdf}
-                  disabled={!reportData || reportData.productSummary.length === 0 || generatingPdf}
-                  className="flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg bg-primary text-white hover:bg-primary-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {generatingPdf ? (
-                    <><Loader2 className="w-4 h-4 animate-spin" /><span>กำลังสร้าง PDF...</span></>
-                  ) : (
-                    <><FileText className="w-4 h-4" />Export PDF</>
-                  )}
-                </button>
+                  {generatingPdf ? 'กำลังสร้าง PDF...' : 'Export PDF'}
+                </Button>
               ) : (
                 <button
                   onClick={handleCopyText}
@@ -1491,24 +1491,20 @@ export default function DeliverySummaryPage() {
               </div>
 
               <div className="flex gap-3 justify-end">
-                <button
+                <Button
+                  variant="secondary"
                   onClick={() => setStatusUpdateModal({ show: false, delivery: null, nextStatus: '', statusType: 'order' })}
                   disabled={updatingStatus}
-                  className="px-4 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors disabled:opacity-50"
                 >
                   ยกเลิก
-                </button>
-                <button
+                </Button>
+                <Button
+                  variant="primary"
+                  loading={updatingStatus}
                   onClick={confirmStatusUpdate}
-                  disabled={updatingStatus}
-                  className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors disabled:opacity-50 flex items-center gap-2"
                 >
-                  {updatingStatus ? (
-                    <><Loader2 className="w-4 h-4 animate-spin" /><span>กำลังบันทึก...</span></>
-                  ) : (
-                    <span>ยืนยัน</span>
-                  )}
-                </button>
+                  {updatingStatus ? 'กำลังบันทึก...' : 'ยืนยัน'}
+                </Button>
               </div>
             </div>
           </div>

@@ -1130,14 +1130,14 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
             {/* Order status actions — advance button (skip statuses handled by header buttons) */}
             {getNextOrderStatus(orderStatus) && orderStatus !== 'new' && orderStatus !== 'ready_to_ship' && orderStatus !== 'processing' && (
               <div className="flex items-center gap-2 flex-wrap">
-                <button
+                <Button
+                  variant="primary"
+                  loading={updating}
+                  icon={<Truck className="w-4 h-4" />}
                   onClick={handleOrderStatusClick}
-                  disabled={updating}
-                  className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors font-medium text-sm flex items-center gap-1.5 disabled:opacity-50 shadow-sm"
                 >
-                  {updating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Truck className="w-4 h-4" />}
                   {updating ? 'กำลังดำเนินการ...' : `เปลี่ยนเป็น "${getOrderStatusLabel(getNextOrderStatus(orderStatus)!)}"`}
-                </button>
+                </Button>
               </div>
             )}
 
@@ -1647,21 +1647,19 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
                 )}
                 <div className="flex gap-2 pt-1">
                   {editingDelivery && (
-                    <button
-                      onClick={() => setEditingDelivery(false)}
-                      className="flex-1 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors"
-                    >
+                    <Button variant="secondary" className="flex-1" onClick={() => setEditingDelivery(false)}>
                       ยกเลิก
-                    </button>
+                    </Button>
                   )}
-                  <button
+                  <Button
+                    variant="primary"
+                    className="flex-1"
+                    loading={savingDelivery}
+                    disabled={!deliveryForm.delivery_name || !deliveryForm.delivery_phone || !deliveryForm.delivery_address || !deliveryForm.delivery_province || !deliveryForm.delivery_postal_code}
                     onClick={handleSaveDelivery}
-                    disabled={savingDelivery || !deliveryForm.delivery_name || !deliveryForm.delivery_phone || !deliveryForm.delivery_address || !deliveryForm.delivery_province || !deliveryForm.delivery_postal_code}
-                    className="flex-1 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary-hover disabled:opacity-50 flex items-center justify-center gap-2 transition-colors"
                   >
-                    {savingDelivery && <Loader2 className="w-4 h-4 animate-spin" />}
                     บันทึก
-                  </button>
+                  </Button>
                 </div>
               </div>
           </div>

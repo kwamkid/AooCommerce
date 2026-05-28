@@ -114,6 +114,10 @@ interface ItemsTableProps {
   searchMode?: SearchMode;
   /** Force mobile/compact card layout regardless of viewport width */
   forceCompact?: boolean;
+  /** Items shown when search input is focused with empty query (e.g. top sellers). */
+  searchSuggestions?: ProductSearchItem[];
+  /** Optional header label for the suggestion list (default: "ขายดี 30 วันล่าสุด"). */
+  searchSuggestionsLabel?: string;
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -181,6 +185,8 @@ export default function ItemsTable({
   inputRef: externalInputRef,
   searchMode = 'variation',
   forceCompact = false,
+  searchSuggestions,
+  searchSuggestionsLabel,
 }: ItemsTableProps) {
   const internalInputRef = useRef<HTMLInputElement>(null);
   const searchRef = externalInputRef ?? internalInputRef;
@@ -322,8 +328,19 @@ export default function ItemsTable({
               {hasSpecialPrice && <th className="data-th text-right" style={{width:'7rem'}}>ราคาพิเศษ</th>}
               {hasDiscount && <th className="data-th text-center" style={{width:'7rem'}}>ส่วนลด</th>}
               {hasReason && <th className="data-th" style={{width:'7rem'}}>เหตุผล</th>}
-              {hasTotal && <th className="data-th text-right" style={{width:'6rem'}}>รวม</th>}
-              {!readOnly && <th className="data-th" style={{width:'2rem'}}></th>}
+              {/* When trash is embedded in the รวม cell, push the "รวม" header text
+                  left by (trash button width + gap) so it aligns with the number
+                  below — not floating over the trash icon. */}
+              {hasTotal && (
+                <th
+                  className="data-th text-right"
+                  style={{ width: '7.5rem', paddingRight: !readOnly ? '52px' : undefined }}
+                >
+                  รวม
+                </th>
+              )}
+              {/* Standalone trash column only when no total column to embed into */}
+              {!hasTotal && !readOnly && <th className="data-th" style={{width:'1.75rem', padding:0}}></th>}
             </tr>
           </thead>
           <tbody className="data-tbody">
@@ -487,13 +504,23 @@ export default function ItemsTable({
                   )}
                   {hasTotal && (
                     <td className="py-3 text-right">
-                      <span className="text-sm font-semibold text-gray-900 dark:text-white">฿{fmt(lineTotal)}</span>
+                      <div className="inline-flex items-center justify-end gap-2">
+                        <span className="text-sm font-semibold text-gray-900 dark:text-white">฿{fmt(lineTotal)}</span>
+                        {!readOnly && (
+                          <button type="button" onClick={() => onRemove!(idx)}
+                            className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors flex-shrink-0"
+                            title="ลบรายการนี้">
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
                     </td>
                   )}
-                  {!readOnly && (
-                    <td className="px-2 py-3 text-center">
+                  {/* Fallback trash column — only when there's no total column to embed into */}
+                  {!hasTotal && !readOnly && (
+                    <td className="py-3 pl-1 pr-0">
                       <button type="button" onClick={() => onRemove!(idx)}
-                        className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors">
+                        className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors">
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </td>
@@ -751,8 +778,13 @@ export default function ItemsTable({
                   </div>
                 )}
                 {hasTotal && (
-                  <div className="ml-auto text-right">
-                    <label className="text-xs text-gray-500 dark:text-slate-400 mb-0.5 block">รวม</label>
+                  // self-stretch overrides parent's `items-end` so this column
+                  // takes the full row height; flex-col + justify-between then
+                  // pushes the "รวม" label to the top (aligned with other
+                  // labels) and the amount to the bottom (aligned with the
+                  // input baselines).
+                  <div className="ml-auto text-right self-stretch flex flex-col justify-between">
+                    <label className="text-xs text-gray-500 dark:text-slate-400 block">รวม</label>
                     <span className="text-sm font-semibold text-gray-900 dark:text-white">฿{fmt(lineTotal)}</span>
                   </div>
                 )}
@@ -838,6 +870,8 @@ export default function ItemsTable({
                 placeholder={searchPlaceholder}
                 inputRef={searchRef as React.RefObject<HTMLInputElement>}
                 mode={searchMode}
+                suggestions={searchMode === 'variation' ? searchSuggestions : undefined}
+                suggestionsLabel={searchSuggestionsLabel}
                 isAlreadyAdded={p => items.some(i => searchMode === 'product' ? i.product_id === p.product_id : i.variation_id === p.id)}
                 isDisabled={disableOutOfStock ? p => (stockMap[p.id] ?? 1) <= 0 : undefined}
                 renderExtra={shouldShowStockInSearch ? (p) => {
@@ -879,6 +913,8 @@ export default function ItemsTable({
                       placeholder={searchPlaceholder}
                       inputRef={searchRef as React.RefObject<HTMLInputElement>}
                       mode={searchMode}
+                      suggestions={searchMode === 'variation' ? searchSuggestions : undefined}
+                      suggestionsLabel={searchSuggestionsLabel}
                       isAlreadyAdded={p => items.some(i => searchMode === 'product' ? i.product_id === p.product_id : i.variation_id === p.id)}
                       isDisabled={disableOutOfStock ? p => (stockMap[p.id] ?? 1) <= 0 : undefined}
                       renderExtra={shouldShowStockInSearch ? (p) => {

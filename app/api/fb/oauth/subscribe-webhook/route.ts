@@ -1,4 +1,4 @@
-import { checkAuthWithCompany, isAdminRole, supabaseAdmin } from '@/lib/supabase-admin';
+import { checkAuthWithCompany, can, supabaseAdmin } from '@/lib/supabase-admin';
 import { NextRequest, NextResponse } from 'next/server';
 
 const SUBSCRIBED_FIELDS = 'messages,messaging_postbacks,message_echoes';
@@ -9,7 +9,7 @@ const SUBSCRIBED_FIELDS = 'messages,messaging_postbacks,message_echoes';
 export async function POST(request: NextRequest) {
   try {
     const { isAuth, companyId, companyRoles } = await checkAuthWithCompany(request);
-    if (!isAuth || !companyId || !isAdminRole(companyRoles)) {
+    if (!isAuth || !companyId || !can(companyRoles, 'masterdata.chat_channels')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 

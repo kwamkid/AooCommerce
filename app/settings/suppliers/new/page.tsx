@@ -7,6 +7,7 @@ import Layout from '@/components/layout/Layout';
 import Container from '@/components/ui/Container';
 import PageHeader from '@/components/ui/PageHeader';
 import { useAuth } from '@/lib/auth-context';
+import { can } from '@/lib/permissions';
 import { useToast } from '@/lib/toast-context';
 import { useFeatures } from '@/lib/features-context';
 import { apiFetch } from '@/lib/api-client';
@@ -24,7 +25,7 @@ export default function NewSupplierPage() {
   useEffect(() => {
     if (authLoading) return;
     if (!userProfile) { router.push('/login'); return; }
-    if (!userProfile.roles?.some((r: string) => ['owner', 'admin', 'manager'].includes(r))) {
+    if (!can(userProfile.roles, 'masterdata.suppliers')) {
       router.push('/dashboard');
     }
   }, [userProfile, authLoading, router]);

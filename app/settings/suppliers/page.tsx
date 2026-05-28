@@ -8,6 +8,7 @@ import Layout from '@/components/layout/Layout';
 import SearchInput from '@/components/ui/SearchInput';
 import Checkbox from '@/components/ui/Checkbox';
 import { useAuth } from '@/lib/auth-context';
+import { can } from '@/lib/permissions';
 import { useToast } from '@/lib/toast-context';
 import { useFeatures } from '@/lib/features-context';
 import { apiFetch } from '@/lib/api-client';
@@ -216,7 +217,7 @@ export default function SuppliersPage() {
   // (Selection toggle handled by DataTable)
 
   // Admin guard
-  if (userProfile && !userProfile.roles?.includes('admin') && !userProfile.roles?.includes('owner') && !userProfile.roles?.includes('manager')) {
+  if (userProfile && !can(userProfile.roles, 'masterdata.suppliers')) {
     return (
       <Layout>
         <NoPermissionCard />

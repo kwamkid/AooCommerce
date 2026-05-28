@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
+import Button from '@/components/ui/Button';
 import { useAuth } from '@/lib/auth-context';
 import { useFeatures } from '@/lib/features-context';
 import { useFetchOnce } from '@/lib/use-fetch-once';
@@ -322,14 +323,15 @@ export default function PurchaseOrdersPage() {
               />
             </div>
           )}
-          <button
+          <Button
+            variant="primary"
             onClick={() => router.push('/inventory/purchase-order')}
-            className="bg-primary text-white p-2.5 md:px-4 md:py-2.5 rounded-lg hover:bg-primary-hover transition-colors flex items-center gap-2 text-sm font-medium whitespace-nowrap flex-shrink-0"
             title="สร้างใบสั่งซื้อ"
+            icon={<Plus className="w-4 h-4" />}
+            className="whitespace-nowrap flex-shrink-0"
           >
-            <Plus className="w-4 h-4" />
             <span className="hidden md:inline">สร้างใบสั่งซื้อ</span>
-          </button>
+          </Button>
         </div>
 
         <DataTable<PurchaseOrder>

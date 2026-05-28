@@ -1,6 +1,6 @@
 // Path: app/api/reports/supplier/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin, checkAuthWithCompany, hasAnyRole } from '@/lib/supabase-admin';
+import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
 
 // GET - List snapshots (optionally filtered by supplier)
 export async function GET(request: NextRequest) {
@@ -85,7 +85,7 @@ export async function POST(request: NextRequest) {
     if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    if (!hasAnyRole(auth.companyRoles, ['owner', 'admin', 'manager', 'account'])) {
+    if (!can(auth.companyRoles, 'report.supplier.create')) {
       return NextResponse.json({ error: 'ไม่มีสิทธิ์สร้างรายงาน' }, { status: 403 });
     }
 

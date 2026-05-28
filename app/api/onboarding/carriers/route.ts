@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin, checkAuthWithCompany, isAdminRole } from '@/lib/supabase-admin';
+import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
 
 // Master list of system carriers — kept in sync with the carriers seed migration.
 // Each entry is what we'd insert when the user ticks the checkbox in Step 3.
@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
   if (!auth.isAuth || !auth.companyId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
-  if (!isAdminRole(auth.companyRoles)) {
+  if (!can(auth.companyRoles, 'onboarding.manage')) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 

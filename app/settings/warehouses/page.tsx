@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Layout from '@/components/layout/Layout';
 import { useAuth } from '@/lib/auth-context';
+import { can } from '@/lib/permissions';
 import { useFetchOnce } from '@/lib/use-fetch-once';
 import { useToast } from '@/lib/toast-context';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
@@ -56,7 +57,7 @@ export default function WarehouseSettingsPage() {
 
   useFetchOnce(() => {
     fetchWarehouses();
-  }, !!(userProfile?.roles?.includes('admin') || userProfile?.roles?.includes('owner') || userProfile?.roles?.includes('manager')));
+  }, can(userProfile?.roles, 'masterdata.warehouses'));
 
   const fetchWarehouses = async () => {
     try {
@@ -197,7 +198,7 @@ export default function WarehouseSettingsPage() {
   };
 
   // Admin guard
-  if (userProfile && !userProfile.roles?.includes('admin') && !userProfile.roles?.includes('owner') && !userProfile.roles?.includes('manager')) {
+  if (userProfile && !can(userProfile.roles, 'masterdata.warehouses')) {
     return (
       <Layout>
         <NoPermissionCard />

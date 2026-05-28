@@ -10,6 +10,7 @@ import Card from '@/components/ui/Card';
 import { LoadingCard } from '@/components/ui/StateCard';
 import Alert from '@/components/ui/Alert';
 import { useAuth } from '@/lib/auth-context';
+import { can } from '@/lib/permissions';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
@@ -71,7 +72,7 @@ export default function CustomerEditPage() {
   const params = useParams();
   const customerId = params.id as string;
 
-  const canEdit = userProfile?.roles?.includes('owner') || userProfile?.roles?.includes('admin') || userProfile?.roles?.includes('manager') || userProfile?.roles?.includes('sales');
+  const canEdit = can(userProfile?.roles, 'customer.edit');
 
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [linkedContacts, setLinkedContacts] = useState<LinkedContact[]>([]);

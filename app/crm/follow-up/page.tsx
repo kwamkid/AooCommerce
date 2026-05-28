@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
+import Button from '@/components/ui/Button';
 import SearchInput from '@/components/ui/SearchInput';
 import { useAuth } from '@/lib/auth-context';
 import { apiFetch } from '@/lib/api-client';
@@ -585,22 +586,24 @@ export default function CRMFollowUpPage() {
                       <td className="px-6 py-4">
                         <div className="flex items-center justify-center gap-2">
                           {customer.line_user_id ? (
-                            <button
+                            <Button
+                              size="sm"
+                              variant="success"
+                              icon={<MessageCircle className="w-3.5 h-3.5" />}
                               onClick={() => handleContactLine(customer.line_user_id!)}
-                              className="inline-flex items-center gap-1 px-3 py-1.5 bg-green-500 text-white rounded-lg hover:bg-green-600 text-sm font-medium transition-colors"
                               title={`ทักใน LINE: ${customer.line_display_name}`}
                             >
-                              <MessageCircle className="w-3.5 h-3.5" />
                               ทัก LINE
-                            </button>
+                            </Button>
                           ) : (
-                            <button
+                            <Button
+                              size="sm"
+                              variant="primary"
+                              icon={<Plus className="w-3.5 h-3.5" />}
                               onClick={() => handleCreateOrder(customer.id)}
-                              className="inline-flex items-center gap-1 px-3 py-1.5 bg-primary text-white rounded-lg hover:bg-primary-hover text-sm font-medium transition-colors"
                             >
-                              <Plus className="w-3.5 h-3.5" />
                               สร้างออเดอร์
-                            </button>
+                            </Button>
                           )}
                           <button
                             onClick={() => router.push(`/customers/${customer.id}`)}
@@ -691,21 +694,23 @@ export default function CRMFollowUpPage() {
                     </div>
                     <div className="flex items-center gap-2">
                       {customer.line_user_id ? (
-                        <button
+                        <Button
+                          size="sm"
+                          variant="success"
+                          icon={<MessageCircle className="w-3.5 h-3.5" />}
                           onClick={() => handleContactLine(customer.line_user_id!)}
-                          className="inline-flex items-center gap-1 px-3 py-1.5 bg-green-500 text-white rounded-lg hover:bg-green-600 text-sm font-medium transition-colors"
                         >
-                          <MessageCircle className="w-3.5 h-3.5" />
                           ทัก LINE
-                        </button>
+                        </Button>
                       ) : (
-                        <button
+                        <Button
+                          size="sm"
+                          variant="primary"
+                          icon={<Plus className="w-3.5 h-3.5" />}
                           onClick={() => handleCreateOrder(customer.id)}
-                          className="inline-flex items-center gap-1 px-3 py-1.5 bg-primary text-white rounded-lg hover:bg-primary-hover text-sm font-medium transition-colors"
                         >
-                          <Plus className="w-3.5 h-3.5" />
                           สร้างออเดอร์
-                        </button>
+                        </Button>
                       )}
                       <button
                         onClick={() => router.push(`/customers/${customer.id}`)}

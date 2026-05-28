@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
 import { useAuth } from '@/lib/auth-context';
+import { can } from '@/lib/permissions';
 import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
 import { getImageUrl } from '@/lib/utils/image';
@@ -95,7 +96,7 @@ function ShopeeExportContent() {
   // Linked product IDs (already exported to this account)
   const [linkedProductIds, setLinkedProductIds] = useState<Set<string>>(new Set());
 
-  const isAdmin = userProfile?.roles?.includes('admin') || userProfile?.roles?.includes('owner') || userProfile?.roles?.includes('manager');
+  const isAdmin = can(userProfile?.roles, 'marketplace.push');
 
   const fetchProducts = useCallback(async () => {
     setLoadingProducts(true);

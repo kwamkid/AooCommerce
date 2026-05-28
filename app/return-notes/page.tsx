@@ -3,8 +3,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import Layout from '@/components/layout/Layout';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { apiFetch } from '@/lib/api-client';
 import { RotateCcw, Search, Plus } from 'lucide-react';
+import Button from '@/components/ui/Button';
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
 
 interface ReturnNoteRow {
@@ -34,6 +36,7 @@ const STATUS_BADGE: Record<string, { label: string; cls: string }> = {
 };
 
 export default function ReturnNotesPage() {
+  const router = useRouter();
   const [rows, setRows] = useState<ReturnNoteRow[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -75,12 +78,13 @@ export default function ReturnNotesPage() {
             </h1>
             <p className="text-gray-500 dark:text-slate-400 mt-1 text-sm">RN-YYYYMM-NNNN -- คืนสินค้าจากตัวแทน/ห้าง</p>
           </div>
-          <Link
-            href="/return-notes/new"
-            className="flex items-center gap-1.5 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors text-sm font-medium"
+          <Button
+            variant="primary"
+            icon={<Plus className="w-4 h-4" />}
+            onClick={() => router.push('/return-notes/new')}
           >
-            <Plus className="w-4 h-4" /> สร้างใบรับคืน
-          </Link>
+            สร้างใบรับคืน
+          </Button>
         </div>
 
         <div className="data-filter-card">

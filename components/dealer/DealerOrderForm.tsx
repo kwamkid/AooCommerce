@@ -8,6 +8,7 @@ import { useCompany } from '@/lib/company-context';
 import CustomerSelectionCard, { type DeliveryFields, type ShippingAddress } from '@/components/ui/CustomerSelectionCard';
 import { useCustomerPrefill } from '@/lib/useCustomerPrefill';
 import { Loader2, Save, Warehouse } from 'lucide-react';
+import Button from '@/components/ui/Button';
 import FormSelect from '@/components/ui/FormSelect';
 import ItemsTable, { type TableItem } from '@/components/ui/ItemsTable';
 import { type ProductSearchItem } from '@/components/ui/ProductSearchInput';
@@ -910,31 +911,18 @@ export default function DealerOrderForm({
       {/* Action Buttons — show for create mode and editable orders */}
       {hasProducts && !isReadOnly && (
         <div className="flex justify-end gap-3">
-          <button
-            type="button"
-            onClick={() => router.push(backUrl)}
-            className="px-5 py-2 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors text-sm font-medium"
-          >
+          <Button variant="secondary" onClick={() => router.push(backUrl)}>
             ยกเลิก
-          </button>
-          <button
-            type="button"
+          </Button>
+          <Button
+            variant="primary"
             onClick={handleSubmit}
-            disabled={submitting || !selectedCustomerId || items.length === 0}
-            className="bg-primary text-white px-5 py-2 rounded-lg hover:bg-primary-hover transition-colors flex items-center gap-2 disabled:opacity-50 text-sm font-medium"
+            disabled={!selectedCustomerId || items.length === 0}
+            loading={submitting}
+            icon={<Save className="w-4 h-4" />}
           >
-            {submitting ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                กำลังบันทึก...
-              </>
-            ) : (
-              <>
-                <Save className="w-4 h-4" />
-                {resolvedSubmitLabel}
-              </>
-            )}
-          </button>
+            {submitting ? 'กำลังบันทึก...' : resolvedSubmitLabel}
+          </Button>
         </div>
       )}
     </div>

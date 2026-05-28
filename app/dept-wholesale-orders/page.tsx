@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Layout from '@/components/layout/Layout';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
@@ -11,6 +10,7 @@ import {
   Store, Search, Plus, Package, Loader2, CreditCard,
   Banknote, XCircle, Trash2, Send, Printer, FileText, ClipboardList, UserPlus,
 } from 'lucide-react';
+import Button from '@/components/ui/Button';
 import FormSelect from '@/components/ui/FormSelect';
 import ActionMenu, { type ActionItem } from '@/components/ui/ActionMenu';
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
@@ -225,14 +225,20 @@ export default function DeptWholesaleOrdersPage() {
             <p className="text-gray-500 dark:text-slate-400 mt-1 text-sm">ห้างขายขาด (เงินสด / เครดิต)</p>
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={() => router.push('/customers/new?type=wholesale_department')}
-              className="px-4 py-2 rounded-lg border border-gray-200 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors flex items-center gap-2 text-sm font-medium">
-              <UserPlus className="w-4 h-4" /> เพิ่มลูกค้าห้าง
-            </button>
-            <Link href="/dept-wholesale-orders/new"
-              className="flex items-center gap-1.5 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors text-sm font-medium">
-              <Plus className="w-4 h-4" /> สร้างคำสั่งซื้อ
-            </Link>
+            <Button
+              variant="secondary"
+              icon={<UserPlus className="w-4 h-4" />}
+              onClick={() => router.push('/customers/new?type=wholesale_department')}
+            >
+              เพิ่มลูกค้าห้าง
+            </Button>
+            <Button
+              variant="primary"
+              icon={<Plus className="w-4 h-4" />}
+              onClick={() => router.push('/dept-wholesale-orders/new')}
+            >
+              สร้างคำสั่งซื้อ
+            </Button>
           </div>
         </div>
 

@@ -10,6 +10,7 @@ import { LoadingCard, NoPermissionCard } from '@/components/ui/StateCard';
 import Toggle from '@/components/ui/Toggle';
 import NumberInput from '@/components/ui/NumberInput';
 import { useAuth } from '@/lib/auth-context';
+import { can } from '@/lib/permissions';
 import { useToast } from '@/lib/toast-context';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { apiFetch } from '@/lib/api-client';
@@ -118,7 +119,7 @@ export default function PaymentChannelsPage() {
 
   useFetchOnce(() => {
     fetchChannels();
-  }, !!(userProfile?.roles?.includes('admin') || userProfile?.roles?.includes('owner') || userProfile?.roles?.includes('manager')));
+  }, can(userProfile?.roles, 'masterdata.payment_channels'));
 
   // Close bank dropdown on outside click
   useEffect(() => {
@@ -361,7 +362,7 @@ export default function PaymentChannelsPage() {
   };
 
   // Admin guard
-  if (userProfile && !userProfile.roles?.includes('admin') && !userProfile.roles?.includes('owner') && !userProfile.roles?.includes('manager')) {
+  if (userProfile && !can(userProfile.roles, 'masterdata.payment_channels')) {
     return (
       <Layout>
         <NoPermissionCard />

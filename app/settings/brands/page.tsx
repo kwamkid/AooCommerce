@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef, Suspense } from 'react';
 import Layout from '@/components/layout/Layout';
 import { useAuth } from '@/lib/auth-context';
+import { can } from '@/lib/permissions';
 import { useToast } from '@/lib/toast-context';
 import { useFeatures } from '@/lib/features-context';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
@@ -101,7 +102,7 @@ function BrandsPageInner() {
     : brands;
 
   useEffect(() => {
-    if (userProfile?.roles?.includes('admin') || userProfile?.roles?.includes('owner') || userProfile?.roles?.includes('manager')) {
+    if (can(userProfile?.roles, 'masterdata.brands')) {
       fetchBrands();
       if (features.supplier) fetchSuppliers();
     }
@@ -232,7 +233,7 @@ function BrandsPageInner() {
   };
 
   // Admin guard
-  if (userProfile && !userProfile.roles?.includes('admin') && !userProfile.roles?.includes('owner') && !userProfile.roles?.includes('manager')) {
+  if (userProfile && !can(userProfile.roles, 'masterdata.brands')) {
     return (
       <Layout>
         <NoPermissionCard />

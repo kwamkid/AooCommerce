@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin, checkAuthWithCompany, canBulkEdit } from '@/lib/supabase-admin';
+import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
 
 interface ApplyItem {
   product_id?: string;
@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    if (!canBulkEdit(auth.companyRoles)) {
+    if (!can(auth.companyRoles, 'product.bulk_edit')) {
       return NextResponse.json({ error: 'ไม่มีสิทธิ์' }, { status: 403 });
     }
 

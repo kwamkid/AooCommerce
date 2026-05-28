@@ -7,6 +7,7 @@ import Layout from '@/components/layout/Layout';
 import SearchInput from '@/components/ui/SearchInput';
 import { useCompany } from '@/lib/company-context';
 import { useAuth } from '@/lib/auth-context';
+import { can } from '@/lib/permissions';
 import { useFeatures } from '@/lib/features-context';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
@@ -163,10 +164,10 @@ export default function MembersPage() {
   const [warehouses, setWarehouses] = useState<WarehouseItem[]>([]);
   const [terminals, setTerminals] = useState<TerminalItem[]>([]);
 
-  const isOwnerOrAdmin = companyRoles.includes('owner') || companyRoles.includes('admin') || companyRoles.includes('manager');
+  const isOwnerOrAdmin = can(companyRoles, 'members.view');
   // Strict admin = can grant/revoke admin & owner roles. Manager has admin-level
   // access but cannot manage owner/admin members (enforced at API too).
-  const isStrictAdmin = companyRoles.includes('owner') || companyRoles.includes('admin');
+  const isStrictAdmin = can(companyRoles, 'members.grant_admin');
 
   // Fetch members and invitations
   const fetchMembers = useCallback(async () => {
@@ -1046,22 +1047,17 @@ export default function MembersPage() {
         size="2xl"
         footer={
           <div className="flex justify-end space-x-3 p-5">
-            <button
-              type="button"
-              onClick={() => { setShowEditModal(false); setEditingMember(null); }}
-              className="px-4 py-2.5 text-gray-700 dark:text-slate-300 bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600 rounded-lg font-medium transition-colors"
-            >
+            <Button variant="secondary" onClick={() => { setShowEditModal(false); setEditingMember(null); }}>
               ยกเลิก
-            </button>
-            <button
+            </Button>
+            <Button
               type="submit"
               form="edit-member-form"
-              disabled={isSaving}
-              className="px-5 py-2.5 bg-primary text-white rounded-lg hover:bg-primary/90 font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+              variant="primary"
+              loading={isSaving}
             >
-              {isSaving && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
               บันทึก
-            </button>
+            </Button>
           </div>
         }
       >

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin, checkAuthWithCompany, isAdminRole } from '@/lib/supabase-admin';
+import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
 
 interface BankAccount {
   bank_code: string;
@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
   if (!auth.isAuth || !auth.companyId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
-  if (!isAdminRole(auth.companyRoles)) {
+  if (!can(auth.companyRoles, 'onboarding.manage')) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 

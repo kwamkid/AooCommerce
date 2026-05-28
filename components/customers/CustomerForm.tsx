@@ -26,6 +26,7 @@ import {
 // Lazy-loaded type-specific settings panels
 const ConsignmentSettings = dynamic(() => import('./settings/ConsignmentSettings'), { ssr: false });
 const DepartmentStoreSettings = dynamic(() => import('./settings/DepartmentStoreSettings'), { ssr: false });
+import Button from '@/components/ui/Button';
 import Checkbox from '@/components/ui/Checkbox';
 import DateRangePicker from '@/components/ui/DateRangePicker';
 import TaxInfoForm from '@/components/ui/TaxInfoForm';
@@ -475,14 +476,18 @@ export default function CustomerForm({
           {renderTaxSection(inputCompact, labelCompact)}
         </div>
         <div className="flex gap-3 pt-4">
-          <button type="button" onClick={onCancel}
-            className="flex-1 px-4 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors">
+          <Button variant="secondary" className="flex-1" onClick={onCancel}>
             ยกเลิก
-          </button>
-          <button type="submit" disabled={isLoading}
-            className="flex-1 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
-            {isLoading ? (<><Loader2 className="w-4 h-4 animate-spin" />กำลังบันทึก...</>) : (<><Check className="w-4 h-4" />{isEditing ? 'บันทึก' : 'สร้างลูกค้า'}</>)}
-          </button>
+          </Button>
+          <Button
+            type="submit"
+            variant="primary"
+            className="flex-1"
+            loading={isLoading}
+            icon={<Check className="w-4 h-4" />}
+          >
+            {isLoading ? 'กำลังบันทึก...' : isEditing ? 'บันทึก' : 'สร้างลูกค้า'}
+          </Button>
         </div>
       </form>
     );
@@ -724,12 +729,12 @@ export default function CustomerForm({
       {/* Action Buttons */}
       {!isEditing && (
         <div className="flex justify-end gap-3 mt-6">
-          <button type="button" onClick={onCancel} disabled={isLoading}
-            className="px-6 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700/50 dark:bg-slate-900 text-gray-700 dark:text-slate-300">ยกเลิก</button>
-          <button type="submit" disabled={isLoading}
-            className="bg-primary text-white px-6 py-2.5 rounded-lg hover:bg-primary-hover disabled:opacity-50 flex items-center gap-2">
-            {isLoading ? (<><Loader2 className="w-4 h-4 animate-spin" />กำลังบันทึก...</>) : 'บันทึก'}
-          </button>
+          <Button variant="secondary" onClick={onCancel} disabled={isLoading}>
+            ยกเลิก
+          </Button>
+          <Button type="submit" variant="primary" loading={isLoading}>
+            {isLoading ? 'กำลังบันทึก...' : 'บันทึก'}
+          </Button>
         </div>
       )}
     </form>

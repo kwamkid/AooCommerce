@@ -15,6 +15,7 @@ import FormInput from '@/components/ui/FormInput';
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
 import SearchInput from '@/components/ui/SearchInput';
 import { useAuth } from '@/lib/auth-context';
+import { useAuthGuard } from '@/lib/useAuthGuard';
 import { useToast } from '@/lib/toast-context';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { apiFetch } from '@/lib/api-client';
@@ -254,20 +255,7 @@ function CustomersPageContent() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchTerm]);
 
-  // Check auth
-  useEffect(() => {
-    if (authLoading) return;
-
-    if (!userProfile) {
-      router.push('/login');
-      return;
-    }
-
-    // Check role permission
-    if (!userProfile.roles?.some((r: string) => ['owner', 'admin', 'manager', 'sales', 'account'].includes(r))) {
-      router.push('/dashboard');
-    }
-  }, [userProfile, authLoading, router]);
+  useAuthGuard('customer.view');
 
   // Fetch tags once
   useFetchOnce(async () => {
