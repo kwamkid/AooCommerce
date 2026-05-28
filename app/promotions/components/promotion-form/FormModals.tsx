@@ -11,7 +11,6 @@ import {
 } from 'lucide-react';
 import { apiFetch } from '@/lib/api-client';
 import Modal from '@/components/ui/Modal';
-import ImageLightbox from '@/components/ui/ImageLightbox';
 import PushDealModal from '../PushDealModal';
 import type { UsePromotionFormReturn } from './usePromotionForm';
 
@@ -34,7 +33,6 @@ export default function FormModals({ hook }: Props) {
     savedPromotionId, setSavedPromotionId,
     showPushModal, setShowPushModal,
     pushSingleAccountId, setPushSingleAccountId,
-    lightboxSrc, setLightboxSrc,
     hasLocalChanges,
     handleSyncShopee,
     promotionId,
@@ -42,8 +40,6 @@ export default function FormModals({ hook }: Props) {
 
   return (
     <>
-      <ImageLightbox src={lightboxSrc} onClose={() => setLightboxSrc(null)} alt="Product" />
-
       {/* Confirm Dialog */}
       <Modal
         open={!!confirmDialog}

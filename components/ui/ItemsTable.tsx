@@ -1,12 +1,13 @@
 'use client';
 
-import { Fragment, useRef, useState, useEffect } from 'react';
-import { Package, Trash2, AlertTriangle, X, Gift } from 'lucide-react';
+import { Fragment, useRef } from 'react';
+import { Package, Trash2, AlertTriangle, Gift } from 'lucide-react';
 import ProductSearchInput, { type ProductSearchItem, type SearchMode } from '@/components/ui/ProductSearchInput';
 import FormSelect from '@/components/ui/FormSelect';
 import DiscountInput from '@/components/ui/DiscountInput';
 import PostfixInput from '@/components/ui/PostfixInput';
 import NumberInput from '@/components/ui/NumberInput';
+import ProductImageThumb from '@/components/ui/ProductImageThumb';
 import { productDisplayName } from '@/lib/product-display';
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -191,15 +192,6 @@ export default function ItemsTable({
   const internalInputRef = useRef<HTMLInputElement>(null);
   const searchRef = externalInputRef ?? internalInputRef;
 
-  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
-  // ESC to close lightbox
-  useEffect(() => {
-    if (!lightboxSrc) return;
-    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') setLightboxSrc(null); };
-    document.addEventListener('keydown', handler);
-    return () => document.removeEventListener('keydown', handler);
-  }, [lightboxSrc]);
-
   const readOnly = !onAdd && !onUpdateField && !onRemove;
 
   const hasDiscount = columns.includes('discount');
@@ -246,13 +238,7 @@ export default function ItemsTable({
     const sub = subParts.join(' | ');
     return (
       <div className="flex items-center gap-3">
-        {item.image
-          ? <img src={item.image} alt="" className="w-12 h-12 rounded object-cover flex-shrink-0 cursor-pointer hover:opacity-80 transition-opacity"
-              onClick={() => setLightboxSrc(item.image!)} />
-          : <div className="w-12 h-12 rounded bg-gray-100 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
-              <Package className="w-5 h-5 text-gray-400 dark:text-slate-500" />
-            </div>
-        }
+        <ProductImageThumb src={item.image} alt={name} size="md" />
         <div className="min-w-0">
           <p className="text-sm font-medium text-gray-900 dark:text-white line-clamp-2">{name}</p>
           <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
@@ -605,13 +591,7 @@ export default function ItemsTable({
           return (
             <div key={`${item.variation_id}-${idx}`} className="p-3 overflow-hidden">
               <div className="flex items-start gap-3">
-                {item.image
-                  ? <img src={item.image} alt="" className="w-12 h-12 rounded object-cover flex-shrink-0 cursor-pointer hover:opacity-80 transition-opacity"
-                      onClick={() => setLightboxSrc(item.image!)} />
-                  : <div className="w-12 h-12 rounded bg-gray-100 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
-                      <Package className="w-5 h-5 text-gray-400 dark:text-slate-500" />
-                    </div>
-                }
+                <ProductImageThumb src={item.image} alt={productDisplayName(item)} size="md" />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-gray-900 dark:text-white line-clamp-2">
                     {productDisplayName(item)}
@@ -956,27 +936,6 @@ export default function ItemsTable({
         )}
       </div>
 
-      {/* Lightbox */}
-      {lightboxSrc && (
-        <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70"
-          onClick={() => setLightboxSrc(null)}
-          role="dialog"
-        >
-          <button
-            onClick={() => setLightboxSrc(null)}
-            className="absolute top-4 right-4 text-white/80 hover:text-white p-2 rounded-full bg-black/30 hover:bg-black/50 transition-colors z-10"
-          >
-            <X className="w-6 h-6" />
-          </button>
-          <img
-            src={lightboxSrc}
-            alt="Product"
-            className="max-w-[90vw] max-h-[90vh] object-contain rounded-lg shadow-2xl"
-            onClick={e => e.stopPropagation()}
-          />
-        </div>
-      )}
     </>
   );
 }

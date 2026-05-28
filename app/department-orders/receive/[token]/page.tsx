@@ -7,6 +7,7 @@ import imageCompression from 'browser-image-compression';
 import { Loader2, Package, Camera, Sun, Moon, CheckCircle2, XCircle, Clock, Truck, AlertTriangle } from 'lucide-react';
 import { productDisplayName } from '@/lib/product-display';
 import NumberInput from '@/components/ui/NumberInput';
+import ProductImageThumb from '@/components/ui/ProductImageThumb';
 
 interface DeptOrderItem {
   id: string;
@@ -192,15 +193,6 @@ export default function DeptOrderReceivePage() {
   };
 
 
-  // Image lightbox
-  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
-  useEffect(() => {
-    if (!lightboxSrc) return;
-    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') setLightboxSrc(null); };
-    document.addEventListener('keydown', h);
-    return () => document.removeEventListener('keydown', h);
-  }, [lightboxSrc]);
-
   if (loading || !mounted) {
     return (
       <div className="min-h-screen bg-[#1A1A2E] flex items-center justify-center">
@@ -335,18 +327,8 @@ export default function DeptOrderReceivePage() {
                   const diff = sent - received;
                   return (
                     <div key={item.id} className={`flex items-center gap-3 py-3 border-b last:border-0 ${dark ? 'border-slate-700' : 'border-gray-100'}`}>
-                      {item.image ? (
-                        <img
-                          src={item.image}
-                          alt={item.product_name}
-                          className="w-14 h-14 rounded-lg object-cover flex-shrink-0 cursor-pointer active:opacity-80"
-                          onClick={() => setLightboxSrc(item.image)}
-                        />
-                      ) : (
-                        <div className={`w-14 h-14 rounded-lg flex items-center justify-center flex-shrink-0 ${dark ? 'bg-slate-700' : 'bg-gray-100'}`}>
-                          <Package className={`w-6 h-6 ${dark ? 'text-slate-500' : 'text-gray-300'}`} />
-                        </div>
-                      )}
+                      <ProductImageThumb src={item.image} alt={item.product_name} size="lg" />
+
                       <div className="flex-1 min-w-0">
                         <div className={`font-medium leading-snug ${dark ? 'text-white' : 'text-gray-900'}`}>{productDisplayName({ product_name: item.product_name, variation_label: item.variation_label, sku: item.sku })}</div>
                         {item.sku && <div className={`text-sm font-mono ${dark ? 'text-slate-500' : 'text-gray-400'}`}>SKU: {item.sku}</div>}
@@ -401,18 +383,8 @@ export default function DeptOrderReceivePage() {
                   return (
                     <div key={item.id} className={`rounded-lg p-3 ${dark ? 'bg-[#1A1A2E]' : 'bg-gray-50'}`}>
                       <div className="flex gap-3">
-                        {item.image ? (
-                          <img
-                            src={item.image}
-                            alt={item.product_name}
-                            className="w-20 h-20 rounded-lg object-cover flex-shrink-0 cursor-pointer active:opacity-80"
-                            onClick={() => setLightboxSrc(item.image)}
-                          />
-                        ) : (
-                          <div className={`w-20 h-20 rounded-lg flex items-center justify-center flex-shrink-0 ${dark ? 'bg-slate-700' : 'bg-gray-200'}`}>
-                            <Package className={`w-8 h-8 ${dark ? 'text-slate-500' : 'text-gray-300'}`} />
-                          </div>
-                        )}
+                        <ProductImageThumb src={item.image} alt={item.product_name} size="lg" />
+
                         <div className="flex-1 min-w-0">
                           <div className={`font-medium leading-snug ${dark ? 'text-white' : 'text-gray-900'}`}>{productDisplayName({ product_name: item.product_name, variation_label: item.variation_label, sku: item.sku })}</div>
                           {item.sku && <div className={`text-sm mt-0.5 font-mono ${dark ? 'text-slate-500' : 'text-gray-400'}`}>SKU: {item.sku}</div>}
@@ -628,20 +600,6 @@ export default function DeptOrderReceivePage() {
         )}
       </div>
 
-      {/* Image Lightbox */}
-      {lightboxSrc && (
-        <div
-          className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"
-          onClick={() => setLightboxSrc(null)}
-        >
-          <img
-            src={lightboxSrc}
-            alt="สินค้า"
-            className="max-w-full max-h-[85vh] object-contain rounded-lg"
-            onClick={(e) => e.stopPropagation()}
-          />
-        </div>
-      )}
     </div>
   );
 }

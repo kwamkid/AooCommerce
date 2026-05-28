@@ -8,7 +8,7 @@ import Container from '@/components/ui/Container';
 import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
 import Modal from '@/components/ui/Modal';
-import ImageLightbox from '@/components/ui/ImageLightbox';
+import ProductImageThumb from '@/components/ui/ProductImageThumb';
 import { LoadingCard } from '@/components/ui/StateCard';
 import Alert from '@/components/ui/Alert';
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
@@ -182,9 +182,6 @@ function ProductsPageContent() {
   const [bulkBrandId, setBulkBrandId] = useState('');
   const [bulkBrandSaving, setBulkBrandSaving] = useState(false);
   const [exporting, setExporting] = useState(false);
-
-  // Lightbox state
-  const [lightboxImage, setLightboxImage] = useState<string | null>(null);
 
   // Total count from server
   const [totalProducts, setTotalProducts] = useState(0);
@@ -570,25 +567,12 @@ function ProductsPageContent() {
       headerClassName: '!px-1',
       cellClassName: '!px-1 !py-1.5',
       render: (product) => (
-        (product.main_image_url || product.image) ? (
-          <img
-            src={product.main_image_url || getImageUrl(product.image)}
-            alt={product.name}
-            style={{ width: '56px', height: '56px', minWidth: '56px', minHeight: '56px' }}
-            className="object-cover rounded cursor-pointer hover:opacity-80 transition-opacity"
-            onClick={(e) => {
-              e.stopPropagation();
-              setLightboxImage(product.main_image_url || getImageUrl(product.image));
-            }}
-          />
-        ) : (
-          <div
-            style={{ width: '56px', height: '56px', minWidth: '56px', minHeight: '56px' }}
-            className="bg-gray-200 dark:bg-slate-700 rounded flex items-center justify-center"
-          >
-            <Package2 className="w-7 h-7 text-gray-400" />
-          </div>
-        )
+        <ProductImageThumb
+          src={product.main_image_url || getImageUrl(product.image)}
+          alt={product.name}
+          size="lg"
+          fallbackIcon={<Package2 className="w-7 h-7 text-gray-400" />}
+        />
       ),
     },
     {
@@ -1202,8 +1186,6 @@ function ProductsPageContent() {
           </div>
         </div>
       </Modal>
-
-      <ImageLightbox src={lightboxImage} onClose={() => setLightboxImage(null)} alt="Product" />
 
       {confirmDialog}
     </Layout>

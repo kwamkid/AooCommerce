@@ -8,6 +8,7 @@ import FormSelect from '@/components/ui/FormSelect';
 import ActionMenu, { ActionItem } from '@/components/ui/ActionMenu';
 import { getBadgeColor } from '@/lib/status-tab-colors';
 import ShipModal, { type ShipResult } from '@/components/ui/ShipModal';
+import ProductImageThumb from '@/components/ui/ProductImageThumb';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
 import {
@@ -141,15 +142,6 @@ function ReplenishmentsPageContent() {
   // Cancel confirm
   const [cancelId, setCancelId] = useState<string | null>(null);
   const [cancelSubmitting, setCancelSubmitting] = useState(false);
-
-  // Lightbox for receiver photo
-  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
-  useEffect(() => {
-    if (!lightboxSrc) return;
-    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') setLightboxSrc(null); };
-    document.addEventListener('keydown', h);
-    return () => document.removeEventListener('keydown', h);
-  }, [lightboxSrc]);
 
   const fetchData = useCallback(async (showRefresh = false) => {
     if (showRefresh) setIsRefreshing(true); else setIsLoading(true);
@@ -814,12 +806,7 @@ function ReplenishmentsPageContent() {
               render: (r) => r.receiver_name ? (
                 <div className="flex items-center gap-2">
                   {r.receive_photo_url && (
-                    <img
-                      src={r.receive_photo_url}
-                      alt="รูปรับสินค้า"
-                      className="w-8 h-8 rounded object-cover cursor-pointer hover:opacity-80 flex-shrink-0"
-                      onClick={() => setLightboxSrc(r.receive_photo_url!)}
-                    />
+                    <ProductImageThumb src={r.receive_photo_url} alt="รูปรับสินค้า" size="xs" />
                   )}
                   <span className="data-text text-gray-700 dark:text-slate-300">{r.receiver_name}</span>
                 </div>
@@ -931,7 +918,7 @@ function ReplenishmentsPageContent() {
                 {r.receiver_name && (
                   <div className="flex items-center gap-2 mt-1" onClick={e => e.stopPropagation()}>
                     {r.receive_photo_url && (
-                      <img src={r.receive_photo_url} alt="" className="w-6 h-6 rounded object-cover cursor-pointer" onClick={() => setLightboxSrc(r.receive_photo_url!)} />
+                      <ProductImageThumb src={r.receive_photo_url} alt="รูปรับสินค้า" size="xs" />
                     )}
                     <span className="text-xs text-gray-500 dark:text-slate-400">ผู้รับ: {r.receiver_name}</span>
                   </div>
@@ -1097,13 +1084,6 @@ function ReplenishmentsPageContent() {
           )}
         </div>
       </Modal>
-
-      {/* Lightbox */}
-      {lightboxSrc && (
-        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4" onClick={() => setLightboxSrc(null)}>
-          <img src={lightboxSrc} alt="รูปรับสินค้า" className="max-w-full max-h-[85vh] object-contain rounded-lg" onClick={e => e.stopPropagation()} />
-        </div>
-      )}
 
       {/* Cancel Confirm Modal */}
       <Modal

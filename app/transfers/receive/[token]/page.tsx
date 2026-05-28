@@ -6,6 +6,7 @@ import Image from 'next/image';
 import imageCompression from 'browser-image-compression';
 import { Loader2, Package, Camera, Sun, Moon, CheckCircle2, XCircle, Clock, Truck, AlertTriangle } from 'lucide-react';
 import NumberInput from '@/components/ui/NumberInput';
+import ProductImageThumb from '@/components/ui/ProductImageThumb';
 
 interface TransferItem {
   id: string;
@@ -202,15 +203,6 @@ export default function TransferReceivePage() {
     return { name, subtitle: cleanLabel, code };
   };
 
-  // Image lightbox
-  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
-  useEffect(() => {
-    if (!lightboxSrc) return;
-    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') setLightboxSrc(null); };
-    document.addEventListener('keydown', h);
-    return () => document.removeEventListener('keydown', h);
-  }, [lightboxSrc]);
-
   // Loading
   if (loading || !mounted) {
     return (
@@ -327,18 +319,8 @@ export default function TransferReceivePage() {
                   const diff = sent - received;
                   return (
                     <div key={item.id} className={`flex items-center gap-3 py-3 border-b last:border-0 ${dark ? 'border-slate-700' : 'border-gray-100'}`}>
-                      {item.variation.product.image ? (
-                        <img
-                          src={item.variation.product.image}
-                          alt={name}
-                          className="w-14 h-14 rounded-lg object-cover flex-shrink-0 cursor-pointer active:opacity-80"
-                          onClick={() => setLightboxSrc(item.variation.product.image)}
-                        />
-                      ) : (
-                        <div className={`w-14 h-14 rounded-lg flex items-center justify-center flex-shrink-0 ${dark ? 'bg-slate-700' : 'bg-gray-100'}`}>
-                          <Package className={`w-6 h-6 ${dark ? 'text-slate-500' : 'text-gray-300'}`} />
-                        </div>
-                      )}
+                      <ProductImageThumb src={item.variation.product.image} alt={name} size="lg" />
+
                       <div className="flex-1 min-w-0">
                         <div className={`font-medium leading-snug ${dark ? 'text-white' : 'text-gray-900'}`}>{name}</div>
                         {subtitle && <div className={`text-sm ${dark ? 'text-slate-500' : 'text-gray-400'}`}>{subtitle}</div>}
@@ -393,18 +375,8 @@ export default function TransferReceivePage() {
                     <div key={item.id} className={`rounded-lg p-3 ${dark ? 'bg-[#1A1A2E]' : 'bg-gray-50'}`}>
                       {/* Row 1: Image + Product info */}
                       <div className="flex gap-3">
-                        {item.variation.product.image ? (
-                          <img
-                            src={item.variation.product.image}
-                            alt={name}
-                            className="w-20 h-20 rounded-lg object-cover flex-shrink-0 cursor-pointer active:opacity-80"
-                            onClick={() => setLightboxSrc(item.variation.product.image)}
-                          />
-                        ) : (
-                          <div className={`w-20 h-20 rounded-lg flex items-center justify-center flex-shrink-0 ${dark ? 'bg-slate-700' : 'bg-gray-200'}`}>
-                            <Package className={`w-8 h-8 ${dark ? 'text-slate-500' : 'text-gray-300'}`} />
-                          </div>
-                        )}
+                        <ProductImageThumb src={item.variation.product.image} alt={name} size="lg" />
+
                         <div className="flex-1 min-w-0">
                           <div className={`font-medium leading-snug ${dark ? 'text-white' : 'text-gray-900'}`}>{name}</div>
                           {subtitle && <div className={`text-sm mt-0.5 ${dark ? 'text-slate-400' : 'text-gray-500'}`}>{subtitle}</div>}
@@ -572,20 +544,6 @@ export default function TransferReceivePage() {
         )}
       </div>
 
-      {/* Image Lightbox */}
-      {lightboxSrc && (
-        <div
-          className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"
-          onClick={() => setLightboxSrc(null)}
-        >
-          <img
-            src={lightboxSrc}
-            alt="สินค้า"
-            className="max-w-full max-h-[85vh] object-contain rounded-lg"
-            onClick={(e) => e.stopPropagation()}
-          />
-        </div>
-      )}
     </div>
   );
 }

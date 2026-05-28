@@ -11,7 +11,7 @@ import NumberInput from '@/components/ui/NumberInput';
 import ColumnSettingsDropdown from '@/app/components/ColumnSettingsDropdown';
 import Pagination from '@/app/components/Pagination';
 import AdjustStockModal from './AdjustStockModal';
-import Modal from '@/components/ui/Modal';
+import ProductImageThumb from '@/components/ui/ProductImageThumb';
 import {
   InventoryItem, WarehouseItem, StockColumnKey,
   STOCK_COLUMN_CONFIGS, STOCK_COLUMNS_STORAGE_KEY,
@@ -155,17 +155,7 @@ export default function StockTab({ warehouses, onViewHistory }: StockTabProps) {
     return new Set(STOCK_COLUMN_CONFIGS.filter(c => c.defaultVisible).map(c => c.key));
   });
 
-  // Lightbox state
-  const [lightboxImage, setLightboxImage] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!lightboxImage) return;
-    const handleEsc = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setLightboxImage(null);
-    };
-    document.addEventListener('keydown', handleEsc);
-    return () => document.removeEventListener('keydown', handleEsc);
-  }, [lightboxImage]);
 
   // Adjust modal
   const [adjustItem, setAdjustItem] = useState<InventoryItem | null>(null);
@@ -601,22 +591,12 @@ export default function StockTab({ warehouses, onViewHistory }: StockTabProps) {
                     <tr key={item.id} className="data-tr">
                       {visibleColumns.has('image') && (
                         <td className="pl-4 pr-1 py-1.5 whitespace-nowrap" style={{ width: '80px', minWidth: '80px' }}>
-                          {item.product_image ? (
-                            <img
-                              src={item.product_image}
-                              alt=""
-                              style={{ width: '56px', height: '56px', minWidth: '56px', minHeight: '56px' }}
-                              className="object-cover rounded cursor-pointer hover:opacity-80 transition-opacity"
-                              onClick={() => setLightboxImage(item.product_image!)}
-                            />
-                          ) : (
-                            <div
-                              style={{ width: '56px', height: '56px', minWidth: '56px', minHeight: '56px' }}
-                              className="bg-gray-100 dark:bg-slate-700 rounded flex items-center justify-center"
-                            >
-                              <Package2 className="w-7 h-7 text-gray-400" />
-                            </div>
-                          )}
+                          <ProductImageThumb
+                            src={item.product_image}
+                            alt={displayName}
+                            size="lg"
+                            fallbackIcon={<Package2 className="w-7 h-7 text-gray-400" />}
+                          />
                         </td>
                       )}
                       {visibleColumns.has('product') && (
@@ -771,20 +751,12 @@ export default function StockTab({ warehouses, onViewHistory }: StockTabProps) {
                 <div key={item.id} className="p-4">
                   <div className="flex gap-3">
                     {/* Image */}
-                    <div className="flex-shrink-0">
-                      {item.product_image ? (
-                        <img
-                          src={item.product_image}
-                          alt=""
-                          className="w-14 h-14 object-cover rounded cursor-pointer"
-                          onClick={() => setLightboxImage(item.product_image!)}
-                        />
-                      ) : (
-                        <div className="w-14 h-14 bg-gray-100 dark:bg-slate-700 rounded flex items-center justify-center">
-                          <Package2 className="w-6 h-6 text-gray-400" />
-                        </div>
-                      )}
-                    </div>
+                    <ProductImageThumb
+                      src={item.product_image}
+                      alt={getProductDisplayName(item)}
+                      size="lg"
+                      fallbackIcon={<Package2 className="w-6 h-6 text-gray-400" />}
+                    />
 
                     {/* Info */}
                     <div className="flex-1 min-w-0">
@@ -880,23 +852,6 @@ export default function StockTab({ warehouses, onViewHistory }: StockTabProps) {
           />
         </div>
       )}
-
-      {/* Image Lightbox */}
-      <Modal
-        open={!!lightboxImage}
-        onClose={() => setLightboxImage(null)}
-        size="3xl"
-      >
-        {lightboxImage && (
-          <div className="p-4 flex items-center justify-center">
-            <img
-              src={lightboxImage}
-              alt="Product"
-              className="max-w-full max-h-[80vh] object-contain rounded-lg"
-            />
-          </div>
-        )}
-      </Modal>
 
       {/* Adjust Modal */}
       {adjustItem && (

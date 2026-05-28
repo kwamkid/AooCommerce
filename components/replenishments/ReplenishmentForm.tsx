@@ -5,12 +5,12 @@ import { useRouter } from 'next/navigation';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
 import {
-  Loader2, Package, Save, Settings, ChevronDown, Clock, CheckCircle, MapPin, FileText, Receipt,
+  Loader2, Save, Settings, ChevronDown, Clock, CheckCircle, MapPin, FileText, Receipt,
   QrCode, Copy, Camera, Link2, AlertTriangle, Eye, Printer,
 } from 'lucide-react';
-import Modal from '@/components/ui/Modal';
 import Button from '@/components/ui/Button';
 import NumberInput from '@/components/ui/NumberInput';
+import ProductImageThumb from '@/components/ui/ProductImageThumb';
 import { useCompany } from '@/lib/company-context';
 import { formatNumber } from '@/lib/utils/format';
 import ProductSearchInput, { ProductSearchItem } from '@/components/ui/ProductSearchInput';
@@ -119,7 +119,6 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
   const [orderDiscount, setOrderDiscount] = useState(0);
   const [orderDiscountType, setOrderDiscountType] = useState<'percent' | 'amount'>('percent');
   const [shippingFee, setShippingFee] = useState(0);
-  const [lightboxImage, setLightboxImage] = useState<string | null>(null);
 
   // Customer prefill hook (delivery + tax + addresses)
   const customerPrefill = useCustomerPrefill();
@@ -341,14 +340,6 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
       })
       .catch(() => setDealerInventory([]));
   }, [selectedCustomerId, isEditMode]);
-
-  // ESC key closes lightbox
-  useEffect(() => {
-    if (!lightboxImage) return;
-    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') setLightboxImage(null); };
-    document.addEventListener('keydown', handler);
-    return () => document.removeEventListener('keydown', handler);
-  }, [lightboxImage]);
 
   // ── Customer change: fetch GP data & recalculate items ────────────────
 
@@ -714,12 +705,7 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
             <span className="text-amber-600 dark:text-amber-400/80">— กรุณาตรวจสอบจำนวน แล้วกดปุ่ม &quot;ยืนยัน&quot;</span>
           )}
           {existingData.receive_photo_url && (
-            <img
-              src={existingData.receive_photo_url}
-              alt="รูปรับสินค้า"
-              className="h-10 w-10 object-cover rounded-lg border border-gray-200 dark:border-slate-600 cursor-pointer flex-shrink-0"
-              onClick={() => setLightboxImage(existingData.receive_photo_url)}
-            />
+            <ProductImageThumb src={existingData.receive_photo_url} alt="รูปรับสินค้า" size="sm" />
           )}
         </div>
       )}
@@ -786,13 +772,7 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
                         <tr key={item.id || item.variation_id} className="border-t border-gray-100 dark:border-slate-700">
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-3">
-                              {item.image ? (
-                                <img src={item.image} alt="" className="w-10 h-10 rounded-lg object-cover flex-shrink-0 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => setLightboxImage(item.image!)} />
-                              ) : (
-                                <div className="w-10 h-10 rounded-lg bg-gray-100 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
-                                  <Package className="w-4 h-4 text-gray-300" />
-                                </div>
-                              )}
+                              <ProductImageThumb src={item.image} alt={productDisplayName(item)} size="sm" />
                               <div className="min-w-0">
                                 <div className="font-medium text-gray-900 dark:text-white line-clamp-2">{productDisplayName(item)}</div>
                                 {productSubtitle(item) && <div className="text-xs text-gray-500 dark:text-slate-400 truncate">{productSubtitle(item)}</div>}
@@ -852,13 +832,7 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
                         <tr key={item.id || item.variation_id} className="border-t border-gray-100 dark:border-slate-700">
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-3">
-                              {item.image ? (
-                                <img src={item.image} alt="" className="w-10 h-10 rounded-lg object-cover flex-shrink-0 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => setLightboxImage(item.image!)} />
-                              ) : (
-                                <div className="w-10 h-10 rounded-lg bg-gray-100 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
-                                  <Package className="w-4 h-4 text-gray-300" />
-                                </div>
-                              )}
+                              <ProductImageThumb src={item.image} alt={productDisplayName(item)} size="sm" />
                               <div className="min-w-0">
                                 <div className="font-medium text-gray-900 dark:text-white line-clamp-2">{productDisplayName(item)}</div>
                                 {productSubtitle(item) && <div className="text-xs text-gray-500 dark:text-slate-400 truncate">{productSubtitle(item)}</div>}
@@ -1130,22 +1104,6 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
         </div>
       )}
 
-      {/* Image Lightbox */}
-      <Modal
-        open={!!lightboxImage}
-        onClose={() => setLightboxImage(null)}
-        size="3xl"
-      >
-        {lightboxImage && (
-          <div className="p-4 flex items-center justify-center">
-            <img
-              src={lightboxImage}
-              alt="Product"
-              className="max-w-full max-h-[80vh] object-contain rounded-lg"
-            />
-          </div>
-        )}
-      </Modal>
     </div>
   );
 }

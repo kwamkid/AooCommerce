@@ -5,7 +5,7 @@ import { apiFetch } from '@/lib/api-client';
 import DateRangePicker, { DateValueType } from '@/components/ui/DateRangePicker';
 import { Loader2, Search, Warehouse, ArrowDownUp, ExternalLink, X, Package2 } from 'lucide-react';
 import FormSelect from '@/components/ui/FormSelect';
-import Modal from '@/components/ui/Modal';
+import ProductImageThumb from '@/components/ui/ProductImageThumb';
 import ColumnSettingsDropdown from '@/app/components/ColumnSettingsDropdown';
 import Pagination from '@/app/components/Pagination';
 import {
@@ -49,15 +49,6 @@ export default function HistoryTab({ warehouses, filterVariationId, filterProduc
     }
     return new Set(HISTORY_COLUMN_CONFIGS.filter(c => c.defaultVisible).map(c => c.key));
   });
-
-  // Lightbox
-  const [lightboxImage, setLightboxImage] = useState<string | null>(null);
-  useEffect(() => {
-    if (!lightboxImage) return;
-    const handle = (e: KeyboardEvent) => { if (e.key === 'Escape') setLightboxImage(null); };
-    window.addEventListener('keydown', handle);
-    return () => window.removeEventListener('keydown', handle);
-  }, [lightboxImage]);
 
   const toggleColumn = (key: HistoryColumnKey) => {
     const config = HISTORY_COLUMN_CONFIGS.find(c => c.key === key);
@@ -277,22 +268,12 @@ export default function HistoryTab({ warehouses, filterVariationId, filterProduc
                     )}
                     {visibleColumns.has('image') && (
                       <td className="pl-4 pr-1 py-1.5 whitespace-nowrap" style={{ width: '60px', minWidth: '60px' }}>
-                        {tx.product_image ? (
-                          <img
-                            src={tx.product_image}
-                            alt=""
-                            style={{ width: '40px', height: '40px', minWidth: '40px', minHeight: '40px' }}
-                            className="object-cover rounded cursor-pointer hover:opacity-80 transition-opacity"
-                            onClick={() => setLightboxImage(tx.product_image!)}
-                          />
-                        ) : (
-                          <div
-                            style={{ width: '40px', height: '40px', minWidth: '40px', minHeight: '40px' }}
-                            className="bg-gray-100 dark:bg-slate-700 rounded flex items-center justify-center"
-                          >
-                            <Package2 className="w-5 h-5 text-gray-400" />
-                          </div>
-                        )}
+                        <ProductImageThumb
+                          src={tx.product_image}
+                          alt={tx.product_name}
+                          size="sm"
+                          fallbackIcon={<Package2 className="w-5 h-5 text-gray-400" />}
+                        />
                       </td>
                     )}
                     {visibleColumns.has('product') && (
@@ -380,18 +361,12 @@ export default function HistoryTab({ warehouses, filterVariationId, filterProduc
 
                 {/* Row 2: Product info */}
                 <div className="flex gap-3 mb-1.5">
-                  {tx.product_image ? (
-                    <img
-                      src={tx.product_image}
-                      alt=""
-                      className="w-10 h-10 object-cover rounded flex-shrink-0 cursor-pointer"
-                      onClick={() => setLightboxImage(tx.product_image!)}
-                    />
-                  ) : (
-                    <div className="w-10 h-10 bg-gray-100 dark:bg-slate-700 rounded flex items-center justify-center flex-shrink-0">
-                      <Package2 className="w-5 h-5 text-gray-400" />
-                    </div>
-                  )}
+                  <ProductImageThumb
+                    src={tx.product_image}
+                    alt={tx.product_name}
+                    size="sm"
+                    fallbackIcon={<Package2 className="w-5 h-5 text-gray-400" />}
+                  />
                   <div className="flex-1 min-w-0">
                     <p className="font-medium text-gray-900 dark:text-white text-[15px] line-clamp-2">
                       {tx.product_name}{(() => {
@@ -451,22 +426,6 @@ export default function HistoryTab({ warehouses, filterVariationId, filterProduc
         </div>
       )}
 
-      {/* Image Lightbox */}
-      <Modal
-        open={!!lightboxImage}
-        onClose={() => setLightboxImage(null)}
-        size="3xl"
-      >
-        {lightboxImage && (
-          <div className="p-4 flex items-center justify-center">
-            <img
-              src={lightboxImage}
-              alt="Product"
-              className="max-w-full max-h-[80vh] object-contain rounded-lg"
-            />
-          </div>
-        )}
-      </Modal>
     </>
   );
 }

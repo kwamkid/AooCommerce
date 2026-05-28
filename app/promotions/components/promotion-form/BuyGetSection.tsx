@@ -4,6 +4,7 @@ import ItemsTable from '@/components/ui/ItemsTable';
 import ProductSearchInput from '@/components/ui/ProductSearchInput';
 import PriceDiscountCombo from '@/components/ui/PriceDiscountCombo';
 import NumberInput from '@/components/ui/NumberInput';
+import ProductImageThumb, { type ThumbSize } from '@/components/ui/ProductImageThumb';
 import { Trash2, ChevronDown, ChevronRight } from 'lucide-react';
 import { productDisplayName, productSubtitle } from '@/lib/product-display';
 import type { PromotionItemForm } from './types';
@@ -22,7 +23,6 @@ export default function BuyGetSection({ hook }: Props) {
     loadingProducts,
     tableItems,
     expandedYProducts, setExpandedYProducts,
-    setLightboxSrc,
     handleAddMainProduct,
     handleAddProductWithVariations,
     handleRemoveProductVariations,
@@ -35,16 +35,12 @@ export default function BuyGetSection({ hook }: Props) {
   const yRole = form.promotion_type === 'buy_get_free' ? 'gift' : 'discounted';
 
   // Shared: render item info cell
-  const renderItemInfo = (item: PromotionItemForm, imgSize = 'w-10 h-10') => {
+  const renderItemInfo = (item: PromotionItemForm, thumbSize: ThumbSize = 'sm') => {
     const displayName = productDisplayName(item);
     const sub = productSubtitle(item);
     return (
       <>
-        {item.image ? (
-          <img src={item.image} alt="" className={`${imgSize} rounded object-cover flex-shrink-0 cursor-pointer hover:opacity-80 transition-opacity`} onClick={() => setLightboxSrc(item.image)} />
-        ) : (
-          <div className={`${imgSize} rounded bg-gray-100 dark:bg-slate-700 flex-shrink-0`} />
-        )}
+        <ProductImageThumb src={item.image} alt={displayName} size={thumbSize} />
         <div className="flex-1 min-w-0">
           <div className="text-sm font-medium text-gray-900 dark:text-white line-clamp-2 leading-snug">
             {displayName}
@@ -216,11 +212,8 @@ export default function BuyGetSection({ hook }: Props) {
                 return (
                   <div key={productId}>
                     <div className="flex items-center gap-3 px-4 py-2.5 bg-slate-50 dark:bg-slate-700/50">
-                      {first.image ? (
-                        <img src={first.image} alt="" className="w-10 h-10 rounded object-cover flex-shrink-0 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => setLightboxSrc(first.image)} />
-                      ) : (
-                        <div className="w-10 h-10 rounded bg-gray-100 dark:bg-slate-600 flex-shrink-0" />
-                      )}
+                      <ProductImageThumb src={first.image} alt={first.product_name} size="sm" />
+
                       <div className="flex-1 min-w-0">
                         <div className="text-sm font-medium text-gray-900 dark:text-white line-clamp-2 leading-snug">
                           {first.product_name}
@@ -255,7 +248,7 @@ export default function BuyGetSection({ hook }: Props) {
                       const hasErr = itemErrorKeys.has(item.key);
                       return (
                         <div key={item.key} data-error={hasErr ? 'true' : undefined} className={`flex items-center gap-3 px-4 py-2 pl-8 border-b border-gray-100 dark:border-slate-700/50 transition-colors ${hasErr ? 'bg-red-50 dark:bg-red-900/10' : ''}`}>
-                          {renderItemInfo(item, 'w-8 h-8')}
+                          {renderItemInfo(item, 'xs')}
                           {renderInputs(item)}
                         </div>
                       );

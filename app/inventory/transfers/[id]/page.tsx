@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
 import NumberInput from '@/components/ui/NumberInput';
+import ImageLightbox from '@/components/ui/ImageLightbox';
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
@@ -87,12 +88,6 @@ export default function TransferDetailPage() {
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
-  useEffect(() => {
-    if (!lightboxSrc) return;
-    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') setLightboxSrc(null); };
-    document.addEventListener('keydown', h);
-    return () => document.removeEventListener('keydown', h);
-  }, [lightboxSrc]);
   const fetchingRef = useRef(false);
 
   // Confirm action (pending_confirm)
@@ -700,20 +695,7 @@ export default function TransferDetailPage() {
         )}
       </div>
 
-      {/* Image Lightbox */}
-      {lightboxSrc && (
-        <div
-          className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"
-          onClick={() => setLightboxSrc(null)}
-        >
-          <img
-            src={lightboxSrc}
-            alt="รูปรับสินค้า"
-            className="max-w-full max-h-[85vh] object-contain rounded-lg"
-            onClick={(e) => e.stopPropagation()}
-          />
-        </div>
-      )}
+      <ImageLightbox src={lightboxSrc} onClose={() => setLightboxSrc(null)} alt="รูปรับสินค้า" />
     </Layout>
   );
 }

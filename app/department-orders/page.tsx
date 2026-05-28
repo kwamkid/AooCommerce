@@ -11,6 +11,7 @@ import { getBadgeColor } from '@/lib/status-tab-colors';
 import StatusTabs from '@/components/ui/StatusTabs';
 import ShipModal, { type ShipResult } from '@/components/ui/ShipModal';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
+import ProductImageThumb from '@/components/ui/ProductImageThumb';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
 import {
@@ -130,15 +131,6 @@ function DepartmentOrdersContent() {
   // Void confirm
   const [voidId, setVoidId] = useState<string | null>(null);
   const [voidSubmitting, setVoidSubmitting] = useState(false);
-
-  // Lightbox for receiver photo
-  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
-  useEffect(() => {
-    if (!lightboxSrc) return;
-    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') setLightboxSrc(null); };
-    document.addEventListener('keydown', h);
-    return () => document.removeEventListener('keydown', h);
-  }, [lightboxSrc]);
 
   // Printing state
   const [printingId, setPrintingId] = useState<string | null>(null);
@@ -1067,12 +1059,7 @@ function DepartmentOrdersContent() {
               render: (r) => r.receiver_name ? (
                 <div className="flex items-center gap-2">
                   {r.receive_photo_url && (
-                    <img
-                      src={r.receive_photo_url}
-                      alt="รูปรับสินค้า"
-                      className="w-8 h-8 rounded object-cover cursor-pointer hover:opacity-80 flex-shrink-0"
-                      onClick={() => setLightboxSrc(r.receive_photo_url!)}
-                    />
+                    <ProductImageThumb src={r.receive_photo_url} alt="รูปรับสินค้า" size="xs" />
                   )}
                   <span className="data-text text-gray-700 dark:text-slate-300">{r.receiver_name}</span>
                 </div>
@@ -1252,12 +1239,6 @@ function DepartmentOrdersContent() {
           onConfirm={handleVoid}
         />
 
-        {/* Lightbox for receiver photo */}
-        {lightboxSrc && (
-          <div className="fixed inset-0 z-[9999] bg-black/80 flex items-center justify-center p-4" onClick={() => setLightboxSrc(null)}>
-            <img src={lightboxSrc} alt="รูปรับสินค้า" className="max-w-full max-h-full object-contain rounded-lg" />
-          </div>
-        )}
       </div>
 
       {/* Bulk action bar */}

@@ -87,17 +87,8 @@ export function usePromotionForm(promotionId?: string) {
   const [pushSingleAccountId, setPushSingleAccountId] = useState<string | undefined>(undefined);
   const togglePriceRef = useRef<HTMLInputElement>(null);
   const [expandedYProducts, setExpandedYProducts] = useState<Set<string>>(new Set());
-  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
 
   // ─── Effects ──────────────────────────────────────────
-
-  // ESC to close lightbox
-  useEffect(() => {
-    if (!lightboxSrc) return;
-    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') setLightboxSrc(null); };
-    document.addEventListener('keydown', handler);
-    return () => document.removeEventListener('keydown', handler);
-  }, [lightboxSrc]);
 
   // Fetch marketplace accounts
   useEffect(() => {
@@ -816,7 +807,6 @@ export function usePromotionForm(promotionId?: string) {
     pushSingleAccountId, setPushSingleAccountId,
     togglePriceRef,
     expandedYProducts, setExpandedYProducts,
-    lightboxSrc, setLightboxSrc,
 
     // Derived
     isBundleSet,

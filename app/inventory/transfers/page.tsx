@@ -15,6 +15,7 @@ import FormSelect from '@/components/ui/FormSelect';
 import ActionMenu from '@/components/ui/ActionMenu';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import StatusTabs from '@/components/ui/StatusTabs';
+import ProductImageThumb from '@/components/ui/ProductImageThumb';
 import {
   Loader2, ArrowRightLeft, Plus, Warehouse, Eye, Printer, User,
   CheckCircle2, Clock, XCircle, AlertTriangle, Truck, Search, Ban,
@@ -59,13 +60,6 @@ export default function TransferListPage() {
   const [search, setSearch] = useState('');
   const [printingId, setPrintingId] = useState<string | null>(null);
   const [statusCounts, setStatusCounts] = useState<Record<string, number>>({ all: 0, pending: 0, shipping: 0, received: 0, cancelled: 0 });
-  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
-  useEffect(() => {
-    if (!lightboxSrc) return;
-    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') setLightboxSrc(null); };
-    document.addEventListener('keydown', h);
-    return () => document.removeEventListener('keydown', h);
-  }, [lightboxSrc]);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [confirmCancel, setConfirmCancel] = useState<Transfer | null>(null);
 
@@ -343,12 +337,7 @@ export default function TransferListPage() {
               render: (t) => t.receiver_name ? (
                 <div className="flex items-center gap-2">
                   {t.receive_photo_url && (
-                    <img
-                      src={t.receive_photo_url}
-                      alt="รูปรับสินค้า"
-                      className="w-8 h-8 rounded object-cover cursor-pointer hover:opacity-80 flex-shrink-0"
-                      onClick={() => setLightboxSrc(t.receive_photo_url)}
-                    />
+                    <ProductImageThumb src={t.receive_photo_url} alt="รูปรับสินค้า" size="xs" />
                   )}
                   <span className="data-text text-gray-700 dark:text-slate-300">{t.receiver_name}</span>
                 </div>
@@ -452,12 +441,7 @@ export default function TransferListPage() {
                   {t.receiver_name && (
                     <div className="flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
                       {t.receive_photo_url && (
-                        <img
-                          src={t.receive_photo_url}
-                          alt="รูปรับสินค้า"
-                          className="w-6 h-6 rounded object-cover cursor-pointer"
-                          onClick={() => setLightboxSrc(t.receive_photo_url)}
-                        />
+                        <ProductImageThumb src={t.receive_photo_url} alt="รูปรับสินค้า" size="xs" />
                       )}
                       <span>ผู้รับ: {t.receiver_name}</span>
                     </div>
@@ -468,21 +452,6 @@ export default function TransferListPage() {
           }}
         />
       </div>
-
-      {/* Image Lightbox */}
-      {lightboxSrc && (
-        <div
-          className="fixed inset-0 z-[999] bg-black/80 flex items-center justify-center p-4"
-          onClick={() => setLightboxSrc(null)}
-        >
-          <img
-            src={lightboxSrc}
-            alt="รูปรับสินค้า"
-            className="max-w-full max-h-[85vh] object-contain rounded-lg"
-            onClick={(e) => e.stopPropagation()}
-          />
-        </div>
-      )}
 
       {confirmCancel && (
         <ConfirmDialog
