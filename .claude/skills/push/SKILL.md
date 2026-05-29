@@ -92,7 +92,7 @@ git push origin <current-branch>
 ### 5. แจ้งผลลัพธ์
 - Commit hash(es) + push status
 - บอก URL ของ remote (ถ้าเป็น GitHub: `https://github.com/<owner>/<repo>/commit/<sha>`)
-- ถ้าเปลี่ยน CLAUDE.md / rule ใหม่ → เตือนว่าควรพิมพ์ `/log` ด้วย (แต่ไม่ทำเอง)
+- ถ้าเปลี่ยน CLAUDE.md / rule ใหม่ → เตือนว่าควรพิมพ์ `/memo` ด้วย (แต่ไม่ทำเอง)
 
 ## ข้อควรระวัง
 
