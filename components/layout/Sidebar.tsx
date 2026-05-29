@@ -727,13 +727,9 @@ export default function Sidebar() {
                 </button>
                 {settingsOpen && (
                   <div className="ml-3 border-l border-white/10">
-                    <Link href="/settings" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/settings' ? 'text-primary' : 'text-gray-400 hover:text-primary'}`}>
+                    <Link href="/settings/company" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${(pathname === '/settings' || pathname === '/settings/company') ? 'text-primary' : 'text-gray-400 hover:text-primary'}`}>
                       <Settings className="w-4 h-4" />
                       <span className="text-[16px] font-medium">ทั่วไป</span>
-                    </Link>
-                    <Link href="/settings/company" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/settings/company' ? 'text-primary' : 'text-gray-400 hover:text-primary'}`}>
-                      <Building2 className="w-4 h-4" />
-                      <span className="text-[16px] font-medium">ข้อมูลบริษัท</span>
                     </Link>
                     <Link href="/settings/members" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/settings/members' ? 'text-primary' : 'text-gray-400 hover:text-primary'}`}>
                       <UserCog className="w-4 h-4" />

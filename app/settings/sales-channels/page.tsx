@@ -386,7 +386,7 @@ export default function SalesChannelsPage() {
             </p>
           </div>
           <Button variant="primary" icon={<Plus className="w-5 h-5" />} onClick={openCreate}>
-            เพิ่ม<span className="hidden md:inline">ช่องทาง</span>
+            เพิ่ม
           </Button>
         </div>
 

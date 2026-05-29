@@ -6,6 +6,11 @@ import Layout from '@/components/layout/Layout';
 import Container from '@/components/ui/Container';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
+import Modal from '@/components/ui/Modal';
+import FormInput from '@/components/ui/FormInput';
+import ListRow from '@/components/ui/ListRow';
+import ReorderArrows from '@/components/ui/ReorderArrows';
+import Tabs from '@/components/ui/Tabs';
 import { LoadingCard, NoPermissionCard } from '@/components/ui/StateCard';
 import Toggle from '@/components/ui/Toggle';
 import NumberInput from '@/components/ui/NumberInput';
@@ -82,8 +87,25 @@ export default function PaymentChannelsPage() {
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
   const [reordering, setReordering] = useState(false);
 
-  // Tab
+  // API group (this page only manages bill_online — POS lives in /settings/pos-terminals)
   const [activeTab] = useState<'bill_online' | 'pos'>('bill_online');
+
+  // UI tab — splits direct payment methods (cash/PP/bank) from API integrations (Beam Gateway)
+  const [viewTab, setViewTab] = useState<'direct' | 'gateway'>('direct');
+
+  // Top-right "+ เพิ่ม" dropdown
+  const [addDropdownOpen, setAddDropdownOpen] = useState(false);
+  const addDropdownRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!addDropdownOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (addDropdownRef.current && !addDropdownRef.current.contains(e.target as Node)) {
+        setAddDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [addDropdownOpen]);
 
   // Fetch data
   const fetchChannels = async () => {
@@ -380,32 +402,74 @@ export default function PaymentChannelsPage() {
   return (
     <Layout>
       <Container size="full">
-        <div className="mb-6">
-          <h1 className="heading-1">ช่องทางชำระเงิน</h1>
-          <p className="page-subtitle">จัดการช่องทางรับชำระเงินสำหรับ Bill Online และ POS</p>
-        </div>
-        {/* Tab header */}
-        <div className="border-b border-gray-200 dark:border-slate-700 mb-6">
-          <div className="px-1 py-2.5 text-base font-medium text-primary border-b-2 border-primary inline-block">
-            Bill Online
+        <div className="flex items-start justify-between gap-4 mb-6">
+          <div>
+            <h1 className="heading-1">ช่องทางชำระเงิน</h1>
+            <p className="page-subtitle">ช่องทางที่ลูกค้าใช้จ่ายเงินผ่านลิงก์ Bill Online ของ manual order</p>
           </div>
+
+          {/* Top-right add dropdown — only on direct tab (gateway is system-managed) */}
+          {viewTab === 'direct' && (
+          <div ref={addDropdownRef} className="relative print:hidden">
+            <Button
+              variant="primary"
+              icon={<Plus className="w-4 h-4" />}
+              iconRight={<ChevronDown className="w-3.5 h-3.5" />}
+              onClick={() => setAddDropdownOpen(o => !o)}
+            >
+              เพิ่ม
+            </Button>
+            {addDropdownOpen && (
+              <div className="absolute right-0 mt-1 w-56 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded-lg shadow-lg z-50 py-1">
+                <button
+                  onClick={() => { setAddDropdownOpen(false); resetPromptPayForm(); setShowPromptPayForm(true); }}
+                  className="w-full text-left px-3 py-2.5 text-sm text-gray-700 dark:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-700 flex items-center gap-2.5"
+                >
+                  <QrCode className="w-4 h-4 text-blue-500" />
+                  PromptPay QR
+                </button>
+                <button
+                  onClick={() => { setAddDropdownOpen(false); resetBankForm(); setShowBankForm(true); }}
+                  className="w-full text-left px-3 py-2.5 text-sm text-gray-700 dark:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-700 flex items-center gap-2.5"
+                >
+                  <Building2 className="w-4 h-4 text-emerald-500" />
+                  บัญชีธนาคาร
+                </button>
+              </div>
+            )}
+          </div>
+          )}
         </div>
+
+        {/* Tabs */}
+        <Tabs
+          activeKey={viewTab}
+          onSelect={(k) => setViewTab(k as 'direct' | 'gateway')}
+          tabs={[
+            { key: 'direct', label: 'รับเงินตรง' },
+            { key: 'gateway', label: 'เชื่อมต่อ API' },
+          ]}
+        />
 
         {loading ? (
           <LoadingCard />
         ) : (
-          <div className="space-y-4">
-            {/* Tip */}
-            <div className="text-xs text-gray-400 flex items-center gap-1.5">
-              <ArrowUp className="w-3.5 h-3.5" />
-              <ArrowDown className="w-3.5 h-3.5" />
-              <span>ใช้ปุ่มลูกศรเพื่อจัดลำดับการแสดงผลในหน้า Bill Online</span>
-            </div>
+          <div className="space-y-2">
+            {/* Tip — only relevant on direct tab (sortable list) */}
+            {viewTab === 'direct' && (
+              <div className="text-xs text-gray-400 flex items-center gap-1.5 mb-1">
+                <ArrowUp className="w-3.5 h-3.5" />
+                <ArrowDown className="w-3.5 h-3.5" />
+                <span>ใช้ปุ่มลูกศรเพื่อจัดลำดับการแสดงผลในหน้า Bill Online</span>
+              </div>
+            )}
 
-            {channels.map((channel, idx) => {
+            {channels
+              .filter(c => viewTab === 'gateway' ? c.type === 'payment_gateway' : c.type !== 'payment_gateway')
+              .map((channel, idx, visibleChannels) => {
               const isCollapsed = collapsedSections.has(channel.id);
               const isFirst = idx === 0;
-              const isLast = idx === channels.length - 1;
+              const isLast = idx === visibleChannels.length - 1;
               // Check if this is the last non-promptpay bank_transfer card (to render add-bank button after it)
               const isLastBank = channel.type === 'bank_transfer' &&
                 !(channel.config as Record<string, string>)?.promptpay_id &&
@@ -414,39 +478,24 @@ export default function PaymentChannelsPage() {
               // === CASH CARD ===
               if (channel.type === 'cash') {
                 return (
-                  <Card key={channel.id} padding="none">
-                    <div className="flex items-center gap-3 p-4">
-                      <div className="flex flex-col flex-shrink-0">
-                        <button
-                          onClick={() => handleMoveChannel(channel.id, 'up')}
-                          disabled={isFirst || reordering}
-                          className="p-0.5 text-gray-300 hover:text-gray-600 dark:text-slate-400 disabled:opacity-30 disabled:cursor-not-allowed"
-                        >
-                          <ArrowUp className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleMoveChannel(channel.id, 'down')}
-                          disabled={isLast || reordering}
-                          className="p-0.5 text-gray-300 hover:text-gray-600 dark:text-slate-400 disabled:opacity-30 disabled:cursor-not-allowed"
-                        >
-                          <ArrowDown className="w-4 h-4" />
-                        </button>
+                  <ListRow
+                    key={channel.id}
+                    reorder={{
+                      onMoveUp: () => handleMoveChannel(channel.id, 'up'),
+                      onMoveDown: () => handleMoveChannel(channel.id, 'down'),
+                      disableUp: isFirst,
+                      disableDown: isLast,
+                      disabled: reordering,
+                    }}
+                    icon={
+                      <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
+                        <Banknote className="w-4 h-4 text-green-600" />
                       </div>
-                      <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                        <Banknote className="w-5 h-5 text-green-600" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <h3 className="font-medium text-gray-900 dark:text-white">เงินสด</h3>
-                        <p className="text-sm text-gray-500 dark:text-slate-400">รับเงินสดจากลูกค้า / จ่ายหน้าร้าน</p>
-                      </div>
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        <Toggle
-                          checked={channel.is_active}
-                          onChange={handleCashToggle}
-                        />
-                      </div>
-                    </div>
-                  </Card>
+                    }
+                    title="เงินสด"
+                    subtitle="รับเงินสดจากลูกค้า / จ่ายหน้าร้าน"
+                    actions={<Toggle checked={channel.is_active} onChange={handleCashToggle} />}
+                  />
                 );
               }
 
@@ -458,89 +507,33 @@ export default function PaymentChannelsPage() {
                   ? `${ppId.slice(0, 3)}-${ppId.slice(3, 6)}-${ppId.slice(6)}`
                   : `${ppId.slice(0, 1)}-${ppId.slice(1, 5)}-${ppId.slice(5, 10)}-${ppId.slice(10, 12)}-${ppId.slice(12)}`;
 
-                const isLastPromptPay = !channels.slice(idx + 1).some(c =>
-                  c.type === 'bank_transfer' && !!(c.config as Record<string, string>)?.promptpay_id
-                );
-
-                const ppCard = (
-                  <Card key={channel.id} padding="none">
-                    <div className="flex items-center gap-3 p-4">
-                      <div className="flex flex-col flex-shrink-0">
-                        <button
-                          onClick={() => handleMoveChannel(channel.id, 'up')}
-                          disabled={isFirst || reordering}
-                          className="p-0.5 text-gray-300 hover:text-gray-600 dark:text-slate-400 disabled:opacity-30 disabled:cursor-not-allowed"
-                        >
-                          <ArrowUp className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleMoveChannel(channel.id, 'down')}
-                          disabled={isLast || reordering}
-                          className="p-0.5 text-gray-300 hover:text-gray-600 dark:text-slate-400 disabled:opacity-30 disabled:cursor-not-allowed"
-                        >
-                          <ArrowDown className="w-4 h-4" />
-                        </button>
-                      </div>
-                      <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                        <QrCode className="w-5 h-5 text-blue-600" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <h3 className="font-medium text-gray-900 dark:text-white">PromptPay QR</h3>
-                        <p className="text-sm text-gray-500 dark:text-slate-400">{formatted}</p>
-                      </div>
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        <button
-                          onClick={() => handleDeletePromptPay(channel.id)}
-                          className="p-1.5 text-gray-400 hover:text-red-600 transition-colors"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-                  </Card>
-                );
-
-                // If last PromptPay card, show add button after it
-                if (!isLastPromptPay) return ppCard;
-
                 return (
-                  <div key={channel.id} className="space-y-4">
-                    {ppCard}
-                    {showPromptPayForm ? (
-                      <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm p-4 space-y-3">
-                        <div className="text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">เพิ่ม PromptPay QR ใหม่</div>
-                        <div>
-                          <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">PromptPay ID</label>
-                          <input
-                            type="text"
-                            value={promptPayId}
-                            onChange={e => setPromptPayId(e.target.value.replace(/[^0-9]/g, ''))}
-                            placeholder="เบอร์โทร 10 หลัก หรือ เลขบัตร 13 หลัก"
-                            maxLength={13}
-                            className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
-                          />
-                          <p className="text-xs text-gray-400 mt-1">เบอร์โทรศัพท์ 10 หลัก หรือ เลขประจำตัว/Tax ID 13 หลัก</p>
-                        </div>
-                        <div className="flex gap-2 pt-1">
-                          <button onClick={handleSavePromptPay} disabled={savingPromptPay} className="px-4 py-2 bg-primary hover:bg-primary-hover text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2">
-                            {savingPromptPay ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-                            บันทึก
-                          </button>
-                          <button onClick={resetPromptPayForm} className="px-4 py-2 border border-gray-300 text-gray-700 dark:text-slate-300 text-sm font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors flex items-center gap-2">
-                            <X className="w-4 h-4" /> ยกเลิก
-                          </button>
-                        </div>
+                  <ListRow
+                    key={channel.id}
+                    reorder={{
+                      onMoveUp: () => handleMoveChannel(channel.id, 'up'),
+                      onMoveDown: () => handleMoveChannel(channel.id, 'down'),
+                      disableUp: isFirst,
+                      disableDown: isLast,
+                      disabled: reordering,
+                    }}
+                    icon={
+                      <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+                        <QrCode className="w-4 h-4 text-blue-600" />
                       </div>
-                    ) : (
+                    }
+                    title="PromptPay QR"
+                    subtitle={formatted}
+                    actions={
                       <button
-                        onClick={() => { resetPromptPayForm(); setShowPromptPayForm(true); }}
-                        className="w-full p-3 border-2 border-dashed border-gray-300 rounded-lg text-sm text-gray-500 dark:text-slate-400 hover:border-primary hover:text-primary transition-colors flex items-center justify-center gap-2"
+                        onClick={() => handleDeletePromptPay(channel.id)}
+                        className="p-1.5 text-gray-400 hover:text-red-600 transition-colors"
+                        aria-label="ลบ"
                       >
-                        <Plus className="w-4 h-4" />
-                        เพิ่ม PromptPay QR
+                        <Trash2 className="w-4 h-4" />
                       </button>
-                    )}
-                  </div>
+                    }
+                  />
                 );
               }
 
@@ -548,184 +541,50 @@ export default function PaymentChannelsPage() {
               if (channel.type === 'bank_transfer') {
                 const cfg = channel.config as Record<string, string>;
                 const bank = getBankByCode(cfg.bank_code);
-                const isEditing = editingBankId === channel.id;
 
-                const bankCard = (
-                  <Card key={channel.id} padding="none">
-                    {/* Header */}
-                    <div className="flex items-center gap-3 p-4">
-                      <div className="flex flex-col flex-shrink-0">
-                        <button
-                          onClick={() => handleMoveChannel(channel.id, 'up')}
-                          disabled={isFirst || reordering}
-                          className="p-0.5 text-gray-300 hover:text-gray-600 dark:text-slate-400 disabled:opacity-30 disabled:cursor-not-allowed"
-                        >
-                          <ArrowUp className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleMoveChannel(channel.id, 'down')}
-                          disabled={isLast || reordering}
-                          className="p-0.5 text-gray-300 hover:text-gray-600 dark:text-slate-400 disabled:opacity-30 disabled:cursor-not-allowed"
-                        >
-                          <ArrowDown className="w-4 h-4" />
-                        </button>
-                      </div>
-                      {bank?.logo ? (
-                        <img src={bank.logo} alt={bank.name_th} className="w-10 h-10 rounded-full flex-shrink-0 object-contain" />
+                return (
+                  <ListRow
+                    key={channel.id}
+                    reorder={{
+                      onMoveUp: () => handleMoveChannel(channel.id, 'up'),
+                      onMoveDown: () => handleMoveChannel(channel.id, 'down'),
+                      disableUp: isFirst,
+                      disableDown: isLast,
+                      disabled: reordering,
+                    }}
+                    icon={
+                      bank?.logo ? (
+                        <img src={bank.logo} alt={bank.name_th} className="w-8 h-8 rounded-full object-contain" />
                       ) : (
                         <div
-                          className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 text-white text-xs font-bold"
+                          className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold"
                           style={{ backgroundColor: bank?.color || '#999' }}
                         >
                           {bank?.code?.slice(0, 2) || '?'}
                         </div>
-                      )}
-                      <div className="flex-1 min-w-0">
-                        <h3 className="font-medium text-gray-900 dark:text-white">{bank?.name_th || cfg.bank_code}</h3>
-                        <p className="text-sm text-gray-500 dark:text-slate-400">{cfg.account_number} • {cfg.account_name}</p>
-                      </div>
-                      <div className="flex items-center gap-2 flex-shrink-0">
+                      )
+                    }
+                    title={bank?.name_th || cfg.bank_code}
+                    subtitle={`${cfg.account_number} • ${cfg.account_name}`}
+                    actions={
+                      <>
                         <button
                           onClick={() => handleEditBank(channel)}
                           className="p-1.5 text-gray-400 hover:text-blue-600 transition-colors"
+                          aria-label="แก้ไข"
                         >
                           <Edit2 className="w-4 h-4" />
                         </button>
                         <button
                           onClick={() => handleDeleteBank(channel.id, bank?.name_th || cfg.bank_code)}
                           className="p-1.5 text-gray-400 hover:text-red-600 transition-colors"
+                          aria-label="ลบ"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
-                      </div>
-                    </div>
-
-                    {/* Inline edit form (shown when editing) */}
-                    {isEditing && showBankForm && (
-                      <div className="p-4 border-t border-gray-100 dark:border-slate-700 space-y-3">
-                        {/* Bank dropdown */}
-                        <div ref={bankDropdownRef} className="relative">
-                          <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">ธนาคาร</label>
-                          <button
-                            type="button"
-                            onClick={() => setBankDropdownOpen(!bankDropdownOpen)}
-                            className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-left flex items-center gap-2 bg-white dark:bg-slate-700 hover:border-gray-400 dark:hover:border-slate-500 transition-colors"
-                          >
-                            {bankForm.bank_code ? (
-                              <>
-                                {getBankByCode(bankForm.bank_code)?.logo ? (
-                                  <img src={getBankByCode(bankForm.bank_code)!.logo} alt="" className="w-5 h-5 rounded-full flex-shrink-0 object-contain" />
-                                ) : (
-                                  <span className="w-5 h-5 rounded-full flex-shrink-0" style={{ backgroundColor: getBankByCode(bankForm.bank_code)?.color }} />
-                                )}
-                                <span className="text-sm text-gray-900 dark:text-white">{getBankByCode(bankForm.bank_code)?.name_th}</span>
-                              </>
-                            ) : (
-                              <span className="text-sm text-gray-400 dark:text-slate-500">เลือกธนาคาร</span>
-                            )}
-                            <ChevronDown className="w-4 h-4 ml-auto text-gray-400" />
-                          </button>
-                          {bankDropdownOpen && (
-                            <div className="absolute z-20 w-full mt-1 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                              {THAI_BANKS.map(b => (
-                                <button
-                                  key={b.code}
-                                  type="button"
-                                  onClick={() => { setBankForm(prev => ({ ...prev, bank_code: b.code })); setBankDropdownOpen(false); }}
-                                  className={`w-full px-3 py-2 flex items-center gap-2 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors text-left ${bankForm.bank_code === b.code ? 'bg-primary/10' : ''}`}
-                                >
-                                  {b.logo ? <img src={b.logo} alt={b.name_th} className="w-5 h-5 rounded-full flex-shrink-0 object-contain" /> : <span className="w-5 h-5 rounded-full flex-shrink-0" style={{ backgroundColor: b.color }} />}
-                                  <span className="text-sm text-gray-900 dark:text-white">{b.name_th}</span>
-                                  <span className="text-xs text-gray-400 ml-auto">{b.code}</span>
-                                </button>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                        <div>
-                          <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">เลขที่บัญชี</label>
-                          <input type="text" value={bankForm.account_number} onChange={e => setBankForm(prev => ({ ...prev, account_number: e.target.value }))} placeholder="xxx-x-xxxxx-x" className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary" />
-                        </div>
-                        <div>
-                          <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">ชื่อบัญชี</label>
-                          <input type="text" value={bankForm.account_name} onChange={e => setBankForm(prev => ({ ...prev, account_name: e.target.value }))} placeholder="ชื่อ-สกุล หรือ ชื่อบริษัท" className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary" />
-                        </div>
-                        <div className="flex gap-2 pt-1">
-                          <button onClick={handleSaveBank} disabled={savingBank} className="px-4 py-2 bg-primary hover:bg-primary-hover text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2">
-                            {savingBank ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-                            บันทึก
-                          </button>
-                          <button onClick={resetBankForm} className="px-4 py-2 border border-gray-300 text-gray-700 dark:text-slate-300 text-sm font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors flex items-center gap-2">
-                            <X className="w-4 h-4" /> ยกเลิก
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </Card>
-                );
-
-                // If this is the last bank_transfer card, also render the add-bank button
-                if (!isLastBank) return bankCard;
-
-                return (
-                  <div key={channel.id} className="space-y-4">
-                    {bankCard}
-                    {showBankForm && !editingBankId ? (
-                      <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm p-4 space-y-3">
-                        <div className="text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">เพิ่มบัญชีธนาคารใหม่</div>
-                        <div ref={bankDropdownRef} className="relative">
-                          <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">ธนาคาร</label>
-                          <button type="button" onClick={() => setBankDropdownOpen(!bankDropdownOpen)} className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-left flex items-center gap-2 bg-white dark:bg-slate-700 hover:border-gray-400 dark:hover:border-slate-500 transition-colors">
-                            {bankForm.bank_code ? (
-                              <>
-                                {getBankByCode(bankForm.bank_code)?.logo ? <img src={getBankByCode(bankForm.bank_code)!.logo} alt="" className="w-5 h-5 rounded-full flex-shrink-0 object-contain" /> : <span className="w-5 h-5 rounded-full flex-shrink-0" style={{ backgroundColor: getBankByCode(bankForm.bank_code)?.color }} />}
-                                <span className="text-sm text-gray-900 dark:text-white">{getBankByCode(bankForm.bank_code)?.name_th}</span>
-                              </>
-                            ) : (
-                              <span className="text-sm text-gray-400 dark:text-slate-500">เลือกธนาคาร</span>
-                            )}
-                            <ChevronDown className="w-4 h-4 ml-auto text-gray-400" />
-                          </button>
-                          {bankDropdownOpen && (
-                            <div className="absolute z-20 w-full mt-1 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                              {THAI_BANKS.map(b => (
-                                <button key={b.code} type="button" onClick={() => { setBankForm(prev => ({ ...prev, bank_code: b.code })); setBankDropdownOpen(false); }} className={`w-full px-3 py-2 flex items-center gap-2 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors text-left ${bankForm.bank_code === b.code ? 'bg-primary/10' : ''}`}>
-                                  {b.logo ? <img src={b.logo} alt={b.name_th} className="w-5 h-5 rounded-full flex-shrink-0 object-contain" /> : <span className="w-5 h-5 rounded-full flex-shrink-0" style={{ backgroundColor: b.color }} />}
-                                  <span className="text-sm text-gray-900 dark:text-white">{b.name_th}</span>
-                                  <span className="text-xs text-gray-400 ml-auto">{b.code}</span>
-                                </button>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                        <div>
-                          <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">เลขที่บัญชี</label>
-                          <input type="text" value={bankForm.account_number} onChange={e => setBankForm(prev => ({ ...prev, account_number: e.target.value }))} placeholder="xxx-x-xxxxx-x" className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary" />
-                        </div>
-                        <div>
-                          <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">ชื่อบัญชี</label>
-                          <input type="text" value={bankForm.account_name} onChange={e => setBankForm(prev => ({ ...prev, account_name: e.target.value }))} placeholder="ชื่อ-สกุล หรือ ชื่อบริษัท" className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary" />
-                        </div>
-                        <div className="flex gap-2 pt-1">
-                          <button onClick={handleSaveBank} disabled={savingBank} className="px-4 py-2 bg-primary hover:bg-primary-hover text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2">
-                            {savingBank ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-                            บันทึก
-                          </button>
-                          <button onClick={resetBankForm} className="px-4 py-2 border border-gray-300 text-gray-700 dark:text-slate-300 text-sm font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors flex items-center gap-2">
-                            <X className="w-4 h-4" /> ยกเลิก
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <button
-                        onClick={() => { resetBankForm(); setShowBankForm(true); }}
-                        className="w-full p-3 border-2 border-dashed border-gray-300 rounded-lg text-sm text-gray-500 dark:text-slate-400 hover:border-primary hover:text-primary transition-colors flex items-center justify-center gap-2"
-                      >
-                        <Plus className="w-4 h-4" />
-                        เพิ่มบัญชีธนาคาร
-                      </button>
-                    )}
-                  </div>
+                      </>
+                    }
+                  />
                 );
               }
 
@@ -734,30 +593,21 @@ export default function PaymentChannelsPage() {
                 return (
                   <Card key={channel.id} padding="none">
                     {/* Header */}
-                    <div className="flex items-center gap-3 p-4">
-                      <div className="flex flex-col flex-shrink-0">
-                        <button
-                          onClick={() => handleMoveChannel(channel.id, 'up')}
-                          disabled={isFirst || reordering}
-                          className="p-0.5 text-gray-300 hover:text-gray-600 dark:text-slate-400 disabled:opacity-30 disabled:cursor-not-allowed"
-                        >
-                          <ArrowUp className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleMoveChannel(channel.id, 'down')}
-                          disabled={isLast || reordering}
-                          className="p-0.5 text-gray-300 hover:text-gray-600 dark:text-slate-400 disabled:opacity-30 disabled:cursor-not-allowed"
-                        >
-                          <ArrowDown className="w-4 h-4" />
-                        </button>
-                      </div>
+                    <div className="flex items-center gap-3 px-3 py-2.5">
+                      <ReorderArrows
+                        onMoveUp={() => handleMoveChannel(channel.id, 'up')}
+                        onMoveDown={() => handleMoveChannel(channel.id, 'down')}
+                        disableUp={isFirst}
+                        disableDown={isLast}
+                        disabled={reordering}
+                      />
                       <button
                         type="button"
                         onClick={() => toggleCollapse(channel.id)}
                         className="flex items-center gap-3 flex-1 text-left"
                       >
-                        <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                          <Globe className="w-5 h-5 text-purple-600" />
+                        <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                          <Globe className="w-4 h-4 text-purple-600" />
                         </div>
                         <div className="flex-1 min-w-0">
                           <h3 className="font-medium text-gray-900 dark:text-white">ชำระออนไลน์</h3>
@@ -987,105 +837,126 @@ export default function PaymentChannelsPage() {
               return null;
             })}
 
-            {/* Add bank account button — only show here if there are NO bank accounts at all */}
-            {/* Add PromptPay button — only show here if there are NO promptpay channels at all */}
-            {promptPayChannels.length === 0 && (
-              showPromptPayForm ? (
-                <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm p-4 space-y-3">
-                  <div className="text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">เพิ่ม PromptPay QR ใหม่</div>
-                  <div>
-                    <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">PromptPay ID</label>
-                    <input
-                      type="text"
-                      value={promptPayId}
-                      onChange={e => setPromptPayId(e.target.value.replace(/[^0-9]/g, ''))}
-                      placeholder="เบอร์โทร 10 หลัก หรือ เลขบัตร 13 หลัก"
-                      maxLength={13}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
-                    />
-                    <p className="text-xs text-gray-400 mt-1">เบอร์โทรศัพท์ 10 หลัก หรือ เลขประจำตัว/Tax ID 13 หลัก</p>
-                  </div>
-                  <div className="flex gap-2 pt-1">
-                    <button onClick={handleSavePromptPay} disabled={savingPromptPay} className="px-4 py-2 bg-primary hover:bg-primary-hover text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2">
-                      {savingPromptPay ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-                      บันทึก
-                    </button>
-                    <button onClick={resetPromptPayForm} className="px-4 py-2 border border-gray-300 text-gray-700 dark:text-slate-300 text-sm font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors flex items-center gap-2">
-                      <X className="w-4 h-4" /> ยกเลิก
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <button
-                  onClick={() => { resetPromptPayForm(); setShowPromptPayForm(true); }}
-                  className="w-full p-3 border-2 border-dashed border-gray-300 rounded-lg text-sm text-gray-500 dark:text-slate-400 hover:border-primary hover:text-primary transition-colors flex items-center justify-center gap-2"
-                >
-                  <Plus className="w-4 h-4" />
-                  เพิ่ม PromptPay QR
-                </button>
-              )
-            )}
-
-            {bankAccounts.length === 0 && (
-              showBankForm && !editingBankId ? (
-                <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm p-4 space-y-3">
-                  <div className="text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">เพิ่มบัญชีธนาคารใหม่</div>
-                  <div ref={bankDropdownRef} className="relative">
-                    <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">ธนาคาร</label>
-                    <button type="button" onClick={() => setBankDropdownOpen(!bankDropdownOpen)} className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-left flex items-center gap-2 bg-white dark:bg-slate-700 hover:border-gray-400 dark:hover:border-slate-500 transition-colors">
-                      {bankForm.bank_code ? (
-                        <>
-                          {getBankByCode(bankForm.bank_code)?.logo ? <img src={getBankByCode(bankForm.bank_code)!.logo} alt="" className="w-5 h-5 rounded-full flex-shrink-0 object-contain" /> : <span className="w-5 h-5 rounded-full flex-shrink-0" style={{ backgroundColor: getBankByCode(bankForm.bank_code)?.color }} />}
-                          <span className="text-sm text-gray-900 dark:text-white">{getBankByCode(bankForm.bank_code)?.name_th}</span>
-                        </>
-                      ) : (
-                        <span className="text-sm text-gray-400 dark:text-slate-500">เลือกธนาคาร</span>
-                      )}
-                      <ChevronDown className="w-4 h-4 ml-auto text-gray-400" />
-                    </button>
-                    {bankDropdownOpen && (
-                      <div className="absolute z-20 w-full mt-1 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                        {THAI_BANKS.map(b => (
-                          <button key={b.code} type="button" onClick={() => { setBankForm(prev => ({ ...prev, bank_code: b.code })); setBankDropdownOpen(false); }} className={`w-full px-3 py-2 flex items-center gap-2 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors text-left ${bankForm.bank_code === b.code ? 'bg-primary/10' : ''}`}>
-                            {b.logo ? <img src={b.logo} alt={b.name_th} className="w-5 h-5 rounded-full flex-shrink-0 object-contain" /> : <span className="w-5 h-5 rounded-full flex-shrink-0" style={{ backgroundColor: b.color }} />}
-                            <span className="text-sm text-gray-900 dark:text-white">{b.name_th}</span>
-                            <span className="text-xs text-gray-400 ml-auto">{b.code}</span>
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                  <div>
-                    <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">เลขที่บัญชี</label>
-                    <input type="text" value={bankForm.account_number} onChange={e => setBankForm(prev => ({ ...prev, account_number: e.target.value }))} placeholder="xxx-x-xxxxx-x" className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary" />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">ชื่อบัญชี</label>
-                    <input type="text" value={bankForm.account_name} onChange={e => setBankForm(prev => ({ ...prev, account_name: e.target.value }))} placeholder="ชื่อ-สกุล หรือ ชื่อบริษัท" className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary" />
-                  </div>
-                  <div className="flex gap-2 pt-1">
-                    <button onClick={handleSaveBank} disabled={savingBank} className="px-4 py-2 bg-primary hover:bg-primary-hover text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2">
-                      {savingBank ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-                      บันทึก
-                    </button>
-                    <button onClick={resetBankForm} className="px-4 py-2 border border-gray-300 text-gray-700 dark:text-slate-300 text-sm font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors flex items-center gap-2">
-                      <X className="w-4 h-4" /> ยกเลิก
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <button
-                  onClick={() => { resetBankForm(); setShowBankForm(true); }}
-                  className="w-full p-3 border-2 border-dashed border-gray-300 rounded-lg text-sm text-gray-500 dark:text-slate-400 hover:border-primary hover:text-primary transition-colors flex items-center justify-center gap-2"
-                >
-                  <Plus className="w-4 h-4" />
-                  เพิ่มบัญชีธนาคาร
-                </button>
-              )
-            )}
           </div>
         )}
       </Container>
+
+      {/* PromptPay Modal — add only (delete via card icon) */}
+      <Modal
+        open={showPromptPayForm}
+        onClose={() => !savingPromptPay && resetPromptPayForm()}
+        title="เพิ่ม PromptPay QR"
+        size="md"
+        footer={
+          <div className="flex justify-end gap-3 px-6 py-4">
+            <Button variant="secondary" disabled={savingPromptPay} onClick={resetPromptPayForm}>
+              ยกเลิก
+            </Button>
+            <Button
+              variant="primary"
+              loading={savingPromptPay}
+              disabled={!promptPayId.trim()}
+              onClick={handleSavePromptPay}
+            >
+              บันทึก
+            </Button>
+          </div>
+        }
+      >
+        <div className="px-6 py-5">
+          <FormInput
+            label="PromptPay ID"
+            required
+            value={promptPayId}
+            onChange={(e) => setPromptPayId(e.target.value.replace(/[^0-9]/g, ''))}
+            placeholder="เบอร์โทร 10 หลัก หรือ เลขบัตร 13 หลัก"
+            maxLength={13}
+            inputMode="numeric"
+            hint="เบอร์โทรศัพท์ 10 หลัก หรือ เลขประจำตัว/Tax ID 13 หลัก"
+          />
+        </div>
+      </Modal>
+
+      {/* Bank Modal — shared for add + edit (mode driven by editingBankId) */}
+      <Modal
+        open={showBankForm}
+        onClose={() => !savingBank && resetBankForm()}
+        title={editingBankId ? 'แก้ไขบัญชีธนาคาร' : 'เพิ่มบัญชีธนาคาร'}
+        size="md"
+        footer={
+          <div className="flex justify-end gap-3 px-6 py-4">
+            <Button variant="secondary" disabled={savingBank} onClick={resetBankForm}>
+              ยกเลิก
+            </Button>
+            <Button
+              variant="primary"
+              loading={savingBank}
+              disabled={!bankForm.bank_code || !bankForm.account_number.trim() || !bankForm.account_name.trim()}
+              onClick={handleSaveBank}
+            >
+              บันทึก
+            </Button>
+          </div>
+        }
+      >
+        <div className="px-6 py-5 space-y-4">
+          {/* Bank dropdown — custom because options include logo + brand color */}
+          <div ref={bankDropdownRef} className="relative">
+            <label className="field-label">ธนาคาร <span className="text-red-500">*</span></label>
+            <button
+              type="button"
+              onClick={() => setBankDropdownOpen(!bankDropdownOpen)}
+              className="w-full h-10 px-3 border border-gray-300 dark:border-slate-600 rounded-lg text-left flex items-center gap-2 bg-white dark:bg-slate-700 hover:border-gray-400 dark:hover:border-slate-500 transition-colors"
+            >
+              {bankForm.bank_code ? (
+                <>
+                  {getBankByCode(bankForm.bank_code)?.logo ? (
+                    <img src={getBankByCode(bankForm.bank_code)!.logo} alt="" className="w-5 h-5 rounded-full flex-shrink-0 object-contain" />
+                  ) : (
+                    <span className="w-5 h-5 rounded-full flex-shrink-0" style={{ backgroundColor: getBankByCode(bankForm.bank_code)?.color }} />
+                  )}
+                  <span className="text-sm text-gray-900 dark:text-white">{getBankByCode(bankForm.bank_code)?.name_th}</span>
+                </>
+              ) : (
+                <span className="text-sm text-gray-400 dark:text-slate-500">เลือกธนาคาร</span>
+              )}
+              <ChevronDown className="w-4 h-4 ml-auto text-gray-400" />
+            </button>
+            {bankDropdownOpen && (
+              <div className="absolute z-20 w-full mt-1 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                {THAI_BANKS.map(b => (
+                  <button
+                    key={b.code}
+                    type="button"
+                    onClick={() => { setBankForm(prev => ({ ...prev, bank_code: b.code })); setBankDropdownOpen(false); }}
+                    className={`w-full px-3 py-2 flex items-center gap-2 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors text-left ${bankForm.bank_code === b.code ? 'bg-primary/10' : ''}`}
+                  >
+                    {b.logo ? <img src={b.logo} alt={b.name_th} className="w-5 h-5 rounded-full flex-shrink-0 object-contain" /> : <span className="w-5 h-5 rounded-full flex-shrink-0" style={{ backgroundColor: b.color }} />}
+                    <span className="text-sm text-gray-900 dark:text-white">{b.name_th}</span>
+                    <span className="text-xs text-gray-400 ml-auto">{b.code}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <FormInput
+            label="เลขที่บัญชี"
+            required
+            value={bankForm.account_number}
+            onChange={(e) => setBankForm(prev => ({ ...prev, account_number: e.target.value }))}
+            placeholder="xxx-x-xxxxx-x"
+          />
+          <FormInput
+            label="ชื่อบัญชี"
+            required
+            value={bankForm.account_name}
+            onChange={(e) => setBankForm(prev => ({ ...prev, account_name: e.target.value }))}
+            placeholder="ชื่อ-สกุล หรือ ชื่อบริษัท"
+          />
+        </div>
+      </Modal>
+
       {confirmDialog}
     </Layout>
   );

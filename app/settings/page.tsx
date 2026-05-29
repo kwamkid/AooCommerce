@@ -10,32 +10,14 @@ import Modal from '@/components/ui/Modal';
 import Tabs from '@/components/ui/Tabs';
 import { NoPermissionCard } from '@/components/ui/StateCard';
 import FormInput from '@/components/ui/FormInput';
+import Toggle from '@/components/ui/Toggle';
 import { useFormValidation } from '@/lib/useFormValidation';
 import { useAuth } from '@/lib/auth-context';
 import { useCompany } from '@/lib/company-context';
 import { can } from '@/lib/permissions';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { apiFetch } from '@/lib/api-client';
-import { Users, Plus, X, Save, Loader2, Tag, Edit2, Check, Trash2, AlertTriangle, Clock, Building2 } from 'lucide-react';
-
-interface DayRange {
-  minDays: number;
-  maxDays: number | null; // null = unlimited (e.g., 30+)
-  label: string;
-  color: string;
-}
-
-// 8 preset colors
-const colorPresets = [
-  { value: 'green', bg: 'bg-green-500', bgLight: 'bg-green-100', textLight: 'text-green-800', label: 'เขียว' },
-  { value: 'emerald', bg: 'bg-emerald-500', bgLight: 'bg-emerald-100', textLight: 'text-emerald-800', label: 'เขียวเข้ม' },
-  { value: 'yellow', bg: 'bg-yellow-500', bgLight: 'bg-yellow-100', textLight: 'text-yellow-800', label: 'เหลือง' },
-  { value: 'orange', bg: 'bg-orange-500', bgLight: 'bg-orange-100', textLight: 'text-orange-800', label: 'ส้ม' },
-  { value: 'red', bg: 'bg-red-500', bgLight: 'bg-red-100', textLight: 'text-red-800', label: 'แดง' },
-  { value: 'pink', bg: 'bg-pink-500', bgLight: 'bg-pink-100', textLight: 'text-pink-800', label: 'ชมพู' },
-  { value: 'purple', bg: 'bg-purple-500', bgLight: 'bg-purple-100', textLight: 'text-purple-800', label: 'ม่วง' },
-  { value: 'blue', bg: 'bg-blue-500', bgLight: 'bg-blue-100', textLight: 'text-blue-800', label: 'น้ำเงิน' },
-];
+import { Plus, X, Save, Loader2, Tag, Edit2, Check, Trash2, AlertTriangle, Clock, Building2 } from 'lucide-react';
 
 export default function SettingsPage() {
   const { userProfile } = useAuth();
@@ -43,11 +25,6 @@ export default function SettingsPage() {
   const { confirmDialog, confirm } = useConfirmDialog();
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-
-  // CRM Settings
-  const [dayRanges, setDayRanges] = useState<DayRange[]>([]);
-  const [loadingCRM, setLoadingCRM] = useState(true);
-  const [savingCRM, setSavingCRM] = useState(false);
 
   // Variation Types Settings
   const [variationTypes, setVariationTypes] = useState<{ id: string; name: string; sort_order: number; is_active: boolean }[]>([]);
@@ -73,132 +50,11 @@ export default function SettingsPage() {
   const [loadingBillExpiry, setLoadingBillExpiry] = useState(true);
   const [savingBillExpiry, setSavingBillExpiry] = useState(false);
 
-  // Fetch CRM settings + Variation Types + Bill Expiry (once)
+  // Fetch Variation Types + Bill Expiry (once)
   useFetchOnce(() => {
-    fetchCRMSettings();
     fetchVariationTypes();
     fetchBillExpiry();
   }, can(userProfile?.roles, 'settings.access'));
-
-  const fetchCRMSettings = async () => {
-    try {
-      setLoadingCRM(true);
-
-      const response = await apiFetch('/api/settings/crm');
-
-      const result = await response.json();
-      if (result.dayRanges) {
-        setDayRanges(result.dayRanges);
-      }
-    } catch (err) {
-      console.error('Error fetching CRM settings:', err);
-    } finally {
-      setLoadingCRM(false);
-    }
-  };
-
-  const handleSaveCRMSettings = async () => {
-    if (dayRanges.length === 0) {
-      setError('กรุณาเพิ่มอย่างน้อย 1 ช่วงวัน');
-      return;
-    }
-
-    setSavingCRM(true);
-    setError('');
-    setSuccess('');
-
-    try {
-      const response = await apiFetch('/api/settings/crm', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ dayRanges })
-      });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || 'ไม่สามารถบันทึกการตั้งค่าได้');
-      }
-
-      setSuccess('บันทึกการตั้งค่าสำเร็จ');
-      setTimeout(() => setSuccess(''), 3000);
-    } catch (err) {
-      console.error('Error saving CRM settings:', err);
-      if (err instanceof Error) {
-        setError(err.message);
-      } else {
-        setError('ไม่สามารถบันทึกการตั้งค่าได้');
-      }
-    } finally {
-      setSavingCRM(false);
-    }
-  };
-
-  // Recalculate minDays to ensure no overlap
-  const recalculateRanges = (ranges: DayRange[]): DayRange[] => {
-    // Sort by maxDays (null = infinity at the end)
-    const sorted = [...ranges].sort((a, b) => {
-      if (a.maxDays === null) return 1;
-      if (b.maxDays === null) return -1;
-      return a.maxDays - b.maxDays;
-    });
-
-    // Recalculate minDays
-    let nextMin = 0;
-    return sorted.map((range, index) => {
-      const newMinDays = nextMin;
-      nextMin = range.maxDays !== null ? range.maxDays + 1 : newMinDays + 100;
-
-      // Auto-generate label
-      const label = range.maxDays !== null
-        ? `${newMinDays}-${range.maxDays} วัน`
-        : `${newMinDays}+ วัน`;
-
-      return {
-        ...range,
-        minDays: newMinDays,
-        label
-      };
-    });
-  };
-
-  const handleAddRange = () => {
-    const lastRange = dayRanges[dayRanges.length - 1];
-    const newMaxDays = lastRange
-      ? (lastRange.maxDays !== null ? lastRange.maxDays + 7 : null)
-      : 3;
-
-    const newRange: DayRange = {
-      minDays: 0, // Will be recalculated
-      maxDays: newMaxDays,
-      label: '',
-      color: colorPresets[dayRanges.length % colorPresets.length].value
-    };
-
-    const updated = recalculateRanges([...dayRanges, newRange]);
-    setDayRanges(updated);
-  };
-
-  const handleRemoveRange = (index: number) => {
-    const updated = dayRanges.filter((_, i) => i !== index);
-    setDayRanges(recalculateRanges(updated));
-  };
-
-  const handleUpdateMaxDays = (index: number, value: string) => {
-    const updated = [...dayRanges];
-    updated[index].maxDays = value === '' ? null : Number(value);
-    setDayRanges(recalculateRanges(updated));
-  };
-
-  const handleUpdateColor = (index: number, color: string) => {
-    const updated = [...dayRanges];
-    updated[index].color = color;
-    setDayRanges(updated);
-  };
-
-  const getColorPreset = (color: string) => {
-    return colorPresets.find(c => c.value === color) || colorPresets[0];
-  };
 
   // --- Variation Types Functions ---
   const fetchVariationTypes = async () => {
@@ -397,13 +253,13 @@ export default function SettingsPage() {
       <Container size="full">
         <div>
           <h1 className="heading-1">ตั้งค่า</h1>
-          <p className="page-subtitle">จัดการช่วงวันติดตามลูกค้า ประเภทตัวเลือกสินค้า และการตั้งค่าระบบอื่นๆ</p>
+          <p className="page-subtitle">ตั้งค่าประเภทตัวเลือกสินค้า และอายุของบิล</p>
         </div>
         <Tabs
           activeKey="general"
           tabs={[
-            { key: 'general', label: 'ทั่วไป', href: '/settings' },
-            { key: 'company', label: 'ข้อมูลบริษัท', href: '/settings/company' },
+            { key: 'company', label: 'ข้อมูลร้านค้า', href: '/settings/company' },
+            { key: 'general', label: 'บิล และสินค้า', href: '/settings' },
           ]}
         />
 
@@ -421,280 +277,150 @@ export default function SettingsPage() {
           </div>
         )}
 
-        {/* CRM Settings */}
-        <Card padding="none">
-          <div className="flex items-center justify-between p-4 border-b border-gray-100 dark:border-slate-700">
-            <div className="flex items-center gap-2">
-              <Users className="w-5 h-5 text-primary" />
-              <h2 className="heading-3">ช่วงวันติดตามลูกค้า</h2>
-            </div>
-            <Button
-              variant="primary"
-              size="sm"
-              loading={savingCRM}
-              icon={!savingCRM ? <Save className="w-4 h-4" /> : undefined}
-              onClick={handleSaveCRMSettings}
-            >
-              บันทึก
-            </Button>
-          </div>
-
-          <div className="p-4">
-            <p className="text-sm text-gray-600 dark:text-slate-400 mb-4">
-              ระบุจำนวนวันสูงสุดของแต่ละช่วง ระบบจะคำนวณช่วงวันให้อัตโนมัติ (เว้นว่างสำหรับไม่จำกัด)
-            </p>
-
-            {loadingCRM ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="w-6 h-6 text-primary animate-spin" />
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {/* Header Row */}
-                <div className="grid grid-cols-12 gap-3 px-3 text-xs font-medium text-gray-500 dark:text-slate-400 uppercase">
-                  <div className="col-span-1">สี</div>
-                  <div className="col-span-2">ช่วงวัน</div>
-                  <div className="col-span-2">ถึงวันที่</div>
-                  <div className="col-span-6">ตัวอย่าง</div>
-                  <div className="col-span-1"></div>
-                </div>
-
-                {/* Day Ranges */}
-                {dayRanges.map((range, index) => {
-                  const preset = getColorPreset(range.color);
-                  return (
-                    <div key={index} className="grid grid-cols-12 gap-3 items-center p-3 bg-gray-50 dark:bg-slate-700/50 rounded-lg">
-                      {/* Color Picker */}
-                      <div className="col-span-1">
-                        <div className="relative group">
-                          <button className={`w-8 h-8 rounded-full ${preset.bg} cursor-pointer ring-2 ring-offset-2 ring-gray-200 dark:ring-slate-600 dark:ring-offset-slate-800 hover:ring-primary transition-all`} />
-                          <div className="absolute left-0 top-10 hidden group-hover:block p-2 bg-white dark:bg-slate-700 shadow-xl rounded-lg z-20">
-                            <div className="grid grid-cols-4 gap-1.5 w-[130px]">
-                              {colorPresets.map((c) => (
-                                <button
-                                  key={c.value}
-                                  onClick={() => handleUpdateColor(index, c.value)}
-                                  className={`w-7 h-7 rounded-full ${c.bg} hover:scale-110 transition-transform ${range.color === c.value ? 'ring-2 ring-offset-1 ring-gray-500' : ''}`}
-                                  title={c.label}
-                                />
-                              ))}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Calculated Range Display */}
-                      <div className="col-span-2">
-                        <span className="text-sm font-medium text-gray-700 dark:text-slate-300">
-                          {range.minDays} - {range.maxDays ?? '∞'}
-                        </span>
-                      </div>
-
-                      {/* Max Days Input */}
-                      <div className="col-span-2">
-                        <FormInput
-                          type="number"
-                          min={range.minDays}
-                          value={range.maxDays ?? ''}
-                          placeholder="∞"
-                          onChange={(e) => handleUpdateMaxDays(index, e.target.value)}
-                          size="sm"
-                        />
-                      </div>
-
-                      {/* Preview Badge */}
-                      <div className="col-span-6">
-                        <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${preset.bgLight} ${preset.textLight}`}>
-                          {range.label}
-                        </span>
-                      </div>
-
-                      {/* Remove Button */}
-                      <div className="col-span-1 text-right">
-                        <button
-                          onClick={() => handleRemoveRange(index)}
-                          className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                          title="ลบ"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-
-                {/* Add Button — dashed border (intentional custom) */}
-                <button
-                  onClick={handleAddRange}
-                  className="w-full flex items-center justify-center gap-2 p-3 border-2 border-dashed border-gray-300 dark:border-slate-600 rounded-lg text-gray-500 dark:text-slate-400 hover:border-primary hover:text-primary transition-colors"
-                >
-                  <Plus className="w-5 h-5" />
-                  เพิ่มช่วงวัน
-                </button>
-              </div>
-            )}
-          </div>
-        </Card>
-
         {/* Variation Types Settings */}
-        <Card padding="none">
-          <div className="flex items-center justify-between p-4 border-b border-gray-100 dark:border-slate-700">
-            <div className="flex items-center gap-2">
-              <Tag className="w-5 h-5 text-primary" />
-              <h2 className="heading-3">ประเภทตัวเลือกสินค้า</h2>
+        <Card padding="md">
+          <div className="flex items-center gap-2 mb-3">
+            <Tag className="w-5 h-5 text-primary" />
+            <h2 className="heading-3">ประเภทตัวเลือกสินค้า</h2>
+            <span className="text-sm text-gray-500 dark:text-slate-400 ml-auto">สำหรับ Variation Products เช่น ความจุ, รูปทรง, สี</span>
+          </div>
+
+          {loadingVT ? (
+            <div className="flex items-center justify-center py-6">
+              <Loader2 className="w-5 h-5 text-primary animate-spin" />
             </div>
-          </div>
-
-          <div className="p-4">
-            <p className="text-sm text-gray-600 dark:text-slate-400 mb-4">
-              จัดการประเภทตัวเลือกสำหรับ Variation Products เช่น ความจุ, รูปทรง, สี
-            </p>
-
-            {loadingVT ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="w-6 h-6 text-primary animate-spin" />
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {/* Existing Types */}
-                {variationTypes.map((vt) => (
-                  <div key={vt.id} className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-slate-700/50 rounded-lg">
-                    {editingVTId === vt.id ? (
-                      <>
-                        <FormInput
-                          type="text"
-                          value={editingVTName}
-                          onChange={(e) => setEditingVTName(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') handleUpdateVariationType(vt.id);
-                            if (e.key === 'Escape') { setEditingVTId(null); setEditingVTName(''); }
-                          }}
-                          containerClassName="flex-1"
-                          size="sm"
-                          autoFocus
-                        />
-                        <button
-                          onClick={() => handleUpdateVariationType(vt.id)}
-                          className="p-2 text-green-600 hover:bg-green-50 rounded-lg"
-                          title="บันทึก"
-                        >
-                          <Check className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => { setEditingVTId(null); setEditingVTName(''); }}
-                          className="p-2 text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg"
-                          title="ยกเลิก"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        <span className="flex-1 text-sm font-medium text-gray-700 dark:text-slate-300">{vt.name}</span>
-                        <button
-                          onClick={() => { setEditingVTId(vt.id); setEditingVTName(vt.name); }}
-                          className="p-2 text-gray-400 hover:text-primary hover:bg-yellow-50 rounded-lg transition-colors"
-                          title="แก้ไข"
-                        >
-                          <Edit2 className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteVariationType(vt.id, vt.name)}
-                          className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                          title="ลบ"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      </>
-                    )}
+          ) : (
+            <div className="flex flex-wrap items-center gap-2">
+              {variationTypes.map((vt) => (
+                editingVTId === vt.id ? (
+                  <div key={vt.id} className="inline-flex items-center gap-2">
+                    <FormInput
+                      type="text"
+                      value={editingVTName}
+                      onChange={(e) => setEditingVTName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleUpdateVariationType(vt.id);
+                        if (e.key === 'Escape') { setEditingVTId(null); setEditingVTName(''); }
+                      }}
+                      containerClassName="w-44"
+                      autoFocus
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleUpdateVariationType(vt.id)}
+                      aria-label="บันทึก"
+                      className="text-green-600 hover:text-green-700 transition-colors"
+                    >
+                      <Check className="w-5 h-5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setEditingVTId(null); setEditingVTName(''); }}
+                      aria-label="ยกเลิก"
+                      className="text-gray-400 hover:text-gray-600 dark:hover:text-slate-200 transition-colors"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
                   </div>
-                ))}
-
-                {/* Add New */}
-                <div className="flex items-center gap-3 pt-2">
-                  <FormInput
-                    type="text"
-                    value={newTypeName}
-                    onChange={(e) => setNewTypeName(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') handleAddVariationType(); }}
-                    placeholder="ชื่อประเภทตัวเลือกใหม่"
-                    containerClassName="flex-1"
-                    size="sm"
-                  />
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    loading={addingVT}
-                    icon={!addingVT ? <Plus className="w-4 h-4" /> : undefined}
-                    disabled={!newTypeName.trim()}
-                    onClick={handleAddVariationType}
+                ) : (
+                  <span
+                    key={vt.id}
+                    className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-gray-100 dark:bg-slate-700 text-sm text-gray-700 dark:text-slate-200"
                   >
-                    เพิ่ม
-                  </Button>
-                </div>
+                    <span>{vt.name}</span>
+                    <button
+                      type="button"
+                      onClick={() => { setEditingVTId(vt.id); setEditingVTName(vt.name); }}
+                      aria-label="แก้ไข"
+                      className="text-gray-400 hover:text-primary transition-colors"
+                    >
+                      <Edit2 className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteVariationType(vt.id, vt.name)}
+                      aria-label="ลบ"
+                      className="text-gray-400 hover:text-red-500 transition-colors"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </span>
+                )
+              ))}
+
+              {/* Add New — inline pill-style */}
+              <div className="inline-flex items-center gap-2">
+                <FormInput
+                  type="text"
+                  value={newTypeName}
+                  onChange={(e) => setNewTypeName(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleAddVariationType(); }}
+                  placeholder="เพิ่มประเภทใหม่"
+                  containerClassName="w-44"
+                />
+                <Button
+                  variant="primary"
+                  loading={addingVT}
+                  icon={!addingVT ? <Plus className="w-4 h-4" /> : undefined}
+                  disabled={!newTypeName.trim()}
+                  onClick={handleAddVariationType}
+                >
+                  เพิ่ม
+                </Button>
               </div>
-            )}
-          </div>
+            </div>
+          )}
         </Card>
 
         {/* Bill Expiry Settings */}
-        <Card padding="none">
-          <div className="flex items-center justify-between p-4 border-b border-gray-100 dark:border-slate-700">
-            <div className="flex items-center gap-2">
-              <Clock className="w-5 h-5 text-primary" />
-              <h2 className="heading-3">บิลหมดอายุ</h2>
+        <Card padding="md">
+          <div className="flex items-center gap-2 mb-3">
+            <Clock className="w-5 h-5 text-primary" />
+            <h2 className="heading-3">บิลหมดอายุ</h2>
+            <span className="text-sm text-gray-500 dark:text-slate-400 ml-auto">บิล manual order ที่ไม่ชำระจะถูกยกเลิกอัตโนมัติ</span>
+          </div>
+
+          {loadingBillExpiry ? (
+            <div className="flex items-center justify-center py-4">
+              <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
             </div>
-            <Button
-              variant="primary"
-              size="sm"
-              loading={savingBillExpiry}
-              icon={!savingBillExpiry ? <Save className="w-4 h-4" /> : undefined}
-              onClick={handleSaveBillExpiry}
-            >
-              บันทึก
-            </Button>
-          </div>
+          ) : (
+            <div className="flex items-center gap-4 flex-wrap">
+              <Toggle
+                checked={billExpiryEnabled}
+                onChange={setBillExpiryEnabled}
+                aria-label="เปิดใช้งานบิลหมดอายุ"
+              />
 
-          <div className="p-4">
-            <p className="text-sm text-gray-600 dark:text-slate-400 mb-4">
-              กำหนดวันหมดอายุบิลสำหรับ manual order ที่ยังไม่ชำระ เมื่อหมดอายุบิลจะถูกยกเลิกอัตโนมัติ
-            </p>
-
-            {loadingBillExpiry ? (
-              <div className="flex items-center justify-center py-4">
-                <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <label className="flex items-center gap-3 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={billExpiryEnabled}
-                    onChange={(e) => setBillExpiryEnabled(e.target.checked)}
-                    className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary"
+              {billExpiryEnabled ? (
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-gray-700 dark:text-slate-300">หมดอายุหลัง</span>
+                  <FormInput
+                    type="number"
+                    min={1}
+                    max={90}
+                    value={billExpiryDays}
+                    onChange={(e) => setBillExpiryDays(Math.max(1, Math.min(90, Number(e.target.value) || 1)))}
+                    postfix="วัน"
+                    containerClassName="w-28"
+                    className="text-center"
                   />
-                  <span className="text-sm font-medium text-gray-700 dark:text-slate-300">เปิดใช้งานบิลหมดอายุ</span>
-                </label>
+                </div>
+              ) : (
+                <span className="text-sm font-medium text-gray-500 dark:text-slate-400">ไม่มีวันหมดอายุ</span>
+              )}
 
-                {billExpiryEnabled && (
-                  <div className="flex items-center gap-2 ml-7">
-                    <span className="text-sm text-gray-600 dark:text-slate-400">หมดอายุหลัง</span>
-                    <FormInput
-                      type="number"
-                      min={1}
-                      max={90}
-                      value={billExpiryDays}
-                      onChange={(e) => setBillExpiryDays(Math.max(1, Math.min(90, Number(e.target.value) || 1)))}
-                      postfix="วัน"
-                      size="sm"
-                      containerClassName="w-28"
-                      className="text-center"
-                    />
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
+              <Button
+                variant="primary"
+                loading={savingBillExpiry}
+                icon={!savingBillExpiry ? <Save className="w-4 h-4" /> : undefined}
+                onClick={handleSaveBillExpiry}
+                className="ml-auto"
+              >
+                บันทึก
+              </Button>
+            </div>
+          )}
         </Card>
 
         {/* Danger Zone: Clear All Data */}
@@ -715,7 +441,6 @@ export default function SettingsPage() {
             </p>
             <Button
               variant="danger"
-              size="sm"
               icon={<Trash2 className="w-4 h-4" />}
               onClick={() => setShowClearModal(true)}
             >
@@ -743,7 +468,6 @@ export default function SettingsPage() {
               </p>
               <Button
                 variant="danger"
-                size="sm"
                 icon={<Trash2 className="w-4 h-4" />}
                 onClick={() => setShowDeleteCompanyModal(true)}
                 className="!bg-red-700 hover:!bg-red-800"
@@ -814,7 +538,6 @@ export default function SettingsPage() {
             value={clearConfirmText}
             onChange={(e) => setClearConfirmText(e.target.value)}
             placeholder="ลบทั้งหมด"
-            size="sm"
             required
             validate={(v) => v === 'ลบทั้งหมด' ? null : 'ต้องพิมพ์ตรงกัน'}
             autoFocus
@@ -882,7 +605,6 @@ export default function SettingsPage() {
               onChange={(e) => setDeleteConfirmText(e.target.value)}
               placeholder={currentCompany.name}
               autoComplete="off"
-              size="sm"
               required
               validate={(v) => v === currentCompany.name ? null : 'ชื่อบริษัทไม่ตรง'}
               autoFocus

@@ -45,7 +45,7 @@ export default function Tabs({ tabs, activeKey, onSelect, className }: TabsProps
       {tabs.filter(t => !t.hidden).map(tab => {
         const isActive = tab.key === activeKey;
         const activeColor = tab.activeColorClass ?? 'border-primary text-primary';
-        const cls = `flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${
+        const cls = `flex items-center gap-2 px-4 py-2.5 text-base font-medium border-b-2 whitespace-nowrap transition-colors ${
           isActive
             ? activeColor
             : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200'

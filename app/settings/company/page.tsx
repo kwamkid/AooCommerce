@@ -93,7 +93,7 @@ export default function CompanySettingsPage() {
         }
       }
     } catch {
-      setError('ไม่สามารถโหลดข้อมูลบริษัทได้');
+      setError('ไม่สามารถโหลดข้อมูลร้านค้าได้');
     } finally {
       setIsLoading(false);
     }
@@ -179,7 +179,7 @@ export default function CompanySettingsPage() {
     setError('');
 
     if (!formData.name.trim()) {
-      showToast('กรุณาระบุชื่อบริษัท', 'error');
+      showToast('กรุณาระบุชื่อร้านค้า', 'error');
       return;
     }
 
@@ -221,7 +221,7 @@ export default function CompanySettingsPage() {
 
       const companyResult = await companyRes.json();
 
-      if (!companyRes.ok) throw new Error(companyResult.error || 'ไม่สามารถบันทึกข้อมูลบริษัทได้');
+      if (!companyRes.ok) throw new Error(companyResult.error || 'ไม่สามารถบันทึกข้อมูลร้านค้าได้');
 
       if (logoFile) await handleUploadLogo();
 
@@ -241,23 +241,23 @@ export default function CompanySettingsPage() {
   if (!isOwnerOrAdmin && !isLoading) {
     return (
       <Layout>
-        <NoPermissionCard subtitle="เฉพาะเจ้าของและผู้ดูแลระบบเท่านั้นที่สามารถแก้ไขข้อมูลบริษัทได้" />
+        <NoPermissionCard subtitle="เฉพาะเจ้าของและผู้ดูแลระบบเท่านั้นที่สามารถแก้ไขข้อมูลร้านค้าได้" />
       </Layout>
     );
   }
 
   return (
     <Layout>
-      <Container size="full" gap="none">
+      <Container size="full">
         <div>
           <h1 className="heading-1">ตั้งค่า</h1>
-          <p className="page-subtitle">ตั้งค่าชื่อบริษัท ที่อยู่ เลขประจำตัวผู้เสียภาษี และโลโก้</p>
+          <p className="page-subtitle">ตั้งค่าชื่อร้านค้า ที่อยู่ เลขประจำตัวผู้เสียภาษี และโลโก้</p>
         </div>
         <Tabs
           activeKey="company"
           tabs={[
-            { key: 'general', label: 'ทั่วไป', href: '/settings' },
-            { key: 'company', label: 'ข้อมูลบริษัท', href: '/settings/company' },
+            { key: 'company', label: 'ข้อมูลร้านค้า', href: '/settings/company' },
+            { key: 'general', label: 'บิล และสินค้า', href: '/settings' },
           ]}
         />
       {isLoading ? (
@@ -276,7 +276,7 @@ export default function CompanySettingsPage() {
           <Container size="full">
               {/* Logo */}
               <Card padding="md">
-                <h3 className="heading-3 mb-4">โลโก้บริษัท</h3>
+                <h3 className="heading-3 mb-4">โลโก้ร้านค้า</h3>
                 <div className="flex items-center space-x-4">
                   {logoPreview || logoUrl ? (
                     <div className="relative">
@@ -416,7 +416,7 @@ export default function CompanySettingsPage() {
                   )}
                   {formData.businessType !== 'individual' && (
                     <div className="sm:col-span-2">
-                      <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">ชื่อบริษัท (ออกบิล/ใบกำกับภาษี)</label>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">ชื่อร้านค้า (ออกบิล/ใบกำกับภาษี)</label>
                       <input type="text" value={formData.taxCompanyName} onChange={(e) => setFormData({ ...formData, taxCompanyName: e.target.value })} className="w-full px-4 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary" placeholder="ชื่อตามจดทะเบียน (ถ้าต่างจากชื่อร้าน)" disabled={isSaving} />
                     </div>
                   )}

@@ -8,6 +8,7 @@ import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import { LoadingCard, NoPermissionCard } from '@/components/ui/StateCard';
 import Toggle from '@/components/ui/Toggle';
+import ListRow from '@/components/ui/ListRow';
 import { useAuth } from '@/lib/auth-context';
 import { can } from '@/lib/permissions';
 import { useFeatures } from '@/lib/features-context';
@@ -441,7 +442,7 @@ export default function PosTerminalsPage() {
 
             {/* ══════ Tab: Terminals ══════ */}
             {activeTab === 'terminals' && (
-              <div className="max-w-2xl">
+              <div>
                 <p className="data-text text-gray-500 dark:text-slate-400 mb-4">
                   แต่ละจุดขายเลือกผูกคลังสินค้าเพื่อตัดสต็อกได้
                 </p>
@@ -450,39 +451,43 @@ export default function PosTerminalsPage() {
                   {terminals.map((t) => {
                     return (
                       <div key={t.id} className="space-y-3">
-                        <Card padding="none" className={`overflow-hidden ${!t.is_active ? 'opacity-60' : ''}`}>
-                          <div className="flex items-center gap-3 p-4">
-                            <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
-                              <Monitor className="w-5 h-5 text-primary" />
+                        <ListRow
+                          inactive={!t.is_active}
+                          icon={
+                            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                              <Monitor className="w-4 h-4 text-primary" />
                             </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2">
-                                <p className="data-primary text-gray-900 dark:text-white truncate">{t.name}</p>
-                                {t.code && <span className="text-xs text-gray-400 dark:text-slate-500">({t.code})</span>}
-                              </div>
-                              <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-slate-400">
-                                {t.is_active ? (
-                                  <span className="text-green-600 dark:text-green-400">เปิดใช้งาน</span>
-                                ) : (
-                                  <span className="text-gray-400">ปิดใช้งาน</span>
-                                )}
-                                <span className="ml-1">
-                                  {t.warehouse ? (
-                                    <span className="inline-flex items-center gap-1">
-                                      <Warehouse className="w-3 h-3" />
-                                      {t.warehouse.name}
-                                    </span>
-                                  ) : (
-                                    <span className="text-gray-400">ไม่ตัดสต็อก</span>
-                                  )}
+                          }
+                          title={
+                            <span className="inline-flex items-center gap-2">
+                              <span className="truncate">{t.name}</span>
+                              {t.code && <span className="text-xs text-gray-400 dark:text-slate-500">({t.code})</span>}
+                            </span>
+                          }
+                          subtitle={
+                            <span className="inline-flex items-center gap-1.5">
+                              {t.is_active ? (
+                                <span className="text-green-600 dark:text-green-400">เปิดใช้งาน</span>
+                              ) : (
+                                <span className="text-gray-400">ปิดใช้งาน</span>
+                              )}
+                              {t.warehouse ? (
+                                <span className="inline-flex items-center gap-1">
+                                  <Warehouse className="w-3 h-3" />
+                                  {t.warehouse.name}
                                 </span>
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-2 flex-shrink-0">
+                              ) : (
+                                <span className="text-gray-400">ไม่ตัดสต็อก</span>
+                              )}
+                            </span>
+                          }
+                          actions={
+                            <>
                               <Toggle checked={t.is_active} onChange={() => handleToggleActive(t)} />
                               <button
                                 onClick={() => startEdit(t)}
                                 className="p-1.5 text-gray-400 hover:text-blue-600 transition-colors"
+                                aria-label="แก้ไข"
                               >
                                 <Edit2 className="w-4 h-4" />
                               </button>
@@ -490,12 +495,13 @@ export default function PosTerminalsPage() {
                                 onClick={async () => { const ok = await confirm({ title: 'ต้องการลบจุดขายนี้?', variant: 'danger' }); if (ok) handleDelete(t.id); }}
                                 disabled={deletingId === t.id}
                                 className="p-1.5 text-gray-400 hover:text-red-500 transition-colors disabled:opacity-50"
+                                aria-label="ลบ"
                               >
                                 {deletingId === t.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
                               </button>
-                            </div>
-                          </div>
-                        </Card>
+                            </>
+                          }
+                        />
 
                         {editingId === t.id && showForm && renderTerminalForm()}
                       </div>
@@ -519,7 +525,7 @@ export default function PosTerminalsPage() {
 
             {/* ══════ Tab: Payment Channels ══════ */}
             {activeTab === 'channels' && (
-              <div className="max-w-2xl">
+              <div>
                 <p className="data-text text-gray-500 dark:text-slate-400 mb-4">
                   เปิด/ปิดช่องทางที่ต้องการใช้ในหน้า POS
                 </p>
@@ -543,46 +549,41 @@ export default function PosTerminalsPage() {
                       const isEditing = editingChannelId === ch.id && showChannelForm;
                       return (
                         <div key={ch.id}>
-                          <Card padding="none" className={`overflow-hidden ${!ch.is_active ? 'opacity-60' : ''}`}>
-                            <div className="flex items-center gap-3 p-4">
-                              <div className="flex flex-col flex-shrink-0">
-                                <button
-                                  onClick={() => handleMoveChannel(ch.id, 'up')}
-                                  disabled={isFirst || reordering}
-                                  className="p-0.5 text-gray-300 hover:text-gray-600 dark:text-slate-400 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                                >
-                                  <ArrowUp className="w-4 h-4" />
-                                </button>
-                                <button
-                                  onClick={() => handleMoveChannel(ch.id, 'down')}
-                                  disabled={isLast || reordering}
-                                  className="p-0.5 text-gray-300 hover:text-gray-600 dark:text-slate-400 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                                >
-                                  <ArrowDown className="w-4 h-4" />
-                                </button>
+                          <ListRow
+                            inactive={!ch.is_active}
+                            reorder={{
+                              onMoveUp: () => handleMoveChannel(ch.id, 'up'),
+                              onMoveDown: () => handleMoveChannel(ch.id, 'down'),
+                              disableUp: isFirst,
+                              disableDown: isLast,
+                              disabled: reordering,
+                            }}
+                            icon={
+                              <div className="w-8 h-8 rounded-lg bg-green-500/10 flex items-center justify-center">
+                                <Icon className="w-4 h-4 text-green-600 dark:text-green-400" />
                               </div>
-                              <div className="w-10 h-10 rounded-lg bg-green-500/10 flex items-center justify-center flex-shrink-0">
-                                <Icon className="w-5 h-5 text-green-600 dark:text-green-400" />
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <p className="data-primary text-gray-900 dark:text-white truncate">{ch.name}</p>
-                                <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-slate-400">
-                                  {ch.is_active ? (
-                                    <span className="text-green-600 dark:text-green-400">เปิดใช้งาน</span>
-                                  ) : (
-                                    <span className="text-gray-400">ปิดใช้งาน</span>
-                                  )}
-                                  {ch.type === 'promptpay' && ch.config?.promptpay_id ? (
-                                    <span className="text-blue-500">QR: {String(ch.config.promptpay_id)}</span>
-                                  ) : null}
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-2 flex-shrink-0">
+                            }
+                            title={ch.name}
+                            subtitle={
+                              <span className="inline-flex items-center gap-2">
+                                {ch.is_active ? (
+                                  <span className="text-green-600 dark:text-green-400">เปิดใช้งาน</span>
+                                ) : (
+                                  <span className="text-gray-400">ปิดใช้งาน</span>
+                                )}
+                                {ch.type === 'promptpay' && ch.config?.promptpay_id ? (
+                                  <span className="text-blue-500">QR: {String(ch.config.promptpay_id)}</span>
+                                ) : null}
+                              </span>
+                            }
+                            actions={
+                              <>
                                 <Toggle checked={ch.is_active} onChange={() => handleToggleChannel(ch)} />
                                 {canEdit && (
                                   <button
                                     onClick={() => isEditing ? resetChannelForm() : startEditChannel(ch)}
                                     className={`p-1.5 transition-colors ${isEditing ? 'text-primary' : 'text-gray-400 hover:text-blue-600'}`}
+                                    aria-label={isEditing ? 'ยกเลิก' : 'แก้ไข'}
                                   >
                                     {isEditing ? <X className="w-4 h-4" /> : <Edit2 className="w-4 h-4" />}
                                   </button>
@@ -592,20 +593,21 @@ export default function PosTerminalsPage() {
                                     onClick={async () => { const ok = await confirm({ title: 'ต้องการลบช่องทางชำระเงินนี้?', variant: 'danger' }); if (ok) handleDeleteChannel(ch.id); }}
                                     disabled={deletingChannelId === ch.id}
                                     className="p-1.5 text-gray-400 hover:text-red-500 transition-colors disabled:opacity-50"
+                                    aria-label="ลบ"
                                   >
                                     {deletingChannelId === ch.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
                                   </button>
                                 )}
-                              </div>
-                            </div>
+                              </>
+                            }
+                          />
 
-                            {/* Inline edit form (expand inside card) */}
-                            {isEditing && (
-                              <div className="border-t border-gray-100 dark:border-slate-700 p-4">
-                                {renderChannelFormInline()}
-                              </div>
-                            )}
-                          </Card>
+                          {/* Inline edit form — rendered as a separate block under the row */}
+                          {isEditing && (
+                            <div className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg p-4 -mt-1">
+                              {renderChannelFormInline()}
+                            </div>
+                          )}
                         </div>
                       );
                     })}

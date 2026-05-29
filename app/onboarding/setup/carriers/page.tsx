@@ -3,26 +3,7 @@
 import { Truck, Check } from 'lucide-react';
 import WizardShell from '@/components/onboarding/WizardShell';
 import { useWizardState, WIZARD_KEYS } from '@/components/onboarding/wizard-storage';
-
-interface CarrierItem {
-  code: string;
-  name: string;
-  shippop: string | null;
-  popular: boolean;
-}
-
-const CARRIERS: CarrierItem[] = [
-  { code: 'thai_post', name: 'ไปรษณีย์ไทย / EMS', shippop: 'EMST', popular: true },
-  { code: 'kerry',     name: 'Kerry Express',      shippop: 'KEX',  popular: true },
-  { code: 'flash',     name: 'Flash Express',      shippop: 'FLE',  popular: true },
-  { code: 'j&t',       name: 'J&T Express',        shippop: 'JNT',  popular: true },
-  { code: 'scg',       name: 'SCG Express',        shippop: 'SCG',  popular: false },
-  { code: 'ninja',     name: 'Ninja Van',          shippop: 'NJV',  popular: false },
-  { code: 'best',      name: 'BEST Express',       shippop: 'BEST', popular: false },
-  { code: 'dhl',       name: 'DHL',                shippop: 'DHL',  popular: false },
-  { code: 'grab',      name: 'Grab Express',       shippop: null,   popular: false },
-  { code: 'lalamove',  name: 'Lalamove',           shippop: 'LLM',  popular: false },
-];
+import { CARRIER_PRESETS as CARRIERS, type CarrierPreset as CarrierItem } from '@/lib/constants/carriers';
 
 export default function OnboardingCarriersPage() {
   // Prefill: top 4 popular ticked. self/other always seeded server-side.

@@ -10,7 +10,11 @@ import ActionMenu, { type ActionItem } from '@/components/ui/ActionMenu';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import Container from '@/components/ui/Container';
 import Button from '@/components/ui/Button';
+import Toggle from '@/components/ui/Toggle';
+import Tabs from '@/components/ui/Tabs';
+import Card from '@/components/ui/Card';
 import { LoadingCard, NoPermissionCard } from '@/components/ui/StateCard';
+import { CARRIER_PRESETS } from '@/lib/constants/carriers';
 import { useAuth } from '@/lib/auth-context';
 import { can } from '@/lib/permissions';
 import { useToast } from '@/lib/toast-context';
@@ -38,7 +42,6 @@ interface Carrier {
 
 type ModalMode = 'create' | 'edit' | null;
 
-const SHIPPOP_COURIER_HINT = 'รหัสตามระบบ Shippop เช่น FLE, KEX, EMST, JNT';
 
 export default function CarriersSettingsPage() {
   const { userProfile, loading: authLoading } = useAuth();
@@ -46,6 +49,7 @@ export default function CarriersSettingsPage() {
 
   const [carriers, setCarriers] = useState<Carrier[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<'mine' | 'api'>('mine');
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(20);
@@ -71,7 +75,14 @@ export default function CarriersSettingsPage() {
       const res = await apiFetch('/api/carriers');
       if (!res.ok) throw new Error('โหลดข้อมูลไม่สำเร็จ');
       const json = await res.json();
-      setCarriers(json.carriers || []);
+      // Pin "self" (จัดส่งเอง) to the top — it's the default fallback every
+      // store uses, so it should be the first option in the list.
+      const all = (json.carriers || []) as Carrier[];
+      const sorted = [
+        ...all.filter(c => c.code === 'self'),
+        ...all.filter(c => c.code !== 'self'),
+      ];
+      setCarriers(sorted);
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'โหลดข้อมูลไม่สำเร็จ', 'error');
     } finally {
@@ -253,17 +264,11 @@ export default function CarriersSettingsPage() {
     {
       key: 'status',
       label: 'สถานะ',
-      headerClassName: 'w-[100px]',
-      render: (c) =>
-        c.is_active ? (
-          <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300">
-            เปิดใช้งาน
-          </span>
-        ) : (
-          <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600 dark:bg-slate-700 dark:text-slate-400">
-            ปิด
-          </span>
-        ),
+      headerClassName: 'w-[80px]',
+      stopPropagation: true,
+      render: (c) => (
+        <Toggle checked={c.is_active} onChange={() => handleToggleActive(c)} aria-label={c.is_active ? 'ปิดใช้งาน' : 'เปิดใช้งาน'} />
+      ),
     },
     {
       key: 'actions',
@@ -308,11 +313,41 @@ export default function CarriersSettingsPage() {
             </h1>
             <p className="page-subtitle">จัดการรายชื่อบริษัทขนส่งและลิงก์ติดตามพัสดุ</p>
           </div>
-          <Button variant="primary" icon={<Plus className="w-5 h-5" />} onClick={openCreate}>
-            เพิ่ม<span className="hidden md:inline">ขนส่ง</span>
-          </Button>
+          {activeTab === 'mine' && (
+            <Button variant="primary" icon={<Plus className="w-5 h-5" />} onClick={openCreate}>
+              เพิ่ม
+            </Button>
+          )}
         </div>
 
+        {/* Tabs */}
+        <Tabs
+          activeKey={activeTab}
+          onSelect={(k) => setActiveTab(k as 'mine' | 'api')}
+          tabs={[
+            { key: 'mine', label: 'ขนส่งของฉัน' },
+            { key: 'api', label: 'เชื่อมต่อ API' },
+          ]}
+        />
+
+        {activeTab === 'api' && (
+          <Card padding="lg">
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 rounded-lg bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center flex-shrink-0">
+                <Truck className="w-6 h-6 text-purple-600 dark:text-purple-400" />
+              </div>
+              <div className="flex-1">
+                <h2 className="heading-3 mb-1">เชื่อมต่อ Shippop</h2>
+                <p className="text-sm text-gray-500 dark:text-slate-400 mb-3">
+                  ใช้ API ของ Shippop จัดส่งและจองพัสดุได้อัตโนมัติ — เร็วๆ นี้
+                </p>
+                <span className="badge badge-sm badge-pill badge-gray">เร็วๆ นี้</span>
+              </div>
+            </div>
+          </Card>
+        )}
+
+        {activeTab === 'mine' && (<>
         {/* Search */}
         <div className="data-filter-card">
           <SearchInput value={searchTerm} onChange={setSearchTerm} placeholder="ค้นหาชื่อ / รหัส / Shippop courier" className="py-2" />
@@ -363,6 +398,7 @@ export default function CarriersSettingsPage() {
             </div>
           )}
         />
+        </>)}
 
         {/* Modal */}
         <Modal
@@ -395,6 +431,42 @@ export default function CarriersSettingsPage() {
           }
         >
           <div className="p-5 space-y-4">
+            {/* Preset picker — create mode only, hides codes already added */}
+            {modalMode === 'create' && (() => {
+              const existingCodes = new Set(carriers.map(c => c.code));
+              const available = CARRIER_PRESETS.filter(p => !existingCodes.has(p.code));
+              if (available.length === 0) return null;
+              return (
+                <div className="-mx-1">
+                  <div className="px-1 mb-2 text-sm text-gray-500 dark:text-slate-400">
+                    เลือกจาก preset (กดเพื่อกรอกฟอร์มอัตโนมัติ) หรือกรอกเองด้านล่าง
+                  </div>
+                  <div className="px-1 flex flex-wrap gap-1.5">
+                    {available.map(p => (
+                      <button
+                        key={p.code}
+                        type="button"
+                        onClick={() => {
+                          setFormName(p.name);
+                          setFormCode(p.code);
+                          setFormShippopCode(p.shippop || '');
+                          setFormTrackingUrl(p.tracking_url || '');
+                        }}
+                        className={`px-3 py-1.5 rounded-full text-sm transition-colors border ${
+                          formCode === p.code
+                            ? 'bg-primary/10 border-primary text-primary'
+                            : 'bg-white dark:bg-slate-700 border-gray-200 dark:border-slate-600 text-gray-700 dark:text-slate-200 hover:border-primary hover:text-primary'
+                        }`}
+                      >
+                        {p.name}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="mx-1 mt-4 border-t border-gray-200 dark:border-slate-700" />
+                </div>
+              );
+            })()}
+
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
                 ชื่อขนส่ง <span className="text-red-500">*</span>
@@ -441,19 +513,9 @@ export default function CarriersSettingsPage() {
               <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">ใส่ <code className="px-1 bg-gray-100 dark:bg-slate-700 rounded">{'{tracking}'}</code> ตรงตำแหน่งของเลขพัสดุ</p>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
-                Shippop courier code
-              </label>
-              <input
-                type="text"
-                value={formShippopCode}
-                onChange={e => setFormShippopCode(e.target.value.toUpperCase())}
-                placeholder="FLE, KEX, EMST..."
-                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary uppercase"
-              />
-              <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">{SHIPPOP_COURIER_HINT} (ไม่ระบุ = ไม่จองผ่าน Shippop)</p>
-            </div>
+            {/* Shippop courier code is no longer surfaced — preset auto-fills it,
+                manual entries leave it empty (= not booked via Shippop). To map a
+                manual carrier to Shippop later, go to the "เชื่อมต่อ API" tab. */}
 
             <label className="flex items-center gap-2 cursor-pointer">
               <input
