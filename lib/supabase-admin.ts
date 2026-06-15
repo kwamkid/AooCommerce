@@ -7,9 +7,13 @@ export { can } from '@/lib/permissions';
 export type { Capability } from '@/lib/permissions';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+// Prefer the new secret key (sb_secret_...). Falls back to the legacy
+// service_role key during the migration window. Both work simultaneously.
+// Docs: https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys
+const supabaseSecretKey =
+  process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
-export const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey, {
+export const supabaseAdmin = createClient(supabaseUrl, supabaseSecretKey, {
   auth: {
     autoRefreshToken: false,
     persistSession: false,

@@ -3,11 +3,18 @@
 import { createClient } from '@supabase/supabase-js';
 
 // Supabase configuration
+//
+// Prefer the new publishable key (sb_publishable_...). Falls back to the
+// legacy anon key during the migration window so existing deploys keep
+// working until Vercel/local envs are updated.
+// Docs: https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+const supabasePublishableKey =
+  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
 // Create Supabase client with proper auth configuration
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+export const supabase = createClient(supabaseUrl, supabasePublishableKey, {
   auth: {
     persistSession: true,
     storageKey: 'joolzjuice-auth',
