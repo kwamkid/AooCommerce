@@ -1,4 +1,4 @@
-// Path: app/pos/components/ProductGrid.tsx
+// Path: components/pos/ProductGrid.tsx
 'use client';
 
 import { Package2 } from 'lucide-react';

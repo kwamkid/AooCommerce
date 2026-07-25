@@ -1,4 +1,4 @@
-// Path: app/pos/components/CategoryTabs.tsx
+// Path: components/pos/CategoryTabs.tsx
 'use client';
 
 interface FilterItem {

@@ -1,4 +1,4 @@
-// Path: app/pos/components/CameraScanner.tsx
+// Path: components/pos/CameraScanner.tsx
 'use client';
 
 import { useEffect, useRef, useState, useCallback } from 'react';

@@ -1,4 +1,4 @@
-// Path: app/pos/components/BarcodeInput.tsx
+// Path: components/pos/BarcodeInput.tsx
 'use client';
 
 import { useRef, useEffect, useCallback, useState } from 'react';

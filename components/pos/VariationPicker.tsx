@@ -1,4 +1,4 @@
-// Path: app/pos/components/VariationPicker.tsx
+// Path: components/pos/VariationPicker.tsx
 'use client';
 
 import { formatPrice } from '@/lib/utils/format';

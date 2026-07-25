@@ -1,4 +1,4 @@
-// Path: app/pos/components/CartPanel.tsx
+// Path: components/pos/CartPanel.tsx
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
