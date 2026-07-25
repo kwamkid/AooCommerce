@@ -16,6 +16,44 @@
 
 ---
 
+## 2026-07-25 — Modal ปิดเองตอนลาก highlight ข้อความออกนอกกล่อง (backdrop close)
+
+**ที่เกิด**: [components/ui/Modal.tsx](components/ui/Modal.tsx) + [app/globals.css](app/globals.css) `.modal-backdrop` — กระทบทุก modal + ConfirmDialog (ห่อ Modal)
+**อาการ**: ลาก highlight ข้อความในกล่อง (จะ copy) แล้วเผลอปล่อยเมาส์นอกกล่อง → modal ปิดเอง งานที่กรอกหาย
+**Root cause**: browser ยิง `click` ที่ **common ancestor ของ pointerdown กับ pointerup** — กดลงในกล่องแล้วปล่อยที่ฉากหลัง → click ตกที่ overlay → `onClick={onClose}` บน backdrop ปิดทันที (จุดปล่อยเป็นตัวตัดสิน = ผิด)
+**วิธีแก้**:
+1. `.modal-backdrop` → `pointer-events-none` (visual ล้วน) เพื่อให้ event พื้นที่ว่างตกที่ `.modal-root` = currentTarget
+2. ย้ายการปิดไป `.modal-root` + pointerdown-guard: จำจาก `onPointerDown` ว่าเริ่มกดบน overlay จริง (`pressedOnOverlay`) แล้วปิดเฉพาะเมื่อ **ทั้งเริ่มกดและ click อยู่บน overlay** (`e.target === e.currentTarget && pressedOnOverlay.current`)
+**ป้องกัน regression**: backdrop close ทุกที่ต้องใช้ pointerdown-guard ห้ามผูก `onClick={onClose}` บน overlay เปลือยๆ — ยกขึ้นเป็น pattern กลาง [aoo-techstack/ui/MODAL.md](../aoo-techstack/ui/MODAL.md) + template
+
+---
+
+## 2026-07-25 — Security audit: อุดช่องโหว่ 10 จุด (cross-tenant leak, payment bypass, SSRF, IDOR)
+
+**ที่เกิด**: ตรวจทั้งระบบ (DB advisors + code audit 2 agents) หลัง migrate auth/RLS — เจอของจริงหลายจุด แก้แล้วทดสอบยืนยันทุกตัว
+
+**ช่องโหว่ + วิธีแก้** (เรียงความร้ายแรง):
+1. **[CRITICAL] View `products_with_variations` เป็น SECURITY DEFINER** → user ไม่เป็นสมาชิกบริษัทไหนเลยอ่านสินค้า+ต้นทุน 6,252 แถวข้าม 2 บริษัทผ่าน PostgREST ตรง (bypass RLS) — แก้: `alter view ... set (security_invoker = true)` (migration `fix_products_view_security_invoker`); ทดสอบ stranger เห็น 0. **บทเรียน: ทุก view ที่ client เข้าถึงได้ต้อง `security_invoker=true` ไม่งั้น RLS ไม่มีผล**
+2. **[CRITICAL] Beam webhook รับ "จ่ายแล้ว" ปลอม** — [beam/webhook/route.ts:62](app/api/beam/webhook/route.ts) เช็คลายเซ็นเฉพาะตอนมี header → ไม่ส่ง header = ข้ามการเช็ค ตั้ง order เป็น paid ได้ฟรี — แก้: บังคับต้องมีลายเซ็น + verify เสมอ + `timingSafeEqual` + reject เมื่อไม่มี config
+3. **[HIGH] `/api/image-proxy` SSRF** — ยิง `fetch(url)` จาก param ตรงๆ → อ่าน cloud metadata (169.254.169.254) ได้ — แก้: allowlist เฉพาะ host Google + บังคับ https + เช็ค content-type image + cap ขนาด (คงเปิด public เพราะใช้ใน `<img>` หน้า bill)
+4. **[HIGH] `/api/beam/test-connection` SSRF** — ยิง `fetch(webhook_url)` จาก body — แก้: เพิ่ม auth + capability + derive webhook_url จาก origin ตัวเอง (ไม่รับจาก body)
+5. **[HIGH] Storage buckets list ได้แบบ anon** — payment-slips/transfer/replenishment receipts/chat-media enumerate + โหลดได้หมดข้ามบริษัท — แก้: เปลี่ยน SELECT policy จาก `public` → `authenticated` (migration `storage_block_anon_listing_*`); public CDN read by exact path ยังได้ (bucket public=true) — **ทดสอบ canary transfer-receipts ก่อน rollout: read 200 / anon list []**
+6. **[HIGH] Shopee/TikTok webhook คำนวณลายเซ็นแต่ไม่ block** → payload ปลอมสั่ง auto credit note + คืนสต็อกได้ — แก้: `signatureValid=false` → ไม่ประมวลผล (แต่ยัง ack 200 กัน retry/disable; cron sync-all ทุก 15 นาทีเป็น safety net)
+7. **[MEDIUM] payment-channels GET คืน Beam secret ให้ทุก member** — แก้: mask `api_key/secret_key/webhook_secret/merchant_id` ถ้าไม่มี capability `masterdata.payment_channels`
+8. **[MEDIUM] IDOR tag routes** — `customers/[id]/tags` + `chat/contacts/[id]/tags` ไม่เช็ค company → เขียนทับ tag ข้ามบริษัทได้ — แก้: verify ownership + filter tag_ids เป็นของบริษัท
+9. **[MEDIUM] Cron 4 route fail-open** — `if (cronSecret)` → ถ้า env ไม่ตั้ง = เปิดโล่ง — แก้: fail-closed `if (!cronSecret || ...)` ทั้ง 4
+
+**ป้องกัน regression**:
+- ⚠️ **ต้องตั้ง `CRON_SECRET` ใน Vercel prod** ไม่งั้น cron ยิงไม่ผ่าน (fail-closed แล้ว)
+- ทุก view ใหม่ที่ client แตะ → `security_invoker=true` เสมอ
+- ทุก webhook → verify ก่อนประมวลผล (ack 200 ได้ แต่ห้ามทำงานถ้าลายเซ็นไม่ผ่าน)
+- ทุก route ที่รับ `:id` → เช็ค `.eq('company_id', auth.companyId)` ก่อน mutate (service role bypass RLS)
+- E2E `scripts/test-onboarding-flow.mjs` ผ่าน 16/16 หลังแก้ (ไม่มี regression)
+
+**ยังไม่แก้ (รอ decision — ต้องมี rate-limit infra)**: supplier-portal รหัส 30-bit + ไม่มี rate limit (brute-force ได้), consignment portal PIN เช็คแค่ frontend (token 122-bit ยัง mitigate อยู่), OAuth callback state ไม่ bind session (CSRF), debug endpoints (`shopee/test-order-detail`) ยังอยู่ prod
+
+---
+
 ## 2026-05-28 — สินค้า variation: แยก "ลบ" vs "ปิด" ด้วย deleted_at column ใหม่ (overwrite ของ fix ก่อนหน้านี้)
 
 **ที่เกิด**: หน้า edit `/products/[id]/edit` + list `/products` + RPC `get_product_for_edit` + view `products_with_variations`

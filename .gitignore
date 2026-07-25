@@ -51,6 +51,8 @@ supabase/migrations/
 # project notes (local only)
 todo.md
 knowledge.md
+tbc.md
+memo/
 
 # Claude Code
 CLAUDE.md
