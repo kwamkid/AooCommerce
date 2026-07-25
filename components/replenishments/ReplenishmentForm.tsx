@@ -6,8 +6,10 @@ import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
 import {
   Loader2, Save, Settings, ChevronDown, Clock, CheckCircle, MapPin, FileText, Receipt,
-  QrCode, Copy, Camera, Link2, AlertTriangle, Eye, Printer,
+  QrCode, Copy, Camera, Link2, AlertTriangle, Eye, Printer, Store,
 } from 'lucide-react';
+import FormSelect from '@/components/ui/FormSelect';
+import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import NumberInput from '@/components/ui/NumberInput';
 import ProductImageThumb from '@/components/ui/ProductImageThumb';
@@ -107,6 +109,8 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [selectedCustomerId, setSelectedCustomerId] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [counters, setCounters] = useState<{ id: string; name: string }[]>([]);
+  const [selectedCounterId, setSelectedCounterId] = useState('');
   const [notes, setNotes] = useState('');
   const [internalNotes, setInternalNotes] = useState('');
   const [items, setItems] = useState<ReplenishmentItem[]>([]);
@@ -194,6 +198,20 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
       .catch(() => {});
   }, []);
 
+  // Branch counters of the selected customer (destination) — hidden when the customer has none.
+  // Keep an already-loaded counter (edit mode) if still valid, else default to the first branch.
+  useEffect(() => {
+    if (!selectedCustomerId) { setCounters([]); setSelectedCounterId(''); return; }
+    apiFetch(`/api/counters?customer_id=${selectedCustomerId}`)
+      .then(r => r.json())
+      .then(d => {
+        const list: { id: string; name: string }[] = d.counters || [];
+        setCounters(list);
+        setSelectedCounterId(prev => (prev && list.some(c => c.id === prev)) ? prev : (list[0]?.id || ''));
+      })
+      .catch(() => setCounters([]));
+  }, [selectedCustomerId]);
+
   useEffect(() => {
     {
       setLoadingProducts(true);
@@ -259,6 +277,7 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
         setInternalNotes(rp.internal_notes || '');
         setSelectedCustomerId(rp.customer?.id || '');
         setSelectedCustomer(rp.customer || null);
+        setSelectedCounterId(rp.counter_id || '');
 
         // Prefill delivery fields from customer's shipping_address (same as create mode)
         if (rp.customer?.id) {
@@ -493,6 +512,7 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
         body: JSON.stringify({
           customer_id: selectedCustomerId,
           warehouse_id: warehouseId || null,
+          counter_id: selectedCounterId || null,
           notes,
           internal_notes: internalNotes,
           items: items.map(i => ({ ...i, sku: i.sku })),
@@ -525,6 +545,7 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
           action: 'update',
           notes, internal_notes: internalNotes,
           customer_id: selectedCustomerId,
+          counter_id: selectedCounterId || null,
           total_amount: totalAmount,
           items: items.map(i => ({ ...i, sku: i.sku })),
         }),
@@ -739,6 +760,23 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
           taxAddress: [selectedCustomer.billing_address, selectedCustomer.billing_district, selectedCustomer.billing_amphoe, selectedCustomer.billing_province, selectedCustomer.billing_postal_code].filter(Boolean).join(' '),
         } : undefined}
       />
+
+      {/* Destination branch counter — only when this customer has branch counters */}
+      {counters.length > 0 && (
+        <Card>
+          <label className="field-label">สาขา / จุดขายปลายทาง</label>
+          <div className="max-w-sm">
+            <FormSelect
+              value={selectedCounterId}
+              onChange={setSelectedCounterId}
+              options={counters.map(c => ({ id: c.id, label: c.name }))}
+              icon={<Store className="w-4 h-4" />}
+              disabled={isDisabled}
+            />
+          </div>
+          <p className="helper-text text-gray-500 mt-1.5">สินค้าที่เติมจะเข้าสต็อกของสาขานี้</p>
+        </Card>
+      )}
 
       {/* 2-Column Layout */}
       <div className="flex flex-wrap gap-4 items-start">

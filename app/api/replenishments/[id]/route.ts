@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
 import { shipToTransit, receiveFromTransit, unreserveStock, cancelFromShipped, reserveStock, deductStock } from '@/lib/stock-service';
+import { getConsignmentDestinationWarehouse } from '@/lib/consignment-warehouse';
 
 // GET /api/replenishments/[id]
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -287,19 +288,15 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       // === Update consignment warehouse inventory + clear in_transit ===
       const { data: replenishment } = await supabaseAdmin
         .from('replenishments')
-        .select('customer_id, company_id, replenishment_number, warehouse_id, total_amount')
+        .select('customer_id, company_id, replenishment_number, warehouse_id, total_amount, counter_id')
         .eq('id', id)
         .single();
 
       if (replenishment) {
-        // Find consignment warehouse for this dealer
-        const { data: consignWarehouse } = await supabaseAdmin
-          .from('warehouses')
-          .select('id')
-          .eq('company_id', replenishment.company_id)
-          .eq('customer_id', replenishment.customer_id)
-          .eq('warehouse_type', 'consignment')
-          .single();
+        // Find destination warehouse (branch counter's warehouse, or customer-level consignment)
+        const consignWarehouse = await getConsignmentDestinationWarehouse(
+          supabaseAdmin, replenishment.company_id, replenishment.customer_id, replenishment.counter_id
+        );
 
         if (consignWarehouse) {
           for (const item of (allItems || []) as {
@@ -452,12 +449,28 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       if (existing.status !== 'pending') {
         return NextResponse.json({ error: 'สามารถแก้ไขได้เฉพาะสถานะ "ที่ต้องจัดส่ง" เท่านั้น' }, { status: 400 });
       }
-      const { notes, internal_notes, items, customer_id, total_amount } = body;
+      const { notes, internal_notes, items, customer_id, total_amount, counter_id } = body;
       const updateData: Record<string, unknown> = { updated_at: new Date().toISOString() };
       if (notes !== undefined) updateData.notes = notes || null;
       if (internal_notes !== undefined) updateData.internal_notes = internal_notes || null;
       if (customer_id) updateData.customer_id = customer_id;
       if (total_amount !== undefined) updateData.total_amount = total_amount;
+      if (counter_id !== undefined) {
+        if (counter_id) {
+          const { data: counter } = await supabaseAdmin
+            .from('consignment_counters')
+            .select('id')
+            .eq('id', counter_id)
+            .eq('company_id', auth.companyId)
+            .eq('customer_id', customer_id || existing.customer_id)
+            .eq('is_active', true)
+            .maybeSingle();
+          if (!counter) {
+            return NextResponse.json({ error: 'ไม่พบสาขาของลูกค้ารายนี้' }, { status: 400 });
+          }
+        }
+        updateData.counter_id = counter_id || null;
+      }
 
       await supabaseAdmin
         .from('replenishments')

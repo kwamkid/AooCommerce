@@ -109,7 +109,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { customer_id, warehouse_id, notes, internal_notes, items } = body;
+    const { customer_id, warehouse_id, counter_id, notes, internal_notes, items } = body;
 
     if (!customer_id) {
       return NextResponse.json({ error: 'customer_id is required' }, { status: 400 });
@@ -128,6 +128,21 @@ export async function POST(request: NextRequest) {
 
     if (!customer || customer.customer_type !== 'department_store') {
       return NextResponse.json({ error: 'Customer must be department_store type' }, { status: 400 });
+    }
+
+    // Validate destination counter (branch) belongs to this customer
+    if (counter_id) {
+      const { data: counter } = await supabaseAdmin
+        .from('consignment_counters')
+        .select('id')
+        .eq('id', counter_id)
+        .eq('company_id', auth.companyId)
+        .eq('customer_id', customer_id)
+        .eq('is_active', true)
+        .maybeSingle();
+      if (!counter) {
+        return NextResponse.json({ error: 'ไม่พบสาขาของลูกค้ารายนี้' }, { status: 400 });
+      }
     }
 
     // Calculate total
@@ -150,6 +165,7 @@ export async function POST(request: NextRequest) {
         department_order_number: numberData,
         customer_id,
         warehouse_id: warehouse_id || null,
+        counter_id: counter_id || null,
         status: 'draft',
         notes: notes || null,
         internal_notes: internal_notes || null,

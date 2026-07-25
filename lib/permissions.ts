@@ -17,6 +17,7 @@ const ADMIN_PLUS = ['owner','admin']                                as const;  /
 const ADMIN      = ['owner','admin','manager']                      as const;  // standard admin tier
 const STAFF      = ['owner','admin','manager','warehouse']          as const;  // + warehouse ops
 const SALES_TEAM = ['owner','admin','manager','sales']              as const;  // sales actions
+const PC_RECORD  = ['owner','admin','manager','pc']                 as const;  // counter sales entry
 const CRM_VIEW   = ['owner','admin','manager','sales','account']    as const;  // read-side: also accounting
 const FINANCE    = ['owner','admin','manager','account']            as const;  // accounting actions
 
@@ -47,6 +48,7 @@ export const CAPABILITIES = {
   'masterdata.chat_channels':    ADMIN,         // LINE, Facebook, chat accounts
   'masterdata.brands':           ADMIN,
   'masterdata.categories':       ADMIN,
+  'masterdata.variation_types':  ADMIN,
 
   // Inventory
   'inventory.view':              STAFF,
@@ -76,6 +78,10 @@ export const CAPABILITIES = {
 
   // POS
   'pos.manage':                  ADMIN,         // terminals + POS order management
+
+  // Counter sales (PC ประจำจุดขายในห้าง — informational overlay, ไม่แตะ order/สต็อกจริง)
+  'counter.record':              PC_RECORD,     // บันทึก/แก้ยอดขายรายวันของสาขาที่ถูก assign
+  'counter.manage':              ADMIN,         // จัดการสาขา (counter) + assign PC
 
   // Onboarding (initial setup wizard)
   'onboarding.manage':           ADMIN,

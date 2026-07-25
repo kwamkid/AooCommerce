@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
 import { deductStock } from '@/lib/stock-service';
+import { getCustomerConsignmentWarehouse } from '@/lib/consignment-warehouse';
 
 // GET — List consignment reports with filters
 export async function GET(request: NextRequest) {
@@ -19,13 +20,7 @@ export async function GET(request: NextRequest) {
       const custId = searchParams.get('customer_id')!;
 
       // Find consignment warehouse
-      const { data: warehouse } = await supabaseAdmin
-        .from('warehouses')
-        .select('id')
-        .eq('company_id', companyId)
-        .eq('customer_id', custId)
-        .eq('warehouse_type', 'consignment')
-        .single();
+      const warehouse = await getCustomerConsignmentWarehouse(supabaseAdmin, companyId, custId);
 
       if (!warehouse) {
         return NextResponse.json({ stock: [], error: 'ไม่พบคลังฝากขาย' });

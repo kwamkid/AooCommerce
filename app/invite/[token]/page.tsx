@@ -33,6 +33,7 @@ const ROLE_LABELS: Record<string, string> = {
   warehouse: 'คลังสินค้า',
   sales: 'แอดมินออนไลน์',
   cashier: 'แคชเชียร์',
+  pc: 'PC ประจำห้าง',
 };
 
 const formatRoleLabels = (roles?: string[]) => {

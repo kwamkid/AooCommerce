@@ -195,7 +195,7 @@ export function canManageInventory(roles?: string[]): boolean {
   return roles.includes('owner') || roles.includes('admin') || roles.includes('manager') || roles.includes('warehouse');
 }
 
-const VALID_ROLES = ['owner', 'admin', 'manager', 'account', 'warehouse', 'sales', 'cashier'];
+const VALID_ROLES = ['owner', 'admin', 'manager', 'account', 'warehouse', 'sales', 'cashier', 'pc'];
 const EXCLUSIVE_ROLES = ['owner', 'admin'];
 
 /**

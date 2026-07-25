@@ -16,7 +16,7 @@ import {
   Users, Mail, UserPlus, Shield, Trash2, Edit2, X, Check,
   Loader2, CheckCircle, Clock, Copy, Phone,
   Plus, Link2, Monitor, DollarSign,
-  Warehouse, ShieldCheck, Headset, CreditCard, Calculator, Package, UserCog,
+  Warehouse, ShieldCheck, Headset, CreditCard, Calculator, Package, UserCog, Store,
 } from 'lucide-react';
 import Checkbox from '@/components/ui/Checkbox';
 import Modal from '@/components/ui/Modal';
@@ -60,6 +60,7 @@ const ROLE_OPTIONS: { value: string; label: string; icon: React.ElementType; des
   { value: 'cashier', label: 'แคชเชียร์', icon: CreditCard, desc: 'POS + สต็อกสาขา' },
   { value: 'account', label: 'บัญชี', icon: Calculator, desc: 'บัญชี รายงาน ดูคำสั่งซื้อ' },
   { value: 'warehouse', label: 'คลังสินค้า', icon: Package, desc: 'จัดส่ง จัดการคลัง แก้ไขแบบชุด' },
+  { value: 'pc', label: 'PC ประจำห้าง', icon: Store, desc: 'บันทึกยอดขายรายวันของสาขาห้างที่ได้รับมอบหมาย' },
 ];
 
 // Roles that are exclusive (cannot combine with others)
@@ -73,6 +74,7 @@ const ROLE_LABELS: Record<string, string> = {
   warehouse: 'คลังสินค้า',
   sales: 'แอดมินออนไลน์',
   cashier: 'แคชเชียร์',
+  pc: 'PC ประจำห้าง',
 };
 
 const ROLE_COLORS: Record<string, string> = {
@@ -83,6 +85,7 @@ const ROLE_COLORS: Record<string, string> = {
   warehouse: 'bg-orange-100 text-orange-800 border-orange-200',
   sales: 'bg-cyan-100 text-cyan-800 border-cyan-200',
   cashier: 'bg-amber-100 text-amber-800 border-amber-200',
+  pc: 'bg-teal-100 text-teal-800 border-teal-200',
 };
 
 interface EditMemberForm {

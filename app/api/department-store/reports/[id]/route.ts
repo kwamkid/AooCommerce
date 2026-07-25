@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
 import { addStock, deductStock } from '@/lib/stock-service';
+import { getCustomerConsignmentWarehouse } from '@/lib/consignment-warehouse';
 import { createStatementForReport } from '@/lib/statement-service';
 
 // GET — Fetch single report detail with items, customer, branch
@@ -91,13 +92,9 @@ export async function PUT(
       }
 
       // 1. Find customer's consignment warehouse
-      const { data: warehouse } = await supabaseAdmin
-        .from('warehouses')
-        .select('id')
-        .eq('company_id', companyId)
-        .eq('customer_id', report.customer_id)
-        .eq('warehouse_type', 'consignment')
-        .single();
+      const warehouse = await getCustomerConsignmentWarehouse(
+        supabaseAdmin, companyId, report.customer_id
+      );
 
       // 2. Deduct stock from consignment warehouse
       if (warehouse) {
@@ -252,13 +249,9 @@ export async function PUT(
       const voidReason = 'ยกเลิกยอดขายห้าง';
 
       // 1. Return stock to consignment warehouse
-      const { data: warehouse } = await supabaseAdmin
-        .from('warehouses')
-        .select('id')
-        .eq('company_id', companyId)
-        .eq('customer_id', report.customer_id)
-        .eq('warehouse_type', 'consignment')
-        .single();
+      const warehouse = await getCustomerConsignmentWarehouse(
+        supabaseAdmin, companyId, report.customer_id
+      );
 
       if (warehouse) {
         const { data: reportItems } = await supabaseAdmin

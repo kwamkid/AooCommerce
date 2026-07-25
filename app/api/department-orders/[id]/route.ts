@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
 import { shipToTransit, receiveFromTransit, cancelFromShipped, deductStock, unreserveStock, reserveStock } from '@/lib/stock-service';
+import { getConsignmentDestinationWarehouse } from '@/lib/consignment-warehouse';
 
 // GET /api/department-orders/[id]
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -124,7 +125,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     // Verify ownership
     const { data: existing } = await supabaseAdmin
       .from('department_orders')
-      .select('id, status, customer_id, warehouse_id, department_order_number, company_id, total_amount')
+      .select('id, status, customer_id, warehouse_id, counter_id, department_order_number, company_id, total_amount')
       .eq('id', id)
       .eq('company_id', auth.companyId)
       .single();
@@ -292,13 +293,9 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         .eq('id', id);
 
       // Update consignment warehouse inventory + clear in_transit
-      const { data: consignWarehouse } = await supabaseAdmin
-        .from('warehouses')
-        .select('id')
-        .eq('company_id', existing.company_id)
-        .eq('customer_id', existing.customer_id)
-        .eq('warehouse_type', 'consignment')
-        .single();
+      const consignWarehouse = await getConsignmentDestinationWarehouse(
+        supabaseAdmin, existing.company_id, existing.customer_id, existing.counter_id
+      );
 
       if (consignWarehouse && existing.warehouse_id) {
         for (const item of (allItems || []) as {

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany, isAdminRole, can } from '@/lib/supabase-admin';
 import { getStockConfig } from '@/lib/stock-utils';
 import { adjustStock } from '@/lib/stock-service';
+import { getCustomerConsignmentWarehouse } from '@/lib/consignment-warehouse';
 
 // Fallback: legacy query when views/RPC not yet created
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -134,13 +135,7 @@ export async function GET(request: NextRequest) {
     // Resolve dealer_id → consignment warehouse_id (if filtering by dealer)
     let dealerWarehouseId: string | null = null;
     if (dealerId) {
-      const { data: dw } = await supabaseAdmin
-        .from('warehouses')
-        .select('id')
-        .eq('company_id', auth.companyId!)
-        .eq('customer_id', dealerId)
-        .eq('warehouse_type', 'consignment')
-        .single();
+      const dw = await getCustomerConsignmentWarehouse(supabaseAdmin, auth.companyId!, dealerId);
       dealerWarehouseId = dw?.id ?? null;
     }
 

@@ -1,6 +1,7 @@
 // Public API for consignment dealer portal — no authentication required
 import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
+import { getCustomerConsignmentWarehouse } from '@/lib/consignment-warehouse';
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -44,13 +45,9 @@ export async function GET(request: NextRequest) {
       .single();
 
     // Find consignment warehouse for this dealer
-    const { data: consignWarehouse } = await supabaseAdmin
-      .from('warehouses')
-      .select('id')
-      .eq('company_id', companyId)
-      .eq('customer_id', customer.id)
-      .eq('warehouse_type', 'consignment')
-      .single();
+    const consignWarehouse = await getCustomerConsignmentWarehouse(
+      supabaseAdmin, companyId, customer.id
+    );
 
     // Fetch stock from inventory (consignment warehouse)
     const stockRows = consignWarehouse

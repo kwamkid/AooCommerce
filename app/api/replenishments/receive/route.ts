@@ -2,6 +2,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
 import { receiveFromTransit } from '@/lib/stock-service';
+import { getConsignmentDestinationWarehouse } from '@/lib/consignment-warehouse';
 import { isAllowedImageUpload } from '@/lib/upload-validation';
 
 const supabaseAdmin = createClient(
@@ -209,13 +210,9 @@ export async function POST(request: NextRequest) {
     // If all match (auto-received), add stock to consignment warehouse + clear in_transit
     if (allMatch) {
       try {
-        const { data: consignWarehouse } = await supabaseAdmin
-          .from('warehouses')
-          .select('id')
-          .eq('company_id', replenishment.company_id)
-          .eq('customer_id', replenishment.customer_id)
-          .eq('warehouse_type', 'consignment')
-          .single();
+        const consignWarehouse = await getConsignmentDestinationWarehouse(
+          supabaseAdmin, replenishment.company_id, replenishment.customer_id, replenishment.counter_id
+        );
 
         if (consignWarehouse) {
           const allItems = replenishment.items as {

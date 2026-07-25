@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation';
 import { useCompany } from '@/lib/company-context';
 import CustomerSelectionCard, { type DeliveryFields, type ShippingAddress } from '@/components/ui/CustomerSelectionCard';
 import { useCustomerPrefill } from '@/lib/useCustomerPrefill';
-import { Loader2, Save, Warehouse } from 'lucide-react';
+import { Loader2, Save, Warehouse, Store } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import FormSelect from '@/components/ui/FormSelect';
 import ItemsTable, { type TableItem } from '@/components/ui/ItemsTable';
@@ -122,6 +122,8 @@ export default function DealerOrderForm({
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [selectedCustomerId, setSelectedCustomerId] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [counters, setCounters] = useState<{ id: string; name: string }[]>([]);
+  const [selectedCounterId, setSelectedCounterId] = useState('');
   const [gpContext, setGpContext] = useState<GpResolverContext | null>(null);
   const [loadingGp, setLoadingGp] = useState(false);
   const [flowType, setFlowType] = useState<'w_cash' | 'w_credit'>(defaultFlowType || 'w_cash');
@@ -221,6 +223,19 @@ export default function DealerOrderForm({
   }, []);
 
   // Consignment: load dealer inventory when customer changes
+  // Branch counters of the selected customer (department mode destination)
+  useEffect(() => {
+    if (!isDepartment || !selectedCustomerId) { setCounters([]); setSelectedCounterId(''); return; }
+    apiFetch(`/api/counters?customer_id=${selectedCustomerId}`)
+      .then(r => r.json())
+      .then(d => {
+        const list: { id: string; name: string }[] = d.counters || [];
+        setCounters(list);
+        setSelectedCounterId(prev => (prev && list.some(c => c.id === prev)) ? prev : (list[0]?.id || ''));
+      })
+      .catch(() => setCounters([]));
+  }, [isDepartment, selectedCustomerId]);
+
   useEffect(() => {
     if (!isConsignment || !selectedCustomerId) { setDealerStockMap({}); return; }
     apiFetch(`/api/inventory?dealer_id=${selectedCustomerId}&limit=9999`)
@@ -272,6 +287,7 @@ export default function DealerOrderForm({
         setOrderDiscountType(discType);
         setOrderDiscount(parseFloat(order.discount_amount) || 0);
         if (order.warehouse_id) setSelectedWarehouseId(order.warehouse_id);
+        if (order.counter_id) setSelectedCounterId(order.counter_id);
 
         // Set customer
         if (order.customer) {
@@ -567,6 +583,7 @@ export default function DealerOrderForm({
           body: JSON.stringify({
             customer_id: selectedCustomerId,
             warehouse_id: selectedWarehouseId || null,
+            counter_id: selectedCounterId || null,
             notes,
             internal_notes: internalNotes,
             items: items.map(i => ({
@@ -791,6 +808,23 @@ export default function DealerOrderForm({
         taxInvoiceRequested={taxInvoiceRequested}
         onTaxInvoiceRequestedChange={setTaxInvoiceRequested}
       />
+
+      {/* Destination branch counter — only when this department store has branch counters */}
+      {isDepartment && counters.length > 0 && (
+        <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4">
+          <label className="field-label">สาขา / จุดขายปลายทาง</label>
+          <div className="max-w-sm">
+            <FormSelect
+              value={selectedCounterId}
+              onChange={setSelectedCounterId}
+              options={counters.map(c => ({ id: c.id, label: c.name }))}
+              icon={<Store className="w-4 h-4" />}
+              disabled={isReadOnly}
+            />
+          </div>
+          <p className="helper-text text-gray-500 mt-1.5">สินค้าที่ส่งจะเข้าสต็อกของสาขานี้</p>
+        </div>
+      )}
 
       {/* 2-column: Products+Notes (left) + Summary (right) */}
       <div className="flex flex-wrap gap-4 items-start">

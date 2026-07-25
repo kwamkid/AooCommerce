@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
 import { deductStock, addStock } from '@/lib/stock-service';
+import { getCustomerConsignmentWarehouse } from '@/lib/consignment-warehouse';
 
 // GET — Fetch single report detail with items, customer, batch info
 export async function GET(
@@ -122,13 +123,9 @@ export async function PUT(
       }
 
       // 1. Find dealer's consignment warehouse
-      const { data: warehouse } = await supabaseAdmin
-        .from('warehouses')
-        .select('id')
-        .eq('company_id', companyId)
-        .eq('customer_id', report.customer_id)
-        .eq('warehouse_type', 'consignment')
-        .single();
+      const warehouse = await getCustomerConsignmentWarehouse(
+        supabaseAdmin, companyId, report.customer_id
+      );
 
       if (!warehouse) {
         return NextResponse.json({ error: 'ไม่พบคลังฝากขายของตัวแทนนี้' }, { status: 400 });
@@ -216,13 +213,9 @@ export async function PUT(
       const voidReason = 'ยกเลิกรายงานยอดขาย';
 
       // 1. Return stock to consignment warehouse
-      const { data: warehouse } = await supabaseAdmin
-        .from('warehouses')
-        .select('id')
-        .eq('company_id', companyId)
-        .eq('customer_id', report.customer_id)
-        .eq('warehouse_type', 'consignment')
-        .single();
+      const warehouse = await getCustomerConsignmentWarehouse(
+        supabaseAdmin, companyId, report.customer_id
+      );
 
       if (warehouse) {
         const { data: reportItems } = await supabaseAdmin

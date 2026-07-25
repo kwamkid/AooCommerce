@@ -58,6 +58,7 @@ const roleConfigs: Record<string, RoleConfig> = {
   account: { color: 'bg-indigo-100 text-indigo-800', label: 'บัญชี' },
   sales: { color: 'bg-purple-100 text-purple-800', label: 'แอดมินออนไลน์' },
   cashier: { color: 'bg-orange-100 text-orange-800', label: 'แคชเชียร์' },
+  pc: { color: 'bg-pink-100 text-pink-800', label: 'PC ประจำห้าง' },
 };
 
 // Role badges component (multi-role)
@@ -730,6 +731,7 @@ export default function UsersPage() {
                       options={[
                         { id: 'sales', label: 'แอดมินออนไลน์' },
                         { id: 'cashier', label: 'แคชเชียร์' },
+                        { id: 'pc', label: 'PC ประจำห้าง' },
                         { id: 'warehouse', label: 'คลังสินค้า' },
                         { id: 'account', label: 'บัญชี' },
                         { id: 'admin', label: 'ผู้ดูแลระบบ' },
