@@ -3,7 +3,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { supabase } from '@/lib/supabase';
+import { adoptSession } from '@/lib/auth/session-manager';
 import { Suspense } from 'react';
 
 function LineCallbackContent() {
@@ -45,11 +45,16 @@ function LineCallbackContent() {
           return;
         }
 
-        // Set session in Supabase client
-        await supabase.auth.setSession({
+        // Install the server-minted session into the Supabase client
+        const { error: sessionError } = await adoptSession({
           access_token: data.session.access_token,
           refresh_token: data.session.refresh_token,
         });
+        if (sessionError) {
+          setError('เกิดข้อผิดพลาดในการเข้าสู่ระบบด้วย LINE');
+          setTimeout(() => router.replace('/login'), 3000);
+          return;
+        }
 
         // Clear invite token cookie
         document.cookie = 'invite_token=; path=/; max-age=0';

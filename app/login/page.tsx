@@ -6,15 +6,19 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useAuth } from '@/lib/auth-context';
-import { Mail, Lock, AlertCircle, Loader2 } from 'lucide-react';
+import { Mail, Lock, AlertCircle, Loader2, ShieldCheck } from 'lucide-react';
 
 export default function LoginPage() {
   const router = useRouter();
-  const { signIn, signInWithGoogle, signInWithLINE, user } = useAuth();
+  const { signIn, completeMfaLogin, signInWithGoogle, signInWithLINE, signOut, user } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [checkingAuth, setCheckingAuth] = useState(true);
-  
+
+  // 2FA step — set when signIn reports the account needs a TOTP code
+  const [mfaFactorId, setMfaFactorId] = useState<string | null>(null);
+  const [mfaCode, setMfaCode] = useState('');
+
   // Form state
   const [formData, setFormData] = useState({
     email: '',
@@ -37,8 +41,13 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      const { error } = await signIn(formData.email, formData.password);
-      
+      const { error, mfaRequired } = await signIn(formData.email, formData.password);
+
+      if (mfaRequired) {
+        setMfaFactorId(mfaRequired.factorId);
+        setIsLoading(false);
+        return;
+      }
       if (error) {
         setError(error);
         setIsLoading(false);
@@ -48,6 +57,20 @@ export default function LoginPage() {
       setError('เกิดข้อผิดพลาดในการเข้าสู่ระบบ');
       setIsLoading(false);
     }
+  };
+
+  // Handle 2FA code submit
+  const handleMfaSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!mfaFactorId) return;
+    setError('');
+    setIsLoading(true);
+    const { error } = await completeMfaLogin(mfaFactorId, mfaCode.trim());
+    if (error) {
+      setError(error);
+      setIsLoading(false);
+    }
+    // สำเร็จ — auth context routing จะ redirect ไป /onboarding
   };
 
   // Handle Google login
@@ -99,6 +122,53 @@ export default function LoginPage() {
             </div>
           )}
 
+          {mfaFactorId ? (
+          /* 2FA Step — TOTP code from authenticator app */
+          <form onSubmit={handleMfaSubmit} className="space-y-4 sm:space-y-5">
+            <div className="text-center">
+              <div className="w-12 h-12 bg-primary/20 rounded-full flex items-center justify-center mx-auto mb-3">
+                <ShieldCheck className="w-6 h-6 text-primary" />
+              </div>
+              <p className="text-white font-medium">ยืนยันตัวตน 2 ชั้น</p>
+              <p className="text-gray-400 text-sm mt-1">กรอกรหัส 6 หลักจากแอป Authenticator ของคุณ</p>
+            </div>
+            <input
+              type="text"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              maxLength={6}
+              value={mfaCode}
+              onChange={(e) => setMfaCode(e.target.value.replace(/\D/g, ''))}
+              className="w-full px-4 py-3 bg-white/10 border border-gray-600 rounded-lg text-white text-center text-2xl tracking-[0.5em] placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+              placeholder="••••••"
+              autoFocus
+              disabled={isLoading}
+            />
+            <button
+              type="submit"
+              disabled={isLoading || mfaCode.length !== 6}
+              className="w-full py-3 bg-primary hover:bg-primary/90 text-white font-semibold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin mr-2" />
+                  กำลังยืนยัน...
+                </>
+              ) : (
+                'ยืนยัน'
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={() => { signOut(); setMfaFactorId(null); setMfaCode(''); setError(''); }}
+              className="w-full py-2 text-gray-400 hover:text-white text-sm transition-colors"
+              disabled={isLoading}
+            >
+              กลับไปหน้าเข้าสู่ระบบ
+            </button>
+          </form>
+          ) : (
+          <>
           {/* Email Login Form */}
           <form onSubmit={handleEmailLogin} className="space-y-4 sm:space-y-5">
             {/* Email Input */}
@@ -192,6 +262,8 @@ export default function LoginPage() {
             </svg>
             เข้าสู่ระบบด้วย LINE
           </button>
+          </>
+          )}
 
           {/* Footer Note */}
           <p className="text-center text-xs text-gray-500 mt-4 sm:mt-6">

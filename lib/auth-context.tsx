@@ -5,6 +5,8 @@ import { createContext, useContext, useEffect, useState, useCallback, useMemo, u
 import { User, Session } from '@supabase/supabase-js';
 import { useRouter, usePathname } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
+import { loginWithPassword, loginWithGoogle, loginWithLINE, verifyMfaCode } from '@/lib/auth/login-methods';
+import { clearSession, migrateLegacyLocalStorageSession } from '@/lib/auth/session-manager';
 import { UserProfile, CompanyRole } from '@/types';
 
 interface CompanyMembershipRaw {
@@ -28,7 +30,9 @@ interface AuthContextType {
   connectionError: boolean;
   hasCompany: boolean;
   companies: CompanyMembershipRaw[];
-  signIn: (email: string, password: string) => Promise<{ error: string | null }>;
+  signIn: (email: string, password: string) => Promise<{ error: string | null; mfaRequired?: { factorId: string } }>;
+  /** Complete a 2FA (TOTP) challenge after signIn returned mfaRequired. */
+  completeMfaLogin: (factorId: string, code: string) => Promise<{ error: string | null }>;
   signUp: (email: string, password: string, name: string, inviteToken?: string) => Promise<{ error: string | null }>;
   signInWithGoogle: (inviteToken?: string) => Promise<{ error: string | null }>;
   signInWithLINE: (inviteToken?: string) => Promise<{ error: string | null }>;
@@ -83,6 +87,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [hasCompany, setHasCompany] = useState(false);
   const [connectionError, setConnectionError] = useState(false);
   const [companies, setCompanies] = useState<CompanyMembershipRaw[]>([]);
+  // True between "password accepted" and "2FA code verified" — holds the
+  // routing guard on /login so the OTP step doesn't get redirected away.
+  const [mfaPending, setMfaPending] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
 
@@ -150,8 +157,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const init = async () => {
       try {
-        const { data: { session: currentSession } } = await supabase.auth.getSession();
+        let { data: { session: currentSession } } = await supabase.auth.getSession();
         if (!mounted) return;
+
+        // Cookie-storage migration: adopt a legacy localStorage session once
+        // so users don't get logged out by the switch to @supabase/ssr.
+        if (!currentSession) {
+          const migrated = await migrateLegacyLocalStorageSession();
+          if (!mounted) return;
+          if (migrated) {
+            ({ data: { session: currentSession } } = await supabase.auth.getSession());
+            if (!mounted) return;
+          }
+        }
 
         if (currentSession?.user) {
           setSession(currentSession);
@@ -246,6 +264,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setSession(null);
         setHasCompany(false);
         setCompanies([]);
+        setMfaPending(false);
         setLoading(false);
       }
     });
@@ -257,6 +276,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (loading) return;
     // Don't redirect when there's a connection error — show error UI instead
     if (connectionError) return;
+    // Mid-2FA: session exists at aal1 but the user hasn't entered their code —
+    // stay on /login until completeMfaLogin resolves.
+    if (mfaPending) return;
 
     const isPublicRoute = PUBLIC_ROUTES.some(route => pathname.startsWith(route));
     const isInvitePage = pathname.startsWith('/invite/');
@@ -284,35 +306,43 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       router.replace('/onboarding');
       return;
     }
-  }, [user, pathname, loading, router, hasCompany]);
+  }, [user, pathname, loading, router, hasCompany, mfaPending]);
+
+  // Shared post-login step: adopt the SDK's current session into React state
+  // and load the profile. Used by password login and 2FA completion.
+  const finishLogin = async () => {
+    const { data: { session: currentSession } } = await supabase.auth.getSession();
+    if (currentSession?.user) {
+      setSession(currentSession);
+      setUser(currentSession.user);
+      const profile = await fetchUserProfile(currentSession.user, currentSession.access_token);
+      if (profile) {
+        setUserProfile(profile);
+      }
+    }
+  };
 
   const signIn = async (email: string, password: string) => {
     try {
       // Reset state for fresh login
       setLoading(true);
       setHasCompany(false);
+      setMfaPending(false);
       localStorage.removeItem(STORAGE_KEY);
 
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      const result = await loginWithPassword(email, password);
 
-      if (error) {
+      if (result.status === 'error') {
         setLoading(false);
-        if (error.message.includes('Invalid login credentials')) {
-          return { error: 'อีเมลหรือรหัสผ่านไม่ถูกต้อง' };
-        }
-        return { error: error.message };
+        return { error: result.error };
+      }
+      if (result.status === 'mfa_required') {
+        setMfaPending(true);
+        setLoading(false);
+        return { error: null, mfaRequired: { factorId: result.factorId } };
       }
 
-      if (data.session?.user) {
-        setSession(data.session);
-        setUser(data.session.user);
-
-        const profile = await fetchUserProfile(data.session.user, data.session.access_token);
-        if (profile) {
-          setUserProfile(profile);
-        }
-      }
-
+      await finishLogin();
       setLoading(false);
       return { error: null };
     } catch (error) {
@@ -320,6 +350,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(false);
       return { error: 'เกิดข้อผิดพลาดในการเข้าสู่ระบบ' };
     }
+  };
+
+  const completeMfaLogin = async (factorId: string, code: string) => {
+    const result = await verifyMfaCode(factorId, code);
+    if (result.status !== 'success') {
+      return { error: result.status === 'error' ? result.error : 'ยืนยันไม่สำเร็จ กรุณาลองใหม่' };
+    }
+    setLoading(true);
+    await finishLogin();
+    setMfaPending(false);
+    setLoading(false);
+    return { error: null };
   };
 
   const signUp = async (email: string, password: string, name: string, inviteToken?: string) => {
@@ -348,45 +390,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signInWithGoogle = async (inviteToken?: string) => {
-    try {
-      if (inviteToken) {
-        document.cookie = `invite_token=${inviteToken}; path=/; max-age=3600; SameSite=Lax`;
-      }
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: { redirectTo: `${window.location.origin}/auth/callback` },
-      });
-      if (error) return { error: error.message };
-      return { error: null };
-    } catch {
-      return { error: 'เกิดข้อผิดพลาดในการเข้าสู่ระบบด้วย Google' };
-    }
+    const result = await loginWithGoogle(inviteToken);
+    return { error: result.status === 'error' ? result.error : null };
   };
 
   const signInWithLINE = async (inviteToken?: string) => {
-    try {
-      if (inviteToken) {
-        document.cookie = `invite_token=${inviteToken}; path=/; max-age=3600; SameSite=Lax`;
-      }
-      const channelId = process.env.NEXT_PUBLIC_LINE_LOGIN_CHANNEL_ID;
-      if (!channelId) {
-        return { error: 'LINE Login ยังไม่ได้ตั้งค่า' };
-      }
-      const redirectUri = `${window.location.origin}/line-callback`;
-      const state = Math.random().toString(36).substring(2);
-      const lineAuthUrl = `https://access.line.me/oauth2/v2.1/authorize?response_type=code&client_id=${channelId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}&scope=profile%20openid`;
-      window.location.href = lineAuthUrl;
-      return { error: null };
-    } catch {
-      return { error: 'เกิดข้อผิดพลาดในการเข้าสู่ระบบด้วย LINE' };
-    }
+    const result = await loginWithLINE(inviteToken);
+    return { error: result.status === 'error' ? result.error : null };
   };
 
   const signOut = async () => {
     localStorage.removeItem(STORAGE_KEY);
     clearAuthCache();
     try {
-      await supabase.auth.signOut();
+      await clearSession();
     } catch (error) {
       console.error('Sign out error:', error);
     }
@@ -416,7 +433,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const value = useMemo(() => ({
     user, userProfile, session, loading, connectionError, hasCompany, companies,
-    signIn, signUp, signInWithGoogle, signInWithLINE, signOut, refreshProfile, retryConnection,
+    signIn, completeMfaLogin, signUp, signInWithGoogle, signInWithLINE, signOut, refreshProfile, retryConnection,
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }), [user, userProfile, session, loading, connectionError, hasCompany, companies]);
 

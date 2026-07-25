@@ -1,8 +1,12 @@
 // Path: lib/supabase.ts
 
-import { createClient } from '@supabase/supabase-js';
+import { createBrowserClient } from '@supabase/ssr';
 
-// Supabase configuration
+// Supabase browser client — COOKIE-BASED session storage via @supabase/ssr
+// (migrated from localStorage 2026-07-24) so proxy.ts middleware and future
+// SSR pages can see the session. Cookie name: sb-<projectRef>-auth-token.
+// Legacy localStorage sessions ('joolzjuice-auth') are adopted once on boot
+// by migrateLegacyLocalStorageSession() in lib/auth/session-manager.ts.
 //
 // Prefer the new publishable key (sb_publishable_...). Falls back to the
 // legacy anon key during the migration window so existing deploys keep
@@ -13,15 +17,7 @@ const supabasePublishableKey =
   process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
-// Create Supabase client with proper auth configuration
-export const supabase = createClient(supabaseUrl, supabasePublishableKey, {
-  auth: {
-    persistSession: true,
-    storageKey: 'joolzjuice-auth',
-    autoRefreshToken: true,
-    detectSessionInUrl: true,
-  },
-});
+export const supabase = createBrowserClient(supabaseUrl, supabasePublishableKey);
 
 // Helper function to handle Supabase errors
 export const handleSupabaseError = (error: Error | null): string => {

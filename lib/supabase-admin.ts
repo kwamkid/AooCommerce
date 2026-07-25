@@ -1,5 +1,9 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextRequest } from 'next/server';
+// Circular with verify-token (it imports supabaseAdmin for the network
+// fallback) — safe because both sides only touch the import inside functions.
+import { verifyAccessToken } from '@/lib/auth/verify-token';
+import { extractRequestToken } from '@/lib/auth/cookie-token';
 
 // Re-export capability checker so existing imports can migrate one helper at a time.
 // New code should prefer `import { can } from '@/lib/permissions'` directly.
@@ -26,39 +30,8 @@ export interface AuthResult {
   companyId?: string;
   companyRoles?: string[];
   canViewCost?: boolean;
-}
-
-const TRANSIENT_ERROR_CODES = ['ECONNRESET', 'ETIMEDOUT', 'ENOTFOUND', 'EAI_AGAIN', 'UND_ERR_SOCKET'];
-
-function isTransientFetchError(err: unknown): boolean {
-  if (!err || typeof err !== 'object') return false;
-  const e = err as { name?: string; message?: string; code?: string; cause?: { code?: string; errno?: number } };
-  if (e.name === 'TypeError' && e.message?.includes('fetch failed')) return true;
-  if (e.code && TRANSIENT_ERROR_CODES.includes(e.code)) return true;
-  if (e.cause?.code && TRANSIENT_ERROR_CODES.includes(e.cause.code)) return true;
-  return false;
-}
-
-/**
- * Verify a Supabase auth token with retry on transient network errors
- * (ECONNRESET, fetch failed, etc.). Returns null if invalid/expired (no retry).
- */
-async function verifyAuthToken(token: string): Promise<{ id: string } | null> {
-  const delays = [0, 100, 300];
-  let lastErr: unknown;
-  for (const delay of delays) {
-    if (delay > 0) await new Promise(r => setTimeout(r, delay));
-    try {
-      const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
-      if (error || !user) return null;
-      return user;
-    } catch (err) {
-      lastErr = err;
-      if (!isTransientFetchError(err)) throw err;
-    }
-  }
-  console.error('[verifyAuthToken] All retries exhausted:', lastErr);
-  return null;
+  /** Authenticator Assurance Level — 'aal2' means the session passed 2FA. Only set when verified locally. */
+  aal?: string;
 }
 
 /**
@@ -84,12 +57,11 @@ const authCache = new Map<string, CachedAuth>();
  */
 export async function checkAuthWithCompany(request: NextRequest): Promise<AuthResult> {
   try {
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
+    // Dual-mode: Bearer header (apiFetch) or Supabase auth cookie (SSR/browser)
+    const token = extractRequestToken(request);
+    if (!token) {
       return { isAuth: false };
     }
-
-    const token = authHeader.substring(7);
     const companyId = request.headers.get('x-company-id') || '';
     const cacheKey = `${token}|${companyId}`;
 
@@ -98,8 +70,8 @@ export async function checkAuthWithCompany(request: NextRequest): Promise<AuthRe
       return cached.result;
     }
 
-    const user = await verifyAuthToken(token);
-    if (!user) {
+    const verified = await verifyAccessToken(token);
+    if (!verified) {
       return { isAuth: false };
     }
 
@@ -108,20 +80,21 @@ export async function checkAuthWithCompany(request: NextRequest): Promise<AuthRe
       const { data: membership } = await supabaseAdmin
         .from('company_members')
         .select('roles, can_view_cost')
-        .eq('user_id', user.id)
+        .eq('user_id', verified.userId)
         .eq('company_id', companyId)
         .eq('is_active', true)
         .single();
 
       if (!membership) {
-        result = { isAuth: true, userId: user.id };
+        result = { isAuth: true, userId: verified.userId, aal: verified.aal };
       } else {
         result = {
           isAuth: true,
-          userId: user.id,
+          userId: verified.userId,
           companyId,
           companyRoles: membership.roles,
           canViewCost: membership.can_view_cost === true,
+          aal: verified.aal,
         };
       }
     } else {
@@ -129,7 +102,7 @@ export async function checkAuthWithCompany(request: NextRequest): Promise<AuthRe
       const { data: membership } = await supabaseAdmin
         .from('company_members')
         .select('company_id, roles, can_view_cost')
-        .eq('user_id', user.id)
+        .eq('user_id', verified.userId)
         .eq('is_active', true)
         .order('joined_at', { ascending: true })
         .limit(1)
@@ -137,10 +110,11 @@ export async function checkAuthWithCompany(request: NextRequest): Promise<AuthRe
 
       result = {
         isAuth: true,
-        userId: user.id,
+        userId: verified.userId,
         companyId: membership?.company_id || undefined,
         companyRoles: membership?.roles || undefined,
         canViewCost: membership?.can_view_cost === true,
+        aal: verified.aal,
       };
     }
 
@@ -249,27 +223,25 @@ export function validateRoles(roles: unknown): string | null {
  */
 export async function checkSuperAdmin(request: NextRequest): Promise<{ isAuth: boolean; isSuperAdmin: boolean; userId?: string }> {
   try {
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
+    const token = extractRequestToken(request);
+    if (!token) {
       return { isAuth: false, isSuperAdmin: false };
     }
-
-    const token = authHeader.substring(7);
-    const user = await verifyAuthToken(token);
-    if (!user) {
+    const verified = await verifyAccessToken(token);
+    if (!verified) {
       return { isAuth: false, isSuperAdmin: false };
     }
 
     const { data: profile } = await supabaseAdmin
       .from('user_profiles')
       .select('is_super_admin')
-      .eq('id', user.id)
+      .eq('id', verified.userId)
       .single();
 
     return {
       isAuth: true,
       isSuperAdmin: profile?.is_super_admin === true,
-      userId: user.id,
+      userId: verified.userId,
     };
   } catch {
     return { isAuth: false, isSuperAdmin: false };
@@ -281,18 +253,16 @@ export async function checkSuperAdmin(request: NextRequest): Promise<{ isAuth: b
  */
 export async function checkAuth(request: NextRequest): Promise<{ isAuth: boolean; userId?: string }> {
   try {
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
+    const token = extractRequestToken(request);
+    if (!token) {
+      return { isAuth: false };
+    }
+    const verified = await verifyAccessToken(token);
+    if (!verified) {
       return { isAuth: false };
     }
 
-    const token = authHeader.substring(7);
-    const user = await verifyAuthToken(token);
-    if (!user) {
-      return { isAuth: false };
-    }
-
-    return { isAuth: true, userId: user.id };
+    return { isAuth: true, userId: verified.userId };
   } catch {
     return { isAuth: false };
   }

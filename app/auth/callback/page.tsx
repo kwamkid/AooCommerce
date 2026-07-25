@@ -12,11 +12,21 @@ export default function AuthCallbackPage() {
   useEffect(() => {
     const handleCallback = async () => {
       try {
-        // Supabase client automatically picks up the session from the URL hash/params
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        // PKCE: the SDK exchanges the ?code= param for a session
+        // asynchronously after load — poll briefly instead of failing on
+        // the first empty read.
+        let session = null;
+        for (let attempt = 0; attempt < 10; attempt++) {
+          const { data } = await supabase.auth.getSession();
+          if (data.session) {
+            session = data.session;
+            break;
+          }
+          await new Promise(resolve => setTimeout(resolve, 300));
+        }
 
-        if (sessionError || !session) {
-          console.error('Auth callback session error:', sessionError);
+        if (!session) {
+          console.error('Auth callback: no session after PKCE exchange');
           setError('เกิดข้อผิดพลาดในการเข้าสู่ระบบ');
           setTimeout(() => router.replace('/login'), 2000);
           return;
@@ -55,9 +65,7 @@ export default function AuthCallbackPage() {
       }
     };
 
-    // Wait a moment for Supabase to process the URL hash
-    const timer = setTimeout(handleCallback, 100);
-    return () => clearTimeout(timer);
+    handleCallback();
   }, [router]);
 
   return (
