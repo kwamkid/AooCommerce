@@ -35,6 +35,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Not configured' }, { status: 500 });
   }
 
+  // Signature must be valid to process — a forged webhook could otherwise
+  // trigger order re-syncs / log pollution. We still ack 200 (TikTok retries
+  // /disables on non-200); cron sync-all is the safety net for dropped events.
   let signatureValid = false;
   try {
     signatureValid = verifyWebhookSignature(rawBody, signature);
@@ -103,13 +106,19 @@ export async function POST(request: NextRequest) {
       raw_payload: payload,
       signature,
       signature_valid: signatureValid,
-      processing_status: 'pending',
+      // 'skipped' — invalid signature, logged for audit but not processed
+      processing_status: signatureValid ? 'pending' : 'skipped',
     })
     .select('id')
     .single();
 
   // Return 200 immediately (TikTok requires fast response)
   const response = NextResponse.json({ code: 0, message: 'success' });
+
+  if (!signatureValid) {
+    console.error('TikTok webhook: signature not valid — not processing. shop_id:', shopIdStr);
+    return response;
+  }
 
   // Process in background
   after(async () => {

@@ -92,11 +92,64 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({ data: data || [] });
+    // Backfill: ensure Beam payment_gateway row exists for bill_online even
+    // if other channels already existed (legacy companies pre-tab-split)
+    if (group === 'bill_online' && data && !data.some(c => c.type === 'payment_gateway')) {
+      const maxSort = Math.max(0, ...data.map(c => c.sort_order ?? 0));
+      const { error: backfillError } = await supabaseAdmin
+        .from('payment_channels')
+        .insert({
+          company_id: companyId,
+          channel_group: 'bill_online',
+          type: 'payment_gateway',
+          name: 'ชำระออนไลน์',
+          is_active: false,
+          sort_order: maxSort + 1,
+          config: {},
+        });
+
+      if (backfillError) {
+        console.error('Backfill payment_gateway error:', backfillError);
+      } else {
+        const refetch = await supabaseAdmin
+          .from('payment_channels')
+          .select('*')
+          .eq('company_id', companyId)
+          .eq('channel_group', 'bill_online')
+          .order('sort_order', { ascending: true });
+        data = refetch.data;
+      }
+    }
+
+    // Gateway credentials (Beam api_key / webhook_secret / merchant_id) must
+    // not leak to members who can't manage payment channels (cashier/sales).
+    // Managers see raw values so they can edit; everyone else gets them masked.
+    const canManage = can(companyRoles, 'masterdata.payment_channels');
+    const safe = (data || []).map(row => canManage ? row : maskChannelSecrets(row));
+
+    return NextResponse.json({ data: safe });
   } catch (error) {
     console.error('GET payment-channels error:', error);
     return NextResponse.json({ error: 'Failed to fetch payment channels' }, { status: 500 });
   }
+}
+
+const SENSITIVE_CONFIG_KEYS = ['api_key', 'secret_key', 'webhook_secret', 'merchant_id'];
+
+function maskSecret(secret: unknown): string {
+  const s = typeof secret === 'string' ? secret : '';
+  if (!s || s.length <= 4) return s ? '••••' : '';
+  return `${s.slice(0, 2)}••••${s.slice(-2)}`;
+}
+
+function maskChannelSecrets(row: Record<string, unknown>): Record<string, unknown> {
+  const config = row.config as Record<string, unknown> | null;
+  if (!config || typeof config !== 'object') return row;
+  const masked = { ...config };
+  for (const k of SENSITIVE_CONFIG_KEYS) {
+    if (k in masked) masked[k] = maskSecret(masked[k]);
+  }
+  return { ...row, config: masked };
 }
 
 // POST - Create payment channel (bank_transfer or payment_gateway)

@@ -56,19 +56,23 @@ export async function POST(request: NextRequest) {
       .eq('is_active', true)
       .single();
 
-    // Verify signature (record but don't block)
-    let signatureValid: boolean | null = null;
+    // Verify signature — a forged webhook could otherwise trigger
+    // tryAutoCreditNote (auto credit note + stock return) on attacker-chosen
+    // status. We still return 200 so Shopee doesn't retry/disable the push,
+    // but only VALID webhooks get processed; cron sync-all (every 15m) is the
+    // safety net for anything legitimately dropped.
+    let signatureValid = false;
     const partnerKey = process.env.SHOPEE_PARTNER_KEY || '';
     if (authorization && partnerKey) {
       const publicUrl = 'https://aoocommerce.vercel.app/api/shopee/webhook';
       signatureValid = verifySignature(publicUrl, rawBody, authorization, partnerKey)
         || verifySignature(request.url, rawBody, authorization, partnerKey);
-      if (!signatureValid) {
-        console.error('Shopee webhook: invalid signature for shop_id:', shopId);
-      }
+    }
+    if (!signatureValid) {
+      console.error('Shopee webhook: signature not valid — not processing. shop_id:', shopId);
     }
 
-    // === SAVE TO DB IMMEDIATELY ===
+    // === SAVE TO DB IMMEDIATELY (audit trail for both valid + rejected) ===
     const { data: webhookLog } = await supabaseAdmin
       .from('marketplace_webhook_log')
       .insert({
@@ -80,18 +84,22 @@ export async function POST(request: NextRequest) {
         raw_payload: payload,
         signature: authorization || null,
         signature_valid: signatureValid,
-        processing_status: 'pending',
+        // 'skipped' — invalid signature, logged for audit but not processed
+        // (processing_status CHECK constraint has no dedicated reject value)
+        processing_status: signatureValid ? 'pending' : 'skipped',
       })
       .select('id')
       .single();
 
     const logId = webhookLog?.id;
 
-    // === RETURN 200 FAST → process in background ===
-    const acct = account as ShopeeAccountRow | null;
-    after(async () => {
-      await processWebhook(logId, pushCode, payload, acct, startTime);
-    });
+    // === RETURN 200 FAST → process in background ONLY if verified ===
+    if (signatureValid) {
+      const acct = account as ShopeeAccountRow | null;
+      after(async () => {
+        await processWebhook(logId, pushCode, payload, acct, startTime);
+      });
+    }
 
     return new NextResponse('', { status: 200 });
   } catch (error) {

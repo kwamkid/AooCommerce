@@ -13,14 +13,14 @@ export const maxDuration = 60;
  */
 export async function GET(request: NextRequest) {
   // Verify cron secret (supports both Authorization: Bearer and x-cron-secret headers)
+  // Fail closed: if CRON_SECRET isn't configured, reject — previously the
+  // whole check was skipped when unset, leaving this endpoint public.
   const cronSecret = process.env.CRON_SECRET;
-  if (cronSecret) {
-    const authHeader = request.headers.get('authorization') || '';
-    const xCronHeader = request.headers.get('x-cron-secret') || '';
-    const bearerToken = authHeader.replace(/^Bearer\s+/i, '');
-    if (bearerToken !== cronSecret && xCronHeader !== cronSecret) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+  const authHeader = request.headers.get('authorization') || '';
+  const xCronHeader = request.headers.get('x-cron-secret') || '';
+  const bearerToken = authHeader.replace(/^Bearer\s+/i, '');
+  if (!cronSecret || (bearerToken !== cronSecret && xCronHeader !== cronSecret)) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   const startTime = Date.now();

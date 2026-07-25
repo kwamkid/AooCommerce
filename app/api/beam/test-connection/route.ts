@@ -1,13 +1,29 @@
 // Test Beam API credentials + webhook endpoint reachability
 import { NextRequest, NextResponse } from 'next/server';
+import { checkAuthWithCompany, can } from '@/lib/supabase-admin';
 
 export async function POST(request: NextRequest) {
   try {
-    const { merchant_id, api_key, environment, webhook_url } = await request.json();
+    // Was unauthenticated + fetched a client-supplied webhook_url (blind SSRF).
+    // Now: settings-level auth, and the webhook target is derived server-side
+    // from our own origin — never taken from the request body.
+    const auth = await checkAuthWithCompany(request);
+    if (!auth.isAuth || !auth.companyId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    if (!can(auth.companyRoles, 'masterdata.payment_channels')) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    const { merchant_id, api_key, environment } = await request.json();
 
     if (!merchant_id || !api_key) {
       return NextResponse.json({ error: 'Missing credentials' }, { status: 400 });
     }
+
+    // Our own webhook endpoint — derived from the request origin, not the body,
+    // so this route can never be used to probe arbitrary hosts.
+    const webhook_url = new URL('/api/beam/webhook', request.nextUrl.origin).toString();
 
     const baseUrl = environment === 'production'
       ? 'https://api.beamcheckout.com'
@@ -64,25 +80,25 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 2. Test webhook endpoint (send a mock POST to our own webhook)
+    // 2. Test webhook endpoint reachability (ping our own webhook).
+    // The webhook now rejects unsigned requests with 401 by design, so
+    // "reachable" = we got any HTTP response back (not a network failure).
     let webhookOk = false;
-    if (webhook_url) {
-      try {
-        const webhookRes = await fetch(webhook_url, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Beam-Event': 'test.ping',
-          },
-          body: JSON.stringify({
-            event: 'test.ping',
-            data: { test: true, timestamp: new Date().toISOString() },
-          }),
-        });
-        webhookOk = webhookRes.ok;
-      } catch {
-        webhookOk = false;
-      }
+    try {
+      const webhookRes = await fetch(webhook_url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Beam-Event': 'test.ping',
+        },
+        body: JSON.stringify({
+          event: 'test.ping',
+          data: { test: true, timestamp: new Date().toISOString() },
+        }),
+      });
+      webhookOk = webhookRes.status > 0;
+    } catch {
+      webhookOk = false;
     }
 
     return NextResponse.json({

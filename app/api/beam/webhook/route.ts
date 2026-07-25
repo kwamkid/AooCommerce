@@ -18,7 +18,10 @@ function verifyBeamSignature(body: string, signature: string, hmacKey: string): 
       .createHmac('sha256', keyBuffer)
       .update(body)
       .digest('base64');
-    return computed === signature;
+    // Timing-safe compare — reject length mismatch before timingSafeEqual (which throws on it)
+    const a = Buffer.from(computed);
+    const b = Buffer.from(signature);
+    return a.length === b.length && crypto.timingSafeEqual(a, b);
   } catch {
     return false;
   }
@@ -51,19 +54,31 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (!gatewayChannel) {
+      // Can't verify without the gateway config — refuse rather than process
+      // an unverifiable event (previously acked 200, which let forged events
+      // through when config was missing).
       console.error('No gateway channel configured for webhook verification');
-      return NextResponse.json({ success: true }); // Ack to prevent retries
+      return NextResponse.json({ error: 'Not configured' }, { status: 401 });
     }
 
     const cfg = gatewayChannel.config as Record<string, unknown>;
     const hmacKey = cfg.webhook_secret as string || cfg.api_key as string;
 
-    // Verify signature if we have a key and signature
-    if (signature && hmacKey) {
-      if (!verifyBeamSignature(body, signature, hmacKey)) {
-        console.error('Invalid Beam webhook signature');
-        return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
-      }
+    // Signature is MANDATORY. Previously verification only ran when the
+    // caller chose to send a signature header — omitting it skipped the
+    // check and let anyone mark an order paid. Now: no signature, no key,
+    // or bad signature → 401 before any state change.
+    if (!signature) {
+      console.error('Beam webhook rejected: missing x-beam-signature');
+      return NextResponse.json({ error: 'Missing signature' }, { status: 401 });
+    }
+    if (!hmacKey) {
+      console.error('Beam webhook rejected: no verification key configured');
+      return NextResponse.json({ error: 'Not configured' }, { status: 401 });
+    }
+    if (!verifyBeamSignature(body, signature, hmacKey)) {
+      console.error('Beam webhook rejected: invalid signature');
+      return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
     }
 
     // Handle payment success events
