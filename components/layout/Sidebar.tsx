@@ -67,6 +67,7 @@ const menuSections: MenuSection[] = [
     items: [
       { label: 'แคชเชียร์', href: '/pos', icon: <Monitor className="w-5 h-5" />, roles: ['admin', 'cashier'] },
       { label: 'รายการขาย', href: '/pos/orders', icon: <Receipt className="w-5 h-5" />, roles: ['admin', 'cashier', 'account'] },
+      { label: 'หน้าขาย PC', href: '/pc', icon: <Store className="w-5 h-5" />, roles: ['admin', 'pc'] },
     ]
   },
   {
@@ -97,6 +98,7 @@ const menuSections: MenuSection[] = [
     items: [
       { label: 'เอกสารบัญชี', href: '/invoices/tax', icon: <FileText className="w-5 h-5" />, roles: ['admin', 'account'] },
       { label: 'รายงานยอดขาย', href: '/reports/sales', icon: <BarChart3 className="w-5 h-5" />, roles: ['admin', 'sales', 'account'] },
+      { label: 'ยอดขาย PC', href: '/counter-sales', icon: <Store className="w-5 h-5" />, roles: ['admin'] },
       { label: 'รายงานโปรโมชั่น', href: '/promotions/report', icon: <Tag className="w-5 h-5" />, roles: ['admin', 'sales'] },
       { label: 'รายงานซัพพลายเออร์', href: '/reports/supplier', icon: <Factory className="w-5 h-5" />, roles: ['admin', 'account'] }
     ]
@@ -111,6 +113,7 @@ const ROLE_LABELS: Record<string, string> = {
   warehouse: 'คลังสินค้า',
   sales: 'แอดมินออนไลน์',
   cashier: 'แคชเชียร์',
+  pc: 'PC ประจำห้าง',
 };
 
 const getRoleLabels = (roles: string[]) => {
@@ -756,6 +759,10 @@ export default function Sidebar() {
                     <Link href="/settings/carriers" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/settings/carriers' ? 'text-primary' : 'text-gray-400 hover:text-primary'}`}>
                       <Truck className="w-4 h-4" />
                       <span className="text-[16px] font-medium">ขนส่ง</span>
+                    </Link>
+                    <Link href="/settings/counters" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/settings/counters' ? 'text-primary' : 'text-gray-400 hover:text-primary'}`}>
+                      <Store className="w-4 h-4" />
+                      <span className="text-[16px] font-medium">สาขาฝากขาย (PC)</span>
                     </Link>
                     <Link href="/settings/features" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/settings/features' ? 'text-primary' : 'text-gray-400 hover:text-primary'}`}>
                       <Handshake className="w-4 h-4" />

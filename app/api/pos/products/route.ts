@@ -16,6 +16,24 @@ export async function GET(request: NextRequest) {
     const categoryId = searchParams.get('category_id');
     const brandId = searchParams.get('brand_id');
     const barcode = searchParams.get('barcode');
+    // Counter overlay: stock shown = warehouse qty − PC sales not yet absorbed into a DSR
+    const counterId = searchParams.get('counter_id');
+
+    const fetchUnsettledMap = async (variationIds: string[]): Promise<Map<string, number>> => {
+      const map = new Map<string, number>();
+      if (!counterId || variationIds.length === 0) return map;
+      const { data } = await supabaseAdmin
+        .from('counter_sales')
+        .select('variation_id, quantity')
+        .eq('company_id', auth.companyId!)
+        .eq('counter_id', counterId)
+        .is('report_id', null)
+        .in('variation_id', variationIds);
+      for (const row of data || []) {
+        map.set(row.variation_id, (map.get(row.variation_id) || 0) + Number(row.quantity || 0));
+      }
+      return map;
+    };
 
     // Barcode lookup — exact match
     if (barcode) {
@@ -54,6 +72,8 @@ export async function GET(request: NextRequest) {
           .eq('company_id', auth.companyId)
           .single();
         stock = inv ? Number(inv.quantity || 0) - Number(inv.reserved_quantity || 0) : 0;
+        const unsettled = await fetchUnsettledMap([variation.id]);
+        stock -= unsettled.get(variation.id) || 0;
       }
 
       const product = variation.product as any;
@@ -140,15 +160,21 @@ export async function GET(request: NextRequest) {
     const stockMap = new Map<string, number>();
     if (warehouseId) {
       const variationIds = variations.map(v => v.id);
-      const { data: inventoryData } = await supabaseAdmin
-        .from('inventory')
-        .select('variation_id, quantity, reserved_quantity')
-        .eq('warehouse_id', warehouseId)
-        .eq('company_id', auth.companyId)
-        .in('variation_id', variationIds);
+      const [{ data: inventoryData }, unsettledMap] = await Promise.all([
+        supabaseAdmin
+          .from('inventory')
+          .select('variation_id, quantity, reserved_quantity')
+          .eq('warehouse_id', warehouseId)
+          .eq('company_id', auth.companyId)
+          .in('variation_id', variationIds),
+        fetchUnsettledMap(variationIds),
+      ]);
 
       for (const inv of (inventoryData || [])) {
         stockMap.set(inv.variation_id, Number(inv.quantity || 0) - Number(inv.reserved_quantity || 0));
+      }
+      for (const [vid, qty] of unsettledMap) {
+        stockMap.set(vid, (stockMap.get(vid) || 0) - qty);
       }
     }
 

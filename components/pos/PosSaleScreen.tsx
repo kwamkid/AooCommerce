@@ -45,10 +45,14 @@ interface PosSaleScreenProps {
   onOpenCustomerSearch: () => void;
   onCheckout: (payload: CheckoutPayload) => void;
   vatRegistered: boolean;
+  /** Merge company promotions into the grid (default true; PC counter mode passes false) */
+  enablePromotions?: boolean;
+  /** Extra query params appended to /api/pos/products (e.g. counter_id for stock overlay) */
+  extraProductParams?: Record<string, string>;
 }
 
 const PosSaleScreen = forwardRef<PosSaleScreenHandle, PosSaleScreenProps>(function PosSaleScreen(
-  { warehouseId, topBar, customerName, onOpenCustomerSearch, onCheckout, vatRegistered },
+  { warehouseId, topBar, customerName, onOpenCustomerSearch, onCheckout, vatRegistered, enablePromotions = true, extraProductParams },
   ref,
 ) {
   // Products & Promotions
@@ -145,7 +149,7 @@ const PosSaleScreen = forwardRef<PosSaleScreenHandle, PosSaleScreenProps>(functi
   const fetchProducts = useCallback(async (search?: string) => {
     setLoadingProducts(true);
     try {
-      const params = new URLSearchParams();
+      const params = new URLSearchParams(extraProductParams || {});
       if (warehouseId) params.set('warehouse_id', warehouseId);
       const q = search ?? searchQuery;
       if (q) params.set('search', q);
@@ -164,6 +168,7 @@ const PosSaleScreen = forwardRef<PosSaleScreenHandle, PosSaleScreenProps>(functi
 
   // Fetch promotions once on mount
   useEffect(() => {
+    if (!enablePromotions) return;
     (async () => {
       try {
         const res = await apiFetch('/api/promotions?status=active&limit=200');
@@ -173,7 +178,7 @@ const PosSaleScreen = forwardRef<PosSaleScreenHandle, PosSaleScreenProps>(functi
         }
       } catch { /* silent */ }
     })();
-  }, []);
+  }, [enablePromotions]);
 
   // Merge promotions into product grid
   const allGridProducts: PosProduct[] = useMemo(() => {
@@ -233,7 +238,7 @@ const PosSaleScreen = forwardRef<PosSaleScreenHandle, PosSaleScreenProps>(functi
 
       if (looksLikeBarcode) {
         // Try exact barcode match
-        const params = new URLSearchParams({ barcode: code });
+        const params = new URLSearchParams({ ...(extraProductParams || {}), barcode: code });
         if (warehouseId) params.set('warehouse_id', warehouseId);
         const res = await apiFetch(`/api/pos/products?${params}`);
         const data = await res.json();
@@ -246,7 +251,7 @@ const PosSaleScreen = forwardRef<PosSaleScreenHandle, PosSaleScreenProps>(functi
       }
 
       // Search by name/code/SKU — auto-add if exactly 1 result
-      const searchParams = new URLSearchParams({ search: code });
+      const searchParams = new URLSearchParams({ ...(extraProductParams || {}), search: code });
       if (warehouseId) searchParams.set('warehouse_id', warehouseId);
       const searchRes = await apiFetch(`/api/pos/products?${searchParams}`);
       const searchData = await searchRes.json();

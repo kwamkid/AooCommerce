@@ -36,6 +36,20 @@ export async function GET(request: NextRequest) {
       query = query.eq('is_active', true);
     }
 
+    // PC users (no counter.manage) only see counters they are assigned to
+    if (auth.companyRoles?.includes('pc') && !can(auth.companyRoles, 'counter.manage') && auth.userId) {
+      const { data: assignments } = await supabaseAdmin
+        .from('counter_assignments')
+        .select('counter_id')
+        .eq('company_id', auth.companyId)
+        .eq('user_id', auth.userId);
+      const assignedIds = (assignments || []).map(a => a.counter_id);
+      if (assignedIds.length === 0) {
+        return NextResponse.json({ counters: [] });
+      }
+      query = query.in('id', assignedIds);
+    }
+
     const { data, error } = await query;
     if (error) {
       console.error('GET counters error:', error);

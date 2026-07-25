@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Layout from '@/components/layout/Layout';
 import { useAuth } from '@/lib/auth-context';
+import { useCompany } from '@/lib/company-context';
 import { can } from '@/lib/permissions';
 import { useFetchOnce } from '@/lib/use-fetch-once';
 import { apiFetch } from '@/lib/api-client';
@@ -83,10 +84,19 @@ function StatCard({
 
 export default function DashboardPage() {
   const { userProfile, loading: authLoading } = useAuth();
+  const { companyRoles, loading: companyLoading } = useCompany();
   const router = useRouter();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+
+  // PC-only members work at /pc — the dashboard has nothing for them
+  useEffect(() => {
+    if (companyLoading) return;
+    if (companyRoles.length > 0 && companyRoles.every(r => r === 'pc')) {
+      router.replace('/pc');
+    }
+  }, [companyLoading, companyRoles, router]);
 
   // Fetch dashboard stats
   useFetchOnce(async () => {
