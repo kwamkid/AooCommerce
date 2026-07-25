@@ -2,6 +2,7 @@
 // Public API for bill online - no authentication required
 import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
+import { isAllowedImageUpload } from '@/lib/upload-validation';
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -451,9 +452,9 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'ไฟล์สลิปใหญ่เกินไป (สูงสุด 5MB)' }, { status: 400 });
       }
 
-      // Validate MIME type
-      if (!slipImage.type.startsWith('image/')) {
-        return NextResponse.json({ error: 'ไฟล์สลิปต้องเป็นรูปภาพเท่านั้น' }, { status: 400 });
+      // Validate MIME type — allowlist raster images only (rejects SVG/XSS)
+      if (!isAllowedImageUpload(slipImage)) {
+        return NextResponse.json({ error: 'ไฟล์สลิปต้องเป็นรูปภาพ (jpg/png/webp) เท่านั้น' }, { status: 400 });
       }
 
       const timestamp = Date.now();

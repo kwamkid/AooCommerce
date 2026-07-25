@@ -16,6 +16,17 @@
 
 ---
 
+## 2026-07-26 — Security รอบ 2: ลบ debug endpoints + block SVG upload (XSS)
+
+**ที่เกิด**: ต่อจาก audit 2026-07-25 — ปิด 2 ช่องที่เป็น code ล้วน
+**ช่องโหว่ + วิธีแก้**:
+1. **Debug endpoints คืน buyer PII** — `app/api/shopee/test-order-detail/route.ts` (คืนชื่อ/เบอร์/ที่อยู่ผู้ซื้อจาก account ใดก็ได้ ไม่ scope company) + `app/api/shopee/webhook/test/route.ts` → **ลบทิ้ง** (`git rm`, เช็คแล้วไม่มีใครอ้างอิง) — build 272→270 หน้า
+2. **SVG upload = XSS** — [bills](app/api/bills/route.ts):455 + [transfers/receive](app/api/transfers/receive/route.ts):113 + [replenishments/receive](app/api/replenishments/receive/route.ts):147 เช็คแค่ `type.startsWith('image/')` → `image/svg+xml` ผ่าน + `contentType` echo type → SVG ฝัง script served จาก origin เรา = XSS — แก้: helper กลาง [lib/upload-validation.ts](lib/upload-validation.ts) `isAllowedImageUpload()` allowlist raster (jpg/png/webp/gif/heic) + reject นามสกุล .svg/.svgz
+**ป้องกัน regression**: จุดรับ upload รูปจาก public (unauth) ต้องใช้ `isAllowedImageUpload` เสมอ — allowlist ไม่ใช่ blocklist · ห้าม `startsWith('image/')` เปลือยๆ
+**หมายเหตุ — ยังไม่แก้ (ตั้งใจ)**: `variation-types` capability gate — brands/categories/masterdata routes อื่นก็ไม่มี `can()` เหมือนกัน (gate อยู่ client-side ผ่าน useAuthGuard) → เป็น gap ร่วมทั้งชุด ควรทำเป็น **sweep เดียวกันทุก masterdata route** ไม่ใช่แก้จุดเดียวให้ inconsistent
+
+---
+
 ## 2026-07-25 — Modal ปิดเองตอนลาก highlight ข้อความออกนอกกล่อง (backdrop close)
 
 **ที่เกิด**: [components/ui/Modal.tsx](components/ui/Modal.tsx) + [app/globals.css](app/globals.css) `.modal-backdrop` — กระทบทุก modal + ConfirmDialog (ห่อ Modal)

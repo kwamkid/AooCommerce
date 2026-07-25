@@ -3,6 +3,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
 import { transferIn, returnStock } from '@/lib/stock-service';
+import { isAllowedImageUpload } from '@/lib/upload-validation';
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -110,8 +111,8 @@ export async function POST(request: NextRequest) {
       if (photo.size > 5 * 1024 * 1024) {
         return NextResponse.json({ error: 'ไฟล์รูปใหญ่เกินไป (สูงสุด 5MB)' }, { status: 400 });
       }
-      if (!photo.type.startsWith('image/')) {
-        return NextResponse.json({ error: 'ไฟล์ต้องเป็นรูปภาพเท่านั้น' }, { status: 400 });
+      if (!isAllowedImageUpload(photo)) {
+        return NextResponse.json({ error: 'ไฟล์ต้องเป็นรูปภาพ (jpg/png/webp) เท่านั้น' }, { status: 400 });
       }
 
       const timestamp = Date.now();
