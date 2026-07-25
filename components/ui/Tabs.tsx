@@ -40,8 +40,13 @@ interface TabsProps {
 }
 
 export default function Tabs({ tabs, activeKey, onSelect, className }: TabsProps) {
+  // Base layout (flex + bottom border + scroll on overflow) is always applied;
+  // caller's `className` is merged on top — typically just for spacing overrides
+  // like `mb-6` / `mt-0`. Don't use `??` here — that would let a caller passing
+  // `className="mb-6"` accidentally drop the flex + border-b and tabs would stack.
+  const baseCls = 'flex border-b border-gray-200 dark:border-slate-700 mb-6 overflow-x-auto';
   return (
-    <div className={className ?? 'flex border-b border-gray-200 dark:border-slate-700 mb-6 overflow-x-auto'}>
+    <div className={className ? `${baseCls} ${className}` : baseCls}>
       {tabs.filter(t => !t.hidden).map(tab => {
         const isActive = tab.key === activeKey;
         const activeColor = tab.activeColorClass ?? 'border-primary text-primary';

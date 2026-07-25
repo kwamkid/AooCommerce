@@ -1,15 +1,21 @@
 // Path: app/settings/pos-terminals/page.tsx
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import Layout from '@/components/layout/Layout';
 import Container from '@/components/ui/Container';
-import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
-import { LoadingCard, NoPermissionCard } from '@/components/ui/StateCard';
+import Modal from '@/components/ui/Modal';
+import { LoadingCard, NoPermissionCard, EmptyCard } from '@/components/ui/StateCard';
 import Toggle from '@/components/ui/Toggle';
 import ListRow from '@/components/ui/ListRow';
+import Tabs from '@/components/ui/Tabs';
+import FormInput from '@/components/ui/FormInput';
+import FormSelect from '@/components/ui/FormSelect';
+import Alert from '@/components/ui/Alert';
+import { THAI_BANKS, getBankByCode } from '@/lib/constants/banks';
 import { useAuth } from '@/lib/auth-context';
+import { useCompany } from '@/lib/company-context';
 import { can } from '@/lib/permissions';
 import { useFeatures } from '@/lib/features-context';
 import { useFetchOnce } from '@/lib/use-fetch-once';
@@ -17,19 +23,29 @@ import { useToast } from '@/lib/toast-context';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { apiFetch } from '@/lib/api-client';
 import {
-  Loader2, Plus, Check, X, Edit2, Trash2, Monitor, AlertTriangle, Warehouse,
-  CreditCard, Banknote, Building2, MoreHorizontal, ArrowUp, ArrowDown, Info, QrCode,
+  Loader2, Plus, Edit2, Trash2, Monitor, Warehouse,
+  CreditCard, Banknote, Building2, MoreHorizontal, ArrowUp, ArrowDown, Info, QrCode, ChevronDown,
 } from 'lucide-react';
-import FormSelect from '@/components/ui/FormSelect';
 
 interface TerminalItem {
   id: string;
   name: string;
   code: string | null;
   warehouse_id: string | null;
+  /** FK to tax_branches — VAT branch printed on receipts (e.g. "สำนักงานใหญ่"). NULL = no VAT branch. */
+  tax_branch_id: string | null;
   is_active: boolean;
   created_at: string;
   warehouse: { id: string; name: string; code: string | null } | null;
+  tax_branch: { id: string; code: string; name: string } | null;
+}
+
+interface TaxBranchOption {
+  id: string;
+  code: string;
+  name: string;
+  address: string | null;
+  is_default: boolean;
 }
 
 interface WarehouseOption {
@@ -47,12 +63,14 @@ interface PaymentChannelItem {
   config: Record<string, unknown>;
 }
 
+// Channel types user can create — order matches the "+ เพิ่ม" dropdown.
+// "other" is no longer creatable, but `getChannelIcon` keeps handling it so
+// legacy rows still display correctly.
 const CHANNEL_TYPE_OPTIONS = [
-  { value: 'promptpay', label: 'PromptPay', icon: QrCode },
-  { value: 'bank_transfer', label: 'โอนเงิน', icon: Building2 },
-  { value: 'card_terminal', label: 'บัตรเครดิต/เดบิต', icon: CreditCard },
-  { value: 'other', label: 'อื่นๆ', icon: MoreHorizontal },
-];
+  { value: 'bank_transfer', label: 'โอนผ่านธนาคาร', icon: Building2, color: 'text-emerald-500' },
+  { value: 'promptpay',     label: 'PromptPay',       icon: QrCode,    color: 'text-blue-500' },
+  { value: 'card_terminal', label: 'เครื่องรูดบัตร', icon: CreditCard, color: 'text-purple-500' },
+] as const;
 
 function getChannelIcon(type: string) {
   if (type === 'cash') return Banknote;
@@ -62,11 +80,31 @@ function getChannelIcon(type: string) {
   return MoreHorizontal;
 }
 
+/** Shared PromptPay help tooltip — used in both create and edit channel forms */
+function PromptPayHelpTooltip() {
+  return (
+    <span className="relative group inline-flex">
+      <Info className="w-4 h-4 text-gray-400 dark:text-slate-500 cursor-help" />
+      <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-72 p-3 bg-gray-900 dark:bg-slate-700 text-white text-xs rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 normal-case font-normal">
+        <span className="block font-semibold mb-1.5">วิธีสมัคร PromptPay</span>
+        <span className="block font-medium text-yellow-300 mb-1">บุคคลธรรมดา:</span>
+        <span className="block mb-1.5">ใช้เบอร์โทร (10 หลัก) หรือเลขบัตรประชาชน (13 หลัก) ที่ผูก PromptPay ไว้กับธนาคาร</span>
+        <span className="block font-medium text-yellow-300 mb-1">นิติบุคคล (บริษัท):</span>
+        <span className="block mb-1.5">ใช้เลขประจำตัวผู้เสียภาษี (Tax ID 13 หลัก)</span>
+        <span className="block text-red-300 mt-1">* เลขบัญชีธนาคารใช้ไม่ได้ ต้องเป็นเลขที่ผูก PromptPay แล้วเท่านั้น</span>
+        <span className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900 dark:border-t-slate-700"></span>
+      </span>
+    </span>
+  );
+}
+
 
 export default function PosTerminalsPage() {
   const { userProfile } = useAuth();
+  const { currentCompany } = useCompany();
   const { features } = useFeatures();
   const { showToast } = useToast();
+  const isVatRegistered = !!currentCompany?.vat_registered;
   const { confirmDialog, confirm } = useConfirmDialog();
 
   const [activeTab, setActiveTab] = useState<'terminals' | 'channels'>('terminals');
@@ -80,8 +118,47 @@ export default function PosTerminalsPage() {
   const [formName, setFormName] = useState('');
   const [formCode, setFormCode] = useState('');
   const [formWarehouseId, setFormWarehouseId] = useState('');
+  // FK to a tax_branches row. Branches are managed at company level so the
+  // dropdown stays consistent across cashiers + the receipt counter can scope
+  // per-branch (each branch gets its own continuous numbering).
+  const [formTaxBranchId, setFormTaxBranchId] = useState('');
+  // Cached branch list for the cashier dropdown
+  const [taxBranches, setTaxBranches] = useState<TaxBranchOption[]>([]);
+  // Inline "+ เพิ่มสาขา" mini-modal state — opens on top of the cashier modal
+  const [showBranchQuickAdd, setShowBranchQuickAdd] = useState(false);
+  const [quickAddBranchCode, setQuickAddBranchCode] = useState('');
+  const [quickAddBranchName, setQuickAddBranchName] = useState('');
+  const [quickAddBranchAddress, setQuickAddBranchAddress] = useState('');
+  const [savingBranch, setSavingBranch] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  // Tracks which row's Toggle is saving (one at a time, per list)
+  const [togglingTerminalId, setTogglingTerminalId] = useState<string | null>(null);
+  const [togglingChannelId, setTogglingChannelId] = useState<string | null>(null);
+
+  // "+ เพิ่ม" dropdown for channels tab (3 types: bank/PromptPay/card)
+  const [addChannelDropdownOpen, setAddChannelDropdownOpen] = useState(false);
+  const addChannelDropdownRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!addChannelDropdownOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (addChannelDropdownRef.current && !addChannelDropdownRef.current.contains(e.target as Node)) {
+        setAddChannelDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [addChannelDropdownOpen]);
+
+  // Open channel modal pre-filled with a type chosen from the dropdown.
+  // Sets a sensible default name (user can edit) and the modal handles the rest.
+  const openCreateChannel = (type: string, defaultName: string) => {
+    setAddChannelDropdownOpen(false);
+    resetChannelForm();
+    setChannelType(type);
+    setChannelName(defaultName);
+    setShowChannelForm(true);
+  };
 
   // Payment channels state
   const [channels, setChannels] = useState<PaymentChannelItem[]>([]);
@@ -91,15 +168,45 @@ export default function PosTerminalsPage() {
   const [channelName, setChannelName] = useState('');
   const [editingChannelId, setEditingChannelId] = useState<string | null>(null);
   const [channelPromptPayId, setChannelPromptPayId] = useState('');
+  // Type-specific fields used during shift close to reconcile per-channel totals
+  const [channelBankCode, setChannelBankCode] = useState('');         // bank_transfer
+  const [channelAccountNumber, setChannelAccountNumber] = useState(''); // bank_transfer
+  const [channelAccountName, setChannelAccountName] = useState('');   // bank_transfer
+  const [bankDropdownOpen, setBankDropdownOpen] = useState(false);
+  const bankDropdownRef = useRef<HTMLDivElement>(null);
   const [savingChannel, setSavingChannel] = useState(false);
   const [deletingChannelId, setDeletingChannelId] = useState<string | null>(null);
   const [reordering, setReordering] = useState(false);
+
+  // Close bank dropdown on outside click
+  useEffect(() => {
+    if (!bankDropdownOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (bankDropdownRef.current && !bankDropdownRef.current.contains(e.target as Node)) {
+        setBankDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [bankDropdownOpen]);
 
   useFetchOnce(() => {
     fetchTerminals();
     fetchWarehouses();
     fetchChannels();
+    if (isVatRegistered) fetchTaxBranches();
   }, can(userProfile?.roles, 'masterdata.pos_terminals'));
+
+  const fetchTaxBranches = async () => {
+    try {
+      const response = await apiFetch('/api/settings/tax-branches');
+      if (!response.ok) return;
+      const data = await response.json();
+      setTaxBranches((data.branches || []) as TaxBranchOption[]);
+    } catch {
+      // Silent — branches are optional; user can still save cashier without one
+    }
+  };
 
   // ── Terminal CRUD ──
 
@@ -132,6 +239,10 @@ export default function PosTerminalsPage() {
     setFormName('');
     setFormCode('');
     setFormWarehouseId('');
+    // Auto-pick the default tax branch (HQ) so VAT-registered shops with a
+    // single registration don't have to think about it each time.
+    const defaultBranchId = taxBranches.find(b => b.is_default)?.id || taxBranches[0]?.id || '';
+    setFormTaxBranchId(defaultBranchId);
     setShowForm(false);
     setEditingId(null);
   };
@@ -141,20 +252,68 @@ export default function PosTerminalsPage() {
     setFormName(t.name);
     setFormCode(t.code || '');
     setFormWarehouseId(t.warehouse_id || '');
+    setFormTaxBranchId(t.tax_branch_id || '');
     setShowForm(true);
+  };
+
+  // Inline branch quick-add — user can create a new VAT branch from the
+  // cashier modal without leaving to /settings/company. Newly created branch
+  // is auto-selected in the FormSelect so the flow stays uninterrupted.
+  const openBranchQuickAdd = () => {
+    // Suggest the next code: highest existing + 1 (or "00000" for first)
+    const maxCode = taxBranches.reduce((max, b) => {
+      const n = parseInt(b.code, 10);
+      return Number.isFinite(n) && n > max ? n : max;
+    }, -1);
+    const nextCode = String(Math.max(0, maxCode + 1)).padStart(5, '0');
+    setQuickAddBranchCode(nextCode);
+    setQuickAddBranchName(nextCode === '00000' ? 'สำนักงานใหญ่' : `สาขาที่ ${parseInt(nextCode, 10)}`);
+    setQuickAddBranchAddress('');
+    setShowBranchQuickAdd(true);
+  };
+
+  const handleSaveQuickAddBranch = async () => {
+    if (!quickAddBranchName.trim() || !quickAddBranchCode.trim()) {
+      showToast('กรุณากรอกรหัสและชื่อสาขา', 'error');
+      return;
+    }
+    setSavingBranch(true);
+    try {
+      const response = await apiFetch('/api/settings/tax-branches', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          code: quickAddBranchCode.trim(),
+          name: quickAddBranchName.trim(),
+          address: quickAddBranchAddress.trim() || null,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'บันทึกสาขาไม่สำเร็จ');
+      // Refresh list and auto-select the new branch in the cashier form
+      await fetchTaxBranches();
+      setFormTaxBranchId(data.branch.id);
+      setShowBranchQuickAdd(false);
+      showToast(`เพิ่มสาขา "${data.branch.name}" สำเร็จ`);
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : 'บันทึกไม่สำเร็จ';
+      showToast(msg, 'error');
+    } finally {
+      setSavingBranch(false);
+    }
   };
 
   const handleSave = async () => {
     if (!formName.trim()) {
-      showToast('กรุณากรอกชื่อจุดขาย', 'error');
+      showToast('กรุณากรอกชื่อแคชเชียร์', 'error');
       return;
     }
 
     setSaving(true);
     try {
       const payload = editingId
-        ? { id: editingId, name: formName, code: formCode, warehouse_id: formWarehouseId || null }
-        : { name: formName, code: formCode, warehouse_id: formWarehouseId || null };
+        ? { id: editingId, name: formName, code: formCode, warehouse_id: formWarehouseId || null, tax_branch_id: formTaxBranchId || null }
+        : { name: formName, code: formCode, warehouse_id: formWarehouseId || null, tax_branch_id: formTaxBranchId || null };
 
       const response = await apiFetch('/api/pos/terminals', {
         method: editingId ? 'PUT' : 'POST',
@@ -167,7 +326,7 @@ export default function PosTerminalsPage() {
         throw new Error(data.error || 'Failed to save');
       }
 
-      showToast(editingId ? 'อัปเดตจุดขายสำเร็จ' : 'สร้างจุดขายสำเร็จ');
+      showToast(editingId ? 'อัปเดตแคชเชียร์สำเร็จ' : 'สร้างแคชเชียร์สำเร็จ');
       resetForm();
       await fetchTerminals();
     } catch (error: unknown) {
@@ -179,6 +338,7 @@ export default function PosTerminalsPage() {
   };
 
   const handleToggleActive = async (t: TerminalItem) => {
+    setTogglingTerminalId(t.id);
     try {
       const response = await apiFetch('/api/pos/terminals', {
         method: 'PUT',
@@ -195,6 +355,8 @@ export default function PosTerminalsPage() {
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : 'เปลี่ยนสถานะไม่สำเร็จ';
       showToast(msg, 'error');
+    } finally {
+      setTogglingTerminalId(null);
     }
   };
 
@@ -206,7 +368,7 @@ export default function PosTerminalsPage() {
         const data = await response.json();
         throw new Error(data.error || 'Failed to delete');
       }
-      showToast('ลบจุดขายสำเร็จ');
+      showToast('ลบแคชเชียร์สำเร็จ');
       await fetchTerminals();
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : 'ลบไม่สำเร็จ';
@@ -235,6 +397,9 @@ export default function PosTerminalsPage() {
     setChannelType('promptpay');
     setChannelName('');
     setChannelPromptPayId('');
+    setChannelBankCode('');
+    setChannelAccountNumber('');
+    setChannelAccountName('');
     setShowChannelForm(false);
     setEditingChannelId(null);
   };
@@ -243,7 +408,11 @@ export default function PosTerminalsPage() {
     setEditingChannelId(ch.id);
     setChannelName(ch.name);
     setChannelType(ch.type);
-    setChannelPromptPayId(ch.type === 'promptpay' ? ((ch.config?.promptpay_id as string) || '') : '');
+    const cfg = (ch.config || {}) as Record<string, unknown>;
+    setChannelPromptPayId(ch.type === 'promptpay' ? ((cfg.promptpay_id as string) || '') : '');
+    setChannelBankCode(ch.type === 'bank_transfer' ? ((cfg.bank_code as string) || '') : '');
+    setChannelAccountNumber(ch.type === 'bank_transfer' ? ((cfg.account_number as string) || '') : '');
+    setChannelAccountName(ch.type === 'bank_transfer' ? ((cfg.account_name as string) || '') : '');
     setShowChannelForm(true);
   };
 
@@ -253,7 +422,8 @@ export default function PosTerminalsPage() {
       return;
     }
 
-    // Validate PromptPay ID format
+    // Type-specific validation — fields are required so shift-close
+    // reconciliation can match deposits/transfers back to the right channel.
     if (channelType === 'promptpay') {
       if (!channelPromptPayId.trim()) {
         showToast('กรุณากรอก PromptPay ID', 'error');
@@ -265,13 +435,31 @@ export default function PosTerminalsPage() {
         return;
       }
     }
+    if (channelType === 'bank_transfer') {
+      if (!channelBankCode) {
+        showToast('กรุณาเลือกธนาคาร', 'error');
+        return;
+      }
+      if (!channelAccountNumber.trim()) {
+        showToast('กรุณากรอกเลขบัญชี', 'error');
+        return;
+      }
+      if (!channelAccountName.trim()) {
+        showToast('กรุณากรอกชื่อบัญชี', 'error');
+        return;
+      }
+    }
 
     setSavingChannel(true);
     try {
       const config: Record<string, unknown> = {};
       if (channelType === 'promptpay' && channelPromptPayId.trim()) {
-        const cleaned = channelPromptPayId.trim().replace(/\D/g, '');
-        config.promptpay_id = cleaned;
+        config.promptpay_id = channelPromptPayId.trim().replace(/\D/g, '');
+      }
+      if (channelType === 'bank_transfer') {
+        config.bank_code = channelBankCode;
+        config.account_number = channelAccountNumber.trim();
+        config.account_name = channelAccountName.trim();
       }
 
       if (editingChannelId) {
@@ -313,6 +501,7 @@ export default function PosTerminalsPage() {
   };
 
   const handleToggleChannel = async (ch: PaymentChannelItem) => {
+    setTogglingChannelId(ch.id);
     try {
       const response = await apiFetch('/api/settings/payment-channels', {
         method: 'PUT',
@@ -329,6 +518,8 @@ export default function PosTerminalsPage() {
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : 'เปลี่ยนสถานะไม่สำเร็จ';
       showToast(msg, 'error');
+    } finally {
+      setTogglingChannelId(null);
     }
   };
 
@@ -391,67 +582,103 @@ export default function PosTerminalsPage() {
   return (
     <Layout>
       <Container size="full">
-        <div className="mb-6">
-          <h1 className="heading-1">เครื่อง POS</h1>
-          <p className="page-subtitle">จัดการเครื่อง POS ที่เชื่อมกับคลังสินค้าและช่องทางชำระเงิน</p>
-        </div>
-        {/* POS not enabled */}
-        {!features.pos && !loading && (
-          <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4 flex items-start gap-3 mb-6">
-            <AlertTriangle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
-            <div>
-              <p className="text-base font-medium text-amber-800 dark:text-amber-200">ฟีเจอร์ POS ยังไม่เปิดใช้งาน</p>
-              <p className="text-base text-amber-600 dark:text-amber-400 mt-1">กรุณาเปิดใช้งาน POS ในหน้าข้อมูลบริษัท &gt; ปรับแต่ง Features</p>
-            </div>
+        <div className="flex justify-between items-start mb-6">
+          <div>
+            <h1 className="heading-1">แคชเชียร์</h1>
+            <p className="page-subtitle">จัดการแคชเชียร์ที่เชื่อมกับคลังสินค้าและช่องทางชำระเงิน</p>
           </div>
+          {features.pos && !loading && (
+            activeTab === 'terminals' ? (
+              // Terminals: simple button — hidden when list is empty (EmptyCard CTA takes over)
+              terminals.length > 0 && (
+                <Button
+                  variant="primary"
+                  icon={<Plus className="w-4 h-4" />}
+                  onClick={() => { resetForm(); setShowForm(true); }}
+                >
+                  เพิ่ม
+                </Button>
+              )
+            ) : (
+              // Channels: button with chevron → dropdown picks channel type
+              <div ref={addChannelDropdownRef} className="relative print:hidden">
+                <Button
+                  variant="primary"
+                  icon={<Plus className="w-4 h-4" />}
+                  iconRight={<ChevronDown className="w-3.5 h-3.5" />}
+                  onClick={() => setAddChannelDropdownOpen(o => !o)}
+                >
+                  เพิ่ม
+                </Button>
+                {addChannelDropdownOpen && (
+                  <div className="absolute right-0 mt-1 w-56 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded-lg shadow-lg z-50 py-1">
+                    {CHANNEL_TYPE_OPTIONS.map(opt => {
+                      const Icon = opt.icon;
+                      return (
+                        <button
+                          key={opt.value}
+                          onClick={() => openCreateChannel(opt.value, opt.label)}
+                          className="w-full text-left px-3 py-2.5 text-sm text-gray-700 dark:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-700 flex items-center gap-2.5"
+                        >
+                          <Icon className={`w-4 h-4 ${opt.color}`} />
+                          {opt.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )
+          )}
+        </div>
+        {/* POS feature flag not enabled */}
+        {!features.pos && !loading && (
+          <Alert tone="warning" title="ฟีเจอร์แคชเชียร์ยังไม่เปิดใช้งาน" className="mb-6">
+            กรุณาเปิดใช้งานในหน้า <a href="/settings/features" className="underline font-medium">ปรับแต่ง Features</a>
+          </Alert>
         )}
 
         {loading ? (
           <LoadingCard />
         ) : features.pos ? (
           <div>
-            {/* ══════ Tab Bar ══════ */}
-            <div className="flex border-b border-gray-200 dark:border-slate-700 mb-6">
-              <button
-                onClick={() => setActiveTab('terminals')}
-                className={`px-5 py-3 text-base font-medium border-b-2 transition-colors ${
-                  activeTab === 'terminals'
-                    ? 'border-primary text-primary'
-                    : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-300'
-                }`}
-              >
-                <span className="flex items-center gap-2">
-                  <Monitor className="w-4 h-4" />
-                  สาขา POS
-                </span>
-              </button>
-              <button
-                onClick={() => setActiveTab('channels')}
-                className={`px-5 py-3 text-base font-medium border-b-2 transition-colors ${
-                  activeTab === 'channels'
-                    ? 'border-primary text-primary'
-                    : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-300'
-                }`}
-              >
-                <span className="flex items-center gap-2">
-                  <CreditCard className="w-4 h-4" />
-                  ช่องทางชำระเงิน POS
-                </span>
-              </button>
-            </div>
+            <Tabs
+              activeKey={activeTab}
+              onSelect={(k) => setActiveTab(k as 'terminals' | 'channels')}
+              tabs={[
+                { key: 'terminals', label: 'แคชเชียร์', icon: <Monitor className="w-4 h-4" /> },
+                { key: 'channels', label: 'ช่องทางชำระเงิน', icon: <CreditCard className="w-4 h-4" /> },
+              ]}
+            />
 
-            {/* ══════ Tab: Terminals ══════ */}
+            {/* ══════ Tab: Cashiers ══════ */}
             {activeTab === 'terminals' && (
               <div>
-                <p className="data-text text-gray-500 dark:text-slate-400 mb-4">
-                  แต่ละจุดขายเลือกผูกคลังสินค้าเพื่อตัดสต็อกได้
-                </p>
+                {terminals.length === 0 ? (
+                  <EmptyCard
+                    icon={<Monitor className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
+                    title="ยังไม่มีแคชเชียร์"
+                    subtitle="สร้างแคชเชียร์แรกเพื่อเริ่มขายผ่านระบบ"
+                    actions={
+                      <Button
+                        variant="primary"
+                        icon={<Plus className="w-4 h-4" />}
+                        onClick={() => { resetForm(); setShowForm(true); }}
+                      >
+                        สร้างแคชเชียร์แรก
+                      </Button>
+                    }
+                  />
+                ) : (
+                  <>
+                    <p className="subtitle-text text-gray-500 dark:text-slate-400 mb-4">
+                      แต่ละแคชเชียร์เลือกผูกคลังสินค้าเพื่อตัดสต็อกได้
+                    </p>
 
-                <div className="space-y-3">
-                  {terminals.map((t) => {
-                    return (
-                      <div key={t.id} className="space-y-3">
+                    <div className="space-y-3">
+                      {terminals.map((t) => (
                         <ListRow
+                          key={t.id}
                           inactive={!t.is_active}
                           icon={
                             <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
@@ -483,7 +710,11 @@ export default function PosTerminalsPage() {
                           }
                           actions={
                             <>
-                              <Toggle checked={t.is_active} onChange={() => handleToggleActive(t)} />
+                              <Toggle
+                                checked={t.is_active}
+                                onChange={() => handleToggleActive(t)}
+                                loading={togglingTerminalId === t.id}
+                              />
                               <button
                                 onClick={() => startEdit(t)}
                                 className="p-1.5 text-gray-400 hover:text-blue-600 transition-colors"
@@ -492,7 +723,7 @@ export default function PosTerminalsPage() {
                                 <Edit2 className="w-4 h-4" />
                               </button>
                               <button
-                                onClick={async () => { const ok = await confirm({ title: 'ต้องการลบจุดขายนี้?', variant: 'danger' }); if (ok) handleDelete(t.id); }}
+                                onClick={async () => { const ok = await confirm({ title: 'ต้องการลบแคชเชียร์นี้?', variant: 'danger' }); if (ok) handleDelete(t.id); }}
                                 disabled={deletingId === t.id}
                                 className="p-1.5 text-gray-400 hover:text-red-500 transition-colors disabled:opacity-50"
                                 aria-label="ลบ"
@@ -502,39 +733,27 @@ export default function PosTerminalsPage() {
                             </>
                           }
                         />
-
-                        {editingId === t.id && showForm && renderTerminalForm()}
-                      </div>
-                    );
-                  })}
-
-                  {showForm && !editingId ? (
-                    renderTerminalForm()
-                  ) : !showForm ? (
-                    <button
-                      onClick={() => { resetForm(); setShowForm(true); }}
-                      className="w-full p-3 border-2 border-dashed border-gray-300 dark:border-slate-600 rounded-lg text-base text-gray-500 dark:text-slate-400 hover:border-primary hover:text-primary transition-colors flex items-center justify-center gap-2"
-                    >
-                      <Plus className="w-4 h-4" />
-                      เพิ่ม<span className="hidden md:inline">จุดขาย</span>
-                    </button>
-                  ) : null}
-                </div>
+                      ))}
+                    </div>
+                  </>
+                )}
               </div>
             )}
 
             {/* ══════ Tab: Payment Channels ══════ */}
             {activeTab === 'channels' && (
               <div>
-                <p className="data-text text-gray-500 dark:text-slate-400 mb-4">
-                  เปิด/ปิดช่องทางที่ต้องการใช้ในหน้า POS
+                <p className="subtitle-text text-gray-500 dark:text-slate-400 mb-4">
+                  เปิด/ปิดช่องทางที่ต้องการใช้ในแคชเชียร์
                 </p>
 
-                <div className="text-xs text-gray-400 dark:text-slate-500 flex items-center gap-1.5 mb-3">
-                  <ArrowUp className="w-3.5 h-3.5" />
-                  <ArrowDown className="w-3.5 h-3.5" />
-                  <span>ใช้ปุ่มลูกศรเพื่อจัดลำดับการแสดงผลในหน้า POS</span>
-                </div>
+                {channels.length > 1 && (
+                  <div className="helper-text text-gray-400 dark:text-slate-500 flex items-center gap-1.5 mb-3">
+                    <ArrowUp className="w-3.5 h-3.5" />
+                    <ArrowDown className="w-3.5 h-3.5" />
+                    <span>ใช้ปุ่มลูกศรเพื่อจัดลำดับการแสดงผลในแคชเชียร์</span>
+                  </div>
+                )}
 
                 {loadingChannels ? (
                   <LoadingCard compact />
@@ -551,13 +770,13 @@ export default function PosTerminalsPage() {
                         <div key={ch.id}>
                           <ListRow
                             inactive={!ch.is_active}
-                            reorder={{
+                            reorder={channels.length > 1 ? {
                               onMoveUp: () => handleMoveChannel(ch.id, 'up'),
                               onMoveDown: () => handleMoveChannel(ch.id, 'down'),
                               disableUp: isFirst,
                               disableDown: isLast,
                               disabled: reordering,
-                            }}
+                            } : undefined}
                             icon={
                               <div className="w-8 h-8 rounded-lg bg-green-500/10 flex items-center justify-center">
                                 <Icon className="w-4 h-4 text-green-600 dark:text-green-400" />
@@ -565,7 +784,7 @@ export default function PosTerminalsPage() {
                             }
                             title={ch.name}
                             subtitle={
-                              <span className="inline-flex items-center gap-2">
+                              <span className="inline-flex items-center gap-2 flex-wrap">
                                 {ch.is_active ? (
                                   <span className="text-green-600 dark:text-green-400">เปิดใช้งาน</span>
                                 ) : (
@@ -574,21 +793,36 @@ export default function PosTerminalsPage() {
                                 {ch.type === 'promptpay' && ch.config?.promptpay_id ? (
                                   <span className="text-blue-500">QR: {String(ch.config.promptpay_id)}</span>
                                 ) : null}
+                                {ch.type === 'bank_transfer' && (() => {
+                                  const cfg = ch.config as Record<string, string>;
+                                  if (!cfg?.account_number) return null;
+                                  const bank = cfg.bank_code ? getBankByCode(cfg.bank_code) : null;
+                                  return (
+                                    <span className="text-gray-500 dark:text-slate-400">
+                                      {bank?.name_th || cfg.bank_code} • {cfg.account_number}
+                                      {cfg.account_name ? ` • ${cfg.account_name}` : ''}
+                                    </span>
+                                  );
+                                })()}
                               </span>
                             }
                             actions={
                               <>
-                                <Toggle checked={ch.is_active} onChange={() => handleToggleChannel(ch)} />
+                                <Toggle
+                                  checked={ch.is_active}
+                                  onChange={() => handleToggleChannel(ch)}
+                                  loading={togglingChannelId === ch.id}
+                                />
                                 {canEdit && (
                                   <button
-                                    onClick={() => isEditing ? resetChannelForm() : startEditChannel(ch)}
-                                    className={`p-1.5 transition-colors ${isEditing ? 'text-primary' : 'text-gray-400 hover:text-blue-600'}`}
-                                    aria-label={isEditing ? 'ยกเลิก' : 'แก้ไข'}
+                                    onClick={() => startEditChannel(ch)}
+                                    className="p-1.5 text-gray-400 hover:text-blue-600 transition-colors"
+                                    aria-label="แก้ไข"
                                   >
-                                    {isEditing ? <X className="w-4 h-4" /> : <Edit2 className="w-4 h-4" />}
+                                    <Edit2 className="w-4 h-4" />
                                   </button>
                                 )}
-                                {canDelete && !isEditing && (
+                                {canDelete && (
                                   <button
                                     onClick={async () => { const ok = await confirm({ title: 'ต้องการลบช่องทางชำระเงินนี้?', variant: 'danger' }); if (ok) handleDeleteChannel(ch.id); }}
                                     disabled={deletingChannelId === ch.id}
@@ -601,28 +835,9 @@ export default function PosTerminalsPage() {
                               </>
                             }
                           />
-
-                          {/* Inline edit form — rendered as a separate block under the row */}
-                          {isEditing && (
-                            <div className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg p-4 -mt-1">
-                              {renderChannelFormInline()}
-                            </div>
-                          )}
                         </div>
                       );
                     })}
-
-                    {showChannelForm && !editingChannelId ? (
-                      renderChannelForm()
-                    ) : !showChannelForm ? (
-                      <button
-                        onClick={() => { resetChannelForm(); setShowChannelForm(true); }}
-                        className="w-full p-3 border-2 border-dashed border-gray-300 dark:border-slate-600 rounded-lg text-base text-gray-500 dark:text-slate-400 hover:border-primary hover:text-primary transition-colors flex items-center justify-center gap-2"
-                      >
-                        <Plus className="w-4 h-4" />
-                        เพิ่มช่องทางชำระเงิน
-                      </button>
-                    ) : null}
                   </div>
                 )}
               </div>
@@ -630,262 +845,304 @@ export default function PosTerminalsPage() {
           </div>
         ) : null}
       </Container>
+      {renderTerminalModal()}
+      {renderChannelModal()}
+
+      {/* Quick-add VAT branch — opens on top of the cashier modal so user
+          stays in flow when they realize they need a new branch */}
+      <Modal
+        open={showBranchQuickAdd}
+        onClose={() => !savingBranch && setShowBranchQuickAdd(false)}
+        title="เพิ่มสาขา VAT"
+        size="sm"
+        disableBackdropClose={savingBranch}
+        footer={
+          <div className="flex justify-end gap-3 px-6 py-4">
+            <Button variant="secondary" onClick={() => setShowBranchQuickAdd(false)} disabled={savingBranch}>
+              ยกเลิก
+            </Button>
+            <Button
+              variant="primary"
+              onClick={handleSaveQuickAddBranch}
+              loading={savingBranch}
+              disabled={savingBranch || !quickAddBranchName.trim() || !quickAddBranchCode.trim()}
+            >
+              บันทึก
+            </Button>
+          </div>
+        }
+      >
+        <div className="px-6 py-5 space-y-4">
+          <FormInput
+            label="รหัสสาขา"
+            required
+            value={quickAddBranchCode}
+            onChange={e => setQuickAddBranchCode(e.target.value.replace(/\D/g, '').slice(0, 5))}
+            placeholder="00000"
+            hint="ตัวเลข 5 หลัก จาก ภพ.20 — สำนักงานใหญ่ใช้ 00000"
+            inputMode="numeric"
+          />
+          <FormInput
+            label="ชื่อสาขา"
+            required
+            value={quickAddBranchName}
+            onChange={e => setQuickAddBranchName(e.target.value)}
+            placeholder="เช่น สำนักงานใหญ่, สาขาที่ 1"
+          />
+          <FormInput
+            label="ที่อยู่สาขา"
+            value={quickAddBranchAddress}
+            onChange={e => setQuickAddBranchAddress(e.target.value)}
+            placeholder="ไม่กรอก = ใช้ที่อยู่บริษัท"
+            hint="ใส่ที่อยู่จริงของสาขานี้ ถ้าต่างจากที่อยู่หลักของบริษัท"
+          />
+        </div>
+      </Modal>
+
       {confirmDialog}
     </Layout>
   );
 
-  function renderTerminalForm() {
+  function renderTerminalModal() {
     return (
-      <Card padding="md" className="space-y-3">
-        <div className="data-primary text-gray-700 dark:text-slate-300 flex items-center gap-2">
-          <Monitor className="w-4 h-4 text-primary" />
-          {editingId ? 'แก้ไขจุดขาย' : 'เพิ่มจุดขาย'}
-        </div>
-
-        <div>
-          <label className="block text-sm text-gray-500 dark:text-slate-400 mb-1">ชื่อจุดขาย *</label>
-          <input
-            type="text"
+      <Modal
+        open={showForm}
+        onClose={() => !saving && resetForm()}
+        title={editingId ? 'แก้ไขแคชเชียร์' : 'เพิ่มแคชเชียร์'}
+        icon={<Monitor className="w-5 h-5 text-primary" />}
+        size="md"
+        disableBackdropClose={saving}
+        footer={
+          <div className="flex justify-end gap-3 px-6 py-4">
+            <Button variant="secondary" onClick={resetForm} disabled={saving}>
+              ยกเลิก
+            </Button>
+            <Button variant="primary" onClick={handleSave} loading={saving} disabled={saving || !formName.trim()}>
+              บันทึก
+            </Button>
+          </div>
+        }
+      >
+        <div className="px-6 py-5 space-y-4">
+          <FormInput
+            label="ชื่อแคชเชียร์"
+            required
             value={formName}
             onChange={e => setFormName(e.target.value)}
             placeholder="เช่น สาขาสยาม, Event ตลาดนัด JJ"
-            className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
             autoFocus
           />
-        </div>
 
-        <div>
-          <label className="block text-sm text-gray-500 dark:text-slate-400 mb-1">รหัสจุดขาย</label>
-          <input
-            type="text"
+          <FormInput
+            label="รหัสแคชเชียร์"
             value={formCode}
             onChange={e => setFormCode(e.target.value)}
-            placeholder="เช่น POS01"
-            className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
+            placeholder="เช่น CASH01"
+            hint="ใช้แสดงในใบเสร็จ / รายงาน (ไม่กรอกก็ได้)"
           />
-        </div>
 
-        <div>
-          <label className="block text-sm text-gray-500 dark:text-slate-400 mb-1">คลังสินค้า (ตัดสต็อก)</label>
-          <FormSelect
-            value={formWarehouseId}
-            onChange={value => setFormWarehouseId(value)}
-            options={warehouses.map(wh => ({ id: wh.id, label: wh.name + (wh.code ? ` (${wh.code})` : '') }))}
-            placeholder="ไม่ตัดสต็อก"
-            clearLabel="ไม่ตัดสต็อก"
-            icon={<Warehouse className="w-4 h-4" />}
-            searchThreshold={99}
-          />
-        </div>
+          {/* VAT branch — only when company is VAT-registered. FK to tax_branches
+              so the receipt counter scopes per branch (each branch gets its own
+              continuous sequence, code printed in receipt number). Inline
+              "+ เพิ่มสาขา" follows the master-data inline quick-add convention. */}
+          {isVatRegistered && (
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="field-label !mb-0">สาขา VAT (สำหรับใบกำกับภาษี) <span className="text-red-500">*</span></label>
+                <button
+                  type="button"
+                  onClick={openBranchQuickAdd}
+                  className="text-xs text-primary hover:underline inline-flex items-center gap-1"
+                >
+                  <Plus className="w-3 h-3" />
+                  เพิ่มสาขา
+                </button>
+              </div>
+              <FormSelect
+                value={formTaxBranchId}
+                onChange={setFormTaxBranchId}
+                options={taxBranches.map(b => ({ id: b.id, label: `${b.code} — ${b.name}` }))}
+                placeholder={taxBranches.length === 0 ? 'ยังไม่มีสาขา — กด + เพิ่มสาขา' : 'เลือกสาขา'}
+                searchThreshold={99}
+                portal
+              />
+              <p className="helper-text text-gray-500 mt-1">
+                เลขใบกำกับจะใช้รหัสสาขานี้เป็น prefix (เช่น RCP-00000-YYYYMM-NNNN)
+              </p>
+            </div>
+          )}
 
-        <div className="flex gap-2 pt-1">
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="px-4 py-2 bg-primary hover:bg-primary-hover text-white text-base font-medium rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
-          >
-            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-            บันทึก
-          </button>
-          <button
-            onClick={resetForm}
-            className="px-4 py-2 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 text-base font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors flex items-center gap-2"
-          >
-            <X className="w-4 h-4" /> ยกเลิก
-          </button>
+          <div>
+            <label className="field-label">คลังสินค้า (ตัดสต็อก)</label>
+            <FormSelect
+              value={formWarehouseId}
+              onChange={value => setFormWarehouseId(value)}
+              options={warehouses.map(wh => ({ id: wh.id, label: wh.name + (wh.code ? ` (${wh.code})` : '') }))}
+              placeholder="ไม่ตัดสต็อก"
+              clearLabel="ไม่ตัดสต็อก"
+              icon={<Warehouse className="w-4 h-4" />}
+              searchThreshold={99}
+              portal
+            />
+          </div>
         </div>
-      </Card>
+      </Modal>
     );
   }
 
-  function renderChannelFormInline() {
+  /** PromptPay ID field — used inside the channel modal when type is promptpay */
+  function renderPromptPayField() {
+    const digits = channelPromptPayId.replace(/\D/g, '').length;
+    const hasValue = !!channelPromptPayId.trim();
+    const isValid = digits === 10 || digits === 13;
     return (
-      <div className="space-y-3">
-        <div>
-          <label className="block text-sm text-gray-500 dark:text-slate-400 mb-1">ชื่อช่องทาง *</label>
-          <input
-            type="text"
-            value={channelName}
-            onChange={e => setChannelName(e.target.value)}
-            placeholder="เช่น โอนเงิน, บัตรเครดิต"
-            className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
-            autoFocus
-          />
+      <div>
+        <div className="flex items-center gap-1.5 mb-1">
+          <span className="field-label !mb-0">PromptPay ID (QR Code)</span>
+          <PromptPayHelpTooltip />
         </div>
-
-        {channelType === 'promptpay' && (
-          <div>
-            <div className="flex items-center gap-1.5 mb-1">
-              <label className="text-sm text-gray-500 dark:text-slate-400">PromptPay ID (QR Code)</label>
-              <div className="relative group">
-                <Info className="w-4 h-4 text-gray-400 dark:text-slate-500 cursor-help" />
-                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-72 p-3 bg-gray-900 dark:bg-slate-700 text-white text-xs rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
-                  <p className="font-semibold mb-1.5">วิธีสมัคร PromptPay</p>
-                  <p className="font-medium text-yellow-300 mb-1">บุคคลธรรมดา:</p>
-                  <p className="mb-1.5">ใช้เบอร์โทร (10 หลัก) หรือเลขบัตรประชาชน (13 หลัก) ที่ผูก PromptPay ไว้กับธนาคาร</p>
-                  <p className="font-medium text-yellow-300 mb-1">นิติบุคคล (บริษัท):</p>
-                  <p className="mb-1.5">ใช้เลขประจำตัวผู้เสียภาษี (Tax ID 13 หลัก)</p>
-                  <p className="text-red-300 mt-1">* เลขบัญชีธนาคารใช้ไม่ได้ ต้องเป็นเลขที่ผูก PromptPay แล้วเท่านั้น</p>
-                  <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900 dark:border-t-slate-700"></div>
-                </div>
-              </div>
-            </div>
-            <input
-              type="text"
-              value={channelPromptPayId}
-              onChange={e => {
-                const v = e.target.value.replace(/[^\d-]/g, '');
-                setChannelPromptPayId(v);
-              }}
-              placeholder="เบอร์โทร (10 หลัก) หรือ Tax ID (13 หลัก)"
-              className={`w-full px-3 py-2 border rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary ${
-                channelPromptPayId.trim() && channelPromptPayId.replace(/\D/g, '').length !== 10 && channelPromptPayId.replace(/\D/g, '').length !== 13
-                  ? 'border-red-400 dark:border-red-500'
-                  : 'border-gray-300 dark:border-slate-600'
-              }`}
-            />
-            {channelPromptPayId.trim() ? (() => {
-              const digits = channelPromptPayId.replace(/\D/g, '').length;
-              if (digits === 10) return <p className="text-xs text-green-500 mt-1">เบอร์โทรศัพท์ (10 หลัก)</p>;
-              if (digits === 13) return <p className="text-xs text-green-500 mt-1">บัตรประชาชน / Tax ID (13 หลัก)</p>;
-              return <p className="text-xs text-red-500 mt-1">PromptPay ID ต้องเป็น 10 หลัก (เบอร์โทร) หรือ 13 หลัก (บัตร ปชช./Tax ID) — ตอนนี้ {digits} หลัก</p>;
-            })() : (
-              <p className="text-xs text-gray-400 dark:text-slate-500 mt-1">
-                กรอกเพื่อแสดง QR PromptPay อัตโนมัติตอนชำระเงิน
-              </p>
-            )}
-          </div>
+        <FormInput
+          value={channelPromptPayId}
+          onChange={e => setChannelPromptPayId(e.target.value.replace(/[^\d-]/g, ''))}
+          placeholder="เบอร์โทร (10 หลัก) หรือ Tax ID (13 หลัก)"
+          error={hasValue && !isValid ? `PromptPay ID ต้องเป็น 10 หลัก (เบอร์โทร) หรือ 13 หลัก (บัตร ปชช./Tax ID) — ตอนนี้ ${digits} หลัก` : undefined}
+          hint={!hasValue ? 'กรอกเพื่อแสดง QR PromptPay อัตโนมัติตอนชำระเงิน' : undefined}
+        />
+        {hasValue && isValid && (
+          <p className="helper-text text-green-500 mt-1">
+            {digits === 10 ? 'เบอร์โทรศัพท์ (10 หลัก)' : 'บัตรประชาชน / Tax ID (13 หลัก)'}
+          </p>
         )}
-
-        <div className="flex gap-2 pt-1">
-          <button
-            onClick={handleSaveChannel}
-            disabled={savingChannel}
-            className="px-4 py-2 bg-primary hover:bg-primary-hover text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
-          >
-            {savingChannel ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-            บันทึก
-          </button>
-          <button
-            onClick={resetChannelForm}
-            className="px-4 py-2 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 text-sm font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors"
-          >
-            ยกเลิก
-          </button>
-        </div>
       </div>
     );
   }
 
-  function renderChannelForm() {
+  function renderChannelModal() {
+    // Header icon + label follow the channel type so user always sees what
+    // they're editing (Bank vs PromptPay vs Card reader). Type is fixed once
+    // chosen from the dropdown / set on existing rows — can't be swapped here.
+    const TypeIcon = getChannelIcon(channelType);
+    const typeOption = CHANNEL_TYPE_OPTIONS.find(o => o.value === channelType);
+    const typeLabel = typeOption?.label ?? 'ช่องทางชำระเงิน';
+    const titleVerb = editingChannelId ? 'แก้ไข' : 'เพิ่ม';
     return (
-      <Card padding="md" className="space-y-3">
-        <div className="data-primary text-gray-700 dark:text-slate-300 flex items-center gap-2">
-          <CreditCard className="w-4 h-4 text-green-600" />
-          {editingChannelId ? 'แก้ไขช่องทาง' : 'เพิ่มช่องทางชำระเงิน'}
-        </div>
-
-        {!editingChannelId && (
-          <div>
-            <label className="block text-sm text-gray-500 dark:text-slate-400 mb-1">ประเภท</label>
-            <div className="flex gap-2">
-              {CHANNEL_TYPE_OPTIONS.map(opt => {
-                const Icon = opt.icon;
-                return (
-                  <button
-                    key={opt.value}
-                    onClick={() => {
-                      setChannelType(opt.value);
-                      if (!channelName) setChannelName(opt.label);
-                    }}
-                    className={`flex-1 p-2 rounded-lg text-xs font-medium flex flex-col items-center gap-1 transition-all ${
-                      channelType === opt.value
-                        ? 'bg-primary/10 text-primary border-2 border-primary'
-                        : 'bg-gray-50 dark:bg-slate-700 text-gray-600 dark:text-slate-400 border-2 border-transparent hover:bg-gray-100 dark:hover:bg-slate-600'
-                    }`}
-                  >
-                    <Icon className="w-4 h-4" />
-                    {opt.label}
-                  </button>
-                );
-              })}
-            </div>
+      <Modal
+        open={showChannelForm}
+        onClose={() => !savingChannel && resetChannelForm()}
+        title={`${titleVerb}${typeLabel}`}
+        icon={<TypeIcon className={`w-5 h-5 ${typeOption?.color ?? 'text-primary'}`} />}
+        size="md"
+        disableBackdropClose={savingChannel}
+        footer={
+          <div className="flex justify-end gap-3 px-6 py-4">
+            <Button variant="secondary" onClick={resetChannelForm} disabled={savingChannel}>
+              ยกเลิก
+            </Button>
+            <Button variant="primary" onClick={handleSaveChannel} loading={savingChannel} disabled={savingChannel || !channelName.trim()}>
+              บันทึก
+            </Button>
           </div>
-        )}
+        }
+      >
+        <div className="px-6 py-5 space-y-4">
+          {/* Bank picker (bank_transfer only) — also auto-fills the channel
+              name with the bank's Thai name so user gets something sensible
+              for free; they can still rename later. */}
+          {channelType === 'bank_transfer' && (
+            <div ref={bankDropdownRef} className="relative">
+              <label className="field-label">ธนาคาร <span className="text-red-500">*</span></label>
+              <button
+                type="button"
+                onClick={() => setBankDropdownOpen(!bankDropdownOpen)}
+                className="w-full h-10 px-3 border border-gray-300 dark:border-slate-600 rounded-lg text-left flex items-center gap-2 bg-white dark:bg-slate-700 hover:border-gray-400 dark:hover:border-slate-500 transition-colors"
+              >
+                {channelBankCode ? (
+                  <>
+                    {getBankByCode(channelBankCode)?.logo ? (
+                      <img src={getBankByCode(channelBankCode)!.logo} alt="" className="w-5 h-5 rounded-full flex-shrink-0 object-contain" />
+                    ) : (
+                      <span className="w-5 h-5 rounded-full flex-shrink-0" style={{ backgroundColor: getBankByCode(channelBankCode)?.color }} />
+                    )}
+                    <span className="text-sm text-gray-900 dark:text-white">{getBankByCode(channelBankCode)?.name_th}</span>
+                  </>
+                ) : (
+                  <span className="text-sm text-gray-400 dark:text-slate-500">เลือกธนาคาร</span>
+                )}
+                <ChevronDown className="w-4 h-4 ml-auto text-gray-400" />
+              </button>
+              {bankDropdownOpen && (
+                <div className="absolute z-20 w-full mt-1 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                  {THAI_BANKS.map(b => (
+                    <button
+                      key={b.code}
+                      type="button"
+                      onClick={() => {
+                        setChannelBankCode(b.code);
+                        setBankDropdownOpen(false);
+                        // Auto-fill channel name if untouched or empty
+                        if (!channelName.trim() || channelName === getBankByCode(channelBankCode)?.name_th) {
+                          setChannelName(b.name_th);
+                        }
+                      }}
+                      className={`w-full px-3 py-2 flex items-center gap-2 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors text-left ${channelBankCode === b.code ? 'bg-primary/10' : ''}`}
+                    >
+                      {b.logo ? <img src={b.logo} alt={b.name_th} className="w-5 h-5 rounded-full flex-shrink-0 object-contain" /> : <span className="w-5 h-5 rounded-full flex-shrink-0" style={{ backgroundColor: b.color }} />}
+                      <span className="text-sm text-gray-900 dark:text-white">{b.name_th}</span>
+                      <span className="text-xs text-gray-400 ml-auto">{b.code}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
-        <div>
-          <label className="block text-sm text-gray-500 dark:text-slate-400 mb-1">ชื่อช่องทาง *</label>
-          <input
-            type="text"
+          {/* Channel name — label/placeholder adapt to type so user knows
+              what to type (terminal device name vs generic channel name). */}
+          <FormInput
+            label={
+              channelType === 'card_terminal' ? 'ชื่อเครื่องรูดบัตร'
+              : channelType === 'bank_transfer' ? 'ชื่อช่องทาง (แสดงผล)'
+              : 'ชื่อช่องทาง'
+            }
+            required
             value={channelName}
             onChange={e => setChannelName(e.target.value)}
-            placeholder="เช่น โอนเงิน, บัตรเครดิต"
-            className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
+            placeholder={
+              channelType === 'card_terminal' ? 'เช่น EDC กสิกร เคาน์เตอร์ 1'
+              : channelType === 'bank_transfer' ? 'เช่น กสิกร (บัญชีร้าน)'
+              : 'เช่น โอนเงิน, บัตรเครดิต'
+            }
+            hint={
+              channelType === 'card_terminal'
+                ? 'ใช้แยกยอดเมื่อปิดกะ ถ้ามีหลายเครื่องให้ตั้งชื่อต่างกัน'
+                : undefined
+            }
             autoFocus
           />
-        </div>
 
-        {channelType === 'promptpay' && (
-          <div>
-            <div className="flex items-center gap-1.5 mb-1">
-              <label className="text-sm text-gray-500 dark:text-slate-400">PromptPay ID (QR Code)</label>
-              <div className="relative group">
-                <Info className="w-4 h-4 text-gray-400 dark:text-slate-500 cursor-help" />
-                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-72 p-3 bg-gray-900 dark:bg-slate-700 text-white text-xs rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
-                  <p className="font-semibold mb-1.5">วิธีสมัคร PromptPay</p>
-                  <p className="font-medium text-yellow-300 mb-1">บุคคลธรรมดา:</p>
-                  <p className="mb-1.5">ใช้เบอร์โทร (10 หลัก) หรือเลขบัตรประชาชน (13 หลัก) ที่ผูก PromptPay ไว้กับธนาคาร — สมัครผ่าน Mobile Banking หรือสาขาธนาคาร</p>
-                  <p className="font-medium text-yellow-300 mb-1">นิติบุคคล (บริษัท):</p>
-                  <p className="mb-1.5">ใช้เลขประจำตัวผู้เสียภาษี (Tax ID 13 หลัก) — ต้องสมัครที่สาขาธนาคารที่บริษัทมีบัญชี</p>
-                  <p className="text-red-300 mt-1">* เลขบัญชีธนาคารใช้ไม่ได้ ต้องเป็นเลขที่ผูก PromptPay แล้วเท่านั้น</p>
-                  <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900 dark:border-t-slate-700"></div>
-                </div>
-              </div>
+          {/* Bank account fields (bank_transfer only) */}
+          {channelType === 'bank_transfer' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <FormInput
+                label="เลขที่บัญชี"
+                required
+                value={channelAccountNumber}
+                onChange={e => setChannelAccountNumber(e.target.value)}
+                placeholder="xxx-x-xxxxx-x"
+              />
+              <FormInput
+                label="ชื่อบัญชี"
+                required
+                value={channelAccountName}
+                onChange={e => setChannelAccountName(e.target.value)}
+                placeholder="ชื่อ-สกุล หรือ ชื่อบริษัท"
+              />
             </div>
-            <input
-              type="text"
-              value={channelPromptPayId}
-              onChange={e => {
-                const v = e.target.value.replace(/[^\d-]/g, '');
-                setChannelPromptPayId(v);
-              }}
-              placeholder="เบอร์โทร (10 หลัก) หรือ Tax ID (13 หลัก)"
-              className={`w-full px-3 py-2 border rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary ${
-                channelPromptPayId.trim() && channelPromptPayId.replace(/\D/g, '').length !== 10 && channelPromptPayId.replace(/\D/g, '').length !== 13
-                  ? 'border-red-400 dark:border-red-500'
-                  : 'border-gray-300 dark:border-slate-600'
-              }`}
-            />
-            {channelPromptPayId.trim() ? (() => {
-              const digits = channelPromptPayId.replace(/\D/g, '').length;
-              if (digits === 10) return <p className="text-xs text-green-500 mt-1">เบอร์โทรศัพท์ (10 หลัก)</p>;
-              if (digits === 13) return <p className="text-xs text-green-500 mt-1">บัตรประชาชน / Tax ID (13 หลัก)</p>;
-              return <p className="text-xs text-red-500 mt-1">PromptPay ID ต้องเป็น 10 หลัก (เบอร์โทร) หรือ 13 หลัก (บัตร ปชช./Tax ID) — ตอนนี้ {digits} หลัก</p>;
-            })() : (
-              <p className="text-xs text-gray-400 dark:text-slate-500 mt-1">
-                กรอกเพื่อแสดง QR PromptPay อัตโนมัติตอนชำระเงิน
-              </p>
-            )}
-          </div>
-        )}
+          )}
 
-        <div className="flex gap-2 pt-1">
-          <button
-            onClick={handleSaveChannel}
-            disabled={savingChannel}
-            className="px-4 py-2 bg-primary hover:bg-primary-hover text-white text-base font-medium rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
-          >
-            {savingChannel ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-            บันทึก
-          </button>
-          <button
-            onClick={resetChannelForm}
-            className="px-4 py-2 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 text-base font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors flex items-center gap-2"
-          >
-            <X className="w-4 h-4" /> ยกเลิก
-          </button>
+          {channelType === 'promptpay' && renderPromptPayField()}
         </div>
-      </Card>
+      </Modal>
     );
   }
 }

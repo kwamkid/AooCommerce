@@ -1,18 +1,18 @@
 // Path: app/settings/carriers/page.tsx
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import Layout from '@/components/layout/Layout';
 import Modal from '@/components/ui/Modal';
-import SearchInput from '@/components/ui/SearchInput';
-import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
-import ActionMenu, { type ActionItem } from '@/components/ui/ActionMenu';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import Container from '@/components/ui/Container';
 import Button from '@/components/ui/Button';
 import Toggle from '@/components/ui/Toggle';
-import Tabs from '@/components/ui/Tabs';
 import Card from '@/components/ui/Card';
+import ListRow from '@/components/ui/ListRow';
+import FormInput from '@/components/ui/FormInput';
+import Checkbox from '@/components/ui/Checkbox';
+import Alert from '@/components/ui/Alert';
 import { LoadingCard, NoPermissionCard } from '@/components/ui/StateCard';
 import { CARRIER_PRESETS } from '@/lib/constants/carriers';
 import { useAuth } from '@/lib/auth-context';
@@ -20,13 +20,7 @@ import { can } from '@/lib/permissions';
 import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
 import {
-  Truck,
-  Plus,
-  Pencil,
-  Trash2,
-  Power,
-  PowerOff,
-  Lock,
+  Truck, Plus, Pencil, Trash2, Lock, ArrowUp, ArrowDown, ExternalLink,
 } from 'lucide-react';
 
 interface Carrier {
@@ -42,6 +36,65 @@ interface Carrier {
 
 type ModalMode = 'create' | 'edit' | null;
 
+// Shippop signup — used in the integration card when no API key configured yet
+const SHIPPOP_SIGNUP_URL = 'https://www.shippop.com';
+
+/**
+ * Generate a stable internal code from name. The DB column only allows
+ * `a-z 0-9 _ - &` so Thai/CJK names fall back to a short random id.
+ * User never sees this code — Shippop integration will Link/Merge by it later.
+ */
+function generateCarrierCode(name: string): string {
+  const slug = name
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9_&-]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .replace(/_+/g, '_')
+    .slice(0, 32);
+  if (slug.length >= 2) return slug;
+  return `c_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+/** Append _2, _3, ... if base code is already used in this company. */
+function uniquifyCode(base: string, existing: Set<string>): string {
+  if (!existing.has(base)) return base;
+  for (let i = 2; i < 100; i++) {
+    const candidate = `${base.slice(0, 30)}_${i}`;
+    if (!existing.has(candidate)) return candidate;
+  }
+  return `c_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+const PRESET_BY_CODE = new Map(CARRIER_PRESETS.map(p => [p.code, p]));
+
+/**
+ * Carrier icon with brand-logo support + graceful fallback. Tries to render
+ * the preset's logo (from public/carrier_logo/); if the file 404s, swaps to
+ * the generic Truck icon so missing assets never break the UI.
+ */
+function CarrierIcon({ carrierCode, carrierName }: { carrierCode: string; carrierName: string }) {
+  const preset = PRESET_BY_CODE.get(carrierCode);
+  const [failed, setFailed] = useState(false);
+
+  if (preset?.logo && !failed) {
+    return (
+      <div className="w-8 h-8 bg-white dark:bg-slate-800 rounded-lg flex items-center justify-center overflow-hidden border border-gray-100 dark:border-slate-700">
+        <img
+          src={preset.logo}
+          alt={carrierName}
+          onError={() => setFailed(true)}
+          className="w-6 h-6 object-contain"
+        />
+      </div>
+    );
+  }
+  return (
+    <div className="w-8 h-8 bg-indigo-100 dark:bg-indigo-900/30 rounded-lg flex items-center justify-center">
+      <Truck className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+    </div>
+  );
+}
 
 export default function CarriersSettingsPage() {
   const { userProfile, loading: authLoading } = useAuth();
@@ -49,10 +102,6 @@ export default function CarriersSettingsPage() {
 
   const [carriers, setCarriers] = useState<Carrier[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'mine' | 'api'>('mine');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [currentPage, setCurrentPage] = useState(1);
-  const [rowsPerPage, setRowsPerPage] = useState(20);
 
   const [modalMode, setModalMode] = useState<ModalMode>(null);
   const [editing, setEditing] = useState<Carrier | null>(null);
@@ -61,11 +110,15 @@ export default function CarriersSettingsPage() {
   const [deleteTarget, setDeleteTarget] = useState<Carrier | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  // Form state
+  // Tracks which row's Toggle is saving (one at a time)
+  const [togglingCarrierId, setTogglingCarrierId] = useState<string | null>(null);
+  const [reordering, setReordering] = useState(false);
+
+  // Form state — shippop_courier_code removed: Shippop mapping happens
+  // in the Shippop integration card, not on manual carriers.
   const [formCode, setFormCode] = useState('');
   const [formName, setFormName] = useState('');
   const [formTrackingUrl, setFormTrackingUrl] = useState('');
-  const [formShippopCode, setFormShippopCode] = useState('');
   const [formActive, setFormActive] = useState(true);
 
   const isAdmin = can(userProfile?.roles, 'masterdata.carriers');
@@ -75,14 +128,8 @@ export default function CarriersSettingsPage() {
       const res = await apiFetch('/api/carriers');
       if (!res.ok) throw new Error('โหลดข้อมูลไม่สำเร็จ');
       const json = await res.json();
-      // Pin "self" (จัดส่งเอง) to the top — it's the default fallback every
-      // store uses, so it should be the first option in the list.
-      const all = (json.carriers || []) as Carrier[];
-      const sorted = [
-        ...all.filter(c => c.code === 'self'),
-        ...all.filter(c => c.code !== 'self'),
-      ];
-      setCarriers(sorted);
+      // Respect DB sort_order — user can reorder via up/down arrows
+      setCarriers((json.carriers || []) as Carrier[]);
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'โหลดข้อมูลไม่สำเร็จ', 'error');
     } finally {
@@ -95,26 +142,11 @@ export default function CarriersSettingsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authLoading]);
 
-  const filtered = useMemo(() => {
-    const q = searchTerm.trim().toLowerCase();
-    if (!q) return carriers;
-    return carriers.filter(c =>
-      c.name.toLowerCase().includes(q) ||
-      c.code.toLowerCase().includes(q) ||
-      (c.shippop_courier_code || '').toLowerCase().includes(q)
-    );
-  }, [carriers, searchTerm]);
-
-  const totalPages = Math.max(1, Math.ceil(filtered.length / rowsPerPage));
-  const startIndex = (currentPage - 1) * rowsPerPage;
-  const paginated = filtered.slice(startIndex, startIndex + rowsPerPage);
-
   const openCreate = () => {
     setEditing(null);
     setFormCode('');
     setFormName('');
     setFormTrackingUrl('');
-    setFormShippopCode('');
     setFormActive(true);
     setModalMode('create');
   };
@@ -124,7 +156,6 @@ export default function CarriersSettingsPage() {
     setFormCode(c.code);
     setFormName(c.name);
     setFormTrackingUrl(c.tracking_url_template || '');
-    setFormShippopCode(c.shippop_courier_code || '');
     setFormActive(c.is_active);
     setModalMode('edit');
   };
@@ -133,19 +164,26 @@ export default function CarriersSettingsPage() {
     setSubmitting(true);
     try {
       const isCreate = modalMode === 'create';
+      // On create: use preset's code if a preset was picked, else auto-generate
+      // from name. User never types code directly — they shouldn't have to know
+      // it exists. Collisions are handled by uniquifyCode (suffix _2, _3, ...).
+      const codeForCreate = isCreate
+        ? uniquifyCode(
+            formCode.trim().toLowerCase() || generateCarrierCode(formName.trim()),
+            new Set(carriers.map(c => c.code)),
+          )
+        : '';
       const payload = isCreate
         ? {
-            code: formCode.trim().toLowerCase(),
+            code: codeForCreate,
             name: formName.trim(),
             tracking_url_template: formTrackingUrl.trim() || null,
-            shippop_courier_code: formShippopCode.trim().toUpperCase() || null,
             is_active: formActive,
           }
         : {
             id: editing!.id,
             name: formName.trim(),
             tracking_url_template: formTrackingUrl.trim() || null,
-            shippop_courier_code: formShippopCode.trim().toUpperCase() || null,
             is_active: formActive,
           };
       const res = await apiFetch('/api/carriers', {
@@ -159,13 +197,20 @@ export default function CarriersSettingsPage() {
       setModalMode(null);
       await loadCarriers();
     } catch (err) {
-      showToast(err instanceof Error ? err.message : 'บันทึกไม่สำเร็จ', 'error');
+      const msg = err instanceof Error ? err.message : 'บันทึกไม่สำเร็จ';
+      // Translate API code-collision error into a name-based message so internal
+      // `code` detail never leaks into user-facing copy
+      const userMsg = /รหัส.*มีอยู่แล้ว/.test(msg)
+        ? 'ขนส่งชื่อนี้มีอยู่แล้ว — ลองใช้ชื่ออื่น'
+        : msg;
+      showToast(userMsg, 'error');
     } finally {
       setSubmitting(false);
     }
   };
 
   const handleToggleActive = async (c: Carrier) => {
+    setTogglingCarrierId(c.id);
     try {
       const res = await apiFetch('/api/carriers', {
         method: 'PUT',
@@ -177,6 +222,8 @@ export default function CarriersSettingsPage() {
       setCarriers(prev => prev.map(x => x.id === c.id ? { ...x, is_active: !c.is_active } : x));
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'บันทึกไม่สำเร็จ', 'error');
+    } finally {
+      setTogglingCarrierId(null);
     }
   };
 
@@ -201,6 +248,34 @@ export default function CarriersSettingsPage() {
     }
   };
 
+  // Reorder — swap rows in local state, persist new sort_order to DB
+  const handleMove = async (id: string, direction: 'up' | 'down') => {
+    const idx = carriers.findIndex(c => c.id === id);
+    if (idx === -1) return;
+    const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
+    if (swapIdx < 0 || swapIdx >= carriers.length) return;
+
+    const newList = [...carriers];
+    [newList[idx], newList[swapIdx]] = [newList[swapIdx], newList[idx]];
+    const reordered = newList.map((c, i) => ({ ...c, sort_order: i }));
+    setCarriers(reordered);
+
+    setReordering(true);
+    try {
+      const res = await apiFetch('/api/carriers', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orders: reordered.map((c, i) => ({ id: c.id, sort_order: i })) }),
+      });
+      if (!res.ok) throw new Error('บันทึกลำดับไม่สำเร็จ');
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'บันทึกลำดับไม่สำเร็จ', 'error');
+      loadCarriers(); // revert
+    } finally {
+      setReordering(false);
+    }
+  };
+
   if (authLoading || loading) {
     return (
       <Layout>
@@ -217,89 +292,7 @@ export default function CarriersSettingsPage() {
     );
   }
 
-  const columns: DataTableColumn<Carrier>[] = [
-    {
-      key: 'name',
-      label: 'ขนส่ง',
-      alwaysVisible: true,
-      headerClassName: 'min-w-[200px]',
-      render: (c) => (
-        <div className="flex items-center gap-2">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="font-semibold text-[16px] text-gray-900 dark:text-white">{c.name}</span>
-              {c.is_system && (
-                <span title="ขนส่งของระบบ" className="inline-flex items-center text-gray-400">
-                  <Lock className="w-3.5 h-3.5" />
-                </span>
-              )}
-            </div>
-            <div className="text-sm text-gray-400 dark:text-slate-500">{c.code}</div>
-          </div>
-        </div>
-      ),
-    },
-    {
-      key: 'tracking',
-      label: 'URL ติดตาม',
-      headerClassName: 'min-w-[260px]',
-      render: (c) =>
-        c.tracking_url_template ? (
-          <span className="data-text text-gray-500 dark:text-slate-400 line-clamp-1 break-all">
-            {c.tracking_url_template}
-          </span>
-        ) : <span className="data-muted text-gray-400 dark:text-slate-500">-</span>,
-    },
-    {
-      key: 'shippop',
-      label: 'Shippop',
-      headerClassName: 'w-[120px]',
-      render: (c) =>
-        c.shippop_courier_code ? (
-          <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300">
-            {c.shippop_courier_code}
-          </span>
-        ) : <span className="data-muted text-gray-400 dark:text-slate-500">-</span>,
-    },
-    {
-      key: 'status',
-      label: 'สถานะ',
-      headerClassName: 'w-[80px]',
-      stopPropagation: true,
-      render: (c) => (
-        <Toggle checked={c.is_active} onChange={() => handleToggleActive(c)} aria-label={c.is_active ? 'ปิดใช้งาน' : 'เปิดใช้งาน'} />
-      ),
-    },
-    {
-      key: 'actions',
-      label: '',
-      headerClassName: 'w-[44px]',
-      stopPropagation: true,
-      hideMobile: true,
-      render: (c) => {
-        const items: ActionItem[] = [
-          { key: 'edit', label: 'แก้ไข', icon: <Pencil className="w-4 h-4" />, onClick: () => openEdit(c) },
-          {
-            key: 'toggle',
-            label: c.is_active ? 'ปิดใช้งาน' : 'เปิดใช้งาน',
-            icon: c.is_active ? <PowerOff className="w-4 h-4" /> : <Power className="w-4 h-4" />,
-            onClick: () => handleToggleActive(c),
-          },
-        ];
-        if (!c.is_system) {
-          items.push({
-            key: 'delete',
-            label: 'ลบ',
-            icon: <Trash2 className="w-4 h-4" />,
-            onClick: () => setDeleteTarget(c),
-            danger: true,
-            dividerBefore: true,
-          });
-        }
-        return <ActionMenu items={items} />;
-      },
-    },
-  ];
+  const showReorder = carriers.length > 1;
 
   return (
     <Layout>
@@ -313,92 +306,116 @@ export default function CarriersSettingsPage() {
             </h1>
             <p className="page-subtitle">จัดการรายชื่อบริษัทขนส่งและลิงก์ติดตามพัสดุ</p>
           </div>
-          {activeTab === 'mine' && (
-            <Button variant="primary" icon={<Plus className="w-5 h-5" />} onClick={openCreate}>
-              เพิ่ม
-            </Button>
-          )}
+          <Button variant="primary" icon={<Plus className="w-5 h-5" />} onClick={openCreate}>
+            เพิ่ม
+          </Button>
         </div>
 
-        {/* Tabs */}
-        <Tabs
-          activeKey={activeTab}
-          onSelect={(k) => setActiveTab(k as 'mine' | 'api')}
-          tabs={[
-            { key: 'mine', label: 'ขนส่งของฉัน' },
-            { key: 'api', label: 'เชื่อมต่อ API' },
-          ]}
-        />
+        <div className="space-y-2">
+          {/* Tip — only relevant when there are multiple rows to sort */}
+          {showReorder && (
+            <div className="helper-text text-gray-400 flex items-center gap-1.5 mb-1">
+              <ArrowUp className="w-3.5 h-3.5" />
+              <ArrowDown className="w-3.5 h-3.5" />
+              <span>ใช้ปุ่มลูกศรเพื่อจัดลำดับการแสดงผลในฟอร์มออเดอร์</span>
+            </div>
+          )}
 
-        {activeTab === 'api' && (
-          <Card padding="lg">
-            <div className="flex items-start gap-4">
-              <div className="w-12 h-12 rounded-lg bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center flex-shrink-0">
-                <Truck className="w-6 h-6 text-purple-600 dark:text-purple-400" />
+          {/* Manual carriers */}
+          {carriers.map((c, idx) => {
+            const isFirst = idx === 0;
+            const isLast = idx === carriers.length - 1;
+            return (
+              <ListRow
+                key={c.id}
+                reorder={showReorder ? {
+                  onMoveUp: () => handleMove(c.id, 'up'),
+                  onMoveDown: () => handleMove(c.id, 'down'),
+                  disableUp: isFirst,
+                  disableDown: isLast,
+                  disabled: reordering,
+                } : undefined}
+                icon={<CarrierIcon carrierCode={c.code} carrierName={c.name} />}
+                title={
+                  <span className="flex items-center gap-2">
+                    {c.name}
+                    {c.is_system && (
+                      <span title="ขนส่งของระบบ" className="inline-flex items-center text-gray-400">
+                        <Lock className="w-3.5 h-3.5" />
+                      </span>
+                    )}
+                  </span>
+                }
+                subtitle={c.tracking_url_template
+                  ? <span className="truncate inline-block max-w-md align-bottom">{c.tracking_url_template}</span>
+                  : undefined}
+                inactive={!c.is_active}
+                actions={
+                  <>
+                    <Toggle
+                      checked={c.is_active}
+                      onChange={() => handleToggleActive(c)}
+                      loading={togglingCarrierId === c.id}
+                      aria-label={c.is_active ? 'ปิดใช้งาน' : 'เปิดใช้งาน'}
+                    />
+                    <button
+                      onClick={() => openEdit(c)}
+                      className="p-1.5 text-gray-400 hover:text-blue-600 transition-colors"
+                      aria-label="แก้ไข"
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </button>
+                    {!c.is_system && (
+                      <button
+                        onClick={() => setDeleteTarget(c)}
+                        className="p-1.5 text-gray-400 hover:text-red-600 transition-colors"
+                        aria-label="ลบ"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
+                  </>
+                }
+              />
+            );
+          })}
+
+          {/* Shippop integration — placeholder. Once API ships, expand pattern
+              will mirror Beam in /settings/payment-channels (API key + courier toggle list). */}
+          <Card padding="none">
+            <div className="flex items-center gap-3 px-3 py-2.5">
+              {showReorder && (
+                <div className="w-5 flex-shrink-0" aria-hidden="true" />
+              )}
+              <div className="w-8 h-8 bg-purple-100 dark:bg-purple-900/30 rounded-lg flex items-center justify-center flex-shrink-0">
+                <Truck className="w-4 h-4 text-purple-600 dark:text-purple-400" />
               </div>
-              <div className="flex-1">
-                <h2 className="heading-3 mb-1">เชื่อมต่อ Shippop</h2>
-                <p className="text-sm text-gray-500 dark:text-slate-400 mb-3">
-                  ใช้ API ของ Shippop จัดส่งและจองพัสดุได้อัตโนมัติ — เร็วๆ นี้
+              <div className="flex-1 min-w-0">
+                <h3 className="font-medium text-gray-900 dark:text-white">เชื่อมต่อ Shippop</h3>
+                <p className="text-sm text-gray-500 dark:text-slate-400">
+                  จองพัสดุและซื้อ Label ผ่าน Shippop ในระบบเดียว
                 </p>
-                <span className="badge badge-sm badge-pill badge-gray">เร็วๆ นี้</span>
               </div>
+              <span className="badge badge-sm badge-pill badge-gray flex-shrink-0">เร็วๆ นี้</span>
+            </div>
+            <div className="px-4 py-3 border-t border-gray-100 dark:border-slate-700">
+              <Alert tone="info" title="ยังไม่มีบัญชี Shippop?">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span>สมัครก่อนเพื่อรับ API Key</span>
+                  <a
+                    href={SHIPPOP_SIGNUP_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 font-medium hover:underline"
+                  >
+                    สมัคร Shippop
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
+                </div>
+              </Alert>
             </div>
           </Card>
-        )}
-
-        {activeTab === 'mine' && (<>
-        {/* Search */}
-        <div className="data-filter-card">
-          <SearchInput value={searchTerm} onChange={setSearchTerm} placeholder="ค้นหาชื่อ / รหัส / Shippop courier" className="py-2" />
         </div>
-
-        {/* Table */}
-        <DataTable<Carrier>
-          storageKey="carriers-list"
-          columns={columns}
-          data={paginated}
-          loading={false}
-          getRowId={(c) => c.id}
-          onRowClick={(c) => openEdit(c)}
-          emptyMessage="ยังไม่มีขนส่ง"
-          emptyIcon={<Truck className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
-          currentPage={currentPage}
-          totalPages={totalPages}
-          totalRecords={filtered.length}
-          recordsPerPage={rowsPerPage}
-          onPageChange={setCurrentPage}
-          onRecordsPerPageChange={setRowsPerPage}
-          mobileCardRender={(c) => (
-            <div className="flex items-start justify-between gap-2">
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <p className="font-semibold text-gray-900 dark:text-white text-[15px] truncate">{c.name}</p>
-                  {c.is_system && <Lock className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />}
-                </div>
-                <p className="text-sm text-gray-400 dark:text-slate-500 truncate">{c.code}</p>
-                <div className="flex items-center gap-2 mt-1.5">
-                  {c.shippop_courier_code && (
-                    <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300">
-                      {c.shippop_courier_code}
-                    </span>
-                  )}
-                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${c.is_active ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-100 text-gray-600'}`}>
-                    {c.is_active ? 'เปิด' : 'ปิด'}
-                  </span>
-                </div>
-              </div>
-              <button
-                onClick={(e) => { e.stopPropagation(); openEdit(c); }}
-                className="p-2 text-gray-400 hover:text-primary"
-                aria-label="แก้ไข"
-              >
-                <Pencil className="w-4 h-4" />
-              </button>
-            </div>
-          )}
-        />
-        </>)}
 
         {/* Modal */}
         <Modal
@@ -409,39 +426,33 @@ export default function CarriersSettingsPage() {
           size="md"
           disableBackdropClose={submitting}
           footer={
-            <div className="flex gap-3 p-5">
-              <Button
-                variant="secondary"
-                fullWidth
-                onClick={() => setModalMode(null)}
-                disabled={submitting}
-              >
+            <div className="flex justify-end gap-3 px-6 py-4">
+              <Button variant="secondary" onClick={() => setModalMode(null)} disabled={submitting}>
                 ยกเลิก
               </Button>
               <Button
                 variant="primary"
-                fullWidth
                 onClick={handleSubmit}
                 loading={submitting}
-                disabled={submitting || !formName.trim() || (modalMode === 'create' && !formCode.trim())}
+                disabled={submitting || !formName.trim()}
               >
                 บันทึก
               </Button>
             </div>
           }
         >
-          <div className="p-5 space-y-4">
+          <div className="px-6 py-5 space-y-4">
             {/* Preset picker — create mode only, hides codes already added */}
             {modalMode === 'create' && (() => {
               const existingCodes = new Set(carriers.map(c => c.code));
               const available = CARRIER_PRESETS.filter(p => !existingCodes.has(p.code));
               if (available.length === 0) return null;
               return (
-                <div className="-mx-1">
-                  <div className="px-1 mb-2 text-sm text-gray-500 dark:text-slate-400">
+                <div>
+                  <div className="mb-2 text-sm text-gray-500 dark:text-slate-400">
                     เลือกจาก preset (กดเพื่อกรอกฟอร์มอัตโนมัติ) หรือกรอกเองด้านล่าง
                   </div>
-                  <div className="px-1 flex flex-wrap gap-1.5">
+                  <div className="flex flex-wrap gap-1.5">
                     {available.map(p => (
                       <button
                         key={p.code}
@@ -449,7 +460,6 @@ export default function CarriersSettingsPage() {
                         onClick={() => {
                           setFormName(p.name);
                           setFormCode(p.code);
-                          setFormShippopCode(p.shippop || '');
                           setFormTrackingUrl(p.tracking_url || '');
                         }}
                         className={`px-3 py-1.5 rounded-full text-sm transition-colors border ${
@@ -462,70 +472,69 @@ export default function CarriersSettingsPage() {
                       </button>
                     ))}
                   </div>
-                  <div className="mx-1 mt-4 border-t border-gray-200 dark:border-slate-700" />
+                  <div className="mt-4 border-t border-gray-200 dark:border-slate-700" />
                 </div>
               );
             })()}
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
-                ชื่อขนส่ง <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                value={formName}
-                onChange={e => setFormName(e.target.value)}
-                placeholder="เช่น Flash Express"
-                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
-              />
-            </div>
+            <FormInput
+              label="ชื่อขนส่ง"
+              required
+              value={formName}
+              onChange={e => setFormName(e.target.value)}
+              placeholder="เช่น Flash Express"
+            />
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
-                รหัส (code) <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                value={formCode}
-                onChange={e => setFormCode(e.target.value.toLowerCase())}
-                disabled={modalMode === 'edit'}
-                placeholder="เช่น flash, my_courier"
-                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-gray-100 dark:disabled:bg-slate-800 disabled:cursor-not-allowed"
-              />
-              <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">
-                {modalMode === 'edit'
-                  ? 'รหัสไม่สามารถแก้ไขได้ เพื่อรักษาประวัติออเดอร์เดิม'
-                  : 'a-z, 0-9, -, _, & ความยาว 2-32 ตัว'}
-              </p>
-            </div>
+            {/* Internal `code` is intentionally not shown — auto-generated on
+                create (from preset's code if picked, else slugified name).
+                Shippop integration will link by code via the integration card. */}
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
-                URL ติดตามพัสดุ
-              </label>
-              <input
-                type="text"
-                value={formTrackingUrl}
-                onChange={e => setFormTrackingUrl(e.target.value)}
-                placeholder="https://example.com/track?no={tracking}"
-                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
-              />
-              <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">ใส่ <code className="px-1 bg-gray-100 dark:bg-slate-700 rounded">{'{tracking}'}</code> ตรงตำแหน่งของเลขพัสดุ</p>
-            </div>
+            <FormInput
+              id="carrier-tracking-url"
+              label="URL ติดตามพัสดุ"
+              value={formTrackingUrl}
+              onChange={e => setFormTrackingUrl(e.target.value)}
+              placeholder="https://example.com/track?no={tracking}"
+              hint={
+                <>
+                  กด{' '}
+                  <button
+                    type="button"
+                    // Prevent the input from losing focus on mousedown so we can
+                    // read selectionStart/End accurately + restore cursor after
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => {
+                      const el = document.getElementById('carrier-tracking-url') as HTMLInputElement | null;
+                      const token = '{tracking}';
+                      if (el) {
+                        const start = el.selectionStart ?? el.value.length;
+                        const end = el.selectionEnd ?? el.value.length;
+                        const next = el.value.slice(0, start) + token + el.value.slice(end);
+                        setFormTrackingUrl(next);
+                        // Restore caret right after the inserted token
+                        requestAnimationFrame(() => {
+                          el.focus();
+                          const pos = start + token.length;
+                          el.setSelectionRange(pos, pos);
+                        });
+                      } else {
+                        setFormTrackingUrl(prev => prev + token);
+                      }
+                    }}
+                    className="px-1.5 py-0.5 bg-gray-100 dark:bg-slate-700 hover:bg-primary/10 hover:text-primary rounded font-mono cursor-pointer transition-colors"
+                  >
+                    {'{tracking}'}
+                  </button>
+                  {' '}เพื่อเติมตรงตำแหน่งของเลขพัสดุ
+                </>
+              }
+            />
 
-            {/* Shippop courier code is no longer surfaced — preset auto-fills it,
-                manual entries leave it empty (= not booked via Shippop). To map a
-                manual carrier to Shippop later, go to the "เชื่อมต่อ API" tab. */}
-
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={formActive}
-                onChange={e => setFormActive(e.target.checked)}
-                className="w-4 h-4 accent-[#F4511E]"
-              />
-              <span className="text-sm text-gray-700 dark:text-slate-300">เปิดใช้งาน</span>
-            </label>
+            <Checkbox
+              checked={formActive}
+              onChange={setFormActive}
+              label="เปิดใช้งาน"
+            />
           </div>
         </Modal>
 

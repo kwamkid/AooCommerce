@@ -32,7 +32,7 @@ export const PRESET_DESCRIPTIONS: Record<BusinessPreset, string> = {
   delivery: 'ส่งของขายส่ง มีสาขาลูกค้า กำหนดวันส่ง วางบิลเครดิต',
   ecommerce: 'ขายออนไลน์ผ่าน Shopee, Lazada, TikTok Shop',
   ecommerce_brand: 'ขายออนไลน์หลาย Marketplace จัดกลุ่มสินค้าตามแบรนด์',
-  omnichannel: 'ขายทุกช่องทาง Online + POS หน้าร้าน + ตัวแทนฝากขาย',
+  omnichannel: 'ขายทุกช่องทาง Online + แคชเชียร์หน้าร้าน + ตัวแทนฝากขาย',
   omnichannel_brand: 'ทุกช่องทาง + ลูกค้าห้าง Modern Trade Statement รายเดือน',
   wholesale: 'ขายส่ง ลูกค้าห้าง Modern Trade วางบิล Statement รายเดือน',
   distribution: 'บริหารตัวแทนจำหน่าย ฝากขาย DN/Invoice จัดการ Supplier',

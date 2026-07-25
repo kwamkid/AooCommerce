@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
 
     let query = supabaseAdmin
       .from('pos_terminals')
-      .select('*, warehouse:warehouses(id, name, code)')
+      .select('*, warehouse:warehouses(id, name, code), tax_branch:tax_branches(id, code, name)')
       .eq('company_id', auth.companyId)
       .order('sort_order', { ascending: true })
       .order('created_at', { ascending: true });
@@ -48,10 +48,23 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { name, code, warehouse_id } = body;
+    const { name, code, warehouse_id, tax_branch_id } = body;
 
     if (!name?.trim()) {
-      return NextResponse.json({ error: 'ชื่อจุดขายจำเป็นต้องกรอก' }, { status: 400 });
+      return NextResponse.json({ error: 'ชื่อแคชเชียร์จำเป็นต้องกรอก' }, { status: 400 });
+    }
+
+    // Validate tax_branch_id belongs to this company (if provided)
+    if (tax_branch_id) {
+      const { data: tb } = await supabaseAdmin
+        .from('tax_branches')
+        .select('id')
+        .eq('id', tax_branch_id)
+        .eq('company_id', auth.companyId)
+        .single();
+      if (!tb) {
+        return NextResponse.json({ error: 'สาขา VAT ไม่ถูกต้อง' }, { status: 400 });
+      }
     }
 
     // Validate warehouse belongs to this company (if provided)
@@ -76,12 +89,13 @@ export async function POST(request: NextRequest) {
         name: name.trim(),
         code: code?.trim() || null,
         warehouse_id: warehouse_id || null,
+        tax_branch_id: tax_branch_id || null,
         is_active: true,
         created_by: auth.userId,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })
-      .select('*, warehouse:warehouses(id, name, code)')
+      .select('*, warehouse:warehouses(id, name, code), tax_branch:tax_branches(id, code, name)')
       .single();
 
     if (error) {
@@ -107,10 +121,23 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { id, name, code, warehouse_id, is_active } = body;
+    const { id, name, code, warehouse_id, tax_branch_id, is_active } = body;
 
     if (!id) {
       return NextResponse.json({ error: 'Terminal ID is required' }, { status: 400 });
+    }
+
+    // Validate tax_branch_id belongs to this company (if provided)
+    if (tax_branch_id) {
+      const { data: tb } = await supabaseAdmin
+        .from('tax_branches')
+        .select('id')
+        .eq('id', tax_branch_id)
+        .eq('company_id', auth.companyId)
+        .single();
+      if (!tb) {
+        return NextResponse.json({ error: 'สาขา VAT ไม่ถูกต้อง' }, { status: 400 });
+      }
     }
 
     const updateData: Record<string, unknown> = {
@@ -119,6 +146,7 @@ export async function PUT(request: NextRequest) {
 
     if (name !== undefined) updateData.name = name.trim();
     if (code !== undefined) updateData.code = code?.trim() || null;
+    if (tax_branch_id !== undefined) updateData.tax_branch_id = tax_branch_id || null;
     if (is_active !== undefined) updateData.is_active = is_active;
 
     // Handle warehouse_id (can be set to null to remove warehouse link)

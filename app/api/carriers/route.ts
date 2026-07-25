@@ -188,6 +188,32 @@ export async function PUT(request: NextRequest) {
   return NextResponse.json({ carrier: data });
 }
 
+// PATCH — batch reorder carriers (sets sort_order from incoming array)
+export async function PATCH(request: NextRequest) {
+  const auth = await checkAuthWithCompany(request);
+  if (!auth.isAuth || !auth.companyId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  if (!can(auth.companyRoles, 'masterdata.carriers')) {
+    return NextResponse.json({ error: 'ไม่มีสิทธิ์จัดการรายชื่อขนส่ง' }, { status: 403 });
+  }
+
+  const body = await request.json().catch(() => null) as { orders?: { id: string; sort_order: number }[] } | null;
+  if (!body?.orders || !Array.isArray(body.orders)) {
+    return NextResponse.json({ error: 'orders array is required' }, { status: 400 });
+  }
+
+  for (const item of body.orders) {
+    await supabaseAdmin
+      .from('carriers')
+      .update({ sort_order: item.sort_order })
+      .eq('id', item.id)
+      .eq('company_id', auth.companyId);
+  }
+
+  return NextResponse.json({ ok: true });
+}
+
 // DELETE — remove a carrier (custom only). System carriers can only be deactivated.
 export async function DELETE(request: NextRequest) {
   const auth = await checkAuthWithCompany(request);

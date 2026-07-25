@@ -19,6 +19,7 @@ import { featureLockReason } from '@/lib/package-features';
 import { type BrandGpRow } from '@/components/customers/BrandGpCommissions';
 import GpOverridePanel from '@/components/customers/GpOverridePanel';
 import Button from '@/components/ui/Button';
+import Toggle from '@/components/ui/Toggle';
 import NumberInput from '@/components/ui/NumberInput';
 import { LoadingCard, NoPermissionCard } from '@/components/ui/StateCard';
 
@@ -217,8 +218,8 @@ export default function FeaturesPage() {
     },
     {
       key: 'pos',
-      label: 'POS — ขายหน้าร้าน',
-      description: 'ระบบ Point of Sale สำหรับขายหน้าร้านและแคชเชียร์',
+      label: 'ระบบแคชเชียร์ - ขายหน้าร้าน',
+      description: 'ระบบขายหน้าร้านสำหรับแคชเชียร์ (Point of Sale)',
       icon: <Monitor className="w-5 h-5" />,
       color: 'text-teal-600',
     },
@@ -335,18 +336,14 @@ export default function FeaturesPage() {
                       </button>
                     )}
 
-                    {/* Toggle */}
-                    <button
-                      type="button"
-                      disabled={!isOwnerOrAdmin || isLocked}
-                      onClick={() => toggleFeature(feat.key)}
-                      title={isLocked ? lockReason : undefined}
-                      className={`relative flex-shrink-0 inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                        isEnabled ? 'bg-primary' : 'bg-gray-300 dark:bg-slate-600'
-                      } ${(!isOwnerOrAdmin || isLocked) ? 'opacity-50 cursor-not-allowed' : ''}`}
-                    >
-                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${isEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
-                    </button>
+                    {/* Toggle — local state only, save happens via the "บันทึก" button at the bottom */}
+                    <span title={isLocked ? lockReason : undefined} className="flex-shrink-0">
+                      <Toggle
+                        checked={isEnabled}
+                        onChange={() => toggleFeature(feat.key)}
+                        disabled={!isOwnerOrAdmin || isLocked}
+                      />
+                    </span>
                   </div>
 
                   {/* Expandable: delivery_date required sub-toggle */}
@@ -357,18 +354,13 @@ export default function FeaturesPage() {
                           <p className="text-base font-medium text-gray-900 dark:text-white">บังคับกรอกวันส่ง</p>
                           <p className="text-sm text-gray-500 dark:text-slate-400 mt-0.5">ถ้าปิด — กรอกหรือไม่กรอกก็ได้</p>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => setFeatureFlags(prev => ({
+                        <Toggle
+                          checked={featureFlags.delivery_date.required}
+                          onChange={() => setFeatureFlags(prev => ({
                             ...prev,
                             delivery_date: { ...prev.delivery_date, required: !prev.delivery_date.required },
                           }))}
-                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                            featureFlags.delivery_date.required ? 'bg-blue-500' : 'bg-gray-300 dark:bg-slate-600'
-                          }`}
-                        >
-                          <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${featureFlags.delivery_date.required ? 'translate-x-6' : 'translate-x-1'}`} />
-                        </button>
+                        />
                       </div>
                     </div>
                   )}
@@ -551,15 +543,10 @@ function ConsignmentSettingsPanel({
           <p className="text-base font-medium text-gray-900 dark:text-white">ราคาตัวแทนรวม VAT แล้ว</p>
           <p className="text-sm text-gray-500 dark:text-slate-400 mt-0.5">ถ้าปิด = ราคาที่ตกลงยังไม่รวม VAT</p>
         </div>
-        <button
-          type="button"
-          onClick={() => onChange({ vat_included: !settings.vat_included })}
-          className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors ${
-            settings.vat_included ? 'bg-amber-500' : 'bg-gray-300 dark:bg-slate-600'
-          }`}
-        >
-          <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${settings.vat_included ? 'translate-x-6' : 'translate-x-1'}`} />
-        </button>
+        <Toggle
+          checked={settings.vat_included}
+          onChange={() => onChange({ vat_included: !settings.vat_included })}
+        />
       </div>
 
     </div>

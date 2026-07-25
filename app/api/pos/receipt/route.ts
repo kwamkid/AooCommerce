@@ -17,21 +17,29 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'order_id is required' }, { status: 400 });
     }
 
-    // Get order with items and payments
+    // Get order with items and payments.
+    // pos_tax_branch is the snapshot taken at sale time — preferred source for
+    // historical accuracy. Falls back to the terminal's current branch only if
+    // the snapshot is missing (orders predating the snapshot column).
     const { data: order, error } = await supabaseAdmin
       .from('orders')
       .select(`
         id, order_number, receipt_number, customer_id,
         subtotal, vat_amount, discount_amount, total_amount,
         payment_method, order_status, source, pos_session_id,
-        warehouse_id, notes, created_by, created_at,
+        warehouse_id, pos_tax_branch_id, notes, created_by, created_at,
         customer:customers(name, customer_code),
         items:order_items(
           product_name, variation_label, quantity, unit_price,
           discount_amount, total,
           variation:product_variations(sku, barcode)
         ),
-        session:pos_sessions(cashier_name, terminal:pos_terminals(name), warehouse:warehouses(name))
+        pos_tax_branch:tax_branches!orders_pos_tax_branch_id_fkey(id, code, name, address),
+        session:pos_sessions(
+          cashier_name,
+          terminal:pos_terminals(name, tax_branch:tax_branches(id, code, name, address)),
+          warehouse:warehouses(name)
+        )
       `)
       .eq('id', orderId)
       .eq('company_id', auth.companyId)
@@ -82,15 +90,24 @@ export async function GET(request: NextRequest) {
       taxInvoiceNumber = rec?.receipt_number || null;
     }
 
+    // Resolve VAT branch: snapshot (frozen at sale) > terminal's current branch
+    // > company-level default text. Branch's own address overrides company
+    // address so receipts from each branch print the correct registered address.
+    const snapshotBranch = (order as any).pos_tax_branch as { name?: string; address?: string | null } | null;
+    const terminalBranch = (order.session as any)?.terminal?.tax_branch as { name?: string; address?: string | null } | null;
+    const resolvedBranch = snapshotBranch || terminalBranch;
+    const effectiveTaxBranch = resolvedBranch?.name?.trim() || company?.tax_branch || '';
+    const effectiveAddress = resolvedBranch?.address?.trim() || company?.address || '';
+
     return NextResponse.json({
       receipt: {
         company: {
           name: company?.name || '',
-          address: company?.address || '',
+          address: effectiveAddress,
           phone: company?.phone || '',
           tax_id: company?.tax_id || '',
           tax_company_name: company?.tax_company_name || '',
-          tax_branch: company?.tax_branch || '',
+          tax_branch: effectiveTaxBranch,
           logo_url: company?.logo_url || '',
           vat_registered: vatRegistered,
         },

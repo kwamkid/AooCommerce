@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, Fragment } from 'react';
 import { useFetchOnce } from '@/lib/use-fetch-once';
 import Layout from '@/components/layout/Layout';
 import Container from '@/components/ui/Container';
@@ -10,10 +10,15 @@ import Modal from '@/components/ui/Modal';
 import FormInput from '@/components/ui/FormInput';
 import ListRow from '@/components/ui/ListRow';
 import ReorderArrows from '@/components/ui/ReorderArrows';
-import Tabs from '@/components/ui/Tabs';
 import { LoadingCard, NoPermissionCard } from '@/components/ui/StateCard';
 import Toggle from '@/components/ui/Toggle';
 import NumberInput from '@/components/ui/NumberInput';
+import Alert from '@/components/ui/Alert';
+import Checkbox from '@/components/ui/Checkbox';
+import Radio from '@/components/ui/Radio';
+
+// Beam Checkout signup — opens marketing site, user signs up + obtains Merchant ID + API Key
+const BEAM_SIGNUP_URL = 'https://www.beamcheckout.com';
 import { useAuth } from '@/lib/auth-context';
 import { can } from '@/lib/permissions';
 import { useToast } from '@/lib/toast-context';
@@ -22,8 +27,8 @@ import { apiFetch } from '@/lib/api-client';
 import { THAI_BANKS, getBankByCode } from '@/lib/constants/banks';
 import { BEAM_CHANNELS, BEAM_CHANNEL_CATEGORIES, CUSTOMER_TYPES, FEE_PAYERS } from '@/lib/constants/payment-gateway';
 import {
-  CreditCard, Banknote, Building2, Globe, Loader2, Plus, Edit2, Trash2, Check, X,
-  Eye, EyeOff, ChevronDown, ChevronUp, Save, ArrowUp, ArrowDown, QrCode
+  Banknote, Building2, Globe, Plus, Edit2, Trash2,
+  Eye, EyeOff, ChevronDown, ChevronUp, Save, ArrowUp, ArrowDown, QrCode, ExternalLink
 } from 'lucide-react';
 
 // Types
@@ -86,12 +91,11 @@ export default function PaymentChannelsPage() {
   // Collapse state for sections
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
   const [reordering, setReordering] = useState(false);
+  // Tracks which row's Toggle is currently saving (only one at a time)
+  const [togglingChannelId, setTogglingChannelId] = useState<string | null>(null);
 
   // API group (this page only manages bill_online — POS lives in /settings/pos-terminals)
   const [activeTab] = useState<'bill_online' | 'pos'>('bill_online');
-
-  // UI tab — splits direct payment methods (cash/PP/bank) from API integrations (Beam Gateway)
-  const [viewTab, setViewTab] = useState<'direct' | 'gateway'>('direct');
 
   // Top-right "+ เพิ่ม" dropdown
   const [addDropdownOpen, setAddDropdownOpen] = useState(false);
@@ -173,23 +177,29 @@ export default function PaymentChannelsPage() {
   // === CASH TOGGLE ===
   const handleCashToggle = async (active: boolean) => {
     if (!cashChannel) return;
+    setTogglingChannelId(cashChannel.id);
     try {
       await apiCall('PUT', { id: cashChannel.id, is_active: active });
       setChannels(prev => prev.map(c => c.id === cashChannel.id ? { ...c, is_active: active } : c));
       showToast(active ? 'เปิดรับเงินสดแล้ว' : 'ปิดรับเงินสดแล้ว');
     } catch {
       showToast('บันทึกไม่สำเร็จ', 'error');
+    } finally {
+      setTogglingChannelId(null);
     }
   };
 
   const handleGatewayToggle = async (active: boolean) => {
     if (!gatewayChannel) return;
+    setTogglingChannelId(gatewayChannel.id);
     try {
       await apiCall('PUT', { id: gatewayChannel.id, is_active: active });
       setChannels(prev => prev.map(c => c.id === gatewayChannel.id ? { ...c, is_active: active } : c));
       showToast(active ? 'เปิดชำระออนไลน์แล้ว' : 'ปิดชำระออนไลน์แล้ว');
     } catch {
       showToast('บันทึกไม่สำเร็จ', 'error');
+    } finally {
+      setTogglingChannelId(null);
     }
   };
 
@@ -408,8 +418,7 @@ export default function PaymentChannelsPage() {
             <p className="page-subtitle">ช่องทางที่ลูกค้าใช้จ่ายเงินผ่านลิงก์ Bill Online ของ manual order</p>
           </div>
 
-          {/* Top-right add dropdown — only on direct tab (gateway is system-managed) */}
-          {viewTab === 'direct' && (
+          {/* Top-right add dropdown — for PromptPay / Bank account (Beam gateway is system-managed) */}
           <div ref={addDropdownRef} className="relative print:hidden">
             <Button
               variant="primary"
@@ -438,26 +447,15 @@ export default function PaymentChannelsPage() {
               </div>
             )}
           </div>
-          )}
         </div>
-
-        {/* Tabs */}
-        <Tabs
-          activeKey={viewTab}
-          onSelect={(k) => setViewTab(k as 'direct' | 'gateway')}
-          tabs={[
-            { key: 'direct', label: 'รับเงินตรง' },
-            { key: 'gateway', label: 'เชื่อมต่อ API' },
-          ]}
-        />
 
         {loading ? (
           <LoadingCard />
         ) : (
           <div className="space-y-2">
-            {/* Tip — only relevant on direct tab (sortable list) */}
-            {viewTab === 'direct' && (
-              <div className="text-xs text-gray-400 flex items-center gap-1.5 mb-1">
+            {/* Tip — only when there are multiple rows to sort */}
+            {channels.length > 1 && (
+              <div className="helper-text text-gray-400 flex items-center gap-1.5 mb-1">
                 <ArrowUp className="w-3.5 h-3.5" />
                 <ArrowDown className="w-3.5 h-3.5" />
                 <span>ใช้ปุ่มลูกศรเพื่อจัดลำดับการแสดงผลในหน้า Bill Online</span>
@@ -465,11 +463,12 @@ export default function PaymentChannelsPage() {
             )}
 
             {channels
-              .filter(c => viewTab === 'gateway' ? c.type === 'payment_gateway' : c.type !== 'payment_gateway')
               .map((channel, idx, visibleChannels) => {
               const isCollapsed = collapsedSections.has(channel.id);
               const isFirst = idx === 0;
               const isLast = idx === visibleChannels.length - 1;
+              // Hide reorder arrows when there's only one row to sort
+              const showReorder = visibleChannels.length > 1;
               // Check if this is the last non-promptpay bank_transfer card (to render add-bank button after it)
               const isLastBank = channel.type === 'bank_transfer' &&
                 !(channel.config as Record<string, string>)?.promptpay_id &&
@@ -480,13 +479,13 @@ export default function PaymentChannelsPage() {
                 return (
                   <ListRow
                     key={channel.id}
-                    reorder={{
+                    reorder={showReorder ? {
                       onMoveUp: () => handleMoveChannel(channel.id, 'up'),
                       onMoveDown: () => handleMoveChannel(channel.id, 'down'),
                       disableUp: isFirst,
                       disableDown: isLast,
                       disabled: reordering,
-                    }}
+                    } : undefined}
                     icon={
                       <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
                         <Banknote className="w-4 h-4 text-green-600" />
@@ -494,7 +493,7 @@ export default function PaymentChannelsPage() {
                     }
                     title="เงินสด"
                     subtitle="รับเงินสดจากลูกค้า / จ่ายหน้าร้าน"
-                    actions={<Toggle checked={channel.is_active} onChange={handleCashToggle} />}
+                    actions={<Toggle checked={channel.is_active} onChange={handleCashToggle} loading={togglingChannelId === channel.id} />}
                   />
                 );
               }
@@ -510,13 +509,13 @@ export default function PaymentChannelsPage() {
                 return (
                   <ListRow
                     key={channel.id}
-                    reorder={{
+                    reorder={showReorder ? {
                       onMoveUp: () => handleMoveChannel(channel.id, 'up'),
                       onMoveDown: () => handleMoveChannel(channel.id, 'down'),
                       disableUp: isFirst,
                       disableDown: isLast,
                       disabled: reordering,
-                    }}
+                    } : undefined}
                     icon={
                       <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
                         <QrCode className="w-4 h-4 text-blue-600" />
@@ -545,13 +544,13 @@ export default function PaymentChannelsPage() {
                 return (
                   <ListRow
                     key={channel.id}
-                    reorder={{
+                    reorder={showReorder ? {
                       onMoveUp: () => handleMoveChannel(channel.id, 'up'),
                       onMoveDown: () => handleMoveChannel(channel.id, 'down'),
                       disableUp: isFirst,
                       disableDown: isLast,
                       disabled: reordering,
-                    }}
+                    } : undefined}
                     icon={
                       bank?.logo ? (
                         <img src={bank.logo} alt={bank.name_th} className="w-8 h-8 rounded-full object-contain" />
@@ -594,13 +593,15 @@ export default function PaymentChannelsPage() {
                   <Card key={channel.id} padding="none">
                     {/* Header */}
                     <div className="flex items-center gap-3 px-3 py-2.5">
-                      <ReorderArrows
-                        onMoveUp={() => handleMoveChannel(channel.id, 'up')}
-                        onMoveDown={() => handleMoveChannel(channel.id, 'down')}
-                        disableUp={isFirst}
-                        disableDown={isLast}
-                        disabled={reordering}
-                      />
+                      {showReorder && (
+                        <ReorderArrows
+                          onMoveUp={() => handleMoveChannel(channel.id, 'up')}
+                          onMoveDown={() => handleMoveChannel(channel.id, 'down')}
+                          disableUp={isFirst}
+                          disableDown={isLast}
+                          disabled={reordering}
+                        />
+                      )}
                       <button
                         type="button"
                         onClick={() => toggleCollapse(channel.id)}
@@ -623,6 +624,7 @@ export default function PaymentChannelsPage() {
                       <Toggle
                         checked={channel.is_active}
                         onChange={handleGatewayToggle}
+                        loading={togglingChannelId === channel.id}
                       />
                     </div>
 
@@ -631,32 +633,65 @@ export default function PaymentChannelsPage() {
                       <div className="p-4 border-t border-gray-100 dark:border-slate-700 space-y-4">
                         {/* API Config */}
                         <div className="space-y-3">
-                          <h4 className="text-sm font-medium text-gray-700 dark:text-slate-300">API Configuration</h4>
+                          <h4 className="heading-4">API Configuration</h4>
+
+                          {/* Sign-up prompt — shown only when credentials are empty */}
+                          {!gatewayForm.merchant_id && !gatewayForm.api_key && (
+                            <Alert tone="info" title="ยังไม่มีบัญชี Beam Checkout?">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span>สมัครก่อนเพื่อรับ Merchant ID และ API Key</span>
+                                <a
+                                  href={BEAM_SIGNUP_URL}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 font-medium hover:underline"
+                                >
+                                  สมัคร Beam Checkout
+                                  <ExternalLink className="w-3.5 h-3.5" />
+                                </a>
+                              </div>
+                            </Alert>
+                          )}
+
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            <div>
-                              <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">Merchant ID</label>
-                              <input type="text" value={gatewayForm.merchant_id} onChange={e => setGatewayForm(prev => ({ ...prev, merchant_id: e.target.value }))} placeholder="Merchant ID จาก Beam" className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary" />
-                            </div>
-                            <div>
-                              <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">API Key</label>
-                              <div className="relative">
-                                <input type={showApiKey ? 'text' : 'password'} value={gatewayForm.api_key} onChange={e => setGatewayForm(prev => ({ ...prev, api_key: e.target.value }))} placeholder="API Key จาก Beam" className="w-full px-3 py-2 pr-10 border border-gray-300 dark:border-slate-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary" />
-                                <button type="button" onClick={() => setShowApiKey(!showApiKey)} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 dark:text-slate-400">
+                            <FormInput
+                              label="Merchant ID"
+                              value={gatewayForm.merchant_id}
+                              onChange={e => setGatewayForm(prev => ({ ...prev, merchant_id: e.target.value }))}
+                              placeholder="Merchant ID จาก Beam"
+                            />
+                            <FormInput
+                              label="API Key"
+                              type={showApiKey ? 'text' : 'password'}
+                              value={gatewayForm.api_key}
+                              onChange={e => setGatewayForm(prev => ({ ...prev, api_key: e.target.value }))}
+                              placeholder="API Key จาก Beam"
+                              postfix={
+                                <button
+                                  type="button"
+                                  onClick={() => setShowApiKey(!showApiKey)}
+                                  className="text-gray-400 hover:text-gray-600 dark:hover:text-slate-300 transition-colors"
+                                  aria-label={showApiKey ? 'ซ่อน API Key' : 'แสดง API Key'}
+                                >
                                   {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                                 </button>
-                              </div>
-                            </div>
+                              }
+                            />
                           </div>
 
                           {/* Environment */}
                           <div>
-                            <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">Environment</label>
+                            <label className="field-label">Environment</label>
                             <div className="flex gap-2">
                               {(['sandbox', 'production'] as const).map(env => (
-                                <button key={env} type="button" onClick={() => setGatewayForm(prev => ({ ...prev, environment: env }))}
-                                  className={`px-4 py-2 rounded-lg border-2 text-sm font-medium transition-colors ${gatewayForm.environment === env ? 'border-primary bg-primary/10 text-primary' : 'border-gray-300 dark:border-slate-600 text-gray-600 dark:text-slate-400 hover:border-gray-300'}`}>
+                                <Button
+                                  key={env}
+                                  variant={gatewayForm.environment === env ? 'primary' : 'secondary'}
+                                  size="sm"
+                                  onClick={() => setGatewayForm(prev => ({ ...prev, environment: env }))}
+                                >
                                   {env === 'sandbox' ? 'Sandbox (ทดสอบ)' : 'Production (ใช้งานจริง)'}
-                                </button>
+                                </Button>
                               ))}
                             </div>
                           </div>
@@ -665,49 +700,56 @@ export default function PaymentChannelsPage() {
                           {gatewayForm.merchant_id && (() => {
                             const webhookUrl = typeof window !== 'undefined' ? `${window.location.origin}/api/beam/webhook` : '/api/beam/webhook';
                             return (
-                            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 space-y-2">
-                              <h5 className="text-sm font-medium text-blue-800 dark:text-blue-300">Webhook URL (ตั้งค่าที่ Beam Lighthouse)</h5>
-                              <div className="flex items-center gap-2">
-                                <code className="flex-1 text-xs bg-white dark:bg-slate-800 px-2 py-1.5 rounded border border-blue-200 dark:border-blue-700 text-blue-900 dark:text-blue-200 break-all select-all">
-                                  {webhookUrl}
-                                </code>
-                                <button type="button" onClick={() => { navigator.clipboard.writeText(webhookUrl); showToast('คัดลอกแล้ว'); }} className="px-2 py-1.5 text-xs bg-blue-100 dark:bg-blue-800 text-blue-700 dark:text-blue-200 rounded hover:bg-blue-200 dark:hover:bg-blue-700 flex-shrink-0">
-                                  คัดลอก
-                                </button>
-                                <button type="button" onClick={async () => {
-                                  try {
-                                    showToast('กำลังทดสอบ...');
-                                    const res = await fetch('/api/beam/test-connection', {
-                                      method: 'POST',
-                                      headers: { 'Content-Type': 'application/json' },
-                                      body: JSON.stringify({
-                                        merchant_id: gatewayForm.merchant_id,
-                                        api_key: gatewayForm.api_key,
-                                        environment: gatewayForm.environment,
-                                        webhook_url: webhookUrl,
-                                      }),
-                                    });
-                                    const data = await res.json();
-                                    if (data.error) {
-                                      showToast(data.error, 'error');
-                                    } else if (data.credentials && data.webhook) {
-                                      showToast('API credentials ถูกต้อง + Webhook พร้อมรับข้อมูล');
-                                    } else if (data.credentials && !data.webhook) {
-                                      showToast('API credentials ถูกต้อง แต่ Webhook เข้าถึงไม่ได้ — กรุณาตรวจสอบ URL', 'error');
-                                    } else {
-                                      showToast('API credentials ไม่ถูกต้อง', 'error');
-                                    }
-                                  } catch {
-                                    showToast('ไม่สามารถทดสอบการเชื่อมต่อได้', 'error');
-                                  }
-                                }} className="px-2 py-1.5 text-xs bg-green-100 dark:bg-green-800 text-green-700 dark:text-green-200 rounded hover:bg-green-200 dark:hover:bg-green-700 flex-shrink-0">
-                                  ทดสอบ
-                                </button>
-                              </div>
-                              <p className="text-xs text-blue-600 dark:text-blue-400">
-                                Events: <span className="font-mono">payment_link.paid</span>, <span className="font-mono">charge.succeeded</span>
-                              </p>
-                            </div>
+                              <Alert tone="info" title="Webhook URL (ตั้งค่าที่ Beam Lighthouse)">
+                                <div className="flex items-center gap-2 mt-2">
+                                  <code className="flex-1 helper-text bg-white dark:bg-slate-800 px-2 py-1.5 rounded border border-blue-200 dark:border-blue-700 text-blue-900 dark:text-blue-200 break-all select-all">
+                                    {webhookUrl}
+                                  </code>
+                                  <Button
+                                    variant="secondary"
+                                    size="sm"
+                                    onClick={() => { navigator.clipboard.writeText(webhookUrl); showToast('คัดลอกแล้ว'); }}
+                                  >
+                                    คัดลอก
+                                  </Button>
+                                  <Button
+                                    variant="success"
+                                    size="sm"
+                                    onClick={async () => {
+                                      try {
+                                        showToast('กำลังทดสอบ...');
+                                        const res = await fetch('/api/beam/test-connection', {
+                                          method: 'POST',
+                                          headers: { 'Content-Type': 'application/json' },
+                                          body: JSON.stringify({
+                                            merchant_id: gatewayForm.merchant_id,
+                                            api_key: gatewayForm.api_key,
+                                            environment: gatewayForm.environment,
+                                            webhook_url: webhookUrl,
+                                          }),
+                                        });
+                                        const data = await res.json();
+                                        if (data.error) {
+                                          showToast(data.error, 'error');
+                                        } else if (data.credentials && data.webhook) {
+                                          showToast('API credentials ถูกต้อง + Webhook พร้อมรับข้อมูล');
+                                        } else if (data.credentials && !data.webhook) {
+                                          showToast('API credentials ถูกต้อง แต่ Webhook เข้าถึงไม่ได้ — กรุณาตรวจสอบ URL', 'error');
+                                        } else {
+                                          showToast('API credentials ไม่ถูกต้อง', 'error');
+                                        }
+                                      } catch {
+                                        showToast('ไม่สามารถทดสอบการเชื่อมต่อได้', 'error');
+                                      }
+                                    }}
+                                  >
+                                    ทดสอบ
+                                  </Button>
+                                </div>
+                                <p className="helper-text mt-2">
+                                  Events: <span className="font-mono">payment_link.paid</span>, <span className="font-mono">charge.succeeded</span>
+                                </p>
+                              </Alert>
                             );
                           })()}
 
@@ -718,65 +760,72 @@ export default function PaymentChannelsPage() {
                           <>
                             <hr className="border-gray-200 dark:border-slate-700" />
                             <div className="space-y-4">
-                              <h4 className="text-sm font-medium text-gray-700 dark:text-slate-300">ช่องทางการชำระเงิน</h4>
+                              <h4 className="heading-4">ช่องทางการชำระเงิน</h4>
 
                               {Object.entries(channelsByCategory).map(([category, beamChannels]) => (
                                 <div key={category}>
-                                  <div className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-2">
+                                  <div className="helper-text font-medium text-gray-400 uppercase tracking-wider mb-2">
                                     {BEAM_CHANNEL_CATEGORIES[category]}
                                   </div>
-                                  <div className="space-y-1">
+                                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
                                     {beamChannels.map(ch => {
                                       const chConfig = gatewayChannels[ch.code];
                                       const isEnabled = chConfig?.enabled || false;
                                       const isExpanded = expandedChannel === ch.code;
                                       return (
-                                        <div key={ch.code} className="rounded-lg">
-                                          <div className="flex items-center gap-3 px-3 py-2.5">
-                                            <Toggle checked={isEnabled} onChange={(v) => handleToggleBeamChannel(ch.code, v)} />
-                                            {ch.logo && (
-                                              <img src={ch.logo} alt={ch.name_th} className="w-6 h-6 object-contain flex-shrink-0" />
-                                            )}
-                                            <span className="text-base text-gray-900 dark:text-white flex-1">{ch.name_th}</span>
-                                            {isEnabled && (
-                                              <button type="button" onClick={() => setExpandedChannel(isExpanded ? null : ch.code)} className="p-1 text-gray-400 hover:text-gray-600 dark:text-slate-400">
-                                                {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                                              </button>
-                                            )}
+                                        <Fragment key={ch.code}>
+                                          <div className="rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800/50">
+                                            <div className="flex items-center gap-3 px-3 py-2.5">
+                                              <Toggle checked={isEnabled} onChange={(v) => handleToggleBeamChannel(ch.code, v)} />
+                                              {ch.logo && (
+                                                <img src={ch.logo} alt={ch.name_th} className="w-6 h-6 object-contain flex-shrink-0" />
+                                              )}
+                                              <span className="body-text text-gray-900 dark:text-white flex-1 truncate">{ch.name_th}</span>
+                                              {isEnabled && (
+                                                <button type="button" onClick={() => setExpandedChannel(isExpanded ? null : ch.code)} className="p-1 text-gray-400 hover:text-gray-600 dark:text-slate-400">
+                                                  {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                                                </button>
+                                              )}
+                                            </div>
                                           </div>
                                           {isEnabled && isExpanded && (
-                                            <div className="px-3 pb-3 pt-1 border-t border-gray-100 dark:border-slate-700 space-y-3">
+                                            <div className="md:col-span-2 lg:col-span-3 px-4 py-4 bg-gray-50 dark:bg-slate-800/50 border border-gray-200 dark:border-slate-700 rounded-lg space-y-3">
                                               <div>
-                                                <label className="block text-sm text-gray-500 dark:text-slate-400 mb-1">ยอดสั่งซื้อขั้นต่ำ (บาท)</label>
-                                                <NumberInput min="0" value={chConfig?.min_amount || 0} onChange={(n) => handleUpdateBeamChannel(ch.code, 'min_amount', n)} className="w-40 px-3 py-1.5 border border-gray-300 dark:border-slate-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary" />
+                                                <label className="field-label">ยอดสั่งซื้อขั้นต่ำ (บาท)</label>
+                                                <NumberInput min="0" value={chConfig?.min_amount || 0} onChange={(n) => handleUpdateBeamChannel(ch.code, 'min_amount', n)} className="w-40 h-10 px-3 border border-gray-300 dark:border-slate-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary" />
                                               </div>
                                               <div>
-                                                <label className="block text-sm text-gray-500 dark:text-slate-400 mb-1">ประเภทลูกค้าที่ใช้ได้</label>
-                                                <div className="flex gap-3">
+                                                <label className="field-label">ประเภทลูกค้าที่ใช้ได้</label>
+                                                <div className="flex gap-4 flex-wrap">
                                                   {CUSTOMER_TYPES.map(ct => {
                                                     const types = chConfig?.customer_types || ['retail', 'wholesale', 'distributor'];
                                                     const checked = types.includes(ct.value);
                                                     return (
-                                                      <label key={ct.value} className="flex items-center gap-2 text-base cursor-pointer select-none" onClick={() => { const newTypes = checked ? types.filter((t: string) => t !== ct.value) : [...types, ct.value]; handleUpdateBeamChannel(ch.code, 'customer_types', newTypes); }}>
-                                                        <div className={`w-5 h-5 rounded flex items-center justify-center flex-shrink-0 transition-colors ${checked ? 'bg-primary' : 'border-2 border-gray-300 dark:border-slate-500'}`}>
-                                                          {checked && <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
-                                                        </div>
-                                                        {ct.label}
-                                                      </label>
+                                                      <Checkbox
+                                                        key={ct.value}
+                                                        checked={checked}
+                                                        onChange={() => {
+                                                          const newTypes = checked ? types.filter((t: string) => t !== ct.value) : [...types, ct.value];
+                                                          handleUpdateBeamChannel(ch.code, 'customer_types', newTypes);
+                                                        }}
+                                                        label={ct.label}
+                                                      />
                                                     );
                                                   })}
                                                 </div>
                                               </div>
                                               <div>
-                                                <label className="block text-sm text-gray-500 dark:text-slate-400 mb-1">ผู้รับผิดชอบค่าธรรมเนียม</label>
-                                                <div className="flex gap-3">
+                                                <label className="field-label">ผู้รับผิดชอบค่าธรรมเนียม</label>
+                                                <div className="flex gap-4 flex-wrap">
                                                   {FEE_PAYERS.map(fp => {
                                                     const selected = (chConfig?.fee_payer || 'merchant') === fp.value;
                                                     return (
-                                                      <label key={fp.value} className="flex items-center gap-2 text-base cursor-pointer select-none" onClick={() => handleUpdateBeamChannel(ch.code, 'fee_payer', fp.value)}>
-                                                        <div className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 transition-colors ${selected ? 'border-[5px] border-primary' : 'border-2 border-gray-300 dark:border-slate-500'}`} />
-                                                        {fp.label}
-                                                      </label>
+                                                      <Radio
+                                                        key={fp.value}
+                                                        checked={selected}
+                                                        onChange={() => handleUpdateBeamChannel(ch.code, 'fee_payer', fp.value)}
+                                                        label={fp.label}
+                                                      />
                                                     );
                                                   })}
                                                 </div>
@@ -784,8 +833,8 @@ export default function PaymentChannelsPage() {
                                               {/* Installment month options — only for CARD_INSTALLMENTS */}
                                               {ch.code === 'CARD_INSTALLMENTS' && (
                                                 <div>
-                                                  <label className="block text-sm text-gray-500 dark:text-slate-400 mb-1">จำนวนเดือนที่รับผ่อน</label>
-                                                  <div className="flex flex-wrap gap-3">
+                                                  <label className="field-label">จำนวนเดือนที่รับผ่อน</label>
+                                                  <div className="flex flex-wrap gap-4">
                                                     {[
                                                       { key: 'installments3m', label: '3 เดือน' },
                                                       { key: 'installments4m', label: '4 เดือน' },
@@ -795,12 +844,15 @@ export default function PaymentChannelsPage() {
                                                       const plans = chConfig?.installment_plans || ['installments3m', 'installments4m', 'installments6m', 'installments10m'];
                                                       const checked = plans.includes(opt.key);
                                                       return (
-                                                        <label key={opt.key} className="flex items-center gap-2 text-base cursor-pointer select-none" onClick={() => { const newPlans = checked ? plans.filter((p: string) => p !== opt.key) : [...plans, opt.key]; handleUpdateBeamChannel(ch.code, 'installment_plans', newPlans); }}>
-                                                          <div className={`w-5 h-5 rounded flex items-center justify-center flex-shrink-0 transition-colors ${checked ? 'bg-primary' : 'border-2 border-gray-300 dark:border-slate-500'}`}>
-                                                            {checked && <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
-                                                          </div>
-                                                          {opt.label}
-                                                        </label>
+                                                        <Checkbox
+                                                          key={opt.key}
+                                                          checked={checked}
+                                                          onChange={() => {
+                                                            const newPlans = checked ? plans.filter((p: string) => p !== opt.key) : [...plans, opt.key];
+                                                            handleUpdateBeamChannel(ch.code, 'installment_plans', newPlans);
+                                                          }}
+                                                          label={opt.label}
+                                                        />
                                                       );
                                                     })}
                                                   </div>
@@ -808,7 +860,7 @@ export default function PaymentChannelsPage() {
                                               )}
                                             </div>
                                           )}
-                                        </div>
+                                        </Fragment>
                                       );
                                     })}
                                   </div>
@@ -818,16 +870,18 @@ export default function PaymentChannelsPage() {
                           </>
                         )}
 
-                        {/* Save button */}
-                        <Button
-                          variant="primary"
-                          onClick={handleSaveGateway}
-                          loading={savingGateway}
-                          disabled={savingGateway}
-                          icon={<Save className="w-4 h-4" />}
-                        >
-                          บันทึก
-                        </Button>
+                        {/* Save button — right-aligned per global form action convention */}
+                        <div className="flex justify-end gap-3 pt-2 border-t border-gray-100 dark:border-slate-700">
+                          <Button
+                            variant="primary"
+                            onClick={handleSaveGateway}
+                            loading={savingGateway}
+                            disabled={savingGateway}
+                            icon={<Save className="w-4 h-4" />}
+                          >
+                            บันทึก
+                          </Button>
+                        </div>
                       </div>
                     )}
                   </Card>

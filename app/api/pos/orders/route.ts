@@ -222,10 +222,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'payments is required' }, { status: 400 });
     }
 
-    // Validate session is open and belongs to this user/company
+    // Validate session is open and belongs to this user/company.
+    // Also resolve the terminal's VAT branch so each receipt is numbered
+    // under the correct registered branch (separate counters per branch).
     const { data: session, error: sessionError } = await supabaseAdmin
       .from('pos_sessions')
-      .select('id, warehouse_id, cashier_user_id, company_id')
+      .select('id, warehouse_id, cashier_user_id, company_id, terminal:pos_terminals(tax_branch_id)')
       .eq('id', pos_session_id)
       .eq('company_id', auth.companyId)
       .eq('status', 'open')
@@ -236,6 +238,9 @@ export async function POST(request: NextRequest) {
     }
 
     const warehouseId = session.warehouse_id || null; // null = no stock deduction
+    // Supabase typegen returns relations as arrays; unwrap to a single row safely
+    const sessionTerminal = Array.isArray(session.terminal) ? session.terminal[0] : session.terminal;
+    const posTaxBranchId = (sessionTerminal as { tax_branch_id?: string | null } | null)?.tax_branch_id || null;
 
     // Calculate item totals
     let itemsSubtotal = 0;
@@ -312,10 +317,15 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Generate order number + receipt number
+    // Generate order number + receipt number.
+    // Receipt counter is scoped per (company, VAT branch) so each registered
+    // branch has its own continuous sequence as required by Revenue Code §86/6.
     const [orderNumResult, receiptNumResult] = await Promise.all([
       supabaseAdmin.rpc('generate_order_number', { p_company_id: auth.companyId }),
-      supabaseAdmin.rpc('generate_pos_receipt_number', { p_company_id: auth.companyId }),
+      supabaseAdmin.rpc('generate_pos_receipt_number', {
+        p_company_id: auth.companyId,
+        p_tax_branch_id: posTaxBranchId,
+      }),
     ]);
 
     if (orderNumResult.error || receiptNumResult.error) {
@@ -365,6 +375,9 @@ export async function POST(request: NextRequest) {
         source: 'pos',
         flow_type: flowType,
         pos_session_id,
+        // Snapshot the VAT branch so historical receipts remain correct even
+        // if the terminal's branch assignment changes later.
+        pos_tax_branch_id: posTaxBranchId,
         ...(warehouseId ? { warehouse_id: warehouseId } : {}),
         notes: notes || null,
         created_by: auth.userId,

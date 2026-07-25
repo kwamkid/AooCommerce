@@ -28,6 +28,8 @@ interface ReceiptData {
     phone: string;
     tax_id: string;
     tax_company_name: string;
+    /** VAT branch label (e.g. "สำนักงานใหญ่", "สาขาที่ 1"). Empty if not VAT-registered. */
+    tax_branch?: string;
     logo_url?: string;
     vat_registered?: boolean;
   };
@@ -69,8 +71,13 @@ export default function Receipt({ data, onClose, onNewSale }: ReceiptProps) {
   });
 
   const vatRegistered = data.company.vat_registered || false;
-  const docTitle = vatRegistered ? 'ใบกำกับอย่างย่อ/ใบเสร็จรับเงิน' : 'ใบเสร็จรับเงิน';
+  // Use the exact wording required by Thai Revenue Code Section 86/6 — "ภาษี"
+  // must appear in the document title for ใบกำกับภาษีอย่างย่อ to be valid.
+  const docTitle = vatRegistered ? 'ใบกำกับภาษีอย่างย่อ/ใบเสร็จรับเงิน' : 'ใบเสร็จรับเงิน';
   const docNumber = data.order.tax_invoice_number || data.order.receipt_number;
+  // Prefer the legal/tax-registered name over the brand name for ABB compliance
+  const displayName = data.company.tax_company_name?.trim() || data.company.name;
+  const branchLabel = vatRegistered ? data.company.tax_branch?.trim() : '';
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 print:bg-white print:static print:block" onClick={onClose}>
@@ -105,7 +112,12 @@ export default function Receipt({ data, onClose, onNewSale }: ReceiptProps) {
               className="w-14 h-14 rounded-full object-cover mx-auto mb-2"
             />
           )}
-          <p className="font-bold text-base">{data.company.name}</p>
+          <p className="font-bold text-base">{displayName}</p>
+          {/* VAT branch — bolded so it's obvious which registration the
+              receipt was issued under (required for multi-branch businesses) */}
+          {branchLabel && (
+            <p className="text-xs font-medium text-gray-700">({branchLabel})</p>
+          )}
           {data.company.address && <p className="text-xs text-gray-600">{data.company.address}</p>}
           {data.company.phone && <p className="text-xs text-gray-600">โทร: {data.company.phone}</p>}
           {data.company.tax_id && (
@@ -182,6 +194,13 @@ export default function Receipt({ data, onClose, onNewSale }: ReceiptProps) {
               <span>ยอดชำระ</span>
               <span>฿{formatPrice(data.order.total_amount)}</span>
             </div>
+            {/* Required by Revenue Code §86/6 — must explicitly state that the
+                stated price already includes VAT */}
+            {vatRegistered && data.order.vat_amount > 0 && (
+              <p className="text-xs text-gray-500 text-right pt-0.5">
+                ราคารวมภาษีมูลค่าเพิ่มแล้ว
+              </p>
+            )}
           </div>
 
           <div className="border-t border-dashed border-gray-300 my-3" />

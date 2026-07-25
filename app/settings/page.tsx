@@ -434,10 +434,10 @@ export default function SettingsPage() {
 
           <div className="p-4">
             <p className="text-sm text-gray-600 dark:text-slate-400 mb-2">
-              ลบข้อมูล <strong>คำสั่งซื้อ, ลูกค้า, สินค้า, สต็อก, แชท, POS, Shopee links, หมวดหมู่, แบรนด์</strong> ทั้งหมดออก
+              ลบข้อมูล <strong>คำสั่งซื้อ, ลูกค้า, สินค้า, สต็อก, แชท, รายการขายแคชเชียร์, Shopee links, หมวดหมู่, แบรนด์</strong> ทั้งหมดออก
             </p>
             <p className="text-sm text-gray-500 dark:text-slate-500 mb-4">
-              สิ่งที่ยังคงอยู่: ตั้งค่าระบบ, ผู้ใช้, คลังสินค้า, ช่องทางชำระเงิน, การเชื่อมต่อ Shopee, POS terminals
+              สิ่งที่ยังคงอยู่: ตั้งค่าระบบ, ผู้ใช้, คลังสินค้า, ช่องทางชำระเงิน, การเชื่อมต่อ Shopee, แคชเชียร์
             </p>
             <Button
               variant="danger"
@@ -521,8 +521,8 @@ export default function SettingsPage() {
             การดำเนินการนี้จะลบข้อมูลต่อไปนี้ <strong className="text-red-600">อย่างถาวร</strong>:
           </p>
           <ul className="text-sm text-gray-600 dark:text-slate-400 mb-4 space-y-1 ml-4">
-            <li>• คำสั่งซื้อทั้งหมด (Orders, POS, Shipments, Payments)</li>
-            <li>• POS Sessions ทั้งหมด</li>
+            <li>• คำสั่งซื้อทั้งหมด (Orders, แคชเชียร์, Shipments, Payments)</li>
+            <li>• Session แคชเชียร์ทั้งหมด</li>
             <li>• ลูกค้าทั้งหมด (Customers, Addresses)</li>
             <li>• สินค้าทั้งหมด (Products, Variations, Images)</li>
             <li>• หมวดหมู่, แบรนด์, ตัวเลือกสินค้า</li>

@@ -11,13 +11,17 @@ import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
 import {
   Building2, FileText, Phone, Mail, MapPin, Receipt, Upload, X,
-  AlertCircle, Save, User, Briefcase, Landmark,
+  AlertCircle, Save, User, Briefcase, Landmark, Plus, Edit2, Trash2,
 } from 'lucide-react';
 import ThaiAddressInput from '@/components/ui/ThaiAddressInput';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Container from '@/components/ui/Container';
 import Tabs from '@/components/ui/Tabs';
+import Modal from '@/components/ui/Modal';
+import FormInput from '@/components/ui/FormInput';
+import ListRow from '@/components/ui/ListRow';
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { LoadingCard, NoPermissionCard } from '@/components/ui/StateCard';
 
 interface CompanyData {
@@ -59,6 +63,134 @@ export default function CompanySettingsPage() {
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const initialFormRef = useRef(formData);
+
+  // ── Tax branches (VAT-registered branches for POS receipt routing) ──
+  // Self-contained section: fetches independently when VAT is enabled and
+  // saves each action immediately (separate from the main form's save flow).
+  interface TaxBranchRow {
+    id: string;
+    code: string;
+    name: string;
+    address: string | null;
+    is_default: boolean;
+    sort_order: number;
+  }
+  const [branches, setBranches] = useState<TaxBranchRow[]>([]);
+  const [branchModalMode, setBranchModalMode] = useState<'create' | 'edit' | null>(null);
+  const [editingBranch, setEditingBranch] = useState<TaxBranchRow | null>(null);
+  const [branchForm, setBranchForm] = useState({ code: '', name: '', address: '' });
+  const [savingBranch, setSavingBranch] = useState(false);
+  const [reorderingBranch, setReorderingBranch] = useState(false);
+  const [deleteBranchTarget, setDeleteBranchTarget] = useState<TaxBranchRow | null>(null);
+  const [deletingBranch, setDeletingBranch] = useState(false);
+
+  const loadBranches = async () => {
+    try {
+      const res = await apiFetch('/api/settings/tax-branches');
+      if (!res.ok) return;
+      const data = await res.json();
+      setBranches((data.branches || []) as TaxBranchRow[]);
+    } catch {
+      // Silent — branches are optional and the page works without them
+    }
+  };
+
+  const openCreateBranch = () => {
+    // Suggest next 5-digit code following existing branches
+    const maxCode = branches.reduce((m, b) => {
+      const n = parseInt(b.code, 10);
+      return Number.isFinite(n) && n > m ? n : m;
+    }, -1);
+    const next = String(Math.max(0, maxCode + 1)).padStart(5, '0');
+    setEditingBranch(null);
+    setBranchForm({
+      code: next,
+      name: next === '00000' ? 'สำนักงานใหญ่' : `สาขาที่ ${parseInt(next, 10)}`,
+      address: '',
+    });
+    setBranchModalMode('create');
+  };
+
+  const openEditBranch = (b: TaxBranchRow) => {
+    setEditingBranch(b);
+    setBranchForm({ code: b.code, name: b.name, address: b.address || '' });
+    setBranchModalMode('edit');
+  };
+
+  const handleSaveBranch = async () => {
+    if (!branchForm.name.trim() || !branchForm.code.trim()) {
+      showToast('กรุณากรอกรหัสและชื่อสาขา', 'error');
+      return;
+    }
+    setSavingBranch(true);
+    try {
+      const isEdit = branchModalMode === 'edit';
+      const payload = isEdit
+        ? { id: editingBranch!.id, name: branchForm.name.trim(), address: branchForm.address.trim() || null }
+        : { code: branchForm.code.trim(), name: branchForm.name.trim(), address: branchForm.address.trim() || null };
+      const res = await apiFetch('/api/settings/tax-branches', {
+        method: isEdit ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'บันทึกไม่สำเร็จ');
+      setBranchModalMode(null);
+      await loadBranches();
+      showToast(isEdit ? 'แก้ไขสาขาสำเร็จ' : 'เพิ่มสาขาสำเร็จ');
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'บันทึกไม่สำเร็จ', 'error');
+    } finally {
+      setSavingBranch(false);
+    }
+  };
+
+  const handleDeleteBranch = async () => {
+    if (!deleteBranchTarget) return;
+    setDeletingBranch(true);
+    try {
+      const res = await apiFetch(`/api/settings/tax-branches?id=${deleteBranchTarget.id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'ลบไม่สำเร็จ');
+      setDeleteBranchTarget(null);
+      await loadBranches();
+      showToast('ลบสาขาสำเร็จ');
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'ลบไม่สำเร็จ', 'error');
+    } finally {
+      setDeletingBranch(false);
+    }
+  };
+
+  const handleMoveBranch = async (id: string, direction: 'up' | 'down') => {
+    const idx = branches.findIndex(b => b.id === id);
+    if (idx === -1) return;
+    const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
+    if (swapIdx < 0 || swapIdx >= branches.length) return;
+    const newList = [...branches];
+    [newList[idx], newList[swapIdx]] = [newList[swapIdx], newList[idx]];
+    const reordered = newList.map((b, i) => ({ ...b, sort_order: i }));
+    setBranches(reordered);
+    setReorderingBranch(true);
+    try {
+      await apiFetch('/api/settings/tax-branches', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orders: reordered.map((b, i) => ({ id: b.id, sort_order: i })) }),
+      });
+    } catch {
+      showToast('บันทึกลำดับไม่สำเร็จ', 'error');
+      loadBranches();
+    } finally {
+      setReorderingBranch(false);
+    }
+  };
+
+  // Fetch branches whenever VAT registration is enabled (or page mounts with it on)
+  useEffect(() => {
+    if (formData.vatRegistered) loadBranches();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData.vatRegistered]);
 
 
   // Fetch company data
@@ -443,6 +575,94 @@ export default function CompanySettingsPage() {
                 </div>
               </Card>
 
+              {/* ── Tax branches — only when VAT-registered. Manages the list of
+                  registered branches used for POS receipt sequence routing.
+                  Saves immediately per action (separate from main form save). */}
+              {formData.vatRegistered && (
+                <Card padding="md">
+                  <div className="flex items-start justify-between gap-4 mb-4">
+                    <div>
+                      <h3 className="heading-3 flex items-center">
+                        <Landmark className="w-5 h-5 mr-2 text-primary" />
+                        สาขา VAT
+                      </h3>
+                      <p className="subtitle-text text-gray-500 dark:text-slate-400 mt-1">
+                        รายการสาขาที่จดทะเบียน VAT — แคชเชียร์แต่ละเครื่องเลือกได้ว่าออกใบในนามสาขาไหน
+                        และเลขใบกำกับจะรันแยกตามสาขา
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="primary"
+                      icon={<Plus className="w-4 h-4" />}
+                      onClick={openCreateBranch}
+                    >
+                      เพิ่มสาขา
+                    </Button>
+                  </div>
+
+                  <div className="space-y-2">
+                    {branches.length === 0 ? (
+                      <p className="text-sm text-gray-500 dark:text-slate-400 text-center py-6">
+                        ยังไม่มีสาขา — กด &ldquo;+ เพิ่มสาขา&rdquo; เพื่อเริ่ม
+                      </p>
+                    ) : (
+                      branches.map((b, idx) => {
+                        const isFirst = idx === 0;
+                        const isLast = idx === branches.length - 1;
+                        return (
+                          <ListRow
+                            key={b.id}
+                            reorder={branches.length > 1 ? {
+                              onMoveUp: () => handleMoveBranch(b.id, 'up'),
+                              onMoveDown: () => handleMoveBranch(b.id, 'down'),
+                              disableUp: isFirst,
+                              disableDown: isLast,
+                              disabled: reorderingBranch,
+                            } : undefined}
+                            icon={
+                              <div className="w-8 h-8 bg-indigo-100 dark:bg-indigo-900/30 rounded-lg flex items-center justify-center">
+                                <Landmark className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                              </div>
+                            }
+                            title={
+                              <span className="inline-flex items-center gap-2">
+                                <span className="text-xs font-mono text-gray-400 dark:text-slate-500">{b.code}</span>
+                                <span>{b.name}</span>
+                                {b.is_default && (
+                                  <span className="badge badge-sm badge-pill badge-indigo">default</span>
+                                )}
+                              </span>
+                            }
+                            subtitle={b.address || 'ใช้ที่อยู่บริษัท'}
+                            actions={
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => openEditBranch(b)}
+                                  className="p-1.5 text-gray-400 hover:text-blue-600 transition-colors"
+                                  aria-label="แก้ไข"
+                                >
+                                  <Edit2 className="w-4 h-4" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setDeleteBranchTarget(b)}
+                                  className="p-1.5 text-gray-400 hover:text-red-600 transition-colors"
+                                  aria-label="ลบ"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </>
+                            }
+                          />
+                        );
+                      })
+                    )}
+                  </div>
+                </Card>
+              )}
+
           </Container>
 
           {/* Action Buttons */}
@@ -474,6 +694,72 @@ export default function CompanySettingsPage() {
         </form>
       )}
       </Container>
+
+      {/* Tax branch create/edit modal */}
+      <Modal
+        open={branchModalMode !== null}
+        onClose={() => !savingBranch && setBranchModalMode(null)}
+        title={branchModalMode === 'edit' ? 'แก้ไขสาขา VAT' : 'เพิ่มสาขา VAT'}
+        icon={<Landmark className="w-5 h-5 text-primary" />}
+        size="sm"
+        disableBackdropClose={savingBranch}
+        footer={
+          <div className="flex justify-end gap-3 px-6 py-4">
+            <Button variant="secondary" onClick={() => setBranchModalMode(null)} disabled={savingBranch}>
+              ยกเลิก
+            </Button>
+            <Button
+              variant="primary"
+              onClick={handleSaveBranch}
+              loading={savingBranch}
+              disabled={savingBranch || !branchForm.name.trim() || !branchForm.code.trim()}
+            >
+              บันทึก
+            </Button>
+          </div>
+        }
+      >
+        <div className="px-6 py-5 space-y-4">
+          <FormInput
+            label="รหัสสาขา"
+            required
+            value={branchForm.code}
+            onChange={e => setBranchForm({ ...branchForm, code: e.target.value.replace(/\D/g, '').slice(0, 5) })}
+            placeholder="00000"
+            hint={branchModalMode === 'edit'
+              ? 'รหัสสาขาแก้ไม่ได้ — ใบกำกับเก่าอ้างอิงรหัสนี้อยู่'
+              : 'ตัวเลข 5 หลัก จาก ภพ.20 — สำนักงานใหญ่ใช้ 00000'}
+            disabled={branchModalMode === 'edit'}
+            inputMode="numeric"
+          />
+          <FormInput
+            label="ชื่อสาขา"
+            required
+            value={branchForm.name}
+            onChange={e => setBranchForm({ ...branchForm, name: e.target.value })}
+            placeholder="เช่น สำนักงานใหญ่, สาขาที่ 1"
+          />
+          <FormInput
+            label="ที่อยู่สาขา"
+            value={branchForm.address}
+            onChange={e => setBranchForm({ ...branchForm, address: e.target.value })}
+            placeholder="ไม่กรอก = ใช้ที่อยู่บริษัท"
+            hint="ใส่ที่อยู่จริงของสาขานี้ ถ้าต่างจากที่อยู่หลักของบริษัท"
+          />
+        </div>
+      </Modal>
+
+      <ConfirmDialog
+        open={!!deleteBranchTarget}
+        onClose={() => !deletingBranch && setDeleteBranchTarget(null)}
+        onConfirm={handleDeleteBranch}
+        title="ลบสาขา VAT"
+        description={`ยืนยันการลบสาขา "${deleteBranchTarget?.name || ''}" — ถ้ามีออเดอร์ POS อ้างอิงสาขานี้อยู่ จะลบไม่ได้`}
+        confirmLabel="ลบ"
+        variant="danger"
+        loading={deletingBranch}
+        icon={<Trash2 className="w-6 h-6 text-red-600" />}
+      />
     </Layout>
   );
 }

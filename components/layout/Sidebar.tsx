@@ -63,10 +63,10 @@ interface MenuSection {
 
 const menuSections: MenuSection[] = [
   {
-    title: 'POS',
+    title: 'แคชเชียร์',
     items: [
-      { label: 'POS', href: '/pos', icon: <Monitor className="w-5 h-5" />, roles: ['admin', 'cashier'] },
-      { label: 'รายการขาย POS', href: '/pos/orders', icon: <Receipt className="w-5 h-5" />, roles: ['admin', 'cashier', 'account'] },
+      { label: 'แคชเชียร์', href: '/pos', icon: <Monitor className="w-5 h-5" />, roles: ['admin', 'cashier'] },
+      { label: 'รายการขาย', href: '/pos/orders', icon: <Receipt className="w-5 h-5" />, roles: ['admin', 'cashier', 'account'] },
     ]
   },
   {
@@ -196,8 +196,8 @@ export default function Sidebar() {
   const filteredSections = menuSections
     .filter(section => {
       // Hide inventory item (not whole section) when stock is disabled — handled via item filter below
-      // Hide "POS" section when pos feature is not enabled
-      if (section.title === 'POS' && !features.pos) return false;
+      // Hide "แคชเชียร์" section when pos feature is not enabled
+      if (section.title === 'แคชเชียร์' && !features.pos) return false;
       return true;
     })
     .map(section => ({
@@ -764,7 +764,7 @@ export default function Sidebar() {
                     {features.pos && (
                     <Link href="/settings/pos-terminals" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/settings/pos-terminals' ? 'text-primary' : 'text-gray-400 hover:text-primary'}`}>
                       <Monitor className="w-4 h-4" />
-                      <span className="text-[16px] font-medium">เครื่อง POS</span>
+                      <span className="text-[16px] font-medium">แคชเชียร์</span>
                     </Link>
                     )}
                     {features.marketplace_sync && (
