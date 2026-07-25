@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import { X } from 'lucide-react';
 
 type ModalSize = 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl' | '4xl';
@@ -67,13 +67,30 @@ export default function Modal({
     return () => window.removeEventListener('keydown', handler);
   }, [open, onClose]);
 
+  // Backdrop close guarded by where the gesture STARTED, not where it ended.
+  // Browsers fire `click` on the common ancestor of pointerdown+pointerup, so
+  // drag-highlighting text inside the panel and releasing on the backdrop would
+  // otherwise register as a backdrop click and close the modal. We only close
+  // when the press began on the overlay itself. (.modal-backdrop is
+  // pointer-events-none so empty-area events target .modal-root = currentTarget.)
+  const pressedOnOverlay = useRef(false);
+
+  const onOverlayPointerDown = (e: React.PointerEvent) => {
+    pressedOnOverlay.current = !disableBackdropClose && e.target === e.currentTarget;
+  };
+  const onOverlayClick = (e: React.MouseEvent) => {
+    if (disableBackdropClose) return;
+    if (e.target === e.currentTarget && pressedOnOverlay.current) onClose();
+    pressedOnOverlay.current = false;
+  };
+
   if (!open) return null;
 
   const hasHeader = Boolean(title) || !hideCloseButton;
 
   return (
-    <div className="modal-root">
-      <div className="modal-backdrop" onClick={disableBackdropClose ? undefined : onClose} />
+    <div className="modal-root" onPointerDown={onOverlayPointerDown} onClick={onOverlayClick}>
+      <div className="modal-backdrop" />
       <div className={`modal-panel ${SIZE_CLASS[size]}`}>
         {hasHeader && (
           <div className="modal-header">

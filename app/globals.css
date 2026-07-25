@@ -218,7 +218,10 @@ html, body {
     @apply fixed inset-0 z-50 flex items-center justify-center p-4;
   }
   .modal-backdrop {
-    @apply fixed inset-0 bg-black/50;
+    /* pointer-events-none: purely visual — close is handled on .modal-root with
+     * a pointerdown-origin guard (see Modal.tsx) so drag-to-highlight over the
+     * panel and release outside doesn't count as a backdrop click. */
+    @apply fixed inset-0 bg-black/50 pointer-events-none;
   }
   .modal-panel {
     @apply relative bg-white dark:bg-slate-800 rounded-xl w-full shadow-xl flex flex-col;
