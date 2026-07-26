@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { checkAuthWithCompany, can } from '@/lib/supabase-admin';
 import { generateAuthUrl } from '@/lib/tiktok/api';
+import { signOAuthState } from '@/lib/oauth-state';
 
 export async function GET(request: NextRequest) {
   try {
-    const { isAuth, companyId, companyRoles } = await checkAuthWithCompany(request);
-    if (!isAuth || !companyId || !can(companyRoles, 'marketplace.connect')) {
+    const { isAuth, companyId, companyRoles, userId } = await checkAuthWithCompany(request);
+    if (!isAuth || !companyId || !userId || !can(companyRoles, 'marketplace.connect')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -15,12 +16,14 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'TikTok not configured' }, { status: 500 });
     }
 
-    const url = generateAuthUrl(companyId);
+    // Signed, user-bound, expiring state (not the raw companyId).
+    const state = signOAuthState({ companyId, userId, platform: 'tiktok' });
+    const url = generateAuthUrl(state);
     console.log('[TikTok OAuth] Generated auth URL');
 
-    // Store companyId in cookie for callback
+    // Backup the signed state in a cookie for the callback.
     const response = NextResponse.json({ url });
-    response.cookies.set('tiktok_company_id', companyId, {
+    response.cookies.set('tiktok_oauth_state', state, {
       httpOnly: true,
       secure: true,
       sameSite: 'lax',

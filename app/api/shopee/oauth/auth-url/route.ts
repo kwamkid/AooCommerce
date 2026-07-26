@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { checkAuthWithCompany, can } from '@/lib/supabase-admin';
 import { generateAuthUrl } from '@/lib/shopee/api';
+import { signOAuthState } from '@/lib/oauth-state';
 
 export async function GET(request: NextRequest) {
   try {
-    const { isAuth, companyId, companyRoles } = await checkAuthWithCompany(request);
-    if (!isAuth || !companyId || !can(companyRoles, 'marketplace.connect')) {
+    const { isAuth, companyId, companyRoles, userId } = await checkAuthWithCompany(request);
+    if (!isAuth || !companyId || !userId || !can(companyRoles, 'marketplace.connect')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -20,12 +21,15 @@ export async function GET(request: NextRequest) {
     const protocol = host.includes('localhost') ? 'http' : 'https';
     const redirectUrl = `${protocol}://${host}/api/shopee/oauth/callback`;
 
-    const url = generateAuthUrl(redirectUrl, companyId);
+    // Signed, user-bound, expiring state (not the raw companyId) — the callback
+    // verifies this + the completing session before attaching any shop.
+    const state = signOAuthState({ companyId, userId, platform: 'shopee' });
+    const url = generateAuthUrl(redirectUrl, state);
     console.log('[Shopee OAuth] Generated auth URL, redirect:', redirectUrl);
 
-    // Store companyId in cookie (Shopee doesn't reliably forward state param)
+    // Backup the signed state in a cookie (Shopee doesn't reliably forward state).
     const response = NextResponse.json({ url });
-    response.cookies.set('shopee_company_id', companyId, {
+    response.cookies.set('shopee_oauth_state', state, {
       httpOnly: true,
       secure: true,
       sameSite: 'lax',

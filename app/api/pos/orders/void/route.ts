@@ -1,6 +1,6 @@
 // Path: app/api/pos/orders/void/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
+import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
 import { getStockConfig } from '@/lib/stock-utils';
 import { returnStock } from '@/lib/stock-service';
 
@@ -10,6 +10,11 @@ export async function POST(request: NextRequest) {
     const auth = await checkAuthWithCompany(request);
     if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    // Void reverses stock + cancels a completed sale + adjusts session totals —
+    // manager/admin only, not cashier self-service.
+    if (!can(auth.companyRoles, 'pos.manage')) {
+      return NextResponse.json({ error: 'ไม่มีสิทธิ์ยกเลิกบิล (เฉพาะผู้จัดการ)' }, { status: 403 });
     }
 
     const { order_id, reason } = await request.json();

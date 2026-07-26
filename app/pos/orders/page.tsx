@@ -4,6 +4,7 @@
 import { useState, useCallback, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
+import { can } from '@/lib/permissions';
 import { apiFetch } from '@/lib/api-client';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import Layout from '@/components/layout/Layout';
@@ -299,6 +300,7 @@ function PosOrdersContent() {
                 onViewReceipt={handleViewReceipt}
                 onVoid={handleVoid}
                 voidingId={voidingId}
+                canVoid={can(userProfile?.roles, 'pos.manage')}
               />
             ))}
           </div>

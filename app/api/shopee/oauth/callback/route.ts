@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { exchangeCodeForToken, getShopListByMerchant, ensureValidToken, getShopInfo } from '@/lib/shopee/api';
+import { authorizeMarketplaceCallback } from '@/lib/oauth-state';
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -8,23 +9,29 @@ export async function GET(request: NextRequest) {
   const shopId = parseInt(searchParams.get('shop_id') || '0');
   const mainAccountId = parseInt(searchParams.get('main_account_id') || '0');
 
-  // companyId: try state param first, fallback to cookie
-  const companyId = searchParams.get('state') || request.cookies.get('shopee_company_id')?.value || null;
-
   const host = request.headers.get('host') || 'localhost:3000';
   const protocol = host.includes('localhost') ? 'http' : 'https';
   const baseUrl = `${protocol}://${host}`;
+
+  // Verify the signed state + the completing session; companyId comes from the
+  // trusted state, never the raw param (prevents attaching a shop to a company
+  // the caller isn't a member of).
+  const rawState = searchParams.get('state') || request.cookies.get('shopee_oauth_state')?.value || null;
+  const authz = await authorizeMarketplaceCallback(request, rawState);
+  if (!authz.ok) {
+    console.error('[Shopee Callback] Authorization failed:', authz.reason);
+    return NextResponse.redirect(`${baseUrl}/settings/integrations?error=auth_${authz.reason}`);
+  }
+  const companyId = authz.companyId;
 
   console.log('[Shopee Callback] Received params:', {
     code: code ? `${code.substring(0, 10)}...` : null,
     shop_id: shopId,
     main_account_id: mainAccountId,
-    state: companyId,
-    all_params: Object.fromEntries(searchParams.entries()),
   });
 
-  if (!code || !companyId) {
-    console.error('[Shopee Callback] Missing params:', { code: !!code, companyId });
+  if (!code) {
+    console.error('[Shopee Callback] Missing code');
     return NextResponse.redirect(`${baseUrl}/settings/integrations?error=missing_params`);
   }
 
@@ -130,7 +137,7 @@ export async function GET(request: NextRequest) {
 
     // Clear the cookie
     const response = NextResponse.redirect(`${baseUrl}/settings/integrations?shopee=connected`);
-    response.cookies.delete('shopee_company_id');
+    response.cookies.delete('shopee_oauth_state');
 
     console.log('[Shopee Callback] Success! Connected', shopIds.length, 'shop(s)');
     return response;

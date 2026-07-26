@@ -16,6 +16,30 @@
 
 ---
 
+## 2026-07-27 — Security รอบ decision: OAuth CSRF + POS void + brand-products + portal rate-limit
+
+**ที่เกิด**: 4 ช่องโหว่ที่ audit ค้างไว้ (รอ decision) — ปิดครบ
+
+1. **[CRITICAL] OAuth CSRF (Shopee/TikTok)** — [callback](app/api/shopee/oauth/callback/route.ts) เดิม `state = companyId` ดิบ + ไม่ auth → attacker attach ร้าน (พร้อม token) เข้าบริษัทเหยื่อผ่าน `marketplace_accounts` upsert (service-role bypass RLS)
+   - แก้: [lib/oauth-state.ts](lib/oauth-state.ts) `signOAuthState`/`verifyOAuthState` (HMAC-SHA256 base64url + expiry 10 นาที, timing-safe) + `authorizeMarketplaceCallback()` — auth-url ส่ง signed state (ผูก userId+companyId); callback verify state + auth session ผ่าน **cookie** (`extractRequestToken`+`verifyAccessToken`) + ตรวจ `sessionUserId === state.userId` + membership `can(roles,'marketplace.connect')` + ใช้ companyId จาก **verified state** เท่านั้น
+   - secret: `OAUTH_STATE_SECRET || SUPABASE_SECRET_KEY || SERVICE_ROLE_KEY` (มีค่าเสมอ ไม่ต้องตั้ง env ใหม่); cookie เปลี่ยน `*_company_id` → `*_oauth_state`
+2. **[MEDIUM] `pos/orders/void` ไม่ gate** → ใครก็ void บิล (คืนสต็อก+cancel+ปรับ session) — แก้: gate `pos.manage` (manager/admin) + ซ่อนปุ่ม void ใน [PosOrderCard](app/pos/components/PosOrderCard.tsx) (prop `canVoid`) — cashier ไม่เห็นปุ่ม (decision: supervisor override)
+3. **[MEDIUM] `brands/[id]/products` ไม่ gate** → assign/unassign product ให้ brand ได้ — แก้: gate `masterdata.brands`
+4. **[HIGH] Portal brute-force** — supplier code 30-bit เป็น **global oracle** ไม่มี rate limit — แก้ 2 ชั้น:
+   - **entropy**: [suppliers regenerate-code](app/api/suppliers/[id]/regenerate-code/route.ts) + [customers regenerate-portal-code](app/api/customers/[id]/regenerate-portal-code/route.ts) 6→12 ตัว (~60-bit) — code เก่ายังใช้ได้จน regenerate
+   - **rate-limit**: migration `portal_auth_rate_limit` (apply live) — table `portal_auth_attempts` + atomic RPC `check_portal_auth_rate_limit` (SECURITY DEFINER, revoke จาก anon/authenticated) + [lib/portal-rate-limit.ts](lib/portal-rate-limit.ts) (fail-open on error) + [lib/request-ip.ts](lib/request-ip.ts); wire [supplier-portal/auth](app/api/supplier-portal/auth/route.ts) (key `supplier:<ip>`) + [consignment/portal-auth](app/api/consignment/portal-auth/route.ts) (key `consign:<token>:<ip>`) — 10 fail/15นาที → lock 15นาที
+
+**ทดสอบ**: build ผ่าน (277 หน้า) · rate-limit E2E (dev :3100) 10×403 → 11+×429 · OAuth HMAC roundtrip ok + tampered payload/sig → null · RPC smoke (fail×3 lock + reset)
+
+**ป้องกัน regression**:
+- ทุก OAuth callback ที่ผูก resource เข้าบริษัท → verify signed state + auth session + membership เสมอ (ห้าม trust companyId จาก param) · **ห้าม**ใช้ `checkAuthWithCompany` resolve company ใน callback (fallback บริษัทแรก)
+- POS/destructive action → gate `pos.manage` + ซ่อน UI ด้วย (ไม่งั้น cashier กดได้ 403)
+- Public login endpoint → rate-limit + entropy สูง เสมอ
+
+**ยังไม่แก้ (จดไว้)**: consignment data endpoint ([portal/route.ts](app/api/consignment/portal/route.ts)) ไม่เช็ค access_code — token 122-bit ยัง mitigate (defense-in-depth ทีหลัง) · `products/bulk-brand` ไม่ gate (staff surface, product.bulk_edit territory) · **recommend regenerate supplier/customer code เก่าที่ sensitive** (entropy ใหม่ผลเฉพาะ code ใหม่)
+
+---
+
 ## 2026-07-26 — Masterdata capability sweep: gate write routes ที่ขาด
 
 **ที่เกิด**: brands/categories/variation-types/suppliers `route.ts` — write methods (POST/PUT/DELETE) เช็คแค่ `auth.isAuth + companyId` ไม่มี `can()` role gate (warehouses/carriers/sales-channels มีอยู่แล้ว)

@@ -4,9 +4,10 @@ import crypto from 'crypto';
 
 function generateAccessCode(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no 0/O/1/I
+  // 12 chars ≈ 60 bits (rate-limited login too) — see supplier regenerate-code.
   let code = '';
-  const bytes = crypto.randomBytes(6);
-  for (let i = 0; i < 6; i++) {
+  const bytes = crypto.randomBytes(12);
+  for (let i = 0; i < 12; i++) {
     code += chars[bytes[i] % chars.length];
   }
   return `DN-${code}`;

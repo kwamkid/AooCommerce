@@ -66,9 +66,11 @@ interface PosOrderCardProps {
   onViewReceipt: (orderId: string) => void;
   onVoid: (orderId: string) => void;
   voidingId: string | null;
+  /** Whether the current user may void (pos.manage). Hides the button otherwise. */
+  canVoid: boolean;
 }
 
-export default function PosOrderCard({ order, onViewReceipt, onVoid, voidingId }: PosOrderCardProps) {
+export default function PosOrderCard({ order, onViewReceipt, onVoid, voidingId, canVoid }: PosOrderCardProps) {
   const { showToast } = useToast();
   const statusCfg = ORDER_STATUS_CONFIG[order.order_status] || ORDER_STATUS_CONFIG.completed;
   const customerName = order.customer?.name || 'ลูกค้าทั่วไป';
@@ -175,7 +177,7 @@ export default function PosOrderCard({ order, onViewReceipt, onVoid, voidingId }
             >
               <Printer className="w-4 h-4" />
             </button>
-            {order.order_status === 'completed' && (
+            {canVoid && order.order_status === 'completed' && (
               <button
                 onClick={() => onVoid(order.id)}
                 disabled={voidingId === order.id}

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
+import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
 
 // POST - Add products to this brand
 export async function POST(
@@ -10,6 +10,9 @@ export async function POST(
     const auth = await checkAuthWithCompany(request);
     if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    if (!can(auth.companyRoles, 'masterdata.brands')) {
+      return NextResponse.json({ error: 'Admin only' }, { status: 403 });
     }
 
     const { id } = await params;
@@ -59,6 +62,9 @@ export async function DELETE(
     const auth = await checkAuthWithCompany(request);
     if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    if (!can(auth.companyRoles, 'masterdata.brands')) {
+      return NextResponse.json({ error: 'Admin only' }, { status: 403 });
     }
 
     const { id } = await params;

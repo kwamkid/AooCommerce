@@ -1,6 +1,8 @@
 // POST — Validate consignment dealer portal access code
 import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
+import { portalRateLimit } from '@/lib/portal-rate-limit';
+import { getClientIp } from '@/lib/request-ip';
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -16,6 +18,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'ข้อมูลไม่ครบ' }, { status: 400 });
     }
 
+    // Throttle per token+IP so the 30-bit code can't be brute-forced.
+    const rlKey = `consign:${token}:${getClientIp(request)}`;
+    const gate = await portalRateLimit.check(rlKey);
+    if (!gate.allowed) {
+      return NextResponse.json({ error: 'พยายามหลายครั้งเกินไป กรุณารอสักครู่' }, { status: 429 });
+    }
+
     const { data: customer } = await supabaseAdmin
       .from('customers')
       .select('id')
@@ -24,9 +33,11 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (!customer) {
+      await portalRateLimit.fail(rlKey);
       return NextResponse.json({ error: 'รหัสไม่ถูกต้อง' }, { status: 401 });
     }
 
+    await portalRateLimit.reset(rlKey);
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('POST consignment portal-auth error:', error);

@@ -1,25 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { exchangeCodeForToken, getAuthorizedShops } from '@/lib/tiktok/api';
+import { authorizeMarketplaceCallback } from '@/lib/oauth-state';
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const code = searchParams.get('code');
 
-  // companyId: try state param first, fallback to cookie
-  const companyId = searchParams.get('state') || request.cookies.get('tiktok_company_id')?.value || null;
-
   const host = request.headers.get('host') || 'localhost:3000';
   const protocol = host.includes('localhost') ? 'http' : 'https';
   const baseUrl = `${protocol}://${host}`;
 
-  console.log('[TikTok Callback] Received params:', {
-    code: code ? `${code.substring(0, 10)}...` : null,
-    state: companyId,
-  });
+  // Verify signed state + completing session; companyId from trusted state only.
+  const rawState = searchParams.get('state') || request.cookies.get('tiktok_oauth_state')?.value || null;
+  const authz = await authorizeMarketplaceCallback(request, rawState);
+  if (!authz.ok) {
+    console.error('[TikTok Callback] Authorization failed:', authz.reason);
+    return NextResponse.redirect(`${baseUrl}/settings/integrations?error=auth_${authz.reason}`);
+  }
+  const companyId = authz.companyId;
 
-  if (!code || !companyId) {
-    console.error('[TikTok Callback] Missing params:', { code: !!code, companyId });
+  console.log('[TikTok Callback] Received params:', { code: code ? `${code.substring(0, 10)}...` : null });
+
+  if (!code) {
+    console.error('[TikTok Callback] Missing code');
     return NextResponse.redirect(`${baseUrl}/settings/integrations?error=missing_params`);
   }
 
@@ -88,7 +92,7 @@ export async function GET(request: NextRequest) {
 
     // Clear cookie and redirect
     const response = NextResponse.redirect(`${baseUrl}/settings/integrations?tiktok=connected`);
-    response.cookies.delete('tiktok_company_id');
+    response.cookies.delete('tiktok_oauth_state');
 
     console.log('[TikTok Callback] Success! Connected', shops.length, 'shop(s)');
     return response;
