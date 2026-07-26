@@ -460,7 +460,7 @@ marketplace_accounts → marketplace_product_links → product_variations
 PC (พนักงานประจำจุดขายในห้าง) บันทึกยอดขายรายวันผ่านมือถือ — **overlay เท่านั้น ไม่ใช่ยอดขายจริงทางบัญชี**: ไม่สร้าง order ไม่ออกเอกสาร ไม่ตัดสต็อกจริง; DSR จาก report ห้างยังเป็นตัวจริง (ตัดสต็อก + INV/ST)
 
 - **โครง**: `consignment_counters` (1 สาขา = 1 คลัง `warehouse_type:'consignment'`; สาขาแรก adopt คลังเดิมของลูกค้า) · `counter_assignments` (PC↔สาขา) · `counter_sales` (`report_id` null = ยังไม่เข้า DSR) · `counter_id` ใน replenishments/department_orders (ปลายทางเติมของ)
-- **Role `pc`** + capabilities `counter.record` (pc+ADMIN) / `counter.manage` (ADMIN)
+- **Role `pc`** + capabilities `counter.record` (pc+ADMIN) / `counter.manage` (ADMIN) · PC หนึ่งคน assign ได้หลายสาขา (many-to-many) · **หน่วยแทน** = `company_members.pc_all_counters` เข้าได้ทุกสาขาอัตโนมัติ — เช็คสิทธิ์ผ่าน [lib/counter-access.ts](lib/counter-access.ts) เสมอ (ห้าม query `counter_assignments` ตรงๆ)
 - **สต็อกคงเหลือฝั่ง PC** = คลังสาขา − counter_sales ที่ `report_id IS NULL` (`/api/pos/products?counter_id=` ก็หักให้)
 - **ห้าม query คลัง consignment ด้วย `.single()`** — ลูกค้ามีได้หลายคลังแล้ว ใช้ [lib/consignment-warehouse.ts](lib/consignment-warehouse.ts) (`getCustomerConsignmentWarehouse` = oldest, `getConsignmentDestinationWarehouse` = counter-aware) เสมอ
 - **หน้า**: `/pc` (PC mobile — ห่อ `PosSaleScreen` ด้วย `enablePromotions=false`) · `/counter-sales` (admin dashboard realtime) · `/settings/counters` (จัดการสาขา + assign)
