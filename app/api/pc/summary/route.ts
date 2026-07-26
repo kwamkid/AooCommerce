@@ -4,6 +4,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
 import { getCustomerConsignmentWarehouse } from '@/lib/consignment-warehouse';
+import { canAccessCounter } from '@/lib/counter-access';
 
 const bangkokNow = () => new Date(Date.now() + 7 * 3600_000);
 
@@ -41,14 +42,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (!can(auth.companyRoles, 'counter.manage')) {
-      const { data: assignment } = await supabaseAdmin
-        .from('counter_assignments')
-        .select('id')
-        .eq('company_id', auth.companyId)
-        .eq('counter_id', counterId)
-        .eq('user_id', auth.userId)
-        .maybeSingle();
-      if (!assignment) {
+      if (!(await canAccessCounter(supabaseAdmin, auth.companyId, counterId, auth.userId))) {
         return NextResponse.json({ error: 'คุณไม่ได้รับมอบหมายสาขานี้' }, { status: 403 });
       }
     }

@@ -41,6 +41,7 @@ interface MemberOption {
   user_id: string;
   name: string;
   roles: string[];
+  pc_all_counters: boolean;
 }
 
 interface CustomerOption {
@@ -94,7 +95,12 @@ export default function CountersSettingsPage() {
       setMembers(
         (membersData.members || [])
           .filter((m: any) => m.is_active)
-          .map((m: any) => ({ user_id: m.user?.id, name: m.user?.name || 'Unknown', roles: m.roles || [] }))
+          .map((m: any) => ({
+            user_id: m.user?.id,
+            name: m.user?.name || 'Unknown',
+            roles: m.roles || [],
+            pc_all_counters: m.pc_all_counters === true,
+          }))
           .filter((m: MemberOption) => !!m.user_id)
       );
       const deptList = deptData.data || deptData.customers || [];
@@ -228,6 +234,23 @@ export default function CountersSettingsPage() {
     }
   };
 
+  const handleToggleRover = async (member: MemberOption, next: boolean) => {
+    try {
+      const res = await apiFetch('/api/counters/assignments', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: member.user_id, pc_all_counters: next }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'แก้ไขไม่สำเร็จ');
+      }
+      setMembers(prev => prev.map(m => m.user_id === member.user_id ? { ...m, pc_all_counters: next } : m));
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด', 'error');
+    }
+  };
+
   const handleUnassign = async (assignment: Assignment) => {
     try {
       const res = await apiFetch(`/api/counters/assignments?id=${assignment.id}`, { method: 'DELETE' });
@@ -322,6 +345,33 @@ export default function CountersSettingsPage() {
                 </div>
               </div>
             ))}
+          </div>
+        )}
+
+        {/* Rover PCs — หน่วยแทน */}
+        {!loading && members.some(m => m.roles.includes('pc')) && (
+          <div>
+            <h3 className="heading-4 text-gray-700 dark:text-gray-300 mb-1">PC หน่วยแทน</h3>
+            <p className="section-desc mb-2">
+              เปิดสวิตช์ = เข้าได้<b>ทุกสาขา</b>อัตโนมัติ (รวมสาขาที่เปิดใหม่ในอนาคต) โดยไม่ต้องมอบหมายรายสาขา
+            </p>
+            <div className="space-y-2">
+              {members.filter(m => m.roles.includes('pc')).map(m => (
+                <ListRow
+                  key={m.user_id}
+                  icon={
+                    <div className="w-8 h-8 rounded-lg bg-teal-50 dark:bg-teal-900/20 flex items-center justify-center">
+                      <Users className="w-4 h-4 text-teal-600" />
+                    </div>
+                  }
+                  title={m.name}
+                  subtitle={m.pc_all_counters
+                    ? <Badge tone="emerald" size="sm">หน่วยแทน — เข้าได้ทุกสาขา</Badge>
+                    : `ประจำสาขาที่ถูกมอบหมาย (${assignments.filter(a => a.user_id === m.user_id).length} สาขา)`}
+                  actions={<Toggle checked={m.pc_all_counters} onChange={(v) => handleToggleRover(m, v)} aria-label="หน่วยแทน" />}
+                />
+              ))}
+            </div>
           </div>
         )}
 

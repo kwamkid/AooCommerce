@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
     // Get company members
     const { data: memberRows, error } = await supabaseAdmin
       .from('company_members')
-      .select('id, user_id, roles, is_active, can_view_cost, joined_at, created_at')
+      .select('id, user_id, roles, is_active, can_view_cost, pc_all_counters, joined_at, created_at')
       .eq('company_id', auth.companyId)
       .order('joined_at', { ascending: true });
 
@@ -49,6 +49,7 @@ export async function GET(request: NextRequest) {
       roles: m.roles,
       is_active: m.is_active,
       can_view_cost: m.can_view_cost === true,
+      pc_all_counters: m.pc_all_counters === true,
       joined_at: m.joined_at,
       created_at: m.created_at,
       user: userMap[m.user_id] || { id: m.user_id, email: '', name: 'Unknown', phone: null, avatar: null },

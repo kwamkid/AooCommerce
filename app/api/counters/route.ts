@@ -4,6 +4,7 @@
 // via replenishment receive (in) and DSR confirm (out).
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
+import { isPcRover } from '@/lib/counter-access';
 
 const COUNTER_CUSTOMER_TYPES = ['department_store', 'consignment_dealer'];
 
@@ -36,18 +37,22 @@ export async function GET(request: NextRequest) {
       query = query.eq('is_active', true);
     }
 
-    // PC users (no counter.manage) only see counters they are assigned to
+    // PC users (no counter.manage) only see counters they are assigned to —
+    // unless they are a rover (pc_all_counters = หน่วยแทน), who sees every counter
     if (auth.companyRoles?.includes('pc') && !can(auth.companyRoles, 'counter.manage') && auth.userId) {
-      const { data: assignments } = await supabaseAdmin
-        .from('counter_assignments')
-        .select('counter_id')
-        .eq('company_id', auth.companyId)
-        .eq('user_id', auth.userId);
-      const assignedIds = (assignments || []).map(a => a.counter_id);
-      if (assignedIds.length === 0) {
-        return NextResponse.json({ counters: [] });
+      const rover = await isPcRover(supabaseAdmin, auth.companyId, auth.userId);
+      if (!rover) {
+        const { data: assignments } = await supabaseAdmin
+          .from('counter_assignments')
+          .select('counter_id')
+          .eq('company_id', auth.companyId)
+          .eq('user_id', auth.userId);
+        const assignedIds = (assignments || []).map(a => a.counter_id);
+        if (assignedIds.length === 0) {
+          return NextResponse.json({ counters: [] });
+        }
+        query = query.in('id', assignedIds);
       }
-      query = query.in('id', assignedIds);
     }
 
     const { data, error } = await query;

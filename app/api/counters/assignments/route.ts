@@ -113,6 +113,42 @@ export async function POST(request: NextRequest) {
   }
 }
 
+// PUT — Toggle rover flag (หน่วยแทน — access every counter): { user_id, pc_all_counters }
+export async function PUT(request: NextRequest) {
+  try {
+    const auth = await checkAuthWithCompany(request);
+    if (!auth.isAuth || !auth.companyId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    if (!can(auth.companyRoles, 'counter.manage')) {
+      return NextResponse.json({ error: 'Admin only' }, { status: 403 });
+    }
+
+    const { user_id, pc_all_counters } = await request.json();
+    if (!user_id || typeof pc_all_counters !== 'boolean') {
+      return NextResponse.json({ error: 'กรุณาระบุผู้ใช้และสถานะหน่วยแทน' }, { status: 400 });
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from('company_members')
+      .update({ pc_all_counters })
+      .eq('company_id', auth.companyId)
+      .eq('user_id', user_id)
+      .select('id')
+      .maybeSingle();
+
+    if (error || !data) {
+      console.error('PUT rover flag error:', error);
+      return NextResponse.json({ error: 'ไม่พบสมาชิก หรือแก้ไขไม่สำเร็จ' }, { status: 400 });
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('PUT rover flag error:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
 // DELETE — Unassign (?id=)
 export async function DELETE(request: NextRequest) {
   try {

@@ -5,19 +5,9 @@
 // absorbed into a DSR (used by the stock overlay + Phase 3 reconciliation).
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
+import { canAccessCounter } from '@/lib/counter-access';
 
 const bangkokToday = () => new Date(Date.now() + 7 * 3600_000).toISOString().slice(0, 10);
-
-async function isAssignedToCounter(companyId: string, counterId: string, userId: string): Promise<boolean> {
-  const { data } = await supabaseAdmin
-    .from('counter_assignments')
-    .select('id')
-    .eq('company_id', companyId)
-    .eq('counter_id', counterId)
-    .eq('user_id', userId)
-    .maybeSingle();
-  return !!data;
-}
 
 // GET — List counter sales (?counter_id=&date=&from=&to=&limit=&page=)
 export async function GET(request: NextRequest) {
@@ -44,7 +34,7 @@ export async function GET(request: NextRequest) {
       if (!counterId) {
         return NextResponse.json({ error: 'กรุณาระบุสาขา' }, { status: 400 });
       }
-      if (!auth.userId || !(await isAssignedToCounter(auth.companyId, counterId, auth.userId))) {
+      if (!auth.userId || !(await canAccessCounter(supabaseAdmin, auth.companyId, counterId, auth.userId))) {
         return NextResponse.json({ error: 'คุณไม่ได้รับมอบหมายสาขานี้' }, { status: 403 });
       }
     }
@@ -139,7 +129,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (!can(auth.companyRoles, 'counter.manage')) {
-      if (!(await isAssignedToCounter(auth.companyId, counter_id, auth.userId))) {
+      if (!(await canAccessCounter(supabaseAdmin, auth.companyId, counter_id, auth.userId))) {
         return NextResponse.json({ error: 'คุณไม่ได้รับมอบหมายสาขานี้' }, { status: 403 });
       }
     }
