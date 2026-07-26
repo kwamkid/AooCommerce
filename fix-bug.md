@@ -16,6 +16,19 @@
 
 ---
 
+## 2026-07-26 — Masterdata capability sweep: gate write routes ที่ขาด
+
+**ที่เกิด**: brands/categories/variation-types/suppliers `route.ts` — write methods (POST/PUT/DELETE) เช็คแค่ `auth.isAuth + companyId` ไม่มี `can()` role gate (warehouses/carriers/sales-channels มีอยู่แล้ว)
+**อาการ**: member ระดับต่ำ (sales/cashier) ยิง API สร้าง/แก้/ลบ brand, category, variation type, supplier ได้ตรง (gate มีแค่ฝั่ง client ผ่าน useAuthGuard บนหน้า settings) — ข้าม UI ได้
+**Root cause**: capability `masterdata.brands/categories/suppliers` มีใน [permissions.ts](lib/permissions.ts) แต่ route ไม่เรียกใช้ · `masterdata.variation_types` ยังไม่มี
+**วิธีแก้**:
+1. เพิ่ม `'masterdata.variation_types': ADMIN` ใน permissions.ts
+2. ทั้ง 4 route: import `can` + เพิ่ม `if (!can(auth.companyRoles, 'masterdata.X')) return 403` หลัง isAuth check ใน **POST/PUT/DELETE เท่านั้น** (GET เปิดให้ member อ่านได้ตามเดิม — ต้องใช้เลือกตอนสร้างสินค้า)
+**ป้องกัน regression**: masterdata write route ใหม่ทุกตัวต้อง gate ด้วย `can(auth.companyRoles, 'masterdata.X')` เสมอ · reads (GET) ไม่ต้อง gate · pattern reference: warehouses/route.ts
+**หมายเหตุ**: pos-terminals, payment-channels(route), chat channels — เช็คต่อว่า gate ครบหรือยัง (payment-channels GET mask secret แล้วรอบก่อน แต่ write methods ยังไม่ได้ตรวจ)
+
+---
+
 ## 2026-07-26 — Security รอบ 2: ลบ debug endpoints + block SVG upload (XSS)
 
 **ที่เกิด**: ต่อจาก audit 2026-07-25 — ปิด 2 ช่องที่เป็น code ล้วน

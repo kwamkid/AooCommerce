@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
+import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
 
 interface CategoryRow {
   id: string;
@@ -57,6 +57,9 @@ export async function POST(request: NextRequest) {
     if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    if (!can(auth.companyRoles, 'masterdata.categories')) {
+      return NextResponse.json({ error: 'Admin only' }, { status: 403 });
+    }
 
     const body = await request.json();
     const { name, parent_id } = body;
@@ -108,6 +111,9 @@ export async function PUT(request: NextRequest) {
     if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    if (!can(auth.companyRoles, 'masterdata.categories')) {
+      return NextResponse.json({ error: 'Admin only' }, { status: 403 });
+    }
 
     const body = await request.json();
     const { id, name, sort_order, parent_id } = body;
@@ -149,6 +155,9 @@ export async function DELETE(request: NextRequest) {
     const auth = await checkAuthWithCompany(request);
     if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    if (!can(auth.companyRoles, 'masterdata.categories')) {
+      return NextResponse.json({ error: 'Admin only' }, { status: 403 });
     }
 
     const { searchParams } = new URL(request.url);

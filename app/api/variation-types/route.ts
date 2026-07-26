@@ -1,6 +1,6 @@
 // Path: app/api/variation-types/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
+import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
 
 // GET - Fetch all variation types
 export async function GET(request: NextRequest) {
@@ -32,6 +32,9 @@ export async function POST(request: NextRequest) {
     const auth = await checkAuthWithCompany(request);
     if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    if (!can(auth.companyRoles, 'masterdata.variation_types')) {
+      return NextResponse.json({ error: 'Admin only' }, { status: 403 });
     }
 
     const body = await request.json();
@@ -83,6 +86,9 @@ export async function PUT(request: NextRequest) {
     if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    if (!can(auth.companyRoles, 'masterdata.variation_types')) {
+      return NextResponse.json({ error: 'Admin only' }, { status: 403 });
+    }
 
     const body = await request.json();
     const { id, name, sort_order } = body;
@@ -123,6 +129,9 @@ export async function DELETE(request: NextRequest) {
     const auth = await checkAuthWithCompany(request);
     if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    if (!can(auth.companyRoles, 'masterdata.variation_types')) {
+      return NextResponse.json({ error: 'Admin only' }, { status: 403 });
     }
 
     const { searchParams } = new URL(request.url);
