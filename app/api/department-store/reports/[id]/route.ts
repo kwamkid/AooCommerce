@@ -2,8 +2,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
 import { addStock, deductStock } from '@/lib/stock-service';
-import { getCustomerConsignmentWarehouse } from '@/lib/consignment-warehouse';
-import { createStatementForReport } from '@/lib/statement-service';
+import { getConsignmentDestinationWarehouse } from '@/lib/consignment-warehouse';
+import { createOrAttachStatementForDeptReport } from '@/lib/statement-service';
 
 // GET — Fetch single report detail with items, customer, branch
 export async function GET(
@@ -24,8 +24,9 @@ export async function GET(
       .select(`
         id, report_number, period_year, period_month, status,
         total_qty_sold, our_amount, vat_amount, net_amount,
-        due_date, statement_id,
+        due_date, statement_id, counter_id,
         created_at, updated_at, confirmed_at, notes,
+        counter:consignment_counters(id, name),
         customer:customers(
           id, name, customer_code, phone, email, contact_person,
           tax_company_name, tax_id, tax_branch,
@@ -76,7 +77,7 @@ export async function PUT(
     // Fetch report to validate state
     const { data: report, error: fetchError } = await supabaseAdmin
       .from('department_store_reports')
-      .select('id, status, company_id, customer_id, our_amount, period_year, period_month, report_number, statement_id')
+      .select('id, status, company_id, customer_id, counter_id, our_amount, period_year, period_month, report_number, statement_id')
       .eq('id', reportId)
       .eq('company_id', companyId)
       .single();
@@ -91,9 +92,9 @@ export async function PUT(
         return NextResponse.json({ error: `ไม่สามารถยืนยันรายงานที่มีสถานะ "${report.status}" ได้` }, { status: 400 });
       }
 
-      // 1. Find customer's consignment warehouse
-      const warehouse = await getCustomerConsignmentWarehouse(
-        supabaseAdmin, companyId, report.customer_id
+      // 1. Find destination warehouse (branch counter's warehouse, or customer-level)
+      const warehouse = await getConsignmentDestinationWarehouse(
+        supabaseAdmin, companyId, report.customer_id, report.counter_id
       );
 
       // 2. Deduct stock from consignment warehouse
@@ -119,13 +120,27 @@ export async function PUT(
         }
       }
 
-      // 3. Auto create statement (ใบวางบิล)
+      // 2.5 Absorb the branch's PC-recorded sales into this report (overlay reset):
+      // everything unsettled up to the period end now belongs to this DSR
+      if (report.counter_id) {
+        const periodEnd = new Date(Date.UTC(report.period_year, report.period_month, 0))
+          .toISOString().slice(0, 10);
+        await supabaseAdmin
+          .from('counter_sales')
+          .update({ report_id: reportId })
+          .eq('company_id', companyId)
+          .eq('counter_id', report.counter_id)
+          .is('report_id', null)
+          .lte('sale_date', periodEnd);
+      }
+
+      // 3. Auto create/attach statement — all branches of the same customer+period
+      // share ONE combined statement (ใบวางบิลรวมทุกสาขา)
       let stResult: { statementId?: string; statementNumber?: string } | null = null;
       try {
-        stResult = await createStatementForReport(
+        stResult = await createOrAttachStatementForDeptReport(
           reportId, report.customer_id, companyId, userId ?? null,
           report.our_amount, report.period_year, report.period_month,
-          'department_store_reports'
         );
       } catch (err) {
         console.error('Auto create statement error:', err);
@@ -172,9 +187,15 @@ export async function PUT(
 
       const now = new Date().toISOString();
 
-      // Auto issue REC (ใบเสร็จรับเงิน)
+      // Auto issue REC (ใบเสร็จรับเงิน) — for the whole statement (combined across branches)
       let recNumber: string | null = null;
       if (report.statement_id) {
+        const { data: statement } = await supabaseAdmin
+          .from('statements')
+          .select('id, total_amount')
+          .eq('id', report.statement_id)
+          .single();
+
         try {
           const { insertReceipt } = await import('@/lib/invoice-service');
           const { data: recNum } = await supabaseAdmin.rpc('generate_receipt_number', { p_company_id: companyId });
@@ -186,7 +207,7 @@ export async function PUT(
               source_type: 'statement',
               source_id: report.statement_id,
               customer_id: report.customer_id,
-              total_amount: report.our_amount,
+              total_amount: Number(statement?.total_amount ?? report.our_amount),
             });
             recNumber = recNum;
           }
@@ -199,9 +220,17 @@ export async function PUT(
           .from('statements')
           .update({ status: 'paid', paid_at: now, updated_at: now })
           .eq('id', report.statement_id);
+
+        // The store pays the whole combined bill — mark every sibling report on
+        // this statement paid together
+        await supabaseAdmin
+          .from('department_store_reports')
+          .update({ status: 'paid', updated_at: now })
+          .eq('statement_id', report.statement_id)
+          .in('status', ['billed', 'overdue']);
       }
 
-      // Update report → paid
+      // Update this report → paid (also covers the no-statement case)
       await supabaseAdmin
         .from('department_store_reports')
         .update({ status: 'paid', updated_at: now })
@@ -229,9 +258,15 @@ export async function PUT(
         await supabaseAdmin.from('statements')
           .update({ status: 'billed', paid_at: null, updated_at: now })
           .eq('id', report.statement_id);
+
+        // Reports on this statement were paid together — revert them together too
+        await supabaseAdmin.from('department_store_reports')
+          .update({ status: 'billed', updated_at: now })
+          .eq('statement_id', report.statement_id)
+          .eq('status', 'paid');
       }
 
-      // Revert report → billed
+      // Revert this report → billed (also covers the no-statement case)
       await supabaseAdmin.from('department_store_reports')
         .update({ status: 'billed', updated_at: now })
         .eq('id', reportId);
@@ -248,9 +283,9 @@ export async function PUT(
       const now = new Date().toISOString();
       const voidReason = 'ยกเลิกยอดขายห้าง';
 
-      // 1. Return stock to consignment warehouse
-      const warehouse = await getCustomerConsignmentWarehouse(
-        supabaseAdmin, companyId, report.customer_id
+      // 1. Return stock to the same warehouse the confirm deducted from
+      const warehouse = await getConsignmentDestinationWarehouse(
+        supabaseAdmin, companyId, report.customer_id, report.counter_id
       );
 
       if (warehouse) {
@@ -281,12 +316,40 @@ export async function PUT(
         .eq('source_type', 'department_store_report').eq('source_id', reportId)
         .is('voided_at', null);
 
-      // 3. Void linked statement
+      // 3. Detach from statement — the statement may be shared with other branches'
+      // reports (combined billing): only cancel it when this was the last report on it
       if (report.statement_id) {
-        await supabaseAdmin.from('statements')
-          .update({ status: 'cancelled', updated_at: now })
-          .eq('id', report.statement_id);
+        const { count: siblingCount } = await supabaseAdmin
+          .from('department_store_reports')
+          .select('id', { count: 'exact', head: true })
+          .eq('statement_id', report.statement_id)
+          .neq('id', reportId);
+
+        if ((siblingCount || 0) > 0) {
+          const { data: st } = await supabaseAdmin
+            .from('statements')
+            .select('total_amount')
+            .eq('id', report.statement_id)
+            .single();
+          await supabaseAdmin.from('statements')
+            .update({
+              total_amount: Math.max(0, Number(st?.total_amount || 0) - Number(report.our_amount || 0)),
+              updated_at: now,
+            })
+            .eq('id', report.statement_id);
+        } else {
+          await supabaseAdmin.from('statements')
+            .update({ status: 'cancelled', updated_at: now })
+            .eq('id', report.statement_id);
+        }
       }
+
+      // 3.5 Release this report's PC sales back to unsettled (overlay restored)
+      await supabaseAdmin
+        .from('counter_sales')
+        .update({ report_id: null })
+        .eq('company_id', companyId)
+        .eq('report_id', reportId);
 
       // 4. Reset report → draft
       await supabaseAdmin.from('department_store_reports')

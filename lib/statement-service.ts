@@ -102,6 +102,71 @@ export async function createStatementForReport(
 }
 
 /**
+ * Combined billing for department-store reports (DSR):
+ * all branches' reports of the same customer+period share ONE statement.
+ * Attaches to the open statement for that customer+period if it exists
+ * (adding this report's amount), otherwise creates a new one.
+ */
+export async function createOrAttachStatementForDeptReport(
+  reportId: string,
+  customerId: string,
+  companyId: string,
+  userId: string | null,
+  ourAmount: number,
+  periodYear: number,
+  periodMonth: number,
+): Promise<CreateStatementResult> {
+  try {
+    // Open (unpaid) statement for the same customer + period. `notes` null filters
+    // out order-statements ('order:<id>'); CSR statements can't collide because
+    // consignment customers are a different customer_type.
+    const { data: existing } = await supabaseAdmin
+      .from('statements')
+      .select('id, statement_number, total_amount, status')
+      .eq('company_id', companyId)
+      .eq('customer_id', customerId)
+      .eq('period_year', periodYear)
+      .eq('period_month', periodMonth)
+      .in('status', ['sent', 'billed'])
+      .is('notes', null)
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    if (existing) {
+      const now = new Date().toISOString();
+      const { error: updErr } = await supabaseAdmin
+        .from('statements')
+        .update({
+          total_amount: Number(existing.total_amount || 0) + ourAmount,
+          updated_at: now,
+        })
+        .eq('id', existing.id);
+      if (updErr) {
+        console.error('[createOrAttachStatementForDeptReport] Update error:', updErr);
+        return { error: 'ไม่สามารถรวมใบวางบิลได้' };
+      }
+
+      await supabaseAdmin
+        .from('department_store_reports')
+        .update({ statement_id: existing.id, status: 'billed', updated_at: now })
+        .eq('id', reportId);
+
+      return { statementId: existing.id, statementNumber: existing.statement_number };
+    }
+
+    return createStatementForReport(
+      reportId, customerId, companyId, userId,
+      ourAmount, periodYear, periodMonth,
+      'department_store_reports',
+    );
+  } catch (err) {
+    console.error('[createOrAttachStatementForDeptReport] Error:', err);
+    return { error: err instanceof Error ? err.message : 'Unknown error' };
+  }
+}
+
+/**
  * Auto-create a statement (ใบวางบิล) for a W-Credit order on shipping.
  * 1:1 — one order = one statement.
  */

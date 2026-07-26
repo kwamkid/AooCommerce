@@ -29,7 +29,8 @@ export async function GET(request: NextRequest) {
         total_qty_sold, our_amount, due_date, statement_id,
         printed_invoice_at, printed_statement_at,
         created_at, confirmed_at, notes,
-        customer:customers(id, name, customer_code)
+        customer:customers(id, name, customer_code),
+        counter:consignment_counters(id, name)
       `, { count: 'exact' })
       .eq('company_id', companyId)
       .order('created_at', { ascending: false })
@@ -95,12 +96,14 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const {
       customer_id,
+      counter_id,
       period_year,
       period_month,
       notes,
       items,
     } = body as {
       customer_id: string;
+      counter_id?: string | null;
       period_year: number;
       period_month: number;
       notes?: string;
@@ -130,6 +133,21 @@ export async function POST(request: NextRequest) {
 
     if (customerError || !customer) {
       return NextResponse.json({ error: 'ไม่พบลูกค้า' }, { status: 404 });
+    }
+
+    // Validate branch counter belongs to this customer
+    if (counter_id) {
+      const { data: counter } = await supabaseAdmin
+        .from('consignment_counters')
+        .select('id')
+        .eq('id', counter_id)
+        .eq('company_id', companyId)
+        .eq('customer_id', customer_id)
+        .eq('is_active', true)
+        .maybeSingle();
+      if (!counter) {
+        return NextResponse.json({ error: 'ไม่พบสาขาของลูกค้ารายนี้' }, { status: 400 });
+      }
     }
 
     // Generate report_number via RPC
@@ -165,6 +183,7 @@ export async function POST(request: NextRequest) {
       .insert({
         company_id: companyId,
         customer_id,
+        counter_id: counter_id || null,
         report_number: reportNumber,
         period_year,
         period_month,

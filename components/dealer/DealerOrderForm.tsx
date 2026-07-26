@@ -223,9 +223,11 @@ export default function DealerOrderForm({
   }, []);
 
   // Consignment: load dealer inventory when customer changes
-  // Branch counters of the selected customer (department mode destination)
+  // Branch counters of the selected customer — department orders (shipment destination)
+  // and DSR (dept_consignment: which branch's sales this report covers)
+  const usesCounters = isDepartment || mode === 'dept_consignment';
   useEffect(() => {
-    if (!isDepartment || !selectedCustomerId) { setCounters([]); setSelectedCounterId(''); return; }
+    if (!usesCounters || !selectedCustomerId) { setCounters([]); setSelectedCounterId(''); return; }
     apiFetch(`/api/counters?customer_id=${selectedCustomerId}`)
       .then(r => r.json())
       .then(d => {
@@ -234,7 +236,7 @@ export default function DealerOrderForm({
         setSelectedCounterId(prev => (prev && list.some(c => c.id === prev)) ? prev : (list[0]?.id || ''));
       })
       .catch(() => setCounters([]));
-  }, [isDepartment, selectedCustomerId]);
+  }, [usesCounters, selectedCustomerId]);
 
   useEffect(() => {
     if (!isConsignment || !selectedCustomerId) { setDealerStockMap({}); return; }
@@ -491,6 +493,72 @@ export default function DealerOrderForm({
     }]);
   };
 
+  // ── DSR: pull unsettled PC sales of the branch into the report (prefill) ──
+  const [pcSummary, setPcSummary] = useState<Record<string, { qty: number; amount: number }> | null>(null);
+  const [pullingPc, setPullingPc] = useState(false);
+
+  const handlePullPcSales = async () => {
+    if (!selectedCounterId) { showToast('กรุณาเลือกสาขาก่อน', 'error'); return; }
+    setPullingPc(true);
+    try {
+      const periodEnd = new Date(Date.UTC(periodYear, periodMonth, 0)).toISOString().slice(0, 10);
+      const res = await apiFetch(`/api/counter-sales?counter_id=${selectedCounterId}&group=variation&to=${periodEnd}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'ดึงยอดไม่สำเร็จ');
+
+      const agg: Array<{ variation_id: string; qty: number; amount: number }> = data.items || [];
+      if (agg.length === 0) {
+        showToast('ไม่มียอด PC ที่ยังไม่เข้ารายงานของสาขานี้', 'error');
+        setPcSummary(null);
+        return;
+      }
+
+      const map: Record<string, { qty: number; amount: number }> = {};
+      for (const a of agg) map[a.variation_id] = { qty: a.qty, amount: a.amount };
+      setPcSummary(map);
+
+      // Prefill items with PC quantities — prices resolve via the normal GP logic
+      // (PC amounts are retail money collected, NOT our net-after-GP price)
+      let missing = 0;
+      const newItems: OrderItem[] = [];
+      for (const a of agg) {
+        const p = products.find(pp => pp.id === a.variation_id);
+        if (!p) { missing++; continue; }
+        const resolution = gpContext ? resolveGp(gpContext, {
+          brand_id: p.brand_id || null,
+          default_price: p.default_price || 0,
+          discount_price: p.discount_price || 0,
+        }) : null;
+        newItems.push({
+          variation_id: p.id,
+          product_id: p.product_id,
+          product_name: p.name,
+          variation_label: p.variation_label || null,
+          sku: p.sku || null,
+          quantity: a.qty,
+          original_price: resolution?.base_price || p.default_price || 0,
+          discount_rate: resolution?.gp_rate || 0,
+          unit_price: resolution?.unit_price || p.default_price || 0,
+          gp_level: resolution?.gp_level || 4,
+          brand_id: p.brand_id || null,
+          image: p.image || null,
+          default_price: p.default_price || 0,
+          discount_price: p.discount_price || 0,
+          gp_base_price: resolution?.gp_base_price || 'retail',
+        });
+      }
+      setItems(newItems);
+      showToast(
+        `ดึงยอด PC มา ${newItems.length} รายการ${missing > 0 ? ` (ข้าม ${missing} รายการที่หาสินค้าไม่เจอ)` : ''} — ปรับจำนวนให้ตรง report ห้างก่อนยืนยัน`,
+        'success'
+      );
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด', 'error');
+    } finally {
+      setPullingPc(false);
+    }
+  };
+
   const updateItem = (idx: number, field: string, value: number) => {
     setItems(prev => prev.map((item, i) => {
       if (i !== idx) return item;
@@ -553,6 +621,7 @@ export default function DealerOrderForm({
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             customer_id: selectedCustomerId,
+            counter_id: mode === 'dept_consignment' ? (selectedCounterId || null) : undefined,
             period_year: periodYear,
             period_month: periodMonth,
             ...(mode === 'consignment' ? { source: 'admin' } : {}),
@@ -809,20 +878,98 @@ export default function DealerOrderForm({
         onTaxInvoiceRequestedChange={setTaxInvoiceRequested}
       />
 
-      {/* Destination branch counter — only when this department store has branch counters */}
-      {isDepartment && counters.length > 0 && (
+      {/* Branch counter — department: shipment destination / dept_consignment: which branch this DSR covers */}
+      {usesCounters && counters.length > 0 && (
         <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4">
-          <label className="field-label">สาขา / จุดขายปลายทาง</label>
-          <div className="max-w-sm">
-            <FormSelect
-              value={selectedCounterId}
-              onChange={setSelectedCounterId}
-              options={counters.map(c => ({ id: c.id, label: c.name }))}
-              icon={<Store className="w-4 h-4" />}
-              disabled={isReadOnly}
-            />
+          <label className="field-label">{isDepartment ? 'สาขา / จุดขายปลายทาง' : 'สาขา / จุดขายของรายงานนี้'}</label>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="w-full max-w-sm">
+              <FormSelect
+                value={selectedCounterId}
+                onChange={(v) => { setSelectedCounterId(v); setPcSummary(null); }}
+                options={counters.map(c => ({ id: c.id, label: c.name }))}
+                icon={<Store className="w-4 h-4" />}
+                disabled={isReadOnly}
+              />
+            </div>
+            {mode === 'dept_consignment' && !isReadOnly && (
+              <Button variant="secondary" loading={pullingPc} onClick={handlePullPcSales}>
+                ดึงยอดจาก PC
+              </Button>
+            )}
           </div>
-          <p className="helper-text text-gray-500 mt-1.5">สินค้าที่ส่งจะเข้าสต็อกของสาขานี้</p>
+          <p className="helper-text text-gray-500 mt-1.5">
+            {isDepartment
+              ? 'สินค้าที่ส่งจะเข้าสต็อกของสาขานี้'
+              : 'ยืนยันรายงานจะตัดสต็อกจากคลังสาขานี้ และดูดยอด PC ของสาขาเข้ารายงาน — "ดึงยอดจาก PC" จะเติมรายการ+จำนวนให้ก่อน แล้วปรับให้ตรง report ห้าง'}
+          </p>
+        </div>
+      )}
+
+      {/* Diff: PC-recorded vs keyed report quantities */}
+      {mode === 'dept_consignment' && pcSummary && (
+        <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden">
+          <div className="px-4 py-3 border-b border-gray-200 dark:border-slate-700">
+            <h3 className="heading-4 text-gray-900 dark:text-white">เทียบยอด PC vs รายงานห้าง</h3>
+            <p className="section-desc">ต่าง = จำนวนในรายงาน − จำนวนที่ PC บันทึก (ติดลบ = ห้างรายงานน้อยกว่าที่ PC ขายจริง)</p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 dark:bg-slate-700/50">
+                <tr>
+                  <th className="text-left px-4 py-2 font-medium text-gray-600 dark:text-slate-300">สินค้า</th>
+                  <th className="text-right px-3 py-2 font-medium text-gray-600 dark:text-slate-300 w-24">PC ขาย</th>
+                  <th className="text-right px-3 py-2 font-medium text-gray-600 dark:text-slate-300 w-24">ในรายงาน</th>
+                  <th className="text-center px-3 py-2 font-medium text-gray-600 dark:text-slate-300 w-28">ต่าง</th>
+                  <th className="text-right px-4 py-2 font-medium text-gray-600 dark:text-slate-300 w-32">ยอดเงิน PC</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 dark:divide-slate-700/50">
+                {[...new Set([...Object.keys(pcSummary), ...items.map(i => i.variation_id)])].map(vid => {
+                  const pc = pcSummary[vid];
+                  const item = items.find(i => i.variation_id === vid);
+                  const p = products.find(pp => pp.id === vid);
+                  const name = item ? `${item.product_name}${item.variation_label ? ` — ${item.variation_label}` : ''}`
+                    : p ? `${p.name}${p.variation_label ? ` — ${p.variation_label}` : ''}` : vid;
+                  const pcQty = pc?.qty || 0;
+                  const formQty = item?.quantity || 0;
+                  const diff = formQty - pcQty;
+                  return (
+                    <tr key={vid}>
+                      <td className="px-4 py-2 text-gray-900 dark:text-white">{name}</td>
+                      <td className="px-3 py-2 text-right text-gray-600 dark:text-slate-300">{formatNumber(pcQty)}</td>
+                      <td className="px-3 py-2 text-right text-gray-900 dark:text-white font-medium">{formatNumber(formQty)}</td>
+                      <td className="px-3 py-2 text-center">
+                        {diff === 0 ? (
+                          <span className="inline-block px-2 py-0.5 rounded-full text-xs bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">ตรง</span>
+                        ) : diff < 0 ? (
+                          <span className="inline-block px-2 py-0.5 rounded-full text-xs bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400">ห้างขาด {formatNumber(Math.abs(diff))}</span>
+                        ) : (
+                          <span className="inline-block px-2 py-0.5 rounded-full text-xs bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">ห้างเกิน +{formatNumber(diff)}</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-2 text-right text-gray-600 dark:text-slate-300">{pc ? `฿${formatNumber(pc.amount)}` : '-'}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+              <tfoot className="bg-gray-50 dark:bg-slate-700/30">
+                <tr>
+                  <td className="px-4 py-2 font-medium text-gray-900 dark:text-white">รวม</td>
+                  <td className="px-3 py-2 text-right font-medium text-gray-900 dark:text-white">
+                    {formatNumber(Object.values(pcSummary).reduce((s, v) => s + v.qty, 0))}
+                  </td>
+                  <td className="px-3 py-2 text-right font-medium text-gray-900 dark:text-white">
+                    {formatNumber(items.reduce((s, i) => s + i.quantity, 0))}
+                  </td>
+                  <td />
+                  <td className="px-4 py-2 text-right font-medium text-gray-900 dark:text-white">
+                    ฿{formatNumber(Object.values(pcSummary).reduce((s, v) => s + v.amount, 0))}
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
         </div>
       )}
 

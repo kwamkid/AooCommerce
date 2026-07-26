@@ -39,6 +39,36 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Aggregate mode — unsettled qty/amount per variation (used by "ดึงยอดจาก PC"
+    // to prefill a DSR and by the diff view)
+    if (searchParams.get('group') === 'variation') {
+      let aggQuery = supabaseAdmin
+        .from('counter_sales')
+        .select('variation_id, quantity, amount')
+        .eq('company_id', auth.companyId)
+        .is('report_id', null)
+        .limit(10000);
+      if (counterId) aggQuery = aggQuery.eq('counter_id', counterId);
+      if (from) aggQuery = aggQuery.gte('sale_date', from);
+      if (to) aggQuery = aggQuery.lte('sale_date', to);
+
+      const { data: aggRows, error: aggError } = await aggQuery;
+      if (aggError) {
+        console.error('GET counter-sales aggregate error:', aggError);
+        return NextResponse.json({ error: 'ไม่สามารถดึงยอดขายได้' }, { status: 500 });
+      }
+      const aggMap = new Map<string, { qty: number; amount: number }>();
+      for (const row of aggRows || []) {
+        const cur = aggMap.get(row.variation_id) || { qty: 0, amount: 0 };
+        cur.qty += Number(row.quantity || 0);
+        cur.amount += Number(row.amount || 0);
+        aggMap.set(row.variation_id, cur);
+      }
+      return NextResponse.json({
+        items: [...aggMap.entries()].map(([variation_id, v]) => ({ variation_id, ...v })),
+      });
+    }
+
     let query = supabaseAdmin
       .from('counter_sales')
       .select(`
