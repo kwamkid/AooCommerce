@@ -94,6 +94,10 @@ export async function GET(request: NextRequest) {
         if (orderSn) {
           await syncSingleOrder(account, orderSn, (payload.data?.status as string) || undefined);
         }
+      } else if (pushCode === 10) {
+        const { processShopeeWebchatPush } = await import('@/lib/services/chat/shopee');
+        type WebchatPayload = import('@/lib/services/chat/shopee').ShopeeWebchatPayload;
+        await processShopeeWebchatPush(account, payload as WebchatPayload);
       }
       // Tracking (code 4) — handled by original webhook, skip on retry since tracking updates are idempotent
 

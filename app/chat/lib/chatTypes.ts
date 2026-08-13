@@ -1,7 +1,7 @@
 export interface UnifiedContact {
   id: string;
-  platform: 'line' | 'facebook';
-  source?: 'line' | 'facebook' | 'instagram';
+  platform: 'line' | 'facebook' | 'shopee';
+  source?: 'line' | 'facebook' | 'instagram' | 'shopee';
   platform_user_id: string;
   display_name: string;
   picture_url?: string;
@@ -131,6 +131,14 @@ export interface ChatMessage {
     // Instagram story
     storyUrl?: string;
 
+    // Shopee
+    thumbUrl?: string;
+    item_id?: number;
+    shop_id?: number;
+    itemUrl?: string;
+    order_sn?: string;
+    shopee_status?: string;
+
     // LINE Flex Message
     flexContents?: Record<string, unknown>;
 
@@ -152,6 +160,7 @@ export interface ChatMessage {
   _tempId?: string;
   line_contact_id?: string;
   fb_contact_id?: string;
+  shopee_contact_id?: string;
 }
 
 export interface Customer {
@@ -178,7 +187,7 @@ export interface ChatAccountInfo {
 
 export interface LinkedContact {
   id: string;
-  platform: 'line' | 'facebook';
+  platform: 'line' | 'facebook' | 'shopee';
   display_name: string;
   picture_url?: string;
   last_message_at?: string;

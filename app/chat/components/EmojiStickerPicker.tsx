@@ -5,7 +5,7 @@ import { Search, X } from 'lucide-react';
 import { officialStickers } from '../lib/chatHelpers';
 
 interface EmojiStickerPickerProps {
-  platform: 'line' | 'facebook';
+  platform: 'line' | 'facebook' | 'shopee';
   onEmojiSelect: (emoji: string) => void;
   onStickerSelect: (packageId: string, stickerId: string) => void;
   onClose: () => void;

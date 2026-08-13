@@ -6,6 +6,7 @@ export const SHOPEE_PUSH_CODES: Record<number, string> = {
   7: 'banned_item',
   8: 'item_stock',
   9: 'add_item',
+  10: 'webchat',
   12: 'product_comment',
   13: 'shop_penalty',
   14: 'return_refund',

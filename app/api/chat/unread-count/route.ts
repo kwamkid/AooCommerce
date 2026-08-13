@@ -8,8 +8,8 @@ export async function GET(request: NextRequest) {
     if (!isAuth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     if (!companyId) return NextResponse.json({ error: 'No company context' }, { status: 403 });
 
-    // Count unread from both platforms in parallel
-    const [lineResult, fbResult] = await Promise.all([
+    // Count unread from all platforms in parallel
+    const [lineResult, fbResult, shopeeResult] = await Promise.all([
       supabaseAdmin
         .from('line_contacts')
         .select('unread_count')
@@ -22,11 +22,18 @@ export async function GET(request: NextRequest) {
         .eq('company_id', companyId)
         .eq('status', 'active')
         .gt('unread_count', 0),
+      supabaseAdmin
+        .from('shopee_contacts')
+        .select('unread_count')
+        .eq('company_id', companyId)
+        .eq('status', 'active')
+        .gt('unread_count', 0),
     ]);
 
     let total = 0;
     (lineResult.data || []).forEach(c => { total += c.unread_count || 0; });
     (fbResult.data || []).forEach(c => { total += c.unread_count || 0; });
+    (shopeeResult.data || []).forEach(c => { total += c.unread_count || 0; });
 
     return NextResponse.json({ unread: total });
   } catch (error) {

@@ -54,11 +54,60 @@ export async function POST(request: NextRequest) {
     if (!can(companyRoles, 'masterdata.chat_channels')) return NextResponse.json({ error: 'Admin only' }, { status: 403 });
 
     const body = await request.json();
-    const { platform, account_name, credentials } = body;
+    const { platform, account_name, credentials, marketplace_account_id } = body;
 
-    if (!platform || !['line', 'facebook'].includes(platform)) {
+    if (!platform || !['line', 'facebook', 'shopee'].includes(platform)) {
       return NextResponse.json({ error: 'Invalid platform' }, { status: 400 });
     }
+
+    // Shopee: chat channel is a reference to an already-connected marketplace shop
+    // (tokens live in marketplace_accounts; no credentials of its own)
+    if (platform === 'shopee') {
+      if (!marketplace_account_id) {
+        return NextResponse.json({ error: 'marketplace_account_id is required for Shopee' }, { status: 400 });
+      }
+      const { data: mpAccount } = await supabaseAdmin
+        .from('marketplace_accounts')
+        .select('id, shop_id, shop_name, platform')
+        .eq('id', marketplace_account_id)
+        .eq('company_id', companyId)
+        .maybeSingle();
+      if (!mpAccount || (mpAccount.platform && mpAccount.platform !== 'shopee')) {
+        return NextResponse.json({ error: 'ไม่พบร้าน Shopee นี้ในบริษัท' }, { status: 404 });
+      }
+
+      // Dedupe: one chat channel per shop
+      const { data: existingShopee } = await supabaseAdmin
+        .from('chat_accounts')
+        .select('id, credentials')
+        .eq('company_id', companyId)
+        .eq('platform', 'shopee');
+      const dup = (existingShopee || []).find(a => {
+        const c = a.credentials as Record<string, unknown> | null;
+        return c && (c.marketplace_account_id === mpAccount.id || Number(c.shop_id) === mpAccount.shop_id);
+      });
+      if (dup) {
+        return NextResponse.json({ error: 'ร้าน Shopee นี้เปิดใช้แชทอยู่แล้ว' }, { status: 400 });
+      }
+
+      const { data, error } = await supabaseAdmin
+        .from('chat_accounts')
+        .insert({
+          company_id: companyId,
+          platform: 'shopee',
+          account_name: (account_name?.trim() || mpAccount.shop_name || `Shopee ${mpAccount.shop_id}`),
+          credentials: { marketplace_account_id: mpAccount.id, shop_id: mpAccount.shop_id },
+          is_active: true,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .select()
+        .single();
+      if (error) throw error;
+      // No sales_channels mirror — Shopee orders already flow via marketplace sync
+      return NextResponse.json({ success: true, account: data });
+    }
+
     if (!account_name?.trim()) {
       return NextResponse.json({ error: 'Account name is required' }, { status: 400 });
     }
@@ -273,16 +322,19 @@ export async function PUT(request: NextRequest) {
     if (error) throw error;
 
     // Keep the sales_channels mirror in step (name + is_active).
-    try {
-      await syncSalesChannelFromChatAccount({
-        companyId,
-        chatAccountId: id,
-        platform: existing.platform as 'line' | 'facebook',
-        accountName: (updateData.account_name as string | undefined) ?? existing.account_name,
-        isActive: (updateData.is_active as boolean | undefined) ?? existing.is_active,
-      });
-    } catch (e) {
-      console.warn('syncSalesChannelFromChatAccount failed:', e);
+    // Shopee has no mirror — orders already flow via marketplace sync.
+    if (existing.platform !== 'shopee') {
+      try {
+        await syncSalesChannelFromChatAccount({
+          companyId,
+          chatAccountId: id,
+          platform: existing.platform as 'line' | 'facebook',
+          accountName: (updateData.account_name as string | undefined) ?? existing.account_name,
+          isActive: (updateData.is_active as boolean | undefined) ?? existing.is_active,
+        });
+      } catch (e) {
+        console.warn('syncSalesChannelFromChatAccount failed:', e);
+      }
     }
 
     return NextResponse.json({ success: true });
@@ -336,7 +388,9 @@ function maskCredentials(creds: Record<string, unknown>, platform: string): Reco
   const masked = { ...creds };
   const secretKeys = platform === 'line'
     ? ['channel_secret', 'channel_access_token']
-    : ['app_secret', 'page_access_token'];
+    : platform === 'facebook'
+      ? ['app_secret', 'page_access_token']
+      : []; // shopee — reference ids only, no secrets
 
   for (const key of secretKeys) {
     const value = masked[key];
@@ -351,6 +405,10 @@ function maskCredentials(creds: Record<string, unknown>, platform: string): Reco
 function getWebhookUrl(request: NextRequest, accountId: string, platform: string): string {
   const host = request.headers.get('host') || 'localhost:3000';
   const protocol = host.includes('localhost') ? 'http' : 'https';
+  if (platform === 'shopee') {
+    // Partner-level webhook (shared with order sync) — configured once at Shopee Open Platform
+    return `${protocol}://${host}/api/shopee/webhook`;
+  }
   const apiPath = platform === 'line' ? 'line' : 'fb';
   return `${protocol}://${host}/api/${apiPath}/webhook?account=${accountId}`;
 }

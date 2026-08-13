@@ -20,7 +20,7 @@ import { FbTemplateRenderer, StoryMentionBubble, StoryReplyBubble } from './rend
 
 interface MessageBubbleProps {
   msg: ChatMessage;
-  platform: 'line' | 'facebook';
+  platform: 'line' | 'facebook' | 'shopee';
   direction: 'incoming' | 'outgoing';
   onOpenLightbox?: (url: string) => void;
   onImageLoad?: () => void;
@@ -83,6 +83,12 @@ export default function MessageBubble({
 
     case 'fallback':
       if (msg.raw_message?.linkUrl || msg.raw_message?.templateUrl) return <FallbackBubble {...props} />;
+      break;
+
+    // Shopee: product / order reference messages — link bubble when we have a URL
+    case 'item':
+    case 'order':
+      if (msg.raw_message?.linkUrl) return <FallbackBubble {...props} />;
       break;
   }
 

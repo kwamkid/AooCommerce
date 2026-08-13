@@ -5,13 +5,14 @@
 
 import Image from 'next/image';
 
-export type PlatformId = 'line' | 'facebook' | 'instagram' | 'tiktok';
+export type PlatformId = 'line' | 'facebook' | 'instagram' | 'tiktok' | 'shopee';
 
 const META: Record<PlatformId, { src: string; alt: string }> = {
   line:      { src: '/social/line_oa.svg',   alt: 'LINE' },
   facebook:  { src: '/social/facebook.svg',  alt: 'Facebook' },
   instagram: { src: '/social/instagram.svg', alt: 'Instagram' },
   tiktok:    { src: '/social/tiktok.svg',    alt: 'TikTok' },
+  shopee:    { src: '/marketplace/shopee.svg', alt: 'Shopee' },
 };
 
 interface PlatformIconProps {

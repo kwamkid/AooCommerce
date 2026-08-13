@@ -92,6 +92,8 @@ export function HeaderSummaryProvider({ children }: { children: ReactNode }) {
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'line_contacts', filter: `company_id=eq.${companyId}` }, debouncedRefresh)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'fb_contacts', filter: `company_id=eq.${companyId}` }, debouncedRefresh)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'fb_contacts', filter: `company_id=eq.${companyId}` }, debouncedRefresh)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'shopee_contacts', filter: `company_id=eq.${companyId}` }, debouncedRefresh)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'shopee_contacts', filter: `company_id=eq.${companyId}` }, debouncedRefresh)
       .subscribe();
 
     const marketplaceInterval = setInterval(refresh, 5 * 60 * 1000);

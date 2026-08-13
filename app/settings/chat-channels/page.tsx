@@ -50,12 +50,19 @@ function StepNumber({ number }: { number: number }) {
 
 interface ChatAccount {
   id: string;
-  platform: 'line' | 'facebook';
+  platform: 'line' | 'facebook' | 'shopee';
   account_name: string;
   credentials: Record<string, unknown>;
   is_active: boolean;
   webhook_url: string;
   created_at: string;
+}
+
+interface ShopeeShop {
+  id: string;
+  shop_id: number;
+  shop_name: string | null;
+  is_active: boolean;
 }
 
 interface TestInfo {
@@ -81,6 +88,11 @@ const PLATFORM_CONFIG = {
       { key: 'page_access_token', label: 'Page Access Token', placeholder: 'วาง Page Access Token ที่นี่' },
     ],
   },
+  shopee: {
+    label: 'Shopee',
+    color: '#EE4D2D',
+    fields: [] as { key: string; label: string; placeholder: string }[],
+  },
 };
 
 export default function ChatChannelsPage() {
@@ -90,18 +102,23 @@ export default function ChatChannelsPage() {
 
   const [loading, setLoading] = useState(true);
   const [accounts, setAccounts] = useState<ChatAccount[]>([]);
-  const [activeTab, setActiveTabState] = useState<'line' | 'facebook'>('facebook');
+  const [activeTab, setActiveTabState] = useState<'line' | 'facebook' | 'shopee'>('facebook');
 
-  // Read hash on mount — allow #line to override the default
+  // Read hash on mount — allow #line / #shopee to override the default
   useEffect(() => {
     const hash = window.location.hash.replace('#', '');
-    if (hash === 'line') setActiveTabState('line');
+    if (hash === 'line' || hash === 'shopee') setActiveTabState(hash);
   }, []);
 
-  const setActiveTab = (tab: 'line' | 'facebook') => {
+  const setActiveTab = (tab: 'line' | 'facebook' | 'shopee') => {
     setActiveTabState(tab);
     window.location.hash = tab === 'facebook' ? '' : tab;
   };
+
+  // Shopee: connected marketplace shops (chat rides on the marketplace connection)
+  const [shopeeShops, setShopeeShops] = useState<ShopeeShop[]>([]);
+  const [shopeeShopsLoaded, setShopeeShopsLoaded] = useState(false);
+  const [shopeeToggling, setShopeeToggling] = useState<string | null>(null);
 
   // Inline form state
   const [showForm, setShowForm] = useState(false);
@@ -138,6 +155,21 @@ export default function ChatChannelsPage() {
   useFetchOnce(() => {
     fetchAccounts();
   }, can(userProfile?.roles, 'masterdata.chat_channels'));
+
+  // Load connected Shopee shops when Shopee tab is active (chat rides on marketplace connection)
+  useEffect(() => {
+    if (activeTab !== 'shopee' || shopeeShopsLoaded) return;
+    (async () => {
+      try {
+        const res = await apiFetch('/api/shopee/accounts');
+        if (res.ok) {
+          const data = await res.json();
+          setShopeeShops((data.accounts || []).filter((a: ShopeeShop) => a.is_active));
+        }
+      } catch { /* non-critical — tab shows empty state */ }
+      setShopeeShopsLoaded(true);
+    })();
+  }, [activeTab, shopeeShopsLoaded]);
 
   // Load FB SDK when Facebook tab is active
   useEffect(() => {
@@ -442,6 +474,45 @@ export default function ChatChannelsPage() {
     }
   };
 
+  // Shopee: toggle chat for a connected marketplace shop
+  const findShopeeChatAccount = (shop: ShopeeShop) =>
+    shopeeAccounts.find(a => {
+      const c = a.credentials as Record<string, unknown>;
+      return c?.marketplace_account_id === shop.id || Number(c?.shop_id) === shop.shop_id;
+    });
+
+  const handleShopeeToggle = async (shop: ShopeeShop) => {
+    setShopeeToggling(shop.id);
+    try {
+      const chatAccount = findShopeeChatAccount(shop);
+      if (chatAccount) {
+        const response = await apiFetch('/api/chat-accounts', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: chatAccount.id, is_active: !chatAccount.is_active }),
+        });
+        if (!response.ok) throw new Error('toggle failed');
+        setAccounts(prev => prev.map(a => a.id === chatAccount.id ? { ...a, is_active: !a.is_active } : a));
+      } else {
+        const response = await apiFetch('/api/chat-accounts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ platform: 'shopee', marketplace_account_id: shop.id }),
+        });
+        if (!response.ok) {
+          const data = await response.json().catch(() => ({}));
+          throw new Error(data.error || 'create failed');
+        }
+        await fetchAccounts();
+      }
+      showToast('บันทึกแล้ว');
+    } catch (e) {
+      showToast(e instanceof Error && e.message !== 'toggle failed' && e.message !== 'create failed' ? e.message : 'เปลี่ยนสถานะไม่สำเร็จ', 'error');
+    } finally {
+      setShopeeToggling(null);
+    }
+  };
+
   // Delete account
   const handleDelete = async (id: string) => {
     setDeletingId(id);
@@ -493,7 +564,8 @@ export default function ChatChannelsPage() {
 
   const lineAccounts = accounts.filter(a => a.platform === 'line');
   const fbAccounts = accounts.filter(a => a.platform === 'facebook');
-  const tabAccounts = activeTab === 'line' ? lineAccounts : fbAccounts;
+  const shopeeAccounts = accounts.filter(a => a.platform === 'shopee');
+  const tabAccounts = activeTab === 'line' ? lineAccounts : activeTab === 'shopee' ? shopeeAccounts : fbAccounts;
   const tabConfig = PLATFORM_CONFIG[activeTab];
 
   // Admin guard
@@ -681,11 +753,11 @@ export default function ChatChannelsPage() {
       <Container size="full">
         <div>
           <h1 className="heading-1">ช่องทาง Chat</h1>
-          <p className="page-subtitle">เชื่อมต่อ LINE OA และ Facebook / Instagram เพื่อรับข้อความจากลูกค้า</p>
+          <p className="page-subtitle">เชื่อมต่อ LINE OA, Facebook / Instagram และ Shopee เพื่อรับข้อความจากลูกค้า</p>
         </div>
         <Tabs
           activeKey={activeTab}
-          onSelect={(key) => { setActiveTab(key as 'facebook' | 'line'); resetForm(); }}
+          onSelect={(key) => { setActiveTab(key as 'facebook' | 'line' | 'shopee'); resetForm(); }}
           tabs={[
             {
               key: 'facebook',
@@ -701,11 +773,52 @@ export default function ChatChannelsPage() {
               count: lineAccounts.length || undefined,
               activeColorClass: 'border-line text-line',
             },
+            {
+              key: 'shopee',
+              label: 'Shopee',
+              icon: <PlatformIcon id="shopee" size={16} />,
+              count: shopeeAccounts.filter(a => a.is_active).length || undefined,
+              activeColorClass: 'border-[#EE4D2D] text-[#EE4D2D]',
+            },
           ]}
         />
 
         {loading ? (
           <LoadingCard />
+        ) : activeTab === 'shopee' ? (
+          <div className="space-y-4">
+            <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg p-3 text-sm text-blue-800 dark:text-blue-300">
+              แชท Shopee ใช้การเชื่อมต่อร้านจากหน้า Marketplace โดยตรง — เปิดสวิตช์เพื่อรับแชทของร้านนั้นเข้าหน้ารวมแชท
+              ข้อความใหม่จะเข้าอัตโนมัติผ่าน webhook (ต้องเปิด Webchat Push ใน Shopee Open Platform Console ของแอป)
+            </div>
+            {!shopeeShopsLoaded ? (
+              <LoadingCard />
+            ) : shopeeShops.length === 0 ? (
+              <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm p-6 text-center space-y-2">
+                <p className="text-sm text-gray-600 dark:text-slate-300">ยังไม่มีร้าน Shopee ที่เชื่อมต่อ</p>
+                <a href="/settings/integrations" className="text-sm text-primary underline">ไปเชื่อมต่อร้าน Shopee ที่หน้า Integrations</a>
+              </div>
+            ) : (
+              shopeeShops.map(shop => {
+                const chatAccount = findShopeeChatAccount(shop);
+                const chatEnabled = !!chatAccount?.is_active;
+                return (
+                  <div key={shop.id} className="bg-white dark:bg-slate-800 rounded-lg shadow-sm px-3 py-2.5 flex items-center gap-3">
+                    <PlatformIcon id="shopee" size={24} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{shop.shop_name || `Shopee ${shop.shop_id}`}</p>
+                      <p className="helper-text text-gray-500">Shop ID: {shop.shop_id}{chatEnabled ? ' · รับแชทอยู่' : ''}</p>
+                    </div>
+                    {shopeeToggling === shop.id ? (
+                      <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
+                    ) : (
+                      <Toggle checked={chatEnabled} onChange={() => handleShopeeToggle(shop)} />
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </div>
         ) : (
           <div className="space-y-4">
             {/* Account Cards */}

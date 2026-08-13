@@ -12,7 +12,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const body = await request.json().catch(() => ({}));
     const platform = body.platform || 'facebook';
 
-    const table = platform === 'line' ? 'line_contacts' : 'fb_contacts';
+    const table = platform === 'line' ? 'line_contacts' : platform === 'shopee' ? 'shopee_contacts' : 'fb_contacts';
     await supabaseAdmin
       .from(table)
       .update({ unread_count: 0 })

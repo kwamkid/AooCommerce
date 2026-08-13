@@ -453,6 +453,15 @@ marketplace_accounts → marketplace_product_links → product_variations
 - **Export priority**: `platform_description` (account ปลายทาง) → `products.description` → `product.name`
 - **UI**: textarea per-platform ใน Shopee tab ของ product edit page + thumbnail สำหรับ description images
 
+### Shopee Chat — SellerChat API (เพิ่ม 2026-08-14)
+- **แชท Shopee เข้าหน้ารวมแชท `/chat` เหมือน LINE/FB** — platform ที่ 3 ของระบบแชท (table-per-platform pattern เดิม)
+- **Tables**: `shopee_contacts` (1 row = 1 conversation, `conversation_id` เป็น **TEXT** — int64 เกิน JS precision **ห้ามอ่าน conversation_id จาก API response เด็ดขาด** ใช้ค่า string จาก webhook เท่านั้น) + `shopee_messages` + RPC `get_latest_shopee_messages`/`search_shopee_contacts` + realtime publication (มี RLS มาตรฐานแล้ว)
+- **ขาเข้า**: webhook push **code 10 (webchat)** ใน `/api/shopee/webhook` → `processShopeeWebchatPush()` ใน [lib/services/chat/shopee.ts](lib/services/chat/shopee.ts) (retry worker จัดการ code 10 ด้วย) — dedupe ด้วย `message_id`, direction จาก `from_shop_id`
+- **ขาออก**: `ShopeeChatService.sendMessage()` ผ่าน dispatcher เดิม — **ส่งได้แค่ text + รูป** (รูปต้อง upload ผ่าน `sellerchat/upload_image` ≤2MB ก่อน แล้วค่อย send) — sellerchat API wrappers อยู่ [lib/shopee/chat.ts](lib/shopee/chat.ts)
+- **chat_accounts platform 'shopee'** = reference เฉยๆ (`credentials: {marketplace_account_id, shop_id}` — token จริงอยู่ marketplace_accounts + ensureValidToken) — **auto-create ตอน push แรก**, toggle เปิด/ปิดที่ `/settings/chat-channels#shopee` (ปิด → webhook skip) — **ไม่ mirror ไป sales_channels**
+- **เปิดใช้ครั้งแรก**: รัน `node scripts/enable-shopee-webchat-push.mjs --apply` (partner-level, ครั้งเดียวต่อ app) เพื่อเปิด push code 10
+- media url จาก webhook อาจเป็น CDN file id เปล่า → `resolveShopeeCdnUrl()` แปลงเป็น URL เต็ม
+
 ---
 
 ## 🏬 PC Counter Sales (เพิ่ม 2026-07-26 — ครบทั้ง 3 Phase)

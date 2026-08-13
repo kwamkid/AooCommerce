@@ -13,14 +13,20 @@ export function LineIcon({ size = 16 }: { size?: number }) {
   return <Image src="/social/line_oa.svg" alt="LINE" width={size} height={size} className="flex-shrink-0" />;
 }
 
+export function ShopeeIcon({ size = 16 }: { size?: number }) {
+  return <Image src="/marketplace/shopee.svg" alt="Shopee" width={size} height={size} className="flex-shrink-0" />;
+}
+
 /** Returns the correct platform icon for a contact based on source */
 export function PlatformIcon({ contact, size = 16 }: { contact: { platform: string; source?: string }; size?: number }) {
   if (contact.source === 'instagram') return <IgIcon size={size} />;
   if (contact.platform === 'line') return <LineIcon size={size} />;
+  if (contact.platform === 'shopee') return <ShopeeIcon size={size} />;
   return <FbIcon size={size} />;
 }
 
 export function getAccountPicture(account: ChatAccountInfo): string | null {
+  if (account.platform === 'shopee') return '/marketplace/shopee.svg';
   if (!account.credentials) return null;
   if (account.platform === 'line') return (account.credentials.bot_picture_url as string) || null;
   if (account.platform === 'facebook') {

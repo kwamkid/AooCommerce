@@ -1,6 +1,6 @@
 import { supabaseAdmin } from '@/lib/supabase-admin';
 
-export type ChatPlatform = 'line' | 'facebook';
+export type ChatPlatform = 'line' | 'facebook' | 'shopee';
 
 export interface ChatAccount {
   id: string;

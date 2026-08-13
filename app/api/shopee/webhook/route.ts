@@ -263,6 +263,43 @@ async function processWebhook(
       return;
     }
 
+    // Handle webchat: code=10 — buyer/seller chat message
+    if (pushCode === 10) {
+      if (!account) {
+        await updateLog('skipped', 'No matching marketplace account');
+        return;
+      }
+
+      logIntegration({
+        company_id: account.company_id,
+        integration: 'shopee',
+        account_id: account.id,
+        account_name: account.shop_name,
+        direction: 'incoming',
+        action: 'webhook_webchat',
+        method: 'POST',
+        api_path: '/api/shopee/webhook',
+        request_body: payload,
+        status: 'success',
+        reference_type: 'chat',
+        reference_id: (payload.data?.content as Record<string, unknown> | undefined)?.conversation_id as string | undefined,
+        reference_label: 'Webchat message',
+        duration_ms: Date.now() - startTime,
+      });
+
+      try {
+        const { processShopeeWebchatPush } = await import('@/lib/services/chat/shopee');
+        type WebchatPayload = import('@/lib/services/chat/shopee').ShopeeWebchatPayload;
+        const result = await processShopeeWebchatPush(account, payload as WebchatPayload);
+        await updateLog(result.status, result.detail);
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : 'Unknown webchat error';
+        console.error('Shopee webhook webchat error:', err);
+        await updateLog('failed', errorMsg);
+      }
+      return;
+    }
+
     // All other push codes — not handled yet, mark as skipped
     if (!account) {
       await updateLog('skipped', 'No matching marketplace account');
