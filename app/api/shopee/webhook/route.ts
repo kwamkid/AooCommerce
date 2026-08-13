@@ -62,7 +62,9 @@ export async function POST(request: NextRequest) {
     // but only VALID webhooks get processed; cron sync-all (every 15m) is the
     // safety net for anything legitimately dropped.
     let signatureValid = false;
-    const partnerKey = process.env.SHOPEE_PARTNER_KEY || '';
+    // Shopee signs pushes with the "Live Push Partner Key" (Push Mechanism > Set Push),
+    // which is separate from the API-calling partner key after a key rotation.
+    const partnerKey = process.env.SHOPEE_PUSH_PARTNER_KEY || process.env.SHOPEE_PARTNER_KEY || '';
     if (authorization && partnerKey) {
       const publicUrl = 'https://aoocommerce.vercel.app/api/shopee/webhook';
       signatureValid = verifySignature(publicUrl, rawBody, authorization, partnerKey)
