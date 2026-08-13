@@ -16,6 +16,26 @@
 
 ---
 
+## 2026-08-14 — Shopee webhook ตรวจลายเซ็นไม่ผ่าน "ทุกรายการ" ตั้งแต่วันแรก (22,414 รายการ) — Push Partner Key เป็นคนละตัวกับ API Partner Key
+
+**ที่เกิด**: [app/api/shopee/webhook/route.ts](app/api/shopee/webhook/route.ts) — `verifySignature()` ใช้ `SHOPEE_PARTNER_KEY` (API key)
+**อาการ**: webhook ทุกตัวถูก log เป็น `signature_valid=false` → skipped ตั้งแต่ 2026-04-21 (22,414 รายการ ไม่เคยผ่านเลย) — ไม่มีใครสังเกตเพราะ cron polling (sync-all ทุก 15 นาที) ทำงานแทนตลอด ระบบเลยดูปกติ จนกระทั่ง partner key หมดอายุ (22 ก.ค.) แล้ว cron ตายด้วย → Shopee ทั้งระบบหยุด sync 1 เดือน + โดนใบเตือน API success rate
+**Root cause**: Shopee มี key **2 ตัวแยกกัน** — "Live API Partner Key" (เราใช้ยิง API) กับ "**Live Push Partner Key**" (Shopee ใช้เซ็น webhook — อยู่ที่ Console > Push Mechanism > Set Push) ค่าไม่เหมือนกัน แต่โค้ด verify webhook ด้วย API key → fail เสมอ (Shopee เพิ่งเผยเรื่องนี้ใน dialog ตอน rotate key)
+**วิธีแก้**: webhook route ใช้ `SHOPEE_PUSH_PARTNER_KEY || SHOPEE_PARTNER_KEY` (commit `63c74ba`) + เพิ่ม env `SHOPEE_PUSH_PARTNER_KEY` = ค่าจากหน้า Set Push ใน Vercel/.env.local · ฝั่ง ops: rotate API key ที่หมดอายุ + deactivate ร้านชั่วคราวหยุด cron ยิง fail กู้ success rate + ต้อง re-authorize ทุกร้าน (refresh token หมดอายุระหว่าง key เสีย)
+**ป้องกัน regression**: ตรวจสุขภาพ webhook ต้องดู `signature_valid` ใน `marketplace_webhook_log` ไม่ใช่แค่ "มี log เข้า" — ลายเซ็น fail เงียบๆ ได้เพราะ cron กลบอาการ · rotate API Partner Key ไม่กระทบ Push Partner Key (และกลับกัน) — เป็นคนละ lifecycle
+
+---
+
+## 2026-07-27 — คลัง consignment query ด้วย `.single()` จะพังเมื่อลูกค้ามีหลายคลัง (PC counters)
+
+**ที่เกิด**: 10 จุด / 8 ไฟล์ (replenishments receive+[id], inventory, department-orders receive+[id], department-store/reports/[id] ×2, consignment/reports+[id] ×2, consignment/portal) — ทุกจุด query `warehouses` ด้วย `customer_id + warehouse_type='consignment'` แล้ว `.single()`
+**อาการ**: ยังไม่ทันเกิดกับลูกค้า (กันไว้ก่อน) — แต่ทันทีที่สร้างสาขา (counter) ใบที่ 2 ให้ลูกค้าห้าง = ลูกค้ามีคลัง consignment 2 ใบ → `.single()` โยน error → DSR confirm/void, CSR, รับของ, portal พังหมด
+**Root cause**: สมมติฐานเดิม "1 ลูกค้า = 1 คลัง consignment" ถูกยกเลิกโดยระบบ PC counters (1 สาขา = 1 คลัง)
+**วิธีแก้**: helper กลาง [lib/consignment-warehouse.ts](lib/consignment-warehouse.ts) — `getCustomerConsignmentWarehouse()` (เลือกคลัง**เก่าสุด** = ใบที่ counter #1 adopt — legacy flows ทำงานกับคลังเดิมต่อ) + `getConsignmentDestinationWarehouse()` (counter-aware: replenishment/dept-order/DSR ที่ระบุ `counter_id` ใช้คลังสาขานั้น) — แทนทั้ง 10 จุด (commit `feff9a5`)
+**ป้องกัน regression**: **ห้าม query คลัง consignment ด้วย `.single()`/`.maybeSingle()` ตรงๆ อีกเด็ดขาด** — ใช้ helper จาก `lib/consignment-warehouse.ts` เสมอ (รับ supabase client เป็น param ใช้ได้ทั้ง route ปกติและ public route) · เช็คสิทธิ์ PC เข้าสาขาก็เช่นกัน — ใช้ `canAccessCounter()` จาก [lib/counter-access.ts](lib/counter-access.ts) ห้าม query `counter_assignments` ตรง (จะพลาดเคสหน่วยแทน `pc_all_counters`)
+
+---
+
 ## 2026-07-27 — Security รอบ decision: OAuth CSRF + POS void + brand-products + portal rate-limit
 
 **ที่เกิด**: 4 ช่องโหว่ที่ audit ค้างไว้ (รอ decision) — ปิดครบ

@@ -22,6 +22,7 @@
 | Page header (back + title + subtitle + actions) | `PageHeader` | inline header layout ทุกครั้ง — **เมื่อใช้ PageHeader ห้ามใส่ `title`/`breadcrumbs` ใน `<Layout>` อีก** (จะ duplicate) |
 | Content tabs (underlined border-b style) | `Tabs` (state-based via `onSelect` หรือ route-based via `href`) | inline `<div className="flex border-b">...<button border-b-2>...` chain — **อย่าสับสนกับ `StatusTabs`** ที่ใช้สำหรับ list-page filter (count ใหญ่ + solid pill) |
 | Social platform icon (FB / LINE / IG / TikTok) | `PlatformIcon` (`id`, `size`, `title`) | inline `<Image src="/social/X.svg">` — **ห้ามสร้าง local FbIcon/LineIcon/IgIcon helper** ในแต่ละหน้า (duplicated 3 ครั้งแล้วต้อง refactor) |
+| หน้าจอขายแบบ POS (product grid + ตะกร้า + barcode/กล้องสแกน + mobile tab) | `PosSaleScreen` (`components/pos/`) — props `warehouseId`/`topBar`/`onCheckout` + ref `clearCart()`/`refreshProducts()` + `enablePromotions?`/`extraProductParams?` | copy โค้ดหน้า `/pos` ไปแก้ — `/pos` (session+ชำระเงิน+ใบเสร็จ) และ `/pc` (บันทึกยอด PC ไม่จับเงิน) ห่อ component เดียวกันอยู่แล้ว |
 | Loading state (spinner + message) | `LoadingCard` (from `StateCard.tsx`) | สร้าง spinner card เอง |
 | Empty / no-data state | `EmptyCard` (from `StateCard.tsx`) | สร้าง empty card เอง |
 | ไม่มีสิทธิ์ guard | `NoPermissionCard` (from `StateCard.tsx`) | สร้าง guard เอง |
