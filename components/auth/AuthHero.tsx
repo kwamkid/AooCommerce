@@ -6,22 +6,22 @@ import { Phone, ScanBarcode, Building2, Handshake, UserRound } from 'lucide-reac
 // ช่องทางการขายทั้งหมด — เรียงเป็นวงกลมรอบ "เจ้าของธุรกิจ" (hub-and-spoke)
 // แพลตฟอร์มมี SVG ใช้โลโก้จริง; ช่องทาง offline ใช้ไอคอน lucide สีขาว
 const CHANNEL_BUBBLES: Array<{ key: string; node: React.ReactNode }> = [
-  { key: 'shopee', node: <Image src="/marketplace/shopee.svg" alt="Shopee" width={30} height={30} /> },
-  { key: 'lazada', node: <Image src="/marketplace/lazada.svg" alt="Lazada" width={30} height={30} /> },
-  { key: 'tiktok', node: <Image src="/social/tiktok.svg" alt="TikTok" width={30} height={30} /> },
-  { key: 'facebook', node: <Image src="/social/facebook.svg" alt="Facebook" width={30} height={30} /> },
-  { key: 'instagram', node: <Image src="/social/instagram.svg" alt="Instagram" width={30} height={30} /> },
-  { key: 'line', node: <Image src="/social/line_oa.svg" alt="LINE" width={30} height={30} /> },
-  { key: 'call', node: <Phone className="w-7 h-7 text-white" /> },
-  { key: 'pos', node: <ScanBarcode className="w-7 h-7 text-white" /> },
-  { key: 'department', node: <Building2 className="w-7 h-7 text-white" /> },
-  { key: 'consignment', node: <Handshake className="w-7 h-7 text-white" /> },
+  { key: 'shopee', node: <Image src="/marketplace/shopee.svg" alt="Shopee" width={40} height={40} /> },
+  { key: 'lazada', node: <Image src="/marketplace/lazada.svg" alt="Lazada" width={40} height={40} /> },
+  { key: 'tiktok', node: <Image src="/social/tiktok.svg" alt="TikTok" width={40} height={40} /> },
+  { key: 'facebook', node: <Image src="/social/facebook.svg" alt="Facebook" width={40} height={40} /> },
+  { key: 'instagram', node: <Image src="/social/instagram.svg" alt="Instagram" width={40} height={40} /> },
+  { key: 'line', node: <Image src="/social/line_oa.svg" alt="LINE" width={40} height={40} /> },
+  { key: 'call', node: <Phone className="w-9 h-9 text-white" /> },
+  { key: 'pos', node: <ScanBarcode className="w-9 h-9 text-white" /> },
+  { key: 'department', node: <Building2 className="w-9 h-9 text-white" /> },
+  { key: 'consignment', node: <Handshake className="w-9 h-9 text-white" /> },
 ];
 
-const RING_SIZE = 420;   // px — กล่องวงโคจรทั้งชุด
-const RING_RADIUS = 168; // px — รัศมีวาง bubble
-const BUBBLE_SIZE = 56;
-const HUB_SIZE = 96;
+const RING_SIZE = 540;   // px — กล่องวงทั้งชุด
+const RING_RADIUS = 222; // px — รัศมีวาง bubble
+const BUBBLE_SIZE = 76;
+const HUB_SIZE = 132;
 
 // Auth layout (login/register) — split-screen แบบ aoosocial:
 // ซ้าย (desktop เท่านั้น) = วิดีโอ multi-channel commerce (Higgsfield,
@@ -48,10 +48,10 @@ export function AuthSplitShell({ children }: { children: React.ReactNode }) {
         {/* Readability overlay — เข้มขึ้นทางล่างซ้ายที่มีข้อความ */}
         <div className="absolute inset-0 -z-10 bg-gradient-to-t from-black/65 via-black/20 to-black/25" />
 
-        {/* Channel orbit — เจ้าของธุรกิจเป็น hub ตรงกลาง ล้อมด้วยวงโคจรแกนเอียงที่หมุนตลอด */}
+        {/* Channel orbit — เจ้าของธุรกิจเป็น hub ตรงกลาง ล้อมด้วยวงช่องทางที่หมุนช้าๆ */}
         <div className="absolute left-1/2 top-[38%] -translate-x-1/2 -translate-y-1/2">
           <div className="auth-orbit relative" style={{ width: RING_SIZE, height: RING_SIZE }}>
-            {/* ระนาบวงโคจร (เอียง + หมุน) — เส้นวงแหวน, เส้นโยง, bubble ทุกใบ */}
+            {/* วงที่หมุน — เส้นวงแหวน, เส้นโยง, bubble ทุกใบ */}
             <div className="auth-orbit-plane">
               <div
                 className="absolute rounded-full border border-white/25"
@@ -64,7 +64,7 @@ export function AuthSplitShell({ children }: { children: React.ReactNode }) {
                 const y = RING_SIZE / 2 + RING_RADIUS * Math.sin(rad);
                 return (
                   <div key={b.key}>
-                    {/* เส้นโยงจาก hub → ช่องทาง (อยู่ในระนาบ จึงเอียง/หมุนตามวง) */}
+                    {/* เส้นโยงจาก hub → ช่องทาง (หมุนไปกับวง) */}
                     <div
                       className="auth-orbit-spoke"
                       style={{
@@ -107,7 +107,7 @@ export function AuthSplitShell({ children }: { children: React.ReactNode }) {
               }}
             >
               <div className="auth-hub-pulse" />
-              <UserRound className="w-11 h-11 text-white" />
+              <UserRound className="w-16 h-16 text-white" />
             </div>
           </div>
         </div>

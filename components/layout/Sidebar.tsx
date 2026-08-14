@@ -300,7 +300,7 @@ export default function Sidebar() {
 
       {/* Sidebar */}
       <aside
-        className={`fixed lg:static inset-y-0 left-0 z-40 w-64 lg:h-full bg-[#1A1A2E] border-r border-white/10 transform transition-transform duration-300 ease-in-out ${
+        className={`fixed lg:static inset-y-0 left-0 z-40 w-64 lg:h-full bg-gradient-to-b from-[#F4511E] via-[#E0480F] to-[#B23A0E] border-r border-black/10 transform transition-transform duration-300 ease-in-out ${
           isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         }`}
       >
@@ -330,22 +330,22 @@ export default function Sidebar() {
                     <img
                       src={currentCompany.logo_url}
                       alt={currentCompany.name}
-                      className="w-9 h-9 rounded-full object-cover border-2 border-primary/30 flex-shrink-0"
+                      className="w-9 h-9 rounded-full object-cover border-2 border-white/50 flex-shrink-0"
                     />
                   ) : (
-                    <div className="w-9 h-9 rounded-full bg-primary/20 flex items-center justify-center border-2 border-primary/30 flex-shrink-0">
-                      <Building2 className="w-5 h-5 text-primary" />
+                    <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center border-2 border-white/40 flex-shrink-0">
+                      <Building2 className="w-5 h-5 text-white" />
                     </div>
                   )}
                   <div className="flex-1 text-left min-w-0">
                     <p className="text-white text-sm font-semibold truncate">
                       {currentCompany?.name || 'เลือกบริษัท'}
                     </p>
-                    <p className="text-primary text-xs">
+                    <p className="text-white/75 text-xs">
                       {getRoleLabels(companyRoles)}
                     </p>
                   </div>
-                  <ChevronDown className={`w-4 h-4 text-gray-400 flex-shrink-0 transition-transform duration-200 ${companyDropdownOpen ? 'rotate-180' : ''}`} />
+                  <ChevronDown className={`w-4 h-4 text-white/70 flex-shrink-0 transition-transform duration-200 ${companyDropdownOpen ? 'rotate-180' : ''}`} />
                 </button>
                 {companyDropdownOpen && (
                   <>
@@ -404,8 +404,8 @@ export default function Sidebar() {
               href="/dashboard"
               className={`flex items-center space-x-3 px-3 py-2 rounded-lg mb-2 transition-colors ${
                 pathname === '/dashboard'
-                  ? 'bg-primary text-white'
-                  : 'text-gray-300 hover:bg-primary/10 hover:text-primary'
+                  ? 'bg-white text-[#E0480F] font-semibold shadow-sm'
+                  : 'text-white/85 hover:bg-white/15 hover:text-white'
               }`}
             >
               <Home className="w-5 h-5" />
@@ -435,15 +435,15 @@ export default function Sidebar() {
                 {/* Consignment Section — render before สินค้า */}
                 {section.title === 'สินค้า' && features.consignment && (effectiveRoles.has('admin') || effectiveRoles.has('sales') || effectiveRoles.has('account')) && (
                   <>
-                    <h3 className="text-xs text-gray-500 uppercase tracking-wider mt-6 mb-2">
+                    <h3 className="text-xs text-white/55 uppercase tracking-wider mt-6 mb-2">
                       ตัวแทนจำหน่าย
                     </h3>
                     <button
                       onClick={() => setConsignmentOpen(!consignmentOpen)}
                       className={`flex items-center w-full px-3 py-2 rounded-lg mb-1 transition-colors ${
                         pathname?.startsWith('/replenishments') || pathname?.startsWith('/consignment')
-                          ? 'text-primary'
-                          : 'text-gray-300 hover:text-primary'
+                          ? 'text-white font-semibold'
+                          : 'text-white/85 hover:bg-white/10 hover:text-white'
                       }`}
                     >
                       <Store className="w-5 h-5" />
@@ -451,12 +451,12 @@ export default function Sidebar() {
                       <ChevronDown className={`w-4 h-4 ml-auto transition-transform ${consignmentOpen ? 'rotate-180' : ''}`} />
                     </button>
                     {consignmentOpen && (
-                      <div className="ml-3 border-l border-white/10">
-                        <Link href="/replenishments" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/replenishments' || pathname?.startsWith('/replenishments/') ? 'text-primary' : 'text-gray-400 hover:text-primary'}`}>
+                      <div className="ml-3 border-l border-white/25">
+                        <Link href="/replenishments" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/replenishments' || pathname?.startsWith('/replenishments/') ? 'text-white font-semibold' : 'text-white/70 hover:text-white'}`}>
                           <ArrowUpFromLine className="w-4 h-4" />
                           <span className="text-[16px] font-medium">เติมสินค้าตัวแทน</span>
                         </Link>
-                        <Link href="/consignment/reports" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/consignment/reports' || pathname?.startsWith('/consignment/reports/') ? 'text-primary' : 'text-gray-400 hover:text-primary'}`}>
+                        <Link href="/consignment/reports" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/consignment/reports' || pathname?.startsWith('/consignment/reports/') ? 'text-white font-semibold' : 'text-white/70 hover:text-white'}`}>
                           <ClipboardList className="w-4 h-4" />
                           <span className="text-[16px] font-medium">ยอดขายตัวแทน</span>
                         </Link>
@@ -467,8 +467,8 @@ export default function Sidebar() {
                       href="/dealer-orders"
                       className={`flex items-center w-full px-3 py-2 rounded-lg mb-1 transition-colors ${
                         pathname?.startsWith('/dealer-orders')
-                          ? 'text-primary'
-                          : 'text-gray-300 hover:text-primary'
+                          ? 'text-white font-semibold'
+                          : 'text-white/85 hover:bg-white/10 hover:text-white'
                       }`}
                     >
                       <ShoppingBag className="w-5 h-5" />
@@ -479,15 +479,15 @@ export default function Sidebar() {
                 {/* Department Store Section */}
                 {section.title === 'สินค้า' && features.department_store && (effectiveRoles.has('admin') || effectiveRoles.has('sales') || effectiveRoles.has('account')) && (
                   <>
-                    <h3 className="text-xs text-gray-500 uppercase tracking-wider mt-6 mb-2">
+                    <h3 className="text-xs text-white/55 uppercase tracking-wider mt-6 mb-2">
                       ห้างสรรพสินค้า
                     </h3>
                     <button
                       onClick={() => setDeptStoreOpen(!deptStoreOpen)}
                       className={`flex items-center w-full px-3 py-2 rounded-lg mb-1 transition-colors ${
                         pathname?.startsWith('/department-store/reports') || pathname?.startsWith('/department-orders')
-                          ? 'text-primary'
-                          : 'text-gray-300 hover:text-primary'
+                          ? 'text-white font-semibold'
+                          : 'text-white/85 hover:bg-white/10 hover:text-white'
                       }`}
                     >
                       <Building2 className="w-5 h-5" />
@@ -495,12 +495,12 @@ export default function Sidebar() {
                       <ChevronDown className={`w-4 h-4 ml-auto transition-transform ${deptStoreOpen ? 'rotate-180' : ''}`} />
                     </button>
                     {deptStoreOpen && (
-                      <div className="ml-3 border-l border-white/10">
-                        <Link href="/department-orders" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/department-orders' || pathname?.startsWith('/department-orders/') ? 'text-primary' : 'text-gray-400 hover:text-primary'}`}>
+                      <div className="ml-3 border-l border-white/25">
+                        <Link href="/department-orders" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/department-orders' || pathname?.startsWith('/department-orders/') ? 'text-white font-semibold' : 'text-white/70 hover:text-white'}`}>
                           <Truck className="w-4 h-4" />
                           <span className="text-[16px] font-medium">ส่งห้าง</span>
                         </Link>
-                        <Link href="/department-store/reports" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/department-store/reports' || pathname?.startsWith('/department-store/reports/') ? 'text-primary' : 'text-gray-400 hover:text-primary'}`}>
+                        <Link href="/department-store/reports" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/department-store/reports' || pathname?.startsWith('/department-store/reports/') ? 'text-white font-semibold' : 'text-white/70 hover:text-white'}`}>
                           <ClipboardList className="w-4 h-4" />
                           <span className="text-[16px] font-medium">ยอดขายห้าง</span>
                         </Link>
@@ -511,8 +511,8 @@ export default function Sidebar() {
                       href="/dept-wholesale-orders"
                       className={`flex items-center w-full px-3 py-2 rounded-lg mb-1 transition-colors ${
                         pathname?.startsWith('/dept-wholesale-orders')
-                          ? 'text-primary'
-                          : 'text-gray-300 hover:text-primary'
+                          ? 'text-white font-semibold'
+                          : 'text-white/85 hover:bg-white/10 hover:text-white'
                       }`}
                     >
                       <ShoppingBag className="w-5 h-5" />
@@ -520,7 +520,7 @@ export default function Sidebar() {
                     </Link>
                   </>
                 )}
-                <h3 className="text-xs text-gray-500 uppercase tracking-wider mt-6 mb-2">
+                <h3 className="text-xs text-white/55 uppercase tracking-wider mt-6 mb-2">
                   {section.title}
                 </h3>
                 {section.items.map((item) => {
@@ -542,8 +542,8 @@ export default function Sidebar() {
                           onClick={() => setProductsOpen(!productsOpen)}
                           className={`flex items-center w-full px-3 py-2 rounded-lg mb-1 transition-colors ${
                             isProductsPage
-                              ? 'text-primary'
-                              : 'text-gray-300 hover:text-primary'
+                              ? 'text-white font-semibold'
+                              : 'text-white/85 hover:bg-white/10 hover:text-white'
                           }`}
                         >
                           {item.icon}
@@ -551,17 +551,17 @@ export default function Sidebar() {
                           <ChevronDown className={`w-4 h-4 ml-auto transition-transform ${productsOpen ? 'rotate-180' : ''}`} />
                         </button>
                         {productsOpen && (
-                          <div className="ml-3 border-l border-white/10">
-                            <Link href="/products" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/products' ? 'text-primary' : 'text-gray-400 hover:text-primary'}`}>
+                          <div className="ml-3 border-l border-white/25">
+                            <Link href="/products" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/products' ? 'text-white font-semibold' : 'text-white/70 hover:text-white'}`}>
                               <Package2 className="w-4 h-4" />
                               <span className="text-[16px] font-medium">รายการสินค้า</span>
                             </Link>
-                            <Link href="/settings/categories" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/settings/categories' ? 'text-primary' : 'text-gray-400 hover:text-primary'}`}>
+                            <Link href="/settings/categories" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/settings/categories' ? 'text-white font-semibold' : 'text-white/70 hover:text-white'}`}>
                               <Tag className="w-4 h-4" />
                               <span className="text-[16px] font-medium">หมวดหมู่</span>
                             </Link>
                             {features.product_brand && (
-                            <Link href="/settings/brands" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/settings/brands' ? 'text-primary' : 'text-gray-400 hover:text-primary'}`}>
+                            <Link href="/settings/brands" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/settings/brands' ? 'text-white font-semibold' : 'text-white/70 hover:text-white'}`}>
                               <Award className="w-4 h-4" />
                               <span className="text-[16px] font-medium">แบรนด์</span>
                             </Link>
@@ -581,8 +581,8 @@ export default function Sidebar() {
                           onClick={() => setAccountingOpen(!accountingOpen)}
                           className={`flex items-center w-full px-3 py-2 rounded-lg mb-1 transition-colors ${
                             isAccountingPage
-                              ? 'text-primary'
-                              : 'text-gray-300 hover:text-primary'
+                              ? 'text-white font-semibold'
+                              : 'text-white/85 hover:bg-white/10 hover:text-white'
                           }`}
                         >
                           {item.icon}
@@ -590,36 +590,36 @@ export default function Sidebar() {
                           <ChevronDown className={`w-4 h-4 ml-auto transition-transform ${accountingOpen ? 'rotate-180' : ''}`} />
                         </button>
                         {accountingOpen && (
-                          <div className="ml-3 border-l border-white/10">
-                            <Link href="/invoices/tax" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/invoices/tax' ? 'text-primary' : 'text-gray-400 hover:text-primary'}`}>
+                          <div className="ml-3 border-l border-white/25">
+                            <Link href="/invoices/tax" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/invoices/tax' ? 'text-white font-semibold' : 'text-white/70 hover:text-white'}`}>
                               <FileText className="w-4 h-4" />
                               <span className="text-[16px] font-medium">ใบกำกับภาษี</span>
                             </Link>
-                            <Link href="/invoices/receipts" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/invoices/receipts' ? 'text-primary' : 'text-gray-400 hover:text-primary'}`}>
+                            <Link href="/invoices/receipts" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/invoices/receipts' ? 'text-white font-semibold' : 'text-white/70 hover:text-white'}`}>
                               <Receipt className="w-4 h-4" />
                               <span className="text-[16px] font-medium">ใบเสร็จรับเงิน</span>
                             </Link>
-                            <Link href="/invoices/abbreviated" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/invoices/abbreviated' ? 'text-primary' : 'text-gray-400 hover:text-primary'}`}>
+                            <Link href="/invoices/abbreviated" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/invoices/abbreviated' ? 'text-white font-semibold' : 'text-white/70 hover:text-white'}`}>
                               <ReceiptText className="w-4 h-4" />
                               <span className="text-[16px] font-medium">ใบกำกับอย่างย่อ</span>
                             </Link>
-                            <Link href="/invoices/billing" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/invoices/billing' ? 'text-primary' : 'text-gray-400 hover:text-primary'}`}>
+                            <Link href="/invoices/billing" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/invoices/billing' ? 'text-white font-semibold' : 'text-white/70 hover:text-white'}`}>
                               <FileText className="w-4 h-4" />
                               <span className="text-[16px] font-medium">ใบแจ้งหนี้</span>
                             </Link>
-                            <Link href="/invoices/delivery-notes" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/invoices/delivery-notes' ? 'text-primary' : 'text-gray-400 hover:text-primary'}`}>
+                            <Link href="/invoices/delivery-notes" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/invoices/delivery-notes' ? 'text-white font-semibold' : 'text-white/70 hover:text-white'}`}>
                               <Truck className="w-4 h-4" />
                               <span className="text-[16px] font-medium">ใบส่งสินค้า</span>
                             </Link>
-                            <Link href="/return-notes" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/return-notes' || pathname?.startsWith('/return-notes/') ? 'text-primary' : 'text-gray-400 hover:text-primary'}`}>
+                            <Link href="/return-notes" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/return-notes' || pathname?.startsWith('/return-notes/') ? 'text-white font-semibold' : 'text-white/70 hover:text-white'}`}>
                               <RotateCcw className="w-4 h-4" />
                               <span className="text-[16px] font-medium">ใบรับคืน</span>
                             </Link>
-                            <Link href="/credit-notes" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/credit-notes' || pathname?.startsWith('/credit-notes/') ? 'text-primary' : 'text-gray-400 hover:text-primary'}`}>
+                            <Link href="/credit-notes" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/credit-notes' || pathname?.startsWith('/credit-notes/') ? 'text-white font-semibold' : 'text-white/70 hover:text-white'}`}>
                               <ReceiptText className="w-4 h-4" />
                               <span className="text-[16px] font-medium">ใบลดหนี้</span>
                             </Link>
-                            <Link href="/statements" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/statements' || pathname?.startsWith('/statements/') ? 'text-primary' : 'text-gray-400 hover:text-primary'}`}>
+                            <Link href="/statements" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/statements' || pathname?.startsWith('/statements/') ? 'text-white font-semibold' : 'text-white/70 hover:text-white'}`}>
                               <ClipboardList className="w-4 h-4" />
                               <span className="text-[16px] font-medium">ใบวางบิล</span>
                             </Link>
@@ -640,8 +640,8 @@ export default function Sidebar() {
                           onClick={() => setInventoryOpen(!inventoryOpen)}
                           className={`flex items-center w-full px-3 py-2 rounded-lg mb-1 transition-colors ${
                             isInventoryPage
-                              ? 'text-primary'
-                              : 'text-gray-300 hover:text-primary'
+                              ? 'text-white font-semibold'
+                              : 'text-white/85 hover:bg-white/10 hover:text-white'
                           }`}
                         >
                           {item.icon}
@@ -654,26 +654,26 @@ export default function Sidebar() {
                           <ChevronDown className={`w-4 h-4 ml-auto transition-transform ${inventoryOpen ? 'rotate-180' : ''}`} />
                         </button>
                         {inventoryOpen && (
-                          <div className="ml-3 border-l border-white/10">
-                            <Link href="/inventory" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/inventory' ? 'text-primary' : 'text-gray-400 hover:text-primary'}`}>
+                          <div className="ml-3 border-l border-white/25">
+                            <Link href="/inventory" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/inventory' ? 'text-white font-semibold' : 'text-white/70 hover:text-white'}`}>
                               <Warehouse className="w-4 h-4" />
                               <span className="text-[16px] font-medium">สต๊อกสินค้า</span>
                             </Link>
                             {features.supplier && (
-                            <Link href="/inventory/purchase-orders" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/inventory/purchase-orders' || pathname === '/inventory/purchase-order' || pathname?.startsWith('/inventory/purchase-orders/') ? 'text-primary' : 'text-gray-400 hover:text-primary'}`}>
+                            <Link href="/inventory/purchase-orders" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/inventory/purchase-orders' || pathname === '/inventory/purchase-order' || pathname?.startsWith('/inventory/purchase-orders/') ? 'text-white font-semibold' : 'text-white/70 hover:text-white'}`}>
                               <ClipboardList className="w-4 h-4" />
                               <span className="text-[16px] font-medium">ใบสั่งซื้อ (PO)</span>
                             </Link>
                             )}
-                            <Link href="/inventory/receives" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/inventory/receives' || pathname === '/inventory/receive' || pathname?.startsWith('/inventory/receives/') ? 'text-primary' : 'text-gray-400 hover:text-primary'}`}>
+                            <Link href="/inventory/receives" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/inventory/receives' || pathname === '/inventory/receive' || pathname?.startsWith('/inventory/receives/') ? 'text-white font-semibold' : 'text-white/70 hover:text-white'}`}>
                               <ArrowDownToLine className="w-4 h-4" />
                               <span className="text-[16px] font-medium">รายการรับเข้า</span>
                             </Link>
-                            <Link href="/inventory/issues" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/inventory/issues' || pathname === '/inventory/issue' || pathname?.startsWith('/inventory/issues/') ? 'text-primary' : 'text-gray-400 hover:text-primary'}`}>
+                            <Link href="/inventory/issues" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/inventory/issues' || pathname === '/inventory/issue' || pathname?.startsWith('/inventory/issues/') ? 'text-white font-semibold' : 'text-white/70 hover:text-white'}`}>
                               <ArrowUpFromLine className="w-4 h-4" />
                               <span className="text-[16px] font-medium">รายการเบิกออก</span>
                             </Link>
-                            <Link href="/inventory/transfers" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/inventory/transfers' || pathname === '/inventory/transfer' || pathname?.startsWith('/inventory/transfers/') ? 'text-primary' : 'text-gray-400 hover:text-primary'}`}>
+                            <Link href="/inventory/transfers" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/inventory/transfers' || pathname === '/inventory/transfer' || pathname?.startsWith('/inventory/transfers/') ? 'text-white font-semibold' : 'text-white/70 hover:text-white'}`}>
                               <ArrowLeftRight className="w-4 h-4" />
                               <span className="text-[16px] font-medium">รายการโอนย้าย</span>
                             </Link>
@@ -689,8 +689,8 @@ export default function Sidebar() {
                       href={item.href}
                       className={`flex items-center gap-3 px-3 py-2 rounded-lg mb-1 transition-colors ${
                         isActive
-                          ? 'bg-primary text-white'
-                          : 'text-gray-300 hover:bg-primary/10 hover:text-primary'
+                          ? 'bg-white text-[#E0480F] font-semibold shadow-sm'
+                          : 'text-white/85 hover:bg-white/15 hover:text-white'
                       }`}
                     >
                       {item.icon}
@@ -698,7 +698,7 @@ export default function Sidebar() {
                       {item.badge && (
                         <span className={`ml-auto text-xs font-medium px-2 py-0.5 rounded-full ${
                           isActive
-                            ? 'bg-white/90 text-primary'
+                            ? 'bg-[#E0480F] text-white'
                             : `${item.badgeColor || 'bg-red-500'} text-white`
                         }`}>
                           {item.badge}
@@ -713,15 +713,15 @@ export default function Sidebar() {
             {/* Admin Section */}
             {!authLoading && !companyLoading && !featuresLoading && effectiveRoles.has('admin') && (
               <div>
-                <h3 className="text-xs text-gray-500 uppercase tracking-wider mt-6 mb-2">
+                <h3 className="text-xs text-white/55 uppercase tracking-wider mt-6 mb-2">
                   ผู้ดูแลระบบ
                 </h3>
                 <button
                   onClick={() => setSettingsOpen(!settingsOpen)}
                   className={`flex items-center w-full px-3 py-2 rounded-lg mb-1 transition-colors ${
                     pathname?.startsWith('/settings')
-                      ? 'text-primary'
-                      : 'text-gray-300 hover:text-primary'
+                      ? 'text-white font-semibold'
+                      : 'text-white/85 hover:bg-white/10 hover:text-white'
                   }`}
                 >
                   <Settings className="w-5 h-5" />
@@ -729,53 +729,53 @@ export default function Sidebar() {
                   <ChevronDown className={`w-4 h-4 ml-auto transition-transform ${settingsOpen ? 'rotate-180' : ''}`} />
                 </button>
                 {settingsOpen && (
-                  <div className="ml-3 border-l border-white/10">
-                    <Link href="/settings/company" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${(pathname === '/settings' || pathname === '/settings/company') ? 'text-primary' : 'text-gray-400 hover:text-primary'}`}>
+                  <div className="ml-3 border-l border-white/25">
+                    <Link href="/settings/company" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${(pathname === '/settings' || pathname === '/settings/company') ? 'text-white font-semibold' : 'text-white/70 hover:text-white'}`}>
                       <Settings className="w-4 h-4" />
                       <span className="text-[16px] font-medium">ทั่วไป</span>
                     </Link>
-                    <Link href="/settings/members" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/settings/members' ? 'text-primary' : 'text-gray-400 hover:text-primary'}`}>
+                    <Link href="/settings/members" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/settings/members' ? 'text-white font-semibold' : 'text-white/70 hover:text-white'}`}>
                       <UserCog className="w-4 h-4" />
                       <span className="text-[16px] font-medium">จัดการสมาชิก</span>
                     </Link>
-                    <Link href="/settings/payment-channels" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/settings/payment-channels' ? 'text-primary' : 'text-gray-400 hover:text-primary'}`}>
+                    <Link href="/settings/payment-channels" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/settings/payment-channels' ? 'text-white font-semibold' : 'text-white/70 hover:text-white'}`}>
                       <CreditCard className="w-4 h-4" />
                       <span className="text-[16px] font-medium">ช่องทางชำระเงิน</span>
                     </Link>
-                    <Link href="/settings/chat-channels" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/settings/chat-channels' ? 'text-primary' : 'text-gray-400 hover:text-primary'}`}>
+                    <Link href="/settings/chat-channels" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/settings/chat-channels' ? 'text-white font-semibold' : 'text-white/70 hover:text-white'}`}>
                       <MessageCircle className="w-4 h-4" />
                       <span className="text-[16px] font-medium">ช่องทาง Chat</span>
                     </Link>
-                    <Link href="/settings/sales-channels" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/settings/sales-channels' ? 'text-primary' : 'text-gray-400 hover:text-primary'}`}>
+                    <Link href="/settings/sales-channels" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/settings/sales-channels' ? 'text-white font-semibold' : 'text-white/70 hover:text-white'}`}>
                       <Store className="w-4 h-4" />
                       <span className="text-[16px] font-medium">ช่องทางการขาย</span>
                     </Link>
                     {features.stock && (
-                      <Link href="/settings/warehouses" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/settings/warehouses' ? 'text-primary' : 'text-gray-400 hover:text-primary'}`}>
+                      <Link href="/settings/warehouses" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/settings/warehouses' ? 'text-white font-semibold' : 'text-white/70 hover:text-white'}`}>
                         <Warehouse className="w-4 h-4" />
                         <span className="text-[16px] font-medium">คลังสินค้า</span>
                       </Link>
                     )}
-                    <Link href="/settings/carriers" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/settings/carriers' ? 'text-primary' : 'text-gray-400 hover:text-primary'}`}>
+                    <Link href="/settings/carriers" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/settings/carriers' ? 'text-white font-semibold' : 'text-white/70 hover:text-white'}`}>
                       <Truck className="w-4 h-4" />
                       <span className="text-[16px] font-medium">ขนส่ง</span>
                     </Link>
-                    <Link href="/settings/counters" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/settings/counters' ? 'text-primary' : 'text-gray-400 hover:text-primary'}`}>
+                    <Link href="/settings/counters" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/settings/counters' ? 'text-white font-semibold' : 'text-white/70 hover:text-white'}`}>
                       <Store className="w-4 h-4" />
                       <span className="text-[16px] font-medium">สาขาฝากขาย (PC)</span>
                     </Link>
-                    <Link href="/settings/features" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/settings/features' ? 'text-primary' : 'text-gray-400 hover:text-primary'}`}>
+                    <Link href="/settings/features" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/settings/features' ? 'text-white font-semibold' : 'text-white/70 hover:text-white'}`}>
                       <Handshake className="w-4 h-4" />
                       <span className="text-[16px] font-medium">Feature เสริม</span>
                     </Link>
                     {features.pos && (
-                    <Link href="/settings/pos-terminals" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/settings/pos-terminals' ? 'text-primary' : 'text-gray-400 hover:text-primary'}`}>
+                    <Link href="/settings/pos-terminals" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/settings/pos-terminals' ? 'text-white font-semibold' : 'text-white/70 hover:text-white'}`}>
                       <Monitor className="w-4 h-4" />
                       <span className="text-[16px] font-medium">แคชเชียร์</span>
                     </Link>
                     )}
                     {features.marketplace_sync && (
-                    <Link href="/settings/integrations" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/settings/integrations' ? 'text-primary' : 'text-gray-400 hover:text-primary'}`}>
+                    <Link href="/settings/integrations" className={`flex items-center space-x-3 pl-5 pr-3 py-2 rounded-r-lg mb-0.5 transition-colors ${pathname === '/settings/integrations' ? 'text-white font-semibold' : 'text-white/70 hover:text-white'}`}>
                       <ShoppingBag className="w-4 h-4" />
                       <span className="text-[16px] font-medium">Marketplace</span>
                     </Link>
@@ -790,7 +790,7 @@ export default function Sidebar() {
           <div className="p-4 border-t border-white/10">
             <button
               onClick={() => signOut()}
-              className="flex items-center space-x-3 w-full px-3 py-2 text-gray-300 hover:bg-red-500/10 hover:text-red-500 rounded-lg transition-colors"
+              className="flex items-center space-x-3 w-full px-3 py-2 text-white/85 hover:bg-white/15 hover:text-white rounded-lg transition-colors"
             >
               <LogOut className="w-5 h-5" />
               <span className="text-[16px] font-medium">ออกจากระบบ</span>

@@ -140,21 +140,25 @@ export default function OnboardingPage() {
   // Show loading while checking auth
   if (loading || loadingCompanies) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-[#1A1A2E]">
+      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-orange-50 via-white to-amber-50 dark:from-slate-900 dark:via-slate-900 dark:to-slate-800">
         <div className="text-center">
           <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-white">กำลังโหลด...</p>
+          <p className="text-gray-600 dark:text-slate-300">กำลังโหลด...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#1A1A2E] to-[#16213E] flex items-start sm:items-center justify-center pt-8 sm:pt-0 p-4 relative">
+    <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-amber-50 dark:from-slate-900 dark:via-slate-900 dark:to-slate-800 flex items-start sm:items-center justify-center pt-8 sm:pt-0 p-4 relative overflow-hidden">
+      {/* Decorative soft blobs — ให้พื้นหลังสว่างมีมิติ ไม่แบนจนโล่ง */}
+      <div className="pointer-events-none absolute -top-24 -left-24 w-[420px] h-[420px] rounded-full bg-[#F4511E]/15 blur-3xl" />
+      <div className="pointer-events-none absolute -bottom-32 -right-20 w-[480px] h-[480px] rounded-full bg-amber-300/25 blur-3xl" />
+
       {/* Logout button */}
       <button
         onClick={signOut}
-        className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors flex items-center gap-2 text-sm"
+        className="absolute top-4 right-4 z-10 text-gray-500 hover:text-primary dark:text-slate-400 dark:hover:text-white transition-colors flex items-center gap-2 text-sm"
       >
         <LogOut className="w-4 h-4" />
         ออกจากระบบ
@@ -168,34 +172,34 @@ export default function OnboardingPage() {
           </div>
           {needsName ? (
             <>
-              <h2 className="text-xl font-semibold text-white mb-2">ยินดีต้อนรับ!</h2>
-              <p className="text-gray-400 text-sm">กรุณาระบุชื่อของคุณเพื่อดำเนินการต่อ</p>
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">ยินดีต้อนรับ!</h2>
+              <p className="text-gray-500 dark:text-slate-400 text-sm">กรุณาระบุชื่อของคุณเพื่อดำเนินการต่อ</p>
             </>
           ) : companies.length > 0 ? (
             <>
-              <h2 className="text-xl font-semibold text-white mb-2">เลือกบริษัท</h2>
-              <p className="text-gray-400 text-sm">เลือกบริษัทที่ต้องการเข้าใช้งาน หรือสร้างบริษัทใหม่</p>
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">เลือกบริษัท</h2>
+              <p className="text-gray-500 dark:text-slate-400 text-sm">เลือกบริษัทที่ต้องการเข้าใช้งาน หรือสร้างบริษัทใหม่</p>
             </>
           ) : (
             <>
-              <h2 className="text-xl font-semibold text-white mb-2">สร้างบริษัทของคุณ</h2>
-              <p className="text-gray-400 text-sm">เริ่มต้นใช้งานระบบจัดการธุรกิจ</p>
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">สร้างบริษัทของคุณ</h2>
+              <p className="text-gray-500 dark:text-slate-400 text-sm">เริ่มต้นใช้งานระบบจัดการธุรกิจ</p>
             </>
           )}
         </div>
 
         {/* Name completion form (for OAuth users without name) */}
         {needsName && (
-          <div className="bg-white/10 backdrop-blur-md rounded-xl shadow-2xl p-8 border border-white/10">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-8 border border-gray-200 dark:border-slate-700">
             {error && (
-              <div className="mb-6 p-4 bg-red-500/10 border border-red-500/30 rounded-lg flex items-start space-x-3">
-                <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
-                <p className="text-sm text-red-300">{error}</p>
+              <div className="mb-6 p-4 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-lg flex items-start space-x-3">
+                <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+                <p className="text-sm text-red-600 dark:text-red-300">{error}</p>
               </div>
             )}
             <form onSubmit={handleSaveName} className="space-y-5">
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
                   ชื่อ-นามสกุล <span className="text-red-400">*</span>
                 </label>
                 <div className="relative">
@@ -204,7 +208,7 @@ export default function OnboardingPage() {
                     type="text"
                     value={profileName}
                     onChange={(e) => setProfileName(e.target.value)}
-                    className="w-full pl-10 pr-4 py-3 bg-white/10 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+                    className="w-full pl-10 pr-4 py-3 bg-white dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
                     placeholder="ชื่อ-นามสกุลของคุณ"
                     required
                     disabled={savingName}
@@ -238,24 +242,24 @@ export default function OnboardingPage() {
                 <button
                   key={membership.company_id}
                   onClick={() => handleSelectCompany(membership.company_id)}
-                  className="w-full bg-white/10 backdrop-blur-md rounded-xl p-4 border border-primary/20 hover:border-primary/60 hover:bg-white/15 transition-all flex items-center gap-4 text-left group"
+                  className="w-full bg-white dark:bg-slate-800 rounded-2xl p-4 border border-gray-200 dark:border-slate-700 shadow-sm hover:shadow-md hover:border-primary/50 hover:-translate-y-0.5 transition-all flex items-center gap-4 text-left group"
                 >
                   {/* Logo */}
                   {membership.company.logo_url ? (
                     <img
                       src={membership.company.logo_url}
                       alt={membership.company.name}
-                      className="w-14 h-14 rounded-lg object-cover border border-white/10"
+                      className="w-14 h-14 rounded-xl object-cover border border-gray-200 dark:border-slate-600"
                     />
                   ) : (
-                    <div className="w-14 h-14 rounded-lg bg-primary/20 flex items-center justify-center border border-primary/30">
-                      <Building2 className="w-7 h-7 text-primary" />
+                    <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-[#F4511E] to-[#E0480F] flex items-center justify-center shadow-sm">
+                      <Building2 className="w-7 h-7 text-white" />
                     </div>
                   )}
 
                   {/* Info */}
                   <div className="flex-1 min-w-0">
-                    <h3 className="text-white font-semibold text-lg truncate">
+                    <h3 className="text-gray-900 dark:text-white font-semibold text-lg truncate">
                       {membership.company.name}
                     </h3>
                     <div className="flex items-center gap-2 mt-1">
@@ -267,7 +271,7 @@ export default function OnboardingPage() {
                   </div>
 
                   {/* Arrow */}
-                  <ChevronRight className="w-5 h-5 text-gray-500 group-hover:text-primary transition-colors" />
+                  <ChevronRight className="w-5 h-5 text-gray-300 group-hover:text-primary group-hover:translate-x-0.5 transition-all" />
                 </button>
               ))}
             </div>
@@ -275,13 +279,13 @@ export default function OnboardingPage() {
             {/* Create New Company Button — opens the wizard at step 1 */}
             <button
               onClick={handleCreateNew}
-              className="w-full bg-white/5 backdrop-blur-md rounded-xl p-4 border border-dashed border-gray-600 hover:border-primary/50 hover:bg-white/10 transition-all flex items-center gap-4 text-left group"
+              className="w-full bg-white/70 dark:bg-slate-800/60 rounded-2xl p-4 border-2 border-dashed border-gray-300 dark:border-slate-600 hover:border-primary/60 hover:bg-white transition-all flex items-center gap-4 text-left group"
             >
-              <div className="w-14 h-14 rounded-lg bg-white/5 flex items-center justify-center border border-gray-600 group-hover:border-primary/30">
-                <Plus className="w-7 h-7 text-gray-400 group-hover:text-primary transition-colors" />
+              <div className="w-14 h-14 rounded-xl bg-orange-50 dark:bg-slate-700 flex items-center justify-center border border-orange-100 dark:border-slate-600 group-hover:border-primary/40">
+                <Plus className="w-7 h-7 text-primary transition-colors" />
               </div>
               <div className="flex-1">
-                <h3 className="text-gray-300 font-semibold group-hover:text-white transition-colors">
+                <h3 className="text-gray-800 dark:text-slate-200 font-semibold group-hover:text-primary transition-colors">
                   สร้างบริษัทใหม่
                 </h3>
                 <p className="text-sm text-gray-500 dark:text-slate-400">เพิ่มบริษัทหรือร้านค้าใหม่</p>

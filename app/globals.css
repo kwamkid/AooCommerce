@@ -732,12 +732,9 @@ input[type="number"] {
   .auth-hub-pulse { animation: none; opacity: 0.4; }
 }
 
-/* Auth hero orbit — วงแหวนแกนเอียงหมุนตลอด (perspective 3D)
-   - .auth-orbit-plane เอียง 62° รอบแกน X + เฉียง 18° รอบแกน Z แล้วหมุน rotateZ ไปเรื่อยๆ
-   - bubble หมุนสวนกลับด้วย inverse transform → โลโก้หันหน้าเข้าหาคนดูเสมอ ไม่กลับหัว/ไม่เอียง
-   - perspective ทำให้ bubble ฝั่งไกลเล็กลงเอง = ได้ความลึกจริง */
+/* Auth hero orbit — วงแบน 2D หมุนช้าๆ (เลิกใช้ 3D perspective — อ่านยาก)
+   bubble หมุนสวนกลับ duration เท่ากัน → โลโก้ตั้งตรงตลอด */
 .auth-orbit {
-  perspective: 1100px;
   animation: auth-orbit-breathe 12s ease-in-out infinite;
 }
 @keyframes auth-orbit-breathe {
@@ -747,20 +744,18 @@ input[type="number"] {
 .auth-orbit-plane {
   position: absolute;
   inset: 0;
-  transform-style: preserve-3d;
-  animation: auth-orbit-spin 46s linear infinite;
+  animation: auth-orbit-spin 60s linear infinite;
 }
 @keyframes auth-orbit-spin {
-  from { transform: rotate(-18deg) rotateX(62deg) rotateZ(0deg); }
-  to   { transform: rotate(-18deg) rotateX(62deg) rotateZ(360deg); }
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
 }
-/* inverse ของ plane: rotateZ(-a) · rotateX(-62) · rotate(18) */
 .auth-orbit-face {
-  animation: auth-orbit-face 46s linear infinite;
+  animation: auth-orbit-face 60s linear infinite;
 }
 @keyframes auth-orbit-face {
-  from { transform: rotateZ(0deg) rotateX(-62deg) rotate(18deg); }
-  to   { transform: rotateZ(-360deg) rotateX(-62deg) rotate(18deg); }
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(-360deg); }
 }
 /* ย่อ-ขยายรายใบ (delay เหลื่อมกันใน component) */
 .auth-orbit-pulse {
@@ -768,9 +763,9 @@ input[type="number"] {
 }
 @keyframes auth-orbit-pulse {
   0%, 100% { transform: scale(1); }
-  50%      { transform: scale(1.15); }
+  50%      { transform: scale(1.13); }
 }
-/* เส้นโยงจาก hub ออกไปแต่ละช่องทาง (อยู่ในระนาบที่หมุน) */
+/* เส้นโยงจาก hub ออกไปแต่ละช่องทาง (หมุนไปกับวง) */
 .auth-orbit-spoke {
   position: absolute;
   height: 1px;
@@ -783,6 +778,4 @@ input[type="number"] {
   .auth-orbit-plane,
   .auth-orbit-face,
   .auth-orbit-pulse { animation: none; }
-  .auth-orbit-plane { transform: rotate(-18deg) rotateX(62deg); }
-  .auth-orbit-face { transform: rotateX(-62deg) rotate(18deg); }
 }
