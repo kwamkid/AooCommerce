@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { useFetchOnce } from '@/lib/use-fetch-once';
 import Image from 'next/image';
+import { FullPageLoading } from '@/components/ui/Loading';
 import { Building2, AlertCircle, Loader2, Plus, ChevronRight, Users, User, LogOut } from 'lucide-react';
 
 interface CompanyMembership {
@@ -140,12 +141,7 @@ export default function OnboardingPage() {
   // Show loading while checking auth
   if (loading || loadingCompanies) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-orange-50 via-white to-amber-50 dark:from-slate-900 dark:via-slate-900 dark:to-slate-800">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-600 dark:text-slate-300">กำลังโหลด...</p>
-        </div>
-      </div>
+      <FullPageLoading label="กำลังโหลด..." />
     );
   }
 

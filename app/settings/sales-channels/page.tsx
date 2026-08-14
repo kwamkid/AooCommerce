@@ -14,7 +14,8 @@ import Badge from '@/components/ui/Badge';
 import Toggle from '@/components/ui/Toggle';
 import FormSelect from '@/components/ui/FormSelect';
 import PlatformIcon from '@/components/ui/PlatformIcon';
-import { LoadingCard, NoPermissionCard } from '@/components/ui/StateCard';
+import { NoPermissionCard } from '@/components/ui/StateCard';
+import { PageSkeleton } from '@/components/ui/Skeleton';
 import { useAuth } from '@/lib/auth-context';
 import { can } from '@/lib/permissions';
 import { useToast } from '@/lib/toast-context';
@@ -271,7 +272,9 @@ export default function SalesChannelsPage() {
   if (authLoading || loading) {
     return (
       <Layout>
-        <LoadingCard />
+        <Container size="full">
+          <PageSkeleton variant="list" />
+        </Container>
       </Layout>
     );
   }

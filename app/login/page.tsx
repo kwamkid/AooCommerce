@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 import { AlertCircle, Loader2 } from 'lucide-react';
 import { AuthSplitShell, GoogleLogo } from '@/components/auth/AuthHero';
+import { FullPageLoading } from '@/components/ui/Loading';
 
 // Google-only login — email/password ถูกถอดออกแล้ว (2026-08-14)
 export default function LoginPage() {
@@ -35,14 +36,7 @@ export default function LoginPage() {
   };
 
   if (checkingAuth) {
-    return (
-      <div className="flex items-center justify-center min-h-dvh bg-gray-50 dark:bg-slate-900">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-500 dark:text-slate-400">กำลังตรวจสอบ...</p>
-        </div>
-      </div>
-    );
+    return <FullPageLoading label="กำลังตรวจสอบ..." />;
   }
 
   return (

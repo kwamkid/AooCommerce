@@ -23,7 +23,11 @@
 | Content tabs (underlined border-b style) | `Tabs` (state-based via `onSelect` หรือ route-based via `href`) | inline `<div className="flex border-b">...<button border-b-2>...` chain — **อย่าสับสนกับ `StatusTabs`** ที่ใช้สำหรับ list-page filter (count ใหญ่ + solid pill) |
 | Social platform icon (FB / LINE / IG / TikTok) | `PlatformIcon` (`id`, `size`, `title`) | inline `<Image src="/social/X.svg">` — **ห้ามสร้าง local FbIcon/LineIcon/IgIcon helper** ในแต่ละหน้า (duplicated 3 ครั้งแล้วต้อง refactor) |
 | หน้าจอขายแบบ POS (product grid + ตะกร้า + barcode/กล้องสแกน + mobile tab) | `PosSaleScreen` (`components/pos/`) — props `warehouseId`/`topBar`/`onCheckout` + ref `clearCart()`/`refreshProducts()` + `enablePromotions?`/`extraProductParams?` | copy โค้ดหน้า `/pos` ไปแก้ — `/pos` (session+ชำระเงิน+ใบเสร็จ) และ `/pc` (บันทึกยอด PC ไม่จับเงิน) ห่อ component เดียวกันอยู่แล้ว |
-| Loading state (spinner + message) | `LoadingCard` (from `StateCard.tsx`) | สร้าง spinner card เอง |
+| Loading — **ทั้งหน้า** (ยังไม่รู้จะ render อะไร: รอ auth, route transition, สลับบริษัท) | `FullPageLoading` (from `Loading.tsx`) — splash สีแบรนด์ + โลโก้หมุน | สร้าง `border-4 border-primary animate-spin` เอง |
+| Loading — **ในพื้นที่ content** (มี Layout/Sidebar แล้ว) | `PageLoading` (from `Loading.tsx`) | inline spinner + ข้อความเอง |
+| Loading — **รู้หน้าตาผลลัพธ์อยู่แล้ว** (list/form/dashboard/detail) | `PageSkeleton variant="list\|form\|dashboard\|detail"` (from `Skeleton.tsx`) — หรือชิ้นย่อย `SkeletonTable/List/Form/Stats/Card/Text` | ใช้ spinner ทั้งที่รู้ layout (skeleton รู้สึกเร็วกว่า + หน้าไม่เด้ง) |
+| Loading — spinner เปล่าในปุ่ม/แถว | `Spinner` (from `Loading.tsx`) หรือ `Loader2` ของ lucide | — |
+| Loading state (spinner + message) ในกรอบการ์ด | `LoadingCard` (from `StateCard.tsx`) | สร้าง spinner card เอง |
 | Empty / no-data state | `EmptyCard` (from `StateCard.tsx`) | สร้าง empty card เอง |
 | ไม่มีสิทธิ์ guard | `NoPermissionCard` (from `StateCard.tsx`) | สร้าง guard เอง |
 | Done / result screen (success/error icon + summary + actions) | `DoneCard` (from `StateCard.tsx`) | สร้าง done screen เอง |
