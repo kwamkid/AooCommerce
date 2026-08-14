@@ -27,7 +27,6 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   ArrowLeft,
-  ChevronRight,
   Building2,
   UserCog,
   Check,
@@ -348,7 +347,7 @@ export default function Sidebar() {
         <div className="flex flex-col h-full">
           {/* Logo */}
           <div className="flex items-center h-16 border-b border-gray-200 dark:border-slate-800 px-3 gap-2">
-            <Link href="/dashboard" className="flex-1 flex items-center justify-center min-w-0">
+            <Link href="/dashboard" className={`flex-1 flex items-center min-w-0 ${collapsed ? 'justify-center' : 'justify-start pl-1'}`}>
               <Image
                 src="/logo.svg"
                 alt="AooCommerce"
@@ -468,7 +467,7 @@ export default function Sidebar() {
                 <span className="nav-label text-sm font-medium ml-3">ย้อนกลับ</span>
               </button>
               <h3 className="nav-section-title text-[11px] font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-[0.08em] mt-1 mb-1.5 px-3">
-                ตั้งค่าระบบ
+                ตั้งค่า
               </h3>
               {settingsItems.map(item => (
                 <Link
@@ -803,7 +802,7 @@ export default function Sidebar() {
             )}
           </nav>
 
-          {/* ตั้งค่าระบบ — ปุ่มเปิด drill-down (ปักไว้ล่างสุดเหนือปุ่มออกจากระบบ) */}
+          {/* ตั้งค่า — ปุ่มเปิด drill-down (ปักไว้ล่างสุดเหนือปุ่มออกจากระบบ) */}
           {!authLoading && !companyLoading && effectiveRoles.has('admin') && navView === 'main' && (
             <div className="px-3 pb-2">
               <button
@@ -811,8 +810,7 @@ export default function Sidebar() {
                 className="flex items-center w-full px-3 py-2 rounded-lg text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-800 hover:text-gray-900 dark:hover:text-white transition-colors"
               >
                 <Settings className="w-[18px] h-[18px] flex-shrink-0" />
-                <span className="nav-label text-sm font-medium ml-3 flex-1 text-left">ตั้งค่าระบบ</span>
-                <ChevronRight className="nav-label w-4 h-4 text-gray-400 flex-shrink-0" />
+                <span className="nav-label text-sm font-medium ml-3 flex-1 text-left">ตั้งค่า</span>
               </button>
             </div>
           )}
