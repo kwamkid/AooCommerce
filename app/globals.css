@@ -732,31 +732,57 @@ input[type="number"] {
   .auth-hub-pulse { animation: none; opacity: 0.4; }
 }
 
-/* Auth hero ring — หมุนช้าๆ + หายใจ (ยืด/ขยาย)
-   bubble หมุนสวนด้วย duration เท่ากัน → โลโก้ตั้งตรงตลอด ไม่กลับหัว */
-.auth-ring-breathe {
-  animation: auth-ring-breathe 10s ease-in-out infinite;
+/* Auth hero orbit — วงแหวนแกนเอียงหมุนตลอด (perspective 3D)
+   - .auth-orbit-plane เอียง 62° รอบแกน X + เฉียง 18° รอบแกน Z แล้วหมุน rotateZ ไปเรื่อยๆ
+   - bubble หมุนสวนกลับด้วย inverse transform → โลโก้หันหน้าเข้าหาคนดูเสมอ ไม่กลับหัว/ไม่เอียง
+   - perspective ทำให้ bubble ฝั่งไกลเล็กลงเอง = ได้ความลึกจริง */
+.auth-orbit {
+  perspective: 1100px;
+  animation: auth-orbit-breathe 12s ease-in-out infinite;
 }
-@keyframes auth-ring-breathe {
+@keyframes auth-orbit-breathe {
   0%, 100% { transform: scale(1); }
-  50%      { transform: scale(1.07); }
+  50%      { transform: scale(1.05); }
 }
-.auth-ring-spin {
-  animation: auth-ring-spin 60s linear infinite;
+.auth-orbit-plane {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+  animation: auth-orbit-spin 46s linear infinite;
 }
-@keyframes auth-ring-spin {
-  from { transform: rotate(0deg); }
-  to   { transform: rotate(360deg); }
+@keyframes auth-orbit-spin {
+  from { transform: rotate(-18deg) rotateX(62deg) rotateZ(0deg); }
+  to   { transform: rotate(-18deg) rotateX(62deg) rotateZ(360deg); }
 }
-.auth-ring-counter {
-  animation: auth-ring-counter 60s linear infinite;
+/* inverse ของ plane: rotateZ(-a) · rotateX(-62) · rotate(18) */
+.auth-orbit-face {
+  animation: auth-orbit-face 46s linear infinite;
 }
-@keyframes auth-ring-counter {
-  from { transform: rotate(0deg); }
-  to   { transform: rotate(-360deg); }
+@keyframes auth-orbit-face {
+  from { transform: rotateZ(0deg) rotateX(-62deg) rotate(18deg); }
+  to   { transform: rotateZ(-360deg) rotateX(-62deg) rotate(18deg); }
+}
+/* ย่อ-ขยายรายใบ (delay เหลื่อมกันใน component) */
+.auth-orbit-pulse {
+  animation: auth-orbit-pulse 4.5s ease-in-out infinite;
+}
+@keyframes auth-orbit-pulse {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.15); }
+}
+/* เส้นโยงจาก hub ออกไปแต่ละช่องทาง (อยู่ในระนาบที่หมุน) */
+.auth-orbit-spoke {
+  position: absolute;
+  height: 1px;
+  transform-origin: 0 50%;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.45), rgba(255, 255, 255, 0.08));
+  pointer-events: none;
 }
 @media (prefers-reduced-motion: reduce) {
-  .auth-ring-breathe,
-  .auth-ring-spin,
-  .auth-ring-counter { animation: none; }
+  .auth-orbit,
+  .auth-orbit-plane,
+  .auth-orbit-face,
+  .auth-orbit-pulse { animation: none; }
+  .auth-orbit-plane { transform: rotate(-18deg) rotateX(62deg); }
+  .auth-orbit-face { transform: rotateX(-62deg) rotate(18deg); }
 }

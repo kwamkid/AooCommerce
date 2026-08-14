@@ -18,8 +18,8 @@ const CHANNEL_BUBBLES: Array<{ key: string; node: React.ReactNode }> = [
   { key: 'consignment', node: <Handshake className="w-7 h-7 text-white" /> },
 ];
 
-const RING_SIZE = 380;   // px — กล่องวงกลมทั้งชุด
-const RING_RADIUS = 150; // px — รัศมีวาง bubble
+const RING_SIZE = 420;   // px — กล่องวงโคจรทั้งชุด
+const RING_RADIUS = 168; // px — รัศมีวาง bubble
 const BUBBLE_SIZE = 56;
 const HUB_SIZE = 96;
 
@@ -48,32 +48,49 @@ export function AuthSplitShell({ children }: { children: React.ReactNode }) {
         {/* Readability overlay — เข้มขึ้นทางล่างซ้ายที่มีข้อความ */}
         <div className="absolute inset-0 -z-10 bg-gradient-to-t from-black/65 via-black/20 to-black/25" />
 
-        {/* Channel ring — เจ้าของธุรกิจตรงกลาง ล้อมด้วยทุกช่องทาง */}
+        {/* Channel orbit — เจ้าของธุรกิจเป็น hub ตรงกลาง ล้อมด้วยวงโคจรแกนเอียงที่หมุนตลอด */}
         <div className="absolute left-1/2 top-[38%] -translate-x-1/2 -translate-y-1/2">
-          <div className="auth-ring-breathe relative" style={{ width: RING_SIZE, height: RING_SIZE }}>
-            {/* วงที่หมุน — เส้นวงแหวน + bubble ทุกใบ */}
-            <div className="auth-ring-spin absolute inset-0">
+          <div className="auth-orbit relative" style={{ width: RING_SIZE, height: RING_SIZE }}>
+            {/* ระนาบวงโคจร (เอียง + หมุน) — เส้นวงแหวน, เส้นโยง, bubble ทุกใบ */}
+            <div className="auth-orbit-plane">
               <div
-                className="absolute rounded-full border border-white/20"
+                className="absolute rounded-full border border-white/25"
                 style={{ inset: RING_SIZE / 2 - RING_RADIUS }}
               />
-              {/* Channel bubbles เรียงรอบวง เริ่มจากตำแหน่ง 12 นาฬิกา */}
               {CHANNEL_BUBBLES.map((b, i) => {
-                const angle = ((-90 + i * (360 / CHANNEL_BUBBLES.length)) * Math.PI) / 180;
-                const x = RING_SIZE / 2 + RING_RADIUS * Math.cos(angle);
-                const y = RING_SIZE / 2 + RING_RADIUS * Math.sin(angle);
+                const deg = -90 + i * (360 / CHANNEL_BUBBLES.length);
+                const rad = (deg * Math.PI) / 180;
+                const x = RING_SIZE / 2 + RING_RADIUS * Math.cos(rad);
+                const y = RING_SIZE / 2 + RING_RADIUS * Math.sin(rad);
                 return (
-                  <div
-                    key={b.key}
-                    className="auth-bubble auth-ring-counter"
-                    style={{
-                      width: BUBBLE_SIZE,
-                      height: BUBBLE_SIZE,
-                      left: x - BUBBLE_SIZE / 2,
-                      top: y - BUBBLE_SIZE / 2,
-                    }}
-                  >
-                    {b.node}
+                  <div key={b.key}>
+                    {/* เส้นโยงจาก hub → ช่องทาง (อยู่ในระนาบ จึงเอียง/หมุนตามวง) */}
+                    <div
+                      className="auth-orbit-spoke"
+                      style={{
+                        left: RING_SIZE / 2,
+                        top: RING_SIZE / 2,
+                        width: RING_RADIUS - BUBBLE_SIZE / 2,
+                        transform: `rotate(${deg}deg)`,
+                      }}
+                    />
+                    {/* Bubble — หมุนสวนกลับให้โลโก้ตั้งตรง, ข้างในย่อ-ขยายเป็นจังหวะ */}
+                    <div
+                      className="auth-orbit-face absolute"
+                      style={{
+                        width: BUBBLE_SIZE,
+                        height: BUBBLE_SIZE,
+                        left: x - BUBBLE_SIZE / 2,
+                        top: y - BUBBLE_SIZE / 2,
+                      }}
+                    >
+                      <div
+                        className="auth-bubble auth-orbit-pulse inset-0"
+                        style={{ animationDelay: `${(i * 0.45).toFixed(2)}s` }}
+                      >
+                        {b.node}
+                      </div>
+                    </div>
                   </div>
                 );
               })}
