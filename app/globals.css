@@ -701,7 +701,7 @@ input[type="number"] {
   }
 }
 
-/* Auth hero — floating channel bubbles over the video */
+/* Auth hero — channel ring (hub-and-spoke) over the video */
 .auth-bubble {
   position: absolute;
   display: flex;
@@ -713,12 +713,21 @@ input[type="number"] {
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
-  animation: auth-bubble-float 6s ease-in-out infinite;
 }
-@keyframes auth-bubble-float {
-  0%, 100% { transform: translateY(0); }
-  50%      { transform: translateY(-8px); }
+/* Soft pulse ring behind the center hub */
+.auth-hub-pulse {
+  position: absolute;
+  inset: -14px;
+  border-radius: 9999px;
+  border: 1.5px solid rgba(255, 255, 255, 0.35);
+  animation: auth-hub-pulse 3s ease-out infinite;
+  pointer-events: none;
+}
+@keyframes auth-hub-pulse {
+  0%   { transform: scale(0.9); opacity: 0.7; }
+  70%  { transform: scale(1.25); opacity: 0; }
+  100% { transform: scale(1.25); opacity: 0; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .auth-bubble { animation: none; }
+  .auth-hub-pulse { animation: none; opacity: 0.4; }
 }

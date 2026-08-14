@@ -1,29 +1,27 @@
 'use client';
 
 import Image from 'next/image';
-import { Phone, ScanBarcode, Building2, Handshake } from 'lucide-react';
+import { Phone, ScanBarcode, Building2, Handshake, UserRound } from 'lucide-react';
 
-// ช่องทางการขายทั้งหมดของระบบ — ลอยเป็น glass bubble บนวิดีโอ hero
-// (แพลตฟอร์มมี SVG ใช้โลโก้จริง; ช่องทาง offline ใช้ไอคอน lucide สีขาว)
-const HERO_BUBBLES: Array<{
-  key: string;
-  top: string;
-  left: string;
-  size: number;
-  delay: string;
-  node: React.ReactNode;
-}> = [
-  { key: 'shopee', top: '16%', left: '10%', size: 64, delay: '0s', node: <Image src="/marketplace/shopee.svg" alt="Shopee" width={34} height={34} /> },
-  { key: 'lazada', top: '24%', left: '42%', size: 56, delay: '0.7s', node: <Image src="/marketplace/lazada.svg" alt="Lazada" width={30} height={30} /> },
-  { key: 'tiktok', top: '14%', left: '66%', size: 56, delay: '1.4s', node: <Image src="/social/tiktok.svg" alt="TikTok" width={30} height={30} /> },
-  { key: 'facebook', top: '34%', left: '78%', size: 64, delay: '2.1s', node: <Image src="/social/facebook.svg" alt="Facebook" width={34} height={34} /> },
-  { key: 'instagram', top: '40%', left: '14%', size: 56, delay: '2.8s', node: <Image src="/social/instagram.svg" alt="Instagram" width={30} height={30} /> },
-  { key: 'line', top: '48%', left: '55%', size: 56, delay: '3.5s', node: <Image src="/social/line_oa.svg" alt="LINE" width={30} height={30} /> },
-  { key: 'call', top: '27%', left: '25%', size: 48, delay: '1s', node: <Phone className="w-6 h-6 text-white" /> },
-  { key: 'pos', top: '55%', left: '30%', size: 56, delay: '1.8s', node: <ScanBarcode className="w-7 h-7 text-white" /> },
-  { key: 'department', top: '50%', left: '84%', size: 48, delay: '2.5s', node: <Building2 className="w-6 h-6 text-white" /> },
-  { key: 'consignment', top: '62%', left: '68%', size: 48, delay: '3.2s', node: <Handshake className="w-6 h-6 text-white" /> },
+// ช่องทางการขายทั้งหมด — เรียงเป็นวงกลมรอบ "เจ้าของธุรกิจ" (hub-and-spoke)
+// แพลตฟอร์มมี SVG ใช้โลโก้จริง; ช่องทาง offline ใช้ไอคอน lucide สีขาว
+const CHANNEL_BUBBLES: Array<{ key: string; node: React.ReactNode }> = [
+  { key: 'shopee', node: <Image src="/marketplace/shopee.svg" alt="Shopee" width={30} height={30} /> },
+  { key: 'lazada', node: <Image src="/marketplace/lazada.svg" alt="Lazada" width={30} height={30} /> },
+  { key: 'tiktok', node: <Image src="/social/tiktok.svg" alt="TikTok" width={30} height={30} /> },
+  { key: 'facebook', node: <Image src="/social/facebook.svg" alt="Facebook" width={30} height={30} /> },
+  { key: 'instagram', node: <Image src="/social/instagram.svg" alt="Instagram" width={30} height={30} /> },
+  { key: 'line', node: <Image src="/social/line_oa.svg" alt="LINE" width={30} height={30} /> },
+  { key: 'call', node: <Phone className="w-7 h-7 text-white" /> },
+  { key: 'pos', node: <ScanBarcode className="w-7 h-7 text-white" /> },
+  { key: 'department', node: <Building2 className="w-7 h-7 text-white" /> },
+  { key: 'consignment', node: <Handshake className="w-7 h-7 text-white" /> },
 ];
+
+const RING_SIZE = 380;   // px — กล่องวงกลมทั้งชุด
+const RING_RADIUS = 150; // px — รัศมีวาง bubble
+const BUBBLE_SIZE = 56;
+const HUB_SIZE = 96;
 
 // Auth layout (login/register) — split-screen แบบ aoosocial:
 // ซ้าย (desktop เท่านั้น) = วิดีโอ multi-channel commerce (Higgsfield,
@@ -50,16 +48,50 @@ export function AuthSplitShell({ children }: { children: React.ReactNode }) {
         {/* Readability overlay — เข้มขึ้นทางล่างซ้ายที่มีข้อความ */}
         <div className="absolute inset-0 -z-10 bg-gradient-to-t from-black/65 via-black/20 to-black/25" />
 
-        {/* Floating channel bubbles */}
-        {HERO_BUBBLES.map(b => (
-          <div
-            key={b.key}
-            className="auth-bubble"
-            style={{ top: b.top, left: b.left, width: b.size, height: b.size, animationDelay: b.delay }}
-          >
-            {b.node}
+        {/* Channel ring — เจ้าของธุรกิจตรงกลาง ล้อมด้วยทุกช่องทาง */}
+        <div className="absolute left-1/2 top-[38%] -translate-x-1/2 -translate-y-1/2">
+          <div className="relative" style={{ width: RING_SIZE, height: RING_SIZE }}>
+            {/* เส้นวงแหวนจางๆ ผ่านจุดกึ่งกลาง bubble */}
+            <div
+              className="absolute rounded-full border border-white/20"
+              style={{ inset: RING_SIZE / 2 - RING_RADIUS }}
+            />
+            {/* Channel bubbles เรียงรอบวง เริ่มจากตำแหน่ง 12 นาฬิกา */}
+            {CHANNEL_BUBBLES.map((b, i) => {
+              const angle = ((-90 + i * (360 / CHANNEL_BUBBLES.length)) * Math.PI) / 180;
+              const x = RING_SIZE / 2 + RING_RADIUS * Math.cos(angle);
+              const y = RING_SIZE / 2 + RING_RADIUS * Math.sin(angle);
+              return (
+                <div
+                  key={b.key}
+                  className="auth-bubble"
+                  style={{
+                    width: BUBBLE_SIZE,
+                    height: BUBBLE_SIZE,
+                    left: x - BUBBLE_SIZE / 2,
+                    top: y - BUBBLE_SIZE / 2,
+                  }}
+                >
+                  {b.node}
+                </div>
+              );
+            })}
+            {/* Hub — เจ้าของธุรกิจ */}
+            <div
+              className="auth-bubble !rounded-full"
+              style={{
+                width: HUB_SIZE,
+                height: HUB_SIZE,
+                left: RING_SIZE / 2 - HUB_SIZE / 2,
+                top: RING_SIZE / 2 - HUB_SIZE / 2,
+                background: 'rgba(255, 255, 255, 0.2)',
+              }}
+            >
+              <div className="auth-hub-pulse" />
+              <UserRound className="w-11 h-11 text-white" />
+            </div>
           </div>
-        ))}
+        </div>
 
         <div className="relative h-full flex flex-col justify-between p-10 xl:p-14 text-white">
           {/* Brand (top) */}
