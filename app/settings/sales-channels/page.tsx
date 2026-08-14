@@ -19,6 +19,7 @@ import { useAuth } from '@/lib/auth-context';
 import { can } from '@/lib/permissions';
 import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
+import Tabs from '@/components/ui/Tabs';
 import {
   Tag, Plus, Pencil, Trash2, Lock, MessageCircle, Link as LinkIcon, Star,
 } from 'lucide-react';
@@ -43,12 +44,23 @@ type ModalMode = 'create' | 'edit' | null;
 
 const PLATFORM_OPTIONS = [
   { id: '', label: '— ไม่ระบุ —' },
-  { id: 'line', label: 'LINE' },
-  { id: 'facebook', label: 'Facebook' },
-  { id: 'instagram', label: 'Instagram' },
-  { id: 'tiktok', label: 'TikTok' },
-  { id: 'shopee', label: 'Shopee' },
-  { id: 'lazada', label: 'Lazada' },
+  { id: 'line', label: 'LINE', icon: <PlatformIcon id="line" size={16} /> },
+  { id: 'facebook', label: 'Facebook', icon: <PlatformIcon id="facebook" size={16} /> },
+  { id: 'instagram', label: 'Instagram', icon: <PlatformIcon id="instagram" size={16} /> },
+  { id: 'tiktok', label: 'TikTok', icon: <PlatformIcon id="tiktok" size={16} /> },
+  { id: 'shopee', label: 'Shopee', icon: <PlatformIcon id="shopee" size={16} /> },
+  { id: 'lazada', label: 'Lazada', icon: <PlatformIcon id="lazada" size={16} /> },
+];
+
+// Platform filter tabs — same pattern as /settings/chat-channels
+const PLATFORM_TABS = [
+  { key: 'all', label: 'ทั้งหมด' },
+  { key: 'facebook', label: 'FB / IG', activeColorClass: 'border-facebook text-facebook' },
+  { key: 'line', label: 'LINE', activeColorClass: 'border-line text-line' },
+  { key: 'tiktok', label: 'TikTok', activeColorClass: 'border-gray-900 text-gray-900 dark:border-white dark:text-white' },
+  { key: 'shopee', label: 'Shopee', activeColorClass: 'border-[#EE4D2D] text-[#EE4D2D]' },
+  { key: 'lazada', label: 'Lazada', activeColorClass: 'border-[#0F146E] text-[#0F146E] dark:border-blue-400 dark:text-blue-400' },
+  { key: 'none', label: 'ไม่ระบุ' },
 ];
 
 export default function SalesChannelsPage() {
@@ -58,6 +70,7 @@ export default function SalesChannelsPage() {
   const [channels, setChannels] = useState<SalesChannel[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [activeTab, setActiveTab] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(20);
 
@@ -93,15 +106,24 @@ export default function SalesChannelsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authLoading]);
 
+  // FB tab covers facebook + instagram (same grouping as chat-channels page)
+  const matchesTab = (c: SalesChannel, tab: string) => {
+    if (tab === 'all') return true;
+    if (tab === 'none') return !c.platform;
+    if (tab === 'facebook') return c.platform === 'facebook' || c.platform === 'instagram';
+    return c.platform === tab;
+  };
+
   const filtered = useMemo(() => {
+    const byTab = channels.filter(c => matchesTab(c, activeTab));
     const q = searchTerm.trim().toLowerCase();
-    if (!q) return channels;
-    return channels.filter(c =>
+    if (!q) return byTab;
+    return byTab.filter(c =>
       c.name.toLowerCase().includes(q) ||
       c.code.toLowerCase().includes(q) ||
       (c.platform || '').toLowerCase().includes(q)
     );
-  }, [channels, searchTerm]);
+  }, [channels, searchTerm, activeTab]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / rowsPerPage));
   const startIndex = (currentPage - 1) * rowsPerPage;
@@ -389,6 +411,21 @@ export default function SalesChannelsPage() {
             เพิ่ม
           </Button>
         </div>
+
+        {/* Platform tabs — same pattern as chat-channels */}
+        <Tabs
+          activeKey={activeTab}
+          onSelect={(key) => { setActiveTab(key); setCurrentPage(1); }}
+          tabs={PLATFORM_TABS.map(t => ({
+            key: t.key,
+            label: t.label,
+            icon: t.key !== 'all' && t.key !== 'none'
+              ? <PlatformIcon id={t.key} size={16} />
+              : undefined,
+            count: channels.filter(c => matchesTab(c, t.key)).length || undefined,
+            activeColorClass: t.activeColorClass,
+          }))}
+        />
 
         {/* Search */}
         <div className="data-filter-card">
