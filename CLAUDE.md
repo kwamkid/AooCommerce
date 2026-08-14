@@ -462,6 +462,15 @@ marketplace_accounts → marketplace_product_links → product_variations
 - **เปิดใช้ครั้งแรก**: รัน `node scripts/enable-shopee-webchat-push.mjs --apply` (partner-level, ครั้งเดียวต่อ app) เพื่อเปิด push code 10
 - media url จาก webhook อาจเป็น CDN file id เปล่า → `resolveShopeeCdnUrl()` แปลงเป็น URL เต็ม
 
+### Lazada Chat — IM API (เพิ่ม 2026-08-14 — Lazada integration แรกของระบบ)
+- **Base layer ใหม่** [lib/lazada/api.ts](lib/lazada/api.ts): signing แบบ TOP (sort params → concat path+kv → HMAC-SHA256 **hex ตัวใหญ่**, timestamp เป็น **มิลลิวินาที**), OAuth `/auth/token/create|refresh` ที่ auth.lazada.com, `ensureValidToken()` + auto-deactivate — env: `LAZADA_APP_KEY`, `LAZADA_APP_SECRET` (สมัคร app ที่ open.lazada.com)
+- **OAuth**: `/api/lazada/oauth/auth-url` + `/callback` ใช้ signed state จาก [lib/oauth-state.ts](lib/oauth-state.ts) เหมือน Shopee/TikTok — account เก็บใน `marketplace_accounts` platform `'lazada'` (`shop_id` = seller_id) — เชื่อมที่ `/settings/integrations` tab Lazada
+- **Ingest แบบ notify-then-pull**: webhook `/api/lazada/webhook` (**ต้องตอบ 200 ใน 500ms** — ตอบทันที ทำทุกอย่างใน `after()` รวมถึง log) → payload IM ไม่มี spec แน่นอน → แค่ trigger `syncSession()`/`syncRecentSessions()` ใน [lib/services/chat/lazada.ts](lib/services/chat/lazada.ts) ดึงความจริงจาก `/im/session/*` + `/im/message/list` (idempotent, dedupe ด้วย message_id) — webhook signature: `Authorization` = HMAC(app_key + raw body)
+- **Tables**: `lazada_contacts` (1 row = 1 session) + `lazada_messages` + RPC + realtime (pattern เดียวกับ shopee_)
+- **ส่งข้อความ**: `/im/message/send` template_id 1=text 3=image (แนบ img_url ภายนอกได้) — direction จาก `from_account_type` (1=buyer, 2=seller)
+- **Order sync Lazada ยังไม่ทำ** — webhook log order push (message_type 0) ไว้เป็น audit เฉย ๆ; ต่อยอดภายหลังได้จาก base layer นี้
+- **เปิดใช้**: สร้าง app open.lazada.com → ใส่ env 2 ตัว → เชื่อมร้านที่ Integrations → เปิดแชทรายร้านที่ `/settings/chat-channels#lazada` (เปิดครั้งแรกจะ backfill 10 sessions ล่าสุดให้) → ตั้ง Callback URL `/api/lazada/webhook` ใน Lazada Console > Push Mechanism
+
 ---
 
 ## 🏬 PC Counter Sales (เพิ่ม 2026-07-26 — ครบทั้ง 3 Phase)

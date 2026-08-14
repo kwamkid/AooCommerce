@@ -20,7 +20,7 @@ import { FbTemplateRenderer, StoryMentionBubble, StoryReplyBubble } from './rend
 
 interface MessageBubbleProps {
   msg: ChatMessage;
-  platform: 'line' | 'facebook' | 'shopee';
+  platform: 'line' | 'facebook' | 'shopee' | 'lazada';
   direction: 'incoming' | 'outgoing';
   onOpenLightbox?: (url: string) => void;
   onImageLoad?: () => void;

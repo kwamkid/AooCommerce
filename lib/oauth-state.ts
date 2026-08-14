@@ -17,7 +17,7 @@ import { supabaseAdmin, can } from '@/lib/supabase-admin';
 import { extractRequestToken } from '@/lib/auth/cookie-token';
 import { verifyAccessToken } from '@/lib/auth/verify-token';
 
-export type OAuthPlatform = 'shopee' | 'tiktok';
+export type OAuthPlatform = 'shopee' | 'tiktok' | 'lazada';
 
 export interface OAuthStatePayload {
   companyId: string;

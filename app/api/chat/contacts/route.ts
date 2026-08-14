@@ -52,6 +52,7 @@ export async function GET(request: NextRequest) {
     let queryLine = !platform || platform === 'line';
     let queryFb = !platform || platform === 'facebook';
     let queryShopee = !platform || platform === 'shopee';
+    let queryLazada = !platform || platform === 'lazada';
 
     // We need accounts for account_id filtering — but we can start contacts queries in parallel
     // For account_id filtering, we fetch accounts first (fast query)
@@ -70,6 +71,7 @@ export async function GET(request: NextRequest) {
         queryLine = selectedAccount.platform === 'line';
         queryFb = selectedAccount.platform === 'facebook';
         queryShopee = selectedAccount.platform === 'shopee';
+        queryLazada = selectedAccount.platform === 'lazada';
         const sameplatformCount = accounts.filter(a => a.platform === selectedAccount.platform).length;
         includeNullAccountId = sameplatformCount === 1;
       }
@@ -87,13 +89,15 @@ export async function GET(request: NextRequest) {
     const tagLineContactIds = tagContactIds?.filter(t => t.platform === 'line').map(t => t.id) || null;
     const tagFbContactIds = tagContactIds?.filter(t => t.platform === 'facebook').map(t => t.id) || null;
     const tagShopeeContactIds = tagContactIds?.filter(t => t.platform === 'shopee').map(t => t.id) || null;
+    const tagLazadaContactIds = tagContactIds?.filter(t => t.platform === 'lazada').map(t => t.id) || null;
     // Only force linkedOnly when tag filter matches customers only (no contact-level tags)
     const tagLinkedOnly = linkedOnly || (!!tagCustomerIds && !tagContactIds);
     const linePromise = queryLine ? fetchLineContacts(companyId, { search, unreadOnly, linkedOnly: tagLinkedOnly, unlinkedOnly, accountId, includeNullAccountId, customerIds: tagCustomerIds, contactIds: tagLineContactIds }) : Promise.resolve([]);
     const fbPromise = queryFb ? fetchFbContacts(companyId, { search, unreadOnly, linkedOnly: tagLinkedOnly, unlinkedOnly, accountId, includeNullAccountId, customerIds: tagCustomerIds, contactIds: tagFbContactIds }) : Promise.resolve([]);
     const shopeePromise = queryShopee ? fetchShopeeContacts(companyId, { search, unreadOnly, linkedOnly: tagLinkedOnly, unlinkedOnly, accountId, includeNullAccountId, customerIds: tagCustomerIds, contactIds: tagShopeeContactIds }) : Promise.resolve([]);
+    const lazadaPromise = queryLazada ? fetchLazadaContacts(companyId, { search, unreadOnly, linkedOnly: tagLinkedOnly, unlinkedOnly, accountId, includeNullAccountId, customerIds: tagCustomerIds, contactIds: tagLazadaContactIds }) : Promise.resolve([]);
 
-    const [lineContacts, fbContacts, shopeeContacts, accounts] = await Promise.all([linePromise, fbPromise, shopeePromise, accountsPromise]);
+    const [lineContacts, fbContacts, shopeeContacts, lazadaContacts, accounts] = await Promise.all([linePromise, fbPromise, shopeePromise, lazadaPromise, accountsPromise]);
 
     // Build account lookup
     const accountMap = new Map<string, { name: string; platform: string; picture_url?: string }>();
@@ -111,6 +115,8 @@ export async function GET(request: NextRequest) {
           : (creds.page_picture_url || undefined);
       } else if (a.platform === 'shopee') {
         picture_url = '/marketplace/shopee.svg';
+      } else if (a.platform === 'lazada') {
+        picture_url = '/marketplace/lazada.svg';
       }
       const info = { name: a.account_name, platform: a.platform, picture_url };
       accountMap.set(a.id, info);
@@ -123,8 +129,8 @@ export async function GET(request: NextRequest) {
     // Normalize to unified format
     type UnifiedContact = {
       id: string;
-      platform: 'line' | 'facebook' | 'shopee';
-      source?: 'line' | 'facebook' | 'instagram' | 'shopee';
+      platform: 'line' | 'facebook' | 'shopee' | 'lazada';
+      source?: 'line' | 'facebook' | 'instagram' | 'shopee' | 'lazada';
       platform_user_id: string;
       display_name: string;
       picture_url?: string;
@@ -203,6 +209,30 @@ export async function GET(request: NextRequest) {
         referral_ad_id: c.referral_ad_id,
         referral_ad_title: c.referral_ad_title,
         referral_data: c.referral_data,
+      });
+    }
+
+    for (const c of lazadaContacts) {
+      const acc = (c.chat_account_id ? accountMap.get(c.chat_account_id) : undefined) || defaultAccountByPlatform.get('lazada');
+      unified.push({
+        id: c.id,
+        platform: 'lazada',
+        source: 'lazada',
+        platform_user_id: String(c.buyer_user_id || c.session_id),
+        display_name: c.display_name,
+        picture_url: c.picture_url,
+        status: c.status,
+        customer_id: c.customer_id,
+        customer: c.customer,
+        unread_count: c.unread_count || 0,
+        last_message_at: c.last_message_at,
+        last_message: c.last_message,
+        last_order_date: c.last_order_date,
+        last_order_created_at: c.last_order_created_at,
+        avg_order_frequency: c.avg_order_frequency,
+        chat_account_id: c.chat_account_id,
+        account_name: acc?.name,
+        account_picture_url: acc?.picture_url,
       });
     }
 
@@ -393,7 +423,7 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'id and platform are required' }, { status: 400 });
     }
 
-    const table = platform === 'line' ? 'line_contacts' : platform === 'shopee' ? 'shopee_contacts' : 'fb_contacts';
+    const table = platform === 'line' ? 'line_contacts' : platform === 'shopee' ? 'shopee_contacts' : platform === 'lazada' ? 'lazada_contacts' : 'fb_contacts';
     const { error } = await supabaseAdmin
       .from(table)
       .update({ customer_id: customer_id || null, updated_at: new Date().toISOString() })
@@ -768,6 +798,121 @@ async function fetchShopeeContacts(companyId: string, filters: {
   }));
 }
 
+// Helper: fetch Lazada contacts
+async function fetchLazadaContacts(companyId: string, filters: {
+  search?: string | null; unreadOnly?: boolean; linkedOnly?: boolean;
+  unlinkedOnly?: boolean; accountId?: string | null; includeNullAccountId?: boolean;
+  customerIds?: string[] | null; contactIds?: string[] | null;
+}) {
+  let contacts: any[];
+
+  if (filters.search) {
+    const { data, error } = await supabaseAdmin.rpc('search_lazada_contacts', {
+      p_company_id: companyId,
+      p_search: filters.search,
+    });
+    if (error) throw error;
+    contacts = data || [];
+
+    if (filters.accountId) {
+      contacts = contacts.filter(c =>
+        c.chat_account_id === filters.accountId || (filters.includeNullAccountId && !c.chat_account_id)
+      );
+    }
+    if (filters.unreadOnly) contacts = contacts.filter(c => (c.unread_count || 0) > 0);
+    if (filters.linkedOnly) contacts = contacts.filter(c => c.customer_id);
+    if (filters.unlinkedOnly) contacts = contacts.filter(c => !c.customer_id);
+    if (filters.customerIds || filters.contactIds) {
+      const custIdSet = filters.customerIds ? new Set(filters.customerIds) : null;
+      const contIdSet = filters.contactIds ? new Set(filters.contactIds) : null;
+      contacts = contacts.filter(c =>
+        (custIdSet && c.customer_id && custIdSet.has(c.customer_id)) ||
+        (contIdSet && contIdSet.has(c.id))
+      );
+    }
+  } else {
+    let query = supabaseAdmin
+      .from('lazada_contacts')
+      .select(`
+        *,
+        customer:customers(
+          id, name, customer_code, contact_person, phone, email,
+          customer_type, billing_address, billing_district, billing_amphoe, billing_province, billing_postal_code,
+          tax_id, tax_company_name, tax_branch, credit_limit, credit_days, notes, is_active
+        )
+      `)
+      .eq('company_id', companyId)
+      .eq('status', 'active')
+      .order('last_message_at', { ascending: false, nullsFirst: false });
+
+    if (filters.accountId) {
+      if (filters.includeNullAccountId) {
+        query = query.or(`chat_account_id.eq.${filters.accountId},chat_account_id.is.null`);
+      } else {
+        query = query.eq('chat_account_id', filters.accountId);
+      }
+    }
+    if (filters.unreadOnly) query = query.gt('unread_count', 0);
+    if (filters.customerIds && filters.contactIds && filters.contactIds.length > 0) {
+      const custFilter = filters.customerIds.length > 0
+        ? `customer_id.in.(${filters.customerIds.join(',')})`
+        : '';
+      const contFilter = `id.in.(${filters.contactIds.join(',')})`;
+      query = query.or([custFilter, contFilter].filter(Boolean).join(','));
+    } else if (filters.customerIds) {
+      query = query.in('customer_id', filters.customerIds);
+    } else if (filters.contactIds && filters.contactIds.length > 0) {
+      query = query.in('id', filters.contactIds);
+    } else {
+      if (filters.linkedOnly) query = query.not('customer_id', 'is', null);
+      if (filters.unlinkedOnly) query = query.is('customer_id', null);
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+    contacts = data || [];
+  }
+
+  // Fetch customer data for RPC results
+  if (filters.search && contacts.length > 0) {
+    const custIds = [...new Set(contacts.filter(c => c.customer_id).map(c => c.customer_id))];
+    if (custIds.length > 0) {
+      const { data: custs } = await supabaseAdmin
+        .from('customers')
+        .select('id, name, customer_code, contact_person, phone, email, customer_type, billing_address, billing_district, billing_amphoe, billing_province, billing_postal_code, tax_id, tax_company_name, tax_branch, credit_limit, credit_days, notes, is_active')
+        .in('id', custIds);
+      const custMap = new Map((custs || []).map(c => [c.id, c]));
+      for (const c of contacts) {
+        if (c.customer_id) c.customer = custMap.get(c.customer_id) || null;
+      }
+    }
+  }
+
+  const contactIds = contacts.map(c => c.id);
+
+  const lastMessageMap = new Map<string, string>();
+  if (contactIds.length > 0) {
+    const { data: msgs } = await supabaseAdmin.rpc('get_latest_lazada_messages', {
+      p_company_id: companyId,
+      p_contact_ids: contactIds,
+    });
+    for (const msg of (msgs || [])) {
+      let preview = msg.content;
+      if (msg.message_type === 'image') preview = '🖼️ รูปภาพ';
+      else if (msg.message_type === 'video') preview = '🎬 วิดีโอ';
+      else if (msg.message_type === 'item') preview = '🛍️ สินค้า';
+      else if (msg.message_type === 'order') preview = '📦 คำสั่งซื้อ';
+      else if (msg.message_type === 'voucher') preview = '🎟️ คูปอง';
+      lastMessageMap.set(msg.lazada_contact_id, preview);
+    }
+  }
+
+  return contacts.map(c => ({
+    ...c,
+    last_message: lastMessageMap.get(c.id) || null,
+  }));
+}
+
 // Helper: fetch all linked contacts for a specific customer_id
 async function getLinkedContactsByCustomer(companyId: string, customerId: string) {
   // Fetch accounts for name mapping
@@ -780,7 +925,7 @@ async function getLinkedContactsByCustomer(companyId: string, customerId: string
   (accounts || []).forEach(a => accountMap.set(a.id, { name: a.account_name, platform: a.platform }));
 
   // Query all tables in parallel
-  const [{ data: lineData }, { data: fbData }, { data: shopeeData }] = await Promise.all([
+  const [{ data: lineData }, { data: fbData }, { data: shopeeData }, { data: lazadaData }] = await Promise.all([
     supabaseAdmin
       .from('line_contacts')
       .select('id, display_name, picture_url, last_message_at, chat_account_id')
@@ -799,9 +944,15 @@ async function getLinkedContactsByCustomer(companyId: string, customerId: string
       .eq('company_id', companyId)
       .eq('customer_id', customerId)
       .eq('status', 'active'),
+    supabaseAdmin
+      .from('lazada_contacts')
+      .select('id, display_name, picture_url, last_message_at, chat_account_id')
+      .eq('company_id', companyId)
+      .eq('customer_id', customerId)
+      .eq('status', 'active'),
   ]);
 
-  const linked: { id: string; platform: 'line' | 'facebook' | 'shopee'; display_name: string; picture_url?: string; last_message_at?: string; account_name?: string }[] = [];
+  const linked: { id: string; platform: 'line' | 'facebook' | 'shopee' | 'lazada'; display_name: string; picture_url?: string; last_message_at?: string; account_name?: string }[] = [];
 
   (lineData || []).forEach(c => {
     const acc = c.chat_account_id ? accountMap.get(c.chat_account_id) : null;
@@ -819,6 +970,11 @@ async function getLinkedContactsByCustomer(companyId: string, customerId: string
   (shopeeData || []).forEach(c => {
     const acc = c.chat_account_id ? accountMap.get(c.chat_account_id) : null;
     linked.push({ id: c.id, platform: 'shopee', display_name: c.display_name, picture_url: c.picture_url, last_message_at: c.last_message_at, account_name: acc?.name });
+  });
+
+  (lazadaData || []).forEach(c => {
+    const acc = c.chat_account_id ? accountMap.get(c.chat_account_id) : null;
+    linked.push({ id: c.id, platform: 'lazada', display_name: c.display_name, picture_url: c.picture_url, last_message_at: c.last_message_at, account_name: acc?.name });
   });
 
   // Sort by last_message_at desc

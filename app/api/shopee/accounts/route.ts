@@ -21,6 +21,8 @@ export async function GET(request: NextRequest) {
     // Filter by platform
     if (platformParam === 'tiktok') {
       query = query.eq('platform', 'tiktok');
+    } else if (platformParam === 'lazada') {
+      query = query.eq('platform', 'lazada');
     } else {
       // Default to shopee (includes legacy accounts without platform field)
       query = query.or('platform.eq.shopee,platform.is.null');

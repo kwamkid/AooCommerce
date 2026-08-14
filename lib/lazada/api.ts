@@ -1,0 +1,258 @@
+import crypto from 'crypto';
+import { supabaseAdmin } from '@/lib/supabase-admin';
+
+// --- Configuration ---
+// Lazada Open Platform REST API. Region host = seller's country (we operate TH).
+const LAZADA_AUTH_HOST = 'https://auth.lazada.com/rest';
+
+const REGION_HOSTS: Record<string, string> = {
+  th: 'https://api.lazada.co.th/rest',
+  sg: 'https://api.lazada.sg/rest',
+  my: 'https://api.lazada.com.my/rest',
+  vn: 'https://api.lazada.vn/rest',
+  ph: 'https://api.lazada.com.ph/rest',
+  id: 'https://api.lazada.co.id/rest',
+};
+
+export interface LazadaCredentials {
+  app_key: string;
+  app_secret: string;
+  access_token: string;
+  region: string; // 'th' etc.
+}
+
+export interface LazadaAccountRow {
+  id: string;
+  company_id: string;
+  platform: string | null;
+  shop_id: number;           // Lazada seller_id
+  shop_name: string | null;
+  access_token: string | null;
+  refresh_token: string | null;
+  access_token_expires_at: string | null;
+  refresh_token_expires_at: string | null;
+  is_active: boolean;
+  last_sync_at: string | null;
+  metadata: Record<string, unknown>;
+}
+
+function getAppKey(): string {
+  return process.env.LAZADA_APP_KEY || '';
+}
+
+function getAppSecret(): string {
+  return process.env.LAZADA_APP_SECRET || '';
+}
+
+function getRegionHost(region?: string): string {
+  return REGION_HOSTS[(region || process.env.LAZADA_REGION || 'th').toLowerCase()] || REGION_HOSTS.th;
+}
+
+/**
+ * Lazada TOP-style signature:
+ * 1. Sort all non-sign params by key (ASCII ascending)
+ * 2. Concat apiPath + k1v1 + k2v2 ... (+ raw body if present)
+ * 3. HMAC-SHA256 with app_secret → UPPERCASE hex
+ */
+export function generateLazadaSign(
+  apiPath: string,
+  params: Record<string, string>,
+  body?: string
+): string {
+  const entries = Object.entries(params)
+    .filter(([k, v]) => k !== 'sign' && v !== undefined && v !== null && v !== '')
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+
+  let payload = apiPath;
+  for (const [k, v] of entries) payload += k + v;
+  if (body) payload += body;
+
+  return crypto.createHmac('sha256', getAppSecret()).update(payload).digest('hex').toUpperCase();
+}
+
+/**
+ * Verify Lazada push (webhook) signature.
+ * Authorization header = HEX(HMAC-SHA256(app_key + rawBody, app_secret))
+ */
+export function verifyLazadaPushSignature(rawBody: string, authorization: string): boolean {
+  if (!authorization || !getAppSecret()) return false;
+  const expected = crypto
+    .createHmac('sha256', getAppSecret())
+    .update(getAppKey() + rawBody)
+    .digest('hex');
+  try {
+    return crypto.timingSafeEqual(
+      Buffer.from(authorization.toLowerCase()),
+      Buffer.from(expected.toLowerCase())
+    );
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Make an authenticated Lazada API request.
+ * All params are sent in the query string (signature covers them either way);
+ * no request body is used, matching common Lazada SDK behavior.
+ */
+export async function lazadaApiRequest(
+  creds: LazadaCredentials,
+  method: 'GET' | 'POST',
+  apiPath: string,
+  params: Record<string, unknown> = {}
+): Promise<{ data: unknown; error?: string; raw?: Record<string, unknown> }> {
+  const common: Record<string, string> = {
+    app_key: creds.app_key,
+    timestamp: String(Date.now()), // milliseconds
+    sign_method: 'sha256',
+    access_token: creds.access_token,
+  };
+  for (const [k, v] of Object.entries(params)) {
+    if (v !== undefined && v !== null) common[k] = String(v);
+  }
+  common.sign = generateLazadaSign(apiPath, common);
+
+  const url = `${getRegionHost(creds.region)}${apiPath}?${new URLSearchParams(common).toString()}`;
+
+  console.log(`[Lazada API] ${method} ${apiPath}`, Object.fromEntries(Object.entries(params)));
+  const res = await fetch(url, { method });
+
+  let data: Record<string, unknown>;
+  const text = await res.text();
+  try {
+    data = JSON.parse(text);
+  } catch {
+    console.error(`[Lazada API] ${apiPath} non-JSON (${res.status}):`, text.substring(0, 300));
+    return { data: null, error: `Lazada API returned non-JSON (HTTP ${res.status})` };
+  }
+  console.log(`[Lazada API] ${apiPath} response:`, JSON.stringify(data).substring(0, 800));
+
+  // Lazada errors: { code: '...', message } (top-level, '0' = success) or IM style { success, err_code, err_message }
+  const code = data.code as string | undefined;
+  if (code && code !== '0') {
+    return { data: null, error: (data.message as string) || `Lazada error ${code}`, raw: data };
+  }
+  if (data.success === false) {
+    return { data: null, error: (data.err_message as string) || `Lazada error ${data.err_code}`, raw: data };
+  }
+  return { data: data.data ?? data, raw: data };
+}
+
+/**
+ * Lazada OAuth authorization URL (user logs in with the SELLER account).
+ */
+export function generateLazadaAuthUrl(redirectUri: string, state: string): string {
+  const qs = new URLSearchParams({
+    response_type: 'code',
+    force_auth: 'true',
+    redirect_uri: redirectUri,
+    client_id: getAppKey(),
+    state,
+  });
+  return `https://auth.lazada.com/oauth/authorize?${qs.toString()}`;
+}
+
+export interface LazadaTokenResponse {
+  access_token: string;
+  refresh_token: string;
+  expires_in: number;         // seconds
+  refresh_expires_in: number; // seconds
+  account?: string;
+  country?: string;
+  country_user_info?: Array<{ country: string; user_id: string; seller_id: string; short_code: string }>;
+}
+
+async function authRequest(apiPath: string, params: Record<string, string>): Promise<LazadaTokenResponse> {
+  const common: Record<string, string> = {
+    app_key: getAppKey(),
+    timestamp: String(Date.now()),
+    sign_method: 'sha256',
+    ...params,
+  };
+  common.sign = generateLazadaSign(apiPath, common);
+
+  const url = `${LAZADA_AUTH_HOST}${apiPath}?${new URLSearchParams(common).toString()}`;
+  const res = await fetch(url, { method: 'POST' });
+  const data = await res.json();
+
+  if (data.code && data.code !== '0') {
+    throw new Error(data.message || `Lazada auth error ${data.code}`);
+  }
+  if (!data.access_token) {
+    throw new Error(`Lazada auth: no access_token in response (${JSON.stringify(data).substring(0, 200)})`);
+  }
+  return data as LazadaTokenResponse;
+}
+
+export async function exchangeCodeForToken(code: string): Promise<LazadaTokenResponse> {
+  return authRequest('/auth/token/create', { code });
+}
+
+export async function refreshAccessToken(refreshToken: string): Promise<LazadaTokenResponse> {
+  return authRequest('/auth/token/refresh', { refresh_token: refreshToken });
+}
+
+/**
+ * Ensure the account has a valid access token (5-min expiry buffer).
+ * Auto-refreshes and persists; deactivates the account if the refresh token is dead.
+ */
+export async function ensureValidToken(account: LazadaAccountRow): Promise<LazadaCredentials> {
+  const region = ((account.metadata?.country as string) || 'th').toLowerCase();
+  const creds: LazadaCredentials = {
+    app_key: getAppKey(),
+    app_secret: getAppSecret(),
+    access_token: account.access_token || '',
+    region,
+  };
+
+  const expiresAt = account.access_token_expires_at ? new Date(account.access_token_expires_at).getTime() : 0;
+  const needsRefresh = !account.access_token || expiresAt - Date.now() < 5 * 60 * 1000;
+  if (!needsRefresh) return creds;
+
+  if (!account.refresh_token) {
+    throw new Error('Lazada refresh token missing — reconnect the shop');
+  }
+
+  try {
+    const tokens = await refreshAccessToken(account.refresh_token);
+    const now = Date.now();
+    await supabaseAdmin
+      .from('marketplace_accounts')
+      .update({
+        access_token: tokens.access_token,
+        refresh_token: tokens.refresh_token || account.refresh_token,
+        access_token_expires_at: new Date(now + tokens.expires_in * 1000).toISOString(),
+        refresh_token_expires_at: tokens.refresh_expires_in
+          ? new Date(now + tokens.refresh_expires_in * 1000).toISOString()
+          : account.refresh_token_expires_at,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', account.id);
+
+    return { ...creds, access_token: tokens.access_token };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    // Dead refresh token → deactivate so crons stop hammering (same as Shopee)
+    if (/invalid|expired|illegal/i.test(msg)) {
+      await supabaseAdmin
+        .from('marketplace_accounts')
+        .update({ is_active: false, updated_at: new Date().toISOString() })
+        .eq('id', account.id);
+    }
+    throw new Error(`Lazada token refresh failed: ${msg}`);
+  }
+}
+
+/**
+ * Seller profile — used to name the account on connect.
+ */
+export async function getSellerInfo(creds: LazadaCredentials): Promise<{ name?: string; seller_id?: number; short_code?: string } | null> {
+  const { data, error } = await lazadaApiRequest(creds, 'GET', '/seller/get');
+  if (error || !data) return null;
+  const d = data as Record<string, unknown>;
+  return {
+    name: (d.name as string) || (d.short_code as string) || undefined,
+    seller_id: d.seller_id ? Number(d.seller_id) : undefined,
+    short_code: d.short_code as string | undefined,
+  };
+}

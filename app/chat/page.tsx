@@ -51,7 +51,7 @@ import TagBadge, { Tag } from '@/components/ui/TagBadge';
 import TagInput from '@/components/ui/TagInput';
 import type { UnifiedContact, ChatMessage, Customer, DayRange, ChatAccountInfo, LinkedContact } from './lib/chatTypes';
 import MessageBubble from './components/MessageBubble';
-import { FbIcon, IgIcon, LineIcon, ShopeeIcon, PlatformIcon, getAccountPicture, getAvatarUrl, getInitials, formatTime, formatLastMessage, compressImage, officialStickers } from './lib/chatHelpers';
+import { FbIcon, IgIcon, LineIcon, ShopeeIcon, LazadaIcon, PlatformIcon, getAccountPicture, getAvatarUrl, getInitials, formatTime, formatLastMessage, compressImage, officialStickers } from './lib/chatHelpers';
 
 // Dynamic imports for components that are not needed on initial load
 const EmojiStickerPicker = dynamic(() => import('./components/EmojiStickerPicker'), { ssr: false });
@@ -84,7 +84,7 @@ function UnifiedChatPageContent() {
 
   // URL-derived filter state
   const filterAccountId = searchParams.get('account') || '';
-  const filterPlatform = (searchParams.get('platform') || 'all') as 'all' | 'line' | 'facebook' | 'shopee';
+  const filterPlatform = (searchParams.get('platform') || 'all') as 'all' | 'line' | 'facebook' | 'shopee' | 'lazada';
   const filterTag = searchParams.get('tag') || '';
   const sortMode = (searchParams.get('sort') || 'time') as 'time' | 'unread';
   const filterLinked = (searchParams.get('linked') || 'all') as 'all' | 'linked' | 'unlinked';
@@ -167,7 +167,7 @@ function UnifiedChatPageContent() {
   const hasActiveFilter = filterLinked !== 'all' || filterOrderDaysRange !== null || filterTag !== '' || filterUnread || filterAccountId !== '' || sortMode !== 'time';
 
   // Platform color
-  const platformColor = selectedContact?.source === 'instagram' ? '#E4405F' : selectedContact?.platform === 'line' ? '#06C755' : selectedContact?.platform === 'shopee' ? '#EE4D2D' : '#1877F2';
+  const platformColor = selectedContact?.source === 'instagram' ? '#E4405F' : selectedContact?.platform === 'line' ? '#06C755' : selectedContact?.platform === 'shopee' ? '#EE4D2D' : selectedContact?.platform === 'lazada' ? '#0F146E' : '#1877F2';
 
   // Check if FB/IG messaging window expired (7 days since last incoming message)
   const isWindowExpired = useMemo(() => {
@@ -476,6 +476,12 @@ function UnifiedChatPageContent() {
         (payload) => handleNewMessage(payload, 'shopee_contact_id'))
       .subscribe();
 
+    const lazadaMessagesChannel = supabase
+      .channel('lazada_messages_realtime')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'lazada_messages' },
+        (payload) => handleNewMessage(payload, 'lazada_contact_id'))
+      .subscribe();
+
     const lineContactsChannel = supabase
       .channel('line_contacts_realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'line_contacts' }, debouncedFetchContacts)
@@ -491,14 +497,21 @@ function UnifiedChatPageContent() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'shopee_contacts' }, debouncedFetchContacts)
       .subscribe();
 
+    const lazadaContactsChannel = supabase
+      .channel('lazada_contacts_realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'lazada_contacts' }, debouncedFetchContacts)
+      .subscribe();
+
     return () => {
       if (debounceTimer) clearTimeout(debounceTimer);
       supabase.removeChannel(lineMessagesChannel);
       supabase.removeChannel(fbMessagesChannel);
       supabase.removeChannel(shopeeMessagesChannel);
+      supabase.removeChannel(lazadaMessagesChannel);
       supabase.removeChannel(lineContactsChannel);
       supabase.removeChannel(fbContactsChannel);
       supabase.removeChannel(shopeeContactsChannel);
+      supabase.removeChannel(lazadaContactsChannel);
     };
   }, [selectedContact]);
 
@@ -1154,8 +1167,8 @@ function UnifiedChatPageContent() {
                       ) : (
                         <div className="w-7 h-7 rounded-full bg-gray-200 dark:bg-slate-600 flex items-center justify-center"><User className="w-3.5 h-3.5 text-gray-500 dark:text-slate-400" /></div>
                       )}
-                      <div className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full flex items-center justify-center ${lc.platform === 'line' ? 'bg-line' : lc.platform === 'shopee' ? 'bg-[#EE4D2D]' : 'bg-facebook'}`}>
-                        {lc.platform === 'line' ? <LineIcon size={8} /> : lc.platform === 'shopee' ? <ShopeeIcon size={8} /> : <FbIcon size={8} />}
+                      <div className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full flex items-center justify-center ${lc.platform === 'line' ? 'bg-line' : lc.platform === 'shopee' ? 'bg-[#EE4D2D]' : lc.platform === 'lazada' ? 'bg-[#0F146E]' : 'bg-facebook'}`}>
+                        {lc.platform === 'line' ? <LineIcon size={8} /> : lc.platform === 'shopee' ? <ShopeeIcon size={8} /> : lc.platform === 'lazada' ? <LazadaIcon size={8} /> : <FbIcon size={8} />}
                       </div>
                     </div>
                     <div className="flex-1 min-w-0">
@@ -1251,7 +1264,7 @@ function UnifiedChatPageContent() {
                               <Image src={selectedPic} alt={selectedAccount.account_name} width={20} height={20} className="w-5 h-5 rounded-full object-cover flex-shrink-0" unoptimized />
                             ) : (
                               <span className="flex-shrink-0">
-                                {selectedAccount.platform === 'line' ? <LineIcon size={20} /> : selectedAccount.platform === 'shopee' ? <ShopeeIcon size={20} /> : selectedAccount.credentials?.ig_account_id ? (
+                                {selectedAccount.platform === 'line' ? <LineIcon size={20} /> : selectedAccount.platform === 'shopee' ? <ShopeeIcon size={20} /> : selectedAccount.platform === 'lazada' ? <LazadaIcon size={20} /> : selectedAccount.credentials?.ig_account_id ? (
                                   <span className="relative inline-flex w-7 h-5">
                                     <span className="absolute left-3 top-0 z-0 rounded-full bg-white dark:bg-slate-800 p-[1px]"><IgIcon size={16} /></span>
                                     <span className="absolute left-0 top-0 z-10 rounded-full bg-white dark:bg-slate-800 p-[1px]"><FbIcon size={16} /></span>
@@ -1294,10 +1307,10 @@ function UnifiedChatPageContent() {
                                   {pic ? (
                                     <Image src={pic} alt={acc.account_name} width={20} height={20} className="w-5 h-5 rounded-full object-cover" unoptimized />
                                   ) : (
-                                    acc.platform === 'line' ? <LineIcon size={20} /> : acc.platform === 'shopee' ? <ShopeeIcon size={20} /> : <FbIcon size={20} />
+                                    acc.platform === 'line' ? <LineIcon size={20} /> : acc.platform === 'shopee' ? <ShopeeIcon size={20} /> : acc.platform === 'lazada' ? <LazadaIcon size={20} /> : <FbIcon size={20} />
                                   )}
                                   <span className="text-gray-900 dark:text-white truncate flex-1 text-left">{acc.account_name}</span>
-                                  {acc.platform === 'line' ? <LineIcon size={16} /> : acc.platform === 'shopee' ? <ShopeeIcon size={16} /> : acc.credentials?.ig_account_id ? (
+                                  {acc.platform === 'line' ? <LineIcon size={16} /> : acc.platform === 'shopee' ? <ShopeeIcon size={16} /> : acc.platform === 'lazada' ? <LazadaIcon size={16} /> : acc.credentials?.ig_account_id ? (
                                     <span className="relative inline-flex w-6 h-[18px] flex-shrink-0">
                                       <span className="absolute left-[10px] top-0 z-0 rounded-full bg-white dark:bg-slate-800 p-[1px]"><IgIcon size={14} /></span>
                                       <span className="absolute left-0 top-0 z-10 rounded-full bg-white dark:bg-slate-800 p-[1px]"><FbIcon size={14} /></span>
@@ -1434,13 +1447,13 @@ function UnifiedChatPageContent() {
                   return sorted;
                 })().map((contact) => (
                   <button key={contact.id} onClick={() => setSelectedContact(contact)}
-                    className={`w-full px-3 py-4 flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors border-b border-gray-100 dark:border-slate-700 ${selectedContact?.id === contact.id ? (contact.platform === 'line' ? 'bg-line/10' : contact.platform === 'shopee' ? 'bg-[#EE4D2D]/10' : 'bg-facebook/10') : ''}`}>
+                    className={`w-full px-3 py-4 flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors border-b border-gray-100 dark:border-slate-700 ${selectedContact?.id === contact.id ? (contact.platform === 'line' ? 'bg-line/10' : contact.platform === 'shopee' ? 'bg-[#EE4D2D]/10' : contact.platform === 'lazada' ? 'bg-[#0F146E]/10' : 'bg-facebook/10') : ''}`}>
                     {/* Avatar with channel profile badge */}
                     <div className="relative flex-shrink-0">
                       {getAvatarUrl(contact) ? (
                         <img src={getAvatarUrl(contact)!} alt={contact.display_name} loading="lazy" className="w-12 h-12 rounded-full object-cover" />
                       ) : (
-                        <div className="w-12 h-12 rounded-full flex items-center justify-center text-white font-semibold text-sm" style={{ backgroundColor: contact.source === 'instagram' ? '#E4405F' : contact.platform === 'line' ? '#06C755' : contact.platform === 'shopee' ? '#EE4D2D' : '#1877F2' }}>
+                        <div className="w-12 h-12 rounded-full flex items-center justify-center text-white font-semibold text-sm" style={{ backgroundColor: contact.source === 'instagram' ? '#E4405F' : contact.platform === 'line' ? '#06C755' : contact.platform === 'shopee' ? '#EE4D2D' : contact.platform === 'lazada' ? '#0F146E' : '#1877F2' }}>
                           {getInitials(contact.display_name)}
                         </div>
                       )}
@@ -1448,7 +1461,7 @@ function UnifiedChatPageContent() {
                       {contact.account_picture_url ? (
                         <img src={contact.account_picture_url} alt={contact.account_name || ''} loading="lazy" className="absolute -bottom-0.5 -left-0.5 w-5 h-5 rounded-full object-cover shadow-sm border-2 border-white dark:border-slate-800" />
                       ) : (
-                        <span className={`absolute -bottom-0.5 -left-0.5 w-5 h-5 rounded-full flex items-center justify-center shadow-sm border-2 border-white dark:border-slate-800 ${contact.source === 'instagram' ? 'bg-[#E4405F]' : contact.platform === 'line' ? 'bg-line' : contact.platform === 'shopee' ? 'bg-[#EE4D2D]' : 'bg-facebook'}`}>
+                        <span className={`absolute -bottom-0.5 -left-0.5 w-5 h-5 rounded-full flex items-center justify-center shadow-sm border-2 border-white dark:border-slate-800 ${contact.source === 'instagram' ? 'bg-[#E4405F]' : contact.platform === 'line' ? 'bg-line' : contact.platform === 'shopee' ? 'bg-[#EE4D2D]' : contact.platform === 'lazada' ? 'bg-[#0F146E]' : 'bg-facebook'}`}>
                           <PlatformIcon contact={contact} size={10} />
                         </span>
                       )}
@@ -1471,7 +1484,7 @@ function UnifiedChatPageContent() {
                       {contact.last_message ? (
                         <div className="text-sm font-sarabun text-gray-500 dark:text-slate-400 truncate mt-0.5">{contact.last_message}</div>
                       ) : contact.customer ? (
-                        <div className="text-xs truncate flex items-center gap-1 mt-0.5" style={{ color: contact.source === 'instagram' ? '#E4405F' : contact.platform === 'line' ? '#06C755' : contact.platform === 'shopee' ? '#EE4D2D' : '#1877F2' }}>
+                        <div className="text-xs truncate flex items-center gap-1 mt-0.5" style={{ color: contact.source === 'instagram' ? '#E4405F' : contact.platform === 'line' ? '#06C755' : contact.platform === 'shopee' ? '#EE4D2D' : contact.platform === 'lazada' ? '#0F146E' : '#1877F2' }}>
                           <LinkIcon className="w-3 h-3" />{contact.customer.customer_code} - {contact.customer.name}
                         </div>
                       ) : (
@@ -1759,7 +1772,7 @@ function UnifiedChatPageContent() {
             <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 min-h-[81px]">
               <div className="flex items-center gap-3">
                 <button onClick={() => setRightPanel(null)} className="p-1 -ml-1 text-gray-500 hover:text-gray-700 md:hidden"><ChevronLeft className="w-6 h-6" /></button>
-                <ShoppingCart className="w-5 h-5 text-primary" /><div><h2 className="text-lg font-semibold text-gray-900 dark:text-white">เปิดบิล</h2><p className="text-xs text-gray-500 dark:text-slate-400">{selectedContact.customer ? selectedContact.customer.name : `${selectedContact.platform === 'line' ? 'LINE' : selectedContact.platform === 'shopee' ? 'Shopee' : 'Facebook'}: ${selectedContact.display_name}`}</p></div>
+                <ShoppingCart className="w-5 h-5 text-primary" /><div><h2 className="text-lg font-semibold text-gray-900 dark:text-white">เปิดบิล</h2><p className="text-xs text-gray-500 dark:text-slate-400">{selectedContact.customer ? selectedContact.customer.name : `${selectedContact.platform === 'line' ? 'LINE' : selectedContact.platform === 'shopee' ? 'Shopee' : selectedContact.platform === 'lazada' ? 'Lazada' : 'Facebook'}: ${selectedContact.display_name}`}</p></div>
               </div>
               <div className="flex items-center gap-2">
                 <div ref={headerActionsRef} />

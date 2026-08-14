@@ -1,7 +1,7 @@
 export interface UnifiedContact {
   id: string;
-  platform: 'line' | 'facebook' | 'shopee';
-  source?: 'line' | 'facebook' | 'instagram' | 'shopee';
+  platform: 'line' | 'facebook' | 'shopee' | 'lazada';
+  source?: 'line' | 'facebook' | 'instagram' | 'shopee' | 'lazada';
   platform_user_id: string;
   display_name: string;
   picture_url?: string;
@@ -131,13 +131,16 @@ export interface ChatMessage {
     // Instagram story
     storyUrl?: string;
 
-    // Shopee
+    // Shopee / Lazada
     thumbUrl?: string;
-    item_id?: number;
+    item_id?: number | string;
     shop_id?: number;
     itemUrl?: string;
     order_sn?: string;
+    order_id?: string;
     shopee_status?: string;
+    auto_reply?: boolean;
+    recalled?: boolean;
 
     // LINE Flex Message
     flexContents?: Record<string, unknown>;
@@ -161,6 +164,7 @@ export interface ChatMessage {
   line_contact_id?: string;
   fb_contact_id?: string;
   shopee_contact_id?: string;
+  lazada_contact_id?: string;
 }
 
 export interface Customer {
@@ -187,7 +191,7 @@ export interface ChatAccountInfo {
 
 export interface LinkedContact {
   id: string;
-  platform: 'line' | 'facebook' | 'shopee';
+  platform: 'line' | 'facebook' | 'shopee' | 'lazada';
   display_name: string;
   picture_url?: string;
   last_message_at?: string;

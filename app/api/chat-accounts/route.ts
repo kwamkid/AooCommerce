@@ -56,15 +56,16 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { platform, account_name, credentials, marketplace_account_id } = body;
 
-    if (!platform || !['line', 'facebook', 'shopee'].includes(platform)) {
+    if (!platform || !['line', 'facebook', 'shopee', 'lazada'].includes(platform)) {
       return NextResponse.json({ error: 'Invalid platform' }, { status: 400 });
     }
 
-    // Shopee: chat channel is a reference to an already-connected marketplace shop
-    // (tokens live in marketplace_accounts; no credentials of its own)
-    if (platform === 'shopee') {
+    // Shopee/Lazada: chat channel is a reference to an already-connected
+    // marketplace shop (tokens live in marketplace_accounts; no credentials of its own)
+    if (platform === 'shopee' || platform === 'lazada') {
+      const platformLabel = platform === 'shopee' ? 'Shopee' : 'Lazada';
       if (!marketplace_account_id) {
-        return NextResponse.json({ error: 'marketplace_account_id is required for Shopee' }, { status: 400 });
+        return NextResponse.json({ error: `marketplace_account_id is required for ${platformLabel}` }, { status: 400 });
       }
       const { data: mpAccount } = await supabaseAdmin
         .from('marketplace_accounts')
@@ -72,30 +73,33 @@ export async function POST(request: NextRequest) {
         .eq('id', marketplace_account_id)
         .eq('company_id', companyId)
         .maybeSingle();
-      if (!mpAccount || (mpAccount.platform && mpAccount.platform !== 'shopee')) {
-        return NextResponse.json({ error: 'ไม่พบร้าน Shopee นี้ในบริษัท' }, { status: 404 });
+      const mpPlatformOk = platform === 'shopee'
+        ? (!mpAccount?.platform || mpAccount?.platform === 'shopee')
+        : mpAccount?.platform === 'lazada';
+      if (!mpAccount || !mpPlatformOk) {
+        return NextResponse.json({ error: `ไม่พบร้าน ${platformLabel} นี้ในบริษัท` }, { status: 404 });
       }
 
       // Dedupe: one chat channel per shop
-      const { data: existingShopee } = await supabaseAdmin
+      const { data: existingRows } = await supabaseAdmin
         .from('chat_accounts')
         .select('id, credentials')
         .eq('company_id', companyId)
-        .eq('platform', 'shopee');
-      const dup = (existingShopee || []).find(a => {
+        .eq('platform', platform);
+      const dup = (existingRows || []).find(a => {
         const c = a.credentials as Record<string, unknown> | null;
         return c && (c.marketplace_account_id === mpAccount.id || Number(c.shop_id) === mpAccount.shop_id);
       });
       if (dup) {
-        return NextResponse.json({ error: 'ร้าน Shopee นี้เปิดใช้แชทอยู่แล้ว' }, { status: 400 });
+        return NextResponse.json({ error: `ร้าน ${platformLabel} นี้เปิดใช้แชทอยู่แล้ว` }, { status: 400 });
       }
 
       const { data, error } = await supabaseAdmin
         .from('chat_accounts')
         .insert({
           company_id: companyId,
-          platform: 'shopee',
-          account_name: (account_name?.trim() || mpAccount.shop_name || `Shopee ${mpAccount.shop_id}`),
+          platform,
+          account_name: (account_name?.trim() || mpAccount.shop_name || `${platformLabel} ${mpAccount.shop_id}`),
           credentials: { marketplace_account_id: mpAccount.id, shop_id: mpAccount.shop_id },
           is_active: true,
           created_at: new Date().toISOString(),
@@ -104,7 +108,23 @@ export async function POST(request: NextRequest) {
         .select()
         .single();
       if (error) throw error;
-      // No sales_channels mirror — Shopee orders already flow via marketplace sync
+
+      // Lazada: backfill recent sessions so the chat page isn't empty on enable
+      if (platform === 'lazada') {
+        try {
+          const { data: fullAccount } = await supabaseAdmin
+            .from('marketplace_accounts')
+            .select('*')
+            .eq('id', mpAccount.id)
+            .single();
+          if (fullAccount) {
+            const { syncLazadaRecentSessions } = await import('@/lib/services/chat/lazada');
+            syncLazadaRecentSessions(fullAccount, 10).catch(() => {});
+          }
+        } catch { /* non-critical */ }
+      }
+
+      // No sales_channels mirror — marketplace orders already flow via sync
       return NextResponse.json({ success: true, account: data });
     }
 
@@ -322,8 +342,8 @@ export async function PUT(request: NextRequest) {
     if (error) throw error;
 
     // Keep the sales_channels mirror in step (name + is_active).
-    // Shopee has no mirror — orders already flow via marketplace sync.
-    if (existing.platform !== 'shopee') {
+    // Shopee/Lazada have no mirror — orders already flow via marketplace sync.
+    if (existing.platform !== 'shopee' && existing.platform !== 'lazada') {
       try {
         await syncSalesChannelFromChatAccount({
           companyId,
@@ -390,7 +410,7 @@ function maskCredentials(creds: Record<string, unknown>, platform: string): Reco
     ? ['channel_secret', 'channel_access_token']
     : platform === 'facebook'
       ? ['app_secret', 'page_access_token']
-      : []; // shopee — reference ids only, no secrets
+      : []; // shopee/lazada — reference ids only, no secrets
 
   for (const key of secretKeys) {
     const value = masked[key];
@@ -408,6 +428,10 @@ function getWebhookUrl(request: NextRequest, accountId: string, platform: string
   if (platform === 'shopee') {
     // Partner-level webhook (shared with order sync) — configured once at Shopee Open Platform
     return `${protocol}://${host}/api/shopee/webhook`;
+  }
+  if (platform === 'lazada') {
+    // App-level webhook — configured once at Lazada Open Platform (Push Mechanism)
+    return `${protocol}://${host}/api/lazada/webhook`;
   }
   const apiPath = platform === 'line' ? 'line' : 'fb';
   return `${protocol}://${host}/api/${apiPath}/webhook?account=${accountId}`;
