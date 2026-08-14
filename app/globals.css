@@ -731,3 +731,32 @@ input[type="number"] {
 @media (prefers-reduced-motion: reduce) {
   .auth-hub-pulse { animation: none; opacity: 0.4; }
 }
+
+/* Auth hero ring — หมุนช้าๆ + หายใจ (ยืด/ขยาย)
+   bubble หมุนสวนด้วย duration เท่ากัน → โลโก้ตั้งตรงตลอด ไม่กลับหัว */
+.auth-ring-breathe {
+  animation: auth-ring-breathe 10s ease-in-out infinite;
+}
+@keyframes auth-ring-breathe {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.07); }
+}
+.auth-ring-spin {
+  animation: auth-ring-spin 60s linear infinite;
+}
+@keyframes auth-ring-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+.auth-ring-counter {
+  animation: auth-ring-counter 60s linear infinite;
+}
+@keyframes auth-ring-counter {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(-360deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .auth-ring-breathe,
+  .auth-ring-spin,
+  .auth-ring-counter { animation: none; }
+}

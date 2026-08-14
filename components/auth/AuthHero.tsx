@@ -50,33 +50,35 @@ export function AuthSplitShell({ children }: { children: React.ReactNode }) {
 
         {/* Channel ring — เจ้าของธุรกิจตรงกลาง ล้อมด้วยทุกช่องทาง */}
         <div className="absolute left-1/2 top-[38%] -translate-x-1/2 -translate-y-1/2">
-          <div className="relative" style={{ width: RING_SIZE, height: RING_SIZE }}>
-            {/* เส้นวงแหวนจางๆ ผ่านจุดกึ่งกลาง bubble */}
-            <div
-              className="absolute rounded-full border border-white/20"
-              style={{ inset: RING_SIZE / 2 - RING_RADIUS }}
-            />
-            {/* Channel bubbles เรียงรอบวง เริ่มจากตำแหน่ง 12 นาฬิกา */}
-            {CHANNEL_BUBBLES.map((b, i) => {
-              const angle = ((-90 + i * (360 / CHANNEL_BUBBLES.length)) * Math.PI) / 180;
-              const x = RING_SIZE / 2 + RING_RADIUS * Math.cos(angle);
-              const y = RING_SIZE / 2 + RING_RADIUS * Math.sin(angle);
-              return (
-                <div
-                  key={b.key}
-                  className="auth-bubble"
-                  style={{
-                    width: BUBBLE_SIZE,
-                    height: BUBBLE_SIZE,
-                    left: x - BUBBLE_SIZE / 2,
-                    top: y - BUBBLE_SIZE / 2,
-                  }}
-                >
-                  {b.node}
-                </div>
-              );
-            })}
-            {/* Hub — เจ้าของธุรกิจ */}
+          <div className="auth-ring-breathe relative" style={{ width: RING_SIZE, height: RING_SIZE }}>
+            {/* วงที่หมุน — เส้นวงแหวน + bubble ทุกใบ */}
+            <div className="auth-ring-spin absolute inset-0">
+              <div
+                className="absolute rounded-full border border-white/20"
+                style={{ inset: RING_SIZE / 2 - RING_RADIUS }}
+              />
+              {/* Channel bubbles เรียงรอบวง เริ่มจากตำแหน่ง 12 นาฬิกา */}
+              {CHANNEL_BUBBLES.map((b, i) => {
+                const angle = ((-90 + i * (360 / CHANNEL_BUBBLES.length)) * Math.PI) / 180;
+                const x = RING_SIZE / 2 + RING_RADIUS * Math.cos(angle);
+                const y = RING_SIZE / 2 + RING_RADIUS * Math.sin(angle);
+                return (
+                  <div
+                    key={b.key}
+                    className="auth-bubble auth-ring-counter"
+                    style={{
+                      width: BUBBLE_SIZE,
+                      height: BUBBLE_SIZE,
+                      left: x - BUBBLE_SIZE / 2,
+                      top: y - BUBBLE_SIZE / 2,
+                    }}
+                  >
+                    {b.node}
+                  </div>
+                );
+              })}
+            </div>
+            {/* Hub — เจ้าของธุรกิจ (อยู่นอกวงหมุน จึงนิ่งตลอด) */}
             <div
               className="auth-bubble !rounded-full"
               style={{
