@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 import { AlertCircle, Loader2, UserPlus } from 'lucide-react';
-import { AuthVideoShell, GoogleLogo } from '@/components/auth/AuthHero';
+import { AuthSplitShell, GoogleLogo } from '@/components/auth/AuthHero';
 
 // Google-only register — email/password ถูกถอดออกแล้ว (2026-08-14)
 // รองรับ ?invite_token= สำหรับคำเชิญเข้าบริษัท (ส่งต่อให้ signInWithGoogle)
@@ -55,8 +55,7 @@ function RegisterForm() {
   }
 
   return (
-    <AuthVideoShell>
-        <div className="w-full bg-white/95 dark:bg-slate-800/95 backdrop-blur-md border border-white/40 dark:border-slate-700 rounded-2xl p-6 sm:p-9 shadow-2xl">
+    <AuthSplitShell>
           <p className="text-primary text-sm font-semibold mb-2">
             เริ่มต้นใช้งาน
           </p>
@@ -100,8 +99,7 @@ function RegisterForm() {
               เข้าสู่ระบบ
             </Link>
           </p>
-        </div>
-    </AuthVideoShell>
+    </AuthSplitShell>
   );
 }
 

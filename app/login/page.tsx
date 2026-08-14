@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 import { AlertCircle, Loader2 } from 'lucide-react';
-import { AuthVideoShell, GoogleLogo } from '@/components/auth/AuthHero';
+import { AuthSplitShell, GoogleLogo } from '@/components/auth/AuthHero';
 
 // Google-only login — email/password ถูกถอดออกแล้ว (2026-08-14)
 export default function LoginPage() {
@@ -46,8 +46,7 @@ export default function LoginPage() {
   }
 
   return (
-    <AuthVideoShell>
-        <div className="w-full bg-white/95 dark:bg-slate-800/95 backdrop-blur-md border border-white/40 dark:border-slate-700 rounded-2xl p-6 sm:p-9 shadow-2xl">
+    <AuthSplitShell>
           <p className="text-primary text-sm font-semibold mb-2">
             ยินดีต้อนรับกลับมา
           </p>
@@ -82,7 +81,6 @@ export default function LoginPage() {
               สมัครสมาชิก
             </Link>
           </p>
-        </div>
-    </AuthVideoShell>
+    </AuthSplitShell>
   );
 }
