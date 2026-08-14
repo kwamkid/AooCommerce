@@ -18,7 +18,17 @@ export interface ActionItem {
   dividerBefore?: boolean;
 }
 
-export default function ActionMenu({ items }: { items: ActionItem[] }) {
+interface ActionMenuProps {
+  items: ActionItem[];
+  /** Custom trigger content (replaces the default three-dot icon) */
+  trigger?: React.ReactNode;
+  /** ClassName for the trigger button — required look when using a custom trigger (e.g. "btn btn-md btn-primary") */
+  triggerClassName?: string;
+  /** Menu opens above (default — table rows) or below the trigger (header buttons) */
+  placement?: 'top' | 'bottom';
+}
+
+export default function ActionMenu({ items, trigger, triggerClassName, placement = 'top' }: ActionMenuProps) {
   const [open, setOpen] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -27,12 +37,12 @@ export default function ActionMenu({ items }: { items: ActionItem[] }) {
   const updatePosition = useCallback(() => {
     if (!buttonRef.current) return;
     const rect = buttonRef.current.getBoundingClientRect();
-    // Position menu above the button, aligned to right edge
+    // Right-aligned; above the button by default, below for header triggers
     setMenuPos({
-      top: rect.top - 4, // 4px gap above button
-      left: rect.right,  // right-aligned
+      top: placement === 'bottom' ? rect.bottom + 4 : rect.top - 4,
+      left: rect.right,
     });
-  }, []);
+  }, [placement]);
 
   useEffect(() => {
     if (!open) return;
@@ -63,9 +73,9 @@ export default function ActionMenu({ items }: { items: ActionItem[] }) {
       <button
         ref={buttonRef}
         onClick={(e) => { e.stopPropagation(); setOpen(!open); }}
-        className="p-1.5 text-gray-400 hover:text-gray-600 transition-colors rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700"
+        className={triggerClassName ?? 'p-1.5 text-gray-400 hover:text-gray-600 transition-colors rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700'}
       >
-        <MoreVertical className="w-4 h-4" />
+        {trigger ?? <MoreVertical className="w-4 h-4" />}
       </button>
 
       {open && menuPos && createPortal(
@@ -75,7 +85,7 @@ export default function ActionMenu({ items }: { items: ActionItem[] }) {
           style={{
             top: menuPos.top,
             left: menuPos.left,
-            transform: 'translate(-100%, -100%)',
+            transform: placement === 'bottom' ? 'translateX(-100%)' : 'translate(-100%, -100%)',
             zIndex: 9999,
           }}
         >

@@ -2,68 +2,48 @@
 
 import Image from 'next/image';
 
-// Split-screen auth layout pieces (แบบ aoosocial) — ใช้ร่วมหน้า /login และ /register
-// Hero แสดงเฉพาะ desktop (≥ lg); mobile เห็นเฉพาะการ์ดฟอร์ม + brand row
+// Auth layout (login/register) — full-bleed video background (Higgsfield-generated
+// multi-channel commerce loop ที่ /public/auth/login-bg.mp4) + การ์ดฟอร์มตรงกลาง
+// Gradient overlay กันตัวหนังสือขาวจม + ทำหน้าที่ fallback ระหว่างวิดีโอโหลด
 
-const HERO_PLATFORMS = [
-  { src: '/marketplace/shopee.svg', alt: 'Shopee' },
-  { src: '/marketplace/lazada.svg', alt: 'Lazada' },
-  { src: '/social/tiktok.svg', alt: 'TikTok' },
-  { src: '/social/line_oa.svg', alt: 'LINE' },
-  { src: '/social/facebook.svg', alt: 'Facebook' },
-];
-
-export function AuthHero() {
+export function AuthVideoShell({ children }: { children: React.ReactNode }) {
   return (
-    <aside className="hidden lg:flex relative items-center justify-center overflow-hidden text-white isolate" aria-hidden="true">
-      <div className="auth-hero-bg" />
-      <div className="relative w-full max-w-[520px] p-12 xl:p-16 flex flex-col gap-12">
+    <main className="relative min-h-dvh flex items-center justify-center p-4 sm:p-8 overflow-hidden isolate">
+      {/* Video background */}
+      <video
+        autoPlay
+        muted
+        loop
+        playsInline
+        preload="auto"
+        className="absolute inset-0 -z-20 w-full h-full object-cover"
+        src="/auth/login-bg.mp4"
+      />
+      {/* Fallback gradient (แสดงระหว่างวิดีโอโหลด อยู่หลังวิดีโอ) */}
+      <div className="absolute inset-0 -z-30 bg-gradient-to-br from-[#F4511E] to-[#7A1F08]" />
+      {/* Readability overlay */}
+      <div className="absolute inset-0 -z-10 bg-gradient-to-b from-black/45 via-black/25 to-black/55" />
+
+      <div className="w-full max-w-[420px] flex flex-col items-center">
         {/* Brand */}
-        <div className="flex items-center gap-3.5">
+        <div className="flex items-center gap-3 mb-3">
           <Image
             src="/logo.svg"
-            alt=""
-            width={56}
-            height={37}
-            className="brightness-0 invert"
+            alt="AooCommerce"
+            width={48}
+            height={31}
+            className="brightness-0 invert drop-shadow"
             priority
           />
-          <span className="text-[22px] font-bold tracking-tight">AooCommerce</span>
+          <span className="text-xl font-bold text-white tracking-tight drop-shadow">AooCommerce</span>
         </div>
+        <p className="text-white/85 text-sm leading-[1.7] mb-6 text-center drop-shadow">
+          ทุกช่องทางการขาย รวมอยู่ในที่เดียว
+        </p>
 
-        {/* Copy */}
-        <div className="flex flex-col gap-4">
-          <h2 className="text-3xl xl:text-4xl font-bold leading-tight tracking-tight">
-            ทุกช่องทางการขาย
-            <br />
-            รวมอยู่ในที่เดียว
-          </h2>
-          <p className="text-base leading-relaxed text-white/80 max-w-[42ch]">
-            จัดการออเดอร์ สต็อก และแชทลูกค้าจาก Shopee, Lazada, TikTok, LINE
-            และ Facebook ครบจบในระบบเดียว
-          </p>
-        </div>
-
-        {/* Platform bubbles */}
-        <div className="flex gap-4 flex-wrap">
-          {HERO_PLATFORMS.map(p => (
-            <div key={p.alt} className="auth-bubble">
-              <Image src={p.src} alt={p.alt} width={36} height={36} />
-            </div>
-          ))}
-        </div>
+        {children}
       </div>
-    </aside>
-  );
-}
-
-/** Brand row แสดงเฉพาะ mobile (hero ถูกซ่อน < lg) */
-export function AuthBrandRow() {
-  return (
-    <div className="flex lg:hidden items-center justify-center gap-3 mb-6">
-      <Image src="/logo.svg" alt="AooCommerce" width={40} height={26} priority />
-      <span className="text-lg font-bold text-gray-900 dark:text-white tracking-tight">AooCommerce</span>
-    </div>
+    </main>
   );
 }
 

@@ -129,10 +129,10 @@ export default function SalesChannelsPage() {
   const startIndex = (currentPage - 1) * rowsPerPage;
   const paginated = filtered.slice(startIndex, startIndex + rowsPerPage);
 
-  const openCreate = () => {
+  const openCreate = (platform = '') => {
     setEditing(null);
     setFormName('');
-    setFormPlatform('');
+    setFormPlatform(platform);
     setFormActive(true);
     setModalMode('create');
   };
@@ -407,9 +407,22 @@ export default function SalesChannelsPage() {
               จัดการช่องทางที่ออเดอร์เข้ามา — รวมช่องทาง manual + LINE/FB pages ที่เชื่อมไว้
             </p>
           </div>
-          <Button variant="primary" icon={<Plus className="w-5 h-5" />} onClick={openCreate}>
-            เพิ่ม
-          </Button>
+          {/* ปุ่มเพิ่มเป็น dropdown — เลือกแพลตฟอร์มได้เลย แล้วเปิด modal พร้อมค่า preselect */}
+          <ActionMenu
+            placement="bottom"
+            trigger={<><Plus className="w-5 h-5" />เพิ่ม</>}
+            triggerClassName="btn btn-md btn-primary"
+            items={[
+              { key: 'manual', label: 'ช่องทางทั่วไป (Manual)', icon: <Tag className="w-4 h-4 text-gray-400" />, onClick: () => openCreate('') },
+              ...PLATFORM_OPTIONS.filter(p => p.id).map(p => ({
+                key: p.id,
+                label: p.label,
+                icon: <PlatformIcon id={p.id} size={16} />,
+                onClick: () => openCreate(p.id),
+                dividerBefore: p.id === 'line',
+              })),
+            ]}
+          />
         </div>
 
         {/* Platform tabs — same pattern as chat-channels */}

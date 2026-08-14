@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 import { AlertCircle, Loader2 } from 'lucide-react';
-import { AuthHero, AuthBrandRow, GoogleLogo } from '@/components/auth/AuthHero';
+import { AuthVideoShell, GoogleLogo } from '@/components/auth/AuthHero';
 
 // Google-only login — email/password ถูกถอดออกแล้ว (2026-08-14)
 export default function LoginPage() {
@@ -46,15 +46,9 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="min-h-dvh grid lg:grid-cols-[1.05fr_1fr]">
-      <AuthHero />
-
-      {/* ---------- Form panel ---------- */}
-      <section className="flex items-center justify-center p-4 sm:p-8 bg-gray-50 dark:bg-slate-900">
-        <div className="w-full max-w-[420px] bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-2xl p-6 sm:p-9 shadow-lg">
-          <AuthBrandRow />
-
-          <p className="text-primary text-xs font-semibold uppercase tracking-widest mb-2">
+    <AuthVideoShell>
+        <div className="w-full bg-white/95 dark:bg-slate-800/95 backdrop-blur-md border border-white/40 dark:border-slate-700 rounded-2xl p-6 sm:p-9 shadow-2xl">
+          <p className="text-primary text-sm font-semibold mb-2">
             ยินดีต้อนรับกลับมา
           </p>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">เข้าสู่ระบบ</h1>
@@ -89,7 +83,6 @@ export default function LoginPage() {
             </Link>
           </p>
         </div>
-      </section>
-    </main>
+    </AuthVideoShell>
   );
 }
