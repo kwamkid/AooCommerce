@@ -27,6 +27,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   ArrowLeft,
+  ChevronRight,
   Building2,
   UserCog,
   Check,
@@ -811,6 +812,7 @@ export default function Sidebar() {
               >
                 <Settings className="w-[18px] h-[18px] flex-shrink-0" />
                 <span className="nav-label text-sm font-medium ml-3 flex-1 text-left">ตั้งค่า</span>
+                <ChevronRight className="nav-label w-4 h-4 text-gray-400 flex-shrink-0" />
               </button>
             </div>
           )}
