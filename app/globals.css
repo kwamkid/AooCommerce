@@ -700,3 +700,25 @@ input[type="number"] {
     display: none !important;
   }
 }
+
+/* Auth hero — floating channel bubbles over the video */
+.auth-bubble {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  animation: auth-bubble-float 6s ease-in-out infinite;
+}
+@keyframes auth-bubble-float {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-8px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .auth-bubble { animation: none; }
+}

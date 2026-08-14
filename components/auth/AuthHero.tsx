@@ -1,6 +1,29 @@
 'use client';
 
 import Image from 'next/image';
+import { Phone, ScanBarcode, Building2, Handshake } from 'lucide-react';
+
+// ช่องทางการขายทั้งหมดของระบบ — ลอยเป็น glass bubble บนวิดีโอ hero
+// (แพลตฟอร์มมี SVG ใช้โลโก้จริง; ช่องทาง offline ใช้ไอคอน lucide สีขาว)
+const HERO_BUBBLES: Array<{
+  key: string;
+  top: string;
+  left: string;
+  size: number;
+  delay: string;
+  node: React.ReactNode;
+}> = [
+  { key: 'shopee', top: '16%', left: '10%', size: 64, delay: '0s', node: <Image src="/marketplace/shopee.svg" alt="Shopee" width={34} height={34} /> },
+  { key: 'lazada', top: '24%', left: '42%', size: 56, delay: '0.7s', node: <Image src="/marketplace/lazada.svg" alt="Lazada" width={30} height={30} /> },
+  { key: 'tiktok', top: '14%', left: '66%', size: 56, delay: '1.4s', node: <Image src="/social/tiktok.svg" alt="TikTok" width={30} height={30} /> },
+  { key: 'facebook', top: '34%', left: '78%', size: 64, delay: '2.1s', node: <Image src="/social/facebook.svg" alt="Facebook" width={34} height={34} /> },
+  { key: 'instagram', top: '40%', left: '14%', size: 56, delay: '2.8s', node: <Image src="/social/instagram.svg" alt="Instagram" width={30} height={30} /> },
+  { key: 'line', top: '48%', left: '55%', size: 56, delay: '3.5s', node: <Image src="/social/line_oa.svg" alt="LINE" width={30} height={30} /> },
+  { key: 'call', top: '27%', left: '25%', size: 48, delay: '1s', node: <Phone className="w-6 h-6 text-white" /> },
+  { key: 'pos', top: '55%', left: '30%', size: 56, delay: '1.8s', node: <ScanBarcode className="w-7 h-7 text-white" /> },
+  { key: 'department', top: '50%', left: '84%', size: 48, delay: '2.5s', node: <Building2 className="w-6 h-6 text-white" /> },
+  { key: 'consignment', top: '62%', left: '68%', size: 48, delay: '3.2s', node: <Handshake className="w-6 h-6 text-white" /> },
+];
 
 // Auth layout (login/register) — split-screen แบบ aoosocial:
 // ซ้าย (desktop เท่านั้น) = วิดีโอ multi-channel commerce (Higgsfield,
@@ -26,6 +49,17 @@ export function AuthSplitShell({ children }: { children: React.ReactNode }) {
         <div className="absolute inset-0 -z-30 bg-gradient-to-br from-[#F4511E] to-[#7A1F08]" />
         {/* Readability overlay — เข้มขึ้นทางล่างซ้ายที่มีข้อความ */}
         <div className="absolute inset-0 -z-10 bg-gradient-to-t from-black/65 via-black/20 to-black/25" />
+
+        {/* Floating channel bubbles */}
+        {HERO_BUBBLES.map(b => (
+          <div
+            key={b.key}
+            className="auth-bubble"
+            style={{ top: b.top, left: b.left, width: b.size, height: b.size, animationDelay: b.delay }}
+          >
+            {b.node}
+          </div>
+        ))}
 
         <div className="relative h-full flex flex-col justify-between p-10 xl:p-14 text-white">
           {/* Brand (top) */}
