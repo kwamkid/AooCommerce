@@ -285,6 +285,7 @@ export async function POST(request: NextRequest) {
     order_id: order.id,
     order_number: order.order_number,
     total: totalWithVat,
-    bill_url: `/bills/${order.id}`,
+    // หน้าคำสั่งซื้อในร้าน (หน้า /bills เดิมยังเปิดได้อยู่ ใช้กับช่องทางอื่น)
+    order_url: `/store/${body.shop}/order/${order.id}`,
   });
 }

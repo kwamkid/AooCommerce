@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCart, clearCart } from '@/lib/storefront-cart';
+import { rememberOrder, rememberContact, readContact } from '@/lib/storefront-orders';
 import { formatStorePrice, storefrontHref } from '@/lib/storefront';
 import { searchAddress } from '@/lib/thai-address-data';
 
@@ -58,6 +59,19 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
   const [deliveryDate, setDeliveryDate] = useState('');
   const [slotId, setSlotId] = useState('');
   const [note, setNote] = useState('');
+
+  // เติมข้อมูลผู้รับจากครั้งก่อน — ลูกค้าประจำไม่ต้องพิมพ์ที่อยู่ใหม่ทุกรอบ
+  const [prefilled, setPrefilled] = useState(false);
+  useEffect(() => {
+    const saved = readContact(shop);
+    if (!saved) return;
+    setName(saved.name); setPhone(saved.phone); setEmail(saved.email);
+    setAddress(saved.address);
+    setDistrict(saved.district); setAmphoe(saved.amphoe);
+    setProvince(saved.province); setPostal(saved.postal_code);
+    setAddressQuery(saved.address_label);
+    setPrefilled(true);
+  }, [shop]);
 
   const [options, setOptions] = useState<DeliveryOptions | null>(null);
   const [loadingOptions, setLoadingOptions] = useState(false);
@@ -139,8 +153,20 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
         if (res.status === 409) fetchOptions();
         return;
       }
+      rememberContact(shop, {
+        name: name.trim(), phone: phone.trim(), email: email.trim(),
+        address: address.trim(), district, amphoe, province,
+        postal_code: postal, address_label: addressQuery,
+      });
+      rememberOrder(shop, {
+        id: data.order_id,
+        order_number: data.order_number,
+        total: data.total,
+        created_at: new Date().toISOString(),
+      });
       clearCart(shop);
-      router.push(data.bill_url);
+      // จบในร้านเดียวกัน — ไม่เด้งออกไปหน้าบิลที่เป็นคนละดีไซน์
+      router.push(storefrontHref(shop, `/order/${data.order_id}`));
     } catch {
       setError('เชื่อมต่อไม่สำเร็จ กรุณาลองใหม่');
     } finally {
@@ -172,6 +198,11 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
         <div className="sf-checkout-form">
           <section className="sf-fieldset">
             <h2>ผู้รับ</h2>
+            {prefilled && (
+              <p className="sf-hint" style={{ marginBottom: 10 }}>
+                เติมข้อมูลจากครั้งก่อนให้แล้ว — แก้ไขได้ตามต้องการ
+              </p>
+            )}
             <label className="sf-label">ชื่อผู้รับ *
               <input className="sf-input" value={name} onChange={e => setName(e.target.value)} placeholder="ชื่อ-นามสกุล" />
             </label>

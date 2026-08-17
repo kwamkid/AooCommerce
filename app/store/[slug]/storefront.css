@@ -464,3 +464,42 @@ html[data-sf-theme='dark'] .sf-root {
 
 /* ช่วงรอบที่ถูกหั่นสั้นลง — บอกช่วงเต็มของรอบไว้ใต้ตัวเลข กันลูกค้าสงสัยว่าทำไมไม่ตรงกับที่ประกาศ */
 .sf-slot-note { display: block; font-size: 12px; color: var(--sf-muted); margin-top: 2px; }
+
+/* ── หน้าคำสั่งซื้อในร้าน ─────────────────────────────────────── */
+.sf-order-head { display: flex; align-items: flex-start; gap: 14px; margin-bottom: 28px; }
+.sf-order-check { width: 40px; height: 40px; color: #16a34a; flex-shrink: 0; }
+.sf-order-head h1 { font-size: 26px; font-weight: 700; margin: 0 0 4px; line-height: 1.35; }
+.sf-order-head p { color: var(--sf-muted); margin: 0; }
+.sf-paid { color: #16a34a; font-weight: 600; }
+.sf-unpaid { color: #d97706; font-weight: 600; }
+.sf-ok { color: #16a34a; font-size: 14px; margin: 8px 0 0; }
+.sf-fieldset h2 { display: flex; align-items: center; gap: 8px; }
+.sf-fieldset h2 svg { width: 18px; height: 18px; }
+.sf-paid-box { border-color: #16a34a; }
+
+.sf-bank {
+  display: flex; justify-content: space-between; align-items: center; gap: 12px;
+  padding: 12px 14px; border: 1px solid var(--sf-border);
+  border-radius: calc(var(--sf-radius) / 1.5); margin-bottom: 8px;
+}
+.sf-bank-name { font-weight: 600; }
+.sf-bank-no { font-family: ui-monospace, monospace; font-size: 15px; }
+.sf-copy {
+  display: inline-flex; align-items: center; gap: 8px;
+  border: none; background: transparent; color: var(--sf-text);
+  cursor: pointer; padding: 6px 8px; border-radius: 8px; font-family: inherit;
+}
+.sf-copy:hover { background: var(--sf-surface); }
+.sf-copy svg { width: 16px; height: 16px; color: var(--sf-muted); }
+
+.sf-order-actions { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; }
+.sf-order-actions .sf-btn-ghost { text-align: center; padding: 11px 16px; }
+
+.sf-order-row {
+  display: flex; align-items: center; gap: 14px;
+  padding: 14px; border: 1px solid var(--sf-border);
+  border-radius: var(--sf-radius); text-decoration: none; color: inherit;
+  transition: border-color .15s ease;
+}
+.sf-order-row:hover { border-color: var(--sf-primary); }
+.sf-order-row svg { width: 18px; height: 18px; color: var(--sf-muted); flex-shrink: 0; }
