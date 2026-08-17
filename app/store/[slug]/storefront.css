@@ -47,19 +47,24 @@
   z-index: 20;
 }
 
-.sf-header-inner {
+.sf-header-top {
   display: flex;
   align-items: center;
-  gap: 24px;
-  min-height: 68px;
-  flex-wrap: wrap;
+  gap: 16px;
+  min-height: 64px;
 }
+.sf-header-actions { display: flex; align-items: center; gap: 4px; margin-left: auto; }
 
 .sf-brand { display: flex; align-items: center; gap: 10px; text-decoration: none; color: inherit; }
 .sf-brand-logo { height: 36px; width: auto; object-fit: contain; }
 .sf-brand-name { font-size: 19px; font-weight: 700; }
 
-.sf-nav { display: flex; align-items: center; gap: 18px; overflow-x: auto; }
+.sf-nav {
+  display: flex; align-items: center; gap: 18px;
+  overflow-x: auto; padding-bottom: 2px;
+  scrollbar-width: none;
+}
+.sf-nav::-webkit-scrollbar { display: none; }
 .sf-nav-link {
   color: var(--sf-muted);
   text-decoration: none;
@@ -189,8 +194,10 @@
 
 .sf-empty { color: var(--sf-muted); padding: 48px 0; text-align: center; }
 
+/* โทนมืด — นิยามครั้งเดียว ใช้ทั้งกรณี "ตามเครื่อง" และ "ผู้ใช้เลือกเอง"
+   html ไม่มี data-sf-theme = ตามเครื่อง · ="light" ต้องชนะ media query เสมอ */
 @media (prefers-color-scheme: dark) {
-  .sf-root {
+  html:not([data-sf-theme='light']) .sf-root {
     --sf-bg: #0f172a;
     --sf-surface: #1e293b;
     --sf-border: #334155;
@@ -198,13 +205,20 @@
     --sf-muted: #94a3b8;
   }
 }
+html[data-sf-theme='dark'] .sf-root {
+  --sf-bg: #0f172a;
+  --sf-surface: #1e293b;
+  --sf-border: #334155;
+  --sf-text: #f1f5f9;
+  --sf-muted: #94a3b8;
+}
 
 /* ── cart + checkout ───────────────────────────────────────────── */
 .sf-cart-link {
   display: inline-flex; align-items: center; gap: 8px;
   text-decoration: none; color: var(--sf-text);
-  font-size: 15px; font-weight: 500; margin-left: auto;
-  white-space: nowrap; padding: 6px 2px;
+  font-size: 15px; font-weight: 500;
+  white-space: nowrap; padding: 6px 8px; border-radius: 999px;
 }
 .sf-cart-link:hover { color: var(--sf-primary); }
 /* icon + count เป็นก้อนเดียว — count ลอยมุมบนขวาของถุง ไม่ดันข้อความ */
@@ -348,4 +362,88 @@
 .sf-quickadd-off {
   color: var(--sf-muted); cursor: default; justify-content: center;
   background: var(--sf-surface); font-weight: 500;
+}
+
+/* ── search + icon buttons ─────────────────────────────────────── */
+.sf-search {
+  position: relative; display: flex; align-items: center;
+  flex: 1; max-width: 420px; min-width: 0;
+}
+.sf-search-icon {
+  position: absolute; left: 12px; width: 18px; height: 18px;
+  color: var(--sf-muted); pointer-events: none;
+}
+.sf-search-input {
+  width: 100%; padding: 10px 36px 10px 38px;
+  font-size: 16px;              /* 16px กัน iOS zoom ตอนโฟกัส */
+  font-family: inherit;
+  border: 1px solid var(--sf-border); border-radius: 999px;
+  background: var(--sf-surface); color: var(--sf-text);
+}
+.sf-search-input::placeholder { color: var(--sf-muted); }
+.sf-search-input:focus { outline: 2px solid var(--sf-primary); outline-offset: 1px; background: var(--sf-bg); }
+/* ปิดกากบาทของ browser — เราวาดเองให้ตรงธีม */
+.sf-search-input::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; }
+.sf-search-clear {
+  position: absolute; right: 8px; display: inline-flex;
+  border: none; background: transparent; color: var(--sf-muted);
+  cursor: pointer; padding: 6px; border-radius: 999px;
+}
+.sf-search-clear svg { width: 15px; height: 15px; }
+.sf-search-clear:hover { color: var(--sf-text); }
+.sf-search-skeleton { flex: 1; max-width: 420px; height: 42px; border-radius: 999px; background: var(--sf-surface); }
+
+.sf-icon-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 38px; height: 38px; border-radius: 999px;
+  border: none; background: transparent; color: var(--sf-text);
+  cursor: pointer; padding: 0;
+}
+.sf-icon-btn:hover { background: var(--sf-surface); }
+.sf-icon-btn svg { width: 20px; height: 20px; }
+.sf-icon-placeholder { width: 20px; height: 20px; display: block; }
+
+@media (max-width: 700px) {
+  .sf-brand-name { font-size: 17px; }
+  .sf-search { order: 3; flex-basis: 100%; max-width: none; margin-bottom: 10px; }
+  .sf-header-top { flex-wrap: wrap; padding-top: 10px; }
+  .sf-header-actions { margin-left: auto; }
+}
+
+/* ── animation: หยิบใส่ตะกร้า ──────────────────────────────────── */
+@keyframes sf-bump {
+  0%   { transform: scale(1); }
+  35%  { transform: scale(1.28); }
+  70%  { transform: scale(0.94); }
+  100% { transform: scale(1); }
+}
+@keyframes sf-face-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes sf-fade-up {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.sf-bump { animation: sf-bump .4s cubic-bezier(.34, 1.56, .64, 1); }
+.sf-quickadd-face,
+.sf-cta-face {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  animation: sf-face-in .22s ease-out;
+}
+.sf-fade-up { animation: sf-fade-up .25s ease-out; }
+
+/* ปุ่มยุบเล็กน้อยตอนกด — ให้รู้สึกว่ากดติด */
+.sf-quickadd:active, .sf-cta:active { transform: scale(.97); }
+.sf-quickadd, .sf-cta { transition: background .15s ease, border-color .15s ease, color .15s ease, transform .08s ease; }
+
+.sf-cta-add { min-width: 220px; }
+.sf-cta-added { background: #16a34a; color: #fff; }
+
+/* เคารพการตั้งค่าของผู้ใช้ที่ปิด motion (เวียนหัว/ไวต่อการเคลื่อนไหว) */
+@media (prefers-reduced-motion: reduce) {
+  .sf-bump, .sf-quickadd-face, .sf-cta-face, .sf-fade-up { animation: none; }
+  .sf-quickadd:active, .sf-cta:active { transform: none; }
+  .sf-card:hover { transform: none; }
 }

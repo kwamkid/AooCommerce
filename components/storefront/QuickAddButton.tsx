@@ -57,9 +57,11 @@ export default function QuickAddButton({ shop, productSlug, productName, variati
       onClick={handleAdd}
       aria-label={`หยิบ ${productName} ใส่ตะกร้า`}
     >
-      {added
-        ? <><Check strokeWidth={2} aria-hidden="true" />เพิ่มแล้ว</>
-        : <><Plus strokeWidth={2} aria-hidden="true" />หยิบใส่ตะกร้า</>}
+      <span className="sf-quickadd-face" key={added ? 'done' : 'idle'}>
+        {added
+          ? <><Check strokeWidth={2} aria-hidden="true" />เพิ่มแล้ว</>
+          : <><Plus strokeWidth={2} aria-hidden="true" />หยิบใส่ตะกร้า</>}
+      </span>
     </button>
   );
 }

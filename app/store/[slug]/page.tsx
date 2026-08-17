@@ -17,13 +17,13 @@ interface PageProps {
 
 export async function generateMetadata({ params, searchParams }: PageProps): Promise<Metadata> {
   const { slug } = await params;
-  const { cat } = await searchParams;
+  const { cat, q } = await searchParams;
   const company = await getStorefrontCompany(slug);
   if (!company) return { title: 'ไม่พบหน้าร้าน' };
 
   const cfg = company.config;
   const shopName = cfg.display_name || company.name;
-  const title = cat ? `${cat} | ${shopName}` : shopName;
+  const title = q ? `ค้นหา "${q}" | ${shopName}` : cat ? `${cat} | ${shopName}` : shopName;
   const description = cfg.tagline || company.description || `สั่งซื้อสินค้าออนไลน์จาก ${shopName}`;
 
   return {
@@ -31,7 +31,8 @@ export async function generateMetadata({ params, searchParams }: PageProps): Pro
     description,
     // ไม่มีโดเมนของร้าน = ยังไม่ควรถูก index (SEO บนโดเมน aoo ไม่มีค่ากับลูกค้า
     // และหลายร้านอยู่โดเมนเดียวกัน) · หน้า filter ก็ noindex กัน facet ระเบิด
-    robots: (!cfg.public_base_url || !!cat) ? { index: false, follow: true } : undefined,
+    // หน้ากรอง/ค้นหา = noindex เสมอ (facet + คำค้นไม่จำกัด จะระเบิดเป็นหน้าขยะ)
+    robots: (!cfg.public_base_url || !!cat || !!q) ? { index: false, follow: true } : undefined,
     alternates: cfg.public_base_url ? { canonical: storefrontUrl(cfg, slug) } : undefined,
     openGraph: {
       title,
@@ -124,9 +125,16 @@ export default async function StorefrontCatalogPage({ params, searchParams }: Pa
       />
 
       <div className="sf-hero">
-        <h1>{cat || shopName}</h1>
-        {/* คำโปรยเป็นประโยคเต็ม — หน้า grid เปล่า ๆ ถือเป็น thin content */}
-        <p>{cfg.tagline || company.description || `เลือกซื้อสินค้าจาก ${shopName} จัดส่งถึงบ้าน`}</p>
+        <h1>{q ? `ผลการค้นหา "${q}"` : cat || shopName}</h1>
+        {q ? (
+          <p>
+            พบ {products.length} รายการ{' '}
+            <Link href={storefrontHref(slug)} className="sf-footer-link">ล้างคำค้นหา</Link>
+          </p>
+        ) : (
+          /* คำโปรยเป็นประโยคเต็ม — หน้า grid เปล่า ๆ ถือเป็น thin content */
+          <p>{cfg.tagline || company.description || `เลือกซื้อสินค้าจาก ${shopName} จัดส่งถึงบ้าน`}</p>
+        )}
       </div>
 
       {products.length === 0 ? (

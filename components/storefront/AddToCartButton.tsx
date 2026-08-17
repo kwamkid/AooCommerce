@@ -4,7 +4,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { Minus, Plus } from 'lucide-react';
+import { Minus, Plus, Check } from 'lucide-react';
 import { addToCart } from '@/lib/storefront-cart';
 import { formatStorePrice, storefrontHref, type StorefrontVariation } from '@/lib/storefront';
 
@@ -38,6 +38,7 @@ export default function AddToCartButton({ shop, productSlug, productName, variat
       image: selected.image || images[0] || null,
     }, qty);
     setAdded(true);
+    window.setTimeout(() => setAdded(false), 1800);
   };
 
   return (
@@ -65,15 +66,22 @@ export default function AddToCartButton({ shop, productSlug, productName, variat
           <span aria-live="polite">{qty}</span>
           <button type="button" onClick={() => { setQty(q => Math.min(99, q + 1)); setAdded(false); }} aria-label="เพิ่มจำนวน"><Plus strokeWidth={2} aria-hidden="true" /></button>
         </div>
-        <button type="button" className="sf-cta" onClick={handleAdd}>
-          หยิบใส่ตะกร้า · {formatStorePrice(selected.price * qty)}
+        <button
+          type="button"
+          className={`sf-cta sf-cta-add ${added ? 'sf-cta-added' : ''}`}
+          onClick={handleAdd}
+        >
+          <span className="sf-cta-face" key={added ? 'done' : 'idle'}>
+            {added
+              ? <><Check strokeWidth={2.2} aria-hidden="true" />เพิ่มลงตะกร้าแล้ว</>
+              : <>หยิบใส่ตะกร้า · {formatStorePrice(selected.price * qty)}</>}
+          </span>
         </button>
       </div>
 
       {added && (
-        <p className="sf-added">
-          เพิ่มลงตะกร้าแล้ว{' '}
-          <Link href={storefrontHref(shop, '/cart')} className="sf-footer-link">ดูตะกร้า</Link>
+        <p className="sf-added sf-fade-up">
+          <Link href={storefrontHref(shop, '/cart')} className="sf-footer-link">ดูตะกร้า →</Link>
         </p>
       )}
     </div>

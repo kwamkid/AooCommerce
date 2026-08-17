@@ -2,12 +2,14 @@
 // Storefront shell — header/footer + per-company theme tokens.
 // Standalone surface (SEO/AEO primary). The embedded (WordPress) surface will
 // reuse the same page bodies without this chrome.
-import type { ReactNode } from 'react';
+import { Suspense, type ReactNode } from 'react';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getStorefrontCompany, getStorefrontCategories } from '@/lib/storefront-server';
 import { storefrontCssVars, storefrontHref } from '@/lib/storefront';
 import CartBadge from '@/components/storefront/CartBadge';
+import ThemeToggle from '@/components/storefront/ThemeToggle';
+import SearchBox from '@/components/storefront/SearchBox';
 import './storefront.css';
 
 export default async function StoreLayout({
@@ -27,12 +29,18 @@ export default async function StoreLayout({
 
   return (
     <div className="sf-root" style={storefrontCssVars(cfg) as React.CSSProperties}>
+      {/* ตั้งธีมก่อน paint — ไม่งั้นหน้าจะกะพริบขาวก่อนเปลี่ยนเป็นมืด */}
+      <script
+        dangerouslySetInnerHTML={{
+          __html: `(function(){try{var t=localStorage.getItem('aoo-sf-theme');if(t==='dark'||t==='light')document.documentElement.setAttribute('data-sf-theme',t);}catch(e){}})();`,
+        }}
+      />
       {cfg.announcement && (
         <div className="sf-announcement">{cfg.announcement}</div>
       )}
 
       <header className="sf-header">
-        <div className="sf-container sf-header-inner">
+        <div className="sf-container sf-header-top">
           <Link href={storefrontHref(slug)} className="sf-brand">
             {company.logo_url && (
               // eslint-disable-next-line @next/next/no-img-element
@@ -41,6 +49,17 @@ export default async function StoreLayout({
             <span className="sf-brand-name">{shopName}</span>
           </Link>
 
+          <Suspense fallback={<div className="sf-search-skeleton" />}>
+            <SearchBox shop={slug} />
+          </Suspense>
+
+          <div className="sf-header-actions">
+            <ThemeToggle />
+            <CartBadge shop={slug} />
+          </div>
+        </div>
+
+        <div className="sf-container">
           <nav className="sf-nav" aria-label="หมวดสินค้า">
             <Link href={storefrontHref(slug)} className="sf-nav-link">สินค้าทั้งหมด</Link>
             {categories.slice(0, 6).map(cat => (
@@ -54,8 +73,6 @@ export default async function StoreLayout({
             ))}
             <Link href={storefrontHref(slug, '/delivery')} className="sf-nav-link">การจัดส่ง</Link>
           </nav>
-
-          <CartBadge shop={slug} />
         </div>
       </header>
 
