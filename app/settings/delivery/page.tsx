@@ -4,7 +4,7 @@
 // Slot = รอบเวลา 2-3 ชม. (ห้ามเป็นเวลาเป๊ะ) + วัน + capacity + cutoff
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import Layout from '@/components/layout/Layout';
 import Container from '@/components/ui/Container';
 import PageHeader from '@/components/ui/PageHeader';
@@ -23,6 +23,7 @@ import { LoadingCard, EmptyCard, NoPermissionCard } from '@/components/ui/StateC
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { useToast } from '@/lib/toast-context';
 import { useAuthGuard } from '@/lib/useAuthGuard';
+import { useFeatures } from '@/lib/features-context';
 import { useFetchOnce } from '@/lib/use-fetch-once';
 import { apiFetch } from '@/lib/api-client';
 import { useFormValidation } from '@/lib/useFormValidation';
@@ -47,10 +48,16 @@ const EMPTY_SLOT_FORM = {
 
 export default function DeliverySettingsPage() {
   const { allowed, loading: guardLoading } = useAuthGuard('masterdata.delivery', { noRedirect: true });
+  // แต่ละส่วนเปิด/ปิดอิสระที่ Feature เสริม — หน้านี้ต้องซ่อนตาม ไม่งั้นผู้ใช้
+  // ตั้งค่าส่วนที่ปิดอยู่ได้ แล้วงงว่าทำไมไม่มีผลตอนเปิดบิล
+  const { features } = useFeatures();
+  const zonesOn = features.delivery_zone;
+  const slotsOn = features.delivery_slot;
   const { showToast } = useToast();
   const { confirm, confirmDialog } = useConfirmDialog();
 
   const [tab, setTab] = useState<TabKey>('zones');
+
   const [zones, setZones] = useState<DeliveryZone[]>([]);
   const [slots, setSlots] = useState<DeliverySlot[]>([]);
   const [loading, setLoading] = useState(true);
@@ -63,18 +70,28 @@ export default function DeliverySettingsPage() {
   const [slotForm, setSlotForm] = useState(EMPTY_SLOT_FORM);
   const form = useFormValidation();
 
+  // ถ้าแท็บที่เปิดอยู่ถูกปิดที่ Feature เสริม ให้เด้งไปแท็บที่ยังเปิดอยู่
+  useEffect(() => {
+    if (tab === 'zones' && !zonesOn && slotsOn) setTab('slots');
+    if (tab === 'slots' && !slotsOn && zonesOn) setTab('zones');
+  }, [tab, zonesOn, slotsOn]);
+
+  // เปิดตัวเดียว = แสดงตัวนั้นเลย ไม่ต้องรอให้ tab state ตรง
+  const showZones = zonesOn && (!slotsOn || tab === 'zones');
+  const showSlots = slotsOn && !showZones;
+
   const fetchAll = useCallback(async () => {
     try {
       const [zRes, sRes] = await Promise.all([
-        apiFetch('/api/delivery-zones'),
-        apiFetch('/api/delivery-slots'),
+        zonesOn ? apiFetch('/api/delivery-zones') : null,
+        slotsOn ? apiFetch('/api/delivery-slots') : null,
       ]);
-      if (zRes.ok) setZones((await zRes.json()).zones || []);
-      if (sRes.ok) setSlots((await sRes.json()).slots || []);
+      if (zRes?.ok) setZones((await zRes.json()).zones || []);
+      if (sRes?.ok) setSlots((await sRes.json()).slots || []);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [zonesOn, slotsOn]);
   useFetchOnce(fetchAll, allowed);
 
   // ── Zone helpers ──────────────────────────────────────────────────
@@ -282,27 +299,40 @@ export default function DeliverySettingsPage() {
       <Container size="2xl">
         <PageHeader
           title="การจัดส่ง"
-          subtitle="จุดส่ง โซนค่าส่ง และช่วงเวลาส่งของร้าน"
+          subtitle={zonesOn && slotsOn ? 'จุดส่ง โซนค่าส่ง และช่วงเวลาส่งของร้าน'
+            : zonesOn ? 'พื้นที่ที่ร้านรับส่ง และค่าส่งของแต่ละโซน'
+            : 'รอบเวลาจัดส่งในแต่ละวัน'}
           backHref="/settings/company"
           actions={
-            tab === 'zones'
+            showZones
               ? <Button variant="primary" onClick={openZoneCreate}>+ เพิ่มจุดส่ง</Button>
-              : <Button variant="primary" onClick={openSlotCreate}>+ เพิ่มรอบส่ง</Button>
+              : showSlots
+                ? <Button variant="primary" onClick={openSlotCreate}>+ เพิ่มรอบส่ง</Button>
+                : undefined
           }
         />
 
-        <Tabs
-          tabs={[
-            { key: 'zones', label: 'จุดส่ง / โซนค่าส่ง', icon: <MapPin className="w-4 h-4" /> },
-            { key: 'slots', label: 'ช่วงเวลาส่ง', icon: <Clock className="w-4 h-4" /> },
-          ]}
-          activeKey={tab}
-          onSelect={(k) => setTab(k as TabKey)}
-        />
+        {/* เปิดทั้งคู่ค่อยมีแท็บให้สลับ — เปิดอย่างเดียวก็ไม่ต้องมีแท็บให้รก */}
+        {zonesOn && slotsOn && (
+          <Tabs
+            tabs={[
+              { key: 'zones', label: 'จุดส่ง / โซนค่าส่ง', icon: <MapPin className="w-4 h-4" /> },
+              { key: 'slots', label: 'ช่วงเวลาส่ง', icon: <Clock className="w-4 h-4" /> },
+            ]}
+            activeKey={tab}
+            onSelect={(k) => setTab(k as TabKey)}
+          />
+        )}
 
-        {loading ? (
+        {!zonesOn && !slotsOn ? (
+          <EmptyCard
+            title="ยังไม่ได้เปิดใช้งาน"
+            subtitle='เปิด "จุดส่ง / โซนค่าส่ง" หรือ "ช่วงเวลาส่ง" ที่ ตั้งค่า → Feature เสริม ก่อน'
+            icon={<MapPin className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
+          />
+        ) : loading ? (
           <LoadingCard />
-        ) : tab === 'zones' ? (
+        ) : showZones ? (
           zones.length === 0 ? (
             <EmptyCard
               title="ยังไม่มีจุดส่ง"
