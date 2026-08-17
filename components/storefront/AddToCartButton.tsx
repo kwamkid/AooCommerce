@@ -4,6 +4,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { Minus, Plus } from 'lucide-react';
 import { addToCart } from '@/lib/storefront-cart';
 import { formatStorePrice, storefrontHref, type StorefrontVariation } from '@/lib/storefront';
 
@@ -60,9 +61,9 @@ export default function AddToCartButton({ shop, productSlug, productName, variat
 
       <div className="sf-buy-row">
         <div className="sf-qty" role="group" aria-label="จำนวน">
-          <button type="button" onClick={() => { setQty(q => Math.max(1, q - 1)); setAdded(false); }} aria-label="ลดจำนวน">−</button>
+          <button type="button" onClick={() => { setQty(q => Math.max(1, q - 1)); setAdded(false); }} aria-label="ลดจำนวน"><Minus strokeWidth={2} aria-hidden="true" /></button>
           <span aria-live="polite">{qty}</span>
-          <button type="button" onClick={() => { setQty(q => Math.min(99, q + 1)); setAdded(false); }} aria-label="เพิ่มจำนวน">+</button>
+          <button type="button" onClick={() => { setQty(q => Math.min(99, q + 1)); setAdded(false); }} aria-label="เพิ่มจำนวน"><Plus strokeWidth={2} aria-hidden="true" /></button>
         </div>
         <button type="button" className="sf-cta" onClick={handleAdd}>
           หยิบใส่ตะกร้า · {formatStorePrice(selected.price * qty)}

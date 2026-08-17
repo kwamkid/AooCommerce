@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { Minus, Plus, X } from 'lucide-react';
 import { useCart, setQuantity, removeFromCart } from '@/lib/storefront-cart';
 import { formatStorePrice, storefrontHref } from '@/lib/storefront';
 
@@ -46,9 +47,9 @@ export default function CartClient({ shop }: { shop: string }) {
             </div>
 
             <div className="sf-qty" role="group" aria-label={`จำนวนของ ${l.name}`}>
-              <button type="button" onClick={() => setQuantity(shop, l.variation_id, l.quantity - 1)} aria-label="ลดจำนวน">−</button>
+              <button type="button" onClick={() => setQuantity(shop, l.variation_id, l.quantity - 1)} aria-label="ลดจำนวน"><Minus strokeWidth={2} aria-hidden="true" /></button>
               <span>{l.quantity}</span>
-              <button type="button" onClick={() => setQuantity(shop, l.variation_id, l.quantity + 1)} aria-label="เพิ่มจำนวน">+</button>
+              <button type="button" onClick={() => setQuantity(shop, l.variation_id, l.quantity + 1)} aria-label="เพิ่มจำนวน"><Plus strokeWidth={2} aria-hidden="true" /></button>
             </div>
 
             <div className="sf-cart-total">{formatStorePrice(l.price * l.quantity)}</div>
@@ -59,7 +60,7 @@ export default function CartClient({ shop }: { shop: string }) {
               onClick={() => removeFromCart(shop, l.variation_id)}
               aria-label={`ลบ ${l.name} ออกจากตะกร้า`}
             >
-              ✕
+              <X strokeWidth={2} aria-hidden="true" />
             </button>
           </div>
         ))}

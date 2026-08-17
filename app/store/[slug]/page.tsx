@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getStorefrontCompany, getStorefrontCatalog } from '@/lib/storefront-server';
 import { storefrontUrl, storefrontHref, formatStorePrice, type StorefrontProduct } from '@/lib/storefront';
+import QuickAddButton from '@/components/storefront/QuickAddButton';
 
 export const revalidate = 300;
 
@@ -47,33 +48,47 @@ function ProductCard({ product, slug }: { product: StorefrontProduct; slug: stri
   const hasRange = product.price_max > product.price_min;
   const firstCompare = product.variations.find(v => v.compare_at != null)?.compare_at ?? null;
 
+  // การ์ดเป็น <article> ไม่ใช่ <a> ทั้งใบ เพราะ <button> ซ้อนใน <a> เป็น HTML
+  // ที่ไม่ถูกต้อง — ลิงก์ครอบเฉพาะรูป+ชื่อ ซึ่งพอสำหรับ crawler เดินหน้าสินค้า
   return (
-    <Link href={storefrontHref(slug, `/p/${product.slug}`)} className="sf-card">
-      <div className="sf-card-media">
-        {cover
-          // eslint-disable-next-line @next/next/no-img-element
-          ? <img src={cover} alt={product.name} loading="lazy" />
-          : <span className="sf-card-media-empty">ไม่มีรูป</span>}
+    <article className="sf-card">
+      <Link href={storefrontHref(slug, `/p/${product.slug}`)} className="sf-card-link">
+        <div className="sf-card-media">
+          {cover
+            // eslint-disable-next-line @next/next/no-img-element
+            ? <img src={cover} alt={product.name} loading="lazy" />
+            : <span className="sf-card-media-empty">ไม่มีรูป</span>}
+        </div>
+        <div className="sf-card-body">
+          {product.category && <span className="sf-card-cat">{product.category}</span>}
+          <span className="sf-card-name">{product.name}</span>
+          <span className="sf-card-price">
+            {product.in_stock ? (
+              <>
+                {hasRange
+                  ? `${formatStorePrice(product.price_min)}–${formatStorePrice(product.price_max)}`
+                  : formatStorePrice(product.price_min)}
+                {!hasRange && firstCompare && (
+                  <span className="sf-card-compare">{formatStorePrice(firstCompare)}</span>
+                )}
+              </>
+            ) : (
+              <span className="sf-oos">สินค้าหมดชั่วคราว</span>
+            )}
+          </span>
+        </div>
+      </Link>
+
+      <div className="sf-card-foot">
+        <QuickAddButton
+          shop={slug}
+          productSlug={product.slug}
+          productName={product.name}
+          variations={product.variations}
+          cover={cover ?? null}
+        />
       </div>
-      <div className="sf-card-body">
-        {product.category && <span className="sf-card-cat">{product.category}</span>}
-        <span className="sf-card-name">{product.name}</span>
-        <span className="sf-card-price">
-          {product.in_stock ? (
-            <>
-              {hasRange
-                ? `${formatStorePrice(product.price_min)}–${formatStorePrice(product.price_max)}`
-                : formatStorePrice(product.price_min)}
-              {!hasRange && firstCompare && (
-                <span className="sf-card-compare">{formatStorePrice(firstCompare)}</span>
-              )}
-            </>
-          ) : (
-            <span className="sf-oos">สินค้าหมดชั่วคราว</span>
-          )}
-        </span>
-      </div>
-    </Link>
+    </article>
   );
 }
 
