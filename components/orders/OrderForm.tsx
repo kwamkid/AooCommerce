@@ -14,7 +14,7 @@ import { parseThaiAddress } from '@/lib/address-parser';
 import {
   type DeliveryZone, type DeliverySlot,
   resolveZone, resolveDeliveryFee, getSlotAvailability,
-  slotUnavailableLabel, formatSlotTime,
+  slotUnavailableLabel, formatSlotTime, getSlotWindow, buildWindowLabel,
 } from '@/lib/delivery';
 import ThaiAddressInput from '@/components/ui/ThaiAddressInput';
 import EntitySearchInput from '@/components/ui/EntitySearchInput';
@@ -2208,6 +2208,8 @@ export default function OrderForm({
                   {deliverySlots.map((slot) => {
                     const avail = getSlotAvailability(slot, deliveryDate, activeZone);
                     const isSelected = selectedSlotId === slot.id;
+                    // แสดงช่วงที่ส่งได้จริง (หักเวลาที่ผ่านไปแล้ว) ไม่ใช่ช่วงเต็มของรอบ
+                    const win = avail.available ? getSlotWindow(slot, deliveryDate, activeZone) : null;
                     return (
                       <button
                         type="button"
@@ -2222,7 +2224,7 @@ export default function OrderForm({
                               : 'border-gray-100 dark:border-slate-700 text-gray-300 dark:text-slate-600 cursor-not-allowed'
                         }`}
                       >
-                        {slot.name} · {formatSlotTime(slot.start_time)}-{formatSlotTime(slot.end_time)}
+                        {slot.name} · {win ? buildWindowLabel(win).replace(' น.', '') : `${formatSlotTime(slot.start_time)}-${formatSlotTime(slot.end_time)}`}
                         {!avail.available && avail.reason && (
                           <span className="ml-1.5 text-xs">({slotUnavailableLabel(avail.reason, activeZone)})</span>
                         )}

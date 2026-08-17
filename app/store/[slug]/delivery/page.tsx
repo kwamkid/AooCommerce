@@ -25,7 +25,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const shopName = cfg.display_name || company.name;
   return {
     title: `พื้นที่จัดส่งและรอบส่ง | ${shopName}`,
-    description: `พื้นที่ที่ ${shopName} จัดส่งถึง ค่าจัดส่งแต่ละพื้นที่ รอบเวลาจัดส่ง และเวลาปิดรับออเดอร์`,
+    description: `พื้นที่ที่ ${shopName} จัดส่งถึง ค่าจัดส่งแต่ละพื้นที่ ระยะเวลาจัดส่ง และรอบเวลาจัดส่งในแต่ละวัน`,
     robots: cfg.public_base_url ? undefined : { index: false, follow: true },
     alternates: cfg.public_base_url
       ? { canonical: storefrontUrl(cfg, slug, '/delivery') }
@@ -69,6 +69,14 @@ export default async function StorefrontDeliveryPage({ params }: PageProps) {
       a: `จัดส่งใน ${zones.length} พื้นที่ ได้แก่ ${zones.map(z => `${z.name} (${areaSummary(z)})`).join('; ')}. `
         + 'พื้นที่นอกเหนือจากนี้ยังไม่เปิดให้บริการจัดส่ง',
     });
+    const withLead = zones.filter(z => z.lead_minutes > 0);
+    if (withLead.length > 0) {
+      faq.push({
+        q: 'ใช้เวลาจัดส่งนานแค่ไหน',
+        a: withLead.map(z => `${z.name} ใช้เวลา ${minutesLabel(z.lead_minutes)} นับจากเวลาที่สั่ง`).join('; ')
+          + '. ระบบจะแสดงเฉพาะรอบจัดส่งที่ส่งทันเท่านั้น',
+      });
+    }
     faq.push({
       q: 'ค่าจัดส่งเท่าไร',
       a: zones.map(z => `${z.name} ${feeSummary(z)}`
@@ -80,9 +88,10 @@ export default async function StorefrontDeliveryPage({ params }: PageProps) {
     faq.push({
       q: 'มีรอบจัดส่งช่วงเวลาไหนบ้าง',
       a: slots.map(s =>
-        `รอบ${s.name} ${formatSlotTime(s.start_time)}-${formatSlotTime(s.end_time)} น. (${formatDays(s.days_of_week)}) `
-        + `ปิดรับออเดอร์ก่อนเริ่มรอบ ${minutesLabel(s.cutoff_minutes)}`,
-      ).join('; ') + '. เลือกได้เป็นช่วงเวลา ไม่ใช่เวลานัดที่แน่นอน เพื่อให้ส่งได้ตรงตามที่แจ้งจริง',
+        `รอบ${s.name} ${formatSlotTime(s.start_time)}-${formatSlotTime(s.end_time)} น. (${formatDays(s.days_of_week)})`,
+      ).join('; ')
+        + '. เลือกได้เป็นช่วงเวลา ไม่ใช่เวลานัดที่แน่นอน '
+        + 'ระบบจะแสดงเฉพาะรอบที่จัดส่งทันตามระยะเวลาจัดส่งของพื้นที่ปลายทาง',
     });
   }
 
@@ -124,7 +133,7 @@ export default async function StorefrontDeliveryPage({ params }: PageProps) {
                   <th>ครอบคลุม</th>
                   <th>ค่าจัดส่ง</th>
                   <th>ส่งฟรีเมื่อครบ</th>
-                  <th>สั่งล่วงหน้า</th>
+                  <th>ระยะเวลาจัดส่ง</th>
                 </tr>
               </thead>
               <tbody>
@@ -156,7 +165,6 @@ export default async function StorefrontDeliveryPage({ params }: PageProps) {
                   <th>รอบ</th>
                   <th>ช่วงเวลา</th>
                   <th>วันที่ให้บริการ</th>
-                  <th>ปิดรับออเดอร์ก่อนเริ่มรอบ</th>
                 </tr>
               </thead>
               <tbody>
@@ -165,7 +173,6 @@ export default async function StorefrontDeliveryPage({ params }: PageProps) {
                     <td>{s.name}</td>
                     <td>{formatSlotTime(s.start_time)}-{formatSlotTime(s.end_time)} น.</td>
                     <td>{formatDays(s.days_of_week)}</td>
-                    <td>{minutesLabel(s.cutoff_minutes)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -173,6 +180,7 @@ export default async function StorefrontDeliveryPage({ params }: PageProps) {
           </div>
           <p className="sf-footer-text" style={{ marginTop: 10 }}>
             รอบจัดส่งเป็นช่วงเวลา ไม่ใช่เวลานัดที่แน่นอน เพื่อให้จัดส่งได้ตรงตามที่แจ้งไว้จริง
+            — ตอนสั่งซื้อระบบจะแสดงเฉพาะรอบที่จัดส่งทันตามพื้นที่ของคุณ
           </p>
         </section>
       )}

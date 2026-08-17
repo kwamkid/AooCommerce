@@ -9,7 +9,7 @@ import {
   getStorefrontCategories, getStorefrontDelivery,
 } from '@/lib/storefront-server';
 import { storefrontUrl, formatStorePrice } from '@/lib/storefront';
-import { formatSlotTime, formatDays } from '@/lib/delivery';
+import { formatSlotTime, formatDays, formatLeadTime } from '@/lib/delivery';
 
 export const revalidate = 3600;
 
@@ -60,12 +60,13 @@ export async function GET(
         ? 'ค่าจัดส่งคิดตามระยะทางจริง (Lalamove)'
         : Number(z.fee) > 0 ? `ค่าจัดส่ง ${formatStorePrice(Number(z.fee))}` : 'จัดส่งฟรี';
       const free = z.free_over != null ? ` ส่งฟรีเมื่อสั่งครบ ${formatStorePrice(Number(z.free_over))}.` : '';
+      const lead = z.lead_minutes > 0 ? ` ใช้เวลาจัดส่ง ${formatLeadTime(z.lead_minutes)} นับจากเวลาที่สั่ง.` : '';
       const area = [
         z.provinces?.length ? z.provinces.join(', ') : null,
         z.districts?.length ? z.districts.join(', ') : null,
         z.postcodes?.length ? `รหัสไปรษณีย์ ${z.postcodes.join(', ')}` : null,
       ].filter(Boolean).join(' · ');
-      L.push(`- ${z.name}: ครอบคลุม ${area || '—'}. ${fee}.${free}`);
+      L.push(`- ${z.name}: ครอบคลุม ${area || '—'}. ${fee}.${free}${lead}`);
     }
     L.push('', 'ที่อยู่นอกพื้นที่ข้างต้นยังไม่เปิดให้บริการจัดส่ง', '');
   }
@@ -75,10 +76,10 @@ export async function GET(
     for (const s of slots) {
       L.push(
         `- รอบ${s.name} เวลา ${formatSlotTime(s.start_time)}-${formatSlotTime(s.end_time)} น. `
-        + `ให้บริการ ${formatDays(s.days_of_week)} ปิดรับออเดอร์ก่อนเริ่มรอบ ${s.cutoff_minutes} นาที`,
+        + `ให้บริการ ${formatDays(s.days_of_week)}`,
       );
     }
-    L.push('', 'รอบจัดส่งเลือกได้เป็นช่วงเวลา ไม่ใช่เวลานัดที่แน่นอน', '');
+    L.push('', 'รอบจัดส่งเลือกได้เป็นช่วงเวลา ไม่ใช่เวลานัดที่แน่นอน ระบบเปิดให้เลือกเฉพาะรอบที่จัดส่งทัน', '');
   }
 
   if (products.length > 0) {

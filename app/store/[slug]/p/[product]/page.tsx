@@ -132,7 +132,7 @@ export default async function StorefrontProductPage({ params }: PageProps) {
   if (slots.length > 0) {
     deliverySentences.push(
       `รอบจัดส่งต่อวันมี ${slots.map(s => `${formatSlotTime(s.start_time)}-${formatSlotTime(s.end_time)} น.`).join(', ')} `
-      + 'โดยเลือกได้เป็นช่วงเวลา ไม่ใช่เวลานัดที่แน่นอน.',
+      + 'โดยเลือกได้เป็นช่วงเวลา ไม่ใช่เวลานัดที่แน่นอน และระบบจะแสดงเฉพาะรอบที่จัดส่งทัน.',
     );
   }
 

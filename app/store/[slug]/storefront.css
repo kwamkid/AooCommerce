@@ -461,3 +461,6 @@ html[data-sf-theme='dark'] .sf-root {
   .sf-quickadd:active, .sf-cta:active { transform: none; }
   .sf-card:hover { transform: none; }
 }
+
+/* ช่วงรอบที่ถูกหั่นสั้นลง — บอกช่วงเต็มของรอบไว้ใต้ตัวเลข กันลูกค้าสงสัยว่าทำไมไม่ตรงกับที่ประกาศ */
+.sf-slot-note { display: block; font-size: 12px; color: var(--sf-muted); margin-top: 2px; }

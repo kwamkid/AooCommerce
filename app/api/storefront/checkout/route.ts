@@ -12,7 +12,8 @@ import { supabaseAdmin } from '@/lib/supabase-admin';
 import { getStorefrontCompany } from '@/lib/storefront-server';
 import { effectivePrice } from '@/lib/storefront';
 import {
-  resolveZone, resolveDeliveryFee, getSlotAvailability, buildSlotLabel,
+  resolveZone, resolveDeliveryFee, getSlotAvailability,
+  getSlotWindow, buildWindowLabel,
   type DeliveryZone, type DeliverySlot,
 } from '@/lib/delivery';
 
@@ -160,6 +161,7 @@ export async function POST(request: NextRequest) {
 
   // ── slot ──
   let slot: DeliverySlot | null = null;
+  let slotWindow: ReturnType<typeof getSlotWindow> | null = null;
   if (company.features.delivery_slot && body.delivery_slot_id) {
     if (!body.delivery_date) {
       return NextResponse.json({ error: 'กรุณาเลือกวันที่จัดส่ง' }, { status: 400 });
@@ -194,6 +196,7 @@ export async function POST(request: NextRequest) {
       );
     }
     slot = slotRow as DeliverySlot;
+    slotWindow = getSlotWindow(slot, body.delivery_date, zone);
   }
 
   // ── totals (VAT-inclusive pricing, same rule as the back-office order API) ──
@@ -239,8 +242,9 @@ export async function POST(request: NextRequest) {
       delivery_zone_id: zone?.id ?? null,
       delivery_zone_label: zone?.name ?? null,
       delivery_slot_id: slot?.id ?? null,
-      delivery_slot_label: slot ? buildSlotLabel(slot) : null,
-      delivery_slot_start: slot?.start_time ?? null,
+      // snapshot ช่วงที่ส่งได้จริง = สิ่งที่ลูกค้าเห็นตอนกดสั่ง (คำสัญญาที่ให้ไว้)
+      delivery_slot_label: slotWindow ? buildWindowLabel(slotWindow) : null,
+      delivery_slot_start: slotWindow ? `${slotWindow.start}:00` : null,
       delivery_slot_end: slot?.end_time ?? null,
     })
     .select('id, order_number')

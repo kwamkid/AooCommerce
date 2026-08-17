@@ -106,7 +106,7 @@ function timeToMinutes(t: string): number {
 /**
  * Is this slot selectable for the given date? All conditions must pass:
  * 1. วันที่เลือกตรงกับ days_of_week
- * 2. now < (slot start on date) - max(cutoff_minutes, zone.lead_minutes)
+ * 2. now + zone.lead_minutes < slot END on that date (ส่งทันภายในรอบ)
  * 3. capacity null หรือ booked_count < capacity
  * 4. slot อยู่ใน zone.slot_ids (ว่าง = ใช้ได้ทุก slot)
  *
@@ -133,18 +133,23 @@ export function getSlotAvailability(
     return { available: false, reason: 'day_off' };
   }
 
-  // 2) เวลาปิดรับ — ทั้งรอบและโซนต่างบอกว่า "ต้องสั่งก่อนเริ่มรอบกี่นาที"
-  //    ซึ่งเป็นหน่วยเดียวกัน จึงใช้ **ค่าที่มากกว่า** (เข้มกว่าชนะ) ไม่ใช่บวกกัน
-  //    — ถ้าบวก ร้านที่ตั้งรอบปิดรับ 2 ชม. + โซน 5 ชม. จะกลายเป็นต้องสั่งก่อน
-  //    7 ชม. ซึ่งไม่มีใครคาดหวัง และเดาจากหน้าจอไม่ได้เลย
+  // 2) เกณฑ์เวลา — ถามว่า "ส่งทันภายในรอบนี้ไหม" ไม่ใช่ "ทันก่อนรอบเริ่มไหม"
+  //
+  //    ของถึงลูกค้าเร็วสุด = ตอนนี้ + เวลาเตรียม+จัดส่งของโซน (lead_minutes)
+  //    ถ้าเวลานั้นยังไม่เลย "เวลาปิดรอบ" ก็ยังส่งทัน เลือกได้
+  //
+  //    เช่น กทม. lead 2 ชม. · ตอนนี้ 08:00 · รอบ 09:00-12:00
+  //         → ของถึง 10:00 ซึ่งอยู่ในรอบ → เลือกได้ (ไม่ต้องรอรอบถัดไป)
+  //
+  //    lead หน่วยเป็นนาที จึงคุมข้ามวันได้ในค่าเดียว — ต่างจังหวัด 1440 นาที
+  //    ทำให้รอบของวันนี้ตกไปเองทั้งหมด เหลือรอบพรุ่งนี้เป็นต้นไป
   const leadMinutes = zone?.lead_minutes || 0;
-  const noticeMinutes = Math.max(slot.cutoff_minutes, leadMinutes);
-  const slotStart = new Date(date);
-  slotStart.setMinutes(timeToMinutes(slot.start_time));
-  const latestOrderTime = slotStart.getTime() - noticeMinutes * 60_000;
-  if (now.getTime() >= latestOrderTime) {
-    // บอกให้ตรงว่าค่าไหนเป็นตัวกำหนด ร้านจะได้รู้ว่าต้องไปแก้ที่ไหน
-    return { available: false, reason: leadMinutes > slot.cutoff_minutes ? 'lead' : 'cutoff' };
+  const slotEnd = new Date(date);
+  slotEnd.setMinutes(timeToMinutes(slot.end_time));
+  const arrival = now.getTime() + leadMinutes * 60_000;
+  if (arrival >= slotEnd.getTime()) {
+    // ไม่มี lead = รอบนี้ผ่านไปแล้วเฉย ๆ · มี lead = ส่งไม่ทันรอบนี้
+    return { available: false, reason: leadMinutes > 0 ? 'lead' : 'cutoff' };
   }
 
   // 3) capacity
@@ -157,8 +162,8 @@ export function getSlotAvailability(
 
 export const SLOT_UNAVAILABLE_LABELS: Record<Exclude<SlotUnavailableReason, null>, string> = {
   day_off: 'ไม่มีรอบวันนี้',
-  cutoff: 'ปิดรับแล้ว',
-  lead: 'เตรียมของไม่ทัน',
+  cutoff: 'หมดเวลารอบนี้',
+  lead: 'ส่งไม่ทันรอบนี้',
   full: 'เต็มแล้ว',
   zone_excluded: 'ไม่มีรอบนี้ในพื้นที่',
 };
@@ -173,7 +178,7 @@ export function formatLeadTime(minutes: number): string {
 
 /**
  * ข้อความบอกเหตุผลที่เลือกรอบนี้ไม่ได้ — กรณี lead ใส่ระยะเวลาจริงของโซนไปด้วย
- * เพราะ "เตรียมของไม่ทัน" เฉย ๆ ไม่บอกว่าต้องสั่งล่วงหน้าเท่าไร
+ * เพราะ "ส่งไม่ทันรอบนี้" เฉย ๆ ไม่บอกว่าใช้เวลาเท่าไร
  */
 export function slotUnavailableLabel(
   reason: SlotUnavailableReason,
@@ -181,9 +186,57 @@ export function slotUnavailableLabel(
 ): string | null {
   if (!reason) return null;
   if (reason === 'lead' && zone?.lead_minutes) {
-    return `ต้องสั่งล่วงหน้า ${formatLeadTime(zone.lead_minutes)}`;
+    return `ส่งไม่ทันรอบนี้ (ใช้เวลา ${formatLeadTime(zone.lead_minutes)})`;
   }
   return SLOT_UNAVAILABLE_LABELS[reason];
+}
+
+export interface SlotWindow {
+  /** เวลาเริ่มที่ส่งได้จริง 'HH:mm' */
+  start: string;
+  end: string;
+  /** true = ถูกหั่นให้สั้นลงเพราะสั่งช้ากว่าเวลาเริ่มรอบ */
+  narrowed: boolean;
+}
+
+/** ปัดขึ้นเป็นช่วง 30 นาที — ปัดขึ้นเสมอ เพื่อไม่สัญญาเร็วกว่าที่ทำได้จริง */
+function ceilToHalfHour(d: Date): Date {
+  const out = new Date(d);
+  out.setSeconds(0, 0);
+  const m = out.getMinutes();
+  out.setMinutes(m % 30 === 0 ? m : Math.ceil(m / 30) * 30);
+  return out;
+}
+
+function toHHmm(d: Date): string {
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
+/**
+ * ช่วงเวลาที่ "ส่งได้จริง" ของรอบนี้ = ตัดส่วนที่ผ่านไปแล้วออก
+ *
+ * รอบ 09:00-12:00 · โซนใช้เวลา 2 ชม. · ตอนนี้ 08:00 → ของถึงเร็วสุด 10:00
+ * จึงแสดงเป็น 10:00-12:00 ไม่ใช่ 09:00-12:00 ซึ่งเป็นคำสัญญาที่ทำไม่ได้แล้ว
+ *
+ * ถ้าสั่งล่วงหน้า (ของถึงก่อนรอบเริ่ม) จะได้ช่วงเต็มตามเดิม narrowed=false
+ */
+export function getSlotWindow(
+  slot: Pick<DeliverySlot, 'start_time' | 'end_time'>,
+  dateStr: string,
+  zone: Pick<DeliveryZone, 'lead_minutes'> | null,
+  now: Date = new Date(),
+): SlotWindow {
+  const base = new Date(`${dateStr}T00:00:00`);
+  const start = new Date(base); start.setMinutes(timeToMinutes(slot.start_time));
+  const end = new Date(base); end.setMinutes(timeToMinutes(slot.end_time));
+
+  const arrival = new Date(now.getTime() + (zone?.lead_minutes || 0) * 60_000);
+  if (arrival <= start) {
+    return { start: formatSlotTime(slot.start_time), end: formatSlotTime(slot.end_time), narrowed: false };
+  }
+  const rounded = ceilToHalfHour(arrival);
+  const effective = rounded < end ? rounded : arrival;   // กันปัดขึ้นจนเลยเวลาปิดรอบ
+  return { start: toHHmm(effective), end: formatSlotTime(slot.end_time), narrowed: true };
 }
 
 /** '15:00:00' → '15:00' */
@@ -194,6 +247,11 @@ export function formatSlotTime(t: string): string {
 /** Snapshot label เก็บลง orders.delivery_slot_label เช่น '15:00-18:00 น.' */
 export function buildSlotLabel(slot: Pick<DeliverySlot, 'start_time' | 'end_time'>): string {
   return `${formatSlotTime(slot.start_time)}-${formatSlotTime(slot.end_time)} น.`;
+}
+
+/** label จากช่วงที่ส่งได้จริง — ใช้ทั้งตอนแสดงและตอน snapshot ลงออเดอร์ */
+export function buildWindowLabel(w: SlotWindow): string {
+  return `${w.start}-${w.end} น.`;
 }
 
 export const DAY_LABELS = ['อา', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส'] as const;

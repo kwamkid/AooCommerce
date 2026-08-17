@@ -215,7 +215,7 @@ export default function DeliverySettingsPage() {
         end_time: slotForm.end_time,
         days_of_week: slotForm.days,
         capacity: slotForm.capacity ? Number(slotForm.capacity) : null,
-        cutoff_minutes: Number(slotForm.cutoff_minutes) || 0,
+        cutoff_minutes: 0,
         is_active: slotForm.is_active,
       };
       const res = await apiFetch('/api/delivery-slots', {
@@ -384,10 +384,11 @@ export default function DeliverySettingsPage() {
             />
           ) : (
             <div className="space-y-2">
-              {zonesOn && slots.some(sl => sl.cutoff_minutes > 0) && (
+              {zonesOn && (
                 <p className="subtitle-text text-gray-500">
-                  เวลาปิดรับใช้ <strong>ค่าที่มากกว่า</strong> ระหว่าง &quot;ปิดรับก่อนเริ่มรอบ&quot; ของรอบนี้
-                  กับ &quot;ต้องสั่งล่วงหน้า&quot; ของโซนปลายทาง — ไม่ได้เอามาบวกกัน
+                  ลูกค้าจะเลือกรอบได้ก็ต่อเมื่อ <strong>ส่งทันภายในรอบนั้น</strong> —
+                  ระบบคิดจาก &quot;เวลาเตรียม + จัดส่ง&quot; ของโซนปลายทาง (ตั้งที่แท็บจุดส่ง)
+                  ตรงนี้จึงกำหนดแค่ช่วงเวลา วัน และจำนวนที่รับได้
                 </p>
               )}
               {slots.map((s, i) => (
@@ -406,7 +407,7 @@ export default function DeliverySettingsPage() {
                     </div>
                   }
                   title={`${s.name} · ${formatSlotTime(s.start_time)}-${formatSlotTime(s.end_time)} น.`}
-                  subtitle={`${formatDays(s.days_of_week)}${s.capacity != null ? ` · รับ ${s.capacity} ออเดอร์/วัน` : ''} · ปิดรับก่อนเริ่ม ${s.cutoff_minutes >= 60 ? `${Math.round(s.cutoff_minutes / 60)} ชม.` : `${s.cutoff_minutes} นาที`}`}
+                  subtitle={`${formatDays(s.days_of_week)}${s.capacity != null ? ` · รับ ${s.capacity} ออเดอร์/วัน` : ' · ไม่จำกัดจำนวน'}`}
                   inactive={!s.is_active}
                   actions={
                     <div className="flex items-center gap-2">
@@ -597,26 +598,16 @@ export default function DeliverySettingsPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="field-label">รับได้ต่อวัน</label>
-                <PostfixInput
-                  value={slotForm.capacity}
-                  onChange={(v) => setSlotForm(f => ({ ...f, capacity: v }))}
-                  postfix="ออเดอร์" type="number" min={1} placeholder="เว้นว่าง = ไม่จำกัด"
-                  width="w-full" inputClassName="w-full"
-                />
-              </div>
-              <div>
-                <label className="field-label">ปิดรับก่อนเริ่มรอบ</label>
-                <PostfixInput
-                  value={slotForm.cutoff_minutes}
-                  onChange={(v) => setSlotForm(f => ({ ...f, cutoff_minutes: v }))}
-                  postfix="นาที" type="number" min={0}
-                  width="w-full" inputClassName="w-full"
-                  helperText="เช่น 120 = รอบ 15:00 ปิดรับตอน 13:00"
-                />
-              </div>
+            {/* เวลาปิดรับคุมที่ "เวลาเตรียม + จัดส่ง" ของโซนที่เดียว —
+                รอบส่งกำหนดแค่ช่วงเวลา วัน และจำนวนที่รับไหว */}
+            <div>
+              <label className="field-label">รับได้ต่อวัน</label>
+              <PostfixInput
+                value={slotForm.capacity}
+                onChange={(v) => setSlotForm(f => ({ ...f, capacity: v }))}
+                postfix="ออเดอร์" type="number" min={1} placeholder="เว้นว่าง = ไม่จำกัด"
+                width="w-full" inputClassName="w-full"
+              />
             </div>
           </div>
         </Modal>

@@ -7,7 +7,7 @@ import { supabaseAdmin } from '@/lib/supabase-admin';
 import { getStorefrontCompany } from '@/lib/storefront-server';
 import {
   resolveZone, resolveDeliveryFee, getSlotAvailability,
-  buildSlotLabel, slotUnavailableLabel,
+  buildSlotLabel, buildWindowLabel, getSlotWindow, slotUnavailableLabel,
   type DeliveryZone, type DeliverySlot,
 } from '@/lib/delivery';
 
@@ -79,10 +79,15 @@ export async function GET(request: NextRequest) {
     const avail = date
       ? getSlotAvailability(withBooked, date, zone)
       : { available: false as const, reason: null };
+    // แสดงช่วงที่ส่งได้จริง — สั่ง 08:00 โซนใช้ 2 ชม. รอบ 09:00-12:00 → 10:00-12:00
+    const window = date && avail.available ? getSlotWindow(s, date, zone) : null;
     return {
       id: s.id,
       name: s.name,
-      label: buildSlotLabel(s),
+      label: window ? buildWindowLabel(window) : buildSlotLabel(s),
+      /** true = ช่วงถูกหั่นสั้นลงเพราะสั่งช้า — UI บอกลูกค้าได้ว่าทำไมไม่ใช่ 09:00 */
+      narrowed: window?.narrowed ?? false,
+      full_label: buildSlotLabel(s),
       start_time: s.start_time,
       end_time: s.end_time,
       available: avail.available,

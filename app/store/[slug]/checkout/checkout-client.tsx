@@ -11,6 +11,9 @@ interface SlotOption {
   id: string;
   name: string;
   label: string;
+  /** true = ช่วงถูกหั่นสั้นลงเพราะเวลาต้นรอบผ่านไปแล้ว */
+  narrowed: boolean;
+  full_label: string;
   available: boolean;
   reason: string | null;
 }
@@ -255,6 +258,7 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
                         >
                           {s.name} · {s.label}
                           {s.reason && <span> ({s.reason})</span>}
+                          {s.narrowed && <span className="sf-slot-note">รอบ {s.full_label}</span>}
                         </button>
                       ))}
                     </div>
