@@ -3,6 +3,11 @@
 
 export interface FeatureFlags {
   delivery_date: { enabled: boolean; required: boolean };
+  // จุดส่ง/โซนค่าส่ง (delivery_zones table) — resolve ค่าส่งจากที่อยู่ลูกค้า
+  delivery_zone: boolean;
+  // ช่วงเวลาส่ง (delivery_slots table) — ต้องเปิด delivery_date ก่อนถึงมีความหมาย
+  // (เลือกช่วงเวลาโดยไม่มีวันที่ไม่ได้) — UI ล็อกปิดเมื่อ delivery_date ปิด
+  delivery_slot: boolean;
   billing_cycle: boolean;
   marketplace_sync: boolean;
   pos: boolean;
@@ -41,6 +46,8 @@ export const PRESET_DESCRIPTIONS: Record<BusinessPreset, string> = {
 export const PRESET_DEFAULTS: Record<BusinessPreset, FeatureFlags> = {
   delivery: {
     delivery_date: { enabled: true, required: true },
+    delivery_zone: true,
+    delivery_slot: true,
     billing_cycle: true,
     marketplace_sync: false,
     pos: false,
@@ -53,6 +60,8 @@ export const PRESET_DEFAULTS: Record<BusinessPreset, FeatureFlags> = {
   },
   ecommerce: {
     delivery_date: { enabled: false, required: false },
+    delivery_zone: false,
+    delivery_slot: false,
     billing_cycle: false,
     marketplace_sync: true,
     pos: false,
@@ -65,6 +74,8 @@ export const PRESET_DEFAULTS: Record<BusinessPreset, FeatureFlags> = {
   },
   ecommerce_brand: {
     delivery_date: { enabled: false, required: false },
+    delivery_zone: false,
+    delivery_slot: false,
     billing_cycle: false,
     marketplace_sync: true,
     pos: false,
@@ -77,6 +88,8 @@ export const PRESET_DEFAULTS: Record<BusinessPreset, FeatureFlags> = {
   },
   omnichannel: {
     delivery_date: { enabled: false, required: false },
+    delivery_zone: false,
+    delivery_slot: false,
     billing_cycle: false,
     marketplace_sync: true,
     pos: true,
@@ -89,6 +102,8 @@ export const PRESET_DEFAULTS: Record<BusinessPreset, FeatureFlags> = {
   },
   omnichannel_brand: {
     delivery_date: { enabled: false, required: false },
+    delivery_zone: false,
+    delivery_slot: false,
     billing_cycle: true,
     marketplace_sync: true,
     pos: true,
@@ -101,6 +116,8 @@ export const PRESET_DEFAULTS: Record<BusinessPreset, FeatureFlags> = {
   },
   wholesale: {
     delivery_date: { enabled: false, required: false },
+    delivery_zone: false,
+    delivery_slot: false,
     billing_cycle: true,
     marketplace_sync: false,
     pos: false,
@@ -113,6 +130,8 @@ export const PRESET_DEFAULTS: Record<BusinessPreset, FeatureFlags> = {
   },
   distribution: {
     delivery_date: { enabled: false, required: false },
+    delivery_zone: false,
+    delivery_slot: false,
     billing_cycle: true,
     marketplace_sync: false,
     pos: false,
@@ -133,6 +152,8 @@ export const PRESET_DEFAULTS: Record<BusinessPreset, FeatureFlags> = {
 // then it appears" instead of "wrong thing then it disappears".
 export const DEFAULT_FEATURES: FeatureFlags = {
   delivery_date: { enabled: false, required: false },
+  delivery_zone: false,
+  delivery_slot: false,
   billing_cycle: false,
   marketplace_sync: false,
   pos: false,
@@ -151,6 +172,8 @@ export function detectPreset(f: FeatureFlags): BusinessPreset | null {
     const match =
       f.delivery_date.enabled === defaults.delivery_date.enabled &&
       f.delivery_date.required === defaults.delivery_date.required &&
+      f.delivery_zone === defaults.delivery_zone &&
+      f.delivery_slot === defaults.delivery_slot &&
       f.billing_cycle === defaults.billing_cycle &&
       f.marketplace_sync === defaults.marketplace_sync &&
       f.pos === defaults.pos &&
@@ -186,6 +209,8 @@ export function parseFeatures(settings: Record<string, unknown> | null | undefin
       enabled: (stored.delivery_date as { enabled?: boolean })?.enabled ?? DEFAULT_FEATURES.delivery_date.enabled,
       required: (stored.delivery_date as { required?: boolean })?.required ?? DEFAULT_FEATURES.delivery_date.required,
     },
+    delivery_zone: stored.delivery_zone ?? DEFAULT_FEATURES.delivery_zone,
+    delivery_slot: stored.delivery_slot ?? DEFAULT_FEATURES.delivery_slot,
     billing_cycle: stored.billing_cycle ?? DEFAULT_FEATURES.billing_cycle,
     marketplace_sync: stored.marketplace_sync ?? DEFAULT_FEATURES.marketplace_sync,
     pos: stored.pos ?? DEFAULT_FEATURES.pos,

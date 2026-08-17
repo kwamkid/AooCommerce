@@ -485,6 +485,16 @@ PC (พนักงานประจำจุดขายในห้าง) �
 - **สิ้นเดือน (DSR)**: DSR ผูก `counter_id` → confirm ตัดสต็อกคลังสาขา + stamp `report_id` ลง counter_sales (void ย้อนทั้งคู่) · ฟอร์ม DSR มีปุ่ม "ดึงยอดจาก PC" (prefill จำนวน — ราคา resolve ผ่าน GP เสมอ เพราะยอด PC เป็นเงินหน้าร้าน) + ตาราง diff PC vs report ห้าง
 - **ใบวางบิลรวมทุกสาขา**: `createOrAttachStatementForDeptReport()` ใน statement-service — DSR ทุกสาขาของ customer+period เดียวกันแชร์ ST ใบเดียว; จ่าย/ย้อน/void จัดการทั้งชุดใน `/api/department-store/reports/[id]` — **ห้ามเรียก `createStatementForReport` ตรงๆ สำหรับ DSR อีก**
 
+## 🚚 Delivery Zones + Slots (เพิ่ม 2026-08-17 — ฐานของ storefront checkout)
+
+จุดส่ง/โซนค่าส่ง + ช่วงเวลาส่ง สำหรับธุรกิจ delivery (aDay Fresh) — feature flags `delivery_zone` + `delivery_slot` (slot **ต้องเปิด `delivery_date` ก่อน** — UI ล็อก + API clamp)
+
+- **Tables**: `delivery_zones` (พื้นที่ provinces/districts/postcodes + `fee_type: fixed|lalamove` + `fee`/`free_over`/`lead_minutes` + `sort_order` = ลำดับจับคู่) · `delivery_slots` (`start_time`-`end_time` เป็น**ช่วง 2-3 ชม. ห้ามเวลาเป๊ะ** + `days_of_week` + `capacity` + `cutoff_minutes`) · `delivery_zone_slots` (โซนไหนใช้รอบไหน — **ไม่มี row ของ zone = ใช้ได้ทุกรอบ**)
+- **Logic กลาง** [lib/delivery.ts](lib/delivery.ts) (client-safe, pure): `resolveZone()` — ไล่ตาม sort_order ตัวแรกที่ match ชนะ เช็ค postcode → district → province; ไม่ match = **ไม่รับส่ง ต้องบอกชัด ห้ามเงียบ** · `resolveDeliveryFee()` — fixed คืน fee (0 เมื่อยอด ≥ free_over), lalamove คืน `needsQuote: true` (กรอกยอด quote เอง — API integration ยังไม่ทำ) · `getSlotAvailability()` — day/cutoff+lead/capacity/zone; **ช่วงที่เลือกไม่ได้แสดงจาง + บอกเหตุผล ห้ามซ่อน**
+- **Snapshot ลง orders เสมอ** (pattern เดียวกับ tax invoice): `delivery_zone_id/label` + `delivery_slot_id/label/start/end` ผ่าน `resolveDeliverySnapshot()` ใน [lib/delivery-server.ts](lib/delivery-server.ts) (validate company ownership) — ค่าส่งลง `orders.shipping_fee` **เดิม** ไม่มี column ใหม่
+- **API**: `/api/delivery-zones` + `/api/delivery-slots` (CRUD, capability `masterdata.delivery`) — slots รองรับ `?date=YYYY-MM-DD` คืน `booked_count` ต่อ slot (เช็ค capacity) · DELETE = hard delete ถ้าไม่มี order อ้าง, มี → soft-disable
+- **UI**: [/settings/delivery](app/settings/delivery/page.tsx) (2 tabs, ListRow + reorder = ลำดับจับคู่โซน) · OrderForm auto-resolve โซนจากที่อยู่ → auto-fill ค่าส่ง (**ไม่ทับค่าที่ staff แก้เอง** — เช็คผ่าน `lastAppliedZoneFeeRef`) + slot chips ใต้วันที่ส่ง · order detail แสดง badge โซน+รอบจาก snapshot
+
 ## Promotion Module
 
 ### Types

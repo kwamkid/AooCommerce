@@ -11,6 +11,11 @@ import { useCompany } from '@/lib/company-context';
 import { apiFetch } from '@/lib/api-client';
 import { supabase } from '@/lib/supabase';
 import { parseThaiAddress } from '@/lib/address-parser';
+import {
+  type DeliveryZone, type DeliverySlot,
+  resolveZone, resolveDeliveryFee, getSlotAvailability,
+  SLOT_UNAVAILABLE_LABELS, formatSlotTime,
+} from '@/lib/delivery';
 import ThaiAddressInput from '@/components/ui/ThaiAddressInput';
 import EntitySearchInput from '@/components/ui/EntitySearchInput';
 import ItemsTable, { type TableItem as OrderTableItem, type PromotionComponent } from '@/components/ui/ItemsTable';
@@ -266,6 +271,15 @@ export default function OrderForm({
     startDate: null,
     endDate: null,
   });
+  // Delivery zones + slots (feature-gated) — logic in lib/delivery.ts
+  const [deliveryZones, setDeliveryZones] = useState<DeliveryZone[]>([]);
+  const [deliverySlots, setDeliverySlots] = useState<DeliverySlot[]>([]);
+  const [selectedSlotId, setSelectedSlotId] = useState<string>('');
+  // '' = จับคู่โซนอัตโนมัติจากที่อยู่ · id = staff เลือกโซนเอง (หรือมาจากออเดอร์เดิม)
+  const [zoneOverrideId, setZoneOverrideId] = useState<string>('');
+  // ค่าส่งล่าสุดที่ระบบ auto-fill — ใช้เช็คว่า staff แก้เองหรือยัง (แก้เองแล้วไม่ทับ)
+  const lastAppliedZoneFeeRef = useRef<number | null>(null);
+
   const deliveryDate = deliveryDateValue?.startDate
     ? new Date(deliveryDateValue.startDate).toISOString().split('T')[0]
     : '';
@@ -649,6 +663,11 @@ export default function OrderForm({
             endDate: new Date(order.delivery_date)
           });
         }
+
+        // Zone/slot จากออเดอร์เดิม — lock override เป็นค่าที่บันทึกไว้ กันระบบ
+        // จับคู่โซนใหม่เองตอนแก้ไข (ที่อยู่เดิมอาจ match โซนอื่นหลังแก้ผังโซน)
+        if (order.delivery_zone_id) setZoneOverrideId(order.delivery_zone_id);
+        if (order.delivery_slot_id) setSelectedSlotId(order.delivery_slot_id);
 
         // Set delivery info
         if (order.delivery_name) setDeliveryName(order.delivery_name);
@@ -1414,6 +1433,52 @@ export default function OrderForm({
     setBranchOrders(newBranchOrders);
   };
 
+  // ── Delivery zones + slots ─────────────────────────────────────────
+  const deliveryZoneSlotOn = features.delivery_zone || features.delivery_slot;
+  useEffect(() => {
+    if (!deliveryZoneSlotOn) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const [zRes, sRes] = await Promise.all([
+          features.delivery_zone ? apiFetch('/api/delivery-zones?active=true') : null,
+          features.delivery_slot ? apiFetch('/api/delivery-slots?active=true') : null,
+        ]);
+        if (cancelled) return;
+        if (zRes?.ok) setDeliveryZones((await zRes.json()).zones || []);
+        if (sRes?.ok) setDeliverySlots((await sRes.json()).slots || []);
+      } catch { /* ignore — features stay usable without zone/slot data */ }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deliveryZoneSlotOn, features.delivery_zone, features.delivery_slot]);
+
+  // เปลี่ยนวันส่ง → ดึง booked_count ของวันนั้น (เช็ค capacity)
+  useEffect(() => {
+    if (!features.delivery_slot || !deliveryDate) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await apiFetch(`/api/delivery-slots?active=true&date=${deliveryDate}`);
+        if (!cancelled && res.ok) setDeliverySlots((await res.json()).slots || []);
+      } catch { /* ignore */ }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [features.delivery_slot, deliveryDate]);
+
+  // โซนที่ใช้จริง: staff เลือกเอง > จับคู่อัตโนมัติจากที่อยู่จัดส่ง
+  const autoZone = useMemo(
+    () => resolveZone(
+      { province: deliveryProvince, amphoe: deliveryAmphoe, postal_code: deliveryPostalCode },
+      deliveryZones,
+    ),
+    [deliveryProvince, deliveryAmphoe, deliveryPostalCode, deliveryZones],
+  );
+  const activeZone = zoneOverrideId
+    ? deliveryZones.find(z => z.id === zoneOverrideId) || null
+    : autoZone;
+
   const handleUpdateShippingFee = (fee: number) => {
     const newBranchOrders = [...branchOrders];
     newBranchOrders[0].shipping_fee = Math.max(0, fee);
@@ -1433,6 +1498,23 @@ export default function OrderForm({
 
   const itemsTotal = branchOrders.reduce((sum, branch) => sum + calculateBranchTotal(branch), 0);
   const totalShippingFee = branchOrders.reduce((sum, branch) => sum + (branch.shipping_fee || 0), 0);
+
+  // Auto-fill ค่าส่งจากโซน (เฉพาะ fixed) — ไม่ทับค่าที่ staff แก้เอง:
+  // ทับได้เฉพาะเมื่อค่าปัจจุบัน = ค่าที่ระบบเคย fill (หรือยังเป็น 0)
+  const zoneFeeResult = features.delivery_zone && activeZone
+    ? resolveDeliveryFee(activeZone, itemsTotal)
+    : null;
+  useEffect(() => {
+    if (!features.delivery_zone || isReadOnly || branchOrders.length === 0) return;
+    if (!zoneFeeResult || zoneFeeResult.fee == null) return; // lalamove → staff กรอกยอด quote เอง
+    const current = branchOrders[0]?.shipping_fee || 0;
+    const untouched = current === 0 || current === lastAppliedZoneFeeRef.current;
+    if (untouched && current !== zoneFeeResult.fee) {
+      lastAppliedZoneFeeRef.current = zoneFeeResult.fee;
+      handleUpdateShippingFee(zoneFeeResult.fee);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [features.delivery_zone, activeZone?.id, zoneFeeResult?.fee, branchOrders.length]);
   const calculateOrderDiscount = () => {
     if (orderDiscountType === 'percent') {
       return itemsTotal * (orderDiscount / 100);
@@ -1660,6 +1742,8 @@ export default function OrderForm({
         ...(resolvedCustomerId ? { customer_id: resolvedCustomerId } : {}),
         ...(finalAddressId ? { shipping_address_id: finalAddressId } : {}),
         delivery_date: deliveryDate || undefined,
+        ...(features.delivery_zone ? { delivery_zone_id: activeZone?.id || null } : {}),
+        ...(features.delivery_slot ? { delivery_slot_id: selectedSlotId || null } : {}),
         discount_amount: calculateOrderDiscount(),
         order_discount_type: orderDiscountType,
         notes: notes || undefined,
@@ -2100,7 +2184,7 @@ export default function OrderForm({
           </div>
         )}
 
-        {/* Delivery Date */}
+        {/* Delivery Date + ช่วงเวลาส่ง */}
         {features.delivery_date.enabled && (
         <div ref={deliveryDateRef} className={`bg-white dark:bg-slate-800 rounded-lg ${embedded ? '' : 'border border-gray-200 dark:border-slate-700'} p-4`}>
           <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">
@@ -2110,6 +2194,98 @@ export default function OrderForm({
             <DateRangePicker value={deliveryDateValue} onChange={(val) => { setDeliveryDateValue(val); setFieldErrors(prev => { const { deliveryDate, ...rest } = prev; return rest; }); }} asSingle={true} useRange={false} showShortcuts={false} showFooter={false} placeholder="เลือกวันที่ส่ง" disabled={isReadOnly} />
           </div>
           {fieldErrors.deliveryDate && <p className="text-red-500 text-xs mt-1">{fieldErrors.deliveryDate}</p>}
+
+          {/* ช่วงเวลาส่ง — ช่วงที่เลือกไม่ได้แสดงจาง + บอกเหตุผล (ห้ามซ่อน) */}
+          {features.delivery_slot && (
+            <div className="mt-3">
+              <label className="block text-sm font-medium text-gray-600 dark:text-slate-400 mb-1.5">ช่วงเวลาส่ง</label>
+              {!deliveryDate ? (
+                <p className="text-sm text-gray-400 dark:text-slate-500">เลือกวันที่ส่งก่อน แล้วเลือกรอบเวลา</p>
+              ) : deliverySlots.length === 0 ? (
+                <p className="text-sm text-gray-400 dark:text-slate-500">ยังไม่ได้ตั้งค่ารอบส่ง — ตั้งได้ที่ ตั้งค่า → การจัดส่ง</p>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {deliverySlots.map((slot) => {
+                    const avail = getSlotAvailability(slot, deliveryDate, activeZone);
+                    const isSelected = selectedSlotId === slot.id;
+                    return (
+                      <button
+                        type="button"
+                        key={slot.id}
+                        disabled={isReadOnly || (!avail.available && !isSelected)}
+                        onClick={() => setSelectedSlotId(isSelected ? '' : slot.id)}
+                        className={`px-3 py-2 rounded-lg border text-sm transition-colors ${
+                          isSelected
+                            ? 'border-[#F4511E] bg-orange-50 dark:bg-orange-950/30 text-[#C2410C] font-medium'
+                            : avail.available
+                              ? 'border-gray-200 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:border-gray-300'
+                              : 'border-gray-100 dark:border-slate-700 text-gray-300 dark:text-slate-600 cursor-not-allowed'
+                        }`}
+                      >
+                        {slot.name} · {formatSlotTime(slot.start_time)}-{formatSlotTime(slot.end_time)}
+                        {!avail.available && avail.reason && (
+                          <span className="ml-1.5 text-xs">({SLOT_UNAVAILABLE_LABELS[avail.reason]})</span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+        )}
+
+        {/* จุดส่ง / โซนค่าส่ง */}
+        {features.delivery_zone && (
+        <div className={`bg-white dark:bg-slate-800 rounded-lg ${embedded ? '' : 'border border-gray-200 dark:border-slate-700'} p-4`}>
+          <div className="flex items-center justify-between mb-1">
+            <label className="block text-base font-medium text-gray-700 dark:text-slate-300">จุดส่ง / ค่าส่ง</label>
+            {zoneOverrideId && !isReadOnly && (
+              <button type="button" onClick={() => setZoneOverrideId('')} className="text-sm text-[#F4511E] hover:underline">
+                จับคู่อัตโนมัติตามที่อยู่
+              </button>
+            )}
+          </div>
+          {deliveryZones.length === 0 ? (
+            <p className="text-sm text-gray-400 dark:text-slate-500">ยังไม่ได้ตั้งค่าจุดส่ง — ตั้งได้ที่ ตั้งค่า → การจัดส่ง</p>
+          ) : (
+            <>
+              <FormSelect
+                value={activeZone?.id || ''}
+                onChange={(v) => setZoneOverrideId(v)}
+                options={deliveryZones.map(z => ({
+                  id: z.id,
+                  label: z.name,
+                  subtitle: z.fee_type === 'lalamove'
+                    ? 'ค่าส่งตาม Lalamove'
+                    : `ค่าส่ง ฿${z.fee.toLocaleString()}${z.free_over != null ? ` · ครบ ฿${z.free_over.toLocaleString()} ส่งฟรี` : ''}`,
+                }))}
+                placeholder="เลือกจุดส่ง"
+                disabled={isReadOnly}
+              />
+              <div className="mt-2">
+                {activeZone ? (
+                  zoneFeeResult?.needsQuote ? (
+                    <p className="text-sm text-amber-600 dark:text-amber-400">
+                      โซนนี้คิดค่าส่งตาม Lalamove — เช็คราคาแล้วกรอกในช่องค่าส่งของสรุปยอด
+                    </p>
+                  ) : zoneFeeResult?.freeApplied ? (
+                    <p className="text-sm text-emerald-600 dark:text-emerald-400">ส่งฟรี — ยอดสั่งซื้อถึงขั้นต่ำของโซนนี้แล้ว</p>
+                  ) : (
+                    <p className="text-sm text-gray-500 dark:text-slate-400">
+                      ค่าส่งโซนนี้ ฿{(zoneFeeResult?.fee ?? 0).toLocaleString()}
+                      {!zoneOverrideId && ' (จับคู่จากที่อยู่จัดส่งอัตโนมัติ)'}
+                    </p>
+                  )
+                ) : (deliveryProvince || deliveryPostalCode) ? (
+                  <p className="text-sm text-red-500">ที่อยู่นี้อยู่นอกพื้นที่จัดส่งทุกโซน — เลือกโซนเอง หรือแจ้งลูกค้าว่าไม่รับส่ง</p>
+                ) : (
+                  <p className="text-sm text-gray-400 dark:text-slate-500">กรอกที่อยู่จัดส่ง ระบบจะจับคู่โซนและค่าส่งให้อัตโนมัติ</p>
+                )}
+              </div>
+            </>
+          )}
         </div>
         )}
       </div>

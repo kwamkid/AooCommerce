@@ -49,6 +49,7 @@ export const CAPABILITIES = {
   'masterdata.brands':           ADMIN,
   'masterdata.categories':       ADMIN,
   'masterdata.variation_types':  ADMIN,
+  'masterdata.delivery':         ADMIN,         // delivery zones + time slots
 
   // Inventory
   'inventory.view':              STAFF,

@@ -14,6 +14,7 @@ import {
   CalendarDays, ShoppingCart, Monitor, Handshake, Tag, Factory,
   PackageCheck, Save, ChevronDown, ChevronUp, Loader2,
   CreditCard, Truck, Store, Layers, Users, Warehouse, Building, Lock,
+  MapPin, Clock,
 } from 'lucide-react';
 import { featureLockReason } from '@/lib/package-features';
 import { type BrandGpRow } from '@/components/customers/BrandGpCommissions';
@@ -26,6 +27,8 @@ import { LoadingCard, NoPermissionCard } from '@/components/ui/StateCard';
 // Feature icons for showing inside preset chips
 const FEATURE_ICONS: Partial<Record<keyof FeatureFlags, React.ReactNode>> = {
   delivery_date: <CalendarDays className="w-3 h-3" />,
+  delivery_zone: <MapPin className="w-3 h-3" />,
+  delivery_slot: <Clock className="w-3 h-3" />,
   billing_cycle: <CreditCard className="w-3 h-3" />,
   marketplace_sync: <ShoppingCart className="w-3 h-3" />,
   pos: <Monitor className="w-3 h-3" />,
@@ -37,6 +40,8 @@ const FEATURE_ICONS: Partial<Record<keyof FeatureFlags, React.ReactNode>> = {
 
 const FEATURE_SHORT: Partial<Record<keyof FeatureFlags, string>> = {
   delivery_date: 'วันส่ง',
+  delivery_zone: 'จุดส่ง',
+  delivery_slot: 'รอบส่ง',
   billing_cycle: 'วางบิล',
   marketplace_sync: 'Marketplace',
   pos: 'POS',
@@ -130,8 +135,15 @@ export default function FeaturesPage() {
         const enabling = !dd.enabled;
         if (enabling) setOpenSection(key);
         else setOpenSection(s => s === key ? null : s);
-        return { ...prev, delivery_date: { enabled: enabling, required: enabling ? dd.required : false } };
+        return {
+          ...prev,
+          delivery_date: { enabled: enabling, required: enabling ? dd.required : false },
+          // ปิดวันส่ง → ช่วงเวลาส่งไม่มีความหมาย ปิดตาม
+          ...(enabling ? {} : { delivery_slot: false }),
+        };
       }
+      // ช่วงเวลาส่งเปิดได้เฉพาะเมื่อเปิดวันส่งอยู่
+      if (key === 'delivery_slot' && !prev.delivery_date.enabled && !prev.delivery_slot) return prev;
       const newValue = !prev[key as keyof Omit<FeatureFlags, 'delivery_date'>];
       const next = { ...prev, [key]: newValue };
       if (key === 'consignment' && newValue) next.supplier = true;
@@ -258,6 +270,20 @@ export default function FeaturesPage() {
       icon: <CalendarDays className="w-5 h-5" />,
       color: 'text-blue-600',
       hasRequired: true,
+    },
+    {
+      key: 'delivery_zone',
+      label: 'จุดส่ง / โซนค่าส่ง',
+      description: 'กำหนดพื้นที่รับส่ง + ค่าส่งต่อโซน (คงที่ หรือคำนวณจาก Lalamove) — ตั้งค่าที่เมนู การจัดส่ง',
+      icon: <MapPin className="w-5 h-5" />,
+      color: 'text-emerald-600',
+    },
+    {
+      key: 'delivery_slot',
+      label: 'ช่วงเวลาส่ง',
+      description: 'ให้เลือกรอบส่งเป็นช่วงเวลา 2-3 ชม. ต่อวัน — ต้องเปิด "ธุรกิจเดลิเวอรี่" (วันส่ง) ก่อน',
+      icon: <Clock className="w-5 h-5" />,
+      color: 'text-indigo-600',
     },
   ];
 

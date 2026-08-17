@@ -49,6 +49,7 @@ import {
   Store,
   RotateCcw,
   Pencil,
+  MapPin,
 } from 'lucide-react';
 
 interface MenuItem {
@@ -299,6 +300,7 @@ export default function Sidebar() {
     { href: '/settings/sales-channels', label: 'ช่องทางการขาย', icon: <Store className="w-[18px] h-[18px] flex-shrink-0" />, isActive: pathname === '/settings/sales-channels' },
     ...(features.stock ? [{ href: '/settings/warehouses', label: 'คลังสินค้า', icon: <Warehouse className="w-[18px] h-[18px] flex-shrink-0" />, isActive: pathname === '/settings/warehouses' }] : []),
     { href: '/settings/carriers', label: 'ขนส่ง', icon: <Truck className="w-[18px] h-[18px] flex-shrink-0" />, isActive: pathname === '/settings/carriers' },
+    ...(features.delivery_zone || features.delivery_slot ? [{ href: '/settings/delivery', label: 'การจัดส่ง', icon: <MapPin className="w-[18px] h-[18px] flex-shrink-0" />, isActive: pathname === '/settings/delivery' }] : []),
     { href: '/settings/counters', label: 'สาขาฝากขาย (PC)', icon: <Store className="w-[18px] h-[18px] flex-shrink-0" />, isActive: pathname === '/settings/counters' },
     { href: '/settings/features', label: 'Feature เสริม', icon: <Handshake className="w-[18px] h-[18px] flex-shrink-0" />, isActive: pathname === '/settings/features' },
     ...(features.pos ? [{ href: '/settings/pos-terminals', label: 'แคชเชียร์', icon: <Monitor className="w-[18px] h-[18px] flex-shrink-0" />, isActive: pathname === '/settings/pos-terminals' }] : []),

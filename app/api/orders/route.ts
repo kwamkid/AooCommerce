@@ -6,6 +6,7 @@ import { createCreditNote } from '@/lib/credit-notes/auto-cn';
 import { reserveStock, unreserveStock, returnStock, deductAndUnreserve } from '@/lib/stock-service';
 import { getPromotionComponents } from '@/lib/promotion-service';
 import { fetchCostMap } from '@/lib/cost-utils';
+import { resolveDeliverySnapshot } from '@/lib/delivery-server';
 
 // Type definitions
 interface OrderItemInput {
@@ -31,6 +32,8 @@ interface OrderItemInput {
 interface OrderData {
   customer_id?: string;
   delivery_date?: string;
+  delivery_zone_id?: string | null;
+  delivery_slot_id?: string | null;
   payment_method?: string;
   discount_amount?: number;
   notes?: string;
@@ -250,6 +253,11 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Zone/slot snapshot — labels+times copied at save time (ids validated per company)
+    const deliverySnapshot = await resolveDeliverySnapshot(
+      auth.companyId, orderData.delivery_zone_id, orderData.delivery_slot_id
+    );
+
     // Create order
     const { data: order, error: orderError } = await supabaseAdmin
       .from('orders')
@@ -259,6 +267,7 @@ export async function POST(request: NextRequest) {
         customer_id: orderData.customer_id || null,
         shipping_address_id: orderData.shipping_address_id || null,
         delivery_date: orderData.delivery_date || null,
+        ...deliverySnapshot,
         subtotal: subtotalBeforeVAT,
         vat_amount: vatAmount,
         discount_amount: discountAmount,
@@ -1578,6 +1587,7 @@ export async function PUT(request: NextRequest) {
 
     // --- Single order update ---
     const { id, items, delivery_date, payment_method, discount_amount, notes, internal_notes, sales_channel_id } = body;
+    const hasDeliveryZoneSlot = body.delivery_zone_id !== undefined || body.delivery_slot_id !== undefined;
 
     if (!id) {
       return NextResponse.json(
@@ -1927,10 +1937,14 @@ export async function PUT(request: NextRequest) {
       }
 
       // Update order basic info
+      const deliverySnapshotUpd = hasDeliveryZoneSlot
+        ? await resolveDeliverySnapshot(auth.companyId, body.delivery_zone_id, body.delivery_slot_id)
+        : null;
       const { error: updateOrderError } = await supabaseAdmin
         .from('orders')
         .update({
           delivery_date: delivery_date || null,
+          ...(deliverySnapshotUpd || {}),
           subtotal: subtotalBeforeVAT,
           vat_amount: vatAmount,
           discount_amount: orderDiscountAmount,
@@ -2037,6 +2051,9 @@ export async function PUT(request: NextRequest) {
 
       // Only update fields that are provided
       if (delivery_date !== undefined) updateData.delivery_date = delivery_date || null;
+      if (hasDeliveryZoneSlot) {
+        Object.assign(updateData, await resolveDeliverySnapshot(auth.companyId, body.delivery_zone_id, body.delivery_slot_id));
+      }
       if (payment_method !== undefined) updateData.payment_method = payment_method || null;
       if (discount_amount !== undefined) updateData.discount_amount = discount_amount || 0;
       if (notes !== undefined) updateData.notes = notes || null;
