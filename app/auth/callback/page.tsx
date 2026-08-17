@@ -2,6 +2,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { takeAuthReturnPath } from '@/lib/auth/return-path';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 
@@ -57,7 +58,7 @@ export default function AuthCallbackPage() {
         }
 
         // Redirect to onboarding
-        router.replace('/onboarding');
+        router.replace(takeAuthReturnPath() || '/onboarding');
       } catch (err) {
         console.error('Auth callback error:', err);
         setError('เกิดข้อผิดพลาดในการเข้าสู่ระบบ');

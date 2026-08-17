@@ -71,7 +71,7 @@ export default async function StoreLayout({
               </Link>
             ))}
             <Link href={storefrontHref(slug, '/delivery')} className="sf-nav-link">การจัดส่ง</Link>
-            <Link href={storefrontHref(slug, '/orders')} className="sf-nav-link">คำสั่งซื้อของฉัน</Link>
+            <Link href={storefrontHref(slug, '/account')} className="sf-nav-link">บัญชีของฉัน</Link>
           </nav>
         </div>
       </header>

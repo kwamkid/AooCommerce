@@ -503,3 +503,52 @@ html[data-sf-theme='dark'] .sf-root {
 }
 .sf-order-row:hover { border-color: var(--sf-primary); }
 .sf-order-row svg { width: 18px; height: 18px; color: var(--sf-muted); flex-shrink: 0; }
+
+/* ── บัญชีลูกค้า ───────────────────────────────────────────────── */
+.sf-auth-box {
+  max-width: 420px; margin: 0 auto;
+  border: 1px solid var(--sf-border); border-radius: var(--sf-radius); padding: 24px;
+}
+.sf-auth-btn {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  width: 100%; padding: 13px 18px; margin-bottom: 10px;
+  border: 1px solid var(--sf-border); border-radius: var(--sf-radius);
+  background: var(--sf-bg); color: var(--sf-text);
+  font-size: 15px; font-weight: 600; font-family: inherit; cursor: pointer;
+}
+.sf-auth-btn:hover { border-color: var(--sf-primary); }
+.sf-auth-btn[disabled] { opacity: .6; cursor: not-allowed; }
+.sf-auth-line { background: #06C755; border-color: #06C755; color: #fff; }
+.sf-auth-line:hover { border-color: #06C755; filter: brightness(1.05); }
+
+.sf-account-head {
+  display: flex; justify-content: space-between; align-items: center; gap: 16px;
+  flex-wrap: wrap; padding-bottom: 18px; border-bottom: 1px solid var(--sf-border);
+  margin-bottom: 22px;
+}
+.sf-account-id { display: flex; align-items: center; gap: 12px; }
+.sf-account-id svg { width: 34px; height: 34px; color: var(--sf-muted); }
+.sf-btn-ghost { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-family: inherit; font-size: 15px; background: var(--sf-bg); }
+.sf-btn-ghost svg { width: 16px; height: 16px; }
+.sf-account-section { font-size: 18px; font-weight: 700; margin: 0 0 12px; }
+
+.sf-notice {
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  padding: 16px; margin-bottom: 24px;
+  border: 1px solid #06C755; border-radius: var(--sf-radius);
+  background: rgba(6, 199, 85, .06);
+}
+.sf-notice > svg { width: 22px; height: 22px; color: #06C755; flex-shrink: 0; }
+.sf-notice > div { flex: 1; min-width: 200px; }
+.sf-notice p { margin: 4px 0 0; }
+.sf-notice .sf-cta { background: #06C755; color: #fff; padding: 11px 20px; }
+.sf-notice .sf-cta svg { width: 15px; height: 15px; }
+
+.sf-warn {
+  display: flex; gap: 12px; align-items: flex-start;
+  padding: 14px 16px; margin-bottom: 20px;
+  border: 1px solid #f59e0b; border-radius: var(--sf-radius);
+  background: rgba(245, 158, 11, .08);
+}
+.sf-warn > svg { width: 20px; height: 20px; color: #d97706; flex-shrink: 0; margin-top: 2px; }
+.sf-warn p { margin: 4px 0 0; }

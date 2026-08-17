@@ -1,0 +1,276 @@
+'use client';
+
+import { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
+import { UserRound, LogOut, Bell, ChevronRight, ExternalLink, AlertTriangle } from 'lucide-react';
+import { loginWithGoogle, loginWithLINE } from '@/lib/auth/login-methods';
+import { clearSession } from '@/lib/auth/session-manager';
+import { supabase } from '@/lib/supabase';
+import { formatStorePrice, storefrontHref } from '@/lib/storefront';
+import type { StorefrontLineOa } from '@/lib/storefront-server';
+
+interface CustomerProfile {
+  id: string;
+  name: string;
+  phone: string | null;
+  email: string | null;
+  line_user_id: string | null;
+}
+
+interface OrderRow {
+  id: string;
+  order_number: string;
+  order_status: string;
+  payment_status: string;
+  total_amount: number;
+  created_at: string;
+  delivery_date: string | null;
+  delivery_slot_label: string | null;
+  tracking_number: string | null;
+  shipping_carrier: string | null;
+}
+
+const STATUS_LABEL: Record<string, string> = {
+  new: 'รับคำสั่งซื้อแล้ว',
+  ready_to_ship: 'กำลังเตรียมของ',
+  processing: 'กำลังจัดของ',
+  shipping: 'จัดส่งแล้ว',
+  completed: 'จัดส่งสำเร็จ',
+  cancelled: 'ยกเลิก',
+};
+
+const PAYMENT_LABEL: Record<string, string> = {
+  pending: 'รอชำระเงิน',
+  verifying: 'รอตรวจสอบสลิป',
+  paid: 'ชำระแล้ว',
+  cancelled: 'ยกเลิก',
+};
+
+interface Props {
+  shop: string;
+  shopName: string;
+  lineOa: StorefrontLineOa | null;
+}
+
+export default function AccountClient({ shop, shopName, lineOa }: Props) {
+  const [loading, setLoading] = useState(true);
+  const [signedIn, setSignedIn] = useState(false);
+  const [isStaff, setIsStaff] = useState(false);
+  const [linking, setLinking] = useState(false);
+  const [customer, setCustomer] = useState<CustomerProfile | null>(null);
+  const [orders, setOrders] = useState<OrderRow[]>([]);
+  const [busy, setBusy] = useState('');
+
+  const load = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/storefront/me?shop=${encodeURIComponent(shop)}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      setSignedIn(!!data.signed_in);
+      setIsStaff(!!data.is_staff);
+      setCustomer(data.customer);
+      setOrders(data.orders || []);
+    } finally {
+      setLoading(false);
+    }
+  }, [shop]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const returnTo = storefrontHref(shop, '/account');
+
+  const signInGoogle = async () => {
+    setBusy('google');
+    const r = await loginWithGoogle(undefined, returnTo);
+    if (r.status === 'error') setBusy('');
+  };
+
+  const signInLine = async () => {
+    setBusy('line');
+    const r = await loginWithLINE(undefined, returnTo);
+    if (r.status === 'error') setBusy('');
+  };
+
+  // ผูกบัญชีเข้ากับร้านนี้ — ทำเมื่อผู้ใช้กดเองเท่านั้น ไม่ทำอัตโนมัติ
+  // เพราะ session อาจเป็นของพนักงานที่ login ค้างไว้ ไม่ใช่ลูกค้าจริง
+  const linkAccount = async () => {
+    setLinking(true);
+    try {
+      const res = await fetch('/api/storefront/me', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ shop }),
+      });
+      if (res.ok) await load();
+    } finally {
+      setLinking(false);
+    }
+  };
+
+  const signOut = async () => {
+    await supabase.auth.signOut();
+    clearSession();
+    setSignedIn(false); setIsStaff(false); setCustomer(null); setOrders([]);
+  };
+
+  if (loading) {
+    return <div className="sf-container"><p className="sf-empty">กำลังโหลด…</p></div>;
+  }
+
+  // ── ยังไม่ได้เข้าสู่ระบบ ──
+  if (!signedIn) {
+    return (
+      <div className="sf-container">
+        <div className="sf-hero">
+          <h1>บัญชีของฉัน</h1>
+          <p>เข้าสู่ระบบเพื่อดูประวัติการสั่งซื้อ ติดตามสถานะจัดส่ง และรับแจ้งเตือนจาก {shopName}</p>
+        </div>
+
+        <div className="sf-auth-box">
+          <button type="button" className="sf-auth-btn" onClick={signInGoogle} disabled={!!busy}>
+            <svg viewBox="0 0 24 24" aria-hidden="true" width="20" height="20">
+              <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1Z" />
+              <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.65l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84A11 11 0 0 0 12 23Z" />
+              <path fill="#FBBC05" d="M5.84 14.11a6.6 6.6 0 0 1 0-4.22V7.05H2.18a11 11 0 0 0 0 9.9l3.66-2.84Z" />
+              <path fill="#EA4335" d="M12 4.75c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 1.46 14.97.5 12 .5A11 11 0 0 0 2.18 7.05l3.66 2.84c.87-2.6 3.3-4.14 6.16-4.14Z" />
+            </svg>
+            {busy === 'google' ? 'กำลังเปิด Google…' : 'เข้าสู่ระบบด้วย Google'}
+          </button>
+
+          {/* ปุ่ม LINE โผล่เฉพาะร้านที่ตั้งค่า LINE OA แล้ว */}
+          {lineOa && (
+            <>
+              <button type="button" className="sf-auth-btn sf-auth-line" onClick={signInLine} disabled={!!busy}>
+                <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="currentColor">
+                  <path d="M12 2C6.48 2 2 5.72 2 10.3c0 4.1 3.55 7.53 8.35 8.18.33.07.77.22.88.5.1.26.07.66.03.92l-.14.85c-.04.25-.2.98.86.53s5.7-3.36 7.78-5.75c1.43-1.57 2.24-3.17 2.24-5.23C22 5.72 17.52 2 12 2Z" />
+                </svg>
+                {busy === 'line' ? 'กำลังเปิด LINE…' : 'เข้าสู่ระบบด้วย LINE'}
+              </button>
+              <p className="sf-hint">
+                หลังเข้าสู่ระบบด้วย LINE ต้องกด <strong>เพิ่มเพื่อน {lineOa.name}</strong> ก่อน
+                จึงจะได้รับแจ้งเตือนสถานะออเดอร์ทาง LINE
+              </p>
+            </>
+          )}
+
+          <p className="sf-hint" style={{ marginTop: 14 }}>
+            ไม่เข้าสู่ระบบก็สั่งซื้อได้ตามปกติ —{' '}
+            <Link href={storefrontHref(shop)} className="sf-footer-link">เลือกซื้อสินค้า</Link>
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // ── login อยู่ แต่ยังไม่ได้ผูกบัญชีกับร้านนี้ ──
+  if (!customer) {
+    return (
+      <div className="sf-container">
+        <div className="sf-hero">
+          <h1>บัญชีของฉัน</h1>
+          <p>คุณเข้าสู่ระบบอยู่แล้ว แต่ยังไม่ได้ผูกบัญชีนี้กับ {shopName}</p>
+        </div>
+
+        {isStaff && (
+          <div className="sf-warn">
+            <AlertTriangle strokeWidth={1.75} aria-hidden="true" />
+            <div>
+              <strong>คุณกำลังใช้บัญชีพนักงานของร้านนี้</strong>
+              <p className="sf-hint">
+                ถ้ากำลังทดสอบมุมมองลูกค้า ให้ออกจากระบบก่อน หรือเปิดหน้าต่างไม่ระบุตัวตน
+                (Incognito) — ถ้ากดผูกบัญชี ระบบจะสร้างข้อมูล &quot;ลูกค้า&quot; จากบัญชีพนักงานของคุณ
+              </p>
+            </div>
+          </div>
+        )}
+
+        <div className="sf-auth-box">
+          <button type="button" className="sf-cta" style={{ width: '100%' }}
+            onClick={linkAccount} disabled={linking}>
+            {linking ? 'กำลังผูกบัญชี…' : `ใช้บัญชีนี้สั่งซื้อกับ ${shopName}`}
+          </button>
+          <button type="button" className="sf-btn-ghost" style={{ width: '100%', marginTop: 10, justifyContent: 'center' }}
+            onClick={signOut}>
+            <LogOut strokeWidth={1.75} aria-hidden="true" /> ออกจากระบบ / ใช้บัญชีอื่น
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── เข้าสู่ระบบแล้ว ──
+  return (
+    <div className="sf-container">
+      {isStaff && (
+        <div className="sf-warn">
+          <AlertTriangle strokeWidth={1.75} aria-hidden="true" />
+          <div>
+            <strong>บัญชีนี้เป็นพนักงานของร้านนี้ด้วย</strong>
+            <p className="sf-hint">กำลังดูในมุมมองลูกค้า — ออกจากระบบเพื่อทดสอบแบบผู้เยี่ยมชมทั่วไป</p>
+          </div>
+        </div>
+      )}
+      <div className="sf-hero">
+        <h1>บัญชีของฉัน</h1>
+        <p>ประวัติการสั่งซื้อกับ {shopName} — ดูได้จากทุกเครื่องที่เข้าสู่ระบบบัญชีนี้</p>
+      </div>
+
+      <div className="sf-account-head">
+        <div className="sf-account-id">
+          <UserRound strokeWidth={1.6} aria-hidden="true" />
+          <div>
+            <div className="sf-cart-name">{customer?.name || 'ลูกค้า'}</div>
+            <div className="sf-hint">{customer?.email || customer?.phone || ''}</div>
+          </div>
+        </div>
+        <button type="button" className="sf-btn-ghost" onClick={signOut}>
+          <LogOut strokeWidth={1.75} aria-hidden="true" /> ออกจากระบบ
+        </button>
+      </div>
+
+      {/* เข้าด้วย LINE แล้วแต่ยังต้องเพิ่มเพื่อนถึงจะ push ได้ */}
+      {lineOa && customer?.line_user_id && (
+        <div className="sf-notice">
+          <Bell strokeWidth={1.75} aria-hidden="true" />
+          <div>
+            <strong>รับแจ้งเตือนออเดอร์ทาง LINE</strong>
+            <p className="sf-hint">
+              กดเพิ่มเพื่อน {lineOa.name} เพื่อรับแจ้งเตือนเมื่อร้านยืนยันคำสั่งซื้อและจัดส่ง
+              — ถ้ายังไม่ได้เพิ่มเพื่อน ระบบจะส่งข้อความหาคุณไม่ได้
+            </p>
+          </div>
+          <a href={lineOa.add_friend_url} target="_blank" rel="noopener noreferrer" className="sf-cta">
+            เพิ่มเพื่อน <ExternalLink strokeWidth={2} aria-hidden="true" />
+          </a>
+        </div>
+      )}
+
+      <h2 className="sf-account-section">ประวัติการสั่งซื้อ</h2>
+      {orders.length === 0 ? (
+        <p className="sf-empty">ยังไม่มีคำสั่งซื้อในบัญชีนี้</p>
+      ) : (
+        <div className="sf-cart-list">
+          {orders.map(o => (
+            <Link key={o.id} href={storefrontHref(shop, `/order/${o.id}`)} className="sf-order-row">
+              <div className="sf-cart-info">
+                <span className="sf-cart-name">{o.order_number}</span>
+                <div className="sf-cart-unit">
+                  {new Date(o.created_at).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })}
+                  {' · '}{STATUS_LABEL[o.order_status] || o.order_status}
+                  {' · '}{PAYMENT_LABEL[o.payment_status] || o.payment_status}
+                </div>
+                {o.tracking_number && (
+                  <div className="sf-cart-unit">
+                    เลขพัสดุ {o.tracking_number}{o.shipping_carrier ? ` (${o.shipping_carrier})` : ''}
+                  </div>
+                )}
+              </div>
+              <div className="sf-cart-total">{formatStorePrice(o.total_amount)}</div>
+              <ChevronRight strokeWidth={1.75} aria-hidden="true" />
+            </Link>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}

@@ -14,6 +14,14 @@ import {
 } from '@/lib/storefront';
 import { parseFeatures, type FeatureFlags } from '@/lib/features';
 
+export interface StorefrontLineOa {
+  /** ชื่อ OA ที่แสดงกับลูกค้า */
+  name: string;
+  /** ลิงก์เพิ่มเพื่อน — https://line.me/R/ti/p/@xxxx */
+  add_friend_url: string;
+  picture_url: string | null;
+}
+
 export interface StorefrontCompany {
   id: string;
   slug: string;
@@ -25,6 +33,12 @@ export interface StorefrontCompany {
   address: string | null;
   config: StorefrontConfig;
   features: FeatureFlags;
+  /**
+   * LINE OA ของร้าน — null = ร้านยังไม่ได้ตั้งค่า
+   * ใช้ตัดสินว่าจะโชว์ปุ่ม "เข้าสู่ระบบด้วย LINE" ไหม: ถ้าร้านไม่มี OA
+   * ลูกค้า login LINE ไปก็ไม่มีใครส่งแจ้งเตือนได้ กลายเป็นปุ่มหลอก
+   */
+  line_oa: StorefrontLineOa | null;
 }
 
 /**
@@ -45,6 +59,26 @@ export const getStorefrontCompany = cache(async (slug: string): Promise<Storefro
   const config = parseStorefront(settings);
   if (!config.enabled) return null;
 
+  // LINE OA ที่เปิดใช้งานอยู่ของร้าน (basic_id คือ @xxxx ที่ใช้ทำลิงก์เพิ่มเพื่อน)
+  const { data: lineAccount } = await supabaseAdmin
+    .from('chat_accounts')
+    .select('account_name, credentials')
+    .eq('company_id', data.id)
+    .eq('platform', 'line')
+    .eq('is_active', true)
+    .limit(1)
+    .maybeSingle();
+
+  const cred = (lineAccount?.credentials as Record<string, unknown> | null) || {};
+  const basicId = typeof cred.basic_id === 'string' ? cred.basic_id.trim() : '';
+  const line_oa: StorefrontLineOa | null = basicId
+    ? {
+        name: (cred.bot_name as string) || lineAccount?.account_name || 'LINE',
+        add_friend_url: `https://line.me/R/ti/p/${basicId.startsWith('@') ? basicId : `@${basicId}`}`,
+        picture_url: (cred.bot_picture_url as string) || null,
+      }
+    : null;
+
   return {
     id: data.id,
     slug: data.slug,
@@ -56,6 +90,7 @@ export const getStorefrontCompany = cache(async (slug: string): Promise<Storefro
     address: data.address,
     config,
     features: parseFeatures(settings).features,
+    line_oa,
   };
 });
 

@@ -2,6 +2,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { takeAuthReturnPath } from '@/lib/auth/return-path';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { adoptSession } from '@/lib/auth/session-manager';
 import { Suspense } from 'react';
@@ -60,7 +61,7 @@ function LineCallbackContent() {
         document.cookie = 'invite_token=; path=/; max-age=0';
 
         // Redirect to onboarding
-        router.replace('/onboarding');
+        router.replace(takeAuthReturnPath() || '/onboarding');
       } catch {
         setError('เกิดข้อผิดพลาดในการเข้าสู่ระบบด้วย LINE');
         setTimeout(() => router.replace('/login'), 3000);
