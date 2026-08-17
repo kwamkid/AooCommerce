@@ -31,7 +31,7 @@ export default function CartBadge({ shop }: { shop: string }) {
       className="sf-cart-link"
       aria-label={hydrated && count > 0 ? `ตะกร้าสินค้า ${count} ชิ้น` : 'ตะกร้าสินค้า'}
     >
-      <span className={`sf-cart-icon ${bump ? 'sf-bump' : ''}`}>
+      <span className={`sf-cart-icon ${bump ? 'sf-bump' : ''}`} data-sf-cart-target="">
         <ShoppingBag strokeWidth={1.75} aria-hidden="true" />
         {hydrated && count > 0 && (
           <span className="sf-cart-count">{count > 99 ? '99+' : count}</span>

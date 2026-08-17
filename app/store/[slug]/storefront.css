@@ -365,16 +365,26 @@ html[data-sf-theme='dark'] .sf-root {
 }
 
 /* ── search + icon buttons ─────────────────────────────────────── */
+/* ช่องค้นหา = แถบที่กางลงมาใต้แถวบนของ header (เปิดจากไอคอนขวาบน) */
+.sf-search-panel {
+  border-top: 1px solid var(--sf-border);
+  background: var(--sf-bg);
+  padding: 12px 0;
+  animation: sf-search-open .18s ease-out;
+}
+@keyframes sf-search-open {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
 .sf-search {
-  position: relative; display: flex; align-items: center;
-  flex: 1; max-width: 420px; min-width: 0;
+  position: relative; display: flex; align-items: center; gap: 8px;
 }
 .sf-search-icon {
-  position: absolute; left: 12px; width: 18px; height: 18px;
+  position: absolute; left: 28px; width: 18px; height: 18px;
   color: var(--sf-muted); pointer-events: none;
 }
 .sf-search-input {
-  width: 100%; padding: 10px 36px 10px 38px;
+  flex: 1; min-width: 0; padding: 11px 14px 11px 40px;
   font-size: 16px;              /* 16px กัน iOS zoom ตอนโฟกัส */
   font-family: inherit;
   border: 1px solid var(--sf-border); border-radius: 999px;
@@ -382,16 +392,13 @@ html[data-sf-theme='dark'] .sf-root {
 }
 .sf-search-input::placeholder { color: var(--sf-muted); }
 .sf-search-input:focus { outline: 2px solid var(--sf-primary); outline-offset: 1px; background: var(--sf-bg); }
-/* ปิดกากบาทของ browser — เราวาดเองให้ตรงธีม */
+/* ปิดกากบาทของ browser — ปุ่มปิดอยู่บน header แล้ว */
 .sf-search-input::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; }
-.sf-search-clear {
-  position: absolute; right: 8px; display: inline-flex;
-  border: none; background: transparent; color: var(--sf-muted);
-  cursor: pointer; padding: 6px; border-radius: 999px;
+.sf-search-go {
+  flex-shrink: 0; padding: 11px 20px; border-radius: 999px; border: none;
+  background: var(--sf-primary); color: var(--sf-primary-contrast);
+  font-size: 15px; font-weight: 600; font-family: inherit; cursor: pointer;
 }
-.sf-search-clear svg { width: 15px; height: 15px; }
-.sf-search-clear:hover { color: var(--sf-text); }
-.sf-search-skeleton { flex: 1; max-width: 420px; height: 42px; border-radius: 999px; background: var(--sf-surface); }
 
 .sf-icon-btn {
   display: inline-flex; align-items: center; justify-content: center;
@@ -405,9 +412,8 @@ html[data-sf-theme='dark'] .sf-root {
 
 @media (max-width: 700px) {
   .sf-brand-name { font-size: 17px; }
-  .sf-search { order: 3; flex-basis: 100%; max-width: none; margin-bottom: 10px; }
-  .sf-header-top { flex-wrap: wrap; padding-top: 10px; }
-  .sf-header-actions { margin-left: auto; }
+  .sf-header-actions { gap: 0; }
+  .sf-search-go { padding: 11px 16px; }
 }
 
 /* ── animation: หยิบใส่ตะกร้า ──────────────────────────────────── */

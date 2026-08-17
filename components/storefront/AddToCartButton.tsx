@@ -2,10 +2,11 @@
 // SEO/AEO; only this button needs interactivity.
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import Link from 'next/link';
 import { Minus, Plus, Check } from 'lucide-react';
 import { addToCart } from '@/lib/storefront-cart';
+import { flyToCart, findProductImage, FLY_DURATION } from '@/lib/storefront-fly-to-cart';
 import { formatStorePrice, storefrontHref, type StorefrontVariation } from '@/lib/storefront';
 
 interface Props {
@@ -21,6 +22,7 @@ export default function AddToCartButton({ shop, productSlug, productName, variat
   const [selectedId, setSelectedId] = useState(sellable[0]?.id || '');
   const [qty, setQty] = useState(1);
   const [added, setAdded] = useState(false);
+  const btnRef = useRef<HTMLButtonElement>(null);
 
   if (sellable.length === 0) {
     return <button type="button" className="sf-cta" disabled>สินค้าหมดชั่วคราว</button>;
@@ -29,7 +31,10 @@ export default function AddToCartButton({ shop, productSlug, productName, variat
   const selected = sellable.find(v => v.id === selectedId) || sellable[0];
 
   const handleAdd = () => {
-    addToCart(shop, {
+    const flying = flyToCart(findProductImage(btnRef.current));
+    setAdded(true);
+    window.setTimeout(() => setAdded(false), 1800);
+    const commit = () => addToCart(shop, {
       variation_id: selected.id,
       product_slug: productSlug,
       name: productName,
@@ -37,8 +42,8 @@ export default function AddToCartButton({ shop, productSlug, productName, variat
       price: selected.price,
       image: selected.image || images[0] || null,
     }, qty);
-    setAdded(true);
-    window.setTimeout(() => setAdded(false), 1800);
+    if (flying) window.setTimeout(commit, FLY_DURATION - 120);
+    else commit();
   };
 
   return (
@@ -67,6 +72,7 @@ export default function AddToCartButton({ shop, productSlug, productName, variat
           <button type="button" onClick={() => { setQty(q => Math.min(99, q + 1)); setAdded(false); }} aria-label="เพิ่มจำนวน"><Plus strokeWidth={2} aria-hidden="true" /></button>
         </div>
         <button
+          ref={btnRef}
           type="button"
           className={`sf-cta sf-cta-add ${added ? 'sf-cta-added' : ''}`}
           onClick={handleAdd}

@@ -49,11 +49,10 @@ export default async function StoreLayout({
             <span className="sf-brand-name">{shopName}</span>
           </Link>
 
-          <Suspense fallback={<div className="sf-search-skeleton" />}>
-            <SearchBox shop={slug} />
-          </Suspense>
-
           <div className="sf-header-actions">
+            <Suspense fallback={<span className="sf-icon-btn" aria-hidden="true" />}>
+              <SearchBox shop={slug} />
+            </Suspense>
             <ThemeToggle />
             <CartBadge shop={slug} />
           </div>

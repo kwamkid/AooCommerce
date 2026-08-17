@@ -4,10 +4,11 @@
 // (เดาผิดแล้วลูกค้าได้ของผิดขนาด เสียกว่าคลิกเพิ่มอีกครั้ง)
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import Link from 'next/link';
 import { Plus, Check, SlidersHorizontal } from 'lucide-react';
 import { addToCart } from '@/lib/storefront-cart';
+import { flyToCart, findProductImage, FLY_DURATION } from '@/lib/storefront-fly-to-cart';
 import { storefrontHref, type StorefrontVariation } from '@/lib/storefront';
 
 interface Props {
@@ -20,6 +21,7 @@ interface Props {
 
 export default function QuickAddButton({ shop, productSlug, productName, variations, cover }: Props) {
   const [added, setAdded] = useState(false);
+  const btnRef = useRef<HTMLButtonElement>(null);
   const sellable = variations.filter(v => v.in_stock);
 
   if (sellable.length === 0) {
@@ -38,7 +40,11 @@ export default function QuickAddButton({ shop, productSlug, productName, variati
 
   const v = sellable[0];
   const handleAdd = () => {
-    addToCart(shop, {
+    const flying = flyToCart(findProductImage(btnRef.current));
+    setAdded(true);
+    window.setTimeout(() => setAdded(false), 1800);
+    // ใส่ตะกร้าตอนรูปบินถึงพอดี — badge จะเด้งรับ ไม่ใช่เด้งทิ้งไว้ก่อน
+    const commit = () => addToCart(shop, {
       variation_id: v.id,
       product_slug: productSlug,
       name: productName,
@@ -46,12 +52,13 @@ export default function QuickAddButton({ shop, productSlug, productName, variati
       price: v.price,
       image: v.image || cover,
     }, 1);
-    setAdded(true);
-    window.setTimeout(() => setAdded(false), 1800);
+    if (flying) window.setTimeout(commit, FLY_DURATION - 120);
+    else commit();
   };
 
   return (
     <button
+      ref={btnRef}
       type="button"
       className={`sf-quickadd ${added ? 'sf-quickadd-done' : ''}`}
       onClick={handleAdd}
