@@ -38,14 +38,16 @@ export function flyToCart(image: HTMLImageElement | null): boolean {
   const to = target.getBoundingClientRect();
   if (from.width === 0 || to.width === 0) return false;   // ซ่อนอยู่ ไม่ต้องเล่น
 
-  // 1) ต้นฉบับค่อย ๆ ถูกดูดยุบลง แล้วดีดกลับ — จังหวะ "ดึง" ก่อนของหลุดออกไป
+  // 1) ต้นฉบับแค่ "หรี่" ลงแล้วคืนสภาพ — ห้ามย่อขนาด เพราะรูปอยู่ในกรอบ
+  //    overflow:hidden การย่อจะเผยพื้นหลังกรอบออกมาเป็นขอบสี่เหลี่ยมรอบรูป
+  //    จังหวะ "ยุบ" ย้ายไปไว้ที่ clone ซึ่งลอยอิสระไม่มีกรอบครอบ
   image.animate(
     [
-      { transform: 'scale(1)', offset: 0, easing: 'cubic-bezier(.32, 0, .28, 1)' },
-      { transform: 'scale(0.86)', offset: 0.45, easing: 'cubic-bezier(.34, 1.5, .64, 1)' },
-      { transform: 'scale(1)', offset: 1 },
+      { opacity: '1', offset: 0, easing: 'cubic-bezier(.32, 0, .28, 1)' },
+      { opacity: '0.35', offset: 0.4, easing: 'cubic-bezier(.4, 0, .3, 1)' },
+      { opacity: '1', offset: 1 },
     ],
-    { duration: 560 },
+    { duration: 620 },
   );
 
   // 2) clone ที่จะบิน — เริ่มทับตำแหน่งเดิมเป๊ะ
@@ -81,16 +83,23 @@ export function flyToCart(image: HTMLImageElement | null): boolean {
         offset: 0,
         transform: 'translate(0, 0) scale(1)',
         opacity: 1, borderRadius: '12px',
-        easing: 'cubic-bezier(.2, .85, .3, 1)',        // ออกตัวช้า นุ่ม
+        easing: 'cubic-bezier(.4, 0, .5, 1)',
       },
       {
-        offset: 0.34,
-        transform: `translate(${dx * 0.05}px, ${-lift * 0.55}px) scale(1.1)`,
+        // ยุบตัวก่อน — เหมือนโดนบีบก่อนถูกดูดออกไป
+        offset: 0.13,
+        transform: 'translate(0, 0) scale(0.88)',
+        opacity: 1,
+        easing: 'cubic-bezier(.2, .85, .3, 1)',        // แล้วค่อย ๆ พองขึ้นช้า ๆ
+      },
+      {
+        offset: 0.4,
+        transform: `translate(${dx * 0.05}px, ${-lift * 0.55}px) scale(1.12)`,
         opacity: 1,
         easing: 'cubic-bezier(.4, 0, .7, .5)',          // ค้างลอย เริ่มเก็บแรง
       },
       {
-        offset: 0.55,
+        offset: 0.6,
         transform: `translate(${dx * 0.18}px, ${-lift}px) scale(0.92)`,
         opacity: 0.98,
         easing: 'cubic-bezier(.55, 0, .85, .5)',        // เริ่มเร่ง

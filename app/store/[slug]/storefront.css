@@ -155,7 +155,10 @@
 .sf-variation-oos { color: var(--sf-muted); text-decoration: line-through; }
 
 .sf-cta {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   background: var(--sf-primary);
   color: var(--sf-primary-contrast);
   border: none;
@@ -163,9 +166,13 @@
   padding: 14px 28px;
   font-size: 16px;
   font-weight: 600;
+  line-height: 1.2;          /* คงที่ ไม่ให้ความสูงบรรทัดดันข้อความเยื้อง */
+  font-family: inherit;
   cursor: pointer;
   text-decoration: none;
+  text-align: center;
 }
+.sf-cta svg { display: block; flex-shrink: 0; }
 .sf-cta[disabled] { opacity: .5; cursor: not-allowed; }
 
 .sf-section { margin-top: 32px; }
@@ -238,9 +245,9 @@ html[data-sf-theme='dark'] .sf-root {
 .sf-variation-active { border-color: var(--sf-primary); box-shadow: inset 0 0 0 1px var(--sf-primary); font-weight: 600; }
 .sf-variation:disabled { cursor: not-allowed; }
 
-.sf-buy-row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.sf-buy-row { display: flex; gap: 12px; align-items: stretch; flex-wrap: wrap; }
 .sf-qty {
-  display: inline-flex; align-items: center;
+  display: inline-flex; align-items: center; align-self: stretch;
   border: 1px solid var(--sf-border); border-radius: var(--sf-radius); overflow: hidden;
 }
 .sf-qty button {
@@ -435,7 +442,8 @@ html[data-sf-theme='dark'] .sf-root {
 .sf-bump { animation: sf-bump .4s cubic-bezier(.34, 1.56, .64, 1); }
 .sf-quickadd-face,
 .sf-cta-face {
-  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  width: 100%; line-height: 1.2;
   animation: sf-face-in .22s ease-out;
 }
 .sf-fade-up { animation: sf-fade-up .25s ease-out; }
@@ -444,7 +452,7 @@ html[data-sf-theme='dark'] .sf-root {
 .sf-quickadd:active, .sf-cta:active { transform: scale(.97); }
 .sf-quickadd, .sf-cta { transition: background .15s ease, border-color .15s ease, color .15s ease, transform .08s ease; }
 
-.sf-cta-add { min-width: 220px; }
+.sf-cta-add { min-width: 240px; min-height: 46px; }
 .sf-cta-added { background: #16a34a; color: #fff; }
 
 /* เคารพการตั้งค่าของผู้ใช้ที่ปิด motion (เวียนหัว/ไวต่อการเคลื่อนไหว) */
