@@ -138,20 +138,19 @@ export default function FeaturesPage() {
         return {
           ...prev,
           delivery_date: { enabled: enabling, required: enabling ? dd.required : false },
-          // ปิดเดลิเวอรี่ → ปิดตัวเลือกย่อยทั้งหมด (จุดส่ง + ช่วงเวลา)
-          ...(enabling ? {} : { delivery_zone: false, delivery_slot: false }),
+          // ปิดวันส่ง → ช่วงเวลาส่งไม่มีความหมาย ปิดตาม (จุดส่งไม่เกี่ยว — ใช้ได้เอง)
+          ...(enabling ? {} : { delivery_slot: false }),
         };
       }
-      // ตัวเลือกย่อยเปิดได้เฉพาะเมื่อเปิด "ธุรกิจเดลิเวอรี่" อยู่
-      if ((key === 'delivery_zone' || key === 'delivery_slot')
-        && !prev.delivery_date.enabled && !prev[key]) return prev;
+      // ช่วงเวลาส่งเปิดได้เฉพาะเมื่อเปิดวันส่งอยู่ (เลือกช่วงโดยไม่มีวันไม่ได้)
+      if (key === 'delivery_slot' && !prev.delivery_date.enabled && !prev.delivery_slot) return prev;
       const newValue = !prev[key as keyof Omit<FeatureFlags, 'delivery_date'>];
       const next = { ...prev, [key]: newValue };
       if (key === 'consignment' && newValue) next.supplier = true;
       if (key === 'supplier' && !newValue) next.consignment = false;
       // Auto-expand when enabling a feature that has expandable settings.
       // ตัวเลือกย่อยของเดลิเวอรี่ไม่มี section ของตัวเอง — คง section เดิมไว้
-      if (newValue && key !== 'delivery_zone' && key !== 'delivery_slot') setOpenSection(key);
+      if (newValue && key !== 'delivery_slot') setOpenSection(key);
       else setOpenSection(s => s === key ? null : s);
       return next;
     });
@@ -273,6 +272,13 @@ export default function FeaturesPage() {
       color: 'text-blue-600',
       hasRequired: true,
     },
+    {
+      key: 'delivery_zone',
+      label: 'จุดส่ง / โซนค่าส่ง',
+      description: 'คิดค่าส่งตามพื้นที่ตอนเปิดบิลเอง (คงที่ หรือคำนวณจาก Lalamove) — ไม่กระทบออเดอร์จาก Shopee/Lazada/TikTok ที่มีค่าส่งมาแล้ว',
+      icon: <MapPin className="w-5 h-5" />,
+      color: 'text-emerald-600',
+    },
   ];
 
   if (!isOwnerOrAdmin && featuresLoaded) {
@@ -374,23 +380,6 @@ export default function FeaturesPage() {
                             ...prev,
                             delivery_date: { ...prev.delivery_date, required: !prev.delivery_date.required },
                           }))}
-                        />
-                      </div>
-
-                      <div className="flex items-center justify-between bg-gray-50 dark:bg-slate-700/50 rounded-lg px-4 py-3">
-                        <div className="flex items-start gap-3 min-w-0">
-                          <MapPin className={`w-5 h-5 flex-shrink-0 mt-0.5 ${featureFlags.delivery_zone ? 'text-emerald-600' : 'text-gray-400 dark:text-slate-500'}`} />
-                          <div className="min-w-0">
-                            <p className="text-base font-medium text-gray-900 dark:text-white">จุดส่ง / โซนค่าส่ง</p>
-                            <p className="text-sm text-gray-500 dark:text-slate-400 mt-0.5">
-                              กำหนดพื้นที่รับส่ง + ค่าส่งต่อโซน (คงที่ หรือคำนวณจาก Lalamove) — ตั้งค่าที่เมนู การจัดส่ง
-                            </p>
-                          </div>
-                        </div>
-                        <Toggle
-                          checked={featureFlags.delivery_zone}
-                          onChange={() => toggleFeature('delivery_zone')}
-                          disabled={!isOwnerOrAdmin}
                         />
                       </div>
 

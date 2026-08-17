@@ -1,0 +1,200 @@
+/* Storefront styles — deliberately separate from the admin design system.
+   Admin components (Card/DataTable/FormSelect) are built for dense back-office
+   screens; a shop needs its own scale, rhythm and touch targets.
+
+   Everything is driven by the theme tokens set on .sf-root
+   (--sf-primary / --sf-primary-contrast / --sf-radius) so changing a company's
+   theme never means touching component code. */
+
+.sf-root {
+  --sf-bg: #ffffff;
+  --sf-surface: #f8fafc;
+  --sf-border: #e5e7eb;
+  --sf-text: #111827;
+  --sf-muted: #6b7280;
+  --sf-max: 1200px;
+
+  background: var(--sf-bg);
+  color: var(--sf-text);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  font-size: 16px;
+  line-height: 1.6;
+}
+
+.sf-container {
+  width: 100%;
+  max-width: var(--sf-max);
+  margin: 0 auto;
+  padding: 0 16px;
+}
+
+/* ── header ── */
+.sf-announcement {
+  background: var(--sf-primary);
+  color: var(--sf-primary-contrast);
+  text-align: center;
+  padding: 8px 16px;
+  font-size: 14px;
+}
+
+.sf-header {
+  border-bottom: 1px solid var(--sf-border);
+  position: sticky;
+  top: 0;
+  background: var(--sf-bg);
+  z-index: 20;
+}
+
+.sf-header-inner {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  min-height: 68px;
+  flex-wrap: wrap;
+}
+
+.sf-brand { display: flex; align-items: center; gap: 10px; text-decoration: none; color: inherit; }
+.sf-brand-logo { height: 36px; width: auto; object-fit: contain; }
+.sf-brand-name { font-size: 19px; font-weight: 700; }
+
+.sf-nav { display: flex; align-items: center; gap: 18px; overflow-x: auto; }
+.sf-nav-link {
+  color: var(--sf-muted);
+  text-decoration: none;
+  font-size: 15px;
+  white-space: nowrap;
+  padding: 6px 0;
+}
+.sf-nav-link:hover { color: var(--sf-primary); }
+
+.sf-main { flex: 1; padding: 28px 0 56px; }
+
+/* ── hero ── */
+.sf-hero { margin-bottom: 28px; }
+.sf-hero h1 { font-size: 30px; font-weight: 700; line-height: 1.35; margin: 0 0 8px; }
+.sf-hero p { color: var(--sf-muted); margin: 0; max-width: 60ch; }
+
+/* ── product grid ── */
+.sf-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 20px;
+}
+
+.sf-card {
+  border: 1px solid var(--sf-border);
+  border-radius: var(--sf-radius);
+  overflow: hidden;
+  background: var(--sf-bg);
+  text-decoration: none;
+  color: inherit;
+  display: flex;
+  flex-direction: column;
+  transition: box-shadow .15s ease, transform .15s ease;
+}
+.sf-card:hover { box-shadow: 0 6px 20px rgba(0, 0, 0, .08); transform: translateY(-2px); }
+
+.sf-card-media {
+  aspect-ratio: 1 / 1;
+  background: var(--sf-surface);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+.sf-card-media img { width: 100%; height: 100%; object-fit: cover; }
+.sf-card-media-empty { color: var(--sf-muted); font-size: 13px; }
+
+.sf-card-body { padding: 12px 14px 16px; display: flex; flex-direction: column; gap: 4px; flex: 1; }
+.sf-card-cat { font-size: 12px; color: var(--sf-muted); }
+.sf-card-name { font-size: 15px; font-weight: 600; line-height: 1.4; }
+.sf-card-price { margin-top: auto; padding-top: 8px; font-size: 16px; font-weight: 700; }
+.sf-card-compare { font-size: 13px; font-weight: 400; color: var(--sf-muted); text-decoration: line-through; margin-left: 6px; }
+.sf-oos { font-size: 13px; color: var(--sf-muted); font-weight: 500; }
+
+/* ── product detail ── */
+.sf-detail { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 40px; }
+@media (max-width: 860px) { .sf-detail { grid-template-columns: 1fr; gap: 24px; } }
+
+.sf-gallery-main {
+  aspect-ratio: 1 / 1;
+  border-radius: var(--sf-radius);
+  overflow: hidden;
+  background: var(--sf-surface);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.sf-gallery-main img { width: 100%; height: 100%; object-fit: cover; }
+.sf-gallery-thumbs { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+.sf-gallery-thumbs img {
+  width: 66px; height: 66px; object-fit: cover;
+  border-radius: calc(var(--sf-radius) / 2);
+  border: 1px solid var(--sf-border);
+}
+
+.sf-detail h1 { font-size: 26px; font-weight: 700; line-height: 1.4; margin: 0 0 6px; }
+.sf-detail-meta { color: var(--sf-muted); font-size: 14px; margin-bottom: 16px; }
+.sf-detail-price { font-size: 26px; font-weight: 700; margin-bottom: 18px; }
+
+.sf-variations { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
+.sf-variation {
+  border: 1px solid var(--sf-border);
+  border-radius: calc(var(--sf-radius) / 1.5);
+  padding: 9px 14px;
+  font-size: 14px;
+  background: var(--sf-bg);
+}
+.sf-variation-oos { color: var(--sf-muted); text-decoration: line-through; }
+
+.sf-cta {
+  display: inline-block;
+  background: var(--sf-primary);
+  color: var(--sf-primary-contrast);
+  border: none;
+  border-radius: var(--sf-radius);
+  padding: 14px 28px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+}
+.sf-cta[disabled] { opacity: .5; cursor: not-allowed; }
+
+.sf-section { margin-top: 32px; }
+.sf-section h2 { font-size: 18px; font-weight: 700; margin: 0 0 10px; }
+.sf-prose { color: var(--sf-text); white-space: pre-wrap; }
+
+/* Facts block — plain sentences on purpose: AI answer engines quote passages,
+   and passages have to stand on their own without the surrounding layout. */
+.sf-facts { display: flex; flex-direction: column; gap: 6px; color: var(--sf-text); }
+.sf-facts p { margin: 0; }
+
+/* ── delivery info page ── */
+.sf-table { width: 100%; border-collapse: collapse; font-size: 15px; }
+.sf-table th, .sf-table td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--sf-border); }
+.sf-table th { background: var(--sf-surface); font-weight: 600; }
+.sf-scroll-x { overflow-x: auto; }
+
+/* ── footer ── */
+.sf-footer { border-top: 1px solid var(--sf-border); background: var(--sf-surface); padding: 32px 0; }
+.sf-footer-inner { display: flex; justify-content: space-between; gap: 32px; flex-wrap: wrap; }
+.sf-footer-title { font-weight: 700; margin-bottom: 6px; }
+.sf-footer-text { color: var(--sf-muted); font-size: 14px; margin: 0 0 4px; }
+.sf-footer-contact { text-align: right; }
+@media (max-width: 640px) { .sf-footer-contact { text-align: left; } }
+.sf-footer-link { color: var(--sf-primary); font-size: 14px; text-decoration: none; }
+
+.sf-empty { color: var(--sf-muted); padding: 48px 0; text-align: center; }
+
+@media (prefers-color-scheme: dark) {
+  .sf-root {
+    --sf-bg: #0f172a;
+    --sf-surface: #1e293b;
+    --sf-border: #334155;
+    --sf-text: #f1f5f9;
+    --sf-muted: #94a3b8;
+  }
+}

@@ -31,6 +31,9 @@ const PUBLIC_PREFIXES = [
   '/supplier-portal',
   '/invite/',
   '/superadmin',
+  // หน้าร้านออนไลน์ — ต้อง public จริง ไม่งั้น Googlebot โดนเด้งไป /login
+  // แล้วไม่มีอะไรถูก index เลย (custom domain map เข้ามาที่ path นี้ผ่าน edge proxy)
+  '/store',
 ];
 
 function isPublicPath(pathname: string): boolean {
