@@ -83,7 +83,7 @@ export default async function StorefrontCatalogPage({ params, searchParams }: Pa
   const company = await getStorefrontCompany(slug);
   if (!company) notFound();
 
-  const products = await getStorefrontCatalog(company.id, { category: cat, search: q });
+  const products = await getStorefrontCatalog(company.id, { category: cat, search: q }, company.features.stock);
   const cfg = company.config;
   const shopName = cfg.display_name || company.name;
 

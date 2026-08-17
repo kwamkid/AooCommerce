@@ -70,7 +70,11 @@ interface RawVariation {
 }
 
 /** variation → public shape. Stock is exposed as a boolean only, never a count. */
-function toPublicVariation(v: RawVariation, imageByVariation: Map<string, string>): StorefrontVariation {
+function toPublicVariation(
+  v: RawVariation,
+  imageByVariation: Map<string, string>,
+  stockEnabled: boolean,
+): StorefrontVariation {
   const { price, compare_at } = effectivePrice(v.default_price, v.discount_price);
   return {
     id: v.id,
@@ -78,7 +82,8 @@ function toPublicVariation(v: RawVariation, imageByVariation: Map<string, string
     sku: v.sku,
     price,
     compare_at,
-    in_stock: (v.stock ?? 0) > 0,
+    // ร้านที่ไม่ได้ใช้ระบบคลัง ถือว่าพร้อมขายเสมอ — ไม่งั้นทั้งร้านขึ้น "สินค้าหมด"
+    in_stock: stockEnabled ? (v.stock ?? 0) > 0 : true,
     image: imageByVariation.get(v.id) || null,
   };
 }
@@ -87,6 +92,7 @@ function assembleProduct(
   row: { id: string; slug: string | null; name: string; description: string | null; image: string | null; updated_at: string; category?: { name: string } | null; brand?: { name: string } | null },
   variations: RawVariation[],
   images: { variation_id: string | null; image_url: string }[],
+  stockEnabled: boolean,
 ): StorefrontProduct {
   const imageByVariation = new Map<string, string>();
   const productImages: string[] = [];
@@ -98,7 +104,7 @@ function assembleProduct(
     }
   }
 
-  const publicVariations = variations.filter(v => v.is_active).map(v => toPublicVariation(v, imageByVariation));
+  const publicVariations = variations.filter(v => v.is_active).map(v => toPublicVariation(v, imageByVariation, stockEnabled));
   const prices = publicVariations.map(v => v.price);
 
   // Product-level gallery first, then any variation-specific images (dedup).
@@ -123,8 +129,8 @@ function assembleProduct(
 
 const PRODUCT_SELECT = `
   id, slug, name, description, image, updated_at,
-  category:categories ( name ),
-  brand:brands ( name )
+  category:product_categories ( name ),
+  brand:product_brands ( name )
 `;
 
 export interface CatalogFilter {
@@ -137,6 +143,7 @@ export interface CatalogFilter {
 export const getStorefrontCatalog = cache(async (
   companyId: string,
   filter: CatalogFilter = {},
+  stockEnabled = false,
 ): Promise<StorefrontProduct[]> => {
   let query = supabaseAdmin
     .from('products')
@@ -189,7 +196,7 @@ export const getStorefrontCatalog = cache(async (
   }
 
   return filtered
-    .map(r => assembleProduct(r, varsByProduct.get(r.id) || [], imgsByProduct.get(r.id) || []))
+    .map(r => assembleProduct(r, varsByProduct.get(r.id) || [], imgsByProduct.get(r.id) || [], stockEnabled))
     // สินค้าที่ไม่มี variation ที่ขายได้เลย ไม่ต้องโชว์ (ราคาเป็น 0 ดูเหมือนของฟรี)
     .filter(p => p.variations.length > 0);
 });
@@ -198,6 +205,7 @@ export const getStorefrontCatalog = cache(async (
 export const getStorefrontProduct = cache(async (
   companyId: string,
   slugOrId: string,
+  stockEnabled = false,
 ): Promise<StorefrontProduct | null> => {
   const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(slugOrId);
 
@@ -232,6 +240,7 @@ export const getStorefrontProduct = cache(async (
     typedRow,
     (variations || []) as RawVariation[],
     (images || []).map(i => ({ variation_id: i.variation_id, image_url: i.image_url })),
+    stockEnabled,
   );
   return product.variations.length > 0 ? product : null;
 });
@@ -240,7 +249,7 @@ export const getStorefrontProduct = cache(async (
 export const getStorefrontCategories = cache(async (companyId: string): Promise<string[]> => {
   const { data } = await supabaseAdmin
     .from('products')
-    .select('category:categories ( name )')
+    .select('category:product_categories ( name )')
     .eq('company_id', companyId)
     .eq('is_active', true)
     .eq('storefront_visible', true);

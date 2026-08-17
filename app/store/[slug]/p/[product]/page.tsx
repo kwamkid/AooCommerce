@@ -54,7 +54,7 @@ export default async function StorefrontProductPage({ params }: PageProps) {
   const company = await getStorefrontCompany(slug);
   if (!company) notFound();
 
-  const product = await getStorefrontProduct(company.id, productSlug);
+  const product = await getStorefrontProduct(company.id, productSlug, company.features.stock);
   if (!product) notFound();
 
   const cfg = company.config;

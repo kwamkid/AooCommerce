@@ -28,7 +28,7 @@ export async function GET(
 
   const shopName = cfg.display_name || company.name;
   const [products, categories, { zones, slots }] = await Promise.all([
-    getStorefrontCatalog(company.id, { limit: 100 }),
+    getStorefrontCatalog(company.id, { limit: 100 }, company.features.stock),
     getStorefrontCategories(company.id),
     getStorefrontDelivery(company.id),
   ]);

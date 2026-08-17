@@ -23,7 +23,7 @@ export async function GET(
   }
 
   const cfg = company.config;
-  const products = await getStorefrontCatalog(company.id, { limit: 5000 });
+  const products = await getStorefrontCatalog(company.id, { limit: 5000 }, company.features.stock);
 
   const entries = [
     { loc: storefrontUrl(cfg, slug), priority: '1.0', lastmod: null as string | null },
