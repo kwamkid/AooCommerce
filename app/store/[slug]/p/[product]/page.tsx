@@ -11,6 +11,7 @@ import { notFound } from 'next/navigation';
 import { getStorefrontCompany, getStorefrontProduct, getStorefrontDelivery } from '@/lib/storefront-server';
 import { storefrontUrl, storefrontHref, formatStorePrice } from '@/lib/storefront';
 import { formatSlotTime } from '@/lib/delivery';
+import AddToCartButton from '@/components/storefront/AddToCartButton';
 
 export const revalidate = 300;
 
@@ -185,21 +186,13 @@ export default async function StorefrontProductPage({ params }: PageProps) {
               : formatStorePrice(product.price_min)}
           </div>
 
-          {product.variations.length > 1 && (
-            <div className="sf-variations">
-              {product.variations.map(v => (
-                <span key={v.id} className={`sf-variation ${v.in_stock ? '' : 'sf-variation-oos'}`}>
-                  {v.label || 'ตัวเลือก'} · {formatStorePrice(v.price)}
-                  {!v.in_stock && ' (หมด)'}
-                </span>
-              ))}
-            </div>
-          )}
-
-          {/* ตะกร้า/ชำระเงินมาเฟสถัดไป — ปุ่มนี้ยังไม่เปิดใช้ */}
-          <button type="button" className="sf-cta" disabled>
-            {product.in_stock ? 'เร็ว ๆ นี้ — สั่งซื้อออนไลน์' : 'สินค้าหมดชั่วคราว'}
-          </button>
+          <AddToCartButton
+            shop={slug}
+            productSlug={product.slug}
+            productName={product.name}
+            variations={product.variations}
+            images={product.images}
+          />
 
           {product.description && (
             <div className="sf-section">

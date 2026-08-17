@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getStorefrontCompany, getStorefrontCategories } from '@/lib/storefront-server';
 import { storefrontCssVars, storefrontHref } from '@/lib/storefront';
+import CartBadge from '@/components/storefront/CartBadge';
 import './storefront.css';
 
 export default async function StoreLayout({
@@ -53,6 +54,8 @@ export default async function StoreLayout({
             ))}
             <Link href={storefrontHref(slug, '/delivery')} className="sf-nav-link">การจัดส่ง</Link>
           </nav>
+
+          <CartBadge shop={slug} />
         </div>
       </header>
 
