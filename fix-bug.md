@@ -16,6 +16,16 @@
 
 ---
 
+## 2026-08-18 — PostfixInput: ตัวเลขเกยกับ postfix เมื่อ postfix ยาวกว่า "฿" (โมดัลรอบส่ง/โซนส่ง)
+
+**ที่เกิด**: [components/ui/PostfixInput.tsx](components/ui/PostfixInput.tsx) — ใช้ที่ [app/settings/delivery/page.tsx](app/settings/delivery/page.tsx) (รับได้ต่อวัน "ออเดอร์", ปิดรับก่อนเริ่มรอบ "นาที", ยอดขั้นต่ำส่งฟรี, ต้องสั่งล่วงหน้า) + [GeneralInfoCard](app/promotions/components/promotion-form/GeneralInfoCard.tsx) (จำกัดการซื้อ "ครั้ง")
+**อาการ**: ในโมดัล "แก้ไขรอบส่ง"/"เพิ่มรอบส่ง" เลข `20` ทับคำว่า "ออเดอร์" และ `120` ทับ "นาที" อ่านไม่ออก
+**Root cause**: input hardcode `pr-6` (24px) ซึ่งพอดีแค่ postfix สั้นอย่าง "฿"/"%" — postfix ไทยยาว 30-45px จึงล้ำเข้ามาทับ value ที่ `text-right` (ยิ่งกล่อง default `w-24` = 96px ยิ่งไม่มีที่)
+**วิธีแก้**: วัดความกว้าง postfix จริงด้วย ref + `useLayoutEffect` + `ResizeObserver` แล้วเซ็ต `paddingRight = width + 14px` แบบ inline (fallback `pr-6` ตอนยังไม่วัด) + `whitespace-nowrap` ที่ span — แก้ที่ component เดียวได้ทุกหน้าที่ใช้ · เพิ่ม `width="w-full" inputClassName="w-full"` ให้ 4 ช่องในหน้า delivery (ช่อง 96px แคบเกินสำหรับ postfix ไทย + placeholder ยาว "เว้นว่าง = ไม่จำกัด")
+**ป้องกัน regression**: postfix ที่ยาวกว่า 1-2 ตัวอักษร ห้ามพึ่ง padding คงที่ · ถ้าจะเพิ่ม variant ใหม่ของ PostfixInput ให้คงการวัดนี้ไว้ และวางในกริดด้วย `w-full` เสมอเมื่อ postfix เป็นคำไทย
+
+---
+
 ## 2026-08-14 — Shopee webhook ตรวจลายเซ็นไม่ผ่าน "ทุกรายการ" ตั้งแต่วันแรก (22,414 รายการ) — Push Partner Key เป็นคนละตัวกับ API Partner Key
 
 **ที่เกิด**: [app/api/shopee/webhook/route.ts](app/api/shopee/webhook/route.ts) — `verifySignature()` ใช้ `SHOPEE_PARTNER_KEY` (API key)

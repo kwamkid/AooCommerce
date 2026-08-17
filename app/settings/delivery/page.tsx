@@ -502,6 +502,7 @@ export default function DeliverySettingsPage() {
                   value={zoneForm.free_over}
                   onChange={(v) => setZoneForm(f => ({ ...f, free_over: v }))}
                   postfix="฿" type="number" min={0} placeholder="เว้นว่าง = ไม่มีส่งฟรี"
+                  width="w-full" inputClassName="w-full"
                 />
               </div>
               <div>
@@ -510,6 +511,7 @@ export default function DeliverySettingsPage() {
                   value={zoneForm.lead_minutes}
                   onChange={(v) => setZoneForm(f => ({ ...f, lead_minutes: v }))}
                   postfix="นาที" type="number" min={0}
+                  width="w-full" inputClassName="w-full"
                   helperText="เช่น 1440 = ต้องสั่งก่อน 1 วัน"
                 />
               </div>
@@ -596,6 +598,7 @@ export default function DeliverySettingsPage() {
                   value={slotForm.capacity}
                   onChange={(v) => setSlotForm(f => ({ ...f, capacity: v }))}
                   postfix="ออเดอร์" type="number" min={1} placeholder="เว้นว่าง = ไม่จำกัด"
+                  width="w-full" inputClassName="w-full"
                 />
               </div>
               <div>
@@ -604,6 +607,7 @@ export default function DeliverySettingsPage() {
                   value={slotForm.cutoff_minutes}
                   onChange={(v) => setSlotForm(f => ({ ...f, cutoff_minutes: v }))}
                   postfix="นาที" type="number" min={0}
+                  width="w-full" inputClassName="w-full"
                   helperText="เช่น 120 = รอบ 15:00 ปิดรับตอน 13:00"
                 />
               </div>
