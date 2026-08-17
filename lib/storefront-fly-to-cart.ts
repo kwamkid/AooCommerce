@@ -82,7 +82,7 @@ export function flyToCart(image: HTMLImageElement | null): boolean {
       {
         offset: 0,
         transform: 'translate(0, 0) scale(1)',
-        opacity: 1, borderRadius: '12px',
+        opacity: 1,
         easing: 'cubic-bezier(.4, 0, .5, 1)',
       },
       {
@@ -113,7 +113,7 @@ export function flyToCart(image: HTMLImageElement | null): boolean {
       {
         offset: 1,
         transform: `translate(${dx}px, ${dy}px) scale(${endScale})`,
-        opacity: 0.1, borderRadius: '999px',
+        opacity: 0.1,
       },
     ],
     { duration: FLY_DURATION, easing: 'linear', fill: 'forwards' },
