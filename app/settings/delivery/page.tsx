@@ -384,6 +384,12 @@ export default function DeliverySettingsPage() {
             />
           ) : (
             <div className="space-y-2">
+              {zonesOn && slots.some(sl => sl.cutoff_minutes > 0) && (
+                <p className="subtitle-text text-gray-500">
+                  เวลาปิดรับใช้ <strong>ค่าที่มากกว่า</strong> ระหว่าง &quot;ปิดรับก่อนเริ่มรอบ&quot; ของรอบนี้
+                  กับ &quot;ต้องสั่งล่วงหน้า&quot; ของโซนปลายทาง — ไม่ได้เอามาบวกกัน
+                </p>
+              )}
               {slots.map((s, i) => (
                 <ListRow
                   key={s.id}

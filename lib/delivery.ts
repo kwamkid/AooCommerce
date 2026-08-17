@@ -106,7 +106,7 @@ function timeToMinutes(t: string): number {
 /**
  * Is this slot selectable for the given date? All conditions must pass:
  * 1. วันที่เลือกตรงกับ days_of_week
- * 2. now + zone.lead_minutes < (slot start on date) - cutoff_minutes
+ * 2. now < (slot start on date) - max(cutoff_minutes, zone.lead_minutes)
  * 3. capacity null หรือ booked_count < capacity
  * 4. slot อยู่ใน zone.slot_ids (ว่าง = ใช้ได้ทุก slot)
  *
@@ -133,17 +133,18 @@ export function getSlotAvailability(
     return { available: false, reason: 'day_off' };
   }
 
-  // 2) cutoff (ของรอบ) กับ lead time (ของโซน) เป็นคนละเหตุผล — ต้องแยกให้ชัด
-  //    ไม่งั้นร้านตั้ง cutoff เหลือ 1 นาทีแล้วยังสั่งไม่ได้ จะงงว่าพังตรงไหน
+  // 2) เวลาปิดรับ — ทั้งรอบและโซนต่างบอกว่า "ต้องสั่งก่อนเริ่มรอบกี่นาที"
+  //    ซึ่งเป็นหน่วยเดียวกัน จึงใช้ **ค่าที่มากกว่า** (เข้มกว่าชนะ) ไม่ใช่บวกกัน
+  //    — ถ้าบวก ร้านที่ตั้งรอบปิดรับ 2 ชม. + โซน 5 ชม. จะกลายเป็นต้องสั่งก่อน
+  //    7 ชม. ซึ่งไม่มีใครคาดหวัง และเดาจากหน้าจอไม่ได้เลย
+  const leadMinutes = zone?.lead_minutes || 0;
+  const noticeMinutes = Math.max(slot.cutoff_minutes, leadMinutes);
   const slotStart = new Date(date);
   slotStart.setMinutes(timeToMinutes(slot.start_time));
-  const latestOrderTime = slotStart.getTime() - slot.cutoff_minutes * 60_000;
+  const latestOrderTime = slotStart.getTime() - noticeMinutes * 60_000;
   if (now.getTime() >= latestOrderTime) {
-    return { available: false, reason: 'cutoff' };   // เลยเวลาปิดรับของรอบไปแล้ว
-  }
-  const leadMinutes = zone?.lead_minutes || 0;
-  if (now.getTime() + leadMinutes * 60_000 >= latestOrderTime) {
-    return { available: false, reason: 'lead' };     // ยังไม่เลย cutoff แต่เตรียมของไม่ทัน
+    // บอกให้ตรงว่าค่าไหนเป็นตัวกำหนด ร้านจะได้รู้ว่าต้องไปแก้ที่ไหน
+    return { available: false, reason: leadMinutes > slot.cutoff_minutes ? 'lead' : 'cutoff' };
   }
 
   // 3) capacity
