@@ -7,7 +7,7 @@ import { supabaseAdmin } from '@/lib/supabase-admin';
 import { getStorefrontCompany } from '@/lib/storefront-server';
 import {
   resolveZone, resolveDeliveryFee, getSlotAvailability,
-  buildSlotLabel, SLOT_UNAVAILABLE_LABELS,
+  buildSlotLabel, slotUnavailableLabel,
   type DeliveryZone, type DeliverySlot,
 } from '@/lib/delivery';
 
@@ -87,7 +87,7 @@ export async function GET(request: NextRequest) {
       end_time: s.end_time,
       available: avail.available,
       // เหตุผลเป็นข้อความพร้อมแสดง — ช่องที่เลือกไม่ได้ต้องบอกว่าทำไม ห้ามซ่อน
-      reason: avail.reason ? SLOT_UNAVAILABLE_LABELS[avail.reason] : null,
+      reason: slotUnavailableLabel(avail.reason, zone),
     };
   });
 

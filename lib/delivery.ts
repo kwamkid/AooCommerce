@@ -90,7 +90,7 @@ export function resolveDeliveryFee(zone: DeliveryZone, subtotal: number): Delive
   return { fee: zone.fee, needsQuote: false, freeApplied: false };
 }
 
-export type SlotUnavailableReason = 'day_off' | 'cutoff' | 'full' | 'zone_excluded' | null;
+export type SlotUnavailableReason = 'day_off' | 'cutoff' | 'lead' | 'full' | 'zone_excluded' | null;
 
 export interface SlotAvailability {
   available: boolean;
@@ -133,13 +133,17 @@ export function getSlotAvailability(
     return { available: false, reason: 'day_off' };
   }
 
-  // 2) cutoff + zone lead time
+  // 2) cutoff (ของรอบ) กับ lead time (ของโซน) เป็นคนละเหตุผล — ต้องแยกให้ชัด
+  //    ไม่งั้นร้านตั้ง cutoff เหลือ 1 นาทีแล้วยังสั่งไม่ได้ จะงงว่าพังตรงไหน
   const slotStart = new Date(date);
   slotStart.setMinutes(timeToMinutes(slot.start_time));
   const latestOrderTime = slotStart.getTime() - slot.cutoff_minutes * 60_000;
-  const earliestReady = now.getTime() + (zone?.lead_minutes || 0) * 60_000;
-  if (earliestReady >= latestOrderTime) {
-    return { available: false, reason: 'cutoff' };
+  if (now.getTime() >= latestOrderTime) {
+    return { available: false, reason: 'cutoff' };   // เลยเวลาปิดรับของรอบไปแล้ว
+  }
+  const leadMinutes = zone?.lead_minutes || 0;
+  if (now.getTime() + leadMinutes * 60_000 >= latestOrderTime) {
+    return { available: false, reason: 'lead' };     // ยังไม่เลย cutoff แต่เตรียมของไม่ทัน
   }
 
   // 3) capacity
@@ -153,9 +157,33 @@ export function getSlotAvailability(
 export const SLOT_UNAVAILABLE_LABELS: Record<Exclude<SlotUnavailableReason, null>, string> = {
   day_off: 'ไม่มีรอบวันนี้',
   cutoff: 'ปิดรับแล้ว',
+  lead: 'เตรียมของไม่ทัน',
   full: 'เต็มแล้ว',
   zone_excluded: 'ไม่มีรอบนี้ในพื้นที่',
 };
+
+/** 300 → '5 ชม.' · 1440 → '1 วัน' · 90 → '90 นาที' */
+export function formatLeadTime(minutes: number): string {
+  if (minutes <= 0) return '';
+  if (minutes % 1440 === 0) return `${minutes / 1440} วัน`;
+  if (minutes % 60 === 0) return `${minutes / 60} ชม.`;
+  return `${minutes} นาที`;
+}
+
+/**
+ * ข้อความบอกเหตุผลที่เลือกรอบนี้ไม่ได้ — กรณี lead ใส่ระยะเวลาจริงของโซนไปด้วย
+ * เพราะ "เตรียมของไม่ทัน" เฉย ๆ ไม่บอกว่าต้องสั่งล่วงหน้าเท่าไร
+ */
+export function slotUnavailableLabel(
+  reason: SlotUnavailableReason,
+  zone?: Pick<DeliveryZone, 'lead_minutes'> | null,
+): string | null {
+  if (!reason) return null;
+  if (reason === 'lead' && zone?.lead_minutes) {
+    return `ต้องสั่งล่วงหน้า ${formatLeadTime(zone.lead_minutes)}`;
+  }
+  return SLOT_UNAVAILABLE_LABELS[reason];
+}
 
 /** '15:00:00' → '15:00' */
 export function formatSlotTime(t: string): string {

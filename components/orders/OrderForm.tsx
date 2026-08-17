@@ -14,7 +14,7 @@ import { parseThaiAddress } from '@/lib/address-parser';
 import {
   type DeliveryZone, type DeliverySlot,
   resolveZone, resolveDeliveryFee, getSlotAvailability,
-  SLOT_UNAVAILABLE_LABELS, formatSlotTime,
+  slotUnavailableLabel, formatSlotTime,
 } from '@/lib/delivery';
 import ThaiAddressInput from '@/components/ui/ThaiAddressInput';
 import EntitySearchInput from '@/components/ui/EntitySearchInput';
@@ -2224,7 +2224,7 @@ export default function OrderForm({
                       >
                         {slot.name} · {formatSlotTime(slot.start_time)}-{formatSlotTime(slot.end_time)}
                         {!avail.available && avail.reason && (
-                          <span className="ml-1.5 text-xs">({SLOT_UNAVAILABLE_LABELS[avail.reason]})</span>
+                          <span className="ml-1.5 text-xs">({slotUnavailableLabel(avail.reason, activeZone)})</span>
                         )}
                       </button>
                     );
