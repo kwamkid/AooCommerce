@@ -511,6 +511,12 @@ PC (พนักงานประจำจุดขายในห้าง) �
 - **สต็อกเปิดเผยเป็น boolean เท่านั้น** (`in_stock`) ห้ามส่งจำนวนจริงออกหน้าร้าน
 - `products.slug` (unique ต่อ company, Thai-safe, backfill จากชื่อ) + `products.storefront_visible` (แยกจาก `is_active`)
 
+**ตะกร้า + checkout** (เพิ่ม 2026-08-18)
+- **ตะกร้าอยู่ใน localStorage ของโดเมนที่ผู้ใช้ยืนอยู่** ([lib/storefront-cart.ts](lib/storefront-cart.ts)) — **ห้ามย้ายไป cookie ของโดเมน aoo** เพราะตอนฝังใน WordPress ลูกค้าจะกลายเป็น third-party cookie → Safari ITP บล็อก → ตะกร้าหาย (เหตุผลเดียวกับที่ไม่เลือก iframe) · ยังไม่แตะ DB จนกดยืนยัน
+- **`/api/storefront/checkout` = public write path — ถือว่าทุก field เป็นของปลอม**: company มาจาก shop slug ไม่ใช่ body · **อ่านราคา/ชื่อใหม่จาก DB ทั้งหมด ไม่เชื่อตัวเลขจาก client** · variation ต้อง active + storefront_visible + เป็นของ company นี้ · ค่าส่งคำนวณใหม่จาก zone · เช็ค slot availability ซ้ำฝั่ง server (อาจเต็มระหว่างลูกค้ากรอกฟอร์ม → 409) · rate limit ต่อ IP · items insert fail = rollback order ทิ้ง
+- `/api/storefront/delivery-options` — resolve โซน+ค่าส่ง+รอบที่ว่างจากที่อยู่ (ใช้ตอนกรอก checkout)
+- ออเดอร์ลงเป็น `source='storefront'`, `flow_type='r_retail'`, status `new`/`pending` → เด้งไป `/bills/[id]` ที่มีอยู่แล้วเป็นหน้าชำระเงิน/ติดตาม
+
 **ไฟล์**: [/store/[slug]](app/store/[slug]/page.tsx) catalog + ItemList LD · [/p/[product]](app/store/[slug]/p/[product]/page.tsx) Product+Offer+BreadcrumbList LD · [/delivery](app/store/[slug]/delivery/page.tsx) **generate จาก `delivery_zones`/`delivery_slots` จริง** + FAQPage LD (หน้าที่ AEO อ้างมากสุด) · `sitemap.xml` / `robots.txt` (toggle AI crawler ต่อร้าน) / `llms.txt` · [/settings/storefront](app/settings/storefront/page.tsx)
 
 ## Promotion Module
