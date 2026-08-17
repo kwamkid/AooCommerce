@@ -104,9 +104,12 @@ export async function PUT(request: NextRequest) {
     // Enforce package gates server-side — silently clamp instead of erroring so
     // legacy clients that haven't been updated yet still get a sensible save.
     const clampedFeatures = applyPackageGates(features, gates);
-    // delivery_slot ไม่มีความหมายถ้าไม่มีวันส่ง — บังคับปิดตาม (UI ล็อกอยู่แล้ว
-    // แต่กัน client เก่า/ยิงตรง)
-    if (!clampedFeatures.delivery_date.enabled) clampedFeatures.delivery_slot = false;
+    // จุดส่ง + ช่วงเวลาส่ง เป็นตัวเลือกย่อยของ "ธุรกิจเดลิเวอรี่" — ปิด parent
+    // แล้วต้องปิดตาม (UI ล็อกอยู่แล้ว แต่กัน client เก่า/ยิง API ตรง)
+    if (!clampedFeatures.delivery_date.enabled) {
+      clampedFeatures.delivery_zone = false;
+      clampedFeatures.delivery_slot = false;
+    }
 
     const newSettings: Record<string, unknown> = {
       ...currentSettings,
