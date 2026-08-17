@@ -6,7 +6,7 @@
 'use client';
 
 /** ระยะเวลาบินทั้งหมด (ms) — ให้ตัวเรียกรู้ว่าควรเด้ง badge ตอนไหน */
-export const FLY_DURATION = 620;
+export const FLY_DURATION = 1150;
 
 function prefersReducedMotion(): boolean {
   return typeof window !== 'undefined'
@@ -38,14 +38,14 @@ export function flyToCart(image: HTMLImageElement | null): boolean {
   const to = target.getBoundingClientRect();
   if (from.width === 0 || to.width === 0) return false;   // ซ่อนอยู่ ไม่ต้องเล่น
 
-  // 1) ต้นฉบับยุบตัวสั้น ๆ — ให้รู้สึกว่า "ของถูกดึงออกไป"
+  // 1) ต้นฉบับค่อย ๆ ถูกดูดยุบลง แล้วดีดกลับ — จังหวะ "ดึง" ก่อนของหลุดออกไป
   image.animate(
     [
-      { transform: 'scale(1)' },
-      { transform: 'scale(0.88)' },
-      { transform: 'scale(1)' },
+      { transform: 'scale(1)', offset: 0, easing: 'cubic-bezier(.32, 0, .28, 1)' },
+      { transform: 'scale(0.86)', offset: 0.45, easing: 'cubic-bezier(.34, 1.5, .64, 1)' },
+      { transform: 'scale(1)', offset: 1 },
     ],
-    { duration: 320, easing: 'cubic-bezier(.34, 1.56, .64, 1)' },
+    { duration: 560 },
   );
 
   // 2) clone ที่จะบิน — เริ่มทับตำแหน่งเดิมเป๊ะ
@@ -73,14 +73,41 @@ export function flyToCart(image: HTMLImageElement | null): boolean {
   const lift = Math.min(160, Math.max(60, Math.abs(dy) * 0.45));
   const endScale = Math.max(0.08, (to.width * 0.8) / from.width);
 
+  // จังหวะแบบการ์ตูน: ดึงออกช้า ๆ → ค้างลอยนิดหนึ่ง → พุ่งเข้าตะกร้าเร็ว
+  // easing กำหนดราย keyframe (overall เป็น linear) เพื่อคุมความเร็วแต่ละช่วงเอง
   const animation = clone.animate(
     [
-      { transform: 'translate(0, 0) scale(1)', opacity: 1, borderRadius: '12px', offset: 0 },
-      { transform: `translate(${dx * 0.15}px, ${-lift}px) scale(0.72)`, opacity: 0.95, offset: 0.35 },
-      { transform: `translate(${dx * 0.7}px, ${dy * 0.55 - lift * 0.25}px) scale(0.38)`, opacity: 0.9, offset: 0.7 },
-      { transform: `translate(${dx}px, ${dy}px) scale(${endScale})`, opacity: 0.15, borderRadius: '999px', offset: 1 },
+      {
+        offset: 0,
+        transform: 'translate(0, 0) scale(1)',
+        opacity: 1, borderRadius: '12px',
+        easing: 'cubic-bezier(.2, .85, .3, 1)',        // ออกตัวช้า นุ่ม
+      },
+      {
+        offset: 0.34,
+        transform: `translate(${dx * 0.05}px, ${-lift * 0.55}px) scale(1.1)`,
+        opacity: 1,
+        easing: 'cubic-bezier(.4, 0, .7, .5)',          // ค้างลอย เริ่มเก็บแรง
+      },
+      {
+        offset: 0.55,
+        transform: `translate(${dx * 0.18}px, ${-lift}px) scale(0.92)`,
+        opacity: 0.98,
+        easing: 'cubic-bezier(.55, 0, .85, .5)',        // เริ่มเร่ง
+      },
+      {
+        offset: 0.82,
+        transform: `translate(${dx * 0.72}px, ${dy * 0.6 - lift * 0.2}px) scale(0.4)`,
+        opacity: 0.9,
+        easing: 'cubic-bezier(.6, 0, .9, .6)',          // พุ่ง
+      },
+      {
+        offset: 1,
+        transform: `translate(${dx}px, ${dy}px) scale(${endScale})`,
+        opacity: 0.1, borderRadius: '999px',
+      },
     ],
-    { duration: FLY_DURATION, easing: 'cubic-bezier(.35, .06, .3, 1)', fill: 'forwards' },
+    { duration: FLY_DURATION, easing: 'linear', fill: 'forwards' },
   );
 
   const cleanup = () => clone.remove();

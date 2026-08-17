@@ -33,7 +33,7 @@ export default function AddToCartButton({ shop, productSlug, productName, variat
   const handleAdd = () => {
     const flying = flyToCart(findProductImage(btnRef.current));
     setAdded(true);
-    window.setTimeout(() => setAdded(false), 1800);
+    window.setTimeout(() => setAdded(false), FLY_DURATION + 900);
     const commit = () => addToCart(shop, {
       variation_id: selected.id,
       product_slug: productSlug,

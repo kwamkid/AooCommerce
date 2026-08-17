@@ -42,7 +42,7 @@ export default function QuickAddButton({ shop, productSlug, productName, variati
   const handleAdd = () => {
     const flying = flyToCart(findProductImage(btnRef.current));
     setAdded(true);
-    window.setTimeout(() => setAdded(false), 1800);
+    window.setTimeout(() => setAdded(false), FLY_DURATION + 900);
     // ใส่ตะกร้าตอนรูปบินถึงพอดี — badge จะเด้งรับ ไม่ใช่เด้งทิ้งไว้ก่อน
     const commit = () => addToCart(shop, {
       variation_id: v.id,
