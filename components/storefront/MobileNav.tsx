@@ -34,8 +34,8 @@ export default function MobileNav({ links }: { links: NavLink[] }) {
 
       {open && (
         <nav className="sf-burger-panel" aria-label="หมวดสินค้า">
-          {links.map(l => (
-            <Link key={l.href} href={l.href} className="sf-burger-link" onClick={() => setOpen(false)}>
+          {links.map((l, i) => (
+            <Link key={i} href={l.href} className="sf-burger-link" onClick={() => setOpen(false)}>
               {l.label}
             </Link>
           ))}

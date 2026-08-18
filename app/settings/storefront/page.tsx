@@ -176,18 +176,14 @@ function LayoutPreview({ mode }: { mode: 'grid' | 'editorial' }) {
 }
 
 /** ความสูงของกรอบพรีวิวก่อนย่อ — พอให้เห็นหัวร้าน + สินค้าสองแถว */
-const PREVIEW_H = 900;
+const PREVIEW_H = 780;
 /** ความกว้างที่กรอบพรีวิวถูกย่อลงมาให้พอดีคอลัมน์ขวา */
 const PREVIEW_BOX_W = 380;
 
 const PREVIEW_NAV = [
-  { href: '#', label: 'สินค้าทั้งหมด' },
-  { href: '#', label: 'กระเช้าปีใหม่' },
-  { href: '#', label: 'กระเช้าเยี่ยมไข้' },
-  { href: '#', label: 'กระเช้าแสดงความยินดี' },
-  { href: '#', label: 'การจัดส่ง' },
-  { href: '#', label: 'บัญชีของฉัน' },
-];
+  'สินค้าทั้งหมด', 'กระเช้าปีใหม่', 'กระเช้าเยี่ยมไข้',
+  'กระเช้าแสดงความยินดี', 'การจัดส่ง', 'บัญชีของฉัน',
+].map((label, i) => ({ href: `#preview-${i}`, label }));
 
 /** รูปตัวอย่างเป็น SVG data URI — ไม่ต้องยิงเน็ต และคุมสัดส่วนต้นฉบับได้เป๊ะ */
 function previewPhoto(w: number, h: number, color: string) {
@@ -413,7 +409,10 @@ export default function StorefrontSettingsPage() {
               <p className="heading-4 mb-1">หน้าตา</p>
               <p className="section-desc mb-5">เปลี่ยนที่นี่ที่เดียว มีผลทั้งร้าน — ดูผลได้จากพรีวิวด้านขวา</p>
 
-              <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px] gap-6 items-start">
+              <div
+                className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_var(--sf-preview-w)] gap-6 items-start"
+                style={{ ['--sf-preview-w' as string]: `${PREVIEW_BOX_W}px` }}
+              >
                 {/* ── ตัวเลือก ── */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-5">
                   <ColorPicker

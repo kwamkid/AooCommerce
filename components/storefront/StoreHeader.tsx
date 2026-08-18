@@ -40,8 +40,8 @@ export default function StoreHeader({ cfg, slug, shopName, logoUrl, navLinks }: 
         </Link>
 
         <nav className="sf-nav" aria-label="หมวดสินค้า">
-          {inlineLinks.map(l => (
-            <Link key={l.href} href={l.href} className="sf-nav-link">{l.label}</Link>
+          {inlineLinks.map((l, i) => (
+            <Link key={i} href={l.href} className="sf-nav-link">{l.label}</Link>
           ))}
         </nav>
 
