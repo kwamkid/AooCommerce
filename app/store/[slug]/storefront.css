@@ -422,6 +422,57 @@ html[data-sf-theme='dark'] .sf-root {
 }
 .sf-quickadd-off:hover { filter: none; }
 
+/* ── สไตล์ปุ่มสั่งซื้อ (solid / outline / soft) ──────────────────────
+   solid = ค่าเริ่มต้น อยู่ในนิยาม .sf-cta / .sf-quickadd แล้ว
+   อีกสองแบบเขียนทับเฉพาะปุ่มที่ยัง "กดได้" — สถานะเพิ่มแล้ว/สินค้าหมด
+   มีสีของตัวเองที่ต้องชนะ จึงกันด้วย :not() ไม่ใช่หวังพึ่งลำดับบรรทัด
+   สีตัวอักษรใช้ --sf-cta-ink ที่ตกไปใช้สีข้อความปกติเมื่อสีปุ่มอ่อนเกิน
+   (เลือกขาวแล้วปุ่ม outline จะได้ไม่กลายเป็นตัวหนังสือขาวบนพื้นขาว) */
+.sf-btn-outline .sf-quickadd:not(.sf-quickadd-done):not(.sf-quickadd-off),
+.sf-btn-outline .sf-cta:not(.sf-cta-added) {
+  background: transparent;
+  color: var(--sf-cta-ink);
+  border: 1px solid var(--sf-cta-ink);
+}
+.sf-btn-outline .sf-quickadd:not(.sf-quickadd-done):not(.sf-quickadd-off):hover,
+.sf-btn-outline .sf-cta:not(.sf-cta-added):hover {
+  background: var(--sf-cta); color: var(--sf-cta-contrast);
+  border-color: var(--sf-cta); filter: none;
+}
+.sf-btn-soft .sf-quickadd:not(.sf-quickadd-done):not(.sf-quickadd-off),
+.sf-btn-soft .sf-cta:not(.sf-cta-added) {
+  background: color-mix(in srgb, var(--sf-cta) 15%, transparent);
+  color: var(--sf-cta-ink);
+  border: 1px solid transparent;
+}
+.sf-btn-soft .sf-quickadd:not(.sf-quickadd-done):not(.sf-quickadd-off):hover,
+.sf-btn-soft .sf-cta:not(.sf-cta-added):hover {
+  background: color-mix(in srgb, var(--sf-cta) 26%, transparent); filter: none;
+}
+/* ปุ่มเพิ่มเพื่อน LINE มีสีของแบรนด์ LINE เอง สไตล์ปุ่มของร้านห้ามทับ */
+.sf-btn-outline .sf-notice .sf-cta,
+.sf-btn-soft .sf-notice .sf-cta {
+  background: #06C755; color: #fff; border-color: #06C755;
+}
+
+/* ── เมนูแฮมเบอร์เกอร์ (เฉพาะหัวร้านแบบ "โลโก้ซ้าย" บนจอแคบ) ────────
+   แบบโลโก้ซ้ายวางเมนูไว้บรรทัดเดียวกับโลโก้ พอจอแคบก็ไม่มีที่ — เดิมซ่อนทิ้ง
+   เฉย ๆ ลูกค้าบนมือถือเลยเข้าหมวดสินค้าไม่ได้เลย ต้องมีที่เก็บให้มัน */
+.sf-burger { display: none; }
+.sf-burger-panel {
+  position: absolute; left: 0; right: 0; top: 100%;
+  display: flex; flex-direction: column;
+  background: var(--sf-bg); color: var(--sf-text);
+  border-bottom: 1px solid var(--sf-border);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, .10);
+  padding: 6px 0; z-index: 30;
+}
+.sf-burger-link {
+  padding: 12px 16px; font-size: 15px;
+  color: var(--sf-text); text-decoration: none;
+}
+.sf-burger-link:hover { background: var(--sf-surface); }
+
 /* ── search + icon buttons ─────────────────────────────────────── */
 /* ช่องค้นหา = แถบที่กางลงมาใต้แถวบนของ header (เปิดจากไอคอนขวาบน) */
 .sf-search-panel {
@@ -710,6 +761,7 @@ html[data-sf-theme='dark'] .sf-root {
   .sf-head-center .sf-brand-logo { height: 30px; }
   .sf-head-center .sf-header-actions { position: static; transform: none; margin-left: auto; }
   .sf-head-left .sf-nav-inline { display: none; }
+  .sf-head-left .sf-burger { display: inline-flex; }
   .sf-head-center .sf-nav { justify-content: flex-start; }
 }
 

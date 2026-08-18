@@ -30,6 +30,8 @@ const LAYOUT = new Set(['grid', 'editorial', 'masonry']);
 const HEADER = new Set(['light', 'brand', 'dark']);
 const HEADER_LAYOUT = new Set(['left', 'stacked', 'center']);
 const RATIO = new Set(['1:1', '4:5', 'auto']);
+const LOGO = new Set(['logo_name', 'logo_only', 'name_only']);
+const BTN = new Set(['solid', 'outline', 'soft']);
 const HEX = /^#[0-9a-f]{6}$/i;
 
 export async function PUT(request: NextRequest) {
@@ -90,6 +92,8 @@ export async function PUT(request: NextRequest) {
     button_color: body.button_color !== undefined ? buttonColor : current.button_color,
     header_style: HEADER.has(body.header_style as string) ? body.header_style! : current.header_style,
     header_layout: HEADER_LAYOUT.has(body.header_layout as string) ? body.header_layout! : current.header_layout,
+    logo_display: LOGO.has(body.logo_display as string) ? body.logo_display! : current.logo_display,
+    button_style: BTN.has(body.button_style as string) ? body.button_style! : current.button_style,
     radius: RADIUS.has(body.radius as string) ? body.radius! : current.radius,
     layout: LAYOUT.has(body.layout as string) ? body.layout! : current.layout,
     image_ratio: RATIO.has(body.image_ratio as string) ? body.image_ratio! : current.image_ratio,

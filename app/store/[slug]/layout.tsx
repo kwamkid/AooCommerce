@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { getStorefrontCompany, getStorefrontCategories, getClosedStorefront } from '@/lib/storefront-server';
 import { storefrontCssVars, storefrontHref } from '@/lib/storefront';
 import CartBadge from '@/components/storefront/CartBadge';
+import MobileNav from '@/components/storefront/MobileNav';
 import ThemeToggle from '@/components/storefront/ThemeToggle';
 import SearchBox from '@/components/storefront/SearchBox';
 import ShopUnavailable from '@/components/storefront/ShopUnavailable';
@@ -30,12 +31,28 @@ export default async function StoreLayout({
   const cfg = company.config;
   const shopName = cfg.display_name || company.name;
 
+  // ถ้าร้านยังไม่ได้อัปโหลดโลโก้ ต้องเหลือชื่อร้านไว้เสมอ ไม่งั้นหัวร้านว่างเปล่า
+  // และไม่มีลิงก์กลับหน้าแรกให้คลิก
+  const showLogo = !!company.logo_url && cfg.logo_display !== 'name_only';
+  const showName = cfg.logo_display !== 'logo_only' || !showLogo;
+
+  const navLinks = [
+    { href: storefrontHref(slug), label: 'สินค้าทั้งหมด' },
+    ...categories.slice(0, 6).map(cat => ({
+      href: `${storefrontHref(slug)}?cat=${encodeURIComponent(cat)}`,
+      label: cat,
+    })),
+    { href: storefrontHref(slug, '/delivery'), label: 'การจัดส่ง' },
+    { href: storefrontHref(slug, '/account'), label: 'บัญชีของฉัน' },
+  ];
+
   return (
     <div
       className={[
         'sf-root',
         cfg.layout === 'editorial' ? 'sf-layout-editorial' : cfg.layout === 'masonry' ? 'sf-layout-masonry' : '',
         cfg.image_ratio === 'auto' ? 'sf-ratio-auto' : '',
+        cfg.button_style === 'outline' ? 'sf-btn-outline' : cfg.button_style === 'soft' ? 'sf-btn-soft' : '',
       ].filter(Boolean).join(' ')}
       style={storefrontCssVars(cfg) as React.CSSProperties}
     >
@@ -52,30 +69,24 @@ export default async function StoreLayout({
       <header className={`sf-header sf-head-${cfg.header_layout}`}>
         <div className="sf-container sf-header-top">
           <Link href={storefrontHref(slug)} className="sf-brand">
-            {company.logo_url && (
+            {showLogo && (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={company.logo_url} alt={shopName} className="sf-brand-logo" />
+              <img src={company.logo_url!} alt={shopName} className="sf-brand-logo" />
             )}
-            <span className="sf-brand-name">{shopName}</span>
+            {showName && <span className="sf-brand-name">{shopName}</span>}
           </Link>
 
-          {/* left: เมนูต่อจากโลโก้ในบรรทัดเดียวกัน */}
+          {/* left: เมนูต่อจากโลโก้ในบรรทัดเดียวกัน (จอแคบยุบเป็นแฮมเบอร์เกอร์) */}
           {cfg.header_layout === 'left' && (
             <nav className="sf-nav sf-nav-inline" aria-label="หมวดสินค้า">
-              <Link href={storefrontHref(slug)} className="sf-nav-link">สินค้าทั้งหมด</Link>
-              {categories.slice(0, 5).map(cat => (
-                <Link
-                  key={cat}
-                  href={`${storefrontHref(slug)}?cat=${encodeURIComponent(cat)}`}
-                  className="sf-nav-link"
-                >
-                  {cat}
-                </Link>
+              {navLinks.slice(0, 6).map(l => (
+                <Link key={l.href} href={l.href} className="sf-nav-link">{l.label}</Link>
               ))}
             </nav>
           )}
 
           <div className="sf-header-actions">
+            {cfg.header_layout === 'left' && <MobileNav links={navLinks} />}
             <Suspense fallback={<span className="sf-icon-btn" aria-hidden="true" />}>
               <SearchBox shop={slug} />
             </Suspense>
@@ -88,18 +99,9 @@ export default async function StoreLayout({
         {(cfg.header_layout === 'stacked' || cfg.header_layout === 'center') && (
           <div className="sf-container">
             <nav className="sf-nav" aria-label="หมวดสินค้า">
-              <Link href={storefrontHref(slug)} className="sf-nav-link">สินค้าทั้งหมด</Link>
-              {categories.slice(0, 6).map(cat => (
-                <Link
-                  key={cat}
-                  href={`${storefrontHref(slug)}?cat=${encodeURIComponent(cat)}`}
-                  className="sf-nav-link"
-                >
-                  {cat}
-                </Link>
+              {navLinks.map(l => (
+                <Link key={l.href} href={l.href} className="sf-nav-link">{l.label}</Link>
               ))}
-              <Link href={storefrontHref(slug, '/delivery')} className="sf-nav-link">การจัดส่ง</Link>
-              <Link href={storefrontHref(slug, '/account')} className="sf-nav-link">บัญชีของฉัน</Link>
             </nav>
           </div>
         )}

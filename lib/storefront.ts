@@ -38,6 +38,20 @@ export interface StorefrontConfig {
    *  center  = โลโก้กลาง เมนูบรรทัดล่างจัดกลาง — โลโก้เด่น
    */
   header_layout: 'left' | 'stacked' | 'center';
+  /**
+   * แสดงอะไรตรงหัวร้าน — ร้านที่โลโก้มีชื่อร้านอยู่ในรูปแล้วจะซ้ำถ้าโชว์ทั้งคู่
+   *  logo_name = โลโก้ + ชื่อร้าน (ค่าเริ่มต้น)
+   *  logo_only = โลโก้อย่างเดียว (ชื่อยังอยู่ใน alt + JSON-LD จึงไม่เสีย SEO)
+   *  name_only = ชื่อร้านอย่างเดียว
+   */
+  logo_display: 'logo_name' | 'logo_only' | 'name_only';
+  /**
+   * สไตล์ปุ่มสั่งซื้อ — สีที่เลือกใช้ต่างกันตามสไตล์
+   *  solid   = พื้นทึบสีปุ่ม ตัวอักษรสีตัดกัน
+   *  outline = พื้นโปร่ง เส้นขอบ+ตัวอักษรสีปุ่ม
+   *  soft    = พื้นสีปุ่มอ่อน ๆ ไม่มีเส้นขอบ
+   */
+  button_style: 'solid' | 'outline' | 'soft';
   radius: 'sharp' | 'soft' | 'round';
   /**
    * การจัดวางสินค้า
@@ -71,6 +85,8 @@ export const DEFAULT_STOREFRONT: StorefrontConfig = {
   button_color: '',
   header_style: 'light',
   header_layout: 'stacked',
+  logo_display: 'logo_name',
+  button_style: 'solid',
   radius: 'soft',
   layout: 'grid',
   image_ratio: '1:1',
@@ -90,6 +106,8 @@ export function parseStorefront(settings: Record<string, unknown> | null | undef
     button_color: stored.button_color ?? DEFAULT_STOREFRONT.button_color,
     header_style: stored.header_style ?? DEFAULT_STOREFRONT.header_style,
     header_layout: stored.header_layout ?? DEFAULT_STOREFRONT.header_layout,
+    logo_display: stored.logo_display ?? DEFAULT_STOREFRONT.logo_display,
+    button_style: stored.button_style ?? DEFAULT_STOREFRONT.button_style,
     radius: stored.radius ?? DEFAULT_STOREFRONT.radius,
     layout: stored.layout ?? DEFAULT_STOREFRONT.layout,
     image_ratio: stored.image_ratio ?? DEFAULT_STOREFRONT.image_ratio,
@@ -120,10 +138,11 @@ export function storefrontHref(slug: string, path = ''): string {
   return `/store/${slug}${suffix}`;
 }
 
+// ต่างกันให้พอเห็น — 10px กับ 20px บนการ์ดกว้าง 250px แทบแยกไม่ออก
 const RADIUS_PX: Record<StorefrontConfig['radius'], string> = {
   sharp: '0px',
-  soft: '10px',
-  round: '20px',
+  soft: '12px',
+  round: '28px',
 };
 
 const RATIO_CSS: Record<StorefrontConfig['image_ratio'], string> = {
@@ -146,23 +165,32 @@ export function storefrontCssVars(cfg: StorefrontConfig): Record<string, string>
     '--sf-primary-contrast': readableTextColor(cfg.primary_color),
     '--sf-cta': button,
     '--sf-cta-contrast': readableTextColor(button),
+    // สีปุ่มเมื่อใช้เป็น "หมึก" บนพื้นหน้าเว็บ (ปุ่มแบบเส้นขอบ/พื้นอ่อน)
+    // สีอ่อนมาก เช่น ขาว ใช้เป็นตัวอักษรบนพื้นขาวไม่ได้ → ตกไปใช้สีตัวอักษรปกติ
+    // ซึ่งเป็น var จึงสลับตาม dark mode ให้เองด้วย
+    '--sf-cta-ink': relativeLuminance(button) > 0.62 ? 'var(--sf-text)' : button,
     '--sf-radius': RADIUS_PX[cfg.radius],
     '--sf-img-ratio': RATIO_CSS[cfg.image_ratio],
     ...(header ? { '--sf-header-bg': header.bg, '--sf-header-fg': header.fg } : {}),
   };
 }
 
-/** ขาว/ดำ ตัวไหนอ่านง่ายกว่าบนสีพื้นที่ให้มา (WCAG relative luminance) */
-export function readableTextColor(hex: string): string {
+/** WCAG relative luminance ของสี #RRGGBB (0 = ดำสนิท, 1 = ขาวสนิท) */
+export function relativeLuminance(hex: string): number {
   const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
-  if (!m) return '#ffffff';
+  if (!m) return 0;
   const int = parseInt(m[1], 16);
   const [r, g, b] = [(int >> 16) & 255, (int >> 8) & 255, int & 255].map(v => {
     const c = v / 255;
     return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
   });
-  const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-  return luminance > 0.45 ? '#111827' : '#ffffff';
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+/** ขาว/ดำ ตัวไหนอ่านง่ายกว่าบนสีพื้นที่ให้มา */
+export function readableTextColor(hex: string): string {
+  if (!/^#?([0-9a-f]{6})$/i.test(hex.trim())) return '#ffffff';
+  return relativeLuminance(hex) > 0.45 ? '#111827' : '#ffffff';
 }
 
 // ── Public product shapes (shared by pages + future embed API) ──

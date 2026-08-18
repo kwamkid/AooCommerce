@@ -17,7 +17,7 @@ import { useToast } from '@/lib/toast-context';
 import { useAuthGuard } from '@/lib/useAuthGuard';
 import { useFetchOnce } from '@/lib/use-fetch-once';
 import { apiFetch } from '@/lib/api-client';
-import { DEFAULT_STOREFRONT, storefrontCssVars, readableTextColor, type StorefrontConfig } from '@/lib/storefront';
+import { DEFAULT_STOREFRONT, storefrontCssVars, readableTextColor, relativeLuminance, type StorefrontConfig } from '@/lib/storefront';
 import ColorPicker from '@/components/ui/ColorPicker';
 import OptionCards from '@/components/ui/OptionCards';
 import { ExternalLink, Plus, Search, ShoppingBag, Store, Sun } from 'lucide-react';
@@ -159,7 +159,42 @@ function MasonryPreview() {
 
 function RadiusPreview({ r, color }: { r: number; color: string }) {
   return (
-    <span className="block" style={{ width: 40, height: 40, background: color, borderRadius: r, opacity: .9 }} />
+    <span
+      className="flex flex-col overflow-hidden"
+      style={{ width: 38, height: 48, borderRadius: r, border: `1px solid ${color}` }}
+    >
+      <span style={{ background: color, opacity: .85, flex: 1 }} />
+      <span className="bg-gray-200 dark:bg-slate-600" style={{ height: 13 }} />
+    </span>
+  );
+}
+
+/** แสดงอะไรตรงหัวร้าน — วาดโลโก้เป็นบล็อกสี่เหลี่ยม ชื่อร้านเป็นแถบตัวอักษร */
+function LogoDisplayPreview({ mode }: { mode: StorefrontConfig['logo_display'] }) {
+  return (
+    <span className="w-full max-w-[74px] rounded-md border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-800 flex items-center justify-center gap-1.5 px-2" style={{ height: 42 }}>
+      {mode !== 'name_only' && <span className="rounded-sm bg-gray-400 dark:bg-slate-400" style={{ width: 13, height: 13 }} />}
+      {mode !== 'logo_only' && <span className="rounded-sm bg-gray-500 dark:bg-slate-300" style={{ width: 28, height: 5 }} />}
+    </span>
+  );
+}
+
+/** สไตล์ปุ่ม — วาดปุ่มจริงด้วยสีที่ร้านเลือก ไม่ใช่กล่องสีเทาสื่อความ */
+function ButtonStylePreview({ mode, cta, contrast, ink }: {
+  mode: StorefrontConfig['button_style']; cta: string; contrast: string; ink: string;
+}) {
+  const style =
+    mode === 'solid' ? { background: cta, color: contrast, border: `1px solid ${cta}` }
+    : mode === 'outline' ? { background: 'transparent', color: ink, border: `1px solid ${ink}` }
+    : { background: `${cta}26`, color: ink, border: '1px solid transparent' };
+  return (
+    <span
+      className="flex items-center justify-center gap-1 font-semibold rounded"
+      style={{ ...style, width: 68, height: 24, fontSize: 9 }}
+    >
+      <Plus style={{ width: 9, height: 9 }} strokeWidth={2.5} aria-hidden="true" />
+      หยิบใส่ตะกร้า
+    </span>
   );
 }
 
@@ -176,11 +211,19 @@ function LayoutPreview({ mode }: { mode: 'grid' | 'editorial' }) {
   );
 }
 
+/**
+ * ลำดับสำคัญมาก: ตาราง = ไล่ซ้าย→ขวา, ก่ออิฐ = ไล่ลงคอลัมน์
+ * จึงต้องเรียง [ชื่อยาว, ชื่อสั้น, ชื่อสั้น, ชื่อยาว] — ได้ผลทั้งสองโหมด
+ *   ตาราง : ทุกแถวมีทั้งใบชื่อยาวและใบชื่อสั้น → เห็นว่าการ์ดถูกยืดให้สูงเท่ากัน
+ *   ก่ออิฐ: หัวคอลัมน์ซ้าย (ชื่อยาว) กับหัวคอลัมน์ขวา (ชื่อสั้น) สูงไม่เท่ากัน
+ *           → เห็นว่าใบล่างดันขึ้นไปชิด ไม่รอให้แถวเสมอกัน
+ * ถ้าเรียงแบบยาว-ยาว-สั้น-สั้น ก่ออิฐจะได้หัวคอลัมน์เท่ากันและดูเหมือนตารางทันที
+ */
 const PREVIEW_ITEMS = [
-  { cat: 'กระเช้าปีใหม่', name: 'กระเช้าผลไม้พรีเมียม รวมผลไม้นำเข้า 12 ชนิด', price: '฿1,790', src: '1:1' as const },
+  { cat: 'กระเช้าปีใหม่', name: 'กระเช้าผลไม้พรีเมียม รวมผลไม้นำเข้า 12 ชนิด', price: '฿1,790', src: '4:5' as const },
   { cat: 'กระเช้าเยี่ยมไข้', name: 'กระเช้าส้มสายน้ำผึ้ง', price: '฿890', src: '4:5' as const },
-  { cat: 'กระเช้าปีใหม่', name: 'กระเช้าแอปเปิลฟูจิ พร้อมการ์ดอวยพร', price: '฿1,290', src: '4:5' as const },
   { cat: 'ของขวัญ', name: 'ตะกร้าผลไม้รวม', price: '฿650', src: '1:1' as const },
+  { cat: 'กระเช้าปีใหม่', name: 'กระเช้าแอปเปิลฟูจิ พร้อมการ์ดอวยพร', price: '฿1,290', src: '1:1' as const },
 ];
 
 export default function StorefrontSettingsPage() {
@@ -229,6 +272,12 @@ export default function StorefrontSettingsPage() {
 
   if (guardLoading) return <Layout><Container size="2xl"><LoadingCard /></Container></Layout>;
   if (!allowed) return <Layout><Container size="2xl"><NoPermissionCard /></Container></Layout>;
+
+  const ctaColor = cfg.button_color || cfg.primary_color;
+  const ctaContrast = readableTextColor(ctaColor);
+  const ctaInk = relativeLuminance(ctaColor) > 0.62 ? 'currentColor' : ctaColor;
+  const showLogoPv = !!logoUrl && cfg.logo_display !== 'name_only';
+  const showNamePv = cfg.logo_display !== 'logo_only' || !showLogoPv;
 
   const internalPath = slug ? `/store/${slug}` : '';
   const publicUrl = cfg.public_base_url ? `${cfg.public_base_url}${cfg.public_base_path}` : '';
@@ -355,6 +404,28 @@ export default function StorefrontSettingsPage() {
                   />
 
                   <OptionCards
+                    label="แสดงตรงหัวร้าน"
+                    value={cfg.logo_display}
+                    onChange={(v) => patch({ logo_display: v })}
+                    options={[
+                      { id: 'logo_name' as const, label: 'โลโก้ + ชื่อ', preview: <LogoDisplayPreview mode="logo_name" /> },
+                      { id: 'logo_only' as const, label: 'โลโก้อย่างเดียว', description: 'โลโก้มีชื่อร้านอยู่แล้ว', preview: <LogoDisplayPreview mode="logo_only" /> },
+                      { id: 'name_only' as const, label: 'ชื่ออย่างเดียว', preview: <LogoDisplayPreview mode="name_only" /> },
+                    ]}
+                  />
+
+                  <OptionCards
+                    label="สไตล์ปุ่มสั่งซื้อ"
+                    value={cfg.button_style}
+                    onChange={(v) => patch({ button_style: v })}
+                    options={[
+                      { id: 'solid' as const, label: 'สีทึบ', preview: <ButtonStylePreview mode="solid" cta={ctaColor} contrast={ctaContrast} ink={ctaInk} /> },
+                      { id: 'outline' as const, label: 'เส้นขอบ', preview: <ButtonStylePreview mode="outline" cta={ctaColor} contrast={ctaContrast} ink={ctaInk} /> },
+                      { id: 'soft' as const, label: 'พื้นอ่อน', preview: <ButtonStylePreview mode="soft" cta={ctaColor} contrast={ctaContrast} ink={ctaInk} /> },
+                    ]}
+                  />
+
+                  <OptionCards
                     label="แถบหัวร้าน"
                     value={cfg.header_style}
                     onChange={(v) => patch({ header_style: v })}
@@ -393,8 +464,8 @@ export default function StorefrontSettingsPage() {
                     onChange={(v) => patch({ radius: v })}
                     options={[
                       { id: 'sharp' as const, label: 'เหลี่ยม', preview: <RadiusPreview r={0} color={cfg.primary_color} /> },
-                      { id: 'soft' as const, label: 'มนเล็กน้อย', preview: <RadiusPreview r={8} color={cfg.primary_color} /> },
-                      { id: 'round' as const, label: 'มนมาก', preview: <RadiusPreview r={18} color={cfg.primary_color} /> },
+                      { id: 'soft' as const, label: 'มนเล็กน้อย', preview: <RadiusPreview r={6} color={cfg.primary_color} /> },
+                      { id: 'round' as const, label: 'มนมาก', preview: <RadiusPreview r={13} color={cfg.primary_color} /> },
                     ]}
                   />
 
@@ -455,14 +526,20 @@ export default function StorefrontSettingsPage() {
                           : { background: 'var(--sf-header-bg)', color: 'var(--sf-header-fg)', borderColor: 'transparent' }
                       }
                     >
-                      <span className={`flex items-center gap-2 min-w-0 ${cfg.header_layout === 'center' ? 'mx-auto' : ''}`}>
-                        {logoUrl && (
+                      {/* โลโก้กลางของจริงเรียงโลโก้บน–ชื่อล่าง (.sf-head-center .sf-brand
+                          เป็น flex-direction: column) พรีวิวต้องเป็น 2 บรรทัดเหมือนกัน */}
+                      <span className={`flex min-w-0 ${
+                        cfg.header_layout === 'center' ? 'flex-col items-center gap-0.5 mx-auto' : 'flex-row items-center gap-2'
+                      }`}>
+                        {showLogoPv && (
                           // eslint-disable-next-line @next/next/no-img-element
-                          <img src={logoUrl} alt="" className="h-6 w-auto object-contain flex-shrink-0" />
+                          <img src={logoUrl!} alt="" className="h-6 w-auto object-contain flex-shrink-0" />
                         )}
-                        <span className="font-bold text-sm truncate">
-                          {cfg.display_name || companyName || 'ชื่อร้านของคุณ'}
-                        </span>
+                        {showNamePv && (
+                          <span className="font-bold text-sm truncate">
+                            {cfg.display_name || companyName || 'ชื่อร้านของคุณ'}
+                          </span>
+                        )}
                       </span>
                       {cfg.header_layout === 'left' && (
                         <span className="opacity-50 truncate" style={{ fontSize: 10 }}>สินค้าทั้งหมด · หมวด</span>
@@ -523,13 +600,15 @@ export default function StorefrontSettingsPage() {
                               {/* ห้าม truncate — ชื่อยาวต้องขึ้นบรรทัดที่สองจริง ไม่งั้นพรีวิวโกหกเรื่องความสูงการ์ด */}
                               <div className="font-semibold" style={{ fontSize: 12, lineHeight: 1.35 }}>{item.name}</div>
                               <div className="font-bold mt-0.5" style={{ fontSize: 12, color: 'var(--sf-primary)' }}>{item.price}</div>
-                              {/* ต้องตรงกับ .sf-quickadd ของจริง — ไอคอน +, ระยะ, มุม, สีปุ่ม */}
+                              {/* ต้องตรงกับ .sf-quickadd ของจริง — ไอคอน +, ระยะ, มุม, สไตล์ปุ่ม */}
                               <div
                                 className="mt-1.5 flex items-center justify-center gap-1 font-semibold"
                                 style={{
-                                  background: 'var(--sf-cta)',
-                                  color: 'var(--sf-cta-contrast)',
-                                  border: '1px solid var(--sf-cta)',
+                                  ...(cfg.button_style === 'outline'
+                                    ? { background: 'transparent', color: ctaInk, border: `1px solid ${ctaInk}` }
+                                    : cfg.button_style === 'soft'
+                                    ? { background: `${ctaColor}26`, color: ctaInk, border: '1px solid transparent' }
+                                    : { background: ctaColor, color: ctaContrast, border: `1px solid ${ctaColor}` }),
                                   borderRadius: 'calc(var(--sf-radius) / 1.5)',
                                   fontSize: 11,
                                   padding: '4px 8px',
