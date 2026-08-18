@@ -1,4 +1,5 @@
 import { supabaseAdmin } from '@/lib/supabase-admin';
+import { newCustomerCode } from '@/lib/customer-code';
 import { shopeeApiRequest, ensureValidToken, ShopeeAccountRow, getItemFullDetails, ShopeeItemFullDetail, getEscrowDetail, getPackageDetail, getPackageNumberList, getBuyerInvoiceInfo, BuyerInvoiceInfo } from '@/lib/shopee/api';
 import { logIntegration } from '@/lib/integration-logger';
 import { parallelLimit } from '@/lib/parallel';
@@ -2455,7 +2456,7 @@ async function findOrCreateShopeeCustomer(
   }
 
   // 3. Create customer with auto-generated unique code
-  const customerCode = `SP-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+  const customerCode = newCustomerCode('SP');
 
   const { data: newCustomer, error } = await supabaseAdmin
     .from('customers')

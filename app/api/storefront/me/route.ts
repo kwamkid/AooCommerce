@@ -7,6 +7,7 @@
 // auth มาจาก Supabase session ปกติ (Bearer หรือ cookie) — ผู้ใช้ที่ไม่มีแถวใน
 // company_members เข้าหลังบ้านไม่ได้อยู่แล้ว จึงใช้ auth ชุดเดียวกันได้ปลอดภัย
 import { NextRequest, NextResponse } from 'next/server';
+import { newCustomerCode } from '@/lib/customer-code';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { extractRequestToken } from '@/lib/auth/cookie-token';
 import { verifyAccessToken } from '@/lib/auth/verify-token';
@@ -136,6 +137,7 @@ export async function POST(request: NextRequest) {
     .from('customers')
     .insert({
       company_id: company.id,
+      customer_code: newCustomerCode('ST'),
       name: displayName || email || 'ลูกค้าออนไลน์',
       email,
       customer_type: 'retail',

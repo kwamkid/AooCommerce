@@ -1,5 +1,6 @@
 // Path: app/api/customers/route.ts
 import { NextRequest, NextResponse } from 'next/server';
+import { newCustomerCode } from '@/lib/customer-code';
 import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
 
 // Type definitions
@@ -56,8 +57,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Generate customer code (auto-gen: timestamp + random)
-    const codeData = `C-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+    const codeData = newCustomerCode();
 
     // Create customer
     const { data, error } = await supabaseAdmin

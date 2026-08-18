@@ -1,4 +1,5 @@
 import { supabaseAdmin } from '@/lib/supabase-admin';
+import { newCustomerCode } from '@/lib/customer-code';
 import {
   TikTokAccountRow,
   TikTokCredentials,
@@ -832,6 +833,7 @@ async function findOrCreateCustomer(
       .from('customers')
       .insert({
         company_id: companyId,
+        customer_code: newCustomerCode('TT'),
         name: buyerName,
         phone: buyerPhone || null,
         customer_type: 'retail',
