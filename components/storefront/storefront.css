@@ -68,7 +68,8 @@
   align-items: center;
   column-gap: 16px;
   row-gap: 8px;         /* ระยะระหว่างบรรทัดโลโก้กับบรรทัดเมนู */
-  padding: 10px 0;
+  padding-top: 10px;
+  padding-bottom: 10px;   /* ห้ามใช้ padding ย่อ — .sf-header-top เป็น .sf-container ด้วย จะล้างระยะซ้าย-ขวาทิ้ง */
   min-height: 64px;
   flex-wrap: wrap;      /* แบบ stacked/center ให้เมนูตกลงบรรทัดสองเอง */
   position: relative;   /* จุดอ้างอิงของแผงเมนูแฮมเบอร์เกอร์ ให้ทุกแบบเท่ากัน */
