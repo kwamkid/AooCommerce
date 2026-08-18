@@ -395,26 +395,32 @@ html[data-sf-theme='dark'] .sf-root {
   text-decoration: none; color: inherit;
 }
 .sf-card-foot { padding: 0 14px 14px; }
+/* ปุ่มบนการ์ด = ปุ่มสั่งซื้อเหมือนกัน จึงใช้ "สีปุ่มสั่งซื้อ" ที่ร้านตั้งไว้เต็ม ๆ
+   (เดิมเป็นปุ่มเส้นขอบสีเทา สีที่ร้านเลือกไม่โผล่ที่ไหนเลยจนกว่าจะกด) —
+   ตัวอักษรใช้ --sf-cta-contrast ที่คำนวณจาก luminance จึงอ่านออกทุกสีที่เลือก */
 .sf-quickadd {
   display: flex; align-items: center; justify-content: center; gap: 6px;
   width: 100%; padding: 10px 12px;
-  border: 1px solid var(--sf-border); border-radius: calc(var(--sf-radius) / 1.5);
-  background: var(--sf-bg); color: var(--sf-text);
+  border: 1px solid var(--sf-cta); border-radius: calc(var(--sf-radius) / 1.5);
+  background: var(--sf-cta); color: var(--sf-cta-contrast);
   font-size: 14px; font-weight: 600; font-family: inherit;
   cursor: pointer; text-decoration: none;
-  transition: background .15s ease, border-color .15s ease, color .15s ease;
+  transition: filter .15s ease, background .15s ease, border-color .15s ease, color .15s ease;
 }
 .sf-quickadd svg { width: 16px; height: 16px; flex-shrink: 0; }
-.sf-quickadd:hover { border-color: var(--sf-primary); color: var(--sf-primary); }
+.sf-quickadd:hover { filter: brightness(0.92); }
+/* เพิ่มแล้ว = เขียว ชุดเดียวกับปุ่มใหญ่ในหน้าสินค้า (.sf-cta-added)
+   ถ้าใช้สีปุ่มเหมือนเดิมจะแยกไม่ออกว่ากดติดหรือยัง */
 .sf-quickadd-done {
-  background: var(--sf-cta); border-color: var(--sf-cta);
-  color: var(--sf-cta-contrast);
+  background: #16a34a; border-color: #16a34a; color: #fff;
 }
-.sf-quickadd-done:hover { color: var(--sf-cta-contrast); }
+.sf-quickadd-done:hover { filter: none; }
 .sf-quickadd-off {
   color: var(--sf-muted); cursor: default; justify-content: center;
-  background: var(--sf-surface); font-weight: 500;
+  background: var(--sf-surface); border-color: var(--sf-border);
+  font-weight: 500;
 }
+.sf-quickadd-off:hover { filter: none; }
 
 /* ── search + icon buttons ─────────────────────────────────────── */
 /* ช่องค้นหา = แถบที่กางลงมาใต้แถวบนของ header (เปิดจากไอคอนขวาบน) */

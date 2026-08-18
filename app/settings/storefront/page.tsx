@@ -20,7 +20,7 @@ import { apiFetch } from '@/lib/api-client';
 import { DEFAULT_STOREFRONT, storefrontCssVars, readableTextColor, type StorefrontConfig } from '@/lib/storefront';
 import ColorPicker from '@/components/ui/ColorPicker';
 import OptionCards from '@/components/ui/OptionCards';
-import { ExternalLink, Search, ShoppingBag, Store, Sun } from 'lucide-react';
+import { ExternalLink, Plus, Search, ShoppingBag, Store, Sun } from 'lucide-react';
 
 // ── ภาพจำลองในตัวเลือก — วาดรูปทรงจริงเพื่อให้ตัดสินใจได้โดยไม่ต้องกดลอง ──
 
@@ -523,15 +523,19 @@ export default function StorefrontSettingsPage() {
                               {/* ห้าม truncate — ชื่อยาวต้องขึ้นบรรทัดที่สองจริง ไม่งั้นพรีวิวโกหกเรื่องความสูงการ์ด */}
                               <div className="font-semibold" style={{ fontSize: 12, lineHeight: 1.35 }}>{item.name}</div>
                               <div className="font-bold mt-0.5" style={{ fontSize: 12, color: 'var(--sf-primary)' }}>{item.price}</div>
+                              {/* ต้องตรงกับ .sf-quickadd ของจริง — ไอคอน +, ระยะ, มุม, สีปุ่ม */}
                               <div
-                                className="mt-1.5 text-center font-semibold py-1"
+                                className="mt-1.5 flex items-center justify-center gap-1 font-semibold"
                                 style={{
                                   background: 'var(--sf-cta)',
                                   color: 'var(--sf-cta-contrast)',
+                                  border: '1px solid var(--sf-cta)',
                                   borderRadius: 'calc(var(--sf-radius) / 1.5)',
                                   fontSize: 11,
+                                  padding: '4px 8px',
                                 }}
                               >
+                                <Plus className="w-3 h-3" strokeWidth={2} aria-hidden="true" />
                                 หยิบใส่ตะกร้า
                               </div>
                             </div>
