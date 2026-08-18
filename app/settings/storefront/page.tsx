@@ -186,7 +186,7 @@ const PREVIEW_BOX_W = 380;
  */
 const PREVIEW_DEVICE = {
   mobile: { w: 390, label: 'มือถือ', note: 'iPhone · 390px' },
-  desktop: { w: 1280, label: 'เดสก์ท็อป', note: 'โน้ตบุ๊ก · 1280px' },
+  desktop: { w: 1440, label: 'เดสก์ท็อป', note: 'เดสก์ท็อป · 1440px' },
 } as const;
 
 const PREVIEW_NAV = [
