@@ -20,7 +20,8 @@ import { apiFetch } from '@/lib/api-client';
 import { DEFAULT_STOREFRONT, storefrontCssVars, readableTextColor, relativeLuminance, type StorefrontConfig } from '@/lib/storefront';
 import ColorPicker from '@/components/ui/ColorPicker';
 import OptionCards from '@/components/ui/OptionCards';
-import { ExternalLink, Plus, Search, ShoppingBag, Store, Sun } from 'lucide-react';
+import { ExternalLink, Globe, Palette, Plus, Search, ShoppingBag, Store, Sun } from 'lucide-react';
+import Tabs from '@/components/ui/Tabs';
 
 // ── ภาพจำลองในตัวเลือก — วาดรูปทรงจริงเพื่อให้ตัดสินใจได้โดยไม่ต้องกดลอง ──
 
@@ -236,6 +237,9 @@ export default function StorefrontSettingsPage() {
   const [companyName, setCompanyName] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  // แท็บเป็น state ไม่ใช่ route — cfg เป็นก้อนเดียว กดบันทึกครั้งเดียวเซฟทุกแท็บ
+  // ถ้าแยกเป็น URL ผู้ใช้จะเผลอเปลี่ยนหน้าแล้วทิ้งค่าที่แก้ค้างในแท็บอื่น
+  const [tab, setTab] = useState<'info' | 'design' | 'seo'>('info');
 
   useFetchOnce(useCallback(async () => {
     try {
@@ -300,6 +304,18 @@ export default function StorefrontSettingsPage() {
 
         {loading ? <LoadingCard /> : (
           <div className="space-y-4">
+            <Tabs
+              className="mb-0"
+              activeKey={tab}
+              onSelect={(k) => setTab(k as 'info' | 'design' | 'seo')}
+              tabs={[
+                { key: 'info', label: 'ข้อมูลร้าน', icon: <Store className="w-4 h-4" /> },
+                { key: 'design', label: 'ตกแต่งร้าน', icon: <Palette className="w-4 h-4" /> },
+                { key: 'seo', label: 'SEO & AI', icon: <Globe className="w-4 h-4" /> },
+              ]}
+            />
+
+            {tab === 'info' && (<>
             <Card padding="md">
               <div className="flex items-center justify-between gap-4">
                 <div className="flex items-start gap-3 min-w-0">
@@ -316,14 +332,6 @@ export default function StorefrontSettingsPage() {
                 <Toggle checked={cfg.enabled} onChange={(v) => patch({ enabled: v })} aria-label="เปิดหน้าร้าน" />
               </div>
             </Card>
-
-            {!cfg.public_base_url && (
-              <Alert tone="warning" title="ยังไม่ได้ผูกโดเมนของร้าน">
-                หน้าร้านจะถูกตั้งเป็น <strong>noindex</strong> จนกว่าจะใส่โดเมนของคุณเอง —
-                เพราะ SEO บนโดเมนของระบบไม่มีค่ากับร้านคุณ (ลูกค้าไม่ได้เป็นเจ้าของ URL
-                และหลายร้านอยู่โดเมนเดียวกัน) ระหว่างนี้เปิดดู/ทดสอบได้ตามปกติ
-              </Alert>
-            )}
 
             <Card padding="md">
               <p className="heading-4 mb-1">ข้อมูลร้าน</p>
@@ -350,6 +358,17 @@ export default function StorefrontSettingsPage() {
                 />
               </div>
             </Card>
+
+            </>)}
+
+            {tab === 'seo' && (<>
+            {!cfg.public_base_url && (
+              <Alert tone="warning" title="ยังไม่ได้ผูกโดเมนของร้าน">
+                หน้าร้านจะถูกตั้งเป็น <strong>noindex</strong> จนกว่าจะใส่โดเมนของคุณเอง —
+                เพราะ SEO บนโดเมนของระบบไม่มีค่ากับร้านคุณ (ลูกค้าไม่ได้เป็นเจ้าของ URL
+                และหลายร้านอยู่โดเมนเดียวกัน) ระหว่างนี้เปิดดู/ทดสอบได้ตามปกติ
+              </Alert>
+            )}
 
             <Card padding="md">
               <p className="heading-4 mb-1">โดเมน</p>
@@ -382,6 +401,9 @@ export default function StorefrontSettingsPage() {
                 </p>
               )}
             </Card>
+            </>)}
+
+            {tab === 'design' && (
             <Card padding="md">
               <p className="heading-4 mb-1">หน้าตา</p>
               <p className="section-desc mb-5">เปลี่ยนที่นี่ที่เดียว มีผลทั้งร้าน — ดูผลได้จากพรีวิวด้านขวา</p>
@@ -630,7 +652,9 @@ export default function StorefrontSettingsPage() {
                 </div>
               </div>
             </Card>
+            )}
 
+            {tab === 'seo' && (
             <Card padding="md">
               <div className="flex items-center justify-between gap-4">
                 <div className="min-w-0">
@@ -652,7 +676,9 @@ export default function StorefrontSettingsPage() {
                 </p>
               )}
             </Card>
+            )}
 
+            {/* ปุ่มบันทึกอยู่นอกแท็บ — แก้ข้ามแท็บแล้วกดครั้งเดียวจบ */}
             <div className="flex justify-end gap-3">
               <Button variant="primary" loading={saving} onClick={save}>บันทึก</Button>
             </div>
