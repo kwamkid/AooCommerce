@@ -13,6 +13,7 @@ import Modal from './Modal';
 import Button from './Button';
 import FormInput from './FormInput';
 import { MODERN_COLOR_PRESETS, type ColorPreset } from '@/lib/color-presets';
+import { extractPalette } from '@/lib/extract-colors';
 
 interface ColorPickerProps {
   /** รหัสสี #RRGGBB — ค่าว่างได้เมื่อ allowEmpty */
@@ -29,6 +30,10 @@ interface ColorPickerProps {
   label?: string;
   hint?: string;
   disabled?: boolean;
+  /** รูปที่จะดูดสีเด่นมาเสนอ (เช่น โลโก้ร้าน) — ว่างหรืออ่านไม่ได้ก็แค่ไม่แสดงแถวนี้ */
+  sourceImage?: string | null;
+  /** ข้อความหัวแถวสีที่ดูดมา */
+  sourceLabel?: string;
 }
 
 const HEX = /^#[0-9a-fA-F]{6}$/;
@@ -48,9 +53,10 @@ function contrastOn(hex: string): string {
 export default function ColorPicker({
   value, onChange, presets = MODERN_COLOR_PRESETS,
   allowEmpty = false, emptyLabel = 'ใช้ค่าเริ่มต้น', fallbackValue = '#000000',
-  label, hint, disabled,
+  label, hint, disabled, sourceImage, sourceLabel = 'จากโลโก้ของคุณ',
 }: ColorPickerProps) {
   const [open, setOpen] = useState(false);
+  const [sourceColors, setSourceColors] = useState<string[]>([]);
   // ค่าร่างระหว่างเปิด modal — ยังไม่ส่งออกจนกว่าจะกดยืนยัน
   const [draft, setDraft] = useState(value);
   const [text, setText] = useState(value);
@@ -58,6 +64,14 @@ export default function ColorPicker({
   useEffect(() => {
     if (open) { setDraft(value); setText(value); }
   }, [open, value]);
+
+  // ดูดสีตอนเปิด modal เท่านั้น — ไม่ต้องเสียแรงอ่านรูปถ้าผู้ใช้ไม่ได้จะเลือกสี
+  useEffect(() => {
+    if (!open || !sourceImage) { setSourceColors([]); return; }
+    let alive = true;
+    extractPalette(sourceImage, 6).then(c => { if (alive) setSourceColors(c); });
+    return () => { alive = false; };
+  }, [open, sourceImage]);
 
   const effectiveDraft = draft || fallbackValue;
 
@@ -108,6 +122,37 @@ export default function ColorPicker({
         }
       >
         <div className="px-6 py-5">
+          {sourceColors.length > 0 && (
+            <>
+              <p className="field-label">{sourceLabel}</p>
+              <div className="flex flex-wrap gap-3 mb-6">
+                {sourceColors.map(hex => {
+                  const active = draft.toLowerCase() === hex.toLowerCase();
+                  return (
+                    <button
+                      key={hex}
+                      type="button"
+                      onClick={() => pick(hex)}
+                      aria-pressed={active}
+                      title={hex}
+                      className="flex flex-col items-center gap-1.5 group"
+                    >
+                      <span
+                        className={`w-11 h-11 rounded-full flex items-center justify-center transition-transform group-hover:scale-110 ${
+                          active ? 'ring-2 ring-offset-2 ring-gray-900 dark:ring-white dark:ring-offset-slate-800' : ''
+                        }`}
+                        style={{ background: hex }}
+                      >
+                        {active && <Check className="w-5 h-5" style={{ color: contrastOn(hex) }} />}
+                      </span>
+                      <span className="helper-text text-gray-500 font-mono">{hex}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </>
+          )}
+
           <p className="field-label">ชุดสีแนะนำ</p>
           <div className="grid grid-cols-4 sm:grid-cols-6 gap-3 mb-6">
             {presets.map(p => {

@@ -474,6 +474,7 @@ export default function StorefrontSettingsPage() {
                     label="สีแบรนด์"
                     value={cfg.primary_color}
                     onChange={(hex) => patch({ primary_color: hex })}
+                    sourceImage={previewLogo}
                   />
                   <ColorPicker
                     label="สีปุ่มสั่งซื้อ"
@@ -482,6 +483,7 @@ export default function StorefrontSettingsPage() {
                     allowEmpty
                     emptyLabel="ใช้สีแบรนด์"
                     fallbackValue={cfg.primary_color}
+                    sourceImage={previewLogo}
                   />
 
                   <OptionCards
