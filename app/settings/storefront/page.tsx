@@ -37,6 +37,45 @@ function HeaderPreview({ bg, fg, border }: { bg: string; fg: string; border?: bo
   );
 }
 
+/** การจัดวางในแถบหัวร้าน — วาดตำแหน่งโลโก้/เมนู/ไอคอนตามจริง */
+function HeadLayoutPreview({ mode }: { mode: 'left' | 'stacked' | 'center' }) {
+  const logo = <span className="rounded-sm bg-gray-500 dark:bg-slate-300" style={{ width: 14, height: 5 }} />;
+  const item = (w: number, k: number) => (
+    <span key={k} className="rounded-sm bg-gray-300 dark:bg-slate-500" style={{ width: w, height: 3 }} />
+  );
+  const icons = (
+    <span className="flex gap-0.5">
+      {[0, 1].map(i => <span key={i} className="rounded-full bg-gray-400 dark:bg-slate-400" style={{ width: 4, height: 4 }} />)}
+    </span>
+  );
+  return (
+    <span className="w-full max-w-[74px] rounded-md overflow-hidden border border-gray-200 dark:border-slate-600 block bg-white dark:bg-slate-800">
+      {mode === 'left' && (
+        <span className="flex items-center gap-1 px-1.5 py-1.5">
+          {logo}
+          <span className="flex gap-1">{[8, 8].map((w, i) => item(w, i))}</span>
+          <span className="ml-auto">{icons}</span>
+        </span>
+      )}
+      {mode === 'stacked' && (
+        <>
+          <span className="flex items-center px-1.5 py-1.5">{logo}<span className="ml-auto">{icons}</span></span>
+          <span className="flex gap-1 px-1.5 pb-1.5">{[9, 9, 9].map((w, i) => item(w, i))}</span>
+        </>
+      )}
+      {mode === 'center' && (
+        <>
+          <span className="relative flex items-center justify-center px-1.5 py-1.5">
+            {logo}
+            <span className="absolute right-1.5">{icons}</span>
+          </span>
+          <span className="flex gap-1 px-1.5 pb-1.5 justify-center">{[9, 9, 9].map((w, i) => item(w, i))}</span>
+        </>
+      )}
+    </span>
+  );
+}
+
 function RatioPreview({ ratio }: { ratio: string }) {
   return (
     <span
@@ -47,7 +86,7 @@ function RatioPreview({ ratio }: { ratio: string }) {
 }
 
 /** เต็มกรอบ = รูป (แถบเฉียง) ล้นออกนอกกรอบแล้วถูกตัด · เห็นทั้งรูป = ย่อลงพอดี มีพื้นหลังเบลอ */
-function FitPreview({ mode, ratio }: { mode: 'cover' | 'contain'; ratio: StorefrontConfig['image_ratio'] }) {
+function FitPreview({ mode, ratio }: { mode: StorefrontConfig['image_fit']; ratio: StorefrontConfig['image_ratio'] }) {
   const frame = { aspectRatio: ratio === '1:1' ? '1 / 1' : '4 / 5', height: 44 };
   const photo = 'repeating-linear-gradient(135deg, #94a3b8 0 6px, #cbd5e1 6px 12px)';
   return (
@@ -57,7 +96,9 @@ function FitPreview({ mode, ratio }: { mode: 'cover' | 'contain'; ratio: Storefr
         <span className="absolute top-0 bottom-0" style={{ background: photo, left: '-25%', width: '150%' }} />
       ) : (
         <>
-          <span className="absolute inset-0" style={{ background: photo, filter: 'blur(4px)', opacity: .45, transform: 'scale(1.3)' }} />
+          {mode === 'contain'
+            ? <span className="absolute inset-0" style={{ background: photo, filter: 'blur(4px)', opacity: .45, transform: 'scale(1.3)' }} />
+            : <span className="absolute inset-0 bg-gray-100 dark:bg-slate-700" />}
           <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2" style={{ background: photo, width: '78%', height: '58%' }} />
         </>
       )}
@@ -299,6 +340,17 @@ export default function StorefrontSettingsPage() {
                   />
 
                   <OptionCards
+                    label="การจัดวางหัวร้าน"
+                    value={cfg.header_layout}
+                    onChange={(v) => patch({ header_layout: v })}
+                    options={[
+                      { id: 'left' as const, label: 'โลโก้ซ้าย', description: 'เมนูต่อท้าย บรรทัดเดียว', preview: <HeadLayoutPreview mode="left" /> },
+                      { id: 'stacked' as const, label: 'เมนูบรรทัดล่าง', description: 'เมนูเยอะไม่เบียด', preview: <HeadLayoutPreview mode="stacked" /> },
+                      { id: 'center' as const, label: 'โลโก้กลาง', description: 'โลโก้เด่น', preview: <HeadLayoutPreview mode="center" /> },
+                    ]}
+                  />
+
+                  <OptionCards
                     label="สัดส่วนรูปสินค้า"
                     value={cfg.image_ratio}
                     onChange={(v) => patch({ image_ratio: v })}
@@ -316,7 +368,8 @@ export default function StorefrontSettingsPage() {
                     disabled={cfg.image_ratio === 'auto'}
                     options={[
                       { id: 'cover' as const, label: 'เต็มกรอบ', description: 'ตัดขอบส่วนเกิน', preview: <FitPreview mode="cover" ratio={cfg.image_ratio} /> },
-                      { id: 'contain' as const, label: 'เห็นทั้งรูป', description: 'เติมพื้นหลังเบลอ', preview: <FitPreview mode="contain" ratio={cfg.image_ratio} /> },
+                      { id: 'contain' as const, label: 'พื้นเบลอ', description: 'เห็นทั้งรูป', preview: <FitPreview mode="contain" ratio={cfg.image_ratio} /> },
+                      { id: 'contain-plain' as const, label: 'พื้นเรียบ', description: 'เห็นทั้งรูป', preview: <FitPreview mode="contain-plain" ratio={cfg.image_ratio} /> },
                     ]}
                   />
 
@@ -371,22 +424,40 @@ export default function StorefrontSettingsPage() {
                       </div>
                     )}
                     <div
-                      className="flex items-center gap-2 px-3 py-2.5 border-b border-gray-200 dark:border-slate-600"
+                      className="relative flex items-center gap-2 px-3 py-2.5 border-b border-gray-200 dark:border-slate-600"
                       style={
                         cfg.header_style === 'light'
                           ? undefined
                           : { background: 'var(--sf-header-bg)', color: 'var(--sf-header-fg)', borderColor: 'transparent' }
                       }
                     >
-                      {logoUrl && (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={logoUrl} alt="" className="h-6 w-auto object-contain flex-shrink-0" />
-                      )}
-                      <span className="font-bold text-sm truncate">
-                        {cfg.display_name || companyName || 'ชื่อร้านของคุณ'}
+                      <span className={`flex items-center gap-2 min-w-0 ${cfg.header_layout === 'center' ? 'mx-auto' : ''}`}>
+                        {logoUrl && (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={logoUrl} alt="" className="h-6 w-auto object-contain flex-shrink-0" />
+                        )}
+                        <span className="font-bold text-sm truncate">
+                          {cfg.display_name || companyName || 'ชื่อร้านของคุณ'}
+                        </span>
                       </span>
-                      <span className="ml-auto opacity-60 flex-shrink-0" style={{ fontSize: 11 }}>ค้นหา · ธีม · ตะกร้า</span>
+                      {cfg.header_layout === 'left' && (
+                        <span className="opacity-50 truncate" style={{ fontSize: 10 }}>สินค้าทั้งหมด · หมวด</span>
+                      )}
+                      <span className={`opacity-60 flex-shrink-0 ${cfg.header_layout === 'center' ? 'absolute right-3' : 'ml-auto'}`} style={{ fontSize: 11 }}>
+                        ค้นหา · ธีม · ตะกร้า
+                      </span>
                     </div>
+
+                    {cfg.header_layout !== 'left' && (
+                      <div
+                        className={`px-3 py-1.5 border-b border-gray-200 dark:border-slate-600 opacity-50 truncate ${
+                          cfg.header_layout === 'center' ? 'text-center' : ''
+                        }`}
+                        style={{ fontSize: 10 }}
+                      >
+                        สินค้าทั้งหมด · กระเช้าปีใหม่ · กระเช้าเยี่ยมไข้ · การจัดส่ง
+                      </div>
+                    )}
 
                     <div className="p-3">
                       <div className={`grid gap-2 ${cfg.layout === 'editorial' ? 'grid-cols-1' : 'grid-cols-2'}`}>

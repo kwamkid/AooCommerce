@@ -32,7 +32,7 @@ export default async function StoreLayout({
 
   return (
     <div
-      className={`sf-root ${cfg.image_fit === 'contain' ? 'sf-fit-contain' : ''} ${
+      className={`sf-root ${cfg.image_fit === 'contain' ? 'sf-fit-contain' : cfg.image_fit === 'contain-plain' ? 'sf-fit-plain' : ''} ${
         cfg.layout === 'editorial' ? 'sf-layout-editorial' : cfg.layout === 'masonry' ? 'sf-layout-masonry' : ''
       } ${cfg.image_ratio === 'auto' ? 'sf-ratio-auto' : ''}`}
       style={storefrontCssVars(cfg) as React.CSSProperties}
@@ -47,7 +47,7 @@ export default async function StoreLayout({
         <div className="sf-announcement">{cfg.announcement}</div>
       )}
 
-      <header className="sf-header">
+      <header className={`sf-header sf-head-${cfg.header_layout}`}>
         <div className="sf-container sf-header-top">
           <Link href={storefrontHref(slug)} className="sf-brand">
             {company.logo_url && (
@@ -56,6 +56,22 @@ export default async function StoreLayout({
             )}
             <span className="sf-brand-name">{shopName}</span>
           </Link>
+
+          {/* left: เมนูต่อจากโลโก้ในบรรทัดเดียวกัน */}
+          {cfg.header_layout === 'left' && (
+            <nav className="sf-nav sf-nav-inline" aria-label="หมวดสินค้า">
+              <Link href={storefrontHref(slug)} className="sf-nav-link">สินค้าทั้งหมด</Link>
+              {categories.slice(0, 5).map(cat => (
+                <Link
+                  key={cat}
+                  href={`${storefrontHref(slug)}?cat=${encodeURIComponent(cat)}`}
+                  className="sf-nav-link"
+                >
+                  {cat}
+                </Link>
+              ))}
+            </nav>
+          )}
 
           <div className="sf-header-actions">
             <Suspense fallback={<span className="sf-icon-btn" aria-hidden="true" />}>
@@ -66,22 +82,25 @@ export default async function StoreLayout({
           </div>
         </div>
 
-        <div className="sf-container">
-          <nav className="sf-nav" aria-label="หมวดสินค้า">
-            <Link href={storefrontHref(slug)} className="sf-nav-link">สินค้าทั้งหมด</Link>
-            {categories.slice(0, 6).map(cat => (
-              <Link
-                key={cat}
-                href={`${storefrontHref(slug)}?cat=${encodeURIComponent(cat)}`}
-                className="sf-nav-link"
-              >
-                {cat}
-              </Link>
-            ))}
-            <Link href={storefrontHref(slug, '/delivery')} className="sf-nav-link">การจัดส่ง</Link>
-            <Link href={storefrontHref(slug, '/account')} className="sf-nav-link">บัญชีของฉัน</Link>
-          </nav>
-        </div>
+        {/* stacked / center: เมนูอยู่บรรทัดล่าง */}
+        {(cfg.header_layout === 'stacked' || cfg.header_layout === 'center') && (
+          <div className="sf-container">
+            <nav className="sf-nav" aria-label="หมวดสินค้า">
+              <Link href={storefrontHref(slug)} className="sf-nav-link">สินค้าทั้งหมด</Link>
+              {categories.slice(0, 6).map(cat => (
+                <Link
+                  key={cat}
+                  href={`${storefrontHref(slug)}?cat=${encodeURIComponent(cat)}`}
+                  className="sf-nav-link"
+                >
+                  {cat}
+                </Link>
+              ))}
+              <Link href={storefrontHref(slug, '/delivery')} className="sf-nav-link">การจัดส่ง</Link>
+              <Link href={storefrontHref(slug, '/account')} className="sf-nav-link">บัญชีของฉัน</Link>
+            </nav>
+          </div>
+        )}
       </header>
 
       <main className="sf-main">{children}</main>

@@ -29,8 +29,15 @@ export interface StorefrontConfig {
   primary_color: string;
   /** สีปุ่มสั่งซื้อ — ว่าง = ใช้สีแบรนด์ (ร้านส่วนใหญ่ไม่ต้องแยก) */
   button_color: string;
-  /** แถบหัวร้าน: ขาว / สีแบรนด์ / เข้ม */
+  /** สีแถบหัวร้าน: ขาว / สีแบรนด์ / เข้ม */
   header_style: 'light' | 'brand' | 'dark';
+  /**
+   * การจัดวางในแถบหัวร้าน
+   *  left    = โลโก้ซ้าย เมนูต่อท้าย ไอคอนขวา — บรรทัดเดียว ประหยัดที่สุด
+   *  stacked = โลโก้ซ้ายบรรทัดบน เมนูบรรทัดล่าง — เมนูเยอะแล้วไม่เบียด
+   *  center  = โลโก้กลาง เมนูบรรทัดล่างจัดกลาง — โลโก้เด่น
+   */
+  header_layout: 'left' | 'stacked' | 'center';
   radius: 'sharp' | 'soft' | 'round';
   /**
    * การจัดวางสินค้า
@@ -46,10 +53,11 @@ export interface StorefrontConfig {
   image_ratio: '1:1' | '4:5' | 'auto';
   /**
    * รูปที่สัดส่วนไม่ตรงกรอบจะเอาอย่างไร
-   *  cover   = ขยายเต็มกรอบแล้วตัดส่วนเกิน (รูปสม่ำเสมอ แต่เสี่ยงตัดของสำคัญ)
-   *  contain = ย่อให้เห็นทั้งรูป เติมพื้นหลังเบลอจากรูปเดียวกัน (ไม่ตัดอะไรเลย)
+   *  cover         = ขยายเต็มกรอบแล้วตัดส่วนเกิน (รูปสม่ำเสมอ แต่เสี่ยงตัดของสำคัญ)
+   *  contain       = ย่อให้เห็นทั้งรูป เติมพื้นหลังเบลอจากรูปเดียวกัน
+   *  contain-plain = ย่อให้เห็นทั้งรูป พื้นหลังเรียบ (แบบ marketplace ทั่วไป)
    */
-  image_fit: 'cover' | 'contain';
+  image_fit: 'cover' | 'contain' | 'contain-plain';
   /** ข้อความประกาศบนหัวร้าน (ว่าง = ไม่แสดง) */
   announcement: string;
 }
@@ -64,6 +72,7 @@ export const DEFAULT_STOREFRONT: StorefrontConfig = {
   primary_color: '#F4511E',
   button_color: '',
   header_style: 'light',
+  header_layout: 'stacked',
   radius: 'soft',
   layout: 'grid',
   image_ratio: '1:1',
@@ -83,6 +92,7 @@ export function parseStorefront(settings: Record<string, unknown> | null | undef
     primary_color: stored.primary_color ?? DEFAULT_STOREFRONT.primary_color,
     button_color: stored.button_color ?? DEFAULT_STOREFRONT.button_color,
     header_style: stored.header_style ?? DEFAULT_STOREFRONT.header_style,
+    header_layout: stored.header_layout ?? DEFAULT_STOREFRONT.header_layout,
     radius: stored.radius ?? DEFAULT_STOREFRONT.radius,
     layout: stored.layout ?? DEFAULT_STOREFRONT.layout,
     image_ratio: stored.image_ratio ?? DEFAULT_STOREFRONT.image_ratio,
@@ -142,7 +152,8 @@ export function storefrontCssVars(cfg: StorefrontConfig): Record<string, string>
     '--sf-cta-contrast': readableTextColor(button),
     '--sf-radius': RADIUS_PX[cfg.radius],
     '--sf-img-ratio': RATIO_CSS[cfg.image_ratio],
-    '--sf-img-fit': cfg.image_fit,
+    // CSS object-fit รู้จักแค่ cover/contain — 'contain-plain' ต่างที่พื้นหลังเท่านั้น
+    '--sf-img-fit': cfg.image_fit === 'cover' ? 'cover' : 'contain',
     ...(header ? { '--sf-header-bg': header.bg, '--sf-header-fg': header.fg } : {}),
   };
 }

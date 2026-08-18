@@ -691,3 +691,37 @@ html[data-sf-theme='dark'] .sf-root {
   .sf-layout-masonry .sf-grid { column-count: 2; column-gap: 12px; }
   .sf-layout-masonry .sf-card { margin-bottom: 12px; }
 }
+
+/* ── การจัดวางในแถบหัวร้าน ────────────────────────────────────────
+   ทุกแบบใช้ .sf-header-top เป็นแถวหลัก ต่างกันที่ตำแหน่งโลโก้/เมนู */
+
+/* left — โลโก้ซ้าย เมนูต่อท้าย ไอคอนขวา (บรรทัดเดียว) */
+.sf-head-left .sf-nav-inline { flex: 1; min-width: 0; }
+
+/* center — โลโก้อยู่กึ่งกลางแถวบน เมนูบรรทัดล่างจัดกลาง */
+.sf-head-center .sf-header-top { position: relative; justify-content: center; min-height: 72px; }
+.sf-head-center .sf-brand { flex-direction: column; gap: 4px; }
+.sf-head-center .sf-brand-logo { height: 40px; }
+.sf-head-center .sf-header-actions { position: absolute; right: 16px; top: 50%; transform: translateY(-50%); }
+.sf-head-center .sf-nav { justify-content: center; }
+
+
+/* stacked — โลโก้ซ้ายบรรทัดบน เมนูบรรทัดล่าง (ค่าเริ่มต้น) */
+.sf-head-stacked .sf-nav { padding-bottom: 8px; }
+
+/* จอแคบ — ทุกแบบยุบเป็นโลโก้ซ้าย + ไอคอนขวา + เมนูเลื่อนแนวนอนด้านล่าง
+   เพราะเมนูกลาง/สองข้างไม่มีที่พอบนมือถือ */
+@media (max-width: 760px) {
+  .sf-head-center .sf-header-top,
+  .sf-head-center .sf-brand { flex-direction: row; }
+  .sf-head-center .sf-brand-logo { height: 30px; }
+  .sf-head-center .sf-header-actions { position: static; transform: none; margin-left: auto; }
+  .sf-head-left .sf-nav-inline { display: none; }
+  .sf-head-center .sf-nav { justify-content: flex-start; }
+}
+
+/* พื้นเรียบ — เห็นทั้งรูปเหมือนโหมดเบลอ แต่พื้นหลังเป็นสีเรียบแบบ marketplace
+   เหมาะกับสินค้าที่ถ่ายบนพื้นขาวอยู่แล้ว ภาพเบลอจะรบกวนโดยไม่จำเป็น */
+.sf-fit-plain .sf-media-fill { display: none; }
+.sf-fit-plain .sf-card-media,
+.sf-fit-plain .sf-gallery-main { background: var(--sf-surface); }
