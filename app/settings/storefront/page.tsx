@@ -269,11 +269,9 @@ export default function StorefrontSettingsPage() {
     }
   };
 
-  if (guardLoading) return <Layout><Container size="2xl"><LoadingCard /></Container></Layout>;
-  if (!allowed) return <Layout><Container size="2xl"><NoPermissionCard /></Container></Layout>;
-
-  // 1120px → .sf-grid ได้ 5 คอลัมน์พอดี สินค้าตัวอย่าง 10 ชิ้นจึงเต็ม 2 แถวไม่มีรูโหว่
-  // (แถวที่ไม่เต็มทำให้ดูเหมือนพรีวิวพัง ทั้งที่หน้าร้านจริงมีสินค้าเยอะกว่านี้)
+  // ── ค่าที่คำนวณจาก state ต้องอยู่เหนือ early return ──
+  // useMemo ด้านล่างเป็น hook ถ้าอยู่ใต้ if(...) return จะถูกข้ามในรอบที่ยัง
+  // โหลดสิทธิ์ไม่เสร็จ แล้วลำดับ hook ไม่ตรงกันระหว่าง render (Rules of Hooks)
   const previewWidth = device === 'mobile' ? PREVIEW_DEVICE.mobile.w : PREVIEW_DEVICE.desktop.w;
   const previewScale = PREVIEW_BOX_W / previewWidth;
   const previewShopName = cfg.display_name || companyName || 'ชื่อร้านของคุณ';
@@ -294,12 +292,12 @@ export default function StorefrontSettingsPage() {
     in_stock: true,
     updated_at: '',
   })), [cfg.primary_color]);
-
   const ctaColor = cfg.button_color || cfg.primary_color;
   const ctaContrast = readableTextColor(ctaColor);
   const ctaInk = relativeLuminance(ctaColor) > 0.62 ? 'currentColor' : ctaColor;
-  const showLogoPv = !!logoUrl && cfg.logo_display !== 'name_only';
-  const showNamePv = cfg.logo_display !== 'logo_only' || !showLogoPv;
+
+  if (guardLoading) return <Layout><Container size="2xl"><LoadingCard /></Container></Layout>;
+  if (!allowed) return <Layout><Container size="2xl"><NoPermissionCard /></Container></Layout>;
 
   const internalPath = slug ? `/store/${slug}` : '';
   const publicUrl = cfg.public_base_url ? `${cfg.public_base_url}${cfg.public_base_path}` : '';
