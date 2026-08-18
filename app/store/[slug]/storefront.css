@@ -98,10 +98,31 @@
 .sf-hero p { color: var(--sf-muted); margin: 0; max-width: 60ch; }
 
 /* ── product grid ── */
+/* ── เลย์เอาต์สินค้า ──────────────────────────────────────────────
+   ตาราง   = การ์ดเล็ก ลงได้เยอะต่อแถว — ร้านที่มีสินค้าหลายสิบตัว
+   รูปใหญ่ = การ์ดใหญ่ เห็นรูปชัด — ร้านที่มีสินค้าไม่กี่ตัวและรูปคือจุดขาย
+   บนมือถือคือจุดที่ต่างกันชัดที่สุด: 2 ชิ้น/แถว กับ 1 ชิ้นเต็มจอ */
 .sf-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   gap: 20px;
+}
+.sf-layout-editorial .sf-grid {
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 26px;
+}
+.sf-layout-editorial .sf-card-body { padding: 16px 18px 20px; gap: 6px; }
+.sf-layout-editorial .sf-card-name { font-size: 17px; }
+.sf-layout-editorial .sf-card-price { font-size: 18px; }
+.sf-layout-editorial .sf-card-foot { padding: 0 18px 18px; }
+
+@media (max-width: 640px) {
+  /* auto-fill ที่ 200px บนจอแคบจะเหลือ 1 คอลัมน์ — บังคับ 2 ให้เลื่อนดูได้ไวขึ้น */
+  .sf-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .sf-layout-editorial .sf-grid { grid-template-columns: 1fr; gap: 18px; }
+  .sf-card-body { padding: 10px 11px 13px; }
+  .sf-card-name { font-size: 14px; }
+  .sf-card-foot { padding: 0 11px 11px; }
 }
 
 .sf-card {

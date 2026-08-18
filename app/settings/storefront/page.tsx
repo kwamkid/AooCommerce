@@ -298,8 +298,8 @@ export default function StorefrontSettingsPage() {
                     value={cfg.layout}
                     onChange={(v) => patch({ layout: v })}
                     options={[
-                      { id: 'grid' as const, label: 'ตาราง', description: 'สินค้าเยอะ', preview: <LayoutPreview mode="grid" /> },
-                      { id: 'editorial' as const, label: 'รูปใหญ่', description: 'สินค้าน้อย', preview: <LayoutPreview mode="editorial" /> },
+                      { id: 'grid' as const, label: 'ตาราง', description: 'การ์ดเล็ก · มือถือ 2 ชิ้น/แถว', preview: <LayoutPreview mode="grid" /> },
+                      { id: 'editorial' as const, label: 'รูปใหญ่', description: 'การ์ดใหญ่ · มือถือ 1 ชิ้น/แถว', preview: <LayoutPreview mode="editorial" /> },
                     ]}
                   />
 
