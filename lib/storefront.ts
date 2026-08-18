@@ -39,6 +39,13 @@ export interface StorefrontConfig {
    */
   header_layout: 'left' | 'stacked' | 'center';
   /**
+   * หัวร้านทำอะไรตอนลูกค้าเลื่อนหน้า
+   *  sticky    = ติดขอบบนตลอด
+   *  auto_hide = เลื่อนลงหลบขึ้นไป เลื่อนขึ้นโผล่กลับ (Headroom / Quick Return)
+   *  static    = ไม่ติด เลื่อนหายไปกับหน้า
+   */
+  header_behavior: 'sticky' | 'auto_hide' | 'static';
+  /**
    * แสดงอะไรตรงหัวร้าน — ร้านที่โลโก้มีชื่อร้านอยู่ในรูปแล้วจะซ้ำถ้าโชว์ทั้งคู่
    *  logo_name = โลโก้ + ชื่อร้าน (ค่าเริ่มต้น)
    *  logo_only = โลโก้อย่างเดียว (ชื่อยังอยู่ใน alt + JSON-LD จึงไม่เสีย SEO)
@@ -85,6 +92,7 @@ export const DEFAULT_STOREFRONT: StorefrontConfig = {
   button_color: '',
   header_style: 'light',
   header_layout: 'stacked',
+  header_behavior: 'auto_hide',
   logo_display: 'logo_name',
   button_style: 'solid',
   radius: 'soft',
@@ -106,6 +114,7 @@ export function parseStorefront(settings: Record<string, unknown> | null | undef
     button_color: stored.button_color ?? DEFAULT_STOREFRONT.button_color,
     header_style: stored.header_style ?? DEFAULT_STOREFRONT.header_style,
     header_layout: stored.header_layout ?? DEFAULT_STOREFRONT.header_layout,
+    header_behavior: stored.header_behavior ?? DEFAULT_STOREFRONT.header_behavior,
     logo_display: stored.logo_display ?? DEFAULT_STOREFRONT.logo_display,
     button_style: stored.button_style ?? DEFAULT_STOREFRONT.button_style,
     radius: stored.radius ?? DEFAULT_STOREFRONT.radius,
@@ -191,6 +200,7 @@ export function storefrontRootClasses(cfg: StorefrontConfig): string[] {
   return [
     'sf-root',
     `sf-head-${cfg.header_layout}`,
+    cfg.header_behavior === 'static' ? 'sf-header-loose' : '',
     cfg.layout === 'editorial' ? 'sf-layout-editorial' : cfg.layout === 'masonry' ? 'sf-layout-masonry' : '',
     cfg.image_ratio === 'auto' ? 'sf-ratio-auto' : '',
     cfg.button_style === 'outline' ? 'sf-btn-outline' : cfg.button_style === 'soft' ? 'sf-btn-soft' : '',

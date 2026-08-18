@@ -28,9 +28,10 @@ export default function StoreHeader({ cfg, slug, shopName, logoUrl, navLinks, au
   // ให้เนื้อหาเต็มจอ เลื่อนขึ้นเมื่อไหร่โผล่กลับมาทันทีโดยไม่ต้องเลื่อนกลับไปบนสุด
   // สำคัญกับมือถือที่หัวร้าน + แถบประกาศกินพื้นที่เหนือ fold ไปเยอะ
   const [hidden, setHidden] = useState(false);
+  const headroom = autoHide && cfg.header_behavior === 'auto_hide';
 
   useEffect(() => {
-    if (!autoHide) return;
+    if (!headroom) { setHidden(false); return; }
     let last = window.scrollY;
     let raf = 0;
     const onScroll = () => {
@@ -48,7 +49,7 @@ export default function StoreHeader({ cfg, slug, shopName, logoUrl, navLinks, au
     };
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => { window.removeEventListener('scroll', onScroll); cancelAnimationFrame(raf); };
-  }, [autoHide]);
+  }, [headroom]);
 
   // ไม่มีไฟล์โลโก้ต้องเหลือชื่อร้านไว้เสมอ ไม่งั้นหัวร้านว่างและไม่มีลิงก์กลับหน้าแรก
   const showLogo = !!logoUrl && cfg.logo_display !== 'name_only';

@@ -59,6 +59,8 @@
 }
 /* Headroom / Quick Return — เลื่อนลงหัวร้านหลบขึ้นไป เลื่อนขึ้นกลับมาทันที */
 .sf-header-hidden { transform: translateY(-100%); }
+/* ไม่ติดขอบบน — เลื่อนหายไปกับหน้าตามปกติ */
+.sf-header-loose .sf-header { position: static; }
 @media (prefers-reduced-motion: reduce) {
   .sf-header { transition: none; }
 }

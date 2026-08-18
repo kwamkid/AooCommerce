@@ -133,6 +133,28 @@ function RadiusPreview({ r, color }: { r: number; color: string }) {
   );
 }
 
+/** หัวร้านอยู่ตรงไหนหลังลูกค้าเลื่อนหน้าลงไปแล้ว */
+function StickPreview({ mode }: { mode: StorefrontConfig['header_behavior'] }) {
+  const barTop = mode === 'sticky' ? 0 : mode === 'auto_hide' ? -6 : -11;
+  const line = (w: number, k: number) => (
+    <span key={k} className="rounded-sm bg-gray-200 dark:bg-slate-600 block" style={{ height: 4, width: w }} />
+  );
+  return (
+    <span
+      className="relative block overflow-hidden rounded-md border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-800"
+      style={{ width: 58, height: 42 }}
+    >
+      <span
+        className="absolute left-0 right-0 bg-gray-400 dark:bg-slate-400"
+        style={{ height: 11, top: barTop }}
+      />
+      <span className="absolute left-0 right-0 flex flex-col gap-1.5 px-2" style={{ top: 16 }}>
+        {[38, 30, 34].map((w, i) => line(w, i))}
+      </span>
+    </span>
+  );
+}
+
 /** แสดงอะไรตรงหัวร้าน — วาดโลโก้เป็นบล็อกสี่เหลี่ยม ชื่อร้านเป็นแถบตัวอักษร */
 function LogoDisplayPreview({ mode }: { mode: StorefrontConfig['logo_display'] }) {
   return (
@@ -485,6 +507,17 @@ export default function StorefrontSettingsPage() {
                       { id: 'left' as const, label: 'โลโก้ซ้าย', description: 'เมนูต่อท้าย บรรทัดเดียว', preview: <HeadLayoutPreview mode="left" /> },
                       { id: 'stacked' as const, label: 'เมนูบรรทัดล่าง', description: 'เมนูเยอะไม่เบียด', preview: <HeadLayoutPreview mode="stacked" /> },
                       { id: 'center' as const, label: 'โลโก้กลาง', description: 'โลโก้เด่น', preview: <HeadLayoutPreview mode="center" /> },
+                    ]}
+                  />
+
+                  <OptionCards
+                    label="หัวร้านตอนเลื่อนหน้า"
+                    value={cfg.header_behavior}
+                    onChange={(v) => patch({ header_behavior: v })}
+                    options={[
+                      { id: 'sticky' as const, label: 'ติดตลอด', description: 'เห็นหัวร้านทุกจังหวะ', preview: <StickPreview mode="sticky" /> },
+                      { id: 'auto_hide' as const, label: 'หลบตอนเลื่อนลง', description: 'เลื่อนขึ้นแล้วโผล่กลับ', preview: <StickPreview mode="auto_hide" /> },
+                      { id: 'static' as const, label: 'ไม่ติดขอบบน', description: 'เลื่อนหายไปกับหน้า', preview: <StickPreview mode="static" /> },
                     ]}
                   />
 
