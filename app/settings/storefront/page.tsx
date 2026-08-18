@@ -90,6 +90,8 @@ export default function StorefrontSettingsPage() {
 
   const [cfg, setCfg] = useState<StorefrontConfig>(DEFAULT_STOREFRONT);
   const [slug, setSlug] = useState('');
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [companyName, setCompanyName] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -100,6 +102,8 @@ export default function StorefrontSettingsPage() {
         const data = await res.json();
         setCfg(data.storefront);
         setSlug(data.slug || '');
+        setLogoUrl(data.logo_url || null);
+        setCompanyName(data.company_name || '');
       }
     } finally {
       setLoading(false);
@@ -181,7 +185,7 @@ export default function StorefrontSettingsPage() {
                   label="ชื่อร้านที่แสดง"
                   value={cfg.display_name}
                   onChange={(e) => patch({ display_name: e.target.value })}
-                  placeholder="เว้นว่าง = ใช้ชื่อบริษัท"
+                  placeholder={companyName ? `เว้นว่าง = ${companyName}` : 'เว้นว่าง = ใช้ชื่อบริษัท'}
                 />
                 <FormInput
                   label="คำโปรย"
@@ -311,6 +315,12 @@ export default function StorefrontSettingsPage() {
                 {/* ── พรีวิวสด — ใช้ token ชุดเดียวกับหน้าร้านจริง จึงตรงกับของจริงเสมอ ── */}
                 <div className="lg:sticky lg:top-4">
                   <p className="field-label">ตัวอย่างหน้าร้าน</p>
+                  {!logoUrl && (
+                    <p className="helper-text text-gray-500 mb-2">
+                      ยังไม่มีโลโก้ — อัปโหลดได้ที่{' '}
+                      <Link href="/settings/company" className="text-[#F4511E] hover:underline">ข้อมูลร้านค้า</Link>
+                    </p>
+                  )}
                   <div
                     className="rounded-xl border border-gray-200 dark:border-slate-600 overflow-hidden bg-white dark:bg-slate-800"
                     style={storefrontCssVars(cfg) as React.CSSProperties}
@@ -331,8 +341,14 @@ export default function StorefrontSettingsPage() {
                           : { background: 'var(--sf-header-bg)', color: 'var(--sf-header-fg)', borderColor: 'transparent' }
                       }
                     >
-                      <span className="font-bold text-sm truncate">{cfg.display_name || 'ชื่อร้านของคุณ'}</span>
-                      <span className="ml-auto opacity-60" style={{ fontSize: 11 }}>ค้นหา · ธีม · ตะกร้า</span>
+                      {logoUrl && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={logoUrl} alt="" className="h-6 w-auto object-contain flex-shrink-0" />
+                      )}
+                      <span className="font-bold text-sm truncate">
+                        {cfg.display_name || companyName || 'ชื่อร้านของคุณ'}
+                      </span>
+                      <span className="ml-auto opacity-60 flex-shrink-0" style={{ fontSize: 11 }}>ค้นหา · ธีม · ตะกร้า</span>
                     </div>
 
                     <div className="p-3">

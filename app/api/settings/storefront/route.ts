@@ -12,12 +12,15 @@ export async function GET(request: NextRequest) {
 
   const { data } = await supabaseAdmin
     .from('companies')
-    .select('slug, settings')
+    .select('slug, name, logo_url, settings')
     .eq('id', auth.companyId)
     .single();
 
   return NextResponse.json({
     slug: data?.slug || '',
+    // ใช้ในพรีวิว — โลโก้กับชื่อบริษัทมาจากตั้งค่าข้อมูลร้าน ไม่ได้อยู่ใน storefront config
+    company_name: data?.name || '',
+    logo_url: data?.logo_url || null,
     storefront: parseStorefront((data?.settings as Record<string, unknown>) || {}),
   });
 }
