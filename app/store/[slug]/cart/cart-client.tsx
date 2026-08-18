@@ -1,9 +1,10 @@
 'use client';
 
 import Link from 'next/link';
-import { Minus, Plus, X } from 'lucide-react';
+import { ChevronLeft, Minus, Plus, X } from 'lucide-react';
 import { useCart, setQuantity, removeFromCart } from '@/lib/storefront-cart';
 import { formatStorePrice, storefrontHref } from '@/lib/storefront';
+import CheckoutSteps from '@/components/storefront/CheckoutSteps';
 
 export default function CartClient({ shop }: { shop: string }) {
   const { lines, subtotal, hydrated } = useCart(shop);
@@ -15,6 +16,7 @@ export default function CartClient({ shop }: { shop: string }) {
   if (lines.length === 0) {
     return (
       <div className="sf-container">
+        <CheckoutSteps shop={shop} current="cart" />
         <div className="sf-hero"><h1>ตะกร้าสินค้า</h1></div>
         <p className="sf-empty">ยังไม่มีสินค้าในตะกร้า</p>
         <p style={{ textAlign: 'center' }}>
@@ -26,8 +28,12 @@ export default function CartClient({ shop }: { shop: string }) {
 
   return (
     <div className="sf-container">
+      <CheckoutSteps shop={shop} current="cart" />
       <div className="sf-hero"><h1>ตะกร้าสินค้า</h1></div>
 
+      {/* ใช้กริดเดียวกับหน้าชำระเงิน — กล่องสรุปอยู่ขวาและติดหน้าจอบนเดสก์ท็อป
+          ปุ่มสั่งซื้อจึงอยู่ในสายตาตลอด ไม่ต้องเลื่อนลงไปหาท้ายรายการ */}
+      <div className="sf-checkout">
       <div className="sf-cart-list">
         {lines.map(l => (
           <div key={l.variation_id} className="sf-cart-row">
@@ -66,16 +72,26 @@ export default function CartClient({ shop }: { shop: string }) {
         ))}
       </div>
 
-      <div className="sf-cart-foot">
-        <div>
-          <div className="sf-cart-subtotal-label">ยอดรวมสินค้า</div>
-          <div className="sf-cart-subtotal">{formatStorePrice(subtotal)}</div>
-          <div className="sf-cart-note">ค่าจัดส่งคำนวณในขั้นตอนถัดไปตามพื้นที่จัดส่ง</div>
+      <aside className="sf-summary">
+        <h2>สรุปคำสั่งซื้อ</h2>
+        {lines.map(l => (
+          <div key={l.variation_id} className="sf-summary-row">
+            <span>{l.name}{l.variation_label ? ` · ${l.variation_label}` : ''} × {l.quantity}</span>
+            <span>{formatStorePrice(l.price * l.quantity)}</span>
+          </div>
+        ))}
+        <div className="sf-summary-row sf-summary-total">
+          <span>ยอดรวมสินค้า</span>
+          <span>{formatStorePrice(subtotal)}</span>
         </div>
-        <div className="sf-cart-actions">
-          <Link href={storefrontHref(shop)} className="sf-btn-ghost">เลือกซื้อต่อ</Link>
-          <Link href={storefrontHref(shop, '/checkout')} className="sf-cta">สั่งซื้อ</Link>
+        <p className="sf-cart-note">ค่าจัดส่งคำนวณในขั้นตอนถัดไปตามพื้นที่จัดส่ง</p>
+        <div className="sf-order-actions">
+          <Link href={storefrontHref(shop, '/checkout')} className="sf-cta sf-cta-block">สั่งซื้อ</Link>
+          <Link href={storefrontHref(shop)} className="sf-btn-ghost sf-cta-block">
+            <ChevronLeft strokeWidth={2} aria-hidden="true" />ช้อปต่อ
+          </Link>
         </div>
+      </aside>
       </div>
     </div>
   );

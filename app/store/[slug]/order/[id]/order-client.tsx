@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import CheckoutSteps from '@/components/storefront/CheckoutSteps';
 import Link from 'next/link';
-import { CheckCircle2, Copy, Check, Upload, CreditCard, Clock } from 'lucide-react';
+import { ChevronLeft, CheckCircle2, Copy, Check, Upload, CreditCard, Clock } from 'lucide-react';
 import { formatStorePrice, storefrontHref } from '@/lib/storefront';
 import { rememberOrder } from '@/lib/storefront-orders';
 
@@ -151,6 +152,7 @@ export default function OrderClient({ shop, initialOrder }: { shop: string; init
 
   return (
     <div className="sf-container">
+      <CheckoutSteps shop={shop} current="pay" />
       <div className="sf-order-head">
         <CheckCircle2 className="sf-order-check" strokeWidth={1.6} aria-hidden="true" />
         <div>
@@ -279,7 +281,9 @@ export default function OrderClient({ shop, initialOrder }: { shop: string; init
           </div>
 
           <div className="sf-order-actions">
-            <Link href={storefrontHref(shop)} className="sf-btn-ghost">เลือกซื้อต่อ</Link>
+            <Link href={storefrontHref(shop)} className="sf-btn-ghost">
+              <ChevronLeft strokeWidth={2} aria-hidden="true" />ช้อปต่อ
+            </Link>
             <Link href={storefrontHref(shop, '/orders')} className="sf-btn-ghost">คำสั่งซื้อของฉัน</Link>
           </div>
         </aside>

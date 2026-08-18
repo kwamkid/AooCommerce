@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useCart, clearCart } from '@/lib/storefront-cart';
 import { rememberOrder, rememberContact, readContact } from '@/lib/storefront-orders';
 import { formatStorePrice, storefrontHref } from '@/lib/storefront';
+import CheckoutSteps from '@/components/storefront/CheckoutSteps';
 import { searchAddress } from '@/lib/thai-address-data';
 
 interface SlotOption {
@@ -181,7 +182,8 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
   if (lines.length === 0) {
     return (
       <div className="sf-container">
-        <div className="sf-hero"><h1>ชำระเงิน</h1></div>
+        <CheckoutSteps shop={shop} current="info" />
+        <div className="sf-hero"><h1>ข้อมูลจัดส่ง</h1></div>
         <p className="sf-empty">ยังไม่มีสินค้าในตะกร้า</p>
         <p style={{ textAlign: 'center' }}>
           <Link href={storefrontHref(shop)} className="sf-cta">เลือกซื้อสินค้า</Link>
@@ -192,7 +194,8 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
 
   return (
     <div className="sf-container">
-      <div className="sf-hero"><h1>ชำระเงิน</h1></div>
+      <CheckoutSteps shop={shop} current="info" />
+      <div className="sf-hero"><h1>ข้อมูลจัดส่ง</h1></div>
 
       <div className="sf-checkout">
         <div className="sf-checkout-form">

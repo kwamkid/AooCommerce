@@ -6,7 +6,7 @@ import { getStorefrontCompany } from '@/lib/storefront-server';
 import CheckoutClient from './checkout-client';
 
 export const metadata: Metadata = {
-  title: 'ชำระเงิน',
+  title: 'ข้อมูลจัดส่ง',
   robots: { index: false, follow: false },
 };
 

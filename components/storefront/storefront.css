@@ -318,7 +318,43 @@
   text-decoration: none; font-weight: 600;
 }
 
+/* ── แถบขั้นตอนการสั่งซื้อ ─────────────────────────────────────── */
+.sf-steps {
+  display: flex; align-items: center; justify-content: center;
+  list-style: none; margin: 0 0 24px; padding: 0;
+}
+/* ไม่ยืดเต็มความกว้าง — สามขั้นสั้น ๆ กระจายทั้งจอ 1200px แล้วเส้นเชื่อมยาว
+   เป็นเมตรจนดูเหมือนหน้าเสีย · จัดกลุ่มไว้กลางหน้าแล้วอ่านเป็นชุดเดียวได้ง่ายกว่า */
+.sf-step { display: flex; align-items: center; }
+/* เส้นเชื่อมอยู่ "ก่อน" ขั้นถัดไป และติดสีเมื่อขั้นนั้นถึงแล้ว */
+.sf-step + .sf-step::before {
+  content: ''; height: 2px; width: 44px;
+  background: var(--sf-border); margin: 0 12px;
+}
+.sf-step-done + .sf-step::before { background: var(--sf-primary); }
+.sf-step-in { display: flex; align-items: center; gap: 8px; text-decoration: none; color: inherit; }
+.sf-step-dot {
+  width: 26px; height: 26px; border-radius: 999px; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 700;
+  border: 2px solid var(--sf-border); background: var(--sf-bg); color: var(--sf-muted);
+}
+.sf-step-dot svg { width: 13px; height: 13px; }
+.sf-step-label { font-size: 14px; color: var(--sf-muted); white-space: nowrap; }
+.sf-step-done .sf-step-dot { background: var(--sf-primary); border-color: var(--sf-primary); color: var(--sf-primary-contrast); }
+.sf-step-done .sf-step-label { color: var(--sf-text); }
+.sf-step-done .sf-step-in:hover .sf-step-label { color: var(--sf-primary); }
+.sf-step-now .sf-step-dot { border-color: var(--sf-primary); color: var(--sf-primary); }
+.sf-step-now .sf-step-label { color: var(--sf-text); font-weight: 600; }
+/* จอแคบโชว์เฉพาะชื่อขั้นปัจจุบัน — สามชื่อเรียงกันแล้วเบียดจนอ่านไม่ออก */
+@container (max-width: 560px) {
+  .sf-step:not(.sf-step-now) .sf-step-label { display: none; }
+  .sf-step + .sf-step::before { width: 26px; margin: 0 8px; }
+}
+
 .sf-cart-list { display: flex; flex-direction: column; gap: 12px; }
+/* ปุ่มเต็มความกว้างในกล่องสรุป */
+.sf-cta-block { display: flex; width: 100%; justify-content: center; }
 .sf-cart-row {
   display: grid;
   grid-template-columns: 76px minmax(0, 1fr) auto auto auto;
