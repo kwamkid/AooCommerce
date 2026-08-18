@@ -236,8 +236,7 @@ export default function StorefrontSettingsPage() {
 
               <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px] gap-6 items-start">
                 {/* ── ตัวเลือก ── */}
-                <div className="space-y-4">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-5 gap-y-4">
                   <ColorPicker
                     label="สีแบรนด์"
                     value={cfg.primary_color}
@@ -251,9 +250,7 @@ export default function StorefrontSettingsPage() {
                     emptyLabel="ใช้สีแบรนด์"
                     fallbackValue={cfg.primary_color}
                   />
-                  </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-4">
                   <OptionCards
                     label="แถบหัวร้าน"
                     value={cfg.header_style}
@@ -306,9 +303,7 @@ export default function StorefrontSettingsPage() {
                     ]}
                   />
 
-                  </div>
-
-                  <p className="helper-text text-gray-500">
+                  <p className="helper-text text-gray-500 sm:col-span-2 lg:col-span-3">
                     สัดส่วนรูปเป็นการครอบตอนแสดงผลเท่านั้น — ไฟล์รูปที่อัปโหลดไว้ไม่ถูกแก้ เปลี่ยนกลับได้ตลอด
                   </p>
                 </div>
@@ -342,7 +337,7 @@ export default function StorefrontSettingsPage() {
 
                     <div className="p-3">
                       <div className={`grid gap-2 ${cfg.layout === 'grid' ? 'grid-cols-2' : 'grid-cols-1'}`}>
-                        {(cfg.layout === 'grid' ? [0, 1] : [0]).map(i => (
+                        {(cfg.layout === 'grid' ? [0, 1, 2, 3] : [0, 1]).map(i => (
                           <div
                             key={i}
                             className="border border-gray-200 dark:border-slate-600 overflow-hidden"
