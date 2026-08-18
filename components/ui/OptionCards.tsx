@@ -35,7 +35,7 @@ export default function OptionCards<T extends string>({
     <div>
       {label && <label className="field-label">{label}</label>}
       <div
-        className="grid gap-2"
+        className="grid gap-1.5"
         style={{ gridTemplateColumns: `repeat(${Math.min(cols, 4)}, minmax(0, 1fr))` }}
         role="radiogroup"
         aria-label={label}
@@ -50,25 +50,25 @@ export default function OptionCards<T extends string>({
               aria-checked={active}
               disabled={disabled}
               onClick={() => onChange(opt.id)}
-              className={`relative flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition-colors text-center disabled:opacity-50 disabled:cursor-not-allowed ${
+              className={`relative flex flex-col items-center gap-1 px-2 py-2 rounded-lg border transition-colors text-center disabled:opacity-50 disabled:cursor-not-allowed ${
                 active
-                  ? 'border-[#F4511E] bg-orange-50/60 dark:bg-orange-950/20'
+                  ? 'border-[#F4511E] ring-1 ring-[#F4511E] bg-orange-50/50 dark:bg-orange-950/20'
                   : 'border-gray-200 dark:border-slate-600 hover:border-gray-300 dark:hover:border-slate-500'
               }`}
             >
               {active && (
-                <span className="absolute top-1.5 right-1.5 w-4 h-4 rounded-full bg-[#F4511E] text-white flex items-center justify-center">
-                  <Check className="w-3 h-3" strokeWidth={3} />
+                <span className="absolute top-1 right-1 w-3.5 h-3.5 rounded-full bg-[#F4511E] text-white flex items-center justify-center">
+                  <Check className="w-2.5 h-2.5" strokeWidth={3.5} />
                 </span>
               )}
               {opt.preview && (
-                <span className="flex items-center justify-center h-14 w-full">{opt.preview}</span>
+                <span className="flex items-center justify-center h-9 w-full">{opt.preview}</span>
               )}
-              <span className={`subtitle-text font-medium ${active ? 'text-[#C2410C]' : 'text-gray-700 dark:text-slate-300'}`}>
+              <span className={`helper-text font-medium leading-tight ${active ? 'text-[#C2410C]' : 'text-gray-700 dark:text-slate-300'}`}>
                 {opt.label}
               </span>
               {opt.description && (
-                <span className="helper-text text-gray-500 leading-tight">{opt.description}</span>
+                <span className="text-gray-400 leading-tight" style={{ fontSize: 10 }}>{opt.description}</span>
               )}
             </button>
           );

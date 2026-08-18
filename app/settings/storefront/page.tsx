@@ -26,13 +26,13 @@ import { ExternalLink, Store } from 'lucide-react';
 
 function HeaderPreview({ bg, fg, border }: { bg: string; fg: string; border?: boolean }) {
   return (
-    <span className="w-full max-w-[76px] rounded-md overflow-hidden border border-gray-200 dark:border-slate-600 block">
+    <span className="w-full max-w-[58px] rounded overflow-hidden border border-gray-200 dark:border-slate-600 block">
       <span className="flex items-center gap-1 px-1.5 py-1" style={{ background: bg, borderBottom: border ? '1px solid #e5e7eb' : undefined }}>
-        <span className="rounded-sm" style={{ width: 16, height: 4, background: fg, opacity: .85 }} />
-        <span className="ml-auto rounded-full" style={{ width: 5, height: 5, background: fg, opacity: .6 }} />
-        <span className="rounded-full" style={{ width: 5, height: 5, background: fg, opacity: .6 }} />
+        <span className="rounded-sm" style={{ width: 12, height: 3, background: fg, opacity: .85 }} />
+        <span className="ml-auto rounded-full" style={{ width: 4, height: 4, background: fg, opacity: .6 }} />
+        <span className="rounded-full" style={{ width: 4, height: 4, background: fg, opacity: .6 }} />
       </span>
-      <span className="block bg-gray-50 dark:bg-slate-700" style={{ height: 18 }} />
+      <span className="block bg-gray-50 dark:bg-slate-700" style={{ height: 13 }} />
     </span>
   );
 }
@@ -41,14 +41,14 @@ function RatioPreview({ ratio }: { ratio: string }) {
   return (
     <span
       className="bg-gray-200 dark:bg-slate-600 rounded-md block"
-      style={{ aspectRatio: ratio, height: 48 }}
+      style={{ aspectRatio: ratio, height: 34 }}
     />
   );
 }
 
 /** เต็มกรอบ = รูป (แถบเฉียง) ล้นออกนอกกรอบแล้วถูกตัด · เห็นทั้งรูป = ย่อลงพอดี มีพื้นหลังเบลอ */
 function FitPreview({ mode, ratio }: { mode: 'cover' | 'contain'; ratio: '1:1' | '4:5' }) {
-  const frame = { aspectRatio: ratio === '1:1' ? '1 / 1' : '4 / 5', height: 48 };
+  const frame = { aspectRatio: ratio === '1:1' ? '1 / 1' : '4 / 5', height: 34 };
   const photo = 'repeating-linear-gradient(135deg, #94a3b8 0 6px, #cbd5e1 6px 12px)';
   return (
     <span className="relative overflow-hidden rounded-md block border border-gray-300 dark:border-slate-500" style={frame}>
@@ -67,19 +67,19 @@ function FitPreview({ mode, ratio }: { mode: 'cover' | 'contain'; ratio: '1:1' |
 
 function RadiusPreview({ r, color }: { r: number; color: string }) {
   return (
-    <span className="block" style={{ width: 46, height: 46, background: color, borderRadius: r, opacity: .9 }} />
+    <span className="block" style={{ width: 32, height: 32, background: color, borderRadius: r * 0.7, opacity: .9 }} />
   );
 }
 
 function LayoutPreview({ mode }: { mode: 'grid' | 'editorial' }) {
   const cell = 'bg-gray-200 dark:bg-slate-600 rounded-sm';
   return mode === 'grid' ? (
-    <span className="grid grid-cols-3 gap-1" style={{ width: 60 }}>
-      {[0, 1, 2, 3, 4, 5].map(i => <span key={i} className={cell} style={{ height: 16 }} />)}
+    <span className="grid grid-cols-3 gap-0.5" style={{ width: 42 }}>
+      {[0, 1, 2, 3, 4, 5].map(i => <span key={i} className={cell} style={{ height: 11 }} />)}
     </span>
   ) : (
-    <span className="grid grid-cols-1 gap-1" style={{ width: 60 }}>
-      {[0, 1].map(i => <span key={i} className={cell} style={{ height: 20 }} />)}
+    <span className="grid grid-cols-1 gap-0.5" style={{ width: 42 }}>
+      {[0, 1].map(i => <span key={i} className={cell} style={{ height: 14 }} />)}
     </span>
   );
 }
@@ -236,9 +236,10 @@ export default function StorefrontSettingsPage() {
 
               <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px] gap-6 items-start">
                 {/* ── ตัวเลือก ── */}
-                <div className="space-y-5">
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-4">
                   <ColorPicker
-                    label="สีแบรนด์ (ลิงก์ ราคา ไฮไลต์)"
+                    label="สีแบรนด์"
                     value={cfg.primary_color}
                     onChange={(hex) => patch({ primary_color: hex })}
                   />
@@ -250,7 +251,9 @@ export default function StorefrontSettingsPage() {
                     emptyLabel="ใช้สีแบรนด์"
                     fallbackValue={cfg.primary_color}
                   />
+                  </div>
 
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-4">
                   <OptionCards
                     label="แถบหัวร้าน"
                     value={cfg.header_style}
@@ -302,6 +305,8 @@ export default function StorefrontSettingsPage() {
                       { id: 'editorial' as const, label: 'รูปใหญ่', description: 'สินค้าน้อย', preview: <LayoutPreview mode="editorial" /> },
                     ]}
                   />
+
+                  </div>
 
                   <p className="helper-text text-gray-500">
                     สัดส่วนรูปเป็นการครอบตอนแสดงผลเท่านั้น — ไฟล์รูปที่อัปโหลดไว้ไม่ถูกแก้ เปลี่ยนกลับได้ตลอด
