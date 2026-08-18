@@ -66,7 +66,9 @@
 .sf-header-top {
   display: flex;
   align-items: center;
-  gap: 16px;
+  column-gap: 16px;
+  row-gap: 8px;         /* ระยะระหว่างบรรทัดโลโก้กับบรรทัดเมนู */
+  padding: 10px 0;
   min-height: 64px;
   flex-wrap: wrap;      /* แบบ stacked/center ให้เมนูตกลงบรรทัดสองเอง */
   position: relative;   /* จุดอ้างอิงของแผงเมนูแฮมเบอร์เกอร์ ให้ทุกแบบเท่ากัน */
@@ -79,7 +81,7 @@
 }
 
 .sf-brand { display: flex; align-items: center; gap: 10px; text-decoration: none; color: inherit; }
-.sf-brand-logo { height: 43px; width: auto; object-fit: contain; }
+.sf-brand-logo { height: 56px; width: auto; object-fit: contain; }
 .sf-brand-name { font-size: 19px; font-weight: 700; }
 
 .sf-nav {
@@ -760,12 +762,12 @@ html[data-sf-theme='dark'] .sf-root {
 
 /* stacked / center — เมนูกินเต็มบรรทัด จึงถูกดันไปบรรทัดที่สองเอง */
 .sf-head-stacked .sf-nav,
-.sf-head-center .sf-nav { order: 4; flex-basis: 100%; padding-bottom: 8px; }
+.sf-head-center .sf-nav { order: 4; flex-basis: 100%; }
 
 /* center — โลโก้อยู่กึ่งกลางแถวบน เมนูบรรทัดล่างจัดกลาง */
 .sf-head-center .sf-header-top { position: relative; justify-content: center; min-height: 72px; }
 .sf-head-center .sf-brand { flex-direction: column; gap: 4px; }
-.sf-head-center .sf-brand-logo { height: 48px; }
+.sf-head-center .sf-brand-logo { height: 64px; }
 .sf-head-center .sf-header-actions { position: absolute; right: 16px; top: 50%; transform: translateY(-50%); }
 .sf-head-center .sf-nav { justify-content: center; }
 
@@ -793,6 +795,7 @@ html[data-sf-theme='dark'] .sf-root {
     flex-direction: row;
     position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
   }
-  .sf-head-center .sf-brand-logo { height: 48px; }
+  .sf-brand-logo { height: 44px; }
+  .sf-head-center .sf-brand-logo { height: 52px; }
 }
 
