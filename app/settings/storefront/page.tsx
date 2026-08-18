@@ -20,7 +20,7 @@ import { apiFetch } from '@/lib/api-client';
 import { DEFAULT_STOREFRONT, storefrontCssVars, readableTextColor, type StorefrontConfig } from '@/lib/storefront';
 import ColorPicker from '@/components/ui/ColorPicker';
 import OptionCards from '@/components/ui/OptionCards';
-import { ExternalLink, Store } from 'lucide-react';
+import { ExternalLink, Search, ShoppingBag, Store, Sun } from 'lucide-react';
 
 // ── ภาพจำลองในตัวเลือก — วาดรูปทรงจริงเพื่อให้ตัดสินใจได้โดยไม่ต้องกดลอง ──
 
@@ -451,8 +451,22 @@ export default function StorefrontSettingsPage() {
                       {cfg.header_layout === 'left' && (
                         <span className="opacity-50 truncate" style={{ fontSize: 10 }}>สินค้าทั้งหมด · หมวด</span>
                       )}
-                      <span className={`opacity-60 flex-shrink-0 ${cfg.header_layout === 'center' ? 'absolute right-3' : 'ml-auto'}`} style={{ fontSize: 11 }}>
-                        ค้นหา · ธีม · ตะกร้า
+                      {/* ไอคอนชุดเดียวกับหัวร้านจริง — SearchBox / ThemeToggle / CartBadge */}
+                      <span className={`flex items-center gap-2 flex-shrink-0 ${cfg.header_layout === 'center' ? 'absolute right-3' : 'ml-auto'}`}>
+                        <Search className="w-3.5 h-3.5 opacity-70" />
+                        <Sun className="w-3.5 h-3.5 opacity-70" />
+                        <span className="relative">
+                          <ShoppingBag className="w-3.5 h-3.5 opacity-70" />
+                          <span
+                            className="absolute -top-1 -right-1 rounded-full flex items-center justify-center font-bold"
+                            style={{
+                              width: 10, height: 10, fontSize: 7, lineHeight: 1,
+                              background: 'var(--sf-cta)', color: 'var(--sf-cta-contrast)',
+                            }}
+                          >
+                            2
+                          </span>
+                        </span>
                       </span>
                     </div>
 
