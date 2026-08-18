@@ -50,7 +50,7 @@ export default function OptionCards<T extends string>({
               aria-checked={active}
               disabled={disabled}
               onClick={() => onChange(opt.id)}
-              className={`relative flex flex-col items-center gap-1 px-2 py-2 rounded-lg border transition-colors text-center disabled:opacity-50 disabled:cursor-not-allowed ${
+              className={`relative flex flex-col items-center gap-1.5 px-2 py-2.5 rounded-lg border transition-colors text-center disabled:opacity-50 disabled:cursor-not-allowed ${
                 active
                   ? 'border-[#F4511E] ring-1 ring-[#F4511E] bg-orange-50/50 dark:bg-orange-950/20'
                   : 'border-gray-200 dark:border-slate-600 hover:border-gray-300 dark:hover:border-slate-500'
@@ -62,13 +62,13 @@ export default function OptionCards<T extends string>({
                 </span>
               )}
               {opt.preview && (
-                <span className="flex items-center justify-center h-9 w-full">{opt.preview}</span>
+                <span className="flex items-center justify-center h-12 w-full">{opt.preview}</span>
               )}
-              <span className={`helper-text font-medium leading-tight ${active ? 'text-[#C2410C]' : 'text-gray-700 dark:text-slate-300'}`}>
+              <span className={`subtitle-text font-medium leading-tight ${active ? 'text-[#C2410C]' : 'text-gray-700 dark:text-slate-300'}`}>
                 {opt.label}
               </span>
               {opt.description && (
-                <span className="text-gray-400 leading-tight" style={{ fontSize: 10 }}>{opt.description}</span>
+                <span className="text-gray-400 leading-tight" style={{ fontSize: 11 }}>{opt.description}</span>
               )}
             </button>
           );
