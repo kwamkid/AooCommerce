@@ -80,12 +80,13 @@ export default async function StoreLayout({
           )}
 
           <div className="sf-header-actions">
-            <MobileNav links={navLinks} />
             <Suspense fallback={<span className="sf-icon-btn" aria-hidden="true" />}>
               <SearchBox shop={slug} />
             </Suspense>
             <CartBadge shop={slug} />
           </div>
+
+          <MobileNav links={navLinks} />
         </div>
 
         {/* stacked / center: เมนูอยู่บรรทัดล่าง */}

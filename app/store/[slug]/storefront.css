@@ -72,7 +72,7 @@
 .sf-header-actions { display: flex; align-items: center; gap: 4px; margin-left: auto; }
 
 .sf-brand { display: flex; align-items: center; gap: 10px; text-decoration: none; color: inherit; }
-.sf-brand-logo { height: 36px; width: auto; object-fit: contain; }
+.sf-brand-logo { height: 43px; width: auto; object-fit: contain; }
 .sf-brand-name { font-size: 19px; font-weight: 700; }
 
 .sf-nav {
@@ -754,7 +754,7 @@ html[data-sf-theme='dark'] .sf-root {
 /* center — โลโก้อยู่กึ่งกลางแถวบน เมนูบรรทัดล่างจัดกลาง */
 .sf-head-center .sf-header-top { position: relative; justify-content: center; min-height: 72px; }
 .sf-head-center .sf-brand { flex-direction: column; gap: 4px; }
-.sf-head-center .sf-brand-logo { height: 40px; }
+.sf-head-center .sf-brand-logo { height: 48px; }
 .sf-head-center .sf-header-actions { position: absolute; right: 16px; top: 50%; transform: translateY(-50%); }
 .sf-head-center .sf-nav { justify-content: center; }
 
@@ -771,13 +771,15 @@ html[data-sf-theme='dark'] .sf-root {
   .sf-nav { display: none; }
   .sf-icon-btn.sf-burger { display: inline-flex; }
 
-  /* โลโก้ซ้าย / เมนูบรรทัดล่าง → แฮมเบอร์เกอร์อยู่ขวาสุด ถัดจากไอคอนอื่น */
+  /* โลโก้ซ้าย / เมนูบรรทัดล่าง → แฮมเบอร์เกอร์ขวาสุด ต่อจากไอคอนอื่น
+     (actions มี margin-left:auto อยู่แล้ว ปุ่มที่ order สูงกว่าจึงไปต่อท้าย) */
   .sf-head-left .sf-icon-btn.sf-burger,
   .sf-head-stacked .sf-icon-btn.sf-burger { order: 9; }
 
-  /* โลโก้กลาง → แฮมเบอร์เกอร์ซ้าย ไอคอนขวา โลโก้อยู่กลางจริง */
+  /* โลโก้กลาง → แฮมเบอร์เกอร์ซ้าย ไอคอนขวา เหลือแค่โลโก้ที่อยู่ในสายการจัดวาง
+     จึงอยู่กึ่งกลางจริง · โลโก้ใหญ่ขึ้นเพราะเป็นตัวเดียวที่บอกว่านี่ร้านอะไร */
   .sf-head-center .sf-brand { flex-direction: row; }
-  .sf-head-center .sf-brand-logo { height: 30px; }
+  .sf-head-center .sf-brand-logo { height: 48px; }
   .sf-head-center .sf-icon-btn.sf-burger {
     position: absolute; left: 16px; top: 50%; transform: translateY(-50%);
   }
