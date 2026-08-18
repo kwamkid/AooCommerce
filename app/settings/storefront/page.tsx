@@ -179,6 +179,15 @@ function LayoutPreview({ mode }: { mode: 'grid' | 'editorial' }) {
 const PREVIEW_H = 780;
 /** ความกว้างที่กรอบพรีวิวถูกย่อลงมาให้พอดีคอลัมน์ขวา */
 const PREVIEW_BOX_W = 380;
+/**
+ * ความกว้างที่พรีวิวจำลอง — ต้องระบุให้ชัด ไม่ใช่ "มือถือ/เดสก์ท็อป" ลอย ๆ
+ * 390px = iPhone 14/15/16 (รุ่นมาตรฐาน) · 1280px = โน้ตบุ๊กทั่วไป
+ * ที่ 1280px ตาราง .sf-grid ได้ 5 คอลัมน์พอดี สินค้าตัวอย่าง 10 ชิ้นจึงเต็ม 2 แถว
+ */
+const PREVIEW_DEVICE = {
+  mobile: { w: 390, label: 'มือถือ', note: 'iPhone · 390px' },
+  desktop: { w: 1280, label: 'เดสก์ท็อป', note: 'โน้ตบุ๊ก · 1280px' },
+} as const;
 
 const PREVIEW_NAV = [
   'สินค้าทั้งหมด', 'กระเช้าปีใหม่', 'กระเช้าเยี่ยมไข้',
@@ -204,6 +213,12 @@ const PREVIEW_SEED = [
   { name: 'กระเช้าส้มสายน้ำผึ้ง', cat: 'กระเช้าเยี่ยมไข้', price: 890, w: 800, h: 1000 },
   { name: 'ตะกร้าผลไม้รวม', cat: 'ของขวัญ', price: 650, w: 800, h: 800 },
   { name: 'กระเช้าแอปเปิลฟูจิ พร้อมการ์ดอวยพร', cat: 'กระเช้าปีใหม่', price: 1290, w: 800, h: 800 },
+  { name: 'กระเช้าองุ่นไชน์มัสแคท คัดพิเศษ', cat: 'กระเช้าแสดงความยินดี', price: 2490, w: 800, h: 1000 },
+  { name: 'กระเช้าเมล่อนญี่ปุ่น', cat: 'ของขวัญ', price: 1990, w: 800, h: 1000 },
+  { name: 'ชุดผลไม้ตัดพร้อมทาน', cat: 'ผลไม้สด', price: 350, w: 800, h: 800 },
+  { name: 'กระเช้าสุขภาพ ผลไม้รวมกับน้ำผึ้งแท้', cat: 'กระเช้าเยี่ยมไข้', price: 1590, w: 800, h: 800 },
+  { name: 'กระเช้าสตรอว์เบอร์รีพรีเมียม พร้อมริบบิ้น', cat: 'กระเช้าปีใหม่', price: 2190, w: 800, h: 1000 },
+  { name: 'ตะกร้าส้มแมนดาริน', cat: 'ผลไม้สด', price: 790, w: 800, h: 1000 },
 ];
 
 export default function StorefrontSettingsPage() {
@@ -257,7 +272,9 @@ export default function StorefrontSettingsPage() {
   if (guardLoading) return <Layout><Container size="2xl"><LoadingCard /></Container></Layout>;
   if (!allowed) return <Layout><Container size="2xl"><NoPermissionCard /></Container></Layout>;
 
-  const previewWidth = device === 'mobile' ? 390 : 1120;
+  // 1120px → .sf-grid ได้ 5 คอลัมน์พอดี สินค้าตัวอย่าง 10 ชิ้นจึงเต็ม 2 แถวไม่มีรูโหว่
+  // (แถวที่ไม่เต็มทำให้ดูเหมือนพรีวิวพัง ทั้งที่หน้าร้านจริงมีสินค้าเยอะกว่านี้)
+  const previewWidth = device === 'mobile' ? PREVIEW_DEVICE.mobile.w : PREVIEW_DEVICE.desktop.w;
   const previewScale = PREVIEW_BOX_W / previewWidth;
   const previewShopName = cfg.display_name || companyName || 'ชื่อร้านของคุณ';
   const previewProducts = useMemo<StorefrontProduct[]>(() => PREVIEW_SEED.map((p, i) => ({
@@ -410,7 +427,7 @@ export default function StorefrontSettingsPage() {
               <p className="section-desc mb-5">เปลี่ยนที่นี่ที่เดียว มีผลทั้งร้าน — ดูผลได้จากพรีวิวด้านขวา</p>
 
               <div
-                className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_var(--sf-preview-w)] gap-6 items-start"
+                className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_var(--sf-preview-w)] gap-6 items-start"
                 style={{ ['--sf-preview-w' as string]: `${PREVIEW_BOX_W}px` }}
               >
                 {/* ── ตัวเลือก ── */}
@@ -527,14 +544,15 @@ export default function StorefrontSettingsPage() {
                     StoreProductCard) + CSS ไฟล์เดียวกัน — ไม่มีทางเพี้ยนจากของจริงอีก
                     responsive ใช้ @container ผูกกับความกว้างของ .sf-root ไม่ใช่ความกว้างจอ
                     ย่อกล่องเหลือ 390px จึงได้เลย์เอาต์มือถือจริงโดยไม่ต้องใช้ iframe */}
-                <div className="lg:sticky lg:top-4">
+                <div className="xl:sticky xl:top-4">
                   <div className="flex items-center justify-between gap-2 mb-2">
                     <p className="field-label mb-0">ตัวอย่างหน้าร้าน</p>
                     <div className="flex rounded-lg border border-gray-200 dark:border-slate-600 overflow-hidden">
-                      {([['mobile', 'มือถือ'], ['desktop', 'เดสก์ท็อป']] as const).map(([d, label]) => (
+                      {(['mobile', 'desktop'] as const).map(d => (
                         <button
                           key={d}
                           type="button"
+                          title={PREVIEW_DEVICE[d].note}
                           onClick={() => setDevice(d)}
                           className={`px-2.5 py-1 subtitle-text transition-colors ${
                             device === d
@@ -542,7 +560,7 @@ export default function StorefrontSettingsPage() {
                               : 'text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700'
                           }`}
                         >
-                          {label}
+                          {PREVIEW_DEVICE[d].label}
                         </button>
                       ))}
                     </div>
@@ -598,8 +616,8 @@ export default function StorefrontSettingsPage() {
                   </div>
 
                   <p className="helper-text text-gray-500 mt-2">
-                    นี่คือหน้าร้านจริงย่อส่วน ไม่ใช่ภาพจำลอง — รูปตัวอย่างเป็น 1:1 และ 4:5
-                    อย่างละ 2 ชิ้น ชื่อสินค้ามีทั้งสั้นและยาวเกิน 1 บรรทัด
+                    หน้าร้านจริงย่อส่วน ไม่ใช่ภาพจำลอง — จำลองที่ <strong>{PREVIEW_DEVICE[device].note}</strong>{' '}
+                    ถ้าเทียบกับเบราว์เซอร์ที่ย่อหน้าต่างไว้กว้างไม่เท่านี้ ขนาดการ์ดจะไม่ตรงกันเป็นเรื่องปกติ
                   </p>
                 </div>
               </div>
