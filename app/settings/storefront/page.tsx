@@ -26,6 +26,8 @@ import StoreHeader from '@/components/storefront/StoreHeader';
 import StoreProductCard from '@/components/storefront/StoreProductCard';
 import '@/components/storefront/storefront.css';
 import ColorPicker from '@/components/ui/ColorPicker';
+import LogoUploader from '@/components/ui/LogoUploader';
+import { useCompany } from '@/lib/company-context';
 import OptionCards from '@/components/ui/OptionCards';
 import { ExternalLink, Globe, Palette, Plus, Store } from 'lucide-react';
 import Tabs from '@/components/ui/Tabs';
@@ -246,6 +248,7 @@ const PREVIEW_SEED = [
 export default function StorefrontSettingsPage() {
   const { allowed, loading: guardLoading } = useAuthGuard('settings.access', { noRedirect: true });
   const { showToast } = useToast();
+  const { currentCompany } = useCompany();
 
   const [cfg, setCfg] = useState<StorefrontConfig>(DEFAULT_STOREFRONT);
   const [slug, setSlug] = useState('');
@@ -297,6 +300,8 @@ export default function StorefrontSettingsPage() {
   const previewWidth = device === 'mobile' ? PREVIEW_DEVICE.mobile.w : PREVIEW_DEVICE.desktop.w;
   const previewScale = PREVIEW_BOX_W / previewWidth;
   const previewShopName = cfg.display_name || companyName || 'ชื่อร้านของคุณ';
+  // โลโก้หน้าร้านทับโลโก้บริษัท ว่างเมื่อไหร่ตกกลับไปใช้ของบริษัท
+  const previewLogo = cfg.logo_url || logoUrl;
   const previewProducts = useMemo<StorefrontProduct[]>(() => PREVIEW_SEED.map((p, i) => ({
     id: `preview-${i}`,
     slug: `preview-${i}`,
@@ -452,6 +457,19 @@ export default function StorefrontSettingsPage() {
               >
                 {/* ── ตัวเลือก ── */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-5">
+                  <div className="sm:col-span-2">
+                    <LogoUploader
+                      label="โลโก้หน้าร้าน"
+                      value={cfg.logo_url || null}
+                      onChange={(url) => patch({ logo_url: url || '' })}
+                      companyId={currentCompany?.id || ''}
+                      variant="storefront"
+                      fallbackUrl={logoUrl}
+                      fallbackNote="ยังไม่ได้อัปโหลด — ใช้โลโก้บริษัทจากหน้าข้อมูลร้านค้า"
+                      disabled={!currentCompany?.id}
+                    />
+                  </div>
+
                   <ColorPicker
                     label="สีแบรนด์"
                     value={cfg.primary_color}
@@ -511,7 +529,7 @@ export default function StorefrontSettingsPage() {
                   />
 
                   <OptionCards
-                    label="หัวร้านตอนเลื่อนหน้า"
+                    label="Sticky header"
                     value={cfg.header_behavior}
                     onChange={(v) => patch({ header_behavior: v })}
                     options={[
@@ -597,12 +615,6 @@ export default function StorefrontSettingsPage() {
                     </div>
                   </div>
 
-                  {!logoUrl && (
-                    <p className="helper-text text-gray-500 mb-2">
-                      ยังไม่มีโลโก้ — อัปโหลดได้ที่{' '}
-                      <Link href="/settings/company" className="text-[#F4511E] hover:underline">ข้อมูลร้านค้า</Link>
-                    </p>
-                  )}
 
                   <div
                     className="rounded-xl border border-gray-200 dark:border-slate-600 overflow-hidden bg-white dark:bg-slate-900"
@@ -626,7 +638,7 @@ export default function StorefrontSettingsPage() {
                           cfg={cfg}
                           slug={slug}
                           shopName={previewShopName}
-                          logoUrl={logoUrl}
+                          logoUrl={previewLogo}
                           navLinks={PREVIEW_NAV}
                           autoHide={false}
                         />

@@ -15,6 +15,12 @@ export interface StorefrontConfig {
   /** คำโปรย ใต้ชื่อร้าน + ใช้เป็น meta description ตั้งต้น */
   tagline: string;
   /**
+   * โลโก้เฉพาะหน้าร้าน — ว่าง = ใช้โลโก้บริษัท (companies.logo_url)
+   * แยกกันเพราะโลโก้ที่สวยบนหน้าเว็บกับโลโก้ที่ต้องขึ้นบนบิล/ใบกำกับภาษี
+   * มักไม่ใช่ไฟล์เดียวกัน (บิลต้องการเวอร์ชันขาวดำ/มีชื่อนิติบุคคลเต็ม)
+   */
+  logo_url: string;
+  /**
    * โดเมนสาธารณะของร้าน เช่น 'https://shop.adayfresh.com'.
    * ใช้สร้าง canonical + sitemap + OG url — **ถ้าว่าง หน้าร้านจะ noindex**
    * เพราะ SEO บนโดเมน aoo ไม่มีค่ากับลูกค้า (ลูกค้าไม่ได้เป็นเจ้าของ URL)
@@ -85,6 +91,7 @@ export const DEFAULT_STOREFRONT: StorefrontConfig = {
   enabled: false,
   display_name: '',
   tagline: '',
+  logo_url: '',
   public_base_url: '',
   public_base_path: '',
   allow_ai_crawlers: true,
@@ -107,6 +114,7 @@ export function parseStorefront(settings: Record<string, unknown> | null | undef
     enabled: stored.enabled ?? DEFAULT_STOREFRONT.enabled,
     display_name: stored.display_name ?? DEFAULT_STOREFRONT.display_name,
     tagline: stored.tagline ?? DEFAULT_STOREFRONT.tagline,
+    logo_url: stored.logo_url ?? DEFAULT_STOREFRONT.logo_url,
     public_base_url: (stored.public_base_url ?? DEFAULT_STOREFRONT.public_base_url).replace(/\/+$/, ''),
     public_base_path: normalizeBasePath(stored.public_base_path ?? DEFAULT_STOREFRONT.public_base_path),
     allow_ai_crawlers: stored.allow_ai_crawlers ?? DEFAULT_STOREFRONT.allow_ai_crawlers,

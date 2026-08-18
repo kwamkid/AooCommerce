@@ -62,7 +62,7 @@ export default async function StoreLayout({
         cfg={cfg}
         slug={slug}
         shopName={shopName}
-        logoUrl={company.logo_url || null}
+        logoUrl={cfg.logo_url || company.logo_url || null}
         navLinks={navLinks}
       />
 

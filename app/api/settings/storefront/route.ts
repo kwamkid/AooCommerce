@@ -86,6 +86,8 @@ export async function PUT(request: NextRequest) {
     enabled: body.enabled ?? current.enabled,
     display_name: (body.display_name ?? current.display_name).trim(),
     tagline: (body.tagline ?? current.tagline).trim(),
+    // URL มาจาก /api/companies/logo ของเราเอง — ยอมรับเฉพาะ absolute http(s) หรือค่าว่าง
+    logo_url: /^https?:\/\//.test((body.logo_url ?? '').trim()) ? body.logo_url!.trim() : (body.logo_url !== undefined ? '' : current.logo_url),
     public_base_url: body.public_base_url !== undefined ? baseUrl : current.public_base_url,
     public_base_path: (body.public_base_path ?? current.public_base_path).trim(),
     allow_ai_crawlers: body.allow_ai_crawlers ?? current.allow_ai_crawlers,
