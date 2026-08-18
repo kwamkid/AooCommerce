@@ -4,9 +4,10 @@
 // reuse the same page bodies without this chrome.
 import type { ReactNode } from 'react';
 import Link from 'next/link';
-import { getStorefrontCompany, getStorefrontCategories, getClosedStorefront } from '@/lib/storefront-server';
+import { getStorefrontCompany, getStorefrontCategories, getClosedStorefront, getStorefrontDelivery } from '@/lib/storefront-server';
 import { storefrontCssVars, storefrontRootClasses, storefrontHref } from '@/lib/storefront';
 import StoreHeader from '@/components/storefront/StoreHeader';
+import type { NavLink } from '@/components/storefront/MobileNav';
 import ShopUnavailable from '@/components/storefront/ShopUnavailable';
 import '@/components/storefront/storefront.css';
 
@@ -24,18 +25,27 @@ export default async function StoreLayout({
     return <ShopUnavailable closed={await getClosedStorefront(slug)} />;
   }
 
-  const categories = await getStorefrontCategories(company.id);
+  const [categories, delivery] = await Promise.all([
+    getStorefrontCategories(company.id),
+    getStorefrontDelivery(company.id),
+  ]);
   const cfg = company.config;
   const shopName = cfg.display_name || company.name;
 
-  const navLinks = [
+  // ร้านที่ไม่ได้ตั้งโซนจัดส่งไว้ หน้า /delivery จะไม่มีอะไรให้อ่าน — ซ่อนลิงก์ไปเลย
+  // (ร้าน e-commerce ทั่วไปที่ส่งด้วยขนส่งเอกชนไม่ได้ใช้โซน/รอบส่งแบบ delivery)
+  const hasDelivery = delivery.zones.length > 0;
+
+  const navLinks: NavLink[] = [
     { href: storefrontHref(slug), label: 'สินค้าทั้งหมด' },
     ...categories.slice(0, 6).map(cat => ({
       href: `${storefrontHref(slug)}?cat=${encodeURIComponent(cat)}`,
       label: cat,
     })),
-    { href: storefrontHref(slug, '/delivery'), label: 'การจัดส่ง' },
-    { href: storefrontHref(slug, '/account'), label: 'บัญชีของฉัน' },
+    ...(hasDelivery
+      ? [{ href: storefrontHref(slug, '/delivery'), label: 'การจัดส่ง', icon: 'truck' as const }]
+      : []),
+    { href: storefrontHref(slug, '/account'), label: 'บัญชีของฉัน', icon: 'user' as const },
   ];
 
   return (

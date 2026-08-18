@@ -10,12 +10,20 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { Menu, X } from 'lucide-react';
+import { Menu, X, Truck, UserRound } from 'lucide-react';
 
 export interface NavLink {
   href: string;
   label: string;
+  /** ไอคอนของลิงก์ที่ไม่ใช่หมวดสินค้า — ส่งเป็นชื่อ ไม่ใช่ ReactNode
+      เพราะ navLinks ถูกสร้างใน server component แล้วส่งข้ามมาเป็น prop */
+  icon?: 'truck' | 'user';
 }
+
+const ICONS = {
+  truck: Truck,
+  user: UserRound,
+};
 
 export default function MobileNav({ links }: { links: NavLink[] }) {
   const [open, setOpen] = useState(false);
@@ -34,11 +42,22 @@ export default function MobileNav({ links }: { links: NavLink[] }) {
 
       {open && (
         <nav className="sf-burger-panel" aria-label="หมวดสินค้า">
-          {links.map((l, i) => (
-            <Link key={i} href={l.href} className="sf-burger-link" onClick={() => setOpen(false)}>
-              {l.label}
-            </Link>
-          ))}
+          {links.map((l, i) => {
+            const Icon = l.icon ? ICONS[l.icon] : null;
+            // ลิงก์ที่มีไอคอนคือกลุ่มลิงก์ใช้งาน (ไม่ใช่หมวดสินค้า) — ขีดเส้นคั่นที่ตัวแรก
+            const startsUtilityGroup = !!l.icon && !links[i - 1]?.icon;
+            return (
+              <Link
+                key={i}
+                href={l.href}
+                className={`sf-burger-link${startsUtilityGroup ? ' sf-burger-sep' : ''}`}
+                onClick={() => setOpen(false)}
+              >
+                {Icon && <Icon strokeWidth={1.75} aria-hidden="true" />}
+                {l.label}
+              </Link>
+            );
+          })}
         </nav>
       )}
     </>

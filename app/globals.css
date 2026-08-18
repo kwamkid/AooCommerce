@@ -2,9 +2,13 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Prevent mobile horizontal overflow */
+/* กันเนื้อหาล้นแนวนอนบนมือถือ
+   ต้องเป็น clip ไม่ใช่ hidden — hidden ทำให้ body กลายเป็น scroll container
+   (แกนที่เหลือถูก compute เป็น auto) แล้ว position: sticky ของลูกหลานจะยึดกับ
+   scrollport ที่ไม่เคยเลื่อน จึงไม่ติดขอบบน · clip กันล้นได้เหมือนกันโดยไม่สร้าง
+   scroll container — หัวร้าน sticky จึงทำงาน */
 html, body {
-  overflow-x: hidden;
+  overflow-x: clip;
   max-width: 100%;
 }
 
