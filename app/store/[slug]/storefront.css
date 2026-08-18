@@ -67,6 +67,7 @@
   align-items: center;
   gap: 16px;
   min-height: 64px;
+  position: relative;   /* จุดอ้างอิงของแผงเมนูแฮมเบอร์เกอร์ ให้ทุกแบบเท่ากัน */
 }
 .sf-header-actions { display: flex; align-items: center; gap: 4px; margin-left: auto; }
 
@@ -763,13 +764,22 @@ html[data-sf-theme='dark'] .sf-root {
 
 /* จอแคบ — ทุกแบบยุบเป็นโลโก้ซ้าย + ไอคอนขวา + เมนูเลื่อนแนวนอนด้านล่าง
    เพราะเมนูกลาง/สองข้างไม่มีที่พอบนมือถือ */
+/* จอแคบ — ทุกแบบยุบเมนูเข้าแฮมเบอร์เกอร์เหมือนกันหมด
+   ลิงก์ยังอยู่ใน DOM (ซ่อนด้วย CSS ไม่ได้ถอดออก) Googlebot ที่ index แบบ
+   mobile-first จึงยังเดินตามลิงก์หมวดสินค้าได้ครบ */
 @media (max-width: 760px) {
-  .sf-head-center .sf-header-top,
+  .sf-nav { display: none; }
+  .sf-icon-btn.sf-burger { display: inline-flex; }
+
+  /* โลโก้ซ้าย / เมนูบรรทัดล่าง → แฮมเบอร์เกอร์อยู่ขวาสุด ถัดจากไอคอนอื่น */
+  .sf-head-left .sf-icon-btn.sf-burger,
+  .sf-head-stacked .sf-icon-btn.sf-burger { order: 9; }
+
+  /* โลโก้กลาง → แฮมเบอร์เกอร์ซ้าย ไอคอนขวา โลโก้อยู่กลางจริง */
   .sf-head-center .sf-brand { flex-direction: row; }
   .sf-head-center .sf-brand-logo { height: 30px; }
-  .sf-head-center .sf-header-actions { position: static; transform: none; margin-left: auto; }
-  .sf-head-left .sf-nav-inline { display: none; }
-  .sf-head-left .sf-icon-btn.sf-burger { display: inline-flex; }
-  .sf-head-center .sf-nav { justify-content: flex-start; }
+  .sf-head-center .sf-icon-btn.sf-burger {
+    position: absolute; left: 16px; top: 50%; transform: translateY(-50%);
+  }
 }
 

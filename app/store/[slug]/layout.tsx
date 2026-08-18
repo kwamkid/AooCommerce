@@ -80,7 +80,7 @@ export default async function StoreLayout({
           )}
 
           <div className="sf-header-actions">
-            {cfg.header_layout === 'left' && <MobileNav links={navLinks} />}
+            <MobileNav links={navLinks} />
             <Suspense fallback={<span className="sf-icon-btn" aria-hidden="true" />}>
               <SearchBox shop={slug} />
             </Suspense>
