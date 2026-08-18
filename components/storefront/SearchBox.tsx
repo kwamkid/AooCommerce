@@ -17,9 +17,21 @@ export default function SearchBox({ shop }: { shop: string }) {
   const [open, setOpen] = useState(!!activeQuery);
   const [value, setValue] = useState(activeQuery);
   const inputRef = useRef<HTMLInputElement>(null);
+  const popRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (open) inputRef.current?.focus();
+  }, [open]);
+
+  // popover ต้องปิดเมื่อคลิกที่อื่น ไม่งั้นมันค้างทับเนื้อหาอยู่อย่างนั้น
+  // (แถบเต็มความกว้างแบบเดิมไม่มีปัญหานี้เพราะมันดันเนื้อหาลงไม่ได้ทับ)
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (!popRef.current?.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
   }, [open]);
 
   const submit = (e: React.FormEvent) => {
@@ -35,7 +47,7 @@ export default function SearchBox({ shop }: { shop: string }) {
   };
 
   return (
-    <>
+    <div className="sf-search-pop" ref={popRef}>
       <button
         type="button"
         className="sf-icon-btn"
@@ -51,7 +63,7 @@ export default function SearchBox({ shop }: { shop: string }) {
 
       {open && (
         <div className="sf-search-panel">
-          <form className="sf-container sf-search" onSubmit={submit} role="search">
+          <form className="sf-search" onSubmit={submit} role="search">
             <Search className="sf-search-icon" strokeWidth={1.75} aria-hidden="true" />
             <input
               ref={inputRef}
@@ -67,6 +79,6 @@ export default function SearchBox({ shop }: { shop: string }) {
           </form>
         </div>
       )}
-    </>
+    </div>
   );
 }

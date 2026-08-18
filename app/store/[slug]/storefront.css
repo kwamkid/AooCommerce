@@ -458,7 +458,7 @@ html[data-sf-theme='dark'] .sf-root {
 /* ── เมนูแฮมเบอร์เกอร์ (เฉพาะหัวร้านแบบ "โลโก้ซ้าย" บนจอแคบ) ────────
    แบบโลโก้ซ้ายวางเมนูไว้บรรทัดเดียวกับโลโก้ พอจอแคบก็ไม่มีที่ — เดิมซ่อนทิ้ง
    เฉย ๆ ลูกค้าบนมือถือเลยเข้าหมวดสินค้าไม่ได้เลย ต้องมีที่เก็บให้มัน */
-.sf-burger { display: none; }
+.sf-icon-btn.sf-burger { display: none; }
 .sf-burger-panel {
   position: absolute; left: 0; right: 0; top: 100%;
   display: flex; flex-direction: column;
@@ -474,12 +474,20 @@ html[data-sf-theme='dark'] .sf-root {
 .sf-burger-link:hover { background: var(--sf-surface); }
 
 /* ── search + icon buttons ─────────────────────────────────────── */
-/* ช่องค้นหา = แถบที่กางลงมาใต้แถวบนของ header (เปิดจากไอคอนขวาบน) */
+/* ช่องค้นหา = popover ลอยใต้ไอคอน ไม่ใช่แถบเต็มความกว้าง
+   แถบเต็มความกว้างดันเนื้อหาลงและกินความสูง header ทุกครั้งที่เปิด
+   ทั้งที่ผู้ใช้ต้องการแค่ช่องพิมพ์ช่องเดียว */
+.sf-search-pop { position: relative; display: inline-flex; }
 .sf-search-panel {
-  border-top: 1px solid var(--sf-border);
-  background: var(--sf-bg);
-  padding: 12px 0;
-  animation: sf-search-open .18s ease-out;
+  position: absolute; right: 0; top: calc(100% + 10px);
+  width: min(340px, calc(100vw - 32px));
+  background: var(--sf-bg); color: var(--sf-text);
+  border: 1px solid var(--sf-border);
+  border-radius: 16px;
+  box-shadow: 0 18px 44px rgba(0, 0, 0, .16);
+  padding: 10px;
+  z-index: 40;
+  animation: sf-search-open .16s ease-out;
 }
 @keyframes sf-search-open {
   from { opacity: 0; transform: translateY(-6px); }
@@ -489,7 +497,7 @@ html[data-sf-theme='dark'] .sf-root {
   position: relative; display: flex; align-items: center; gap: 8px;
 }
 .sf-search-icon {
-  position: absolute; left: 28px; width: 18px; height: 18px;
+  position: absolute; left: 12px; width: 18px; height: 18px;
   color: var(--sf-muted); pointer-events: none;
 }
 .sf-search-input {
@@ -504,7 +512,7 @@ html[data-sf-theme='dark'] .sf-root {
 /* ปิดกากบาทของ browser — ปุ่มปิดอยู่บน header แล้ว */
 .sf-search-input::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; }
 .sf-search-go {
-  flex-shrink: 0; padding: 11px 20px; border-radius: 999px; border: none;
+  flex-shrink: 0; padding: 11px 16px; border-radius: 999px; border: none;
   background: var(--sf-cta); color: var(--sf-cta-contrast);
   font-size: 15px; font-weight: 600; font-family: inherit; cursor: pointer;
 }
@@ -761,7 +769,7 @@ html[data-sf-theme='dark'] .sf-root {
   .sf-head-center .sf-brand-logo { height: 30px; }
   .sf-head-center .sf-header-actions { position: static; transform: none; margin-left: auto; }
   .sf-head-left .sf-nav-inline { display: none; }
-  .sf-head-left .sf-burger { display: inline-flex; }
+  .sf-head-left .sf-icon-btn.sf-burger { display: inline-flex; }
   .sf-head-center .sf-nav { justify-content: flex-start; }
 }
 

@@ -20,7 +20,7 @@ import { apiFetch } from '@/lib/api-client';
 import { DEFAULT_STOREFRONT, storefrontCssVars, readableTextColor, relativeLuminance, type StorefrontConfig } from '@/lib/storefront';
 import ColorPicker from '@/components/ui/ColorPicker';
 import OptionCards from '@/components/ui/OptionCards';
-import { ExternalLink, Globe, Palette, Plus, Search, ShoppingBag, Store, Sun } from 'lucide-react';
+import { ExternalLink, Globe, Palette, Plus, Search, ShoppingBag, Store } from 'lucide-react';
 import Tabs from '@/components/ui/Tabs';
 
 // ── ภาพจำลองในตัวเลือก — วาดรูปทรงจริงเพื่อให้ตัดสินใจได้โดยไม่ต้องกดลอง ──
@@ -566,10 +566,9 @@ export default function StorefrontSettingsPage() {
                       {cfg.header_layout === 'left' && (
                         <span className="opacity-50 truncate" style={{ fontSize: 10 }}>สินค้าทั้งหมด · หมวด</span>
                       )}
-                      {/* ไอคอนชุดเดียวกับหัวร้านจริง — SearchBox / ThemeToggle / CartBadge */}
+                      {/* ไอคอนชุดเดียวกับหัวร้านจริง — SearchBox / CartBadge */}
                       <span className={`flex items-center gap-2 flex-shrink-0 ${cfg.header_layout === 'center' ? 'absolute right-3' : 'ml-auto'}`}>
                         <Search className="w-3.5 h-3.5 opacity-70" />
-                        <Sun className="w-3.5 h-3.5 opacity-70" />
                         <span className="relative">
                           <ShoppingBag className="w-3.5 h-3.5 opacity-70" />
                           <span

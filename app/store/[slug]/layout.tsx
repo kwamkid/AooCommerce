@@ -8,7 +8,6 @@ import { getStorefrontCompany, getStorefrontCategories, getClosedStorefront } fr
 import { storefrontCssVars, storefrontHref } from '@/lib/storefront';
 import CartBadge from '@/components/storefront/CartBadge';
 import MobileNav from '@/components/storefront/MobileNav';
-import ThemeToggle from '@/components/storefront/ThemeToggle';
 import SearchBox from '@/components/storefront/SearchBox';
 import ShopUnavailable from '@/components/storefront/ShopUnavailable';
 import './storefront.css';
@@ -56,12 +55,7 @@ export default async function StoreLayout({
       ].filter(Boolean).join(' ')}
       style={storefrontCssVars(cfg) as React.CSSProperties}
     >
-      {/* ตั้งธีมก่อน paint — ไม่งั้นหน้าจะกะพริบขาวก่อนเปลี่ยนเป็นมืด */}
-      <script
-        dangerouslySetInnerHTML={{
-          __html: `(function(){try{var t=localStorage.getItem('aoo-sf-theme');if(t==='dark'||t==='light')document.documentElement.setAttribute('data-sf-theme',t);}catch(e){}})();`,
-        }}
-      />
+      {/* ธีมตามเครื่องลูกค้า (prefers-color-scheme) — ไม่มีปุ่มสลับเอง เพราะกินที่บนหัวร้านที่มีของสำคัญกว่า */}
       {cfg.announcement && (
         <div className="sf-announcement">{cfg.announcement}</div>
       )}
@@ -90,7 +84,6 @@ export default async function StoreLayout({
             <Suspense fallback={<span className="sf-icon-btn" aria-hidden="true" />}>
               <SearchBox shop={slug} />
             </Suspense>
-            <ThemeToggle />
             <CartBadge shop={slug} />
           </div>
         </div>
