@@ -24,6 +24,9 @@ export async function GET(request: NextRequest) {
 
 const RADIUS = new Set(['sharp', 'soft', 'round']);
 const LAYOUT = new Set(['grid', 'editorial']);
+const HEADER = new Set(['light', 'brand', 'dark']);
+const RATIO = new Set(['1:1', '4:5']);
+const FIT = new Set(['cover', 'contain']);
 const HEX = /^#[0-9a-f]{6}$/i;
 
 export async function PUT(request: NextRequest) {
@@ -58,6 +61,11 @@ export async function PUT(request: NextRequest) {
   if (color && !HEX.test(color)) {
     return NextResponse.json({ error: 'สีไม่ถูกต้อง — ใช้รูปแบบ #RRGGBB' }, { status: 400 });
   }
+  // สีปุ่มเว้นว่างได้ = ใช้สีแบรนด์
+  const buttonColor = (body.button_color ?? '').trim();
+  if (buttonColor && !HEX.test(buttonColor)) {
+    return NextResponse.json({ error: 'สีปุ่มไม่ถูกต้อง — ใช้รูปแบบ #RRGGBB' }, { status: 400 });
+  }
 
   const { data: company } = await supabaseAdmin
     .from('companies')
@@ -76,8 +84,12 @@ export async function PUT(request: NextRequest) {
     public_base_path: (body.public_base_path ?? current.public_base_path).trim(),
     allow_ai_crawlers: body.allow_ai_crawlers ?? current.allow_ai_crawlers,
     primary_color: color || current.primary_color,
+    button_color: body.button_color !== undefined ? buttonColor : current.button_color,
+    header_style: HEADER.has(body.header_style as string) ? body.header_style! : current.header_style,
     radius: RADIUS.has(body.radius as string) ? body.radius! : current.radius,
     layout: LAYOUT.has(body.layout as string) ? body.layout! : current.layout,
+    image_ratio: RATIO.has(body.image_ratio as string) ? body.image_ratio! : current.image_ratio,
+    image_fit: FIT.has(body.image_fit as string) ? body.image_fit! : current.image_fit,
     announcement: (body.announcement ?? current.announcement).trim(),
   };
 

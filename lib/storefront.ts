@@ -25,9 +25,22 @@ export interface StorefrontConfig {
   /** อนุญาตให้ AI crawler (GPTBot/ClaudeBot/PerplexityBot/…) เก็บข้อมูล */
   allow_ai_crawlers: boolean;
   // ── theme tokens ──
+  /** สีแบรนด์ — ลิงก์ ราคา ไฮไลต์ */
   primary_color: string;
+  /** สีปุ่มสั่งซื้อ — ว่าง = ใช้สีแบรนด์ (ร้านส่วนใหญ่ไม่ต้องแยก) */
+  button_color: string;
+  /** แถบหัวร้าน: ขาว / สีแบรนด์ / เข้ม */
+  header_style: 'light' | 'brand' | 'dark';
   radius: 'sharp' | 'soft' | 'round';
   layout: 'grid' | 'editorial';
+  /** สัดส่วนกรอบรูปสินค้า — เป็นการ crop ตอนแสดงผล ไม่แตะไฟล์รูปจริง */
+  image_ratio: '1:1' | '4:5';
+  /**
+   * รูปที่สัดส่วนไม่ตรงกรอบจะเอาอย่างไร
+   *  cover   = ขยายเต็มกรอบแล้วตัดส่วนเกิน (รูปสม่ำเสมอ แต่เสี่ยงตัดของสำคัญ)
+   *  contain = ย่อให้เห็นทั้งรูป เติมพื้นหลังเบลอจากรูปเดียวกัน (ไม่ตัดอะไรเลย)
+   */
+  image_fit: 'cover' | 'contain';
   /** ข้อความประกาศบนหัวร้าน (ว่าง = ไม่แสดง) */
   announcement: string;
 }
@@ -40,8 +53,12 @@ export const DEFAULT_STOREFRONT: StorefrontConfig = {
   public_base_path: '',
   allow_ai_crawlers: true,
   primary_color: '#F4511E',
+  button_color: '',
+  header_style: 'light',
   radius: 'soft',
   layout: 'grid',
+  image_ratio: '1:1',
+  image_fit: 'cover',
   announcement: '',
 };
 
@@ -55,8 +72,12 @@ export function parseStorefront(settings: Record<string, unknown> | null | undef
     public_base_path: normalizeBasePath(stored.public_base_path ?? DEFAULT_STOREFRONT.public_base_path),
     allow_ai_crawlers: stored.allow_ai_crawlers ?? DEFAULT_STOREFRONT.allow_ai_crawlers,
     primary_color: stored.primary_color ?? DEFAULT_STOREFRONT.primary_color,
+    button_color: stored.button_color ?? DEFAULT_STOREFRONT.button_color,
+    header_style: stored.header_style ?? DEFAULT_STOREFRONT.header_style,
     radius: stored.radius ?? DEFAULT_STOREFRONT.radius,
     layout: stored.layout ?? DEFAULT_STOREFRONT.layout,
+    image_ratio: stored.image_ratio ?? DEFAULT_STOREFRONT.image_ratio,
+    image_fit: stored.image_fit ?? DEFAULT_STOREFRONT.image_fit,
     announcement: stored.announcement ?? DEFAULT_STOREFRONT.announcement,
   };
 }
@@ -90,12 +111,29 @@ const RADIUS_PX: Record<StorefrontConfig['radius'], string> = {
   round: '20px',
 };
 
+const RATIO_CSS: Record<StorefrontConfig['image_ratio'], string> = {
+  '1:1': '1 / 1',
+  '4:5': '4 / 5',
+};
+
 /** CSS custom properties injected on the storefront root — theme in one place. */
 export function storefrontCssVars(cfg: StorefrontConfig): Record<string, string> {
+  const button = cfg.button_color || cfg.primary_color;
+  // แถบหัวร้าน — 'light' ปล่อยให้ใช้พื้นหลังปกติ (ค่า empty = ไม่ override)
+  const header =
+    cfg.header_style === 'brand' ? { bg: cfg.primary_color, fg: readableTextColor(cfg.primary_color) }
+    : cfg.header_style === 'dark' ? { bg: '#111827', fg: '#f9fafb' }
+    : null;
+
   return {
     '--sf-primary': cfg.primary_color,
     '--sf-primary-contrast': readableTextColor(cfg.primary_color),
+    '--sf-cta': button,
+    '--sf-cta-contrast': readableTextColor(button),
     '--sf-radius': RADIUS_PX[cfg.radius],
+    '--sf-img-ratio': RATIO_CSS[cfg.image_ratio],
+    '--sf-img-fit': cfg.image_fit,
+    ...(header ? { '--sf-header-bg': header.bg, '--sf-header-fg': header.fg } : {}),
   };
 }
 

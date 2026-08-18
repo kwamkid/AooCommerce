@@ -19,6 +19,7 @@ import { useAuthGuard } from '@/lib/useAuthGuard';
 import { useFetchOnce } from '@/lib/use-fetch-once';
 import { apiFetch } from '@/lib/api-client';
 import { DEFAULT_STOREFRONT, storefrontCssVars, type StorefrontConfig } from '@/lib/storefront';
+import ColorPicker from '@/components/ui/ColorPicker';
 import { ExternalLink, Store } from 'lucide-react';
 
 export default function StorefrontSettingsPage() {
@@ -171,19 +172,58 @@ export default function StorefrontSettingsPage() {
             <Card padding="md">
               <p className="heading-4 mb-1">หน้าตา</p>
               <p className="section-desc mb-4">เปลี่ยนที่นี่ที่เดียว มีผลทั้งร้าน</p>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+
+              <div className="space-y-5 mb-5">
+                <ColorPicker
+                  label="สีแบรนด์ (ลิงก์ ราคา ไฮไลต์)"
+                  value={cfg.primary_color}
+                  onChange={(hex) => patch({ primary_color: hex })}
+                />
+                <ColorPicker
+                  label="สีปุ่มสั่งซื้อ"
+                  value={cfg.button_color}
+                  onChange={(hex) => patch({ button_color: hex })}
+                  allowEmpty
+                  emptyLabel="ใช้สีแบรนด์"
+                  fallbackValue={cfg.primary_color}
+                  hint={cfg.button_color ? undefined : 'ยังไม่ได้กำหนด — ใช้สีแบรนด์อยู่'}
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div>
-                  <label className="field-label">สีหลัก</label>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="color"
-                      value={cfg.primary_color}
-                      onChange={(e) => patch({ primary_color: e.target.value })}
-                      className="w-10 h-10 rounded-lg border border-gray-200 dark:border-slate-600 cursor-pointer bg-transparent"
-                      aria-label="สีหลักของร้าน"
-                    />
-                    <span className="body-text font-mono">{cfg.primary_color}</span>
-                  </div>
+                  <label className="field-label">แถบหัวร้าน</label>
+                  <FormSelect
+                    value={cfg.header_style}
+                    onChange={(v) => patch({ header_style: v as StorefrontConfig['header_style'] })}
+                    options={[
+                      { id: 'light', label: 'พื้นขาว' },
+                      { id: 'brand', label: 'สีแบรนด์' },
+                      { id: 'dark', label: 'พื้นเข้ม' },
+                    ]}
+                  />
+                </div>
+                <div>
+                  <label className="field-label">สัดส่วนรูปสินค้า</label>
+                  <FormSelect
+                    value={cfg.image_ratio}
+                    onChange={(v) => patch({ image_ratio: v as StorefrontConfig['image_ratio'] })}
+                    options={[
+                      { id: '1:1', label: 'จัตุรัส 1:1' },
+                      { id: '4:5', label: 'แนวตั้ง 4:5' },
+                    ]}
+                  />
+                </div>
+                <div>
+                  <label className="field-label">รูปที่สัดส่วนไม่ตรงกรอบ</label>
+                  <FormSelect
+                    value={cfg.image_fit}
+                    onChange={(v) => patch({ image_fit: v as StorefrontConfig['image_fit'] })}
+                    options={[
+                      { id: 'cover', label: 'เต็มกรอบ (ตัดขอบ)' },
+                      { id: 'contain', label: 'เห็นทั้งรูป' },
+                    ]}
+                  />
                 </div>
                 <div>
                   <label className="field-label">ความมนของมุม</label>
@@ -209,23 +249,53 @@ export default function StorefrontSettingsPage() {
                   />
                 </div>
               </div>
+              <p className="helper-text text-gray-500 mt-2">
+                สัดส่วนรูปเป็นการครอบตอนแสดงผลเท่านั้น — ไฟล์รูปที่อัปโหลดไว้ไม่ถูกแก้ เปลี่ยนกลับได้ตลอด
+                {cfg.image_fit === 'cover'
+                  ? ' · "เต็มกรอบ" เหมาะเมื่อรูปสินค้าสัดส่วนใกล้เคียงกัน — รูปที่สัดส่วนต่างจากกรอบจะถูกตัดขอบ'
+                  : ' · "เห็นทั้งรูป" ไม่ตัดอะไรเลย เติมพื้นหลังเบลอจากรูปเดียวกันให้เต็มกรอบ — เหมาะเมื่อรูปมาจากหลายแหล่ง สัดส่วนไม่เท่ากัน'}
+              </p>
 
-              {/* พรีวิวธีมสด ๆ ด้วย token ชุดเดียวกับหน้าร้านจริง */}
+              {/* พรีวิวสด — ใช้ token ชุดเดียวกับหน้าร้านจริง จึงตรงกับของจริงเสมอ */}
               <div
-                className="mt-4 rounded-lg border border-gray-200 dark:border-slate-600 p-4 flex items-center gap-3"
+                className="mt-5 rounded-xl border border-gray-200 dark:border-slate-600 overflow-hidden"
                 style={storefrontCssVars(cfg) as React.CSSProperties}
               >
-                <span
-                  className="inline-flex items-center px-5 py-2.5 font-semibold"
+                <div
+                  className="flex items-center gap-3 px-4 py-3 border-b border-gray-200 dark:border-slate-600"
                   style={{
-                    background: 'var(--sf-primary)',
-                    color: 'var(--sf-primary-contrast)',
-                    borderRadius: 'var(--sf-radius)',
+                    background: cfg.header_style === 'light' ? undefined : 'var(--sf-header-bg)',
+                    color: cfg.header_style === 'light' ? undefined : 'var(--sf-header-fg)',
                   }}
                 >
-                  หยิบใส่ตะกร้า
-                </span>
-                <span className="subtitle-text text-gray-500">ตัวอย่างปุ่มบนหน้าร้าน</span>
+                  <span className="font-bold">{cfg.display_name || 'ชื่อร้านของคุณ'}</span>
+                  <span className="subtitle-text opacity-70 ml-auto">ค้นหา · ธีม · ตะกร้า</span>
+                </div>
+                <div className="p-4 flex items-start gap-4 bg-white dark:bg-slate-800">
+                  <div
+                    className="w-24 flex-shrink-0 bg-gray-100 dark:bg-slate-700 flex items-center justify-center text-gray-400"
+                    style={{ aspectRatio: 'var(--sf-img-ratio)', borderRadius: 'var(--sf-radius)' }}
+                  >
+                    <span className="helper-text text-center leading-tight">
+                      {cfg.image_ratio}<br />
+                      {cfg.image_fit === 'cover' ? 'ตัดขอบ' : 'เห็นทั้งรูป'}
+                    </span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="heading-4 mb-1">สินค้าตัวอย่าง</div>
+                    <div className="font-bold mb-3" style={{ color: 'var(--sf-primary)' }}>฿1,790</div>
+                    <span
+                      className="inline-flex items-center px-5 py-2.5 font-semibold"
+                      style={{
+                        background: 'var(--sf-cta)',
+                        color: 'var(--sf-cta-contrast)',
+                        borderRadius: 'var(--sf-radius)',
+                      }}
+                    >
+                      หยิบใส่ตะกร้า
+                    </span>
+                  </div>
+                </div>
               </div>
             </Card>
 

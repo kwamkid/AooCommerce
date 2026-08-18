@@ -180,6 +180,7 @@
 | Checkbox | `Checkbox` | สร้าง checkbox เอง |
 | Tag input | `TagInput` | สร้าง tag input เอง |
 | Upload รูป (drag-drop, reorder, compress) | `ImageUploader` | สร้าง uploader เอง |
+| เลือกสี (ชุดสีสำเร็จรูป + จานสี + กรอกรหัสเอง) | `ColorPicker` — presets จาก `lib/color-presets.ts` | วาง `<input type="color">` ดิบ ๆ ในหน้า |
 
 ### Display Components
 | ต้องการ | ใช้ | ห้าม |

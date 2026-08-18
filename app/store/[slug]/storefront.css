@@ -13,6 +13,13 @@
   --sf-text: #111827;
   --sf-muted: #6b7280;
   --sf-max: 1200px;
+  /* ค่าตั้งต้น — จะถูก override ด้วย token จากธีมของร้าน */
+  --sf-cta: var(--sf-primary);
+  --sf-cta-contrast: var(--sf-primary-contrast);
+  --sf-img-ratio: 1 / 1;
+  --sf-img-fit: cover;
+  --sf-header-bg: var(--sf-bg);
+  --sf-header-fg: var(--sf-text);
 
   background: var(--sf-bg);
   color: var(--sf-text);
@@ -43,9 +50,18 @@
   border-bottom: 1px solid var(--sf-border);
   position: sticky;
   top: 0;
-  background: var(--sf-bg);
+  background: var(--sf-header-bg);
+  color: var(--sf-header-fg);
   z-index: 20;
 }
+/* แถบสีเข้ม/สีแบรนด์ — ตัวอักษรกับไอคอนต้องตามไปด้วย ไม่งั้นอ่านไม่ออก */
+.sf-header .sf-brand-name,
+.sf-header .sf-cart-link,
+.sf-header .sf-icon-btn { color: var(--sf-header-fg); }
+.sf-header .sf-nav-link { color: var(--sf-header-fg); opacity: .78; }
+.sf-header .sf-nav-link:hover { opacity: 1; color: var(--sf-header-fg); }
+.sf-header .sf-icon-btn:hover,
+.sf-header .sf-cart-link:hover { background: rgba(127, 127, 127, .18); color: var(--sf-header-fg); }
 
 .sf-header-top {
   display: flex;
@@ -102,14 +118,29 @@
 .sf-card:hover { box-shadow: 0 6px 20px rgba(0, 0, 0, .08); transform: translateY(-2px); }
 
 .sf-card-media {
-  aspect-ratio: 1 / 1;
+  aspect-ratio: var(--sf-img-ratio);
   background: var(--sf-surface);
   display: flex;
   align-items: center;
   justify-content: center;
   overflow: hidden;
 }
-.sf-card-media img { width: 100%; height: 100%; object-fit: cover; }
+.sf-card-media img {
+  width: 100%; height: 100%;
+  object-fit: var(--sf-img-fit);
+  position: relative; z-index: 1;
+}
+/* โหมด "เห็นทั้งรูป" — พื้นหลังเบลอจากรูปเดียวกัน ทำให้กรอบเต็มโดยไม่ตัดของ
+   และรูปสัดส่วนต่างกันยังดูเป็นชุดเดียวกัน */
+.sf-media-fill {
+  position: absolute; inset: 0;
+  background-image: var(--sf-media-src);
+  background-size: cover; background-position: center;
+  filter: blur(22px) saturate(1.25); transform: scale(1.25); opacity: .45;
+}
+.sf-card-media, .sf-gallery-main { position: relative; }
+/* โหมดเต็มกรอบไม่มีที่ว่างให้เติม — ซ่อนทิ้ง ไม่ต้องเสียแรง render */
+.sf-root:not(.sf-fit-contain) .sf-media-fill { display: none; }
 .sf-card-media-empty { color: var(--sf-muted); font-size: 13px; }
 
 .sf-card-body { padding: 12px 14px 16px; display: flex; flex-direction: column; gap: 4px; flex: 1; }
@@ -124,7 +155,7 @@
 @media (max-width: 860px) { .sf-detail { grid-template-columns: 1fr; gap: 24px; } }
 
 .sf-gallery-main {
-  aspect-ratio: 1 / 1;
+  aspect-ratio: var(--sf-img-ratio);
   border-radius: var(--sf-radius);
   overflow: hidden;
   background: var(--sf-surface);
@@ -132,7 +163,11 @@
   align-items: center;
   justify-content: center;
 }
-.sf-gallery-main img { width: 100%; height: 100%; object-fit: cover; }
+.sf-gallery-main img {
+  width: 100%; height: 100%;
+  object-fit: var(--sf-img-fit);
+  position: relative; z-index: 1;
+}
 .sf-gallery-thumbs { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
 .sf-gallery-thumbs img {
   width: 66px; height: 66px; object-fit: cover;
@@ -159,8 +194,8 @@
   align-items: center;
   justify-content: center;
   gap: 8px;
-  background: var(--sf-primary);
-  color: var(--sf-primary-contrast);
+  background: var(--sf-cta);
+  color: var(--sf-cta-contrast);
   border: none;
   border-radius: var(--sf-radius);
   padding: 14px 28px;
@@ -362,10 +397,10 @@ html[data-sf-theme='dark'] .sf-root {
 .sf-quickadd svg { width: 16px; height: 16px; flex-shrink: 0; }
 .sf-quickadd:hover { border-color: var(--sf-primary); color: var(--sf-primary); }
 .sf-quickadd-done {
-  background: var(--sf-primary); border-color: var(--sf-primary);
-  color: var(--sf-primary-contrast);
+  background: var(--sf-cta); border-color: var(--sf-cta);
+  color: var(--sf-cta-contrast);
 }
-.sf-quickadd-done:hover { color: var(--sf-primary-contrast); }
+.sf-quickadd-done:hover { color: var(--sf-cta-contrast); }
 .sf-quickadd-off {
   color: var(--sf-muted); cursor: default; justify-content: center;
   background: var(--sf-surface); font-weight: 500;
@@ -403,7 +438,7 @@ html[data-sf-theme='dark'] .sf-root {
 .sf-search-input::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; }
 .sf-search-go {
   flex-shrink: 0; padding: 11px 20px; border-radius: 999px; border: none;
-  background: var(--sf-primary); color: var(--sf-primary-contrast);
+  background: var(--sf-cta); color: var(--sf-cta-contrast);
   font-size: 15px; font-weight: 600; font-family: inherit; cursor: pointer;
 }
 

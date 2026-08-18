@@ -31,7 +31,10 @@ export default async function StoreLayout({
   const shopName = cfg.display_name || company.name;
 
   return (
-    <div className="sf-root" style={storefrontCssVars(cfg) as React.CSSProperties}>
+    <div
+      className={`sf-root ${cfg.image_fit === 'contain' ? 'sf-fit-contain' : ''}`}
+      style={storefrontCssVars(cfg) as React.CSSProperties}
+    >
       {/* ตั้งธีมก่อน paint — ไม่งั้นหน้าจะกะพริบขาวก่อนเปลี่ยนเป็นมืด */}
       <script
         dangerouslySetInnerHTML={{
