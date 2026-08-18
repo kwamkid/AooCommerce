@@ -447,13 +447,13 @@ export default function StorefrontSettingsPage() {
                   />
 
                   <OptionCards
-                    label="แสดงตรงหัวร้าน"
-                    value={cfg.logo_display}
-                    onChange={(v) => patch({ logo_display: v })}
+                    label="แถบหัวร้าน"
+                    value={cfg.header_style}
+                    onChange={(v) => patch({ header_style: v })}
                     options={[
-                      { id: 'logo_name' as const, label: 'โลโก้ + ชื่อ', preview: <LogoDisplayPreview mode="logo_name" /> },
-                      { id: 'logo_only' as const, label: 'โลโก้อย่างเดียว', description: 'โลโก้มีชื่อร้านอยู่แล้ว', preview: <LogoDisplayPreview mode="logo_only" /> },
-                      { id: 'name_only' as const, label: 'ชื่ออย่างเดียว', preview: <LogoDisplayPreview mode="name_only" /> },
+                      { id: 'light' as const, label: 'พื้นขาว', preview: <HeaderPreview bg="#ffffff" fg="#111827" border /> },
+                      { id: 'brand' as const, label: 'สีแบรนด์', preview: <HeaderPreview bg={cfg.primary_color} fg={readableTextColor(cfg.primary_color)} /> },
+                      { id: 'dark' as const, label: 'พื้นเข้ม', preview: <HeaderPreview bg="#111827" fg="#f9fafb" /> },
                     ]}
                   />
 
@@ -469,13 +469,13 @@ export default function StorefrontSettingsPage() {
                   />
 
                   <OptionCards
-                    label="แถบหัวร้าน"
-                    value={cfg.header_style}
-                    onChange={(v) => patch({ header_style: v })}
+                    label="แสดงตรงหัวร้าน"
+                    value={cfg.logo_display}
+                    onChange={(v) => patch({ logo_display: v })}
                     options={[
-                      { id: 'light' as const, label: 'พื้นขาว', preview: <HeaderPreview bg="#ffffff" fg="#111827" border /> },
-                      { id: 'brand' as const, label: 'สีแบรนด์', preview: <HeaderPreview bg={cfg.primary_color} fg={readableTextColor(cfg.primary_color)} /> },
-                      { id: 'dark' as const, label: 'พื้นเข้ม', preview: <HeaderPreview bg="#111827" fg="#f9fafb" /> },
+                      { id: 'logo_name' as const, label: 'โลโก้ + ชื่อ', preview: <LogoDisplayPreview mode="logo_name" /> },
+                      { id: 'logo_only' as const, label: 'โลโก้อย่างเดียว', description: 'โลโก้มีชื่อร้านอยู่แล้ว', preview: <LogoDisplayPreview mode="logo_only" /> },
+                      { id: 'name_only' as const, label: 'ชื่ออย่างเดียว', preview: <LogoDisplayPreview mode="name_only" /> },
                     ]}
                   />
 
@@ -506,9 +506,9 @@ export default function StorefrontSettingsPage() {
                     value={cfg.radius}
                     onChange={(v) => patch({ radius: v })}
                     options={[
-                      { id: 'sharp' as const, label: 'เหลี่ยม', preview: <RadiusPreview r={0} color={cfg.primary_color} /> },
-                      { id: 'soft' as const, label: 'มนเล็กน้อย', preview: <RadiusPreview r={6} color={cfg.primary_color} /> },
-                      { id: 'round' as const, label: 'มนมาก', preview: <RadiusPreview r={13} color={cfg.primary_color} /> },
+                      { id: 'sharp' as const, label: 'เหลี่ยม', description: 'คมชัด ดูจริงจัง', preview: <RadiusPreview r={0} color={cfg.primary_color} /> },
+                      { id: 'soft' as const, label: 'มนเล็กน้อย', description: 'มาตรฐาน ใช้ได้ทุกร้าน', preview: <RadiusPreview r={6} color={cfg.primary_color} /> },
+                      { id: 'round' as const, label: 'มนมาก', description: 'นุ่มนวล เป็นมิตร', preview: <RadiusPreview r={13} color={cfg.primary_color} /> },
                     ]}
                   />
 
