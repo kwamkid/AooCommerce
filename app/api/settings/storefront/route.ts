@@ -26,9 +26,9 @@ export async function GET(request: NextRequest) {
 }
 
 const RADIUS = new Set(['sharp', 'soft', 'round']);
-const LAYOUT = new Set(['grid', 'editorial']);
+const LAYOUT = new Set(['grid', 'editorial', 'masonry']);
 const HEADER = new Set(['light', 'brand', 'dark']);
-const RATIO = new Set(['1:1', '4:5']);
+const RATIO = new Set(['1:1', '4:5', 'auto']);
 const FIT = new Set(['cover', 'contain']);
 const HEX = /^#[0-9a-f]{6}$/i;
 

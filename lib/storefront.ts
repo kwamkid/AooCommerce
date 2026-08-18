@@ -32,9 +32,18 @@ export interface StorefrontConfig {
   /** แถบหัวร้าน: ขาว / สีแบรนด์ / เข้ม */
   header_style: 'light' | 'brand' | 'dark';
   radius: 'sharp' | 'soft' | 'round';
-  layout: 'grid' | 'editorial';
-  /** สัดส่วนกรอบรูปสินค้า — เป็นการ crop ตอนแสดงผล ไม่แตะไฟล์รูปจริง */
-  image_ratio: '1:1' | '4:5';
+  /**
+   * การจัดวางสินค้า
+   *  grid      = ตารางปกติ ทุกการ์ดสูงเท่ากันในแถว
+   *  editorial = การ์ดใหญ่ ลงน้อยต่อแถว
+   *  masonry   = ก่ออิฐ ไม่มีช่องว่างใต้การ์ดที่เตี้ยกว่า
+   */
+  layout: 'grid' | 'editorial' | 'masonry';
+  /**
+   * สัดส่วนกรอบรูปสินค้า — เป็นการ crop ตอนแสดงผล ไม่แตะไฟล์รูปจริง
+   * 'auto' = ไม่บังคับกรอบ ใช้สัดส่วนของไฟล์ต้นฉบับ (การ์ดจะสูงไม่เท่ากัน)
+   */
+  image_ratio: '1:1' | '4:5' | 'auto';
   /**
    * รูปที่สัดส่วนไม่ตรงกรอบจะเอาอย่างไร
    *  cover   = ขยายเต็มกรอบแล้วตัดส่วนเกิน (รูปสม่ำเสมอ แต่เสี่ยงตัดของสำคัญ)
@@ -114,6 +123,7 @@ const RADIUS_PX: Record<StorefrontConfig['radius'], string> = {
 const RATIO_CSS: Record<StorefrontConfig['image_ratio'], string> = {
   '1:1': '1 / 1',
   '4:5': '4 / 5',
+  auto: 'auto',
 };
 
 /** CSS custom properties injected on the storefront root — theme in one place. */

@@ -655,3 +655,39 @@ html[data-sf-theme='dark'] .sf-root {
 .sf-promo-list li { display: flex; align-items: center; gap: 10px; font-size: 15px; }
 .sf-promo-list svg { width: 18px; height: 18px; color: var(--sf-primary); flex-shrink: 0; }
 .sf-promo .sf-closed-contact { justify-content: flex-start; }
+
+/* ── สัดส่วน "ตามไฟล์ต้นฉบับ" ──────────────────────────────────────
+   ไม่บังคับกรอบ ปล่อยให้แต่ละรูปสูงตามจริง — การ์ดจึงสูงไม่เท่ากัน
+   ต้อง align-items:start ไม่งั้น grid จะยืดการ์ดเตี้ยให้เท่าการ์ดสูงสุด
+   แล้วเกิดช่องว่างใต้เนื้อหาแทนที่จะเป็นขอบล่างที่ไม่เท่ากันตามธรรมชาติ */
+.sf-ratio-auto .sf-grid { align-items: start; }
+.sf-ratio-auto .sf-card-media,
+.sf-ratio-auto .sf-gallery-main { aspect-ratio: auto; min-height: 0; }
+.sf-ratio-auto .sf-card-media img,
+.sf-ratio-auto .sf-gallery-main img { height: auto; object-fit: contain; }
+/* โหมดนี้ไม่มีส่วนเกินให้ตัด พื้นหลังเบลอจึงไม่ต้องใช้ */
+.sf-ratio-auto .sf-media-fill { display: none; }
+
+/* ── Masonry (ก่ออิฐ) ──────────────────────────────────────────────
+   ใช้ CSS multi-column เพราะเป็นวิธีเดียวที่ทำงานได้จริงทุกเบราว์เซอร์
+   วันนี้ (grid-template-rows: masonry ยังเป็น experimental) และไม่ต้องใช้ JS
+   จึงยัง server-render ได้ ไม่กระทบ SEO
+   ⚠️ ข้อแลก: ลำดับการอ่านไหลลงคอลัมน์ (1,2,3 ลงซ้าย แล้ว 4,5,6 คอลัมน์ถัดไป)
+   ไม่ใช่ซ้าย→ขวาแบบตาราง — จึงเหมาะกับร้านที่ลำดับสินค้าไม่สำคัญ */
+.sf-layout-masonry .sf-grid {
+  display: block;
+  column-count: 4;
+  column-gap: 20px;
+}
+.sf-layout-masonry .sf-card {
+  break-inside: avoid;          /* กันการ์ดถูกผ่าครึ่งคนละคอลัมน์ */
+  -webkit-column-break-inside: avoid;
+  margin-bottom: 20px;
+  width: 100%;
+}
+@media (max-width: 1280px) { .sf-layout-masonry .sf-grid { column-count: 3; } }
+@media (max-width: 900px)  { .sf-layout-masonry .sf-grid { column-count: 2; } }
+@media (max-width: 640px)  {
+  .sf-layout-masonry .sf-grid { column-count: 2; column-gap: 12px; }
+  .sf-layout-masonry .sf-card { margin-bottom: 12px; }
+}

@@ -47,7 +47,7 @@ function RatioPreview({ ratio }: { ratio: string }) {
 }
 
 /** เต็มกรอบ = รูป (แถบเฉียง) ล้นออกนอกกรอบแล้วถูกตัด · เห็นทั้งรูป = ย่อลงพอดี มีพื้นหลังเบลอ */
-function FitPreview({ mode, ratio }: { mode: 'cover' | 'contain'; ratio: '1:1' | '4:5' }) {
+function FitPreview({ mode, ratio }: { mode: 'cover' | 'contain'; ratio: StorefrontConfig['image_ratio'] }) {
   const frame = { aspectRatio: ratio === '1:1' ? '1 / 1' : '4 / 5', height: 44 };
   const photo = 'repeating-linear-gradient(135deg, #94a3b8 0 6px, #cbd5e1 6px 12px)';
   return (
@@ -61,6 +61,38 @@ function FitPreview({ mode, ratio }: { mode: 'cover' | 'contain'; ratio: '1:1' |
           <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2" style={{ background: photo, width: '78%', height: '58%' }} />
         </>
       )}
+    </span>
+  );
+}
+
+/** ตามต้นฉบับ = แต่ละรูปสูงตามจริง จึงวาดเป็นแท่งสูงไม่เท่ากัน */
+function AutoRatioPreview() {
+  return (
+    <span className="flex items-start gap-1">
+      {[44, 30, 38].map((h, i) => (
+        <span key={i} className="bg-gray-200 dark:bg-slate-600 rounded" style={{ width: 13, height: h }} />
+      ))}
+    </span>
+  );
+}
+
+/** ก่ออิฐ = คอลัมน์เรียงต่อกันโดยไม่มีช่องว่างใต้การ์ดเตี้ย */
+function MasonryPreview() {
+  const cell = 'bg-gray-200 dark:bg-slate-600 rounded-sm block';
+  return (
+    <span className="flex items-start gap-1" style={{ width: 54 }}>
+      <span className="flex flex-col gap-1 flex-1">
+        <span className={cell} style={{ height: 18 }} />
+        <span className={cell} style={{ height: 11 }} />
+      </span>
+      <span className="flex flex-col gap-1 flex-1">
+        <span className={cell} style={{ height: 11 }} />
+        <span className={cell} style={{ height: 18 }} />
+      </span>
+      <span className="flex flex-col gap-1 flex-1">
+        <span className={cell} style={{ height: 14 }} />
+        <span className={cell} style={{ height: 15 }} />
+      </span>
     </span>
   );
 }
@@ -273,6 +305,7 @@ export default function StorefrontSettingsPage() {
                     options={[
                       { id: '1:1' as const, label: 'จัตุรัส 1:1', preview: <RatioPreview ratio="1 / 1" /> },
                       { id: '4:5' as const, label: 'แนวตั้ง 4:5', preview: <RatioPreview ratio="4 / 5" /> },
+                      { id: 'auto' as const, label: 'ตามไฟล์ต้นฉบับ', preview: <AutoRatioPreview /> },
                     ]}
                   />
 
@@ -280,6 +313,7 @@ export default function StorefrontSettingsPage() {
                     label="รูปที่สัดส่วนไม่ตรงกรอบ"
                     value={cfg.image_fit}
                     onChange={(v) => patch({ image_fit: v })}
+                    disabled={cfg.image_ratio === 'auto'}
                     options={[
                       { id: 'cover' as const, label: 'เต็มกรอบ', description: 'ตัดขอบส่วนเกิน', preview: <FitPreview mode="cover" ratio={cfg.image_ratio} /> },
                       { id: 'contain' as const, label: 'เห็นทั้งรูป', description: 'เติมพื้นหลังเบลอ', preview: <FitPreview mode="contain" ratio={cfg.image_ratio} /> },
@@ -304,11 +338,14 @@ export default function StorefrontSettingsPage() {
                     options={[
                       { id: 'grid' as const, label: 'ตาราง', description: 'การ์ดเล็ก · มือถือ 2 ชิ้น/แถว', preview: <LayoutPreview mode="grid" /> },
                       { id: 'editorial' as const, label: 'รูปใหญ่', description: 'การ์ดใหญ่ · มือถือ 1 ชิ้น/แถว', preview: <LayoutPreview mode="editorial" /> },
+                      { id: 'masonry' as const, label: 'ก่ออิฐ', description: 'ไม่มีช่องว่าง · เรียงลงคอลัมน์', preview: <MasonryPreview /> },
                     ]}
                   />
 
                   <p className="helper-text text-gray-500 sm:col-span-2">
                     สัดส่วนรูปเป็นการครอบตอนแสดงผลเท่านั้น — ไฟล์รูปที่อัปโหลดไว้ไม่ถูกแก้ เปลี่ยนกลับได้ตลอด
+                    {cfg.image_ratio === 'auto' && ' · "ตามไฟล์ต้นฉบับ" ไม่ครอบรูปเลย การ์ดจึงสูงไม่เท่ากัน — เข้ากับเลย์เอาต์ "ก่ออิฐ" ที่สุด'}
+                    {cfg.layout === 'masonry' && ' · "ก่ออิฐ" เรียงสินค้าไล่ลงทีละคอลัมน์ (ไม่ใช่ซ้ายไปขวา) เหมาะกับร้านที่ลำดับสินค้าไม่สำคัญ'}
                   </p>
                 </div>
 
@@ -352,19 +389,27 @@ export default function StorefrontSettingsPage() {
                     </div>
 
                     <div className="p-3">
-                      <div className={`grid gap-2 ${cfg.layout === 'grid' ? 'grid-cols-2' : 'grid-cols-1'}`}>
-                        {(cfg.layout === 'grid' ? [0, 1, 2, 3] : [0, 1]).map(i => (
+                      <div className={`grid gap-2 ${cfg.layout === 'editorial' ? 'grid-cols-1' : 'grid-cols-2'}`}>
+                        {(cfg.layout === 'editorial' ? [0, 1] : [0, 1, 2, 3]).map(i => (
                           <div
                             key={i}
-                            className="border border-gray-200 dark:border-slate-600 overflow-hidden"
+                            className={`border border-gray-200 dark:border-slate-600 overflow-hidden ${
+                              cfg.layout === 'masonry' || cfg.image_ratio === 'auto' ? 'self-start' : ''
+                            }`}
                             style={{ borderRadius: 'var(--sf-radius)' }}
                           >
                             <div
                               className="bg-gray-100 dark:bg-slate-700 flex items-center justify-center text-gray-400"
-                              style={{ aspectRatio: 'var(--sf-img-ratio)' }}
+                              style={
+                                cfg.image_ratio === 'auto'
+                                  ? { height: [72, 54, 62, 80][i] }   // จำลองรูปสูงไม่เท่ากัน
+                                  : { aspectRatio: 'var(--sf-img-ratio)' }
+                              }
                             >
                               <span style={{ fontSize: 10 }}>
-                                {cfg.image_ratio} · {cfg.image_fit === 'cover' ? 'ตัดขอบ' : 'เห็นทั้งรูป'}
+                                {cfg.image_ratio === 'auto'
+                                  ? 'ตามต้นฉบับ'
+                                  : `${cfg.image_ratio} · ${cfg.image_fit === 'cover' ? 'ตัดขอบ' : 'เห็นทั้งรูป'}`}
                               </span>
                             </div>
                             <div className="p-2">

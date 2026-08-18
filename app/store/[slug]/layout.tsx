@@ -33,8 +33,8 @@ export default async function StoreLayout({
   return (
     <div
       className={`sf-root ${cfg.image_fit === 'contain' ? 'sf-fit-contain' : ''} ${
-        cfg.layout === 'editorial' ? 'sf-layout-editorial' : ''
-      }`}
+        cfg.layout === 'editorial' ? 'sf-layout-editorial' : cfg.layout === 'masonry' ? 'sf-layout-masonry' : ''
+      } ${cfg.image_ratio === 'auto' ? 'sf-ratio-auto' : ''}`}
       style={storefrontCssVars(cfg) as React.CSSProperties}
     >
       {/* ตั้งธีมก่อน paint — ไม่งั้นหน้าจะกะพริบขาวก่อนเปลี่ยนเป็นมืด */}
