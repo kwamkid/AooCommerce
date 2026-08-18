@@ -62,11 +62,8 @@ export default function UnavailableProduct({
               <Link key={p.id} href={storefrontHref(shop, `/p/${p.slug}`)} className="sf-card">
                 <div className="sf-card-media">
                   {p.images[0] ? (
-                    <>
-                      <span className="sf-media-fill" style={{ ['--sf-media-src' as string]: `url(${p.images[0]})` }} aria-hidden="true" />
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={p.images[0]} alt={p.name} loading="lazy" />
-                    </>
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={p.images[0]} alt={p.name} loading="lazy" />
                   ) : <span className="sf-card-media-empty">ไม่มีรูป</span>}
                 </div>
                 <div className="sf-card-body">

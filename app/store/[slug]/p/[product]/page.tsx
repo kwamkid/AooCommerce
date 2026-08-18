@@ -190,11 +190,8 @@ export default async function StorefrontProductPage({ params }: PageProps) {
         <div>
           <div className="sf-gallery-main">
             {product.images[0] ? (
-              <>
-                <span className="sf-media-fill" style={{ ['--sf-media-src' as string]: `url(${product.images[0]})` }} aria-hidden="true" />
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={product.images[0]} alt={product.name} />
-              </>
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={product.images[0]} alt={product.name} />
             ) : <span className="sf-card-media-empty">ไม่มีรูป</span>}
           </div>
           {product.images.length > 1 && (

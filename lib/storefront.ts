@@ -48,16 +48,14 @@ export interface StorefrontConfig {
   layout: 'grid' | 'editorial' | 'masonry';
   /**
    * สัดส่วนกรอบรูปสินค้า — เป็นการ crop ตอนแสดงผล ไม่แตะไฟล์รูปจริง
-   * 'auto' = ไม่บังคับกรอบ ใช้สัดส่วนของไฟล์ต้นฉบับ (การ์ดจะสูงไม่เท่ากัน)
+   *  '1:1' / '4:5' = บังคับกรอบให้เท่ากันทุกใบ ส่วนที่เกินถูกตัด (object-fit: cover)
+   *  'auto'        = ไม่บังคับกรอบ ใช้สัดส่วนของไฟล์ต้นฉบับ (การ์ดจะสูงไม่เท่ากัน)
+   *
+   * เคยมีตัวเลือกแยก `image_fit` (ย่อให้เห็นทั้งรูปแล้วเติมพื้นเบลอ/พื้นเรียบ) —
+   * ยุบทิ้งแล้ว เพราะมันตอบโจทย์เดียวกับ 'auto' คือ "ไม่อยากให้รูปโดนตัด"
+   * แต่แลกด้วยแถบเติมขอบทุกใบ ขณะที่ 'auto' + เลย์เอาต์ก่ออิฐ ได้รูปเต็มโดยไม่เสียพื้นที่
    */
   image_ratio: '1:1' | '4:5' | 'auto';
-  /**
-   * รูปที่สัดส่วนไม่ตรงกรอบจะเอาอย่างไร
-   *  cover         = ขยายเต็มกรอบแล้วตัดส่วนเกิน (รูปสม่ำเสมอ แต่เสี่ยงตัดของสำคัญ)
-   *  contain       = ย่อให้เห็นทั้งรูป เติมพื้นหลังเบลอจากรูปเดียวกัน
-   *  contain-plain = ย่อให้เห็นทั้งรูป พื้นหลังเรียบ (แบบ marketplace ทั่วไป)
-   */
-  image_fit: 'cover' | 'contain' | 'contain-plain';
   /** ข้อความประกาศบนหัวร้าน (ว่าง = ไม่แสดง) */
   announcement: string;
 }
@@ -76,7 +74,6 @@ export const DEFAULT_STOREFRONT: StorefrontConfig = {
   radius: 'soft',
   layout: 'grid',
   image_ratio: '1:1',
-  image_fit: 'cover',
   announcement: '',
 };
 
@@ -96,7 +93,6 @@ export function parseStorefront(settings: Record<string, unknown> | null | undef
     radius: stored.radius ?? DEFAULT_STOREFRONT.radius,
     layout: stored.layout ?? DEFAULT_STOREFRONT.layout,
     image_ratio: stored.image_ratio ?? DEFAULT_STOREFRONT.image_ratio,
-    image_fit: stored.image_fit ?? DEFAULT_STOREFRONT.image_fit,
     announcement: stored.announcement ?? DEFAULT_STOREFRONT.announcement,
   };
 }
@@ -152,8 +148,6 @@ export function storefrontCssVars(cfg: StorefrontConfig): Record<string, string>
     '--sf-cta-contrast': readableTextColor(button),
     '--sf-radius': RADIUS_PX[cfg.radius],
     '--sf-img-ratio': RATIO_CSS[cfg.image_ratio],
-    // CSS object-fit รู้จักแค่ cover/contain — 'contain-plain' ต่างที่พื้นหลังเท่านั้น
-    '--sf-img-fit': cfg.image_fit === 'cover' ? 'cover' : 'contain',
     ...(header ? { '--sf-header-bg': header.bg, '--sf-header-fg': header.fg } : {}),
   };
 }

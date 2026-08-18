@@ -85,23 +85,46 @@ function RatioPreview({ ratio }: { ratio: string }) {
   );
 }
 
-/** เต็มกรอบ = รูป (แถบเฉียง) ล้นออกนอกกรอบแล้วถูกตัด · เห็นทั้งรูป = ย่อลงพอดี มีพื้นหลังเบลอ */
-function FitPreview({ mode, ratio }: { mode: StorefrontConfig['image_fit']; ratio: StorefrontConfig['image_ratio'] }) {
-  const frame = { aspectRatio: ratio === '1:1' ? '1 / 1' : '4 / 5', height: 44 };
-  const photo = 'repeating-linear-gradient(135deg, #94a3b8 0 6px, #cbd5e1 6px 12px)';
+/**
+ * รูปสินค้าจำลองในพรีวิวสด — ต้นฉบับเป็น 1:1 หรือ 4:5 แล้วครอบด้วยกรอบที่เลือกจริง ๆ
+ * (เส้นขอบ = ขอบของไฟล์ต้นฉบับ · ด้านที่หายไปคือด้านที่ถูกตัด)
+ *
+ * ต้องคละสองสัดส่วน ไม่งั้นพรีวิวจะดูเหมือนกันหมดทุกตัวเลือก และผู้ใช้ก็ยังไม่รู้อยู่ดี
+ * ว่าเลือกกรอบ 1:1 แล้วรูปแนวตั้งของตัวเองจะโดนตัดหัวท้ายไปแค่ไหน
+ */
+function PreviewPhoto({ src, frame }: { src: '1:1' | '4:5'; frame: StorefrontConfig['image_ratio'] }) {
+  const RATIO = { '1:1': 1, '4:5': 0.8 } as const;
+  const css = (r: '1:1' | '4:5') => (r === '1:1' ? '1 / 1' : '4 / 5');
+  const photo = (
+    <span
+      className="absolute inset-0 flex items-center justify-center"
+      style={{
+        background: 'linear-gradient(135deg,#eef2f7,#cbd5e1)',
+        boxShadow: 'inset 0 0 0 1.5px rgba(100,116,139,.45)',
+      }}
+    >
+      <span className="rounded-full" style={{ width: '46%', aspectRatio: '1 / 1', background: 'var(--sf-primary)', opacity: .3 }} />
+    </span>
+  );
+
+  if (frame === 'auto') {
+    return <span className="relative block" style={{ aspectRatio: css(src) }}>{photo}</span>;
+  }
+
+  // จำลอง object-fit: cover — ด้านที่แคบกว่าถูกยืดจนเต็ม อีกด้านล้นออกไปแล้วถูกตัด
+  const wider = RATIO[src] > RATIO[frame];
   return (
-    <span className="relative overflow-hidden rounded-md block border border-gray-300 dark:border-slate-500" style={frame}>
-      {mode === 'cover' ? (
-        // รูปกว้างกว่ากรอบ → ส่วนที่เกินหายไป
-        <span className="absolute top-0 bottom-0" style={{ background: photo, left: '-25%', width: '150%' }} />
-      ) : (
-        <>
-          {mode === 'contain'
-            ? <span className="absolute inset-0" style={{ background: photo, filter: 'blur(4px)', opacity: .45, transform: 'scale(1.3)' }} />
-            : <span className="absolute inset-0 bg-gray-100 dark:bg-slate-700" />}
-          <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2" style={{ background: photo, width: '78%', height: '58%' }} />
-        </>
-      )}
+    <span className="relative block overflow-hidden" style={{ aspectRatio: css(frame) }}>
+      <span
+        className="absolute left-1/2 top-1/2"
+        style={{
+          transform: 'translate(-50%, -50%)',
+          width: wider ? `${(RATIO[src] / RATIO[frame]) * 100}%` : '100%',
+          height: wider ? '100%' : `${(RATIO[frame] / RATIO[src]) * 100}%`,
+        }}
+      >
+        {photo}
+      </span>
     </span>
   );
 }
@@ -117,23 +140,19 @@ function AutoRatioPreview() {
   );
 }
 
-/** ก่ออิฐ = คอลัมน์เรียงต่อกันโดยไม่มีช่องว่างใต้การ์ดเตี้ย */
+/**
+ * ก่ออิฐ — การ์ดใบล่างขยับขึ้นไปชนใบบนทันที ไม่รอให้แถวเสมอกัน
+ * รอยต่อของแต่ละคอลัมน์จึงอยู่คนละระดับ แต่ก้นคอลัมน์เสมอกัน = ไม่มีช่องว่าง
+ */
 function MasonryPreview() {
   const cell = 'bg-gray-200 dark:bg-slate-600 rounded-sm block';
   return (
-    <span className="flex items-start gap-1" style={{ width: 54 }}>
-      <span className="flex flex-col gap-1 flex-1">
-        <span className={cell} style={{ height: 18 }} />
-        <span className={cell} style={{ height: 11 }} />
-      </span>
-      <span className="flex flex-col gap-1 flex-1">
-        <span className={cell} style={{ height: 11 }} />
-        <span className={cell} style={{ height: 18 }} />
-      </span>
-      <span className="flex flex-col gap-1 flex-1">
-        <span className={cell} style={{ height: 14 }} />
-        <span className={cell} style={{ height: 15 }} />
-      </span>
+    <span className="flex items-start" style={{ width: 54, gap: 2 }}>
+      {[[22, 12], [12, 22], [17, 17]].map((col, i) => (
+        <span key={i} className="flex flex-col flex-1" style={{ gap: 2 }}>
+          {col.map((h, j) => <span key={j} className={cell} style={{ height: h }} />)}
+        </span>
+      ))}
     </span>
   );
 }
@@ -355,21 +374,9 @@ export default function StorefrontSettingsPage() {
                     value={cfg.image_ratio}
                     onChange={(v) => patch({ image_ratio: v })}
                     options={[
-                      { id: '1:1' as const, label: 'จัตุรัส 1:1', preview: <RatioPreview ratio="1 / 1" /> },
-                      { id: '4:5' as const, label: 'แนวตั้ง 4:5', preview: <RatioPreview ratio="4 / 5" /> },
-                      { id: 'auto' as const, label: 'ตามไฟล์ต้นฉบับ', preview: <AutoRatioPreview /> },
-                    ]}
-                  />
-
-                  <OptionCards
-                    label="รูปที่สัดส่วนไม่ตรงกรอบ"
-                    value={cfg.image_fit}
-                    onChange={(v) => patch({ image_fit: v })}
-                    disabled={cfg.image_ratio === 'auto'}
-                    options={[
-                      { id: 'cover' as const, label: 'เต็มกรอบ', description: 'ตัดขอบส่วนเกิน', preview: <FitPreview mode="cover" ratio={cfg.image_ratio} /> },
-                      { id: 'contain' as const, label: 'พื้นเบลอ', description: 'เห็นทั้งรูป', preview: <FitPreview mode="contain" ratio={cfg.image_ratio} /> },
-                      { id: 'contain-plain' as const, label: 'พื้นเรียบ', description: 'เห็นทั้งรูป', preview: <FitPreview mode="contain-plain" ratio={cfg.image_ratio} /> },
+                      { id: '1:1' as const, label: 'จัตุรัส 1:1', description: 'ทุกใบเท่ากัน · ตัดขอบ', preview: <RatioPreview ratio="1 / 1" /> },
+                      { id: '4:5' as const, label: 'แนวตั้ง 4:5', description: 'ทุกใบเท่ากัน · ตัดขอบ', preview: <RatioPreview ratio="4 / 5" /> },
+                      { id: 'auto' as const, label: 'ตามไฟล์ต้นฉบับ', description: 'เห็นทั้งรูป · สูงไม่เท่ากัน', preview: <AutoRatioPreview /> },
                     ]}
                   />
 
@@ -397,6 +404,7 @@ export default function StorefrontSettingsPage() {
 
                   <p className="helper-text text-gray-500 sm:col-span-2">
                     สัดส่วนรูปเป็นการครอบตอนแสดงผลเท่านั้น — ไฟล์รูปที่อัปโหลดไว้ไม่ถูกแก้ เปลี่ยนกลับได้ตลอด
+                    {cfg.image_ratio !== 'auto' && ' · ไม่อยากให้รูปโดนตัดเลย ใช้ "ตามไฟล์ต้นฉบับ" คู่กับเลย์เอาต์ "ก่ออิฐ"'}
                     {cfg.image_ratio === 'auto' && ' · "ตามไฟล์ต้นฉบับ" ไม่ครอบรูปเลย การ์ดจึงสูงไม่เท่ากัน — เข้ากับเลย์เอาต์ "ก่ออิฐ" ที่สุด'}
                     {cfg.layout === 'masonry' && ' · "ก่ออิฐ" เรียงสินค้าไล่ลงทีละคอลัมน์ (ไม่ใช่ซ้ายไปขวา) เหมาะกับร้านที่ลำดับสินค้าไม่สำคัญ'}
                   </p>
@@ -461,7 +469,10 @@ export default function StorefrontSettingsPage() {
 
                     <div className="p-3">
                       <div className={`grid gap-2 ${cfg.layout === 'editorial' ? 'grid-cols-1' : 'grid-cols-2'}`}>
-                        {(cfg.layout === 'editorial' ? [0, 1] : [0, 1, 2, 3]).map(i => (
+                        {(cfg.layout === 'editorial'
+                          ? (['1:1', '4:5'] as const)
+                          : (['1:1', '4:5', '4:5', '1:1'] as const)
+                        ).map((srcRatio, i) => (
                           <div
                             key={i}
                             className={`border border-gray-200 dark:border-slate-600 overflow-hidden ${
@@ -469,20 +480,7 @@ export default function StorefrontSettingsPage() {
                             }`}
                             style={{ borderRadius: 'var(--sf-radius)' }}
                           >
-                            <div
-                              className="bg-gray-100 dark:bg-slate-700 flex items-center justify-center text-gray-400"
-                              style={
-                                cfg.image_ratio === 'auto'
-                                  ? { height: [72, 54, 62, 80][i] }   // จำลองรูปสูงไม่เท่ากัน
-                                  : { aspectRatio: 'var(--sf-img-ratio)' }
-                              }
-                            >
-                              <span style={{ fontSize: 10 }}>
-                                {cfg.image_ratio === 'auto'
-                                  ? 'ตามต้นฉบับ'
-                                  : `${cfg.image_ratio} · ${cfg.image_fit === 'cover' ? 'ตัดขอบ' : 'เห็นทั้งรูป'}`}
-                              </span>
-                            </div>
+                            <PreviewPhoto src={srcRatio} frame={cfg.image_ratio} />
                             <div className="p-2">
                               <div className="text-gray-500" style={{ fontSize: 10 }}>กระเช้าปีใหม่</div>
                               <div className="font-semibold truncate" style={{ fontSize: 12 }}>สินค้าตัวอย่าง</div>
@@ -504,6 +502,9 @@ export default function StorefrontSettingsPage() {
                       </div>
                     </div>
                   </div>
+                  <p className="helper-text text-gray-500 mt-2">
+                    ตัวอย่างจำลองรูปต้นฉบับ 1:1 และ 4:5 อย่างละ 2 ชิ้น — จะได้เห็นว่ากรอบที่เลือกตัดรูปตรงไหน
+                  </p>
                 </div>
               </div>
             </Card>

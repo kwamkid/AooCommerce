@@ -17,7 +17,6 @@
   --sf-cta: var(--sf-primary);
   --sf-cta-contrast: var(--sf-primary-contrast);
   --sf-img-ratio: 1 / 1;
-  --sf-img-fit: cover;
   --sf-header-bg: var(--sf-bg);
   --sf-header-fg: var(--sf-text);
 
@@ -148,20 +147,10 @@
 }
 .sf-card-media img {
   width: 100%; height: 100%;
-  object-fit: var(--sf-img-fit);
+  object-fit: cover;            /* กรอบคงที่ = ตัดส่วนเกิน · โหมด "ตามไฟล์ต้นฉบับ" override ด้านล่าง */
   position: relative; z-index: 1;
 }
-/* โหมด "เห็นทั้งรูป" — พื้นหลังเบลอจากรูปเดียวกัน ทำให้กรอบเต็มโดยไม่ตัดของ
-   และรูปสัดส่วนต่างกันยังดูเป็นชุดเดียวกัน */
-.sf-media-fill {
-  position: absolute; inset: 0;
-  background-image: var(--sf-media-src);
-  background-size: cover; background-position: center;
-  filter: blur(22px) saturate(1.25); transform: scale(1.25); opacity: .45;
-}
 .sf-card-media, .sf-gallery-main { position: relative; }
-/* โหมดเต็มกรอบไม่มีที่ว่างให้เติม — ซ่อนทิ้ง ไม่ต้องเสียแรง render */
-.sf-root:not(.sf-fit-contain) .sf-media-fill { display: none; }
 .sf-card-media-empty { color: var(--sf-muted); font-size: 13px; }
 
 .sf-card-body { padding: 12px 14px 16px; display: flex; flex-direction: column; gap: 4px; flex: 1; }
@@ -186,7 +175,7 @@
 }
 .sf-gallery-main img {
   width: 100%; height: 100%;
-  object-fit: var(--sf-img-fit);
+  object-fit: cover;
   position: relative; z-index: 1;
 }
 .sf-gallery-thumbs { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
@@ -665,8 +654,6 @@ html[data-sf-theme='dark'] .sf-root {
 .sf-ratio-auto .sf-gallery-main { aspect-ratio: auto; min-height: 0; }
 .sf-ratio-auto .sf-card-media img,
 .sf-ratio-auto .sf-gallery-main img { height: auto; object-fit: contain; }
-/* โหมดนี้ไม่มีส่วนเกินให้ตัด พื้นหลังเบลอจึงไม่ต้องใช้ */
-.sf-ratio-auto .sf-media-fill { display: none; }
 
 /* ── Masonry (ก่ออิฐ) ──────────────────────────────────────────────
    ใช้ CSS multi-column เพราะเป็นวิธีเดียวที่ทำงานได้จริงทุกเบราว์เซอร์
@@ -720,8 +707,3 @@ html[data-sf-theme='dark'] .sf-root {
   .sf-head-center .sf-nav { justify-content: flex-start; }
 }
 
-/* พื้นเรียบ — เห็นทั้งรูปเหมือนโหมดเบลอ แต่พื้นหลังเป็นสีเรียบแบบ marketplace
-   เหมาะกับสินค้าที่ถ่ายบนพื้นขาวอยู่แล้ว ภาพเบลอจะรบกวนโดยไม่จำเป็น */
-.sf-fit-plain .sf-media-fill { display: none; }
-.sf-fit-plain .sf-card-media,
-.sf-fit-plain .sf-gallery-main { background: var(--sf-surface); }
