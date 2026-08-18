@@ -201,12 +201,16 @@ html, body {
 .dark .page-subtitle { color: rgb(148 163 184); }
 .section-desc  { font-size: 0.875rem; color: rgb(107 114 128); margin-top: 0.125rem; }
 .dark .section-desc  { color: rgb(148 163 184); }
+/* ป้ายกำกับช่องกรอก — 16px (เดิม 14px)
+   ภาษาไทยมีสระบน-ล่างและวรรณยุกต์ซ้อนกัน 14px อ่านหนักกว่าภาษาอังกฤษที่ขนาดเท่ากัน
+   ระยะห่างใต้ป้ายเพิ่มตามขนาดตัวอักษร ไม่งั้นป้ายจะติดกับช่องกรอกเกินไป */
 .field-label {
   display: block;
-  font-size: 0.875rem;
+  font-size: 1rem;
+  line-height: 1.5rem;
   font-weight: 500;
   color: rgb(55 65 81);
-  margin-bottom: 0.25rem;
+  margin-bottom: 0.375rem;
 }
 .dark .field-label { color: rgb(203 213 225); }
 

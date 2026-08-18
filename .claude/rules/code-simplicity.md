@@ -79,7 +79,7 @@
 - `.helper-text` = `text-xs` — label / caption
 - `.page-subtitle` = under h1 (`text-gray-600 mt-1`)
 - `.section-desc` = under h2/h3 (`text-sm text-gray-500 mt-0.5`)
-- `.field-label` = form input label (`block text-sm font-medium mb-1`)
+- `.field-label` = form input label — **16px** `font-medium` (ไม่ใช่ text-sm แล้ว)
 - Mobile responsive auto-included — h1 + h2 scale down at < 768px
 
 **กฎ**: เมื่ออัพเดท visual style ของ Button/Card/Badge/Modal → แก้ใน `globals.css` ไม่ใช่ใน Tailwind className ของ component
