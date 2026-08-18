@@ -176,6 +176,13 @@ function LayoutPreview({ mode }: { mode: 'grid' | 'editorial' }) {
   );
 }
 
+const PREVIEW_ITEMS = [
+  { cat: 'กระเช้าปีใหม่', name: 'กระเช้าผลไม้พรีเมียม รวมผลไม้นำเข้า 12 ชนิด', price: '฿1,790', src: '1:1' as const },
+  { cat: 'กระเช้าเยี่ยมไข้', name: 'กระเช้าส้มสายน้ำผึ้ง', price: '฿890', src: '4:5' as const },
+  { cat: 'กระเช้าปีใหม่', name: 'กระเช้าแอปเปิลฟูจิ พร้อมการ์ดอวยพร', price: '฿1,290', src: '4:5' as const },
+  { cat: 'ของขวัญ', name: 'ตะกร้าผลไม้รวม', price: '฿650', src: '1:1' as const },
+];
+
 export default function StorefrontSettingsPage() {
   const { allowed, loading: guardLoading } = useAuthGuard('settings.access', { noRedirect: true });
   const { showToast } = useToast();
@@ -491,23 +498,31 @@ export default function StorefrontSettingsPage() {
                     )}
 
                     <div className="p-3">
-                      <div className={`grid gap-2 ${cfg.layout === 'editorial' ? 'grid-cols-1' : 'grid-cols-2'}`}>
-                        {(cfg.layout === 'editorial'
-                          ? (['1:1', '4:5'] as const)
-                          : (['1:1', '4:5', '4:5', '1:1'] as const)
-                        ).map((srcRatio, i) => (
+                      {/* ก่ออิฐใช้ CSS multi-column เหมือนหน้าร้านจริง — grid ทำแบบนี้ไม่ได้
+                          เพราะ grid ยังจัดเป็นแถว การ์ดใบล่างจึงไม่ดันขึ้นไปชิดใบบน */}
+                      <div
+                        className={cfg.layout === 'masonry' ? 'block' : `grid gap-2 ${cfg.layout === 'editorial' ? 'grid-cols-1' : 'grid-cols-2'}`}
+                        style={cfg.layout === 'masonry' ? { columnCount: 2, columnGap: 8 } : undefined}
+                      >
+                        {(cfg.layout === 'editorial' ? PREVIEW_ITEMS.slice(0, 2) : PREVIEW_ITEMS).map((item, i) => (
                           <div
                             key={i}
                             className={`border border-gray-200 dark:border-slate-600 overflow-hidden ${
-                              cfg.layout === 'masonry' || cfg.image_ratio === 'auto' ? 'self-start' : ''
+                              cfg.layout !== 'masonry' && cfg.image_ratio === 'auto' ? 'self-start' : ''
                             }`}
-                            style={{ borderRadius: 'var(--sf-radius)' }}
+                            style={{
+                              borderRadius: 'var(--sf-radius)',
+                              ...(cfg.layout === 'masonry'
+                                ? { breakInside: 'avoid' as const, WebkitColumnBreakInside: 'avoid', marginBottom: 8, width: '100%' }
+                                : {}),
+                            }}
                           >
-                            <PreviewPhoto src={srcRatio} frame={cfg.image_ratio} />
+                            <PreviewPhoto src={item.src} frame={cfg.image_ratio} />
                             <div className="p-2">
-                              <div className="text-gray-500" style={{ fontSize: 10 }}>กระเช้าปีใหม่</div>
-                              <div className="font-semibold truncate" style={{ fontSize: 12 }}>สินค้าตัวอย่าง</div>
-                              <div className="font-bold mt-0.5" style={{ fontSize: 12, color: 'var(--sf-primary)' }}>฿1,790</div>
+                              <div className="text-gray-500" style={{ fontSize: 10 }}>{item.cat}</div>
+                              {/* ห้าม truncate — ชื่อยาวต้องขึ้นบรรทัดที่สองจริง ไม่งั้นพรีวิวโกหกเรื่องความสูงการ์ด */}
+                              <div className="font-semibold" style={{ fontSize: 12, lineHeight: 1.35 }}>{item.name}</div>
+                              <div className="font-bold mt-0.5" style={{ fontSize: 12, color: 'var(--sf-primary)' }}>{item.price}</div>
                               <div
                                 className="mt-1.5 text-center font-semibold py-1"
                                 style={{
@@ -526,7 +541,8 @@ export default function StorefrontSettingsPage() {
                     </div>
                   </div>
                   <p className="helper-text text-gray-500 mt-2">
-                    ตัวอย่างจำลองรูปต้นฉบับ 1:1 และ 4:5 อย่างละ 2 ชิ้น — จะได้เห็นว่ากรอบที่เลือกตัดรูปตรงไหน
+                    ตัวอย่างจำลองรูปต้นฉบับ 1:1 และ 4:5 อย่างละ 2 ชิ้น และชื่อสินค้าทั้งแบบสั้นและยาวเกิน 1 บรรทัด
+                    — จะได้เห็นทั้งจุดที่กรอบตัดรูป และความสูงการ์ดที่ต่างกันจริง
                   </p>
                 </div>
               </div>
