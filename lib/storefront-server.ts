@@ -280,6 +280,35 @@ export const getStorefrontProduct = cache(async (
   return product.variations.length > 0 ? product : null;
 });
 
+export interface DiscontinuedProduct {
+  name: string;
+  image: string | null;
+  category: string | null;
+}
+
+/**
+ * สินค้าที่ "เคยมี" แต่ตอนนี้ปิดขาย/ซ่อนจากหน้าร้าน
+ *
+ * ใช้แยกให้ออกระหว่าง URL ที่ Google เคยเก็บไว้ตอนสินค้ายังขายอยู่
+ * (ต้องเก็บคนที่ค้นเจอไว้ในร้าน ไม่ปล่อยให้เด้งออก) กับ URL มั่วที่ไม่เคยมีจริง
+ */
+export const getDiscontinuedProduct = cache(async (
+  companyId: string,
+  slugOrId: string,
+): Promise<DiscontinuedProduct | null> => {
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(slugOrId);
+  const { data } = await supabaseAdmin
+    .from('products')
+    .select('name, image, category:product_categories ( name )')
+    .eq('company_id', companyId)
+    .eq(isUuid ? 'id' : 'slug', slugOrId)
+    .maybeSingle();
+  if (!data) return null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const row = data as any;
+  return { name: row.name, image: row.image || null, category: row.category?.name ?? null };
+});
+
 /** Distinct category names that actually have visible products (for nav). */
 export const getStorefrontCategories = cache(async (companyId: string): Promise<string[]> => {
   const { data } = await supabaseAdmin

@@ -5,7 +5,6 @@
 // นี่คือหน้าที่ AEO จะอ้างถึงมากที่สุด (เช่นคำถาม "ร้านผักสดส่งกรุงเทพวันไหนได้บ้าง")
 // → ทุกอย่างเป็นประโยคเต็มใน server HTML + FAQPage schema
 import type { Metadata } from 'next';
-import { notFound } from 'next/navigation';
 import { getStorefrontCompany, getStorefrontDelivery } from '@/lib/storefront-server';
 import { storefrontUrl, formatStorePrice } from '@/lib/storefront';
 import { formatSlotTime, formatDays } from '@/lib/delivery';
@@ -19,7 +18,7 @@ interface PageProps {
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug } = await params;
   const company = await getStorefrontCompany(slug);
-  if (!company) return { title: 'ไม่พบหน้าร้าน' };
+  if (!company) return { title: 'ไม่พบร้านนี้', robots: { index: false, follow: false } };
 
   const cfg = company.config;
   const shopName = cfg.display_name || company.name;
@@ -43,7 +42,7 @@ function minutesLabel(m: number): string {
 export default async function StorefrontDeliveryPage({ params }: PageProps) {
   const { slug } = await params;
   const company = await getStorefrontCompany(slug);
-  if (!company) notFound();
+  if (!company) return null;   // layout แสดงหน้า 'ไม่พบร้านนี้' ให้แล้ว
 
   const { zones, slots } = await getStorefrontDelivery(company.id);
   const shopName = company.config.display_name || company.name;

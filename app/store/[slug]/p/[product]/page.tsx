@@ -7,11 +7,14 @@
 //   • Product + Offer + BreadcrumbList JSON-LD ครบ (ราคา/สต็อกที่ AI อ่านจริง)
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { notFound } from 'next/navigation';
-import { getStorefrontCompany, getStorefrontProduct, getStorefrontDelivery } from '@/lib/storefront-server';
+import {
+  getStorefrontCompany, getStorefrontProduct, getStorefrontDelivery,
+  getDiscontinuedProduct, getStorefrontCatalog,
+} from '@/lib/storefront-server';
 import { storefrontUrl, storefrontHref, formatStorePrice } from '@/lib/storefront';
 import { formatSlotTime } from '@/lib/delivery';
 import AddToCartButton from '@/components/storefront/AddToCartButton';
+import UnavailableProduct from '@/components/storefront/UnavailableProduct';
 
 export const revalidate = 300;
 
@@ -22,10 +25,19 @@ interface PageProps {
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug, product: productSlug } = await params;
   const company = await getStorefrontCompany(slug);
-  if (!company) return { title: 'ไม่พบหน้าร้าน' };
+  if (!company) return { title: 'ไม่พบร้านนี้', robots: { index: false, follow: false } };
 
   const product = await getStorefrontProduct(company.id, productSlug);
-  if (!product) return { title: 'ไม่พบสินค้า', robots: { index: false, follow: false } };
+  if (!product) {
+    // URL ที่เคยมีสินค้า → บอกให้ชัดว่าเลิกขาย · follow:true เพื่อให้ crawler
+    // เดินต่อไปหน้าสินค้าที่แนะนำได้ ไม่ตัน
+    const gone = await getDiscontinuedProduct(company.id, productSlug);
+    const shopName = company.config.display_name || company.name;
+    return {
+      title: gone ? `${gone.name} — ไม่มีจำหน่ายแล้ว | ${shopName}` : `ไม่พบสินค้า | ${shopName}`,
+      robots: { index: false, follow: true },
+    };
+  }
 
   const cfg = company.config;
   const shopName = cfg.display_name || company.name;
@@ -53,10 +65,28 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 export default async function StorefrontProductPage({ params }: PageProps) {
   const { slug, product: productSlug } = await params;
   const company = await getStorefrontCompany(slug);
-  if (!company) notFound();
+  if (!company) return null;   // layout แสดงหน้า 'ไม่พบร้านนี้' ให้แล้ว
 
   const product = await getStorefrontProduct(company.id, productSlug, company.features.stock);
-  if (!product) notFound();
+  if (!product) {
+    const gone = await getDiscontinuedProduct(company.id, productSlug);
+    // ดึงของที่ยังขายอยู่มาแนะนำ — หมวดเดิมก่อน ถ้าไม่มีก็ทั้งร้าน
+    const sameCategory = gone?.category
+      ? await getStorefrontCatalog(company.id, { category: gone.category, limit: 8 }, company.features.stock)
+      : [];
+    const suggestions = sameCategory.length > 0
+      ? sameCategory
+      : (await getStorefrontCatalog(company.id, { limit: 8 }, company.features.stock));
+    return (
+      <UnavailableProduct
+        shop={slug}
+        productName={gone?.name ?? null}
+        productImage={gone?.image ?? null}
+        category={gone?.category ?? null}
+        suggestions={suggestions.slice(0, 8)}
+      />
+    );
+  }
 
   const cfg = company.config;
   const shopName = cfg.display_name || company.name;

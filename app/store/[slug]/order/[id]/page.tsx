@@ -5,7 +5,9 @@
 // ข้อมูลมาจาก GET handler ของ /api/bills เรียก in-process — single source of
 // truth เดียวกับหน้าบิลเดิม ไม่ต้องมี API ซ้ำ
 import type { Metadata } from 'next';
-import { notFound } from 'next/navigation';
+import Link from 'next/link';
+import { PackageX } from 'lucide-react';
+import { storefrontHref } from '@/lib/storefront';
 import { NextRequest } from 'next/server';
 import { GET as billsGET } from '@/app/api/bills/route';
 import { getStorefrontCompany } from '@/lib/storefront-server';
@@ -36,12 +38,26 @@ export default async function StorefrontOrderPage({
 }) {
   const { slug, id } = await params;
   const company = await getStorefrontCompany(slug);
-  if (!company) notFound();
+  if (!company) return null;   // layout แสดงหน้า 'ไม่พบร้านนี้' ให้แล้ว
 
   const order = await fetchOrder(id);
   // ⚠️ ต้องเช็คว่าออเดอร์เป็นของร้านนี้จริง ไม่งั้นเอา id ของร้านอื่นมาเปิด
   // ใต้ slug ไหนก็ได้ — ข้อมูลข้ามบริษัทรั่ว
-  if (!order || order.company_id !== company.id) notFound();
+  if (!order || order.company_id !== company.id) {
+    return (
+      <div className="sf-container sf-gone" style={{ paddingTop: 48 }}>
+        <PackageX className="sf-gone-icon" strokeWidth={1.4} aria-hidden="true" />
+        <div>
+          <h1>ไม่พบคำสั่งซื้อนี้</h1>
+          <p>ลิงก์อาจไม่ถูกต้อง หรือคำสั่งซื้อนี้ไม่ได้อยู่กับร้านนี้</p>
+          <div className="sf-gone-actions">
+            <Link href={storefrontHref(slug)} className="sf-cta">กลับไปหน้าร้าน</Link>
+            <Link href={storefrontHref(slug, '/account')} className="sf-btn-ghost">บัญชีของฉัน</Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return <OrderClient shop={slug} initialOrder={order} />;
 }

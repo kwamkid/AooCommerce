@@ -4,12 +4,12 @@
 // reuse the same page bodies without this chrome.
 import { Suspense, type ReactNode } from 'react';
 import Link from 'next/link';
-import { notFound } from 'next/navigation';
 import { getStorefrontCompany, getStorefrontCategories } from '@/lib/storefront-server';
 import { storefrontCssVars, storefrontHref } from '@/lib/storefront';
 import CartBadge from '@/components/storefront/CartBadge';
 import ThemeToggle from '@/components/storefront/ThemeToggle';
 import SearchBox from '@/components/storefront/SearchBox';
+import ShopUnavailable from '@/components/storefront/ShopUnavailable';
 import './storefront.css';
 
 export default async function StoreLayout({
@@ -21,7 +21,7 @@ export default async function StoreLayout({
 }) {
   const { slug } = await params;
   const company = await getStorefrontCompany(slug);
-  if (!company) notFound();
+  if (!company) return <ShopUnavailable />;
 
   const categories = await getStorefrontCategories(company.id);
   const cfg = company.config;

@@ -5,7 +5,6 @@
 // ปุ่ม LINE จะโผล่เฉพาะร้านที่ตั้งค่า LINE OA ไว้แล้ว — ร้านที่ไม่มี OA
 // ให้ login LINE ไปก็ส่งแจ้งเตือนไม่ได้ กลายเป็นปุ่มที่ให้ความคาดหวังผิด
 import type { Metadata } from 'next';
-import { notFound } from 'next/navigation';
 import { getStorefrontCompany } from '@/lib/storefront-server';
 import AccountClient from './account-client';
 
@@ -17,7 +16,7 @@ export const metadata: Metadata = {
 export default async function StorefrontAccountPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const company = await getStorefrontCompany(slug);
-  if (!company) notFound();
+  if (!company) return null;   // layout แสดงหน้า 'ไม่พบร้านนี้' ให้แล้ว
 
   return (
     <AccountClient

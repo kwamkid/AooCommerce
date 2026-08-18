@@ -552,3 +552,20 @@ html[data-sf-theme='dark'] .sf-root {
 }
 .sf-warn > svg { width: 20px; height: 20px; color: #d97706; flex-shrink: 0; margin-top: 2px; }
 .sf-warn p { margin: 4px 0 0; }
+
+/* ── หน้าสินค้า/ร้านที่เปิดไม่ได้ ─────────────────────────────── */
+.sf-standalone {
+  /* ใช้ตอนไม่มี company จึงไม่มี theme token — ตั้งค่าเริ่มต้นไว้เอง */
+  --sf-primary: #F4511E;
+  --sf-primary-contrast: #ffffff;
+  --sf-radius: 12px;
+}
+.sf-gone { display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap; margin-bottom: 32px; }
+.sf-gone h1 { font-size: 24px; font-weight: 700; margin: 0 0 6px; line-height: 1.4; }
+.sf-gone p { color: var(--sf-muted); margin: 0 0 16px; max-width: 55ch; }
+.sf-gone-icon { width: 56px; height: 56px; color: var(--sf-muted); flex-shrink: 0; }
+.sf-gone-img {
+  width: 120px; height: 120px; object-fit: cover; flex-shrink: 0;
+  border-radius: var(--sf-radius); filter: grayscale(1); opacity: .55;
+}
+.sf-gone-actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
