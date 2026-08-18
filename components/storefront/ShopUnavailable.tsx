@@ -5,19 +5,38 @@
 //                    ไม่ควรถูกไล่ออกไปมือเปล่า
 //  2. ไม่พบร้าน   → slug ไม่มีจริง หรือบริษัทไม่เคยเปิดหน้าร้าน บอกกลาง ๆ
 //                    ห้ามเผยชื่อบริษัท (ไม่งั้นเดา slug ไล่ดูได้ว่ามีใครในระบบบ้าง)
-import { Store, Clock, Phone, Mail } from 'lucide-react';
+import Link from 'next/link';
+import { Store, Clock, Phone, Mail, ShoppingBag, Truck, BarChart3 } from 'lucide-react';
 import { storefrontCssVars } from '@/lib/storefront';
 import type { ClosedStorefront } from '@/lib/storefront-server';
 
 export default function ShopUnavailable({ closed }: { closed?: ClosedStorefront | null }) {
+  // ── ไม่มีร้านนี้ ──
+  // หน้านี้มีคนเข้าถึงอยู่แล้ว (พิมพ์ URL ผิด / ลิงก์เก่า) ปล่อยเป็นหน้าตาย
+  // ก็เสียเปล่า จึงชวนเปิดร้านต่อ — แต่ **เฉพาะกรณีนี้เท่านั้น**
+  // ห้ามไปโผล่ในหน้าร้านที่ปิดชั่วคราว เพราะเท่ากับแย่งลูกค้าของร้านที่ใช้ระบบเราอยู่
   if (!closed) {
     return (
       <div className="sf-root sf-standalone">
-        <div className="sf-container sf-gone sf-gone-center">
+        <div className="sf-container sf-closed">
           <Store className="sf-gone-icon" strokeWidth={1.4} aria-hidden="true" />
-          <div>
-            <h1>ไม่พบหน้าร้านนี้</h1>
-            <p>ลิงก์อาจไม่ถูกต้อง หรือหน้าร้านนี้ถูกปิดไปแล้ว</p>
+          <h1>ไม่พบร้านที่คุณค้นหา</h1>
+          <p className="sf-closed-msg">ลิงก์อาจไม่ถูกต้อง หรือหน้าร้านนี้ถูกปิดไปแล้ว</p>
+
+          <div className="sf-promo">
+            <h2>อยากเปิดร้านออนไลน์ของคุณเองไหม?</h2>
+            <p>
+              สร้างหน้าร้านพร้อมระบบหลังบ้านครบในที่เดียว — เปิดใช้ได้เลย ไม่ต้องเขียนโค้ด
+            </p>
+            <ul className="sf-promo-list">
+              <li><ShoppingBag strokeWidth={1.75} aria-hidden="true" /> หน้าร้านออนไลน์พร้อมตะกร้าและชำระเงิน</li>
+              <li><Truck strokeWidth={1.75} aria-hidden="true" /> กำหนดโซนค่าส่งและรอบจัดส่งเองได้</li>
+              <li><BarChart3 strokeWidth={1.75} aria-hidden="true" /> จัดการออเดอร์ สต็อก และลูกค้า ที่เดียวจบ</li>
+            </ul>
+            <div className="sf-closed-contact">
+              <Link href="/register" className="sf-cta">เปิดร้านของคุณ</Link>
+              <Link href="/login" className="sf-btn-ghost">มีบัญชีอยู่แล้ว</Link>
+            </div>
           </div>
         </div>
       </div>

@@ -586,3 +586,16 @@ html[data-sf-theme='dark'] .sf-root {
   display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin-top: 8px;
 }
 .sf-closed-contact a { text-decoration: none; }
+
+/* ── ชวนเปิดร้าน (เฉพาะหน้า "ไม่พบร้านนี้") ──────────────────── */
+.sf-promo {
+  margin-top: 36px; padding: 28px 24px;
+  border: 1px solid var(--sf-border); border-radius: var(--sf-radius);
+  background: var(--sf-surface); text-align: left;
+}
+.sf-promo h2 { font-size: 19px; font-weight: 700; margin: 0 0 6px; }
+.sf-promo > p { color: var(--sf-muted); margin: 0 0 18px; }
+.sf-promo-list { list-style: none; margin: 0 0 22px; padding: 0; display: flex; flex-direction: column; gap: 11px; }
+.sf-promo-list li { display: flex; align-items: center; gap: 10px; font-size: 15px; }
+.sf-promo-list svg { width: 18px; height: 18px; color: var(--sf-primary); flex-shrink: 0; }
+.sf-promo .sf-closed-contact { justify-content: flex-start; }
