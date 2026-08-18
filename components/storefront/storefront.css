@@ -54,6 +54,13 @@
   background: var(--sf-header-bg);
   color: var(--sf-header-fg);
   z-index: 20;
+  transition: transform .26s ease;
+  will-change: transform;
+}
+/* Headroom / Quick Return — เลื่อนลงหัวร้านหลบขึ้นไป เลื่อนขึ้นกลับมาทันที */
+.sf-header-hidden { transform: translateY(-100%); }
+@media (prefers-reduced-motion: reduce) {
+  .sf-header { transition: none; }
 }
 /* แถบสีเข้ม/สีแบรนด์ — ตัวอักษรกับไอคอนต้องตามไปด้วย ไม่งั้นอ่านไม่ออก */
 .sf-header .sf-brand-name,

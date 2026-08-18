@@ -595,6 +595,7 @@ export default function StorefrontSettingsPage() {
                           shopName={previewShopName}
                           logoUrl={logoUrl}
                           navLinks={PREVIEW_NAV}
+                          autoHide={false}
                         />
                         <main className="sf-main">
                           <div className="sf-container">
