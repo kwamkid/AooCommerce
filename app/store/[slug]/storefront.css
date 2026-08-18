@@ -569,3 +569,20 @@ html[data-sf-theme='dark'] .sf-root {
   border-radius: var(--sf-radius); filter: grayscale(1); opacity: .55;
 }
 .sf-gone-actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+
+/* ── ร้านปิดชั่วคราว ──────────────────────────────────────────── */
+.sf-gone-center { justify-content: center; text-align: center; padding: 72px 16px; }
+.sf-closed { text-align: center; padding: 64px 16px 72px; max-width: 560px; margin: 0 auto; }
+.sf-closed-logo { height: 68px; width: auto; object-fit: contain; margin-bottom: 18px; }
+.sf-closed h1 { font-size: 26px; font-weight: 700; margin: 0 0 12px; }
+.sf-closed-badge {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 7px 15px; border-radius: 999px; margin: 0 0 16px;
+  background: var(--sf-surface); color: var(--sf-muted); font-size: 14px; font-weight: 600;
+}
+.sf-closed-badge svg { width: 16px; height: 16px; }
+.sf-closed-msg { color: var(--sf-text); margin: 0 0 26px; line-height: 1.7; }
+.sf-closed-contact {
+  display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin-top: 8px;
+}
+.sf-closed-contact a { text-decoration: none; }

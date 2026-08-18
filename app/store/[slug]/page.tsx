@@ -3,7 +3,7 @@
 // mostly don't run JS) and Core Web Vitals stay fast.
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { getStorefrontCompany, getStorefrontCatalog } from '@/lib/storefront-server';
+import { getStorefrontCompany, getStorefrontCatalog, getClosedStorefront } from '@/lib/storefront-server';
 import { storefrontUrl, storefrontHref, formatStorePrice, type StorefrontProduct } from '@/lib/storefront';
 import QuickAddButton from '@/components/storefront/QuickAddButton';
 
@@ -18,7 +18,13 @@ export async function generateMetadata({ params, searchParams }: PageProps): Pro
   const { slug } = await params;
   const { cat, q } = await searchParams;
   const company = await getStorefrontCompany(slug);
-  if (!company) return { title: 'ไม่พบร้านนี้', robots: { index: false, follow: false } };
+  if (!company) {
+    const closed = await getClosedStorefront(slug);
+    return {
+      title: closed ? `${closed.name} — ปิดรับออร์เดอร์ชั่วคราว` : 'ไม่พบร้านนี้',
+      robots: { index: false, follow: false },
+    };
+  }
 
   const cfg = company.config;
   const shopName = cfg.display_name || company.name;

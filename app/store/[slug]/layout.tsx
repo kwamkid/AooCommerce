@@ -4,7 +4,7 @@
 // reuse the same page bodies without this chrome.
 import { Suspense, type ReactNode } from 'react';
 import Link from 'next/link';
-import { getStorefrontCompany, getStorefrontCategories } from '@/lib/storefront-server';
+import { getStorefrontCompany, getStorefrontCategories, getClosedStorefront } from '@/lib/storefront-server';
 import { storefrontCssVars, storefrontHref } from '@/lib/storefront';
 import CartBadge from '@/components/storefront/CartBadge';
 import ThemeToggle from '@/components/storefront/ThemeToggle';
@@ -21,7 +21,10 @@ export default async function StoreLayout({
 }) {
   const { slug } = await params;
   const company = await getStorefrontCompany(slug);
-  if (!company) return <ShopUnavailable />;
+  if (!company) {
+    // แยกให้ออก: ปิดชั่วคราว (มีร้านจริง) vs ไม่มีร้านนี้
+    return <ShopUnavailable closed={await getClosedStorefront(slug)} />;
+  }
 
   const categories = await getStorefrontCategories(company.id);
   const cfg = company.config;

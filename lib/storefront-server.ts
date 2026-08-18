@@ -41,6 +41,70 @@ export interface StorefrontCompany {
   line_oa: StorefrontLineOa | null;
 }
 
+export interface ClosedStorefront {
+  /** ร้านที่เคยตั้งค่าหน้าร้านไว้แล้วแต่ปิดอยู่ — โชว์แบรนด์ + ช่องทางติดต่อได้ */
+  name: string;
+  logo_url: string | null;
+  phone: string | null;
+  email: string | null;
+  config: StorefrontConfig;
+  line_oa: StorefrontLineOa | null;
+}
+
+/**
+ * ร้านที่ "ปิดหน้าร้านชั่วคราว" — ต่างจากร้านที่ไม่มีอยู่จริง
+ *
+ * คืนค่าเฉพาะร้านที่ **เคยตั้งค่า storefront ไว้แล้ว** (มี key `storefront`
+ * ใน settings) เท่านั้น — บริษัทที่ไม่เคยเปิดหน้าร้านเลยต้องคืน null
+ * ไม่งั้นใครก็เดา slug เพื่อดูว่าบริษัทไหนมีอยู่ในระบบได้
+ *
+ * ⚠️ คืนแค่ชื่อ/โลโก้/ช่องทางติดต่อ — ห้ามคืนข้อมูลสินค้าเด็ดขาด
+ */
+export const getClosedStorefront = cache(async (slug: string): Promise<ClosedStorefront | null> => {
+  const { data } = await supabaseAdmin
+    .from('companies')
+    .select('id, name, logo_url, phone, email, settings, is_active')
+    .eq('slug', slug)
+    .maybeSingle();
+
+  if (!data || data.is_active === false) return null;
+  const settings = (data.settings as Record<string, unknown> | null) || {};
+  if (!settings.storefront) return null;          // ไม่เคยตั้งค่า = ถือว่าไม่มีร้านนี้
+
+  const config = parseStorefront(settings);
+  if (config.enabled) return null;                // ยังเปิดอยู่ ไม่ใช่เคสนี้
+
+  return {
+    name: config.display_name || data.name,
+    logo_url: data.logo_url,
+    phone: data.phone,
+    email: data.email,
+    config,
+    line_oa: await getCompanyLineOa(data.id),
+  };
+});
+
+/** LINE OA ที่เปิดใช้งานของบริษัท (basic_id = @xxxx ใช้ทำลิงก์เพิ่มเพื่อน) */
+async function getCompanyLineOa(companyId: string): Promise<StorefrontLineOa | null> {
+  const { data } = await supabaseAdmin
+    .from('chat_accounts')
+    .select('account_name, credentials')
+    .eq('company_id', companyId)
+    .eq('platform', 'line')
+    .eq('is_active', true)
+    .limit(1)
+    .maybeSingle();
+
+  const cred = (data?.credentials as Record<string, unknown> | null) || {};
+  const basicId = typeof cred.basic_id === 'string' ? cred.basic_id.trim() : '';
+  if (!basicId) return null;
+  return {
+    name: (cred.bot_name as string) || data?.account_name || 'LINE',
+    add_friend_url: `https://line.me/R/ti/p/${basicId.startsWith('@') ? basicId : `@${basicId}`}`,
+    picture_url: (cred.bot_picture_url as string) || null,
+  };
+}
+
 /**
  * Resolve a storefront by company slug. Returns null when the company is
  * missing/inactive OR the storefront is switched off — callers must 404 so a
@@ -59,25 +123,7 @@ export const getStorefrontCompany = cache(async (slug: string): Promise<Storefro
   const config = parseStorefront(settings);
   if (!config.enabled) return null;
 
-  // LINE OA ที่เปิดใช้งานอยู่ของร้าน (basic_id คือ @xxxx ที่ใช้ทำลิงก์เพิ่มเพื่อน)
-  const { data: lineAccount } = await supabaseAdmin
-    .from('chat_accounts')
-    .select('account_name, credentials')
-    .eq('company_id', data.id)
-    .eq('platform', 'line')
-    .eq('is_active', true)
-    .limit(1)
-    .maybeSingle();
-
-  const cred = (lineAccount?.credentials as Record<string, unknown> | null) || {};
-  const basicId = typeof cred.basic_id === 'string' ? cred.basic_id.trim() : '';
-  const line_oa: StorefrontLineOa | null = basicId
-    ? {
-        name: (cred.bot_name as string) || lineAccount?.account_name || 'LINE',
-        add_friend_url: `https://line.me/R/ti/p/${basicId.startsWith('@') ? basicId : `@${basicId}`}`,
-        picture_url: (cred.bot_picture_url as string) || null,
-      }
-    : null;
+  const line_oa = await getCompanyLineOa(data.id);
 
   return {
     id: data.id,
