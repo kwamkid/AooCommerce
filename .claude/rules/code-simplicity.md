@@ -180,7 +180,8 @@
 | Checkbox | `Checkbox` | สร้าง checkbox เอง |
 | Tag input | `TagInput` | สร้าง tag input เอง |
 | Upload รูป (drag-drop, reorder, compress) | `ImageUploader` | สร้าง uploader เอง |
-| เลือกสี (ชุดสีสำเร็จรูป + จานสี + กรอกรหัสเอง) | `ColorPicker` — presets จาก `lib/color-presets.ts` | วาง `<input type="color">` ดิบ ๆ ในหน้า |
+| เลือกสี (ชุดสีสำเร็จรูป + จานสี + กรอกรหัสเอง) | `ColorPicker` — เปิด Modal จานสี · presets จาก `lib/color-presets.ts` | วาง `<input type="color">` ดิบ ๆ ในหน้า |
+| ตัวเลือกที่ **อธิบายด้วยภาพได้ดีกว่าคำ** (สัดส่วนรูป, เลย์เอาต์, สไตล์แถบ) | `OptionCards` — การ์ดพร้อม `preview` ที่วาดรูปทรงจริง | ใช้ `FormSelect` แล้วให้ผู้ใช้เดาเองว่าหน้าตาเป็นยังไง |
 
 ### Display Components
 | ต้องการ | ใช้ | ห้าม |

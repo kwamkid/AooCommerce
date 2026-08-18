@@ -11,16 +11,78 @@ import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Toggle from '@/components/ui/Toggle';
 import FormInput from '@/components/ui/FormInput';
-import FormSelect from '@/components/ui/FormSelect';
 import Alert from '@/components/ui/Alert';
 import { LoadingCard, NoPermissionCard } from '@/components/ui/StateCard';
 import { useToast } from '@/lib/toast-context';
 import { useAuthGuard } from '@/lib/useAuthGuard';
 import { useFetchOnce } from '@/lib/use-fetch-once';
 import { apiFetch } from '@/lib/api-client';
-import { DEFAULT_STOREFRONT, storefrontCssVars, type StorefrontConfig } from '@/lib/storefront';
+import { DEFAULT_STOREFRONT, storefrontCssVars, readableTextColor, type StorefrontConfig } from '@/lib/storefront';
 import ColorPicker from '@/components/ui/ColorPicker';
+import OptionCards from '@/components/ui/OptionCards';
 import { ExternalLink, Store } from 'lucide-react';
+
+// ── ภาพจำลองในตัวเลือก — วาดรูปทรงจริงเพื่อให้ตัดสินใจได้โดยไม่ต้องกดลอง ──
+
+function HeaderPreview({ bg, fg, border }: { bg: string; fg: string; border?: boolean }) {
+  return (
+    <span className="w-full max-w-[76px] rounded-md overflow-hidden border border-gray-200 dark:border-slate-600 block">
+      <span className="flex items-center gap-1 px-1.5 py-1" style={{ background: bg, borderBottom: border ? '1px solid #e5e7eb' : undefined }}>
+        <span className="rounded-sm" style={{ width: 16, height: 4, background: fg, opacity: .85 }} />
+        <span className="ml-auto rounded-full" style={{ width: 5, height: 5, background: fg, opacity: .6 }} />
+        <span className="rounded-full" style={{ width: 5, height: 5, background: fg, opacity: .6 }} />
+      </span>
+      <span className="block bg-gray-50 dark:bg-slate-700" style={{ height: 18 }} />
+    </span>
+  );
+}
+
+function RatioPreview({ ratio }: { ratio: string }) {
+  return (
+    <span
+      className="bg-gray-200 dark:bg-slate-600 rounded-md block"
+      style={{ aspectRatio: ratio, height: 48 }}
+    />
+  );
+}
+
+/** เต็มกรอบ = รูป (แถบเฉียง) ล้นออกนอกกรอบแล้วถูกตัด · เห็นทั้งรูป = ย่อลงพอดี มีพื้นหลังเบลอ */
+function FitPreview({ mode, ratio }: { mode: 'cover' | 'contain'; ratio: '1:1' | '4:5' }) {
+  const frame = { aspectRatio: ratio === '1:1' ? '1 / 1' : '4 / 5', height: 48 };
+  const photo = 'repeating-linear-gradient(135deg, #94a3b8 0 6px, #cbd5e1 6px 12px)';
+  return (
+    <span className="relative overflow-hidden rounded-md block border border-gray-300 dark:border-slate-500" style={frame}>
+      {mode === 'cover' ? (
+        // รูปกว้างกว่ากรอบ → ส่วนที่เกินหายไป
+        <span className="absolute top-0 bottom-0" style={{ background: photo, left: '-25%', width: '150%' }} />
+      ) : (
+        <>
+          <span className="absolute inset-0" style={{ background: photo, filter: 'blur(4px)', opacity: .45, transform: 'scale(1.3)' }} />
+          <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2" style={{ background: photo, width: '78%', height: '58%' }} />
+        </>
+      )}
+    </span>
+  );
+}
+
+function RadiusPreview({ r, color }: { r: number; color: string }) {
+  return (
+    <span className="block" style={{ width: 46, height: 46, background: color, borderRadius: r, opacity: .9 }} />
+  );
+}
+
+function LayoutPreview({ mode }: { mode: 'grid' | 'editorial' }) {
+  const cell = 'bg-gray-200 dark:bg-slate-600 rounded-sm';
+  return mode === 'grid' ? (
+    <span className="grid grid-cols-3 gap-1" style={{ width: 60 }}>
+      {[0, 1, 2, 3, 4, 5].map(i => <span key={i} className={cell} style={{ height: 16 }} />)}
+    </span>
+  ) : (
+    <span className="grid grid-cols-1 gap-1" style={{ width: 60 }}>
+      {[0, 1].map(i => <span key={i} className={cell} style={{ height: 20 }} />)}
+    </span>
+  );
+}
 
 export default function StorefrontSettingsPage() {
   const { allowed, loading: guardLoading } = useAuthGuard('settings.access', { noRedirect: true });
@@ -168,132 +230,147 @@ export default function StorefrontSettingsPage() {
                 </p>
               )}
             </Card>
-
             <Card padding="md">
               <p className="heading-4 mb-1">หน้าตา</p>
-              <p className="section-desc mb-4">เปลี่ยนที่นี่ที่เดียว มีผลทั้งร้าน</p>
+              <p className="section-desc mb-5">เปลี่ยนที่นี่ที่เดียว มีผลทั้งร้าน — ดูผลได้จากพรีวิวด้านขวา</p>
 
-              <div className="space-y-5 mb-5">
-                <ColorPicker
-                  label="สีแบรนด์ (ลิงก์ ราคา ไฮไลต์)"
-                  value={cfg.primary_color}
-                  onChange={(hex) => patch({ primary_color: hex })}
-                />
-                <ColorPicker
-                  label="สีปุ่มสั่งซื้อ"
-                  value={cfg.button_color}
-                  onChange={(hex) => patch({ button_color: hex })}
-                  allowEmpty
-                  emptyLabel="ใช้สีแบรนด์"
-                  fallbackValue={cfg.primary_color}
-                  hint={cfg.button_color ? undefined : 'ยังไม่ได้กำหนด — ใช้สีแบรนด์อยู่'}
-                />
-              </div>
+              <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px] gap-6 items-start">
+                {/* ── ตัวเลือก ── */}
+                <div className="space-y-5">
+                  <ColorPicker
+                    label="สีแบรนด์ (ลิงก์ ราคา ไฮไลต์)"
+                    value={cfg.primary_color}
+                    onChange={(hex) => patch({ primary_color: hex })}
+                  />
+                  <ColorPicker
+                    label="สีปุ่มสั่งซื้อ"
+                    value={cfg.button_color}
+                    onChange={(hex) => patch({ button_color: hex })}
+                    allowEmpty
+                    emptyLabel="ใช้สีแบรนด์"
+                    fallbackValue={cfg.primary_color}
+                  />
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div>
-                  <label className="field-label">แถบหัวร้าน</label>
-                  <FormSelect
+                  <OptionCards
+                    label="แถบหัวร้าน"
                     value={cfg.header_style}
-                    onChange={(v) => patch({ header_style: v as StorefrontConfig['header_style'] })}
+                    onChange={(v) => patch({ header_style: v })}
                     options={[
-                      { id: 'light', label: 'พื้นขาว' },
-                      { id: 'brand', label: 'สีแบรนด์' },
-                      { id: 'dark', label: 'พื้นเข้ม' },
+                      { id: 'light' as const, label: 'พื้นขาว', preview: <HeaderPreview bg="#ffffff" fg="#111827" border /> },
+                      { id: 'brand' as const, label: 'สีแบรนด์', preview: <HeaderPreview bg={cfg.primary_color} fg={readableTextColor(cfg.primary_color)} /> },
+                      { id: 'dark' as const, label: 'พื้นเข้ม', preview: <HeaderPreview bg="#111827" fg="#f9fafb" /> },
                     ]}
                   />
-                </div>
-                <div>
-                  <label className="field-label">สัดส่วนรูปสินค้า</label>
-                  <FormSelect
-                    value={cfg.image_ratio}
-                    onChange={(v) => patch({ image_ratio: v as StorefrontConfig['image_ratio'] })}
-                    options={[
-                      { id: '1:1', label: 'จัตุรัส 1:1' },
-                      { id: '4:5', label: 'แนวตั้ง 4:5' },
-                    ]}
-                  />
-                </div>
-                <div>
-                  <label className="field-label">รูปที่สัดส่วนไม่ตรงกรอบ</label>
-                  <FormSelect
-                    value={cfg.image_fit}
-                    onChange={(v) => patch({ image_fit: v as StorefrontConfig['image_fit'] })}
-                    options={[
-                      { id: 'cover', label: 'เต็มกรอบ (ตัดขอบ)' },
-                      { id: 'contain', label: 'เห็นทั้งรูป' },
-                    ]}
-                  />
-                </div>
-                <div>
-                  <label className="field-label">ความมนของมุม</label>
-                  <FormSelect
-                    value={cfg.radius}
-                    onChange={(v) => patch({ radius: v as StorefrontConfig['radius'] })}
-                    options={[
-                      { id: 'sharp', label: 'เหลี่ยม' },
-                      { id: 'soft', label: 'มนเล็กน้อย' },
-                      { id: 'round', label: 'มนมาก' },
-                    ]}
-                  />
-                </div>
-                <div>
-                  <label className="field-label">เลย์เอาต์</label>
-                  <FormSelect
-                    value={cfg.layout}
-                    onChange={(v) => patch({ layout: v as StorefrontConfig['layout'] })}
-                    options={[
-                      { id: 'grid', label: 'ตาราง (สินค้าเยอะ)' },
-                      { id: 'editorial', label: 'รูปใหญ่ (สินค้าน้อย)' },
-                    ]}
-                  />
-                </div>
-              </div>
-              <p className="helper-text text-gray-500 mt-2">
-                สัดส่วนรูปเป็นการครอบตอนแสดงผลเท่านั้น — ไฟล์รูปที่อัปโหลดไว้ไม่ถูกแก้ เปลี่ยนกลับได้ตลอด
-                {cfg.image_fit === 'cover'
-                  ? ' · "เต็มกรอบ" เหมาะเมื่อรูปสินค้าสัดส่วนใกล้เคียงกัน — รูปที่สัดส่วนต่างจากกรอบจะถูกตัดขอบ'
-                  : ' · "เห็นทั้งรูป" ไม่ตัดอะไรเลย เติมพื้นหลังเบลอจากรูปเดียวกันให้เต็มกรอบ — เหมาะเมื่อรูปมาจากหลายแหล่ง สัดส่วนไม่เท่ากัน'}
-              </p>
 
-              {/* พรีวิวสด — ใช้ token ชุดเดียวกับหน้าร้านจริง จึงตรงกับของจริงเสมอ */}
-              <div
-                className="mt-5 rounded-xl border border-gray-200 dark:border-slate-600 overflow-hidden"
-                style={storefrontCssVars(cfg) as React.CSSProperties}
-              >
-                <div
-                  className="flex items-center gap-3 px-4 py-3 border-b border-gray-200 dark:border-slate-600"
-                  style={{
-                    background: cfg.header_style === 'light' ? undefined : 'var(--sf-header-bg)',
-                    color: cfg.header_style === 'light' ? undefined : 'var(--sf-header-fg)',
-                  }}
-                >
-                  <span className="font-bold">{cfg.display_name || 'ชื่อร้านของคุณ'}</span>
-                  <span className="subtitle-text opacity-70 ml-auto">ค้นหา · ธีม · ตะกร้า</span>
+                  <OptionCards
+                    label="สัดส่วนรูปสินค้า"
+                    value={cfg.image_ratio}
+                    onChange={(v) => patch({ image_ratio: v })}
+                    options={[
+                      { id: '1:1' as const, label: 'จัตุรัส 1:1', preview: <RatioPreview ratio="1 / 1" /> },
+                      { id: '4:5' as const, label: 'แนวตั้ง 4:5', preview: <RatioPreview ratio="4 / 5" /> },
+                    ]}
+                  />
+
+                  <OptionCards
+                    label="รูปที่สัดส่วนไม่ตรงกรอบ"
+                    value={cfg.image_fit}
+                    onChange={(v) => patch({ image_fit: v })}
+                    options={[
+                      { id: 'cover' as const, label: 'เต็มกรอบ', description: 'ตัดขอบส่วนเกิน', preview: <FitPreview mode="cover" ratio={cfg.image_ratio} /> },
+                      { id: 'contain' as const, label: 'เห็นทั้งรูป', description: 'เติมพื้นหลังเบลอ', preview: <FitPreview mode="contain" ratio={cfg.image_ratio} /> },
+                    ]}
+                  />
+
+                  <OptionCards
+                    label="ความมนของมุม"
+                    value={cfg.radius}
+                    onChange={(v) => patch({ radius: v })}
+                    options={[
+                      { id: 'sharp' as const, label: 'เหลี่ยม', preview: <RadiusPreview r={0} color={cfg.primary_color} /> },
+                      { id: 'soft' as const, label: 'มนเล็กน้อย', preview: <RadiusPreview r={8} color={cfg.primary_color} /> },
+                      { id: 'round' as const, label: 'มนมาก', preview: <RadiusPreview r={18} color={cfg.primary_color} /> },
+                    ]}
+                  />
+
+                  <OptionCards
+                    label="เลย์เอาต์"
+                    value={cfg.layout}
+                    onChange={(v) => patch({ layout: v })}
+                    options={[
+                      { id: 'grid' as const, label: 'ตาราง', description: 'สินค้าเยอะ', preview: <LayoutPreview mode="grid" /> },
+                      { id: 'editorial' as const, label: 'รูปใหญ่', description: 'สินค้าน้อย', preview: <LayoutPreview mode="editorial" /> },
+                    ]}
+                  />
+
+                  <p className="helper-text text-gray-500">
+                    สัดส่วนรูปเป็นการครอบตอนแสดงผลเท่านั้น — ไฟล์รูปที่อัปโหลดไว้ไม่ถูกแก้ เปลี่ยนกลับได้ตลอด
+                  </p>
                 </div>
-                <div className="p-4 flex items-start gap-4 bg-white dark:bg-slate-800">
+
+                {/* ── พรีวิวสด — ใช้ token ชุดเดียวกับหน้าร้านจริง จึงตรงกับของจริงเสมอ ── */}
+                <div className="lg:sticky lg:top-4">
+                  <p className="field-label">ตัวอย่างหน้าร้าน</p>
                   <div
-                    className="w-24 flex-shrink-0 bg-gray-100 dark:bg-slate-700 flex items-center justify-center text-gray-400"
-                    style={{ aspectRatio: 'var(--sf-img-ratio)', borderRadius: 'var(--sf-radius)' }}
+                    className="rounded-xl border border-gray-200 dark:border-slate-600 overflow-hidden bg-white dark:bg-slate-800"
+                    style={storefrontCssVars(cfg) as React.CSSProperties}
                   >
-                    <span className="helper-text text-center leading-tight">
-                      {cfg.image_ratio}<br />
-                      {cfg.image_fit === 'cover' ? 'ตัดขอบ' : 'เห็นทั้งรูป'}
-                    </span>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="heading-4 mb-1">สินค้าตัวอย่าง</div>
-                    <div className="font-bold mb-3" style={{ color: 'var(--sf-primary)' }}>฿1,790</div>
-                    <span
-                      className="inline-flex items-center px-5 py-2.5 font-semibold"
-                      style={{
-                        background: 'var(--sf-cta)',
-                        color: 'var(--sf-cta-contrast)',
-                        borderRadius: 'var(--sf-radius)',
-                      }}
+                    {cfg.announcement && (
+                      <div
+                        className="px-3 py-1.5 text-center truncate"
+                        style={{ background: 'var(--sf-primary)', color: 'var(--sf-primary-contrast)', fontSize: 11 }}
+                      >
+                        {cfg.announcement}
+                      </div>
+                    )}
+                    <div
+                      className="flex items-center gap-2 px-3 py-2.5 border-b border-gray-200 dark:border-slate-600"
+                      style={
+                        cfg.header_style === 'light'
+                          ? undefined
+                          : { background: 'var(--sf-header-bg)', color: 'var(--sf-header-fg)', borderColor: 'transparent' }
+                      }
                     >
-                      หยิบใส่ตะกร้า
-                    </span>
+                      <span className="font-bold text-sm truncate">{cfg.display_name || 'ชื่อร้านของคุณ'}</span>
+                      <span className="ml-auto opacity-60" style={{ fontSize: 11 }}>ค้นหา · ธีม · ตะกร้า</span>
+                    </div>
+
+                    <div className="p-3">
+                      <div className={`grid gap-2 ${cfg.layout === 'grid' ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                        {(cfg.layout === 'grid' ? [0, 1] : [0]).map(i => (
+                          <div
+                            key={i}
+                            className="border border-gray-200 dark:border-slate-600 overflow-hidden"
+                            style={{ borderRadius: 'var(--sf-radius)' }}
+                          >
+                            <div
+                              className="bg-gray-100 dark:bg-slate-700 flex items-center justify-center text-gray-400"
+                              style={{ aspectRatio: 'var(--sf-img-ratio)' }}
+                            >
+                              <span style={{ fontSize: 10 }}>
+                                {cfg.image_ratio} · {cfg.image_fit === 'cover' ? 'ตัดขอบ' : 'เห็นทั้งรูป'}
+                              </span>
+                            </div>
+                            <div className="p-2">
+                              <div className="text-gray-500" style={{ fontSize: 10 }}>กระเช้าปีใหม่</div>
+                              <div className="font-semibold truncate" style={{ fontSize: 12 }}>สินค้าตัวอย่าง</div>
+                              <div className="font-bold mt-0.5" style={{ fontSize: 12, color: 'var(--sf-primary)' }}>฿1,790</div>
+                              <div
+                                className="mt-1.5 text-center font-semibold py-1"
+                                style={{
+                                  background: 'var(--sf-cta)',
+                                  color: 'var(--sf-cta-contrast)',
+                                  borderRadius: 'calc(var(--sf-radius) / 1.5)',
+                                  fontSize: 11,
+                                }}
+                              >
+                                หยิบใส่ตะกร้า
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
