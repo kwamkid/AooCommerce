@@ -2,7 +2,7 @@
 // ตั้งค่าหน้าร้านออนไลน์ — เปิด/ปิด ธีม โดเมน และ AI crawler
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import Layout from '@/components/layout/Layout';
 import Container from '@/components/ui/Container';
@@ -17,10 +17,17 @@ import { useToast } from '@/lib/toast-context';
 import { useAuthGuard } from '@/lib/useAuthGuard';
 import { useFetchOnce } from '@/lib/use-fetch-once';
 import { apiFetch } from '@/lib/api-client';
-import { DEFAULT_STOREFRONT, storefrontCssVars, readableTextColor, relativeLuminance, type StorefrontConfig } from '@/lib/storefront';
+import {
+  DEFAULT_STOREFRONT, storefrontCssVars, storefrontRootClasses,
+  readableTextColor, relativeLuminance,
+  type StorefrontConfig, type StorefrontProduct,
+} from '@/lib/storefront';
+import StoreHeader from '@/components/storefront/StoreHeader';
+import StoreProductCard from '@/components/storefront/StoreProductCard';
+import '@/components/storefront/storefront.css';
 import ColorPicker from '@/components/ui/ColorPicker';
 import OptionCards from '@/components/ui/OptionCards';
-import { ExternalLink, Globe, Palette, Plus, Search, ShoppingBag, Store } from 'lucide-react';
+import { ExternalLink, Globe, Palette, Plus, Store } from 'lucide-react';
 import Tabs from '@/components/ui/Tabs';
 
 // ── ภาพจำลองในตัวเลือก — วาดรูปทรงจริงเพื่อให้ตัดสินใจได้โดยไม่ต้องกดลอง ──
@@ -83,50 +90,6 @@ function RatioPreview({ ratio }: { ratio: string }) {
       className="bg-gray-200 dark:bg-slate-600 rounded-md block"
       style={{ aspectRatio: ratio, height: 44 }}
     />
-  );
-}
-
-/**
- * รูปสินค้าจำลองในพรีวิวสด — ต้นฉบับเป็น 1:1 หรือ 4:5 แล้วครอบด้วยกรอบที่เลือกจริง ๆ
- * (เส้นขอบ = ขอบของไฟล์ต้นฉบับ · ด้านที่หายไปคือด้านที่ถูกตัด)
- *
- * ต้องคละสองสัดส่วน ไม่งั้นพรีวิวจะดูเหมือนกันหมดทุกตัวเลือก และผู้ใช้ก็ยังไม่รู้อยู่ดี
- * ว่าเลือกกรอบ 1:1 แล้วรูปแนวตั้งของตัวเองจะโดนตัดหัวท้ายไปแค่ไหน
- */
-function PreviewPhoto({ src, frame }: { src: '1:1' | '4:5'; frame: StorefrontConfig['image_ratio'] }) {
-  const RATIO = { '1:1': 1, '4:5': 0.8 } as const;
-  const css = (r: '1:1' | '4:5') => (r === '1:1' ? '1 / 1' : '4 / 5');
-  const photo = (
-    <span
-      className="absolute inset-0 flex items-center justify-center"
-      style={{
-        background: 'linear-gradient(135deg,#eef2f7,#cbd5e1)',
-        boxShadow: 'inset 0 0 0 1.5px rgba(100,116,139,.45)',
-      }}
-    >
-      <span className="rounded-full" style={{ width: '46%', aspectRatio: '1 / 1', background: 'var(--sf-primary)', opacity: .3 }} />
-    </span>
-  );
-
-  if (frame === 'auto') {
-    return <span className="relative block" style={{ aspectRatio: css(src) }}>{photo}</span>;
-  }
-
-  // จำลอง object-fit: cover — ด้านที่แคบกว่าถูกยืดจนเต็ม อีกด้านล้นออกไปแล้วถูกตัด
-  const wider = RATIO[src] > RATIO[frame];
-  return (
-    <span className="relative block overflow-hidden" style={{ aspectRatio: css(frame) }}>
-      <span
-        className="absolute left-1/2 top-1/2"
-        style={{
-          transform: 'translate(-50%, -50%)',
-          width: wider ? `${(RATIO[src] / RATIO[frame]) * 100}%` : '100%',
-          height: wider ? '100%' : `${(RATIO[frame] / RATIO[src]) * 100}%`,
-        }}
-      >
-        {photo}
-      </span>
-    </span>
   );
 }
 
@@ -212,19 +175,39 @@ function LayoutPreview({ mode }: { mode: 'grid' | 'editorial' }) {
   );
 }
 
+/** ความสูงของกรอบพรีวิวก่อนย่อ — พอให้เห็นหัวร้าน + สินค้าสองแถว */
+const PREVIEW_H = 900;
+/** ความกว้างที่กรอบพรีวิวถูกย่อลงมาให้พอดีคอลัมน์ขวา */
+const PREVIEW_BOX_W = 380;
+
+const PREVIEW_NAV = [
+  { href: '#', label: 'สินค้าทั้งหมด' },
+  { href: '#', label: 'กระเช้าปีใหม่' },
+  { href: '#', label: 'กระเช้าเยี่ยมไข้' },
+  { href: '#', label: 'กระเช้าแสดงความยินดี' },
+  { href: '#', label: 'การจัดส่ง' },
+  { href: '#', label: 'บัญชีของฉัน' },
+];
+
+/** รูปตัวอย่างเป็น SVG data URI — ไม่ต้องยิงเน็ต และคุมสัดส่วนต้นฉบับได้เป๊ะ */
+function previewPhoto(w: number, h: number, color: string) {
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}">` +
+    `<rect width="${w}" height="${h}" fill="#eef2f7"/>` +
+    `<circle cx="${w / 2}" cy="${h / 2}" r="${Math.min(w, h) * 0.3}" fill="${color}" opacity="0.32"/>` +
+    `</svg>`;
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+}
+
 /**
- * ลำดับสำคัญมาก: ตาราง = ไล่ซ้าย→ขวา, ก่ออิฐ = ไล่ลงคอลัมน์
- * จึงต้องเรียง [ชื่อยาว, ชื่อสั้น, ชื่อสั้น, ชื่อยาว] — ได้ผลทั้งสองโหมด
- *   ตาราง : ทุกแถวมีทั้งใบชื่อยาวและใบชื่อสั้น → เห็นว่าการ์ดถูกยืดให้สูงเท่ากัน
- *   ก่ออิฐ: หัวคอลัมน์ซ้าย (ชื่อยาว) กับหัวคอลัมน์ขวา (ชื่อสั้น) สูงไม่เท่ากัน
- *           → เห็นว่าใบล่างดันขึ้นไปชิด ไม่รอให้แถวเสมอกัน
- * ถ้าเรียงแบบยาว-ยาว-สั้น-สั้น ก่ออิฐจะได้หัวคอลัมน์เท่ากันและดูเหมือนตารางทันที
+ * ลำดับสำคัญ: ตาราง = ไล่ซ้าย→ขวา, ก่ออิฐ = ไล่ลงคอลัมน์
+ * เรียง [ชื่อยาว, ชื่อสั้น, ชื่อสั้น, ชื่อยาว] จึงเห็นความต่างทั้งสองโหมด
  */
-const PREVIEW_ITEMS = [
-  { cat: 'กระเช้าปีใหม่', name: 'กระเช้าผลไม้พรีเมียม รวมผลไม้นำเข้า 12 ชนิด', price: '฿1,790', src: '4:5' as const },
-  { cat: 'กระเช้าเยี่ยมไข้', name: 'กระเช้าส้มสายน้ำผึ้ง', price: '฿890', src: '4:5' as const },
-  { cat: 'ของขวัญ', name: 'ตะกร้าผลไม้รวม', price: '฿650', src: '1:1' as const },
-  { cat: 'กระเช้าปีใหม่', name: 'กระเช้าแอปเปิลฟูจิ พร้อมการ์ดอวยพร', price: '฿1,290', src: '1:1' as const },
+const PREVIEW_SEED = [
+  { name: 'กระเช้าผลไม้พรีเมียม รวมผลไม้นำเข้า 12 ชนิด', cat: 'กระเช้าปีใหม่', price: 1790, w: 800, h: 1000 },
+  { name: 'กระเช้าส้มสายน้ำผึ้ง', cat: 'กระเช้าเยี่ยมไข้', price: 890, w: 800, h: 1000 },
+  { name: 'ตะกร้าผลไม้รวม', cat: 'ของขวัญ', price: 650, w: 800, h: 800 },
+  { name: 'กระเช้าแอปเปิลฟูจิ พร้อมการ์ดอวยพร', cat: 'กระเช้าปีใหม่', price: 1290, w: 800, h: 800 },
 ];
 
 export default function StorefrontSettingsPage() {
@@ -240,6 +223,7 @@ export default function StorefrontSettingsPage() {
   // แท็บเป็น state ไม่ใช่ route — cfg เป็นก้อนเดียว กดบันทึกครั้งเดียวเซฟทุกแท็บ
   // ถ้าแยกเป็น URL ผู้ใช้จะเผลอเปลี่ยนหน้าแล้วทิ้งค่าที่แก้ค้างในแท็บอื่น
   const [tab, setTab] = useState<'info' | 'design' | 'seo'>('info');
+  const [device, setDevice] = useState<'mobile' | 'desktop'>('mobile');
 
   useFetchOnce(useCallback(async () => {
     try {
@@ -276,6 +260,27 @@ export default function StorefrontSettingsPage() {
 
   if (guardLoading) return <Layout><Container size="2xl"><LoadingCard /></Container></Layout>;
   if (!allowed) return <Layout><Container size="2xl"><NoPermissionCard /></Container></Layout>;
+
+  const previewWidth = device === 'mobile' ? 390 : 1120;
+  const previewScale = PREVIEW_BOX_W / previewWidth;
+  const previewShopName = cfg.display_name || companyName || 'ชื่อร้านของคุณ';
+  const previewProducts = useMemo<StorefrontProduct[]>(() => PREVIEW_SEED.map((p, i) => ({
+    id: `preview-${i}`,
+    slug: `preview-${i}`,
+    name: p.name,
+    description: null,
+    category: p.cat,
+    brand: null,
+    images: [previewPhoto(p.w, p.h, cfg.primary_color)],
+    variations: [{
+      id: `preview-v-${i}`, label: null, sku: null,
+      price: p.price, compare_at: null, in_stock: true, image: null,
+    }],
+    price_min: p.price,
+    price_max: p.price,
+    in_stock: true,
+    updated_at: '',
+  })), [cfg.primary_color]);
 
   const ctaColor = cfg.button_color || cfg.primary_color;
   const ctaContrast = readableTextColor(ctaColor);
@@ -519,134 +524,83 @@ export default function StorefrontSettingsPage() {
                   )}
                 </div>
 
-                {/* ── พรีวิวสด — ใช้ token ชุดเดียวกับหน้าร้านจริง จึงตรงกับของจริงเสมอ ── */}
+                {/* พรีวิวเรนเดอร์จาก component ตัวเดียวกับหน้าร้านจริง (StoreHeader /
+                    StoreProductCard) + CSS ไฟล์เดียวกัน — ไม่มีทางเพี้ยนจากของจริงอีก
+                    responsive ใช้ @container ผูกกับความกว้างของ .sf-root ไม่ใช่ความกว้างจอ
+                    ย่อกล่องเหลือ 390px จึงได้เลย์เอาต์มือถือจริงโดยไม่ต้องใช้ iframe */}
                 <div className="lg:sticky lg:top-4">
-                  <p className="field-label">ตัวอย่างหน้าร้าน</p>
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <p className="field-label mb-0">ตัวอย่างหน้าร้าน</p>
+                    <div className="flex rounded-lg border border-gray-200 dark:border-slate-600 overflow-hidden">
+                      {([['mobile', 'มือถือ'], ['desktop', 'เดสก์ท็อป']] as const).map(([d, label]) => (
+                        <button
+                          key={d}
+                          type="button"
+                          onClick={() => setDevice(d)}
+                          className={`px-2.5 py-1 subtitle-text transition-colors ${
+                            device === d
+                              ? 'bg-[#F4511E] text-white'
+                              : 'text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700'
+                          }`}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
                   {!logoUrl && (
                     <p className="helper-text text-gray-500 mb-2">
                       ยังไม่มีโลโก้ — อัปโหลดได้ที่{' '}
                       <Link href="/settings/company" className="text-[#F4511E] hover:underline">ข้อมูลร้านค้า</Link>
                     </p>
                   )}
+
                   <div
-                    className="rounded-xl border border-gray-200 dark:border-slate-600 overflow-hidden bg-white dark:bg-slate-800"
-                    style={storefrontCssVars(cfg) as React.CSSProperties}
+                    className="rounded-xl border border-gray-200 dark:border-slate-600 overflow-hidden bg-white dark:bg-slate-900"
+                    style={{ height: Math.round(PREVIEW_H * previewScale) }}
                   >
-                    {cfg.announcement && (
-                      <div
-                        className="px-3 py-1.5 text-center truncate"
-                        style={{ background: 'var(--sf-primary)', color: 'var(--sf-primary-contrast)', fontSize: 11 }}
-                      >
-                        {cfg.announcement}
-                      </div>
-                    )}
                     <div
-                      className="relative flex items-center gap-2 px-3 py-2.5 border-b border-gray-200 dark:border-slate-600"
-                      style={
-                        cfg.header_style === 'light'
-                          ? undefined
-                          : { background: 'var(--sf-header-bg)', color: 'var(--sf-header-fg)', borderColor: 'transparent' }
-                      }
+                      style={{
+                        width: previewWidth,
+                        transform: `scale(${previewScale})`,
+                        transformOrigin: 'top left',
+                        pointerEvents: 'none',   /* พรีวิวไว้ดู ไม่ใช่ไว้กดสั่งของ */
+                      }}
+                      aria-hidden="true"
                     >
-                      {/* โลโก้กลางของจริงเรียงโลโก้บน–ชื่อล่าง (.sf-head-center .sf-brand
-                          เป็น flex-direction: column) พรีวิวต้องเป็น 2 บรรทัดเหมือนกัน */}
-                      <span className={`flex min-w-0 ${
-                        cfg.header_layout === 'center' ? 'flex-col items-center gap-0.5 mx-auto' : 'flex-row items-center gap-2'
-                      }`}>
-                        {showLogoPv && (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={logoUrl!} alt="" className="h-6 w-auto object-contain flex-shrink-0" />
-                        )}
-                        {showNamePv && (
-                          <span className="font-bold text-sm truncate">
-                            {cfg.display_name || companyName || 'ชื่อร้านของคุณ'}
-                          </span>
-                        )}
-                      </span>
-                      {cfg.header_layout === 'left' && (
-                        <span className="opacity-50 truncate" style={{ fontSize: 10 }}>สินค้าทั้งหมด · หมวด</span>
-                      )}
-                      {/* ไอคอนชุดเดียวกับหัวร้านจริง — SearchBox / CartBadge */}
-                      <span className={`flex items-center gap-2 flex-shrink-0 ${cfg.header_layout === 'center' ? 'absolute right-3' : 'ml-auto'}`}>
-                        <Search className="w-3.5 h-3.5 opacity-70" />
-                        <span className="relative">
-                          <ShoppingBag className="w-3.5 h-3.5 opacity-70" />
-                          <span
-                            className="absolute -top-1 -right-1 rounded-full flex items-center justify-center font-bold"
-                            style={{
-                              width: 10, height: 10, fontSize: 7, lineHeight: 1,
-                              background: 'var(--sf-cta)', color: 'var(--sf-cta-contrast)',
-                            }}
-                          >
-                            2
-                          </span>
-                        </span>
-                      </span>
-                    </div>
-
-                    {cfg.header_layout !== 'left' && (
                       <div
-                        className={`px-3 py-1.5 border-b border-gray-200 dark:border-slate-600 opacity-50 truncate ${
-                          cfg.header_layout === 'center' ? 'text-center' : ''
-                        }`}
-                        style={{ fontSize: 10 }}
+                        className={storefrontRootClasses(cfg).join(' ')}
+                        style={storefrontCssVars(cfg) as React.CSSProperties}
                       >
-                        สินค้าทั้งหมด · กระเช้าปีใหม่ · กระเช้าเยี่ยมไข้ · การจัดส่ง
-                      </div>
-                    )}
-
-                    <div className="p-3">
-                      {/* ก่ออิฐใช้ CSS multi-column เหมือนหน้าร้านจริง — grid ทำแบบนี้ไม่ได้
-                          เพราะ grid ยังจัดเป็นแถว การ์ดใบล่างจึงไม่ดันขึ้นไปชิดใบบน */}
-                      <div
-                        className={cfg.layout === 'masonry' ? 'block' : `grid gap-2 ${cfg.layout === 'editorial' ? 'grid-cols-1' : 'grid-cols-2'}`}
-                        style={cfg.layout === 'masonry' ? { columnCount: 2, columnGap: 8 } : undefined}
-                      >
-                        {(cfg.layout === 'editorial' ? PREVIEW_ITEMS.slice(0, 2) : PREVIEW_ITEMS).map((item, i) => (
-                          <div
-                            key={i}
-                            className={`border border-gray-200 dark:border-slate-600 overflow-hidden ${
-                              cfg.layout !== 'masonry' && cfg.image_ratio === 'auto' ? 'self-start' : ''
-                            }`}
-                            style={{
-                              borderRadius: 'var(--sf-radius)',
-                              ...(cfg.layout === 'masonry'
-                                ? { breakInside: 'avoid' as const, WebkitColumnBreakInside: 'avoid', marginBottom: 8, width: '100%' }
-                                : {}),
-                            }}
-                          >
-                            <PreviewPhoto src={item.src} frame={cfg.image_ratio} />
-                            <div className="p-2">
-                              <div className="text-gray-500" style={{ fontSize: 10 }}>{item.cat}</div>
-                              {/* ห้าม truncate — ชื่อยาวต้องขึ้นบรรทัดที่สองจริง ไม่งั้นพรีวิวโกหกเรื่องความสูงการ์ด */}
-                              <div className="font-semibold" style={{ fontSize: 12, lineHeight: 1.35 }}>{item.name}</div>
-                              <div className="font-bold mt-0.5" style={{ fontSize: 12, color: 'var(--sf-primary)' }}>{item.price}</div>
-                              {/* ต้องตรงกับ .sf-quickadd ของจริง — ไอคอน +, ระยะ, มุม, สไตล์ปุ่ม */}
-                              <div
-                                className="mt-1.5 flex items-center justify-center gap-1 font-semibold"
-                                style={{
-                                  ...(cfg.button_style === 'outline'
-                                    ? { background: 'transparent', color: ctaInk, border: `1px solid ${ctaInk}` }
-                                    : cfg.button_style === 'soft'
-                                    ? { background: `${ctaColor}26`, color: ctaInk, border: '1px solid transparent' }
-                                    : { background: ctaColor, color: ctaContrast, border: `1px solid ${ctaColor}` }),
-                                  borderRadius: 'calc(var(--sf-radius) / 1.5)',
-                                  fontSize: 11,
-                                  padding: '4px 8px',
-                                }}
-                              >
-                                <Plus className="w-3 h-3" strokeWidth={2} aria-hidden="true" />
-                                หยิบใส่ตะกร้า
-                              </div>
+                        {cfg.announcement && <div className="sf-announcement">{cfg.announcement}</div>}
+                        <StoreHeader
+                          cfg={cfg}
+                          slug={slug}
+                          shopName={previewShopName}
+                          logoUrl={logoUrl}
+                          navLinks={PREVIEW_NAV}
+                        />
+                        <main className="sf-main">
+                          <div className="sf-container">
+                            <div className="sf-hero">
+                              <h1>{previewShopName}</h1>
+                              <p>{cfg.tagline || `เลือกซื้อสินค้าจาก ${previewShopName} จัดส่งถึงบ้าน`}</p>
+                            </div>
+                            <div className="sf-grid">
+                              {previewProducts.map(p => (
+                                <StoreProductCard key={p.id} product={p} slug={slug} />
+                              ))}
                             </div>
                           </div>
-                        ))}
+                        </main>
                       </div>
                     </div>
                   </div>
+
                   <p className="helper-text text-gray-500 mt-2">
-                    ตัวอย่างจำลองรูปต้นฉบับ 1:1 และ 4:5 อย่างละ 2 ชิ้น และชื่อสินค้าทั้งแบบสั้นและยาวเกิน 1 บรรทัด
-                    — จะได้เห็นทั้งจุดที่กรอบตัดรูป และความสูงการ์ดที่ต่างกันจริง
+                    นี่คือหน้าร้านจริงย่อส่วน ไม่ใช่ภาพจำลอง — รูปตัวอย่างเป็น 1:1 และ 4:5
+                    อย่างละ 2 ชิ้น ชื่อสินค้ามีทั้งสั้นและยาวเกิน 1 บรรทัด
                   </p>
                 </div>
               </div>

@@ -158,7 +158,7 @@ export function storefrontCssVars(cfg: StorefrontConfig): Record<string, string>
   const header =
     cfg.header_style === 'brand' ? { bg: cfg.primary_color, fg: readableTextColor(cfg.primary_color) }
     : cfg.header_style === 'dark' ? { bg: '#111827', fg: '#f9fafb' }
-    : null;
+    : { bg: 'var(--sf-bg)', fg: 'var(--sf-text)' };
 
   return {
     '--sf-primary': cfg.primary_color,
@@ -171,8 +171,30 @@ export function storefrontCssVars(cfg: StorefrontConfig): Record<string, string>
     '--sf-cta-ink': relativeLuminance(button) > 0.62 ? 'var(--sf-text)' : button,
     '--sf-radius': RADIUS_PX[cfg.radius],
     '--sf-img-ratio': RATIO_CSS[cfg.image_ratio],
-    ...(header ? { '--sf-header-bg': header.bg, '--sf-header-fg': header.fg } : {}),
+    '--sf-header-bg': header.bg,
+    '--sf-header-fg': header.fg,
   };
+}
+
+/**
+ * คลาสทั้งหมดบน .sf-root — ทุกตัวเลือกธีมต้องออกมาเป็น "คลาส + CSS variable"
+ * เท่านั้น ห้ามให้ตัวเลือกไหนเปลี่ยนโครง HTML
+ *
+ * เหตุผล: หน้าตั้งค่าใช้ iframe ของหน้าร้านจริงเป็นพรีวิว แล้วยิงค่าร่างเข้าไป
+ * ทาง postMessage — ถ้าตัวเลือกไหนต้อง render markup ใหม่ พรีวิวจะอัปเดตไม่ได้
+ * และเราจะกลับไปวาดพรีวิวปลอมซึ่งเพี้ยนจากของจริงทุกครั้งที่แก้อะไรสักอย่าง
+ *
+ * (logo_display ไม่อยู่ในนี้ เพราะ StoreHeader ตัดสินใจจาก cfg ตอน render อยู่แล้ว
+ * และมันต้องรู้ด้วยว่าร้านมีไฟล์โลโก้จริงไหม ซึ่งเป็นข้อมูล ไม่ใช่ธีม)
+ */
+export function storefrontRootClasses(cfg: StorefrontConfig): string[] {
+  return [
+    'sf-root',
+    `sf-head-${cfg.header_layout}`,
+    cfg.layout === 'editorial' ? 'sf-layout-editorial' : cfg.layout === 'masonry' ? 'sf-layout-masonry' : '',
+    cfg.image_ratio === 'auto' ? 'sf-ratio-auto' : '',
+    cfg.button_style === 'outline' ? 'sf-btn-outline' : cfg.button_style === 'soft' ? 'sf-btn-soft' : '',
+  ].filter(Boolean) as string[];
 }
 
 /** WCAG relative luminance ของสี #RRGGBB (0 = ดำสนิท, 1 = ขาวสนิท) */

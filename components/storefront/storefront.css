@@ -7,6 +7,7 @@
    theme never means touching component code. */
 
 .sf-root {
+  container-type: inline-size;   /* จุดอ้างอิงของ @container ทุกอันในไฟล์นี้ */
   --sf-bg: #ffffff;
   --sf-surface: #f8fafc;
   --sf-border: #e5e7eb;
@@ -67,9 +68,15 @@
   align-items: center;
   gap: 16px;
   min-height: 64px;
+  flex-wrap: wrap;      /* แบบ stacked/center ให้เมนูตกลงบรรทัดสองเอง */
   position: relative;   /* จุดอ้างอิงของแผงเมนูแฮมเบอร์เกอร์ ให้ทุกแบบเท่ากัน */
 }
-.sf-header-actions { display: flex; align-items: center; gap: 4px; margin-left: auto; }
+.sf-brand { order: 1; }
+.sf-nav { order: 2; }
+.sf-header-actions {
+  order: 3;
+  display: flex; align-items: center; gap: 4px; margin-left: auto;
+}
 
 .sf-brand { display: flex; align-items: center; gap: 10px; text-decoration: none; color: inherit; }
 .sf-brand-logo { height: 43px; width: auto; object-fit: contain; }
@@ -77,7 +84,7 @@
 
 .sf-nav {
   display: flex; align-items: center; gap: 18px;
-  overflow-x: auto; padding-bottom: 2px;
+  overflow-x: auto;
   scrollbar-width: none;
 }
 .sf-nav::-webkit-scrollbar { display: none; }
@@ -116,7 +123,7 @@
 .sf-layout-editorial .sf-card-price { font-size: 18px; }
 .sf-layout-editorial .sf-card-foot { padding: 0 18px 18px; }
 
-@media (max-width: 640px) {
+@container (max-width: 640px) {
   /* auto-fill ที่ 200px บนจอแคบจะเหลือ 1 คอลัมน์ — บังคับ 2 ให้เลื่อนดูได้ไวขึ้น */
   .sf-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
   .sf-layout-editorial .sf-grid { grid-template-columns: 1fr; gap: 18px; }
@@ -163,7 +170,7 @@
 
 /* ── product detail ── */
 .sf-detail { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 40px; }
-@media (max-width: 860px) { .sf-detail { grid-template-columns: 1fr; gap: 24px; } }
+@container (max-width: 860px) { .sf-detail { grid-template-columns: 1fr; gap: 24px; } }
 
 .sf-gallery-main {
   aspect-ratio: var(--sf-img-ratio);
@@ -242,7 +249,7 @@
 .sf-footer-title { font-weight: 700; margin-bottom: 6px; }
 .sf-footer-text { color: var(--sf-muted); font-size: 14px; margin: 0 0 4px; }
 .sf-footer-contact { text-align: right; }
-@media (max-width: 640px) { .sf-footer-contact { text-align: left; } }
+@container (max-width: 640px) { .sf-footer-contact { text-align: left; } }
 .sf-footer-link { color: var(--sf-primary); font-size: 14px; text-decoration: none; }
 
 .sf-empty { color: var(--sf-muted); padding: 48px 0; text-align: center; }
@@ -286,7 +293,7 @@ html[data-sf-theme='dark'] .sf-root {
   border: 2px solid var(--sf-bg);   /* เว้นขอบให้ตัวเลขไม่ติดเส้นถุง */
 }
 /* จอแคบ เหลือแค่ไอคอน — ชื่อเมนูหมวดสำคัญกว่า */
-@media (max-width: 600px) { .sf-cart-text { display: none; } }
+@container (max-width: 600px) { .sf-cart-text { display: none; } }
 
 .sf-variation-active { border-color: var(--sf-primary); box-shadow: inset 0 0 0 1px var(--sf-primary); font-weight: 600; }
 .sf-variation:disabled { cursor: not-allowed; }
@@ -337,7 +344,7 @@ html[data-sf-theme='dark'] .sf-root {
 .sf-cart-remove svg { width: 16px; height: 16px; }
 .sf-cart-remove:hover { background: var(--sf-surface); }
 .sf-cart-remove:hover { color: #dc2626; }
-@media (max-width: 700px) {
+@container (max-width: 700px) {
   .sf-cart-row { grid-template-columns: 64px minmax(0, 1fr) auto; }
   .sf-cart-thumb { width: 64px; height: 64px; }
   .sf-cart-total { grid-column: 2 / 4; text-align: left; }
@@ -353,14 +360,14 @@ html[data-sf-theme='dark'] .sf-root {
 .sf-cart-actions { display: flex; gap: 10px; flex-wrap: wrap; }
 
 .sf-checkout { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(280px, 0.8fr); gap: 32px; align-items: start; }
-@media (max-width: 900px) { .sf-checkout { grid-template-columns: 1fr; } }
+@container (max-width: 900px) { .sf-checkout { grid-template-columns: 1fr; } }
 
 .sf-checkout-form { display: flex; flex-direction: column; gap: 24px; }
 .sf-fieldset { border: 1px solid var(--sf-border); border-radius: var(--sf-radius); padding: 18px; }
 .sf-fieldset h2 { font-size: 17px; font-weight: 700; margin: 0 0 14px; }
 .sf-label { display: block; font-size: 14px; color: var(--sf-muted); margin-bottom: 12px; }
 .sf-field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-@media (max-width: 560px) { .sf-field-row { grid-template-columns: 1fr; } }
+@container (max-width: 560px) { .sf-field-row { grid-template-columns: 1fr; } }
 .sf-input {
   display: block; width: 100%; margin-top: 6px;
   padding: 11px 13px; font-size: 16px; /* 16px กัน iOS zoom ตอนโฟกัส */
@@ -481,7 +488,7 @@ html[data-sf-theme='dark'] .sf-root {
 .sf-search-pop { position: relative; display: inline-flex; }
 .sf-search-panel {
   position: absolute; right: 0; top: calc(100% + 10px);
-  width: min(340px, calc(100vw - 32px));
+  width: min(340px, calc(100cqw - 32px));
   background: var(--sf-bg); color: var(--sf-text);
   border: 1px solid var(--sf-border);
   border-radius: 16px;
@@ -528,7 +535,7 @@ html[data-sf-theme='dark'] .sf-root {
 .sf-icon-btn svg { width: 20px; height: 20px; }
 .sf-icon-placeholder { width: 20px; height: 20px; display: block; }
 
-@media (max-width: 700px) {
+@container (max-width: 700px) {
   .sf-brand-name { font-size: 17px; }
   .sf-header-actions { gap: 0; }
   .sf-search-go { padding: 11px 16px; }
@@ -738,9 +745,9 @@ html[data-sf-theme='dark'] .sf-root {
   margin-bottom: 20px;
   width: 100%;
 }
-@media (max-width: 1280px) { .sf-layout-masonry .sf-grid { column-count: 3; } }
-@media (max-width: 900px)  { .sf-layout-masonry .sf-grid { column-count: 2; } }
-@media (max-width: 640px)  {
+@container (max-width: 1280px) { .sf-layout-masonry .sf-grid { column-count: 3; } }
+@container (max-width: 900px)  { .sf-layout-masonry .sf-grid { column-count: 2; } }
+@container (max-width: 640px)  {
   .sf-layout-masonry .sf-grid { column-count: 2; column-gap: 12px; }
   .sf-layout-masonry .sf-card { margin-bottom: 12px; }
 }
@@ -748,8 +755,12 @@ html[data-sf-theme='dark'] .sf-root {
 /* ── การจัดวางในแถบหัวร้าน ────────────────────────────────────────
    ทุกแบบใช้ .sf-header-top เป็นแถวหลัก ต่างกันที่ตำแหน่งโลโก้/เมนู */
 
-/* left — โลโก้ซ้าย เมนูต่อท้าย ไอคอนขวา (บรรทัดเดียว) */
-.sf-head-left .sf-nav-inline { flex: 1; min-width: 0; }
+/* left — โลโก้ซ้าย เมนูต่อท้ายในบรรทัดเดียวกัน ไอคอนขวา */
+.sf-head-left .sf-nav { flex: 1; min-width: 0; }
+
+/* stacked / center — เมนูกินเต็มบรรทัด จึงถูกดันไปบรรทัดที่สองเอง */
+.sf-head-stacked .sf-nav,
+.sf-head-center .sf-nav { order: 4; flex-basis: 100%; padding-bottom: 8px; }
 
 /* center — โลโก้อยู่กึ่งกลางแถวบน เมนูบรรทัดล่างจัดกลาง */
 .sf-head-center .sf-header-top { position: relative; justify-content: center; min-height: 72px; }
@@ -759,29 +770,29 @@ html[data-sf-theme='dark'] .sf-root {
 .sf-head-center .sf-nav { justify-content: center; }
 
 
-/* stacked — โลโก้ซ้ายบรรทัดบน เมนูบรรทัดล่าง (ค่าเริ่มต้น) */
-.sf-head-stacked .sf-nav { padding-bottom: 8px; }
 
 /* จอแคบ — ทุกแบบยุบเป็นโลโก้ซ้าย + ไอคอนขวา + เมนูเลื่อนแนวนอนด้านล่าง
    เพราะเมนูกลาง/สองข้างไม่มีที่พอบนมือถือ */
 /* จอแคบ — ทุกแบบยุบเมนูเข้าแฮมเบอร์เกอร์เหมือนกันหมด
    ลิงก์ยังอยู่ใน DOM (ซ่อนด้วย CSS ไม่ได้ถอดออก) Googlebot ที่ index แบบ
    mobile-first จึงยังเดินตามลิงก์หมวดสินค้าได้ครบ */
-@media (max-width: 760px) {
+@container (max-width: 760px) {
+  /* ทุกแบบยุบเมนูเข้าแฮมเบอร์เกอร์เหมือนกันหมด — ลิงก์ยังอยู่ใน DOM ซ่อนด้วย
+     CSS เท่านั้น Googlebot ที่ index แบบ mobile-first จึงยังเดินตามลิงก์ได้ */
   .sf-nav { display: none; }
   .sf-icon-btn.sf-burger { display: inline-flex; }
 
-  /* โลโก้ซ้าย / เมนูบรรทัดล่าง → แฮมเบอร์เกอร์ขวาสุด ต่อจากไอคอนอื่น
-     (actions มี margin-left:auto อยู่แล้ว ปุ่มที่ order สูงกว่าจึงไปต่อท้าย) */
-  .sf-head-left .sf-icon-btn.sf-burger,
-  .sf-head-stacked .sf-icon-btn.sf-burger { order: 9; }
-
-  /* โลโก้กลาง → แฮมเบอร์เกอร์ซ้าย ไอคอนขวา เหลือแค่โลโก้ที่อยู่ในสายการจัดวาง
-     จึงอยู่กึ่งกลางจริง · โลโก้ใหญ่ขึ้นเพราะเป็นตัวเดียวที่บอกว่านี่ร้านอะไร */
-  .sf-head-center .sf-brand { flex-direction: row; }
-  .sf-head-center .sf-brand-logo { height: 48px; }
-  .sf-head-center .sf-icon-btn.sf-burger {
-    position: absolute; left: 16px; top: 50%; transform: translateY(-50%);
+  /* โลโก้กลาง → แฮมเบอร์เกอร์ซ้ายสุด ไอคอนขวาสุด โลโก้ลอยกลางแถวจริง
+     (แถว actions กินเต็มความกว้าง โลโก้จึงต้องหลุดออกจากสายการจัดวาง
+     ไม่งั้นมันจะถูกดันไปชิดซ้ายแทนที่จะอยู่กลาง) */
+  .sf-head-center .sf-header-actions {
+    position: static; transform: none; width: 100%; margin-left: 0;
   }
+  .sf-head-center .sf-icon-btn.sf-burger { order: -1; margin-right: auto; }
+  .sf-head-center .sf-brand {
+    flex-direction: row;
+    position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  }
+  .sf-head-center .sf-brand-logo { height: 48px; }
 }
 
