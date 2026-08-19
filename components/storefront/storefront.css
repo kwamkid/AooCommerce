@@ -432,6 +432,47 @@
 .sf-acctbar-btns .sf-auth-btn { width: auto; margin: 0; padding: 10px 16px; font-size: 14px; }
 .sf-fieldset { border: 1px solid var(--sf-border); border-radius: var(--sf-radius); padding: 18px; }
 .sf-fieldset h2 { font-size: 17px; font-weight: 700; margin: 0 0 14px; }
+
+/* ── ส่งให้ตัวเอง / ส่งให้คนอื่น ─────────────────────────────────── */
+.sf-who { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+@container (max-width: 560px) { .sf-who { grid-template-columns: 1fr; } }
+.sf-who-btn {
+  display: flex; gap: 11px; align-items: flex-start; text-align: left;
+  padding: 13px 14px; border-radius: calc(var(--sf-radius) / 1.5);
+  border: 1px solid var(--sf-border); background: var(--sf-bg); color: var(--sf-text);
+  font: inherit; cursor: pointer; transition: border-color .15s, background .15s;
+}
+.sf-who-btn:hover { border-color: var(--sf-primary); }
+.sf-who-on { border-color: var(--sf-primary); box-shadow: inset 0 0 0 1px var(--sf-primary); }
+.sf-who-tick {
+  width: 18px; height: 18px; border-radius: 999px; flex-shrink: 0; margin-top: 2px;
+  border: 2px solid var(--sf-border);
+  display: grid; place-items: center;
+}
+.sf-who-on .sf-who-tick { border-color: var(--sf-primary); }
+.sf-who-on .sf-who-tick::after {
+  content: ''; width: 9px; height: 9px; border-radius: 999px; background: var(--sf-primary);
+}
+.sf-who-btn b { display: block; font-weight: 600; font-size: 15px; }
+.sf-who-btn small { color: var(--sf-muted); font-size: 13px; }
+
+/* ── สวิตช์ติ๊ก (ไม่แนบราคา / ขอใบกำกับภาษี) ─────────────────────── */
+.sf-switch { display: flex; gap: 11px; align-items: flex-start; cursor: pointer; }
+.sf-switch input { appearance: none; margin: 0; flex-shrink: 0; }
+.sf-switch-box {
+  width: 20px; height: 20px; border-radius: 6px; margin-top: 2px; flex-shrink: 0;
+  border: 1px solid var(--sf-border); background: var(--sf-bg);
+  display: grid; place-items: center;
+}
+.sf-switch input:checked + .sf-switch-box { background: var(--sf-primary); border-color: var(--sf-primary); }
+.sf-switch input:checked + .sf-switch-box::after {
+  content: ''; width: 10px; height: 6px;
+  border-left: 2px solid var(--sf-primary-contrast); border-bottom: 2px solid var(--sf-primary-contrast);
+  transform: rotate(-45deg) translate(1px, -2px);
+}
+.sf-switch input:focus-visible + .sf-switch-box { outline: 2px solid var(--sf-primary); outline-offset: 2px; }
+.sf-switch b { display: block; font-weight: 600; font-size: 15px; }
+.sf-switch small { color: var(--sf-muted); font-size: 13px; }
 .sf-label { display: block; font-size: 14px; color: var(--sf-muted); margin-bottom: 12px; }
 .sf-field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 @container (max-width: 560px) { .sf-field-row { grid-template-columns: 1fr; } }

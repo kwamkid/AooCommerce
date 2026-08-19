@@ -75,6 +75,21 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
   const [deliveryDate, setDeliveryDate] = useState('');
   const [slotId, setSlotId] = useState('');
   const [note, setNote] = useState('');
+  // ส่งให้คนอื่น — ผู้รับคนละคนกับผู้สั่ง
+  const [shipToOther, setShipToOther] = useState(false);
+  const [rcpName, setRcpName] = useState('');
+  const [rcpPhone, setRcpPhone] = useState('');
+  const [mapsLink, setMapsLink] = useState('');
+  const [giftMessage, setGiftMessage] = useState('');
+  const [giftTo, setGiftTo] = useState('');
+  const [giftFrom, setGiftFrom] = useState('');
+  const [giftHidePrice, setGiftHidePrice] = useState(true);
+  const [taxInvoice, setTaxInvoice] = useState(false);
+  const [taxName, setTaxName] = useState('');
+  const [taxId, setTaxId] = useState('');
+  const [taxBranch, setTaxBranch] = useState('');
+  const [taxAddress, setTaxAddress] = useState('');
+  const rcpNameRef = useRef<HTMLInputElement>(null);
 
   // เติมข้อมูลผู้รับจากครั้งก่อน — ลูกค้าประจำไม่ต้องพิมพ์ที่อยู่ใหม่ทุกรอบ
   const [prefilled, setPrefilled] = useState(false);
@@ -187,7 +202,11 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
     if (lines.length === 0) { setError('ไม่มีสินค้าในตะกร้า'); return; }
     if (!name.trim()) { setError('กรุณากรอกชื่อผู้รับ'); focusField(nameRef); return; }
     if (!/^[0-9+\-\s()]{8,20}$/.test(phone.trim())) { setError('กรุณากรอกเบอร์โทรให้ถูกต้อง'); focusField(phoneRef); return; }
+    if (shipToOther && !rcpName.trim()) { setError('กรุณากรอกชื่อผู้รับ'); focusField(rcpNameRef); return; }
+    if (shipToOther && !rcpPhone.trim()) { setError('กรุณากรอกเบอร์ผู้รับ'); focusField(rcpNameRef); return; }
     if (!address.trim()) { setError('กรุณากรอกที่อยู่จัดส่ง'); focusField(addressRef); return; }
+    if (taxInvoice && !taxName.trim()) { setError('กรุณากรอกชื่อผู้เสียภาษี'); return; }
+    if (taxInvoice && taxId.replace(/\D/g, '').length !== 13) { setError('เลขประจำตัวผู้เสียภาษีต้องมี 13 หลัก'); return; }
     if (outOfArea) { setError('ที่อยู่นี้อยู่นอกพื้นที่จัดส่งของร้าน'); return; }
     if (slotEnabled && dateEnabled && !deliveryDate) { setError('กรุณาเลือกวันที่จัดส่ง'); return; }
 
@@ -207,6 +226,19 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
           delivery_date: deliveryDate || undefined,
           delivery_slot_id: slotId || undefined,
           note: note.trim(),
+          ship_to_other: shipToOther,
+          recipient_name: rcpName.trim(),
+          recipient_phone: rcpPhone.trim(),
+          google_maps_link: mapsLink.trim(),
+          gift_message: shipToOther ? giftMessage.trim() : '',
+          gift_to: shipToOther ? (giftTo.trim() || rcpName.trim()) : '',
+          gift_from: shipToOther ? (giftFrom.trim() || name.trim()) : '',
+          gift_hide_price: shipToOther && giftHidePrice,
+          tax_invoice: taxInvoice,
+          tax_name: taxName.trim(),
+          tax_id: taxId,
+          tax_branch: taxBranch.trim(),
+          tax_address: taxAddress.trim(),
         }),
       });
       const data = await res.json();
@@ -271,13 +303,13 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
             onSignedOut={() => setAccount({ signedIn: false, isStaff: false, customer: null })}
           />
           <section className="sf-fieldset">
-            <h2>ผู้รับ</h2>
-            {prefilled && (
-              <p className="sf-hint" style={{ marginBottom: 10 }}>
-                เติมข้อมูลจากครั้งก่อนให้แล้ว — แก้ไขได้ตามต้องการ
-              </p>
-            )}
-            <label className="sf-label">ชื่อผู้รับ *
+            <h2>ผู้สั่งซื้อ</h2>
+            <p className="sf-hint" style={{ marginBottom: 10 }}>
+              {prefilled
+                ? 'เติมข้อมูลจากครั้งก่อนให้แล้ว — แก้ไขได้ตามต้องการ'
+                : 'ใช้ติดต่อกลับและเก็บประวัติการสั่งซื้อ ไม่ได้ส่งไปกับของ'}
+            </p>
+            <label className="sf-label">ชื่อผู้สั่ง *
               <input ref={nameRef} className="sf-input" value={name} onChange={e => setName(e.target.value)} placeholder="ชื่อ-นามสกุล" />
             </label>
             <div className="sf-field-row">
@@ -291,7 +323,47 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
           </section>
 
           <section className="sf-fieldset">
-            <h2>ที่อยู่จัดส่ง</h2>
+            <h2>จัดส่งถึง</h2>
+
+            {/* สั่งไปกินเอง กับ สั่งไปให้คนอื่น เป็นคนละงานกัน — แยกให้ชัดตั้งแต่ต้น
+                ไม่งั้นลูกค้าจะกรอกชื่อตัวเองแล้วคนส่งของโทรผิดคน */}
+            <div className="sf-who">
+              {([
+                { key: false, title: 'ส่งให้ตัวเอง', desc: 'ใช้ชื่อและเบอร์ของผู้สั่ง' },
+                { key: true, title: 'ส่งให้คนอื่น', desc: 'เป็นของขวัญ แนบการ์ดได้' },
+              ] as const).map(o => (
+                <button
+                  key={String(o.key)}
+                  type="button"
+                  className={`sf-who-btn${shipToOther === o.key ? ' sf-who-on' : ''}`}
+                  aria-pressed={shipToOther === o.key}
+                  onClick={() => setShipToOther(o.key)}
+                >
+                  <span className="sf-who-tick" aria-hidden="true" />
+                  <span>
+                    <b>{o.title}</b>
+                    <small>{o.desc}</small>
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            {shipToOther && (
+              <>
+                <div className="sf-field-row">
+                  <label className="sf-label">ชื่อผู้รับ *
+                    <input ref={rcpNameRef} className="sf-input" value={rcpName} onChange={e => setRcpName(e.target.value)} placeholder="ชื่อคนที่จะได้รับของ" />
+                  </label>
+                  <label className="sf-label">เบอร์ผู้รับ *
+                    <input className="sf-input" value={rcpPhone} onChange={e => setRcpPhone(e.target.value)} inputMode="tel" placeholder="ให้คนส่งของโทรหาได้" />
+                  </label>
+                </div>
+                <p className="sf-hint" style={{ marginTop: -6, marginBottom: 12 }}>
+                  คนส่งของจะโทรหาเบอร์นี้ ไม่ใช่เบอร์ผู้สั่ง
+                </p>
+              </>
+            )}
+
             <label className="sf-label">บ้านเลขที่ / อาคาร / ถนน *
               <input ref={addressRef} className="sf-input" value={address} onChange={e => setAddress(e.target.value)} placeholder="เช่น 123/45 ซอยสุขุมวิท 21" />
             </label>
@@ -325,7 +397,50 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
             {province && (
               <p className="sf-hint">เลือกแล้ว: {district} · {amphoe} · {province} {postal}</p>
             )}
+
+            <label className="sf-label" style={{ marginTop: 12 }}>ลิงก์ Google Maps
+              <input className="sf-input" value={mapsLink} onChange={e => setMapsLink(e.target.value)} inputMode="url" placeholder="https://maps.app.goo.gl/…" />
+            </label>
+            <p className="sf-hint">
+              เปิด Google Maps → กดค้างที่หมุด → แชร์ → คัดลอกลิงก์ · ช่วยให้คนส่งหาบ้านเจอเร็วขึ้นมาก
+            </p>
           </section>
+
+          {/* การ์ดอวยพร — โผล่เฉพาะตอนส่งให้คนอื่น */}
+          {shipToOther && (
+            <section className="sf-fieldset">
+              <h2>การ์ดอวยพร</h2>
+              <label className="sf-label">ข้อความบนการ์ด
+                <textarea
+                  className="sf-input" rows={4} maxLength={220}
+                  value={giftMessage} onChange={e => setGiftMessage(e.target.value)}
+                  placeholder="เช่น ขอบคุณสำหรับทุกอย่างในปีที่ผ่านมา ขอให้สุขภาพแข็งแรงนะครับ"
+                />
+              </label>
+              <p className={`sf-hint${giftMessage.length > 200 ? ' sf-error' : ''}`} style={{ textAlign: 'right', marginTop: -4 }}>
+                {giftMessage.length} / 220
+              </p>
+
+              <div className="sf-field-row">
+                <label className="sf-label">ถึง
+                  <input className="sf-input" value={giftTo} onChange={e => setGiftTo(e.target.value)} placeholder={rcpName || 'ชื่อที่จะขึ้นบนการ์ด'} />
+                </label>
+                <label className="sf-label">จาก
+                  <input className="sf-input" value={giftFrom} onChange={e => setGiftFrom(e.target.value)} placeholder={name || 'ชื่อผู้ให้'} />
+                </label>
+              </div>
+
+              {/* ของขวัญที่มีราคาติดไปคือหายนะ — ติ๊กไว้ก่อน ให้ต้องตั้งใจปลดเอง */}
+              <label className="sf-switch">
+                <input type="checkbox" checked={giftHidePrice} onChange={e => setGiftHidePrice(e.target.checked)} />
+                <span className="sf-switch-box" aria-hidden="true" />
+                <span>
+                  <b>ไม่แนบใบเสร็จและราคาไปกับของ</b>
+                  <small>ใบเสร็จส่งให้ผู้สั่งแทน</small>
+                </span>
+              </label>
+            </section>
+          )}
 
           {(dateEnabled || slotEnabled) && (
             <section className="sf-fieldset">
@@ -374,8 +489,39 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
           )}
 
           <section className="sf-fieldset">
+            <h2>ใบกำกับภาษี</h2>
+            <label className="sf-switch">
+              <input type="checkbox" checked={taxInvoice} onChange={e => setTaxInvoice(e.target.checked)} />
+              <span className="sf-switch-box" aria-hidden="true" />
+              <span>
+                <b>ต้องการใบกำกับภาษีเต็มรูปแบบ</b>
+                <small>ออกในนามผู้สั่งซื้อ ไม่ใช่ผู้รับของ</small>
+              </span>
+            </label>
+
+            {taxInvoice && (
+              <div style={{ marginTop: 14 }}>
+                <label className="sf-label">ชื่อผู้เสียภาษี / ชื่อบริษัท *
+                  <input className="sf-input" value={taxName} onChange={e => setTaxName(e.target.value)} placeholder="บริษัท ตัวอย่าง จำกัด" />
+                </label>
+                <div className="sf-field-row">
+                  <label className="sf-label">เลขประจำตัวผู้เสียภาษี *
+                    <input className="sf-input" value={taxId} onChange={e => setTaxId(e.target.value)} inputMode="numeric" placeholder="13 หลัก" />
+                  </label>
+                  <label className="sf-label">สาขา
+                    <input className="sf-input" value={taxBranch} onChange={e => setTaxBranch(e.target.value)} placeholder="สำนักงานใหญ่" />
+                  </label>
+                </div>
+                <label className="sf-label">ที่อยู่ออกใบกำกับภาษี *
+                  <textarea className="sf-input" rows={3} value={taxAddress} onChange={e => setTaxAddress(e.target.value)} placeholder="ที่อยู่ตามหนังสือรับรอง — คนละที่กับที่อยู่จัดส่งได้" />
+                </label>
+              </div>
+            )}
+          </section>
+
+          <section className="sf-fieldset">
             <h2>ข้อความถึงร้าน</h2>
-            <label className="sf-label">หมายเหตุ / ข้อความบนการ์ด
+            <label className="sf-label">หมายเหตุ
               <textarea className="sf-input" rows={3} value={note} onChange={e => setNote(e.target.value)} placeholder="ไม่บังคับ" />
             </label>
           </section>

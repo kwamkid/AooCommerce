@@ -124,3 +124,81 @@ export async function resolveCheckoutCustomer(
   }
   return created.id;
 }
+
+interface RecipientAddress {
+  contact_person: string;
+  phone: string;
+  address_line1: string;
+  district: string | null;
+  amphoe: string | null;
+  province: string | null;
+  postal_code: string | null;
+  google_maps_link: string | null;
+}
+
+/**
+ * เก็บที่อยู่ผู้รับเข้า `shipping_addresses` แล้วคืน id ไปผูกกับออเดอร์
+ *
+ * ทำไมต้องเก็บ ไม่ใช่ปล่อยให้อยู่แค่ orders.delivery_*:
+ *  - ครั้งหน้าลูกค้าเลือกที่อยู่เดิมได้ ไม่ต้องพิมพ์ใหม่ (โดยเฉพาะที่อยู่คนอื่น
+ *    ที่จำไม่ได้อยู่แล้ว)
+ *  - หน้าออเดอร์ในหลังบ้านอ่านจาก shipping_address_id เหมือนออเดอร์ที่เปิดเอง
+ *  - google_maps_link ติดไปกับที่อยู่ คนส่งของรอบหน้าได้ใช้ด้วย
+ *
+ * ที่อยู่เดิมที่ "คนรับคนเดียวกัน ที่เดียวกัน" จะถูกใช้ซ้ำ ไม่สร้างแถวใหม่ทุกครั้ง
+ */
+export async function resolveShippingAddress(
+  companyId: string,
+  customerId: string,
+  addr: RecipientAddress,
+): Promise<string | null> {
+  const line1 = addr.address_line1.trim();
+  if (!line1) return null;
+
+  const { data: existing } = await supabaseAdmin
+    .from('shipping_addresses')
+    .select('id, google_maps_link')
+    .eq('company_id', companyId)
+    .eq('customer_id', customerId)
+    .eq('address_line1', line1)
+    .eq('phone', addr.phone)
+    .limit(1)
+    .maybeSingle();
+
+  if (existing?.id) {
+    // เติมลิงก์แผนที่ให้ที่อยู่เดิมถ้าเพิ่งกรอกมาครั้งแรก — ของเดิมที่มีอยู่แล้วไม่ทับ
+    if (addr.google_maps_link && !existing.google_maps_link) {
+      await supabaseAdmin
+        .from('shipping_addresses')
+        .update({ google_maps_link: addr.google_maps_link })
+        .eq('id', existing.id);
+    }
+    return existing.id;
+  }
+
+  const { data: created, error } = await supabaseAdmin
+    .from('shipping_addresses')
+    .insert({
+      company_id: companyId,
+      customer_id: customerId,
+      address_name: addr.contact_person || 'ที่อยู่จัดส่ง',
+      contact_person: addr.contact_person || null,
+      phone: addr.phone || null,
+      address_line1: line1,
+      district: addr.district,
+      amphoe: addr.amphoe,
+      province: addr.province,
+      postal_code: addr.postal_code,
+      google_maps_link: addr.google_maps_link,
+      is_active: true,
+    })
+    .select('id')
+    .single();
+
+  if (error) {
+    // ออเดอร์ต้องผ่านให้ได้ — ที่อยู่ฉบับเต็มถูก snapshot ไว้ใน orders.delivery_* แล้ว
+    console.error('[storefront checkout] create shipping address failed:', error);
+    return null;
+  }
+  return created.id;
+}

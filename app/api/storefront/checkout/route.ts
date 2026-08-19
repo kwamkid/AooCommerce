@@ -8,7 +8,7 @@
 //   • zone/slot ids must belong to this company; slot must actually be available
 //   • basic per-IP rate limiting so the endpoint can't be used to spam orders
 import { NextRequest, NextResponse } from 'next/server';
-import { resolveStorefrontViewer, resolveCheckoutCustomer } from '@/lib/storefront-customer';
+import { resolveStorefrontViewer, resolveCheckoutCustomer, resolveShippingAddress } from '@/lib/storefront-customer';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { getStorefrontCompany } from '@/lib/storefront-server';
 import { effectivePrice } from '@/lib/storefront';
@@ -24,9 +24,26 @@ interface CheckoutItem { variation_id: string; quantity: number }
 interface CheckoutBody {
   shop: string;
   items: CheckoutItem[];
+  /** ผู้สั่งซื้อ — คนที่จ่ายเงินและได้ประวัติ (ผูกกับ customer_id) */
   name: string;
   phone: string;
   email?: string;
+  /** ส่งให้คนอื่น — ชื่อ/เบอร์ผู้รับต่างจากผู้สั่ง */
+  ship_to_other?: boolean;
+  recipient_name?: string;
+  recipient_phone?: string;
+  google_maps_link?: string;
+  /** การ์ดอวยพร */
+  gift_message?: string;
+  gift_to?: string;
+  gift_from?: string;
+  gift_hide_price?: boolean;
+  /** ใบกำกับภาษี — ออกในนามผู้สั่ง ไม่ใช่ผู้รับ */
+  tax_invoice?: boolean;
+  tax_name?: string;
+  tax_id?: string;
+  tax_branch?: string;
+  tax_address?: string;
   address: string;
   district?: string;
   amphoe?: string;
@@ -214,8 +231,26 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'สร้างเลขที่คำสั่งซื้อไม่สำเร็จ' }, { status: 500 });
   }
 
+  // ผู้รับอาจเป็นคนละคนกับผู้สั่ง (สั่งเป็นของขวัญ) — คนส่งของต้องโทรหาเบอร์ผู้รับ
+  const shipToOther = !!body.ship_to_other;
+  const recipientName = shipToOther ? (body.recipient_name || '').trim() : name;
+  const recipientPhone = shipToOther ? (body.recipient_phone || '').trim() : phone;
+  if (shipToOther && (!recipientName || !recipientPhone)) {
+    return NextResponse.json({ error: 'กรุณากรอกชื่อและเบอร์ของผู้รับ' }, { status: 400 });
+  }
+
+  const district = (body.district || '').trim() || null;
+  const amphoe = (body.amphoe || '').trim() || null;
+  const province = (body.province || '').trim() || null;
+  const postalCode = (body.postal_code || '').trim() || null;
+  const mapsLink = (body.google_maps_link || '').trim();
+  // รับเฉพาะลิงก์ http(s) — กัน javascript: ที่จะกลายเป็น XSS ตอนหลังบ้านกดเปิด
+  const safeMapsLink = /^https?:\/\//i.test(mapsLink) ? mapsLink.slice(0, 500) : null;
+
   // ออเดอร์ต้องผูกกับแถวลูกค้าเสมอ ไม่งั้นประวัติการสั่งซื้อของลูกค้าว่างเปล่า
   // (หน้า /account อ่านจาก customer_id) และหลังบ้านไม่รู้ว่าใครสั่ง
+  // ⚠️ จับคู่ด้วยข้อมูล "ผู้สั่ง" เสมอ ไม่ใช่ผู้รับ — ไม่งั้นคนสั่งของขวัญ
+  // จะไม่มีประวัติ และคนรับจะกลายเป็นลูกค้าที่ไม่เคยซื้ออะไร
   const viewer = await resolveStorefrontViewer(request);
   const customerId = await resolveCheckoutCustomer(
     company.id,
@@ -223,14 +258,24 @@ export async function POST(request: NextRequest) {
       name,
       phone,
       email: (body.email || '').trim() || null,
-      address,
-      district: (body.district || '').trim() || null,
-      amphoe: (body.amphoe || '').trim() || null,
-      province: (body.province || '').trim() || null,
-      postal_code: (body.postal_code || '').trim() || null,
+      address: shipToOther ? null : address,
+      district: shipToOther ? null : district,
+      amphoe: shipToOther ? null : amphoe,
+      province: shipToOther ? null : province,
+      postal_code: shipToOther ? null : postalCode,
     },
     viewer?.userId ?? null,
   );
+
+  const shippingAddressId = customerId
+    ? await resolveShippingAddress(company.id, customerId, {
+        contact_person: recipientName,
+        phone: recipientPhone,
+        address_line1: address,
+        district, amphoe, province, postal_code: postalCode,
+        google_maps_link: safeMapsLink,
+      })
+    : null;
 
   const { data: order, error: orderError } = await supabaseAdmin
     .from('orders')
@@ -238,6 +283,7 @@ export async function POST(request: NextRequest) {
       company_id: company.id,
       order_number: orderNumber,
       customer_id: customerId,
+      shipping_address_id: shippingAddressId,
       subtotal: subtotalBeforeVat,
       vat_amount: vatAmount,
       discount_amount: 0,
@@ -249,14 +295,25 @@ export async function POST(request: NextRequest) {
       source: 'storefront',
       source_name: company.config.display_name || company.name,
       notes: (body.note || '').trim() || null,
-      delivery_name: name,
-      delivery_phone: phone,
+      delivery_name: recipientName,
+      delivery_phone: recipientPhone,
       delivery_email: (body.email || '').trim() || null,
       delivery_address: address,
-      delivery_district: (body.district || '').trim() || null,
-      delivery_amphoe: (body.amphoe || '').trim() || null,
-      delivery_province: (body.province || '').trim() || null,
-      delivery_postal_code: (body.postal_code || '').trim() || null,
+      delivery_district: district,
+      delivery_amphoe: amphoe,
+      delivery_province: province,
+      delivery_postal_code: postalCode,
+      // การ์ดอวยพร — เก็บแยกจาก notes เพราะต้องพิมพ์ใบการ์ดและค้นหาได้
+      gift_message: (body.gift_message || '').trim().slice(0, 500) || null,
+      gift_to: (body.gift_to || '').trim().slice(0, 120) || null,
+      gift_from: (body.gift_from || '').trim().slice(0, 120) || null,
+      gift_hide_price: !!body.gift_hide_price,
+      // ใบกำกับภาษีออกในนามผู้สั่ง ไม่ใช่ผู้รับของ
+      tax_invoice_requested: !!body.tax_invoice,
+      tax_invoice_name: body.tax_invoice ? (body.tax_name || '').trim() || null : null,
+      tax_invoice_tax_id: body.tax_invoice ? (body.tax_id || '').replace(/\D/g, '').slice(0, 13) || null : null,
+      tax_invoice_branch: body.tax_invoice ? (body.tax_branch || '').trim() || null : null,
+      tax_invoice_address: body.tax_invoice ? (body.tax_address || '').trim() || null : null,
       delivery_date: body.delivery_date || null,
       // snapshot — แก้โซน/รอบทีหลังต้องไม่เปลี่ยนสิ่งที่ลูกค้าเลือกไว้
       delivery_zone_id: zone?.id ?? null,
