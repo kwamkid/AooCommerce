@@ -30,10 +30,11 @@ export function Spinner({ size = 'md', className = '' }: { size?: SpinnerSize; c
 }
 
 /**
- * Splash เต็มจอ พื้นสีแบรนด์ + โลโก้หมุนสีขาว
+ * Splash เต็มจอ พื้นสีแบรนด์ + โลโก้หมุนสีขาว (ไม่มีข้อความ — โลโก้อย่างเดียว)
  * ใช้ตอน "ยังไม่มีอะไรจะโชว์เลย" — first paint, route transition, สลับบริษัท
  */
 export function FullPageLoading({
+  /** ใช้เป็นชื่อสำหรับ screen reader เท่านั้น — splash ไม่แสดงข้อความ (โลโก้หมุนอย่างเดียว) */
   label = 'กำลังโหลด...',
   /** true = บล็อกคลิกทั้งจอ (กันกดซ้ำระหว่างสลับ) */
   blocking = false,
@@ -45,7 +46,7 @@ export function FullPageLoading({
       role="status"
       aria-busy="true"
       aria-label={label}
-      className={`${fixed ? 'fixed' : 'absolute'} inset-0 z-[300] flex flex-col items-center justify-center gap-5 bg-gradient-to-br from-[#F4511E] to-[#B23A0E] animate-in fade-in duration-200`}
+      className={`${fixed ? 'fixed' : 'absolute'} inset-0 z-[300] flex items-center justify-center bg-gradient-to-br from-[#F4511E] to-[#B23A0E] animate-in fade-in duration-200`}
       style={{ pointerEvents: blocking ? 'auto' : 'none', cursor: blocking ? 'wait' : undefined } as CSSProperties}
     >
       {/* โลโก้จริง flatten เป็นสีขาว — หมุนช้าๆ แทน spinner ธรรมดา */}
@@ -54,10 +55,9 @@ export function FullPageLoading({
         src="/logo.svg"
         alt=""
         aria-hidden="true"
-        className="w-16 h-auto animate-spin"
+        className="w-24 h-auto animate-spin"
         style={{ filter: 'brightness(0) invert(1)', animationDuration: '1.4s' }}
       />
-      {label && <p className="text-white/90 text-sm">{label}</p>}
     </div>
   );
 }

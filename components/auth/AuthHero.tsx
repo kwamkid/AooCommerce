@@ -48,8 +48,10 @@ export function AuthSplitShell({ children }: { children: React.ReactNode }) {
         {/* Readability overlay — เข้มขึ้นทางล่างซ้ายที่มีข้อความ */}
         <div className="absolute inset-0 -z-10 bg-gradient-to-t from-black/65 via-black/20 to-black/25" />
 
-        {/* Channel orbit — เจ้าของธุรกิจเป็น hub ตรงกลาง ล้อมด้วยวงช่องทางที่หมุนช้าๆ */}
-        <div className="absolute left-1/2 top-[38%] -translate-x-1/2 -translate-y-1/2">
+        {/* Channel orbit — เจ้าของธุรกิจเป็น hub ตรงกลาง ล้อมด้วยวงช่องทางที่หมุนช้าๆ
+            วางค่อนไปทางซ้าย-ล่าง: เว้นที่ให้แถบแบรนด์ด้านบน และไม่ชนหัวข้อด้านล่าง
+            ขยับเฉพาะจอ xl+ — จอ lg แคบ/เตี้ยกว่า ถ้าขยับด้วยวงจะล้นขอบซ้ายและชนหัวข้อ */}
+        <div className="absolute left-1/2 top-[38%] xl:left-[40%] xl:top-[48%] -translate-x-1/2 -translate-y-1/2">
           <div className="auth-orbit relative" style={{ width: RING_SIZE, height: RING_SIZE }}>
             {/* วงที่หมุน — เส้นวงแหวน, เส้นโยง, bubble ทุกใบ */}
             <div className="auth-orbit-plane">
