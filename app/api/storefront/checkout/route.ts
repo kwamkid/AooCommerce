@@ -8,6 +8,7 @@
 //   • zone/slot ids must belong to this company; slot must actually be available
 //   • basic per-IP rate limiting so the endpoint can't be used to spam orders
 import { NextRequest, NextResponse } from 'next/server';
+import { resolveStorefrontViewer, resolveCheckoutCustomer } from '@/lib/storefront-customer';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { getStorefrontCompany } from '@/lib/storefront-server';
 import { effectivePrice } from '@/lib/storefront';
@@ -213,11 +214,30 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'สร้างเลขที่คำสั่งซื้อไม่สำเร็จ' }, { status: 500 });
   }
 
+  // ออเดอร์ต้องผูกกับแถวลูกค้าเสมอ ไม่งั้นประวัติการสั่งซื้อของลูกค้าว่างเปล่า
+  // (หน้า /account อ่านจาก customer_id) และหลังบ้านไม่รู้ว่าใครสั่ง
+  const viewer = await resolveStorefrontViewer(request);
+  const customerId = await resolveCheckoutCustomer(
+    company.id,
+    {
+      name,
+      phone,
+      email: (body.email || '').trim() || null,
+      address,
+      district: (body.district || '').trim() || null,
+      amphoe: (body.amphoe || '').trim() || null,
+      province: (body.province || '').trim() || null,
+      postal_code: (body.postal_code || '').trim() || null,
+    },
+    viewer?.userId ?? null,
+  );
+
   const { data: order, error: orderError } = await supabaseAdmin
     .from('orders')
     .insert({
       company_id: company.id,
       order_number: orderNumber,
+      customer_id: customerId,
       subtotal: subtotalBeforeVat,
       vat_amount: vatAmount,
       discount_amount: 0,

@@ -9,48 +9,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { newCustomerCode } from '@/lib/customer-code';
 import { supabaseAdmin } from '@/lib/supabase-admin';
-import { extractRequestToken } from '@/lib/auth/cookie-token';
-import { verifyAccessToken } from '@/lib/auth/verify-token';
 import { getStorefrontCompany } from '@/lib/storefront-server';
+import {
+  resolveStorefrontViewer as resolveViewer,
+  findLinkedCustomer,
+  isCompanyStaff,
+  CUSTOMER_PUBLIC_FIELDS,
+} from '@/lib/storefront-customer';
 
 export const dynamic = 'force-dynamic';
 
-async function resolveViewer(request: NextRequest) {
-  const token = extractRequestToken(request);
-  if (!token) return null;
-  const verified = await verifyAccessToken(token);
-  return verified?.userId ? verified : null;
-}
-
-/** ลูกค้าของร้านนี้ที่ผูกกับ auth user แล้ว */
-async function findLinkedCustomer(companyId: string, authUserId: string) {
-  const { data } = await supabaseAdmin
-    .from('customers')
-    .select('id, name, phone, email, line_user_id, billing_address, billing_district, billing_amphoe, billing_province, billing_postal_code')
-    .eq('company_id', companyId)
-    .eq('auth_user_id', authUserId)
-    .maybeSingle();
-  return data;
-}
-
-/**
- * คน ๆ นี้เป็นพนักงาน/แอดมินของร้านนี้หรือเปล่า
- *
- * storefront ใช้ Supabase Auth ชุดเดียวกับหลังบ้าน แปลว่าพนักงานที่ login
- * ค้างอยู่จะพก session ติดมาหน้าร้านด้วย — ต้องรู้ให้ได้ เพื่อ (1) ไม่เผลอ
- * สร้างแถวลูกค้าให้พนักงาน และ (2) เตือนตอนทดสอบว่ากำลังใช้บัญชีพนักงานอยู่
- */
-async function isCompanyStaff(companyId: string, authUserId: string): Promise<boolean> {
-  const { data } = await supabaseAdmin
-    .from('company_members')
-    .select('id')
-    .eq('company_id', companyId)
-    .eq('user_id', authUserId)
-    .eq('is_active', true)
-    .limit(1)
-    .maybeSingle();
-  return !!data;
-}
 
 export async function GET(request: NextRequest) {
   const shop = new URL(request.url).searchParams.get('shop') || '';
@@ -128,7 +96,7 @@ export async function POST(request: NextRequest) {
       })
       .eq('id', claimed.id)
       .eq('company_id', company.id)
-      .select('id, name, phone, email, line_user_id, billing_address, billing_district, billing_amphoe, billing_province, billing_postal_code')
+      .select(CUSTOMER_PUBLIC_FIELDS)
       .single();
     return NextResponse.json({ customer: linked, created: false, matched_by: 'email' });
   }
@@ -145,7 +113,7 @@ export async function POST(request: NextRequest) {
       ...(lineUserId ? { line_user_id: lineUserId } : {}),
       storefront_linked_at: new Date().toISOString(),
     })
-    .select('id, name, phone, email, line_user_id, billing_address, billing_district, billing_amphoe, billing_province, billing_postal_code')
+    .select(CUSTOMER_PUBLIC_FIELDS)
     .single();
 
   if (error) {
