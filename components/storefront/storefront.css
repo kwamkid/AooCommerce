@@ -398,6 +398,16 @@
 @container (max-width: 900px) { .sf-checkout { grid-template-columns: 1fr; } }
 
 .sf-checkout-form { display: flex; flex-direction: column; gap: 24px; }
+/* แถบบัญชีบนหัวฟอร์ม — เบากว่า fieldset เพราะเป็นทางลัด ไม่ใช่ขั้นตอนที่ต้องทำ */
+.sf-acctbar {
+  display: flex; gap: 12px; align-items: flex-start;
+  border: 1px solid var(--sf-border); border-radius: var(--sf-radius);
+  background: var(--sf-surface); padding: 14px 16px; font-size: 15px;
+}
+.sf-acctbar > svg { width: 20px; height: 20px; color: var(--sf-muted); flex-shrink: 0; margin-top: 1px; }
+.sf-acctbar-body { display: flex; flex-direction: column; gap: 8px; }
+.sf-acctbar-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+.sf-acctbar-btns .sf-btn-ghost { padding: 7px 16px; font-size: 14px; }
 .sf-fieldset { border: 1px solid var(--sf-border); border-radius: var(--sf-radius); padding: 18px; }
 .sf-fieldset h2 { font-size: 17px; font-weight: 700; margin: 0 0 14px; }
 .sf-label { display: block; font-size: 14px; color: var(--sf-muted); margin-bottom: 12px; }

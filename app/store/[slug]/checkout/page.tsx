@@ -18,6 +18,7 @@ export default async function CheckoutPage({ params }: { params: Promise<{ slug:
   return (
     <CheckoutClient
       shop={slug}
+      lineOa={company.line_oa}
       zoneEnabled={company.features.delivery_zone}
       slotEnabled={company.features.delivery_slot}
       dateEnabled={company.features.delivery_date.enabled}

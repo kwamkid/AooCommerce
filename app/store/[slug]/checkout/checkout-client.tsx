@@ -7,6 +7,8 @@ import { useCart, clearCart } from '@/lib/storefront-cart';
 import { rememberOrder, rememberContact, readContact } from '@/lib/storefront-orders';
 import { formatStorePrice, storefrontHref } from '@/lib/storefront';
 import CheckoutSteps from '@/components/storefront/CheckoutSteps';
+import CheckoutAccountBar from '@/components/storefront/CheckoutAccountBar';
+import type { StorefrontLineOa } from '@/lib/storefront-server';
 import { searchAddress } from '@/lib/thai-address-data';
 
 interface SlotOption {
@@ -36,6 +38,19 @@ interface Props {
   zoneEnabled: boolean;
   slotEnabled: boolean;
   dateEnabled: boolean;
+  lineOa: StorefrontLineOa | null;
+}
+
+/** ข้อมูลลูกค้าที่ผูกกับบัญชีที่ล็อกอินอยู่ (จาก /api/storefront/me) */
+interface LinkedCustomer {
+  name: string | null;
+  phone: string | null;
+  email: string | null;
+  billing_address: string | null;
+  billing_district: string | null;
+  billing_amphoe: string | null;
+  billing_province: string | null;
+  billing_postal_code: string | null;
 }
 
 /** วันนี้ในเขตเวลาไทย (ผู้ใช้ทุกคนอยู่ไทย) เป็น YYYY-MM-DD */
@@ -44,7 +59,7 @@ function todayISO(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEnabled }: Props) {
+export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEnabled, lineOa }: Props) {
   const router = useRouter();
   const { lines, subtotal, hydrated } = useCart(shop);
 
@@ -63,6 +78,10 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
 
   // เติมข้อมูลผู้รับจากครั้งก่อน — ลูกค้าประจำไม่ต้องพิมพ์ที่อยู่ใหม่ทุกรอบ
   const [prefilled, setPrefilled] = useState(false);
+  const [account, setAccount] = useState<{ signedIn: boolean; isStaff: boolean; customer: LinkedCustomer | null }>(
+    { signedIn: false, isStaff: false, customer: null },
+  );
+
   useEffect(() => {
     const saved = readContact(shop);
     if (!saved) return;
@@ -72,6 +91,39 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
     setProvince(saved.province); setPostal(saved.postal_code);
     setAddressQuery(saved.address_label);
     setPrefilled(true);
+  }, [shop]);
+
+  // ที่อยู่จากบัญชี — ใช้เมื่อเครื่องนี้ยังไม่มีข้อมูลค้างไว้ (เปลี่ยนเครื่อง/ล้างเบราว์เซอร์)
+  // ของใน localStorage คือสิ่งที่ลูกค้าพิมพ์ล่าสุดบนเครื่องนี้ จึงใหม่กว่าเสมอ ห้ามทับ
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const res = await fetch(`/api/storefront/me?shop=${encodeURIComponent(shop)}`);
+        if (!res.ok) return;
+        const d = await res.json();
+        if (!alive) return;
+        setAccount({ signedIn: !!d.signed_in, isStaff: !!d.is_staff, customer: d.customer || null });
+
+        const c: LinkedCustomer | null = d.customer;
+        if (!c || readContact(shop)) return;
+        if (c.name) setName(c.name);
+        if (c.phone) setPhone(c.phone);
+        if (c.email) setEmail(c.email);
+        if (c.billing_address) setAddress(c.billing_address);
+        if (c.billing_district) setDistrict(c.billing_district);
+        if (c.billing_amphoe) setAmphoe(c.billing_amphoe);
+        if (c.billing_province) setProvince(c.billing_province);
+        if (c.billing_postal_code) setPostal(c.billing_postal_code);
+        const label = [c.billing_district, c.billing_amphoe, c.billing_province, c.billing_postal_code]
+          .filter(Boolean).join(' ');
+        if (label) setAddressQuery(label);
+        if (c.billing_address || c.name) setPrefilled(true);
+      } catch {
+        // ล็อกอินไม่ได้/เน็ตหลุด ก็แค่กรอกเองตามปกติ ไม่ควรบล็อกการสั่งซื้อ
+      }
+    })();
+    return () => { alive = false; };
   }, [shop]);
 
   const [options, setOptions] = useState<DeliveryOptions | null>(null);
@@ -199,6 +251,13 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
 
       <div className="sf-checkout">
         <div className="sf-checkout-form">
+          <CheckoutAccountBar
+            shop={shop}
+            signedIn={account.signedIn}
+            linkedName={account.customer?.name || null}
+            isStaff={account.isStaff}
+            lineOaName={lineOa?.name || null}
+          />
           <section className="sf-fieldset">
             <h2>ผู้รับ</h2>
             {prefilled && (
