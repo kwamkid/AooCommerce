@@ -112,5 +112,10 @@ export async function GET(request: NextRequest) {
       : null,
     // null zone + zone_required = นอกพื้นที่จัดส่ง → checkout ต้องบอกลูกค้าตรง ๆ
     slots,
+    // วันในสัปดาห์ที่ร้านมีรอบส่ง — ปฏิทินจะได้ปิดวันที่ร้านหยุดไปเลย
+    // ไม่ต้องให้ลูกค้ากดแล้วเจอ "ไม่มีรอบจัดส่ง" ทีหลัง
+    available_weekdays: [...new Set(
+      ((slotsRes.data || []) as DeliverySlot[]).flatMap(s => s.days_of_week || []),
+    )].sort(),
   });
 }

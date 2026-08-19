@@ -909,12 +909,3 @@
   .sf-head-center .sf-brand-logo { height: 52px; }
 }
 
-
-/* ── ตัวเลือกวันของระบบในหน้าร้าน ─────────────────────────────────
-   DateRangePicker ใช้สีเหลืองอำพันของหลังบ้านสำหรับวันที่เลือก
-   ในหน้าร้านต้องเป็นสีแบรนด์ของร้าน ไม่งั้นสีที่ร้านอุตส่าห์ตั้งไม่มีผลตรงนี้ */
-.sf-datepick .rdp-selected,
-.sf-datepick [class*="bg-amber-"] {
-  background-color: var(--sf-primary) !important;
-  color: var(--sf-primary-contrast) !important;
-}

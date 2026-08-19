@@ -26,6 +26,11 @@ interface DateRangePickerProps {
   popupAlign?: 'left' | 'right';
   /** Minimum selectable date — dates before this are disabled */
   minDate?: Date;
+  /**
+   * วันในสัปดาห์ที่เลือกไม่ได้ (0=อาทิตย์ … 6=เสาร์)
+   * เช่นร้านที่หยุดวันอาทิตย์ ส่ง [0] แล้ววันอาทิตย์จะกดไม่ได้ทั้งปฏิทิน
+   */
+  disabledDaysOfWeek?: number[];
 }
 
 // Helpers
@@ -192,6 +197,7 @@ export default function DateRangePicker({
   placeholder,
   displayFormat,
   disabled = false,
+  disabledDaysOfWeek,
   readOnly = false,
   popupDirection = 'down',
   popupAlign = 'left',
@@ -209,9 +215,11 @@ export default function DateRangePicker({
 
   // Disable dates before minDate
   const disabledDays = useMemo(() => {
-    if (!minDate) return undefined;
-    return { before: minDate };
-  }, [minDate]);
+    const rules: Array<{ before: Date } | { dayOfWeek: number[] }> = [];
+    if (minDate) rules.push({ before: minDate });
+    if (disabledDaysOfWeek?.length) rules.push({ dayOfWeek: disabledDaysOfWeek });
+    return rules.length ? rules : undefined;
+  }, [minDate, disabledDaysOfWeek]);
 
   const startDate = useMemo(() => toDate(value?.startDate), [value?.startDate]);
   const endDate = useMemo(() => toDate(value?.endDate), [value?.endDate]);

@@ -24,6 +24,8 @@ interface SlotOption {
 }
 
 interface DeliveryOptions {
+  /** วันในสัปดาห์ที่ร้านมีรอบส่ง (0=อาทิตย์ … 6=เสาร์) */
+  available_weekdays?: number[];
   zone_required: boolean;
   slot_required: boolean;
   zone: {
@@ -190,6 +192,11 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
   const hasArea = !!(province || postal);
   // การ์ดต้อง: ร้านเปิดบริการ + ส่งให้คนอื่น + ลูกค้ากดขอ
   const cardOn = giftCard && shipToOther && wantCard;
+  // วันที่ร้านไม่มีรอบส่งเลย — ยังไม่รู้ (ยังไม่ได้กรอกพื้นที่) ก็ไม่ปิดวันไหน
+  const openWeekdays = options?.available_weekdays;
+  const closedWeekdays = openWeekdays?.length
+    ? [0, 1, 2, 3, 4, 5, 6].filter(d => !openWeekdays.includes(d))
+    : undefined;
 
   const fetchOptions = useCallback(async () => {
     if (!zoneEnabled && !slotEnabled) return;
@@ -493,21 +500,20 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
               {dateEnabled && (
                 <>
                   <div className="sf-label" style={{ marginBottom: 6 }}>วันที่จัดส่ง{slotEnabled ? ' *' : ''}</div>
-                  {/* ตัวเลือกวันของระบบ (asSingle) — ห่อ .sf-datepick ไว้เพื่อทับสีที่เลือก
-                      ให้เป็นสีแบรนด์ของร้าน ไม่ใช่สีเหลืองอำพันของหลังบ้าน */}
-                  <div className="sf-datepick">
-                    <DateRangePicker
-                      asSingle
-                      useRange={false}
-                      value={deliveryDate ? { startDate: deliveryDate, endDate: deliveryDate } : { startDate: null, endDate: null }}
-                      onChange={(v) => {
-                        const d = v?.startDate;
-                        setDeliveryDate(d ? (typeof d === 'string' ? d.slice(0, 10) : toISO(d)) : '');
-                      }}
-                      minDate={new Date()}
-                      placeholder="เลือกวันที่จัดส่ง"
-                    />
-                  </div>
+                  {/* ปิดวันที่ร้านไม่มีรอบส่งไปเลย ดีกว่าให้กดได้แล้วเจอ
+                      "ไม่มีรอบจัดส่ง" ทีหลัง · วันที่ผ่านมาแล้วปิดด้วย minDate */}
+                  <DateRangePicker
+                    asSingle
+                    useRange={false}
+                    value={deliveryDate ? { startDate: deliveryDate, endDate: deliveryDate } : { startDate: null, endDate: null }}
+                    onChange={(v) => {
+                      const d = v?.startDate;
+                      setDeliveryDate(d ? (typeof d === 'string' ? d.slice(0, 10) : toISO(d)) : '');
+                    }}
+                    minDate={new Date()}
+                    disabledDaysOfWeek={closedWeekdays}
+                    placeholder="เลือกวันที่จัดส่ง"
+                  />
                 </>
               )}
 
