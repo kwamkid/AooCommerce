@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCart, clearCart } from '@/lib/storefront-cart';
@@ -126,6 +126,16 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
     return () => { alive = false; };
   }, [shop]);
 
+  // ปุ่มยืนยันอยู่ในกล่องสรุป ซึ่งอยู่คนละที่กับช่องที่กรอกผิด — ข้อความเตือน
+  // อย่างเดียวไม่พอ ต้องพาไปที่ช่องนั้นให้ด้วย ไม่งั้นต้องไล่หาเองว่าช่องไหน
+  const nameRef = useRef<HTMLInputElement>(null);
+  const phoneRef = useRef<HTMLInputElement>(null);
+  const addressRef = useRef<HTMLInputElement>(null);
+  const focusField = (ref: React.RefObject<HTMLInputElement | null>) => {
+    ref.current?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    ref.current?.focus({ preventScroll: true });
+  };
+
   const [options, setOptions] = useState<DeliveryOptions | null>(null);
   const [loadingOptions, setLoadingOptions] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -175,9 +185,9 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
   const submit = async () => {
     setError('');
     if (lines.length === 0) { setError('ไม่มีสินค้าในตะกร้า'); return; }
-    if (!name.trim()) { setError('กรุณากรอกชื่อผู้รับ'); return; }
-    if (!/^[0-9+\-\s()]{8,20}$/.test(phone.trim())) { setError('กรุณากรอกเบอร์โทรให้ถูกต้อง'); return; }
-    if (!address.trim()) { setError('กรุณากรอกที่อยู่จัดส่ง'); return; }
+    if (!name.trim()) { setError('กรุณากรอกชื่อผู้รับ'); focusField(nameRef); return; }
+    if (!/^[0-9+\-\s()]{8,20}$/.test(phone.trim())) { setError('กรุณากรอกเบอร์โทรให้ถูกต้อง'); focusField(phoneRef); return; }
+    if (!address.trim()) { setError('กรุณากรอกที่อยู่จัดส่ง'); focusField(addressRef); return; }
     if (outOfArea) { setError('ที่อยู่นี้อยู่นอกพื้นที่จัดส่งของร้าน'); return; }
     if (slotEnabled && dateEnabled && !deliveryDate) { setError('กรุณาเลือกวันที่จัดส่ง'); return; }
 
@@ -267,11 +277,11 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
               </p>
             )}
             <label className="sf-label">ชื่อผู้รับ *
-              <input className="sf-input" value={name} onChange={e => setName(e.target.value)} placeholder="ชื่อ-นามสกุล" />
+              <input ref={nameRef} className="sf-input" value={name} onChange={e => setName(e.target.value)} placeholder="ชื่อ-นามสกุล" />
             </label>
             <div className="sf-field-row">
               <label className="sf-label">เบอร์โทร *
-                <input className="sf-input" value={phone} onChange={e => setPhone(e.target.value)} inputMode="tel" placeholder="08xxxxxxxx" />
+                <input ref={phoneRef} className="sf-input" value={phone} onChange={e => setPhone(e.target.value)} inputMode="tel" placeholder="08xxxxxxxx" />
               </label>
               <label className="sf-label">อีเมล
                 <input className="sf-input" value={email} onChange={e => setEmail(e.target.value)} inputMode="email" placeholder="ไม่บังคับ" />
@@ -282,7 +292,7 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
           <section className="sf-fieldset">
             <h2>ที่อยู่จัดส่ง</h2>
             <label className="sf-label">บ้านเลขที่ / อาคาร / ถนน *
-              <input className="sf-input" value={address} onChange={e => setAddress(e.target.value)} placeholder="เช่น 123/45 ซอยสุขุมวิท 21" />
+              <input ref={addressRef} className="sf-input" value={address} onChange={e => setAddress(e.target.value)} placeholder="เช่น 123/45 ซอยสุขุมวิท 21" />
             </label>
 
             <label className="sf-label">ตำบล / อำเภอ / จังหวัด / รหัสไปรษณีย์ *
@@ -416,15 +426,15 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
 
           <button
             type="button"
-            className="sf-cta"
-            style={{ width: '100%', marginTop: 12 }}
+            className="sf-cta sf-cta-block"
+            style={{ marginTop: 12 }}
             disabled={submitting || outOfArea}
             onClick={submit}
           >
             {submitting ? 'กำลังสั่งซื้อ…' : 'ยืนยันคำสั่งซื้อ'}
           </button>
           <p className="sf-hint" style={{ textAlign: 'center' }}>
-            กดยืนยันแล้วจะไปยังหน้าบิลเพื่อชำระเงิน
+            ขั้นถัดไปเลือกวิธีชำระเงิน — ยังไม่มีการตัดเงินตอนนี้
           </p>
         </aside>
       </div>
