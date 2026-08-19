@@ -431,7 +431,7 @@
 /* .sf-auth-btn ตัวเต็มเป็นปุ่มเต็มความกว้างของหน้าบัญชี — ในแถบนี้ย่อลง */
 .sf-acctbar-btns .sf-auth-btn { width: auto; margin: 0; padding: 10px 16px; font-size: 14px; }
 .sf-fieldset { border: 1px solid var(--sf-border); border-radius: var(--sf-radius); padding: 18px; }
-.sf-fieldset h2 { font-size: 17px; font-weight: 700; margin: 0 0 14px; }
+.sf-fieldset h2 { font-size: 18px; line-height: 28px; font-weight: 600; margin: 0 0 14px; }
 
 /* ── ส่งให้ตัวเอง / ส่งให้คนอื่น ─────────────────────────────────── */
 .sf-who { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
@@ -473,7 +473,11 @@
 .sf-switch input:focus-visible + .sf-switch-box { outline: 2px solid var(--sf-primary); outline-offset: 2px; }
 .sf-switch b { display: block; font-weight: 600; font-size: 15px; }
 .sf-switch small { color: var(--sf-muted); font-size: 13px; }
-.sf-label { display: block; font-size: 14px; color: var(--sf-muted); margin-bottom: 12px; }
+.sf-label {
+  display: block; margin-bottom: 14px;
+  font-size: 16px; line-height: 24px; font-weight: 500;
+  color: var(--sf-text);
+}
 .sf-field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 @container (max-width: 560px) { .sf-field-row { grid-template-columns: 1fr; } }
 .sf-input {
@@ -493,14 +497,14 @@
 .sf-suggest button:hover { background: var(--sf-surface); }
 .sf-suggest li + li button { border-top: 1px solid var(--sf-border); }
 
-.sf-hint { color: var(--sf-muted); font-size: 14px; margin: 4px 0 0; }
+.sf-hint { color: var(--sf-muted); font-size: 14px; line-height: 20px; margin: 6px 0 0; }
 .sf-error { color: #dc2626; font-size: 14px; margin: 8px 0 0; }
 
 .sf-summary {
   border: 1px solid var(--sf-border); border-radius: var(--sf-radius);
   padding: 18px; background: var(--sf-surface); position: sticky; top: 88px;
 }
-.sf-summary h2 { font-size: 17px; font-weight: 700; margin: 0 0 14px; }
+.sf-summary h2 { font-size: 18px; line-height: 28px; font-weight: 600; margin: 0 0 14px; }
 .sf-summary-row { display: flex; justify-content: space-between; gap: 12px; font-size: 15px; padding: 5px 0; }
 .sf-summary-sep { border-top: 1px solid var(--sf-border); margin-top: 8px; padding-top: 12px; }
 .sf-summary-total { border-top: 1px solid var(--sf-border); margin-top: 8px; padding-top: 12px; font-size: 19px; font-weight: 700; }
