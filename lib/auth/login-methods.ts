@@ -73,16 +73,30 @@ export async function loginWithGoogle(inviteToken?: string, returnTo?: string): 
  * LINE OAuth; /line-callback exchanges the code via /api/auth/line which
  * mints a Supabase session server-side.
  */
-export async function loginWithLINE(inviteToken?: string, returnTo?: string): Promise<LoginResult> {
+/**
+ * @param shopSlug ร้านที่เริ่ม flow (หน้าร้านออนไลน์) — ต้องส่งมาคู่กับ channelId
+ *   ของร้านนั้น ฝั่ง callback จะได้รู้ว่าต้องใช้ secret ของใครแลก token
+ * @param channelId LINE Login channel ของร้าน · ไม่ส่ง = ใช้ของระบบ (ล็อกอินหลังบ้าน)
+ */
+export async function loginWithLINE(
+  inviteToken?: string,
+  returnTo?: string,
+  opts?: { shopSlug?: string; channelId?: string },
+): Promise<LoginResult> {
   try {
     if (inviteToken) {
       document.cookie = `invite_token=${inviteToken}; path=/; max-age=3600; SameSite=Lax`;
     }
     setReturnTo(returnTo);
-    const channelId = process.env.NEXT_PUBLIC_LINE_LOGIN_CHANNEL_ID;
+    const channelId = opts?.channelId || process.env.NEXT_PUBLIC_LINE_LOGIN_CHANNEL_ID;
     if (!channelId) {
       return { status: 'error', error: 'LINE Login ยังไม่ได้ตั้งค่า' };
     }
+    // callback เป็นหน้ากลาง ไม่รู้ว่ามาจากร้านไหน — ฝากไว้ให้มันอ่านตอนแลก token
+    try {
+      if (opts?.shopSlug) sessionStorage.setItem('sf_line_shop', opts.shopSlug);
+      else sessionStorage.removeItem('sf_line_shop');
+    } catch { /* โหมดส่วนตัวบางเบราว์เซอร์เขียนไม่ได้ — ตกไปใช้ channel ระบบ */ }
     const redirectUri = `${window.location.origin}/line-callback`;
     const state = Math.random().toString(36).substring(2);
     const lineAuthUrl = `https://access.line.me/oauth2/v2.1/authorize?response_type=code&client_id=${channelId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}&scope=profile%20openid`;

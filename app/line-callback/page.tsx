@@ -32,11 +32,15 @@ function LineCallbackContent() {
       try {
         const redirectUri = `${window.location.origin}/line-callback`;
 
+        let shop: string | null = null;
+        try { shop = sessionStorage.getItem('sf_line_shop'); } catch { /* ignore */ }
+
         const response = await fetch('/api/auth/line', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ code, redirectUri }),
+          body: JSON.stringify({ code, redirectUri, shop }),
         });
+        try { sessionStorage.removeItem('sf_line_shop'); } catch { /* ignore */ }
 
         const data = await response.json();
 

@@ -29,7 +29,7 @@ import ColorPicker from '@/components/ui/ColorPicker';
 import LogoUploader from '@/components/ui/LogoUploader';
 import { useCompany } from '@/lib/company-context';
 import OptionCards from '@/components/ui/OptionCards';
-import { ExternalLink, Globe, Palette, Plus, Store } from 'lucide-react';
+import { ExternalLink, Globe, KeyRound, Palette, Plus, Store } from 'lucide-react';
 import Tabs from '@/components/ui/Tabs';
 
 // ── ภาพจำลองในตัวเลือก — วาดรูปทรงจริงเพื่อให้ตัดสินใจได้โดยไม่ต้องกดลอง ──
@@ -258,11 +258,18 @@ export default function StorefrontSettingsPage() {
   const [saving, setSaving] = useState(false);
   // แท็บเป็น state ไม่ใช่ route — cfg เป็นก้อนเดียว กดบันทึกครั้งเดียวเซฟทุกแท็บ
   // ถ้าแยกเป็น URL ผู้ใช้จะเผลอเปลี่ยนหน้าแล้วทิ้งค่าที่แก้ค้างในแท็บอื่น
-  const [tab, setTab] = useState<'info' | 'design' | 'seo'>('info');
+  const [tab, setTab] = useState<'info' | 'design' | 'login' | 'seo'>('info');
+  const [lineCred, setLineCred] = useState({ channel_id: '', channel_secret: '', configured: false });
+  const [savingLine, setSavingLine] = useState(false);
   const [device, setDevice] = useState<'mobile' | 'desktop'>('mobile');
 
   useFetchOnce(useCallback(async () => {
     try {
+      apiFetch('/api/settings/line-login')
+        .then(r => r.ok ? r.json() : null)
+        .then(d => { if (d) setLineCred({ channel_id: d.channel_id || '', channel_secret: d.channel_secret || '', configured: !!d.configured }); })
+        .catch(() => { /* ตั้งค่า LINE ไม่ได้ ก็ไม่ควรทำให้หน้าตั้งค่าทั้งหน้าพัง */ });
+
       const res = await apiFetch('/api/settings/storefront');
       if (res.ok) {
         const data = await res.json();
@@ -277,6 +284,22 @@ export default function StorefrontSettingsPage() {
   }, []), allowed);
 
   const patch = (p: Partial<StorefrontConfig>) => setCfg(prev => ({ ...prev, ...p }));
+
+  const saveLineLogin = async () => {
+    setSavingLine(true);
+    try {
+      const res = await apiFetch('/api/settings/line-login', {
+        method: 'PUT',
+        body: JSON.stringify({ channel_id: lineCred.channel_id, channel_secret: lineCred.channel_secret }),
+      });
+      const data = await res.json();
+      if (!res.ok) { showToast(data.error || 'บันทึกไม่สำเร็จ', 'error'); return; }
+      setLineCred({ channel_id: data.channel_id || '', channel_secret: data.channel_secret || '', configured: !!data.configured });
+      showToast('บันทึก LINE Login แล้ว', 'success');
+    } finally {
+      setSavingLine(false);
+    }
+  };
 
   const save = async () => {
     setSaving(true);
@@ -350,10 +373,11 @@ export default function StorefrontSettingsPage() {
             <Tabs
               className="mb-0"
               activeKey={tab}
-              onSelect={(k) => setTab(k as 'info' | 'design' | 'seo')}
+              onSelect={(k) => setTab(k as 'info' | 'design' | 'login' | 'seo')}
               tabs={[
                 { key: 'info', label: 'ข้อมูลร้าน', icon: <Store className="w-4 h-4" /> },
                 { key: 'design', label: 'ตกแต่งร้าน', icon: <Palette className="w-4 h-4" /> },
+                { key: 'login', label: 'การเข้าสู่ระบบ', icon: <KeyRound className="w-4 h-4" /> },
                 { key: 'seo', label: 'SEO & AI', icon: <Globe className="w-4 h-4" /> },
               ]}
             />
@@ -402,23 +426,66 @@ export default function StorefrontSettingsPage() {
               </div>
             </Card>
 
+            </>)}
+
+            {tab === 'login' && (<>
             <Card padding="md">
-              <div className="flex items-center justify-between gap-4">
-                <div className="min-w-0">
-                  <p className="heading-4">ให้ลูกค้าเข้าสู่ระบบด้วย LINE</p>
-                  <p className="section-desc">
-                    ปุ่ม LINE จะขึ้นในหน้าชำระเงินและหน้าบัญชี — ใช้ยืนยันตัวตนเพื่อเก็บ
-                    ประวัติสั่งซื้อและที่อยู่ · <strong>ยังส่งแจ้งเตือนออเดอร์เข้า LINE OA
-                    ของร้านไม่ได้</strong> เพราะระบบใช้ LINE Login channel กลางตัวเดียว
-                    ไอดีผู้ใช้จึงอยู่คนละชุดกับ OA ของร้าน · เข้าสู่ระบบด้วย Google
-                    ใช้ได้อยู่แล้วโดยไม่ต้องตั้งค่าอะไร
-                  </p>
-                </div>
+              <p className="heading-4 mb-1">Google</p>
+              <p className="section-desc">
+                เปิดใช้งานอยู่แล้วทุกร้าน ไม่ต้องตั้งค่าอะไร — ลูกค้ากดเข้าสู่ระบบด้วย Google
+                ได้ทันทีในหน้าชำระเงินและหน้าบัญชี
+              </p>
+            </Card>
+
+            <Card padding="md">
+              <div className="flex items-center justify-between gap-4 mb-1">
+                <p className="heading-4">LINE</p>
                 <Toggle
                   checked={cfg.line_login}
                   onChange={(v) => patch({ line_login: v })}
                   aria-label="เปิดให้เข้าสู่ระบบด้วย LINE"
                 />
+              </div>
+              <p className="section-desc mb-4">
+                ปุ่ม LINE จะขึ้นเฉพาะเมื่อเปิดสวิตช์นี้ <strong>และกรอก Channel ครบแล้ว</strong>
+              </p>
+
+              {cfg.line_login && !lineCred.configured && (
+                <Alert tone="warning" title="ยังกรอก Channel ไม่ครบ">
+                  เปิดสวิตช์ไว้แล้วแต่ยังไม่มี Channel ID / Secret — ปุ่ม LINE จะยังไม่ขึ้นที่หน้าร้าน
+                </Alert>
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
+                <FormInput
+                  label="Channel ID"
+                  value={lineCred.channel_id}
+                  onChange={(e) => setLineCred(c => ({ ...c, channel_id: e.target.value }))}
+                  placeholder="เช่น 2001234567"
+                  hint="ตัวเลขล้วน จาก LINE Developers > Channel ของคุณ"
+                />
+                <FormInput
+                  label="Channel Secret"
+                  value={lineCred.channel_secret}
+                  onChange={(e) => setLineCred(c => ({ ...c, channel_secret: e.target.value }))}
+                  placeholder="กรอกใหม่เพื่อเปลี่ยน"
+                  hint="เก็บฝั่งเซิร์ฟเวอร์เท่านั้น ไม่ถูกส่งออกไปหน้าร้าน"
+                />
+              </div>
+
+              <div className="flex justify-end mt-4">
+                <Button variant="secondary" loading={savingLine} onClick={saveLineLogin}>
+                  บันทึก LINE Login
+                </Button>
+              </div>
+
+              <div className="mt-5 pt-4 border-t border-gray-100 dark:border-slate-700">
+                <p className="field-label">ตั้งค่าที่ LINE Developers</p>
+                <ol className="section-desc" style={{ listStyle: 'decimal', paddingLeft: 20 }}>
+                  <li>สร้าง <strong>LINE Login channel</strong> ใน provider <strong>เดียวกับ LINE OA ของร้าน</strong> — คนละ provider จะได้ไอดีผู้ใช้คนละชุด แล้วส่งแจ้งเตือนเข้า OA ไม่ได้</li>
+                  <li>ใส่ Callback URL นี้: <code>{typeof window !== 'undefined' ? window.location.origin : ''}/line-callback</code></li>
+                  <li>คัดลอก Channel ID และ Channel Secret มากรอกด้านบน</li>
+                </ol>
               </div>
             </Card>
             </>)}

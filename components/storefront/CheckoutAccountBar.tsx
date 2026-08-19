@@ -16,11 +16,12 @@ interface Props {
   /** ล็อกอินอยู่แต่ยังไม่ได้ผูกกับร้านนี้ → ยังไม่มีที่อยู่ให้ดึง */
   linkedName: string | null;
   isStaff: boolean;
-  /** ร้านเปิดให้ล็อกอินด้วย LINE ไว้หรือยัง (ไม่เกี่ยวกับการมี OA) */
+  /** ร้านเปิดให้ล็อกอินด้วย LINE และกรอก channel ครบแล้วหรือยัง */
   lineLogin: boolean;
+  lineChannelId: string;
 }
 
-export default function CheckoutAccountBar({ shop, signedIn, linkedName, isStaff, lineLogin }: Props) {
+export default function CheckoutAccountBar({ shop, signedIn, linkedName, isStaff, lineLogin, lineChannelId }: Props) {
   const [busy, setBusy] = useState('');
   const returnTo = storefrontHref(shop, '/checkout');
 
@@ -69,7 +70,7 @@ export default function CheckoutAccountBar({ shop, signedIn, linkedName, isStaff
               disabled={!!busy}
               onClick={async () => {
                 setBusy('line');
-                const r = await loginWithLINE(undefined, returnTo);
+                const r = await loginWithLINE(undefined, returnTo, { shopSlug: shop, channelId: lineChannelId });
                 if (r.status === 'error') setBusy('');
               }}
             >

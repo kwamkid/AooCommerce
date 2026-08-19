@@ -38,6 +38,7 @@ interface Props {
   slotEnabled: boolean;
   dateEnabled: boolean;
   lineLogin: boolean;
+  lineChannelId: string;
 }
 
 /** ข้อมูลลูกค้าที่ผูกกับบัญชีที่ล็อกอินอยู่ (จาก /api/storefront/me) */
@@ -58,7 +59,7 @@ function todayISO(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEnabled, lineLogin }: Props) {
+export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEnabled, lineLogin, lineChannelId }: Props) {
   const router = useRouter();
   const { lines, subtotal, hydrated } = useCart(shop);
 
@@ -256,6 +257,7 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
             linkedName={account.customer?.name || null}
             isStaff={account.isStaff}
             lineLogin={lineLogin}
+            lineChannelId={lineChannelId}
           />
           <section className="sf-fieldset">
             <h2>ผู้รับ</h2>

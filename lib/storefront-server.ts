@@ -7,6 +7,7 @@
 // Results are wrapped in React cache() so generateMetadata + the page body
 // share one fetch per request (same pattern as /bills/[id]).
 import { cache } from 'react';
+import { parseLineLogin } from '@/lib/line-login';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import {
   parseStorefront, effectivePrice,
@@ -33,12 +34,10 @@ export interface StorefrontCompany {
   address: string | null;
   config: StorefrontConfig;
   features: FeatureFlags;
-  /**
-   * LINE OA ของร้าน — null = ร้านยังไม่ได้ตั้งค่า
-   * ใช้ตัดสินว่าจะโชว์ปุ่ม "เข้าสู่ระบบด้วย LINE" ไหม: ถ้าร้านไม่มี OA
-   * ลูกค้า login LINE ไปก็ไม่มีใครส่งแจ้งเตือนได้ กลายเป็นปุ่มหลอก
-   */
+  /** LINE OA ของร้าน — ใช้ทำลิงก์เพิ่มเพื่อน (คนละเรื่องกับปุ่มเข้าสู่ระบบ) */
   line_oa: StorefrontLineOa | null;
+  /** LINE Login channel ของร้าน — ว่าง = ยังไม่ได้ตั้งค่า */
+  line_login_channel_id: string;
 }
 
 export interface ClosedStorefront {
@@ -124,6 +123,9 @@ export const getStorefrontCompany = cache(async (slug: string): Promise<Storefro
   if (!config.enabled) return null;
 
   const line_oa = await getCompanyLineOa(data.id);
+  // เฉพาะ channel id — เปิดเผยได้เพราะมันอยู่ใน URL ที่พาไป LINE อยู่แล้ว
+  // secret อยู่ใน settings.line_login และต้องไม่หลุดออกจากฝั่ง server
+  const line_login_channel_id = parseLineLogin(settings).channel_id;
 
   return {
     id: data.id,
@@ -137,6 +139,7 @@ export const getStorefrontCompany = cache(async (slug: string): Promise<Storefro
     config,
     features: parseFeatures(settings).features,
     line_oa,
+    line_login_channel_id,
   };
 });
 

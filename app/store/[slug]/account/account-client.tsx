@@ -49,12 +49,13 @@ const PAYMENT_LABEL: Record<string, string> = {
 interface Props {
   shop: string;
   shopName: string;
-  /** ร้านเปิดปุ่มล็อกอิน LINE ไว้หรือยัง — คนละเรื่องกับการมี OA */
+  /** ร้านเปิดปุ่มล็อกอิน LINE และกรอก channel ครบแล้วหรือยัง */
   lineLogin: boolean;
+  lineChannelId: string;
   lineOa: StorefrontLineOa | null;
 }
 
-export default function AccountClient({ shop, shopName, lineLogin, lineOa }: Props) {
+export default function AccountClient({ shop, shopName, lineLogin, lineChannelId, lineOa }: Props) {
   const [loading, setLoading] = useState(true);
   const [signedIn, setSignedIn] = useState(false);
   const [isStaff, setIsStaff] = useState(false);
@@ -89,7 +90,7 @@ export default function AccountClient({ shop, shopName, lineLogin, lineOa }: Pro
 
   const signInLine = async () => {
     setBusy('line');
-    const r = await loginWithLINE(undefined, returnTo);
+    const r = await loginWithLINE(undefined, returnTo, { shopSlug: shop, channelId: lineChannelId });
     if (r.status === 'error') setBusy('');
   };
 

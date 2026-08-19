@@ -2,9 +2,7 @@
 // LINE Login OAuth - exchange code for token, create/login user
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
-
-const LINE_CHANNEL_ID = process.env.LINE_LOGIN_CHANNEL_ID!;
-const LINE_CHANNEL_SECRET = process.env.LINE_LOGIN_CHANNEL_SECRET!;
+import { resolveLineLoginCredentials } from '@/lib/line-login';
 
 interface LINETokenResponse {
   access_token: string;
@@ -24,10 +22,17 @@ interface LINEProfile {
 
 export async function POST(request: NextRequest) {
   try {
-    const { code, redirectUri } = await request.json();
+    const { code, redirectUri, shop } = await request.json();
 
     if (!code) {
       return NextResponse.json({ error: 'Missing authorization code' }, { status: 400 });
+    }
+
+    // ร้านที่ตั้ง LINE Login เองต้องแลก token ด้วย channel ของตัวเอง — code ที่ได้มา
+    // ถูกออกให้ channel นั้น ใช้ channel อื่นแลกยังไงก็ไม่ผ่าน
+    const cred = await resolveLineLoginCredentials(typeof shop === 'string' ? shop : null);
+    if (!cred) {
+      return NextResponse.json({ error: 'LINE Login ยังไม่ได้ตั้งค่า' }, { status: 400 });
     }
 
     // 1. Exchange code for access token
@@ -38,8 +43,8 @@ export async function POST(request: NextRequest) {
         grant_type: 'authorization_code',
         code,
         redirect_uri: redirectUri,
-        client_id: LINE_CHANNEL_ID,
-        client_secret: LINE_CHANNEL_SECRET,
+        client_id: cred.channel_id,
+        client_secret: cred.channel_secret,
       }),
     });
 
