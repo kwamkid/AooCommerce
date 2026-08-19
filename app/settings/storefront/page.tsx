@@ -539,6 +539,22 @@ export default function StorefrontSettingsPage() {
                 </p>
               )}
             </Card>
+            <Card padding="md">
+              <div className="flex items-center justify-between gap-4">
+                <div className="min-w-0">
+                  <p className="heading-4">บริการการ์ดอวยพร</p>
+                  <p className="section-desc">
+                    ลูกค้าที่สั่งเป็นของขวัญจะขอแนบการ์ดพร้อมข้อความได้ — เปิดเฉพาะร้านที่มี
+                    การ์ดจริง · เปิดแล้วก็ยังไม่ใช่ทุกออเดอร์ ลูกค้าต้องกดขอเองอีกที
+                  </p>
+                </div>
+                <Toggle
+                  checked={cfg.gift_card}
+                  onChange={(v) => patch({ gift_card: v })}
+                  aria-label="เปิดบริการการ์ดอวยพร"
+                />
+              </div>
+            </Card>
             </>)}
 
             {tab === 'design' && (

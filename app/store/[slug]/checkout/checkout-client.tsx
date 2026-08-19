@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { Copy } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCart, clearCart } from '@/lib/storefront-cart';
@@ -8,6 +9,7 @@ import { rememberOrder, rememberContact, readContact } from '@/lib/storefront-or
 import { formatStorePrice, storefrontHref } from '@/lib/storefront';
 import CheckoutSteps from '@/components/storefront/CheckoutSteps';
 import CheckoutAccountBar from '@/components/storefront/CheckoutAccountBar';
+import DateRangePicker from '@/components/ui/DateRangePicker';
 import { searchAddress } from '@/lib/thai-address-data';
 
 interface SlotOption {
@@ -37,6 +39,7 @@ interface Props {
   zoneEnabled: boolean;
   slotEnabled: boolean;
   dateEnabled: boolean;
+  giftCard: boolean;
   lineLogin: boolean;
   lineChannelId: string;
 }
@@ -54,12 +57,11 @@ interface LinkedCustomer {
 }
 
 /** วันนี้ในเขตเวลาไทย (ผู้ใช้ทุกคนอยู่ไทย) เป็น YYYY-MM-DD */
-function todayISO(): string {
-  const d = new Date();
+function toISO(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEnabled, lineLogin, lineChannelId }: Props) {
+export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEnabled, giftCard, lineLogin, lineChannelId }: Props) {
   const router = useRouter();
   const { lines, subtotal, hydrated } = useCart(shop);
 
@@ -83,6 +85,7 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
   const [giftMessage, setGiftMessage] = useState('');
   const [giftTo, setGiftTo] = useState('');
   const [giftFrom, setGiftFrom] = useState('');
+  const [wantCard, setWantCard] = useState(false);
   const [giftHidePrice, setGiftHidePrice] = useState(true);
   const [taxInvoice, setTaxInvoice] = useState(false);
   const [taxName, setTaxName] = useState('');
@@ -90,6 +93,9 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
   const [taxBranch, setTaxBranch] = useState('');
   const [taxAddress, setTaxAddress] = useState('');
   const rcpNameRef = useRef<HTMLInputElement>(null);
+  const taxNameRef = useRef<HTMLInputElement>(null);
+  const taxIdRef = useRef<HTMLInputElement>(null);
+  const taxAddrRef = useRef<HTMLTextAreaElement>(null);
 
   // เติมข้อมูลผู้รับจากครั้งก่อน — ลูกค้าประจำไม่ต้องพิมพ์ที่อยู่ใหม่ทุกรอบ
   const [prefilled, setPrefilled] = useState(false);
@@ -151,6 +157,25 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
     ref.current?.focus({ preventScroll: true });
   };
 
+  // ใบกำกับภาษีส่วนใหญ่ออกในนามผู้สั่งและใช้ที่อยู่เดียวกับที่กรอกไว้ข้างบน
+  // — เติมให้แล้วพาไปที่ช่องที่ยังว่าง ไม่ต้องพิมพ์ซ้ำทั้งชุด
+  const fillTaxFromBuyer = () => {
+    if (!taxName.trim()) setTaxName(name.trim());
+    if (!taxAddress.trim()) {
+      const line = [address.trim(), district, amphoe, province, postal].filter(Boolean).join(' ');
+      setTaxAddress(line);
+    }
+    const nextEmpty =
+      !name.trim() ? taxNameRef
+      : !taxId.replace(/\D/g, '') ? taxIdRef
+      : !address.trim() ? taxAddrRef
+      : taxIdRef;
+    window.setTimeout(() => {
+      nextEmpty.current?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      nextEmpty.current?.focus({ preventScroll: true });
+    }, 0);
+  };
+
   const [options, setOptions] = useState<DeliveryOptions | null>(null);
   const [loadingOptions, setLoadingOptions] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -163,6 +188,8 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
   );
 
   const hasArea = !!(province || postal);
+  // การ์ดต้อง: ร้านเปิดบริการ + ส่งให้คนอื่น + ลูกค้ากดขอ
+  const cardOn = giftCard && shipToOther && wantCard;
 
   const fetchOptions = useCallback(async () => {
     if (!zoneEnabled && !slotEnabled) return;
@@ -230,9 +257,9 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
           recipient_name: rcpName.trim(),
           recipient_phone: rcpPhone.trim(),
           google_maps_link: mapsLink.trim(),
-          gift_message: shipToOther ? giftMessage.trim() : '',
-          gift_to: shipToOther ? (giftTo.trim() || rcpName.trim()) : '',
-          gift_from: shipToOther ? (giftFrom.trim() || name.trim()) : '',
+          gift_message: cardOn ? giftMessage.trim() : '',
+          gift_to: cardOn ? (giftTo.trim() || rcpName.trim()) : '',
+          gift_from: cardOn ? (giftFrom.trim() || name.trim()) : '',
           gift_hide_price: shipToOther && giftHidePrice,
           tax_invoice: taxInvoice,
           tax_name: taxName.trim(),
@@ -406,10 +433,20 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
             </p>
           </section>
 
-          {/* การ์ดอวยพร — โผล่เฉพาะตอนส่งให้คนอื่น */}
-          {shipToOther && (
+          {/* การ์ดอวยพร — ร้านต้องเปิดบริการ และลูกค้าต้องกดขอเอง */}
+          {giftCard && shipToOther && (
             <section className="sf-fieldset">
               <h2>การ์ดอวยพร</h2>
+              <label className="sf-switch">
+                <input type="checkbox" checked={wantCard} onChange={e => setWantCard(e.target.checked)} />
+                <span className="sf-switch-box" aria-hidden="true" />
+                <span>
+                  <b>แนบการ์ดอวยพรไปกับของ</b>
+                  <small>ร้านเขียนข้อความของคุณลงการ์ดให้</small>
+                </span>
+              </label>
+
+              {wantCard && (<div style={{ marginTop: 14 }}>
               <label className="sf-label">ข้อความบนการ์ด
                 <textarea
                   className="sf-input" rows={4} maxLength={220}
@@ -430,7 +467,15 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
                 </label>
               </div>
 
-              {/* ของขวัญที่มีราคาติดไปคือหายนะ — ติ๊กไว้ก่อน ให้ต้องตั้งใจปลดเอง */}
+              </div>)}
+            </section>
+          )}
+
+          {/* ราคาติดไปกับของขวัญคือหายนะที่แก้ทีหลังไม่ได้ — แยกออกจากการ์ด
+              เพราะไม่แนบการ์ดก็ยังต้องซ่อนราคาได้ */}
+          {shipToOther && (
+            <section className="sf-fieldset">
+              <h2>เอกสารที่แนบไปกับของ</h2>
               <label className="sf-switch">
                 <input type="checkbox" checked={giftHidePrice} onChange={e => setGiftHidePrice(e.target.checked)} />
                 <span className="sf-switch-box" aria-hidden="true" />
@@ -446,15 +491,24 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
             <section className="sf-fieldset">
               <h2>วันและเวลาจัดส่ง</h2>
               {dateEnabled && (
-                <label className="sf-label">วันที่จัดส่ง{slotEnabled ? ' *' : ''}
-                  <input
-                    type="date"
-                    className="sf-input"
-                    value={deliveryDate}
-                    min={todayISO()}
-                    onChange={e => setDeliveryDate(e.target.value)}
-                  />
-                </label>
+                <>
+                  <div className="sf-label" style={{ marginBottom: 6 }}>วันที่จัดส่ง{slotEnabled ? ' *' : ''}</div>
+                  {/* ตัวเลือกวันของระบบ (asSingle) — ห่อ .sf-datepick ไว้เพื่อทับสีที่เลือก
+                      ให้เป็นสีแบรนด์ของร้าน ไม่ใช่สีเหลืองอำพันของหลังบ้าน */}
+                  <div className="sf-datepick">
+                    <DateRangePicker
+                      asSingle
+                      useRange={false}
+                      value={deliveryDate ? { startDate: deliveryDate, endDate: deliveryDate } : { startDate: null, endDate: null }}
+                      onChange={(v) => {
+                        const d = v?.startDate;
+                        setDeliveryDate(d ? (typeof d === 'string' ? d.slice(0, 10) : toISO(d)) : '');
+                      }}
+                      minDate={new Date()}
+                      placeholder="เลือกวันที่จัดส่ง"
+                    />
+                  </div>
+                </>
               )}
 
               {slotEnabled && (
@@ -501,19 +555,23 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
 
             {taxInvoice && (
               <div style={{ marginTop: 14 }}>
+                <button type="button" className="sf-btn-ghost" style={{ marginBottom: 12 }} onClick={fillTaxFromBuyer}>
+                  <Copy strokeWidth={1.75} aria-hidden="true" />ใช้ชื่อและที่อยู่ผู้สั่ง
+                </button>
+
                 <label className="sf-label">ชื่อผู้เสียภาษี / ชื่อบริษัท *
-                  <input className="sf-input" value={taxName} onChange={e => setTaxName(e.target.value)} placeholder="บริษัท ตัวอย่าง จำกัด" />
+                  <input ref={taxNameRef} className="sf-input" value={taxName} onChange={e => setTaxName(e.target.value)} placeholder="บริษัท ตัวอย่าง จำกัด" />
                 </label>
                 <div className="sf-field-row">
                   <label className="sf-label">เลขประจำตัวผู้เสียภาษี *
-                    <input className="sf-input" value={taxId} onChange={e => setTaxId(e.target.value)} inputMode="numeric" placeholder="13 หลัก" />
+                    <input ref={taxIdRef} className="sf-input" value={taxId} onChange={e => setTaxId(e.target.value)} inputMode="numeric" placeholder="13 หลัก" />
                   </label>
                   <label className="sf-label">สาขา
                     <input className="sf-input" value={taxBranch} onChange={e => setTaxBranch(e.target.value)} placeholder="สำนักงานใหญ่" />
                   </label>
                 </div>
                 <label className="sf-label">ที่อยู่ออกใบกำกับภาษี *
-                  <textarea className="sf-input" rows={3} value={taxAddress} onChange={e => setTaxAddress(e.target.value)} placeholder="ที่อยู่ตามหนังสือรับรอง — คนละที่กับที่อยู่จัดส่งได้" />
+                  <textarea ref={taxAddrRef} className="sf-input" rows={3} value={taxAddress} onChange={e => setTaxAddress(e.target.value)} placeholder="ที่อยู่ตามหนังสือรับรอง — คนละที่กับที่อยู่จัดส่งได้" />
                 </label>
               </div>
             )}
