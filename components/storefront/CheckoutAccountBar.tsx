@@ -16,10 +16,11 @@ interface Props {
   /** ล็อกอินอยู่แต่ยังไม่ได้ผูกกับร้านนี้ → ยังไม่มีที่อยู่ให้ดึง */
   linkedName: string | null;
   isStaff: boolean;
-  lineOaName: string | null;
+  /** ร้านเปิดให้ล็อกอินด้วย LINE ไว้หรือยัง (ไม่เกี่ยวกับการมี OA) */
+  lineLogin: boolean;
 }
 
-export default function CheckoutAccountBar({ shop, signedIn, linkedName, isStaff, lineOaName }: Props) {
+export default function CheckoutAccountBar({ shop, signedIn, linkedName, isStaff, lineLogin }: Props) {
   const [busy, setBusy] = useState('');
   const returnTo = storefrontHref(shop, '/checkout');
 
@@ -60,9 +61,8 @@ export default function CheckoutAccountBar({ shop, signedIn, linkedName, isStaff
           >
             {busy === 'google' ? 'กำลังเปิด Google…' : 'Google'}
           </button>
-          {/* ปุ่ม LINE โผล่เฉพาะร้านที่ตั้ง LINE OA แล้ว — ร้านที่ไม่มี OA
-              ล็อกอิน LINE ไปก็ส่งแจ้งเตือนไม่ได้ กลายเป็นปุ่มที่ให้ความคาดหวังผิด */}
-          {lineOaName && (
+          {/* โผล่เฉพาะร้านที่เปิดใช้งานไว้เอง — การมี OA ไม่ได้แปลว่าล็อกอิน LINE พร้อมใช้ */}
+          {lineLogin && (
             <button
               type="button"
               className="sf-btn-ghost"

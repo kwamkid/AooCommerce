@@ -402,6 +402,25 @@ export default function StorefrontSettingsPage() {
               </div>
             </Card>
 
+            <Card padding="md">
+              <div className="flex items-center justify-between gap-4">
+                <div className="min-w-0">
+                  <p className="heading-4">ให้ลูกค้าเข้าสู่ระบบด้วย LINE</p>
+                  <p className="section-desc">
+                    ปุ่ม LINE จะขึ้นในหน้าชำระเงินและหน้าบัญชี — ใช้ยืนยันตัวตนเพื่อเก็บ
+                    ประวัติสั่งซื้อและที่อยู่ · <strong>ยังส่งแจ้งเตือนออเดอร์เข้า LINE OA
+                    ของร้านไม่ได้</strong> เพราะระบบใช้ LINE Login channel กลางตัวเดียว
+                    ไอดีผู้ใช้จึงอยู่คนละชุดกับ OA ของร้าน · เข้าสู่ระบบด้วย Google
+                    ใช้ได้อยู่แล้วโดยไม่ต้องตั้งค่าอะไร
+                  </p>
+                </div>
+                <Toggle
+                  checked={cfg.line_login}
+                  onChange={(v) => patch({ line_login: v })}
+                  aria-label="เปิดให้เข้าสู่ระบบด้วย LINE"
+                />
+              </div>
+            </Card>
             </>)}
 
             {tab === 'seo' && (<>

@@ -8,7 +8,6 @@ import { rememberOrder, rememberContact, readContact } from '@/lib/storefront-or
 import { formatStorePrice, storefrontHref } from '@/lib/storefront';
 import CheckoutSteps from '@/components/storefront/CheckoutSteps';
 import CheckoutAccountBar from '@/components/storefront/CheckoutAccountBar';
-import type { StorefrontLineOa } from '@/lib/storefront-server';
 import { searchAddress } from '@/lib/thai-address-data';
 
 interface SlotOption {
@@ -38,7 +37,7 @@ interface Props {
   zoneEnabled: boolean;
   slotEnabled: boolean;
   dateEnabled: boolean;
-  lineOa: StorefrontLineOa | null;
+  lineLogin: boolean;
 }
 
 /** ข้อมูลลูกค้าที่ผูกกับบัญชีที่ล็อกอินอยู่ (จาก /api/storefront/me) */
@@ -59,7 +58,7 @@ function todayISO(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEnabled, lineOa }: Props) {
+export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEnabled, lineLogin }: Props) {
   const router = useRouter();
   const { lines, subtotal, hydrated } = useCart(shop);
 
@@ -256,7 +255,7 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
             signedIn={account.signedIn}
             linkedName={account.customer?.name || null}
             isStaff={account.isStaff}
-            lineOaName={lineOa?.name || null}
+            lineLogin={lineLogin}
           />
           <section className="sf-fieldset">
             <h2>ผู้รับ</h2>

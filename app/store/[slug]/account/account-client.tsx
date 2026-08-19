@@ -49,10 +49,12 @@ const PAYMENT_LABEL: Record<string, string> = {
 interface Props {
   shop: string;
   shopName: string;
+  /** ร้านเปิดปุ่มล็อกอิน LINE ไว้หรือยัง — คนละเรื่องกับการมี OA */
+  lineLogin: boolean;
   lineOa: StorefrontLineOa | null;
 }
 
-export default function AccountClient({ shop, shopName, lineOa }: Props) {
+export default function AccountClient({ shop, shopName, lineLogin, lineOa }: Props) {
   const [loading, setLoading] = useState(true);
   const [signedIn, setSignedIn] = useState(false);
   const [isStaff, setIsStaff] = useState(false);
@@ -137,8 +139,8 @@ export default function AccountClient({ shop, shopName, lineOa }: Props) {
             {busy === 'google' ? 'กำลังเปิด Google…' : 'เข้าสู่ระบบด้วย Google'}
           </button>
 
-          {/* ปุ่ม LINE โผล่เฉพาะร้านที่ตั้งค่า LINE OA แล้ว */}
-          {lineOa && (
+          {/* โผล่เฉพาะร้านที่เปิดใช้งานไว้เอง — มี OA ไม่ได้แปลว่าล็อกอิน LINE พร้อมใช้ */}
+          {lineLogin && (
             <>
               <button type="button" className="sf-auth-btn sf-auth-line" onClick={signInLine} disabled={!!busy}>
                 <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="currentColor">
@@ -146,10 +148,11 @@ export default function AccountClient({ shop, shopName, lineOa }: Props) {
                 </svg>
                 {busy === 'line' ? 'กำลังเปิด LINE…' : 'เข้าสู่ระบบด้วย LINE'}
               </button>
-              <p className="sf-hint">
-                หลังเข้าสู่ระบบด้วย LINE ต้องกด <strong>เพิ่มเพื่อน {lineOa.name}</strong> ก่อน
-                จึงจะได้รับแจ้งเตือนสถานะออเดอร์ทาง LINE
-              </p>
+              {lineOa && (
+                <p className="sf-hint">
+                  ถ้าอยากรับข่าวสารจากร้าน กด <strong>เพิ่มเพื่อน {lineOa.name}</strong> ได้เลย
+                </p>
+              )}
             </>
           )}
 
@@ -228,15 +231,17 @@ export default function AccountClient({ shop, shopName, lineOa }: Props) {
         </button>
       </div>
 
-      {/* เข้าด้วย LINE แล้วแต่ยังต้องเพิ่มเพื่อนถึงจะ push ได้ */}
-      {lineOa && customer?.line_user_id && (
+      {/* ⚠️ ห้ามสัญญาว่าจะ push แจ้งเตือนออเดอร์อัตโนมัติ — LINE Login ของระบบ
+          ใช้ channel กลางตัวเดียว userId ที่ได้จึงอยู่คนละ provider กับ OA ของร้าน
+          ส่งเข้า OA ร้านไม่ได้ · สิ่งที่เพิ่มเพื่อนแล้วได้จริงคือคุยกับร้านได้ */}
+      {lineOa && (
         <div className="sf-notice">
           <Bell strokeWidth={1.75} aria-hidden="true" />
           <div>
-            <strong>รับแจ้งเตือนออเดอร์ทาง LINE</strong>
+            <strong>คุยกับร้านทาง LINE</strong>
             <p className="sf-hint">
-              กดเพิ่มเพื่อน {lineOa.name} เพื่อรับแจ้งเตือนเมื่อร้านยืนยันคำสั่งซื้อและจัดส่ง
-              — ถ้ายังไม่ได้เพิ่มเพื่อน ระบบจะส่งข้อความหาคุณไม่ได้
+              เพิ่มเพื่อน {lineOa.name} ไว้ ถามเรื่องออเดอร์หรือสินค้าได้ตลอด
+              และไม่พลาดข่าวสารจากร้าน
             </p>
           </div>
           <a href={lineOa.add_friend_url} target="_blank" rel="noopener noreferrer" className="sf-cta">

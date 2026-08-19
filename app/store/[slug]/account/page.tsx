@@ -22,7 +22,8 @@ export default async function StorefrontAccountPage({ params }: { params: Promis
     <AccountClient
       shop={slug}
       shopName={company.config.display_name || company.name}
-      lineOa={company.line_oa}
+      lineLogin={company.config.line_login}
+    lineOa={company.line_oa}
     />
   );
 }

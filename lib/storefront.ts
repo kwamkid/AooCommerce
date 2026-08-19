@@ -30,6 +30,15 @@ export interface StorefrontConfig {
   public_base_path: string;
   /** อนุญาตให้ AI crawler (GPTBot/ClaudeBot/PerplexityBot/…) เก็บข้อมูล */
   allow_ai_crawlers: boolean;
+  /**
+   * เปิดปุ่ม "เข้าสู่ระบบด้วย LINE" ให้ลูกค้า — ปิดไว้เป็นค่าเริ่มต้น
+   *
+   * ⚠️ ไม่ผูกกับการมี LINE OA ของร้าน · ตอนนี้ LINE Login ใช้ channel กลาง
+   * ของระบบตัวเดียว (LINE_LOGIN_CHANNEL_ID) ไม่ได้แยกต่อร้าน แปลว่า userId
+   * ที่ได้อยู่คนละ provider กับ OA ของร้าน จึงเอาไปส่งแจ้งเตือนผ่าน OA ร้านไม่ได้
+   * ใช้ได้แค่ "ยืนยันตัวตน" อย่างเดียว — ร้านต้องเปิดเองโดยรู้ข้อจำกัดนี้
+   */
+  line_login: boolean;
   // ── theme tokens ──
   /** สีแบรนด์ — ลิงก์ ราคา ไฮไลต์ */
   primary_color: string;
@@ -95,6 +104,7 @@ export const DEFAULT_STOREFRONT: StorefrontConfig = {
   public_base_url: '',
   public_base_path: '',
   allow_ai_crawlers: true,
+  line_login: false,
   primary_color: '#F4511E',
   button_color: '',
   header_style: 'light',
@@ -118,6 +128,7 @@ export function parseStorefront(settings: Record<string, unknown> | null | undef
     public_base_url: (stored.public_base_url ?? DEFAULT_STOREFRONT.public_base_url).replace(/\/+$/, ''),
     public_base_path: normalizeBasePath(stored.public_base_path ?? DEFAULT_STOREFRONT.public_base_path),
     allow_ai_crawlers: stored.allow_ai_crawlers ?? DEFAULT_STOREFRONT.allow_ai_crawlers,
+    line_login: stored.line_login ?? DEFAULT_STOREFRONT.line_login,
     primary_color: stored.primary_color ?? DEFAULT_STOREFRONT.primary_color,
     button_color: stored.button_color ?? DEFAULT_STOREFRONT.button_color,
     header_style: stored.header_style ?? DEFAULT_STOREFRONT.header_style,
