@@ -17,6 +17,8 @@ interface Props {
   signedIn: boolean;
   /** ล็อกอินอยู่แต่ยังไม่ได้ผูกกับร้านนี้ → ยังไม่มีที่อยู่ให้ดึง */
   linkedName: string | null;
+  /** รูปที่เราเก็บไว้เอง — ใช้ก่อนของ session เสมอ เพราะไม่พึ่ง CDN ภายนอก */
+  avatarUrl: string | null;
   isStaff: boolean;
   /** ร้านเปิดให้ล็อกอินด้วย LINE และกรอก channel ครบแล้วหรือยัง */
   lineLogin: boolean;
@@ -26,7 +28,7 @@ interface Props {
 }
 
 export default function CheckoutAccountBar({
-  shop, signedIn, linkedName, isStaff, lineLogin, lineChannelId, onSignedOut,
+  shop, signedIn, linkedName, avatarUrl, isStaff, lineLogin, lineChannelId, onSignedOut,
 }: Props) {
   const [busy, setBusy] = useState('');
   const [profile, setProfile] = useState<{ name: string; avatar: string | null } | null>(null);
@@ -42,11 +44,12 @@ export default function CheckoutAccountBar({
       const m = (u.user_metadata || {}) as Record<string, string>;
       setProfile({
         name: linkedName || m.full_name || m.name || u.email || 'บัญชีของฉัน',
-        avatar: m.avatar_url || m.picture || null,
+        // รูปของเราเองมาก่อน — ของ session เป็นแค่ตัวสำรองระหว่างรอซิงก์ครั้งแรก
+        avatar: avatarUrl || m.avatar_url || m.picture || null,
       });
     });
     return () => { alive = false; };
-  }, [signedIn, linkedName]);
+  }, [signedIn, linkedName, avatarUrl]);
 
   const signOut = async () => {
     setBusy('out');

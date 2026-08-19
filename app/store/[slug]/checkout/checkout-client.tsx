@@ -49,6 +49,7 @@ interface Props {
 /** ข้อมูลลูกค้าที่ผูกกับบัญชีที่ล็อกอินอยู่ (จาก /api/storefront/me) */
 interface LinkedCustomer {
   name: string | null;
+  avatar_url: string | null;
   phone: string | null;
   email: string | null;
   billing_address: string | null;
@@ -331,6 +332,7 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
             shop={shop}
             signedIn={account.signedIn}
             linkedName={account.customer?.name || null}
+            avatarUrl={account.customer?.avatar_url || null}
             isStaff={account.isStaff}
             lineLogin={lineLogin}
             lineChannelId={lineChannelId}

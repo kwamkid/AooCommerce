@@ -9,7 +9,7 @@ import { verifyAccessToken } from '@/lib/auth/verify-token';
 import { newCustomerCode } from '@/lib/customer-code';
 
 export const CUSTOMER_PUBLIC_FIELDS =
-  'id, name, phone, email, line_user_id, billing_address, billing_district, billing_amphoe, billing_province, billing_postal_code';
+  'id, name, phone, email, line_user_id, avatar_url, billing_address, billing_district, billing_amphoe, billing_province, billing_postal_code';
 
 export async function resolveStorefrontViewer(request: NextRequest) {
   const token = extractRequestToken(request);

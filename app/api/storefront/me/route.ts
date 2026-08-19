@@ -10,6 +10,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { newCustomerCode } from '@/lib/customer-code';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { getStorefrontCompany } from '@/lib/storefront-server';
+import { syncCustomerAvatar } from '@/lib/customer-avatar';
 import {
   resolveStorefrontViewer as resolveViewer,
   findLinkedCustomer,
@@ -38,6 +39,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ signed_in: true, is_staff: staff, customer: null, orders: [] });
   }
 
+  // ดึงรูปโปรไฟล์จากบัญชีที่ผูกไว้มาเก็บของเราเอง (ข้ามเองถ้าเพิ่งซิงก์ไป)
+  const avatarUrl = await syncCustomerAvatar(customer.id, viewer.userId);
+
   // ประวัติออเดอร์ — เฉพาะฟิลด์ที่ลูกค้าควรเห็น ไม่หลุดต้นทุน/หมายเหตุภายใน
   const { data: orders } = await supabaseAdmin
     .from('orders')
@@ -47,7 +51,12 @@ export async function GET(request: NextRequest) {
     .order('created_at', { ascending: false })
     .limit(50);
 
-  return NextResponse.json({ signed_in: true, is_staff: staff, customer, orders: orders || [] });
+  return NextResponse.json({
+    signed_in: true,
+    is_staff: staff,
+    customer: { ...customer, avatar_url: avatarUrl || customer.avatar_url },
+    orders: orders || [],
+  });
 }
 
 export async function POST(request: NextRequest) {
