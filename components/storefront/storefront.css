@@ -421,6 +421,15 @@
 }
 .sf-acct-name .sf-hint { margin: 0; }
 .sf-acctbar .sf-btn-ghost { padding: 7px 14px; font-size: 14px; flex-shrink: 0; }
+
+/* ตอนยังไม่ล็อกอิน — บอกว่าได้อะไร แล้ววางปุ่มของจริงข้าง ๆ
+   ปุ่ม Google ต้องมีโลโก้ ไม่ใช่ปุ่มตัวหนังสือเปล่า คนกวาดตาหาโลโก้ก่อนอ่าน */
+.sf-acctbar-signin { align-items: center; flex-wrap: wrap; padding: 14px 16px; }
+.sf-acctbar-pitch { flex: 1; min-width: 200px; display: flex; flex-direction: column; gap: 2px; }
+.sf-acctbar-pitch strong { font-weight: 600; }
+.sf-acctbar-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+/* .sf-auth-btn ตัวเต็มเป็นปุ่มเต็มความกว้างของหน้าบัญชี — ในแถบนี้ย่อลง */
+.sf-acctbar-btns .sf-auth-btn { width: auto; margin: 0; padding: 10px 16px; font-size: 14px; }
 .sf-fieldset { border: 1px solid var(--sf-border); border-radius: var(--sf-radius); padding: 18px; }
 .sf-fieldset h2 { font-size: 17px; font-weight: 700; margin: 0 0 14px; }
 .sf-label { display: block; font-size: 14px; color: var(--sf-muted); margin-bottom: 12px; }

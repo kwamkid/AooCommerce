@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { GoogleMark, LineMark } from '@/components/storefront/BrandMarks';
 import Link from 'next/link';
 import { UserRound, LogOut, Bell, ChevronRight, ExternalLink, AlertTriangle } from 'lucide-react';
 import { loginWithGoogle, loginWithLINE } from '@/lib/auth/login-methods';
@@ -131,12 +132,7 @@ export default function AccountClient({ shop, shopName, lineLogin, lineChannelId
 
         <div className="sf-auth-box">
           <button type="button" className="sf-auth-btn" onClick={signInGoogle} disabled={!!busy}>
-            <svg viewBox="0 0 24 24" aria-hidden="true" width="20" height="20">
-              <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1Z" />
-              <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.65l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84A11 11 0 0 0 12 23Z" />
-              <path fill="#FBBC05" d="M5.84 14.11a6.6 6.6 0 0 1 0-4.22V7.05H2.18a11 11 0 0 0 0 9.9l3.66-2.84Z" />
-              <path fill="#EA4335" d="M12 4.75c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 1.46 14.97.5 12 .5A11 11 0 0 0 2.18 7.05l3.66 2.84c.87-2.6 3.3-4.14 6.16-4.14Z" />
-            </svg>
+            <GoogleMark size={20} />
             {busy === 'google' ? 'กำลังเปิด Google…' : 'เข้าสู่ระบบด้วย Google'}
           </button>
 
@@ -144,9 +140,7 @@ export default function AccountClient({ shop, shopName, lineLogin, lineChannelId
           {lineLogin && (
             <>
               <button type="button" className="sf-auth-btn sf-auth-line" onClick={signInLine} disabled={!!busy}>
-                <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="currentColor">
-                  <path d="M12 2C6.48 2 2 5.72 2 10.3c0 4.1 3.55 7.53 8.35 8.18.33.07.77.22.88.5.1.26.07.66.03.92l-.14.85c-.04.25-.2.98.86.53s5.7-3.36 7.78-5.75c1.43-1.57 2.24-3.17 2.24-5.23C22 5.72 17.52 2 12 2Z" />
-                </svg>
+                <LineMark size={20} />
                 {busy === 'line' ? 'กำลังเปิด LINE…' : 'เข้าสู่ระบบด้วย LINE'}
               </button>
               {lineOa && (
