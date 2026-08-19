@@ -398,16 +398,29 @@
 @container (max-width: 900px) { .sf-checkout { grid-template-columns: 1fr; } }
 
 .sf-checkout-form { display: flex; flex-direction: column; gap: 24px; }
-/* แถบบัญชีบนหัวฟอร์ม — เบากว่า fieldset เพราะเป็นทางลัด ไม่ใช่ขั้นตอนที่ต้องทำ */
+/* แถบบัญชีบนหัวฟอร์ม — แถวเดียว เบากว่า fieldset เพราะเป็นทางลัด ไม่ใช่ขั้นตอนที่ต้องทำ */
 .sf-acctbar {
-  display: flex; gap: 12px; align-items: flex-start;
+  display: flex; gap: 10px; align-items: center;
   border: 1px solid var(--sf-border); border-radius: var(--sf-radius);
-  background: var(--sf-surface); padding: 14px 16px; font-size: 15px;
+  background: var(--sf-surface); padding: 10px 12px; font-size: 15px;
 }
-.sf-acctbar > svg { width: 20px; height: 20px; color: var(--sf-muted); flex-shrink: 0; margin-top: 1px; }
-.sf-acctbar-body { display: flex; flex-direction: column; gap: 8px; }
-.sf-acctbar-btns { display: flex; gap: 8px; flex-wrap: wrap; }
-.sf-acctbar-btns .sf-btn-ghost { padding: 7px 16px; font-size: 14px; }
+.sf-acct-avatar {
+  width: 32px; height: 32px; border-radius: 999px; flex-shrink: 0;
+  object-fit: cover; background: var(--sf-bg);
+}
+.sf-acct-avatar-blank {
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid var(--sf-border); color: var(--sf-muted);
+}
+.sf-acct-avatar-blank svg { width: 18px; height: 18px; }
+/* ชื่อกินที่ที่เหลือแล้วดันปุ่มไปชิดขวา — ชื่อยาวตัดด้วย ... ไม่ดันปุ่มตก */
+.sf-acct-name {
+  flex: 1; min-width: 0;
+  display: flex; flex-direction: column;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.sf-acct-name .sf-hint { margin: 0; }
+.sf-acctbar .sf-btn-ghost { padding: 7px 14px; font-size: 14px; flex-shrink: 0; }
 .sf-fieldset { border: 1px solid var(--sf-border); border-radius: var(--sf-radius); padding: 18px; }
 .sf-fieldset h2 { font-size: 17px; font-weight: 700; margin: 0 0 14px; }
 .sf-label { display: block; font-size: 14px; color: var(--sf-muted); margin-bottom: 12px; }
