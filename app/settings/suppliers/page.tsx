@@ -2,6 +2,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
+import { useCopy } from '@/lib/useCopy';
 import { useFetchOnce } from '@/lib/use-fetch-once';
 import { useRouter } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
@@ -71,6 +72,7 @@ function SupplierTypeBadge({ type }: { type: string }) {
 export default function SuppliersPage() {
   const { userProfile, loading: authLoading } = useAuth();
   const { showToast } = useToast();
+  const copy = useCopy();
   const { features } = useFeatures();
   const router = useRouter();
 
@@ -144,8 +146,8 @@ export default function SuppliersPage() {
       if (!res.ok) throw new Error('Failed');
       const data = await res.json();
       const newCode = data.data?.access_code || data.access_code;
-      if (newCode) navigator.clipboard.writeText(newCode);
-      showToast(newCode ? `สร้างรหัสใหม่สำเร็จ — คัดลอก ${newCode} แล้ว` : 'สร้างรหัสใหม่สำเร็จ');
+      showToast('สร้างรหัสใหม่สำเร็จ');
+      if (newCode) copy(newCode, 'รหัส');
       setSuppliers(prev => prev.map(s => s.id === supplier.id ? { ...s, access_code: newCode, portal_enabled: true, portal_enabled_at: data.data?.portal_enabled_at || new Date().toISOString() } : s));
     } catch {
       showToast('สร้างรหัสไม่สำเร็จ', 'error');
@@ -153,8 +155,7 @@ export default function SuppliersPage() {
   };
 
   const copyCode = (code: string) => {
-    navigator.clipboard.writeText(code);
-    showToast('คัดลอกรหัสแล้ว');
+    copy(code, 'รหัส')
   };
 
   // Clear selection when filters change
@@ -311,7 +312,7 @@ export default function SuppliersPage() {
                 key: 'copy-link',
                 label: 'คัดลอกลิงก์',
                 icon: <Copy className="w-4 h-4" />,
-                onClick: () => { navigator.clipboard.writeText(`${window.location.origin}/supplier-portal/${supplier.id}`).then(() => showToast('คัดลอกลิงก์แล้ว')); },
+                onClick: () => { copy(`${window.location.origin}/supplier-portal/${supplier.id}`, 'ลิงก์'); },
               });
               items.push({
                 key: 'copy-code',

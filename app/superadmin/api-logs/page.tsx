@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useCopy } from '@/lib/useCopy';
 import SuperAdminLayout from '../components/SuperAdminLayout';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
@@ -100,6 +101,7 @@ const ACTION_LABELS: Record<string, string> = {
 
 export default function SuperAdminApiLogs() {
   const { showToast } = useToast();
+  const copy = useCopy();
 
   // State
   const [loading, setLoading] = useState(true);
@@ -166,7 +168,7 @@ export default function SuperAdminApiLogs() {
   };
 
   const copyApiBody = async (body: unknown, id: string) => {
-    await navigator.clipboard.writeText(JSON.stringify(body, null, 2));
+    await copy(JSON.stringify(body, null, 2))
     setCopiedId(id);
     setTimeout(() => setCopiedId(null), 2000);
   };
@@ -185,7 +187,7 @@ export default function SuperAdminApiLogs() {
     if (log.error_message) parts.push(`\nError: ${log.error_message}`);
     if (log.request_body != null) parts.push(`\nRequest Body:\n${JSON.stringify(log.request_body, null, 2)}`);
     if (log.response_body != null) parts.push(`\nResponse Body:\n${JSON.stringify(log.response_body, null, 2)}`);
-    await navigator.clipboard.writeText(parts.join('\n'));
+    await copy(parts.join('\n'))
     setCopiedId(`all-${log.id}`);
     setTimeout(() => setCopiedId(null), 2000);
   };

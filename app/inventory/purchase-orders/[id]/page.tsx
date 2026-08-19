@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { useCopy } from '@/lib/useCopy';
 import { useParams, useRouter } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
 import Button from '@/components/ui/Button';
@@ -29,6 +30,7 @@ export default function PurchaseOrderDetailPage() {
   const { userProfile, loading: authLoading } = useAuth();
   const { features, fetched: featuresFetched } = useFeatures();
   const { showToast } = useToast();
+  const copy = useCopy();
   const { confirmDialog, confirm } = useConfirmDialog();
   const poId = params.id as string;
 
@@ -203,7 +205,7 @@ export default function PurchaseOrderDetailPage() {
         const d = await res.json();
         if (newStatus === 'sent' && d.share_token) {
           const url = `${window.location.origin}/po/${d.share_token}`;
-          navigator.clipboard.writeText(url).then(() => showToast('แจ้ง Sup สำเร็จ — คัดลอกลิงก์แล้ว')).catch(() => showToast('แจ้ง Sup สำเร็จ'));
+          copy(url, 'ลิงก์');
         } else { showToast('อัปเดตสถานะสำเร็จ'); }
         await fetchPO();
       } else { const d = await res.json(); showToast(d.error || 'อัปเดตไม่สำเร็จ', 'error'); }
@@ -227,7 +229,7 @@ export default function PurchaseOrderDetailPage() {
       if (po.status === 'draft') { token = await autoSendIfDraft(); }
       else { try { const res = await apiFetch(`/api/inventory/purchase-orders/${poId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ generate_token: true }) }); if (res.ok) { const d = await res.json(); token = d.share_token; if (token) setPO({ ...po, share_token: token }); } } catch { /* */ } }
     }
-    if (token) { navigator.clipboard.writeText(`${window.location.origin}/po/${token}`).then(() => showToast('คัดลอกลิงก์ PO ออนไลน์แล้ว')); }
+    if (token) { copy(`${window.location.origin}/po/${token}`, 'ลิงก์ PO ออนไลน์'); }
     else { showToast('ไม่สามารถสร้างลิงก์ได้', 'error'); }
   };
 

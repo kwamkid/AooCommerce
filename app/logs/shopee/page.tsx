@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useCopy } from '@/lib/useCopy';
 import Layout from '@/components/layout/Layout';
 import { useAuth } from '@/lib/auth-context';
 import { apiFetch } from '@/lib/api-client';
@@ -778,11 +779,12 @@ function OrderLink({ referenceId, label }: { referenceId: string; label: string 
 
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
+  const copy = useCopy();
   return (
     <button
       onClick={(e) => {
         e.stopPropagation();
-        navigator.clipboard.writeText(text);
+        copy(text)
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
       }}

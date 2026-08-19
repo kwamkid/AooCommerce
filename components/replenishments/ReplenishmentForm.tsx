@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { useCopy } from '@/lib/useCopy';
 import { useRouter } from 'next/navigation';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
@@ -101,6 +102,7 @@ interface Props {
 export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMode = false, onLoad, mode = 'replenishment' }: Props) {
   const router = useRouter();
   const { showToast } = useToast();
+  const copy = useCopy();
   const { currentCompany } = useCompany();
   const vatRegistered = currentCompany?.vat_registered || false;
   const isDeptOrder = mode === 'department_order';
@@ -590,8 +592,7 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
   const copyReceiveLink = () => {
     if (!receiveToken) return;
     const url = `${window.location.origin}/${isDeptOrder ? 'department-orders' : 'replenishments'}/receive/${receiveToken}`;
-    navigator.clipboard.writeText(url);
-    showToast('คัดลอกลิงก์แล้ว', 'success');
+    copy(url, 'ลิงก์')
   };
   const handlePrint = async () => {
     if (!existingData) return;

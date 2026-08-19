@@ -2,6 +2,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
+import { useCopy } from '@/lib/useCopy';
 import CopyField from '@/components/ui/CopyField';
 import { useFetchOnce } from '@/lib/use-fetch-once';
 import Layout from '@/components/layout/Layout';
@@ -132,6 +133,7 @@ export default function MembersPage() {
   const { userProfile } = useAuth();
   const { features } = useFeatures();
   const { showToast } = useToast();
+  const copy = useCopy();
   const { confirmDialog, confirm } = useConfirmDialog();
   const [members, setMembers] = useState<Member[]>([]);
   const [invitations, setInvitations] = useState<Invitation[]>([]);
@@ -482,8 +484,7 @@ export default function MembersPage() {
   // Copy invite link
   const copyInviteLink = (token: string) => {
     const link = `${window.location.origin}/invite/${token}`;
-    navigator.clipboard.writeText(link);
-    showToast('คัดลอกลิงก์คำเชิญแล้ว');
+    copy(link, 'ลิงก์คำเชิญ')
   };
 
   // Filter members

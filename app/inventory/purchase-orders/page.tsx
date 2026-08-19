@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useCopy } from '@/lib/useCopy';
 import { useRouter } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
 import Button from '@/components/ui/Button';
@@ -77,6 +78,7 @@ export default function PurchaseOrdersPage() {
   const { userProfile, loading: authLoading } = useAuth();
   const { features, fetched: featuresFetched } = useFeatures();
   const { showToast } = useToast();
+  const copy = useCopy();
   const { confirmDialog, confirm } = useConfirmDialog();
 
   const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([]);
@@ -157,8 +159,8 @@ export default function PurchaseOrdersPage() {
       if (status === 'draft') {
         const token = await autoSendIfDraft(poId, status);
         if (token) {
-          await navigator.clipboard.writeText(`${window.location.origin}/po/${token}`);
-          showToast('แจ้ง Sup สำเร็จ — คัดลอกลิงก์แล้ว');
+          showToast('แจ้ง Sup สำเร็จ');
+          await copy(`${window.location.origin}/po/${token}`, 'ลิงก์');
           setActionLoadingId(null);
           return;
         }
@@ -170,8 +172,7 @@ export default function PurchaseOrdersPage() {
       if (res.ok) {
         const d = await res.json();
         if (d.share_token) {
-          await navigator.clipboard.writeText(`${window.location.origin}/po/${d.share_token}`);
-          showToast('คัดลอกลิงก์ PO ออนไลน์แล้ว');
+          await copy(`${window.location.origin}/po/${d.share_token}`, 'ลิงก์ PO ออนไลน์')
         }
       }
     } catch { showToast('สร้างลิงก์ไม่สำเร็จ', 'error'); }
@@ -343,7 +344,7 @@ export default function PurchaseOrdersPage() {
                 <>
                   <p
                     className="id-text-clickable text-gray-900 dark:text-white"
-                    onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(po.po_number).then(() => showToast('คัดลอกเลข PO แล้ว')); }}
+                    onClick={(e) => { e.stopPropagation(); copy(po.po_number, 'เลข PO'); }}
                     title="คัดลอกเลข PO"
                   >{po.po_number}</p>
                   <p className="data-timestamp text-gray-400 dark:text-slate-500 mt-0.5">{formatDate(po.created_at)}</p>
@@ -432,7 +433,7 @@ export default function PurchaseOrdersPage() {
                   <div>
                     <span
                       className="id-text-clickable text-gray-900 dark:text-white"
-                      onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(po.po_number).then(() => showToast('คัดลอกเลข PO แล้ว')); }}
+                      onClick={(e) => { e.stopPropagation(); copy(po.po_number, 'เลข PO'); }}
                       title="คัดลอกเลข PO"
                     >{po.po_number}</span>
                     <p className="data-timestamp text-gray-400 dark:text-slate-500 mt-0.5">{formatDate(po.created_at)}</p>

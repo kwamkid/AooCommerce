@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback, Suspense } from 'react';
+import { useCopy } from '@/lib/useCopy';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
 import Container from '@/components/ui/Container';
@@ -101,6 +102,7 @@ function OrdersPageContent() {
   const searchParams = useSearchParams();
   const { userProfile, loading: authLoading } = useAuth();
   const { showToast } = useToast();
+  const copy = useCopy();
   const { features } = useFeatures();
   const { currentCompany } = useCompany();
   const vatRegistered = currentCompany?.vat_registered || false;
@@ -560,9 +562,7 @@ function OrdersPageContent() {
           onClick={(e) => {
             e.stopPropagation();
             const billUrl = `${window.location.origin}/bills/${order.id}`;
-            navigator.clipboard.writeText(billUrl).then(() => {
-              showToast('คัดลอกลิงก์บิลออนไลน์แล้ว', 'success');
-            });
+            copy(billUrl, 'ลิงก์บิลออนไลน์');
           }}
           className="p-2 text-gray-500 hover:text-primary rounded-lg transition-colors"
           title="คัดลอกลิงก์บิลออนไลน์"

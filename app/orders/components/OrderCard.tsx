@@ -1,6 +1,7 @@
 'use client';
 
 import { formatPrice } from '@/lib/utils/format';
+import { useCopy } from '@/lib/useCopy';
 import { useToast } from '@/lib/toast-context';
 import {
   Phone,
@@ -68,6 +69,7 @@ export default function OrderCard({
   showPaymentStatus,
 }: OrderCardProps) {
   const { showToast } = useToast();
+  const copy = useCopy();
   const deadline = getDeadlineInfo(order.delivery_date);
   const customerName = order.customer_name || order.delivery_name || 'ลูกค้าทั่วไป';
   const customerPhone = order.customer_phone || order.delivery_phone;
@@ -118,7 +120,7 @@ export default function OrderCard({
             <ChannelBadge channel={order.channel} />
             <span
               className={`id-text-clickable ${orderStatusCfg.headerText} truncate`}
-              onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(order.order_number).then(() => showToast('คัดลอกเลขคำสั่งซื้อแล้ว')); }}
+              onClick={(e) => { e.stopPropagation(); copy(order.order_number, 'เลขคำสั่งซื้อ'); }}
               title="คัดลอกเลขคำสั่งซื้อ"
             >{order.order_number}</span>
             {order.source === 'pos' && (
@@ -246,7 +248,7 @@ export default function OrderCard({
             <div className="px-4 pt-2 flex items-center gap-2 text-xs text-gray-500 dark:text-slate-400">
               <span
                 className="code-text bg-gray-100 dark:bg-slate-700 px-1.5 py-0.5 rounded cursor-pointer hover:bg-gray-200 dark:hover:bg-slate-600 transition-colors"
-                onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(order.tracking_number!).then(() => showToast('คัดลอกเลขพัสดุแล้ว')); }}
+                onClick={(e) => { e.stopPropagation(); copy(order.tracking_number!, 'เลขพัสดุ'); }}
                 title="คัดลอกเลขพัสดุ"
               >
                 {order.tracking_number}

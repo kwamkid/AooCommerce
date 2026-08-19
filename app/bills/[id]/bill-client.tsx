@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useMemo, Fragment } from 'react';
+import { useCopy } from '@/lib/useCopy';
 import Image from 'next/image';
 import imageCompression from 'browser-image-compression';
 import { useToast } from '@/lib/toast-context';
@@ -145,6 +146,7 @@ function StatusPill({ label, color }: { label: string; color: string }) {
 
 export default function BillClient({ orderId, initialBill }: { orderId: string; initialBill: BillData | null }) {
   const { showToast } = useToast();
+  const copy = useCopy();
   const [bill, setBill] = useState<BillData | null>(initialBill);
   const [loading, setLoading] = useState(!initialBill);
   const [error, setError] = useState('');
@@ -216,21 +218,9 @@ export default function BillClient({ orderId, initialBill }: { orderId: string; 
   };
 
   const handleCopyAccount = async (accountNumber: string) => {
-    try {
-      await navigator.clipboard.writeText(accountNumber.replace(/[-\s]/g, ''));
-      setCopiedAccount(accountNumber);
-      setTimeout(() => setCopiedAccount(null), 2000);
-    } catch {
-      // Fallback for older browsers
-      const textArea = document.createElement('textarea');
-      textArea.value = accountNumber.replace(/[-\s]/g, '');
-      document.body.appendChild(textArea);
-      textArea.select();
-      document.execCommand('copy');
-      document.body.removeChild(textArea);
-      setCopiedAccount(accountNumber);
-      setTimeout(() => setCopiedAccount(null), 2000);
-    }
+    if (!await copy(accountNumber.replace(/[-\s]/g, ''), 'เลขบัญชี')) return;
+    setCopiedAccount(accountNumber);
+    setTimeout(() => setCopiedAccount(null), 2000);
   };
 
   // Helper: get Beam channel info
@@ -653,7 +643,7 @@ export default function BillClient({ orderId, initialBill }: { orderId: string; 
       <div className="print:hidden sticky top-0 bg-[#1A1A2E] px-4 py-3 flex items-center justify-between z-10 shadow-md">
         <div className="flex items-center gap-2">
           <Image src="/logo.svg" alt="Logo" width={80} height={52} className="h-8 w-auto" priority />
-          <span className="id-text-clickable text-white/80 ml-2 hover:text-white" onClick={() => navigator.clipboard.writeText(bill.order_number).then(() => showToast('คัดลอกเลขคำสั่งซื้อแล้ว'))} title="คัดลอก">#{bill.order_number}</span>
+          <span className="id-text-clickable text-white/80 ml-2 hover:text-white" onClick={() => copy(bill.order_number, 'เลขคำสั่งซื้อ')} title="คัดลอก">#{bill.order_number}</span>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -713,7 +703,7 @@ export default function BillClient({ orderId, initialBill }: { orderId: string; 
               </div>
             </div>
             <div className="text-right space-y-0.5">
-              <div className={`font-bold font-mono text-base ${dark ? 'text-white' : 'text-gray-900'} cursor-pointer hover:text-primary transition-colors print:cursor-default print:hover:text-inherit`} onClick={() => navigator.clipboard.writeText(bill.order_number).then(() => showToast('คัดลอกเลขคำสั่งซื้อแล้ว'))} title="คัดลอก">{bill.order_number}</div>
+              <div className={`font-bold font-mono text-base ${dark ? 'text-white' : 'text-gray-900'} cursor-pointer hover:text-primary transition-colors print:cursor-default print:hover:text-inherit`} onClick={() => copy(bill.order_number, 'เลขคำสั่งซื้อ')} title="คัดลอก">{bill.order_number}</div>
               <div className={`text-sm ${dark ? 'text-slate-400' : 'text-gray-600'}`} suppressHydrationWarning>{formatDate(bill.order_date)}</div>
               <div className="flex items-center justify-end gap-1.5 mt-1 print:hidden">
                 {isExpired ? (
@@ -1343,9 +1333,7 @@ export default function BillClient({ orderId, initialBill }: { orderId: string; 
                             <button
                               type="button"
                               onClick={async () => {
-                                try {
-                                  await navigator.clipboard.writeText(bill.total_amount.toFixed(2));
-                                } catch { /* fallback */ const ta = document.createElement('textarea'); ta.value = bill.total_amount.toFixed(2); document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); }
+                                if (!await copy(bill.total_amount.toFixed(2), 'ยอดเงิน')) return;
                                 setCopiedAmount(true);
                                 setTimeout(() => setCopiedAmount(false), 2000);
                               }}

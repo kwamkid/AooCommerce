@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, Suspense } from 'react';
+import { useCopy } from '@/lib/useCopy';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
 import Container from '@/components/ui/Container';
@@ -47,6 +48,7 @@ function NewReplenishmentPageContent() {
   const replenishmentId = searchParams.get('id') || undefined;
   const viewMode = searchParams.get('view') === '1';
   const { showToast } = useToast();
+  const copy = useCopy();
 
   const [warehouses, setWarehouses] = useState<WarehouseItem[]>([]);
   const [selectedWarehouseId, setSelectedWarehouseId] = useState('');
@@ -223,8 +225,7 @@ function NewReplenishmentPageContent() {
   const copyReceiveLink = () => {
     if (!formState?.receiveToken) return;
     const url = `${window.location.origin}/replenishments/receive/${formState.receiveToken}`;
-    navigator.clipboard.writeText(url);
-    showToast('คัดลอกลิงก์แล้ว', 'success');
+    copy(url, 'ลิงก์')
   };
 
   // Set warehouse from loaded replenishment (edit mode)

@@ -2,6 +2,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useCallback, Suspense } from 'react';
+import { useCopy } from '@/lib/useCopy';
 import { useFetchOnce } from '@/lib/use-fetch-once';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
@@ -123,6 +124,7 @@ function CustomerTypeBadge({ type }: { type: string }) {
 function CustomersPageContent() {
   const { userProfile, loading: authLoading } = useAuth();
   const { showToast } = useToast();
+  const copy = useCopy();
   const { confirmDialog, confirm } = useConfirmDialog();
   const { features } = useFeatures();
   const router = useRouter();
@@ -410,14 +412,14 @@ function CustomersPageContent() {
         key: 'portal-copy',
         label: 'คัดลอกลิงก์',
         icon: <Copy className="w-4 h-4" />,
-        onClick: () => { navigator.clipboard.writeText(`${window.location.origin}/portal/consignment/${customer.portal_token}`).then(() => showToast('คัดลอกลิงก์แล้ว', 'success')); },
+        onClick: () => { copy(`${window.location.origin}/portal/consignment/${customer.portal_token}`, 'ลิงก์'); },
       });
       items.push({
         key: 'portal-code',
         label: customer.portal_access_code ? `รหัส: ${customer.portal_access_code}` : 'รหัส Portal: ยังไม่มี',
         icon: <KeyRound className="w-4 h-4" />,
         onClick: customer.portal_access_code
-          ? () => navigator.clipboard.writeText(customer.portal_access_code!).then(() => showToast('คัดลอกรหัสแล้ว', 'success'))
+          ? () => copy(customer.portal_access_code!, 'รหัส')
           : undefined,
         suffix: customer.portal_access_code ? <Copy className="w-3.5 h-3.5 text-gray-400" /> : undefined,
       });

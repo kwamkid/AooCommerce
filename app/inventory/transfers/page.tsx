@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useCopy } from '@/lib/useCopy';
 import { useRouter } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
 import Button from '@/components/ui/Button';
@@ -50,6 +51,7 @@ export default function TransferListPage() {
   const router = useRouter();
   const { userProfile, loading: authLoading } = useAuth();
   const { showToast } = useToast();
+  const copy = useCopy();
 
   const [transfers, setTransfers] = useState<Transfer[]>([]);
   const [loading, setLoading] = useState(true);
@@ -288,7 +290,7 @@ export default function TransferListPage() {
               key: 'transferInfo', label: 'เลขที่', alwaysVisible: true,
               render: (t) => (
                 <>
-                  <p className="id-text-clickable text-gray-900 dark:text-white" title="คัดลอก" onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(t.transfer_number).then(() => showToast('คัดลอกเลขที่ใบโอนแล้ว')); }}>{t.transfer_number}</p>
+                  <p className="id-text-clickable text-gray-900 dark:text-white" title="คัดลอก" onClick={(e) => { e.stopPropagation(); copy(t.transfer_number, 'เลขที่ใบโอน'); }}>{t.transfer_number}</p>
                   <p className="data-timestamp text-gray-400 dark:text-slate-500 mt-0.5">{formatDate(t.created_at)}</p>
                 </>
               ),
@@ -395,7 +397,7 @@ export default function TransferListPage() {
               <>
                 <div className="flex items-center justify-between mb-2">
                   <div>
-                    <span className="id-text-clickable text-gray-900 dark:text-white" title="คัดลอก" onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(t.transfer_number).then(() => showToast('คัดลอกเลขที่ใบโอนแล้ว')); }}>
+                    <span className="id-text-clickable text-gray-900 dark:text-white" title="คัดลอก" onClick={(e) => { e.stopPropagation(); copy(t.transfer_number, 'เลขที่ใบโอน'); }}>
                       {t.transfer_number}
                     </span>
                     <p className="data-timestamp text-gray-400 dark:text-slate-500 mt-0.5">{formatDate(t.created_at)}</p>

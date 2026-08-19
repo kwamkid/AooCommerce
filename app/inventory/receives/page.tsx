@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useCopy } from '@/lib/useCopy';
 import { useRouter } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
 import Button from '@/components/ui/Button';
@@ -34,6 +35,7 @@ export default function ReceiveListPage() {
   const router = useRouter();
   const { userProfile, loading: authLoading } = useAuth();
   const { showToast } = useToast();
+  const copy = useCopy();
 
   const [receives, setReceives] = useState<Receive[]>([]);
   const [loading, setLoading] = useState(true);
@@ -186,7 +188,7 @@ export default function ReceiveListPage() {
               key: 'receiveInfo', label: 'เลขที่', alwaysVisible: true,
               render: (r) => (
                 <>
-                  <p className="id-text-clickable text-gray-900 dark:text-white" title="คัดลอก" onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(r.receive_number).then(() => showToast('คัดลอกเลขที่ใบรับแล้ว')); }}>{r.receive_number}</p>
+                  <p className="id-text-clickable text-gray-900 dark:text-white" title="คัดลอก" onClick={(e) => { e.stopPropagation(); copy(r.receive_number, 'เลขที่ใบรับ'); }}>{r.receive_number}</p>
                   <p className="data-timestamp text-gray-400 dark:text-slate-500 mt-0.5">{formatDate(r.created_at)}</p>
                 </>
               ),
@@ -264,7 +266,7 @@ export default function ReceiveListPage() {
             <>
               <div className="flex items-center justify-between mb-1.5">
                 <div>
-                  <span className="id-text-clickable text-gray-900 dark:text-white" title="คัดลอก" onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(r.receive_number).then(() => showToast('คัดลอกเลขที่ใบรับแล้ว')); }}>{r.receive_number}</span>
+                  <span className="id-text-clickable text-gray-900 dark:text-white" title="คัดลอก" onClick={(e) => { e.stopPropagation(); copy(r.receive_number, 'เลขที่ใบรับ'); }}>{r.receive_number}</span>
                   <p className="data-timestamp text-gray-400 dark:text-slate-500 mt-0.5">{formatDate(r.created_at)}</p>
                 </div>
                 <div className="flex items-center gap-2">

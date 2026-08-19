@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef, Suspense } from 'react';
+import { useCopy } from '@/lib/useCopy';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
 import SearchInput from '@/components/ui/SearchInput';
@@ -93,6 +94,7 @@ function ReplenishmentsPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { showToast } = useToast();
+  const copy = useCopy();
 
   // Derive filter state from URL params
   const activeStatus = searchParams.get('status') || 'all';
@@ -353,8 +355,7 @@ function ReplenishmentsPageContent() {
   // Copy receive link
   const copyReceiveLink = (token: string) => {
     const url = `${window.location.origin}/replenishments/receive/${token}`;
-    navigator.clipboard.writeText(url);
-    showToast('คัดลอกลิงก์แล้ว', 'success');
+    copy(url, 'ลิงก์')
   };
 
   // Print state tracking (DB-backed via printed_*_at columns)
@@ -751,7 +752,7 @@ function ReplenishmentsPageContent() {
                   <p
                     className="id-text-clickable text-gray-900 dark:text-white"
                     title="คัดลอก"
-                    onClick={e => { e.stopPropagation(); navigator.clipboard.writeText(r.replenishment_number).then(() => showToast('คัดลอกเลขที่แล้ว')); }}
+                    onClick={e => { e.stopPropagation(); copy(r.replenishment_number, 'เลขที่'); }}
                   >
                     {r.replenishment_number}
                   </p>
@@ -884,7 +885,7 @@ function ReplenishmentsPageContent() {
               <>
                 <div className="flex items-start justify-between gap-2 mb-2">
                   <div className="flex-1 min-w-0">
-                    <p className="id-text-clickable text-gray-900 dark:text-white" onClick={e => { e.stopPropagation(); navigator.clipboard.writeText(r.replenishment_number).then(() => showToast('คัดลอกเลขที่แล้ว')); }}>
+                    <p className="id-text-clickable text-gray-900 dark:text-white" onClick={e => { e.stopPropagation(); copy(r.replenishment_number, 'เลขที่'); }}>
                       {r.replenishment_number}
                     </p>
                     <p className="data-timestamp text-gray-400 dark:text-slate-500">{formatDate(r.created_at)}</p>

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useCopy } from '@/lib/useCopy';
 import { useRouter } from 'next/navigation';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
@@ -89,6 +90,7 @@ export default function ReadyToShipTab({
 }: ReadyToShipTabProps) {
   const router = useRouter();
   const { showToast } = useToast();
+  const copy = useCopy();
   const { currentCompany } = useCompany();
   const vatRegistered = currentCompany?.vat_registered || false;
   const { confirmDialog, confirm } = useConfirmDialog();
@@ -1062,10 +1064,7 @@ export default function ReadyToShipTab({
         onClick: (e) => {
           e.stopPropagation();
           const billUrl = `${window.location.origin}/bills/${order.id}`;
-          navigator.clipboard.writeText(billUrl).then(() => {
-            setToast('คัดลอกลิงก์บิลออนไลน์แล้ว');
-            setTimeout(() => setToast(''), 2500);
-          });
+          copy(billUrl, 'ลิงก์บิลออนไลน์');
         },
         className: 'p-1.5 text-gray-400 hover:text-primary transition-colors rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700',
       });

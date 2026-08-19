@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useMemo, RefObject } from 'react';
+import { useCopy } from '@/lib/useCopy';
 import { createPortal } from 'react-dom';
 import { useFetchOnce } from '@/lib/use-fetch-once';
 import { useRouter } from 'next/navigation';
@@ -192,6 +193,7 @@ export default function OrderForm({
   const router = useRouter();
   const { userProfile, loading: authLoading } = useAuth();
   const { showToast } = useToast();
+  const copy = useCopy();
   const { features, billExpiryDays } = useFeatures();
   const { currentCompany } = useCompany();
   const vatRegistered = currentCompany?.vat_registered || false;
@@ -2571,7 +2573,7 @@ export default function OrderForm({
                       type="button"
                       onClick={() => {
                         const billUrl = `${window.location.origin}/bills/${savedOrderId}`;
-                        navigator.clipboard.writeText(billUrl);
+                        copy(billUrl)
                         setBillLinkCopied(true);
                         setTimeout(() => setBillLinkCopied(false), 2000);
                       }}

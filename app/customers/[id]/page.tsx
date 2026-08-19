@@ -2,6 +2,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useCopy } from '@/lib/useCopy';
 import { useRouter, useParams } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
 import Container from '@/components/ui/Container';
@@ -68,6 +69,7 @@ export default function CustomerEditPage() {
   const { userProfile, loading: authLoading } = useAuth();
   const { confirmDialog } = useConfirmDialog();
   const { showToast } = useToast();
+  const copy = useCopy();
   const router = useRouter();
   const params = useParams();
   const customerId = params.id as string;
@@ -338,9 +340,7 @@ export default function CustomerEditPage() {
                 icon={<Copy className="w-3.5 h-3.5" />}
                 onClick={() => {
                   const url = `${window.location.origin}/portal/consignment/${customer.portal_token}`;
-                  navigator.clipboard.writeText(url).then(() => {
-                    showToast('คัดลอกลิงก์แล้ว', 'success');
-                  });
+                  copy(url, 'ลิงก์');
                 }}
               >
                 คัดลอก
@@ -384,9 +384,7 @@ export default function CustomerEditPage() {
                   size="sm"
                   icon={<Copy className="w-3.5 h-3.5" />}
                   onClick={() => {
-                    navigator.clipboard.writeText(customer.portal_access_code!).then(() => {
-                      showToast('คัดลอกรหัสแล้ว', 'success');
-                    });
+                    copy(customer.portal_access_code!, 'รหัส');
                   }}
                 >
                   คัดลอกรหัส

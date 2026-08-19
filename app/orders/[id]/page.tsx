@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { useCopy } from '@/lib/useCopy';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
 import Container from '@/components/ui/Container';
@@ -133,6 +134,7 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
   const backUrl = overrideBackUrl || searchParams.get('back') || '/orders';
   const { userProfile, loading: authLoading } = useAuth();
   const { showToast } = useToast();
+  const copy = useCopy();
   const { features } = useFeatures();
   const { currentCompany } = useCompany();
   const vatRegistered = currentCompany?.vat_registered || false;
@@ -896,7 +898,7 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
               <div className="flex items-center gap-2 flex-wrap">
                 <h1
                   className="text-2xl font-bold font-mono text-gray-900 dark:text-white print:text-black hover:text-primary cursor-pointer transition-colors"
-                  onClick={() => { navigator.clipboard.writeText(orderNumber).then(() => showToast('คัดลอกเลขคำสั่งซื้อแล้ว')); }}
+                  onClick={() => { copy(orderNumber, 'เลขคำสั่งซื้อ'); }}
                   title="คัดลอกเลขคำสั่งซื้อ"
                 >{orderNumber}</h1>
                 {isShopeeOrder && (
@@ -935,7 +937,7 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
               )}
               {isPosOrder && receiptNumber && (
                 <p className="text-sm text-gray-500 mt-0.5">
-                  เลขที่ใบเสร็จ: <span className="font-mono cursor-pointer hover:text-primary transition-colors" onClick={() => navigator.clipboard.writeText(receiptNumber).then(() => showToast('คัดลอกเลขที่ใบเสร็จแล้ว'))} title="คัดลอก">{receiptNumber}</span>
+                  เลขที่ใบเสร็จ: <span className="font-mono cursor-pointer hover:text-primary transition-colors" onClick={() => copy(receiptNumber, 'เลขที่ใบเสร็จ')} title="คัดลอก">{receiptNumber}</span>
                 </p>
               )}
             </div>
@@ -1060,7 +1062,7 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
                           onClick={() => {
                             setShowActionMenu(false);
                             const billUrl = `${window.location.origin}/bills/${orderId}`;
-                            navigator.clipboard.writeText(billUrl).then(() => showToast('คัดลอกลิงก์บิลออนไลน์แล้ว'));
+                            copy(billUrl, 'ลิงก์บิลออนไลน์');
                           }}
                           className="w-full text-left px-3 py-2.5 text-sm text-gray-700 dark:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-700 flex items-center gap-2.5"
                         >
@@ -1338,8 +1340,7 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
                         const text = trackUrl
                           ? `${getCarrierLabel(fullOrderData.shipping_carrier)}: ${fullOrderData.tracking_number}\nติดตามพัสดุ: ${trackUrl}`
                           : fullOrderData.tracking_number;
-                        navigator.clipboard.writeText(text);
-                        showToast('คัดลอกข้อมูลพัสดุแล้ว');
+                        copy(text, 'ข้อมูลพัสดุ')
                       }}
                       className="text-gray-400 hover:text-gray-700 dark:text-slate-500 dark:hover:text-slate-300 transition-colors"
                       title="คัดลอกข้อมูลพัสดุ"

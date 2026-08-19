@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { useCopy } from '@/lib/useCopy';
 import { useParams, useRouter } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
 import NumberInput from '@/components/ui/NumberInput';
@@ -72,6 +73,7 @@ export default function TransferDetailPage() {
   const router = useRouter();
   const { userProfile, loading: authLoading } = useAuth();
   const { showToast } = useToast();
+  const copy = useCopy();
   const transferId = params.id as string;
 
   const [transfer, setTransfer] = useState<Transfer | null>(null);
@@ -194,7 +196,7 @@ export default function TransferDetailPage() {
 
   const handleCopyLink = async () => {
     try {
-      await navigator.clipboard.writeText(getReceiveUrl());
+      await copy(getReceiveUrl())
       setCopiedLink(true);
       setTimeout(() => setCopiedLink(false), 2000);
     } catch { /* fallback */ }

@@ -2,6 +2,7 @@
 'use client';
 
 import { formatPrice } from '@/lib/utils/format';
+import { useCopy } from '@/lib/useCopy';
 import { useToast } from '@/lib/toast-context';
 import { Eye, Printer, Ban, Loader2, Package, Store, Tag } from 'lucide-react';
 
@@ -72,6 +73,7 @@ interface PosOrderCardProps {
 
 export default function PosOrderCard({ order, onViewReceipt, onVoid, voidingId, canVoid }: PosOrderCardProps) {
   const { showToast } = useToast();
+  const copy = useCopy();
   const statusCfg = ORDER_STATUS_CONFIG[order.order_status] || ORDER_STATUS_CONFIG.completed;
   const customerName = order.customer?.name || 'ลูกค้าทั่วไป';
   const isVoided = order.order_status === 'cancelled';
@@ -91,7 +93,7 @@ export default function PosOrderCard({ order, onViewReceipt, onVoid, voidingId, 
         <div className="flex items-center gap-2 flex-wrap">
           <span
             className={`id-text-clickable ${statusCfg.headerText}`}
-            onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(order.receipt_number).then(() => showToast('คัดลอกเลขที่ใบเสร็จแล้ว')); }}
+            onClick={(e) => { e.stopPropagation(); copy(order.receipt_number, 'เลขที่ใบเสร็จ'); }}
             title="คัดลอกเลขที่ใบเสร็จ"
           >
             {order.receipt_number}

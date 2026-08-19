@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { useCopy } from '@/lib/useCopy';
 import { useParams, useRouter } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
 import { apiFetch } from '@/lib/api-client';
@@ -30,6 +31,7 @@ export default function DepartmentOrderDetailPage() {
   const params = useParams();
   const router = useRouter();
   const { showToast } = useToast();
+  const copy = useCopy();
   const id = params.id as string;
 
   // Fetch order status + basic info for header
@@ -251,8 +253,7 @@ export default function DepartmentOrderDetailPage() {
   const copyReceiveLink = () => {
     if (!orderInfo?.receive_token) return;
     const url = `${window.location.origin}/department-orders/receive/${orderInfo.receive_token}`;
-    navigator.clipboard.writeText(url);
-    showToast('คัดลอกลิงก์รับของแล้ว', 'success');
+    copy(url, 'ลิงก์รับของ')
   };
 
   // === Print DN ===

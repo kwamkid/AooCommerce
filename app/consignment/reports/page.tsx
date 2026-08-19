@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef, Suspense } from 'react';
+import { useCopy } from '@/lib/useCopy';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
 import SearchInput from '@/components/ui/SearchInput';
@@ -83,6 +84,7 @@ function ConsignmentReportsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { showToast } = useToast();
+  const copy = useCopy();
 
   // Derive filter state from URL params
   const activeStatus = searchParams.get('status') || 'all';
@@ -162,7 +164,7 @@ function ConsignmentReportsContent() {
   const copyPortalReportLink = (report: ConsignmentReport) => {
     if (!report.report_token) return;
     const url = `${window.location.origin}/portal/consignment/${report.customer?.id}?report=${report.report_token}`;
-    navigator.clipboard.writeText(url).then(() => showToast('คัดลอกลิงก์แล้ว', 'success'));
+    copy(url, 'ลิงก์');
   };
 
   // Print state (DB-backed via printed_*_at columns)

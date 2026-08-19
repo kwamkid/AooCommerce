@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { useCopy } from '@/lib/useCopy';
 import { useRouter } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
 import { useAuth } from '@/lib/auth-context';
@@ -352,6 +353,7 @@ export default function DeliverySummaryPage() {
   const router = useRouter();
   const { session, userProfile, loading: authLoading } = useAuth();
   const { showToast } = useToast();
+  const copy = useCopy();
 
   const [activeTab, setActiveTab] = useState<'packing' | 'delivery'>('packing');
   const [loading, setLoading] = useState(false);
@@ -676,7 +678,7 @@ export default function DeliverySummaryPage() {
     const text = generateDeliveryText();
     if (!text) return;
     try {
-      await navigator.clipboard.writeText(text);
+      await copy(text)
       setCopySuccess(true);
       setTimeout(() => setCopySuccess(false), 2000);
     } catch {
