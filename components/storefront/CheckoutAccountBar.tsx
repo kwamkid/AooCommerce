@@ -59,10 +59,21 @@ export default function CheckoutAccountBar({
   if (signedIn) {
     return (
       <div className="sf-acctbar">
-        {profile?.avatar
+        {profile?.avatar ? (
           // eslint-disable-next-line @next/next/no-img-element
-          ? <img src={profile.avatar} alt="" className="sf-acct-avatar" />
-          : <span className="sf-acct-avatar sf-acct-avatar-blank"><UserRound strokeWidth={1.75} aria-hidden="true" /></span>}
+          <img
+            src={profile.avatar}
+            alt=""
+            className="sf-acct-avatar"
+            /* Google (lh3.googleusercontent.com) ตอบ 403 ให้คำขอที่ส่ง referrer มา
+               จากโดเมนอื่น — ไม่ตัด referrer ทิ้งรูปจะเป็นไอคอนรูปแตก */
+            referrerPolicy="no-referrer"
+            /* โหลดไม่ขึ้นด้วยเหตุใดก็ตาม → ตกไปใช้ไอคอน ห้ามปล่อยให้เห็นรูปแตก */
+            onError={() => setProfile(p => (p ? { ...p, avatar: null } : p))}
+          />
+        ) : (
+          <span className="sf-acct-avatar sf-acct-avatar-blank"><UserRound strokeWidth={1.75} aria-hidden="true" /></span>
+        )}
 
         <span className="sf-acct-name">
           {profile?.name || 'บัญชีของฉัน'}
