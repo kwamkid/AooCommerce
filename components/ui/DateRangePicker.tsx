@@ -92,7 +92,9 @@ const DAY_PICKER_SINGLE_CLASSES = {
   week: '',
   day: 'text-center p-0',
   day_button: 'w-10 h-10 text-sm rounded-full hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors text-gray-700 dark:text-slate-300 focus:outline-none',
-  today: 'font-bold underline underline-offset-4 decoration-amber-500 decoration-2',
+  // วงแหวนรอบปุ่มด้านใน ไม่ใช่รอบ <td> — ปุ่มเป็น rounded-full อยู่แล้ว
+  // ขอบจึงเป็นวงกลมพอดี · ขีดเส้นใต้แบบเดิมจางเกินจนหาวันนี้ไม่เจอ
+  today: 'font-bold [&>button]:ring-1 [&>button]:ring-inset [&>button]:ring-amber-400 [&>button]:text-amber-600 dark:[&>button]:text-amber-400',
   selected: '!bg-amber-500 !text-white !rounded-full hover:!bg-amber-600',
   outside: 'text-gray-300 dark:text-slate-600',
   disabled: 'text-gray-300 dark:text-slate-600 cursor-not-allowed',
@@ -109,7 +111,9 @@ const DAY_PICKER_RANGE_CLASSES = {
   week: '',
   day: 'text-center p-0',
   day_button: 'w-10 h-10 text-sm rounded-full hover:bg-amber-200 dark:hover:bg-amber-800/40 transition-colors text-gray-700 dark:text-slate-300 focus:outline-none',
-  today: 'font-bold underline underline-offset-4 decoration-amber-500 decoration-2',
+  // วงแหวนรอบปุ่มด้านใน ไม่ใช่รอบ <td> — ปุ่มเป็น rounded-full อยู่แล้ว
+  // ขอบจึงเป็นวงกลมพอดี · ขีดเส้นใต้แบบเดิมจางเกินจนหาวันนี้ไม่เจอ
+  today: 'font-bold [&>button]:ring-1 [&>button]:ring-inset [&>button]:ring-amber-400 [&>button]:text-amber-600 dark:[&>button]:text-amber-400',
   selected: '!bg-amber-400 dark:!bg-amber-600 !text-white',
   range_start: '!bg-amber-500 !text-white !rounded-l-full',
   range_end: '!bg-amber-500 !text-white !rounded-r-full',
