@@ -8,6 +8,8 @@
 import { useState } from 'react';
 import { UserRound } from 'lucide-react';
 import { loginWithGoogle, loginWithLINE } from '@/lib/auth/login-methods';
+import { clearSession } from '@/lib/auth/session-manager';
+import { supabase } from '@/lib/supabase';
 import { storefrontHref } from '@/lib/storefront';
 
 interface Props {
@@ -19,26 +21,44 @@ interface Props {
   /** ร้านเปิดให้ล็อกอินด้วย LINE และกรอก channel ครบแล้วหรือยัง */
   lineLogin: boolean;
   lineChannelId: string;
+  /** ออกจากระบบแล้วให้ฟอร์มกลับไปโหมดไม่ล็อกอิน โดยไม่โหลดหน้าใหม่ (ที่พิมพ์ไว้จะได้ไม่หาย) */
+  onSignedOut: () => void;
 }
 
-export default function CheckoutAccountBar({ shop, signedIn, linkedName, isStaff, lineLogin, lineChannelId }: Props) {
+export default function CheckoutAccountBar({ shop, signedIn, linkedName, isStaff, lineLogin, lineChannelId, onSignedOut }: Props) {
   const [busy, setBusy] = useState('');
   const returnTo = storefrontHref(shop, '/checkout');
+
+  const signOut = async () => {
+    setBusy('out');
+    await supabase.auth.signOut();
+    clearSession();
+    setBusy('');
+    onSignedOut();
+  };
 
   if (signedIn) {
     return (
       <div className="sf-acctbar">
         <UserRound strokeWidth={1.75} aria-hidden="true" />
-        <div>
-          {linkedName
-            ? <>เข้าสู่ระบบเป็น <strong>{linkedName}</strong> — เติมข้อมูลจากครั้งก่อนให้แล้ว</>
-            : <>เข้าสู่ระบบแล้ว — สั่งซื้อครั้งนี้จะถูกเก็บเข้าประวัติของคุณ</>}
+        <div className="sf-acctbar-body">
+          <span>
+            {linkedName
+              ? <>เข้าสู่ระบบเป็น <strong>{linkedName}</strong> — เติมข้อมูลจากครั้งก่อนให้แล้ว</>
+              : <>เข้าสู่ระบบแล้ว — สั่งซื้อครั้งนี้จะถูกเก็บเข้าประวัติของคุณ</>}
+          </span>
           {isStaff && (
-            <div className="sf-hint">
+            <span className="sf-hint">
               บัญชีนี้เป็นทีมงานของร้าน — ถ้ากำลังทดสอบ แนะนำให้เปิดหน้าต่างส่วนตัว
               จะได้เห็นหน้าร้านแบบเดียวกับลูกค้าจริง
-            </div>
+            </span>
           )}
+          <div className="sf-acctbar-btns">
+            <button type="button" className="sf-btn-ghost" disabled={!!busy} onClick={signOut}>
+              {busy === 'out' ? 'กำลังออก…' : 'ออกจากระบบ'}
+            </button>
+          </div>
+          <span className="sf-hint">ออกแล้วสั่งแบบไม่ล็อกอิน หรือเข้าด้วยบัญชีอื่นก็ได้ — ของในตะกร้าและที่กรอกไว้ไม่หาย</span>
         </div>
       </div>
     );

@@ -268,6 +268,7 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
             isStaff={account.isStaff}
             lineLogin={lineLogin}
             lineChannelId={lineChannelId}
+            onSignedOut={() => setAccount({ signedIn: false, isStaff: false, customer: null })}
           />
           <section className="sf-fieldset">
             <h2>ผู้รับ</h2>
