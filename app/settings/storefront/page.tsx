@@ -2,7 +2,7 @@
 // ตั้งค่าหน้าร้านออนไลน์ — เปิด/ปิด ธีม โดเมน และ AI crawler
 'use client';
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import Layout from '@/components/layout/Layout';
 import Container from '@/components/ui/Container';
@@ -27,6 +27,7 @@ import StoreProductCard from '@/components/storefront/StoreProductCard';
 import '@/components/storefront/storefront.css';
 import ColorPicker from '@/components/ui/ColorPicker';
 import LogoUploader from '@/components/ui/LogoUploader';
+import CopyField from '@/components/ui/CopyField';
 import { useCompany } from '@/lib/company-context';
 import OptionCards from '@/components/ui/OptionCards';
 import { ExternalLink, Globe, KeyRound, Palette, Plus, Store } from 'lucide-react';
@@ -261,6 +262,8 @@ export default function StorefrontSettingsPage() {
   const [tab, setTab] = useState<'info' | 'design' | 'login' | 'seo'>('info');
   const [lineCred, setLineCred] = useState({ channel_id: '', channel_secret: '', configured: false });
   const [savingLine, setSavingLine] = useState(false);
+  const [origin, setOrigin] = useState('');
+  useEffect(() => { setOrigin(window.location.origin); }, []);
   const [device, setDevice] = useState<'mobile' | 'desktop'>('mobile');
 
   useFetchOnce(useCallback(async () => {
@@ -480,10 +483,16 @@ export default function StorefrontSettingsPage() {
               </div>
 
               <div className="mt-5 pt-4 border-t border-gray-100 dark:border-slate-700">
-                <p className="field-label">ตั้งค่าที่ LINE Developers</p>
+                <CopyField
+                  label="Callback URL"
+                  value={origin ? `${origin}/line-callback` : ''}
+                  hint="วางค่านี้ในช่อง Callback URL ของ LINE Login channel — ไม่ตรงกันเป๊ะ LINE จะปฏิเสธการเข้าสู่ระบบ"
+                />
+
+                <p className="field-label mt-4">ขั้นตอนที่ LINE Developers</p>
                 <ol className="section-desc" style={{ listStyle: 'decimal', paddingLeft: 20 }}>
                   <li>สร้าง <strong>LINE Login channel</strong> ใน provider <strong>เดียวกับ LINE OA ของร้าน</strong> — คนละ provider จะได้ไอดีผู้ใช้คนละชุด แล้วส่งแจ้งเตือนเข้า OA ไม่ได้</li>
-                  <li>ใส่ Callback URL นี้: <code>{typeof window !== 'undefined' ? window.location.origin : ''}/line-callback</code></li>
+                  <li>วาง Callback URL ด้านบนลงในช่อง Callback URL ของ channel</li>
                   <li>คัดลอก Channel ID และ Channel Secret มากรอกด้านบน</li>
                 </ol>
               </div>
