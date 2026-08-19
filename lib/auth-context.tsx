@@ -43,7 +43,10 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const PUBLIC_ROUTES = ['/login', '/register', '/auth/callback', '/line-callback', '/onboarding', '/bills', '/transfers/receive', '/replenishments/receive', '/portal/consignment', '/supplier-portal'];
+// ⚠️ ต้อง sync กับ PUBLIC_PREFIXES ใน proxy.ts เสมอ — ตัวนั้นกันที่ edge
+// ตัวนี้กันฝั่ง client · ขาดที่ไหนที่หนึ่งคือหน้านั้นเด้งไป /login หลัง hydrate
+// (เคยขาด '/store' ทำให้ลูกค้าที่ไม่ได้ล็อกอินเปิดหน้าร้านแล้วโดนเด้งออกทั้งหมด)
+const PUBLIC_ROUTES = ['/login', '/register', '/auth/callback', '/line-callback', '/onboarding', '/bills', '/transfers/receive', '/replenishments/receive', '/portal/consignment', '/supplier-portal', '/store'];
 const STORAGE_KEY = 'aoo-current-company-id';
 const AUTH_CACHE_KEY = 'aoo-auth-cache';
 const AUTH_CACHE_TTL = 30 * 60 * 1000; // 30 minutes — refreshed on role/company changes
