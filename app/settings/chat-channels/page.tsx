@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import CopyField from '@/components/ui/CopyField';
 import Layout from '@/components/layout/Layout';
 import { useAuth } from '@/lib/auth-context';
 import { can } from '@/lib/permissions';
@@ -8,11 +9,7 @@ import { useFetchOnce } from '@/lib/use-fetch-once';
 import { useToast } from '@/lib/toast-context';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { apiFetch } from '@/lib/api-client';
-import {
-  Loader2, Eye, EyeOff, ExternalLink, Copy, Check, X,
-  ChevronDown, ChevronUp, CheckCircle2, XCircle, Zap, Plus,
-  Trash2, Edit2, Search, Facebook as FacebookSolidIcon
-} from 'lucide-react';
+import { Loader2, Eye, EyeOff, ExternalLink, Check, X, ChevronDown, ChevronUp, CheckCircle2, XCircle, Zap, Plus, Trash2, Edit2, Search, Facebook as FacebookSolidIcon } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import ActionMenu from '@/components/ui/ActionMenu';
 import Button from '@/components/ui/Button';
@@ -146,7 +143,6 @@ export default function ChatChannelsPage() {
   const [testErrors, setTestErrors] = useState<Record<string, string>>({});
 
   // Copy state
-  const [copiedField, setCopiedField] = useState<string | null>(null);
 
   // Delete state
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -563,14 +559,6 @@ export default function ChatChannelsPage() {
     } finally {
       setTestingId(null);
     }
-  };
-
-  // Copy to clipboard
-  const handleCopy = (text: string, fieldKey: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedField(fieldKey);
-    showToast('คัดลอกแล้ว');
-    setTimeout(() => setCopiedField(null), 2000);
   };
 
   const lineAccounts = accounts.filter(a => a.platform === 'line');
@@ -1109,23 +1097,7 @@ export default function ChatChannelsPage() {
             if (!editingAccount) return null;
             return (
               <>
-                <div>
-                  <label className="field-label">Webhook URL</label>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={editingAccount.webhook_url}
-                      readOnly
-                      className="flex-1 px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg helper-text bg-gray-50 dark:bg-slate-700/50 text-gray-700 dark:text-slate-300 font-mono"
-                    />
-                    <button
-                      onClick={() => handleCopy(editingAccount.webhook_url, `webhook-${editingAccount.id}`)}
-                      className="px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors flex items-center gap-1.5"
-                    >
-                      {copiedField === `webhook-${editingAccount.id}` ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
-                    </button>
-                  </div>
-                </div>
+                <CopyField label="Webhook URL" value={editingAccount.webhook_url} />
 
                 <button
                   onClick={() => setFormGuideOpen(!formGuideOpen)}

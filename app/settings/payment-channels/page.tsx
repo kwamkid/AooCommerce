@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, Fragment } from 'react';
+import CopyField from '@/components/ui/CopyField';
 import { useFetchOnce } from '@/lib/use-fetch-once';
 import Layout from '@/components/layout/Layout';
 import Container from '@/components/ui/Container';
@@ -701,17 +702,10 @@ export default function PaymentChannelsPage() {
                             const webhookUrl = typeof window !== 'undefined' ? `${window.location.origin}/api/beam/webhook` : '/api/beam/webhook';
                             return (
                               <Alert tone="info" title="Webhook URL (ตั้งค่าที่ Beam Lighthouse)">
+                                <div className="mt-2">
+                                  <CopyField value={webhookUrl} />
+                                </div>
                                 <div className="flex items-center gap-2 mt-2">
-                                  <code className="flex-1 helper-text bg-white dark:bg-slate-800 px-2 py-1.5 rounded border border-blue-200 dark:border-blue-700 text-blue-900 dark:text-blue-200 break-all select-all">
-                                    {webhookUrl}
-                                  </code>
-                                  <Button
-                                    variant="secondary"
-                                    size="sm"
-                                    onClick={() => { navigator.clipboard.writeText(webhookUrl); showToast('คัดลอกแล้ว'); }}
-                                  >
-                                    คัดลอก
-                                  </Button>
                                   <Button
                                     variant="success"
                                     size="sm"

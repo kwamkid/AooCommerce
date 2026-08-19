@@ -2,6 +2,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
+import CopyField from '@/components/ui/CopyField';
 import { useFetchOnce } from '@/lib/use-fetch-once';
 import Layout from '@/components/layout/Layout';
 import SearchInput from '@/components/ui/SearchInput';
@@ -12,12 +13,7 @@ import { useFeatures } from '@/lib/features-context';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
-import {
-  Users, Mail, UserPlus, Shield, Trash2, Edit2, X, Check,
-  Loader2, CheckCircle, Clock, Copy, Phone,
-  Plus, Link2, Monitor, DollarSign,
-  Warehouse, ShieldCheck, Headset, CreditCard, Calculator, Package, UserCog, Store,
-} from 'lucide-react';
+import { Users, Mail, UserPlus, Shield, Trash2, Edit2, X, Check, Loader2, CheckCircle, Clock, Phone, Plus, Link2, Monitor, DollarSign, Warehouse, ShieldCheck, Headset, CreditCard, Calculator, Package, UserCog, Store } from 'lucide-react';
 import Checkbox from '@/components/ui/Checkbox';
 import Modal from '@/components/ui/Modal';
 import UserAvatar from '@/components/ui/UserAvatar';
@@ -1018,26 +1014,7 @@ export default function MembersPage() {
               <p className="text-sm text-gray-500 dark:text-slate-400">คัดลอกลิงก์ด้านล่างเพื่อส่งให้สมาชิก</p>
             </div>
 
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={generatedLink}
-                readOnly
-                className="flex-1 px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-900 dark:text-white bg-gray-50 dark:bg-slate-700 text-sm"
-                onClick={(e) => (e.target as HTMLInputElement).select()}
-              />
-              <button
-                type="button"
-                onClick={() => {
-                  navigator.clipboard.writeText(generatedLink);
-                  showToast('คัดลอกลิงก์แล้ว');
-                }}
-                className="px-4 py-2.5 bg-primary hover:bg-primary/90 text-white font-semibold rounded-lg transition-colors flex items-center whitespace-nowrap"
-              >
-                <Copy className="w-4 h-4 mr-1.5" />
-                คัดลอก
-              </button>
-            </div>
+            <CopyField value={generatedLink} />
           </div>
         )}
       </Modal>
