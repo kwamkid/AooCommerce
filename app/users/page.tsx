@@ -4,6 +4,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
+import { PageSkeleton } from '@/components/ui/Skeleton';
 import Button from '@/components/ui/Button';
 import SearchInput from '@/components/ui/SearchInput';
 import { useAuth } from '@/lib/auth-context';
@@ -399,12 +400,9 @@ export default function UsersPage() {
   // Show loading while checking auth
   if (authLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-[#1A1A2E]">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-white">กำลังตรวจสอบสิทธิ์...</p>
-        </div>
-      </div>
+      <Layout>
+        <PageSkeleton variant="list" />
+      </Layout>
     );
   }
 
@@ -416,12 +414,9 @@ export default function UsersPage() {
   // Loading users
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-[#1A1A2E]">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-white">กำลังโหลดข้อมูล...</p>
-        </div>
-      </div>
+      <Layout>
+        <PageSkeleton variant="list" />
+      </Layout>
     );
   }
 

@@ -4,6 +4,7 @@
 import { useEffect, useState } from 'react';
 import { takeAuthReturnPath } from '@/lib/auth/return-path';
 import { useRouter } from 'next/navigation';
+import { FullPageLoading } from '@/components/ui/Loading';
 import { supabase } from '@/lib/supabase';
 
 export default function AuthCallbackPage() {
@@ -69,25 +70,19 @@ export default function AuthCallbackPage() {
     handleCallback();
   }, [router]);
 
+  // ระหว่างรอ = splash แบรนด์เดียวกับทั้งระบบ · ผิดพลาดค่อยแสดงข้อความบนพื้นแบรนด์เดียวกัน
+  if (!error) return <FullPageLoading label="กำลังเข้าสู่ระบบ..." />;
+
   return (
-    <div className="flex items-center justify-center min-h-screen bg-[#1A1A2E]">
+    <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-[#F4511E] to-[#B23A0E] p-6">
       <div className="text-center">
-        {error ? (
-          <>
-            <div className="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-              <svg className="w-8 h-8 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </div>
-            <p className="text-red-400 mb-2">{error}</p>
-            <p className="text-gray-500 text-sm">กำลังนำคุณกลับไป...</p>
-          </>
-        ) : (
-          <>
-            <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-            <p className="text-white">กำลังเข้าสู่ระบบ...</p>
-          </>
-        )}
+        <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-4">
+          <svg className="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </div>
+        <p className="text-white mb-2">{error}</p>
+        <p className="text-white/70 text-sm">กำลังนำคุณกลับไป...</p>
       </div>
     </div>
   );

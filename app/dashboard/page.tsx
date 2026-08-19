@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Layout from '@/components/layout/Layout';
+import { PageSkeleton } from '@/components/ui/Skeleton';
 import { useAuth } from '@/lib/auth-context';
 import { useCompany } from '@/lib/company-context';
 import { can } from '@/lib/permissions';
@@ -127,12 +128,9 @@ export default function DashboardPage() {
   // Show loading while checking auth
   if (authLoading || loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-[#1A1A2E]">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-white">กำลังโหลด...</p>
-        </div>
-      </div>
+      <Layout>
+        <PageSkeleton variant="dashboard" />
+      </Layout>
     );
   }
 
