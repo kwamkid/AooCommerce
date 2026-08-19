@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
 import Container from '@/components/ui/Container';
+import { PageSkeleton } from '@/components/ui/Skeleton';
 import PageHeader from '@/components/ui/PageHeader';
 import SearchInput from '@/components/ui/SearchInput';
 import { useAuth } from '@/lib/auth-context';
@@ -210,9 +211,11 @@ export default function BrandDetailPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-[#1A1A2E]">
-        <Loader2 className="w-8 h-8 text-primary animate-spin" />
-      </div>
+      <Layout>
+        <Container size="full">
+          <PageSkeleton variant="detail" />
+        </Container>
+      </Layout>
     );
   }
 

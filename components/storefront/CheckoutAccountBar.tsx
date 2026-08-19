@@ -10,6 +10,7 @@ import { loginWithGoogle, loginWithLINE } from '@/lib/auth/login-methods';
 import { clearSession } from '@/lib/auth/session-manager';
 import { supabase } from '@/lib/supabase';
 import { storefrontHref } from '@/lib/storefront';
+import { GoogleMark, LineMark } from '@/components/storefront/BrandMarks';
 
 interface Props {
   shop: string;
@@ -76,38 +77,44 @@ export default function CheckoutAccountBar({
   }
 
   return (
-    <div className="sf-acctbar">
-      <span className="sf-acct-avatar sf-acct-avatar-blank"><UserRound strokeWidth={1.75} aria-hidden="true" /></span>
-      <span className="sf-acct-name">เข้าสู่ระบบ</span>
+    <div className="sf-acctbar sf-acctbar-signin">
+      <div className="sf-acctbar-pitch">
+        <strong>เข้าสู่ระบบไว้ ครั้งหน้าสั่งง่ายกว่าเดิม</strong>
+        <span className="sf-hint">เก็บประวัติการสั่งซื้อ ติดตามสถานะได้ทุกเมื่อ และไม่ต้องกรอกที่อยู่ใหม่</span>
+      </div>
 
-      <button
-        type="button"
-        className="sf-btn-ghost"
-        disabled={!!busy}
-        onClick={async () => {
-          setBusy('google');
-          const r = await loginWithGoogle(undefined, returnTo);
-          if (r.status === 'error') setBusy('');
-        }}
-      >
-        {busy === 'google' ? '…' : 'Google'}
-      </button>
-
-      {/* โผล่เฉพาะร้านที่เปิดใช้งานไว้เอง — การมี OA ไม่ได้แปลว่าล็อกอิน LINE พร้อมใช้ */}
-      {lineLogin && (
+      <div className="sf-acctbar-btns">
         <button
           type="button"
-          className="sf-btn-ghost"
+          className="sf-auth-btn"
           disabled={!!busy}
           onClick={async () => {
-            setBusy('line');
-            const r = await loginWithLINE(undefined, returnTo, { shopSlug: shop, channelId: lineChannelId });
+            setBusy('google');
+            const r = await loginWithGoogle(undefined, returnTo);
             if (r.status === 'error') setBusy('');
           }}
         >
-          {busy === 'line' ? '…' : 'LINE'}
+          <GoogleMark />
+          {busy === 'google' ? 'กำลังเปิด Google…' : 'เข้าสู่ระบบด้วย Google'}
         </button>
-      )}
+
+        {/* โผล่เฉพาะร้านที่เปิดใช้งานไว้เอง — การมี OA ไม่ได้แปลว่าล็อกอิน LINE พร้อมใช้ */}
+        {lineLogin && (
+          <button
+            type="button"
+            className="sf-auth-btn sf-auth-line"
+            disabled={!!busy}
+            onClick={async () => {
+              setBusy('line');
+              const r = await loginWithLINE(undefined, returnTo, { shopSlug: shop, channelId: lineChannelId });
+              if (r.status === 'error') setBusy('');
+            }}
+          >
+            <LineMark />
+            {busy === 'line' ? 'กำลังเปิด LINE…' : 'เข้าสู่ระบบด้วย LINE'}
+          </button>
+        )}
+      </div>
     </div>
   );
 }

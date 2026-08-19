@@ -7,6 +7,7 @@ import { useAuth } from '@/lib/auth-context';
 import { apiFetch } from '@/lib/api-client';
 import { formatPrice } from '@/lib/utils/format';
 import Layout from '@/components/layout/Layout';
+import { PageSkeleton } from '@/components/ui/Skeleton';
 import Button from '@/components/ui/Button';
 import DateRangePicker, { DateValueType } from '@/components/ui/DateRangePicker';
 import {
@@ -255,12 +256,9 @@ export default function SalesReportPage() {
 
   if (authLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-[#1A1A2E]">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-white">กำลังตรวจสอบสิทธิ์...</p>
-        </div>
-      </div>
+      <Layout>
+        <PageSkeleton variant="dashboard" />
+      </Layout>
     );
   }
 

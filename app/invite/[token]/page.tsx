@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useAuth } from '@/lib/auth-context';
+import { FullPageLoading } from '@/components/ui/Loading';
 import {
   Building2, Shield, AlertCircle, Loader2, CheckCircle,
   UserPlus, LogIn, Clock, XCircle,
@@ -120,12 +121,7 @@ export default function InvitePage({ params }: { params: Promise<{ token: string
   // Loading state
   if (isLoading || authLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-[#1A1A2E]">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-white">กำลังโหลดข้อมูลคำเชิญ...</p>
-        </div>
-      </div>
+      <FullPageLoading />
     );
   }
 
