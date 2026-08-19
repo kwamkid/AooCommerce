@@ -10,6 +10,7 @@ import { formatStorePrice, storefrontHref } from '@/lib/storefront';
 import CheckoutSteps from '@/components/storefront/CheckoutSteps';
 import CheckoutAccountBar from '@/components/storefront/CheckoutAccountBar';
 import DateRangePicker from '@/components/ui/DateRangePicker';
+import FormSelect from '@/components/ui/FormSelect';
 import { searchAddress } from '@/lib/thai-address-data';
 
 interface SlotOption {
@@ -194,6 +195,19 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
   // การ์ดต้อง: ร้านเปิดบริการ + ส่งให้คนอื่น + ลูกค้ากดขอ
   const cardOn = giftCard && shipToOther && wantCard;
   // วันที่ร้านไม่มีรอบส่งเลย — ยังไม่รู้ (ยังไม่ได้กรอกพื้นที่) ก็ไม่ปิดวันไหน
+  // รอบที่เลือกได้ → เป็นตัวเลือกใน dropdown · รอบที่เลือกไม่ได้ → ลิสต์เหตุผลใต้ช่อง
+  // (ปนไว้ในลิสต์แต่กดไม่ได้ก็ยังชวนให้พยายามกดอยู่ดี)
+  const slotChoices = (options?.slots || [])
+    .filter(s => s.available)
+    .map(s => ({ id: s.id, label: `${s.name} · ${s.label}` }));
+  const blockedSlots = (options?.slots || []).filter(s => !s.available && s.reason);
+  const slotPlaceholder =
+    !deliveryDate ? 'เลือกวันที่ก่อน'
+    : !hasArea ? 'กรอกพื้นที่จัดส่งก่อน'
+    : !options ? 'กำลังตรวจสอบรอบที่ว่าง…'
+    : slotChoices.length === 0 ? 'ไม่มีรอบว่างในวันนี้'
+    : 'เลือกช่วงเวลา';
+
   const openWeekdays = options?.available_weekdays;
   const closedWeekdays = openWeekdays?.length
     ? [0, 1, 2, 3, 4, 5, 6].filter(d => !openWeekdays.includes(d))
@@ -499,53 +513,56 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
           {(dateEnabled || slotEnabled) && (
             <section className="sf-fieldset">
               <h2>วันและเวลาจัดส่ง</h2>
-              {dateEnabled && (
-                <>
-                  <div className="sf-label" style={{ marginBottom: 6 }}>วันที่จัดส่ง{slotEnabled ? ' *' : ''}</div>
-                  {/* ปิดวันที่ร้านไม่มีรอบส่งไปเลย ดีกว่าให้กดได้แล้วเจอ
-                      "ไม่มีรอบจัดส่ง" ทีหลัง · วันที่ผ่านมาแล้วปิดด้วย minDate */}
-                  <DateRangePicker
-                    asSingle
-                    useRange={false}
-                    value={deliveryDate ? { startDate: deliveryDate, endDate: deliveryDate } : { startDate: null, endDate: null }}
-                    onChange={(v) => {
-                      const d = v?.startDate;
-                      setDeliveryDate(d ? (typeof d === 'string' ? d.slice(0, 10) : toISO(d)) : '');
-                    }}
-                    minDate={new Date()}
-                    disabledDaysOfWeek={closedWeekdays}
-                    placeholder="เลือกวันที่จัดส่ง"
-                  />
-                </>
-              )}
 
-              {slotEnabled && (
-                <>
-                  <div className="sf-label" style={{ marginBottom: 6 }}>ช่วงเวลาจัดส่ง</div>
-                  {!deliveryDate ? (
-                    <p className="sf-hint">เลือกวันที่ก่อน แล้วจะแสดงรอบที่ว่าง</p>
-                  ) : !options ? (
-                    <p className="sf-hint">{hasArea ? 'กำลังตรวจสอบรอบที่ว่าง…' : 'กรอกพื้นที่จัดส่งก่อน'}</p>
-                  ) : options.slots.length === 0 ? (
-                    <p className="sf-hint">ยังไม่มีรอบจัดส่ง</p>
-                  ) : (
-                    <div className="sf-variations">
-                      {options.slots.map(s => (
-                        <button
-                          key={s.id}
-                          type="button"
-                          disabled={!s.available}
-                          onClick={() => setSlotId(s.id === slotId ? '' : s.id)}
-                          className={`sf-variation ${!s.available ? 'sf-variation-oos' : ''} ${s.id === slotId ? 'sf-variation-active' : ''}`}
-                        >
-                          {s.name} · {s.label}
-                          {s.reason && <span> ({s.reason})</span>}
-                          {s.narrowed && <span className="sf-slot-note">รอบ {s.full_label}</span>}
-                        </button>
-                      ))}
+              {/* วันกับรอบเวลาเป็นการตัดสินใจเดียวกัน วางคู่กันให้เห็นพร้อมกัน
+                  (จอแคบ .sf-field-row ยุบเป็นคอลัมน์เดียวเอง) */}
+              <div className="sf-field-row">
+                {dateEnabled && (
+                  <div className="sf-label">
+                    วันที่จัดส่ง{slotEnabled ? ' *' : ''}
+                    <div style={{ marginTop: 5 }}>
+                      {/* ปิดวันที่ร้านไม่มีรอบส่งไปเลย ดีกว่าให้กดได้แล้วเจอ "ไม่มีรอบจัดส่ง" ทีหลัง */}
+                      <DateRangePicker
+                        asSingle
+                        useRange={false}
+                        value={deliveryDate ? { startDate: deliveryDate, endDate: deliveryDate } : { startDate: null, endDate: null }}
+                        onChange={(v) => {
+                          const d = v?.startDate;
+                          setDeliveryDate(d ? (typeof d === 'string' ? d.slice(0, 10) : toISO(d)) : '');
+                        }}
+                        minDate={new Date()}
+                        disabledDaysOfWeek={closedWeekdays}
+                        placeholder="เลือกวันที่จัดส่ง"
+                      />
                     </div>
-                  )}
-                </>
+                  </div>
+                )}
+
+                {slotEnabled && (
+                  <div className="sf-label">
+                    ช่วงเวลาจัดส่ง{dateEnabled ? ' *' : ''}
+                    <div style={{ marginTop: 5 }}>
+                      <FormSelect
+                        value={slotId}
+                        onChange={setSlotId}
+                        disabled={slotChoices.length === 0}
+                        placeholder={slotPlaceholder}
+                        options={slotChoices}
+                        portal
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* รอบที่เลือกไม่ได้ไม่ถูกซ่อน — บอกเหตุผลไว้ใต้ช่อง ลูกค้าจะได้รู้ว่าต้อง
+                  เลื่อนวันหรือรอรอบถัดไป ไม่ใช่คิดว่าร้านไม่ส่งพื้นที่นี้ */}
+              {blockedSlots.length > 0 && (
+                <ul className="sf-slot-blocked">
+                  {blockedSlots.map(s => (
+                    <li key={s.id}>{s.name} · {s.label} — {s.reason}</li>
+                  ))}
+                </ul>
               )}
             </section>
           )}

@@ -913,3 +913,11 @@
   .sf-head-center .sf-brand-logo { height: 52px; }
 }
 
+
+/* รอบที่เลือกไม่ได้ — บอกเหตุผลใต้ช่องเลือกเวลา ไม่ซ่อนไปเฉย ๆ
+   ลูกค้าจะได้รู้ว่าต้องเลื่อนวัน ไม่ใช่คิดว่าร้านไม่ส่งพื้นที่นี้ */
+.sf-slot-blocked {
+  list-style: none; margin: 10px 0 0; padding: 0;
+  display: flex; flex-direction: column; gap: 4px;
+  font-size: 14px; color: var(--sf-muted);
+}
