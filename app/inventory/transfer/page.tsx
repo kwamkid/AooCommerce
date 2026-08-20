@@ -10,9 +10,9 @@ import {
   Loader2, FileText, ArrowRightLeft, AlertTriangle, Star, Warehouse,
 } from 'lucide-react';
 import FormSelect from '@/components/ui/FormSelect';
-import Button from '@/components/ui/Button';
 import ItemsTable, { type TableItem } from '@/components/ui/ItemsTable';
 import type { ProductSearchItem } from '@/components/ui/ProductSearchInput';
+import StickyActionBar from '@/components/ui/StickyActionBar';
 
 interface WarehouseItem {
   id: string;
@@ -376,20 +376,13 @@ export default function StockTransferPage() {
         )}
 
         {/* Action Buttons */}
-        <div className="flex justify-end gap-3 pb-4">
-          <Button variant="secondary" onClick={() => router.push('/inventory/transfers')}>
-            ยกเลิก
-          </Button>
-          <Button
-            variant="primary"
-            onClick={handleSubmit}
-            disabled={!canSubmit}
-            loading={submitting}
-            icon={<ArrowRightLeft className="w-4 h-4" />}
-          >
-            {submitting ? 'กำลังสร้างใบโอนย้าย...' : 'สร้างใบโอนย้าย'}
-          </Button>
-        </div>
+        <StickyActionBar
+          saving={submitting}
+          disabled={!canSubmit}
+          onSave={handleSubmit}
+          onCancel={() => router.push('/inventory/transfers')}
+          saveLabel="สร้างใบโอนย้าย"
+        />
       </div>
     </Layout>
   );

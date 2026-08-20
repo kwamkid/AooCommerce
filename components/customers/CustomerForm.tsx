@@ -3,7 +3,6 @@
 import { useState, useEffect, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import {
-  Loader2,
   Check,
   MapPin,
   ExternalLink,
@@ -40,6 +39,7 @@ import { parseThaiAddress } from '@/lib/address-parser';
 import { useFeatures } from '@/lib/features-context';
 import { apiFetch } from '@/lib/api-client';
 import { type BrandGpRow } from '@/components/customers/BrandGpCommissions';
+import StickyActionBar from '@/components/ui/StickyActionBar';
 
 // Linked chat contact (edit mode)
 export interface LinkedContact {
@@ -240,6 +240,7 @@ export default function CustomerForm({
     ? resolveFormType(initialData.customer_type, (initialData as Record<string, unknown>).sale_type as string | null)
     : { customer_type: 'retail', sale_type: '' };
 
+  const formRef = useRef<HTMLFormElement>(null);
   const [formData, setFormData] = useState<CustomerFormData>({
     ...defaultFormData, ...initialData,
     customer_type: resolvedTypes.customer_type,
@@ -497,7 +498,7 @@ export default function CustomerForm({
   // FULL FORM — 2-column layout
   // =====================
   return (
-    <form onSubmit={handleSubmit}>
+    <form ref={formRef} onSubmit={handleSubmit}>
       {/* ===== ประเภทลูกค้า ===== */}
       <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-6 mb-6">
         <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">ประเภทลูกค้า</h3>
@@ -728,14 +729,7 @@ export default function CustomerForm({
 
       {/* Action Buttons */}
       {!isEditing && (
-        <div className="flex justify-end gap-3 mt-6">
-          <Button variant="secondary" onClick={onCancel} disabled={isLoading}>
-            ยกเลิก
-          </Button>
-          <Button type="submit" variant="primary" loading={isLoading}>
-            {isLoading ? 'กำลังบันทึก...' : 'บันทึก'}
-          </Button>
-        </div>
+        <StickyActionBar saving={isLoading} onSave={() => formRef.current?.requestSubmit()} onCancel={onCancel} />
       )}
     </form>
   );

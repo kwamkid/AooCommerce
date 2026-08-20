@@ -9,11 +9,11 @@ import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
 import { Loader2, Package2, Warehouse, FileText, CheckCircle2, ClipboardList, Star, Plus, AlertTriangle } from 'lucide-react';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
-import Button from '@/components/ui/Button';
 import FormSelect from '@/components/ui/FormSelect';
 import EntitySearchInput from '@/components/ui/EntitySearchInput';
 import ItemsTable, { type TableItem } from '@/components/ui/ItemsTable';
 import type { ProductSearchItem } from '@/components/ui/ProductSearchInput';
+import StickyActionBar from '@/components/ui/StickyActionBar';
 
 // Interfaces
 interface WarehouseItem {
@@ -427,19 +427,13 @@ export default function StockReceivePage() {
         )}
 
         {/* Action Buttons */}
-        <div className="flex justify-end gap-3 pb-4">
-          <Button variant="secondary" onClick={() => router.push('/inventory/receives')}>
-            ยกเลิก
-          </Button>
-          <Button
-            variant="primary"
-            onClick={handleSubmit}
-            disabled={!canSubmit}
-            loading={submitting}
-          >
-            {submitting ? 'กำลังบันทึก...' : 'บันทึกรับเข้า'}
-          </Button>
-        </div>
+        <StickyActionBar
+          saving={submitting}
+          disabled={!canSubmit}
+          onSave={handleSubmit}
+          onCancel={() => router.push('/inventory/receives')}
+          saveLabel="บันทึกรับเข้า"
+        />
       </div>
 
       <ConfirmDialog

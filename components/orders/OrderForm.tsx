@@ -35,11 +35,11 @@ import CustomerSelectionCard, { type CustomerOption, type DeliveryFields, type T
 import { useCustomerPrefill } from '@/lib/useCustomerPrefill';
 import { fetchCustomerOrderContext } from '@/lib/gp-resolver';
 import { isMarketplaceSource } from '@/lib/marketplace/types';
+import StickyActionBar from '@/components/ui/StickyActionBar';
 import {
   Plus,
   Loader2,
   MapPin,
-  Save,
   Copy,
   ChevronDown,
   CheckCircle,
@@ -199,6 +199,7 @@ export default function OrderForm({
   const vatRegistered = currentCompany?.vat_registered || false;
 
   // State
+  const formRef = useRef<HTMLFormElement>(null);
   const [loading, setLoading] = useState(!!editOrderId);
   const [saving, setSaving] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -2033,7 +2034,7 @@ export default function OrderForm({
   return (
     <>
     {printView}
-    <form onSubmit={handleSubmit} className={`space-y-4 ${printMode ? 'print:hidden' : ''}`}>
+    <form ref={formRef} onSubmit={handleSubmit} className={`space-y-4 ${printMode ? 'print:hidden' : ''}`}>
       {/* Header actions portal — copy order button in parent header */}
       {headerActionsRef?.current && !isEditMode && selectedCustomer && createPortal(
         <button
@@ -2487,19 +2488,12 @@ export default function OrderForm({
 
       {/* Action Buttons */}
       {!isReadOnly && hasProducts && (
-        <div className="flex justify-end gap-3">
-          <Button variant="secondary" onClick={handleCancel}>
-            ยกเลิก
-          </Button>
-          <Button
-            type="submit"
-            variant="primary"
-            loading={saving}
-            icon={<Save className="w-4 h-4" />}
-          >
-            {saving ? 'กำลังบันทึก...' : isEditMode ? 'บันทึกการแก้ไข' : 'บันทึกคำสั่งซื้อ'}
-          </Button>
-        </div>
+        <StickyActionBar
+          saving={saving}
+          onSave={() => formRef.current?.requestSubmit()}
+          onCancel={handleCancel}
+          saveLabel={isEditMode ? 'บันทึกการแก้ไข' : 'บันทึกคำสั่งซื้อ'}
+        />
       )}
       {/* Address Conflict Dialog */}
       <Modal

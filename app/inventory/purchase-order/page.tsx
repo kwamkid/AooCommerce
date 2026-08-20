@@ -9,7 +9,6 @@ import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
 import type { ProductSearchItem } from '@/components/ui/ProductSearchInput';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
-import Button from '@/components/ui/Button';
 import type { DateValueType } from '@/components/ui/DateRangePicker';
 import { Loader2, ClipboardList, CheckCircle2, FileText } from 'lucide-react';
 
@@ -17,6 +16,7 @@ import type { EditItem, Supplier, WarehouseItem } from '../purchase-orders/compo
 import { formatCurrency } from '../purchase-orders/components/types';
 import POInfoCard from '../purchase-orders/components/POInfoCard';
 import POEditItemsTable from '../purchase-orders/components/POEditItemsTable';
+import StickyActionBar from '@/components/ui/StickyActionBar';
 
 export default function CreatePurchaseOrderPage() {
   const router = useRouter();
@@ -235,19 +235,13 @@ export default function CreatePurchaseOrderPage() {
         )}
 
         {/* Action Buttons */}
-        <div className="flex justify-end gap-3 pb-4">
-          <Button variant="secondary" onClick={() => router.push('/inventory/purchase-orders')}>
-            ยกเลิก
-          </Button>
-          <Button
-            variant="primary"
-            onClick={handleSubmit}
-            disabled={!canSubmit}
-            loading={saving}
-          >
-            {saving ? 'กำลังบันทึก...' : 'สร้างใบสั่งซื้อ'}
-          </Button>
-        </div>
+        <StickyActionBar
+          saving={saving}
+          disabled={!canSubmit}
+          onSave={handleSubmit}
+          onCancel={() => router.push('/inventory/purchase-orders')}
+          saveLabel="สร้างใบสั่งซื้อ"
+        />
       </div>
 
       {/* Confirm Dialog */}

@@ -22,11 +22,10 @@ import CustomerForm, {
 } from '@/components/customers/CustomerForm';
 import { type BrandGpRow } from '@/components/customers/BrandGpCommissions';
 import { Tag } from '@/components/ui/TagBadge';
+import StickyActionBar from '@/components/ui/StickyActionBar';
 import {
   ArrowLeft,
-  Loader2,
   AlertCircle,
-  Save,
   UserCircle,
   Link2,
   Copy,
@@ -416,26 +415,14 @@ export default function CustomerEditPage() {
 
         {/* Bottom Buttons */}
         {canEdit && (
-          <div className="flex justify-end gap-3">
-            <Button
-              variant="secondary"
-              disabled={saving}
-              onClick={() => router.push('/customers')}
-            >
-              ยกเลิก
-            </Button>
-            <Button
-              variant="primary"
-              loading={saving}
-              icon={!saving ? <Save className="w-4 h-4" /> : undefined}
-              onClick={() => {
-                const form = document.getElementById('customer-edit-form-wrapper')?.querySelector('form');
-                form?.requestSubmit();
-              }}
-            >
-              {saving ? 'กำลังบันทึก...' : 'บันทึก'}
-            </Button>
-          </div>
+          <StickyActionBar
+            saving={saving}
+            onSave={() => {
+              const form = document.getElementById('customer-edit-form-wrapper')?.querySelector('form');
+              form?.requestSubmit();
+            }}
+            onCancel={() => router.push('/customers')}
+          />
         )}
       </Container>
       {confirmDialog}

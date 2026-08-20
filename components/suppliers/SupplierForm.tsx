@@ -2,6 +2,8 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import Button from '@/components/ui/Button';
+import StickyActionBar from '@/components/ui/StickyActionBar';
 import {
   Loader2,
   Factory,
@@ -99,6 +101,7 @@ export default function SupplierForm({
   const [submitting, setSubmitting] = useState(false);
   const [bankDropdownOpen, setBankDropdownOpen] = useState(false);
   const bankDropdownRef = useRef<HTMLDivElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
 
   // Brand picker state (full mode only)
   const [allBrands, setAllBrands] = useState<Brand[]>([]);
@@ -292,15 +295,10 @@ export default function SupplierForm({
 
         {/* Actions */}
         <div className="flex justify-end gap-3 pt-2">
-          <button type="button" onClick={onCancel}
-            className="px-4 py-2 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors text-sm">
-            ยกเลิก
-          </button>
-          <button type="submit" disabled={busy}
-            className="px-4 py-2 bg-primary hover:bg-primary-hover text-white font-medium rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2 text-sm">
-            {busy && <Loader2 className="w-4 h-4 animate-spin" />}
+          <Button variant="secondary" size="sm" onClick={onCancel} disabled={busy}>ยกเลิก</Button>
+          <Button type="submit" variant="primary" size="sm" loading={busy}>
             {isEditing ? 'บันทึก' : 'เพิ่มซัพพลายเออร์'}
-          </button>
+          </Button>
         </div>
       </form>
     );
@@ -308,7 +306,7 @@ export default function SupplierForm({
 
   // --- Full mode (page) — 2 columns on wide screens ---
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <form ref={formRef} onSubmit={handleSubmit} className="space-y-6">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Left column */}
         <div className="space-y-6">
@@ -498,18 +496,12 @@ export default function SupplierForm({
         </div>
       </div>
 
-      {/* Actions */}
-      <div className="flex justify-end gap-3 pb-6">
-        <button type="button" onClick={onCancel}
-          className="px-6 py-2.5 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors">
-          ยกเลิก
-        </button>
-        <button type="submit" disabled={busy}
-          className="px-6 py-2.5 bg-primary hover:bg-primary-hover text-white font-medium rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2">
-          {busy && <Loader2 className="w-4 h-4 animate-spin" />}
-          {isEditing ? 'บันทึก' : 'เพิ่มซัพพลายเออร์'}
-        </button>
-      </div>
+      <StickyActionBar
+        saving={busy}
+        onSave={() => formRef.current?.requestSubmit()}
+        onCancel={onCancel}
+        saveLabel={isEditing ? 'บันทึก' : 'เพิ่มซัพพลายเออร์'}
+      />
     </form>
   );
 }

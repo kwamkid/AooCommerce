@@ -11,10 +11,10 @@ import {
   Loader2, PackageMinus, CheckCircle2, Warehouse, Star,
 } from 'lucide-react';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
-import Button from '@/components/ui/Button';
 import FormSelect from '@/components/ui/FormSelect';
 import ItemsTable, { type TableItem } from '@/components/ui/ItemsTable';
 import type { ProductSearchItem } from '@/components/ui/ProductSearchInput';
+import StickyActionBar from '@/components/ui/StickyActionBar';
 
 interface WarehouseItem {
   id: string;
@@ -292,20 +292,13 @@ export default function StockIssuePage() {
 
         {/* Action Buttons */}
         {selectedWarehouse && (
-          <div className="flex justify-end gap-3 pb-4">
-            <Button variant="secondary" onClick={() => router.push('/inventory/issues')}>
-              ยกเลิก
-            </Button>
-            <Button
-              variant="primary"
-              onClick={handleSubmit}
-              disabled={!canSubmit}
-              loading={submitting}
-              icon={<PackageMinus className="w-4 h-4" />}
-            >
-              {submitting ? 'กำลังบันทึก...' : 'บันทึกเบิกออก'}
-            </Button>
-          </div>
+          <StickyActionBar
+            saving={submitting}
+            disabled={!canSubmit}
+            onSave={handleSubmit}
+            onCancel={() => router.push('/inventory/issues')}
+            saveLabel="บันทึกเบิกออก"
+          />
         )}
       </div>
 

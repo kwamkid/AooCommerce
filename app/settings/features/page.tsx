@@ -14,10 +14,10 @@ import { CalendarDays, ShoppingCart, Monitor, Handshake, Tag, Factory, PackageCh
 import { featureLockReason } from '@/lib/package-features';
 import { type BrandGpRow } from '@/components/customers/BrandGpCommissions';
 import GpOverridePanel from '@/components/customers/GpOverridePanel';
-import Button from '@/components/ui/Button';
 import Toggle from '@/components/ui/Toggle';
 import NumberInput from '@/components/ui/NumberInput';
 import { LoadingCard, NoPermissionCard } from '@/components/ui/StateCard';
+import StickyActionBar from '@/components/ui/StickyActionBar';
 
 // Feature icons for showing inside preset chips
 const FEATURE_ICONS: Partial<Record<keyof FeatureFlags, React.ReactNode>> = {
@@ -472,25 +472,13 @@ export default function FeaturesPage() {
 
             </div>{/* end flex */}
 
-            {/* Save button */}
             {isOwnerOrAdmin && (
-              <div className="flex justify-end gap-3 pt-2">
-                <Button
-                  variant="secondary"
-                  disabled={isSaving || !isDirty}
-                  onClick={() => { setFeatureFlags(currentFeatures); setOpenSection(null); }}
-                >
-                  ยกเลิก
-                </Button>
-                <Button
-                  variant="primary"
-                  loading={isSaving}
-                  disabled={isSaving || !isDirty}
-                  onClick={handleSave}
-                >
-                  บันทึก
-                </Button>
-              </div>
+              <StickyActionBar
+                saving={isSaving}
+                dirty={isDirty}
+                onSave={handleSave}
+                onCancel={() => { setFeatureFlags(currentFeatures); setOpenSection(null); }}
+              />
             )}
           </>
         )}

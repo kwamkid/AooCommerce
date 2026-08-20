@@ -8,7 +8,6 @@ import { useToast } from '@/lib/toast-context';
 import { Loader2, Settings, ChevronDown, Clock, CheckCircle, MapPin, FileText, Receipt, QrCode, Copy, Camera, Link2, AlertTriangle, Eye, Printer, Store } from 'lucide-react';
 import FormSelect from '@/components/ui/FormSelect';
 import Card from '@/components/ui/Card';
-import Button from '@/components/ui/Button';
 import NumberInput from '@/components/ui/NumberInput';
 import ProductImageThumb from '@/components/ui/ProductImageThumb';
 import { useCompany } from '@/lib/company-context';
@@ -22,6 +21,7 @@ import { useCustomerPrefill } from '@/lib/useCustomerPrefill';
 import { type GpResolverContext, resolveGp, fetchCustomerOrderContext } from '@/lib/gp-resolver';
 import { generateReplenishmentPdf, type ReplenishmentPdfData } from '@/lib/replenishment-pdf';
 import { showPdfPreview } from '@/lib/print-pdf';
+import StickyActionBar from '@/components/ui/StickyActionBar';
 
 interface Customer {
   id: string;
@@ -1107,35 +1107,20 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
 
       {/* Footer actions (create/edit only) */}
       {!isEditMode && (
-        <div className="flex justify-end gap-3">
-          <Button
-            variant="secondary"
-            onClick={() => router.push(isDeptOrder ? '/department-orders' : '/replenishments')}
-            disabled={submitting}
-          >
-            ยกเลิก
-          </Button>
-          <Button
-            variant="primary"
-            onClick={handleSubmit}
-            disabled={!selectedCustomerId || items.length === 0}
-            loading={submitting}
-          >
-            สร้างใบเติมสินค้า
-          </Button>
-        </div>
+        <StickyActionBar
+          saving={submitting}
+          disabled={!selectedCustomerId || items.length === 0}
+          onSave={handleSubmit}
+          onCancel={() => router.push(isDeptOrder ? '/department-orders' : '/replenishments')}
+          saveLabel="สร้างใบเติมสินค้า"
+        />
       )}
       {isEditMode && existingStatus === 'pending' && !viewMode && (
-        <div className="flex justify-end gap-3">
-          <Button
-            variant="primary"
-            onClick={handleSaveEdit}
-            disabled={!selectedCustomerId || items.length === 0}
-            loading={submitting}
-          >
-            บันทึก
-          </Button>
-        </div>
+        <StickyActionBar
+          saving={submitting}
+          disabled={!selectedCustomerId || items.length === 0}
+          onSave={handleSaveEdit}
+        />
       )}
 
     </div>

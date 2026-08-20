@@ -916,8 +916,12 @@ input[type="number"] {
   display: flex; align-items: center; justify-content: space-between;
   gap: 16px; padding: 12px 0;
 }
+/* กินเต็มความกว้างโดยหักระยะขอบของ Layout > Page Body (p-4 lg:p-6) ออก
+   ถ้าไม่หักตามจอ แถบจะเว้นขอบ 8px ค้างไว้บนจอใหญ่ ดูเหมือนวางผิดที่ */
+@media (min-width: 1024px) {
+  .sticky-actions { margin-left: -1.5rem; margin-right: -1.5rem; padding: 0 1.5rem; }
+}
 @media (max-width: 640px) {
-  .sticky-actions { margin-left: -0.75rem; margin-right: -0.75rem; padding: 0 0.75rem; }
   /* จอแคบไม่มีที่พอให้ทั้งข้อความและปุ่ม — ปุ่มสำคัญกว่า */
   .sticky-actions-inner > :first-child { display: none; }
   .sticky-actions-inner { justify-content: flex-end; }

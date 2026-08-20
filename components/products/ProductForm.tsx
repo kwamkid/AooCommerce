@@ -13,6 +13,7 @@ import Checkbox from '@/components/ui/Checkbox';
 import FormSelect from '@/components/ui/FormSelect';
 import Modal from '@/components/ui/Modal';
 import Button from '@/components/ui/Button';
+import StickyActionBar from '@/components/ui/StickyActionBar';
 import NumberInput from '@/components/ui/NumberInput';
 import Badge from '@/components/ui/Badge';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
@@ -20,7 +21,6 @@ import {
   Plus,
   Trash2,
   Copy,
-  Loader2,
   Check,
   Layers,
   BoxSelect,
@@ -1324,24 +1324,11 @@ export default function ProductForm({
         </div>
       )}
 
-      {/* Form Actions */}
-      <div className="flex items-center justify-end gap-3 pt-2">
-        <button
-          type="button"
-          onClick={() => router.push('/products')}
-          className="px-5 py-2.5 border border-gray-200 dark:border-slate-700 rounded-lg text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors text-sm font-medium"
-        >
-          ยกเลิก
-        </button>
-        <button
-          type="submit"
-          disabled={saving}
-          className="px-5 py-2.5 bg-primary hover:bg-primary-hover text-white rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 text-sm"
-        >
-          {saving && <Loader2 className="w-4 h-4 animate-spin" />}
-          <span>{saving ? 'กำลังบันทึก...' : 'บันทึก'}</span>
-        </button>
-      </div>
+      <StickyActionBar
+        saving={saving}
+        onSave={() => formRef.current?.requestSubmit()}
+        onCancel={() => router.push('/products')}
+      />
     </form>
 
     {/* Type-change confirmation (edit mode only) — API soft-DELETES the old

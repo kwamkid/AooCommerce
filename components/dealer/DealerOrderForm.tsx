@@ -18,6 +18,7 @@ import MonthYearPicker from '@/components/ui/MonthYearPicker';
 import OrderStatusBar from '@/components/dealer/OrderStatusBar';
 import OrderPrintButtons from '@/components/ui/OrderPrintButtons';
 import { formatNumber } from '@/lib/utils/format';
+import StickyActionBar from '@/components/ui/StickyActionBar';
 
 // ── Types ──────────────────────────────────────────────────
 
@@ -1091,20 +1092,13 @@ export default function DealerOrderForm({
 
       {/* Action Buttons — show for create mode and editable orders */}
       {hasProducts && !isReadOnly && (
-        <div className="flex justify-end gap-3">
-          <Button variant="secondary" onClick={() => router.push(backUrl)}>
-            ยกเลิก
-          </Button>
-          <Button
-            variant="primary"
-            onClick={handleSubmit}
-            disabled={!selectedCustomerId || items.length === 0}
-            loading={submitting}
-            icon={<Save className="w-4 h-4" />}
-          >
-            {submitting ? 'กำลังบันทึก...' : resolvedSubmitLabel}
-          </Button>
-        </div>
+        <StickyActionBar
+          saving={submitting}
+          disabled={!selectedCustomerId || items.length === 0}
+          onSave={handleSubmit}
+          onCancel={() => router.push(backUrl)}
+          saveLabel={resolvedSubmitLabel}
+        />
       )}
     </div>
   );
