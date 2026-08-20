@@ -1098,8 +1098,11 @@
   width: 42px; height: 42px; border-radius: 50%; object-fit: cover; flex-shrink: 0;
   border: 1px solid var(--sf-border); background: var(--sf-surface);
 }
-/* ยอดเงิน (บน) + สถานะการจ่าย (ล่าง) ชิดขวาเป็นคอลัมน์เดียวกัน */
+/* ยอดเงิน (บน) + สถานะการจ่าย (ล่าง) ชิดขวาเป็นคอลัมน์เดียวกัน
+   ⚠️ ห้ามยืม .sf-cart-total มาใช้ที่นี่ — คลาสนั้นมีกฎจอแคบของหน้าตะกร้า
+   (@container max-width:700px) สั่ง text-align:left ทับอยู่ ยอดจะเลื่อนไปซ้ายเอง */
 .sf-order-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; margin-left: auto; }
+.sf-order-amount { font-weight: 700; text-align: right; white-space: nowrap; }
 .sf-pay-badge {
   display: inline-block; padding: 3px 9px; border-radius: 999px;
   font-size: 12.5px; font-weight: 500; white-space: nowrap;

@@ -274,7 +274,7 @@ export default function AccountClient({ shop, shopName, lineLogin, lineChannelId
               {/* ยอดเงินกับสถานะการจ่ายเป็นคนละเรื่อง — วางคนละบรรทัดชิดขวา
                   จะกวาดตาไล่ลงมาทีละคอลัมน์ได้ ไม่ต้องอ่านประโยคยาว ๆ ทั้งแถว */}
               <div className="sf-order-meta">
-                <div className="sf-cart-total">{formatStorePrice(o.total_amount)}</div>
+                <div className="sf-order-amount">{formatStorePrice(o.total_amount)}</div>
                 <span className={`sf-pay-badge sf-pay-${o.payment_status}`}>
                   {PAYMENT_LABEL[o.payment_status] || o.payment_status}
                 </span>
