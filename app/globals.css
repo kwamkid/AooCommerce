@@ -893,3 +893,32 @@ input[type="number"] {
   .nav-view-in-left,
   .nav-stagger > * { animation: none; }
 }
+
+/* ── แถบปุ่มบันทึกติดขอบล่าง (<StickyActionBar>) ────────────────────
+   ยืดเต็มความกว้าง Container ด้วย margin ลบ แล้วดึง padding กลับมาข้างใน
+   ไม่งั้นแถบจะลอยอยู่กลางจอโดยมีขอบว่างสองข้างซึ่งดูเหมือนการ์ดหลุด
+   z-index ต่ำกว่า modal (z-50) และ dropdown (z-999) — แถบนี้ห้ามบังของพวกนั้น */
+.sticky-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 20;
+  margin: 24px -1rem 0;
+  padding: 0 1rem;
+  background: rgb(255 255 255 / 0.92);
+  backdrop-filter: blur(8px);
+  border-top: 1px solid rgb(229 231 235);
+}
+.dark .sticky-actions {
+  background: rgb(15 23 42 / 0.92);
+  border-top-color: rgb(51 65 85);
+}
+.sticky-actions-inner {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 16px; padding: 12px 0;
+}
+@media (max-width: 640px) {
+  .sticky-actions { margin-left: -0.75rem; margin-right: -0.75rem; padding: 0 0.75rem; }
+  /* จอแคบไม่มีที่พอให้ทั้งข้อความและปุ่ม — ปุ่มสำคัญกว่า */
+  .sticky-actions-inner > :first-child { display: none; }
+  .sticky-actions-inner { justify-content: flex-end; }
+}

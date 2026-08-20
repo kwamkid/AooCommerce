@@ -1,7 +1,8 @@
 // Path: app/settings/company/page.tsx
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import StickyActionBar from '@/components/ui/StickyActionBar';
 import { useFetchOnce } from '@/lib/use-fetch-once';
 import Layout from '@/components/layout/Layout';
 import { useCompany } from '@/lib/company-context';
@@ -60,6 +61,12 @@ export default function CompanySettingsPage() {
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const initialFormRef = useRef(formData);
+  const formRef = useRef<HTMLFormElement>(null);
+  // มีอะไรเปลี่ยนรอบันทึกอยู่ไหม — รวมรูปโลโก้ที่เลือกไว้แต่ยังไม่อัปโหลดด้วย
+  const isDirty = useMemo(
+    () => !!logoFile || JSON.stringify(formData) !== JSON.stringify(initialFormRef.current),
+    [formData, logoFile],
+  );
 
   // ── Tax branches (VAT-registered branches for POS receipt routing) ──
   // Self-contained section: fetches independently when VAT is enabled and
@@ -392,7 +399,7 @@ export default function CompanySettingsPage() {
       {isLoading ? (
         <LoadingCard />
       ) : (
-        <form onSubmit={handleSubmit}>
+        <form ref={formRef} onSubmit={handleSubmit}>
           {/* Error alert */}
           {error && (
             <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg flex items-start space-x-3">
@@ -662,26 +669,21 @@ export default function CompanySettingsPage() {
 
           </Container>
 
-          {/* Action Buttons */}
-          <div className="flex justify-end gap-3 mt-6">
-            <Button
-              variant="secondary"
-              size="lg"
-              disabled={isSaving}
-              onClick={() => {
-                setFormData(initialFormRef.current);
-                setFieldErrors({});
-                setLogoFile(null);
-                setLogoPreview(null);
-                setError('');
-              }}
-            >
-              ยกเลิก
-            </Button>
-            <Button type="submit" variant="primary" size="lg" loading={isSaving}>
-              บันทึกข้อมูล
-            </Button>
-          </div>
+          {/* ปุ่มบันทึกติดขอบล่างตลอด — ฟอร์มนี้ยาวกว่าหนึ่งหน้าจอ ปุ่มท้ายฟอร์ม
+              ทำให้ต้องเลื่อนลงสุดทุกครั้งที่แก้ช่องบน */}
+          <StickyActionBar
+            saving={isSaving}
+            dirty={isDirty}
+            onSave={() => formRef.current?.requestSubmit()}
+            onCancel={() => {
+              setFormData(initialFormRef.current);
+              setFieldErrors({});
+              setLogoFile(null);
+              setLogoPreview(null);
+              setError('');
+            }}
+            saveLabel="บันทึกข้อมูล"
+          />
         </form>
       )}
       </Container>
