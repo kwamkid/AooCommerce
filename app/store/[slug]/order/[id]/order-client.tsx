@@ -102,6 +102,8 @@ export default function OrderClient({ shop, initialOrder }: { shop: string; init
     });
   }, [shop, order.id, order.order_number, order.total_amount, order.order_date, order.created_at]);
 
+  const verifying = order.payment_status === 'verifying';
+
   const hasExtras = !!(order.gift_card_requested || order.gift_message || order.gift_hide_price || order.tax_invoice_requested);
 
   const copy = async (text: string, key: string) => {
@@ -176,10 +178,12 @@ export default function OrderClient({ shop, initialOrder }: { shop: string; init
       <div className="sf-order-head">
         <CheckCircle2 className="sf-order-check" strokeWidth={1.6} aria-hidden="true" />
         <div>
-          <h1>ขอบคุณสำหรับคำสั่งซื้อ</h1>
+          <h1>{verifying ? 'ได้รับสลิปแล้ว ขอบคุณครับ' : 'ขอบคุณสำหรับคำสั่งซื้อ'}</h1>
           <p>
             เลขที่ <strong>{order.order_number}</strong> ·{' '}
-            {STATUS_LABEL[order.order_status] || order.order_status} ·{' '}
+            {/* ระหว่างรอตรวจสลิป ห้ามพูดว่า "กำลังเตรียมของ" — ร้านยังไม่ได้ยืนยันเงิน
+                ลูกค้าจะเข้าใจว่าของออกแล้ว สถานะเดียวที่จริงตอนนี้คือรอตรวจสลิป */}
+            {!verifying && `${STATUS_LABEL[order.order_status] || order.order_status} · `}
             <span className={order.payment_status === 'paid' ? 'sf-paid' : 'sf-unpaid'}>
               {PAYMENT_LABEL[order.payment_status] || order.payment_status}
             </span>
@@ -209,44 +213,67 @@ export default function OrderClient({ shop, initialOrder }: { shop: string; init
                   {/* จอกว้างวางบัญชีคู่กับยอด — ลูกค้าคัดลอกเลขบัญชีแล้วคัดลอกยอดต่อได้เลย
                       โดยไม่ต้องเลื่อนจอ (จอแคบเรียงลงมาตามปกติ) */}
                   <div className="sf-pay-grid">
-                  {transferChannels.map((ch, i) => (
-                    <div key={i} className="sf-bank">
-                      <div className="sf-bank-id">
-                        {bankLogo(ch.config?.bank_code) && (
-                          /* eslint-disable-next-line @next/next/no-img-element */
-                          <img className="sf-bank-logo" src={bankLogo(ch.config?.bank_code)!} alt="" aria-hidden="true" />
-                        )}
-                        <div>
-                          <div className="sf-bank-name">{ch.name}</div>
-                          {ch.config?.account_name && <div className="sf-hint">{ch.config.account_name}</div>}
+                    {transferChannels.map((ch, i) => {
+                      const number = ch.config?.account_number || ch.config?.promptpay_id;
+                      const logo = bankLogo(ch.config?.bank_code);
+                      return (
+                        <div key={i} className="sf-paycard">
+                          <div className="sf-paycard-head">
+                            {logo && (
+                              /* eslint-disable-next-line @next/next/no-img-element */
+                              <img className="sf-paycard-logo" src={logo} alt="" aria-hidden="true" />
+                            )}
+                            <div className="sf-paycard-heading">
+                              <span className="sf-paycard-label">โอนเข้าบัญชี</span>
+                              <strong className="sf-paycard-title">{ch.name}</strong>
+                              {ch.config?.account_name && (
+                                <span className="sf-paycard-sub">{ch.config.account_name}</span>
+                              )}
+                            </div>
+                          </div>
+                          {number && (
+                            <button
+                              type="button"
+                              className={`sf-copybtn${copied === `b${i}` ? ' sf-copybtn-done' : ''}`}
+                              onClick={() => copy(number, `b${i}`)}
+                              aria-label={`คัดลอกเลขบัญชี ${number}`}
+                            >
+                              <span className="sf-copybtn-value">{number}</span>
+                              <span className="sf-copybtn-action">
+                                {copied === `b${i}`
+                                  ? <><Check strokeWidth={2.25} aria-hidden="true" />คัดลอกแล้ว</>
+                                  : <><Copy strokeWidth={1.75} aria-hidden="true" />คัดลอก</>}
+                              </span>
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+
+                    {/* ยอดเงินต้องคัดลอกได้เหมือนเลขบัญชี — ลูกค้าพิมพ์ยอดเองผิดคือสาเหตุต้น ๆ
+                        ที่สลิปไม่ตรงบิล แล้วร้านต้องมาตามแก้ทีหลัง */}
+                    <div className="sf-paycard sf-paycard-amount">
+                      <div className="sf-paycard-head">
+                        <div className="sf-paycard-heading">
+                          <span className="sf-paycard-label">ยอดที่ต้องโอน</span>
+                          <strong className="sf-paycard-total">{formatStorePrice(order.total_amount)}</strong>
+                          <span className="sf-paycard-sub">โอนให้ตรงยอด ร้านจะตรวจสลิปได้เร็วขึ้น</span>
                         </div>
                       </div>
-                      {(ch.config?.account_number || ch.config?.promptpay_id) && (
-                        <button type="button" className="sf-copy"
-                          onClick={() => copy((ch.config?.account_number || ch.config?.promptpay_id)!, `b${i}`)}>
-                          <span className="sf-bank-no">{ch.config?.account_number || ch.config?.promptpay_id}</span>
-                          {copied === `b${i}`
-                            ? <Check strokeWidth={2} aria-hidden="true" />
-                            : <Copy strokeWidth={1.75} aria-hidden="true" />}
-                        </button>
-                      )}
+                      <button
+                        type="button"
+                        className={`sf-copybtn${copied === 'amount' ? ' sf-copybtn-done' : ''}`}
+                        onClick={() => copy(order.total_amount.toFixed(2), 'amount')}
+                        aria-label={`คัดลอกยอดเงิน ${order.total_amount.toFixed(2)} บาท`}
+                      >
+                        <span className="sf-copybtn-value">{order.total_amount.toFixed(2)}</span>
+                        <span className="sf-copybtn-action">
+                          {copied === 'amount'
+                            ? <><Check strokeWidth={2.25} aria-hidden="true" />คัดลอกแล้ว</>
+                            : <><Copy strokeWidth={1.75} aria-hidden="true" />คัดลอก</>}
+                        </span>
+                      </button>
                     </div>
-                  ))}
-
-                  {/* ยอดเงินต้องคัดลอกได้เหมือนเลขบัญชี — ลูกค้าพิมพ์ยอดเองผิดคือสาเหตุต้น ๆ
-                      ที่สลิปไม่ตรงบิล แล้วร้านต้องมาตามแก้ทีหลัง */}
-                  <button type="button" className="sf-bank sf-bank-amount" onClick={() => copy(order.total_amount.toFixed(2), 'amount')}>
-                    <div>
-                      <div className="sf-bank-name">ยอดที่ต้องโอน</div>
-                      <div className="sf-hint">กดเพื่อคัดลอกตัวเลข</div>
-                    </div>
-                    <span className="sf-copy">
-                      <span className="sf-bank-no">{formatStorePrice(order.total_amount)}</span>
-                      {copied === 'amount'
-                        ? <Check strokeWidth={2} aria-hidden="true" />
-                        : <Copy strokeWidth={1.75} aria-hidden="true" />}
-                    </span>
-                  </button>
                   </div>
 
                   <label className="sf-label" style={{ marginTop: 14 }}>แนบสลิปการโอน</label>
