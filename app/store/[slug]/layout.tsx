@@ -53,7 +53,8 @@ export default async function StoreLayout({
       className={storefrontRootClasses(cfg).join(' ')}
       style={storefrontCssVars(cfg) as React.CSSProperties}
     >
-      {/* ธีมตามเครื่องลูกค้า (prefers-color-scheme) — ไม่มีปุ่มสลับเอง เพราะกินที่บนหัวร้านที่มีของสำคัญกว่า */}
+      {/* หน้าร้านสว่างเสมอ ไม่มีโทนมืด — สีเป็นของร้าน ไม่ใช่ของเครื่องผู้เข้าชม
+          (ThemeProvider ข้าม /store/* ให้แล้ว ดู lib/theme-context) */}
       {cfg.announcement && (
         <div className="sf-announcement">{cfg.announcement}</div>
       )}

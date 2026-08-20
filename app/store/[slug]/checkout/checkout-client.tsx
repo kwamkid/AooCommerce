@@ -14,7 +14,6 @@ import DateRangePicker from '@/components/ui/DateRangePicker';
 import FormSelect from '@/components/ui/FormSelect';
 import { searchAddress } from '@/lib/thai-address-data';
 import { parseThaiAddress } from '@/lib/address-parser';
-import MapAddressPicker, { mapPickerEnabled, type PickedPlace } from '@/components/ui/MapAddressPicker';
 
 interface SlotOption {
   id: string;
@@ -92,9 +91,6 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
   const [rcpName, setRcpName] = useState('');
   const [rcpPhone, setRcpPhone] = useState('');
   const [mapsLink, setMapsLink] = useState('');
-  // หมุดแผนที่ — พิกัดคือสิ่งที่คนส่งของใช้จริง ที่อยู่ตัวหนังสือมีไว้คิดค่าส่ง + ออกเอกสาร
-  const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
-  const [mapDown, setMapDown] = useState(false);
   const [giftMessage, setGiftMessage] = useState('');
   const [giftTo, setGiftTo] = useState('');
   const [giftFrom, setGiftFrom] = useState('');
@@ -235,19 +231,6 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
     );
   }, []);
 
-  // ปักหมุดแล้วได้พื้นที่มาด้วย → เติมให้เลย ลูกค้าจะได้ไม่ต้องพิมพ์ซ้ำ
-  // (บ้านเลขที่ไม่ทับของเดิม — Google ให้มาแค่ระดับถนน ของที่ลูกค้าพิมพ์เองละเอียดกว่าเสมอ)
-  const handlePickPlace = useCallback((p: PickedPlace) => {
-    setCoords({ lat: p.lat, lng: p.lng });
-    setMapsLink(p.maps_link);
-    if (p.province && p.matched) {
-      setDistrict(p.district); setAmphoe(p.amphoe);
-      setProvince(p.province); setPostal(p.postal_code);
-      setAddressQuery(`${p.district} · ${p.amphoe} · ${p.province} ${p.postal_code}`);
-    }
-    setAddress(prev => prev.trim() ? prev : p.address);
-  }, []);
-
   const cardOn = giftCard && shipToOther && wantCard;
   // วันที่ร้านไม่มีรอบส่งเลย — ยังไม่รู้ (ยังไม่ได้กรอกพื้นที่) ก็ไม่ปิดวันไหน
   // รอบที่เลือกได้ → เป็นตัวเลือกใน dropdown · รอบที่เลือกไม่ได้ → ลิสต์เหตุผลใต้ช่อง
@@ -370,8 +353,6 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
           recipient_name: rcpName.trim(),
           recipient_phone: rcpPhone.trim(),
           google_maps_link: mapsLink.trim(),
-          latitude: coords?.lat,
-          longitude: coords?.lng,
           gift_message: cardOn ? giftMessage.trim() : '',
           gift_to: cardOn ? (giftTo.trim() || rcpName.trim()) : '',
           gift_from: cardOn ? (giftFrom.trim() || name.trim()) : '',
@@ -562,29 +543,12 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
                 ร้านส่งพัสดุผ่านขนส่ง คนส่งใช้ที่อยู่ตัวหนังสือ ไม่ต้องถามลิงก์ให้รก */}
             {zoneEnabled && (
               <>
-                {mapPickerEnabled && !mapDown ? (
-                  <>
-                    <label className="sf-label" style={{ marginTop: 12, marginBottom: 0 }}>ปักหมุดหน้าบ้าน</label>
-                    <MapAddressPicker
-                      value={coords}
-                      centerHint={[district, amphoe, province, postal].filter(Boolean).join(' ')}
-                      onPick={handlePickPlace}
-                      onUnavailable={() => setMapDown(true)}
-                    />
-                    <p className="sf-hint">
-                      คนส่งของกดหมุดนี้นำทางได้เลย · ระบบเติมตำบล/อำเภอให้จากหมุด แก้เองได้ถ้าคลาด
-                    </p>
-                  </>
-                ) : (
-                  <>
-                    <label className="sf-label" style={{ marginTop: 12 }}>ลิงก์ Google Maps
-                      <input className="sf-input" value={mapsLink} onChange={e => setMapsLink(e.target.value)} inputMode="url" placeholder="https://maps.app.goo.gl/…" />
-                    </label>
-                    <p className="sf-hint">
-                      เปิด Google Maps → กดค้างที่หมุด → แชร์ → คัดลอกลิงก์ · ช่วยให้คนส่งหาบ้านเจอเร็วขึ้นมาก
-                    </p>
-                  </>
-                )}
+                <label className="sf-label" style={{ marginTop: 12 }}>ลิงก์ Google Maps
+                  <input className="sf-input" value={mapsLink} onChange={e => setMapsLink(e.target.value)} inputMode="url" placeholder="https://maps.app.goo.gl/…" />
+                </label>
+                <p className="sf-hint">
+                  เปิด Google Maps → กดค้างที่หมุด → แชร์ → คัดลอกลิงก์ · ช่วยให้คนส่งหาบ้านเจอเร็วขึ้นมาก
+                </p>
               </>
             )}
           </section>

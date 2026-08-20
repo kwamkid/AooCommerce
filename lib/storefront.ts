@@ -194,8 +194,7 @@ export function storefrontCssVars(cfg: StorefrontConfig): Record<string, string>
     '--sf-cta': button,
     '--sf-cta-contrast': readableTextColor(button),
     // สีปุ่มเมื่อใช้เป็น "หมึก" บนพื้นหน้าเว็บ (ปุ่มแบบเส้นขอบ/พื้นอ่อน)
-    // สีอ่อนมาก เช่น ขาว ใช้เป็นตัวอักษรบนพื้นขาวไม่ได้ → ตกไปใช้สีตัวอักษรปกติ
-    // ซึ่งเป็น var จึงสลับตาม dark mode ให้เองด้วย
+    // สีอ่อนมาก เช่น ขาว ใช้เป็นตัวอักษรบนพื้นขาวไม่ได้ → ตกไปใช้สีตัวอักษรปกติของร้าน
     '--sf-cta-ink': relativeLuminance(button) > 0.62 ? 'var(--sf-text)' : button,
     '--sf-radius': RADIUS_PX[cfg.radius],
     '--sf-img-ratio': RATIO_CSS[cfg.image_ratio],
