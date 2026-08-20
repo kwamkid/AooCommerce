@@ -27,10 +27,7 @@ import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { apiFetch } from '@/lib/api-client';
 import { THAI_BANKS, getBankByCode } from '@/lib/constants/banks';
 import { BEAM_CHANNELS, BEAM_CHANNEL_CATEGORIES, CUSTOMER_TYPES, FEE_PAYERS } from '@/lib/constants/payment-gateway';
-import {
-  Banknote, Building2, Globe, Plus, Edit2, Trash2,
-  Eye, EyeOff, ChevronDown, ChevronUp, Save, ArrowUp, ArrowDown, QrCode, ExternalLink
-} from 'lucide-react';
+import { Banknote, Building2, Globe, Plus, Edit2, Trash2, Eye, EyeOff, ChevronDown, ChevronUp, ArrowUp, ArrowDown, QrCode, ExternalLink } from 'lucide-react';
 
 // Types
 interface PaymentChannel {
@@ -871,7 +868,6 @@ export default function PaymentChannelsPage() {
                             onClick={handleSaveGateway}
                             loading={savingGateway}
                             disabled={savingGateway}
-                            icon={<Save className="w-4 h-4" />}
                           >
                             บันทึก
                           </Button>

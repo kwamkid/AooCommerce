@@ -10,12 +10,7 @@ import { useFeatures } from '@/lib/features-context';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
 import { type FeatureFlags, PRESET_DEFAULTS, PRESET_LABELS, PRESET_DESCRIPTIONS, detectPreset, type BusinessPreset } from '@/lib/features';
-import {
-  CalendarDays, ShoppingCart, Monitor, Handshake, Tag, Factory,
-  PackageCheck, Save, ChevronDown, ChevronUp, Loader2,
-  CreditCard, Truck, Store, Layers, Users, Warehouse, Building, Lock,
-  MapPin, Clock,
-} from 'lucide-react';
+import { CalendarDays, ShoppingCart, Monitor, Handshake, Tag, Factory, PackageCheck, ChevronDown, ChevronUp, Loader2, CreditCard, Truck, Store, Layers, Users, Warehouse, Building, Lock, MapPin, Clock } from 'lucide-react';
 import { featureLockReason } from '@/lib/package-features';
 import { type BrandGpRow } from '@/components/customers/BrandGpCommissions';
 import GpOverridePanel from '@/components/customers/GpOverridePanel';
@@ -480,23 +475,21 @@ export default function FeaturesPage() {
             {/* Save button */}
             {isOwnerOrAdmin && (
               <div className="flex justify-end gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => { setFeatureFlags(currentFeatures); setOpenSection(null); }}
+                <Button
+                  variant="secondary"
                   disabled={isSaving || !isDirty}
-                  className="px-6 py-2.5 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 font-semibold rounded-lg transition-colors hover:bg-gray-50 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
+                  onClick={() => { setFeatureFlags(currentFeatures); setOpenSection(null); }}
                 >
                   ยกเลิก
-                </button>
-                <button
-                  type="button"
-                  onClick={handleSave}
+                </Button>
+                <Button
+                  variant="primary"
+                  loading={isSaving}
                   disabled={isSaving || !isDirty}
-                  className="px-6 py-2.5 bg-primary hover:bg-primary/90 text-white font-semibold rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed flex items-center gap-2"
+                  onClick={handleSave}
                 >
-                  {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                   บันทึก
-                </button>
+                </Button>
               </div>
             )}
           </>

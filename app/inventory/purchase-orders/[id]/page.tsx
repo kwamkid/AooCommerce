@@ -14,7 +14,7 @@ import { generatePOPdf } from '@/lib/supplier-pdf';
 import { showPdfPreview } from '@/lib/print-pdf';
 import type { ProductSearchItem } from '@/components/ui/ProductSearchInput';
 import type { DateValueType } from '@/components/ui/DateRangePicker';
-import { Loader2, FileText, Save } from 'lucide-react';
+import { Loader2, FileText } from 'lucide-react';
 
 import type { PurchaseOrderDetail, EditItem, Supplier, WarehouseItem } from '../components/types';
 import { formatCurrency } from '../components/types';
@@ -336,7 +336,6 @@ export default function PurchaseOrderDetailPage() {
               onClick={handleSave}
               disabled={!canSave}
               loading={saving}
-              icon={<Save className="w-4 h-4" />}
             >
               {saving ? 'กำลังบันทึก...' : 'บันทึก'}
             </Button>

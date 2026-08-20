@@ -9,10 +9,7 @@ import { useAuth } from '@/lib/auth-context';
 import { can } from '@/lib/permissions';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
-import {
-  Building2, FileText, Phone, Mail, MapPin, Receipt, Upload, X,
-  AlertCircle, Save, User, Briefcase, Landmark, Plus, Edit2, Trash2,
-} from 'lucide-react';
+import { Building2, FileText, Phone, Mail, MapPin, Receipt, Upload, X, AlertCircle, User, Briefcase, Landmark, Plus, Edit2, Trash2 } from 'lucide-react';
 import ThaiAddressInput from '@/components/ui/ThaiAddressInput';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
@@ -681,14 +678,8 @@ export default function CompanySettingsPage() {
             >
               ยกเลิก
             </Button>
-            <Button
-              type="submit"
-              variant="primary"
-              size="lg"
-              loading={isSaving}
-              icon={<Save className="w-5 h-5" />}
-            >
-              {isSaving ? 'กำลังบันทึก...' : 'บันทึกข้อมูล'}
+            <Button type="submit" variant="primary" size="lg" loading={isSaving}>
+              บันทึกข้อมูล
             </Button>
           </div>
         </form>

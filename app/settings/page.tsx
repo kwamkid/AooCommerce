@@ -17,7 +17,7 @@ import { useCompany } from '@/lib/company-context';
 import { can } from '@/lib/permissions';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { apiFetch } from '@/lib/api-client';
-import { Gift, Plus, X, Save, Loader2, Tag, Edit2, Check, Trash2, AlertTriangle, Clock, Building2 } from 'lucide-react';
+import { Gift, Plus, X, Loader2, Tag, Edit2, Check, Trash2, AlertTriangle, Clock, Building2 } from 'lucide-react';
 
 export default function SettingsPage() {
   const { userProfile } = useAuth();
@@ -35,13 +35,17 @@ export default function SettingsPage() {
       .catch(() => { /* โหลดไม่ได้ก็ไม่ควรทำให้ทั้งหน้าพัง */ });
   }, []);
 
-  const saveGiftCard = async (patch: { enabled?: boolean; fee?: number }) => {
-    const next = { ...giftCard, ...patch };
-    setGiftCard(next);
-    const res = await apiFetch('/api/settings/gift-card', { method: 'PUT', body: JSON.stringify(next) });
-    if (!res.ok) { setError('บันทึกการ์ดอวยพรไม่สำเร็จ'); return; }
-    setSuccess('บันทึกการ์ดอวยพรแล้ว');
-    setTimeout(() => setSuccess(''), 2500);
+  const [savingGiftCard, setSavingGiftCard] = useState(false);
+  const saveGiftCard = async () => {
+    setSavingGiftCard(true);
+    try {
+      const res = await apiFetch('/api/settings/gift-card', { method: 'PUT', body: JSON.stringify(giftCard) });
+      if (!res.ok) { setError('บันทึกการ์ดอวยพรไม่สำเร็จ'); return; }
+      setSuccess('บันทึกการ์ดอวยพรแล้ว');
+      setTimeout(() => setSuccess(''), 2500);
+    } finally {
+      setSavingGiftCard(false);
+    }
   };
 
   // Variation Types Settings
@@ -428,13 +432,12 @@ export default function SettingsPage() {
                 <span className="text-sm font-medium text-gray-500 dark:text-slate-400">ไม่มีวันหมดอายุ</span>
               )}
 
-              <Button
-                variant="primary"
-                loading={savingBillExpiry}
-                icon={!savingBillExpiry ? <Save className="w-4 h-4" /> : undefined}
-                onClick={handleSaveBillExpiry}
-                className="ml-auto"
-              >
+            </div>
+          )}
+
+          {!loadingBillExpiry && (
+            <div className="flex justify-end gap-3 mt-4">
+              <Button variant="primary" loading={savingBillExpiry} onClick={handleSaveBillExpiry}>
                 บันทึก
               </Button>
             </div>
@@ -462,7 +465,7 @@ export default function SettingsPage() {
             </div>
             <Toggle
               checked={giftCard.enabled}
-              onChange={(v) => saveGiftCard({ enabled: v })}
+              onChange={(v) => setGiftCard(g => ({ ...g, enabled: v }))}
               aria-label="เปิดบริการการ์ดอวยพร"
             />
           </div>
@@ -472,14 +475,20 @@ export default function SettingsPage() {
               <FormInput
                 label="ค่าการ์ดต่อใบ"
                 type="number"
+                min={0}
                 value={String(giftCard.fee)}
-                onChange={(e) => setGiftCard(g => ({ ...g, fee: Number(e.target.value) || 0 }))}
-                onBlur={() => saveGiftCard({ fee: giftCard.fee })}
+                onChange={(e) => setGiftCard(g => ({ ...g, fee: Math.max(0, Number(e.target.value) || 0) }))}
                 postfix="บาท"
                 hint="ใส่ 0 = แถมฟรี · ยอดนี้จะไปบวกในบิลเป็นรายการแยก"
               />
             </div>
           )}
+
+          <div className="flex justify-end gap-3 mt-4">
+            <Button variant="primary" loading={savingGiftCard} onClick={saveGiftCard}>
+              บันทึก
+            </Button>
+          </div>
         </Card>
 
         {/* Danger Zone: Clear All Data */}

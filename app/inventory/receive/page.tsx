@@ -7,9 +7,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useFeatures } from '@/lib/features-context';
 import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
-import {
-  Loader2, Package2, Save, Warehouse, FileText, CheckCircle2, ClipboardList, Star, Plus, AlertTriangle,
-} from 'lucide-react';
+import { Loader2, Package2, Warehouse, FileText, CheckCircle2, ClipboardList, Star, Plus, AlertTriangle } from 'lucide-react';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import Button from '@/components/ui/Button';
 import FormSelect from '@/components/ui/FormSelect';
@@ -438,7 +436,6 @@ export default function StockReceivePage() {
             onClick={handleSubmit}
             disabled={!canSubmit}
             loading={submitting}
-            icon={<Save className="w-4 h-4" />}
           >
             {submitting ? 'กำลังบันทึก...' : 'บันทึกรับเข้า'}
           </Button>

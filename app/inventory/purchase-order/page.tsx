@@ -11,7 +11,7 @@ import type { ProductSearchItem } from '@/components/ui/ProductSearchInput';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import Button from '@/components/ui/Button';
 import type { DateValueType } from '@/components/ui/DateRangePicker';
-import { Loader2, ClipboardList, CheckCircle2, Save, FileText } from 'lucide-react';
+import { Loader2, ClipboardList, CheckCircle2, FileText } from 'lucide-react';
 
 import type { EditItem, Supplier, WarehouseItem } from '../purchase-orders/components/types';
 import { formatCurrency } from '../purchase-orders/components/types';
@@ -244,7 +244,6 @@ export default function CreatePurchaseOrderPage() {
             onClick={handleSubmit}
             disabled={!canSubmit}
             loading={saving}
-            icon={<Save className="w-4 h-4" />}
           >
             {saving ? 'กำลังบันทึก...' : 'สร้างใบสั่งซื้อ'}
           </Button>

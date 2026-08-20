@@ -5,10 +5,7 @@ import { useCopy } from '@/lib/useCopy';
 import { useRouter } from 'next/navigation';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
-import {
-  Loader2, Save, Settings, ChevronDown, Clock, CheckCircle, MapPin, FileText, Receipt,
-  QrCode, Copy, Camera, Link2, AlertTriangle, Eye, Printer, Store,
-} from 'lucide-react';
+import { Loader2, Settings, ChevronDown, Clock, CheckCircle, MapPin, FileText, Receipt, QrCode, Copy, Camera, Link2, AlertTriangle, Eye, Printer, Store } from 'lucide-react';
 import FormSelect from '@/components/ui/FormSelect';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
@@ -1123,7 +1120,6 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
             onClick={handleSubmit}
             disabled={!selectedCustomerId || items.length === 0}
             loading={submitting}
-            icon={<Save className="w-4 h-4" />}
           >
             สร้างใบเติมสินค้า
           </Button>
@@ -1136,7 +1132,6 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
             onClick={handleSaveEdit}
             disabled={!selectedCustomerId || items.length === 0}
             loading={submitting}
-            icon={<Save className="w-4 h-4" />}
           >
             บันทึก
           </Button>
