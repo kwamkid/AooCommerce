@@ -2,7 +2,7 @@
 // ตั้งค่าหน้าร้านออนไลน์ — เปิด/ปิด ธีม โดเมน และ AI crawler
 'use client';
 
-import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import Layout from '@/components/layout/Layout';
 import Container from '@/components/ui/Container';
@@ -27,6 +27,7 @@ import StoreProductCard from '@/components/storefront/StoreProductCard';
 import '@/components/storefront/storefront.css';
 import ColorPicker from '@/components/ui/ColorPicker';
 import LogoUploader from '@/components/ui/LogoUploader';
+import StickyActionBar from '@/components/ui/StickyActionBar';
 import CopyField from '@/components/ui/CopyField';
 import { useCompany } from '@/lib/company-context';
 import OptionCards from '@/components/ui/OptionCards';
@@ -260,6 +261,9 @@ export default function StorefrontSettingsPage() {
   // แท็บเป็น state ไม่ใช่ route — cfg เป็นก้อนเดียว กดบันทึกครั้งเดียวเซฟทุกแท็บ
   // ถ้าแยกเป็น URL ผู้ใช้จะเผลอเปลี่ยนหน้าแล้วทิ้งค่าที่แก้ค้างในแท็บอื่น
   const [tab, setTab] = useState<'info' | 'design' | 'login' | 'seo'>('info');
+  // ค่าที่โหลดมาตอนแรก — ใช้เทียบว่ามีอะไรรอบันทึกอยู่ไหม
+  const loadedRef = useRef<StorefrontConfig>(DEFAULT_STOREFRONT);
+  const dirty = JSON.stringify(cfg) !== JSON.stringify(loadedRef.current);
   const [lineCred, setLineCred] = useState({ channel_id: '', channel_secret: '', configured: false });
   const [savingLine, setSavingLine] = useState(false);
   const [origin, setOrigin] = useState('');
@@ -277,6 +281,7 @@ export default function StorefrontSettingsPage() {
       if (res.ok) {
         const data = await res.json();
         setCfg(data.storefront);
+        loadedRef.current = data.storefront;
         setSlug(data.slug || '');
         setLogoUrl(data.logo_url || null);
         setCompanyName(data.company_name || '');
@@ -314,6 +319,7 @@ export default function StorefrontSettingsPage() {
       const data = await res.json();
       if (!res.ok) { showToast(data.error || 'บันทึกไม่สำเร็จ', 'error'); return; }
       setCfg(data.storefront);
+      loadedRef.current = data.storefront;
       showToast('บันทึกหน้าร้านออนไลน์แล้ว', 'success');
     } finally {
       setSaving(false);
@@ -790,9 +796,7 @@ export default function StorefrontSettingsPage() {
             )}
 
             {/* ปุ่มบันทึกอยู่นอกแท็บ — แก้ข้ามแท็บแล้วกดครั้งเดียวจบ */}
-            <div className="flex justify-end gap-3">
-              <Button variant="primary" loading={saving} onClick={save}>บันทึก</Button>
-            </div>
+            <StickyActionBar saving={saving} dirty={dirty} onSave={save} onCancel={() => setCfg(loadedRef.current)} />
           </div>
         )}
       </Container>

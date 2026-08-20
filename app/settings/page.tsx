@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import StickyActionBar from '@/components/ui/StickyActionBar';
 import { useFetchOnce } from '@/lib/use-fetch-once';
 import Layout from '@/components/layout/Layout';
 import Container from '@/components/ui/Container';
@@ -31,22 +32,15 @@ export default function SettingsPage() {
   useEffect(() => {
     apiFetch('/api/settings/gift-card')
       .then(r => (r.ok ? r.json() : null))
-      .then(d => { if (d) setGiftCard({ enabled: !!d.enabled, fee: Number(d.fee) || 0 }); })
+      .then(d => {
+        if (!d) return;
+        const g = { enabled: !!d.enabled, fee: Number(d.fee) || 0 };
+        setGiftCard(g);
+        initialSettingsRef.current = { ...initialSettingsRef.current, giftCard: g };
+      })
       .catch(() => { /* โหลดไม่ได้ก็ไม่ควรทำให้ทั้งหน้าพัง */ });
   }, []);
 
-  const [savingGiftCard, setSavingGiftCard] = useState(false);
-  const saveGiftCard = async () => {
-    setSavingGiftCard(true);
-    try {
-      const res = await apiFetch('/api/settings/gift-card', { method: 'PUT', body: JSON.stringify(giftCard) });
-      if (!res.ok) { setError('บันทึกการ์ดอวยพรไม่สำเร็จ'); return; }
-      setSuccess('บันทึกการ์ดอวยพรแล้ว');
-      setTimeout(() => setSuccess(''), 2500);
-    } finally {
-      setSavingGiftCard(false);
-    }
-  };
 
   // Variation Types Settings
   const [variationTypes, setVariationTypes] = useState<{ id: string; name: string; sort_order: number; is_active: boolean }[]>([]);
@@ -70,7 +64,40 @@ export default function SettingsPage() {
   const [billExpiryEnabled, setBillExpiryEnabled] = useState(false);
   const [billExpiryDays, setBillExpiryDays] = useState(7);
   const [loadingBillExpiry, setLoadingBillExpiry] = useState(true);
-  const [savingBillExpiry, setSavingBillExpiry] = useState(false);
+
+  // ── บันทึกเดียวของทั้งหน้า ──
+  // ยกเว้น "ประเภทตัวเลือกสินค้า" ที่เป็นการเพิ่ม/ลบรายการ ซึ่งมีผลทันทีอยู่แล้ว
+  // เอามารวมในปุ่มบันทึกไม่ได้ (จะกลายเป็นว่าเพิ่มไปแล้วแต่ยังไม่นับจนกว่าจะกดบันทึก)
+  const initialSettingsRef = useRef({ billExpiryEnabled: false, billExpiryDays: 7, giftCard: { enabled: false, fee: 0 } });
+  const [savingAll, setSavingAll] = useState(false);
+  const settingsDirty =
+    billExpiryEnabled !== initialSettingsRef.current.billExpiryEnabled ||
+    billExpiryDays !== initialSettingsRef.current.billExpiryDays ||
+    giftCard.enabled !== initialSettingsRef.current.giftCard.enabled ||
+    giftCard.fee !== initialSettingsRef.current.giftCard.fee;
+
+  const saveAllSettings = async () => {
+    setSavingAll(true);
+    setError(''); setSuccess('');
+    try {
+      const [billRes, giftRes] = await Promise.all([
+        apiFetch('/api/settings/bill-expiry', {
+          method: 'PUT',
+          body: JSON.stringify({ bill_expiry_days: billExpiryEnabled ? billExpiryDays : 0 }),
+        }),
+        apiFetch('/api/settings/gift-card', { method: 'PUT', body: JSON.stringify(giftCard) }),
+      ]);
+      if (!billRes.ok || !giftRes.ok) {
+        setError('บันทึกไม่สำเร็จบางส่วน กรุณาลองใหม่');
+        return;
+      }
+      initialSettingsRef.current = { billExpiryEnabled, billExpiryDays, giftCard: { ...giftCard } };
+      setSuccess('บันทึกการตั้งค่าแล้ว');
+      setTimeout(() => setSuccess(''), 3000);
+    } finally {
+      setSavingAll(false);
+    }
+  };
 
   // Fetch Variation Types + Bill Expiry (once)
   useFetchOnce(() => {
@@ -220,16 +247,18 @@ export default function SettingsPage() {
       const res = await apiFetch('/api/settings/features');
       const data = await res.json();
       const days = data.bill_expiry_days;
-      if (days === 0) {
-        // Explicitly disabled
-        setBillExpiryEnabled(false);
-      } else {
-        // null (not configured) = default 7 days, or user-set value
-        setBillExpiryEnabled(true);
-        setBillExpiryDays(days && days > 0 ? days : 7);
-      }
+      // null (ยังไม่เคยตั้ง) = ค่าเริ่มต้น 7 วัน · 0 = ปิดไว้ชัดเจน
+      const enabled = days !== 0;
+      const value = days && days > 0 ? days : 7;
+      setBillExpiryEnabled(enabled);
+      setBillExpiryDays(value);
+      // จำค่าที่โหลดมาเป็นค่าตั้งต้น ไม่งั้นเปิดหน้ามาปุ่มจะขึ้นว่ามีการแก้ไขทันที
+      initialSettingsRef.current = {
+        ...initialSettingsRef.current,
+        billExpiryEnabled: enabled,
+        billExpiryDays: value,
+      };
     } catch {
-      // default to enabled 7 days
       setBillExpiryEnabled(true);
       setBillExpiryDays(7);
     } finally {
@@ -237,29 +266,6 @@ export default function SettingsPage() {
     }
   };
 
-  const handleSaveBillExpiry = async () => {
-    setSavingBillExpiry(true);
-    setError('');
-    setSuccess('');
-    try {
-      const res = await apiFetch('/api/settings/bill-expiry', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ bill_expiry_days: billExpiryEnabled ? billExpiryDays : 0 }),
-      });
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || 'ไม่สามารถบันทึกได้');
-      }
-      setSuccess('บันทึกการตั้งค่าบิลหมดอายุสำเร็จ');
-      setTimeout(() => setSuccess(''), 3000);
-    } catch (err) {
-      if (err instanceof Error) setError(err.message);
-      else setError('ไม่สามารถบันทึกได้');
-    } finally {
-      setSavingBillExpiry(false);
-    }
-  };
 
   // Only allow admin to access this page
   if (!can(userProfile?.roles, 'settings.access')) {
@@ -435,13 +441,6 @@ export default function SettingsPage() {
             </div>
           )}
 
-          {!loadingBillExpiry && (
-            <div className="flex justify-end gap-3 mt-4">
-              <Button variant="primary" loading={savingBillExpiry} onClick={handleSaveBillExpiry}>
-                บันทึก
-              </Button>
-            </div>
-          )}
         </Card>
 
         {/* บริการเสริมของร้าน — ใช้ได้ทุกช่องทางที่สร้างออเดอร์ (หน้าร้านออนไลน์
@@ -484,12 +483,19 @@ export default function SettingsPage() {
             </div>
           )}
 
-          <div className="flex justify-end gap-3 mt-4">
-            <Button variant="primary" loading={savingGiftCard} onClick={saveGiftCard}>
-              บันทึก
-            </Button>
-          </div>
         </Card>
+
+        <StickyActionBar
+          saving={savingAll}
+          dirty={settingsDirty}
+          onSave={saveAllSettings}
+          onCancel={() => {
+            const init = initialSettingsRef.current;
+            setBillExpiryEnabled(init.billExpiryEnabled);
+            setBillExpiryDays(init.billExpiryDays);
+            setGiftCard({ ...init.giftCard });
+          }}
+        />
 
         {/* Danger Zone: Clear All Data */}
         <Card padding="none" className="border-2 border-red-200 dark:border-red-900/50">
