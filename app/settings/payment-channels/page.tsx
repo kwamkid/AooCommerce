@@ -7,6 +7,7 @@ import Layout from '@/components/layout/Layout';
 import Container from '@/components/ui/Container';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
+import StickyActionBar from '@/components/ui/StickyActionBar';
 import Modal from '@/components/ui/Modal';
 import FormInput from '@/components/ui/FormInput';
 import ListRow from '@/components/ui/ListRow';
@@ -861,17 +862,8 @@ export default function PaymentChannelsPage() {
                           </>
                         )}
 
-                        {/* Save button — right-aligned per global form action convention */}
-                        <div className="flex justify-end gap-3 pt-2 border-t border-gray-100 dark:border-slate-700">
-                          <Button
-                            variant="primary"
-                            onClick={handleSaveGateway}
-                            loading={savingGateway}
-                            disabled={savingGateway}
-                          >
-                            บันทึก
-                          </Button>
-                        </div>
+                        {/* ปุ่มบันทึกอยู่ที่แถบล่างจอ (StickyActionBar) แบบเดียวกับหน้าตั้งค่าอื่น —
+                            ฟอร์มนี้ยาวกว่าหนึ่งจอ ปุ่มท้ายฟอร์มต้องเลื่อนหาทุกครั้ง */}
                       </div>
                     )}
                   </Card>
@@ -884,6 +876,18 @@ export default function PaymentChannelsPage() {
           </div>
         )}
       </Container>
+
+      {/* แถบบันทึกมาตรฐานของหน้าตั้งค่า — โผล่เฉพาะตอนกางแผง "ชำระออนไลน์"
+          (ช่องทางอื่นแก้ผ่าน Modal ซึ่งมีปุ่มบันทึกของตัวเองอยู่แล้ว) */}
+      {gatewayChannel && !collapsedSections.has(gatewayChannel.id) && (
+        <StickyActionBar
+          onSave={handleSaveGateway}
+          saving={savingGateway}
+          disabled={!gatewayForm.merchant_id.trim() || !gatewayForm.api_key.trim()}
+        >
+          ตั้งค่า Beam Checkout
+        </StickyActionBar>
+      )}
 
       {/* PromptPay Modal — add only (delete via card icon) */}
       <Modal

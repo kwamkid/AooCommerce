@@ -6,6 +6,7 @@ import { useFetchOnce } from '@/lib/use-fetch-once';
 import Layout from '@/components/layout/Layout';
 import Container from '@/components/ui/Container';
 import Card from '@/components/ui/Card';
+import ToggleCard from '@/components/ui/ToggleCard';
 import Button from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
 import Tabs from '@/components/ui/Tabs';
@@ -401,89 +402,50 @@ export default function SettingsPage() {
         </Card>
 
         {/* Bill Expiry Settings */}
-        <Card padding="md">
-          <div className="flex items-center gap-2 mb-3">
-            <Clock className="w-5 h-5 text-primary" />
-            <h2 className="heading-3">บิลหมดอายุ</h2>
-            <span className="text-sm text-gray-500 dark:text-slate-400 ml-auto">บิล manual order ที่ไม่ชำระจะถูกยกเลิกอัตโนมัติ</span>
+        <ToggleCard
+          icon={<Clock />}
+          title="บิลหมดอายุ"
+          description="บิล manual order ที่ไม่ชำระจะถูกยกเลิกอัตโนมัติ"
+          checked={billExpiryEnabled}
+          onChange={setBillExpiryEnabled}
+          loading={loadingBillExpiry}
+          offHint="ไม่มีวันหมดอายุ — บิลค้างได้ไม่จำกัด"
+        >
+          <div className="max-w-xs">
+            <FormInput
+              label="หมดอายุหลัง"
+              type="number"
+              min={1}
+              max={90}
+              value={billExpiryDays}
+              onChange={(e) => setBillExpiryDays(Math.max(1, Math.min(90, Number(e.target.value) || 1)))}
+              postfix="วัน"
+              hint="นับจากวันที่เปิดบิล · สูงสุด 90 วัน"
+            />
           </div>
-
-          {loadingBillExpiry ? (
-            <div className="flex items-center justify-center py-4">
-              <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
-            </div>
-          ) : (
-            <div className="flex items-center gap-4 flex-wrap">
-              <Toggle
-                checked={billExpiryEnabled}
-                onChange={setBillExpiryEnabled}
-                aria-label="เปิดใช้งานบิลหมดอายุ"
-              />
-
-              {billExpiryEnabled ? (
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium text-gray-700 dark:text-slate-300">หมดอายุหลัง</span>
-                  <FormInput
-                    type="number"
-                    min={1}
-                    max={90}
-                    value={billExpiryDays}
-                    onChange={(e) => setBillExpiryDays(Math.max(1, Math.min(90, Number(e.target.value) || 1)))}
-                    postfix="วัน"
-                    containerClassName="w-28"
-                    className="text-center"
-                  />
-                </div>
-              ) : (
-                <span className="text-sm font-medium text-gray-500 dark:text-slate-400">ไม่มีวันหมดอายุ</span>
-              )}
-
-            </div>
-          )}
-
-        </Card>
+        </ToggleCard>
 
         {/* บริการเสริมของร้าน — ใช้ได้ทุกช่องทางที่สร้างออเดอร์ (หน้าร้านออนไลน์
             และเปิดบิลเองจากแชท) จึงอยู่ตรงนี้ ไม่ใช่ในตั้งค่าหน้าร้านออนไลน์ */}
-        <Card padding="md">
-          <div className="flex items-center gap-2 mb-3">
-            <Gift className="w-5 h-5 text-primary" />
-            <h2 className="heading-3">การ์ดอวยพร</h2>
-            <span className="text-sm text-gray-500 dark:text-slate-400 ml-auto">
-              ลูกค้าขอแนบการ์ดพร้อมข้อความไปกับของได้
-            </span>
-          </div>
-
-          <div className="flex items-center justify-between gap-4">
-            <div className="min-w-0">
-              <p className="heading-4">เปิดบริการการ์ดอวยพร</p>
-              <p className="section-desc">
-                เปิดแล้วจะมีให้เลือกทั้งหน้าร้านออนไลน์และตอนเปิดบิลเอง —
-                ไม่ใช่ทุกออเดอร์ที่ใช้ ลูกค้าหรือพนักงานต้องกดขอเป็นรายออเดอร์
-              </p>
-            </div>
-            <Toggle
-              checked={giftCard.enabled}
-              onChange={(v) => setGiftCard(g => ({ ...g, enabled: v }))}
-              aria-label="เปิดบริการการ์ดอวยพร"
+        <ToggleCard
+          icon={<Gift />}
+          title="การ์ดอวยพร"
+          description="เปิดแล้วจะมีให้เลือกทั้งหน้าร้านออนไลน์และตอนเปิดบิลเอง — ไม่ใช่ทุกออเดอร์ที่ใช้ ลูกค้าหรือพนักงานต้องกดขอเป็นรายออเดอร์"
+          checked={giftCard.enabled}
+          onChange={(v) => setGiftCard(g => ({ ...g, enabled: v }))}
+        >
+          <div className="max-w-xs">
+            <FormInput
+              label="ค่าการ์ดต่อใบ"
+              type="number"
+              min={0}
+              value={String(giftCard.fee)}
+              onChange={(e) => setGiftCard(g => ({ ...g, fee: Math.max(0, Number(e.target.value) || 0) }))}
+              postfix="บาท"
+              hint="ใส่ 0 = แถมฟรี · ยอดนี้จะไปบวกในบิลเป็นรายการแยก"
             />
           </div>
-
-          {giftCard.enabled && (
-            <div className="mt-4 pt-4 border-t border-gray-100 dark:border-slate-700 max-w-xs">
-              <FormInput
-                label="ค่าการ์ดต่อใบ"
-                type="number"
-                min={0}
-                value={String(giftCard.fee)}
-                onChange={(e) => setGiftCard(g => ({ ...g, fee: Math.max(0, Number(e.target.value) || 0) }))}
-                postfix="บาท"
-                hint="ใส่ 0 = แถมฟรี · ยอดนี้จะไปบวกในบิลเป็นรายการแยก"
-              />
-            </div>
-          )}
-
-        </Card>
+        </ToggleCard>
 
         <StickyActionBar
           saving={savingAll}
