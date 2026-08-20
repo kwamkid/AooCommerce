@@ -5,6 +5,7 @@ import { Copy } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCart, clearCart } from '@/lib/storefront-cart';
+import { supabase } from '@/lib/supabase';
 import { rememberOrder, rememberContact, readContact } from '@/lib/storefront-orders';
 import { formatStorePrice, storefrontHref } from '@/lib/storefront';
 import CheckoutSteps from '@/components/storefront/CheckoutSteps';
@@ -19,6 +20,8 @@ interface SlotOption {
   label: string;
   /** true = ช่วงถูกหั่นสั้นลงเพราะเวลาต้นรอบผ่านไปแล้ว */
   narrowed: boolean;
+  /** "HH:MM" — ใช้หารอบที่เริ่มไวที่สุด (ลิสต์เรียงตาม sort_order ไม่ใช่เวลา) */
+  start_time: string;
   full_label: string;
   available: boolean;
   reason: string | null;
@@ -131,20 +134,32 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
         if (!alive) return;
         setAccount({ signedIn: !!d.signed_in, isStaff: !!d.is_staff, customer: d.customer || null });
 
+        if (readContact(shop)) return;
         const c: LinkedCustomer | null = d.customer;
-        if (!c || readContact(shop)) return;
-        if (c.name) setName(c.name);
-        if (c.phone) setPhone(c.phone);
-        if (c.email) setEmail(c.email);
-        if (c.billing_address) setAddress(c.billing_address);
-        if (c.billing_district) setDistrict(c.billing_district);
-        if (c.billing_amphoe) setAmphoe(c.billing_amphoe);
-        if (c.billing_province) setProvince(c.billing_province);
-        if (c.billing_postal_code) setPostal(c.billing_postal_code);
-        const label = [c.billing_district, c.billing_amphoe, c.billing_province, c.billing_postal_code]
-          .filter(Boolean).join(' ');
-        if (label) setAddressQuery(label);
-        if (c.billing_address || c.name) setPrefilled(true);
+        if (c) {
+          if (c.name) setName(c.name);
+          if (c.phone) setPhone(c.phone);
+          if (c.email) setEmail(c.email);
+          if (c.billing_address) setAddress(c.billing_address);
+          if (c.billing_district) setDistrict(c.billing_district);
+          if (c.billing_amphoe) setAmphoe(c.billing_amphoe);
+          if (c.billing_province) setProvince(c.billing_province);
+          if (c.billing_postal_code) setPostal(c.billing_postal_code);
+          const label = [c.billing_district, c.billing_amphoe, c.billing_province, c.billing_postal_code]
+            .filter(Boolean).join(' ');
+          if (label) setAddressQuery(label);
+          if (c.billing_address || c.name) setPrefilled(true);
+        }
+        // login ครั้งแรกยังไม่มีแถวลูกค้าในร้านนี้ (แถวถูกสร้างตอนสั่งซื้อ/เข้าหน้าบัญชี)
+        // — ชื่อกับอีเมลมีอยู่แล้วใน session ที่ login มา อย่าให้พิมพ์ซ้ำ
+        if (!d.signed_in || (c?.name && c?.email)) return;
+        const { data: sess } = await supabase.auth.getSession();
+        const u = sess.session?.user;
+        if (!alive || !u) return;
+        const m = (u.user_metadata || {}) as Record<string, string>;
+        const sessionName = m.full_name || m.name || m.display_name || '';
+        if (!c?.name && sessionName) setName(sessionName);
+        if (!c?.email && u.email) setEmail(u.email);
       } catch {
         // ล็อกอินไม่ได้/เน็ตหลุด ก็แค่กรอกเองตามปกติ ไม่ควรบล็อกการสั่งซื้อ
       }
@@ -241,6 +256,41 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
     const still = options.slots.find(s => s.id === slotId);
     if (!still?.available) setSlotId('');
   }, [options, slotId]);
+
+  // ── ค่าเริ่มต้น: วันนี้ + รอบที่เริ่มไวที่สุด ─────────────────────────────
+  // ลูกค้าเกือบทุกคนอยากได้ของเร็วสุดอยู่แล้ว — ให้ค่าที่ใช้ได้เลยแล้วค่อยปรับ
+  // ดีกว่าบังคับเลือกเองทุกคน · จำไว้ว่า default มาจากเรา ถ้าลูกค้าเลือกวันเอง
+  // ห้ามระบบย้ายวันให้อีก (dateAutoRef)
+  const dateAutoRef = useRef(false);
+  const autoHopsRef = useRef(0);
+  useEffect(() => {
+    if (!dateEnabled || !slotEnabled || !hasArea || deliveryDate) return;
+    dateAutoRef.current = true;
+    autoHopsRef.current = 0;
+    setDeliveryDate(toISO(new Date()));
+  }, [dateEnabled, slotEnabled, hasArea, deliveryDate]);
+
+  useEffect(() => {
+    if (!slotEnabled || !options || loadingOptions || !deliveryDate) return;
+    const open = options.slots.filter(s => s.available);
+    if (open.length > 0) {
+      // ลิสต์เรียงตาม sort_order ของร้าน ไม่ใช่ตามเวลา — ต้องหาเองว่ารอบไหนเริ่มก่อน
+      if (!slotId) {
+        const earliest = [...open].sort((a, b) => a.start_time.localeCompare(b.start_time))[0];
+        setSlotId(earliest.id);
+      }
+      return;
+    }
+    // วันที่เราตั้งให้เองไม่มีรอบว่าง (เช่นสั่งดึกเลยเวลารอบสุดท้าย) → เลื่อนหา
+    // วันแรกที่มีรอบ ข้ามวันหยุดร้าน · จำกัด 14 วัน กันวนไม่จบเมื่อร้านปิดยาว
+    if (!dateAutoRef.current || autoHopsRef.current >= 14) return;
+    const d = new Date(`${deliveryDate}T00:00:00`);
+    for (let i = 0; i < 7; i++) {
+      d.setDate(d.getDate() + 1);
+      autoHopsRef.current += 1;
+      if (!closedWeekdays?.includes(d.getDay())) { setDeliveryDate(toISO(d)); return; }
+    }
+  }, [options, loadingOptions, deliveryDate, slotEnabled, slotId, closedWeekdays]);
 
   const shippingFee = options?.zone?.fee ?? 0;
   const needsQuote = options?.zone?.needs_quote ?? false;
@@ -520,7 +570,7 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
           )}
 
           {(dateEnabled || slotEnabled) && (
-            <section className="sf-fieldset">
+            <section className="sf-fieldset sf-fieldset-accent">
               <h2>วันและเวลาจัดส่ง</h2>
 
               {/* วันกับรอบเวลาเป็นการตัดสินใจเดียวกัน วางคู่กันให้เห็นพร้อมกัน
@@ -536,6 +586,7 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
                         useRange={false}
                         value={deliveryDate ? { startDate: deliveryDate, endDate: deliveryDate } : { startDate: null, endDate: null }}
                         onChange={(v) => {
+                          dateAutoRef.current = false;
                           const d = v?.startDate;
                           setDeliveryDate(d ? (typeof d === 'string' ? d.slice(0, 10) : toISO(d)) : '');
                         }}

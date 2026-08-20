@@ -432,6 +432,12 @@
 .sf-acctbar-btns .sf-auth-btn { width: auto; margin: 0; padding: 10px 16px; font-size: 14px; }
 .sf-fieldset { border: 1px solid var(--sf-border); border-radius: var(--sf-radius); padding: 18px; }
 .sf-fieldset h2 { font-size: 18px; line-height: 28px; font-weight: 600; margin: 0 0 14px; }
+/* การ์ดที่อยากให้สะดุดตากว่าการ์ดขาวรอบ ๆ (วัน-เวลาจัดส่ง) — อาบสีแบรนด์จาง ๆ
+   ผสมจาก --sf-primary เพื่อให้ตามธีมของแต่ละร้านเอง ไม่ fix สีใดสีหนึ่ง */
+.sf-fieldset-accent {
+  background: color-mix(in srgb, var(--sf-primary) 5%, var(--sf-bg));
+  border-color: color-mix(in srgb, var(--sf-primary) 22%, var(--sf-border));
+}
 
 /* ── ส่งให้ตัวเอง / ส่งให้คนอื่น ─────────────────────────────────── */
 .sf-who { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
