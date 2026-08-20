@@ -957,3 +957,9 @@
 }
 .sf-fieldset-head h2 { margin: 0; }
 .sf-btn-sm { padding: 6px 12px; font-size: 14px; }
+
+/* ── ตัวเลือกเสริมในหน้า checkout — หลายสวิตช์ในการ์ดเดียว ────────────
+   เส้นคั่นบาง ๆ ระหว่างตัวเลือก เพื่อให้เห็นว่าแต่ละอันเป็นคนละเรื่องกัน
+   โดยไม่ต้องแตกเป็นการ์ดละใบ (การ์ดเยอะ = หน้ายาว = ลูกค้าเลื่อนผ่าน) */
+.sf-opt + .sf-opt { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--sf-border); }
+.sf-opt-body { margin-top: 14px; }

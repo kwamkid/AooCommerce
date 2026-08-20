@@ -13,6 +13,7 @@ import CheckoutAccountBar from '@/components/storefront/CheckoutAccountBar';
 import DateRangePicker from '@/components/ui/DateRangePicker';
 import FormSelect from '@/components/ui/FormSelect';
 import { searchAddress } from '@/lib/thai-address-data';
+import MapAddressPicker, { mapPickerEnabled, type PickedPlace } from '@/components/ui/MapAddressPicker';
 
 interface SlotOption {
   id: string;
@@ -90,6 +91,9 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
   const [rcpName, setRcpName] = useState('');
   const [rcpPhone, setRcpPhone] = useState('');
   const [mapsLink, setMapsLink] = useState('');
+  // หมุดแผนที่ — พิกัดคือสิ่งที่คนส่งของใช้จริง ที่อยู่ตัวหนังสือมีไว้คิดค่าส่ง + ออกเอกสาร
+  const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [mapDown, setMapDown] = useState(false);
   const [giftMessage, setGiftMessage] = useState('');
   const [giftTo, setGiftTo] = useState('');
   const [giftFrom, setGiftFrom] = useState('');
@@ -209,6 +213,19 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
 
   const hasArea = !!(province || postal);
   // การ์ดต้อง: ร้านเปิดบริการ + ส่งให้คนอื่น + ลูกค้ากดขอ
+  // ปักหมุดแล้วได้พื้นที่มาด้วย → เติมให้เลย ลูกค้าจะได้ไม่ต้องพิมพ์ซ้ำ
+  // (บ้านเลขที่ไม่ทับของเดิม — Google ให้มาแค่ระดับถนน ของที่ลูกค้าพิมพ์เองละเอียดกว่าเสมอ)
+  const handlePickPlace = useCallback((p: PickedPlace) => {
+    setCoords({ lat: p.lat, lng: p.lng });
+    setMapsLink(p.maps_link);
+    if (p.province && p.matched) {
+      setDistrict(p.district); setAmphoe(p.amphoe);
+      setProvince(p.province); setPostal(p.postal_code);
+      setAddressQuery(`${p.district} · ${p.amphoe} · ${p.province} ${p.postal_code}`);
+    }
+    setAddress(prev => prev.trim() ? prev : p.address);
+  }, []);
+
   const cardOn = giftCard && shipToOther && wantCard;
   // วันที่ร้านไม่มีรอบส่งเลย — ยังไม่รู้ (ยังไม่ได้กรอกพื้นที่) ก็ไม่ปิดวันไหน
   // รอบที่เลือกได้ → เป็นตัวเลือกใน dropdown · รอบที่เลือกไม่ได้ → ลิสต์เหตุผลใต้ช่อง
@@ -331,6 +348,8 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
           recipient_name: rcpName.trim(),
           recipient_phone: rcpPhone.trim(),
           google_maps_link: mapsLink.trim(),
+          latitude: coords?.lat,
+          longitude: coords?.lng,
           gift_message: cardOn ? giftMessage.trim() : '',
           gift_to: cardOn ? (giftTo.trim() || rcpName.trim()) : '',
           gift_from: cardOn ? (giftFrom.trim() || name.trim()) : '',
@@ -511,69 +530,32 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
                 ร้านส่งพัสดุผ่านขนส่ง คนส่งใช้ที่อยู่ตัวหนังสือ ไม่ต้องถามลิงก์ให้รก */}
             {zoneEnabled && (
               <>
-                <label className="sf-label" style={{ marginTop: 12 }}>ลิงก์ Google Maps
-                  <input className="sf-input" value={mapsLink} onChange={e => setMapsLink(e.target.value)} inputMode="url" placeholder="https://maps.app.goo.gl/…" />
-                </label>
-                <p className="sf-hint">
-                  เปิด Google Maps → กดค้างที่หมุด → แชร์ → คัดลอกลิงก์ · ช่วยให้คนส่งหาบ้านเจอเร็วขึ้นมาก
-                </p>
+                {mapPickerEnabled && !mapDown ? (
+                  <>
+                    <label className="sf-label" style={{ marginTop: 12, marginBottom: 0 }}>ปักหมุดหน้าบ้าน</label>
+                    <MapAddressPicker
+                      value={coords}
+                      centerHint={[district, amphoe, province, postal].filter(Boolean).join(' ')}
+                      onPick={handlePickPlace}
+                      onUnavailable={() => setMapDown(true)}
+                    />
+                    <p className="sf-hint">
+                      คนส่งของกดหมุดนี้นำทางได้เลย · ระบบเติมตำบล/อำเภอให้จากหมุด แก้เองได้ถ้าคลาด
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <label className="sf-label" style={{ marginTop: 12 }}>ลิงก์ Google Maps
+                      <input className="sf-input" value={mapsLink} onChange={e => setMapsLink(e.target.value)} inputMode="url" placeholder="https://maps.app.goo.gl/…" />
+                    </label>
+                    <p className="sf-hint">
+                      เปิด Google Maps → กดค้างที่หมุด → แชร์ → คัดลอกลิงก์ · ช่วยให้คนส่งหาบ้านเจอเร็วขึ้นมาก
+                    </p>
+                  </>
+                )}
               </>
             )}
           </section>
-
-          {/* การ์ดอวยพร — ร้านต้องเปิดบริการ และลูกค้าต้องกดขอเอง */}
-          {giftCard && shipToOther && (
-            <section className="sf-fieldset">
-              <h2>การ์ดอวยพร</h2>
-              <label className="sf-switch">
-                <input type="checkbox" checked={wantCard} onChange={e => setWantCard(e.target.checked)} />
-                <span className="sf-switch-box" aria-hidden="true" />
-                <span>
-                  <b>แนบการ์ดอวยพรไปกับของ</b>
-                  <small>ร้านเขียนข้อความของคุณลงการ์ดให้</small>
-                </span>
-              </label>
-
-              {wantCard && (<div style={{ marginTop: 14 }}>
-              <label className="sf-label">ข้อความบนการ์ด
-                <textarea
-                  className="sf-input" rows={4} maxLength={220}
-                  value={giftMessage} onChange={e => setGiftMessage(e.target.value)}
-                  placeholder="เช่น ขอบคุณสำหรับทุกอย่างในปีที่ผ่านมา ขอให้สุขภาพแข็งแรงนะครับ"
-                />
-              </label>
-              <p className={`sf-hint${giftMessage.length > 200 ? ' sf-error' : ''}`} style={{ textAlign: 'right', marginTop: -4 }}>
-                {giftMessage.length} / 220
-              </p>
-
-              <div className="sf-field-row">
-                <label className="sf-label">ถึง
-                  <input className="sf-input" value={giftTo} onChange={e => setGiftTo(e.target.value)} placeholder={rcpName || 'ชื่อที่จะขึ้นบนการ์ด'} />
-                </label>
-                <label className="sf-label">จาก
-                  <input className="sf-input" value={giftFrom} onChange={e => setGiftFrom(e.target.value)} placeholder={name || 'ชื่อผู้ให้'} />
-                </label>
-              </div>
-
-              </div>)}
-            </section>
-          )}
-
-          {/* ราคาติดไปกับของขวัญคือหายนะที่แก้ทีหลังไม่ได้ — แยกออกจากการ์ด
-              เพราะไม่แนบการ์ดก็ยังต้องซ่อนราคาได้ */}
-          {shipToOther && (
-            <section className="sf-fieldset">
-              <h2>เอกสารที่แนบไปกับของ</h2>
-              <label className="sf-switch">
-                <input type="checkbox" checked={giftHidePrice} onChange={e => setGiftHidePrice(e.target.checked)} />
-                <span className="sf-switch-box" aria-hidden="true" />
-                <span>
-                  <b>ไม่แนบใบเสร็จและราคาไปกับของ</b>
-                  <small>ใบเสร็จส่งให้ผู้สั่งแทน</small>
-                </span>
-              </label>
-            </section>
-          )}
 
           {(dateEnabled || slotEnabled) && (
             <section className="sf-fieldset sf-fieldset-accent">
@@ -633,39 +615,93 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
             </section>
           )}
 
+          {/* ตัวเลือกเสริม — สามอย่างนี้ลูกค้าส่วนใหญ่ไม่แตะ รวมไว้การ์ดเดียว
+              ให้สิ่งที่ทุกคนต้องกรอก (ที่อยู่ วันเวลาส่ง) เด่นกว่าของที่เลือกได้ */}
           <section className="sf-fieldset">
-            <div className="sf-fieldset-head">
-              <h2>ใบกำกับภาษี</h2>
-              {taxInvoice && (
-                <button type="button" className="sf-btn-ghost sf-btn-sm" onClick={fillTaxFromBuyer}>
-                  <Copy strokeWidth={1.75} aria-hidden="true" />ใช้ที่อยู่ผู้สั่ง
-                </button>
-              )}
-            </div>
-            <label className="sf-switch">
-              <input type="checkbox" checked={taxInvoice} onChange={e => setTaxInvoice(e.target.checked)} />
-              <span className="sf-switch-box" aria-hidden="true" />
-              <span>
-                <b>ต้องการใบกำกับภาษีเต็มรูปแบบ</b>
-                <small>ออกในนามผู้สั่งซื้อ ไม่ใช่ผู้รับของ</small>
-              </span>
-            </label>
+            <h2>ตัวเลือกเสริม</h2>
 
-            {taxInvoice && (
-              <div style={{ marginTop: 14 }}>
-                <label className="sf-label">ชื่อผู้เสียภาษี / ชื่อบริษัท *
-                  <input ref={taxNameRef} className="sf-input" value={taxName} onChange={e => setTaxName(e.target.value)} placeholder="บริษัท ตัวอย่าง จำกัด" />
+            {giftCard && shipToOther && (
+              <div className="sf-opt">
+                <label className="sf-switch">
+                  <input type="checkbox" checked={wantCard} onChange={e => setWantCard(e.target.checked)} />
+                  <span className="sf-switch-box" aria-hidden="true" />
+                  <span>
+                    <b>แนบการ์ดอวยพรไปกับของ</b>
+                    <small>ร้านเขียนข้อความของคุณลงการ์ดให้</small>
+                  </span>
                 </label>
-                <div className="sf-field-row">
-                  <label className="sf-label">เลขประจำตัวผู้เสียภาษี *
-                    <input ref={taxIdRef} className="sf-input" value={taxId} onChange={e => setTaxId(e.target.value)} inputMode="numeric" placeholder="13 หลัก" />
+
+                {wantCard && (<div className="sf-opt-body">
+                  <label className="sf-label">ข้อความบนการ์ด
+                    <textarea
+                      className="sf-input" rows={4} maxLength={220}
+                      value={giftMessage} onChange={e => setGiftMessage(e.target.value)}
+                      placeholder="เช่น ขอบคุณสำหรับทุกอย่างในปีที่ผ่านมา ขอให้สุขภาพแข็งแรงนะครับ"
+                    />
                   </label>
-                  <label className="sf-label">สาขา
-                    <input className="sf-input" value={taxBranch} onChange={e => setTaxBranch(e.target.value)} placeholder="สำนักงานใหญ่" />
+                  <p className={`sf-hint${giftMessage.length > 200 ? ' sf-error' : ''}`} style={{ textAlign: 'right', marginTop: -4 }}>
+                    {giftMessage.length} / 220
+                  </p>
+
+                  <div className="sf-field-row">
+                    <label className="sf-label">ถึง
+                      <input className="sf-input" value={giftTo} onChange={e => setGiftTo(e.target.value)} placeholder={rcpName || 'ชื่อที่จะขึ้นบนการ์ด'} />
+                    </label>
+                    <label className="sf-label">จาก
+                      <input className="sf-input" value={giftFrom} onChange={e => setGiftFrom(e.target.value)} placeholder={name || 'ชื่อผู้ให้'} />
+                    </label>
+                  </div>
+
+                </div>)}
+              </div>
+            )}
+
+            <div className="sf-opt">
+              <label className="sf-switch">
+                <input type="checkbox" checked={taxInvoice} onChange={e => setTaxInvoice(e.target.checked)} />
+                <span className="sf-switch-box" aria-hidden="true" />
+                <span>
+                  <b>ต้องการใบกำกับภาษีเต็มรูปแบบ</b>
+                  <small>ออกในนามผู้สั่งซื้อ ไม่ใช่ผู้รับของ</small>
+                </span>
+              </label>
+
+              {taxInvoice && (
+                <div className="sf-opt-body">
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
+                    <button type="button" className="sf-btn-ghost sf-btn-sm" onClick={fillTaxFromBuyer}>
+                      <Copy strokeWidth={1.75} aria-hidden="true" />ใช้ที่อยู่ผู้สั่ง
+                    </button>
+                  </div>
+                  <label className="sf-label">ชื่อผู้เสียภาษี / ชื่อบริษัท *
+                    <input ref={taxNameRef} className="sf-input" value={taxName} onChange={e => setTaxName(e.target.value)} placeholder="บริษัท ตัวอย่าง จำกัด" />
+                  </label>
+                  <div className="sf-field-row">
+                    <label className="sf-label">เลขประจำตัวผู้เสียภาษี *
+                      <input ref={taxIdRef} className="sf-input" value={taxId} onChange={e => setTaxId(e.target.value)} inputMode="numeric" placeholder="13 หลัก" />
+                    </label>
+                    <label className="sf-label">สาขา
+                      <input className="sf-input" value={taxBranch} onChange={e => setTaxBranch(e.target.value)} placeholder="สำนักงานใหญ่" />
+                    </label>
+                  </div>
+                  <label className="sf-label">ที่อยู่ออกใบกำกับภาษี *
+                    <textarea ref={taxAddrRef} className="sf-input" rows={3} value={taxAddress} onChange={e => setTaxAddress(e.target.value)} placeholder="ที่อยู่ตามหนังสือรับรอง — คนละที่กับที่อยู่จัดส่งได้" />
                   </label>
                 </div>
-                <label className="sf-label">ที่อยู่ออกใบกำกับภาษี *
-                  <textarea ref={taxAddrRef} className="sf-input" rows={3} value={taxAddress} onChange={e => setTaxAddress(e.target.value)} placeholder="ที่อยู่ตามหนังสือรับรอง — คนละที่กับที่อยู่จัดส่งได้" />
+              )}
+            </div>
+
+            {/* ราคาติดไปกับของขวัญคือหายนะที่แก้ทีหลังไม่ได้ — แยกสวิตช์ของตัวเอง
+                เพราะไม่แนบการ์ดก็ยังต้องซ่อนราคาได้ */}
+            {shipToOther && (
+              <div className="sf-opt">
+                <label className="sf-switch">
+                  <input type="checkbox" checked={giftHidePrice} onChange={e => setGiftHidePrice(e.target.checked)} />
+                  <span className="sf-switch-box" aria-hidden="true" />
+                  <span>
+                    <b>ไม่แนบใบเสร็จและราคาไปกับของ</b>
+                    <small>ใบเสร็จส่งให้ผู้สั่งแทน</small>
+                  </span>
                 </label>
               </div>
             )}
