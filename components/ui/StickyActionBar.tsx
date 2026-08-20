@@ -9,6 +9,7 @@
 
 import type { ReactNode } from 'react';
 import Button from './Button';
+import SaveButton from './SaveButton';
 
 interface StickyActionBarProps {
   onSave: () => void;
@@ -53,14 +54,13 @@ export default function StickyActionBar({
             </Button>
           )}
           {extraActions}
-          <Button
-            variant="primary"
+          <SaveButton
             loading={saving}
             disabled={disabled || (tracked && !dirty)}
             onClick={onSave}
           >
             {saveLabel}
-          </Button>
+          </SaveButton>
         </div>
       </div>
     </div>

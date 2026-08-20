@@ -16,6 +16,8 @@ interface CustomerProfile {
   phone: string | null;
   email: string | null;
   line_user_id: string | null;
+  /** รูปที่ซิงก์มาจากบัญชี Google/LINE (lib/customer-avatar) */
+  avatar_url: string | null;
 }
 
 interface OrderRow {
@@ -215,7 +217,12 @@ export default function AccountClient({ shop, shopName, lineLogin, lineChannelId
 
       <div className="sf-account-head">
         <div className="sf-account-id">
-          <UserRound strokeWidth={1.6} aria-hidden="true" />
+          {customer?.avatar_url ? (
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img className="sf-account-avatar" src={customer.avatar_url} alt="" aria-hidden="true" />
+          ) : (
+            <UserRound strokeWidth={1.6} aria-hidden="true" />
+          )}
           <div>
             <div className="sf-cart-name">{customer?.name || 'ลูกค้า'}</div>
             <div className="sf-hint">{customer?.email || customer?.phone || ''}</div>
@@ -257,7 +264,6 @@ export default function AccountClient({ shop, shopName, lineLogin, lineChannelId
                 <div className="sf-cart-unit">
                   {new Date(o.created_at).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })}
                   {' · '}{STATUS_LABEL[o.order_status] || o.order_status}
-                  {' · '}{PAYMENT_LABEL[o.payment_status] || o.payment_status}
                 </div>
                 {o.tracking_number && (
                   <div className="sf-cart-unit">
@@ -265,7 +271,14 @@ export default function AccountClient({ shop, shopName, lineLogin, lineChannelId
                   </div>
                 )}
               </div>
-              <div className="sf-cart-total">{formatStorePrice(o.total_amount)}</div>
+              {/* ยอดเงินกับสถานะการจ่ายเป็นคนละเรื่อง — วางคนละบรรทัดชิดขวา
+                  จะกวาดตาไล่ลงมาทีละคอลัมน์ได้ ไม่ต้องอ่านประโยคยาว ๆ ทั้งแถว */}
+              <div className="sf-order-meta">
+                <div className="sf-cart-total">{formatStorePrice(o.total_amount)}</div>
+                <span className={`sf-pay-badge sf-pay-${o.payment_status}`}>
+                  {PAYMENT_LABEL[o.payment_status] || o.payment_status}
+                </span>
+              </div>
               <ChevronRight strokeWidth={1.75} aria-hidden="true" />
             </Link>
           ))}

@@ -12,13 +12,10 @@ import { apiFetch } from '@/lib/api-client';
 import { generateInventoryPdf } from '@/lib/inventory-pdf';
 import { showPdfPreview } from '@/lib/print-pdf';
 import { QRCodeSVG } from 'qrcode.react';
-import {
-  Loader2, Warehouse, Package, ArrowRightLeft, CheckCircle2,
-  Clock, XCircle, AlertTriangle, Truck, User, FileText,
-  ArrowLeft, PackageCheck, Printer, Save, Link2, Copy, Check, Image as ImageIcon,
-} from 'lucide-react';
+import { Loader2, Warehouse, Package, ArrowRightLeft, CheckCircle2, Clock, XCircle, AlertTriangle, Truck, User, FileText, ArrowLeft, PackageCheck, Printer, Link2, Copy, Check, Image as ImageIcon } from 'lucide-react';
 import { flattenVariationItem, productDisplayName, productSubtitle } from '../../components/types';
 import Button from '@/components/ui/Button';
+import SaveButton from '@/components/ui/SaveButton';
 
 interface TransferItem {
   id: string;
@@ -518,14 +515,13 @@ export default function TransferDetailPage() {
             />
             {notesChanged && (
               <div className="flex justify-end mt-2">
-                <Button
+                <SaveButton
                   size="sm"
                   loading={savingNotes}
                   onClick={handleSaveNotes}
-                  icon={<Save className="w-4 h-4" />}
                 >
                   บันทึก
-                </Button>
+                </SaveButton>
               </div>
             )}
           </div>

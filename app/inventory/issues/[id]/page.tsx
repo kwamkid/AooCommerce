@@ -8,13 +8,11 @@ import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
 import { generateInventoryPdf } from '@/lib/inventory-pdf';
 import { showPdfPreview } from '@/lib/print-pdf';
-import {
-  Loader2, Warehouse, Package, ArrowLeft, User, CheckCircle2, XCircle,
-  Printer, Save,
-} from 'lucide-react';
+import { Loader2, Warehouse, Package, ArrowLeft, User, CheckCircle2, XCircle, Printer } from 'lucide-react';
 import { flattenVariationItem, productDisplayName } from '../../components/types';
 import ItemsTable, { type TableItem } from '@/components/ui/ItemsTable';
 import Button from '@/components/ui/Button';
+import SaveButton from '@/components/ui/SaveButton';
 
 interface IssueItem {
   id: string;
@@ -212,14 +210,13 @@ export default function IssueDetailPage() {
             />
             {notesChanged && (
               <div className="flex justify-end mt-2">
-                <Button
+                <SaveButton
                   size="sm"
                   loading={saving}
                   onClick={handleSaveNotes}
-                  icon={<Save className="w-4 h-4" />}
                 >
                   บันทึก
-                </Button>
+                </SaveButton>
               </div>
             )}
           </div>

@@ -1092,3 +1092,19 @@
   padding: 16px 12px; margin-bottom: 18px;
   border: 1px solid var(--sf-border); border-radius: var(--sf-radius); background: var(--sf-bg);
 }
+
+/* ── หน้าบัญชีของฉัน ────────────────────────────────────────────────── */
+.sf-account-avatar {
+  width: 42px; height: 42px; border-radius: 50%; object-fit: cover; flex-shrink: 0;
+  border: 1px solid var(--sf-border); background: var(--sf-surface);
+}
+/* ยอดเงิน (บน) + สถานะการจ่าย (ล่าง) ชิดขวาเป็นคอลัมน์เดียวกัน */
+.sf-order-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; margin-left: auto; }
+.sf-pay-badge {
+  display: inline-block; padding: 3px 9px; border-radius: 999px;
+  font-size: 12.5px; font-weight: 500; white-space: nowrap;
+}
+.sf-pay-pending   { background: #fff7ed; color: #c2410c; }
+.sf-pay-verifying { background: #f5f3ff; color: #6d28d9; }
+.sf-pay-paid      { background: #f0fdf4; color: #15803d; }
+.sf-pay-cancelled { background: #f3f4f6; color: #4b5563; }
