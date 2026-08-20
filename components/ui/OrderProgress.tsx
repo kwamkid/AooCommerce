@@ -11,18 +11,23 @@ import { getOrderProgress } from '@/lib/order-progress';
 
 interface Props {
   order: { order_status: string; payment_status: string; is_cancelled?: boolean | null; is_expired?: boolean | null };
-  /** สีแบรนด์ของร้าน — ใช้กับขั้นที่กำลังทำอยู่ */
-  accent?: string;
   dark?: boolean;
 }
 
-export default function OrderProgress({ order, accent = '#F4511E', dark = false }: Props) {
+export default function OrderProgress({ order, dark = false }: Props) {
   const { steps, cancelled, cancelledLabel } = getOrderProgress(order);
 
   const muted = dark ? '#94a3b8' : '#9ca3af';
   const text = dark ? '#e2e8f0' : '#111827';
   const line = dark ? '#334155' : '#e5e7eb';
-  const doneColor = '#15803d';
+  // อ่านสีผ่าน CSS variable เพื่อให้ลองสีสดได้จากแผง ColorLab ตอน dev
+  // (ค่าหลัง comma คือค่าจริงที่ใช้ใน production)
+  const doneColor = 'var(--op-done, #15803d)';
+  // ขั้นที่กำลังทำอยู่ใช้สีกลาง ไม่ใช่สีแบรนด์ร้าน — ร้านที่แบรนด์เป็นโทนแดง
+  // จะได้จุดแดงกลางแถบสถานะ ซึ่งอ่านเป็น "ผิดพลาด" ทั้งที่ทุกอย่างปกติดี
+  const currentColor = dark ? 'var(--op-current-dark, #e2e8f0)' : 'var(--op-current, #1f2937)';
+  const currentInk = dark ? '#0f172a' : '#ffffff';
+  const currentRing = `color-mix(in srgb, ${currentColor} 16%, transparent)`;
 
   if (cancelled) {
     return (
@@ -46,7 +51,7 @@ export default function OrderProgress({ order, accent = '#F4511E', dark = false 
       style={{ display: 'flex', listStyle: 'none', margin: 0, padding: 0, width: '100%' }}
     >
       {steps.map((s, i) => {
-        const color = s.state === 'done' ? doneColor : s.state === 'current' ? accent : muted;
+        const color = s.state === 'done' ? doneColor : s.state === 'current' ? currentColor : muted;
         const filled = s.state !== 'todo';
         return (
           <li
@@ -63,10 +68,10 @@ export default function OrderProgress({ order, accent = '#F4511E', dark = false 
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   border: `2px solid ${color}`,
                   background: filled ? color : 'transparent',
-                  color: filled ? '#fff' : muted,
+                  color: filled ? (s.state === 'current' ? currentInk : '#fff') : muted,
                   fontSize: 13, fontWeight: 600, lineHeight: 1,
                   // ขั้นที่กำลังทำอยู่ต้องเด่นกว่าขั้นที่ผ่านมาแล้ว ไม่งั้นตาไปหยุดที่ขั้นสุดท้ายที่เป็นสีเขียว
-                  boxShadow: s.state === 'current' ? `0 0 0 4px color-mix(in srgb, ${accent} 20%, transparent)` : undefined,
+                  boxShadow: s.state === 'current' ? `0 0 0 4px ${currentRing}` : undefined,
                 }}
               >
                 {s.state === 'done' ? <Check size={14} strokeWidth={3} aria-hidden="true" /> : i + 1}
@@ -83,7 +88,7 @@ export default function OrderProgress({ order, accent = '#F4511E', dark = false 
             >
               {s.label}
               {s.note && (
-                <span style={{ display: 'block', fontSize: 11.5, marginTop: 1, color: s.state === 'current' ? accent : muted, fontWeight: 400 }}>
+                <span style={{ display: 'block', fontSize: 11.5, marginTop: 1, color: muted, fontWeight: 400 }}>
                   {s.note}
                 </span>
               )}

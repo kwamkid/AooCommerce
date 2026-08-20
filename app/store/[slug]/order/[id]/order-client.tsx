@@ -163,7 +163,7 @@ export default function OrderClient({ shop, initialOrder }: { shop: string; init
       {/* สั่งซื้อจบไปแล้ว — แถบที่ลูกค้าอยากเห็นตรงนี้คือ "ออเดอร์ถึงไหนแล้ว"
           ไม่ใช่ ตะกร้า→ที่อยู่→ชำระเงิน ที่เดินผ่านมาหมดแล้ว */}
       <div className="sf-order-progress">
-        <OrderProgress order={order} accent="var(--sf-primary)" />
+        <OrderProgress order={order} />
       </div>
       <div className="sf-order-head">
         <CheckCircle2 className="sf-order-check" strokeWidth={1.6} aria-hidden="true" />

@@ -5,6 +5,7 @@ import { AuthProvider } from '@/lib/auth-context';
 import { CompanyProvider } from '@/lib/company-context';
 import { ToastProvider } from '@/lib/toast-context';
 import { ThemeProvider } from '@/lib/theme-context';
+import ColorLab from '@/components/dev/ColorLab';
 import { FeaturesProvider } from '@/lib/features-context';
 import { HeaderSummaryProvider } from '@/lib/header-summary-context';
 import './globals.css';
@@ -51,6 +52,8 @@ export default function RootLayout({
         `}} />
       </head>
       <body className={`${ibmPlexSansThai.className} ${sarabun.variable}`} suppressHydrationWarning>
+        {/* แผงลองสีสำหรับ dev — ไม่ render ใน production (เช็คใน component) */}
+        <ColorLab />
         <ThemeProvider>
           <AuthProvider>
             <CompanyProvider>
