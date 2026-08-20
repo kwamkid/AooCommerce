@@ -122,8 +122,20 @@ export async function POST(request: NextRequest) {
       }).eq('id', paymentRecord.id);
 
       // Update order payment_status to paid
+      //
+      // เลื่อน order_status ด้วย (new → ready_to_ship) ให้ตรงกับทางแจ้งโอนสลิป
+      // ใน /api/bills — ไม่งั้นออเดอร์ที่ "จ่ายเงินเข้ามาจริงแล้ว" จะค้างอยู่แท็บ
+      // "ใหม่" ขณะที่ออเดอร์แนบสลิปที่ยังไม่ตรวจกลับไปอยู่ "รอกดรับ" ก่อน
+      // (ลูกค้าฝั่งหน้าร้านก็จะเห็นแถบสถานะไม่ขยับทั้งที่ตัดบัตรผ่านแล้ว)
+      const { data: paidOrder } = await supabaseAdmin
+        .from('orders')
+        .select('order_status')
+        .eq('id', paymentRecord.order_id)
+        .single();
+
       await supabaseAdmin.from('orders').update({
         payment_status: 'paid',
+        ...(paidOrder?.order_status === 'new' ? { order_status: 'ready_to_ship' } : {}),
         updated_at: new Date().toISOString(),
       }).eq('id', paymentRecord.order_id);
 

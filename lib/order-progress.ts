@@ -64,8 +64,10 @@ export function getOrderProgress(order: Input): OrderProgress {
       key: 'packing',
       label: 'เตรียมของ',
       // ready_to_ship เกิดขึ้นทันทีที่ลูกค้าแจ้งโอน — เงินยังไม่ได้ยืนยัน ยังไม่มีใครเตรียมของ
-      // ขั้นนี้จะ current ได้ก็ต่อเมื่อร้านยืนยันเงินแล้วเท่านั้น
-      state: packed ? 'done' : (paid && order.order_status === 'ready_to_ship') ? 'current' : 'todo',
+      // ขั้นนี้จะ current ได้ก็ต่อเมื่อร้านยืนยันเงินแล้ว (หรือ gateway ตัดเงินสำเร็จ)
+      // ผูกกับ "จ่ายแล้ว" ไม่ผูกกับ order_status ตัวใดตัวหนึ่ง — จ่ายผ่านบัตร/พร้อมเพย์
+      // ออเดอร์อาจยังเป็น new อยู่ชั่วครู่ก่อน webhook อัปเดต ห้ามแสดงว่าไม่มีอะไรคืบหน้า
+      state: packed ? 'done' : paid ? 'current' : 'todo',
     },
     {
       key: 'shipping',
