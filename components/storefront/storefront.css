@@ -1001,7 +1001,7 @@
    ไม่ใช่ข้อความของระบบ (เดิมใช้ขีดซ้ายซึ่งดูเป็น callout เตือนมากกว่าเป็นการ์ด) */
 .sf-card-msg {
   position: relative;
-  margin: 10px 0 6px; padding: 14px 16px 14px 38px;
+  margin: 14px 0 8px; padding: 14px 16px 14px 38px;
   border-radius: var(--sf-radius);
   background: color-mix(in srgb, var(--sf-primary) 6%, var(--sf-surface));
   white-space: pre-wrap; line-height: 1.65;

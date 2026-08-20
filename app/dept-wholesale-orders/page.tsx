@@ -20,6 +20,7 @@ import PaymentModal from '@/app/orders/components/PaymentModal';
 import ShipModal, { type ShipResult } from '@/components/ui/ShipModal';
 import { printOrder, type PrintType } from '@/components/ui/OrderPrintButtons';
 import { preOpenPrintWindow } from '@/lib/print-pdf';
+import { DEALER_ORDER_STATUS_LABEL } from '@/lib/order-status';
 
 interface WholesaleOrder {
   id: string;
@@ -51,10 +52,7 @@ const STATUS_TABS = [
   { key: 'cancelled', label: 'ยกเลิก' },
 ];
 
-const ORDER_STATUS_LABELS: Record<string, string> = {
-  new: 'ใหม่', ready_to_ship: 'รอคอนเฟิร์ม', processing: 'ที่ต้องจัดส่ง',
-  shipping: 'กำลังส่ง', completed: 'สำเร็จ', cancelled: 'ยกเลิก',
-};
+const ORDER_STATUS_LABELS = DEALER_ORDER_STATUS_LABEL;
 
 const PAYMENT_BADGE: Record<string, { label: string; cls: string }> = {
   pending: { label: 'รอชำระ', cls: 'text-orange-600 dark:text-orange-400' },

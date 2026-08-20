@@ -28,6 +28,7 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { ORDER_STATUS_LABEL } from '@/lib/order-status';
 import {
   Truck,
   MapPin,
@@ -511,7 +512,7 @@ export default function DeliverySummaryPage() {
   };
 
   const getOrderStatusLabel = (status: string): string => {
-    const labels: Record<string, string> = { new: 'ใหม่', ready_to_ship: 'รอกดรับ', processing: 'ที่ต้องจัดส่ง', shipping: 'กำลังส่ง', completed: 'สำเร็จ', cancelled: 'ยกเลิก' };
+    const labels = ORDER_STATUS_LABEL;
     return labels[status] || status;
   };
 

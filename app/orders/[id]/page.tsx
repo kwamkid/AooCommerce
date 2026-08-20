@@ -59,16 +59,17 @@ import { PLATFORM_ICONS, getTrackingUrl, getCarrierLabel } from '../components/t
 import { useCarriers } from '@/lib/carrier-lookup';
 import FormSelect from '@/components/ui/FormSelect';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
+import { ORDER_STATUS_LABEL, orderStatusLabel } from '@/lib/order-status';
 
 // Status badge components
 function OrderStatusBadge({ status }: { status: string }) {
   const statusConfig: Record<string, { label: string; color: string }> = {
-    new: { label: 'ใหม่', color: 'bg-blue-100 text-blue-700 dark:bg-blue-500/30 dark:text-blue-100' },
-    ready_to_ship: { label: 'รอกดรับออเดอร์', color: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-500/30 dark:text-cyan-100' },
-    processing: { label: 'ที่ต้องจัดส่ง', color: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-500/30 dark:text-indigo-100' },
-    shipping: { label: 'กำลังส่ง', color: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-500/30 dark:text-yellow-100' },
-    completed: { label: 'สำเร็จ', color: 'bg-green-100 text-green-700 dark:bg-green-500/30 dark:text-green-100' },
-    cancelled: { label: 'ยกเลิก', color: 'bg-red-100 text-red-700 dark:bg-red-500/30 dark:text-red-100' }
+    new: { label: ORDER_STATUS_LABEL.new, color: 'bg-blue-100 text-blue-700 dark:bg-blue-500/30 dark:text-blue-100' },
+    ready_to_ship: { label: ORDER_STATUS_LABEL.ready_to_ship, color: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-500/30 dark:text-cyan-100' },
+    processing: { label: ORDER_STATUS_LABEL.processing, color: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-500/30 dark:text-indigo-100' },
+    shipping: { label: ORDER_STATUS_LABEL.shipping, color: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-500/30 dark:text-yellow-100' },
+    completed: { label: ORDER_STATUS_LABEL.completed, color: 'bg-green-100 text-green-700 dark:bg-green-500/30 dark:text-green-100' },
+    cancelled: { label: ORDER_STATUS_LABEL.cancelled, color: 'bg-red-100 text-red-700 dark:bg-red-500/30 dark:text-red-100' }
   };
   const config = statusConfig[status] || statusConfig.new;
   return (
@@ -404,7 +405,7 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
 
   const getOrderStatusLabel = (status: string): string => {
     if (status === 'cancelled' && fullOrderData?.cancellation_reason === 'expired') return 'หมดอายุ';
-    const labels: Record<string, string> = { new: 'ใหม่', ready_to_ship: 'รอกดรับออเดอร์', processing: 'ที่ต้องจัดส่ง', shipping: 'กำลังส่ง', completed: 'สำเร็จ', cancelled: 'ยกเลิก' };
+    const labels = ORDER_STATUS_LABEL;
     return labels[status] || status;
   };
 
@@ -1202,10 +1203,10 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
         {!isMarketplaceOrder && (() => {
           const isManualReadOnly = orderStatus !== 'new' || paymentStatus !== 'pending';
           if (!isManualReadOnly) return null;
-          const statusLabels: Record<string, string> = { new: 'ใหม่', ready_to_ship: 'รอกดรับออเดอร์', processing: 'ที่ต้องจัดส่ง', shipping: 'กำลังส่ง', completed: 'สำเร็จ', cancelled: fullOrderData?.cancellation_reason === 'expired' ? 'หมดอายุ' : 'ยกเลิก' };
+          const statusLabel = (st: string) => orderStatusLabel(st, { expired: fullOrderData?.cancellation_reason === 'expired' });
           const paymentLabels: Record<string, string> = { pending: 'รอชำระ', verifying: 'รอตรวจสอบ', paid: 'ชำระแล้ว', cancelled: 'ยกเลิก' };
           const reasonMessage = orderStatus !== 'new'
-            ? `สถานะออเดอร์ "${statusLabels[orderStatus] || orderStatus}"`
+            ? `สถานะออเดอร์ "${statusLabel(orderStatus) || orderStatus}"`
             : `สถานะชำระเงิน "${paymentLabels[paymentStatus] || paymentStatus}"`;
           return (
             <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800/40 text-yellow-800 dark:text-yellow-300 px-4 py-3 rounded-lg text-sm print:hidden">
