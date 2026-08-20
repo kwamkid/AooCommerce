@@ -20,6 +20,7 @@ import { BEAM_CHANNELS } from '@/lib/constants/payment-gateway';
 import { saveQrImage } from '@/lib/utils/save-qr-image';
 import generatePayload from 'promptpay-qr';
 import { QRCodeSVG } from 'qrcode.react';
+import OrderProgress from '@/components/ui/OrderProgress';
 
 interface PromotionComponent {
   variation_id: string;
@@ -723,6 +724,15 @@ export default function BillClient({ orderId, initialBill }: { orderId: string; 
               </div>
             </div>
           </div>
+
+          {/* ลูกค้าถามบ่อยที่สุดคือ "ตอนนี้ถึงไหนแล้ว" — ป้ายสถานะสองอันด้านบน
+              บอกแค่ "คืออะไร" ไม่ได้บอก "ถึงไหน" · ใช้แถบเดียวกับหน้าร้าน
+              (lib/order-progress) สองหน้าจะได้ไม่พูดคนละเรื่อง */}
+          {!isExpired && !isCancelled && (
+            <div className={`rounded-lg border p-4 mb-5 print:hidden ${dark ? 'border-slate-700 bg-slate-800/40' : 'border-gray-200 bg-white'}`}>
+              <OrderProgress order={bill} dark={dark} />
+            </div>
+          )}
 
           {/* Expired banner */}
           {isExpired && (

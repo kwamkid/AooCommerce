@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import CheckoutSteps from '@/components/storefront/CheckoutSteps';
+import OrderProgress from '@/components/ui/OrderProgress';
 import Link from 'next/link';
 import { CheckCircle2, Copy, Check, Upload, CreditCard, Clock, Store, ReceiptText } from 'lucide-react';
 import { formatStorePrice, storefrontHref } from '@/lib/storefront';
@@ -174,7 +174,11 @@ export default function OrderClient({ shop, initialOrder }: { shop: string; init
 
   return (
     <div className="sf-container">
-      <CheckoutSteps shop={shop} current="pay" />
+      {/* สั่งซื้อจบไปแล้ว — แถบที่ลูกค้าอยากเห็นตรงนี้คือ "ออเดอร์ถึงไหนแล้ว"
+          ไม่ใช่ ตะกร้า→ที่อยู่→ชำระเงิน ที่เดินผ่านมาหมดแล้ว */}
+      <div className="sf-order-progress">
+        <OrderProgress order={order} accent="var(--sf-primary)" />
+      </div>
       <div className="sf-order-head">
         <CheckCircle2 className="sf-order-check" strokeWidth={1.6} aria-hidden="true" />
         <div>

@@ -1063,3 +1063,9 @@
 .sf-copybtn-done { border-color: #15803d; background: #f0fdf4; }
 .sf-copybtn-done .sf-copybtn-action { color: #15803d; }
 @media (prefers-reduced-motion: reduce) { .sf-copybtn { transition: none; } }
+
+/* ── แถบสถานะออเดอร์ (หน้าคำสั่งซื้อ) ─────────────────────────────── */
+.sf-order-progress {
+  padding: 16px 12px; margin-bottom: 18px;
+  border: 1px solid var(--sf-border); border-radius: var(--sf-radius); background: var(--sf-bg);
+}
