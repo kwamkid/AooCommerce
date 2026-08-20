@@ -134,6 +134,9 @@ interface RecipientAddress {
   province: string | null;
   postal_code: string | null;
   google_maps_link: string | null;
+  /** พิกัดจากหมุดแผนที่ (ถ้าลูกค้าปักมา) — คนส่งของใช้อันนี้จริง ไม่ได้อ่านที่อยู่ */
+  latitude?: number | null;
+  longitude?: number | null;
 }
 
 /**
@@ -157,7 +160,7 @@ export async function resolveShippingAddress(
 
   const { data: existing } = await supabaseAdmin
     .from('shipping_addresses')
-    .select('id, google_maps_link')
+    .select('id, google_maps_link, latitude')
     .eq('company_id', companyId)
     .eq('customer_id', customerId)
     .eq('address_line1', line1)
@@ -166,12 +169,15 @@ export async function resolveShippingAddress(
     .maybeSingle();
 
   if (existing?.id) {
-    // เติมลิงก์แผนที่ให้ที่อยู่เดิมถ้าเพิ่งกรอกมาครั้งแรก — ของเดิมที่มีอยู่แล้วไม่ทับ
-    if (addr.google_maps_link && !existing.google_maps_link) {
-      await supabaseAdmin
-        .from('shipping_addresses')
-        .update({ google_maps_link: addr.google_maps_link })
-        .eq('id', existing.id);
+    // เติมลิงก์/พิกัดให้ที่อยู่เดิมถ้าเพิ่งได้มาครั้งแรก — ของเดิมที่มีอยู่แล้วไม่ทับ
+    const patch: Record<string, unknown> = {};
+    if (addr.google_maps_link && !existing.google_maps_link) patch.google_maps_link = addr.google_maps_link;
+    if (addr.latitude != null && addr.longitude != null && existing.latitude == null) {
+      patch.latitude = addr.latitude;
+      patch.longitude = addr.longitude;
+    }
+    if (Object.keys(patch).length) {
+      await supabaseAdmin.from('shipping_addresses').update(patch).eq('id', existing.id);
     }
     return existing.id;
   }
@@ -190,6 +196,8 @@ export async function resolveShippingAddress(
       province: addr.province,
       postal_code: addr.postal_code,
       google_maps_link: addr.google_maps_link,
+      latitude: addr.latitude ?? null,
+      longitude: addr.longitude ?? null,
       is_active: true,
     })
     .select('id')

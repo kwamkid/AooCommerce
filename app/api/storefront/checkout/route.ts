@@ -33,6 +33,8 @@ interface CheckoutBody {
   recipient_name?: string;
   recipient_phone?: string;
   google_maps_link?: string;
+  latitude?: number;
+  longitude?: number;
   /** การ์ดอวยพร */
   gift_message?: string;
   gift_to?: string;
@@ -250,7 +252,16 @@ export async function POST(request: NextRequest) {
   const postalCode = (body.postal_code || '').trim() || null;
   const mapsLink = (body.google_maps_link || '').trim();
   // รับเฉพาะลิงก์ http(s) — กัน javascript: ที่จะกลายเป็น XSS ตอนหลังบ้านกดเปิด
-  const safeMapsLink = /^https?:\/\//i.test(mapsLink) ? mapsLink.slice(0, 500) : null;
+  const rawMapsLink = /^https?:\/\//i.test(mapsLink) ? mapsLink.slice(0, 500) : null;
+
+  // พิกัดจากหมุดแผนที่ — public write path ห้ามเชื่อค่าที่ส่งมา ต้องเป็นตัวเลขในช่วงจริง
+  const lat = Number(body.latitude);
+  const lng = Number(body.longitude);
+  const hasCoords = Number.isFinite(lat) && Number.isFinite(lng)
+    && Math.abs(lat) <= 90 && Math.abs(lng) <= 180 && !(lat === 0 && lng === 0);
+  // ปักหมุดแล้วแต่ลิงก์หาย (ปิด JS กลางคัน ฯลฯ) → สร้างลิงก์จากพิกัดให้คนส่งของเอง
+  const safeMapsLink = rawMapsLink
+    || (hasCoords ? `https://www.google.com/maps/search/?api=1&query=${lat.toFixed(6)},${lng.toFixed(6)}` : null);
 
   // ออเดอร์ต้องผูกกับแถวลูกค้าเสมอ ไม่งั้นประวัติการสั่งซื้อของลูกค้าว่างเปล่า
   // (หน้า /account อ่านจาก customer_id) และหลังบ้านไม่รู้ว่าใครสั่ง
@@ -279,6 +290,8 @@ export async function POST(request: NextRequest) {
         address_line1: address,
         district, amphoe, province, postal_code: postalCode,
         google_maps_link: safeMapsLink,
+        latitude: hasCoords ? lat : null,
+        longitude: hasCoords ? lng : null,
       })
     : null;
 
