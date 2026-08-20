@@ -43,6 +43,7 @@ interface Props {
   slotEnabled: boolean;
   dateEnabled: boolean;
   giftCard: boolean;
+  giftCardFee: number;
   lineLogin: boolean;
   lineChannelId: string;
 }
@@ -65,7 +66,7 @@ function toISO(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEnabled, giftCard, lineLogin, lineChannelId }: Props) {
+export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEnabled, giftCard, giftCardFee, lineLogin, lineChannelId }: Props) {
   const router = useRouter();
   const { lines, subtotal, hydrated } = useCart(shop);
 
@@ -244,7 +245,8 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
   const shippingFee = options?.zone?.fee ?? 0;
   const needsQuote = options?.zone?.needs_quote ?? false;
   const outOfArea = !!options?.zone_required && hasArea && !options?.zone && !loadingOptions;
-  const total = subtotal + shippingFee;
+  const cardFee = cardOn && giftMessage.trim() ? giftCardFee : 0;
+  const total = subtotal + shippingFee + cardFee;
 
   const submit = async () => {
     setError('');
@@ -644,6 +646,13 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
                   : options?.zone?.free_applied ? 'ส่งฟรี'
                   : formatStorePrice(shippingFee)}
               </span>
+            </div>
+          )}
+
+          {cardFee > 0 && (
+            <div className="sf-summary-row">
+              <span>การ์ดอวยพร</span>
+              <span>{formatStorePrice(cardFee)}</span>
             </div>
           )}
 

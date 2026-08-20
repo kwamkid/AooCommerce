@@ -17,7 +17,7 @@ import { useCompany } from '@/lib/company-context';
 import { can } from '@/lib/permissions';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { apiFetch } from '@/lib/api-client';
-import { Plus, X, Save, Loader2, Tag, Edit2, Check, Trash2, AlertTriangle, Clock, Building2 } from 'lucide-react';
+import { Gift, Plus, X, Save, Loader2, Tag, Edit2, Check, Trash2, AlertTriangle, Clock, Building2 } from 'lucide-react';
 
 export default function SettingsPage() {
   const { userProfile } = useAuth();
@@ -25,6 +25,24 @@ export default function SettingsPage() {
   const { confirmDialog, confirm } = useConfirmDialog();
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+
+  // บริการการ์ดอวยพร — บันทึกทันทีที่เปลี่ยน ไม่มีปุ่มบันทึกรวมในการ์ดนี้
+  const [giftCard, setGiftCard] = useState({ enabled: false, fee: 0 });
+  useEffect(() => {
+    apiFetch('/api/settings/gift-card')
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (d) setGiftCard({ enabled: !!d.enabled, fee: Number(d.fee) || 0 }); })
+      .catch(() => { /* โหลดไม่ได้ก็ไม่ควรทำให้ทั้งหน้าพัง */ });
+  }, []);
+
+  const saveGiftCard = async (patch: { enabled?: boolean; fee?: number }) => {
+    const next = { ...giftCard, ...patch };
+    setGiftCard(next);
+    const res = await apiFetch('/api/settings/gift-card', { method: 'PUT', body: JSON.stringify(next) });
+    if (!res.ok) { setError('บันทึกการ์ดอวยพรไม่สำเร็จ'); return; }
+    setSuccess('บันทึกการ์ดอวยพรแล้ว');
+    setTimeout(() => setSuccess(''), 2500);
+  };
 
   // Variation Types Settings
   const [variationTypes, setVariationTypes] = useState<{ id: string; name: string; sort_order: number; is_active: boolean }[]>([]);
@@ -419,6 +437,47 @@ export default function SettingsPage() {
               >
                 บันทึก
               </Button>
+            </div>
+          )}
+        </Card>
+
+        {/* บริการเสริมของร้าน — ใช้ได้ทุกช่องทางที่สร้างออเดอร์ (หน้าร้านออนไลน์
+            และเปิดบิลเองจากแชท) จึงอยู่ตรงนี้ ไม่ใช่ในตั้งค่าหน้าร้านออนไลน์ */}
+        <Card padding="md">
+          <div className="flex items-center gap-2 mb-3">
+            <Gift className="w-5 h-5 text-primary" />
+            <h2 className="heading-3">การ์ดอวยพร</h2>
+            <span className="text-sm text-gray-500 dark:text-slate-400 ml-auto">
+              ลูกค้าขอแนบการ์ดพร้อมข้อความไปกับของได้
+            </span>
+          </div>
+
+          <div className="flex items-center justify-between gap-4">
+            <div className="min-w-0">
+              <p className="heading-4">เปิดบริการการ์ดอวยพร</p>
+              <p className="section-desc">
+                เปิดแล้วจะมีให้เลือกทั้งหน้าร้านออนไลน์และตอนเปิดบิลเอง —
+                ไม่ใช่ทุกออเดอร์ที่ใช้ ลูกค้าหรือพนักงานต้องกดขอเป็นรายออเดอร์
+              </p>
+            </div>
+            <Toggle
+              checked={giftCard.enabled}
+              onChange={(v) => saveGiftCard({ enabled: v })}
+              aria-label="เปิดบริการการ์ดอวยพร"
+            />
+          </div>
+
+          {giftCard.enabled && (
+            <div className="mt-4 pt-4 border-t border-gray-100 dark:border-slate-700 max-w-xs">
+              <FormInput
+                label="ค่าการ์ดต่อใบ"
+                type="number"
+                value={String(giftCard.fee)}
+                onChange={(e) => setGiftCard(g => ({ ...g, fee: Number(e.target.value) || 0 }))}
+                onBlur={() => saveGiftCard({ fee: giftCard.fee })}
+                postfix="บาท"
+                hint="ใส่ 0 = แถมฟรี · ยอดนี้จะไปบวกในบิลเป็นรายการแยก"
+              />
             </div>
           )}
         </Card>

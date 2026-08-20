@@ -8,6 +8,7 @@
 // share one fetch per request (same pattern as /bills/[id]).
 import { cache } from 'react';
 import { parseLineLogin } from '@/lib/line-login';
+import { parseGiftCard, type GiftCardSettings } from '@/lib/gift-card';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import {
   parseStorefront, effectivePrice,
@@ -38,6 +39,8 @@ export interface StorefrontCompany {
   line_oa: StorefrontLineOa | null;
   /** LINE Login channel ของร้าน — ว่าง = ยังไม่ได้ตั้งค่า */
   line_login_channel_id: string;
+  /** บริการการ์ดอวยพร — ตั้งที่ระดับร้าน ใช้ได้ทุกช่องทางที่สร้างออเดอร์ */
+  gift_card: GiftCardSettings;
 }
 
 export interface ClosedStorefront {
@@ -140,6 +143,7 @@ export const getStorefrontCompany = cache(async (slug: string): Promise<Storefro
     features: parseFeatures(settings).features,
     line_oa,
     line_login_channel_id,
+    gift_card: parseGiftCard(settings),
   };
 });
 

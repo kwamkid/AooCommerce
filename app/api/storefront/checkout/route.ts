@@ -218,7 +218,12 @@ export async function POST(request: NextRequest) {
   }
 
   // ── totals (VAT-inclusive pricing, same rule as the back-office order API) ──
-  const totalWithVat = itemsSubtotal + shippingFee;
+  // ⚠️ ราคาการ์ดอ่านจากการตั้งค่าร้าน ไม่ใช่จาก client — และคิดเฉพาะตอนที่ร้าน
+  // เปิดบริการจริงและลูกค้าขอมาพร้อมข้อความ
+  const wantsCard = company.gift_card.enabled && !!(body.gift_message || '').trim();
+  const giftCardFee = wantsCard ? company.gift_card.fee : 0;
+
+  const totalWithVat = itemsSubtotal + shippingFee + giftCardFee;
   const vatRegistered = await supabaseAdmin
     .from('companies').select('vat_registered').eq('id', company.id).single()
     .then(r => r.data?.vat_registered || false);
@@ -308,6 +313,7 @@ export async function POST(request: NextRequest) {
       gift_to: (body.gift_to || '').trim().slice(0, 120) || null,
       gift_from: (body.gift_from || '').trim().slice(0, 120) || null,
       gift_hide_price: !!body.gift_hide_price,
+      gift_card_fee: giftCardFee,
       // ใบกำกับภาษีออกในนามผู้สั่ง ไม่ใช่ผู้รับของ
       tax_invoice_requested: !!body.tax_invoice,
       tax_invoice_name: body.tax_invoice ? (body.tax_name || '').trim() || null : null,

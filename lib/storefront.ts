@@ -39,11 +39,6 @@ export interface StorefrontConfig {
    * ใช้ได้แค่ "ยืนยันตัวตน" อย่างเดียว — ร้านต้องเปิดเองโดยรู้ข้อจำกัดนี้
    */
   line_login: boolean;
-  /**
-   * ร้านมีบริการการ์ดอวยพรไหม — ปิดเป็นค่าเริ่มต้น ไม่ใช่ทุกแบรนด์มี
-   * เปิดแล้วก็ยังไม่ใช่ทุกออเดอร์ที่ใช้ ลูกค้าต้องกดขอเองอีกที
-   */
-  gift_card: boolean;
   // ── theme tokens ──
   /** สีแบรนด์ — ลิงก์ ราคา ไฮไลต์ */
   primary_color: string;
@@ -110,7 +105,6 @@ export const DEFAULT_STOREFRONT: StorefrontConfig = {
   public_base_path: '',
   allow_ai_crawlers: true,
   line_login: false,
-  gift_card: false,
   primary_color: '#F4511E',
   button_color: '',
   header_style: 'light',
@@ -135,7 +129,6 @@ export function parseStorefront(settings: Record<string, unknown> | null | undef
     public_base_path: normalizeBasePath(stored.public_base_path ?? DEFAULT_STOREFRONT.public_base_path),
     allow_ai_crawlers: stored.allow_ai_crawlers ?? DEFAULT_STOREFRONT.allow_ai_crawlers,
     line_login: stored.line_login ?? DEFAULT_STOREFRONT.line_login,
-    gift_card: stored.gift_card ?? DEFAULT_STOREFRONT.gift_card,
     primary_color: stored.primary_color ?? DEFAULT_STOREFRONT.primary_color,
     button_color: stored.button_color ?? DEFAULT_STOREFRONT.button_color,
     header_style: stored.header_style ?? DEFAULT_STOREFRONT.header_style,

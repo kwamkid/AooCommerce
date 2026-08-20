@@ -92,7 +92,6 @@ export async function PUT(request: NextRequest) {
     public_base_path: (body.public_base_path ?? current.public_base_path).trim(),
     allow_ai_crawlers: body.allow_ai_crawlers ?? current.allow_ai_crawlers,
     line_login: body.line_login ?? current.line_login,
-    gift_card: body.gift_card ?? current.gift_card,
     primary_color: color || current.primary_color,
     button_color: body.button_color !== undefined ? buttonColor : current.button_color,
     header_style: HEADER.has(body.header_style as string) ? body.header_style! : current.header_style,

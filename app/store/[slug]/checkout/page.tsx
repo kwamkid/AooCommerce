@@ -18,7 +18,8 @@ export default async function CheckoutPage({ params }: { params: Promise<{ slug:
   return (
     <CheckoutClient
       shop={slug}
-      giftCard={company.config.gift_card}
+      giftCard={company.gift_card.enabled}
+      giftCardFee={company.gift_card.fee}
       lineLogin={company.config.line_login && !!company.line_login_channel_id}
       lineChannelId={company.line_login_channel_id}
       zoneEnabled={company.features.delivery_zone}
