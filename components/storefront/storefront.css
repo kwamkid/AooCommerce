@@ -438,6 +438,9 @@
   background: color-mix(in srgb, var(--sf-primary) 9%, var(--sf-bg));
   border-color: color-mix(in srgb, var(--sf-primary) 22%, var(--sf-border));
 }
+/* การ์ดจัดส่งถึง — โทนเย็นกลาง ๆ ไม่ใช้สีแบรนด์ (แดงจางทั้งใบดูเหมือนฟอร์มผิดพลาด)
+   และเป็นพื้นให้ตัวเลือกฟ้า/ชมพูข้างในเด่นขึ้น ไม่แย่งสีกัน */
+.sf-fieldset-ship { background: #f4f6fa; border-color: #dbe1ea; }
 
 /* ── ส่งให้ตัวเอง / ส่งให้คนอื่น ─────────────────────────────────── */
 .sf-who { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
@@ -448,22 +451,25 @@
   border: 1px solid var(--sf-border); background: var(--sf-bg); color: var(--sf-text);
   font: inherit; cursor: pointer; transition: border-color .15s, background .15s;
 }
-.sf-who-btn:hover { border-color: var(--sf-primary); }
-/* ตัวที่เลือกอยู่ได้พื้นสีแบรนด์จาง ๆ ด้วย ไม่ใช่แค่เส้นขอบ — สองการ์ดขาว
-   ต่างกันแค่ขอบ ต้องเพ่งถึงเห็นว่าเลือกอันไหนอยู่ */
+/* สองตัวเลือกใช้คนละสี — จะได้อ่านสถานะจากสีได้ทันทีว่าโหมดไหนทำงานอยู่
+   ตั้งใจไม่ใช้สีแบรนด์: แบรนด์ส่วนใหญ่เป็นแดง/ส้ม การ์ดที่เลือกจะดูเหมือน error
+   · ส่งให้ตัวเอง = ฟ้า (เรื่องของฉัน) · ส่งให้คนอื่น = ชมพู (ของขวัญ) */
+.sf-who-self { --who: #2563eb; --who-bg: #eff6ff; }
+.sf-who-other { --who: #db2777; --who-bg: #fdf2f8; }
+.sf-who-btn:hover { border-color: var(--who); }
 .sf-who-on {
-  border-color: var(--sf-primary);
-  box-shadow: inset 0 0 0 1px var(--sf-primary);
-  background: color-mix(in srgb, var(--sf-primary) 14%, var(--sf-bg));
+  border-color: var(--who);
+  box-shadow: inset 0 0 0 1px var(--who);
+  background: var(--who-bg);
 }
 .sf-who-tick {
   width: 18px; height: 18px; border-radius: 999px; flex-shrink: 0; margin-top: 2px;
   border: 2px solid var(--sf-border);
   display: grid; place-items: center;
 }
-.sf-who-on .sf-who-tick { border-color: var(--sf-primary); }
+.sf-who-on .sf-who-tick { border-color: var(--who); }
 .sf-who-on .sf-who-tick::after {
-  content: ''; width: 9px; height: 9px; border-radius: 999px; background: var(--sf-primary);
+  content: ''; width: 9px; height: 9px; border-radius: 999px; background: var(--who);
 }
 .sf-who-btn b { display: block; font-weight: 600; font-size: 15px; }
 .sf-who-btn small { color: var(--sf-muted); font-size: 13px; }

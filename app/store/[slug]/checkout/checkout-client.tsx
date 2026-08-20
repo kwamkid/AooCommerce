@@ -424,20 +424,20 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
             </div>
           </section>
 
-          <section className="sf-fieldset">
+          <section className="sf-fieldset sf-fieldset-ship">
             <h2>จัดส่งถึง</h2>
 
             {/* สั่งไปกินเอง กับ สั่งไปให้คนอื่น เป็นคนละงานกัน — แยกให้ชัดตั้งแต่ต้น
                 ไม่งั้นลูกค้าจะกรอกชื่อตัวเองแล้วคนส่งของโทรผิดคน */}
             <div className="sf-who">
               {([
-                { key: false, title: 'ส่งให้ตัวเอง', desc: 'ใช้ชื่อและเบอร์ของผู้สั่ง' },
-                { key: true, title: 'ส่งให้คนอื่น', desc: 'เป็นของขวัญ แนบการ์ดได้' },
+                { key: false, cls: 'sf-who-self', title: 'ส่งให้ตัวเอง', desc: 'ใช้ชื่อและเบอร์ของผู้สั่ง' },
+                { key: true, cls: 'sf-who-other', title: 'ส่งให้คนอื่น', desc: 'เป็นของขวัญ แนบการ์ดได้' },
               ] as const).map(o => (
                 <button
                   key={String(o.key)}
                   type="button"
-                  className={`sf-who-btn${shipToOther === o.key ? ' sf-who-on' : ''}`}
+                  className={`sf-who-btn ${o.cls}${shipToOther === o.key ? ' sf-who-on' : ''}`}
                   aria-pressed={shipToOther === o.key}
                   onClick={() => setShipToOther(o.key)}
                 >
