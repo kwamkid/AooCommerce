@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import OrderProgress from '@/components/ui/OrderProgress';
+import { getOrderHeadline } from '@/lib/order-progress';
 import Link from 'next/link';
 import { CheckCircle2, Copy, Check, Upload, CreditCard, Clock, Store, ReceiptText, Gift, EyeOff, FileText } from 'lucide-react';
 import { formatStorePrice, storefrontHref } from '@/lib/storefront';
@@ -67,22 +68,6 @@ function bankLogo(code?: string | null): string | null {
   return THAI_BANKS.find(b => b.code === code)?.logo || null;
 }
 
-const STATUS_LABEL: Record<string, string> = {
-  new: 'รับคำสั่งซื้อแล้ว',
-  ready_to_ship: 'กำลังเตรียมของ',
-  processing: 'กำลังจัดของ',
-  shipping: 'กำลังจัดส่ง',
-  completed: 'จัดส่งสำเร็จ',
-  cancelled: 'ยกเลิกแล้ว',
-};
-
-const PAYMENT_LABEL: Record<string, string> = {
-  pending: 'รอชำระเงิน',
-  verifying: 'รอร้านตรวจสอบสลิป',
-  paid: 'ชำระเงินแล้ว',
-  cancelled: 'ยกเลิก',
-};
-
 export default function OrderClient({ shop, initialOrder }: { shop: string; initialOrder: StoreOrder }) {
   const [order, setOrder] = useState(initialOrder);
   const [copied, setCopied] = useState('');
@@ -103,6 +88,7 @@ export default function OrderClient({ shop, initialOrder }: { shop: string; init
   }, [shop, order.id, order.order_number, order.total_amount, order.order_date, order.created_at]);
 
   const verifying = order.payment_status === 'verifying';
+  const headline = getOrderHeadline(order);
 
   const hasExtras = !!(order.gift_card_requested || order.gift_message || order.gift_hide_price || order.tax_invoice_requested);
 
@@ -184,13 +170,10 @@ export default function OrderClient({ shop, initialOrder }: { shop: string; init
         <div>
           <h1>{verifying ? 'ได้รับสลิปแล้ว ขอบคุณครับ' : 'ขอบคุณสำหรับคำสั่งซื้อ'}</h1>
           <p>
+            {/* สถานะเดียวจากตัวเดียวกับหน้าบัญชี/บิลออนไลน์ (lib/order-progress)
+                เดิมพ่นทั้ง order_status และ payment_status ซึ่งขัดกันเองได้ */}
             เลขที่ <strong>{order.order_number}</strong> ·{' '}
-            {/* ระหว่างรอตรวจสลิป ห้ามพูดว่า "กำลังเตรียมของ" — ร้านยังไม่ได้ยืนยันเงิน
-                ลูกค้าจะเข้าใจว่าของออกแล้ว สถานะเดียวที่จริงตอนนี้คือรอตรวจสลิป */}
-            {!verifying && `${STATUS_LABEL[order.order_status] || order.order_status} · `}
-            <span className={order.payment_status === 'paid' ? 'sf-paid' : 'sf-unpaid'}>
-              {PAYMENT_LABEL[order.payment_status] || order.payment_status}
-            </span>
+            <span className={`sf-status-badge sf-status-${headline.tone}`}>{headline.label}</span>
           </p>
         </div>
       </div>

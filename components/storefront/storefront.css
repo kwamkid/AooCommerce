@@ -1103,11 +1103,15 @@
    (@container max-width:700px) สั่ง text-align:left ทับอยู่ ยอดจะเลื่อนไปซ้ายเอง */
 .sf-order-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; margin-left: auto; }
 .sf-order-amount { font-weight: 700; text-align: right; white-space: nowrap; }
-.sf-pay-badge {
+/* ป้ายสถานะเดียวของออเดอร์ (โทนมาจาก getOrderHeadline) — ใช้ทั้งหน้าบัญชี
+   และหัวหน้าคำสั่งซื้อ ห้ามมีป้ายสถานะที่สองในแถวเดียวกันอีก */
+.sf-status-badge {
   display: inline-block; padding: 3px 9px; border-radius: 999px;
   font-size: 12.5px; font-weight: 500; white-space: nowrap;
 }
-.sf-pay-pending   { background: #fff7ed; color: #c2410c; }
-.sf-pay-verifying { background: #f5f3ff; color: #6d28d9; }
-.sf-pay-paid      { background: #f0fdf4; color: #15803d; }
-.sf-pay-cancelled { background: #f3f4f6; color: #4b5563; }
+.sf-status-wait   { background: #fff7ed; color: #c2410c; }
+.sf-status-review { background: #f5f3ff; color: #6d28d9; }
+.sf-status-prep   { background: #eff6ff; color: #1d4ed8; }
+.sf-status-ship   { background: #fffbeb; color: #b45309; }
+.sf-status-done   { background: #f0fdf4; color: #15803d; }
+.sf-status-cancel { background: #f3f4f6; color: #4b5563; }

@@ -9,6 +9,7 @@ import { clearSession } from '@/lib/auth/session-manager';
 import { supabase } from '@/lib/supabase';
 import { formatStorePrice, storefrontHref } from '@/lib/storefront';
 import type { StorefrontLineOa } from '@/lib/storefront-server';
+import { getOrderHeadline } from '@/lib/order-progress';
 
 interface CustomerProfile {
   id: string;
@@ -32,22 +33,6 @@ interface OrderRow {
   tracking_number: string | null;
   shipping_carrier: string | null;
 }
-
-const STATUS_LABEL: Record<string, string> = {
-  new: 'รับคำสั่งซื้อแล้ว',
-  ready_to_ship: 'กำลังเตรียมของ',
-  processing: 'กำลังจัดของ',
-  shipping: 'จัดส่งแล้ว',
-  completed: 'จัดส่งสำเร็จ',
-  cancelled: 'ยกเลิก',
-};
-
-const PAYMENT_LABEL: Record<string, string> = {
-  pending: 'รอชำระเงิน',
-  verifying: 'รอตรวจสอบสลิป',
-  paid: 'ชำระแล้ว',
-  cancelled: 'ยกเลิก',
-};
 
 interface Props {
   shop: string;
@@ -263,7 +248,6 @@ export default function AccountClient({ shop, shopName, lineLogin, lineChannelId
                 <span className="sf-cart-name">{o.order_number}</span>
                 <div className="sf-cart-unit">
                   {new Date(o.created_at).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })}
-                  {' · '}{STATUS_LABEL[o.order_status] || o.order_status}
                 </div>
                 {o.tracking_number && (
                   <div className="sf-cart-unit">
@@ -275,9 +259,11 @@ export default function AccountClient({ shop, shopName, lineLogin, lineChannelId
                   จะกวาดตาไล่ลงมาทีละคอลัมน์ได้ ไม่ต้องอ่านประโยคยาว ๆ ทั้งแถว */}
               <div className="sf-order-meta">
                 <div className="sf-order-amount">{formatStorePrice(o.total_amount)}</div>
-                <span className={`sf-pay-badge sf-pay-${o.payment_status}`}>
-                  {PAYMENT_LABEL[o.payment_status] || o.payment_status}
-                </span>
+                {(() => {
+                  // สถานะเดียวจบ — ไม่ใช่ "กำลังเตรียมของ · รอตรวจสลิป" ที่ขัดกันเอง
+                  const st = getOrderHeadline(o);
+                  return <span className={`sf-status-badge sf-status-${st.tone}`}>{st.label}</span>;
+                })()}
               </div>
               <ChevronRight strokeWidth={1.75} aria-hidden="true" />
             </Link>

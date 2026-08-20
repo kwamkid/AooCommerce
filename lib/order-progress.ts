@@ -79,3 +79,31 @@ export function getOrderProgress(order: Input): OrderProgress {
 
   return { steps, cancelled: false };
 }
+
+/** โทนสีของสถานะ — ให้แต่ละหน้าไป map เป็นคลาส/สีของตัวเอง */
+export type StatusTone = 'wait' | 'review' | 'prep' | 'ship' | 'done' | 'cancel';
+
+/**
+ * สถานะเดียวที่ลูกค้าควรเห็น
+ *
+ * หน้าลูกค้าเคยโชว์ทั้ง order_status และ payment_status คู่กัน ("กำลังเตรียมของ ·
+ * รอตรวจสอบสลิป") ซึ่งนอกจากจะอ่านยากแล้วยังขัดกันเอง — ร้านยังไม่ได้ยืนยันเงิน
+ * แต่บอกว่าเตรียมของ · ลูกค้าสนใจอย่างเดียวว่า "ตอนนี้รออะไรอยู่"
+ *
+ * ลำดับความสำคัญ: ยกเลิก > ยังไม่ได้เงิน > ความคืบหน้าการส่ง
+ * (ยังไม่จ่าย = สิ่งที่ลูกค้าต้องลงมือทำเอง ต้องมาก่อนเสมอ)
+ */
+export function getOrderHeadline(order: Input): { label: string; tone: StatusTone } {
+  if (order.is_expired) return { label: 'หมดอายุแล้ว', tone: 'cancel' };
+  if (order.is_cancelled || order.order_status === 'cancelled') return { label: 'ยกเลิกแล้ว', tone: 'cancel' };
+
+  if (order.payment_status === 'pending') return { label: 'รอชำระเงิน', tone: 'wait' };
+  if (order.payment_status === 'verifying') return { label: 'รอร้านตรวจสลิป', tone: 'review' };
+
+  switch (order.order_status) {
+    case 'shipping': return { label: 'กำลังจัดส่ง', tone: 'ship' };
+    case 'completed': return { label: 'ส่งสำเร็จ', tone: 'done' };
+    case 'processing': return { label: 'กำลังจัดของ', tone: 'prep' };
+    default: return { label: 'กำลังเตรียมของ', tone: 'prep' };
+  }
+}
