@@ -13,6 +13,7 @@ import CheckoutAccountBar from '@/components/storefront/CheckoutAccountBar';
 import DateRangePicker from '@/components/ui/DateRangePicker';
 import FormSelect from '@/components/ui/FormSelect';
 import { searchAddress } from '@/lib/thai-address-data';
+import { parseThaiAddress } from '@/lib/address-parser';
 import MapAddressPicker, { mapPickerEnabled, type PickedPlace } from '@/components/ui/MapAddressPicker';
 
 interface SlotOption {
@@ -213,6 +214,27 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
 
   const hasArea = !!(province || postal);
   // การ์ดต้อง: ร้านเปิดบริการ + ส่งให้คนอื่น + ลูกค้ากดขอ
+  // ลูกค้าชอบส่งที่อยู่มาเป็นก้อนเดียว (จากแชท/โน้ตในมือถือ) — วางทีเดียวแล้ว
+  // แยก ตำบล/อำเภอ/จังหวัด/รหัสไปรษณีย์ ให้เลย เหลือไว้ในช่องแรกแค่บ้านเลขที่+ถนน
+  // ใช้ตัวแยกตัวเดียวกับหน้าเปิดบิลหลังบ้าน (lib/address-parser) — ที่อยู่จากลูกค้า
+  // คนเดียวกันจะได้ออกมาเหมือนกันทั้งสองทาง
+  const handleAddressPaste = useCallback((e: React.ClipboardEvent<HTMLInputElement>) => {
+    const pasted = e.clipboardData.getData('text');
+    if (pasted.trim().length <= 10) return;      // สั้น ๆ = พิมพ์เอง ไม่ต้องยุ่ง
+    const parsed = parseThaiAddress(pasted);
+    // แยกไม่ออกสักส่วน → ปล่อยให้วางตามปกติ ดีกว่าไปตัดที่อยู่ลูกค้าทิ้ง
+    if (!parsed || (!parsed.province && !parsed.postal_code)) return;
+    e.preventDefault();
+    setAddress(parsed.address || pasted.trim());
+    if (parsed.district) setDistrict(parsed.district);
+    if (parsed.amphoe) setAmphoe(parsed.amphoe);
+    if (parsed.province) setProvince(parsed.province);
+    if (parsed.postal_code) setPostal(parsed.postal_code);
+    setAddressQuery(
+      [parsed.district, parsed.amphoe, parsed.province, parsed.postal_code].filter(Boolean).join(' · '),
+    );
+  }, []);
+
   // ปักหมุดแล้วได้พื้นที่มาด้วย → เติมให้เลย ลูกค้าจะได้ไม่ต้องพิมพ์ซ้ำ
   // (บ้านเลขที่ไม่ทับของเดิม — Google ให้มาแค่ระดับถนน ของที่ลูกค้าพิมพ์เองละเอียดกว่าเสมอ)
   const handlePickPlace = useCallback((p: PickedPlace) => {
@@ -486,8 +508,18 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
             )}
 
             <label className="sf-label">บ้านเลขที่ / อาคาร / ถนน *
-              <input ref={addressRef} className="sf-input" value={address} onChange={e => setAddress(e.target.value)} placeholder="เช่น 123/45 ซอยสุขุมวิท 21" />
+              <input
+                ref={addressRef}
+                className="sf-input"
+                value={address}
+                onChange={e => setAddress(e.target.value)}
+                onPaste={handleAddressPaste}
+                placeholder="เช่น 123/45 ซอยสุขุมวิท 21"
+              />
             </label>
+            <p className="sf-hint" style={{ marginTop: -6 }}>
+              มีที่อยู่เต็ม ๆ อยู่แล้ว? วางทั้งก้อนตรงนี้ได้เลย — ระบบแยกตำบล อำเภอ จังหวัด รหัสไปรษณีย์ ให้เอง
+            </p>
 
             <label className="sf-label">ตำบล / อำเภอ / จังหวัด / รหัสไปรษณีย์ *
               <input
