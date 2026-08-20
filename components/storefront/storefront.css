@@ -963,3 +963,46 @@
    โดยไม่ต้องแตกเป็นการ์ดละใบ (การ์ดเยอะ = หน้ายาว = ลูกค้าเลื่อนผ่าน) */
 .sf-opt + .sf-opt { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--sf-border); }
 .sf-opt-body { margin-top: 14px; }
+
+/* ── ช่องแนบสลิป (ลากวาง/กดเลือก/วางจากคลิปบอร์ด) ─────────────────── */
+.sf-drop {
+  width: 100%; margin-top: 6px; padding: 26px 16px;
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  border: 2px dashed var(--sf-border); border-radius: var(--sf-radius);
+  background: var(--sf-surface); color: var(--sf-muted);
+  font: inherit; font-size: 15px; text-align: center; cursor: pointer;
+  margin-bottom: 12px;
+  transition: border-color .15s, color .15s, background .15s;
+}
+.sf-drop:hover:not(:disabled), .sf-drop-on { border-color: var(--sf-primary); color: var(--sf-text); background: var(--sf-bg); }
+.sf-drop:disabled { cursor: default; opacity: .6; }
+.sf-drop svg { width: 30px; height: 30px; }
+.sf-drop small { font-size: 13px; opacity: .8; }
+.sf-drop-spin { animation: sf-spin 1s linear infinite; }
+@keyframes sf-spin { to { transform: rotate(360deg); } }
+
+.sf-drop-preview { position: relative; margin: 6px 0 12px; }
+.sf-drop-preview img {
+  display: block; width: 100%; max-height: 300px; object-fit: contain;
+  border: 1px solid var(--sf-border); border-radius: var(--sf-radius); background: var(--sf-surface);
+}
+.sf-drop-clear {
+  position: absolute; top: 8px; right: 8px; width: 30px; height: 30px;
+  display: flex; align-items: center; justify-content: center;
+  border: none; border-radius: 999px; background: rgba(17, 24, 39, .62); color: #fff; cursor: pointer;
+}
+.sf-drop-clear svg { width: 17px; height: 17px; }
+
+/* ── แถวธนาคาร: โลโก้ + ยอดที่กดคัดลอกได้ ─────────────────────────── */
+.sf-bank-id { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.sf-bank-logo { width: 34px; height: 34px; border-radius: 8px; object-fit: contain; flex-shrink: 0; }
+.sf-bank-amount { width: 100%; font: inherit; text-align: left; cursor: pointer; }
+.sf-bank-amount .sf-bank-no { font-size: 17px; font-weight: 700; }
+
+/* ── ตัวเลือกเสริมที่ลูกค้าเลือกไว้ (หน้าคำสั่งซื้อ) ─────────────────── */
+.sf-extra + .sf-extra { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--sf-border); }
+.sf-card-msg {
+  margin: 6px 0 4px; padding: 10px 12px;
+  border-left: 3px solid var(--sf-primary); border-radius: 0 8px 8px 0;
+  background: var(--sf-surface); white-space: pre-wrap;
+}

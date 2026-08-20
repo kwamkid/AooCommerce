@@ -6,6 +6,8 @@ import Link from 'next/link';
 import { ChevronLeft, CheckCircle2, Copy, Check, Upload, CreditCard, Clock } from 'lucide-react';
 import { formatStorePrice, storefrontHref } from '@/lib/storefront';
 import { rememberOrder } from '@/lib/storefront-orders';
+import SlipDropzone from '@/components/storefront/SlipDropzone';
+import { THAI_BANKS } from '@/lib/constants/banks';
 
 export interface StoreOrder {
   id: string;
@@ -18,8 +20,17 @@ export interface StoreOrder {
   shipping_fee: number;
   total_amount: number;
   vat_registered: boolean;
-  created_at: string;
+  /** /api/bills คืน order_date — ไม่มี created_at (เคยทำ "Invalid Date" ในหน้าคำสั่งซื้อของฉัน) */
+  order_date?: string | null;
+  created_at?: string;
   notes?: string | null;
+  gift_message?: string | null;
+  gift_to?: string | null;
+  gift_from?: string | null;
+  gift_hide_price?: boolean | null;
+  gift_card_fee?: number | null;
+  tax_invoice_requested?: boolean | null;
+  tax_invoice_name?: string | null;
   delivery_name?: string | null;
   delivery_phone?: string | null;
   delivery_address?: string | null;
@@ -47,6 +58,12 @@ export interface StoreOrder {
     available_channels?: Array<{ code: string; fee_payer: string }>;
   }>;
   payment_record?: { status: string; slip_image_url?: string | null } | null;
+}
+
+/** โลโก้ธนาคารจากรายการกลาง — ไม่มี bank_code (พร้อมเพย์/เงินสด) ก็ไม่ต้องมีโลโก้ */
+function bankLogo(code?: string | null): string | null {
+  if (!code) return null;
+  return THAI_BANKS.find(b => b.code === code)?.logo || null;
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -80,9 +97,11 @@ export default function OrderClient({ shop, initialOrder }: { shop: string; init
       id: order.id,
       order_number: order.order_number,
       total: order.total_amount,
-      created_at: order.created_at,
+      created_at: order.order_date || order.created_at || new Date().toISOString(),
     });
-  }, [shop, order.id, order.order_number, order.total_amount, order.created_at]);
+  }, [shop, order.id, order.order_number, order.total_amount, order.order_date, order.created_at]);
+
+  const hasExtras = !!(order.gift_message || order.gift_hide_price || order.tax_invoice_requested);
 
   const copy = async (text: string, key: string) => {
     try {
@@ -185,11 +204,33 @@ export default function OrderClient({ shop, initialOrder }: { shop: string; init
               {transferChannels.length > 0 && (
                 <>
                   <p className="sf-hint" style={{ marginBottom: 10 }}>หรือโอนเข้าบัญชีร้าน แล้วแนบสลิป</p>
+
+                  {/* ยอดเงินต้องคัดลอกได้เหมือนเลขบัญชี — ลูกค้าพิมพ์ยอดเองผิดคือสาเหตุต้น ๆ
+                      ที่สลิปไม่ตรงบิล แล้วร้านต้องมาตามแก้ทีหลัง */}
+                  <button type="button" className="sf-bank sf-bank-amount" onClick={() => copy(order.total_amount.toFixed(2), 'amount')}>
+                    <div>
+                      <div className="sf-bank-name">ยอดที่ต้องโอน</div>
+                      <div className="sf-hint">กดเพื่อคัดลอกตัวเลข</div>
+                    </div>
+                    <span className="sf-copy">
+                      <span className="sf-bank-no">{formatStorePrice(order.total_amount)}</span>
+                      {copied === 'amount'
+                        ? <Check strokeWidth={2} aria-hidden="true" />
+                        : <Copy strokeWidth={1.75} aria-hidden="true" />}
+                    </span>
+                  </button>
+
                   {transferChannels.map((ch, i) => (
                     <div key={i} className="sf-bank">
-                      <div>
-                        <div className="sf-bank-name">{ch.name}</div>
-                        {ch.config?.account_name && <div className="sf-hint">{ch.config.account_name}</div>}
+                      <div className="sf-bank-id">
+                        {bankLogo(ch.config?.bank_code) && (
+                          /* eslint-disable-next-line @next/next/no-img-element */
+                          <img className="sf-bank-logo" src={bankLogo(ch.config?.bank_code)!} alt="" aria-hidden="true" />
+                        )}
+                        <div>
+                          <div className="sf-bank-name">{ch.name}</div>
+                          {ch.config?.account_name && <div className="sf-hint">{ch.config.account_name}</div>}
+                        </div>
                       </div>
                       {(ch.config?.account_number || ch.config?.promptpay_id) && (
                         <button type="button" className="sf-copy"
@@ -203,10 +244,12 @@ export default function OrderClient({ shop, initialOrder }: { shop: string; init
                     </div>
                   ))}
 
-                  <label className="sf-label" style={{ marginTop: 14 }}>แนบสลิปการโอน
-                    <input type="file" accept="image/*" className="sf-input"
-                      onChange={e => { setSlip(e.target.files?.[0] || null); setError(''); }} />
-                  </label>
+                  <label className="sf-label" style={{ marginTop: 14 }}>แนบสลิปการโอน</label>
+                  <SlipDropzone
+                    value={slip}
+                    onChange={f => { setSlip(f); setError(''); }}
+                    disabled={sending}
+                  />
                   <button type="button" className="sf-cta" style={{ width: '100%' }}
                     onClick={notifyPayment} disabled={sending || !slip}>
                     <Upload strokeWidth={2} aria-hidden="true" />
@@ -255,6 +298,44 @@ export default function OrderClient({ shop, initialOrder }: { shop: string; init
               {order.notes && <p className="sf-hint">หมายเหตุ: {order.notes}</p>}
             </div>
           </section>
+
+          {/* ── ตัวเลือกเสริมที่เลือกไว้ ──
+              ลูกค้าต้องได้เห็นสิ่งที่ตัวเองเลือกอีกครั้งหลังสั่ง โดยเฉพาะข้อความการ์ด
+              (สะกดผิดแล้วรู้ตอนนี้ยังทัน) และการซ่อนราคา (ถ้าพลาดคือของขวัญพัง) */}
+          {hasExtras && (
+            <section className="sf-fieldset">
+              <h2>ตัวเลือกที่เลือกไว้</h2>
+              <div className="sf-facts">
+                {order.gift_message && (
+                  <div className="sf-extra">
+                    <strong>การ์ดอวยพร</strong>
+                    <blockquote className="sf-card-msg">{order.gift_message}</blockquote>
+                    {(order.gift_to || order.gift_from) && (
+                      <p className="sf-hint">
+                        {order.gift_to ? `ถึง: ${order.gift_to}` : ''}
+                        {order.gift_to && order.gift_from ? ' · ' : ''}
+                        {order.gift_from ? `จาก: ${order.gift_from}` : ''}
+                      </p>
+                    )}
+                  </div>
+                )}
+                {order.gift_hide_price && (
+                  <div className="sf-extra">
+                    <strong>ไม่แนบใบเสร็จและราคาไปกับของ</strong>
+                    <p className="sf-hint">ใบเสร็จส่งให้ผู้สั่งแทน</p>
+                  </div>
+                )}
+                {order.tax_invoice_requested && (
+                  <div className="sf-extra">
+                    <strong>ใบกำกับภาษีเต็มรูปแบบ</strong>
+                    <p className="sf-hint">
+                      {order.tax_invoice_name ? `ออกในนาม ${order.tax_invoice_name}` : 'ร้านจะออกให้ตามข้อมูลที่กรอกไว้'}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </section>
+          )}
         </div>
 
         {/* ── สรุปรายการ ── */}

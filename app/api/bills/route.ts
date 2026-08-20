@@ -34,6 +34,8 @@ export async function GET(request: NextRequest) {
         delivery_name, delivery_phone, delivery_address,
         delivery_district, delivery_amphoe, delivery_province, delivery_postal_code, delivery_email,
         expires_at, cancellation_reason,
+        gift_message, gift_to, gift_from, gift_hide_price, gift_card_fee,
+        tax_invoice_requested, tax_invoice_name,
         customer:customers (
           name, contact_person, phone, email,
           billing_address, billing_district, billing_amphoe, billing_province, billing_postal_code,

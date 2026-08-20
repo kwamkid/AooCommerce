@@ -5,6 +5,20 @@ import { ChevronRight } from 'lucide-react';
 import { useStoredOrders } from '@/lib/storefront-orders';
 import { formatStorePrice, storefrontHref } from '@/lib/storefront';
 
+/**
+ * วันที่สั่ง — รายการเก่าที่เคยถูกจำไว้ตอน created_at ยังว่าง (bug เดิม) จะพัง
+ * ตรงนี้ ปล่อยว่างดีกว่าโชว์ "Invalid Date" ให้ลูกค้าเห็น
+ */
+function orderDate(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  return `${d.toLocaleDateString('th-TH', {
+    day: 'numeric', month: 'short', year: 'numeric',
+    hour: '2-digit', minute: '2-digit',
+  })} น.`;
+}
+
 export default function OrdersClient({ shop }: { shop: string }) {
   const { orders, hydrated } = useStoredOrders(shop);
 
@@ -35,12 +49,9 @@ export default function OrdersClient({ shop }: { shop: string }) {
               <Link key={o.id} href={storefrontHref(shop, `/order/${o.id}`)} className="sf-order-row">
                 <div className="sf-cart-info">
                   <span className="sf-cart-name">{o.order_number}</span>
-                  <div className="sf-cart-unit">
-                    {new Date(o.created_at).toLocaleDateString('th-TH', {
-                      day: 'numeric', month: 'short', year: 'numeric',
-                      hour: '2-digit', minute: '2-digit',
-                    })} น.
-                  </div>
+                  {orderDate(o.created_at) && (
+                    <div className="sf-cart-unit">{orderDate(o.created_at)}</div>
+                  )}
                 </div>
                 <div className="sf-cart-total">{formatStorePrice(o.total)}</div>
                 <ChevronRight strokeWidth={1.75} aria-hidden="true" />
