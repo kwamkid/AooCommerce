@@ -435,7 +435,7 @@
 /* การ์ดที่อยากให้สะดุดตากว่าการ์ดขาวรอบ ๆ (วัน-เวลาจัดส่ง) — อาบสีแบรนด์จาง ๆ
    ผสมจาก --sf-primary เพื่อให้ตามธีมของแต่ละร้านเอง ไม่ fix สีใดสีหนึ่ง */
 .sf-fieldset-accent {
-  background: color-mix(in srgb, var(--sf-primary) 5%, var(--sf-bg));
+  background: color-mix(in srgb, var(--sf-primary) 9%, var(--sf-bg));
   border-color: color-mix(in srgb, var(--sf-primary) 22%, var(--sf-border));
 }
 
@@ -454,7 +454,7 @@
 .sf-who-on {
   border-color: var(--sf-primary);
   box-shadow: inset 0 0 0 1px var(--sf-primary);
-  background: color-mix(in srgb, var(--sf-primary) 7%, var(--sf-bg));
+  background: color-mix(in srgb, var(--sf-primary) 14%, var(--sf-bg));
 }
 .sf-who-tick {
   width: 18px; height: 18px; border-radius: 999px; flex-shrink: 0; margin-top: 2px;
