@@ -1006,3 +1006,26 @@
   border-left: 3px solid var(--sf-primary); border-radius: 0 8px 8px 0;
   background: var(--sf-surface); white-space: pre-wrap;
 }
+
+/* ── บล็อกชำระเงิน: จอกว้างวางบัญชีคู่กับยอดที่ต้องโอน ─────────────── */
+.sf-pay-grid { display: grid; gap: 10px; }
+@container (min-width: 620px) { .sf-pay-grid { grid-template-columns: 1fr 1fr; } }
+.sf-pay-grid > * { margin: 0; }
+
+/* ── ปุ่มท้ายหน้าคำสั่งซื้อ ─────────────────────────────────────────── */
+.sf-order-actions .sf-cta { justify-content: center; }
+.sf-btn-tint {
+  justify-content: center;
+  border-color: color-mix(in srgb, var(--sf-primary) 45%, var(--sf-border));
+  color: var(--sf-primary);
+}
+.sf-btn-tint svg { color: var(--sf-primary); }
+.sf-btn-tint:hover { background: color-mix(in srgb, var(--sf-primary) 8%, var(--sf-bg)); }
+
+/* ── โลโก้ร้านใน footer ─────────────────────────────────────────────── */
+.sf-footer-logo { display: block; height: 42px; width: auto; max-width: 170px; object-fit: contain; margin-bottom: 10px; }
+/* คอลัมน์แคบกว่าเดิม — ชื่อธนาคารห้ามตัดคำกลางชื่อ ("กสิกร/ไทย") ให้เลขบัญชี
+   ตกบรรทัดใหม่แทน อ่านง่ายกว่าและยังกดคัดลอกได้เหมือนเดิม */
+.sf-pay-grid .sf-bank { flex-wrap: wrap; row-gap: 4px; }
+.sf-pay-grid .sf-bank-name { white-space: nowrap; }
+.sf-pay-grid .sf-bank-id { flex: 1 1 100%; }

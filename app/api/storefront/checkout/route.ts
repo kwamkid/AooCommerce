@@ -34,6 +34,7 @@ interface CheckoutBody {
   recipient_phone?: string;
   google_maps_link?: string;
   /** การ์ดอวยพร */
+  gift_card?: boolean;
   gift_message?: string;
   gift_to?: string;
   gift_from?: string;
@@ -220,7 +221,8 @@ export async function POST(request: NextRequest) {
   // ── totals (VAT-inclusive pricing, same rule as the back-office order API) ──
   // ⚠️ ราคาการ์ดอ่านจากการตั้งค่าร้าน ไม่ใช่จาก client — และคิดเฉพาะตอนที่ร้าน
   // เปิดบริการจริงและลูกค้าขอมาพร้อมข้อความ
-  const wantsCard = company.gift_card.enabled && !!(body.gift_message || '').trim();
+  // ติ๊กขอการ์ดแต่ไม่พิมพ์ข้อความก็ยังต้องแนบการ์ดให้ — เก็บเจตนาแยกจากข้อความ
+  const wantsCard = company.gift_card.enabled && (!!body.gift_card || !!(body.gift_message || '').trim());
   const giftCardFee = wantsCard ? company.gift_card.fee : 0;
 
   const totalWithVat = itemsSubtotal + shippingFee + giftCardFee;
@@ -309,6 +311,7 @@ export async function POST(request: NextRequest) {
       delivery_province: province,
       delivery_postal_code: postalCode,
       // การ์ดอวยพร — เก็บแยกจาก notes เพราะต้องพิมพ์ใบการ์ดและค้นหาได้
+      gift_card_requested: wantsCard,
       gift_message: (body.gift_message || '').trim().slice(0, 500) || null,
       gift_to: (body.gift_to || '').trim().slice(0, 120) || null,
       gift_from: (body.gift_from || '').trim().slice(0, 120) || null,

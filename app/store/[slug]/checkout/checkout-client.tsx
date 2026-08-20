@@ -353,6 +353,7 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
           recipient_name: rcpName.trim(),
           recipient_phone: rcpPhone.trim(),
           google_maps_link: mapsLink.trim(),
+          gift_card: cardOn,
           gift_message: cardOn ? giftMessage.trim() : '',
           gift_to: cardOn ? (giftTo.trim() || rcpName.trim()) : '',
           gift_from: cardOn ? (giftFrom.trim() || name.trim()) : '',

@@ -72,6 +72,14 @@ export default async function StoreLayout({
       <footer className="sf-footer">
         <div className="sf-container sf-footer-inner">
           <div>
+            {(cfg.logo_url || company.logo_url) && (
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img
+                className="sf-footer-logo"
+                src={cfg.logo_url || company.logo_url || ''}
+                alt={shopName}
+              />
+            )}
             <div className="sf-footer-title">{shopName}</div>
             {cfg.tagline && <p className="sf-footer-text">{cfg.tagline}</p>}
             {company.address && <p className="sf-footer-text">{company.address}</p>}

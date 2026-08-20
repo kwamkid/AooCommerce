@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import CheckoutSteps from '@/components/storefront/CheckoutSteps';
 import Link from 'next/link';
-import { ChevronLeft, CheckCircle2, Copy, Check, Upload, CreditCard, Clock } from 'lucide-react';
+import { CheckCircle2, Copy, Check, Upload, CreditCard, Clock, Store, ReceiptText } from 'lucide-react';
 import { formatStorePrice, storefrontHref } from '@/lib/storefront';
 import { rememberOrder } from '@/lib/storefront-orders';
 import SlipDropzone from '@/components/storefront/SlipDropzone';
@@ -24,6 +24,7 @@ export interface StoreOrder {
   order_date?: string | null;
   created_at?: string;
   notes?: string | null;
+  gift_card_requested?: boolean | null;
   gift_message?: string | null;
   gift_to?: string | null;
   gift_from?: string | null;
@@ -101,7 +102,7 @@ export default function OrderClient({ shop, initialOrder }: { shop: string; init
     });
   }, [shop, order.id, order.order_number, order.total_amount, order.order_date, order.created_at]);
 
-  const hasExtras = !!(order.gift_message || order.gift_hide_price || order.tax_invoice_requested);
+  const hasExtras = !!(order.gift_card_requested || order.gift_message || order.gift_hide_price || order.tax_invoice_requested);
 
   const copy = async (text: string, key: string) => {
     try {
@@ -205,21 +206,9 @@ export default function OrderClient({ shop, initialOrder }: { shop: string; init
                 <>
                   <p className="sf-hint" style={{ marginBottom: 10 }}>หรือโอนเข้าบัญชีร้าน แล้วแนบสลิป</p>
 
-                  {/* ยอดเงินต้องคัดลอกได้เหมือนเลขบัญชี — ลูกค้าพิมพ์ยอดเองผิดคือสาเหตุต้น ๆ
-                      ที่สลิปไม่ตรงบิล แล้วร้านต้องมาตามแก้ทีหลัง */}
-                  <button type="button" className="sf-bank sf-bank-amount" onClick={() => copy(order.total_amount.toFixed(2), 'amount')}>
-                    <div>
-                      <div className="sf-bank-name">ยอดที่ต้องโอน</div>
-                      <div className="sf-hint">กดเพื่อคัดลอกตัวเลข</div>
-                    </div>
-                    <span className="sf-copy">
-                      <span className="sf-bank-no">{formatStorePrice(order.total_amount)}</span>
-                      {copied === 'amount'
-                        ? <Check strokeWidth={2} aria-hidden="true" />
-                        : <Copy strokeWidth={1.75} aria-hidden="true" />}
-                    </span>
-                  </button>
-
+                  {/* จอกว้างวางบัญชีคู่กับยอด — ลูกค้าคัดลอกเลขบัญชีแล้วคัดลอกยอดต่อได้เลย
+                      โดยไม่ต้องเลื่อนจอ (จอแคบเรียงลงมาตามปกติ) */}
+                  <div className="sf-pay-grid">
                   {transferChannels.map((ch, i) => (
                     <div key={i} className="sf-bank">
                       <div className="sf-bank-id">
@@ -243,6 +232,22 @@ export default function OrderClient({ shop, initialOrder }: { shop: string; init
                       )}
                     </div>
                   ))}
+
+                  {/* ยอดเงินต้องคัดลอกได้เหมือนเลขบัญชี — ลูกค้าพิมพ์ยอดเองผิดคือสาเหตุต้น ๆ
+                      ที่สลิปไม่ตรงบิล แล้วร้านต้องมาตามแก้ทีหลัง */}
+                  <button type="button" className="sf-bank sf-bank-amount" onClick={() => copy(order.total_amount.toFixed(2), 'amount')}>
+                    <div>
+                      <div className="sf-bank-name">ยอดที่ต้องโอน</div>
+                      <div className="sf-hint">กดเพื่อคัดลอกตัวเลข</div>
+                    </div>
+                    <span className="sf-copy">
+                      <span className="sf-bank-no">{formatStorePrice(order.total_amount)}</span>
+                      {copied === 'amount'
+                        ? <Check strokeWidth={2} aria-hidden="true" />
+                        : <Copy strokeWidth={1.75} aria-hidden="true" />}
+                    </span>
+                  </button>
+                  </div>
 
                   <label className="sf-label" style={{ marginTop: 14 }}>แนบสลิปการโอน</label>
                   <SlipDropzone
@@ -306,10 +311,12 @@ export default function OrderClient({ shop, initialOrder }: { shop: string; init
             <section className="sf-fieldset">
               <h2>ตัวเลือกที่เลือกไว้</h2>
               <div className="sf-facts">
-                {order.gift_message && (
+                {(order.gift_card_requested || order.gift_message) && (
                   <div className="sf-extra">
                     <strong>การ์ดอวยพร</strong>
-                    <blockquote className="sf-card-msg">{order.gift_message}</blockquote>
+                    {order.gift_message
+                      ? <blockquote className="sf-card-msg">{order.gift_message}</blockquote>
+                      : <p className="sf-hint">แนบการ์ดไปกับของ (ไม่ได้เขียนข้อความ)</p>}
                     {(order.gift_to || order.gift_from) && (
                       <p className="sf-hint">
                         {order.gift_to ? `ถึง: ${order.gift_to}` : ''}
@@ -362,10 +369,14 @@ export default function OrderClient({ shop, initialOrder }: { shop: string; init
           </div>
 
           <div className="sf-order-actions">
-            <Link href={storefrontHref(shop)} className="sf-btn-ghost">
-              <ChevronLeft strokeWidth={2} aria-hidden="true" />ช้อปต่อ
+            {/* ช้อปต่อเป็นปุ่มหลัก (อยากให้ลูกค้าซื้อต่อ) — ห้ามใช้ลูกศรซ้าย
+                มันอ่านเป็นปุ่ม "ย้อนกลับ" ไม่ใช่ "ไปดูสินค้าอีก" */}
+            <Link href={storefrontHref(shop)} className="sf-cta">
+              <Store strokeWidth={2} aria-hidden="true" />ช้อปต่อ
             </Link>
-            <Link href={storefrontHref(shop, '/orders')} className="sf-btn-ghost">คำสั่งซื้อของฉัน</Link>
+            <Link href={storefrontHref(shop, '/orders')} className="sf-btn-ghost sf-btn-tint">
+              <ReceiptText strokeWidth={1.75} aria-hidden="true" />คำสั่งซื้อของฉัน
+            </Link>
           </div>
         </aside>
       </div>
