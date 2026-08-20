@@ -996,11 +996,34 @@
 
 /* ── ตัวเลือกเสริมที่ลูกค้าเลือกไว้ (หน้าคำสั่งซื้อ) ─────────────────── */
 .sf-extra + .sf-extra { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--sf-border); }
+
+/* ข้อความบนการ์ด — พื้นอ่อน ๆ + อัญประกาศ ให้อ่านออกว่านี่คือ "คำพูดของลูกค้า"
+   ไม่ใช่ข้อความของระบบ (เดิมใช้ขีดซ้ายซึ่งดูเป็น callout เตือนมากกว่าเป็นการ์ด) */
 .sf-card-msg {
-  margin: 6px 0 4px; padding: 10px 12px;
-  border-left: 3px solid var(--sf-primary); border-radius: 0 8px 8px 0;
-  background: var(--sf-surface); white-space: pre-wrap;
+  position: relative;
+  margin: 10px 0 6px; padding: 14px 16px 14px 38px;
+  border-radius: var(--sf-radius);
+  background: color-mix(in srgb, var(--sf-primary) 6%, var(--sf-surface));
+  white-space: pre-wrap; line-height: 1.65;
 }
+.sf-card-msg::before,
+.sf-card-msg::after { color: color-mix(in srgb, var(--sf-primary) 45%, transparent); font-weight: 700; }
+.sf-card-msg::before {
+  content: '\201C'; position: absolute; left: 12px; top: 6px;
+  font-size: 30px; line-height: 1;
+}
+.sf-card-msg::after { content: '\201D'; margin-left: 3px; font-size: 18px; line-height: 0; vertical-align: -2px; }
+
+/* ไอคอนประจำตัวเลือกเสริม — แยกด้วยรูป+สี ไม่ใช่ข้อความอย่างเดียว จะได้กวาดตาเจอเร็ว */
+.sf-extra-head { display: flex; align-items: center; gap: 9px; }
+.sf-extra-icon {
+  width: 32px; height: 32px; flex-shrink: 0; border-radius: 9px;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.sf-extra-icon svg { width: 17px; height: 17px; }
+.sf-extra-gift { background: color-mix(in srgb, var(--sf-primary) 12%, transparent); color: var(--sf-primary); }
+.sf-extra-hide { background: rgba(180, 83, 9, .12); color: #b45309; }
+.sf-extra-tax  { background: rgba(37, 99, 235, .12); color: #2563eb; }
 
 
 /* ── ปุ่มท้ายหน้าคำสั่งซื้อ ─────────────────────────────────────────── */

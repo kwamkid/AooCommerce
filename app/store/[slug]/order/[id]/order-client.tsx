@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import OrderProgress from '@/components/ui/OrderProgress';
 import Link from 'next/link';
-import { CheckCircle2, Copy, Check, Upload, CreditCard, Clock, Store, ReceiptText } from 'lucide-react';
+import { CheckCircle2, Copy, Check, Upload, CreditCard, Clock, Store, ReceiptText, Gift, EyeOff, FileText } from 'lucide-react';
 import { formatStorePrice, storefrontHref } from '@/lib/storefront';
 import { rememberOrder } from '@/lib/storefront-orders';
 import SlipDropzone from '@/components/storefront/SlipDropzone';
@@ -344,9 +344,12 @@ export default function OrderClient({ shop, initialOrder }: { shop: string; init
               <div className="sf-facts">
                 {(order.gift_card_requested || order.gift_message) && (
                   <div className="sf-extra">
-                    <strong>การ์ดอวยพร</strong>
+                    <div className="sf-extra-head">
+                      <span className="sf-extra-icon sf-extra-gift"><Gift strokeWidth={1.75} aria-hidden="true" /></span>
+                      <strong>การ์ดอวยพร</strong>
+                    </div>
                     {order.gift_message
-                      ? <blockquote className="sf-card-msg">{order.gift_message}</blockquote>
+                      ? <p className="sf-card-msg">{order.gift_message}</p>
                       : <p className="sf-hint">แนบการ์ดไปกับของ (ไม่ได้เขียนข้อความ)</p>}
                     {(order.gift_to || order.gift_from) && (
                       <p className="sf-hint">
@@ -359,13 +362,19 @@ export default function OrderClient({ shop, initialOrder }: { shop: string; init
                 )}
                 {order.gift_hide_price && (
                   <div className="sf-extra">
-                    <strong>ไม่แนบใบเสร็จและราคาไปกับของ</strong>
+                    <div className="sf-extra-head">
+                      <span className="sf-extra-icon sf-extra-hide"><EyeOff strokeWidth={1.75} aria-hidden="true" /></span>
+                      <strong>ไม่แนบใบเสร็จและราคาไปกับของ</strong>
+                    </div>
                     <p className="sf-hint">ใบเสร็จส่งให้ผู้สั่งแทน</p>
                   </div>
                 )}
                 {order.tax_invoice_requested && (
                   <div className="sf-extra">
-                    <strong>ใบกำกับภาษีเต็มรูปแบบ</strong>
+                    <div className="sf-extra-head">
+                      <span className="sf-extra-icon sf-extra-tax"><FileText strokeWidth={1.75} aria-hidden="true" /></span>
+                      <strong>ใบกำกับภาษีเต็มรูปแบบ</strong>
+                    </div>
                     <p className="sf-hint">
                       {order.tax_invoice_name ? `ออกในนาม ${order.tax_invoice_name}` : 'ร้านจะออกให้ตามข้อมูลที่กรอกไว้'}
                     </p>
