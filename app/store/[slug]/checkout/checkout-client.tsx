@@ -507,12 +507,18 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
               </p>
             )}
 
-            <label className="sf-label" style={{ marginTop: 12 }}>ลิงก์ Google Maps
-              <input className="sf-input" value={mapsLink} onChange={e => setMapsLink(e.target.value)} inputMode="url" placeholder="https://maps.app.goo.gl/…" />
-            </label>
-            <p className="sf-hint">
-              เปิด Google Maps → กดค้างที่หมุด → แชร์ → คัดลอกลิงก์ · ช่วยให้คนส่งหาบ้านเจอเร็วขึ้นมาก
-            </p>
+            {/* หมุดแผนที่มีประโยชน์เฉพาะร้านที่วิ่งส่งเอง (เปิดโซนจัดส่ง) —
+                ร้านส่งพัสดุผ่านขนส่ง คนส่งใช้ที่อยู่ตัวหนังสือ ไม่ต้องถามลิงก์ให้รก */}
+            {zoneEnabled && (
+              <>
+                <label className="sf-label" style={{ marginTop: 12 }}>ลิงก์ Google Maps
+                  <input className="sf-input" value={mapsLink} onChange={e => setMapsLink(e.target.value)} inputMode="url" placeholder="https://maps.app.goo.gl/…" />
+                </label>
+                <p className="sf-hint">
+                  เปิด Google Maps → กดค้างที่หมุด → แชร์ → คัดลอกลิงก์ · ช่วยให้คนส่งหาบ้านเจอเร็วขึ้นมาก
+                </p>
+              </>
+            )}
           </section>
 
           {/* การ์ดอวยพร — ร้านต้องเปิดบริการ และลูกค้าต้องกดขอเอง */}
