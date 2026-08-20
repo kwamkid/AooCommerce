@@ -444,7 +444,14 @@
 
 /* ── ส่งให้ตัวเอง / ส่งให้คนอื่น ─────────────────────────────────── */
 .sf-who { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
-@container (max-width: 560px) { .sf-who { grid-template-columns: 1fr; } }
+/* จอแคบไม่ยุบเป็นแถวเดียว — สองตัวเลือกเทียบกันได้ในสายตาเดียว
+   แค่ลดระยะ/ขนาดให้พอดีครึ่งจอ */
+@container (max-width: 560px) {
+  .sf-who { gap: 8px; }
+  .sf-who-btn { padding: 10px; gap: 8px; }
+  .sf-who-btn b { font-size: 14px; }
+  .sf-who-btn small { font-size: 12px; }
+}
 .sf-who-btn {
   display: flex; gap: 11px; align-items: flex-start; text-align: left;
   padding: 13px 14px; border-radius: calc(var(--sf-radius) / 1.5);
@@ -497,7 +504,10 @@
   color: var(--sf-text);
 }
 .sf-field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-@container (max-width: 560px) { .sf-field-row { grid-template-columns: 1fr; } }
+/* จอแคบยังคง 2 คอลัมน์ — คู่ที่จับมาอยู่แถวเดียวกัน (เบอร์+อีเมล,
+   ชื่อ+เบอร์ผู้รับ, วันที่+รอบเวลา) สั้นพอสำหรับครึ่งจอมือถืออยู่แล้ว
+   การยุบทำให้ฟอร์มยาวขึ้นเปล่า ๆ */
+@container (max-width: 560px) { .sf-field-row { gap: 8px; } }
 .sf-input {
   display: block; width: 100%; margin-top: 6px;
   padding: 11px 13px; font-size: 16px; /* 16px กัน iOS zoom ตอนโฟกัส */

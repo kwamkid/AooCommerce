@@ -580,7 +580,7 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
               <h2>วันและเวลาจัดส่ง</h2>
 
               {/* วันกับรอบเวลาเป็นการตัดสินใจเดียวกัน วางคู่กันให้เห็นพร้อมกัน
-                  (จอแคบ .sf-field-row ยุบเป็นคอลัมน์เดียวเอง) */}
+                  (จอแคบก็ยังคู่ — .sf-field-row เป็น 2 คอลัมน์เสมอ) */}
               <div className="sf-field-row">
                 {dateEnabled && (
                   <div className="sf-label">
