@@ -202,8 +202,8 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
     .map(s => ({ id: s.id, label: `${s.name} · ${s.label}` }));
   const blockedSlots = (options?.slots || []).filter(s => !s.available && s.reason);
   const slotPlaceholder =
-    !deliveryDate ? 'เลือกวันที่ก่อน'
-    : !hasArea ? 'กรอกพื้นที่จัดส่งก่อน'
+    !hasArea ? 'กรอกพื้นที่จัดส่งก่อน'
+    : !deliveryDate ? 'เลือกวันที่ก่อน'
     : !options ? 'กำลังตรวจสอบรอบที่ว่าง…'
     : slotChoices.length === 0 ? 'ไม่มีรอบว่างในวันนี้'
     : 'เลือกช่วงเวลา';
@@ -448,6 +448,13 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
               <p className="sf-hint">เลือกแล้ว: {district} · {amphoe} · {province} {postal}</p>
             )}
 
+            {(zoneEnabled || slotEnabled) && !hasArea && (
+              <p className="sf-hint" style={{ marginTop: -4 }}>
+                กรอกตำบล/อำเภอ/จังหวัด หรือรหัสไปรษณีย์ก่อน แล้วระบบจะคำนวณค่าจัดส่ง
+                และแสดงรอบที่ส่งได้ให้
+              </p>
+            )}
+
             <label className="sf-label" style={{ marginTop: 12 }}>ลิงก์ Google Maps
               <input className="sf-input" value={mapsLink} onChange={e => setMapsLink(e.target.value)} inputMode="url" placeholder="https://maps.app.goo.gl/…" />
             </label>
@@ -568,7 +575,14 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
           )}
 
           <section className="sf-fieldset">
-            <h2>ใบกำกับภาษี</h2>
+            <div className="sf-fieldset-head">
+              <h2>ใบกำกับภาษี</h2>
+              {taxInvoice && (
+                <button type="button" className="sf-btn-ghost sf-btn-sm" onClick={fillTaxFromBuyer}>
+                  <Copy strokeWidth={1.75} aria-hidden="true" />ใช้ที่อยู่ผู้สั่ง
+                </button>
+              )}
+            </div>
             <label className="sf-switch">
               <input type="checkbox" checked={taxInvoice} onChange={e => setTaxInvoice(e.target.checked)} />
               <span className="sf-switch-box" aria-hidden="true" />
@@ -580,10 +594,6 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
 
             {taxInvoice && (
               <div style={{ marginTop: 14 }}>
-                <button type="button" className="sf-btn-ghost" style={{ marginBottom: 12 }} onClick={fillTaxFromBuyer}>
-                  <Copy strokeWidth={1.75} aria-hidden="true" />ใช้ชื่อและที่อยู่ผู้สั่ง
-                </button>
-
                 <label className="sf-label">ชื่อผู้เสียภาษี / ชื่อบริษัท *
                   <input ref={taxNameRef} className="sf-input" value={taxName} onChange={e => setTaxName(e.target.value)} placeholder="บริษัท ตัวอย่าง จำกัด" />
                 </label>

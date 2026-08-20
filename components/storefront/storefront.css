@@ -921,3 +921,11 @@
   display: flex; flex-direction: column; gap: 4px;
   font-size: 14px; color: var(--sf-muted);
 }
+
+/* หัวการ์ดที่มีปุ่มลัดอยู่มุมขวา — h2 เดิมเป็น flex อยู่แล้ว จึงห่ออีกชั้นแทนการแก้ h2 */
+.sf-fieldset-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; margin-bottom: 14px;
+}
+.sf-fieldset-head h2 { margin: 0; }
+.sf-btn-sm { padding: 6px 12px; font-size: 14px; }
