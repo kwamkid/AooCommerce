@@ -41,6 +41,8 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: `
           (function() {
             try {
+              // หน้าร้าน (/store/*) สว่างเสมอ — ดู isStorefrontPath ใน lib/theme-context
+              if (location.pathname.indexOf('/store/') === 0) return;
               var theme = localStorage.getItem('aoo-theme') || 'system';
               var dark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
               if (dark) document.documentElement.classList.add('dark');

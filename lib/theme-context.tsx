@@ -1,6 +1,7 @@
 'use client';
 
-import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import { usePathname } from 'next/navigation';
 
 type Theme = 'light' | 'dark' | 'system';
 
@@ -19,12 +20,28 @@ function getSystemTheme(): 'light' | 'dark' {
   return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
 }
 
+/**
+ * หน้าร้าน (/store/*) สว่างเสมอ — ธีมเป็นของร้าน ไม่ใช่ของเครื่องผู้เข้าชม
+ *
+ * CSS ของหน้าร้าน (sf-*) ไม่มีโทนมืดอยู่แล้ว แต่หน้า checkout ยืม component กลาง
+ * มาใช้ (DateRangePicker, FormSelect) ซึ่งมี `dark:` ของ Tailwind ติดมาด้วย —
+ * ถ้าปล่อยให้ class `dark` ติดที่ <html> ตามเครื่องลูกค้า ช่องวันที่กับ dropdown
+ * จะกลายเป็นสีเข้มอยู่กลางหน้าร้านสีสว่าง
+ */
+function isStorefrontPath(pathname: string | null): boolean {
+  return !!pathname && pathname.startsWith('/store/');
+}
+
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setThemeState] = useState<Theme>('system');
   const [resolvedTheme, setResolvedTheme] = useState<'light' | 'dark'>('light');
 
+  const pathname = usePathname();
+  const forceLightRef = useRef(false);
+  forceLightRef.current = isStorefrontPath(pathname);
+
   const applyTheme = useCallback((t: Theme) => {
-    const resolved = t === 'system' ? getSystemTheme() : t;
+    const resolved = forceLightRef.current ? 'light' : (t === 'system' ? getSystemTheme() : t);
     setResolvedTheme(resolved);
 
     const root = document.documentElement;
@@ -42,6 +59,9 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     setThemeState(initial);
     applyTheme(initial);
   }, [applyTheme]);
+
+  // เข้า/ออกหน้าร้านระหว่าง client-side nav — provider ไม่ remount ต้องทาธีมใหม่เอง
+  useEffect(() => { applyTheme(theme); }, [pathname, theme, applyTheme]);
 
   // Listen for system theme changes
   useEffect(() => {
