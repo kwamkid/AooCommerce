@@ -10,6 +10,7 @@ import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
 import { generateReportPdf } from '@/lib/supplier-pdf';
 import { showPdfPreview } from '@/lib/print-pdf';
+import Button from '@/components/ui/Button';
 import {
   Loader2, ArrowLeft, Factory, Calendar, Warehouse, Package,
   CheckCircle2, Clock, Send, BarChart3, ShoppingCart, Printer,
@@ -262,14 +263,9 @@ export default function SnapshotDetailPage() {
             <ArrowLeft className="w-4 h-4" /> กลับ
           </button>
           <div className="flex items-center gap-2">
-            <button
-              onClick={handlePrintPdf}
-              disabled={generatingPdf}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-primary hover:bg-primary-hover rounded-lg transition-colors disabled:opacity-50"
-            >
-              {generatingPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
-              {generatingPdf ? 'กำลังสร้าง...' : 'พิมพ์'}
-            </button>
+            <Button size="sm" loading={generatingPdf} onClick={handlePrintPdf} icon={<Printer className="w-4 h-4" />}>
+              พิมพ์
+            </Button>
             {data.status === 'draft' && (
               <button
                 onClick={() => handleStatusChange('confirmed')}

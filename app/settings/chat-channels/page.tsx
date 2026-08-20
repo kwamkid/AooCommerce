@@ -729,20 +729,17 @@ export default function ChatChannelsPage() {
 
         {/* Save / Cancel */}
         <div className="flex gap-2 pt-1">
-          <button
+          <Button
+            variant="primary"
+            loading={saving}
             onClick={handleSave}
-            disabled={saving}
-            className="px-4 py-2 bg-primary hover:bg-primary-hover text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
+            icon={<Check className="w-4 h-4" />}
           >
-            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
             บันทึก
-          </button>
-          <button
-            onClick={resetForm}
-            className="px-4 py-2 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 text-sm font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors flex items-center gap-2"
-          >
-            <X className="w-4 h-4" /> ยกเลิก
-          </button>
+          </Button>
+          <Button variant="secondary" onClick={resetForm} icon={<X className="w-4 h-4" />}>
+            ยกเลิก
+          </Button>
         </div>
       </div>
     );

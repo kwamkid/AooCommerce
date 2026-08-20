@@ -1264,9 +1264,7 @@ export default function ReadyToShipTab({
                   : handleBulkCancel(confirmModal.ids)
                 }
                 disabled={bulkLoading}
-                className={`px-4 py-2 rounded-lg text-white transition-colors disabled:opacity-50 flex items-center gap-2 ${
-                  confirmModal.type === 'accept' ? 'bg-primary hover:bg-primary-hover' : 'bg-red-600 hover:bg-red-700'
-                }`}
+                className={`btn btn-md ${confirmModal.type === 'accept' ? 'btn-primary' : 'btn-danger'}`}
               >
                 {bulkLoading ? (
                   <><Loader2 className="w-4 h-4 animate-spin" /> กำลังดำเนินการ...</>

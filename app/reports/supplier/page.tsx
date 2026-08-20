@@ -15,6 +15,7 @@ import {
   Plus, Trash2, Filter,
 } from 'lucide-react';
 import FormSelect from '@/components/ui/FormSelect';
+import Button from '@/components/ui/Button';
 
 interface Supplier {
   id: string;
@@ -237,13 +238,9 @@ export default function SupplierReportsPage() {
               />
             </div>
           </div>
-          <button
-            onClick={() => setShowCreateForm(!showCreateForm)}
-            className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary-hover text-white text-sm font-medium rounded-lg transition-colors"
-          >
-            <Plus className="w-4 h-4" />
+          <Button onClick={() => setShowCreateForm(!showCreateForm)} icon={<Plus className="w-4 h-4" />}>
             สร้าง<span className="hidden md:inline">รายงาน</span>
-          </button>
+          </Button>
         </div>
 
         {/* Create form */}
@@ -280,14 +277,15 @@ export default function SupplierReportsPage() {
                 />
               </div>
               <div className="flex items-end">
-                <button
+                <Button
+                  fullWidth
+                  loading={creating}
+                  disabled={!createSupplierId}
                   onClick={handleCreate}
-                  disabled={creating || !createSupplierId}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-primary hover:bg-primary-hover text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+                  icon={<Plus className="w-4 h-4" />}
                 >
-                  {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-                  {creating ? 'กำลังสร้าง...' : 'สร้าง Snapshot'}
-                </button>
+                  สร้าง Snapshot
+                </Button>
               </div>
             </div>
           </div>

@@ -529,11 +529,8 @@ function PromotionsPageContent() {
           <h1 className="heading-1">โปรโมชั่น</h1>
           <p className="page-subtitle">จัดการโปรโมชั่นสินค้า</p>
         </div>
-        <Link
-          href="/promotions/new"
-          className="flex items-center space-x-2 px-4 py-2 bg-primary hover:bg-primary-hover text-white rounded-lg font-semibold transition-colors"
-        >
-          <Plus className="w-5 h-5" />
+        <Link href="/promotions/new" className="btn btn-md btn-primary">
+          <Plus className="w-4 h-4" />
           <span>สร้างโปรโมชั่น</span>
         </Link>
       </div>

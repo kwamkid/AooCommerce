@@ -7,6 +7,7 @@ import Modal from '@/components/ui/Modal';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
 import { InventoryItem, WarehouseItem, getVariationLabel } from './types';
+import Button from '@/components/ui/Button';
 
 interface AdjustStockModalProps {
   item: InventoryItem;
@@ -105,16 +106,15 @@ export default function AdjustStockModal({ item, warehouses, initialWarehouseId,
       size="md"
       footer={
         <div className="flex justify-end gap-2 px-6 py-4">
-          <button onClick={onClose} className="px-4 py-2 text-sm text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors">
-            ยกเลิก
-          </button>
-          <button
+          <Button variant="secondary" onClick={onClose}>ยกเลิก</Button>
+          <Button
+            variant="primary"
+            loading={saving}
+            disabled={!warehouseId || newQty === '' || loadingQty}
             onClick={handleSave}
-            disabled={saving || !warehouseId || newQty === '' || loadingQty}
-            className="px-4 py-2 text-sm bg-primary hover:bg-primary-hover text-white rounded-lg font-medium disabled:opacity-50 transition-colors"
           >
-            {saving ? 'กำลังบันทึก...' : 'บันทึก'}
-          </button>
+            บันทึก
+          </Button>
         </div>
       }
     >

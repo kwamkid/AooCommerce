@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { flattenVariationItem, productDisplayName } from '../../components/types';
 import ItemsTable, { type TableItem } from '@/components/ui/ItemsTable';
+import Button from '@/components/ui/Button';
 
 interface IssueItem {
   id: string;
@@ -157,14 +158,9 @@ export default function IssueDetailPage() {
           <button onClick={() => router.push('/inventory/issues')} className="flex items-center gap-1.5 text-sm text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-300">
             <ArrowLeft className="w-4 h-4" /> กลับ
           </button>
-          <button
-            onClick={handlePrint}
-            disabled={generatingPdf}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-primary hover:bg-primary-hover rounded-lg transition-colors disabled:opacity-50"
-          >
-            {generatingPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
-            {generatingPdf ? 'กำลังสร้าง...' : 'พิมพ์'}
-          </button>
+          <Button size="sm" loading={generatingPdf} onClick={handlePrint} icon={<Printer className="w-4 h-4" />}>
+            พิมพ์
+          </Button>
         </div>
 
         {/* Status */}
@@ -216,14 +212,14 @@ export default function IssueDetailPage() {
             />
             {notesChanged && (
               <div className="flex justify-end mt-2">
-                <button
+                <Button
+                  size="sm"
+                  loading={saving}
                   onClick={handleSaveNotes}
-                  disabled={saving}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-primary hover:bg-primary-hover rounded-lg transition-colors disabled:opacity-50"
+                  icon={<Save className="w-4 h-4" />}
                 >
-                  {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                  {saving ? 'กำลังบันทึก...' : 'บันทึก'}
-                </button>
+                  บันทึก
+                </Button>
               </div>
             )}
           </div>

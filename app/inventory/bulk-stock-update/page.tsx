@@ -8,6 +8,7 @@ import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import MultiSelectSearch from '@/components/ui/MultiSelectSearch';
+import Button from '@/components/ui/Button';
 import {
   Upload, Download, ArrowLeft, FileSpreadsheet,
   Check, Loader2, AlertCircle, Pencil, ArrowRight, ShieldAlert, Star, Warehouse, Tag,
@@ -534,12 +535,9 @@ export default function BulkStockUpdatePage() {
                     {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
                     Export สินค้า
                   </button>
-                  <button
-                    onClick={() => fileRef.current?.click()}
-                    className="flex items-center gap-2 px-6 py-2.5 bg-[#F4511E] hover:bg-[#E64A19] text-white rounded-lg font-semibold"
-                  >
-                    <Upload className="w-4 h-4" /> อัพโหลดไฟล์
-                  </button>
+                  <Button onClick={() => fileRef.current?.click()} icon={<Upload className="w-4 h-4" />}>
+                    อัพโหลดไฟล์
+                  </Button>
                   <input ref={fileRef} type="file" accept=".xlsx,.xls" onChange={handleFile} className="hidden" />
                 </div>
                 <div className="text-left bg-gray-50 dark:bg-slate-700/50 rounded-lg p-4 text-sm text-gray-600 dark:text-slate-400">
@@ -593,16 +591,14 @@ export default function BulkStockUpdatePage() {
                   )}
                 </div>
                 <div className="flex items-center gap-2">
-                  <button onClick={resetAll} className="px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 rounded-lg">
-                    เลือกไฟล์ใหม่
-                  </button>
-                  <button
-                    onClick={() => setConfirmOpen(true)}
+                  <Button variant="secondary" onClick={resetAll}>เลือกไฟล์ใหม่</Button>
+                  <Button
                     disabled={dryRun.summary.updated === 0}
-                    className="px-4 py-2 text-sm bg-[#F4511E] hover:bg-[#E64A19] text-white rounded-lg font-semibold disabled:opacity-50 flex items-center gap-1.5"
+                    onClick={() => setConfirmOpen(true)}
+                    iconRight={<ArrowRight className="w-4 h-4" />}
                   >
-                    ยืนยันบันทึก <ArrowRight className="w-4 h-4" />
-                  </button>
+                    ยืนยันบันทึก
+                  </Button>
                 </div>
               </div>
 
@@ -699,12 +695,8 @@ export default function BulkStockUpdatePage() {
                 {finalRun.summary.errors > 0 && <span className="text-red-600 font-medium">{finalRun.summary.errors} ล้มเหลว</span>}
               </div>
               <div className="flex items-center justify-center gap-3 pt-2">
-                <button onClick={() => router.push('/inventory')} className="px-4 py-2 bg-[#F4511E] hover:bg-[#E64A19] text-white rounded-lg font-semibold">
-                  ไปหน้า Stock
-                </button>
-                <button onClick={resetAll} className="px-4 py-2 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 rounded-lg">
-                  อัพโหลดเพิ่ม
-                </button>
+                <Button onClick={() => router.push('/inventory')}>ไปหน้า Stock</Button>
+                <Button variant="secondary" onClick={resetAll}>อัพโหลดเพิ่ม</Button>
               </div>
             </div>
 

@@ -6,6 +6,7 @@ import { Gift, Minus, Plus, Package, ShoppingCart } from 'lucide-react';
 import { formatPrice } from '@/lib/utils/format';
 import Modal from './Modal';
 import NumberInput from './NumberInput';
+import Button from './Button';
 
 // ── Types ──────────────────────────────────────────────
 
@@ -214,17 +215,13 @@ export default function PromotionSelectModal({
           <div className="flex items-center gap-2">
             <button
               onClick={onClose}
-              className="px-4 py-2.5 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/10 rounded-lg transition-colors"
+              className="btn btn-md btn-secondary"
             >
               ยกเลิก
             </button>
-            <button
-              onClick={handleConfirm}
-              className="flex items-center gap-2 px-5 py-2.5 bg-primary hover:bg-primary-hover text-white font-medium text-sm rounded-lg transition-colors active:scale-[0.98]"
-            >
-              <ShoppingCart className="w-4 h-4" />
+            <Button variant="primary" onClick={handleConfirm} icon={<ShoppingCart className="w-4 h-4" />}>
               เพิ่มลงรายการ
-            </button>
+            </Button>
           </div>
         </div>
       }

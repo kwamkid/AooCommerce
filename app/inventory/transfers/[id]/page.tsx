@@ -18,6 +18,7 @@ import {
   ArrowLeft, PackageCheck, Printer, Save, Link2, Copy, Check, Image as ImageIcon,
 } from 'lucide-react';
 import { flattenVariationItem, productDisplayName, productSubtitle } from '../../components/types';
+import Button from '@/components/ui/Button';
 
 interface TransferItem {
   id: string;
@@ -367,14 +368,9 @@ export default function TransferDetailPage() {
             กลับ
           </button>
           <div className="flex items-center gap-2">
-            <button
-              onClick={handlePrint}
-              disabled={generatingPdf}
-              className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-primary hover:bg-primary-hover rounded-lg transition-colors disabled:opacity-50"
-            >
-              {generatingPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
-              {generatingPdf ? 'กำลังสร้าง...' : 'พิมพ์'}
-            </button>
+            <Button size="sm" loading={generatingPdf} onClick={handlePrint} icon={<Printer className="w-4 h-4" />}>
+              พิมพ์
+            </Button>
             {transfer.status === 'pending' && (
               <>
                 <button
@@ -522,14 +518,14 @@ export default function TransferDetailPage() {
             />
             {notesChanged && (
               <div className="flex justify-end mt-2">
-                <button
+                <Button
+                  size="sm"
+                  loading={savingNotes}
                   onClick={handleSaveNotes}
-                  disabled={savingNotes}
-                  className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-primary hover:bg-primary-hover rounded-lg transition-colors disabled:opacity-50"
+                  icon={<Save className="w-4 h-4" />}
                 >
-                  {savingNotes ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                  {savingNotes ? 'กำลังบันทึก...' : 'บันทึก'}
-                </button>
+                  บันทึก
+                </Button>
               </div>
             )}
           </div>

@@ -6,6 +6,7 @@ import EntitySearchInput from '@/components/ui/EntitySearchInput';
 import type { EntitySearchOption } from '@/components/ui/EntitySearchInput';
 import Modal from '@/components/ui/Modal';
 import type { UnifiedContact, Customer } from '../lib/chatTypes';
+import Button from '@/components/ui/Button';
 
 interface LinkCustomerModalProps {
   contact: UnifiedContact;
@@ -62,8 +63,8 @@ export default function LinkCustomerModal({ contact, platformColor, onLink, onCl
               <p className="text-xs text-gray-400 dark:text-slate-500">{confirmLinkCustomer.customer_code}</p>
             </div>
             <div className="flex gap-2">
-              <button onClick={() => { setConfirmLinkCustomer(null); setCustomers([]); }} className="flex-1 px-4 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors">ย้อนกลับ</button>
-              <button onClick={() => { onLink(confirmLinkCustomer.id); setConfirmLinkCustomer(null); }} className="flex-1 px-4 py-2 rounded-lg text-sm text-white transition-colors bg-primary hover:bg-primary-hover">ยืนยันเชื่อม</button>
+              <Button variant="secondary" fullWidth onClick={() => { setConfirmLinkCustomer(null); setCustomers([]); }}>ย้อนกลับ</Button>
+              <Button fullWidth onClick={() => { onLink(confirmLinkCustomer.id); setConfirmLinkCustomer(null); }}>ยืนยันเชื่อม</Button>
             </div>
           </div>
         ) : (

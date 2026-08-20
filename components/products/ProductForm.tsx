@@ -1156,14 +1156,9 @@ export default function ProductForm({
                 <div className="text-center py-8 bg-gray-50 dark:bg-slate-700/50 rounded-xl border-2 border-dashed border-gray-200 dark:border-slate-600">
                   <Layers className="w-10 h-10 text-gray-300 mx-auto mb-3" />
                   <p className="text-sm text-gray-400 mb-3">ยังไม่มี variation</p>
-                  <button
-                    type="button"
-                    onClick={addVariation}
-                    className="inline-flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary-hover text-white rounded-lg font-semibold transition-colors text-sm"
-                  >
-                    <Plus className="w-4 h-4" />
+                  <Button onClick={addVariation} icon={<Plus className="w-4 h-4" />}>
                     เพิ่ม Variation
-                  </button>
+                  </Button>
                   <FieldError error={fieldErrors.variations_empty} />
                 </div>
               ) : (

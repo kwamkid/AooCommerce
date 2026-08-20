@@ -8,6 +8,7 @@ import {
   Calendar, Factory, AlertTriangle, KeyRound, LogOut, Sun, Moon,
 } from 'lucide-react';
 import FormSelect from '@/components/ui/FormSelect';
+import Button from '@/components/ui/Button';
 
 interface VariationInfo {
   id: string;
@@ -360,14 +361,15 @@ export default function SupplierPortalPage() {
                 )}
               </div>
 
-              <button
+              <Button
                 type="submit"
-                disabled={authLoading || !authCode.trim()}
-                className="w-full py-2.5 bg-primary hover:bg-primary-hover text-white font-medium rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                fullWidth
+                loading={authLoading}
+                disabled={!authCode.trim()}
+                icon={<KeyRound className="w-4 h-4" />}
               >
-                {authLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <KeyRound className="w-4 h-4" />}
                 เข้าสู่ระบบ
-              </button>
+              </Button>
             </form>
           </div>
         </div>
