@@ -3,35 +3,30 @@
 import type { CSSProperties } from 'react';
 
 /**
- * Loading primitives — แบบเดียวกับ aoosocial
+ * Loading ของทั้งระบบมี 4 ชั้น — เลือกจาก "ตอนนั้นระบบรู้อะไรแล้ว"
+ * (เคยมี PageLoading กับ Spinner อยู่ในไฟล์นี้ด้วย แต่ทั้งระบบไม่มีใครเรียกเลย
+ *  สักจุด เอกสารเลยชี้ไปคนละทางกับของจริง — ลบทิ้งแล้ว 2026-08-21)
  *
- * เลือกใช้ตามบริบท:
- * - <FullPageLoading />  splash เต็มจอสีแบรนด์ + โลโก้หมุน — ใช้ตอนยังไม่รู้จะ render อะไร
- *                        (route loading.tsx, รอ auth resolve, สลับบริษัท)
- * - <PageLoading />      spinner กลางพื้นที่ content — ใช้ในหน้าที่มี Layout/Sidebar อยู่แล้ว
- * - <Spinner />          วงหมุนเปล่าๆ สำหรับวางในปุ่ม/แถว
+ * 1. <FullPageLoading />         ← ไฟล์นี้
+ *    ยังไม่รู้ว่าใคร login อยู่ บริษัทไหน เมนูมีอะไร — ไม่มี chrome จะให้ดู
+ *    จึงบังทั้งจอ · เปิดเว็บครั้งแรก, refresh, สลับบริษัท, กลับจาก OAuth
  *
- * ถ้ารู้หน้าตาผลลัพธ์อยู่แล้ว (list/form/dashboard) ให้ใช้ skeleton แทน spinner —
- * ดู components/ui/Skeleton.tsx (PageSkeleton) จะรู้สึกเร็วกว่ามาก
+ * 2. <PageSkeleton />            ← components/ui/Skeleton.tsx
+ *    chrome วาดแล้ว เหลือแค่เนื้อหา · ใช้ผ่าน loading.tsx ของแต่ละ segment
+ *    (components/layout/AppSegmentLoading.tsx) — เปลี่ยนหน้าในระบบใช้ตัวนี้เสมอ
+ *
+ * 3. <LoadingCard />             ← components/ui/StateCard.tsx
+ *    อยู่ในหน้าแล้ว กำลัง "อ่าน" ข้อมูลของบล็อกใดบล็อกหนึ่ง · ส่วนอื่นยังกดได้
+ *
+ * 4. <LoadingOverlay />          ← components/ui/LoadingOverlay.tsx
+ *    ผู้ใช้สั่งงานเป็นชุดแล้วระบบกำลัง "เขียน" ข้อมูล · บังจอกันกดซ้ำ + มี progress
+ *
+ * spinner เล็กในปุ่ม/ในแถว → ใช้ <Loader2 className="animate-spin" /> ของ lucide ตรง ๆ
  */
-
-const SIZES = { sm: 'w-5 h-5 border-2', md: 'w-8 h-8 border-[3px]', lg: 'w-12 h-12 border-4' } as const;
-export type SpinnerSize = keyof typeof SIZES;
-
-/** วงกลมหมุนเปล่า — ใช้ในปุ่ม, แถวตาราง, inline */
-export function Spinner({ size = 'md', className = '' }: { size?: SpinnerSize; className?: string }) {
-  return (
-    <div
-      role="status"
-      aria-label="กำลังโหลด"
-      className={`${SIZES[size]} border-primary border-t-transparent rounded-full animate-spin ${className}`}
-    />
-  );
-}
 
 /**
  * Splash เต็มจอ พื้นสีแบรนด์ + โลโก้หมุนสีขาว (ไม่มีข้อความ — โลโก้อย่างเดียว)
- * ใช้ตอน "ยังไม่มีอะไรจะโชว์เลย" — first paint, route transition, สลับบริษัท
+ * ใช้ตอน "ยังไม่มีอะไรจะโชว์เลย" — first paint, สลับบริษัท, รอ auth resolve
  */
 export function FullPageLoading({
   /** ใช้เป็นชื่อสำหรับ screen reader เท่านั้น — splash ไม่แสดงข้อความ (โลโก้หมุนอย่างเดียว) */
@@ -58,28 +53,6 @@ export function FullPageLoading({
         className="w-24 h-auto animate-spin"
         style={{ filter: 'brightness(0) invert(1)', animationDuration: '1.4s' }}
       />
-    </div>
-  );
-}
-
-/**
- * Spinner กลางพื้นที่ content — ใช้ในหน้าที่ Layout/Sidebar render แล้ว
- * (ไม่ต้องมีกรอบการ์ด ไม่บังทั้งจอ)
- */
-export function PageLoading({
-  label = 'กำลังโหลด...',
-  size = 'lg',
-  minHeight = '60vh',
-}: { label?: string; size?: SpinnerSize; minHeight?: number | string }) {
-  return (
-    <div
-      role="status"
-      aria-busy="true"
-      className="w-full flex flex-col items-center justify-center gap-4 p-6 animate-in fade-in duration-200"
-      style={{ minHeight }}
-    >
-      <Spinner size={size} />
-      {label && <p className="text-gray-500 dark:text-slate-400 text-sm">{label}</p>}
     </div>
   );
 }

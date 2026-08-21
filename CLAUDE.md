@@ -85,6 +85,7 @@
 | `ReorderArrows` | vertical up/down arrow column สำหรับ manual sort — `onMoveUp`/`onMoveDown` + `disableUp?`/`disableDown?`/`disabled?`. ใช้ภายใน `ListRow` หรือ standalone |
 | `PlatformIcon` | social icon — `id='line\|facebook\|instagram\|tiktok'` + size? + title? (จาก `/public/social/*.svg`) — ใช้ตอนแสดง chat platform / sales channel platform เสมอ |
 | `StateCard` exports | `LoadingCard`, `EmptyCard`, `NoPermissionCard`, `DoneCard` |
+| Loading 4 ชั้น | 1 `FullPageLoading` (เปิดเว็บครั้งแรก) · 2 `loading.tsx` + `AppSegmentLoading` (เปลี่ยนหน้า) · 3 `LoadingCard` (อ่านข้อมูลในบล็อก) · 4 `LoadingOverlay` (เขียนข้อมูลเป็นชุด) — **segment ใหม่ต้องมี `loading.tsx`** ไม่งั้น splash เต็มจอจะกระพริบทับ sidebar |
 | `Chart` exports | `Stat`, `BarChart`, `Sparkline`, `ProgressBar` |
 
 ### Form validation pattern (ใช้กับฟอร์มหลาย field)
