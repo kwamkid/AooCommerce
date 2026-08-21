@@ -25,8 +25,9 @@ import Tabs from '@/components/ui/Tabs';
 import { useFeatures } from '@/lib/features-context';
 import { isMarketplacePlatform } from '@/lib/marketplace-platforms';
 import {
-  Tag, Plus, Pencil, Trash2, Lock, MessageCircle, Link as LinkIcon, Star,
+  Tag, Plus, Pencil, Trash2, Lock, MessageCircle, Link as LinkIcon, Star, ShoppingBag,
 } from 'lucide-react';
+import MarketplaceConnections from './MarketplaceConnections';
 
 interface SalesChannel {
   id: string;
@@ -46,14 +47,15 @@ interface SalesChannel {
 
 type ModalMode = 'create' | 'edit' | null;
 
+// เฉพาะแพลตฟอร์มที่ขาย manual ได้จริง — Shopee/Lazada ตัดออกเพราะออเดอร์เข้าผ่าน
+// การเชื่อมต่อ API เท่านั้น (แท็บ "เชื่อมต่อ Marketplace") ช่องทางจะถูก mirror มาให้เอง
+// TikTok คงไว้เพราะมีเคสขาย manual นอก TikTok Shop (Live/DM)
 const PLATFORM_OPTIONS = [
   { id: '', label: '— ไม่ระบุ —' },
   { id: 'line', label: 'LINE', icon: <PlatformIcon id="line" size={16} /> },
   { id: 'facebook', label: 'Facebook', icon: <PlatformIcon id="facebook" size={16} /> },
   { id: 'instagram', label: 'Instagram', icon: <PlatformIcon id="instagram" size={16} /> },
   { id: 'tiktok', label: 'TikTok', icon: <PlatformIcon id="tiktok" size={16} /> },
-  { id: 'shopee', label: 'Shopee', icon: <PlatformIcon id="shopee" size={16} /> },
-  { id: 'lazada', label: 'Lazada', icon: <PlatformIcon id="lazada" size={16} /> },
 ];
 
 // Platform filter tabs — same pattern as /settings/chat-channels
@@ -75,6 +77,8 @@ export default function SalesChannelsPage() {
   const [channels, setChannels] = useState<SalesChannel[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  // Main tabs: ช่องทางของฉัน (manual + mirror list) / เชื่อมต่อ Marketplace (ย้ายมาจาก /settings/integrations)
+  const [mainTab, setMainTab] = useState<'channels' | 'marketplace'>('channels');
   const [activeTab, setActiveTab] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(20);
@@ -92,6 +96,10 @@ export default function SalesChannelsPage() {
   const [formActive, setFormActive] = useState(true);
 
   const isAdmin = can(userProfile?.roles, 'masterdata.sales_channels');
+  // แท็บเชื่อมต่อ marketplace โชว์เฉพาะตอนเปิด feature marketplace_sync เท่านั้น
+  // (พฤติกรรมเดียวกับที่เมนู Marketplace เดิมถูกซ่อนจาก Sidebar ตอนปิด feature)
+  const marketplaceTabVisible = features.marketplace_sync && can(userProfile?.roles, 'settings.access');
+  const showMarketplace = mainTab === 'marketplace' && marketplaceTabVisible;
 
   const loadChannels = async () => {
     try {
@@ -110,6 +118,21 @@ export default function SalesChannelsPage() {
     if (!authLoading) loadChannels();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authLoading]);
+
+  // Deep link เข้าแท็บ marketplace — จาก OAuth callback (?shopee=connected ฯลฯ),
+  // ลิงก์ ?tab=marketplace หรือ redirect จาก /settings/integrations เดิม
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (
+      params.get('tab') === 'marketplace' ||
+      params.get('shopee') === 'connected' ||
+      params.get('tiktok') === 'connected' ||
+      params.get('success') === 'lazada_connected' ||
+      params.get('error')
+    ) {
+      setMainTab('marketplace');
+    }
+  }, []);
 
   // FB tab covers facebook + instagram (same grouping as chat-channels page)
   const matchesTab = (c: SalesChannel, tab: string) => {
@@ -416,27 +439,45 @@ export default function SalesChannelsPage() {
         <PageHeader
           icon={<Tag />}
           title="ช่องทางการขาย"
-          subtitle="จัดการช่องทางที่ออเดอร์เข้ามา — รวมช่องทาง manual + LINE/FB pages ที่เชื่อมไว้"
+          subtitle="จัดการช่องทางที่ออเดอร์เข้ามา — ช่องทาง manual, เพจ LINE/FB และร้าน marketplace ที่เชื่อมต่อ"
           actions={
-            /* ปุ่มเพิ่มเป็น dropdown — เลือกแพลตฟอร์มได้เลย แล้วเปิด modal พร้อมค่า preselect */
-            <ActionMenu
-              placement="bottom"
-              trigger={<><Plus className="w-5 h-5" />เพิ่ม</>}
-              triggerClassName="btn btn-md btn-primary"
-              items={[
-                { key: 'manual', label: 'ช่องทางทั่วไป (Manual)', icon: <Tag className="w-4 h-4 text-gray-400" />, onClick: () => openCreate('') },
-                ...PLATFORM_OPTIONS.filter(p => p.id).map(p => ({
-                  key: p.id,
-                  label: p.label,
-                  icon: <PlatformIcon id={p.id} size={16} />,
-                  onClick: () => openCreate(p.id),
-                  dividerBefore: p.id === 'line',
-                })),
-              ]}
-            />
+            showMarketplace ? undefined : (
+              /* ปุ่มเพิ่มเป็น dropdown — เลือกแพลตฟอร์มได้เลย แล้วเปิด modal พร้อมค่า preselect */
+              <ActionMenu
+                placement="bottom"
+                trigger={<><Plus className="w-5 h-5" />เพิ่ม</>}
+                triggerClassName="btn btn-md btn-primary"
+                items={[
+                  { key: 'manual', label: 'ช่องทางทั่วไป (Manual)', icon: <Tag className="w-4 h-4 text-gray-400" />, onClick: () => openCreate('') },
+                  ...PLATFORM_OPTIONS.filter(p => p.id).map(p => ({
+                    key: p.id,
+                    label: p.label,
+                    icon: <PlatformIcon id={p.id} size={16} />,
+                    onClick: () => openCreate(p.id),
+                    dividerBefore: p.id === 'line',
+                  })),
+                ]}
+              />
+            )
           }
         />
 
+        {/* Main tabs: ช่องทางของฉัน / เชื่อมต่อ Marketplace (convention เดียวกับ carriers, payment-channels) */}
+        {marketplaceTabVisible && (
+          <Tabs
+            activeKey={mainTab}
+            onSelect={(key) => setMainTab(key as 'channels' | 'marketplace')}
+            tabs={[
+              { key: 'channels', label: 'ช่องทางของฉัน', icon: <Tag className="w-4 h-4" /> },
+              { key: 'marketplace', label: 'เชื่อมต่อ Marketplace', icon: <ShoppingBag className="w-4 h-4" /> },
+            ]}
+          />
+        )}
+
+        {showMarketplace ? (
+          <MarketplaceConnections />
+        ) : (
+          <>
         {/* Platform tabs — same pattern as chat-channels */}
         <Tabs
           activeKey={activeTab}
@@ -499,6 +540,8 @@ export default function SalesChannelsPage() {
             </div>
           )}
         />
+          </>
+        )}
 
         {/* Modal */}
         <Modal

@@ -439,7 +439,7 @@ function ShopeeExportContent() {
         title="ส่งสินค้าไป Shopee"
         breadcrumbs={[
           { label: 'ตั้งค่าระบบ', href: '/settings' },
-          { label: 'Marketplace', href: '/settings/integrations' },
+          { label: 'ช่องทางการขาย', href: '/settings/sales-channels?tab=marketplace' },
           { label: 'ส่งสินค้าไป Shopee' },
         ]}
       >
@@ -447,10 +447,10 @@ function ShopeeExportContent() {
           <ShoppingBag className="w-12 h-12 text-gray-300 mx-auto mb-3" />
           <p className="text-gray-500 dark:text-slate-400 mb-4">ไม่พบข้อมูลร้าน Shopee</p>
           <button
-            onClick={() => router.push('/settings/integrations')}
+            onClick={() => router.push('/settings/sales-channels?tab=marketplace')}
             className="text-sm text-shopee hover:underline"
           >
-            กลับหน้า Marketplace
+            กลับหน้าช่องทางการขาย
           </button>
         </div>
       </Layout>
@@ -473,7 +473,7 @@ function ShopeeExportContent() {
       title="ส่งสินค้าไป Shopee"
       breadcrumbs={[
         { label: 'ตั้งค่าระบบ', href: '/settings' },
-        { label: 'Marketplace', href: '/settings/integrations' },
+        { label: 'ช่องทางการขาย', href: '/settings/sales-channels?tab=marketplace' },
         { label: 'ส่งสินค้าไป Shopee' },
       ]}
     >
@@ -997,11 +997,11 @@ function ShopeeExportContent() {
           {step === 'done' && (
             <div className="flex items-center justify-center gap-3 pt-2">
               <button
-                onClick={() => router.push('/settings/integrations')}
+                onClick={() => router.push('/settings/sales-channels?tab=marketplace')}
                 className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-slate-300 border border-gray-300 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors flex items-center gap-2"
               >
                 <ArrowLeft className="w-4 h-4" />
-                กลับหน้า Marketplace
+                กลับหน้าช่องทางการขาย
               </button>
               <button
                 onClick={() => {
@@ -1027,7 +1027,7 @@ function ShopeeExportContent() {
           <div>
             {step === 'select' && (
               <button
-                onClick={() => router.push('/settings/integrations')}
+                onClick={() => router.push('/settings/sales-channels?tab=marketplace')}
                 className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-slate-300 border border-gray-300 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors flex items-center gap-2"
               >
                 <ArrowLeft className="w-4 h-4" />

@@ -18,12 +18,12 @@ export async function GET(request: NextRequest) {
   const authz = await authorizeMarketplaceCallback(request, rawState);
   if (!authz.ok) {
     console.error('[Lazada Callback] Authorization failed:', authz.reason);
-    return NextResponse.redirect(`${baseUrl}/settings/integrations?error=auth_${authz.reason}`);
+    return NextResponse.redirect(`${baseUrl}/settings/sales-channels?tab=marketplace&error=auth_${authz.reason}`);
   }
   const companyId = authz.companyId;
 
   if (!code) {
-    return NextResponse.redirect(`${baseUrl}/settings/integrations?error=missing_params`);
+    return NextResponse.redirect(`${baseUrl}/settings/sales-channels?tab=marketplace&error=missing_params`);
   }
 
   try {
@@ -51,7 +51,7 @@ export async function GET(request: NextRequest) {
 
     if (!sellerId) {
       console.error('[Lazada Callback] Could not determine seller_id');
-      return NextResponse.redirect(`${baseUrl}/settings/integrations?error=no_seller_id`);
+      return NextResponse.redirect(`${baseUrl}/settings/sales-channels?tab=marketplace&error=no_seller_id`);
     }
 
     const { error } = await supabaseAdmin
@@ -75,7 +75,7 @@ export async function GET(request: NextRequest) {
           user_id: userInfo?.user_id || null,
         },
         updated_at: new Date().toISOString(),
-      }, { onConflict: 'company_id,shop_id' })
+      }, { onConflict: 'company_id,platform,shop_id' })
       .select('id')
       .single();
 
@@ -92,9 +92,9 @@ export async function GET(request: NextRequest) {
       reference_label: `Lazada connected: ${shopName || sellerId}`,
     });
 
-    return NextResponse.redirect(`${baseUrl}/settings/integrations?success=lazada_connected`);
+    return NextResponse.redirect(`${baseUrl}/settings/sales-channels?tab=marketplace&success=lazada_connected`);
   } catch (error) {
     console.error('[Lazada Callback] Error:', error);
-    return NextResponse.redirect(`${baseUrl}/settings/integrations?error=lazada_token_exchange`);
+    return NextResponse.redirect(`${baseUrl}/settings/sales-channels?tab=marketplace&error=lazada_token_exchange`);
   }
 }

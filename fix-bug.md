@@ -16,6 +16,16 @@
 
 ---
 
+## 2026-08-21 — เชื่อม Shopee/Lazada ใหม่แล้วร้านไม่โผล่ — upsert ใช้ onConflict ไม่ตรง unique index แล้วจบแบบ "สำเร็จ" เงียบๆ
+
+**ที่เกิด**: [app/api/shopee/oauth/callback/route.ts](app/api/shopee/oauth/callback/route.ts) + [app/api/lazada/oauth/callback/route.ts](app/api/lazada/oauth/callback/route.ts)
+**อาการ**: กดเชื่อม Shopee ผ่าน OAuth สำเร็จ (7 ร้าน) ระบบขึ้น toast "เชื่อมต่อสำเร็จ" แต่หน้า Marketplace ว่างเปล่า — DB ไม่มี row ไหนถูก insert/update เลย
+**Root cause**: ตอนเพิ่ม Lazada (2026-08-14) unique index ของ `marketplace_accounts` ถูกเปลี่ยนจาก `(company_id, shop_id)` เป็น `(company_id, platform, shop_id)` — TikTok callback ถูกแก้ตาม แต่ **Shopee + Lazada callback ยังใช้ `onConflict: 'company_id,shop_id'`** → Postgres error 42P10 (no matching constraint) ทุก upsert → โค้ด Shopee `continue` ข้าม error แล้ว redirect `?shopee=connected` = ผู้ใช้เห็น "สำเร็จ" ทั้งที่ไม่ได้ save · อาการเพิ่งปรากฏตอน re-connect หลัง token ชุดเก่าหมดอายุ (13 ส.ค.)
+**วิธีแก้**: เปลี่ยน onConflict เป็น `'company_id,platform,shop_id'` ทั้ง 2 callback + ใส่ `platform: 'shopee'` ใน payload ชัดๆ + Shopee callback นับ `connectedCount` — ถ้า save ไม่สำเร็จเลยสักร้าน redirect เป็น `?error=shopee_save_failed` แทน success
+**ป้องกัน regression**: เปลี่ยน unique index ตัวไหน → **grep `onConflict` ทั้ง repo** หา upsert ที่อ้าง constraint เดิมให้ครบทุก platform (อย่าแก้เฉพาะตัวที่กำลังทำ) · callback ที่วน loop หลาย record ห้าม swallow error แล้วจบ success — ต้องนับสำเร็จจริงเสมอ
+
+---
+
 ## 2026-08-18 — PostfixInput: ตัวเลขเกยกับ postfix เมื่อ postfix ยาวกว่า "฿" (โมดัลรอบส่ง/โซนส่ง)
 
 **ที่เกิด**: [components/ui/PostfixInput.tsx](components/ui/PostfixInput.tsx) — ใช้ที่ [app/settings/delivery/page.tsx](app/settings/delivery/page.tsx) (รับได้ต่อวัน "ออเดอร์", ปิดรับก่อนเริ่มรอบ "นาที", ยอดขั้นต่ำส่งฟรี, ต้องสั่งล่วงหน้า) + [GeneralInfoCard](app/promotions/components/promotion-form/GeneralInfoCard.tsx) (จำกัดการซื้อ "ครั้ง")

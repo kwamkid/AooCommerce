@@ -823,7 +823,7 @@ export default function ChatChannelsPage() {
               ) : shops.length === 0 ? (
                 <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm p-6 text-center space-y-2">
                   <p className="text-sm text-gray-600 dark:text-slate-300">ยังไม่มีร้าน {platformLabel} ที่เชื่อมต่อ</p>
-                  <a href="/settings/integrations" className="text-sm text-primary underline">ไปเชื่อมต่อร้าน {platformLabel} ที่หน้า Integrations</a>
+                  <a href="/settings/sales-channels?tab=marketplace" className="text-sm text-primary underline">ไปเชื่อมต่อร้าน {platformLabel} ที่หน้า ช่องทางการขาย</a>
                 </div>
               ) : (
                 shops.map(shop => {

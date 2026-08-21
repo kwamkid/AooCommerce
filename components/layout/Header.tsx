@@ -51,7 +51,7 @@ export default function Header() {
       message: `${issue.shop_name || 'Shop'} — ${issue.message}`,
       time: '',
       read: false,
-      href: '/settings/integrations',
+      href: '/settings/sales-channels?tab=marketplace',
     }));
   }, [features.marketplace_sync, summary]);
 

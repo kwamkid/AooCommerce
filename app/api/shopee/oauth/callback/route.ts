@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
   const authz = await authorizeMarketplaceCallback(request, rawState);
   if (!authz.ok) {
     console.error('[Shopee Callback] Authorization failed:', authz.reason);
-    return NextResponse.redirect(`${baseUrl}/settings/integrations?error=auth_${authz.reason}`);
+    return NextResponse.redirect(`${baseUrl}/settings/sales-channels?tab=marketplace&error=auth_${authz.reason}`);
   }
   const companyId = authz.companyId;
 
@@ -32,12 +32,12 @@ export async function GET(request: NextRequest) {
 
   if (!code) {
     console.error('[Shopee Callback] Missing code');
-    return NextResponse.redirect(`${baseUrl}/settings/integrations?error=missing_params`);
+    return NextResponse.redirect(`${baseUrl}/settings/sales-channels?tab=marketplace&error=missing_params`);
   }
 
   if (!shopId && !mainAccountId) {
     console.error('[Shopee Callback] No shop_id or main_account_id');
-    return NextResponse.redirect(`${baseUrl}/settings/integrations?error=missing_params`);
+    return NextResponse.redirect(`${baseUrl}/settings/sales-channels?tab=marketplace&error=missing_params`);
   }
 
   try {
@@ -75,11 +75,12 @@ export async function GET(request: NextRequest) {
 
     if (shopIds.length === 0) {
       console.error('[Shopee Callback] No shops found for this account');
-      return NextResponse.redirect(`${baseUrl}/settings/integrations?error=no_shops`);
+      return NextResponse.redirect(`${baseUrl}/settings/sales-channels?tab=marketplace&error=no_shops`);
     }
 
     // For each shop, we need shop-level tokens
     // If main_account_id flow, we need to get individual shop tokens
+    let connectedCount = 0;
     for (const sid of shopIds) {
       let shopAccessToken = tokens.access_token;
       let shopRefreshToken = tokens.refresh_token;
@@ -94,6 +95,7 @@ export async function GET(request: NextRequest) {
         .from('marketplace_accounts')
         .upsert({
           company_id: companyId,
+          platform: 'shopee',
           shop_id: sid,
           access_token: shopAccessToken,
           refresh_token: shopRefreshToken,
@@ -103,7 +105,9 @@ export async function GET(request: NextRequest) {
           metadata: mainAccountId ? { main_account_id: mainAccountId } : {},
           updated_at: now.toISOString(),
         }, {
-          onConflict: 'company_id,shop_id',
+          // unique index จริงคือ (company_id, platform, shop_id) — ใช้ target อื่น
+          // upsert จะ error 42P10 ทุกร้านแล้วจบแบบ "สำเร็จ" โดยไม่ save (ดู fix-bug.md)
+          onConflict: 'company_id,platform,shop_id',
         })
         .select()
         .single();
@@ -114,6 +118,7 @@ export async function GET(request: NextRequest) {
         console.error('[Shopee Callback] Upsert error for shop', sid, ':', error);
         continue;
       }
+      connectedCount++;
 
       // Fetch shop name and logo (best effort)
       try {
@@ -135,14 +140,21 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // ถ้า save ไม่สำเร็จเลยสักร้าน ต้องบอกผู้ใช้เป็น error — ห้ามจบแบบ "สำเร็จ"
+    // (เคยเกิดจริง: onConflict ไม่ตรง unique index → upsert พังทุกร้านแบบเงียบ)
+    if (connectedCount === 0) {
+      console.error('[Shopee Callback] All upserts failed for', shopIds.length, 'shop(s)');
+      return NextResponse.redirect(`${baseUrl}/settings/sales-channels?tab=marketplace&error=shopee_save_failed`);
+    }
+
     // Clear the cookie
-    const response = NextResponse.redirect(`${baseUrl}/settings/integrations?shopee=connected`);
+    const response = NextResponse.redirect(`${baseUrl}/settings/sales-channels?tab=marketplace&shopee=connected`);
     response.cookies.delete('shopee_oauth_state');
 
-    console.log('[Shopee Callback] Success! Connected', shopIds.length, 'shop(s)');
+    console.log('[Shopee Callback] Success! Connected', connectedCount, 'of', shopIds.length, 'shop(s)');
     return response;
   } catch (err) {
     console.error('[Shopee Callback] Error:', err);
-    return NextResponse.redirect(`${baseUrl}/settings/integrations?error=shopee_auth_failed`);
+    return NextResponse.redirect(`${baseUrl}/settings/sales-channels?tab=marketplace&error=shopee_auth_failed`);
   }
 }

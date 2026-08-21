@@ -305,7 +305,7 @@ export default function Sidebar() {
     { href: '/settings/counters', label: 'สาขาฝากขาย (PC)', icon: <Store className="w-[18px] h-[18px] flex-shrink-0" />, isActive: pathname === '/settings/counters' },
     { href: '/settings/features', label: 'Feature เสริม', icon: <Handshake className="w-[18px] h-[18px] flex-shrink-0" />, isActive: pathname === '/settings/features' },
     ...(features.pos ? [{ href: '/settings/pos-terminals', label: 'แคชเชียร์', icon: <Monitor className="w-[18px] h-[18px] flex-shrink-0" />, isActive: pathname === '/settings/pos-terminals' }] : []),
-    ...(features.marketplace_sync ? [{ href: '/settings/integrations', label: 'Marketplace', icon: <ShoppingBag className="w-[18px] h-[18px] flex-shrink-0" />, isActive: pathname === '/settings/integrations' }] : []),
+    // เมนู Marketplace เดิมย้ายไปรวมใน "ช่องทางการขาย" (แท็บ เชื่อมต่อ Marketplace) แล้ว
   ];
 
   // /settings/categories|brands|suppliers อยู่ในหมวดอื่น (สินค้า/ข้อมูลหลัก) — ไม่ต้องสลับ view

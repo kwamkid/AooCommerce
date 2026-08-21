@@ -283,7 +283,7 @@ function ShopeeImportContent() {
       <Layout title="นำเข้าสินค้าจาก Shopee">
         <div className="text-center py-12 text-gray-500 dark:text-slate-400">
           <p>ไม่พบข้อมูลบัญชี Shopee</p>
-          <button onClick={() => router.push('/settings/integrations')} className="mt-4 text-orange-600 hover:underline">
+          <button onClick={() => router.push('/settings/sales-channels?tab=marketplace')} className="mt-4 text-orange-600 hover:underline">
             กลับหน้าเชื่อมต่อ
           </button>
         </div>
@@ -294,7 +294,7 @@ function ShopeeImportContent() {
   return (
     <Layout title="นำเข้าสินค้าจาก Shopee" breadcrumbs={[
       { label: 'ตั้งค่าระบบ', href: '/settings' },
-      { label: 'Marketplace', href: '/settings/integrations' },
+      { label: 'ช่องทางการขาย', href: '/settings/sales-channels?tab=marketplace' },
       { label: 'นำเข้าสินค้าจาก Shopee' },
     ]}>
       {/* Step Indicator */}
@@ -633,11 +633,11 @@ function ShopeeImportContent() {
           {importDone && (
             <div className="flex items-center justify-center gap-3 pt-2">
               <button
-                onClick={() => router.push('/settings/integrations')}
+                onClick={() => router.push('/settings/sales-channels?tab=marketplace')}
                 className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-slate-300 border border-gray-300 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors flex items-center gap-2"
               >
                 <ArrowLeft className="w-4 h-4" />
-                กลับหน้า Marketplace
+                กลับหน้าช่องทางการขาย
               </button>
               <button
                 onClick={() => router.push('/products')}
@@ -679,7 +679,7 @@ function ShopeeImportContent() {
           <div>
             {step === 'select' && (
               <button
-                onClick={() => router.push('/settings/integrations')}
+                onClick={() => router.push('/settings/sales-channels?tab=marketplace')}
                 className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-slate-300 border border-gray-300 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors flex items-center gap-2"
               >
                 <ArrowLeft className="w-4 h-4" />

@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
   const authz = await authorizeMarketplaceCallback(request, rawState);
   if (!authz.ok) {
     console.error('[TikTok Callback] Authorization failed:', authz.reason);
-    return NextResponse.redirect(`${baseUrl}/settings/integrations?error=auth_${authz.reason}`);
+    return NextResponse.redirect(`${baseUrl}/settings/sales-channels?tab=marketplace&error=auth_${authz.reason}`);
   }
   const companyId = authz.companyId;
 
@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
 
   if (!code) {
     console.error('[TikTok Callback] Missing code');
-    return NextResponse.redirect(`${baseUrl}/settings/integrations?error=missing_params`);
+    return NextResponse.redirect(`${baseUrl}/settings/sales-channels?tab=marketplace&error=missing_params`);
   }
 
   try {
@@ -44,12 +44,12 @@ export async function GET(request: NextRequest) {
       console.log('[TikTok Callback] Authorized shops:', shops.map(s => ({ id: s.id, name: s.name })));
     } catch (e) {
       console.error('[TikTok Callback] Failed to get shops:', e);
-      return NextResponse.redirect(`${baseUrl}/settings/integrations?error=no_shops`);
+      return NextResponse.redirect(`${baseUrl}/settings/sales-channels?tab=marketplace&error=no_shops`);
     }
 
     if (shops.length === 0) {
       console.error('[TikTok Callback] No shops found');
-      return NextResponse.redirect(`${baseUrl}/settings/integrations?error=no_shops`);
+      return NextResponse.redirect(`${baseUrl}/settings/sales-channels?tab=marketplace&error=no_shops`);
     }
 
     // Upsert each shop
@@ -91,13 +91,13 @@ export async function GET(request: NextRequest) {
     }
 
     // Clear cookie and redirect
-    const response = NextResponse.redirect(`${baseUrl}/settings/integrations?tiktok=connected`);
+    const response = NextResponse.redirect(`${baseUrl}/settings/sales-channels?tab=marketplace&tiktok=connected`);
     response.cookies.delete('tiktok_oauth_state');
 
     console.log('[TikTok Callback] Success! Connected', shops.length, 'shop(s)');
     return response;
   } catch (err) {
     console.error('[TikTok Callback] Error:', err);
-    return NextResponse.redirect(`${baseUrl}/settings/integrations?error=tiktok_auth_failed`);
+    return NextResponse.redirect(`${baseUrl}/settings/sales-channels?tab=marketplace&error=tiktok_auth_failed`);
   }
 }
