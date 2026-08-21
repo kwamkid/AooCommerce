@@ -64,6 +64,7 @@
 |---|---|
 | `Button` | ทุกปุ่ม — variants: primary/secondary/ghost/danger/success, sizes: sm/md/lg |
 | `ExportButton` / `ImportButton` | ปุ่ม export/import — icon (Upload/Download) baked ห้ามใช้ผิด |
+| `SaveButton` | ปุ่มบันทึกทุกฟอร์ม/โมดัล — คำว่า "บันทึก" + icon Save baked ห้ามประกอบเอง (ยกเว้นปุ่ม record-payment เช่น "บันทึกชำระ") |
 | `Card` | bg-white shadow box — padding: none/sm/md/lg, flat? |
 | `Container` | page wrapper — size: full/2xl/4xl/5xl/6xl, gap: none/sm/md/lg |
 | `Badge` | tag/pill — tones: gray/red/amber/emerald/blue/indigo/purple/orange, shape: pill/square, size: sm/md |

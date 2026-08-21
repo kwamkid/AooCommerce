@@ -22,6 +22,7 @@ import Container from '@/components/ui/Container';
 import PageHeader from '@/components/ui/PageHeader';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
+import SaveButton from '@/components/ui/SaveButton';
 import { LoadingCard } from '@/components/ui/StateCard';
 
 interface Member {
@@ -1016,13 +1017,10 @@ export default function MembersPage() {
             </Button>
             {/* Direct onClick — the cross-DOM `form` attribute association silently
                 failed to submit in production, so never rely on it here again. */}
-            <Button
-              variant="primary"
+            <SaveButton
               loading={isSaving}
               onClick={() => handleSaveEdit()}
-            >
-              บันทึก
-            </Button>
+            />
           </div>
         }
       >

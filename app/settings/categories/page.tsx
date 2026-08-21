@@ -17,6 +17,7 @@ import Container from '@/components/ui/Container';
 import PageHeader from '@/components/ui/PageHeader';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
+import SaveButton from '@/components/ui/SaveButton';
 import { LoadingCard, NoPermissionCard } from '@/components/ui/StateCard';
 
 interface CategoryItem {
@@ -480,14 +481,10 @@ function CategoriesPage() {
                   />
                 </div>
                 <div className="flex gap-2 pt-1">
-                  <Button
-                    variant="primary"
+                  <SaveButton
                     onClick={handleAdd}
                     loading={saving}
-                    icon={<Check className="w-4 h-4" />}
-                  >
-                    บันทึก
-                  </Button>
+                  />
                   <Button
                     variant="secondary"
                     onClick={resetAddForm}

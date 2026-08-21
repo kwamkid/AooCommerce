@@ -6,6 +6,7 @@ import Layout from '@/components/layout/Layout';
 import Container from '@/components/ui/Container';
 import PageHeader from '@/components/ui/PageHeader';
 import Button from '@/components/ui/Button';
+import SaveButton from '@/components/ui/SaveButton';
 import Modal from '@/components/ui/Modal';
 import { LoadingCard, NoPermissionCard, EmptyCard } from '@/components/ui/StateCard';
 import Toggle from '@/components/ui/Toggle';
@@ -859,14 +860,11 @@ export default function PosTerminalsPage() {
             <Button variant="secondary" onClick={() => setShowBranchQuickAdd(false)} disabled={savingBranch}>
               ยกเลิก
             </Button>
-            <Button
-              variant="primary"
+            <SaveButton
               onClick={handleSaveQuickAddBranch}
               loading={savingBranch}
               disabled={savingBranch || !quickAddBranchName.trim() || !quickAddBranchCode.trim()}
-            >
-              บันทึก
-            </Button>
+            />
           </div>
         }
       >
@@ -915,9 +913,7 @@ export default function PosTerminalsPage() {
             <Button variant="secondary" onClick={resetForm} disabled={saving}>
               ยกเลิก
             </Button>
-            <Button variant="primary" onClick={handleSave} loading={saving} disabled={saving || !formName.trim()}>
-              บันทึก
-            </Button>
+            <SaveButton onClick={handleSave} loading={saving} disabled={saving || !formName.trim()} />
           </div>
         }
       >
@@ -1036,9 +1032,7 @@ export default function PosTerminalsPage() {
             <Button variant="secondary" onClick={resetChannelForm} disabled={savingChannel}>
               ยกเลิก
             </Button>
-            <Button variant="primary" onClick={handleSaveChannel} loading={savingChannel} disabled={savingChannel || !channelName.trim()}>
-              บันทึก
-            </Button>
+            <SaveButton onClick={handleSaveChannel} loading={savingChannel} disabled={savingChannel || !channelName.trim()} />
           </div>
         }
       >

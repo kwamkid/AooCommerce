@@ -8,6 +8,7 @@ import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
 import { InventoryItem, WarehouseItem, getVariationLabel } from './types';
 import Button from '@/components/ui/Button';
+import SaveButton from '@/components/ui/SaveButton';
 
 interface AdjustStockModalProps {
   item: InventoryItem;
@@ -107,14 +108,11 @@ export default function AdjustStockModal({ item, warehouses, initialWarehouseId,
       footer={
         <div className="flex justify-end gap-2 px-6 py-4">
           <Button variant="secondary" onClick={onClose}>ยกเลิก</Button>
-          <Button
-            variant="primary"
+          <SaveButton
             loading={saving}
             disabled={!warehouseId || newQty === '' || loadingQty}
             onClick={handleSave}
-          >
-            บันทึก
-          </Button>
+          />
         </div>
       }
     >

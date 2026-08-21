@@ -390,7 +390,6 @@ export default function DepartmentOrderDetailPage() {
             mode="department"
             customerTypeFilter="department_store"
             customerLabel="ห้างสรรพสินค้า"
-            submitLabel="บันทึกการแก้ไข"
             summaryTitle="สรุปใบส่งห้าง"
             showWarehousePicker
             backUrl="/department-orders"

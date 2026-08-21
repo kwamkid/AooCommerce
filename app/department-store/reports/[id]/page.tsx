@@ -8,7 +8,7 @@ import { LoadingCard } from '@/components/ui/StateCard';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
 import {
-  Loader2, ArrowLeft, Building2, Save, Printer,
+  Loader2, ArrowLeft, Building2, Printer,
   CheckCircle, MapPin, ExternalLink, XCircle, AlertCircle,
 } from 'lucide-react';
 import Link from 'next/link';
@@ -17,6 +17,7 @@ import { formatNumber } from '@/lib/utils/format';
 import { type ProductSearchItem } from '@/components/ui/ProductSearchInput';
 import ItemsTable, { type TableItem } from '@/components/ui/ItemsTable';
 import OrderSummaryBox from '@/components/ui/OrderSummaryBox';
+import SaveButton from '@/components/ui/SaveButton';
 import { type GpResolverContext, resolveGp, fetchGpContext } from '@/lib/gp-resolver';
 import { showPdfPreview } from '@/lib/print-pdf';
 
@@ -592,14 +593,11 @@ function EditReportContent() {
             )}
 
             {isEditable && (
-              <button
+              <SaveButton
                 onClick={handleSave}
-                disabled={submitting || items.length === 0}
-                className="btn-primary"
-              >
-                {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                บันทึก
-              </button>
+                loading={submitting}
+                disabled={items.length === 0}
+              />
             )}
           </div>
         </div>

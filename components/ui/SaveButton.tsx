@@ -19,13 +19,14 @@ interface SaveButtonProps {
   disabled?: boolean;
   size?: 'sm' | 'md' | 'lg';
   type?: 'button' | 'submit';
+  fullWidth?: boolean;
   className?: string;
   /** ข้อความบนปุ่ม — ไม่ส่งมา = "บันทึก" */
   children?: ReactNode;
 }
 
 export default function SaveButton({
-  onClick, loading, disabled, size = 'md', type = 'button', className, children,
+  onClick, loading, disabled, size = 'md', type = 'button', fullWidth, className, children,
 }: SaveButtonProps) {
   return (
     <Button
@@ -35,6 +36,7 @@ export default function SaveButton({
       onClick={onClick}
       loading={loading}
       disabled={disabled}
+      fullWidth={fullWidth}
       className={className}
       icon={<Save className="w-4 h-4" />}
     >

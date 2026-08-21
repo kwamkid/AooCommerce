@@ -24,6 +24,7 @@ import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
 import Container from '@/components/ui/Container';
 import PageHeader from '@/components/ui/PageHeader';
 import Button from '@/components/ui/Button';
+import SaveButton from '@/components/ui/SaveButton';
 import Modal from '@/components/ui/Modal';
 import { LoadingCard } from '@/components/ui/StateCard';
 import { generateReplenishmentPdf, type ReplenishmentPdfData } from '@/lib/replenishment-pdf';
@@ -1016,9 +1017,7 @@ function ReplenishmentsPageContent() {
             <Button variant="secondary" fullWidth onClick={() => setEditShipModalId(null)} disabled={editShipSubmitting}>
               ยกเลิก
             </Button>
-            <Button variant="primary" fullWidth onClick={handleEditShipping} loading={editShipSubmitting} icon={<Pencil className="w-4 h-4" />}>
-              บันทึก
-            </Button>
+            <SaveButton fullWidth onClick={handleEditShipping} loading={editShipSubmitting} />
           </div>
         }
       >

@@ -7,6 +7,7 @@ import Layout from '@/components/layout/Layout';
 import Container from '@/components/ui/Container';
 import PageHeader from '@/components/ui/PageHeader';
 import Button from '@/components/ui/Button';
+import SaveButton from '@/components/ui/SaveButton';
 import Modal from '@/components/ui/Modal';
 import FormInput from '@/components/ui/FormInput';
 import FormSelect from '@/components/ui/FormSelect';
@@ -399,7 +400,7 @@ export default function CountersSettingsPage() {
           </div>
           <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-2">
             <Button variant="secondary" onClick={() => setShowCreate(false)}>ยกเลิก</Button>
-            <Button variant="primary" loading={creating} onClick={handleCreate}>บันทึก</Button>
+            <SaveButton loading={creating} onClick={handleCreate} />
           </div>
         </Modal>
 
@@ -415,7 +416,7 @@ export default function CountersSettingsPage() {
           </div>
           <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-2">
             <Button variant="secondary" onClick={() => setRenameTarget(null)}>ยกเลิก</Button>
-            <Button variant="primary" loading={renaming} onClick={handleRename}>บันทึก</Button>
+            <SaveButton loading={renaming} onClick={handleRename} />
           </div>
         </Modal>
 

@@ -8,6 +8,7 @@ import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import Container from '@/components/ui/Container';
 import PageHeader from '@/components/ui/PageHeader';
 import Button from '@/components/ui/Button';
+import SaveButton from '@/components/ui/SaveButton';
 import Toggle from '@/components/ui/Toggle';
 import Card from '@/components/ui/Card';
 import ListRow from '@/components/ui/ListRow';
@@ -428,14 +429,11 @@ export default function CarriersSettingsPage() {
               <Button variant="secondary" onClick={() => setModalMode(null)} disabled={submitting}>
                 ยกเลิก
               </Button>
-              <Button
-                variant="primary"
+              <SaveButton
                 onClick={handleSubmit}
                 loading={submitting}
                 disabled={submitting || !formName.trim()}
-              >
-                บันทึก
-              </Button>
+              />
             </div>
           }
         >

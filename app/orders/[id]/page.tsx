@@ -6,6 +6,7 @@ import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
 import Container from '@/components/ui/Container';
 import Button from '@/components/ui/Button';
+import SaveButton from '@/components/ui/SaveButton';
 import Card from '@/components/ui/Card';
 import Modal from '@/components/ui/Modal';
 import NumberInput from '@/components/ui/NumberInput';
@@ -1817,14 +1818,11 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
               <Button variant="secondary" disabled={savingDelivery} onClick={() => setShowDeliveryModal(false)}>
                 ยกเลิก
               </Button>
-              <Button
-                variant="primary"
+              <SaveButton
                 loading={savingDelivery}
                 disabled={!deliveryForm.delivery_name || !deliveryForm.delivery_phone || !deliveryForm.delivery_address || !deliveryForm.delivery_province || !deliveryForm.delivery_postal_code}
                 onClick={handleSaveDelivery}
-              >
-                บันทึก
-              </Button>
+              />
             </div>
           }
         >

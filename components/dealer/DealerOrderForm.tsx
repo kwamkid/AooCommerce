@@ -771,11 +771,7 @@ export default function DealerOrderForm({
 
   // ── Derived labels ──────────────────────────────────────────
 
-  const resolvedSubmitLabel = submitLabel || (
-    isEditMode
-      ? 'บันทึกการแก้ไข'
-      : isConsignment ? 'บันทึกรายงาน' : isDepartment ? 'สร้างใบส่งห้าง' : 'สร้างคำสั่งซื้อ'
-  );
+  const resolvedSubmitLabel = submitLabel || 'บันทึก';
   const resolvedSummaryTitle = summaryTitle || (
     isConsignment ? 'สรุปยอดขาย' : isDepartment ? 'สรุปใบส่งห้าง' : 'สรุปคำสั่งซื้อ'
   );

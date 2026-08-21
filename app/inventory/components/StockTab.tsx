@@ -11,6 +11,7 @@ import NumberInput from '@/components/ui/NumberInput';
 import ColumnSettingsDropdown from '@/app/components/ColumnSettingsDropdown';
 import Pagination from '@/app/components/Pagination';
 import AdjustStockModal from './AdjustStockModal';
+import SaveButton from '@/components/ui/SaveButton';
 import ProductImageThumb from '@/components/ui/ProductImageThumb';
 import {
   InventoryItem, WarehouseItem, StockColumnKey,
@@ -544,14 +545,7 @@ export default function StockTab({ warehouses, onViewHistory }: StockTabProps) {
             >
               ยกเลิก
             </button>
-            <button
-              onClick={saveMinStock}
-              disabled={minStockSaving}
-              className="h-9 px-4 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors disabled:opacity-50 flex items-center gap-1.5"
-            >
-              {minStockSaving && <Loader2 className="w-4 h-4 animate-spin" />}
-              บันทึก
-            </button>
+            <SaveButton onClick={saveMinStock} loading={minStockSaving} />
           </div>
         </div>
       )}

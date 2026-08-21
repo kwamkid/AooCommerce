@@ -16,6 +16,7 @@
 |---------|-----|------|
 | ปุ่ม (primary/secondary/ghost/danger/success + sizes + loading + icon) | `Button` | inline `<button className="bg-[#F4511E]...">` |
 | ปุ่ม Export / Import — **กัน icon สลับ** | `ExportButton` / `ImportButton` | สร้าง Button + Upload/Download icon เอง (สลับบ่อย!) |
+| ปุ่มบันทึกฟอร์ม/โมดัล — **คำว่า "บันทึก" + icon Save baked** | `SaveButton` (กวาดทั้งระบบแล้ว 2026-08-21) | `<Button variant="primary">บันทึก</Button>` ประกอบเอง · label แปลกๆ ("บันทึกข้อมูล", "บันทึกการแก้ไข") — ปุ่ม record-payment (บันทึกชำระ/บันทึกยอด) เท่านั้นที่ยกเว้น |
 | Card / surface (white shadow box) | `Card` (padding: none/sm/md/lg) | inline `<div className="bg-white rounded-lg shadow-sm p-X">` |
 | Container / page max-width wrapper | `Container` (size: sm…6xl/full + gap) | inline `<div className="max-w-5xl space-y-6">` |
 | Badge / tag (8 tones × pill/square × sm/md) | `Badge` | inline `<span className="bg-X-50 text-X-700 px-2 py-0.5 rounded-full">` |

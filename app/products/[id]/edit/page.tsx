@@ -6,6 +6,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
 import Container from '@/components/ui/Container';
 import Button from '@/components/ui/Button';
+import SaveButton from '@/components/ui/SaveButton';
 import Modal from '@/components/ui/Modal';
 import PageHeader from '@/components/ui/PageHeader';
 import { LoadingCard } from '@/components/ui/StateCard';
@@ -1334,13 +1335,10 @@ export default function EditProductPage() {
                     <Button variant="secondary" onClick={handleCancelChanges}>
                       ยกเลิก
                     </Button>
-                    <Button
-                      variant="primary"
+                    <SaveButton
                       loading={Object.values(savingLink).some(Boolean)}
                       onClick={handleSaveAllLinks}
-                    >
-                      บันทึก
-                    </Button>
+                    />
                   </div>
                 )}
               </div>

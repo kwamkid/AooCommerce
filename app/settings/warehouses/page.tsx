@@ -9,12 +9,13 @@ import { useToast } from '@/lib/toast-context';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { apiFetch } from '@/lib/api-client';
 import {
-  Loader2, Plus, Check, X, Edit2, Trash2, Warehouse, Star, StarOff, AlertTriangle, Info, Users
+  Loader2, Plus, X, Edit2, Trash2, Warehouse, Star, StarOff, AlertTriangle, Info, Users
 } from 'lucide-react';
 import Container from '@/components/ui/Container';
 import PageHeader from '@/components/ui/PageHeader';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
+import SaveButton from '@/components/ui/SaveButton';
 import { LoadingCard, NoPermissionCard } from '@/components/ui/StateCard';
 import Toggle from '@/components/ui/Toggle';
 
@@ -460,15 +461,11 @@ export default function WarehouseSettingsPage() {
         </div>
 
         <div className="flex gap-2 pt-1">
-          <Button
-            variant="primary"
+          <SaveButton
             size="sm"
             onClick={handleSave}
             loading={saving}
-            icon={<Check className="w-4 h-4" />}
-          >
-            บันทึก
-          </Button>
+          />
           <Button
             variant="secondary"
             size="sm"

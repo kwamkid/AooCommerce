@@ -9,6 +9,7 @@ import Layout from '@/components/layout/Layout';
 import Container from '@/components/ui/Container';
 import PageHeader from '@/components/ui/PageHeader';
 import Button from '@/components/ui/Button';
+import SaveButton from '@/components/ui/SaveButton';
 import Modal from '@/components/ui/Modal';
 import Tabs from '@/components/ui/Tabs';
 import Toggle from '@/components/ui/Toggle';
@@ -431,7 +432,7 @@ export default function DeliverySettingsPage() {
           footer={
             <div className="px-6 py-4 flex justify-end gap-2">
               <Button variant="secondary" onClick={() => setZoneModal(false)}>ยกเลิก</Button>
-              <Button variant="primary" loading={saving} onClick={saveZone}>บันทึก</Button>
+              <SaveButton loading={saving} onClick={saveZone} />
             </div>
           }
         >
@@ -552,7 +553,7 @@ export default function DeliverySettingsPage() {
           footer={
             <div className="px-6 py-4 flex justify-end gap-2">
               <Button variant="secondary" onClick={() => setSlotModal(false)}>ยกเลิก</Button>
-              <Button variant="primary" loading={saving} onClick={saveSlot}>บันทึก</Button>
+              <SaveButton loading={saving} onClick={saveSlot} />
             </div>
           }
         >

@@ -8,6 +8,7 @@ import Container from '@/components/ui/Container';
 import PageHeader from '@/components/ui/PageHeader';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
+import SaveButton from '@/components/ui/SaveButton';
 import StickyActionBar from '@/components/ui/StickyActionBar';
 import Modal from '@/components/ui/Modal';
 import FormInput from '@/components/ui/FormInput';
@@ -898,14 +899,11 @@ export default function PaymentChannelsPage() {
             <Button variant="secondary" disabled={savingPromptPay} onClick={resetPromptPayForm}>
               ยกเลิก
             </Button>
-            <Button
-              variant="primary"
+            <SaveButton
               loading={savingPromptPay}
               disabled={!promptPayId.trim()}
               onClick={handleSavePromptPay}
-            >
-              บันทึก
-            </Button>
+            />
           </div>
         }
       >
@@ -934,14 +932,11 @@ export default function PaymentChannelsPage() {
             <Button variant="secondary" disabled={savingBank} onClick={resetBankForm}>
               ยกเลิก
             </Button>
-            <Button
-              variant="primary"
+            <SaveButton
               loading={savingBank}
               disabled={!bankForm.bank_code || !bankForm.account_number.trim() || !bankForm.account_name.trim()}
               onClick={handleSaveBank}
-            >
-              บันทึก
-            </Button>
+            />
           </div>
         }
       >

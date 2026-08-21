@@ -14,6 +14,7 @@ import { Loader2, Eye, EyeOff, ExternalLink, Check, X, ChevronDown, ChevronUp, C
 import dynamic from 'next/dynamic';
 import ActionMenu from '@/components/ui/ActionMenu';
 import Button from '@/components/ui/Button';
+import SaveButton from '@/components/ui/SaveButton';
 import Container from '@/components/ui/Container';
 import PageHeader from '@/components/ui/PageHeader';
 import PlatformIcon from '@/components/ui/PlatformIcon';
@@ -744,14 +745,10 @@ export default function ChatChannelsPage() {
 
         {/* Save / Cancel */}
         <div className="flex gap-2 pt-1">
-          <Button
-            variant="primary"
+          <SaveButton
             loading={saving}
             onClick={handleSave}
-            icon={<Check className="w-4 h-4" />}
-          >
-            บันทึก
-          </Button>
+          />
           <Button variant="secondary" onClick={resetForm} icon={<X className="w-4 h-4" />}>
             ยกเลิก
           </Button>
@@ -1063,9 +1060,7 @@ export default function ChatChannelsPage() {
             <Button variant="secondary" onClick={resetForm} disabled={saving} icon={<X className="w-4 h-4" />}>
               ยกเลิก
             </Button>
-            <Button onClick={handleSave} loading={saving} icon={!saving ? <Check className="w-4 h-4" /> : undefined}>
-              บันทึก
-            </Button>
+            <SaveButton onClick={handleSave} loading={saving} />
           </div>
         }
       >

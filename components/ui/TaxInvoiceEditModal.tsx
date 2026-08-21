@@ -4,6 +4,7 @@ import { useState } from 'react';
 import TaxInfoForm, { type TaxInfoData } from './TaxInfoForm';
 import Modal from './Modal';
 import Button from './Button';
+import SaveButton from './SaveButton';
 
 export interface TaxInvoiceSnapshot {
   tax_type: 'personal' | 'corporate';
@@ -76,22 +77,16 @@ export default function TaxInvoiceEditModal({ data, onSave, onClose, onSaveAndUp
           <Button variant="secondary" onClick={onClose}>
             ยกเลิก
           </Button>
-          <Button
-            variant="secondary"
-            onClick={handleSave}
-            className="border-primary text-primary hover:bg-orange-50 dark:hover:bg-orange-900/20"
-          >
-            บันทึก
-          </Button>
           {onSaveAndUpdateCustomer && (
             <Button
-              variant="primary"
+              variant="secondary"
               onClick={handleSaveAndUpdate}
               title="บันทึกในออเดอร์นี้ และอัพเดทข้อมูลลูกค้าด้วย"
             >
               บันทึก + อัพเดทลูกค้า
             </Button>
           )}
+          <SaveButton onClick={handleSave} />
         </div>
       }
     >

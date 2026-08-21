@@ -14,6 +14,7 @@ import { Building2, FileText, Phone, Mail, MapPin, Receipt, Upload, X, AlertCirc
 import ThaiAddressInput from '@/components/ui/ThaiAddressInput';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
+import SaveButton from '@/components/ui/SaveButton';
 import Container from '@/components/ui/Container';
 import PageHeader from '@/components/ui/PageHeader';
 import Tabs from '@/components/ui/Tabs';
@@ -681,7 +682,6 @@ export default function CompanySettingsPage() {
               setLogoPreview(null);
               setError('');
             }}
-            saveLabel="บันทึกข้อมูล"
           />
         </form>
       )}
@@ -700,14 +700,11 @@ export default function CompanySettingsPage() {
             <Button variant="secondary" onClick={() => setBranchModalMode(null)} disabled={savingBranch}>
               ยกเลิก
             </Button>
-            <Button
-              variant="primary"
+            <SaveButton
               onClick={handleSaveBranch}
               loading={savingBranch}
               disabled={savingBranch || !branchForm.name.trim() || !branchForm.code.trim()}
-            >
-              บันทึก
-            </Button>
+            />
           </div>
         }
       >

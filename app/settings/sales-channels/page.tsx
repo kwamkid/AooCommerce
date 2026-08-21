@@ -11,6 +11,7 @@ import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
 import ActionMenu, { type ActionItem } from '@/components/ui/ActionMenu';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import Button from '@/components/ui/Button';
+import SaveButton from '@/components/ui/SaveButton';
 import Badge from '@/components/ui/Badge';
 import Toggle from '@/components/ui/Toggle';
 import FormSelect from '@/components/ui/FormSelect';
@@ -517,8 +518,7 @@ export default function SalesChannelsPage() {
               >
                 ยกเลิก
               </Button>
-              <Button
-                variant="primary"
+              <SaveButton
                 fullWidth
                 onClick={handleSubmit}
                 loading={submitting}
@@ -526,9 +526,7 @@ export default function SalesChannelsPage() {
                   submitting ||
                   (modalMode === 'create' && !formName.trim())
                 }
-              >
-                บันทึก
-              </Button>
+              />
             </div>
           }
         >

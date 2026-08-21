@@ -2491,7 +2491,6 @@ export default function OrderForm({
           saving={saving}
           onSave={() => formRef.current?.requestSubmit()}
           onCancel={handleCancel}
-          saveLabel={isEditMode ? 'บันทึกการแก้ไข' : 'บันทึกคำสั่งซื้อ'}
         />
       )}
       {/* Address Conflict Dialog */}
