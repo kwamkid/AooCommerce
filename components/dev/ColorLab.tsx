@@ -56,8 +56,9 @@ const TARGETS: Target[] = [
   {
     cssVar: '--op-done',
     label: 'แถบสถานะ · ขั้นที่ผ่านแล้ว',
-    current: '#059669',
+    current: '#e2725b',
     swatches: [
+      { name: 'terracotta (ใช้อยู่)', value: '#e2725b' },
       { name: 'เขียวมิ้นต์', value: '#059669' },
       { name: 'เขียว', value: '#15803d' },
       { name: 'เขียวเข้ม', value: '#166534' },

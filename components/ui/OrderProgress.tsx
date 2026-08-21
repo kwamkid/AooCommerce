@@ -22,7 +22,9 @@ export default function OrderProgress({ order, dark = false }: Props) {
   const line = dark ? '#334155' : '#e5e7eb';
   // อ่านสีผ่าน CSS variable เพื่อให้ลองสีสดได้จากแผง ColorLab ตอน dev
   // (ค่าหลัง comma คือค่าจริงที่ใช้ใน production)
-  const doneColor = 'var(--op-done, #059669)';
+  // ผ่านแล้วกับกำลังทำใช้ "สีเดียวกัน" ต่างกันที่ทึบ/ขอบ — แบบเดียวกับแถบตอนสั่งซื้อ
+  // (CheckoutSteps ก็ใช้สีแบรนด์ตัวเดียวทั้งสองสถานะ)
+  const doneColor = 'var(--op-done, #e2725b)';
   // ขั้นที่กำลังทำอยู่ใช้สีกลาง ไม่ใช่สีแบรนด์ร้าน — ร้านที่แบรนด์เป็นโทนแดง
   // จะได้จุดแดงกลางแถบสถานะ ซึ่งอ่านเป็น "ผิดพลาด" ทั้งที่ทุกอย่างปกติดี
   const currentColor = dark ? 'var(--op-current-dark, #e2e8f0)' : 'var(--op-current, #e2725b)';
@@ -67,7 +69,9 @@ export default function OrderProgress({ order, dark = false }: Props) {
           >
             {/* จุด + เส้นเชื่อม — เส้นวาดสองข้างของจุด จะได้ชิดจุดพอดีทุกความกว้าง */}
             <div style={{ display: 'flex', alignItems: 'center', width: '100%' }}>
-              <span style={{ flex: 1, height: 2, background: i === 0 ? 'transparent' : (steps[i - 1].state === 'done' ? doneColor : line) }} />
+              {/* เส้นเชื่อมเว้นช่องว่างจากวงกลมทั้งสองข้าง — เส้นที่ลากชนวงทำให้ดูเป็น
+                  หลอดยาวเส้นเดียว ไม่ใช่ "ขั้นตอน" ที่แยกกัน (ตามแถบตอนสั่งซื้อ) */}
+              <span style={{ flex: 1, height: 2, marginRight: 8, background: i === 0 ? 'transparent' : (steps[i - 1].state === 'done' ? doneColor : line) }} />
               <span
                 style={{
                   width: 26, height: 26, borderRadius: '50%', flexShrink: 0,
@@ -82,7 +86,7 @@ export default function OrderProgress({ order, dark = false }: Props) {
               >
                 {s.state === 'done' ? <Check size={14} strokeWidth={3} aria-hidden="true" /> : i + 1}
               </span>
-              <span style={{ flex: 1, height: 2, background: i === steps.length - 1 ? 'transparent' : (s.state === 'done' ? doneColor : line) }} />
+              <span style={{ flex: 1, height: 2, marginLeft: 8, background: i === steps.length - 1 ? 'transparent' : (s.state === 'done' ? doneColor : line) }} />
             </div>
             <span
               style={{
