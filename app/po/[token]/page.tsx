@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import Image from 'next/image';
 import { Loader2, Printer, Sun, Moon, Package2, Factory, FileText, CalendarDays, Clock, CheckCircle2, XCircle, Send } from 'lucide-react';
+import { FullPageLoading } from '@/components/ui/Loading';
 import { getImageUrl } from '@/lib/utils/image';
 import { formatPrice } from '@/lib/utils/format';
 
@@ -89,19 +90,17 @@ export default function PublicPOPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#1A1A2E] flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-primary animate-spin" />
-      </div>
+      <FullPageLoading />
     );
   }
 
   if (error || !data) {
     return (
-      <div className="min-h-screen bg-[#1A1A2E] flex items-center justify-center">
+      <div className={`min-h-screen flex items-center justify-center ${dark ? 'bg-[#1A1A2E]' : 'bg-gray-50'}`}>
         <div className="text-center">
-          <FileText className="w-16 h-16 text-gray-500 mx-auto mb-4" />
-          <p className="text-xl text-white mb-2">ไม่พบใบสั่งซื้อ</p>
-          <p className="text-gray-400 text-sm">{error || 'ลิงก์ไม่ถูกต้องหรือหมดอายุ'}</p>
+          <FileText className={`w-16 h-16 mx-auto mb-4 ${dark ? 'text-slate-600' : 'text-gray-300'}`} />
+          <p className={`text-xl mb-2 ${dark ? 'text-white' : 'text-gray-700'}`}>ไม่พบใบสั่งซื้อ</p>
+          <p className={`text-sm ${dark ? 'text-gray-400' : 'text-gray-500'}`}>{error || 'ลิงก์ไม่ถูกต้องหรือหมดอายุ'}</p>
         </div>
       </div>
     );

@@ -6,6 +6,7 @@ import Image from 'next/image';
 import { Loader2, Package, Sun, Moon, CheckCircle2, ClipboardList, BarChart3, ChevronRight, AlertCircle, KeyRound, LogOut, Store } from 'lucide-react';
 import { productDisplayName } from '@/lib/product-display';
 import NumberInput from '@/components/ui/NumberInput';
+import { FullPageLoading } from '@/components/ui/Loading';
 
 interface StockItem {
   variation_id: string;
@@ -347,9 +348,7 @@ export default function ConsignmentPortalPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#1A1A2E] flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-amber-500 animate-spin" />
-      </div>
+      <FullPageLoading />
     );
   }
 
