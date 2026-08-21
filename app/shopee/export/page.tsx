@@ -15,6 +15,7 @@ import {
   AlertTriangle, ArrowLeft, Pencil,
 } from 'lucide-react';
 import FormSelect from '@/components/ui/FormSelect';
+import { useMarketplaceGuard } from '@/lib/useMarketplaceGuard';
 
 interface ProductItem {
   product_id: string;
@@ -1078,6 +1079,13 @@ function ShopeeExportContent() {
 }
 
 export default function ShopeeExportPage() {
+  // ร้านที่ปิดฟีเจอร์ marketplace ไม่ควรเข้าหน้านี้ได้เลย (เมนูถูกซ่อนอยู่แล้ว
+  // แต่ลิงก์ตรง/บุ๊กมาร์กยังเข้าได้)
+  const { allowed: marketplaceOn, checking: checkingMarketplace } = useMarketplaceGuard();
+
+  if (checkingMarketplace) return null;
+  if (!marketplaceOn) return null;   // useMarketplaceGuard เด้งออกให้แล้ว
+
   return (
     <Suspense fallback={
       <Layout title="ส่งสินค้าไป Shopee">

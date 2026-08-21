@@ -70,6 +70,7 @@ import LoadingOverlay from '@/components/ui/LoadingOverlay';
 import FormSelect from '@/components/ui/FormSelect';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { getStatusBadgeTone } from '@/lib/status-tab-colors';
+import { isMarketplacePlatform } from '@/lib/marketplace-platforms';
 
 // Sort options (id/label so FormSelect can consume directly)
 const SORT_OPTIONS = [
@@ -267,8 +268,13 @@ function OrdersPageContent() {
       if (result.onHoldCount !== undefined) setOnHoldCount(result.onHoldCount);
       if (result.rtsOnHoldCount !== undefined) setRtsOnHoldCount(result.rtsOnHoldCount);
       if (result.channelOptions) {
+        // ปิดฟีเจอร์ marketplace แล้วต้องไม่เห็นช่องทางที่ mirror มาจาก Shopee/Lazada/TikTok
+        // (ช่องทางพวกนี้ยังอยู่ใน DB เพราะออเดอร์เก่าอ้างถึง แค่ไม่ต้องโชว์เป็นตัวเลือก)
+        const visible = features.marketplace_sync
+          ? result.channelOptions
+          : result.channelOptions.filter((ch: ChannelOption) => !isMarketplacePlatform(ch.platform));
         // Sort by platform so dividers group correctly
-        const sorted = [...result.channelOptions].sort((a: ChannelOption, b: ChannelOption) => (a.platform || '').localeCompare(b.platform || ''));
+        const sorted = [...visible].sort((a: ChannelOption, b: ChannelOption) => (a.platform || '').localeCompare(b.platform || ''));
         setChannelDropdownOptions(sorted.map((ch: ChannelOption) => ({
           id: ch.id,
           label: ch.name,

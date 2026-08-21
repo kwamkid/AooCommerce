@@ -21,6 +21,8 @@ import { can } from '@/lib/permissions';
 import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
 import Tabs from '@/components/ui/Tabs';
+import { useFeatures } from '@/lib/features-context';
+import { isMarketplacePlatform } from '@/lib/marketplace-platforms';
 import {
   Tag, Plus, Pencil, Trash2, Lock, MessageCircle, Link as LinkIcon, Star,
 } from 'lucide-react';
@@ -54,7 +56,7 @@ const PLATFORM_OPTIONS = [
 ];
 
 // Platform filter tabs — same pattern as /settings/chat-channels
-const PLATFORM_TABS = [
+const ALL_PLATFORM_TABS = [
   { key: 'all', label: 'ทั้งหมด' },
   { key: 'facebook', label: 'FB / IG', activeColorClass: 'border-facebook text-facebook' },
   { key: 'line', label: 'LINE', activeColorClass: 'border-line text-line' },
@@ -66,6 +68,7 @@ const PLATFORM_TABS = [
 
 export default function SalesChannelsPage() {
   const { userProfile, loading: authLoading } = useAuth();
+  const { features } = useFeatures();
   const { showToast } = useToast();
 
   const [channels, setChannels] = useState<SalesChannel[]>([]);
@@ -115,8 +118,18 @@ export default function SalesChannelsPage() {
     return c.platform === tab;
   };
 
+  // ปิด marketplace แล้วต้องไม่เหลือร่องรอย — ทั้งแท็บและรายการช่องทาง
+  const visibleTabs = useMemo(
+    () => (features.marketplace_sync ? ALL_PLATFORM_TABS : ALL_PLATFORM_TABS.filter(t => !isMarketplacePlatform(t.key))),
+    [features.marketplace_sync],
+  );
+
   const filtered = useMemo(() => {
-    const byTab = channels.filter(c => matchesTab(c, activeTab));
+    // ปิด marketplace แล้ว ช่องทางที่ mirror มาจาก Shopee/Lazada/TikTok ต้องไม่โผล่
+    const source = features.marketplace_sync
+      ? channels
+      : channels.filter(c => !isMarketplacePlatform(c.platform));
+    const byTab = source.filter(c => matchesTab(c, activeTab));
     const q = searchTerm.trim().toLowerCase();
     if (!q) return byTab;
     return byTab.filter(c =>
@@ -124,7 +137,7 @@ export default function SalesChannelsPage() {
       c.code.toLowerCase().includes(q) ||
       (c.platform || '').toLowerCase().includes(q)
     );
-  }, [channels, searchTerm, activeTab]);
+  }, [channels, searchTerm, activeTab, features.marketplace_sync]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / rowsPerPage));
   const startIndex = (currentPage - 1) * rowsPerPage;
@@ -432,7 +445,7 @@ export default function SalesChannelsPage() {
         <Tabs
           activeKey={activeTab}
           onSelect={(key) => { setActiveTab(key); setCurrentPage(1); }}
-          tabs={PLATFORM_TABS.map(t => ({
+          tabs={visibleTabs.map(t => ({
             key: t.key,
             label: t.label,
             icon: t.key !== 'all' && t.key !== 'none'

@@ -18,6 +18,7 @@ import FormSelect from '@/components/ui/FormSelect';
 import LoadingOverlay from '@/components/ui/LoadingOverlay';
 import Container from '@/components/ui/Container';
 import { LoadingCard, NoPermissionCard } from '@/components/ui/StateCard';
+import { useMarketplaceGuard } from '@/lib/useMarketplaceGuard';
 
 interface MarketplaceAccount {
   id: string;
@@ -41,6 +42,10 @@ interface MarketplaceAccount {
 type ShopeeAccount = MarketplaceAccount;
 
 export default function IntegrationsPage() {
+  // ร้านที่ปิดฟีเจอร์ marketplace ไม่ควรเข้าหน้านี้ได้เลย (เมนูถูกซ่อนอยู่แล้ว
+  // แต่ลิงก์ตรง/บุ๊กมาร์กยังเข้าได้)
+  const { allowed: marketplaceOn, checking: checkingMarketplace } = useMarketplaceGuard();
+
   const router = useRouter();
   const { userProfile } = useAuth();
   const { showToast } = useToast();
@@ -462,6 +467,9 @@ export default function IntegrationsPage() {
 
   const activeAccounts = accounts.filter(a => a.is_active);
   const activeTiktokAccounts = tiktokAccounts.filter(a => a.is_active);
+
+  if (checkingMarketplace) return null;
+  if (!marketplaceOn) return null;   // useMarketplaceGuard เด้งออกให้แล้ว
 
   return (
     <Layout>

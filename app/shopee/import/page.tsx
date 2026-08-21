@@ -8,6 +8,7 @@ import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
 import ProductPicker from '@/components/shopee/ProductPicker';
 import Image from 'next/image';
+import { useMarketplaceGuard } from '@/lib/useMarketplaceGuard';
 import {
   Loader2, Download, Search,
   ChevronLeft, ChevronRight, CheckCircle2, XCircle, ShoppingBag,
@@ -734,6 +735,13 @@ function ShopeeImportContent() {
 }
 
 export default function ShopeeImportPage() {
+  // ร้านที่ปิดฟีเจอร์ marketplace ไม่ควรเข้าหน้านี้ได้เลย (เมนูถูกซ่อนอยู่แล้ว
+  // แต่ลิงก์ตรง/บุ๊กมาร์กยังเข้าได้)
+  const { allowed: marketplaceOn, checking: checkingMarketplace } = useMarketplaceGuard();
+
+  if (checkingMarketplace) return null;
+  if (!marketplaceOn) return null;   // useMarketplaceGuard เด้งออกให้แล้ว
+
   return (
     <Suspense fallback={
       <Layout title="นำเข้าสินค้าจาก Shopee">

@@ -24,6 +24,7 @@ import {
   ScrollText,
 } from 'lucide-react';
 import FormSelect from '@/components/ui/FormSelect';
+import { useMarketplaceGuard } from '@/lib/useMarketplaceGuard';
 
 interface IntegrationLog {
   id: string;
@@ -160,6 +161,10 @@ function getOrderDisplayLabel(log: IntegrationLog): string {
 }
 
 export default function ShopeeLogsPage() {
+  // ร้านที่ปิดฟีเจอร์ marketplace ไม่ควรเข้าหน้านี้ได้เลย (เมนูถูกซ่อนอยู่แล้ว
+  // แต่ลิงก์ตรง/บุ๊กมาร์กยังเข้าได้)
+  const { allowed: marketplaceOn, checking: checkingMarketplace } = useMarketplaceGuard();
+
   const { userProfile } = useAuth();
   const [logs, setLogs] = useState<IntegrationLog[]>([]);
   const [loading, setLoading] = useState(true);
@@ -229,6 +234,9 @@ export default function ShopeeLogsPage() {
 
   const startIdx = (page - 1) * recordsPerPage;
   const endIdx = Math.min(startIdx + recordsPerPage, totalRecords);
+
+  if (checkingMarketplace) return null;
+  if (!marketplaceOn) return null;   // useMarketplaceGuard เด้งออกให้แล้ว
 
   return (
     <Layout>
