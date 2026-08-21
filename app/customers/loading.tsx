@@ -1,17 +1,8 @@
-'use client';
+// Path: app/customers/loading.tsx
+// โครงหน้าระหว่างโหลด — กัน splash เต็มจอของ app/loading.tsx ไม่ให้กระพริบทับ
+// sidebar/header ตอนเปลี่ยนหน้า (ดู components/layout/AppSegmentLoading.tsx)
+import AppSegmentLoading from '@/components/layout/AppSegmentLoading';
 
-import Layout from '@/components/layout/Layout';
-import Container from '@/components/ui/Container';
-import { PageSkeleton } from '@/components/ui/Skeleton';
-
-// Route-level skeleton — Next.js แสดงตัวนี้ระหว่างโหลด segment
-// (แทน splash เต็มจอ เพราะเรารู้อยู่แล้วว่าหน้านี้หน้าตาประมาณไหน)
 export default function Loading() {
-  return (
-    <Layout>
-      <Container size="full">
-        <PageSkeleton variant="list" />
-      </Container>
-    </Layout>
-  );
+  return <AppSegmentLoading variant="list" />;
 }
