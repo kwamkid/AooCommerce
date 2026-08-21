@@ -933,3 +933,13 @@ input[type="number"] {
   .sticky-actions-inner > :first-child { display: none; }
   .sticky-actions-inner { justify-content: flex-end; }
 }
+
+/* ── ป้ายชื่อขั้นในแถบติดตามออเดอร์ (components/ui/OrderProgress) ──────
+   ขนาดเท่าป้ายในแถบตอนสั่งซื้อ (.sf-step-label) เพื่อให้สองแถบเป็นชุดเดียวกัน
+   จอแคบย่อลง — 5 ขั้นที่ 14px บนจอ 390px จะตัดคำเป็นสองสามบรรทัดจนอ่านยาก */
+.op-step-label { font-size: 14px; line-height: 1.55; text-align: center; padding: 0 3px; }
+.op-step-note { display: block; font-size: 12.5px; line-height: 1.45; margin-top: 1px; font-weight: 400; }
+@media (max-width: 560px) {
+  .op-step-label { font-size: 12.5px; line-height: 1.4; padding: 0 2px; }
+  .op-step-note { font-size: 11.5px; }
+}

@@ -88,17 +88,18 @@ export default function OrderProgress({ order, dark = false }: Props) {
               </span>
               <span style={{ flex: 1, height: 2, marginLeft: 8, background: i === steps.length - 1 ? 'transparent' : (s.state === 'done' ? doneColor : line) }} />
             </div>
+            {/* ขนาดตัวอักษรอยู่ใน globals.css (.op-step-label) เพราะต้องมี media query
+                — จอกว้าง 14px เท่าแถบตอนสั่งซื้อ, จอแคบย่อลงให้ 5 ขั้นพอดีไม่ตัดคำ */}
             <span
+              className="op-step-label"
               style={{
-                // จอ 390px ต้องวาง 5 ขั้นให้พอดี — ป้ายเล็กลงนิดแต่ยังอ่านออก
-                fontSize: 12.5, lineHeight: 1.35, textAlign: 'center', padding: '0 3px',
                 color: s.state === 'todo' ? muted : text,
                 fontWeight: s.state === 'current' ? 600 : 400,
               }}
             >
               {s.label}
               {s.note && (
-                <span style={{ display: 'block', fontSize: 11.5, marginTop: 1, color: muted, fontWeight: 400 }}>
+                <span className="op-step-note" style={{ color: muted }}>
                   {s.note}
                 </span>
               )}
