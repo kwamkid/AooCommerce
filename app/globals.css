@@ -934,12 +934,74 @@ input[type="number"] {
   .sticky-actions-inner { justify-content: flex-end; }
 }
 
-/* ── ป้ายชื่อขั้นในแถบติดตามออเดอร์ (components/ui/OrderProgress) ──────
-   ขนาดเท่าป้ายในแถบตอนสั่งซื้อ (.sf-step-label) เพื่อให้สองแถบเป็นชุดเดียวกัน
-   จอแคบย่อลง — 5 ขั้นที่ 14px บนจอ 390px จะตัดคำเป็นสองสามบรรทัดจนอ่านยาก */
-.op-step-label { font-size: 14px; line-height: 1.55; text-align: center; padding: 0 3px; }
-.op-step-note { display: block; font-size: 12.5px; line-height: 1.45; margin-top: 1px; font-weight: 400; }
+/* ── แถบขั้นตอน (components/ui/Stepper) — ใช้ทั้งตอนสั่งซื้อและติดตามออเดอร์ ──
+   ผ่านแล้ว = วงทึบ + ติ๊ก · กำลังทำ = วงขอบ · ยังไม่ถึง = วงขอบเทา
+   เส้นเชื่อมเว้นจากวงกลม ไม่ลากชน */
+.stepper { display: flex; align-items: flex-start; list-style: none; margin: 0; padding: 0; }
+.stepper-inline { justify-content: center; }
+.stepper-inline .stepper-step { display: flex; align-items: center; }
+.stepper-inline .stepper-in { display: flex; align-items: center; gap: 8px; }
+/* เส้นเชื่อมของ inline อยู่ "ก่อน" ขั้นถัดไป */
+.stepper-inline .stepper-step + .stepper-step::before {
+  content: ''; height: 2px; width: 44px; margin: 0 12px; background: var(--card-border);
+}
+/* ต้องเจาะจงกว่ากฎเส้นสีเทาข้างบน ไม่งั้นโดนทับ (specificity เท่ากันแล้วอันบนชนะ) */
+.stepper-inline .stepper-step + .stepper-step.stepper-after-done::before { background: var(--step-color); }
+
+/* stacked — ชื่ออยู่ใต้วง เส้นเชื่อมยืดเต็มช่องว่างระหว่างวง */
+.stepper-stacked .stepper-step { flex: 1; min-width: 0; }
+.stepper-stacked .stepper-in { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.stepper-stacked .stepper-dot { position: relative; }
+/* เส้นลากจากกึ่งกลางวงไปทางซ้าย/ขวา แล้วเว้น 8px ก่อนถึงวง */
+.stepper-stacked .stepper-step::before,
+.stepper-stacked .stepper-step::after {
+  content: ''; position: absolute; top: 12px; height: 2px; background: var(--card-border);
+}
+.stepper-stacked .stepper-step { position: relative; }
+.stepper-stacked .stepper-step::before { left: 0; right: calc(50% + 21px); }
+.stepper-stacked .stepper-step::after { left: calc(50% + 21px); right: 0; }
+.stepper-stacked .stepper-step:first-child::before,
+.stepper-stacked .stepper-step:last-child::after { display: none; }
+.stepper-stacked .stepper-after-done::before { background: var(--step-color); }
+.stepper-stacked .stepper-done::after { background: var(--step-color); }
+
+.stepper-in { text-decoration: none; color: inherit; }
+.stepper-dot {
+  width: 26px; height: 26px; border-radius: 999px; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 700; line-height: 1;
+  border: 2px solid var(--card-border); background: var(--card); color: var(--muted-foreground);
+}
+.stepper-dot svg { width: 13px; height: 13px; }
+.stepper-label { font-size: 14px; line-height: 1.55; color: var(--muted-foreground); }
+.stepper-stacked .stepper-label { text-align: center; padding: 0 3px; }
+.stepper-note { display: block; font-size: 12.5px; line-height: 1.45; margin-top: 1px; font-weight: 400; color: var(--muted-foreground); }
+
+.stepper-done .stepper-dot { background: var(--step-color); border-color: var(--step-color); color: #fff; }
+.stepper-done .stepper-label { color: var(--foreground); }
+.stepper-current .stepper-dot {
+  border-color: var(--step-color); color: var(--step-ink);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--step-color) 16%, transparent);
+}
+.stepper-current .stepper-label { color: var(--foreground); font-weight: 600; }
+a.stepper-in:hover .stepper-label { color: var(--step-color); }
+
+/* บิลออนไลน์สลับธีมด้วยตัวแปร JS เอง ไม่ได้ใช้ class .dark */
+.stepper-dark .stepper-dot { background: transparent; border-color: #334155; color: #94a3b8; }
+.stepper-dark .stepper-label, .stepper-dark .stepper-note { color: #94a3b8; }
+.stepper-dark .stepper-done .stepper-dot { background: var(--step-color); border-color: var(--step-color); color: #fff; }
+.stepper-dark .stepper-done .stepper-label,
+.stepper-dark .stepper-current .stepper-label { color: #e2e8f0; }
+.stepper-dark .stepper-step::before, .stepper-dark .stepper-step::after { background: #334155; }
+.stepper-dark .stepper-step + .stepper-step.stepper-after-done::before,
+.stepper-dark .stepper-stacked .stepper-after-done::before,
+.stepper-dark .stepper-done::after { background: var(--step-color); }
+
+/* จอแคบ: 5 ขั้นภาษาไทยที่ 14px จะตัดคำหลายบรรทัด */
 @media (max-width: 560px) {
-  .op-step-label { font-size: 12.5px; line-height: 1.4; padding: 0 2px; }
-  .op-step-note { font-size: 11.5px; }
+  .stepper-stacked .stepper-label { font-size: 12.5px; line-height: 1.4; padding: 0 2px; }
+  .stepper-stacked .stepper-note { font-size: 11.5px; }
+  /* inline: โชว์เฉพาะชื่อขั้นปัจจุบัน — สามชื่อเรียงกันแล้วเบียดจนอ่านไม่ออก */
+  .stepper-inline .stepper-step:not(.stepper-current) .stepper-label { display: none; }
+  .stepper-inline .stepper-step + .stepper-step::before { width: 26px; margin: 0 8px; }
 }

@@ -1,9 +1,11 @@
 // แถบขั้นตอนการสั่งซื้อ — ตะกร้า → ข้อมูลจัดส่ง → ชำระเงิน
 //
-// ขั้นที่ผ่านมาแล้วกดย้อนกลับได้ (เป็น <Link>) ขั้นที่ยังไม่ถึงกดไม่ได้ —
-// ปล่อยให้ข้ามไปหน้าชำระเงินโดยยังไม่กรอกที่อยู่จะเจอฟอร์มเปล่าแล้วงงว่าพัง
-import Link from 'next/link';
-import { Check } from 'lucide-react';
+// เป็นแค่ตัวแปลง "หน้าไหนอยู่ขั้นไหน" แล้วส่งต่อให้ Stepper ตัวกลาง
+// (หน้าตา/สี/ขนาด อยู่ที่ components/ui/Stepper + globals.css ที่เดียว)
+//
+// ขั้นที่ผ่านมาแล้วกดย้อนกลับได้ ขั้นที่ยังไม่ถึงกดไม่ได้ — ปล่อยให้ข้ามไปหน้า
+// ชำระเงินโดยยังไม่กรอกที่อยู่จะเจอฟอร์มเปล่าแล้วงงว่าพัง
+import Stepper, { type StepItem } from '@/components/ui/Stepper';
 import { storefrontHref } from '@/lib/storefront';
 
 export type CheckoutStep = 'cart' | 'info' | 'pay';
@@ -16,33 +18,19 @@ const STEPS: { key: CheckoutStep; label: string; path: string | null }[] = [
 
 export default function CheckoutSteps({ shop, current }: { shop: string; current: CheckoutStep }) {
   const at = STEPS.findIndex(s => s.key === current);
+  const steps: StepItem[] = STEPS.map((s, i) => ({
+    key: s.key,
+    label: s.label,
+    state: i < at ? 'done' : i === at ? 'current' : 'todo',
+    href: i < at && s.path ? storefrontHref(shop, s.path) : undefined,
+  }));
 
   return (
-    <ol className="sf-steps" aria-label="ขั้นตอนการสั่งซื้อ">
-      {STEPS.map((s, i) => {
-        const state = i < at ? 'done' : i === at ? 'now' : 'next';
-        const body = (
-          <>
-            <span className="sf-step-dot">
-              {state === 'done' ? <Check strokeWidth={3} aria-hidden="true" /> : i + 1}
-            </span>
-            <span className="sf-step-label">{s.label}</span>
-          </>
-        );
-        return (
-          <li
-            key={s.key}
-            className={`sf-step sf-step-${state}`}
-            aria-current={state === 'now' ? 'step' : undefined}
-          >
-            {state === 'done' && s.path ? (
-              <Link href={storefrontHref(shop, s.path)} className="sf-step-in">{body}</Link>
-            ) : (
-              <span className="sf-step-in">{body}</span>
-            )}
-          </li>
-        );
-      })}
-    </ol>
+    <Stepper
+      steps={steps}
+      layout="inline"
+      ariaLabel="ขั้นตอนการสั่งซื้อ"
+      className="sf-checkout-steps"
+    />
   );
 }
