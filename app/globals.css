@@ -206,11 +206,33 @@ html, body {
  * :where() ทำให้คลาสพวกนี้เป็น "ค่าเริ่มต้น" ที่ utility ของ Tailwind
  * เขียนทับได้เสมอตามที่ควรจะเป็น โดยยังอยู่นอก @layer จึงไม่ถูก purge
  */
-:where(.heading-1) { font-size: 1.875rem; line-height: 2.25rem; font-weight: 700; color: rgb(17 24 39); }
-:where(.heading-2) { font-size: 1.5rem;   line-height: 2rem;    font-weight: 700; color: rgb(17 24 39); }
-:where(.heading-3) { font-size: 1.125rem; line-height: 1.75rem; font-weight: 600; color: rgb(17 24 39); }
-:where(.heading-4) { font-size: 1rem;     line-height: 1.5rem;  font-weight: 600; color: rgb(17 24 39); }
+:where(.heading-1) { --h-size: 1.875rem; --h-lh: 2.25rem; --h-weight: 700; font-size: var(--h-size); line-height: var(--h-lh); font-weight: var(--h-weight); color: rgb(17 24 39); }
+:where(.heading-2) { --h-size: 1.5rem;   --h-lh: 2rem;    --h-weight: 700; font-size: var(--h-size); line-height: var(--h-lh); font-weight: var(--h-weight); color: rgb(17 24 39); }
+:where(.heading-3) { --h-size: 1.125rem; --h-lh: 1.75rem; --h-weight: 600; font-size: var(--h-size); line-height: var(--h-lh); font-weight: var(--h-weight); color: rgb(17 24 39); }
+:where(.heading-4) { --h-size: 1rem;     --h-lh: 1.5rem;  --h-weight: 600; font-size: var(--h-size); line-height: var(--h-lh); font-weight: var(--h-weight); color: rgb(17 24 39); }
 :where(.dark .heading-1, .dark .heading-2, .dark .heading-3, .dark .heading-4) { color: #fff; }
+
+/* ⚠️ ต้องมีบรรทัดล่างนี้ ห้ามลบ — ไม่งั้นหัวข้อทุกหน้าจะเท่าตัวหนังสือปกติ
+ *
+ * preflight ของ Tailwind มี `h1,h2,h3,h4,h5,h6 { font-size: inherit; font-weight: inherit }`
+ * ซึ่งเป็น element selector (specificity 0,0,1) → ชนะ :where(.heading-1) ที่เป็น 0 สนิท
+ * ผลคือ <h1 className="heading-1"> ออกมาขนาด 16px ไม่หนา ทั้งที่ CSS เขียนไว้ 30px/700
+ * (ซ่อนมานาน เพิ่งเห็นตอนรวมหัวข้อทุกหน้าเป็น PageHeader แล้วเทียบกับคำอธิบายใต้หัวข้อ)
+ *
+ * บรรทัดล่างเขียนคืนด้วย specificity 0,0,1 เท่ากับ preflight แต่มาทีหลังในไฟล์ = ชนะ
+ * ส่วน utility ของ Tailwind (0,1,0) ยังเขียนทับได้เหมือนเดิม (`heading-1 text-xl` ยังได้ 20px)
+ * ค่าตัวเลขอ่านผ่าน var() จากบล็อกข้างบน — แก้ขนาดหัวข้อยังแก้ที่เดียวเหมือนเดิม
+ */
+h1:where(.heading-1, .heading-2, .heading-3, .heading-4),
+h2:where(.heading-1, .heading-2, .heading-3, .heading-4),
+h3:where(.heading-1, .heading-2, .heading-3, .heading-4),
+h4:where(.heading-1, .heading-2, .heading-3, .heading-4),
+h5:where(.heading-1, .heading-2, .heading-3, .heading-4),
+h6:where(.heading-1, .heading-2, .heading-3, .heading-4) {
+  font-size: var(--h-size);
+  line-height: var(--h-lh);
+  font-weight: var(--h-weight);
+}
 
 :where(.body-text)      { font-size: 1rem;     color: rgb(17 24 39); }
 :where(.subtitle-text)  { font-size: 0.875rem; color: rgb(55 65 81); }

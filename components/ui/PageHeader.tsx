@@ -57,7 +57,9 @@ export default function PageHeader({ title, subtitle, backHref, actions, icon, c
           {/* หน้าหลัก (ไม่มีปุ่มย้อนกลับ) ใช้หัวข้อใหญ่ · หน้าย่อยใช้เล็กลงหนึ่งขั้น
               เป็นลำดับชั้นที่ตั้งไว้ใน CLAUDE.md — คุมจากที่นี่ที่เดียว หน้าไหน ๆ
               ก็ไม่ต้องเลือกขนาดเอง */}
-          <h1 className={backHref === undefined ? 'heading-1 truncate' : 'heading-2 truncate'}>{title}</h1>
+          {/* ตัดบรรทัดแทนการตัดคำด้วย … — หัวข้อไทยยาว ๆ บนมือถือถ้า truncate จะหายไปครึ่งชื่อ
+              (min-w-0 ที่ div ข้างบนทำให้ย่อได้อยู่แล้ว ปุ่มฝั่งขวาไม่ถูกดันตก) */}
+          <h1 className={backHref === undefined ? 'heading-1 break-words' : 'heading-2 break-words'}>{title}</h1>
           {subtitle && <p className="page-subtitle">{subtitle}</p>}
         </div>
       </div>
