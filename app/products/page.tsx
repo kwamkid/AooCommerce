@@ -39,6 +39,7 @@ import SharedActionMenu from '@/components/ui/ActionMenu';
 import SearchableDropdown, { DropdownOption } from '@/components/ui/SearchableDropdown';
 import FormSelect from '@/components/ui/FormSelect';
 import Toggle from '@/components/ui/Toggle';
+import PageHeader from '@/components/ui/PageHeader';
 
 // Product interface (from API view)
 interface ProductItem {
@@ -934,13 +935,11 @@ function ProductsPageContent() {
   return (
     <Layout>
       <Container size="full">
-        {/* Header */}
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <h1 className="heading-1">สินค้า</h1>
-            <p className="page-subtitle">จัดการสินค้า (สินค้าปกติ หรือ สินค้าย่อย)</p>
-          </div>
-          <div className="flex items-center gap-2">
+        <PageHeader
+          title="สินค้า"
+          subtitle="จัดการสินค้า (สินค้าปกติ หรือ สินค้าย่อย)"
+          icon={<Package2 />}
+          actions={<>
             <ExportButton onClick={handleExport} loading={exporting} />
             <Button
               variant="secondary"
@@ -956,8 +955,8 @@ function ProductsPageContent() {
             >
               เพิ่ม<span className="hidden md:inline">สินค้า</span>
             </Button>
-          </div>
-        </div>
+          </>}
+        />
 
         {/* Alerts */}
         {error && (

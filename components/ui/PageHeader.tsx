@@ -18,9 +18,13 @@ interface PageHeaderProps {
 }
 
 /**
- * Shared page header: back arrow + (icon + title + subtitle) + right-side actions slot.
- * Used inside Layout content for sub-pages that need their own title block
- * (e.g. /products/bulk/create, /orders/[id]).
+ * หัวข้อหน้ามาตรฐานของทุกหน้า — ปุ่มย้อนกลับ + (ไอคอน + หัวข้อ + คำอธิบาย) + ปุ่มฝั่งขวา
+ *
+ * ใช้ทุกหน้า ไม่ใช่เฉพาะหน้าย่อย: หน้าหลักไม่ต้องส่ง backHref แล้วจะได้หัวข้อขนาดใหญ่
+ * หน้าย่อยส่ง backHref แล้วจะได้ปุ่มย้อนกลับ + หัวข้อเล็กลงหนึ่งขั้น
+ *
+ * ⚠️ ห้ามเขียนหัวข้อหน้าเองด้วย <h1 className="heading-1"> อีก — ที่ผ่านมาแต่ละหน้า
+ * วางไอคอน/คำอธิบาย/ขนาดต่างกันจนดูเหมือนคนละระบบ
  */
 export default function PageHeader({ title, subtitle, backHref, actions, icon }: PageHeaderProps) {
   const router = useRouter();
@@ -44,12 +48,13 @@ export default function PageHeader({ title, subtitle, backHref, actions, icon }:
             <ArrowLeft className="w-5 h-5 text-gray-600 dark:text-slate-400" />
           </button>
         )}
-        {icon && <div className="flex-shrink-0 pt-1">{icon}</div>}
+        {icon && <div className="flex-shrink-0 pt-1 [&>svg]:w-8 [&>svg]:h-8 text-primary">{icon}</div>}
         <div className="min-w-0">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white truncate">{title}</h1>
-          {subtitle && (
-            <p className="text-gray-500 dark:text-slate-400 text-sm mt-0.5">{subtitle}</p>
-          )}
+          {/* หน้าหลัก (ไม่มีปุ่มย้อนกลับ) ใช้หัวข้อใหญ่ · หน้าย่อยใช้เล็กลงหนึ่งขั้น
+              เป็นลำดับชั้นที่ตั้งไว้ใน CLAUDE.md — คุมจากที่นี่ที่เดียว หน้าไหน ๆ
+              ก็ไม่ต้องเลือกขนาดเอง */}
+          <h1 className={backHref === undefined ? 'heading-1 truncate' : 'heading-2 truncate'}>{title}</h1>
+          {subtitle && <p className="page-subtitle">{subtitle}</p>}
         </div>
       </div>
       {actions && <div className="flex-shrink-0 flex items-center gap-2">{actions}</div>}

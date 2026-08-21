@@ -41,6 +41,7 @@ import TagBadge, { Tag, TAG_COLORS } from '@/components/ui/TagBadge';
 import PlatformChipFilter from '@/app/components/PlatformChipFilter';
 import FormSelect from '@/components/ui/FormSelect';
 import ActionMenu, { ActionItem } from '@/components/ui/ActionMenu';
+import PageHeader from '@/components/ui/PageHeader';
 
 // Channel icon and label config
 const CHANNEL_CONFIG: Record<string, { label: string; icon: string; color: string }> = {
@@ -648,17 +649,11 @@ function CustomersPageContent() {
   return (
     <Layout>
       <Container size="full">
-        {/* Header */}
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="heading-1 flex items-center">
-              <UserCircle className="w-8 h-8 mr-3 text-primary" />
-              ลูกค้า
-            </h1>
-            <p className="page-subtitle">จัดการข้อมูลลูกค้าและความสัมพันธ์</p>
-          </div>
-
-          <div className="flex items-center gap-2">
+        <PageHeader
+          title="ลูกค้า"
+          subtitle="จัดการข้อมูลลูกค้าและความสัมพันธ์"
+          icon={<UserCircle />}
+          actions={<>
             <Button
               variant="secondary"
               icon={<Tags className="w-4 h-4" />}
@@ -673,8 +668,8 @@ function CustomersPageContent() {
             >
               เพิ่ม<span className="hidden md:inline">ลูกค้า</span>
             </Button>
-          </div>
-        </div>
+          </>}
+        />
 
         {/* Alerts */}
         {error && <Alert tone="danger">{error}</Alert>}

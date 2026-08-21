@@ -71,6 +71,7 @@ import FormSelect from '@/components/ui/FormSelect';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { getStatusBadgeTone } from '@/lib/status-tab-colors';
 import { isMarketplacePlatform } from '@/lib/marketplace-platforms';
+import PageHeader from '@/components/ui/PageHeader';
 
 // Sort options (id/label so FormSelect can consume directly)
 const SORT_OPTIONS = [
@@ -737,13 +738,10 @@ function OrdersPageContent() {
   return (
     <Layout>
       <Container size="full">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <ShoppingCart className="w-8 h-8 text-primary" />
-            <h1 className="heading-1">คำสั่งซื้อ</h1>
-          </div>
-          <div className="flex items-center gap-3">
+        <PageHeader
+          title="คำสั่งซื้อ"
+          icon={<ShoppingCart />}
+          actions={<>
             <button
               type="button"
               onClick={() => fetchOrders()}
@@ -768,8 +766,8 @@ function OrdersPageContent() {
             >
               <span>สร้าง<span className="hidden md:inline">คำสั่งซื้อ</span></span>
             </Button>
-          </div>
-        </div>
+          </>}
+        />
 
         {/* Error */}
         {error && <Alert tone="danger">{error}</Alert>}
