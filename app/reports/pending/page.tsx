@@ -309,7 +309,7 @@ export default function PendingReportPage() {
 
       {/* Loading */}
       {loading ? (
-        <LoadingCard title="กำลังโหลดข้อมูล..." />
+        <LoadingCard />
       ) : groupedData.length === 0 ? (
         <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-12">
           <div className="flex flex-col items-center justify-center">

@@ -326,7 +326,7 @@ export default function PcPage() {
 
             {/* ── วันนี้ ── */}
             {view === 'today' && (
-              loadingToday ? <LoadingCard title="กำลังโหลดรายการวันนี้..." /> : (
+              loadingToday ? <LoadingCard /> : (
                 <>
                   <div className="bg-white dark:bg-[#1E293B] rounded-xl p-4 flex items-center justify-between">
                     <div>
@@ -373,7 +373,7 @@ export default function PcPage() {
 
             {/* ── สต็อก ── */}
             {view === 'stock' && (
-              loadingSummary || !summary ? <LoadingCard title="กำลังโหลดสต็อก..." /> : (
+              loadingSummary || !summary ? <LoadingCard /> : (
                 <>
                   {summary.stock.length === 0 ? (
                     <EmptyCard title="ยังไม่มีสต็อกในสาขานี้" />
@@ -430,7 +430,7 @@ export default function PcPage() {
 
             {/* ── เดือนนี้ ── */}
             {view === 'month' && (
-              loadingSummary || !summary ? <LoadingCard title="กำลังโหลดสรุปเดือน..." /> : (
+              loadingSummary || !summary ? <LoadingCard /> : (
                 <>
                   <div className="bg-white dark:bg-[#1E293B] rounded-xl p-4 flex items-center justify-between">
                     <div>

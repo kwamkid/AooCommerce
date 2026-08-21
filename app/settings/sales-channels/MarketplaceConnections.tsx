@@ -16,6 +16,7 @@ import {
   XCircle, Clock, AlertTriangle, ChevronDown, ChevronUp,
   Plus, Trash2, Upload, Download, Package
 } from 'lucide-react';
+import Button from '@/components/ui/Button';
 import FormSelect from '@/components/ui/FormSelect';
 import LoadingOverlay from '@/components/ui/LoadingOverlay';
 import PlatformIcon from '@/components/ui/PlatformIcon';
@@ -486,11 +487,24 @@ export default function MarketplaceConnections() {
 
   return (
     <div>
-      {/* Platform badge tabs — เลือกดูทีละแพลตฟอร์ม */}
-      <div className="flex flex-wrap items-center gap-2 mb-5">
-        {platformChip('shopee', 'Shopee', activeAccounts.length, 'border-shopee text-shopee bg-shopee/10')}
-        {platformChip('tiktok', 'TikTok Shop', activeTiktokAccounts.length, 'border-gray-900 text-gray-900 bg-gray-900/5 dark:border-white dark:text-white dark:bg-white/10')}
-        {platformChip('lazada', 'Lazada', lazadaAccounts.filter(a => a.is_active).length, 'border-[#0F146E] text-[#0F146E] bg-[#0F146E]/10 dark:border-blue-400 dark:text-blue-400 dark:bg-blue-400/10')}
+      {/* Platform badge tabs — เลือกดูทีละแพลตฟอร์ม + ปุ่มเชื่อมต่ออยู่บนขวา
+          (ตำแหน่งเดียวกับปุ่ม "เพิ่ม" ของแท็บช่องทางของฉัน) */}
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
+        <div className="flex flex-wrap items-center gap-2">
+          {platformChip('shopee', 'Shopee', activeAccounts.length, 'border-shopee text-shopee bg-shopee/10')}
+          {platformChip('tiktok', 'TikTok Shop', activeTiktokAccounts.length, 'border-gray-900 text-gray-900 bg-gray-900/5 dark:border-white dark:text-white dark:bg-white/10')}
+          {platformChip('lazada', 'Lazada', lazadaAccounts.filter(a => a.is_active).length, 'border-[#0F146E] text-[#0F146E] bg-[#0F146E]/10 dark:border-blue-400 dark:text-blue-400 dark:bg-blue-400/10')}
+        </div>
+        <Button
+          variant="primary"
+          icon={<Plus className="w-5 h-5" />}
+          loading={connecting}
+          onClick={() => handleConnect(activePlatform)}
+        >
+          {activePlatform === 'shopee' ? 'เชื่อมต่อร้าน Shopee'
+            : activePlatform === 'tiktok' ? 'เชื่อมต่อ TikTok Shop'
+            : 'เชื่อมต่อร้าน Lazada'}
+        </Button>
       </div>
 
       {/* ===== SHOPEE ===== */}
@@ -692,19 +706,6 @@ export default function MarketplaceConnections() {
             );
           })}
 
-          {/* Add Shopee Button */}
-          <button
-            onClick={() => handleConnect('shopee')}
-            disabled={connecting}
-            className="w-full p-3 border-2 border-dashed border-gray-300 dark:border-slate-600 rounded-lg text-sm text-gray-500 dark:text-slate-400 hover:border-shopee hover:text-shopee transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
-          >
-            {connecting ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Plus className="w-4 h-4" />
-            )}
-            {connecting ? 'กำลังเชื่อมต่อ...' : 'เชื่อมต่อร้าน Shopee'}
-          </button>
         </div>
       ))}
 
@@ -819,19 +820,6 @@ export default function MarketplaceConnections() {
             );
           })}
 
-          {/* Add TikTok Button */}
-          <button
-            onClick={() => handleConnect('tiktok')}
-            disabled={connecting}
-            className="w-full p-3 border-2 border-dashed border-gray-300 dark:border-slate-600 rounded-lg text-sm text-gray-500 dark:text-slate-400 hover:border-gray-800 hover:text-gray-800 dark:hover:border-white dark:hover:text-white transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
-          >
-            {connecting ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Plus className="w-4 h-4" />
-            )}
-            {connecting ? 'กำลังเชื่อมต่อ...' : 'เชื่อมต่อ TikTok Shop'}
-          </button>
         </div>
       ))}
 
@@ -881,19 +869,6 @@ export default function MarketplaceConnections() {
             );
           })}
 
-          {/* Add Lazada Button */}
-          <button
-            onClick={() => handleConnect('lazada')}
-            disabled={connecting}
-            className="w-full p-3 border-2 border-dashed border-gray-300 dark:border-slate-600 rounded-lg text-sm text-gray-500 dark:text-slate-400 hover:border-[#0F146E] hover:text-[#0F146E] dark:hover:border-blue-400 dark:hover:text-blue-400 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
-          >
-            {connecting ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Plus className="w-4 h-4" />
-            )}
-            {connecting ? 'กำลังเชื่อมต่อ...' : 'เชื่อมต่อร้าน Lazada'}
-          </button>
         </div>
       ))}
 

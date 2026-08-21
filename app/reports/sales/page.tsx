@@ -382,7 +382,7 @@ export default function SalesReportPage() {
       {/* Data Table */}
       <div className="data-table-wrap-shadow">
         {loading ? (
-          <LoadingCard title="กำลังโหลดข้อมูล..." />
+          <LoadingCard />
         ) : groupedData.length === 0 ? (
           <div className="p-8 text-center">
             <BarChart3 className="w-12 h-12 mx-auto mb-3 text-gray-300" />

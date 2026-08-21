@@ -16,7 +16,7 @@ import Badge from '@/components/ui/Badge';
 import Toggle from '@/components/ui/Toggle';
 import FormSelect from '@/components/ui/FormSelect';
 import PlatformIcon from '@/components/ui/PlatformIcon';
-import { NoPermissionCard } from '@/components/ui/StateCard';
+import { LoadingCard, NoPermissionCard } from '@/components/ui/StateCard';
 import { PageSkeleton } from '@/components/ui/Skeleton';
 import { useAuth } from '@/lib/auth-context';
 import { can } from '@/lib/permissions';
@@ -28,7 +28,14 @@ import { isMarketplacePlatform } from '@/lib/marketplace-platforms';
 import {
   Tag, Plus, Pencil, Trash2, Lock, MessageCircle, Link as LinkIcon, Star, ShoppingBag,
 } from 'lucide-react';
-import MarketplaceConnections from './MarketplaceConnections';
+import dynamic from 'next/dynamic';
+
+// Lazy chunk — โค้ดแท็บ marketplace โหลดเฉพาะตอนผู้ใช้กดแท็บจริง
+// (data ก็ fetch ตอน mount อยู่แล้ว — แบบนี้ทั้ง JS และ data เป็น lazy คู่กัน)
+const MarketplaceConnections = dynamic(() => import('./MarketplaceConnections'), {
+  ssr: false,
+  loading: () => <LoadingCard />,
+});
 
 interface SalesChannel {
   id: string;

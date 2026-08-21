@@ -3,6 +3,7 @@
 import type { ReactNode } from 'react';
 import { Loader2, AlertCircle, Check, AlertTriangle } from 'lucide-react';
 import Card from './Card';
+import { SkeletonCard } from './Skeleton';
 
 /**
  * Generic centered state card — used for loading/empty/no-permission/result screens.
@@ -10,7 +11,8 @@ import Card from './Card';
  */
 interface StateCardProps {
   icon: ReactNode;
-  title: ReactNode;
+  /** ไม่ส่ง = แสดงแค่ icon (เช่น LoadingCard แบบโลโก้ล้วน) */
+  title?: ReactNode;
   subtitle?: ReactNode;
   /** Buttons / actions shown under the message */
   actions?: ReactNode;
@@ -22,12 +24,14 @@ export function StateCard({ icon, title, subtitle, actions, compact = false }: S
   return (
     <Card padding={compact ? 'md' : 'lg'} className="text-center space-y-4">
       <div className="flex justify-center">{icon}</div>
-      <div>
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{title}</h2>
-        {subtitle && (
-          <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">{subtitle}</p>
-        )}
-      </div>
+      {(title || subtitle) && (
+        <div>
+          {title && <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{title}</h2>}
+          {subtitle && (
+            <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">{subtitle}</p>
+          )}
+        </div>
+      )}
       {actions && <div className="flex items-center justify-center gap-3 pt-2">{actions}</div>}
     </Card>
   );
@@ -35,8 +39,19 @@ export function StateCard({ icon, title, subtitle, actions, compact = false }: S
 
 /* ---------- Preset wrappers ---------- */
 
-/** Loading / busy state — spinner + message. */
-export function LoadingCard({ title = 'กำลังโหลด...', subtitle, compact }: { title?: ReactNode; subtitle?: ReactNode; compact?: boolean }) {
+/**
+ * Loading / busy state
+ * - ไม่ส่ง title = กำลัง "อ่าน" ข้อมูล → skeleton (ไม่มี spinner ไม่มีคำว่า กำลังโหลด)
+ * - ส่ง title = กำลัง "ทำงาน" ที่ควรบอกผู้ใช้ (เช่น "กำลังตรวจสอบข้อมูล...") → spinner + ข้อความ
+ */
+export function LoadingCard({ title, subtitle, compact }: { title?: ReactNode; subtitle?: ReactNode; compact?: boolean }) {
+  if (!title && !subtitle) {
+    return (
+      <div role="status" aria-busy="true" aria-label="กำลังโหลด">
+        <SkeletonCard lines={compact ? 2 : 4} />
+      </div>
+    );
+  }
   return (
     <StateCard
       icon={<Loader2 className="w-12 h-12 text-[#F4511E] animate-spin" />}
