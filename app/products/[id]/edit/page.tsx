@@ -622,7 +622,9 @@ export default function EditProductPage() {
     );
   }
 
-  const hasTabs = shopAccounts.length > 0;
+  // แท็บร้านทั้งหมดเป็นของ marketplace — ปิดฟีเจอร์แล้วเหลือแค่แท็บข้อมูลสินค้า
+  // (เช็ค features.fetched ไม่ได้ตรงนี้เพราะเป็นแค่การซ่อน ไม่ได้เด้งออกจากหน้า)
+  const hasTabs = features.marketplace_sync && shopAccounts.length > 0;
 
   // Helper: get system default price for a link
   const getSystemPrice = (link: MarketplaceLink) => {
@@ -1288,7 +1290,7 @@ export default function EditProductPage() {
         )}
 
         {/* Tab Content */}
-        {activeTab === 'info' ? (
+        {(!hasTabs || activeTab === 'info') ? (
           /* Info Tab — ProductForm */
           <ProductForm
             editingProduct={product}

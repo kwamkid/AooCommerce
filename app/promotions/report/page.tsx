@@ -13,6 +13,8 @@ import { LoadingCard, EmptyCard } from '@/components/ui/StateCard';
 import DateRangePicker, { DateValueType } from '@/components/ui/DateRangePicker';
 import FormSelect from '@/components/ui/FormSelect';
 import { BarChart3, ShoppingCart, Package, Banknote, Tag } from 'lucide-react';
+import { useFeatures } from '@/lib/features-context';
+import { isMarketplacePlatform } from '@/lib/marketplace-platforms';
 
 interface ReportItem {
   id: string;
@@ -60,6 +62,11 @@ export default function PromotionReportPage() {
   const [summary, setSummary] = useState<Summary | null>(null);
   const [dateRange, setDateRange] = useState<DateValueType>(getDefaultDateRange);
   const [source, setSource] = useState('all');
+  // ปิดฟีเจอร์ marketplace แล้ว ช่องทาง Shopee ต้องไม่อยู่ในตัวกรองด้วย
+  const { features } = useFeatures();
+  const sourceOptions = features.marketplace_sync
+    ? SOURCE_OPTIONS
+    : SOURCE_OPTIONS.filter(o => !isMarketplacePlatform(o.id));
 
   const fetchReport = async () => {
     setLoading(true);
@@ -113,7 +120,7 @@ export default function PromotionReportPage() {
             <FormSelect
               value={source}
               onChange={(v) => setSource(v)}
-              options={SOURCE_OPTIONS}
+              options={sourceOptions}
               placeholder="ช่องทาง"
             />
           </div>

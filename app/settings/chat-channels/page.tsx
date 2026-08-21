@@ -8,6 +8,7 @@ import { can } from '@/lib/permissions';
 import { useFetchOnce } from '@/lib/use-fetch-once';
 import { useToast } from '@/lib/toast-context';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
+import { useFeatures } from '@/lib/features-context';
 import { apiFetch } from '@/lib/api-client';
 import { Loader2, Eye, EyeOff, ExternalLink, Check, X, ChevronDown, ChevronUp, CheckCircle2, XCircle, Zap, Plus, Trash2, Edit2, Search, Facebook as FacebookSolidIcon } from 'lucide-react';
 import dynamic from 'next/dynamic';
@@ -105,6 +106,10 @@ export default function ChatChannelsPage() {
   const { userProfile } = useAuth();
   const { showToast } = useToast();
   const { confirmDialog, confirm } = useConfirmDialog();
+  const { features, fetched: featuresFetched } = useFeatures();
+  // แชท Shopee/Lazada เกาะการเชื่อมต่อ marketplace — ปิดฟีเจอร์ marketplace แล้ว
+  // ต้องไม่โผล่ที่นี่ด้วย ไม่งั้นเปิดสวิตช์ไปก็ไม่มีร้านให้เลือก
+  const showMarketplaceChat = features.marketplace_sync;
 
   const [loading, setLoading] = useState(true);
   const [accounts, setAccounts] = useState<ChatAccount[]>([]);
@@ -115,6 +120,15 @@ export default function ChatChannelsPage() {
     const hash = window.location.hash.replace('#', '');
     if (hash === 'line' || hash === 'shopee' || hash === 'lazada') setActiveTabState(hash);
   }, []);
+
+  // ปิดฟีเจอร์ระหว่างที่ค้างอยู่แท็บ marketplace (หรือเปิดหน้าด้วย #shopee) → กลับแท็บแรก
+  useEffect(() => {
+    // รอ featuresFetched ก่อน — ค่าเริ่มต้นของ flag คือปิดหมด ถ้าไม่รอจะเด้งคน
+    // ที่เปิดฟีเจอร์ไว้ออกจากแท็บที่ deep-link มาทุกครั้ง
+    if (featuresFetched && !showMarketplaceChat && (activeTab === 'shopee' || activeTab === 'lazada')) {
+      setActiveTabState('facebook');
+    }
+  }, [featuresFetched, showMarketplaceChat, activeTab]);
 
   const setActiveTab = (tab: 'line' | 'facebook' | 'shopee' | 'lazada') => {
     setActiveTabState(tab);
@@ -750,7 +764,9 @@ export default function ChatChannelsPage() {
       <Container size="full">
         <div>
           <h1 className="heading-1">ช่องทาง Chat</h1>
-          <p className="page-subtitle">เชื่อมต่อ LINE OA, Facebook / Instagram, Shopee และ Lazada เพื่อรับข้อความจากลูกค้า</p>
+          <p className="page-subtitle">
+            เชื่อมต่อ LINE OA, Facebook / Instagram{showMarketplaceChat ? ', Shopee และ Lazada' : ''} เพื่อรับข้อความจากลูกค้า
+          </p>
         </div>
         <Tabs
           activeKey={activeTab}
@@ -770,26 +786,28 @@ export default function ChatChannelsPage() {
               count: lineAccounts.length || undefined,
               activeColorClass: 'border-line text-line',
             },
-            {
-              key: 'shopee',
-              label: 'Shopee',
-              icon: <PlatformIcon id="shopee" size={16} />,
-              count: shopeeAccounts.filter(a => a.is_active).length || undefined,
-              activeColorClass: 'border-[#EE4D2D] text-[#EE4D2D]',
-            },
-            {
-              key: 'lazada',
-              label: 'Lazada',
-              icon: <PlatformIcon id="lazada" size={16} />,
-              count: lazadaAccounts.filter(a => a.is_active).length || undefined,
-              activeColorClass: 'border-[#0F146E] text-[#0F146E] dark:border-blue-400 dark:text-blue-400',
-            },
+            ...(showMarketplaceChat ? [
+              {
+                key: 'shopee',
+                label: 'Shopee',
+                icon: <PlatformIcon id="shopee" size={16} />,
+                count: shopeeAccounts.filter(a => a.is_active).length || undefined,
+                activeColorClass: 'border-[#EE4D2D] text-[#EE4D2D]',
+              },
+              {
+                key: 'lazada',
+                label: 'Lazada',
+                icon: <PlatformIcon id="lazada" size={16} />,
+                count: lazadaAccounts.filter(a => a.is_active).length || undefined,
+                activeColorClass: 'border-[#0F146E] text-[#0F146E] dark:border-blue-400 dark:text-blue-400',
+              },
+            ] : []),
           ]}
         />
 
         {loading ? (
           <LoadingCard />
-        ) : (activeTab === 'shopee' || activeTab === 'lazada') ? (() => {
+        ) : (showMarketplaceChat && (activeTab === 'shopee' || activeTab === 'lazada')) ? (() => {
           const platform = activeTab as MarketplaceChatPlatform;
           const platformLabel = platform === 'shopee' ? 'Shopee' : 'Lazada';
           const shops = mpShops[platform];

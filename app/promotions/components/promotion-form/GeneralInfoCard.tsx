@@ -112,7 +112,7 @@ export default function GeneralInfoCard({ hook }: Props) {
                     value={form.name}
                     onChange={e => { setForm(prev => ({ ...prev, name: e.target.value.slice(0, 25) })); setErrors(prev => { const { name: _, ...rest } = prev; return rest; }); }}
                     maxLength={25}
-                    placeholder="ชื่อนี้จะแสดงบน Shopee/TikTok"
+                    placeholder={marketplaceAccounts.length > 0 ? 'ชื่อนี้จะแสดงบน Shopee/TikTok' : 'ชื่อที่ลูกค้าเห็น'}
                     className={`w-full h-[42px] px-3 pr-14 border rounded-lg bg-white dark:bg-slate-800 text-base text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent ${errors.name ? 'border-red-400 ring-1 ring-red-400' : 'border-gray-300 dark:border-slate-500'}`}
                   />
                   <span className={`absolute right-3 top-1/2 -translate-y-1/2 text-xs ${form.name.length >= 25 ? 'text-red-400' : 'text-slate-400'}`}>
@@ -218,7 +218,7 @@ export default function GeneralInfoCard({ hook }: Props) {
                   min={1}
                   max={100}
                   error={errors.purchase_limit}
-                  helperText="ลูกค้า 1 คนซื้อได้สูงสุดกี่ครั้ง (Shopee: 1-100)"
+                  helperText={marketplaceAccounts.length > 0 ? 'ลูกค้า 1 คนซื้อได้สูงสุดกี่ครั้ง (Shopee: 1-100)' : 'ลูกค้า 1 คนซื้อได้สูงสุดกี่ครั้ง'}
                 />
               </div>
             </div>
@@ -230,7 +230,7 @@ export default function GeneralInfoCard({ hook }: Props) {
                 <textarea
                   value={form.description}
                   onChange={e => setForm(prev => ({ ...prev, description: e.target.value }))}
-                  placeholder="แสดงในหน้ารายละเอียด + ส่งไป Shopee/TikTok"
+                  placeholder={marketplaceAccounts.length > 0 ? 'แสดงในหน้ารายละเอียด + ส่งไป Shopee/TikTok' : 'แสดงในหน้ารายละเอียดโปรโมชั่น'}
                   className="w-full flex-1 min-h-[120px] px-3 py-2 border border-gray-300 dark:border-slate-500 rounded-lg bg-white dark:bg-slate-800 text-base text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent resize-none"
                 />
               </div>

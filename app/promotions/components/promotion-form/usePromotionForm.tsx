@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiFetch } from '@/lib/api-client';
+import { useFeatures } from '@/lib/features-context';
 import type { ProductSearchItem } from '@/components/ui/ProductSearchInput';
 import type { ProductImage } from '@/components/ui/ImageUploader';
 import type { TableItem, ColumnKey } from '@/components/ui/ItemsTable';
@@ -72,6 +73,9 @@ export function usePromotionForm(promotionId?: string) {
   const [loadingPromo, setLoadingPromo] = useState(isEdit);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [itemErrorKeys, setItemErrorKeys] = useState<Set<string>>(new Set());
+  // ร้านที่ปิดฟีเจอร์ marketplace ต้องไม่เห็นอะไรที่เป็น Shopee/TikTok ในฟอร์มนี้เลย
+  const { features } = useFeatures();
+  const marketplaceEnabled = features.marketplace_sync;
   const [marketplaceAccounts, setMarketplaceAccounts] = useState<MarketplaceAccount[]>([]);
   const [platformPrices, setPlatformPrices] = useState<PlatformPrice[]>([]);
   const [activePlatformTab, setActivePlatformTab] = useState('');
@@ -90,8 +94,10 @@ export function usePromotionForm(promotionId?: string) {
 
   // ─── Effects ──────────────────────────────────────────
 
-  // Fetch marketplace accounts
+  // Fetch marketplace accounts — ข้ามไปเลยถ้าร้านปิดฟีเจอร์ marketplace
+  // (marketplaceAccounts ว่าง = ทั้งแผง Shopee ในฟอร์มหายไปเอง)
   useEffect(() => {
+    if (!marketplaceEnabled) return;
     const fetchAccounts = async () => {
       try {
         const res = await apiFetch('/api/promotions/marketplace-accounts');
@@ -116,7 +122,7 @@ export function usePromotionForm(promotionId?: string) {
       }
     };
     fetchAccounts();
-  }, []);
+  }, [marketplaceEnabled]);
 
   // Fetch products for search
   useEffect(() => {
@@ -229,7 +235,7 @@ export function usePromotionForm(promotionId?: string) {
             return [...dbPlatforms, ...kept];
           });
         }
-        if (data.marketplace_deals && Array.isArray(data.marketplace_deals)) {
+        if (marketplaceEnabled && data.marketplace_deals && Array.isArray(data.marketplace_deals)) {
           setShopeeDeals(data.marketplace_deals);
         }
         if (['buy_get_free', 'buy_get_discount'].includes(data.promotion_type)) {

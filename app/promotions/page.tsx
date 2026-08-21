@@ -29,6 +29,7 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import PushDealModal from './components/PushDealModal';
+import { useFeatures } from '@/lib/features-context';
 import { useToast } from '@/lib/toast-context';
 
 // ─── Types ──────────────────────────────────────────────
@@ -208,15 +209,18 @@ function PromotionCard({
   onDelete,
   onPush,
   onImageClick,
+  showMarketplace = false,
 }: {
   promo: PromotionItem;
   onEdit: () => void;
   onDelete: () => void;
   onPush?: () => void;
   onImageClick: (url: string) => void;
+  /** ร้านเปิดฟีเจอร์ marketplace อยู่ไหม — ปิดแล้วห้ามโชว์อะไรที่เป็น Shopee เลย */
+  showMarketplace?: boolean;
 }) {
   const statusCfg = STATUS_COLORS[promo.status] || STATUS_COLORS.inactive;
-  const hasShopeeDeals = (promo.marketplace_deals || []).length > 0;
+  const hasShopeeDeals = showMarketplace && (promo.marketplace_deals || []).length > 0;
 
   // Check if local promotion was updated after the last Shopee sync
   const isOutOfSync = hasShopeeDeals && (() => {
@@ -433,6 +437,11 @@ function PromotionsPageContent() {
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<PromotionItem | null>(null);
   const [deletingShopee, setDeletingShopee] = useState(false);
+  const { features } = useFeatures();
+  // ปิด marketplace แล้ว = ไม่มี deal ให้จัดการจากหน้านี้ · deal เก่าที่ค้างอยู่บน
+  // Shopee ต้องเปิดฟีเจอร์กลับมาก่อนถึงจะสั่งลบจากที่นี่ได้
+  const dealsOf = (p: PromotionItem | null) =>
+    features.marketplace_sync ? (p?.marketplace_deals || []) : [];
 
   const totalPages = Math.ceil(totalRecords / rowsPerPage);
   const startIdx = (currentPage - 1) * rowsPerPage;
@@ -505,7 +514,7 @@ function PromotionsPageContent() {
     const id = deleteTarget.id;
     try {
       // If has shopee deals and user wants to delete them
-      if (alsoDeleteShopee && (deleteTarget.marketplace_deals || []).length > 0) {
+      if (alsoDeleteShopee && dealsOf(deleteTarget).length > 0) {
         setDeletingShopee(true);
         await apiFetch(`/api/shopee/deals?promotion_id=${id}`, { method: 'DELETE' });
         setDeletingShopee(false);
@@ -591,8 +600,11 @@ function PromotionsPageContent() {
               promo={promo}
               onEdit={() => router.push(`/promotions/${promo.id}/edit`)}
               onDelete={() => handleDeleteClick(promo)}
+              showMarketplace={features.marketplace_sync}
               onPush={
-                (promo.status === 'active' || promo.status === 'scheduled') && promo.start_date && promo.end_date
+                features.marketplace_sync
+                && (promo.status === 'active' || promo.status === 'scheduled')
+                && promo.start_date && promo.end_date
                   ? () => setPushModalPromo(promo)
                   : undefined
               }
@@ -649,7 +661,7 @@ function PromotionsPageContent() {
             </p>
 
             {(() => {
-              const deals = deleteTarget.marketplace_deals || [];
+              const deals = dealsOf(deleteTarget);
               const ongoingDeals = deals.filter(d => d.status === 'ongoing');
               const hasOngoing = ongoingDeals.length > 0;
               if (deals.length === 0) return null;
@@ -680,7 +692,7 @@ function PromotionsPageContent() {
             })()}
 
             <div className="flex flex-col gap-2">
-              {(deleteTarget.marketplace_deals || []).length > 0 && (
+              {dealsOf(deleteTarget).length > 0 && (
                 <Button
                   variant="danger"
                   fullWidth
@@ -691,12 +703,12 @@ function PromotionsPageContent() {
                 </Button>
               )}
               <Button
-                variant={(deleteTarget.marketplace_deals || []).length > 0 ? 'secondary' : 'danger'}
+                variant={dealsOf(deleteTarget).length > 0 ? 'secondary' : 'danger'}
                 fullWidth
                 disabled={deletingShopee}
                 onClick={() => handleDeleteConfirm(false)}
               >
-                {(deleteTarget.marketplace_deals || []).length > 0 ? 'ลบเฉพาะในระบบ (เก็บ Shopee ไว้)' : 'ยืนยันลบ'}
+                {dealsOf(deleteTarget).length > 0 ? 'ลบเฉพาะในระบบ (เก็บ Shopee ไว้)' : 'ยืนยันลบ'}
               </Button>
               <Button
                 variant="ghost"

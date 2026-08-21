@@ -2,6 +2,8 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { ChevronDown, Globe } from 'lucide-react';
+import { useFeatures } from '@/lib/features-context';
+import { isMarketplacePlatform } from '@/lib/marketplace-platforms';
 
 const PLATFORMS = [
   { id: 'all', label: 'ทุกแพลตฟอร์ม', icon: '' },
@@ -21,15 +23,27 @@ interface PlatformChipFilterProps {
 }
 
 export default function PlatformChipFilter({ value, onChange, className }: PlatformChipFilterProps) {
-  const selected = PLATFORMS.find(p => p.id === value) || PLATFORMS[0];
+  // ปิดฟีเจอร์ marketplace แล้ว ชิป Shopee/Lazada/TikTok ต้องหายไปด้วย —
+  // กรองที่นี่ที่เดียว ทั้งหน้าคำสั่งซื้อและหน้าลูกค้าใช้ตัวกรองตัวนี้ร่วมกัน
+  const { features, fetched } = useFeatures();
+  const platforms = features.marketplace_sync
+    ? PLATFORMS
+    : PLATFORMS.filter(p => !isMarketplacePlatform(p.id));
+  const selected = platforms.find(p => p.id === value) || platforms[0];
+
+  // ค่าที่ค้างใน URL อาจเป็นแพลตฟอร์มที่เพิ่งถูกซ่อน → กลับไปที่ "ทุกแพลตฟอร์ม"
+  // (รอ fetched ก่อน เพราะค่าเริ่มต้นของ flag คือปิดหมด)
+  useEffect(() => {
+    if (fetched && !features.marketplace_sync && isMarketplacePlatform(value)) onChange('all');
+  }, [fetched, features.marketplace_sync, value, onChange]);
 
   return (
     <div className={className || ''}>
       {/* Mobile: dropdown */}
-      <MobileDropdown value={value} onChange={onChange} selected={selected} />
+      <MobileDropdown platforms={platforms} value={value} onChange={onChange} selected={selected} />
       {/* Desktop: chips */}
       <div className="hidden sm:flex items-center gap-1.5 flex-wrap">
-        {PLATFORMS.map((p) => {
+        {platforms.map((p) => {
           const isActive = value === p.id;
           return (
             <button
@@ -52,7 +66,8 @@ export default function PlatformChipFilter({ value, onChange, className }: Platf
   );
 }
 
-function MobileDropdown({ value, onChange, selected }: {
+function MobileDropdown({ platforms, value, onChange, selected }: {
+  platforms: typeof PLATFORMS;
   value: string;
   onChange: (value: string) => void;
   selected: typeof PLATFORMS[number];
@@ -86,7 +101,7 @@ function MobileDropdown({ value, onChange, selected }: {
       </button>
       {open && (
         <div className="absolute left-0 top-full mt-1 z-50 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded-lg shadow-lg py-1 min-w-[180px]">
-          {PLATFORMS.map((p) => (
+          {platforms.map((p) => (
             <button
               key={p.id}
               type="button"

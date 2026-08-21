@@ -196,7 +196,8 @@ function ProductsPageContent() {
       if (debouncedSearch) params.set('search', debouncedSearch);
       if (categoryFilter !== '') params.set('category_id', categoryFilter);
       if (brandFilter !== '') params.set('brand_id', brandFilter);
-      if (shopAccountFilter !== 'all') params.set('shop_account_id', shopAccountFilter);
+      // ตัวกรองร้านถูกซ่อนเมื่อปิด marketplace — ค่าที่ค้างใน URL ก็ต้องไม่ถูกใช้ต่อ
+      if (features.marketplace_sync && shopAccountFilter !== 'all') params.set('shop_account_id', shopAccountFilter);
       if (statusFilter) params.set('status', statusFilter);
 
       const response = await apiFetch(`/api/products?${params.toString()}`);
@@ -245,7 +246,7 @@ function ProductsPageContent() {
   useEffect(() => {
     if (dataFetched) fetchData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPage, rowsPerPage, debouncedSearch, typeFilter, categoryFilter, brandFilter, shopAccountFilter, statusFilter]);
+  }, [currentPage, rowsPerPage, debouncedSearch, typeFilter, categoryFilter, brandFilter, shopAccountFilter, statusFilter, features.marketplace_sync]);
 
   // Optimistic is_active toggle — filter-aware (remove from list if new state doesn't match current filter)
   const handleToggleActive = async (product: ProductItem, next: boolean) => {
@@ -375,12 +376,15 @@ function ProductsPageContent() {
           search: debouncedSearch || undefined,
           category_id: categoryFilter || undefined,
           brand_id: brandFilter || undefined,
-          shop_account_id: shopAccountFilter !== 'all' ? shopAccountFilter : undefined,
+          shop_account_id: features.marketplace_sync && shopAccountFilter !== 'all' ? shopAccountFilter : undefined,
         }),
       });
       const exportData = await exportRes.json();
       const allProducts: ProductItem[] = exportData.products || [];
-      const activeShops: { id: string; shop_name: string; platform: string }[] = exportData.shops || [];
+      // คอลัมน์ "ราคา {ร้าน}" มีแต่ร้าน marketplace — ปิดฟีเจอร์แล้วไฟล์ที่ export
+      // ต้องไม่มีคอลัมน์พวกนี้ (ไม่งั้นผู้ใช้เห็นชื่อ Shopee ในไฟล์ทั้งที่ปิดไปแล้ว)
+      const activeShops: { id: string; shop_name: string; platform: string }[] =
+        features.marketplace_sync ? (exportData.shops || []) : [];
       const canViewCost: boolean = exportData.can_view_cost === true;
 
       type LinkInfo = { variation_id: string; account_id: string; platform_price: number | null; platform_discount_price: number | null };
@@ -1030,7 +1034,7 @@ function ProductsPageContent() {
                 />
               </div>
             )}
-            {shopOptions.length > 0 && (
+            {features.marketplace_sync && shopOptions.length > 0 && (
               <div className="w-full md:w-auto md:flex-shrink-0">
                 <SearchableDropdown
                   value={shopAccountFilter}
