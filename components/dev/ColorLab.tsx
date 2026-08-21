@@ -95,8 +95,10 @@ export default function ColorLab() {
 
   if (process.env.NODE_ENV !== 'development') return null;
 
+  // มุมขวาล่าง — ซ้ายล่างเป็นที่ของปุ่ม dev tools ของ Next.js (ตัว N)
+  // วางทับกันแล้วปุ่มเราจมหายไปข้างใต้ หาไม่เจอ
   const box: React.CSSProperties = {
-    position: 'fixed', left: 16, bottom: 16, zIndex: 2147483000,
+    position: 'fixed', right: 16, bottom: 16, zIndex: 2147483000,
     fontFamily: 'system-ui, sans-serif', fontSize: 13, color: '#111827',
   };
 
