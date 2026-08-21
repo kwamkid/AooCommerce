@@ -22,7 +22,7 @@ export default function OrderProgress({ order, dark = false }: Props) {
   const line = dark ? '#334155' : '#e5e7eb';
   // อ่านสีผ่าน CSS variable เพื่อให้ลองสีสดได้จากแผง ColorLab ตอน dev
   // (ค่าหลัง comma คือค่าจริงที่ใช้ใน production)
-  const doneColor = 'var(--op-done, #15803d)';
+  const doneColor = 'var(--op-done, #059669)';
   // ขั้นที่กำลังทำอยู่ใช้สีกลาง ไม่ใช่สีแบรนด์ร้าน — ร้านที่แบรนด์เป็นโทนแดง
   // จะได้จุดแดงกลางแถบสถานะ ซึ่งอ่านเป็น "ผิดพลาด" ทั้งที่ทุกอย่างปกติดี
   const currentColor = dark ? 'var(--op-current-dark, #e2e8f0)' : 'var(--op-current, #1f2937)';

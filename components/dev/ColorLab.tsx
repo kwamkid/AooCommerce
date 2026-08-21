@@ -37,16 +37,20 @@ const TARGETS: Target[] = [
       { name: 'ม่วง', value: '#7c3aed' },
       { name: 'ชมพูเข้ม', value: '#be185d' },
       { name: 'ฟ้าเข้ม', value: '#0369a1' },
+      // terracotta — โทนดินเผา ใกล้สีแบรนด์แต่หม่นกว่า เลยไม่อ่านเป็น error
+      { name: 'terracotta อ่อน (คอนทราสต์ 3.1:1 ต่ำกว่าเกณฑ์)', value: '#e2725b' },
+      { name: 'terracotta', value: '#c65d45' },
+      { name: 'terracotta เข้ม', value: '#a64b2a' },
     ],
   },
   {
     cssVar: '--op-done',
     label: 'แถบสถานะ · ขั้นที่ผ่านแล้ว',
-    current: '#15803d',
+    current: '#059669',
     swatches: [
+      { name: 'เขียวมิ้นต์', value: '#059669' },
       { name: 'เขียว', value: '#15803d' },
       { name: 'เขียวเข้ม', value: '#166534' },
-      { name: 'เขียวมิ้นต์', value: '#059669' },
       { name: 'เทา', value: '#6b7280' },
     ],
   },
