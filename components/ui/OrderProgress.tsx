@@ -25,8 +25,10 @@ export default function OrderProgress({ order, dark = false }: Props) {
   const doneColor = 'var(--op-done, #059669)';
   // ขั้นที่กำลังทำอยู่ใช้สีกลาง ไม่ใช่สีแบรนด์ร้าน — ร้านที่แบรนด์เป็นโทนแดง
   // จะได้จุดแดงกลางแถบสถานะ ซึ่งอ่านเป็น "ผิดพลาด" ทั้งที่ทุกอย่างปกติดี
-  const currentColor = dark ? 'var(--op-current-dark, #e2e8f0)' : 'var(--op-current, #1f2937)';
-  const currentInk = dark ? '#0f172a' : '#ffffff';
+  const currentColor = dark ? 'var(--op-current-dark, #e2e8f0)' : 'var(--op-current, #e2725b)';
+  // terracotta อ่อนสว่างเกินกว่าจะใช้ตัวเลขสีขาว (คอนทราสต์ 3.1:1) — ใช้หมึกสีน้ำตาลเข้ม
+  // แทน ได้ 4.9:1 ผ่านเกณฑ์ WCAG AA ของตัวหนังสือขนาดเล็ก
+  const currentInk = dark ? '#0f172a' : 'var(--op-current-ink, #3f1a0d)';
   const currentRing = `color-mix(in srgb, ${currentColor} 16%, transparent)`;
 
   if (cancelled) {
