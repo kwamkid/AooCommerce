@@ -409,7 +409,7 @@ export default function BillClient({ orderId, initialBill }: { orderId: string; 
 
   if (loading || !mounted) {
     return (
-      <div className="min-h-screen bg-[#1A1A2E] flex items-center justify-center">
+      <div className="min-h-screen bg-gray-100 dark:bg-slate-900 flex items-center justify-center">
         <Loader2 className="w-8 h-8 text-primary animate-spin" />
       </div>
     );
@@ -417,7 +417,7 @@ export default function BillClient({ orderId, initialBill }: { orderId: string; 
 
   if (error || !bill) {
     return (
-      <div className={`min-h-screen flex items-center justify-center p-4 ${dark ? 'bg-[#1A1A2E]' : 'bg-gray-50'}`}>
+      <div className={`min-h-screen flex items-center justify-center p-4 ${dark ? 'bg-slate-900' : 'bg-gray-50'}`}>
         <div className="text-center">
           <FileText className={`w-16 h-16 mx-auto mb-4 ${dark ? 'text-slate-600' : 'text-gray-300'}`} />
           <h1 className={`text-xl font-semibold mb-2 ${dark ? 'text-slate-300' : 'text-gray-700'}`}>ไม่พบบิล</h1>
@@ -641,17 +641,25 @@ export default function BillClient({ orderId, initialBill }: { orderId: string; 
   );
 
   return (
-    <div className={`min-h-screen print:bg-white transition-colors ${dark ? 'bg-[#1A1A2E]' : 'bg-gray-100'}`} suppressHydrationWarning>
+    <div className={`min-h-screen print:bg-white transition-colors ${dark ? 'bg-slate-900' : 'bg-gray-100'}`} suppressHydrationWarning>
       {/* Top bar — hidden in print */}
-      <div className="print:hidden sticky top-0 bg-[#1A1A2E] px-4 py-3 flex items-center justify-between z-10 shadow-md">
+      <div className={`print:hidden sticky top-0 px-4 py-3 flex items-center justify-between z-10 border-b transition-colors ${
+        dark ? 'bg-slate-900 border-slate-700' : 'bg-white border-gray-200'
+      }`}>
         <div className="flex items-center gap-2">
-          <Image src="/logo.svg" alt="Logo" width={80} height={52} className="h-8 w-auto" priority />
-          <span className="id-text-clickable text-white/80 ml-2 hover:text-white" onClick={() => copy(bill.order_number, 'เลขคำสั่งซื้อ')} title="คัดลอก">#{bill.order_number}</span>
+          <Image src="/logo.svg" alt="Logo" width={80} height={52} className={`h-8 w-auto ${dark ? 'brightness-0 invert' : ''}`} priority />
+          <span
+            className={`id-text-clickable ml-2 ${dark ? 'text-slate-300 hover:text-white' : 'text-gray-500 hover:text-gray-900'}`}
+            onClick={() => copy(bill.order_number, 'เลขคำสั่งซื้อ')}
+            title="คัดลอก"
+          >#{bill.order_number}</span>
         </div>
         <div className="flex items-center gap-2">
           <button
             onClick={toggleDark}
-            className="p-2 rounded-lg text-white/70 hover:text-white hover:bg-white/10 transition-colors"
+            className={`p-2 rounded-lg transition-colors ${
+              dark ? 'text-slate-300 hover:text-white hover:bg-white/10' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'
+            }`}
             title={dark ? 'สลับเป็น Light Mode' : 'สลับเป็น Dark Mode'}
           >
             {dark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
@@ -897,7 +905,7 @@ export default function BillClient({ orderId, initialBill }: { orderId: string; 
           <div className="grid grid-cols-1 gap-4 mb-5 print:grid-cols-2 print:gap-4">
             {/* Left: Customer / Delivery info */}
             {bill.customer?.name && (
-            <div className={`print:bg-transparent rounded-lg p-4 print:p-0 ${dark ? 'bg-[#1A1A2E]' : 'bg-gray-50'}`}>
+            <div className={`print:bg-transparent rounded-lg p-4 print:p-0 ${dark ? 'bg-slate-900' : 'bg-gray-50'}`}>
               <div className="flex items-center justify-between mb-1">
                 <div className={`text-sm font-medium ${dark ? 'text-slate-500' : 'text-gray-400'}`}>
                   ข้อมูลจัดส่ง
@@ -933,7 +941,7 @@ export default function BillClient({ orderId, initialBill }: { orderId: string; 
 
             {/* Right: Delivery date + Notes — only show when data exists */}
             {(bill.delivery_date || bill.notes) && (
-            <div className={`print:bg-transparent rounded-lg p-4 print:p-0 ${dark ? 'bg-[#1A1A2E]' : 'bg-gray-50'}`}>
+            <div className={`print:bg-transparent rounded-lg p-4 print:p-0 ${dark ? 'bg-slate-900' : 'bg-gray-50'}`}>
               {bill.delivery_date && (
                 <div className="mb-2">
                   <div className={`text-sm font-medium mb-1 ${dark ? 'text-slate-500' : 'text-gray-400'}`}>วันจัดส่ง</div>
@@ -963,7 +971,7 @@ export default function BillClient({ orderId, initialBill }: { orderId: string; 
                 return (
                   <div key={branchIdx} className={`border rounded-lg overflow-hidden print:border-gray-300 print:rounded-none ${dark ? 'border-slate-600' : 'border-gray-200'}`}>
                     {/* Branch header */}
-                    <div className={`print:bg-transparent px-4 py-3 border-b print:border-gray-300 ${dark ? 'bg-[#1A1A2E] border-slate-600' : 'bg-gray-50 border-gray-200'}`}>
+                    <div className={`print:bg-transparent px-4 py-3 border-b print:border-gray-300 ${dark ? 'bg-slate-900 border-slate-600' : 'bg-gray-50 border-gray-200'}`}>
                       <div className="flex items-start gap-2">
                         <MapPin className="w-4 h-4 text-primary print:text-black flex-shrink-0 mt-0.5" />
                         <div className={`text-sm ${dark ? 'text-slate-400' : 'text-gray-500'}`}>
@@ -984,7 +992,7 @@ export default function BillClient({ orderId, initialBill }: { orderId: string; 
                     </div>
 
                     {/* Branch subtotal */}
-                    <div className={`px-4 py-2.5 print:bg-transparent border-t print:border-gray-300 flex justify-between items-center ${dark ? 'bg-[#1A1A2E] border-slate-600' : 'bg-gray-50 border-gray-200'}`}>
+                    <div className={`px-4 py-2.5 print:bg-transparent border-t print:border-gray-300 flex justify-between items-center ${dark ? 'bg-slate-900 border-slate-600' : 'bg-gray-50 border-gray-200'}`}>
                       <span className={`text-sm ${dark ? 'text-slate-400' : 'text-gray-500'}`}>
                         รวมสาขา {branch.address_name}
                         {branch.shipping_fee > 0 && (
@@ -1003,7 +1011,7 @@ export default function BillClient({ orderId, initialBill }: { orderId: string; 
             <div className="mb-5">
               {/* Single branch address — only show if NO delivery info section above (guest order) */}
               {bill.branches && bill.branches.length === 1 && !bill.customer?.name && (
-                <div className={`print:bg-transparent rounded-lg p-4 mb-4 print:p-0 print:mb-2 ${dark ? 'bg-[#1A1A2E]' : 'bg-gray-50'}`}>
+                <div className={`print:bg-transparent rounded-lg p-4 mb-4 print:p-0 print:mb-2 ${dark ? 'bg-slate-900' : 'bg-gray-50'}`}>
                   <div className={`flex items-center gap-2 text-base font-medium mb-0.5 ${dark ? 'text-slate-300' : 'text-gray-700'}`}>
                     <MapPin className="w-4 h-4 text-primary print:text-black" />
                     ที่อยู่จัดส่ง
@@ -1179,7 +1187,7 @@ export default function BillClient({ orderId, initialBill }: { orderId: string; 
                             try { qrValue = generatePayload(ppId, { amount: bill.total_amount }); } catch { /* ignore */ }
                             if (!qrValue) return null;
                             return (
-                              <div key={`pp-${idx}`} className={`rounded-xl p-4 flex flex-col items-center gap-3 border ${dark ? 'bg-[#1A1A2E] border-slate-600' : 'bg-white border-gray-200'}`}>
+                              <div key={`pp-${idx}`} className={`rounded-xl p-4 flex flex-col items-center gap-3 border ${dark ? 'bg-slate-900 border-slate-600' : 'bg-white border-gray-200'}`}>
                                 <div className={`text-base font-medium ${dark ? 'text-white' : 'text-gray-900'}`}>สแกน QR PromptPay</div>
                                 <div className="bg-white rounded-lg p-3 relative">
                                   <QRCodeSVG
@@ -1299,7 +1307,7 @@ export default function BillClient({ orderId, initialBill }: { orderId: string; 
                               .map((ch, idx) => {
                                 const bank = getBankByCode(ch.config?.bank_code || '');
                                 return (
-                                  <div key={idx} className={`flex items-center gap-3 p-3 rounded-lg border ${dark ? 'bg-[#1A1A2E] border-slate-600' : 'bg-gray-50 border-gray-200'}`}>
+                                  <div key={idx} className={`flex items-center gap-3 p-3 rounded-lg border ${dark ? 'bg-slate-900 border-slate-600' : 'bg-gray-50 border-gray-200'}`}>
                                     {bank?.logo ? (
                                       <img
                                         src={bank.logo}
@@ -1341,7 +1349,7 @@ export default function BillClient({ orderId, initialBill }: { orderId: string; 
                         )}
 
                         {/* ยอดรวมสุทธิ with copy */}
-                        <div className={`flex items-center justify-between p-3 rounded-lg border ${dark ? 'bg-[#1A1A2E] border-slate-600' : 'bg-orange-50 border-orange-200'}`}>
+                        <div className={`flex items-center justify-between p-3 rounded-lg border ${dark ? 'bg-slate-900 border-slate-600' : 'bg-orange-50 border-orange-200'}`}>
                           <span className="text-sm font-medium" style={{ color: dark ? '#94a3b8' : '#6b7280' }}>ยอดที่ต้องโอน</span>
                           <div className="flex items-center gap-2">
                             <span className="text-lg font-bold text-primary">฿{formatPrice(bill.total_amount)}</span>
@@ -1467,7 +1475,7 @@ export default function BillClient({ orderId, initialBill }: { orderId: string; 
 
                     {/* ยอดรวมสุทธิ for cash mode */}
                     {paymentMethod === 'cash' && (
-                      <div className={`flex items-center justify-between p-3 rounded-lg border ${dark ? 'bg-[#1A1A2E] border-slate-600' : 'bg-orange-50 border-orange-200'}`}>
+                      <div className={`flex items-center justify-between p-3 rounded-lg border ${dark ? 'bg-slate-900 border-slate-600' : 'bg-orange-50 border-orange-200'}`}>
                         <span className="text-sm font-medium" style={{ color: dark ? '#94a3b8' : '#6b7280' }}>ยอดรวมสุทธิ</span>
                         <span className="text-lg font-bold text-primary">฿{formatPrice(bill.total_amount)}</span>
                       </div>
@@ -1482,7 +1490,7 @@ export default function BillClient({ orderId, initialBill }: { orderId: string; 
                           onChange={(e) => setPaymentNotes(e.target.value)}
                           placeholder="หมายเหตุเพิ่มเติม (ถ้ามี)"
                           rows={2}
-                          style={dark ? { backgroundColor: '#1A1A2E', borderColor: '#475569', color: '#fff' } : { backgroundColor: '#fff', borderColor: '#d1d5db', color: '#111827' }}
+                          style={dark ? { backgroundColor: '#0f172a', borderColor: '#475569', color: '#fff' } : { backgroundColor: '#fff', borderColor: '#d1d5db', color: '#111827' }}
                           className="w-full px-3 py-3 border rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
                         />
                       </div>

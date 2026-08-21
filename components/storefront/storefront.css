@@ -1116,18 +1116,3 @@
 .sf-status-done   { background: #f0fdf4; color: #15803d; }
 .sf-status-cancel { background: #f3f4f6; color: #4b5563; }
 
-/* ── ไอคอน "?" ข้างชื่อช่อง — กดแล้วขึ้นคำอธิบาย ───────────────────── */
-.sf-help { position: relative; display: inline-flex; vertical-align: middle; margin-left: 6px; }
-.sf-help-btn {
-  width: 18px; height: 18px; border-radius: 50%; padding: 0; cursor: pointer;
-  border: 1px solid var(--sf-border); background: var(--sf-surface); color: var(--sf-muted);
-  font: 600 12px/1 inherit; display: inline-flex; align-items: center; justify-content: center;
-}
-.sf-help-btn:hover { border-color: var(--sf-primary); color: var(--sf-primary); }
-.sf-help-bubble {
-  position: absolute; z-index: 40; left: 0; top: calc(100% + 6px);
-  width: max-content; max-width: min(280px, 70vw);
-  padding: 9px 11px; border-radius: 10px;
-  background: #111827; color: #f9fafb; font-size: 13px; font-weight: 400; line-height: 1.55;
-  box-shadow: 0 6px 20px rgba(0,0,0,.22);
-}

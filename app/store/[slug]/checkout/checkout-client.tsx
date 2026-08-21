@@ -9,7 +9,7 @@ import { supabase } from '@/lib/supabase';
 import { rememberOrder, rememberContact, readContact } from '@/lib/storefront-orders';
 import { formatStorePrice, storefrontHref } from '@/lib/storefront';
 import CheckoutSteps from '@/components/storefront/CheckoutSteps';
-import HelpHint from '@/components/storefront/HelpHint';
+import HelpHint from '@/components/ui/HelpHint';
 import CheckoutAccountBar from '@/components/storefront/CheckoutAccountBar';
 import DateRangePicker from '@/components/ui/DateRangePicker';
 import FormSelect from '@/components/ui/FormSelect';
