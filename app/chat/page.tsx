@@ -52,6 +52,8 @@ import TagInput from '@/components/ui/TagInput';
 import type { UnifiedContact, ChatMessage, Customer, DayRange, ChatAccountInfo, LinkedContact } from './lib/chatTypes';
 import MessageBubble from './components/MessageBubble';
 import { FbIcon, IgIcon, LineIcon, ShopeeIcon, LazadaIcon, PlatformIcon, getAccountPicture, getAvatarUrl, getInitials, formatTime, formatLastMessage, compressImage, officialStickers } from './lib/chatHelpers';
+import { FullPageLoading } from '@/components/ui/Loading';
+import { LoadingCard } from '@/components/ui/StateCard';
 
 // Dynamic imports for components that are not needed on initial load
 const EmojiStickerPicker = dynamic(() => import('./components/EmojiStickerPicker'), { ssr: false });
@@ -1011,7 +1013,7 @@ function UnifiedChatPageContent() {
   };
 
   if (authLoading) {
-    return (<Layout><div className="flex items-center justify-center h-64"><Loader2 className="w-8 h-8 text-primary animate-spin" /></div></Layout>);
+    return <Layout><LoadingCard /></Layout>;
   }
 
   // Helper to render order card (used in both mobile and desktop history)
@@ -1877,9 +1879,7 @@ function UnifiedChatPageContent() {
 export default function ChatPage() {
   return (
     <Suspense fallback={
-      <div className="flex items-center justify-center h-screen">
-        <Loader2 className="w-8 h-8 text-primary animate-spin" />
-      </div>
+      <FullPageLoading />
     }>
       <UnifiedChatPageContent />
     </Suspense>

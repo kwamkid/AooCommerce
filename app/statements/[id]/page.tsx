@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { showPdfPreview } from '@/lib/print-pdf';
 import { generateStatementPdf } from '@/lib/statement-pdf';
+import { LoadingCard } from '@/components/ui/StateCard';
 
 interface StatementDetail {
   id: string;
@@ -234,9 +235,7 @@ export default function StatementDetailPage() {
   if (loading) {
     return (
       <Layout>
-        <div className="flex items-center justify-center h-64">
-          <Loader2 className="w-8 h-8 text-indigo-500 animate-spin" />
-        </div>
+        <LoadingCard />
       </Layout>
     );
   }

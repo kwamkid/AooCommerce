@@ -23,6 +23,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import OrderProgress from '@/components/ui/OrderProgress';
 import { ORDER_STATUS_LABEL, PAYMENT_STATUS_LABEL } from '@/lib/order-status';
 import { getBadgeColorPair, getPaymentBadgeColorPair } from '@/lib/status-tab-colors';
+import { FullPageLoading } from '@/components/ui/Loading';
 
 interface PromotionComponent {
   variation_id: string;
@@ -409,9 +410,7 @@ export default function BillClient({ orderId, initialBill }: { orderId: string; 
 
   if (loading || !mounted) {
     return (
-      <div className="min-h-screen bg-gray-100 dark:bg-slate-900 flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-primary animate-spin" />
-      </div>
+      <FullPageLoading />
     );
   }
 

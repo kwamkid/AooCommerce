@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import FormSelect from '@/components/ui/FormSelect';
 import Button from '@/components/ui/Button';
+import { FullPageLoading } from '@/components/ui/Loading';
 
 interface VariationInfo {
   id: string;
@@ -308,9 +309,7 @@ export default function SupplierPortalPage() {
   // Auth checking
   if (authChecking || !mounted) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-white dark:bg-[#1A1A2E] transition-colors">
-        <Loader2 className="w-8 h-8 text-primary animate-spin" />
-      </div>
+      <FullPageLoading />
     );
   }
 
@@ -379,9 +378,7 @@ export default function SupplierPortalPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-white dark:bg-[#1A1A2E] transition-colors">
-        <Loader2 className="w-8 h-8 text-primary animate-spin" />
-      </div>
+      <FullPageLoading />
     );
   }
 

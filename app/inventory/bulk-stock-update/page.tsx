@@ -10,6 +10,7 @@ import { apiFetch } from '@/lib/api-client';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import MultiSelectSearch from '@/components/ui/MultiSelectSearch';
 import Button from '@/components/ui/Button';
+import { LoadingCard } from '@/components/ui/StateCard';
 import {
   Upload, Download, FileSpreadsheet,
   Check, Loader2, AlertCircle, Pencil, ArrowRight, ShieldAlert, Star, Warehouse, Tag,
@@ -555,11 +556,7 @@ export default function BulkStockUpdatePage() {
 
         {/* Step: Checking */}
         {step === 'checking' && (
-          <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm p-8 text-center space-y-4">
-            <Loader2 className="w-12 h-12 text-[#F4511E] animate-spin mx-auto" />
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">กำลังตรวจสอบข้อมูล...</h2>
-            <p className="text-sm text-gray-500 dark:text-slate-400">{parsedItems.length} รายการ</p>
-          </div>
+          <LoadingCard title="กำลังตรวจสอบข้อมูล..." subtitle={`${parsedItems.length} รายการ`} />
         )}
 
         {/* Step: Preview */}
@@ -669,10 +666,7 @@ export default function BulkStockUpdatePage() {
 
         {/* Step: Importing */}
         {step === 'importing' && (
-          <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm p-8 text-center space-y-4">
-            <Loader2 className="w-12 h-12 text-[#F4511E] animate-spin mx-auto" />
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">กำลังบันทึก...</h2>
-          </div>
+          <LoadingCard title="กำลังบันทึก..." />
         )}
 
         {/* Step: Done */}

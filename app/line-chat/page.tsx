@@ -49,6 +49,8 @@ import OrderForm from '@/components/orders/OrderForm';
 import CustomerForm, { CustomerFormData, buildCustomerPayload } from '@/components/customers/CustomerForm';
 import EntitySearchInput from '@/components/ui/EntitySearchInput';
 import type { EntitySearchOption } from '@/components/ui/EntitySearchInput';
+import { FullPageLoading } from '@/components/ui/Loading';
+import { LoadingCard } from '@/components/ui/StateCard';
 
 interface LineContact {
   id: string;
@@ -1266,9 +1268,7 @@ function LineChatPageContent() {
   if (authLoading) {
     return (
       <Layout>
-        <div className="flex items-center justify-center h-64">
-          <Loader2 className="w-8 h-8 text-primary animate-spin" />
-        </div>
+        <LoadingCard />
       </Layout>
     );
   }
@@ -3120,9 +3120,7 @@ function LineChatPageContent() {
 export default function LineChatPage() {
   return (
     <Suspense fallback={
-      <div className="flex items-center justify-center h-screen">
-        <Loader2 className="w-8 h-8 text-primary animate-spin" />
-      </div>
+      <FullPageLoading />
     }>
       <LineChatPageContent />
     </Suspense>

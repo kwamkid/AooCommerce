@@ -13,6 +13,7 @@ import { flattenVariationItem, productDisplayName } from '../../components/types
 import ItemsTable, { type TableItem } from '@/components/ui/ItemsTable';
 import Button from '@/components/ui/Button';
 import SaveButton from '@/components/ui/SaveButton';
+import { LoadingCard } from '@/components/ui/StateCard';
 
 interface ReceiveItem {
   id: string;
@@ -273,9 +274,7 @@ export default function ReceiveDetailPage() {
   return (
     <Suspense fallback={
       <Layout>
-        <div className="flex items-center justify-center h-64">
-          <Loader2 className="w-8 h-8 text-primary animate-spin" />
-        </div>
+        <LoadingCard />
       </Layout>
     }>
       <ReceiveDetailPageContent />

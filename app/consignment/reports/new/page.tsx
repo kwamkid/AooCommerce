@@ -4,8 +4,9 @@ import { Suspense, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
 import PageHeader from '@/components/ui/PageHeader';
-import { ClipboardList, Loader2 } from 'lucide-react';
+import { ClipboardList } from 'lucide-react';
 import DealerOrderForm from '@/components/dealer/DealerOrderForm';
+import { LoadingCard } from '@/components/ui/StateCard';
 
 function NewReportPageContent() {
   const router = useRouter();
@@ -44,9 +45,7 @@ export default function NewConsignmentReportPage() {
   return (
     <Suspense fallback={
       <Layout>
-        <div className="flex justify-center py-16">
-          <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
-        </div>
+        <LoadingCard />
       </Layout>
     }>
       <NewReportPageContent />

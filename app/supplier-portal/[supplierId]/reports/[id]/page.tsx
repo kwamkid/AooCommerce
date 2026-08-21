@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import { FullPageLoading } from '@/components/ui/Loading';
 import {
-  Loader2, ArrowLeft, Warehouse, Package, BarChart3,
+  ArrowLeft, Warehouse, Package, BarChart3,
   AlertTriangle, ShoppingCart,
 } from 'lucide-react';
 
@@ -113,9 +114,7 @@ export default function PortalReportDetailPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="w-8 h-8 text-primary animate-spin" />
-      </div>
+      <FullPageLoading />
     );
   }
 

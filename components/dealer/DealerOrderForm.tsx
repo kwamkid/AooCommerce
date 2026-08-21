@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation';
 import { useCompany } from '@/lib/company-context';
 import CustomerSelectionCard, { type DeliveryFields, type ShippingAddress } from '@/components/ui/CustomerSelectionCard';
 import { useCustomerPrefill } from '@/lib/useCustomerPrefill';
-import { Loader2, Save, Warehouse, Store } from 'lucide-react';
+import { Save, Warehouse, Store } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import FormSelect from '@/components/ui/FormSelect';
 import ItemsTable, { type TableItem } from '@/components/ui/ItemsTable';
@@ -19,6 +19,7 @@ import OrderStatusBar from '@/components/dealer/OrderStatusBar';
 import OrderPrintButtons from '@/components/ui/OrderPrintButtons';
 import { formatNumber } from '@/lib/utils/format';
 import StickyActionBar from '@/components/ui/StickyActionBar';
+import { LoadingCard } from '@/components/ui/StateCard';
 
 // ── Types ──────────────────────────────────────────────────
 
@@ -789,7 +790,7 @@ export default function DealerOrderForm({
   // ── Render ──────────────────────────────────────────────────
 
   if (loadingOrder) {
-    return <div className="flex justify-center py-16"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
+    return <LoadingCard />;
   }
 
   return (

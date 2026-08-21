@@ -9,6 +9,7 @@ import { useCompany } from '@/lib/company-context';
 import { apiFetch } from '@/lib/api-client';
 import { formatPrice } from '@/lib/utils/format';
 import { showPdfPreview } from '@/lib/print-pdf';
+import { LoadingCard } from '@/components/ui/StateCard';
 import {
   ArrowLeft,
   Loader2,
@@ -122,9 +123,7 @@ export default function CreditNoteDetailPage() {
   if (authLoading || loading) {
     return (
       <Layout>
-        <div className="flex items-center justify-center h-64">
-          <Loader2 className="w-8 h-8 text-primary animate-spin" />
-        </div>
+        <LoadingCard />
       </Layout>
     );
   }

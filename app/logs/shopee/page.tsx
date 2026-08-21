@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import FormSelect from '@/components/ui/FormSelect';
 import { useMarketplaceGuard } from '@/lib/useMarketplaceGuard';
+import { LoadingCard } from '@/components/ui/StateCard';
 
 interface IntegrationLog {
   id: string;
@@ -355,9 +356,7 @@ export default function ShopeeLogsPage() {
         {/* Table */}
         <div className="data-table-wrap">
           {loading ? (
-            <div className="flex items-center justify-center py-20">
-              <Loader2 className="w-8 h-8 animate-spin text-primary" />
-            </div>
+            <LoadingCard />
           ) : logs.length === 0 ? (
             <div className="text-center py-20 text-gray-500 dark:text-slate-400">
               <Clock className="w-12 h-12 mx-auto mb-3 opacity-50" />

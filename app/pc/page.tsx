@@ -14,7 +14,7 @@ import { useToast } from '@/lib/toast-context';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { formatPrice, formatNumber } from '@/lib/utils/format';
 import {
-  Loader2, LogOut, Store, ShoppingBag, ListChecks, Boxes, CalendarRange, Trash2, PackagePlus,
+  LogOut, Store, ShoppingBag, ListChecks, Boxes, CalendarRange, Trash2, PackagePlus,
 } from 'lucide-react';
 import ThemeToggle from '@/components/ThemeToggle';
 import PosSaleScreen, { type PosSaleScreenHandle, type CheckoutPayload } from '@/components/pos/PosSaleScreen';
@@ -23,6 +23,7 @@ import Modal from '@/components/ui/Modal';
 import Button from '@/components/ui/Button';
 import FormSelect from '@/components/ui/FormSelect';
 import { LoadingCard, EmptyCard } from '@/components/ui/StateCard';
+import { FullPageLoading } from '@/components/ui/Loading';
 
 interface Counter {
   id: string;
@@ -207,9 +208,7 @@ export default function PcPage() {
 
   if (guardLoading || loadingCounters) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-100 dark:bg-[#0F172A]">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-      </div>
+      <FullPageLoading />
     );
   }
   if (!allowed) return null;

@@ -9,7 +9,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { useCompany } from '@/lib/company-context';
 import { apiFetch } from '@/lib/api-client';
-import { ArrowLeft, Clock, ListOrdered, Loader2 } from 'lucide-react';
+import { ArrowLeft, Clock, ListOrdered } from 'lucide-react';
 import ThemeToggle from '@/components/ThemeToggle';
 
 import PosSaleScreen, { type PosSaleScreenHandle, type CheckoutPayload } from '@/components/pos/PosSaleScreen';
@@ -17,6 +17,7 @@ import SessionModal from './components/SessionModal';
 import PaymentModal from './components/PaymentModal';
 import Receipt from './components/Receipt';
 import CustomerSearch from './components/CustomerSearch';
+import { FullPageLoading } from '@/components/ui/Loading';
 
 interface PosSession {
   id: string;
@@ -191,9 +192,7 @@ export default function PosPage() {
   // Loading state
   if (authLoading || loadingSession) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-100 dark:bg-[#0F172A]">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-      </div>
+      <FullPageLoading />
     );
   }
 

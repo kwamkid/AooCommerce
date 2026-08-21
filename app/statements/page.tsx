@@ -19,6 +19,7 @@ import Tooltip from '@/components/ui/Tooltip';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import ActionMenu, { type ActionItem } from '@/components/ui/ActionMenu';
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
+import { LoadingCard } from '@/components/ui/StateCard';
 
 interface Statement {
   id: string;
@@ -565,9 +566,7 @@ export default function StatementsPage() {
   return (
     <Suspense fallback={
       <Layout>
-        <div className="flex items-center justify-center h-64">
-          <Loader2 className="w-8 h-8 text-indigo-500 animate-spin" />
-        </div>
+        <LoadingCard />
       </Layout>
     }>
       <StatementsContent />

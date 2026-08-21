@@ -12,7 +12,6 @@ import DateRangePicker, { DateValueType } from '@/components/ui/DateRangePicker'
 import FormSelect from '@/components/ui/FormSelect';
 import {
   DollarSign,
-  Loader2,
   Phone,
   Calendar,
   AlertTriangle,
@@ -29,6 +28,7 @@ import {
 } from 'lucide-react';
 import Pagination from '@/app/components/Pagination';
 import ColumnSettingsDropdown from '@/app/components/ColumnSettingsDropdown';
+import { LoadingCard } from '@/components/ui/StateCard';
 
 // Column toggle system
 type ColumnKey = 'customer' | 'daysOverdue' | 'orderCount' | 'dateRange' | 'totalPending' | 'actions';
@@ -339,9 +339,7 @@ export default function PaymentFollowupPage() {
   if (authLoading) {
     return (
       <Layout>
-        <div className="flex items-center justify-center h-64">
-          <Loader2 className="w-8 h-8 text-primary animate-spin" />
-        </div>
+        <LoadingCard />
       </Layout>
     );
   }
@@ -486,9 +484,7 @@ export default function PaymentFollowupPage() {
         {/* Customer List - Desktop */}
         <div className="data-table-wrap hidden md:block">
           {loading ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="w-8 h-8 text-primary animate-spin" />
-            </div>
+            <LoadingCard />
           ) : customers.length === 0 ? (
             <div className="text-center py-12">
               <DollarSign className="w-12 h-12 text-gray-300 mx-auto mb-4" />
@@ -705,9 +701,7 @@ export default function PaymentFollowupPage() {
         {/* Customer List - Mobile */}
         <div className="md:hidden">
           {loading ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="w-8 h-8 text-primary animate-spin" />
-            </div>
+            <LoadingCard />
           ) : customers.length === 0 ? (
             <div className="text-center py-12">
               <DollarSign className="w-12 h-12 text-gray-300 mx-auto mb-4" />

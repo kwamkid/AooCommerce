@@ -9,11 +9,11 @@ import { apiFetch } from '@/lib/api-client';
 import { formatPrice } from '@/lib/utils/format';
 import {
   ReceiptText,
-  Loader2,
   ChevronRight,
 } from 'lucide-react';
 import SearchInput from '@/components/ui/SearchInput';
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
+import { LoadingCard } from '@/components/ui/StateCard';
 
 interface CreditNote {
   id: string;
@@ -96,9 +96,7 @@ export default function CreditNotesPage() {
   if (authLoading || (loading && data.length === 0)) {
     return (
       <Layout>
-        <div className="flex items-center justify-center h-64">
-          <Loader2 className="w-8 h-8 text-primary animate-spin" />
-        </div>
+        <LoadingCard />
       </Layout>
     );
   }

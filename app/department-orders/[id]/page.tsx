@@ -17,6 +17,7 @@ import {
   XCircle, Trash2, Printer,
 } from 'lucide-react';
 import Link from 'next/link';
+import { LoadingCard } from '@/components/ui/StateCard';
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
   draft: { label: 'ที่ต้องจัดส่ง', ...getBadgeColor('draft') },
@@ -304,7 +305,7 @@ export default function DepartmentOrderDetailPage() {
   };
 
   if (isLoading) {
-    return <Layout><div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-gray-400" /></div></Layout>;
+    return <Layout><LoadingCard /></Layout>;
   }
 
   if (!orderInfo) return null;

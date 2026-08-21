@@ -11,6 +11,7 @@ import PageHeader from '@/components/ui/PageHeader';
 import { PageSkeleton } from '@/components/ui/Skeleton';
 import Button from '@/components/ui/Button';
 import DateRangePicker, { DateValueType } from '@/components/ui/DateRangePicker';
+import { LoadingCard } from '@/components/ui/StateCard';
 import {
   BarChart3,
   Calendar,
@@ -22,8 +23,7 @@ import {
   ChevronRight,
   Banknote,
   Clock,
-  CheckCircle,
-  Loader2
+  CheckCircle
 } from 'lucide-react';
 
 // Types
@@ -382,10 +382,7 @@ export default function SalesReportPage() {
       {/* Data Table */}
       <div className="data-table-wrap-shadow">
         {loading ? (
-          <div className="p-8 text-center">
-            <Loader2 className="w-8 h-8 animate-spin mx-auto mb-2 text-primary" />
-            <p className="text-gray-500 dark:text-slate-400">กำลังโหลดข้อมูล...</p>
-          </div>
+          <LoadingCard title="กำลังโหลดข้อมูล..." />
         ) : groupedData.length === 0 ? (
           <div className="p-8 text-center">
             <BarChart3 className="w-12 h-12 mx-auto mb-3 text-gray-300" />

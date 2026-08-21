@@ -5,7 +5,7 @@ import { useCopy } from '@/lib/useCopy';
 import { useRouter } from 'next/navigation';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
-import { Loader2, Settings, ChevronDown, Clock, CheckCircle, MapPin, FileText, Receipt, QrCode, Copy, Camera, Link2, AlertTriangle, Eye, Printer, Store } from 'lucide-react';
+import { Settings, ChevronDown, Clock, CheckCircle, MapPin, FileText, Receipt, QrCode, Copy, Camera, Link2, AlertTriangle, Eye, Printer, Store } from 'lucide-react';
 import FormSelect from '@/components/ui/FormSelect';
 import Card from '@/components/ui/Card';
 import NumberInput from '@/components/ui/NumberInput';
@@ -22,6 +22,7 @@ import { type GpResolverContext, resolveGp, fetchCustomerOrderContext } from '@/
 import { generateReplenishmentPdf, type ReplenishmentPdfData } from '@/lib/replenishment-pdf';
 import { showPdfPreview } from '@/lib/print-pdf';
 import StickyActionBar from '@/components/ui/StickyActionBar';
+import { LoadingCard } from '@/components/ui/StateCard';
 
 interface Customer {
   id: string;
@@ -635,9 +636,7 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
   // Loading state
   if (loadingExisting) {
     return (
-      <div className="flex justify-center py-16">
-        <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
-      </div>
+      <LoadingCard />
     );
   }
 

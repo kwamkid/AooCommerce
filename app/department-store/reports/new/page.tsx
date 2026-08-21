@@ -3,10 +3,11 @@
 import { Suspense, useCallback } from 'react';
 import Layout from '@/components/layout/Layout';
 import PageHeader from '@/components/ui/PageHeader';
-import { Building2, Loader2 } from 'lucide-react';
+import { Building2 } from 'lucide-react';
 import DealerOrderForm from '@/components/dealer/DealerOrderForm';
 import { apiFetch } from '@/lib/api-client';
 import { showPdfPreview, mergePdfBlobs } from '@/lib/print-pdf';
+import { LoadingCard } from '@/components/ui/StateCard';
 
 function NewDeptStoreReportContent() {
   // Auto print ใบแจ้งหนี้ + ใบวางบิล after successful submit
@@ -124,9 +125,7 @@ export default function NewDeptStoreReportPage() {
   return (
     <Suspense fallback={
       <Layout>
-        <div className="flex justify-center py-16">
-          <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
-        </div>
+        <LoadingCard />
       </Layout>
     }>
       <NewDeptStoreReportContent />

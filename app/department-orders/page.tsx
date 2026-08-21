@@ -26,6 +26,7 @@ import LoadingOverlay from '@/components/ui/LoadingOverlay';
 import Tooltip from '@/components/ui/Tooltip';
 import DataTable from '@/components/ui/DataTable';
 import { showPdfPreview, mergePdfBlobs } from '@/lib/print-pdf';
+import { LoadingCard } from '@/components/ui/StateCard';
 
 interface DeptOrder {
   id: string;
@@ -1272,7 +1273,7 @@ function DepartmentOrdersContent() {
 
 export default function DepartmentOrdersPage() {
   return (
-    <Suspense fallback={<Layout><div className="flex justify-center py-16"><Loader2 className="w-8 h-8 animate-spin text-gray-400" /></div></Layout>}>
+    <Suspense fallback={<Layout><LoadingCard /></Layout>}>
       <DepartmentOrdersContent />
     </Suspense>
   );

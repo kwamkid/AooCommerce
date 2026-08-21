@@ -291,9 +291,7 @@ export default function ConsignmentPortalPage() {
   // Auth checking — spinner
   if (authChecking || !mounted) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-white dark:bg-[#1A1A2E] transition-colors">
-        <Loader2 className="w-8 h-8 text-primary animate-spin" />
-      </div>
+      <FullPageLoading />
     );
   }
 

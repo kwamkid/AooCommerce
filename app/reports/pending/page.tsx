@@ -8,12 +8,12 @@ import { apiFetch } from '@/lib/api-client';
 import { formatPrice } from '@/lib/utils/format';
 import Layout from '@/components/layout/Layout';
 import PageHeader from '@/components/ui/PageHeader';
+import { LoadingCard } from '@/components/ui/StateCard';
 
 import {
   FileText,
   Calendar,
   Users,
-  Loader2,
   ChevronDown,
   ChevronRight,
   Phone,
@@ -195,9 +195,7 @@ export default function PendingReportPage() {
   if (authLoading) {
     return (
       <Layout>
-        <div className="flex items-center justify-center h-64">
-          <Loader2 className="w-8 h-8 text-primary animate-spin" />
-        </div>
+        <LoadingCard />
       </Layout>
     );
   }
@@ -311,12 +309,7 @@ export default function PendingReportPage() {
 
       {/* Loading */}
       {loading ? (
-        <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-12">
-          <div className="flex flex-col items-center justify-center">
-            <Loader2 className="w-8 h-8 text-primary animate-spin mb-4" />
-            <p className="text-gray-500 dark:text-slate-400">กำลังโหลดข้อมูล...</p>
-          </div>
-        </div>
+        <LoadingCard title="กำลังโหลดข้อมูล..." />
       ) : groupedData.length === 0 ? (
         <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-12">
           <div className="flex flex-col items-center justify-center">

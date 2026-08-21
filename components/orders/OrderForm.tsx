@@ -36,6 +36,7 @@ import { useCustomerPrefill } from '@/lib/useCustomerPrefill';
 import { fetchCustomerOrderContext } from '@/lib/gp-resolver';
 import { isMarketplaceSource } from '@/lib/marketplace/types';
 import StickyActionBar from '@/components/ui/StickyActionBar';
+import { LoadingCard } from '@/components/ui/StateCard';
 import {
   Plus,
   Loader2,
@@ -1837,9 +1838,7 @@ export default function OrderForm({
 
   if (authLoading || loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 text-primary animate-spin" />
-      </div>
+      <LoadingCard />
     );
   }
 

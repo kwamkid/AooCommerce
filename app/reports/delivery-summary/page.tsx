@@ -30,13 +30,13 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { ORDER_STATUS_LABEL } from '@/lib/order-status';
+import { LoadingCard } from '@/components/ui/StateCard';
 import {
   Truck,
   MapPin,
   Phone,
   User,
   Package,
-  Loader2,
   ChevronDown,
   ChevronRight,
   Copy,
@@ -989,9 +989,7 @@ export default function DeliverySummaryPage() {
   if (authLoading) {
     return (
       <Layout>
-        <div className="flex items-center justify-center h-64">
-          <Loader2 className="w-8 h-8 text-primary animate-spin" />
-        </div>
+        <LoadingCard />
       </Layout>
     );
   }
@@ -1092,9 +1090,7 @@ export default function DeliverySummaryPage() {
         )}
 
         {loading && (
-          <div className="flex items-center justify-center py-12">
-            <Loader2 className="w-8 h-8 text-primary animate-spin" />
-          </div>
+          <LoadingCard />
         )}
 
         {/* ===== TAB 1: จัดของ (Packing) ===== */}
