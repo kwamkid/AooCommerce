@@ -80,25 +80,26 @@ export interface CreatedByOption {
 
 // Status config
 export const ORDER_STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; headerBg: string; headerText: string }> = {
-  new: { label: ORDER_STATUS_LABEL.new, color: 'text-blue-700 dark:text-blue-300', bg: 'bg-blue-100 dark:bg-blue-900/40', headerBg: 'bg-blue-50 dark:bg-blue-950/40', headerText: 'text-blue-800 dark:text-blue-200' },
-  ready_to_ship: { label: ORDER_STATUS_LABEL.ready_to_ship, color: 'text-orange-700 dark:text-orange-300', bg: 'bg-orange-100 dark:bg-orange-900/40', headerBg: 'bg-orange-50 dark:bg-orange-950/40', headerText: 'text-orange-800 dark:text-orange-200' },
-  processing: { label: ORDER_STATUS_LABEL.processing, color: 'text-indigo-700 dark:text-indigo-300', bg: 'bg-indigo-100 dark:bg-indigo-900/40', headerBg: 'bg-indigo-50 dark:bg-indigo-950/40', headerText: 'text-indigo-800 dark:text-indigo-200' },
-  shipping: { label: ORDER_STATUS_LABEL.shipping, color: 'text-amber-700 dark:text-amber-300', bg: 'bg-amber-100 dark:bg-amber-900/40', headerBg: 'bg-amber-50 dark:bg-amber-950/40', headerText: 'text-amber-800 dark:text-amber-200' },
-  completed: { label: ORDER_STATUS_LABEL.completed, color: 'text-green-700 dark:text-green-300', bg: 'bg-green-100 dark:bg-green-900/40', headerBg: 'bg-green-50 dark:bg-green-950/40', headerText: 'text-green-800 dark:text-green-200' },
-  cancelled: { label: ORDER_STATUS_LABEL.cancelled, color: 'text-gray-600 dark:text-gray-400', bg: 'bg-gray-100 dark:bg-gray-700/40', headerBg: 'bg-gray-50 dark:bg-gray-800/40', headerText: 'text-gray-600 dark:text-gray-300' },
+  new: { label: ORDER_STATUS_LABEL.new, color: getBadgeColor('new').color, bg: getBadgeColor('new').bg, headerBg: 'bg-blue-50 dark:bg-blue-950/40', headerText: 'text-blue-800 dark:text-blue-200' },
+  ready_to_ship: { label: ORDER_STATUS_LABEL.ready_to_ship, color: getBadgeColor('ready_to_ship').color, bg: getBadgeColor('ready_to_ship').bg, headerBg: 'bg-orange-50 dark:bg-orange-950/40', headerText: 'text-orange-800 dark:text-orange-200' },
+  processing: { label: ORDER_STATUS_LABEL.processing, color: getBadgeColor('processing').color, bg: getBadgeColor('processing').bg, headerBg: 'bg-indigo-50 dark:bg-indigo-950/40', headerText: 'text-indigo-800 dark:text-indigo-200' },
+  shipping: { label: ORDER_STATUS_LABEL.shipping, color: getBadgeColor('shipping').color, bg: getBadgeColor('shipping').bg, headerBg: 'bg-amber-50 dark:bg-amber-950/40', headerText: 'text-amber-800 dark:text-amber-200' },
+  completed: { label: ORDER_STATUS_LABEL.completed, color: getBadgeColor('completed').color, bg: getBadgeColor('completed').bg, headerBg: 'bg-green-50 dark:bg-green-950/40', headerText: 'text-green-800 dark:text-green-200' },
+  cancelled: { label: ORDER_STATUS_LABEL.cancelled, color: getBadgeColor('cancelled').color, bg: getBadgeColor('cancelled').bg, headerBg: 'bg-gray-50 dark:bg-gray-800/40', headerText: 'text-gray-600 dark:text-gray-300' },
 };
 
 export const PAYMENT_STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
-  pending: { label: PAYMENT_STATUS_LABEL.pending, color: 'text-orange-700 dark:text-orange-300', bg: 'bg-orange-100 dark:bg-orange-900/40' },
-  verifying: { label: PAYMENT_STATUS_LABEL.verifying, color: 'text-purple-700 dark:text-purple-300', bg: 'bg-purple-100 dark:bg-purple-900/40' },
-  paid: { label: PAYMENT_STATUS_LABEL.paid, color: 'text-green-700 dark:text-green-300', bg: 'bg-green-100 dark:bg-green-900/40' },
-  cancelled: { label: PAYMENT_STATUS_LABEL.cancelled, color: 'text-gray-600 dark:text-gray-400', bg: 'bg-gray-100 dark:bg-gray-700/40' },
+  pending: { label: PAYMENT_STATUS_LABEL.pending, color: getPaymentBadgeColor('pending').color, bg: getPaymentBadgeColor('pending').bg },
+  verifying: { label: PAYMENT_STATUS_LABEL.verifying, color: getPaymentBadgeColor('verifying').color, bg: getPaymentBadgeColor('verifying').bg },
+  paid: { label: PAYMENT_STATUS_LABEL.paid, color: getPaymentBadgeColor('paid').color, bg: getPaymentBadgeColor('paid').bg },
+  cancelled: { label: PAYMENT_STATUS_LABEL.cancelled, color: getPaymentBadgeColor('cancelled').color, bg: getPaymentBadgeColor('cancelled').bg },
 };
 
 // Carrier list now lives in the carriers table per company.
 // Components: use `useCarriers()` for dropdowns; use the helpers below for tracking URLs / labels.
 import { getTrackingUrlSync, getCarrierLabelSync } from '@/lib/carrier-lookup';
 import { ORDER_STATUS_LABEL, PAYMENT_STATUS_LABEL } from '@/lib/order-status';
+import { getBadgeColor, getPaymentBadgeColor } from '@/lib/status-tab-colors';
 
 /** Get tracking URL for a stored carrier code + tracking number. Returns null if not available. */
 export function getTrackingUrl(carrier: string | null | undefined, trackingNumber: string | null | undefined): string | null {

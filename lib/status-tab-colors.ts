@@ -97,4 +97,43 @@ export function getStatusBadgeTone(key: string): StatusBadgeTone {
   return STATUS_BADGE_TONE[key] || 'gray';
 }
 
+/**
+ * สีของ "สถานะการชำระเงิน" — คนละชุดกับสถานะออเดอร์โดยตั้งใจ
+ *
+ * key ชนกัน: order 'pending' (ของเติมสินค้า) เป็นคราม แต่ payment 'pending'
+ * (รอลูกค้าโอน) ต้องเป็นส้มเพื่อบอกว่า "ยังมีอะไรค้าง" — ใช้แผนที่เดียวกันไม่ได้
+ */
+const PAYMENT_BADGE_COLORS: Record<string, { color: string; bg: string }> = {
+  pending:   { color: 'text-orange-700 dark:text-orange-300', bg: 'bg-orange-100 dark:bg-orange-900/40' },
+  verifying: { color: 'text-purple-700 dark:text-purple-300', bg: 'bg-purple-100 dark:bg-purple-900/40' },
+  paid:      { color: 'text-emerald-700 dark:text-emerald-300', bg: 'bg-emerald-100 dark:bg-emerald-900/40' },
+  cancelled: { color: 'text-gray-600 dark:text-gray-400', bg: 'bg-gray-100 dark:bg-gray-700/40' },
+};
+
+export function getPaymentBadgeColor(key: string): { color: string; bg: string } {
+  return PAYMENT_BADGE_COLORS[key] || PAYMENT_BADGE_COLORS.cancelled;
+}
+
+/**
+ * คู่สี light/dark แบบแยกคลาส — สำหรับหน้าที่สลับธีมด้วยตัวแปร JS เอง
+ * ไม่ได้ใช้ class `.dark` ของ Tailwind (เช่นบิลออนไลน์ที่มีปุ่มสลับธีมของตัวเอง)
+ * แหล่งสีเดียวกับด้านบน แค่แยก dark: ออกมาให้เลือกใช้เอง
+ */
+function splitDarkClasses(v: { color: string; bg: string }): { light: string; dark: string } {
+  const plain = (cls: string) => cls.split(' ').filter(c => !c.startsWith('dark:')).join(' ');
+  const darkOnly = (cls: string) => cls.split(' ').filter(c => c.startsWith('dark:')).map(c => c.slice(5)).join(' ');
+  return {
+    light: `${plain(v.bg)} ${plain(v.color)}`.trim(),
+    dark: `${darkOnly(v.bg)} ${darkOnly(v.color)}`.trim(),
+  };
+}
+
+export function getBadgeColorPair(key: string): { light: string; dark: string } {
+  return splitDarkClasses(getBadgeColor(key));
+}
+
+export function getPaymentBadgeColorPair(key: string): { light: string; dark: string } {
+  return splitDarkClasses(getPaymentBadgeColor(key));
+}
+
 export default STATUS_TAB_COLORS;

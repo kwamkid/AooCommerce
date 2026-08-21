@@ -6,14 +6,15 @@ import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
 import { useRouter } from 'next/navigation';
 import { DEALER_ORDER_STATUS_LABEL } from '@/lib/order-status';
+import { getBadgeColor } from '@/lib/status-tab-colors';
 
 const STATUS_LABELS: Record<string, { label: string; cls: string }> = {
-  new: { label: DEALER_ORDER_STATUS_LABEL.new, cls: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' },
-  ready_to_ship: { label: DEALER_ORDER_STATUS_LABEL.ready_to_ship, cls: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' },
-  processing: { label: DEALER_ORDER_STATUS_LABEL.processing, cls: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' },
-  shipping: { label: DEALER_ORDER_STATUS_LABEL.shipping, cls: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400' },
-  completed: { label: DEALER_ORDER_STATUS_LABEL.completed, cls: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' },
-  cancelled: { label: DEALER_ORDER_STATUS_LABEL.cancelled, cls: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' },
+  new: { label: DEALER_ORDER_STATUS_LABEL.new, cls: `${getBadgeColor('new').bg} ${getBadgeColor('new').color}` },
+  ready_to_ship: { label: DEALER_ORDER_STATUS_LABEL.ready_to_ship, cls: `${getBadgeColor('ready_to_ship').bg} ${getBadgeColor('ready_to_ship').color}` },
+  processing: { label: DEALER_ORDER_STATUS_LABEL.processing, cls: `${getBadgeColor('processing').bg} ${getBadgeColor('processing').color}` },
+  shipping: { label: DEALER_ORDER_STATUS_LABEL.shipping, cls: `${getBadgeColor('shipping').bg} ${getBadgeColor('shipping').color}` },
+  completed: { label: DEALER_ORDER_STATUS_LABEL.completed, cls: `${getBadgeColor('completed').bg} ${getBadgeColor('completed').color}` },
+  cancelled: { label: DEALER_ORDER_STATUS_LABEL.cancelled, cls: `${getBadgeColor('cancelled').bg} ${getBadgeColor('cancelled').color}` },
 };
 
 interface Props {

@@ -20,6 +20,14 @@ interface ThaiAddressInputProps {
   showLabels?: boolean;
   /** Error message for province field */
   provinceError?: string;
+  /**
+   * ช่องเดียวจบ — พิมพ์ชื่อแขวง/เขต/จังหวัด/รหัสไปรษณีย์ อันไหนก็ได้ แล้วเลือกจากรายการ
+   * ระบบเติมครบทั้งสี่ค่าให้เอง (แบบเดียวกับหน้าร้านออนไลน์)
+   *
+   * ใช้เมื่อพื้นที่จำกัดหรือคนกรอกคือ "ลูกค้า" ไม่ใช่พนักงาน — สี่ช่องแยกเหมาะกับ
+   * พนักงานที่ต้องแก้ทีละช่องจากที่อยู่ที่ลูกค้าให้มาไม่ครบ
+   */
+  compact?: boolean;
 }
 
 type FieldType = 'district' | 'amphoe' | 'province' | 'zipcode';
@@ -39,8 +47,11 @@ export default function ThaiAddressInput({
   provinceError,
   dropdownStyle,
   showLabels = true,
+  compact = false,
 }: ThaiAddressInputProps) {
   const [suggestions, setSuggestions] = useState<ThaiAddress[]>([]);
+  /** ข้อความที่พิมพ์อยู่ในโหมดช่องเดียว — null = ยังไม่พิมพ์ ให้โชว์ค่าที่เลือกไว้แทน */
+  const [query, setQuery] = useState<string | null>(null);
   const [activeField, setActiveField] = useState<FieldType | null>(null);
   const [highlightIndex, setHighlightIndex] = useState(-1);
   const [dropUp, setDropUp] = useState(false);
@@ -73,6 +84,7 @@ export default function ThaiAddressInput({
     });
     setSuggestions([]);
     setActiveField(null);
+    setQuery(null);
   }, [onAddressChange]);
 
   // Close dropdown on outside click
@@ -146,6 +158,54 @@ export default function ThaiAddressInput({
 
   const defaultDropdownClass = "absolute z-50 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded-lg shadow-lg max-h-[70vh] overflow-y-auto overflow-x-hidden";
   const dropdownCls = dropdownClassName || defaultDropdownClass;
+
+  const summary = [district, amphoe, province, postalCode].filter(Boolean).join(' · ');
+
+  if (compact) {
+    return (
+      <div ref={containerRef} className={`relative ${className}`}>
+        {showLabels && <label className={lblClass}>ตำบล / อำเภอ / จังหวัด / รหัสไปรษณีย์</label>}
+        <input
+          type="text"
+          value={query ?? summary}
+          onChange={(e) => {
+            const v = e.target.value;
+            setQuery(v);
+            setActiveField('district');   // ใช้เป็นจุดอ้างอิงตำแหน่ง dropdown เท่านั้น
+            // ไม่ระบุ field = ค้นทุกคอลัมน์ (ตำบล อำเภอ จังหวัด รหัสไปรษณีย์)
+            if (v.trim().length >= 1) { setSuggestions(searchAddress(v.trim(), undefined, 8)); setHighlightIndex(-1); }
+            else setSuggestions([]);
+          }}
+          onKeyDown={handleKeyDown}
+          onFocus={() => { if (query && query.trim()) setSuggestions(searchAddress(query.trim(), undefined, 8)); }}
+          placeholder="พิมพ์ชื่อแขวง เขต หรือรหัสไปรษณีย์"
+          disabled={disabled}
+          autoComplete="off"
+          className={inputClass}
+          style={inputStyle}
+        />
+        {suggestions.length > 0 && (
+          <div ref={dropdownRef} className={dropdownCls} style={{ top: '100%', left: 0, width: '100%', marginTop: 4, ...dropdownStyle }}>
+            {suggestions.map((addr, i) => (
+              <button
+                key={`${addr.district}-${addr.amphoe}-${addr.zipcode}-${i}`}
+                type="button"
+                data-suggestion
+                onClick={() => handleSelect(addr)}
+                className={`w-full text-left px-3 py-2.5 text-base ${i === highlightIndex ? 'bg-gray-100 dark:bg-slate-700' : ''} hover:bg-gray-100 dark:hover:bg-slate-700`}
+              >
+                {addr.district} · {addr.amphoe} · {addr.province} {addr.zipcode}
+              </button>
+            ))}
+          </div>
+        )}
+        {summary && query === null && (
+          <p className="mt-1 text-xs text-gray-500 dark:text-slate-400">เลือกแล้ว: {summary}</p>
+        )}
+        {provinceError && <p className="mt-1 text-xs text-red-500">{provinceError}</p>}
+      </div>
+    );
+  }
 
   return (
     <div ref={containerRef} className={`relative ${className}`}>

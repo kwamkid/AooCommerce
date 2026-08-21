@@ -22,6 +22,7 @@ import generatePayload from 'promptpay-qr';
 import { QRCodeSVG } from 'qrcode.react';
 import OrderProgress from '@/components/ui/OrderProgress';
 import { ORDER_STATUS_LABEL, PAYMENT_STATUS_LABEL } from '@/lib/order-status';
+import { getBadgeColorPair, getPaymentBadgeColorPair } from '@/lib/status-tab-colors';
 
 interface PromotionComponent {
   variation_id: string;
@@ -432,16 +433,16 @@ export default function BillClient({ orderId, initialBill }: { orderId: string; 
   const isCancelled = bill.is_cancelled === true;
 
   const orderStatusConfig: Record<string, { label: string; color: string; darkColor: string }> = {
-    new: { label: ORDER_STATUS_LABEL.new, color: 'bg-blue-100 text-blue-700', darkColor: 'bg-blue-900/40 text-blue-400' },
-    shipping: { label: ORDER_STATUS_LABEL.shipping, color: 'bg-yellow-100 text-yellow-700', darkColor: 'bg-yellow-900/40 text-yellow-400' },
-    completed: { label: ORDER_STATUS_LABEL.completed, color: 'bg-green-100 text-green-700', darkColor: 'bg-green-900/40 text-green-400' },
-    cancelled: { label: ORDER_STATUS_LABEL.cancelled, color: 'bg-gray-100 text-gray-600', darkColor: 'bg-gray-800/40 text-gray-400' },
+    new: { label: ORDER_STATUS_LABEL.new, color: getBadgeColorPair('new').light, darkColor: getBadgeColorPair('new').dark },
+    shipping: { label: ORDER_STATUS_LABEL.shipping, color: getBadgeColorPair('shipping').light, darkColor: getBadgeColorPair('shipping').dark },
+    completed: { label: ORDER_STATUS_LABEL.completed, color: getBadgeColorPair('completed').light, darkColor: getBadgeColorPair('completed').dark },
+    cancelled: { label: ORDER_STATUS_LABEL.cancelled, color: getBadgeColorPair('cancelled').light, darkColor: getBadgeColorPair('cancelled').dark },
   };
 
   const paymentStatusConfig: Record<string, { label: string; color: string; darkColor: string }> = {
-    pending: { label: PAYMENT_STATUS_LABEL.pending, color: 'bg-orange-100 text-orange-700', darkColor: 'bg-orange-900/40 text-orange-400' },
-    verifying: { label: PAYMENT_STATUS_LABEL.verifying, color: 'bg-purple-100 text-purple-700', darkColor: 'bg-purple-900/40 text-purple-400' },
-    paid: { label: PAYMENT_STATUS_LABEL.paid, color: 'bg-green-100 text-green-700', darkColor: 'bg-green-900/40 text-green-400' },
+    pending: { label: PAYMENT_STATUS_LABEL.pending, color: getPaymentBadgeColorPair('pending').light, darkColor: getPaymentBadgeColorPair('pending').dark },
+    verifying: { label: PAYMENT_STATUS_LABEL.verifying, color: getPaymentBadgeColorPair('verifying').light, darkColor: getPaymentBadgeColorPair('verifying').dark },
+    paid: { label: PAYMENT_STATUS_LABEL.paid, color: getPaymentBadgeColorPair('paid').light, darkColor: getPaymentBadgeColorPair('paid').dark },
   };
 
   const formatDate = (dateStr: string) => {
@@ -797,7 +798,10 @@ export default function BillClient({ orderId, initialBill }: { orderId: string; 
                     className="w-full px-3 py-2.5 border rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-orange-400" />
                   {deliveryErrors.address && <p className="text-red-500 text-xs mt-1">{deliveryErrors.address}</p>}
                 </div>
+                {/* ช่องเดียวจบแบบเดียวกับหน้าร้านออนไลน์ — ลูกค้าเป็นคนกรอกเองทั้งคู่
+                    (เดิมเป็นสี่ช่องเปล่าไม่มี label ต้องเดาว่าช่องไหนคืออะไร) */}
                 <ThaiAddressInput
+                  compact
                   district={deliveryDistrict}
                   amphoe={deliveryAmphoe}
                   province={deliveryProvince}
@@ -808,7 +812,7 @@ export default function BillClient({ orderId, initialBill }: { orderId: string; 
                     if (addr.province !== undefined) setDeliveryProvince(addr.province);
                     if (addr.postalCode !== undefined) setDeliveryPostalCode(addr.postalCode);
                   }}
-                  showLabels={false}
+                  labelClassName="block text-sm mb-1"
                   inputClassName="w-full px-3 py-2.5 border rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-orange-400"
                   inputStyle={dark ? { backgroundColor: '#1e293b', borderColor: '#475569', color: '#fff' } : { backgroundColor: '#fff', borderColor: '#d1d5db', color: '#111827' }}
                   dropdownClassName={`absolute z-50 border rounded-lg shadow-lg max-h-[70vh] overflow-y-auto overflow-x-hidden ${dark ? 'bg-slate-800 border-slate-600' : 'bg-white border-gray-200'}`}

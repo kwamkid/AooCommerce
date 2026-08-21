@@ -60,16 +60,17 @@ import { useCarriers } from '@/lib/carrier-lookup';
 import FormSelect from '@/components/ui/FormSelect';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { ORDER_STATUS_LABEL, orderStatusLabel } from '@/lib/order-status';
+import { getBadgeColor } from '@/lib/status-tab-colors';
 
 // Status badge components
 function OrderStatusBadge({ status }: { status: string }) {
   const statusConfig: Record<string, { label: string; color: string }> = {
-    new: { label: ORDER_STATUS_LABEL.new, color: 'bg-blue-100 text-blue-700 dark:bg-blue-500/30 dark:text-blue-100' },
-    ready_to_ship: { label: ORDER_STATUS_LABEL.ready_to_ship, color: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-500/30 dark:text-cyan-100' },
-    processing: { label: ORDER_STATUS_LABEL.processing, color: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-500/30 dark:text-indigo-100' },
-    shipping: { label: ORDER_STATUS_LABEL.shipping, color: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-500/30 dark:text-yellow-100' },
-    completed: { label: ORDER_STATUS_LABEL.completed, color: 'bg-green-100 text-green-700 dark:bg-green-500/30 dark:text-green-100' },
-    cancelled: { label: ORDER_STATUS_LABEL.cancelled, color: 'bg-red-100 text-red-700 dark:bg-red-500/30 dark:text-red-100' }
+    new: { label: ORDER_STATUS_LABEL.new, color: `${getBadgeColor('new').bg} ${getBadgeColor('new').color}` },
+    ready_to_ship: { label: ORDER_STATUS_LABEL.ready_to_ship, color: `${getBadgeColor('ready_to_ship').bg} ${getBadgeColor('ready_to_ship').color}` },
+    processing: { label: ORDER_STATUS_LABEL.processing, color: `${getBadgeColor('processing').bg} ${getBadgeColor('processing').color}` },
+    shipping: { label: ORDER_STATUS_LABEL.shipping, color: `${getBadgeColor('shipping').bg} ${getBadgeColor('shipping').color}` },
+    completed: { label: ORDER_STATUS_LABEL.completed, color: `${getBadgeColor('completed').bg} ${getBadgeColor('completed').color}` },
+    cancelled: { label: ORDER_STATUS_LABEL.cancelled, color: `${getBadgeColor('cancelled').bg} ${getBadgeColor('cancelled').color}` }
   };
   const config = statusConfig[status] || statusConfig.new;
   return (
