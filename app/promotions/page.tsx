@@ -10,6 +10,7 @@ import SearchableDropdown from '@/components/ui/SearchableDropdown';
 import Pagination from '@/app/components/Pagination';
 import SharedActionMenu, { type ActionItem as SharedActionItem } from '@/components/ui/ActionMenu';
 import Container from '@/components/ui/Container';
+import PageHeader from '@/components/ui/PageHeader';
 import Button from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
 import { LoadingCard, EmptyCard } from '@/components/ui/StateCard';
@@ -534,10 +535,7 @@ function PromotionsPageContent() {
     <Container size="full">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="heading-1">โปรโมชั่น</h1>
-          <p className="page-subtitle">จัดการโปรโมชั่นสินค้า</p>
-        </div>
+        <PageHeader title="โปรโมชั่น" subtitle="จัดการโปรโมชั่นสินค้า" />
         <Link href="/promotions/new" className="btn btn-md btn-primary">
           <Plus className="w-4 h-4" />
           <span>สร้างโปรโมชั่น</span>

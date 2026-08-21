@@ -15,6 +15,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import EntitySearchInput, { EntitySearchOption } from '@/components/ui/EntitySearchInput';
 import Container from '@/components/ui/Container';
+import PageHeader from '@/components/ui/PageHeader';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import { LoadingCard, NoPermissionCard } from '@/components/ui/StateCard';
@@ -246,10 +247,7 @@ function BrandsPageInner() {
     return (
       <Layout>
         <Container size="full">
-          <div>
-            <h1 className="heading-1">แบรนด์</h1>
-            <p className="page-subtitle">จัดการแบรนด์สินค้า</p>
-          </div>
+          <PageHeader title="แบรนด์" subtitle="จัดการแบรนด์สินค้า" />
           <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4 flex items-start gap-3">
             <Award className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
             <div>
@@ -265,10 +263,7 @@ function BrandsPageInner() {
   return (
     <Layout>
       <Container size="full">
-        <div>
-          <h1 className="heading-1">แบรนด์</h1>
-          <p className="page-subtitle">จัดการแบรนด์สินค้า กำหนด supplier และ GP rate</p>
-        </div>
+        <PageHeader title="แบรนด์" subtitle="จัดการแบรนด์สินค้า กำหนด supplier และ GP rate" />
         {loading ? (
           <LoadingCard />
         ) : (

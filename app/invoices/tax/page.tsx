@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Layout from '@/components/layout/Layout';
+import PageHeader from '@/components/ui/PageHeader';
 import Link from 'next/link';
 import { apiFetch } from '@/lib/api-client';
 import { FileText, Search, Printer, ExternalLink } from 'lucide-react';
@@ -318,15 +319,11 @@ export default function TaxInvoicesPage() {
   return (
     <Layout>
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
-              <FileText className="w-8 h-8 text-primary" />
-              ใบกำกับภาษี
-            </h1>
-            <p className="text-gray-500 dark:text-slate-400 mt-1 text-sm">TAX-YYYYMM-NNNN — เรียงต่อเนื่องตลอดเดือน</p>
-          </div>
-        </div>
+        <PageHeader
+          icon={<FileText />}
+          title="ใบกำกับภาษี"
+          subtitle="TAX-YYYYMM-NNNN — เรียงต่อเนื่องตลอดเดือน"
+        />
 
         {/* Filters */}
         <div className="data-filter-card">

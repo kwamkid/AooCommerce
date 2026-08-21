@@ -7,6 +7,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import Layout from '@/components/layout/Layout';
 import Container from '@/components/ui/Container';
+import PageHeader from '@/components/ui/PageHeader';
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
 import FormSelect from '@/components/ui/FormSelect';
 import Badge from '@/components/ui/Badge';
@@ -203,13 +204,11 @@ export default function CounterSalesDashboardPage() {
   return (
     <Layout>
       <Container size="full">
-        <div>
-          <h1 className="heading-1 flex items-center gap-2">
-            <Store className="w-7 h-7 text-primary" />
-            ยอดขาย PC
-          </h1>
-          <p className="page-subtitle">ยอดขายรายวันที่ PC บันทึกจากทุกสาขา (ข้อมูลติดตาม — วางบิลใช้ report ห้างตามเดิม)</p>
-        </div>
+        <PageHeader
+          icon={<Store />}
+          title="ยอดขาย PC"
+          subtitle="ยอดขายรายวันที่ PC บันทึกจากทุกสาขา (ข้อมูลติดตาม — วางบิลใช้ report ห้างตามเดิม)"
+        />
 
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
           <Stat label="ยอดขายรวม" value={`฿${formatPrice(summary.total_amount)}`} icon={<Banknote className="w-5 h-5" />} />

@@ -17,6 +17,7 @@ import {
 import FormSelect from '@/components/ui/FormSelect';
 import LoadingOverlay from '@/components/ui/LoadingOverlay';
 import Container from '@/components/ui/Container';
+import PageHeader from '@/components/ui/PageHeader';
 import { LoadingCard, NoPermissionCard } from '@/components/ui/StateCard';
 import { useMarketplaceGuard } from '@/lib/useMarketplaceGuard';
 
@@ -474,10 +475,7 @@ export default function IntegrationsPage() {
   return (
     <Layout>
       <Container size="full">
-        <div>
-          <h1 className="heading-1">Marketplace</h1>
-          <p className="page-subtitle">เชื่อมต่อ Shopee, TikTok, Lazada และช่องทางขายอื่นๆ</p>
-        </div>
+        <PageHeader title="Marketplace" subtitle="เชื่อมต่อ Shopee, TikTok, Lazada และช่องทางขายอื่นๆ" />
         {/* Platform Tabs */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex border-b border-gray-200 dark:border-slate-700">

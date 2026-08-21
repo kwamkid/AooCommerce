@@ -5,6 +5,7 @@ import StickyActionBar from '@/components/ui/StickyActionBar';
 import { useFetchOnce } from '@/lib/use-fetch-once';
 import Layout from '@/components/layout/Layout';
 import Container from '@/components/ui/Container';
+import PageHeader from '@/components/ui/PageHeader';
 import Card from '@/components/ui/Card';
 import ToggleCard from '@/components/ui/ToggleCard';
 import Button from '@/components/ui/Button';
@@ -280,10 +281,7 @@ export default function SettingsPage() {
   return (
     <Layout>
       <Container size="full">
-        <div>
-          <h1 className="heading-1">ตั้งค่า</h1>
-          <p className="page-subtitle">ตั้งค่าประเภทตัวเลือกสินค้า และอายุของบิล</p>
-        </div>
+        <PageHeader title="ตั้งค่า" subtitle="ตั้งค่าประเภทตัวเลือกสินค้า และอายุของบิล" />
         <Tabs
           activeKey="general"
           tabs={[

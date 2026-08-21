@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Layout from '@/components/layout/Layout';
+import PageHeader from '@/components/ui/PageHeader';
 import { useRouter } from 'next/navigation';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
@@ -214,31 +215,29 @@ export default function DeptWholesaleOrdersPage() {
     <Layout>
       <div className="space-y-4">
         {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
-              <Store className="w-8 h-8 text-primary" />
-              คำสั่งซื้อห้างขายขาด
-            </h1>
-            <p className="text-gray-500 dark:text-slate-400 mt-1 text-sm">ห้างขายขาด (เงินสด / เครดิต)</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="secondary"
-              icon={<UserPlus className="w-4 h-4" />}
-              onClick={() => router.push('/customers/new?type=wholesale_department')}
-            >
-              เพิ่มลูกค้าห้าง
-            </Button>
-            <Button
-              variant="primary"
-              icon={<Plus className="w-4 h-4" />}
-              onClick={() => router.push('/dept-wholesale-orders/new')}
-            >
-              สร้างคำสั่งซื้อ
-            </Button>
-          </div>
-        </div>
+        <PageHeader
+          icon={<Store />}
+          title="คำสั่งซื้อห้างขายขาด"
+          subtitle="ห้างขายขาด (เงินสด / เครดิต)"
+          actions={
+            <>
+              <Button
+                variant="secondary"
+                icon={<UserPlus className="w-4 h-4" />}
+                onClick={() => router.push('/customers/new?type=wholesale_department')}
+              >
+                เพิ่มลูกค้าห้าง
+              </Button>
+              <Button
+                variant="primary"
+                icon={<Plus className="w-4 h-4" />}
+                onClick={() => router.push('/dept-wholesale-orders/new')}
+              >
+                สร้างคำสั่งซื้อ
+              </Button>
+            </>
+          }
+        />
 
         {/* Status Tabs */}
         <StatusTabs

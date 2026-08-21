@@ -3,6 +3,7 @@
 import { useState, useEffect, Fragment } from 'react';
 import { useRouter } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
+import PageHeader from '@/components/ui/PageHeader';
 import SearchInput from '@/components/ui/SearchInput';
 import { useAuth } from '@/lib/auth-context';
 import { apiFetch } from '@/lib/api-client';
@@ -349,15 +350,11 @@ export default function PaymentFollowupPage() {
     <Layout>
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-              <DollarSign className="w-7 h-7 text-primary" />
-              ติดตามหนี้
-            </h1>
-            <p className="text-gray-500 mt-1">ติดตามยอดค้างชำระจากลูกค้า</p>
-          </div>
-        </div>
+        <PageHeader
+          icon={<DollarSign />}
+          title="ติดตามหนี้"
+          subtitle="ติดตามยอดค้างชำระจากลูกค้า"
+        />
 
         {/* Summary Cards */}
         {summary && (

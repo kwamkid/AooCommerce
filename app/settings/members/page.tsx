@@ -19,6 +19,7 @@ import Checkbox from '@/components/ui/Checkbox';
 import Modal from '@/components/ui/Modal';
 import UserAvatar from '@/components/ui/UserAvatar';
 import Container from '@/components/ui/Container';
+import PageHeader from '@/components/ui/PageHeader';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import { LoadingCard } from '@/components/ui/StateCard';
@@ -663,10 +664,7 @@ export default function MembersPage() {
   return (
     <Layout>
       <Container size="full">
-        <div className="mb-6">
-          <h1 className="heading-1">จัดการสมาชิก</h1>
-          <p className="page-subtitle">เชิญสมาชิกเข้าร่วมบริษัทและกำหนดสิทธิ์การใช้งาน</p>
-        </div>
+        <PageHeader title="จัดการสมาชิก" subtitle="เชิญสมาชิกเข้าร่วมบริษัทและกำหนดสิทธิ์การใช้งาน" />
       {isLoading ? (
         <LoadingCard />
       ) : (

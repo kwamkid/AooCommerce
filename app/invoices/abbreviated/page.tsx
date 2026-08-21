@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Layout from '@/components/layout/Layout';
+import PageHeader from '@/components/ui/PageHeader';
 import Link from 'next/link';
 import { apiFetch } from '@/lib/api-client';
 import { ReceiptText, Search, Printer, ExternalLink, MoreHorizontal, FileUp } from 'lucide-react';
@@ -243,15 +244,11 @@ export default function AbbreviatedInvoicesPage() {
   return (
     <Layout>
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
-              <ReceiptText className="w-8 h-8 text-primary" />
-              ใบกำกับอย่างย่อ
-            </h1>
-            <p className="text-gray-500 dark:text-slate-400 mt-1 text-sm">ABB-YYYYMM-NNNN — ออกอัตโนมัติสำหรับออเดอร์ปลีก</p>
-          </div>
-        </div>
+        <PageHeader
+          icon={<ReceiptText />}
+          title="ใบกำกับอย่างย่อ"
+          subtitle="ABB-YYYYMM-NNNN — ออกอัตโนมัติสำหรับออเดอร์ปลีก"
+        />
 
         {/* Status tabs */}
         <div className="flex border-b border-gray-200 dark:border-slate-700">

@@ -7,6 +7,7 @@ import { useAuth } from '@/lib/auth-context';
 import { apiFetch } from '@/lib/api-client';
 import { formatPrice } from '@/lib/utils/format';
 import Layout from '@/components/layout/Layout';
+import PageHeader from '@/components/ui/PageHeader';
 
 import {
   FileText,
@@ -206,15 +207,12 @@ export default function PendingReportPage() {
   return (
     <Layout>
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
-        <div className="flex items-center gap-3 mb-4 sm:mb-0">
-          <FileText className="w-8 h-8 text-primary" />
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">รายงานยอดค้างชำระ</h1>
-            <p className="text-gray-600 dark:text-slate-400">ติดตามยอดค้างชำระจากลูกค้า</p>
-          </div>
-        </div>
-      </div>
+      <PageHeader
+        className="mb-6"
+        icon={<FileText />}
+        title="รายงานยอดค้างชำระ"
+        subtitle="ติดตามยอดค้างชำระจากลูกค้า"
+      />
 
       {/* Error */}
       {error && (

@@ -22,6 +22,7 @@ import Tooltip from '@/components/ui/Tooltip';
 import StatusTabs from '@/components/ui/StatusTabs';
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
 import Container from '@/components/ui/Container';
+import PageHeader from '@/components/ui/PageHeader';
 import Button from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
 import { LoadingCard } from '@/components/ui/StateCard';
@@ -703,28 +704,27 @@ function ReplenishmentsPageContent() {
   return (
     <Layout>
       <Container size="full" gap="sm">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <ArrowUpFromLine className="w-8 h-8 text-primary" />
-            <h1 className="heading-1">เติมสินค้าตัวแทน</h1>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="ghost"
-              onClick={() => fetchData(true)}
-              disabled={isRefreshing}
-              title="รีเฟรช"
-              icon={<RefreshCw className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} />}
-            />
-            <Button variant="secondary" icon={<UserPlus className="w-4 h-4" />} onClick={() => router.push('/customers/new?type=consignment_dealer')}>
-              <span className="hidden md:inline">เพิ่มตัวแทน</span>
-            </Button>
-            <Button variant="primary" icon={<Plus className="w-5 h-5" />} onClick={() => router.push('/replenishments/new')}>
-              สร้าง<span className="hidden md:inline">ใบเติมสินค้า</span>
-            </Button>
-          </div>
-        </div>
+        <PageHeader
+          icon={<ArrowUpFromLine />}
+          title="เติมสินค้าตัวแทน"
+          actions={
+            <>
+              <Button
+                variant="ghost"
+                onClick={() => fetchData(true)}
+                disabled={isRefreshing}
+                title="รีเฟรช"
+                icon={<RefreshCw className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} />}
+              />
+              <Button variant="secondary" icon={<UserPlus className="w-4 h-4" />} onClick={() => router.push('/customers/new?type=consignment_dealer')}>
+                <span className="hidden md:inline">เพิ่มตัวแทน</span>
+              </Button>
+              <Button variant="primary" icon={<Plus className="w-5 h-5" />} onClick={() => router.push('/replenishments/new')}>
+                สร้าง<span className="hidden md:inline">ใบเติมสินค้า</span>
+              </Button>
+            </>
+          }
+        />
 
         {/* Status Tabs */}
         <StatusTabs

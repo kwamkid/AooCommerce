@@ -12,6 +12,7 @@ import {
   Loader2, Plus, Check, X, Edit2, Trash2, Warehouse, Star, StarOff, AlertTriangle, Info, Users
 } from 'lucide-react';
 import Container from '@/components/ui/Container';
+import PageHeader from '@/components/ui/PageHeader';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import { LoadingCard, NoPermissionCard } from '@/components/ui/StateCard';
@@ -216,10 +217,7 @@ export default function WarehouseSettingsPage() {
   return (
     <Layout>
       <Container size="full">
-        <div>
-          <h1 className="heading-1">คลังสินค้า</h1>
-          <p className="page-subtitle">จัดการคลังสินค้าและคลังฝากขาย ({limitText})</p>
-        </div>
+        <PageHeader title="คลังสินค้า" subtitle={<>จัดการคลังสินค้าและคลังฝากขาย ({limitText})</>} />
         {/* Stock not enabled */}
         {!stockConfig.stockEnabled && !loading && (
           <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4 flex items-start gap-3 mb-6">

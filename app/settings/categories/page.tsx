@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import FormSelect from '@/components/ui/FormSelect';
 import Container from '@/components/ui/Container';
+import PageHeader from '@/components/ui/PageHeader';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import { LoadingCard, NoPermissionCard } from '@/components/ui/StateCard';
@@ -284,10 +285,7 @@ function CategoriesPage() {
   return (
     <Layout>
       <Container size="full">
-        <div>
-          <h1 className="heading-1">หมวดหมู่สินค้า</h1>
-          <p className="page-subtitle">จัดการหมวดหมู่และหมวดหมู่ย่อยของสินค้า</p>
-        </div>
+        <PageHeader title="หมวดหมู่สินค้า" subtitle="จัดการหมวดหมู่และหมวดหมู่ย่อยของสินค้า" />
         {loading ? (
           <LoadingCard />
         ) : (

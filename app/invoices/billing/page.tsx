@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Layout from '@/components/layout/Layout';
+import PageHeader from '@/components/ui/PageHeader';
 import Link from 'next/link';
 import { apiFetch } from '@/lib/api-client';
 import { FileText, Search, ExternalLink } from 'lucide-react';
@@ -94,13 +95,11 @@ export default function BillingInvoicesPage() {
   return (
     <Layout>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
-            <FileText className="w-8 h-8 text-primary" />
-            ใบแจ้งหนี้
-          </h1>
-          <p className="text-gray-500 dark:text-slate-400 mt-1 text-sm">INV-YYYYMM-NNNN</p>
-        </div>
+        <PageHeader
+          icon={<FileText />}
+          title="ใบแจ้งหนี้"
+          subtitle="INV-YYYYMM-NNNN"
+        />
 
         <div className="data-filter-card">
           <div className="flex items-center gap-2 flex-wrap">

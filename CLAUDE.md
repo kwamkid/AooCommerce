@@ -107,14 +107,16 @@ Validation rules built-in: `required`, `requiredMessage`, `minLength`, `maxLengt
 
 ### Page composition cheatsheet
 
-**List page (top-level)**:
+**List page (top-level)** — ไม่ส่ง `backHref` แปลว่าหน้าหลัก PageHeader จะใช้หัวข้อขนาดใหญ่ให้เอง:
 ```tsx
 <Layout>
   <Container size="full">
-    <div className="flex justify-between">
-      <div><h1 className="heading-1">หัวข้อ</h1><p className="page-subtitle">...</p></div>
-      <div className="flex gap-2"><ExportButton /><Button variant="primary" icon={<Plus/>}>เพิ่ม</Button></div>
-    </div>
+    <PageHeader
+      icon={<Package2 />}          // ขนาด/สีไอคอนคุมจาก PageHeader — ห้ามใส่ className เอง
+      title="หัวข้อ"
+      subtitle="..."
+      actions={<><ExportButton /><Button variant="primary" icon={<Plus/>}>เพิ่ม</Button></>}
+    />
     <StatusTabs activeKey={...} onSelect={...} tabs={[...]} />
     <div className="data-filter-card"><SearchInput /><FormSelect /></div>
     <DataTable storageKey="..." columns={...} data={...} ... />
@@ -132,6 +134,7 @@ Validation rules built-in: `required`, `requiredMessage`, `minLength`, `maxLengt
 </Layout>
 ```
 ⚠️ เมื่อใช้ `<PageHeader>` ห้ามใส่ `title`/`breadcrumbs` ใน `<Layout>` อีก (duplicate)
+⚠️ **ห้ามเขียนหัวข้อหน้าเองด้วย `<h1>`** ไม่ว่าจะ `heading-1` หรือ `text-3xl font-bold` — ทุกหน้าใช้ `PageHeader` ตัวเดียว (แก้ขนาด/ระยะที่ [components/ui/PageHeader.tsx](components/ui/PageHeader.tsx) ที่เดียว)
 
 ### Form action buttons (บังคับ)
 ทุกฟอร์ม + Modal — **action group ชิดขวาของ container เสมอ**, secondary ก่อน primary, gap-3:

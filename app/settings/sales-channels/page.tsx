@@ -4,6 +4,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Layout from '@/components/layout/Layout';
 import Container from '@/components/ui/Container';
+import PageHeader from '@/components/ui/PageHeader';
 import Modal from '@/components/ui/Modal';
 import SearchInput from '@/components/ui/SearchInput';
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
@@ -412,34 +413,29 @@ export default function SalesChannelsPage() {
   return (
     <Layout>
       <Container size="full">
-        {/* Header */}
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="heading-1 flex items-center">
-              <Tag className="w-8 h-8 mr-3 text-primary" />
-              ช่องทางการขาย
-            </h1>
-            <p className="page-subtitle">
-              จัดการช่องทางที่ออเดอร์เข้ามา — รวมช่องทาง manual + LINE/FB pages ที่เชื่อมไว้
-            </p>
-          </div>
-          {/* ปุ่มเพิ่มเป็น dropdown — เลือกแพลตฟอร์มได้เลย แล้วเปิด modal พร้อมค่า preselect */}
-          <ActionMenu
-            placement="bottom"
-            trigger={<><Plus className="w-5 h-5" />เพิ่ม</>}
-            triggerClassName="btn btn-md btn-primary"
-            items={[
-              { key: 'manual', label: 'ช่องทางทั่วไป (Manual)', icon: <Tag className="w-4 h-4 text-gray-400" />, onClick: () => openCreate('') },
-              ...PLATFORM_OPTIONS.filter(p => p.id).map(p => ({
-                key: p.id,
-                label: p.label,
-                icon: <PlatformIcon id={p.id} size={16} />,
-                onClick: () => openCreate(p.id),
-                dividerBefore: p.id === 'line',
-              })),
-            ]}
-          />
-        </div>
+        <PageHeader
+          icon={<Tag />}
+          title="ช่องทางการขาย"
+          subtitle="จัดการช่องทางที่ออเดอร์เข้ามา — รวมช่องทาง manual + LINE/FB pages ที่เชื่อมไว้"
+          actions={
+            /* ปุ่มเพิ่มเป็น dropdown — เลือกแพลตฟอร์มได้เลย แล้วเปิด modal พร้อมค่า preselect */
+            <ActionMenu
+              placement="bottom"
+              trigger={<><Plus className="w-5 h-5" />เพิ่ม</>}
+              triggerClassName="btn btn-md btn-primary"
+              items={[
+                { key: 'manual', label: 'ช่องทางทั่วไป (Manual)', icon: <Tag className="w-4 h-4 text-gray-400" />, onClick: () => openCreate('') },
+                ...PLATFORM_OPTIONS.filter(p => p.id).map(p => ({
+                  key: p.id,
+                  label: p.label,
+                  icon: <PlatformIcon id={p.id} size={16} />,
+                  onClick: () => openCreate(p.id),
+                  dividerBefore: p.id === 'line',
+                })),
+              ]}
+            />
+          }
+        />
 
         {/* Platform tabs — same pattern as chat-channels */}
         <Tabs

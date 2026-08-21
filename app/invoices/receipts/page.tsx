@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Layout from '@/components/layout/Layout';
+import PageHeader from '@/components/ui/PageHeader';
 import Link from 'next/link';
 import { apiFetch } from '@/lib/api-client';
 import { Receipt, Search, Printer, ExternalLink } from 'lucide-react';
@@ -195,15 +196,11 @@ export default function ReceiptsPage() {
   return (
     <Layout>
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
-              <Receipt className="w-8 h-8 text-primary" />
-              ใบเสร็จรับเงิน
-            </h1>
-            <p className="text-gray-500 dark:text-slate-400 mt-1 text-sm">REC-YYYYMM-NNNN — สำหรับร้านที่ไม่จด VAT</p>
-          </div>
-        </div>
+        <PageHeader
+          icon={<Receipt />}
+          title="ใบเสร็จรับเงิน"
+          subtitle="REC-YYYYMM-NNNN — สำหรับร้านที่ไม่จด VAT"
+        />
 
         <div className="data-filter-card">
           <div className="flex items-center gap-2 flex-wrap">

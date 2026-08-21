@@ -15,6 +15,7 @@ import FormSelect from '@/components/ui/FormSelect';
 import ActionMenu, { type ActionItem } from '@/components/ui/ActionMenu';
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
 import Container from '@/components/ui/Container';
+import PageHeader from '@/components/ui/PageHeader';
 import Button from '@/components/ui/Button';
 import { getBadgeColor } from '@/lib/status-tab-colors';
 import StatusTabs from '@/components/ui/StatusTabs';
@@ -276,24 +277,21 @@ export default function DealerOrdersPage() {
   return (
     <Layout>
       <Container size="full" gap="sm">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="heading-1 flex items-center gap-3">
-              <ShoppingBag className="w-8 h-8 text-primary" />
-              คำสั่งซื้อตัวแทนขายขาด
-            </h1>
-            <p className="page-subtitle">ตัวแทนขายขาด (เงินสด / เครดิต)</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button variant="secondary" icon={<UserPlus className="w-4 h-4" />} onClick={() => router.push('/customers/new?type=wholesale_dealer')}>
-              เพิ่มตัวแทน
-            </Button>
-            <Button variant="primary" icon={<Plus className="w-4 h-4" />} onClick={() => router.push('/dealer-orders/new')}>
-              สร้างคำสั่งซื้อ
-            </Button>
-          </div>
-        </div>
+        <PageHeader
+          icon={<ShoppingBag />}
+          title="คำสั่งซื้อตัวแทนขายขาด"
+          subtitle="ตัวแทนขายขาด (เงินสด / เครดิต)"
+          actions={
+            <>
+              <Button variant="secondary" icon={<UserPlus className="w-4 h-4" />} onClick={() => router.push('/customers/new?type=wholesale_dealer')}>
+                เพิ่มตัวแทน
+              </Button>
+              <Button variant="primary" icon={<Plus className="w-4 h-4" />} onClick={() => router.push('/dealer-orders/new')}>
+                สร้างคำสั่งซื้อ
+              </Button>
+            </>
+          }
+        />
 
         {/* Status Tabs */}
         <StatusTabs

@@ -5,6 +5,7 @@ import CopyField from '@/components/ui/CopyField';
 import { useFetchOnce } from '@/lib/use-fetch-once';
 import Layout from '@/components/layout/Layout';
 import Container from '@/components/ui/Container';
+import PageHeader from '@/components/ui/PageHeader';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import StickyActionBar from '@/components/ui/StickyActionBar';
@@ -412,10 +413,7 @@ export default function PaymentChannelsPage() {
     <Layout>
       <Container size="full">
         <div className="flex items-start justify-between gap-4 mb-6">
-          <div>
-            <h1 className="heading-1">ช่องทางชำระเงิน</h1>
-            <p className="page-subtitle">ช่องทางที่ลูกค้าใช้จ่ายเงินผ่านลิงก์ Bill Online ของ manual order</p>
-          </div>
+          <PageHeader title="ช่องทางชำระเงิน" subtitle="ช่องทางที่ลูกค้าใช้จ่ายเงินผ่านลิงก์ Bill Online ของ manual order" />
 
           {/* Top-right add dropdown — for PromptPay / Bank account (Beam gateway is system-managed) */}
           <div ref={addDropdownRef} className="relative print:hidden">

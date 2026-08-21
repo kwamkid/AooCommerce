@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useCopy } from '@/lib/useCopy';
 import Layout from '@/components/layout/Layout';
+import PageHeader from '@/components/ui/PageHeader';
 import { useAuth } from '@/lib/auth-context';
 import { apiFetch } from '@/lib/api-client';
 import DateRangePicker, { DateValueType } from '@/components/ui/DateRangePicker';
@@ -242,23 +243,21 @@ export default function ShopeeLogsPage() {
     <Layout>
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
-              <ScrollText className="w-8 h-8 text-primary" />
-              Shopee Logs
-            </h1>
-            <p className="text-gray-600 dark:text-slate-400 mt-1">ประวัติการเชื่อมต่อกับ Shopee</p>
-          </div>
-          <button
-            onClick={fetchLogs}
-            disabled={loading}
-            className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg text-sm font-medium text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 disabled:opacity-50"
-          >
-            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-            รีเฟรช
-          </button>
-        </div>
+        <PageHeader
+          icon={<ScrollText />}
+          title="Shopee Logs"
+          subtitle="ประวัติการเชื่อมต่อกับ Shopee"
+          actions={
+            <button
+              onClick={fetchLogs}
+              disabled={loading}
+              className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-lg text-sm font-medium text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 disabled:opacity-50"
+            >
+              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+              รีเฟรช
+            </button>
+          }
+        />
 
         {/* Status Cards */}
         <div className="grid grid-cols-3 gap-4">

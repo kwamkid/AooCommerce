@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import Layout from '@/components/layout/Layout';
+import PageHeader from '@/components/ui/PageHeader';
 import { useCompany } from '@/lib/company-context';
 import { can } from '@/lib/permissions';
 import { useFeatures } from '@/lib/features-context';
@@ -118,12 +119,10 @@ export default function BulkProductsHub() {
   return (
     <Layout>
       <div className="space-y-8">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">จัดการสินค้าแบบชุด</h1>
-          <p className="text-gray-600 dark:text-slate-400 mt-1">
-            สร้างหรือแก้ไขข้อมูลหลายรายการพร้อมกันผ่าน Excel template — เลือกหมวดที่ต้องการเพื่อดาวน์โหลด template เฉพาะส่วนนั้น
-          </p>
-        </div>
+        <PageHeader
+          title="จัดการสินค้าแบบชุด"
+          subtitle="สร้างหรือแก้ไขข้อมูลหลายรายการพร้อมกันผ่าน Excel template — เลือกหมวดที่ต้องการเพื่อดาวน์โหลด template เฉพาะส่วนนั้น"
+        />
 
         <section className="space-y-3">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white">สร้าง</h2>

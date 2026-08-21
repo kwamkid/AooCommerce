@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useCopy } from '@/lib/useCopy';
 import { useRouter } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
+import PageHeader from '@/components/ui/PageHeader';
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
@@ -1001,15 +1002,11 @@ export default function DeliverySummaryPage() {
     <Layout>
       <div className="space-y-4">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <Truck className="w-8 h-8 text-primary" />
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">จัดของ & ส่ง</h1>
-              <p className="text-sm text-gray-600 dark:text-slate-400">เตรียมสินค้าและจัดส่งตามวันที่</p>
-            </div>
-          </div>
-        </div>
+        <PageHeader
+          icon={<Truck />}
+          title="จัดของ & ส่ง"
+          subtitle="เตรียมสินค้าและจัดส่งตามวันที่"
+        />
 
         {/* Date Picker + Tab Switcher + Action Buttons */}
         <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4">

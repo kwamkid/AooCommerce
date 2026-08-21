@@ -15,6 +15,7 @@ import dynamic from 'next/dynamic';
 import ActionMenu from '@/components/ui/ActionMenu';
 import Button from '@/components/ui/Button';
 import Container from '@/components/ui/Container';
+import PageHeader from '@/components/ui/PageHeader';
 import PlatformIcon from '@/components/ui/PlatformIcon';
 import SearchInput from '@/components/ui/SearchInput';
 import Tabs from '@/components/ui/Tabs';
@@ -762,12 +763,10 @@ export default function ChatChannelsPage() {
   return (
     <Layout>
       <Container size="full">
-        <div>
-          <h1 className="heading-1">ช่องทาง Chat</h1>
-          <p className="page-subtitle">
-            เชื่อมต่อ LINE OA, Facebook / Instagram{showMarketplaceChat ? ', Shopee และ Lazada' : ''} เพื่อรับข้อความจากลูกค้า
-          </p>
-        </div>
+        <PageHeader
+          title="ช่องทาง Chat"
+          subtitle={`เชื่อมต่อ LINE OA, Facebook / Instagram${showMarketplaceChat ? ', Shopee และ Lazada' : ''} เพื่อรับข้อความจากลูกค้า`}
+        />
         <Tabs
           activeKey={activeTab}
           onSelect={(key) => { setActiveTab(key as 'facebook' | 'line' | 'shopee' | 'lazada'); resetForm(); }}

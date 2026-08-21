@@ -93,9 +93,13 @@
 - `2xl` — detail/edit forms
 - `xl` — narrow settings forms
 
-**Page title pattern**:
-- **List page (top-level)**: Layout no-args + inline `<h1 className="heading-1">` + `<p className="page-subtitle">` (เหมือน `/promotions`)
-- **Sub-page (มี back)**: Layout no-args + `<PageHeader title subtitle backHref />` (เหมือน `/products/bulk/create`)
+**Page title pattern** — ทุกหน้าใช้ `PageHeader` ตัวเดียว (อัพเดท 2026-08-21):
+- **List page (top-level)**: `<PageHeader icon title subtitle actions />` — ไม่ส่ง `backHref` = ได้หัวข้อใหญ่ (`heading-1`)
+- **Sub-page (มี back)**: `<PageHeader backHref="/parent" title subtitle actions />` — ได้ปุ่มย้อนกลับ + หัวข้อเล็กลงหนึ่งขั้น (`heading-2`)
+- ปุ่มไปช่อง `actions` เสมอ (หลายปุ่มห่อ `<>...</>`) — ห้ามวาง PageHeader คู่กับ div ปุ่มใน flex เอง
+- ไอคอนส่ง `icon={<Package2 />}` เปล่า ๆ — ขนาด (w-8) กับสี (text-primary) PageHeader จัดให้
+- หน้าที่ไม่ได้อยู่ใน `Container` (ไม่มี space-y) ใช้ `className="mb-6"` เว้นระยะ
+- ❌ **ห้ามเขียน `<h1>` เอง** ทั้ง `heading-1` และ `text-3xl font-bold text-gray-900 dark:text-white`
 - ❌ ห้ามใช้ Layout `title` + `breadcrumbs` props พร้อมกับ PageHeader (duplicate)
 
 ### DataTable — Full-featured table สำหรับทุก list page (อัพเดท 2026-05-27)

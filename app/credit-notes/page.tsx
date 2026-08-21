@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
+import PageHeader from '@/components/ui/PageHeader';
 import { useAuth } from '@/lib/auth-context';
 import { apiFetch } from '@/lib/api-client';
 import { formatPrice } from '@/lib/utils/format';
@@ -106,15 +107,11 @@ export default function CreditNotesPage() {
     <Layout>
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center">
-              <ReceiptText className="w-8 h-8 mr-3 text-red-500" />
-              ใบลดหนี้
-            </h1>
-            <p className="text-gray-600 dark:text-slate-400 mt-1">รายการใบลดหนี้ทั้งหมด</p>
-          </div>
-        </div>
+        <PageHeader
+          icon={<ReceiptText />}
+          title="ใบลดหนี้"
+          subtitle="รายการใบลดหนี้ทั้งหมด"
+        />
 
         {/* Filters */}
         <div className="data-filter-card">

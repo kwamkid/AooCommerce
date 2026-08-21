@@ -4,6 +4,7 @@
 import { useState, useEffect, useRef } from 'react';
 import Layout from '@/components/layout/Layout';
 import Container from '@/components/ui/Container';
+import PageHeader from '@/components/ui/PageHeader';
 import { useCompany } from '@/lib/company-context';
 import { can } from '@/lib/permissions';
 import { useFeatures } from '@/lib/features-context';
@@ -287,10 +288,7 @@ export default function FeaturesPage() {
   return (
     <Layout>
       <Container size="full">
-        <div>
-          <h1 className="heading-1">Feature เสริม</h1>
-          <p className="page-subtitle">เปิด/ปิดฟีเจอร์ที่ใช้กับธุรกิจของคุณ</p>
-        </div>
+        <PageHeader title="Feature เสริม" subtitle="เปิด/ปิดฟีเจอร์ที่ใช้กับธุรกิจของคุณ" />
 
         {!featuresLoaded ? (
           <div className="flex items-center justify-center py-16">

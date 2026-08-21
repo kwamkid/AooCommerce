@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Layout from '@/components/layout/Layout';
+import PageHeader from '@/components/ui/PageHeader';
 import { PageSkeleton } from '@/components/ui/Skeleton';
 import { useAuth } from '@/lib/auth-context';
 import { useCompany } from '@/lib/company-context';
@@ -142,13 +143,11 @@ export default function DashboardPage() {
   return (
     <Layout>
       {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Dashboard</h1>
-        <p className="text-gray-600 dark:text-slate-400 mt-1">
-          สวัสดี, {userProfile.name || 'ผู้ใช้งาน'} — {can(userProfile.roles, 'settings.access') && 'ภาพรวมระบบทั้งหมด'}
-          {userProfile.roles?.includes('sales') && 'ภาพรวมการขายและลูกค้า'}
-        </p>
-      </div>
+      <PageHeader
+        className="mb-6"
+        title="Dashboard"
+        subtitle={<>สวัสดี, {userProfile.name || 'ผู้ใช้งาน'} — {can(userProfile.roles, 'settings.access') && 'ภาพรวมระบบทั้งหมด'} {userProfile.roles?.includes('sales') && 'ภาพรวมการขายและลูกค้า'}</>}
+      />
 
       {/* Error Message */}
       {error && (

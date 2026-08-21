@@ -15,6 +15,8 @@ interface PageHeaderProps {
   actions?: ReactNode;
   /** Optional icon shown left of the title */
   icon?: ReactNode;
+  /** เผื่อหน้าที่ไม่ได้อยู่ใน Container (ไม่มี space-y ให้) ต้องเว้นระยะเอง */
+  className?: string;
 }
 
 /**
@@ -26,7 +28,7 @@ interface PageHeaderProps {
  * ⚠️ ห้ามเขียนหัวข้อหน้าเองด้วย <h1 className="heading-1"> อีก — ที่ผ่านมาแต่ละหน้า
  * วางไอคอน/คำอธิบาย/ขนาดต่างกันจนดูเหมือนคนละระบบ
  */
-export default function PageHeader({ title, subtitle, backHref, actions, icon }: PageHeaderProps) {
+export default function PageHeader({ title, subtitle, backHref, actions, icon, className = '' }: PageHeaderProps) {
   const router = useRouter();
   const handleBack = () => {
     if (backHref === '-1' || backHref === '') {
@@ -37,7 +39,9 @@ export default function PageHeader({ title, subtitle, backHref, actions, icon }:
   };
 
   return (
-    <div className="flex items-start justify-between gap-3">
+    // flex-1 min-w-0 = ยอมให้ย่อได้เวลาไปอยู่ใน flex row ที่มีปุ่มเป็นพี่น้องข้าง ๆ
+    // (ถ้าไม่ใส่ หัวข้อยาว ๆ จะดันปุ่มตกขอบจอมือถือ) · ระดับหน้าปกติไม่มีผล
+    <div className={`flex flex-1 min-w-0 items-start justify-between gap-3${className ? ` ${className}` : ''}`}>
       <div className="flex items-start gap-3 min-w-0">
         {backHref !== undefined && (
           <button

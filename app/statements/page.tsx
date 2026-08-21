@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
+import PageHeader from '@/components/ui/PageHeader';
 import SearchInput from '@/components/ui/SearchInput';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
@@ -437,20 +438,20 @@ function StatementsContent() {
     <Layout>
       <div className="space-y-4">
         {/* Header */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <FileText className="w-8 h-8 text-indigo-500" />
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">ใบวางบิล</h1>
-          </div>
-          <button
-            onClick={() => fetchData(true)}
-            disabled={isRefreshing}
-            className="p-2 rounded-lg border border-gray-200 dark:border-slate-700 text-gray-500 dark:text-slate-400 hover:bg-gray-50 dark:hover:bg-slate-700 hover:text-gray-700 dark:hover:text-white transition-colors disabled:opacity-50"
-            title="รีเฟรช"
-          >
-            <RefreshCw className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} />
-          </button>
-        </div>
+        <PageHeader
+          icon={<FileText />}
+          title="ใบวางบิล"
+          actions={
+            <button
+              onClick={() => fetchData(true)}
+              disabled={isRefreshing}
+              className="p-2 rounded-lg border border-gray-200 dark:border-slate-700 text-gray-500 dark:text-slate-400 hover:bg-gray-50 dark:hover:bg-slate-700 hover:text-gray-700 dark:hover:text-white transition-colors disabled:opacity-50"
+              title="รีเฟรช"
+            >
+              <RefreshCw className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} />
+            </button>
+          }
+        />
 
         {/* Status Tabs */}
         <StatusTabs

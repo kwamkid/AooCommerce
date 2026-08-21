@@ -4,6 +4,7 @@
 import { useState, useRef, useEffect } from 'react';
 import Layout from '@/components/layout/Layout';
 import Container from '@/components/ui/Container';
+import PageHeader from '@/components/ui/PageHeader';
 import Button from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
 import { LoadingCard, NoPermissionCard, EmptyCard } from '@/components/ui/StateCard';
@@ -583,10 +584,7 @@ export default function PosTerminalsPage() {
     <Layout>
       <Container size="full">
         <div className="flex justify-between items-start mb-6">
-          <div>
-            <h1 className="heading-1">แคชเชียร์</h1>
-            <p className="page-subtitle">จัดการแคชเชียร์ที่เชื่อมกับคลังสินค้าและช่องทางชำระเงิน</p>
-          </div>
+          <PageHeader title="แคชเชียร์" subtitle="จัดการแคชเชียร์ที่เชื่อมกับคลังสินค้าและช่องทางชำระเงิน" />
           {features.pos && !loading && (
             activeTab === 'terminals' ? (
               // Terminals: simple button — hidden when list is empty (EmptyCard CTA takes over)

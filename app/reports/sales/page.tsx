@@ -7,6 +7,7 @@ import { useAuth } from '@/lib/auth-context';
 import { apiFetch } from '@/lib/api-client';
 import { formatPrice } from '@/lib/utils/format';
 import Layout from '@/components/layout/Layout';
+import PageHeader from '@/components/ui/PageHeader';
 import { PageSkeleton } from '@/components/ui/Skeleton';
 import Button from '@/components/ui/Button';
 import DateRangePicker, { DateValueType } from '@/components/ui/DateRangePicker';
@@ -267,25 +268,23 @@ export default function SalesReportPage() {
   return (
     <Layout>
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
-        <div className="flex items-center gap-3 mb-4 sm:mb-0">
-          <BarChart3 className="w-8 h-8 text-primary" />
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">รายงานยอดขาย</h1>
-            <p className="text-gray-600 dark:text-slate-400">วิเคราะห์ยอดขายตามช่วงเวลา</p>
-          </div>
-        </div>
-
-        <Button
-          variant="primary"
-          loading={exporting}
-          disabled={loading}
-          icon={<Download className="w-5 h-5" />}
-          onClick={exportToCSV}
-        >
-          Export CSV
-        </Button>
-      </div>
+      <PageHeader
+        className="mb-6"
+        icon={<BarChart3 />}
+        title="รายงานยอดขาย"
+        subtitle="วิเคราะห์ยอดขายตามช่วงเวลา"
+        actions={
+          <Button
+            variant="primary"
+            loading={exporting}
+            disabled={loading}
+            icon={<Download className="w-5 h-5" />}
+            onClick={exportToCSV}
+          >
+            Export CSV
+          </Button>
+        }
+      />
 
       {/* Filters */}
       <div className="bg-white dark:bg-slate-800 rounded-lg shadow p-4 mb-6">

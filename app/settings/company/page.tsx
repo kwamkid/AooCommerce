@@ -15,6 +15,7 @@ import ThaiAddressInput from '@/components/ui/ThaiAddressInput';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Container from '@/components/ui/Container';
+import PageHeader from '@/components/ui/PageHeader';
 import Tabs from '@/components/ui/Tabs';
 import Modal from '@/components/ui/Modal';
 import FormInput from '@/components/ui/FormInput';
@@ -385,10 +386,7 @@ export default function CompanySettingsPage() {
   return (
     <Layout>
       <Container size="full">
-        <div>
-          <h1 className="heading-1">ตั้งค่า</h1>
-          <p className="page-subtitle">ตั้งค่าชื่อร้านค้า ที่อยู่ เลขประจำตัวผู้เสียภาษี และโลโก้</p>
-        </div>
+        <PageHeader title="ตั้งค่า" subtitle="ตั้งค่าชื่อร้านค้า ที่อยู่ เลขประจำตัวผู้เสียภาษี และโลโก้" />
         <Tabs
           activeKey="company"
           tabs={[

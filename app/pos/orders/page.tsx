@@ -8,6 +8,7 @@ import { can } from '@/lib/permissions';
 import { apiFetch } from '@/lib/api-client';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import Layout from '@/components/layout/Layout';
+import PageHeader from '@/components/ui/PageHeader';
 import { formatPrice } from '@/lib/utils/format';
 import DateRangePicker, { DateValueType } from '@/components/ui/DateRangePicker';
 import { Loader2, Search, Receipt as ReceiptIcon, Store } from 'lucide-react';
@@ -203,10 +204,10 @@ function PosOrdersContent() {
     <Layout>
       <div className="space-y-4">
         {/* Header */}
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">รายการขาย POS</h1>
-          <p className="text-gray-600 dark:text-slate-400 mt-1">ประวัติการขายจากระบบ POS</p>
-        </div>
+        <PageHeader
+          title="รายการขาย POS"
+          subtitle="ประวัติการขายจากระบบ POS"
+        />
 
         {/* Filter card */}
         <div className="data-filter-card">

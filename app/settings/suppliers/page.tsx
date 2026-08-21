@@ -30,6 +30,7 @@ import ActionMenu, { type ActionItem } from '@/components/ui/ActionMenu';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { getBankByCode } from '@/lib/constants/banks';
 import Container from '@/components/ui/Container';
+import PageHeader from '@/components/ui/PageHeader';
 import Button from '@/components/ui/Button';
 import { LoadingCard, NoPermissionCard } from '@/components/ui/StateCard';
 
@@ -239,24 +240,20 @@ export default function SuppliersPage() {
   return (
     <Layout>
       <Container size="full">
-        {/* Header */}
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="heading-1 flex items-center">
-              <Factory className="w-8 h-8 mr-3 text-primary" />
-              ซัพพลายเออร์
-            </h1>
-            <p className="page-subtitle">จัดการข้อมูลซัพพลายเออร์และผู้จัดจำหน่าย</p>
-          </div>
-
-          <Button
-            variant="primary"
-            onClick={() => router.push('/settings/suppliers/new')}
-            icon={<Plus className="w-5 h-5" />}
-          >
-            เพิ่ม<span className="hidden md:inline">ซัพพลายเออร์</span>
-          </Button>
-        </div>
+        <PageHeader
+          icon={<Factory />}
+          title="ซัพพลายเออร์"
+          subtitle="จัดการข้อมูลซัพพลายเออร์และผู้จัดจำหน่าย"
+          actions={
+            <Button
+              variant="primary"
+              onClick={() => router.push('/settings/suppliers/new')}
+              icon={<Plus className="w-5 h-5" />}
+            >
+              เพิ่ม<span className="hidden md:inline">ซัพพลายเออร์</span>
+            </Button>
+          }
+        />
 
         {/* Filters and Search */}
         <div className="data-filter-card">

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Layout from '@/components/layout/Layout';
+import PageHeader from '@/components/ui/PageHeader';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { apiFetch } from '@/lib/api-client';
@@ -70,22 +71,20 @@ export default function ReturnNotesPage() {
   return (
     <Layout>
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
-              <RotateCcw className="w-8 h-8 text-primary" />
-              ใบรับคืนสินค้า
-            </h1>
-            <p className="text-gray-500 dark:text-slate-400 mt-1 text-sm">RN-YYYYMM-NNNN -- คืนสินค้าจากตัวแทน/ห้าง</p>
-          </div>
-          <Button
-            variant="primary"
-            icon={<Plus className="w-4 h-4" />}
-            onClick={() => router.push('/return-notes/new')}
-          >
-            สร้างใบรับคืน
-          </Button>
-        </div>
+        <PageHeader
+          icon={<RotateCcw />}
+          title="ใบรับคืนสินค้า"
+          subtitle="RN-YYYYMM-NNNN -- คืนสินค้าจากตัวแทน/ห้าง"
+          actions={
+            <Button
+              variant="primary"
+              icon={<Plus className="w-4 h-4" />}
+              onClick={() => router.push('/return-notes/new')}
+            >
+              สร้างใบรับคืน
+            </Button>
+          }
+        />
 
         <div className="data-filter-card">
           <div className="flex items-center gap-2 flex-wrap">

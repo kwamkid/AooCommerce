@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Layout from '@/components/layout/Layout';
+import PageHeader from '@/components/ui/PageHeader';
 import Link from 'next/link';
 import { apiFetch } from '@/lib/api-client';
 import { Truck, Search, ExternalLink } from 'lucide-react';
@@ -144,13 +145,11 @@ export default function DeliveryNotesPage() {
   return (
     <Layout>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
-            <Truck className="w-8 h-8 text-primary" />
-            ใบส่งสินค้า
-          </h1>
-          <p className="text-gray-500 dark:text-slate-400 mt-1 text-sm">DN-YYYYMM-NNNN</p>
-        </div>
+        <PageHeader
+          icon={<Truck />}
+          title="ใบส่งสินค้า"
+          subtitle="DN-YYYYMM-NNNN"
+        />
 
         <div className="data-filter-card">
           <div className="flex items-center gap-2 flex-wrap">

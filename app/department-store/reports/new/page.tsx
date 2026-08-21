@@ -2,8 +2,8 @@
 
 import { Suspense, useCallback } from 'react';
 import Layout from '@/components/layout/Layout';
-import { ArrowLeft, Building2, Loader2 } from 'lucide-react';
-import Link from 'next/link';
+import PageHeader from '@/components/ui/PageHeader';
+import { Building2, Loader2 } from 'lucide-react';
 import DealerOrderForm from '@/components/dealer/DealerOrderForm';
 import { apiFetch } from '@/lib/api-client';
 import { showPdfPreview, mergePdfBlobs } from '@/lib/print-pdf';
@@ -99,16 +99,11 @@ function NewDeptStoreReportContent() {
   return (
     <Layout>
       <div className="space-y-4">
-        {/* Header */}
-        <div className="flex items-center gap-3">
-          <Link href="/department-store/reports" className="p-2 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors">
-            <ArrowLeft className="w-5 h-5 text-gray-500" />
-          </Link>
-          <div className="flex items-center gap-2">
-            <Building2 className="w-6 h-6 text-primary" />
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">คีย์ยอดห้าง</h1>
-          </div>
-        </div>
+        <PageHeader
+          backHref="/department-store/reports"
+          icon={<Building2 />}
+          title="คีย์ยอดห้าง"
+        />
 
         <DealerOrderForm
           mode="dept_consignment"

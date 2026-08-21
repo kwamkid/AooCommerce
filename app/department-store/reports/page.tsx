@@ -22,6 +22,7 @@ import { getBadgeColor } from '@/lib/status-tab-colors';
 import StatusTabs from '@/components/ui/StatusTabs';
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
 import Container from '@/components/ui/Container';
+import PageHeader from '@/components/ui/PageHeader';
 import Button from '@/components/ui/Button';
 import { LoadingCard } from '@/components/ui/StateCard';
 
@@ -605,29 +606,28 @@ function DeptStoreReportsContent() {
   return (
     <Layout>
       <Container size="full" gap="sm">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Building2 className="w-8 h-8 text-primary" />
-            <h1 className="heading-1">ยอดขายห้าง</h1>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="ghost"
-              onClick={() => fetchReports(true)}
-              disabled={isRefreshing}
-              title="รีเฟรช"
-              icon={<RefreshCw className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} />}
-            />
-            <Button
-              variant="primary"
-              icon={<Plus className="w-5 h-5" />}
-              onClick={() => router.push('/department-store/reports/new')}
-            >
-              คีย์ยอดห้าง
-            </Button>
-          </div>
-        </div>
+        <PageHeader
+          icon={<Building2 />}
+          title="ยอดขายห้าง"
+          actions={
+            <>
+              <Button
+                variant="ghost"
+                onClick={() => fetchReports(true)}
+                disabled={isRefreshing}
+                title="รีเฟรช"
+                icon={<RefreshCw className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} />}
+              />
+              <Button
+                variant="primary"
+                icon={<Plus className="w-5 h-5" />}
+                onClick={() => router.push('/department-store/reports/new')}
+              >
+                คีย์ยอดห้าง
+              </Button>
+            </>
+          }
+        />
 
         {/* Status Tabs */}
         <StatusTabs

@@ -4,6 +4,7 @@ import { useState, useEffect, Suspense } from 'react';
 import { useRouter } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
 import Container from '@/components/ui/Container';
+import PageHeader from '@/components/ui/PageHeader';
 import Button from '@/components/ui/Button';
 import { LoadingCard } from '@/components/ui/StateCard';
 import { useFetchOnce } from '@/lib/use-fetch-once';
@@ -55,54 +56,51 @@ export default function InventoryPage() {
   return (
     <Layout>
       <Container size="full">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="heading-1 flex items-center gap-3">
-              <Package2 className="w-8 h-8 text-primary" />
-              สินค้าคงคลัง
-            </h1>
-            <p className="page-subtitle hidden md:block">จัดการสต็อกสินค้าและดูประวัติการเคลื่อนไหว</p>
-          </div>
-          <div className="flex gap-2">
-            <Button
-              variant="primary"
-              size="sm"
-              icon={<ArrowDownToLine className="w-4 h-4" />}
-              onClick={() => router.push('/inventory/receive')}
-              title="รับเข้า"
-            >
-              <span className="hidden md:inline">รับเข้า</span>
-            </Button>
-            <Button
-              variant="secondary"
-              size="sm"
-              icon={<ArrowUpFromLine className="w-4 h-4" />}
-              onClick={() => router.push('/inventory/issue')}
-              title="เบิกออก"
-            >
-              <span className="hidden md:inline">เบิกออก</span>
-            </Button>
-            <Button
-              variant="secondary"
-              size="sm"
-              icon={<ArrowLeftRight className="w-4 h-4" />}
-              onClick={() => router.push('/inventory/transfer')}
-              title="โอนย้าย"
-            >
-              <span className="hidden md:inline">โอนย้าย</span>
-            </Button>
-            <Button
-              variant="secondary"
-              size="sm"
-              icon={<FileSpreadsheet className="w-4 h-4" />}
-              onClick={() => router.push('/inventory/bulk-stock-update')}
-              title="อัพเดท Stock แบบ Bulk"
-            >
-              <span className="hidden md:inline">Bulk</span>
-            </Button>
-          </div>
-        </div>
+        <PageHeader
+          icon={<Package2 />}
+          title="สินค้าคงคลัง"
+          subtitle="จัดการสต็อกสินค้าและดูประวัติการเคลื่อนไหว"
+          actions={
+            <>
+              <Button
+                variant="primary"
+                size="sm"
+                icon={<ArrowDownToLine className="w-4 h-4" />}
+                onClick={() => router.push('/inventory/receive')}
+                title="รับเข้า"
+              >
+                <span className="hidden md:inline">รับเข้า</span>
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                icon={<ArrowUpFromLine className="w-4 h-4" />}
+                onClick={() => router.push('/inventory/issue')}
+                title="เบิกออก"
+              >
+                <span className="hidden md:inline">เบิกออก</span>
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                icon={<ArrowLeftRight className="w-4 h-4" />}
+                onClick={() => router.push('/inventory/transfer')}
+                title="โอนย้าย"
+              >
+                <span className="hidden md:inline">โอนย้าย</span>
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                icon={<FileSpreadsheet className="w-4 h-4" />}
+                onClick={() => router.push('/inventory/bulk-stock-update')}
+                title="อัพเดท Stock แบบ Bulk"
+              >
+                <span className="hidden md:inline">Bulk</span>
+              </Button>
+            </>
+          }
+        />
 
         {/* Tabs */}
         <div className="flex border-b border-gray-200 dark:border-slate-700">

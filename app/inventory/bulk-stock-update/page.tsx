@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
+import PageHeader from '@/components/ui/PageHeader';
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
@@ -10,7 +11,7 @@ import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import MultiSelectSearch from '@/components/ui/MultiSelectSearch';
 import Button from '@/components/ui/Button';
 import {
-  Upload, Download, ArrowLeft, FileSpreadsheet,
+  Upload, Download, FileSpreadsheet,
   Check, Loader2, AlertCircle, Pencil, ArrowRight, ShieldAlert, Star, Warehouse, Tag,
 } from 'lucide-react';
 
@@ -453,16 +454,11 @@ export default function BulkStockUpdatePage() {
   return (
     <Layout>
       <div className="max-w-5xl mx-auto space-y-6">
-        {/* Header */}
-        <div className="flex items-center gap-3">
-          <button onClick={() => router.push('/inventory')} className="p-2 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg">
-            <ArrowLeft className="w-5 h-5 text-gray-600 dark:text-slate-400" />
-          </button>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">อัพเดท Stock แบบ Bulk</h1>
-            <p className="text-gray-500 dark:text-slate-400 text-sm mt-0.5">Export Excel → กรอก Stock ใหม่ → อัพโหลดกลับ (รองรับหลายคลังในไฟล์เดียว)</p>
-          </div>
-        </div>
+        <PageHeader
+          backHref="/inventory"
+          title="อัพเดท Stock แบบ Bulk"
+          subtitle="Export Excel → กรอก Stock ใหม่ → อัพโหลดกลับ (รองรับหลายคลังในไฟล์เดียว)"
+        />
 
         {/* Step: Upload */}
         {step === 'upload' && (

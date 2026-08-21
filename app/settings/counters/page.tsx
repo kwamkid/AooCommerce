@@ -5,6 +5,7 @@
 import { useState, useCallback, useMemo } from 'react';
 import Layout from '@/components/layout/Layout';
 import Container from '@/components/ui/Container';
+import PageHeader from '@/components/ui/PageHeader';
 import Button from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
 import FormInput from '@/components/ui/FormInput';
@@ -270,18 +271,16 @@ export default function CountersSettingsPage() {
   return (
     <Layout>
       <Container size="2xl">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <h1 className="heading-1 flex items-center gap-2">
-              <Store className="w-7 h-7 text-primary" />
-              สาขาฝากขาย (PC)
-            </h1>
-            <p className="page-subtitle">จุดขายตามห้าง/ตัวแทน — 1 สาขามีสต็อกของตัวเอง และมอบหมาย PC เข้าประจำสาขาได้</p>
-          </div>
-          <Button variant="primary" icon={<Plus className="w-4 h-4" />} onClick={() => setShowCreate(true)}>
-            เพิ่มสาขา
-          </Button>
-        </div>
+        <PageHeader
+          icon={<Store />}
+          title="สาขาฝากขาย (PC)"
+          subtitle="จุดขายตามห้าง/ตัวแทน — 1 สาขามีสต็อกของตัวเอง และมอบหมาย PC เข้าประจำสาขาได้"
+          actions={
+            <Button variant="primary" icon={<Plus className="w-4 h-4" />} onClick={() => setShowCreate(true)}>
+              เพิ่มสาขา
+            </Button>
+          }
+        />
 
         {loading ? (
           <LoadingCard />

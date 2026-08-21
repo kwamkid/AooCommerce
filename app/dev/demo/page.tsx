@@ -13,6 +13,7 @@
 import { useState } from 'react';
 import Layout from '@/components/layout/Layout';
 import Container from '@/components/ui/Container';
+import PageHeader from '@/components/ui/PageHeader';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import { ExportButton } from '@/components/ui/ExportImportButton';
@@ -151,27 +152,25 @@ export default function DemoDashboardPage() {
     <Layout>
       <Container size="full">
         {/* Page title with action — list-page pattern */}
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <h1 className="heading-1">Sales Dashboard</h1>
-            <p className="page-subtitle">
-              ภาพรวมยอดขาย / ออเดอร์ / สินค้า — ตัวอย่างใช้ design system
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <FormSelect
-              value={period}
-              onChange={(v) => setPeriod(v as Period)}
-              options={[
-                { id: 'today', label: 'วันนี้' },
-                { id: '7d',    label: '7 วันล่าสุด' },
-                { id: '30d',   label: '30 วันล่าสุด' },
-                { id: 'mtd',   label: 'เดือนนี้' },
-              ]}
-            />
-            <ExportButton />
-          </div>
-        </div>
+        <PageHeader
+          title="Sales Dashboard"
+          subtitle="ภาพรวมยอดขาย / ออเดอร์ / สินค้า — ตัวอย่างใช้ design system"
+          actions={
+            <>
+              <FormSelect
+                value={period}
+                onChange={(v) => setPeriod(v as Period)}
+                options={[
+                  { id: 'today', label: 'วันนี้' },
+                  { id: '7d',    label: '7 วันล่าสุด' },
+                  { id: '30d',   label: '30 วันล่าสุด' },
+                  { id: 'mtd',   label: 'เดือนนี้' },
+                ]}
+              />
+              <ExportButton />
+            </>
+          }
+        />
 
         {/* KPI row */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

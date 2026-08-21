@@ -6,6 +6,7 @@ import Layout from '@/components/layout/Layout';
 import Modal from '@/components/ui/Modal';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import Container from '@/components/ui/Container';
+import PageHeader from '@/components/ui/PageHeader';
 import Button from '@/components/ui/Button';
 import Toggle from '@/components/ui/Toggle';
 import Card from '@/components/ui/Card';
@@ -297,19 +298,16 @@ export default function CarriersSettingsPage() {
   return (
     <Layout>
       <Container size="full">
-        {/* Header */}
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="heading-1 flex items-center">
-              <Truck className="w-8 h-8 mr-3 text-primary" />
-              ขนส่ง
-            </h1>
-            <p className="page-subtitle">จัดการรายชื่อบริษัทขนส่งและลิงก์ติดตามพัสดุ</p>
-          </div>
-          <Button variant="primary" icon={<Plus className="w-5 h-5" />} onClick={openCreate}>
-            เพิ่ม
-          </Button>
-        </div>
+        <PageHeader
+          icon={<Truck />}
+          title="ขนส่ง"
+          subtitle="จัดการรายชื่อบริษัทขนส่งและลิงก์ติดตามพัสดุ"
+          actions={
+            <Button variant="primary" icon={<Plus className="w-5 h-5" />} onClick={openCreate}>
+              เพิ่ม
+            </Button>
+          }
+        />
 
         <div className="space-y-2">
           {/* Tip — only relevant when there are multiple rows to sort */}

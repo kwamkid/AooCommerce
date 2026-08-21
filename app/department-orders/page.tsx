@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef, Suspense } from 'react';
 import { useCopy } from '@/lib/useCopy';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
+import PageHeader from '@/components/ui/PageHeader';
 import Button from '@/components/ui/Button';
 import SearchInput from '@/components/ui/SearchInput';
 import FormSelect from '@/components/ui/FormSelect';
@@ -940,38 +941,36 @@ function DepartmentOrdersContent() {
     <Layout>
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Building2 className="w-8 h-8 text-primary" />
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900 dark:text-white">ส่งห้าง</h1>
-              <p className="text-sm text-gray-500 dark:text-slate-400 mt-0.5">Department Store Orders</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="ghost"
-              onClick={() => fetchData(true)}
-              disabled={isRefreshing}
-              title="รีเฟรช"
-              icon={<RefreshCw className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} />}
-            />
-            <Button
-              variant="secondary"
-              icon={<UserPlus className="w-4 h-4" />}
-              onClick={() => router.push('/customers/new?type=department_store')}
-            >
-              เพิ่มลูกค้าห้าง
-            </Button>
-            <Button
-              variant="primary"
-              icon={<Plus className="w-4 h-4" />}
-              onClick={() => router.push('/department-orders/new')}
-            >
-              สร้างใบส่งห้าง
-            </Button>
-          </div>
-        </div>
+        <PageHeader
+          icon={<Building2 />}
+          title="ส่งห้าง"
+          subtitle="Department Store Orders"
+          actions={
+            <>
+              <Button
+                variant="ghost"
+                onClick={() => fetchData(true)}
+                disabled={isRefreshing}
+                title="รีเฟรช"
+                icon={<RefreshCw className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} />}
+              />
+              <Button
+                variant="secondary"
+                icon={<UserPlus className="w-4 h-4" />}
+                onClick={() => router.push('/customers/new?type=department_store')}
+              >
+                เพิ่มลูกค้าห้าง
+              </Button>
+              <Button
+                variant="primary"
+                icon={<Plus className="w-4 h-4" />}
+                onClick={() => router.push('/department-orders/new')}
+              >
+                สร้างใบส่งห้าง
+              </Button>
+            </>
+          }
+        />
 
         {/* Status Tabs */}
         <StatusTabs
