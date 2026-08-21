@@ -47,26 +47,14 @@ interface SalesChannel {
 
 type ModalMode = 'create' | 'edit' | null;
 
-// เฉพาะแพลตฟอร์มที่ขาย manual ได้จริง — Shopee/Lazada ตัดออกเพราะออเดอร์เข้าผ่าน
-// การเชื่อมต่อ API เท่านั้น (แท็บ "เชื่อมต่อ Marketplace") ช่องทางจะถูก mirror มาให้เอง
-// TikTok คงไว้เพราะมีเคสขาย manual นอก TikTok Shop (Live/DM)
+// เฉพาะแพลตฟอร์มที่ขาย manual ได้จริง — Shopee/Lazada/TikTok (marketplace) ตัดออก
+// เพราะออเดอร์เข้าผ่านการเชื่อมต่อ API เท่านั้น (แท็บ "เชื่อมต่อ Marketplace")
+// ขาย Live/DM แบบ manual → สร้างช่องทางชื่อเองแบบไม่ระบุแพลตฟอร์มได้
 const PLATFORM_OPTIONS = [
   { id: '', label: '— ไม่ระบุ —' },
   { id: 'line', label: 'LINE', icon: <PlatformIcon id="line" size={16} /> },
   { id: 'facebook', label: 'Facebook', icon: <PlatformIcon id="facebook" size={16} /> },
   { id: 'instagram', label: 'Instagram', icon: <PlatformIcon id="instagram" size={16} /> },
-  { id: 'tiktok', label: 'TikTok', icon: <PlatformIcon id="tiktok" size={16} /> },
-];
-
-// Platform filter tabs — same pattern as /settings/chat-channels
-const ALL_PLATFORM_TABS = [
-  { key: 'all', label: 'ทั้งหมด' },
-  { key: 'facebook', label: 'FB / IG', activeColorClass: 'border-facebook text-facebook' },
-  { key: 'line', label: 'LINE', activeColorClass: 'border-line text-line' },
-  { key: 'tiktok', label: 'TikTok', activeColorClass: 'border-gray-900 text-gray-900 dark:border-white dark:text-white' },
-  { key: 'shopee', label: 'Shopee', activeColorClass: 'border-[#EE4D2D] text-[#EE4D2D]' },
-  { key: 'lazada', label: 'Lazada', activeColorClass: 'border-[#0F146E] text-[#0F146E] dark:border-blue-400 dark:text-blue-400' },
-  { key: 'none', label: 'ไม่ระบุ' },
 ];
 
 export default function SalesChannelsPage() {
@@ -79,7 +67,6 @@ export default function SalesChannelsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   // Main tabs: ช่องทางของฉัน (manual + mirror list) / เชื่อมต่อ Marketplace (ย้ายมาจาก /settings/integrations)
   const [mainTab, setMainTab] = useState<'channels' | 'marketplace'>('channels');
-  const [activeTab, setActiveTab] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(20);
 
@@ -134,34 +121,18 @@ export default function SalesChannelsPage() {
     }
   }, []);
 
-  // FB tab covers facebook + instagram (same grouping as chat-channels page)
-  const matchesTab = (c: SalesChannel, tab: string) => {
-    if (tab === 'all') return true;
-    if (tab === 'none') return !c.platform;
-    if (tab === 'facebook') return c.platform === 'facebook' || c.platform === 'instagram';
-    return c.platform === tab;
-  };
-
-  // ปิด marketplace แล้วต้องไม่เหลือร่องรอย — ทั้งแท็บและรายการช่องทาง
-  const visibleTabs = useMemo(
-    () => (features.marketplace_sync ? ALL_PLATFORM_TABS : ALL_PLATFORM_TABS.filter(t => !isMarketplacePlatform(t.key))),
-    [features.marketplace_sync],
-  );
-
   const filtered = useMemo(() => {
-    // ปิด marketplace แล้ว ช่องทางที่ mirror มาจาก Shopee/Lazada/TikTok ต้องไม่โผล่
-    const source = features.marketplace_sync
-      ? channels
-      : channels.filter(c => !isMarketplacePlatform(c.platform));
-    const byTab = source.filter(c => matchesTab(c, activeTab));
+    // แท็บ "ช่องทางของฉัน" ไม่แสดงช่องทาง marketplace เลย (กันสับสน) —
+    // ร้าน Shopee/Lazada/TikTok จัดการที่แท็บ "เชื่อมต่อ Marketplace" ที่เดียว
+    const source = channels.filter(c => !isMarketplacePlatform(c.platform));
     const q = searchTerm.trim().toLowerCase();
-    if (!q) return byTab;
-    return byTab.filter(c =>
+    if (!q) return source;
+    return source.filter(c =>
       c.name.toLowerCase().includes(q) ||
       c.code.toLowerCase().includes(q) ||
       (c.platform || '').toLowerCase().includes(q)
     );
-  }, [channels, searchTerm, activeTab, features.marketplace_sync]);
+  }, [channels, searchTerm]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / rowsPerPage));
   const startIndex = (currentPage - 1) * rowsPerPage;
@@ -478,21 +449,6 @@ export default function SalesChannelsPage() {
           <MarketplaceConnections />
         ) : (
           <>
-        {/* Platform tabs — same pattern as chat-channels */}
-        <Tabs
-          activeKey={activeTab}
-          onSelect={(key) => { setActiveTab(key); setCurrentPage(1); }}
-          tabs={visibleTabs.map(t => ({
-            key: t.key,
-            label: t.label,
-            icon: t.key !== 'all' && t.key !== 'none'
-              ? <PlatformIcon id={t.key} size={16} />
-              : undefined,
-            count: channels.filter(c => matchesTab(c, t.key)).length || undefined,
-            activeColorClass: t.activeColorClass,
-          }))}
-        />
-
         {/* Search */}
         <div className="data-filter-card">
           <SearchInput
