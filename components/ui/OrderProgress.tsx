@@ -24,15 +24,15 @@ export default function OrderProgress({ order, dark = false }: Props) {
   // (ค่าหลัง comma คือค่าจริงที่ใช้ใน production)
   // ผ่านแล้วกับกำลังทำใช้ "สีเดียวกัน" ต่างกันที่ทึบ/ขอบ — แบบเดียวกับแถบตอนสั่งซื้อ
   // (CheckoutSteps ก็ใช้สีแบรนด์ตัวเดียวทั้งสองสถานะ)
-  const doneColor = 'var(--op-done, #e2725b)';
+  const doneColor = 'var(--op-done, var(--step-color, #e2725b))';
   // ขั้นที่กำลังทำอยู่ใช้สีกลาง ไม่ใช่สีแบรนด์ร้าน — ร้านที่แบรนด์เป็นโทนแดง
   // จะได้จุดแดงกลางแถบสถานะ ซึ่งอ่านเป็น "ผิดพลาด" ทั้งที่ทุกอย่างปกติดี
-  const currentColor = dark ? 'var(--op-current-dark, #e2e8f0)' : 'var(--op-current, #e2725b)';
+  const currentColor = dark ? 'var(--op-current-dark, #e2e8f0)' : 'var(--op-current, var(--step-color, #e2725b))';
   // terracotta อ่อนสว่างเกินกว่าจะใช้ตัวเลขสีขาว (คอนทราสต์ 3.1:1) — ใช้หมึกสีน้ำตาลเข้ม
   // แทน ได้ 4.9:1 ผ่านเกณฑ์ WCAG AA ของตัวหนังสือขนาดเล็ก
   // ขั้นที่กำลังทำเป็น "วงขอบ" ไม่ใช่วงทึบ ตัวเลขจึงอยู่บนพื้นขาว — ใช้ terracotta
   // เข้มขึ้นหน่อยให้อ่านออก (5.7:1) ส่วนเส้นขอบใช้เฉดอ่อนตามที่เลือกไว้
-  const currentInk = dark ? 'var(--op-current-dark, #e2e8f0)' : 'var(--op-current-ink, #a64b2a)';
+  const currentInk = dark ? 'var(--op-current-dark, #e2e8f0)' : 'var(--op-current-ink, var(--step-ink, #a64b2a))';
   const currentRing = `color-mix(in srgb, ${currentColor} 16%, transparent)`;
 
   if (cancelled) {

@@ -25,6 +25,19 @@ interface Target {
 
 const TARGETS: Target[] = [
   {
+    // ตัวแปรกลาง — เปลี่ยนทีเดียวเปลี่ยนทั้งแถบตอนสั่งซื้อและแถบติดตามออเดอร์
+    cssVar: '--step-color',
+    label: 'สีขั้นตอน (ทั้งตอนสั่งซื้อ + ติดตามออเดอร์)',
+    current: '#e2725b',
+    swatches: [
+      { name: 'terracotta (ใช้อยู่)', value: '#e2725b' },
+      { name: 'terracotta เข้ม', value: '#c65d45' },
+      { name: 'เทาเข้ม', value: '#1f2937' },
+      { name: 'น้ำเงิน', value: '#2563eb' },
+      { name: 'เขียวมิ้นต์', value: '#059669' },
+    ],
+  },
+  {
     cssVar: '--op-current',
     label: 'แถบสถานะ · ขั้นที่กำลังทำอยู่',
     current: '#e2725b',
