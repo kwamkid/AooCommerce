@@ -14,7 +14,7 @@ import { useFeatures } from '@/lib/features-context';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
-import { Users, Mail, UserPlus, Shield, Trash2, Edit2, X, Check, Loader2, CheckCircle, Clock, Phone, Plus, Link2, Monitor, DollarSign, Warehouse, ShieldCheck, Headset, CreditCard, Calculator, Package, UserCog, Store } from 'lucide-react';
+import { Users, Mail, UserPlus, Shield, Trash2, Edit2, X, Check, CheckCircle, Clock, Phone, Plus, Link2, Monitor, DollarSign, Warehouse, ShieldCheck, Headset, CreditCard, Calculator, Package, UserCog, Store } from 'lucide-react';
 import Checkbox from '@/components/ui/Checkbox';
 import Modal from '@/components/ui/Modal';
 import UserAvatar from '@/components/ui/UserAvatar';
@@ -52,9 +52,9 @@ interface Invitation {
 }
 
 const ROLE_OPTIONS: { value: string; label: string; icon: React.ElementType; desc: string }[] = [
-  { value: 'admin', label: 'ผู้ดูแลระบบ', icon: ShieldCheck, desc: 'จัดการระบบทั้งหมด' },
-  { value: 'manager', label: 'ผู้จัดการ', icon: UserCog, desc: 'ดูแลทีม จัดการสินค้า แก้ไขแบบชุด' },
-  { value: 'sales', label: 'แอดมินออนไลน์', icon: Headset, desc: 'ออเดอร์ แชท CRM รายงาน' },
+  { value: 'admin', label: 'ผู้ดูแลระบบ', icon: ShieldCheck, desc: 'จัดการระบบทั้งหมด รวมสมาชิกและ Marketplace' },
+  { value: 'manager', label: 'ผู้จัดการ', icon: UserCog, desc: 'ดูแลทีม สินค้า Marketplace ตั้งค่าระบบ (แต่งตั้งผู้ดูแลระบบไม่ได้)' },
+  { value: 'sales', label: 'แอดมินออนไลน์', icon: Headset, desc: 'ออเดอร์ แชท CRM รายงาน (จัดการ Marketplace ไม่ได้)' },
   { value: 'cashier', label: 'แคชเชียร์', icon: CreditCard, desc: 'POS + สต็อกสาขา' },
   { value: 'account', label: 'บัญชี', icon: Calculator, desc: 'บัญชี รายงาน ดูคำสั่งซื้อ' },
   { value: 'warehouse', label: 'คลังสินค้า', icon: Package, desc: 'จัดส่ง จัดการคลัง แก้ไขแบบชุด' },
@@ -265,12 +265,11 @@ export default function MembersPage() {
 
   const handleEditRoleChange = (newRoles: string[]) => {
     if (!editingMember) return;
-    const preset = getRolePreset(newRoles);
+    // Unlike the invite modal, editing keeps the member's existing warehouse
+    // selection — role presets here would silently wipe it.
     setEditingMember({
       ...editingMember,
       roles: newRoles,
-      warehouseAccess: preset.warehouseAccess,
-      warehouse_ids: preset.warehouseIds,
       // owner/admin always see cost
       can_view_cost: isExclusiveRole(newRoles) ? true : editingMember.can_view_cost,
     });
@@ -375,9 +374,9 @@ export default function MembersPage() {
     } catch { /* silent */ }
   };
 
-  const handleSaveEdit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingMember) return;
+  const handleSaveEdit = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    if (!editingMember || isSaving) return;
     setIsSaving(true);
 
     try {
@@ -886,48 +885,34 @@ export default function MembersPage() {
         icon={<UserPlus className="w-5 h-5 text-primary" />}
         size="2xl"
         footer={!generatedLink ? (
-          <div className="flex justify-end space-x-3 p-5">
-            <button
-              type="button"
-              onClick={() => setShowAddModal(false)}
-              className="px-4 py-2.5 text-gray-700 dark:text-slate-300 bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600 rounded-lg font-medium transition-colors"
-            >
+          <div className="flex justify-end gap-2 px-6 py-4">
+            <Button variant="secondary" onClick={() => setShowAddModal(false)}>
               ยกเลิก
-            </button>
-            <button
-              type="button"
+            </Button>
+            <Button
+              variant="primary"
+              loading={isGeneratingLink}
+              icon={<Link2 className="w-4 h-4" />}
               onClick={handleCreateLink}
-              disabled={isGeneratingLink}
-              className="px-5 py-2.5 bg-primary hover:bg-primary/90 text-white font-semibold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
             >
-              {isGeneratingLink ? (
-                <Loader2 className="w-5 h-5 animate-spin mr-2" />
-              ) : (
-                <Link2 className="w-4 h-4 mr-2" />
-              )}
               สร้างลิงก์
-            </button>
+            </Button>
           </div>
         ) : (
-          <div className="flex justify-end space-x-3 p-5">
-            <button
-              type="button"
-              onClick={() => setShowAddModal(false)}
-              className="px-4 py-2.5 text-gray-700 dark:text-slate-300 bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600 rounded-lg font-medium transition-colors"
-            >
+          <div className="flex justify-end gap-2 px-6 py-4">
+            <Button variant="secondary" onClick={() => setShowAddModal(false)}>
               ปิด
-            </button>
-            <button
-              type="button"
+            </Button>
+            <Button
+              variant="primary"
+              icon={<Plus className="w-4 h-4" />}
               onClick={() => {
                 setGeneratedLink('');
                 handleLinkRoleChange(['sales']);
               }}
-              className="px-4 py-2.5 text-primary bg-primary/10 hover:bg-primary/20 rounded-lg font-medium transition-colors flex items-center"
             >
-              <Plus className="w-4 h-4 mr-1.5" />
               สร้างลิงก์ใหม่
-            </button>
+            </Button>
           </div>
         )}
       >
@@ -1025,15 +1010,16 @@ export default function MembersPage() {
         title="แก้ไขข้อมูลสมาชิก"
         size="2xl"
         footer={
-          <div className="flex justify-end space-x-3 p-5">
+          <div className="flex justify-end gap-2 px-6 py-4">
             <Button variant="secondary" onClick={() => { setShowEditModal(false); setEditingMember(null); }}>
               ยกเลิก
             </Button>
+            {/* Direct onClick — the cross-DOM `form` attribute association silently
+                failed to submit in production, so never rely on it here again. */}
             <Button
-              type="submit"
-              form="edit-member-form"
               variant="primary"
               loading={isSaving}
+              onClick={() => handleSaveEdit()}
             >
               บันทึก
             </Button>
@@ -1041,7 +1027,7 @@ export default function MembersPage() {
         }
       >
         {editingMember && (
-          <form id="edit-member-form" onSubmit={handleSaveEdit}>
+          <form onSubmit={handleSaveEdit}>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-5 items-start">
               <div className="space-y-4">
                 <div>

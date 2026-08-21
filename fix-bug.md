@@ -16,6 +16,26 @@
 
 ---
 
+## 2026-08-21 — จัดการสมาชิก: เชิญซ้ำ role ไม่อัปเดต + ปุ่มบันทึกโมดัลแก้ไขตายเงียบ + DB constraint ไม่มี role `pc`
+
+**ที่เกิด**: [app/settings/members/page.tsx](app/settings/members/page.tsx) + [app/api/auth/accept-invite/route.ts](app/api/auth/accept-invite/route.ts) + [app/api/users/route.ts](app/api/users/route.ts) + CHECK constraint `company_members_roles_valid`
+**อาการ**: (1) เชิญสมาชิกโดยติ๊ก ผู้จัดการ+แอดมินออนไลน์ → คนรับกดรับแล้วขึ้นแค่แอดมินออนไลน์ (2) เปิดโมดัลแก้ไขสมาชิก ติ๊กผู้จัดการ กดบันทึก → เงียบ ไม่มีอะไรเกิดขึ้น ไม่ save ไม่มี toast (3) ยังไม่มีใครเจอแต่รอระเบิด: ติ๊ก "PC ประจำห้าง" แล้ว save ไม่เข้า
+**Root cause**:
+1. **accept-invite ข้ามสมาชิกเดิม** — คำเชิญเก็บ roles ครบ (`["sales","manager"]` ยืนยันใน DB) แต่ถ้า user เป็นสมาชิกบริษัทนั้นอยู่แล้ว route แค่ mark invitation accepted โดยไม่เอา roles/warehouse/cost จากคำเชิญมาอัปเดต membership เดิม → admin เชิญซ้ำเพื่อเปลี่ยนสิทธิ์ = ไม่มีผลอะไรเลย
+2. **ปุ่มบันทึกใช้ `type="submit" form="edit-member-form"` ผูกข้าม DOM จาก Modal footer** — เป็นที่เดียวในระบบที่ใช้ pattern นี้ · Supabase edge logs ยืนยันว่าคลิกแล้ว **ไม่มี request ยิงออกจาก browser เลยสักตัว** (save รอบก่อนหน้าที่ผ่านเข้ามาได้คือ implicit submit ตอนกด Enter ในช่องชื่อ) → submit ตายเงียบ 100%
+3. **PUT `/api/users` ไม่เช็ค error ตอน update `company_members`** — ถ้า update fail (เช่นชน constraint) ก็ toast "สำเร็จ" · แถมเขียน `is_active` ลง `user_profiles` (ปิด login ทั้งระบบข้ามบริษัท!) แทนที่จะเป็น membership ของบริษัทนั้น · และไม่มี guard กัน manager แก้/มอบสิทธิ์ admin (ฝั่ง `/api/companies/members` PUT มีครบ)
+4. **CHECK `company_members_roles_valid` ไม่มี `'pc'`** — โค้ดเพิ่ม role pc ไปแล้ว (PC Counter Sales 2026-07-26) แต่ constraint ใน DB ไม่ได้แก้ตาม → ติ๊ก pc = constraint violation = fail เงียบ (ตามข้อ 3)
+**วิธีแก้**:
+1. accept-invite: สมาชิกเดิม → **UPDATE** roles + warehouse_ids + terminal_ids + can_view_cost + `is_active=true` ตามคำเชิญ (เชิญซ้ำ = ตั้งสิทธิ์ใหม่) + เช็ค error ทั้ง insert/update · [register](app/api/auth/register/route.ts) เช็ค error ตอน insert member ด้วย
+2. หน้า members: ปุ่มบันทึกเรียก `handleSaveEdit()` ตรงผ่าน `onClick` (เลิกใช้ `form=` attribute) — form เก็บ `onSubmit` ไว้รับ Enter + กัน double-run ด้วย `isSaving` guard
+3. PUT `/api/users`: เช็ค error ทุก update + `is_active` ย้ายไปเขียน `company_members` + เพิ่ม escalation guards (owner แก้ได้เฉพาะ owner, manager แตะ admin ไม่ได้) เท่ากับ `/api/companies/members`
+4. Migration `company_members_roles_valid_add_pc` — เพิ่ม `'pc'` ใน CHECK (apply live แล้ว)
+5. ปุ่มโมดัลเพิ่มสมาชิก (ยกเลิก/สร้างลิงก์/ปิด/สร้างลิงก์ใหม่) เปลี่ยนจาก raw `<button>` เป็น global `Button` + footer ใช้ `justify-end gap-2 px-6 py-4` ตาม convention · คำอธิบาย role ระบุชัดว่า **Marketplace = ผู้จัดการขึ้นไป** (แอดมินออนไลน์ทำไม่ได้)
+6. Data fix: อัปเดต roles สมาชิกที่โดน bug (Meyou) เป็น `['sales','manager']` ตามคำเชิญที่ค้าง
+**ป้องกัน regression**: ห้ามใช้ `type="submit" form="<id>"` ผูกปุ่มนอก `<form>` อีก — ปุ่มใน Modal footer ให้เรียก handler ตรงเสมอ · เพิ่ม role ใหม่ต้องแก้ 3 ที่พร้อมกัน: `VALID_ROLES` (supabase-admin.ts), `ROLE_OPTIONS` (members page), **CHECK constraint ใน DB** · ทุก write ไป `company_members` ต้องเช็ค error — ห้าม await ทิ้ง
+
+---
+
 ## 2026-08-21 — เชื่อม Shopee/Lazada ใหม่แล้วร้านไม่โผล่ — upsert ใช้ onConflict ไม่ตรง unique index แล้วจบแบบ "สำเร็จ" เงียบๆ
 
 **ที่เกิด**: [app/api/shopee/oauth/callback/route.ts](app/api/shopee/oauth/callback/route.ts) + [app/api/lazada/oauth/callback/route.ts](app/api/lazada/oauth/callback/route.ts)

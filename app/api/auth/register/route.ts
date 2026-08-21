@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
 
       if (invitation) {
         // Accept invitation
-        await supabaseAdmin.from('company_members').insert({
+        const { error: memberError } = await supabaseAdmin.from('company_members').insert({
           company_id: invitation.company_id,
           user_id: authData.user.id,
           roles: invitation.roles,
@@ -74,6 +74,13 @@ export async function POST(request: NextRequest) {
           warehouse_ids: invitation.warehouse_ids ?? null,
           can_view_cost: invitation.can_view_cost === true,
         });
+
+        if (memberError) {
+          // Keep the account but surface the failure — a silent skip here leaves
+          // the user registered without membership and no one the wiser.
+          console.error('Register: accept-invite member insert error:', memberError);
+          return NextResponse.json({ error: 'สมัครสำเร็จแต่เข้าร่วมบริษัทไม่สำเร็จ กรุณาเปิดลิงก์เชิญอีกครั้ง' }, { status: 500 });
+        }
 
         await supabaseAdmin
           .from('company_invitations')

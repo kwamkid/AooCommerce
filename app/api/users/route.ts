@@ -283,7 +283,7 @@ export async function PUT(request: NextRequest) {
     // Verify the user is a member of this company
     const { data: membership } = await supabaseAdmin
       .from('company_members')
-      .select('id')
+      .select('id, roles')
       .eq('company_id', companyId)
       .eq('user_id', id)
       .single();
@@ -295,13 +295,32 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    // Update user_profiles (name, phone, is_active only - role lives in company_members)
+    if (roles) {
+      const rolesErr = validateRoles(roles);
+      if (rolesErr) {
+        return NextResponse.json({ error: rolesErr }, { status: 400 });
+      }
+    }
+
+    // Same escalation guards as /api/companies/members PUT
+    if (membership.roles?.includes('owner') && !companyRoles?.includes('owner')) {
+      return NextResponse.json({ error: 'ไม่สามารถแก้ไขข้อมูลเจ้าของได้' }, { status: 403 });
+    }
+    if (!can(companyRoles, 'members.grant_admin')) {
+      if (membership.roles?.includes('admin')) {
+        return NextResponse.json({ error: 'ผู้จัดการไม่สามารถแก้ไขผู้ดูแลระบบได้' }, { status: 403 });
+      }
+      if (Array.isArray(roles) && (roles.includes('owner') || roles.includes('admin'))) {
+        return NextResponse.json({ error: 'ผู้จัดการไม่สามารถมอบตำแหน่งผู้ดูแลระบบหรือเจ้าของได้' }, { status: 403 });
+      }
+    }
+
+    // Update user_profiles (name, phone only — membership fields live in company_members)
     const { data, error } = await supabaseAdmin
       .from('user_profiles')
       .update({
         name,
         phone,
-        is_active,
         updated_at: new Date().toISOString()
       })
       .eq('id', id)
@@ -315,32 +334,36 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    // Update company_members roles
-    if (roles) {
-      const rolesErr = validateRoles(roles);
-      if (rolesErr) {
-        return NextResponse.json({ error: rolesErr }, { status: 400 });
-      }
+    // Update membership (roles / active flag / cost visibility)
+    const memberUpdate: Record<string, unknown> = {};
+    if (typeof is_active === 'boolean') {
+      memberUpdate.is_active = is_active;
     }
     if (roles && Array.isArray(roles) && roles.length > 0) {
       // owner/admin always see cost, otherwise honor the flag
       const isExclusive = roles.includes('owner') || roles.includes('admin');
-      const resolvedCanViewCost = isExclusive ? true : can_view_cost === true;
-
-      const memberUpdate: Record<string, unknown> = { roles };
+      memberUpdate.roles = roles;
       if (typeof can_view_cost === 'boolean' || isExclusive) {
-        memberUpdate.can_view_cost = resolvedCanViewCost;
+        memberUpdate.can_view_cost = isExclusive ? true : can_view_cost === true;
       }
+    }
 
-      await supabaseAdmin
+    if (Object.keys(memberUpdate).length > 0) {
+      const { error: memberError } = await supabaseAdmin
         .from('company_members')
         .update(memberUpdate)
         .eq('company_id', companyId)
         .eq('user_id', id);
 
-      await supabaseAdmin.auth.admin.updateUserById(id, {
-        user_metadata: { roles }
-      });
+      if (memberError) {
+        return NextResponse.json({ error: memberError.message }, { status: 500 });
+      }
+
+      if (memberUpdate.roles) {
+        await supabaseAdmin.auth.admin.updateUserById(id, {
+          user_metadata: { roles }
+        });
+      }
     }
 
     return NextResponse.json({

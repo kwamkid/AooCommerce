@@ -42,8 +42,26 @@ export async function POST(request: NextRequest) {
       .eq('user_id', user.id)
       .single();
 
-    if (!existingMember) {
-      await supabaseAdmin.from('company_members').insert({
+    if (existingMember) {
+      // Already a member — the invitation carries the intended permissions, so
+      // apply them (re-inviting is how admins expect to change someone's roles).
+      const { error: updateError } = await supabaseAdmin
+        .from('company_members')
+        .update({
+          roles: invitation.roles,
+          terminal_ids: invitation.terminal_ids ?? null,
+          warehouse_ids: invitation.warehouse_ids ?? null,
+          can_view_cost: invitation.can_view_cost === true,
+          is_active: true,
+        })
+        .eq('id', existingMember.id);
+
+      if (updateError) {
+        console.error('Accept invite: member update error:', updateError);
+        return NextResponse.json({ error: 'ไม่สามารถอัพเดทสิทธิ์สมาชิกได้' }, { status: 500 });
+      }
+    } else {
+      const { error: insertError } = await supabaseAdmin.from('company_members').insert({
         company_id: invitation.company_id,
         user_id: user.id,
         roles: invitation.roles,
@@ -52,6 +70,11 @@ export async function POST(request: NextRequest) {
         warehouse_ids: invitation.warehouse_ids ?? null,
         can_view_cost: invitation.can_view_cost === true,
       });
+
+      if (insertError) {
+        console.error('Accept invite: member insert error:', insertError);
+        return NextResponse.json({ error: 'ไม่สามารถเพิ่มสมาชิกได้' }, { status: 500 });
+      }
     }
 
     await supabaseAdmin
