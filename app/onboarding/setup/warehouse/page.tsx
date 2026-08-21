@@ -133,6 +133,7 @@ export default function OnboardingWarehousePage() {
           </div>
 
           <ThaiAddressInput
+            compact
             district={district}
             amphoe={amphoe}
             province={province}

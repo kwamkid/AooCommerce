@@ -494,6 +494,7 @@ export default function CustomerSelectionCard({
         {(selectedCustomer || hasDelivery) && (
           <div className="sm:border-l sm:border-gray-200 dark:sm:border-slate-700 sm:pl-4">
             <ThaiAddressInput
+              compact
               district={delivery?.deliveryDistrict || ''}
               amphoe={delivery?.deliveryAmphoe || ''}
               province={delivery?.deliveryProvince || ''}

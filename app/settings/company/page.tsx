@@ -520,6 +520,7 @@ export default function CompanySettingsPage() {
                   </div>
                   <div className="sm:col-span-2">
                     <ThaiAddressInput
+                      compact
                       district={formData.district}
                       amphoe={formData.amphoe}
                       province={formData.province}

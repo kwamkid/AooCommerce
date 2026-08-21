@@ -1866,6 +1866,7 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
               {deliveryErrors.address && <p className="text-red-500 text-xs mt-1">{deliveryErrors.address}</p>}
             </div>
             <ThaiAddressInput
+              compact
               district={deliveryForm.delivery_district}
               amphoe={deliveryForm.delivery_amphoe}
               province={deliveryForm.delivery_province}

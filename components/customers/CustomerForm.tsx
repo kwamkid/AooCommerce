@@ -335,6 +335,7 @@ export default function CustomerForm({
           placeholder="วางที่อยู่เต็มได้เลย — ระบบจะแยกจังหวัด/อำเภอ/ตำบลให้อัตโนมัติ" />
       </div>
       <ThaiAddressInput
+        compact
         district={formData.shipping_district} amphoe={formData.shipping_amphoe}
         province={formData.shipping_province} postalCode={formData.shipping_postal_code}
         onAddressChange={(addr) => {
