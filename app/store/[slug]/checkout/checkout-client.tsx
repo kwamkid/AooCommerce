@@ -9,6 +9,7 @@ import { supabase } from '@/lib/supabase';
 import { rememberOrder, rememberContact, readContact } from '@/lib/storefront-orders';
 import { formatStorePrice, storefrontHref } from '@/lib/storefront';
 import CheckoutSteps from '@/components/storefront/CheckoutSteps';
+import HelpHint from '@/components/storefront/HelpHint';
 import CheckoutAccountBar from '@/components/storefront/CheckoutAccountBar';
 import DateRangePicker from '@/components/ui/DateRangePicker';
 import FormSelect from '@/components/ui/FormSelect';
@@ -489,7 +490,12 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
               </>
             )}
 
-            <label className="sf-label">บ้านเลขที่ / อาคาร / ถนน *
+            <label className="sf-label">
+              บ้านเลขที่ / อาคาร / ถนน *
+              <HelpHint>
+                มีที่อยู่เต็ม ๆ อยู่แล้ว วางทั้งก้อนตรงนี้ได้เลย — ระบบแยกตำบล อำเภอ จังหวัด
+                รหัสไปรษณีย์ ให้เอง
+              </HelpHint>
               <input
                 ref={addressRef}
                 className="sf-input"
@@ -499,9 +505,6 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
                 placeholder="เช่น 123/45 ซอยสุขุมวิท 21"
               />
             </label>
-            <p className="sf-hint" style={{ marginTop: -6 }}>
-              มีที่อยู่เต็ม ๆ อยู่แล้ว? วางทั้งก้อนตรงนี้ได้เลย — ระบบแยกตำบล อำเภอ จังหวัด รหัสไปรษณีย์ ให้เอง
-            </p>
 
             <label className="sf-label">ตำบล / อำเภอ / จังหวัด / รหัสไปรษณีย์ *
               <input
@@ -529,14 +532,10 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
                 ))}
               </ul>
             )}
-            {province && (
-              <p className="sf-hint">เลือกแล้ว: {district} · {amphoe} · {province} {postal}</p>
-            )}
 
             {(zoneEnabled || slotEnabled) && !hasArea && (
               <p className="sf-hint" style={{ marginTop: -4 }}>
-                กรอกตำบล/อำเภอ/จังหวัด หรือรหัสไปรษณีย์ก่อน แล้วระบบจะคำนวณค่าจัดส่ง
-                และแสดงรอบที่ส่งได้ให้
+                กรอกพื้นที่ก่อน ระบบจะคิดค่าจัดส่งและรอบที่ส่งได้ให้
               </p>
             )}
 
@@ -544,12 +543,14 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
                 ร้านส่งพัสดุผ่านขนส่ง คนส่งใช้ที่อยู่ตัวหนังสือ ไม่ต้องถามลิงก์ให้รก */}
             {zoneEnabled && (
               <>
-                <label className="sf-label" style={{ marginTop: 12 }}>ลิงก์ Google Maps
+                <label className="sf-label" style={{ marginTop: 12 }}>
+                  ลิงก์ Google Maps
+                  <HelpHint>
+                    เปิด Google Maps → กดค้างที่หมุด → แชร์ → คัดลอกลิงก์ ·
+                    ช่วยให้คนส่งหาบ้านเจอเร็วขึ้นมาก
+                  </HelpHint>
                   <input className="sf-input" value={mapsLink} onChange={e => setMapsLink(e.target.value)} inputMode="url" placeholder="https://maps.app.goo.gl/…" />
                 </label>
-                <p className="sf-hint">
-                  เปิด Google Maps → กดค้างที่หมุด → แชร์ → คัดลอกลิงก์ · ช่วยให้คนส่งหาบ้านเจอเร็วขึ้นมาก
-                </p>
               </>
             )}
           </section>

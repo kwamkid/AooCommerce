@@ -199,9 +199,6 @@ export default function ThaiAddressInput({
             ))}
           </div>
         )}
-        {summary && query === null && (
-          <p className="mt-1 text-xs text-gray-500 dark:text-slate-400">เลือกแล้ว: {summary}</p>
-        )}
         {provinceError && <p className="mt-1 text-xs text-red-500">{provinceError}</p>}
       </div>
     );
