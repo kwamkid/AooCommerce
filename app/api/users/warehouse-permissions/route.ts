@@ -2,6 +2,7 @@
 // Manage user-warehouse permissions (which warehouses a user can access)
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
+import { assertMemberMutationAllowed } from '@/lib/permissions';
 
 // GET - Get warehouse permissions for a user
 export async function GET(request: NextRequest) {
@@ -70,13 +71,20 @@ export async function PUT(request: NextRequest) {
     // Verify user is a member of this company
     const { data: member } = await supabaseAdmin
       .from('company_members')
-      .select('id')
+      .select('id, roles')
       .eq('company_id', auth.companyId)
       .eq('user_id', user_id)
       .single();
 
     if (!member) {
       return NextResponse.json({ error: 'User is not a member of this company' }, { status: 404 });
+    }
+
+    // Escalation guard เดียวกับ endpoint แก้ไขสมาชิกอื่น ๆ — เดิม route นี้ไม่มี
+    // ทำให้ manager ล็อค admin/owner ออกจากทุกคลังได้
+    const guardError = assertMemberMutationAllowed(auth.companyRoles, member.roles);
+    if (guardError) {
+      return NextResponse.json({ error: guardError.error }, { status: guardError.status });
     }
 
     // Validate warehouse_ids belong to this company

@@ -1,5 +1,6 @@
 // Path: app/api/users/route.ts
 import { supabaseAdmin, checkAuthWithCompany, can, validateRoles } from '@/lib/supabase-admin';
+import { assertMemberMutationAllowed, resolveCanViewCost } from '@/lib/permissions';
 import { NextRequest, NextResponse } from 'next/server';
 
 // Type definitions
@@ -195,12 +196,13 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Get company members first, then join with user_profiles
+    // Get company members first, then join with user_profiles.
+    // รวมสมาชิกที่ถูกระงับด้วย — ถ้า filter เฉพาะ active สมาชิกที่โดนระงับจะหาย
+    // จากลิสต์ถาวรและไม่มีปุ่มเปิดใช้งานคืน (เคยเกิดจริง)
     const { data: members, error: membersError } = await supabaseAdmin
       .from('company_members')
       .select('user_id, roles, is_active, joined_at')
-      .eq('company_id', companyId)
-      .eq('is_active', true);
+      .eq('company_id', companyId);
 
     if (membersError) {
       return NextResponse.json(
@@ -214,9 +216,9 @@ export async function GET(request: NextRequest) {
     }
 
     const memberUserIds = members.map(m => m.user_id);
-    const memberMap: Record<string, { roles: string[] }> = {};
+    const memberMap: Record<string, { roles: string[]; is_active: boolean }> = {};
     for (const m of members) {
-      memberMap[m.user_id] = { roles: m.roles };
+      memberMap[m.user_id] = { roles: m.roles, is_active: m.is_active !== false };
     }
 
     const { data, error } = await supabaseAdmin
@@ -232,10 +234,12 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Merge roles from company_members into user profiles
+    // Merge roles + is_active from company_members into user profiles —
+    // สถานะระงับเป็นของ membership (ต่อบริษัท) ไม่ใช่ user_profiles (global)
     const usersWithRoles = (data || []).map(u => ({
       ...u,
       roles: memberMap[u.id]?.roles || ['sales'],
+      is_active: memberMap[u.id]?.is_active ?? true,
     }));
 
     return NextResponse.json({ users: usersWithRoles });
@@ -302,16 +306,45 @@ export async function PUT(request: NextRequest) {
       }
     }
 
-    // Same escalation guards as /api/companies/members PUT
-    if (membership.roles?.includes('owner') && !companyRoles?.includes('owner')) {
-      return NextResponse.json({ error: 'ไม่สามารถแก้ไขข้อมูลเจ้าของได้' }, { status: 403 });
+    // name เขียนลง user_profiles ซึ่งเป็น global ทุกบริษัท — ห้ามปล่อยค่าว่างผ่าน
+    if (name !== undefined && !String(name ?? '').trim()) {
+      return NextResponse.json({ error: 'กรุณากรอกชื่อ-นามสกุล' }, { status: 400 });
     }
-    if (!can(companyRoles, 'members.grant_admin')) {
-      if (membership.roles?.includes('admin')) {
-        return NextResponse.json({ error: 'ผู้จัดการไม่สามารถแก้ไขผู้ดูแลระบบได้' }, { status: 403 });
+
+    // Shared escalation guard — ห้าม inline เอง (lib/permissions.ts)
+    const guardError = assertMemberMutationAllowed(companyRoles, membership.roles, roles);
+    if (guardError) {
+      return NextResponse.json({ error: guardError.error }, { status: guardError.status });
+    }
+
+    // Update membership ก่อน profile — ฝั่ง membership ชน constraint ได้ง่ายกว่า
+    // (เช่น role ใหม่ที่ CHECK ยังไม่รู้จัก) จะได้ไม่ทิ้ง partial write ไว้ใน profile
+    const memberUpdate: Record<string, unknown> = {};
+    if (typeof is_active === 'boolean') {
+      memberUpdate.is_active = is_active;
+    }
+    if (roles && Array.isArray(roles) && roles.length > 0) {
+      memberUpdate.roles = roles;
+      if (typeof can_view_cost === 'boolean' || resolveCanViewCost(roles, false)) {
+        memberUpdate.can_view_cost = resolveCanViewCost(roles, can_view_cost);
       }
-      if (Array.isArray(roles) && (roles.includes('owner') || roles.includes('admin'))) {
-        return NextResponse.json({ error: 'ผู้จัดการไม่สามารถมอบตำแหน่งผู้ดูแลระบบหรือเจ้าของได้' }, { status: 403 });
+    }
+
+    if (Object.keys(memberUpdate).length > 0) {
+      const { error: memberError } = await supabaseAdmin
+        .from('company_members')
+        .update(memberUpdate)
+        .eq('company_id', companyId)
+        .eq('user_id', id);
+
+      if (memberError) {
+        return NextResponse.json({ error: memberError.message }, { status: 500 });
+      }
+
+      if (memberUpdate.roles) {
+        await supabaseAdmin.auth.admin.updateUserById(id, {
+          user_metadata: { roles }
+        });
       }
     }
 
@@ -332,38 +365,6 @@ export async function PUT(request: NextRequest) {
         { error: error.message },
         { status: 500 }
       );
-    }
-
-    // Update membership (roles / active flag / cost visibility)
-    const memberUpdate: Record<string, unknown> = {};
-    if (typeof is_active === 'boolean') {
-      memberUpdate.is_active = is_active;
-    }
-    if (roles && Array.isArray(roles) && roles.length > 0) {
-      // owner/admin always see cost, otherwise honor the flag
-      const isExclusive = roles.includes('owner') || roles.includes('admin');
-      memberUpdate.roles = roles;
-      if (typeof can_view_cost === 'boolean' || isExclusive) {
-        memberUpdate.can_view_cost = isExclusive ? true : can_view_cost === true;
-      }
-    }
-
-    if (Object.keys(memberUpdate).length > 0) {
-      const { error: memberError } = await supabaseAdmin
-        .from('company_members')
-        .update(memberUpdate)
-        .eq('company_id', companyId)
-        .eq('user_id', id);
-
-      if (memberError) {
-        return NextResponse.json({ error: memberError.message }, { status: 500 });
-      }
-
-      if (memberUpdate.roles) {
-        await supabaseAdmin.auth.admin.updateUserById(id, {
-          user_metadata: { roles }
-        });
-      }
     }
 
     return NextResponse.json({
@@ -416,7 +417,7 @@ export async function DELETE(request: NextRequest) {
     // Verify the user is a member of this company
     const { data: membership } = await supabaseAdmin
       .from('company_members')
-      .select('id')
+      .select('id, roles')
       .eq('company_id', companyId)
       .eq('user_id', userId)
       .single();
@@ -426,6 +427,15 @@ export async function DELETE(request: NextRequest) {
         { error: 'User is not a member of this company' },
         { status: 404 }
       );
+    }
+
+    // ห้ามลบ/ระงับเจ้าของ และ manager ห้ามแตะ admin (guard เดียวกับ PUT)
+    if (membership.roles?.includes('owner')) {
+      return NextResponse.json({ error: 'ไม่สามารถลบเจ้าของบริษัทได้' }, { status: 403 });
+    }
+    const guardError = assertMemberMutationAllowed(companyRoles, membership.roles);
+    if (guardError) {
+      return NextResponse.json({ error: guardError.error }, { status: guardError.status });
     }
 
     if (hardDelete) {
@@ -439,14 +449,14 @@ export async function DELETE(request: NextRequest) {
 
       await supabaseAdmin.auth.admin.deleteUser(userId);
     } else {
-      // Soft delete - ระงับการใช้งาน
+      // Soft delete = ระงับ membership ของบริษัทนี้เท่านั้น — ห้ามแตะ
+      // user_profiles.is_active ซึ่งเป็น global (จะดับ user ข้ามทุกบริษัท
+      // แล้วไม่มี path ไหนเปิดคืน)
       const { error } = await supabaseAdmin
-        .from('user_profiles')
-        .update({
-          is_active: false,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', userId);
+        .from('company_members')
+        .update({ is_active: false })
+        .eq('company_id', companyId)
+        .eq('user_id', userId);
 
       if (error) {
         return NextResponse.json(
@@ -454,13 +464,6 @@ export async function DELETE(request: NextRequest) {
           { status: 500 }
         );
       }
-
-      // Also deactivate company membership
-      await supabaseAdmin
-        .from('company_members')
-        .update({ is_active: false })
-        .eq('company_id', companyId)
-        .eq('user_id', userId);
     }
 
     return NextResponse.json({ success: true });

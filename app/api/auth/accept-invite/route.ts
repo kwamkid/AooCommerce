@@ -1,6 +1,7 @@
 // Path: app/api/auth/accept-invite/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
+import { applyInvitation } from '@/lib/invitations';
 
 export async function POST(request: NextRequest) {
   try {
@@ -34,53 +35,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid or expired invitation' }, { status: 400 });
     }
 
-    // Check if already a member
-    const { data: existingMember } = await supabaseAdmin
-      .from('company_members')
-      .select('id')
-      .eq('company_id', invitation.company_id)
-      .eq('user_id', user.id)
-      .single();
-
-    if (existingMember) {
-      // Already a member — the invitation carries the intended permissions, so
-      // apply them (re-inviting is how admins expect to change someone's roles).
-      const { error: updateError } = await supabaseAdmin
-        .from('company_members')
-        .update({
-          roles: invitation.roles,
-          terminal_ids: invitation.terminal_ids ?? null,
-          warehouse_ids: invitation.warehouse_ids ?? null,
-          can_view_cost: invitation.can_view_cost === true,
-          is_active: true,
-        })
-        .eq('id', existingMember.id);
-
-      if (updateError) {
-        console.error('Accept invite: member update error:', updateError);
-        return NextResponse.json({ error: 'ไม่สามารถอัพเดทสิทธิ์สมาชิกได้' }, { status: 500 });
-      }
-    } else {
-      const { error: insertError } = await supabaseAdmin.from('company_members').insert({
-        company_id: invitation.company_id,
-        user_id: user.id,
-        roles: invitation.roles,
-        invited_by: invitation.invited_by,
-        terminal_ids: invitation.terminal_ids ?? null,
-        warehouse_ids: invitation.warehouse_ids ?? null,
-        can_view_cost: invitation.can_view_cost === true,
-      });
-
-      if (insertError) {
-        console.error('Accept invite: member insert error:', insertError);
-        return NextResponse.json({ error: 'ไม่สามารถเพิ่มสมาชิกได้' }, { status: 500 });
-      }
+    // Logic รับคำเชิญทั้งหมดอยู่ใน lib/invitations.ts ที่เดียว — ห้าม inline ซ้ำ
+    const result = await applyInvitation(supabaseAdmin, invitation, user);
+    if (result.status === 'error') {
+      return NextResponse.json({ error: result.error }, { status: 500 });
     }
-
-    await supabaseAdmin
-      .from('company_invitations')
-      .update({ status: 'accepted' })
-      .eq('id', invitation.id);
+    if (result.status === 'email_mismatch') {
+      return NextResponse.json({ error: 'คำเชิญนี้ไม่ได้ออกให้บัญชีนี้' }, { status: 403 });
+    }
+    if (result.status === 'already_member' || result.status === 'owner_untouched') {
+      // no-op — สิทธิ์ไม่ถูกแตะ และ token ยัง pending ให้คนที่ถูกเชิญตัวจริงใช้
+      return NextResponse.json({ success: true, message: 'คุณเป็นสมาชิกอยู่แล้ว' });
+    }
 
     // Auto-create profile if needed
     const { data: existingProfile } = await supabaseAdmin

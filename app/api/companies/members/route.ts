@@ -1,11 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany, can, validateRoles } from '@/lib/supabase-admin';
-
-// owner/admin always implicitly see cost; for other roles, honor the flag
-function resolveCanViewCost(roles: string[] | undefined, requested: unknown): boolean {
-  if (Array.isArray(roles) && (roles.includes('owner') || roles.includes('admin'))) return true;
-  return requested === true;
-}
+import { assertMemberMutationAllowed, resolveCanViewCost } from '@/lib/permissions';
 
 // GET - List company members
 export async function GET(request: NextRequest) {
@@ -215,18 +210,10 @@ export async function PUT(request: NextRequest) {
       .eq('company_id', auth.companyId)
       .single();
 
-    if (targetMember?.roles?.includes('owner') && !auth.companyRoles?.includes('owner')) {
-      return NextResponse.json({ error: 'ไม่สามารถแก้ไขตำแหน่งเจ้าของได้' }, { status: 403 });
-    }
-
-    // Manager cannot modify admin members, nor assign admin/owner roles
-    if (!can(auth.companyRoles, 'members.grant_admin')) {
-      if (targetMember?.roles?.includes('admin')) {
-        return NextResponse.json({ error: 'ผู้จัดการไม่สามารถแก้ไขผู้ดูแลระบบได้' }, { status: 403 });
-      }
-      if (Array.isArray(roles) && (roles.includes('owner') || roles.includes('admin'))) {
-        return NextResponse.json({ error: 'ผู้จัดการไม่สามารถมอบตำแหน่งผู้ดูแลระบบหรือเจ้าของได้' }, { status: 403 });
-      }
+    // Shared escalation guard — ห้าม inline เอง (lib/permissions.ts)
+    const guardError = assertMemberMutationAllowed(auth.companyRoles, targetMember?.roles, roles);
+    if (guardError) {
+      return NextResponse.json({ error: guardError.error }, { status: guardError.status });
     }
 
     const { data, error } = await supabaseAdmin

@@ -16,6 +16,7 @@ import { useToast } from '@/lib/toast-context';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { Users, Mail, UserPlus, Shield, Trash2, Edit2, X, Check, CheckCircle, Clock, Phone, Plus, Link2, Monitor, DollarSign, Warehouse, ShieldCheck, Headset, CreditCard, Calculator, Package, UserCog, Store } from 'lucide-react';
 import Checkbox from '@/components/ui/Checkbox';
+import Radio from '@/components/ui/Radio';
 import Modal from '@/components/ui/Modal';
 import UserAvatar from '@/components/ui/UserAvatar';
 import Container from '@/components/ui/Container';
@@ -267,12 +268,19 @@ export default function MembersPage() {
   const handleEditRoleChange = (newRoles: string[]) => {
     if (!editingMember) return;
     // Unlike the invite modal, editing keeps the member's existing warehouse
-    // selection — role presets here would silently wipe it.
+    // selection — role presets here would silently wipe it. ยกเว้นตอน "ลดขั้น"
+    // จาก owner/admin (ซึ่ง scope เดิมคือ null = ทุกคลัง): ต้อง apply preset
+    // ไม่งั้น ex-admin ที่ถูกลดเป็น sales ยังเข้าได้ทุกคลังเงียบ ๆ
+    const wasExclusive = isExclusiveRole(editingMember.roles);
+    const nowExclusive = isExclusiveRole(newRoles);
+    const demotedFromExclusive = wasExclusive && !nowExclusive;
+    const preset = demotedFromExclusive ? getRolePreset(newRoles) : null;
     setEditingMember({
       ...editingMember,
       roles: newRoles,
       // owner/admin always see cost
-      can_view_cost: isExclusiveRole(newRoles) ? true : editingMember.can_view_cost,
+      can_view_cost: nowExclusive ? true : editingMember.can_view_cost,
+      ...(preset ? { warehouseAccess: preset.warehouseAccess, warehouse_ids: preset.warehouseIds } : {}),
     });
   };
 
@@ -378,6 +386,12 @@ export default function MembersPage() {
   const handleSaveEdit = async (e?: React.FormEvent) => {
     e?.preventDefault();
     if (!editingMember || isSaving) return;
+    // ปุ่มบันทึกเรียกตรงไม่ผ่าน form submit → native required ไม่ทำงาน ต้องเช็คเอง
+    // (name เขียนลง user_profiles ที่เป็น global — ปล่อยว่างไม่ได้)
+    if (!editingMember.name.trim()) {
+      showToast('กรุณากรอกชื่อ-นามสกุล', 'error');
+      return;
+    }
     setIsSaving(true);
 
     try {
@@ -402,18 +416,25 @@ export default function MembersPage() {
       }
 
       // Save warehouse + terminal permissions
-      // warehouseAccess=false → [] (no access), warehouseAccess=true + empty → null (all), specific → ['id']
-      const warehouseIdsToSave = !editingMember.warehouseAccess
-        ? []
-        : editingMember.warehouse_ids.length > 0
-          ? editingMember.warehouse_ids
-          : null;
-      const terminalIdsToSave = !editingMember.warehouseAccess
-        ? []
-        : deriveTerminalIds(editingMember.warehouse_ids).length > 0
-          ? deriveTerminalIds(editingMember.warehouse_ids)
-          : null;
-      await apiFetch('/api/users/warehouse-permissions', {
+      // owner/admin = ทุกคลังเสมอ (null) — ต้อง save ให้ตรงกับที่ UI ประกาศ
+      // ไม่งั้น scope เก่าก่อนโปรโมทค้างอยู่แล้ว admin ใหม่โดน 403 ที่ POS
+      // warehouseAccess=false → [] (no access), true + empty → null (all), specific → ['id']
+      const exclusive = isExclusiveRole(editingMember.roles);
+      const warehouseIdsToSave = exclusive
+        ? null
+        : !editingMember.warehouseAccess
+          ? []
+          : editingMember.warehouse_ids.length > 0
+            ? editingMember.warehouse_ids
+            : null;
+      const terminalIdsToSave = exclusive
+        ? null
+        : !editingMember.warehouseAccess
+          ? []
+          : deriveTerminalIds(editingMember.warehouse_ids).length > 0
+            ? deriveTerminalIds(editingMember.warehouse_ids)
+            : null;
+      const whRes = await apiFetch('/api/users/warehouse-permissions', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -422,6 +443,11 @@ export default function MembersPage() {
           terminal_ids: terminalIdsToSave,
         }),
       });
+      if (!whRes.ok) {
+        const whResult = await whRes.json().catch(() => ({}));
+        // roles ถูก save ไปแล้ว — บอกตรงๆ ว่าส่วนสิทธิ์คลังไม่สำเร็จ อย่าโกหกว่าเรียบร้อย
+        throw new Error(whResult.error || 'บันทึกตำแหน่งแล้ว แต่บันทึกสิทธิ์คลังไม่สำเร็จ');
+      }
 
       showToast('อัพเดทข้อมูลสมาชิกสำเร็จ');
       setShowEditModal(false);
@@ -573,6 +599,9 @@ export default function MembersPage() {
   // Warehouse permissions component (merged POS + warehouse)
   // accessEnabled: true = has warehouse access, false = no access at all
   // selectedIds: specific warehouse IDs (empty = all warehouses when accessEnabled is true)
+  //
+  // UI เป็น 3 ตัวเลือกชัด ๆ (ทุกคลัง / เฉพาะที่เลือก / ไม่ให้เข้าถึง) — เดิมเป็น
+  // สวิตช์ + กติกาแฝง "ไม่ติ๊กเลย = ได้ทุกคลัง" ซึ่งกลับหัวจนผู้ใช้ตีความผิด
   const WarehousePermissions = ({ accessEnabled, onAccessChange, selectedIds, onChange, disabled }: {
     accessEnabled: boolean;
     onAccessChange: (enabled: boolean) => void;
@@ -581,29 +610,41 @@ export default function MembersPage() {
     disabled?: boolean;
   }) => {
     if (warehouses.length === 0 || (!stockEnabled && !features.pos)) return null;
+    const mode: 'all' | 'custom' | 'none' = !accessEnabled ? 'none' : selectedIds.length === 0 ? 'all' : 'custom';
+    const pickCustom = () => {
+      if (disabled) return;
+      onAccessChange(true);
+      if (selectedIds.length === 0) {
+        // เริ่มโหมด "เฉพาะที่เลือก" ด้วยคลัง default กัน state ว่าง (ว่าง = ทุกคลัง)
+        const defaultWh = warehouses.find(w => w.is_default) || warehouses[0];
+        onChange(defaultWh ? [defaultWh.id] : []);
+      }
+    };
     return (
       <div>
-        {/* Toggle switch */}
-        <div className="flex items-center justify-between mb-3">
-          <span className="text-sm text-gray-600 dark:text-slate-400">เปิดการเข้าถึง</span>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={accessEnabled}
-            onClick={() => !disabled && onAccessChange(!accessEnabled)}
+        <div className="space-y-2 mb-3">
+          <Radio
+            checked={mode === 'all'}
+            onChange={() => { if (!disabled) { onAccessChange(true); onChange([]); } }}
+            label="ทุกคลัง"
             disabled={disabled}
-            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary/50 ${
-              accessEnabled ? 'bg-primary' : 'bg-gray-300 dark:bg-slate-600'
-            } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-          >
-            <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow-sm ${
-              accessEnabled ? 'translate-x-6' : 'translate-x-1'
-            }`} />
-          </button>
+          />
+          <Radio
+            checked={mode === 'custom'}
+            onChange={pickCustom}
+            label="เฉพาะคลังที่เลือก"
+            disabled={disabled}
+          />
+          <Radio
+            checked={mode === 'none'}
+            onChange={() => { if (!disabled) onAccessChange(false); }}
+            label="ไม่ให้เข้าถึงคลัง / POS"
+            disabled={disabled}
+          />
         </div>
-        {accessEnabled && (
+        {mode === 'custom' && (
           <>
-            <p className="text-xs text-gray-400 dark:text-slate-500 mb-2">ไม่เลือก = เข้าถึงทุกคลัง</p>
+            <p className="text-xs text-gray-400 dark:text-slate-500 mb-2">ต้องเลือกอย่างน้อย 1 คลัง</p>
             <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
               {warehouses.map(wh => {
                 const whTerminals = terminalsByWarehouse[wh.id] || [];
@@ -622,6 +663,8 @@ export default function MembersPage() {
                       checked={isChecked}
                       onChange={() => {
                         if (disabled) return;
+                        // ห้ามเอาตัวสุดท้ายออก — list ว่างแปลว่า "ทุกคลัง" จะสลับโหมดเงียบๆ
+                        if (isChecked && selectedIds.length === 1) return;
                         const ids = isChecked
                           ? selectedIds.filter(id => id !== wh.id)
                           : [...selectedIds, wh.id];
@@ -923,7 +966,7 @@ export default function MembersPage() {
               สร้างลิงก์เชิญเพื่อให้ผู้ใช้สมัครและเข้าร่วมบริษัท
             </p>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-5 items-start">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 px-6 py-5 items-start">
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
                   <Shield className="w-4 h-4 inline mr-1 -mt-0.5" />
@@ -1026,7 +1069,7 @@ export default function MembersPage() {
       >
         {editingMember && (
           <form onSubmit={handleSaveEdit}>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-5 items-start">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 px-6 py-5 items-start">
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">

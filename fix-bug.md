@@ -34,6 +34,13 @@
 6. Data fix: อัปเดต roles สมาชิกที่โดน bug (Meyou) เป็น `['sales','manager']` ตามคำเชิญที่ค้าง
 **ป้องกัน regression**: ห้ามใช้ `type="submit" form="<id>"` ผูกปุ่มนอก `<form>` อีก — ปุ่มใน Modal footer ให้เรียก handler ตรงเสมอ · เพิ่ม role ใหม่ต้องแก้ 3 ที่พร้อมกัน: `VALID_ROLES` (supabase-admin.ts), `ROLE_OPTIONS` (members page), **CHECK constraint ใน DB** · ทุก write ไป `company_members` ต้องเช็ค error — ห้าม await ทิ้ง
 
+**Regression follow-up (2026-08-21 บ่าย — code review เจอช่องโหว่ในตัวแก้ชุดแรก แก้แล้วทั้งหมด)**:
+1. **[SECURITY] accept-invite UPDATE branch ไม่มี guard** — ลิงก์เชิญ (ไม่ผูก email) เขียนทับ roles/scope ของสมาชิกเดิมได้ทุกคน = sales เปิดลิงก์ admin ในแชท → เลื่อนขั้นตัวเอง / owner เปิดลิงก์เก่า → โดนลดขั้นถาวร → รวม logic รับคำเชิญทั้ง 4 เส้นทาง (accept-invite / invitations/[token] / LINE / register) เป็น [lib/invitations.ts](lib/invitations.ts) ตัวเดียว: สมาชิกเดิมอัพเดทได้**เฉพาะคำเชิญที่ผูก email ตรงกัน**, เป้าหมาย owner ไม่แตะเสมอ, no-op ไม่เผา token · เส้นทางหลัก invitations/[token] ที่ยัง no-op (bug เดิมไม่หายจริง) ก็ถูกแก้พร้อมกัน
+2. **is_active ย้ายตารางแล้วฝั่งอ่านไม่ตาม** — GET /api/users filter `is_active=true` → กดระงับแล้ว user หายจากลิสต์ถาวร → GET เลิก filter + merge `is_active` จาก membership · DELETE soft เลิกเขียน `user_profiles.is_active` (global kill ที่ไม่มีทางเปิดคืน)
+3. **Escalation guard ขาดใน endpoint ข้างเคียง** — warehouse-permissions PUT + /api/users DELETE ไม่มี guard (manager ปิดคลัง owner / ลบ owner ได้) → extract `assertMemberMutationAllowed()` + `resolveCanViewCost()` ไป [lib/permissions.ts](lib/permissions.ts) ใช้ทุก endpoint ที่แตะ membership — **ห้าม copy guard เอง**
+4. **UI คลัง**: กติกาแฝง "เปิดสวิตช์แล้วไม่ติ๊ก = ทุกคลัง" เปลี่ยนเป็น radio 3 ตัวเลือกชัดๆ (ทุกคลัง/เฉพาะที่เลือก/ไม่ให้เข้าถึง) · โปรโมทเป็น admin บันทึก scope = null จริงตามที่ UI ประกาศ · ลดขั้นจาก admin apply preset ไม่ปล่อยให้ได้ทุกคลังต่อ · save call ที่สองเช็ค res.ok แล้ว · ปุ่มบันทึกเช็คชื่อว่างเอง (native required ใช้ไม่ได้กับ onClick ตรง)
+5. register: member insert fail หลังสร้างบัญชี → คืน success + warning แทน 500 (เดิมผู้ใช้ติดกับ: สมัครซ้ำไม่ได้ รับเชิญก็ไม่ได้เพราะไม่มี session)
+
 ---
 
 ## 2026-08-21 — เชื่อม Shopee/Lazada ใหม่แล้วร้านไม่โผล่ — upsert ใช้ onConflict ไม่ตรง unique index แล้วจบแบบ "สำเร็จ" เงียบๆ

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
+import { applyInvitation } from '@/lib/invitations';
 
 // GET - Get invitation details (public)
 export async function GET(
@@ -77,42 +78,18 @@ export async function POST(
       return NextResponse.json({ error: 'คำเชิญนี้หมดอายุแล้ว' }, { status: 400 });
     }
 
-    // Check if already a member
-    const { data: existingMember } = await supabaseAdmin
-      .from('company_members')
-      .select('id')
-      .eq('company_id', invitation.company_id)
-      .eq('user_id', user.id)
-      .single();
-
-    if (existingMember) {
-      await supabaseAdmin
-        .from('company_invitations')
-        .update({ status: 'accepted' })
-        .eq('id', invitation.id);
+    // Logic รับคำเชิญทั้งหมดอยู่ใน lib/invitations.ts ที่เดียว — เดิม route นี้
+    // no-op สำหรับสมาชิกเดิม (เชิญซ้ำเพื่อเปลี่ยน role ไม่มีผล) แถมเผา token ทิ้ง
+    const result = await applyInvitation(supabaseAdmin, invitation, user);
+    if (result.status === 'error') {
+      return NextResponse.json({ error: result.error }, { status: 500 });
+    }
+    if (result.status === 'email_mismatch') {
+      return NextResponse.json({ error: 'คำเชิญนี้ไม่ได้ออกให้บัญชีนี้' }, { status: 403 });
+    }
+    if (result.status === 'already_member' || result.status === 'owner_untouched') {
       return NextResponse.json({ success: true, message: 'คุณเป็นสมาชิกอยู่แล้ว' });
     }
-
-    // Add as member
-    await supabaseAdmin.from('company_members').insert({
-      company_id: invitation.company_id,
-      user_id: user.id,
-      roles: invitation.roles,
-      invited_by: invitation.invited_by,
-      can_view_cost: invitation.can_view_cost === true,
-      ...(Array.isArray(invitation.warehouse_ids)
-        ? { warehouse_ids: invitation.warehouse_ids }
-        : {}),
-      ...(Array.isArray(invitation.terminal_ids)
-        ? { terminal_ids: invitation.terminal_ids }
-        : {}),
-    });
-
-    // Mark invitation as accepted
-    await supabaseAdmin
-      .from('company_invitations')
-      .update({ status: 'accepted' })
-      .eq('id', invitation.id);
 
     return NextResponse.json({ success: true, companyId: invitation.company_id });
   } catch (error) {

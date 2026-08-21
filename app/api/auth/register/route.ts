@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
+import { applyInvitation } from '@/lib/invitations';
 
 export async function POST(request: NextRequest) {
   try {
@@ -64,28 +65,22 @@ export async function POST(request: NextRequest) {
         .single();
 
       if (invitation) {
-        // Accept invitation
-        const { error: memberError } = await supabaseAdmin.from('company_members').insert({
-          company_id: invitation.company_id,
-          user_id: authData.user.id,
-          roles: invitation.roles,
-          invited_by: invitation.invited_by,
-          terminal_ids: invitation.terminal_ids ?? null,
-          warehouse_ids: invitation.warehouse_ids ?? null,
-          can_view_cost: invitation.can_view_cost === true,
+        // Logic รับคำเชิญอยู่ใน lib/invitations.ts ที่เดียว
+        const result = await applyInvitation(supabaseAdmin, invitation, {
+          id: authData.user.id,
+          email,
         });
-
-        if (memberError) {
-          // Keep the account but surface the failure — a silent skip here leaves
-          // the user registered without membership and no one the wiser.
-          console.error('Register: accept-invite member insert error:', memberError);
-          return NextResponse.json({ error: 'สมัครสำเร็จแต่เข้าร่วมบริษัทไม่สำเร็จ กรุณาเปิดลิงก์เชิญอีกครั้ง' }, { status: 500 });
+        if (result.status === 'error') {
+          // บัญชี + โปรไฟล์ถูกสร้างไปแล้ว — ห้าม fail ทั้ง signup ไม่งั้นผู้ใช้ติดกับ:
+          // สมัครซ้ำโดน "อีเมลถูกใช้แล้ว" แต่ก็ยังไม่มี session ไปกดรับคำเชิญใหม่
+          // → ปล่อยให้ signup สำเร็จ (client sign-in ต่อ) แล้วแนบ warning ให้เปิดลิงก์ซ้ำ
+          console.error('Register: accept-invite failed after account creation');
+          return NextResponse.json({
+            success: true,
+            userId: authData.user.id,
+            warning: 'สมัครสำเร็จแต่ยังเข้าร่วมบริษัทไม่สำเร็จ — เข้าสู่ระบบแล้วเปิดลิงก์เชิญอีกครั้ง',
+          });
         }
-
-        await supabaseAdmin
-          .from('company_invitations')
-          .update({ status: 'accepted' })
-          .eq('id', invitation.id);
       }
     }
 

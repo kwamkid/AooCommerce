@@ -3,6 +3,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { resolveLineLoginCredentials } from '@/lib/line-login';
+import { applyInvitation } from '@/lib/invitations';
 
 interface LINETokenResponse {
   access_token: string;
@@ -165,29 +166,9 @@ export async function POST(request: NextRequest) {
         .single();
 
       if (invitation) {
-        const { data: existingMember } = await supabaseAdmin
-          .from('company_members')
-          .select('id')
-          .eq('company_id', invitation.company_id)
-          .eq('user_id', userId)
-          .single();
-
-        if (!existingMember) {
-          await supabaseAdmin.from('company_members').insert({
-            company_id: invitation.company_id,
-            user_id: userId,
-            roles: invitation.roles,
-            invited_by: invitation.invited_by,
-            terminal_ids: invitation.terminal_ids ?? null,
-            warehouse_ids: invitation.warehouse_ids ?? null,
-            can_view_cost: invitation.can_view_cost === true,
-          });
-        }
-
-        await supabaseAdmin
-          .from('company_invitations')
-          .update({ status: 'accepted' })
-          .eq('id', invitation.id);
+        // Logic รับคำเชิญอยู่ใน lib/invitations.ts ที่เดียว — login สำเร็จแล้ว
+        // ผลรับคำเชิญเป็น best-effort เหมือนเดิม (ผู้ใช้เข้าระบบต่อได้เสมอ)
+        await applyInvitation(supabaseAdmin, invitation, { id: userId, email: lineEmail });
       }
     }
 

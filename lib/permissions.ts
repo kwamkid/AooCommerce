@@ -112,3 +112,44 @@ export function can(
   const allowed = CAPABILITIES[capability] as readonly string[];
   return roles.some(r => allowed.includes(r));
 }
+
+/**
+ * owner/admin เห็นต้นทุนเสมอ — role อื่นตาม flag ที่ขอมา
+ * Single source of truth — เดิม logic นี้ถูกเขียนซ้ำใน 3 ที่ (companies/members,
+ * users route, members page) แล้ว drift กัน
+ */
+export function resolveCanViewCost(
+  roles: readonly string[] | undefined | null,
+  requested: unknown,
+): boolean {
+  if (Array.isArray(roles) && (roles.includes('owner') || roles.includes('admin'))) return true;
+  return requested === true;
+}
+
+/**
+ * Escalation guard สำหรับ "ทุก" endpoint ที่แก้ไข/ลบ membership ของคนอื่น:
+ * - แตะสมาชิกที่เป็น owner ได้เฉพาะ owner ด้วยกัน
+ * - ผู้ที่ไม่มี members.grant_admin (เช่น manager) แตะสมาชิกที่เป็น admin ไม่ได้
+ *   และมอบตำแหน่ง admin/owner ให้ใครไม่ได้
+ * คืน error object เมื่อไม่ผ่าน, null เมื่อผ่าน — ห้าม copy logic นี้ไปเขียนเอง
+ * (เคย copy-paste แล้วตกหล่นจน endpoint ข้างเคียงกลายเป็นช่องยกระดับสิทธิ์)
+ */
+export function assertMemberMutationAllowed(
+  actorRoles: readonly string[] | undefined | null,
+  targetRoles: readonly string[] | undefined | null,
+  nextRoles?: readonly string[] | null,
+): { error: string; status: number } | null {
+  const target = Array.isArray(targetRoles) ? targetRoles : [];
+  if (target.includes('owner') && !(actorRoles || []).includes('owner')) {
+    return { error: 'ไม่สามารถแก้ไขข้อมูลเจ้าของได้', status: 403 };
+  }
+  if (!can(actorRoles, 'members.grant_admin')) {
+    if (target.includes('admin')) {
+      return { error: 'ผู้จัดการไม่สามารถแก้ไขผู้ดูแลระบบได้', status: 403 };
+    }
+    if (Array.isArray(nextRoles) && (nextRoles.includes('owner') || nextRoles.includes('admin'))) {
+      return { error: 'ผู้จัดการไม่สามารถมอบตำแหน่งผู้ดูแลระบบหรือเจ้าของได้', status: 403 };
+    }
+  }
+  return null;
+}
