@@ -9,22 +9,26 @@ export interface StatusTabColor {
   countColor: string;
 }
 
+// ชุดสีสถานะ — เลือกให้แต่ละสถานะ "ห่างกันบนวงล้อสี" ไม่ใช่แค่สวย
+// น้ำเงิน(ใหม่) → terracotta(รอกดรับ) → ม่วง(ที่ต้องจัดส่ง) → ฟ้าคราม(กำลังส่ง) → เขียว(สำเร็จ)
+// ชุดเดิมมีสองคู่ที่ห่างกันไม่ถึง 20°: น้ำเงิน/คราม และ ส้ม/อำพัน — กวาดตาเร็ว ๆ แล้วสับสน
+// terracotta ใช้ค่าตรงให้ตรงกับ --step-color (แถบขั้นตอน) = "ถึงคิวต้องลงมือ" สีเดียวกันทั้งระบบ
 const STATUS_TAB_COLORS: Record<string, StatusTabColor> = {
   // ทั้งหมด
-  all:              { active: 'bg-indigo-600',  inactive: 'bg-indigo-50 dark:bg-indigo-950/50',   labelColor: 'text-indigo-600 dark:text-indigo-400',   countColor: 'text-indigo-700 dark:text-indigo-300' },
+  all:              { active: 'bg-slate-800',  inactive: 'bg-slate-100 dark:bg-slate-800/50',   labelColor: 'text-slate-700 dark:text-slate-300',   countColor: 'text-slate-900 dark:text-slate-100' },
   // ใหม่ / แบบร่าง
   new:              { active: 'bg-blue-600',    inactive: 'bg-blue-50 dark:bg-blue-950/50',       labelColor: 'text-blue-600 dark:text-blue-400',       countColor: 'text-blue-700 dark:text-blue-300' },
   draft:            { active: 'bg-blue-600',    inactive: 'bg-blue-50 dark:bg-blue-950/50',       labelColor: 'text-blue-600 dark:text-blue-400',       countColor: 'text-blue-700 dark:text-blue-300' },
   // รอคอนเฟิร์ม / รอกดรับ / รอยืนยัน
-  ready_to_ship:    { active: 'bg-orange-500',  inactive: 'bg-orange-50 dark:bg-orange-950/50',   labelColor: 'text-orange-600 dark:text-orange-400',   countColor: 'text-orange-700 dark:text-orange-300' },
-  pending_confirm:  { active: 'bg-orange-500',  inactive: 'bg-orange-50 dark:bg-orange-950/50',   labelColor: 'text-orange-600 dark:text-orange-400',   countColor: 'text-orange-700 dark:text-orange-300' },
-  received:         { active: 'bg-orange-500',  inactive: 'bg-orange-50 dark:bg-orange-950/50',   labelColor: 'text-orange-600 dark:text-orange-400',   countColor: 'text-orange-700 dark:text-orange-300' }, // consignment "รอยืนยัน"
+  ready_to_ship:    { active: 'bg-[#c1502f]',  inactive: 'bg-[#fdeee9] dark:bg-[#3a1d14]',   labelColor: 'text-[#c1502f] dark:text-[#e2907a]',   countColor: 'text-[#a64b2a] dark:text-[#e2725b]' },
+  pending_confirm:  { active: 'bg-[#c1502f]',  inactive: 'bg-[#fdeee9] dark:bg-[#3a1d14]',   labelColor: 'text-[#c1502f] dark:text-[#e2907a]',   countColor: 'text-[#a64b2a] dark:text-[#e2725b]' },
+  received:         { active: 'bg-[#c1502f]',  inactive: 'bg-[#fdeee9] dark:bg-[#3a1d14]',   labelColor: 'text-[#c1502f] dark:text-[#e2907a]',   countColor: 'text-[#a64b2a] dark:text-[#e2725b]' }, // consignment "รอยืนยัน"
   // ที่ต้องจัดส่ง
-  processing:       { active: 'bg-indigo-500',  inactive: 'bg-indigo-50 dark:bg-indigo-950/50',   labelColor: 'text-indigo-500 dark:text-indigo-400',   countColor: 'text-indigo-700 dark:text-indigo-300' },
-  pending:          { active: 'bg-indigo-500',  inactive: 'bg-indigo-50 dark:bg-indigo-950/50',   labelColor: 'text-indigo-500 dark:text-indigo-400',   countColor: 'text-indigo-700 dark:text-indigo-300' }, // replenishment "ที่ต้องจัดส่ง"
+  processing:       { active: 'bg-violet-600',  inactive: 'bg-violet-50 dark:bg-violet-950/50',   labelColor: 'text-violet-600 dark:text-violet-400',   countColor: 'text-violet-700 dark:text-violet-300' },
+  pending:          { active: 'bg-violet-600',  inactive: 'bg-violet-50 dark:bg-violet-950/50',   labelColor: 'text-violet-600 dark:text-violet-400',   countColor: 'text-violet-700 dark:text-violet-300' }, // replenishment "ที่ต้องจัดส่ง"
   // กำลังส่ง
-  shipping:         { active: 'bg-amber-500',   inactive: 'bg-amber-50 dark:bg-amber-950/50',     labelColor: 'text-amber-600 dark:text-amber-400',     countColor: 'text-amber-700 dark:text-amber-300' },
-  shipped:          { active: 'bg-amber-500',   inactive: 'bg-amber-50 dark:bg-amber-950/50',     labelColor: 'text-amber-600 dark:text-amber-400',     countColor: 'text-amber-700 dark:text-amber-300' },
+  shipping:         { active: 'bg-cyan-600',   inactive: 'bg-cyan-50 dark:bg-cyan-950/50',     labelColor: 'text-cyan-700 dark:text-cyan-400',     countColor: 'text-cyan-800 dark:text-cyan-300' },
+  shipped:          { active: 'bg-cyan-600',   inactive: 'bg-cyan-50 dark:bg-cyan-950/50',     labelColor: 'text-cyan-700 dark:text-cyan-400',     countColor: 'text-cyan-800 dark:text-cyan-300' },
   // สำเร็จ / ชำระแล้ว / รับแล้ว / ยืนยันแล้ว
   completed:        { active: 'bg-emerald-600', inactive: 'bg-emerald-50 dark:bg-emerald-950/50', labelColor: 'text-emerald-600 dark:text-emerald-400', countColor: 'text-emerald-700 dark:text-emerald-300' },
   paid:             { active: 'bg-emerald-600', inactive: 'bg-emerald-50 dark:bg-emerald-950/50', labelColor: 'text-emerald-600 dark:text-emerald-400', countColor: 'text-emerald-700 dark:text-emerald-300' },
@@ -55,13 +59,13 @@ export function getTabColor(key: string): StatusTabColor {
 const STATUS_BADGE_COLORS: Record<string, { color: string; bg: string }> = {
   new:              { color: 'text-blue-700 dark:text-blue-300',    bg: 'bg-blue-100 dark:bg-blue-900/40' },
   draft:            { color: 'text-blue-700 dark:text-blue-300',    bg: 'bg-blue-100 dark:bg-blue-900/40' },
-  ready_to_ship:    { color: 'text-orange-700 dark:text-orange-300', bg: 'bg-orange-100 dark:bg-orange-900/40' },
-  pending_confirm:  { color: 'text-orange-700 dark:text-orange-300', bg: 'bg-orange-100 dark:bg-orange-900/40' },
-  received:         { color: 'text-orange-700 dark:text-orange-300', bg: 'bg-orange-100 dark:bg-orange-900/40' },
-  processing:       { color: 'text-indigo-700 dark:text-indigo-300', bg: 'bg-indigo-100 dark:bg-indigo-900/40' },
-  pending:          { color: 'text-indigo-700 dark:text-indigo-300', bg: 'bg-indigo-100 dark:bg-indigo-900/40' },
-  shipping:         { color: 'text-amber-700 dark:text-amber-300',  bg: 'bg-amber-100 dark:bg-amber-900/40' },
-  shipped:          { color: 'text-amber-700 dark:text-amber-300',  bg: 'bg-amber-100 dark:bg-amber-900/40' },
+  ready_to_ship:    { color: 'text-[#a64b2a] dark:text-[#e2907a]', bg: 'bg-[#fbe3db] dark:bg-[#3a1d14]' },
+  pending_confirm:  { color: 'text-[#a64b2a] dark:text-[#e2907a]', bg: 'bg-[#fbe3db] dark:bg-[#3a1d14]' },
+  received:         { color: 'text-[#a64b2a] dark:text-[#e2907a]', bg: 'bg-[#fbe3db] dark:bg-[#3a1d14]' },
+  processing:       { color: 'text-violet-700 dark:text-violet-300', bg: 'bg-violet-100 dark:bg-violet-900/40' },
+  pending:          { color: 'text-violet-700 dark:text-violet-300', bg: 'bg-violet-100 dark:bg-violet-900/40' },
+  shipping:         { color: 'text-cyan-800 dark:text-cyan-300',  bg: 'bg-cyan-100 dark:bg-cyan-900/40' },
+  shipped:          { color: 'text-cyan-800 dark:text-cyan-300',  bg: 'bg-cyan-100 dark:bg-cyan-900/40' },
   completed:        { color: 'text-emerald-700 dark:text-emerald-300', bg: 'bg-emerald-100 dark:bg-emerald-900/40' },
   paid:             { color: 'text-emerald-700 dark:text-emerald-300', bg: 'bg-emerald-100 dark:bg-emerald-900/40' },
   confirmed:        { color: 'text-emerald-700 dark:text-emerald-300', bg: 'bg-emerald-100 dark:bg-emerald-900/40' },
@@ -83,12 +87,12 @@ export function getBadgeColor(key: string): { color: string; bg: string } {
  * Map status key → Badge tone (for `<Badge tone={...}>` from `components/ui/Badge.tsx`).
  * Colors stay in sync with tab + badge mapping above.
  */
-type StatusBadgeTone = 'gray' | 'red' | 'amber' | 'emerald' | 'blue' | 'indigo' | 'orange';
+type StatusBadgeTone = 'gray' | 'red' | 'amber' | 'emerald' | 'blue' | 'indigo' | 'purple' | 'orange';
 const STATUS_BADGE_TONE: Record<string, StatusBadgeTone> = {
   new: 'blue', draft: 'blue', billed: 'blue', sent: 'blue', invoiced: 'blue',
   ready_to_ship: 'orange', pending_confirm: 'orange', received: 'orange',
-  processing: 'indigo', pending: 'indigo',
-  shipping: 'amber', shipped: 'amber', partially_paid: 'amber',
+  processing: 'purple', pending: 'purple',
+  shipping: 'blue', shipped: 'blue', partially_paid: 'amber',
   completed: 'emerald', paid: 'emerald', confirmed: 'emerald', partial_received: 'emerald',
   overdue: 'red',
   cancelled: 'gray',
