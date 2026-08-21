@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import FormSelect from '@/components/ui/FormSelect';
 import LoadingOverlay from '@/components/ui/LoadingOverlay';
+import PlatformIcon from '@/components/ui/PlatformIcon';
 import { LoadingCard } from '@/components/ui/StateCard';
 
 interface MarketplaceAccount {
@@ -46,7 +47,6 @@ export default function MarketplaceConnections() {
   const { userProfile } = useAuth();
   const { showToast } = useToast();
   const { confirmDialog, confirm } = useConfirmDialog();
-  const [activeTab, setActiveTab] = useState<'shopee' | 'tiktok' | 'lazada'>('shopee');
   const [accounts, setAccounts] = useState<ShopeeAccount[]>([]);
   const [tiktokAccounts, setTiktokAccounts] = useState<MarketplaceAccount[]>([]);
   const [lazadaAccounts, setLazadaAccounts] = useState<MarketplaceAccount[]>([]);
@@ -123,12 +123,10 @@ export default function MarketplaceConnections() {
     } else if (params.get('tiktok') === 'connected') {
       showToast('เชื่อมต่อ TikTok Shop สำเร็จ', 'success');
       fetchTiktokAccounts();
-      setActiveTab('tiktok');
       window.history.replaceState({}, '', cleanUrl);
     } else if (params.get('success') === 'lazada_connected') {
       showToast('เชื่อมต่อ Lazada สำเร็จ', 'success');
       fetchLazadaAccounts();
-      setActiveTab('lazada');
       window.history.replaceState({}, '', cleanUrl);
     } else if (params.get('error')) {
       const err = params.get('error');
@@ -460,63 +458,19 @@ export default function MarketplaceConnections() {
   const activeTiktokAccounts = tiktokAccounts.filter(a => a.is_active);
 
   return (
-    <>
-      {/* Platform Tabs */}
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex border-b border-gray-200 dark:border-slate-700">
-          <button
-            onClick={() => setActiveTab('shopee')}
-            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
-              activeTab === 'shopee'
-                ? 'text-shopee border-shopee'
-                : 'text-gray-500 dark:text-slate-400 border-transparent hover:text-gray-700 dark:hover:text-slate-200'
-            }`}
-          >
-            <ShoppingBag className="w-4 h-4" />
-            Shopee
-            {activeAccounts.length > 0 && (
-              <span className="text-xs px-1.5 py-0.5 rounded-lg bg-shopee/10 text-shopee">
-                {activeAccounts.length}
-              </span>
-            )}
-          </button>
-          <button
-            onClick={() => setActiveTab('tiktok')}
-            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
-              activeTab === 'tiktok'
-                ? 'text-gray-900 dark:text-white border-gray-900 dark:border-white'
-                : 'text-gray-500 dark:text-slate-400 border-transparent hover:text-gray-700 dark:hover:text-slate-200'
-            }`}
-          >
-            <ShoppingBag className="w-4 h-4" />
-            TikTok Shop
-            {activeTiktokAccounts.length > 0 && (
-              <span className="text-xs px-1.5 py-0.5 rounded-lg bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300">
-                {activeTiktokAccounts.length}
-              </span>
-            )}
-          </button>
-          <button
-            onClick={() => setActiveTab('lazada')}
-            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
-              activeTab === 'lazada'
-                ? 'text-[#0F146E] border-[#0F146E] dark:text-blue-400 dark:border-blue-400'
-                : 'text-gray-500 dark:text-slate-400 border-transparent hover:text-gray-700 dark:hover:text-slate-200'
-            }`}
-          >
-            <ShoppingBag className="w-4 h-4" />
-            Lazada
-            {lazadaAccounts.filter(a => a.is_active).length > 0 && (
-              <span className="text-xs px-1.5 py-0.5 rounded-lg bg-blue-50 dark:bg-slate-700 text-[#0F146E] dark:text-blue-400">
-                {lazadaAccounts.filter(a => a.is_active).length}
-              </span>
-            )}
-          </button>
-        </div>
-      </div>
-
-      {/* ===== SHOPEE TAB ===== */}
-      {activeTab === 'shopee' && (loading ? (
+    <div className="space-y-8">
+      {/* ===== SHOPEE ===== */}
+      <section>
+        <h3 className="heading-4 flex items-center gap-2 mb-3">
+          <PlatformIcon id="shopee" size={20} />
+          Shopee
+          {activeAccounts.length > 0 && (
+            <span className="text-xs px-1.5 py-0.5 rounded-lg bg-shopee/10 text-shopee">
+              {activeAccounts.length}
+            </span>
+          )}
+        </h3>
+      {loading ? (
         <LoadingCard />
       ) : (
         <div className="space-y-4">
@@ -728,10 +682,21 @@ export default function MarketplaceConnections() {
             {connecting ? 'กำลังเชื่อมต่อ...' : 'เชื่อมต่อร้าน Shopee'}
           </button>
         </div>
-      ))}
+      )}
+      </section>
 
-      {/* ===== TIKTOK TAB ===== */}
-      {activeTab === 'tiktok' && (tiktokLoading ? (
+      {/* ===== TIKTOK ===== */}
+      <section>
+        <h3 className="heading-4 flex items-center gap-2 mb-3">
+          <PlatformIcon id="tiktok" size={20} />
+          TikTok Shop
+          {activeTiktokAccounts.length > 0 && (
+            <span className="text-xs px-1.5 py-0.5 rounded-lg bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300">
+              {activeTiktokAccounts.length}
+            </span>
+          )}
+        </h3>
+      {tiktokLoading ? (
         <LoadingCard />
       ) : (
         <div className="space-y-4">
@@ -855,10 +820,21 @@ export default function MarketplaceConnections() {
             {connecting ? 'กำลังเชื่อมต่อ...' : 'เชื่อมต่อ TikTok Shop'}
           </button>
         </div>
-      ))}
+      )}
+      </section>
 
-      {/* ===== LAZADA TAB ===== */}
-      {activeTab === 'lazada' && (lazadaLoading ? (
+      {/* ===== LAZADA ===== */}
+      <section>
+        <h3 className="heading-4 flex items-center gap-2 mb-3">
+          <PlatformIcon id="lazada" size={20} />
+          Lazada
+          {lazadaAccounts.filter(a => a.is_active).length > 0 && (
+            <span className="text-xs px-1.5 py-0.5 rounded-lg bg-blue-50 dark:bg-slate-700 text-[#0F146E] dark:text-blue-400">
+              {lazadaAccounts.filter(a => a.is_active).length}
+            </span>
+          )}
+        </h3>
+      {lazadaLoading ? (
         <LoadingCard />
       ) : (
         <div className="space-y-4">
@@ -917,7 +893,8 @@ export default function MarketplaceConnections() {
             {connecting ? 'กำลังเชื่อมต่อ...' : 'เชื่อมต่อร้าน Lazada'}
           </button>
         </div>
-      ))}
+      )}
+      </section>
 
       {/* Loading Overlay for sync operations */}
       <LoadingOverlay
@@ -928,6 +905,6 @@ export default function MarketplaceConnections() {
         onCancel={handleCancelSync}
       />
       {confirmDialog}
-    </>
+    </div>
   );
 }
