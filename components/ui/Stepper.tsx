@@ -5,6 +5,10 @@
 // พอแก้ทีละที่ก็หลุดกันเรื่อย ๆ — สีคนละเฉด ขนาดตัวอักษร 13 กับ 14 เส้นเชื่อม
 // ชนวงบ้างไม่ชนบ้าง · ตอนนี้เหลือที่เดียว แก้ทีเดียวเปลี่ยนหมด
 //
+// มี layout เดียวเท่านั้น (ชื่ออยู่ใต้วง) — เคยมี inline/stacked ให้เลือก แล้วสอง
+// แถบก็หน้าตาไม่ตรงกันอยู่ดีทั้งที่เป็น component เดียวกัน · ถ้าจะเพิ่ม layout ใหม่
+// ให้คิดก่อนว่าคุ้มกับการที่ผู้ใช้เห็นสองแบบในเว็บเดียวไหม
+//
 // ภาษาที่ใช้ (ห้ามเปลี่ยนเฉพาะที่ใดที่หนึ่ง):
 //   ผ่านแล้ว  = วงทึบ + ติ๊ก
 //   กำลังทำ   = วงขอบสีเน้น + เลข
@@ -23,7 +27,7 @@ export type StepState = 'done' | 'current' | 'todo';
 export interface StepItem {
   key: string;
   label: string;
-  /** บรรทัดขยายใต้ชื่อขั้น — ใส่เฉพาะขั้นที่กำลังทำอยู่ (layout stacked เท่านั้น) */
+  /** บรรทัดขยายใต้ชื่อขั้น — ใส่เฉพาะขั้นที่กำลังทำอยู่ */
   note?: string;
   state: StepState;
   /** กดย้อนกลับไปขั้นนั้นได้ — ใส่เฉพาะขั้นที่ผ่านแล้วและย้อนได้จริง */
@@ -32,11 +36,6 @@ export interface StepItem {
 
 interface Props {
   steps: StepItem[];
-  /**
-   * inline  = ชื่ออยู่ข้างวง เหมาะกับ 2-3 ขั้น (ตอนสั่งซื้อ)
-   * stacked = ชื่ออยู่ใต้วง กระจายเต็มความกว้าง เหมาะกับ 4-5 ขั้น (ติดตามออเดอร์)
-   */
-  layout?: 'inline' | 'stacked';
   /** หน้าที่สลับธีมเองด้วยตัวแปร JS (บิลออนไลน์) — ไม่ใช่ class .dark ของ Tailwind */
   dark?: boolean;
   ariaLabel?: string;
@@ -44,12 +43,12 @@ interface Props {
 }
 
 export default function Stepper({
-  steps, layout = 'inline', dark = false, ariaLabel = 'ขั้นตอน', className = '',
+  steps, dark = false, ariaLabel = 'ขั้นตอน', className = '',
 }: Props) {
   return (
     <ol
       aria-label={ariaLabel}
-      className={`stepper stepper-${layout}${dark ? ' stepper-dark' : ''}${className ? ` ${className}` : ''}`}
+      className={`stepper${dark ? ' stepper-dark' : ''}${className ? ` ${className}` : ''}`}
     >
       {steps.map((s, i) => {
         const prevDone = i > 0 && steps[i - 1].state === 'done';
@@ -60,7 +59,7 @@ export default function Stepper({
             </span>
             <span className="stepper-label">
               {s.label}
-              {s.note && layout === 'stacked' && <span className="stepper-note">{s.note}</span>}
+              {s.note && <span className="stepper-note">{s.note}</span>}
             </span>
           </>
         );

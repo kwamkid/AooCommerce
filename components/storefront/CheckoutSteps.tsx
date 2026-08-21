@@ -26,11 +26,6 @@ export default function CheckoutSteps({ shop, current }: { shop: string; current
   }));
 
   return (
-    <Stepper
-      steps={steps}
-      layout="inline"
-      ariaLabel="ขั้นตอนการสั่งซื้อ"
-      className="sf-checkout-steps"
-    />
+    <Stepper steps={steps} ariaLabel="ขั้นตอนการสั่งซื้อ" className="sf-checkout-steps" />
   );
 }

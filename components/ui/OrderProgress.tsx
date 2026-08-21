@@ -41,5 +41,5 @@ export default function OrderProgress({ order, dark = false }: Props) {
     state: s.state,
   }));
 
-  return <Stepper steps={items} layout="stacked" dark={dark} ariaLabel="สถานะคำสั่งซื้อ" />;
+  return <Stepper steps={items} dark={dark} ariaLabel="สถานะคำสั่งซื้อ" />;
 }
