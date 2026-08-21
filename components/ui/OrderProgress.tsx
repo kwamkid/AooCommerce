@@ -28,7 +28,9 @@ export default function OrderProgress({ order, dark = false }: Props) {
   const currentColor = dark ? 'var(--op-current-dark, #e2e8f0)' : 'var(--op-current, #e2725b)';
   // terracotta อ่อนสว่างเกินกว่าจะใช้ตัวเลขสีขาว (คอนทราสต์ 3.1:1) — ใช้หมึกสีน้ำตาลเข้ม
   // แทน ได้ 4.9:1 ผ่านเกณฑ์ WCAG AA ของตัวหนังสือขนาดเล็ก
-  const currentInk = dark ? '#0f172a' : 'var(--op-current-ink, #3f1a0d)';
+  // ขั้นที่กำลังทำเป็น "วงขอบ" ไม่ใช่วงทึบ ตัวเลขจึงอยู่บนพื้นขาว — ใช้ terracotta
+  // เข้มขึ้นหน่อยให้อ่านออก (5.7:1) ส่วนเส้นขอบใช้เฉดอ่อนตามที่เลือกไว้
+  const currentInk = dark ? 'var(--op-current-dark, #e2e8f0)' : 'var(--op-current-ink, #a64b2a)';
   const currentRing = `color-mix(in srgb, ${currentColor} 16%, transparent)`;
 
   if (cancelled) {
@@ -54,7 +56,9 @@ export default function OrderProgress({ order, dark = false }: Props) {
     >
       {steps.map((s, i) => {
         const color = s.state === 'done' ? doneColor : s.state === 'current' ? currentColor : muted;
-        const filled = s.state !== 'todo';
+        // ภาษาเดียวกับแถบขั้นตอนตอนสั่งซื้อ (CheckoutSteps): ผ่านแล้ว = วงทึบมีติ๊ก,
+        // กำลังทำ = วงขอบสีเน้น, ยังไม่ถึง = วงขอบเทา
+        const filled = s.state === 'done';
         return (
           <li
             key={s.key}
@@ -70,7 +74,7 @@ export default function OrderProgress({ order, dark = false }: Props) {
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   border: `2px solid ${color}`,
                   background: filled ? color : 'transparent',
-                  color: filled ? (s.state === 'current' ? currentInk : '#fff') : muted,
+                  color: filled ? '#fff' : s.state === 'current' ? currentInk : muted,
                   fontSize: 13, fontWeight: 600, lineHeight: 1,
                   // ขั้นที่กำลังทำอยู่ต้องเด่นกว่าขั้นที่ผ่านมาแล้ว ไม่งั้นตาไปหยุดที่ขั้นสุดท้ายที่เป็นสีเขียว
                   boxShadow: s.state === 'current' ? `0 0 0 4px ${currentRing}` : undefined,
