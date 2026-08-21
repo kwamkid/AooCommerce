@@ -322,55 +322,68 @@ export async function syncOrdersByTimeRange(
     errors: [],
   };
   const allOrderSns: string[] = [];
+  const seenSns = new Set<string>();
 
-  // Paginate through order list
-  let cursor = '';
-  let hasMore = true;
-  let pageNum = 0;
+  // Shopee get_order_list รับช่วงเวลาได้ไม่เกิน 15 วันต่อ call — ช่วงยาวกว่านั้น
+  // (เช่น cron ไล่จาก last_sync_at หลังร้านหลุดการเชื่อมต่อไปนาน) ต้องหั่นเป็นท่อน
+  // ไม่งั้น error ทั้ง sync แล้วช่องว่างไม่ถูกดึงเลย (ดู fix-bug.md 2026-08-21)
+  const MAX_WINDOW = 15 * 24 * 60 * 60 - 60;
+  let collectFailed = false;
 
-  while (hasMore) {
-    pageNum++;
-    const params: Record<string, unknown> = {
-      time_range_field: 'update_time',
-      time_from: timeFrom,
-      time_to: timeTo,
-      page_size: 100,
-    };
-    if (cursor) params.cursor = cursor;
+  for (let chunkFrom = timeFrom; chunkFrom < timeTo && !collectFailed; chunkFrom += MAX_WINDOW) {
+    const chunkTo = Math.min(chunkFrom + MAX_WINDOW, timeTo);
 
-    console.log(`[Shopee Sync] Fetching order list page ${pageNum}...`);
-    const { data, error } = await shopeeApiRequest(creds, 'GET', '/api/v2/order/get_order_list', params);
+    // Paginate through order list of this window
+    let cursor = '';
+    let hasMore = true;
+    let pageNum = 0;
 
-    if (error) {
-      console.error(`[Shopee Sync] Order list error:`, error);
-      result.errors.push(`Order list error: ${error}`);
-      break;
+    while (hasMore) {
+      pageNum++;
+      const params: Record<string, unknown> = {
+        time_range_field: 'update_time',
+        time_from: chunkFrom,
+        time_to: chunkTo,
+        page_size: 100,
+      };
+      if (cursor) params.cursor = cursor;
+
+      console.log(`[Shopee Sync] Fetching order list page ${pageNum} (window ${new Date(chunkFrom * 1000).toISOString()} → ${new Date(chunkTo * 1000).toISOString()})...`);
+      const { data, error } = await shopeeApiRequest(creds, 'GET', '/api/v2/order/get_order_list', params);
+
+      if (error) {
+        console.error(`[Shopee Sync] Order list error:`, error);
+        result.errors.push(`Order list error: ${error}`);
+        collectFailed = true;
+        break;
+      }
+
+      const response = data as {
+        order_list: { order_sn: string; order_status: string }[];
+        more: boolean;
+        next_cursor: string;
+      };
+
+      const orderList = response.order_list || [];
+      console.log(`[Shopee Sync] Page ${pageNum}: got ${orderList.length} orders, more=${response.more}`);
+
+      for (const order of orderList) {
+        if (!seenSns.has(order.order_sn)) {
+          seenSns.add(order.order_sn);
+          allOrderSns.push(order.order_sn);
+        }
+      }
+
+      onProgress?.({
+        phase: 'collecting',
+        current: allOrderSns.length,
+        total: null,
+        label: `กำลังดึงรายการออเดอร์... (${allOrderSns.length} รายการ)`,
+      });
+
+      hasMore = response.more;
+      cursor = response.next_cursor || '';
     }
-
-    console.log(`[Shopee Sync] Order list raw data:`, JSON.stringify(data).substring(0, 500));
-
-    const response = data as {
-      order_list: { order_sn: string; order_status: string }[];
-      more: boolean;
-      next_cursor: string;
-    };
-
-    const orderList = response.order_list || [];
-    console.log(`[Shopee Sync] Page ${pageNum}: got ${orderList.length} orders, more=${response.more}`);
-
-    for (const order of orderList) {
-      allOrderSns.push(order.order_sn);
-    }
-
-    onProgress?.({
-      phase: 'collecting',
-      current: allOrderSns.length,
-      total: null,
-      label: `กำลังดึงรายการออเดอร์... (${allOrderSns.length} รายการ)`,
-    });
-
-    hasMore = response.more;
-    cursor = response.next_cursor || '';
   }
 
   console.log(`[Shopee Sync] Total order_sns collected: ${allOrderSns.length}`, allOrderSns.slice(0, 10));
@@ -386,11 +399,14 @@ export async function syncOrdersByTimeRange(
     result.errors.push(...syncResult.errors);
   }
 
-  // Update last_sync_at
-  await supabaseAdmin
-    .from('marketplace_accounts')
-    .update({ last_sync_at: new Date().toISOString(), updated_at: new Date().toISOString() })
-    .eq('id', account.id);
+  // Update last_sync_at — เฉพาะเมื่อไล่รายการออเดอร์ครบทุกช่วง; ถ้า collect ล้ม
+  // ห้าม stamp ไม่งั้น cron รอบถัดไปจะข้ามช่วงที่พลาดไปอย่างถาวร
+  if (!collectFailed) {
+    await supabaseAdmin
+      .from('marketplace_accounts')
+      .update({ last_sync_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+      .eq('id', account.id);
+  }
 
   console.log(`[Shopee Sync] Done: orders_created=${result.orders_created}, orders_updated=${result.orders_updated}, products_created=${result.products_created}, customers_created=${result.customers_created}, errors=${result.errors.length}`, result.errors.slice(0, 5));
   return result;
