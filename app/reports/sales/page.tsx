@@ -9,13 +9,13 @@ import { formatPrice } from '@/lib/utils/format';
 import Layout from '@/components/layout/Layout';
 import PageHeader from '@/components/ui/PageHeader';
 import { PageSkeleton } from '@/components/ui/Skeleton';
-import Button from '@/components/ui/Button';
+import { ExportButton } from '@/components/ui/ExportImportButton';
 import DateRangePicker, { DateValueType } from '@/components/ui/DateRangePicker';
 import { LoadingCard } from '@/components/ui/StateCard';
+import { downloadBlob } from '@/lib/utils/download';
 import {
   BarChart3,
   Calendar,
-  Download,
   TrendingUp,
   Users,
   Package,
@@ -242,12 +242,8 @@ export default function SalesReportPage() {
       csvContent += `ชำระแล้ว,${formatPrice(summary?.paidAmount || 0)}\n`;
       csvContent += `รอชำระ,${formatPrice(summary?.pendingAmount || 0)}\n`;
 
-      // Download
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-      const link = document.createElement('a');
-      link.href = URL.createObjectURL(blob);
-      link.download = `sales-report-${groupBy}-${startDate}-${endDate}.csv`;
-      link.click();
+      downloadBlob(blob, `sales-report-${groupBy}-${startDate}-${endDate}.csv`);
     } catch (error) {
       console.error('Export error:', error);
     } finally {
@@ -274,15 +270,14 @@ export default function SalesReportPage() {
         title="รายงานยอดขาย"
         subtitle="วิเคราะห์ยอดขายตามช่วงเวลา"
         actions={
-          <Button
+          <ExportButton
             variant="primary"
             loading={exporting}
             disabled={loading}
-            icon={<Download className="w-5 h-5" />}
             onClick={exportToCSV}
           >
             Export CSV
-          </Button>
+          </ExportButton>
         }
       />
 

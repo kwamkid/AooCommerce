@@ -14,9 +14,10 @@ import { apiFetch } from '@/lib/api-client';
 import {
   Loader2, ShoppingBag, RefreshCw, CheckCircle2,
   XCircle, Clock, AlertTriangle, ChevronDown, ChevronUp,
-  Plus, Trash2, Upload, Download, Package
+  Plus, Trash2, Package
 } from 'lucide-react';
 import Button from '@/components/ui/Button';
+import { ExportButton, ImportButton } from '@/components/ui/ExportImportButton';
 import FormSelect from '@/components/ui/FormSelect';
 import LoadingOverlay from '@/components/ui/LoadingOverlay';
 import PlatformIcon from '@/components/ui/PlatformIcon';
@@ -357,12 +358,15 @@ export default function MarketplaceConnections() {
     setSyncingId(accountId);
     setSyncProgress(10);
     setSyncPhaseLabel('กำลัง Sync TikTok Shop...');
+    const controller = new AbortController();
+    syncAbortRef.current = controller;
     const days = syncRange[accountId] || 1;
     try {
       const res = await apiFetch('/api/tiktok/sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ account_id: accountId, days_back: days }),
+        signal: controller.signal,
       });
       if (!res.ok) {
         const data = await res.json();
@@ -380,8 +384,9 @@ export default function MarketplaceConnections() {
       showToast(`Sync สำเร็จ: ${summary}`, 'success');
       fetchTiktokAccounts();
     } catch {
-      showToast('เกิดข้อผิดพลาดในการ sync', 'error');
+      showToast(controller.signal.aborted ? 'ยกเลิกการ sync แล้ว' : 'เกิดข้อผิดพลาดในการ sync', 'error');
     } finally {
+      syncAbortRef.current = null;
       setSyncingId(null);
       setSyncProgress(0);
       setSyncPhaseLabel('');
@@ -392,12 +397,15 @@ export default function MarketplaceConnections() {
     setSyncingId(accountId);
     setSyncProgress(10);
     setSyncPhaseLabel('กำลัง Sync Lazada...');
+    const controller = new AbortController();
+    syncAbortRef.current = controller;
     const days = syncRange[accountId] || 1;
     try {
       const res = await apiFetch('/api/lazada/sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ account_id: accountId, days_back: days }),
+        signal: controller.signal,
       });
       if (!res.ok) {
         const data = await res.json();
@@ -415,15 +423,16 @@ export default function MarketplaceConnections() {
       showToast(`Sync สำเร็จ: ${summary}`, 'success');
       fetchLazadaAccounts();
     } catch {
-      showToast('เกิดข้อผิดพลาดในการ sync', 'error');
+      showToast(controller.signal.aborted ? 'ยกเลิกการ sync แล้ว' : 'เกิดข้อผิดพลาดในการ sync', 'error');
     } finally {
+      syncAbortRef.current = null;
       setSyncingId(null);
       setSyncProgress(0);
       setSyncPhaseLabel('');
     }
   };
 
-  const handleDisconnect = async (accountId: string) => {
+  const handleDisconnect = async (accountId: string, platform: 'shopee' | 'tiktok' | 'lazada' = 'shopee') => {
     const ok = await confirm({ title: 'ต้องการยกเลิกการเชื่อมต่อร้านนี้?', variant: 'danger' }); if (!ok) return;
     setDisconnectingId(accountId);
     try {
@@ -432,7 +441,10 @@ export default function MarketplaceConnections() {
       });
       if (res.ok) {
         showToast('ยกเลิกการเชื่อมต่อสำเร็จ', 'success');
-        fetchAccounts();
+        // refetch เฉพาะ list ของ platform ที่ลบ — เดิม hardcode fetchAccounts ทำให้การ์ด TikTok/Lazada ค้างจนกด reload
+        if (platform === 'tiktok') fetchTiktokAccounts();
+        else if (platform === 'lazada') fetchLazadaAccounts();
+        else fetchAccounts();
       } else {
         showToast('ไม่สามารถยกเลิกได้', 'error');
       }
@@ -707,9 +719,7 @@ export default function MarketplaceConnections() {
                       >
                         Sync สถานะค้าง
                       </Button>
-                      <Button
-                        variant="secondary"
-                        icon={<Download className="w-4 h-4" />}
+                      <ImportButton
                         disabled={account.connection_status === 'expired'}
                         onClick={() => {
                           const name = account.shop_name || `Shop #${account.shop_id}`;
@@ -717,10 +727,8 @@ export default function MarketplaceConnections() {
                         }}
                       >
                         นำเข้าสินค้าจาก Shopee
-                      </Button>
-                      <Button
-                        variant="secondary"
-                        icon={<Upload className="w-4 h-4" />}
+                      </ImportButton>
+                      <ExportButton
                         disabled={account.connection_status === 'expired'}
                         onClick={() => {
                           const name = account.shop_name || `Shop #${account.shop_id}`;
@@ -728,7 +736,7 @@ export default function MarketplaceConnections() {
                         }}
                       >
                         ส่งสินค้าไป Shopee
-                      </Button>
+                      </ExportButton>
                       <button
                         onClick={() => handleDisconnect(account.id)}
                         disabled={isDisconnecting}
@@ -845,7 +853,7 @@ export default function MarketplaceConnections() {
                         {isSyncing ? 'กำลัง Sync...' : 'Sync Now'}
                       </Button>
                       <button
-                        onClick={() => handleDisconnect(account.id)}
+                        onClick={() => handleDisconnect(account.id, 'tiktok')}
                         disabled={isDisconnecting}
                         className="p-2 text-gray-400 hover:text-red-500 dark:hover:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex items-center justify-center disabled:opacity-50"
                       >
@@ -890,17 +898,22 @@ export default function MarketplaceConnections() {
                           <CheckCircle2 className="w-3 h-3" />
                           เชื่อมต่อแล้ว
                         </span>
-                      ) : (
+                      ) : account.connection_status === 'expired' ? (
                         <span className="text-yellow-600 dark:text-yellow-400 flex items-center gap-1">
                           <AlertTriangle className="w-3 h-3" />
                           Token หมดอายุ
+                        </span>
+                      ) : (
+                        <span className="text-gray-400 flex items-center gap-1">
+                          <XCircle className="w-3 h-3" />
+                          ยกเลิกแล้ว
                         </span>
                       )}
                       <span className="ml-1">#{account.shop_id}</span>
                     </div>
                   </div>
                   <button
-                    onClick={() => handleDisconnect(account.id)}
+                    onClick={() => handleDisconnect(account.id, 'lazada')}
                     disabled={isDisconnecting}
                     className="p-2 text-gray-400 hover:text-red-500 dark:hover:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex items-center justify-center disabled:opacity-50"
                   >

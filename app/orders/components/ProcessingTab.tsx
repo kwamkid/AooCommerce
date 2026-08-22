@@ -516,7 +516,7 @@ export default function ProcessingTab({
           pdfBlob = new Blob([bytes], { type: 'application/pdf' });
           // Show warning for partial failures (some orders couldn't generate labels)
           if (event.warning) {
-            setTimeout(() => alert(event.warning), 500);
+            showToast(event.warning, 'error');
           }
         } else if (event.type === 'error') {
           throw new Error(event.message || 'Shopee label generation failed');

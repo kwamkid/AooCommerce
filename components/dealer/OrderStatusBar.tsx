@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Loader2, CheckCircle, Trash2 } from 'lucide-react';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
+import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { useRouter } from 'next/navigation';
 import { DEALER_ORDER_STATUS_LABEL } from '@/lib/order-status';
 import { getBadgeColor } from '@/lib/status-tab-colors';
@@ -28,6 +29,7 @@ interface Props {
 
 export default function OrderStatusBar({ orderId, orderNumber, orderStatus, paymentStatus, backUrl, onStatusChange }: Props) {
   const { showToast } = useToast();
+  const { confirm, confirmDialog } = useConfirmDialog();
   const router = useRouter();
   const [updating, setUpdating] = useState(false);
 
@@ -50,7 +52,8 @@ export default function OrderStatusBar({ orderId, orderNumber, orderStatus, paym
   };
 
   const handleCancel = async () => {
-    if (!confirm('ยืนยันยกเลิกคำสั่งซื้อ?')) return;
+    const ok = await confirm({ title: 'ยืนยันยกเลิกคำสั่งซื้อ?', variant: 'danger', confirmLabel: 'ยกเลิกออเดอร์' });
+    if (!ok) return;
     await handleStatusChange('cancelled');
     router.push(backUrl);
   };
@@ -84,6 +87,7 @@ export default function OrderStatusBar({ orderId, orderNumber, orderStatus, paym
           </button>
         )}
       </div>
+      {confirmDialog}
     </div>
   );
 }

@@ -10,10 +10,12 @@ import { apiFetch } from '@/lib/api-client';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import MultiSelectSearch from '@/components/ui/MultiSelectSearch';
 import Button from '@/components/ui/Button';
+import { ExportButton, ImportButton } from '@/components/ui/ExportImportButton';
 import { LoadingCard } from '@/components/ui/StateCard';
+import { downloadBlob } from '@/lib/utils/download';
 import {
-  Upload, Download, FileSpreadsheet,
-  Check, Loader2, AlertCircle, Pencil, ArrowRight, ShieldAlert, Star, Warehouse, Tag,
+  FileSpreadsheet,
+  Check, AlertCircle, Pencil, ArrowRight, ShieldAlert, Star, Warehouse, Tag,
 } from 'lucide-react';
 
 interface Warehouse {
@@ -275,15 +277,11 @@ export default function BulkStockUpdatePage() {
 
       const buf = await wb.xlsx.writeBuffer();
       const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-      const link = document.createElement('a');
-      link.href = URL.createObjectURL(blob);
       const date = new Date().toISOString().split('T')[0];
       const fname = exportWarehouses.length === 1
         ? `stock-${exportWarehouses[0].name}-${date}.xlsx`
         : `stock-${exportWarehouses.length}wh-${date}.xlsx`;
-      link.download = fname;
-      link.click();
-      URL.revokeObjectURL(link.href);
+      downloadBlob(blob, fname);
     } catch (err) {
       console.error('export error:', err);
       showToast('Export ไม่สำเร็จ', 'error');
@@ -524,17 +522,16 @@ export default function BulkStockUpdatePage() {
                   </p>
                 </div>
                 <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-                  <button
+                  <ExportButton
                     onClick={handleExport}
-                    disabled={exporting || warehouseIds.length === 0}
-                    className="flex items-center gap-2 px-4 py-2.5 border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 rounded-lg disabled:opacity-50"
+                    loading={exporting}
+                    disabled={warehouseIds.length === 0}
                   >
-                    {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
                     Export สินค้า
-                  </button>
-                  <Button onClick={() => fileRef.current?.click()} icon={<Upload className="w-4 h-4" />}>
+                  </ExportButton>
+                  <ImportButton variant="primary" onClick={() => fileRef.current?.click()}>
                     อัพโหลดไฟล์
-                  </Button>
+                  </ImportButton>
                   <input ref={fileRef} type="file" accept=".xlsx,.xls" onChange={handleFile} className="hidden" />
                 </div>
                 <div className="text-left bg-gray-50 dark:bg-slate-700/50 rounded-lg p-4 text-sm text-gray-600 dark:text-slate-400">
