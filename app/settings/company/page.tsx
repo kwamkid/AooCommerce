@@ -20,6 +20,7 @@ import PageHeader from '@/components/ui/PageHeader';
 import Tabs from '@/components/ui/Tabs';
 import Modal from '@/components/ui/Modal';
 import FormInput from '@/components/ui/FormInput';
+import { useFormValidation } from '@/lib/useFormValidation';
 import ListRow from '@/components/ui/ListRow';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { LoadingCard, NoPermissionCard } from '@/components/ui/StateCard';
@@ -40,6 +41,16 @@ interface CompanyData {
   vat_registered: boolean | null;
 }
 
+// Optional-field validator — เบอร์โทรตรวจเฉพาะเมื่อกรอก (semantics เดิม: ตัด space/ขีด/วงเล็บก่อนเช็ค)
+const validateCompanyPhone = (phone: string): string | null => {
+  if (!phone) return null;
+  const cleaned = phone.replace(/[\s\-()]/g, '');
+  if (!/^(0[0-9]{8,9}|[0-9]{9,10})$/.test(cleaned)) {
+    return 'เบอร์โทรไม่ถูกต้อง (เช่น 0812345678)';
+  }
+  return null;
+};
+
 
 export default function CompanySettingsPage() {
   const { currentCompany, companyRoles, refreshCompanies } = useCompany();
@@ -48,7 +59,7 @@ export default function CompanySettingsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState('');
-  const [fieldErrors, setFieldErrors] = useState<{ phone?: string; email?: string }>({});
+  const form = useFormValidation();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Company form state
@@ -279,55 +290,12 @@ export default function CompanySettingsPage() {
     }
   };
 
-  // --- Inline validation helpers ---
-  const validatePhone = (phone: string): string | null => {
-    if (!phone) return null;
-    const cleaned = phone.replace(/[\s\-()]/g, '');
-    if (!/^(0[0-9]{8,9}|[0-9]{9,10})$/.test(cleaned)) {
-      return 'เบอร์โทรไม่ถูกต้อง (เช่น 0812345678)';
-    }
-    return null;
-  };
-
-  const validateEmail = (email: string): string | null => {
-    if (!email) return null;
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      return 'รูปแบบอีเมลไม่ถูกต้อง';
-    }
-    return null;
-  };
-
-  const handlePhoneChange = (value: string) => {
-    setFormData(prev => ({ ...prev, phone: value }));
-    if (fieldErrors.phone) {
-      setFieldErrors(prev => ({ ...prev, phone: validatePhone(value) || undefined }));
-    }
-  };
-
-  const handleEmailChange = (value: string) => {
-    setFormData(prev => ({ ...prev, email: value }));
-    if (fieldErrors.email) {
-      setFieldErrors(prev => ({ ...prev, email: validateEmail(value) || undefined }));
-    }
-  };
-
   // --- Submit all (company info + features) ---
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
-    if (!formData.name.trim()) {
-      showToast('กรุณาระบุชื่อร้านค้า', 'error');
-      return;
-    }
-
-    const phoneErr = validatePhone(formData.phone);
-    const emailErr = validateEmail(formData.email);
-    if (phoneErr || emailErr) {
-      setFieldErrors({ phone: phoneErr || undefined, email: emailErr || undefined });
-      return;
-    }
-    setFieldErrors({});
+    if (!form.validateAll()) return; // shows all errors + focuses first invalid
 
     if (!currentCompany?.id) return;
 
@@ -398,7 +366,7 @@ export default function CompanySettingsPage() {
       {isLoading ? (
         <LoadingCard />
       ) : (
-        <form ref={formRef} onSubmit={handleSubmit}>
+        <form ref={formRef} onSubmit={handleSubmit} noValidate>
           {/* Error alert */}
           {error && (
             <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg flex items-start space-x-3">
@@ -478,15 +446,18 @@ export default function CompanySettingsPage() {
               <Card padding="md">
                 <h3 className="heading-3 mb-4">ข้อมูลทั่วไป</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="sm:col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
-                      ชื่อร้าน/ชื่อแบรนด์ (ทางการค้า) <span className="text-red-500">*</span>
-                    </label>
-                    <div className="relative">
-                      <Building2 className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                      <input type="text" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} className="w-full pl-10 pr-4 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary" placeholder="ชื่อที่แสดงให้ลูกค้าเห็น" required disabled={isSaving} />
-                    </div>
-                  </div>
+                  <FormInput
+                    ref={form.register('name')}
+                    containerClassName="sm:col-span-2"
+                    label="ชื่อร้าน/ชื่อแบรนด์ (ทางการค้า)"
+                    required
+                    requiredMessage="กรุณาระบุชื่อร้านค้า"
+                    icon={<Building2 className="w-5 h-5" />}
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    placeholder="ชื่อที่แสดงให้ลูกค้าเห็น"
+                    disabled={isSaving}
+                  />
                   <div className="sm:col-span-2">
                     <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">เกี่ยวกับเรา <span className="text-xs font-normal text-gray-400 dark:text-slate-500">(แสดงในส่วนท้ายบิลออนไลน์)</span></label>
                     <div className="relative">
@@ -494,29 +465,38 @@ export default function CompanySettingsPage() {
                       <textarea value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} className="w-full pl-10 pr-4 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary resize-none" placeholder="อธิบายเกี่ยวกับธุรกิจ" rows={3} disabled={isSaving} />
                     </div>
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">โทรศัพท์</label>
-                    <div className="relative">
-                      <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                      <input type="tel" value={formData.phone} onChange={(e) => handlePhoneChange(e.target.value)} onBlur={() => setFieldErrors(prev => ({ ...prev, phone: validatePhone(formData.phone) || undefined }))} className={`w-full pl-10 pr-4 py-2.5 border rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 ${fieldErrors.phone ? 'border-red-400 dark:border-red-500 focus:ring-red-400' : 'border-gray-300 dark:border-slate-600 focus:ring-primary'}`} placeholder="0xx-xxx-xxxx" disabled={isSaving} />
-                    </div>
-                    {fieldErrors.phone && <p className="mt-1 text-xs text-red-500">{fieldErrors.phone}</p>}
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">อีเมล</label>
-                    <div className="relative">
-                      <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                      <input type="email" value={formData.email} onChange={(e) => handleEmailChange(e.target.value)} onBlur={() => setFieldErrors(prev => ({ ...prev, email: validateEmail(formData.email) || undefined }))} className={`w-full pl-10 pr-4 py-2.5 border rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 ${fieldErrors.email ? 'border-red-400 dark:border-red-500 focus:ring-red-400' : 'border-gray-300 dark:border-slate-600 focus:ring-primary'}`} placeholder="company@email.com" disabled={isSaving} />
-                    </div>
-                    {fieldErrors.email && <p className="mt-1 text-xs text-red-500">{fieldErrors.email}</p>}
-                  </div>
-                  <div className="sm:col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">ที่อยู่</label>
-                    <div className="relative">
-                      <MapPin className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
-                      <input type="text" value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} className="w-full pl-10 pr-4 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary" placeholder="เลขที่ ซอย ถนน" disabled={isSaving} />
-                    </div>
-                  </div>
+                  <FormInput
+                    ref={form.register('phone')}
+                    label="โทรศัพท์"
+                    type="tel"
+                    icon={<Phone className="w-5 h-5" />}
+                    validate={validateCompanyPhone}
+                    value={formData.phone}
+                    onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))}
+                    placeholder="0xx-xxx-xxxx"
+                    disabled={isSaving}
+                  />
+                  <FormInput
+                    ref={form.register('email')}
+                    label="อีเมล"
+                    type="email"
+                    icon={<Mail className="w-5 h-5" />}
+                    pattern="^[^\s@]+@[^\s@]+\.[^\s@]+$"
+                    patternMessage="รูปแบบอีเมลไม่ถูกต้อง"
+                    value={formData.email}
+                    onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
+                    placeholder="company@email.com"
+                    disabled={isSaving}
+                  />
+                  <FormInput
+                    containerClassName="sm:col-span-2"
+                    label="ที่อยู่"
+                    icon={<MapPin className="w-5 h-5" />}
+                    value={formData.address}
+                    onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                    placeholder="เลขที่ ซอย ถนน"
+                    disabled={isSaving}
+                  />
                   <div className="sm:col-span-2">
                     <ThaiAddressInput
                       compact
@@ -538,23 +518,31 @@ export default function CompanySettingsPage() {
                   ข้อมูลภาษี
                 </h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
-                      {formData.businessType === 'individual' ? 'เลขบัตรประชาชน' : 'เลขประจำตัวผู้เสียภาษี'}
-                    </label>
-                    <input type="text" value={formData.taxId} onChange={(e) => setFormData({ ...formData, taxId: e.target.value })} className="w-full px-4 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary" placeholder="13 หลัก" disabled={isSaving} />
-                  </div>
+                  <FormInput
+                    label={formData.businessType === 'individual' ? 'เลขบัตรประชาชน' : 'เลขประจำตัวผู้เสียภาษี'}
+                    value={formData.taxId}
+                    onChange={(e) => setFormData({ ...formData, taxId: e.target.value })}
+                    placeholder="13 หลัก"
+                    disabled={isSaving}
+                  />
                   {formData.businessType !== 'individual' && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">สาขา</label>
-                      <input type="text" value={formData.taxBranch} onChange={(e) => setFormData({ ...formData, taxBranch: e.target.value })} className="w-full px-4 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary" placeholder="สำนักงานใหญ่" disabled={isSaving} />
-                    </div>
+                    <FormInput
+                      label="สาขา"
+                      value={formData.taxBranch}
+                      onChange={(e) => setFormData({ ...formData, taxBranch: e.target.value })}
+                      placeholder="สำนักงานใหญ่"
+                      disabled={isSaving}
+                    />
                   )}
                   {formData.businessType !== 'individual' && (
-                    <div className="sm:col-span-2">
-                      <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">ชื่อร้านค้า (ออกบิล/ใบกำกับภาษี)</label>
-                      <input type="text" value={formData.taxCompanyName} onChange={(e) => setFormData({ ...formData, taxCompanyName: e.target.value })} className="w-full px-4 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary" placeholder="ชื่อตามจดทะเบียน (ถ้าต่างจากชื่อร้าน)" disabled={isSaving} />
-                    </div>
+                    <FormInput
+                      containerClassName="sm:col-span-2"
+                      label="ชื่อร้านค้า (ออกบิล/ใบกำกับภาษี)"
+                      value={formData.taxCompanyName}
+                      onChange={(e) => setFormData({ ...formData, taxCompanyName: e.target.value })}
+                      placeholder="ชื่อตามจดทะเบียน (ถ้าต่างจากชื่อร้าน)"
+                      disabled={isSaving}
+                    />
                   )}
 
                   {/* VAT Toggle */}
@@ -677,7 +665,7 @@ export default function CompanySettingsPage() {
             onSave={() => formRef.current?.requestSubmit()}
             onCancel={() => {
               setFormData(initialFormRef.current);
-              setFieldErrors({});
+              form.clearAll();
               setLogoFile(null);
               setLogoPreview(null);
               setError('');

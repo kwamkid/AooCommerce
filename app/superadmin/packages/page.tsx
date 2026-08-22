@@ -8,6 +8,10 @@ import { useToast } from '@/lib/toast-context';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { Package, Plus, Edit2, Trash2, Users, X } from 'lucide-react';
 import { LoadingCard } from '@/components/ui/StateCard';
+import Button from '@/components/ui/Button';
+import SaveButton from '@/components/ui/SaveButton';
+import FormInput from '@/components/ui/FormInput';
+import { useFormValidation } from '@/lib/useFormValidation';
 
 interface PackageItem {
   id: string;
@@ -54,6 +58,7 @@ export default function SuperAdminPackages() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<FormData>(emptyForm);
   const [saving, setSaving] = useState(false);
+  const validation = useFormValidation();
 
   const fetchPackages = async () => {
     setLoading(true);
@@ -92,10 +97,7 @@ export default function SuperAdminPackages() {
   };
 
   const handleSave = async () => {
-    if (!form.name.trim() || !form.slug.trim()) {
-      showToast('กรุณากรอกชื่อและ slug', 'error');
-      return;
-    }
+    if (!validation.validateAll()) return; // shows all errors + focuses first invalid
 
     let features: Record<string, unknown> = {};
     try {
@@ -244,7 +246,9 @@ export default function SuperAdminPackages() {
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="fixed inset-0 bg-black/60" onClick={() => setShowModal(false)} />
-          <div className="relative bg-slate-800 rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto border border-slate-700/50">
+          {/* `dark` class: superadmin shell is always slate-900 — force FormInput/Button dark variants
+              even when the global theme is light, so labels/inputs stay readable on the dark panel */}
+          <div className="dark relative bg-slate-800 rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto border border-slate-700/50">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-700/50">
               <h2 className="text-lg font-semibold text-white">
                 {editingId ? 'แก้ไข Package' : 'สร้าง Package ใหม่'}
@@ -253,42 +257,59 @@ export default function SuperAdminPackages() {
             </div>
 
             <div className="p-6 space-y-4">
-              <div>
-                <label className="block font-medium text-slate-300 mb-1">ชื่อ Package</label>
-                <input type="text" value={form.name} onChange={e => handleNameChange(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-600 rounded-lg bg-slate-700 text-white focus:outline-none focus:ring-2 focus:ring-violet-500/50" />
-              </div>
+              <FormInput
+                ref={validation.register('name')}
+                label="ชื่อ Package"
+                required
+                requiredMessage="กรุณากรอกชื่อ Package"
+                value={form.name}
+                onChange={e => handleNameChange(e.target.value)}
+              />
 
-              <div>
-                <label className="block font-medium text-slate-300 mb-1">Slug</label>
-                <input type="text" value={form.slug} onChange={e => setForm(prev => ({ ...prev, slug: e.target.value }))}
-                  className="w-full px-3 py-2 border border-slate-600 rounded-lg bg-slate-700 text-white font-mono focus:outline-none focus:ring-2 focus:ring-violet-500/50" />
+              <FormInput
+                ref={validation.register('slug')}
+                label="Slug"
+                required
+                requiredMessage="กรุณากรอก slug"
+                className="font-mono"
+                value={form.slug}
+                onChange={e => setForm(prev => ({ ...prev, slug: e.target.value }))}
+              />
+
+              <div className="grid grid-cols-2 gap-4">
+                <FormInput
+                  label="Max Companies"
+                  type="number"
+                  min={0}
+                  value={form.max_companies}
+                  onChange={e => setForm(prev => ({ ...prev, max_companies: e.target.value }))}
+                  placeholder="ไม่จำกัด"
+                />
+                <FormInput
+                  label="Max สมาชิก/บริษัท"
+                  type="number"
+                  min={0}
+                  value={form.max_members_per_company}
+                  onChange={e => setForm(prev => ({ ...prev, max_members_per_company: e.target.value }))}
+                  placeholder="ไม่จำกัด"
+                />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block font-medium text-slate-300 mb-1">Max Companies</label>
-                  <input type="number" value={form.max_companies} onChange={e => setForm(prev => ({ ...prev, max_companies: e.target.value }))} placeholder="ไม่จำกัด"
-                    className="w-full px-3 py-2 border border-slate-600 rounded-lg bg-slate-700 text-white focus:outline-none focus:ring-2 focus:ring-violet-500/50" />
-                </div>
-                <div>
-                  <label className="block font-medium text-slate-300 mb-1">Max สมาชิก/บริษัท</label>
-                  <input type="number" value={form.max_members_per_company} onChange={e => setForm(prev => ({ ...prev, max_members_per_company: e.target.value }))} placeholder="ไม่จำกัด"
-                    className="w-full px-3 py-2 border border-slate-600 rounded-lg bg-slate-700 text-white focus:outline-none focus:ring-2 focus:ring-violet-500/50" />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block font-medium text-slate-300 mb-1">ราคา/เดือน (฿)</label>
-                  <input type="number" value={form.price_monthly} onChange={e => setForm(prev => ({ ...prev, price_monthly: e.target.value }))}
-                    className="w-full px-3 py-2 border border-slate-600 rounded-lg bg-slate-700 text-white focus:outline-none focus:ring-2 focus:ring-violet-500/50" />
-                </div>
-                <div>
-                  <label className="block font-medium text-slate-300 mb-1">ราคา/ปี (฿)</label>
-                  <input type="number" value={form.price_yearly} onChange={e => setForm(prev => ({ ...prev, price_yearly: e.target.value }))}
-                    className="w-full px-3 py-2 border border-slate-600 rounded-lg bg-slate-700 text-white focus:outline-none focus:ring-2 focus:ring-violet-500/50" />
-                </div>
+                <FormInput
+                  label="ราคา/เดือน (฿)"
+                  type="number"
+                  min={0}
+                  value={form.price_monthly}
+                  onChange={e => setForm(prev => ({ ...prev, price_monthly: e.target.value }))}
+                />
+                <FormInput
+                  label="ราคา/ปี (฿)"
+                  type="number"
+                  min={0}
+                  value={form.price_yearly}
+                  onChange={e => setForm(prev => ({ ...prev, price_yearly: e.target.value }))}
+                />
               </div>
 
               <div>
@@ -299,20 +320,18 @@ export default function SuperAdminPackages() {
                 <p className="text-xs text-slate-500 mt-1">เช่น stock_enabled, max_warehouses</p>
               </div>
 
-              <div>
-                <label className="block font-medium text-slate-300 mb-1">ลำดับ</label>
-                <input type="number" value={form.sort_order} onChange={e => setForm(prev => ({ ...prev, sort_order: e.target.value }))}
-                  className="w-full px-3 py-2 border border-slate-600 rounded-lg bg-slate-700 text-white focus:outline-none focus:ring-2 focus:ring-violet-500/50" />
-              </div>
+              <FormInput
+                label="ลำดับ"
+                type="number"
+                min={0}
+                value={form.sort_order}
+                onChange={e => setForm(prev => ({ ...prev, sort_order: e.target.value }))}
+              />
             </div>
 
             <div className="flex justify-end gap-2 px-6 py-4 border-t border-slate-700/50">
-              <button onClick={() => setShowModal(false)} className="px-4 py-2 text-slate-300 hover:bg-slate-700 rounded-lg transition-colors">
-                ยกเลิก
-              </button>
-              <button onClick={handleSave} disabled={saving} className="px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white rounded-lg font-medium disabled:opacity-50 transition-colors">
-                {saving ? 'กำลังบันทึก...' : 'บันทึก'}
-              </button>
+              <Button variant="secondary" onClick={() => setShowModal(false)}>ยกเลิก</Button>
+              <SaveButton onClick={handleSave} loading={saving} />
             </div>
           </div>
         </div>

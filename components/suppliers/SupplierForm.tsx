@@ -18,7 +18,9 @@ import {
 import { THAI_BANKS, getBankByCode } from '@/lib/constants/banks';
 import Checkbox from '@/components/ui/Checkbox';
 import FormSelect from '@/components/ui/FormSelect';
+import FormInput from '@/components/ui/FormInput';
 import NumberInput from '@/components/ui/NumberInput';
+import { useFormValidation } from '@/lib/useFormValidation';
 import { apiFetch } from '@/lib/api-client';
 
 const SUPPLIER_TYPES = [
@@ -72,6 +74,14 @@ interface SupplierFormProps {
 const inputClass = 'w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-base sm:text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary';
 const labelClass = 'label';
 
+// Optional-field validators — validate only when the user filled the field
+const validateSupplierPhone = (v: string) =>
+  !v || /^0\d{8,9}$/.test(v) ? null : 'เบอร์โทรไม่ถูกต้อง';
+const validateSupplierEmail = (v: string) =>
+  !v || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v) ? null : 'รูปแบบอีเมลไม่ถูกต้อง';
+const validateSupplierTaxId = (v: string) =>
+  !v || /^\d{13}$/.test(v) ? null : 'เลขประจำตัวผู้เสียภาษีต้องเป็นตัวเลข 13 หลัก';
+
 function BankLogo({ code, size = 'sm' }: { code: string; size?: 'sm' | 'md' }) {
   const bank = getBankByCode(code);
   if (!bank) return null;
@@ -99,6 +109,7 @@ export default function SupplierForm({
     ...initialData,
   });
   const [submitting, setSubmitting] = useState(false);
+  const validation = useFormValidation();
   const [bankDropdownOpen, setBankDropdownOpen] = useState(false);
   const bankDropdownRef = useRef<HTMLDivElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
@@ -179,6 +190,7 @@ export default function SupplierForm({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!validation.validateAll()) return; // shows all errors + focuses first invalid
     setSubmitting(true);
     try {
       await onSubmit(form);
@@ -235,15 +247,17 @@ export default function SupplierForm({
   // --- Compact mode (modal) ---
   if (compact) {
     return (
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit} noValidate className="space-y-4">
         {/* Name */}
-        <div>
-          <label className={labelClass}>
-            ชื่อซัพพลายเออร์ <span className="text-red-500">*</span>
-          </label>
-          <input type="text" value={form.name} onChange={e => updateField('name', e.target.value)}
-            className={inputClass} placeholder="ชื่อบริษัท/ซัพพลายเออร์" autoFocus />
-        </div>
+        <FormInput
+          ref={validation.register('name')}
+          label="ชื่อซัพพลายเออร์"
+          required
+          value={form.name}
+          onChange={e => updateField('name', e.target.value)}
+          placeholder="ชื่อบริษัท/ซัพพลายเออร์"
+          autoFocus
+        />
 
         {/* Type cards — same style as full mode */}
         <div>
@@ -283,14 +297,19 @@ export default function SupplierForm({
 
         {/* Contact */}
         <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className={labelClass}>ผู้ติดต่อ</label>
-            <input type="text" value={form.contact_name} onChange={e => updateField('contact_name', e.target.value)} className={inputClass} />
-          </div>
-          <div>
-            <label className={labelClass}>เบอร์โทร</label>
-            <input type="tel" value={form.phone} onChange={e => updateField('phone', e.target.value)} className={inputClass} />
-          </div>
+          <FormInput
+            label="ผู้ติดต่อ"
+            value={form.contact_name}
+            onChange={e => updateField('contact_name', e.target.value)}
+          />
+          <FormInput
+            ref={validation.register('phone')}
+            label="เบอร์โทร"
+            type="tel"
+            validate={validateSupplierPhone}
+            value={form.phone}
+            onChange={e => updateField('phone', e.target.value)}
+          />
         </div>
 
         {/* Actions */}
@@ -306,7 +325,7 @@ export default function SupplierForm({
 
   // --- Full mode (page) — 2 columns on wide screens ---
   return (
-    <form ref={formRef} onSubmit={handleSubmit} className="space-y-6">
+    <form ref={formRef} onSubmit={handleSubmit} noValidate className="space-y-6">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Left column */}
         <div className="space-y-6">
@@ -317,13 +336,15 @@ export default function SupplierForm({
               ข้อมูลทั่วไป
             </h2>
 
-            <div>
-              <label className={labelClass}>
-                ชื่อซัพพลายเออร์ <span className="text-red-500">*</span>
-              </label>
-              <input type="text" value={form.name} onChange={e => updateField('name', e.target.value)}
-                className={inputClass} placeholder="ชื่อบริษัท/ซัพพลายเออร์" autoFocus />
-            </div>
+            <FormInput
+              ref={validation.register('name')}
+              label="ชื่อซัพพลายเออร์"
+              required
+              value={form.name}
+              onChange={e => updateField('name', e.target.value)}
+              placeholder="ชื่อบริษัท/ซัพพลายเออร์"
+              autoFocus
+            />
 
             {/* VAT toggle */}
             <div className="flex items-center gap-3">
@@ -340,16 +361,20 @@ export default function SupplierForm({
             {/* Tax fields — show when VAT registered */}
             {form.is_vat_registered && (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className={labelClass}>เลขประจำตัวผู้เสียภาษี</label>
-                  <input type="text" value={form.tax_id} onChange={e => updateField('tax_id', e.target.value)}
-                    className={inputClass} placeholder="เลข 13 หลัก" />
-                </div>
-                <div>
-                  <label className={labelClass}>สาขา</label>
-                  <input type="text" value={form.branch} onChange={e => updateField('branch', e.target.value)}
-                    className={inputClass} placeholder="สำนักงานใหญ่ / 00000" />
-                </div>
+                <FormInput
+                  ref={validation.register('tax_id')}
+                  label="เลขประจำตัวผู้เสียภาษี"
+                  validate={validateSupplierTaxId}
+                  value={form.tax_id}
+                  onChange={e => updateField('tax_id', e.target.value)}
+                  placeholder="เลข 13 หลัก"
+                />
+                <FormInput
+                  label="สาขา"
+                  value={form.branch}
+                  onChange={e => updateField('branch', e.target.value)}
+                  placeholder="สำนักงานใหญ่ / 00000"
+                />
               </div>
             )}
 
@@ -402,18 +427,27 @@ export default function SupplierForm({
           <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm p-6 space-y-4">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white">ข้อมูลติดต่อ</h2>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div>
-                <label className={labelClass}>ชื่อผู้ติดต่อ</label>
-                <input type="text" value={form.contact_name} onChange={e => updateField('contact_name', e.target.value)} className={inputClass} />
-              </div>
-              <div>
-                <label className={labelClass}>เบอร์โทร</label>
-                <input type="tel" value={form.phone} onChange={e => updateField('phone', e.target.value)} className={inputClass} />
-              </div>
-              <div>
-                <label className={labelClass}>อีเมล</label>
-                <input type="email" value={form.email} onChange={e => updateField('email', e.target.value)} className={inputClass} />
-              </div>
+              <FormInput
+                label="ชื่อผู้ติดต่อ"
+                value={form.contact_name}
+                onChange={e => updateField('contact_name', e.target.value)}
+              />
+              <FormInput
+                ref={validation.register('phone')}
+                label="เบอร์โทร"
+                type="tel"
+                validate={validateSupplierPhone}
+                value={form.phone}
+                onChange={e => updateField('phone', e.target.value)}
+              />
+              <FormInput
+                ref={validation.register('email')}
+                label="อีเมล"
+                type="email"
+                validate={validateSupplierEmail}
+                value={form.email}
+                onChange={e => updateField('email', e.target.value)}
+              />
             </div>
           </div>
         </div>
@@ -425,16 +459,17 @@ export default function SupplierForm({
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white">ข้อมูลการเงิน</h2>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>{bankDropdown}</div>
-              <div>
-                <label className={labelClass}>เลขบัญชี</label>
-                <input type="text" value={form.bank_account} onChange={e => updateField('bank_account', e.target.value)}
-                  className={inputClass} placeholder="xxx-x-xxxxx-x" />
-              </div>
-              <div>
-                <label className={labelClass}>ชื่อบัญชี</label>
-                <input type="text" value={form.bank_account_name} onChange={e => updateField('bank_account_name', e.target.value)}
-                  className={inputClass} />
-              </div>
+              <FormInput
+                label="เลขบัญชี"
+                value={form.bank_account}
+                onChange={e => updateField('bank_account', e.target.value)}
+                placeholder="xxx-x-xxxxx-x"
+              />
+              <FormInput
+                label="ชื่อบัญชี"
+                value={form.bank_account_name}
+                onChange={e => updateField('bank_account_name', e.target.value)}
+              />
             </div>
           </div>
 
@@ -475,10 +510,13 @@ export default function SupplierForm({
 
             {/* Create new brand inline */}
             <div className="flex gap-2">
-              <input type="text" value={newBrandName}
+              <FormInput
+                containerClassName="flex-1"
+                value={newBrandName}
                 onChange={e => setNewBrandName(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleCreateBrand(); } }}
-                className={inputClass} placeholder="สร้างแบรนด์ใหม่..." />
+                placeholder="สร้างแบรนด์ใหม่..."
+              />
               <button type="button" onClick={handleCreateBrand} disabled={!newBrandName.trim() || addingBrand}
                 className="px-3 py-2 bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600 text-gray-700 dark:text-slate-300 rounded-lg transition-colors disabled:opacity-50 flex-shrink-0">
                 {addingBrand ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
