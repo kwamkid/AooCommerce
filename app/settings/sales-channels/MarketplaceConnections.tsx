@@ -689,44 +689,46 @@ export default function MarketplaceConnections() {
                           searchThreshold={99}
                         />
                       </div>
-                      <button
+                      <Button
+                        variant="secondary"
+                        icon={<RefreshCw className="w-4 h-4" />}
+                        loading={isSyncing}
+                        disabled={account.connection_status === 'expired'}
                         onClick={() => handleSync(account.id)}
-                        disabled={isSyncing || account.connection_status === 'expired'}
-                        className="px-3 py-2 text-sm font-medium rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50 border border-shopee text-shopee hover:bg-shopee/5"
                       >
-                        <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
                         {isSyncing ? 'กำลัง Sync...' : 'Sync Now'}
-                      </button>
-                      <button
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        icon={<RefreshCw className="w-4 h-4" />}
+                        loading={isSyncing}
+                        disabled={account.connection_status === 'expired'}
                         onClick={() => handleSyncIncomplete(account.id)}
-                        disabled={isSyncing || account.connection_status === 'expired'}
-                        className="px-3 py-2 text-sm font-medium rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50 border border-amber-500 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20"
                       >
-                        <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
                         Sync สถานะค้าง
-                      </button>
-                      <button
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        icon={<Download className="w-4 h-4" />}
+                        disabled={account.connection_status === 'expired'}
                         onClick={() => {
                           const name = account.shop_name || `Shop #${account.shop_id}`;
                           router.push(`/shopee/import?account_id=${account.id}&account_name=${encodeURIComponent(name)}`);
                         }}
-                        disabled={account.connection_status === 'expired'}
-                        className="px-3 py-2 text-sm font-medium rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50 border border-green-500 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20"
                       >
-                        <Download className="w-4 h-4" />
                         นำเข้าสินค้าจาก Shopee
-                      </button>
-                      <button
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        icon={<Upload className="w-4 h-4" />}
+                        disabled={account.connection_status === 'expired'}
                         onClick={() => {
                           const name = account.shop_name || `Shop #${account.shop_id}`;
                           router.push(`/shopee/export?account_id=${account.id}&account_name=${encodeURIComponent(name)}`);
                         }}
-                        disabled={account.connection_status === 'expired'}
-                        className="px-3 py-2 text-sm font-medium rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50 border border-shopee text-shopee hover:bg-shopee/5"
                       >
-                        <Upload className="w-4 h-4" />
                         ส่งสินค้าไป Shopee
-                      </button>
+                      </Button>
                       <button
                         onClick={() => handleDisconnect(account.id)}
                         disabled={isDisconnecting}
@@ -833,14 +835,15 @@ export default function MarketplaceConnections() {
                           searchThreshold={99}
                         />
                       </div>
-                      <button
+                      <Button
+                        variant="secondary"
+                        icon={<RefreshCw className="w-4 h-4" />}
+                        loading={isSyncing}
+                        disabled={account.connection_status === 'expired'}
                         onClick={() => handleTiktokSync(account.id)}
-                        disabled={isSyncing || account.connection_status === 'expired'}
-                        className="px-3 py-2 text-sm font-medium rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50 border border-gray-800 dark:border-white text-gray-800 dark:text-white hover:bg-gray-100 dark:hover:bg-slate-700"
                       >
-                        <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
                         {isSyncing ? 'กำลัง Sync...' : 'Sync Now'}
-                      </button>
+                      </Button>
                       <button
                         onClick={() => handleDisconnect(account.id)}
                         disabled={isDisconnecting}
@@ -920,14 +923,15 @@ export default function MarketplaceConnections() {
                       searchThreshold={99}
                     />
                   </div>
-                  <button
+                  <Button
+                    variant="secondary"
+                    icon={<RefreshCw className="w-4 h-4" />}
+                    loading={isSyncing}
+                    disabled={account.connection_status === 'expired'}
                     onClick={() => handleLazadaSync(account.id)}
-                    disabled={isSyncing || account.connection_status === 'expired'}
-                    className="px-3 py-2 text-sm font-medium rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50 border border-[#0F146E] text-[#0F146E] dark:border-blue-400 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20"
                   >
-                    <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
                     {isSyncing ? 'กำลัง Sync...' : 'Sync Now'}
-                  </button>
+                  </Button>
                 </div>
               </div>
             );
