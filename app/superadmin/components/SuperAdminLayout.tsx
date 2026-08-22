@@ -3,7 +3,7 @@
 import { ReactNode } from 'react';
 import SuperAdminSidebar from './SuperAdminSidebar';
 import { useSuperAdminGuard } from '../hooks/useSuperAdminGuard';
-import { LoadingCard } from '@/components/ui/StateCard';
+import SuperAdminSkeleton from './SuperAdminSkeleton';
 
 interface SuperAdminLayoutProps {
   children: ReactNode;
@@ -15,13 +15,8 @@ export default function SuperAdminLayout({ children, title, subtitle }: SuperAdm
   const { isSuperAdmin, loading } = useSuperAdminGuard();
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-screen bg-slate-950">
-        <div className="w-full max-w-md px-4">
-          <LoadingCard />
-        </div>
-      </div>
-    );
+    // skeleton เต็มโครง shell (sidebar+header+เนื้อหา) — ไม่ใช่การ์ดลอยกลางจอ
+    return <SuperAdminSkeleton />;
   }
 
   if (!isSuperAdmin) {
@@ -29,7 +24,9 @@ export default function SuperAdminLayout({ children, title, subtitle }: SuperAdm
   }
 
   return (
-    <div className="flex h-screen bg-slate-950 overflow-hidden text-base">
+    // `dark` บังคับ dark: variants ของ shared components (LoadingCard/FormInput/Button)
+    // เพราะ shell นี้ทาสี slate เข้มตายตัว ไม่ได้ผูกกับ theme ของแอปหลัก
+    <div className="dark flex h-screen bg-slate-950 overflow-hidden text-base">
       <SuperAdminSidebar />
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}

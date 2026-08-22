@@ -6,7 +6,7 @@ import { useAuth } from '@/lib/auth-context';
 import { apiFetch } from '@/lib/api-client';
 import { ArrowLeft, Printer } from 'lucide-react';
 import Button from '@/components/ui/Button';
-import { LoadingCard } from '@/components/ui/StateCard';
+import { PageSkeleton } from '@/components/ui/Skeleton';
 import QRCode from 'qrcode';
 
 interface ShippingAddress {
@@ -150,10 +150,11 @@ export default function ShippingLabelsPage() {
   };
 
   if (authLoading || loading) {
+    // หน้า print standalone (ไม่มี chrome ของแอป) — วาดโครงเอกสารเต็มความกว้าง ไม่ใช่การ์ดลอยกลางจอ
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="w-full max-w-md px-4">
-          <LoadingCard />
+      <div className="min-h-screen bg-gray-100 dark:bg-slate-900 py-8 px-4">
+        <div className="max-w-3xl mx-auto">
+          <PageSkeleton variant="detail" />
         </div>
       </div>
     );

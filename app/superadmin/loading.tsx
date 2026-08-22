@@ -1,8 +1,8 @@
 // Path: app/superadmin/loading.tsx
 // โครงหน้าระหว่างโหลด — กัน splash เต็มจอของ app/loading.tsx ไม่ให้กระพริบทับ
-// sidebar/header ตอนเปลี่ยนหน้า (ดู components/layout/AppSegmentLoading.tsx)
-import AppSegmentLoading from '@/components/layout/AppSegmentLoading';
+// ใช้ skeleton โทนดำของ superadmin เอง (ไม่ใช่ AppSegmentLoading ที่เป็นธีมสว่างของแอปหลัก)
+import SuperAdminSkeleton from './components/SuperAdminSkeleton';
 
 export default function Loading() {
-  return <AppSegmentLoading variant="dashboard" />;
+  return <SuperAdminSkeleton />;
 }
