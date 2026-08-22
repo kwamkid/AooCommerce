@@ -464,7 +464,7 @@ marketplace_accounts → marketplace_product_links → product_variations
 - **ขาเข้า**: webhook push **code 10 (webchat)** ใน `/api/shopee/webhook` → `processShopeeWebchatPush()` ใน [lib/services/chat/shopee.ts](lib/services/chat/shopee.ts) (retry worker จัดการ code 10 ด้วย) — dedupe ด้วย `message_id`, direction จาก `from_shop_id`
 - **ขาออก**: `ShopeeChatService.sendMessage()` ผ่าน dispatcher เดิม — **ส่งได้แค่ text + รูป** (รูปต้อง upload ผ่าน `sellerchat/upload_image` ≤2MB ก่อน แล้วค่อย send) — sellerchat API wrappers อยู่ [lib/shopee/chat.ts](lib/shopee/chat.ts)
 - **chat_accounts platform 'shopee'** = reference เฉยๆ (`credentials: {marketplace_account_id, shop_id}` — token จริงอยู่ marketplace_accounts + ensureValidToken) — **auto-create ตอน push แรก**, toggle เปิด/ปิดที่ `/settings/chat-channels#shopee` (ปิด → webhook skip) — **ไม่ mirror ไป sales_channels**
-- **เปิดใช้ครั้งแรก**: รัน `node scripts/enable-shopee-webchat-push.mjs --apply` (partner-level, ครั้งเดียวต่อ app) เพื่อเปิด push code 10
+- ⛔ **เปิดใช้จริงไม่ได้แล้วสำหรับ app แบบเรา** (คำตอบ ticket 2026-08-14): นโยบาย Shopee ตั้งแต่ 18 พ.ย. 2024 — **Chat API ให้เฉพาะ app ของ Individual/Registered Business Seller** · Third-party Partner Platform (ประเภทของ app AOO) ขอสิทธิ์ไม่ได้ (`set_app_push_config` code 10 → error_param "determined by your app type") — ดู open.shopee.com/announcements/1026 · ทางเดียวที่เหลือ: จด developer account ในนาม seller + app ของตัวเอง = ต้องรองรับ partner credentials ต่อบริษัท (ยังไม่ทำ) · script `scripts/enable-shopee-webchat-push.mjs` เก็บไว้เผื่อนโยบายเปลี่ยน
 - media url จาก webhook อาจเป็น CDN file id เปล่า → `resolveShopeeCdnUrl()` แปลงเป็น URL เต็ม
 
 ### TikTok Chat — Customer Service API (เพิ่ม 2026-08-21)
