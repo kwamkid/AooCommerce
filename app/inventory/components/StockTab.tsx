@@ -8,6 +8,8 @@ import { useFeatures } from '@/lib/features-context';
 import { Loader2, Search, Package2, Pencil, Eye, EyeOff, ClipboardList, Warehouse, FilterX, Layers } from 'lucide-react';
 import FormSelect from '@/components/ui/FormSelect';
 import NumberInput from '@/components/ui/NumberInput';
+import Badge from '@/components/ui/Badge';
+import { LoadingCard } from '@/components/ui/StateCard';
 import ColumnSettingsDropdown from '@/app/components/ColumnSettingsDropdown';
 import Pagination from '@/app/components/Pagination';
 import AdjustStockModal from './AdjustStockModal';
@@ -370,18 +372,18 @@ export default function StockTab({ warehouses, onViewHistory }: StockTabProps) {
 
   function getStockBadge(item: InventoryItem) {
     if (item.quantity === 0 && item.reserved_quantity === 0) {
-      return <span className="px-2 py-0.5 text-xs rounded-full bg-gray-100 dark:bg-slate-700 text-gray-400 dark:text-slate-500 font-medium">ยังไม่มี</span>;
+      return <Badge tone="gray" size="sm">ยังไม่มี</Badge>;
     }
     if (item.is_out_of_stock) {
-      return <span className="px-2 py-0.5 text-xs rounded-full bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 font-medium">หมด</span>;
+      return <Badge tone="red" size="sm">หมด</Badge>;
     }
     if (item.is_low_stock) {
-      return <span className="px-2 py-0.5 text-xs rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 font-medium">ต่ำ</span>;
+      return <Badge tone="amber" size="sm">ต่ำ</Badge>;
     }
     if (item.min_stock > 0 && item.available <= item.min_stock * 1.5) {
-      return <span className="px-2 py-0.5 text-xs rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 font-medium">ใกล้หมด</span>;
+      return <Badge tone="amber" size="sm">ใกล้หมด</Badge>;
     }
-    return <span className="px-2 py-0.5 text-xs rounded-full bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 font-medium">ปกติ</span>;
+    return <Badge tone="emerald" size="sm">ปกติ</Badge>;
   }
 
   return (
@@ -552,7 +554,7 @@ export default function StockTab({ warehouses, onViewHistory }: StockTabProps) {
 
       {/* Table */}
       {loading ? (
-        <div className="flex items-center justify-center py-16"><Loader2 className="w-6 h-6 text-primary animate-spin" /></div>
+        <LoadingCard />
       ) : displayedItems.length === 0 ? (
         <div className="text-center py-16">
           <Package2 className="w-12 h-12 text-gray-300 dark:text-slate-600 mx-auto mb-3" />

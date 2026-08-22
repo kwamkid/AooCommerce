@@ -32,6 +32,7 @@ import {
 import PushDealModal from './components/PushDealModal';
 import { useFeatures } from '@/lib/features-context';
 import { useToast } from '@/lib/toast-context';
+import { getBadgeColor, getStatusHeaderTint } from '@/lib/status-tab-colors';
 
 // ─── Types ──────────────────────────────────────────────
 
@@ -107,28 +108,8 @@ const TYPE_COLORS: Record<string, { bg: string; text: string; icon: string }> = 
   qty_discount: { bg: 'bg-purple-100 dark:bg-purple-900/30', text: 'text-purple-700 dark:text-purple-400', icon: 'text-purple-500' },
 };
 
-const STATUS_COLORS: Record<string, { bg: string; text: string; headerBg: string }> = {
-  active: {
-    bg: 'bg-green-100 dark:bg-green-900/30',
-    text: 'text-green-700 dark:text-green-400',
-    headerBg: 'bg-green-50 dark:bg-green-900/20',
-  },
-  inactive: {
-    bg: 'bg-gray-100 dark:bg-slate-700',
-    text: 'text-gray-600 dark:text-slate-400',
-    headerBg: 'bg-gray-50 dark:bg-slate-700/50',
-  },
-  scheduled: {
-    bg: 'bg-blue-100 dark:bg-blue-900/30',
-    text: 'text-blue-700 dark:text-blue-400',
-    headerBg: 'bg-blue-50 dark:bg-blue-900/20',
-  },
-  expired: {
-    bg: 'bg-red-100 dark:bg-red-900/30',
-    text: 'text-red-600 dark:text-red-400',
-    headerBg: 'bg-red-50 dark:bg-red-900/20',
-  },
-};
+// สีสถานะ (active/inactive/scheduled/expired) มาจาก getBadgeColor/getStatusHeaderTint
+// ผ่าน STATUS_KEY_ALIASES ใน lib/status-tab-colors.ts — ห้ามเขียนสีเองที่นี่
 
 const STATUS_LABELS: Record<string, string> = {
   active: 'ใช้งาน',
@@ -149,9 +130,9 @@ function TypeBadge({ type }: { type: string }) {
 }
 
 function StatusBadge({ status }: { status: string }) {
-  const cfg = STATUS_COLORS[status] || STATUS_COLORS.inactive;
+  const cfg = getBadgeColor(status);
   return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${cfg.bg} ${cfg.text}`}>
+    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${cfg.bg} ${cfg.color}`}>
       {STATUS_LABELS[status] || status}
     </span>
   );
@@ -220,7 +201,7 @@ function PromotionCard({
   /** ร้านเปิดฟีเจอร์ marketplace อยู่ไหม — ปิดแล้วห้ามโชว์อะไรที่เป็น Shopee เลย */
   showMarketplace?: boolean;
 }) {
-  const statusCfg = STATUS_COLORS[promo.status] || STATUS_COLORS.inactive;
+  const headerTint = getStatusHeaderTint(promo.status);
   const hasShopeeDeals = showMarketplace && (promo.marketplace_deals || []).length > 0;
 
   // Check if local promotion was updated after the last Shopee sync
@@ -248,7 +229,7 @@ function PromotionCard({
       className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 hover:border-primary/40 dark:hover:border-primary/40 hover:shadow-md transition-all cursor-pointer"
     >
       {/* Header bar */}
-      <div className={`flex items-center gap-2 px-4 py-2.5 ${statusCfg.headerBg}`}>
+      <div className={`flex items-center gap-2 px-4 py-2.5 ${headerTint.bg}`}>
         <div className="flex-1 min-w-0 flex items-center gap-2">
           {(() => {
             const tc = TYPE_COLORS[promo.promotion_type] || TYPE_COLORS.bundle_set;
@@ -259,7 +240,7 @@ function PromotionCard({
               </span>
             );
           })()}
-          <span className={`font-semibold text-base truncate ${statusCfg.text}`}>
+          <span className={`font-semibold text-base truncate ${headerTint.text}`}>
             {promo.name}
           </span>
           {(promo.start_date || promo.end_date) && (

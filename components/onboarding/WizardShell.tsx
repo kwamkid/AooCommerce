@@ -43,9 +43,13 @@ function useWizardCompanyPreview(): { name: string; logoDataUrl: string | null }
   // company step writes its form to sessionStorage. The cheap path is the
   // initial-mount read; a 1s poll catches changes from other routes.
   useEffect(() => {
+    // จำ raw ล่าสุดไว้ — poll เจอค่าเดิมต้องไม่ setState (เดิม re-render ทุกวินาทีตลอด onboarding)
+    let lastRaw: string | null = Symbol as unknown as string; // sentinel ต่างจากทุกค่า
     const read = () => {
       try {
         const raw = sessionStorage.getItem(WIZARD_KEYS.company);
+        if (raw === lastRaw) return;
+        lastRaw = raw;
         if (!raw) {
           setPreview({ name: '', logoDataUrl: null });
           return;

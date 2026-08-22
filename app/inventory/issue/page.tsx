@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import FormSelect from '@/components/ui/FormSelect';
+import { LoadingCard } from '@/components/ui/StateCard';
 import ItemsTable, { type TableItem } from '@/components/ui/ItemsTable';
 import type { ProductSearchItem } from '@/components/ui/ProductSearchInput';
 import StickyActionBar from '@/components/ui/StickyActionBar';
@@ -221,9 +222,7 @@ export default function StockIssuePage() {
   if (authLoading) {
     return (
       <Layout title="เบิกออกสินค้า" breadcrumbs={[{ label: 'คลังสินค้า', href: '/inventory' }, { label: 'รายการเบิกออก', href: '/inventory/issues' }, { label: 'เบิกออกสินค้า' }]}>
-        <div className="flex items-center justify-center py-16">
-          <Loader2 className="w-6 h-6 text-primary animate-spin" />
-        </div>
+        <LoadingCard />
       </Layout>
     );
   }

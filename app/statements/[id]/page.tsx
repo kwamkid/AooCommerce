@@ -13,6 +13,7 @@ import {
 import { showPdfPreview } from '@/lib/print-pdf';
 import { generateStatementPdf } from '@/lib/statement-pdf';
 import { LoadingCard } from '@/components/ui/StateCard';
+import { getBadgeColor } from '@/lib/status-tab-colors';
 
 interface StatementDetail {
   id: string;
@@ -70,11 +71,11 @@ interface Payment {
 }
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
-  draft:          { label: 'แบบร่าง',     color: 'text-gray-600',   bg: 'bg-gray-100' },
-  sent:           { label: 'รอชำระ',      color: 'text-blue-700',   bg: 'bg-blue-100' },
-  partially_paid: { label: 'ชำระบางส่วน', color: 'text-amber-700',  bg: 'bg-amber-100' },
-  paid:           { label: 'ชำระแล้ว',    color: 'text-green-700',  bg: 'bg-green-100' },
-  overdue:        { label: 'เกินกำหนด',   color: 'text-red-700',    bg: 'bg-red-100' },
+  draft:          { label: 'แบบร่าง',     ...getBadgeColor('draft') },
+  sent:           { label: 'รอชำระ',      ...getBadgeColor('sent') },
+  partially_paid: { label: 'ชำระบางส่วน', ...getBadgeColor('partially_paid') },
+  paid:           { label: 'ชำระแล้ว',    ...getBadgeColor('paid') },
+  overdue:        { label: 'เกินกำหนด',   ...getBadgeColor('overdue') },
 };
 
 const THAI_MONTHS = ['', 'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',

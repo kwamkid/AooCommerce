@@ -4,11 +4,12 @@
 import { formatPrice } from '@/lib/utils/format';
 import { useCopy } from '@/lib/useCopy';
 import { useToast } from '@/lib/toast-context';
+import { getBadgeColor, getStatusHeaderTint } from '@/lib/status-tab-colors';
 import { Eye, Printer, Ban, Loader2, Package, Store, Tag } from 'lucide-react';
 
 const ORDER_STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; headerBg: string; headerText: string }> = {
-  completed: { label: 'สำเร็จ', color: 'text-green-700 dark:text-green-300', bg: 'bg-green-100 dark:bg-green-900/40', headerBg: 'bg-green-50 dark:bg-green-950/40', headerText: 'text-green-800 dark:text-green-200' },
-  cancelled: { label: 'Void', color: 'text-gray-600 dark:text-gray-400', bg: 'bg-gray-100 dark:bg-gray-700/40', headerBg: 'bg-gray-50 dark:bg-gray-800/40', headerText: 'text-gray-600 dark:text-gray-300' },
+  completed: { label: 'สำเร็จ', ...getBadgeColor('completed'), headerBg: getStatusHeaderTint('completed').bg, headerText: getStatusHeaderTint('completed').text },
+  cancelled: { label: 'Void', ...getBadgeColor('cancelled'), headerBg: getStatusHeaderTint('cancelled').bg, headerText: getStatusHeaderTint('cancelled').text },
 };
 
 export const PAYMENT_LABELS: Record<string, string> = {

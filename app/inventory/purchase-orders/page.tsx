@@ -16,8 +16,9 @@ import DataTable from '@/components/ui/DataTable';
 import FormSelect from '@/components/ui/FormSelect';
 import ActionMenu, { ActionItem } from '@/components/ui/ActionMenu';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
+import { LoadingCard } from '@/components/ui/StateCard';
 import {
-  Loader2, Plus, Search, ClipboardList, Factory, Warehouse,
+  Plus, Search, ClipboardList, Factory, Warehouse,
   CheckCircle2, Clock, Package, XCircle, Send, Pencil, Printer, Link2, Ban, Lock, AlertTriangle,
 } from 'lucide-react';
 
@@ -270,7 +271,7 @@ export default function PurchaseOrdersPage() {
   if (authLoading || loading) {
     return (
       <Layout title="ใบสั่งซื้อ (PO)" breadcrumbs={[{ label: 'คลังสินค้า', href: '/inventory' }, { label: 'ใบสั่งซื้อ (PO)' }]}>
-        <div className="flex items-center justify-center py-16"><Loader2 className="w-6 h-6 text-primary animate-spin" /></div>
+        <LoadingCard />
       </Layout>
     );
   }

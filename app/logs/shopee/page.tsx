@@ -27,6 +27,7 @@ import {
 import FormSelect from '@/components/ui/FormSelect';
 import { useMarketplaceGuard } from '@/lib/useMarketplaceGuard';
 import { LoadingCard } from '@/components/ui/StateCard';
+import { getBadgeColor } from '@/lib/status-tab-colors';
 
 interface IntegrationLog {
   id: string;
@@ -111,19 +112,25 @@ function formatDuration(ms: number | null): string {
 }
 
 // --- Extract Shopee status from webhook payload or reference_label ---
-const SHOPEE_STATUS_MAP: Record<string, { label: string; color: string }> = {
-  UNPAID:         { label: 'รอชำระ',       color: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' },
-  READY_TO_SHIP:  { label: 'พร้อมส่ง',     color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' },
-  PROCESSED:      { label: 'กำลังดำเนินการ', color: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400' },
-  SHIPPED:        { label: 'จัดส่งแล้ว',   color: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400' },
-  COMPLETED:      { label: 'สำเร็จ',       color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' },
-  CANCELLED:      { label: 'ยกเลิก',       color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' },
-  IN_CANCEL:      { label: 'กำลังยกเลิก',  color: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' },
-  INVOICE_PENDING:{ label: 'รอออกใบแจ้งหนี้', color: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400' },
-  TO_CONFIRM_RECEIVE: { label: 'รอยืนยันรับ', color: 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400' },
-  TO_RETURN:      { label: 'คืนสินค้า',     color: 'bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-400' },
-  RETRY_SHIP:     { label: 'จัดส่งซ้ำ',     color: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' },
+// สี badge มาจาก getBadgeColor — Shopee status keys เป็น alias ใน lib/status-tab-colors.ts
+const SHOPEE_STATUS_LABELS: Record<string, string> = {
+  UNPAID:             'รอชำระ',
+  READY_TO_SHIP:      'พร้อมส่ง',
+  PROCESSED:          'กำลังดำเนินการ',
+  SHIPPED:            'จัดส่งแล้ว',
+  COMPLETED:          'สำเร็จ',
+  CANCELLED:          'ยกเลิก',
+  IN_CANCEL:          'กำลังยกเลิก',
+  INVOICE_PENDING:    'รอออกใบแจ้งหนี้',
+  TO_CONFIRM_RECEIVE: 'รอยืนยันรับ',
+  TO_RETURN:          'คืนสินค้า',
+  RETRY_SHIP:         'จัดส่งซ้ำ',
 };
+
+function shopeeStatusBadge(status: string): { label: string; color: string } {
+  const c = getBadgeColor(status); // unknown status → gray fallback
+  return { label: SHOPEE_STATUS_LABELS[status] || status, color: `${c.bg} ${c.color}` };
+}
 
 function extractShopeeStatus(log: IntegrationLog): string | null {
   // Try from request_body.data.status (webhook payload)
@@ -476,7 +483,7 @@ function LogRow({
   productMap: Record<string, string>;
 }) {
   const shopeeStatus = extractShopeeStatus(log);
-  const statusInfo = shopeeStatus ? SHOPEE_STATUS_MAP[shopeeStatus] : null;
+  const statusInfo = shopeeStatus ? shopeeStatusBadge(shopeeStatus) : null;
   const displayLabel = getOrderDisplayLabel(log);
   const orderUuid = log.reference_id ? orderMap[log.reference_id] : undefined;
   const productInfo = getProductInfo(log, productMap);
@@ -534,9 +541,9 @@ function LogRow({
           )}
         </td>
         <td className="px-6 py-4">
-          {shopeeStatus ? (
-            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${statusInfo?.color || 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400'}`}>
-              {statusInfo?.label || shopeeStatus}
+          {statusInfo ? (
+            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${statusInfo.color}`}>
+              {statusInfo.label}
             </span>
           ) : (
             <span className="text-gray-400">-</span>
@@ -577,7 +584,7 @@ function MobileLogCard({
   productMap: Record<string, string>;
 }) {
   const shopeeStatus = extractShopeeStatus(log);
-  const statusInfo = shopeeStatus ? SHOPEE_STATUS_MAP[shopeeStatus] : null;
+  const statusInfo = shopeeStatus ? shopeeStatusBadge(shopeeStatus) : null;
   const displayLabel = getOrderDisplayLabel(log);
   const orderUuid = log.reference_id ? orderMap[log.reference_id] : undefined;
   const productInfo = getProductInfo(log, productMap);
@@ -620,9 +627,9 @@ function MobileLogCard({
             ) : log.reference_label ? (
               <span className="text-xs text-gray-500 dark:text-slate-400">{log.reference_label}</span>
             ) : null}
-            {shopeeStatus && (
-              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${statusInfo?.color || 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400'}`}>
-                {statusInfo?.label || shopeeStatus}
+            {statusInfo && (
+              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${statusInfo.color}`}>
+                {statusInfo.label}
               </span>
             )}
           </div>

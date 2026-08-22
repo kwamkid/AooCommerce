@@ -6,6 +6,7 @@ import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { Languages, Plus, Edit2, Trash2, Loader2, X, Download, Search, ToggleLeft, ToggleRight } from 'lucide-react';
+import { LoadingCard } from '@/components/ui/StateCard';
 
 // ─── Types ──────────────────────────────────────────────
 
@@ -275,9 +276,7 @@ export default function SuperAdminErrorTranslations() {
 
         {/* Table */}
         {loading ? (
-          <div className="flex items-center justify-center py-20">
-            <Loader2 className="w-6 h-6 text-violet-400 animate-spin" />
-          </div>
+          <LoadingCard />
         ) : filtered.length === 0 ? (
           <div className="text-center py-20">
             <Languages className="w-12 h-12 text-slate-600 mx-auto mb-3" />

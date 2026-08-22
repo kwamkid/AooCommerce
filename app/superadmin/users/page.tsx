@@ -4,7 +4,8 @@ import { useState, useEffect, useCallback } from 'react';
 import SuperAdminLayout from '../components/SuperAdminLayout';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
-import { Search, Users, Loader2, ChevronLeft, ChevronRight, Shield } from 'lucide-react';
+import { Search, Users, ChevronLeft, ChevronRight, Shield } from 'lucide-react';
+import { LoadingCard } from '@/components/ui/StateCard';
 
 interface UserItem {
   id: string;
@@ -72,7 +73,7 @@ export default function SuperAdminUsers() {
         </div>
 
         {loading ? (
-          <div className="flex items-center justify-center py-16"><Loader2 className="w-6 h-6 text-violet-500 animate-spin" /></div>
+          <LoadingCard />
         ) : users.length === 0 ? (
           <div className="text-center py-16">
             <Users className="w-12 h-12 text-slate-600 mx-auto mb-3" />

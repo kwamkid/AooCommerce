@@ -3,7 +3,7 @@
 import { ReactNode } from 'react';
 import SuperAdminSidebar from './SuperAdminSidebar';
 import { useSuperAdminGuard } from '../hooks/useSuperAdminGuard';
-import { Loader2 } from 'lucide-react';
+import { LoadingCard } from '@/components/ui/StateCard';
 
 interface SuperAdminLayoutProps {
   children: ReactNode;
@@ -17,7 +17,9 @@ export default function SuperAdminLayout({ children, title, subtitle }: SuperAdm
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen bg-slate-950">
-        <Loader2 className="w-8 h-8 text-violet-500 animate-spin" />
+        <div className="w-full max-w-md px-4">
+          <LoadingCard />
+        </div>
       </div>
     );
   }

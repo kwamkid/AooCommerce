@@ -6,7 +6,8 @@ import { apiFetch } from '@/lib/api-client';
 import { formatNumber } from '@/lib/utils/format';
 import { useToast } from '@/lib/toast-context';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
-import { Package, Plus, Edit2, Trash2, Users, Loader2, X } from 'lucide-react';
+import { Package, Plus, Edit2, Trash2, Users, X } from 'lucide-react';
+import { LoadingCard } from '@/components/ui/StateCard';
 
 interface PackageItem {
   id: string;
@@ -170,7 +171,7 @@ export default function SuperAdminPackages() {
         </div>
 
         {loading ? (
-          <div className="flex items-center justify-center py-16"><Loader2 className="w-6 h-6 text-violet-500 animate-spin" /></div>
+          <LoadingCard />
         ) : packages.length === 0 ? (
           <div className="text-center py-16">
             <Package className="w-12 h-12 text-slate-600 mx-auto mb-3" />

@@ -8,7 +8,6 @@ import { useToast } from '@/lib/toast-context';
 import Pagination from '@/app/components/Pagination';
 import {
   Search,
-  Loader2,
   ChevronDown,
   ChevronUp,
   CheckCircle2,
@@ -22,6 +21,7 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import FormSelect from '@/components/ui/FormSelect';
+import { LoadingCard } from '@/components/ui/StateCard';
 
 // ─── Types ──────────────────────────────────────────────
 
@@ -151,9 +151,10 @@ export default function SuperAdminApiLogs() {
 
   useEffect(() => { fetchLogs(); }, [fetchLogs]);
 
-  // Auto refresh every 30s
+  // Auto refresh every 30s — ข้ามตอน tab ไม่ได้เปิดอยู่ กันยิง API ทิ้งเปล่า
   useEffect(() => {
     autoRefreshRef.current = setInterval(() => {
+      if (document.hidden) return;
       fetchLogs(true); // silent refresh
     }, 30000);
     return () => {
@@ -299,9 +300,7 @@ export default function SuperAdminApiLogs() {
 
         {/* Content */}
         {loading ? (
-          <div className="flex items-center justify-center py-16">
-            <Loader2 className="w-6 h-6 text-violet-500 animate-spin" />
-          </div>
+          <LoadingCard />
         ) : logs.length === 0 ? (
           <div className="text-center py-16">
             <Activity className="w-12 h-12 text-slate-600 mx-auto mb-3" />

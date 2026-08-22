@@ -213,9 +213,7 @@ function EditReportContent() {
   // ─── Load products (always — for images) + stock + GP (only if editable) ────
 
   useEffect(() => {
-    if (!report) return;
-
-    // Load products (always — needed for images even in read-only mode)
+    // โหลด catalog ขนานกับ report เลย — เดิม gate ด้วย !report ทั้งที่ fetch ไม่ได้ใช้ report (waterfall ฟรี ~1 RTT)
     setLoadingProducts(true);
     apiFetch('/api/products?limit=9999&active=true')
       .then(r => r.json())
@@ -259,7 +257,7 @@ function EditReportContent() {
       })
       .catch(() => {})
       .finally(() => setLoadingProducts(false));
-  }, [report?.id]);
+  }, []);
 
   // Enrich items with images + correct base prices from products API
   // Depend on both products and items length to handle race condition

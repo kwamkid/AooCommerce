@@ -243,7 +243,10 @@ function OrdersPageContent() {
 
       const params = new URLSearchParams();
       params.set('page', currentPage.toString());
-      params.set('limit', recordsPerPage.toString());
+      // แท็บ ready_to_ship/processing ลูก (Tab component) ดึง list ของตัวเอง —
+      // fetch ของ parent ใช้แค่ counts + empty gate → ขอ 1 แถวพอ ไม่ต้องแบก payload เต็มหน้า
+      const tabFetchesOwnList = statusFilter === 'ready_to_ship' || statusFilter === 'processing';
+      params.set('limit', tabFetchesOwnList ? '1' : recordsPerPage.toString());
       params.set('sort_by', sortBy);
       params.set('sort_dir', sortDir);
       params.set('source', 'exclude_pos');

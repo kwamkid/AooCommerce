@@ -14,6 +14,7 @@ import { showPdfPreview } from '@/lib/print-pdf';
 import DataTable from '@/components/ui/DataTable';
 import FormSelect from '@/components/ui/FormSelect';
 import ActionMenu from '@/components/ui/ActionMenu';
+import { LoadingCard } from '@/components/ui/StateCard';
 import {
   Loader2, ArrowUpFromLine, Plus, Warehouse, Eye, Search,
   CheckCircle2, XCircle, Printer, User,
@@ -129,7 +130,7 @@ export default function IssueListPage() {
   if (authLoading || loading) {
     return (
       <Layout title="รายการเบิกออก" breadcrumbs={[{ label: 'คลังสินค้า', href: '/inventory' }, { label: 'รายการเบิกออก' }]}>
-        <div className="flex items-center justify-center py-16"><Loader2 className="w-6 h-6 text-primary animate-spin" /></div>
+        <LoadingCard />
       </Layout>
     );
   }

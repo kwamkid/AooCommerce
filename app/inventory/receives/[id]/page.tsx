@@ -8,7 +8,7 @@ import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
 import { generateInventoryPdf } from '@/lib/inventory-pdf';
 import { showPdfPreview } from '@/lib/print-pdf';
-import { Loader2, Warehouse, Package, ArrowLeft, User, CheckCircle2, XCircle, Printer } from 'lucide-react';
+import { Warehouse, Package, ArrowLeft, User, CheckCircle2, XCircle, Printer } from 'lucide-react';
 import { flattenVariationItem, productDisplayName } from '../../components/types';
 import ItemsTable, { type TableItem } from '@/components/ui/ItemsTable';
 import Button from '@/components/ui/Button';
@@ -156,7 +156,7 @@ function ReceiveDetailPageContent() {
   if (authLoading || loading) {
     return (
       <Layout title="แก้ไขใบรับเข้า" breadcrumbs={[{ label: 'คลังสินค้า', href: '/inventory' }, { label: 'รายการรับเข้า', href: '/inventory/receives' }, { label: 'แก้ไข' }]}>
-        <div className="flex items-center justify-center py-16"><Loader2 className="w-6 h-6 text-primary animate-spin" /></div>
+        <LoadingCard />
       </Layout>
     );
   }

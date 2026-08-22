@@ -5,6 +5,7 @@ import { apiFetch } from '@/lib/api-client';
 import DateRangePicker, { DateValueType } from '@/components/ui/DateRangePicker';
 import FormSelect from '@/components/ui/FormSelect';
 import Pagination from '@/app/components/Pagination';
+import { LoadingCard } from '@/components/ui/StateCard';
 import {
   Loader2, RefreshCw, Package, ArrowDownToLine, ArrowUpFromLine,
   ArrowLeftRight, Bookmark, BookmarkX, Settings2, RotateCcw,
@@ -231,9 +232,7 @@ export default function MonitorTab({ warehouses }: MonitorTabProps) {
         </div>
 
         {summaryLoading && summary.length === 0 ? (
-          <div className="flex items-center justify-center py-8">
-            <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
-          </div>
+          <LoadingCard compact />
         ) : summary.length === 0 ? (
           <div className="text-center py-6 text-gray-400 dark:text-slate-500 text-sm">
             ยังไม่มีรายการเคลื่อนไหววันนี้

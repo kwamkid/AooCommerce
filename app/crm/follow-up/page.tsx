@@ -32,6 +32,14 @@ import Pagination from '@/app/components/Pagination';
 import ColumnSettingsDropdown from '@/app/components/ColumnSettingsDropdown';
 import FormSelect from '@/components/ui/FormSelect';
 import { LoadingCard } from '@/components/ui/StateCard';
+import { getBadgeColor } from '@/lib/status-tab-colors';
+
+// Order status labels for the history modal (colors come from getBadgeColor)
+const ORDER_STATUS_LABELS: Record<string, string> = {
+  new: 'ใหม่',
+  shipping: 'กำลังส่ง',
+  completed: 'สำเร็จ',
+};
 
 // Column toggle system
 type ColumnKey = 'customer' | 'type' | 'lastOrder' | 'daysSince' | 'frequency' | 'totalOrders' | 'totalSpent' | 'actions';
@@ -777,12 +785,8 @@ export default function CRMFollowUpPage() {
                       gap = Math.round((d1 - d2) / (1000 * 60 * 60 * 24));
                     }
 
-                    const statusConfig: Record<string, { label: string; color: string }> = {
-                      new: { label: 'ใหม่', color: 'bg-blue-100 text-blue-700' },
-                      shipping: { label: 'กำลังส่ง', color: 'bg-yellow-100 text-yellow-700' },
-                      completed: { label: 'สำเร็จ', color: 'bg-green-100 text-green-700' },
-                    };
-                    const status = statusConfig[order.order_status] || { label: order.order_status, color: 'bg-gray-100 text-gray-700' };
+                    const statusBadge = getBadgeColor(order.order_status);
+                    const statusLabel = ORDER_STATUS_LABELS[order.order_status] || order.order_status;
 
                     return (
                       <div key={idx}>
@@ -792,7 +796,7 @@ export default function CRMFollowUpPage() {
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2">
                               <span className="text-sm font-medium text-gray-900 dark:text-white">{order.order_number}</span>
-                              <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${status.color}`}>{status.label}</span>
+                              <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${statusBadge.bg} ${statusBadge.color}`}>{statusLabel}</span>
                             </div>
                             <div className="text-xs text-gray-500 dark:text-slate-400">
                               {new Date(order.order_date).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' })}

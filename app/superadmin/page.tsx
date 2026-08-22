@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react';
 import SuperAdminLayout from './components/SuperAdminLayout';
 import { apiFetch } from '@/lib/api-client';
-import { Users, Building2, Package, Loader2 } from 'lucide-react';
+import { Users, Building2, Package } from 'lucide-react';
+import { LoadingCard } from '@/components/ui/StateCard';
 
 interface Stats {
   totalUsers: number;
@@ -34,9 +35,7 @@ export default function SuperAdminDashboard() {
   return (
     <SuperAdminLayout title="Dashboard" subtitle="ภาพรวมระบบทั้งหมด">
       {loading ? (
-        <div className="flex items-center justify-center py-20">
-          <Loader2 className="w-6 h-6 text-violet-500 animate-spin" />
-        </div>
+        <LoadingCard />
       ) : stats ? (
         <div className="space-y-6">
           {/* Stat Cards */}

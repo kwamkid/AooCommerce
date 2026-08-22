@@ -10,7 +10,8 @@ import { apiFetch } from '@/lib/api-client';
 import type { ProductSearchItem } from '@/components/ui/ProductSearchInput';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import type { DateValueType } from '@/components/ui/DateRangePicker';
-import { Loader2, ClipboardList, CheckCircle2, FileText } from 'lucide-react';
+import { ClipboardList, CheckCircle2, FileText } from 'lucide-react';
+import { LoadingCard } from '@/components/ui/StateCard';
 
 import type { EditItem, Supplier, WarehouseItem } from '../purchase-orders/components/types';
 import { formatCurrency } from '../purchase-orders/components/types';
@@ -171,7 +172,7 @@ export default function CreatePurchaseOrderPage() {
   if (authLoading || loading) {
     return (
       <Layout title="สร้างใบสั่งซื้อ (PO)" breadcrumbs={[{ label: 'คลังสินค้า', href: '/inventory' }, { label: 'ใบสั่งซื้อ', href: '/inventory/purchase-orders' }, { label: 'สร้างใหม่' }]}>
-        <div className="flex items-center justify-center py-16"><Loader2 className="w-6 h-6 text-primary animate-spin" /></div>
+        <LoadingCard />
       </Layout>
     );
   }

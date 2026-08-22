@@ -11,12 +11,14 @@ import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
 import { generateInventoryPdf } from '@/lib/inventory-pdf';
 import { showPdfPreview } from '@/lib/print-pdf';
+import { getBadgeColor } from '@/lib/status-tab-colors';
 import DataTable from '@/components/ui/DataTable';
 import FormSelect from '@/components/ui/FormSelect';
 import ActionMenu from '@/components/ui/ActionMenu';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import StatusTabs from '@/components/ui/StatusTabs';
 import ProductImageThumb from '@/components/ui/ProductImageThumb';
+import { LoadingCard } from '@/components/ui/StateCard';
 import {
   Loader2, ArrowRightLeft, Plus, Warehouse, Eye, Printer, User,
   CheckCircle2, Clock, XCircle, AlertTriangle, Truck, Search, Ban,
@@ -38,12 +40,14 @@ interface Transfer {
   items: { id: string }[];
 }
 
+// สีจากคลังกลาง lib/status-tab-colors — 'received' ของ transfer = สำเร็จ จึง map ไป 'completed'
+// (key 'received' ในคลังกลางเป็นของ consignment "รอยืนยัน" คนละความหมาย)
 const STATUS_MAP: Record<string, { label: string; color: string; icon: React.ComponentType<any> }> = {
-  pending: { label: 'ที่ต้องจัดส่ง', color: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400', icon: Clock },
-  shipping: { label: 'กำลังส่ง', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400', icon: Truck },
-  pending_confirm: { label: 'รอยืนยัน', color: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400', icon: AlertTriangle },
-  received: { label: 'รับสินค้าแล้ว', color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400', icon: CheckCircle2 },
-  cancelled: { label: 'ยกเลิก', color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400', icon: XCircle },
+  pending: { label: 'ที่ต้องจัดส่ง', color: `${getBadgeColor('pending').bg} ${getBadgeColor('pending').color}`, icon: Clock },
+  shipping: { label: 'กำลังส่ง', color: `${getBadgeColor('shipping').bg} ${getBadgeColor('shipping').color}`, icon: Truck },
+  pending_confirm: { label: 'รอยืนยัน', color: `${getBadgeColor('pending_confirm').bg} ${getBadgeColor('pending_confirm').color}`, icon: AlertTriangle },
+  received: { label: 'รับสินค้าแล้ว', color: `${getBadgeColor('completed').bg} ${getBadgeColor('completed').color}`, icon: CheckCircle2 },
+  cancelled: { label: 'ยกเลิก', color: `${getBadgeColor('cancelled').bg} ${getBadgeColor('cancelled').color}`, icon: XCircle },
 };
 
 
@@ -211,9 +215,7 @@ export default function TransferListPage() {
         title="รายการโอนย้ายสินค้า"
         breadcrumbs={[{ label: 'คลังสินค้า', href: '/inventory' }, { label: 'รายการโอนย้าย' }]}
       >
-        <div className="flex items-center justify-center py-16">
-          <Loader2 className="w-6 h-6 text-primary animate-spin" />
-        </div>
+        <LoadingCard />
       </Layout>
     );
   }

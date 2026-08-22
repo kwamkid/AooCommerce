@@ -1,6 +1,7 @@
 'use client';
 
 import { ArrowLeft } from 'lucide-react';
+import { LoadingCard } from '@/components/ui/StateCard';
 import { usePromotionForm } from './promotion-form/usePromotionForm';
 import GeneralInfoCard from './promotion-form/GeneralInfoCard';
 import BundleSetSection from './promotion-form/BundleSetSection';
@@ -14,11 +15,7 @@ export default function PromotionForm({ promotionId }: { promotionId?: string })
   const { router, isEdit, form, setForm, loadingPromo } = hook;
 
   if (loadingPromo) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
-      </div>
-    );
+    return <LoadingCard />;
   }
 
   const isBuyGet = form.promotion_type === 'buy_get_free' || form.promotion_type === 'buy_get_discount';

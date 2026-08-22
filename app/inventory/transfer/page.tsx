@@ -10,6 +10,7 @@ import {
   Loader2, FileText, ArrowRightLeft, AlertTriangle, Star, Warehouse,
 } from 'lucide-react';
 import FormSelect from '@/components/ui/FormSelect';
+import { LoadingCard } from '@/components/ui/StateCard';
 import ItemsTable, { type TableItem } from '@/components/ui/ItemsTable';
 import type { ProductSearchItem } from '@/components/ui/ProductSearchInput';
 import StickyActionBar from '@/components/ui/StickyActionBar';
@@ -281,9 +282,7 @@ export default function StockTransferPage() {
   if (authLoading || loading) {
     return (
       <Layout title="โอนย้ายสินค้า" breadcrumbs={[{ label: 'คลังสินค้า', href: '/inventory' }, { label: 'รายการโอนย้าย', href: '/inventory/transfers' }, { label: 'สร้างใบโอนย้าย' }]}>
-        <div className="flex items-center justify-center py-16">
-          <Loader2 className="w-6 h-6 text-primary animate-spin" />
-        </div>
+        <LoadingCard />
       </Layout>
     );
   }

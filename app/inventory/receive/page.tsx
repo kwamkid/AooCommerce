@@ -7,8 +7,9 @@ import { useAuth } from '@/lib/auth-context';
 import { useFeatures } from '@/lib/features-context';
 import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
-import { Loader2, Package2, Warehouse, FileText, CheckCircle2, ClipboardList, Star, Plus, AlertTriangle } from 'lucide-react';
+import { Package2, Warehouse, FileText, CheckCircle2, ClipboardList, Star, Plus, AlertTriangle } from 'lucide-react';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
+import { LoadingCard } from '@/components/ui/StateCard';
 import FormSelect from '@/components/ui/FormSelect';
 import EntitySearchInput from '@/components/ui/EntitySearchInput';
 import ItemsTable, { type TableItem } from '@/components/ui/ItemsTable';
@@ -320,9 +321,7 @@ export default function StockReceivePage() {
   if (authLoading || loading) {
     return (
       <Layout title="รับเข้าสินค้า" breadcrumbs={[{ label: 'คลังสินค้า', href: '/inventory' }, { label: 'รายการรับเข้า', href: '/inventory/receives' }, { label: 'รับเข้าสินค้า' }]}>
-        <div className="flex items-center justify-center py-16">
-          <Loader2 className="w-6 h-6 text-primary animate-spin" />
-        </div>
+        <LoadingCard />
       </Layout>
     );
   }

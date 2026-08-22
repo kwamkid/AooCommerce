@@ -4,7 +4,8 @@ import { useState, useEffect, useCallback } from 'react';
 import SuperAdminLayout from '../components/SuperAdminLayout';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
-import { Search, Building2, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, Building2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { LoadingCard } from '@/components/ui/StateCard';
 import FormSelect from '@/components/ui/FormSelect';
 
 interface Company {
@@ -137,7 +138,7 @@ export default function SuperAdminCompanies() {
         </div>
 
         {loading ? (
-          <div className="flex items-center justify-center py-16"><Loader2 className="w-6 h-6 text-violet-500 animate-spin" /></div>
+          <LoadingCard />
         ) : companies.length === 0 ? (
           <div className="text-center py-16">
             <Building2 className="w-12 h-12 text-slate-600 mx-auto mb-3" />

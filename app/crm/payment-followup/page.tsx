@@ -29,6 +29,7 @@ import {
 import Pagination from '@/app/components/Pagination';
 import ColumnSettingsDropdown from '@/app/components/ColumnSettingsDropdown';
 import { LoadingCard } from '@/components/ui/StateCard';
+import { getBadgeColor, getPaymentBadgeColor } from '@/lib/status-tab-colors';
 
 // Column toggle system
 type ColumnKey = 'customer' | 'daysOverdue' | 'orderCount' | 'dateRange' | 'totalPending' | 'actions';
@@ -166,32 +167,34 @@ function AgingBadge({ days }: { days: number }) {
 }
 
 // Order status badge
+const ORDER_STATUS_LABELS: Record<string, string> = {
+  new: 'ใหม่',
+  shipping: 'กำลังส่ง',
+  completed: 'ส่งแล้ว',
+};
+
 function OrderStatusBadge({ status }: { status: string }) {
-  const statusConfig: Record<string, { label: string; color: string }> = {
-    new: { label: 'ใหม่', color: 'bg-blue-100 text-blue-700' },
-    shipping: { label: 'กำลังส่ง', color: 'bg-yellow-100 text-yellow-700' },
-    completed: { label: 'ส่งแล้ว', color: 'bg-green-100 text-green-700' }
-  };
-  const config = statusConfig[status] || { label: status, color: 'bg-gray-100 text-gray-700' };
+  const badge = getBadgeColor(status);
 
   return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${config.color}`}>
-      {config.label}
+    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${badge.bg} ${badge.color}`}>
+      {ORDER_STATUS_LABELS[status] || status}
     </span>
   );
 }
 
 // Payment status badge
+const PAYMENT_STATUS_LABELS: Record<string, string> = {
+  pending: 'รอชำระ',
+  verifying: 'รอตรวจสอบ',
+};
+
 function PaymentStatusBadge({ status }: { status: string }) {
-  const statusConfig: Record<string, { label: string; color: string }> = {
-    pending: { label: 'รอชำระ', color: 'bg-orange-100 text-orange-700' },
-    verifying: { label: 'รอตรวจสอบ', color: 'bg-purple-100 text-purple-700' },
-  };
-  const config = statusConfig[status] || { label: status, color: 'bg-gray-100 text-gray-700' };
+  const badge = getPaymentBadgeColor(status);
 
   return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${config.color}`}>
-      {config.label}
+    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${badge.bg} ${badge.color}`}>
+      {PAYMENT_STATUS_LABELS[status] || status}
     </span>
   );
 }

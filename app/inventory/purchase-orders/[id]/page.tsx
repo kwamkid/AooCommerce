@@ -14,7 +14,8 @@ import { generatePOPdf } from '@/lib/supplier-pdf';
 import { showPdfPreview } from '@/lib/print-pdf';
 import type { ProductSearchItem } from '@/components/ui/ProductSearchInput';
 import type { DateValueType } from '@/components/ui/DateRangePicker';
-import { Loader2, FileText } from 'lucide-react';
+import { FileText } from 'lucide-react';
+import { LoadingCard } from '@/components/ui/StateCard';
 
 import type { PurchaseOrderDetail, EditItem, Supplier, WarehouseItem } from '../components/types';
 import { formatCurrency } from '../components/types';
@@ -247,7 +248,7 @@ export default function PurchaseOrderDetailPage() {
 
   // ─── Loading ───
   if (authLoading || loading) {
-    return <Layout><div className="flex items-center justify-center py-16"><Loader2 className="w-6 h-6 text-primary animate-spin" /></div></Layout>;
+    return <Layout><LoadingCard /></Layout>;
   }
   if (!po) return null;
 

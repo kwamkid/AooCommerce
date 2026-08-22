@@ -8,6 +8,7 @@ import SearchInput from '@/components/ui/SearchInput';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
 import StatusTabs from '@/components/ui/StatusTabs';
+import { getBadgeColor } from '@/lib/status-tab-colors';
 import {
   FileText, Loader2, RefreshCw, CheckCircle2,
   AlertCircle, Clock, Package, Eye, Receipt,
@@ -40,11 +41,11 @@ interface Statement {
 }
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
-  draft:          { label: 'แบบร่าง',      color: 'text-gray-600 dark:text-gray-300',    bg: 'bg-gray-100 dark:bg-gray-700/40' },
-  sent:           { label: 'รอชำระ',       color: 'text-blue-700 dark:text-blue-300',     bg: 'bg-blue-100 dark:bg-blue-900/40' },
-  partially_paid: { label: 'ชำระบางส่วน',  color: 'text-amber-700 dark:text-amber-300',   bg: 'bg-amber-100 dark:bg-amber-900/40' },
-  paid:           { label: 'ชำระแล้ว',     color: 'text-green-700 dark:text-green-300',   bg: 'bg-green-100 dark:bg-green-900/40' },
-  overdue:        { label: 'เกินกำหนด',    color: 'text-red-700 dark:text-red-300',       bg: 'bg-red-100 dark:bg-red-900/40' },
+  draft:          { label: 'แบบร่าง',      ...getBadgeColor('draft') },
+  sent:           { label: 'รอชำระ',       ...getBadgeColor('sent') },
+  partially_paid: { label: 'ชำระบางส่วน',  ...getBadgeColor('partially_paid') },
+  paid:           { label: 'ชำระแล้ว',     ...getBadgeColor('paid') },
+  overdue:        { label: 'เกินกำหนด',    ...getBadgeColor('overdue') },
 };
 
 const STATUS_TABS = [

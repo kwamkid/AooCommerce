@@ -11,11 +11,13 @@ import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
 import { generateInventoryPdf } from '@/lib/inventory-pdf';
 import { showPdfPreview } from '@/lib/print-pdf';
+import { getBadgeColor } from '@/lib/status-tab-colors';
 import { QRCodeSVG } from 'qrcode.react';
 import { Loader2, Warehouse, Package, ArrowRightLeft, CheckCircle2, Clock, XCircle, AlertTriangle, Truck, User, FileText, ArrowLeft, PackageCheck, Printer, Link2, Copy, Check, Image as ImageIcon } from 'lucide-react';
 import { flattenVariationItem, productDisplayName, productSubtitle } from '../../components/types';
 import Button from '@/components/ui/Button';
 import SaveButton from '@/components/ui/SaveButton';
+import { LoadingCard } from '@/components/ui/StateCard';
 
 interface TransferItem {
   id: string;
@@ -58,12 +60,14 @@ interface Transfer {
   items: TransferItem[];
 }
 
+// สีจากคลังกลาง lib/status-tab-colors — 'received' ของ transfer = สำเร็จ จึง map ไป 'completed'
+// (key 'received' ในคลังกลางเป็นของ consignment "รอยืนยัน" คนละความหมาย)
 const STATUS_MAP: Record<string, { label: string; color: string; bgColor: string }> = {
-  pending: { label: 'ที่ต้องจัดส่ง - จอง stock แล้ว', color: 'text-yellow-700 dark:text-yellow-400', bgColor: 'bg-yellow-100 dark:bg-yellow-900/30' },
-  shipping: { label: 'กำลังส่ง - รอรับสินค้า', color: 'text-blue-700 dark:text-blue-400', bgColor: 'bg-blue-100 dark:bg-blue-900/30' },
-  pending_confirm: { label: 'รอยืนยัน — รับไม่ครบ', color: 'text-orange-700 dark:text-orange-400', bgColor: 'bg-orange-100 dark:bg-orange-900/30' },
-  received: { label: 'รับสินค้าแล้ว', color: 'text-green-700 dark:text-green-400', bgColor: 'bg-green-100 dark:bg-green-900/30' },
-  cancelled: { label: 'ยกเลิกแล้ว', color: 'text-red-700 dark:text-red-400', bgColor: 'bg-red-100 dark:bg-red-900/30' },
+  pending: { label: 'ที่ต้องจัดส่ง - จอง stock แล้ว', color: getBadgeColor('pending').color, bgColor: getBadgeColor('pending').bg },
+  shipping: { label: 'กำลังส่ง - รอรับสินค้า', color: getBadgeColor('shipping').color, bgColor: getBadgeColor('shipping').bg },
+  pending_confirm: { label: 'รอยืนยัน — รับไม่ครบ', color: getBadgeColor('pending_confirm').color, bgColor: getBadgeColor('pending_confirm').bg },
+  received: { label: 'รับสินค้าแล้ว', color: getBadgeColor('completed').color, bgColor: getBadgeColor('completed').bg },
+  cancelled: { label: 'ยกเลิกแล้ว', color: getBadgeColor('cancelled').color, bgColor: getBadgeColor('cancelled').bg },
 };
 
 export default function TransferDetailPage() {
@@ -312,9 +316,7 @@ export default function TransferDetailPage() {
           { label: 'แก้ไข' },
         ]}
       >
-        <div className="flex items-center justify-center py-16">
-          <Loader2 className="w-6 h-6 text-primary animate-spin" />
-        </div>
+        <LoadingCard />
       </Layout>
     );
   }

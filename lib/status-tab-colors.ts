@@ -47,9 +47,35 @@ const STATUS_TAB_COLORS: Record<string, StatusTabColor> = {
   partial_received: { active: 'bg-emerald-600', inactive: 'bg-emerald-100 dark:bg-emerald-950/60', labelColor: 'text-emerald-700 dark:text-emerald-400', countColor: 'text-emerald-800 dark:text-emerald-200' },
 };
 
+/**
+ * Alias สถานะ → key สีหลักด้านบน — สถานะที่ไม่มีชุดสีของตัวเองให้ map มาที่นี่
+ * ที่เดียว ทุกหน้าได้สีเดียวกัน (ห้ามไปเขียนสี status เองในหน้า — เพิ่ม alias แทน)
+ */
+export const STATUS_KEY_ALIASES: Record<string, string> = {
+  // Promotion statuses
+  active:    'completed', // ใช้งาน — เขียว
+  inactive:  'cancelled', // ปิดใช้งาน — เทา
+  scheduled: 'new',       // รอเริ่ม — น้ำเงิน
+  expired:   'overdue',   // หมดอายุ — แดง
+  // Shopee platform order statuses (ล้อตาม mapShopeeStatus ใน lib/shopee/sync.ts)
+  UNPAID:             'new',
+  READY_TO_SHIP:      'ready_to_ship',
+  PROCESSED:          'processing',
+  SHIPPED:            'shipping',
+  COMPLETED:          'completed',
+  CANCELLED:          'cancelled',
+  IN_CANCEL:          'ready_to_ship',  // กำลังยกเลิก — โทนเตือนว่ามีเรื่องค้าง
+  INVOICE_PENDING:    'cancelled',      // รอออกใบแจ้งหนี้ — เทา
+  TO_CONFIRM_RECEIVE: 'shipping',       // รอยืนยันรับ — โทนกำลังส่ง
+  TO_RETURN:          'overdue',        // คืนสินค้า — แดง
+  RETRY_SHIP:         'partially_paid', // จัดส่งซ้ำ — อำพัน
+};
+
+const resolveStatusKey = (key: string) => STATUS_KEY_ALIASES[key] || key;
+
 /** Get tab color config by status key — fallback to gray */
 export function getTabColor(key: string): StatusTabColor {
-  return STATUS_TAB_COLORS[key] || STATUS_TAB_COLORS.cancelled;
+  return STATUS_TAB_COLORS[resolveStatusKey(key)] || STATUS_TAB_COLORS.cancelled;
 }
 
 /**
@@ -80,7 +106,23 @@ const STATUS_BADGE_COLORS: Record<string, { color: string; bg: string }> = {
 
 /** Get badge color by status key */
 export function getBadgeColor(key: string): { color: string; bg: string } {
-  return STATUS_BADGE_COLORS[key] || STATUS_BADGE_COLORS.cancelled;
+  return STATUS_BADGE_COLORS[resolveStatusKey(key)] || STATUS_BADGE_COLORS.cancelled;
+}
+
+/**
+ * แถบหัวการ์ดย้อมตามสถานะ (promotion card, POS order card)
+ * — จางกว่า badge หนึ่งขั้น ใช้ทาทั้งแถบหัว + ตัวหนังสือเข้มบนพื้นจาง
+ */
+const STATUS_HEADER_TINTS: Record<string, { bg: string; text: string }> = {
+  new:       { bg: 'bg-blue-50 dark:bg-blue-900/20',       text: 'text-blue-800 dark:text-blue-200' },
+  completed: { bg: 'bg-emerald-50 dark:bg-emerald-900/20', text: 'text-emerald-800 dark:text-emerald-200' },
+  overdue:   { bg: 'bg-red-50 dark:bg-red-900/20',         text: 'text-red-700 dark:text-red-300' },
+  cancelled: { bg: 'bg-gray-50 dark:bg-gray-800/40',       text: 'text-gray-600 dark:text-gray-300' },
+};
+
+/** Soft header tint per status key (alias-aware) — fallback to gray */
+export function getStatusHeaderTint(key: string): { bg: string; text: string } {
+  return STATUS_HEADER_TINTS[resolveStatusKey(key)] || STATUS_HEADER_TINTS.cancelled;
 }
 
 /**
@@ -98,7 +140,7 @@ const STATUS_BADGE_TONE: Record<string, StatusBadgeTone> = {
   cancelled: 'gray',
 };
 export function getStatusBadgeTone(key: string): StatusBadgeTone {
-  return STATUS_BADGE_TONE[key] || 'gray';
+  return STATUS_BADGE_TONE[resolveStatusKey(key)] || 'gray';
 }
 
 /**

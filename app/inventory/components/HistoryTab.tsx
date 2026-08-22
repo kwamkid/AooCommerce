@@ -3,8 +3,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { apiFetch } from '@/lib/api-client';
 import DateRangePicker, { DateValueType } from '@/components/ui/DateRangePicker';
-import { Loader2, Search, Warehouse, ArrowDownUp, ExternalLink, X, Package2 } from 'lucide-react';
+import { Search, Warehouse, ArrowDownUp, ExternalLink, X, Package2 } from 'lucide-react';
 import FormSelect from '@/components/ui/FormSelect';
+import { LoadingCard } from '@/components/ui/StateCard';
 import ProductImageThumb from '@/components/ui/ProductImageThumb';
 import ColumnSettingsDropdown from '@/app/components/ColumnSettingsDropdown';
 import Pagination from '@/app/components/Pagination';
@@ -224,7 +225,7 @@ export default function HistoryTab({ warehouses, filterVariationId, filterProduc
 
       {/* Table */}
       {loading ? (
-        <div className="flex items-center justify-center py-16"><Loader2 className="w-6 h-6 text-primary animate-spin" /></div>
+        <LoadingCard />
       ) : transactions.length === 0 ? (
         <div className="text-center py-16">
           <ArrowDownUp className="w-12 h-12 text-gray-300 dark:text-slate-600 mx-auto mb-3" />

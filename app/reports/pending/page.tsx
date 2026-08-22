@@ -9,6 +9,7 @@ import { formatPrice } from '@/lib/utils/format';
 import Layout from '@/components/layout/Layout';
 import PageHeader from '@/components/ui/PageHeader';
 import { LoadingCard } from '@/components/ui/StateCard';
+import { getBadgeColor } from '@/lib/status-tab-colors';
 
 import {
   FileText,
@@ -148,46 +149,27 @@ export default function PendingReportPage() {
 
   // Get order status badge
   const getOrderStatusBadge = (status: string) => {
-    const statusConfig: { [key: string]: { label: string; color: string } } = {
-      new: { label: 'ใหม่', color: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' },
-      shipping: { label: 'กำลังส่ง', color: 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400' },
-      completed: { label: 'ส่งแล้ว', color: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' }
+    const labels: { [key: string]: string } = {
+      new: 'ใหม่',
+      shipping: 'กำลังส่ง',
+      completed: 'ส่งแล้ว',
     };
-    const config = statusConfig[status] || { label: status, color: 'bg-gray-100 text-gray-700' };
+    const badge = getBadgeColor(status);
     return (
-      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${config.color}`}>
-        {config.label}
+      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${badge.bg} ${badge.color}`}>
+        {labels[status] || status}
       </span>
     );
   };
 
-  // Get aging badge
+  // Get aging badge — สีตามความรุนแรง ใช้ status family กลาง (น้ำเงิน → เขียว → อำพัน → แดง)
   const getAgingBadge = (days: number | null) => {
     if (days === null) return null;
-    if (days < 0) {
-      return (
-        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400">
-          ยังไม่ถึงกำหนด
-        </span>
-      );
-    }
-    if (days <= 7) {
-      return (
-        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">
-          {days} วัน
-        </span>
-      );
-    }
-    if (days <= 30) {
-      return (
-        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400">
-          {days} วัน
-        </span>
-      );
-    }
+    const colorKey = days < 0 ? 'new' : days <= 7 ? 'paid' : days <= 30 ? 'partially_paid' : 'overdue';
+    const badge = getBadgeColor(colorKey);
     return (
-      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400">
-        {days} วัน
+      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${badge.bg} ${badge.color}`}>
+        {days < 0 ? 'ยังไม่ถึงกำหนด' : `${days} วัน`}
       </span>
     );
   };

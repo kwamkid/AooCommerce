@@ -6,6 +6,7 @@ import { useAuth } from '@/lib/auth-context';
 import { apiFetch } from '@/lib/api-client';
 import { ArrowLeft, Printer } from 'lucide-react';
 import Button from '@/components/ui/Button';
+import { LoadingCard } from '@/components/ui/StateCard';
 import QRCode from 'qrcode';
 
 interface ShippingAddress {
@@ -151,9 +152,8 @@ export default function ShippingLabelsPage() {
   if (authLoading || loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
-          <p className="mt-4 text-gray-600 dark:text-slate-400">กำลังโหลด...</p>
+        <div className="w-full max-w-md px-4">
+          <LoadingCard />
         </div>
       </div>
     );
