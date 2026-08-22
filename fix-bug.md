@@ -16,6 +16,16 @@
 
 ---
 
+## 2026-08-22 — Shopee ลดเพดาน API รายวัน (บทลงโทษ success rate <90%) แล้วระบบยิงต่อทั้งวัน = fail ทุก call ยิ่งโดนลงโทษต่อ
+
+**ที่เกิด**: Shopee Open Platform Console — "Punishment: API calls limit" + [lib/shopee/api.ts](lib/shopee/api.ts) และทุก cron/webhook/manual sync
+**อาการ**: โควตารายวันหมดเร็วผิดปกติ (โดนลดเพดานเป็นบทลงโทษ) แล้วหลังหมด ทุก call ที่ cron ทุก 15 นาที + webhook processing + retry worker ยิงออกไปทั้งวัน = error `daily API call limit` ทั้งหมด → success rate รายวันยิ่งต่ำ → บทลงโทษไม่หลุด (วงจรอุบาทว์) — ต้นเหตุ success rate พังคือช่วงร้านหลุดการเชื่อมต่อ + bug 15-day range (ดู entry 2026-08-21)
+**Root cause**: ไม่มี circuit breaker — Shopee นับ success จาก HTTP 200 + error field ว่าง ทุก call หลังโควตาหมดคือ fail ที่รู้ผลล่วงหน้าแต่ระบบยังยิง
+**วิธีแก้**: `shopeeApiRequest` เจอ error `daily API call limit` → เขียน flag `shopee_quota_exhausted` ลงตารางใหม่ `app_flags` (จนถึงเที่ยงคืน UTC+8) · `isShopeeQuotaBlocked()` ถูกเช็คก่อนทำงานใน sync-all, webhook retry worker, `syncSingleOrder` (fail เร็วไม่ยิง API), และ manual sync ทุก route (คืน 429 ข้อความไทย) · retry worker ตอน circuit เปิดจะ skip ทั้งรอบไม่เผา retry_count — ทุกอย่างเก็บตกเองหลัง reset
+**ป้องกัน regression**: งาน bulk ใดๆ (backfill/import สินค้า) ต้องประเมิน call budget เทียบเพดานใน Console ก่อนรัน และห้ามรันช่วงโดนบทลงโทษ · เพิ่ม integration ใหม่ที่มี daily quota → ใส่ breaker แบบเดียวกันตั้งแต่แรก
+
+---
+
 ## 2026-08-21 — จัดการสมาชิก: เชิญซ้ำ role ไม่อัปเดต + ปุ่มบันทึกโมดัลแก้ไขตายเงียบ + DB constraint ไม่มี role `pc`
 
 **ที่เกิด**: [app/settings/members/page.tsx](app/settings/members/page.tsx) + [app/api/auth/accept-invite/route.ts](app/api/auth/accept-invite/route.ts) + [app/api/users/route.ts](app/api/users/route.ts) + CHECK constraint `company_members_roles_valid`
