@@ -320,7 +320,9 @@ const columns: DataTableColumn<Order>[] = [
 | `parallel.ts` | `lib/parallel.ts` | `parallelLimit()` — async concurrency control |
 | `stock-utils.ts` | `lib/stock-utils.ts` | `getStockConfig()` — stock feature by subscription tier |
 | `pos-utils.ts` | `lib/pos-utils.ts` | `calculatePosOrderTotals()` — POS VAT calculation |
-| `utils/format.ts` | `lib/utils/format.ts` | `formatPrice()`, `formatNumber()` |
+| `utils/format.ts` | `lib/utils/format.ts` | `formatPrice()`, `formatNumber()`, `formatThaiDate()`, `formatThaiDateTime()` — **ห้ามเขียน `toLocaleDateString('th-TH')` / `toLocaleString` เงินเอง inline** (เคย copy กัน 96/31 จุด สูตร drift 16 แบบ) |
+| `utils/download.ts` | `lib/utils/download.ts` | `downloadBlob(blob, filename)` — **ห้ามเขียน `createElement('a')` + `createObjectURL` เอง** (เคยลืม revokeObjectURL = memory leak) |
+| `useDebounce.ts` | `lib/useDebounce.ts` | `useDebouncedCallback(fn, delayMs=400)` — debounce search ทุกหน้า list, clear timer ตอน unmount ให้เอง — **ห้ามเขียน setTimeout/clearTimeout debounce เอง** |
 | `thai-address-data.ts` | `lib/thai-address-data.ts` | `searchAddress()`, `PROVINCES` — Thai address DB |
 
 ### Bulk Excel Templates — Per-action import/export (อัพเดท 2026-05-27)
