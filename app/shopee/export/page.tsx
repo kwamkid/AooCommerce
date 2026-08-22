@@ -15,6 +15,7 @@ import {
   AlertTriangle, ArrowLeft, Pencil,
 } from 'lucide-react';
 import FormSelect from '@/components/ui/FormSelect';
+import Button from '@/components/ui/Button';
 import { useMarketplaceGuard } from '@/lib/useMarketplaceGuard';
 
 interface ProductItem {
@@ -566,14 +567,15 @@ function ShopeeExportContent() {
                     />
                   </div>
                 )}
-                <button
+                <Button
+                  variant="primary"
                   onClick={addCheckedToSelected}
                   disabled={checkedCount === 0}
-                  className="px-4 text-sm font-medium text-white bg-shopee hover:bg-primary-hover rounded-lg transition-colors disabled:opacity-30 flex items-center gap-1 flex-shrink-0"
+                  icon={<Plus className="w-3 h-3" />}
+                  className="flex-shrink-0"
                 >
-                  <Plus className="w-3 h-3" />
                   เพิ่ม{checkedCount > 0 ? ` (${checkedCount})` : ''}
-                </button>
+                </Button>
               </div>
             </div>
 
@@ -797,17 +799,14 @@ function ShopeeExportContent() {
             <p className="text-sm font-medium text-gray-700 dark:text-slate-300">
               ตั้งค่าสินค้า ({selectedCount} รายการ)
             </p>
-            <button
+            <Button
+              size="sm"
+              variant={showBulkEdit ? 'primary' : 'secondary'}
               onClick={() => setShowBulkEdit(!showBulkEdit)}
-              className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors flex items-center gap-1.5 ${
-                showBulkEdit
-                  ? 'bg-shopee text-white'
-                  : 'border border-gray-300 dark:border-slate-600 text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700/50'
-              }`}
+              icon={<Pencil className="w-3.5 h-3.5" />}
             >
-              <Pencil className="w-3.5 h-3.5" />
               แก้ไขทั้งหมด
-            </button>
+            </Button>
           </div>
 
           {/* Bulk edit panel */}
@@ -835,13 +834,14 @@ function ShopeeExportContent() {
                     className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-shopee/50"
                   />
                 </div>
-                <button
+                <Button
+                  variant="primary"
                   onClick={applyBulkConfig}
                   disabled={bulkCategoryId === null && !bulkWeight}
-                  className="px-4 py-2 text-sm font-medium text-white bg-shopee hover:bg-primary-hover rounded-lg transition-colors disabled:opacity-30 flex-shrink-0"
+                  className="flex-shrink-0"
                 >
                   ใช้กับทั้งหมด
-                </button>
+                </Button>
               </div>
             </div>
           )}
@@ -996,14 +996,15 @@ function ShopeeExportContent() {
           {/* Done actions */}
           {step === 'done' && (
             <div className="flex items-center justify-center gap-3 pt-2">
-              <button
+              <Button
+                variant="secondary"
                 onClick={() => router.push('/settings/sales-channels?tab=marketplace')}
-                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-slate-300 border border-gray-300 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors flex items-center gap-2"
+                icon={<ArrowLeft className="w-4 h-4" />}
               >
-                <ArrowLeft className="w-4 h-4" />
                 กลับหน้าช่องทางการขาย
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="primary"
                 onClick={() => {
                   setStep('select');
                   setSelectedProducts(new Map());
@@ -1012,10 +1013,9 @@ function ShopeeExportContent() {
                   setExportDone(false);
                   fetchLinkedProducts();
                 }}
-                className="px-4 py-2 text-sm font-medium text-white bg-shopee hover:bg-primary-hover rounded-lg transition-colors flex items-center gap-2"
               >
                 ส่งสินค้าเพิ่ม
-              </button>
+              </Button>
             </div>
           )}
         </div>
@@ -1026,49 +1026,46 @@ function ShopeeExportContent() {
         <div className="sticky bottom-0 bg-white dark:bg-slate-800 border-t border-gray-200 dark:border-slate-700 px-4 lg:px-6 py-3 -mx-4 lg:-mx-6 -mb-24 lg:-mb-6 z-30 flex items-center justify-between">
           <div>
             {step === 'select' && (
-              <button
+              <Button
+                variant="secondary"
                 onClick={() => router.push('/settings/sales-channels?tab=marketplace')}
-                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-slate-300 border border-gray-300 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors flex items-center gap-2"
+                icon={<ArrowLeft className="w-4 h-4" />}
               >
-                <ArrowLeft className="w-4 h-4" />
                 กลับ
-              </button>
+              </Button>
             )}
             {step === 'configure' && (
-              <button
-                onClick={() => setStep('select')}
-                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-slate-300 border border-gray-300 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors"
-              >
+              <Button variant="secondary" onClick={() => setStep('select')}>
                 ย้อนกลับ
-              </button>
+              </Button>
             )}
           </div>
           <div className="flex items-center gap-2">
             {step === 'select' && (
-              <button
+              <Button
+                variant="primary"
                 onClick={() => {
                   prefillFromExistingLinks();
                   setStep('configure');
                 }}
                 disabled={selectedCount === 0}
-                className="px-5 py-2 text-sm font-medium text-white bg-shopee hover:bg-primary-hover rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
+                iconRight={<ChevronRight className="w-4 h-4" />}
               >
                 ถัดไป ({selectedCount})
-                <ChevronRight className="w-4 h-4" />
-              </button>
+              </Button>
             )}
 
             {step === 'configure' && (() => {
               const allConfigured = [...selectedProducts.keys()].every(pid => productConfigs[pid]?.categoryId);
               return (
-                <button
+                <Button
+                  variant="primary"
                   onClick={handleExport}
                   disabled={!allConfigured}
-                  className="px-5 py-2 text-sm font-medium text-white bg-shopee hover:bg-primary-hover rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
+                  icon={<ShoppingBag className="w-4 h-4" />}
                 >
-                  <ShoppingBag className="w-4 h-4" />
                   ส่งไป Shopee ({selectedCount})
-                </button>
+                </Button>
               );
             })()}
           </div>

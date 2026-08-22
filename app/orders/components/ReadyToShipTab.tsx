@@ -116,7 +116,6 @@ export default function ReadyToShipTab({
   const [overlayTitle, setOverlayTitle] = useState('กำลังรับออเดอร์...');
   const [overlayMessage, setOverlayMessage] = useState<string | undefined>();
   const [overlayProgress, setOverlayProgress] = useState<number | undefined>();
-  const [confirmModal, setConfirmModal] = useState<{ type: 'accept' | 'cancel'; ids: string[] } | null>(null);
   const [holdModal, setHoldModal] = useState<{ orderId: string; orderNumber: string } | null>(null);
   const [holdReason, setHoldReason] = useState('');
   const [toast, setToast] = useState('');
@@ -479,7 +478,6 @@ export default function ReadyToShipTab({
       }
 
       setSelectedIds(new Set());
-      setConfirmModal(null);
 
       // Always refresh to remove accepted orders from the list
       handleRefresh();
@@ -493,7 +491,6 @@ export default function ReadyToShipTab({
       showToast(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด', 'error');
     } finally {
       setBulkLoading(false);
-      setConfirmModal(null);
       setOverlayOpen(false);
       setOverlayProgress(undefined);
       setOverlayMessage(undefined);
@@ -517,8 +514,26 @@ export default function ReadyToShipTab({
       showToast(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด', 'error');
     } finally {
       setBulkLoading(false);
-      setConfirmModal(null);
     }
+  };
+
+  const confirmBulkAccept = async (ids: string[]) => {
+    const ok = await confirm({
+      title: 'ยืนยันกดรับออเดอร์',
+      description: `ยืนยันกดรับ ${ids.length} รายการ? ออเดอร์จะเปลี่ยนเป็นสถานะ "ที่ต้องจัดส่ง"`,
+    });
+    if (!ok) return;
+    await handleBulkAccept(ids);
+  };
+
+  const confirmBulkCancel = async (ids: string[]) => {
+    const ok = await confirm({
+      title: 'ยืนยันยกเลิกออเดอร์',
+      description: `ยืนยันยกเลิก ${ids.length} รายการ? การดำเนินการนี้ไม่สามารถย้อนกลับได้`,
+      variant: 'danger',
+    });
+    if (!ok) return;
+    await handleBulkCancel(ids);
   };
 
   const [actionLoading, setActionLoading] = useState(false);
@@ -913,16 +928,17 @@ export default function ReadyToShipTab({
     } else if (isVerifyingTab && order.payment_status === 'verifying') {
       // Verifying tab: Approve + Reject slip
       primaryActions.push(
-        <button
+        <Button
           key="view-slip"
+          size="sm"
+          variant="secondary"
           onClick={(e) => { e.stopPropagation(); handleViewSlip(order.id, order.order_number); }}
           disabled={actionLoading || slipLoading}
-          className="px-2.5 py-2 md:px-3 text-sm font-medium rounded-lg border border-purple-300 dark:border-purple-600 text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/30 transition-colors flex items-center gap-1.5 disabled:opacity-50"
+          icon={<ImageIcon className="w-4 h-4" />}
           title="ดูสลิป"
         >
-          <ImageIcon className="w-4 h-4" />
           <span className="hidden md:inline">ดูสลิป</span>
-        </button>
+        </Button>
       );
       primaryActions.push(
         <button
@@ -941,16 +957,17 @@ export default function ReadyToShipTab({
       // Primary: Split button — show for Shopee orders with >1 line items, or when Shopee explicitly says can_split
       if ((order.can_split_order || (isShopee && order.item_line_count > 1)) && !order.is_split) {
         primaryActions.push(
-          <button
+          <Button
             key="split"
+            size="sm"
+            variant="secondary"
             onClick={(e) => { e.stopPropagation(); handleOpenSplit(order); }}
             disabled={actionLoading}
-            className="px-2.5 py-2 md:px-3 text-sm font-medium rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors flex items-center gap-1.5 disabled:opacity-50"
+            icon={<Scissors className="w-4 h-4" />}
             title="แบ่งกล่อง"
           >
-            <Scissors className="w-4 h-4" />
             <span className="hidden md:inline">แบ่งกล่อง</span>
-          </button>
+          </Button>
         );
       }
 
@@ -1089,7 +1106,7 @@ export default function ReadyToShipTab({
       if (!isMarketplace) {
         menuItems.push({
           key: 'cancel', label: 'ยกเลิก', icon: <Trash2 className="w-4 h-4" />,
-          onClick: (e) => { e.stopPropagation(); setConfirmModal({ type: 'cancel', ids: [order.id] }); },
+          onClick: (e) => { e.stopPropagation(); confirmBulkCancel([order.id]); },
           className: 'p-1.5 text-gray-400 hover:text-red-500 transition-colors rounded-lg hover:bg-red-50 dark:hover:bg-red-900/30',
           danger: true,
         });
@@ -1225,53 +1242,10 @@ export default function ReadyToShipTab({
                 variant="primary"
                 disabled={bulkLoading}
                 icon={<Package className="w-4 h-4" />}
-                onClick={() => setConfirmModal({ type: 'accept', ids: Array.from(selectedIds) })}
+                onClick={() => confirmBulkAccept(Array.from(selectedIds))}
               >
                 <span className="hidden md:inline">รับออเดอร์</span> ({selectedIds.size})
               </Button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Confirm Modal */}
-      {confirmModal && (
-        <div
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
-          onClick={() => !bulkLoading && setConfirmModal(null)}
-        >
-          <div className="bg-white dark:bg-slate-800 rounded-lg p-6 max-w-md w-full" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
-              {confirmModal.type === 'accept' ? 'ยืนยันกดรับออเดอร์' : 'ยืนยันยกเลิกออเดอร์'}
-            </h3>
-            <p className="text-gray-600 dark:text-slate-400 mb-6">
-              {confirmModal.type === 'accept'
-                ? `ยืนยันกดรับ ${confirmModal.ids.length} รายการ? ออเดอร์จะเปลี่ยนเป็นสถานะ "ที่ต้องจัดส่ง"`
-                : `ยืนยันยกเลิก ${confirmModal.ids.length} รายการ? การดำเนินการนี้ไม่สามารถย้อนกลับได้`
-              }
-            </p>
-            <div className="flex gap-3 justify-end">
-              <button
-                onClick={() => setConfirmModal(null)}
-                disabled={bulkLoading}
-                className="px-4 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors disabled:opacity-50"
-              >
-                ยกเลิก
-              </button>
-              <button
-                onClick={() => confirmModal.type === 'accept'
-                  ? handleBulkAccept(confirmModal.ids)
-                  : handleBulkCancel(confirmModal.ids)
-                }
-                disabled={bulkLoading}
-                className={`btn btn-md ${confirmModal.type === 'accept' ? 'btn-primary' : 'btn-danger'}`}
-              >
-                {bulkLoading ? (
-                  <><Loader2 className="w-4 h-4 animate-spin" /> กำลังดำเนินการ...</>
-                ) : (
-                  <span>ยืนยัน</span>
-                )}
-              </button>
             </div>
           </div>
         </div>
@@ -1348,25 +1322,9 @@ export default function ReadyToShipTab({
                 className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 dark:bg-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
               />
             </div>
-            <div className="flex gap-3 justify-end">
-              <button
-                onClick={() => { setHoldModal(null); setHoldReason(''); }}
-                disabled={actionLoading}
-                className="px-4 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors disabled:opacity-50"
-              >
-                ยกเลิก
-              </button>
-              <button
-                onClick={handleHold}
-                disabled={actionLoading}
-                className="px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50 flex items-center gap-2"
-              >
-                {actionLoading ? (
-                  <><Loader2 className="w-4 h-4 animate-spin" /> กำลังดำเนินการ...</>
-                ) : (
-                  <><Pause className="w-4 h-4" /> พักไว้</>
-                )}
-              </button>
+            <div className="flex justify-end gap-3">
+              <Button variant="secondary" onClick={() => { setHoldModal(null); setHoldReason(''); }} disabled={actionLoading}>ยกเลิก</Button>
+              <Button variant="primary" onClick={handleHold} loading={actionLoading} icon={<Pause className="w-4 h-4" />}>พักไว้</Button>
             </div>
           </div>
         </div>
@@ -1442,20 +1400,24 @@ export default function ReadyToShipTab({
               />
             </div>
             <div className="flex gap-2 p-4 border-t border-gray-200 dark:border-slate-700">
-              <button
+              <Button
+                variant="danger"
+                fullWidth
                 onClick={() => handleRejectSlip(slipModal.orderId)}
                 disabled={actionLoading}
-                className="flex-1 px-3 py-2.5 border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5 font-medium text-sm"
+                icon={<XCircle className="w-4 h-4" />}
               >
-                <XCircle className="w-4 h-4" /> ปฏิเสธ
-              </button>
-              <button
+                ปฏิเสธ
+              </Button>
+              <Button
+                variant="success"
+                fullWidth
                 onClick={() => { handleApproveSlip(slipModal.orderId); setSlipModal(null); }}
                 disabled={actionLoading}
-                className="flex-1 px-3 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5 font-medium text-sm"
+                icon={<CheckCircle className="w-4 h-4" />}
               >
-                <CheckCircle className="w-4 h-4" /> ยืนยัน
-              </button>
+                ยืนยัน
+              </Button>
             </div>
           </div>
         </div>

@@ -9,6 +9,7 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import Modal from '@/components/ui/Modal';
+import Button from '@/components/ui/Button';
 import ShopeeCategoryPicker from './ShopeeCategoryPicker';
 
 interface ProductItem {
@@ -324,49 +325,43 @@ export default function ShopeeBulkExportModal({
         <div className="flex items-center justify-between p-4">
           <div>
             {step === 'configure' && (
-              <button
-                onClick={() => setStep('select')}
-                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-slate-300 border border-gray-300 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors"
-              >
+              <Button variant="secondary" onClick={() => setStep('select')}>
                 ย้อนกลับ
-              </button>
+              </Button>
             )}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex justify-end gap-2">
             {step !== 'exporting' && (
-              <button
-                onClick={onClose}
-                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-slate-300 border border-gray-300 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors"
-              >
+              <Button variant="secondary" onClick={onClose}>
                 {step === 'done' ? 'ปิด' : 'ยกเลิก'}
-              </button>
+              </Button>
             )}
 
             {step === 'select' && (
-              <button
+              <Button
+                variant="primary"
                 onClick={() => {
                   prefillFromExistingLinks();
                   setStep('configure');
                 }}
                 disabled={selectedCount === 0}
-                className="px-4 py-2 text-sm font-medium text-white bg-shopee hover:bg-primary-hover rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
+                iconRight={<ChevronRight className="w-4 h-4" />}
               >
                 ถัดไป ({selectedCount})
-                <ChevronRight className="w-4 h-4" />
-              </button>
+              </Button>
             )}
 
             {step === 'configure' && (() => {
               const allConfigured = [...selectedProducts.keys()].every(pid => productConfigs[pid]?.categoryId);
               return (
-                <button
+                <Button
+                  variant="primary"
                   onClick={handleExport}
                   disabled={!allConfigured}
-                  className="px-4 py-2 text-sm font-medium text-white bg-shopee hover:bg-primary-hover rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
+                  icon={<ShoppingBag className="w-4 h-4" />}
                 >
-                  <ShoppingBag className="w-4 h-4" />
                   ส่งไป Shopee ({selectedCount})
-                </button>
+                </Button>
               );
             })()}
           </div>

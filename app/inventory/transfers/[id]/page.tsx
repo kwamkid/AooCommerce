@@ -13,11 +13,12 @@ import { generateInventoryPdf } from '@/lib/inventory-pdf';
 import { showPdfPreview } from '@/lib/print-pdf';
 import { getBadgeColor } from '@/lib/status-tab-colors';
 import { QRCodeSVG } from 'qrcode.react';
-import { Loader2, Warehouse, Package, ArrowRightLeft, CheckCircle2, Clock, XCircle, AlertTriangle, Truck, User, FileText, ArrowLeft, PackageCheck, Printer, Link2, Copy, Check, Image as ImageIcon } from 'lucide-react';
+import { Warehouse, Package, ArrowRightLeft, CheckCircle2, Clock, XCircle, AlertTriangle, Truck, User, FileText, ArrowLeft, PackageCheck, Printer, Link2, Copy, Check, Image as ImageIcon } from 'lucide-react';
 import { flattenVariationItem, productDisplayName, productSubtitle } from '../../components/types';
 import Button from '@/components/ui/Button';
 import SaveButton from '@/components/ui/SaveButton';
 import { LoadingCard } from '@/components/ui/StateCard';
+import { useConfirmDialog } from '@/lib/useConfirmDialog';
 
 interface TransferItem {
   id: string;
@@ -89,7 +90,7 @@ export default function TransferDetailPage() {
   const [shipping, setShipping] = useState(false);
 
   // Cancel confirm
-  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  const { confirmDialog, confirm } = useConfirmDialog();
   const [copiedLink, setCopiedLink] = useState(false);
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
   const fetchingRef = useRef(false);
@@ -221,13 +222,24 @@ export default function TransferDetailPage() {
       if (!res.ok) throw new Error(result.error || 'เกิดข้อผิดพลาด');
 
       showToast('ยกเลิกใบโอนย้ายเรียบร้อย (คืนสต็อกแล้ว)', 'success');
-      setShowCancelConfirm(false);
       fetchTransfer();
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'เกิดข้อผิดพลาด', 'error');
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const confirmCancelTransfer = async () => {
+    if (!transfer) return;
+    const ok = await confirm({
+      title: 'ยกเลิกใบโอนย้าย',
+      description: `ยืนยันยกเลิกใบโอนย้าย ${transfer.transfer_number}? สต็อกจะถูกคืนกลับไปที่คลังต้นทาง`,
+      variant: 'danger',
+      confirmLabel: 'ยืนยันยกเลิก',
+    });
+    if (!ok) return;
+    await handleCancel();
   };
 
   const handleConfirm = async () => {
@@ -359,52 +371,37 @@ export default function TransferDetailPage() {
       <div className="space-y-4">
         {/* Back + Actions */}
         <div className="flex items-center justify-between">
-          <button
+          <Button
+            size="sm"
+            variant="ghost"
             onClick={() => router.push('/inventory/transfers')}
-            className="flex items-center gap-1.5 text-sm text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-300"
+            icon={<ArrowLeft className="w-4 h-4" />}
           >
-            <ArrowLeft className="w-4 h-4" />
             กลับ
-          </button>
+          </Button>
           <div className="flex items-center gap-2">
             <Button size="sm" loading={generatingPdf} onClick={handlePrint} icon={<Printer className="w-4 h-4" />}>
               พิมพ์
             </Button>
             {transfer.status === 'pending' && (
               <>
-                <button
-                  onClick={() => setShowCancelConfirm(true)}
-                  className="px-4 py-2 text-sm border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                >
+                <Button size="sm" variant="danger" onClick={confirmCancelTransfer}>
                   ยกเลิก
-                </button>
-                <button
-                  onClick={handleShip}
-                  disabled={shipping}
-                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 text-sm font-medium disabled:opacity-50"
-                >
-                  {shipping ? <Loader2 className="w-4 h-4 animate-spin" /> : <Truck className="w-4 h-4" />}
-                  {shipping ? 'กำลังจัดส่ง...' : 'จัดส่ง'}
-                </button>
+                </Button>
+                <Button size="sm" variant="primary" onClick={handleShip} loading={shipping} icon={<Truck className="w-4 h-4" />}>
+                  จัดส่ง
+                </Button>
               </>
             )}
             {transfer.status === 'shipping' && (
-              <button
-                onClick={() => setShowCancelConfirm(true)}
-                className="px-4 py-2 text-sm border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-              >
+              <Button size="sm" variant="danger" onClick={confirmCancelTransfer}>
                 ยกเลิก
-              </button>
+              </Button>
             )}
             {transfer.status === 'pending_confirm' && (
-              <button
-                onClick={handleConfirm}
-                disabled={confirming}
-                className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2 text-sm font-medium disabled:opacity-50"
-              >
-                {confirming ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
-                {confirming ? 'กำลังยืนยัน...' : 'ยืนยันรับสินค้า'}
-              </button>
+              <Button size="sm" variant="success" onClick={handleConfirm} loading={confirming} icon={<CheckCircle2 className="w-4 h-4" />}>
+                ยืนยันรับสินค้า
+              </Button>
             )}
           </div>
         </div>
@@ -439,13 +436,15 @@ export default function TransferDetailPage() {
                     value={getReceiveUrl()}
                     className="flex-1 px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-xs bg-gray-50 dark:bg-slate-700 text-gray-700 dark:text-slate-300 truncate"
                   />
-                  <button
+                  <Button
+                    size="sm"
+                    variant="secondary"
                     onClick={handleCopyLink}
-                    className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex-shrink-0"
+                    icon={copiedLink ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                    className="flex-shrink-0"
                   >
-                    {copiedLink ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                     {copiedLink ? 'คัดลอกแล้ว' : 'คัดลอก'}
-                  </button>
+                  </Button>
                 </div>
               </div>
             </div>
@@ -517,13 +516,7 @@ export default function TransferDetailPage() {
             />
             {notesChanged && (
               <div className="flex justify-end mt-2">
-                <SaveButton
-                  size="sm"
-                  loading={savingNotes}
-                  onClick={handleSaveNotes}
-                >
-                  บันทึก
-                </SaveButton>
+                <SaveButton size="sm" loading={savingNotes} onClick={handleSaveNotes} />
               </div>
             )}
           </div>
@@ -651,46 +644,9 @@ export default function TransferDetailPage() {
           );
         })()}
 
-        {/* Cancel Confirm Modal */}
-        {showCancelConfirm && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl max-w-sm w-full p-6">
-              <div className="flex items-start gap-3 mb-4">
-                <AlertTriangle className="w-6 h-6 text-red-500 flex-shrink-0 mt-0.5" />
-                <div>
-                  <h3 className="text-lg font-medium text-gray-900 dark:text-white">ยกเลิกใบโอนย้าย</h3>
-                  <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">
-                    ยืนยันยกเลิกใบโอนย้าย {transfer.transfer_number}? สต็อกจะถูกคืนกลับไปที่คลังต้นทาง
-                  </p>
-                </div>
-              </div>
-              <div className="flex justify-end gap-3">
-                <button
-                  onClick={() => setShowCancelConfirm(false)}
-                  className="px-4 py-2 text-sm border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700/50"
-                >
-                  ไม่ใช่
-                </button>
-                <button
-                  onClick={handleCancel}
-                  disabled={submitting}
-                  className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 text-sm font-medium disabled:opacity-50 flex items-center gap-2"
-                >
-                  {submitting ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      กำลังยกเลิก...
-                    </>
-                  ) : (
-                    'ยืนยันยกเลิก'
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
 
+      {confirmDialog}
       <ImageLightbox src={lightboxSrc} onClose={() => setLightboxSrc(null)} alt="รูปรับสินค้า" />
     </Layout>
   );

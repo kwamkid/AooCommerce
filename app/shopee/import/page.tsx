@@ -8,6 +8,7 @@ import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
 import ProductPicker from '@/components/shopee/ProductPicker';
 import Image from 'next/image';
+import Button from '@/components/ui/Button';
 import { useMarketplaceGuard } from '@/lib/useMarketplaceGuard';
 import {
   Loader2, Download, Search,
@@ -330,18 +331,19 @@ function ShopeeImportContent() {
               />
             </div>
             <div className="flex items-center gap-3">
-              <button
+              <Button
+                variant="secondary"
                 onClick={toggleSelectAll}
                 disabled={loading || selectableItems.length === 0}
-                className="flex items-center gap-1.5 px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700 text-gray-700 dark:text-slate-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
-              >
-                {allSelectableSelected ? (
+                icon={allSelectableSelected ? (
                   <CheckSquare className="w-4 h-4 text-orange-500" />
                 ) : (
                   <Square className="w-4 h-4 text-gray-400 dark:text-slate-500" />
                 )}
+                className="whitespace-nowrap"
+              >
                 {allSelectableSelected ? 'ยกเลิกทั้งหมด' : 'เลือกทั้งหมด'}
-              </button>
+              </Button>
               <div className="text-sm text-gray-500 dark:text-slate-400 flex items-center gap-2 whitespace-nowrap">
                 <ShoppingBag className="w-4 h-4" />
                 ทั้งหมด {totalItems} · เลือก {selectedItems.length}
@@ -433,28 +435,30 @@ function ShopeeImportContent() {
           {/* Pagination */}
           {totalItems > 0 && (
             <div className="flex items-center justify-center gap-4 pt-2">
-              <button
+              <Button
+                size="sm"
+                variant="secondary"
                 onClick={() => fetchItems(Math.max(0, offset - pageSize))}
                 disabled={offset === 0 || loading}
-                className="flex items-center gap-1 px-3 py-1.5 text-sm border border-gray-300 dark:border-slate-600 rounded-lg disabled:opacity-50 hover:bg-gray-50 dark:hover:bg-slate-700 text-gray-700 dark:text-slate-300 transition-colors"
+                icon={<ChevronLeft className="w-4 h-4" />}
               >
-                <ChevronLeft className="w-4 h-4" />
                 ก่อนหน้า
-              </button>
+              </Button>
               <span className="text-sm text-gray-500 dark:text-slate-400">
                 หน้า {Math.floor(offset / pageSize) + 1} / {Math.ceil(totalItems / pageSize)}
                 <span className="text-xs text-gray-400 dark:text-slate-500 ml-1">
                   ({offset + 1}-{Math.min(offset + pageSize, totalItems)} จาก {totalItems})
                 </span>
               </span>
-              <button
+              <Button
+                size="sm"
+                variant="secondary"
                 onClick={() => fetchItems(offset + pageSize)}
                 disabled={!hasMore || loading}
-                className="flex items-center gap-1 px-3 py-1.5 text-sm border border-gray-300 dark:border-slate-600 rounded-lg disabled:opacity-50 hover:bg-gray-50 dark:hover:bg-slate-700 text-gray-700 dark:text-slate-300 transition-colors"
+                iconRight={<ChevronRight className="w-4 h-4" />}
               >
                 ถัดไป
-                <ChevronRight className="w-4 h-4" />
-              </button>
+              </Button>
             </div>
           )}
         </div>
@@ -632,19 +636,16 @@ function ShopeeImportContent() {
           {/* Done step actions (inline, not in sticky footer) */}
           {importDone && (
             <div className="flex items-center justify-center gap-3 pt-2">
-              <button
+              <Button
+                variant="secondary"
                 onClick={() => router.push('/settings/sales-channels?tab=marketplace')}
-                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-slate-300 border border-gray-300 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors flex items-center gap-2"
+                icon={<ArrowLeft className="w-4 h-4" />}
               >
-                <ArrowLeft className="w-4 h-4" />
                 กลับหน้าช่องทางการขาย
-              </button>
-              <button
-                onClick={() => router.push('/products')}
-                className="px-4 py-2 text-sm font-medium text-white bg-shopee hover:bg-primary-hover rounded-lg transition-colors flex items-center gap-2"
-              >
+              </Button>
+              <Button variant="primary" onClick={() => router.push('/products')}>
                 ดูสินค้าทั้งหมด
-              </button>
+              </Button>
             </div>
           )}
 
@@ -678,46 +679,43 @@ function ShopeeImportContent() {
         <div className="sticky bottom-0 bg-white dark:bg-slate-800 border-t border-gray-200 dark:border-slate-700 px-4 lg:px-6 py-3 -mx-4 lg:-mx-6 -mb-24 lg:-mb-6 z-30 flex items-center justify-between">
           <div>
             {step === 'select' && (
-              <button
+              <Button
+                variant="secondary"
                 onClick={() => router.push('/settings/sales-channels?tab=marketplace')}
-                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-slate-300 border border-gray-300 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors flex items-center gap-2"
+                icon={<ArrowLeft className="w-4 h-4" />}
               >
-                <ArrowLeft className="w-4 h-4" />
                 กลับ
-              </button>
+              </Button>
             )}
             {step === 'configure' && (
-              <button
-                onClick={() => setStep('select')}
-                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-slate-300 border border-gray-300 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors"
-              >
+              <Button variant="secondary" onClick={() => setStep('select')}>
                 ย้อนกลับ
-              </button>
+              </Button>
             )}
           </div>
           <div className="flex items-center gap-2">
             {step === 'select' && (
-              <button
+              <Button
+                variant="primary"
                 onClick={goToConfigure}
                 disabled={selectedItems.length === 0}
-                className="px-5 py-2 text-sm font-medium text-white bg-shopee hover:bg-primary-hover rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
+                iconRight={<ChevronRight className="w-4 h-4" />}
               >
                 ถัดไป
-                <ChevronRight className="w-4 h-4" />
-              </button>
+              </Button>
             )}
             {step === 'configure' && (
-              <button
+              <Button
+                variant="primary"
                 onClick={executeImport}
                 disabled={selectedItems.some(item => {
                   const config = configs[item.item_id];
                   return config?.action === 'link' && !config.link_to_product_id;
                 })}
-                className="px-5 py-2 text-sm font-medium text-white bg-shopee hover:bg-primary-hover rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
+                icon={<Download className="w-4 h-4" />}
               >
-                <Download className="w-4 h-4" />
                 นำเข้า {selectedItems.length} รายการ
-              </button>
+              </Button>
             )}
           </div>
         </div>

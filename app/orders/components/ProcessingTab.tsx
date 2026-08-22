@@ -35,6 +35,7 @@ import TaxInvoiceModal from './TaxInvoiceModal';
 import PrintAfterActionModal from '@/components/orders/PrintAfterActionModal';
 import Pagination from '@/app/components/Pagination';
 import LoadingOverlay from '@/components/ui/LoadingOverlay';
+import Button from '@/components/ui/Button';
 import {
   Order,
 } from './types';
@@ -110,7 +111,6 @@ export default function ProcessingTab({
   const [holdModal, setHoldModal] = useState<{ orderId: string; orderNumber: string } | null>(null);
   const [holdReason, setHoldReason] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
-  const [cancelConfirm, setCancelConfirm] = useState<{ ids: string[] } | null>(null);
   const { confirmDialog, confirm } = useConfirmDialog();
   const [toast, setToast] = useState('');
 
@@ -349,8 +349,18 @@ export default function ProcessingTab({
       showToast(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด', 'error');
     } finally {
       setActionLoading(false);
-      setCancelConfirm(null);
     }
+  };
+
+  const confirmBulkCancel = async (ids: string[]) => {
+    const ok = await confirm({
+      title: 'ยืนยันยกเลิกออเดอร์',
+      description: `ยืนยันยกเลิก ${ids.length} รายการ? การดำเนินการนี้ไม่สามารถย้อนกลับได้`,
+      variant: 'danger',
+      confirmLabel: 'ยืนยันยกเลิก',
+    });
+    if (!ok) return;
+    await handleBulkCancel(ids);
   };
 
   const handleShip = async () => {
@@ -1017,7 +1027,7 @@ export default function ProcessingTab({
       if (!isMarketplace) {
         menuItems.push({
           key: 'cancel', label: 'ยกเลิก', icon: <Trash2 className="w-4 h-4" />,
-          onClick: (e) => { e.stopPropagation(); setCancelConfirm({ ids: [order.id] }); },
+          onClick: (e) => { e.stopPropagation(); confirmBulkCancel([order.id]); },
           className: 'p-1.5 text-gray-400 hover:text-red-500 transition-colors rounded-lg hover:bg-red-50 dark:hover:bg-red-900/30',
           danger: true,
         });
@@ -1162,20 +1172,20 @@ export default function ProcessingTab({
               clear all
             </button>
             <div className="flex items-center gap-2">
-              <button
+              <Button
+                variant="secondary"
                 onClick={() => handlePrintLabels(Array.from(selectedIds))}
-                className="px-2.5 py-2 md:px-4 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors flex items-center gap-1.5"
+                icon={<Printer className="w-4 h-4" />}
               >
-                <Printer className="w-4 h-4" />
                 <span className="hidden md:inline">ใบปะหน้า</span> ({selectedIds.size})
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="secondary"
                 onClick={() => handlePrintPackingSlips(Array.from(selectedIds))}
-                className="px-2.5 py-2 md:px-4 text-sm font-medium rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-colors flex items-center gap-1.5"
+                icon={<ClipboardList className="w-4 h-4" />}
               >
-                <ClipboardList className="w-4 h-4" />
                 <span className="hidden md:inline">ใบจัดของ</span> ({selectedIds.size})
-              </button>
+              </Button>
               <button
                 onClick={() => handleBulkPrintInvoices(Array.from(selectedIds))}
                 className="btn-focus-action green"
@@ -1184,14 +1194,14 @@ export default function ProcessingTab({
                 <span className="hidden md:inline">ใบกำกับ/ใบเสร็จ</span> ({selectedIds.size})
               </button>
               {shippableSelectedIds.length > 0 && (
-                <button
+                <Button
+                  variant="primary"
                   onClick={openBulkShipModal}
                   disabled={actionLoading}
-                  className="px-2.5 py-2 md:px-4 text-sm font-medium rounded-lg bg-amber-500 text-white hover:bg-amber-600 transition-colors flex items-center gap-1.5 disabled:opacity-50"
+                  icon={<Package className="w-4 h-4" />}
                 >
-                  <Package className="w-4 h-4" />
                   <span className="hidden md:inline">จัดส่งแล้ว</span> ({shippableSelectedIds.length})
-                </button>
+                </Button>
               )}
             </div>
           </div>
@@ -1265,13 +1275,9 @@ export default function ProcessingTab({
               <input type="text" value={holdReason} onChange={(e) => setHoldReason(e.target.value)} placeholder="ระบุเหตุผล เช่น รอสินค้า, รอลูกค้ายืนยัน..."
                 className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 dark:bg-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary" />
             </div>
-            <div className="flex gap-3 justify-end">
-              <button onClick={() => { setHoldModal(null); setHoldReason(''); }} disabled={actionLoading}
-                className="px-4 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors disabled:opacity-50">ยกเลิก</button>
-              <button onClick={handleHold} disabled={actionLoading}
-                className="px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50 flex items-center gap-2">
-                {actionLoading ? (<><Loader2 className="w-4 h-4 animate-spin" /> กำลังดำเนินการ...</>) : (<><Pause className="w-4 h-4" /> พักไว้</>)}
-              </button>
+            <div className="flex justify-end gap-3">
+              <Button variant="secondary" onClick={() => { setHoldModal(null); setHoldReason(''); }} disabled={actionLoading}>ยกเลิก</Button>
+              <Button variant="primary" onClick={handleHold} loading={actionLoading} icon={<Pause className="w-4 h-4" />}>พักไว้</Button>
             </div>
           </div>
         </div>
@@ -1300,31 +1306,9 @@ export default function ProcessingTab({
                   className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 dark:bg-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 text-sm" />
               </div>
             </div>
-            <div className="flex gap-3 justify-end mt-6">
-              <button onClick={() => { setShipModal(null); setShipCarrier(''); setShipTracking(''); }} disabled={actionLoading}
-                className="px-4 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors disabled:opacity-50">ยกเลิก</button>
-              <button onClick={handleShip} disabled={actionLoading}
-                className="px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors disabled:opacity-50 flex items-center gap-2">
-                {actionLoading ? (<><Loader2 className="w-4 h-4 animate-spin" /> กำลังดำเนินการ...</>) : (<><Package className="w-4 h-4" /> จัดส่งแล้ว</>)}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Cancel Confirm Modal */}
-      {cancelConfirm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={() => !actionLoading && setCancelConfirm(null)}>
-          <div className="bg-white dark:bg-slate-800 rounded-lg p-6 max-w-md w-full" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">ยืนยันยกเลิกออเดอร์</h3>
-            <p className="text-gray-600 dark:text-slate-400 mb-6">ยืนยันยกเลิก {cancelConfirm.ids.length} รายการ? การดำเนินการนี้ไม่สามารถย้อนกลับได้</p>
-            <div className="flex gap-3 justify-end">
-              <button onClick={() => setCancelConfirm(null)} disabled={actionLoading}
-                className="px-4 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors disabled:opacity-50">ยกเลิก</button>
-              <button onClick={() => handleBulkCancel(cancelConfirm.ids)} disabled={actionLoading}
-                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 flex items-center gap-2">
-                {actionLoading ? (<><Loader2 className="w-4 h-4 animate-spin" /> กำลังดำเนินการ...</>) : (<span>ยืนยันยกเลิก</span>)}
-              </button>
+            <div className="flex justify-end gap-3 mt-6">
+              <Button variant="secondary" onClick={() => { setShipModal(null); setShipCarrier(''); setShipTracking(''); }} disabled={actionLoading}>ยกเลิก</Button>
+              <Button variant="primary" onClick={handleShip} loading={actionLoading} icon={<Package className="w-4 h-4" />}>จัดส่งแล้ว</Button>
             </div>
           </div>
         </div>
@@ -1386,13 +1370,9 @@ export default function ProcessingTab({
                 ))}
               </div>
             </div>
-            <div className="flex gap-3 justify-end pt-4 border-t dark:border-slate-700">
-              <button onClick={() => setBulkShipModal(false)} disabled={actionLoading}
-                className="px-4 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors disabled:opacity-50">ยกเลิก</button>
-              <button onClick={handleBulkShipWithTracking} disabled={actionLoading}
-                className="px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors disabled:opacity-50 flex items-center gap-2">
-                {actionLoading ? (<><Loader2 className="w-4 h-4 animate-spin" /> กำลังดำเนินการ...</>) : (<><Package className="w-4 h-4" /> จัดส่งทั้งหมด</>)}
-              </button>
+            <div className="flex justify-end gap-3 pt-4 border-t dark:border-slate-700">
+              <Button variant="secondary" onClick={() => setBulkShipModal(false)} disabled={actionLoading}>ยกเลิก</Button>
+              <Button variant="primary" onClick={handleBulkShipWithTracking} loading={actionLoading} icon={<Package className="w-4 h-4" />}>จัดส่งทั้งหมด</Button>
             </div>
           </div>
         </div>

@@ -6,6 +6,7 @@ import { useToast } from '@/lib/toast-context';
 import { Loader2, X, Upload, CheckCircle2, ShoppingBag, AlertTriangle } from 'lucide-react';
 import FormSelect from '@/components/ui/FormSelect';
 import Modal from '@/components/ui/Modal';
+import Button from '@/components/ui/Button';
 import ShopeeCategoryPicker from './ShopeeCategoryPicker';
 
 interface ShopeeAccount {
@@ -179,26 +180,20 @@ export default function ShopeeExportModal({
       }
       title="ส่งสินค้าไป Shopee"
       footer={
-        <div className="flex items-center justify-end gap-2 p-4">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-slate-300 border border-gray-300 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors"
-          >
+        <div className="flex justify-end gap-2 p-4">
+          <Button variant="secondary" onClick={onClose}>
             {exportResult?.success ? 'ปิด' : 'ยกเลิก'}
-          </button>
+          </Button>
           {!exportResult?.success && (
-            <button
+            <Button
+              variant="primary"
               onClick={handleExport}
-              disabled={exporting || !selectedAccountId || !selectedCategoryId || !!linkedItemId}
-              className="px-4 py-2 text-sm font-medium text-white bg-shopee hover:bg-primary-hover rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
+              loading={exporting}
+              disabled={!selectedAccountId || !selectedCategoryId || !!linkedItemId}
+              icon={<ShoppingBag className="w-4 h-4" />}
             >
-              {exporting ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <ShoppingBag className="w-4 h-4" />
-              )}
-              {exporting ? 'กำลังส่ง...' : 'ส่งไป Shopee'}
-            </button>
+              ส่งไป Shopee
+            </Button>
           )}
         </div>
       }
