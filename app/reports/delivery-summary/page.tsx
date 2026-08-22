@@ -29,7 +29,7 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { ORDER_STATUS_LABEL } from '@/lib/order-status';
+import { ORDER_STATUS_LABEL, getNextOrderStatus } from '@/lib/order-status';
 import { LoadingCard } from '@/components/ui/StateCard';
 import { downloadBlob } from '@/lib/utils/download';
 import {
@@ -503,11 +503,7 @@ export default function DeliverySummaryPage() {
     });
   }, []);
 
-  // Status flow helpers
-  const getNextOrderStatus = (status: string): string | null => {
-    const flow: Record<string, string> = { new: 'ready_to_ship', ready_to_ship: 'processing', processing: 'shipping', shipping: 'completed' };
-    return flow[status] || null;
-  };
+  // Status flow: getNextOrderStatus จาก lib/order-status.ts (single source of truth)
 
   const getNextPaymentStatus = (status: string): string | null => {
     return status === 'pending' ? 'paid' : null;

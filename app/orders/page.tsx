@@ -70,6 +70,7 @@ import LoadingOverlay from '@/components/ui/LoadingOverlay';
 import FormSelect from '@/components/ui/FormSelect';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { getStatusBadgeTone } from '@/lib/status-tab-colors';
+import { ORDER_STATUS_FLOW } from '@/lib/order-status';
 import { isMarketplacePlatform } from '@/lib/marketplace-platforms';
 import PageHeader from '@/components/ui/PageHeader';
 
@@ -311,8 +312,7 @@ function OrdersPageContent() {
       const flow: Record<string, string> = { new: 'processing', processing: 'shipping', shipping: 'completed' };
       return flow[currentStatus] || null;
     }
-    const flow: Record<string, string> = { new: 'ready_to_ship', ready_to_ship: 'processing', processing: 'shipping', shipping: 'completed' };
-    return flow[currentStatus] || null;
+    return ORDER_STATUS_FLOW[currentStatus] ?? null;
   };
 
   // Handle status click

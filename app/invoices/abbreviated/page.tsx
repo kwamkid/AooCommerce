@@ -8,6 +8,7 @@ import { apiFetch } from '@/lib/api-client';
 import { ReceiptText, Search, Printer, ExternalLink, MoreHorizontal, FileUp } from 'lucide-react';
 import { showPdfPreview } from '@/lib/print-pdf';
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
+import ActionMenu from '@/components/ui/ActionMenu';
 import TaxInvoiceModal from '@/app/orders/components/TaxInvoiceModal';
 import { formatThaiDate as formatDate, formatPrice as formatMoney } from '@/lib/utils/format';
 
@@ -48,8 +49,7 @@ export default function AbbreviatedInvoicesPage() {
   const [recordsPerPage, setRecordsPerPage] = useState(20);
   const [loadTime, setLoadTime] = useState<number | null>(null);
 
-  // Action menu & modal
-  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  // Modal
   const [taxModal, setTaxModal] = useState<{ orderId: string; orderNumber: string; customerId?: string } | null>(null);
 
   const monthOptions = getMonthOptions();
@@ -77,14 +77,6 @@ export default function AbbreviatedInvoicesPage() {
 
   useEffect(() => { fetchInvoices(); }, [fetchInvoices]);
 
-  // Close action menu on outside click
-  useEffect(() => {
-    if (!openMenuId) return;
-    const handler = () => setOpenMenuId(null);
-    document.addEventListener('click', handler);
-    return () => document.removeEventListener('click', handler);
-  }, [openMenuId]);
-
   const handlePrint = async (inv: Invoice) => {
     try {
       const res = await apiFetch(`/api/orders/${inv.id}?include_items=true`);
@@ -105,7 +97,6 @@ export default function AbbreviatedInvoicesPage() {
   };
 
   const handleIssueFullInvoice = (inv: Invoice) => {
-    setOpenMenuId(null);
     setTaxModal({
       orderId: inv.id,
       orderNumber: inv.order_number || '',
@@ -206,26 +197,18 @@ export default function AbbreviatedInvoicesPage() {
               <Printer className="w-4 h-4" />
             </button>
             {canIssueFullInvoice && (
-              <div className="relative">
-                <button
-                  onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === inv.doc_id ? null : inv.doc_id); }}
-                  className="p-1.5 text-gray-400 hover:text-primary transition-colors"
-                  title="เพิ่มเติม"
-                >
-                  <MoreHorizontal className="w-4 h-4" />
-                </button>
-                {openMenuId === inv.doc_id && (
-                  <div className="absolute right-0 top-full mt-1 z-20 bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-gray-200 dark:border-slate-600 py-1 min-w-[220px]">
-                    <button
-                      onClick={() => handleIssueFullInvoice(inv)}
-                      className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-700 flex items-center gap-2"
-                    >
-                      <FileUp className="w-4 h-4 text-green-600" />
-                      ออกใบกำกับภาษีแบบเต็ม
-                    </button>
-                  </div>
-                )}
-              </div>
+              <ActionMenu
+                trigger={<MoreHorizontal className="w-4 h-4" />}
+                triggerClassName="p-1.5 text-gray-400 hover:text-primary transition-colors"
+                items={[
+                  {
+                    key: 'issue_full_invoice',
+                    label: 'ออกใบกำกับภาษีแบบเต็ม',
+                    icon: <FileUp className="w-4 h-4 text-green-600" />,
+                    onClick: () => handleIssueFullInvoice(inv),
+                  },
+                ]}
+              />
             )}
           </div>
         );
@@ -318,26 +301,18 @@ export default function AbbreviatedInvoicesPage() {
                       <Printer className="w-4 h-4" />
                     </button>
                     {canIssueFullInvoice && (
-                      <div className="relative">
-                        <button
-                          onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === inv.doc_id ? null : inv.doc_id); }}
-                          className="p-1.5 text-gray-400 hover:text-primary transition-colors"
-                          title="เพิ่มเติม"
-                        >
-                          <MoreHorizontal className="w-4 h-4" />
-                        </button>
-                        {openMenuId === inv.doc_id && (
-                          <div className="absolute right-0 top-full mt-1 z-[999] bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-gray-200 dark:border-slate-600 py-1 min-w-[220px]">
-                            <button
-                              onClick={() => handleIssueFullInvoice(inv)}
-                              className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-700 flex items-center gap-2"
-                            >
-                              <FileUp className="w-4 h-4 text-green-600" />
-                              ออกใบกำกับภาษีแบบเต็ม
-                            </button>
-                          </div>
-                        )}
-                      </div>
+                      <ActionMenu
+                        trigger={<MoreHorizontal className="w-4 h-4" />}
+                        triggerClassName="p-1.5 text-gray-400 hover:text-primary transition-colors"
+                        items={[
+                          {
+                            key: 'issue_full_invoice',
+                            label: 'ออกใบกำกับภาษีแบบเต็ม',
+                            icon: <FileUp className="w-4 h-4 text-green-600" />,
+                            onClick: () => handleIssueFullInvoice(inv),
+                          },
+                        ]}
+                      />
                     )}
                   </div>
                 </div>

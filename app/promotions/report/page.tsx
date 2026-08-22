@@ -10,6 +10,7 @@ import Container from '@/components/ui/Container';
 import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
 import { LoadingCard, EmptyCard } from '@/components/ui/StateCard';
+import PageHeader from '@/components/ui/PageHeader';
 import DateRangePicker, { DateValueType } from '@/components/ui/DateRangePicker';
 import FormSelect from '@/components/ui/FormSelect';
 import { BarChart3, ShoppingCart, Package, Banknote, Tag } from 'lucide-react';
@@ -100,12 +101,11 @@ export default function PromotionReportPage() {
     <Layout>
       <Container size="6xl">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="heading-2">รายงานยอดขายโปรโมชั่น</h1>
-            <p className="page-subtitle">ยอดขายแยกตามโปรโมชั่น (ไม่รวมตัวแทน/ห้าง)</p>
-          </div>
-        </div>
+        <PageHeader
+          backHref="/promotions"
+          title="รายงานยอดขายโปรโมชั่น"
+          subtitle="ยอดขายแยกตามโปรโมชั่น (ไม่รวมตัวแทน/ห้าง)"
+        />
 
         {/* Filters */}
         <div className="flex flex-wrap items-end gap-3">

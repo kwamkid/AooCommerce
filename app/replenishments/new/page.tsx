@@ -11,10 +11,10 @@ import FormInput from '@/components/ui/FormInput';
 import { useFormValidation } from '@/lib/useFormValidation';
 import { LoadingCard } from '@/components/ui/StateCard';
 import {
-  ArrowLeft, ArrowUpFromLine, Warehouse, Send, Copy, CheckCircle2,
+  ArrowUpFromLine, Warehouse, Send, Copy, CheckCircle2,
   Loader2, Printer, XCircle,
 } from 'lucide-react';
-import Link from 'next/link';
+import PageHeader from '@/components/ui/PageHeader';
 import ReplenishmentForm, { type ReplenishmentFormState } from '@/components/replenishments/ReplenishmentForm';
 import FormSelect from '@/components/ui/FormSelect';
 import { apiFetch } from '@/lib/api-client';
@@ -242,18 +242,12 @@ function NewReplenishmentPageContent() {
     <Layout>
       <Container size="full" gap="sm">
         {/* Header */}
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div className="flex items-center gap-3">
-            <Link
-              href="/replenishments"
-              className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
-              aria-label="ย้อนกลับ"
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </Link>
-            <div className="flex items-center gap-2">
-              <ArrowUpFromLine className="w-6 h-6 text-primary" />
-              <h1 className="heading-2">{title}</h1>
+        <PageHeader
+          backHref="/replenishments"
+          icon={<ArrowUpFromLine />}
+          title={
+            <span className="inline-flex items-center gap-2 flex-wrap">
+              {title}
               {isEdit && formState?.replenishmentNumber && (
                 <span className="id-text text-primary">
                   {formState.replenishmentNumber}
@@ -264,12 +258,10 @@ function NewReplenishmentPageContent() {
                   {statusCfg.label}
                 </span>
               )}
-            </div>
-          </div>
-
-          {/* Action buttons */}
-          {isEdit && formState && (
-            <div className="flex items-center gap-2 flex-wrap">
+            </span>
+          }
+          actions={isEdit && formState && (
+            <div className="flex items-center justify-end gap-2 flex-wrap">
               <Button
                 variant="secondary"
                 size="sm"
@@ -327,7 +319,7 @@ function NewReplenishmentPageContent() {
               )}
             </div>
           )}
-        </div>
+        />
 
         {/* Warehouse picker */}
         {warehouses.length > 0 && (

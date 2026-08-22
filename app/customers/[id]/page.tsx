@@ -23,8 +23,8 @@ import CustomerForm, {
 import { type BrandGpRow } from '@/components/customers/BrandGpCommissions';
 import { Tag } from '@/components/ui/TagBadge';
 import StickyActionBar from '@/components/ui/StickyActionBar';
+import PageHeader from '@/components/ui/PageHeader';
 import {
-  ArrowLeft,
   AlertCircle,
   UserCircle,
   Link2,
@@ -295,24 +295,12 @@ export default function CustomerEditPage() {
     <Layout>
       <Container size="2xl">
         {/* Header */}
-        <div>
-          <Button
-            variant="ghost"
-            size="sm"
-            icon={<ArrowLeft className="w-4 h-4" />}
-            onClick={() => router.push('/customers')}
-            className="mb-2"
-          >
-            กลับ
-          </Button>
-          <div className="flex items-center gap-3">
-            <UserCircle className="w-8 h-8 text-primary" />
-            <div>
-              <h1 className="heading-2">{customer.name}</h1>
-              <p className="subtitle-text text-gray-500 dark:text-slate-400">รหัส: {customer.customer_code}</p>
-            </div>
-          </div>
-        </div>
+        <PageHeader
+          backHref="/customers"
+          icon={<UserCircle />}
+          title={customer.name}
+          subtitle={`รหัส: ${customer.customer_code}`}
+        />
 
         {!canEdit && (
           <Alert tone="warning">คุณสามารถดูข้อมูลได้อย่างเดียว (ต้องเป็น Admin หรือ Manager เพื่อแก้ไข)</Alert>

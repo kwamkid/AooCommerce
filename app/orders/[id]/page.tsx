@@ -60,7 +60,7 @@ import { PLATFORM_ICONS, getTrackingUrl, getCarrierLabel } from '../components/t
 import { useCarriers } from '@/lib/carrier-lookup';
 import FormSelect from '@/components/ui/FormSelect';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
-import { ORDER_STATUS_LABEL, orderStatusLabel } from '@/lib/order-status';
+import { ORDER_STATUS_LABEL, orderStatusLabel, getNextOrderStatus } from '@/lib/order-status';
 import { getBadgeColor } from '@/lib/status-tab-colors';
 
 // Status badge components
@@ -399,11 +399,7 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
     }
   };
 
-  // Status flow helpers
-  const getNextOrderStatus = (status: string): string | null => {
-    const flow: Record<string, string> = { new: 'ready_to_ship', ready_to_ship: 'processing', processing: 'shipping', shipping: 'completed' };
-    return flow[status] || null;
-  };
+  // Status flow: getNextOrderStatus จาก lib/order-status.ts (single source of truth)
 
   const getOrderStatusLabel = (status: string): string => {
     if (status === 'cancelled' && fullOrderData?.cancellation_reason === 'expired') return 'หมดอายุ';

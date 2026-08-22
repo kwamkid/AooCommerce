@@ -58,3 +58,15 @@ export function orderStatusLabel(status: string, opts: LabelOptions = {}): strin
 export function paymentStatusLabel(status: string): string {
   return PAYMENT_STATUS_LABEL[status] || status;
 }
+
+/** ลำดับสถานะถัดไปของ r_retail flow — single source of truth (เคย copy 3 ไฟล์แล้ว drift) */
+export const ORDER_STATUS_FLOW: Record<string, string> = {
+  new: 'ready_to_ship',
+  ready_to_ship: 'processing',
+  processing: 'shipping',
+  shipping: 'completed',
+};
+
+export function getNextOrderStatus(status: string): string | null {
+  return ORDER_STATUS_FLOW[status] ?? null;
+}
