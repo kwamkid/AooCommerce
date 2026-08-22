@@ -92,9 +92,44 @@ export async function POST(request: NextRequest) {
           .eq('id', logId);
       };
 
-      // Order pushes — no Lazada order sync yet, keep for audit
+      // Order pushes — notify-then-pull: ดึงความจริงจาก /order/get เสมอ
+      // (payload บอกแค่ order id + สถานะคร่าวๆ — ไม่เชื่อ payload ตรงๆ)
       if (messageType === 0) {
-        await updateLog('skipped', 'Lazada order sync not implemented');
+        const data = payload.data || {};
+        const orderId = String(
+          data.trade_order_id ?? data.order_id ?? data.trade_order_line_id ?? ''
+        ).split('_')[0];
+        if (!orderId) {
+          await updateLog('skipped', 'Order push without order id');
+          return;
+        }
+        logIntegration({
+          company_id: account.company_id,
+          integration: 'lazada',
+          account_id: account.id,
+          account_name: account.shop_name,
+          direction: 'incoming',
+          action: 'webhook_order_push',
+          method: 'POST',
+          api_path: '/api/lazada/webhook',
+          request_body: payload,
+          status: 'success',
+          reference_type: 'order',
+          reference_id: orderId,
+          reference_label: `Lazada order push ${orderId}`,
+          duration_ms: Date.now() - startTime,
+        });
+        try {
+          const { syncSingleLazadaOrder } = await import('@/lib/lazada/sync');
+          const result = await syncSingleLazadaOrder(account, orderId);
+          if (result.errors.length > 0) {
+            await updateLog('failed', result.errors.join('; '));
+          } else {
+            await updateLog('completed');
+          }
+        } catch (err) {
+          await updateLog('failed', err instanceof Error ? err.message : 'Unknown error');
+        }
         return;
       }
 

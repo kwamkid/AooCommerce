@@ -256,3 +256,121 @@ export async function getSellerInfo(creds: LazadaCredentials): Promise<{ name?: 
     short_code: d.short_code as string | undefined,
   };
 }
+
+// ─── Orders API ──────────────────────────────────────────────────────────────
+
+export interface LazadaAddress {
+  first_name?: string;
+  last_name?: string;
+  phone?: string;
+  phone2?: string;
+  address1?: string;
+  address2?: string;
+  address3?: string;
+  address4?: string;
+  address5?: string;
+  post_code?: string;
+  city?: string;
+  country?: string;
+}
+
+export interface LazadaOrder {
+  order_id: number;
+  order_number: number;
+  statuses: string[];
+  created_at: string;   // "2026-08-22 10:15:33 +0700"
+  updated_at: string;
+  price: string;        // items total (string)
+  payment_method: string;
+  shipping_fee: number;
+  voucher: number;
+  items_count: number;
+  customer_first_name?: string;
+  customer_last_name?: string;
+  address_shipping?: LazadaAddress;
+  remarks?: string;
+}
+
+export interface LazadaOrderItem {
+  order_item_id: number;
+  order_id: number;
+  name: string;
+  sku: string;          // seller SKU
+  shop_sku: string;     // Lazada SKU
+  sku_id?: string | number;
+  product_id?: string | number;
+  variation?: string;
+  status: string;       // per-item status — order state = aggregate of these
+  item_price: number;
+  paid_price: number;
+  voucher_amount?: number;
+  shipping_amount?: number;
+  product_main_image?: string;
+  tracking_code?: string;
+  shipment_provider?: string;
+  reason?: string;
+}
+
+/** Lazada expects ISO8601 with explicit offset, no milliseconds */
+function toLazadaTime(ms: number): string {
+  return new Date(ms).toISOString().replace(/\.\d{3}Z$/, '+00:00');
+}
+
+/**
+ * List orders updated within a window — /orders/get (paginated, limit ≤ 100).
+ */
+export async function getLazadaOrders(
+  creds: LazadaCredentials,
+  opts: { updateAfterMs: number; updateBeforeMs: number; offset: number; limit?: number }
+): Promise<{ orders: LazadaOrder[]; count: number; error?: string }> {
+  const { data, error } = await lazadaApiRequest(creds, 'GET', '/orders/get', {
+    update_after: toLazadaTime(opts.updateAfterMs),
+    update_before: toLazadaTime(opts.updateBeforeMs),
+    offset: opts.offset,
+    limit: opts.limit ?? 100,
+    sort_by: 'updated_at',
+    sort_direction: 'ASC',
+  });
+  if (error) return { orders: [], count: 0, error };
+  const d = (data || {}) as { orders?: LazadaOrder[]; count?: number | string };
+  return { orders: d.orders || [], count: Number(d.count || 0) };
+}
+
+/** Single order header — /order/get */
+export async function getLazadaOrder(
+  creds: LazadaCredentials,
+  orderId: string | number
+): Promise<{ order: LazadaOrder | null; error?: string }> {
+  const { data, error } = await lazadaApiRequest(creds, 'GET', '/order/get', { order_id: orderId });
+  if (error) return { order: null, error };
+  return { order: (data as LazadaOrder) || null };
+}
+
+/** Items of one order — /order/items/get */
+export async function getLazadaOrderItems(
+  creds: LazadaCredentials,
+  orderId: string | number
+): Promise<{ items: LazadaOrderItem[]; error?: string }> {
+  const { data, error } = await lazadaApiRequest(creds, 'GET', '/order/items/get', { order_id: orderId });
+  if (error) return { items: [], error };
+  return { items: (data as LazadaOrderItem[]) || [] };
+}
+
+/**
+ * Items for a batch of orders — /orders/items/get (order_ids = JSON array, ≤ 50 ids/call)
+ */
+export async function getLazadaOrdersItems(
+  creds: LazadaCredentials,
+  orderIds: (string | number)[]
+): Promise<{ byOrder: Record<string, LazadaOrderItem[]>; error?: string }> {
+  const { data, error } = await lazadaApiRequest(creds, 'GET', '/orders/items/get', {
+    order_ids: JSON.stringify(orderIds.map(id => Number(id))),
+  });
+  if (error) return { byOrder: {}, error };
+  const rows = (data as { order_id: number; order_number?: number; order_items: LazadaOrderItem[] }[]) || [];
+  const byOrder: Record<string, LazadaOrderItem[]> = {};
+  for (const row of rows) {
+    byOrder[String(row.order_id)] = row.order_items || [];
+  }
+  return { byOrder };
+}

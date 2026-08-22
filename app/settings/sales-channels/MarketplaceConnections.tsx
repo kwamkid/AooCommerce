@@ -388,6 +388,41 @@ export default function MarketplaceConnections() {
     }
   };
 
+  const handleLazadaSync = async (accountId: string) => {
+    setSyncingId(accountId);
+    setSyncProgress(10);
+    setSyncPhaseLabel('กำลัง Sync Lazada...');
+    const days = syncRange[accountId] || 1;
+    try {
+      const res = await apiFetch('/api/lazada/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ account_id: accountId, days_back: days }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        showToast(data.error || 'Sync ไม่สำเร็จ', 'error');
+        return;
+      }
+      const result = await res.json();
+      setSyncProgress(100);
+      setSyncPhaseLabel('เสร็จสิ้น');
+      await new Promise(r => setTimeout(r, 500));
+      const parts: string[] = [];
+      if (result.orders_created > 0) parts.push(`คำสั่งซื้อใหม่ ${result.orders_created}`);
+      if (result.orders_updated > 0) parts.push(`อัพเดทคำสั่งซื้อ ${result.orders_updated}`);
+      const summary = parts.length > 0 ? parts.join(', ') : 'ไม่มีข้อมูลใหม่';
+      showToast(`Sync สำเร็จ: ${summary}`, 'success');
+      fetchLazadaAccounts();
+    } catch {
+      showToast('เกิดข้อผิดพลาดในการ sync', 'error');
+    } finally {
+      setSyncingId(null);
+      setSyncProgress(0);
+      setSyncPhaseLabel('');
+    }
+  };
+
   const handleDisconnect = async (accountId: string) => {
     const ok = await confirm({ title: 'ต้องการยกเลิกการเชื่อมต่อร้านนี้?', variant: 'danger' }); if (!ok) return;
     setDisconnectingId(accountId);
@@ -829,42 +864,71 @@ export default function MarketplaceConnections() {
       ) : (
         <div className="space-y-4">
           <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg p-3 text-sm text-blue-800 dark:text-blue-300">
-            Lazada รองรับ <b>แชท</b> เป็นหลักในตอนนี้ (order sync ยังไม่เปิดใช้) — เชื่อมร้านแล้วเปิดรับแชทได้ที่{' '}
+            เชื่อมร้านแล้วเปิดรับ<b>แชท</b>ได้ที่{' '}
             <a href="/settings/chat-channels#lazada" className="underline font-medium">ตั้งค่า &gt; ช่องทาง Chat</a>
+            {' '}— ออเดอร์เข้าอัตโนมัติผ่าน webhook + sync ทุก 15 นาที
           </div>
           {lazadaAccounts.filter(a => a.is_active).map(account => {
             const isDisconnecting = disconnectingId === account.id;
+            const isSyncing = syncingId === account.id;
             return (
-              <div key={account.id} className="bg-white dark:bg-slate-800 rounded-lg shadow-sm flex items-center gap-3 p-4">
-                <div className="w-10 h-10 rounded-lg bg-[#0F146E] flex items-center justify-center flex-shrink-0">
-                  <ShoppingBag className="w-5 h-5 text-white" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-medium text-gray-900 dark:text-white truncate">
-                    {account.shop_name || `Lazada #${account.shop_id}`}
-                  </p>
-                  <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-slate-400">
-                    {account.connection_status === 'connected' ? (
-                      <span className="text-green-600 dark:text-green-400 flex items-center gap-1">
-                        <CheckCircle2 className="w-3 h-3" />
-                        เชื่อมต่อแล้ว
-                      </span>
-                    ) : (
-                      <span className="text-yellow-600 dark:text-yellow-400 flex items-center gap-1">
-                        <AlertTriangle className="w-3 h-3" />
-                        Token หมดอายุ
-                      </span>
-                    )}
-                    <span className="ml-1">#{account.shop_id}</span>
+              <div key={account.id} className="bg-white dark:bg-slate-800 rounded-lg shadow-sm p-4 space-y-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-[#0F146E] flex items-center justify-center flex-shrink-0">
+                    <ShoppingBag className="w-5 h-5 text-white" />
                   </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-gray-900 dark:text-white truncate">
+                      {account.shop_name || `Lazada #${account.shop_id}`}
+                    </p>
+                    <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-slate-400">
+                      {account.connection_status === 'connected' ? (
+                        <span className="text-green-600 dark:text-green-400 flex items-center gap-1">
+                          <CheckCircle2 className="w-3 h-3" />
+                          เชื่อมต่อแล้ว
+                        </span>
+                      ) : (
+                        <span className="text-yellow-600 dark:text-yellow-400 flex items-center gap-1">
+                          <AlertTriangle className="w-3 h-3" />
+                          Token หมดอายุ
+                        </span>
+                      )}
+                      <span className="ml-1">#{account.shop_id}</span>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => handleDisconnect(account.id)}
+                    disabled={isDisconnecting}
+                    className="p-2 text-gray-400 hover:text-red-500 dark:hover:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex items-center justify-center disabled:opacity-50"
+                  >
+                    {isDisconnecting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                  </button>
                 </div>
-                <button
-                  onClick={() => handleDisconnect(account.id)}
-                  disabled={isDisconnecting}
-                  className="p-2 text-gray-400 hover:text-red-500 dark:hover:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex items-center justify-center disabled:opacity-50"
-                >
-                  {isDisconnecting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-                </button>
+                {/* Sync Controls */}
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="w-44">
+                    <FormSelect
+                      value={String(syncRange[account.id] || 1)}
+                      onChange={value => setSyncRange(prev => ({ ...prev, [account.id]: parseInt(value) }))}
+                      options={[
+                        { id: '1', label: 'ย้อนหลัง 1 วัน' },
+                        { id: '3', label: 'ย้อนหลัง 3 วัน' },
+                        { id: '7', label: 'ย้อนหลัง 7 วัน' },
+                        { id: '15', label: 'ย้อนหลัง 15 วัน' },
+                        { id: '30', label: 'ย้อนหลัง 30 วัน' },
+                      ]}
+                      searchThreshold={99}
+                    />
+                  </div>
+                  <button
+                    onClick={() => handleLazadaSync(account.id)}
+                    disabled={isSyncing || account.connection_status === 'expired'}
+                    className="px-3 py-2 text-sm font-medium rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50 border border-[#0F146E] text-[#0F146E] dark:border-blue-400 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                  >
+                    <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
+                    {isSyncing ? 'กำลัง Sync...' : 'Sync Now'}
+                  </button>
+                </div>
               </div>
             );
           })}
