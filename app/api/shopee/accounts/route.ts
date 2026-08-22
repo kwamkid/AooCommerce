@@ -9,7 +9,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Support ?platform=tiktok to filter by platform (default: shopee)
+    // Support ?platform=tiktok|lazada|all to filter by platform (default: shopee)
     const platformParam = new URL(request.url).searchParams.get('platform') || 'shopee';
 
     let query = supabaseAdmin
@@ -18,11 +18,13 @@ export async function GET(request: NextRequest) {
       .eq('company_id', companyId)
       .order('created_at', { ascending: false });
 
-    // Filter by platform
+    // Filter by platform — 'all' คืนทุก platform ใน call เดียว (หน้า settings ใช้แทนการยิง 3 รอบ)
     if (platformParam === 'tiktok') {
       query = query.eq('platform', 'tiktok');
     } else if (platformParam === 'lazada') {
       query = query.eq('platform', 'lazada');
+    } else if (platformParam === 'all') {
+      // no platform filter
     } else {
       // Default to shopee (includes legacy accounts without platform field)
       query = query.or('platform.eq.shopee,platform.is.null');
@@ -40,7 +42,6 @@ export async function GET(request: NextRequest) {
         .from('marketplace_product_links')
         .select('account_id')
         .in('account_id', accountIds)
-        .eq('platform', platformParam)
         .eq('sync_enabled', true);
 
       if (countRows) {

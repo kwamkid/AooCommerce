@@ -5,44 +5,22 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { useFetchOnce } from '@/lib/use-fetch-once';
 import { useAuth } from '@/lib/auth-context';
 import { can } from '@/lib/permissions';
 import { useToast } from '@/lib/toast-context';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { apiFetch } from '@/lib/api-client';
-import {
-  Loader2, ShoppingBag, RefreshCw, CheckCircle2,
-  XCircle, Clock, AlertTriangle, ChevronDown, ChevronUp,
-  Plus, Trash2, Package
-} from 'lucide-react';
+import { ShoppingBag, RefreshCw, Clock, Plus } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import { ExportButton, ImportButton } from '@/components/ui/ExportImportButton';
-import FormSelect from '@/components/ui/FormSelect';
+import Alert from '@/components/ui/Alert';
+import Toggle from '@/components/ui/Toggle';
 import LoadingOverlay from '@/components/ui/LoadingOverlay';
 import PlatformIcon from '@/components/ui/PlatformIcon';
 import { LoadingCard } from '@/components/ui/StateCard';
-
-interface MarketplaceAccount {
-  id: string;
-  platform: 'shopee' | 'tiktok';
-  shop_id: number;
-  shop_name: string | null;
-  is_active: boolean;
-  last_sync_at: string | null;
-  last_product_sync_at: string | null;
-  access_token_expires_at: string | null;
-  refresh_token_expires_at: string | null;
-  auto_sync_stock: boolean;
-  auto_sync_product_info: boolean;
-  connection_status: 'connected' | 'expired' | 'disconnected';
-  linked_product_count: number;
-  metadata: Record<string, unknown>;
-  created_at: string;
-}
-
-// Keep ShopeeAccount as alias for backwards compat
-type ShopeeAccount = MarketplaceAccount;
+import { formatThaiDateTime } from '@/lib/utils/format';
+import MarketplaceAccountCard, { SyncRangeSelect } from './MarketplaceAccountCard';
+import { useMarketplaceAccounts, type MarketplaceAccount } from './useMarketplaceAccounts';
 
 export default function MarketplaceConnections() {
   const router = useRouter();
@@ -51,12 +29,11 @@ export default function MarketplaceConnections() {
   const { confirmDialog, confirm } = useConfirmDialog();
   // Badge-tab เลือกดูทีละแพลตฟอร์ม — แบบ flat ทั้งสามแพลตฟอร์มยาวเกินจอ
   const [activePlatform, setActivePlatform] = useState<'shopee' | 'tiktok' | 'lazada'>('shopee');
-  const [accounts, setAccounts] = useState<ShopeeAccount[]>([]);
-  const [tiktokAccounts, setTiktokAccounts] = useState<MarketplaceAccount[]>([]);
-  const [lazadaAccounts, setLazadaAccounts] = useState<MarketplaceAccount[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [tiktokLoading, setTiktokLoading] = useState(true);
-  const [lazadaLoading, setLazadaLoading] = useState(true);
+  // fetch เดียวได้ทุก platform (แทน 3 calls เดิม) — refetch หลัง write ใดๆ
+  const {
+    shopee: shopeeAccounts, tiktok: tiktokAccounts, lazada: lazadaAccounts,
+    loading, refetch, patchAccount,
+  } = useMarketplaceAccounts(can(userProfile?.roles, 'settings.access'));
   const [connecting, setConnecting] = useState(false);
   const [syncingId, setSyncingId] = useState<string | null>(null);
   const [disconnectingId, setDisconnectingId] = useState<string | null>(null);
@@ -67,71 +44,21 @@ export default function MarketplaceConnections() {
   const [syncPhaseLabel, setSyncPhaseLabel] = useState('');
   const syncAbortRef = useRef<AbortController | null>(null);
 
-  const fetchAccounts = useCallback(async () => {
-    try {
-      const res = await apiFetch('/api/shopee/accounts');
-      if (res.ok) {
-        const data = await res.json();
-        setAccounts(data);
-      }
-    } catch (error) {
-      console.error('Failed to fetch accounts:', error);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  const fetchTiktokAccounts = useCallback(async () => {
-    try {
-      // TikTok accounts are stored in the same marketplace_accounts table
-      // Reuse shopee accounts endpoint but filter by platform (or use dedicated endpoint)
-      const res = await apiFetch('/api/shopee/accounts?platform=tiktok');
-      if (res.ok) {
-        const data = await res.json();
-        setTiktokAccounts(data);
-      }
-    } catch (error) {
-      console.error('Failed to fetch TikTok accounts:', error);
-    } finally {
-      setTiktokLoading(false);
-    }
-  }, []);
-
-  const fetchLazadaAccounts = useCallback(async () => {
-    try {
-      const res = await apiFetch('/api/shopee/accounts?platform=lazada');
-      if (res.ok) {
-        const data = await res.json();
-        setLazadaAccounts(Array.isArray(data) ? data : []);
-      }
-    } catch (error) {
-      console.error('Failed to fetch Lazada accounts:', error);
-    } finally {
-      setLazadaLoading(false);
-    }
-  }, []);
-
-  useFetchOnce(() => {
-    fetchAccounts();
-    fetchTiktokAccounts();
-    fetchLazadaAccounts();
-  }, can(userProfile?.roles, 'settings.access'));
-
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const cleanUrl = '/settings/sales-channels?tab=marketplace';
     if (params.get('shopee') === 'connected') {
       showToast('เชื่อมต่อ Shopee สำเร็จ', 'success');
-      fetchAccounts();
+      refetch();
       window.history.replaceState({}, '', cleanUrl);
     } else if (params.get('tiktok') === 'connected') {
       showToast('เชื่อมต่อ TikTok Shop สำเร็จ', 'success');
-      fetchTiktokAccounts();
+      refetch();
       setActivePlatform('tiktok');
       window.history.replaceState({}, '', cleanUrl);
     } else if (params.get('success') === 'lazada_connected') {
       showToast('เชื่อมต่อ Lazada สำเร็จ', 'success');
-      fetchLazadaAccounts();
+      refetch();
       setActivePlatform('lazada');
       window.history.replaceState({}, '', cleanUrl);
     } else if (params.get('error')) {
@@ -269,7 +196,7 @@ export default function MarketplaceConnections() {
         if ((result.orders_updated as number) > 0) parts.push(`อัพเดทคำสั่งซื้อ ${result.orders_updated}`);
         const summary = parts.length > 0 ? parts.join(', ') : 'ไม่มีข้อมูลใหม่';
         showToast(`Sync สำเร็จ: ${summary}`, 'success');
-        fetchAccounts();
+        refetch();
       }
     } catch {
       if (!controller.signal.aborted) {
@@ -340,7 +267,7 @@ export default function MarketplaceConnections() {
         if ((result.orders_updated as number) > 0) parts.push(`อัพเดทสถานะ ${result.orders_updated}`);
         const summary = parts.length > 0 ? parts.join(', ') : 'ไม่มีการเปลี่ยนแปลง';
         showToast(`Sync สถานะค้างสำเร็จ: ${summary}`, 'success');
-        fetchAccounts();
+        refetch();
       }
     } catch {
       if (!controller.signal.aborted) {
@@ -354,15 +281,21 @@ export default function MarketplaceConnections() {
     }
   };
 
-  const handleTiktokSync = async (accountId: string) => {
+  // Sync แบบ POST ธรรมดา (TikTok/Lazada) — เดิมเป็นสองฟังก์ชัน byte-identical ต่างกัน 3 token
+  const SIMPLE_SYNC = {
+    tiktok: { url: '/api/tiktok/sync', label: 'กำลัง Sync TikTok Shop...' },
+    lazada: { url: '/api/lazada/sync', label: 'กำลัง Sync Lazada...' },
+  } as const;
+
+  const handleSimpleSync = async (platform: 'tiktok' | 'lazada', accountId: string) => {
     setSyncingId(accountId);
     setSyncProgress(10);
-    setSyncPhaseLabel('กำลัง Sync TikTok Shop...');
+    setSyncPhaseLabel(SIMPLE_SYNC[platform].label);
     const controller = new AbortController();
     syncAbortRef.current = controller;
     const days = syncRange[accountId] || 1;
     try {
-      const res = await apiFetch('/api/tiktok/sync', {
+      const res = await apiFetch(SIMPLE_SYNC[platform].url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ account_id: accountId, days_back: days }),
@@ -382,7 +315,7 @@ export default function MarketplaceConnections() {
       if (result.orders_updated > 0) parts.push(`อัพเดทคำสั่งซื้อ ${result.orders_updated}`);
       const summary = parts.length > 0 ? parts.join(', ') : 'ไม่มีข้อมูลใหม่';
       showToast(`Sync สำเร็จ: ${summary}`, 'success');
-      fetchTiktokAccounts();
+      refetch();
     } catch {
       showToast(controller.signal.aborted ? 'ยกเลิกการ sync แล้ว' : 'เกิดข้อผิดพลาดในการ sync', 'error');
     } finally {
@@ -393,46 +326,7 @@ export default function MarketplaceConnections() {
     }
   };
 
-  const handleLazadaSync = async (accountId: string) => {
-    setSyncingId(accountId);
-    setSyncProgress(10);
-    setSyncPhaseLabel('กำลัง Sync Lazada...');
-    const controller = new AbortController();
-    syncAbortRef.current = controller;
-    const days = syncRange[accountId] || 1;
-    try {
-      const res = await apiFetch('/api/lazada/sync', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ account_id: accountId, days_back: days }),
-        signal: controller.signal,
-      });
-      if (!res.ok) {
-        const data = await res.json();
-        showToast(data.error || 'Sync ไม่สำเร็จ', 'error');
-        return;
-      }
-      const result = await res.json();
-      setSyncProgress(100);
-      setSyncPhaseLabel('เสร็จสิ้น');
-      await new Promise(r => setTimeout(r, 500));
-      const parts: string[] = [];
-      if (result.orders_created > 0) parts.push(`คำสั่งซื้อใหม่ ${result.orders_created}`);
-      if (result.orders_updated > 0) parts.push(`อัพเดทคำสั่งซื้อ ${result.orders_updated}`);
-      const summary = parts.length > 0 ? parts.join(', ') : 'ไม่มีข้อมูลใหม่';
-      showToast(`Sync สำเร็จ: ${summary}`, 'success');
-      fetchLazadaAccounts();
-    } catch {
-      showToast(controller.signal.aborted ? 'ยกเลิกการ sync แล้ว' : 'เกิดข้อผิดพลาดในการ sync', 'error');
-    } finally {
-      syncAbortRef.current = null;
-      setSyncingId(null);
-      setSyncProgress(0);
-      setSyncPhaseLabel('');
-    }
-  };
-
-  const handleDisconnect = async (accountId: string, platform: 'shopee' | 'tiktok' | 'lazada' = 'shopee') => {
+  const handleDisconnect = async (accountId: string) => {
     const ok = await confirm({ title: 'ต้องการยกเลิกการเชื่อมต่อร้านนี้?', variant: 'danger' }); if (!ok) return;
     setDisconnectingId(accountId);
     try {
@@ -441,10 +335,7 @@ export default function MarketplaceConnections() {
       });
       if (res.ok) {
         showToast('ยกเลิกการเชื่อมต่อสำเร็จ', 'success');
-        // refetch เฉพาะ list ของ platform ที่ลบ — เดิม hardcode fetchAccounts ทำให้การ์ด TikTok/Lazada ค้างจนกด reload
-        if (platform === 'tiktok') fetchTiktokAccounts();
-        else if (platform === 'lazada') fetchLazadaAccounts();
-        else fetchAccounts();
+        refetch();
       } else {
         showToast('ไม่สามารถยกเลิกได้', 'error');
       }
@@ -465,7 +356,7 @@ export default function MarketplaceConnections() {
       });
       if (res.ok) {
         showToast('อัพเดทข้อมูลร้านสำเร็จ', 'success');
-        fetchAccounts();
+        refetch();
       } else {
         showToast('ไม่สามารถอัพเดทได้', 'error');
       }
@@ -478,7 +369,7 @@ export default function MarketplaceConnections() {
 
   const handleToggleSync = async (accountId: string, field: 'auto_sync_stock' | 'auto_sync_product_info', value: boolean) => {
     // Optimistic update
-    setAccounts(prev => prev.map(a => a.id === accountId ? { ...a, [field]: value } : a));
+    patchAccount(accountId, { [field]: value });
     try {
       const res = await apiFetch('/api/shopee/accounts', {
         method: 'PUT',
@@ -486,28 +377,14 @@ export default function MarketplaceConnections() {
         body: JSON.stringify({ id: accountId, [field]: value }),
       });
       if (!res.ok) {
-        setAccounts(prev => prev.map(a => a.id === accountId ? { ...a, [field]: !value } : a));
+        patchAccount(accountId, { [field]: !value });
         showToast('ไม่สามารถอัพเดทได้', 'error');
       }
     } catch {
-      setAccounts(prev => prev.map(a => a.id === accountId ? { ...a, [field]: !value } : a));
+      patchAccount(accountId, { [field]: !value });
       showToast('เกิดข้อผิดพลาด', 'error');
     }
   };
-
-  const formatDate = (dateStr: string | null) => {
-    if (!dateStr) return '-';
-    return new Date(dateStr).toLocaleString('th-TH', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  };
-
-  const activeAccounts = accounts.filter(a => a.is_active);
-  const activeTiktokAccounts = tiktokAccounts.filter(a => a.is_active);
 
   const platformChip = (
     id: 'shopee' | 'tiktok' | 'lazada',
@@ -538,9 +415,9 @@ export default function MarketplaceConnections() {
           (ตำแหน่งเดียวกับปุ่ม "เพิ่ม" ของแท็บช่องทางของฉัน) */}
       <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
         <div className="flex flex-wrap items-center gap-2">
-          {platformChip('shopee', 'Shopee', activeAccounts.length, 'border-shopee text-shopee bg-shopee/10')}
-          {platformChip('tiktok', 'TikTok Shop', activeTiktokAccounts.length, 'border-gray-900 text-gray-900 bg-gray-900/5 dark:border-white dark:text-white dark:bg-white/10')}
-          {platformChip('lazada', 'Lazada', lazadaAccounts.filter(a => a.is_active).length, 'border-[#0F146E] text-[#0F146E] bg-[#0F146E]/10 dark:border-blue-400 dark:text-blue-400 dark:bg-blue-400/10')}
+          {platformChip('shopee', 'Shopee', shopeeAccounts.length, 'border-shopee text-shopee bg-shopee/10')}
+          {platformChip('tiktok', 'TikTok Shop', tiktokAccounts.length, 'border-gray-900 text-gray-900 bg-gray-900/5 dark:border-white dark:text-white dark:bg-white/10')}
+          {platformChip('lazada', 'Lazada', lazadaAccounts.length, 'border-[#0F146E] text-[#0F146E] bg-[#0F146E]/10 dark:border-blue-400 dark:text-blue-400 dark:bg-blue-400/10')}
         </div>
         <Button
           variant="primary"
@@ -559,18 +436,21 @@ export default function MarketplaceConnections() {
         <LoadingCard />
       ) : (
         <div className="space-y-4">
-          {/* Account Cards */}
-          {activeAccounts.map(account => {
-            const isExpanded = expandedId === account.id;
+          {shopeeAccounts.map(account => {
             const isSyncing = syncingId === account.id;
-            const isDisconnecting = disconnectingId === account.id;
             const isRefreshingLogo = refreshingLogoId === account.id;
-
             return (
-              <div key={account.id} className="bg-white dark:bg-slate-800 rounded-lg shadow-sm overflow-hidden">
-                {/* Card Header */}
-                <div className="flex items-center gap-3 p-4">
-                  {/* Shop Logo — click to refresh */}
+              <MarketplaceAccountCard
+                key={account.id}
+                account={account}
+                title={account.shop_name || `Shop #${account.shop_id}`}
+                showProductCount
+                expandable
+                expanded={expandedId === account.id}
+                onToggleExpand={() => setExpandedId(expandedId === account.id ? null : account.id)}
+                onDisconnect={() => handleDisconnect(account.id)}
+                disconnecting={disconnectingId === account.id}
+                avatar={
                   <button
                     onClick={() => handleRefreshLogo(account.id)}
                     disabled={isRefreshingLogo}
@@ -584,372 +464,196 @@ export default function MarketplaceConnections() {
                         className="w-10 h-10 rounded-lg object-cover"
                       />
                     ) : (
-                      <div className="w-10 h-10 rounded-lg bg-transparent flex items-center justify-center relative">
+                      <div className="w-10 h-10 rounded-lg bg-transparent flex items-center justify-center">
                         <ShoppingBag className="w-5 h-5 text-shopee" />
-                        <span className="absolute -bottom-5 left-1/2 -translate-x-1/2 text-[9px] text-gray-400 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">กดเพื่ออัพเดท</span>
                       </div>
                     )}
                     <div className="absolute inset-0 bg-black/40 rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                       <RefreshCw className={`w-4 h-4 text-white ${isRefreshingLogo ? 'animate-spin' : ''}`} />
                     </div>
                   </button>
-
-                  {/* Info */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <p className="font-medium text-gray-900 dark:text-white truncate">
-                        {account.shop_name || `Shop #${account.shop_id}`}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-slate-400">
-                      {account.connection_status === 'connected' ? (
-                        <span className="text-green-600 dark:text-green-400 flex items-center gap-1">
-                          <CheckCircle2 className="w-3 h-3" />
-                          เชื่อมต่อแล้ว
-                        </span>
-                      ) : account.connection_status === 'expired' ? (
-                        <span className="text-yellow-600 dark:text-yellow-400 flex items-center gap-1">
-                          <AlertTriangle className="w-3 h-3" />
-                          Token หมดอายุ
-                        </span>
-                      ) : (
-                        <span className="text-gray-400 flex items-center gap-1">
-                          <XCircle className="w-3 h-3" />
-                          ยกเลิกแล้ว
-                        </span>
-                      )}
-                      <span className="ml-1">#{account.shop_id}</span>
-                      {account.linked_product_count > 0 && (
-                        <>
-                          <span className="mx-1">·</span>
-                          <span className="flex items-center gap-1">
-                            <Package className="w-3 h-3" />
-                            {account.linked_product_count} สินค้าเชื่อมต่อ
-                          </span>
-                        </>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Actions */}
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    <button
-                      onClick={() => setExpandedId(isExpanded ? null : account.id)}
-                      className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-slate-200 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
-                    >
-                      {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                    </button>
-                  </div>
+                }
+              >
+                {/* Details */}
+                <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-slate-400">
+                  <span>Shop ID: {account.shop_id}</span>
+                  <span className="flex items-center gap-1">
+                    <Clock className="w-3 h-3" />
+                    Sync ล่าสุด: {formatThaiDateTime(account.last_sync_at)}
+                  </span>
+                  <span>เชื่อมต่อเมื่อ: {formatThaiDateTime(account.created_at)}</span>
                 </div>
 
-                {/* Expanded Section */}
-                {isExpanded && (
-                  <div className="px-4 pb-4 space-y-3 border-t border-gray-100 dark:border-slate-700 pt-3">
-                    {/* Details */}
-                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-slate-400">
-                      <span>Shop ID: {account.shop_id}</span>
-                      <span className="flex items-center gap-1">
-                        <Clock className="w-3 h-3" />
-                        Sync ล่าสุด: {formatDate(account.last_sync_at)}
-                      </span>
-                      <span>เชื่อมต่อเมื่อ: {formatDate(account.created_at)}</span>
-                    </div>
-
-                    {/* Auto-Sync Toggles */}
-                    <div className="flex flex-wrap gap-x-6 gap-y-2 pt-1">
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <div className="relative">
-                          <input
-                            type="checkbox"
-                            className="sr-only peer"
-                            checked={account.auto_sync_stock !== false}
-                            onChange={e => handleToggleSync(account.id, 'auto_sync_stock', e.target.checked)}
-                          />
-                          <div className="w-9 h-5 bg-gray-300 dark:bg-slate-600 rounded-full peer-checked:bg-shopee transition-colors" />
-                          <div className="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full shadow peer-checked:translate-x-4 transition-transform" />
-                        </div>
-                        <span className="text-xs text-gray-700 dark:text-slate-300">Sync Stock อัตโนมัติ</span>
-                      </label>
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <div className="relative">
-                          <input
-                            type="checkbox"
-                            className="sr-only peer"
-                            checked={account.auto_sync_product_info !== false}
-                            onChange={e => handleToggleSync(account.id, 'auto_sync_product_info', e.target.checked)}
-                          />
-                          <div className="w-9 h-5 bg-gray-300 dark:bg-slate-600 rounded-full peer-checked:bg-shopee transition-colors" />
-                          <div className="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full shadow peer-checked:translate-x-4 transition-transform" />
-                        </div>
-                        <span className="text-xs text-gray-700 dark:text-slate-300">Sync ชื่อ/ราคา อัตโนมัติ</span>
-                      </label>
-                    </div>
-
-                    {/* Sync Controls */}
-                    <div className="flex flex-wrap items-center gap-2 pt-1">
-                      <div className="w-44">
-                        <FormSelect
-                          value={String(syncRange[account.id] || 1)}
-                          onChange={value => setSyncRange(prev => ({ ...prev, [account.id]: parseInt(value) }))}
-                          options={[
-                            { id: '1', label: 'ย้อนหลัง 1 วัน' },
-                            { id: '3', label: 'ย้อนหลัง 3 วัน' },
-                            { id: '7', label: 'ย้อนหลัง 7 วัน' },
-                            { id: '15', label: 'ย้อนหลัง 15 วัน' },
-                            { id: '30', label: 'ย้อนหลัง 30 วัน' },
-                          ]}
-                          searchThreshold={99}
-                        />
-                      </div>
-                      <Button
-                        variant="secondary"
-                        icon={<RefreshCw className="w-4 h-4" />}
-                        loading={isSyncing}
-                        disabled={account.connection_status === 'expired'}
-                        onClick={() => handleSync(account.id)}
-                      >
-                        {isSyncing ? 'กำลัง Sync...' : 'Sync Now'}
-                      </Button>
-                      <Button
-                        variant="secondary"
-                        icon={<RefreshCw className="w-4 h-4" />}
-                        loading={isSyncing}
-                        disabled={account.connection_status === 'expired'}
-                        onClick={() => handleSyncIncomplete(account.id)}
-                      >
-                        Sync สถานะค้าง
-                      </Button>
-                      <ImportButton
-                        disabled={account.connection_status === 'expired'}
-                        onClick={() => {
-                          const name = account.shop_name || `Shop #${account.shop_id}`;
-                          router.push(`/shopee/import?account_id=${account.id}&account_name=${encodeURIComponent(name)}`);
-                        }}
-                      >
-                        นำเข้าสินค้าจาก Shopee
-                      </ImportButton>
-                      <ExportButton
-                        disabled={account.connection_status === 'expired'}
-                        onClick={() => {
-                          const name = account.shop_name || `Shop #${account.shop_id}`;
-                          router.push(`/shopee/export?account_id=${account.id}&account_name=${encodeURIComponent(name)}`);
-                        }}
-                      >
-                        ส่งสินค้าไป Shopee
-                      </ExportButton>
-                      <button
-                        onClick={() => handleDisconnect(account.id)}
-                        disabled={isDisconnecting}
-                        className="p-2 text-gray-400 hover:text-red-500 dark:hover:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex items-center justify-center disabled:opacity-50"
-                      >
-                        {isDisconnecting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-
-        </div>
-      ))}
-
-      {/* ===== TIKTOK ===== */}
-      {activePlatform === 'tiktok' && (tiktokLoading ? (
-        <LoadingCard />
-      ) : (
-        <div className="space-y-4">
-          {activeTiktokAccounts.map(account => {
-            const isExpanded = expandedId === account.id;
-            const isSyncing = syncingId === account.id;
-            const isDisconnecting = disconnectingId === account.id;
-            const region = (account.metadata?.region as string) || '';
-
-            return (
-              <div key={account.id} className="bg-white dark:bg-slate-800 rounded-lg shadow-sm overflow-hidden">
-                {/* Card Header */}
-                <div className="flex items-center gap-3 p-4">
-                  <div className="w-10 h-10 rounded-lg bg-black flex items-center justify-center flex-shrink-0">
-                    <ShoppingBag className="w-5 h-5 text-white" />
-                  </div>
-
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <p className="font-medium text-gray-900 dark:text-white truncate">
-                        {account.shop_name || `TikTok Shop #${account.shop_id}`}
-                      </p>
-                      {region && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-slate-400 uppercase">
-                          {region}
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-slate-400">
-                      {account.connection_status === 'connected' ? (
-                        <span className="text-green-600 dark:text-green-400 flex items-center gap-1">
-                          <CheckCircle2 className="w-3 h-3" />
-                          เชื่อมต่อแล้ว
-                        </span>
-                      ) : account.connection_status === 'expired' ? (
-                        <span className="text-yellow-600 dark:text-yellow-400 flex items-center gap-1">
-                          <AlertTriangle className="w-3 h-3" />
-                          Token หมดอายุ
-                        </span>
-                      ) : (
-                        <span className="text-gray-400 flex items-center gap-1">
-                          <XCircle className="w-3 h-3" />
-                          ยกเลิกแล้ว
-                        </span>
-                      )}
-                      <span className="ml-1">#{account.shop_id}</span>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    <button
-                      onClick={() => setExpandedId(isExpanded ? null : account.id)}
-                      className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-slate-200 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
-                    >
-                      {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                    </button>
-                  </div>
-                </div>
-
-                {/* Expanded Section */}
-                {isExpanded && (
-                  <div className="px-4 pb-4 space-y-3 border-t border-gray-100 dark:border-slate-700 pt-3">
-                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-slate-400">
-                      <span>Shop ID: {account.shop_id}</span>
-                      <span className="flex items-center gap-1">
-                        <Clock className="w-3 h-3" />
-                        Sync ล่าสุด: {formatDate(account.last_sync_at)}
-                      </span>
-                      <span>เชื่อมต่อเมื่อ: {formatDate(account.created_at)}</span>
-                    </div>
-
-                    {/* Sync Controls */}
-                    <div className="flex flex-wrap items-center gap-2 pt-1">
-                      <div className="w-44">
-                        <FormSelect
-                          value={String(syncRange[account.id] || 1)}
-                          onChange={value => setSyncRange(prev => ({ ...prev, [account.id]: parseInt(value) }))}
-                          options={[
-                            { id: '1', label: 'ย้อนหลัง 1 วัน' },
-                            { id: '3', label: 'ย้อนหลัง 3 วัน' },
-                            { id: '7', label: 'ย้อนหลัง 7 วัน' },
-                            { id: '15', label: 'ย้อนหลัง 15 วัน' },
-                            { id: '30', label: 'ย้อนหลัง 30 วัน' },
-                          ]}
-                          searchThreshold={99}
-                        />
-                      </div>
-                      <Button
-                        variant="secondary"
-                        icon={<RefreshCw className="w-4 h-4" />}
-                        loading={isSyncing}
-                        disabled={account.connection_status === 'expired'}
-                        onClick={() => handleTiktokSync(account.id)}
-                      >
-                        {isSyncing ? 'กำลัง Sync...' : 'Sync Now'}
-                      </Button>
-                      <button
-                        onClick={() => handleDisconnect(account.id, 'tiktok')}
-                        disabled={isDisconnecting}
-                        className="p-2 text-gray-400 hover:text-red-500 dark:hover:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex items-center justify-center disabled:opacity-50"
-                      >
-                        {isDisconnecting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-
-        </div>
-      ))}
-
-      {/* ===== LAZADA ===== */}
-      {activePlatform === 'lazada' && (lazadaLoading ? (
-        <LoadingCard />
-      ) : (
-        <div className="space-y-4">
-          <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg p-3 text-sm text-blue-800 dark:text-blue-300">
-            เชื่อมร้านแล้วเปิดรับ<b>แชท</b>ได้ที่{' '}
-            <a href="/settings/chat-channels#lazada" className="underline font-medium">ตั้งค่า &gt; ช่องทาง Chat</a>
-            {' '}— ออเดอร์เข้าอัตโนมัติผ่าน webhook + sync ทุก 15 นาที
-          </div>
-          {lazadaAccounts.filter(a => a.is_active).map(account => {
-            const isDisconnecting = disconnectingId === account.id;
-            const isSyncing = syncingId === account.id;
-            return (
-              <div key={account.id} className="bg-white dark:bg-slate-800 rounded-lg shadow-sm p-4 space-y-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-[#0F146E] flex items-center justify-center flex-shrink-0">
-                    <ShoppingBag className="w-5 h-5 text-white" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-gray-900 dark:text-white truncate">
-                      {account.shop_name || `Lazada #${account.shop_id}`}
-                    </p>
-                    <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-slate-400">
-                      {account.connection_status === 'connected' ? (
-                        <span className="text-green-600 dark:text-green-400 flex items-center gap-1">
-                          <CheckCircle2 className="w-3 h-3" />
-                          เชื่อมต่อแล้ว
-                        </span>
-                      ) : account.connection_status === 'expired' ? (
-                        <span className="text-yellow-600 dark:text-yellow-400 flex items-center gap-1">
-                          <AlertTriangle className="w-3 h-3" />
-                          Token หมดอายุ
-                        </span>
-                      ) : (
-                        <span className="text-gray-400 flex items-center gap-1">
-                          <XCircle className="w-3 h-3" />
-                          ยกเลิกแล้ว
-                        </span>
-                      )}
-                      <span className="ml-1">#{account.shop_id}</span>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => handleDisconnect(account.id, 'lazada')}
-                    disabled={isDisconnecting}
-                    className="p-2 text-gray-400 hover:text-red-500 dark:hover:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex items-center justify-center disabled:opacity-50"
-                  >
-                    {isDisconnecting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-                  </button>
-                </div>
-                {/* Sync Controls */}
-                <div className="flex flex-wrap items-center gap-2">
-                  <div className="w-44">
-                    <FormSelect
-                      value={String(syncRange[account.id] || 1)}
-                      onChange={value => setSyncRange(prev => ({ ...prev, [account.id]: parseInt(value) }))}
-                      options={[
-                        { id: '1', label: 'ย้อนหลัง 1 วัน' },
-                        { id: '3', label: 'ย้อนหลัง 3 วัน' },
-                        { id: '7', label: 'ย้อนหลัง 7 วัน' },
-                        { id: '15', label: 'ย้อนหลัง 15 วัน' },
-                        { id: '30', label: 'ย้อนหลัง 30 วัน' },
-                      ]}
-                      searchThreshold={99}
+                {/* Auto-Sync Toggles */}
+                <div className="flex flex-wrap gap-x-6 gap-y-2 pt-1">
+                  <div className="flex items-center gap-2">
+                    <Toggle
+                      checked={account.auto_sync_stock !== false}
+                      onChange={v => handleToggleSync(account.id, 'auto_sync_stock', v)}
+                      aria-label="Sync Stock อัตโนมัติ"
                     />
+                    <span className="text-xs text-gray-700 dark:text-slate-300">Sync Stock อัตโนมัติ</span>
                   </div>
+                  <div className="flex items-center gap-2">
+                    <Toggle
+                      checked={account.auto_sync_product_info !== false}
+                      onChange={v => handleToggleSync(account.id, 'auto_sync_product_info', v)}
+                      aria-label="Sync ชื่อ/ราคา อัตโนมัติ"
+                    />
+                    <span className="text-xs text-gray-700 dark:text-slate-300">Sync ชื่อ/ราคา อัตโนมัติ</span>
+                  </div>
+                </div>
+
+                {/* Sync Controls */}
+                <div className="flex flex-wrap items-center gap-2 pt-1">
+                  <SyncRangeSelect
+                    value={syncRange[account.id] || 1}
+                    onChange={days => setSyncRange(prev => ({ ...prev, [account.id]: days }))}
+                  />
                   <Button
                     variant="secondary"
                     icon={<RefreshCw className="w-4 h-4" />}
                     loading={isSyncing}
                     disabled={account.connection_status === 'expired'}
-                    onClick={() => handleLazadaSync(account.id)}
+                    onClick={() => handleSync(account.id)}
+                  >
+                    {isSyncing ? 'กำลัง Sync...' : 'Sync Now'}
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    icon={<RefreshCw className="w-4 h-4" />}
+                    loading={isSyncing}
+                    disabled={account.connection_status === 'expired'}
+                    onClick={() => handleSyncIncomplete(account.id)}
+                  >
+                    Sync สถานะค้าง
+                  </Button>
+                  <ImportButton
+                    disabled={account.connection_status === 'expired'}
+                    onClick={() => {
+                      const name = account.shop_name || `Shop #${account.shop_id}`;
+                      router.push(`/shopee/import?account_id=${account.id}&account_name=${encodeURIComponent(name)}`);
+                    }}
+                  >
+                    นำเข้าสินค้าจาก Shopee
+                  </ImportButton>
+                  <ExportButton
+                    disabled={account.connection_status === 'expired'}
+                    onClick={() => {
+                      const name = account.shop_name || `Shop #${account.shop_id}`;
+                      router.push(`/shopee/export?account_id=${account.id}&account_name=${encodeURIComponent(name)}`);
+                    }}
+                  >
+                    ส่งสินค้าไป Shopee
+                  </ExportButton>
+                </div>
+              </MarketplaceAccountCard>
+            );
+          })}
+        </div>
+      ))}
+
+      {/* ===== TIKTOK ===== */}
+      {activePlatform === 'tiktok' && (loading ? (
+        <LoadingCard />
+      ) : (
+        <div className="space-y-4">
+          {tiktokAccounts.map(account => {
+            const isSyncing = syncingId === account.id;
+            const region = (account.metadata?.region as string) || '';
+            return (
+              <MarketplaceAccountCard
+                key={account.id}
+                account={account}
+                title={account.shop_name || `TikTok Shop #${account.shop_id}`}
+                titleExtra={region ? (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-slate-400 uppercase">
+                    {region}
+                  </span>
+                ) : undefined}
+                expandable
+                expanded={expandedId === account.id}
+                onToggleExpand={() => setExpandedId(expandedId === account.id ? null : account.id)}
+                onDisconnect={() => handleDisconnect(account.id)}
+                disconnecting={disconnectingId === account.id}
+                avatar={
+                  <div className="w-10 h-10 rounded-lg bg-black flex items-center justify-center flex-shrink-0">
+                    <ShoppingBag className="w-5 h-5 text-white" />
+                  </div>
+                }
+              >
+                <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-slate-400">
+                  <span>Shop ID: {account.shop_id}</span>
+                  <span className="flex items-center gap-1">
+                    <Clock className="w-3 h-3" />
+                    Sync ล่าสุด: {formatThaiDateTime(account.last_sync_at)}
+                  </span>
+                  <span>เชื่อมต่อเมื่อ: {formatThaiDateTime(account.created_at)}</span>
+                </div>
+                <div className="flex flex-wrap items-center gap-2 pt-1">
+                  <SyncRangeSelect
+                    value={syncRange[account.id] || 1}
+                    onChange={days => setSyncRange(prev => ({ ...prev, [account.id]: days }))}
+                  />
+                  <Button
+                    variant="secondary"
+                    icon={<RefreshCw className="w-4 h-4" />}
+                    loading={isSyncing}
+                    disabled={account.connection_status === 'expired'}
+                    onClick={() => handleSimpleSync('tiktok', account.id)}
                   >
                     {isSyncing ? 'กำลัง Sync...' : 'Sync Now'}
                   </Button>
                 </div>
-              </div>
+              </MarketplaceAccountCard>
             );
           })}
+        </div>
+      ))}
 
+      {/* ===== LAZADA ===== */}
+      {activePlatform === 'lazada' && (loading ? (
+        <LoadingCard />
+      ) : (
+        <div className="space-y-4">
+          <Alert tone="info">
+            เชื่อมร้านแล้วเปิดรับ<b>แชท</b>ได้ที่{' '}
+            <a href="/settings/chat-channels#lazada" className="underline font-medium">ตั้งค่า &gt; ช่องทาง Chat</a>
+            {' '}— ออเดอร์เข้าอัตโนมัติผ่าน webhook + sync ทุก 15 นาที
+          </Alert>
+          {lazadaAccounts.map(account => {
+            const isSyncing = syncingId === account.id;
+            return (
+              <MarketplaceAccountCard
+                key={account.id}
+                account={account}
+                title={account.shop_name || `Lazada #${account.shop_id}`}
+                onDisconnect={() => handleDisconnect(account.id)}
+                disconnecting={disconnectingId === account.id}
+                avatar={
+                  <div className="w-10 h-10 rounded-lg bg-[#0F146E] flex items-center justify-center flex-shrink-0">
+                    <ShoppingBag className="w-5 h-5 text-white" />
+                  </div>
+                }
+              >
+                <div className="flex flex-wrap items-center gap-2">
+                  <SyncRangeSelect
+                    value={syncRange[account.id] || 1}
+                    onChange={days => setSyncRange(prev => ({ ...prev, [account.id]: days }))}
+                  />
+                  <Button
+                    variant="secondary"
+                    icon={<RefreshCw className="w-4 h-4" />}
+                    loading={isSyncing}
+                    disabled={account.connection_status === 'expired'}
+                    onClick={() => handleSimpleSync('lazada', account.id)}
+                  >
+                    {isSyncing ? 'กำลัง Sync...' : 'Sync Now'}
+                  </Button>
+                </div>
+              </MarketplaceAccountCard>
+            );
+          })}
         </div>
       ))}
 
