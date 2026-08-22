@@ -92,9 +92,12 @@ export async function POST(request: NextRequest) {
     5: 'PRODUCT_STATUS_CHANGE',
     6: 'SELLER_DEAUTHORIZATION',
     7: 'UPCOMING_AUTHORIZATION_EXPIRATION',
-    12: 'RETURN_STATUS_UPDATE',
-    14: 'NEW_CONVERSATION',
-    15: 'NEW_MESSAGE',
+    11: 'CANCELLATION_STATUS_CHANGE',
+    12: 'ORDER_RETURN_STATUS_CHANGE',
+    // เลขยืนยันจากหน้า Manage Webhook ใน Partner Center (2026-08-23)
+    13: 'NEW_CONVERSATION',
+    14: 'NEW_MESSAGE',
+    15: 'PRODUCT_INFORMATION_CHANGE',
   };
 
   // Save to webhook log immediately
