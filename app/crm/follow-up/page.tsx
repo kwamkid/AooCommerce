@@ -17,19 +17,14 @@ import {
   AlertTriangle,
   Clock,
   Plus,
-  ChevronRight,
   Filter,
-  ArrowUpDown,
-  ArrowUp,
-  ArrowDown,
   MessageCircle,
   ExternalLink,
   X,
   ArrowRight,
   FileText
 } from 'lucide-react';
-import Pagination from '@/app/components/Pagination';
-import ColumnSettingsDropdown from '@/app/components/ColumnSettingsDropdown';
+import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
 import FormSelect from '@/components/ui/FormSelect';
 import { LoadingCard } from '@/components/ui/StateCard';
 import { getBadgeColor } from '@/lib/status-tab-colors';
@@ -40,26 +35,6 @@ const ORDER_STATUS_LABELS: Record<string, string> = {
   shipping: 'กำลังส่ง',
   completed: 'สำเร็จ',
 };
-
-// Column toggle system
-type ColumnKey = 'customer' | 'type' | 'lastOrder' | 'daysSince' | 'frequency' | 'totalOrders' | 'totalSpent' | 'actions';
-
-const COLUMN_CONFIGS: { key: ColumnKey; label: string; defaultVisible: boolean; alwaysVisible?: boolean }[] = [
-  { key: 'customer', label: 'ลูกค้า', defaultVisible: true, alwaysVisible: true },
-  { key: 'type', label: 'ประเภท', defaultVisible: true },
-  { key: 'lastOrder', label: 'สั่งล่าสุด', defaultVisible: true },
-  { key: 'daysSince', label: 'สั่งไปแล้ว', defaultVisible: true },
-  { key: 'frequency', label: 'รอบสั่งซื้อ', defaultVisible: true },
-  { key: 'totalOrders', label: 'ออเดอร์', defaultVisible: true },
-  { key: 'totalSpent', label: 'ยอดซื้อรวม', defaultVisible: true },
-  { key: 'actions', label: 'ดำเนินการ', defaultVisible: true, alwaysVisible: true },
-];
-
-const STORAGE_KEY = 'crm-followup-visible-columns';
-
-function getDefaultColumns(): ColumnKey[] {
-  return COLUMN_CONFIGS.filter(c => c.defaultVisible).map(c => c.key);
-}
 
 interface CRMCustomer {
   id: string;
@@ -179,47 +154,6 @@ function FrequencyBadge({ frequency, onClick }: { frequency: number | null; onCl
   );
 }
 
-// Sortable header component
-function SortableHeader({
-  label,
-  field,
-  currentSort,
-  currentOrder,
-  onSort,
-  className = ''
-}: {
-  label: string;
-  field: string;
-  currentSort: string;
-  currentOrder: 'asc' | 'desc';
-  onSort: (field: string) => void;
-  className?: string;
-}) {
-  const isActive = currentSort === field;
-
-  return (
-    <th
-      className={`data-th cursor-pointer hover:bg-gray-100 dark:hover:bg-slate-700 select-none ${className}`}
-      onClick={() => onSort(field)}
-    >
-      <div className="flex items-center gap-1">
-        {label}
-        <span className="inline-flex flex-col">
-          {isActive ? (
-            currentOrder === 'asc' ? (
-              <ArrowUp className="w-3 h-3 text-primary" />
-            ) : (
-              <ArrowDown className="w-3 h-3 text-primary" />
-            )
-          ) : (
-            <ArrowUpDown className="w-3 h-3 text-gray-300" />
-          )}
-        </span>
-      </div>
-    </th>
-  );
-}
-
 export default function CRMFollowUpPage() {
   const router = useRouter();
   const { userProfile, loading: authLoading } = useAuth();
@@ -238,28 +172,6 @@ export default function CRMFollowUpPage() {
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(20);
-
-  // Column visibility
-  const [visibleColumns, setVisibleColumns] = useState<Set<ColumnKey>>(() => {
-    if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        try { return new Set(JSON.parse(stored) as ColumnKey[]); } catch { /* use defaults */ }
-      }
-    }
-    return new Set(getDefaultColumns());
-  });
-
-  const toggleColumn = (key: ColumnKey) => {
-    setVisibleColumns(prev => {
-      const next = new Set(prev);
-      next.has(key) ? next.delete(key) : next.add(key);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify([...next]));
-      return next;
-    });
-  };
-
-  const isCol = (key: ColumnKey) => visibleColumns.has(key);
 
   // Order history modal
   const [orderHistoryModal, setOrderHistoryModal] = useState<{
@@ -374,6 +286,153 @@ export default function CRMFollowUpPage() {
     }
   };
 
+  // Actions cell — shared between desktop column and mobile card
+  const renderActions = (customer: CRMCustomer) => (
+    <div className="flex items-center justify-center gap-2">
+      {customer.line_user_id ? (
+        <Button
+          size="sm"
+          variant="success"
+          icon={<MessageCircle className="w-3.5 h-3.5" />}
+          onClick={() => handleContactLine(customer.line_user_id!)}
+          title={`ทักใน LINE: ${customer.line_display_name}`}
+        >
+          ทัก LINE
+        </Button>
+      ) : (
+        <Button
+          size="sm"
+          variant="primary"
+          icon={<Plus className="w-3.5 h-3.5" />}
+          onClick={() => handleCreateOrder(customer.id)}
+        >
+          สร้างออเดอร์
+        </Button>
+      )}
+      <button
+        onClick={() => router.push(`/customers/${customer.id}`)}
+        className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-700 rounded transition-colors"
+        title="ดูรายละเอียด"
+      >
+        <ExternalLink className="w-4 h-4" />
+      </button>
+    </div>
+  );
+
+  // Column keys = server sort field names, so DataTable's sortBy/sortDir wiring maps 1:1
+  const columns: DataTableColumn<CRMCustomer>[] = [
+    {
+      key: 'name',
+      label: 'ลูกค้า',
+      alwaysVisible: true,
+      sortable: true,
+      defaultWidth: 220,
+      render: (customer) => (
+        <div>
+          <div className="text-xs text-gray-400 mb-0.5">{customer.customer_code}</div>
+          <div className="font-medium text-gray-900 dark:text-white">{customer.name}</div>
+          {customer.phone && (
+            <a
+              href={`tel:${customer.phone}`}
+              className="flex items-center gap-1 text-sm text-gray-500 hover:text-blue-600 mt-1"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <Phone className="w-3 h-3" />
+              {customer.phone}
+            </a>
+          )}
+        </div>
+      ),
+    },
+    {
+      key: 'type',
+      label: 'ประเภท',
+      resizable: true,
+      reorderable: true,
+      defaultWidth: 120,
+      render: (customer) => <CustomerTypeBadge type={customer.customer_type || 'retail'} />,
+    },
+    {
+      key: 'last_order_date',
+      label: 'สั่งล่าสุด',
+      sortable: true,
+      resizable: true,
+      reorderable: true,
+      defaultWidth: 130,
+      render: (customer) => (
+        <div className="flex items-center gap-1.5 text-sm text-gray-600 dark:text-slate-400">
+          <Calendar className="w-3.5 h-3.5" />
+          {formatDate(customer.last_order_date)}
+        </div>
+      ),
+    },
+    {
+      key: 'days_since_last_order',
+      label: 'สั่งไปแล้ว',
+      sortable: true,
+      resizable: true,
+      reorderable: true,
+      defaultWidth: 120,
+      headerClassName: 'text-center',
+      cellClassName: 'text-center',
+      render: (customer) => (
+        <DaysBadge days={customer.days_since_last_order} avgFrequency={customer.avg_order_frequency} />
+      ),
+    },
+    {
+      key: 'frequency',
+      label: 'รอบสั่งซื้อ',
+      resizable: true,
+      reorderable: true,
+      defaultWidth: 110,
+      headerClassName: 'text-center',
+      cellClassName: 'text-center',
+      render: (customer) => (
+        <FrequencyBadge
+          frequency={customer.avg_order_frequency}
+          onClick={() => customer.total_orders >= 2 && handleShowOrderHistory(customer)}
+        />
+      ),
+    },
+    {
+      key: 'total_orders',
+      label: 'ออเดอร์',
+      sortable: true,
+      resizable: true,
+      reorderable: true,
+      defaultWidth: 95,
+      headerClassName: 'text-center',
+      cellClassName: 'text-center',
+      render: (customer) => (
+        <span className="text-sm font-medium text-gray-900 dark:text-white">{customer.total_orders}</span>
+      ),
+    },
+    {
+      key: 'total_spent',
+      label: 'ยอดซื้อรวม',
+      sortable: true,
+      resizable: true,
+      reorderable: true,
+      defaultWidth: 120,
+      headerClassName: 'text-right',
+      cellClassName: 'text-right',
+      render: (customer) => (
+        <span className="text-sm font-medium text-gray-900 dark:text-white">
+          ฿{formatPrice(customer.total_spent)}
+        </span>
+      ),
+    },
+    {
+      key: 'actions',
+      label: 'ดำเนินการ',
+      alwaysVisible: true,
+      stopPropagation: true,
+      defaultWidth: 190,
+      headerClassName: 'text-center',
+      render: (customer) => renderActions(customer),
+    },
+  ];
+
   if (authLoading) {
     return (
       <Layout>
@@ -487,257 +546,64 @@ export default function CRMFollowUpPage() {
           </div>
         )}
 
-        {/* Customer List - Desktop */}
-        <div className="data-table-wrap hidden md:block">
-          {loading ? (
-            <LoadingCard />
-          ) : customers.length === 0 ? (
-            <div className="text-center py-12">
-              <Users className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-              <p className="text-gray-500 dark:text-slate-400">ไม่พบลูกค้าตามเงื่อนไขที่เลือก</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="data-thead">
-                  <tr>
-                    {isCol('customer') && <SortableHeader label="ลูกค้า" field="name" currentSort={sortBy} currentOrder={sortOrder} onSort={handleSort} className="text-left" />}
-                    {isCol('type') && <th className="data-th">ประเภท</th>}
-                    {isCol('lastOrder') && <SortableHeader label="สั่งล่าสุด" field="last_order_date" currentSort={sortBy} currentOrder={sortOrder} onSort={handleSort} className="text-left" />}
-                    {isCol('daysSince') && <SortableHeader label="สั่งไปแล้ว" field="days_since_last_order" currentSort={sortBy} currentOrder={sortOrder} onSort={handleSort} className="text-center" />}
-                    {isCol('frequency') && <th className="data-th text-center">รอบสั่งซื้อ</th>}
-                    {isCol('totalOrders') && <SortableHeader label="ออเดอร์" field="total_orders" currentSort={sortBy} currentOrder={sortOrder} onSort={handleSort} className="text-center" />}
-                    {isCol('totalSpent') && <SortableHeader label="ยอดซื้อรวม" field="total_spent" currentSort={sortBy} currentOrder={sortOrder} onSort={handleSort} className="text-right" />}
-                    {isCol('actions') && <th className="data-th text-center">ดำเนินการ</th>}
-                  </tr>
-                </thead>
-                <tbody className="data-tbody">
-                  {customers.map((customer) => (
-                    <tr key={customer.id} className="data-tr">
-                      {/* Customer Info */}
-                      {isCol('customer') && (
-                      <td className="px-6 py-4">
-                        <div>
-                          <div className="text-xs text-gray-400 mb-0.5">{customer.customer_code}</div>
-                          <div className="font-medium text-gray-900 dark:text-white">{customer.name}</div>
-                          {customer.phone && (
-                            <a
-                              href={`tel:${customer.phone}`}
-                              className="flex items-center gap-1 text-sm text-gray-500 hover:text-blue-600 mt-1"
-                            >
-                              <Phone className="w-3 h-3" />
-                              {customer.phone}
-                            </a>
-                          )}
-                        </div>
-                      </td>
-                      )}
-
-                      {/* Type */}
-                      {isCol('type') && (
-                      <td className="px-6 py-4">
-                        <CustomerTypeBadge type={customer.customer_type || 'retail'} />
-                      </td>
-                      )}
-
-                      {/* Last Order Date */}
-                      {isCol('lastOrder') && (
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-1.5 text-sm text-gray-600 dark:text-slate-400">
-                          <Calendar className="w-3.5 h-3.5" />
-                          {formatDate(customer.last_order_date)}
-                        </div>
-                      </td>
-                      )}
-
-                      {/* Days Since Last Order */}
-                      {isCol('daysSince') && (
-                      <td className="px-6 py-4 text-center">
-                        <DaysBadge days={customer.days_since_last_order} avgFrequency={customer.avg_order_frequency} />
-                      </td>
-                      )}
-
-                      {/* Order Frequency */}
-                      {isCol('frequency') && (
-                      <td className="px-6 py-4 text-center">
-                        <FrequencyBadge
-                          frequency={customer.avg_order_frequency}
-                          onClick={() => customer.total_orders >= 2 && handleShowOrderHistory(customer)}
-                        />
-                      </td>
-                      )}
-
-                      {/* Total Orders */}
-                      {isCol('totalOrders') && (
-                      <td className="px-6 py-4 text-center">
-                        <span className="text-sm font-medium text-gray-900 dark:text-white">{customer.total_orders}</span>
-                      </td>
-                      )}
-
-                      {/* Total Spent */}
-                      {isCol('totalSpent') && (
-                      <td className="px-6 py-4 text-right">
-                        <span className="text-sm font-medium text-gray-900 dark:text-white">
-                          ฿{formatPrice(customer.total_spent)}
-                        </span>
-                      </td>
-                      )}
-
-                      {/* Actions */}
-                      {isCol('actions') && (
-                      <td className="px-6 py-4">
-                        <div className="flex items-center justify-center gap-2">
-                          {customer.line_user_id ? (
-                            <Button
-                              size="sm"
-                              variant="success"
-                              icon={<MessageCircle className="w-3.5 h-3.5" />}
-                              onClick={() => handleContactLine(customer.line_user_id!)}
-                              title={`ทักใน LINE: ${customer.line_display_name}`}
-                            >
-                              ทัก LINE
-                            </Button>
-                          ) : (
-                            <Button
-                              size="sm"
-                              variant="primary"
-                              icon={<Plus className="w-3.5 h-3.5" />}
-                              onClick={() => handleCreateOrder(customer.id)}
-                            >
-                              สร้างออเดอร์
-                            </Button>
-                          )}
-                          <button
-                            onClick={() => router.push(`/customers/${customer.id}`)}
-                            className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-700 rounded transition-colors"
-                            title="ดูรายละเอียด"
-                          >
-                            <ExternalLink className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </td>
-                      )}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          {!loading && (
-            <Pagination
-              currentPage={currentPage}
-              totalPages={pagination.totalPages}
-              totalRecords={pagination.total}
-              startIdx={(currentPage - 1) * rowsPerPage}
-              endIdx={Math.min(currentPage * rowsPerPage, pagination.total)}
-              recordsPerPage={rowsPerPage}
-              setRecordsPerPage={setRowsPerPage}
-              setPage={setCurrentPage}
-            >
-              <ColumnSettingsDropdown
-                configs={COLUMN_CONFIGS}
-                visible={visibleColumns}
-                toggle={toggleColumn}
-                buttonClassName="p-1.5 text-gray-400 dark:text-slate-500 hover:text-gray-600 dark:hover:text-slate-300 transition-colors"
-                dropUp
-              />
-            </Pagination>
-          )}
-        </div>
-
-        {/* Customer List - Mobile */}
-        <div className="md:hidden">
-          {loading ? (
-            <LoadingCard />
-          ) : customers.length === 0 ? (
-            <div className="text-center py-12">
-              <Users className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-              <p className="text-gray-500 dark:text-slate-400">ไม่พบลูกค้าตามเงื่อนไขที่เลือก</p>
-            </div>
-          ) : (
-            <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 divide-y divide-gray-200 dark:divide-slate-700">
-              {customers.map((customer) => (
-                <div key={customer.id} className="p-4 space-y-2">
-                  {/* Row 1: Name + Type badge */}
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <div className="text-xs text-gray-400 dark:text-slate-500">{customer.customer_code}</div>
-                      <div className="font-medium text-gray-900 dark:text-white truncate">{customer.name}</div>
-                      {customer.phone && (
-                        <a href={`tel:${customer.phone}`} className="flex items-center gap-1 text-sm text-gray-500 hover:text-blue-600 mt-0.5">
-                          <Phone className="w-3 h-3" />
-                          {customer.phone}
-                        </a>
-                      )}
-                    </div>
-                    <CustomerTypeBadge type={customer.customer_type || 'retail'} />
-                  </div>
-
-                  {/* Row 2: Last order + Days since + Frequency */}
-                  <div className="flex items-center gap-3 text-sm">
-                    <div className="flex items-center gap-1 text-gray-500 dark:text-slate-400">
-                      <Calendar className="w-3.5 h-3.5" />
-                      {formatDate(customer.last_order_date)}
-                    </div>
-                    <DaysBadge days={customer.days_since_last_order} avgFrequency={customer.avg_order_frequency} />
-                    {customer.avg_order_frequency && (
-                      <span className="text-gray-400 dark:text-slate-500 text-sm">~{customer.avg_order_frequency} วัน</span>
-                    )}
-                  </div>
-
-                  {/* Row 3: Orders + Spent + Actions */}
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3 text-sm">
-                      <span className="text-gray-600 dark:text-slate-400">{customer.total_orders} ออเดอร์</span>
-                      <span className="font-medium text-gray-900 dark:text-white">฿{formatPrice(customer.total_spent)}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {customer.line_user_id ? (
-                        <Button
-                          size="sm"
-                          variant="success"
-                          icon={<MessageCircle className="w-3.5 h-3.5" />}
-                          onClick={() => handleContactLine(customer.line_user_id!)}
-                        >
-                          ทัก LINE
-                        </Button>
-                      ) : (
-                        <Button
-                          size="sm"
-                          variant="primary"
-                          icon={<Plus className="w-3.5 h-3.5" />}
-                          onClick={() => handleCreateOrder(customer.id)}
-                        >
-                          สร้างออเดอร์
-                        </Button>
-                      )}
-                      <button
-                        onClick={() => router.push(`/customers/${customer.id}`)}
-                        className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-700 rounded transition-colors"
-                      >
-                        <ExternalLink className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
+        {/* Customer List */}
+        <DataTable<CRMCustomer>
+          storageKey="crm-follow-up"
+          columns={columns}
+          data={customers}
+          loading={loading}
+          getRowId={(customer) => customer.id}
+          emptyMessage="ไม่พบลูกค้าตามเงื่อนไขที่เลือก"
+          emptyIcon={<Users className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
+          currentPage={currentPage}
+          totalPages={pagination.totalPages}
+          totalRecords={pagination.total}
+          recordsPerPage={rowsPerPage}
+          onPageChange={setCurrentPage}
+          onRecordsPerPageChange={setRowsPerPage}
+          sortBy={sortBy}
+          sortDir={sortOrder}
+          onSort={(key) => handleSort(key)}
+          mobileCardRender={(customer) => (
+            <div className="space-y-2">
+              {/* Row 1: Name + Type badge */}
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="text-xs text-gray-400 dark:text-slate-500">{customer.customer_code}</div>
+                  <div className="font-medium text-gray-900 dark:text-white truncate">{customer.name}</div>
+                  {customer.phone && (
+                    <a href={`tel:${customer.phone}`} className="flex items-center gap-1 text-sm text-gray-500 hover:text-blue-600 mt-0.5">
+                      <Phone className="w-3 h-3" />
+                      {customer.phone}
+                    </a>
+                  )}
                 </div>
-              ))}
+                <CustomerTypeBadge type={customer.customer_type || 'retail'} />
+              </div>
+
+              {/* Row 2: Last order + Days since + Frequency */}
+              <div className="flex items-center gap-3 text-sm">
+                <div className="flex items-center gap-1 text-gray-500 dark:text-slate-400">
+                  <Calendar className="w-3.5 h-3.5" />
+                  {formatDate(customer.last_order_date)}
+                </div>
+                <DaysBadge days={customer.days_since_last_order} avgFrequency={customer.avg_order_frequency} />
+                {customer.avg_order_frequency && (
+                  <span className="text-gray-400 dark:text-slate-500 text-sm">~{customer.avg_order_frequency} วัน</span>
+                )}
+              </div>
+
+              {/* Row 3: Orders + Spent + Actions */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3 text-sm">
+                  <span className="text-gray-600 dark:text-slate-400">{customer.total_orders} ออเดอร์</span>
+                  <span className="font-medium text-gray-900 dark:text-white">฿{formatPrice(customer.total_spent)}</span>
+                </div>
+                {renderActions(customer)}
+              </div>
             </div>
           )}
-
-          {!loading && (
-            <Pagination
-              currentPage={currentPage}
-              totalPages={pagination.totalPages}
-              totalRecords={pagination.total}
-              startIdx={(currentPage - 1) * rowsPerPage}
-              endIdx={Math.min(currentPage * rowsPerPage, pagination.total)}
-              recordsPerPage={rowsPerPage}
-              setRecordsPerPage={setRowsPerPage}
-              setPage={setCurrentPage}
-            />
-          )}
-        </div>
+        />
       </div>
 
       {/* Order History Modal */}
