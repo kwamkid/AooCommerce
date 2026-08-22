@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
-import { ShopeeAccountRow } from '@/lib/shopee/api';
+import { ShopeeAccountRow, isShopeeQuotaBlocked } from '@/lib/shopee/api';
 import { syncOrdersByTimeRange } from '@/lib/shopee/sync';
 import { logIntegration } from '@/lib/integration-logger';
 
@@ -14,6 +14,12 @@ async function handleSyncAll(request: NextRequest) {
   const bearerToken = authHeader.replace(/^Bearer\s+/i, '');
   if (!cronSecret || (bearerToken !== cronSecret && xCronHeader !== cronSecret)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  // Circuit breaker: โควตารายวันหมดแล้ว — ยิงต่อ = fail ทุก call ทำ success rate พัง
+  const quota = await isShopeeQuotaBlocked();
+  if (quota.blocked) {
+    return NextResponse.json({ message: `Shopee daily quota exhausted — skipped until ${quota.until}`, skipped: true });
   }
 
   // Get all active accounts (shopee platform only)

@@ -133,9 +133,52 @@ export async function shopeeApiRequest(
   console.log(`[Shopee API] ${apiPath} response:`, JSON.stringify(data).substring(0, 1000));
 
   if (data.error) {
-    return { data: null, error: data.message || data.error, debug_message: data.debug_message || undefined };
+    const errMsg = data.message || data.error;
+    // Circuit breaker: quota รายวันหมดแล้ว call ต่อ = fail ทุกตัว → success rate พัง
+    // → โดนบทลงโทษต่อ (เกิดจริง 2026-08) — จำสถานะไว้ให้ cron/webhook หยุดยิงจนถึงเที่ยงคืน UTC+8
+    if (typeof errMsg === 'string' && errMsg.includes('daily API call limit')) {
+      markShopeeQuotaExhausted().catch(() => {});
+    }
+    return { data: null, error: errMsg, debug_message: data.debug_message || undefined };
   }
   return { data: data.response || data };
+}
+
+// ─── Daily-quota circuit breaker ─────────────────────────────────────────────
+// Shopee นับ success rate จาก call จริงทุกตัว — หลังโควตาหมด ทุก call คือ fail
+// ห้ามยิงต่อทั้งวัน: cron/webhook เช็ค isShopeeQuotaBlocked() ก่อนทำงานเสมอ
+
+const QUOTA_FLAG_KEY = 'shopee_quota_exhausted';
+
+/** เที่ยงคืนถัดไปตามเวลา Shopee (UTC+8) */
+function nextQuotaResetIso(): string {
+  const utc8Now = Date.now() + 8 * 3600_000;
+  const nextMidnightUtc8 = Math.ceil(utc8Now / 86_400_000) * 86_400_000;
+  return new Date(nextMidnightUtc8 - 8 * 3600_000).toISOString();
+}
+
+export async function markShopeeQuotaExhausted(): Promise<void> {
+  const until = nextQuotaResetIso();
+  console.warn(`[Shopee API] Daily quota exhausted — circuit open until ${until}`);
+  await supabaseAdmin.from('app_flags').upsert({
+    key: QUOTA_FLAG_KEY,
+    value: { until },
+    updated_at: new Date().toISOString(),
+  }, { onConflict: 'key' });
+}
+
+/** true = โควตาวันนี้หมดแล้ว ห้ามยิง Shopee API จนกว่าจะถึงเวลา reset */
+export async function isShopeeQuotaBlocked(): Promise<{ blocked: boolean; until?: string }> {
+  const { data } = await supabaseAdmin
+    .from('app_flags')
+    .select('value')
+    .eq('key', QUOTA_FLAG_KEY)
+    .maybeSingle();
+  const until = (data?.value as { until?: string } | null)?.until;
+  if (until && new Date(until).getTime() > Date.now()) {
+    return { blocked: true, until };
+  }
+  return { blocked: false };
 }
 
 /**

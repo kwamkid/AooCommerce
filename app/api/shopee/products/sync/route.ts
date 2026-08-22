@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { checkAuthWithCompany, can, supabaseAdmin } from '@/lib/supabase-admin';
-import { ShopeeAccountRow } from '@/lib/shopee/api';
+import { ShopeeAccountRow, isShopeeQuotaBlocked } from '@/lib/shopee/api';
 import { syncProductsFromShopee } from '@/lib/shopee/product-sync';
 import { logIntegration } from '@/lib/integration-logger';
 
@@ -33,6 +33,12 @@ export async function POST(request: NextRequest) {
     .eq('id', marketplace_account_id)
     .eq('is_active', true);
   if (companyId) accountQuery = accountQuery.eq('company_id', companyId);
+  // Circuit breaker: โควตารายวันของ Shopee หมดแล้ว — ยิงต่อมีแต่ fail
+  const quota = await isShopeeQuotaBlocked();
+  if (quota.blocked) {
+    return NextResponse.json({ error: `Shopee จำกัดโควตา API วันนี้แล้ว ระบบพักการยิงถึงเที่ยงคืน (UTC+8) เพื่อกู้ success rate` }, { status: 429 });
+  }
+
   const { data: account, error: accError } = await accountQuery.single();
 
   if (accError || !account) {

@@ -1,5 +1,5 @@
 import { supabaseAdmin } from '@/lib/supabase-admin';
-import { ShopeeAccountRow } from '@/lib/shopee/api';
+import { ShopeeAccountRow, isShopeeQuotaBlocked } from '@/lib/shopee/api';
 import { logIntegration } from '@/lib/integration-logger';
 
 /**
@@ -7,6 +7,13 @@ import { logIntegration } from '@/lib/integration-logger';
  * Shared by webhook handler and retry queue worker.
  */
 export async function syncSingleOrder(account: ShopeeAccountRow, orderSn: string, webhookStatus?: string) {
+  // Circuit breaker: โควตารายวันหมด — fail เร็วโดยไม่ยิง API (retry worker จะเก็บหลังเที่ยงคืน UTC+8)
+  {
+    const quota = await isShopeeQuotaBlocked();
+    if (quota.blocked) {
+      throw new Error(`Shopee daily quota exhausted — deferred until ${quota.until}`);
+    }
+  }
   const { syncOrdersByOrderSn } = await import('@/lib/shopee/sync');
 
   // Dedup: skip only if this exact order was updated within 10s AND already has the correct status

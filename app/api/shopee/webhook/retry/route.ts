@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
-import { ShopeeAccountRow } from '@/lib/shopee/api';
+import { ShopeeAccountRow, isShopeeQuotaBlocked } from '@/lib/shopee/api';
 import { syncSingleOrder } from '@/lib/shopee/webhook-processor';
 import { logIntegration } from '@/lib/integration-logger';
 
@@ -24,6 +24,12 @@ export async function GET(request: NextRequest) {
   }
 
   const startTime = Date.now();
+
+  // Circuit breaker: โควตาหมด — อย่าเผา retry_count ทิ้ง รอ reset แล้วค่อย retry
+  const quota = await isShopeeQuotaBlocked();
+  if (quota.blocked) {
+    return NextResponse.json({ message: `Shopee daily quota exhausted — retries deferred until ${quota.until}`, skipped: true });
+  }
 
   // Pick up failed Shopee webhooks ready for retry (limit 10 per run to avoid timeout)
   // Filter by push_code (Shopee uses numeric codes 3, 4, 14 etc. — not prefixed with 'tiktok_')
