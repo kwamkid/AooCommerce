@@ -1,4 +1,5 @@
 import { supabaseAdmin } from '@/lib/supabase-admin';
+import { sendChatPush } from '@/lib/push/send';
 import { getChatAccount, getDefaultChatAccount, getLineCredsFromAccount } from '@/lib/chat-config';
 import { getLineCredentials } from '@/lib/line-config';
 import crypto from 'crypto';
@@ -242,7 +243,7 @@ export class LineChatService {
   // ─── Webhook: Save Incoming Message ─────────────────────────────────
 
   async saveIncomingMessage(
-    contact: { id: string; unread_count: number },
+    contact: { id: string; unread_count: number; display_name?: string | null },
     message: Record<string, unknown>,
     event: { timestamp: number; source: { type: string; userId?: string; groupId?: string } },
     accessToken: string,
@@ -362,6 +363,17 @@ export class LineChatService {
         updated_at: new Date().toISOString(),
       })
       .eq('id', contact.id);
+
+    // Push แจ้งเตือนแชทใหม่ (เฉพาะข้อความสด — เก่าเกิน 10 นาทีถูกกรองใน helper)
+    if (!error && companyId) {
+      await sendChatPush(companyId, {
+        platform: 'line',
+        senderName: senderName || contact.display_name,
+        preview: messageContent,
+        contactId: contact.id,
+        messageTime: event.timestamp,
+      });
+    }
   }
 
   // ─── Profile Fetching ───────────────────────────────────────────────

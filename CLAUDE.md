@@ -532,6 +532,19 @@ PC (พนักงานประจำจุดขายในห้าง) �
 
 **ไฟล์**: [/store/[slug]](app/store/[slug]/page.tsx) catalog + ItemList LD · [/p/[product]](app/store/[slug]/p/[product]/page.tsx) Product+Offer+BreadcrumbList LD · [/delivery](app/store/[slug]/delivery/page.tsx) **generate จาก `delivery_zones`/`delivery_slots` จริง** + FAQPage LD (หน้าที่ AEO อ้างมากสุด) · `sitemap.xml` / `robots.txt` (toggle AI crawler ต่อร้าน) / `llms.txt` · [/settings/storefront](app/settings/storefront/page.tsx)
 
+## 📱 PWA + Push Notifications (เพิ่ม 2026-08-23 — pattern กลาง: `aoo-techstack/pwa-push/PWA-PUSH.md`)
+
+เว็บติดตั้งเป็นแอพได้ (Add to Home Screen) + แจ้งเตือนแชทใหม่/ออเดอร์ใหม่ถึงมือถือแม้ปิดจอ — repo เดียวกับเว็บ deploy เดียวกัน
+
+- **ชิ้นส่วน**: [app/manifest.ts](app/manifest.ts) (Next serve `/manifest.webmanifest` เอง) · [public/sw.js](public/sw.js) (**push-only — ห้ามเพิ่ม offline caching** stale cache กับ Next = บั๊กยาก) · [lib/push/client.ts](lib/push/client.ts) (browser: register SW + state `unsupported/ios-needs-install/denied/subscribed/unsubscribed`) · [lib/push/send.ts](lib/push/send.ts) (server: `sendPushToCompany` / `sendChatPush` / `sendNewOrderPushById` — **ไม่ throw เด็ดขาด** อยู่ใน webhook flow, endpoint ตาย 404/410 ลบ row อัตโนมัติ) · `/api/push/subscribe` (POST/DELETE) + `/api/push/test` · toggle ต่อ device ใน dropdown กระดิ่ง Header ([components/ui/PushNotificationToggle.tsx](components/ui/PushNotificationToggle.tsx)) · icon gen ด้วย [scripts/generate-pwa-icons.mjs](scripts/generate-pwa-icons.mjs)
+- **Table**: `push_subscriptions` (unique `endpoint`, upsert ทับ = device ตาม company ล่าสุดที่เปิด, RLS มาตรฐาน)
+- **จุดยิง push ปัจจุบัน**: แชทขาเข้า 4 platform (line/facebook/shopee/lazada — หลัง insert message สำเร็จใน `lib/services/chat/*`) + ออเดอร์ใหม่ (shopee/tiktok/lazada `createNewOrder` + storefront checkout — ผ่าน `sendNewOrderPushById`)
+- **Freshness guard บังคับ**: แชทเก่า >10 นาที / ออเดอร์เก่า >30 นาที (ใช้เวลาจริงของ platform) **ไม่ยิง** — กัน initial sync/backfill/webhook retry ถล่มแจ้งเตือนทุกเครื่อง · เพิ่ม event ใหม่ต้องคิดเรื่องนี้เสมอ
+- **tag ต่อ conversation/order** — แจ้งเตือน tag เดียวกันแทนที่กัน กัน spam
+- **Env 3 ตัว** (มีใน .env.local แล้ว — **ต้องเพิ่มบน Vercel ตอน deploy**): `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`
+- **iOS**: push ได้เฉพาะ installed PWA (iOS 16.4+) — client.ts คืน state `ios-needs-install` ให้ UI สอนวิธี Add to Home Screen
+- proxy.ts matcher ยกเว้นไฟล์มีนามสกุลอยู่แล้ว → `/sw.js`, `/manifest.webmanifest`, `/icons/*` เป็น public โดยไม่ต้องแก้
+
 ## Promotion Module
 
 ### Types

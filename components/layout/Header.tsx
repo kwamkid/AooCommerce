@@ -8,6 +8,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useCompany } from '@/lib/company-context';
 import ThemeToggle from '@/components/ThemeToggle';
 import UserAvatar from '@/components/ui/UserAvatar';
+import PushNotificationToggle from '@/components/ui/PushNotificationToggle';
 import { useFeatures } from '@/lib/features-context';
 import { useHeaderSummary } from '@/lib/header-summary-context';
 import {
@@ -217,6 +218,9 @@ export default function Header() {
                     </div>
                   )}
                 </div>
+
+                {/* Push notification ต่ออุปกรณ์ (PWA) */}
+                <PushNotificationToggle />
               </div>
             )}
           </div>

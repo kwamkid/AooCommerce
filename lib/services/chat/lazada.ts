@@ -1,4 +1,5 @@
 import { supabaseAdmin } from '@/lib/supabase-admin';
+import { sendChatPush } from '@/lib/push/send';
 import { ensureValidToken, LazadaAccountRow } from '@/lib/lazada/api';
 import {
   getSessionDetail, getSessionList, getMessages as getLazadaMessages,
@@ -274,7 +275,7 @@ export class LazadaChatService {
 
   private async saveMessages(
     account: LazadaAccountRow,
-    contact: { id: string },
+    contact: { id: string; display_name?: string | null },
     messages: LazadaImMessage[]
   ) {
     if (messages.length === 0) return;
@@ -318,6 +319,23 @@ export class LazadaChatService {
         .from('lazada_contacts')
         .update({ last_message_at: new Date(newest).toISOString(), updated_at: new Date().toISOString() })
         .eq('id', contact.id);
+    }
+
+    // Push แจ้งเตือนแชทใหม่ — เฉพาะขาเข้าล่าสุดของ batch นี้ (backfill เก่าถูกกรองด้วยเวลาใน helper)
+    if (!error) {
+      const incoming = fresh.filter(m => m.from_account_type !== 2);
+      if (incoming.length > 0) {
+        const newestIncoming = incoming.reduce((a, b) => ((a.send_time || 0) >= (b.send_time || 0) ? a : b));
+        const { messageContent } = parseLazadaMessageContent(newestIncoming);
+        const extra = incoming.length > 1 ? ` (+${incoming.length - 1} ข้อความ)` : '';
+        await sendChatPush(account.company_id, {
+          platform: 'lazada',
+          senderName: contact.display_name,
+          preview: `${messageContent}${extra}`,
+          contactId: contact.id,
+          messageTime: newestIncoming.send_time || null,
+        });
+      }
     }
   }
 

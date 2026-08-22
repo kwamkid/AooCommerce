@@ -1,4 +1,5 @@
 import { supabaseAdmin } from '@/lib/supabase-admin';
+import { sendChatPush } from '@/lib/push/send';
 import { getChatAccount, getDefaultChatAccount, getFbCredsFromAccount } from '@/lib/chat-config';
 import { getFbCredentials } from '@/lib/fb-config';
 import crypto from 'crypto';
@@ -393,7 +394,7 @@ export class FacebookChatService {
   // ─── Webhook: Save Incoming Message ─────────────────────────────────
 
   async saveIncomingMessage(
-    contact: { id: string; unread_count: number },
+    contact: { id: string; unread_count: number; display_name?: string | null },
     event: FbMessagingEvent,
     companyId: string
   ) {
@@ -426,6 +427,17 @@ export class FacebookChatService {
         updated_at: new Date().toISOString(),
       })
       .eq('id', contact.id);
+
+    // Push แจ้งเตือนแชทใหม่ (เฉพาะข้อความสด — เก่าเกิน 10 นาทีถูกกรองใน helper)
+    if (!error) {
+      await sendChatPush(companyId, {
+        platform: 'facebook',
+        senderName: contact.display_name,
+        preview: messageContent,
+        contactId: contact.id,
+        messageTime: event.timestamp,
+      });
+    }
   }
 
   // ─── Webhook: Save Echo (outgoing from FB Messenger) ───────────────

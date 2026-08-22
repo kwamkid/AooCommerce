@@ -3,6 +3,7 @@ import { newCustomerCode } from '@/lib/customer-code';
 import { shopeeApiRequest, ensureValidToken, ShopeeAccountRow, getItemFullDetails, ShopeeItemFullDetail, getEscrowDetail, getPackageDetail, getPackageNumberList, getBuyerInvoiceInfo, BuyerInvoiceInfo } from '@/lib/shopee/api';
 import { logIntegration } from '@/lib/integration-logger';
 import { parallelLimit } from '@/lib/parallel';
+import { sendNewOrderPushById } from '@/lib/push/send';
 import { fetchCostMap } from '@/lib/cost-utils';
 import { reserveStock as reserveStockService, returnStock as returnStockService, unreserveStock as unreserveStockService, deductAndUnreserve } from '@/lib/stock-service';
 import { getStockConfig } from '@/lib/stock-utils';
@@ -1507,6 +1508,9 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder, 
 
   // Count unique new products created for this order
   const uniqueNewProducts = new Set(newlyCreatedProductIds).size;
+
+  // Push แจ้งเตือนออเดอร์ใหม่ (ออเดอร์เก่าจาก initial sync ถูกกรองด้วยเวลาใน helper)
+  await sendNewOrderPushById(companyId, order.id, shopeeOrder.create_time * 1000);
 
   return {
     action: 'created',

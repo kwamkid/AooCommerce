@@ -6,6 +6,7 @@ import { CompanyProvider } from '@/lib/company-context';
 import { ToastProvider } from '@/lib/toast-context';
 import { ThemeProvider } from '@/lib/theme-context';
 import ColorLab from '@/components/dev/ColorLab';
+import PwaRegister from '@/components/PwaRegister';
 import { FeaturesProvider } from '@/lib/features-context';
 import { HeaderSummaryProvider } from '@/lib/header-summary-context';
 import './globals.css';
@@ -28,7 +29,20 @@ export const metadata: Metadata = {
   description: 'ระบบจัดการธุรกิจครบวงจร สั่งซื้อ จัดส่ง และติดตามลูกค้า',
   icons: {
     icon: '/logo.svg',
+    apple: '/icons/apple-touch-icon.png',
   },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'AooCommerce',
+  },
+};
+
+export const viewport = {
+  themeColor: '#F4511E',
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover' as const,
 };
 
 export default function RootLayout({
@@ -54,6 +68,7 @@ export default function RootLayout({
       <body className={`${ibmPlexSansThai.className} ${sarabun.variable}`} suppressHydrationWarning>
         {/* แผงลองสีสำหรับ dev — ไม่ render ใน production (เช็คใน component) */}
         <ColorLab />
+        <PwaRegister />
         <ThemeProvider>
           <AuthProvider>
             <CompanyProvider>

@@ -10,6 +10,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { resolveStorefrontViewer, resolveCheckoutCustomer, resolveShippingAddress } from '@/lib/storefront-customer';
 import { supabaseAdmin } from '@/lib/supabase-admin';
+import { sendNewOrderPushById } from '@/lib/push/send';
 import { getStorefrontCompany } from '@/lib/storefront-server';
 import { effectivePrice } from '@/lib/storefront';
 import {
@@ -366,6 +367,9 @@ export async function POST(request: NextRequest) {
     console.error('[storefront checkout] items insert failed:', itemsError);
     return NextResponse.json({ error: 'สร้างรายการสินค้าไม่สำเร็จ' }, { status: 500 });
   }
+
+  // Push แจ้งเตือนพนักงาน — ออเดอร์หน้าร้านออนไลน์เข้าใหม่
+  await sendNewOrderPushById(company.id, order.id);
 
   return NextResponse.json({
     order_id: order.id,

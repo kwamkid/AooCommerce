@@ -7,6 +7,7 @@
 
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { newCustomerCode } from '@/lib/customer-code';
+import { sendNewOrderPushById } from '@/lib/push/send';
 import {
   LazadaAccountRow,
   LazadaCredentials,
@@ -647,6 +648,9 @@ async function createNewOrder(
     const { autoIssueDocument } = await import('@/lib/invoice-service');
     autoIssueDocument(newOrder.id, companyId).catch(() => {});
   }
+
+  // Push แจ้งเตือนออเดอร์ใหม่ (ออเดอร์เก่าจาก initial sync ถูกกรองด้วยเวลาใน helper)
+  await sendNewOrderPushById(companyId, newOrder.id, new Date(order.created_at).getTime());
 
   return {
     action: 'created',

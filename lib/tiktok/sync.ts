@@ -9,6 +9,7 @@ import {
 } from '@/lib/tiktok/api';
 import { logIntegration } from '@/lib/integration-logger';
 import { parallelLimit } from '@/lib/parallel';
+import { sendNewOrderPushById } from '@/lib/push/send';
 import { fetchCostMap } from '@/lib/cost-utils';
 import { reserveStock as reserveStockService, deductAndUnreserve, returnStock as returnStockService } from '@/lib/stock-service';
 import { getStockConfig } from '@/lib/stock-utils';
@@ -799,6 +800,9 @@ async function createNewOrder(
     const { autoIssueDocument } = await import('@/lib/invoice-service');
     autoIssueDocument(order.id, companyId).catch(() => {});
   }
+
+  // Push แจ้งเตือนออเดอร์ใหม่ (ออเดอร์เก่าจาก initial sync ถูกกรองด้วยเวลาใน helper)
+  await sendNewOrderPushById(companyId, order.id, tiktokOrder.create_time * 1000);
 
   return {
     action: 'created',

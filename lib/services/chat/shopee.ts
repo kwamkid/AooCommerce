@@ -1,4 +1,5 @@
 import { supabaseAdmin } from '@/lib/supabase-admin';
+import { sendChatPush } from '@/lib/push/send';
 import { ensureValidToken, ShopeeAccountRow } from '@/lib/shopee/api';
 import { sendChatText, sendChatImage, getConversationInfo, resolveShopeeCdnUrl } from '@/lib/shopee/chat';
 import { logIntegration } from '@/lib/integration-logger';
@@ -269,6 +270,17 @@ export class ShopeeChatService {
       .from('shopee_contacts')
       .update(contactUpdate)
       .eq('id', contact.id);
+
+    // Push แจ้งเตือนแชทใหม่ — เฉพาะขาเข้าจากลูกค้า (ข้อความเก่าถูกกรองด้วยเวลาใน helper)
+    if (!isOutgoing) {
+      await sendChatPush(account.company_id, {
+        platform: 'shopee',
+        senderName: buyerName || contact.display_name,
+        preview: messageContent,
+        contactId: contact.id,
+        messageTime: messageTime,
+      });
+    }
 
     return { status: 'processed' };
   }
