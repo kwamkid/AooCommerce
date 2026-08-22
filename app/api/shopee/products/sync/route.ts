@@ -6,9 +6,20 @@ import { logIntegration } from '@/lib/integration-logger';
 
 export async function POST(request: NextRequest) {
   // Auth + validation (must happen before streaming)
-  const { isAuth, companyId, companyRoles } = await checkAuthWithCompany(request);
-  if (!isAuth || !companyId || !can(companyRoles, 'marketplace.sync')) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  // Dual-mode เหมือน cron routes อื่น: CRON_SECRET (งาน ops/backfill ภายใน)
+  // หรือ user auth + marketplace.sync ตามปกติ
+  const cronSecret = process.env.CRON_SECRET;
+  const bearer = (request.headers.get('authorization') || '').replace(/^Bearer\s+/i, '');
+  const isCron = !!cronSecret
+    && (bearer === cronSecret || request.headers.get('x-cron-secret') === cronSecret);
+
+  let companyId: string | null = null;
+  if (!isCron) {
+    const auth = await checkAuthWithCompany(request);
+    if (!auth.isAuth || !auth.companyId || !can(auth.companyRoles, 'marketplace.sync')) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    companyId = auth.companyId;
   }
 
   const { marketplace_account_id } = await request.json();
@@ -16,17 +27,18 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Missing marketplace_account_id' }, { status: 400 });
   }
 
-  const { data: account, error: accError } = await supabaseAdmin
+  let accountQuery = supabaseAdmin
     .from('marketplace_accounts')
     .select('*')
     .eq('id', marketplace_account_id)
-    .eq('company_id', companyId)
-    .eq('is_active', true)
-    .single();
+    .eq('is_active', true);
+  if (companyId) accountQuery = accountQuery.eq('company_id', companyId);
+  const { data: account, error: accError } = await accountQuery.single();
 
   if (accError || !account) {
     return NextResponse.json({ error: 'Shop not found' }, { status: 404 });
   }
+  const resolvedCompanyId: string = companyId ?? account.company_id;
 
   // SSE streaming response
   const encoder = new TextEncoder();
@@ -48,7 +60,7 @@ export async function POST(request: NextRequest) {
         const durationMs = Date.now() - startMs;
 
         logIntegration({
-          company_id: companyId,
+          company_id: resolvedCompanyId,
           integration: 'shopee',
           account_id: account.id,
           account_name: account.shop_name,
