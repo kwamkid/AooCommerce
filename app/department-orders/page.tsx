@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef, Suspense } from 'react';
+import { useState, useEffect, useCallback, Suspense } from 'react';
 import { useCopy } from '@/lib/useCopy';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
@@ -27,6 +27,7 @@ import Tooltip from '@/components/ui/Tooltip';
 import DataTable from '@/components/ui/DataTable';
 import { showPdfPreview, mergePdfBlobs } from '@/lib/print-pdf';
 import { LoadingCard } from '@/components/ui/StateCard';
+import { useDebouncedCallback } from '@/lib/useDebounce';
 
 interface DeptOrder {
   id: string;
@@ -242,13 +243,10 @@ function DepartmentOrdersContent() {
 
   // Debounced search
   const [searchInput, setSearchInput] = useState(search);
-  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const debouncedSetSearch = useDebouncedCallback((val: string) => setParams({ q: val }));
   const handleSearchChange = (val: string) => {
     setSearchInput(val);
-    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
-    searchDebounceRef.current = setTimeout(() => {
-      setParams({ q: val });
-    }, 400);
+    debouncedSetSearch(val);
   };
   useEffect(() => { setSearchInput(search); }, [search]);
 

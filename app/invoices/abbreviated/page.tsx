@@ -9,6 +9,7 @@ import { ReceiptText, Search, Printer, ExternalLink, MoreHorizontal, FileUp } fr
 import { showPdfPreview } from '@/lib/print-pdf';
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
 import TaxInvoiceModal from '@/app/orders/components/TaxInvoiceModal';
+import { formatThaiDate as formatDate, formatPrice as formatMoney } from '@/lib/utils/format';
 
 interface Invoice {
   id: string; // order_id (for backward compat)
@@ -22,15 +23,6 @@ interface Invoice {
   total_amount: number;
   customer_id: string | null;
   customer: { id: string; name: string } | null;
-}
-
-function formatDate(d: string | null) {
-  if (!d) return '-';
-  return new Date(d).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' });
-}
-
-function formatMoney(n: number) {
-  return n.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 function getMonthOptions() {

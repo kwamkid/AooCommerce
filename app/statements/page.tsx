@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef, Suspense } from 'react';
+import { useState, useEffect, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
 import PageHeader from '@/components/ui/PageHeader';
@@ -20,6 +20,7 @@ import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import ActionMenu, { type ActionItem } from '@/components/ui/ActionMenu';
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
 import { LoadingCard } from '@/components/ui/StateCard';
+import { useDebouncedCallback } from '@/lib/useDebounce';
 
 interface Statement {
   id: string;
@@ -130,13 +131,10 @@ function StatementsContent() {
 
   // Debounced search
   const [searchInput, setSearchInput] = useState(search);
-  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const debouncedSetSearch = useDebouncedCallback((val: string) => setParams({ q: val }));
   const handleSearchChange = (val: string) => {
     setSearchInput(val);
-    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
-    searchDebounceRef.current = setTimeout(() => {
-      setParams({ q: val });
-    }, 400);
+    debouncedSetSearch(val);
   };
   useEffect(() => { setSearchInput(search); }, [search]);
 

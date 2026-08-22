@@ -22,6 +22,7 @@ import BulkPreviewBar from '@/components/bulk/BulkPreviewBar';
 import BulkErrorModal, { type BulkErrorReport } from '@/components/bulk/BulkErrorModal';
 
 import { AlertCircle, BadgePlus, FileSpreadsheet } from 'lucide-react';
+import { downloadBlob } from '@/lib/utils/download';
 
 interface CreateItem {
   name: string;
@@ -79,11 +80,7 @@ export default function BulkCreateBrandsPage() {
 
     const buf = await wb.xlsx.writeBuffer();
     const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `brand-create-template.xlsx`;
-    link.click();
-    URL.revokeObjectURL(link.href);
+    downloadBlob(blob, 'brand-create-template.xlsx');
   };
 
   const handleFile = async (file: File) => {

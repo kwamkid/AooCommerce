@@ -27,6 +27,7 @@ import IncludeCostToggle from '@/components/bulk/IncludeCostToggle';
 import ProductFilters, { type ProductStatusFilter } from '@/components/products/ProductFilters';
 import Pagination from '@/app/components/Pagination';
 import { addHeaderRow, addInstructionRow } from '@/lib/bulk/excel-template';
+import { downloadBlob } from '@/lib/utils/download';
 
 import {
   Check, AlertCircle, Pencil, ArrowRight,
@@ -251,12 +252,8 @@ export default function BulkPricePage() {
 
       const buf = await wb.xlsx.writeBuffer();
       const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-      const link = document.createElement('a');
-      link.href = URL.createObjectURL(blob);
       const date = new Date().toISOString().split('T')[0];
-      link.download = `product-price-${items.length}-${date}.xlsx`;
-      link.click();
-      URL.revokeObjectURL(link.href);
+      downloadBlob(blob, `product-price-${items.length}-${date}.xlsx`);
     } catch (err) {
       console.error('export error:', err);
       showToast('Export ไม่สำเร็จ', 'error');

@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { apiFetch } from '@/lib/api-client';
 import { Truck, Search, ExternalLink } from 'lucide-react';
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
+import { formatThaiDate as formatDate, formatPrice as formatMoney } from '@/lib/utils/format';
 
 interface DnRow {
   doc_id: string;
@@ -19,15 +20,6 @@ interface DnRow {
   customer_name: string | null;
   customer: { id: string; name: string } | null;
   voided_at: string | null;
-}
-
-function formatDate(d: string | null) {
-  if (!d) return '-';
-  return new Date(d).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' });
-}
-
-function formatMoney(n: number) {
-  return n.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 function getMonthOptions() {

@@ -23,6 +23,12 @@ const CACHED_GET_PATHS: { match: (url: string) => boolean; ttlMs: number }[] = [
   { match: u => u.startsWith('/api/sales-channels'), ttlMs: 60_000 },
   { match: u => u === '/api/settings/features', ttlMs: 60_000 },
   { match: u => u === '/api/carriers' || u.startsWith('/api/carriers?'), ttlMs: 60_000 },
+  { match: u => u === '/api/brands' || u.startsWith('/api/brands?'), ttlMs: 60_000 },
+  { match: u => u === '/api/categories' || u.startsWith('/api/categories?'), ttlMs: 60_000 },
+  { match: u => u === '/api/suppliers' || u.startsWith('/api/suppliers?'), ttlMs: 60_000 },
+  { match: u => u === '/api/customers/tags' || u.startsWith('/api/customers/tags?'), ttlMs: 60_000 },
+  // Composite: categories + brands (+supplier names) + variation_types — invalidated via CACHE_DEPENDENCIES
+  { match: u => u === '/api/products/form-options', ttlMs: 60_000 },
   // OrderForm init bundle — short TTL so a back-and-forth in the same flow
   // is instant, but any genuine order/inventory drift surfaces quickly. The
   // realtime inventory subscription in OrderForm patches per-variation deltas
@@ -40,11 +46,16 @@ const CACHED_GET_PATHS: { match: (url: string) => boolean; ttlMs: number }[] = [
  */
 const CACHE_DEPENDENCIES: Record<string, string[]> = {
   '/api/orders': ['/api/orders/new/init'],
-  '/api/customers': ['/api/orders/new/init'],
+  '/api/customers': ['/api/orders/new/init', '/api/customers/tags'],
   '/api/products': ['/api/orders/new/init'],
   '/api/warehouses': ['/api/orders/new/init'],
   '/api/sales-channels': ['/api/orders/new/init'],
   '/api/inventory': ['/api/orders/new/init'],
+  // /api/products/form-options bundles categories + brands (+supplier names) + variation types
+  '/api/brands': ['/api/products/form-options'],
+  '/api/categories': ['/api/products/form-options'],
+  '/api/suppliers': ['/api/products/form-options'],
+  '/api/variation-types': ['/api/products/form-options'],
 };
 
 function cacheableFor(url: string): number | null {

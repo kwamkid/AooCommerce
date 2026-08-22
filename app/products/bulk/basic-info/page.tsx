@@ -26,6 +26,7 @@ import BulkPreviewBar from '@/components/bulk/BulkPreviewBar';
 import ProductFilters, { type ProductStatusFilter } from '@/components/products/ProductFilters';
 import Pagination from '@/app/components/Pagination';
 import { addTemplateHeader } from '@/lib/bulk/excel-template';
+import { downloadBlob } from '@/lib/utils/download';
 import {
   STATUS_COLUMN_HEADER, STATUS_INSTRUCTION, parseStatusValue, statusBoolToLabel,
 } from '@/lib/bulk/status-enum';
@@ -229,12 +230,8 @@ export default function BulkBasicInfoPage() {
 
       const buf = await wb.xlsx.writeBuffer();
       const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-      const link = document.createElement('a');
-      link.href = URL.createObjectURL(blob);
       const date = new Date().toISOString().split('T')[0];
-      link.download = `product-basic-info-${items.length}-${date}.xlsx`;
-      link.click();
-      URL.revokeObjectURL(link.href);
+      downloadBlob(blob, `product-basic-info-${items.length}-${date}.xlsx`);
     } catch (err) {
       console.error('export error:', err);
       showToast('Export ไม่สำเร็จ', 'error');

@@ -24,3 +24,27 @@ export function formatNumber(amount: number | null | undefined): string {
   const num = Math.round(amount || 0);
   return addCommas(num.toString());
 }
+
+/**
+ * Format date string/Date as Thai short date. Single source of truth —
+ * ห้ามเขียน toLocaleDateString('th-TH', ...) inline ในหน้า (เคยมี 16 สูตรปนกัน)
+ * e.g. '2026-08-22' → "22 ส.ค. 2569" · null/invalid → "-"
+ */
+export function formatThaiDate(value: string | Date | null | undefined): string {
+  if (!value) return '-';
+  const d = value instanceof Date ? value : new Date(value);
+  if (isNaN(d.getTime())) return '-';
+  return d.toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
+/**
+ * Same as formatThaiDate but with HH:mm time.
+ * e.g. → "22 ส.ค. 2569 14:30"
+ */
+export function formatThaiDateTime(value: string | Date | null | undefined): string {
+  if (!value) return '-';
+  const d = value instanceof Date ? value : new Date(value);
+  if (isNaN(d.getTime())) return '-';
+  return d.toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' })
+    + ' ' + d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+}

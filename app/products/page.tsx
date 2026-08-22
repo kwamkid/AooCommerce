@@ -40,6 +40,7 @@ import SearchableDropdown, { DropdownOption } from '@/components/ui/SearchableDr
 import FormSelect from '@/components/ui/FormSelect';
 import Toggle from '@/components/ui/Toggle';
 import PageHeader from '@/components/ui/PageHeader';
+import { downloadBlob } from '@/lib/utils/download';
 
 // Product interface (from API view)
 interface ProductItem {
@@ -546,13 +547,9 @@ function ProductsPageContent() {
 
       const buffer = await wb.xlsx.writeBuffer();
       const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-      const link = document.createElement('a');
-      link.href = URL.createObjectURL(blob);
       const date = new Date().toISOString().slice(0, 10);
       const filterLabel = hasActiveFilters ? 'filter' : 'all';
-      link.download = `${filterLabel}-product-${dataRows.length}-${date}.xlsx`;
-      link.click();
-      URL.revokeObjectURL(link.href);
+      downloadBlob(blob, `${filterLabel}-product-${dataRows.length}-${date}.xlsx`);
       showToast(`ส่งออกสินค้า ${filtered.length} รายการสำเร็จ`);
     } catch (err) {
       console.error('Export error:', err);

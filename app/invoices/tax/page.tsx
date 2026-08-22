@@ -8,6 +8,7 @@ import { apiFetch } from '@/lib/api-client';
 import { FileText, Search, Printer, ExternalLink } from 'lucide-react';
 import { showPdfPreview } from '@/lib/print-pdf';
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
+import { formatThaiDate as formatDate, formatPrice as formatMoney } from '@/lib/utils/format';
 
 interface Invoice {
   id: string;
@@ -28,15 +29,6 @@ interface Invoice {
   vat_amount: number;
   voided_at: string | null;
   customer: { id: string; name: string } | null;
-}
-
-function formatDate(d: string | null) {
-  if (!d) return '-';
-  return new Date(d).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' });
-}
-
-function formatMoney(n: number) {
-  return n.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 function getMonthOptions() {

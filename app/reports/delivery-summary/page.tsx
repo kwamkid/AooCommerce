@@ -31,6 +31,7 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { ORDER_STATUS_LABEL } from '@/lib/order-status';
 import { LoadingCard } from '@/components/ui/StateCard';
+import { downloadBlob } from '@/lib/utils/download';
 import {
   Truck,
   MapPin,
@@ -699,11 +700,7 @@ export default function DeliverySummaryPage() {
     const text = generateDeliveryText();
     if (!text) return;
     const blob = new Blob(['\ufeff' + text], { type: 'text/plain;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `delivery-summary-${deliveryDate}.txt`;
-    link.click();
-    URL.revokeObjectURL(link.href);
+    downloadBlob(blob, `delivery-summary-${deliveryDate}.txt`);
   };
 
   // Generate barcode as data URL using JsBarcode

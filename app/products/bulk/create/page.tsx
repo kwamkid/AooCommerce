@@ -26,6 +26,7 @@ import BulkUploadCard from '@/components/bulk/BulkUploadCard';
 import BulkPreviewBar from '@/components/bulk/BulkPreviewBar';
 import BulkErrorModal, { type BulkErrorReport } from '@/components/bulk/BulkErrorModal';
 import IncludeCostToggle from '@/components/bulk/IncludeCostToggle';
+import { downloadBlob } from '@/lib/utils/download';
 
 import {
   AlertCircle, PackagePlus, FileSpreadsheet,
@@ -248,11 +249,7 @@ export default function BulkCreateProductsPage() {
 
     const buf = await wb.xlsx.writeBuffer();
     const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `product-create-template.xlsx`;
-    link.click();
-    URL.revokeObjectURL(link.href);
+    downloadBlob(blob, 'product-create-template.xlsx');
   };
 
   const handleFile = async (file: File) => {
