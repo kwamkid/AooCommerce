@@ -3,6 +3,7 @@ import { after } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { verifyWebhookSignature, TikTokAccountRow } from '@/lib/tiktok/api';
 import { syncSingleOrder } from '@/lib/tiktok/webhook-processor';
+import { processTikTokChatPush } from '@/lib/services/chat/tiktok';
 import { logIntegration } from '@/lib/integration-logger';
 
 export const maxDuration = 60;
@@ -92,6 +93,8 @@ export async function POST(request: NextRequest) {
     6: 'SELLER_DEAUTHORIZATION',
     7: 'UPCOMING_AUTHORIZATION_EXPIRATION',
     12: 'RETURN_STATUS_UPDATE',
+    14: 'NEW_CONVERSATION',
+    15: 'NEW_MESSAGE',
   };
 
   // Save to webhook log immediately
@@ -167,6 +170,12 @@ export async function POST(request: NextRequest) {
         if (orderId) {
           await syncSingleOrder(account, orderId);
         }
+      }
+      // Chat push (NEW_MESSAGE / NEW_CONVERSATION) — เลขรหัสไม่นิ่งใน docs
+      // จึงจับจากรูปร่าง payload (มี conversation_id) แล้ว pull ความจริงจาก
+      // Customer Service API (idempotent — dedupe ด้วย message id)
+      else if (payload.data?.conversation_id) {
+        await processTikTokChatPush(account, payload.data);
       }
       // Other types: skip
       else {

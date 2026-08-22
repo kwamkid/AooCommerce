@@ -5,7 +5,7 @@ import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
 // facebook → fb_contacts (both carry company_id). Blocks cross-tenant tag edits
 // since the service-role client bypasses RLS.
 async function contactInCompany(contactId: string, platform: string, companyId: string): Promise<boolean> {
-  const table = platform === 'facebook' ? 'fb_contacts' : platform === 'shopee' ? 'shopee_contacts' : platform === 'lazada' ? 'lazada_contacts' : 'line_contacts';
+  const table = platform === 'facebook' ? 'fb_contacts' : platform === 'shopee' ? 'shopee_contacts' : platform === 'lazada' ? 'lazada_contacts' : platform === 'tiktok' ? 'tiktok_contacts' : 'line_contacts';
   const { data } = await supabaseAdmin
     .from(table)
     .select('id')
@@ -69,7 +69,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     if (!Array.isArray(tag_ids)) {
       return NextResponse.json({ error: 'tag_ids must be an array' }, { status: 400 });
     }
-    if (!platform || !['line', 'facebook', 'shopee', 'lazada'].includes(platform)) {
+    if (!platform || !['line', 'facebook', 'shopee', 'lazada', 'tiktok'].includes(platform)) {
       return NextResponse.json({ error: 'Invalid platform' }, { status: 400 });
     }
     if (!(await contactInCompany(contactId, platform, companyId))) {

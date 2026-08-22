@@ -467,6 +467,13 @@ marketplace_accounts → marketplace_product_links → product_variations
 - **เปิดใช้ครั้งแรก**: รัน `node scripts/enable-shopee-webchat-push.mjs --apply` (partner-level, ครั้งเดียวต่อ app) เพื่อเปิด push code 10
 - media url จาก webhook อาจเป็น CDN file id เปล่า → `resolveShopeeCdnUrl()` แปลงเป็น URL เต็ม
 
+### TikTok Chat — Customer Service API (เพิ่ม 2026-08-21)
+- **แชท TikTok Shop เข้าหน้ารวม `/chat`** — platform ที่ 5 (table-per-platform pattern เดิม): `tiktok_contacts` (1 row = 1 conversation, buyer id เป็น **TEXT** — 19 หลักเกิน JS precision) + `tiktok_messages` + RPC + realtime + RLS มาตรฐาน
+- **Ingest แบบ notify-then-pull เหมือน Lazada**: webhook `/api/tiktok/webhook` จับ chat push จาก**รูปร่าง payload** (`data.conversation_id`) ไม่ผูกเลข type code (NEW_MESSAGE/NEW_CONVERSATION ไม่มีเลขยืนยันใน docs) → sync จาก `/customer_service/202309/conversations` + `/messages` (idempotent, dedupe ด้วย message id) — [lib/services/chat/tiktok.ts](lib/services/chat/tiktok.ts) + wrappers ใน [lib/tiktok/chat.ts](lib/tiktok/chat.ts)
+- **ส่งข้อความ**: text + รูป — **รูปต้อง upload เข้า `/customer_service/202309/images/upload` ก่อน** (TikTok ไม่รับ URL ภายนอก ต่างจาก Lazada; multipart **ห้าม sign body**) · ข้อความ `is_visible=false` จากระบบไม่เก็บ
+- **chat_accounts platform 'tiktok'** = reference เหมือน shopee/lazada (`credentials: {marketplace_account_id, shop_id}`) — toggle ที่ `/settings/chat-channels#tiktok` (เปิดครั้งแรก backfill 10 conversations) · CHECK `chat_accounts_platform_check` เพิ่ม 'tiktok' แล้ว (migration `tiktok_chat_foundation`)
+- **เปิดใช้จริง**: เชื่อมร้าน TikTok + เปิด scope Customer Service ของ app + subscribe event **NEW_MESSAGE** ใน TikTok Partner Center > Webhooks
+
 ### Lazada Chat — IM API (เพิ่ม 2026-08-14 — Lazada integration แรกของระบบ)
 - **Base layer ใหม่** [lib/lazada/api.ts](lib/lazada/api.ts): signing แบบ TOP (sort params → concat path+kv → HMAC-SHA256 **hex ตัวใหญ่**, timestamp เป็น **มิลลิวินาที**), OAuth `/auth/token/create|refresh` ที่ auth.lazada.com, `ensureValidToken()` + auto-deactivate — env: `LAZADA_APP_KEY`, `LAZADA_APP_SECRET` (สมัคร app ที่ open.lazada.com)
 - **OAuth**: `/api/lazada/oauth/auth-url` + `/callback` ใช้ signed state จาก [lib/oauth-state.ts](lib/oauth-state.ts) เหมือน Shopee/TikTok — account เก็บใน `marketplace_accounts` platform `'lazada'` (`shop_id` = seller_id) — เชื่อมที่ `/settings/sales-channels` แท็บ "เชื่อมต่อ Marketplace" (path เดิม `/settings/integrations` redirect มาที่นี่ — ย้ายรวมเมื่อ 2026-08-21)

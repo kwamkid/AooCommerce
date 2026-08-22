@@ -9,7 +9,7 @@ export async function GET(request: NextRequest) {
     if (!companyId) return NextResponse.json({ error: 'No company context' }, { status: 403 });
 
     // Count unread from all platforms in parallel
-    const [lineResult, fbResult, shopeeResult, lazadaResult] = await Promise.all([
+    const [lineResult, fbResult, shopeeResult, lazadaResult, tiktokResult] = await Promise.all([
       supabaseAdmin
         .from('line_contacts')
         .select('unread_count')
@@ -34,6 +34,12 @@ export async function GET(request: NextRequest) {
         .eq('company_id', companyId)
         .eq('status', 'active')
         .gt('unread_count', 0),
+      supabaseAdmin
+        .from('tiktok_contacts')
+        .select('unread_count')
+        .eq('company_id', companyId)
+        .eq('status', 'active')
+        .gt('unread_count', 0),
     ]);
 
     let total = 0;
@@ -41,6 +47,7 @@ export async function GET(request: NextRequest) {
     (fbResult.data || []).forEach(c => { total += c.unread_count || 0; });
     (shopeeResult.data || []).forEach(c => { total += c.unread_count || 0; });
     (lazadaResult.data || []).forEach(c => { total += c.unread_count || 0; });
+    (tiktokResult.data || []).forEach(c => { total += c.unread_count || 0; });
 
     return NextResponse.json({ unread: total });
   } catch (error) {

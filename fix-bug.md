@@ -16,6 +16,33 @@
 
 ---
 
+## 2026-08-22 — แท็บ Marketplace: ลบร้าน TikTok/Lazada แล้วการ์ดไม่หาย + ปุ่ม Cancel sync ไม่ทำงาน (ผลพวง copy-paste การ์ด 3 platform)
+
+**ที่เกิด**: [app/settings/sales-channels/MarketplaceConnections.tsx](app/settings/sales-channels/MarketplaceConnections.tsx)
+**อาการ**: (1) กดลบร้าน TikTok/Lazada ขึ้น "สำเร็จ" แต่การ์ดยังอยู่จนกด reload (2) กด Cancel บน LoadingOverlay ตอน sync TikTok/Lazada แล้วไม่มีอะไรเกิดขึ้น (3) ร้าน Lazada ที่ถูกถอดแสดงสถานะ "Token หมดอายุ" แทน "ยกเลิกแล้ว"
+**Root cause**: การ์ดร้าน + handler ถูก copy จาก Shopee ไป 3 ชุด — `handleDisconnect` refetch แค่ list Shopee, `handleTiktokSync`/`handleLazadaSync` ไม่ผูก `syncAbortRef`, status ternary ของ Lazada มีแค่ 2 branch — code review 2026-08-22 พบว่าไฟล์นี้ duplicate ~350 บรรทัด (การ์ด 3 ชุด + handler 2 ชุด byte-identical)
+**วิธีแก้**: `handleDisconnect(accountId, platform)` refetch ตาม platform · sync handler ทั้งสองสร้าง AbortController + ส่ง `signal` เข้า apiFetch · เพิ่ม branch `disconnected` ให้ Lazada · ปุ่มนำเข้า/ส่งสินค้า Shopee เปลี่ยนเป็น `ImportButton`/`ExportButton` (กัน icon สลับ)
+**ป้องกัน regression**: การแก้ที่ถูกระดับคือ extract `MarketplaceAccountCard` + config ต่อ platform ตาม pattern [app/settings/chat-channels](app/settings/chat-channels/page.tsx) (จดใน todo.md แล้ว) — ระหว่างนี้แก้อะไรในการ์ดต้องไล่ครบ 3 ชุดเสมอ
+
+## 2026-08-22 — icon Export/Import สลับทิศ 2 หน้า + เพิ่ม helper กลางที่ขาด (formatThaiDate / useDebouncedCallback / downloadBlob)
+
+**ที่เกิด**: [app/inventory/bulk-stock-update/page.tsx](app/inventory/bulk-stock-update/page.tsx) (Export ใช้ Download + อัพโหลดใช้ Upload — กลับด้านทั้งคู่) · [app/reports/sales/page.tsx](app/reports/sales/page.tsx) (Export CSV ใช้ Download) · native `confirm()` ใน [components/dealer/OrderStatusBar.tsx](components/dealer/OrderStatusBar.tsx) + `alert()` ใน ProcessingTab
+**Root cause**: ไม่ได้ใช้ `ExportButton`/`ImportButton` ที่ bake icon ไว้ (ทั้งระบบมีคนใช้แค่ 1 หน้า) — bug ประเภทที่ component นี้เกิดมาเพื่อกัน · date/currency/debounce/download ไม่มี helper กลาง เลย copy กัน 96/31/17/11 จุดแล้ว drift
+**วิธีแก้**: สลับเป็น ExportButton/ImportButton · confirm→useConfirmDialog, alert→showToast · เพิ่ม `formatThaiDate`/`formatThaiDateTime` ใน [lib/utils/format.ts](lib/utils/format.ts), `useDebouncedCallback` ใน [lib/useDebounce.ts](lib/useDebounce.ts), `downloadBlob` ใน [lib/utils/download.ts](lib/utils/download.ts) — กวาดแล้ว: 5 หน้า invoices (date+money), 5 หน้า list (debounce), 9 จุด download (จุด reports/sales เดิมลืม revokeObjectURL = blob ค้าง memory) · เพิ่ม brands/categories/suppliers/form-options/customer-tags เข้า `CACHED_GET_PATHS` (60s TTL)
+**ป้องกัน regression**: ปุ่ม export/import ทุกปุ่ม**ต้อง**ใช้ ExportButton/ImportButton — ห้าม Button+icon เอง · หน้าใหม่ห้ามเขียน `toLocaleDateString('th-TH')`/setTimeout debounce/createObjectURL download inline — ใช้ helper กลางเสมอ · จุดที่เหลือในระบบ (date ~90 จุด, debounce 12 ไฟล์) ทยอยกวาดตาม todo
+
+---
+
+## 2026-08-21 — Checkout หน้าร้าน: login แล้วชื่อผู้สั่งยังว่าง — prefill ถูกข้ามทั้งก้อนเพราะแถวลูกค้ายังไม่ถูกสร้าง
+
+**ที่เกิด**: [app/store/[slug]/checkout/checkout-client.tsx](app/store/[slug]/checkout/checkout-client.tsx) + `/api/storefront/me`
+**อาการ**: ลูกค้า login Google ที่หน้า checkout — แถบบนหัวโชว์ชื่อ+รูปครบ แต่ช่อง "ชื่อผู้สั่ง" ว่างเปล่า ต้องพิมพ์เองทั้งที่เพิ่ง login
+**Root cause**: แถวลูกค้า (`customers` ผูก `auth_user_id`) ถูกสร้างเฉพาะตอนเข้า**หน้าบัญชี** (มีแค่ account-client ที่ยิง POST /api/storefront/me) → login ที่หน้า checkout GET ได้ `customer: null` → โค้ด `if (!c) return` ข้าม prefill ทั้งบล็อก · แถบหัวโชว์ชื่อได้เพราะอ่านจาก session โดยตรง — คนละทางกับฟอร์ม เลยดูย้อนแย้ง
+**วิธีแก้**: เพิ่ม fallback ชั้นที่ 3 ใน checkout-client — signed in แต่ไม่มีแถวลูกค้า/แถวข้อมูลไม่ครบ → อ่านชื่อ+อีเมลจาก `supabase.auth.getSession()` (แหล่งเดียวกับ CheckoutAccountBar) · ลำดับ prefill: localStorage (ที่พิมพ์ล่าสุดบนเครื่องนี้) > customer row > session metadata — commit `78ed60e`
+**ป้องกัน regression**: ฟีเจอร์ใดที่พึ่ง linked customer row ต้องจำว่า row เกิดตอน**สั่งซื้อสำเร็จ/เข้าหน้าบัญชี**เท่านั้น — login อย่างเดียวไม่สร้าง row · อย่า assume ว่า signed_in = มี customer
+
+---
+
 ## 2026-08-22 — Shopee ลดเพดาน API รายวัน (บทลงโทษ success rate <90%) แล้วระบบยิงต่อทั้งวัน = fail ทุก call ยิ่งโดนลงโทษต่อ
 
 **ที่เกิด**: Shopee Open Platform Console — "Punishment: API calls limit" + [lib/shopee/api.ts](lib/shopee/api.ts) และทุก cron/webhook/manual sync

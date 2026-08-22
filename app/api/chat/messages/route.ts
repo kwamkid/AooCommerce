@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const contactId = searchParams.get('contact_id');
-    const platform = searchParams.get('platform') as 'line' | 'facebook' | 'shopee' | 'lazada';
+    const platform = searchParams.get('platform') as 'line' | 'facebook' | 'shopee' | 'lazada' | 'tiktok';
     const limit = parseInt(searchParams.get('limit') || '50', 10);
     const offset = parseInt(searchParams.get('offset') || '0', 10);
 

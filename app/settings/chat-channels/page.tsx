@@ -50,7 +50,7 @@ function StepNumber({ number }: { number: number }) {
 
 interface ChatAccount {
   id: string;
-  platform: 'line' | 'facebook' | 'shopee' | 'lazada';
+  platform: 'line' | 'facebook' | 'shopee' | 'lazada' | 'tiktok';
   account_name: string;
   credentials: Record<string, unknown>;
   is_active: boolean;
@@ -98,11 +98,16 @@ const PLATFORM_CONFIG = {
     color: '#0F146E',
     fields: [] as { key: string; label: string; placeholder: string }[],
   },
+  tiktok: {
+    label: 'TikTok Shop',
+    color: '#161823',
+    fields: [] as { key: string; label: string; placeholder: string }[],
+  },
 };
 
 // Chat platforms that ride on a marketplace connection (ตั้งค่า > Integrations)
-type MarketplaceChatPlatform = 'shopee' | 'lazada';
-const MARKETPLACE_CHAT_PLATFORMS: MarketplaceChatPlatform[] = ['shopee', 'lazada'];
+type MarketplaceChatPlatform = 'shopee' | 'lazada' | 'tiktok';
+const MARKETPLACE_CHAT_PLATFORMS: MarketplaceChatPlatform[] = ['shopee', 'lazada', 'tiktok'];
 
 export default function ChatChannelsPage() {
   const { userProfile } = useAuth();
@@ -115,31 +120,31 @@ export default function ChatChannelsPage() {
 
   const [loading, setLoading] = useState(true);
   const [accounts, setAccounts] = useState<ChatAccount[]>([]);
-  const [activeTab, setActiveTabState] = useState<'line' | 'facebook' | 'shopee' | 'lazada'>('facebook');
+  const [activeTab, setActiveTabState] = useState<'line' | 'facebook' | 'shopee' | 'lazada' | 'tiktok'>('facebook');
 
   // Read hash on mount — allow #line / #shopee / #lazada to override the default
   useEffect(() => {
     const hash = window.location.hash.replace('#', '');
-    if (hash === 'line' || hash === 'shopee' || hash === 'lazada') setActiveTabState(hash);
+    if (hash === 'line' || hash === 'shopee' || hash === 'lazada' || hash === 'tiktok') setActiveTabState(hash);
   }, []);
 
   // ปิดฟีเจอร์ระหว่างที่ค้างอยู่แท็บ marketplace (หรือเปิดหน้าด้วย #shopee) → กลับแท็บแรก
   useEffect(() => {
     // รอ featuresFetched ก่อน — ค่าเริ่มต้นของ flag คือปิดหมด ถ้าไม่รอจะเด้งคน
     // ที่เปิดฟีเจอร์ไว้ออกจากแท็บที่ deep-link มาทุกครั้ง
-    if (featuresFetched && !showMarketplaceChat && (activeTab === 'shopee' || activeTab === 'lazada')) {
+    if (featuresFetched && !showMarketplaceChat && (activeTab === 'shopee' || activeTab === 'lazada' || activeTab === 'tiktok')) {
       setActiveTabState('facebook');
     }
   }, [featuresFetched, showMarketplaceChat, activeTab]);
 
-  const setActiveTab = (tab: 'line' | 'facebook' | 'shopee' | 'lazada') => {
+  const setActiveTab = (tab: 'line' | 'facebook' | 'shopee' | 'lazada' | 'tiktok') => {
     setActiveTabState(tab);
     window.location.hash = tab === 'facebook' ? '' : tab;
   };
 
   // Shopee/Lazada: connected marketplace shops (chat rides on the marketplace connection)
-  const [mpShops, setMpShops] = useState<Record<MarketplaceChatPlatform, ShopeeShop[]>>({ shopee: [], lazada: [] });
-  const [mpShopsLoaded, setMpShopsLoaded] = useState<Record<MarketplaceChatPlatform, boolean>>({ shopee: false, lazada: false });
+  const [mpShops, setMpShops] = useState<Record<MarketplaceChatPlatform, ShopeeShop[]>>({ shopee: [], lazada: [], tiktok: [] });
+  const [mpShopsLoaded, setMpShopsLoaded] = useState<Record<MarketplaceChatPlatform, boolean>>({ shopee: false, lazada: false, tiktok: false });
   const [shopeeToggling, setShopeeToggling] = useState<string | null>(null);
 
   // Inline form state
@@ -581,7 +586,8 @@ export default function ChatChannelsPage() {
   const fbAccounts = accounts.filter(a => a.platform === 'facebook');
   const shopeeAccounts = accounts.filter(a => a.platform === 'shopee');
   const lazadaAccounts = accounts.filter(a => a.platform === 'lazada');
-  const tabAccounts = activeTab === 'line' ? lineAccounts : activeTab === 'shopee' ? shopeeAccounts : activeTab === 'lazada' ? lazadaAccounts : fbAccounts;
+  const tiktokAccounts = accounts.filter(a => a.platform === 'tiktok');
+  const tabAccounts = activeTab === 'line' ? lineAccounts : activeTab === 'shopee' ? shopeeAccounts : activeTab === 'lazada' ? lazadaAccounts : activeTab === 'tiktok' ? tiktokAccounts : fbAccounts;
   const tabConfig = PLATFORM_CONFIG[activeTab];
 
   // Admin guard
@@ -762,7 +768,7 @@ export default function ChatChannelsPage() {
       <Container size="full">
         <PageHeader
           title="ช่องทาง Chat"
-          subtitle={`เชื่อมต่อ LINE OA, Facebook / Instagram${showMarketplaceChat ? ', Shopee และ Lazada' : ''} เพื่อรับข้อความจากลูกค้า`}
+          subtitle={`เชื่อมต่อ LINE OA, Facebook / Instagram${showMarketplaceChat ? ', Shopee, Lazada และ TikTok' : ''} เพื่อรับข้อความจากลูกค้า`}
         />
         <Tabs
           activeKey={activeTab}
@@ -797,15 +803,22 @@ export default function ChatChannelsPage() {
                 count: lazadaAccounts.filter(a => a.is_active).length || undefined,
                 activeColorClass: 'border-[#0F146E] text-[#0F146E] dark:border-blue-400 dark:text-blue-400',
               },
+              {
+                key: 'tiktok',
+                label: 'TikTok',
+                icon: <PlatformIcon id="tiktok" size={16} />,
+                count: tiktokAccounts.filter(a => a.is_active).length || undefined,
+                activeColorClass: 'border-[#161823] text-[#161823] dark:border-slate-300 dark:text-slate-300',
+              },
             ] : []),
           ]}
         />
 
         {loading ? (
           <LoadingCard />
-        ) : (showMarketplaceChat && (activeTab === 'shopee' || activeTab === 'lazada')) ? (() => {
+        ) : (showMarketplaceChat && (activeTab === 'shopee' || activeTab === 'lazada' || activeTab === 'tiktok')) ? (() => {
           const platform = activeTab as MarketplaceChatPlatform;
-          const platformLabel = platform === 'shopee' ? 'Shopee' : 'Lazada';
+          const platformLabel = platform === 'shopee' ? 'Shopee' : platform === 'lazada' ? 'Lazada' : 'TikTok Shop';
           const shops = mpShops[platform];
           return (
             <div className="space-y-4">
@@ -813,7 +826,9 @@ export default function ChatChannelsPage() {
                 แชท {platformLabel} ใช้การเชื่อมต่อร้านจากหน้า Integrations โดยตรง — เปิดสวิตช์เพื่อรับแชทของร้านนั้นเข้าหน้ารวมแชท
                 {platform === 'shopee'
                   ? ' ข้อความใหม่จะเข้าอัตโนมัติผ่าน webhook (ต้องเปิด Webchat Push ใน Shopee Open Platform Console)'
-                  : ' ข้อความใหม่จะเข้าอัตโนมัติผ่าน webhook (ต้องตั้ง Callback URL ใน Lazada Open Platform > Push Mechanism)'}
+                  : platform === 'lazada'
+                    ? ' ข้อความใหม่จะเข้าอัตโนมัติผ่าน webhook (ต้องตั้ง Callback URL ใน Lazada Open Platform > Push Mechanism)'
+                    : ' ข้อความใหม่จะเข้าอัตโนมัติผ่าน webhook (ต้องเปิด event NEW_MESSAGE ใน TikTok Partner Center > Webhooks)'}
               </div>
               {!mpShopsLoaded[platform] ? (
                 <LoadingCard />

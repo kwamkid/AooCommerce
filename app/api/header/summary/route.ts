@@ -39,6 +39,7 @@ export async function GET(request: NextRequest) {
       fbUnreadResult,
       shopeeUnreadResult,
       lazadaUnreadResult,
+      tiktokUnreadResult,
       ordersReadyResult,
       marketplaceAccountsResult,
       marketplaceErrorsResult,
@@ -69,6 +70,12 @@ export async function GET(request: NextRequest) {
         .eq('status', 'active')
         .gt('unread_count', 0),
       supabaseAdmin
+        .from('tiktok_contacts')
+        .select('unread_count')
+        .eq('company_id', companyId)
+        .eq('status', 'active')
+        .gt('unread_count', 0),
+      supabaseAdmin
         .from('orders')
         .select('id', { count: 'exact', head: true })
         .eq('company_id', companyId)
@@ -92,6 +99,7 @@ export async function GET(request: NextRequest) {
     (fbUnreadResult.data || []).forEach(c => { chatUnread += c.unread_count || 0; });
     (shopeeUnreadResult.data || []).forEach(c => { chatUnread += c.unread_count || 0; });
     (lazadaUnreadResult.data || []).forEach(c => { chatUnread += c.unread_count || 0; });
+    (tiktokUnreadResult.data || []).forEach(c => { chatUnread += c.unread_count || 0; });
 
     type Issue = { account_id: string; shop_name: string | null; platform: string; type: 'expired' | 'disconnected'; message: string };
     const issues: Issue[] = [];

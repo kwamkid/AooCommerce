@@ -56,14 +56,14 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { platform, account_name, credentials, marketplace_account_id } = body;
 
-    if (!platform || !['line', 'facebook', 'shopee', 'lazada'].includes(platform)) {
+    if (!platform || !['line', 'facebook', 'shopee', 'lazada', 'tiktok'].includes(platform)) {
       return NextResponse.json({ error: 'Invalid platform' }, { status: 400 });
     }
 
     // Shopee/Lazada: chat channel is a reference to an already-connected
     // marketplace shop (tokens live in marketplace_accounts; no credentials of its own)
-    if (platform === 'shopee' || platform === 'lazada') {
-      const platformLabel = platform === 'shopee' ? 'Shopee' : 'Lazada';
+    if (platform === 'shopee' || platform === 'lazada' || platform === 'tiktok') {
+      const platformLabel = platform === 'shopee' ? 'Shopee' : platform === 'lazada' ? 'Lazada' : 'TikTok';
       if (!marketplace_account_id) {
         return NextResponse.json({ error: `marketplace_account_id is required for ${platformLabel}` }, { status: 400 });
       }
@@ -75,7 +75,7 @@ export async function POST(request: NextRequest) {
         .maybeSingle();
       const mpPlatformOk = platform === 'shopee'
         ? (!mpAccount?.platform || mpAccount?.platform === 'shopee')
-        : mpAccount?.platform === 'lazada';
+        : mpAccount?.platform === platform;
       if (!mpAccount || !mpPlatformOk) {
         return NextResponse.json({ error: `ไม่พบร้าน ${platformLabel} นี้ในบริษัท` }, { status: 404 });
       }
@@ -110,6 +110,20 @@ export async function POST(request: NextRequest) {
       if (error) throw error;
 
       // Lazada: backfill recent sessions so the chat page isn't empty on enable
+      if (platform === 'tiktok') {
+        try {
+          const { data: fullAccount } = await supabaseAdmin
+            .from('marketplace_accounts')
+            .select('*')
+            .eq('id', mpAccount.id)
+            .single();
+          if (fullAccount) {
+            const { syncTikTokRecentConversations } = await import('@/lib/services/chat/tiktok');
+            syncTikTokRecentConversations(fullAccount, 10).catch(() => {});
+          }
+        } catch { /* non-critical */ }
+      }
+
       if (platform === 'lazada') {
         try {
           const { data: fullAccount } = await supabaseAdmin
@@ -343,7 +357,7 @@ export async function PUT(request: NextRequest) {
 
     // Keep the sales_channels mirror in step (name + is_active).
     // Shopee/Lazada have no mirror — orders already flow via marketplace sync.
-    if (existing.platform !== 'shopee' && existing.platform !== 'lazada') {
+    if (existing.platform !== 'shopee' && existing.platform !== 'lazada' && existing.platform !== 'tiktok') {
       try {
         await syncSalesChannelFromChatAccount({
           companyId,
@@ -410,7 +424,7 @@ function maskCredentials(creds: Record<string, unknown>, platform: string): Reco
     ? ['channel_secret', 'channel_access_token']
     : platform === 'facebook'
       ? ['app_secret', 'page_access_token']
-      : []; // shopee/lazada — reference ids only, no secrets
+      : []; // shopee/lazada/tiktok — reference ids only, no secrets
 
   for (const key of secretKeys) {
     const value = masked[key];
@@ -432,6 +446,10 @@ function getWebhookUrl(request: NextRequest, accountId: string, platform: string
   if (platform === 'lazada') {
     // App-level webhook — configured once at Lazada Open Platform (Push Mechanism)
     return `${protocol}://${host}/api/lazada/webhook`;
+  }
+  if (platform === 'tiktok') {
+    // App-level webhook (shared with order sync) — configured per-event at TikTok Partner Center
+    return `${protocol}://${host}/api/tiktok/webhook`;
   }
   const apiPath = platform === 'line' ? 'line' : 'fb';
   return `${protocol}://${host}/api/${apiPath}/webhook?account=${accountId}`;

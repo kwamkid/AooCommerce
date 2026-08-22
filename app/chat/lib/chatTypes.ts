@@ -1,7 +1,7 @@
 export interface UnifiedContact {
   id: string;
-  platform: 'line' | 'facebook' | 'shopee' | 'lazada';
-  source?: 'line' | 'facebook' | 'instagram' | 'shopee' | 'lazada';
+  platform: 'line' | 'facebook' | 'shopee' | 'lazada' | 'tiktok';
+  source?: 'line' | 'facebook' | 'instagram' | 'shopee' | 'lazada' | 'tiktok';
   platform_user_id: string;
   display_name: string;
   picture_url?: string;
@@ -165,6 +165,7 @@ export interface ChatMessage {
   fb_contact_id?: string;
   shopee_contact_id?: string;
   lazada_contact_id?: string;
+  tiktok_contact_id?: string;
 }
 
 export interface Customer {
@@ -191,7 +192,7 @@ export interface ChatAccountInfo {
 
 export interface LinkedContact {
   id: string;
-  platform: 'line' | 'facebook' | 'shopee' | 'lazada';
+  platform: 'line' | 'facebook' | 'shopee' | 'lazada' | 'tiktok';
   display_name: string;
   picture_url?: string;
   last_message_at?: string;
