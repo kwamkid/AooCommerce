@@ -12,6 +12,7 @@ import ImageLightbox from '@/components/ui/ImageLightbox';
 import StatusTabs from '@/components/ui/StatusTabs';
 import { LoadingCard, EmptyCard } from '@/components/ui/StateCard';
 import Alert from '@/components/ui/Alert';
+import ShopeeQuotaPausedAlert from '@/components/ui/ShopeeQuotaPausedAlert';
 import FormInput from '@/components/ui/FormInput';
 import SearchInput, { SearchInputHandle } from '@/components/ui/SearchInput';
 import { useAuth } from '@/lib/auth-context';
@@ -771,6 +772,9 @@ function OrdersPageContent() {
             </Button>
           </>}
         />
+
+        {/* Shopee quota paused — บอกก่อนที่คนจะงงว่าออเดอร์หายไปไหน */}
+        <ShopeeQuotaPausedAlert />
 
         {/* Error */}
         {error && <Alert tone="danger">{error}</Alert>}
