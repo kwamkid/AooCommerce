@@ -15,6 +15,7 @@ import {
   LogOut,
   Shield,
   Activity,
+  Gauge,
   Languages,
 } from 'lucide-react';
 
@@ -24,6 +25,7 @@ const menuItems = [
   { label: 'Packages', href: '/superadmin/packages', icon: <Package className="w-5 h-5" /> },
   { label: 'Users', href: '/superadmin/users', icon: <Users className="w-5 h-5" /> },
   { label: 'API Logs', href: '/superadmin/api-logs', icon: <Activity className="w-5 h-5" /> },
+  { label: 'API Monitor', href: '/superadmin/api-monitor', icon: <Gauge className="w-5 h-5" /> },
   { label: 'Error Translations', href: '/superadmin/error-translations', icon: <Languages className="w-5 h-5" /> },
 ];
 
