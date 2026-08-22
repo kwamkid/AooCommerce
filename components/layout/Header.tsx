@@ -44,7 +44,7 @@ export default function Header() {
   // Build marketplace notification list from shared header summary
   const notifications = useMemo<Notification[]>(() => {
     if (!features.marketplace_sync || !summary) return [];
-    return summary.marketplaceHealth.issues.map(issue => ({
+    const list: Notification[] = summary.marketplaceHealth.issues.map(issue => ({
       id: `mp-${issue.account_id}`,
       type: 'warning' as const,
       title: issue.type === 'expired' ? 'Token Shopee หมดอายุ' : 'ร้านถูกปิดการเชื่อมต่อ',
@@ -53,6 +53,23 @@ export default function Header() {
       read: false,
       href: '/settings/sales-channels?tab=marketplace',
     }));
+    // Circuit breaker Shopee — โควตา API วันนี้หมด ระบบพัก sync รอ reset (ออเดอร์เข้าคิวไว้ ไม่หาย)
+    if (summary.marketplaceHealth.quota_blocked) {
+      const until = summary.marketplaceHealth.quota_until;
+      const untilLabel = until
+        ? new Date(until).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) + ' น.'
+        : 'เที่ยงคืน (UTC+8)';
+      list.unshift({
+        id: 'shopee-quota-paused',
+        type: 'info' as const,
+        title: 'Shopee พัก sync ชั่วคราว',
+        message: `โควตา API วันนี้หมด — ออเดอร์ใหม่เข้าคิวไว้ครบ ระบบจะ sync ต่ออัตโนมัติ ${untilLabel}`,
+        time: '',
+        read: false,
+        href: '/settings/sales-channels?tab=marketplace',
+      });
+    }
+    return list;
   }, [features.marketplace_sync, summary]);
 
   const [currentTime, setCurrentTime] = useState('');

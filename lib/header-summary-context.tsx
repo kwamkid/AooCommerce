@@ -25,6 +25,9 @@ export interface HeaderSummary {
     error_count: number;
     total_issues: number;
     issues: MarketplaceIssue[];
+    /** circuit breaker Shopee เปิดอยู่ (โควตา API รายวันหมด — พัก sync จนถึง quota_until) */
+    quota_blocked?: boolean;
+    quota_until?: string | null;
   };
 }
 

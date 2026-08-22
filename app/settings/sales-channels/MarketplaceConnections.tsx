@@ -6,6 +6,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
+import { useHeaderSummary } from '@/lib/header-summary-context';
 import { can } from '@/lib/permissions';
 import { useToast } from '@/lib/toast-context';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
@@ -27,6 +28,9 @@ export default function MarketplaceConnections() {
   const { userProfile } = useAuth();
   const { showToast } = useToast();
   const { confirmDialog, confirm } = useConfirmDialog();
+  const { summary } = useHeaderSummary();
+  const quotaBlocked = !!summary?.marketplaceHealth.quota_blocked;
+  const quotaUntil = summary?.marketplaceHealth.quota_until || null;
   // Badge-tab เลือกดูทีละแพลตฟอร์ม — แบบ flat ทั้งสามแพลตฟอร์มยาวเกินจอ
   const [activePlatform, setActivePlatform] = useState<'shopee' | 'tiktok' | 'lazada'>('shopee');
   // fetch เดียวได้ทุก platform (แทน 3 calls เดิม) — refetch หลัง write ใดๆ
@@ -436,6 +440,12 @@ export default function MarketplaceConnections() {
         <LoadingCard />
       ) : (
         <div className="space-y-4">
+          {quotaBlocked && (
+            <Alert tone="warning" title="Shopee พัก sync ชั่วคราว — โควตา API วันนี้หมด">
+              ออเดอร์ใหม่ถูกเก็บเข้าคิวไว้ครบ ไม่หาย และร้านยังจัดการออเดอร์ใน Shopee Seller Center ได้ตามปกติ —
+              ระบบจะ sync ต่อให้อัตโนมัติ{quotaUntil ? ` เวลา ${new Date(quotaUntil).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} น.` : 'หลังเที่ยงคืน (UTC+8)'} (ปุ่ม Sync ตอนนี้จะยังใช้ไม่ได้)
+            </Alert>
+          )}
           {shopeeAccounts.map(account => {
             const isSyncing = syncingId === account.id;
             const isRefreshingLogo = refreshingLogoId === account.id;

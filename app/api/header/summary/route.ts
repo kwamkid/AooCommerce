@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { checkAuthWithCompany, supabaseAdmin } from '@/lib/supabase-admin';
+import { isShopeeQuotaBlocked } from '@/lib/shopee/api';
 import { getStockConfig } from '@/lib/stock-utils';
 
 /**
@@ -121,6 +122,12 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Circuit breaker Shopee (โควตารายวันหมด) — แจ้งเฉพาะบริษัทที่มีร้าน Shopee active
+    const hasShopee = (marketplaceAccountsResult.data || []).some(
+      a => a.is_active && (!a.platform || a.platform === 'shopee')
+    );
+    const quota = hasShopee ? await isShopeeQuotaBlocked() : { blocked: false as const };
+
     return NextResponse.json({
       stockConfig,
       lowStockCount: lowStockResult.count || 0,
@@ -132,6 +139,8 @@ export async function GET(request: NextRequest) {
         error_count: marketplaceErrorsResult.count || 0,
         total_issues: issues.length,
         issues,
+        quota_blocked: quota.blocked,
+        quota_until: quota.blocked ? quota.until || null : null,
       },
     });
   } catch (error) {
