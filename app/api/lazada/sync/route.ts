@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { isQuotaBlocked } from '@/lib/marketplace/quota';
 import { checkAuthWithCompany, can, supabaseAdmin } from '@/lib/supabase-admin';
 import { LazadaAccountRow } from '@/lib/lazada/api';
 import { syncOrdersByTimeRange } from '@/lib/lazada/sync';
@@ -14,6 +15,11 @@ export async function POST(request: NextRequest) {
   const { isAuth, companyId, companyRoles } = await checkAuthWithCompany(request);
   if (!isAuth || !companyId || !can(companyRoles, 'marketplace.sync')) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const quota = await isQuotaBlocked('lazada');
+  if (quota.blocked) {
+    return NextResponse.json({ error: `Lazada จำกัดความถี่ API ชั่วคราว — ระบบพักการยิงและจะ sync ต่อให้อัตโนมัติ ลองใหม่ภายหลัง` }, { status: 429 });
   }
 
   const body = await request.json();

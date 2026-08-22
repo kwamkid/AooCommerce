@@ -14,7 +14,7 @@ import { ShoppingBag, RefreshCw, Clock, Plus } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import { ExportButton, ImportButton } from '@/components/ui/ExportImportButton';
 import Alert from '@/components/ui/Alert';
-import ShopeeQuotaPausedAlert from '@/components/ui/ShopeeQuotaPausedAlert';
+import MarketplaceQuotaPausedAlert from '@/components/ui/MarketplaceQuotaPausedAlert';
 import Toggle from '@/components/ui/Toggle';
 import LoadingOverlay from '@/components/ui/LoadingOverlay';
 import PlatformIcon from '@/components/ui/PlatformIcon';
@@ -432,12 +432,16 @@ export default function MarketplaceConnections() {
         </Button>
       </div>
 
+      {/* Quota paused banner — ทุก platform ที่ breaker เปิด */}
+      <div className="mb-4 empty:mb-0 space-y-3">
+        <MarketplaceQuotaPausedAlert note="ปุ่ม Sync ของ platform ที่โดนพักจะใช้ไม่ได้จนกว่าโควตาจะ reset" />
+      </div>
+
       {/* ===== SHOPEE ===== */}
       {activePlatform === 'shopee' && (loading ? (
         <LoadingCard />
       ) : (
         <div className="space-y-4">
-          <ShopeeQuotaPausedAlert note="ปุ่ม Sync ในหน้านี้จะใช้ไม่ได้จนกว่าโควตาจะ reset" />
           {shopeeAccounts.map(account => {
             const isSyncing = syncingId === account.id;
             const isRefreshingLogo = refreshingLogoId === account.id;

@@ -28,7 +28,7 @@ interface MonitorData {
   dead_letters: DeadLetter[];
   retry_queue: number;
   accounts: ProblemAccount[];
-  breaker: { until?: string } | null;
+  breakers: Record<string, { until?: string }>;
   generated_at: string;
 }
 
@@ -87,10 +87,10 @@ export default function ApiMonitorPage() {
     return () => clearInterval(interval);
   }, [fetchData]);
 
-  const handleResetBreaker = async () => {
+  const handleResetBreaker = async (p: Platform) => {
     const ok = await confirm({
-      title: 'ปลด circuit breaker Shopee?',
-      description: 'ระบบจะกลับไปยิง Shopee API ทันที — ทำเฉพาะเมื่อแน่ใจว่า quota reset แล้ว (23:00 ไทย) ไม่งั้น success rate จะยิ่งตก',
+      title: `ปลด circuit breaker ${PLATFORM_LABEL[p]}?`,
+      description: `ระบบจะกลับไปยิง ${PLATFORM_LABEL[p]} API ทันที — ทำเฉพาะเมื่อแน่ใจว่า quota/rate limit ฟื้นแล้ว ไม่งั้น success rate จะยิ่งตก`,
       variant: 'danger',
       confirmLabel: 'ปลด breaker',
     });
@@ -100,7 +100,7 @@ export default function ApiMonitorPage() {
       const res = await apiFetch('/api/superadmin/api-monitor', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'reset_breaker' }),
+        body: JSON.stringify({ action: 'reset_breaker', platform: p }),
       });
       if (res.ok) {
         showToast('ปลด circuit breaker แล้ว', 'success');
@@ -134,7 +134,10 @@ export default function ApiMonitorPage() {
   const whCount = (st: string) => wh24.find(w => w.processing_status === st)?.n || 0;
   const whLast = (data?.webhook_last || []).find(w => w.platform === platform);
   const heartbeat = (data?.heartbeats || []).find(h => h.integration === platform);
-  const breakerActive = !!(data?.breaker?.until && new Date(data.breaker.until).getTime() > Date.now());
+  // breaker ทุก platform ที่เปิดอยู่ (โชว์ banner เฉพาะที่ยังไม่หมดเวลา)
+  const activeBreakers = Object.entries(data?.breakers || {})
+    .filter(([, v]) => v?.until && new Date(v.until).getTime() > Date.now()) as [Platform, { until: string }][];
+  const breakerActive = activeBreakers.some(([p]) => p === platform);
   const deadForPlatform = (data?.dead_letters || []).filter(d => d.platform === platform);
 
   const rateColor = (rate: number | null) =>
@@ -143,7 +146,7 @@ export default function ApiMonitorPage() {
   const heartbeatTone = (() => {
     if (!heartbeat) return { cls: 'text-slate-500', label: 'ไม่มีข้อมูล 7 วัน' };
     const m = minutesAgo(heartbeat.created_at);
-    if (breakerActive && platform === 'shopee') return { cls: 'text-amber-400', label: 'หยุดชั่วคราว (circuit breaker)' };
+    if (breakerActive) return { cls: 'text-amber-400', label: 'หยุดชั่วคราว (circuit breaker)' };
     if (m <= 30) return { cls: 'text-emerald-400', label: 'ปกติ' };
     if (m <= 60) return { cls: 'text-amber-400', label: 'ช้ากว่ารอบ' };
     return { cls: 'text-red-400', label: 'เงียบผิดปกติ' };
@@ -155,25 +158,27 @@ export default function ApiMonitorPage() {
         <LoadingCard />
       ) : (
         <div className="space-y-5 max-w-6xl">
-          {/* Circuit breaker banner (Shopee) */}
-          {breakerActive ? (
-            <div className="flex flex-wrap items-center gap-3 bg-red-950/40 border border-red-800/60 rounded-xl px-4 py-3">
-              <ShieldAlert className="w-5 h-5 text-red-400 flex-shrink-0" />
-              <div className="flex-1 min-w-0 text-sm">
-                <span className="text-red-300 font-semibold">Circuit breaker Shopee เปิดอยู่</span>
-                <span className="text-red-400/80"> — quota หมด ระบบหยุดยิง API จนถึง {formatThaiDateTime(data!.breaker!.until!)} (cron/retry เก็บตกเองหลัง reset)</span>
+          {/* Circuit breaker banners — หนึ่งแถวต่อ platform ที่โดนพัก */}
+          {activeBreakers.length > 0 ? (
+            activeBreakers.map(([p, v]) => (
+              <div key={p} className="flex flex-wrap items-center gap-3 bg-red-950/40 border border-red-800/60 rounded-xl px-4 py-3">
+                <ShieldAlert className="w-5 h-5 text-red-400 flex-shrink-0" />
+                <div className="flex-1 min-w-0 text-sm">
+                  <span className="text-red-300 font-semibold">พักการยิง {PLATFORM_LABEL[p] || p} API ชั่วคราว</span>
+                  <span className="text-red-400/80"> — quota/rate limit หมด หยุดยิงจนถึง {formatThaiDateTime(v.until)} (cron/retry เก็บตกเองหลังกลับมา)</span>
+                </div>
+                <button
+                  onClick={() => handleResetBreaker(p)}
+                  disabled={resetting}
+                  className="px-3 py-1.5 text-sm font-medium text-red-300 border border-red-700 rounded-lg hover:bg-red-900/40 disabled:opacity-50"
+                >
+                  {resetting ? 'กำลังปลด...' : 'ปลดก่อนเวลา'}
+                </button>
               </div>
-              <button
-                onClick={handleResetBreaker}
-                disabled={resetting}
-                className="px-3 py-1.5 text-sm font-medium text-red-300 border border-red-700 rounded-lg hover:bg-red-900/40 disabled:opacity-50"
-              >
-                {resetting ? 'กำลังปลด...' : 'ปลดก่อนเวลา'}
-              </button>
-            </div>
+            ))
           ) : (
             <div className="flex items-center gap-2 text-sm text-emerald-400/90 bg-slate-900 border border-slate-700/50 rounded-xl px-4 py-2.5">
-              <ShieldCheck className="w-4 h-4" /> Circuit breaker ปิด — ระบบยิง API ปกติ
+              <ShieldCheck className="w-4 h-4" /> Circuit breaker ปิดทุก platform — ระบบยิง API ปกติ
             </div>
           )}
 

@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { markQuotaExhausted, isQuotaBlocked } from '@/lib/marketplace/quota';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { parallelLimit } from '@/lib/parallel';
 
@@ -148,37 +149,14 @@ export async function shopeeApiRequest(
 // Shopee นับ success rate จาก call จริงทุกตัว — หลังโควตาหมด ทุก call คือ fail
 // ห้ามยิงต่อทั้งวัน: cron/webhook เช็ค isShopeeQuotaBlocked() ก่อนทำงานเสมอ
 
-const QUOTA_FLAG_KEY = 'shopee_quota_exhausted';
-
-/** เที่ยงคืนถัดไปตามเวลา Shopee (UTC+8) */
-function nextQuotaResetIso(): string {
-  const utc8Now = Date.now() + 8 * 3600_000;
-  const nextMidnightUtc8 = Math.ceil(utc8Now / 86_400_000) * 86_400_000;
-  return new Date(nextMidnightUtc8 - 8 * 3600_000).toISOString();
-}
-
+// ย้าย implementation ไป lib/marketplace/quota.ts (service กลางทุก platform) — คง export ชื่อเดิมไว้
 export async function markShopeeQuotaExhausted(): Promise<void> {
-  const until = nextQuotaResetIso();
-  console.warn(`[Shopee API] Daily quota exhausted — circuit open until ${until}`);
-  await supabaseAdmin.from('app_flags').upsert({
-    key: QUOTA_FLAG_KEY,
-    value: { until },
-    updated_at: new Date().toISOString(),
-  }, { onConflict: 'key' });
+  await markQuotaExhausted('shopee');
 }
 
 /** true = โควตาวันนี้หมดแล้ว ห้ามยิง Shopee API จนกว่าจะถึงเวลา reset */
 export async function isShopeeQuotaBlocked(): Promise<{ blocked: boolean; until?: string }> {
-  const { data } = await supabaseAdmin
-    .from('app_flags')
-    .select('value')
-    .eq('key', QUOTA_FLAG_KEY)
-    .maybeSingle();
-  const until = (data?.value as { until?: string } | null)?.until;
-  if (until && new Date(until).getTime() > Date.now()) {
-    return { blocked: true, until };
-  }
-  return { blocked: false };
+  return isQuotaBlocked('shopee');
 }
 
 /**

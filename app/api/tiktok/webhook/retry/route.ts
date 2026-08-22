@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { isQuotaBlocked } from '@/lib/marketplace/quota';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { TikTokAccountRow } from '@/lib/tiktok/api';
 import { syncSingleOrder } from '@/lib/tiktok/webhook-processor';
@@ -27,6 +28,12 @@ export async function GET(request: NextRequest) {
 
   // Pick up failed webhooks that are TikTok-related (push_label starts with tiktok_ or is ORDER_STATUS_CHANGE etc.)
   // We identify TikTok webhooks by checking the account platform
+  // Circuit breaker: rate limit ค้าง — อย่าเผา retry_count รอ reset แล้วค่อย retry
+  const quota = await isQuotaBlocked('tiktok');
+  if (quota.blocked) {
+    return NextResponse.json({ message: `TikTok rate limited — retries deferred until ${quota.until}`, skipped: true });
+  }
+
   const { data: jobs } = await supabaseAdmin
     .from('marketplace_webhook_log')
     .select('*, marketplace_accounts!account_id(platform)')

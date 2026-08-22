@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { isQuotaBlocked } from '@/lib/marketplace/quota';
 import { after } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { TikTokAccountRow } from '@/lib/tiktok/api';
@@ -25,6 +26,12 @@ export async function GET(request: NextRequest) {
   }
 
   const startTime = Date.now();
+
+  // Circuit breaker: rate limit ค้าง — skip ทั้งรอบ รอบหน้าค่อยเก็บตก
+  const quota = await isQuotaBlocked('tiktok');
+  if (quota.blocked) {
+    return NextResponse.json({ message: `TikTok rate limited — sync deferred until ${quota.until}`, skipped: true });
+  }
 
   // Load all active TikTok accounts
   const { data: accounts, error } = await supabaseAdmin

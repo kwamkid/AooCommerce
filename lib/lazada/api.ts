@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { markQuotaExhausted, isQuotaErrorMessage } from '@/lib/marketplace/quota';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 
 // --- Configuration ---
@@ -130,7 +131,12 @@ export async function lazadaApiRequest(
   // Lazada errors: { code: '...', message } (top-level, '0' = success) or IM style { success, err_code, err_message }
   const code = data.code as string | undefined;
   if (code && code !== '0') {
-    return { data: null, error: (data.message as string) || `Lazada error ${code}`, raw: data };
+    const errMsg = (data.message as string) || `Lazada error ${code}`;
+    // ApiCallLimit = rate limit ของ Lazada → เปิด circuit breaker (พัก 30 นาที)
+    if (code === 'ApiCallLimit' || isQuotaErrorMessage(errMsg)) {
+      markQuotaExhausted('lazada').catch(() => {});
+    }
+    return { data: null, error: errMsg, raw: data };
   }
   if (data.success === false) {
     return { data: null, error: (data.err_message as string) || `Lazada error ${data.err_code}`, raw: data };

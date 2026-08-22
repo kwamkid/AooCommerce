@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkSuperAdmin } from '@/lib/supabase-admin';
+import { clearQuotaFlag, QUOTA_PLATFORMS, type QuotaPlatform } from '@/lib/marketplace/quota';
 
 // Superadmin API Monitor — สุขภาพ integration ทุก platform ใน call เดียว
 // GET  ?days=14  → aggregate จาก RPC get_api_monitor_stats
-// POST { action: 'reset_breaker' } → ปลด circuit breaker Shopee ด้วยมือ
+// POST { action: 'reset_breaker', platform? } → ปลด circuit breaker ของ platform นั้นด้วยมือ (default shopee)
 
 export async function GET(request: NextRequest) {
   try {
@@ -34,12 +35,12 @@ export async function POST(request: NextRequest) {
     if (body.action !== 'reset_breaker') {
       return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
     }
+    const platform = (body.platform || 'shopee') as QuotaPlatform;
+    if (!QUOTA_PLATFORMS.includes(platform)) {
+      return NextResponse.json({ error: 'Unknown platform' }, { status: 400 });
+    }
 
-    const { error } = await supabaseAdmin
-      .from('app_flags')
-      .delete()
-      .eq('key', 'shopee_quota_exhausted');
-    if (error) throw error;
+    await clearQuotaFlag(platform);
 
     return NextResponse.json({ success: true });
   } catch (error) {

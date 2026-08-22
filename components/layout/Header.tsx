@@ -53,17 +53,17 @@ export default function Header() {
       read: false,
       href: '/settings/sales-channels?tab=marketplace',
     }));
-    // Circuit breaker Shopee — โควตา API วันนี้หมด ระบบพัก sync รอ reset (ออเดอร์เข้าคิวไว้ ไม่หาย)
-    if (summary.marketplaceHealth.quota_blocked) {
-      const until = summary.marketplaceHealth.quota_until;
-      const untilLabel = until
-        ? new Date(until).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) + ' น.'
-        : 'เที่ยงคืน (UTC+8)';
+    // Circuit breaker ต่อ platform — quota/rate limit หมด ระบบพัก sync รอ reset (ออเดอร์เข้าคิวไว้ ไม่หาย)
+    const platformLabels: Record<string, string> = { shopee: 'Shopee', tiktok: 'TikTok Shop', lazada: 'Lazada' };
+    for (const q of summary.marketplaceHealth.quota_paused || []) {
+      const untilLabel = q.until
+        ? new Date(q.until).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) + ' น.'
+        : 'อีกสักครู่';
       list.unshift({
-        id: 'shopee-quota-paused',
+        id: `${q.platform}-quota-paused`,
         type: 'info' as const,
-        title: 'Shopee พัก sync ชั่วคราว',
-        message: `โควตา API วันนี้หมด — ออเดอร์ใหม่เข้าคิวไว้ครบ ระบบจะ sync ต่ออัตโนมัติ ${untilLabel}`,
+        title: `${platformLabels[q.platform] || q.platform} พัก sync ชั่วคราว`,
+        message: `โควตา API หมดชั่วคราว — ออเดอร์ใหม่เข้าคิวไว้ครบ ระบบจะ sync ต่ออัตโนมัติ ${untilLabel}`,
         time: '',
         read: false,
         href: '/settings/sales-channels?tab=marketplace',

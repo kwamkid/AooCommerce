@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { markQuotaExhausted, isQuotaErrorMessage } from '@/lib/marketplace/quota';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { logIntegration } from '@/lib/integration-logger';
 
@@ -283,7 +284,12 @@ export async function tiktokApiRequest(
   console.log(`[TikTok API] ${apiPath} response:`, JSON.stringify(data).substring(0, 1000));
 
   if (data.code !== 0) {
-    return { data: null, error: data.message || `API error code ${data.code}`, request_id: data.request_id };
+    const errMsg = data.message || `API error code ${data.code}`;
+    // rate limit → เปิด circuit breaker (พัก 30 นาที) — cron/manual sync จะ skip เอง
+    if (res.status === 429 || isQuotaErrorMessage(errMsg)) {
+      markQuotaExhausted('tiktok').catch(() => {});
+    }
+    return { data: null, error: errMsg, request_id: data.request_id };
   }
 
   return { data: data.data, request_id: data.request_id };

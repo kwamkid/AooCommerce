@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { isQuotaBlocked } from '@/lib/marketplace/quota';
 import { after } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { LazadaAccountRow } from '@/lib/lazada/api';
@@ -22,6 +23,12 @@ async function handleSyncAll(request: NextRequest) {
   }
 
   const startTime = Date.now();
+
+  // Circuit breaker: rate limit ค้าง — skip ทั้งรอบ รอบหน้าค่อยเก็บตก
+  const quota = await isQuotaBlocked('lazada');
+  if (quota.blocked) {
+    return NextResponse.json({ message: `Lazada rate limited — sync deferred until ${quota.until}`, skipped: true });
+  }
 
   const { data: accounts, error } = await supabaseAdmin
     .from('marketplace_accounts')
