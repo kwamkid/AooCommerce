@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import FormSelect from '@/components/ui/FormSelect';
 import { LoadingCard } from '@/components/ui/StateCard';
+import { useDebouncedCallback } from '@/lib/useDebounce';
 
 // ─── Types ──────────────────────────────────────────────
 
@@ -116,7 +117,7 @@ export default function SuperAdminApiLogs() {
   const [statusCounts, setStatusCounts] = useState<Record<string, number>>({});
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [searchTimeout, setSearchTimeout] = useState<NodeJS.Timeout | null>(null);
+  const debouncedResetPage = useDebouncedCallback(() => setPage(1), 500);
   const [loadTime, setLoadTime] = useState<number | null>(null);
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
   const autoRefreshRef = useRef<NodeJS.Timeout | null>(null);
@@ -164,8 +165,7 @@ export default function SuperAdminApiLogs() {
 
   const handleSearch = (val: string) => {
     setSearch(val);
-    if (searchTimeout) clearTimeout(searchTimeout);
-    setSearchTimeout(setTimeout(() => setPage(1), 500));
+    debouncedResetPage();
   };
 
   const copyApiBody = async (body: unknown, id: string) => {

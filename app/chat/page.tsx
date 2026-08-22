@@ -105,6 +105,10 @@ function UnifiedChatPageContent() {
 
   // Selected contact state
   const [selectedContact, setSelectedContact] = useState<UnifiedContact | null>(null);
+  // refs สำหรับ realtime effect ที่ subscribe ครั้งเดียว — อ่านค่าล่าสุดโดยไม่ต้อง re-subscribe
+  const selectedContactRef = useRef<UnifiedContact | null>(null);
+  selectedContactRef.current = selectedContact;
+  const latestFetchContactsRef = useRef<(loadMore?: boolean) => void>(() => {});
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loadingMessages, setLoadingMessages] = useState(false);
 
@@ -429,20 +433,22 @@ function UnifiedChatPageContent() {
     return () => observer.disconnect();
   }, [hasMoreMessages, loadingMore, loadingMessages, selectedContact?.id, messages.length]);
 
-  // Supabase Realtime - dual subscriptions for LINE + FB
+  // Supabase Realtime — subscribe ครั้งเดียวตอน mount (เดิม deps [selectedContact] ทำให้
+  // คลิก contact 1 ครั้ง = ถอน+สมัครใหม่ 8 channels ทุกรอบ) — อ่านค่าปัจจุบันผ่าน ref แทน
   useEffect(() => {
     // Debounce fetchContacts to prevent multiple rapid calls from cascading realtime events
     let debounceTimer: NodeJS.Timeout | null = null;
     const debouncedFetchContacts = () => {
       if (debounceTimer) clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(() => fetchContacts(), 500);
+      debounceTimer = setTimeout(() => latestFetchContactsRef.current(), 500);
     };
 
     const handleNewMessage = (payload: any, contactIdField: string) => {
       const newMsg = payload.new as ChatMessage;
       const msgContactId = (newMsg as any)[contactIdField];
+      const selected = selectedContactRef.current;
 
-      if (selectedContact && msgContactId === selectedContact.id) {
+      if (selected && msgContactId === selected.id) {
         setMessages(prev => {
           const existsById = prev.some(m => m.id === newMsg.id);
           if (existsById) return prev;
@@ -455,7 +461,7 @@ function UnifiedChatPageContent() {
 
         // Mark as read if viewing this contact (lightweight PATCH instead of re-fetching messages)
         if (newMsg.direction === 'incoming') {
-          apiFetch(`/api/chat/contacts/${selectedContact.id}/read`, { method: 'POST', body: JSON.stringify({ platform: selectedContact.platform }) }).catch(() => {});
+          apiFetch(`/api/chat/contacts/${selected.id}/read`, { method: 'POST', body: JSON.stringify({ platform: selected.platform }) }).catch(() => {});
         }
       }
       debouncedFetchContacts();
@@ -516,7 +522,9 @@ function UnifiedChatPageContent() {
       supabase.removeChannel(shopeeContactsChannel);
       supabase.removeChannel(lazadaContactsChannel);
     };
-  }, [selectedContact]);
+    // subscribe once — ค่า selectedContact/fetchContacts อ่านผ่าน ref ด้านบน
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const fetchContactsRef = useRef<AbortController | null>(null);
   const fetchContacts = async (loadMore = false) => {
@@ -576,6 +584,8 @@ function UnifiedChatPageContent() {
       }
     }
   };
+  // ให้ realtime effect (subscribe ครั้งเดียว) เรียก fetchContacts เวอร์ชันล่าสุดเสมอ
+  latestFetchContactsRef.current = fetchContacts;
 
   const fetchMessages = async (contactId: string, loadMore = false) => {
     if (!selectedContact) return;

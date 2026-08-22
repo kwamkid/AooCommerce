@@ -98,27 +98,20 @@ export default function MonitorTab({ warehouses }: MonitorTabProps) {
   const fetchSummary = useCallback(async () => {
     setSummaryLoading(true);
     try {
-      // Fetch all of today's transactions (up to 1000 for summary)
+      // aggregate ฝั่ง server (summary=true) — เดิมดึงมาไม่เกิน 1000 แถวแล้วนับฝั่ง client ทุก 30 วิ
       const params = new URLSearchParams({
         date_from: todayStr,
         date_to: todayStr,
-        limit: '1000',
-        page: '1',
+        summary: 'true',
       });
       if (warehouseFilter) params.set('warehouse_id', warehouseFilter);
 
       const res = await apiFetch(`/api/inventory/transactions?${params}`);
       if (!res.ok) return;
       const data = await res.json();
-      const txs = (data.transactions || []) as Transaction[];
-
-      // Group by type
+      const rows = (data.summary || []) as { type: string; count: number; total_qty: number }[];
       const grouped: Record<string, { count: number; totalQty: number }> = {};
-      for (const tx of txs) {
-        if (!grouped[tx.type]) grouped[tx.type] = { count: 0, totalQty: 0 };
-        grouped[tx.type].count++;
-        grouped[tx.type].totalQty += tx.quantity;
-      }
+      for (const r of rows) grouped[r.type] = { count: r.count, totalQty: Number(r.total_qty) };
 
       // Build summary cards — only types with data
       const cards: SummaryCard[] = [];

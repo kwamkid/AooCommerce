@@ -66,6 +66,11 @@ export default function PurchaseOrderDetailPage() {
     if (fetchedRef.current) return;
     fetchedRef.current = true;
     fetchPO();
+    // reference data (dropdown แก้ไข) ไม่ได้ขึ้นกับตัว PO — ยิงขนานไปเลย
+    // (เดิมรอ fetchPO + PATCH recalc เสร็จก่อน = dropdown ช้าไป 2-3 RTT; warehouses มี cache 60s อยู่แล้ว)
+    fetchSuppliers();
+    fetchWarehouses();
+    fetchBrands();
   }, [authLoading, userProfile, featuresFetched, features.supplier, router, poId]);
 
   const fetchPO = async () => {
@@ -88,10 +93,6 @@ export default function PurchaseOrderDetailPage() {
       // Directly re-init edit state from fresh data (don't rely on useEffect)
       if (fresh.status === 'draft' || fresh.status === 'sent') {
         initEditFromPO(fresh);
-        // Also fetch reference data (suppliers, warehouses, brands) if not loaded yet
-        if (suppliers.length === 0) fetchSuppliers();
-        if (warehouses.length === 0) fetchWarehouses();
-        if (allBrands.length === 0) fetchBrands();
       }
     } catch { showToast('โหลดข้อมูลไม่สำเร็จ', 'error'); }
     finally { setLoading(false); }

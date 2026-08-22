@@ -6,6 +6,7 @@ import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
 import { Search, Users, ChevronLeft, ChevronRight, Shield } from 'lucide-react';
 import { LoadingCard } from '@/components/ui/StateCard';
+import { useDebouncedCallback } from '@/lib/useDebounce';
 
 interface UserItem {
   id: string;
@@ -25,7 +26,7 @@ export default function SuperAdminUsers() {
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
-  const [searchTimeout, setSearchTimeout] = useState<NodeJS.Timeout | null>(null);
+  const debouncedResetPage = useDebouncedCallback(() => setPage(1), 500);
   const limit = 50;
 
   const fetchUsers = useCallback(async () => {
@@ -52,8 +53,7 @@ export default function SuperAdminUsers() {
 
   const handleSearch = (val: string) => {
     setSearch(val);
-    if (searchTimeout) clearTimeout(searchTimeout);
-    setSearchTimeout(setTimeout(() => setPage(1), 500));
+    debouncedResetPage();
   };
 
   const totalPages = Math.ceil(total / limit);

@@ -41,6 +41,7 @@ import FormSelect from '@/components/ui/FormSelect';
 import Toggle from '@/components/ui/Toggle';
 import PageHeader from '@/components/ui/PageHeader';
 import { downloadBlob } from '@/lib/utils/download';
+import { useDebouncedCallback } from '@/lib/useDebounce';
 
 // Product interface (from API view)
 interface ProductItem {
@@ -122,7 +123,6 @@ function ProductsPageContent() {
   const [searchInput, setSearchInput] = useState(debouncedSearch);
   // Mobile: collapse non-search filters by default
   const [showMobileFilters, setShowMobileFilters] = useState(false);
-  const debounceRef = useRef<NodeJS.Timeout>(undefined);
 
   // Sync search input when URL param changes externally (e.g. browser back)
   useEffect(() => { setSearchInput(debouncedSearch); }, [debouncedSearch]);
@@ -146,16 +146,16 @@ function ProductsPageContent() {
     router.replace(qs ? `?${qs}` : '/products', { scroll: false });
   }, [searchParams, router]);
 
-  // Debounced search handler
+  // Debounced search handler — ค่าว่าง = เคลียร์ทันที ไม่ต้องรอ debounce
+  const debouncedSetQ = useDebouncedCallback((val: string) => setParams({ q: val }), 300);
   const handleSearchChange = useCallback((val: string) => {
     setSearchInput(val);
-    if (debounceRef.current) clearTimeout(debounceRef.current);
     if (!val) {
       setParams({ q: '' });
       return;
     }
-    debounceRef.current = setTimeout(() => setParams({ q: val }), 300);
-  }, [setParams]);
+    debouncedSetQ(val);
+  }, [setParams, debouncedSetQ]);
 
   // Check if any filter is active
   const hasActiveFilters = !!(debouncedSearch || typeFilter || categoryFilter || brandFilter || statusFilter || (shopAccountFilter !== 'all'));

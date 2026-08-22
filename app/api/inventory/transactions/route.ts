@@ -71,6 +71,22 @@ export async function GET(request: NextRequest) {
       query = query.or(`product_name.ilike.${s},product_code.ilike.${s},sku.ilike.${s},notes.ilike.${s}`);
     }
 
+    // summary=true → aggregate DB-side (MonitorTab การ์ดสรุป) — ไม่ต้องดึงแถวจริงเลย
+    if (searchParams.get('summary') === 'true') {
+      const stockConfigOnly = await getStockConfig(auth.companyId!);
+      if (!stockConfigOnly.stockEnabled) {
+        return NextResponse.json({ error: 'Stock feature not enabled' }, { status: 403 });
+      }
+      const { data: summary, error: sumError } = await supabaseAdmin.rpc('get_inventory_tx_summary', {
+        p_company_id: auth.companyId,
+        p_date_from: dateFrom ? (dateFrom.includes('T') ? dateFrom : dateFrom + 'T00:00:00+07:00') : new Date(0).toISOString(),
+        p_date_to: dateTo ? (dateTo.includes('T') ? dateTo : dateTo + 'T23:59:59.999+07:00') : new Date().toISOString(),
+        p_warehouse_id: warehouseId || null,
+      });
+      if (sumError) throw sumError;
+      return NextResponse.json({ summary: summary || [] });
+    }
+
     const [stockConfig, viewResult] = await Promise.all([
       getStockConfig(auth.companyId!),
       query.range(offset, offset + limit - 1),

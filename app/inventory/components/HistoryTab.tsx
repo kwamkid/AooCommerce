@@ -9,6 +9,7 @@ import { LoadingCard } from '@/components/ui/StateCard';
 import ProductImageThumb from '@/components/ui/ProductImageThumb';
 import ColumnSettingsDropdown from '@/app/components/ColumnSettingsDropdown';
 import Pagination from '@/app/components/Pagination';
+import { useDebouncedCallback } from '@/lib/useDebounce';
 import {
   Transaction, TransactionType, WarehouseItem, HistoryColumnKey,
   HISTORY_COLUMN_CONFIGS, HISTORY_COLUMNS_STORAGE_KEY,
@@ -33,7 +34,7 @@ export default function HistoryTab({ warehouses, filterVariationId, filterProduc
   const [warehouseFilter, setWarehouseFilter] = useState('');
   const [type, setType] = useState('');
   const [dateRange, setDateRange] = useState<DateValueType>({ startDate: null, endDate: null });
-  const [searchTimeout, setSearchTimeout] = useState<NodeJS.Timeout | null>(null);
+  const debouncedResetPage = useDebouncedCallback(() => setPage(1), 500);
   const [loadTime, setLoadTime] = useState<number | null>(null);
 
   // Variation filter from parent (when clicking "ดูประวัติ" per product)
@@ -110,8 +111,7 @@ export default function HistoryTab({ warehouses, filterVariationId, filterProduc
 
   const handleSearch = (val: string) => {
     setSearch(val);
-    if (searchTimeout) clearTimeout(searchTimeout);
-    setSearchTimeout(setTimeout(() => setPage(1), 500));
+    debouncedResetPage();
   };
 
   const clearVariationFilter = () => {
