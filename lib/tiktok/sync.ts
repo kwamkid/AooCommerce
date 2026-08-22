@@ -289,6 +289,7 @@ export async function syncOrdersByTimeRange(
 
   // Paginate through order list
   let pageToken: string | undefined;
+  let collectFailed = false;
   let hasMore = true;
   let pageNum = 0;
 
@@ -324,6 +325,7 @@ export async function syncOrdersByTimeRange(
       hasMore = !!pageToken && orders.length > 0;
     } catch (e) {
       result.errors.push(`Order list error: ${e instanceof Error ? e.message : 'Unknown error'}`);
+      collectFailed = true;
       break;
     }
   }
@@ -341,11 +343,14 @@ export async function syncOrdersByTimeRange(
     result.errors.push(...syncResult.errors);
   }
 
-  // Update last_sync_at
-  await supabaseAdmin
-    .from('marketplace_accounts')
-    .update({ last_sync_at: new Date().toISOString(), updated_at: new Date().toISOString() })
-    .eq('id', account.id);
+  // Update last_sync_at — เฉพาะเมื่อ collect รายการครบ ไม่งั้นรอบหน้าต้องไล่ช่วงเดิมซ้ำ
+  // (ห้าม stamp ตอน collect ล้ม — บทเรียน Shopee ออเดอร์หายเงียบ ดู fix-bug.md 2026-08-21)
+  if (!collectFailed) {
+    await supabaseAdmin
+      .from('marketplace_accounts')
+      .update({ last_sync_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+      .eq('id', account.id);
+  }
 
   console.log(`[TikTok Sync] Done: created=${result.orders_created}, updated=${result.orders_updated}, errors=${result.errors.length}`);
   return result;
@@ -810,7 +815,9 @@ async function findOrCreateCustomer(
 ): Promise<{ customerId: string; isNewCustomer: boolean; shippingAddressId: string | null }> {
   const addr = tiktokOrder.recipient_address;
   const buyerName = addr?.name || `TikTok User ${tiktokOrder.user_id}`;
-  const buyerPhone = addr?.phone_number?.replace(/[^\d+]/g, '') || '';
+  // TikTok mask เบอร์ผู้ซื้อ (มี '*') — ห้ามใช้ match/บันทึก ไม่งั้น strip แล้วได้เบอร์เพี้ยนไปชนลูกค้าคนอื่น (บทเรียนเดียวกับ Lazada)
+  const rawPhone = addr?.phone_number || '';
+  const buyerPhone = rawPhone.includes('*') ? '' : rawPhone.replace(/[^\d+]/g, '');
 
   // Try to find existing customer by phone or name
   let customerId = '';
@@ -968,9 +975,9 @@ async function findOrCreateVariationBySku(
   if (sku) {
     const { data: byCodeProduct } = await supabaseAdmin
       .from('products')
-      .select('id, product_code, product_variations!inner(id, sku)')
+      .select('id, code, product_variations!inner(id, sku)')
       .eq('company_id', companyId)
-      .eq('product_code', sku)
+      .eq('code', sku)
       .limit(1)
       .maybeSingle();
     if (byCodeProduct?.product_variations?.[0]) {
@@ -978,35 +985,37 @@ async function findOrCreateVariationBySku(
       return {
         variation_id: pv.id,
         product_id: byCodeProduct.id,
-        product_code: byCodeProduct.product_code || '',
+        product_code: byCodeProduct.code || '',
         isNewProduct: false,
         isNewVariation: false,
       };
     }
   }
 
-  // 4. Create new product + variation
+  // 4. สร้างใหม่ (simple product 1 variation — schema จริงใช้ code/name/default_price, ตาม pattern Lazada sync)
   const productName = itemName.split(' - ')[0] || itemName;
   const productCode = sku || `TT-${tiktokInfo.tiktokProductId}`;
+  const variationLabel = itemName.includes(' - ')
+    ? itemName.split(' - ').slice(1).join(' - ')
+    : productName;
 
   const { data: newProduct, error: productErr } = await supabaseAdmin
     .from('products')
     .insert({
       company_id: companyId,
-      product_name: productName,
-      product_code: productCode,
-      price,
-      is_active: true,
+      code: productCode,
+      name: productName,
+      variation_label: variationLabel,
+      image: tiktokInfo.skuImage || null,
       source: 'tiktok',
+      is_active: true,
     })
-    .select('id, product_code')
+    .select('id, code')
     .single();
 
   if (productErr || !newProduct) {
     throw new Error(`Failed to create product: ${productErr?.message}`);
   }
-
-  const variationLabel = itemName.includes(' - ') ? itemName.split(' - ').slice(1).join(' - ') : null;
 
   const { data: newVariation, error: varErr } = await supabaseAdmin
     .from('product_variations')
@@ -1014,8 +1023,8 @@ async function findOrCreateVariationBySku(
       company_id: companyId,
       product_id: newProduct.id,
       sku: sku || productCode,
-      variation_label: variationLabel || productName,
-      price,
+      variation_label: variationLabel,
+      default_price: price,
       is_active: true,
     })
     .select('id, sku')
@@ -1043,7 +1052,7 @@ async function findOrCreateVariationBySku(
   return {
     variation_id: newVariation.id,
     product_id: newProduct.id,
-    product_code: newProduct.product_code || '',
+    product_code: newProduct.code || '',
     isNewProduct: true,
     isNewVariation: true,
   };
