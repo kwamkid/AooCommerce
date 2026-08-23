@@ -443,7 +443,7 @@ marketplace_accounts → marketplace_product_links → product_variations
 
 ### API Docs (Local — ดูก่อน web search!)
 - **Shopee v2**: `api_doc_knowledge/Shopee/_INDEX.md`
-- **TikTok**: ` api_doc_knowledge/Tiktok/_INDEX.md` (19 categories, 233 endpoints)
+- **TikTok**: ใช้ skill **`tts-openapi-guide`** ก่อน (จาก `npm i -g @tts-open-toolkit/cli` → `tts_open_toolkit skill add --agent cc`) — มี **OAS ฉบับเต็มเป็น JSON** ที่ `~/.claude/skills/tts-openapi-guide/references/oas/paths/*.json` อัปเดตได้ด้วย `tts_open_toolkit update` · สำเนา markdown เก่า ` api_doc_knowledge/Tiktok/_INDEX.md` (scrape 2026-03-10) ใช้เป็น fallback — **เลข push code ในนั้นไม่ตรงของจริง** ยึดหน้า Partner Center เสมอ
 
 ### Scale & Queue Strategy
 - **ปัจจุบัน**: Vercel serverless + Supabase — รองรับได้หลักพัน orders/วัน ไม่ต้อง queue
