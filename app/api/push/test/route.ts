@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
   if (!publicKey || !privateKey) {
     return NextResponse.json({ error: 'VAPID keys not configured' }, { status: 500 });
   }
-  webpush.setVapidDetails(process.env.VAPID_SUBJECT || 'mailto:admin@aoocommerce.app', publicKey, privateKey);
+  webpush.setVapidDetails(process.env.VAPID_SUBJECT || 'mailto:admin@aoocommerce.com', publicKey, privateKey);
 
   const { data: subs } = await supabaseAdmin
     .from('push_subscriptions')
