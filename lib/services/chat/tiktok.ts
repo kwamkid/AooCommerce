@@ -40,7 +40,7 @@ export class TikTokChatService {
 
     let creds;
     try {
-      creds = await ensureValidToken(account);
+      creds = await ensureValidToken(account, 'chat');
     } catch (err) {
       return { success: false, error: err instanceof Error ? err.message : 'TikTok token หมดอายุ กรุณาเชื่อมต่อร้านใหม่' };
     }
@@ -161,7 +161,7 @@ export class TikTokChatService {
    */
   async syncConversation(account: TikTokAccountRow, conversationId: string): Promise<boolean> {
     try {
-      const creds = await ensureValidToken(account);
+      const creds = await ensureValidToken(account, 'chat');
 
       // หา conversation จาก list หน้าแรก ๆ (ข้อความใหม่ดัน conversation ขึ้นบนเสมอ)
       let convo: TikTokConversation | null = null;
@@ -192,7 +192,7 @@ export class TikTokChatService {
    */
   async syncRecentConversations(account: TikTokAccountRow, maxConversations = 10): Promise<number> {
     try {
-      const creds = await ensureValidToken(account);
+      const creds = await ensureValidToken(account, 'chat');
       const { conversations } = await getConversations(creds, { pageSize: Math.min(maxConversations, 20) });
       let synced = 0;
       for (const convo of conversations.slice(0, maxConversations)) {

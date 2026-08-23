@@ -24,18 +24,37 @@ export interface TikTokAccountRow {
   refresh_token: string | null;
   access_token_expires_at: string | null;
   refresh_token_expires_at: string | null;
+  // token ของ app แชท (คนละ app กับด้านบน) — null = ร้านยังไม่ได้อนุญาต app แชท
+  chat_access_token?: string | null;
+  chat_refresh_token?: string | null;
+  chat_access_token_expires_at?: string | null;
+  chat_refresh_token_expires_at?: string | null;
   is_active: boolean;
   last_sync_at: string | null;
   metadata: Record<string, unknown>;
 }
 
+// --- Two apps: order + chat ---
+//
+// scope `seller.customer_service` มีเฉพาะ app หมวด Customer Support และหมวด
+// แก้ทีหลังไม่ได้ — app หลัก (Order Management) จึงขอแชทไม่ได้ตลอดกาล
+// ทางออกคือ 2 app: 'order' (ของเดิม ใช้อยู่จริง ห้ามแตะ) + 'chat'
+// token ของ TikTok ออกเป็นรายคู่ (app, shop) ร้านเดียวจึงมี token 2 ชุด
+// เก็บแยกคอลัมน์ใน marketplace_accounts แถวเดิม (chat_* )
+export type TikTokApp = 'order' | 'chat';
+
 // --- ENV helpers ---
-function getAppKey(): string {
-  return process.env.TIKTOK_APP_KEY || '';
+function getAppKey(app: TikTokApp = 'order'): string {
+  return (app === 'chat' ? process.env.TIKTOK_CHAT_APP_KEY : process.env.TIKTOK_APP_KEY) || '';
 }
 
-function getAppSecret(): string {
-  return process.env.TIKTOK_APP_SECRET || '';
+function getAppSecret(app: TikTokApp = 'order'): string {
+  return (app === 'chat' ? process.env.TIKTOK_CHAT_APP_SECRET : process.env.TIKTOK_APP_SECRET) || '';
+}
+
+/** app แชทถูกตั้งค่าไว้ไหม — ไม่มีก็ใช้ได้แค่ออเดอร์ (ไม่พัง) */
+export function isChatAppConfigured(): boolean {
+  return !!(getAppKey('chat') && getAppSecret('chat'));
 }
 
 // --- Signature Generation ---
@@ -55,9 +74,11 @@ function getAppSecret(): string {
 export function generateSign(
   apiPath: string,
   params: Record<string, string>,
-  body?: string
+  body?: string,
+  /** secret ของ app ที่ยิง — ไม่ส่งมา = app ออเดอร์ (ของเดิม) */
+  signingSecret?: string
 ): string {
-  const appSecret = getAppSecret();
+  const appSecret = signingSecret || getAppSecret();
 
   // 1. Exclude 'sign' and 'access_token'
   const paramsToBeSigned = { ...params };
@@ -93,11 +114,18 @@ export function generateSign(
  * sign = HMAC-SHA256(app_secret, app_key + rawBody)
  */
 export function verifyWebhookSignature(rawBody: string, signature: string): boolean {
-  const appKey = getAppKey();
-  const appSecret = getAppSecret();
-  const stringToBeSigned = appKey + rawBody;
-  const expected = crypto.createHmac('sha256', appSecret).update(stringToBeSigned).digest('hex');
-  return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(signature));
+  // push มาจากได้ทั้ง 2 app (ออเดอร์/แชท) และเซ็นด้วย secret ของ app ตัวเอง
+  // — ลองทีละตัว ตัวไหนตรงก็ถือว่าของจริง
+  for (const app of ['order', 'chat'] as TikTokApp[]) {
+    const appKey = getAppKey(app);
+    const appSecret = getAppSecret(app);
+    if (!appKey || !appSecret) continue;
+    const expected = crypto.createHmac('sha256', appSecret).update(appKey + rawBody).digest('hex');
+    // ความยาวไม่เท่ากัน timingSafeEqual จะ throw — เทียบความยาวก่อน
+    if (expected.length !== signature.length) continue;
+    if (crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(signature))) return true;
+  }
+  return false;
 }
 
 // --- OAuth ---
@@ -105,8 +133,8 @@ export function verifyWebhookSignature(rawBody: string, signature: string): bool
 /**
  * Generate TikTok Shop OAuth authorization URL.
  */
-export function generateAuthUrl(state?: string): string {
-  const appKey = getAppKey();
+export function generateAuthUrl(state?: string, app: TikTokApp = 'order'): string {
+  const appKey = getAppKey(app);
   const params = new URLSearchParams({ app_key: appKey });
   if (state) params.set('state', state);
   return `${TIKTOK_AUTH_HOST}/oauth/authorize?${params.toString()}`;
@@ -115,7 +143,7 @@ export function generateAuthUrl(state?: string): string {
 /**
  * Exchange authorization code for tokens.
  */
-export async function exchangeCodeForToken(authCode: string): Promise<{
+export async function exchangeCodeForToken(authCode: string, app: TikTokApp = 'order'): Promise<{
   access_token: string;
   refresh_token: string;
   access_token_expire_in: number;
@@ -124,8 +152,8 @@ export async function exchangeCodeForToken(authCode: string): Promise<{
   seller_name: string;
   seller_base_region: string;
 }> {
-  const appKey = getAppKey();
-  const appSecret = getAppSecret();
+  const appKey = getAppKey(app);
+  const appSecret = getAppSecret(app);
 
   const url = `${TIKTOK_AUTH_HOST}/api/v2/token/get?${new URLSearchParams({
     app_key: appKey,
@@ -147,14 +175,14 @@ export async function exchangeCodeForToken(authCode: string): Promise<{
 /**
  * Refresh access token using refresh_token.
  */
-export async function refreshAccessToken(refreshToken: string): Promise<{
+export async function refreshAccessToken(refreshToken: string, app: TikTokApp = 'order'): Promise<{
   access_token: string;
   refresh_token: string;
   access_token_expire_in: number;
   refresh_token_expire_in: number;
 }> {
-  const appKey = getAppKey();
-  const appSecret = getAppSecret();
+  const appKey = getAppKey(app);
+  const appSecret = getAppSecret(app);
 
   const url = `${TIKTOK_AUTH_HOST}/api/v2/token/refresh?${new URLSearchParams({
     app_key: appKey,
@@ -177,30 +205,47 @@ export async function refreshAccessToken(refreshToken: string): Promise<{
  * Ensure the account has a valid access token, refreshing if needed.
  * Returns credentials ready for API calls.
  */
-export async function ensureValidToken(account: TikTokAccountRow): Promise<TikTokCredentials> {
-  const appKey = getAppKey();
-  const appSecret = getAppSecret();
+export async function ensureValidToken(
+  account: TikTokAccountRow,
+  app: TikTokApp = 'order',
+): Promise<TikTokCredentials> {
+  const appKey = getAppKey(app);
+  const appSecret = getAppSecret(app);
   const shopCipher = (account.metadata?.shop_cipher as string) || '';
   const now = new Date();
-  const expiresAt = account.access_token_expires_at ? new Date(account.access_token_expires_at) : null;
+  const isChat = app === 'chat';
+
+  // token ของ 2 app อยู่คนละคอลัมน์ แต่ logic refresh เหมือนกันทุกอย่าง
+  const accessToken = isChat ? account.chat_access_token : account.access_token;
+  const refreshToken = isChat ? account.chat_refresh_token : account.refresh_token;
+  const accessExpiresAt = isChat ? account.chat_access_token_expires_at : account.access_token_expires_at;
+  const refreshExpiresAt = isChat ? account.chat_refresh_token_expires_at : account.refresh_token_expires_at;
+
+  if (isChat && !appKey) {
+    throw new Error('ยังไม่ได้ตั้งค่า TikTok chat app (TIKTOK_CHAT_APP_KEY/SECRET)');
+  }
+
+  const expiresAt = accessExpiresAt ? new Date(accessExpiresAt) : null;
   const BUFFER_MS = 5 * 60 * 1000; // 5 minutes buffer
 
   // Token is still valid
-  if (account.access_token && expiresAt && expiresAt.getTime() - now.getTime() > BUFFER_MS) {
-    return { app_key: appKey, app_secret: appSecret, access_token: account.access_token, shop_cipher: shopCipher };
+  if (accessToken && expiresAt && expiresAt.getTime() - now.getTime() > BUFFER_MS) {
+    return { app_key: appKey, app_secret: appSecret, access_token: accessToken, shop_cipher: shopCipher };
   }
 
   // Need to refresh
-  if (!account.refresh_token) {
-    throw new Error('No refresh token available. Shop needs to re-authorize.');
+  if (!refreshToken) {
+    throw new Error(isChat
+      ? 'ร้านนี้ยังไม่ได้อนุญาตแอปแชท — เชื่อมต่อร้านใหม่อีกครั้งเพื่อเปิดใช้แชท'
+      : 'No refresh token available. Shop needs to re-authorize.');
   }
 
-  const refreshExpiresAt = account.refresh_token_expires_at ? new Date(account.refresh_token_expires_at) : null;
-  if (refreshExpiresAt && refreshExpiresAt.getTime() < now.getTime()) {
+  const refreshExp = refreshExpiresAt ? new Date(refreshExpiresAt) : null;
+  if (refreshExp && refreshExp.getTime() < now.getTime()) {
     throw new Error('Refresh token expired. Shop needs to re-authorize.');
   }
 
-  const tokens = await refreshAccessToken(account.refresh_token);
+  const tokens = await refreshAccessToken(refreshToken, app);
 
   // Update tokens in DB
   const accessExpiry = new Date(now.getTime() + tokens.access_token_expire_in * 1000);
@@ -208,7 +253,13 @@ export async function ensureValidToken(account: TikTokAccountRow): Promise<TikTo
 
   await supabaseAdmin
     .from('marketplace_accounts')
-    .update({
+    .update(isChat ? {
+      chat_access_token: tokens.access_token,
+      chat_refresh_token: tokens.refresh_token,
+      chat_access_token_expires_at: accessExpiry.toISOString(),
+      chat_refresh_token_expires_at: refreshExpiry.toISOString(),
+      updated_at: new Date().toISOString(),
+    } : {
       access_token: tokens.access_token,
       refresh_token: tokens.refresh_token,
       access_token_expires_at: accessExpiry.toISOString(),
@@ -249,7 +300,7 @@ export async function tiktokApiRequest(
   const bodyString = body && method !== 'GET' ? JSON.stringify(body) : undefined;
 
   // Generate signature
-  params.sign = generateSign(apiPath, params, bodyString);
+  params.sign = generateSign(apiPath, params, bodyString, creds.app_secret);
 
   // Build URL
   const url = `${TIKTOK_API_HOST}${apiPath}?${new URLSearchParams(params).toString()}`;
@@ -301,7 +352,7 @@ export async function tiktokApiRequest(
  * Get authorized shops for the current access token.
  * Returns shop list with id, name, region, cipher.
  */
-export async function getAuthorizedShops(accessToken: string): Promise<{
+export async function getAuthorizedShops(accessToken: string, app: TikTokApp = 'order'): Promise<{
   id: string;
   name: string;
   region: string;
@@ -309,14 +360,14 @@ export async function getAuthorizedShops(accessToken: string): Promise<{
   code: string;
   seller_type: string;
 }[]> {
-  const appKey = getAppKey();
+  const appKey = getAppKey(app);
   const timestamp = Math.floor(Date.now() / 1000);
 
   const params: Record<string, string> = {
     app_key: appKey,
     timestamp: String(timestamp),
   };
-  params.sign = generateSign('/authorization/202309/shops', params);
+  params.sign = generateSign('/authorization/202309/shops', params, undefined, getAppSecret(app));
 
   const url = `${TIKTOK_API_HOST}/authorization/202309/shops?${new URLSearchParams(params).toString()}`;
   const res = await fetch(url, {

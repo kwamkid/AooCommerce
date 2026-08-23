@@ -23,6 +23,11 @@ export interface OAuthStatePayload {
   companyId: string;
   userId: string;
   platform: OAuthPlatform;
+  /**
+   * TikTok เท่านั้น: การเชื่อมร้านหนึ่งครั้งต้องผ่าน 2 app (ออเดอร์ → แชท)
+   * ค่านี้บอก callback ว่ากำลังกลับมาจากขาไหน — ไม่ใส่ = ขาออเดอร์
+   */
+  app?: 'order' | 'chat';
 }
 
 interface SignedPayload extends OAuthStatePayload {
@@ -99,7 +104,7 @@ export function verifyOAuthState(state: string | null | undefined): OAuthStatePa
 export async function authorizeMarketplaceCallback(
   request: NextRequest,
   rawState: string | null,
-): Promise<{ ok: true; companyId: string } | { ok: false; reason: string }> {
+): Promise<{ ok: true; companyId: string; payload: OAuthStatePayload } | { ok: false; reason: string }> {
   const payload = verifyOAuthState(rawState);
   if (!payload) return { ok: false, reason: 'invalid_state' };
 
@@ -119,5 +124,5 @@ export async function authorizeMarketplaceCallback(
   if (!membership || !can(membership.roles, 'marketplace.connect')) {
     return { ok: false, reason: 'not_member' };
   }
-  return { ok: true, companyId: payload.companyId };
+  return { ok: true, companyId: payload.companyId, payload };
 }

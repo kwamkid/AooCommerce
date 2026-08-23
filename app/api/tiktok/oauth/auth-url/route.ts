@@ -17,8 +17,10 @@ export async function GET(request: NextRequest) {
     }
 
     // Signed, user-bound, expiring state (not the raw companyId).
-    const state = signOAuthState({ companyId, userId, platform: 'tiktok' });
-    const url = generateAuthUrl(state);
+    // ขาแรกเป็น app ออเดอร์เสมอ — callback จะพาต่อไป app แชทเองถ้าตั้งค่าไว้
+    // (ผู้ใช้กดเชื่อมครั้งเดียว ไม่ต้องรู้ว่าเบื้องหลังมี 2 app)
+    const state = signOAuthState({ companyId, userId, platform: 'tiktok', app: 'order' });
+    const url = generateAuthUrl(state, 'order');
     console.log('[TikTok OAuth] Generated auth URL');
 
     // Backup the signed state in a cookie for the callback.
