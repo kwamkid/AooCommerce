@@ -1,175 +1,414 @@
-# Fulfillment
+# TikTok Shop API — fulfillment
 
-_TikTok Shop API Documentation_
+_สร้างจาก OAS ของ @tts-open-toolkit/cli เมื่อ 2026-08-24 — 29 operations_
+_อัปเดต: `tts_open_toolkit update --yes` → `tts_open_toolkit skill add --agent cc --update` → `node scripts/gen-tiktok-api-docs.mjs`_
+
+เวอร์ชันที่มีในหมวดนี้: 202309, 202407, 202408, 202502, 202508, 202510, 202512, 202601
 
 ---
 
+## SearchCombinablePackages
 
-## Get Order Split Attributes
+Use this API to query orders eligible for combined shipping.
+
+**Path:** `/fulfillment/202309/combinable_packages/search`
+**Method:** `GET`
+**Version:** 202309
+**Docs:** https://partner.tiktokshop.com/docv2/page/search-combinable-packages-202309
+
+### Query Parameters
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| page_token | string |  | An opaque token used to retrieve the next page of a paginated result set. Retrieve this value from the result of the `next_page_token` from a previous response. It is not needed for the first page. |
+| page_size | integer | Y | The number of results to be returned per page. Valid range: [1-50]. |
+| shop_cipher | string |  | Use this property to pass shop information in requesting the API. Failure in passing the correct value when requesting the API for cross-border shops will return incorrect response. |
+
+### Header Parameters
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| x-tts-access-token | string | Y |  |
+| Content-Type | string | Y | Allowed type: application/json |
+
+### Response
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| code | integer |  | The success or failure status code returned in API response. |
+| data | object |  | Specific return information. |
+| ^combinable_packages | array<object> |  | List of eligible packages that can be combined. |
+| ^^id | string |  | A set of pre-generated package IDs after calling the Search Draft Package API. These package IDs will be used when the package combine is confirmed. |
+| ^^order_ids | array<string> |  | List of order IDs for this package. |
+| ^next_page_token | string |  | An opaque token used to retrieve the next page of a paginated result set. Provide this value in the `page_token` parameter of your request if the current response does not return all the results. |
+| ^total_count | integer |  | The number of orders that meet the query conditions. |
+| message | string |  | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
+| request_id | string |  | Request log. |
+
+---
+
+## FulfillmentUploadDeliveryFile
+
+This API is used for the seller to upload the proof of delivery file for a package, and to generate the URL of the corresponding file. The generated URL is used for the [Update Package Delivery Status API](https://partner.tiktokshop.com/docv2/page/650aa332c16ffe02b8f0ba82?external_id=650aa332c16ffe02b8f0ba82). 
+
+This API only supports uploading qualification files in `PDF` format. The file size can not exceed 10MB.
+
+Note: Only sellers utilizing the SOF (Seller Own Fleet) capability can use this API.
+
+**Path:** `/fulfillment/202309/files/upload`
+**Method:** `POST`
+**Version:** 202309
+**Docs:** https://partner.tiktokshop.com/docv2/page/fulfillment-upload-delivery-file-202309
+
+### Query Parameters
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| shop_cipher | string |  | Use this property to pass shop information in requesting the API. Failure in passing the correct value when requesting the API for cross-border shops will return incorrect response. |
+
+### Header Parameters
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| x-tts-access-token | string | Y |  |
+| Content-Type | string | Y | Allowed type: multipart/form-data |
+
+### Request Body (`multipart/form-data`)
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| data | file |  | PDF file data to be uploaded to TikTok Shop. Prerequisites： - Only `PDF` file format is supported. - Original file size must not exceed 10MB. |
+| name | string |  | The name of the uploaded file. The file name must include the file type. |
+
+### Response
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| code | integer |  | The success or failure status code returned in API response. |
+| data | object |  | Specific return information. |
+| ^name | string |  | The name of the file. |
+| ^url | string |  | The URL returned from uploading the file that can be directly opened in a browser. |
+| message | string |  | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
+| request_id | string |  | Request log. |
+
+---
+
+## FulfillmentUploadDeliveryImage
+
+This API is used for the seller to upload the proof of delivery image for a package, and to generate the URL of the corresponding file. The generated URL is used in the [Update Package Delivery Status API](https://partner.tiktokshop.com/docv2/page/650aa332c16ffe02b8f0ba82?external_id=650aa332c16ffe02b8f0ba82) to indicate that the parcel has been delivered. 
+
+Usage requirements:
+- The image format must be `JPEG`, `PNG`, or `JPG`. 
+- The image size can not exceed 5MB.
+
+**Path:** `/fulfillment/202309/images/upload`
+**Method:** `POST`
+**Version:** 202309
+**Docs:** https://partner.tiktokshop.com/docv2/page/fulfillment-upload-delivery-image-202309
+
+### Query Parameters
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| shop_cipher | string |  | Use this property to pass shop information in requesting the API. Failure in passing the correct value when requesting the API for cross-border shops will return incorrect response. |
+
+### Header Parameters
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| x-tts-access-token | string | Y |  |
+| Content-Type | string | Y | Allowed type: multipart/form-data |
+
+### Request Body (`multipart/form-data`)
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| data | file |  | Image file data to be uploaded to TikTok Shop. The picture file is a string generated by base64 encoding. Prerequisites： - Image format must be `JPG`, `JPEG`, or `PNG`. - Image resolution must be between 100 x 100px and 20000 x 20000px. - Image size must not exceed 5MB. |
+
+### Response
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| code | integer |  | The success or failure status code returned in API response. |
+| data | object |  | Specific return information. |
+| ^height | integer |  | The image height returned from uploading the image. This height refers to the processed image height, not the original image height. Units: pixels. |
+| ^url | string |  | The URL returned from uploading the image that can be directly opened in a browser. |
+| ^width | integer |  | The image width returned from uploading the image. This width refers to the processed image width, not the original image width. Units: pixels. |
+| message | string |  | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
+| request_id | string |  | Request log. |
+
+---
+
+## GetOrderSplitAttributes
 
 Use this API to check whether an order(s) can be split into multiple packages or not.
 
 **Path:** `/fulfillment/202309/orders/split_attributes`
-
 **Method:** `GET`
+**Version:** 202309
+**Docs:** https://partner.tiktokshop.com/docv2/page/get-order-split-attributes-202309
 
-**Common Parameters:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a4278f4c20311b8b57e)
-
-**Common Error Codes:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a45786253031531b942)
-
-### Request Header Parameters
+### Query Parameters
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| content-type | string | Y | Allowed type: application/json |
-| x-tts-access-token | string | Y | The seller access_token value from [Get Access Token](https://partner.tiktokshop.com/docv2/page/678e3a3292b0f40314a92d75#Get%20Access%20Token%20API), when user_type = 0. Follow this [guide](https://partner.tiktokshop.com/docv2/page/678e3a344ddec3030b238fa0) to get seller access_token. |
+| order_ids | array<string> | Y | Query list of TikTok Shop order IDs. |
+| shop_cipher | string |  | Use this property to pass shop information in requesting the API. Failure in passing the correct value when requesting the API for cross-border shops will return incorrect response. |
 
-### Request Query Parameters
+### Header Parameters
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| app_key | string | Y | Every single app will have a unique key. Please use the specific key assigned to your app. |
-| sign | string | Y | Signature generated by gen algorithm. When you send API requests to TTS, you must sign them so that TTS can identify the senders.  |
-| timestamp | int | Y | Unix timestamp GMT (UTC+00:00). This timestamp is used across all API requests. Developers can use this convert to local time. |
-| order_ids | []string | Y | Query list of TikTok Shop order IDs. |
-| shop_cipher | string | Y | Use this property to pass shop information in requesting the API. Failure in passing the correct value when requesting the API for cross-border shops will return incorrect response.  Get by API [Get Authorization Shop](https://partner.tiktokshop.com/docv2/page/6507ead7b99d5302be949ba9?external_id=6507ead7b99d5302be949ba9) |
+| x-tts-access-token | string | Y |  |
+| Content-Type | string | Y | Allowed type: application/json |
 
-### Request Sample
+### Response
 
-```
-https://open-api.tiktokglobalshop.com/fulfillment/202309/orders/split_attributes?app_key=123abc&sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c&timestamp=1625484268&shop_cipher=ROW_RHkDDABBAAB8tKAVoAqsMTjsQZFLyNfY&order_ids=556643423443,556643423444
-```
-
-### Sample Code
-
-**Curl**
-```shell
-curl -X GET \
- 'https://open-api.tiktokglobalshop.com/fulfillment/202309/orders/split_attributes?timestamp=1623812664&shop_cipher=GCP_XF90igAAAABh00qsWgtvOiGFNqyubMt3&order_ids=556643423443,556643423444&app_key=38abcd&sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c' \
--H 'x-tts-access-token: TTP_pwSm2AAAAABmmtFz1xlyKMnwg74T2GJ5s0uQbS8jPjb_GkdFVCxPqzQXSyuyfXdQa0AqyDsea2tYFNVf4XeqgZHFfPyv0Vs659QqyLYfsGzanZ5XZAin3_ZkcIxxS0_In6u6XDeU96k' \
--H 'content-type: application/json'
-```
-
-**Go**
-```go
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-func fulfillment202309GetOrderSplitAttributesGet() {
-    configuration := apis.NewConfiguration()
-    configuration.AddAppInfo(appKey, appSecret)
-    apiClient := apis.NewAPIClient(configuration)
-    request := apiClient.FulfillmentV202309API.Fulfillment202309OrdersSplitAttributesGet(context.Background())
-    request = request.XTtsAccessToken("your access token")
-    request = request.ContentType("application/json")
-    request = request.OrderIds([])
-    request = request.ShopCipher("your shop cipher")
-    resp, httpResp, err := request.Execute()
-    if err != nil || httpResp.StatusCode != 200 {
-        fmt.Printf("productsRequest err:%v resbody:%s", err, httpResp.Body)
-        return
-    }
-    if resp == nil {
-        fmt.Printf("response is nil")
-        return
-    }
-    if resp.GetCode()!= 0 {
-        fmt.Printf("response business is error, errorCode:%d errorMessage:%s", resp.GetCode(), resp.GetMessage())
-        return
-    }
-    respDataJson, _ := json.MarshalIndent(resp.GetData(), "", "  ")
-    fmt.Println("response data:", string(respDataJson))
-    return
-}
-
-```
-
-**Node.js**
-```typescript
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-async function fulfillment202309GetOrderSplitAttributesGet() {
-    const result = await client.api.FulfillmentV202309Api.OrdersSplitAttributesGet([], "your access token", "application/json", "your shop cipher");
-    console.log('response: ', JSON.stringify(result, null, 2));
-}
-
-```
-
-**Java**
-```java
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-public void fulfillment202309GetOrderSplitAttributesGet() throws Exception {
-    ApiClient defaultClient = Configuration.getDefaultApiClient()
-            .setAppkey("your appKey")
-            .setSecret("your secret")
-            .setBasePath("https://open-api.tiktokglobalshop.com");
-    FulfillmentV202309Api apiInstance = new FulfillmentV202309Api(defaultClient);
-    GetOrderSplitAttributesResponse result = apiInstance.fulfillment202309OrdersSplitAttributesGet([], "your access token", "application/json", "your shop cipher");
-    System.out.println(result);
-}
-
-```
-
-### Response Parameters
-
-| Name | Type | Example | Description |
+| Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| code | int | 0 | The success or failure status code returned in API response. |
-| message | string | Success | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
-| request_id | string | 202203070749000101890810281E8C70B7 | Request log |
-| data | object |  | Specific return information |
-| ^split_attributes | []object |  | Specific return information (can return multiple TikTok Shop order IDs). |
-| ^^order_id | string | 556643423444 | TikTok Shop order ID. |
-| ^^can_split | bool | false | Whether an order can be split: - `true`: The order can be split into multiple packages. - `false`: The order cannot be split into multiple packages. |
-| ^^reason | string | Order has been canceled | The reason why the order cannot be split. Only return this field when `can_split = false`. |
-| ^^must_split | bool | false | Whether an order must be split: - true: The order must be split into multiple packages. - false: The order does not have to be split into multiple packages. |
-| ^^must_split_reasons | []object |  | The reason why the order must be split. Only return this field when must_split = true. |
-| ^^^type | string | CATEGORY_ITEM_LIMITATION | It will return which type of verification is hit. There are two types of verification: CATEGORY_ITEM_LIMITATION means category verification and TOTAL_COUNT_LIMITATION means total product quantity verification. |
-| ^^^category_id | string | 601990 | If the value of reason.type is "CATEGORY_ITEM_LIMITATION", this field will return a value. If the value of reason.type is "TOTAL_COUNT_LIMITATION", this field will return no value |
-| ^^^max_count | string | 2 | For category verification, return the maximum quantity of goods allowed for this category in a single package; for total product quantity verification within the package, return the total quantity limit of goods in a single package. |
-
-### Response Sample
-
-```json
-{
-  "code": 0,
-  "data": {
-    "split_attributes": [
-      {
-        "order_id": "556643423444",
-        "can_split": false,
-        "reason": "Order has been canceled",
-        "must_split": false,
-        "must_split_reasons": [
-          {
-            "type": "CATEGORY_ITEM_LIMITATION",
-            "category_id": "601990",
-            "max_count": "2"
-          }
-        ]
-      }
-    ]
-  },
-  "message": "Success",
-  "request_id": "202203070749000101890810281E8C70B7"
-}
-```
-
-### Error Codes
-
-| Code | Message |
-| --- | --- |
-| 36009003 | Internal error. Please try again. If the issue persists after multiple attempts, please contact platform support. |
-
-### API Scope / Permissions
-
-| Scope Name | Type | Description |
-| --- | --- | --- |
-| Package Split And Combine | Public | The Partner will be able to split and combine orders on seller's behalf. |
+| code | integer |  | The success or failure status code returned in API response. |
+| data | object |  | Specific return information. |
+| ^split_attributes | array<object> |  | Specific return information (can return multiple TikTok Shop order IDs). |
+| ^^can_split | boolean |  | Whether an order can be split: - `true`: The order can be split into multiple packages. - `false`: The order cannot be split into multiple packages. |
+| ^^must_split | boolean |  | Whether an order must be split: - true: The order must be split into multiple packages. - false: The order does not have to be split into multiple packages. |
+| ^^must_split_reasons | array<object> |  | The reason why the order must be split. Only return this field when must_split = true. |
+| ^^^category_id | string |  | If the value of reason.type is "CATEGORY_ITEM_LIMITATION", this field will return a value. If the value of reason.type is "TOTAL_COUNT_LIMITATION", this field will return no value |
+| ^^^max_count | string |  | For category verification, return the maximum quantity of goods allowed for this category in a single package; for total product quantity verification within the package, return the total quantity limit of goods in a single package. |
+| ^^^type | string |  | It will return which type of verification is hit. There are two types of verification: CATEGORY_ITEM_LIMITATION means category verification and TOTAL_COUNT_LIMITATION means total product quantity verification. |
+| ^^order_id | string |  | TikTok Shop order ID. |
+| ^^reason | string |  | The reason why the order cannot be split. Only return this field when `can_split = false`. |
+| message | string |  | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
+| request_id | string |  | Request log. |
 
 ---
 
-## Split Orders
+## GetHandoverTimeslots
+
+Use this API to retrieve the time slots available for pickup, drop off or van collection for the seller's specified package by using order ID and order line item ID.
+
+**Path:** `/fulfillment/202309/orders/{order_id}/handover_time_slots`
+**Method:** `GET`
+**Version:** 202309
+**Docs:** https://partner.tiktokshop.com/docv2/page/get-handover-timeslots-202309
+
+### Path Parameters
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| order_id | string | Y | TikTok shop order ID. |
+
+### Query Parameters
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| order_line_item_ids | array<string> |  | Order line item ID list |
+| shop_cipher | string |  | Use this property to pass shop information in requesting the API. Failure in passing the correct value when requesting the API for cross-border shops will return incorrect response. |
+
+### Header Parameters
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| x-tts-access-token | string | Y |  |
+| Content-Type | string | Y | Allowed type: application/json |
+
+### Response
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| code | integer |  | The success or failure status code returned in API response. |
+| data | object |  | Specific return information. |
+| ^can_drop_off | boolean |  | Does this package support point delivery |
+| ^can_pickup | boolean |  | Does this package support door-to-door collection |
+| ^can_van_collection | boolean |  | Only for UK. Use this field to determine wheather van collection is available |
+| ^drop_off_point_url | string |  | View deliverable logistics outlets via URL |
+| ^pickup_slots | array<object> |  | Package pickup time slots for door-to-door collection |
+| ^^avaliable | boolean |  | Can I make an appointment for this time period? |
+| ^^end_time | integer |  | The end date and time of the package pickup time slot. |
+| ^^start_time | integer |  | The start date and time of the package pickup time slot. |
+| message | string |  | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
+| request_id | string |  | Request log. |
+
+---
+
+## MarkPackageAsShipped
+
+**This API is currently exclusive to the following markets: US, UK, ES, IE, IT, DE, FR, JP.**
+This API is for sellers who fulfill orders through their own selected/preferred logistics carrier, and allows sellers to upload valid package information (items in packages, shipping provider information, and tracking number) orders/order line items to TikTok Shop. Use [Get Shipping Providers API](https://partner.tiktokshop.com/docv2/page/650aa48d4a0bb702c06d85cd?external_id=650aa48d4a0bb702c06d85cd) to retrieve the `shipping_provider_id` for shipping providers.
+
+**Path:** `/fulfillment/202309/orders/{order_id}/packages`
+**Method:** `POST`
+**Version:** 202309
+**Docs:** https://partner.tiktokshop.com/docv2/page/mark-package-as-shipped-202309
+
+### Path Parameters
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| order_id | string | Y | The unique identifier for a TikTok Shop order. |
+
+### Query Parameters
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| shop_cipher | string |  | Use this property to pass shop information in requesting the API. Failure in passing the correct value when requesting the API for cross-border shops will return incorrect response. |
+
+### Header Parameters
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| x-tts-access-token | string | Y |  |
+| Content-Type | string | Y | Allowed type: application/json |
+
+### Request Body (`application/json`)
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| order_line_item_ids | array<string> |  | List of order line item IDs. |
+| shipping_provider_id | string |  | Use [Get Shipping Provider API](https://partner.tiktokshop.com/docv2/page/650aa48d4a0bb702c06d85cd?external_id=650aa48d4a0bb702c06d85cd) to retrieve the `shipping_provider_id` for shipping providers. |
+| tracking_number | string |  | Tracking number. |
+
+### Response
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| code | integer |  | The success or failure status code returned in API response. |
+| data | object |  | Specific return information. |
+| ^order_id | string |  | TikTok Shop order ID. |
+| ^order_line_item_ids | array<string> |  | List of order line item IDs. |
+| ^package_id | string |  | Package ID. |
+| ^warning | object |  | Warning message. |
+| ^^message | string |  | Specific warning information. |
+| message | string |  | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
+| request_id | string |  | Request log. |
+
+---
+
+## UpdateShippingInfo
+
+If the seller entered an incorrect tracking number, this API allows the seller to update the tracking number and shipping provider for an order that has already been shipped.
+
+- This API is only applicable to orders (or packages) shipped by the seller.   
+- It is only used to update the tracking number and shipping provider for packages that have already been shipped. 
+- For orders that have been split for shipping, please use the [Update Package Shipping Info API](https://partner.tiktokshop.com/docv2/page/650aa666c16ffe02b8f1203c?external_id=650aa666c16ffe02b8f1203c). 
+
+Please note that TikTok Shop only allows merchants to update shipping information within 72 hours after shipping.
+
+**Path:** `/fulfillment/202309/orders/{order_id}/shipping_info/update`
+**Method:** `POST`
+**Version:** 202309
+**Docs:** https://partner.tiktokshop.com/docv2/page/update-shipping-info-202309
+
+### Path Parameters
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| order_id | string | Y | TikTok Shop order ID. |
+
+### Query Parameters
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| shop_cipher | string |  | Use this property to pass shop information in requesting the API. Failure in passing the correct value when requesting the API for cross-border shops will return incorrect response. |
+
+### Header Parameters
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| x-tts-access-token | string | Y |  |
+| Content-Type | string | Y | Allowed type: application/json |
+
+### Request Body (`application/json`)
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| shipping_provider_id | string |  | Identifies the carrier that will deliver the package. Please call [Get Shipping Providers API](https://partner.tiktokshop.com/docv2/page/650aa48d4a0bb702c06d85cd?external_id=650aa48d4a0bb702c06d85cd#Back%20To%20Top) to retrieve the available shipping provider(s). |
+| tracking_number | string |  | The shipment tracking number provided by the carrier. |
+
+### Response
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| code | integer |  | The success or failure status code returned in API response. |
+| data | object |  | Specific return information. |
+| message | string |  | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
+| request_id | string |  | Request log. |
+
+---
+
+## GetEligibleShippingService
+
+Use this API ( for US ) to query the list of available shipping services when specifying packages' size or weight. The shipping fee and delivery time is an estimate only and is based on the package dimensions and weight you provided. Options listed may differ if you change the package attributes at the time of shipping.
+
+**Path:** `/fulfillment/202309/orders/{order_id}/shipping_services/query`
+**Method:** `POST`
+**Version:** 202309
+**Docs:** https://partner.tiktokshop.com/docv2/page/get-eligible-shipping-service-202309
+
+### Path Parameters
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| order_id | string | Y | TikTok Shop order ID |
+
+### Query Parameters
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| shop_cipher | string |  | Use this property to pass shop information in requesting the API. Failure in passing the correct value when requesting the API for cross-border shops will return incorrect response. |
+
+### Header Parameters
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| x-tts-access-token | string | Y |  |
+| Content-Type | string | Y | Allowed type: application/json |
+
+### Request Body (`application/json`)
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| dimension | object |  | The dimensions of the scheduled package. |
+| ^height | string |  | The height of the package. The length, width, height must be passed together. |
+| ^length | string |  | The length of the package. The length, width, height must be passed together. |
+| ^unit | string |  | The unit of measurement is used to measure the length. - CM - INCH |
+| ^width | string |  | The width of the package. The length, width, height must be passed together. |
+| order_line_item_ids | array<string> |  | Order line item ID list |
+| weight | object |  | The weight of the scheduled package. |
+| ^unit | string |  | The unit of measurement is used to measure the weight. - GRAM - POUND |
+| ^value | string |  | The weight of the scheduled package. |
+
+### Response
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| code | integer |  | The success or failure status code returned in API response. |
+| data | object |  | Specific return information. |
+| ^dimension | object |  | The dimension of the scheduled package. |
+| ^^height | string |  | The height of the package. The length, width, height must be passed together. |
+| ^^length | string |  | The length of the package. The length, width, height must be passed together. |
+| ^^unit | string |  | The unit of measurement is used to measure the length. - CM - INCH |
+| ^^width | string |  | The width of the package. The length, width, height must be passed together. |
+| ^order_id | string |  | TikTok Shop order ID |
+| ^order_line_id | array<string> |  | Line item ID list |
+| ^shipping_services | array<object> |  | Shipping services info. |
+| ^^currency | string |  | Currency of the price |
+| ^^earliest_delivery_days | integer |  | The minimum estimated duration required for parcel delivery. |
+| ^^id | string |  | Shipping service ID |
+| ^^is_default | boolean |  | Whether it is the default shipping service |
+| ^^latest_delivery_days | integer |  | The maximum estimated duration required for parcel delivery. |
+| ^^name | string |  | Shipping service Name |
+| ^^price | string |  | Estimated price for this service. |
+| ^^shipping_provider_id | string |  | The ID of shipping provider |
+| ^^shipping_provider_name | string |  | The name of shipping provider |
+| ^weight | object |  | The weight of the scheduled package. |
+| ^^unit | string |  | The unit of measurement is used to measure the weight. - GRAM - POUND |
+| ^^value | string |  | The weight of the scheduled package. |
+| message | string |  | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
+| request_id | string |  | Request log. |
+
+---
+
+## SplitOrders
 
 Use this API to confirm an order split. Note that ​​supported split levels vary by region​​:
 - Some regions support ​​item-level splits​​ (splitting individual units of the same SKU).
@@ -188,1981 +427,388 @@ Split the same order contents into three individual packages:
 ​​  - Package 3​​: 1 unit of SKU B
 
 **Path:** `/fulfillment/202309/orders/{order_id}/split`
-
 **Method:** `POST`
+**Version:** 202309
+**Docs:** https://partner.tiktokshop.com/docv2/page/split-orders-202309
 
-**Common Parameters:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a4278f4c20311b8b57e)
-
-**Common Error Codes:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a45786253031531b942)
-
-### Request Header Parameters
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| content-type | string | Y | Allowed type: application/json |
-| x-tts-access-token | string | Y | The seller access_token value from [Get Access Token](https://partner.tiktokshop.com/docv2/page/678e3a3292b0f40314a92d75#Get%20Access%20Token%20API), when user_type = 0. Follow this [guide](https://partner.tiktokshop.com/docv2/page/678e3a344ddec3030b238fa0) to get seller access_token. |
-
-### Request Path Parameters
+### Path Parameters
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
 | order_id | string | Y | TikTok Shop order ID. |
 
-### Request Query Parameters
+### Query Parameters
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| app_key | string | Y | Every single app will have a unique key. Please use the specific key assigned to your app. |
-| sign | string | Y | Signature generated by gen algorithm. When you send API requests to TTS, you must sign them so that TTS can identify the senders.  |
-| timestamp | int | Y | Unix timestamp GMT (UTC+00:00). This timestamp is used across all API requests. Developers can use this convert to local time. |
-| shop_cipher | string | Y | Use this property to pass shop information in requesting the API. Failure in passing the correct value when requesting the API for cross-border shops will return incorrect response.  Get by API [Get Authorization Shop](https://partner.tiktokshop.com/docv2/page/6507ead7b99d5302be949ba9?external_id=6507ead7b99d5302be949ba9) |
+| shop_cipher | string |  | Use this property to pass shop information in requesting the API. Failure in passing the correct value when requesting the API for cross-border shops will return incorrect response. |
 
-### Request Body Parameters
+### Header Parameters
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| splittable_groups | []object | Y | Input list of splittable groups. |
-| ^id | string | Y | A unique identifier designated by the developer. This identifier will represent a group of items that will be split into a new package. Once split is confirmed, the platform will be assigned a new package ID for this group of items.  For example, if you input `123` as request, the response will return `123` as your unique identification. The seller uses this field to label each group of items that have been split, and the platform will assign new package IDs to them.  |
-| ^order_line_item_ids | []string | Y | The order line item IDs that need to be split into this group. |
+| x-tts-access-token | string | Y |  |
+| Content-Type | string | Y | Allowed type: application/json |
 
-### Request Sample
+### Request Body (`application/json`)
 
-```
-https://open-api.tiktokglobalshop.com/fulfillment/202309/orders/556643423444/split?app_key=123abc&sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c&timestamp=1625484268&shop_cipher=ROW_RHkDDABBAAB8tKAVoAqsMTjsQZFLyNfY
-```
-
-### Request Body Sample
-
-```json
-{
-  "splittable_groups": [
-    {
-      "id": "123",
-      "order_line_item_ids": [
-        "57646237751283022",
-        "576462377512830223"
-      ]
-    }
-  ]
-}
-```
-
-### Sample Code
-
-**Curl**
-```shell
-curl -X POST \
- 'https://open-api.tiktokglobalshop.com/fulfillment/202309/orders/556643423444/split?app_key=38abcd&sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c&timestamp=1623812664&shop_cipher=GCP_XF90igAAAABh00qsWgtvOiGFNqyubMt3' \
--H 'x-tts-access-token: TTP_pwSm2AAAAABmmtFz1xlyKMnwg74T2GJ5s0uQbS8jPjb_GkdFVCxPqzQXSyuyfXdQa0AqyDsea2tYFNVf4XeqgZHFfPyv0Vs659QqyLYfsGzanZ5XZAin3_ZkcIxxS0_In6u6XDeU96k' \
--H 'content-type: application/json' \
--d '{
-  "splittable_groups": [
-    {
-      "id": "123",
-      "order_line_item_ids": [
-        "57646237751283022",
-        "576462377512830223"
-      ]
-    }
-  ]
-}'
-```
-
-**Go**
-```go
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-func fulfillment202309SplitOrdersPost() {
-    configuration := apis.NewConfiguration()
-    configuration.AddAppInfo(appKey, appSecret)
-    apiClient := apis.NewAPIClient(configuration)
-    request := apiClient.FulfillmentV202309API.Fulfillment202309OrdersOrderIdSplitPost(context.Background(), "556643423444")
-    request = request.XTtsAccessToken("your access token")
-    request = request.ContentType("application/json")
-    request = request.ShopCipher("your shop cipher")
-    fulfillment202309SplitOrdersRequestBody := fulfillment_v202309.NewFulfillment202309SplitOrdersRequestBody()
-    fulfillment202309SplitOrdersRequestBodySplittableGroups := fulfillment_v202309.NewFulfillment202309SplitOrdersRequestBodySplittableGroups()
-    fulfillment202309SplitOrdersRequestBodySplittableGroups.SetId("123")
-    fulfillment202309SplitOrdersRequestBodySplittableGroupsOrderLineItemIdsList := []string{"57646237751283022","576462377512830223"}
-    fulfillment202309SplitOrdersRequestBodySplittableGroups.SetOrderLineItemIds(fulfillment202309SplitOrdersRequestBodySplittableGroupsOrderLineItemIdsList)
-    fulfillment202309SplitOrdersRequestBodySplittableGroupsList := []fulfillment_v202309.Fulfillment202309SplitOrdersRequestBodySplittableGroups{*fulfillment202309SplitOrdersRequestBodySplittableGroups}
-    fulfillment202309SplitOrdersRequestBody.SetSplittableGroups(fulfillment202309SplitOrdersRequestBodySplittableGroupsList)
-    request = request.Fulfillment202309SplitOrdersRequestBody(*fulfillment202309SplitOrdersRequestBody)
-    resp, httpResp, err := request.Execute()
-    if err != nil || httpResp.StatusCode != 200 {
-        fmt.Printf("productsRequest err:%v resbody:%s", err, httpResp.Body)
-        return
-    }
-    if resp == nil {
-        fmt.Printf("response is nil")
-        return
-    }
-    if resp.GetCode()!= 0 {
-        fmt.Printf("response business is error, errorCode:%d errorMessage:%s", resp.GetCode(), resp.GetMessage())
-        return
-    }
-    respDataJson, _ := json.MarshalIndent(resp.GetData(), "", "  ")
-    fmt.Println("response data:", string(respDataJson))
-    return
-}
-
-```
-
-**Node.js**
-```typescript
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-async function fulfillment202309SplitOrdersPost() {
-    const fulfillment202309SplitOrdersRequestBody = new Fulfillment202309SplitOrdersRequestBody();
-    const fulfillment202309SplitOrdersRequestBodySplittableGroups = new Fulfillment202309SplitOrdersRequestBodySplittableGroups();
-    fulfillment202309SplitOrdersRequestBodySplittableGroups.id = "123";
-    fulfillment202309SplitOrdersRequestBodySplittableGroups.orderLineItemIds = ["57646237751283022","576462377512830223"];
-    fulfillment202309SplitOrdersRequestBody.splittableGroups = [fulfillment202309SplitOrdersRequestBodySplittableGroups];
-    const result = await client.api.FulfillmentV202309Api.OrdersOrderIdSplitPost("556643423444", "your access token", "application/json", "your shop cipher", fulfillment202309SplitOrdersRequestBody);
-    console.log('response: ', JSON.stringify(result, null, 2));
-}
-
-```
-
-**Java**
-```java
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-public void fulfillment202309SplitOrdersPost() throws Exception {
-    ApiClient defaultClient = Configuration.getDefaultApiClient()
-            .setAppkey("your appKey")
-            .setSecret("your secret")
-            .setBasePath("https://open-api.tiktokglobalshop.com");
-    FulfillmentV202309Api apiInstance = new FulfillmentV202309Api(defaultClient);
-    SplitOrdersRequestBody splitOrdersRequestBody = new SplitOrdersRequestBody();
-    SplitOrdersRequestBodySplittableGroups splitOrdersRequestBodySplittableGroups = new tiktokshop.open.sdk_java.model.Fulfillment.V202309.SplitOrdersRequestBodySplittableGroups();
-    splitOrdersRequestBodySplittableGroups.setId("123");
-    List<String> splitOrdersRequestBodySplittableGroupsOrderLineItemIdsList = new ArrayList<>(Arrays.asList("57646237751283022","576462377512830223"));
-    splitOrdersRequestBodySplittableGroups.setOrderLineItemIds(splitOrdersRequestBodySplittableGroupsOrderLineItemIdsList);
-    List<SplitOrdersRequestBodySplittableGroups> splitOrdersRequestBodySplittableGroupsList = new ArrayList<>(Arrays.asList(splitOrdersRequestBodySplittableGroups));
-    splitOrdersRequestBody.setSplittableGroups(splitOrdersRequestBodySplittableGroupsList);
-    SplitOrdersResponse result = apiInstance.fulfillment202309OrdersOrderIdSplitPost("556643423444", "your access token", "application/json", "your shop cipher", splitOrdersRequestBody);
-    System.out.println(result);
-}
-
-```
-
-### Response Parameters
-
-| Name | Type | Example | Description |
+| Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| code | int | 0 | The success or failure status code returned in API response. |
-| message | string | Success | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
-| request_id | string | 202203070749000101890810281E8C70B7 | Request log |
-| data | object |  | Specific return information |
-| ^packages | []object |  | The number of packages returned is dependent on the number of `splittable_group_ids` you sent in the request. |
-| ^^splittable_group_id | string | 123 | The ID of split group in request body. |
-| ^^id | string | 223362377512830222 | Package ID after success split. Use this new package ID to call [Ship Package API](https://partner.tiktokshop.com/docv2/page/650aa4f1defece02be6e7cb1?external_id=650aa4f1defece02be6e7cb1) to ship the package. |
+| splittable_groups | array<object> |  | Input list of splittable groups. |
+| ^id | string |  | A unique identifier designated by the developer. This identifier will represent a group of items that will be split into a new package. Once split is confirmed, the platform will be assigned a new package ID for this group of items. For example, if you input `123` as request, the response will return `123` as your unique identification. The seller uses this field to label each group of items that have been split, and the platform will assign new package IDs to them. |
+| ^order_line_item_ids | array<string> |  | The order line item IDs that need to be split into this group. |
 
-### Response Sample
+### Response
 
-```json
-{
-  "code": 0,
-  "data": {
-    "packages": [
-      {
-        "splittable_group_id": "123",
-        "id": "223362377512830222"
-      }
-    ]
-  },
-  "message": "Success",
-  "request_id": "202203070749000101890810281E8C70B7"
-}
-```
-
-### Error Codes
-
-| Code | Message |
-| --- | --- |
-| 36009003 | Internal error. Please try again. If the issue persists after multiple attempts, please contact platform support. |
-| 21011005 | Invalid parameters. Please ensure you are passing the correct request parameter(s). |
-| 21011035 | split order not allowed |
-
-### API Scope / Permissions
-
-| Scope Name | Type | Description |
-| --- | --- | --- |
-| Package Split And Combine | Public | The Partner will be able to split and combine orders on seller's behalf. |
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| code | integer |  | The success or failure status code returned in API response. |
+| data | object |  | Specific return information. |
+| ^packages | array<object> |  | The number of packages returned is dependent on the number of `splittable_group_ids` you sent in the request. |
+| ^^id | string |  | Package ID after success split. Use this new package ID to call [Ship Package API](https://partner.tiktokshop.com/docv2/page/650aa4f1defece02be6e7cb1?external_id=650aa4f1defece02be6e7cb1) to ship the package. |
+| ^^splittable_group_id | string |  | The ID of split group in request body. |
+| message | string |  | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
+| request_id | string |  | Request log. |
 
 ---
 
-## Get Eligible Shipping Service
+## GetTracking
 
-Use this API ( for US ) to query the list of available shipping services when specifying packages' size or weight. The shipping fee and delivery time is an estimate only and is based on the package dimensions and weight you provided. Options listed may differ if you change the package attributes at the time of shipping.
+This API can use the order number to obtain the corresponding logistics tracking information.
 
-**Path:** `/fulfillment/202309/orders/{order_id}/shipping_services/query`
-
-**Method:** `POST`
-
-**Common Parameters:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a4278f4c20311b8b57e)
-
-**Common Error Codes:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a45786253031531b942)
-
-### Request Header Parameters
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| content-type | string | Y | Allowed type: application/json |
-| x-tts-access-token | string | Y | The seller access_token value from [Get Access Token](https://partner.tiktokshop.com/docv2/page/678e3a3292b0f40314a92d75#Get%20Access%20Token%20API), when user_type = 0. Follow this [guide](https://partner.tiktokshop.com/docv2/page/678e3a344ddec3030b238fa0) to get seller access_token. |
-
-### Request Path Parameters
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| order_id | string | Y | TikTok Shop order ID |
-
-### Request Query Parameters
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| app_key | string | Y | Every single app will have a unique key. Please use the specific key assigned to your app. |
-| sign | string | Y | Signature generated by gen algorithm. When you send API requests to TTS, you must sign them so that TTS can identify the senders.  |
-| timestamp | int | Y | Unix timestamp GMT (UTC+00:00). This timestamp is used across all API requests. Developers can use this convert to local time. |
-| shop_cipher | string | Y | Use this property to pass shop information in requesting the API. Failure in passing the correct value when requesting the API for cross-border shops will return incorrect response.  Get by API [Get Authorization Shop](https://partner.tiktokshop.com/docv2/page/6507ead7b99d5302be949ba9?external_id=6507ead7b99d5302be949ba9) |
-
-### Request Body Parameters
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| order_line_item_ids | []string | N | Order line item ID list |
-| weight | object | N | The weight of the scheduled package. |
-| ^value | string | Y | The weight of the scheduled package. |
-| ^unit | string | Y | The unit of measurement is used to measure the weight. - GRAM - POUND |
-| dimension | object | N | The dimensions of the scheduled package. |
-| ^length | string | Y | The length of the package. The length, width, height must be passed together. |
-| ^width | string | Y | The width of the package. The length, width, height must be passed together. |
-| ^height | string | Y | The height of the package. The length, width, height must be passed together. |
-| ^unit | string | Y | The unit of measurement is used to measure the length. - CM - INCH |
-| order_line_list | []object | N | This new parameter is completely backward compatible with the previous oder_line_items_ids field and in addition this supports bundle order splitting, use the sub items accordingly |
-| ^order_line_id | string | N | The corresponding order line ID. |
-| ^sub_item_id | string | N | The sub-order-line ID inside a bundle product. - Required for bundle products. - Not required for non-bundle products. |
-
-### Request Sample
-
-```
-https://open-api.tiktokglobalshop.com/fulfillment/202309/orders/32132124331234/shipping_services/query?app_key=123abc&sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c&timestamp=1625484268&shop_cipher=ROW_RHkDDABBAAB8tKAVoAqsMTjsQZFLyNfY
-```
-
-### Request Body Sample
-
-```json
-{
-  "order_line_item_ids": [
-    "32132124331234"
-  ],
-  "weight": {
-    "value": "0.4",
-    "unit": "GRAM"
-  },
-  "dimension": {
-    "length": "0.3",
-    "width": "0.2",
-    "height": "CM",
-    "unit": "INCH"
-  },
-  "order_line_list": [
-    {
-      "order_line_id": "57632132124331234",
-      "sub_item_id": "57632132124331234"
-    }
-  ]
-}
-```
-
-### Sample Code
-
-**Curl**
-```shell
-curl -X POST \
- 'https://open-api.tiktokglobalshop.com/fulfillment/202309/orders/32132124331234/shipping_services/query?app_key=38abcd&sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c&shop_cipher=GCP_XF90igAAAABh00qsWgtvOiGFNqyubMt3&timestamp=1623812664' \
--H 'x-tts-access-token: TTP_pwSm2AAAAABmmtFz1xlyKMnwg74T2GJ5s0uQbS8jPjb_GkdFVCxPqzQXSyuyfXdQa0AqyDsea2tYFNVf4XeqgZHFfPyv0Vs659QqyLYfsGzanZ5XZAin3_ZkcIxxS0_In6u6XDeU96k' \
--H 'content-type: application/json' \
--d '{
-  "order_line_item_ids": [
-    "32132124331234"
-  ],
-  "weight": {
-    "value": "0.4",
-    "unit": "GRAM"
-  },
-  "dimension": {
-    "length": "0.3",
-    "width": "0.2",
-    "height": "CM",
-    "unit": "INCH"
-  },
-  "order_line_list": [
-    {
-      "order_line_id": "57632132124331234",
-      "sub_item_id": "57632132124331234"
-    }
-  ]
-}'
-```
-
-**Go**
-```go
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-func fulfillment202309GetEligibleShippingServicePost() {
-    configuration := apis.NewConfiguration()
-    configuration.AddAppInfo(appKey, appSecret)
-    apiClient := apis.NewAPIClient(configuration)
-    request := apiClient.FulfillmentV202309API.Fulfillment202309OrdersOrderIdShippingServicesQueryPost(context.Background(), "32132124331234")
-    request = request.XTtsAccessToken("your access token")
-    request = request.ContentType("application/json")
-    request = request.ShopCipher("your shop cipher")
-    fulfillment202309GetEligibleShippingServiceRequestBody := fulfillment_v202309.NewFulfillment202309GetEligibleShippingServiceRequestBody()
-    fulfillment202309GetEligibleShippingServiceRequestBodyOrderLineItemIdsList := []string{"32132124331234"}
-    fulfillment202309GetEligibleShippingServiceRequestBody.SetOrderLineItemIds(fulfillment202309GetEligibleShippingServiceRequestBodyOrderLineItemIdsList)
-    fulfillment202309GetEligibleShippingServiceRequestBodyWeight := fulfillment_v202309.NewFulfillment202309GetEligibleShippingServiceRequestBodyWeight()
-    fulfillment202309GetEligibleShippingServiceRequestBodyWeight.SetValue("0.4")
-    fulfillment202309GetEligibleShippingServiceRequestBodyWeight.SetUnit("GRAM")
-    fulfillment202309GetEligibleShippingServiceRequestBody.SetWeight(*fulfillment202309GetEligibleShippingServiceRequestBodyWeight)
-    fulfillment202309GetEligibleShippingServiceRequestBodyDimension := fulfillment_v202309.NewFulfillment202309GetEligibleShippingServiceRequestBodyDimension()
-    fulfillment202309GetEligibleShippingServiceRequestBodyDimension.SetLength("0.3")
-    fulfillment202309GetEligibleShippingServiceRequestBodyDimension.SetWidth("0.2")
-    fulfillment202309GetEligibleShippingServiceRequestBodyDimension.SetHeight("CM")
-    fulfillment202309GetEligibleShippingServiceRequestBodyDimension.SetUnit("INCH")
-    fulfillment202309GetEligibleShippingServiceRequestBody.SetDimension(*fulfillment202309GetEligibleShippingServiceRequestBodyDimension)
-    fulfillment202309GetEligibleShippingServiceRequestBodyOrderLineList := fulfillment_v202309.NewFulfillment202309GetEligibleShippingServiceRequestBodyOrderLineList()
-    fulfillment202309GetEligibleShippingServiceRequestBodyOrderLineList.SetOrderLineId("57632132124331234")
-    fulfillment202309GetEligibleShippingServiceRequestBodyOrderLineList.SetSubItemId("57632132124331234")
-    fulfillment202309GetEligibleShippingServiceRequestBodyOrderLineListList := []fulfillment_v202309.Fulfillment202309GetEligibleShippingServiceRequestBodyOrderLineList{*fulfillment202309GetEligibleShippingServiceRequestBodyOrderLineList}
-    fulfillment202309GetEligibleShippingServiceRequestBody.SetOrderLineList(fulfillment202309GetEligibleShippingServiceRequestBodyOrderLineListList)
-    request = request.Fulfillment202309GetEligibleShippingServiceRequestBody(*fulfillment202309GetEligibleShippingServiceRequestBody)
-    resp, httpResp, err := request.Execute()
-    if err != nil || httpResp.StatusCode != 200 {
-        fmt.Printf("productsRequest err:%v resbody:%s", err, httpResp.Body)
-        return
-    }
-    if resp == nil {
-        fmt.Printf("response is nil")
-        return
-    }
-    if resp.GetCode()!= 0 {
-        fmt.Printf("response business is error, errorCode:%d errorMessage:%s", resp.GetCode(), resp.GetMessage())
-        return
-    }
-    respDataJson, _ := json.MarshalIndent(resp.GetData(), "", "  ")
-    fmt.Println("response data:", string(respDataJson))
-    return
-}
-
-```
-
-**Node.js**
-```typescript
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-async function fulfillment202309GetEligibleShippingServicePost() {
-    const fulfillment202309GetEligibleShippingServiceRequestBody = new Fulfillment202309GetEligibleShippingServiceRequestBody();
-    fulfillment202309GetEligibleShippingServiceRequestBody.orderLineItemIds = ["32132124331234"];
-    const fulfillment202309GetEligibleShippingServiceRequestBodyWeight = new Fulfillment202309GetEligibleShippingServiceRequestBodyWeight();
-    fulfillment202309GetEligibleShippingServiceRequestBodyWeight.value = "0.4";
-    fulfillment202309GetEligibleShippingServiceRequestBodyWeight.unit = "GRAM";
-    fulfillment202309GetEligibleShippingServiceRequestBody.weight = fulfillment202309GetEligibleShippingServiceRequestBodyWeight;
-    const fulfillment202309GetEligibleShippingServiceRequestBodyDimension = new Fulfillment202309GetEligibleShippingServiceRequestBodyDimension();
-    fulfillment202309GetEligibleShippingServiceRequestBodyDimension.length = "0.3";
-    fulfillment202309GetEligibleShippingServiceRequestBodyDimension.width = "0.2";
-    fulfillment202309GetEligibleShippingServiceRequestBodyDimension.height = "CM";
-    fulfillment202309GetEligibleShippingServiceRequestBodyDimension.unit = "INCH";
-    fulfillment202309GetEligibleShippingServiceRequestBody.dimension = fulfillment202309GetEligibleShippingServiceRequestBodyDimension;
-    const fulfillment202309GetEligibleShippingServiceRequestBodyOrderLineList = new Fulfillment202309GetEligibleShippingServiceRequestBodyOrderLineList();
-    fulfillment202309GetEligibleShippingServiceRequestBodyOrderLineList.orderLineId = "57632132124331234";
-    fulfillment202309GetEligibleShippingServiceRequestBodyOrderLineList.subItemId = "57632132124331234";
-    fulfillment202309GetEligibleShippingServiceRequestBody.orderLineList = [fulfillment202309GetEligibleShippingServiceRequestBodyOrderLineList];
-    const result = await client.api.FulfillmentV202309Api.OrdersOrderIdShippingServicesQueryPost("32132124331234", "your access token", "application/json", "your shop cipher", fulfillment202309GetEligibleShippingServiceRequestBody);
-    console.log('response: ', JSON.stringify(result, null, 2));
-}
-
-```
-
-**Java**
-```java
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-public void fulfillment202309GetEligibleShippingServicePost() throws Exception {
-    ApiClient defaultClient = Configuration.getDefaultApiClient()
-            .setAppkey("your appKey")
-            .setSecret("your secret")
-            .setBasePath("https://open-api.tiktokglobalshop.com");
-    FulfillmentV202309Api apiInstance = new FulfillmentV202309Api(defaultClient);
-    GetEligibleShippingServiceRequestBody getEligibleShippingServiceRequestBody = new GetEligibleShippingServiceRequestBody();
-    List<String> getEligibleShippingServiceRequestBodyOrderLineItemIdsList = new ArrayList<>(Arrays.asList("32132124331234"));
-    getEligibleShippingServiceRequestBody.setOrderLineItemIds(getEligibleShippingServiceRequestBodyOrderLineItemIdsList);
-    GetEligibleShippingServiceRequestBodyWeight getEligibleShippingServiceRequestBodyWeight = new tiktokshop.open.sdk_java.model.Fulfillment.V202309.GetEligibleShippingServiceRequestBodyWeight();
-    getEligibleShippingServiceRequestBodyWeight.setValue("0.4");
-    getEligibleShippingServiceRequestBodyWeight.setUnit("GRAM");
-    getEligibleShippingServiceRequestBody.setWeight(getEligibleShippingServiceRequestBodyWeight);
-    GetEligibleShippingServiceRequestBodyDimension getEligibleShippingServiceRequestBodyDimension = new tiktokshop.open.sdk_java.model.Fulfillment.V202309.GetEligibleShippingServiceRequestBodyDimension();
-    getEligibleShippingServiceRequestBodyDimension.setLength("0.3");
-    getEligibleShippingServiceRequestBodyDimension.setWidth("0.2");
-    getEligibleShippingServiceRequestBodyDimension.setHeight("CM");
-    getEligibleShippingServiceRequestBodyDimension.setUnit("INCH");
-    getEligibleShippingServiceRequestBody.setDimension(getEligibleShippingServiceRequestBodyDimension);
-    GetEligibleShippingServiceRequestBodyOrderLineList getEligibleShippingServiceRequestBodyOrderLineList = new tiktokshop.open.sdk_java.model.Fulfillment.V202309.GetEligibleShippingServiceRequestBodyOrderLineList();
-    getEligibleShippingServiceRequestBodyOrderLineList.setOrderLineId("57632132124331234");
-    getEligibleShippingServiceRequestBodyOrderLineList.setSubItemId("57632132124331234");
-    List<GetEligibleShippingServiceRequestBodyOrderLineList> getEligibleShippingServiceRequestBodyOrderLineListList = new ArrayList<>(Arrays.asList(getEligibleShippingServiceRequestBodyOrderLineList));
-    getEligibleShippingServiceRequestBody.setOrderLineList(getEligibleShippingServiceRequestBodyOrderLineListList);
-    GetEligibleShippingServiceResponse result = apiInstance.fulfillment202309OrdersOrderIdShippingServicesQueryPost("32132124331234", "your access token", "application/json", "your shop cipher", getEligibleShippingServiceRequestBody);
-    System.out.println(result);
-}
-
-```
-
-### Response Parameters
-
-| Name | Type | Example | Description |
-| --- | --- | --- | --- |
-| code | int | 0 | The success or failure status code returned in API response. |
-| message | string | Success | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
-| request_id | string | 202203070749000101890810281E8C70B7 | Request log |
-| data | object |  | Specific return information |
-| ^order_id | string | 28823355942588 | TikTok Shop order ID |
-| ^order_line_id | []string | ["32132124331234"] | Line item ID list |
-| ^weight | object |  | The weight of the scheduled package. |
-| ^^value | string | 1.2 | The weight of the scheduled package. |
-| ^^unit | string | GRAM | The unit of measurement is used to measure the weight. - GRAM - POUND |
-| ^shipping_services | []object |  | Shipping services info. |
-| ^^id | string | 288233559123860015 | Shipping service ID |
-| ^^name | string | UPS-first class | Shipping service Name |
-| ^^price | string | 5 | Estimated price for this service. |
-| ^^currency | string | USD | Currency of the price |
-| ^^earliest_delivery_days | int | 3 | The minimum estimated duration required for parcel delivery.  |
-| ^^latest_delivery_days | int | 5 | The maximum estimated duration required for parcel delivery. |
-| ^^is_default | bool | false | Whether it is the default shipping service |
-| ^^shipping_provider_name | string | UPS | The name of shipping provider |
-| ^^shipping_provider_id | string | 288233559123860012 | The ID of shipping provider |
-| ^dimension | object |  | The dimension of the scheduled package. |
-| ^^length | string | 0.3 | The length of the package. The length, width, height must be passed together. |
-| ^^width | string | 0.2 | The width of the package. The length, width, height must be passed together. |
-| ^^height | string | 0.04 | The height of the package. The length, width, height must be passed together. |
-| ^^unit | string | INCH | The unit of measurement is used to measure the length. - CM - INCH |
-
-### Response Sample
-
-```json
-{
-  "code": 0,
-  "data": {
-    "order_id": "28823355942588",
-    "order_line_id": [
-      "32132124331234"
-    ],
-    "weight": {
-      "value": "1.2",
-      "unit": "GRAM"
-    },
-    "shipping_services": [
-      {
-        "id": "288233559123860015",
-        "name": "UPS-first class",
-        "price": "5",
-        "currency": "USD",
-        "earliest_delivery_days": 3,
-        "latest_delivery_days": 5,
-        "is_default": false,
-        "shipping_provider_name": "UPS",
-        "shipping_provider_id": "288233559123860012"
-      }
-    ],
-    "dimension": {
-      "length": "0.3",
-      "width": "0.2",
-      "height": "0.04",
-      "unit": "INCH"
-    }
-  },
-  "message": "Success",
-  "request_id": "202203070749000101890810281E8C70B7"
-}
-```
-
-### Error Codes
-
-| Code | Message |
-| --- | --- |
-| 36009003 | Internal error. Please try again. If the issue persists after multiple attempts, please contact platform support. |
-| 21001001 | Invalid parameters. Please ensure you are passing the correct request parameter(s). |
-| 21011001 | Package not found. If the error persists, please contact the platform for assistance. |
-| 21011006 | These orders are already shipped. |
-| 21011029 | order does not belong to fulfill unit |
-| 21011037 | There are no available shipping services for this request. Please modify the package weight, or double check the recipient address. If after multiple retries you continue to experience this error, please contact the platform for assistance. |
-| 21011048 | There are multiple packages that can be shipped, please specify the order line that needs to be shipped. |
-
-### API Scope / Permissions
-
-| Scope Name | Type | Description |
-| --- | --- | --- |
-| Fulfillment Basic | Public | The Partner will be able to fulfil and manage orders on seller's behalf, and provide real-time updates on the status of seller's orders. |
-
----
-
-## Create First Mile Bundle
-
-If you send multiple packages to TikTok Shop warehouse in a single first-mile bundle, you can use the API to create a first-mile bundle on TikTok Shop and get the bundle ID.
-
-**Path:** `/fulfillment/202407/bundles`
-
-**Method:** `POST`
-
-**Common Parameters:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a4278f4c20311b8b57e)
-
-**Common Error Codes:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a45786253031531b942)
-
-### Request Header Parameters
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| content-type | string | Y | Allowed type: application/json |
-| x-tts-access-token | string | Y | The seller access_token value from [Get Access Token](https://partner.tiktokshop.com/docv2/page/678e3a3292b0f40314a92d75#Get%20Access%20Token%20API), when user_type = 0. Follow this [guide](https://partner.tiktokshop.com/docv2/page/678e3a344ddec3030b238fa0) to get seller access_token. |
-
-### Request Query Parameters
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| app_key | string | Y | Every single app will have a unique key. Please use the specific key assigned to your app. |
-| sign | string | Y | Signature generated by gen algorithm. When you send API requests to TTS, you must sign them so that TTS can identify the senders.  |
-| timestamp | int | Y | Unix timestamp GMT (UTC+00:00). This timestamp is used across all API requests. Developers can use this convert to local time. |
-
-### Request Body Parameters
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| order_ids | []string | Y | The IDs of all the orders sent in a single first-mile bundle. The orders must follow the restrictions: - Each of the orders must exist and be RTS and shipping label printed. - The orders are sent by the same seller. - The orders belong to a single group of TikTok Shop service districts. The groups are:   - Group 1: PH, SG, MY, VN, TH, and JP.   - Group 2: DE, FR, IT, ES.  You can not create first mile bundles for US/UK orders using this API. |
-| handover_method | string | Y | The way you send the first-mile bundle. Possible enumerations are: - `PICKUP`: You use the logistic service provided by TikTok Shop to send the bundle. - `DROP_OFF`: You contact the logistic provider and send the bundle. The logistic provider must be registered at TikTok Shop. |
-| shipping_provider_id | string | N | The logistic provider ID in TikTok Shop. Required when `handover_method == DROP_OFF`. |
-| tracking_number | string | N | The logistic tracking number of the bundle. Required when `handover_method == DROP_OFF`. |
-| phone_tail_number | string | N | Last 4 digits of the sender's phone number. Required when `handover_method == DROP_OFF`. |
-
-### Request Sample
-
-```
-https://open-api.tiktokglobalshop.com/fulfillment/202407/bundles?app_key=123abc&sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c&timestamp=1625484268
-```
-
-### Request Body Sample
-
-```json
-{
-  "order_ids": [
-    "578967030217083407"
-  ],
-  "handover_method": "PICKUP",
-  "shipping_provider_id": "7463353253533",
-  "tracking_number": "SF1244442424",
-  "phone_tail_number": "1234"
-}
-```
-
-### Sample Code
-
-**Curl**
-```shell
-curl -X POST \
- 'https://open-api.tiktokglobalshop.com/fulfillment/202407/bundles?timestamp=1623812664&app_key=38abcd&sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c' \
--H 'content-type: application/json' \
--H 'x-tts-access-token: TTP_pwSm2AAAAABmmtFz1xlyKMnwg74T2GJ5s0uQbS8jPjb_GkdFVCxPqzQXSyuyfXdQa0AqyDsea2tYFNVf4XeqgZHFfPyv0Vs659QqyLYfsGzanZ5XZAin3_ZkcIxxS0_In6u6XDeU96k' \
--d '{
-  "order_ids": [
-    "578967030217083407"
-  ],
-  "handover_method": "PICKUP",
-  "shipping_provider_id": "7463353253533",
-  "tracking_number": "SF1244442424",
-  "phone_tail_number": "1234"
-}'
-```
-
-**Go**
-```go
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-func fulfillment202407CreateFirstMileBundlePost() {
-    configuration := apis.NewConfiguration()
-    configuration.AddAppInfo(appKey, appSecret)
-    apiClient := apis.NewAPIClient(configuration)
-    request := apiClient.FulfillmentV202407API.Fulfillment202407BundlesPost(context.Background())
-    request = request.XTtsAccessToken("your access token")
-    request = request.ContentType("application/json")
-    fulfillment202407CreateFirstMileBundleRequestBody := fulfillment_v202407.NewFulfillment202407CreateFirstMileBundleRequestBody()
-    fulfillment202407CreateFirstMileBundleRequestBodyOrderIdsList := []string{"578967030217083407"}
-    fulfillment202407CreateFirstMileBundleRequestBody.SetOrderIds(fulfillment202407CreateFirstMileBundleRequestBodyOrderIdsList)
-    fulfillment202407CreateFirstMileBundleRequestBody.SetHandoverMethod("PICKUP")
-    fulfillment202407CreateFirstMileBundleRequestBody.SetShippingProviderId("7463353253533")
-    fulfillment202407CreateFirstMileBundleRequestBody.SetTrackingNumber("SF1244442424")
-    fulfillment202407CreateFirstMileBundleRequestBody.SetPhoneTailNumber("1234")
-    request = request.Fulfillment202407CreateFirstMileBundleRequestBody(*fulfillment202407CreateFirstMileBundleRequestBody)
-    resp, httpResp, err := request.Execute()
-    if err != nil || httpResp.StatusCode != 200 {
-        fmt.Printf("productsRequest err:%v resbody:%s", err, httpResp.Body)
-        return
-    }
-    if resp == nil {
-        fmt.Printf("response is nil")
-        return
-    }
-    if resp.GetCode()!= 0 {
-        fmt.Printf("response business is error, errorCode:%d errorMessage:%s", resp.GetCode(), resp.GetMessage())
-        return
-    }
-    respDataJson, _ := json.MarshalIndent(resp.GetData(), "", "  ")
-    fmt.Println("response data:", string(respDataJson))
-    return
-}
-
-```
-
-**Node.js**
-```typescript
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-async function fulfillment202407CreateFirstMileBundlePost() {
-    const fulfillment202407CreateFirstMileBundleRequestBody = new Fulfillment202407CreateFirstMileBundleRequestBody();
-    fulfillment202407CreateFirstMileBundleRequestBody.orderIds = ["578967030217083407"];
-    fulfillment202407CreateFirstMileBundleRequestBody.handoverMethod = "PICKUP";
-    fulfillment202407CreateFirstMileBundleRequestBody.shippingProviderId = "7463353253533";
-    fulfillment202407CreateFirstMileBundleRequestBody.trackingNumber = "SF1244442424";
-    fulfillment202407CreateFirstMileBundleRequestBody.phoneTailNumber = "1234";
-    const result = await client.api.FulfillmentV202407Api.BundlesPost("your access token", "application/json", fulfillment202407CreateFirstMileBundleRequestBody);
-    console.log('response: ', JSON.stringify(result, null, 2));
-}
-
-```
-
-**Java**
-```java
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-public void fulfillment202407CreateFirstMileBundlePost() throws Exception {
-    ApiClient defaultClient = Configuration.getDefaultApiClient()
-            .setAppkey("your appKey")
-            .setSecret("your secret")
-            .setBasePath("https://open-api.tiktokglobalshop.com");
-    FulfillmentV202407Api apiInstance = new FulfillmentV202407Api(defaultClient);
-    CreateFirstMileBundleRequestBody createFirstMileBundleRequestBody = new CreateFirstMileBundleRequestBody();
-    List<String> createFirstMileBundleRequestBodyOrderIdsList = new ArrayList<>(Arrays.asList("578967030217083407"));
-    createFirstMileBundleRequestBody.setOrderIds(createFirstMileBundleRequestBodyOrderIdsList);
-    createFirstMileBundleRequestBody.setHandoverMethod("PICKUP");
-    createFirstMileBundleRequestBody.setShippingProviderId("7463353253533");
-    createFirstMileBundleRequestBody.setTrackingNumber("SF1244442424");
-    createFirstMileBundleRequestBody.setPhoneTailNumber("1234");
-    CreateFirstMileBundleResponse result = apiInstance.fulfillment202407BundlesPost("your access token", "application/json", createFirstMileBundleRequestBody);
-    System.out.println(result);
-}
-
-```
-
-### Response Parameters
-
-| Name | Type | Example | Description |
-| --- | --- | --- | --- |
-| code | int | 0 | The success or failure status code returned in API response. |
-| message | string | Success | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
-| request_id | string | 202203070749000101890810281E8C70B7 | Request log |
-| data | object |  | Specific return information |
-| ^first_mile_bundle_id | string | BA123444534 | The ID of the first-mile bundle. |
-| ^url | string | https://open-fs-va.tiktokshop.com/doc_tts/object/28b05?skipCookie=true&timeStamp=1721272360&sign=ef63cd6 | The returned waybill link. |
-| ^errors | []object |  | Specific return information (returns multiple errors and reasons) |
-| ^^code | int | 10007014 | The success or failure status code returned in API response. |
-| ^^message | string | invalid package id | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
-| ^^detail | object |  | Error detail |
-| ^^^order_id | string | 578967030217083407 | TikTok Shop order ID |
-
-### Response Sample
-
-```json
-{
-  "code": 0,
-  "data": {
-    "first_mile_bundle_id": "BA123444534",
-    "url": "https://open-fs-va.tiktokshop.com/doc_tts/object/28b05?skipCookie=true&timeStamp=1721272360&sign=ef63cd6",
-    "errors": [
-      {
-        "code": 10007014,
-        "message": "invalid package id",
-        "detail": {
-          "order_id": "578967030217083407"
-        }
-      }
-    ]
-  },
-  "message": "Success",
-  "request_id": "202203070749000101890810281E8C70B7"
-}
-```
-
-### API Scope / Permissions
-
-| Scope Name | Type | Description |
-| --- | --- | --- |
-| Fulfillment Basic | Public | The Partner will be able to fulfil and manage orders on seller's behalf, and provide real-time updates on the status of seller's orders. |
-
----
-
-## Search Package
-
-Retrieve package IDs based on specified conditions. Package creation time and information update time are the common querying conditions.
-
-**Path:** `/fulfillment/202309/packages/search`
-
-**Method:** `POST`
-
-**Common Parameters:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a4278f4c20311b8b57e)
-
-**Common Error Codes:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a45786253031531b942)
-
-### Request Header Parameters
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| content-type | string | Y | Allowed type: application/json |
-| x-tts-access-token | string | Y | The seller access_token value from [Get Access Token](https://partner.tiktokshop.com/docv2/page/678e3a3292b0f40314a92d75#Get%20Access%20Token%20API), when user_type = 0. Follow this [guide](https://partner.tiktokshop.com/docv2/page/678e3a344ddec3030b238fa0) to get seller access_token. |
-
-### Request Query Parameters
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| app_key | string | Y | Every single app will have a unique key. Please use the specific key assigned to your app. |
-| sign | string | Y | Signature generated by gen algorithm. When you send API requests to TTS, you must sign them so that TTS can identify the senders.  |
-| timestamp | int | Y | Unix timestamp GMT (UTC+00:00). This timestamp is used across all API requests. Developers can use this convert to local time. |
-| page_size | int | Y | The number of results to be returned per page. Valid range: [1-50]. |
-| sort_field | string | N | The returned results will be sorted by the specified field.  Default: `create_time` Possible values: - `create_time` - `update_time` - `order_pay_time`  Specify the order for sorting the returned results by using the sort_order parameter. |
-| sort_order | string | N | The sort order for the sort_field parameter. Default: `DESC` Possible values: - `ASC`: Ascending order - `DESC`: Descending order |
-| page_token | string | N | An opaque token used to retrieve the next page of a paginated result set. Retrieve this value from the result of the `next_page_token` from a previous response. It is not needed for the first page. |
-| shop_cipher | string | N | Use this property to pass shop information in requesting the API. Failure in passing the correct value when requesting the API for cross-border shops will return incorrect response.  Get by API [Get Authorization Shop](https://partner.tiktokshop.com/docv2/page/6507ead7b99d5302be949ba9?external_id=6507ead7b99d5302be949ba9) |
-
-### Request Body Parameters
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| create_time_ge | int | N | Filter the packages to show only those that are created after (or at) the specified date and time. Unix timestamp.  |
-| create_time_lt | int | N | Filter the packages to show only those that are created before the specified date and time. Unix timestamp.  |
-| update_time_ge | int | N | Filter the packages to show only those that are updated after (or at) the specified date and time. Unix timestamp.  |
-| update_time_lt | int | N | Filter the packages to show only those that are updated before the specified date and time. Unix timestamp.  |
-| package_status | string | N | Possible values: - `PROCESSING`: Package has been arranged by seller. Waiting for carrier to collect the parcel. - `FULFILLING`: Package has been collected by carrier and in transit. - `COMPLETED`: Package has been delivered. - `CANCELLED`: Package has been canceled. Normally, the package is canceled due to the package being lost or damaged. |
-
-### Request Sample
-
-```
-https://open-api.tiktokglobalshop.com/fulfillment/202309/packages/search?app_key=123abc&sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c&timestamp=1625484268&shop_cipher=ROW_RHkDDABBAAB8tKAVoAqsMTjsQZFLyNfY&page_size=20&sort_field=order_pay_time&sort_order=ASC&page_token=6AsPQsUMvH3RkchNUPPh22NROHkE0D8pmq/N5M1kHYcZmtRyv9aVrNv65W7Q6tFA
-```
-
-### Request Body Sample
-
-```json
-{
-  "create_time_ge": 1623812664,
-  "create_time_lt": 1623812664,
-  "update_time_ge": 1623812664,
-  "update_time_lt": 1623812664,
-  "package_status": "PROCESSING"
-}
-```
-
-### Sample Code
-
-**Curl**
-```shell
-curl -X POST \
- 'https://open-api.tiktokglobalshop.com/fulfillment/202309/packages/search?app_key=38abcd&sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c&shop_cipher=GCP_XF90igAAAABh00qsWgtvOiGFNqyubMt3&sort_order=ASC&page_token=6AsPQsUMvH3RkchNUPPh22NROHkE0D8pmq/N5M1kHYcZmtRyv9aVrNv65W7Q6tFA&timestamp=1623812664&page_size=20&sort_field=order_pay_time' \
--H 'x-tts-access-token: TTP_pwSm2AAAAABmmtFz1xlyKMnwg74T2GJ5s0uQbS8jPjb_GkdFVCxPqzQXSyuyfXdQa0AqyDsea2tYFNVf4XeqgZHFfPyv0Vs659QqyLYfsGzanZ5XZAin3_ZkcIxxS0_In6u6XDeU96k' \
--H 'content-type: application/json' \
--d '{
-  "create_time_ge": 1623812664,
-  "create_time_lt": 1623812664,
-  "update_time_ge": 1623812664,
-  "update_time_lt": 1623812664,
-  "package_status": "PROCESSING"
-}'
-```
-
-**Go**
-```go
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-func fulfillment202309SearchPackagePost() {
-    configuration := apis.NewConfiguration()
-    configuration.AddAppInfo(appKey, appSecret)
-    apiClient := apis.NewAPIClient(configuration)
-    request := apiClient.FulfillmentV202309API.Fulfillment202309PackagesSearchPost(context.Background())
-    request = request.XTtsAccessToken("your access token")
-    request = request.ContentType("application/json")
-    request = request.PageSize(20)
-    request = request.SortField("order_pay_time")
-    request = request.SortOrder("ASC")
-    request = request.PageToken("6AsPQsUMvH3RkchNUPPh22NROHkE0D8pmq/N5M1kHYcZmtRyv9aVrNv65W7Q6tFA")
-    request = request.ShopCipher("GCP_XF90igAAAABh00qsWgtvOiGFNqyubMt3")
-    fulfillment202309SearchPackageRequestBody := fulfillment_v202309.NewFulfillment202309SearchPackageRequestBody()
-    fulfillment202309SearchPackageRequestBody.SetCreateTimeGe(1623812664)
-    fulfillment202309SearchPackageRequestBody.SetCreateTimeLt(1623812664)
-    fulfillment202309SearchPackageRequestBody.SetUpdateTimeGe(1623812664)
-    fulfillment202309SearchPackageRequestBody.SetUpdateTimeLt(1623812664)
-    fulfillment202309SearchPackageRequestBody.SetPackageStatus("PROCESSING")
-    request = request.Fulfillment202309SearchPackageRequestBody(*fulfillment202309SearchPackageRequestBody)
-    resp, httpResp, err := request.Execute()
-    if err != nil || httpResp.StatusCode != 200 {
-        fmt.Printf("productsRequest err:%v resbody:%s", err, httpResp.Body)
-        return
-    }
-    if resp == nil {
-        fmt.Printf("response is nil")
-        return
-    }
-    if resp.GetCode()!= 0 {
-        fmt.Printf("response business is error, errorCode:%d errorMessage:%s", resp.GetCode(), resp.GetMessage())
-        return
-    }
-    respDataJson, _ := json.MarshalIndent(resp.GetData(), "", "  ")
-    fmt.Println("response data:", string(respDataJson))
-    return
-}
-
-```
-
-**Node.js**
-```typescript
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-async function fulfillment202309SearchPackagePost() {
-    const fulfillment202309SearchPackageRequestBody = new Fulfillment202309SearchPackageRequestBody();
-    fulfillment202309SearchPackageRequestBody.createTimeGe = 1623812664;
-    fulfillment202309SearchPackageRequestBody.createTimeLt = 1623812664;
-    fulfillment202309SearchPackageRequestBody.updateTimeGe = 1623812664;
-    fulfillment202309SearchPackageRequestBody.updateTimeLt = 1623812664;
-    fulfillment202309SearchPackageRequestBody.packageStatus = "PROCESSING";
-    const result = await client.api.FulfillmentV202309Api.PackagesSearchPost(20, "your access token", "application/json", "order_pay_time", "ASC", "6AsPQsUMvH3RkchNUPPh22NROHkE0D8pmq/N5M1kHYcZmtRyv9aVrNv65W7Q6tFA", "GCP_XF90igAAAABh00qsWgtvOiGFNqyubMt3", fulfillment202309SearchPackageRequestBody);
-    console.log('response: ', JSON.stringify(result, null, 2));
-}
-
-```
-
-**Java**
-```java
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-public void fulfillment202309SearchPackagePost() throws Exception {
-    ApiClient defaultClient = Configuration.getDefaultApiClient()
-            .setAppkey("your appKey")
-            .setSecret("your secret")
-            .setBasePath("https://open-api.tiktokglobalshop.com");
-    FulfillmentV202309Api apiInstance = new FulfillmentV202309Api(defaultClient);
-    SearchPackageRequestBody searchPackageRequestBody = new SearchPackageRequestBody();
-    searchPackageRequestBody.setCreateTimeGe(1623812664L);
-    searchPackageRequestBody.setCreateTimeLt(1623812664L);
-    searchPackageRequestBody.setUpdateTimeGe(1623812664L);
-    searchPackageRequestBody.setUpdateTimeLt(1623812664L);
-    searchPackageRequestBody.setPackageStatus("PROCESSING");
-    SearchPackageResponse result = apiInstance.fulfillment202309PackagesSearchPost(20, "your access token", "application/json", "order_pay_time", "ASC", "6AsPQsUMvH3RkchNUPPh22NROHkE0D8pmq/N5M1kHYcZmtRyv9aVrNv65W7Q6tFA", "GCP_XF90igAAAABh00qsWgtvOiGFNqyubMt3", searchPackageRequestBody);
-    System.out.println(result);
-}
-
-```
-
-### Response Parameters
-
-| Name | Type | Example | Description |
-| --- | --- | --- | --- |
-| code | int | 0 | The success or failure status code returned in API response. |
-| message | string | Success | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
-| request_id | string | 202203070749000101890810281E8C70B7 | Request log |
-| data | object |  | Specific return information |
-| ^next_page_token | string | 6AsPQsUMvH3RkchNUPPh22NROHkE0D8pmq/N5M1kHYcZmtRyv9aVrNv65W7Q6tFA | An opaque token used to retrieve the next page of a paginated result set. Provide this value in the `page_token` parameter of your request if the current response does not return all the results. |
-| ^total_count | int | 221 | The number of packages that meet the query conditions. |
-| ^packages | []object |  | The response list of packages. |
-| ^^id | string | 577828281214600000 | Package ID. |
-| ^^orders | []object |  | The response list of TikTok Shop orders.  |
-| ^^^id | string | 577828281214600000 | TikTok Shop order ID. |
-| ^^^skus | []object |  | [Deprecated]The response list of SKUs. |
-| ^^^^id | string | 577828281214883345 | [Deprecated]The SKU ID.  |
-| ^^^^name | string | white,128g | [Deprecated]The SKU name. |
-| ^^^^image_url | string | https://p19-oec-sg.ibyteimg.com/tos-maliva-i-o3syd03w52-us/12345670 | [Deprecated]The SKU image in order snapshot.  |
-| ^^^^quantity | int | 5 | [Deprecated]The SKU quantity. |
-| ^^create_time | int | 1635338186 | Package creation time. Unix timestamp. |
-| ^^update_time | int | 1635338186 | Package latest update time. Unix timestamp |
-| ^^status | string | PROCESSING | Possible values: - `PROCESSING`: Package has been arranged by seller. Waiting for carrier to collect the parcel. - `FULFILLING`: Package has been collected by carrier and in transit. - `COMPLETED`: Package has been delivered. - `CANCELLED`: Package has been canceled. Normally, the package is canceled due to the package being lost or damaged. |
-| ^^tracking_number | string | 6617675021119438849 | Package tracking number. |
-| ^^shipping_provider_name | string | TT Virtual express | Package shipping provider. |
-| ^^shipping_provider_id | string | 6617675021119438849 | Package shipping provider ID. |
-| ^^order_line_item_ids | []string | ["1729382476852921560"] | The order line item ID contained in the package.  |
-
-### Response Sample
-
-```json
-{
-  "code": 0,
-  "data": {
-    "next_page_token": "6AsPQsUMvH3RkchNUPPh22NROHkE0D8pmq/N5M1kHYcZmtRyv9aVrNv65W7Q6tFA",
-    "total_count": 221,
-    "packages": [
-      {
-        "id": "577828281214600000",
-        "orders": [
-          {
-            "id": "577828281214600000",
-            "skus": [
-              {
-                "id": "577828281214883345",
-                "name": "white,128g",
-                "image_url": "https://p19-oec-sg.ibyteimg.com/tos-maliva-i-o3syd03w52-us/12345670",
-                "quantity": 5
-              }
-            ]
-          }
-        ],
-        "create_time": 1635338186,
-        "update_time": 1635338186,
-        "status": "PROCESSING",
-        "tracking_number": "6617675021119438849",
-        "shipping_provider_name": "TT Virtual express",
-        "shipping_provider_id": "6617675021119438849",
-        "order_line_item_ids": [
-          "1729382476852921560"
-        ]
-      }
-    ]
-  },
-  "message": "Success",
-  "request_id": "202203070749000101890810281E8C70B7"
-}
-```
-
-### Error Codes
-
-| Code | Message |
-| --- | --- |
-| 36009003 | Internal error. Please try again. If the issue persists after multiple attempts, please contact platform support. |
-
-### API Scope / Permissions
-
-| Scope Name | Type | Description |
-| --- | --- | --- |
-| Fulfillment Basic | Public | The Partner will be able to fulfil and manage orders on seller's behalf, and provide real-time updates on the status of seller's orders. |
-
----
-
-## Search Combinable Packages
-
-Use this API to query orders eligible for combined shipping. 
-
-**Path:** `/fulfillment/202309/combinable_packages/search`
-
+**Path:** `/fulfillment/202309/orders/{order_id}/tracking`
 **Method:** `GET`
+**Version:** 202309
+**Docs:** https://partner.tiktokshop.com/docv2/page/get-tracking-202309
 
-**Common Parameters:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a4278f4c20311b8b57e)
-
-**Common Error Codes:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a45786253031531b942)
-
-### Request Header Parameters
+### Path Parameters
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| content-type | string | Y | Allowed type: application/json |
-| x-tts-access-token | string | Y | The seller access_token value from [Get Access Token](https://partner.tiktokshop.com/docv2/page/678e3a3292b0f40314a92d75#Get%20Access%20Token%20API), when user_type = 0. Follow this [guide](https://partner.tiktokshop.com/docv2/page/678e3a344ddec3030b238fa0) to get seller access_token. |
+| order_id | string | Y | TikTok Shop order ID. |
 
-### Request Query Parameters
+### Query Parameters
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| app_key | string | Y | Every single app will have a unique key. Please use the specific key assigned to your app. |
-| sign | string | Y | Signature generated by gen algorithm. When you send API requests to TTS, you must sign them so that TTS can identify the senders.  |
-| timestamp | int | Y | Unix timestamp GMT (UTC+00:00). This timestamp is used across all API requests. Developers can use this convert to local time. |
-| page_token | string | N | An opaque token used to retrieve the next page of a paginated result set. Retrieve this value from the result of the `next_page_token` from a previous response. It is not needed for the first page.  |
-| page_size | int | Y | The number of results to be returned per page. Valid range: [1-50]. |
-| shop_cipher | string | Y | Use this property to pass shop information in requesting the API. Failure in passing the correct value when requesting the API for cross-border shops will return incorrect response.  Get by API [Get Authorization Shop](https://partner.tiktokshop.com/docv2/page/6507ead7b99d5302be949ba9?external_id=6507ead7b99d5302be949ba9) |
+| shop_cipher | string |  | Use this property to pass shop information in requesting the API. Failure in passing the correct value when requesting the API for cross-border shops will return incorrect response. |
 
-### Request Sample
+### Header Parameters
 
-```
-https://open-api.tiktokglobalshop.com/fulfillment/202309/combinable_packages/search?app_key=123abc&sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c&timestamp=1625484268&shop_cipher=ROW_RHkDDABBAAB8tKAVoAqsMTjsQZFLyNfY&page_token=6AsPQsUMvH3RkchNUPPh22NROHkE0D8pmq/N5M1kHYcZmtRyv9aVrNv65W7Q6tFA&page_size=20
-```
-
-### Sample Code
-
-**Curl**
-```shell
-curl -X GET \
- 'https://open-api.tiktokglobalshop.com/fulfillment/202309/combinable_packages/search?app_key=38abcd&sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c&timestamp=1623812664&shop_cipher=GCP_XF90igAAAABh00qsWgtvOiGFNqyubMt3&page_token=6AsPQsUMvH3RkchNUPPh22NROHkE0D8pmq/N5M1kHYcZmtRyv9aVrNv65W7Q6tFA&page_size=20' \
--H 'x-tts-access-token: TTP_pwSm2AAAAABmmtFz1xlyKMnwg74T2GJ5s0uQbS8jPjb_GkdFVCxPqzQXSyuyfXdQa0AqyDsea2tYFNVf4XeqgZHFfPyv0Vs659QqyLYfsGzanZ5XZAin3_ZkcIxxS0_In6u6XDeU96k' \
--H 'content-type: application/json'
-```
-
-**Go**
-```go
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-func fulfillment202309SearchCombinablePackagesGet() {
-    configuration := apis.NewConfiguration()
-    configuration.AddAppInfo(appKey, appSecret)
-    apiClient := apis.NewAPIClient(configuration)
-    request := apiClient.FulfillmentV202309API.Fulfillment202309CombinablePackagesSearchGet(context.Background())
-    request = request.XTtsAccessToken("your access token")
-    request = request.ContentType("application/json")
-    request = request.PageToken("6AsPQsUMvH3RkchNUPPh22NROHkE0D8pmq/N5M1kHYcZmtRyv9aVrNv65W7Q6tFA")
-    request = request.PageSize(20)
-    request = request.ShopCipher("your shop cipher")
-    resp, httpResp, err := request.Execute()
-    if err != nil || httpResp.StatusCode != 200 {
-        fmt.Printf("productsRequest err:%v resbody:%s", err, httpResp.Body)
-        return
-    }
-    if resp == nil {
-        fmt.Printf("response is nil")
-        return
-    }
-    if resp.GetCode()!= 0 {
-        fmt.Printf("response business is error, errorCode:%d errorMessage:%s", resp.GetCode(), resp.GetMessage())
-        return
-    }
-    respDataJson, _ := json.MarshalIndent(resp.GetData(), "", "  ")
-    fmt.Println("response data:", string(respDataJson))
-    return
-}
-
-```
-
-**Node.js**
-```typescript
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-async function fulfillment202309SearchCombinablePackagesGet() {
-    const result = await client.api.FulfillmentV202309Api.CombinablePackagesSearchGet(20, "your access token", "application/json", "6AsPQsUMvH3RkchNUPPh22NROHkE0D8pmq/N5M1kHYcZmtRyv9aVrNv65W7Q6tFA", "your shop cipher");
-    console.log('response: ', JSON.stringify(result, null, 2));
-}
-
-```
-
-**Java**
-```java
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-public void fulfillment202309SearchCombinablePackagesGet() throws Exception {
-    ApiClient defaultClient = Configuration.getDefaultApiClient()
-            .setAppkey("your appKey")
-            .setSecret("your secret")
-            .setBasePath("https://open-api.tiktokglobalshop.com");
-    FulfillmentV202309Api apiInstance = new FulfillmentV202309Api(defaultClient);
-    SearchCombinablePackagesResponse result = apiInstance.fulfillment202309CombinablePackagesSearchGet(20, "your access token", "application/json", "6AsPQsUMvH3RkchNUPPh22NROHkE0D8pmq/N5M1kHYcZmtRyv9aVrNv65W7Q6tFA", "your shop cipher");
-    System.out.println(result);
-}
-
-```
-
-### Response Parameters
-
-| Name | Type | Example | Description |
+| Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| code | int | 0 | The success or failure status code returned in API response. |
-| message | string | Success | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
-| request_id | string | 202203070749000101890810281E8C70B7 | Request log |
-| data | object |  | Specific return information |
-| ^combinable_packages | []object |  | List of eligible packages that can be combined. |
-| ^^id | string | 57466538837665 | A set of pre-generated package IDs after calling the Search Draft Package API. These package IDs will be used when the package combine is confirmed. |
-| ^^order_ids | []string | ["57466538837665","57466538837666"] | List of order IDs for this package. |
-| ^next_page_token | string | 6AsPQsUMvH3RkchNUPPh22NROHkE0D8pmq/N5M1kHYcZmtRyv9aVrNv65W7Q6tFA | An opaque token used to retrieve the next page of a paginated result set. Provide this value in the `page_token` parameter of your request if the current response does not return all the results. |
-| ^total_count | int | 10 | The number of orders that meet the query conditions. |
+| x-tts-access-token | string | Y |  |
+| Content-Type | string | Y | Allowed type: application/json |
 
-### Response Sample
+### Response
 
-```json
-{
-  "code": 0,
-  "data": {
-    "combinable_packages": [
-      {
-        "id": "57466538837665",
-        "order_ids": [
-          "57466538837665",
-          "57466538837666"
-        ]
-      }
-    ],
-    "next_page_token": "6AsPQsUMvH3RkchNUPPh22NROHkE0D8pmq/N5M1kHYcZmtRyv9aVrNv65W7Q6tFA",
-    "total_count": 10
-  },
-  "message": "Success",
-  "request_id": "202203070749000101890810281E8C70B7"
-}
-```
-
-### Error Codes
-
-| Code | Message |
-| --- | --- |
-| 36009003 | Internal error. Please try again. If the issue persists after multiple attempts, please contact platform support. |
-
-### API Scope / Permissions
-
-| Scope Name | Type | Description |
-| --- | --- | --- |
-| Package Split And Combine | Public | The Partner will be able to split and combine orders on seller's behalf. |
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| code | integer |  | The success or failure status code returned in API response. |
+| data | object |  | Specific return information. |
+| ^tracking | array<object> |  | The return list of tracking information. |
+| ^^description | string |  | Tracking status description. |
+| ^^update_time_millis | integer |  | Tracking status update time. Unix timestamp in milliseconds. |
+| message | string |  | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
+| request_id | string |  | Request log. |
 
 ---
 
-## Combine Package
+## CreatePackages
+
+Use this API to ship orders (purchase labels). This API is region specific to the US. The shipping fee and delivery time is an estimate only and is based on the package dimensions and weight you provided. Based on the package attributes, options listed below may differ from your shipping subscriptions.
+
+**Path:** `/fulfillment/202309/packages`
+**Method:** `POST`
+**Version:** 202309
+**Docs:** https://partner.tiktokshop.com/docv2/page/create-packages-202309
+
+### Query Parameters
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| shop_cipher | string |  | Use this property to pass shop information in requesting the API. Failure in passing the correct value when requesting the API for cross-border shops will return incorrect response. |
+
+### Header Parameters
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| x-tts-access-token | string | Y |  |
+| Content-Type | string | Y | Allowed type: application/json |
+
+### Request Body (`application/json`)
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| dimension | object |  | Package dimensions. |
+| ^height | string |  | Package height. The length, width, and height must be passed together. |
+| ^length | string |  | Package length. The length, width, and height must be passed together. |
+| ^unit | string |  | The unit of measurement for the package dimensions. Available values: - `CM` - `INCH` |
+| ^width | string |  | Package width. The length, width, and height must be passed together. |
+| order_id | string |  | TikTok Shop order ID. |
+| order_line_item_ids | array<string> |  | List of order line item IDs. |
+| shipping_service_id | string |  | Specify the shipping service used. If not specified, use the default service obtained from [Get Eligible Shipping Service](https://partner.tiktokshop.com/docv2/page/650aa6b2bace3e02b75dda4e). |
+| weight | object |  | Package weight. |
+| ^unit | string |  | The unit of measurement for the package weight. Available values: - `GRAM` - `POUND` |
+| ^value | string |  | The numerical value of the package weight. |
+
+### Response
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| code | integer |  | The success or failure status code returned in API response. |
+| data | object |  | Specific return information. |
+| ^create_time | integer |  | The time when the product was created. Unix timestamp. |
+| ^dimension | object |  | Package dimensions. |
+| ^^height | string |  | Package height. |
+| ^^length | string |  | Package length. |
+| ^^unit | string |  | The unit of measurement for the package dimensions. Available values: - `CM` - `INCH` |
+| ^^width | string |  | Package width. |
+| ^order_id | string |  | TikTok Shop order ID. |
+| ^order_line_item_ids | array<string> |  | List of order line item IDs. |
+| ^package_id | string |  | Package ID. |
+| ^shipping_service_info | object |  | The available shipping service's information. |
+| ^^currency | string |  | Currency of the price. |
+| ^^earliest_delivery_days | integer |  | The minimum estimated duration required for package delivery. |
+| ^^id | string |  | Shipping service ID. |
+| ^^latest_delivery_days | integer |  | The maximum estimated duration required for package delivery. |
+| ^^name | string |  | Shipping service name. |
+| ^^price | string |  | Estimated price for this service. |
+| ^^shipping_provider_id | string |  | Shipping provider ID. |
+| ^^shipping_provider_name | string |  | Shipping provider name. |
+| ^weight | object |  | Package weight. |
+| ^^unit | string |  | The unit of measurement for the package weight. Available values: - `GRAM` - `POUND` |
+| ^^value | string |  | The numerical value of the package weight. |
+| message | string |  | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
+| request_id | string |  | Request log. |
+
+---
+
+## CombinePackage
 
 Use this API to combine packages into one fulfillment package.
 
 **Path:** `/fulfillment/202309/packages/combine`
-
 **Method:** `POST`
+**Version:** 202309
+**Docs:** https://partner.tiktokshop.com/docv2/page/combine-package-202309
 
-**Common Parameters:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a4278f4c20311b8b57e)
-
-**Common Error Codes:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a45786253031531b942)
-
-### Request Header Parameters
+### Query Parameters
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| content-type | string | Y | Allowed type: application/json |
-| x-tts-access-token | string | Y | The seller access_token value from [Get Access Token](https://partner.tiktokshop.com/docv2/page/678e3a3292b0f40314a92d75#Get%20Access%20Token%20API), when user_type = 0. Follow this [guide](https://partner.tiktokshop.com/docv2/page/678e3a344ddec3030b238fa0) to get seller access_token. |
+| shop_cipher | string |  | Use this property to pass shop information in requesting the API. Failure in passing the correct value when requesting the API for cross-border shops will return incorrect response. |
 
-### Request Query Parameters
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| app_key | string | Y | Every single app will have a unique key. Please use the specific key assigned to your app. |
-| sign | string | Y | Signature generated by gen algorithm. When you send API requests to TTS, you must sign them so that TTS can identify the senders.  |
-| timestamp | int | Y | Unix timestamp GMT (UTC+00:00). This timestamp is used across all API requests. Developers can use this convert to local time. |
-| shop_cipher | string | Y | Use this property to pass shop information in requesting the API. Failure in passing the correct value when requesting the API for cross-border shops will return incorrect response.  Get by API [Get Authorization Shop](https://partner.tiktokshop.com/docv2/page/6507ead7b99d5302be949ba9?external_id=6507ead7b99d5302be949ba9) |
-
-### Request Body Parameters
+### Header Parameters
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| combinable_packages | []object | Y | Input list of combinable packages. |
-| ^id | string | Y | The package ID. |
-| ^order_ids | []string | N | The list of order IDs corresponding to a package ID. |
+| x-tts-access-token | string | Y |  |
+| Content-Type | string | Y | Allowed type: application/json |
 
-### Request Sample
+### Request Body (`application/json`)
 
-```
-https://open-api.tiktokglobalshop.com/fulfillment/202309/packages/combine?app_key=123abc&sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c&timestamp=1625484268&shop_cipher=ROW_RHkDDABBAAB8tKAVoAqsMTjsQZFLyNfY
-```
-
-### Request Body Sample
-
-```json
-{
-  "combinable_packages": [
-    {
-      "id": "12321313133",
-      "order_ids": [
-        "1233213123123",
-        "32132131231"
-      ]
-    }
-  ]
-}
-```
-
-### Sample Code
-
-**Curl**
-```shell
-curl -X POST \
- 'https://open-api.tiktokglobalshop.com/fulfillment/202309/packages/combine?app_key=38abcd&sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c&timestamp=1623812664&shop_cipher=GCP_XF90igAAAABh00qsWgtvOiGFNqyubMt3' \
--H 'x-tts-access-token: TTP_pwSm2AAAAABmmtFz1xlyKMnwg74T2GJ5s0uQbS8jPjb_GkdFVCxPqzQXSyuyfXdQa0AqyDsea2tYFNVf4XeqgZHFfPyv0Vs659QqyLYfsGzanZ5XZAin3_ZkcIxxS0_In6u6XDeU96k' \
--H 'content-type: application/json' \
--d '{
-  "combinable_packages": [
-    {
-      "id": "12321313133",
-      "order_ids": [
-        "1233213123123",
-        "32132131231"
-      ]
-    }
-  ]
-}'
-```
-
-**Go**
-```go
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-func fulfillment202309CombinePackagePost() {
-    configuration := apis.NewConfiguration()
-    configuration.AddAppInfo(appKey, appSecret)
-    apiClient := apis.NewAPIClient(configuration)
-    request := apiClient.FulfillmentV202309API.Fulfillment202309PackagesCombinePost(context.Background())
-    request = request.XTtsAccessToken("your access token")
-    request = request.ContentType("application/json")
-    request = request.ShopCipher("your shop cipher")
-    fulfillment202309CombinePackageRequestBody := fulfillment_v202309.NewFulfillment202309CombinePackageRequestBody()
-    fulfillment202309CombinePackageRequestBodyCombinablePackages := fulfillment_v202309.NewFulfillment202309CombinePackageRequestBodyCombinablePackages()
-    fulfillment202309CombinePackageRequestBodyCombinablePackages.SetId("12321313133")
-    fulfillment202309CombinePackageRequestBodyCombinablePackagesOrderIdsList := []string{"1233213123123","32132131231"}
-    fulfillment202309CombinePackageRequestBodyCombinablePackages.SetOrderIds(fulfillment202309CombinePackageRequestBodyCombinablePackagesOrderIdsList)
-    fulfillment202309CombinePackageRequestBodyCombinablePackagesList := []fulfillment_v202309.Fulfillment202309CombinePackageRequestBodyCombinablePackages{*fulfillment202309CombinePackageRequestBodyCombinablePackages}
-    fulfillment202309CombinePackageRequestBody.SetCombinablePackages(fulfillment202309CombinePackageRequestBodyCombinablePackagesList)
-    request = request.Fulfillment202309CombinePackageRequestBody(*fulfillment202309CombinePackageRequestBody)
-    resp, httpResp, err := request.Execute()
-    if err != nil || httpResp.StatusCode != 200 {
-        fmt.Printf("productsRequest err:%v resbody:%s", err, httpResp.Body)
-        return
-    }
-    if resp == nil {
-        fmt.Printf("response is nil")
-        return
-    }
-    if resp.GetCode()!= 0 {
-        fmt.Printf("response business is error, errorCode:%d errorMessage:%s", resp.GetCode(), resp.GetMessage())
-        return
-    }
-    respDataJson, _ := json.MarshalIndent(resp.GetData(), "", "  ")
-    fmt.Println("response data:", string(respDataJson))
-    return
-}
-
-```
-
-**Node.js**
-```typescript
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-async function fulfillment202309CombinePackagePost() {
-    const fulfillment202309CombinePackageRequestBody = new Fulfillment202309CombinePackageRequestBody();
-    const fulfillment202309CombinePackageRequestBodyCombinablePackages = new Fulfillment202309CombinePackageRequestBodyCombinablePackages();
-    fulfillment202309CombinePackageRequestBodyCombinablePackages.id = "12321313133";
-    fulfillment202309CombinePackageRequestBodyCombinablePackages.orderIds = ["1233213123123","32132131231"];
-    fulfillment202309CombinePackageRequestBody.combinablePackages = [fulfillment202309CombinePackageRequestBodyCombinablePackages];
-    const result = await client.api.FulfillmentV202309Api.PackagesCombinePost("your access token", "application/json", "your shop cipher", fulfillment202309CombinePackageRequestBody);
-    console.log('response: ', JSON.stringify(result, null, 2));
-}
-
-```
-
-**Java**
-```java
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-public void fulfillment202309CombinePackagePost() throws Exception {
-    ApiClient defaultClient = Configuration.getDefaultApiClient()
-            .setAppkey("your appKey")
-            .setSecret("your secret")
-            .setBasePath("https://open-api.tiktokglobalshop.com");
-    FulfillmentV202309Api apiInstance = new FulfillmentV202309Api(defaultClient);
-    CombinePackageRequestBody combinePackageRequestBody = new CombinePackageRequestBody();
-    CombinePackageRequestBodyCombinablePackages combinePackageRequestBodyCombinablePackages = new tiktokshop.open.sdk_java.model.Fulfillment.V202309.CombinePackageRequestBodyCombinablePackages();
-    combinePackageRequestBodyCombinablePackages.setId("12321313133");
-    List<String> combinePackageRequestBodyCombinablePackagesOrderIdsList = new ArrayList<>(Arrays.asList("1233213123123","32132131231"));
-    combinePackageRequestBodyCombinablePackages.setOrderIds(combinePackageRequestBodyCombinablePackagesOrderIdsList);
-    List<CombinePackageRequestBodyCombinablePackages> combinePackageRequestBodyCombinablePackagesList = new ArrayList<>(Arrays.asList(combinePackageRequestBodyCombinablePackages));
-    combinePackageRequestBody.setCombinablePackages(combinePackageRequestBodyCombinablePackagesList);
-    CombinePackageResponse result = apiInstance.fulfillment202309PackagesCombinePost("your access token", "application/json", "your shop cipher", combinePackageRequestBody);
-    System.out.println(result);
-}
-
-```
-
-### Response Parameters
-
-| Name | Type | Example | Description |
+| Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| code | int | 0 | The success or failure status code returned in API response. |
-| message | string | Success | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
-| request_id | string | 202203070749000101890810281E8C70B7 | Request log |
-| data | object |  | Specific return information |
-| ^packages | []object |  | Return list of successfully combined packages. |
-| ^^id | string | 413234134123412 | The new package ID generated after the package has been successfully combined. |
-| ^^order_ids | []string | ["1233213123123","32132131231"] | List of order IDs corresponding to a new combined package ID. |
-| ^errors | []object |  | Return list of possible errors. |
-| ^^code | int | 10007014 | The failure reason code. |
-| ^^message | string | fulfillment not allow combine package | The failure reason of an unsuccessful combined package action. |
+| combinable_packages | array<object> |  | Input list of combinable packages. |
+| ^id | string |  | The package ID. |
+| ^order_ids | array<string> |  | The list of order IDs corresponding to a package ID. |
+
+### Response
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| code | integer |  | The success or failure status code returned in API response. |
+| data | object |  | Specific return information. |
+| ^errors | array<object> |  | Return list of possible errors. |
+| ^^code | integer |  | The failure reason code. |
 | ^^detail | object |  | Error detail. |
-| ^^^package_id | string | 1231231231231313123132 | Package ID. |
-
-### Response Sample
-
-```json
-{
-  "code": 0,
-  "data": {
-    "packages": [
-      {
-        "id": "413234134123412",
-        "order_ids": [
-          "1233213123123",
-          "32132131231"
-        ]
-      }
-    ],
-    "errors": [
-      {
-        "code": 10007014,
-        "message": "fulfillment not allow combine package",
-        "detail": {
-          "package_id": "1231231231231313123132"
-        }
-      }
-    ]
-  },
-  "message": "Success",
-  "request_id": "202203070749000101890810281E8C70B7"
-}
-```
-
-### Error Codes
-
-| Code | Message |
-| --- | --- |
-| 21011028 | The package does not belong to the current shop. Please ensure you are providing the correct package ID(s) and/or shop cipher. |
-| 21011031 | Order does not belong to pre_pkg. Please ensure you are providing the correct order ID(s). |
-| 36009003 | Internal error. Please try again. If the issue persists after multiple attempts, please contact platform support. |
-
-### API Scope / Permissions
-
-| Scope Name | Type | Description |
-| --- | --- | --- |
-| Package Split And Combine | Public | The Partner will be able to split and combine orders on seller's behalf. |
+| ^^^package_id | string |  | Package ID. |
+| ^^message | string |  | The failure reason of an unsuccessful combined package action. |
+| ^packages | array<object> |  | Return list of successfully combined packages. |
+| ^^id | string |  | The new package ID generated after the package has been successfully combined. |
+| ^^order_ids | array<string> |  | List of order IDs corresponding to a new combined package ID. |
+| message | string |  | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
+| request_id | string |  | Request log. |
 
 ---
 
-## Uncombine Packages
+## UpdatePackageDeliveryStatus
 
-Use this API to uncombine one or more orders from an already combined package.
+Use this API to update the delivery status of the package from in transit status. Please note that only sellers utilizing the SOF( Seller Own Fleet) capability can use this API to update the package status to 'DELIVERED'. This API is only available for the SEA region.
 
-**Path:** `/fulfillment/202309/packages/{package_id}/uncombine`
-
+**Path:** `/fulfillment/202309/packages/deliver`
 **Method:** `POST`
+**Version:** 202309
+**Docs:** https://partner.tiktokshop.com/docv2/page/update-package-delivery-status-202309
 
-**Common Parameters:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a4278f4c20311b8b57e)
-
-**Common Error Codes:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a45786253031531b942)
-
-### Request Header Parameters
+### Query Parameters
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| content-type | string | Y | Allowed type: application/json |
-| x-tts-access-token | string | Y | The seller access_token value from [Get Access Token](https://partner.tiktokshop.com/docv2/page/678e3a3292b0f40314a92d75#Get%20Access%20Token%20API), when user_type = 0. Follow this [guide](https://partner.tiktokshop.com/docv2/page/678e3a344ddec3030b238fa0) to get seller access_token. |
+| shop_cipher | string |  | Use this property to pass shop information in requesting the API. Failure in passing the correct value when requesting the API for cross-border shops will return incorrect response. |
 
-### Request Path Parameters
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| package_id | string | Y | Package ID you wish to uncombine an order(s) from. |
-
-### Request Query Parameters
+### Header Parameters
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| app_key | string | Y | Every single app will have a unique key. Please use the specific key assigned to your app. |
-| sign | string | Y | Signature generated by gen algorithm. When you send API requests to TTS, you must sign them so that TTS can identify the senders.  |
-| timestamp | int | Y | Unix timestamp GMT (UTC+00:00). This timestamp is used across all API requests. Developers can use this convert to local time. |
-| shop_cipher | string | Y | Use this property to pass shop information in requesting the API. Failure in passing the correct value when requesting the API for cross-border shops will return incorrect response.  Get by API [Get Authorization Shop](https://partner.tiktokshop.com/docv2/page/6507ead7b99d5302be949ba9?external_id=6507ead7b99d5302be949ba9) |
+| x-tts-access-token | string | Y |  |
+| Content-Type | string | Y | Allowed type: application/json |
 
-### Request Body Parameters
+### Request Body (`application/json`)
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| order_ids | []string | N | TikTok Shop order ID. Indicate the orders that need to be removed from the package. Please make sure the orders belong to the package. |
+| packages | array<object> |  | The return list of packages. |
+| ^delivery_type | string |  | Delivery status of the package. Possible values: - `DELIVERY_SUCCESS`: Package has been successfully delivered. - `DELIVERY_FAILED`: Package delivery has been unsuccessful. - `UPDATE_POD`: For packages that have been delivered, but you would like to update an attachment. |
+| ^fail_delivery_reason | string |  | Delivery failure reasons. When `delivery_type = DELIVERY_FAILED`, this field is required. For other delivery types, this field is not required. Possible values: - `INVALID_ADDRESS`: The buyer shipping address is invalid. - `UNABLE_RECEIVE`: The buyer is currently unable to receive the delivery. - `UNABLE_CONTACT_BUYER`: Unable to contact the buyer. - `BUYER_REFUSED`: The buyer has refused to receive the product. - `DELAY_DELIVERY`: Delay in delivery. - `PACKAGE_LOST`: The package is lost. - `PACKAGE_DAMAGE`: The package is damaged. - `FORCE_MAJEURE`: An unforeseeable event of force majeure has occurred. - `OTHER`: Other reason. |
+| ^file_type | string |  | Attachment type: - `IMG` - `PDF` |
+| ^file_url | string |  | Attachment URL. The seller can use the [Upload Delivery File](https://partner.tiktokshop.com/docv2/page/650aa6e04a0bb702c06dcd34?external_id=650aa6e04a0bb702c06dcd34#Back%20To%20Top) and [Upload Delivery Image](https://partner.tiktokshop.com/docv2/page/650aa70d0fcef602bf32772f?external_id=650aa70d0fcef602bf32772f) APIs to generate the URL. The attachment will be used by TikTok Shop to verify the package delivery. |
+| ^id | string |  | The package ID. |
 
-### Request Sample
+### Response
 
-```
-https://open-api.tiktokglobalshop.com/fulfillment/202309/packages/1231231231231313123132/uncombine?app_key=123abc&sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c&timestamp=1625484268&shop_cipher=ROW_RHkDDABBAAB8tKAVoAqsMTjsQZFLyNfY
-```
-
-### Request Body Sample
-
-```json
-{
-  "order_ids": [
-    "11132131131"
-  ]
-}
-```
-
-### Sample Code
-
-**Curl**
-```shell
-curl -X POST \
- 'https://open-api.tiktokglobalshop.com/fulfillment/202309/packages/1231231231231313123132/uncombine?app_key=38abcd&sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c&timestamp=1623812664&shop_cipher=GCP_XF90igAAAABh00qsWgtvOiGFNqyubMt3' \
--H 'x-tts-access-token: TTP_pwSm2AAAAABmmtFz1xlyKMnwg74T2GJ5s0uQbS8jPjb_GkdFVCxPqzQXSyuyfXdQa0AqyDsea2tYFNVf4XeqgZHFfPyv0Vs659QqyLYfsGzanZ5XZAin3_ZkcIxxS0_In6u6XDeU96k' \
--H 'content-type: application/json' \
--d '{
-  "order_ids": [
-    "11132131131"
-  ]
-}'
-```
-
-**Go**
-```go
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-func fulfillment202309UncombinePackagesPost() {
-    configuration := apis.NewConfiguration()
-    configuration.AddAppInfo(appKey, appSecret)
-    apiClient := apis.NewAPIClient(configuration)
-    request := apiClient.FulfillmentV202309API.Fulfillment202309PackagesPackageIdUncombinePost(context.Background(), "1231231231231313123132")
-    request = request.XTtsAccessToken("your access token")
-    request = request.ContentType("application/json")
-    request = request.ShopCipher("your shop cipher")
-    fulfillment202309UncombinePackagesRequestBody := fulfillment_v202309.NewFulfillment202309UncombinePackagesRequestBody()
-    fulfillment202309UncombinePackagesRequestBodyOrderIdsList := []string{"11132131131"}
-    fulfillment202309UncombinePackagesRequestBody.SetOrderIds(fulfillment202309UncombinePackagesRequestBodyOrderIdsList)
-    request = request.Fulfillment202309UncombinePackagesRequestBody(*fulfillment202309UncombinePackagesRequestBody)
-    resp, httpResp, err := request.Execute()
-    if err != nil || httpResp.StatusCode != 200 {
-        fmt.Printf("productsRequest err:%v resbody:%s", err, httpResp.Body)
-        return
-    }
-    if resp == nil {
-        fmt.Printf("response is nil")
-        return
-    }
-    if resp.GetCode()!= 0 {
-        fmt.Printf("response business is error, errorCode:%d errorMessage:%s", resp.GetCode(), resp.GetMessage())
-        return
-    }
-    respDataJson, _ := json.MarshalIndent(resp.GetData(), "", "  ")
-    fmt.Println("response data:", string(respDataJson))
-    return
-}
-
-```
-
-**Node.js**
-```typescript
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-async function fulfillment202309UncombinePackagesPost() {
-    const fulfillment202309UncombinePackagesRequestBody = new Fulfillment202309UncombinePackagesRequestBody();
-    fulfillment202309UncombinePackagesRequestBody.orderIds = ["11132131131"];
-    const result = await client.api.FulfillmentV202309Api.PackagesPackageIdUncombinePost("1231231231231313123132", "your access token", "application/json", "your shop cipher", fulfillment202309UncombinePackagesRequestBody);
-    console.log('response: ', JSON.stringify(result, null, 2));
-}
-
-```
-
-**Java**
-```java
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-public void fulfillment202309UncombinePackagesPost() throws Exception {
-    ApiClient defaultClient = Configuration.getDefaultApiClient()
-            .setAppkey("your appKey")
-            .setSecret("your secret")
-            .setBasePath("https://open-api.tiktokglobalshop.com");
-    FulfillmentV202309Api apiInstance = new FulfillmentV202309Api(defaultClient);
-    UncombinePackagesRequestBody uncombinePackagesRequestBody = new UncombinePackagesRequestBody();
-    List<String> uncombinePackagesRequestBodyOrderIdsList = new ArrayList<>(Arrays.asList("11132131131"));
-    uncombinePackagesRequestBody.setOrderIds(uncombinePackagesRequestBodyOrderIdsList);
-    UncombinePackagesResponse result = apiInstance.fulfillment202309PackagesPackageIdUncombinePost("1231231231231313123132", "your access token", "application/json", "your shop cipher", uncombinePackagesRequestBody);
-    System.out.println(result);
-}
-
-```
-
-### Response Parameters
-
-| Name | Type | Example | Description |
+| Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| code | int | 0 | The success or failure status code returned in API response. |
-| message | string | Success | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
-| request_id | string | 202203070749000101890810281E8C70B7 | Request log |
-| data | object |  | Specific return information |
-| ^packages | []object |  | Return list of packages after being uncombined. |
-| ^^id | string | 123456 | The newly generated package ID(s) after being uncombined. |
-| ^^order_ids | []string | ["576462377512830168","576462377512830168"] | List of order ID(s) corresponding to the uncombined package ID(s). |
-
-### Response Sample
-
-```json
-{
-  "code": 0,
-  "data": {
-    "packages": [
-      {
-        "id": "123456",
-        "order_ids": [
-          "576462377512830168",
-          "576462377512830168"
-        ]
-      }
-    ]
-  },
-  "message": "Success",
-  "request_id": "202203070749000101890810281E8C70B7"
-}
-```
-
-### Error Codes
-
-| Code | Message |
-| --- | --- |
-| 36009003 | Internal error. Please try again. If the issue persists after multiple attempts, please contact platform support. |
-| 21011001 | Package not found. If the error persists, please contact the platform for assistance. |
-| 21011005 | An invalid request parameter was passed. Please check that you have the correct parameter type(s) and format. |
-| 21011028 | The package does not belong to the current shop. Please ensure you are providing the correct package ID and/or shop cipher. |
-| 21011029 | order does not belong to fulfill unit |
-
-### API Scope / Permissions
-
-| Scope Name | Type | Description |
-| --- | --- | --- |
-| Package Split And Combine | Public | The Partner will be able to split and combine orders on seller's behalf. |
+| code | integer |  | The success or failure status code returned in API response. |
+| data | object |  | Specific return information. |
+| ^errors | array<object> |  | Specific return information (returns multiple errors and reasons). |
+| ^^code | integer |  | The failure reason code. |
+| ^^detail | object |  | Error detail. |
+| ^^^package_id | string |  | Package ID. |
+| ^^message | string |  | Fulfillment failure reason. |
+| message | string |  | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
+| request_id | string |  | Request log. |
 
 ---
 
-## Get Package Handover Time Slots
+## SchedulePackageHandover
 
-Use this API to retrieve the time slots available for pickup, drop-off, or van collection for the seller's specified package by using package ID.
+Use this API to schedule a platform shipping package pickup or drop off. After scheduling the package pickup or drop off, the API will return relevant package pickup/ drop off info.  Note: Please use order id to schedule a package pickup or drop off.
 
-**Path:** `/fulfillment/202309/packages/{package_id}/handover_time_slots`
-
-**Method:** `GET`
-
-**Common Parameters:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a4278f4c20311b8b57e)
-
-**Common Error Codes:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a45786253031531b942)
-
-### Request Header Parameters
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| content-type | string | Y | Allowed type: application/json |
-| x-tts-access-token | string | Y | The seller access_token value from [Get Access Token](https://partner.tiktokshop.com/docv2/page/678e3a3292b0f40314a92d75#Get%20Access%20Token%20API), when user_type = 0. Follow this [guide](https://partner.tiktokshop.com/docv2/page/678e3a344ddec3030b238fa0) to get seller access_token. |
-
-### Request Path Parameters
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| package_id | string | Y | TikTok Shop package ID. |
-
-### Request Query Parameters
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| app_key | string | Y | Every single app will have a unique key. Please use the specific key assigned to your app. |
-| sign | string | Y | Signature generated by gen algorithm. When you send API requests to TTS, you must sign them so that TTS can identify the senders.  |
-| timestamp | int | Y | Unix timestamp GMT (UTC+00:00). This timestamp is used across all API requests. Developers can use this convert to local time. |
-| shop_cipher | string | Y | Use this property to pass shop information in requesting the API. Failure in passing the correct value when requesting the API for cross-border shops will return incorrect response.  Get by API [Get Authorization Shop](https://partner.tiktokshop.com/docv2/page/6507ead7b99d5302be949ba9?external_id=6507ead7b99d5302be949ba9) |
-
-### Request Sample
-
-```
-https://open-api.tiktokglobalshop.com/fulfillment/202309/packages/5433567853345/handover_time_slots?app_key=123abc&sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c&timestamp=1625484268&shop_cipher=ROW_RHkDDABBAAB8tKAVoAqsMTjsQZFLyNfY
-```
-
-### Sample Code
-
-**Curl**
-```shell
-curl -X GET \
- 'https://open-api.tiktokglobalshop.com/fulfillment/202309/packages/5433567853345/handover_time_slots?shop_cipher=GCP_XF90igAAAABh00qsWgtvOiGFNqyubMt3&timestamp=1623812664&app_key=38abcd&sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c' \
--H 'x-tts-access-token: TTP_pwSm2AAAAABmmtFz1xlyKMnwg74T2GJ5s0uQbS8jPjb_GkdFVCxPqzQXSyuyfXdQa0AqyDsea2tYFNVf4XeqgZHFfPyv0Vs659QqyLYfsGzanZ5XZAin3_ZkcIxxS0_In6u6XDeU96k' \
--H 'content-type: application/json'
-```
-
-**Go**
-```go
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-func fulfillment202309GetPackageHandoverTimeSlotsGet() {
-    configuration := apis.NewConfiguration()
-    configuration.AddAppInfo(appKey, appSecret)
-    apiClient := apis.NewAPIClient(configuration)
-    request := apiClient.FulfillmentV202309API.Fulfillment202309PackagesPackageIdHandoverTimeSlotsGet(context.Background(), "5433567853345")
-    request = request.XTtsAccessToken("your access token")
-    request = request.ContentType("application/json")
-    request = request.ShopCipher("your shop cipher")
-    resp, httpResp, err := request.Execute()
-    if err != nil || httpResp.StatusCode != 200 {
-        fmt.Printf("productsRequest err:%v resbody:%s", err, httpResp.Body)
-        return
-    }
-    if resp == nil {
-        fmt.Printf("response is nil")
-        return
-    }
-    if resp.GetCode()!= 0 {
-        fmt.Printf("response business is error, errorCode:%d errorMessage:%s", resp.GetCode(), resp.GetMessage())
-        return
-    }
-    respDataJson, _ := json.MarshalIndent(resp.GetData(), "", "  ")
-    fmt.Println("response data:", string(respDataJson))
-    return
-}
-
-```
-
-**Node.js**
-```typescript
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-async function fulfillment202309GetPackageHandoverTimeSlotsGet() {
-    const result = await client.api.FulfillmentV202309Api.PackagesPackageIdHandoverTimeSlotsGet("5433567853345", "your access token", "application/json", "your shop cipher");
-    console.log('response: ', JSON.stringify(result, null, 2));
-}
-
-```
-
-**Java**
-```java
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-public void fulfillment202309GetPackageHandoverTimeSlotsGet() throws Exception {
-    ApiClient defaultClient = Configuration.getDefaultApiClient()
-            .setAppkey("your appKey")
-            .setSecret("your secret")
-            .setBasePath("https://open-api.tiktokglobalshop.com");
-    FulfillmentV202309Api apiInstance = new FulfillmentV202309Api(defaultClient);
-    GetPackageHandoverTimeSlotsResponse result = apiInstance.fulfillment202309PackagesPackageIdHandoverTimeSlotsGet("5433567853345", "your access token", "application/json", "your shop cipher");
-    System.out.println(result);
-}
-
-```
-
-### Response Parameters
-
-| Name | Type | Example | Description |
-| --- | --- | --- | --- |
-| code | int | 0 | The success or failure status code returned in API response. |
-| message | string | Success | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
-| request_id | string | 202203070749000101890810281E8C70B7 | Request log |
-| data | object |  | Specific return information |
-| ^can_pickup | bool | true | Whether this package supports door-to-door collection. |
-| ^can_drop_off | bool | true | Whether this package be dropped off at a drop-off location |
-| ^can_van_collection | bool | true | Specific to UK. Use this field to determine whether van collection is available. |
-| ^drop_off_point_url | string | true | View package drop-off locations  via provided URL. |
-| ^pickup_slots | []object |  | Time slot for door-to-door collection. |
-| ^^start_time | int | 1623812664 | The start date and time of the package pick up time slot. Unix timestamp. |
-| ^^end_time | int | 1623812664 | The end date and time of the package pick up time slot. Unix timestamp. |
-| ^^avaliable | bool | true | Whether an appointment be made for this time slot. |
-
-### Response Sample
-
-```json
-{
-  "code": 0,
-  "data": {
-    "can_pickup": true,
-    "can_drop_off": true,
-    "can_van_collection": true,
-    "drop_off_point_url": "true",
-    "pickup_slots": [
-      {
-        "start_time": 1623812664,
-        "end_time": 1623812664,
-        "avaliable": true
-      }
-    ]
-  },
-  "message": "Success",
-  "request_id": "202203070749000101890810281E8C70B7"
-}
-```
-
-### Error Codes
-
-| Code | Message |
-| --- | --- |
-| 36009003 | Internal error. Please try again. If the issue persists after multiple attempts, please contact platform support. |
-| 11001027 | System timeout. If this error persists, please contact the platform for assistance. |
-| 11021009 | No available shipping services for this request. Please modify the package weight or check the recipient address. If the error persists, please contact the platform for assistance. |
-| 21001001 | Invalid parameters. Please ensure you are passing the correct request parameter(s). |
-
-### API Scope / Permissions
-
-| Scope Name | Type | Description |
-| --- | --- | --- |
-| Package Split And Combine | Public | The Partner will be able to split and combine orders on seller's behalf. |
-
----
-
-## Ship Package
-
-Use this API to ship a package. There are two kinds of shipping options available: `TikTok Shipping` or `Seller Shipping`.
-
-- `TikTok Shipping`: Schedule a package handover time for TikTok Shipping carriers to pickup a package from seller.
-- `Seller Shipping`: Seller arranges their own shipping, and uploads a tracking number and `shipping_provider_id`. Package ID can be obtained from [Get Order Detail](https://partner.tiktokshop.com/docv2/page/650aa8ccc16ffe02b8f167a0?external_id=650aa8ccc16ffe02b8f167a0#Back%20To%20Top).
-
-**Path:** `/fulfillment/202309/packages/{package_id}/ship`
-
+**Path:** `/fulfillment/202309/packages/schedule`
 **Method:** `POST`
+**Version:** 202309
+**Docs:** https://partner.tiktokshop.com/docv2/page/schedule-package-handover-202309
 
-**Common Parameters:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a4278f4c20311b8b57e)
-
-**Common Error Codes:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a45786253031531b942)
-
-### Request Header Parameters
+### Query Parameters
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| content-type | string | Y | Allowed type: application/json |
-| x-tts-access-token | string | Y | The seller access_token value from [Get Access Token](https://partner.tiktokshop.com/docv2/page/678e3a3292b0f40314a92d75#Get%20Access%20Token%20API), when user_type = 0. Follow this [guide](https://partner.tiktokshop.com/docv2/page/678e3a344ddec3030b238fa0) to get seller access_token. |
+| shop_cipher | string |  | Use this property to pass shop information in requesting the API. Failure in passing the correct value when requesting the API for cross-border shops will return incorrect response. |
 
-### Request Path Parameters
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| package_id | string | Y | TikTok Shop package ID. |
-
-### Request Query Parameters
+### Header Parameters
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| app_key | string | Y | Every single app will have a unique key. Please use the specific key assigned to your app. |
-| sign | string | Y | Signature generated by gen algorithm. When you send API requests to TTS, you must sign them so that TTS can identify the senders.  |
-| timestamp | int | Y | Unix timestamp GMT (UTC+00:00). This timestamp is used across all API requests. Developers can use this convert to local time. |
-| shop_cipher | string | Y | Use this property to pass shop information in requesting the API. Failure in passing the correct value when requesting the API for cross-border shops will return incorrect response.  Get by API [Get Authorization Shop](https://partner.tiktokshop.com/docv2/page/6507ead7b99d5302be949ba9?external_id=6507ead7b99d5302be949ba9) |
+| x-tts-access-token | string | Y |  |
+| Content-Type | string | Y | Allowed type: application/json |
 
-### Request Body Parameters
+### Request Body (`application/json`)
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| handover_method | string | N | Possible values: - `PICKUP`: A logistics carrier will pick up the package(s) from the seller's pickup address. - `DROP_OFF`: The seller will need to drop off the package(s) to a designated location. |
-| pickup_slot | object | N | Pickup time slot.  |
-| ^start_time | int | N | The start date and time of the package pickup time slot. Unix timestamp. |
-| ^end_time | int | N | The end date and time of the package pickup time slot. Unix timestamp. |
-| self_shipment | object | N | Only needed for merchant self-shipping packages. Check the `delivery_option` field of [Get Package Detail](https://partner.tiktokshop.com/docv2/page/650aa39fbace3e02b75d8617?external_id=650aa39fbace3e02b75d8617#Back%20To%20Top) to see how to differentiate platform-logistics and self-shipping. Use the `shipping_provider_id` retrieved from [Get Shipping Providers](https://partner.tiktokshop.com/docv2/page/650aa48d4a0bb702c06d85cd?external_id=650aa48d4a0bb702c06d85cd) and upload the corresponding `tracking_number`. |
-| ^tracking_number | string | Y | For package with `SEND_BY_SELLER` as `delivery_option` (merchant self-shipping mode), you must input a `tracking_number` to call this API. |
-| ^shipping_provider_id | string | Y | For package with `SEND_BY_SELLER` as `delivery_option` (merchant self-shipping mode), you must input a `shipping_provider_id` to call this API. Please use [Get Shipping Providers](https://partner.tiktokshop.com/docv2/page/650aa48d4a0bb702c06d85cd?external_id=650aa48d4a0bb702c06d85cd) to obtain the `shipping_provider_id`. |
+| handover_method | string |  | Schedule the package as a pickup or drop off. - PICKUP (A shipping provider will pickup the package(s) from the seller's pickup address) - DROP_OFF (Seller will need to drop off the package(s) to a designated location) |
+| order_id | string |  | TikTok Shop order ID |
+| order_line_item_ids | array<string> |  | Line item ID list |
+| pickup_slot | object |  | Shipping provider pickup times. |
+| ^end_time | integer |  | The end date and time of the package pickup time slot. |
+| ^start_time | integer |  | The start date and time of the package pickup time slot. |
 
-### Request Sample
+### Response
 
-```
-https://open-api.tiktokglobalshop.com/fulfillment/202309/packages/5433567853345/ship?app_key=123abc&sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c&timestamp=1625484268&shop_cipher=ROW_RHkDDABBAAB8tKAVoAqsMTjsQZFLyNfY
-```
-
-### Request Body Sample
-
-```json
-{
-  "handover_method": "PICKUP",
-  "pickup_slot": {
-    "start_time": 1623812664,
-    "end_time": 1623812664
-  },
-  "self_shipment": {
-    "tracking_number": "JX12345",
-    "shipping_provider_id": "6617675021119438849"
-  }
-}
-```
-
-### Sample Code
-
-**Curl**
-```shell
-curl -X POST \
- 'https://open-api.tiktokglobalshop.com/fulfillment/202309/packages/5433567853345/ship?app_key=38abcd&sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c&timestamp=1623812664&shop_cipher=GCP_XF90igAAAABh00qsWgtvOiGFNqyubMt3' \
--H 'x-tts-access-token: TTP_pwSm2AAAAABmmtFz1xlyKMnwg74T2GJ5s0uQbS8jPjb_GkdFVCxPqzQXSyuyfXdQa0AqyDsea2tYFNVf4XeqgZHFfPyv0Vs659QqyLYfsGzanZ5XZAin3_ZkcIxxS0_In6u6XDeU96k' \
--H 'content-type: application/json' \
--d '{
-  "handover_method": "PICKUP",
-  "pickup_slot": {
-    "start_time": 1623812664,
-    "end_time": 1623812664
-  },
-  "self_shipment": {
-    "tracking_number": "JX12345",
-    "shipping_provider_id": "6617675021119438849"
-  }
-}'
-```
-
-**Go**
-```go
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-func fulfillment202309ShipPackagePost() {
-    configuration := apis.NewConfiguration()
-    configuration.AddAppInfo(appKey, appSecret)
-    apiClient := apis.NewAPIClient(configuration)
-    request := apiClient.FulfillmentV202309API.Fulfillment202309PackagesPackageIdShipPost(context.Background(), "5433567853345")
-    request = request.XTtsAccessToken("your access token")
-    request = request.ContentType("application/json")
-    request = request.ShopCipher("your shop cipher")
-    fulfillment202309ShipPackageRequestBody := fulfillment_v202309.NewFulfillment202309ShipPackageRequestBody()
-    fulfillment202309ShipPackageRequestBody.SetHandoverMethod("PICKUP")
-    fulfillment202309ShipPackageRequestBodyPickupSlot := fulfillment_v202309.NewFulfillment202309ShipPackageRequestBodyPickupSlot()
-    fulfillment202309ShipPackageRequestBodyPickupSlot.SetStartTime(1623812664)
-    fulfillment202309ShipPackageRequestBodyPickupSlot.SetEndTime(1623812664)
-    fulfillment202309ShipPackageRequestBody.SetPickupSlot(*fulfillment202309ShipPackageRequestBodyPickupSlot)
-    fulfillment202309ShipPackageRequestBodySelfShipment := fulfillment_v202309.NewFulfillment202309ShipPackageRequestBodySelfShipment()
-    fulfillment202309ShipPackageRequestBodySelfShipment.SetTrackingNumber("JX12345")
-    fulfillment202309ShipPackageRequestBodySelfShipment.SetShippingProviderId("6617675021119438849")
-    fulfillment202309ShipPackageRequestBody.SetSelfShipment(*fulfillment202309ShipPackageRequestBodySelfShipment)
-    request = request.Fulfillment202309ShipPackageRequestBody(*fulfillment202309ShipPackageRequestBody)
-    resp, httpResp, err := request.Execute()
-    if err != nil || httpResp.StatusCode != 200 {
-        fmt.Printf("productsRequest err:%v resbody:%s", err, httpResp.Body)
-        return
-    }
-    if resp == nil {
-        fmt.Printf("response is nil")
-        return
-    }
-    if resp.GetCode()!= 0 {
-        fmt.Printf("response business is error, errorCode:%d errorMessage:%s", resp.GetCode(), resp.GetMessage())
-        return
-    }
-    respDataJson, _ := json.MarshalIndent(resp.GetData(), "", "  ")
-    fmt.Println("response data:", string(respDataJson))
-    return
-}
-
-```
-
-**Node.js**
-```typescript
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-async function fulfillment202309ShipPackagePost() {
-    const fulfillment202309ShipPackageRequestBody = new Fulfillment202309ShipPackageRequestBody();
-    fulfillment202309ShipPackageRequestBody.handoverMethod = "PICKUP";
-    const fulfillment202309ShipPackageRequestBodyPickupSlot = new Fulfillment202309ShipPackageRequestBodyPickupSlot();
-    fulfillment202309ShipPackageRequestBodyPickupSlot.startTime = 1623812664;
-    fulfillment202309ShipPackageRequestBodyPickupSlot.endTime = 1623812664;
-    fulfillment202309ShipPackageRequestBody.pickupSlot = fulfillment202309ShipPackageRequestBodyPickupSlot;
-    const fulfillment202309ShipPackageRequestBodySelfShipment = new Fulfillment202309ShipPackageRequestBodySelfShipment();
-    fulfillment202309ShipPackageRequestBodySelfShipment.trackingNumber = "JX12345";
-    fulfillment202309ShipPackageRequestBodySelfShipment.shippingProviderId = "6617675021119438849";
-    fulfillment202309ShipPackageRequestBody.selfShipment = fulfillment202309ShipPackageRequestBodySelfShipment;
-    const result = await client.api.FulfillmentV202309Api.PackagesPackageIdShipPost("5433567853345", "your access token", "application/json", "your shop cipher", fulfillment202309ShipPackageRequestBody);
-    console.log('response: ', JSON.stringify(result, null, 2));
-}
-
-```
-
-**Java**
-```java
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-public void fulfillment202309ShipPackagePost() throws Exception {
-    ApiClient defaultClient = Configuration.getDefaultApiClient()
-            .setAppkey("your appKey")
-            .setSecret("your secret")
-            .setBasePath("https://open-api.tiktokglobalshop.com");
-    FulfillmentV202309Api apiInstance = new FulfillmentV202309Api(defaultClient);
-    ShipPackageRequestBody shipPackageRequestBody = new ShipPackageRequestBody();
-    shipPackageRequestBody.setHandoverMethod("PICKUP");
-    ShipPackageRequestBodyPickupSlot shipPackageRequestBodyPickupSlot = new tiktokshop.open.sdk_java.model.Fulfillment.V202309.ShipPackageRequestBodyPickupSlot();
-    shipPackageRequestBodyPickupSlot.setStartTime(1623812664L);
-    shipPackageRequestBodyPickupSlot.setEndTime(1623812664L);
-    shipPackageRequestBody.setPickupSlot(shipPackageRequestBodyPickupSlot);
-    ShipPackageRequestBodySelfShipment shipPackageRequestBodySelfShipment = new tiktokshop.open.sdk_java.model.Fulfillment.V202309.ShipPackageRequestBodySelfShipment();
-    shipPackageRequestBodySelfShipment.setTrackingNumber("JX12345");
-    shipPackageRequestBodySelfShipment.setShippingProviderId("6617675021119438849");
-    shipPackageRequestBody.setSelfShipment(shipPackageRequestBodySelfShipment);
-    ShipPackageResponse result = apiInstance.fulfillment202309PackagesPackageIdShipPost("5433567853345", "your access token", "application/json", "your shop cipher", shipPackageRequestBody);
-    System.out.println(result);
-}
-
-```
-
-### Response Parameters
-
-| Name | Type | Example | Description |
+| Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| code | int | 0 | The success or failure status code returned in API response. |
-| message | string | Success | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
-| request_id | string | 202203070749000101890810281E8C70B7 | Request log |
-| data | object |  | Specific return information |
-
-### Response Sample
-
-```json
-{
-  "code": 0,
-  "data": {},
-  "message": "Success",
-  "request_id": "202203070749000101890810281E8C70B7"
-}
-```
-
-### Error Codes
-
-| Code | Message |
-| --- | --- |
-| 36009003 | Internal error. Please try again. If the issue persists after multiple attempts, please contact platform support. |
-| 11001002 | invalid param. |
-| 11001031 | System process error, please try again later. |
-| 11006013 | Failed to ship package. Products under the Phones & Tablets category cannot be shipped together with other items in the same package. Please split the order.  |
-| 11006014 | Failed to ship package. If you are shipping multiple products under the Phones & Tablets category, they must be shipped in individual packages. Please split the order to continue. |
-| 11006021 | Package has been shipped. Please not ship the package again. |
-| 11021009 | No available shipping services for this request. Please modify the package weight or check the recipient address. If the error persists, please contact the platform for assistance. |
-| 11021010 | The shipment failed due to an invalid postal code. Please ask the buyer to edit the address. If the address cannot be changed, you may cancel the order without penalty by selecting the following reason: Unable to deliver to buyer address. |
-| 11021011 | Fail to ship package because the product name is invalid. You may cancel the order without penalty by selecting the following reason: Unable to deliver to buyer address. |
-| 11021012 | illegal address |
-| 11021013 | The shipment failed because the delivery address is too long. Please ask the buyer to shorten the address. If the address cannot be changed, you may cancel the order without penalty by selecting the following reason: Unable to deliver to buyer address. |
-| 11021014 | product oversize |
-| 11021015 | Fail to ship package because the package is overweight. You may cancel the order without penalty by selecting the following reason: Unable to deliver to buyer address. |
-| 11021016 | Fail to ship package because the weight of the SKU exceeds the allowed limit. You may cancel the order without penalty by selecting the following reason: Unable to deliver to buyer address. |
-| 11021017 | Fail to ship package because the SKU dimensions exceed the allowed limits. You may cancel the order without penalty by selecting the following reason: Unable to deliver to buyer address. |
-| 11021018 | Fail to ship package because the number of items in the package exceeds the allowed limit. |
-| 11021019 | Fail to ship package because the package dimensions exceed the allowed limits. You may cancel the order without penalty by selecting the following reason: Unable to deliver to buyer address. |
-| 11021020 | Fail to ship package because the package's circumference exceeds the allowed limit. You may cancel the order without penalty by selecting the following reason: Unable to deliver to buyer address. |
-| 11021021 | Fail to ship package because the SKU name is invalid. You may cancel the order without penalty by selecting the following reason: Unable to deliver to buyer address. |
-| 11021022 | Fail to ship package because the longest dimension of the package exceeds the allowed limit. You may cancel the order without penalty by selecting the following reason: Unable to deliver to buyer address. |
-| 11021023 | Fail to ship package because the buyer and/or seller addresses are invalid. You may cancel the order without penalty by selecting the following reason: Unable to deliver to buyer address. |
-| 11021024 | Fail to ship package because the buyer recipient address is invalid. You may cancel the order without penalty by selecting the following reason: Unable to deliver to buyer address. |
-| 11021025 | Fail to ship package because the seller shipping address is invalid. You may cancel the order without penalty by selecting the following reason: Unable to deliver to buyer address. |
-| 11028006 | This tracking number cannot be matched to any carrier, please check the tracking number and upload again. |
-| 11050001 | invalid param |
-| 21001001 | Invalid parameters. Please ensure you are passing the correct request parameter(s). |
-| 21001003 | System timeout. If the error persists, please contact the platform for assistance. |
-| 21001008 | System process error, please try again later. |
-| 21001011 | System process error, please try again later. |
-| 21004006 | Failed to ship. Please ensure an invoice is uploaded before shipping. |
-| 21004017 | ON DEMAND RTS NOT IN PICKUP TIME. |
-| 21004019 | Need invoice uploaded for all order before rts. |
-| 21004020 | Fulfillment Invoice status is not success, can not rts pkg. |
-| 21004024 | ship order failed due to platform limitations. |
-| 21008025 | Seller cannot operate orders which are fulfilled by platform |
-| 21008044 | Package item has after-sale request, please process the after-sale request first. |
-| 21008099 | Package has been shipped. Please not ship the package again. |
-| 21011001 | Package not found. If the error persists, please contact the platform for assistance. |
-| 21011003 | fulfill_unit action not allowed |
-| 21011007 | Package item has after-sale request, please process the after-sale request first. |
-| 21011008 | Package is not complete. If the error persists, please contact the platform for assistance. |
-| 21011020 | These orders are already shipped. |
-| 21011022 | Invalid tracking number or provider ID. Please double check and try again. |
-| 21011025 | Duplicate tracking number.  |
-| 21011026 | fulfillment tracking no used times over limit. |
-| 21011027 | Package has already been delivered. |
-| 21011028 | The package does not belong to the current shop.    |
-| 21011030 | fulfillment not allow update tracking no. |
-| 21011040 | Package has already been shipped. |
-| 21011041 | Cannot complete the operation when order is cancelled.  |
-| 21011050 | The tracking number can only be updated within a certain number of hours. |
-| 21011051 | The tracking number can only be updated once. |
-| 21011053 | Fail to ship package because the shipment time is outside of the pick-up time slot. |
-| 21011054 | No available shipping services for this request due to missing pick-up time slot. Please contact customer service for assistance. |
-| 21014009 | Failed to ship. You may cancel the order without penalty by selecting the following reason: Unable to deliver to buyer address. |
-| 21021010 | Failed to ship. You may cancel the order without penalty by selecting the following reason: Unable to deliver to buyer address. |
-| 21022029 | System process error, please try again later. |
-| 21022032 | match provider failed. |
-| 21034012 | tracking no has been used. |
-| 21042001 | System process error, please try again later. |
-| 21042067 | The logistics service provider couldn't process your order.	 |
-| 21042076 | System process error, please try again later. |
-
-### API Scope / Permissions
-
-| Scope Name | Type | Description |
-| --- | --- | --- |
-| Fulfillment Basic | Public | The Partner will be able to fulfil and manage orders on seller's behalf, and provide real-time updates on the status of seller's orders. |
+| code | integer |  | The success or failure status code returned in API response. |
+| data | object |  | Specific return information. |
+| ^create_time | integer |  | Unix timestamp |
+| ^dimension | object |  | The dimensions of the scheduled package. The dimensions calculated by TikTok Shop based on the product's dimensions. |
+| ^^height | string |  | The height of package. |
+| ^^length | string |  | The length of package. |
+| ^^unit | string |  | The unit of measurement is used to measure the length. - CM - INCH |
+| ^^width | string |  | The width of package. |
+| ^handover_method | string |  | Schedule the package as a pickup or drop off. - PICKUP (A shipping provider will pickup the package(s) from the seller's pickup address) - DROP_OFF (Seller will need to drop off the package(s) to a designated location) |
+| ^order_id | string |  | TikTok Shop order ID |
+| ^order_line_item_ids | array<string> |  | Order line item IDs that belong to the package. |
+| ^package_id | string |  | Package ID. |
+| ^shipping_provider_id | string |  | Package shipping provider id |
+| ^shipping_provider_name | string |  | Package shipping provider |
+| ^tracking_number | string |  | Package tracking number |
+| ^update_time | integer |  | Unix timestamp |
+| ^weight | object |  | The weight of the scheduled package. The weight calculated by TikTok Shop based on the product's weight. |
+| ^^unit | string |  | The unit of measurement is used to measure the weight. - GRAM - POUND |
+| ^^value | string |  | The value of the weight of the scheduled package. |
+| message | string |  | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
+| request_id | string |  | Request log. |
 
 ---
 
-## Batch Ship Packages
+## SearchPackage
+
+Retrieve package IDs based on specified conditions. Package creation time and information update time are the common querying conditions.
+
+**Path:** `/fulfillment/202309/packages/search`
+**Method:** `POST`
+**Version:** 202309
+**Docs:** https://partner.tiktokshop.com/docv2/page/search-package-202309
+
+### Query Parameters
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| page_size | integer | Y | The number of results to be returned per page. Valid range: [1-50]. |
+| sort_field | string |  | The returned results will be sorted by the specified field. Default: `create_time` Possible values: - `create_time` - `update_time` - `order_pay_time` Specify the order for sorting the returned results by using the sort_order parameter. |
+| sort_order | string |  | The sort order for the sort_field parameter. Default: `DESC` Possible values: - `ASC`: Ascending order - `DESC`: Descending order |
+| page_token | string |  | An opaque token used to retrieve the next page of a paginated result set. Retrieve this value from the result of the `next_page_token` from a previous response. It is not needed for the first page. |
+| shop_cipher | string |  | Use this property to pass shop information in requesting the API. Failure in passing the correct value when requesting the API for cross-border shops will return incorrect response. Get by API [Get Authorization Shop](https://partner.tiktokshop.com/docv2/page/6507ead7b99d5302be949ba9?external_id=6507ead7b99d5302be949ba9) |
+
+### Header Parameters
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| x-tts-access-token | string | Y |  |
+| Content-Type | string | Y | Allowed type: application/json |
+
+### Request Body (`application/json`)
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| create_time_ge | integer |  | Filter the packages to show only those that are created after (or at) the specified date and time. Unix timestamp. |
+| create_time_lt | integer |  | Filter the packages to show only those that are created before the specified date and time. Unix timestamp. |
+| package_status | string |  | Possible values: - `PROCESSING`: Package has been arranged by seller. Waiting for carrier to collect the parcel. - `FULFILLING`: Package has been collected by carrier and in transit. - `COMPLETED`: Package has been delivered. - `CANCELLED`: Package has been canceled. Normally, the package is canceled due to the package being lost or damaged. |
+| update_time_ge | integer |  | Filter the packages to show only those that are updated after (or at) the specified date and time. Unix timestamp. |
+| update_time_lt | integer |  | Filter the packages to show only those that are updated before the specified date and time. Unix timestamp. |
+
+### Response
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| code | integer |  | The success or failure status code returned in API response. |
+| data | object |  | Specific return information. |
+| ^next_page_token | string |  | An opaque token used to retrieve the next page of a paginated result set. Provide this value in the `page_token` parameter of your request if the current response does not return all the results. |
+| ^packages | array<object> |  | The response list of packages. |
+| ^^create_time | integer |  | Package creation time. Unix timestamp. |
+| ^^id | string |  | Package ID. |
+| ^^order_line_item_ids | array<string> |  | The order line item ID contained in the package. |
+| ^^orders | array<object> |  | The response list of TikTok Shop orders. |
+| ^^^id | string |  | TikTok Shop order ID. |
+| ^^^skus | array<object> |  | [Deprecated]The response list of SKUs. |
+| ^^^^id | string |  | [Deprecated]The SKU ID. |
+| ^^^^image_url | string |  | [Deprecated]The SKU image in order snapshot. |
+| ^^^^name | string |  | [Deprecated]The SKU name. |
+| ^^^^quantity | integer |  | [Deprecated]The SKU quantity. |
+| ^^shipping_provider_id | string |  | Package shipping provider ID. |
+| ^^shipping_provider_name | string |  | Package shipping provider. |
+| ^^status | string |  | Possible values: - `PROCESSING`: Package has been arranged by seller. Waiting for carrier to collect the parcel. - `FULFILLING`: Package has been collected by carrier and in transit. - `COMPLETED`: Package has been delivered. - `CANCELLED`: Package has been canceled. Normally, the package is canceled due to the package being lost or damaged. |
+| ^^tracking_number | string |  | Package tracking number. |
+| ^^update_time | integer |  | Package latest update time. Unix timestamp |
+| ^total_count | integer |  | The number of packages that meet the query conditions. |
+| message | string |  | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
+| request_id | string |  | Request log. |
+
+---
+
+## BatchShipPackages
 
 Use this API to batch ship packages by providing multiple package IDs. This API is available for TikTok shipping orders as well as seller shipping orders. 
 
@@ -2170,3015 +816,736 @@ Use this API to batch ship packages by providing multiple package IDs. This API 
 - `Seller Shipping`: Seller arranges their own shipping, and upload a `tracking_number` and `shipping_provider_id`. Package ID can be obtained from [Get Order Detail](https://partner.tiktokshop.com/docv2/page/650aa8ccc16ffe02b8f167a0?external_id=650aa8ccc16ffe02b8f167a0).
 
 **Path:** `/fulfillment/202309/packages/ship`
-
 **Method:** `POST`
+**Version:** 202309
+**Docs:** https://partner.tiktokshop.com/docv2/page/batch-ship-packages-202309
 
-**Common Parameters:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a4278f4c20311b8b57e)
-
-**Common Error Codes:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a45786253031531b942)
-
-### Request Header Parameters
+### Query Parameters
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| content-type | string | Y | Allowed type: application/json |
-| x-tts-access-token | string | Y | The seller access_token value from [Get Access Token](https://partner.tiktokshop.com/docv2/page/678e3a3292b0f40314a92d75#Get%20Access%20Token%20API), when user_type = 0. Follow this [guide](https://partner.tiktokshop.com/docv2/page/678e3a344ddec3030b238fa0) to get seller access_token. |
+| shop_cipher | string |  | Use this property to pass shop information in requesting the API. Failure in passing the correct value when requesting the API for cross-border shops will return incorrect response. |
 
-### Request Query Parameters
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| app_key | string | Y | Every single app will have a unique key. Please use the specific key assigned to your app. |
-| sign | string | Y | Signature generated by gen algorithm. When you send API requests to TTS, you must sign them so that TTS can identify the senders.  |
-| timestamp | int | Y | Unix timestamp GMT (UTC+00:00). This timestamp is used across all API requests. Developers can use this convert to local time. |
-| shop_cipher | string | Y | Use this property to pass shop information in requesting the API. Failure in passing the correct value when requesting the API for cross-border shops will return incorrect response.  Get by API [Get Authorization Shop](https://partner.tiktokshop.com/docv2/page/6507ead7b99d5302be949ba9?external_id=6507ead7b99d5302be949ba9) |
-
-### Request Body Parameters
+### Header Parameters
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| packages | []object | Y | Input list of packages you would like to batch ship. |
-| ^id | string | Y | Package ID. |
-| ^handover_method | string | N | Possible values: - `PICKUP`: A shipping provider will pickup the package(s) from the seller's pickup address. - `DROP_OFF`: The seller will need to drop off the package(s) at a designated location. |
-| ^pickup_slot | object | N | Package pickup time slot. |
-| ^^start_time | int | N | The start date and time of the package pickup time slot. Unix timestamp. |
-| ^^end_time | int | N | The end date and time of the package pickup time slot. Unix timestamp. |
-| ^self_shipment | object | N | Only needed for seller shipping packages. Check the `delivery_option `field in [Get Package Detail](https://partner.tiktokshop.com/docv2/page/650aa39fbace3e02b75d8617?external_id=650aa39fbace3e02b75d8617) to see how to differentiate between TikTok shipping and seller shipping. Use the `shipping_provider_id` retrieved from the [Get Shipping Providers](https://partner.tiktokshop.com/docv2/page/650aa48d4a0bb702c06d85cd?external_id=650aa48d4a0bb702c06d85cd#Back%20To%20Top) API and upload the corresponding tracking number. |
-| ^^tracking_number | string | Y | For packages with the `SEND_BY_SELLER` delivery option type (seller shipping), you must provide the package's tracking number. |
-| ^^shipping_provider_id | string | Y | For packages with the `SEND_BY_SELLER` delivery option type (seller shipping), you must provide the shipping provider information. Please use the [Get Shipping Providers](https://partner.tiktokshop.com/docv2/page/650aa48d4a0bb702c06d85cd?external_id=650aa48d4a0bb702c06d85cd#Back%20To%20Top) API to obtain the `shipping_provider_id`. |
+| x-tts-access-token | string | Y |  |
+| Content-Type | string | Y | Allowed type: application/json |
 
-### Request Sample
+### Request Body (`application/json`)
 
-```
-https://open-api.tiktokglobalshop.com/fulfillment/202309/packages/ship?app_key=123abc&sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c&timestamp=1625484268&shop_cipher=ROW_RHkDDABBAAB8tKAVoAqsMTjsQZFLyNfY
-```
-
-### Request Body Sample
-
-```json
-{
-  "packages": [
-    {
-      "id": "12321312312431",
-      "handover_method": "PICKUP",
-      "pickup_slot": {
-        "start_time": 1623812664,
-        "end_time": 1623812664
-      },
-      "self_shipment": {
-        "tracking_number": "JX12345",
-        "shipping_provider_id": "6617675021119438849"
-      }
-    }
-  ]
-}
-```
-
-### Sample Code
-
-**Curl**
-```shell
-curl -X POST \
- 'https://open-api.tiktokglobalshop.com/fulfillment/202309/packages/ship?app_key=38abcd&sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c&timestamp=1623812664&shop_cipher=GCP_XF90igAAAABh00qsWgtvOiGFNqyubMt3' \
--H 'x-tts-access-token: TTP_pwSm2AAAAABmmtFz1xlyKMnwg74T2GJ5s0uQbS8jPjb_GkdFVCxPqzQXSyuyfXdQa0AqyDsea2tYFNVf4XeqgZHFfPyv0Vs659QqyLYfsGzanZ5XZAin3_ZkcIxxS0_In6u6XDeU96k' \
--H 'content-type: application/json' \
--d '{
-  "packages": [
-    {
-      "id": "12321312312431",
-      "handover_method": "PICKUP",
-      "pickup_slot": {
-        "start_time": 1623812664,
-        "end_time": 1623812664
-      },
-      "self_shipment": {
-        "tracking_number": "JX12345",
-        "shipping_provider_id": "6617675021119438849"
-      }
-    }
-  ]
-}'
-```
-
-**Go**
-```go
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-func fulfillment202309BatchShipPackagesPost() {
-    configuration := apis.NewConfiguration()
-    configuration.AddAppInfo(appKey, appSecret)
-    apiClient := apis.NewAPIClient(configuration)
-    request := apiClient.FulfillmentV202309API.Fulfillment202309PackagesShipPost(context.Background())
-    request = request.XTtsAccessToken("your access token")
-    request = request.ContentType("application/json")
-    request = request.ShopCipher("your shop cipher")
-    fulfillment202309BatchShipPackagesRequestBody := fulfillment_v202309.NewFulfillment202309BatchShipPackagesRequestBody()
-    fulfillment202309BatchShipPackagesRequestBodyPackages := fulfillment_v202309.NewFulfillment202309BatchShipPackagesRequestBodyPackages()
-    fulfillment202309BatchShipPackagesRequestBodyPackages.SetId("12321312312431")
-    fulfillment202309BatchShipPackagesRequestBodyPackages.SetHandoverMethod("PICKUP")
-    fulfillment202309BatchShipPackagesRequestBodyPackagesPickupSlot := fulfillment_v202309.NewFulfillment202309BatchShipPackagesRequestBodyPackagesPickupSlot()
-    fulfillment202309BatchShipPackagesRequestBodyPackagesPickupSlot.SetStartTime(1623812664)
-    fulfillment202309BatchShipPackagesRequestBodyPackagesPickupSlot.SetEndTime(1623812664)
-    fulfillment202309BatchShipPackagesRequestBodyPackages.SetPickupSlot(*fulfillment202309BatchShipPackagesRequestBodyPackagesPickupSlot)
-    fulfillment202309BatchShipPackagesRequestBodyPackagesSelfShipment := fulfillment_v202309.NewFulfillment202309BatchShipPackagesRequestBodyPackagesSelfShipment()
-    fulfillment202309BatchShipPackagesRequestBodyPackagesSelfShipment.SetTrackingNumber("JX12345")
-    fulfillment202309BatchShipPackagesRequestBodyPackagesSelfShipment.SetShippingProviderId("6617675021119438849")
-    fulfillment202309BatchShipPackagesRequestBodyPackages.SetSelfShipment(*fulfillment202309BatchShipPackagesRequestBodyPackagesSelfShipment)
-    fulfillment202309BatchShipPackagesRequestBodyPackagesList := []fulfillment_v202309.Fulfillment202309BatchShipPackagesRequestBodyPackages{*fulfillment202309BatchShipPackagesRequestBodyPackages}
-    fulfillment202309BatchShipPackagesRequestBody.SetPackages(fulfillment202309BatchShipPackagesRequestBodyPackagesList)
-    request = request.Fulfillment202309BatchShipPackagesRequestBody(*fulfillment202309BatchShipPackagesRequestBody)
-    resp, httpResp, err := request.Execute()
-    if err != nil || httpResp.StatusCode != 200 {
-        fmt.Printf("productsRequest err:%v resbody:%s", err, httpResp.Body)
-        return
-    }
-    if resp == nil {
-        fmt.Printf("response is nil")
-        return
-    }
-    if resp.GetCode()!= 0 {
-        fmt.Printf("response business is error, errorCode:%d errorMessage:%s", resp.GetCode(), resp.GetMessage())
-        return
-    }
-    respDataJson, _ := json.MarshalIndent(resp.GetData(), "", "  ")
-    fmt.Println("response data:", string(respDataJson))
-    return
-}
-
-```
-
-**Node.js**
-```typescript
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-async function fulfillment202309BatchShipPackagesPost() {
-    const fulfillment202309BatchShipPackagesRequestBody = new Fulfillment202309BatchShipPackagesRequestBody();
-    const fulfillment202309BatchShipPackagesRequestBodyPackages = new Fulfillment202309BatchShipPackagesRequestBodyPackages();
-    fulfillment202309BatchShipPackagesRequestBodyPackages.id = "12321312312431";
-    fulfillment202309BatchShipPackagesRequestBodyPackages.handoverMethod = "PICKUP";
-    const fulfillment202309BatchShipPackagesRequestBodyPackagesPickupSlot = new Fulfillment202309BatchShipPackagesRequestBodyPackagesPickupSlot();
-    fulfillment202309BatchShipPackagesRequestBodyPackagesPickupSlot.startTime = 1623812664;
-    fulfillment202309BatchShipPackagesRequestBodyPackagesPickupSlot.endTime = 1623812664;
-    fulfillment202309BatchShipPackagesRequestBodyPackages.pickupSlot = fulfillment202309BatchShipPackagesRequestBodyPackagesPickupSlot;
-    const fulfillment202309BatchShipPackagesRequestBodyPackagesSelfShipment = new Fulfillment202309BatchShipPackagesRequestBodyPackagesSelfShipment();
-    fulfillment202309BatchShipPackagesRequestBodyPackagesSelfShipment.trackingNumber = "JX12345";
-    fulfillment202309BatchShipPackagesRequestBodyPackagesSelfShipment.shippingProviderId = "6617675021119438849";
-    fulfillment202309BatchShipPackagesRequestBodyPackages.selfShipment = fulfillment202309BatchShipPackagesRequestBodyPackagesSelfShipment;
-    fulfillment202309BatchShipPackagesRequestBody.packages = [fulfillment202309BatchShipPackagesRequestBodyPackages];
-    const result = await client.api.FulfillmentV202309Api.PackagesShipPost("your access token", "application/json", "your shop cipher", fulfillment202309BatchShipPackagesRequestBody);
-    console.log('response: ', JSON.stringify(result, null, 2));
-}
-
-```
-
-**Java**
-```java
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-public void fulfillment202309BatchShipPackagesPost() throws Exception {
-    ApiClient defaultClient = Configuration.getDefaultApiClient()
-            .setAppkey("your appKey")
-            .setSecret("your secret")
-            .setBasePath("https://open-api.tiktokglobalshop.com");
-    FulfillmentV202309Api apiInstance = new FulfillmentV202309Api(defaultClient);
-    BatchShipPackagesRequestBody batchShipPackagesRequestBody = new BatchShipPackagesRequestBody();
-    BatchShipPackagesRequestBodyPackages batchShipPackagesRequestBodyPackages = new tiktokshop.open.sdk_java.model.Fulfillment.V202309.BatchShipPackagesRequestBodyPackages();
-    batchShipPackagesRequestBodyPackages.setId("12321312312431");
-    batchShipPackagesRequestBodyPackages.setHandoverMethod("PICKUP");
-    BatchShipPackagesRequestBodyPackagesPickupSlot batchShipPackagesRequestBodyPackagesPickupSlot = new tiktokshop.open.sdk_java.model.Fulfillment.V202309.BatchShipPackagesRequestBodyPackagesPickupSlot();
-    batchShipPackagesRequestBodyPackagesPickupSlot.setStartTime(1623812664L);
-    batchShipPackagesRequestBodyPackagesPickupSlot.setEndTime(1623812664L);
-    batchShipPackagesRequestBodyPackages.setPickupSlot(batchShipPackagesRequestBodyPackagesPickupSlot);
-    BatchShipPackagesRequestBodyPackagesSelfShipment batchShipPackagesRequestBodyPackagesSelfShipment = new tiktokshop.open.sdk_java.model.Fulfillment.V202309.BatchShipPackagesRequestBodyPackagesSelfShipment();
-    batchShipPackagesRequestBodyPackagesSelfShipment.setTrackingNumber("JX12345");
-    batchShipPackagesRequestBodyPackagesSelfShipment.setShippingProviderId("6617675021119438849");
-    batchShipPackagesRequestBodyPackages.setSelfShipment(batchShipPackagesRequestBodyPackagesSelfShipment);
-    List<BatchShipPackagesRequestBodyPackages> batchShipPackagesRequestBodyPackagesList = new ArrayList<>(Arrays.asList(batchShipPackagesRequestBodyPackages));
-    batchShipPackagesRequestBody.setPackages(batchShipPackagesRequestBodyPackagesList);
-    BatchShipPackagesResponse result = apiInstance.fulfillment202309PackagesShipPost("your access token", "application/json", "your shop cipher", batchShipPackagesRequestBody);
-    System.out.println(result);
-}
-
-```
-
-### Response Parameters
-
-| Name | Type | Example | Description |
+| Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| code | int | 0 | The success or failure status code returned in API response. |
-| message | string | Success | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
-| request_id | string | 202203070749000101890810281E8C70B7 | Request log |
-| data | object |  | Specific return information |
-| ^errors | []object |  | Return list of possible errors during package batch shipment attempt. |
-| ^^code | int | 10007014 | The failure reason code. |
-| ^^message | string | package in freeze status | The failure reason message. |
+| packages | array<object> |  | Input list of packages you would like to batch ship. |
+| ^handover_method | string |  | Possible values: - `PICKUP`: A shipping provider will pickup the package(s) from the seller's pickup address. - `DROP_OFF`: The seller will need to drop off the package(s) at a designated location. |
+| ^id | string |  | Package ID. |
+| ^pickup_slot | object |  | Package pickup time slot. |
+| ^^end_time | integer |  | The end date and time of the package pickup time slot. Unix timestamp. |
+| ^^start_time | integer |  | The start date and time of the package pickup time slot. Unix timestamp. |
+| ^self_shipment | object |  | Only needed for seller shipping packages. Check the `delivery_option `field in [Get Package Detail](https://partner.tiktokshop.com/docv2/page/650aa39fbace3e02b75d8617?external_id=650aa39fbace3e02b75d8617) to see how to differentiate between TikTok shipping and seller shipping. Use the `shipping_provider_id` retrieved from the [Get Shipping Providers](https://partner.tiktokshop.com/docv2/page/650aa48d4a0bb702c06d85cd?external_id=650aa48d4a0bb702c06d85cd#Back%20To%20Top) API and upload the corresponding tracking number. |
+| ^^shipping_provider_id | string |  | For packages with the `SEND_BY_SELLER` delivery option type (seller shipping), you must provide the shipping provider information. Please use the [Get Shipping Providers](https://partner.tiktokshop.com/docv2/page/650aa48d4a0bb702c06d85cd?external_id=650aa48d4a0bb702c06d85cd#Back%20To%20Top) API to obtain the `shipping_provider_id`. |
+| ^^tracking_number | string |  | For packages with the `SEND_BY_SELLER` delivery option type (seller shipping), you must provide the package's tracking number. |
+
+### Response
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| code | integer |  | The success or failure status code returned in API response. |
+| data | object |  | Specific return information. |
+| ^errors | array<object> |  | Return list of possible errors during package batch shipment attempt. |
+| ^^code | integer |  | The failure reason code. |
 | ^^detail | object |  | Error detail. |
-| ^^^package_id | string | 123123123123131 | Package ID. |
-
-### Response Sample
-
-```json
-{
-  "code": 0,
-  "data": {
-    "errors": [
-      {
-        "code": 10007014,
-        "message": "package in freeze status",
-        "detail": {
-          "package_id": "123123123123131"
-        }
-      }
-    ]
-  },
-  "message": "Success",
-  "request_id": "202203070749000101890810281E8C70B7"
-}
-```
-
-### Error Codes
-
-| Code | Message |
-| --- | --- |
-| 36009003 | Internal error. Please try again. If the issue persists after multiple attempts, please contact platform support. |
-| 11006013 | Failed to ship package. Products under the Phones & Tablets category cannot be shipped together with other items in the same package. Please split the order.  |
-| 11006014 | Failed to ship package. If you are shipping multiple products under the Phones & Tablets category, they must be shipped in individual packages. Please split the order to continue. |
-| 11021009 | No available shipping services for this request. Please modify the package weight or check the recipient address. If the error persists, please contact the platform for assistance. |
-| 11021010 | The shipment failed due to an invalid postal code. Please ask the buyer to edit the address. If the address cannot be changed, you may cancel the order without penalty by selecting the following reason: Unable to deliver to buyer address. |
-| 11021011 | Fail to ship package because the product name is invalid. You may cancel the order without penalty by selecting the following reason: Unable to deliver to buyer address. |
-| 11021012 | illegal address |
-| 11021013 | The shipment failed because the delivery address is too long. Please ask the buyer to shorten the address. If the address cannot be changed, you may cancel the order without penalty by selecting the following reason: Unable to deliver to buyer address. |
-| 11021014 | product oversize |
-| 11021015 | Fail to ship package because the package is overweight. You may cancel the order without penalty by selecting the following reason: Unable to deliver to buyer address. |
-| 11021016 | Fail to ship package because the weight of the SKU exceeds the allowed limit. You may cancel the order without penalty by selecting the following reason: Unable to deliver to buyer address. |
-| 11021017 | Fail to ship package because the SKU dimensions exceed the allowed limits. You may cancel the order without penalty by selecting the following reason: Unable to deliver to buyer address. |
-| 11021018 | Fail to ship package because the number of items in the package exceeds the allowed limit. |
-| 11021019 | Fail to ship package because the package dimensions exceed the allowed limits. You may cancel the order without penalty by selecting the following reason: Unable to deliver to buyer address. |
-| 11021020 | Fail to ship package because the package's circumference exceeds the allowed limit. You may cancel the order without penalty by selecting the following reason: Unable to deliver to buyer address. |
-| 11021021 | Fail to ship package because the SKU name is invalid. You may cancel the order without penalty by selecting the following reason: Unable to deliver to buyer address. |
-| 11021022 | Fail to ship package because the longest dimension of the package exceeds the allowed limit. You may cancel the order without penalty by selecting the following reason: Unable to deliver to buyer address. |
-| 11021023 | Fail to ship package because the buyer and/or seller addresses are invalid. You may cancel the order without penalty by selecting the following reason: Unable to deliver to buyer address. |
-| 11021024 | Fail to ship package because the buyer recipient address is invalid. You may cancel the order without penalty by selecting the following reason: Unable to deliver to buyer address. |
-| 11021025 | Fail to ship package because the seller shipping address is invalid. You may cancel the order without penalty by selecting the following reason: Unable to deliver to buyer address. |
-| 11028006 | This tracking number cannot be matched to any carrier, please check the tracking number and upload again. |
-| 21001003 | System timeout. If the error persists, please contact the platform for assistance. |
-| 21001011 | System process error, please try again later. |
-| 21004006 | Failed to ship. Please ensure an invoice is uploaded before shipping. |
-| 21008044 | Package item has after-sale request, please process the after-sale request first. |
-| 21011001 | Package not found. If the error persists, please contact the platform for assistance. |
-| 21011003 | fulfill_unit action not allowed |
-| 21011007 | Package item has after-sale request, please process the after-sale request first. |
-| 21011008 | Package is not complete. If the error persists, please contact the platform for assistance. |
-| 21011020 | These orders are already shipped. |
-| 21011022 | Invalid tracking number or provider ID. Please double check and try again. |
-| 21011025 | Duplicate tracking number.  |
-| 21011027 | Package has already been delivered. |
-| 21011028 | The package does not belong to the current shop.    |
-| 21011040 | Package has already been shipped. |
-| 21011041 | Cannot complete the operation when order is cancelled.  |
-| 21011053 | Fail to ship package because the shipment time is outside of the pick-up time slot. |
-| 21011054 | No available shipping services for this request due to missing pick-up time slot. Please contact customer service for assistance. |
-| 21014009 | Failed to ship. You may cancel the order without penalty by selecting the following reason: Unable to deliver to buyer address. |
-
-### API Scope / Permissions
-
-| Scope Name | Type | Description |
-| --- | --- | --- |
-| Fulfillment Basic | Public | The Partner will be able to fulfil and manage orders on seller's behalf, and provide real-time updates on the status of seller's orders. |
+| ^^^package_id | string |  | Package ID. |
+| ^^message | string |  | The failure reason message. |
+| message | string |  | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
+| request_id | string |  | Request log. |
 
 ---
 
-## Mark Package As Shipped
-
-**This API is currently exclusive to the following markets: US, UK, ES, IE, IT, DE, FR, JP.**
-This API is for sellers who fulfill orders through their own selected/preferred logistics carrier, and allows sellers to upload valid package information (items in packages, shipping provider information, and tracking number) orders/order line items to TikTok Shop. Use [Get Shipping Providers API](https://partner.tiktokshop.com/docv2/page/650aa48d4a0bb702c06d85cd?external_id=650aa48d4a0bb702c06d85cd) to retrieve the `shipping_provider_id` for shipping providers.
-
-**Path:** `/fulfillment/202309/orders/{order_id}/packages`
-
-**Method:** `POST`
-
-**Common Parameters:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a4278f4c20311b8b57e)
-
-**Common Error Codes:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a45786253031531b942)
-
-### Request Header Parameters
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| content-type | string | Y | Allowed type: application/json |
-| x-tts-access-token | string | Y | The seller access_token value from [Get Access Token](https://partner.tiktokshop.com/docv2/page/678e3a3292b0f40314a92d75#Get%20Access%20Token%20API), when user_type = 0. Follow this [guide](https://partner.tiktokshop.com/docv2/page/678e3a344ddec3030b238fa0) to get seller access_token. |
-
-### Request Path Parameters
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| order_id | string | Y | The unique identifier for a TikTok Shop order. |
-
-### Request Query Parameters
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| app_key | string | Y | Every single app will have a unique key. Please use the specific key assigned to your app. |
-| sign | string | Y | Signature generated by gen algorithm. When you send API requests to TTS, you must sign them so that TTS can identify the senders.  |
-| timestamp | int | Y | Unix timestamp GMT (UTC+00:00). This timestamp is used across all API requests. Developers can use this convert to local time. |
-| shop_cipher | string | Y | Use this property to pass shop information in requesting the API. Failure in passing the correct value when requesting the API for cross-border shops will return incorrect response.  Get by API [Get Authorization Shop](https://partner.tiktokshop.com/docv2/page/6507ead7b99d5302be949ba9?external_id=6507ead7b99d5302be949ba9) |
-
-### Request Body Parameters
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| order_line_item_ids | []string | N | List of order line item IDs. |
-| tracking_number | string | Y | Tracking number. |
-| shipping_provider_id | string | Y | Use [Get Shipping Provider API](https://partner.tiktokshop.com/docv2/page/650aa48d4a0bb702c06d85cd?external_id=650aa48d4a0bb702c06d85cd) to retrieve the `shipping_provider_id` for shipping providers. |
-| order_line_list | []object | N | This new parameter is completely backward compatible with the previous oder_line_items_ids field and in addition this supports bundle order splitting, use the sub items accordingly |
-| ^order_line_id | string | N | The corresponding order line ID. |
-| ^sub_item_id | string | N | The sub-order-line ID inside a bundle product. - Required for bundle products. - Not required for non-bundle products. |
-
-### Request Sample
-
-```
-https://open-api.tiktokglobalshop.com/fulfillment/202309/orders/576461413038785752/packages?app_key=123abc&sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c&timestamp=1625484268&shop_cipher=ROW_RHkDDABBAAB8tKAVoAqsMTjsQZFLyNfY
-```
-
-### Request Body Sample
-
-```json
-{
-  "order_line_item_ids": [
-    "2321312321311"
-  ],
-  "tracking_number": "6617675021119438849",
-  "shipping_provider_id": "12312312321323432",
-  "order_line_list": [
-    {
-      "order_line_id": "5767675021119438849",
-      "sub_item_id": "5767675021119438849"
-    }
-  ]
-}
-```
-
-### Sample Code
-
-**Curl**
-```shell
-curl -X POST \
- 'https://open-api.tiktokglobalshop.com/fulfillment/202309/orders/576461413038785752/packages?sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c&timestamp=1623812664&shop_cipher=GCP_XF90igAAAABh00qsWgtvOiGFNqyubMt3&app_key=38abcd' \
--H 'x-tts-access-token: TTP_pwSm2AAAAABmmtFz1xlyKMnwg74T2GJ5s0uQbS8jPjb_GkdFVCxPqzQXSyuyfXdQa0AqyDsea2tYFNVf4XeqgZHFfPyv0Vs659QqyLYfsGzanZ5XZAin3_ZkcIxxS0_In6u6XDeU96k' \
--H 'content-type: application/json' \
--d '{
-  "order_line_item_ids": [
-    "2321312321311"
-  ],
-  "tracking_number": "6617675021119438849",
-  "shipping_provider_id": "12312312321323432",
-  "order_line_list": [
-    {
-      "order_line_id": "5767675021119438849",
-      "sub_item_id": "5767675021119438849"
-    }
-  ]
-}'
-```
-
-**Go**
-```go
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-func fulfillment202309MarkPackageAsShippedPost() {
-    configuration := apis.NewConfiguration()
-    configuration.AddAppInfo(appKey, appSecret)
-    apiClient := apis.NewAPIClient(configuration)
-    request := apiClient.FulfillmentV202309API.Fulfillment202309OrdersOrderIdPackagesPost(context.Background(), "576461413038785752")
-    request = request.XTtsAccessToken("your access token")
-    request = request.ContentType("application/json")
-    request = request.ShopCipher("your shop cipher")
-    fulfillment202309MarkPackageAsShippedRequestBody := fulfillment_v202309.NewFulfillment202309MarkPackageAsShippedRequestBody()
-    fulfillment202309MarkPackageAsShippedRequestBodyOrderLineItemIdsList := []string{"2321312321311"}
-    fulfillment202309MarkPackageAsShippedRequestBody.SetOrderLineItemIds(fulfillment202309MarkPackageAsShippedRequestBodyOrderLineItemIdsList)
-    fulfillment202309MarkPackageAsShippedRequestBody.SetTrackingNumber("6617675021119438849")
-    fulfillment202309MarkPackageAsShippedRequestBody.SetShippingProviderId("12312312321323432")
-    fulfillment202309MarkPackageAsShippedRequestBodyOrderLineList := fulfillment_v202309.NewFulfillment202309MarkPackageAsShippedRequestBodyOrderLineList()
-    fulfillment202309MarkPackageAsShippedRequestBodyOrderLineList.SetOrderLineId("5767675021119438849")
-    fulfillment202309MarkPackageAsShippedRequestBodyOrderLineList.SetSubItemId("5767675021119438849")
-    fulfillment202309MarkPackageAsShippedRequestBodyOrderLineListList := []fulfillment_v202309.Fulfillment202309MarkPackageAsShippedRequestBodyOrderLineList{*fulfillment202309MarkPackageAsShippedRequestBodyOrderLineList}
-    fulfillment202309MarkPackageAsShippedRequestBody.SetOrderLineList(fulfillment202309MarkPackageAsShippedRequestBodyOrderLineListList)
-    request = request.Fulfillment202309MarkPackageAsShippedRequestBody(*fulfillment202309MarkPackageAsShippedRequestBody)
-    resp, httpResp, err := request.Execute()
-    if err != nil || httpResp.StatusCode != 200 {
-        fmt.Printf("productsRequest err:%v resbody:%s", err, httpResp.Body)
-        return
-    }
-    if resp == nil {
-        fmt.Printf("response is nil")
-        return
-    }
-    if resp.GetCode()!= 0 {
-        fmt.Printf("response business is error, errorCode:%d errorMessage:%s", resp.GetCode(), resp.GetMessage())
-        return
-    }
-    respDataJson, _ := json.MarshalIndent(resp.GetData(), "", "  ")
-    fmt.Println("response data:", string(respDataJson))
-    return
-}
-
-```
-
-**Node.js**
-```typescript
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-async function fulfillment202309MarkPackageAsShippedPost() {
-    const fulfillment202309MarkPackageAsShippedRequestBody = new Fulfillment202309MarkPackageAsShippedRequestBody();
-    fulfillment202309MarkPackageAsShippedRequestBody.orderLineItemIds = ["2321312321311"];
-    fulfillment202309MarkPackageAsShippedRequestBody.trackingNumber = "6617675021119438849";
-    fulfillment202309MarkPackageAsShippedRequestBody.shippingProviderId = "12312312321323432";
-    const fulfillment202309MarkPackageAsShippedRequestBodyOrderLineList = new Fulfillment202309MarkPackageAsShippedRequestBodyOrderLineList();
-    fulfillment202309MarkPackageAsShippedRequestBodyOrderLineList.orderLineId = "5767675021119438849";
-    fulfillment202309MarkPackageAsShippedRequestBodyOrderLineList.subItemId = "5767675021119438849";
-    fulfillment202309MarkPackageAsShippedRequestBody.orderLineList = [fulfillment202309MarkPackageAsShippedRequestBodyOrderLineList];
-    const result = await client.api.FulfillmentV202309Api.OrdersOrderIdPackagesPost("576461413038785752", "your access token", "application/json", "your shop cipher", fulfillment202309MarkPackageAsShippedRequestBody);
-    console.log('response: ', JSON.stringify(result, null, 2));
-}
-
-```
-
-**Java**
-```java
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-public void fulfillment202309MarkPackageAsShippedPost() throws Exception {
-    ApiClient defaultClient = Configuration.getDefaultApiClient()
-            .setAppkey("your appKey")
-            .setSecret("your secret")
-            .setBasePath("https://open-api.tiktokglobalshop.com");
-    FulfillmentV202309Api apiInstance = new FulfillmentV202309Api(defaultClient);
-    MarkPackageAsShippedRequestBody markPackageAsShippedRequestBody = new MarkPackageAsShippedRequestBody();
-    List<String> markPackageAsShippedRequestBodyOrderLineItemIdsList = new ArrayList<>(Arrays.asList("2321312321311"));
-    markPackageAsShippedRequestBody.setOrderLineItemIds(markPackageAsShippedRequestBodyOrderLineItemIdsList);
-    markPackageAsShippedRequestBody.setTrackingNumber("6617675021119438849");
-    markPackageAsShippedRequestBody.setShippingProviderId("12312312321323432");
-    MarkPackageAsShippedRequestBodyOrderLineList markPackageAsShippedRequestBodyOrderLineList = new tiktokshop.open.sdk_java.model.Fulfillment.V202309.MarkPackageAsShippedRequestBodyOrderLineList();
-    markPackageAsShippedRequestBodyOrderLineList.setOrderLineId("5767675021119438849");
-    markPackageAsShippedRequestBodyOrderLineList.setSubItemId("5767675021119438849");
-    List<MarkPackageAsShippedRequestBodyOrderLineList> markPackageAsShippedRequestBodyOrderLineListList = new ArrayList<>(Arrays.asList(markPackageAsShippedRequestBodyOrderLineList));
-    markPackageAsShippedRequestBody.setOrderLineList(markPackageAsShippedRequestBodyOrderLineListList);
-    MarkPackageAsShippedResponse result = apiInstance.fulfillment202309OrdersOrderIdPackagesPost("576461413038785752", "your access token", "application/json", "your shop cipher", markPackageAsShippedRequestBody);
-    System.out.println(result);
-}
-
-```
-
-### Response Parameters
-
-| Name | Type | Example | Description |
-| --- | --- | --- | --- |
-| code | int | 0 | The success or failure status code returned in API response. |
-| message | string | Success | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
-| request_id | string | 202203070749000101890810281E8C70B7 | Request log |
-| data | object |  | Specific return information |
-| ^order_id | string | 32131324123321 | TikTok Shop order ID. |
-| ^order_line_item_ids | []string | ["31322412312312"] | List of order line item IDs. |
-| ^package_id | string | 32141235124234 | Package ID. |
-| ^warning | object |  | Warning message. |
-| ^^message | string | match more than one provider | Specific warning information. |
-
-### Response Sample
-
-```json
-{
-  "code": 0,
-  "data": {
-    "order_id": "32131324123321",
-    "order_line_item_ids": [
-      "31322412312312"
-    ],
-    "package_id": "32141235124234",
-    "warning": {
-      "message": "match more than one provider"
-    }
-  },
-  "message": "Success",
-  "request_id": "202203070749000101890810281E8C70B7"
-}
-```
-
-### Error Codes
-
-| Code | Message |
-| --- | --- |
-| 36009003 | Internal error. Please try again. If the issue persists after multiple attempts, please contact platform support. |
-| 11001027 | System timeout. If this error persists, please contact the platform for assistance. |
-| 11001031 | System process error, please try again later. |
-| 11005004 | warehouse not exist |
-| 11005010 | get lead time from card service error |
-| 11006005 | System process error, please try again later. |
-| 11006026 | System process error, please try again later. |
-| 11021009 | No available shipping services for this request. Please modify the package weight or check the recipient address. If the error persists, please contact the platform for assistance. |
-| 11028006 | This tracking number cannot be matched to any carrier, please check the tracking number and upload again. |
-| 11050001 | invalid param |
-| 21001001 | Invalid parameters. Please ensure you are passing the correct request parameter(s). |
-| 21001008 | System process error, please try again later. |
-| 21001011 | System process error, please try again later. |
-| 21001029 | rpc logistics_logistics_service_4b failed |
-| 21001043 | System process error, please try again later. |
-| 21001055 | System process error, please try again later. |
-| 21004012 | Tracking number has special characters, verify failed. |
-| 21004015 | Tracking number mismatch provider. |
-| 21004016 | Tracking number verify, not avalible logsitics service or provider |
-| 21004019 | Need invoice uploaded for all order before rts. |
-| 21004020 | Fulfillment Invoice status is not success, can not rts pkg. |
-| 21008025 | Seller cannot operate orders which are fulfilled by platform |
-| 21008042 | seller already print shipping label |
-| 21008044 | SellerFulfillUnitInReverseCannotOperate |
-| 21008099 | Package has been shipped. Please not ship the package again. |
-| 21008106 | This interface cannot be used in this region. |
-| 21008300 | System process error, please try again later. |
-| 21011001 | Package not found. If the error persists, please contact the platform for assistance. |
-| 21011003 | fulfill_unit action not allowed |
-| 21011004 | This API cannot be used to update package shipping information for packages that are not shipped by sellers. |
-| 21011006 | These orders are already shipped. |
-| 21011007 | Package item has after-sale request, please process the after-sale request first. |
-| 21011012 | not match trade rule |
-| 21011013 | not match logistics rule |
-| 21011020 | These orders are already shipped. |
-| 21011022 | Invalid tracking number or provider ID. Please double check and try again. |
-| 21011025 | Duplicate tracking number. |
-| 21011026 | fulfillment tracking no used times over limit |
-| 21011029 | order does not belong to fulfill unit |
-| 21011030 | fulfillment not allow update tracking no |
-| 21011033 | order already combined |
-| 21011036 | split same sku in Multi Package not allow. |
-| 21011046 | Order has combine, not allow split order |
-| 21011048 | There are multiple packages that can be shipped, please specify the order line that needs to be shipped. |
-| 21011050 | The tracking number can only be updated within a certain number of hours. |
-| 21011051 | The tracking number can only be updated once. |
-| 21021010 | Failed to ship. You may cancel the order without penalty by selecting the following reason: Unable to deliver to buyer address. |
-| 21022025 | A shipping label has already been purchased. |
-| 21022026 | Cannot purchase shipping label, please try again later. |
-| 21022028 | split pkg fail. |
-| 21022029 | System process error, please try again later. |
-| 21022030 | System process error, please try again later. |
-| 21032001 | fulfill unit status not allow to update pkg attr |
-| 21034006 | decision route occurs error |
-| 21034012 | tracking no has been used |
-| 21042056 | These orders are already shipped. |
-| 21042057 | These orders are not in the Awaiting shipment status. Couldn't create labels for them. |
-
-### API Scope / Permissions
-
-| Scope Name | Type | Description |
-| --- | --- | --- |
-| Fulfillment Basic | Public | The Partner will be able to fulfil and manage orders on seller's behalf, and provide real-time updates on the status of seller's orders. |
-
----
-
-## Get Package Shipping Document
-
-For orders shipped by TikTok Shop, this API retrieves the URL of shipping documents (shipping label and packing slip) for a package specified by the package ID. This API is only applicable to "TikTok Shipping" orders. To obtain the shipping documents URL via this API, first call "Ship Package" to ship the corresponding package.
-
-**Path:** `/fulfillment/202309/packages/{package_id}/shipping_documents`
-
-**Method:** `GET`
-
-**Common Parameters:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a4278f4c20311b8b57e)
-
-**Common Error Codes:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a45786253031531b942)
-
-### Request Header Parameters
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| content-type | string | Y | Allowed type: application/json |
-| x-tts-access-token | string | Y | The seller access_token value from [Get Access Token](https://partner.tiktokshop.com/docv2/page/678e3a3292b0f40314a92d75#Get%20Access%20Token%20API), when user_type = 0. Follow this [guide](https://partner.tiktokshop.com/docv2/page/678e3a344ddec3030b238fa0) to get seller access_token. |
-
-### Request Path Parameters
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| package_id | string | Y | TikTok Shop package ID.  |
-
-### Request Query Parameters
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| app_key | string | Y | Every single app will have a unique key. Please use the specific key assigned to your app. |
-| sign | string | Y | Signature generated by gen algorithm. When you send API requests to TTS, you must sign them so that TTS can identify the senders.  |
-| timestamp | int | Y | Unix timestamp GMT (UTC+00:00). This timestamp is used across all API requests. Developers can use this convert to local time. |
-| document_type | string | Y | Available document types:  - `SHIPPING_LABEL`: Returns the shipping label in PDF format by default. - `PACKING_SLIP`: Returns the packing slip in PDF format by default. - `SHIPPING_LABEL_AND_PACKING_SLIP`: Returns both the shipping label and the packing slip for the package, both in PDF format by default.               - `SHIPPING_LABEL_PICTURE`: Returns the shipping label in PNG format.  - `HAZMAT_LABEL`: Returns the hazmat label in PDF format by default. You must only use this value when there are hazmat items in the package. When you use the value, `document_size` is fixed to A4, and you don't need to specify `document_size`. - `INVOICE_LABEL`: For Brazil market only, document_size is fixed to A6, and you don't need to specify `document_size`. Returns the invoice label in PDF format by default |
-| document_size | string | N | Use this field to specify the size of the document to obtain. This parameter is only applicable to shipping labels, picking slips, and packing slips that are in the PDF format. It is not applicable for hazmat labels as these are fixed to A4.  If you specify `SHIPPING_LABEL_PICTURE` for the `document_type`, any value specified in the `document_size` will be ignored.   Possible values:  - `A6` (Default) - `A5`  |
-| document_format | string | N | The format of the shipping document. Possible values:  - PDF (Default) - ZPL (Only for BR and MX market)  **Note**: Not applicable for `SHIPPING_LABEL_PICTURE` document type. |
-| shop_cipher | string | Y | Use this property to pass shop information in requesting the API. Failure in passing the correct value when requesting the API for cross-border shops will return incorrect response.  Get by API [Get Authorization Shop](https://partner.tiktokshop.com/docv2/page/6507ead7b99d5302be949ba9?external_id=6507ead7b99d5302be949ba9) |
-
-### Request Sample
-
-```
-https://open-api.tiktokglobalshop.com/fulfillment/202309/packages/5433567853345/shipping_documents?app_key=123abc&sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c&timestamp=1625484268&shop_cipher=ROW_RHkDDABBAAB8tKAVoAqsMTjsQZFLyNfY&document_type=SHIPPING_LABEL&document_size=A6&document_format=PDF
-```
-
-### Sample Code
-
-**Curl**
-```shell
-curl -X GET \
- 'https://open-api.tiktokglobalshop.com/fulfillment/202309/packages/5433567853345/shipping_documents?document_type=SHIPPING_LABEL&document_size=A6&document_format=PDF&app_key=38abcd&sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c&timestamp=1623812664&shop_cipher=GCP_XF90igAAAABh00qsWgtvOiGFNqyubMt3' \
--H 'content-type: application/json' \
--H 'x-tts-access-token: TTP_pwSm2AAAAABmmtFz1xlyKMnwg74T2GJ5s0uQbS8jPjb_GkdFVCxPqzQXSyuyfXdQa0AqyDsea2tYFNVf4XeqgZHFfPyv0Vs659QqyLYfsGzanZ5XZAin3_ZkcIxxS0_In6u6XDeU96k'
-```
-
-**Go**
-```go
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-func fulfillment202309GetPackageShippingDocumentGet() {
-    configuration := apis.NewConfiguration()
-    configuration.AddAppInfo(appKey, appSecret)
-    apiClient := apis.NewAPIClient(configuration)
-    request := apiClient.FulfillmentV202309API.Fulfillment202309PackagesPackageIdShippingDocumentsGet(context.Background(), "5433567853345")
-    request = request.XTtsAccessToken("your access token")
-    request = request.ContentType("application/json")
-    request = request.DocumentType("SHIPPING_LABEL")
-    request = request.DocumentSize("A6")
-    request = request.DocumentFormat("PDF")
-    request = request.ShopCipher("your shop cipher")
-    resp, httpResp, err := request.Execute()
-    if err != nil || httpResp.StatusCode != 200 {
-        fmt.Printf("productsRequest err:%v resbody:%s", err, httpResp.Body)
-        return
-    }
-    if resp == nil {
-        fmt.Printf("response is nil")
-        return
-    }
-    if resp.GetCode()!= 0 {
-        fmt.Printf("response business is error, errorCode:%d errorMessage:%s", resp.GetCode(), resp.GetMessage())
-        return
-    }
-    respDataJson, _ := json.MarshalIndent(resp.GetData(), "", "  ")
-    fmt.Println("response data:", string(respDataJson))
-    return
-}
-
-```
-
-**Node.js**
-```typescript
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-async function fulfillment202309GetPackageShippingDocumentGet() {
-    const result = await client.api.FulfillmentV202309Api.PackagesPackageIdShippingDocumentsGet("5433567853345", "SHIPPING_LABEL", "your access token", "application/json", "A6", "PDF", "your shop cipher");
-    console.log('response: ', JSON.stringify(result, null, 2));
-}
-
-```
-
-**Java**
-```java
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-public void fulfillment202309GetPackageShippingDocumentGet() throws Exception {
-    ApiClient defaultClient = Configuration.getDefaultApiClient()
-            .setAppkey("your appKey")
-            .setSecret("your secret")
-            .setBasePath("https://open-api.tiktokglobalshop.com");
-    FulfillmentV202309Api apiInstance = new FulfillmentV202309Api(defaultClient);
-    GetPackageShippingDocumentResponse result = apiInstance.fulfillment202309PackagesPackageIdShippingDocumentsGet("5433567853345", "SHIPPING_LABEL", "your access token", "application/json", "A6", "PDF", "your shop cipher");
-    System.out.println(result);
-}
-
-```
-
-### Response Parameters
-
-| Name | Type | Example | Description |
-| --- | --- | --- | --- |
-| code | int | 0 | The success or failure status code returned in API response. |
-| message | string | Success | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
-| request_id | string | 202203070749000101890810281E8C70B7 | Request log |
-| data | object |  | Specific return information |
-| ^doc_url | string | https://magelng.bytedance.net2/wsos_v2/oec_fulfillment_doc_tts/object/wsos641232 | The URL of the shipping label and packing slip generated for the specified package.  The URL is valid for 24 hours. |
-| ^tracking_number | string | 752455325694 | The package tracking number from the shipping carrier.  |
-
-### Response Sample
-
-```json
-{
-  "code": 0,
-  "data": {
-    "doc_url": "https://magelng.bytedance.net2/wsos_v2/oec_fulfillment_doc_tts/object/wsos641232",
-    "tracking_number": "752455325694"
-  },
-  "message": "Success",
-  "request_id": "202203070749000101890810281E8C70B7"
-}
-```
-
-### Error Codes
-
-| Code | Message |
-| --- | --- |
-| 11006010 | Internal package status error, please try again later. |
-| 11034002 | This API is only applicable to TikTok Shipping orders. For seller shipping, please obtain the shipping label offline and upload it to TikTok Shop via API or Seller Center. |
-| 11034009 | Warehouse does not exist. |
-| 11034023 | Shipping document generation timeout error, please try again later. |
-| 11034025 | Internal package tag error, pleaser try again later. |
-| 11034037 | The shipping document is still being generated by the logistics provider, please try again later. |
-| 21008017 | This API is only applicable to TikTok Shipping orders. For seller shipping, please obtain the shipping label offline and upload it to TikTok Shop via API or Seller Center. |
-| 21008043 | This package is fulfilled by TikTok.  Shipping documents cannot be printed. |
-| 21008109 | Unable to retrieve shipping information, please double check the order status. |
-| 21011001 | Package not found. If the error persists, please contact the platform for assistance. |
-| 21021010 | Package item has after-sale request, please process the after-sale request first. |
-| 21023022 | Unknown label print timeout error. If the error persists, please contact the platform for assistance. |
-| 21023034 | Internal package update error, please try again later. |
-| 21023035 | Please arrange shipment before retrieving the shipping document. |
-| 21023046 | Package has already been shipped. |
-| 21023059 | Package has already been cancelled. |
-| 21042102 | Documents couldn't be printed after the package has been pickup. |
-| 21042104 | Documents couldn't be printed before shipped.Please check shipping is arranged and try again. |
-| 36009003 | Internal error. Please try again. If the issue persists after multiple attempts, please contact platform support. |
-
-### API Scope / Permissions
-
-| Scope Name | Type | Description |
-| --- | --- | --- |
-| Fulfillment Basic | Public | The Partner will be able to fulfil and manage orders on seller's behalf, and provide real-time updates on the status of seller's orders. |
-
----
-
-## Get Package Detail
+## GetPackageDetail
 
 Returns information about a package, including handover time slot, tracking number, and shipping provider information.
 
 **Path:** `/fulfillment/202309/packages/{package_id}`
-
 **Method:** `GET`
+**Version:** 202309
+**Docs:** https://partner.tiktokshop.com/docv2/page/get-package-detail-202309
 
-**Common Parameters:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a4278f4c20311b8b57e)
-
-**Common Error Codes:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a45786253031531b942)
-
-### Request Header Parameters
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| content-type | string | Y | Allowed type: application/json |
-| x-tts-access-token | string | Y | The seller access_token value from [Get Access Token](https://partner.tiktokshop.com/docv2/page/678e3a3292b0f40314a92d75#Get%20Access%20Token%20API), when user_type = 0. Follow this [guide](https://partner.tiktokshop.com/docv2/page/678e3a344ddec3030b238fa0) to get seller access_token. |
-
-### Request Path Parameters
+### Path Parameters
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
 | package_id | string | Y | TikTok Shop package ID. |
 
-### Request Query Parameters
+### Query Parameters
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| app_key | string | Y | Every single app will have a unique key. Please use the specific key assigned to your app. |
-| sign | string | Y | Signature generated by gen algorithm. When you send API requests to TTS, you must sign them so that TTS can identify the senders.  |
-| timestamp | int | Y | Unix timestamp GMT (UTC+00:00). This timestamp is used across all API requests. Developers can use this convert to local time. |
-| shop_cipher | string | Y | Use this property to pass shop information in requesting the API. Failure in passing the correct value when requesting the API for cross-border shops will return incorrect response.  Get by API [Get Authorization Shop](https://partner.tiktokshop.com/docv2/page/6507ead7b99d5302be949ba9?external_id=6507ead7b99d5302be949ba9) |
+| shop_cipher | string |  | Use this property to pass shop information in requesting the API. Failure in passing the correct value when requesting the API for cross-border shops will return incorrect response. Get by API [Get Authorization Shop](https://partner.tiktokshop.com/docv2/page/6507ead7b99d5302be949ba9?external_id=6507ead7b99d5302be949ba9) |
 
-### Request Sample
+### Header Parameters
 
-```
-https://open-api.tiktokglobalshop.com/fulfillment/202309/packages/5433567853345?app_key=123abc&sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c&timestamp=1625484268&shop_cipher=ROW_RHkDDABBAAB8tKAVoAqsMTjsQZFLyNfY
-```
-
-### Sample Code
-
-**Curl**
-```shell
-curl -X GET \
- 'https://open-api.tiktokglobalshop.com/fulfillment/202309/packages/5433567853345?app_key=38abcd&sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c&timestamp=1623812664&shop_cipher=GCP_XF90igAAAABh00qsWgtvOiGFNqyubMt3' \
--H 'x-tts-access-token: TTP_pwSm2AAAAABmmtFz1xlyKMnwg74T2GJ5s0uQbS8jPjb_GkdFVCxPqzQXSyuyfXdQa0AqyDsea2tYFNVf4XeqgZHFfPyv0Vs659QqyLYfsGzanZ5XZAin3_ZkcIxxS0_In6u6XDeU96k' \
--H 'content-type: application/json'
-```
-
-**Go**
-```go
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-func fulfillment202309GetPackageDetailGet() {
-    configuration := apis.NewConfiguration()
-    configuration.AddAppInfo(appKey, appSecret)
-    apiClient := apis.NewAPIClient(configuration)
-    request := apiClient.FulfillmentV202309API.Fulfillment202309PackagesPackageIdGet(context.Background(), "5433567853345")
-    request = request.XTtsAccessToken("your access token")
-    request = request.ContentType("application/json")
-    request = request.ShopCipher("your shop cipher")
-    resp, httpResp, err := request.Execute()
-    if err != nil || httpResp.StatusCode != 200 {
-        fmt.Printf("productsRequest err:%v resbody:%s", err, httpResp.Body)
-        return
-    }
-    if resp == nil {
-        fmt.Printf("response is nil")
-        return
-    }
-    if resp.GetCode()!= 0 {
-        fmt.Printf("response business is error, errorCode:%d errorMessage:%s", resp.GetCode(), resp.GetMessage())
-        return
-    }
-    respDataJson, _ := json.MarshalIndent(resp.GetData(), "", "  ")
-    fmt.Println("response data:", string(respDataJson))
-    return
-}
-
-```
-
-**Node.js**
-```typescript
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-async function fulfillment202309GetPackageDetailGet() {
-    const result = await client.api.FulfillmentV202309Api.PackagesPackageIdGet("5433567853345", "your access token", "application/json", "your shop cipher");
-    console.log('response: ', JSON.stringify(result, null, 2));
-}
-
-```
-
-**Java**
-```java
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-public void fulfillment202309GetPackageDetailGet() throws Exception {
-    ApiClient defaultClient = Configuration.getDefaultApiClient()
-            .setAppkey("your appKey")
-            .setSecret("your secret")
-            .setBasePath("https://open-api.tiktokglobalshop.com");
-    FulfillmentV202309Api apiInstance = new FulfillmentV202309Api(defaultClient);
-    GetPackageDetailResponse result = apiInstance.fulfillment202309PackagesPackageIdGet("5433567853345", "your access token", "application/json", "your shop cipher");
-    System.out.println(result);
-}
-
-```
-
-### Response Parameters
-
-| Name | Type | Example | Description |
+| Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| code | int | 0 | The success or failure status code returned in API response. |
-| message | string | Success | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
-| request_id | string | 202203070749000101890810281E8C70B7 | Request log |
-| data | object |  | Specific return information |
-| ^package_id | string | 5433567853345 | TikTok Shop package ID.  |
-| ^orders | []object |  | The response list of TikTok Shop orders. |
-| ^^id | string | 54335448533296 | TikTok Shop order ID. |
-| ^^skus | []object |  | [Deprecated]SKU information. |
-| ^^^id | string | 2729382476852921560 | [Deprecated]SKU ID. |
-| ^^^name | string | white,128g | [Deprecated]SKU name.  |
-| ^^^image_url | string | https://p19-oec-sg.ibyteimg.com/tos-maliva-i-o3syd03w52-us/12345670c | [Deprecated]SKU image in order snapshot. |
-| ^^^quantity | int | 5 | [Deprecated]SKU quantity. |
-| ^package_status | string | PROCESSING | Possible values: - `TO FULFILL`：Waiting for the merchant or warehouse to ship the package. - `PROCESSING`: Package has been arranged by seller. Waiting for carrier to collect the parcel. - `FULFILLING`: Package has been collected by carrier and in transit. - `COMPLETED`: Package has been delivered. - `CANCELLED`: Package has been canceled. Normally, the package is canceled due to the package being lost or damaged. |
-| ^package_sub_status | string | Created | -ISSUE：Package allocation failed, need to contact the platform. -CREATED：Package has been created -STOCKING：Platform verification completed, waiting for the merchant to ship -RTSING：Purchasing shipping label and waiting for the carrier to return results. -RTS_success：Purchasing shipping label success,seller can print label. -HBW:Only for FBT order ,has been create to the warehouse -HBWING:Only for FBT order ,creating to the warehouse -TTS：Carriers pickup the package. -Delivery：The package has been delivered to the buyer. -Ship_exception：Cannot delivered to buyer, maybe damaged or lost. |
-| ^ship_exception_reason | string | PACKAGE_LOST | -PACKAGE_DAMAGAED -PACKAGE_LOST -RETURNED_TO_SHIPPER -PACKAGE_SCRAP |
-| ^split_and_combine_tag | string | SPLIT | Possible values: - `DEFAULT`: The package has not undergone any combine or split operation. - `COMBINE`: The package has been consolidated with another order. - `SPLIT`: The order has been split into multiple orders. |
-| ^has_multi_skus | bool | true | Whether there are multiple SKU IDs in a package. |
-| ^note_tag | string | BUYER_UNNOTED | Possible values: - `BUYER_UNNOTED`: The order has not been noted by buyer. - `BUYER_NOTED`: The order has been noted by buyer.  |
-| ^shipping_provider_name | string | TT Virtual express | Package shipping provider name. |
-| ^shipping_provider_id | string | 6617675021119438849 | Package shipping provider ID. |
-| ^shipping_type | string | TIKTOK | The method of delivery.  Possible values: - `TIKTOK`: Shipping service provided by TikTok. The seller should obtain a shipping label from TikTok. - `SELLER`: Seller provides shipping, including through 3rd party fulfillment providers on behalf of the seller.  |
-| ^delivery_option_name | string | Shipped from seller  | Delivery option name. For display purposes only. |
-| ^delivery_option_id | string | 7091146663229654785 | Order delivery option ID. Delivery option ID is mapped to seller configured logistics templates ID. |
-| ^tracking_number | string | 6617675021119438849 | Package tracking number. |
-| ^last_mile_tracking_number | string | 6617675021119438849 | For cross-border order only. Cross-border order last mile tracking number.  |
-| ^pickup_slot | object |  | Time slots available for pickup. |
-| ^^start_time | int | 1635338186 | Start of the time slot when a package is scheduled to be picked up by carrier. Unix timestamp. |
-| ^^end_time | int | 1635338186 | End of time slot when a package is scheduled to be picked up by carrier. Unix timestamp. |
-| ^create_time | int | 1635338186 | Package creation time. Unix timestamp. |
-| ^handover_method | string | PICKUP | Whether the package is delivered by pick up or drop off. Possible values: - `PICKUP`: A Logistics carrier will pickup the package(s) from the seller's pickup address. - `DROP_OFF`: Seller will need to drop off the package(s) to a designated location. |
-| ^order_line_item_ids | []string | ["1729382476852921560"] | The order line item ID contained in the package. |
-| ^recipient_address | object |  | Recipient address.  |
-| ^^full_address | string | 1*** Coleman Ave San Jose, CA 95110  | The complete recipient addresses information.  |
-| ^^phone_number | string | (+1)213-***-1234  | The telephone number of the buyer. Please note, if this order use platform logistics, phone number will be desensitized. |
-| ^^name | string | Zay | The name of the recipient. Please note, if this order uses platform logistics, recipient name will be desensitized |
-| ^^postal_code | string | 95110  | The postal code that can be used by seller for shipping (in the U.S, this refers to the ZIP code). |
-| ^^address_detail | string | Unit one building 8  | Full buyer detail address. |
-| ^^region_code | string | US | Region code. |
-| ^^address_line1 | string | TikTok 5800 bristol Pkwy  | The first line of the street address |
-| ^^address_line2 | string | Suite 100  | The second line of the street address. |
-| ^^address_line3 | string | Suite 100  | The third line of the street address. Usually only for the Brazilian market. |
-| ^^address_line4 | string | Suite 100  | The fourth line of the street address. Usually only for the Brazilian market. |
-| ^sender_address | object |  | Sender address. |
-| ^^full_address | string | 1*** Coleman Ave San Jose, CA 95110 | The complete sender addresses information. |
-| ^^phone_number | string | (+1)213-***-1234  | The telephone number of the sender.  |
-| ^^name | string | Zay | The name of the sender. |
-| ^^postal_code | string | 95110 | The postal code of the sender. |
-| ^^address_detail | string | Unit one building 8 | Full sender detail address. |
-| ^^region_code | string | US | Region code of the sender. |
-| ^^address_line1 | string | TikTok 5800 bristol Pkwy | The first line of the sender's street address. |
-| ^^address_line2 | string | Suite 100 | The second line of the sender's street address. |
-| ^^address_line3 | string | Suite 100 | The third line of the sender's street address. Usually only for the Brazilian market. |
-| ^^address_line4 | string | Suite 100 | The fourth line of the sender's street address. Usually only for the Brazilian market. |
-| ^weight | object |  | The weight of the scheduled package. |
-| ^^value | string | 1.2 | The value of the weight of the scheduled package. |
-| ^^unit | string | GRAM | The unit of measurement used to measure the weight. Possible values: - `GRAM` - `POUND` |
+| x-tts-access-token | string | Y |  |
+| Content-Type | string | Y | Allowed type: application/json |
+
+### Response
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| code | integer |  | The success or failure status code returned in API response. |
+| data | object |  | Specific return information. |
+| ^create_time | integer |  | Package creation time. Unix timestamp. |
+| ^delivery_option_id | string |  | Order delivery option ID. Delivery option ID is mapped to seller configured logistics templates ID. |
+| ^delivery_option_name | string |  | Delivery option name. For display purposes only. |
 | ^dimension | object |  | The dimensions of the scheduled package. |
-| ^^length | string | 1.2 | The length of the scheduled package.  |
-| ^^width | string | 0.2 | The width of the scheduled package.  |
-| ^^height | string | 0.03 | The height of the scheduled package.  |
-| ^^unit | string | CM | The unit of measurement used to measure the length. Possible values: - `CM` - `INCH` |
-| ^update_time | int | 1635338186 | The time the package has been updated. Unix timestamp. |
+| ^^height | string |  | The height of the scheduled package. |
+| ^^length | string |  | The length of the scheduled package. |
+| ^^unit | string |  | The unit of measurement used to measure the length. Possible values: - `CM` - `INCH` |
+| ^^width | string |  | The width of the scheduled package. |
+| ^handover_method | string |  | Whether the package is delivered by pick up or drop off. Possible values: - `PICKUP`: A Logistics carrier will pickup the package(s) from the seller's pickup address. - `DROP_OFF`: Seller will need to drop off the package(s) to a designated location. |
+| ^has_multi_skus | boolean |  | Whether there are multiple SKU IDs in a package. |
 | ^insurance | object |  | Provides details of shipping insurance auto-enrolled during label purchase |
-| ^^is_purchased | bool | true | Whether insurance has been purchased for the package. |
-| ^^coverage_amount | string | 200 | The insurance coverage amount for the package. Units: USD. |
-| ^^is_claim_eligible | bool | true | Whether the order is eligible for an insurance claim, based on eligible refund reasons. |
-| ^^claim_status | string | CLAIM_PENDING | The insurance claim status. Available values: - `NOT_STARTED`: Claim has not been initiated for this package. - `CLAIM_PENDING`: Claim is currently under review. - `APPROVED`: Claim has been approved. - `DECLINED`: Claim has been declined. |
-
-### Response Sample
-
-```json
-{
-  "code": 0,
-  "data": {
-    "package_id": "5433567853345",
-    "orders": [
-      {
-        "id": "54335448533296",
-        "skus": [
-          {
-            "id": "2729382476852921560",
-            "name": "white,128g",
-            "image_url": "https://p19-oec-sg.ibyteimg.com/tos-maliva-i-o3syd03w52-us/12345670c",
-            "quantity": 5
-          }
-        ]
-      }
-    ],
-    "package_status": "PROCESSING",
-    "package_sub_status": "Created",
-    "ship_exception_reason": "PACKAGE_LOST",
-    "split_and_combine_tag": "SPLIT",
-    "has_multi_skus": true,
-    "note_tag": "BUYER_UNNOTED",
-    "shipping_provider_name": "TT Virtual express",
-    "shipping_provider_id": "6617675021119438849",
-    "shipping_type": "TIKTOK",
-    "delivery_option_name": "Shipped from seller\n",
-    "delivery_option_id": "7091146663229654785",
-    "tracking_number": "6617675021119438849",
-    "last_mile_tracking_number": "6617675021119438849",
-    "pickup_slot": {
-      "start_time": 1635338186,
-      "end_time": 1635338186
-    },
-    "create_time": 1635338186,
-    "handover_method": "PICKUP",
-    "order_line_item_ids": [
-      "1729382476852921560"
-    ],
-    "recipient_address": {
-      "full_address": "1*** Coleman Ave San Jose, CA 95110\n",
-      "phone_number": "(+1)213-***-1234\n",
-      "name": "Zay",
-      "postal_code": "95110\n",
-      "address_detail": "Unit one building 8\n",
-      "region_code": "US",
-      "address_line1": "TikTok 5800 bristol Pkwy\n",
-      "address_line2": "Suite 100\n",
-      "address_line3": "Suite 100\n",
-      "address_line4": "Suite 100\n"
-    },
-    "sender_address": {
-      "full_address": "1*** Coleman Ave San Jose, CA 95110",
-      "phone_number": "(+1)213-***-1234\n",
-      "name": "Zay",
-      "postal_code": "95110",
-      "address_detail": "Unit one building 8",
-      "region_code": "US",
-      "address_line1": "TikTok 5800 bristol Pkwy",
-      "address_line2": "Suite 100",
-      "address_line3": "Suite 100",
-      "address_line4": "Suite 100"
-    },
-    "weight": {
-      "value": "1.2",
-      "unit": "GRAM"
-    },
-    "dimension": {
-      "length": "1.2",
-      "width": "0.2",
-      "height": "0.03",
-      "unit": "CM"
-    },
-    "update_time": 1635338186,
-    "insurance": {
-      "is_purchased": true,
-      "coverage_amount": "200",
-      "is_claim_eligible": true,
-      "claim_status": "CLAIM_PENDING"
-    }
-  },
-  "message": "Success",
-  "request_id": "202203070749000101890810281E8C70B7"
-}
-```
-
-### Error Codes
-
-| Code | Message |
-| --- | --- |
-| 36009003 | Internal error. Please try again. If the issue persists after multiple attempts, please contact platform support. |
-
-### API Scope / Permissions
-
-| Scope Name | Type | Description |
-| --- | --- | --- |
-| Fulfillment Basic | Public | The Partner will be able to fulfil and manage orders on seller's behalf, and provide real-time updates on the status of seller's orders. |
+| ^^claim_status | string |  | The insurance claim status. Available values: - `NOT_STARTED`: Claim has not been initiated for this package. - `CLAIM_PENDING`: Claim is currently under review. - `APPROVED`: Claim has been approved. - `DECLINED`: Claim has been declined. |
+| ^^coverage_amount | string |  | The insurance coverage amount for the package. Units: USD. |
+| ^^is_claim_eligible | boolean |  | Whether the order is eligible for an insurance claim, based on eligible refund reasons. |
+| ^^is_purchased | boolean |  | Whether insurance has been purchased for the package. |
+| ^last_mile_tracking_number | string |  | For cross-border order only. Cross-border order last mile tracking number. |
+| ^note_tag | string |  | Possible values: - `BUYER_UNNOTED`: The order has not been noted by buyer. - `BUYER_NOTED`: The order has been noted by buyer. |
+| ^order_line_item_ids | array<string> |  | The order line item ID contained in the package. |
+| ^orders | array<object> |  | The response list of TikTok Shop orders. |
+| ^^id | string |  | TikTok Shop order ID. |
+| ^^skus | array<object> |  | [Deprecated]SKU information. |
+| ^^^id | string |  | [Deprecated]SKU ID. |
+| ^^^image_url | string |  | [Deprecated]SKU image in order snapshot. |
+| ^^^name | string |  | [Deprecated]SKU name. |
+| ^^^quantity | integer |  | [Deprecated]SKU quantity. |
+| ^package_id | string |  | TikTok Shop package ID. |
+| ^package_status | string |  | Possible values: - `PROCESSING`: Package has been arranged by seller. Waiting for carrier to collect the parcel. - `FULFILLING`: Package has been collected by carrier and in transit. - `COMPLETED`: Package has been delivered. - `CANCELLED`: Package has been canceled. Normally, the package is canceled due to the package being lost or damaged. |
+| ^pickup_slot | object |  | Time slots available for pickup. |
+| ^^end_time | integer |  | End of time slot when a package is scheduled to be picked up by carrier. Unix timestamp. |
+| ^^start_time | integer |  | Start of the time slot when a package is scheduled to be picked up by carrier. Unix timestamp. |
+| ^recipient_address | object |  | Recipient address. |
+| ^^address_detail | string |  | Full buyer detail address. |
+| ^^address_line1 | string |  | The first line of the street address |
+| ^^address_line2 | string |  | The second line of the street address. |
+| ^^address_line3 | string |  | The third line of the street address. Usually only for the Brazilian market. |
+| ^^address_line4 | string |  | The fourth line of the street address. Usually only for the Brazilian market. |
+| ^^full_address | string |  | The complete recipient addresses information. |
+| ^^name | string |  | The name of the recipient. Please note, if this order uses platform logistics, recipient name will be desensitized |
+| ^^phone_number | string |  | The telephone number of the buyer. Please note, if this order use platform logistics, phone number will be desensitized. |
+| ^^postal_code | string |  | The postal code that can be used by seller for shipping (in the U.S, this refers to the ZIP code). |
+| ^^region_code | string |  | Region code. |
+| ^sender_address | object |  | Sender address. |
+| ^^address_detail | string |  | Full sender detail address. |
+| ^^address_line1 | string |  | The first line of the sender's street address. |
+| ^^address_line2 | string |  | The second line of the sender's street address. |
+| ^^address_line3 | string |  | The third line of the sender's street address. Usually only for the Brazilian market. |
+| ^^address_line4 | string |  | The fourth line of the sender's street address. Usually only for the Brazilian market. |
+| ^^full_address | string |  | The complete sender addresses information. |
+| ^^name | string |  | The name of the sender. |
+| ^^phone_number | string |  | The telephone number of the sender. |
+| ^^postal_code | string |  | The postal code of the sender. |
+| ^^region_code | string |  | Region code of the sender. |
+| ^shipping_provider_id | string |  | Package shipping provider ID. |
+| ^shipping_provider_name | string |  | Package shipping provider name. |
+| ^shipping_type | string |  | The method of delivery. Possible values: - `TIKTOK`: Shipping service provided by TikTok. The seller should obtain a shipping label from TikTok. - `SELLER`: Seller provides shipping, including through 3rd party fulfillment providers on behalf of the seller. |
+| ^split_and_combine_tag | string |  | Possible values: - `DEFAULT`: The package has not undergone any combine or split operation. - `COMBINE`: The package has been consolidated with another order. - `SPLIT`: The order has been split into multiple orders. |
+| ^tracking_number | string |  | Package tracking number. |
+| ^update_time | integer |  | The time the package has been updated. Unix timestamp. |
+| ^weight | object |  | The weight of the scheduled package. |
+| ^^unit | string |  | The unit of measurement used to measure the weight. Possible values: - `GRAM` - `POUND` |
+| ^^value | string |  | The value of the weight of the scheduled package. |
+| message | string |  | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
+| request_id | string |  | Request log. |
 
 ---
 
-## Get Tracking
+## GetPackageHandoverTimeSlots
 
-This API can use the order number to obtain the corresponding logistics tracking information.
+Use this API to retrieve the time slots available for pickup, drop-off, or van collection for the seller's specified package by using package ID.
 
-**Path:** `/fulfillment/202309/orders/{order_id}/tracking`
-
+**Path:** `/fulfillment/202309/packages/{package_id}/handover_time_slots`
 **Method:** `GET`
+**Version:** 202309
+**Docs:** https://partner.tiktokshop.com/docv2/page/get-package-handover-time-slots-202309
 
-**Common Parameters:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a4278f4c20311b8b57e)
-
-**Common Error Codes:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a45786253031531b942)
-
-### Request Header Parameters
+### Path Parameters
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| content-type | string | Y | Allowed type: application/json |
-| x-tts-access-token | string | Y | The seller access_token value from [Get Access Token](https://partner.tiktokshop.com/docv2/page/678e3a3292b0f40314a92d75#Get%20Access%20Token%20API), when user_type = 0. Follow this [guide](https://partner.tiktokshop.com/docv2/page/678e3a344ddec3030b238fa0) to get seller access_token. |
+| package_id | string | Y | TikTok Shop package ID. |
 
-### Request Path Parameters
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| order_id | string | Y | TikTok Shop order ID. |
-
-### Request Query Parameters
+### Query Parameters
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| app_key | string | Y | Every single app will have a unique key. Please use the specific key assigned to your app. |
-| sign | string | Y | Signature generated by gen algorithm. When you send API requests to TTS, you must sign them so that TTS can identify the senders.  |
-| timestamp | int | Y | Unix timestamp GMT (UTC+00:00). This timestamp is used across all API requests. Developers can use this convert to local time. |
-| shop_cipher | string | Y | Use this property to pass shop information in requesting the API. Failure in passing the correct value when requesting the API for cross-border shops will return incorrect response.  Get by API [Get Authorization Shop](https://partner.tiktokshop.com/docv2/page/6507ead7b99d5302be949ba9?external_id=6507ead7b99d5302be949ba9) |
-| category_asset_cipher | string | N | The partner identifier used in API requests. Retrieve this value by using the [Get Authorized Category Assets API](https://partner.tiktokshop.com/docv2/page/666012dd609d4402cc3be995).  |
+| shop_cipher | string |  | Use this property to pass shop information in requesting the API. Failure in passing the correct value when requesting the API for cross-border shops will return incorrect response. |
 
-### Request Sample
+### Header Parameters
 
-```
-https://open-api.tiktokglobalshop.com/fulfillment/202309/orders/576461413038785752/tracking?app_key=123abc&sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c&timestamp=1625484268&shop_cipher=ROW_RHkDDABBAAB8tKAVoAqsMTjsQZFLyNfY
-```
-
-### Sample Code
-
-**Curl**
-```shell
-curl -X GET \
- 'https://open-api.tiktokglobalshop.com/fulfillment/202309/orders/576461413038785752/tracking?app_key=38abcd&sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c&timestamp=1623812664&shop_cipher=GCP_XF90igAAAABh00qsWgtvOiGFNqyubMt3' \
--H 'x-tts-access-token: TTP_pwSm2AAAAABmmtFz1xlyKMnwg74T2GJ5s0uQbS8jPjb_GkdFVCxPqzQXSyuyfXdQa0AqyDsea2tYFNVf4XeqgZHFfPyv0Vs659QqyLYfsGzanZ5XZAin3_ZkcIxxS0_In6u6XDeU96k' \
--H 'content-type: application/json'
-```
-
-**Go**
-```go
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-func fulfillment202309GetTrackingGet() {
-    configuration := apis.NewConfiguration()
-    configuration.AddAppInfo(appKey, appSecret)
-    apiClient := apis.NewAPIClient(configuration)
-    request := apiClient.FulfillmentV202309API.Fulfillment202309OrdersOrderIdTrackingGet(context.Background(), "576461413038785752")
-    request = request.XTtsAccessToken("your access token")
-    request = request.ContentType("application/json")
-    request = request.ShopCipher("your shop cipher")
-    resp, httpResp, err := request.Execute()
-    if err != nil || httpResp.StatusCode != 200 {
-        fmt.Printf("productsRequest err:%v resbody:%s", err, httpResp.Body)
-        return
-    }
-    if resp == nil {
-        fmt.Printf("response is nil")
-        return
-    }
-    if resp.GetCode()!= 0 {
-        fmt.Printf("response business is error, errorCode:%d errorMessage:%s", resp.GetCode(), resp.GetMessage())
-        return
-    }
-    respDataJson, _ := json.MarshalIndent(resp.GetData(), "", "  ")
-    fmt.Println("response data:", string(respDataJson))
-    return
-}
-
-```
-
-**Node.js**
-```typescript
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-async function fulfillment202309GetTrackingGet() {
-    const result = await client.api.FulfillmentV202309Api.OrdersOrderIdTrackingGet("576461413038785752", "your access token", "application/json", "your shop cipher");
-    console.log('response: ', JSON.stringify(result, null, 2));
-}
-
-```
-
-**Java**
-```java
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-public void fulfillment202309GetTrackingGet() throws Exception {
-    ApiClient defaultClient = Configuration.getDefaultApiClient()
-            .setAppkey("your appKey")
-            .setSecret("your secret")
-            .setBasePath("https://open-api.tiktokglobalshop.com");
-    FulfillmentV202309Api apiInstance = new FulfillmentV202309Api(defaultClient);
-    GetTrackingResponse result = apiInstance.fulfillment202309OrdersOrderIdTrackingGet("576461413038785752", "your access token", "application/json", "your shop cipher");
-    System.out.println(result);
-}
-
-```
-
-### Response Parameters
-
-| Name | Type | Example | Description |
+| Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| code | int | 0 | The success or failure status code returned in API response. |
-| message | string | Success | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
-| request_id | string | 202203070749000101890810281E8C70B7 | Request log |
-| data | object |  | Specific return information |
-| ^tracking | []object |  | The return list of tracking information. |
-| ^^description | string | Your package was delivered!  | Tracking status description. |
-| ^^update_time_millis | int | 1694685539000 | Tracking status update time. Unix timestamp in milliseconds. |
+| x-tts-access-token | string | Y |  |
+| Content-Type | string | Y | Allowed type: application/json |
 
-### Response Sample
+### Response
 
-```json
-{
-  "code": 0,
-  "data": {
-    "tracking": [
-      {
-        "description": "Your package was delivered!\n",
-        "update_time_millis": 1694685539000
-      }
-    ]
-  },
-  "message": "Success",
-  "request_id": "202203070749000101890810281E8C70B7"
-}
-```
-
-### Error Codes
-
-| Code | Message |
-| --- | --- |
-| 36009003 | Internal error. Please try again. If the issue persists after multiple attempts, please contact platform support. |
-
-### API Scope / Permissions
-
-| Scope Name | Type | Description |
-| --- | --- | --- |
-| Logistics Basic | Public | The Partner will be able to get seller's logistics and warehouse information. |
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| code | integer |  | The success or failure status code returned in API response. |
+| data | object |  | Specific return information. |
+| ^can_drop_off | boolean |  | Whether this package be dropped off at a drop-off location |
+| ^can_pickup | boolean |  | Whether this package supports door-to-door collection. |
+| ^can_van_collection | boolean |  | Specific to UK. Use this field to determine whether van collection is available. |
+| ^drop_off_point_url | string |  | View package drop-off locations  via provided URL. |
+| ^pickup_slots | array<object> |  | Time slot for door-to-door collection. |
+| ^^avaliable | boolean |  | Whether an appointment be made for this time slot. |
+| ^^end_time | integer |  | The end date and time of the package pick up time slot. Unix timestamp. |
+| ^^start_time | integer |  | The start date and time of the package pick up time slot. Unix timestamp. |
+| message | string |  | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
+| request_id | string |  | Request log. |
 
 ---
 
-## Update Shipping Info
+## ShipPackage
 
-If the seller entered an incorrect tracking number, this API allows the seller to update the tracking number and shipping provider for an order that has already been shipped.
+Use this API to ship a package. There are two kinds of shipping options available: `TikTok Shipping` or `Seller Shipping`.
 
-- This API is only applicable to orders (or packages) shipped by the seller.   
-- It is only used to update the tracking number and shipping provider for packages that have already been shipped. 
-- For orders that have been split for shipping, please use the [Update Package Shipping Info API](https://partner.tiktokshop.com/docv2/page/650aa666c16ffe02b8f1203c?external_id=650aa666c16ffe02b8f1203c). 
+- `TikTok Shipping`: Schedule a package handover time for TikTok Shipping carriers to pickup a package from seller.
+- `Seller Shipping`: Seller arranges their own shipping, and uploads a tracking number and `shipping_provider_id`. Package ID can be obtained from [Get Order Detail](https://partner.tiktokshop.com/docv2/page/650aa8ccc16ffe02b8f167a0?external_id=650aa8ccc16ffe02b8f167a0#Back%20To%20Top).
 
-Please note that TikTok Shop only allows merchants to update shipping information within 72 hours after shipping.
-
-**Path:** `/fulfillment/202309/orders/{order_id}/shipping_info/update`
-
+**Path:** `/fulfillment/202309/packages/{package_id}/ship`
 **Method:** `POST`
+**Version:** 202309
+**Docs:** https://partner.tiktokshop.com/docv2/page/ship-package-202309
 
-**Common Parameters:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a4278f4c20311b8b57e)
-
-**Common Error Codes:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a45786253031531b942)
-
-### Request Header Parameters
+### Path Parameters
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| content-type | string | Y | Allowed type: application/json |
-| x-tts-access-token | string | Y | The seller access_token value from [Get Access Token](https://partner.tiktokshop.com/docv2/page/678e3a3292b0f40314a92d75#Get%20Access%20Token%20API), when user_type = 0. Follow this [guide](https://partner.tiktokshop.com/docv2/page/678e3a344ddec3030b238fa0) to get seller access_token. |
+| package_id | string | Y | TikTok Shop package ID. |
 
-### Request Path Parameters
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| order_id | string | Y | TikTok Shop order ID. |
-
-### Request Query Parameters
+### Query Parameters
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| app_key | string | Y | Every single app will have a unique key. Please use the specific key assigned to your app. |
-| sign | string | Y | Signature generated by gen algorithm. When you send API requests to TTS, you must sign them so that TTS can identify the senders.  |
-| timestamp | int | Y | Unix timestamp GMT (UTC+00:00). This timestamp is used across all API requests. Developers can use this convert to local time. |
-| shop_cipher | string | Y | Use this property to pass shop information in requesting the API. Failure in passing the correct value when requesting the API for cross-border shops will return incorrect response.  Get by API [Get Authorization Shop](https://partner.tiktokshop.com/docv2/page/6507ead7b99d5302be949ba9?external_id=6507ead7b99d5302be949ba9) |
+| shop_cipher | string |  | Use this property to pass shop information in requesting the API. Failure in passing the correct value when requesting the API for cross-border shops will return incorrect response. |
 
-### Request Body Parameters
+### Header Parameters
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| tracking_number | string | Y | The shipment tracking number provided by the carrier. |
-| shipping_provider_id | string | Y | Identifies the carrier that will deliver the package. Please call [Get Shipping Providers API](https://partner.tiktokshop.com/docv2/page/650aa48d4a0bb702c06d85cd?external_id=650aa48d4a0bb702c06d85cd#Back%20To%20Top) to retrieve the available shipping provider(s). |
+| x-tts-access-token | string | Y |  |
+| Content-Type | string | Y | Allowed type: application/json |
 
-### Request Sample
+### Request Body (`application/json`)
 
-```
-https://open-api.tiktokglobalshop.com/fulfillment/202309/orders/576461413038785752/shipping_info/update?app_key=123abc&sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c&timestamp=1625484268&shop_cipher=ROW_RHkDDABBAAB8tKAVoAqsMTjsQZFLyNfY
-```
-
-### Request Body Sample
-
-```json
-{
-  "tracking_number": "576460868968549926",
-  "shipping_provider_id": "6965352555291346690"
-}
-```
-
-### Sample Code
-
-**Curl**
-```shell
-curl -X POST \
- 'https://open-api.tiktokglobalshop.com/fulfillment/202309/orders/576461413038785752/shipping_info/update?timestamp=1623812664&shop_cipher=GCP_XF90igAAAABh00qsWgtvOiGFNqyubMt3&app_key=38abcd&sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c' \
--H 'x-tts-access-token: TTP_pwSm2AAAAABmmtFz1xlyKMnwg74T2GJ5s0uQbS8jPjb_GkdFVCxPqzQXSyuyfXdQa0AqyDsea2tYFNVf4XeqgZHFfPyv0Vs659QqyLYfsGzanZ5XZAin3_ZkcIxxS0_In6u6XDeU96k' \
--H 'content-type: application/json' \
--d '{
-  "tracking_number": "576460868968549926",
-  "shipping_provider_id": "6965352555291346690"
-}'
-```
-
-**Go**
-```go
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-func fulfillment202309UpdateShippingInfoPost() {
-    configuration := apis.NewConfiguration()
-    configuration.AddAppInfo(appKey, appSecret)
-    apiClient := apis.NewAPIClient(configuration)
-    request := apiClient.FulfillmentV202309API.Fulfillment202309OrdersOrderIdShippingInfoUpdatePost(context.Background(), "576461413038785752")
-    request = request.XTtsAccessToken("your access token")
-    request = request.ContentType("application/json")
-    request = request.ShopCipher("your shop cipher")
-    fulfillment202309UpdateShippingInfoRequestBody := fulfillment_v202309.NewFulfillment202309UpdateShippingInfoRequestBody()
-    fulfillment202309UpdateShippingInfoRequestBody.SetTrackingNumber("576460868968549926")
-    fulfillment202309UpdateShippingInfoRequestBody.SetShippingProviderId("6965352555291346690")
-    request = request.Fulfillment202309UpdateShippingInfoRequestBody(*fulfillment202309UpdateShippingInfoRequestBody)
-    resp, httpResp, err := request.Execute()
-    if err != nil || httpResp.StatusCode != 200 {
-        fmt.Printf("productsRequest err:%v resbody:%s", err, httpResp.Body)
-        return
-    }
-    if resp == nil {
-        fmt.Printf("response is nil")
-        return
-    }
-    if resp.GetCode()!= 0 {
-        fmt.Printf("response business is error, errorCode:%d errorMessage:%s", resp.GetCode(), resp.GetMessage())
-        return
-    }
-    respDataJson, _ := json.MarshalIndent(resp.GetData(), "", "  ")
-    fmt.Println("response data:", string(respDataJson))
-    return
-}
-
-```
-
-**Node.js**
-```typescript
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-async function fulfillment202309UpdateShippingInfoPost() {
-    const fulfillment202309UpdateShippingInfoRequestBody = new Fulfillment202309UpdateShippingInfoRequestBody();
-    fulfillment202309UpdateShippingInfoRequestBody.trackingNumber = "576460868968549926";
-    fulfillment202309UpdateShippingInfoRequestBody.shippingProviderId = "6965352555291346690";
-    const result = await client.api.FulfillmentV202309Api.OrdersOrderIdShippingInfoUpdatePost("576461413038785752", "your access token", "application/json", "your shop cipher", fulfillment202309UpdateShippingInfoRequestBody);
-    console.log('response: ', JSON.stringify(result, null, 2));
-}
-
-```
-
-**Java**
-```java
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-public void fulfillment202309UpdateShippingInfoPost() throws Exception {
-    ApiClient defaultClient = Configuration.getDefaultApiClient()
-            .setAppkey("your appKey")
-            .setSecret("your secret")
-            .setBasePath("https://open-api.tiktokglobalshop.com");
-    FulfillmentV202309Api apiInstance = new FulfillmentV202309Api(defaultClient);
-    UpdateShippingInfoRequestBody updateShippingInfoRequestBody = new UpdateShippingInfoRequestBody();
-    updateShippingInfoRequestBody.setTrackingNumber("576460868968549926");
-    updateShippingInfoRequestBody.setShippingProviderId("6965352555291346690");
-    UpdateShippingInfoResponse result = apiInstance.fulfillment202309OrdersOrderIdShippingInfoUpdatePost("576461413038785752", "your access token", "application/json", "your shop cipher", updateShippingInfoRequestBody);
-    System.out.println(result);
-}
-
-```
-
-### Response Parameters
-
-| Name | Type | Example | Description |
+| Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| code | int | 0 | The success or failure status code returned in API response. |
-| message | string | Success | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
-| request_id | string | 202203070749000101890810281E8C70B7 | Request log |
-| data | object |  | Specific return information |
+| handover_method | string |  | Possible values: - `PICKUP`: A logistics carrier will pick up the package(s) from the seller's pickup address. - `DROP_OFF`: The seller will need to drop off the package(s) to a designated location. |
+| pickup_slot | object |  | Pickup time slot. |
+| ^end_time | integer |  | The end date and time of the package pickup time slot. Unix timestamp. |
+| ^start_time | integer |  | The start date and time of the package pickup time slot. Unix timestamp. |
+| self_shipment | object |  | Only needed for merchant self-shipping packages. Check the `delivery_option` field of [Get Package Detail](https://partner.tiktokshop.com/docv2/page/650aa39fbace3e02b75d8617?external_id=650aa39fbace3e02b75d8617#Back%20To%20Top) to see how to differentiate platform-logistics and self-shipping. Use the `shipping_provider_id` retrieved from [Get Shipping Providers](https://partner.tiktokshop.com/docv2/page/650aa48d4a0bb702c06d85cd?external_id=650aa48d4a0bb702c06d85cd) and upload the corresponding `tracking_number`. |
+| ^shipping_provider_id | string |  | For package with `SEND_BY_SELLER` as `delivery_option` (merchant self-shipping mode), you must input a `shipping_provider_id` to call this API. Please use [Get Shipping Providers](https://partner.tiktokshop.com/docv2/page/650aa48d4a0bb702c06d85cd?external_id=650aa48d4a0bb702c06d85cd) to obtain the `shipping_provider_id`. |
+| ^tracking_number | string |  | For package with `SEND_BY_SELLER` as `delivery_option` (merchant self-shipping mode), you must input a `tracking_number` to call this API. |
 
-### Response Sample
+### Response
 
-```json
-{
-  "code": 0,
-  "data": {},
-  "message": "Success",
-  "request_id": "202203070749000101890810281E8C70B7"
-}
-```
-
-### Error Codes
-
-| Code | Message |
-| --- | --- |
-| 10007002 | Current order is not a merchant blind box order. |
-| 36009003 | Internal error. Please try again. If the issue persists after multiple attempts, please contact platform support. |
-| 21011001 | Package not found. If the error persists, please contact the platform for assistance. |
-| 21011004 | This API cannot be used to update package shipping information for packages that are not shipped by sellers. |
-| 21011007 | Package item has after-sale request, please process the after-sale request first. |
-| 21011022 | Invalid tracking number or provider ID. Please double check and try again. |
-| 21011028 | The package does not belong to the current shop.    |
-| 21011030 | Package has already been delivered. If you would still like to update the tracking number, please contact the platform for assistance. |
-| 21011041 | Cannot complete the operation when order is cancelled. |
-| 21011042 | Cannot complete the operation when order is cancelled. |
-| 21011043 | The package has not been shipped yet. |
-| 21011049 | Due to platform rule limitations, you are unable to update the tracking number. |
-| 25001010 | A return request has already been completed, or the order has already been cancelled. |
-
-### API Scope / Permissions
-
-| Scope Name | Type | Description |
-| --- | --- | --- |
-| Logistics Basic | Public | The Partner will be able to get seller's logistics and warehouse information. |
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| code | integer |  | The success or failure status code returned in API response. |
+| data | object |  | Specific return information. |
+| message | string |  | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
+| request_id | string |  | Request log. |
 
 ---
 
-## Update Package Shipping Info
+## GetPackageShippingDocument
+
+For orders shipped by TikTok Shop, this API retrieves the URL of shipping documents (shipping label and packing slip) for a package specified by the package ID. This API is only applicable to "TikTok Shipping" orders. To obtain the shipping documents URL via this API, first call "Ship Package" to ship the corresponding package.
+
+**Path:** `/fulfillment/202309/packages/{package_id}/shipping_documents`
+**Method:** `GET`
+**Version:** 202309
+**Docs:** https://partner.tiktokshop.com/docv2/page/get-package-shipping-document-202309
+
+### Path Parameters
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| package_id | string | Y | TikTok Shop package ID. |
+
+### Query Parameters
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| document_type | string | Y | Available document types: - `SHIPPING_LABEL`: Returns the shipping label in PDF format by default. - `PACKING_SLIP`: Returns the packing slip in PDF format by default. - `SHIPPING_LABEL_AND_PACKING_SLIP`: Returns both the shipping label and the packing slip for the package, both in PDF format by default. - `SHIPPING_LABEL_PICTURE`: Returns the shipping label in PNG format. - `HAZMAT_LABEL`: Returns the hazmat label in PDF format by default. You must only use this value when there are hazmat items in the package. When you use the value, `document_size` is fixed to A4, and you don't need to specify `document_size`. - `INVOICE_LABEL`: For Brazil market only, document_size is fixed to A6, and you don't need to specify `document_size`. Returns the invoice label in PDF format by default |
+| document_size | string |  | Use this field to specify the size of the document to obtain. This parameter is only applicable to shipping labels, picking slips, and packing slips that are in the PDF format. It is not applicable for hazmat labels as these are fixed to A4. If you specify `SHIPPING_LABEL_PICTURE` for the `document_type`, any value specified in the `document_size` will be ignored. Possible values: - `A6` (Default) - `A5` |
+| document_format | string |  | The format of the shipping document. Possible values: - PDF (Default) - ZPL (Only for BR and MX market) **Note**: Not applicable for `SHIPPING_LABEL_PICTURE` document type. |
+| shop_cipher | string |  | Use this property to pass shop information in requesting the API. Failure in passing the correct value when requesting the API for cross-border shops will return incorrect response. |
+
+### Header Parameters
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| x-tts-access-token | string | Y |  |
+| Content-Type | string | Y | Allowed type: application/json |
+
+### Response
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| code | integer |  | The success or failure status code returned in API response. |
+| data | object |  | Specific return information. |
+| ^doc_url | string |  | The URL of the shipping label and packing slip generated for the specified package. The URL is valid for 24 hours. |
+| ^tracking_number | string |  | The package tracking number from the shipping carrier. |
+| message | string |  | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
+| request_id | string |  | Request log. |
+
+---
+
+## UpdatePackageShippingInfo
 
 If the seller entered an incorrect tracking number, this API allows the seller to update the tracking number and shipping provider for a package that has already been shipped. Attention: This API is only applicable to orders (or packages) shipped by the seller.  It is only used to update the tracking number and shipping provider for packages that have already been shipped.
 
 **Path:** `/fulfillment/202309/packages/{package_id}/shipping_info/update`
-
 **Method:** `POST`
+**Version:** 202309
+**Docs:** https://partner.tiktokshop.com/docv2/page/update-package-shipping-info-202309
 
-**Common Parameters:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a4278f4c20311b8b57e)
-
-**Common Error Codes:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a45786253031531b942)
-
-### Request Header Parameters
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| content-type | string | Y | Allowed type: application/json |
-| x-tts-access-token | string | Y | The seller access_token value from [Get Access Token](https://partner.tiktokshop.com/docv2/page/678e3a3292b0f40314a92d75#Get%20Access%20Token%20API), when user_type = 0. Follow this [guide](https://partner.tiktokshop.com/docv2/page/678e3a344ddec3030b238fa0) to get seller access_token. |
-
-### Request Path Parameters
+### Path Parameters
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
 | package_id | string | Y | TikTok Shop package ID. |
 
-### Request Query Parameters
+### Query Parameters
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| app_key | string | Y | Every single app will have a unique key. Please use the specific key assigned to your app. |
-| sign | string | Y | Signature generated by gen algorithm. When you send API requests to TTS, you must sign them so that TTS can identify the senders.  |
-| timestamp | int | Y | Unix timestamp GMT (UTC+00:00). This timestamp is used across all API requests. Developers can use this convert to local time. |
-| shop_cipher | string | Y | Use this property to pass shop information in requesting the API. Failure in passing the correct value when requesting the API for cross-border shops will return incorrect response.  Get by API [Get Authorization Shop](https://partner.tiktokshop.com/docv2/page/6507ead7b99d5302be949ba9?external_id=6507ead7b99d5302be949ba9) |
+| shop_cipher | string |  | Use this property to pass shop information in requesting the API. Failure in passing the correct value when requesting the API for cross-border shops will return incorrect response. |
 
-### Request Body Parameters
+### Header Parameters
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| tracking_number | string | Y | The shipment tracking number provided by the carrier. |
-| shipping_provider_id | string | Y | Identifies the carrier that will deliver the package. Please call the [Get Shipping Providers API](https://partner.tiktokshop.com/docv2/page/650aa48d4a0bb702c06d85cd?external_id=650aa48d4a0bb702c06d85cd#Back%20To%20Top) to retrieve the available shipping provider(s). |
+| x-tts-access-token | string | Y |  |
+| Content-Type | string | Y | Allowed type: application/json |
 
-### Request Sample
+### Request Body (`application/json`)
 
-```
-https://open-api.tiktokglobalshop.com/fulfillment/202309/packages/5433567853345/shipping_info/update?app_key=123abc&sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c&timestamp=1625484268&shop_cipher=ROW_RHkDDABBAAB8tKAVoAqsMTjsQZFLyNfY
-```
-
-### Request Body Sample
-
-```json
-{
-  "tracking_number": "576460868968549926",
-  "shipping_provider_id": "6965352555291346690"
-}
-```
-
-### Sample Code
-
-**Curl**
-```shell
-curl -X POST \
- 'https://open-api.tiktokglobalshop.com/fulfillment/202309/packages/5433567853345/shipping_info/update?timestamp=1623812664&app_key=38abcd&sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c&shop_cipher=GCP_XF90igAAAABh00qsWgtvOiGFNqyubMt3' \
--H 'x-tts-access-token: TTP_pwSm2AAAAABmmtFz1xlyKMnwg74T2GJ5s0uQbS8jPjb_GkdFVCxPqzQXSyuyfXdQa0AqyDsea2tYFNVf4XeqgZHFfPyv0Vs659QqyLYfsGzanZ5XZAin3_ZkcIxxS0_In6u6XDeU96k' \
--H 'content-type: application/json' \
--d '{
-  "tracking_number": "576460868968549926",
-  "shipping_provider_id": "6965352555291346690"
-}'
-```
-
-**Go**
-```go
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-func fulfillment202309UpdatePackageShippingInfoPost() {
-    configuration := apis.NewConfiguration()
-    configuration.AddAppInfo(appKey, appSecret)
-    apiClient := apis.NewAPIClient(configuration)
-    request := apiClient.FulfillmentV202309API.Fulfillment202309PackagesPackageIdShippingInfoUpdatePost(context.Background(), "5433567853345")
-    request = request.XTtsAccessToken("your access token")
-    request = request.ContentType("application/json")
-    request = request.ShopCipher("your shop cipher")
-    fulfillment202309UpdatePackageShippingInfoRequestBody := fulfillment_v202309.NewFulfillment202309UpdatePackageShippingInfoRequestBody()
-    fulfillment202309UpdatePackageShippingInfoRequestBody.SetTrackingNumber("576460868968549926")
-    fulfillment202309UpdatePackageShippingInfoRequestBody.SetShippingProviderId("6965352555291346690")
-    request = request.Fulfillment202309UpdatePackageShippingInfoRequestBody(*fulfillment202309UpdatePackageShippingInfoRequestBody)
-    resp, httpResp, err := request.Execute()
-    if err != nil || httpResp.StatusCode != 200 {
-        fmt.Printf("productsRequest err:%v resbody:%s", err, httpResp.Body)
-        return
-    }
-    if resp == nil {
-        fmt.Printf("response is nil")
-        return
-    }
-    if resp.GetCode()!= 0 {
-        fmt.Printf("response business is error, errorCode:%d errorMessage:%s", resp.GetCode(), resp.GetMessage())
-        return
-    }
-    respDataJson, _ := json.MarshalIndent(resp.GetData(), "", "  ")
-    fmt.Println("response data:", string(respDataJson))
-    return
-}
-
-```
-
-**Node.js**
-```typescript
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-async function fulfillment202309UpdatePackageShippingInfoPost() {
-    const fulfillment202309UpdatePackageShippingInfoRequestBody = new Fulfillment202309UpdatePackageShippingInfoRequestBody();
-    fulfillment202309UpdatePackageShippingInfoRequestBody.trackingNumber = "576460868968549926";
-    fulfillment202309UpdatePackageShippingInfoRequestBody.shippingProviderId = "6965352555291346690";
-    const result = await client.api.FulfillmentV202309Api.PackagesPackageIdShippingInfoUpdatePost("5433567853345", "your access token", "application/json", "your shop cipher", fulfillment202309UpdatePackageShippingInfoRequestBody);
-    console.log('response: ', JSON.stringify(result, null, 2));
-}
-
-```
-
-**Java**
-```java
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-public void fulfillment202309UpdatePackageShippingInfoPost() throws Exception {
-    ApiClient defaultClient = Configuration.getDefaultApiClient()
-            .setAppkey("your appKey")
-            .setSecret("your secret")
-            .setBasePath("https://open-api.tiktokglobalshop.com");
-    FulfillmentV202309Api apiInstance = new FulfillmentV202309Api(defaultClient);
-    UpdatePackageShippingInfoRequestBody updatePackageShippingInfoRequestBody = new UpdatePackageShippingInfoRequestBody();
-    updatePackageShippingInfoRequestBody.setTrackingNumber("576460868968549926");
-    updatePackageShippingInfoRequestBody.setShippingProviderId("6965352555291346690");
-    UpdatePackageShippingInfoResponse result = apiInstance.fulfillment202309PackagesPackageIdShippingInfoUpdatePost("5433567853345", "your access token", "application/json", "your shop cipher", updatePackageShippingInfoRequestBody);
-    System.out.println(result);
-}
-
-```
-
-### Response Parameters
-
-| Name | Type | Example | Description |
+| Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| code | int | 0 | The success or failure status code returned in API response. |
-| message | string | Success | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
-| request_id | string | 202203070749000101890810281E8C70B7 | Request log |
-| data | object |  | Specific return information |
+| shipping_provider_id | string |  | Identifies the carrier that will deliver the package. Please call the [Get Shipping Providers API](https://partner.tiktokshop.com/docv2/page/650aa48d4a0bb702c06d85cd?external_id=650aa48d4a0bb702c06d85cd#Back%20To%20Top) to retrieve the available shipping provider(s). |
+| tracking_number | string |  | The shipment tracking number provided by the carrier. |
 
-### Response Sample
+### Response
 
-```json
-{
-  "code": 0,
-  "data": {},
-  "message": "Success",
-  "request_id": "202203070749000101890810281E8C70B7"
-}
-```
-
-### Error Codes
-
-| Code | Message |
-| --- | --- |
-| 10007002 | Current order is not a merchant blind box order. |
-| 36009003 | Internal error. Please try again. If the issue persists after multiple attempts, please contact platform support. |
-| 21011001 | Package not found. If the error persists, please contact the platform for assistance. |
-| 21011004 | This API cannot be used to update package shipping information for packages that are not shipped by sellers. |
-| 21011007 | Package item has after-sale request, please process the after-sale request first. |
-| 21011022 | Invalid tracking number or provider ID. Please double check and try again. |
-| 21011028 | The package does not belong to the current shop.    |
-| 21011030 | Package has already been delivered. If you would still like to update the tracking number, please contact the platform for assistance. |
-| 21011042 | Cannot complete the operation when order is cancelled.  |
-| 21011043 | The package has not been shipped yet.  |
-| 21011049 | Due to platform rule limitations, you are unable to update the tracking number. |
-| 21011050 | The tracking number can only be updated within a certain number of hours. |
-| 21011051 | The tracking number can only be updated once. |
-| 21011052 | The tracking number can only be updated a limited number of times. |
-| 25001010 | A return request has already been completed, or the order has already been cancelled. |
-
-### API Scope / Permissions
-
-| Scope Name | Type | Description |
-| --- | --- | --- |
-| Fulfillment Basic | Public | The Partner will be able to fulfil and manage orders on seller's behalf, and provide real-time updates on the status of seller's orders. |
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| code | integer |  | The success or failure status code returned in API response. |
+| data | object |  | Specific return information. |
+| message | string |  | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
+| request_id | string |  | Request log. |
 
 ---
 
-## Fulfillment Upload Delivery File
+## UncombinePackages
 
-This API is used for the seller to upload the proof of delivery file for a package, and to generate the URL of the corresponding file. The generated URL is used for the [Update Package Delivery Status API](https://partner.tiktokshop.com/docv2/page/650aa332c16ffe02b8f0ba82?external_id=650aa332c16ffe02b8f0ba82). 
+Use this API to uncombine one or more orders from an already combined package.
 
-This API only supports uploading qualification files in `PDF` format. The file size can not exceed 10MB.
-
-Note: Only sellers utilizing the SOF (Seller Own Fleet) capability can use this API. 
-
-**Path:** `/fulfillment/202309/files/upload`
-
+**Path:** `/fulfillment/202309/packages/{package_id}/uncombine`
 **Method:** `POST`
+**Version:** 202309
+**Docs:** https://partner.tiktokshop.com/docv2/page/uncombine-packages-202309
 
-**Common Parameters:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a4278f4c20311b8b57e)
-
-**Common Error Codes:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a45786253031531b942)
-
-### Request Header Parameters
+### Path Parameters
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| content-type | string | Y | Allowed type: multipart/form-data |
-| x-tts-access-token | string | Y | The seller access_token value from [Get Access Token](https://partner.tiktokshop.com/docv2/page/678e3a3292b0f40314a92d75#Get%20Access%20Token%20API), when user_type = 0. Follow this [guide](https://partner.tiktokshop.com/docv2/page/678e3a344ddec3030b238fa0) to get seller access_token. |
+| package_id | string | Y | Package ID you wish to uncombine an order(s) from. |
 
-### Request Query Parameters
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| app_key | string | Y | Every single app will have a unique key. Please use the specific key assigned to your app. |
-| sign | string | Y | Signature generated by gen algorithm. When you send API requests to TTS, you must sign them so that TTS can identify the senders.  |
-| timestamp | int | Y | Unix timestamp GMT (UTC+00:00). This timestamp is used across all API requests. Developers can use this convert to local time. |
-| shop_cipher | string | Y | Use this property to pass shop information in requesting the API. Failure in passing the correct value when requesting the API for cross-border shops will return incorrect response.  Get by API [Get Authorization Shop](https://partner.tiktokshop.com/docv2/page/6507ead7b99d5302be949ba9?external_id=6507ead7b99d5302be949ba9) |
-| category_asset_cipher | string | N | The partner identifier used in API requests. Retrieve this value by using the [Get Authorized Category Assets API](https://partner.tiktokshop.com/docv2/page/666012dd609d4402cc3be995).  |
-
-### Request Body Parameters
+### Query Parameters
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| data | file | Y | PDF file data to be uploaded to TikTok Shop.  Prerequisites： - Only `PDF` file format is supported. - Original file size must not exceed 10MB. |
-| name | string | Y | The name of the uploaded file. The file name must include the file type. |
+| shop_cipher | string |  | Use this property to pass shop information in requesting the API. Failure in passing the correct value when requesting the API for cross-border shops will return incorrect response. |
 
-### Request Sample
+### Header Parameters
 
-```
-https://open-api.tiktokglobalshop.com/fulfillment/202309/files/upload?app_key=123abc&sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c&timestamp=1625484268&shop_cipher=ROW_RHkDDABBAAB8tKAVoAqsMTjsQZFLyNfY
-```
-
-### Sample Code
-
-**Curl**
-```shell
-curl -X POST \
- 'https://open-api.tiktokglobalshop.com/fulfillment/202309/files/upload?sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c&timestamp=1623812664&app_key=38abcd&shop_cipher=GCP_XF90igAAAABh00qsWgtvOiGFNqyubMt3' \
--H 'x-tts-access-token: TTP_pwSm2AAAAABmmtFz1xlyKMnwg74T2GJ5s0uQbS8jPjb_GkdFVCxPqzQXSyuyfXdQa0AqyDsea2tYFNVf4XeqgZHFfPyv0Vs659QqyLYfsGzanZ5XZAin3_ZkcIxxS0_In6u6XDeU96k' \
--H 'content-type: multipart/form-data' \
--F 'data=@"file"' \
--F 'name=XXX.pdf'
-```
-
-**Go**
-```go
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-func fulfillment202309FulfillmentUploadDeliveryFilePost() {
-    configuration := apis.NewConfiguration()
-    configuration.AddAppInfo(appKey, appSecret)
-    apiClient := apis.NewAPIClient(configuration)
-    request := apiClient.FulfillmentV202309API.Fulfillment202309FilesUploadPost(context.Background())
-    request = request.XTtsAccessToken("your access token")
-    request = request.ContentType("multipart/form-data")
-    request = request.ShopCipher("your shop cipher")
-    fulfillment202309FulfillmentUploadDeliveryFileRequestBody := fulfillment_v202309.NewFulfillment202309FulfillmentUploadDeliveryFileRequestBody()
-    fulfillment202309FulfillmentUploadDeliveryFileRequestBody.SetData(nil)
-    fulfillment202309FulfillmentUploadDeliveryFileRequestBody.SetName("XXX.pdf")
-    request = request.Fulfillment202309FulfillmentUploadDeliveryFileRequestBody(*fulfillment202309FulfillmentUploadDeliveryFileRequestBody)
-    resp, httpResp, err := request.Execute()
-    if err != nil || httpResp.StatusCode != 200 {
-        fmt.Printf("productsRequest err:%v resbody:%s", err, httpResp.Body)
-        return
-    }
-    if resp == nil {
-        fmt.Printf("response is nil")
-        return
-    }
-    if resp.GetCode()!= 0 {
-        fmt.Printf("response business is error, errorCode:%d errorMessage:%s", resp.GetCode(), resp.GetMessage())
-        return
-    }
-    respDataJson, _ := json.MarshalIndent(resp.GetData(), "", "  ")
-    fmt.Println("response data:", string(respDataJson))
-    return
-}
-
-```
-
-**Node.js**
-```typescript
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-async function fulfillment202309FulfillmentUploadDeliveryFilePost() {
-    const fulfillment202309FulfillmentUploadDeliveryFileRequestBody = new Fulfillment202309FulfillmentUploadDeliveryFileRequestBody();
-    fulfillment202309FulfillmentUploadDeliveryFileRequestBody.data = null;
-    fulfillment202309FulfillmentUploadDeliveryFileRequestBody.name = "XXX.pdf";
-    const result = await client.api.FulfillmentV202309Api.FilesUploadPost("your access token", "multipart/form-data", "your shop cipher", fulfillment202309FulfillmentUploadDeliveryFileRequestBody);
-    console.log('response: ', JSON.stringify(result, null, 2));
-}
-
-```
-
-**Java**
-```java
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-public void fulfillment202309FulfillmentUploadDeliveryFilePost() throws Exception {
-    ApiClient defaultClient = Configuration.getDefaultApiClient()
-            .setAppkey("your appKey")
-            .setSecret("your secret")
-            .setBasePath("https://open-api.tiktokglobalshop.com");
-    FulfillmentV202309Api apiInstance = new FulfillmentV202309Api(defaultClient);
-    FulfillmentUploadDeliveryFileRequestBody fulfillmentUploadDeliveryFileRequestBody = new FulfillmentUploadDeliveryFileRequestBody();
-    fulfillmentUploadDeliveryFileRequestBody.setData(null);
-    fulfillmentUploadDeliveryFileRequestBody.setName("XXX.pdf");
-    FulfillmentUploadDeliveryFileResponse result = apiInstance.fulfillment202309FilesUploadPost("your access token", "multipart/form-data", "your shop cipher", fulfillmentUploadDeliveryFileRequestBody);
-    System.out.println(result);
-}
-
-```
-
-### Response Parameters
-
-| Name | Type | Example | Description |
+| Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| code | int | 0 | The success or failure status code returned in API response. |
-| message | string | Success | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
-| request_id | string | 202203070749000101890810281E8C70B7 | Request log |
-| data | object |  | Specific return information |
-| ^url | string | https://maellane.bytedance.net/wsos_v2/oec_fulfillment_doc_tts/o | The URL returned from uploading the file that can be directly opened in a browser.  |
-| ^name | string | attachment_file.pdf | The name of the file. |
+| x-tts-access-token | string | Y |  |
+| Content-Type | string | Y | Allowed type: application/json |
 
-### Response Sample
+### Request Body (`application/json`)
 
-```json
-{
-  "code": 0,
-  "data": {
-    "url": "https://maellane.bytedance.net/wsos_v2/oec_fulfillment_doc_tts/o",
-    "name": "attachment_file.pdf"
-  },
-  "message": "Success",
-  "request_id": "202203070749000101890810281E8C70B7"
-}
-```
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| order_ids | array<string> |  | TikTok Shop order ID. Indicate the orders that need to be removed from the package. Please make sure the orders belong to the package. |
 
-### Error Codes
+### Response
 
-| Code | Message |
-| --- | --- |
-| 12038002 | Invalid upload file. Please ensure you are passing the correct file data. |
-| 12038004 | Invalid file type. Please ensure you are providing a PDF file. |
-| 12038005 | Invalid file size. Please ensure your file is smaller than 10MB. |
-
-### API Scope / Permissions
-
-| Scope Name | Type | Description |
-| --- | --- | --- |
-| Fulfillment Basic | Public | The Partner will be able to fulfil and manage orders on seller's behalf, and provide real-time updates on the status of seller's orders. |
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| code | integer |  | The success or failure status code returned in API response. |
+| data | object |  | Specific return information. |
+| ^packages | array<object> |  | Return list of packages after being uncombined. |
+| ^^id | string |  | The newly generated package ID(s) after being uncombined. |
+| ^^order_ids | array<string> |  | List of order ID(s) corresponding to the uncombined package ID(s). |
+| message | string |  | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
+| request_id | string |  | Request log. |
 
 ---
 
-## Fulfillment Upload Delivery Image
+## CreateFirstMileBundle
 
-This API is used for the seller to upload the proof of delivery image for a package, and to generate the URL of the corresponding file. The generated URL is used in the [Update Package Delivery Status API](https://partner.tiktokshop.com/docv2/page/650aa332c16ffe02b8f0ba82?external_id=650aa332c16ffe02b8f0ba82) to indicate that the parcel has been delivered. 
+If you send multiple packages to TikTok Shop warehouse in a single first-mile bundle, you can use the API to create a first-mile bundle on TikTok Shop and get the bundle ID.
 
-Usage requirements:
-- The image format must be `JPEG`, `PNG`, or `JPG`. 
-- The image size can not exceed 5MB.
-
-**Path:** `/fulfillment/202309/images/upload`
-
+**Path:** `/fulfillment/202407/bundles`
 **Method:** `POST`
+**Version:** 202407
+**Docs:** https://partner.tiktokshop.com/docv2/page/create-first-mile-bundle-202407
 
-**Common Parameters:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a4278f4c20311b8b57e)
-
-**Common Error Codes:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a45786253031531b942)
-
-### Request Header Parameters
+### Header Parameters
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| content-type | string | Y | Allowed type: multipart/form-data |
-| x-tts-access-token | string | Y | The seller access_token value from [Get Access Token](https://partner.tiktokshop.com/docv2/page/678e3a3292b0f40314a92d75#Get%20Access%20Token%20API), when user_type = 0. Follow this [guide](https://partner.tiktokshop.com/docv2/page/678e3a344ddec3030b238fa0) to get seller access_token. |
+| x-tts-access-token | string | Y |  |
+| Content-Type | string | Y | Allowed type: application/json |
 
-### Request Query Parameters
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| app_key | string | Y | Every single app will have a unique key. Please use the specific key assigned to your app. |
-| sign | string | Y | Signature generated by gen algorithm. When you send API requests to TTS, you must sign them so that TTS can identify the senders.  |
-| timestamp | int | Y | Unix timestamp GMT (UTC+00:00). This timestamp is used across all API requests. Developers can use this convert to local time. |
-| shop_cipher | string | Y | Use this property to pass shop information in requesting the API. Failure in passing the correct value when requesting the API for cross-border shops will return incorrect response.  Get by API [Get Authorization Shop](https://partner.tiktokshop.com/docv2/page/6507ead7b99d5302be949ba9?external_id=6507ead7b99d5302be949ba9) |
-| category_asset_cipher | string | N | The partner identifier used in API requests. Retrieve this value by using the [Get Authorized Category Assets API](https://partner.tiktokshop.com/docv2/page/666012dd609d4402cc3be995).  |
-
-### Request Body Parameters
+### Request Body (`application/json`)
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| data | file | Y | Image file data to be uploaded to TikTok Shop. The picture file is a string generated by base64 encoding. Prerequisites： - Image format must be `JPG`, `JPEG`, or `PNG`. - Image resolution must be between 100 x 100px and 20000 x 20000px. - Image size must not exceed 5MB. |
+| handover_method | string |  | The way you send the first-mile bundle. Possible enumerations are: - `PICKUP`: You use the logistic service provided by TikTok Shop to send the bundle. - `DROP_OFF`: You contact the logistic provider and send the bundle. The logistic provider must be registered at TikTok Shop. |
+| order_ids | array<string> |  | The IDs of all the orders sent in a single first-mile bundle. The orders must follow the restrictions: - Each of the orders must exist and be RTS and shipping label printed. - The orders are sent by the same seller. - The orders belong to a single group of TikTok Shop service districts. The groups are: - Group 1: PH, SG, MY, VN, TH, and JP. - Group 2: DE, FR, IT, ES. You can not create first mile bundles for US/UK orders using this API. |
+| phone_tail_number | string |  | Last 4 digits of the sender's phone number. Required when `handover_method == DROP_OFF`. |
+| shipping_provider_id | string |  | The logistic provider ID in TikTok Shop. Required when `handover_method == DROP_OFF`. |
+| tracking_number | string |  | The logistic tracking number of the bundle. Required when `handover_method == DROP_OFF`. |
 
-### Request Sample
+### Response
 
-```
-https://open-api.tiktokglobalshop.com/fulfillment/202309/images/upload?app_key=123abc&sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c&timestamp=1625484268&shop_cipher=ROW_RHkDDABBAAB8tKAVoAqsMTjsQZFLyNfY
-```
-
-### Sample Code
-
-**Curl**
-```shell
-curl -X POST \
- 'https://open-api.tiktokglobalshop.com/fulfillment/202309/images/upload?app_key=38abcd&sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c&timestamp=1623812664&shop_cipher=GCP_XF90igAAAABh00qsWgtvOiGFNqyubMt3' \
--H 'x-tts-access-token: TTP_pwSm2AAAAABmmtFz1xlyKMnwg74T2GJ5s0uQbS8jPjb_GkdFVCxPqzQXSyuyfXdQa0AqyDsea2tYFNVf4XeqgZHFfPyv0Vs659QqyLYfsGzanZ5XZAin3_ZkcIxxS0_In6u6XDeU96k' \
--H 'content-type: multipart/form-data' \
--F 'data=@"file"'
-```
-
-**Go**
-```go
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-func fulfillment202309FulfillmentUploadDeliveryImagePost() {
-    configuration := apis.NewConfiguration()
-    configuration.AddAppInfo(appKey, appSecret)
-    apiClient := apis.NewAPIClient(configuration)
-    request := apiClient.FulfillmentV202309API.Fulfillment202309ImagesUploadPost(context.Background())
-    request = request.XTtsAccessToken("your access token")
-    request = request.ContentType("multipart/form-data")
-    request = request.ShopCipher("your shop cipher")
-    fulfillment202309FulfillmentUploadDeliveryImageRequestBody := fulfillment_v202309.NewFulfillment202309FulfillmentUploadDeliveryImageRequestBody()
-    fulfillment202309FulfillmentUploadDeliveryImageRequestBody.SetData(nil)
-    request = request.Fulfillment202309FulfillmentUploadDeliveryImageRequestBody(*fulfillment202309FulfillmentUploadDeliveryImageRequestBody)
-    resp, httpResp, err := request.Execute()
-    if err != nil || httpResp.StatusCode != 200 {
-        fmt.Printf("productsRequest err:%v resbody:%s", err, httpResp.Body)
-        return
-    }
-    if resp == nil {
-        fmt.Printf("response is nil")
-        return
-    }
-    if resp.GetCode()!= 0 {
-        fmt.Printf("response business is error, errorCode:%d errorMessage:%s", resp.GetCode(), resp.GetMessage())
-        return
-    }
-    respDataJson, _ := json.MarshalIndent(resp.GetData(), "", "  ")
-    fmt.Println("response data:", string(respDataJson))
-    return
-}
-
-```
-
-**Node.js**
-```typescript
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-async function fulfillment202309FulfillmentUploadDeliveryImagePost() {
-    const fulfillment202309FulfillmentUploadDeliveryImageRequestBody = new Fulfillment202309FulfillmentUploadDeliveryImageRequestBody();
-    fulfillment202309FulfillmentUploadDeliveryImageRequestBody.data = null;
-    const result = await client.api.FulfillmentV202309Api.ImagesUploadPost("your access token", "multipart/form-data", "your shop cipher", fulfillment202309FulfillmentUploadDeliveryImageRequestBody);
-    console.log('response: ', JSON.stringify(result, null, 2));
-}
-
-```
-
-**Java**
-```java
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-public void fulfillment202309FulfillmentUploadDeliveryImagePost() throws Exception {
-    ApiClient defaultClient = Configuration.getDefaultApiClient()
-            .setAppkey("your appKey")
-            .setSecret("your secret")
-            .setBasePath("https://open-api.tiktokglobalshop.com");
-    FulfillmentV202309Api apiInstance = new FulfillmentV202309Api(defaultClient);
-    FulfillmentUploadDeliveryImageRequestBody fulfillmentUploadDeliveryImageRequestBody = new FulfillmentUploadDeliveryImageRequestBody();
-    fulfillmentUploadDeliveryImageRequestBody.setData(null);
-    FulfillmentUploadDeliveryImageResponse result = apiInstance.fulfillment202309ImagesUploadPost("your access token", "multipart/form-data", "your shop cipher", fulfillmentUploadDeliveryImageRequestBody);
-    System.out.println(result);
-}
-
-```
-
-### Response Parameters
-
-| Name | Type | Example | Description |
+| Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| code | int | 0 | The success or failure status code returned in API response. |
-| message | string | Success | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
-| request_id | string | 202203070749000101890810281E8C70B7 | Request log |
-| data | object |  | Specific return information |
-| ^url | string | https://p-pbe38.byted.org/tos-ppdi18n-i-0euhj0x6u9/0a119a90d90b41e3838608bc384 | The URL returned from uploading the image that can be directly opened in a browser.  |
-| ^height | int | 256 | The image height returned from uploading the image. This height refers to the processed image height, not the original image height. Units: pixels. |
-| ^width | int | 256 | The image width returned from uploading the image. This width refers to the processed image width, not the original image width.  Units: pixels. |
-
-### Response Sample
-
-```json
-{
-  "code": 0,
-  "data": {
-    "url": "https://p-pbe38.byted.org/tos-ppdi18n-i-0euhj0x6u9/0a119a90d90b41e3838608bc384",
-    "height": 256,
-    "width": 256
-  },
-  "message": "Success",
-  "request_id": "202203070749000101890810281E8C70B7"
-}
-```
-
-### Error Codes
-
-| Code | Message |
-| --- | --- |
-| 12019116 | Invalid image resolution. Please ensure your image is between 100 x 100 pixels and 20000 x 20000 pixels. |
-| 12038002 | Invalid upload file. Please ensure you are passing the correct file data. |
-| 12038004 | Invalid image file type. Please ensure your image is in JPG, JPEG, or PNG format. |
-| 12038005 | Invalid image file size. Please ensure your image file size does not exceed 5MB. |
-
-### API Scope / Permissions
-
-| Scope Name | Type | Description |
-| --- | --- | --- |
-| Fulfillment Basic | Public | The Partner will be able to fulfil and manage orders on seller's behalf, and provide real-time updates on the status of seller's orders. |
+| code | integer |  | The success or failure status code returned in API response. |
+| data | object |  | Specific return information. |
+| ^errors | array<object> |  | Specific return information (returns multiple errors and reasons) |
+| ^^code | integer |  | The success or failure status code returned in API response. |
+| ^^detail | object |  | Error detail |
+| ^^^order_id | string |  | TikTok Shop order ID |
+| ^^message | string |  | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
+| ^first_mile_bundle_id | string |  | The ID of the first-mile bundle. |
+| ^url | string |  | The returned waybill link. |
+| message | string |  | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
+| request_id | string |  | Request log. |
 
 ---
 
-## Update Package Delivery Status
+## CreateLastMileBundle
 
-Use this API to update the delivery status of the package from in transit status. Please note that only sellers utilizing the SOF( Seller Own Fleet) capability can use this API to update the package status to 'DELIVERED'. This API is only available for the SEA region.
+When you consolidate multiple packages into a last mile bundle and ship it to the TikTok Shop warehouse, you should call this API to inform TTS platform about the last mile bundle.
 
-**Path:** `/fulfillment/202309/packages/deliver`
-
+**Path:** `/fulfillment/202408/last_mile_bundles`
 **Method:** `POST`
+**Version:** 202408
+**Docs:** https://partner.tiktokshop.com/docv2/page/create-last-mile-bundle-202408
 
-**Common Parameters:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a4278f4c20311b8b57e)
-
-**Common Error Codes:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a45786253031531b942)
-
-### Request Header Parameters
+### Header Parameters
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| content-type | string | Y | Allowed type: application/json |
-| x-tts-access-token | string | Y | The seller access_token value from [Get Access Token](https://partner.tiktokshop.com/docv2/page/678e3a3292b0f40314a92d75#Get%20Access%20Token%20API), when user_type = 0. Follow this [guide](https://partner.tiktokshop.com/docv2/page/678e3a344ddec3030b238fa0) to get seller access_token. |
+| x-tts-access-token | string | Y |  |
+| Content-Type | string | Y | Allowed type: application/json |
 
-### Request Query Parameters
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| app_key | string | Y | Every single app will have a unique key. Please use the specific key assigned to your app. |
-| sign | string | Y | Signature generated by gen algorithm. When you send API requests to TTS, you must sign them so that TTS can identify the senders.  |
-| timestamp | int | Y | Unix timestamp GMT (UTC+00:00). This timestamp is used across all API requests. Developers can use this convert to local time. |
-| shop_cipher | string | Y | Use this property to pass shop information in requesting the API. Failure in passing the correct value when requesting the API for cross-border shops will return incorrect response.  Get by API [Get Authorization Shop](https://partner.tiktokshop.com/docv2/page/6507ead7b99d5302be949ba9?external_id=6507ead7b99d5302be949ba9) |
-
-### Request Body Parameters
+### Request Body (`application/json`)
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| packages | []object | Y | The return list of packages. |
-| ^id | string | Y | The package ID. |
-| ^delivery_type | string | Y | Delivery status of the package. Possible values: - `DELIVERY_SUCCESS`: Package has been successfully delivered. - `DELIVERY_FAILED`: Package delivery has been unsuccessful. - `UPDATE_POD`: For packages that have been delivered, but you would like to update an attachment. |
-| ^fail_delivery_reason | string | N | Delivery failure reasons.  When `delivery_type = DELIVERY_FAILED`, this field is required. For other delivery types, this field is not required.  Possible values: - `INVALID_ADDRESS`: The buyer shipping address is invalid. - `UNABLE_RECEIVE`: The buyer is currently unable to receive the delivery. - `UNABLE_CONTACT_BUYER`: Unable to contact the buyer. - `BUYER_REFUSED`: The buyer has refused to receive the product. - `DELAY_DELIVERY`: Delay in delivery. - `PACKAGE_LOST`: The package is lost. - `PACKAGE_DAMAGE`: The package is damaged. - `FORCE_MAJEURE`: An unforeseeable event of force majeure has occurred. - `OTHER`: Other reason.  |
-| ^file_type | string | N | Attachment type: - `IMG` - `PDF` |
-| ^file_url | string | N | Attachment URL. The seller can use the [Upload Delivery File](https://partner.tiktokshop.com/docv2/page/650aa6e04a0bb702c06dcd34?external_id=650aa6e04a0bb702c06dcd34#Back%20To%20Top) and [Upload Delivery Image](https://partner.tiktokshop.com/docv2/page/650aa70d0fcef602bf32772f?external_id=650aa70d0fcef602bf32772f) APIs to generate the URL. The attachment will be used by TikTok Shop to verify the package delivery. |
+| fulfillment_unit_ids | array<string> |  | List of fulfillment Unit IDs included in the bundle. The length must not exceed `300`. |
+| last_mile_bundle | object |  | Last mile bundle |
+| ^dimensions | object |  | Bundle dimensions |
+| ^^height | integer |  | Height value |
+| ^^length | integer |  | Length value |
+| ^^unit | string |  | Unit. Possible enumerations: - `centimeter`. |
+| ^^width | integer |  | Width value |
+| ^external_bundle_id | string |  | Bundle ID in your order management system |
+| ^fulfillment_unit_count | integer |  | Number of small packages in the bundle |
+| ^outbound_time | integer |  | UNIX timestamp of outbounding from your warehouse in milliseconds. |
+| ^weight | object |  | Bundle weight |
+| ^^unit | string |  | Unit. Possible enumerations: - `gram`. |
+| ^^value | integer |  | value |
+| logistics_group_id | integer |  | Logistics group id for biz |
 
-### Request Sample
+### Response
 
-```
-https://open-api.tiktokglobalshop.com/fulfillment/202309/packages/deliver?app_key=123abc&sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c&timestamp=1625484268&shop_cipher=ROW_RHkDDABBAAB8tKAVoAqsMTjsQZFLyNfY
-```
-
-### Request Body Sample
-
-```json
-{
-  "packages": [
-    {
-      "id": "11529598723402",
-      "delivery_type": "DELIVERY_SUCCESS",
-      "fail_delivery_reason": "INVALID_ADDRESS",
-      "file_type": "IMG",
-      "file_url": "https://tiktok.shopcenter.cn/file/CWvBsBZ9mhbMiHtmbZecKshon6f?table=tblTW"
-    }
-  ]
-}
-```
-
-### Sample Code
-
-**Curl**
-```shell
-curl -X POST \
- 'https://open-api.tiktokglobalshop.com/fulfillment/202309/packages/deliver?shop_cipher=GCP_XF90igAAAABh00qsWgtvOiGFNqyubMt3&app_key=38abcd&sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c&timestamp=1623812664' \
--H 'content-type: application/json' \
--H 'x-tts-access-token: TTP_pwSm2AAAAABmmtFz1xlyKMnwg74T2GJ5s0uQbS8jPjb_GkdFVCxPqzQXSyuyfXdQa0AqyDsea2tYFNVf4XeqgZHFfPyv0Vs659QqyLYfsGzanZ5XZAin3_ZkcIxxS0_In6u6XDeU96k' \
--d '{
-  "packages": [
-    {
-      "id": "11529598723402",
-      "delivery_type": "DELIVERY_SUCCESS",
-      "fail_delivery_reason": "INVALID_ADDRESS",
-      "file_type": "IMG",
-      "file_url": "https://tiktok.shopcenter.cn/file/CWvBsBZ9mhbMiHtmbZecKshon6f?table=tblTW"
-    }
-  ]
-}'
-```
-
-**Go**
-```go
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-func fulfillment202309UpdatePackageDeliveryStatusPost() {
-    configuration := apis.NewConfiguration()
-    configuration.AddAppInfo(appKey, appSecret)
-    apiClient := apis.NewAPIClient(configuration)
-    request := apiClient.FulfillmentV202309API.Fulfillment202309PackagesDeliverPost(context.Background())
-    request = request.XTtsAccessToken("your access token")
-    request = request.ContentType("application/json")
-    request = request.ShopCipher("your shop cipher")
-    fulfillment202309UpdatePackageDeliveryStatusRequestBody := fulfillment_v202309.NewFulfillment202309UpdatePackageDeliveryStatusRequestBody()
-    fulfillment202309UpdatePackageDeliveryStatusRequestBodyPackages := fulfillment_v202309.NewFulfillment202309UpdatePackageDeliveryStatusRequestBodyPackages()
-    fulfillment202309UpdatePackageDeliveryStatusRequestBodyPackages.SetId("11529598723402")
-    fulfillment202309UpdatePackageDeliveryStatusRequestBodyPackages.SetDeliveryType("DELIVERY_SUCCESS")
-    fulfillment202309UpdatePackageDeliveryStatusRequestBodyPackages.SetFailDeliveryReason("INVALID_ADDRESS")
-    fulfillment202309UpdatePackageDeliveryStatusRequestBodyPackages.SetFileType("IMG")
-    fulfillment202309UpdatePackageDeliveryStatusRequestBodyPackages.SetFileUrl("https://tiktok.shopcenter.cn/file/CWvBsBZ9mhbMiHtmbZecKshon6f?table=tblTW")
-    fulfillment202309UpdatePackageDeliveryStatusRequestBodyPackagesList := []fulfillment_v202309.Fulfillment202309UpdatePackageDeliveryStatusRequestBodyPackages{*fulfillment202309UpdatePackageDeliveryStatusRequestBodyPackages}
-    fulfillment202309UpdatePackageDeliveryStatusRequestBody.SetPackages(fulfillment202309UpdatePackageDeliveryStatusRequestBodyPackagesList)
-    request = request.Fulfillment202309UpdatePackageDeliveryStatusRequestBody(*fulfillment202309UpdatePackageDeliveryStatusRequestBody)
-    resp, httpResp, err := request.Execute()
-    if err != nil || httpResp.StatusCode != 200 {
-        fmt.Printf("productsRequest err:%v resbody:%s", err, httpResp.Body)
-        return
-    }
-    if resp == nil {
-        fmt.Printf("response is nil")
-        return
-    }
-    if resp.GetCode()!= 0 {
-        fmt.Printf("response business is error, errorCode:%d errorMessage:%s", resp.GetCode(), resp.GetMessage())
-        return
-    }
-    respDataJson, _ := json.MarshalIndent(resp.GetData(), "", "  ")
-    fmt.Println("response data:", string(respDataJson))
-    return
-}
-
-```
-
-**Node.js**
-```typescript
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-async function fulfillment202309UpdatePackageDeliveryStatusPost() {
-    const fulfillment202309UpdatePackageDeliveryStatusRequestBody = new Fulfillment202309UpdatePackageDeliveryStatusRequestBody();
-    const fulfillment202309UpdatePackageDeliveryStatusRequestBodyPackages = new Fulfillment202309UpdatePackageDeliveryStatusRequestBodyPackages();
-    fulfillment202309UpdatePackageDeliveryStatusRequestBodyPackages.id = "11529598723402";
-    fulfillment202309UpdatePackageDeliveryStatusRequestBodyPackages.deliveryType = "DELIVERY_SUCCESS";
-    fulfillment202309UpdatePackageDeliveryStatusRequestBodyPackages.failDeliveryReason = "INVALID_ADDRESS";
-    fulfillment202309UpdatePackageDeliveryStatusRequestBodyPackages.fileType = "IMG";
-    fulfillment202309UpdatePackageDeliveryStatusRequestBodyPackages.fileUrl = "https://tiktok.shopcenter.cn/file/CWvBsBZ9mhbMiHtmbZecKshon6f?table=tblTW";
-    fulfillment202309UpdatePackageDeliveryStatusRequestBody.packages = [fulfillment202309UpdatePackageDeliveryStatusRequestBodyPackages];
-    const result = await client.api.FulfillmentV202309Api.PackagesDeliverPost("your access token", "application/json", "your shop cipher", fulfillment202309UpdatePackageDeliveryStatusRequestBody);
-    console.log('response: ', JSON.stringify(result, null, 2));
-}
-
-```
-
-**Java**
-```java
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-public void fulfillment202309UpdatePackageDeliveryStatusPost() throws Exception {
-    ApiClient defaultClient = Configuration.getDefaultApiClient()
-            .setAppkey("your appKey")
-            .setSecret("your secret")
-            .setBasePath("https://open-api.tiktokglobalshop.com");
-    FulfillmentV202309Api apiInstance = new FulfillmentV202309Api(defaultClient);
-    UpdatePackageDeliveryStatusRequestBody updatePackageDeliveryStatusRequestBody = new UpdatePackageDeliveryStatusRequestBody();
-    UpdatePackageDeliveryStatusRequestBodyPackages updatePackageDeliveryStatusRequestBodyPackages = new tiktokshop.open.sdk_java.model.Fulfillment.V202309.UpdatePackageDeliveryStatusRequestBodyPackages();
-    updatePackageDeliveryStatusRequestBodyPackages.setId("11529598723402");
-    updatePackageDeliveryStatusRequestBodyPackages.setDeliveryType("DELIVERY_SUCCESS");
-    updatePackageDeliveryStatusRequestBodyPackages.setFailDeliveryReason("INVALID_ADDRESS");
-    updatePackageDeliveryStatusRequestBodyPackages.setFileType("IMG");
-    updatePackageDeliveryStatusRequestBodyPackages.setFileUrl("https://tiktok.shopcenter.cn/file/CWvBsBZ9mhbMiHtmbZecKshon6f?table=tblTW");
-    List<UpdatePackageDeliveryStatusRequestBodyPackages> updatePackageDeliveryStatusRequestBodyPackagesList = new ArrayList<>(Arrays.asList(updatePackageDeliveryStatusRequestBodyPackages));
-    updatePackageDeliveryStatusRequestBody.setPackages(updatePackageDeliveryStatusRequestBodyPackagesList);
-    UpdatePackageDeliveryStatusResponse result = apiInstance.fulfillment202309PackagesDeliverPost("your access token", "application/json", "your shop cipher", updatePackageDeliveryStatusRequestBody);
-    System.out.println(result);
-}
-
-```
-
-### Response Parameters
-
-| Name | Type | Example | Description |
+| Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| code | int | 0 | The success or failure status code returned in API response. |
-| message | string | Success | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
-| request_id | string | 202203070749000101890810281E8C70B7 | Request log |
-| data | object |  | Specific return information |
-| ^errors | []object |  | Specific return information (returns multiple errors and reasons). |
-| ^^code | int | 10007014 | The failure reason code. |
-| ^^message | string | order not in sof service | Fulfillment failure reason. |
-| ^^detail | object |  | Error detail. |
-| ^^^package_id | string | 1231231231231 | Package ID. |
-
-### Response Sample
-
-```json
-{
-  "code": 0,
-  "data": {
-    "errors": [
-      {
-        "code": 10007014,
-        "message": "order not in sof service",
-        "detail": {
-          "package_id": "1231231231231"
-        }
-      }
-    ]
-  },
-  "message": "Success",
-  "request_id": "202203070749000101890810281E8C70B7"
-}
-```
-
-### Error Codes
-
-| Code | Message |
-| --- | --- |
-| 36009003 | Internal error. Please try again. If the issue persists after multiple attempts, please contact platform support. |
-| 21001011 | System process error, please try again later. |
-| 21011028 | The package does not belong to the current shop.    |
-
-### API Scope / Permissions
-
-| Scope Name | Type | Description |
-| --- | --- | --- |
-| Update Delivery Status  | Public | The Partner will be able to push a package to delivered status for seller which has transport capacity. |
+| code | integer |  | The success or failure status code returned in API response. |
+| data | object |  | Specific return information. |
+| ^last_mile_bundle_id | string |  | TikTok Shop last mile bundle ID |
+| message | string |  | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
+| request_id | string |  | Request log. |
 
 ---
 
-## Upload Invoice
+## UploadInvoice
 
 Upload the invoice document.
 **Note**: Applicable only for local sellers in the Brazil market.
 
 **Path:** `/fulfillment/202502/invoice/upload`
-
 **Method:** `POST`
+**Version:** 202502
+**Docs:** https://partner.tiktokshop.com/docv2/page/upload-invoice-202502
 
-**Common Parameters:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a4278f4c20311b8b57e)
-
-**Common Error Codes:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a45786253031531b942)
-
-### Request Header Parameters
+### Query Parameters
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| content-type | string | Y | Allowed type: application/json |
-| x-tts-access-token | string | Y | The seller access_token value from [Get Access Token](https://partner.tiktokshop.com/docv2/page/678e3a3292b0f40314a92d75#Get%20Access%20Token%20API), when user_type = 0. Follow this [guide](https://partner.tiktokshop.com/docv2/page/678e3a344ddec3030b238fa0) to get seller access_token. |
+| shop_cipher | string |  | Use this property to pass shop information in requesting the API. Failure in passing the correct value when requesting the API for cross-border shops will return incorrect response. |
 
-### Request Query Parameters
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| app_key | string | Y | Every single app will have a unique key. Please use the specific key assigned to your app. |
-| sign | string | Y | Signature generated by gen algorithm. When you send API requests to TTS, you must sign them so that TTS can identify the senders.  |
-| timestamp | int | Y | Unix timestamp GMT (UTC+00:00). This timestamp is used across all API requests. Developers can use this convert to local time. |
-| shop_cipher | string | Y | Use this property to pass shop information in requesting the API. Failure in passing the correct value when requesting the API for cross-border shops will return incorrect response.  Get by API [Get Authorization Shop](https://partner.tiktokshop.com/docv2/page/6507ead7b99d5302be949ba9?external_id=6507ead7b99d5302be949ba9) |
-
-### Request Body Parameters
+### Header Parameters
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| invoices | []object | N | The list of invoices to upload. |
-| ^package_id | string | Y | The TikTok Shop package ID, retrieved from [Search Package](650aa592bace3e02b75db748). |
-| ^order_ids | []string | Y | The list of TikTok Shop order IDs, retrieved from [Get Order List](650aa8094a0bb702c06df242). |
-| ^file_type | string | Y | The invoice file format. Possible values:  - `XML` |
-| ^file | string | Y | Base64 encoding of the invoice file to upload. Max file size: 1MB |
+| x-tts-access-token | string | Y |  |
+| Content-Type | string | Y | Allowed type: application/json |
 
-### Request Sample
+### Request Body (`application/json`)
 
-```
-https://open-api.tiktokglobalshop.com/fulfillment/202502/invoice/upload?app_key=123abc&sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c&timestamp=1625484268&shop_cipher=ROW_RHkDDABBAAB8tKAVoAqsMTjsQZFLyNfY
-```
-
-### Request Body Sample
-
-```json
-{
-  "invoices": [
-    {
-      "package_id": "1161235029d14122252",
-      "order_ids": "5361235029d14122252",
-      "file_type": "XML",
-      "file": "PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iVVRGL"
-    }
-  ]
-}
-```
-
-### Sample Code
-
-**Curl**
-```shell
-curl -X POST \
- 'https://open-api.tiktokglobalshop.com/fulfillment/202502/invoice/upload?app_key=38abcd&sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c&shop_cipher=GCP_XF90igAAAABh00qsWgtvOiGFNqyubMt3&timestamp=1623812664' \
--H 'x-tts-access-token: TTP_pwSm2AAAAABmmtFz1xlyKMnwg74T2GJ5s0uQbS8jPjb_GkdFVCxPqzQXSyuyfXdQa0AqyDsea2tYFNVf4XeqgZHFfPyv0Vs659QqyLYfsGzanZ5XZAin3_ZkcIxxS0_In6u6XDeU96k' \
--H 'content-type: application/json' \
--d '{
-  "invoices": [
-    {
-      "package_id": "1161235029d14122252",
-      "order_ids": "5361235029d14122252",
-      "file_type": "XML",
-      "file": "PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iVVRGL"
-    }
-  ]
-}'
-```
-
-**Go**
-```go
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-func fulfillment202502UploadInvoicePost() {
-    configuration := apis.NewConfiguration()
-    configuration.AddAppInfo(appKey, appSecret)
-    apiClient := apis.NewAPIClient(configuration)
-    request := apiClient.FulfillmentV202502API.Fulfillment202502InvoiceUploadPost(context.Background())
-    request = request.XTtsAccessToken("your access token")
-    request = request.ContentType("application/json")
-    request = request.ShopCipher("your shop cipher")
-    fulfillment202502UploadInvoiceRequestBody := fulfillment_v202502.NewFulfillment202502UploadInvoiceRequestBody()
-    fulfillment202502UploadInvoiceRequestBodyInvoices := fulfillment_v202502.NewFulfillment202502UploadInvoiceRequestBodyInvoices()
-    fulfillment202502UploadInvoiceRequestBodyInvoices.SetPackageId("1161235029d14122252")
-    fulfillment202502UploadInvoiceRequestBodyInvoicesOrderIdsList := []string{[]}
-    fulfillment202502UploadInvoiceRequestBodyInvoices.SetOrderIds(fulfillment202502UploadInvoiceRequestBodyInvoicesOrderIdsList)
-    fulfillment202502UploadInvoiceRequestBodyInvoices.SetFileType("XML")
-    fulfillment202502UploadInvoiceRequestBodyInvoices.SetFile("PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iVVRGL")
-    fulfillment202502UploadInvoiceRequestBodyInvoicesList := []fulfillment_v202502.Fulfillment202502UploadInvoiceRequestBodyInvoices{*fulfillment202502UploadInvoiceRequestBodyInvoices}
-    fulfillment202502UploadInvoiceRequestBody.SetInvoices(fulfillment202502UploadInvoiceRequestBodyInvoicesList)
-    request = request.Fulfillment202502UploadInvoiceRequestBody(*fulfillment202502UploadInvoiceRequestBody)
-    resp, httpResp, err := request.Execute()
-    if err != nil || httpResp.StatusCode != 200 {
-        fmt.Printf("productsRequest err:%v resbody:%s", err, httpResp.Body)
-        return
-    }
-    if resp == nil {
-        fmt.Printf("response is nil")
-        return
-    }
-    if resp.GetCode()!= 0 {
-        fmt.Printf("response business is error, errorCode:%d errorMessage:%s", resp.GetCode(), resp.GetMessage())
-        return
-    }
-    respDataJson, _ := json.MarshalIndent(resp.GetData(), "", "  ")
-    fmt.Println("response data:", string(respDataJson))
-    return
-}
-
-```
-
-**Node.js**
-```typescript
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-async function fulfillment202502UploadInvoicePost() {
-    const fulfillment202502UploadInvoiceRequestBody = new Fulfillment202502UploadInvoiceRequestBody();
-    const fulfillment202502UploadInvoiceRequestBodyInvoices = new Fulfillment202502UploadInvoiceRequestBodyInvoices();
-    fulfillment202502UploadInvoiceRequestBodyInvoices.packageId = "1161235029d14122252";
-    fulfillment202502UploadInvoiceRequestBodyInvoices.orderIds = [[]];
-    fulfillment202502UploadInvoiceRequestBodyInvoices.fileType = "XML";
-    fulfillment202502UploadInvoiceRequestBodyInvoices.file = "PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iVVRGL";
-    fulfillment202502UploadInvoiceRequestBody.invoices = [fulfillment202502UploadInvoiceRequestBodyInvoices];
-    const result = await client.api.FulfillmentV202502Api.InvoiceUploadPost("your access token", "application/json", "your shop cipher", fulfillment202502UploadInvoiceRequestBody);
-    console.log('response: ', JSON.stringify(result, null, 2));
-}
-
-```
-
-**Java**
-```java
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-public void fulfillment202502UploadInvoicePost() throws Exception {
-    ApiClient defaultClient = Configuration.getDefaultApiClient()
-            .setAppkey("your appKey")
-            .setSecret("your secret")
-            .setBasePath("https://open-api.tiktokglobalshop.com");
-    FulfillmentV202502Api apiInstance = new FulfillmentV202502Api(defaultClient);
-    UploadInvoiceRequestBody uploadInvoiceRequestBody = new UploadInvoiceRequestBody();
-    UploadInvoiceRequestBodyInvoices uploadInvoiceRequestBodyInvoices = new tiktokshop.open.sdk_java.model.Fulfillment.V202502.UploadInvoiceRequestBodyInvoices();
-    uploadInvoiceRequestBodyInvoices.setPackageId("1161235029d14122252");
-    List<String> uploadInvoiceRequestBodyInvoicesOrderIdsList = new ArrayList<>(Arrays.asList([]));
-    uploadInvoiceRequestBodyInvoices.setOrderIds(uploadInvoiceRequestBodyInvoicesOrderIdsList);
-    uploadInvoiceRequestBodyInvoices.setFileType("XML");
-    uploadInvoiceRequestBodyInvoices.setFile("PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iVVRGL");
-    List<UploadInvoiceRequestBodyInvoices> uploadInvoiceRequestBodyInvoicesList = new ArrayList<>(Arrays.asList(uploadInvoiceRequestBodyInvoices));
-    uploadInvoiceRequestBody.setInvoices(uploadInvoiceRequestBodyInvoicesList);
-    UploadInvoiceResponse result = apiInstance.fulfillment202502InvoiceUploadPost("your access token", "application/json", "your shop cipher", uploadInvoiceRequestBody);
-    System.out.println(result);
-}
-
-```
-
-### Response Parameters
-
-| Name | Type | Example | Description |
+| Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| code | int | 0 | The success or failure status code returned in API response. |
-| message | string | Success | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
-| request_id | string | 202203070749000101890810281E8C70B7 | Request log |
-| data | object |  | Specific return information |
-| ^errors | []object |  | The list of errors that occurred. |
-| ^^code | int | 10007014 | The error code. |
-| ^^message | string | The invoice already exists in the upload. Please try again later | The error message. |
+| invoices | array<object> |  | The list of invoices to upload. |
+| ^file | string |  | Base64 encoding of the invoice file to upload. Max file size: 1MB |
+| ^file_type | string |  | The invoice file format. Possible values: - `XML` |
+| ^order_ids | array<string> |  | The list of TikTok Shop order IDs, retrieved from [Get Order List](650aa8094a0bb702c06df242). |
+| ^package_id | string |  | The TikTok Shop package ID, retrieved from [Search Package](650aa592bace3e02b75db748). |
+
+### Response
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| code | integer |  | The success or failure status code returned in API response. |
+| data | object |  | Specific return information. |
+| ^errors | array<object> |  | The list of errors that occurred. |
+| ^^code | integer |  | The error code. |
 | ^^detail | object |  | The details of the error. |
-| ^^^package_id | string | 1231231231231 | The package ID where the error occurred. |
-| ^^^order_ids | []string | ["58747683456"] | The order IDs where errors occurred. |
-
-### Response Sample
-
-```json
-{
-  "code": 0,
-  "data": {
-    "errors": [
-      {
-        "code": 10007014,
-        "message": "The invoice already exists in the upload. Please try again later",
-        "detail": {
-          "package_id": "1231231231231",
-          "order_ids": [
-            "58747683456"
-          ]
-        }
-      }
-    ]
-  },
-  "message": "Success",
-  "request_id": "202203070749000101890810281E8C70B7"
-}
-```
-
-### Error Codes
-
-| Code | Message |
-| --- | --- |
-| 36009003 | Internal error. Please try again. If the issue persists after multiple attempts, please contact platform support. |
-
-### API Scope / Permissions
-
-| Scope Name | Type | Description |
-| --- | --- | --- |
-| Fulfillment Basic | Public | The Partner will be able to fulfil and manage orders on seller's behalf, and provide real-time updates on the status of seller's orders. |
+| ^^^order_ids | array<string> |  | The order IDs where errors occurred. |
+| ^^^package_id | string |  | The package ID where the error occurred. |
+| ^^message | string |  | The error message. |
+| message | string |  | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
+| request_id | string |  | Request log. |
 
 ---
 
-## TTS Tracking Validation 
+## TTSTrackingValidation
 
 Enables a seller or warehouse to validate whether a tracking number is covered by TikTok Shipping (TTS) or Collection by TikTok (CBT). 
 
 Available only in the **US Market**.
 
 **Path:** `/fulfillment/202508/tts_tracking_validation`
-
 **Method:** `GET`
+**Version:** 202508
+**Docs:** https://partner.tiktokshop.com/docv2/page/ttstracking-validation-202508
 
-**Common Parameters:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a4278f4c20311b8b57e)
-
-**Common Error Codes:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a45786253031531b942)
-
-### Request Header Parameters
+### Query Parameters
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| content-type | string | Y | Allowed type: application/json |
-| x-tts-access-token | string | Y | The seller access_token value from [Get Access Token](https://partner.tiktokshop.com/docv2/page/678e3a3292b0f40314a92d75#Get%20Access%20Token%20API), when user_type = 0. Follow this [guide](https://partner.tiktokshop.com/docv2/page/678e3a344ddec3030b238fa0) to get seller access_token. |
-
-### Request Query Parameters
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| app_key | string | Y | Every single app will have a unique key. Please use the specific key assigned to your app. |
-| sign | string | Y | Signature generated by gen algorithm. When you send API requests to TTS, you must sign them so that TTS can identify the senders.  |
-| timestamp | int | Y | Unix timestamp GMT (UTC+00:00). This timestamp is used across all API requests. Developers can use this convert to local time. |
 | tracking_number | string | Y | The tracking number provided by shipping provider |
-| shop_cipher | string | Y | Use this property to pass shop information in requesting the API. Failure in passing the correct value when requesting the API for cross-border shops will return incorrect response.  Get by API [Get Authorization Shop](https://partner.tiktokshop.com/docv2/page/6507ead7b99d5302be949ba9?external_id=6507ead7b99d5302be949ba9) |
+| shop_cipher | string |  | Use this property to pass shop information in requesting the API. Failure in passing the correct value when requesting the API for cross-border shops will return incorrect response. |
 
-### Request Sample
+### Header Parameters
 
-```
-https://open-api.tiktokglobalshop.com/fulfillment/202508/tts_tracking_validation?app_key=123abc&sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c&timestamp=1625484268&shop_cipher=ROW_RHkDDABBAAB8tKAVoAqsMTjsQZFLyNfY&tracking_number=1234567
-```
-
-### Sample Code
-
-**Curl**
-```shell
-curl -X GET \
- 'https://open-api.tiktokglobalshop.com/fulfillment/202508/tts_tracking_validation?app_key=38abcd&sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c&timestamp=1623812664&shop_cipher=GCP_XF90igAAAABh00qsWgtvOiGFNqyubMt3&tracking_number=1234567' \
--H 'x-tts-access-token: TTP_pwSm2AAAAABmmtFz1xlyKMnwg74T2GJ5s0uQbS8jPjb_GkdFVCxPqzQXSyuyfXdQa0AqyDsea2tYFNVf4XeqgZHFfPyv0Vs659QqyLYfsGzanZ5XZAin3_ZkcIxxS0_In6u6XDeU96k' \
--H 'content-type: application/json'
-```
-
-**Go**
-```go
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-func fulfillment202508TTSTrackingValidationGet() {
-    configuration := apis.NewConfiguration()
-    configuration.AddAppInfo(appKey, appSecret)
-    apiClient := apis.NewAPIClient(configuration)
-    request := apiClient.FulfillmentV202508API.Fulfillment202508TtsTrackingValidationGet(context.Background())
-    request = request.XTtsAccessToken("your access token")
-    request = request.ContentType("application/json")
-    request = request.TrackingNumber("1234567")
-    request = request.ShopCipher("your shop cipher")
-    resp, httpResp, err := request.Execute()
-    if err != nil || httpResp.StatusCode != 200 {
-        fmt.Printf("productsRequest err:%v resbody:%s", err, httpResp.Body)
-        return
-    }
-    if resp == nil {
-        fmt.Printf("response is nil")
-        return
-    }
-    if resp.GetCode()!= 0 {
-        fmt.Printf("response business is error, errorCode:%d errorMessage:%s", resp.GetCode(), resp.GetMessage())
-        return
-    }
-    respDataJson, _ := json.MarshalIndent(resp.GetData(), "", "  ")
-    fmt.Println("response data:", string(respDataJson))
-    return
-}
-
-```
-
-**Node.js**
-```typescript
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-async function fulfillment202508TTSTrackingValidationGet() {
-    const result = await client.api.FulfillmentV202508Api.TtsTrackingValidationGet("1234567", "your access token", "application/json", "your shop cipher");
-    console.log('response: ', JSON.stringify(result, null, 2));
-}
-
-```
-
-**Java**
-```java
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-public void fulfillment202508TTSTrackingValidationGet() throws Exception {
-    ApiClient defaultClient = Configuration.getDefaultApiClient()
-            .setAppkey("your appKey")
-            .setSecret("your secret")
-            .setBasePath("https://open-api.tiktokglobalshop.com");
-    FulfillmentV202508Api apiInstance = new FulfillmentV202508Api(defaultClient);
-    TTSTrackingValidationResponse result = apiInstance.fulfillment202508TtsTrackingValidationGet("1234567", "your access token", "application/json", "your shop cipher");
-    System.out.println(result);
-}
-
-```
-
-### Response Parameters
-
-| Name | Type | Example | Description |
+| Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| code | int | 0 | The success or failure status code returned in API response. |
-| message | string | Success | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
-| request_id | string | 202203070749000101890810281E8C70B7 | Request log |
-| data | object |  | Specific return information |
-| ^is_tiktok_shipping | bool | false | A flag to determine whether the package is TikTok Shipping |
-| ^is_tiktok_collection | bool | false | A flag to determine whether the package is TikTok Collections |
+| x-tts-access-token | string | Y |  |
+| Content-Type | string | Y | Allowed type: application/json |
 
-### Response Sample
+### Response
 
-```json
-{
-  "code": 0,
-  "data": {
-    "is_tiktok_shipping": false,
-    "is_tiktok_collection": false
-  },
-  "message": "Success",
-  "request_id": "202203070749000101890810281E8C70B7"
-}
-```
-
-### API Scope / Permissions
-
-| Scope Name | Type | Description |
-| --- | --- | --- |
-| Logistics Basic | Public | The Partner will be able to get seller's logistics and warehouse information. |
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| code | integer |  | The success or failure status code returned in API response. |
+| data | object |  | Specific return information. |
+| ^is_tiktok_collection | boolean |  | A flag to determine whether the package is TikTok Collections |
+| ^is_tiktok_shipping | boolean |  | A flag to determine whether the package is TikTok Shipping |
+| message | string |  | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
+| request_id | string |  | Request log. |
 
 ---
 
-## Create First Mile Bundle(V2)
+## CreateFirstMileBundleV2
 
 If you send multiple packages to TikTok Shop warehouse in a single first-mile bundle, you can use the API to create a first-mile bundle on TikTok Shop and get the bundle ID.
 
 **Path:** `/fulfillment/202510/first_mile_bundle`
-
 **Method:** `POST`
+**Version:** 202510
+**Docs:** https://partner.tiktokshop.com/docv2/page/create-first-mile-bundle-v2-202510
 
-**Common Parameters:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a4278f4c20311b8b57e)
-
-**Common Error Codes:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a45786253031531b942)
-
-### Request Header Parameters
+### Query Parameters
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| content-type | string | Y | Allowed type: application/json |
-| x-tts-access-token | string | Y | The seller access_token value from [Get Access Token](https://partner.tiktokshop.com/docv2/page/678e3a3292b0f40314a92d75#Get%20Access%20Token%20API), when user_type = 0. Follow this [guide](https://partner.tiktokshop.com/docv2/page/678e3a344ddec3030b238fa0) to get seller access_token. |
+| shop_cipher | string |  | Use this property to pass shop information in requesting the API. Failure in passing the correct value when requesting the API for cross-border shops will return incorrect response. |
 
-### Request Query Parameters
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| app_key | string | Y | Every single app will have a unique key. Please use the specific key assigned to your app. |
-| sign | string | Y | Signature generated by gen algorithm. When you send API requests to TTS, you must sign them so that TTS can identify the senders.  |
-| timestamp | int | Y | Unix timestamp GMT (UTC+00:00). This timestamp is used across all API requests. Developers can use this convert to local time. |
-| shop_cipher | string | Y | Use this property to pass shop information in requesting the API. Failure in passing the correct value when requesting the API for cross-border shops will return incorrect response.  Get by API [Get Authorization Shop](https://partner.tiktokshop.com/docv2/page/6507ead7b99d5302be949ba9?external_id=6507ead7b99d5302be949ba9) |
-
-### Request Body Parameters
+### Header Parameters
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| order_ids | []string | Y | The IDs of all the orders sent in a single first-mile bundle. The orders must follow the restrictions: - Each of the orders must exist and be RTS and shipping label printed. - The orders are sent by the same seller. - The orders belong to a single group of TikTok Shop service districts. The groups are:   - Group 1: PH, SG, MY, VN, TH, and JP.   - Group 2: DE, FR, IT, ES.  You can not create first mile bundles for US/UK orders using this API. |
-| handover_method | string | Y | The way you send the first-mile bundle. Possible enumerations are: - `PICKUP`: You use the logistic service provided by TikTok Shop to send the bundle. - `DROP_OFF`: You contact the logistic provider and send the bundle. The logistic provider must be registered at TikTok Shop. |
-| shipping_provider_id | string | N | The logistic provider ID in TikTok Shop. Required when `handover_method == DROP_OFF`. |
-| tracking_number | string | N | The logistic tracking number of the bundle. Required when `handover_method == DROP_OFF`. |
-| phone_tail_number | string | N | Last 4 digits of the sender's phone number. Required when `handover_method == DROP_OFF`. |
+| x-tts-access-token | string | Y |  |
+| Content-Type | string | Y | Allowed type: application/json |
 
-### Request Sample
+### Request Body (`application/json`)
 
-```
-https://open-api.tiktokglobalshop.com/fulfillment/202510/first_mile_bundle?app_key=123abc&sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c&timestamp=1625484268&shop_cipher=ROW_RHkDDABBAAB8tKAVoAqsMTjsQZFLyNfY
-```
-
-### Request Body Sample
-
-```json
-{
-  "order_ids": [
-    "578967030217083407"
-  ],
-  "handover_method": "PICKUP",
-  "shipping_provider_id": "7463353253533",
-  "tracking_number": "SF1244442424",
-  "phone_tail_number": "1234"
-}
-```
-
-### Sample Code
-
-**Curl**
-```shell
-curl -X POST \
- 'https://open-api.tiktokglobalshop.com/fulfillment/202510/first_mile_bundle?timestamp=1623812664&app_key=38abcd&sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c&shop_cipher=GCP_XF90igAAAABh00qsWgtvOiGFNqyubMt3' \
--H 'x-tts-access-token: TTP_pwSm2AAAAABmmtFz1xlyKMnwg74T2GJ5s0uQbS8jPjb_GkdFVCxPqzQXSyuyfXdQa0AqyDsea2tYFNVf4XeqgZHFfPyv0Vs659QqyLYfsGzanZ5XZAin3_ZkcIxxS0_In6u6XDeU96k' \
--H 'content-type: application/json' \
--d '{
-  "order_ids": [
-    "578967030217083407"
-  ],
-  "handover_method": "PICKUP",
-  "shipping_provider_id": "7463353253533",
-  "tracking_number": "SF1244442424",
-  "phone_tail_number": "1234"
-}'
-```
-
-**Go**
-```go
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-func fulfillment202510CreateFirstMileBundle(V2)Post() {
-    configuration := apis.NewConfiguration()
-    configuration.AddAppInfo(appKey, appSecret)
-    apiClient := apis.NewAPIClient(configuration)
-    request := apiClient.FulfillmentV202510API.Fulfillment202510FirstMileBundlePost(context.Background())
-    request = request.XTtsAccessToken("your access token")
-    request = request.ContentType("application/json")
-    request = request.ShopCipher("your shop cipher")
-    fulfillment202510CreateFirstMileBundle(V2)RequestBody := fulfillment_v202510.NewFulfillment202510CreateFirstMileBundle(V2)RequestBody()
-    fulfillment202510CreateFirstMileBundle(V2)RequestBodyOrderIdsList := []string{"578967030217083407"}
-    fulfillment202510CreateFirstMileBundle(V2)RequestBody.SetOrderIds(fulfillment202510CreateFirstMileBundle(V2)RequestBodyOrderIdsList)
-    fulfillment202510CreateFirstMileBundle(V2)RequestBody.SetHandoverMethod("PICKUP")
-    fulfillment202510CreateFirstMileBundle(V2)RequestBody.SetShippingProviderId("7463353253533")
-    fulfillment202510CreateFirstMileBundle(V2)RequestBody.SetTrackingNumber("SF1244442424")
-    fulfillment202510CreateFirstMileBundle(V2)RequestBody.SetPhoneTailNumber("1234")
-    request = request.Fulfillment202510CreateFirstMileBundle(V2)RequestBody(*fulfillment202510CreateFirstMileBundle(V2)RequestBody)
-    resp, httpResp, err := request.Execute()
-    if err != nil || httpResp.StatusCode != 200 {
-        fmt.Printf("productsRequest err:%v resbody:%s", err, httpResp.Body)
-        return
-    }
-    if resp == nil {
-        fmt.Printf("response is nil")
-        return
-    }
-    if resp.GetCode()!= 0 {
-        fmt.Printf("response business is error, errorCode:%d errorMessage:%s", resp.GetCode(), resp.GetMessage())
-        return
-    }
-    respDataJson, _ := json.MarshalIndent(resp.GetData(), "", "  ")
-    fmt.Println("response data:", string(respDataJson))
-    return
-}
-
-```
-
-**Node.js**
-```typescript
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-async function fulfillment202510CreateFirstMileBundle(V2)Post() {
-    const fulfillment202510CreateFirstMileBundle(V2)RequestBody = new Fulfillment202510CreateFirstMileBundle(V2)RequestBody();
-    fulfillment202510CreateFirstMileBundle(V2)RequestBody.orderIds = ["578967030217083407"];
-    fulfillment202510CreateFirstMileBundle(V2)RequestBody.handoverMethod = "PICKUP";
-    fulfillment202510CreateFirstMileBundle(V2)RequestBody.shippingProviderId = "7463353253533";
-    fulfillment202510CreateFirstMileBundle(V2)RequestBody.trackingNumber = "SF1244442424";
-    fulfillment202510CreateFirstMileBundle(V2)RequestBody.phoneTailNumber = "1234";
-    const result = await client.api.FulfillmentV202510Api.FirstMileBundlePost("your access token", "application/json", "your shop cipher", fulfillment202510CreateFirstMileBundle(V2)RequestBody);
-    console.log('response: ', JSON.stringify(result, null, 2));
-}
-
-```
-
-**Java**
-```java
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-public void fulfillment202510CreateFirstMileBundle(V2)Post() throws Exception {
-    ApiClient defaultClient = Configuration.getDefaultApiClient()
-            .setAppkey("your appKey")
-            .setSecret("your secret")
-            .setBasePath("https://open-api.tiktokglobalshop.com");
-    FulfillmentV202510Api apiInstance = new FulfillmentV202510Api(defaultClient);
-    CreateFirstMileBundle(V2)RequestBody createFirstMileBundle(V2)RequestBody = new CreateFirstMileBundle(V2)RequestBody();
-    List<String> createFirstMileBundle(V2)RequestBodyOrderIdsList = new ArrayList<>(Arrays.asList("578967030217083407"));
-    createFirstMileBundle(V2)RequestBody.setOrderIds(createFirstMileBundle(V2)RequestBodyOrderIdsList);
-    createFirstMileBundle(V2)RequestBody.setHandoverMethod("PICKUP");
-    createFirstMileBundle(V2)RequestBody.setShippingProviderId("7463353253533");
-    createFirstMileBundle(V2)RequestBody.setTrackingNumber("SF1244442424");
-    createFirstMileBundle(V2)RequestBody.setPhoneTailNumber("1234");
-    CreateFirstMileBundle(V2)Response result = apiInstance.fulfillment202510FirstMileBundlePost("your access token", "application/json", "your shop cipher", createFirstMileBundle(V2)RequestBody);
-    System.out.println(result);
-}
-
-```
-
-### Response Parameters
-
-| Name | Type | Example | Description |
+| Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| code | int | 0 | The success or failure status code returned in API response. |
-| message | string | Success | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
-| request_id | string | 202203070749000101890810281E8C70B7 | Request log |
-| data | object |  | Specific return information |
-| ^first_mile_bundle_id | string | BA123444534 | The ID of the first-mile bundle. |
-| ^url | string | https://open-fs-va.tiktokshop.com/doc_tts/object/28b05?skipCookie=true&timeStamp=1721272360&sign=ef63cd6 | The returned waybill link. |
-| ^errors | []object |  | Specific return information (returns multiple errors and reasons) |
-| ^^code | int | 10007014 | The success or failure status code returned in API response. |
-| ^^message | string | invalid package id | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
+| handover_method | string |  | The way you send the first-mile bundle. Possible enumerations are: - `PICKUP`: You use the logistic service provided by TikTok Shop to send the bundle. - `DROP_OFF`: You contact the logistic provider and send the bundle. The logistic provider must be registered at TikTok Shop. |
+| order_ids | array<string> |  | The IDs of all the orders sent in a single first-mile bundle. The orders must follow the restrictions: - Each of the orders must exist and be RTS and shipping label printed. - The orders are sent by the same seller. - The orders belong to a single group of TikTok Shop service districts. The groups are: - Group 1: PH, SG, MY, VN, TH, and JP. - Group 2: DE, FR, IT, ES. You can not create first mile bundles for US/UK orders using this API. |
+| phone_tail_number | string |  | Last 4 digits of the sender's phone number. Required when `handover_method == DROP_OFF`. |
+| shipping_provider_id | string |  | The logistic provider ID in TikTok Shop. Required when `handover_method == DROP_OFF`. |
+| tracking_number | string |  | The logistic tracking number of the bundle. Required when `handover_method == DROP_OFF`. |
+
+### Response
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| code | integer |  | The success or failure status code returned in API response. |
+| data | object |  | Specific return information. |
+| ^errors | array<object> |  | Specific return information (returns multiple errors and reasons) |
+| ^^code | integer |  | The success or failure status code returned in API response. |
 | ^^detail | object |  | Error detail |
-| ^^^order_id | string | 578967030217083407 | TikTok Shop order ID |
-
-### Response Sample
-
-```json
-{
-  "code": 0,
-  "data": {
-    "first_mile_bundle_id": "BA123444534",
-    "url": "https://open-fs-va.tiktokshop.com/doc_tts/object/28b05?skipCookie=true&timeStamp=1721272360&sign=ef63cd6",
-    "errors": [
-      {
-        "code": 10007014,
-        "message": "invalid package id",
-        "detail": {
-          "order_id": "578967030217083407"
-        }
-      }
-    ]
-  },
-  "message": "Success",
-  "request_id": "202203070749000101890810281E8C70B7"
-}
-```
-
-### API Scope / Permissions
-
-| Scope Name | Type | Description |
-| --- | --- | --- |
-| Fulfillment Basic | Public | The Partner will be able to fulfil and manage orders on seller's behalf, and provide real-time updates on the status of seller's orders. |
+| ^^^order_id | string |  | TikTok Shop order ID |
+| ^^message | string |  | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
+| ^first_mile_bundle_id | string |  | The ID of the first-mile bundle. |
+| ^url | string |  | The returned waybill link. |
+| message | string |  | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
+| request_id | string |  | Request log. |
 
 ---
 
-## Create Packages
+## CreatePackages
 
 Use this API to ship orders (purchase labels). This API is region specific to the US. The shipping fee and delivery time is an estimate only and is based on the package dimensions and weight you provided. Based on the package attributes, options listed below may differ from your shipping subscriptions.
 
 **Path:** `/fulfillment/202512/packages`
-
 **Method:** `POST`
+**Version:** 202512
+**Docs:** https://partner.tiktokshop.com/docv2/page/create-packages-202512
 
-**Common Parameters:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a4278f4c20311b8b57e)
-
-**Common Error Codes:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a45786253031531b942)
-
-### Request Header Parameters
+### Query Parameters
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| content-type | string | Y | Allowed type: application/json |
-| x-tts-access-token | string | Y | The seller access_token value from [Get Access Token](https://partner.tiktokshop.com/docv2/page/678e3a3292b0f40314a92d75#Get%20Access%20Token%20API), when user_type = 0. Follow this [guide](https://partner.tiktokshop.com/docv2/page/678e3a344ddec3030b238fa0) to get seller access_token. |
+| shop_cipher | string |  | Use this property to pass shop information in requesting the API. Failure in passing the correct value when requesting the API for cross-border shops will return incorrect response. |
 
-### Request Query Parameters
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| app_key | string | Y | Every single app will have a unique key. Please use the specific key assigned to your app. |
-| sign | string | Y | Signature generated by gen algorithm. When you send API requests to TTS, you must sign them so that TTS can identify the senders.  |
-| timestamp | int | Y | Unix timestamp GMT (UTC+00:00). This timestamp is used across all API requests. Developers can use this convert to local time. |
-| shop_cipher | string | Y | Use this property to pass shop information in requesting the API. Failure in passing the correct value when requesting the API for cross-border shops will return incorrect response.  Get by API [Get Authorization Shop](https://partner.tiktokshop.com/docv2/page/6507ead7b99d5302be949ba9?external_id=6507ead7b99d5302be949ba9) |
-
-### Request Body Parameters
+### Header Parameters
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| ship_type | string | Y |   1:All the products in one order are shipped in one package with one tracking number   2:Partical products in one parent order are shipped in multiple packages with multiple tracking numbers   3:All the products in multiple orders are shipped in one package with one tracking number. |
-| order_id | string | N | TikTok Shop order ID. If ship_type=0&1,This is a required field;If ship_type=2,we will not use |
-| order_line_item | []object | N | List of order line item IDs. If ship_type=2,This is a required field;If ship_type=1&3,we will not use this field |
-| ^order_line_id | string | N | List of order line item IDs. If ship_type=2,This is a required field;If ship_type=1&3,we will not use this field |
-| ^sub_item_id | string | N | Only for virtual bundle items,list of sub item ids. If ship_type=2,This is a required field;If ship_type=1&3,we will not use this field |
-| order_list_ids | []string | N | List of order line item IDs. If ship_type=3,This is a required field;If ship_type=1&2,we will not use this field |
-| dimension | object | N | Package dimensions. |
-| ^length | string | Y | Package length.  The length, width, and height must be passed together. |
-| ^width | string | Y | Package width.  The length, width, and height must be passed together. |
-| ^height | string | Y | Package height.  The length, width, and height must be passed together. |
-| ^unit | string | Y | The unit of measurement for the package dimensions.  Available values: - `CM` - `INCH` |
-| shipping_service_id | string | N | Specify the shipping service used.  If not specified, use the default service obtained from [Get Eligible Shipping Service](https://partner.tiktokshop.com/docv2/page/650aa6b2bace3e02b75dda4e). |
-| weight | object | N | Package weight. |
-| ^value | string | Y | The numerical value of the package weight. |
-| ^unit | string | Y | The unit of measurement for the package weight.  Available values: - `GRAM` - `POUND` |
+| x-tts-access-token | string | Y |  |
+| Content-Type | string | Y | Allowed type: application/json |
 
-### Request Sample
+### Request Body (`application/json`)
 
-```
-https://open-api.tiktokglobalshop.com/fulfillment/202512/packages?app_key=123abc&sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c&timestamp=1625484268&shop_cipher=ROW_RHkDDABBAAB8tKAVoAqsMTjsQZFLyNfY
-```
-
-### Request Body Sample
-
-```json
-{
-  "ship_type": "2",
-  "order_id": "2882335594258860015",
-  "order_line_item": [
-    {
-      "order_line_id": "2882335594258860015",
-      "sub_item_id": "2882335594258860015"
-    }
-  ],
-  "order_list_ids": [
-    " "
-  ],
-  "dimension": {
-    "length": "1.2",
-    "width": "0.2",
-    "height": "0.03",
-    "unit": "CM"
-  },
-  "shipping_service_id": "288233559123860015",
-  "weight": {
-    "value": "1.2",
-    "unit": "GRAM"
-  }
-}
-```
-
-### Sample Code
-
-**Curl**
-```shell
-curl -X POST \
- 'https://open-api.tiktokglobalshop.com/fulfillment/202512/packages?timestamp=1623812664&app_key=38abcd&sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c&shop_cipher=GCP_XF90igAAAABh00qsWgtvOiGFNqyubMt3' \
--H 'x-tts-access-token: TTP_pwSm2AAAAABmmtFz1xlyKMnwg74T2GJ5s0uQbS8jPjb_GkdFVCxPqzQXSyuyfXdQa0AqyDsea2tYFNVf4XeqgZHFfPyv0Vs659QqyLYfsGzanZ5XZAin3_ZkcIxxS0_In6u6XDeU96k' \
--H 'content-type: application/json' \
--d '{
-  "ship_type": "2",
-  "order_id": "2882335594258860015",
-  "order_line_item": [
-    {
-      "order_line_id": "2882335594258860015",
-      "sub_item_id": "2882335594258860015"
-    }
-  ],
-  "order_list_ids": [
-    " "
-  ],
-  "dimension": {
-    "length": "1.2",
-    "width": "0.2",
-    "height": "0.03",
-    "unit": "CM"
-  },
-  "shipping_service_id": "288233559123860015",
-  "weight": {
-    "value": "1.2",
-    "unit": "GRAM"
-  }
-}'
-```
-
-**Go**
-```go
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-func fulfillment202512CreatePackagesPost() {
-    configuration := apis.NewConfiguration()
-    configuration.AddAppInfo(appKey, appSecret)
-    apiClient := apis.NewAPIClient(configuration)
-    request := apiClient.FulfillmentV202512API.Fulfillment202512PackagesPost(context.Background())
-    request = request.XTtsAccessToken("your access token")
-    request = request.ContentType("application/json")
-    request = request.ShopCipher("your shop cipher")
-    fulfillment202512CreatePackagesRequestBody := fulfillment_v202512.NewFulfillment202512CreatePackagesRequestBody()
-    fulfillment202512CreatePackagesRequestBody.SetShipType("2")
-    fulfillment202512CreatePackagesRequestBody.SetOrderId("2882335594258860015")
-    fulfillment202512CreatePackagesRequestBodyOrderLineItem := fulfillment_v202512.NewFulfillment202512CreatePackagesRequestBodyOrderLineItem()
-    fulfillment202512CreatePackagesRequestBodyOrderLineItem.SetOrderLineId("2882335594258860015")
-    fulfillment202512CreatePackagesRequestBodyOrderLineItem.SetSubItemId("2882335594258860015")
-    fulfillment202512CreatePackagesRequestBodyOrderLineItemList := []fulfillment_v202512.Fulfillment202512CreatePackagesRequestBodyOrderLineItem{*fulfillment202512CreatePackagesRequestBodyOrderLineItem}
-    fulfillment202512CreatePackagesRequestBody.SetOrderLineItem(fulfillment202512CreatePackagesRequestBodyOrderLineItemList)
-    fulfillment202512CreatePackagesRequestBodyOrderListIdsList := []string{" "}
-    fulfillment202512CreatePackagesRequestBody.SetOrderListIds(fulfillment202512CreatePackagesRequestBodyOrderListIdsList)
-    fulfillment202512CreatePackagesRequestBodyDimension := fulfillment_v202512.NewFulfillment202512CreatePackagesRequestBodyDimension()
-    fulfillment202512CreatePackagesRequestBodyDimension.SetLength("1.2")
-    fulfillment202512CreatePackagesRequestBodyDimension.SetWidth("0.2")
-    fulfillment202512CreatePackagesRequestBodyDimension.SetHeight("0.03")
-    fulfillment202512CreatePackagesRequestBodyDimension.SetUnit("CM")
-    fulfillment202512CreatePackagesRequestBody.SetDimension(*fulfillment202512CreatePackagesRequestBodyDimension)
-    fulfillment202512CreatePackagesRequestBody.SetShippingServiceId("288233559123860015")
-    fulfillment202512CreatePackagesRequestBodyWeight := fulfillment_v202512.NewFulfillment202512CreatePackagesRequestBodyWeight()
-    fulfillment202512CreatePackagesRequestBodyWeight.SetValue("1.2")
-    fulfillment202512CreatePackagesRequestBodyWeight.SetUnit("GRAM")
-    fulfillment202512CreatePackagesRequestBody.SetWeight(*fulfillment202512CreatePackagesRequestBodyWeight)
-    request = request.Fulfillment202512CreatePackagesRequestBody(*fulfillment202512CreatePackagesRequestBody)
-    resp, httpResp, err := request.Execute()
-    if err != nil || httpResp.StatusCode != 200 {
-        fmt.Printf("productsRequest err:%v resbody:%s", err, httpResp.Body)
-        return
-    }
-    if resp == nil {
-        fmt.Printf("response is nil")
-        return
-    }
-    if resp.GetCode()!= 0 {
-        fmt.Printf("response business is error, errorCode:%d errorMessage:%s", resp.GetCode(), resp.GetMessage())
-        return
-    }
-    respDataJson, _ := json.MarshalIndent(resp.GetData(), "", "  ")
-    fmt.Println("response data:", string(respDataJson))
-    return
-}
-
-```
-
-**Node.js**
-```typescript
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-async function fulfillment202512CreatePackagesPost() {
-    const fulfillment202512CreatePackagesRequestBody = new Fulfillment202512CreatePackagesRequestBody();
-    fulfillment202512CreatePackagesRequestBody.shipType = "2";
-    fulfillment202512CreatePackagesRequestBody.orderId = "2882335594258860015";
-    const fulfillment202512CreatePackagesRequestBodyOrderLineItem = new Fulfillment202512CreatePackagesRequestBodyOrderLineItem();
-    fulfillment202512CreatePackagesRequestBodyOrderLineItem.orderLineId = "2882335594258860015";
-    fulfillment202512CreatePackagesRequestBodyOrderLineItem.subItemId = "2882335594258860015";
-    fulfillment202512CreatePackagesRequestBody.orderLineItem = [fulfillment202512CreatePackagesRequestBodyOrderLineItem];
-    fulfillment202512CreatePackagesRequestBody.orderListIds = [" "];
-    const fulfillment202512CreatePackagesRequestBodyDimension = new Fulfillment202512CreatePackagesRequestBodyDimension();
-    fulfillment202512CreatePackagesRequestBodyDimension.length = "1.2";
-    fulfillment202512CreatePackagesRequestBodyDimension.width = "0.2";
-    fulfillment202512CreatePackagesRequestBodyDimension.height = "0.03";
-    fulfillment202512CreatePackagesRequestBodyDimension.unit = "CM";
-    fulfillment202512CreatePackagesRequestBody.dimension = fulfillment202512CreatePackagesRequestBodyDimension;
-    fulfillment202512CreatePackagesRequestBody.shippingServiceId = "288233559123860015";
-    const fulfillment202512CreatePackagesRequestBodyWeight = new Fulfillment202512CreatePackagesRequestBodyWeight();
-    fulfillment202512CreatePackagesRequestBodyWeight.value = "1.2";
-    fulfillment202512CreatePackagesRequestBodyWeight.unit = "GRAM";
-    fulfillment202512CreatePackagesRequestBody.weight = fulfillment202512CreatePackagesRequestBodyWeight;
-    const result = await client.api.FulfillmentV202512Api.PackagesPost("your access token", "application/json", "your shop cipher", fulfillment202512CreatePackagesRequestBody);
-    console.log('response: ', JSON.stringify(result, null, 2));
-}
-
-```
-
-**Java**
-```java
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-public void fulfillment202512CreatePackagesPost() throws Exception {
-    ApiClient defaultClient = Configuration.getDefaultApiClient()
-            .setAppkey("your appKey")
-            .setSecret("your secret")
-            .setBasePath("https://open-api.tiktokglobalshop.com");
-    FulfillmentV202512Api apiInstance = new FulfillmentV202512Api(defaultClient);
-    CreatePackagesRequestBody createPackagesRequestBody = new CreatePackagesRequestBody();
-    createPackagesRequestBody.setShipType("2");
-    createPackagesRequestBody.setOrderId("2882335594258860015");
-    CreatePackagesRequestBodyOrderLineItem createPackagesRequestBodyOrderLineItem = new tiktokshop.open.sdk_java.model.Fulfillment.V202512.CreatePackagesRequestBodyOrderLineItem();
-    createPackagesRequestBodyOrderLineItem.setOrderLineId("2882335594258860015");
-    createPackagesRequestBodyOrderLineItem.setSubItemId("2882335594258860015");
-    List<CreatePackagesRequestBodyOrderLineItem> createPackagesRequestBodyOrderLineItemList = new ArrayList<>(Arrays.asList(createPackagesRequestBodyOrderLineItem));
-    createPackagesRequestBody.setOrderLineItem(createPackagesRequestBodyOrderLineItemList);
-    List<String> createPackagesRequestBodyOrderListIdsList = new ArrayList<>(Arrays.asList(" "));
-    createPackagesRequestBody.setOrderListIds(createPackagesRequestBodyOrderListIdsList);
-    CreatePackagesRequestBodyDimension createPackagesRequestBodyDimension = new tiktokshop.open.sdk_java.model.Fulfillment.V202512.CreatePackagesRequestBodyDimension();
-    createPackagesRequestBodyDimension.setLength("1.2");
-    createPackagesRequestBodyDimension.setWidth("0.2");
-    createPackagesRequestBodyDimension.setHeight("0.03");
-    createPackagesRequestBodyDimension.setUnit("CM");
-    createPackagesRequestBody.setDimension(createPackagesRequestBodyDimension);
-    createPackagesRequestBody.setShippingServiceId("288233559123860015");
-    CreatePackagesRequestBodyWeight createPackagesRequestBodyWeight = new tiktokshop.open.sdk_java.model.Fulfillment.V202512.CreatePackagesRequestBodyWeight();
-    createPackagesRequestBodyWeight.setValue("1.2");
-    createPackagesRequestBodyWeight.setUnit("GRAM");
-    createPackagesRequestBody.setWeight(createPackagesRequestBodyWeight);
-    CreatePackagesResponse result = apiInstance.fulfillment202512PackagesPost("your access token", "application/json", "your shop cipher", createPackagesRequestBody);
-    System.out.println(result);
-}
-
-```
-
-### Response Parameters
-
-| Name | Type | Example | Description |
+| Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| code | int | 0 | The success or failure status code returned in API response. |
-| message | string | Success | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
-| request_id | string | 202203070749000101890810281E8C70B7 | Request log |
-| data | object |  | Specific return information |
+| dimension | object |  | Package dimensions. |
+| ^height | string |  | Package height. The length, width, and height must be passed together. |
+| ^length | string |  | Package length. The length, width, and height must be passed together. |
+| ^unit | string |  | The unit of measurement for the package dimensions. Available values: - `CM` - `INCH` |
+| ^width | string |  | Package width. The length, width, and height must be passed together. |
+| order_id | string |  | TikTok Shop order ID. If ship_type=0&1,This is a required field;If ship_type=2,we will not use |
+| order_line_item | array<object> |  | List of order line item IDs. If ship_type=2,This is a required field;If ship_type=1&3,we will not use this field |
+| ^order_line_id | string |  | List of order line item IDs. If ship_type=2,This is a required field;If ship_type=1&3,we will not use this field |
+| order_list_ids | array<string> |  | List of order line item IDs. If ship_type=3,This is a required field;If ship_type=1&2,we will not use this field |
+| ship_type | string |  | 1:All the products in one order are shipped in one package with one tracking number 2:Partical products in one parent order are shipped in multiple packages with multiple tracking numbers 3:All the products in multiple orders are shipped in one package with one tracking number. |
+| shipping_service_id | string |  | Specify the shipping service used. If not specified, use the default service obtained from [Get Eligible Shipping Service](https://partner.tiktokshop.com/docv2/page/650aa6b2bace3e02b75dda4e). |
+| weight | object |  | Package weight. |
+| ^unit | string |  | The unit of measurement for the package weight. Available values: - `GRAM` - `POUND` |
+| ^value | string |  | The numerical value of the package weight. |
+
+### Response
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| code | integer |  | The success or failure status code returned in API response. |
+| data | object |  | Specific return information. |
+| ^create_time | integer |  | The time when the product was created. Unix timestamp. |
 | ^dimension | object |  | Package dimensions. |
-| ^^length | string | 1.2 | Package length. |
-| ^^width | string | 0.2 | Package width. |
-| ^^height | string | 0.03 | Package height. |
-| ^^unit | string | CM | The unit of measurement for the package dimensions.  Available values: - `CM` - `INCH` |
+| ^^height | string |  | Package height. |
+| ^^length | string |  | Package length. |
+| ^^unit | string |  | The unit of measurement for the package dimensions. Available values: - `CM` - `INCH` |
+| ^^width | string |  | Package width. |
+| ^package_id | string |  | Package ID. |
 | ^shipping_service_info | object |  | The available shipping service's information. |
-| ^^id | string | 288233559123860015 | Shipping service ID. |
-| ^^name | string | UPS-first class | Shipping service name. |
-| ^^price | string | 10 | Estimated price for this service. |
-| ^^currency | string | dollar | Currency of the price. |
-| ^^earliest_delivery_days | int | 3 | The minimum estimated duration required for package delivery. |
-| ^^latest_delivery_days | int | 5 | The maximum estimated duration required for package delivery. |
-| ^^shipping_provider_id | string | 2882322591238 | Shipping provider ID. |
-| ^^shipping_provider_name | string | UPS | Shipping provider name. |
-| ^package_id | string | 2882335594258860015 | Package ID. |
+| ^^currency | string |  | Currency of the price. |
+| ^^earliest_delivery_days | integer |  | The minimum estimated duration required for package delivery. |
+| ^^id | string |  | Shipping service ID. |
+| ^^latest_delivery_days | integer |  | The maximum estimated duration required for package delivery. |
+| ^^name | string |  | Shipping service name. |
+| ^^price | string |  | Estimated price for this service. |
+| ^^shipping_provider_id | string |  | Shipping provider ID. |
+| ^^shipping_provider_name | string |  | Shipping provider name. |
 | ^weight | object |  | Package weight. |
-| ^^value | string | 1.2 | The numerical value of the package weight. |
-| ^^unit | string | GRAM | The unit of measurement for the package weight.  Available values: - `GRAM` - `POUND` |
-| ^create_time | int | 1623812664 | The time when the product was created. Unix timestamp. |
+| ^^unit | string |  | The unit of measurement for the package weight. Available values: - `GRAM` - `POUND` |
+| ^^value | string |  | The numerical value of the package weight. |
+| message | string |  | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
+| request_id | string |  | Request log. |
 
-### Response Sample
+---
 
-```json
-{
-  "code": 0,
-  "data": {
-    "dimension": {
-      "length": "1.2",
-      "width": "0.2",
-      "height": "0.03",
-      "unit": "CM"
-    },
-    "shipping_service_info": {
-      "id": "288233559123860015",
-      "name": "UPS-first class",
-      "price": "10",
-      "currency": "dollar",
-      "earliest_delivery_days": 3,
-      "latest_delivery_days": 5,
-      "shipping_provider_id": "2882322591238",
-      "shipping_provider_name": "UPS"
-    },
-    "package_id": "2882335594258860015",
-    "weight": {
-      "value": "1.2",
-      "unit": "GRAM"
-    },
-    "create_time": 1623812664
-  },
-  "message": "Success",
-  "request_id": "202203070749000101890810281E8C70B7"
-}
-```
+## RedeemInfoCallback
 
-### Error Codes
+Description of [POST]/fulfillment/:version/redeem_info/callback
 
-| Code | Message |
-| --- | --- |
-| 36009003 | Internal error. Please try again. If the issue persists after multiple attempts, please contact platform support. |
-| 11001002 | invalid param. |
-| 11001027 | System timeout. If this error persists, please contact the platform for assistance. |
-| 11003011 | Shipping service operation conflict error, please double check the shipping service ID. |
-| 11021009 | No available shipping services for this request. Please modify the package weight or check the recipient address. If the error persists, please contact the platform for assistance. |
-| 11021012 | illegal address |
-| 11021014 | product oversize |
-| 11028006 | This tracking number cannot be matched to any carrier, please check the tracking number and upload again. |
-| 11050001 | invalid param |
-| 21001001 | Invalid parameters. Please ensure you are passing the correct request parameter(s). |
-| 21001011 | System process error, please try again later. |
-| 21004008 | create label shipping service not found |
-| 21004010 | Your country does not support the use of this feature. |
-| 21008025 | Seller cannot operate orders which are fulfilled by platform |
-| 21008042 | seller already print shipping label |
-| 21008106 | This interface cannot be used in this region. |
-| 21011001 | Package not found. If the error persists, please contact the platform for assistance. |
-| 21011003 | fulfill_unit action not allowed |
-| 21011006 | These orders are already shipped. |
-| 21011007 | Package item has after-sale request, please process the after-sale request first. |
-| 21011012 | not match trade rule |
-| 21011020 | These orders are already shipped. |
-| 21011029 | order does not belong to fulfill unit |
-| 21011033 | order already combined |
-| 21011035 | split order not allowed |
-| 21011037 | There are no available shipping services for this request. Please modify the package weight, or double check the recipient address. If after multiple retries you continue to experience this error, please contact the platform for assistance. |
-| 21011046 | Order has combine, not allow split order |
-| 21011048 | There are multiple packages that can be shipped, please specify the order line that needs to be shipped. |
-| 21022025 | A shipping label has already been purchased. |
-| 21022026 | Cannot purchase shipping label, please try again later. |
-| 21022029 | System process error, please try again later. |
-| 21030005 | Processing create_label_status not allow to operate this action |
-| 21030006 | Shipping label purchase successful. This operation is not allowed in the current order status. |
-| 21032001 | fulfill unit status not allow to update pkg attr |
+**Path:** `/fulfillment/202601/redeem_info/callback`
+**Method:** `POST`
+**Version:** 202601
+**Docs:** https://partner.tiktokshop.com/docv2/page/redeem-info-callback-202601
 
-### API Scope / Permissions
+### Query Parameters
 
-| Scope Name | Type | Description |
-| --- | --- | --- |
-| Fulfillment Basic | Public | The Partner will be able to fulfil and manage orders on seller's behalf, and provide real-time updates on the status of seller's orders. |
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| shop_cipher | string |  | Use this property to pass shop information in requesting the API. Failure in passing the correct value when requesting the API for cross-border shops will return incorrect response. |
+
+### Header Parameters
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| x-tts-access-token | string | Y |  |
+| Content-Type | string | Y | Allowed type: application/json |
+
+### Request Body (`application/json`)
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| order_id | string |  | TikTok Shop order id. |
+| order_info_list | array<object> |  | Order lines that need to send redeem info related to the order id. |
+| ^order_line_id | string |  | Line order id. |
+| ^redeem_info | object |  | The redeem item generated by your system that you need to callback. |
+| ^^redeem_data | string |  | Redeem type is 'CODE', set redeem code to this field. Redeem type is 'URL', set redeem url to this field. |
+| ^^redeem_type | string |  | What redeem type that you callback. 'CODE' - type code 'URL' - type url |
+| ^source_unique_id | string |  | Optional, a unique id related to the order line in the caller system |
+
+### Response
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| code | integer |  | The success or failure status code returned in API response. |
+| data | object |  | Specific return information. |
+| ^order_statuses | array<object> |  | Callback result. |
+| ^^order_line_id | string |  | Line order id, same as the input line order id. |
+| ^^status_code | integer |  | callback status of this line order id. |
+| message | string |  | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
+| request_id | string |  | Request log. |
 
 ---

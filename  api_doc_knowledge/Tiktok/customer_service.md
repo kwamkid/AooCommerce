@@ -1,1708 +1,463 @@
-# Customer service
+# TikTok Shop API — customer_service
 
-_TikTok Shop API Documentation_
+_สร้างจาก OAS ของ @tts-open-toolkit/cli เมื่อ 2026-08-24 — 10 operations_
+_อัปเดต: `tts_open_toolkit update --yes` → `tts_open_toolkit skill add --agent cc --update` → `node scripts/gen-tiktok-api-docs.mjs`_
+
+เวอร์ชันที่มีในหมวดนี้: 202309, 202407, 202601
 
 ---
 
+## GetAgentSettings
 
-## Create Conversation
+This API is used to get agent settings. This API allows the agent to see whether the agent can accept chats from buyers. This API is a read-only endpoint. There will be no side effects, and can be retried safely. Note:  1. The current API version can only get settings on behalf of the shop, or the owner account holder on Seller Center. The owner in this case is acting as the customer service agent. In the future, we plan to make this API available to subaccount holders (who has customer service role) in Seller Center.  2. This API is to allow the agent to get his/her own setting.  See more information in API overview
+
+**Path:** `/customer_service/202309/agents/settings`
+**Method:** `GET`
+**Version:** 202309
+**Docs:** https://partner.tiktokshop.com/docv2/page/get-agent-settings-202309
+
+### Query Parameters
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| shop_cipher | string |  | Use this property to pass shop information in requesting the API. Failure in passing the correct value when requesting the API for cross-border shops will return incorrect response. |
+
+### Header Parameters
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| x-tts-access-token | string | Y |  |
+| Content-Type | string | Y | Allowed type: application/json |
+
+### Response
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| code | integer |  | The success or failure status code returned in API response. |
+| data | object |  | Specific return information. |
+| ^can_accept_chat | boolean |  | Whether the current agent can accept chat. If true, the agent will receive auto-assigned chats. The agent can manually select chats to respond. If false, the agent will receive manually assigned chats only. |
+| message | string |  | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
+| request_id | string |  | Request log. |
+
+---
+
+## UpdateAgentSettings
+
+Use this API to update agent status on behalf of the agent. Agents can set whether they can accept auto assigned chats. Before using API, we recommend setting can_accept_chat to true, in order to accept chats.  Note:  1. The current API version can only update settings on behalf of the shop, or the owner account holder on Seller Center. The owner in this case is acting as the customer service agent. In the future, we plan to make this API available to subaccount holders (who has customer service role) in Seller Center.  2. This API is to allow the agent to update their own setting.  See more information in API overview
+
+**Path:** `/customer_service/202309/agents/settings`
+**Method:** `PUT`
+**Version:** 202309
+**Docs:** https://partner.tiktokshop.com/docv2/page/update-agent-settings-202309
+
+### Query Parameters
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| shop_cipher | string |  | Use this property to pass shop information in requesting the API. Failure in passing the correct value when requesting the API for cross-border shops will return incorrect response. |
+
+### Header Parameters
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| x-tts-access-token | string | Y |  |
+| Content-Type | string | Y | Allowed type: application/json |
+
+### Request Body (`application/json`)
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| can_accept_chat | boolean |  | If true, the agent will receive auto-assigned chats. The agent can manually select chats to respond. If false, the agent will receive manually assigned chats only. When using IM API, we recommend setting this field to true. |
+
+### Response
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| code | integer |  | The success or failure status code returned in API response. |
+| data | object |  | Specific return information. |
+| message | string |  | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
+| request_id | string |  | Request log. |
+
+---
+
+## GetConversations
+
+Use this API to retrieve a shop's conversations with buyers.
+
+**Path:** `/customer_service/202309/conversations`
+**Method:** `GET`
+**Version:** 202309
+**Docs:** https://partner.tiktokshop.com/docv2/page/get-conversations-202309
+
+### Query Parameters
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| page_token | string |  | Paging cursor, this means where this query should start. For the next page, use "next_page_token" in response. |
+| page_size | integer | Y | Number of conversations on one page Max 20. |
+| locale | string |  | System message's display language. The messages sent by System will be returned in the setting language; The messages sent by the buyer, the shop, the CS agent will not be affected. The default value is en (English). Possible enumerations: - de-DE (German, Germany) - en (English) - en-GB (English, United Kingdom) - es-ES (Spanish, Spain) - es-MX (Spanish, Latin America) - fr-FR (French, France) - id-ID (Indonesian, Indonesia) - it-IT (Italian, Italy) - ja-JP (Japanese) - ms-MY (Malay, Malaysia) - th-TH (Thai, Thailand) - vi-VN (Vietnamese, Vietnam) - pt-BR (Portuguese, Brazil) - zh-CN (Simplified Chinese, China) |
+| shop_cipher | string |  | Use this property to pass shop information in requesting the API. Failure in passing the correct value when requesting the API for cross-border shops will return incorrect response. |
+
+### Header Parameters
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| x-tts-access-token | string | Y |  |
+| Content-Type | string | Y | Allowed type: application/json |
+
+### Response
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| code | integer |  | The success or failure status code returned in API response. |
+| data | object |  | Specific return information. |
+| ^conversations | array<object> |  | Conversation info. |
+| ^^can_send_message | boolean |  | Whether customer service agent can send message in this conversation. Under any of the following circumstances, the CS agent can send messages: 1. There has been a prior conversation between the buyer and the shop within the last 30 days. 2. The buyer placed an order at the shop within the past 60 days. 3. The buyer has a history of returns or refunds at the shop. |
+| ^^create_time | integer |  | Unix timestamp when the conversation was created. In seconds. |
+| ^^id | string |  | Conversation ID |
+| ^^latest_message | object |  | The latest message in conversation. |
+| ^^^content | string |  | Message content, in JSON serialized string. Examples of content for each type of message are listed below: - TEXT: ``` { "content": "simple text" } ``` - IMAGE: ``` { "height": "290", "url": "https://tosv.boei18n.byted.org/obj/temai-im/FszkJ53nSapYG6KDaJQmqR3jjoZGwww304-290", "width": "304" } ``` - PRODUCT_CARD, BUYER_ENTER_FROM_PRODUCT: ``` { "product_id": "12345" } ``` - ORDER_CARD, BUYER_ENTER_FROM_ORDER : ``` { "order_id": "12345" } ``` - RETURN_REFUND_CARD: ``` { "order_id": "12345", "sku_id": "45678" } ``` - VIDEO: ``` { "url": "https://video-boei18n.byted.org/storage/v1/tos-boei18n-v-c72c01/e8240f35244646428df9c3244d1a7408?x-tos-algorithm=v2&x-tos-authkey=5bf25627da095a5cba28ace592de46cc&x-tos-expires=1681980481&x-tos-signature=r_bRxtrvGhXAuZgMmNhlZ_Upqzg", "cover": "https://p-boei18n.byted.org/tos-boei18n-v-c72c01/o8keEOhzTcNCcJyAbkWZwpLIyTfkJxcGbRBvLP~tplv-jvtte31kaf-origin-jpeg.jpeg?", "width": 640, "height": 360, "duration": "20.504", "vid": "v0e30cg700f7cgcmu8jc77u9e2bdp95g", "expire_time": "1681980481", "format": "mp4", "size": 400000, "bit_rate": 156067, "quality": "original", "codec_type": "h264" } ``` - ALLOCATED_SERVICE, NOTIFICATION, BUYER_ENTER_FROM_TRANSFER, OTHER: ``` { "content": "simple text" } ``` - COUPON_CARD: ``` { "coupon_id": "7262992004278206762" } ``` Note: Use [Get Coupon](6699dce0de15e502ed219e37) for the details of the coupon. |
+| ^^^create_time | integer |  | Unix timestamp for creating the message in seconds. |
+| ^^^id | string |  | Message ID. |
+| ^^^index | string |  | Message index. This field can be used to sort messages. "index" means the order of the message in the conversation. This value is unique for every message in a conversation. This value is time-related, meaning a newer message will get a larger "index". But it is not strictly increasing. |
+| ^^^is_visible | boolean |  | Whether this message should be displayed to customer service. For example, the buyer will receive a rating request message at the end of the conversation from the system. You should not present this type of message to the seller or the customer support agents. |
+| ^^^sender | object |  | Sender of the message. |
+| ^^^^avatar | string |  | Sender's avatar URL. |
+| ^^^^im_user_id | string |  | Sender's IM ID. Sender's unique identifier in TikTok Shop's IM system. |
+| ^^^^nickname | string |  | Sender's nickname. - For shops, the nickname is the shop's name. - For customer service, the nickname is the customer service's name. - For buyers, the nickname is the buyer's nickname on TikTok. You can set the nicknames for shops and customer service agents on Seller Center. |
+| ^^^^role | string |  | Sender's role. Possible enumerations: - `BUYER` - `SHOP` - `CUSTOMER_SERVICE` - `SYSTEM` - `ROBOT` For `SYSTEM` and `ROBOT` role, the value of `im_user_id`, `nickname`, and `avatar` are the same as those of the `SHOP` role. |
+| ^^^type | string |  | Message type. Possible enumerations: - TEXT - IMAGE - ALLOCATED_SERVICE - A customer service agent joins the conversation. - NOTIFICATION - Notification from the system. - BUYER_ENTER_FROM_TRANSFER : The conversation is transferred to another customer service agent. - BUYER_ENTER_FROM_PRODUCT : The buyer is viewing a product before sending this message. - BUYER_ENTER_FROM_ORDER : The buyer is viewing an order before sending this message. - PRODUCT_CARD - EMOTICONS - ORDER_CARD - VIDEO - RETURN_REFUND_CARD: Return/refund card. - COUPON_CARD - OTHER: Messages of types not supported in this API. |
+| ^^participant_count | integer |  | Number of participants in the conversation. - If there has been no customer service agent in the conversation, the value is `2`: the shop and the buyer; - Otherwise, the value is `3`: the shop, the buyer, and the customer service agent. |
+| ^^participants | array<object> |  | Conversation participants. |
+| ^^^avatar | string |  | Participant's avatar URL. |
+| ^^^buyer_platform | string |  | Which platform is the buyer from. This field will only be returned when the role is `BUYER` and the region is Indonesia. Possible enumerations: - TIKTOK_SHOP - TOKOPEDIA You cannot send platform-specific content to the buyer from a different platform. For example, when you send a product card to the Tokopedia buyer, you must ensure the product is listed on Tokopedia. |
+| ^^^im_user_id | string |  | Participant's ID, in IM system. This ID is used in IM system and can not be used to query orders. To query orders, use `user_id` instead. |
+| ^^^nickname | string |  | Participant's nickname. |
+| ^^^role | string |  | Participant's role. Possible enumerations: - `BUYER` - `SHOP` - `CUSTOMER_SERVICE` |
+| ^^^user_id | string |  | Participant's ID. |
+| ^^unread_count | integer |  | Number of messages unread by the customer service agent. |
+| ^next_page_token | string |  | The index indicates where we should start on the next page. If there is no more record, this field will be ""(empty string). Put this value to request param "page_token" for the next page query. |
+| message | string |  | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
+| request_id | string |  | Request log. |
+
+---
+
+## CreateConversation
 
 Use this API to create a conversation with the specified buyer, on behalf of a shop. When there's no prior conversation, calling this API creates a new conversation; when there's a prior conversation, no matter whether it's active, finished, or closed, calling this API reopens the conversation and returns the same conversation ID as the prior one.
 
 **Path:** `/customer_service/202309/conversations`
-
 **Method:** `POST`
+**Version:** 202309
+**Docs:** https://partner.tiktokshop.com/docv2/page/create-conversation-202309
 
-**Common Parameters:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a4278f4c20311b8b57e)
-
-**Common Error Codes:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a45786253031531b942)
-
-### Request Header Parameters
+### Query Parameters
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| content-type | string | Y | Allowed type: application/json |
-| x-tts-access-token | string | Y | The seller access_token value from [Get Access Token](https://partner.tiktokshop.com/docv2/page/678e3a3292b0f40314a92d75#Get%20Access%20Token%20API), when user_type = 0. Follow this [guide](https://partner.tiktokshop.com/docv2/page/678e3a344ddec3030b238fa0) to get seller access_token. |
+| shop_cipher | string |  | Use this property to pass shop information in requesting the API. Failure in passing the correct value when requesting the API for cross-border shops will return incorrect response. |
 
-### Request Query Parameters
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| app_key | string | Y | Every single app will have a unique key. Please use the specific key assigned to your app. |
-| sign | string | Y | Signature generated by gen algorithm. When you send API requests to TTS, you must sign them so that TTS can identify the senders.  |
-| timestamp | int | Y | Unix timestamp GMT (UTC+00:00). This timestamp is used across all API requests. Developers can use this convert to local time. |
-| shop_cipher | string | Y | Use this property to pass shop information in requesting the API. Failure in passing the correct value when requesting the API for cross-border shops will return incorrect response.  Get by API [Get Authorization Shop](https://partner.tiktokshop.com/docv2/page/6507ead7b99d5302be949ba9?external_id=6507ead7b99d5302be949ba9) |
-
-### Request Body Parameters
+### Header Parameters
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| buyer_user_id | string | Y | Buyer's user ID The value is the same as `data.orders.user_id` in the response data of [Get Order Detail](650aa8ccc16ffe02b8f167a0). |
+| x-tts-access-token | string | Y |  |
+| Content-Type | string | Y | Allowed type: application/json |
 
-### Request Sample
+### Request Body (`application/json`)
 
-```
-https://open-api.tiktokglobalshop.com/customer_service/202309/conversations?app_key=123abc&sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c&timestamp=1625484268&shop_cipher=ROW_RHkDDABBAAB8tKAVoAqsMTjsQZFLyNfY
-```
-
-### Request Body Sample
-
-```json
-{
-  "buyer_user_id": "7494560109732338459"
-}
-```
-
-### Sample Code
-
-**Curl**
-```shell
-curl -X POST \
- 'https://open-api.tiktokglobalshop.com/customer_service/202309/conversations?app_key=38abcd&sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c&timestamp=1623812664&shop_cipher=GCP_XF90igAAAABh00qsWgtvOiGFNqyubMt3' \
--H 'x-tts-access-token: TTP_pwSm2AAAAABmmtFz1xlyKMnwg74T2GJ5s0uQbS8jPjb_GkdFVCxPqzQXSyuyfXdQa0AqyDsea2tYFNVf4XeqgZHFfPyv0Vs659QqyLYfsGzanZ5XZAin3_ZkcIxxS0_In6u6XDeU96k' \
--H 'content-type: application/json' \
--d '{
-  "buyer_user_id": "7494560109732338459"
-}'
-```
-
-**Go**
-```go
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-func customerService202309CreateConversationPost() {
-    configuration := apis.NewConfiguration()
-    configuration.AddAppInfo(appKey, appSecret)
-    apiClient := apis.NewAPIClient(configuration)
-    request := apiClient.CustomerServiceV202309API.CustomerService202309ConversationsPost(context.Background())
-    request = request.XTtsAccessToken("your access token")
-    request = request.ContentType("application/json")
-    request = request.ShopCipher("your shop cipher")
-    customerService202309CreateConversationRequestBody := customerService_v202309.NewCustomerService202309CreateConversationRequestBody()
-    customerService202309CreateConversationRequestBody.SetBuyerUserId("7494560109732338459")
-    request = request.CustomerService202309CreateConversationRequestBody(*customerService202309CreateConversationRequestBody)
-    resp, httpResp, err := request.Execute()
-    if err != nil || httpResp.StatusCode != 200 {
-        fmt.Printf("productsRequest err:%v resbody:%s", err, httpResp.Body)
-        return
-    }
-    if resp == nil {
-        fmt.Printf("response is nil")
-        return
-    }
-    if resp.GetCode()!= 0 {
-        fmt.Printf("response business is error, errorCode:%d errorMessage:%s", resp.GetCode(), resp.GetMessage())
-        return
-    }
-    respDataJson, _ := json.MarshalIndent(resp.GetData(), "", "  ")
-    fmt.Println("response data:", string(respDataJson))
-    return
-}
-
-```
-
-**Node.js**
-```typescript
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-async function customerService202309CreateConversationPost() {
-    const customerService202309CreateConversationRequestBody = new CustomerService202309CreateConversationRequestBody();
-    customerService202309CreateConversationRequestBody.buyerUserId = "7494560109732338459";
-    const result = await client.api.CustomerServiceV202309Api.ConversationsPost("your access token", "application/json", "your shop cipher", customerService202309CreateConversationRequestBody);
-    console.log('response: ', JSON.stringify(result, null, 2));
-}
-
-```
-
-**Java**
-```java
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-public void customerService202309CreateConversationPost() throws Exception {
-    ApiClient defaultClient = Configuration.getDefaultApiClient()
-            .setAppkey("your appKey")
-            .setSecret("your secret")
-            .setBasePath("https://open-api.tiktokglobalshop.com");
-    CustomerServiceV202309Api apiInstance = new CustomerServiceV202309Api(defaultClient);
-    CreateConversationRequestBody createConversationRequestBody = new CreateConversationRequestBody();
-    createConversationRequestBody.setBuyerUserId("7494560109732338459");
-    CreateConversationResponse result = apiInstance.customerService202309ConversationsPost("your access token", "application/json", "your shop cipher", createConversationRequestBody);
-    System.out.println(result);
-}
-
-```
-
-### Response Parameters
-
-| Name | Type | Example | Description |
+| Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| code | int | 0 | The success or failure status code returned in API response. |
-| message | string | Success | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
-| request_id | string | 202203070749000101890810281E8C70B7 | Request log |
-| data | object |  | Specific return information |
-| ^conversation_id | string | 7106888323922608389 | Converstaion ID. The unique identifier for a conversation between the buyer and a shop. |
+| buyer_user_id | string |  | Buyer's user ID The value is the same as `data.orders.user_id` in the response data of [Get Order Detail](650aa8ccc16ffe02b8f167a0). |
 
-### Response Sample
+### Response
 
-```json
-{
-  "code": 0,
-  "data": {
-    "conversation_id": "7106888323922608389"
-  },
-  "message": "Success",
-  "request_id": "202203070749000101890810281E8C70B7"
-}
-```
-
-### Error Codes
-
-| Code | Message |
-| --- | --- |
-| 45101001 | Internal error. Please try again later or contact the technical support team for help.  |
-| 36009003 | Internal error. Please try again. If the issue persists after multiple attempts, please contact platform support. |
-| 45109003 | Unable to create a conversation as you did not meet the criteria for initiating conversations. For details, please refer to [Customer Service API overview](659645f9a46cdd02bc8aeacf#Important%20Concepts). |
-
-### API Scope / Permissions
-
-| Scope Name | Type | Description |
-| --- | --- | --- |
-| Customer Service | Private | The Partner will be able to receive and reply to Instant Messages from buyers. |
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| code | integer |  | The success or failure status code returned in API response. |
+| data | object |  | Specific return information. |
+| ^conversation_id | string |  | Converstaion ID. The unique identifier for a conversation between the buyer and a shop. |
+| message | string |  | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
+| request_id | string |  | Request log. |
 
 ---
 
-## Get Conversations
-
-Use this API to retrieve a shop's conversations with buyers. 
-
-**Path:** `/customer_service/202309/conversations`
-
-**Method:** `GET`
-
-**Common Parameters:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a4278f4c20311b8b57e)
-
-**Common Error Codes:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a45786253031531b942)
-
-### Request Header Parameters
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| content-type | string | Y | Allowed type: application/json |
-| x-tts-access-token | string | Y | The seller access_token value from [Get Access Token](https://partner.tiktokshop.com/docv2/page/678e3a3292b0f40314a92d75#Get%20Access%20Token%20API), when user_type = 0. Follow this [guide](https://partner.tiktokshop.com/docv2/page/678e3a344ddec3030b238fa0) to get seller access_token. |
-
-### Request Query Parameters
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| app_key | string | Y | Every single app will have a unique key. Please use the specific key assigned to your app. |
-| sign | string | Y | Signature generated by gen algorithm. When you send API requests to TTS, you must sign them so that TTS can identify the senders.  |
-| timestamp | int | Y | Unix timestamp GMT (UTC+00:00). This timestamp is used across all API requests. Developers can use this convert to local time. |
-| page_token | string | N | Paging cursor, this means where this query should start. For the next page, use "next_page_token" in response. |
-| page_size | int | Y | Number of conversations on one page  Max 20.  |
-| locale | string | N | System message's display language. The messages sent by System will be returned in the setting language; The messages sent by the buyer, the shop, the CS agent will not be affected. The default value is en (English).  Possible enumerations: - de-DE (German, Germany) - en (English) - en-GB (English, United Kingdom) - es-ES (Spanish, Spain) - es-MX (Spanish, Latin America) - fr-FR (French, France) - id-ID (Indonesian, Indonesia) - it-IT (Italian, Italy) - ja-JP (Japanese) - ms-MY (Malay, Malaysia) - th-TH (Thai, Thailand) - vi-VN (Vietnamese, Vietnam) - pt-BR (Portuguese, Brazil) - zh-CN (Simplified Chinese, China) |
-| shop_cipher | string | Y | Use this property to pass shop information in requesting the API. Failure in passing the correct value when requesting the API for cross-border shops will return incorrect response.  Get by API [Get Authorization Shop](https://partner.tiktokshop.com/docv2/page/6507ead7b99d5302be949ba9?external_id=6507ead7b99d5302be949ba9) |
-
-### Request Sample
-
-```
-https://open-api.tiktokglobalshop.com/customer_service/202309/conversations?app_key=123abc&sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c&timestamp=1625484268&shop_cipher=ROW_RHkDDABBAAB8tKAVoAqsMTjsQZFLyNfY&page_token=1612356123&page_size=10&locale=en
-```
-
-### Sample Code
-
-**Curl**
-```shell
-curl -X GET \
- 'https://open-api.tiktokglobalshop.com/customer_service/202309/conversations?app_key=38abcd&sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c&timestamp=1623812664&shop_cipher=GCP_XF90igAAAABh00qsWgtvOiGFNqyubMt3&page_token=1612356123&page_size=10&locale=en' \
--H 'x-tts-access-token: TTP_pwSm2AAAAABmmtFz1xlyKMnwg74T2GJ5s0uQbS8jPjb_GkdFVCxPqzQXSyuyfXdQa0AqyDsea2tYFNVf4XeqgZHFfPyv0Vs659QqyLYfsGzanZ5XZAin3_ZkcIxxS0_In6u6XDeU96k' \
--H 'content-type: application/json'
-```
-
-**Go**
-```go
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-func customerService202309GetConversationsGet() {
-    configuration := apis.NewConfiguration()
-    configuration.AddAppInfo(appKey, appSecret)
-    apiClient := apis.NewAPIClient(configuration)
-    request := apiClient.CustomerServiceV202309API.CustomerService202309ConversationsGet(context.Background())
-    request = request.XTtsAccessToken("your access token")
-    request = request.ContentType("application/json")
-    request = request.PageToken("1612356123")
-    request = request.PageSize(10)
-    request = request.Locale("en")
-    request = request.ShopCipher("your shop cipher")
-    resp, httpResp, err := request.Execute()
-    if err != nil || httpResp.StatusCode != 200 {
-        fmt.Printf("productsRequest err:%v resbody:%s", err, httpResp.Body)
-        return
-    }
-    if resp == nil {
-        fmt.Printf("response is nil")
-        return
-    }
-    if resp.GetCode()!= 0 {
-        fmt.Printf("response business is error, errorCode:%d errorMessage:%s", resp.GetCode(), resp.GetMessage())
-        return
-    }
-    respDataJson, _ := json.MarshalIndent(resp.GetData(), "", "  ")
-    fmt.Println("response data:", string(respDataJson))
-    return
-}
-
-```
-
-**Node.js**
-```typescript
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-async function customerService202309GetConversationsGet() {
-    const result = await client.api.CustomerServiceV202309Api.ConversationsGet(10, "your access token", "application/json", "1612356123", "en", "your shop cipher");
-    console.log('response: ', JSON.stringify(result, null, 2));
-}
-
-```
-
-**Java**
-```java
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-public void customerService202309GetConversationsGet() throws Exception {
-    ApiClient defaultClient = Configuration.getDefaultApiClient()
-            .setAppkey("your appKey")
-            .setSecret("your secret")
-            .setBasePath("https://open-api.tiktokglobalshop.com");
-    CustomerServiceV202309Api apiInstance = new CustomerServiceV202309Api(defaultClient);
-    GetConversationsResponse result = apiInstance.customerService202309ConversationsGet(10, "your access token", "application/json", "1612356123", "en", "your shop cipher");
-    System.out.println(result);
-}
-
-```
-
-### Response Parameters
-
-| Name | Type | Example | Description |
-| --- | --- | --- | --- |
-| code | int | 0 | The success or failure status code returned in API response. |
-| message | string | Success | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
-| request_id | string | 202203070749000101890810281E8C70B7 | Request log |
-| data | object |  | Specific return information |
-| ^next_page_token | string | 1612353423 | The index indicates where we should start on the next page. If there is no more record, this field will be ""(empty string). Put this value to request param "page_token" for the next page query. |
-| ^conversations | []object |  | Conversation info.  |
-| ^^id | string | 7494560109732334261 | Conversation ID |
-| ^^participant_count | int | 3 | Number of participants in the conversation. - If there has been no customer service agent in the conversation, the value is `2`: the shop and the buyer; - Otherwise, the value is `3`: the shop, the buyer, and the customer service agent. |
-| ^^can_send_message | bool | true | Whether customer service agent can send message in this conversation. Under any of the following circumstances, the CS agent can send messages: 1. There has been a prior conversation between the buyer and the shop within the last 30 days. 2. The buyer placed an order at the shop within the past 60 days. 3. The buyer has a history of returns or refunds at the shop. |
-| ^^unread_count | int | 0 | Number of messages unread by the customer service agent. |
-| ^^create_time | int | 1691411573 | Unix timestamp when the conversation was created. In seconds. |
-| ^^participants | []object |  | Conversation participants. |
-| ^^^im_user_id | string | 7494560109732334261 | Participant's ID, in IM system. This ID is used in IM system and can not be used to query orders. To query orders, use `user_id` instead. |
-| ^^^avatar | string | https://p16-oec-ttp.tiktokcdn-us.com/tos-useast5-i-omjb5zjo8w-tx/566c497faaaf4491a84d3ce55d9cb095~tplv-omjb5zjo8w-origin-image.image? | Participant's avatar URL.  |
-| ^^^user_id | string | 7494560109732334262 | Participant's ID. |
-| ^^^role | string | BUYER | Participant's role. Possible enumerations: - `BUYER` - `SHOP` - `CUSTOMER_SERVICE` |
-| ^^^nickname | string | Albert | Participant's nickname. |
-| ^^^buyer_platform | string | TIKTOK_SHOP | Which platform is the buyer from.  This field will only be returned when the role is `BUYER` and the region is Indonesia. Possible enumerations: - TIKTOK_SHOP - TOKOPEDIA You cannot send platform-specific content to the buyer from a different platform. For example, when you send a product card to the Tokopedia buyer, you must ensure the product is listed on Tokopedia. |
-| ^^latest_message | object |  | The latest message in conversation. |
-| ^^^id | string | 7494560109732334263 | Message ID. |
-| ^^^type | string | TEXT | Message type. Possible enumerations: - TEXT - IMAGE - ALLOCATED_SERVICE - A customer service agent joins the conversation. - NOTIFICATION - Notification from the system. - BUYER_ENTER_FROM_TRANSFER : The conversation is transferred to another customer service agent. - BUYER_ENTER_FROM_PRODUCT : The buyer is viewing a product before sending this message. - BUYER_ENTER_FROM_ORDER : The buyer is viewing an order before sending this message. - PRODUCT_CARD - EMOTICONS - ORDER_CARD - VIDEO - RETURN_REFUND_CARD: Return/refund card. - COUPON_CARD - OTHER: Messages of types not supported in this API. |
-| ^^^content | string | {"content": "simple text message"} | Message content, in JSON serialized string. Examples of content for each type of message are listed below: - TEXT:  ``` {     "content": "simple text" } ```  - IMAGE:  ``` {     "height": "290",     "url": "https://tosv.boei18n.byted.org/obj/temai-im/FszkJ53nSapYG6KDaJQmqR3jjoZGwww304-290",     "width": "304" } ```  - PRODUCT_CARD, BUYER_ENTER_FROM_PRODUCT: ``` {     "product_id": "12345" } ```  - ORDER_CARD, BUYER_ENTER_FROM_ORDER : ``` {     "order_id": "12345" } ```  - RETURN_REFUND_CARD: ``` {     "order_id": "12345",     "sku_id": "45678" } ```  - VIDEO: ``` {     "url": "https://video-boei18n.byted.org/storage/v1/tos-boei18n-v-c72c01/e8240f35244646428df9c3244d1a7408?x-tos-algorithm=v2&x-tos-authkey=5bf25627da095a5cba28ace592de46cc&x-tos-expires=1681980481&x-tos-signature=r_bRxtrvGhXAuZgMmNhlZ_Upqzg",     "cover": "https://p-boei18n.byted.org/tos-boei18n-v-c72c01/o8keEOhzTcNCcJyAbkWZwpLIyTfkJxcGbRBvLP~tplv-jvtte31kaf-origin-jpeg.jpeg?",     "width": 640,     "height": 360,     "duration": "20.504",     "vid": "v0e30cg700f7cgcmu8jc77u9e2bdp95g",     "expire_time": "1681980481",     "format": "mp4",     "size": 400000,     "bit_rate": 156067,     "quality": "original",     "codec_type": "h264" } ```  - ALLOCATED_SERVICE, NOTIFICATION, BUYER_ENTER_FROM_TRANSFER, OTHER:  ``` {     "content": "simple text" } ```  - COUPON_CARD: ``` {     "coupon_id": "7262992004278206762" } ``` Note: Use [Get Coupon](6699dce0de15e502ed219e37) for the details of the coupon. |
-| ^^^create_time | int | 1691411573 | Unix timestamp for creating the message in seconds. |
-| ^^^is_visible | bool | true | Whether this message should be displayed to customer service. For example, the buyer will receive a rating request message at the end of the conversation from the system. You should not present this type of message to the seller or the customer support agents. |
-| ^^^sender | object |  | Sender of the message. |
-| ^^^^im_user_id | string | 7494560109732334261 | Sender's IM ID. Sender's unique identifier in TikTok Shop's IM system.  |
-| ^^^^avatar | string | https://p16-oec-ttp.tiktokcdn-us.com/tos-useast5-i-omjb5zjo8w-tx/566c497faaaf4491a84d3ce55d9cb095~tplv-omjb5zjo8w-origin-image.image? | Sender's avatar URL.  |
-| ^^^^role | string | BUYER | Sender's role. Possible enumerations: - `BUYER` - `SHOP` - `CUSTOMER_SERVICE` - `SYSTEM` - `ROBOT` For `SYSTEM` and `ROBOT` role, the value of `im_user_id`, `nickname`, and `avatar` are the same as those of the `SHOP` role. |
-| ^^^^nickname | string | Albert | Sender's nickname. - For shops, the nickname is the shop's name.  - For customer service, the nickname is the customer service's name.  - For buyers, the nickname is the buyer's nickname on TikTok.  You can set the nicknames for shops and customer service agents on Seller Center.   |
-| ^^^index | string | 7494560109732334274 | Message index. This field can be used to sort messages. "index" means the order of the message in the conversation. This value is unique for every message in a conversation. This value is time-related, meaning a newer message will get a larger "index". But it is not strictly increasing. |
-
-### Response Sample
-
-```json
-{
-  "code": 0,
-  "data": {
-    "next_page_token": "1612353423",
-    "conversations": [
-      {
-        "id": "7494560109732334261",
-        "participant_count": 3,
-        "can_send_message": true,
-        "unread_count": 0,
-        "create_time": 1691411573,
-        "participants": [
-          {
-            "im_user_id": "7494560109732334261",
-            "avatar": "https://p16-oec-ttp.tiktokcdn-us.com/tos-useast5-i-omjb5zjo8w-tx/566c497faaaf4491a84d3ce55d9cb095~tplv-omjb5zjo8w-origin-image.image?",
-            "user_id": "7494560109732334262",
-            "role": "BUYER",
-            "nickname": "Albert",
-            "buyer_platform": "TIKTOK_SHOP"
-          }
-        ],
-        "latest_message": {
-          "id": "7494560109732334263",
-          "type": "TEXT",
-          "content": "{\"content\": \"simple text message\"}",
-          "create_time": 1691411573,
-          "is_visible": true,
-          "sender": {
-            "im_user_id": "7494560109732334261",
-            "avatar": "https://p16-oec-ttp.tiktokcdn-us.com/tos-useast5-i-omjb5zjo8w-tx/566c497faaaf4491a84d3ce55d9cb095~tplv-omjb5zjo8w-origin-image.image?",
-            "role": "BUYER",
-            "nickname": "Albert"
-          },
-          "index": "7494560109732334274"
-        }
-      }
-    ]
-  },
-  "message": "Success",
-  "request_id": "202203070749000101890810281E8C70B7"
-}
-```
-
-### Error Codes
-
-| Code | Message |
-| --- | --- |
-| 45101001 | Internal error. Please try again later or contact the technical support team for help.  |
-| 45101003 | Record not found. Please check the parameters. |
-| 45101004 | The query quota has been reached (10000 request per day). Please try again tomorrow. |
-| 36009003 | Internal error. Please try again. If the issue persists after multiple attempts, please contact platform support. |
-
-### API Scope / Permissions
-
-| Scope Name | Type | Description |
-| --- | --- | --- |
-| Customer Service | Private | The Partner will be able to receive and reply to Instant Messages from buyers. |
-
----
-
-## Get Conversation Messages
+## GetConversationMessages
 
 Use this API to get all messages in a conversation between a buyer and a shop. 
 Calling this API does not mark the messages as read. You are suggested to call [Read Message](650a59f7c16ffe02b8e8db3f) to mark the messages read.
 
 **Path:** `/customer_service/202309/conversations/{conversation_id}/messages`
-
 **Method:** `GET`
+**Version:** 202309
+**Docs:** https://partner.tiktokshop.com/docv2/page/get-conversation-messages-202309
 
-**Common Parameters:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a4278f4c20311b8b57e)
-
-**Common Error Codes:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a45786253031531b942)
-
-### Request Header Parameters
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| content-type | string | Y | Allowed type: application/json |
-| x-tts-access-token | string | Y | The seller access_token value from [Get Access Token](https://partner.tiktokshop.com/docv2/page/678e3a3292b0f40314a92d75#Get%20Access%20Token%20API), when user_type = 0. Follow this [guide](https://partner.tiktokshop.com/docv2/page/678e3a344ddec3030b238fa0) to get seller access_token. |
-
-### Request Path Parameters
+### Path Parameters
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
 | conversation_id | string | Y | Conversation ID |
 
-### Request Query Parameters
+### Query Parameters
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| app_key | string | Y | Every single app will have a unique key. Please use the specific key assigned to your app. |
-| sign | string | Y | Signature generated by gen algorithm. When you send API requests to TTS, you must sign them so that TTS can identify the senders.  |
-| timestamp | int | Y | Unix timestamp GMT (UTC+00:00). This timestamp is used across all API requests. Developers can use this convert to local time. |
-| page_token | string | N | Paging cursor, this means where this query should start. For the next page, use "next_page_token" in response. |
-| page_size | int | Y | Number of conversations in one page  Max 10. |
-| locale | string | N | System message's display language. The messages sent by System will be returned in the setting language; The messages sent by the buyer, the shop, the CS agent will not be affected. The default value is en (English).  Possible enumerations: - de-DE (German, Germany) - en (English) - en-GB (English, United Kingdom) - es-ES (Spanish, Spain) - es-MX (Spanish, Latin America) - fr-FR (French, France) - id-ID (Indonesian, Indonesia) - it-IT (Italian, Italy) - ja-JP (Japanese) - ms-MY (Malay, Malaysia) - th-TH (Thai, Thailand) - vi-VN (Vietnamese, Vietnam) - pt-BR (Portuguese, Brazil) - zh-CN (Simplified Chinese, China) |
-| sort_order | string | N | Sort order. Possible enumerations: - DESC(default) - ASC |
-| sort_field | string | N | Sort messages by one of the following properties: - `create_time` (default) - `index` |
-| need_data | bool | N | Need message.data |
-| need_plaintext | bool | N | Need message.plaintext |
-| time_zone | string | N | Time zone for formatting date and time in messages. The timestamps in messages will be returned in the specified time zone; other message content will not be affected.  The value must follow the IANA time zone format (for example, Asia/Shanghai, America/Los_Angeles). The default value is UTC. |
-| shop_cipher | string | Y | Use this property to pass shop information in requesting the API. Failure in passing the correct value when requesting the API for cross-border shops will return incorrect response.  Get by API [Get Authorization Shop](https://partner.tiktokshop.com/docv2/page/6507ead7b99d5302be949ba9?external_id=6507ead7b99d5302be949ba9) |
+| page_token | string |  | Paging cursor, this means where this query should start. For the next page, use "next_page_token" in response. |
+| page_size | integer | Y | Number of conversations in one page Max 10. |
+| locale | string |  | System message's display language. The messages sent by System will be returned in the setting language; The messages sent by the buyer, the shop, the CS agent will not be affected. The default value is en (English). Possible enumerations: - de-DE (German, Germany) - en (English) - en-GB (English, United Kingdom) - es-ES (Spanish, Spain) - es-MX (Spanish, Latin America) - fr-FR (French, France) - id-ID (Indonesian, Indonesia) - it-IT (Italian, Italy) - ja-JP (Japanese) - ms-MY (Malay, Malaysia) - th-TH (Thai, Thailand) - vi-VN (Vietnamese, Vietnam) - pt-BR (Portuguese, Brazil) - zh-CN (Simplified Chinese, China) |
+| sort_order | string |  | Sort order. Possible enumerations: - DESC(default) - ASC |
+| sort_field | string |  | Sort messages by one of the following properties: - `create_time` (default) - `index` |
+| need_data | boolean |  | Need message.data |
+| shop_cipher | string |  | Use this property to pass shop information in requesting the API. Failure in passing the correct value when requesting the API for cross-border shops will return incorrect response. |
 
-### Request Sample
+### Header Parameters
 
-```
-https://open-api.tiktokglobalshop.com/customer_service/202309/conversations/7494560109732334261/messages?app_key=123abc&sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c&timestamp=1625484268&shop_cipher=ROW_RHkDDABBAAB8tKAVoAqsMTjsQZFLyNfY&page_token=7494560109732337542&page_size=10&locale=en&sort_order=DESC&sort_field=create_time&need_data=false&need_plaintext=false&time_zone=Asia/Shanghai
-```
-
-### Sample Code
-
-**Curl**
-```shell
-curl -X GET \
- 'https://open-api.tiktokglobalshop.com/customer_service/202309/conversations/7494560109732334261/messages?page_size=10&locale=en&sort_order=DESC&need_data=false&app_key=38abcd&timestamp=1623812664&page_token=7494560109732337542&sort_field=create_time&need_plaintext=false&time_zone=Asia/Shanghai&sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c&shop_cipher=GCP_XF90igAAAABh00qsWgtvOiGFNqyubMt3' \
--H 'x-tts-access-token: TTP_pwSm2AAAAABmmtFz1xlyKMnwg74T2GJ5s0uQbS8jPjb_GkdFVCxPqzQXSyuyfXdQa0AqyDsea2tYFNVf4XeqgZHFfPyv0Vs659QqyLYfsGzanZ5XZAin3_ZkcIxxS0_In6u6XDeU96k' \
--H 'content-type: application/json'
-```
-
-**Go**
-```go
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-func customerService202309GetConversationMessagesGet() {
-    configuration := apis.NewConfiguration()
-    configuration.AddAppInfo(appKey, appSecret)
-    apiClient := apis.NewAPIClient(configuration)
-    request := apiClient.CustomerServiceV202309API.CustomerService202309ConversationsConversationIdMessagesGet(context.Background(), "7494560109732334261")
-    request = request.XTtsAccessToken("your access token")
-    request = request.ContentType("application/json")
-    request = request.PageToken("7494560109732337542")
-    request = request.PageSize(10)
-    request = request.Locale("en")
-    request = request.SortOrder("DESC")
-    request = request.SortField("create_time")
-    request = request.NeedData(false)
-    request = request.NeedPlaintext(false)
-    request = request.TimeZone("Asia/Shanghai")
-    request = request.ShopCipher("your shop cipher")
-    resp, httpResp, err := request.Execute()
-    if err != nil || httpResp.StatusCode != 200 {
-        fmt.Printf("productsRequest err:%v resbody:%s", err, httpResp.Body)
-        return
-    }
-    if resp == nil {
-        fmt.Printf("response is nil")
-        return
-    }
-    if resp.GetCode()!= 0 {
-        fmt.Printf("response business is error, errorCode:%d errorMessage:%s", resp.GetCode(), resp.GetMessage())
-        return
-    }
-    respDataJson, _ := json.MarshalIndent(resp.GetData(), "", "  ")
-    fmt.Println("response data:", string(respDataJson))
-    return
-}
-
-```
-
-**Node.js**
-```typescript
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-async function customerService202309GetConversationMessagesGet() {
-    const result = await client.api.CustomerServiceV202309Api.ConversationsConversationIdMessagesGet("7494560109732334261", 10, "your access token", "application/json", "7494560109732337542", "en", "DESC", "create_time", false, false, "Asia/Shanghai", "your shop cipher");
-    console.log('response: ', JSON.stringify(result, null, 2));
-}
-
-```
-
-**Java**
-```java
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-public void customerService202309GetConversationMessagesGet() throws Exception {
-    ApiClient defaultClient = Configuration.getDefaultApiClient()
-            .setAppkey("your appKey")
-            .setSecret("your secret")
-            .setBasePath("https://open-api.tiktokglobalshop.com");
-    CustomerServiceV202309Api apiInstance = new CustomerServiceV202309Api(defaultClient);
-    GetConversationMessagesResponse result = apiInstance.customerService202309ConversationsConversationIdMessagesGet("7494560109732334261", 10, "your access token", "application/json", "7494560109732337542", "en", "DESC", "create_time", false, false, "Asia/Shanghai", "your shop cipher");
-    System.out.println(result);
-}
-
-```
-
-### Response Parameters
-
-| Name | Type | Example | Description |
+| Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| code | int | 0 | The success or failure status code returned in API response. |
-| message | string | Success | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
-| request_id | string | 202203070749000101890810281E8C70B7 | Request log |
-| data | object |  | Specific return information |
-| ^next_page_token | string | 162312320 | The index indicates where we should start on the next page.  If there is no more record, this field will be ""(empty string). Put this value to request param "page_token" for the next page query. |
-| ^unsupported_msg_tips | string | Please check this message in Seller Center.  | If your app encounters a message type it doesn't support, you can display the text to guide the user to check the message in TikTok Shop. The content of the message depends on the specific `locale`. |
-| ^messages | []object |  | Messages in conversation. |
-| ^^id | string | 7494560109732334263 | Message ID. |
-| ^^type | string | TEXT | Message type. Possible enumerations: - TEXT - IMAGE - ALLOCATED_SERVICE - A customer service agent joins the conversation. - NOTIFICATION - Notification from the system. - BUYER_ENTER_FROM_TRANSFER : The conversation is transferred to another customer service agent. - BUYER_ENTER_FROM_PRODUCT : The buyer is viewing a product before sending this message. - BUYER_ENTER_FROM_ORDER : The buyer is viewing an order before sending this message. - PRODUCT_CARD - EMOTICONS - ORDER_CARD - VIDEO - RETURN_REFUND_CARD: Return/refund card. - COUPON_CARD - LOGISTICS_CARD - OTHER: Messages of types not supported in this API. |
-| ^^content | string | {"content": "simple text message"} | Message content, in JSON serialized string. Examples of content for each type of message are listed below: - TEXT:  ``` {     "content": "simple text" } ```  - IMAGE:  ``` {     "height": "290",     "url": "https://tosv.boei18n.byted.org/obj/temai-im/FszkJ53nSapYG6KDaJQmqR3jjoZGwww304-290",     "width": "304" } ```  - PRODUCT_CARD, BUYER_ENTER_FROM_PRODUCT: ``` {     "product_id": "12345" } ```  - ORDER_CARD, BUYER_ENTER_FROM_ORDER : ``` {     "order_id": "12345" } ``` - LOGISTICS_CARD: ``` {     "order_id": "12345",     "package_id": "321" } ```  - RETURN_REFUND_CARD: ``` {     "order_id": "12345",     "sku_id": "45678" } ```  - VIDEO: ``` {     "url": "https://video-boei18n.byted.org/storage/v1/tos-boei18n-v-c72c01/e8240f35244646428df9c3244d1a7408?x-tos-algorithm=v2&x-tos-authkey=5bf25627da095a5cba28ace592de46cc&x-tos-expires=1681980481&x-tos-signature=r_bRxtrvGhXAuZgMmNhlZ_Upqzg",     "cover": "https://p-boei18n.byted.org/tos-boei18n-v-c72c01/o8keEOhzTcNCcJyAbkWZwpLIyTfkJxcGbRBvLP~tplv-jvtte31kaf-origin-jpeg.jpeg?",     "width": 640,     "height": 360,     "duration": "20.504",     "vid": "v0e30cg700f7cgcmu8jc77u9e2bdp95g",     "expire_time": "1681980481",     "format": "mp4",     "size": 400000,     "bit_rate": 156067,     "quality": "original",     "codec_type": "h264" } ```  - ALLOCATED_SERVICE, NOTIFICATION, BUYER_ENTER_FROM_TRANSFER, OTHER:  ``` {     "content": "simple text" } ```  - COUPON_CARD: ``` {     "coupon_id": "7262992004278206762" } ``` Note: Use [Get Coupon](6699dce0de15e502ed219e37) for the details of the coupon. |
-| ^^create_time | int | 1691411573 | Unix timestamp for creating the message in seconds. |
-| ^^is_visible | bool | true | Whether this message should be displayed to customer service. For example, the buyer will receive a rating request message at the end of the conversation from the system. You should not present this type of message to the seller or the customer support agents. |
-| ^^sender | object |  | The message sender. For system and robot roles, shop is the sender.  |
-| ^^^im_user_id | string | 7494560109732334261 | Sender's ID. These are IM IDs, and can not be used to query orders. |
-| ^^^role | string | BUYER | Sender's role. Possible enumerations: - `BUYER` - `SHOP` - `CUSTOMER_SERVICE` - `SYSTEM` - `ROBOT` For `SYSTEM` and `ROBOT` role, the value of `im_user_id`, `nickname`, and `avatar` are the same as those of the `SHOP` role. |
-| ^^^nickname | string | Albert | Sender's nickname. - For shops, the nickname is the shop's name.  - For customer service, the nickname is the customer service's name.  - For buyers, the nickname is the buyer's nickname on TikTok.  You can set the nicknames for shops and customer service agents on Seller Center.   |
-| ^^^avatar | string | https://p16-oec-ttp.tiktokcdn-us.com/tos-useast5-i-omjb5zjo8w-tx/566c497faaaf4491a84d3ce55d9cb095~tplv-omjb5zjo8w-origin-image.image? | Sender's avatar URL.  |
-| ^^index | string | 7494560109732334274 | Message index. This field can be used to sort messages. "index" means the order of the message in the conversation. This value is unique for every message in a conversation. This value is time-related, meaning a newer message will get a larger "index". But it is not strictly increasing. |
-| ^^data | string | {} | {   "packages": [     {       "package_id": "456",       "product_name": "Nutrition",       "product_image": "https://cdn-us.com/us/123jpeg:1000:1000.jpeg?dr=123&t=555",       "paid_price": "$0.01",       "quantity": 1,       "predict_delivery_time_min": 1763198750000,       "predict_delivery_time_max": 1763457950000,       "delivery_option": "Standard shipping",       "tracking_number": "1Z789",       "shipping_provider_name": "UPS",       "tracking": [         {           "description": "Package has been delivered!",           "update_time_millis": 1763954669267         },         {           "description": "Arrived at the carrier's facility.",           "update_time_millis": 1763954598311         },         {           "description": "Package picked up.",           "update_time_millis": 1763954598024         },         {           "description": "Order packed and ready for dropoff at carrier's facility.",           "update_time_millis": 1763451813897         },         {           "description": "Order placed.",           "update_time_millis": 1763112346906         }       ]     }   ] } |
-| ^^plaintext | string | Product card shared: - Product ID: 1732529206731441911;  - Product name: Áo Khoác Cardigan Logo Thêu Phong Cách Hàn Quốc By Zonef, Áo Khoác Thu Đông Chất Vải Cotton Tổ Ong Nam Nữ Unisex;  - Product price: ;  - Strike-through price:  - Sold: 40013.   View full details at: https://seller-vn.tiktok.com/product/manage?search_content=1732529206731441911 | - PRODUCT_CARD Product card shared: - Product ID: 1732529206731441911;  - Product name: Áo Khoác Cardigan Logo Thêu Phong Cách Hàn Quốc By Zonef, Áo Khoác Thu Đông Chất Vải Cotton Tổ Ong Nam Nữ Unisex;  - Product price: ;  - Strike-through price:  - Sold: 40013.   View full details at: https://seller-vn.tiktok.com/product/manage?search_content=1732529206731441911 |
+| x-tts-access-token | string | Y |  |
+| Content-Type | string | Y | Allowed type: application/json |
 
-### Response Sample
+### Response
 
-```json
-{
-  "code": 0,
-  "data": {
-    "next_page_token": "162312320",
-    "unsupported_msg_tips": "Please check this message in Seller Center.\n",
-    "messages": [
-      {
-        "id": "7494560109732334263",
-        "type": "TEXT",
-        "content": "{\"content\": \"simple text message\"}",
-        "create_time": 1691411573,
-        "is_visible": true,
-        "sender": {
-          "im_user_id": "7494560109732334261",
-          "role": "BUYER",
-          "nickname": "Albert",
-          "avatar": "https://p16-oec-ttp.tiktokcdn-us.com/tos-useast5-i-omjb5zjo8w-tx/566c497faaaf4491a84d3ce55d9cb095~tplv-omjb5zjo8w-origin-image.image?"
-        },
-        "index": "7494560109732334274",
-        "data": "{}",
-        "plaintext": "Product card shared:\n- Product ID: 1732529206731441911; \n- Product name: Áo Khoác Cardigan Logo Thêu Phong Cách Hàn Quốc By Zonef, Áo Khoác Thu Đông Chất Vải Cotton Tổ Ong Nam Nữ Unisex; \n- Product price: ; \n- Strike-through price: \n- Sold: 40013. \n\nView full details at: https://seller-vn.tiktok.com/product/manage?search_content=1732529206731441911"
-      }
-    ]
-  },
-  "message": "Success",
-  "request_id": "202203070749000101890810281E8C70B7"
-}
-```
-
-### Error Codes
-
-| Code | Message |
-| --- | --- |
-| 45101001 | Internal error. Please try again later or contact the technical support team for help.  |
-| 45101003 | Record not found. Please check the parameters. |
-| 45101004 | The query quota has been reached (10000 request per day). Please try again tomorrow. |
-| 36009003 | Internal error. Please try again. If the issue persists after multiple attempts, please contact platform support. |
-
-### API Scope / Permissions
-
-| Scope Name | Type | Description |
-| --- | --- | --- |
-| Customer Service | Private | The Partner will be able to receive and reply to Instant Messages from buyers. |
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| code | integer |  | The success or failure status code returned in API response. |
+| data | object |  | Specific return information. |
+| ^messages | array<object> |  | Messages in conversation. |
+| ^^content | string |  | Message content, in JSON serialized string. Examples of content for each type of message are listed below: - TEXT: ``` { "content": "simple text" } ``` - IMAGE: ``` { "height": "290", "url": "https://tosv.boei18n.byted.org/obj/temai-im/FszkJ53nSapYG6KDaJQmqR3jjoZGwww304-290", "width": "304" } ``` - PRODUCT_CARD, BUYER_ENTER_FROM_PRODUCT: ``` { "product_id": "12345" } ``` - ORDER_CARD, BUYER_ENTER_FROM_ORDER : ``` { "order_id": "12345" } ``` - LOGISTICS_CARD: ``` { "order_id": "12345", "package_id": "321" } ``` - RETURN_REFUND_CARD: ``` { "order_id": "12345", "sku_id": "45678" } ``` - VIDEO: ``` { "url": "https://video-boei18n.byted.org/storage/v1/tos-boei18n-v-c72c01/e8240f35244646428df9c3244d1a7408?x-tos-algorithm=v2&x-tos-authkey=5bf25627da095a5cba28ace592de46cc&x-tos-expires=1681980481&x-tos-signature=r_bRxtrvGhXAuZgMmNhlZ_Upqzg", "cover": "https://p-boei18n.byted.org/tos-boei18n-v-c72c01/o8keEOhzTcNCcJyAbkWZwpLIyTfkJxcGbRBvLP~tplv-jvtte31kaf-origin-jpeg.jpeg?", "width": 640, "height": 360, "duration": "20.504", "vid": "v0e30cg700f7cgcmu8jc77u9e2bdp95g", "expire_time": "1681980481", "format": "mp4", "size": 400000, "bit_rate": 156067, "quality": "original", "codec_type": "h264" } ``` - ALLOCATED_SERVICE, NOTIFICATION, BUYER_ENTER_FROM_TRANSFER, OTHER: ``` { "content": "simple text" } ``` - COUPON_CARD: ``` { "coupon_id": "7262992004278206762" } ``` Note: Use [Get Coupon](6699dce0de15e502ed219e37) for the details of the coupon. |
+| ^^create_time | integer |  | Unix timestamp for creating the message in seconds. |
+| ^^data | string |  | { "packages": [ { "package_id": "456", "product_name": "Nutrition", "product_image": "https://cdn-us.com/us/123jpeg:1000:1000.jpeg?dr=123&t=555", "paid_price": "$0.01", "quantity": 1, "predict_delivery_time_min": 1763198750000, "predict_delivery_time_max": 1763457950000, "delivery_option": "Standard shipping", "tracking_number": "1Z789", "shipping_provider_name": "UPS", "tracking": [ { "description": "Package has been delivered!", "update_time_millis": 1763954669267 }, { "description": "Arrived at the carrier's facility.", "update_time_millis": 1763954598311 }, { "description": "Package picked up.", "update_time_millis": 1763954598024 }, { "description": "Order packed and ready for dropoff at carrier's facility.", "update_time_millis": 1763451813897 }, { "description": "Order placed.", "update_time_millis": 1763112346906 } ] } ] } |
+| ^^id | string |  | Message ID. |
+| ^^index | string |  | Message index. This field can be used to sort messages. "index" means the order of the message in the conversation. This value is unique for every message in a conversation. This value is time-related, meaning a newer message will get a larger "index". But it is not strictly increasing. |
+| ^^is_visible | boolean |  | Whether this message should be displayed to customer service. For example, the buyer will receive a rating request message at the end of the conversation from the system. You should not present this type of message to the seller or the customer support agents. |
+| ^^sender | object |  | The message sender. For system and robot roles, shop is the sender. |
+| ^^^avatar | string |  | Sender's avatar URL. |
+| ^^^im_user_id | string |  | Sender's ID. These are IM IDs, and can not be used to query orders. |
+| ^^^nickname | string |  | Sender's nickname. - For shops, the nickname is the shop's name. - For customer service, the nickname is the customer service's name. - For buyers, the nickname is the buyer's nickname on TikTok. You can set the nicknames for shops and customer service agents on Seller Center. |
+| ^^^role | string |  | Sender's role. Possible enumerations: - `BUYER` - `SHOP` - `CUSTOMER_SERVICE` - `SYSTEM` - `ROBOT` For `SYSTEM` and `ROBOT` role, the value of `im_user_id`, `nickname`, and `avatar` are the same as those of the `SHOP` role. |
+| ^^type | string |  | Message type. Possible enumerations: - TEXT - IMAGE - ALLOCATED_SERVICE - A customer service agent joins the conversation. - NOTIFICATION - Notification from the system. - BUYER_ENTER_FROM_TRANSFER : The conversation is transferred to another customer service agent. - BUYER_ENTER_FROM_PRODUCT : The buyer is viewing a product before sending this message. - BUYER_ENTER_FROM_ORDER : The buyer is viewing an order before sending this message. - PRODUCT_CARD - EMOTICONS - ORDER_CARD - VIDEO - RETURN_REFUND_CARD: Return/refund card. - COUPON_CARD - LOGISTICS_CARD - OTHER: Messages of types not supported in this API. |
+| ^next_page_token | string |  | The index indicates where we should start on the next page. If there is no more record, this field will be ""(empty string). Put this value to request param "page_token" for the next page query. |
+| ^unsupported_msg_tips | string |  | If your app encounters a message type it doesn't support, you can display the text to guide the user to check the message in TikTok Shop. The content of the message depends on the specific `locale`. |
+| message | string |  | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
+| request_id | string |  | Request log. |
 
 ---
 
-## Upload Buyer Messages Image
-
-You must use this API to upload the image first, before sending an image as a message using [Send Message](650a58bbbace3e02b7556286).
-
-**Path:** `/customer_service/202309/images/upload`
-
-**Method:** `POST`
-
-**Common Parameters:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a4278f4c20311b8b57e)
-
-**Common Error Codes:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a45786253031531b942)
-
-### Request Header Parameters
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| content-type | string | Y | Allowed type: multipart/form-data |
-| x-tts-access-token | string | Y | The seller access_token value from [Get Access Token](https://partner.tiktokshop.com/docv2/page/678e3a3292b0f40314a92d75#Get%20Access%20Token%20API), when user_type = 0. Follow this [guide](https://partner.tiktokshop.com/docv2/page/678e3a344ddec3030b238fa0) to get seller access_token. |
-
-### Request Query Parameters
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| app_key | string | Y | Every single app will have a unique key. Please use the specific key assigned to your app. |
-| sign | string | Y | Signature generated by gen algorithm. When you send API requests to TTS, you must sign them so that TTS can identify the senders.  |
-| timestamp | int | Y | Unix timestamp GMT (UTC+00:00). This timestamp is used across all API requests. Developers can use this convert to local time. |
-| shop_cipher | string | Y | Use this property to pass shop information in requesting the API. Failure in passing the correct value when requesting the API for cross-border shops will return incorrect response.  Get by API [Get Authorization Shop](https://partner.tiktokshop.com/docv2/page/6507ead7b99d5302be949ba9?external_id=6507ead7b99d5302be949ba9) |
-
-### Request Body Parameters
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| data | file | Y | The format of the image must be jpg, gif, webp, or png. The size of the image must not exceed 10MB. |
-
-### Request Sample
-
-```
-https://open-api.tiktokglobalshop.com/customer_service/202309/images/upload?app_key=123abc&sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c&timestamp=1625484268&shop_cipher=ROW_RHkDDABBAAB8tKAVoAqsMTjsQZFLyNfY
-```
-
-### Sample Code
-
-**Curl**
-```shell
-curl -X POST \
- 'https://open-api.tiktokglobalshop.com/customer_service/202309/images/upload?app_key=38abcd&sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c&timestamp=1623812664&shop_cipher=GCP_XF90igAAAABh00qsWgtvOiGFNqyubMt3' \
--H 'x-tts-access-token: TTP_pwSm2AAAAABmmtFz1xlyKMnwg74T2GJ5s0uQbS8jPjb_GkdFVCxPqzQXSyuyfXdQa0AqyDsea2tYFNVf4XeqgZHFfPyv0Vs659QqyLYfsGzanZ5XZAin3_ZkcIxxS0_In6u6XDeU96k' \
--H 'content-type: multipart/form-data' \
--F 'data=@"file"'
-```
-
-**Go**
-```go
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-func customerService202309UploadBuyerMessagesImagePost() {
-    configuration := apis.NewConfiguration()
-    configuration.AddAppInfo(appKey, appSecret)
-    apiClient := apis.NewAPIClient(configuration)
-    request := apiClient.CustomerServiceV202309API.CustomerService202309ImagesUploadPost(context.Background())
-    request = request.XTtsAccessToken("your access token")
-    request = request.ContentType("multipart/form-data")
-    request = request.ShopCipher("your shop cipher")
-    customerService202309UploadBuyerMessagesImageRequestBody := customerService_v202309.NewCustomerService202309UploadBuyerMessagesImageRequestBody()
-    customerService202309UploadBuyerMessagesImageRequestBody.SetData(nil)
-    request = request.CustomerService202309UploadBuyerMessagesImageRequestBody(*customerService202309UploadBuyerMessagesImageRequestBody)
-    resp, httpResp, err := request.Execute()
-    if err != nil || httpResp.StatusCode != 200 {
-        fmt.Printf("productsRequest err:%v resbody:%s", err, httpResp.Body)
-        return
-    }
-    if resp == nil {
-        fmt.Printf("response is nil")
-        return
-    }
-    if resp.GetCode()!= 0 {
-        fmt.Printf("response business is error, errorCode:%d errorMessage:%s", resp.GetCode(), resp.GetMessage())
-        return
-    }
-    respDataJson, _ := json.MarshalIndent(resp.GetData(), "", "  ")
-    fmt.Println("response data:", string(respDataJson))
-    return
-}
-
-```
-
-**Node.js**
-```typescript
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-async function customerService202309UploadBuyerMessagesImagePost() {
-    const customerService202309UploadBuyerMessagesImageRequestBody = new CustomerService202309UploadBuyerMessagesImageRequestBody();
-    customerService202309UploadBuyerMessagesImageRequestBody.data = null;
-    const result = await client.api.CustomerServiceV202309Api.ImagesUploadPost("your access token", "multipart/form-data", "your shop cipher", customerService202309UploadBuyerMessagesImageRequestBody);
-    console.log('response: ', JSON.stringify(result, null, 2));
-}
-
-```
-
-**Java**
-```java
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-public void customerService202309UploadBuyerMessagesImagePost() throws Exception {
-    ApiClient defaultClient = Configuration.getDefaultApiClient()
-            .setAppkey("your appKey")
-            .setSecret("your secret")
-            .setBasePath("https://open-api.tiktokglobalshop.com");
-    CustomerServiceV202309Api apiInstance = new CustomerServiceV202309Api(defaultClient);
-    UploadBuyerMessagesImageRequestBody uploadBuyerMessagesImageRequestBody = new UploadBuyerMessagesImageRequestBody();
-    uploadBuyerMessagesImageRequestBody.setData(null);
-    UploadBuyerMessagesImageResponse result = apiInstance.customerService202309ImagesUploadPost("your access token", "multipart/form-data", "your shop cipher", uploadBuyerMessagesImageRequestBody);
-    System.out.println(result);
-}
-
-```
-
-### Response Parameters
-
-| Name | Type | Example | Description |
-| --- | --- | --- | --- |
-| code | int | 0 | The success or failure status code returned in API response. |
-| message | string | Success | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
-| request_id | string | 202203070749000101890810281E8C70B7 | Request log |
-| data | object |  | Specific return information |
-| ^url | string | https://p16-oec-va.ibyteimg.com/tos-maliva-i-o3syd03w52-us/2ca53c34ad8443e6b39f4e0153d3aed4~tplv-o3syd03w52-origin-image.image?from=1320446476 | Image URL  |
-| ^width | int | 1280 | Image width |
-| ^height | int | 720 | Image height |
-
-### Response Sample
-
-```json
-{
-  "code": 0,
-  "data": {
-    "url": "https://p16-oec-va.ibyteimg.com/tos-maliva-i-o3syd03w52-us/2ca53c34ad8443e6b39f4e0153d3aed4~tplv-o3syd03w52-origin-image.image?from=1320446476",
-    "width": 1280,
-    "height": 720
-  },
-  "message": "Success",
-  "request_id": "202203070749000101890810281E8C70B7"
-}
-```
-
-### Error Codes
-
-| Code | Message |
-| --- | --- |
-| 45101001 | Internal error. Please try again later or contact the technical support team for help.  |
-| 45101008 | Internal error. Please try again later or contact the technical support team for help.  |
-| 36009003 | Internal error. Please try again. If the issue persists after multiple attempts, please contact platform support. |
-
-### API Scope / Permissions
-
-| Scope Name | Type | Description |
-| --- | --- | --- |
-| Customer Service | Private | The Partner will be able to receive and reply to Instant Messages from buyers. |
-
----
-
-## Send Message
+## SendMessage
 
 Use this API to send a message to the buyer in a conversation.
 
 **Path:** `/customer_service/202309/conversations/{conversation_id}/messages`
-
 **Method:** `POST`
+**Version:** 202309
+**Docs:** https://partner.tiktokshop.com/docv2/page/send-message-202309
 
-**Common Parameters:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a4278f4c20311b8b57e)
-
-**Common Error Codes:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a45786253031531b942)
-
-### Request Header Parameters
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| content-type | string | Y | Allowed type: application/json |
-| x-tts-access-token | string | Y | The seller access_token value from [Get Access Token](https://partner.tiktokshop.com/docv2/page/678e3a3292b0f40314a92d75#Get%20Access%20Token%20API), when user_type = 0. Follow this [guide](https://partner.tiktokshop.com/docv2/page/678e3a344ddec3030b238fa0) to get seller access_token. |
-
-### Request Path Parameters
+### Path Parameters
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
 | conversation_id | string | Y | Conversation ID |
 
-### Request Query Parameters
+### Query Parameters
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| app_key | string | Y | Every single app will have a unique key. Please use the specific key assigned to your app. |
-| sign | string | Y | Signature generated by gen algorithm. When you send API requests to TTS, you must sign them so that TTS can identify the senders.  |
-| timestamp | int | Y | Unix timestamp GMT (UTC+00:00). This timestamp is used across all API requests. Developers can use this convert to local time. |
-| shop_cipher | string | Y | Use this property to pass shop information in requesting the API. Failure in passing the correct value when requesting the API for cross-border shops will return incorrect response.  Get by API [Get Authorization Shop](https://partner.tiktokshop.com/docv2/page/6507ead7b99d5302be949ba9?external_id=6507ead7b99d5302be949ba9) |
+| shop_cipher | string |  | Use this property to pass shop information in requesting the API. Failure in passing the correct value when requesting the API for cross-border shops will return incorrect response. |
 
-### Request Body Parameters
+### Header Parameters
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| type | string | Y | Message type. Possible enumerations: - `TEXT` - `IMAGE` - `VIDEO` - `PRODUCT_CARD` - `ORDER_CARD` - `RETURN_REFUND_CARD` - `COUPON_CARD` - `LOGISTICS_CARD` |
-| content | string | Y | Message content, in JSON serialized string.  Examples of content for each type of message are listed below: ​ - TEXT: {     "content": "hi, I want to get refunded." } (Note: Max 2000 characters. Do not use sensitive words that violate TikTok Shop terms & policies.)  - VIDEO {     "vid": "v10394g5000cd499vc7og65mqn3r3dg0" }  - LOGISTICS_CARD {     "order_id": "580874485811283206",     "package_id": "123456"  // Optional  (recommended for one order with multiple packages; not required for one order with one package) } ​ - PRODUCT_CARD {     "product_id": "7494560109732334265" } ​ - ORDER_CARD: {     "order_id": "7494560109732334267" }  - RETURN_REFUND_CARD: {     "order_id": "7494560109732334267",     "sku_id": "7494560109732363423" } Note: The order of the RETURN_REFUND_CARD to send must meet after-sale conditions. To check the eligibility, use [Get Aftersale Eligibility](650ab645c16ffe02b8f2e1c1). ​ - IMAGE: {     "url":"https://p16-oec-va.ibyteimg.com/tos-maliva-i-o3syd03w52-us/2ca53c34ad8443e6b39f4e0153d3aed4~tplv-o3syd03w52-origin-image.image?from=1320446476",     "width": 1280,     "height": 720 }  Note: You can get the value of `url` by calling [Upload Buyer Messages Image](650a599d0fcef602bf2a1dc8).  - COUPON_CARD: {     "coupon_id": "7262992004278206762" } Note: Coupons that can be sent in  a message must meet all the following conditions: 1. `display_type==CHAT` or `display_type==REGULAR` 2. `status==ONGOING` 3. `creation_source==SELLER_CENTER` 4. `target_buyer_segment!=REPEAT_CUSTOMERS` |
+| x-tts-access-token | string | Y |  |
+| Content-Type | string | Y | Allowed type: application/json |
 
-### Request Sample
+### Request Body (`application/json`)
 
-```
-https://open-api.tiktokglobalshop.com/customer_service/202309/conversations/7494560109732334262/messages?app_key=123abc&sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c&timestamp=1625484268&shop_cipher=ROW_RHkDDABBAAB8tKAVoAqsMTjsQZFLyNfY
-```
-
-### Request Body Sample
-
-```json
-{
-  "type": "TEXT",
-  "content": "{\"content\": \"test\"}"
-}
-```
-
-### Sample Code
-
-**Curl**
-```shell
-curl -X POST \
- 'https://open-api.tiktokglobalshop.com/customer_service/202309/conversations/7494560109732334262/messages?shop_cipher=GCP_XF90igAAAABh00qsWgtvOiGFNqyubMt3&app_key=38abcd&sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c&timestamp=1623812664' \
--H 'x-tts-access-token: TTP_pwSm2AAAAABmmtFz1xlyKMnwg74T2GJ5s0uQbS8jPjb_GkdFVCxPqzQXSyuyfXdQa0AqyDsea2tYFNVf4XeqgZHFfPyv0Vs659QqyLYfsGzanZ5XZAin3_ZkcIxxS0_In6u6XDeU96k' \
--H 'content-type: application/json' \
--d '{
-  "type": "TEXT",
-  "content": "{\"content\": \"test\"}"
-}'
-```
-
-**Go**
-```go
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-func customerService202309SendMessagePost() {
-    configuration := apis.NewConfiguration()
-    configuration.AddAppInfo(appKey, appSecret)
-    apiClient := apis.NewAPIClient(configuration)
-    request := apiClient.CustomerServiceV202309API.CustomerService202309ConversationsConversationIdMessagesPost(context.Background(), "7494560109732334262")
-    request = request.XTtsAccessToken("your access token")
-    request = request.ContentType("application/json")
-    request = request.ShopCipher("your shop cipher")
-    customerService202309SendMessageRequestBody := customerService_v202309.NewCustomerService202309SendMessageRequestBody()
-    customerService202309SendMessageRequestBody.SetType("TEXT")
-    customerService202309SendMessageRequestBody.SetContent("{\"content\": \"test\"}")
-    request = request.CustomerService202309SendMessageRequestBody(*customerService202309SendMessageRequestBody)
-    resp, httpResp, err := request.Execute()
-    if err != nil || httpResp.StatusCode != 200 {
-        fmt.Printf("productsRequest err:%v resbody:%s", err, httpResp.Body)
-        return
-    }
-    if resp == nil {
-        fmt.Printf("response is nil")
-        return
-    }
-    if resp.GetCode()!= 0 {
-        fmt.Printf("response business is error, errorCode:%d errorMessage:%s", resp.GetCode(), resp.GetMessage())
-        return
-    }
-    respDataJson, _ := json.MarshalIndent(resp.GetData(), "", "  ")
-    fmt.Println("response data:", string(respDataJson))
-    return
-}
-
-```
-
-**Node.js**
-```typescript
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-async function customerService202309SendMessagePost() {
-    const customerService202309SendMessageRequestBody = new CustomerService202309SendMessageRequestBody();
-    customerService202309SendMessageRequestBody.type = "TEXT";
-    customerService202309SendMessageRequestBody.content = "{\"content\": \"test\"}";
-    const result = await client.api.CustomerServiceV202309Api.ConversationsConversationIdMessagesPost("7494560109732334262", "your access token", "application/json", "your shop cipher", customerService202309SendMessageRequestBody);
-    console.log('response: ', JSON.stringify(result, null, 2));
-}
-
-```
-
-**Java**
-```java
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-public void customerService202309SendMessagePost() throws Exception {
-    ApiClient defaultClient = Configuration.getDefaultApiClient()
-            .setAppkey("your appKey")
-            .setSecret("your secret")
-            .setBasePath("https://open-api.tiktokglobalshop.com");
-    CustomerServiceV202309Api apiInstance = new CustomerServiceV202309Api(defaultClient);
-    SendMessageRequestBody sendMessageRequestBody = new SendMessageRequestBody();
-    sendMessageRequestBody.setType("TEXT");
-    sendMessageRequestBody.setContent("{\"content\": \"test\"}");
-    SendMessageResponse result = apiInstance.customerService202309ConversationsConversationIdMessagesPost("7494560109732334262", "your access token", "application/json", "your shop cipher", sendMessageRequestBody);
-    System.out.println(result);
-}
-
-```
-
-### Response Parameters
-
-| Name | Type | Example | Description |
+| Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| code | int | 0 | The success or failure status code returned in API response. |
-| message | string | Success | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
-| request_id | string | 202203070749000101890810281E8C70B7 | Request log |
-| data | object |  | Specific return information |
-| ^message_id | string | 7494560109732334261 | Message ID |
+| content | string |  | Message content, in JSON serialized string. Examples of content for each type of message are listed below: ​ - TEXT: { "content": "hi, I want to get refunded." } (Note: Max 2000 characters. Do not use sensitive words that violate TikTok Shop terms & policies.) - VIDEO { "vid": "v10394g5000cd499vc7og65mqn3r3dg0" } - LOGISTICS_CARD { "order_id": "580874485811283206", "package_id": "123456"  // Optional  (recommended for one order with multiple packages; not required for one order with one package) } ​ - PRODUCT_CARD { "product_id": "7494560109732334265" } ​ - ORDER_CARD: { "order_id": "7494560109732334267" } - RETURN_REFUND_CARD: { "order_id": "7494560109732334267", "sku_id": "7494560109732363423" } Note: The order of the RETURN_REFUND_CARD to send must meet after-sale conditions. To check the eligibility, use [Get Aftersale Eligibility](650ab645c16ffe02b8f2e1c1). ​ - IMAGE: { "url":"https://p16-oec-va.ibyteimg.com/tos-maliva-i-o3syd03w52-us/2ca53c34ad8443e6b39f4e0153d3aed4~tplv-o3syd03w52-origin-image.image?from=1320446476", "width": 1280, "height": 720 } Note: You can get the value of `url` by calling [Upload Buyer Messages Image](650a599d0fcef602bf2a1dc8). - COUPON_CARD: { "coupon_id": "7262992004278206762" } Note: Coupons that can be sent in  a message must meet all the following conditions: 1. `display_type==CHAT` or `display_type==REGULAR` 2. `status==ONGOING` 3. `creation_source==SELLER_CENTER` 4. `target_buyer_segment!=REPEAT_CUSTOMERS` |
+| type | string |  | Message type. Possible enumerations: - `TEXT` - `IMAGE` - `VIDEO` - `PRODUCT_CARD` - `ORDER_CARD` - `RETURN_REFUND_CARD` - `COUPON_CARD` - `LOGISTICS_CARD` |
 
-### Response Sample
+### Response
 
-```json
-{
-  "code": 0,
-  "data": {
-    "message_id": "7494560109732334261"
-  },
-  "message": "Success",
-  "request_id": "202203070749000101890810281E8C70B7"
-}
-```
-
-### Error Codes
-
-| Code | Message |
-| --- | --- |
-| 45101001 | Internal error. Please try again later or contact the technical support team for help.  |
-| 45101002 | Invalid params. The RETURN_REFUND_CARD must meet the conditions listed above. |
-| 45101003 | Record not found. Please check the parameters. |
-| 45101004 | The query quota has been reached (10000 request per day). Please try again tomorrow. |
-| 45101006 | You cannot send the message containing sensitive content. Please check the message. |
-| 36009003 | Internal error. Please try again. If the issue persists after multiple attempts, please contact platform support. |
-| 45102007 | No permission to access this conversation. There may be data corruption. Please try again later or contact the technical support team for help.  |
-| 45109001 | Unable to send messages due to conversation rules. For details, please refer to [Customer Service API overview](659645f9a46cdd02bc8aeacf#Important%20Concepts). |
-| 45111001 | not support |
-| 45111012 | Failed to send the coupon card message due to exceeding the QPS limit. The QPS limit of sending coupon card messages is 0.5. |
-| 45111017 | Invalid params. The COUPON_CARD must meet the conditions listed above. |
-
-### API Scope / Permissions
-
-| Scope Name | Type | Description |
-| --- | --- | --- |
-| Customer Service | Private | The Partner will be able to receive and reply to Instant Messages from buyers. |
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| code | integer |  | The success or failure status code returned in API response. |
+| data | object |  | Specific return information. |
+| ^message_id | string |  | Message ID |
+| message | string |  | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
+| request_id | string |  | Request log. |
 
 ---
 
-## Read Message
+## ReadMessage
 
 Use this API to mark all messages sent by the buyer as read. You are suggested to call this API before replying to their messages.
 
 **Path:** `/customer_service/202309/conversations/{conversation_id}/messages/read`
-
 **Method:** `POST`
+**Version:** 202309
+**Docs:** https://partner.tiktokshop.com/docv2/page/read-message-202309
 
-**Common Parameters:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a4278f4c20311b8b57e)
-
-**Common Error Codes:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a45786253031531b942)
-
-### Request Header Parameters
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| content-type | string | Y | Allowed type: application/json |
-| x-tts-access-token | string | Y | The seller access_token value from [Get Access Token](https://partner.tiktokshop.com/docv2/page/678e3a3292b0f40314a92d75#Get%20Access%20Token%20API), when user_type = 0. Follow this [guide](https://partner.tiktokshop.com/docv2/page/678e3a344ddec3030b238fa0) to get seller access_token. |
-
-### Request Path Parameters
+### Path Parameters
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
 | conversation_id | string | Y |  |
 
-### Request Query Parameters
+### Query Parameters
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| app_key | string | Y | Every single app will have a unique key. Please use the specific key assigned to your app. |
-| sign | string | Y | Signature generated by gen algorithm. When you send API requests to TTS, you must sign them so that TTS can identify the senders.  |
-| timestamp | int | Y | Unix timestamp GMT (UTC+00:00). This timestamp is used across all API requests. Developers can use this convert to local time. |
-| shop_cipher | string | Y | Use this property to pass shop information in requesting the API. Failure in passing the correct value when requesting the API for cross-border shops will return incorrect response.  Get by API [Get Authorization Shop](https://partner.tiktokshop.com/docv2/page/6507ead7b99d5302be949ba9?external_id=6507ead7b99d5302be949ba9) |
+| shop_cipher | string |  | Use this property to pass shop information in requesting the API. Failure in passing the correct value when requesting the API for cross-border shops will return incorrect response. |
 
-### Request Sample
+### Header Parameters
 
-```
-https://open-api.tiktokglobalshop.com/customer_service/202309/conversations//messages/read?app_key=123abc&sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c&timestamp=1625484268&shop_cipher=ROW_RHkDDABBAAB8tKAVoAqsMTjsQZFLyNfY
-```
-
-### Request Body Sample
-
-```json
-{}
-```
-
-### Sample Code
-
-**Curl**
-```shell
-curl -X POST \
- 'https://open-api.tiktokglobalshop.com/customer_service/202309/conversations//messages/read?app_key=38abcd&sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c&timestamp=1623812664&shop_cipher=GCP_XF90igAAAABh00qsWgtvOiGFNqyubMt3' \
--H 'x-tts-access-token: TTP_pwSm2AAAAABmmtFz1xlyKMnwg74T2GJ5s0uQbS8jPjb_GkdFVCxPqzQXSyuyfXdQa0AqyDsea2tYFNVf4XeqgZHFfPyv0Vs659QqyLYfsGzanZ5XZAin3_ZkcIxxS0_In6u6XDeU96k' \
--H 'content-type: application/json' \
--d '{}'
-```
-
-**Go**
-```go
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-func customerService202309ReadMessagePost() {
-    configuration := apis.NewConfiguration()
-    configuration.AddAppInfo(appKey, appSecret)
-    apiClient := apis.NewAPIClient(configuration)
-    request := apiClient.CustomerServiceV202309API.CustomerService202309ConversationsConversationIdMessagesReadPost(context.Background(), "")
-    request = request.XTtsAccessToken("your access token")
-    request = request.ContentType("application/json")
-    request = request.ShopCipher("your shop cipher")
-    resp, httpResp, err := request.Execute()
-    if err != nil || httpResp.StatusCode != 200 {
-        fmt.Printf("productsRequest err:%v resbody:%s", err, httpResp.Body)
-        return
-    }
-    if resp == nil {
-        fmt.Printf("response is nil")
-        return
-    }
-    if resp.GetCode()!= 0 {
-        fmt.Printf("response business is error, errorCode:%d errorMessage:%s", resp.GetCode(), resp.GetMessage())
-        return
-    }
-    respDataJson, _ := json.MarshalIndent(resp.GetData(), "", "  ")
-    fmt.Println("response data:", string(respDataJson))
-    return
-}
-
-```
-
-**Node.js**
-```typescript
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-async function customerService202309ReadMessagePost() {
-    const result = await client.api.CustomerServiceV202309Api.ConversationsConversationIdMessagesReadPost("", "your access token", "application/json", "your shop cipher");
-    console.log('response: ', JSON.stringify(result, null, 2));
-}
-
-```
-
-**Java**
-```java
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-public void customerService202309ReadMessagePost() throws Exception {
-    ApiClient defaultClient = Configuration.getDefaultApiClient()
-            .setAppkey("your appKey")
-            .setSecret("your secret")
-            .setBasePath("https://open-api.tiktokglobalshop.com");
-    CustomerServiceV202309Api apiInstance = new CustomerServiceV202309Api(defaultClient);
-    ReadMessageResponse result = apiInstance.customerService202309ConversationsConversationIdMessagesReadPost("", "your access token", "application/json", "your shop cipher");
-    System.out.println(result);
-}
-
-```
-
-### Response Parameters
-
-| Name | Type | Example | Description |
+| Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| code | int | 0 | The success or failure status code returned in API response. |
-| message | string | Success | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
-| request_id | string | 202203070749000101890810281E8C70B7 | Request log |
-| data | object |  | Specific return information |
+| x-tts-access-token | string | Y |  |
+| Content-Type | string | Y | Allowed type: application/json |
 
-### Response Sample
+### Response
 
-```json
-{
-  "code": 0,
-  "data": {},
-  "message": "Success",
-  "request_id": "202203070749000101890810281E8C70B7"
-}
-```
-
-### Error Codes
-
-| Code | Message |
-| --- | --- |
-| 45101003 | Record not found. Please check the parameters. |
-| 45101004 | The query quota has been reached (10000 request per day). Please try again tomorrow. |
-| 36009003 | Internal error. Please try again. If the issue persists after multiple attempts, please contact platform support. |
-
-### API Scope / Permissions
-
-| Scope Name | Type | Description |
-| --- | --- | --- |
-| Customer Service | Private | The Partner will be able to receive and reply to Instant Messages from buyers. |
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| code | integer |  | The success or failure status code returned in API response. |
+| data | object |  | Specific return information. |
+| message | string |  | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
+| request_id | string |  | Request log. |
 
 ---
 
-## Get Agent Settings
+## UploadBuyerMessagesImage
 
-This API is used to get agent settings. This API allows the agent to see whether the agent can accept chats from buyers. This API is a read-only endpoint. There will be no side effects, and can be retried safely. Note:  1. The current API version can only get settings on behalf of the shop, or the owner account holder on Seller Center. The owner in this case is acting as the customer service agent. In the future, we plan to make this API available to subaccount holders (who has customer service role) in Seller Center.  2. This API is to allow the agent to get his/her own setting.  See more information in API overview 
+You must use this API to upload the image first, before sending an image as a message using [Send Message](650a58bbbace3e02b7556286).
 
-**Path:** `/customer_service/202309/agents/settings`
+**Path:** `/customer_service/202309/images/upload`
+**Method:** `POST`
+**Version:** 202309
+**Docs:** https://partner.tiktokshop.com/docv2/page/upload-buyer-messages-image-202309
 
-**Method:** `GET`
-
-**Common Parameters:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a4278f4c20311b8b57e)
-
-**Common Error Codes:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a45786253031531b942)
-
-### Request Header Parameters
+### Query Parameters
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| content-type | string | Y | Allowed type: application/json |
-| x-tts-access-token | string | Y | The seller access_token value from [Get Access Token](https://partner.tiktokshop.com/docv2/page/678e3a3292b0f40314a92d75#Get%20Access%20Token%20API), when user_type = 0. Follow this [guide](https://partner.tiktokshop.com/docv2/page/678e3a344ddec3030b238fa0) to get seller access_token. |
+| shop_cipher | string |  | Use this property to pass shop information in requesting the API. Failure in passing the correct value when requesting the API for cross-border shops will return incorrect response. |
 
-### Request Query Parameters
+### Header Parameters
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| app_key | string | Y | Every single app will have a unique key. Please use the specific key assigned to your app. |
-| sign | string | Y | Signature generated by gen algorithm. When you send API requests to TTS, you must sign them so that TTS can identify the senders.  |
-| timestamp | int | Y | Unix timestamp GMT (UTC+00:00). This timestamp is used across all API requests. Developers can use this convert to local time. |
-| shop_cipher | string | Y | Use this property to pass shop information in requesting the API. Failure in passing the correct value when requesting the API for cross-border shops will return incorrect response.  Get by API [Get Authorization Shop](https://partner.tiktokshop.com/docv2/page/6507ead7b99d5302be949ba9?external_id=6507ead7b99d5302be949ba9) |
+| x-tts-access-token | string | Y |  |
+| Content-Type | string | Y | Allowed type: multipart/form-data |
 
-### Request Sample
+### Request Body (`multipart/form-data`)
 
-```
-https://open-api.tiktokglobalshop.com/customer_service/202309/agents/settings?app_key=123abc&sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c&timestamp=1625484268&shop_cipher=ROW_RHkDDABBAAB8tKAVoAqsMTjsQZFLyNfY
-```
-
-### Sample Code
-
-**Curl**
-```shell
-curl -X GET \
- 'https://open-api.tiktokglobalshop.com/customer_service/202309/agents/settings?app_key=38abcd&sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c&timestamp=1623812664&shop_cipher=GCP_XF90igAAAABh00qsWgtvOiGFNqyubMt3' \
--H 'x-tts-access-token: TTP_pwSm2AAAAABmmtFz1xlyKMnwg74T2GJ5s0uQbS8jPjb_GkdFVCxPqzQXSyuyfXdQa0AqyDsea2tYFNVf4XeqgZHFfPyv0Vs659QqyLYfsGzanZ5XZAin3_ZkcIxxS0_In6u6XDeU96k' \
--H 'content-type: application/json'
-```
-
-**Go**
-```go
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-func customerService202309GetAgentSettingsGet() {
-    configuration := apis.NewConfiguration()
-    configuration.AddAppInfo(appKey, appSecret)
-    apiClient := apis.NewAPIClient(configuration)
-    request := apiClient.CustomerServiceV202309API.CustomerService202309AgentsSettingsGet(context.Background())
-    request = request.XTtsAccessToken("your access token")
-    request = request.ContentType("application/json")
-    request = request.ShopCipher("your shop cipher")
-    resp, httpResp, err := request.Execute()
-    if err != nil || httpResp.StatusCode != 200 {
-        fmt.Printf("productsRequest err:%v resbody:%s", err, httpResp.Body)
-        return
-    }
-    if resp == nil {
-        fmt.Printf("response is nil")
-        return
-    }
-    if resp.GetCode()!= 0 {
-        fmt.Printf("response business is error, errorCode:%d errorMessage:%s", resp.GetCode(), resp.GetMessage())
-        return
-    }
-    respDataJson, _ := json.MarshalIndent(resp.GetData(), "", "  ")
-    fmt.Println("response data:", string(respDataJson))
-    return
-}
-
-```
-
-**Node.js**
-```typescript
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-async function customerService202309GetAgentSettingsGet() {
-    const result = await client.api.CustomerServiceV202309Api.AgentsSettingsGet("your access token", "application/json", "your shop cipher");
-    console.log('response: ', JSON.stringify(result, null, 2));
-}
-
-```
-
-**Java**
-```java
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-public void customerService202309GetAgentSettingsGet() throws Exception {
-    ApiClient defaultClient = Configuration.getDefaultApiClient()
-            .setAppkey("your appKey")
-            .setSecret("your secret")
-            .setBasePath("https://open-api.tiktokglobalshop.com");
-    CustomerServiceV202309Api apiInstance = new CustomerServiceV202309Api(defaultClient);
-    GetAgentSettingsResponse result = apiInstance.customerService202309AgentsSettingsGet("your access token", "application/json", "your shop cipher");
-    System.out.println(result);
-}
-
-```
-
-### Response Parameters
-
-| Name | Type | Example | Description |
+| Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| code | int | 0 | The success or failure status code returned in API response. |
-| message | string | Success | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
-| request_id | string | 202203070749000101890810281E8C70B7 | Request log |
-| data | object |  | Specific return information |
-| ^can_accept_chat | bool | true | Whether the current agent can accept chat. If true, the agent will receive auto-assigned chats. The agent can manually select chats to respond.  If false, the agent will receive manually assigned chats only.  |
+| data | file |  | The format of the image must be jpg, gif, webp, or png. The size of the image must not exceed 10MB. |
 
-### Response Sample
+### Response
 
-```json
-{
-  "code": 0,
-  "data": {
-    "can_accept_chat": true
-  },
-  "message": "Success",
-  "request_id": "202203070749000101890810281E8C70B7"
-}
-```
-
-### Error Codes
-
-| Code | Message |
-| --- | --- |
-| 36009003 | Internal error. Please try again. If the issue persists after multiple attempts, please contact platform support. |
-
-### API Scope / Permissions
-
-| Scope Name | Type | Description |
-| --- | --- | --- |
-| Customer Service | Private | The Partner will be able to receive and reply to Instant Messages from buyers. |
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| code | integer |  | The success or failure status code returned in API response. |
+| data | object |  | Specific return information. |
+| ^height | integer |  | Image height |
+| ^url | string |  | Image URL |
+| ^width | integer |  | Image width |
+| message | string |  | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
+| request_id | string |  | Request log. |
 
 ---
 
-## Update Agent Settings 
-
-Use this API to update agent status on behalf of the agent. Agents can set whether they can accept auto assigned chats. Before using API, we recommend setting can_accept_chat to true, in order to accept chats.  Note:  1. The current API version can only update settings on behalf of the shop, or the owner account holder on Seller Center. The owner in this case is acting as the customer service agent. In the future, we plan to make this API available to subaccount holders (who has customer service role) in Seller Center.  2. This API is to allow the agent to update their own setting.  See more information in API overview 
-
-**Path:** `/customer_service/202309/agents/settings`
-
-**Method:** `PUT`
-
-**Common Parameters:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a4278f4c20311b8b57e)
-
-**Common Error Codes:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a45786253031531b942)
-
-### Request Header Parameters
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| content-type | string | Y | Allowed type: application/json |
-| x-tts-access-token | string | Y | The seller access_token value from [Get Access Token](https://partner.tiktokshop.com/docv2/page/678e3a3292b0f40314a92d75#Get%20Access%20Token%20API), when user_type = 0. Follow this [guide](https://partner.tiktokshop.com/docv2/page/678e3a344ddec3030b238fa0) to get seller access_token. |
-
-### Request Query Parameters
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| app_key | string | Y | Every single app will have a unique key. Please use the specific key assigned to your app. |
-| sign | string | Y | Signature generated by gen algorithm. When you send API requests to TTS, you must sign them so that TTS can identify the senders.  |
-| timestamp | int | Y | Unix timestamp GMT (UTC+00:00). This timestamp is used across all API requests. Developers can use this convert to local time. |
-| shop_cipher | string | Y | Use this property to pass shop information in requesting the API. Failure in passing the correct value when requesting the API for cross-border shops will return incorrect response.  Get by API [Get Authorization Shop](https://partner.tiktokshop.com/docv2/page/6507ead7b99d5302be949ba9?external_id=6507ead7b99d5302be949ba9) |
-
-### Request Body Parameters
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| can_accept_chat | bool | Y | If true, the agent will receive auto-assigned chats. The agent can manually select chats to respond.  If false, the agent will receive manually assigned chats only. When using IM API, we recommend setting this field to true. |
-
-### Request Sample
-
-```
-https://open-api.tiktokglobalshop.com/customer_service/202309/agents/settings?app_key=123abc&sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c&timestamp=1625484268&shop_cipher=ROW_RHkDDABBAAB8tKAVoAqsMTjsQZFLyNfY
-```
-
-### Request Body Sample
-
-```json
-{
-  "can_accept_chat": true
-}
-```
-
-### Sample Code
-
-**Curl**
-```shell
-curl -X PUT \
- 'https://open-api.tiktokglobalshop.com/customer_service/202309/agents/settings?app_key=38abcd&sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c&timestamp=1623812664&shop_cipher=GCP_XF90igAAAABh00qsWgtvOiGFNqyubMt3' \
--H 'x-tts-access-token: TTP_pwSm2AAAAABmmtFz1xlyKMnwg74T2GJ5s0uQbS8jPjb_GkdFVCxPqzQXSyuyfXdQa0AqyDsea2tYFNVf4XeqgZHFfPyv0Vs659QqyLYfsGzanZ5XZAin3_ZkcIxxS0_In6u6XDeU96k' \
--H 'content-type: application/json' \
--d '{
-  "can_accept_chat": true
-}'
-```
-
-**Go**
-```go
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-func customerService202309UpdateAgentSettingsPut() {
-    configuration := apis.NewConfiguration()
-    configuration.AddAppInfo(appKey, appSecret)
-    apiClient := apis.NewAPIClient(configuration)
-    request := apiClient.CustomerServiceV202309API.CustomerService202309AgentsSettingsPut(context.Background())
-    request = request.XTtsAccessToken("your access token")
-    request = request.ContentType("application/json")
-    request = request.ShopCipher("your shop cipher")
-    customerService202309UpdateAgentSettingsRequestBody := customerService_v202309.NewCustomerService202309UpdateAgentSettingsRequestBody()
-    customerService202309UpdateAgentSettingsRequestBody.SetCanAcceptChat(true)
-    request = request.CustomerService202309UpdateAgentSettingsRequestBody(*customerService202309UpdateAgentSettingsRequestBody)
-    resp, httpResp, err := request.Execute()
-    if err != nil || httpResp.StatusCode != 200 {
-        fmt.Printf("productsRequest err:%v resbody:%s", err, httpResp.Body)
-        return
-    }
-    if resp == nil {
-        fmt.Printf("response is nil")
-        return
-    }
-    if resp.GetCode()!= 0 {
-        fmt.Printf("response business is error, errorCode:%d errorMessage:%s", resp.GetCode(), resp.GetMessage())
-        return
-    }
-    respDataJson, _ := json.MarshalIndent(resp.GetData(), "", "  ")
-    fmt.Println("response data:", string(respDataJson))
-    return
-}
-
-```
-
-**Node.js**
-```typescript
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-async function customerService202309UpdateAgentSettingsPut() {
-    const customerService202309UpdateAgentSettingsRequestBody = new CustomerService202309UpdateAgentSettingsRequestBody();
-    customerService202309UpdateAgentSettingsRequestBody.canAcceptChat = true;
-    const result = await client.api.CustomerServiceV202309Api.AgentsSettingsPut("your access token", "application/json", "your shop cipher", customerService202309UpdateAgentSettingsRequestBody);
-    console.log('response: ', JSON.stringify(result, null, 2));
-}
-
-```
-
-**Java**
-```java
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-public void customerService202309UpdateAgentSettingsPut() throws Exception {
-    ApiClient defaultClient = Configuration.getDefaultApiClient()
-            .setAppkey("your appKey")
-            .setSecret("your secret")
-            .setBasePath("https://open-api.tiktokglobalshop.com");
-    CustomerServiceV202309Api apiInstance = new CustomerServiceV202309Api(defaultClient);
-    UpdateAgentSettingsRequestBody updateAgentSettingsRequestBody = new UpdateAgentSettingsRequestBody();
-    updateAgentSettingsRequestBody.setCanAcceptChat(true);
-    UpdateAgentSettingsResponse result = apiInstance.customerService202309AgentsSettingsPut("your access token", "application/json", "your shop cipher", updateAgentSettingsRequestBody);
-    System.out.println(result);
-}
-
-```
-
-### Response Parameters
-
-| Name | Type | Example | Description |
-| --- | --- | --- | --- |
-| code | int | 0 | The success or failure status code returned in API response. |
-| message | string | Success | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
-| request_id | string | 202203070749000101890810281E8C70B7 | Request log |
-| data | object |  | Specific return information |
-
-### Response Sample
-
-```json
-{
-  "code": 0,
-  "data": {},
-  "message": "Success",
-  "request_id": "202203070749000101890810281E8C70B7"
-}
-```
-
-### Error Codes
-
-| Code | Message |
-| --- | --- |
-| 45101001 | Internal error. Please try again later or contact the technical support team for help.  |
-| 36009003 | Internal error. Please try again. If the issue persists after multiple attempts, please contact platform support. |
-
-### API Scope / Permissions
-
-| Scope Name | Type | Description |
-| --- | --- | --- |
-| Customer Service | Private | The Partner will be able to receive and reply to Instant Messages from buyers. |
-
----
-
-## Get Customer Service Performance
+## GetCustomerServicePerformance
 
 Get the average customer service performance of a shop for a selected time period
 
 **Path:** `/customer_service/202407/performance`
-
 **Method:** `GET`
+**Version:** 202407
+**Docs:** https://partner.tiktokshop.com/docv2/page/get-customer-service-performance-202407
 
-**Common Parameters:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a4278f4c20311b8b57e)
-
-**Common Error Codes:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a45786253031531b942)
-
-### Request Header Parameters
+### Query Parameters
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| content-type | string | Y | Allowed type: application/json |
-| x-tts-access-token | string | Y | The seller access_token value from [Get Access Token](https://partner.tiktokshop.com/docv2/page/678e3a3292b0f40314a92d75#Get%20Access%20Token%20API), when user_type = 0. Follow this [guide](https://partner.tiktokshop.com/docv2/page/678e3a344ddec3030b238fa0) to get seller access_token. |
-
-### Request Query Parameters
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| app_key | string | Y | Every single app will have a unique key. Please use the specific key assigned to your app. |
-| sign | string | Y | Signature generated by gen algorithm. When you send API requests to TTS, you must sign them so that TTS can identify the senders.  |
-| timestamp | int | Y | Unix timestamp GMT (UTC+00:00). This timestamp is used across all API requests. Developers can use this convert to local time. |
 | support_date_ge | string | Y | The start date (YYYY-MM-DD) of the period for selecting chat support sessions to be included in the performance evaluation. |
 | support_date_lt | string | Y | The end date (YYYY-MM-DD) of the period for selecting chat support sessions to be included in the performance evaluation. |
-| shop_cipher | string | Y | Use this property to pass shop information in requesting the API. Failure in passing the correct value when requesting the API for cross-border shops will return incorrect response.  Get by API [Get Authorization Shop](https://partner.tiktokshop.com/docv2/page/6507ead7b99d5302be949ba9?external_id=6507ead7b99d5302be949ba9) |
+| shop_cipher | string | Y | Use this property to pass shop information in requesting the API. Failure in passing the correct value when requesting the API for cross-border shops will return incorrect response. Get by API [Get Authorization Shop](https://partner.tiktokshop.com/docv2/page/6507ead7b99d5302be949ba9?external_id=6507ead7b99d5302be949ba9) |
 
-### Request Sample
+### Header Parameters
 
-```
-https://open-api.tiktokglobalshop.com/customer_service/202407/performance?app_key=123abc&sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c&timestamp=1625484268&shop_cipher=ROW_RHkDDABBAAB8tKAVoAqsMTjsQZFLyNfY&support_date_ge=2024-07-01&support_date_lt=2024-07-08
-```
-
-### Sample Code
-
-**Curl**
-```shell
-curl -X GET \
- 'https://open-api.tiktokglobalshop.com/customer_service/202407/performance?shop_cipher=GCP_XF90igAAAABh00qsWgtvOiGFNqyubMt3&support_date_ge=2024-07-01&support_date_lt=2024-07-08&app_key=38abcd&sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c&timestamp=1623812664' \
--H 'x-tts-access-token: TTP_pwSm2AAAAABmmtFz1xlyKMnwg74T2GJ5s0uQbS8jPjb_GkdFVCxPqzQXSyuyfXdQa0AqyDsea2tYFNVf4XeqgZHFfPyv0Vs659QqyLYfsGzanZ5XZAin3_ZkcIxxS0_In6u6XDeU96k' \
--H 'content-type: application/json'
-```
-
-**Go**
-```go
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-func customerService202407GetCustomerServicePerformanceGet() {
-    configuration := apis.NewConfiguration()
-    configuration.AddAppInfo(appKey, appSecret)
-    apiClient := apis.NewAPIClient(configuration)
-    request := apiClient.CustomerServiceV202407API.CustomerService202407PerformanceGet(context.Background())
-    request = request.XTtsAccessToken("your access token")
-    request = request.ContentType("application/json")
-    request = request.SupportDateGe("2024-07-01")
-    request = request.SupportDateLt("2024-07-08")
-    request = request.ShopCipher("GCP_XF90igAAAABh00qsWgtvOiGFNqyubMt3")
-    resp, httpResp, err := request.Execute()
-    if err != nil || httpResp.StatusCode != 200 {
-        fmt.Printf("productsRequest err:%v resbody:%s", err, httpResp.Body)
-        return
-    }
-    if resp == nil {
-        fmt.Printf("response is nil")
-        return
-    }
-    if resp.GetCode()!= 0 {
-        fmt.Printf("response business is error, errorCode:%d errorMessage:%s", resp.GetCode(), resp.GetMessage())
-        return
-    }
-    respDataJson, _ := json.MarshalIndent(resp.GetData(), "", "  ")
-    fmt.Println("response data:", string(respDataJson))
-    return
-}
-
-```
-
-**Node.js**
-```typescript
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-async function customerService202407GetCustomerServicePerformanceGet() {
-    const result = await client.api.CustomerServiceV202407Api.PerformanceGet("2024-07-01", "2024-07-08", "GCP_XF90igAAAABh00qsWgtvOiGFNqyubMt3", "your access token", "application/json");
-    console.log('response: ', JSON.stringify(result, null, 2));
-}
-
-```
-
-**Java**
-```java
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-public void customerService202407GetCustomerServicePerformanceGet() throws Exception {
-    ApiClient defaultClient = Configuration.getDefaultApiClient()
-            .setAppkey("your appKey")
-            .setSecret("your secret")
-            .setBasePath("https://open-api.tiktokglobalshop.com");
-    CustomerServiceV202407Api apiInstance = new CustomerServiceV202407Api(defaultClient);
-    GetCustomerServicePerformanceResponse result = apiInstance.customerService202407PerformanceGet("2024-07-01", "2024-07-08", "GCP_XF90igAAAABh00qsWgtvOiGFNqyubMt3", "your access token", "application/json");
-    System.out.println(result);
-}
-
-```
-
-### Response Parameters
-
-| Name | Type | Example | Description |
+| Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| code | int | 0 | The success or failure status code returned in API response. |
-| message | string | Success | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
-| request_id | string | 202203070749000101890810281E8C70B7 | Request log |
-| data | object |  | Specific return information |
+| x-tts-access-token | string | Y |  |
+| Content-Type | string | Y | Allowed type: application/json |
+
+### Response
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| code | integer |  | The success or failure status code returned in API response. |
+| data | object |  | Specific return information. |
 | ^performance | object |  | The customer service performance metrics for the shop based on chat support sessions within the selected evaluation period. |
-| ^^support_session_count | int | 15 | The total number of chat support sessions initiated by customers. A session starts when a customer first clicks an FAQ card or sends a message (text, image, video, emoji, product card, order card, etc.) in chat. The sessions which started in the specified time slot are included in calculation. |
-| ^^response_percentage | string | 93.4 | The percentage of chat support sessions of which the first response happens within 24 hours. The sessions which started in the specified time slot are included in calculation. - Automated responses such as FAQ cards are regarded as responses within 24 hours. - Sessions initiated during vacation mode are excluded from this calculation. |
-| ^^satisfaction_percentage | string | 95.2 | The percentage of chat support sessions rated 'Satisfied' (4 or 5 stars). The sessions of which the rating occurred in the specified time slot are included in the calculation; the sessions without rate are not included in the calculation. |
-| ^^response_time_mins | string | 3.4 | The average first response time in minutes for chat support sessions. The sessions which started in the specified time slot are included in calculation. |
-
-### Response Sample
-
-```json
-{
-  "code": 0,
-  "data": {
-    "performance": {
-      "support_session_count": 15,
-      "response_percentage": "93.4",
-      "satisfaction_percentage": "95.2",
-      "response_time_mins": "3.4"
-    }
-  },
-  "message": "Success",
-  "request_id": "202203070749000101890810281E8C70B7"
-}
-```
-
-### Error Codes
-
-| Code | Message |
-| --- | --- |
-| 45101001 | Internal error. Please try again later or contact the technical support team for help.  |
-| 36009003 | Internal error. Please try again. If the issue persists after multiple attempts, please contact platform support. |
-
-### API Scope / Permissions
-
-| Scope Name | Type | Description |
-| --- | --- | --- |
-| Customer Service | Private | The Partner will be able to receive and reply to Instant Messages from buyers. |
+| ^^response_percentage | string |  | The percentage of chat support sessions of which the first response happens within 24 hours. The sessions which started in the specified time slot are included in calculation. - Automated responses such as FAQ cards are regarded as responses within 24 hours. - Sessions initiated during vacation mode are excluded from this calculation. |
+| ^^response_time_mins | string |  | The average first response time in minutes for chat support sessions. The sessions which started in the specified time slot are included in calculation. |
+| ^^satisfaction_percentage | string |  | The percentage of chat support sessions rated 'Satisfied' (4 or 5 stars). The sessions of which the rating occurred in the specified time slot are included in the calculation; the sessions without rate are not included in the calculation. |
+| ^^support_session_count | integer |  | The total number of chat support sessions initiated by customers. A session starts when a customer first clicks an FAQ card or sends a message (text, image, video, emoji, product card, order card, etc.) in chat. The sessions which started in the specified time slot are included in calculation. |
+| message | string |  | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
+| request_id | string |  | Request log. |
 
 ---
 
-## Get Conversation
+## GetConversation
 
 Use this API to retrieve information about a conversation by ID.
 
 **Path:** `/customer_service/202601/conversations/{conversation_id}`
-
 **Method:** `GET`
+**Version:** 202601
+**Docs:** https://partner.tiktokshop.com/docv2/page/get-conversation-202601
 
-**Common Parameters:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a4278f4c20311b8b57e)
-
-**Common Error Codes:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a45786253031531b942)
-
-### Request Header Parameters
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| content-type | string | Y | Allowed type: application/json |
-| x-tts-access-token | string | Y | The seller access_token value from [Get Access Token](https://partner.tiktokshop.com/docv2/page/678e3a3292b0f40314a92d75#Get%20Access%20Token%20API), when user_type = 0. Follow this [guide](https://partner.tiktokshop.com/docv2/page/678e3a344ddec3030b238fa0) to get seller access_token. |
-
-### Request Path Parameters
+### Path Parameters
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
 | conversation_id | string | Y | Conversation ID |
 
-### Request Query Parameters
+### Query Parameters
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| app_key | string | Y | Every single app will have a unique key. Please use the specific key assigned to your app. |
-| sign | string | Y | Signature generated by gen algorithm. When you send API requests to TTS, you must sign them so that TTS can identify the senders.  |
-| timestamp | int | Y | Unix timestamp GMT (UTC+00:00). This timestamp is used across all API requests. Developers can use this convert to local time. |
-| shop_cipher | string | Y | Use this property to pass shop information in requesting the API. Failure in passing the correct value when requesting the API for cross-border shops will return incorrect response.  Get by API [Get Authorization Shop](https://partner.tiktokshop.com/docv2/page/6507ead7b99d5302be949ba9?external_id=6507ead7b99d5302be949ba9) |
+| shop_cipher | string |  | Use this property to pass shop information in requesting the API. Failure in passing the correct value when requesting the API for cross-border shops will return incorrect response. |
 
-### Request Sample
+### Header Parameters
 
-```
-https://open-api.tiktokglobalshop.com/customer_service/202601/conversations/7494560109732334261?app_key=123abc&sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c&timestamp=1625484268&shop_cipher=ROW_RHkDDABBAAB8tKAVoAqsMTjsQZFLyNfY
-```
-
-### Sample Code
-
-**Curl**
-```shell
-curl -X GET \
- 'https://open-api.tiktokglobalshop.com/customer_service/202601/conversations/7494560109732334261?timestamp=1623812664&shop_cipher=GCP_XF90igAAAABh00qsWgtvOiGFNqyubMt3&app_key=38abcd&sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c' \
--H 'x-tts-access-token: TTP_pwSm2AAAAABmmtFz1xlyKMnwg74T2GJ5s0uQbS8jPjb_GkdFVCxPqzQXSyuyfXdQa0AqyDsea2tYFNVf4XeqgZHFfPyv0Vs659QqyLYfsGzanZ5XZAin3_ZkcIxxS0_In6u6XDeU96k' \
--H 'content-type: application/json'
-```
-
-**Go**
-```go
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-func customerService202601GetConversationGet() {
-    configuration := apis.NewConfiguration()
-    configuration.AddAppInfo(appKey, appSecret)
-    apiClient := apis.NewAPIClient(configuration)
-    request := apiClient.CustomerServiceV202601API.CustomerService202601ConversationsConversationIdGet(context.Background(), "7494560109732334261")
-    request = request.XTtsAccessToken("your access token")
-    request = request.ContentType("application/json")
-    request = request.ShopCipher("your shop cipher")
-    resp, httpResp, err := request.Execute()
-    if err != nil || httpResp.StatusCode != 200 {
-        fmt.Printf("productsRequest err:%v resbody:%s", err, httpResp.Body)
-        return
-    }
-    if resp == nil {
-        fmt.Printf("response is nil")
-        return
-    }
-    if resp.GetCode()!= 0 {
-        fmt.Printf("response business is error, errorCode:%d errorMessage:%s", resp.GetCode(), resp.GetMessage())
-        return
-    }
-    respDataJson, _ := json.MarshalIndent(resp.GetData(), "", "  ")
-    fmt.Println("response data:", string(respDataJson))
-    return
-}
-
-```
-
-**Node.js**
-```typescript
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-async function customerService202601GetConversationGet() {
-    const result = await client.api.CustomerServiceV202601Api.ConversationsConversationIdGet("7494560109732334261", "your access token", "application/json", "your shop cipher");
-    console.log('response: ', JSON.stringify(result, null, 2));
-}
-
-```
-
-**Java**
-```java
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-public void customerService202601GetConversationGet() throws Exception {
-    ApiClient defaultClient = Configuration.getDefaultApiClient()
-            .setAppkey("your appKey")
-            .setSecret("your secret")
-            .setBasePath("https://open-api.tiktokglobalshop.com");
-    CustomerServiceV202601Api apiInstance = new CustomerServiceV202601Api(defaultClient);
-    GetConversationResponse result = apiInstance.customerService202601ConversationsConversationIdGet("7494560109732334261", "your access token", "application/json", "your shop cipher");
-    System.out.println(result);
-}
-
-```
-
-### Response Parameters
-
-| Name | Type | Example | Description |
+| Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| code | int | 0 | The success or failure status code returned in API response. |
-| message | string | Success | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
-| request_id | string | 202203070749000101890810281E8C70B7 | Request log |
-| data | object |  | Specific return information |
+| x-tts-access-token | string | Y |  |
+| Content-Type | string | Y | Allowed type: application/json |
+
+### Response
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| code | integer |  | The success or failure status code returned in API response. |
+| data | object |  | Specific return information. |
 | ^conversation | object |  | Conversation info. |
-| ^^id | string | 7494560109732334261 | Conversation ID |
-| ^^participant_count | int | 3 | Number of participants in the conversation. - If there has been no customer service agent in the conversation, the value is `2`: the shop and the buyer; - Otherwise, the value is `3`: the shop, the buyer, and the customer service agent. |
-| ^^participants | []object |  | Conversation participants. |
-| ^^^im_user_id | string | 7494560109732334261 | Participant's ID, in IM system. This ID is used in IM system and can not be used to query orders. To query orders, use `user_id` instead. |
-| ^^^role | string | BUYER | Participant's role. Possible enumerations: - `BUYER` - `SHOP` - `CUSTOMER_SERVICE` |
-| ^^^nickname | string | Albert | Participant's nickname. |
-| ^^^avatar | string | https://p16-oec-ttp.tiktokcdn-us.com/tos-useast5-i-omjb5zjo8w-tx/566c497faaaf4491a84d3ce55d9cb095~tplv-omjb5zjo8w-origin-image.image? | Participant's avatar URL. |
-| ^^^user_id | string | 7494560109732334262 | Participant's ID. |
-| ^^^platform | string | TIKTOK_SHOP | Which platform is the buyer from. This field will only be returned when the role is `BUYER` and the region is Indonesia. Possible enumerations: - TIKTOK_SHOP - TOKOPEDIA You cannot send platform-specific content to the buyer from a different platform. For example, when you send a product card to the Tokopedia buyer, you must ensure the product is listed on Tokopedia. |
-| ^^create_time | int | 1691411573 | Unix timestamp when the conversation was created. In seconds. |
-| ^^unread_count | int | 0 | Number of messages unread by the customer service agent. |
-
-### Response Sample
-
-```json
-{
-  "code": 0,
-  "data": {
-    "conversation": {
-      "id": "7494560109732334261",
-      "participant_count": 3,
-      "participants": [
-        {
-          "im_user_id": "7494560109732334261",
-          "role": "BUYER",
-          "nickname": "Albert",
-          "avatar": "https://p16-oec-ttp.tiktokcdn-us.com/tos-useast5-i-omjb5zjo8w-tx/566c497faaaf4491a84d3ce55d9cb095~tplv-omjb5zjo8w-origin-image.image?",
-          "user_id": "7494560109732334262",
-          "platform": "TIKTOK_SHOP"
-        }
-      ],
-      "create_time": 1691411573,
-      "unread_count": 0
-    }
-  },
-  "message": "Success",
-  "request_id": "202203070749000101890810281E8C70B7"
-}
-```
-
-### Error Codes
-
-| Code | Message |
-| --- | --- |
-| 45101001 | Internal error. Please try again later or contact the technical support team for help.  |
-| 45101003 | Record not found. Please check the parameters. |
-| 45101004 | The query quota has been reached (10000 request per day). Please try again tomorrow. |
-| 36009003 | Internal error. Please try again. If the issue persists after multiple attempts, please contact platform support. |
-
-### API Scope / Permissions
-
-| Scope Name | Type | Description |
-| --- | --- | --- |
-| Customer Service | Private | The Partner will be able to receive and reply to Instant Messages from buyers. |
+| ^^create_time | integer |  | Unix timestamp when the conversation was created. In seconds. |
+| ^^id | string |  | Conversation ID |
+| ^^participant_count | integer |  | Number of participants in the conversation. - If there has been no customer service agent in the conversation, the value is `2`: the shop and the buyer; - Otherwise, the value is `3`: the shop, the buyer, and the customer service agent. |
+| ^^participants | array<object> |  | Conversation participants. |
+| ^^^avatar | string |  | Participant's avatar URL. |
+| ^^^im_user_id | string |  | Participant's ID, in IM system. This ID is used in IM system and can not be used to query orders. To query orders, use `user_id` instead. |
+| ^^^nickname | string |  | Participant's nickname. |
+| ^^^platform | string |  | Which platform is the buyer from. This field will only be returned when the role is `BUYER` and the region is Indonesia. Possible enumerations: - TIKTOK_SHOP - TOKOPEDIA You cannot send platform-specific content to the buyer from a different platform. For example, when you send a product card to the Tokopedia buyer, you must ensure the product is listed on Tokopedia. |
+| ^^^role | string |  | Participant's role. Possible enumerations: - `BUYER` - `SHOP` - `CUSTOMER_SERVICE` |
+| ^^^user_id | string |  | Participant's ID. |
+| ^^unread_count | integer |  | Number of messages unread by the customer service agent. |
+| message | string |  | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
+| request_id | string |  | Request log. |
 
 ---

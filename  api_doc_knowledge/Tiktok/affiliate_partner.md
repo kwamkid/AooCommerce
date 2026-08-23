@@ -1,2975 +1,965 @@
-# Affiliate partner
+# TikTok Shop API — affiliate_partner
 
-_TikTok Shop API Documentation_
+_สร้างจาก OAS ของ @tts-open-toolkit/cli เมื่อ 2026-08-24 — 17 operations_
+_อัปเดต: `tts_open_toolkit update --yes` → `tts_open_toolkit skill add --agent cc --update` → `node scripts/gen-tiktok-api-docs.mjs`_
+
+เวอร์ชันที่มีในหมวดนี้: 202405, 202411, 202501, 202504, 202505, 202508
 
 ---
 
+## GetAffiliatePartnerCampaignList
 
-## Create Affiliate Partner Campaign
+This API offers the ability to list campaigns created by the Affiliate Partner.
+
+**Path:** `/affiliate_partner/202405/campaigns`
+**Method:** `GET`
+**Version:** 202405
+**Docs:** https://partner.tiktokshop.com/docv2/page/get-affiliate-partner-campaign-list-202405
+
+### Query Parameters
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| category_asset_cipher | string | Y | The partner identifier used in API requests. Retrieve this value by using the [Get Authorized Category Assets API](https://partner.tiktokshop.com/docv2/page/666012dd609d4402cc3be995). |
+| page_size | integer | Y | The number of results to be returned per page. Default: 10. Valid range: [1-100]. |
+| page_token | string |  | An opaque token used to retrieve the next page of a paginated result set. Retrieve this value from the result of the `next_page_token` from a previous response. It is not needed for the first page. Maximum page size is `100` items. |
+| status | string |  | The campaign status. The status is an enumerated type with values: - `READY` - `UPCOMING` - `ONGOING` - `CLOSED` - `UNSPECIFIED` |
+| type | string |  | The campaign type. This is an enumerated type with values: - MY_CAMPAIGNS - GS_SELLING_CAMPAIGNS - SELLER_CAMPAIGNS - EXCLUSIVE_TIKTOK_SHOP Default value is MY_CAMPAIGNS. |
+| query_type_filter | string |  | An extended filter to be used when the campaign type property type is set to SELLER_CAMPAIGNS or EXCLUSIVE_TIKTOK_SHOP. If the type property is set to SELLER_CAMPAIGNS, the valid values for this property are: - MARKETPLACE: the response includes campaigns that the partner did not join. - JOINED :  the response includes campaigns the partner has joined only. If the type property is set to EXCLUSIVE_TIKTOK_SHOP, the valid values for this property are: - AVAILABLE: the response includes campaigns the partner is permitted to join. - JOINED: the response includes campaigns the partner has joined only. Other types can either not pass a value or pass in Default. |
+
+### Header Parameters
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| x-tts-access-token | string | Y |  |
+| Content-Type | string | Y | Allowed type: application/json |
+
+### Response
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| code | integer |  | The success or failure status code returned in API response. |
+| data | object |  | Specific return information. |
+| ^campaigns | array<object> |  | A list of campaigns. |
+| ^^campaign_end_time | integer |  | The scheduled end time in Unix epoch time format for the campaign. Note that the end time must be less than 360 days from the start date. This field is no longer editable when the campaign status is set to `CLOSED`. |
+| ^^campaign_start_time | integer |  | The scheduled start time in Unix epoch time format for the campaign. Note that this field can be updated when the campaign status is set to `READY` or `UPCOMING` only. |
+| ^^id | string |  | The campaign identifier. |
+| ^^name | string |  | The campaign name. |
+| ^^registration_end_time | integer |  | The scheduled end time in Unix epoch time format for seller product registration. This field is no longer editable when the campaign status is set to `CLOSED`. |
+| ^^registration_start_time | integer |  | The scheduled start time in Unix epoch format for seller product registration. Note that this field can be updated when the campaign status is set to `READY` or `UPCOMING` only. |
+| ^^status | string |  | The campaign status. The status is an enumerated type with values: - READY - UPCOMING - ONGOING - CLOSED |
+| ^next_page_token | string |  | An opaque token used to retrieve the next page of a paginated result set. |
+| ^total_count | integer |  | The total number of campaigns in the list. |
+| message | string |  | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
+| request_id | string |  | Request log. |
+
+---
+
+## CreateAffiliatePartnerCampaign
 
 This API offers the ability to create a campaign for targeted sellers/public sellers, including campaign period, campaign registration period and commission requirements. Note: The campaign will not be displayed to sellers after creation
 
 **Path:** `/affiliate_partner/202405/campaigns`
-
 **Method:** `POST`
+**Version:** 202405
+**Docs:** https://partner.tiktokshop.com/docv2/page/create-affiliate-partner-campaign-202405
 
-**Common Parameters:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a4278f4c20311b8b57e)
-
-**Common Error Codes:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a45786253031531b942)
-
-### Request Header Parameters
+### Query Parameters
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| content-type | string | Y | Allowed type: application/json |
-| x-tts-access-token | string | Y | The partner access_token value from [Get Access Token](https://partner.tiktokshop.com/docv2/page/678e3a3292b0f40314a92d75#Get%20Access%20Token%20API), when user_type = 3. Follow this [guide](https://partner.tiktokshop.com/docv2/page/678e3a3978f4c20311b8b555) to get partner access_token. |
+| category_asset_cipher | string | Y | The partner identifier used in API requests. Retrieve this value by using the [Get Authorized Category Assets API] (https://partner.tiktokshop.com/docv2/page/666012dd609d4402cc3be995). |
 
-### Request Query Parameters
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| app_key | string | Y | Every single app will have a unique key. Please use the specific key assigned to your app. |
-| sign | string | Y | Signature generated by gen algorithm. When you send API requests to TTS, you must sign them so that TTS can identify the senders.  |
-| timestamp | int | Y | Unix timestamp GMT (UTC+00:00). This timestamp is used across all API requests. Developers can use this convert to local time. |
-| category_asset_cipher | string | Y | The partner identifier used in API requests. Retrieve this value by using the [Get Authorized Category Assets API] (https://partner.tiktokshop.com/docv2/page/666012dd609d4402cc3be995).   |
-
-### Request Body Parameters
+### Header Parameters
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| name | string | Y | The campaign name. The campaign name must be less than 50 characters. |
-| description | string | Y | The campaign description. The campaign description must be less than 1000 characters. |
-| campaign_start_time | int | Y | The scheduled start time in Unix epoch time format for the campaign. Note that this field can be updated when the campaign status is set to `READY` or `UPCOMING` only. |
-| campaign_end_time | int | Y | The scheduled end time in Unix epoch time format for the campaign. Note that the end time must be less than 360 days from the start date. This field is no longer editable when the campaign status is set to `CLOSED`. |
-| registration_start_time | int | Y | The scheduled start time in Unix epoch format for seller product registration. Note that this field can be updated when the campaign status is set to `READY` or `UPCOMING` only. |
-| registration_end_time | int | Y | The scheduled end time in Unix epoch time format for seller product registration. This field is no longer editable when the campaign status is set to `CLOSED`. |
-| commission_rate | int | Y | The total commission rate in hundredths of a percent (0.01%) units proposed by the affiliate partner for display to sellers. Commission rate must be greater than 100 and less than 8000. |
-| contact_info | object | Y | The partner's contact information. |
-| ^whatsapp | string | N | The partner's phone number registered in WhatsApp. Required if the target market is MY, SG, GB, or ID, optional if the target market is US; otherwise, not applicable. |
-| ^email | string | Y | The partner's email address. |
-| ^phone | string | N | The partner's phone number. |
-| ^zalo | string | N | The partner's phone number registered in Zalo. Required if the target market is VN; otherwise, not applicable. |
-| ^viber | string | N | The partner's phone number registered in Viber. Required if the target market is PH; otherwise, not applicable. |
-| ^line | string | N | The partner's phone number registered in LINE. Required if the target market is TH; otherwise, not applicable. |
-| target_shop_codes | []string | N | A list of TikTok Shop seller shop codes to allow to register for the campaign. The seller shop code in available in TikTok Shop Seller Central by clicking on the Seller Profile icon in the top right of the user interface. The list must be less than 100 items in length.  |
-| target_seller_types | []string | N | A list of eligible seller types to allow to register for the campaign. Use this field to broadly target types of sellers instead of specific sellers in the `target_shop_codes` field. This is an enumerated type with possible values: - LOCAL - CROSS_BORDER |
+| x-tts-access-token | string | Y |  |
+| Content-Type | string | Y | Allowed type: application/json |
 
-### Request Sample
+### Request Body (`application/json`)
 
-```
-https://open-api.tiktokglobalshop.com/affiliate_partner/202405/campaigns?app_key=123abc&sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c&timestamp=1625484268&category_asset_cipher=ROW_RHkDDABBAAB8tKAVoAqsMTjsQZFLyNfY
-```
-
-### Request Body Sample
-
-```json
-{
-  "name": "my first campaign",
-  "description": "campaign for test",
-  "campaign_start_time": 1712941200,
-  "campaign_end_time": 1715878799,
-  "registration_start_time": 1712941200,
-  "registration_end_time": 1713891599,
-  "commission_rate": 1000,
-  "contact_info": {
-    "whatsapp": "+14255550100",
-    "email": "123456@gmail.com",
-    "phone": "+14255550100",
-    "zalo": "+14255550100",
-    "viber": "+14255550100",
-    "line": "+14255550100"
-  },
-  "target_shop_codes": [
-    "THCBELNL4Y"
-  ],
-  "target_seller_types": [
-    "CROSS_BORDER"
-  ]
-}
-```
-
-### Sample Code
-
-**Curl**
-```shell
-curl -X POST \
- 'https://open-api.tiktokglobalshop.com/affiliate_partner/202405/campaigns?app_key=38abcd&sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c&timestamp=1623812664&category_asset_cipher=GCP_XF90igAAAABh00qsWgtvOiGFNqyubMt3' \
--H 'x-tts-access-token: TTP_pwSm2AAAAABmmtFz1xlyKMnwg74T2GJ5s0uQbS8jPjb_GkdFVCxPqzQXSyuyfXdQa0AqyDsea2tYFNVf4XeqgZHFfPyv0Vs659QqyLYfsGzanZ5XZAin3_ZkcIxxS0_In6u6XDeU96k' \
--H 'content-type: application/json' \
--d '{
-  "name": "my first campaign",
-  "description": "campaign for test",
-  "campaign_start_time": 1712941200,
-  "campaign_end_time": 1715878799,
-  "registration_start_time": 1712941200,
-  "registration_end_time": 1713891599,
-  "commission_rate": 1000,
-  "contact_info": {
-    "whatsapp": "+14255550100",
-    "email": "123456@gmail.com",
-    "phone": "+14255550100",
-    "zalo": "+14255550100",
-    "viber": "+14255550100",
-    "line": "+14255550100"
-  },
-  "target_shop_codes": [
-    "THCBELNL4Y"
-  ],
-  "target_seller_types": [
-    "CROSS_BORDER"
-  ]
-}'
-```
-
-**Go**
-```go
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-func affiliatePartner202405CreateAffiliatePartnerCampaignPost() {
-    configuration := apis.NewConfiguration()
-    configuration.AddAppInfo(appKey, appSecret)
-    apiClient := apis.NewAPIClient(configuration)
-    request := apiClient.AffiliatePartnerV202405API.AffiliatePartner202405CampaignsPost(context.Background())
-    request = request.XTtsAccessToken("your access token")
-    request = request.ContentType("application/json")
-    request = request.CategoryAssetCipher("GCP_XF90igAAAABh00qsWgtvOiGFNqyubMt3")
-    affiliatePartner202405CreateAffiliatePartnerCampaignRequestBody := affiliatePartner_v202405.NewAffiliatePartner202405CreateAffiliatePartnerCampaignRequestBody()
-    affiliatePartner202405CreateAffiliatePartnerCampaignRequestBody.SetName("my first campaign")
-    affiliatePartner202405CreateAffiliatePartnerCampaignRequestBody.SetDescription("campaign for test")
-    affiliatePartner202405CreateAffiliatePartnerCampaignRequestBody.SetCampaignStartTime(1712941200)
-    affiliatePartner202405CreateAffiliatePartnerCampaignRequestBody.SetCampaignEndTime(1715878799)
-    affiliatePartner202405CreateAffiliatePartnerCampaignRequestBody.SetRegistrationStartTime(1712941200)
-    affiliatePartner202405CreateAffiliatePartnerCampaignRequestBody.SetRegistrationEndTime(1713891599)
-    affiliatePartner202405CreateAffiliatePartnerCampaignRequestBody.SetCommissionRate(1000)
-    affiliatePartner202405CreateAffiliatePartnerCampaignRequestBodyContactInfo := affiliatePartner_v202405.NewAffiliatePartner202405CreateAffiliatePartnerCampaignRequestBodyContactInfo()
-    affiliatePartner202405CreateAffiliatePartnerCampaignRequestBodyContactInfo.SetWhatsapp("+14255550100")
-    affiliatePartner202405CreateAffiliatePartnerCampaignRequestBodyContactInfo.SetEmail("123456@gmail.com")
-    affiliatePartner202405CreateAffiliatePartnerCampaignRequestBodyContactInfo.SetPhone("+14255550100")
-    affiliatePartner202405CreateAffiliatePartnerCampaignRequestBodyContactInfo.SetZalo("+14255550100")
-    affiliatePartner202405CreateAffiliatePartnerCampaignRequestBodyContactInfo.SetViber("+14255550100")
-    affiliatePartner202405CreateAffiliatePartnerCampaignRequestBodyContactInfo.SetLine("+14255550100")
-    affiliatePartner202405CreateAffiliatePartnerCampaignRequestBody.SetContactInfo(*affiliatePartner202405CreateAffiliatePartnerCampaignRequestBodyContactInfo)
-    affiliatePartner202405CreateAffiliatePartnerCampaignRequestBodyTargetShopCodesList := []string{"THCBELNL4Y"}
-    affiliatePartner202405CreateAffiliatePartnerCampaignRequestBody.SetTargetShopCodes(affiliatePartner202405CreateAffiliatePartnerCampaignRequestBodyTargetShopCodesList)
-    affiliatePartner202405CreateAffiliatePartnerCampaignRequestBodyTargetSellerTypesList := []string{"CROSS_BORDER"}
-    affiliatePartner202405CreateAffiliatePartnerCampaignRequestBody.SetTargetSellerTypes(affiliatePartner202405CreateAffiliatePartnerCampaignRequestBodyTargetSellerTypesList)
-    request = request.AffiliatePartner202405CreateAffiliatePartnerCampaignRequestBody(*affiliatePartner202405CreateAffiliatePartnerCampaignRequestBody)
-    resp, httpResp, err := request.Execute()
-    if err != nil || httpResp.StatusCode != 200 {
-        fmt.Printf("productsRequest err:%v resbody:%s", err, httpResp.Body)
-        return
-    }
-    if resp == nil {
-        fmt.Printf("response is nil")
-        return
-    }
-    if resp.GetCode()!= 0 {
-        fmt.Printf("response business is error, errorCode:%d errorMessage:%s", resp.GetCode(), resp.GetMessage())
-        return
-    }
-    respDataJson, _ := json.MarshalIndent(resp.GetData(), "", "  ")
-    fmt.Println("response data:", string(respDataJson))
-    return
-}
-
-```
-
-**Node.js**
-```typescript
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-async function affiliatePartner202405CreateAffiliatePartnerCampaignPost() {
-    const affiliatePartner202405CreateAffiliatePartnerCampaignRequestBody = new AffiliatePartner202405CreateAffiliatePartnerCampaignRequestBody();
-    affiliatePartner202405CreateAffiliatePartnerCampaignRequestBody.name = "my first campaign";
-    affiliatePartner202405CreateAffiliatePartnerCampaignRequestBody.description = "campaign for test";
-    affiliatePartner202405CreateAffiliatePartnerCampaignRequestBody.campaignStartTime = 1712941200;
-    affiliatePartner202405CreateAffiliatePartnerCampaignRequestBody.campaignEndTime = 1715878799;
-    affiliatePartner202405CreateAffiliatePartnerCampaignRequestBody.registrationStartTime = 1712941200;
-    affiliatePartner202405CreateAffiliatePartnerCampaignRequestBody.registrationEndTime = 1713891599;
-    affiliatePartner202405CreateAffiliatePartnerCampaignRequestBody.commissionRate = 1000;
-    const affiliatePartner202405CreateAffiliatePartnerCampaignRequestBodyContactInfo = new AffiliatePartner202405CreateAffiliatePartnerCampaignRequestBodyContactInfo();
-    affiliatePartner202405CreateAffiliatePartnerCampaignRequestBodyContactInfo.whatsapp = "+14255550100";
-    affiliatePartner202405CreateAffiliatePartnerCampaignRequestBodyContactInfo.email = "123456@gmail.com";
-    affiliatePartner202405CreateAffiliatePartnerCampaignRequestBodyContactInfo.phone = "+14255550100";
-    affiliatePartner202405CreateAffiliatePartnerCampaignRequestBodyContactInfo.zalo = "+14255550100";
-    affiliatePartner202405CreateAffiliatePartnerCampaignRequestBodyContactInfo.viber = "+14255550100";
-    affiliatePartner202405CreateAffiliatePartnerCampaignRequestBodyContactInfo.line = "+14255550100";
-    affiliatePartner202405CreateAffiliatePartnerCampaignRequestBody.contactInfo = affiliatePartner202405CreateAffiliatePartnerCampaignRequestBodyContactInfo;
-    affiliatePartner202405CreateAffiliatePartnerCampaignRequestBody.targetShopCodes = ["THCBELNL4Y"];
-    affiliatePartner202405CreateAffiliatePartnerCampaignRequestBody.targetSellerTypes = ["CROSS_BORDER"];
-    const result = await client.api.AffiliatePartnerV202405Api.CampaignsPost("GCP_XF90igAAAABh00qsWgtvOiGFNqyubMt3", "your access token", "application/json", affiliatePartner202405CreateAffiliatePartnerCampaignRequestBody);
-    console.log('response: ', JSON.stringify(result, null, 2));
-}
-
-```
-
-**Java**
-```java
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-public void affiliatePartner202405CreateAffiliatePartnerCampaignPost() throws Exception {
-    ApiClient defaultClient = Configuration.getDefaultApiClient()
-            .setAppkey("your appKey")
-            .setSecret("your secret")
-            .setBasePath("https://open-api.tiktokglobalshop.com");
-    AffiliatePartnerV202405Api apiInstance = new AffiliatePartnerV202405Api(defaultClient);
-    CreateAffiliatePartnerCampaignRequestBody createAffiliatePartnerCampaignRequestBody = new CreateAffiliatePartnerCampaignRequestBody();
-    createAffiliatePartnerCampaignRequestBody.setName("my first campaign");
-    createAffiliatePartnerCampaignRequestBody.setDescription("campaign for test");
-    createAffiliatePartnerCampaignRequestBody.setCampaignStartTime(1712941200L);
-    createAffiliatePartnerCampaignRequestBody.setCampaignEndTime(1715878799L);
-    createAffiliatePartnerCampaignRequestBody.setRegistrationStartTime(1712941200L);
-    createAffiliatePartnerCampaignRequestBody.setRegistrationEndTime(1713891599L);
-    createAffiliatePartnerCampaignRequestBody.setCommissionRate(1000L);
-    CreateAffiliatePartnerCampaignRequestBodyContactInfo createAffiliatePartnerCampaignRequestBodyContactInfo = new tiktokshop.open.sdk_java.model.AffiliatePartner.V202405.CreateAffiliatePartnerCampaignRequestBodyContactInfo();
-    createAffiliatePartnerCampaignRequestBodyContactInfo.setWhatsapp("+14255550100");
-    createAffiliatePartnerCampaignRequestBodyContactInfo.setEmail("123456@gmail.com");
-    createAffiliatePartnerCampaignRequestBodyContactInfo.setPhone("+14255550100");
-    createAffiliatePartnerCampaignRequestBodyContactInfo.setZalo("+14255550100");
-    createAffiliatePartnerCampaignRequestBodyContactInfo.setViber("+14255550100");
-    createAffiliatePartnerCampaignRequestBodyContactInfo.setLine("+14255550100");
-    createAffiliatePartnerCampaignRequestBody.setContactInfo(createAffiliatePartnerCampaignRequestBodyContactInfo);
-    List<String> createAffiliatePartnerCampaignRequestBodyTargetShopCodesList = new ArrayList<>(Arrays.asList("THCBELNL4Y"));
-    createAffiliatePartnerCampaignRequestBody.setTargetShopCodes(createAffiliatePartnerCampaignRequestBodyTargetShopCodesList);
-    List<String> createAffiliatePartnerCampaignRequestBodyTargetSellerTypesList = new ArrayList<>(Arrays.asList("CROSS_BORDER"));
-    createAffiliatePartnerCampaignRequestBody.setTargetSellerTypes(createAffiliatePartnerCampaignRequestBodyTargetSellerTypesList);
-    CreateAffiliatePartnerCampaignResponse result = apiInstance.affiliatePartner202405CampaignsPost("GCP_XF90igAAAABh00qsWgtvOiGFNqyubMt3", "your access token", "application/json", createAffiliatePartnerCampaignRequestBody);
-    System.out.println(result);
-}
-
-```
-
-### Response Parameters
-
-| Name | Type | Example | Description |
+| Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| code | int | 0 | The success or failure status code returned in API response. |
-| message | string | Success | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
-| request_id | string | 202203070749000101890810281E8C70B7 | Request log |
-| data | object |  | Specific return information |
-| ^campaign_id | string | 7356411663443183367 | The campaign identifier. |
+| campaign_end_time | integer |  | The scheduled end time in Unix epoch time format for the campaign. Note that the end time must be less than 360 days from the start date. This field is no longer editable when the campaign status is set to `CLOSED`. |
+| campaign_start_time | integer |  | The scheduled start time in Unix epoch time format for the campaign. Note that this field can be updated when the campaign status is set to `READY` or `UPCOMING` only. |
+| commission_rate | integer |  | The total commission rate in hundredths of a percent (0.01%) units proposed by the affiliate partner for display to sellers. Commission rate must be greater than 100 and less than 8000. |
+| contact_info | object |  | The partner's contact information. |
+| ^email | string |  | The partner's email address. |
+| ^line | string |  | The partner's phone number registered in LINE. Required if the target market is TH; otherwise, not applicable. |
+| ^phone | string |  | The partner's phone number. |
+| ^viber | string |  | The partner's phone number registered in Viber. Required if the target market is PH; otherwise, not applicable. |
+| ^whatsapp | string |  | The partner's phone number registered in WhatsApp. Required if the target market is MY, SG, GB, or ID, optional if the target market is US; otherwise, not applicable. |
+| ^zalo | string |  | The partner's phone number registered in Zalo. Required if the target market is VN; otherwise, not applicable. |
+| description | string |  | The campaign description. The campaign description must be less than 1000 characters. |
+| name | string |  | The campaign name. The campaign name must be less than 50 characters. |
+| registration_end_time | integer |  | The scheduled end time in Unix epoch time format for seller product registration. This field is no longer editable when the campaign status is set to `CLOSED`. |
+| registration_start_time | integer |  | The scheduled start time in Unix epoch format for seller product registration. Note that this field can be updated when the campaign status is set to `READY` or `UPCOMING` only. |
+| target_seller_types | array<string> |  | A list of eligible seller types to allow to register for the campaign. Use this field to broadly target types of sellers instead of specific sellers in the `target_shop_codes` field. This is an enumerated type with possible values: - LOCAL - CROSS_BORDER |
+| target_shop_codes | array<string> |  | A list of TikTok Shop seller shop codes to allow to register for the campaign. The seller shop code in available in TikTok Shop Seller Central by clicking on the Seller Profile icon in the top right of the user interface. The list must be less than 100 items in length. |
 
-### Response Sample
+### Response
 
-```json
-{
-  "code": 0,
-  "data": {
-    "campaign_id": "7356411663443183367"
-  },
-  "message": "Success",
-  "request_id": "202203070749000101890810281E8C70B7"
-}
-```
-
-### Error Codes
-
-| Code | Message |
-| --- | --- |
-| 16032001 | nvalid parameter Creator and Seller, please ensure Region mismatch. |
-| 16032002 | Invalid campaign period |
-| 16032003 | Invalid registration period |
-| 16032004 | Invalid campaign seller scope |
-| 16032013 | Payment account not yet activated |
-
-### API Scope / Permissions
-
-| Scope Name | Type | Description |
-| --- | --- | --- |
-| Manage Affiliate Partner Campaigns | Private | The application will be able to manage a TikTok Shop Affiliate Partner (TAP) campaign, including create/edit/view partner campaigns. |
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| code | integer |  | The success or failure status code returned in API response. |
+| data | object |  | Specific return information. |
+| ^campaign_id | string |  | The campaign identifier. |
+| message | string |  | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
+| request_id | string |  | Request log. |
 
 ---
 
-## Edit Affiliate Partner Campaign
+## GetAffiliatePartnerCampaignDetail
 
- This API offers the ability to edit an Affiliate Partner campaign. No editing after the campaign is closed.
+This API offers the ability to get affiliate campaign details.
 
-**Path:** `/affiliate_partner/202405/campaigns/{campaign_id}/partial_edit`
+**Path:** `/affiliate_partner/202405/campaigns/{campaign_id}`
+**Method:** `GET`
+**Version:** 202405
+**Docs:** https://partner.tiktokshop.com/docv2/page/get-affiliate-partner-campaign-detail-202405
 
-**Method:** `POST`
-
-**Common Parameters:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a4278f4c20311b8b57e)
-
-**Common Error Codes:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a45786253031531b942)
-
-### Request Header Parameters
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| content-type | string | Y | Allowed type: application/json |
-| x-tts-access-token | string | Y | The partner access_token value from [Get Access Token](https://partner.tiktokshop.com/docv2/page/678e3a3292b0f40314a92d75#Get%20Access%20Token%20API), when user_type = 3. Follow this [guide](https://partner.tiktokshop.com/docv2/page/678e3a3978f4c20311b8b555) to get partner access_token. |
-
-### Request Path Parameters
+### Path Parameters
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
 | campaign_id | string | Y | The ID of the campaign. |
 
-### Request Query Parameters
+### Query Parameters
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| app_key | string | Y | Every single app will have a unique key. Please use the specific key assigned to your app. |
-| sign | string | Y | Signature generated by gen algorithm. When you send API requests to TTS, you must sign them so that TTS can identify the senders.  |
-| timestamp | int | Y | Unix timestamp GMT (UTC+00:00). This timestamp is used across all API requests. Developers can use this convert to local time. |
-| category_asset_cipher | string | Y | The partner identifier used in API requests.  Retrieve this value by using the [Get Authorized Category Assets API] (https://partner.tiktokshop.com/docv2/page/666012dd609d4402cc3be995).  |
+| category_asset_cipher | string | Y | The partner identifier used in API requests. Retrieve this value by using the [Get Authorized Category Assets API] (https://partner.tiktokshop.com/docv2/page/666012dd609d4402cc3be995). |
 
-### Request Body Parameters
+### Header Parameters
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| name | string | N | The campaign name. The campaign name must be less than 50 characters. |
-| description | string | N | The campaign description. The campaign description must be less than 1000 characters. |
-| campaign_start_time | int | N | The scheduled start time in Unix epoch time format for the campaign. Note that this field can be updated when the campaign status is set to `READY` or `UPCOMING` only. |
-| campaign_end_time | int | N | The scheduled end time in Unix epoch time format for the campaign. Note that the end time must be less than 360 days from the start date. This field is no longer editable when the campaign status is set to `CLOSED`.  |
-| registration_start_time | int | N | The scheduled start time in Unix epoch format for seller product registration. Note that this field can be updated when the campaign status is set to `READY` or `UPCOMING` only. |
-| registration_end_time | int | N | The scheduled end time in Unix epoch time format for seller product registration. This field is no longer editable when the campaign status is set to `CLOSED`. |
-| commission_rate | int | N | The total commission rate in hundreds of a percent (0.01%) units proposed by the affiliate partner for display to sellers. Commission rate must be greater than 100 and less than 8000. |
-| contact_info | object | N | The partner's contact information. |
-| ^whatsapp | string | N | The partner's phone number registered in WhatsApp. Applicable if the target market is MY, SG, GB, ID, or US. |
-| ^email | string | N | The partner's email address. |
-| ^phone | string | N | The partner's phone number. |
-| ^zalo | string | N | The partner's phone number registered in Zalo. Applicable if the target market is VN. |
-| ^viber | string | N | The partner's phone number registered in Viber. Applicable if the target market is PH. |
-| ^line | string | N | The partner's phone number registered in LINE. Applicable if the target market is TH. |
-| target_shop_codes | []string | N | A list of TikTok Shop seller shop codes to allow to register for the campaign. The seller shop code in available in TikTok Shop Seller Central by clicking on the Seller Profile icon in the top right of the user interface. The list must be less than 100 items in length. |
-| target_seller_types | []string | N | A list of eligible seller types to allow to register for the campaign. Use this field to broadly target types of sellers instead of specific sellers in the `target_shop_codes` field. This is an enumerated type with possible values: - LOCAL - CROSS_BORDER |
+| x-tts-access-token | string | Y |  |
+| Content-Type | string | Y | Allowed type: application/json |
 
-### Request Sample
+### Response
 
-```
-https://open-api.tiktokglobalshop.com/affiliate_partner/202405/campaigns/7373988288167036678/partial_edit?app_key=123abc&sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c&timestamp=1625484268&category_asset_cipher=ROW_RHkDDABBAAB8tKAVoAqsMTjsQZFLyNfY
-```
-
-### Request Body Sample
-
-```json
-{
-  "name": "test campaign",
-  "description": "campaign for api test.",
-  "campaign_start_time": 1712941200,
-  "campaign_end_time": 1715878799,
-  "registration_start_time": 1712941200,
-  "registration_end_time": 1713891599,
-  "commission_rate": 1000,
-  "contact_info": {
-    "whatsapp": "+14255550100",
-    "email": "123456@gmail.com",
-    "phone": "+14255550100",
-    "zalo": "+14255550100",
-    "viber": "+14255550100",
-    "line": "+14255550100"
-  },
-  "target_shop_codes": [
-    "THCBELNL4Y"
-  ],
-  "target_seller_types": [
-    "CROSS_BORDER"
-  ]
-}
-```
-
-### Sample Code
-
-**Curl**
-```shell
-curl -X POST \
- 'https://open-api.tiktokglobalshop.com/affiliate_partner/202405/campaigns/7373988288167036678/partial_edit?app_key=38abcd&sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c&timestamp=1623812664&category_asset_cipher=GCP_XF90igAAAABh00qsWgtvOiGFNqyubMt3' \
--H 'x-tts-access-token: TTP_pwSm2AAAAABmmtFz1xlyKMnwg74T2GJ5s0uQbS8jPjb_GkdFVCxPqzQXSyuyfXdQa0AqyDsea2tYFNVf4XeqgZHFfPyv0Vs659QqyLYfsGzanZ5XZAin3_ZkcIxxS0_In6u6XDeU96k' \
--H 'content-type: application/json' \
--d '{
-  "name": "test campaign",
-  "description": "campaign for api test.",
-  "campaign_start_time": 1712941200,
-  "campaign_end_time": 1715878799,
-  "registration_start_time": 1712941200,
-  "registration_end_time": 1713891599,
-  "commission_rate": 1000,
-  "contact_info": {
-    "whatsapp": "+14255550100",
-    "email": "123456@gmail.com",
-    "phone": "+14255550100",
-    "zalo": "+14255550100",
-    "viber": "+14255550100",
-    "line": "+14255550100"
-  },
-  "target_shop_codes": [
-    "THCBELNL4Y"
-  ],
-  "target_seller_types": [
-    "CROSS_BORDER"
-  ]
-}'
-```
-
-**Go**
-```go
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-func affiliatePartner202405EditAffiliatePartnerCampaignPost() {
-    configuration := apis.NewConfiguration()
-    configuration.AddAppInfo(appKey, appSecret)
-    apiClient := apis.NewAPIClient(configuration)
-    request := apiClient.AffiliatePartnerV202405API.AffiliatePartner202405CampaignsCampaignIdPartialEditPost(context.Background(), "7373988288167036678")
-    request = request.XTtsAccessToken("your access token")
-    request = request.ContentType("application/json")
-    request = request.CategoryAssetCipher("GCP_XF90igAAAABh00qsWgtvOiGFNqyubMt3")
-    affiliatePartner202405EditAffiliatePartnerCampaignRequestBody := affiliatePartner_v202405.NewAffiliatePartner202405EditAffiliatePartnerCampaignRequestBody()
-    affiliatePartner202405EditAffiliatePartnerCampaignRequestBody.SetName("test campaign")
-    affiliatePartner202405EditAffiliatePartnerCampaignRequestBody.SetDescription("campaign for api test.")
-    affiliatePartner202405EditAffiliatePartnerCampaignRequestBody.SetCampaignStartTime(1712941200)
-    affiliatePartner202405EditAffiliatePartnerCampaignRequestBody.SetCampaignEndTime(1715878799)
-    affiliatePartner202405EditAffiliatePartnerCampaignRequestBody.SetRegistrationStartTime(1712941200)
-    affiliatePartner202405EditAffiliatePartnerCampaignRequestBody.SetRegistrationEndTime(1713891599)
-    affiliatePartner202405EditAffiliatePartnerCampaignRequestBody.SetCommissionRate(1000)
-    affiliatePartner202405EditAffiliatePartnerCampaignRequestBodyContactInfo := affiliatePartner_v202405.NewAffiliatePartner202405EditAffiliatePartnerCampaignRequestBodyContactInfo()
-    affiliatePartner202405EditAffiliatePartnerCampaignRequestBodyContactInfo.SetWhatsapp("+14255550100")
-    affiliatePartner202405EditAffiliatePartnerCampaignRequestBodyContactInfo.SetEmail("123456@gmail.com")
-    affiliatePartner202405EditAffiliatePartnerCampaignRequestBodyContactInfo.SetPhone("+14255550100")
-    affiliatePartner202405EditAffiliatePartnerCampaignRequestBodyContactInfo.SetZalo("+14255550100")
-    affiliatePartner202405EditAffiliatePartnerCampaignRequestBodyContactInfo.SetViber("+14255550100")
-    affiliatePartner202405EditAffiliatePartnerCampaignRequestBodyContactInfo.SetLine("+14255550100")
-    affiliatePartner202405EditAffiliatePartnerCampaignRequestBody.SetContactInfo(*affiliatePartner202405EditAffiliatePartnerCampaignRequestBodyContactInfo)
-    affiliatePartner202405EditAffiliatePartnerCampaignRequestBodyTargetShopCodesList := []string{"THCBELNL4Y"}
-    affiliatePartner202405EditAffiliatePartnerCampaignRequestBody.SetTargetShopCodes(affiliatePartner202405EditAffiliatePartnerCampaignRequestBodyTargetShopCodesList)
-    affiliatePartner202405EditAffiliatePartnerCampaignRequestBodyTargetSellerTypesList := []string{"CROSS_BORDER"}
-    affiliatePartner202405EditAffiliatePartnerCampaignRequestBody.SetTargetSellerTypes(affiliatePartner202405EditAffiliatePartnerCampaignRequestBodyTargetSellerTypesList)
-    request = request.AffiliatePartner202405EditAffiliatePartnerCampaignRequestBody(*affiliatePartner202405EditAffiliatePartnerCampaignRequestBody)
-    resp, httpResp, err := request.Execute()
-    if err != nil || httpResp.StatusCode != 200 {
-        fmt.Printf("productsRequest err:%v resbody:%s", err, httpResp.Body)
-        return
-    }
-    if resp == nil {
-        fmt.Printf("response is nil")
-        return
-    }
-    if resp.GetCode()!= 0 {
-        fmt.Printf("response business is error, errorCode:%d errorMessage:%s", resp.GetCode(), resp.GetMessage())
-        return
-    }
-    respDataJson, _ := json.MarshalIndent(resp.GetData(), "", "  ")
-    fmt.Println("response data:", string(respDataJson))
-    return
-}
-
-```
-
-**Node.js**
-```typescript
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-async function affiliatePartner202405EditAffiliatePartnerCampaignPost() {
-    const affiliatePartner202405EditAffiliatePartnerCampaignRequestBody = new AffiliatePartner202405EditAffiliatePartnerCampaignRequestBody();
-    affiliatePartner202405EditAffiliatePartnerCampaignRequestBody.name = "test campaign";
-    affiliatePartner202405EditAffiliatePartnerCampaignRequestBody.description = "campaign for api test.";
-    affiliatePartner202405EditAffiliatePartnerCampaignRequestBody.campaignStartTime = 1712941200;
-    affiliatePartner202405EditAffiliatePartnerCampaignRequestBody.campaignEndTime = 1715878799;
-    affiliatePartner202405EditAffiliatePartnerCampaignRequestBody.registrationStartTime = 1712941200;
-    affiliatePartner202405EditAffiliatePartnerCampaignRequestBody.registrationEndTime = 1713891599;
-    affiliatePartner202405EditAffiliatePartnerCampaignRequestBody.commissionRate = 1000;
-    const affiliatePartner202405EditAffiliatePartnerCampaignRequestBodyContactInfo = new AffiliatePartner202405EditAffiliatePartnerCampaignRequestBodyContactInfo();
-    affiliatePartner202405EditAffiliatePartnerCampaignRequestBodyContactInfo.whatsapp = "+14255550100";
-    affiliatePartner202405EditAffiliatePartnerCampaignRequestBodyContactInfo.email = "123456@gmail.com";
-    affiliatePartner202405EditAffiliatePartnerCampaignRequestBodyContactInfo.phone = "+14255550100";
-    affiliatePartner202405EditAffiliatePartnerCampaignRequestBodyContactInfo.zalo = "+14255550100";
-    affiliatePartner202405EditAffiliatePartnerCampaignRequestBodyContactInfo.viber = "+14255550100";
-    affiliatePartner202405EditAffiliatePartnerCampaignRequestBodyContactInfo.line = "+14255550100";
-    affiliatePartner202405EditAffiliatePartnerCampaignRequestBody.contactInfo = affiliatePartner202405EditAffiliatePartnerCampaignRequestBodyContactInfo;
-    affiliatePartner202405EditAffiliatePartnerCampaignRequestBody.targetShopCodes = ["THCBELNL4Y"];
-    affiliatePartner202405EditAffiliatePartnerCampaignRequestBody.targetSellerTypes = ["CROSS_BORDER"];
-    const result = await client.api.AffiliatePartnerV202405Api.CampaignsCampaignIdPartialEditPost("7373988288167036678", "GCP_XF90igAAAABh00qsWgtvOiGFNqyubMt3", "your access token", "application/json", affiliatePartner202405EditAffiliatePartnerCampaignRequestBody);
-    console.log('response: ', JSON.stringify(result, null, 2));
-}
-
-```
-
-**Java**
-```java
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-public void affiliatePartner202405EditAffiliatePartnerCampaignPost() throws Exception {
-    ApiClient defaultClient = Configuration.getDefaultApiClient()
-            .setAppkey("your appKey")
-            .setSecret("your secret")
-            .setBasePath("https://open-api.tiktokglobalshop.com");
-    AffiliatePartnerV202405Api apiInstance = new AffiliatePartnerV202405Api(defaultClient);
-    EditAffiliatePartnerCampaignRequestBody editAffiliatePartnerCampaignRequestBody = new EditAffiliatePartnerCampaignRequestBody();
-    editAffiliatePartnerCampaignRequestBody.setName("test campaign");
-    editAffiliatePartnerCampaignRequestBody.setDescription("campaign for api test.");
-    editAffiliatePartnerCampaignRequestBody.setCampaignStartTime(1712941200L);
-    editAffiliatePartnerCampaignRequestBody.setCampaignEndTime(1715878799L);
-    editAffiliatePartnerCampaignRequestBody.setRegistrationStartTime(1712941200L);
-    editAffiliatePartnerCampaignRequestBody.setRegistrationEndTime(1713891599L);
-    editAffiliatePartnerCampaignRequestBody.setCommissionRate(1000L);
-    EditAffiliatePartnerCampaignRequestBodyContactInfo editAffiliatePartnerCampaignRequestBodyContactInfo = new tiktokshop.open.sdk_java.model.AffiliatePartner.V202405.EditAffiliatePartnerCampaignRequestBodyContactInfo();
-    editAffiliatePartnerCampaignRequestBodyContactInfo.setWhatsapp("+14255550100");
-    editAffiliatePartnerCampaignRequestBodyContactInfo.setEmail("123456@gmail.com");
-    editAffiliatePartnerCampaignRequestBodyContactInfo.setPhone("+14255550100");
-    editAffiliatePartnerCampaignRequestBodyContactInfo.setZalo("+14255550100");
-    editAffiliatePartnerCampaignRequestBodyContactInfo.setViber("+14255550100");
-    editAffiliatePartnerCampaignRequestBodyContactInfo.setLine("+14255550100");
-    editAffiliatePartnerCampaignRequestBody.setContactInfo(editAffiliatePartnerCampaignRequestBodyContactInfo);
-    List<String> editAffiliatePartnerCampaignRequestBodyTargetShopCodesList = new ArrayList<>(Arrays.asList("THCBELNL4Y"));
-    editAffiliatePartnerCampaignRequestBody.setTargetShopCodes(editAffiliatePartnerCampaignRequestBodyTargetShopCodesList);
-    List<String> editAffiliatePartnerCampaignRequestBodyTargetSellerTypesList = new ArrayList<>(Arrays.asList("CROSS_BORDER"));
-    editAffiliatePartnerCampaignRequestBody.setTargetSellerTypes(editAffiliatePartnerCampaignRequestBodyTargetSellerTypesList);
-    EditAffiliatePartnerCampaignResponse result = apiInstance.affiliatePartner202405CampaignsCampaignIdPartialEditPost("7373988288167036678", "GCP_XF90igAAAABh00qsWgtvOiGFNqyubMt3", "your access token", "application/json", editAffiliatePartnerCampaignRequestBody);
-    System.out.println(result);
-}
-
-```
-
-### Response Parameters
-
-| Name | Type | Example | Description |
+| Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| code | int | 0 | The success or failure status code returned in API response. |
-| message | string | Success | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
-| request_id | string | 202203070749000101890810281E8C70B7 | Request log |
-| data | object |  | Specific return information |
-
-### Response Sample
-
-```json
-{
-  "code": 0,
-  "data": {},
-  "message": "Success",
-  "request_id": "202203070749000101890810281E8C70B7"
-}
-```
-
-### Error Codes
-
-| Code | Message |
-| --- | --- |
-| 16032001 | nvalid parameter Creator and Seller, please ensure Region mismatch. |
-| 16032002 | Invalid campaign period |
-| 16032003 | Invalid registration period |
-| 16032004 | Invalid campaign seller scope |
-| 16032005 | Campaign not found |
-| 16032007 | Permission denied |
-| 16032008 | Operation denied |
-
-### API Scope / Permissions
-
-| Scope Name | Type | Description |
-| --- | --- | --- |
-| Manage Affiliate Partner Campaigns | Private | The application will be able to manage a TikTok Shop Affiliate Partner (TAP) campaign, including create/edit/view partner campaigns. |
+| code | integer |  | The success or failure status code returned in API response. |
+| data | object |  | Specific return information. |
+| ^campaign_end_time | integer |  | The scheduled end time in Unix epoch time format for the campaign. Note that the end time must be less than 360 days from the start date. This field is no longer editable when the campaign status is set to `CLOSED`. |
+| ^campaign_start_time | integer |  | The scheduled start time in Unix epoch time format for the campaign. Note that this field can be updated when the campaign status is set to `READY` or `UPCOMING` only. |
+| ^commission_rate | integer |  | The total commission rate in hundredths of a percent (0.01%) units proposed by the affiliate partner for display to sellers. Commission rate must be greater than 100 and less than 8000. |
+| ^contact_info | object |  | The campaign creator's contact information. |
+| ^^email | string |  | Email |
+| ^^line | string |  | Line account number |
+| ^^phone | string |  | Phone number |
+| ^^viber | string |  | Viber account number |
+| ^^whatsapp | string |  | WhatsApp account number |
+| ^^zalo | string |  | Zalo account number |
+| ^description | string |  | The campaign description. The campaign description must be less than 1000 characters. |
+| ^id | string |  | The campaign identifier. |
+| ^name | string |  | The campaign name. The campaign name must be less than 50 characters. |
+| ^region | string |  | The region to which the campaign is associated. |
+| ^registration_end_time | integer |  | The scheduled end time in Unix epoch time format for seller product registration. This field is no longer editable when the campaign status is set to `CLOSED`. |
+| ^registration_start_time | integer |  | The scheduled start time in Unix epoch format for seller product registration. Note that this field can be updated when the campaign status is set to `READY` or `UPCOMING` only. |
+| ^status | string |  | The campaign status. The status is an enumerated type with values: - READY - UPCOMING - ONGOING - CLOSED |
+| ^target_seller_types | array<string> |  | A list of eligible seller types to allow to register for the campaign. Use this field to broadly target types of sellers instead of specific sellers in the `target_shop_codes` field. This is an enumerated type with possible values: - LOCAL - CROSS_BORDER |
+| ^target_shops | array<object> |  | A list of TikTok Shop seller shop codes and names with permission to register for the campaign. |
+| ^^code | string |  | The seller shop code in available in TikTok Shop Seller Central by clicking on the Seller Profile icon in the top right of the user interface. |
+| ^^name | string |  | The TikTok Shop name. |
+| message | string |  | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
+| request_id | string |  | Request log. |
 
 ---
 
-## Publish Affiliate Partner Campaign
+## EditAffiliatePartnerCampaign
 
-This API offers the ability to publish an Affiliate Partner campaign. The campaign will be displayed to sellers after publishing.
+This API offers the ability to edit an Affiliate Partner campaign. No editing after the campaign is closed.
 
-**Path:** `/affiliate_partner/202405/campaigns/{campaign_id}/publish`
-
+**Path:** `/affiliate_partner/202405/campaigns/{campaign_id}/partial_edit`
 **Method:** `POST`
+**Version:** 202405
+**Docs:** https://partner.tiktokshop.com/docv2/page/edit-affiliate-partner-campaign-202405
 
-**Common Parameters:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a4278f4c20311b8b57e)
-
-**Common Error Codes:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a45786253031531b942)
-
-### Request Header Parameters
+### Path Parameters
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| content-type | string | Y | Allowed type: application/json |
-| x-tts-access-token | string | Y | The partner access_token value from [Get Access Token](https://partner.tiktokshop.com/docv2/page/678e3a3292b0f40314a92d75#Get%20Access%20Token%20API), when user_type = 3. Follow this [guide](https://partner.tiktokshop.com/docv2/page/678e3a3978f4c20311b8b555) to get partner access_token. |
+| campaign_id | string | Y | The ID of the campaign. |
 
-### Request Path Parameters
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| campaign_id | string | Y | The campaign identifier. |
-
-### Request Query Parameters
+### Query Parameters
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| app_key | string | Y | Every single app will have a unique key. Please use the specific key assigned to your app. |
-| sign | string | Y | Signature generated by gen algorithm. When you send API requests to TTS, you must sign them so that TTS can identify the senders.  |
-| timestamp | int | Y | Unix timestamp GMT (UTC+00:00). This timestamp is used across all API requests. Developers can use this convert to local time. |
-| category_asset_cipher | string | Y | The partner identifier used in API requests. Retrieve this value by using the [Get Authorized Category Assets API] (https://partner.tiktokshop.com/docv2/page/666012dd609d4402cc3be995).  |
+| category_asset_cipher | string | Y | The partner identifier used in API requests.  Retrieve this value by using the [Get Authorized Category Assets API] (https://partner.tiktokshop.com/docv2/page/666012dd609d4402cc3be995). |
 
-### Request Sample
+### Header Parameters
 
-```
-https://open-api.tiktokglobalshop.com/affiliate_partner/202405/campaigns/7373988288167036678/publish?app_key=123abc&sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c&timestamp=1625484268&category_asset_cipher=ROW_RHkDDABBAAB8tKAVoAqsMTjsQZFLyNfY
-```
-
-### Request Body Sample
-
-```json
-{}
-```
-
-### Sample Code
-
-**Curl**
-```shell
-curl -X POST \
- 'https://open-api.tiktokglobalshop.com/affiliate_partner/202405/campaigns/7373988288167036678/publish?timestamp=1623812664&app_key=38abcd&sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c&category_asset_cipher=GCP_XF90igAAAABh00qsWgtvOiGFNqyubMt3' \
--H 'content-type: application/json' \
--H 'x-tts-access-token: TTP_pwSm2AAAAABmmtFz1xlyKMnwg74T2GJ5s0uQbS8jPjb_GkdFVCxPqzQXSyuyfXdQa0AqyDsea2tYFNVf4XeqgZHFfPyv0Vs659QqyLYfsGzanZ5XZAin3_ZkcIxxS0_In6u6XDeU96k' \
--d '{}'
-```
-
-**Go**
-```go
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-func affiliatePartner202405PublishAffiliatePartnerCampaignPost() {
-    configuration := apis.NewConfiguration()
-    configuration.AddAppInfo(appKey, appSecret)
-    apiClient := apis.NewAPIClient(configuration)
-    request := apiClient.AffiliatePartnerV202405API.AffiliatePartner202405CampaignsCampaignIdPublishPost(context.Background(), "7373988288167036678")
-    request = request.XTtsAccessToken("your access token")
-    request = request.ContentType("application/json")
-    request = request.CategoryAssetCipher("GCP_XF90igAAAABh00qsWgtvOiGFNqyubMt3")
-    resp, httpResp, err := request.Execute()
-    if err != nil || httpResp.StatusCode != 200 {
-        fmt.Printf("productsRequest err:%v resbody:%s", err, httpResp.Body)
-        return
-    }
-    if resp == nil {
-        fmt.Printf("response is nil")
-        return
-    }
-    if resp.GetCode()!= 0 {
-        fmt.Printf("response business is error, errorCode:%d errorMessage:%s", resp.GetCode(), resp.GetMessage())
-        return
-    }
-    respDataJson, _ := json.MarshalIndent(resp.GetData(), "", "  ")
-    fmt.Println("response data:", string(respDataJson))
-    return
-}
-
-```
-
-**Node.js**
-```typescript
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-async function affiliatePartner202405PublishAffiliatePartnerCampaignPost() {
-    const result = await client.api.AffiliatePartnerV202405Api.CampaignsCampaignIdPublishPost("7373988288167036678", "GCP_XF90igAAAABh00qsWgtvOiGFNqyubMt3", "your access token", "application/json");
-    console.log('response: ', JSON.stringify(result, null, 2));
-}
-
-```
-
-**Java**
-```java
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-public void affiliatePartner202405PublishAffiliatePartnerCampaignPost() throws Exception {
-    ApiClient defaultClient = Configuration.getDefaultApiClient()
-            .setAppkey("your appKey")
-            .setSecret("your secret")
-            .setBasePath("https://open-api.tiktokglobalshop.com");
-    AffiliatePartnerV202405Api apiInstance = new AffiliatePartnerV202405Api(defaultClient);
-    PublishAffiliatePartnerCampaignResponse result = apiInstance.affiliatePartner202405CampaignsCampaignIdPublishPost("7373988288167036678", "GCP_XF90igAAAABh00qsWgtvOiGFNqyubMt3", "your access token", "application/json");
-    System.out.println(result);
-}
-
-```
-
-### Response Parameters
-
-| Name | Type | Example | Description |
+| Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| code | int | 0 | The success or failure status code returned in API response. |
-| message | string | Success | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
-| request_id | string | 202203070749000101890810281E8C70B7 | Request log |
-| data | object |  | Specific return information |
+| x-tts-access-token | string | Y |  |
+| Content-Type | string | Y | Allowed type: application/json |
 
-### Response Sample
+### Request Body (`application/json`)
 
-```json
-{
-  "code": 0,
-  "data": {},
-  "message": "Success",
-  "request_id": "202203070749000101890810281E8C70B7"
-}
-```
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| campaign_end_time | integer |  | The scheduled end time in Unix epoch time format for the campaign. Note that the end time must be less than 360 days from the start date. This field is no longer editable when the campaign status is set to `CLOSED`. |
+| campaign_start_time | integer |  | The scheduled start time in Unix epoch time format for the campaign. Note that this field can be updated when the campaign status is set to `READY` or `UPCOMING` only. |
+| commission_rate | integer |  | The total commission rate in hundreds of a percent (0.01%) units proposed by the affiliate partner for display to sellers. Commission rate must be greater than 100 and less than 8000. |
+| contact_info | object |  | The partner's contact information. |
+| ^email | string |  | The partner's email address. |
+| ^line | string |  | The partner's phone number registered in LINE. Applicable if the target market is TH. |
+| ^phone | string |  | The partner's phone number. |
+| ^viber | string |  | The partner's phone number registered in Viber. Applicable if the target market is PH. |
+| ^whatsapp | string |  | The partner's phone number registered in WhatsApp. Applicable if the target market is MY, SG, GB, ID, or US. |
+| ^zalo | string |  | The partner's phone number registered in Zalo. Applicable if the target market is VN. |
+| description | string |  | The campaign description. The campaign description must be less than 1000 characters. |
+| name | string |  | The campaign name. The campaign name must be less than 50 characters. |
+| registration_end_time | integer |  | The scheduled end time in Unix epoch time format for seller product registration. This field is no longer editable when the campaign status is set to `CLOSED`. |
+| registration_start_time | integer |  | The scheduled start time in Unix epoch format for seller product registration. Note that this field can be updated when the campaign status is set to `READY` or `UPCOMING` only. |
+| target_seller_types | array<string> |  | A list of eligible seller types to allow to register for the campaign. Use this field to broadly target types of sellers instead of specific sellers in the `target_shop_codes` field. This is an enumerated type with possible values: - LOCAL - CROSS_BORDER |
+| target_shop_codes | array<string> |  | A list of TikTok Shop seller shop codes to allow to register for the campaign. The seller shop code in available in TikTok Shop Seller Central by clicking on the Seller Profile icon in the top right of the user interface. The list must be less than 100 items in length. |
 
-### Error Codes
+### Response
 
-| Code | Message |
-| --- | --- |
-| 16032001 | nvalid parameter Creator and Seller, please ensure Region mismatch. |
-| 16032005 | Campaign not found |
-| 16032007 | Permission denied |
-| 16032008 | Operation denied |
-| 16032011 | Max campaign online count reached |
-
-### API Scope / Permissions
-
-| Scope Name | Type | Description |
-| --- | --- | --- |
-| Manage Affiliate Partner Campaigns | Private | The application will be able to manage a TikTok Shop Affiliate Partner (TAP) campaign, including create/edit/view partner campaigns. |
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| code | integer |  | The success or failure status code returned in API response. |
+| data | object |  | Specific return information. |
+| message | string |  | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
+| request_id | string |  | Request log. |
 
 ---
 
-## Review Affiliate Partner Campaign Product
+## GetAffiliatePartnerCampaignProductList
 
-This API offers the ability for the TikTok Affiliate Partner to review the products submitted by the sellers. This API offers the ability for the TikTok Affiliate Partner to review the products submitted by the sellers.
+This API offers the ability to list products submitted by sellers in an Affiliate Partner campaign.
 
-**Path:** `/affiliate_partner/202405/campaigns/{campaign_id}/products/{product_id}/review`
+**Path:** `/affiliate_partner/202405/campaigns/{campaign_id}/products`
+**Method:** `GET`
+**Version:** 202405
+**Docs:** https://partner.tiktokshop.com/docv2/page/get-affiliate-partner-campaign-product-list-202405
 
-**Method:** `POST`
-
-**Common Parameters:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a4278f4c20311b8b57e)
-
-**Common Error Codes:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a45786253031531b942)
-
-### Request Header Parameters
+### Path Parameters
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| content-type | string | Y | Allowed type: application/json |
-| x-tts-access-token | string | Y | The partner access_token value from [Get Access Token](https://partner.tiktokshop.com/docv2/page/678e3a3292b0f40314a92d75#Get%20Access%20Token%20API), when user_type = 3. Follow this [guide](https://partner.tiktokshop.com/docv2/page/678e3a3978f4c20311b8b555) to get partner access_token. |
+| campaign_id | string | Y | The ID of the campaign. |
 
-### Request Path Parameters
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| campaign_id | string | Y | The campaign identifier. |
-| product_id | string | Y | The product identifier. |
-
-### Request Query Parameters
+### Query Parameters
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| app_key | string | Y | Every single app will have a unique key. Please use the specific key assigned to your app. |
-| sign | string | Y | Signature generated by gen algorithm. When you send API requests to TTS, you must sign them so that TTS can identify the senders.  |
-| timestamp | int | Y | Unix timestamp GMT (UTC+00:00). This timestamp is used across all API requests. Developers can use this convert to local time. |
-| category_asset_cipher | string | Y | The partner identifier used in API requests. Retrieve this value by using the [Get Authorized Category Assets API] (https://partner.tiktokshop.com/docv2/page/666012dd609d4402cc3be995).  |
+| category_asset_cipher | string | Y | The partner identifier used in API requests. Retrieve this value by using the [Get Authorized Category Assets API](https://partner.tiktokshop.com/docv2/page/666012dd609d4402cc3be995). |
+| page_size | integer | Y | The number of results to be returned per page. |
+| page_token | string |  | An opaque token used to retrieve the next page of a paginated result set. Retrieve this value from the result of the `next_page_token` from a previous response. It is not needed for the first page. |
+| review_status | string |  | The product review status. This an enumerated type with values: - PENDING - APPROVED - REJECTED - PENDING_CLOSED - CLOSED |
+| product_name | string |  | Filter the product list by product name. If value of `product_name` is contained in `product.name`, the product will be included in the response. |
+| product_id | string |  | Filter the product list by product ID. If value of `product_id` matches `product.id`, the product will be included in the response. |
+| shop_name | string |  | Filter the product list by shop name. If value of `shop_name` is contained in `product.shop_name`, the product will be included in the response. |
+| category_id | string |  | Filter the product list by category ID. If value of `category_id` matches `product.category.id`, or the product falls into the leaf category of the specified category, the product will be included in the response. |
 
-### Request Body Parameters
+### Header Parameters
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| review_result | string | Y | The product review decision by the TikTok Affiliate Partner. This is an enumerated type with values: - APPROVE - REJECT - REJECT_FOREVER |
-| reject_reasons | []string | N | If the `review_result` property is set to `REJECT` or `REJECT_FOREVER`, this property is set to the enumerated reason that the TikTok Affiliate Partner rejected the product. This is an enumerated type with values: - COMMISSION_TOO_LOW - PRODUCT_HARD_TO_PROMOTE - PRODUCT_TOO_EXPENSIVE - NO_SUITABLE_CREATOR |
+| x-tts-access-token | string | Y |  |
+| Content-Type | string | Y | Allowed type: application/json |
 
-### Request Sample
+### Response
 
-```
-https://open-api.tiktokglobalshop.com/affiliate_partner/202405/campaigns/7373988288167036678/products/1730064726487763199/review?app_key=123abc&sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c&timestamp=1625484268&category_asset_cipher=ROW_RHkDDABBAAB8tKAVoAqsMTjsQZFLyNfY
-```
-
-### Request Body Sample
-
-```json
-{
-  "review_result": "APPROVE",
-  "reject_reasons": [
-    "COMMISSION_TOO_LOW"
-  ]
-}
-```
-
-### Sample Code
-
-**Curl**
-```shell
-curl -X POST \
- 'https://open-api.tiktokglobalshop.com/affiliate_partner/202405/campaigns/7373988288167036678/products/1730064726487763199/review?timestamp=1623812664&app_key=38abcd&sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c&category_asset_cipher=GCP_XF90igAAAABh00qsWgtvOiGFNqyubMt3' \
--H 'content-type: application/json' \
--H 'x-tts-access-token: TTP_pwSm2AAAAABmmtFz1xlyKMnwg74T2GJ5s0uQbS8jPjb_GkdFVCxPqzQXSyuyfXdQa0AqyDsea2tYFNVf4XeqgZHFfPyv0Vs659QqyLYfsGzanZ5XZAin3_ZkcIxxS0_In6u6XDeU96k' \
--d '{
-  "review_result": "APPROVE",
-  "reject_reasons": [
-    "COMMISSION_TOO_LOW"
-  ]
-}'
-```
-
-**Go**
-```go
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-func affiliatePartner202405ReviewAffiliatePartnerCampaignProductPost() {
-    configuration := apis.NewConfiguration()
-    configuration.AddAppInfo(appKey, appSecret)
-    apiClient := apis.NewAPIClient(configuration)
-    request := apiClient.AffiliatePartnerV202405API.AffiliatePartner202405CampaignsCampaignIdProductsProductIdReviewPost(context.Background(), "7373988288167036678", "1730064726487763199")
-    request = request.XTtsAccessToken("your access token")
-    request = request.ContentType("application/json")
-    request = request.CategoryAssetCipher("GCP_XF90igAAAABh00qsWgtvOiGFNqyubMt3")
-    affiliatePartner202405ReviewAffiliatePartnerCampaignProductRequestBody := affiliatePartner_v202405.NewAffiliatePartner202405ReviewAffiliatePartnerCampaignProductRequestBody()
-    affiliatePartner202405ReviewAffiliatePartnerCampaignProductRequestBody.SetReviewResult("APPROVE")
-    affiliatePartner202405ReviewAffiliatePartnerCampaignProductRequestBodyRejectReasonsList := []string{"COMMISSION_TOO_LOW"}
-    affiliatePartner202405ReviewAffiliatePartnerCampaignProductRequestBody.SetRejectReasons(affiliatePartner202405ReviewAffiliatePartnerCampaignProductRequestBodyRejectReasonsList)
-    request = request.AffiliatePartner202405ReviewAffiliatePartnerCampaignProductRequestBody(*affiliatePartner202405ReviewAffiliatePartnerCampaignProductRequestBody)
-    resp, httpResp, err := request.Execute()
-    if err != nil || httpResp.StatusCode != 200 {
-        fmt.Printf("productsRequest err:%v resbody:%s", err, httpResp.Body)
-        return
-    }
-    if resp == nil {
-        fmt.Printf("response is nil")
-        return
-    }
-    if resp.GetCode()!= 0 {
-        fmt.Printf("response business is error, errorCode:%d errorMessage:%s", resp.GetCode(), resp.GetMessage())
-        return
-    }
-    respDataJson, _ := json.MarshalIndent(resp.GetData(), "", "  ")
-    fmt.Println("response data:", string(respDataJson))
-    return
-}
-
-```
-
-**Node.js**
-```typescript
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-async function affiliatePartner202405ReviewAffiliatePartnerCampaignProductPost() {
-    const affiliatePartner202405ReviewAffiliatePartnerCampaignProductRequestBody = new AffiliatePartner202405ReviewAffiliatePartnerCampaignProductRequestBody();
-    affiliatePartner202405ReviewAffiliatePartnerCampaignProductRequestBody.reviewResult = "APPROVE";
-    affiliatePartner202405ReviewAffiliatePartnerCampaignProductRequestBody.rejectReasons = ["COMMISSION_TOO_LOW"];
-    const result = await client.api.AffiliatePartnerV202405Api.CampaignsCampaignIdProductsProductIdReviewPost("7373988288167036678", "1730064726487763199", "GCP_XF90igAAAABh00qsWgtvOiGFNqyubMt3", "your access token", "application/json", affiliatePartner202405ReviewAffiliatePartnerCampaignProductRequestBody);
-    console.log('response: ', JSON.stringify(result, null, 2));
-}
-
-```
-
-**Java**
-```java
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-public void affiliatePartner202405ReviewAffiliatePartnerCampaignProductPost() throws Exception {
-    ApiClient defaultClient = Configuration.getDefaultApiClient()
-            .setAppkey("your appKey")
-            .setSecret("your secret")
-            .setBasePath("https://open-api.tiktokglobalshop.com");
-    AffiliatePartnerV202405Api apiInstance = new AffiliatePartnerV202405Api(defaultClient);
-    ReviewAffiliatePartnerCampaignProductRequestBody reviewAffiliatePartnerCampaignProductRequestBody = new ReviewAffiliatePartnerCampaignProductRequestBody();
-    reviewAffiliatePartnerCampaignProductRequestBody.setReviewResult("APPROVE");
-    List<String> reviewAffiliatePartnerCampaignProductRequestBodyRejectReasonsList = new ArrayList<>(Arrays.asList("COMMISSION_TOO_LOW"));
-    reviewAffiliatePartnerCampaignProductRequestBody.setRejectReasons(reviewAffiliatePartnerCampaignProductRequestBodyRejectReasonsList);
-    ReviewAffiliatePartnerCampaignProductResponse result = apiInstance.affiliatePartner202405CampaignsCampaignIdProductsProductIdReviewPost("7373988288167036678", "1730064726487763199", "GCP_XF90igAAAABh00qsWgtvOiGFNqyubMt3", "your access token", "application/json", reviewAffiliatePartnerCampaignProductRequestBody);
-    System.out.println(result);
-}
-
-```
-
-### Response Parameters
-
-| Name | Type | Example | Description |
+| Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| code | int | 0 | The success or failure status code returned in API response. |
-| message | string | Success | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
-| request_id | string | 202203070749000101890810281E8C70B7 | Request log |
-| data | object |  | Specific return information |
-
-### Response Sample
-
-```json
-{
-  "code": 0,
-  "data": {},
-  "message": "Success",
-  "request_id": "202203070749000101890810281E8C70B7"
-}
-```
-
-### Error Codes
-
-| Code | Message |
-| --- | --- |
-| 16032001 | nvalid parameter Creator and Seller, please ensure Region mismatch. |
-| 16032005 | Campaign not found |
-| 16032007 | Permission denied |
-| 16032009 | Product operation denied, please ensure campaign is under online status. |
-
-### API Scope / Permissions
-
-| Scope Name | Type | Description |
-| --- | --- | --- |
-| Manage Affiliate Partner Campaign Products | Private | The application will be able to manage TikTok Shop Affiliate Partner (TAP) campaign products review. |
+| code | integer |  | The success or failure status code returned in API response. |
+| data | object |  | Specific return information. |
+| ^next_page_token | string |  | An opaque token used to retrieve the next page of a paginated result set. |
+| ^products | array<object> |  | The list of products. |
+| ^^category | object |  | The leaf category to which this product is associated. |
+| ^^^id | string |  | The category identifier. |
+| ^^^name | string |  | The category name. |
+| ^^creator_commission_rate | integer |  | The creator commission rate in hundredths of a percent (0.01%) units. |
+| ^^highest_price | object |  | The highest original price of all SKUs of this product. |
+| ^^^amount | string |  | The highest price amount. |
+| ^^^currency | string |  | The currency code for the region in which the product is sold. |
+| ^^id | string |  | The product identifier. |
+| ^^inventory | integer |  | The number of in-stock units of all SKUs for this product. |
+| ^^is_available | boolean |  | Set to `true` if a product URL is available. Set to `false` if no product URL is available. |
+| ^^lowest_price | object |  | The lowest original price of all SKUs of this product. |
+| ^^^amount | string |  | The lowest price amount. |
+| ^^^currency | string |  | The currency in the sales region. |
+| ^^main_image_url | string |  | The product image URL. |
+| ^^name | string |  | The product name. |
+| ^^open_collaboration_commission_rate | integer |  | The product open collaboration commission rate in hundredths of a percent (0.01%) units. |
+| ^^partner_commission_rate | integer |  | The partner commission rate in hundredths of a percent (0.01%) units. |
+| ^^product_description | string |  | Return product description |
+| ^^product_sales | integer |  | The total number of units sold of this product for this campaign. |
+| ^^review_status | string |  | The product review status. This an enumerated type with values: - PENDING - APPROVED - REJECTED - PENDING_CLOSED - CLOSED |
+| ^^sample_quota | integer |  | The total amount of sample inventory available for allocation to creators by the seller. |
+| ^^shop_name | string |  | The TikTok Shop name. |
+| ^^sku_information_list | array<object> |  | A list of Stock Keeping Units (SKUs) used to identify distinct variants of the product. |
+| ^^^base_price | object |  | the base price of the sku |
+| ^^^^currency | string |  | The currency of the SKU price. Possible values based on the region: - BRL:  Brazil - EUR: France, Germany, Ireland, Italy, Spain - GBP: United Kingdom - IDR: Indonesia - JPY: Japan - MXN: Mexico - MYR: Malaysia - PHP: Philippines - SGD: Singapore - THB: Thailand - USD: United States - VND: Vietnam |
+| ^^^^list_price | string |  | The SKU's list price information that has been verified to be legitimate by the audit team. This is equivalent to the manufacturer's suggested retail price (MSRP), or the recommended retail price (RRP). |
+| ^^^^localized_dutiable_price | string |  | localized dutiable price |
+| ^^^^region_code | string |  | the region code of the sku |
+| ^^^^sale_price | string |  | The SKU's selling price, inclusive of tax. Applicable only for cross-border sellers from China. |
+| ^^^inventory | object |  | SKU inventory details. |
+| ^^^^available_quantity | string |  | The total SKU quantity available in the warehouse. |
+| ^^^properties | array<object> |  | The properties of the sku |
+| ^^^^name | string |  | the name of the property |
+| ^^^^value_name | string |  | the name of the value |
+| ^^^region_prices | array<object> |  | region prices |
+| ^^^^currency | string |  | The currency of the SKU price. Possible values based on the region: - BRL:  Brazil - EUR: France, Germany, Ireland, Italy, Spain - GBP: United Kingdom - IDR: Indonesia - JPY: Japan - MXN: Mexico - MYR: Malaysia - PHP: Philippines - SGD: Singapore - THB: Thailand - USD: United States - VND: Vietnam |
+| ^^^^list_price | string |  | The SKU's list price information that has been verified to be legitimate by the audit team. This is equivalent to the manufacturer's suggested retail price (MSRP), or the recommended retail price (RRP). |
+| ^^^^localized_dutiable_price | string |  | localized dutiable price |
+| ^^^^region_code | string |  | the region code of the sku |
+| ^^^^sale_price | string |  | The SKU's selling price, inclusive of tax. Applicable only for cross-border sellers from China. |
+| ^^^sku_id | string |  | The id of the sku |
+| ^^^sku_name | string |  | The name of the sku |
+| ^^total_commission_rate | integer |  | The total commission rate in hundredths of a percent (0.01%) units. |
+| ^total_count | integer |  | The total number of products in the list. |
+| message | string |  | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
+| request_id | string |  | Request log. |
 
 ---
 
-## Generate Affiliate Partner Campaign Product Link
+## GenerateAffiliatePartnerCampaignProductLink
 
 This API offers the ability to generate campaign product promotion links.
 
 **Path:** `/affiliate_partner/202405/campaigns/{campaign_id}/products/{product_id}/promotion_link/generate`
-
 **Method:** `POST`
+**Version:** 202405
+**Docs:** https://partner.tiktokshop.com/docv2/page/generate-affiliate-partner-campaign-product-link-202405
 
-**Common Parameters:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a4278f4c20311b8b57e)
-
-**Common Error Codes:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a45786253031531b942)
-
-### Request Header Parameters
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| content-type | string | Y | Allowed type: application/json |
-| x-tts-access-token | string | Y | The partner access_token value from [Get Access Token](https://partner.tiktokshop.com/docv2/page/678e3a3292b0f40314a92d75#Get%20Access%20Token%20API), when user_type = 3. Follow this [guide](https://partner.tiktokshop.com/docv2/page/678e3a3978f4c20311b8b555) to get partner access_token. |
-
-### Request Path Parameters
+### Path Parameters
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
 | campaign_id | string | Y | The ID of the campaign. |
 | product_id | string | Y | The ID of the product. |
 
-### Request Query Parameters
+### Query Parameters
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| app_key | string | Y | Every single app will have a unique key. Please use the specific key assigned to your app. |
-| sign | string | Y | Signature generated by gen algorithm. When you send API requests to TTS, you must sign them so that TTS can identify the senders.  |
-| timestamp | int | Y | Unix timestamp GMT (UTC+00:00). This timestamp is used across all API requests. Developers can use this convert to local time. |
-| category_asset_cipher | string | Y | The partner identifier used in API requests. Retrieve this value by using the [Get Authorized Category Assets API] (https://partner.tiktokshop.com/docv2/page/666012dd609d4402cc3be995).  |
+| category_asset_cipher | string | Y | The partner identifier used in API requests. Retrieve this value by using the [Get Authorized Category Assets API] (https://partner.tiktokshop.com/docv2/page/666012dd609d4402cc3be995). |
 
-### Request Body Parameters
+### Header Parameters
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| creator_commission_rate | int | Y | The commission rate paid to a creator in hundredths of a percent (0.01%). The commission rate must be lower than or equal to the total commission rate set by the seller. |
+| x-tts-access-token | string | Y |  |
+| Content-Type | string | Y | Allowed type: application/json |
 
-### Request Sample
+### Request Body (`application/json`)
 
-```
-https://open-api.tiktokglobalshop.com/affiliate_partner/202405/campaigns/7373988288167036678/products/1730064726487763199/promotion_link/generate?app_key=123abc&sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c&timestamp=1625484268&category_asset_cipher=ROW_RHkDDABBAAB8tKAVoAqsMTjsQZFLyNfY
-```
-
-### Request Body Sample
-
-```json
-{
-  "creator_commission_rate": 1000
-}
-```
-
-### Sample Code
-
-**Curl**
-```shell
-curl -X POST \
- 'https://open-api.tiktokglobalshop.com/affiliate_partner/202405/campaigns/7373988288167036678/products/1730064726487763199/promotion_link/generate?timestamp=1623812664&app_key=38abcd&sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c&category_asset_cipher=GCP_XF90igAAAABh00qsWgtvOiGFNqyubMt3' \
--H 'x-tts-access-token: TTP_pwSm2AAAAABmmtFz1xlyKMnwg74T2GJ5s0uQbS8jPjb_GkdFVCxPqzQXSyuyfXdQa0AqyDsea2tYFNVf4XeqgZHFfPyv0Vs659QqyLYfsGzanZ5XZAin3_ZkcIxxS0_In6u6XDeU96k' \
--H 'content-type: application/json' \
--d '{
-  "creator_commission_rate": 1000
-}'
-```
-
-**Go**
-```go
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-func affiliatePartner202405GenerateAffiliatePartnerCampaignProductLinkPost() {
-    configuration := apis.NewConfiguration()
-    configuration.AddAppInfo(appKey, appSecret)
-    apiClient := apis.NewAPIClient(configuration)
-    request := apiClient.AffiliatePartnerV202405API.AffiliatePartner202405CampaignsCampaignIdProductsProductIdPromotionLinkGeneratePost(context.Background(), "7373988288167036678", "1730064726487763199")
-    request = request.XTtsAccessToken("your access token")
-    request = request.ContentType("application/json")
-    request = request.CategoryAssetCipher("GCP_XF90igAAAABh00qsWgtvOiGFNqyubMt3")
-    affiliatePartner202405GenerateAffiliatePartnerCampaignProductLinkRequestBody := affiliatePartner_v202405.NewAffiliatePartner202405GenerateAffiliatePartnerCampaignProductLinkRequestBody()
-    affiliatePartner202405GenerateAffiliatePartnerCampaignProductLinkRequestBody.SetCreatorCommissionRate(1000)
-    request = request.AffiliatePartner202405GenerateAffiliatePartnerCampaignProductLinkRequestBody(*affiliatePartner202405GenerateAffiliatePartnerCampaignProductLinkRequestBody)
-    resp, httpResp, err := request.Execute()
-    if err != nil || httpResp.StatusCode != 200 {
-        fmt.Printf("productsRequest err:%v resbody:%s", err, httpResp.Body)
-        return
-    }
-    if resp == nil {
-        fmt.Printf("response is nil")
-        return
-    }
-    if resp.GetCode()!= 0 {
-        fmt.Printf("response business is error, errorCode:%d errorMessage:%s", resp.GetCode(), resp.GetMessage())
-        return
-    }
-    respDataJson, _ := json.MarshalIndent(resp.GetData(), "", "  ")
-    fmt.Println("response data:", string(respDataJson))
-    return
-}
-
-```
-
-**Node.js**
-```typescript
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-async function affiliatePartner202405GenerateAffiliatePartnerCampaignProductLinkPost() {
-    const affiliatePartner202405GenerateAffiliatePartnerCampaignProductLinkRequestBody = new AffiliatePartner202405GenerateAffiliatePartnerCampaignProductLinkRequestBody();
-    affiliatePartner202405GenerateAffiliatePartnerCampaignProductLinkRequestBody.creatorCommissionRate = 1000;
-    const result = await client.api.AffiliatePartnerV202405Api.CampaignsCampaignIdProductsProductIdPromotionLinkGeneratePost("7373988288167036678", "1730064726487763199", "GCP_XF90igAAAABh00qsWgtvOiGFNqyubMt3", "your access token", "application/json", affiliatePartner202405GenerateAffiliatePartnerCampaignProductLinkRequestBody);
-    console.log('response: ', JSON.stringify(result, null, 2));
-}
-
-```
-
-**Java**
-```java
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-public void affiliatePartner202405GenerateAffiliatePartnerCampaignProductLinkPost() throws Exception {
-    ApiClient defaultClient = Configuration.getDefaultApiClient()
-            .setAppkey("your appKey")
-            .setSecret("your secret")
-            .setBasePath("https://open-api.tiktokglobalshop.com");
-    AffiliatePartnerV202405Api apiInstance = new AffiliatePartnerV202405Api(defaultClient);
-    GenerateAffiliatePartnerCampaignProductLinkRequestBody generateAffiliatePartnerCampaignProductLinkRequestBody = new GenerateAffiliatePartnerCampaignProductLinkRequestBody();
-    generateAffiliatePartnerCampaignProductLinkRequestBody.setCreatorCommissionRate(1000L);
-    GenerateAffiliatePartnerCampaignProductLinkResponse result = apiInstance.affiliatePartner202405CampaignsCampaignIdProductsProductIdPromotionLinkGeneratePost("7373988288167036678", "1730064726487763199", "GCP_XF90igAAAABh00qsWgtvOiGFNqyubMt3", "your access token", "application/json", generateAffiliatePartnerCampaignProductLinkRequestBody);
-    System.out.println(result);
-}
-
-```
-
-### Response Parameters
-
-| Name | Type | Example | Description |
+| Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| code | int | 0 | The success or failure status code returned in API response. |
-| message | string | Success | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
-| request_id | string | 202203070749000101890810281E8C70B7 | Request log |
-| data | object |  | Specific return information |
-| ^product_promotion_link | string | https://affiliate.tiktok.com/api/v1/share/AIxvOHlaJoKO | A URL for product promotion content. This URL is provided to agencies for sharing with colloborating creators. Creators share this link with followers via the TikTok App. Note that creators control whether or not to add products to their showcase in the pop-up window.  |
+| creator_commission_rate | integer |  | The commission rate paid to a creator in hundredths of a percent (0.01%). The commission rate must be lower than or equal to the total commission rate set by the seller. |
 
-### Response Sample
+### Response
 
-```json
-{
-  "code": 0,
-  "data": {
-    "product_promotion_link": "https://affiliate.tiktok.com/api/v1/share/AIxvOHlaJoKO"
-  },
-  "message": "Success",
-  "request_id": "202203070749000101890810281E8C70B7"
-}
-```
-
-### Error Codes
-
-| Code | Message |
-| --- | --- |
-| 16032001 | nvalid parameter Creator and Seller, please ensure Region mismatch. |
-| 16032005 | Campaign not found |
-| 16032007 | Permission denied |
-| 16032008 | Operation denied |
-| 16032009 | Product operation denied, please ensure campaign is under online status. |
-| 16032010 | Campaign product not found |
-| 36009003 | Internal error. Please try again. If the issue persists after multiple attempts, please contact platform support. |
-
-### API Scope / Permissions
-
-| Scope Name | Type | Description |
-| --- | --- | --- |
-| Manage Product Promote Links | Private | The application will be able to manage TikTok Shop Affiliate Partner (TAP) campaign product promotion link generation. The promotion link can be distributed to creators. |
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| code | integer |  | The success or failure status code returned in API response. |
+| data | object |  | Specific return information. |
+| ^product_promotion_link | string |  | A URL for product promotion content. This URL is provided to agencies for sharing with colloborating creators. Creators share this link with followers via the TikTok App. Note that creators control whether or not to add products to their showcase in the pop-up window. |
+| message | string |  | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
+| request_id | string |  | Request log. |
 
 ---
 
-## Get Affiliate Partner Campaign Detail
+## ReviewAffiliatePartnerCampaignProduct
 
-This API offers the ability to get affiliate campaign details.
+This API offers the ability for the TikTok Affiliate Partner to review the products submitted by the sellers. This API offers the ability for the TikTok Affiliate Partner to review the products submitted by the sellers.
 
-**Path:** `/affiliate_partner/202405/campaigns/{campaign_id}`
+**Path:** `/affiliate_partner/202405/campaigns/{campaign_id}/products/{product_id}/review`
+**Method:** `POST`
+**Version:** 202405
+**Docs:** https://partner.tiktokshop.com/docv2/page/review-affiliate-partner-campaign-product-202405
 
-**Method:** `GET`
-
-**Common Parameters:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a4278f4c20311b8b57e)
-
-**Common Error Codes:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a45786253031531b942)
-
-### Request Header Parameters
+### Path Parameters
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| content-type | string | Y | Allowed type: application/json |
-| x-tts-access-token | string | Y | The partner access_token value from [Get Access Token](https://partner.tiktokshop.com/docv2/page/678e3a3292b0f40314a92d75#Get%20Access%20Token%20API), when user_type = 3. Follow this [guide](https://partner.tiktokshop.com/docv2/page/678e3a3978f4c20311b8b555) to get partner access_token. |
+| campaign_id | string | Y | The campaign identifier. |
+| product_id | string | Y | The product identifier. |
 
-### Request Path Parameters
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| campaign_id | string | Y | The ID of the campaign. |
-
-### Request Query Parameters
+### Query Parameters
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| app_key | string | Y | Every single app will have a unique key. Please use the specific key assigned to your app. |
-| sign | string | Y | Signature generated by gen algorithm. When you send API requests to TTS, you must sign them so that TTS can identify the senders.  |
-| timestamp | int | Y | Unix timestamp GMT (UTC+00:00). This timestamp is used across all API requests. Developers can use this convert to local time. |
-| category_asset_cipher | string | Y | The partner identifier used in API requests. Retrieve this value by using the [Get Authorized Category Assets API] (https://partner.tiktokshop.com/docv2/page/666012dd609d4402cc3be995).  |
+| category_asset_cipher | string | Y | The partner identifier used in API requests. Retrieve this value by using the [Get Authorized Category Assets API] (https://partner.tiktokshop.com/docv2/page/666012dd609d4402cc3be995). |
 
-### Request Sample
+### Header Parameters
 
-```
-https://open-api.tiktokglobalshop.com/affiliate_partner/202405/campaigns/7373988288167036678?app_key=123abc&sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c&timestamp=1625484268&category_asset_cipher=ROW_RHkDDABBAAB8tKAVoAqsMTjsQZFLyNfY
-```
-
-### Sample Code
-
-**Curl**
-```shell
-curl -X GET \
- 'https://open-api.tiktokglobalshop.com/affiliate_partner/202405/campaigns/7373988288167036678?timestamp=1623812664&app_key=38abcd&sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c&category_asset_cipher=GCP_XF90igAAAABh00qsWgtvOiGFNqyubMt3' \
--H 'x-tts-access-token: TTP_pwSm2AAAAABmmtFz1xlyKMnwg74T2GJ5s0uQbS8jPjb_GkdFVCxPqzQXSyuyfXdQa0AqyDsea2tYFNVf4XeqgZHFfPyv0Vs659QqyLYfsGzanZ5XZAin3_ZkcIxxS0_In6u6XDeU96k' \
--H 'content-type: application/json'
-```
-
-**Go**
-```go
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-func affiliatePartner202405GetAffiliatePartnerCampaignDetailGet() {
-    configuration := apis.NewConfiguration()
-    configuration.AddAppInfo(appKey, appSecret)
-    apiClient := apis.NewAPIClient(configuration)
-    request := apiClient.AffiliatePartnerV202405API.AffiliatePartner202405CampaignsCampaignIdGet(context.Background(), "7373988288167036678")
-    request = request.XTtsAccessToken("your access token")
-    request = request.ContentType("application/json")
-    request = request.CategoryAssetCipher("GCP_XF90igAAAABh00qsWgtvOiGFNqyubMt3")
-    resp, httpResp, err := request.Execute()
-    if err != nil || httpResp.StatusCode != 200 {
-        fmt.Printf("productsRequest err:%v resbody:%s", err, httpResp.Body)
-        return
-    }
-    if resp == nil {
-        fmt.Printf("response is nil")
-        return
-    }
-    if resp.GetCode()!= 0 {
-        fmt.Printf("response business is error, errorCode:%d errorMessage:%s", resp.GetCode(), resp.GetMessage())
-        return
-    }
-    respDataJson, _ := json.MarshalIndent(resp.GetData(), "", "  ")
-    fmt.Println("response data:", string(respDataJson))
-    return
-}
-
-```
-
-**Node.js**
-```typescript
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-async function affiliatePartner202405GetAffiliatePartnerCampaignDetailGet() {
-    const result = await client.api.AffiliatePartnerV202405Api.CampaignsCampaignIdGet("7373988288167036678", "GCP_XF90igAAAABh00qsWgtvOiGFNqyubMt3", "your access token", "application/json");
-    console.log('response: ', JSON.stringify(result, null, 2));
-}
-
-```
-
-**Java**
-```java
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-public void affiliatePartner202405GetAffiliatePartnerCampaignDetailGet() throws Exception {
-    ApiClient defaultClient = Configuration.getDefaultApiClient()
-            .setAppkey("your appKey")
-            .setSecret("your secret")
-            .setBasePath("https://open-api.tiktokglobalshop.com");
-    AffiliatePartnerV202405Api apiInstance = new AffiliatePartnerV202405Api(defaultClient);
-    GetAffiliatePartnerCampaignDetailResponse result = apiInstance.affiliatePartner202405CampaignsCampaignIdGet("7373988288167036678", "GCP_XF90igAAAABh00qsWgtvOiGFNqyubMt3", "your access token", "application/json");
-    System.out.println(result);
-}
-
-```
-
-### Response Parameters
-
-| Name | Type | Example | Description |
+| Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| code | int | 0 | The success or failure status code returned in API response. |
-| message | string | Success | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
-| request_id | string | 202203070749000101890810281E8C70B7 | Request log |
-| data | object |  | Specific return information |
-| ^id | string | 7356876895365105455 | The campaign identifier. |
-| ^name | string | test_campaign | The campaign name. The campaign name must be less than 50 characters. |
-| ^description | string | Campaign for api test. | The campaign description. The campaign description must be less than 1000 characters. |
-| ^status | string | READY | The campaign status. The status is an enumerated type with values: - READY - UPCOMING - ONGOING - CLOSED |
-| ^region | string | US | The region to which the campaign is associated. |
-| ^registration_start_time | int | 1712941200 | The scheduled start time in Unix epoch format for seller product registration. Note that this field can be updated when the campaign status is set to `READY` or `UPCOMING` only. |
-| ^registration_end_time | int | 1713891599 | The scheduled end time in Unix epoch time format for seller product registration. This field is no longer editable when the campaign status is set to `CLOSED`. |
-| ^campaign_start_time | int | 1712941200 | The scheduled start time in Unix epoch time format for the campaign. Note that this field can be updated when the campaign status is set to `READY` or `UPCOMING` only. |
-| ^campaign_end_time | int | 1715878799 | The scheduled end time in Unix epoch time format for the campaign. Note that the end time must be less than 360 days from the start date. This field is no longer editable when the campaign status is set to `CLOSED`. |
-| ^commission_rate | int | 1000 | The total commission rate in hundredths of a percent (0.01%) units proposed by the affiliate partner for display to sellers. Commission rate must be greater than 100 and less than 8000. |
-| ^contact_info | object |  | The campaign creator's contact information. |
-| ^^whatsapp | string | +14255550100 | WhatsApp account number |
-| ^^email | string | 123456@gmail.com | Email |
-| ^^phone | string | +14255550100 | Phone number |
-| ^^zalo | string | +14255550100 | Zalo account number |
-| ^^viber | string | +14255550100 | Viber account number |
-| ^^line | string | +14255550100 | Line account number |
-| ^target_shops | []object |  | A list of TikTok Shop seller shop codes and names with permission to register for the campaign.  |
-| ^^code | string | THCBELNL4Y | The seller shop code in available in TikTok Shop Seller Central by clicking on the Seller Profile icon in the top right of the user interface. |
-| ^^name | string | my_shop | The TikTok Shop name. |
-| ^target_seller_types | []string | ["LOCAL"] | A list of eligible seller types to allow to register for the campaign. Use this field to broadly target types of sellers instead of specific sellers in the `target_shop_codes` field. This is an enumerated type with possible values: - LOCAL - CROSS_BORDER |
+| x-tts-access-token | string | Y |  |
+| Content-Type | string | Y | Allowed type: application/json |
 
-### Response Sample
+### Request Body (`application/json`)
 
-```json
-{
-  "code": 0,
-  "data": {
-    "id": "7356876895365105455",
-    "name": "test_campaign",
-    "description": "Campaign for api test.",
-    "status": "READY",
-    "region": "US",
-    "registration_start_time": 1712941200,
-    "registration_end_time": 1713891599,
-    "campaign_start_time": 1712941200,
-    "campaign_end_time": 1715878799,
-    "commission_rate": 1000,
-    "contact_info": {
-      "whatsapp": "+14255550100",
-      "email": "123456@gmail.com",
-      "phone": "+14255550100",
-      "zalo": "+14255550100",
-      "viber": "+14255550100",
-      "line": "+14255550100"
-    },
-    "target_shops": [
-      {
-        "code": "THCBELNL4Y",
-        "name": "my_shop"
-      }
-    ],
-    "target_seller_types": [
-      "LOCAL"
-    ]
-  },
-  "message": "Success",
-  "request_id": "202203070749000101890810281E8C70B7"
-}
-```
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| reject_reasons | array<string> |  | If the `review_result` property is set to `REJECT` or `REJECT_FOREVER`, this property is set to the enumerated reason that the TikTok Affiliate Partner rejected the product. This is an enumerated type with values: - COMMISSION_TOO_LOW - PRODUCT_HARD_TO_PROMOTE - PRODUCT_TOO_EXPENSIVE - NO_SUITABLE_CREATOR |
+| review_result | string |  | The product review decision by the TikTok Affiliate Partner. This is an enumerated type with values: - APPROVE - REJECT - REJECT_FOREVER |
 
-### Error Codes
+### Response
 
-| Code | Message |
-| --- | --- |
-| 16032001 | nvalid parameter Creator and Seller, please ensure Region mismatch. |
-| 16032005 | Campaign not found |
-| 16032007 | Permission denied |
-| 36009003 | Internal error. Please try again. If the issue persists after multiple attempts, please contact platform support. |
-
-### API Scope / Permissions
-
-| Scope Name | Type | Description |
-| --- | --- | --- |
-| Read Affiliate Partner Campaigns | Private | The application will be able to access a TikTok Shop Affiliate Partner (TAP) campaign information, including view campaign list and details and campaign product list and details. |
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| code | integer |  | The success or failure status code returned in API response. |
+| data | object |  | Specific return information. |
+| message | string |  | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
+| request_id | string |  | Request log. |
 
 ---
 
-## Get Affiliate Partner Campaign List
+## PublishAffiliatePartnerCampaign
 
-This API offers the ability to list campaigns created by the Affiliate Partner.
+This API offers the ability to publish an Affiliate Partner campaign. The campaign will be displayed to sellers after publishing.
 
-**Path:** `/affiliate_partner/202405/campaigns`
+**Path:** `/affiliate_partner/202405/campaigns/{campaign_id}/publish`
+**Method:** `POST`
+**Version:** 202405
+**Docs:** https://partner.tiktokshop.com/docv2/page/publish-affiliate-partner-campaign-202405
 
-**Method:** `GET`
-
-**Common Parameters:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a4278f4c20311b8b57e)
-
-**Common Error Codes:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a45786253031531b942)
-
-### Request Header Parameters
+### Path Parameters
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| content-type | string | Y | Allowed type: application/json |
-| x-tts-access-token | string | Y | The partner access_token value from [Get Access Token](https://partner.tiktokshop.com/docv2/page/678e3a3292b0f40314a92d75#Get%20Access%20Token%20API), when user_type = 3. Follow this [guide](https://partner.tiktokshop.com/docv2/page/678e3a3978f4c20311b8b555) to get partner access_token. |
+| campaign_id | string | Y | The campaign identifier. |
 
-### Request Query Parameters
+### Query Parameters
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| app_key | string | Y | Every single app will have a unique key. Please use the specific key assigned to your app. |
-| sign | string | Y | Signature generated by gen algorithm. When you send API requests to TTS, you must sign them so that TTS can identify the senders.  |
-| timestamp | int | Y | Unix timestamp GMT (UTC+00:00). This timestamp is used across all API requests. Developers can use this convert to local time. |
-| category_asset_cipher | string | Y | The partner identifier used in API requests. Retrieve this value by using the [Get Authorized Category Assets API](https://partner.tiktokshop.com/docv2/page/666012dd609d4402cc3be995).  |
-| page_size | int | Y | The number of results to be returned per page. Default: 10. Valid range: [1-100].  |
-| page_token | string | N | An opaque token used to retrieve the next page of a paginated result set. Retrieve this value from the result of the `next_page_token` from a previous response. It is not needed for the first page. Maximum page size is `100` items. |
-| status | string | N | The campaign status. The status is an enumerated type with values: - `READY` - `UPCOMING` - `ONGOING` - `CLOSED` - `UNSPECIFIED` |
-| type | string | N | The campaign type. This is an enumerated type with values:  - MY_CAMPAIGNS - GS_SELLING_CAMPAIGNS  - SELLER_CAMPAIGNS - EXCLUSIVE_TIKTOK_SHOP   Default value is MY_CAMPAIGNS. |
-| query_type_filter | string | N | An extended filter to be used when the campaign type property type is set to SELLER_CAMPAIGNS or EXCLUSIVE_TIKTOK_SHOP.  If the type property is set to SELLER_CAMPAIGNS, the valid values for this property are:  - MARKETPLACE: the response includes campaigns that the partner did not join. - JOINED :  the response includes campaigns the partner has joined only. If the type property is set to EXCLUSIVE_TIKTOK_SHOP, the valid values for this property are: - AVAILABLE: the response includes campaigns the partner is permitted to join. - JOINED: the response includes campaigns the partner has joined only. Other types can either not pass a value or pass in Default. |
+| category_asset_cipher | string | Y | The partner identifier used in API requests. Retrieve this value by using the [Get Authorized Category Assets API] (https://partner.tiktokshop.com/docv2/page/666012dd609d4402cc3be995). |
 
-### Request Sample
+### Header Parameters
 
-```
-https://open-api.tiktokglobalshop.com/affiliate_partner/202405/campaigns?app_key=123abc&sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c&timestamp=1625484268&category_asset_cipher=ROW_RHkDDABBAAB8tKAVoAqsMTjsQZFLyNfY&page_size=10&page_token=b2Zmc2V0PTAK&status=READY&type=MY_CAMPAIGNS&query_type_filter=DEFAULT
-```
-
-### Sample Code
-
-**Curl**
-```shell
-curl -X GET \
- 'https://open-api.tiktokglobalshop.com/affiliate_partner/202405/campaigns?timestamp=1623812664&status=READY&query_type_filter=DEFAULT&app_key=38abcd&sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c&category_asset_cipher=GCP_XF90igAAAABh00qsWgtvOiGFNqyubMt3&page_size=10&page_token=b2Zmc2V0PTAK&type=MY_CAMPAIGNS' \
--H 'x-tts-access-token: TTP_pwSm2AAAAABmmtFz1xlyKMnwg74T2GJ5s0uQbS8jPjb_GkdFVCxPqzQXSyuyfXdQa0AqyDsea2tYFNVf4XeqgZHFfPyv0Vs659QqyLYfsGzanZ5XZAin3_ZkcIxxS0_In6u6XDeU96k' \
--H 'content-type: application/json'
-```
-
-**Go**
-```go
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-func affiliatePartner202405GetAffiliatePartnerCampaignListGet() {
-    configuration := apis.NewConfiguration()
-    configuration.AddAppInfo(appKey, appSecret)
-    apiClient := apis.NewAPIClient(configuration)
-    request := apiClient.AffiliatePartnerV202405API.AffiliatePartner202405CampaignsGet(context.Background())
-    request = request.XTtsAccessToken("your access token")
-    request = request.ContentType("application/json")
-    request = request.CategoryAssetCipher("GCP_XF90igAAAABh00qsWgtvOiGFNqyubMt3")
-    request = request.PageSize(10)
-    request = request.PageToken("b2Zmc2V0PTAK")
-    request = request.Status("READY")
-    request = request.Type("MY_CAMPAIGNS")
-    request = request.QueryTypeFilter("DEFAULT")
-    resp, httpResp, err := request.Execute()
-    if err != nil || httpResp.StatusCode != 200 {
-        fmt.Printf("productsRequest err:%v resbody:%s", err, httpResp.Body)
-        return
-    }
-    if resp == nil {
-        fmt.Printf("response is nil")
-        return
-    }
-    if resp.GetCode()!= 0 {
-        fmt.Printf("response business is error, errorCode:%d errorMessage:%s", resp.GetCode(), resp.GetMessage())
-        return
-    }
-    respDataJson, _ := json.MarshalIndent(resp.GetData(), "", "  ")
-    fmt.Println("response data:", string(respDataJson))
-    return
-}
-
-```
-
-**Node.js**
-```typescript
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-async function affiliatePartner202405GetAffiliatePartnerCampaignListGet() {
-    const result = await client.api.AffiliatePartnerV202405Api.CampaignsGet("GCP_XF90igAAAABh00qsWgtvOiGFNqyubMt3", 10, "your access token", "application/json", "b2Zmc2V0PTAK", "READY", "MY_CAMPAIGNS", "DEFAULT");
-    console.log('response: ', JSON.stringify(result, null, 2));
-}
-
-```
-
-**Java**
-```java
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-public void affiliatePartner202405GetAffiliatePartnerCampaignListGet() throws Exception {
-    ApiClient defaultClient = Configuration.getDefaultApiClient()
-            .setAppkey("your appKey")
-            .setSecret("your secret")
-            .setBasePath("https://open-api.tiktokglobalshop.com");
-    AffiliatePartnerV202405Api apiInstance = new AffiliatePartnerV202405Api(defaultClient);
-    GetAffiliatePartnerCampaignListResponse result = apiInstance.affiliatePartner202405CampaignsGet("GCP_XF90igAAAABh00qsWgtvOiGFNqyubMt3", 10L, "your access token", "application/json", "b2Zmc2V0PTAK", "READY", "MY_CAMPAIGNS", "DEFAULT");
-    System.out.println(result);
-}
-
-```
-
-### Response Parameters
-
-| Name | Type | Example | Description |
+| Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| code | int | 0 | The success or failure status code returned in API response. |
-| message | string | Success | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
-| request_id | string | 202203070749000101890810281E8C70B7 | Request log |
-| data | object |  | Specific return information |
-| ^campaigns | []object |  | A list of campaigns.  |
-| ^^id | string | 7360590375814268715 | The campaign identifier. |
-| ^^name | string | test | The campaign name. |
-| ^^status | string | READY | The campaign status. The status is an enumerated type with values: - READY - UPCOMING - ONGOING - CLOSED |
-| ^^registration_start_time | int | 1712941200 | The scheduled start time in Unix epoch format for seller product registration. Note that this field can be updated when the campaign status is set to `READY` or `UPCOMING` only. |
-| ^^registration_end_time | int | 1713891599 | The scheduled end time in Unix epoch time format for seller product registration. This field is no longer editable when the campaign status is set to `CLOSED`. |
-| ^^campaign_start_time | int | 1712941200 | The scheduled start time in Unix epoch time format for the campaign. Note that this field can be updated when the campaign status is set to `READY` or `UPCOMING` only. |
-| ^^campaign_end_time | int | 1715878799 | The scheduled end time in Unix epoch time format for the campaign. Note that the end time must be less than 360 days from the start date. This field is no longer editable when the campaign status is set to `CLOSED`. |
-| ^next_page_token | string | absdfV231as2V0PTAK | An opaque token used to retrieve the next page of a paginated result set.  |
-| ^total_count | int | 1570 | The total number of campaigns in the list. |
+| x-tts-access-token | string | Y |  |
+| Content-Type | string | Y | Allowed type: application/json |
 
-### Response Sample
+### Response
 
-```json
-{
-  "code": 0,
-  "data": {
-    "campaigns": [
-      {
-        "id": "7360590375814268715",
-        "name": "test",
-        "status": "READY",
-        "registration_start_time": 1712941200,
-        "registration_end_time": 1713891599,
-        "campaign_start_time": 1712941200,
-        "campaign_end_time": 1715878799
-      }
-    ],
-    "next_page_token": "absdfV231as2V0PTAK",
-    "total_count": 1570
-  },
-  "message": "Success",
-  "request_id": "202203070749000101890810281E8C70B7"
-}
-```
-
-### Error Codes
-
-| Code | Message |
-| --- | --- |
-| 16032001 | nvalid parameter Creator and Seller, please ensure Region mismatch. |
-| 16032007 | Permission denied |
-| 36009003 | Internal error. Please try again. If the issue persists after multiple attempts, please contact platform support. |
-
-### API Scope / Permissions
-
-| Scope Name | Type | Description |
-| --- | --- | --- |
-| Read Affiliate Partner Campaigns | Private | The application will be able to access a TikTok Shop Affiliate Partner (TAP) campaign information, including view campaign list and details and campaign product list and details. |
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| code | integer |  | The success or failure status code returned in API response. |
+| data | object |  | Specific return information. |
+| message | string |  | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
+| request_id | string |  | Request log. |
 
 ---
 
-## Get Affiliate Partner Campaign Product List
-
-This API offers the ability to list products submitted by sellers in an Affiliate Partner campaign.
-
-**Path:** `/affiliate_partner/202405/campaigns/{campaign_id}/products`
-
-**Method:** `GET`
-
-**Common Parameters:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a4278f4c20311b8b57e)
-
-**Common Error Codes:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a45786253031531b942)
-
-### Request Header Parameters
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| content-type | string | Y | Allowed type: application/json |
-| x-tts-access-token | string | Y | The partner access_token value from [Get Access Token](https://partner.tiktokshop.com/docv2/page/678e3a3292b0f40314a92d75#Get%20Access%20Token%20API), when user_type = 3. Follow this [guide](https://partner.tiktokshop.com/docv2/page/678e3a3978f4c20311b8b555) to get partner access_token. |
-
-### Request Path Parameters
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| campaign_id | string | Y | The ID of the campaign. |
-
-### Request Query Parameters
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| app_key | string | Y | Every single app will have a unique key. Please use the specific key assigned to your app. |
-| sign | string | Y | Signature generated by gen algorithm. When you send API requests to TTS, you must sign them so that TTS can identify the senders.  |
-| timestamp | int | Y | Unix timestamp GMT (UTC+00:00). This timestamp is used across all API requests. Developers can use this convert to local time. |
-| category_asset_cipher | string | Y | The partner identifier used in API requests. Retrieve this value by using the [Get Authorized Category Assets API](https://partner.tiktokshop.com/docv2/page/666012dd609d4402cc3be995).  |
-| page_size | int | Y | The number of results to be returned per page. |
-| page_token | string | N | An opaque token used to retrieve the next page of a paginated result set. Retrieve this value from the result of the `next_page_token` from a previous response. It is not needed for the first page. |
-| review_status | string | N | The product review status. This an enumerated type with values: - PENDING - APPROVED - REJECTED - PENDING_CLOSED - CLOSED |
-| product_name | string | N | Filter the product list by product name. If value of `product_name` is contained in `product.name`, the product will be included in the response. |
-| product_id | string | N | Filter the product list by product ID. If value of `product_id` matches `product.id`, the product will be included in the response. |
-| shop_name | string | N | Filter the product list by shop name. If value of `shop_name` is contained in `product.shop_name`, the product will be included in the response. |
-| category_id | string | N | Filter the product list by category ID. If value of `category_id` matches `product.category.id`, or the product falls into the leaf category of the specified category, the product will be included in the response. |
-
-### Request Sample
-
-```
-https://open-api.tiktokglobalshop.com/affiliate_partner/202405/campaigns/7373988288167036678/products?app_key=123abc&sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c&timestamp=1625484268&category_asset_cipher=ROW_RHkDDABBAAB8tKAVoAqsMTjsQZFLyNfY&page_size=10&page_token=b2Zmc2V0PTAK&review_status=PENDING&product_name=sample&product_id=1730305356901683547&shop_name=Test Shop&category_id=991496
-```
-
-### Sample Code
-
-**Curl**
-```shell
-curl -X GET \
- 'https://open-api.tiktokglobalshop.com/affiliate_partner/202405/campaigns/7373988288167036678/products?timestamp=1623812664&category_asset_cipher=GCP_XF90igAAAABh00qsWgtvOiGFNqyubMt3&page_size=10&product_name=sample&sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c&page_token=b2Zmc2V0PTAK&review_status=PENDING&product_id=1730305356901683547&shop_name=Test Shop&category_id=991496&app_key=38abcd' \
--H 'x-tts-access-token: TTP_pwSm2AAAAABmmtFz1xlyKMnwg74T2GJ5s0uQbS8jPjb_GkdFVCxPqzQXSyuyfXdQa0AqyDsea2tYFNVf4XeqgZHFfPyv0Vs659QqyLYfsGzanZ5XZAin3_ZkcIxxS0_In6u6XDeU96k' \
--H 'content-type: application/json'
-```
-
-**Go**
-```go
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-func affiliatePartner202405GetAffiliatePartnerCampaignProductListGet() {
-    configuration := apis.NewConfiguration()
-    configuration.AddAppInfo(appKey, appSecret)
-    apiClient := apis.NewAPIClient(configuration)
-    request := apiClient.AffiliatePartnerV202405API.AffiliatePartner202405CampaignsCampaignIdProductsGet(context.Background(), "7373988288167036678")
-    request = request.XTtsAccessToken("your access token")
-    request = request.ContentType("application/json")
-    request = request.CategoryAssetCipher("GCP_XF90igAAAABh00qsWgtvOiGFNqyubMt3")
-    request = request.PageSize(10)
-    request = request.PageToken("b2Zmc2V0PTAK")
-    request = request.ReviewStatus("PENDING")
-    request = request.ProductName("sample")
-    request = request.ProductId("1730305356901683547")
-    request = request.ShopName("Test Shop")
-    request = request.CategoryId("991496")
-    resp, httpResp, err := request.Execute()
-    if err != nil || httpResp.StatusCode != 200 {
-        fmt.Printf("productsRequest err:%v resbody:%s", err, httpResp.Body)
-        return
-    }
-    if resp == nil {
-        fmt.Printf("response is nil")
-        return
-    }
-    if resp.GetCode()!= 0 {
-        fmt.Printf("response business is error, errorCode:%d errorMessage:%s", resp.GetCode(), resp.GetMessage())
-        return
-    }
-    respDataJson, _ := json.MarshalIndent(resp.GetData(), "", "  ")
-    fmt.Println("response data:", string(respDataJson))
-    return
-}
-
-```
-
-**Node.js**
-```typescript
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-async function affiliatePartner202405GetAffiliatePartnerCampaignProductListGet() {
-    const result = await client.api.AffiliatePartnerV202405Api.CampaignsCampaignIdProductsGet("7373988288167036678", "GCP_XF90igAAAABh00qsWgtvOiGFNqyubMt3", 10, "your access token", "application/json", "b2Zmc2V0PTAK", "PENDING", "sample", "1730305356901683547", "Test Shop", "991496");
-    console.log('response: ', JSON.stringify(result, null, 2));
-}
-
-```
-
-**Java**
-```java
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-public void affiliatePartner202405GetAffiliatePartnerCampaignProductListGet() throws Exception {
-    ApiClient defaultClient = Configuration.getDefaultApiClient()
-            .setAppkey("your appKey")
-            .setSecret("your secret")
-            .setBasePath("https://open-api.tiktokglobalshop.com");
-    AffiliatePartnerV202405Api apiInstance = new AffiliatePartnerV202405Api(defaultClient);
-    GetAffiliatePartnerCampaignProductListResponse result = apiInstance.affiliatePartner202405CampaignsCampaignIdProductsGet("7373988288167036678", "GCP_XF90igAAAABh00qsWgtvOiGFNqyubMt3", 10L, "your access token", "application/json", "b2Zmc2V0PTAK", "PENDING", "sample", "1730305356901683547", "Test Shop", "991496");
-    System.out.println(result);
-}
-
-```
-
-### Response Parameters
-
-| Name | Type | Example | Description |
-| --- | --- | --- | --- |
-| code | int | 0 | The success or failure status code returned in API response. |
-| message | string | Success | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
-| request_id | string | 202203070749000101890810281E8C70B7 | Request log |
-| data | object |  | Specific return information |
-| ^products | []object |  | The list of products. |
-| ^^id | string | 1729442777527587334 | The product identifier. |
-| ^^review_status | string | PENDING | The product review status. This an enumerated type with values: - PENDING - APPROVED - REJECTED - PENDING_CLOSED - CLOSED |
-| ^^name | string | test case number 4 test case number 4 | The product name. |
-| ^^main_image_url | string | https://p16-oec-va.ibyteimg.com/tos-maliva-i-o3syd03w52-us/fa0387fa5a204dcfa44d5be75877a163~tplv-o3syd03w52-origin-webp.webp?from=3478900499 | The product image URL. |
-| ^^lowest_price | object |  | The lowest original price of all SKUs of this product. |
-| ^^^currency | string | USD | The currency in the sales region. |
-| ^^^amount | string | 1.1 | The lowest price amount.  |
-| ^^highest_price | object |  | The highest original price of all SKUs of this product. |
-| ^^^currency | string | USD | The currency code for the region in which the product is sold. |
-| ^^^amount | string | 12.21 | The highest price amount. |
-| ^^inventory | int | 89 | The number of in-stock units of all SKUs for this product. |
-| ^^shop_name | string | my_shop | The TikTok Shop name. |
-| ^^total_commission_rate | int | 6600 | The total commission rate in hundredths of a percent (0.01%) units. |
-| ^^creator_commission_rate | int | 1000 | The creator commission rate in hundredths of a percent (0.01%) units. |
-| ^^partner_commission_rate | int | 5600 | The partner commission rate in hundredths of a percent (0.01%) units. |
-| ^^open_collaboration_commission_rate | int | 1000 | The product open collaboration commission rate in hundredths of a percent (0.01%) units.   |
-| ^^is_available | bool | true | Set to `true` if a product URL is available. Set to `false` if no product URL is available. |
-| ^^product_sales | int | 10 | The total number of units sold of this product for this campaign. |
-| ^^category | object |  | The leaf category to which this product is associated. |
-| ^^^id | string | 12222 | The category identifier. |
-| ^^^name | string | COMPUTER | The category name. |
-| ^^sample_quota | int | 12 | The total amount of sample inventory available for allocation to creators by the seller. |
-| ^^sku_information_list | []object |  | A list of Stock Keeping Units (SKUs) used to identify distinct variants of the product. |
-| ^^^sku_name | string | factory product | The name of the sku |
-| ^^^sku_id | string | 1729666531097281876 | The id of the sku |
-| ^^^inventory | object |  | SKU inventory details. |
-| ^^^^available_quantity | string | 80 | The total SKU quantity available in the warehouse. |
-| ^^^base_price | object |  | the base price of the sku |
-| ^^^^region_code | string | MY | the region code of the sku |
-| ^^^^currency | string | MYR | The currency of the SKU price. Possible values based on the region: - BRL:  Brazil - EUR: France, Germany, Ireland, Italy, Spain - GBP: United Kingdom - IDR: Indonesia - JPY: Japan - MXN: Mexico - MYR: Malaysia - PHP: Philippines - SGD: Singapore - THB: Thailand - USD: United States - VND: Vietnam |
-| ^^^^list_price | string | 162.34 | The SKU's list price information that has been verified to be legitimate by the audit team. This is equivalent to the manufacturer's suggested retail price (MSRP), or the recommended retail price (RRP). |
-| ^^^^sale_price | string | 162.34 | The SKU's selling price, inclusive of tax. Applicable only for cross-border sellers from China. |
-| ^^^^localized_dutiable_price | string | 141.58 | localized dutiable price  |
-| ^^^region_prices | []object |  | region prices |
-| ^^^^region_code | string | MY | the region code of the sku |
-| ^^^^currency | string | MYR | The currency of the SKU price. Possible values based on the region: - BRL:  Brazil - EUR: France, Germany, Ireland, Italy, Spain - GBP: United Kingdom - IDR: Indonesia - JPY: Japan - MXN: Mexico - MYR: Malaysia - PHP: Philippines - SGD: Singapore - THB: Thailand - USD: United States - VND: Vietnam |
-| ^^^^list_price | string | 162.34 | The SKU's list price information that has been verified to be legitimate by the audit team. This is equivalent to the manufacturer's suggested retail price (MSRP), or the recommended retail price (RRP). |
-| ^^^^sale_price | string | 162.34 | The SKU's selling price, inclusive of tax. Applicable only for cross-border sellers from China. |
-| ^^^^localized_dutiable_price | string | 141.58 | localized dutiable price |
-| ^^^properties | []object |  | The properties of the sku |
-| ^^^^name | string | Spesifikasi | the name of the property |
-| ^^^^value_name | string | lalai | the name of the value |
-| ^^product_description | string | <p>This is an example product description.</p> | Return product description |
-| ^next_page_token | string | absdfV231as2V0PTAK | An opaque token used to retrieve the next page of a paginated result set. |
-| ^total_count | int | 1570 | The total number of products in the list. |
-
-### Response Sample
-
-```json
-{
-  "code": 0,
-  "data": {
-    "products": [
-      {
-        "id": "1729442777527587334",
-        "review_status": "PENDING",
-        "name": "test case number 4 test case number 4",
-        "main_image_url": "https://p16-oec-va.ibyteimg.com/tos-maliva-i-o3syd03w52-us/fa0387fa5a204dcfa44d5be75877a163~tplv-o3syd03w52-origin-webp.webp?from=3478900499",
-        "lowest_price": {
-          "currency": "USD",
-          "amount": "1.1"
-        },
-        "highest_price": {
-          "currency": "USD",
-          "amount": "12.21"
-        },
-        "inventory": 89,
-        "shop_name": "my_shop",
-        "total_commission_rate": 6600,
-        "creator_commission_rate": 1000,
-        "partner_commission_rate": 5600,
-        "open_collaboration_commission_rate": 1000,
-        "is_available": true,
-        "product_sales": 10,
-        "category": {
-          "id": "12222",
-          "name": "COMPUTER"
-        },
-        "sample_quota": 12,
-        "sku_information_list": [
-          {
-            "sku_name": "factory product",
-            "sku_id": "1729666531097281876",
-            "inventory": {
-              "available_quantity": "80"
-            },
-            "base_price": {
-              "region_code": "MY",
-              "currency": "MYR",
-              "list_price": "162.34",
-              "sale_price": "162.34",
-              "localized_dutiable_price": "141.58"
-            },
-            "region_prices": [
-              {
-                "region_code": "MY",
-                "currency": "MYR",
-                "list_price": "162.34",
-                "sale_price": "162.34",
-                "localized_dutiable_price": "141.58"
-              }
-            ],
-            "properties": [
-              {
-                "name": "Spesifikasi",
-                "value_name": "lalai"
-              }
-            ]
-          }
-        ],
-        "product_description": "<p>This is an example product description.</p>"
-      }
-    ],
-    "next_page_token": "absdfV231as2V0PTAK",
-    "total_count": 1570
-  },
-  "message": "Success",
-  "request_id": "202203070749000101890810281E8C70B7"
-}
-```
-
-### Error Codes
-
-| Code | Message |
-| --- | --- |
-| 16032001 | nvalid parameter Creator and Seller, please ensure Region mismatch. |
-| 16032005 | Campaign not found |
-| 16032007 | Permission denied |
-| 36009003 | Internal error. Please try again. If the issue persists after multiple attempts, please contact platform support. |
-
-### API Scope / Permissions
-
-| Scope Name | Type | Description |
-| --- | --- | --- |
-| Read Affiliate Partner Campaigns | Private | The application will be able to access a TikTok Shop Affiliate Partner (TAP) campaign information, including view campaign list and details and campaign product list and details. |
-
----
-
-## Search Tap Affiliate Orders
+## SearchTapAffiliateOrders
 
 TAP can use this API to retrieve a list of affiliate orders and track the affiliate conversions.
 
 **Path:** `/affiliate_partner/202411/orders/search`
-
 **Method:** `POST`
+**Version:** 202411
+**Docs:** https://partner.tiktokshop.com/docv2/page/search-tap-affiliate-orders-202411
 
-**Common Parameters:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a4278f4c20311b8b57e)
-
-**Common Error Codes:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a45786253031531b942)
-
-### Request Header Parameters
+### Query Parameters
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| content-type | string | Y | Allowed type: application/json |
-| x-tts-access-token | string | Y | The partner access_token value from [Get Access Token](https://partner.tiktokshop.com/docv2/page/678e3a3292b0f40314a92d75#Get%20Access%20Token%20API), when user_type = 3. Follow this [guide](https://partner.tiktokshop.com/docv2/page/678e3a3978f4c20311b8b555) to get partner access_token. |
+| page_token | string |  | The next page token |
+| page_size | integer | Y | The default is 20, it must be positive integer, the range is 1-100 |
+| category_asset_cipher | string | Y | The partner identifier used in API requests.  Retrieve this value by using the [Get Authorized Category Assets API] (https://partner.tiktokshop.com/docv2/page/666012dd609d4402cc3be995). |
 
-### Request Query Parameters
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| app_key | string | Y | Every single app will have a unique key. Please use the specific key assigned to your app. |
-| sign | string | Y | Signature generated by gen algorithm. When you send API requests to TTS, you must sign them so that TTS can identify the senders.  |
-| timestamp | int | Y | Unix timestamp GMT (UTC+00:00). This timestamp is used across all API requests. Developers can use this convert to local time. |
-| page_token | string | N | The next page token |
-| page_size | int | Y | The default is 20, it must be positive integer, the range is 1-100 |
-| category_asset_cipher | string | Y | The partner identifier used in API requests.  Retrieve this value by using the [Get Authorized Category Assets API] (https://partner.tiktokshop.com/docv2/page/666012dd609d4402cc3be995).  |
-
-### Request Body Parameters
+### Header Parameters
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| create_time_ge | int | N | Filter orders to show only those that are created on or after the specified date and time. Unix timestamp.  Note: `create_time_ge` and `create_time_lt` together constitute the creation time filter condition. - If `create_time_ge` is filled but `create_time_lt` is empty, `create_time_lt` will default to the current time. - If `create_time_lt` is filled but `create_time_ge` is empty, `create_time_ge` will default to the earliest shop time. |
-| create_time_lt | int | N | Filter orders to show only those that are created before the specified date and time. Unix timestamp. Refer to notes in `create_time_ge` for more usage information. |
-| campaign_id | string | N | Filter orders by a TAP campaign using its identifier.   |
+| x-tts-access-token | string | Y |  |
+| Content-Type | string | Y | Allowed type: application/json |
 
-### Request Sample
+### Request Body (`application/json`)
 
-```
-https://open-api.tiktokglobalshop.com/affiliate_partner/202411/orders/search?app_key=123abc&sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c&timestamp=1625484268&category_asset_cipher=ROW_RHkDDABBAAB8tKAVoAqsMTjsQZFLyNfY&page_token=6AsPQsUMvH3RkchNUPPh22NROHkE0D8pmq/N5M1kHYcZmtRyv9aVrNv65W7Q6tFA+7D1ud64MPNz5OaT&page_size=20
-```
-
-### Request Body Sample
-
-```json
-{
-  "create_time_ge": 1623812664,
-  "create_time_lt": 1623812664,
-  "campaign_id": "7324371012170024705"
-}
-```
-
-### Sample Code
-
-**Curl**
-```shell
-curl -X POST \
- 'https://open-api.tiktokglobalshop.com/affiliate_partner/202411/orders/search?sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c&timestamp=1623812664&app_key=38abcd&category_asset_cipher=GCP_XF90igAAAABh00qsWgtvOiGFNqyubMt3&page_token=6AsPQsUMvH3RkchNUPPh22NROHkE0D8pmq/N5M1kHYcZmtRyv9aVrNv65W7Q6tFA+7D1ud64MPNz5OaT&page_size=20' \
--H 'x-tts-access-token: TTP_pwSm2AAAAABmmtFz1xlyKMnwg74T2GJ5s0uQbS8jPjb_GkdFVCxPqzQXSyuyfXdQa0AqyDsea2tYFNVf4XeqgZHFfPyv0Vs659QqyLYfsGzanZ5XZAin3_ZkcIxxS0_In6u6XDeU96k' \
--H 'content-type: application/json' \
--d '{
-  "create_time_ge": 1623812664,
-  "create_time_lt": 1623812664,
-  "campaign_id": "7324371012170024705"
-}'
-```
-
-**Go**
-```go
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-func affiliatePartner202411SearchTapAffiliateOrdersPost() {
-    configuration := apis.NewConfiguration()
-    configuration.AddAppInfo(appKey, appSecret)
-    apiClient := apis.NewAPIClient(configuration)
-    request := apiClient.AffiliatePartnerV202411API.AffiliatePartner202411OrdersSearchPost(context.Background())
-    request = request.XTtsAccessToken("your access token")
-    request = request.ContentType("application/json")
-    request = request.PageToken("6AsPQsUMvH3RkchNUPPh22NROHkE0D8pmq/N5M1kHYcZmtRyv9aVrNv65W7Q6tFA+7D1ud64MPNz5OaT")
-    request = request.PageSize(20)
-    request = request.CategoryAssetCipher("GCP_XF90igAAAABh00qsWgtvOiGFNqyubMt3")
-    affiliatePartner202411SearchTapAffiliateOrdersRequestBody := affiliatePartner_v202411.NewAffiliatePartner202411SearchTapAffiliateOrdersRequestBody()
-    affiliatePartner202411SearchTapAffiliateOrdersRequestBody.SetCreateTimeGe(1623812664)
-    affiliatePartner202411SearchTapAffiliateOrdersRequestBody.SetCreateTimeLt(1623812664)
-    affiliatePartner202411SearchTapAffiliateOrdersRequestBody.SetCampaignId("7324371012170024705")
-    request = request.AffiliatePartner202411SearchTapAffiliateOrdersRequestBody(*affiliatePartner202411SearchTapAffiliateOrdersRequestBody)
-    resp, httpResp, err := request.Execute()
-    if err != nil || httpResp.StatusCode != 200 {
-        fmt.Printf("productsRequest err:%v resbody:%s", err, httpResp.Body)
-        return
-    }
-    if resp == nil {
-        fmt.Printf("response is nil")
-        return
-    }
-    if resp.GetCode()!= 0 {
-        fmt.Printf("response business is error, errorCode:%d errorMessage:%s", resp.GetCode(), resp.GetMessage())
-        return
-    }
-    respDataJson, _ := json.MarshalIndent(resp.GetData(), "", "  ")
-    fmt.Println("response data:", string(respDataJson))
-    return
-}
-
-```
-
-**Node.js**
-```typescript
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-async function affiliatePartner202411SearchTapAffiliateOrdersPost() {
-    const affiliatePartner202411SearchTapAffiliateOrdersRequestBody = new AffiliatePartner202411SearchTapAffiliateOrdersRequestBody();
-    affiliatePartner202411SearchTapAffiliateOrdersRequestBody.createTimeGe = 1623812664;
-    affiliatePartner202411SearchTapAffiliateOrdersRequestBody.createTimeLt = 1623812664;
-    affiliatePartner202411SearchTapAffiliateOrdersRequestBody.campaignId = "7324371012170024705";
-    const result = await client.api.AffiliatePartnerV202411Api.OrdersSearchPost(20, "GCP_XF90igAAAABh00qsWgtvOiGFNqyubMt3", "your access token", "application/json", "6AsPQsUMvH3RkchNUPPh22NROHkE0D8pmq/N5M1kHYcZmtRyv9aVrNv65W7Q6tFA+7D1ud64MPNz5OaT", affiliatePartner202411SearchTapAffiliateOrdersRequestBody);
-    console.log('response: ', JSON.stringify(result, null, 2));
-}
-
-```
-
-**Java**
-```java
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-public void affiliatePartner202411SearchTapAffiliateOrdersPost() throws Exception {
-    ApiClient defaultClient = Configuration.getDefaultApiClient()
-            .setAppkey("your appKey")
-            .setSecret("your secret")
-            .setBasePath("https://open-api.tiktokglobalshop.com");
-    AffiliatePartnerV202411Api apiInstance = new AffiliatePartnerV202411Api(defaultClient);
-    SearchTapAffiliateOrdersRequestBody searchTapAffiliateOrdersRequestBody = new SearchTapAffiliateOrdersRequestBody();
-    searchTapAffiliateOrdersRequestBody.setCreateTimeGe(1623812664L);
-    searchTapAffiliateOrdersRequestBody.setCreateTimeLt(1623812664L);
-    searchTapAffiliateOrdersRequestBody.setCampaignId("7324371012170024705");
-    SearchTapAffiliateOrdersResponse result = apiInstance.affiliatePartner202411OrdersSearchPost(20L, "GCP_XF90igAAAABh00qsWgtvOiGFNqyubMt3", "your access token", "application/json", "6AsPQsUMvH3RkchNUPPh22NROHkE0D8pmq/N5M1kHYcZmtRyv9aVrNv65W7Q6tFA+7D1ud64MPNz5OaT", searchTapAffiliateOrdersRequestBody);
-    System.out.println(result);
-}
-
-```
-
-### Response Parameters
-
-| Name | Type | Example | Description |
+| Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| code | int | 0 | The success or failure status code returned in API response. |
-| message | string | Success | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
-| request_id | string | 202203070749000101890810281E8C70B7 | Request log |
-| data | object |  | Specific return information |
-| ^orders | []object |  | Order list |
-| ^^id | string | 576962796354307765 | Transaction main order ID |
-| ^^create_time | int | 1685548800 | Time and date of order created, UTC+0 timing |
-| ^^delivery_time | int | 1685548800 | Time and date order delivered, UTC+0 timing |
-| ^^status | string | COMPLETED | Status order for product sales The order status. Possible values: 1. "ALL" 2. "PROCESSING" 3. "COMPLETED" 4. "CANCELLED" 5. "FROZEN" 6. "DEDUCTED" |
+| campaign_id | string |  | Filter orders by a TAP campaign using its identifier. |
+| create_time_ge | integer |  | Filter orders to show only those that are created on or after the specified date and time. Unix timestamp. Note: `create_time_ge` and `create_time_lt` together constitute the creation time filter condition. - If `create_time_ge` is filled but `create_time_lt` is empty, `create_time_lt` will default to the current time. - If `create_time_lt` is filled but `create_time_ge` is empty, `create_time_ge` will default to the earliest shop time. |
+| create_time_lt | integer |  | Filter orders to show only those that are created before the specified date and time. Unix timestamp. Refer to notes in `create_time_ge` for more usage information. |
+
+### Response
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| code | integer |  | The success or failure status code returned in API response. |
+| data | object |  | Specific return information. |
+| ^next_page_token | string |  | Cursor used for searching for more information |
+| ^orders | array<object> |  | Order list |
+| ^^create_time | integer |  | Time and date of order created, UTC+0 timing |
+| ^^delivery_time | integer |  | Time and date order delivered, UTC+0 timing |
+| ^^id | string |  | Transaction main order ID |
 | ^^skus | object |  | SKUs |
-| ^^^id | string | 1729793769377925388 | sku ID |
-| ^^^campaign_id | string | 7324371012170024705 | New seller campaign  |
-| ^^^creator_username | string | liuyi_id_creator1jigo | Creator username |
-| ^^^product_name | string | Black Hoodie | Product name / description |
-| ^^^product_id | string | 1729435310697057093 | Unique identifier for Product |
-| ^^^price | object |  | Price |
-| ^^^^amount | string | 99 | Price amount for product, such as USD 1000 |
-| ^^^^currency | string | USD | Type of currency use |
-| ^^^quantity | int | 1 | Total sku quantity per order |
-| ^^^content_type | string | VIDEO | The content format of the creator content through which the order was created. Possible values: - SHOP - VIDEO - LIVE - PRE_LIVE - PROMOTION_PAGE - LINKSHARE |
-| ^^^content_id | string | 7494337156519332665 | Unique identifier for content |
-| ^^^creator_commission_rate | int | 3000 | Between TAP & creator percentage commission |
-| ^^^tap_commission_rate | int | 4000 | Between seller & TAP percentage commission |
-| ^^^estimated_commission_base | object |  | The estimated commission base is the item price multiplied by the number of items ordered at the time the order is created. |
-| ^^^^amount | string | 99 | Price amount for product, such as Rp 1000 |
-| ^^^^currency | string | USD | Type of currency use |
-| ^^^estimated_creator_commission | object |  | Estimated TAP commission x creator commission rate |
-| ^^^^amount | string | 100 | Price amount for product, such as Rp 1000 |
-| ^^^^currency | string | USD | Type of currency use |
-| ^^^estimated_tap_commission | object |  | Estimated commission base x TAP commission rate |
-| ^^^^amount | string | 500 | Price amount for product, such as Rp 1000 |
-| ^^^^currency | string | USD | Type of currency use |
 | ^^^actual_commission_base | object |  | The actual commission base is the item price multiplied by the number of items ordered minus returns at the time the order is completed. |
-| ^^^^amount | string | 200 | Price amount for product, such as Rp 1000 |
-| ^^^^currency | string | USD | Type of currency use |
+| ^^^^amount | string |  | Price amount for product, such as Rp 1000 |
+| ^^^^currency | string |  | Type of currency use |
 | ^^^actual_creator_commission | object |  | Actual TAP commission x creator commission rate |
-| ^^^^amount | string | 100 | Price amount for product, such as Rp 1000 |
-| ^^^^currency | string | USD | Type of currency use |
-| ^^^actual_tap_commission | object |  | Actual commission base x TAP commission rate |
-| ^^^^amount | string | 99 | Price amount for product, such as Rp 1000 |
-| ^^^^currency | string | USD | Type of currency use |
-| ^^^refunded_quantity | int | 1 | Number of sku refunded per order |
-| ^^^returned_quantity | int | 1 | Number of sku returned per order |
-| ^^^partner_commission_reward_rate | int | 1000 | The additional commission rate TikTok Shop offers to affiliate partners for driving product sales in specific campaigns |
-| ^^^estimated_partner_commission_reward_fee | object |  | Estimated partner commission reward fee |
-| ^^^^amount | string | 90 | The estimated fee affiliate partners earn from commission rewards |
-| ^^^^currency | string | USD | Type of currency use |
-| ^^^actual_partner_commission_reward_fee | object |  | Actual partner commission reward fee |
-| ^^^^amount | string | 200 | The actual fee affiliate partners earn from commission rewards |
-| ^^^^currency | string | USD | Type of currency use |
-| ^^^creator_commission_reward_rate | int | 2000 | The commission reward rate affiliate partners allocate to creators |
-| ^^^estimated_creator_commission_reward_fee | object |  | Estimated creator commission reward fee |
-| ^^^^amount | string | 300 | The estimated fee creators receive from affiliate partners through commission rewards |
-| ^^^^currency | string | USD | Type of currency use |
+| ^^^^amount | string |  | Price amount for product, such as Rp 1000 |
+| ^^^^currency | string |  | Type of currency use |
 | ^^^actual_creator_commission_reward_fee | object |  | Actual creator commission reward fee |
-| ^^^^amount | string | 100 | The actual fee creators receive from affiliate partners through commission rewards |
-| ^^^^currency | string | USD | Type of currency use |
-| ^next_page_token | string | 6AsPQsUMvH3RkchNUPPh22NROHkE0D8pmq/N5M1kHYcZmtRyv9aVrNv65W7Q6tFA+7D1ud64MPNz5OaT | Cursor used for searching for more information |
-| ^total_count | int | 100 | The total number of orders |
-
-### Response Sample
-
-```json
-{
-  "code": 0,
-  "data": {
-    "orders": [
-      {
-        "id": "576962796354307765",
-        "create_time": 1685548800,
-        "delivery_time": 1685548800,
-        "status": "COMPLETED",
-        "skus": {
-          "id": "1729793769377925388",
-          "campaign_id": "7324371012170024705",
-          "creator_username": "liuyi_id_creator1jigo",
-          "product_name": "Black Hoodie",
-          "product_id": "1729435310697057093",
-          "price": {
-            "amount": "99",
-            "currency": "USD"
-          },
-          "quantity": 1,
-          "content_type": "VIDEO",
-          "content_id": "7494337156519332665",
-          "creator_commission_rate": 3000,
-          "tap_commission_rate": 4000,
-          "estimated_commission_base": {
-            "amount": "99",
-            "currency": "USD"
-          },
-          "estimated_creator_commission": {
-            "amount": "100",
-            "currency": "USD"
-          },
-          "estimated_tap_commission": {
-            "amount": "500",
-            "currency": "USD"
-          },
-          "actual_commission_base": {
-            "amount": "200",
-            "currency": "USD"
-          },
-          "actual_creator_commission": {
-            "amount": "100",
-            "currency": "USD"
-          },
-          "actual_tap_commission": {
-            "amount": "99",
-            "currency": "USD"
-          },
-          "refunded_quantity": 1,
-          "returned_quantity": 1,
-          "partner_commission_reward_rate": 1000,
-          "estimated_partner_commission_reward_fee": {
-            "amount": "90",
-            "currency": "USD"
-          },
-          "actual_partner_commission_reward_fee": {
-            "amount": "200",
-            "currency": "USD"
-          },
-          "creator_commission_reward_rate": 2000,
-          "estimated_creator_commission_reward_fee": {
-            "amount": "300",
-            "currency": "USD"
-          },
-          "actual_creator_commission_reward_fee": {
-            "amount": "100",
-            "currency": "USD"
-          }
-        }
-      }
-    ],
-    "next_page_token": "6AsPQsUMvH3RkchNUPPh22NROHkE0D8pmq/N5M1kHYcZmtRyv9aVrNv65W7Q6tFA+7D1ud64MPNz5OaT",
-    "total_count": 100
-  },
-  "message": "Success",
-  "request_id": "202203070749000101890810281E8C70B7"
-}
-```
-
-### Error Codes
-
-| Code | Message |
-| --- | --- |
-| 36009003 | Internal error. Please try again. If the issue persists after multiple attempts, please contact platform support. |
-
-### API Scope / Permissions
-
-| Scope Name | Type | Description |
-| --- | --- | --- |
-| Read Affiliate Partner Campaigns | Private | The application will be able to access a TikTok Shop Affiliate Partner (TAP) campaign information, including view campaign list and details and campaign product list and details. |
+| ^^^^amount | string |  | The actual fee creators receive from affiliate partners through commission rewards |
+| ^^^^currency | string |  | Type of currency use |
+| ^^^actual_partner_commission_reward_fee | object |  | Actual partner commission reward fee |
+| ^^^^amount | string |  | The actual fee affiliate partners earn from commission rewards |
+| ^^^^currency | string |  | Type of currency use |
+| ^^^actual_tap_commission | object |  | Actual commission base x TAP commission rate |
+| ^^^^amount | string |  | Price amount for product, such as Rp 1000 |
+| ^^^^currency | string |  | Type of currency use |
+| ^^^campaign_id | string |  | New seller campaign |
+| ^^^content_id | string |  | Unique identifier for content |
+| ^^^content_type | string |  | The content format of the creator content through which the order was created. Possible values: - SHOP - VIDEO - LIVE - PRE_LIVE - PROMOTION_PAGE - LINKSHARE |
+| ^^^creator_commission_rate | integer |  | Between TAP & creator percentage commission |
+| ^^^creator_commission_reward_rate | integer |  | The commission reward rate affiliate partners allocate to creators |
+| ^^^creator_username | string |  | Creator username |
+| ^^^estimated_commission_base | object |  | The estimated commission base is the item price multiplied by the number of items ordered at the time the order is created. |
+| ^^^^amount | string |  | Price amount for product, such as Rp 1000 |
+| ^^^^currency | string |  | Type of currency use |
+| ^^^estimated_creator_commission | object |  | Estimated TAP commission x creator commission rate |
+| ^^^^amount | string |  | Price amount for product, such as Rp 1000 |
+| ^^^^currency | string |  | Type of currency use |
+| ^^^estimated_creator_commission_reward_fee | object |  | Estimated creator commission reward fee |
+| ^^^^amount | string |  | The estimated fee creators receive from affiliate partners through commission rewards |
+| ^^^^currency | string |  | Type of currency use |
+| ^^^estimated_partner_commission_reward_fee | object |  | Estimated partner commission reward fee |
+| ^^^^amount | string |  | The estimated fee affiliate partners earn from commission rewards |
+| ^^^^currency | string |  | Type of currency use |
+| ^^^estimated_tap_commission | object |  | Estimated commission base x TAP commission rate |
+| ^^^^amount | string |  | Price amount for product, such as Rp 1000 |
+| ^^^^currency | string |  | Type of currency use |
+| ^^^id | string |  | sku ID |
+| ^^^partner_commission_reward_rate | integer |  | The additional commission rate TikTok Shop offers to affiliate partners for driving product sales in specific campaigns |
+| ^^^price | object |  | Price |
+| ^^^^amount | string |  | Price amount for product, such as USD 1000 |
+| ^^^^currency | string |  | Type of currency use |
+| ^^^product_id | string |  | Unique identifier for Product |
+| ^^^product_name | string |  | Product name / description |
+| ^^^quantity | integer |  | Total sku quantity per order |
+| ^^^refunded_quantity | integer |  | Number of sku refunded per order |
+| ^^^returned_quantity | integer |  | Number of sku returned per order |
+| ^^^tap_commission_rate | integer |  | Between seller & TAP percentage commission |
+| ^^status | string |  | Status order for product sales The order status. Possible values: 1. "ALL" 2. "PROCESSING" 3. "COMPLETED" 4. "CANCELLED" 5. "FROZEN" 6. "DEDUCTED" |
+| ^total_count | integer |  | The total number of orders |
+| message | string |  | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
+| request_id | string |  | Request log. |
 
 ---
 
-## Get Affiliate Campaign Creator Fulfillment Status List
+## GetAffiliateCampaignCreatorFulfillmentStatusList
 
 This API offers the ability to get the product of the campaign fulfillment status for creators who added partner campaign products to their showcase. For details of a specified product involved in an affiliated campaign, use Get Affiliate Campaign Creator Fulfillment Status Info gateway.
 
 **Path:** `/affiliate_partner/202501/campaigns/{campaign_id}/products/performance`
-
 **Method:** `GET`
+**Version:** 202501
+**Docs:** https://partner.tiktokshop.com/docv2/page/get-affiliate-campaign-creator-fulfillment-status-list-202501
 
-**Common Parameters:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a4278f4c20311b8b57e)
-
-**Common Error Codes:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a45786253031531b942)
-
-### Request Header Parameters
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| content-type | string | Y | Allowed type: application/json |
-| x-tts-access-token | string | Y | The partner access_token value from [Get Access Token](https://partner.tiktokshop.com/docv2/page/678e3a3292b0f40314a92d75#Get%20Access%20Token%20API), when user_type = 3. Follow this [guide](https://partner.tiktokshop.com/docv2/page/678e3a3978f4c20311b8b555) to get partner access_token. |
-
-### Request Path Parameters
+### Path Parameters
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
 | campaign_id | string | Y | the unique id of a campaign |
 
-### Request Query Parameters
+### Query Parameters
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| app_key | string | Y | Every single app will have a unique key. Please use the specific key assigned to your app. |
-| sign | string | Y | Signature generated by gen algorithm. When you send API requests to TTS, you must sign them so that TTS can identify the senders.  |
-| timestamp | int | Y | Unix timestamp GMT (UTC+00:00). This timestamp is used across all API requests. Developers can use this convert to local time. |
-| page_size | int | N | The number of results to be returned per page. Valid range: 1-50. |
-| page_token | string | N | An opaque token used to retrieve the next page of a paginated result set. Retrieve this value from the result of the `next_page_token` from a previous response. It is not needed for the first page. |
+| page_size | integer |  | The number of results to be returned per page. Valid range: 1-50. |
+| page_token | string |  | An opaque token used to retrieve the next page of a paginated result set. Retrieve this value from the result of the `next_page_token` from a previous response. It is not needed for the first page. |
 
-### Request Sample
+### Header Parameters
 
-```
-https://open-api.tiktokglobalshop.com/affiliate_partner/202501/campaigns/1234567890/products/performance?app_key=123abc&sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c&timestamp=1625484268&page_size=10&page_token=b2Zmc2V0PTAK
-```
-
-### Sample Code
-
-**Curl**
-```shell
-curl -X GET \
- 'https://open-api.tiktokglobalshop.com/affiliate_partner/202501/campaigns/1234567890/products/performance?page_size=10&page_token=b2Zmc2V0PTAK&timestamp=1623812664&app_key=38abcd&sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c' \
--H 'content-type: application/json' \
--H 'x-tts-access-token: TTP_pwSm2AAAAABmmtFz1xlyKMnwg74T2GJ5s0uQbS8jPjb_GkdFVCxPqzQXSyuyfXdQa0AqyDsea2tYFNVf4XeqgZHFfPyv0Vs659QqyLYfsGzanZ5XZAin3_ZkcIxxS0_In6u6XDeU96k'
-```
-
-**Go**
-```go
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-func affiliatePartner202501GetAffiliateCampaignCreatorFulfillmentStatusListGet() {
-    configuration := apis.NewConfiguration()
-    configuration.AddAppInfo(appKey, appSecret)
-    apiClient := apis.NewAPIClient(configuration)
-    request := apiClient.AffiliatePartnerV202501API.AffiliatePartner202501CampaignsCampaignIdProductsPerformanceGet(context.Background(), "1234567890")
-    request = request.XTtsAccessToken("your access token")
-    request = request.ContentType("application/json")
-    request = request.PageSize(10)
-    request = request.PageToken("b2Zmc2V0PTAK")
-    resp, httpResp, err := request.Execute()
-    if err != nil || httpResp.StatusCode != 200 {
-        fmt.Printf("productsRequest err:%v resbody:%s", err, httpResp.Body)
-        return
-    }
-    if resp == nil {
-        fmt.Printf("response is nil")
-        return
-    }
-    if resp.GetCode()!= 0 {
-        fmt.Printf("response business is error, errorCode:%d errorMessage:%s", resp.GetCode(), resp.GetMessage())
-        return
-    }
-    respDataJson, _ := json.MarshalIndent(resp.GetData(), "", "  ")
-    fmt.Println("response data:", string(respDataJson))
-    return
-}
-
-```
-
-**Node.js**
-```typescript
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-async function affiliatePartner202501GetAffiliateCampaignCreatorFulfillmentStatusListGet() {
-    const result = await client.api.AffiliatePartnerV202501Api.CampaignsCampaignIdProductsPerformanceGet("1234567890", "your access token", "application/json", 10, "b2Zmc2V0PTAK");
-    console.log('response: ', JSON.stringify(result, null, 2));
-}
-
-```
-
-**Java**
-```java
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-public void affiliatePartner202501GetAffiliateCampaignCreatorFulfillmentStatusListGet() throws Exception {
-    ApiClient defaultClient = Configuration.getDefaultApiClient()
-            .setAppkey("your appKey")
-            .setSecret("your secret")
-            .setBasePath("https://open-api.tiktokglobalshop.com");
-    AffiliatePartnerV202501Api apiInstance = new AffiliatePartnerV202501Api(defaultClient);
-    GetAffiliateCampaignCreatorFulfillmentStatusListResponse result = apiInstance.affiliatePartner202501CampaignsCampaignIdProductsPerformanceGet("1234567890", "your access token", "application/json", 10L, "b2Zmc2V0PTAK");
-    System.out.println(result);
-}
-
-```
-
-### Response Parameters
-
-| Name | Type | Example | Description |
+| Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| code | int | 0 | The success or failure status code returned in API response. |
-| message | string | Success | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
-| request_id | string | 202203070749000101890810281E8C70B7 | Request log |
-| data | object |  | Specific return information |
-| ^total_count | int | 10 | The total count of products included in the specified campaign. |
-| ^campaign_product_statistics | []object |  | A list of objects representing campaign product statistics. |
-| ^^data_update_time | string | 1736204400000 | The time at which the product data was last updated, in Unix epoch format. |
-| ^^creator_sales_num | int | 1 | The number of products sold in the campaign. |
-| ^^collaborated_creators_num | int | 0 | The total number of creators associated with the campaign. |
-| ^^promoted_creator_num | int | 0 | The number of the creators involved in the campaign.  |
-| ^^sample_requested_creator_num | int | 0 | The total number of samples requested by all creators associated with the campaign.  |
+| x-tts-access-token | string | Y |  |
+| Content-Type | string | Y | Allowed type: application/json |
+
+### Response
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| code | integer |  | The success or failure status code returned in API response. |
+| data | object |  | Specific return information. |
+| ^campaign_product_statistics | array<object> |  | A list of objects representing campaign product statistics. |
 | ^^campaign_product_detail | object |  | An object representing the details for the product associated with the campaign. |
-| ^^^product_id | string | 12344 | The product identifier. |
-| ^^^product_status | string | PRODUCT_UNSPECIFIED | The product status. This is an enumerated type with values: -  PRODUCT_UNSPECIFIED -  PRODUCT_PENDING -  PRODUCT_APPROVED -  PRODUCT_REJECTED -  PRODUCT_PENDING_CLOSED -  PRODUCT_CLOSED  |
-| ^^^product_name | string | summer underwear soft dress summer underwear-001 | The product name. |
-| ^^^product_stock_count | string | 100 | The total number of products in stock. |
-| ^^^total_commission_percent | string | 6000 | The commission rate of the partner plan. It is the sum of the `creator_commission_rate` and `partner_commission_rate`. The value is in hundredths of a percent. For example, a value of 1000 means 10.00%.  |
-| ^^^creator_commission_percent | string | 1000 | The commission rate for the creator in the partner plan. The value is in hundredths of a percent. For example, a value of 1000 means 10.00%. |
-| ^^^partner_commission_percent | string | 5000 | The commission rate for the partner in the partner plan. The value is in hundredths of a percent. For example, a value of 1000 means 10.00%.  |
-| ^^^plan_commission_percent | string | 1400 | The commission rate for open collaboration. The value is in hundredths of a percent. For example, a value of 1000 means 10.00%.  |
-| ^^^product_price | object |  | The product price. |
-| ^^^^min_price | string | 1.00 | The minimum offered price of the product. |
-| ^^^^max_price | string | 3.00 | The maximum offered price of the product. |
-| ^^^^currency | string | USD | The currency code for the maximum and minimum offered price for the product. |
-| ^^^product_thumbnail | object |  | An object representing the product thumbnail. |
-| ^^^^uri | string | tos-useast5-i-omjb5zjo8w-tx/178e97ee3b254f9ab237ea7516828266 | The base URI of the product. |
-| ^^^^url_list | []string | ["https://p19-oec-ttp.tiktokcdn-us.com/tos-useast5-i-omjb5zjo8w-tx/178e97ee3b254f9ab237ea7516828266~tplv-omjb5zjo8w-resize-jpeg:300:300.jpeg?from=520841845", "https://p16-oec-ttp.tiktokcdn-us.com/tos-useast5-i-omjb5zjo8w-tx/178e97ee3b254f9ab237ea7516828266~tplv-omjb5zjo8w-resize-jpeg:300:300.jpeg?from=520841845"] | A list of URLs for each image associated with the product. |
+| ^^^creator_commission_percent | string |  | The commission rate for the creator in the partner plan. The value is in hundredths of a percent. For example, a value of 1000 means 10.00%. |
 | ^^^indicator_data | object |  | Key performance indicators for the product. |
-| ^^^^paid_order_num | string | 3 | The total number of paid orders. `paid_order_num` = `actual_order_num` + {number of paid but returned orders}  |
-| ^^^^actual_order_num | string | 0 | The actual number of paid orders.  |
-| ^^^^estimated_amount | string | 0 | The total payment amount corresponding to `paid_order_num`.  |
-| ^^^^actual_amount | string | 0 | GMV, the total payment amount corresponding to `actual_order_num`.  |
-| ^^^^estimated_partner_commission | string | 0 | The partner commission amount corresponding to paid_order_num.  |
-| ^^^^actual_partner_commission | string | 0 | The partner commission amount corresponding to actual_order_num.  |
-| ^^^^creator_sales_num | string | 0 | The number of creators credited with at least one product sale. |
-| ^^^^collaborated_creators_num | string | 0 | The total number of creators collaborating on the campaign. |
-| ^^^^promoted_creator_num | string | 0 | The number of creators involved in the partner plan.  |
-| ^^^^sample_requested_creator_num | string | 0 | The total number of creators that applied for a sample. |
-| ^next_page_token | string | 0 | next page query token |
-
-### Response Sample
-
-```json
-{
-  "code": 0,
-  "data": {
-    "total_count": 10,
-    "campaign_product_statistics": [
-      {
-        "data_update_time": "1736204400000",
-        "creator_sales_num": 1,
-        "collaborated_creators_num": 0,
-        "promoted_creator_num": 0,
-        "sample_requested_creator_num": 0,
-        "campaign_product_detail": {
-          "product_id": "12344",
-          "product_status": "PRODUCT_UNSPECIFIED",
-          "product_name": "summer underwear soft dress summer underwear-001",
-          "product_stock_count": "100",
-          "total_commission_percent": "6000",
-          "creator_commission_percent": "1000",
-          "partner_commission_percent": "5000",
-          "plan_commission_percent": "1400",
-          "product_price": {
-            "min_price": "1.00",
-            "max_price": "3.00",
-            "currency": "USD"
-          },
-          "product_thumbnail": {
-            "uri": "tos-useast5-i-omjb5zjo8w-tx/178e97ee3b254f9ab237ea7516828266",
-            "url_list": [
-              "https://p19-oec-ttp.tiktokcdn-us.com/tos-useast5-i-omjb5zjo8w-tx/178e97ee3b254f9ab237ea7516828266~tplv-omjb5zjo8w-resize-jpeg:300:300.jpeg?from=520841845",
-              "https://p16-oec-ttp.tiktokcdn-us.com/tos-useast5-i-omjb5zjo8w-tx/178e97ee3b254f9ab237ea7516828266~tplv-omjb5zjo8w-resize-jpeg:300:300.jpeg?from=520841845"
-            ]
-          },
-          "indicator_data": {
-            "paid_order_num": "3",
-            "actual_order_num": "0",
-            "estimated_amount": "0",
-            "actual_amount": "0",
-            "estimated_partner_commission": "0",
-            "actual_partner_commission": "0",
-            "creator_sales_num": "0",
-            "collaborated_creators_num": "0",
-            "promoted_creator_num": "0",
-            "sample_requested_creator_num": "0"
-          }
-        }
-      }
-    ],
-    "next_page_token": "0"
-  },
-  "message": "Success",
-  "request_id": "202203070749000101890810281E8C70B7"
-}
-```
-
-### API Scope / Permissions
-
-| Scope Name | Type | Description |
-| --- | --- | --- |
-| Read Affiliate Partner Campaigns | Private | The application will be able to access a TikTok Shop Affiliate Partner (TAP) campaign information, including view campaign list and details and campaign product list and details. |
+| ^^^^actual_amount | string |  | GMV, the total payment amount corresponding to `actual_order_num`. |
+| ^^^^actual_order_num | string |  | The actual number of paid orders. |
+| ^^^^actual_partner_commission | string |  | The partner commission amount corresponding to actual_order_num. |
+| ^^^^collaborated_creators_num | string |  | The total number of creators collaborating on the campaign. |
+| ^^^^creator_sales_num | string |  | The number of creators credited with at least one product sale. |
+| ^^^^estimated_amount | string |  | The total payment amount corresponding to `paid_order_num`. |
+| ^^^^estimated_partner_commission | string |  | The partner commission amount corresponding to paid_order_num. |
+| ^^^^paid_order_num | string |  | The total number of paid orders. `paid_order_num` = `actual_order_num` + {number of paid but returned orders} |
+| ^^^^promoted_creator_num | string |  | The number of creators involved in the partner plan. |
+| ^^^^sample_requested_creator_num | string |  | The total number of creators that applied for a sample. |
+| ^^^partner_commission_percent | string |  | The commission rate for the partner in the partner plan. The value is in hundredths of a percent. For example, a value of 1000 means 10.00%. |
+| ^^^plan_commission_percent | string |  | The commission rate for open collaboration. The value is in hundredths of a percent. For example, a value of 1000 means 10.00%. |
+| ^^^product_id | string |  | The product identifier. |
+| ^^^product_name | string |  | The product name. |
+| ^^^product_price | object |  | The product price. |
+| ^^^^currency | string |  | The currency code for the maximum and minimum offered price for the product. |
+| ^^^^max_price | string |  | The maximum offered price of the product. |
+| ^^^^min_price | string |  | The minimum offered price of the product. |
+| ^^^product_status | string |  | The product status. This is an enumerated type with values: -  PRODUCT_UNSPECIFIED -  PRODUCT_PENDING -  PRODUCT_APPROVED -  PRODUCT_REJECTED -  PRODUCT_PENDING_CLOSED -  PRODUCT_CLOSED |
+| ^^^product_stock_count | string |  | The total number of products in stock. |
+| ^^^product_thumbnail | object |  | An object representing the product thumbnail. |
+| ^^^^uri | string |  | The base URI of the product. |
+| ^^^^url_list | array<string> |  | A list of URLs for each image associated with the product. |
+| ^^^total_commission_percent | string |  | The commission rate of the partner plan. It is the sum of the `creator_commission_rate` and `partner_commission_rate`. The value is in hundredths of a percent. For example, a value of 1000 means 10.00%. |
+| ^^collaborated_creators_num | integer |  | The total number of creators associated with the campaign. |
+| ^^creator_sales_num | integer |  | The number of products sold in the campaign. |
+| ^^data_update_time | string |  | The time at which the product data was last updated, in Unix epoch format. |
+| ^^promoted_creator_num | integer |  | The number of the creators involved in the campaign. |
+| ^^sample_requested_creator_num | integer |  | The total number of samples requested by all creators associated with the campaign. |
+| ^next_page_token | string |  | next page query token |
+| ^total_count | integer |  | The total count of products included in the specified campaign. |
+| message | string |  | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
+| request_id | string |  | Request log. |
 
 ---
 
-## Search CAP Affiliate Orders
+## GetAffiliateCampaignCreatorProductContentStatistics
+
+Get statistics on creator's marketing video content
+
+**Path:** `/affiliate_partner/202501/campaigns/{campaign_id}/products/{product_id}/creator/{creator_temp_id}/content/statistics`
+**Method:** `GET`
+**Version:** 202501
+**Docs:** https://partner.tiktokshop.com/docv2/page/get-affiliate-campaign-creator-product-content-statistics-202501
+
+### Path Parameters
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| campaign_id | string | Y | The campaign identifier. |
+| product_id | string | Y | The product identifier. |
+| creator_temp_id | string | Y | A time-limited identifier associated with the creator that is valid for one hour. This identifier is valid to retrieve content performance data associated with the creator. Refer to `promotion_creators.creator.creator_temp_id` in the response of Get Affiliate Campaign Creator Fulfillment Status Info gateway. |
+
+### Query Parameters
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| affiliate_product_id | string | Y | The affiliate product identifier to be included in the response. Refer to `promotion_creators.affiliate_product_id` in the response of Get Affiliate Campaign Creator Fulfillment Status Info gateway. |
+| content_type | string |  | Content type.Identify content as video or live. - 1: VIDEO - 2: LIVE_ROOM |
+
+### Header Parameters
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| x-tts-access-token | string | Y |  |
+| Content-Type | string | Y | Allowed type: application/json |
+
+### Response
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| code | integer |  | The success or failure status code returned in API response. |
+| data | object |  | Specific return information. |
+| ^creator_content_statistics | array<object> |  | A list of objects that represent content statistics for the associated creator. |
+| ^^comment_num | string |  | The number of TikTok user comments associated with the live room or video. |
+| ^^content_end_date | string |  | When content_type == VIDEO, this field is None; when content_type == LIVE_ROOM, this is the date when the live ended. The value is in YYYY_MM_DD format. |
+| ^^content_type | string |  | Content type.Identify content as video or live. - 1: VIDEO - 2: LIVE_ROOM |
+| ^^cover_img_url | string |  | A URL for the live room cover image in the TikTok CDN.The video content doesn't have this value. |
+| ^^like_count | string |  | The number of TikTok user likes associated with the live room or video. |
+| ^^linked_tiktok_video | string |  | The friendly URL for the video on the TikTok website. |
+| ^^paid_amount | string |  | The aggregate value of product orders associated with the live room or video. |
+| ^^paid_order_num | string |  | The total number of paid orders associated with the live room or video. |
+| ^^published_date | string |  | When content_type == VIDEO, this is the date when the video was published; when content_type == LIVE_ROOM, this is the date when the live started. The value is in YYYY_MM_DD format. |
+| ^^source_url | string |  | The URL on the public TikTok website at which the live room video can be played back. When content_type == VIDEO, the value is the url of the source video; when content_type == LIVE_ROOM, the value is the url where you can play back the recording of the live. |
+| ^^view_count | string |  | The number of public views of the live room or video. |
+| message | string |  | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
+| request_id | string |  | Request log. |
+
+---
+
+## GetAffiliateCampaignCreatorProductSampleStatus
+
+Get progress on creator's sample status
+
+**Path:** `/affiliate_partner/202501/campaigns/{campaign_id}/products/{product_id}/creator/{creator_temp_id}/content/statistics/sample/status`
+**Method:** `GET`
+**Version:** 202501
+**Docs:** https://partner.tiktokshop.com/docv2/page/get-affiliate-campaign-creator-product-sample-status-202501
+
+### Path Parameters
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| campaign_id | string | Y | The campaign identifier. |
+| product_id | string | Y | The product identifier. |
+| creator_temp_id | string | Y | A time-limited identifier associated with the creator that is valid for one hour. This identifier is valid to retrieve content performance data associated with the creator.`promotion_creators.creator.creator_temp_id` in the response of Get Affiliate Campaign Creator Fulfillment Status Info gateway. |
+
+### Header Parameters
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| x-tts-access-token | string | Y |  |
+| Content-Type | string | Y | Allowed type: application/json |
+
+### Response
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| code | integer |  | The success or failure status code returned in API response. |
+| data | object |  | Specific return information. |
+| ^sample_status | object |  | The creator's sample status |
+| ^^delivery_option | string |  | The delivery option: - ECONOMY_SHIPPING - PREMIUM_SHIPPING |
+| ^^estimated_earliest_delivery_date | string |  | The earliest estimated delivery date in Unix epoch format. |
+| ^^estimated_latest_delivery_date | string |  | The longest estimated delivery date in Unix epoch format. |
+| ^^quantity | integer |  | The quantity of products delivered. |
+| ^^shipping_provider_name | string |  | The name of the shipping provider |
+| ^^tracking_results | array<object> |  | A list of objects representing tracking events. |
+| ^^^tracking_event_description | string |  | The title of the tracking event. - THE_PACKAGE_HAS_BEEN_DELIVERED - OUT_FOR_DELIVERY - ORDER_PACKED_AND_READY_FOR_DROP_OFF_AT_CARRIERS_FACILITY - ORDER_PLACED |
+| ^^^tracking_event_description_extended | string |  | More information about the tracking event |
+| ^^^tracking_event_update_date | string |  | The date at which the tracking event was last updated, in Unix epoch format. |
+| message | string |  | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
+| request_id | string |  | Request log. |
+
+---
+
+## GetAffiliateCampaignCreatorFulfillmentStatusInfo
+
+This API offers the ability to get the product fulfillment status for creators who added partner campaign products to their showcase
+
+**Path:** `/affiliate_partner/202501/campaigns/{campaign_id}/products/{product_id}/performance`
+**Method:** `GET`
+**Version:** 202501
+**Docs:** https://partner.tiktokshop.com/docv2/page/get-affiliate-campaign-creator-fulfillment-status-info-202501
+
+### Path Parameters
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| campaign_id | string | Y | The campaign identifier. |
+| product_id | string | Y | The product identifier. |
+
+### Query Parameters
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| page_size | integer |  | The number of results to be returned per page. Valid range: 1-50. |
+| page_token | string |  | An opaque token used to retrieve the next page of a paginated result set. Retrieve this value from the result of the `next_page_token` from a previous response. It is not needed for the first page. |
+
+### Header Parameters
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| x-tts-access-token | string | Y |  |
+| Content-Type | string | Y | Allowed type: application/json |
+
+### Response
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| code | integer |  | The success or failure status code returned in API response. |
+| data | object |  | Specific return information. |
+| ^next_page_token | string |  | Querying next page need this token. |
+| ^promotion_creators | array<object> |  | A list of objects representing information about the Affiliate Creator associated with the product promotion. |
+| ^^affiliate_product_id | string |  | The affiliate product identifier. |
+| ^^commission | string |  | The commission rate in hundredths of a percent (0.01%). For example, a value of 1000 is 10.00%. |
+| ^^creator | object |  | An object representing information about the creator associated with the promotion. |
+| ^^^avatar_url | string |  | A URL for the creator's avatar image in the TikTok CDN. |
+| ^^^creator_temp_id | string |  | A time-limited identifier associated with the creator that is valid for one hour. This identifier is valid to retrieve content performance data associated with the creator. |
+| ^^^follower_num | integer |  | The total count of TikTok followers for the creator. |
+| ^^^nick_name | string |  | The TikTok nickname of the creator. |
+| ^^^user_name | string |  | user name |
+| ^^effective_end_time | string |  | The effective end time for the collaboration in Unix epoch time format. |
+| ^^effective_start_time | string |  | The effective start time for the collaboration in Unix epoch time format. |
+| ^^free_sample_status | string |  | Status of the Creator's sample application. - NOT_REQUESTED - PENDING - AWAITING_SHIPMENT - AWAITING_COLLECTION - SHIPPED - CONTENT_PENDING - REJECT_CANCELLED - OVERDUE_CANCELLED - UNFULFIL_CANCELLED - DEL_PLAN_CANCELLED - SELLER_NOT_SHIP_CANCELLED - WITHDRAW_CANCELLED - UNFULFILLABLE_CANCELLED - OPERATOR_MANUAL_CANCELLED - OPERATOR_MANUAL_FAILED - OPERATOR_MANUAL_COMPLETED - COMPLETED |
+| ^^paid_amount | object |  | An object representing the total amount paid for this product. |
+| ^^^amount | string |  | The total amount paid for this product. |
+| ^^^currency | string |  | The currency code for the amount field. |
+| ^^room_count | integer |  | The number of live broadcast rooms associated with this promotion. |
+| ^^video_count | integer |  | The total number of videos associated with this promotion published by creators. |
+| ^total_creator_count | integer |  | The total number of creators involved in the campaign. |
+| message | string |  | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
+| request_id | string |  | Request log. |
+
+---
+
+## SearchCAPAffiliateOrders
 
 Search the list of affiliate orders of the specified date range from a MCN or known as CAP - Creator Agency partner
 
 **Path:** `/affiliate_partner/202504/cap_order/search`
-
 **Method:** `POST`
+**Version:** 202504
+**Docs:** https://partner.tiktokshop.com/docv2/page/search-capaffiliate-orders-202504
 
-**Common Parameters:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a4278f4c20311b8b57e)
-
-**Common Error Codes:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a45786253031531b942)
-
-### Request Header Parameters
+### Query Parameters
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| content-type | string | Y | Allowed type: application/json |
-| x-tts-access-token | string | Y | The partner access_token value from [Get Access Token](https://partner.tiktokshop.com/docv2/page/678e3a3292b0f40314a92d75#Get%20Access%20Token%20API), when user_type = 3. Follow this [guide](https://partner.tiktokshop.com/docv2/page/678e3a3978f4c20311b8b555) to get partner access_token. |
+| page_token | string |  | The next page token |
+| page_size | integer | Y | The default is 20, it must be positive integer, the range is 1-100 |
+| category_asset_cipher | string | Y | The partner identifier used in API requests.  Retrieve this value by using the [Get Authorized Category Assets API] (https://partner.tiktokshop.com/docv2/page/666012dd609d4402cc3be995). |
 
-### Request Query Parameters
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| app_key | string | Y | Every single app will have a unique key. Please use the specific key assigned to your app. |
-| sign | string | Y | Signature generated by gen algorithm. When you send API requests to TTS, you must sign them so that TTS can identify the senders.  |
-| timestamp | int | Y | Unix timestamp GMT (UTC+00:00). This timestamp is used across all API requests. Developers can use this convert to local time. |
-| page_token | string | N | The next page token |
-| page_size | int | Y | The default is 20, it must be positive integer, the range is 1-100  |
-| category_asset_cipher | string | Y | The partner identifier used in API requests.  Retrieve this value by using the [Get Authorized Category Assets API] (https://partner.tiktokshop.com/docv2/page/666012dd609d4402cc3be995).  |
-
-### Request Body Parameters
+### Header Parameters
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| order_id | string | N | Transaction main order ID |
-| order_status | int | N | Status order for product sales |
-| product_id | string | N | Unique identifier for Product |
-| create_time_ge | int | N | Unix timestamp representing the start of transactions time range one wants to request |
-| create_time_lt | int | N | Unix timestamp representing the end of transactions time range one wants to request |
+| x-tts-access-token | string | Y |  |
+| Content-Type | string | Y | Allowed type: application/json |
 
-### Request Sample
+### Request Body (`application/json`)
 
-```
-https://open-api.tiktokglobalshop.com/affiliate_partner/202504/cap_order/search?app_key=123abc&sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c&timestamp=1625484268&category_asset_cipher=ROW_RHkDDABBAAB8tKAVoAqsMTjsQZFLyNfY&page_token=6AsPQsUMvH3RkchNUPPh22NROHkE0D8pmq/N5M1kHYcZmtRyv9aVrNv65W7Q6tFA+7D1ud64MPNz5OaT
-&page_size=20
-```
-
-### Request Body Sample
-
-```json
-{
-  "order_id": "576962796354307765",
-  "order_status": 1,
-  "product_id": "1729435310697057093",
-  "create_time_ge": 1623812664,
-  "create_time_lt": 1623812664
-}
-```
-
-### Sample Code
-
-**Curl**
-```shell
-curl -X POST \
- 'https://open-api.tiktokglobalshop.com/affiliate_partner/202504/cap_order/search?sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c&timestamp=1623812664&app_key=38abcd&category_asset_cipher=GCP_XF90igAAAABh00qsWgtvOiGFNqyubMt3
-&page_token=6AsPQsUMvH3RkchNUPPh22NROHkE0D8pmq/N5M1kHYcZmtRyv9aVrNv65W7Q6tFA+7D1ud64MPNz5OaT
-&page_size=20' \
--H 'content-type: application/json' \
--H 'x-tts-access-token: TTP_pwSm2AAAAABmmtFz1xlyKMnwg74T2GJ5s0uQbS8jPjb_GkdFVCxPqzQXSyuyfXdQa0AqyDsea2tYFNVf4XeqgZHFfPyv0Vs659QqyLYfsGzanZ5XZAin3_ZkcIxxS0_In6u6XDeU96k' \
--d '{
-  "order_id": "576962796354307765",
-  "order_status": 1,
-  "product_id": "1729435310697057093",
-  "create_time_ge": 1623812664,
-  "create_time_lt": 1623812664
-}'
-```
-
-**Go**
-```go
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-func affiliatePartner202504SearchCAPAffiliateOrdersPost() {
-    configuration := apis.NewConfiguration()
-    configuration.AddAppInfo(appKey, appSecret)
-    apiClient := apis.NewAPIClient(configuration)
-    request := apiClient.AffiliatePartnerV202504API.AffiliatePartner202504CapOrderSearchPost(context.Background())
-    request = request.XTtsAccessToken("your access token")
-    request = request.ContentType("application/json")
-    request = request.PageToken("6AsPQsUMvH3RkchNUPPh22NROHkE0D8pmq/N5M1kHYcZmtRyv9aVrNv65W7Q6tFA+7D1ud64MPNz5OaT\n")
-    request = request.PageSize(20)
-    request = request.CategoryAssetCipher("GCP_XF90igAAAABh00qsWgtvOiGFNqyubMt3\n")
-    affiliatePartner202504SearchCAPAffiliateOrdersRequestBody := affiliatePartner_v202504.NewAffiliatePartner202504SearchCAPAffiliateOrdersRequestBody()
-    affiliatePartner202504SearchCAPAffiliateOrdersRequestBody.SetOrderId("576962796354307765")
-    affiliatePartner202504SearchCAPAffiliateOrdersRequestBody.SetOrderStatus(1)
-    affiliatePartner202504SearchCAPAffiliateOrdersRequestBody.SetProductId("1729435310697057093")
-    affiliatePartner202504SearchCAPAffiliateOrdersRequestBody.SetCreateTimeGe(1623812664)
-    affiliatePartner202504SearchCAPAffiliateOrdersRequestBody.SetCreateTimeLt(1623812664)
-    request = request.AffiliatePartner202504SearchCAPAffiliateOrdersRequestBody(*affiliatePartner202504SearchCAPAffiliateOrdersRequestBody)
-    resp, httpResp, err := request.Execute()
-    if err != nil || httpResp.StatusCode != 200 {
-        fmt.Printf("productsRequest err:%v resbody:%s", err, httpResp.Body)
-        return
-    }
-    if resp == nil {
-        fmt.Printf("response is nil")
-        return
-    }
-    if resp.GetCode()!= 0 {
-        fmt.Printf("response business is error, errorCode:%d errorMessage:%s", resp.GetCode(), resp.GetMessage())
-        return
-    }
-    respDataJson, _ := json.MarshalIndent(resp.GetData(), "", "  ")
-    fmt.Println("response data:", string(respDataJson))
-    return
-}
-
-```
-
-**Node.js**
-```typescript
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-async function affiliatePartner202504SearchCAPAffiliateOrdersPost() {
-    const affiliatePartner202504SearchCAPAffiliateOrdersRequestBody = new AffiliatePartner202504SearchCAPAffiliateOrdersRequestBody();
-    affiliatePartner202504SearchCAPAffiliateOrdersRequestBody.orderId = "576962796354307765";
-    affiliatePartner202504SearchCAPAffiliateOrdersRequestBody.orderStatus = 1;
-    affiliatePartner202504SearchCAPAffiliateOrdersRequestBody.productId = "1729435310697057093";
-    affiliatePartner202504SearchCAPAffiliateOrdersRequestBody.createTimeGe = 1623812664;
-    affiliatePartner202504SearchCAPAffiliateOrdersRequestBody.createTimeLt = 1623812664;
-    const result = await client.api.AffiliatePartnerV202504Api.CapOrderSearchPost(20, "GCP_XF90igAAAABh00qsWgtvOiGFNqyubMt3\n", "your access token", "application/json", "6AsPQsUMvH3RkchNUPPh22NROHkE0D8pmq/N5M1kHYcZmtRyv9aVrNv65W7Q6tFA+7D1ud64MPNz5OaT\n", affiliatePartner202504SearchCAPAffiliateOrdersRequestBody);
-    console.log('response: ', JSON.stringify(result, null, 2));
-}
-
-```
-
-**Java**
-```java
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-public void affiliatePartner202504SearchCAPAffiliateOrdersPost() throws Exception {
-    ApiClient defaultClient = Configuration.getDefaultApiClient()
-            .setAppkey("your appKey")
-            .setSecret("your secret")
-            .setBasePath("https://open-api.tiktokglobalshop.com");
-    AffiliatePartnerV202504Api apiInstance = new AffiliatePartnerV202504Api(defaultClient);
-    SearchCAPAffiliateOrdersRequestBody searchCAPAffiliateOrdersRequestBody = new SearchCAPAffiliateOrdersRequestBody();
-    searchCAPAffiliateOrdersRequestBody.setOrderId("576962796354307765");
-    searchCAPAffiliateOrdersRequestBody.setOrderStatus(1L);
-    searchCAPAffiliateOrdersRequestBody.setProductId("1729435310697057093");
-    searchCAPAffiliateOrdersRequestBody.setCreateTimeGe(1623812664L);
-    searchCAPAffiliateOrdersRequestBody.setCreateTimeLt(1623812664L);
-    SearchCAPAffiliateOrdersResponse result = apiInstance.affiliatePartner202504CapOrderSearchPost(20L, "GCP_XF90igAAAABh00qsWgtvOiGFNqyubMt3\n", "your access token", "application/json", "6AsPQsUMvH3RkchNUPPh22NROHkE0D8pmq/N5M1kHYcZmtRyv9aVrNv65W7Q6tFA+7D1ud64MPNz5OaT\n", searchCAPAffiliateOrdersRequestBody);
-    System.out.println(result);
-}
-
-```
-
-### Response Parameters
-
-| Name | Type | Example | Description |
+| Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| code | int | 0 | The success or failure status code returned in API response. |
-| message | string | Success | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
-| request_id | string | 202203070749000101890810281E8C70B7 | Request log |
-| data | object |  | Specific return information |
-| ^orders | []object |  | Order list  |
-| ^^id | string | 576962796354307765 | Transaction main order ID  |
-| ^^tags | string | test-01 | The customizable ID for each order, used for tracking performance at difference front end modules. |
-| ^^create_time | int | 1685548800 | Time and date of order created, UTC+0 timing |
-| ^^delivery_time | int | 1685548800 | Time and date order delivered, UTC+0 timing |
-| ^^status | string | COMPLETED | Status order for product sales The order status. Possible values: 1. "ALL" 2. "PROCESSING" 3. "COMPLETED" 4. "CANCELLED" 5. "FROZEN" 6. "DEDUCTED" |
+| create_time_ge | integer |  | Unix timestamp representing the start of transactions time range one wants to request |
+| create_time_lt | integer |  | Unix timestamp representing the end of transactions time range one wants to request |
+| order_id | string |  | Transaction main order ID |
+| order_status | integer |  | Status order for product sales |
+| product_id | string |  | Unique identifier for Product |
+
+### Response
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| code | integer |  | The success or failure status code returned in API response. |
+| data | object |  | Specific return information. |
+| ^next_page_token | string |  | Cursor used for searching for more information |
+| ^orders | array<object> |  | Order list |
+| ^^create_time | integer |  | Time and date of order created, UTC+0 timing |
+| ^^delivery_time | integer |  | Time and date order delivered, UTC+0 timing |
+| ^^id | string |  | Transaction main order ID |
 | ^^skus | object |  | SKUs |
-| ^^^id | string | 1729478689395213981 | The SKU identifier. |
-| ^^^open_collaboration_id | string | 7324371012170024705 | The open collaboration identifier associated with the order. |
-| ^^^target_collaboration_id | string | 7324371012170024705 | The target collaboration identifier associated with the order. |
-| ^^^creator_username | string | liuyi_id_creator1jigo | Creator username |
-| ^^^product_name | string | Black Hoodie | Product name / description |
-| ^^^product_id | string | 1729435310697057093 | Unique identifier for Product |
-| ^^^price | object |  | The SKU selling price information |
-| ^^^^amount | string | 99 | Price amount for product, such as USD 1000 |
-| ^^^^currency | string | USD | Type of currency use |
-| ^^^quantity | int | 1 | Total sku quantity per order |
-| ^^^shop_name | string | xuyann aaaaa | Shop / Seller name |
-| ^^^content_type | string | VIDEO | The content format of the creator content through which the order was created. Possible values: - SHOP - VIDEO - LIVE - PRE_LIVE - PROMOTION_PAGE - LINKSHARE |
-| ^^^content_id | string | 7494337156519332665  | Unique identifier for content |
-| ^^^attribution_type | string | Direct | Direct: Orders placed when customers click on links creators shared and buy from the shop. The commission rate is higher than indirect attribution.  Indirect: Orders placed from the Recommendations page through links creators shared. The commission rate is lower than direct attribution. |
-| ^^^commission_tier_setting | string | 3.0 OR 5.0 | Between Seller & Creator percentagecommission. When tiering commission model applied, will return each tier's commission rate seller set. |
-| ^^^commission_model | string | Tiered commission | Determine order commission be calculated based on fixed commission model or tiering model |
-| ^^^commission_rate | string | 3.0 | Between Seller & Creator percentage commission |
-| ^^^commission_bonus_rate | string | 3.0 | TTS to creator percentage commission bonus |
-| ^^^shop_ads_commission_rate | string | 5.0 | Commission on sales that a creator will receive from seller/advertisers purchasing a specific creative  |
-| ^^^estimated_commission_base | object |  | The estimated commission base is the product sale price multiplied by the number of products sold when the order is created. |
-| ^^^^amount | string | 99 | Price amount for product, such as Rp 1000 |
-| ^^^^currency | string | USD | Type of currency use |
-| ^^^estimated_commission | object |  | Estimated commission on sales that a creator will obtain |
-| ^^^^amount | string | 99 | Price amount for product, such as Rp 1000 |
-| ^^^^currency | string | USD | Type of currency use |
-| ^^^estimated_bonus_commission | object |  | Estimated commission TTS pays well-performed creators |
-| ^^^^amount | string | 100 | Price amount for product, such as Rp 1000 |
-| ^^^^currency | string | USD | Type of currency use |
-| ^^^estimated_shop_ads_commission | object |  | Estimated commission on sales that a creator will receive from seller/advertisers purchasing a specific creative  |
-| ^^^^amount | string | 100 | Price amount for product, such as Rp 1000 |
-| ^^^^currency | string | USD | Type of currency use |
-| ^^^actual_commission_base | object |  | The actual commission base is the product sale price multiplied by the number of products sold, excluding returned and refunded orders. |
-| ^^^^amount | string | 100 | Price amount for product, such as Rp 1000 |
-| ^^^^currency | string | USD | Type of currency use |
+| ^^^actual_bonus_commission | object |  | Actual commission on sales that a creator will receive from seller/advertisers purchasing a specific creative |
+| ^^^^amount | string |  | Price amount for product, such as Rp 1000 |
+| ^^^^currency | string |  | Type of currency use |
 | ^^^actual_commission | object |  | Commission given to well-performed creators by TTS |
-| ^^^^amount | string | 100 | Price amount for product, such as Rp 1000 |
-| ^^^^currency | string | USD | Type of currency use |
-| ^^^actual_bonus_commission | object |  | Actual commission on sales that a creator will receive from seller/advertisers purchasing a specific creative  |
-| ^^^^amount | string | 100 | Price amount for product, such as Rp 1000 |
-| ^^^^currency | string | USD | Type of currency use |
-| ^^^actual_shop_ads_commission | object |  | actual commission on sales that a creator will receive from seller/advertisers purchasing a specific creative  |
-| ^^^^amount | string | 100 | Price amount for product, such as Rp 1000 |
-| ^^^^currency | string | USD | Type of currency use |
-| ^^^agency_commission | object |  | actual total standard commission on sales that  agency will receive after commission split |
-| ^^^^amount | string | 100 | Price amount for product, such as Rp 1000 |
-| ^^^^currency | string | USD | Type of currency use |
+| ^^^^amount | string |  | Price amount for product, such as Rp 1000 |
+| ^^^^currency | string |  | Type of currency use |
+| ^^^actual_commission_base | object |  | The actual commission base is the product sale price multiplied by the number of products sold, excluding returned and refunded orders. |
+| ^^^^amount | string |  | Price amount for product, such as Rp 1000 |
+| ^^^^currency | string |  | Type of currency use |
+| ^^^actual_shop_ads_commission | object |  | actual commission on sales that a creator will receive from seller/advertisers purchasing a specific creative |
+| ^^^^amount | string |  | Price amount for product, such as Rp 1000 |
+| ^^^^currency | string |  | Type of currency use |
 | ^^^agency_bonus_commission | object |  | actual total bonus commission on sales that  agency will receive after commission split |
-| ^^^^amount | string | 99 | Price amount for product, such as Rp 1000 |
-| ^^^^currency | string | USD | Type of currency use |
+| ^^^^amount | string |  | Price amount for product, such as Rp 1000 |
+| ^^^^currency | string |  | Type of currency use |
+| ^^^agency_commission | object |  | actual total standard commission on sales that  agency will receive after commission split |
+| ^^^^amount | string |  | Price amount for product, such as Rp 1000 |
+| ^^^^currency | string |  | Type of currency use |
+| ^^^agency_commission_rate | string |  | Percentage of agency commission |
 | ^^^agency_shop_ads_commission | object |  | actual total shop ads commission on sales that  agency will receive after commission split |
-| ^^^^amount | string | 99 | Price amount for product, such as Rp 1000 |
-| ^^^^currency | string | USD | Type of currency use |
-| ^^^total_agency_commission | object |  | Total actual agency commission earned from this order.  |
-| ^^^^amount | string | 99 | Price amount for product, such as Rp 1000 |
-| ^^^^currency | string | USD | Type of currency use |
-| ^^^agency_commission_rate | string | 10.0 | Percentage of agency commission |
-| ^^^iva | string | 10.0 | Tax amount be charged on behalf the agency by platform, which only used in MX |
-| ^^^isr | string | 10.0 | Tax amount be charged on behalf the agency by platform, which only used in MX |
-| ^^^returned_quantity | int | 1 | Number of sku refunded per order |
-| ^^^refunded_quantity | int | 1 | Number of sku returned per order |
-| ^next_page_token | string | 6AsPQsUMvH3RkchNUPPh22NROHkE0D8pmq/N5M1kHYcZmtRyv9aVrNv65W7Q6tFA+7D1ud64MPNz5OaT | Cursor used for searching for more information |
-| ^total_count | int | 100 | The total number of orders |
-
-### Response Sample
-
-```json
-{
-  "code": 0,
-  "data": {
-    "orders": [
-      {
-        "id": "576962796354307765",
-        "tags": "test-01",
-        "create_time": 1685548800,
-        "delivery_time": 1685548800,
-        "status": "COMPLETED",
-        "skus": {
-          "id": "1729478689395213981",
-          "open_collaboration_id": "7324371012170024705",
-          "target_collaboration_id": "7324371012170024705",
-          "creator_username": "liuyi_id_creator1jigo",
-          "product_name": "Black Hoodie",
-          "product_id": "1729435310697057093",
-          "price": {
-            "amount": "99",
-            "currency": "USD"
-          },
-          "quantity": 1,
-          "shop_name": "xuyann aaaaa",
-          "content_type": "VIDEO",
-          "content_id": "7494337156519332665\n",
-          "attribution_type": "Direct",
-          "commission_tier_setting": "3.0 OR 5.0",
-          "commission_model": "Tiered commission",
-          "commission_rate": "3.0",
-          "commission_bonus_rate": "3.0",
-          "shop_ads_commission_rate": "5.0",
-          "estimated_commission_base": {
-            "amount": "99",
-            "currency": "USD"
-          },
-          "estimated_commission": {
-            "amount": "99",
-            "currency": "USD"
-          },
-          "estimated_bonus_commission": {
-            "amount": "100",
-            "currency": "USD"
-          },
-          "estimated_shop_ads_commission": {
-            "amount": "100",
-            "currency": "USD"
-          },
-          "actual_commission_base": {
-            "amount": "100",
-            "currency": "USD"
-          },
-          "actual_commission": {
-            "amount": "100",
-            "currency": "USD"
-          },
-          "actual_bonus_commission": {
-            "amount": "100",
-            "currency": "USD"
-          },
-          "actual_shop_ads_commission": {
-            "amount": "100",
-            "currency": "USD"
-          },
-          "agency_commission": {
-            "amount": "100",
-            "currency": "USD"
-          },
-          "agency_bonus_commission": {
-            "amount": "99",
-            "currency": "USD"
-          },
-          "agency_shop_ads_commission": {
-            "amount": "99",
-            "currency": "USD"
-          },
-          "total_agency_commission": {
-            "amount": "99",
-            "currency": "USD"
-          },
-          "agency_commission_rate": "10.0",
-          "iva": "10.0",
-          "isr": "10.0",
-          "returned_quantity": 1,
-          "refunded_quantity": 1
-        }
-      }
-    ],
-    "next_page_token": "6AsPQsUMvH3RkchNUPPh22NROHkE0D8pmq/N5M1kHYcZmtRyv9aVrNv65W7Q6tFA+7D1ud64MPNz5OaT",
-    "total_count": 100
-  },
-  "message": "Success",
-  "request_id": "202203070749000101890810281E8C70B7"
-}
-```
-
-### Error Codes
-
-| Code | Message |
-| --- | --- |
-| 36009003 | Internal error. Please try again. If the issue persists after multiple attempts, please contact platform support. |
-
-### API Permissions
-
-| Package | Type |
-| --- | --- |
-| Read CAP earnings order | Private |
+| ^^^^amount | string |  | Price amount for product, such as Rp 1000 |
+| ^^^^currency | string |  | Type of currency use |
+| ^^^attribution_type | string |  | Direct: Orders placed when customers click on links creators shared and buy from the shop. The commission rate is higher than indirect attribution. Indirect: Orders placed from the Recommendations page through links creators shared. The commission rate is lower than direct attribution. |
+| ^^^commission_bonus_rate | string |  | TTS to creator percentage commission bonus |
+| ^^^commission_model | string |  | Determine order commission be calculated based on fixed commission model or tiering model |
+| ^^^commission_rate | string |  | Between Seller & Creator percentage commission |
+| ^^^commission_tier_setting | string |  | Between Seller & Creator percentagecommission. When tiering commission model applied, will return each tier's commission rate seller set. |
+| ^^^content_id | string |  | Unique identifier for content |
+| ^^^content_type | string |  | The content format of the creator content through which the order was created. Possible values: - SHOP - VIDEO - LIVE - PRE_LIVE - PROMOTION_PAGE - LINKSHARE |
+| ^^^creator_username | string |  | Creator username |
+| ^^^estimated_bonus_commission | object |  | Estimated commission TTS pays well-performed creators |
+| ^^^^amount | string |  | Price amount for product, such as Rp 1000 |
+| ^^^^currency | string |  | Type of currency use |
+| ^^^estimated_commission | object |  | Estimated commission on sales that a creator will obtain |
+| ^^^^amount | string |  | Price amount for product, such as Rp 1000 |
+| ^^^^currency | string |  | Type of currency use |
+| ^^^estimated_commission_base | object |  | The estimated commission base is the product sale price multiplied by the number of products sold when the order is created. |
+| ^^^^amount | string |  | Price amount for product, such as Rp 1000 |
+| ^^^^currency | string |  | Type of currency use |
+| ^^^estimated_shop_ads_commission | object |  | Estimated commission on sales that a creator will receive from seller/advertisers purchasing a specific creative |
+| ^^^^amount | string |  | Price amount for product, such as Rp 1000 |
+| ^^^^currency | string |  | Type of currency use |
+| ^^^id | string |  | The SKU identifier. |
+| ^^^isr | string |  | Tax amount be charged on behalf the agency by platform, which only used in MX |
+| ^^^iva | string |  | Tax amount be charged on behalf the agency by platform, which only used in MX |
+| ^^^open_collaboration_id | string |  | The open collaboration identifier associated with the order. |
+| ^^^price | object |  | The SKU selling price information |
+| ^^^^amount | string |  | Price amount for product, such as USD 1000 |
+| ^^^^currency | string |  | Type of currency use |
+| ^^^product_id | string |  | Unique identifier for Product |
+| ^^^product_name | string |  | Product name / description |
+| ^^^quantity | integer |  | Total sku quantity per order |
+| ^^^refunded_quantity | integer |  | Number of sku returned per order |
+| ^^^returned_quantity | integer |  | Number of sku refunded per order |
+| ^^^shop_ads_commission_rate | string |  | Commission on sales that a creator will receive from seller/advertisers purchasing a specific creative |
+| ^^^shop_name | string |  | Shop / Seller name |
+| ^^^target_collaboration_id | string |  | The target collaboration identifier associated with the order. |
+| ^^^total_agency_commission | object |  | Total actual agency commission earned from this order. |
+| ^^^^amount | string |  | Price amount for product, such as Rp 1000 |
+| ^^^^currency | string |  | Type of currency use |
+| ^^status | string |  | Status order for product sales The order status. Possible values: 1. "ALL" 2. "PROCESSING" 3. "COMPLETED" 4. "CANCELLED" 5. "FROZEN" 6. "DEDUCTED" |
+| ^^tags | string |  | The customizable ID for each order, used for tracking performance at difference front end modules. |
+| ^total_count | integer |  | The total number of orders |
+| message | string |  | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
+| request_id | string |  | Request log. |
 
 ---
 
-## Partner Generate Multi Affiliate Campaign Product Link
+## PartnerGenerateMultiAffiliateCampaignProductLink
 
 This API offers the ability to generate promotion links for multiple products in a campaign.
 
 **Path:** `/affiliate_partner/202505/campaigns/{campaign_id}/products/promotion_links/generate_batch`
-
 **Method:** `POST`
+**Version:** 202505
+**Docs:** https://partner.tiktokshop.com/docv2/page/partner-generate-multi-affiliate-campaign-product-link-202505
 
-**Common Parameters:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a4278f4c20311b8b57e)
-
-**Common Error Codes:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a45786253031531b942)
-
-### Request Header Parameters
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| content-type | string | Y | Allowed type: application/json |
-| x-tts-access-token | string | Y | The partner access_token value from [Get Access Token](https://partner.tiktokshop.com/docv2/page/678e3a3292b0f40314a92d75#Get%20Access%20Token%20API), when user_type = 3. Follow this [guide](https://partner.tiktokshop.com/docv2/page/678e3a3978f4c20311b8b555) to get partner access_token. |
-
-### Request Path Parameters
+### Path Parameters
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
 | campaign_id | string | Y | The ID of the campaign |
 
-### Request Query Parameters
+### Query Parameters
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| app_key | string | Y | Every single app will have a unique key. Please use the specific key assigned to your app. |
-| sign | string | Y | Signature generated by gen algorithm. When you send API requests to TTS, you must sign them so that TTS can identify the senders.  |
-| timestamp | int | Y | Unix timestamp GMT (UTC+00:00). This timestamp is used across all API requests. Developers can use this convert to local time. |
-| category_asset_cipher | string | N | The partner identifier used in API requests. Retrieve this value by using the [Get Authorized Category Assets API] (https://partner.tiktokshop.com/docv2/page/666012dd609d4402cc3be995). |
+| category_asset_cipher | string |  | The partner identifier used in API requests. Retrieve this value by using the [Get Authorized Category Assets API] (https://partner.tiktokshop.com/docv2/page/666012dd609d4402cc3be995). |
 
-### Request Body Parameters
+### Header Parameters
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| product_ids | []string | N | The list of product IDs. The max length is 50. |
+| x-tts-access-token | string | Y |  |
+| Content-Type | string | Y | Allowed type: application/json |
 
-### Request Sample
+### Request Body (`application/json`)
 
-```
-https://open-api.tiktokglobalshop.com/affiliate_partner/202505/campaigns/7362840009596339923/products/promotion_links/generate_batch?app_key=123abc&sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c&timestamp=1625484268&category_asset_cipher=GCP_XF90igAAAABh00qsWgtvOiGFNqyubMt3=
-```
-
-### Request Body Sample
-
-```json
-{
-  "product_ids": [
-    7362840009596340000,
-    7362840009596340000
-  ]
-}
-```
-
-### Sample Code
-
-**Curl**
-```shell
-curl -X POST \
- 'https://open-api.tiktokglobalshop.com/affiliate_partner/202505/campaigns/7362840009596339923/products/promotion_links/generate_batch?app_key=38abcd&sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c&timestamp=1623812664&category_asset_cipher=GCP_XF90igAAAABh00qsWgtvOiGFNqyubMt3=' \
--H 'x-tts-access-token: TTP_pwSm2AAAAABmmtFz1xlyKMnwg74T2GJ5s0uQbS8jPjb_GkdFVCxPqzQXSyuyfXdQa0AqyDsea2tYFNVf4XeqgZHFfPyv0Vs659QqyLYfsGzanZ5XZAin3_ZkcIxxS0_In6u6XDeU96k' \
--H 'content-type: application/json' \
--d '{
-  "product_ids": [
-    7362840009596340000,
-    7362840009596340000
-  ]
-}'
-```
-
-**Go**
-```go
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-func affiliatePartner202505PartnerGenerateMultiAffiliateCampaignProductLinkPost() {
-    configuration := apis.NewConfiguration()
-    configuration.AddAppInfo(appKey, appSecret)
-    apiClient := apis.NewAPIClient(configuration)
-    request := apiClient.AffiliatePartnerV202505API.AffiliatePartner202505CampaignsCampaignIdProductsPromotionLinksGenerateBatchPost(context.Background(), "7362840009596339923")
-    request = request.XTtsAccessToken("your access token")
-    request = request.ContentType("application/json")
-    request = request.CategoryAssetCipher("GCP_XF90igAAAABh00qsWgtvOiGFNqyubMt3=")
-    affiliatePartner202505PartnerGenerateMultiAffiliateCampaignProductLinkRequestBody := affiliatePartner_v202505.NewAffiliatePartner202505PartnerGenerateMultiAffiliateCampaignProductLinkRequestBody()
-    affiliatePartner202505PartnerGenerateMultiAffiliateCampaignProductLinkRequestBodyProductIdsList := []string{"7.36284000959634e+18","7.36284000959634e+18"}
-    affiliatePartner202505PartnerGenerateMultiAffiliateCampaignProductLinkRequestBody.SetProductIds(affiliatePartner202505PartnerGenerateMultiAffiliateCampaignProductLinkRequestBodyProductIdsList)
-    request = request.AffiliatePartner202505PartnerGenerateMultiAffiliateCampaignProductLinkRequestBody(*affiliatePartner202505PartnerGenerateMultiAffiliateCampaignProductLinkRequestBody)
-    resp, httpResp, err := request.Execute()
-    if err != nil || httpResp.StatusCode != 200 {
-        fmt.Printf("productsRequest err:%v resbody:%s", err, httpResp.Body)
-        return
-    }
-    if resp == nil {
-        fmt.Printf("response is nil")
-        return
-    }
-    if resp.GetCode()!= 0 {
-        fmt.Printf("response business is error, errorCode:%d errorMessage:%s", resp.GetCode(), resp.GetMessage())
-        return
-    }
-    respDataJson, _ := json.MarshalIndent(resp.GetData(), "", "  ")
-    fmt.Println("response data:", string(respDataJson))
-    return
-}
-
-```
-
-**Node.js**
-```typescript
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-async function affiliatePartner202505PartnerGenerateMultiAffiliateCampaignProductLinkPost() {
-    const affiliatePartner202505PartnerGenerateMultiAffiliateCampaignProductLinkRequestBody = new AffiliatePartner202505PartnerGenerateMultiAffiliateCampaignProductLinkRequestBody();
-    affiliatePartner202505PartnerGenerateMultiAffiliateCampaignProductLinkRequestBody.productIds = ["7.36284000959634e+18","7.36284000959634e+18"];
-    const result = await client.api.AffiliatePartnerV202505Api.CampaignsCampaignIdProductsPromotionLinksGenerateBatchPost("7362840009596339923", "your access token", "application/json", "GCP_XF90igAAAABh00qsWgtvOiGFNqyubMt3=", affiliatePartner202505PartnerGenerateMultiAffiliateCampaignProductLinkRequestBody);
-    console.log('response: ', JSON.stringify(result, null, 2));
-}
-
-```
-
-**Java**
-```java
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-public void affiliatePartner202505PartnerGenerateMultiAffiliateCampaignProductLinkPost() throws Exception {
-    ApiClient defaultClient = Configuration.getDefaultApiClient()
-            .setAppkey("your appKey")
-            .setSecret("your secret")
-            .setBasePath("https://open-api.tiktokglobalshop.com");
-    AffiliatePartnerV202505Api apiInstance = new AffiliatePartnerV202505Api(defaultClient);
-    PartnerGenerateMultiAffiliateCampaignProductLinkRequestBody partnerGenerateMultiAffiliateCampaignProductLinkRequestBody = new PartnerGenerateMultiAffiliateCampaignProductLinkRequestBody();
-    List<String> partnerGenerateMultiAffiliateCampaignProductLinkRequestBodyProductIdsList = new ArrayList<>(Arrays.asList("7.36284000959634e+18","7.36284000959634e+18"));
-    partnerGenerateMultiAffiliateCampaignProductLinkRequestBody.setProductIds(partnerGenerateMultiAffiliateCampaignProductLinkRequestBodyProductIdsList);
-    PartnerGenerateMultiAffiliateCampaignProductLinkResponse result = apiInstance.affiliatePartner202505CampaignsCampaignIdProductsPromotionLinksGenerateBatchPost("7362840009596339923", "your access token", "application/json", "GCP_XF90igAAAABh00qsWgtvOiGFNqyubMt3=", partnerGenerateMultiAffiliateCampaignProductLinkRequestBody);
-    System.out.println(result);
-}
-
-```
-
-### Response Parameters
-
-| Name | Type | Example | Description |
+| Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| code | int | 0 | The success or failure status code returned in API response. |
-| message | string | Success | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
-| request_id | string | 202203070749000101890810281E8C70B7 | Request log |
-| data | object |  | Specific return information |
-| ^product_promotion_links | []object |  | The list of products for which the promotion links are generated successfully. |
-| ^^product_id | string | 7362840009596339971 | The ID of the product to promote. |
-| ^^link | string | https://affiliate.tiktok.com/api/v1/share/AIxvOHlaJoKO | This is the product promotion link that agencies can share with collaborated creators. Creators can copy/paste this link into the web browser. Creators will be re-directed to the add-product-link page in the Tikotk app. Creators can decide whether to add products to their showcases in the pop-up window. |
-| ^failed_product_ids | []string | [7362840009596339923] | The list of products for which the promotion links failed to be generated. |
+| product_ids | array<string> |  | The list of product IDs. The max length is 50. |
 
-### Response Sample
+### Response
 
-```json
-{
-  "code": 0,
-  "data": {
-    "product_promotion_links": [
-      {
-        "product_id": "7362840009596339971",
-        "link": "https://affiliate.tiktok.com/api/v1/share/AIxvOHlaJoKO"
-      }
-    ],
-    "failed_product_ids": [
-      7362840009596340000
-    ]
-  },
-  "message": "Success",
-  "request_id": "202203070749000101890810281E8C70B7"
-}
-```
-
-### API Scope / Permissions
-
-| Scope Name | Type | Description |
-| --- | --- | --- |
-| Read Affiliate Partner Campaigns | Private | The application will be able to access a TikTok Shop Affiliate Partner (TAP) campaign information, including view campaign list and details and campaign product list and details. |
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| code | integer |  | The success or failure status code returned in API response. |
+| data | object |  | Specific return information. |
+| ^failed_product_ids | array<string> |  | The list of products for which the promotion links failed to be generated. |
+| ^product_promotion_links | array<object> |  | The list of products for which the promotion links are generated successfully. |
+| ^^link | string |  | This is the product promotion link that agencies can share with collaborated creators. Creators can copy/paste this link into the web browser. Creators will be re-directed to the add-product-link page in the Tikotk app. Creators can decide whether to add products to their showcases in the pop-up window. |
+| ^^product_id | string |  | The ID of the product to promote. |
+| message | string |  | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
+| request_id | string |  | Request log. |
 
 ---
 
-## Get Affiliate Campaign Creator Fulfillment Status Info
+## GetAffiliateCampaignCreatorProductContentStatistics
 
-This API offers the ability to get the product fulfillment status for creators who added partner campaign products to their showcase
-
-**Path:** `/affiliate_partner/202508/campaigns/{campaign_id}/products/{product_id}/performance`
-
-**Method:** `GET`
-
-**Common Parameters:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a4278f4c20311b8b57e)
-
-**Common Error Codes:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a45786253031531b942)
-
-### Request Header Parameters
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| content-type | string | Y | Allowed type: application/json |
-| x-tts-access-token | string | Y | The partner access_token value from [Get Access Token](https://partner.tiktokshop.com/docv2/page/678e3a3292b0f40314a92d75#Get%20Access%20Token%20API), when user_type = 3. Follow this [guide](https://partner.tiktokshop.com/docv2/page/678e3a3978f4c20311b8b555) to get partner access_token. |
-
-### Request Query Parameters
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| app_key | string | Y | Every single app will have a unique key. Please use the specific key assigned to your app. |
-| sign | string | Y | Signature generated by gen algorithm. When you send API requests to TTS, you must sign them so that TTS can identify the senders.  |
-| timestamp | int | Y | Unix timestamp GMT (UTC+00:00). This timestamp is used across all API requests. Developers can use this convert to local time. |
-| page_size | int | N | The number of results to be returned per page. Valid range: 1-50. |
-| page_token | string | N | An opaque token used to retrieve the next page of a paginated result set. Retrieve this value from the result of the `next_page_token` from a previous response. It is not needed for the first page. |
-| category_asset_cipher | string | Y | The partner identifier used in API requests. Retrieve this value by using the [Get Authorized Category Assets API](https://partner.tiktokshop.com/docv2/page/666012dd609d4402cc3be995).  |
-
-### Request Sample
-
-```
-https://open-api.tiktokglobalshop.com/affiliate_partner/202508/campaigns/{campaign_id}/products/{product_id}/performance?app_key=123abc&sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c&timestamp=1625484268&category_asset_cipher=ROW_RHkDDABBAAB8tKAVoAqsMTjsQZFLyNfY&page_size=10&page_token=b2Zmc2V0PTAK
-```
-
-### Sample Code
-
-**Curl**
-```shell
-curl -X GET \
- 'https://open-api.tiktokglobalshop.com/affiliate_partner/202508/campaigns//products//performance?sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c&timestamp=1623812664&category_asset_cipher=GCP_XF90igAAAABh00qsWgtvOiGFNqyubMt3&page_size=10&page_token=b2Zmc2V0PTAK&app_key=38abcd' \
--H 'content-type: application/json' \
--H 'x-tts-access-token: TTP_pwSm2AAAAABmmtFz1xlyKMnwg74T2GJ5s0uQbS8jPjb_GkdFVCxPqzQXSyuyfXdQa0AqyDsea2tYFNVf4XeqgZHFfPyv0Vs659QqyLYfsGzanZ5XZAin3_ZkcIxxS0_In6u6XDeU96k'
-```
-
-**Go**
-```go
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-func affiliatePartner202508GetAffiliateCampaignCreatorFulfillmentStatusInfoGet() {
-    configuration := apis.NewConfiguration()
-    configuration.AddAppInfo(appKey, appSecret)
-    apiClient := apis.NewAPIClient(configuration)
-    request := apiClient.AffiliatePartnerV202508API.AffiliatePartner202508CampaignsCampaignIdProductsProductIdPerformanceGet(context.Background(), , )
-    request = request.XTtsAccessToken("your access token")
-    request = request.ContentType("application/json")
-    request = request.PageSize(10)
-    request = request.PageToken("b2Zmc2V0PTAK")
-    resp, httpResp, err := request.Execute()
-    if err != nil || httpResp.StatusCode != 200 {
-        fmt.Printf("productsRequest err:%v resbody:%s", err, httpResp.Body)
-        return
-    }
-    if resp == nil {
-        fmt.Printf("response is nil")
-        return
-    }
-    if resp.GetCode()!= 0 {
-        fmt.Printf("response business is error, errorCode:%d errorMessage:%s", resp.GetCode(), resp.GetMessage())
-        return
-    }
-    respDataJson, _ := json.MarshalIndent(resp.GetData(), "", "  ")
-    fmt.Println("response data:", string(respDataJson))
-    return
-}
-
-```
-
-**Node.js**
-```typescript
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-async function affiliatePartner202508GetAffiliateCampaignCreatorFulfillmentStatusInfoGet() {
-    const result = await client.api.AffiliatePartnerV202508Api.CampaignsCampaignIdProductsProductIdPerformanceGet("your access token", "application/json", 10, "b2Zmc2V0PTAK");
-    console.log('response: ', JSON.stringify(result, null, 2));
-}
-
-```
-
-**Java**
-```java
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-public void affiliatePartner202508GetAffiliateCampaignCreatorFulfillmentStatusInfoGet() throws Exception {
-    ApiClient defaultClient = Configuration.getDefaultApiClient()
-            .setAppkey("your appKey")
-            .setSecret("your secret")
-            .setBasePath("https://open-api.tiktokglobalshop.com");
-    AffiliatePartnerV202508Api apiInstance = new AffiliatePartnerV202508Api(defaultClient);
-    GetAffiliateCampaignCreatorFulfillmentStatusInfoResponse result = apiInstance.affiliatePartner202508CampaignsCampaignIdProductsProductIdPerformanceGet("your access token", "application/json", 10L, "b2Zmc2V0PTAK");
-    System.out.println(result);
-}
-
-```
-
-### Response Parameters
-
-| Name | Type | Example | Description |
-| --- | --- | --- | --- |
-| code | int | 0 | The success or failure status code returned in API response. |
-| message | string | Success | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
-| request_id | string | 202203070749000101890810281E8C70B7 | Request log |
-| data | object |  | Specific return information |
-| ^total_creator_count | int | 1 | The total number of creators involved in the campaign. |
-| ^promotion_creators | []object |  | A list of objects representing information about the Affiliate Creator associated with the product promotion. |
-| ^^paid_amount | object |  | An object representing the total amount paid for this product. |
-| ^^^currency | string | USD | The currency code for the amount field. |
-| ^^^amount | string | 3.00 | The total amount paid for this product. |
-| ^^room_count | int | 1 | The number of live broadcast rooms associated with this promotion. |
-| ^^video_count | int | 1 | The total number of videos associated with this promotion published by creators. |
-| ^^free_sample_status | string | AWAITING_COLLECTION | Status of the Creator's sample application. - NOT_REQUESTED - PENDING - AWAITING_SHIPMENT - AWAITING_COLLECTION - SHIPPED - CONTENT_PENDING - REJECT_CANCELLED - OVERDUE_CANCELLED - UNFULFIL_CANCELLED - DEL_PLAN_CANCELLED - SELLER_NOT_SHIP_CANCELLED - WITHDRAW_CANCELLED - UNFULFILLABLE_CANCELLED - OPERATOR_MANUAL_CANCELLED - OPERATOR_MANUAL_FAILED - OPERATOR_MANUAL_COMPLETED - COMPLETED |
-| ^^commission | string | 100 | The commission rate in hundredths of a percent (0.01%). For example, a value of 1000 is 10.00%. |
-| ^^effective_end_time | string | 1731020040687 | The effective end time for the collaboration in Unix epoch time format. |
-| ^^effective_start_time | string | 1731019880391 | The effective start time for the collaboration in Unix epoch time format. |
-| ^^creator | object |  | An object representing information about the creator associated with the promotion. |
-| ^^^nick_name | string | Test_Creator_E | The TikTok nickname of the creator. |
-| ^^^avatar_url | string | https://p19-sign.tiktokcdn-us.com/tos-useast5-avt-0068-tx/c614d3b6ba4d93b31fbda5add0802dd7~c5_1080x1080.webp?lk3s=a5d48078\u0026nonce=6796\u0026refresh_token=634d776ec39c2291053675f60c576515\u0026x-expires=1736478000\u0026x-signature=0G6NmM8H8nDRYYVN7e8QazDMRb0%3D\u0026shp=a5d48078\u0026shcp=9f007bb8 | A URL for the creator's avatar image in the TikTok CDN. |
-| ^^^follower_num | int | 19 | The total count of TikTok followers for the creator. |
-| ^^^user_name | string | us_lxq6213 | user name |
-| ^^^creator_open_id | string | uACafQAAAABmUU2qon4R0vUYvUVS3QC6CICP2m5A2-wd77j8R9G0yg | Creator Open ID. More details:https://partner.tiktokshop.com/docv2/page/3obfokj6 |
-| ^^affiliate_product_id | string | 123456789 | The affiliate product identifier. |
-| ^next_page_token | string | tk811a4455s2 | Querying next page need this token. |
-
-### Response Sample
-
-```json
-{
-  "code": 0,
-  "data": {
-    "total_creator_count": 1,
-    "promotion_creators": [
-      {
-        "paid_amount": {
-          "currency": "USD",
-          "amount": "3.00"
-        },
-        "room_count": 1,
-        "video_count": 1,
-        "free_sample_status": "AWAITING_COLLECTION",
-        "commission": "100",
-        "effective_end_time": "1731020040687",
-        "effective_start_time": "1731019880391",
-        "creator": {
-          "nick_name": "Test_Creator_E",
-          "avatar_url": "https://p19-sign.tiktokcdn-us.com/tos-useast5-avt-0068-tx/c614d3b6ba4d93b31fbda5add0802dd7~c5_1080x1080.webp?lk3s=a5d48078\\u0026nonce=6796\\u0026refresh_token=634d776ec39c2291053675f60c576515\\u0026x-expires=1736478000\\u0026x-signature=0G6NmM8H8nDRYYVN7e8QazDMRb0%3D\\u0026shp=a5d48078\\u0026shcp=9f007bb8",
-          "follower_num": 19,
-          "user_name": "us_lxq6213",
-          "creator_open_id": "uACafQAAAABmUU2qon4R0vUYvUVS3QC6CICP2m5A2-wd77j8R9G0yg"
-        },
-        "affiliate_product_id": "123456789"
-      }
-    ],
-    "next_page_token": "tk811a4455s2"
-  },
-  "message": "Success",
-  "request_id": "202203070749000101890810281E8C70B7"
-}
-```
-
-### Error Codes
-
-| Code | Message |
-| --- | --- |
-| 36009003 | Internal error. Please try again. If the issue persists after multiple attempts, please contact platform support. |
-
-### API Scope / Permissions
-
-| Scope Name | Type | Description |
-| --- | --- | --- |
-| Read Affiliate Partner Campaigns | Private | The application will be able to access a TikTok Shop Affiliate Partner (TAP) campaign information, including view campaign list and details and campaign product list and details. |
-
----
-
-## Get Affiliate Campaign Creator Product Content Statistics
-
-Get statistics on creator's marketing video content 
+Get statistics on creator's marketing video content
 
 **Path:** `/affiliate_partner/202508/campaigns/{campaign_id}/products/{product_id}/creator/{creator_temp_id}/content/statistics`
-
 **Method:** `GET`
+**Version:** 202508
+**Docs:** https://partner.tiktokshop.com/docv2/page/get-affiliate-campaign-creator-product-content-statistics-202508
 
-**Common Parameters:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a4278f4c20311b8b57e)
-
-**Common Error Codes:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a45786253031531b942)
-
-### Request Header Parameters
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| content-type | string | Y | Allowed type: application/json |
-| x-tts-access-token | string | Y | The partner access_token value from [Get Access Token](https://partner.tiktokshop.com/docv2/page/678e3a3292b0f40314a92d75#Get%20Access%20Token%20API), when user_type = 3. Follow this [guide](https://partner.tiktokshop.com/docv2/page/678e3a3978f4c20311b8b555) to get partner access_token. |
-
-### Request Path Parameters
+### Path Parameters
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
@@ -2977,176 +967,53 @@ Get statistics on creator's marketing video content
 | product_id | string | Y | The product identifier. |
 | creator_temp_id | string | Y | Creator Open ID. [More details](https://partner.tiktokshop.com/docv2/page/3obfokj6) |
 
-### Request Query Parameters
+### Query Parameters
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| app_key | string | Y | Every single app will have a unique key. Please use the specific key assigned to your app. |
-| sign | string | Y | Signature generated by gen algorithm. When you send API requests to TTS, you must sign them so that TTS can identify the senders.  |
-| timestamp | int | Y | Unix timestamp GMT (UTC+00:00). This timestamp is used across all API requests. Developers can use this convert to local time. |
 | affiliate_product_id | string | Y | The affiliate product identifier to be included in the response. Refer to `promotion_creators.affiliate_product_id` in the response of Get Affiliate Campaign Creator Fulfillment Status Info gateway. |
-| content_type | string | N | Content type.Identify content as video or live. - 1: VIDEO - 2: LIVE_ROOM |
-| category_asset_cipher | string | Y | The partner identifier used in API requests. Retrieve this value by using the [Get Authorized Category Assets API](https://partner.tiktokshop.com/docv2/page/666012dd609d4402cc3be995).  |
+| content_type | string |  | Content type.Identify content as video or live. - 1: VIDEO - 2: LIVE_ROOM |
 
-### Request Sample
+### Header Parameters
 
-```
-https://open-api.tiktokglobalshop.com/affiliate_partner/202508/campaigns/123/products/123/creator/uACafQAAAABmUU2qon4R0vUYvUVS3QC6CICP2m5A2-wd77j8R9G0yg/content/statistics?app_key=123abc&sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c&timestamp=1625484268&category_asset_cipher=ROW_RHkDDABBAAB8tKAVoAqsMTjsQZFLyNfY&affiliate_product_id=123456789&content_type=VIDEO
-```
-
-### Sample Code
-
-**Curl**
-```shell
-curl -X GET \
- 'https://open-api.tiktokglobalshop.com/affiliate_partner/202508/campaigns/123/products/123/creator/uACafQAAAABmUU2qon4R0vUYvUVS3QC6CICP2m5A2-wd77j8R9G0yg/content/statistics?affiliate_product_id=123456789&content_type=VIDEO&app_key=38abcd&sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c&timestamp=1623812664&category_asset_cipher=GCP_XF90igAAAABh00qsWgtvOiGFNqyubMt3' \
--H 'x-tts-access-token: TTP_pwSm2AAAAABmmtFz1xlyKMnwg74T2GJ5s0uQbS8jPjb_GkdFVCxPqzQXSyuyfXdQa0AqyDsea2tYFNVf4XeqgZHFfPyv0Vs659QqyLYfsGzanZ5XZAin3_ZkcIxxS0_In6u6XDeU96k' \
--H 'content-type: application/json'
-```
-
-**Go**
-```go
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-func affiliatePartner202508GetAffiliateCampaignCreatorProductContentStatisticsGet() {
-    configuration := apis.NewConfiguration()
-    configuration.AddAppInfo(appKey, appSecret)
-    apiClient := apis.NewAPIClient(configuration)
-    request := apiClient.AffiliatePartnerV202508API.AffiliatePartner202508CampaignsCampaignIdProductsProductIdCreatorCreatorTempIdContentStatisticsGet(context.Background(), "123", "123", "uACafQAAAABmUU2qon4R0vUYvUVS3QC6CICP2m5A2-wd77j8R9G0yg")
-    request = request.XTtsAccessToken("your access token")
-    request = request.ContentType("application/json")
-    request = request.AffiliateProductId("123456789")
-    request = request.ContentType("VIDEO")
-    resp, httpResp, err := request.Execute()
-    if err != nil || httpResp.StatusCode != 200 {
-        fmt.Printf("productsRequest err:%v resbody:%s", err, httpResp.Body)
-        return
-    }
-    if resp == nil {
-        fmt.Printf("response is nil")
-        return
-    }
-    if resp.GetCode()!= 0 {
-        fmt.Printf("response business is error, errorCode:%d errorMessage:%s", resp.GetCode(), resp.GetMessage())
-        return
-    }
-    respDataJson, _ := json.MarshalIndent(resp.GetData(), "", "  ")
-    fmt.Println("response data:", string(respDataJson))
-    return
-}
-
-```
-
-**Node.js**
-```typescript
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-async function affiliatePartner202508GetAffiliateCampaignCreatorProductContentStatisticsGet() {
-    const result = await client.api.AffiliatePartnerV202508Api.CampaignsCampaignIdProductsProductIdCreatorCreatorTempIdContentStatisticsGet("123", "123", "uACafQAAAABmUU2qon4R0vUYvUVS3QC6CICP2m5A2-wd77j8R9G0yg", "123456789", "your access token", "application/json", "VIDEO");
-    console.log('response: ', JSON.stringify(result, null, 2));
-}
-
-```
-
-**Java**
-```java
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-public void affiliatePartner202508GetAffiliateCampaignCreatorProductContentStatisticsGet() throws Exception {
-    ApiClient defaultClient = Configuration.getDefaultApiClient()
-            .setAppkey("your appKey")
-            .setSecret("your secret")
-            .setBasePath("https://open-api.tiktokglobalshop.com");
-    AffiliatePartnerV202508Api apiInstance = new AffiliatePartnerV202508Api(defaultClient);
-    GetAffiliateCampaignCreatorProductContentStatisticsResponse result = apiInstance.affiliatePartner202508CampaignsCampaignIdProductsProductIdCreatorCreatorTempIdContentStatisticsGet("123", "123", "uACafQAAAABmUU2qon4R0vUYvUVS3QC6CICP2m5A2-wd77j8R9G0yg", "123456789", "your access token", "application/json", "VIDEO");
-    System.out.println(result);
-}
-
-```
-
-### Response Parameters
-
-| Name | Type | Example | Description |
+| Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| code | int | 0 | The success or failure status code returned in API response. |
-| message | string | Success | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
-| request_id | string | 202203070749000101890810281E8C70B7 | Request log |
-| data | object |  | Specific return information |
-| ^creator_content_statistics | []object |  | A list of objects that represent content statistics for the associated creator. |
-| ^^content_type | string | VIDEO | Content type.Identify content as video or live. - 1: VIDEO - 2: LIVE_ROOM |
-| ^^cover_img_url | string | https://p16-oec-va.ibyteimg.com/tos-maliva-i-o3syd03w52-us/fa0387fa5a204dcfa44d5be75877a163~tplv-o3syd03w52-origin-webp.webp?from=3478900499 | A URL for the live room cover image in the TikTok CDN.The video content doesn't have this value. |
-| ^^source_url | string | https://www.tiktok.com/@cbseveningnews/video/7458098283332767006?q=Victor%20Shaw%20Dies%20In%20Fire%20Rescue%20Attempt&t=1736545359958 | The URL on the public TikTok website at which the live room video can be played back. When content_type == VIDEO, the value is the url of the source video; when content_type == LIVE_ROOM, the value is the url where you can play back the recording of the live.  |
-| ^^view_count | string | 1 | The number of public views of the live room or video. |
-| ^^like_count | string | 1 | The number of TikTok user likes associated with the live room or video. |
-| ^^comment_num | string | 0 | The number of TikTok user comments associated with the live room or video. |
-| ^^paid_order_num | string | 0 | The total number of paid orders associated with the live room or video. |
-| ^^paid_amount | string | 0 | The aggregate value of product orders associated with the live room or video. |
-| ^^linked_tiktok_video | string | http://xxx.tiktok.com/xxxx | The friendly URL for the video on the TikTok website. |
-| ^^published_date | string | 2024-11-13 | When content_type == VIDEO, this is the date when the video was published; when content_type == LIVE_ROOM, this is the date when the live started. The value is in YYYY_MM_DD format.  |
-| ^^content_end_date | string | 2024-11-13 | When content_type == VIDEO, this field is None; when content_type == LIVE_ROOM, this is the date when the live ended. The value is in YYYY_MM_DD format.  |
+| x-tts-access-token | string | Y |  |
+| Content-Type | string | Y | Allowed type: application/json |
 
-### Response Sample
+### Response
 
-```json
-{
-  "code": 0,
-  "data": {
-    "creator_content_statistics": [
-      {
-        "content_type": "VIDEO",
-        "cover_img_url": "https://p16-oec-va.ibyteimg.com/tos-maliva-i-o3syd03w52-us/fa0387fa5a204dcfa44d5be75877a163~tplv-o3syd03w52-origin-webp.webp?from=3478900499",
-        "source_url": "https://www.tiktok.com/@cbseveningnews/video/7458098283332767006?q=Victor%20Shaw%20Dies%20In%20Fire%20Rescue%20Attempt&t=1736545359958",
-        "view_count": "1",
-        "like_count": "1",
-        "comment_num": "0",
-        "paid_order_num": "0",
-        "paid_amount": "0",
-        "linked_tiktok_video": "http://xxx.tiktok.com/xxxx",
-        "published_date": "2024-11-13",
-        "content_end_date": "2024-11-13"
-      }
-    ]
-  },
-  "message": "Success",
-  "request_id": "202203070749000101890810281E8C70B7"
-}
-```
-
-### Error Codes
-
-| Code | Message |
-| --- | --- |
-| 16032001 | nvalid parameter Creator and Seller, please ensure Region mismatch. |
-| 36009003 | Internal error. Please try again. If the issue persists after multiple attempts, please contact platform support. |
-
-### API Scope / Permissions
-
-| Scope Name | Type | Description |
-| --- | --- | --- |
-| Read Affiliate Partner Campaigns | Private | The application will be able to access a TikTok Shop Affiliate Partner (TAP) campaign information, including view campaign list and details and campaign product list and details. |
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| code | integer |  | The success or failure status code returned in API response. |
+| data | object |  | Specific return information. |
+| ^creator_content_statistics | array<object> |  | A list of objects that represent content statistics for the associated creator. |
+| ^^comment_num | string |  | The number of TikTok user comments associated with the live room or video. |
+| ^^content_end_date | string |  | When content_type == VIDEO, this field is None; when content_type == LIVE_ROOM, this is the date when the live ended. The value is in YYYY_MM_DD format. |
+| ^^content_type | string |  | Content type.Identify content as video or live. - 1: VIDEO - 2: LIVE_ROOM |
+| ^^cover_img_url | string |  | A URL for the live room cover image in the TikTok CDN.The video content doesn't have this value. |
+| ^^like_count | string |  | The number of TikTok user likes associated with the live room or video. |
+| ^^linked_tiktok_video | string |  | The friendly URL for the video on the TikTok website. |
+| ^^paid_amount | string |  | The aggregate value of product orders associated with the live room or video. |
+| ^^paid_order_num | string |  | The total number of paid orders associated with the live room or video. |
+| ^^published_date | string |  | When content_type == VIDEO, this is the date when the video was published; when content_type == LIVE_ROOM, this is the date when the live started. The value is in YYYY_MM_DD format. |
+| ^^source_url | string |  | The URL on the public TikTok website at which the live room video can be played back. When content_type == VIDEO, the value is the url of the source video; when content_type == LIVE_ROOM, the value is the url where you can play back the recording of the live. |
+| ^^view_count | string |  | The number of public views of the live room or video. |
+| message | string |  | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
+| request_id | string |  | Request log. |
 
 ---
 
-## Get Affiliate Campaign Creator Product Sample Status
+## GetAffiliateCampaignCreatorProductSampleStatus
 
 Get progress on creator's sample status
 
 **Path:** `/affiliate_partner/202508/campaigns/{campaign_id}/products/{product_id}/creator/{creator_temp_id}/content/statistics/sample/status`
-
 **Method:** `GET`
+**Version:** 202508
+**Docs:** https://partner.tiktokshop.com/docv2/page/get-affiliate-campaign-creator-product-sample-status-202508
 
-**Common Parameters:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a4278f4c20311b8b57e)
-
-**Common Error Codes:** [Reference](https://partner.tiktokshop.com/docv2/page/678e3a45786253031531b942)
-
-### Request Header Parameters
-
-| Name | Type | Required | Description |
-| --- | --- | --- | --- |
-| content-type | string | Y | Allowed type: application/json |
-| x-tts-access-token | string | Y | The partner access_token value from [Get Access Token](https://partner.tiktokshop.com/docv2/page/678e3a3292b0f40314a92d75#Get%20Access%20Token%20API), when user_type = 3. Follow this [guide](https://partner.tiktokshop.com/docv2/page/678e3a3978f4c20311b8b555) to get partner access_token. |
-
-### Request Path Parameters
+### Path Parameters
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
@@ -3154,145 +1021,30 @@ Get progress on creator's sample status
 | product_id | string | Y | The product identifier. |
 | creator_temp_id | string | Y | Creator Open ID. [More details](https://partner.tiktokshop.com/docv2/page/3obfokj6) |
 
-### Request Query Parameters
+### Header Parameters
 
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| app_key | string | Y | Every single app will have a unique key. Please use the specific key assigned to your app. |
-| sign | string | Y | Signature generated by gen algorithm. When you send API requests to TTS, you must sign them so that TTS can identify the senders.  |
-| timestamp | int | Y | Unix timestamp GMT (UTC+00:00). This timestamp is used across all API requests. Developers can use this convert to local time. |
-| category_asset_cipher | string | Y | The partner identifier used in API requests. Retrieve this value by using the [Get Authorized Category Assets API](https://partner.tiktokshop.com/docv2/page/666012dd609d4402cc3be995).  |
+| x-tts-access-token | string | Y |  |
+| Content-Type | string | Y | Allowed type: application/json |
 
-### Request Sample
+### Response
 
-```
-https://open-api.tiktokglobalshop.com/affiliate_partner/202508/campaigns/123/products/123/creator/uACafQAAAABmUU2qon4R0vUYvUVS3QC6CICP2m5A2-wd77j8R9G0yg/content/statistics/sample/status?app_key=123abc&sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c&timestamp=1625484268&category_asset_cipher=ROW_RHkDDABBAAB8tKAVoAqsMTjsQZFLyNfY
-```
-
-### Sample Code
-
-**Curl**
-```shell
-curl -X GET \
- 'https://open-api.tiktokglobalshop.com/affiliate_partner/202508/campaigns/123/products/123/creator/uACafQAAAABmUU2qon4R0vUYvUVS3QC6CICP2m5A2-wd77j8R9G0yg/content/statistics/sample/status?app_key=38abcd&sign=5361235029d141222525e303d742f9e38aea052d10896d3197ab9d6233730b8c&timestamp=1623812664&category_asset_cipher=GCP_XF90igAAAABh00qsWgtvOiGFNqyubMt3' \
--H 'x-tts-access-token: TTP_pwSm2AAAAABmmtFz1xlyKMnwg74T2GJ5s0uQbS8jPjb_GkdFVCxPqzQXSyuyfXdQa0AqyDsea2tYFNVf4XeqgZHFfPyv0Vs659QqyLYfsGzanZ5XZAin3_ZkcIxxS0_In6u6XDeU96k' \
--H 'content-type: application/json'
-```
-
-**Go**
-```go
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-func affiliatePartner202508GetAffiliateCampaignCreatorProductSampleStatusGet() {
-    configuration := apis.NewConfiguration()
-    configuration.AddAppInfo(appKey, appSecret)
-    apiClient := apis.NewAPIClient(configuration)
-    request := apiClient.AffiliatePartnerV202508API.AffiliatePartner202508CampaignsCampaignIdProductsProductIdCreatorCreatorTempIdContentStatisticsSampleStatusGet(context.Background(), "123", "123", "uACafQAAAABmUU2qon4R0vUYvUVS3QC6CICP2m5A2-wd77j8R9G0yg")
-    request = request.XTtsAccessToken("your access token")
-    request = request.ContentType("application/json")
-    resp, httpResp, err := request.Execute()
-    if err != nil || httpResp.StatusCode != 200 {
-        fmt.Printf("productsRequest err:%v resbody:%s", err, httpResp.Body)
-        return
-    }
-    if resp == nil {
-        fmt.Printf("response is nil")
-        return
-    }
-    if resp.GetCode()!= 0 {
-        fmt.Printf("response business is error, errorCode:%d errorMessage:%s", resp.GetCode(), resp.GetMessage())
-        return
-    }
-    respDataJson, _ := json.MarshalIndent(resp.GetData(), "", "  ")
-    fmt.Println("response data:", string(respDataJson))
-    return
-}
-
-```
-
-**Node.js**
-```typescript
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-async function affiliatePartner202508GetAffiliateCampaignCreatorProductSampleStatusGet() {
-    const result = await client.api.AffiliatePartnerV202508Api.CampaignsCampaignIdProductsProductIdCreatorCreatorTempIdContentStatisticsSampleStatusGet("123", "123", "uACafQAAAABmUU2qon4R0vUYvUVS3QC6CICP2m5A2-wd77j8R9G0yg", "your access token", "application/json");
-    console.log('response: ', JSON.stringify(result, null, 2));
-}
-
-```
-
-**Java**
-```java
-// For more details about the SDK, refer to the documentation:
-// https://partner.tiktokshop.com/docv2/page/67c83e0799a75104986ae498
-public void affiliatePartner202508GetAffiliateCampaignCreatorProductSampleStatusGet() throws Exception {
-    ApiClient defaultClient = Configuration.getDefaultApiClient()
-            .setAppkey("your appKey")
-            .setSecret("your secret")
-            .setBasePath("https://open-api.tiktokglobalshop.com");
-    AffiliatePartnerV202508Api apiInstance = new AffiliatePartnerV202508Api(defaultClient);
-    GetAffiliateCampaignCreatorProductSampleStatusResponse result = apiInstance.affiliatePartner202508CampaignsCampaignIdProductsProductIdCreatorCreatorTempIdContentStatisticsSampleStatusGet("123", "123", "uACafQAAAABmUU2qon4R0vUYvUVS3QC6CICP2m5A2-wd77j8R9G0yg", "your access token", "application/json");
-    System.out.println(result);
-}
-
-```
-
-### Response Parameters
-
-| Name | Type | Example | Description |
+| Name | Type | Required | Description |
 | --- | --- | --- | --- |
-| code | int | 0 | The success or failure status code returned in API response. |
-| message | string | Success | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
-| request_id | string | 202203070749000101890810281E8C70B7 | Request log |
-| data | object |  | Specific return information |
+| code | integer |  | The success or failure status code returned in API response. |
+| data | object |  | Specific return information. |
 | ^sample_status | object |  | The creator's sample status |
-| ^^shipping_provider_name | string | USPS | The name of the shipping provider |
-| ^^delivery_option | string | PREMIUM_SHIPPING | The delivery option: - ECONOMY_SHIPPING - PREMIUM_SHIPPING  |
-| ^^estimated_earliest_delivery_date | string | 1712941200 | The earliest estimated delivery date in Unix epoch format. |
-| ^^estimated_latest_delivery_date | string | 1712941200 | The longest estimated delivery date in Unix epoch format. |
-| ^^quantity | int | 1 | The quantity of products delivered. |
-| ^^tracking_results | []object |  | A list of objects representing tracking events. |
-| ^^^tracking_event_update_date | string | 1712941200 | The date at which the tracking event was last updated, in Unix epoch format. |
-| ^^^tracking_event_description | string | THE_PACKAGE_HAS_BEEN_DELIVERED | The title of the tracking event. - THE_PACKAGE_HAS_BEEN_DELIVERED - OUT_FOR_DELIVERY - ORDER_PACKED_AND_READY_FOR_DROP_OFF_AT_CARRIERS_FACILITY - ORDER_PLACED |
-| ^^^tracking_event_description_extended | string | delivering |  More information about the tracking event |
-
-### Response Sample
-
-```json
-{
-  "code": 0,
-  "data": {
-    "sample_status": {
-      "shipping_provider_name": "USPS",
-      "delivery_option": "PREMIUM_SHIPPING",
-      "estimated_earliest_delivery_date": "1712941200",
-      "estimated_latest_delivery_date": "1712941200",
-      "quantity": 1,
-      "tracking_results": [
-        {
-          "tracking_event_update_date": "1712941200",
-          "tracking_event_description": "THE_PACKAGE_HAS_BEEN_DELIVERED",
-          "tracking_event_description_extended": "delivering"
-        }
-      ]
-    }
-  },
-  "message": "Success",
-  "request_id": "202203070749000101890810281E8C70B7"
-}
-```
-
-### Error Codes
-
-| Code | Message |
-| --- | --- |
-| 16032001 | nvalid parameter Creator and Seller, please ensure Region mismatch. |
-| 36009003 | Internal error. Please try again. If the issue persists after multiple attempts, please contact platform support. |
-
-### API Scope / Permissions
-
-| Scope Name | Type | Description |
-| --- | --- | --- |
-| Read Affiliate Partner Campaigns | Private | The application will be able to access a TikTok Shop Affiliate Partner (TAP) campaign information, including view campaign list and details and campaign product list and details. |
+| ^^delivery_option | string |  | The delivery option: - ECONOMY_SHIPPING - PREMIUM_SHIPPING |
+| ^^estimated_earliest_delivery_date | string |  | The earliest estimated delivery date in Unix epoch format. |
+| ^^estimated_latest_delivery_date | string |  | The longest estimated delivery date in Unix epoch format. |
+| ^^quantity | integer |  | The quantity of products delivered. |
+| ^^shipping_provider_name | string |  | The name of the shipping provider |
+| ^^tracking_results | array<object> |  | A list of objects representing tracking events. |
+| ^^^tracking_event_description | string |  | The title of the tracking event. - THE_PACKAGE_HAS_BEEN_DELIVERED - OUT_FOR_DELIVERY - ORDER_PACKED_AND_READY_FOR_DROP_OFF_AT_CARRIERS_FACILITY - ORDER_PLACED |
+| ^^^tracking_event_description_extended | string |  | More information about the tracking event |
+| ^^^tracking_event_update_date | string |  | The date at which the tracking event was last updated, in Unix epoch format. |
+| message | string |  | The success or failure messages returned in API response. Reasons of failure will be described in the message. |
+| request_id | string |  | Request log. |
 
 ---
