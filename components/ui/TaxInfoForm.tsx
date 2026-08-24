@@ -25,6 +25,19 @@ interface Props {
   labelClassName?: string;
   /** Show required marker on tax_id */
   required?: boolean;
+  /**
+   * ทำเครื่องหมายบังคับกับ ชื่อ / สาขา / ที่อยู่ ด้วย — ใช้เฉพาะที่ออกใบกำกับ
+   * เต็มรูปจริง (ต้องมีครบตามประกาศกรมสรรพากร)
+   *
+   * แยกจาก `required` เพราะ CustomerForm ส่ง required มาแต่ validate แค่เลขภาษี
+   * ติดดาวให้ฟิลด์ที่ไม่มีการตรวจ = ดาวโกหก
+   */
+  requireFullInvoice?: boolean;
+  /** ข้อความ error รายฟิลด์ (ใบกำกับเต็มรูปต้องมีชื่อ/เลขภาษี/สาขา/ที่อยู่ครบ
+   *  ตามประกาศกรมสรรพากร — ขาดข้อใดข้อหนึ่งใบนั้นใช้ไม่ได้) */
+  nameError?: string;
+  branchError?: string;
+  addressError?: string;
   /** Error message for tax_id field */
   taxIdError?: string;
 }
@@ -43,6 +56,10 @@ export default function TaxInfoForm({
   inputClassName = 'w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50',
   labelClassName = 'block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1',
   required,
+  requireFullInvoice,
+  nameError,
+  branchError,
+  addressError,
   taxIdError,
 }: Props) {
   return (
@@ -88,14 +105,16 @@ export default function TaxInfoForm({
       <div>
         <label className={labelClassName}>
           {data.tax_type === 'personal' ? 'ชื่อ-นามสกุล' : 'ชื่อบริษัท/กิจการ'}
+          {requireFullInvoice && <span className="text-red-500 ml-0.5">*</span>}
         </label>
         {readOnly
           ? <p className="text-sm text-gray-900 dark:text-white">{data.tax_company_name || '-'}</p>
-          : <input type="text" value={data.tax_company_name}
+          : <input type="text" data-field="tax_company_name" value={data.tax_company_name}
               onChange={e => onChange({ tax_company_name: e.target.value })}
-              className={inputClassName}
+              className={`${inputClassName} ${nameError ? 'border-red-400 ring-1 ring-red-400' : ''}`}
               placeholder={data.tax_type === 'personal' ? 'ชื่อ นามสกุล' : 'บริษัท XXX จำกัด'} />
         }
+        {nameError && <p className="text-red-500 text-xs mt-1">{nameError}</p>}
       </div>
 
       {/* เลข + สาขา */}
@@ -112,13 +131,14 @@ export default function TaxInfoForm({
             {taxIdError && <p className="text-red-500 text-xs mt-1">{taxIdError}</p>}
           </div>
           <div>
-            <label className={labelClassName}>สาขา</label>
+            <label className={labelClassName}>สาขา{requireFullInvoice && <span className="text-red-500 ml-0.5">*</span>}</label>
             {readOnly
               ? <p className="text-sm text-gray-900 dark:text-white">{data.tax_branch || 'สำนักงานใหญ่'}</p>
-              : <input type="text" value={data.tax_branch}
+              : <input type="text" data-field="tax_branch" value={data.tax_branch}
                   onChange={e => onChange({ tax_branch: e.target.value })}
-                  className={inputClassName} placeholder="สำนักงานใหญ่" />
+                  className={`${inputClassName} ${branchError ? 'border-red-400 ring-1 ring-red-400' : ''}`} placeholder="สำนักงานใหญ่" />
             }
+            {branchError && <p className="text-red-500 text-xs mt-1">{branchError}</p>}
           </div>
         </div>
       ) : (
@@ -137,13 +157,14 @@ export default function TaxInfoForm({
       {/* ที่อยู่ (optional — for order modal) */}
       {showAddress && onAddressChange && (
         <div>
-          <label className={labelClassName}>ที่อยู่ออกบิล</label>
+          <label className={labelClassName}>ที่อยู่ออกบิล{requireFullInvoice && <span className="text-red-500 ml-0.5">*</span>}</label>
           {readOnly
             ? <p className="text-sm text-gray-900 dark:text-white">{address || '-'}</p>
-            : <textarea value={address || ''}
+            : <textarea data-field="billing_address" value={address || ''}
                 onChange={e => onAddressChange(e.target.value)}
-                className={inputClassName} rows={2} placeholder="ที่อยู่สำหรับออกใบกำกับภาษี" />
+                className={`${inputClassName} ${addressError ? 'border-red-400 ring-1 ring-red-400' : ''}`} rows={2} placeholder="ที่อยู่สำหรับออกใบกำกับภาษี" />
           }
+          {addressError && <p className="text-red-500 text-xs mt-1">{addressError}</p>}
         </div>
       )}
     </div>
