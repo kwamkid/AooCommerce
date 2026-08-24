@@ -37,6 +37,7 @@ import { fetchCustomerOrderContext } from '@/lib/gp-resolver';
 import { isMarketplaceSource } from '@/lib/marketplace/types';
 import StickyActionBar from '@/components/ui/StickyActionBar';
 import { LoadingCard } from '@/components/ui/StateCard';
+import Checkbox from '@/components/ui/Checkbox';
 import {
   Plus,
   Loader2,
@@ -195,7 +196,7 @@ export default function OrderForm({
   const { userProfile, loading: authLoading } = useAuth();
   const { showToast } = useToast();
   const copy = useCopy();
-  const { features, billExpiryDays } = useFeatures();
+  const { features, billExpiryDays, giftCard } = useFeatures();
   const { currentCompany } = useCompany();
   const vatRegistered = currentCompany?.vat_registered || false;
 
@@ -271,6 +272,14 @@ export default function OrderForm({
   const [branchOrders, setBranchOrders] = useState<BranchOrder[]>([]);
 
   // Order details
+  // การ์ดอวยพร — บริการระดับร้าน (companies.settings.gift_card) ใช้ได้ทุกช่องทาง
+  // ที่เปิดออเดอร์ ไม่ใช่แค่หน้าร้านออนไลน์ · ค่าการ์ดบวกเข้าท้ายบิลเหมือนค่าส่ง
+  const [giftCardOn, setGiftCardOn] = useState(false);
+  const [giftMessage, setGiftMessage] = useState('');
+  const [giftTo, setGiftTo] = useState('');
+  const [giftFrom, setGiftFrom] = useState('');
+  const [giftHidePrice, setGiftHidePrice] = useState(true);
+
   const [deliveryDateValue, setDeliveryDateValue] = useState<DateValueType>({
     startDate: null,
     endDate: null,
@@ -690,6 +699,14 @@ export default function OrderForm({
         if (order.discount_amount) setOrderDiscount(order.discount_amount);
         if (order.order_discount_type) setOrderDiscountType(order.order_discount_type);
         if (order.exchange_credit) setStoredExchangeCredit(Number(order.exchange_credit));
+
+        if (order.gift_card_requested) {
+          setGiftCardOn(true);
+          if (order.gift_message) setGiftMessage(order.gift_message);
+          if (order.gift_to) setGiftTo(order.gift_to);
+          if (order.gift_from) setGiftFrom(order.gift_from);
+          setGiftHidePrice(!!order.gift_hide_price);
+        }
 
         if (order.tax_invoice_requested) {
           setTaxInvoiceRequested(true);
@@ -1503,6 +1520,10 @@ export default function OrderForm({
   const itemsTotal = branchOrders.reduce((sum, branch) => sum + calculateBranchTotal(branch), 0);
   const totalShippingFee = branchOrders.reduce((sum, branch) => sum + (branch.shipping_fee || 0), 0);
 
+  // การ์ดอวยพร: ร้านต้องเปิดบริการก่อน ถึงจะโผล่ให้ staff ติ๊ก
+  const giftCardEnabled = giftCard.enabled;
+  const giftCardFee = giftCardEnabled && giftCardOn ? (giftCard.fee || 0) : 0;
+
   // Auto-fill ค่าส่งจากโซน (เฉพาะ fixed) — ไม่ทับค่าที่ staff แก้เอง:
   // ทับได้เฉพาะเมื่อค่าปัจจุบัน = ค่าที่ระบบเคย fill (หรือยังเป็น 0)
   const zoneFeeResult = features.delivery_zone && activeZone
@@ -1525,7 +1546,7 @@ export default function OrderForm({
     }
     return orderDiscount;
   };
-  const totalWithVAT = itemsTotal - calculateOrderDiscount() + totalShippingFee;
+  const totalWithVAT = itemsTotal - calculateOrderDiscount() + totalShippingFee + giftCardFee;
   const subtotal = vatRegistered ? Math.round((totalWithVAT / 1.07) * 100) / 100 : totalWithVAT;
   const vat = vatRegistered ? totalWithVAT - subtotal : 0;
   const total = totalWithVAT;
@@ -1752,6 +1773,16 @@ export default function OrderForm({
         order_discount_type: orderDiscountType,
         notes: notes || undefined,
         internal_notes: internalNotes || undefined,
+        // การ์ดอวยพร — ส่งเมื่อร้านเปิดบริการและ staff ติ๊กเท่านั้น
+        // ค่าการ์ดคิดต่อเมื่อ "ขอการ์ด" จริง (ไม่ใช่แค่พิมพ์ข้อความแล้วยกเลิกติ๊ก)
+        ...(giftCardEnabled && giftCardOn ? {
+          gift_card_requested: true,
+          gift_card_fee: giftCard.fee || 0,
+          gift_message: giftMessage.trim() || undefined,
+          gift_to: giftTo.trim() || undefined,
+          gift_from: giftFrom.trim() || undefined,
+          gift_hide_price: giftHidePrice,
+        } : {}),
         tax_invoice_requested: taxInvoiceRequested || undefined,
         ...(taxInvoiceRequested ? {
           tax_invoice_type: taxType,
@@ -1974,6 +2005,12 @@ export default function OrderForm({
                 <div className="flex justify-between text-gray-600">
                   <span>ค่าจัดส่ง</span>
                   <span>฿{formatPrice(totalShippingFee)}</span>
+                </div>
+              )}
+              {giftCardFee > 0 && (
+                <div className="flex justify-between text-gray-600">
+                  <span>การ์ดอวยพร</span>
+                  <span>฿{formatPrice(giftCardFee)}</span>
                 </div>
               )}
               {orderDiscount > 0 && (
@@ -2235,6 +2272,90 @@ export default function OrderForm({
                   })}
                 </div>
               )}
+            </div>
+          )}
+        </div>
+        )}
+
+        {/* การ์ดอวยพร — โผล่เฉพาะร้านที่เปิดบริการไว้ (ตั้งค่า > บิลและสินค้า) */}
+        {giftCardEnabled && hasProducts && (
+        <div className={`bg-white dark:bg-slate-800 rounded-lg ${embedded ? '' : 'border border-gray-200 dark:border-slate-700'} p-4`}>
+          <label className={`flex items-start gap-3 ${isReadOnly ? '' : 'cursor-pointer'}`}>
+            <Checkbox
+              checked={giftCardOn}
+              onChange={(v) => setGiftCardOn(v)}
+              disabled={isReadOnly}
+            />
+            <span className="min-w-0">
+              <span className="block text-base font-medium text-gray-700 dark:text-slate-300">
+                แนบการ์ดอวยพร
+                {giftCard.fee > 0
+                  ? <span className="ml-2 text-sm font-normal text-gray-500 dark:text-slate-400">+฿{formatPrice(giftCard.fee)}</span>
+                  : <span className="ml-2 text-sm font-normal text-emerald-600 dark:text-emerald-400">ฟรี</span>}
+              </span>
+              <span className="block text-sm text-gray-500 dark:text-slate-400">
+                เขียนข้อความให้ แล้วแนบไปกับของ
+              </span>
+            </span>
+          </label>
+
+          {giftCardOn && (
+            <div className="mt-3 space-y-3 pl-8">
+              <div>
+                <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">
+                  ข้อความบนการ์ด
+                </label>
+                <textarea
+                  value={giftMessage}
+                  onChange={(e) => setGiftMessage(e.target.value.slice(0, 220))}
+                  rows={3}
+                  disabled={isReadOnly}
+                  maxLength={220}
+                  className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary text-base font-sans disabled:bg-gray-100 dark:disabled:bg-slate-800 disabled:text-gray-500 resize-none"
+                  placeholder="เช่น สุขสันต์วันเกิดนะครับ ขอให้มีความสุขมากๆ"
+                />
+                <p className="text-sm text-gray-400 dark:text-slate-500 mt-0.5 text-right">
+                  {giftMessage.length} / 220
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">ถึง</label>
+                  <input
+                    type="text"
+                    value={giftTo}
+                    onChange={(e) => setGiftTo(e.target.value)}
+                    disabled={isReadOnly}
+                    className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary text-base disabled:bg-gray-100 dark:disabled:bg-slate-800 disabled:text-gray-500"
+                    placeholder={deliveryName || selectedCustomer?.name || 'ชื่อที่จะขึ้นบนการ์ด'}
+                  />
+                </div>
+                <div>
+                  <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">จาก</label>
+                  <input
+                    type="text"
+                    value={giftFrom}
+                    onChange={(e) => setGiftFrom(e.target.value)}
+                    disabled={isReadOnly}
+                    className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary text-base disabled:bg-gray-100 dark:disabled:bg-slate-800 disabled:text-gray-500"
+                    placeholder="ชื่อผู้ให้"
+                  />
+                </div>
+              </div>
+
+              {/* ของขวัญเกือบทุกใบไม่อยากให้คนรับเห็นราคา — ติ๊กไว้ให้ล่วงหน้า */}
+              <label className={`flex items-start gap-3 ${isReadOnly ? '' : 'cursor-pointer'}`}>
+                <Checkbox
+                  checked={giftHidePrice}
+                  onChange={(v) => setGiftHidePrice(v)}
+                  disabled={isReadOnly}
+                />
+                <span className="min-w-0">
+                  <span className="block text-base text-gray-700 dark:text-slate-300">ไม่แนบใบเสร็จและราคาไปกับของ</span>
+                  <span className="block text-sm text-gray-500 dark:text-slate-400">ใบเสร็จส่งให้ผู้สั่งแทน</span>
+                </span>
+              </label>
             </div>
           )}
         </div>

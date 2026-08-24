@@ -6,12 +6,15 @@ import { useAuth } from '@/lib/auth-context';
 import { useCompany } from '@/lib/company-context';
 import { DEFAULT_FEATURES, DEFAULT_PRESET, type FeatureFlags, type BusinessPreset } from '@/lib/features';
 import { PERMISSIVE_GATES, type PackageGates } from '@/lib/package-features';
+import { DEFAULT_GIFT_CARD, type GiftCardSettings } from '@/lib/gift-card';
 
 interface FeaturesContextType {
   features: FeatureFlags;
   preset: BusinessPreset;
   gates: PackageGates;
   billExpiryDays: number | null;
+  /** บริการการ์ดอวยพรของร้าน — ใช้ร่วมทุกช่องทางที่เปิดออเดอร์ (หน้าร้าน/แชท/POS) */
+  giftCard: GiftCardSettings;
   loading: boolean;
   fetched: boolean; // true after API data has been loaded at least once
   refreshFeatures: () => Promise<void>;
@@ -24,6 +27,7 @@ interface CachedFeaturesBundle {
   features: FeatureFlags;
   gates?: PackageGates;
   billExpiryDays: number | null;
+  giftCard?: GiftCardSettings;
 }
 
 // localStorage key — per-company so switching companies reads the right cache.
@@ -57,6 +61,7 @@ export function FeaturesProvider({ children }: { children: React.ReactNode }) {
   const [preset, setPreset] = useState<BusinessPreset>(DEFAULT_PRESET);
   const [gates, setGates] = useState<PackageGates>(PERMISSIVE_GATES);
   const [billExpiryDays, setBillExpiryDays] = useState<number | null>(7);
+  const [giftCard, setGiftCard] = useState<GiftCardSettings>(DEFAULT_GIFT_CARD);
   const [loading, setLoading] = useState(true);
   const [fetched, setFetched] = useState(false);
 
@@ -76,6 +81,8 @@ export function FeaturesProvider({ children }: { children: React.ReactNode }) {
         setFeatures(nextFeatures);
         if (data.gates) setGates(data.gates as PackageGates);
         setBillExpiryDays(nextDays);
+        const nextGiftCard = (data.gift_card as GiftCardSettings | undefined) || DEFAULT_GIFT_CARD;
+        setGiftCard(nextGiftCard);
         setFetched(true);
         if (companyIdForCache) {
           writeCachedFeatures(companyIdForCache, {
@@ -83,6 +90,7 @@ export function FeaturesProvider({ children }: { children: React.ReactNode }) {
             features: nextFeatures,
             gates: nextGates,
             billExpiryDays: nextDays,
+            giftCard: nextGiftCard,
           });
         }
       }
@@ -111,6 +119,7 @@ export function FeaturesProvider({ children }: { children: React.ReactNode }) {
     setFeatures(cached.features);
     if (cached.gates) setGates(cached.gates);
     setBillExpiryDays(cached.billExpiryDays);
+    if (cached.giftCard) setGiftCard(cached.giftCard);
   }, [companyId]);
 
   useEffect(() => {
@@ -124,8 +133,8 @@ export function FeaturesProvider({ children }: { children: React.ReactNode }) {
   const refreshFeatures = useCallback(() => fetchFeatures(companyId), [fetchFeatures, companyId]);
 
   const value = useMemo(() => ({
-    features, preset, gates, billExpiryDays, loading, fetched, refreshFeatures,
-  }), [features, preset, gates, billExpiryDays, loading, fetched, refreshFeatures]);
+    features, preset, gates, billExpiryDays, giftCard, loading, fetched, refreshFeatures,
+  }), [features, preset, gates, billExpiryDays, giftCard, loading, fetched, refreshFeatures]);
 
   return (
     <FeaturesContext.Provider value={value}>

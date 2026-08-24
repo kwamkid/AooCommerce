@@ -55,6 +55,11 @@ export interface PackingListData {
   created_at: string;
   order_status?: string;
   notes?: string;
+  gift_card_requested?: boolean;
+  gift_message?: string;
+  gift_to?: string;
+  gift_from?: string;
+  gift_hide_price?: boolean;
   customer?: { name?: string; phone?: string } | null;
   delivery_name?: string;
   delivery_phone?: string;
@@ -647,6 +652,37 @@ function buildCompactPackingContent(
         }] : []),
       ],
       margin: [0, 0, 0, 4],
+    });
+  }
+
+  // ── การ์ดอวยพร ──
+  // ใส่กรอบไว้เลย เพราะเป็นงานมือที่คนแพ็คต้องทำเพิ่ม (เขียนการ์ด) ถ้าพลาด
+  // ของถึงมือคนรับโดยไม่มีการ์ด = แก้ไม่ได้แล้ว
+  if (order.gift_card_requested) {
+    const giftLines: object[] = [
+      { text: '🎁 แนบการ์ดอวยพร', fontSize: 10, bold: true, color: '#be185d', margin: [0, 0, 0, 2] },
+    ];
+    if (order.gift_message) {
+      giftLines.push({ text: order.gift_message, fontSize: 10, color: '#333333', margin: [0, 0, 0, 2] });
+    }
+    const toFrom = [
+      order.gift_to ? `ถึง: ${order.gift_to}` : '',
+      order.gift_from ? `จาก: ${order.gift_from}` : '',
+    ].filter(Boolean).join('   ');
+    if (toFrom) giftLines.push({ text: toFrom, fontSize: 9, color: '#555555' });
+    if (order.gift_hide_price) {
+      giftLines.push({
+        text: '** ห้ามแนบใบเสร็จ / ราคา ไปกับของ **',
+        fontSize: 9, bold: true, color: '#dc2626', margin: [0, 2, 0, 0],
+      });
+    }
+    content.push({
+      table: { widths: ['*'], body: [[{ stack: giftLines, margin: [6, 5, 6, 5] }]] },
+      layout: {
+        hLineWidth: () => 1, vLineWidth: () => 1,
+        hLineColor: () => '#f9a8d4', vLineColor: () => '#f9a8d4',
+      },
+      margin: [0, 2, 0, 5],
     });
   }
 

@@ -1,5 +1,6 @@
 // Path: app/api/orders/route.ts  // v13 - exclude_flow_types filter
 import { NextRequest, NextResponse } from 'next/server';
+import { parseGiftCard } from '@/lib/gift-card';
 import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
 import { getStockConfig } from '@/lib/stock-utils';
 import { createCreditNote } from '@/lib/credit-notes/auto-cn';
@@ -31,6 +32,12 @@ interface OrderItemInput {
 
 interface OrderData {
   customer_id?: string;
+  // การ์ดอวยพร — ค่าการ์ดไม่รับจาก client (อ่านจาก settings ของร้าน)
+  gift_card_requested?: boolean;
+  gift_message?: string;
+  gift_to?: string;
+  gift_from?: string;
+  gift_hide_price?: boolean;
   delivery_date?: string;
   delivery_zone_id?: string | null;
   delivery_slot_id?: string | null;
@@ -168,8 +175,20 @@ export async function POST(request: NextRequest) {
       .single();
     const isVatRegistered = companyInfo?.vat_registered || false;
 
+    // การ์ดอวยพร — ค่าการ์ดอ่านจาก settings ของร้านเสมอ ไม่รับตัวเลขจาก client
+    // (ช่องทางสาธารณะอย่าง storefront ก็เรียก path นี้ได้ ห้ามให้กำหนดราคาเองได้)
+    const giftCardRequested = !!orderData.gift_card_requested;
+    let giftCardFee = 0;
+    if (giftCardRequested) {
+      const { data: giftSettingsRow } = await supabaseAdmin
+        .from('companies').select('settings').eq('id', auth.companyId).single();
+      const gc = parseGiftCard(giftSettingsRow?.settings as Record<string, unknown> | null);
+      // ร้านปิดบริการอยู่ = ไม่คิดเงินและไม่ทำเป็นออเดอร์การ์ด
+      giftCardFee = gc.enabled ? gc.fee : 0;
+    }
+
     // Prices are VAT-inclusive (if VAT registered), so we reverse-calculate VAT from the total
-    const totalWithVAT = subtotal - discountAmount + totalShippingFee;
+    const totalWithVAT = subtotal - discountAmount + totalShippingFee + giftCardFee;
     const subtotalBeforeVAT = isVatRegistered ? Math.round((totalWithVAT / 1.07) * 100) / 100 : totalWithVAT;
     const vatAmount = isVatRegistered ? totalWithVAT - subtotalBeforeVAT : 0;
     const totalAmount = totalWithVAT;
@@ -286,6 +305,12 @@ export async function POST(request: NextRequest) {
         delivery_province: orderData.delivery_province || null,
         delivery_postal_code: orderData.delivery_postal_code || null,
         delivery_email: orderData.delivery_email || null,
+        gift_card_requested: giftCardRequested,
+        gift_card_fee: giftCardFee,
+        gift_message: orderData.gift_message || null,
+        gift_to: orderData.gift_to || null,
+        gift_from: orderData.gift_from || null,
+        gift_hide_price: orderData.gift_hide_price ?? false,
         tax_invoice_requested: orderData.tax_invoice_requested || false,
         tax_invoice_type: orderData.tax_invoice_type || null,
         tax_invoice_name: orderData.tax_invoice_name || null,
@@ -1914,8 +1939,18 @@ export async function PUT(request: NextRequest) {
         .single();
       const isVatRegisteredUpdate = companyInfoUpdate?.vat_registered || false;
 
+      // การ์ดอวยพร — เหมือนตอนสร้าง: ค่าการ์ดอ่านจาก settings ร้าน ไม่รับจาก client
+      const giftRequestedUpd = !!body.gift_card_requested;
+      let giftFeeUpd = 0;
+      if (giftRequestedUpd) {
+        const { data: giftRow } = await supabaseAdmin
+          .from('companies').select('settings').eq('id', auth.companyId).single();
+        const gc = parseGiftCard(giftRow?.settings as Record<string, unknown> | null);
+        giftFeeUpd = gc.enabled ? gc.fee : 0;
+      }
+
       // Prices are VAT-inclusive (if VAT registered), so we reverse-calculate VAT from the total
-      const totalWithVAT = subtotal - orderDiscountAmount + totalShippingFee;
+      const totalWithVAT = subtotal - orderDiscountAmount + totalShippingFee + giftFeeUpd;
       const subtotalBeforeVAT = isVatRegisteredUpdate ? Math.round((totalWithVAT / 1.07) * 100) / 100 : totalWithVAT;
       const vatAmount = isVatRegisteredUpdate ? totalWithVAT - subtotalBeforeVAT : 0;
       const totalAmount = totalWithVAT;
@@ -1953,6 +1988,12 @@ export async function PUT(request: NextRequest) {
           payment_method: payment_method || null,
           notes: notes || null,
           internal_notes: internal_notes || null,
+          gift_card_requested: giftRequestedUpd,
+          gift_card_fee: giftFeeUpd,
+          gift_message: body.gift_message || null,
+          gift_to: body.gift_to || null,
+          gift_from: body.gift_from || null,
+          gift_hide_price: body.gift_hide_price ?? false,
           // Only overwrite sales_channel_id if explicitly provided (undefined = keep existing)
           ...(sales_channel_id !== undefined ? { sales_channel_id: sales_channel_id || null } : {}),
           updated_at: new Date().toISOString()

@@ -43,6 +43,7 @@ import {
   Pencil,
   RefreshCw,
   CheckCircle,
+  Gift,
   ReceiptText,
   Undo2,
   Repeat,
@@ -1412,6 +1413,40 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
               </div>
             )}
           </Card>
+
+          {/* การ์ดอวยพร — โผล่เฉพาะออเดอร์ที่ขอการ์ด ไม่ต้องมีกล่องว่างรก */}
+          {fullOrderData?.gift_card_requested && (
+            <div className="rounded-xl border bg-pink-50/60 dark:bg-pink-900/15 border-pink-200 dark:border-pink-800/40 p-5">
+              <div className="flex items-center gap-2 mb-2">
+                <Gift className="w-4 h-4 text-pink-500" />
+                <div className="text-base font-medium text-gray-700 dark:text-slate-200 uppercase tracking-wide">การ์ดอวยพร</div>
+                {Number(fullOrderData.gift_card_fee) > 0 && (
+                  <span className="badge badge-sm badge-pill badge-purple">
+                    ฿{formatPrice(Number(fullOrderData.gift_card_fee))}
+                  </span>
+                )}
+              </div>
+              {fullOrderData.gift_message ? (
+                <p className="body-text text-gray-700 dark:text-slate-200 whitespace-pre-wrap">
+                  {fullOrderData.gift_message}
+                </p>
+              ) : (
+                <p className="subtitle-text text-gray-500 dark:text-slate-400">แนบการ์ด (ไม่ได้เขียนข้อความ)</p>
+              )}
+              {(fullOrderData.gift_to || fullOrderData.gift_from) && (
+                <p className="subtitle-text text-gray-500 dark:text-slate-400 mt-1">
+                  {fullOrderData.gift_to && <>ถึง: {fullOrderData.gift_to}</>}
+                  {fullOrderData.gift_to && fullOrderData.gift_from && ' · '}
+                  {fullOrderData.gift_from && <>จาก: {fullOrderData.gift_from}</>}
+                </p>
+              )}
+              {fullOrderData.gift_hide_price && (
+                <p className="subtitle-text text-red-600 dark:text-red-400 font-medium mt-2">
+                  ห้ามแนบใบเสร็จ / ราคา ไปกับของ
+                </p>
+              )}
+            </div>
+          )}
 
           {/* Tax Invoice card — right column */}
           <div className={`rounded-xl border ${

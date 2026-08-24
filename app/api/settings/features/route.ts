@@ -3,6 +3,7 @@ import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
 import { NextRequest, NextResponse } from 'next/server';
 import { parseFeatures, DEFAULT_PRESET, DEFAULT_FEATURES, type FeatureFlags } from '@/lib/features';
 import { gatesFromPackageFeatures, applyPackageGates, PERMISSIVE_GATES } from '@/lib/package-features';
+import { parseGiftCard } from '@/lib/gift-card';
 
 // GET - read feature flags from companies.settings + active package gates
 export async function GET(request: NextRequest) {
@@ -48,6 +49,9 @@ export async function GET(request: NextRequest) {
       features,
       gates,
       bill_expiry_days: settings.bill_expiry_days ?? null,
+      // การ์ดอวยพรอยู่ใน settings ก้อนเดียวกัน — แถมมากับ call นี้เลย
+      // ไม่ต้องให้ OrderForm ยิง /api/settings/gift-card แยกอีกรอบ
+      gift_card: parseGiftCard(settings),
       consignment_settings: settings.consignment ?? null,
       brand_gp_overrides: settings.brand_gp_overrides ?? null,
     });
