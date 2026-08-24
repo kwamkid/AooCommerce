@@ -2237,9 +2237,12 @@ export default function OrderForm({
             การ์ดที่สั้นกว่ายืดตามการ์ดที่ยาวกว่า) */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
 
-        {/* Delivery Date + ช่วงเวลาส่ง */}
-        {features.delivery_date.enabled && (
+        {/* การจัดส่ง — วันที่ + ช่วงเวลา + โซน/ค่าส่ง รวมการ์ดเดียว
+            ทั้งสามเรื่องคือ "ของชิ้นนี้ไปถึงเมื่อไหร่ ค่าเท่าไหร่" เหมือนกัน
+            แยกเป็นสามการ์ดเตี้ย ๆ ทำให้จอ desktop เหลือที่ว่างเปล่า ๆ */}
+        {(features.delivery_date.enabled || features.delivery_zone) && (
         <div ref={deliveryDateRef} className={`bg-white dark:bg-slate-800 rounded-lg ${embedded ? '' : 'border border-gray-200 dark:border-slate-700'} p-4`}>
+          {features.delivery_date.enabled && (<>
           <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">
             วันที่ส่งของ {features.delivery_date.required && <span className="text-red-500">*</span>}
           </label>
@@ -2287,6 +2290,59 @@ export default function OrderForm({
                 </div>
               )}
             </div>
+          )}
+          </>)}
+
+          {features.delivery_zone && (
+          <div className={features.delivery_date.enabled ? "mt-4 pt-4 border-t border-gray-100 dark:border-slate-700" : ""}>
+          <div className="flex items-center justify-between mb-1">
+            <label className="block text-base font-medium text-gray-700 dark:text-slate-300">จุดส่ง / ค่าส่ง</label>
+            {zoneOverrideId && !isReadOnly && (
+              <button type="button" onClick={() => setZoneOverrideId('')} className="text-sm text-[#F4511E] hover:underline">
+                จับคู่อัตโนมัติตามที่อยู่
+              </button>
+            )}
+          </div>
+          {deliveryZones.length === 0 ? (
+            <p className="text-sm text-gray-400 dark:text-slate-500">ยังไม่ได้ตั้งค่าจุดส่ง — ตั้งได้ที่ ตั้งค่า → การจัดส่ง</p>
+          ) : (
+            <>
+              <FormSelect
+                value={activeZone?.id || ''}
+                onChange={(v) => setZoneOverrideId(v)}
+                options={deliveryZones.map(z => ({
+                  id: z.id,
+                  label: z.name,
+                  subtitle: z.fee_type === 'lalamove'
+                    ? 'ค่าส่งตาม Lalamove'
+                    : `ค่าส่ง ฿${z.fee.toLocaleString()}${z.free_over != null ? ` · ครบ ฿${z.free_over.toLocaleString()} ส่งฟรี` : ''}`,
+                }))}
+                placeholder="เลือกจุดส่ง"
+                disabled={isReadOnly}
+              />
+              <div className="mt-2">
+                {activeZone ? (
+                  zoneFeeResult?.needsQuote ? (
+                    <p className="text-sm text-amber-600 dark:text-amber-400">
+                      โซนนี้คิดค่าส่งตาม Lalamove — เช็คราคาแล้วกรอกในช่องค่าส่งของสรุปยอด
+                    </p>
+                  ) : zoneFeeResult?.freeApplied ? (
+                    <p className="text-sm text-emerald-600 dark:text-emerald-400">ส่งฟรี — ยอดสั่งซื้อถึงขั้นต่ำของโซนนี้แล้ว</p>
+                  ) : (
+                    <p className="text-sm text-gray-500 dark:text-slate-400">
+                      ค่าส่งโซนนี้ ฿{(zoneFeeResult?.fee ?? 0).toLocaleString()}
+                      {!zoneOverrideId && ' (จับคู่จากที่อยู่จัดส่งอัตโนมัติ)'}
+                    </p>
+                  )
+                ) : (deliveryProvince || deliveryPostalCode) ? (
+                  <p className="text-sm text-red-500">ที่อยู่นี้อยู่นอกพื้นที่จัดส่งทุกโซน — เลือกโซนเอง หรือแจ้งลูกค้าว่าไม่รับส่ง</p>
+                ) : (
+                  <p className="text-sm text-gray-400 dark:text-slate-500">กรอกที่อยู่จัดส่ง ระบบจะจับคู่โซนและค่าส่งให้อัตโนมัติ</p>
+                )}
+              </div>
+            </>
+          )}
+          </div>
           )}
         </div>
         )}
@@ -2440,58 +2496,6 @@ export default function OrderForm({
 
         </div>
 
-        {/* จุดส่ง / โซนค่าส่ง */}
-        {features.delivery_zone && (
-        <div className={`bg-white dark:bg-slate-800 rounded-lg ${embedded ? '' : 'border border-gray-200 dark:border-slate-700'} p-4`}>
-          <div className="flex items-center justify-between mb-1">
-            <label className="block text-base font-medium text-gray-700 dark:text-slate-300">จุดส่ง / ค่าส่ง</label>
-            {zoneOverrideId && !isReadOnly && (
-              <button type="button" onClick={() => setZoneOverrideId('')} className="text-sm text-[#F4511E] hover:underline">
-                จับคู่อัตโนมัติตามที่อยู่
-              </button>
-            )}
-          </div>
-          {deliveryZones.length === 0 ? (
-            <p className="text-sm text-gray-400 dark:text-slate-500">ยังไม่ได้ตั้งค่าจุดส่ง — ตั้งได้ที่ ตั้งค่า → การจัดส่ง</p>
-          ) : (
-            <>
-              <FormSelect
-                value={activeZone?.id || ''}
-                onChange={(v) => setZoneOverrideId(v)}
-                options={deliveryZones.map(z => ({
-                  id: z.id,
-                  label: z.name,
-                  subtitle: z.fee_type === 'lalamove'
-                    ? 'ค่าส่งตาม Lalamove'
-                    : `ค่าส่ง ฿${z.fee.toLocaleString()}${z.free_over != null ? ` · ครบ ฿${z.free_over.toLocaleString()} ส่งฟรี` : ''}`,
-                }))}
-                placeholder="เลือกจุดส่ง"
-                disabled={isReadOnly}
-              />
-              <div className="mt-2">
-                {activeZone ? (
-                  zoneFeeResult?.needsQuote ? (
-                    <p className="text-sm text-amber-600 dark:text-amber-400">
-                      โซนนี้คิดค่าส่งตาม Lalamove — เช็คราคาแล้วกรอกในช่องค่าส่งของสรุปยอด
-                    </p>
-                  ) : zoneFeeResult?.freeApplied ? (
-                    <p className="text-sm text-emerald-600 dark:text-emerald-400">ส่งฟรี — ยอดสั่งซื้อถึงขั้นต่ำของโซนนี้แล้ว</p>
-                  ) : (
-                    <p className="text-sm text-gray-500 dark:text-slate-400">
-                      ค่าส่งโซนนี้ ฿{(zoneFeeResult?.fee ?? 0).toLocaleString()}
-                      {!zoneOverrideId && ' (จับคู่จากที่อยู่จัดส่งอัตโนมัติ)'}
-                    </p>
-                  )
-                ) : (deliveryProvince || deliveryPostalCode) ? (
-                  <p className="text-sm text-red-500">ที่อยู่นี้อยู่นอกพื้นที่จัดส่งทุกโซน — เลือกโซนเอง หรือแจ้งลูกค้าว่าไม่รับส่ง</p>
-                ) : (
-                  <p className="text-sm text-gray-400 dark:text-slate-500">กรอกที่อยู่จัดส่ง ระบบจะจับคู่โซนและค่าส่งให้อัตโนมัติ</p>
-                )}
-              </div>
-            </>
-          )}
-        </div>
-        )}
       </div>
       )}
 
