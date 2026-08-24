@@ -658,10 +658,15 @@ function buildCompactPackingContent(
   // ── การ์ดอวยพร ──
   // ใส่กรอบไว้เลย เพราะเป็นงานมือที่คนแพ็คต้องทำเพิ่ม (เขียนการ์ด) ถ้าพลาด
   // ของถึงมือคนรับโดยไม่มีการ์ด = แก้ไม่ได้แล้ว
-  if (order.gift_card_requested) {
-    const giftLines: object[] = [
-      { text: '🎁 แนบการ์ดอวยพร', fontSize: 10, bold: true, color: '#be185d', margin: [0, 0, 0, 2] },
-    ];
+  // ซ่อนราคาอย่างเดียว (ส่งให้คนอื่นแต่ไม่ขอการ์ด) ก็ต้องเตือน — คนแพ็คคือคนเดียว
+  // ที่หยุดใบเสร็จไม่ให้ลงกล่องได้ ถ้าไม่เห็นตรงนี้ก็ไม่มีใครรู้
+  if (order.gift_card_requested || order.gift_hide_price) {
+    const giftLines: object[] = [];
+    if (order.gift_card_requested) {
+      giftLines.push({ text: '🎁 แนบการ์ดอวยพร', fontSize: 10, bold: true, color: '#be185d', margin: [0, 0, 0, 2] });
+    } else {
+      giftLines.push({ text: '🎁 ของขวัญ — ส่งให้ผู้รับโดยตรง', fontSize: 10, bold: true, color: '#be185d', margin: [0, 0, 0, 2] });
+    }
     if (order.gift_message) {
       giftLines.push({ text: order.gift_message, fontSize: 10, color: '#333333', margin: [0, 0, 0, 2] });
     }
