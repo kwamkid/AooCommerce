@@ -260,6 +260,10 @@ export default function CustomerSelectionCard({
           <div className="hidden sm:block" />
         )}
 
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3 items-start">
+        <div className="space-y-3 min-w-0">
         {/* Row 1 Left: [toggle] + [search/name input] OR [selected customer card] */}
         <div className="relative flex flex-col">
 
@@ -384,6 +388,104 @@ export default function CustomerSelectionCard({
           )}
         </div>
 
+
+        {/* Row 2 Left: เบอร์โทร + อีเมล + ภาษี */}
+        {(selectedCustomer || hasDelivery) && (
+          <div className="space-y-2">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm text-gray-600 dark:text-slate-400 mb-1">เบอร์โทร</label>
+                <input type="text" inputMode="tel" value={delivery?.deliveryPhone || selectedCustomer?.phone || ''} onChange={(e) => onDeliveryChange?.({ deliveryPhone: e.target.value })} placeholder="0xx-xxx-xxxx" disabled={!isEditable}
+                  className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-gray-100 dark:disabled:bg-slate-800" />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-600 dark:text-slate-400 mb-1">อีเมล</label>
+                <input type="text" inputMode="email" value={delivery?.deliveryEmail || selectedCustomer?.email || ''} onChange={(e) => onDeliveryChange?.({ deliveryEmail: e.target.value })} placeholder="email@example.com" disabled={!isEditable}
+                  className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-gray-100 dark:disabled:bg-slate-800" />
+              </div>
+            </div>
+
+            {/* Tax invoice — VAT registered: show TaxInvoiceInfo */}
+            {showTaxInvoice && vatRegistered && taxFields && (
+              <TaxInvoiceInfo
+                customerName={selectedCustomer?.name || ''}
+                taxCompanyName={taxFields.taxName} taxId={taxFields.taxTaxId}
+                taxBranch={taxFields.taxBranch} billingAddress={taxFields.taxAddress}
+                onEdit={isEditable && onTaxFieldsChange ? (data) => {
+                  onTaxFieldsChange({
+                    taxType: data.tax_type,
+                    taxName: data.tax_company_name,
+                    taxTaxId: data.tax_id,
+                    taxBranch: data.tax_branch,
+                    taxAddress: data.billing_address,
+                  });
+                } : undefined}
+              />
+            )}
+
+            {/* Tax checkbox (non-VAT) — checking it opens an edit modal so the
+                fields don't expand inline. After save, a compact one-line
+                summary shows below with a small "แก้ไข" link. */}
+            {showTaxCheckbox && !vatRegistered && (selectedCustomer || hasDelivery) && isEditable && (
+              <div className="mt-1 pt-2.5 space-y-1.5">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={taxInvoiceRequested}
+                    onChange={(e) => {
+                      const checked = e.target.checked;
+                      onTaxInvoiceRequestedChange?.(checked);
+                      // First-time check with no data yet → auto-open modal
+                      if (checked && taxFields && !taxFields.taxTaxId && !taxFields.taxName) {
+                        setShowTaxModal(true);
+                      }
+                    }}
+                    className="w-4 h-4 rounded border-gray-300 dark:border-slate-500 text-primary focus:ring-primary accent-primary"
+                  />
+                  <span className="text-base font-medium text-primary dark:text-orange-400">ขอใบกำกับภาษี</span>
+                </label>
+                {/* Compact summary line: shows when checked + has any data */}
+                {taxInvoiceRequested && taxFields && (taxFields.taxName || taxFields.taxTaxId) && (
+                  <div className="flex items-start gap-2 text-sm text-gray-600 dark:text-slate-400 pl-6">
+                    <div className="flex-1 min-w-0 space-y-0.5">
+                      <div className="break-words">
+                        {[taxFields.taxName, taxFields.taxTaxId, taxFields.taxBranch].filter(Boolean).join(' · ')}
+                      </div>
+                      {taxFields.taxAddress && (
+                        <div className="text-xs text-gray-500 dark:text-slate-500 break-words">
+                          {taxFields.taxAddress}
+                        </div>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowTaxModal(true)}
+                      className="text-primary hover:underline flex-shrink-0"
+                    >
+                      แก้ไข
+                    </button>
+                  </div>
+                )}
+                {/* Checked but no data yet → prompt to fill */}
+                {taxInvoiceRequested && taxFields && !taxFields.taxName && !taxFields.taxTaxId && (
+                  <div className="pl-6">
+                    <button
+                      type="button"
+                      onClick={() => setShowTaxModal(true)}
+                      className="text-sm text-primary hover:underline"
+                    >
+                      + กรอกข้อมูลภาษี
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        </div>
+
+        <div className="space-y-3 min-w-0">
         {/* Row 1 Right: ที่อยู่ textarea (label is in the section header above) */}
         {showDeliveryCol && (
         <div className="flex flex-col sm:border-l sm:border-gray-200 dark:sm:border-slate-700 sm:pl-4">
@@ -487,99 +589,6 @@ export default function CustomerSelectionCard({
         </div>
         )}
 
-        {/* Row 2 Left: เบอร์โทร + อีเมล + ภาษี */}
-        {(selectedCustomer || hasDelivery) && (
-          <div className="space-y-2">
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-sm text-gray-600 dark:text-slate-400 mb-1">เบอร์โทร</label>
-                <input type="text" inputMode="tel" value={delivery?.deliveryPhone || selectedCustomer?.phone || ''} onChange={(e) => onDeliveryChange?.({ deliveryPhone: e.target.value })} placeholder="0xx-xxx-xxxx" disabled={!isEditable}
-                  className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-gray-100 dark:disabled:bg-slate-800" />
-              </div>
-              <div>
-                <label className="block text-sm text-gray-600 dark:text-slate-400 mb-1">อีเมล</label>
-                <input type="text" inputMode="email" value={delivery?.deliveryEmail || selectedCustomer?.email || ''} onChange={(e) => onDeliveryChange?.({ deliveryEmail: e.target.value })} placeholder="email@example.com" disabled={!isEditable}
-                  className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-gray-100 dark:disabled:bg-slate-800" />
-              </div>
-            </div>
-
-            {/* Tax invoice — VAT registered: show TaxInvoiceInfo */}
-            {showTaxInvoice && vatRegistered && taxFields && (
-              <TaxInvoiceInfo
-                customerName={selectedCustomer?.name || ''}
-                taxCompanyName={taxFields.taxName} taxId={taxFields.taxTaxId}
-                taxBranch={taxFields.taxBranch} billingAddress={taxFields.taxAddress}
-                onEdit={isEditable && onTaxFieldsChange ? (data) => {
-                  onTaxFieldsChange({
-                    taxType: data.tax_type,
-                    taxName: data.tax_company_name,
-                    taxTaxId: data.tax_id,
-                    taxBranch: data.tax_branch,
-                    taxAddress: data.billing_address,
-                  });
-                } : undefined}
-              />
-            )}
-
-            {/* Tax checkbox (non-VAT) — checking it opens an edit modal so the
-                fields don't expand inline. After save, a compact one-line
-                summary shows below with a small "แก้ไข" link. */}
-            {showTaxCheckbox && !vatRegistered && (selectedCustomer || hasDelivery) && isEditable && (
-              <div className="mt-1 pt-2.5 space-y-1.5">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={taxInvoiceRequested}
-                    onChange={(e) => {
-                      const checked = e.target.checked;
-                      onTaxInvoiceRequestedChange?.(checked);
-                      // First-time check with no data yet → auto-open modal
-                      if (checked && taxFields && !taxFields.taxTaxId && !taxFields.taxName) {
-                        setShowTaxModal(true);
-                      }
-                    }}
-                    className="w-4 h-4 rounded border-gray-300 dark:border-slate-500 text-primary focus:ring-primary accent-primary"
-                  />
-                  <span className="text-base font-medium text-primary dark:text-orange-400">ขอใบกำกับภาษี</span>
-                </label>
-                {/* Compact summary line: shows when checked + has any data */}
-                {taxInvoiceRequested && taxFields && (taxFields.taxName || taxFields.taxTaxId) && (
-                  <div className="flex items-start gap-2 text-sm text-gray-600 dark:text-slate-400 pl-6">
-                    <div className="flex-1 min-w-0 space-y-0.5">
-                      <div className="break-words">
-                        {[taxFields.taxName, taxFields.taxTaxId, taxFields.taxBranch].filter(Boolean).join(' · ')}
-                      </div>
-                      {taxFields.taxAddress && (
-                        <div className="text-xs text-gray-500 dark:text-slate-500 break-words">
-                          {taxFields.taxAddress}
-                        </div>
-                      )}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setShowTaxModal(true)}
-                      className="text-primary hover:underline flex-shrink-0"
-                    >
-                      แก้ไข
-                    </button>
-                  </div>
-                )}
-                {/* Checked but no data yet → prompt to fill */}
-                {taxInvoiceRequested && taxFields && !taxFields.taxName && !taxFields.taxTaxId && (
-                  <div className="pl-6">
-                    <button
-                      type="button"
-                      onClick={() => setShowTaxModal(true)}
-                      className="text-sm text-primary hover:underline"
-                    >
-                      + กรอกข้อมูลภาษี
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        )}
 
         {/* Row 2 Right: ThaiAddressInput */}
         {(selectedCustomer || hasDelivery) && (
@@ -602,6 +611,8 @@ export default function CustomerSelectionCard({
             />
           </div>
         )}
+        </div>
+      </div>
 
         {/* Tax invoice modal — opens from checkbox above or the แก้ไข link */}
         {showTaxModal && taxFields && onTaxFieldsChange && (
@@ -655,7 +666,6 @@ export default function CustomerSelectionCard({
             }}
           />
         )}
-      </div>
     </div>
   );
 }
