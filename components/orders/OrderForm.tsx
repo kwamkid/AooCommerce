@@ -338,6 +338,7 @@ export default function OrderForm({
   // Refs
   const customerSectionRef = useRef<HTMLDivElement>(null);
   const deliveryDateRef = useRef<HTMLDivElement>(null);
+  const shipToRef = useRef<HTMLDivElement>(null);
   const productsSectionRef = useRef<HTMLDivElement>(null);
   const deliverySectionRef = useRef<HTMLDivElement>(null);
   const summarySectionRef = useRef<HTMLDivElement>(null);
@@ -1563,6 +1564,10 @@ export default function OrderForm({
     if (features.delivery_date.enabled && features.delivery_date.required && !deliveryDate) {
       errors.deliveryDate = 'กรุณาเลือกวันที่ส่งของ';
     }
+    // ส่งให้คนอื่นแล้วไม่กรอกชื่อ = ระบบเอาชื่อลูกค้าผู้สั่งไปจ่าหน้ากล่องแทน
+    if (shipToOther && !deliveryName.trim()) {
+      errors.recipientName = 'กรุณากรอกชื่อผู้รับ';
+    }
     if (deliveryPhone.trim() && !/^(0[0-9]{8,9}|[0-9]{9,10})$/.test(deliveryPhone.trim())) {
       errors.deliveryPhone = 'เบอร์โทรไม่ถูกต้อง';
     }
@@ -1581,6 +1586,8 @@ export default function OrderForm({
         customerSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       } else if (errors.deliveryDate) {
         deliveryDateRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      } else if (errors.recipientName) {
+        shipToRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       } else if (errors.branches) {
         productsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
@@ -2225,6 +2232,11 @@ export default function OrderForm({
           </div>
         )}
 
+        {/* วันที่ส่งของ + จัดส่งถึง วางคู่กันบนจอกว้าง — สองการ์ดนี้เตี้ยทั้งคู่
+            ปล่อยเรียงลงมาจะเหลือที่ว่างครึ่งจอเปล่า ๆ (items-start กันไม่ให้
+            การ์ดที่สั้นกว่ายืดตามการ์ดที่ยาวกว่า) */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+
         {/* Delivery Date + ช่วงเวลาส่ง */}
         {features.delivery_date.enabled && (
         <div ref={deliveryDateRef} className={`bg-white dark:bg-slate-800 rounded-lg ${embedded ? '' : 'border border-gray-200 dark:border-slate-700'} p-4`}>
@@ -2282,7 +2294,7 @@ export default function OrderForm({
         {/* จัดส่งถึง + การ์ดอวยพร — โครงเดียวกับหน้าร้านออนไลน์ (checkout)
             เพื่อให้พนักงานที่เปิดบิลจากแชทเห็นตัวเลือกชุดเดียวกับที่ลูกค้าเห็น */}
         {hasProducts && (
-        <div className={`bg-white dark:bg-slate-800 rounded-lg ${embedded ? '' : 'border border-gray-200 dark:border-slate-700'} p-4`}>
+        <div ref={shipToRef} className={`bg-white dark:bg-slate-800 rounded-lg ${embedded ? '' : 'border border-gray-200 dark:border-slate-700'} p-4`}>
           <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-2">จัดส่งถึง</label>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {([
@@ -2317,8 +2329,40 @@ export default function OrderForm({
 
           {shipToOther && (
             <div className="mt-3 space-y-3">
-              <p className="text-sm text-gray-500 dark:text-slate-400">
-                ตรวจว่าชื่อและที่อยู่จัดส่งด้านบนเป็นของ<span className="font-medium text-gray-700 dark:text-slate-300">ผู้รับ</span> — คนส่งของจะโทรหาเบอร์นั้น
+              {/* ชื่อผู้รับต้องกรอกตรงนี้ — ที่อยู่จัดส่งด้านบนไม่มีช่องชื่อ
+                  ถ้าไม่กรอก ระบบจะใช้ชื่อลูกค้าผู้สั่ง = ของขวัญจ่าหน้าผิดคน */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">
+                    ชื่อผู้รับ <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={deliveryName}
+                    onChange={(e) => customerPrefill.handleDeliveryChange({ deliveryName: e.target.value })}
+                    disabled={isReadOnly}
+                    className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary text-base disabled:bg-gray-100 dark:disabled:bg-slate-800 disabled:text-gray-500"
+                    placeholder="ชื่อคนที่จะได้รับของ"
+                  />
+                  {fieldErrors.recipientName && (
+                    <p className="text-red-500 text-sm mt-1">{fieldErrors.recipientName}</p>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">เบอร์ผู้รับ</label>
+                  <input
+                    type="text"
+                    inputMode="tel"
+                    value={deliveryPhone}
+                    onChange={(e) => customerPrefill.handleDeliveryChange({ deliveryPhone: e.target.value })}
+                    disabled={isReadOnly}
+                    className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary text-base disabled:bg-gray-100 dark:disabled:bg-slate-800 disabled:text-gray-500"
+                    placeholder="ให้คนส่งของโทรหาได้"
+                  />
+                </div>
+              </div>
+              <p className="text-sm text-gray-500 dark:text-slate-400" style={{ marginTop: 6 }}>
+                ที่อยู่ใช้ช่อง <span className="font-medium text-gray-700 dark:text-slate-300">ที่อยู่จัดส่ง</span> ด้านบน — กรอกที่อยู่ของผู้รับ
               </p>
 
               <label className={`flex items-start gap-3 ${isReadOnly ? '' : 'cursor-pointer'}`}>
@@ -2346,7 +2390,7 @@ export default function OrderForm({
 
                   {/* จอกว้างวางข้อความซ้าย ถึง/จากขวา — การ์ดจะได้ไม่ยาวลงไปเรื่อยๆ */}
                   {giftCardOn && (
-                    <div className="mt-3 grid grid-cols-1 lg:grid-cols-2 gap-3 pl-8">
+                    <div className="mt-3 space-y-3 pl-8">
                       <div>
                         <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">ข้อความบนการ์ด</label>
                         <textarea
@@ -2393,6 +2437,8 @@ export default function OrderForm({
           )}
         </div>
         )}
+
+        </div>
 
         {/* จุดส่ง / โซนค่าส่ง */}
         {features.delivery_zone && (
