@@ -94,6 +94,19 @@ interface Props {
   delivery?: DeliveryFields;
   onDeliveryChange?: (fields: Partial<DeliveryFields>) => void;
 
+  /**
+   * ตัวเลือก "ส่งให้ตัวเอง / ส่งให้คนอื่น" เหนือช่องที่อยู่
+   *
+   * อยู่ตรงนี้เพราะมันคือตัวบอกว่า **ที่อยู่ข้างล่างเป็นของใคร** — วางแยกการ์ด
+   * แล้วผู้ใช้จะไม่รู้ว่าสองอย่างนี้เกี่ยวกัน (เคยลองแล้ว user ทักทันที)
+   *
+   * ไม่ผูกกับฟีเจอร์ delivery — ร้านที่ส่งพัสดุผ่านขนส่งก็ส่งของขวัญให้คนอื่นได้
+   * ไม่ส่ง onShipToOtherChange มา = ไม่วาดตัวเลือกนี้เลย (ของเดิมทุกที่)
+   */
+  shipToOther?: boolean;
+  onShipToOtherChange?: (v: boolean) => void;
+  recipientNameError?: string;
+
   // ── Shipping addresses (address dropdown) ──
   shippingAddresses?: ShippingAddress[];
   selectedAddressId?: string;
@@ -180,6 +193,9 @@ export default function CustomerSelectionCard({
   disabled = false,
   delivery,
   onDeliveryChange,
+  shipToOther = false,
+  onShipToOtherChange,
+  recipientNameError,
   shippingAddresses = [],
   selectedAddressId,
   onAddressSelect,
@@ -236,7 +252,9 @@ export default function CustomerSelectionCard({
         {showDeliveryCol ? (
           <div className="hidden sm:flex items-center gap-1.5 pb-1 border-b border-gray-100 dark:border-slate-700 sm:border-l sm:border-l-transparent sm:pl-4">
             <MapPin className="w-4 h-4 text-gray-500 dark:text-slate-400" />
-            <span className="text-sm font-semibold text-gray-700 dark:text-slate-300">ที่อยู่จัดส่ง</span>
+            <span className="text-sm font-semibold text-gray-700 dark:text-slate-300">
+              {onShipToOtherChange ? 'จัดส่งถึง' : 'ที่อยู่จัดส่ง'}
+            </span>
           </div>
         ) : (
           <div className="hidden sm:block" />
@@ -369,6 +387,74 @@ export default function CustomerSelectionCard({
         {/* Row 1 Right: ที่อยู่ textarea (label is in the section header above) */}
         {showDeliveryCol && (
         <div className="flex flex-col sm:border-l sm:border-gray-200 dark:sm:border-slate-700 sm:pl-4">
+          {onShipToOtherChange && (
+            <div className="mb-3">
+              <div className="grid grid-cols-2 gap-2">
+                {([
+                  { key: false, title: 'ส่งให้ตัวเอง', desc: 'ผู้สั่งเป็นผู้รับ', on: 'border-blue-500 bg-blue-50 dark:bg-blue-900/20', dot: 'border-blue-500 bg-blue-500' },
+                  { key: true, title: 'ส่งให้คนอื่น', desc: 'เป็นของขวัญ', on: 'border-pink-500 bg-pink-50 dark:bg-pink-900/20', dot: 'border-pink-500 bg-pink-500' },
+                ] as const).map(o => {
+                  const active = shipToOther === o.key;
+                  return (
+                    <button
+                      key={String(o.key)}
+                      type="button"
+                      disabled={!isEditable}
+                      onClick={() => onShipToOtherChange(o.key)}
+                      aria-pressed={active}
+                      className={`flex items-center gap-2 text-left px-3 py-2 rounded-lg border transition-colors disabled:cursor-not-allowed ${
+                        active ? o.on : 'border-gray-200 dark:border-slate-600 hover:border-gray-300 dark:hover:border-slate-500'
+                      }`}
+                    >
+                      <span className={`w-4 h-4 rounded-full border-2 flex-shrink-0 grid place-items-center ${
+                        active ? o.dot : 'border-gray-300 dark:border-slate-500'
+                      }`}>
+                        {active && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block text-base font-medium text-gray-800 dark:text-slate-200 leading-tight">{o.title}</span>
+                        <span className="block text-sm text-gray-500 dark:text-slate-400 leading-tight">{o.desc}</span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* ชื่อ/เบอร์ผู้รับ แทรกเหนือที่อยู่ — ที่อยู่ข้างล่างจึงเป็นของคนนี้ชัดเจน */}
+              {shipToOther && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
+                  <div>
+                    <label className="block text-sm text-gray-600 dark:text-slate-400 mb-1">
+                      ชื่อผู้รับ <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={delivery?.deliveryName || ''}
+                      onChange={(e) => onDeliveryChange?.({ deliveryName: e.target.value })}
+                      disabled={!isEditable}
+                      placeholder="ชื่อคนที่จะได้รับของ"
+                      className={`w-full px-3 py-2.5 border rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-gray-100 dark:disabled:bg-slate-800 ${
+                        recipientNameError ? 'border-red-400' : 'border-gray-300 dark:border-slate-600'
+                      }`}
+                    />
+                    {recipientNameError && <p className="text-red-500 text-sm mt-1">{recipientNameError}</p>}
+                  </div>
+                  <div>
+                    <label className="block text-sm text-gray-600 dark:text-slate-400 mb-1">เบอร์ผู้รับ</label>
+                    <input
+                      type="text"
+                      inputMode="tel"
+                      value={delivery?.deliveryPhone || ''}
+                      onChange={(e) => onDeliveryChange?.({ deliveryPhone: e.target.value })}
+                      disabled={!isEditable}
+                      placeholder="ให้คนส่งของโทรหาได้"
+                      className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-gray-100 dark:disabled:bg-slate-800"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
           <textarea
             value={delivery?.deliveryAddress || ''}
             onChange={(e) => onDeliveryChange?.({ deliveryAddress: e.target.value })}
@@ -393,6 +479,11 @@ export default function CustomerSelectionCard({
             placeholder="วางที่อยู่ยาวๆ ได้เลย — ระบบจะแยก ตำบล อำเภอ จังหวัด ให้อัตโนมัติ"
             className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-base font-sans bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-gray-100 dark:disabled:bg-slate-800 resize-none"
           />
+          {onShipToOtherChange && isEditable && !delivery?.deliveryAddress && (
+            <p className="text-sm text-gray-400 dark:text-slate-500 mt-1">
+              ไม่กรอกก็บันทึกได้ — ส่งลิงก์บิลให้ลูกค้ากรอกที่อยู่เองทีหลัง
+            </p>
+          )}
         </div>
         )}
 

@@ -338,7 +338,6 @@ export default function OrderForm({
   // Refs
   const customerSectionRef = useRef<HTMLDivElement>(null);
   const deliveryDateRef = useRef<HTMLDivElement>(null);
-  const shipToRef = useRef<HTMLDivElement>(null);
   const productsSectionRef = useRef<HTMLDivElement>(null);
   const deliverySectionRef = useRef<HTMLDivElement>(null);
   const summarySectionRef = useRef<HTMLDivElement>(null);
@@ -1587,7 +1586,7 @@ export default function OrderForm({
       } else if (errors.deliveryDate) {
         deliveryDateRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       } else if (errors.recipientName) {
-        shipToRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        customerSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       } else if (errors.branches) {
         productsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
@@ -2170,6 +2169,9 @@ export default function OrderForm({
           disabled={isReadOnly || (!!preselectedCustomerId && !!selectedCustomer)}
           delivery={deliveryFields}
           onDeliveryChange={customerPrefill.handleDeliveryChange}
+          shipToOther={shipToOther}
+          onShipToOtherChange={isReadOnly ? undefined : setShipToOther}
+          recipientNameError={fieldErrors.recipientName}
           shippingAddresses={shippingAddresses as CSCShippingAddress[]}
           selectedAddressId={selectedAddressId}
           onAddressSelect={(id, addr) => customerPrefill.handleAddressSelect(id, addr, selectedCustomer)}
@@ -2232,17 +2234,14 @@ export default function OrderForm({
           </div>
         )}
 
-        {/* วันที่ส่งของ + จัดส่งถึง วางคู่กันบนจอกว้าง — สองการ์ดนี้เตี้ยทั้งคู่
-            ปล่อยเรียงลงมาจะเหลือที่ว่างครึ่งจอเปล่า ๆ (items-start กันไม่ให้
-            การ์ดที่สั้นกว่ายืดตามการ์ดที่ยาวกว่า) */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
-
         {/* การจัดส่ง — วันที่ + ช่วงเวลา + โซน/ค่าส่ง รวมการ์ดเดียว
             ทั้งสามเรื่องคือ "ของชิ้นนี้ไปถึงเมื่อไหร่ ค่าเท่าไหร่" เหมือนกัน
             แยกเป็นสามการ์ดเตี้ย ๆ ทำให้จอ desktop เหลือที่ว่างเปล่า ๆ */}
         {(features.delivery_date.enabled || features.delivery_zone) && (
         <div ref={deliveryDateRef} className={`bg-white dark:bg-slate-800 rounded-lg ${embedded ? '' : 'border border-gray-200 dark:border-slate-700'} p-4`}>
-          {features.delivery_date.enabled && (<>
+          <div className={features.delivery_date.enabled && features.delivery_zone
+            ? 'grid grid-cols-1 lg:grid-cols-2 gap-4 items-start' : ''}>
+          {features.delivery_date.enabled && (<div>
           <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">
             วันที่ส่งของ {features.delivery_date.required && <span className="text-red-500">*</span>}
           </label>
@@ -2291,10 +2290,10 @@ export default function OrderForm({
               )}
             </div>
           )}
-          </>)}
+          </div>)}
 
           {features.delivery_zone && (
-          <div className={features.delivery_date.enabled ? "mt-4 pt-4 border-t border-gray-100 dark:border-slate-700" : ""}>
+          <div>
           <div className="flex items-center justify-between mb-1">
             <label className="block text-base font-medium text-gray-700 dark:text-slate-300">จุดส่ง / ค่าส่ง</label>
             {zoneOverrideId && !isReadOnly && (
@@ -2344,158 +2343,75 @@ export default function OrderForm({
           )}
           </div>
           )}
+          </div>
         </div>
         )}
 
-        {/* จัดส่งถึง + การ์ดอวยพร — โครงเดียวกับหน้าร้านออนไลน์ (checkout)
-            เพื่อให้พนักงานที่เปิดบิลจากแชทเห็นตัวเลือกชุดเดียวกับที่ลูกค้าเห็น */}
-        {hasProducts && (
-        <div ref={shipToRef} className={`bg-white dark:bg-slate-800 rounded-lg ${embedded ? '' : 'border border-gray-200 dark:border-slate-700'} p-4`}>
-          <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-2">จัดส่งถึง</label>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            {([
-              { key: false, title: 'ส่งให้ตัวเอง', desc: 'ผู้สั่งเป็นผู้รับเอง', on: 'border-blue-500 bg-blue-50 dark:bg-blue-900/20', dot: 'border-blue-500 bg-blue-500' },
-              { key: true, title: 'ส่งให้คนอื่น', desc: 'เป็นของขวัญ แนบการ์ดได้', on: 'border-pink-500 bg-pink-50 dark:bg-pink-900/20', dot: 'border-pink-500 bg-pink-500' },
-            ] as const).map(o => {
-              const active = shipToOther === o.key;
-              return (
-                <button
-                  key={String(o.key)}
-                  type="button"
-                  disabled={isReadOnly}
-                  onClick={() => setShipToOther(o.key)}
-                  aria-pressed={active}
-                  className={`flex items-start gap-2.5 text-left p-3 rounded-lg border transition-colors disabled:cursor-not-allowed ${
-                    active ? o.on : 'border-gray-200 dark:border-slate-600 hover:border-gray-300 dark:hover:border-slate-500'
-                  }`}
-                >
-                  <span className={`mt-0.5 w-4 h-4 rounded-full border-2 flex-shrink-0 grid place-items-center ${
-                    active ? o.dot : 'border-gray-300 dark:border-slate-500'
-                  }`}>
-                    {active && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
-                  </span>
-                  <span className="min-w-0">
-                    <span className="block text-base font-medium text-gray-800 dark:text-slate-200">{o.title}</span>
-                    <span className="block text-sm text-gray-500 dark:text-slate-400">{o.desc}</span>
-                  </span>
-                </button>
-              );
-            })}
-          </div>
+        {/* ของขวัญ — โผล่เมื่อเลือก "ส่งให้คนอื่น" (ตัวเลือกอยู่เหนือช่องที่อยู่
+            ในการ์ดลูกค้า เพราะมันบอกว่าที่อยู่นั้นเป็นของใคร)
+            ไม่ผูกกับฟีเจอร์ delivery — ร้านส่งพัสดุก็ส่งของขวัญได้ */}
+        {hasProducts && shipToOther && (
+        <div className={`bg-white dark:bg-slate-800 rounded-lg ${embedded ? '' : 'border border-gray-200 dark:border-slate-700'} p-4`}>
+          <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-2">ของขวัญ</label>
 
-          {shipToOther && (
-            <div className="mt-3 space-y-3">
-              {/* ชื่อผู้รับต้องกรอกตรงนี้ — ที่อยู่จัดส่งด้านบนไม่มีช่องชื่อ
-                  ถ้าไม่กรอก ระบบจะใช้ชื่อลูกค้าผู้สั่ง = ของขวัญจ่าหน้าผิดคน */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">
-                    ชื่อผู้รับ <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={deliveryName}
-                    onChange={(e) => customerPrefill.handleDeliveryChange({ deliveryName: e.target.value })}
-                    disabled={isReadOnly}
-                    className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary text-base disabled:bg-gray-100 dark:disabled:bg-slate-800 disabled:text-gray-500"
-                    placeholder="ชื่อคนที่จะได้รับของ"
-                  />
-                  {fieldErrors.recipientName && (
-                    <p className="text-red-500 text-sm mt-1">{fieldErrors.recipientName}</p>
-                  )}
-                </div>
-                <div>
-                  <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">เบอร์ผู้รับ</label>
-                  <input
-                    type="text"
-                    inputMode="tel"
-                    value={deliveryPhone}
-                    onChange={(e) => customerPrefill.handleDeliveryChange({ deliveryPhone: e.target.value })}
-                    disabled={isReadOnly}
-                    className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary text-base disabled:bg-gray-100 dark:disabled:bg-slate-800 disabled:text-gray-500"
-                    placeholder="ให้คนส่งของโทรหาได้"
-                  />
-                </div>
-              </div>
-              <p className="text-sm text-gray-500 dark:text-slate-400" style={{ marginTop: 6 }}>
-                ที่อยู่ใช้ช่อง <span className="font-medium text-gray-700 dark:text-slate-300">ที่อยู่จัดส่ง</span> ด้านบน — กรอกที่อยู่ของผู้รับ
-              </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <label className={`flex items-start gap-3 ${isReadOnly ? '' : 'cursor-pointer'}`}>
+              <Checkbox checked={giftHidePrice} onChange={setGiftHidePrice} disabled={isReadOnly} />
+              <span className="min-w-0">
+                <span className="block text-base text-gray-700 dark:text-slate-300">ไม่แนบใบเสร็จและราคาไปกับของ</span>
+                <span className="block text-sm text-gray-500 dark:text-slate-400">ใบเสร็จส่งให้ผู้สั่งแทน</span>
+              </span>
+            </label>
 
+            {giftCardEnabled && (
               <label className={`flex items-start gap-3 ${isReadOnly ? '' : 'cursor-pointer'}`}>
-                <Checkbox checked={giftHidePrice} onChange={setGiftHidePrice} disabled={isReadOnly} />
+                <Checkbox checked={giftCardOn} onChange={setGiftCardOn} disabled={isReadOnly} />
                 <span className="min-w-0">
-                  <span className="block text-base text-gray-700 dark:text-slate-300">ไม่แนบใบเสร็จและราคาไปกับของ</span>
-                  <span className="block text-sm text-gray-500 dark:text-slate-400">ใบเสร็จส่งให้ผู้สั่งแทน</span>
+                  <span className="block text-base text-gray-700 dark:text-slate-300">
+                    แนบการ์ดอวยพร
+                    {giftCard.fee > 0
+                      ? <span className="ml-2 text-sm text-gray-500 dark:text-slate-400">+฿{formatPrice(giftCard.fee)}</span>
+                      : <span className="ml-2 text-sm text-emerald-600 dark:text-emerald-400">ฟรี</span>}
+                  </span>
+                  <span className="block text-sm text-gray-500 dark:text-slate-400">เขียนข้อความให้ แล้วแนบไปกับของ</span>
                 </span>
               </label>
+            )}
+          </div>
 
-              {giftCardEnabled && (
-                <div className="pt-3 border-t border-gray-100 dark:border-slate-700">
-                  <label className={`flex items-start gap-3 ${isReadOnly ? '' : 'cursor-pointer'}`}>
-                    <Checkbox checked={giftCardOn} onChange={setGiftCardOn} disabled={isReadOnly} />
-                    <span className="min-w-0">
-                      <span className="block text-base font-medium text-gray-700 dark:text-slate-300">
-                        แนบการ์ดอวยพร
-                        {giftCard.fee > 0
-                          ? <span className="ml-2 text-sm font-normal text-gray-500 dark:text-slate-400">+฿{formatPrice(giftCard.fee)}</span>
-                          : <span className="ml-2 text-sm font-normal text-emerald-600 dark:text-emerald-400">ฟรี</span>}
-                      </span>
-                      <span className="block text-sm text-gray-500 dark:text-slate-400">เขียนข้อความให้ แล้วแนบไปกับของ</span>
-                    </span>
-                  </label>
-
-                  {/* จอกว้างวางข้อความซ้าย ถึง/จากขวา — การ์ดจะได้ไม่ยาวลงไปเรื่อยๆ */}
-                  {giftCardOn && (
-                    <div className="mt-3 space-y-3 pl-8">
-                      <div>
-                        <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">ข้อความบนการ์ด</label>
-                        <textarea
-                          value={giftMessage}
-                          onChange={(e) => setGiftMessage(e.target.value.slice(0, 220))}
-                          rows={5}
-                          disabled={isReadOnly}
-                          maxLength={220}
-                          className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary text-base font-sans disabled:bg-gray-100 dark:disabled:bg-slate-800 disabled:text-gray-500 resize-none"
-                          placeholder="เช่น สุขสันต์วันเกิดนะครับ ขอให้มีความสุขมากๆ"
-                        />
-                        <p className="text-sm text-gray-400 dark:text-slate-500 mt-0.5 text-right">{giftMessage.length} / 220</p>
-                      </div>
-
-                      <div className="space-y-3">
-                        <div>
-                          <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">ถึง</label>
-                          <input
-                            type="text"
-                            value={giftTo}
-                            onChange={(e) => setGiftTo(e.target.value)}
-                            disabled={isReadOnly}
-                            className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary text-base disabled:bg-gray-100 dark:disabled:bg-slate-800 disabled:text-gray-500"
-                            placeholder={deliveryName || 'ชื่อที่จะขึ้นบนการ์ด'}
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">จาก</label>
-                          <input
-                            type="text"
-                            value={giftFrom}
-                            onChange={(e) => setGiftFrom(e.target.value)}
-                            disabled={isReadOnly}
-                            className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary text-base disabled:bg-gray-100 dark:disabled:bg-slate-800 disabled:text-gray-500"
-                            placeholder={selectedCustomer?.name || 'ชื่อผู้ให้'}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  )}
+          {giftCardEnabled && giftCardOn && (
+            <div className="mt-3 pt-3 border-t border-gray-100 dark:border-slate-700 grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">ข้อความบนการ์ด</label>
+                <textarea
+                  value={giftMessage}
+                  onChange={(e) => setGiftMessage(e.target.value.slice(0, 220))}
+                  rows={4}
+                  disabled={isReadOnly}
+                  maxLength={220}
+                  className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary text-base font-sans disabled:bg-gray-100 dark:disabled:bg-slate-800 resize-none"
+                  placeholder="เช่น สุขสันต์วันเกิดนะครับ ขอให้มีความสุขมากๆ"
+                />
+                <p className="text-sm text-gray-400 dark:text-slate-500 mt-0.5 text-right">{giftMessage.length} / 220</p>
+              </div>
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">ถึง</label>
+                  <input type="text" value={giftTo} onChange={(e) => setGiftTo(e.target.value)} disabled={isReadOnly}
+                    className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary text-base disabled:bg-gray-100 dark:disabled:bg-slate-800"
+                    placeholder={deliveryName || 'ชื่อที่จะขึ้นบนการ์ด'} />
                 </div>
-              )}
+                <div>
+                  <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">จาก</label>
+                  <input type="text" value={giftFrom} onChange={(e) => setGiftFrom(e.target.value)} disabled={isReadOnly}
+                    className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary text-base disabled:bg-gray-100 dark:disabled:bg-slate-800"
+                    placeholder={selectedCustomer?.name || 'ชื่อผู้ให้'} />
+                </div>
+              </div>
             </div>
           )}
         </div>
         )}
-
-        </div>
-
       </div>
       )}
 
