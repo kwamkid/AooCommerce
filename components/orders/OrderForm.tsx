@@ -274,6 +274,7 @@ export default function OrderForm({
   // Order details
   // การ์ดอวยพร — บริการระดับร้าน (companies.settings.gift_card) ใช้ได้ทุกช่องทาง
   // ที่เปิดออเดอร์ ไม่ใช่แค่หน้าร้านออนไลน์ · ค่าการ์ดบวกเข้าท้ายบิลเหมือนค่าส่ง
+  const [shipToOther, setShipToOther] = useState(false);
   const [giftCardOn, setGiftCardOn] = useState(false);
   const [giftMessage, setGiftMessage] = useState('');
   const [giftTo, setGiftTo] = useState('');
@@ -700,6 +701,7 @@ export default function OrderForm({
         if (order.order_discount_type) setOrderDiscountType(order.order_discount_type);
         if (order.exchange_credit) setStoredExchangeCredit(Number(order.exchange_credit));
 
+        if (order.gift_card_requested || order.gift_hide_price) setShipToOther(true);
         if (order.gift_card_requested) {
           setGiftCardOn(true);
           if (order.gift_message) setGiftMessage(order.gift_message);
@@ -1522,7 +1524,7 @@ export default function OrderForm({
 
   // การ์ดอวยพร: ร้านต้องเปิดบริการก่อน ถึงจะโผล่ให้ staff ติ๊ก
   const giftCardEnabled = giftCard.enabled;
-  const giftCardFee = giftCardEnabled && giftCardOn ? (giftCard.fee || 0) : 0;
+  const giftCardFee = giftCardEnabled && shipToOther && giftCardOn ? (giftCard.fee || 0) : 0;
 
   // Auto-fill ค่าส่งจากโซน (เฉพาะ fixed) — ไม่ทับค่าที่ staff แก้เอง:
   // ทับได้เฉพาะเมื่อค่าปัจจุบัน = ค่าที่ระบบเคย fill (หรือยังเป็น 0)
@@ -1775,13 +1777,13 @@ export default function OrderForm({
         internal_notes: internalNotes || undefined,
         // การ์ดอวยพร — ส่งเมื่อร้านเปิดบริการและ staff ติ๊กเท่านั้น
         // ค่าการ์ดคิดต่อเมื่อ "ขอการ์ด" จริง (ไม่ใช่แค่พิมพ์ข้อความแล้วยกเลิกติ๊ก)
-        ...(giftCardEnabled && giftCardOn ? {
+        // ส่งให้คนอื่น = ซ่อนราคาได้แม้ไม่ขอการ์ด (ตรงกับหน้าร้านออนไลน์)
+        gift_hide_price: shipToOther && giftHidePrice,
+        ...(giftCardEnabled && shipToOther && giftCardOn ? {
           gift_card_requested: true,
-          gift_card_fee: giftCard.fee || 0,
           gift_message: giftMessage.trim() || undefined,
           gift_to: giftTo.trim() || undefined,
           gift_from: giftFrom.trim() || undefined,
-          gift_hide_price: giftHidePrice,
         } : {}),
         tax_invoice_requested: taxInvoiceRequested || undefined,
         ...(taxInvoiceRequested ? {
@@ -2277,85 +2279,116 @@ export default function OrderForm({
         </div>
         )}
 
-        {/* การ์ดอวยพร — โผล่เฉพาะร้านที่เปิดบริการไว้ (ตั้งค่า > บิลและสินค้า) */}
-        {giftCardEnabled && hasProducts && (
+        {/* จัดส่งถึง + การ์ดอวยพร — โครงเดียวกับหน้าร้านออนไลน์ (checkout)
+            เพื่อให้พนักงานที่เปิดบิลจากแชทเห็นตัวเลือกชุดเดียวกับที่ลูกค้าเห็น */}
+        {hasProducts && (
         <div className={`bg-white dark:bg-slate-800 rounded-lg ${embedded ? '' : 'border border-gray-200 dark:border-slate-700'} p-4`}>
-          <label className={`flex items-start gap-3 ${isReadOnly ? '' : 'cursor-pointer'}`}>
-            <Checkbox
-              checked={giftCardOn}
-              onChange={(v) => setGiftCardOn(v)}
-              disabled={isReadOnly}
-            />
-            <span className="min-w-0">
-              <span className="block text-base font-medium text-gray-700 dark:text-slate-300">
-                แนบการ์ดอวยพร
-                {giftCard.fee > 0
-                  ? <span className="ml-2 text-sm font-normal text-gray-500 dark:text-slate-400">+฿{formatPrice(giftCard.fee)}</span>
-                  : <span className="ml-2 text-sm font-normal text-emerald-600 dark:text-emerald-400">ฟรี</span>}
-              </span>
-              <span className="block text-sm text-gray-500 dark:text-slate-400">
-                เขียนข้อความให้ แล้วแนบไปกับของ
-              </span>
-            </span>
-          </label>
-
-          {giftCardOn && (
-            <div className="mt-3 space-y-3 pl-8">
-              <div>
-                <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">
-                  ข้อความบนการ์ด
-                </label>
-                <textarea
-                  value={giftMessage}
-                  onChange={(e) => setGiftMessage(e.target.value.slice(0, 220))}
-                  rows={3}
+          <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-2">จัดส่งถึง</label>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {([
+              { key: false, title: 'ส่งให้ตัวเอง', desc: 'ผู้สั่งเป็นผู้รับเอง', on: 'border-blue-500 bg-blue-50 dark:bg-blue-900/20', dot: 'border-blue-500 bg-blue-500' },
+              { key: true, title: 'ส่งให้คนอื่น', desc: 'เป็นของขวัญ แนบการ์ดได้', on: 'border-pink-500 bg-pink-50 dark:bg-pink-900/20', dot: 'border-pink-500 bg-pink-500' },
+            ] as const).map(o => {
+              const active = shipToOther === o.key;
+              return (
+                <button
+                  key={String(o.key)}
+                  type="button"
                   disabled={isReadOnly}
-                  maxLength={220}
-                  className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary text-base font-sans disabled:bg-gray-100 dark:disabled:bg-slate-800 disabled:text-gray-500 resize-none"
-                  placeholder="เช่น สุขสันต์วันเกิดนะครับ ขอให้มีความสุขมากๆ"
-                />
-                <p className="text-sm text-gray-400 dark:text-slate-500 mt-0.5 text-right">
-                  {giftMessage.length} / 220
-                </p>
-              </div>
+                  onClick={() => setShipToOther(o.key)}
+                  aria-pressed={active}
+                  className={`flex items-start gap-2.5 text-left p-3 rounded-lg border transition-colors disabled:cursor-not-allowed ${
+                    active ? o.on : 'border-gray-200 dark:border-slate-600 hover:border-gray-300 dark:hover:border-slate-500'
+                  }`}
+                >
+                  <span className={`mt-0.5 w-4 h-4 rounded-full border-2 flex-shrink-0 grid place-items-center ${
+                    active ? o.dot : 'border-gray-300 dark:border-slate-500'
+                  }`}>
+                    {active && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-base font-medium text-gray-800 dark:text-slate-200">{o.title}</span>
+                    <span className="block text-sm text-gray-500 dark:text-slate-400">{o.desc}</span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">ถึง</label>
-                  <input
-                    type="text"
-                    value={giftTo}
-                    onChange={(e) => setGiftTo(e.target.value)}
-                    disabled={isReadOnly}
-                    className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary text-base disabled:bg-gray-100 dark:disabled:bg-slate-800 disabled:text-gray-500"
-                    placeholder={deliveryName || selectedCustomer?.name || 'ชื่อที่จะขึ้นบนการ์ด'}
-                  />
-                </div>
-                <div>
-                  <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">จาก</label>
-                  <input
-                    type="text"
-                    value={giftFrom}
-                    onChange={(e) => setGiftFrom(e.target.value)}
-                    disabled={isReadOnly}
-                    className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary text-base disabled:bg-gray-100 dark:disabled:bg-slate-800 disabled:text-gray-500"
-                    placeholder="ชื่อผู้ให้"
-                  />
-                </div>
-              </div>
+          {shipToOther && (
+            <div className="mt-3 space-y-3">
+              <p className="text-sm text-gray-500 dark:text-slate-400">
+                ตรวจว่าชื่อและที่อยู่จัดส่งด้านบนเป็นของ<span className="font-medium text-gray-700 dark:text-slate-300">ผู้รับ</span> — คนส่งของจะโทรหาเบอร์นั้น
+              </p>
 
-              {/* ของขวัญเกือบทุกใบไม่อยากให้คนรับเห็นราคา — ติ๊กไว้ให้ล่วงหน้า */}
               <label className={`flex items-start gap-3 ${isReadOnly ? '' : 'cursor-pointer'}`}>
-                <Checkbox
-                  checked={giftHidePrice}
-                  onChange={(v) => setGiftHidePrice(v)}
-                  disabled={isReadOnly}
-                />
+                <Checkbox checked={giftHidePrice} onChange={setGiftHidePrice} disabled={isReadOnly} />
                 <span className="min-w-0">
                   <span className="block text-base text-gray-700 dark:text-slate-300">ไม่แนบใบเสร็จและราคาไปกับของ</span>
                   <span className="block text-sm text-gray-500 dark:text-slate-400">ใบเสร็จส่งให้ผู้สั่งแทน</span>
                 </span>
               </label>
+
+              {giftCardEnabled && (
+                <div className="pt-3 border-t border-gray-100 dark:border-slate-700">
+                  <label className={`flex items-start gap-3 ${isReadOnly ? '' : 'cursor-pointer'}`}>
+                    <Checkbox checked={giftCardOn} onChange={setGiftCardOn} disabled={isReadOnly} />
+                    <span className="min-w-0">
+                      <span className="block text-base font-medium text-gray-700 dark:text-slate-300">
+                        แนบการ์ดอวยพร
+                        {giftCard.fee > 0
+                          ? <span className="ml-2 text-sm font-normal text-gray-500 dark:text-slate-400">+฿{formatPrice(giftCard.fee)}</span>
+                          : <span className="ml-2 text-sm font-normal text-emerald-600 dark:text-emerald-400">ฟรี</span>}
+                      </span>
+                      <span className="block text-sm text-gray-500 dark:text-slate-400">เขียนข้อความให้ แล้วแนบไปกับของ</span>
+                    </span>
+                  </label>
+
+                  {/* จอกว้างวางข้อความซ้าย ถึง/จากขวา — การ์ดจะได้ไม่ยาวลงไปเรื่อยๆ */}
+                  {giftCardOn && (
+                    <div className="mt-3 grid grid-cols-1 lg:grid-cols-2 gap-3 pl-8">
+                      <div>
+                        <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">ข้อความบนการ์ด</label>
+                        <textarea
+                          value={giftMessage}
+                          onChange={(e) => setGiftMessage(e.target.value.slice(0, 220))}
+                          rows={5}
+                          disabled={isReadOnly}
+                          maxLength={220}
+                          className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary text-base font-sans disabled:bg-gray-100 dark:disabled:bg-slate-800 disabled:text-gray-500 resize-none"
+                          placeholder="เช่น สุขสันต์วันเกิดนะครับ ขอให้มีความสุขมากๆ"
+                        />
+                        <p className="text-sm text-gray-400 dark:text-slate-500 mt-0.5 text-right">{giftMessage.length} / 220</p>
+                      </div>
+
+                      <div className="space-y-3">
+                        <div>
+                          <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">ถึง</label>
+                          <input
+                            type="text"
+                            value={giftTo}
+                            onChange={(e) => setGiftTo(e.target.value)}
+                            disabled={isReadOnly}
+                            className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary text-base disabled:bg-gray-100 dark:disabled:bg-slate-800 disabled:text-gray-500"
+                            placeholder={deliveryName || 'ชื่อที่จะขึ้นบนการ์ด'}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">จาก</label>
+                          <input
+                            type="text"
+                            value={giftFrom}
+                            onChange={(e) => setGiftFrom(e.target.value)}
+                            disabled={isReadOnly}
+                            className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary text-base disabled:bg-gray-100 dark:disabled:bg-slate-800 disabled:text-gray-500"
+                            placeholder={selectedCustomer?.name || 'ชื่อผู้ให้'}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>
