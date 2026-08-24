@@ -95,7 +95,7 @@ interface Props {
   onDeliveryChange?: (fields: Partial<DeliveryFields>) => void;
 
   /**
-   * ตัวเลือก "ส่งให้ตัวเอง / ส่งให้คนอื่น" เหนือช่องที่อยู่
+   * ตัวเลือก "สั่งเอง / ส่งให้คนอื่น" เหนือช่องที่อยู่
    *
    * อยู่ตรงนี้เพราะมันคือตัวบอกว่า **ที่อยู่ข้างล่างเป็นของใคร** — วางแยกการ์ด
    * แล้วผู้ใช้จะไม่รู้ว่าสองอย่างนี้เกี่ยวกัน (เคยลองแล้ว user ทักทันที)
@@ -391,7 +391,7 @@ export default function CustomerSelectionCard({
             <div className="mb-3">
               <div className="grid grid-cols-2 gap-2">
                 {([
-                  { key: false, title: 'ส่งให้ตัวเอง', desc: 'ผู้สั่งเป็นผู้รับ', on: 'border-blue-500 bg-blue-50 dark:bg-blue-900/20', dot: 'border-blue-500 bg-blue-500' },
+                  { key: false, title: 'สั่งเอง', desc: 'ผู้สั่งเป็นผู้รับ', on: 'border-blue-500 bg-blue-50 dark:bg-blue-900/20', dot: 'border-blue-500 bg-blue-500' },
                   { key: true, title: 'ส่งให้คนอื่น', desc: 'เป็นของขวัญ', on: 'border-pink-500 bg-pink-50 dark:bg-pink-900/20', dot: 'border-pink-500 bg-pink-500' },
                 ] as const).map(o => {
                   const active = shipToOther === o.key;

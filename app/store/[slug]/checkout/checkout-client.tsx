@@ -455,7 +455,7 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
                 ไม่งั้นลูกค้าจะกรอกชื่อตัวเองแล้วคนส่งของโทรผิดคน */}
             <div className="sf-who">
               {([
-                { key: false, cls: 'sf-who-self', title: 'ส่งให้ตัวเอง', desc: 'ใช้ชื่อและเบอร์ของผู้สั่ง' },
+                { key: false, cls: 'sf-who-self', title: 'สั่งเอง', desc: 'ใช้ชื่อและเบอร์ของผู้สั่ง' },
                 { key: true, cls: 'sf-who-other', title: 'ส่งให้คนอื่น', desc: 'เป็นของขวัญ แนบการ์ดได้' },
               ] as const).map(o => (
                 <button
