@@ -24,7 +24,7 @@ export interface OAuthStatePayload {
   userId: string;
   platform: OAuthPlatform;
   /**
-   * TikTok เท่านั้น: การเชื่อมร้านหนึ่งครั้งต้องผ่าน 2 app (ออเดอร์ → แชท)
+   * TikTok + Lazada: การเชื่อมร้านหนึ่งครั้งต้องผ่าน 2 app (ออเดอร์ → แชท)
    * ค่านี้บอก callback ว่ากำลังกลับมาจากขาไหน — ไม่ใส่ = ขาออเดอร์
    */
   app?: 'order' | 'chat';

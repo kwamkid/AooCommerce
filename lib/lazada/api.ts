@@ -32,17 +32,45 @@ export interface LazadaAccountRow {
   refresh_token: string | null;
   access_token_expires_at: string | null;
   refresh_token_expires_at: string | null;
+  // token ของ app แชท (ว่าง = ใช้ app เดียวกับออเดอร์) — คอลัมน์ร่วมกับ TikTok
+  chat_access_token?: string | null;
+  chat_refresh_token?: string | null;
+  chat_access_token_expires_at?: string | null;
+  chat_refresh_token_expires_at?: string | null;
   is_active: boolean;
   last_sync_at: string | null;
   metadata: Record<string, unknown>;
 }
 
-function getAppKey(): string {
+/**
+ * Lazada แยกสิทธิ์เป็น "category" ต่อความสามารถ (Seller In-house APP =
+ * ออเดอร์/สินค้า · In-house IM Chat = แชท) และ console ให้สร้าง app ต่อ
+ * category → อาจได้ app key คนละชุด
+ *
+ * แต่ถ้า Lazada ให้ app เดียวถือได้ทั้งสอง category ก็ไม่ต้องแก้อะไร —
+ * แค่ไม่ตั้ง `LAZADA_CHAT_APP_*` ทุกอย่าง fallback มาใช้คู่หลักเอง
+ * (ต่างจาก TikTok ที่แชทต้องเป็นคนละ app เสมอ จึงไม่มี fallback)
+ */
+export type LazadaApp = 'main' | 'chat';
+
+function getAppKey(app: LazadaApp = 'main'): string {
+  if (app === 'chat') return process.env.LAZADA_CHAT_APP_KEY || process.env.LAZADA_APP_KEY || '';
   return process.env.LAZADA_APP_KEY || '';
 }
 
-function getAppSecret(): string {
+function getAppSecret(app: LazadaApp = 'main'): string {
+  if (app === 'chat') return process.env.LAZADA_CHAT_APP_SECRET || process.env.LAZADA_APP_SECRET || '';
   return process.env.LAZADA_APP_SECRET || '';
+}
+
+/** มี app แชทแยกจริงไหม — ไม่มี = app เดียวถือทั้งออเดอร์และแชท */
+export function isChatAppConfigured(): boolean {
+  return !!(process.env.LAZADA_CHAT_APP_KEY && process.env.LAZADA_CHAT_APP_SECRET);
+}
+
+/** app_key/app_secret ของ app ที่ระบุ — route ภายนอกใช้ตัวนี้แทนอ่าน env เอง */
+export function getLazadaAppCredentials(app: LazadaApp = 'main'): { app_key: string; app_secret: string } {
+  return { app_key: getAppKey(app), app_secret: getAppSecret(app) };
 }
 
 function getRegionHost(region?: string): string {
@@ -58,7 +86,8 @@ function getRegionHost(region?: string): string {
 export function generateLazadaSign(
   apiPath: string,
   params: Record<string, string>,
-  body?: string
+  body?: string,
+  secret?: string
 ): string {
   const entries = Object.entries(params)
     .filter(([k, v]) => k !== 'sign' && v !== undefined && v !== null && v !== '')
@@ -68,7 +97,7 @@ export function generateLazadaSign(
   for (const [k, v] of entries) payload += k + v;
   if (body) payload += body;
 
-  return crypto.createHmac('sha256', getAppSecret()).update(payload).digest('hex').toUpperCase();
+  return crypto.createHmac('sha256', secret || getAppSecret()).update(payload).digest('hex').toUpperCase();
 }
 
 /**
@@ -76,19 +105,26 @@ export function generateLazadaSign(
  * Authorization header = HEX(HMAC-SHA256(app_key + rawBody, app_secret))
  */
 export function verifyLazadaPushSignature(rawBody: string, authorization: string): boolean {
-  if (!authorization || !getAppSecret()) return false;
-  const expected = crypto
-    .createHmac('sha256', getAppSecret())
-    .update(getAppKey() + rawBody)
-    .digest('hex');
-  try {
-    return crypto.timingSafeEqual(
-      Buffer.from(authorization.toLowerCase()),
-      Buffer.from(expected.toLowerCase())
-    );
-  } catch {
-    return false;
-  }
+  if (!authorization) return false;
+  // order push มาจาก app หลัก · IM push มาจาก app แชท — แต่ยิงมาที่ webhook
+  // ปลายทางเดียวกัน จึงต้องยอมรับลายเซ็นของทั้งสอง app
+  const apps: LazadaApp[] = isChatAppConfigured() ? ['main', 'chat'] : ['main'];
+  return apps.some((app) => {
+    const secret = getAppSecret(app);
+    if (!secret) return false;
+    const expected = crypto
+      .createHmac('sha256', secret)
+      .update(getAppKey(app) + rawBody)
+      .digest('hex');
+    try {
+      return crypto.timingSafeEqual(
+        Buffer.from(authorization.toLowerCase()),
+        Buffer.from(expected.toLowerCase())
+      );
+    } catch {
+      return false;
+    }
+  });
 }
 
 /**
@@ -111,7 +147,7 @@ export async function lazadaApiRequest(
   for (const [k, v] of Object.entries(params)) {
     if (v !== undefined && v !== null) common[k] = String(v);
   }
-  common.sign = generateLazadaSign(apiPath, common);
+  common.sign = generateLazadaSign(apiPath, common, undefined, creds.app_secret);
 
   const url = `${getRegionHost(creds.region)}${apiPath}?${new URLSearchParams(common).toString()}`;
 
@@ -147,12 +183,12 @@ export async function lazadaApiRequest(
 /**
  * Lazada OAuth authorization URL (user logs in with the SELLER account).
  */
-export function generateLazadaAuthUrl(redirectUri: string, state: string): string {
+export function generateLazadaAuthUrl(redirectUri: string, state: string, app: LazadaApp = 'main'): string {
   const qs = new URLSearchParams({
     response_type: 'code',
     force_auth: 'true',
     redirect_uri: redirectUri,
-    client_id: getAppKey(),
+    client_id: getAppKey(app),
     state,
   });
   return `https://auth.lazada.com/oauth/authorize?${qs.toString()}`;
@@ -168,14 +204,18 @@ export interface LazadaTokenResponse {
   country_user_info?: Array<{ country: string; user_id: string; seller_id: string; short_code: string }>;
 }
 
-async function authRequest(apiPath: string, params: Record<string, string>): Promise<LazadaTokenResponse> {
+async function authRequest(
+  apiPath: string,
+  params: Record<string, string>,
+  app: LazadaApp = 'main'
+): Promise<LazadaTokenResponse> {
   const common: Record<string, string> = {
-    app_key: getAppKey(),
+    app_key: getAppKey(app),
     timestamp: String(Date.now()),
     sign_method: 'sha256',
     ...params,
   };
-  common.sign = generateLazadaSign(apiPath, common);
+  common.sign = generateLazadaSign(apiPath, common, undefined, getAppSecret(app));
 
   const url = `${LAZADA_AUTH_HOST}${apiPath}?${new URLSearchParams(common).toString()}`;
   const res = await fetch(url, { method: 'POST' });
@@ -190,62 +230,87 @@ async function authRequest(apiPath: string, params: Record<string, string>): Pro
   return data as LazadaTokenResponse;
 }
 
-export async function exchangeCodeForToken(code: string): Promise<LazadaTokenResponse> {
-  return authRequest('/auth/token/create', { code });
+export async function exchangeCodeForToken(code: string, app: LazadaApp = 'main'): Promise<LazadaTokenResponse> {
+  return authRequest('/auth/token/create', { code }, app);
 }
 
-export async function refreshAccessToken(refreshToken: string): Promise<LazadaTokenResponse> {
-  return authRequest('/auth/token/refresh', { refresh_token: refreshToken });
+export async function refreshAccessToken(refreshToken: string, app: LazadaApp = 'main'): Promise<LazadaTokenResponse> {
+  return authRequest('/auth/token/refresh', { refresh_token: refreshToken }, app);
 }
 
 /**
  * Ensure the account has a valid access token (5-min expiry buffer).
  * Auto-refreshes and persists; deactivates the account if the refresh token is dead.
  */
-export async function ensureValidToken(account: LazadaAccountRow): Promise<LazadaCredentials> {
+export async function ensureValidToken(
+  account: LazadaAccountRow,
+  app: LazadaApp = 'main'
+): Promise<LazadaCredentials> {
   const region = ((account.metadata?.country as string) || 'th').toLowerCase();
+  // ไม่มี app แชทแยก → แชทใช้ token ชุดเดียวกับออเดอร์ (คอลัมน์ chat_* ว่างไว้)
+  const useChat = app === 'chat' && isChatAppConfigured();
+
+  const accessToken = (useChat ? account.chat_access_token : account.access_token) || '';
+  const refreshToken = useChat ? account.chat_refresh_token : account.refresh_token;
+  const expiresAtRaw = useChat ? account.chat_access_token_expires_at : account.access_token_expires_at;
+  const refreshExpiresAtRaw = useChat
+    ? account.chat_refresh_token_expires_at
+    : account.refresh_token_expires_at;
+
   const creds: LazadaCredentials = {
-    app_key: getAppKey(),
-    app_secret: getAppSecret(),
-    access_token: account.access_token || '',
+    app_key: getAppKey(useChat ? 'chat' : 'main'),
+    app_secret: getAppSecret(useChat ? 'chat' : 'main'),
+    access_token: accessToken,
     region,
   };
 
-  const expiresAt = account.access_token_expires_at ? new Date(account.access_token_expires_at).getTime() : 0;
-  const needsRefresh = !account.access_token || expiresAt - Date.now() < 5 * 60 * 1000;
+  const expiresAt = expiresAtRaw ? new Date(expiresAtRaw).getTime() : 0;
+  const needsRefresh = !accessToken || expiresAt - Date.now() < 5 * 60 * 1000;
   if (!needsRefresh) return creds;
 
-  if (!account.refresh_token) {
-    throw new Error('Lazada refresh token missing — reconnect the shop');
+  if (!refreshToken) {
+    throw new Error(useChat
+      ? 'Lazada chat refresh token missing — reconnect the shop to enable chat'
+      : 'Lazada refresh token missing — reconnect the shop');
   }
 
   try {
-    const tokens = await refreshAccessToken(account.refresh_token);
+    const tokens = await refreshAccessToken(refreshToken, useChat ? 'chat' : 'main');
     const now = Date.now();
+    const nextRefreshExpiry = tokens.refresh_expires_in
+      ? new Date(now + tokens.refresh_expires_in * 1000).toISOString()
+      : refreshExpiresAtRaw;
+    const patch = useChat
+      ? {
+          chat_access_token: tokens.access_token,
+          chat_refresh_token: tokens.refresh_token || refreshToken,
+          chat_access_token_expires_at: new Date(now + tokens.expires_in * 1000).toISOString(),
+          chat_refresh_token_expires_at: nextRefreshExpiry,
+        }
+      : {
+          access_token: tokens.access_token,
+          refresh_token: tokens.refresh_token || refreshToken,
+          access_token_expires_at: new Date(now + tokens.expires_in * 1000).toISOString(),
+          refresh_token_expires_at: nextRefreshExpiry,
+        };
+
     await supabaseAdmin
       .from('marketplace_accounts')
-      .update({
-        access_token: tokens.access_token,
-        refresh_token: tokens.refresh_token || account.refresh_token,
-        access_token_expires_at: new Date(now + tokens.expires_in * 1000).toISOString(),
-        refresh_token_expires_at: tokens.refresh_expires_in
-          ? new Date(now + tokens.refresh_expires_in * 1000).toISOString()
-          : account.refresh_token_expires_at,
-        updated_at: new Date().toISOString(),
-      })
+      .update({ ...patch, updated_at: new Date().toISOString() })
       .eq('id', account.id);
 
     return { ...creds, access_token: tokens.access_token };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     // Dead refresh token → deactivate so crons stop hammering (same as Shopee)
-    if (/invalid|expired|illegal/i.test(msg)) {
+    // แต่ **เฉพาะขาออเดอร์** — แชทพังไม่ควรทำให้ทั้งร้านหยุดดูดออเดอร์
+    if (!useChat && /invalid|expired|illegal/i.test(msg)) {
       await supabaseAdmin
         .from('marketplace_accounts')
         .update({ is_active: false, updated_at: new Date().toISOString() })
         .eq('id', account.id);
     }
-    throw new Error(`Lazada token refresh failed: ${msg}`);
+    throw new Error(`Lazada ${useChat ? 'chat ' : ''}token refresh failed: ${msg}`);
   }
 }
 

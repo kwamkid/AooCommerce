@@ -41,7 +41,7 @@ export class LazadaChatService {
 
     let creds;
     try {
-      creds = await ensureValidToken(account);
+      creds = await ensureValidToken(account, 'chat');
     } catch (err) {
       return { success: false, error: err instanceof Error ? err.message : 'Lazada token หมดอายุ กรุณาเชื่อมต่อร้านใหม่' };
     }
@@ -164,7 +164,7 @@ export class LazadaChatService {
    */
   async syncSession(account: LazadaAccountRow, sessionId: string): Promise<boolean> {
     try {
-      const creds = await ensureValidToken(account);
+      const creds = await ensureValidToken(account, 'chat');
       const detail = await getSessionDetail(creds, sessionId);
       const contact = await this.upsertContact(account, sessionId, detail);
       if (!contact) return false;
@@ -184,7 +184,7 @@ export class LazadaChatService {
    */
   async syncRecentSessions(account: LazadaAccountRow, maxSessions = 10): Promise<number> {
     try {
-      const creds = await ensureValidToken(account);
+      const creds = await ensureValidToken(account, 'chat');
       const { sessions } = await getSessionList(creds, { pageSize: Math.min(maxSessions, 20) });
       let synced = 0;
       for (const session of sessions.slice(0, maxSessions)) {
