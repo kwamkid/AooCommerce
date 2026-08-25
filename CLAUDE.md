@@ -398,6 +398,7 @@ marketplace_accounts → marketplace_product_links → product_variations
 | `api.ts` | API client (signing, OAuth, token management, endpoints) |
 | `sync.ts` | Order sync (manual + polling) + `mapTikTokStatus()` |
 | `webhook-processor.ts` | Webhook order sync (shared with retry) |
+| `product-sync.ts` | **Product import** — `syncProductsFromTikTok()` (ทั้งร้าน) + `upsertTikTokProduct()` (ทีละตัว) |
 | `errors.ts` | Error translation (TikTok → Thai messages) |
 
 ### TikTok API Routes (`app/api/tiktok/`)
@@ -410,6 +411,7 @@ marketplace_accounts → marketplace_product_links → product_variations
 | `/api/tiktok/sync` | Manual sync by account |
 | `/api/tiktok/sync-all` | Cron: sync all active TikTok accounts |
 | `/api/tiktok/sync-order` | Sync single order by ID |
+| `/api/tiktok/products/import` | GET พรีวิวสินค้าในร้าน · POST ดูดเข้าทั้งร้าน (SSE progress) |
 
 ### TikTok Sign Algorithm
 ```
@@ -421,6 +423,18 @@ marketplace_accounts → marketplace_product_links → product_variations
 6. Wrap: APP_SECRET + string + APP_SECRET
 7. HMAC-SHA256(APP_SECRET, wrapped_string) → hex lowercase
 ```
+
+### TikTok Product Import (เพิ่ม 2026-08-26)
+- **ต้อง import ก่อนเปิดรับออเดอร์จริง** — ไม่มีสินค้าในระบบ ออเดอร์ที่เข้ามาจะสร้างสินค้าใหม่ตาม SKU ที่ได้รับจนคลังเละ
+- หน้า [/tiktok/import](app/tiktok/import/page.tsx) (ปุ่มอยู่การ์ดร้านใน `/settings/sales-channels` แท็บ Marketplace) — **นำเข้าทั้งร้านรอบเดียว** ไม่ได้เลือกทีละตัว/แม็ป variation เองเหมือน Shopee (ตั้งใจ — ตัวที่ SKU ตรงจะผูกอัตโนมัติอยู่แล้ว)
+- **ไม่มี batch detail** ต่างจาก Shopee — `GetProduct` ยิงทีละตัว คุม concurrency ด้วย `parallelLimit(..., 3)` · แบ่งหน้าด้วย **`page_token` ไม่ใช่ offset** (ข้ามไปหน้า N ตรงๆ ไม่ได้)
+- endpoint ที่ใช้: `POST /product/202502/products/search` (เวอร์ชันล่าสุดของ search) + `GET /product/202309/products/{id}`
+- ลำดับจับคู่เหมือน Shopee เป๊ะ: link เดิม → `products.code` (= seller_sku หรือ `TT-{product_id}`) → ปลุกของที่ soft-delete → สร้างใหม่ · **ของที่ user แก้เองไม่ถูกเขียนทับ** (`source` = `tiktok_edited`/`manual`)
+- **ไม่ต้อง migration** — `products.source` ไม่มี CHECK และคอลัมน์ `platform_*`/`platform_data` ของ `marketplace_product_links` เป็น generic อยู่แล้ว
+- **ยังไม่ทำ**: product-export (ส่งสินค้าขึ้น TikTok), push price/stock, deals — Shopee มีครบแล้ว TikTok ยังมีแค่ import
+
+### helper กลางของทุก marketplace — [lib/marketplace/product-helpers.ts](lib/marketplace/product-helpers.ts) (เพิ่ม 2026-08-26)
+`getOrCreateVariationTypeIds` · `upsertProductImage(s)` · `reactivateProduct` · `tryAutoMatchBySku` · `findMarketplaceLink` — เดิมอยู่ใน `lib/shopee/product-helpers.ts` ยกออกมาตอน TikTok ต้องใช้เหมือนกัน · **`platform` param default = `'shopee'`** ของเดิมจึงไม่เปลี่ยนพฤติกรรม และ shopee/product-helpers.ts re-export ต่อให้ call site เดิมใช้ได้เหมือนเดิม · **เพิ่ม marketplace ใหม่ → ใช้ตัวพวกนี้ ห้าม copy ไปไว้ใน `lib/<platform>/` ของตัวเอง**
 
 ### TikTok vs Shopee Key Differences
 | | Shopee | TikTok |

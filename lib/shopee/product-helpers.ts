@@ -5,6 +5,25 @@
  */
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { ShopeeItemAttribute, ShopeeModelDetail, ShopeeItemFullDetail } from '@/lib/shopee/api';
+import {
+  getOrCreateVariationTypeIds,
+  upsertProductImage,
+  upsertProductImages,
+  reactivateProduct,
+  tryAutoMatchBySku,
+  findMarketplaceLink,
+} from '@/lib/marketplace/product-helpers';
+
+// helper ที่ทุก marketplace ใช้ร่วมกันย้ายไป lib/marketplace/product-helpers.ts แล้ว
+// (Shopee เป็น platform default ของทุกตัว → พฤติกรรมเดิมไม่เปลี่ยน)
+// re-export ไว้เพื่อให้ call site เดิมที่ import จากไฟล์นี้ยังใช้ได้เหมือนเดิม
+export {
+  getOrCreateVariationTypeIds,
+  upsertProductImage,
+  upsertProductImages,
+  reactivateProduct,
+  tryAutoMatchBySku,
+} from '@/lib/marketplace/product-helpers';
 
 // ============================================
 // Types
@@ -55,92 +74,12 @@ export interface UpsertMarketplaceLinkParams {
 // Caches (shared singletons)
 // ============================================
 
-const variationTypeCache: Record<string, string> = {};
-
 // categoryNameCache: accountId → Map<categoryId, fullPath>
 const categoryNameCache: Record<string, Map<number, string>> = {};
 
 // ============================================
 // Variation Type Management
 // ============================================
-
-/**
- * Get or create variation type IDs from Shopee tier_variation names.
- * e.g. ["สี", "ขนาด"] → [uuid1, uuid2]
- * Falls back to "ตัวเลือกสินค้า" if no names provided.
- */
-export async function getOrCreateVariationTypeIds(companyId: string, tierVariationNames: string[]): Promise<string[]> {
-  const names = tierVariationNames.length > 0 ? tierVariationNames : ['ตัวเลือกสินค้า'];
-  const ids: string[] = [];
-
-  for (const name of names) {
-    const cacheKey = `${companyId}:${name}`;
-    if (variationTypeCache[cacheKey]) {
-      ids.push(variationTypeCache[cacheKey]);
-      continue;
-    }
-
-    const { data: existing } = await supabaseAdmin
-      .from('variation_types')
-      .select('id')
-      .eq('company_id', companyId)
-      .eq('name', name)
-      .eq('is_active', true)
-      .limit(1)
-      .single();
-
-    if (existing) {
-      variationTypeCache[cacheKey] = existing.id;
-      ids.push(existing.id);
-      continue;
-    }
-
-    // Check if it exists globally with a different company_id (seeded types)
-    const { data: globalExisting } = await supabaseAdmin
-      .from('variation_types')
-      .select('id, company_id')
-      .eq('name', name)
-      .eq('is_active', true)
-      .limit(1)
-      .single();
-
-    if (globalExisting) {
-      if (globalExisting.company_id !== companyId) {
-        await supabaseAdmin
-          .from('variation_types')
-          .update({ company_id: companyId })
-          .eq('id', globalExisting.id);
-      }
-      variationTypeCache[cacheKey] = globalExisting.id;
-      ids.push(globalExisting.id);
-      continue;
-    }
-
-    const { data: maxData } = await supabaseAdmin
-      .from('variation_types')
-      .select('sort_order')
-      .eq('company_id', companyId)
-      .order('sort_order', { ascending: false })
-      .limit(1)
-      .single();
-
-    const { data: newType, error } = await supabaseAdmin
-      .from('variation_types')
-      .insert({ company_id: companyId, name, sort_order: (maxData?.sort_order || 0) + 1 })
-      .select()
-      .single();
-
-    if (error || !newType) {
-      console.error(`[Shopee] Failed to create variation type "${name}":`, error);
-      continue;
-    }
-
-    variationTypeCache[cacheKey] = newType.id;
-    ids.push(newType.id);
-  }
-
-  return ids;
-}
 
 // ============================================
 // Price Resolution
@@ -188,51 +127,6 @@ export function buildVariationAttributes(tierVariationNames: string[], modelName
  * Updates sort_order if the image exists but sort_order changed.
  * For Shopee external URLs, uses 'shopee-external' as storage_path.
  */
-export async function upsertProductImage(
-  companyId: string,
-  productId: string | null,
-  variationId: string | null,
-  imageUrl: string,
-  sortOrder: number = 0
-): Promise<void> {
-  if (!imageUrl) return;
-  try {
-    let query = supabaseAdmin.from('product_images').select('id, sort_order').eq('image_url', imageUrl).eq('company_id', companyId);
-    if (productId) query = query.eq('product_id', productId);
-    if (variationId) query = query.eq('variation_id', variationId);
-    const { data: existing } = await query.limit(1).single();
-    if (existing) {
-      if (existing.sort_order !== sortOrder) {
-        await supabaseAdmin.from('product_images').update({ sort_order: sortOrder }).eq('id', existing.id);
-      }
-      return;
-    }
-
-    await supabaseAdmin.from('product_images').insert({
-      company_id: companyId,
-      product_id: productId,
-      variation_id: variationId,
-      image_url: imageUrl,
-      storage_path: 'shopee-external',
-      sort_order: sortOrder,
-    });
-  } catch (e) {
-    console.error('[Shopee] Failed to upsert product image:', e);
-  }
-}
-
-/** Batch insert multiple product images in parallel */
-export async function upsertProductImages(
-  companyId: string,
-  productId: string | null,
-  variationId: string | null,
-  imageUrls: string[]
-): Promise<void> {
-  const urls = imageUrls.filter(Boolean);
-  if (urls.length === 0) return;
-  await Promise.all(urls.map((url, i) => upsertProductImage(companyId, productId, variationId, url, i)));
-}
-
 // ============================================
 // Category Name Lookup
 // ============================================
@@ -282,15 +176,7 @@ export async function getCategoryName(accountId: string, categoryId: number): Pr
 // ============================================
 
 export async function findExistingLink(accountId: string, itemId: number, modelId: number) {
-  const { data } = await supabaseAdmin
-    .from('marketplace_product_links')
-    .select('id, product_id, variation_id')
-    .eq('account_id', accountId)
-    .eq('external_item_id', String(itemId))
-    .eq('external_model_id', String(modelId))
-    .limit(1)
-    .maybeSingle();
-  return data;
+  return findMarketplaceLink(accountId, String(itemId), String(modelId));
 }
 
 export async function upsertMarketplaceLink(params: UpsertMarketplaceLinkParams): Promise<void> {
@@ -347,53 +233,6 @@ export async function upsertMarketplaceLink(params: UpsertMarketplaceLinkParams)
 // ============================================
 // SKU Matching
 // ============================================
-
-export async function tryAutoMatchBySku(companyId: string, sku: string): Promise<{ product_id: string; variation_id: string } | null> {
-  if (!sku) return null;
-
-  // Try active products first
-  const { data } = await supabaseAdmin
-    .from('product_variations')
-    .select('id, product_id')
-    .eq('company_id', companyId)
-    .eq('sku', sku)
-    .eq('is_active', true)
-    .limit(1)
-    .single();
-
-  if (data) {
-    return { product_id: data.product_id, variation_id: data.id };
-  }
-
-  // Then try inactive products — reactivate them
-  const { data: inactive } = await supabaseAdmin
-    .from('product_variations')
-    .select('id, product_id')
-    .eq('company_id', companyId)
-    .eq('sku', sku)
-    .eq('is_active', false)
-    .limit(1)
-    .single();
-
-  if (inactive) {
-    await reactivateProduct(inactive.product_id);
-    return { product_id: inactive.product_id, variation_id: inactive.id };
-  }
-
-  return null;
-}
-
-// ============================================
-// Re-activation
-// ============================================
-
-/** Re-activate a soft-deleted product and all its variations */
-export async function reactivateProduct(productId: string): Promise<void> {
-  const now = new Date().toISOString();
-  await supabaseAdmin.from('products').update({ is_active: true, source: 'shopee', updated_at: now }).eq('id', productId);
-  await supabaseAdmin.from('product_variations').update({ is_active: true, updated_at: now }).eq('product_id', productId);
-  console.log(`[Shopee] Reactivated product ${productId}`);
-}
 
 // ============================================
 // Sibling Backfill (for order sync — create ALL variations)

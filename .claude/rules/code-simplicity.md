@@ -303,6 +303,7 @@ const columns: DataTableColumn<Order>[] = [
 | `credit-notes/auto-cn.ts` | `lib/credit-notes/auto-cn.ts` | createCreditNote (void/refund/exchange + stock return) | สร้าง CN เอง |
 | `integration-logger.ts` | `lib/integration-logger.ts` | logIntegration (fire-and-forget API log) | เขียน integration log เอง |
 | `marketplace/quota.ts` | `lib/marketplace/quota.ts` | Circuit breaker quota/rate-limit ทุก marketplace — `markQuotaExhausted(platform)`, `isQuotaBlocked(platform)` (cron/retry/manual sync ต้องเช็คก่อนยิงเสมอ), `getBlockedPlatforms()` (UI), `isQuotaErrorMessage()` (detection) — flag ใน `app_flags` key `{platform}_quota_exhausted` · banner ฝั่ง UI ใช้ `MarketplaceQuotaPausedAlert` (components/ui) | เขียน breaker/flag quota เองต่อ platform |
+| `marketplace/product-helpers.ts` | `lib/marketplace/product-helpers.ts` | helper import สินค้าที่ทุก marketplace ใช้ร่วม — `getOrCreateVariationTypeIds`, `upsertProductImage(s)`, `reactivateProduct`, `tryAutoMatchBySku`, `findMarketplaceLink` (มี `platform` param, default `'shopee'`) | copy helper พวกนี้ไปไว้ใน `lib/<platform>/` ของตัวเอง |
 | `print-tracking.ts` | `lib/print-tracking.ts` | markPrinted, markPrintedOptimistic | track print status เอง |
 | `print-actions.ts` | `lib/print-actions.ts` | getAvailablePrintActions (by status/payment) | เช็ค print availability เอง |
 

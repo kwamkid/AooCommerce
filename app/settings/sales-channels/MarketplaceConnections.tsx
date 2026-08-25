@@ -610,6 +610,15 @@ export default function MarketplaceConnections() {
                   >
                     {isSyncing ? 'กำลัง Sync...' : 'Sync Now'}
                   </Button>
+                  <ImportButton
+                    disabled={account.connection_status === 'expired'}
+                    onClick={() => {
+                      const name = account.shop_name || `Shop #${account.shop_id}`;
+                      router.push(`/tiktok/import?account_id=${account.id}&account_name=${encodeURIComponent(name)}`);
+                    }}
+                  >
+                    นำเข้าสินค้าจาก TikTok
+                  </ImportButton>
                 </div>
               </MarketplaceAccountCard>
             );

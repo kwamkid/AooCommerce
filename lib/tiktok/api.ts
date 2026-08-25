@@ -520,3 +520,158 @@ export async function getSellerInfo(creds: TikTokCredentials): Promise<any> {
   }
   return result.data;
 }
+
+// ============================================
+// Products (import จาก TikTok เข้าคลังเรา)
+// ============================================
+
+/** SKU หนึ่งตัวของ TikTok = 1 variation ฝั่งเรา */
+export interface TikTokSkuDetail {
+  sku_id: string;
+  seller_sku: string;
+  /** ราคาขายจริง (sale_price) */
+  price: number;
+  /** ราคาก่อนลด (list_price) — 0 = ไม่มี */
+  listPrice: number;
+  stock: number;
+  /** [{ name: 'สี', value_name: 'แดง' }] */
+  salesAttributes: { name: string; value_name: string }[];
+  imageUrl: string;
+}
+
+/** สินค้า TikTok หลัง normalize — รูปเดียวที่ product-sync ใช้ */
+export interface TikTokProductFullDetail {
+  product_id: string;
+  title: string;
+  /** description ที่ strip HTML แล้ว (ลง products.description) */
+  description: string;
+  /** description ดิบเป็น HTML (ลง marketplace_product_links.platform_description) */
+  descriptionHtml: string;
+  status: string;
+  images: string[];
+  categoryId: string;
+  categoryName: string;
+  brandName: string;
+  /** กิโลกรัม (0 = ไม่ระบุ) */
+  weight: number;
+  skus: TikTokSkuDetail[];
+  /** ชื่อ sales attribute เรียงตามลำดับ เช่น ['สี','ขนาด'] */
+  salesAttributeNames: string[];
+  hasVariation: boolean;
+}
+
+/**
+ * ไล่รายการสินค้าในร้าน (paginated ด้วย page_token ไม่ใช่ offset)
+ * ใช้ /product/202502/products/search ซึ่งเป็นเวอร์ชันล่าสุดของ search
+ */
+export async function searchProducts(
+  creds: TikTokCredentials,
+  opts: { pageSize?: number; pageToken?: string; status?: string } = {}
+): Promise<{ products: { id: string; title: string; status: string }[]; nextPageToken?: string; totalCount?: number }> {
+  const queryParams: Record<string, string> = {
+    page_size: String(opts.pageSize || 100),
+  };
+  if (opts.pageToken) queryParams.page_token = opts.pageToken;
+
+  const body: Record<string, unknown> = {};
+  if (opts.status) body.status = opts.status;
+
+  const result = await tiktokApiRequest(creds, 'POST', '/product/202502/products/search', queryParams, body);
+  if (result.error) throw new Error(result.error);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const data = result.data as any;
+  return {
+    products: data?.products || [],
+    nextPageToken: data?.next_page_token || undefined,
+    totalCount: data?.total_count,
+  };
+}
+
+/** TikTok description เป็น HTML — เก็บ text ล้วนไว้ใน products.description */
+function stripHtml(html: string): string {
+  if (!html) return '';
+  return html
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(p|div|li|h[1-6])>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function pickImageUrl(img: any): string {
+  if (!img) return '';
+  return img.urls?.[0] || img.thumb_urls?.[0] || '';
+}
+
+/**
+ * รายละเอียดสินค้าหนึ่งตัว (ต้องเรียกทีละตัว — TikTok ไม่มี batch detail)
+ * คืนรูปที่ normalize แล้ว เพื่อให้ product-sync ไม่ต้องรู้จักโครง response ดิบ
+ */
+export async function getProductDetail(
+  creds: TikTokCredentials,
+  productId: string
+): Promise<TikTokProductFullDetail> {
+  const result = await tiktokApiRequest(creds, 'GET', `/product/202309/products/${productId}`, {});
+  if (result.error) throw new Error(result.error);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const d = result.data as any;
+  if (!d?.id) throw new Error(`TikTok product ${productId}: empty response`);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const rawSkus: any[] = d.skus || [];
+  const skus: TikTokSkuDetail[] = rawSkus.map((s) => ({
+    sku_id: String(s.id || ''),
+    seller_sku: s.seller_sku || '',
+    price: parseFloat(s.price?.sale_price || '0') || 0,
+    listPrice: parseFloat(s.list_price?.amount || '0') || 0,
+    // ของหลาย warehouse รวมกันเป็นยอดเดียว (คลังฝั่งเราแยกเอง)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    stock: (s.inventory || []).reduce((sum: number, inv: any) => sum + (inv.quantity || 0), 0),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    salesAttributes: (s.sales_attributes || []).map((a: any) => ({
+      name: a.name || '',
+      value_name: a.value_name || '',
+    })),
+    // รูปเฉพาะ sku อยู่ใน sales_attributes[].sku_img (ตัวแรกที่มีรูป)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    imageUrl: pickImageUrl((s.sales_attributes || []).find((a: any) => a.sku_img)?.sku_img),
+  }));
+
+  // ชื่อ attribute เอาจาก sku ตัวแรกที่มี (ลำดับสำคัญ — ใช้ประกอบ variation label)
+  const salesAttributeNames: string[] = [];
+  for (const sku of skus) {
+    for (const attr of sku.salesAttributes) {
+      if (attr.name && !salesAttributeNames.includes(attr.name)) salesAttributeNames.push(attr.name);
+    }
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const chains: any[] = d.category_chains || [];
+  const leaf = chains.find((c) => c.is_leaf) || chains[chains.length - 1];
+
+  return {
+    product_id: String(d.id),
+    title: d.title || '',
+    description: stripHtml(d.description || ''),
+    descriptionHtml: d.description || '',
+    status: d.status || d.product_status || '',
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    images: (d.main_images || []).map((img: any) => pickImageUrl(img)).filter(Boolean),
+    categoryId: leaf?.id ? String(leaf.id) : '',
+    categoryName: chains.map((c) => c.local_name).filter(Boolean).join(' > '),
+    brandName: d.brand?.name || '',
+    weight: parseFloat(d.package_weight?.value || '0') || 0,
+    skus,
+    salesAttributeNames,
+    // sku เดียวและไม่มี sales attribute = สินค้าเดี่ยว · นอกนั้นถือเป็น variation
+    hasVariation: skus.length > 1 || (skus[0]?.salesAttributes?.length || 0) > 0,
+  };
+}
