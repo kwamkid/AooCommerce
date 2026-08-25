@@ -38,6 +38,7 @@ import { isMarketplaceSource } from '@/lib/marketplace/types';
 import StickyActionBar from '@/components/ui/StickyActionBar';
 import { LoadingCard } from '@/components/ui/StateCard';
 import Checkbox from '@/components/ui/Checkbox';
+import Badge from '@/components/ui/Badge';
 import {
   Plus,
   Loader2,
@@ -2347,10 +2348,11 @@ export default function OrderForm({
         </div>
         )}
 
-        {/* ของขวัญ — โผล่เมื่อเลือก "ส่งให้คนอื่น" (ตัวเลือกอยู่เหนือช่องที่อยู่
-            ในการ์ดลูกค้า เพราะมันบอกว่าที่อยู่นั้นเป็นของใคร)
+        {/* ของขวัญ — โผล่ทันทีที่เลือก "ส่งให้คนอื่น" (ตัวเลือกอยู่เหนือช่องที่อยู่
+            ในการ์ดลูกค้า เพราะมันบอกว่าที่อยู่นั้นเป็นของใคร) ไม่ต้องรอเลือกสินค้า —
+            พนักงานมักตั้งค่าของขวัญตามที่ลูกค้าบอกก่อน แล้วค่อยไล่ใส่สินค้า
             ไม่ผูกกับฟีเจอร์ delivery — ร้านส่งพัสดุก็ส่งของขวัญได้ */}
-        {hasProducts && shipToOther && (
+        {shipToOther && (
         <div className={`bg-white dark:bg-slate-800 rounded-lg ${embedded ? '' : 'border border-gray-200 dark:border-slate-700'} p-4`}>
           <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-2">ของขวัญ</label>
 
@@ -2369,9 +2371,11 @@ export default function OrderForm({
                 <span className="min-w-0">
                   <span className="block text-base text-gray-700 dark:text-slate-300">
                     แนบการ์ดอวยพร
-                    {giftCard.fee > 0
-                      ? <span className="ml-2 text-sm text-gray-500 dark:text-slate-400">+฿{formatPrice(giftCard.fee)}</span>
-                      : <span className="ml-2 text-sm text-emerald-600 dark:text-emerald-400">ฟรี</span>}
+                    <span className="ml-2 align-middle">
+                      {giftCard.fee > 0
+                        ? <Badge tone="amber" size="sm">+฿{formatPrice(giftCard.fee)}</Badge>
+                        : <Badge tone="emerald" size="sm">ฟรี</Badge>}
+                    </span>
                   </span>
                   <span className="block text-sm text-gray-500 dark:text-slate-400">เขียนข้อความให้ แล้วแนบไปกับของ</span>
                 </span>
