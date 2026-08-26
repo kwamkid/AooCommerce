@@ -16,6 +16,16 @@
 
 ---
 
+## 2026-08-26 — Onboarding บริษัทใหม่โชว์โลโก้ของบริษัทอื่น
+
+**ที่เกิด**: [components/onboarding/WizardShell.tsx](components/onboarding/WizardShell.tsx)
+**อาการ**: สร้างบริษัทใหม่ (aDay Fresh) ไม่ได้อัปโหลดโลโก้ → header ของ wizard แสดง**โลโก้ของบริษัทเดิมที่ active อยู่** คู่กับชื่อบริษัทใหม่
+**Root cause**: ชื่อกับโลโก้ fallback **แยกกันคนละตัวแปร** — `name = wizardPreview.name || currentCompany?.name` ได้ชื่อจาก wizard แต่ `logo = wizardPreview.logoDataUrl || currentCompany?.logo_url` wizard ไม่มีโลโก้เลยตกไปหยิบของ currentCompany มาปน
+**วิธีแก้**: fallback เป็น**คู่** — ถ้า `wizardPreview.name` มีค่า (= กำลังสร้างบริษัทใหม่) ใช้ทั้งชื่อ+โลโก้จาก wizard เท่านั้น (โลโก้ว่าง = โชว์ตัวอักษรย่อ) · ไม่มีค่า → ใช้ทั้งคู่จาก currentCompany
+**ป้องกัน regression**: ข้อมูลที่แสดง "เป็นชุดของ entity เดียวกัน" (ชื่อ+โลโก้, ชื่อ+ที่อยู่ ฯลฯ) ห้าม fallback แยกรายฟิลด์ — เลือก source เดียวแล้วใช้ทั้งชุด
+
+---
+
 ## 2026-08-22 — แท็บ Marketplace: ลบร้าน TikTok/Lazada แล้วการ์ดไม่หาย + ปุ่ม Cancel sync ไม่ทำงาน (ผลพวง copy-paste การ์ด 3 platform)
 
 **ที่เกิด**: [app/settings/sales-channels/MarketplaceConnections.tsx](app/settings/sales-channels/MarketplaceConnections.tsx)
