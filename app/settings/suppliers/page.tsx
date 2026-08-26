@@ -6,6 +6,7 @@ import { useCopy } from '@/lib/useCopy';
 import { useFetchOnce } from '@/lib/use-fetch-once';
 import { useRouter } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
+import Badge, { type BadgeTone } from '@/components/ui/Badge';
 import SearchInput from '@/components/ui/SearchInput';
 import Checkbox from '@/components/ui/Checkbox';
 import { useAuth } from '@/lib/auth-context';
@@ -55,19 +56,15 @@ interface Supplier {
   portal_enabled_at: string | null;
 }
 
-const SUPPLIER_TYPES: Record<string, { label: string; color: string }> = {
-  cash: { label: 'Cash', color: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300' },
-  credit: { label: 'Credit', color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300' },
-  consignment: { label: 'ฝากขาย', color: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300' },
+const SUPPLIER_TYPES: Record<string, { label: string; tone: BadgeTone }> = {
+  cash: { label: 'Cash', tone: 'emerald' },
+  credit: { label: 'Credit', tone: 'blue' },
+  consignment: { label: 'ฝากขาย', tone: 'amber' },
 };
 
 function SupplierTypeBadge({ type }: { type: string }) {
-  const config = SUPPLIER_TYPES[type] || { label: type, color: 'bg-gray-100 text-gray-800' };
-  return (
-    <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${config.color}`}>
-      {config.label}
-    </span>
-  );
+  const config = SUPPLIER_TYPES[type] || { label: type, tone: 'gray' as BadgeTone };
+  return <Badge tone={config.tone} size="sm">{config.label}</Badge>;
 }
 
 export default function SuppliersPage() {
