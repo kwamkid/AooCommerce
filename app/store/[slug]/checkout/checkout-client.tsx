@@ -624,7 +624,12 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
                   <input type="checkbox" checked={wantCard} onChange={e => setWantCard(e.target.checked)} />
                   <span className="sf-switch-box" aria-hidden="true" />
                   <span>
-                    <b>แนบการ์ดอวยพรไปกับของ</b>
+                    <b>
+                      แนบการ์ดอวยพรไปกับของ
+                      {giftCardFee > 0
+                        ? <span className="sf-switch-fee paid">+{formatStorePrice(giftCardFee)}</span>
+                        : <span className="sf-switch-fee free">ฟรี</span>}
+                    </b>
                     <small>ร้านเขียนข้อความของคุณลงการ์ดให้</small>
                   </span>
                 </label>

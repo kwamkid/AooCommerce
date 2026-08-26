@@ -464,6 +464,13 @@
 }
 .sf-switch input:focus-visible + .sf-switch-box { outline: 2px solid var(--sf-primary); outline-offset: 2px; }
 .sf-switch b { display: block; font-weight: 600; font-size: 15px; }
+/* ป้ายราคาเล็กๆ ท้าย label ของ switch (เช่น ค่าการ์ดอวยพร "ฟรี" / "+฿20") */
+.sf-switch-fee {
+  display: inline-block; margin-left: 8px; padding: 1px 8px;
+  border-radius: 999px; font-size: 12px; font-weight: 600; vertical-align: 1px;
+}
+.sf-switch-fee.free { background: #d1fae5; color: #047857; }
+.sf-switch-fee.paid { background: #fef3c7; color: #b45309; }
 .sf-switch small { color: var(--sf-muted); font-size: 13px; }
 .sf-label {
   display: block; margin-bottom: 14px;
