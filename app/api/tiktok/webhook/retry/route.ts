@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { after } from 'next/server';
 import { isQuotaBlocked } from '@/lib/marketplace/quota';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { TikTokAccountRow } from '@/lib/tiktok/api';
@@ -52,11 +53,15 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ processed: 0, duration_ms: Date.now() - startTime });
   }
 
+  // ตอบ 200 ทันทีแล้วไล่คิวใน after() — บทเรียนจาก Shopee: งานทั้งชุดเกิน
+  // timeout → cron-job.org เห็น fail ซ้ำจนปิด job อัตโนมัติ
+  after(async () => {
   let processed = 0;
   let succeeded = 0;
   let failed = 0;
 
   for (const job of tiktokJobs) {
+    if (Date.now() - startTime > 45_000) break; // รอบหน้า (5 นาที) มาต่อ
     const jobStart = Date.now();
 
     // Mark as processing
@@ -161,10 +166,8 @@ export async function GET(request: NextRequest) {
     });
   }
 
-  return NextResponse.json({
-    processed,
-    succeeded,
-    failed,
-    duration_ms: Date.now() - startTime,
+  console.log(`[TikTok Retry] processed=${processed} ok=${succeeded} failed=${failed} in ${Date.now() - startTime}ms`);
   });
+
+  return NextResponse.json({ started: true, queued: tiktokJobs.length });
 }

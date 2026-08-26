@@ -16,6 +16,16 @@
 
 ---
 
+## 2026-08-26 — Cron Shopee ตายเงียบตั้งแต่ 14 ก.ค. (cron-job.org ปิด job อัตโนมัติ)
+
+**ที่เกิด**: [app/api/shopee/sync-all/route.ts](app/api/shopee/sync-all/route.ts) + [app/api/shopee/webhook/retry/route.ts](app/api/shopee/webhook/retry/route.ts) (+ [app/api/tiktok/webhook/retry/route.ts](app/api/tiktok/webhook/retry/route.ts) พังแบบเดียวกันรออยู่)
+**อาการ**: API monitor แสดง "cron เงียบผิดปกติ" · คิว retry ค้าง 179 ใบไม่มีใครไล่ · cron-job.org แสดง job Inactive, Last execution Failed (HTTP error) ตั้งแต่ 07/14
+**Root cause**: ทั้งสอง route **ทำงานหนักให้เสร็จก่อนค่อยตอบ** — retry ไล่ 10 ใบ (ใบละหลาย Shopee call) / sync-all ไล่ 6 ร้าน → เกินทั้ง Vercel maxDuration (504 FUNCTION_INVOCATION_TIMEOUT ยืนยันด้วย curl 61s) และ timeout ของ cron-job.org (30s) → fail ติดกันจน cron-job.org **ปิด job อัตโนมัติ** → ระบบอยู่ได้ด้วย webhook อย่างเดียวโดยไม่มีใครรู้
+**วิธีแก้**: ตอบ 200 ทันที (auth + circuit breaker เช็ค sync) แล้วย้ายงานทั้งก้อนเข้า `after()` + time-box loop (45-50s) — ใบ/ร้านที่ไม่ทันรอบนี้ รอบหน้ามาต่อเอง (last_sync_at stamp ต่อร้าน, retry คิวเรียงตาม next_retry_at)
+**ป้องกัน regression**: endpoint ที่ cron ภายนอกเรียก**ห้ามรอให้งานเสร็จก่อนตอบ** — ตอบเร็ว + `after()` + time-box เสมอ (TikTok/Lazada sync-all ทำถูกอยู่แล้ว) · ตั้ง cron ใหม่ทุกครั้งให้กด TEST RUN ดู status ใน history + เช็คการ์ด cron ใน `/superadmin/api-monitor` หลังตั้ง
+
+---
+
 ## 2026-08-26 — Onboarding บริษัทใหม่โชว์โลโก้ของบริษัทอื่น
 
 **ที่เกิด**: [components/onboarding/WizardShell.tsx](components/onboarding/WizardShell.tsx)

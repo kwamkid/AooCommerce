@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { after } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { ShopeeAccountRow, isShopeeQuotaBlocked } from '@/lib/shopee/api';
 import { syncSingleOrder } from '@/lib/shopee/webhook-processor';
@@ -52,11 +53,17 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ processed: 0, duration_ms: Date.now() - startTime });
   }
 
+  // ตอบ 200 ทันทีแล้วไล่คิวใน after() — งานจริงใบละหลาย Shopee call, 10 ใบ
+  // เกิน 60 วิ ทำ cron-job.org เห็น 504 ซ้ำๆ จนปิด job อัตโนมัติ (เกิดแล้ว
+  // ก.ค. 2026 — คิวค้าง 179 ใบไม่มีใครไล่) · pattern เดียวกับ webhook route
+  after(async () => {
   let processed = 0;
   let succeeded = 0;
   let failed = 0;
 
   for (const job of shopeeJobs) {
+    // กันโดน Vercel ฆ่ากลาง DB write — เหลือเวลาไม่พอก็หยุด รอบหน้า (5 นาที) มาต่อ
+    if (Date.now() - startTime > 45_000) break;
     const jobStart = Date.now();
 
     // Mark as processing
@@ -165,10 +172,8 @@ export async function GET(request: NextRequest) {
     });
   }
 
-  return NextResponse.json({
-    processed,
-    succeeded,
-    failed,
-    duration_ms: Date.now() - startTime,
+  console.log(`[Shopee Retry] processed=${processed} ok=${succeeded} failed=${failed} in ${Date.now() - startTime}ms`);
   });
+
+  return NextResponse.json({ started: true, queued: shopeeJobs.length });
 }

@@ -1,4 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { after } from 'next/server';
+
+// ตอบเร็ว งานจริงต่อใน after() ได้จนถึงเพดานนี้
+export const maxDuration = 60;
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { ShopeeAccountRow, isShopeeQuotaBlocked } from '@/lib/shopee/api';
 import { syncOrdersByTimeRange } from '@/lib/shopee/sync';
@@ -72,7 +76,13 @@ async function handleSyncAll(request: NextRequest) {
 
   const activeAccounts = (accounts || []).filter(a => !expiredAccountIds.includes(a.id));
 
+  // ตอบ 200 ทันทีแล้ว sync ใน after() — 6 ร้าน + ช่วงเวลาค้างหลายวันใช้เวลาเกิน
+  // ทั้ง timeout ของ Vercel และของ cron-job.org (30 วิ) → job โดนปิดอัตโนมัติ
+  // last_sync_at stamp ต่อร้านเมื่อร้านนั้นเสร็จ ร้านที่ไม่ทันรอบนี้รอบหน้ามาต่อเอง
+  const startedAt = Date.now();
+  after(async () => {
   for (const account of activeAccounts as ShopeeAccountRow[]) {
+    if (Date.now() - startedAt > 50_000) break; // กันโดนฆ่ากลางร้าน — รอบหน้าต่อ
     try {
       // Sync from last_sync_at or last 15 minutes
       const lastSync = account.last_sync_at
@@ -150,11 +160,14 @@ async function handleSyncAll(request: NextRequest) {
     }
   }
 
+  console.log(`[Shopee SyncAll] shops=${results.length}/${activeAccounts.length} in ${Date.now() - startedAt}ms`);
+  });
+
   return NextResponse.json({
+    started: true,
     total_shops: (accounts || []).length,
     active_shops: activeAccounts.length,
     deactivated_shops: expiredAccountIds.length,
-    results,
   });
 }
 
