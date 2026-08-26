@@ -280,7 +280,27 @@ async function upsertOrder(
   if (existing) {
     return updateExistingOrder(account, existing, order, items, effStatus, order_status, payment_status);
   }
-  return createNewOrder(account, order, items, effStatus, order_status, payment_status);
+  try {
+    return await createNewOrder(account, order, items, effStatus, order_status, payment_status);
+  } catch (e) {
+    // webhook + cron แข่งกัน insert ออเดอร์เดียวกัน — ตัวแพ้ชน unique = มีอยู่แล้ว
+    // ไม่ใช่ความล้มเหลว → เดินเส้น update แทน (pattern เดียวกับ Shopee/TikTok)
+    const msg = e instanceof Error ? e.message : '';
+    if (msg.includes('idx_orders_external_unique') || msg.includes('duplicate key')) {
+      const { data: raced } = await supabaseAdmin
+        .from('orders')
+        .select('id, order_status, external_status, external_data, customer_id, created_at, fulfillment_status, warehouse_id')
+        .eq('company_id', companyId)
+        .eq('source', 'lazada')
+        .eq('external_order_sn', String(order.order_id))
+        .single();
+      if (raced) {
+        console.log(`[Lazada Sync] Order ${order.order_id} lost a concurrent-create race — switching to the update path`);
+        return updateExistingOrder(account, raced, order, items, effStatus, order_status, payment_status);
+      }
+    }
+    throw e;
+  }
 }
 
 async function updateExistingOrder(

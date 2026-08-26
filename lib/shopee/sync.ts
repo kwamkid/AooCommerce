@@ -622,7 +622,7 @@ function mapBuyerInvoiceToTaxFields(
 /**
  * Upsert a single Shopee order.
  */
-async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder, buyerInvoice?: BuyerInvoiceInfo): Promise<UpsertResult> {
+async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder, buyerInvoice?: BuyerInvoiceInfo, isDupRetry = false): Promise<UpsertResult> {
   const companyId = account.company_id;
   const { order_status, payment_status } = mapShopeeStatus(shopeeOrder.order_status);
 
@@ -1304,6 +1304,18 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder, 
       }
     }
     console.log(`[Shopee Sync] Rolled back ${newlyCreatedVariationIds.length} variations, ${uniqueProductIds.length} products${isNewCustomer ? ', 1 customer' : ''} for order ${shopeeOrder.order_sn}`);
+
+    // Shopee ยิง webhook ออเดอร์เดียวกันซ้อนกันเป็นปกติ — สอง request เห็นพร้อมกัน
+    // ว่ายังไม่มีออเดอร์แล้วแข่งกัน insert ตัวที่แพ้ชน unique (23505) = "มีอยู่แล้ว"
+    // ไม่ใช่ความล้มเหลว → วนกลับเข้า upsertOrder รอบเดียว คราวนี้จะเจอ existing
+    // แล้วเดินเส้น update ตามปกติ (ก่อนหน้านี้ log error ทำกราฟ monitor แดงหลอก
+    // วันละหลายใบทั้งที่ออเดอร์อยู่ครบ)
+    const isDuplicate = orderError.code === '23505' || orderError.message.includes('idx_orders_external_unique');
+    if (isDuplicate && !isDupRetry) {
+      console.log(`[Shopee Sync] Order ${shopeeOrder.order_sn} lost a concurrent-create race — switching to the update path`);
+      return upsertOrder(account, shopeeOrder, buyerInvoice, true);
+    }
+
     logIntegration({
       company_id: companyId,
       integration: 'shopee',

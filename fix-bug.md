@@ -16,6 +16,16 @@
 
 ---
 
+## 2026-08-27 — Webhook ออเดอร์ซ้อนกันทำ monitor แดงหลอกวันละหลายใบ (duplicate key race)
+
+**ที่เกิด**: [lib/shopee/sync.ts](lib/shopee/sync.ts) `upsertOrder` · [lib/tiktok/sync.ts](lib/tiktok/sync.ts) + [lib/lazada/sync.ts](lib/lazada/sync.ts) (พังแบบเดียวกันรออยู่)
+**อาการ**: `order_create_error` + `webhook_sync_error` "duplicate key ... idx_orders_external_unique" วันละ ~3 ออเดอร์ × 2 log — แต่ออเดอร์อยู่ครบทุกใบ (เช็คแล้ว)
+**Root cause**: Shopee ยิง webhook ออเดอร์เดียวกันซ้อนกัน ~ปกติ (และ webhook+cron ก็ชนกันได้) — สอง request ผ่านจุด "check ว่ามี order หรือยัง" พร้อมกัน → แข่งกัน insert → ตัวแพ้ชน unique constraint แล้ว code ปฏิบัติกับมันเหมือน error จริง (log error + throw → เข้าคิว retry ทั้งที่ไม่มีอะไรต้องทำ)
+**วิธีแก้**: ตัวแพ้ตรวจ 23505/`idx_orders_external_unique` → **วนกลับเข้าเส้น update** (Shopee: recurse `upsertOrder` ครั้งเดียวด้วย flag กันวน · TikTok/Lazada: catch ที่ wrapper → re-query existing → `updateExistingOrder`) — ได้ status ล่าสุด apply ด้วย ไม่ใช่แค่เงียบ
+**ป้องกัน regression**: unique constraint ชนตอน insert ของ entity ที่ upsert ได้ = สัญญาณ "มีอยู่แล้ว" ให้สลับไป update — ห้าม log เป็น error · marketplace ใหม่ทุกเจ้าต้องมี branch นี้ตั้งแต่แรก
+
+---
+
 ## 2026-08-26 — Cron Shopee ตายเงียบตั้งแต่ 14 ก.ค. (cron-job.org ปิด job อัตโนมัติ)
 
 **ที่เกิด**: [app/api/shopee/sync-all/route.ts](app/api/shopee/sync-all/route.ts) + [app/api/shopee/webhook/retry/route.ts](app/api/shopee/webhook/retry/route.ts) (+ [app/api/tiktok/webhook/retry/route.ts](app/api/tiktok/webhook/retry/route.ts) พังแบบเดียวกันรออยู่)

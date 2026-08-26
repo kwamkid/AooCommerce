@@ -420,7 +420,27 @@ async function upsertOrder(
     return updateExistingOrder(account, existing, tiktokOrder, order_status, payment_status);
   }
 
-  return createNewOrder(account, creds, tiktokOrder, order_status, payment_status);
+  try {
+    return await createNewOrder(account, creds, tiktokOrder, order_status, payment_status);
+  } catch (e) {
+    // webhook + cron เห็นพร้อมกันว่ายังไม่มีออเดอร์แล้วแข่งกัน insert — ตัวแพ้ชน
+    // unique = "มีอยู่แล้ว" ไม่ใช่ความล้มเหลว → เดินเส้น update แทน (pattern เดียวกับ Shopee)
+    const msg = e instanceof Error ? e.message : '';
+    if (msg.includes('idx_orders_external_unique') || msg.includes('duplicate key')) {
+      const { data: raced } = await supabaseAdmin
+        .from('orders')
+        .select('id, order_status, external_status, external_data, customer_id, created_at, fulfillment_status, warehouse_id')
+        .eq('company_id', companyId)
+        .eq('source', 'tiktok')
+        .eq('external_order_sn', tiktokOrder.id)
+        .single();
+      if (raced) {
+        console.log(`[TikTok Sync] Order ${tiktokOrder.id} lost a concurrent-create race — switching to the update path`);
+        return updateExistingOrder(account, raced, tiktokOrder, order_status, payment_status);
+      }
+    }
+    throw e;
+  }
 }
 
 // --- Update existing order ---
