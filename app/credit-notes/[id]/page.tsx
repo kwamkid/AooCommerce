@@ -10,6 +10,7 @@ import { apiFetch } from '@/lib/api-client';
 import { formatPrice } from '@/lib/utils/format';
 import { showPdfPreview } from '@/lib/print-pdf';
 import { LoadingCard } from '@/components/ui/StateCard';
+import StatusBadge from '@/components/ui/StatusBadge';
 import {
   ArrowLeft,
   Loader2,
@@ -160,12 +161,8 @@ export default function CreditNoteDetailPage() {
               <div className="flex items-center gap-2">
                 <ReceiptText className="w-5 h-5 text-red-500" />
                 <h1 className="text-xl font-bold text-gray-900 dark:text-white">{cn.cn_number}</h1>
-                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${typeConfig.color}`}>
-                  {typeConfig.label}
-                </span>
-                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusConfig.color}`}>
-                  {statusConfig.label}
-                </span>
+                <StatusBadge status="cn" colors={typeConfig.color}>{typeConfig.label}</StatusBadge>
+                <StatusBadge status="cn" colors={statusConfig.color}>{statusConfig.label}</StatusBadge>
               </div>
               <p className="text-sm text-gray-500 dark:text-slate-400 mt-0.5">
                 วันที่ออก {new Date(cn.issued_at).toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' })}
@@ -196,9 +193,7 @@ export default function CreditNoteDetailPage() {
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-500 dark:text-slate-400">ประเภท</span>
-                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${typeConfig.color}`}>
-                  {typeConfig.label}
-                </span>
+                <StatusBadge status="cn" colors={typeConfig.color}>{typeConfig.label}</StatusBadge>
               </div>
               {cn.reason && (
                 <div className="flex justify-between">

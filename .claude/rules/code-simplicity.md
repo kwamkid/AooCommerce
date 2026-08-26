@@ -20,6 +20,7 @@
 | Card / surface (white shadow box) | `Card` (padding: none/sm/md/lg) | inline `<div className="bg-white rounded-lg shadow-sm p-X">` |
 | Container / page max-width wrapper | `Container` (size: sm…6xl/full + gap) | inline `<div className="max-w-5xl space-y-6">` |
 | Badge / tag (8 tones × pill/square × sm/md) | `Badge` | inline `<span className="bg-X-50 text-X-700 px-2 py-0.5 rounded-full">` |
+| Badge แสดง **สถานะ** (สีจาก `getBadgeColor()`) | `StatusBadge` — `status` key (+ `payment?` / `colors?` override เฉพาะหน้าเก่าที่มีพาเลตเอง) | ประกอบ `<span rounded-full ${cfg.bg} ${cfg.color}>` เอง (กวาดทิ้งแล้ว 40+ จุด 2026-08-26) — สีสถานะไม่ใช่ 8 tone ของ Badge ห้ามใช้ Badge แทน |
 | Page header (back + title + subtitle + actions) | `PageHeader` | inline header layout ทุกครั้ง — **เมื่อใช้ PageHeader ห้ามใส่ `title`/`breadcrumbs` ใน `<Layout>` อีก** (จะ duplicate) |
 | Content tabs (underlined border-b style) | `Tabs` (state-based via `onSelect` หรือ route-based via `href`) | inline `<div className="flex border-b">...<button border-b-2>...` chain — **อย่าสับสนกับ `StatusTabs`** ที่ใช้สำหรับ list-page filter (count ใหญ่ + solid pill) |
 | Social platform icon (FB / LINE / IG / TikTok) | `PlatformIcon` (`id`, `size`, `title`) | inline `<Image src="/social/X.svg">` — **ห้ามสร้าง local FbIcon/LineIcon/IgIcon helper** ในแต่ละหน้า (duplicated 3 ครั้งแล้วต้อง refactor) |

@@ -8,6 +8,7 @@ import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { useRouter } from 'next/navigation';
 import { DEALER_ORDER_STATUS_LABEL } from '@/lib/order-status';
 import { getBadgeColor } from '@/lib/status-tab-colors';
+import StatusBadge from '@/components/ui/StatusBadge';
 
 const STATUS_LABELS: Record<string, { label: string; cls: string }> = {
   new: { label: DEALER_ORDER_STATUS_LABEL.new, cls: `${getBadgeColor('new').bg} ${getBadgeColor('new').color}` },
@@ -62,14 +63,14 @@ export default function OrderStatusBar({ orderId, orderNumber, orderStatus, paym
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div className="flex items-center gap-3">
         <span className="font-mono text-lg font-bold text-primary">{orderNumber}</span>
-        <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${STATUS_LABELS[orderStatus]?.cls || ''}`}>
+        <StatusBadge status={orderStatus} colors={STATUS_LABELS[orderStatus]?.cls || ''}>
           {STATUS_LABELS[orderStatus]?.label || orderStatus}
-        </span>
+        </StatusBadge>
         {paymentStatus === 'paid' && (
-          <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">ชำระแล้ว</span>
+          <StatusBadge status="paid" payment>ชำระแล้ว</StatusBadge>
         )}
         {paymentStatus === 'pending' && (
-          <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500 dark:bg-slate-700 dark:text-slate-400">รอชำระ</span>
+          <StatusBadge status="pending" colors="bg-gray-100 text-gray-500 dark:bg-slate-700 dark:text-slate-400">รอชำระ</StatusBadge>
         )}
       </div>
       <div className="flex flex-wrap gap-2">

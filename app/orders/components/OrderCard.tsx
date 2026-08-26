@@ -19,6 +19,8 @@ import {
   getCarrierLabel,
 } from './types';
 import PrintStatusDots from './PrintStatusDots';
+import StatusBadge from '@/components/ui/StatusBadge';
+import Badge from '@/components/ui/Badge';
 
 // Channel badge
 function ChannelBadge({ channel }: { channel: Order['channel'] }) {
@@ -148,36 +150,28 @@ export default function OrderCard({
               {relativeTime(order.created_at)}
             </span>
             {deadline && ['ready_to_ship', 'processing'].includes(order.order_status) && (
-              <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium flex items-center gap-0.5 flex-shrink-0 ${deadline.color}`}>
-                <Clock className="w-3 h-3" />
-                {deadline.label}
-              </span>
+              <StatusBadge status="deadline" colors={deadline.color} className="flex-shrink-0" icon={<Clock className="w-3 h-3" />}>{deadline.label}</StatusBadge>
             )}
             {shouldShowStatus && (
-              <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${
+              <StatusBadge status={order.order_status} colors={
                 order.cancellation_reason === 'expired'
                   ? 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400'
-                  : `${orderStatusCfg.bg} ${orderStatusCfg.color}`
-              }`}>
+                  : orderStatusCfg
+              }>
                 {order.cancellation_reason === 'expired' ? 'หมดอายุ' : orderStatusCfg.label}
-              </span>
+              </StatusBadge>
             )}
             {showPaymentStatus && order.order_status !== 'cancelled' && (
-              <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${paymentStatusCfg.bg} ${paymentStatusCfg.color}`}>
-                {paymentStatusCfg.label}
-              </span>
+              <StatusBadge status={order.payment_status} colors={paymentStatusCfg}>{paymentStatusCfg.label}</StatusBadge>
             )}
             {showPaymentStatus && order.payment_status === 'verifying' && order.last_transfer_date && (
-              <span className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-gray-300">
+              <Badge tone="gray" size="sm">
                 โอน {new Date(order.last_transfer_date + 'T00:00:00').toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })}
                 {order.last_transfer_time ? ` ${order.last_transfer_time.slice(0, 5)}` : ''}
-              </span>
+              </Badge>
             )}
             {order.is_split && order.parcel_count && order.parcel_count > 1 && (
-              <span className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 flex items-center gap-1">
-                <Package className="w-3 h-3" />
-                {order.parcel_count} กล่อง
-              </span>
+              <Badge tone="purple" size="sm" icon={<Package className="w-3 h-3" />}>{order.parcel_count} กล่อง</Badge>
             )}
           </div>
         </div>
@@ -192,10 +186,7 @@ export default function OrderCard({
             />
           )}
           {order.shipping_carrier && (
-            <span className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-sky-50 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300 flex items-center gap-1">
-              <Truck className="w-3 h-3" />
-              {getCarrierLabel(order.shipping_carrier)}
-            </span>
+            <StatusBadge status="carrier" colors="bg-sky-50 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300" icon={<Truck className="w-3 h-3" />}>{getCarrierLabel(order.shipping_carrier)}</StatusBadge>
           )}
         </div>
       </div>

@@ -14,6 +14,7 @@ import {
 import SearchInput from '@/components/ui/SearchInput';
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
 import { LoadingCard } from '@/components/ui/StateCard';
+import StatusBadge from '@/components/ui/StatusBadge';
 
 interface CreditNote {
   id: string;
@@ -171,9 +172,7 @@ export default function CreditNotesPage() {
               render: (cn) => {
                 const typeConfig = TYPE_LABELS[cn.type] || TYPE_LABELS.void;
                 return (
-                  <span className={`text-xs px-2.5 py-0.5 rounded-full font-medium ${typeConfig.color}`}>
-                    {typeConfig.label}
-                  </span>
+                  <StatusBadge status={cn.type} colors={typeConfig.color}>{typeConfig.label}</StatusBadge>
                 );
               },
             },
@@ -188,9 +187,7 @@ export default function CreditNotesPage() {
               render: (cn) => {
                 const statusConfig = STATUS_LABELS[cn.status] || STATUS_LABELS.issued;
                 return (
-                  <span className={`text-xs px-2.5 py-0.5 rounded-full font-medium ${statusConfig.color}`}>
-                    {statusConfig.label}
-                  </span>
+                  <StatusBadge status={cn.status} colors={statusConfig.color}>{statusConfig.label}</StatusBadge>
                 );
               },
             },
@@ -214,9 +211,7 @@ export default function CreditNotesPage() {
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 mb-0.5">
                     <span className="text-sm font-medium text-gray-900 dark:text-white">{cn.cn_number}</span>
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${typeConfig.color}`}>
-                      {typeConfig.label}
-                    </span>
+                    <StatusBadge status={cn.type} colors={typeConfig.color}>{typeConfig.label}</StatusBadge>
                   </div>
                   <div className="text-xs text-gray-400 dark:text-slate-500">
                     {cn.source_type === 'replenishment' ? cn.replenishment?.replenishment_number : cn.order?.order_number || '-'} · {new Date(cn.issued_at).toLocaleDateString('th-TH')}

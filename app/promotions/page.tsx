@@ -14,6 +14,8 @@ import PageHeader from '@/components/ui/PageHeader';
 import Button from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
 import { LoadingCard, EmptyCard } from '@/components/ui/StateCard';
+import UiStatusBadge from '@/components/ui/StatusBadge';
+import Badge from '@/components/ui/Badge';
 import {
   Plus,
   Edit2,
@@ -122,19 +124,14 @@ const STATUS_LABELS: Record<string, string> = {
 
 function TypeBadge({ type }: { type: string }) {
   return (
-    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300">
-      {TYPE_ICONS[type]}
-      {TYPE_LABELS[type] || type}
-    </span>
+    <Badge tone="gray" size="sm" icon={TYPE_ICONS[type]}>{TYPE_LABELS[type] || type}</Badge>
   );
 }
 
 function StatusBadge({ status }: { status: string }) {
   const cfg = getBadgeColor(status);
   return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${cfg.bg} ${cfg.color}`}>
-      {STATUS_LABELS[status] || status}
-    </span>
+    <UiStatusBadge status={status} colors={cfg}>{STATUS_LABELS[status] || status}</UiStatusBadge>
   );
 }
 
@@ -234,10 +231,7 @@ function PromotionCard({
           {(() => {
             const tc = TYPE_COLORS[promo.promotion_type] || TYPE_COLORS.bundle_set;
             return (
-              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium flex-shrink-0 ${tc.bg} ${tc.text}`}>
-                {TYPE_ICONS[promo.promotion_type]}
-                {TYPE_LABELS[promo.promotion_type] || promo.promotion_type}
-              </span>
+              <UiStatusBadge status={promo.promotion_type} colors={`${tc.bg} ${tc.text}`} className="flex-shrink-0" icon={TYPE_ICONS[promo.promotion_type]}>{TYPE_LABELS[promo.promotion_type] || promo.promotion_type}</UiStatusBadge>
             );
           })()}
           <span className={`font-semibold text-base truncate ${headerTint.text}`}>

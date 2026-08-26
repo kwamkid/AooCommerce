@@ -328,10 +328,7 @@ export default function SalesChannelsPage() {
             <div className="flex items-center gap-2">
               <span className="font-semibold text-[16px] text-gray-900 dark:text-white">{c.name}</span>
               {c.is_default && (
-                <span title="ค่าเริ่มต้น" className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 text-xs font-medium">
-                  <Star className="w-3 h-3 fill-current" />
-                  ค่าเริ่มต้น
-                </span>
+                <Badge tone="amber" size="sm" title="ค่าเริ่มต้น" icon={<Star className="w-3 h-3 fill-current" />}>ค่าเริ่มต้น</Badge>
               )}
               {c.is_system && (
                 <span title="ช่องทางของระบบ" className="inline-flex items-center text-gray-400">

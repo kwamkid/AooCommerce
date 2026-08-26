@@ -20,6 +20,7 @@ import OrderPrintButtons from '@/components/ui/OrderPrintButtons';
 import { formatNumber } from '@/lib/utils/format';
 import StickyActionBar from '@/components/ui/StickyActionBar';
 import { LoadingCard } from '@/components/ui/StateCard';
+import Badge from '@/components/ui/Badge';
 
 // ── Types ──────────────────────────────────────────────────
 
@@ -939,11 +940,11 @@ export default function DealerOrderForm({
                       <td className="px-3 py-2 text-right text-gray-900 dark:text-white font-medium">{formatNumber(formQty)}</td>
                       <td className="px-3 py-2 text-center">
                         {diff === 0 ? (
-                          <span className="inline-block px-2 py-0.5 rounded-full text-xs bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">ตรง</span>
+                          <Badge tone="emerald" size="sm">ตรง</Badge>
                         ) : diff < 0 ? (
-                          <span className="inline-block px-2 py-0.5 rounded-full text-xs bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400">ห้างขาด {formatNumber(Math.abs(diff))}</span>
+                          <Badge tone="red" size="sm">ห้างขาด {formatNumber(Math.abs(diff))}</Badge>
                         ) : (
-                          <span className="inline-block px-2 py-0.5 rounded-full text-xs bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">ห้างเกิน +{formatNumber(diff)}</span>
+                          <Badge tone="amber" size="sm">ห้างเกิน +{formatNumber(diff)}</Badge>
                         )}
                       </td>
                       <td className="px-4 py-2 text-right text-gray-600 dark:text-slate-300">{pc ? `฿${formatNumber(pc.amount)}` : '-'}</td>

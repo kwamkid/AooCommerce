@@ -6,6 +6,8 @@ import { useCopy } from '@/lib/useCopy';
 import { useToast } from '@/lib/toast-context';
 import { getBadgeColor, getStatusHeaderTint } from '@/lib/status-tab-colors';
 import { Eye, Printer, Ban, Loader2, Package, Store, Tag } from 'lucide-react';
+import StatusBadge from '@/components/ui/StatusBadge';
+import Badge from '@/components/ui/Badge';
 
 const ORDER_STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; headerBg: string; headerText: string }> = {
   completed: { label: 'สำเร็จ', ...getBadgeColor('completed'), headerBg: getStatusHeaderTint('completed').bg, headerText: getStatusHeaderTint('completed').text },
@@ -99,24 +101,14 @@ export default function PosOrderCard({ order, onViewReceipt, onVoid, voidingId, 
           >
             {order.receipt_number}
           </span>
-          <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${statusCfg.bg} ${statusCfg.color}`}>
-            {statusCfg.label}
-          </span>
-          <span className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-300">
-            {PAYMENT_LABELS[order.payment_method] || order.payment_method || 'เงินสด'}
-          </span>
+          <StatusBadge status={order.order_status} colors={statusCfg}>{statusCfg.label}</StatusBadge>
+          <Badge tone="blue" size="sm">{PAYMENT_LABELS[order.payment_method] || order.payment_method || 'เงินสด'}</Badge>
           {hasDiscount && (
-            <span className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-300 flex items-center gap-0.5">
-              <Tag className="w-3 h-3" />
-              -฿{formatPrice(order.discount_amount!)}
-            </span>
+            <Badge tone="red" size="sm" icon={<Tag className="w-3 h-3" />}>-฿{formatPrice(order.discount_amount!)}</Badge>
           )}
           <div className="ml-auto flex items-center gap-2 flex-shrink-0">
             {order.pos_session?.terminal && (
-              <span className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-gray-100 text-gray-600 dark:bg-slate-700 dark:text-gray-300 flex items-center gap-1">
-                <Store className="w-3 h-3" />
-                {order.pos_session.terminal.name}
-              </span>
+              <Badge tone="gray" size="sm" icon={<Store className="w-3 h-3" />}>{order.pos_session.terminal.name}</Badge>
             )}
             <span className="data-timestamp text-gray-400 dark:text-slate-500">
               {new Date(order.created_at).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}

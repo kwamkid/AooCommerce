@@ -17,6 +17,7 @@ import {
 import PageHeader from '@/components/ui/PageHeader';
 import ReplenishmentForm, { type ReplenishmentFormState } from '@/components/replenishments/ReplenishmentForm';
 import FormSelect from '@/components/ui/FormSelect';
+import StatusBadge from '@/components/ui/StatusBadge';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
 import { showPdfPreview } from '@/lib/print-pdf';
@@ -254,9 +255,7 @@ function NewReplenishmentPageContent() {
                 </span>
               )}
               {isEdit && statusCfg && (
-                <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${statusCfg.bg} ${statusCfg.color}`}>
-                  {statusCfg.label}
-                </span>
+                <StatusBadge status={status} colors={statusCfg}>{statusCfg.label}</StatusBadge>
               )}
             </span>
           }

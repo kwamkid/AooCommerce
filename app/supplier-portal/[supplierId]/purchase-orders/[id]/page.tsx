@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { FullPageLoading } from '@/components/ui/Loading';
+import StatusBadge from '@/components/ui/StatusBadge';
 import {
   ArrowLeft, Warehouse, Package, CheckCircle2, Clock,
   AlertTriangle,
@@ -121,9 +122,7 @@ export default function PortalPODetailPage() {
 
       <div className="flex items-center justify-between">
         <h1 className="text-lg font-bold text-gray-900 dark:text-white">{data.po_number}</h1>
-        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${badge.color}`}>
-          {badge.label}
-        </span>
+        <StatusBadge status="po" colors={badge.color}>{badge.label}</StatusBadge>
       </div>
 
       {/* Info */}
@@ -237,11 +236,9 @@ export default function PortalPODetailPage() {
                   <span className="text-sm text-gray-900 dark:text-white">{rec.receive_number}</span>
                   <span className="text-xs text-gray-500 ml-2">{formatDate(rec.created_at)}</span>
                 </div>
-                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                  rec.status === 'completed' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-                }`}>
+                <StatusBadge status={rec.status} colors={rec.status === 'completed' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}>
                   {rec.status === 'completed' ? 'สำเร็จ' : 'ยกเลิก'}
-                </span>
+                </StatusBadge>
               </div>
             ))}
           </div>

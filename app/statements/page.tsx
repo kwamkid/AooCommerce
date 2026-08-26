@@ -21,6 +21,7 @@ import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import ActionMenu, { type ActionItem } from '@/components/ui/ActionMenu';
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
 import { LoadingCard } from '@/components/ui/StateCard';
+import StatusBadge from '@/components/ui/StatusBadge';
 import { useDebouncedCallback } from '@/lib/useDebounce';
 
 interface Statement {
@@ -355,10 +356,10 @@ function StatementsContent() {
       render: (st) => {
         const cfg = STATUS_CONFIG[st.status] || STATUS_CONFIG.draft;
         return (
-          <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${cfg.bg} ${cfg.color}`}>
+          <StatusBadge status={st.status} colors={cfg}>
             {st.status === 'paid' && <CheckCircle2 className="w-3 h-3" />}
             {cfg.label}
-          </span>
+          </StatusBadge>
         );
       },
     },
@@ -492,9 +493,7 @@ function StatementsContent() {
                     <p className="id-text-clickable text-gray-900 dark:text-white">{st.statement_number}</p>
                     <p className="data-timestamp text-gray-400 dark:text-slate-500">{formatDate(st.statement_date)}</p>
                   </div>
-                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${cfg.bg} ${cfg.color}`}>
-                    {cfg.label}
-                  </span>
+                  <StatusBadge status={st.status} colors={cfg}>{cfg.label}</StatusBadge>
                 </div>
                 <div className="flex items-center justify-between mb-1">
                   <span className="data-text text-gray-700 dark:text-slate-300 font-medium">{st.customer?.name || '-'}</span>

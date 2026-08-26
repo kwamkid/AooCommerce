@@ -13,6 +13,7 @@ import {
 import { showPdfPreview } from '@/lib/print-pdf';
 import { generateStatementPdf } from '@/lib/statement-pdf';
 import { LoadingCard } from '@/components/ui/StateCard';
+import StatusBadge from '@/components/ui/StatusBadge';
 import { getBadgeColor } from '@/lib/status-tab-colors';
 
 interface StatementDetail {
@@ -274,9 +275,7 @@ export default function StatementDetailPage() {
               <div className="flex items-center gap-2">
                 <FileText className="w-5 h-5 text-indigo-500" />
                 <h1 className="text-xl font-bold text-gray-900 dark:text-white">{statement.statement_number}</h1>
-                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${cfg.color} ${cfg.bg}`}>
-                  {cfg.label}
-                </span>
+                <StatusBadge status={statement.status} colors={cfg}>{cfg.label}</StatusBadge>
               </div>
               <p className="text-sm text-gray-500 dark:text-slate-400 mt-0.5">
                 งวด {formatPeriod(statement.period_year, statement.period_month)} · ออกเมื่อ {formatDate(statement.statement_date)}

@@ -60,6 +60,8 @@ import { isMarketplaceSource } from '@/lib/marketplace/types';
 import { PLATFORM_ICONS, getTrackingUrl, getCarrierLabel } from '../components/types';
 import { useCarriers } from '@/lib/carrier-lookup';
 import FormSelect from '@/components/ui/FormSelect';
+import StatusBadge from '@/components/ui/StatusBadge';
+import Badge from '@/components/ui/Badge';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { ORDER_STATUS_LABEL, orderStatusLabel, getNextOrderStatus } from '@/lib/order-status';
 import { getBadgeColor } from '@/lib/status-tab-colors';
@@ -76,9 +78,7 @@ function OrderStatusBadge({ status }: { status: string }) {
   };
   const config = statusConfig[status] || statusConfig.new;
   return (
-    <span className={`px-3 py-1 rounded-full text-sm font-medium ${config.color}`}>
-      {config.label}
-    </span>
+    <StatusBadge status={status} colors={config.color} size="md">{config.label}</StatusBadge>
   );
 }
 
@@ -91,9 +91,7 @@ function PaymentStatusBadge({ status }: { status: string }) {
   };
   const config = statusConfig[status] || statusConfig.pending;
   return (
-    <span className={`px-3 py-1 rounded-full text-sm font-medium ${config.color}`}>
-      {config.label}
-    </span>
+    <StatusBadge status={status} colors={config.color} size="md">{config.label}</StatusBadge>
   );
 }
 
@@ -110,9 +108,7 @@ function ShopeeExternalStatusBadge({ status }: { status: string }) {
   };
   const config = statusConfig[status] || { label: status, color: 'bg-gray-100 text-gray-600 dark:bg-gray-500/30 dark:text-gray-100' };
   return (
-    <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${config.color}`}>
-      {config.label}
-    </span>
+    <StatusBadge status={status} colors={config.color}>{config.label}</StatusBadge>
   );
 }
 
@@ -920,10 +916,9 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
                   </>
                 )}
                 {orderStatus === 'cancelled' && (
-                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-red-100 text-red-700 dark:bg-red-500/30 dark:text-red-100 text-sm font-medium">
-                    <XCircle className="w-3.5 h-3.5" />
+                  <StatusBadge status="cancelled" colors="bg-red-100 text-red-700 dark:bg-red-500/30 dark:text-red-100" size="md" icon={<XCircle className="w-3.5 h-3.5" />}>
                     {fullOrderData?.cancellation_reason === 'expired' ? 'หมดอายุ' : 'ยกเลิก'}
-                  </span>
+                  </StatusBadge>
                 )}
               </div>
               {features.delivery_date.enabled && orderDate && (
@@ -1378,13 +1373,13 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
                           กล่องที่ {parcel.parcel_number}/{fullOrderData.parcels.length}
                         </span>
                         {parcel.status && (
-                          <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
+                          <StatusBadge status={parcel.status} colors={
                             parcel.status === 'shipped' || parcel.status === 'delivered'
                               ? 'bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-300'
                               : 'bg-gray-100 text-gray-500 dark:bg-gray-600 dark:text-gray-300'
-                          }`}>
+                          }>
                             {parcel.status === 'pending' ? 'รอจัดส่ง' : parcel.status === 'shipped' ? 'จัดส่งแล้ว' : parcel.status === 'delivered' ? 'ส่งถึงแล้ว' : parcel.status}
-                          </span>
+                          </StatusBadge>
                         )}
                       </div>
                       {(parcel.tracking_number || parcel.shipping_carrier) && (
@@ -1522,10 +1517,7 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
                 <div className="flex items-center gap-2 flex-wrap">
                   <OrderStatusBadge status={orderStatus} />
                   <PaymentStatusBadge status={paymentStatus} />
-                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-orange-50 dark:bg-orange-900/20 text-xs font-medium text-orange-600 dark:text-orange-400">
-                    <img src="/marketplace/shopee.svg" alt="Shopee" className="w-3.5 h-3.5" />
-                    Shopee
-                  </span>
+                  <Badge tone="orange" size="sm" icon={<img src="/marketplace/shopee.svg" alt="Shopee" className="w-3.5 h-3.5" />}>Shopee</Badge>
                 </div>
               </div>
 
@@ -1947,15 +1939,15 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
                 className="w-full flex items-center justify-between p-3 rounded-lg bg-gray-50 dark:bg-slate-700/50 border border-gray-100 dark:border-slate-600 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-left"
               >
                 <div className="flex items-center gap-3">
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                  <StatusBadge status={cn.type} colors={
                     cn.type === 'void'
                       ? 'bg-red-100 text-red-700 dark:bg-red-500/30 dark:text-red-200'
                       : cn.type === 'refund'
                         ? 'bg-orange-100 text-orange-700 dark:bg-orange-500/30 dark:text-orange-200'
                         : 'bg-blue-100 text-blue-700 dark:bg-blue-500/30 dark:text-blue-200'
-                  }`}>
+                  }>
                     {cn.type === 'void' ? 'ยกเลิกบิล' : cn.type === 'refund' ? 'คืนสินค้า' : 'เปลี่ยนสินค้า'}
-                  </span>
+                  </StatusBadge>
                   <span className="id-text text-gray-900 dark:text-white">{cn.cn_number}</span>
                   <span className="data-timestamp text-gray-400 dark:text-slate-500">
                     {new Date(cn.issued_at).toLocaleDateString('th-TH')}

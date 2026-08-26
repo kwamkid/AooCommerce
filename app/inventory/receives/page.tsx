@@ -15,6 +15,7 @@ import DataTable from '@/components/ui/DataTable';
 import FormSelect from '@/components/ui/FormSelect';
 import ActionMenu from '@/components/ui/ActionMenu';
 import { LoadingCard } from '@/components/ui/StateCard';
+import StatusBadge from '@/components/ui/StatusBadge';
 import {
   Loader2, ArrowDownToLine, Plus, Warehouse, Eye, Search,
   CheckCircle2, XCircle, Printer, User,
@@ -210,14 +211,12 @@ export default function ReceiveListPage() {
             {
               key: 'status', label: 'สถานะ', headerClassName: 'text-center', cellClassName: 'text-center',
               render: (r) => (
-                <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${
-                  r.status === 'completed'
+                <StatusBadge status={r.status} colors={r.status === 'completed'
                     ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                    : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-                }`}>
+                    : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'}>
                   {r.status === 'completed' ? <CheckCircle2 className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
                   {r.status === 'completed' ? 'สำเร็จ' : 'ยกเลิก'}
-                </span>
+                </StatusBadge>
               ),
             },
             {
@@ -271,13 +270,11 @@ export default function ReceiveListPage() {
                   <p className="data-timestamp text-gray-400 dark:text-slate-500 mt-0.5">{formatDate(r.created_at)}</p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
-                    r.status === 'completed'
+                  <StatusBadge status={r.status} colors={r.status === 'completed'
                       ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                      : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-                  }`}>
+                      : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'}>
                     {r.status === 'completed' ? 'สำเร็จ' : 'ยกเลิก'}
-                  </span>
+                  </StatusBadge>
                   <ActionMenu items={[
                     { key: 'view', label: 'ดูรายละเอียด', icon: <Eye className="w-4 h-4" />, onClick: () => router.push(`/inventory/receives/${r.id}`) },
                     { key: 'print', label: 'พิมพ์', icon: <Printer className="w-4 h-4" />, onClick: () => handlePrint(r.id) },

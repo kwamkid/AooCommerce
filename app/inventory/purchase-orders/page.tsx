@@ -17,6 +17,7 @@ import FormSelect from '@/components/ui/FormSelect';
 import ActionMenu, { ActionItem } from '@/components/ui/ActionMenu';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { LoadingCard } from '@/components/ui/StateCard';
+import StatusBadge from '@/components/ui/StatusBadge';
 import {
   Plus, Search, ClipboardList, Factory, Warehouse,
   CheckCircle2, Clock, Package, XCircle, Send, Pencil, Printer, Link2, Ban, Lock, AlertTriangle,
@@ -394,10 +395,7 @@ export default function PurchaseOrdersPage() {
               render: (po) => {
                 const badge = statusBadge(po.status);
                 return (
-                  <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${badge.color}`}>
-                    {statusIcon(po.status)}
-                    {badge.label}
-                  </span>
+                  <StatusBadge status={po.status} colors={badge.color} icon={statusIcon(po.status)}>{badge.label}</StatusBadge>
                 );
               },
             },
@@ -439,10 +437,7 @@ export default function PurchaseOrdersPage() {
                     >{po.po_number}</span>
                     <p className="data-timestamp text-gray-400 dark:text-slate-500 mt-0.5">{formatDate(po.created_at)}</p>
                   </div>
-                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${badge.color}`}>
-                    {statusIcon(po.status)}
-                    {badge.label}
-                  </span>
+                  <StatusBadge status={po.status} colors={badge.color} icon={statusIcon(po.status)}>{badge.label}</StatusBadge>
                 </div>
                 <div className="flex items-center gap-2 mb-1">
                   <Factory className="w-3.5 h-3.5 text-gray-400" />

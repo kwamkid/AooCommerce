@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { apiFetch } from '@/lib/api-client';
 import Modal from '@/components/ui/Modal';
+import Badge from '@/components/ui/Badge';
 import PushDealModal from '../PushDealModal';
 import type { UsePromotionFormReturn } from './usePromotionForm';
 
@@ -285,10 +286,7 @@ export default function FormModals({ hook }: Props) {
               <img src="/marketplace/shopee.svg" alt="Shopee" className="w-5 h-5" />
               <h2 className="text-base font-semibold text-gray-700 dark:text-slate-300">สถานะ Shopee Deal</h2>
               {hasLocalChanges && (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
-                  <AlertTriangle className="w-3 h-3" />
-                  มีการแก้ไขที่ยังไม่ sync
-                </span>
+                <Badge tone="amber" size="sm" icon={<AlertTriangle className="w-3 h-3" />}>มีการแก้ไขที่ยังไม่ sync</Badge>
               )}
             </div>
             <button

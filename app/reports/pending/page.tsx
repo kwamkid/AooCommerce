@@ -9,6 +9,8 @@ import { formatPrice } from '@/lib/utils/format';
 import Layout from '@/components/layout/Layout';
 import PageHeader from '@/components/ui/PageHeader';
 import { LoadingCard } from '@/components/ui/StateCard';
+import StatusBadge from '@/components/ui/StatusBadge';
+import Badge from '@/components/ui/Badge';
 import { getBadgeColor } from '@/lib/status-tab-colors';
 
 import {
@@ -156,9 +158,7 @@ export default function PendingReportPage() {
     };
     const badge = getBadgeColor(status);
     return (
-      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${badge.bg} ${badge.color}`}>
-        {labels[status] || status}
-      </span>
+      <StatusBadge status={status} colors={badge}>{labels[status] || status}</StatusBadge>
     );
   };
 
@@ -168,9 +168,7 @@ export default function PendingReportPage() {
     const colorKey = days < 0 ? 'new' : days <= 7 ? 'paid' : days <= 30 ? 'partially_paid' : 'overdue';
     const badge = getBadgeColor(colorKey);
     return (
-      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${badge.bg} ${badge.color}`}>
-        {days < 0 ? 'ยังไม่ถึงกำหนด' : `${days} วัน`}
-      </span>
+      <StatusBadge status="days" colors={badge}>{days < 0 ? 'ยังไม่ถึงกำหนด' : `${days} วัน`}</StatusBadge>
     );
   };
 
@@ -355,9 +353,7 @@ export default function PendingReportPage() {
                         </div>
                       </td>
                       <td className="px-6 py-4 text-center">
-                        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-sm font-medium bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400">
-                          {item.orderCount} รายการ
-                        </span>
+                        <Badge tone="orange">{item.orderCount} รายการ</Badge>
                       </td>
                       <td className="px-6 py-4 text-right">
                         <span className="font-bold text-red-600 dark:text-red-400">฿{formatPrice(item.totalPending)}</span>
@@ -462,9 +458,9 @@ export default function PendingReportPage() {
                     <div className="font-medium text-gray-900 dark:text-white">{item.customerName}</div>
                     <div className="text-sm text-gray-500 dark:text-slate-400">{item.customerCode}</div>
                   </div>
-                  <span className="inline-flex items-center px-2.5 py-1 rounded-full text-sm font-medium bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400">
+                  <Badge tone="orange">
                     {item.orderCount} รายการ
-                  </span>
+                  </Badge>
                 </div>
                 {(item.contactPerson || item.phone !== '-') && (
                   <div className="flex flex-wrap gap-3 text-sm text-gray-600 dark:text-slate-400 mb-2">

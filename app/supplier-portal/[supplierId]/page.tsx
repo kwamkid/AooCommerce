@@ -10,6 +10,7 @@ import {
 import FormSelect from '@/components/ui/FormSelect';
 import Button from '@/components/ui/Button';
 import { FullPageLoading } from '@/components/ui/Loading';
+import StatusBadge from '@/components/ui/StatusBadge';
 
 interface VariationInfo {
   id: string;
@@ -604,9 +605,7 @@ export default function SupplierPortalPage() {
                 >
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-sm font-medium text-gray-900 dark:text-white">{po.po_number}</span>
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${badge.color}`}>
-                      {badge.label}
-                    </span>
+                    <StatusBadge status="po" colors={badge.color}>{badge.label}</StatusBadge>
                   </div>
                   <div className="flex items-center justify-between text-sm text-gray-600 dark:text-slate-400">
                     <span>{po.items.length} รายการ ({totalRec}/{totalQty})</span>
@@ -641,11 +640,9 @@ export default function SupplierPortalPage() {
                     <span className="text-sm font-medium text-gray-900 dark:text-white">
                       {MONTHS_FULL[snap.period_month - 1]} {snap.period_year + 543}
                     </span>
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                      snap.status === 'sent' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'
-                    }`}>
+                    <StatusBadge status={snap.status} colors={snap.status === 'sent' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}>
                       {snap.status === 'sent' ? 'ส่งแล้ว' : 'ยืนยัน'}
-                    </span>
+                    </StatusBadge>
                   </div>
                   <div className="text-sm text-gray-600 dark:text-slate-400">
                     ยอดรวม: <span className="font-medium text-gray-900 dark:text-white">฿{formatCurrency(amount)}</span>

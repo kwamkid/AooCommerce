@@ -55,6 +55,7 @@ import MessageBubble from './components/MessageBubble';
 import { FbIcon, IgIcon, LineIcon, ShopeeIcon, LazadaIcon, TiktokIcon, PlatformIcon, getAccountPicture, getAvatarUrl, getInitials, formatTime, formatLastMessage, compressImage, officialStickers } from './lib/chatHelpers';
 import { FullPageLoading } from '@/components/ui/Loading';
 import { LoadingCard } from '@/components/ui/StateCard';
+import StatusBadge from '@/components/ui/StatusBadge';
 
 // Dynamic imports for components that are not needed on initial load
 const EmojiStickerPicker = dynamic(() => import('./components/EmojiStickerPicker'), { ssr: false });
@@ -1052,12 +1053,12 @@ function UnifiedChatPageContent() {
             {order.order_date && (<p className="text-xs text-gray-400 mt-0.5">เปิดบิล {new Date(order.created_at || order.order_date + 'T00:00:00').toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' })} {order.created_at && new Date(order.created_at).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}</p>)}
           </div>
           <div className="flex items-center gap-1">
-            <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${getBadgeColor(orderStatus).bg} ${getBadgeColor(orderStatus).color}`}>
+            <StatusBadge status={orderStatus}>
               {orderStatus === 'completed' ? 'สำเร็จ' : orderStatus === 'new' ? 'ใหม่' : orderStatus === 'ready_to_ship' ? 'รอกดรับ' : orderStatus === 'processing' ? 'ที่ต้องจัดส่ง' : orderStatus === 'shipping' ? 'กำลังส่ง' : orderStatus === 'cancelled' ? 'ยกเลิก' : orderStatus}
-            </span>
-            <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${getPaymentBadgeColor(order.payment_status).bg} ${getPaymentBadgeColor(order.payment_status).color}`}>
+            </StatusBadge>
+            <StatusBadge status={order.payment_status} payment>
               {order.payment_status === 'paid' ? 'ชำระแล้ว' : order.payment_status === 'verifying' ? 'รอตรวจสอบ' : order.payment_status === 'cancelled' ? 'ยกเลิก' : 'รอชำระ'}
-            </span>
+            </StatusBadge>
           </div>
         </div>
         {order.branch_names && order.branch_names.length > 0 && (
@@ -1120,9 +1121,9 @@ function UnifiedChatPageContent() {
         <div className="pb-3 border-b border-gray-100 dark:border-slate-700">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{displayName}</h3>
           {customerType && (
-            <span className={`inline-block mt-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium ${customerType === 'retail' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-400' : customerType === 'wholesale' ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-400' : 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400'}`}>
+            <StatusBadge status={customerType} className="mt-1.5" colors={customerType === 'retail' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-400' : customerType === 'wholesale' ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-400' : 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400'}>
               {customerType === 'retail' ? 'ลูกค้าปลีก' : customerType === 'wholesale' ? 'ลูกค้าส่ง' : 'ตัวแทนจำหน่าย'}
-            </span>
+            </StatusBadge>
           )}
           {!c && <p className="text-sm text-gray-400 mt-1">ยังไม่ได้เชื่อมกับลูกค้า</p>}
         </div>

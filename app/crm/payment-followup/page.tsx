@@ -25,6 +25,8 @@ import {
 } from 'lucide-react';
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
 import { LoadingCard } from '@/components/ui/StateCard';
+import StatusBadge from '@/components/ui/StatusBadge';
+import Badge from '@/components/ui/Badge';
 import { getBadgeColor, getPaymentBadgeColor } from '@/lib/status-tab-colors';
 
 interface PendingOrder {
@@ -101,10 +103,7 @@ function AgingBadge({ days }: { days: number }) {
   }
 
   return (
-    <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${colorClass}`}>
-      {icon}
-      {days} วัน
-    </span>
+    <StatusBadge status="aging" colors={colorClass} icon={icon}>{days} วัน</StatusBadge>
   );
 }
 
@@ -119,9 +118,7 @@ function OrderStatusBadge({ status }: { status: string }) {
   const badge = getBadgeColor(status);
 
   return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${badge.bg} ${badge.color}`}>
-      {ORDER_STATUS_LABELS[status] || status}
-    </span>
+    <StatusBadge status={status} colors={badge}>{ORDER_STATUS_LABELS[status] || status}</StatusBadge>
   );
 }
 
@@ -135,9 +132,7 @@ function PaymentStatusBadge({ status }: { status: string }) {
   const badge = getPaymentBadgeColor(status);
 
   return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${badge.bg} ${badge.color}`}>
-      {PAYMENT_STATUS_LABELS[status] || status}
-    </span>
+    <StatusBadge status={status} payment colors={badge}>{PAYMENT_STATUS_LABELS[status] || status}</StatusBadge>
   );
 }
 
@@ -331,9 +326,7 @@ export default function PaymentFollowupPage() {
       cellClassName: 'text-center',
       render: (row) =>
         row.kind === 'customer' ? (
-          <span className="inline-flex items-center px-2.5 py-1 rounded-full text-sm font-medium bg-orange-100 text-orange-700">
-            {row.customer.orderCount} บิล
-          </span>
+          <Badge tone="orange">{row.customer.orderCount} บิล</Badge>
         ) : (
           <div className="flex items-center justify-center gap-1">
             <OrderStatusBadge status={row.order.orderStatus} />
@@ -623,9 +616,7 @@ export default function PaymentFollowupPage() {
                 {/* Row 2: Days overdue + Bill count + Date range */}
                 <div className="flex items-center flex-wrap gap-2 text-sm">
                   <AgingBadge days={row.customer.daysOverdue} />
-                  <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-700">
-                    {row.customer.orderCount} บิล
-                  </span>
+                  <Badge tone="orange" size="sm">{row.customer.orderCount} บิล</Badge>
                   <div className="flex items-center gap-1 text-gray-500 dark:text-slate-400">
                     <Calendar className="w-3.5 h-3.5" />
                     <span>{formatDate(row.customer.oldestOrderDate)}</span>

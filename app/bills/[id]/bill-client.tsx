@@ -24,6 +24,7 @@ import OrderProgress from '@/components/ui/OrderProgress';
 import { ORDER_STATUS_LABEL, PAYMENT_STATUS_LABEL } from '@/lib/order-status';
 import { getBadgeColorPair, getPaymentBadgeColorPair } from '@/lib/status-tab-colors';
 import { FullPageLoading } from '@/components/ui/Loading';
+import StatusBadge from '@/components/ui/StatusBadge';
 
 interface PromotionComponent {
   variation_id: string;
@@ -142,9 +143,7 @@ export interface BillData {
 // Status pill component
 function StatusPill({ label, color }: { label: string; color: string }) {
   return (
-    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${color} print:border print:border-gray-400 print:bg-transparent print:text-black`}>
-      {label}
-    </span>
+    <StatusBadge status="bill" colors={color} className="print:border print:border-gray-400 print:bg-transparent print:text-black">{label}</StatusBadge>
   );
 }
 

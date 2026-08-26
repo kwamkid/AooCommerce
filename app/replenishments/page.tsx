@@ -27,6 +27,7 @@ import Button from '@/components/ui/Button';
 import SaveButton from '@/components/ui/SaveButton';
 import Modal from '@/components/ui/Modal';
 import { LoadingCard } from '@/components/ui/StateCard';
+import StatusBadge from '@/components/ui/StatusBadge';
 import { generateReplenishmentPdf, type ReplenishmentPdfData } from '@/lib/replenishment-pdf';
 import { generatePackingPdf } from '@/lib/orders-packing-pdf';
 import { generateReplenishmentLabelPdf } from '@/lib/order-shipping-label-pdf';
@@ -783,9 +784,7 @@ function ReplenishmentsPageContent() {
                 const statusCfg = STATUS_CONFIG[r.status] || STATUS_CONFIG.pending;
                 return (
                   <>
-                    <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${statusCfg.bg} ${statusCfg.color}`}>
-                      {statusCfg.label}
-                    </span>
+                    <StatusBadge status={r.status} colors={statusCfg}>{statusCfg.label}</StatusBadge>
                     {r.shipping_carrier && (
                       <div className="flex items-center gap-1 mt-1">
                         <Truck className="w-3 h-3 text-gray-400 flex-shrink-0" />
@@ -890,9 +889,7 @@ function ReplenishmentsPageContent() {
                     <p className="data-timestamp text-gray-400 dark:text-slate-500">{formatDate(r.created_at)}</p>
                   </div>
                   <div className="flex items-center gap-1 flex-shrink-0">
-                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${statusCfg.bg} ${statusCfg.color}`}>
-                      {statusCfg.label}
-                    </span>
+                    <StatusBadge status={r.status} colors={statusCfg}>{statusCfg.label}</StatusBadge>
                     <ActionMenu items={getMenuItems(r)} />
                   </div>
                 </div>

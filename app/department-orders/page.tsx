@@ -27,6 +27,7 @@ import Tooltip from '@/components/ui/Tooltip';
 import DataTable from '@/components/ui/DataTable';
 import { showPdfPreview, mergePdfBlobs } from '@/lib/print-pdf';
 import { LoadingCard } from '@/components/ui/StateCard';
+import StatusBadge from '@/components/ui/StatusBadge';
 import { useDebouncedCallback } from '@/lib/useDebounce';
 
 interface DeptOrder {
@@ -1029,9 +1030,7 @@ function DepartmentOrdersContent() {
                 const statusCfg = STATUS_CONFIG[r.status] || STATUS_CONFIG.draft;
                 return (
                   <>
-                    <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${statusCfg.bg} ${statusCfg.color}`}>
-                      {statusCfg.label}
-                    </span>
+                    <StatusBadge status={r.status} colors={statusCfg}>{statusCfg.label}</StatusBadge>
                     {r.shipping_carrier && (
                       <div className="flex items-center gap-1 mt-1">
                         <Truck className="w-3 h-3 text-gray-400 flex-shrink-0" />
@@ -1143,9 +1142,7 @@ function DepartmentOrdersContent() {
                     <p className="data-timestamp text-gray-400 dark:text-slate-500">{formatDate(r.created_at)}</p>
                   </div>
                   <div className="flex items-center gap-1 flex-shrink-0">
-                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${statusCfg.bg} ${statusCfg.color}`}>
-                      {statusCfg.label}
-                    </span>
+                    <StatusBadge status={r.status} colors={statusCfg}>{statusCfg.label}</StatusBadge>
                     <ActionMenu items={getMenuItems(r)} />
                   </div>
                 </div>

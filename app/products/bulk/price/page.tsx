@@ -21,6 +21,7 @@ import Alert from '@/components/ui/Alert';
 import PageHeader from '@/components/ui/PageHeader';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { LoadingCard, EmptyCard, NoPermissionCard, DoneCard } from '@/components/ui/StateCard';
+import Badge from '@/components/ui/Badge';
 import BulkUploadCard from '@/components/bulk/BulkUploadCard';
 import BulkPreviewBar from '@/components/bulk/BulkPreviewBar';
 import IncludeCostToggle from '@/components/bulk/IncludeCostToggle';
@@ -494,14 +495,10 @@ export default function BulkPricePage() {
                         <tr key={startIdx + i} className="data-tr">
                           <td className="px-5 py-3 align-top">
                             {r.action === 'updated' && (
-                              <span className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 bg-blue-50 dark:bg-blue-900/30 px-2 py-0.5 rounded-full">
-                                <Pencil className="w-3 h-3" /> อัพเดท
-                              </span>
+                              <Badge tone="blue" size="sm" icon={<Pencil className="w-3 h-3" />}>อัพเดท</Badge>
                             )}
                             {r.action === 'error' && (
-                              <span className="inline-flex items-center gap-1 text-xs font-medium text-red-600 bg-red-50 dark:bg-red-900/30 px-2 py-0.5 rounded-full">
-                                <AlertCircle className="w-3 h-3" /> Error
-                              </span>
+                              <Badge tone="red" size="sm" icon={<AlertCircle className="w-3 h-3" />}>Error</Badge>
                             )}
                           </td>
                           <td className="px-5 py-3 align-top">
@@ -541,14 +538,10 @@ export default function BulkPricePage() {
                       <div className="flex items-center justify-between mb-2">
                         <div className="text-xs text-gray-500 font-mono">{r.code}</div>
                         {r.action === 'updated' && (
-                          <span className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 bg-blue-50 dark:bg-blue-900/30 px-2 py-0.5 rounded-full">
-                            <Pencil className="w-3 h-3" /> อัพเดท
-                          </span>
+                          <Badge tone="blue" size="sm" icon={<Pencil className="w-3 h-3" />}>อัพเดท</Badge>
                         )}
                         {r.action === 'error' && (
-                          <span className="inline-flex items-center gap-1 text-xs font-medium text-red-600 bg-red-50 dark:bg-red-900/30 px-2 py-0.5 rounded-full">
-                            <AlertCircle className="w-3 h-3" /> Error
-                          </span>
+                          <Badge tone="red" size="sm" icon={<AlertCircle className="w-3 h-3" />}>Error</Badge>
                         )}
                       </div>
                       <div className="text-gray-900 dark:text-white font-medium">{r.name}</div>

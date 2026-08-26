@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import FormSelect from '@/components/ui/FormSelect';
 import Button from '@/components/ui/Button';
+import StatusBadge from '@/components/ui/StatusBadge';
 
 interface Supplier {
   id: string;
@@ -314,9 +315,7 @@ export default function SupplierReportsPage() {
               render: (s) => {
                 const typeBadge = supplierTypeBadge(s.supplier_type);
                 return (
-                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${typeBadge.color}`}>
-                    {typeBadge.label}
-                  </span>
+                  <StatusBadge status="type" colors={typeBadge.color}>{typeBadge.label}</StatusBadge>
                 );
               },
             },
@@ -352,10 +351,7 @@ export default function SupplierReportsPage() {
               render: (s) => {
                 const badge = statusBadge(s.status);
                 return (
-                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${badge.color}`}>
-                    {badge.icon}
-                    {badge.label}
-                  </span>
+                  <StatusBadge status="status" colors={badge.color} icon={badge.icon}>{badge.label}</StatusBadge>
                 );
               },
             },
@@ -400,16 +396,11 @@ export default function SupplierReportsPage() {
                   <>
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-sm font-medium text-gray-900 dark:text-white">{s.supplier?.name || '-'}</span>
-                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${badge.color}`}>
-                        {badge.icon}
-                        {badge.label}
-                      </span>
+                      <StatusBadge status="status" colors={badge.color} icon={badge.icon}>{badge.label}</StatusBadge>
                     </div>
                     <div className="text-sm text-gray-600 dark:text-slate-400 space-y-1">
                       <div className="flex items-center justify-between">
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${typeBadge.color}`}>
-                          {typeBadge.label}
-                        </span>
+                        <StatusBadge status="type" colors={typeBadge.color}>{typeBadge.label}</StatusBadge>
                         <span className="font-medium text-gray-900 dark:text-white">฿{formatCurrency(amount)}</span>
                       </div>
                       <div className="text-xs">{MONTHS[s.period_month - 1]} {s.period_year + 543}</div>

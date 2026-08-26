@@ -12,6 +12,8 @@ import { PageSkeleton } from '@/components/ui/Skeleton';
 import { ExportButton } from '@/components/ui/ExportImportButton';
 import DateRangePicker, { DateValueType } from '@/components/ui/DateRangePicker';
 import { LoadingCard } from '@/components/ui/StateCard';
+import StatusBadge from '@/components/ui/StatusBadge';
+import Badge from '@/components/ui/Badge';
 import { downloadBlob } from '@/lib/utils/download';
 import {
   BarChart3,
@@ -453,13 +455,13 @@ export default function SalesReportPage() {
                         <td className="px-6 py-3 text-center text-sm text-gray-600 dark:text-slate-400">{order.customerName}</td>
                         <td className="px-6 py-3 text-right text-sm text-gray-900 dark:text-white">{formatPrice(order.totalAmount)}</td>
                         <td className="px-6 py-3 text-right" colSpan={2}>
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                          <StatusBadge status={order.paymentStatus} colors={
                             order.paymentStatus === 'paid'
                               ? 'bg-green-100 text-green-700'
                               : 'bg-orange-100 text-orange-700'
-                          }`}>
+                          }>
                             {order.paymentStatus === 'paid' ? 'ชำระแล้ว' : 'รอชำระ'}
-                          </span>
+                          </StatusBadge>
                         </td>
                         <td></td>
                       </tr>
@@ -499,13 +501,13 @@ export default function SalesReportPage() {
                         <td className="px-6 py-3 text-center text-sm text-gray-600 dark:text-slate-400">{formatDate(order.orderDate)}</td>
                         <td className="px-6 py-3 text-right text-sm text-gray-900 dark:text-white">{formatPrice(order.totalAmount)}</td>
                         <td className="px-6 py-3 text-right" colSpan={2}>
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                          <StatusBadge status={order.paymentStatus} colors={
                             order.paymentStatus === 'paid'
                               ? 'bg-green-100 text-green-700'
                               : 'bg-orange-100 text-orange-700'
-                          }`}>
+                          }>
                             {order.paymentStatus === 'paid' ? 'ชำระแล้ว' : 'รอชำระ'}
-                          </span>
+                          </StatusBadge>
                         </td>
                         <td></td>
                       </tr>
@@ -522,9 +524,7 @@ export default function SalesReportPage() {
                       </div>
                     </td>
                     <td className="px-6 py-4 text-center">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700 dark:text-blue-400">
-                        {item.variationLabel}
-                      </span>
+                      <Badge tone="blue" size="sm">{item.variationLabel}</Badge>
                     </td>
                     <td className="px-6 py-4 text-center font-semibold text-gray-900 dark:text-white">
                       {(item.totalQuantity || 0).toLocaleString()} ขวด
@@ -624,9 +624,7 @@ export default function SalesReportPage() {
                     <div className="font-medium text-gray-900 dark:text-white">{item.productName}</div>
                     <div className="text-sm text-gray-500 dark:text-slate-400">{item.productCode}</div>
                   </div>
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700 dark:text-blue-400">
-                    {item.variationLabel}
-                  </span>
+                  <Badge tone="blue" size="sm">{item.variationLabel}</Badge>
                 </div>
                 <div className="flex items-center justify-between text-sm mt-2">
                   <span className="text-gray-500 dark:text-slate-400">จำนวนขาย: <span className="font-semibold text-gray-900 dark:text-white">{(item.totalQuantity || 0).toLocaleString()} ขวด</span></span>

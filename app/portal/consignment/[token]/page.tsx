@@ -7,6 +7,7 @@ import { Loader2, Package, Sun, Moon, CheckCircle2, ClipboardList, BarChart3, Ch
 import { productDisplayName } from '@/lib/product-display';
 import NumberInput from '@/components/ui/NumberInput';
 import { FullPageLoading } from '@/components/ui/Loading';
+import StatusBadge from '@/components/ui/StatusBadge';
 
 interface StockItem {
   variation_id: string;
@@ -531,9 +532,7 @@ export default function ConsignmentPortalPage() {
                           <span className="font-semibold text-sm text-gray-900 dark:text-white">
                             {THAI_MONTHS[report.period_month]} {report.period_year + 543}
                           </span>
-                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${statusInfo.color}`}>
-                            {statusInfo.label}
-                          </span>
+                          <StatusBadge status="report" colors={statusInfo.color}>{statusInfo.label}</StatusBadge>
                         </div>
                         <div className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">{report.report_number}</div>
                         <div className="flex items-center gap-3 mt-1.5">

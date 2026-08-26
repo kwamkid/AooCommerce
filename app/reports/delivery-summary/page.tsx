@@ -31,6 +31,7 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { ORDER_STATUS_LABEL, getNextOrderStatus } from '@/lib/order-status';
 import { LoadingCard } from '@/components/ui/StateCard';
+import StatusBadge from '@/components/ui/StatusBadge';
 import { downloadBlob } from '@/lib/utils/download';
 import {
   Truck,
@@ -134,10 +135,10 @@ function OrderStatusBadge({ status, clickable = false }: { status: string; click
   };
   const config = statusConfig[status] || statusConfig.new;
   return (
-    <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${config.color} ${clickable ? `${config.hoverColor} cursor-pointer transition-colors` : ''}`}>
+    <StatusBadge status="delivery" colors={config.color} className={clickable ? `${config.hoverColor} cursor-pointer transition-colors` : ''}>
       {config.label}
       {clickable && <ChevronRight className="w-3 h-3" />}
-    </span>
+    </StatusBadge>
   );
 }
 
@@ -149,10 +150,10 @@ function PaymentStatusBadge({ status, clickable = false }: { status: string; cli
   };
   const config = statusConfig[status] || statusConfig.pending;
   return (
-    <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${config.color} ${clickable ? `${config.hoverColor} cursor-pointer transition-colors` : ''}`}>
+    <StatusBadge status="delivery" colors={config.color} className={clickable ? `${config.hoverColor} cursor-pointer transition-colors` : ''}>
       {config.label}
       {clickable && <ChevronRight className="w-3 h-3" />}
-    </span>
+    </StatusBadge>
   );
 }
 

@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { LoadingCard } from '@/components/ui/StateCard';
+import StatusBadge from '@/components/ui/StatusBadge';
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
   draft: { label: 'ที่ต้องจัดส่ง', ...getBadgeColor('draft') },
@@ -329,9 +330,7 @@ export default function DepartmentOrderDetailPage() {
                 {isViewOnly ? 'ใบส่งห้าง' : 'แก้ไขใบส่งห้าง'}
               </h1>
               <span className="id-text text-primary">{orderInfo.department_order_number}</span>
-              <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${statusCfg.bg} ${statusCfg.color}`}>
-                {statusCfg.label}
-              </span>
+              <StatusBadge status={status} colors={statusCfg}>{statusCfg.label}</StatusBadge>
             </div>
           </div>
 

@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import ActionMenu, { ActionItem } from '@/components/ui/ActionMenu';
+import StatusBadge from '@/components/ui/StatusBadge';
 import { getStatusInfo } from './types';
 import {
   ArrowLeft, ClipboardList, Send, Clock, CheckCircle2, XCircle, AlertTriangle,
@@ -51,9 +52,7 @@ export default function POHeaderActions({ status, updating, generatingPdf, onCop
         <button type="button" onClick={() => router.push('/inventory/purchase-orders')} className="p-2 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors">
           <ArrowLeft className="w-5 h-5 text-gray-600 dark:text-slate-400" />
         </button>
-        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-sm font-medium ${badge.color}`}>
-          {badge.iconName && statusIcons[badge.iconName]} {badge.label}
-        </span>
+        <StatusBadge status="po" size="md" colors={badge.color} icon={badge.iconName ? statusIcons[badge.iconName] : undefined}>{badge.label}</StatusBadge>
       </div>
       <ActionMenu items={menuItems} />
     </div>

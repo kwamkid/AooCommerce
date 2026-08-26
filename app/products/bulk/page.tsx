@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import Layout from '@/components/layout/Layout';
 import PageHeader from '@/components/ui/PageHeader';
+import Badge from '@/components/ui/Badge';
 import { useCompany } from '@/lib/company-context';
 import { can } from '@/lib/permissions';
 import { useFeatures } from '@/lib/features-context';
@@ -80,9 +81,7 @@ function ActionCard({ a }: { a: BulkAction }) {
       }`}
     >
       {a.badge && (
-        <span className="absolute top-3 right-3 px-2 py-0.5 rounded-full bg-gray-100 dark:bg-slate-700 text-xs font-medium text-gray-600 dark:text-slate-400">
-          {a.badge}
-        </span>
+        <Badge tone="gray" size="sm" className="absolute top-3 right-3">{a.badge}</Badge>
       )}
       <div className={`inline-flex items-center justify-center w-12 h-12 rounded-lg mb-3 transition-colors ${
         disabled

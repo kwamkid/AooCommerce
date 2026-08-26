@@ -27,6 +27,8 @@ import {
 import FormSelect from '@/components/ui/FormSelect';
 import { useMarketplaceGuard } from '@/lib/useMarketplaceGuard';
 import { LoadingCard } from '@/components/ui/StateCard';
+import StatusBadge from '@/components/ui/StatusBadge';
+import Badge from '@/components/ui/Badge';
 import { getBadgeColor } from '@/lib/status-tab-colors';
 
 interface IntegrationLog {
@@ -542,9 +544,7 @@ function LogRow({
         </td>
         <td className="px-6 py-4">
           {statusInfo ? (
-            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${statusInfo.color}`}>
-              {statusInfo.label}
-            </span>
+            <StatusBadge status="log" colors={statusInfo.color}>{statusInfo.label}</StatusBadge>
           ) : (
             <span className="text-gray-400">-</span>
           )}
@@ -628,9 +628,7 @@ function MobileLogCard({
               <span className="text-xs text-gray-500 dark:text-slate-400">{log.reference_label}</span>
             ) : null}
             {statusInfo && (
-              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${statusInfo.color}`}>
-                {statusInfo.label}
-              </span>
+              <StatusBadge status="log" colors={statusInfo.color}>{statusInfo.label}</StatusBadge>
             )}
           </div>
           {log.error_message && (
@@ -658,17 +656,11 @@ function MobileLogCard({
 function DirectionBadge({ direction }: { direction: 'outgoing' | 'incoming' }) {
   if (direction === 'outgoing') {
     return (
-      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
-        <ArrowUpRight className="w-3 h-3 flex-shrink-0" />
-        ส่งออก
-      </span>
+      <Badge tone="blue" size="sm" icon={<ArrowUpRight className="w-3 h-3 flex-shrink-0" />}>ส่งออก</Badge>
     );
   }
   return (
-    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
-      <ArrowDownLeft className="w-3 h-3 flex-shrink-0" />
-      รับเข้า
-    </span>
+    <Badge tone="emerald" size="sm" icon={<ArrowDownLeft className="w-3 h-3 flex-shrink-0" />}>รับเข้า</Badge>
   );
 }
 

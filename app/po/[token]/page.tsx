@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import Image from 'next/image';
 import { Loader2, Printer, Sun, Moon, Package2, Factory, FileText, CalendarDays, Clock, CheckCircle2, XCircle, Send } from 'lucide-react';
 import { FullPageLoading } from '@/components/ui/Loading';
+import StatusBadge from '@/components/ui/StatusBadge';
 import { getImageUrl } from '@/lib/utils/image';
 import { formatPrice } from '@/lib/utils/format';
 
@@ -192,10 +193,7 @@ export default function PublicPOPage() {
                 )}
                 <div className="flex sm:justify-end items-center gap-2">
                   <span className={dark ? 'text-white/50' : 'text-gray-500'}>สถานะ:</span>
-                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${badge.color}`}>
-                    {badge.icon}
-                    {badge.label}
-                  </span>
+                  <StatusBadge status="po" colors={badge.color} icon={badge.icon}>{badge.label}</StatusBadge>
                 </div>
               </div>
             </div>

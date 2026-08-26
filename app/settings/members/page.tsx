@@ -25,6 +25,7 @@ import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import SaveButton from '@/components/ui/SaveButton';
 import { LoadingCard } from '@/components/ui/StateCard';
+import StatusBadge from '@/components/ui/StatusBadge';
 
 interface Member {
   id: string;
@@ -525,15 +526,12 @@ export default function MembersPage() {
   const RoleBadges = ({ roles, canViewCost }: { roles: string[]; canViewCost?: boolean }) => (
     <div className="flex flex-wrap gap-1">
       {roles.map(role => (
-        <span key={role} className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-sm font-medium border ${ROLE_COLORS[role] || 'bg-gray-100 text-gray-800 border-gray-200'}`}>
+        <StatusBadge key={role} status={role} size="md" className="border" colors={ROLE_COLORS[role] || 'bg-gray-100 text-gray-800 border-gray-200'}>
           {ROLE_LABELS[role] || role}
-        </span>
+        </StatusBadge>
       ))}
       {canViewCost && !isExclusiveRole(roles) && (
-        <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-xs font-medium border bg-emerald-50 text-emerald-700 border-emerald-200" title="ดูต้นทุนได้">
-          <DollarSign className="w-3 h-3" />
-          ต้นทุน
-        </span>
+        <StatusBadge status="cost" className="border" colors="bg-emerald-50 text-emerald-700 border-emerald-200" title="ดูต้นทุนได้" icon={<DollarSign className="w-3 h-3" />}>ต้นทุน</StatusBadge>
       )}
     </div>
   );
@@ -878,9 +876,7 @@ export default function MembersPage() {
                           {/* Role badges on mobile */}
                           <div className="mt-1.5 sm:hidden flex flex-wrap gap-1">
                             <RoleBadges roles={invitation.roles} canViewCost={invitation.can_view_cost} />
-                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-sm font-medium bg-yellow-100 text-yellow-800 border border-yellow-200">
-                              รอตอบรับ
-                            </span>
+                            <StatusBadge status="pending" size="md" className="border" colors="bg-yellow-100 text-yellow-800 border-yellow-200">รอตอบรับ</StatusBadge>
                           </div>
                         </div>
                       </div>
@@ -888,9 +884,7 @@ export default function MembersPage() {
                         {/* Role badges + status on desktop */}
                         <div className="hidden sm:flex items-center space-x-2">
                           <RoleBadges roles={invitation.roles} canViewCost={invitation.can_view_cost} />
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-sm font-medium bg-yellow-100 text-yellow-800 border border-yellow-200">
-                            รอตอบรับ
-                          </span>
+                          <StatusBadge status="pending" size="md" className="border" colors="bg-yellow-100 text-yellow-800 border-yellow-200">รอตอบรับ</StatusBadge>
                         </div>
                         {isOwnerOrAdmin && (isStrictAdmin || (!invitation.roles?.includes('admin') && !invitation.roles?.includes('owner'))) && (
                           <div className="flex items-center space-x-1">

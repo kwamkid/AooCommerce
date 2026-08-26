@@ -22,6 +22,7 @@ import {
 import Button from '@/components/ui/Button';
 import PageHeader from '@/components/ui/PageHeader';
 import { LoadingCard, EmptyCard, NoPermissionCard, DoneCard } from '@/components/ui/StateCard';
+import Badge from '@/components/ui/Badge';
 import BulkUploadCard from '@/components/bulk/BulkUploadCard';
 import BulkPreviewBar from '@/components/bulk/BulkPreviewBar';
 import BulkErrorModal, { type BulkErrorReport } from '@/components/bulk/BulkErrorModal';
@@ -644,9 +645,7 @@ export default function BulkCreateProductsPage() {
                         <div className="flex items-center justify-between mb-1">
                           <span className="font-mono text-xs text-gray-500">{r.code}</span>
                           {isError && (
-                            <span className="inline-flex items-center gap-1 text-xs font-medium text-red-600 bg-red-50 dark:bg-red-900/30 px-2 py-0.5 rounded-full">
-                              <AlertCircle className="w-3 h-3" /> Error
-                            </span>
+                            <Badge tone="red" size="sm" icon={<AlertCircle className="w-3 h-3" />}>Error</Badge>
                           )}
                         </div>
                         <div className="text-gray-900 dark:text-white font-medium mb-2">{r.name}</div>

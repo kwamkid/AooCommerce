@@ -20,6 +20,7 @@ import StatusTabs from '@/components/ui/StatusTabs';
 import PaymentModal from '@/app/orders/components/PaymentModal';
 import ShipModal, { type ShipResult } from '@/components/ui/ShipModal';
 import { printOrder, type PrintType } from '@/components/ui/OrderPrintButtons';
+import StatusBadge from '@/components/ui/StatusBadge';
 import { preOpenPrintWindow } from '@/lib/print-pdf';
 import { DEALER_ORDER_STATUS_LABEL } from '@/lib/order-status';
 
@@ -296,12 +297,9 @@ export default function DeptWholesaleOrdersPage() {
             ...(showStatusCol ? [{
               key: 'status', label: 'สถานะ',
               render: (order: WholesaleOrder) => {
-                const bc = getBadgeColor(order.order_status);
                 const statusLabel = ORDER_STATUS_LABELS[order.order_status] || order.order_status;
                 return (
-                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${bc.bg} ${bc.color}`}>
-                    {statusLabel}
-                  </span>
+                  <StatusBadge status={order.order_status}>{statusLabel}</StatusBadge>
                 );
               },
             }] as DataTableColumn<WholesaleOrder>[] : []),
@@ -366,9 +364,7 @@ export default function DeptWholesaleOrdersPage() {
                     <p className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">{formatDateTime(order.created_at)}</p>
                   </div>
                   <div className="flex items-center gap-1 flex-shrink-0" onClick={e => e.stopPropagation()}>
-                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${bc.bg} ${bc.color}`}>
-                      {statusLabel}
-                    </span>
+                    <StatusBadge status={order.order_status}>{statusLabel}</StatusBadge>
                     {canCancel && (
                       <ActionMenu items={[
                         { key: 'cancel', label: 'ยกเลิกออเดอร์', icon: <Trash2 className="w-4 h-4" />, danger: true, onClick: (e) => { e.stopPropagation(); handleAction(order, 'cancel'); } },

@@ -19,6 +19,7 @@ import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import StatusTabs from '@/components/ui/StatusTabs';
 import ProductImageThumb from '@/components/ui/ProductImageThumb';
 import { LoadingCard } from '@/components/ui/StateCard';
+import StatusBadge from '@/components/ui/StatusBadge';
 import {
   Loader2, ArrowRightLeft, Plus, Warehouse, Eye, Printer, User,
   CheckCircle2, Clock, XCircle, AlertTriangle, Truck, Search, Ban,
@@ -325,10 +326,7 @@ export default function TransferListPage() {
                 const st = STATUS_MAP[t.status] || STATUS_MAP.pending;
                 const StIcon = st.icon;
                 return (
-                  <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${st.color}`}>
-                    <StIcon className="w-3 h-3" />
-                    {st.label}
-                  </span>
+                  <StatusBadge status={t.status} colors={st.color} icon={<StIcon className="w-3 h-3" />}>{st.label}</StatusBadge>
                 );
               },
             },
@@ -405,10 +403,7 @@ export default function TransferListPage() {
                     <p className="data-timestamp text-gray-400 dark:text-slate-500 mt-0.5">{formatDate(t.created_at)}</p>
                   </div>
                   <div className="flex items-center gap-1">
-                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${st.color}`}>
-                      <StIcon className="w-3 h-3" />
-                      {st.label}
-                    </span>
+                    <StatusBadge status={t.status} colors={st.color} icon={<StIcon className="w-3 h-3" />}>{st.label}</StatusBadge>
                     <ActionMenu items={[
                       {
                         key: 'view',

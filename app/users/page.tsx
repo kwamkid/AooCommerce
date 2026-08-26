@@ -31,6 +31,7 @@ import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
 import Checkbox from '@/components/ui/Checkbox';
 import FormSelect from '@/components/ui/FormSelect';
 import UserAvatar from '@/components/ui/UserAvatar';
+import UiStatusBadge from '@/components/ui/StatusBadge';
 
 // User interface
 interface User {
@@ -69,9 +70,7 @@ function RoleBadges({ roles }: { roles: string[] }) {
       {roles.map(role => {
         const config = roleConfigs[role] || { color: 'bg-gray-100 text-gray-800', label: role };
         return (
-          <span key={role} className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${config.color}`}>
-            {config.label}
-          </span>
+          <UiStatusBadge key={role} status={role} colors={config.color}>{config.label}</UiStatusBadge>
         );
       })}
     </div>

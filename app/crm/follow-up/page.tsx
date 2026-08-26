@@ -27,6 +27,8 @@ import {
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
 import FormSelect from '@/components/ui/FormSelect';
 import { LoadingCard } from '@/components/ui/StateCard';
+import StatusBadge from '@/components/ui/StatusBadge';
+import Badge from '@/components/ui/Badge';
 import { getBadgeColor } from '@/lib/status-tab-colors';
 
 // Order status labels for the history modal (colors come from getBadgeColor)
@@ -91,9 +93,7 @@ function CustomerTypeBadge({ type }: { type: string }) {
   };
 
   return (
-    <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${colors[type] || 'bg-gray-100 dark:bg-slate-700 text-gray-800 dark:text-slate-300'}`}>
-      {labels[type] || type}
-    </span>
+    <StatusBadge status={type} colors={colors[type] || 'bg-gray-100 dark:bg-slate-700 text-gray-800 dark:text-slate-300'}>{labels[type] || type}</StatusBadge>
   );
 }
 
@@ -101,9 +101,9 @@ function CustomerTypeBadge({ type }: { type: string }) {
 function DaysBadge({ days, avgFrequency }: { days: number | null; avgFrequency: number | null }) {
   if (days === null) {
     return (
-      <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-400">
+      <Badge tone="gray" size="sm">
         ยังไม่เคยสั่ง
-      </span>
+      </Badge>
     );
   }
 
@@ -131,9 +131,9 @@ function DaysBadge({ days, avgFrequency }: { days: number | null; avgFrequency: 
   }
 
   return (
-    <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${colorClass}`}>
+    <StatusBadge status="days" colors={colorClass}>
       {days} วัน {isOverdue && avgFrequency && <span className="opacity-75">(เกิน)</span>}
-    </span>
+    </StatusBadge>
   );
 }
 

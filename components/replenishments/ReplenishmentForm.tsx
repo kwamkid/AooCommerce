@@ -23,6 +23,7 @@ import { generateReplenishmentPdf, type ReplenishmentPdfData } from '@/lib/reple
 import { showPdfPreview } from '@/lib/print-pdf';
 import StickyActionBar from '@/components/ui/StickyActionBar';
 import { LoadingCard } from '@/components/ui/StateCard';
+import UiStatusBadge from '@/components/ui/StatusBadge';
 
 interface Customer {
   id: string;
@@ -1074,13 +1075,13 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
                 {/* Difference badge */}
                 <div className={`mt-2 flex items-center justify-end gap-1.5 text-sm font-medium ${confirmedTotalWithVAT < totalWithVAT ? 'text-red-500' : 'text-blue-500'}`}>
                   <span>{confirmedTotalWithVAT < totalWithVAT ? 'ลดลง' : 'เพิ่มขึ้น'}</span>
-                  <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+                  <UiStatusBadge status="diff" className="font-bold" colors={
                     confirmedTotalWithVAT < totalWithVAT
                       ? 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400'
                       : 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
-                  }`}>
+                  }>
                     {confirmedTotalWithVAT < totalWithVAT ? '-' : '+'}฿{formatNumber(Math.abs(totalWithVAT - confirmedTotalWithVAT))}
-                  </span>
+                  </UiStatusBadge>
                 </div>
               </div>
             ) : (
@@ -1137,7 +1138,7 @@ function StatusBadge({ status }: { status: string }) {
     cancelled: { label: 'ยกเลิก', color: 'text-gray-500 dark:text-gray-400', bg: 'bg-gray-100 dark:bg-gray-700/40' },
   };
   const c = config[status] || config.pending;
-  return <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${c.bg} ${c.color}`}>{c.label}</span>;
+  return <UiStatusBadge status={status} colors={c}>{c.label}</UiStatusBadge>;
 }
 
 // QR Code component (lazy-loaded to avoid SSR issues)

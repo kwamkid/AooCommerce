@@ -12,6 +12,7 @@ import MultiSelectSearch from '@/components/ui/MultiSelectSearch';
 import Button from '@/components/ui/Button';
 import { ExportButton, ImportButton } from '@/components/ui/ExportImportButton';
 import { LoadingCard } from '@/components/ui/StateCard';
+import Badge from '@/components/ui/Badge';
 import { downloadBlob } from '@/lib/utils/download';
 import {
   FileSpreadsheet,
@@ -624,14 +625,10 @@ export default function BulkStockUpdatePage() {
                       <tr key={i} className="data-tr">
                         <td className="px-5 py-3">
                           {r.action === 'updated' && (
-                            <span className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 bg-blue-50 dark:bg-blue-900/30 px-2 py-0.5 rounded-full">
-                              <Pencil className="w-3 h-3" /> อัพเดท
-                            </span>
+                            <Badge tone="blue" size="sm" icon={<Pencil className="w-3 h-3" />}>อัพเดท</Badge>
                           )}
                           {r.action === 'error' && (
-                            <span className="inline-flex items-center gap-1 text-xs font-medium text-red-600 bg-red-50 dark:bg-red-900/30 px-2 py-0.5 rounded-full">
-                              <AlertCircle className="w-3 h-3" /> Error
-                            </span>
+                            <Badge tone="red" size="sm" icon={<AlertCircle className="w-3 h-3" />}>Error</Badge>
                           )}
                         </td>
                         <td className="px-5 py-3">

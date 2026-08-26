@@ -19,6 +19,7 @@ import Toggle from '@/components/ui/Toggle';
 import NumberInput from '@/components/ui/NumberInput';
 import { LoadingCard, NoPermissionCard } from '@/components/ui/StateCard';
 import StickyActionBar from '@/components/ui/StickyActionBar';
+import StatusBadge from '@/components/ui/StatusBadge';
 
 // Feature icons for showing inside preset chips
 const FEATURE_ICONS: Partial<Record<keyof FeatureFlags, React.ReactNode>> = {
@@ -327,10 +328,7 @@ export default function FeaturesPage() {
                           {feat.label}
                         </p>
                         {isLocked && (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 border border-amber-200 dark:border-amber-900/50">
-                            <Lock className="w-3 h-3" />
-                            ต้องอัปเกรด
-                          </span>
+                          <StatusBadge status="locked" className="border" colors="bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 border-amber-200 dark:border-amber-900/50" icon={<Lock className="w-3 h-3" />}>ต้องอัปเกรด</StatusBadge>
                         )}
                       </div>
                       <p className="text-sm text-gray-500 dark:text-slate-400">
@@ -449,12 +447,11 @@ export default function FeaturesPage() {
                           {presetFeatures.length > 0 && (
                             <div className="flex flex-wrap gap-1">
                               {presetFeatures.map(fk => (
-                                <span key={fk} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+                                <StatusBadge key={fk} status="feature" colors={
                                   isSelected ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300' : 'bg-gray-100 text-gray-600 dark:bg-slate-700 dark:text-slate-300'
-                                }`}>
-                                  {FEATURE_ICONS[fk]}
+                                } icon={FEATURE_ICONS[fk]}>
                                   {FEATURE_SHORT[fk]}
-                                </span>
+                                </StatusBadge>
                               ))}
                             </div>
                           )}
