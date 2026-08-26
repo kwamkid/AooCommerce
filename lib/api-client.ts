@@ -27,6 +27,8 @@ const CACHED_GET_PATHS: { match: (url: string) => boolean; ttlMs: number }[] = [
   { match: u => u === '/api/categories' || u.startsWith('/api/categories?'), ttlMs: 60_000 },
   { match: u => u === '/api/suppliers' || u.startsWith('/api/suppliers?'), ttlMs: 60_000 },
   { match: u => u === '/api/customers/tags' || u.startsWith('/api/customers/tags?'), ttlMs: 60_000 },
+  // Superadmin permission probe — สิทธิ์ superadmin แทบไม่เปลี่ยน เดินข้ามหน้าไม่ต้อง probe ใหม่
+  { match: u => u === '/api/superadmin/me', ttlMs: 60_000 },
   // Composite: categories + brands (+supplier names) + variation_types — invalidated via CACHE_DEPENDENCIES
   { match: u => u === '/api/products/form-options', ttlMs: 60_000 },
   // OrderForm init bundle — short TTL so a back-and-forth in the same flow

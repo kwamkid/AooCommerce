@@ -21,7 +21,9 @@ export function useSuperAdminGuard() {
 
     const checkAccess = async () => {
       try {
-        const res = await apiFetch('/api/superadmin/stats');
+        // probe ตัวเบา (JWT verify + 1 query) — เดิมใช้ /stats ทั้งชุด (5 query)
+        // เป็นเครื่องเช็คสิทธิ์ ทำทุกหน้า superadmin ติด skeleton รอโดยไม่จำเป็น
+        const res = await apiFetch('/api/superadmin/me');
         if (res.ok) {
           setIsSuperAdmin(true);
         } else {
