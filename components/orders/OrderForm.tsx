@@ -2357,17 +2357,15 @@ export default function OrderForm({
           <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-2">ของขวัญ</label>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <label className={`flex items-start gap-3 ${isReadOnly ? '' : 'cursor-pointer'}`}>
-              <Checkbox checked={giftHidePrice} onChange={setGiftHidePrice} disabled={isReadOnly} />
+            <Checkbox checked={giftHidePrice} onChange={setGiftHidePrice} disabled={isReadOnly} className="!items-start gap-3">
               <span className="min-w-0">
                 <span className="block text-base text-gray-700 dark:text-slate-300">ไม่แนบใบเสร็จและราคาไปกับของ</span>
                 <span className="block text-sm text-gray-500 dark:text-slate-400">ใบเสร็จส่งให้ผู้สั่งแทน</span>
               </span>
-            </label>
+            </Checkbox>
 
             {giftCardEnabled && (
-              <label className={`flex items-start gap-3 ${isReadOnly ? '' : 'cursor-pointer'}`}>
-                <Checkbox checked={giftCardOn} onChange={setGiftCardOn} disabled={isReadOnly} />
+              <Checkbox checked={giftCardOn} onChange={setGiftCardOn} disabled={isReadOnly} className="!items-start gap-3">
                 <span className="min-w-0">
                   <span className="block text-base text-gray-700 dark:text-slate-300">
                     แนบการ์ดอวยพร
@@ -2379,7 +2377,7 @@ export default function OrderForm({
                   </span>
                   <span className="block text-sm text-gray-500 dark:text-slate-400">เขียนข้อความให้ แล้วแนบไปกับของ</span>
                 </span>
-              </label>
+              </Checkbox>
             )}
           </div>
 

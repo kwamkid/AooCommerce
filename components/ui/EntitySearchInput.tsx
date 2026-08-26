@@ -165,6 +165,16 @@ export default function EntitySearchInput({
     };
   }, [mobileModal]);
 
+  // ผลลัพธ์ชุดใหม่ (หรือเพิ่งเปิด dropdown) → highlight แถวแรกให้เลย
+  // จะได้กด Enter เลือกได้ทันที ไม่ต้องกดลูกศรลงหนึ่งทีก่อน + กัน index ค้างเกินลิสต์
+  useEffect(() => {
+    if (!open) return;
+    setHighlightIdx(filtered.length > 0 ? 0 : -1);
+    // ตั้งใจ track แค่ตอน "ชุดผลลัพธ์เปลี่ยน" — ใช้ id แถวแรก+จำนวน ไม่ใช่ตัว array
+    // (array ถูกสร้างใหม่ทุก render ถ้าใส่ตรงๆ effect จะยิงรัวจน highlight ที่ผู้ใช้เลื่อนไว้เด้งกลับ)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, filtered.length, filtered[0]?.id]);
+
   // Scroll highlighted into view
   useEffect(() => {
     if (highlightIdx < 0 || !listRef.current) return;
@@ -266,7 +276,7 @@ export default function EntitySearchInput({
         onMouseEnter={() => setHighlightIdx(idx)}
         className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-base transition-colors ${
           idx === highlightIdx
-            ? 'bg-gray-50 dark:bg-slate-700'
+            ? 'bg-orange-50 dark:bg-slate-700'
             : ''
         } text-gray-700 dark:text-slate-300`}
       >
