@@ -250,6 +250,27 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    // Every VAT-registered company needs its head-office branch (code 00000) so
+    // the POS terminal branch picker is never empty — seed once, idempotent.
+    // (Legacy companies got theirs from the auto-seed migration; this covers
+    // companies created after it.)
+    if (vatRegistered === true) {
+      const { count } = await supabaseAdmin
+        .from('tax_branches')
+        .select('id', { count: 'exact', head: true })
+        .eq('company_id', id);
+      if (!count) {
+        await supabaseAdmin.from('tax_branches').insert({
+          company_id: id,
+          code: '00000',
+          name: 'สำนักงานใหญ่',
+          address: null, // null = falls back to the company address everywhere
+          is_default: true,
+          sort_order: 0,
+        });
+      }
+    }
+
     return NextResponse.json({ success: true, company: data });
   } catch (error) {
     console.error('Update company error:', error);

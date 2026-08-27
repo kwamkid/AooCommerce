@@ -235,8 +235,8 @@ export default function CompanySettingsPage() {
             address: [street, legacyTail].filter(Boolean).join(' ').trim(),
             taxId: company.tax_id || '',
             taxCompanyName: company.tax_company_name || '',
-            // ทุกกิจการที่จดทะเบียนมีสาขาใหญ่เสมอ — default ให้เลยถ้ายังไม่เคยกรอก
-            taxBranch: company.tax_branch || (businessType !== 'individual' ? 'สำนักงานใหญ่' : ''),
+            // สาขาเป็นเรื่องของทะเบียน VAT — default สำนักงานใหญ่เมื่อจด VAT แล้วยังไม่เคยกรอก
+            taxBranch: company.tax_branch || (company.vat_registered ? 'สำนักงานใหญ่' : ''),
             businessType,
             vatRegistered: company.vat_registered || false,
           };
@@ -317,7 +317,8 @@ export default function CompanySettingsPage() {
           address: formData.address || undefined,
           taxId: formData.taxId || undefined,
           taxCompanyName: formData.taxCompanyName || undefined,
-          taxBranch: formData.taxBranch || undefined,
+          // สาขาผูกกับทะเบียน VAT — ปิด VAT = เคลียร์ทิ้ง ไม่ให้ค้างพิมพ์บนเอกสาร
+          taxBranch: formData.vatRegistered ? formData.taxBranch || undefined : undefined,
           businessType: formData.businessType,
           vatRegistered: formData.vatRegistered,
           // Full address now lives in companies.address — clear the legacy
@@ -335,6 +336,9 @@ export default function CompanySettingsPage() {
       showToast('บันทึกสำเร็จ', 'success');
 
       await refreshCompanies();
+      // Server seeds the head-office VAT branch on first VAT-registered save —
+      // reload the list so it shows up without a page refresh.
+      if (formData.vatRegistered) loadBranches();
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'เกิดข้อผิดพลาดในการบันทึก', 'error');
     } finally {
@@ -465,8 +469,9 @@ export default function CompanySettingsPage() {
               </Card>
 
               {/* Tax Info — registration type drives which fields show below.
-                  Not gated behind the VAT toggle: non-VAT businesses still need
-                  a tax/citizen ID on receipts, invoices and withholding docs. */}
+                  Tax/citizen ID is NOT gated behind the VAT toggle (non-VAT
+                  businesses still need it on receipts/invoices/withholding);
+                  only the branch field is, since branches are a VAT concept. */}
               <Card padding="md">
                 <h3 className="heading-3 mb-4 flex items-center">
                   <Receipt className="w-5 h-5 mr-2 text-primary" />
@@ -486,11 +491,7 @@ export default function CompanySettingsPage() {
                           <button
                             key={key}
                             type="button"
-                            onClick={() => setFormData(prev => ({
-                              ...prev,
-                              businessType: key,
-                              taxBranch: key !== 'individual' && !prev.taxBranch ? 'สำนักงานใหญ่' : prev.taxBranch,
-                            }))}
+                            onClick={() => setFormData(prev => ({ ...prev, businessType: key }))}
                             disabled={isSaving}
                             className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all ${
                               isSelected
@@ -508,18 +509,21 @@ export default function CompanySettingsPage() {
                     </div>
                   </div>
                   <FormInput
+                    containerClassName={formData.vatRegistered ? undefined : 'sm:col-span-2'}
                     label={formData.businessType === 'individual' ? 'เลขบัตรประชาชน' : 'เลขประจำตัวผู้เสียภาษี'}
                     value={formData.taxId}
                     onChange={(e) => setFormData({ ...formData, taxId: e.target.value })}
                     placeholder="13 หลัก"
                     disabled={isSaving}
                   />
-                  {formData.businessType !== 'individual' && (
+                  {/* สาขา = แนวคิดของทะเบียน VAT (ภ.พ.20) — โชว์เฉพาะเมื่อจด VAT */}
+                  {formData.vatRegistered && (
                     <FormInput
                       label="สาขา"
                       value={formData.taxBranch}
                       onChange={(e) => setFormData({ ...formData, taxBranch: e.target.value })}
                       placeholder="สำนักงานใหญ่"
+                      hint="แสดงต่อท้ายชื่อบนหัวใบกำกับภาษี เช่น (สำนักงานใหญ่) — รหัสสาขา 5 หลักจัดการที่ สาขา VAT ด้านล่าง"
                       disabled={isSaving}
                     />
                   )}
@@ -543,7 +547,11 @@ export default function CompanySettingsPage() {
                         </div>
                         <button
                           type="button"
-                          onClick={() => setFormData(prev => ({ ...prev, vatRegistered: !prev.vatRegistered }))}
+                          onClick={() => setFormData(prev => ({
+                            ...prev,
+                            vatRegistered: !prev.vatRegistered,
+                            taxBranch: !prev.vatRegistered && !prev.taxBranch ? 'สำนักงานใหญ่' : prev.taxBranch,
+                          }))}
                           disabled={isSaving}
                           className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors ${
                             formData.vatRegistered ? 'bg-primary' : 'bg-gray-300 dark:bg-slate-600'
@@ -568,8 +576,9 @@ export default function CompanySettingsPage() {
                         สาขา VAT
                       </h3>
                       <p className="subtitle-text text-gray-500 dark:text-slate-400 mt-1">
-                        รายการสาขาที่จดทะเบียน VAT — แคชเชียร์แต่ละเครื่องเลือกได้ว่าออกใบในนามสาขาไหน
-                        และเลขใบกำกับจะรันแยกตามสาขา
+                        รายการสาขาตามใบทะเบียน VAT (ภ.พ.20) ใช้กับการขายหน้าร้าน — ไปผูกกับเครื่องแคชเชียร์ที่
+                        ตั้งค่า → เครื่อง POS ว่าเครื่องไหนออกใบกำกับในนามสาขาไหน เลขใบกำกับจะรันแยกต่อเนื่องตามสาขา
+                        มีสาขาเดียวใช้ &quot;สำนักงานใหญ่&quot; ที่ระบบสร้างให้ ไม่ต้องเพิ่มอะไร
                       </p>
                     </div>
                     <Button
