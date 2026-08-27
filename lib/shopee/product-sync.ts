@@ -491,3 +491,121 @@ export async function pushCategoryToShopee(
     return { success: false, error: e instanceof Error ? e.message : 'Unknown error' };
   }
 }
+
+// ============================================
+// Pull stock: Shopee → คลัง default ของเรา (ตั้งยอดตั้งต้น)
+// ============================================
+
+export interface PullStockResult {
+  success: boolean;
+  checked: number;        // จำนวน variation ที่ผูกกับร้านนี้และเจอยอดบน Shopee
+  filled: number;         // เติมยอดให้ (ช่องที่เดิมเป็น 0 / ยังไม่มีแถว)
+  skipped_nonzero: number; // ข้ามเพราะคลังเรามียอดจริงอยู่แล้ว — ไม่ทับเด็ดขาด
+  errors: string[];
+}
+
+/**
+ * ดึงยอดสต็อกจาก Shopee ลงคลัง default — สำหรับ "ตั้งยอดตั้งต้น" ของสินค้าที่
+ * ผูก link ไว้แล้ว (ตอน import ด้วย action "สร้างใหม่" ระบบเติมให้เฉพาะตัวที่
+ * import ตอนนั้น — ตัวที่ผูกทีหลัง/ผูกแบบ match ไม่เคยได้ยอด)
+ *
+ * กติกาเดียวกับ importStockFromShopee: เขียนเฉพาะช่องที่ยอดปัจจุบันเป็น 0
+ * หรือยังไม่มีแถว inventory — ยอดที่พนักงานตั้ง/นับจริงไว้แล้วห้ามทับ
+ * (Shopee เป็นแค่ตัวตั้งต้น ความจริงอยู่ที่คลังเรา)
+ *
+ * ต้นทุน quota: get_item_list ~หน้าละ 100 + รายละเอียดชุดละ 50 → ร้าน ~1,000
+ * สินค้า ≈ 30 คอล
+ */
+export async function pullStockFromShopee(account: ShopeeAccountRow): Promise<PullStockResult> {
+  const result: PullStockResult = { success: false, checked: 0, filled: 0, skipped_nonzero: 0, errors: [] };
+  const companyId = account.company_id;
+
+  try {
+    const creds = await ensureValidToken(account);
+
+    // คลัง default เท่านั้น — convention เดียวกับ pushStockToShopee
+    const { data: warehouse } = await supabaseAdmin
+      .from('warehouses')
+      .select('id')
+      .eq('company_id', companyId)
+      .eq('is_active', true)
+      .eq('is_default', true)
+      .limit(1)
+      .maybeSingle();
+    if (!warehouse) {
+      result.errors.push('ไม่พบคลัง default ของบริษัท — สร้างคลังก่อน');
+      return result;
+    }
+
+    // links ของร้านนี้: (item_id, model_id) → variation_id
+    const { data: links } = await supabaseAdmin
+      .from('marketplace_product_links')
+      .select('external_item_id, external_model_id, variation_id')
+      .eq('account_id', account.id)
+      .not('variation_id', 'is', null);
+    if (!links || links.length === 0) {
+      result.errors.push('ร้านนี้ยังไม่มีสินค้าที่ผูก link');
+      return result;
+    }
+    const linkMap = new Map<string, string>(); // `${item}:${model}` → variation_id
+    for (const l of links) linkMap.set(`${l.external_item_id}:${l.external_model_id}`, l.variation_id as string);
+
+    // ไล่ยอดจาก Shopee
+    const stockByVariation = new Map<string, number>();
+    let offset = 0;
+    let hasMore = true;
+    while (hasMore) {
+      const page = await getItemList(creds, { offset, pageSize: 100, itemStatus: 'NORMAL' });
+      const ids = page.items.map(i => i.item_id);
+      for (let i = 0; i < ids.length; i += 50) {
+        const details = await getItemFullDetails(creds, ids.slice(i, i + 50));
+        for (const [itemId, item] of details) {
+          const models = item.models.length > 0
+            ? item.models
+            : [{ model_id: 0, stock: 0 }];
+          for (const m of models) {
+            const variationId = linkMap.get(`${itemId}:${m.model_id}`);
+            if (variationId) stockByVariation.set(variationId, m.stock ?? 0);
+          }
+        }
+      }
+      hasMore = page.hasMore;
+      offset = page.nextOffset;
+    }
+    result.checked = stockByVariation.size;
+
+    // เขียนลง inventory — เฉพาะช่องว่าง/ศูนย์
+    const variationIds = [...stockByVariation.keys()];
+    const { data: existingInv } = await supabaseAdmin
+      .from('inventory')
+      .select('id, variation_id, quantity')
+      .eq('warehouse_id', warehouse.id)
+      .in('variation_id', variationIds);
+    const invByVariation = new Map((existingInv || []).map(r => [r.variation_id, r]));
+
+    for (const [variationId, shopeeStock] of stockByVariation) {
+      if (shopeeStock <= 0) continue;
+      const inv = invByVariation.get(variationId);
+      if (inv) {
+        if ((inv.quantity || 0) > 0) { result.skipped_nonzero++; continue; }
+        await supabaseAdmin.from('inventory')
+          .update({ quantity: shopeeStock, updated_at: new Date().toISOString() })
+          .eq('id', inv.id);
+      } else {
+        await supabaseAdmin.from('inventory').insert({
+          company_id: companyId,
+          warehouse_id: warehouse.id,
+          variation_id: variationId,
+          quantity: shopeeStock,
+          reserved_quantity: 0,
+        });
+      }
+      result.filled++;
+    }
+
+    result.success = true;
+  } catch (e) {
+    result.errors.push(e instanceof Error ? e.message : 'Unknown error');
+  }
+  return result;
+}

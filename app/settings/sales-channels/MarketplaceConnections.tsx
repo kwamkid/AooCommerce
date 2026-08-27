@@ -10,7 +10,7 @@ import { can } from '@/lib/permissions';
 import { useToast } from '@/lib/toast-context';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { apiFetch } from '@/lib/api-client';
-import { ShoppingBag, RefreshCw, Clock, Plus } from 'lucide-react';
+import { ShoppingBag, RefreshCw, Clock, Plus, PackageSearch } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import { ExportButton, ImportButton } from '@/components/ui/ExportImportButton';
 import Alert from '@/components/ui/Alert';
@@ -58,12 +58,14 @@ export default function MarketplaceConnections() {
       setActivePlatform('tiktok');
       const askChat = params.get('chat') === 'prompt';
       window.history.replaceState({}, '', cleanUrl);
-      if (askChat) promptTikTokChat();
+      if (askChat) promptChatConnect('tiktok');
     } else if (params.get('success') === 'lazada_connected') {
       showToast('เชื่อมต่อ Lazada สำเร็จ', 'success');
       refetch();
       setActivePlatform('lazada');
+      const askChat = params.get('chat') === 'prompt';
       window.history.replaceState({}, '', cleanUrl);
+      if (askChat) promptChatConnect('lazada');
     } else if (params.get('error')) {
       const err = params.get('error');
       const messages: Record<string, string> = {
@@ -80,20 +82,22 @@ export default function MarketplaceConnections() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showToast]);
 
-  // เชื่อมร้าน TikTok สำเร็จแล้ว → ถามต่อว่าจะเชื่อมแชทด้วยมั้ย (app แชทแยกจาก
-  // app ออเดอร์ — บางร้านไม่ใช้แชท / บางร้านเชื่อมไว้แล้ว จึงไม่ต่อขาอัตโนมัติ)
-  const promptTikTokChat = async () => {
+  // เชื่อมร้านสำเร็จแล้ว → ถามต่อว่าจะเชื่อมแชทด้วยมั้ย (app แชทแยกจาก app
+  // ออเดอร์ — บางร้านไม่ใช้แชท / บางร้านเชื่อมไว้แล้ว จึงไม่ต่อขาอัตโนมัติ)
+  // callback ส่ง chat=prompt มาเฉพาะเมื่อยังมีร้านที่ไม่มี token แชทเท่านั้น
+  const promptChatConnect = async (platform: 'tiktok' | 'lazada') => {
+    const label = platform === 'tiktok' ? 'TikTok Shop' : 'Lazada';
     const ok = await confirm({
-      title: 'เชื่อมต่อแชท TikTok Shop ต่อเลยหรือไม่?',
+      title: `เชื่อมต่อแชท ${label} ต่อเลยหรือไม่?`,
       description:
-        'ถ้าต้องการรับ-ส่งแชท TikTok ในหน้ารวมแชท ต้องกดอนุญาตเพิ่มอีกหนึ่งครั้ง — ข้ามไปก่อนได้ แล้วมาเชื่อมทีหลังที่ ตั้งค่า > ช่องทางแชท แท็บ TikTok',
+        `ถ้าต้องการรับ-ส่งแชท ${label} ในหน้ารวมแชท ต้องกดอนุญาตเพิ่มอีกหนึ่งครั้ง — ข้ามไปก่อนได้ แล้วมาเชื่อมทีหลังที่ ตั้งค่า > ช่องทางแชท แท็บ ${label}`,
       confirmLabel: 'เชื่อมต่อแชท',
       cancelLabel: 'ไว้ทีหลัง',
     });
     if (!ok) return;
     setConnecting(true);
     try {
-      const res = await apiFetch('/api/tiktok/oauth/auth-url?app=chat');
+      const res = await apiFetch(`/api/${platform}/oauth/auth-url?app=chat`);
       if (res.ok) {
         const { url } = await res.json();
         window.location.href = url;
@@ -236,6 +240,35 @@ export default function MarketplaceConnections() {
       setSyncingId(null);
       setSyncProgress(0);
       setSyncPhaseLabel('');
+    }
+  };
+
+  // ดึงยอดสต็อกจาก Shopee ลงคลัง default — ตั้งยอดตั้งต้น (เติมเฉพาะช่องที่ยอด 0)
+  const handlePullStock = async (accountId: string, shopName: string) => {
+    const ok = await confirm({
+      title: `ดึงสต็อกจาก Shopee — ${shopName}?`,
+      description: 'ระบบจะอ่านยอดคงเหลือทุกสินค้าที่ผูกกับร้านนี้จาก Shopee มาใส่คลังหลัก โดยเติมเฉพาะรายการที่คลังเรายังเป็น 0 — ยอดที่ตั้ง/นับไว้แล้วจะไม่ถูกทับ (ใช้ ~30 API calls ต่อร้าน)',
+      confirmLabel: 'ดึงสต็อก',
+    });
+    if (!ok) return;
+
+    setSyncingId(accountId);
+    try {
+      const res = await apiFetch('/api/shopee/products/pull-stock', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ marketplace_account_id: accountId }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        showToast(data.error || data.errors?.[0] || 'ดึงสต็อกไม่สำเร็จ', 'error');
+        return;
+      }
+      showToast(`ดึงสต็อกสำเร็จ — เติมให้ ${data.filled} รายการ (ข้าม ${data.skipped_nonzero} รายการที่มียอดอยู่แล้ว)`, 'success');
+    } catch {
+      showToast('ดึงสต็อกไม่สำเร็จ', 'error');
+    } finally {
+      setSyncingId(null);
     }
   };
 
@@ -571,6 +604,15 @@ export default function MarketplaceConnections() {
                   >
                     นำเข้าสินค้าจาก Shopee
                   </ImportButton>
+                  <Button
+                    variant="secondary"
+                    icon={<PackageSearch className="w-4 h-4" />}
+                    loading={isSyncing}
+                    disabled={account.connection_status === 'expired'}
+                    onClick={() => handlePullStock(account.id, account.shop_name || `Shop #${account.shop_id}`)}
+                  >
+                    ดึงสต็อกจาก Shopee
+                  </Button>
                   <ExportButton
                     disabled={account.connection_status === 'expired'}
                     onClick={() => {
