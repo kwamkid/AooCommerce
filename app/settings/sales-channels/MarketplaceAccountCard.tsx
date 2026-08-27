@@ -28,6 +28,7 @@ export function SyncRangeSelect({ value, onChange }: { value: number; onChange: 
         onChange={v => onChange(parseInt(v))}
         options={SYNC_RANGE_OPTIONS}
         searchThreshold={99}
+        portal
       />
     </div>
   );
