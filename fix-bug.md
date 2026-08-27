@@ -16,6 +16,14 @@
 
 ---
 
+## 2026-08-28 — กด back จากหน้า OAuth marketplace แล้วปุ่ม "เชื่อมต่อร้าน" ค้าง loading กดไม่ได้
+
+**ที่เกิด**: [app/settings/sales-channels/page.tsx](app/settings/sales-channels/page.tsx) (ปุ่มเชื่อมต่อ — เดิมอยู่ใน MarketplaceConnections) + [app/settings/chat-channels/page.tsx](app/settings/chat-channels/page.tsx) `handleConnectMarketplaceChat`
+**อาการ**: กดเชื่อม Shopee → เด้งไปหน้า login Shopee → กด back (เช่นกดผิด ตั้งใจจะเชื่อม Lazada) → ปุ่มเชื่อมต่อหมุนค้าง disabled ตลอด ต้อง refresh เอง — ปุ่มเดียวใช้ร่วมทุก platform เลยเชื่อมตัวอื่นต่อไม่ได้ด้วย
+**Root cause**: `handleConnect` ตั้ง `connecting=true` แล้ว `window.location.href = oauthUrl` (ถูกต้อง — ไม่ reset เพราะกำลังออกจากหน้า) แต่ตอนกด back browser **restore หน้าจาก bfcache พร้อม React state เดิมทั้งหมด** → `connecting` ยังเป็น true โดยไม่มี code เส้นไหน reset
+**วิธีแก้**: hook กลาง [lib/useBfcacheReset.ts](lib/useBfcacheReset.ts) — ฟัง event `pageshow` แล้วเรียก reset callback (mount ปกติ state เป็นค่าเริ่มต้นอยู่แล้ว reset ซ้ำไม่มีผล) — ใช้ทั้งหน้า sales-channels (`setMpConnecting(false)`) และ chat-channels (`setConnectingChatAuth(false)`)
+**ป้องกัน regression**: ปุ่มไหนตั้ง loading แล้วจบด้วย `window.location.href` ออกไปหน้าภายนอก (OAuth ทุก platform) ต้องมี `useBfcacheReset` คู่กันเสมอ — ห้ามคิดว่า "เดี๋ยวหน้า reload เอง" เพราะ bfcache คืน state เดิม
+
 ## 2026-08-27 — สลับบริษัทแล้วหน้าแสดงข้อมูลบริษัทเดิมค้าง (ไม่ reload)
 
 **ที่เกิด**: [components/layout/Sidebar.tsx](components/layout/Sidebar.tsx) `handleSwitchCompany`

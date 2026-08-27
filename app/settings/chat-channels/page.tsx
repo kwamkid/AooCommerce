@@ -8,6 +8,7 @@ import { can } from '@/lib/permissions';
 import { useFetchOnce } from '@/lib/use-fetch-once';
 import { useToast } from '@/lib/toast-context';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
+import { useBfcacheReset } from '@/lib/useBfcacheReset';
 import { useFeatures } from '@/lib/features-context';
 import { apiFetch } from '@/lib/api-client';
 import { Loader2, Eye, EyeOff, ExternalLink, Check, X, ChevronDown, ChevronUp, CheckCircle2, XCircle, Zap, Plus, Trash2, Edit2, Search, Facebook as FacebookSolidIcon } from 'lucide-react';
@@ -545,6 +546,8 @@ export default function ChatChannelsPage() {
   // callback เด้งกลับหน้านี้พร้อม ?{platform}_chat=... (token ผูกระดับบัญชี
   // ครอบคลุมทุกร้านของบัญชีนั้น)
   const [connectingChatAuth, setConnectingChatAuth] = useState(false);
+  // กด back จากหน้า OAuth → หน้าเดิมถูก restore จาก bfcache พร้อม loading ค้าง
+  useBfcacheReset(() => setConnectingChatAuth(false));
   const handleConnectMarketplaceChat = async (platform: 'tiktok' | 'lazada') => {
     setConnectingChatAuth(true);
     try {

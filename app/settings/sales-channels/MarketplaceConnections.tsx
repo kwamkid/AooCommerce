@@ -10,7 +10,7 @@ import { can } from '@/lib/permissions';
 import { useToast } from '@/lib/toast-context';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { apiFetch } from '@/lib/api-client';
-import { ShoppingBag, RefreshCw, Clock, Plus, PackageSearch } from 'lucide-react';
+import { ShoppingBag, RefreshCw, Clock, PackageSearch } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import { ExportButton, ImportButton } from '@/components/ui/ExportImportButton';
 import Alert from '@/components/ui/Alert';
@@ -23,19 +23,27 @@ import { formatThaiDateTime } from '@/lib/utils/format';
 import MarketplaceAccountCard, { SyncRangeSelect } from './MarketplaceAccountCard';
 import { useMarketplaceAccounts, type MarketplaceAccount } from './useMarketplaceAccounts';
 
-export default function MarketplaceConnections() {
+interface MarketplaceConnectionsProps {
+  // Badge-tab เลือกดูทีละแพลตฟอร์ม — state อยู่ที่ parent เพราะปุ่ม
+  // "เชื่อมต่อร้าน X" อยู่บน PageHeader ของหน้า (ตำแหน่งเดียวกับปุ่ม "+ เพิ่ม")
+  activePlatform: 'shopee' | 'tiktok' | 'lazada';
+  onPlatformChange: (platform: 'shopee' | 'tiktok' | 'lazada') => void;
+  // flow เชื่อมแชท (promptChatConnect) ตั้ง loading ให้ปุ่มบน PageHeader
+  setConnecting: (value: boolean) => void;
+}
+
+export default function MarketplaceConnections({
+  activePlatform, onPlatformChange, setConnecting,
+}: MarketplaceConnectionsProps) {
   const router = useRouter();
   const { userProfile } = useAuth();
   const { showToast } = useToast();
   const { confirmDialog, confirm } = useConfirmDialog();
-  // Badge-tab เลือกดูทีละแพลตฟอร์ม — แบบ flat ทั้งสามแพลตฟอร์มยาวเกินจอ
-  const [activePlatform, setActivePlatform] = useState<'shopee' | 'tiktok' | 'lazada'>('shopee');
   // fetch เดียวได้ทุก platform (แทน 3 calls เดิม) — refetch หลัง write ใดๆ
   const {
     shopee: shopeeAccounts, tiktok: tiktokAccounts, lazada: lazadaAccounts,
     loading, refetch, patchAccount,
   } = useMarketplaceAccounts(can(userProfile?.roles, 'settings.access'));
-  const [connecting, setConnecting] = useState(false);
   const [syncingId, setSyncingId] = useState<string | null>(null);
   const [disconnectingId, setDisconnectingId] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -55,14 +63,14 @@ export default function MarketplaceConnections() {
     } else if (params.get('tiktok') === 'connected') {
       showToast('เชื่อมต่อ TikTok Shop สำเร็จ', 'success');
       refetch();
-      setActivePlatform('tiktok');
+      onPlatformChange('tiktok');
       const askChat = params.get('chat') === 'prompt';
       window.history.replaceState({}, '', cleanUrl);
       if (askChat) promptChatConnect('tiktok');
     } else if (params.get('success') === 'lazada_connected') {
       showToast('เชื่อมต่อ Lazada สำเร็จ', 'success');
       refetch();
-      setActivePlatform('lazada');
+      onPlatformChange('lazada');
       const askChat = params.get('chat') === 'prompt';
       window.history.replaceState({}, '', cleanUrl);
       if (askChat) promptChatConnect('lazada');
@@ -108,24 +116,6 @@ export default function MarketplaceConnections() {
       showToast('เกิดข้อผิดพลาด', 'error');
     }
     setConnecting(false);
-  };
-
-  const handleConnect = async (platform: 'shopee' | 'tiktok' | 'lazada' = 'shopee') => {
-    setConnecting(true);
-    const apiUrl = platform === 'tiktok' ? '/api/tiktok/oauth/auth-url' : platform === 'lazada' ? '/api/lazada/oauth/auth-url' : '/api/shopee/oauth/auth-url';
-    try {
-      const res = await apiFetch(apiUrl);
-      if (res.ok) {
-        const { url } = await res.json();
-        window.location.href = url;
-      } else {
-        showToast('ไม่สามารถสร้างลิงก์เชื่อมต่อได้', 'error');
-        setConnecting(false);
-      }
-    } catch {
-      showToast('เกิดข้อผิดพลาด', 'error');
-      setConnecting(false);
-    }
   };
 
   // Helper: read SSE stream from fetch response
@@ -456,7 +446,7 @@ export default function MarketplaceConnections() {
   ) => (
     <button
       type="button"
-      onClick={() => setActivePlatform(id)}
+      onClick={() => onPlatformChange(id)}
       className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${
         activePlatform === id
           ? activeClass
@@ -473,24 +463,12 @@ export default function MarketplaceConnections() {
 
   return (
     <div>
-      {/* Platform badge tabs — เลือกดูทีละแพลตฟอร์ม + ปุ่มเชื่อมต่ออยู่บนขวา
-          (ตำแหน่งเดียวกับปุ่ม "เพิ่ม" ของแท็บช่องทางของฉัน) */}
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
-        <div className="flex flex-wrap items-center gap-2">
-          {platformChip('shopee', 'Shopee', shopeeAccounts.length, 'border-shopee text-shopee bg-shopee/10')}
-          {platformChip('tiktok', 'TikTok Shop', tiktokAccounts.length, 'border-gray-900 text-gray-900 bg-gray-900/5 dark:border-white dark:text-white dark:bg-white/10')}
-          {platformChip('lazada', 'Lazada', lazadaAccounts.length, 'border-[#0F146E] text-[#0F146E] bg-[#0F146E]/10 dark:border-blue-400 dark:text-blue-400 dark:bg-blue-400/10')}
-        </div>
-        <Button
-          variant="primary"
-          icon={<Plus className="w-5 h-5" />}
-          loading={connecting}
-          onClick={() => handleConnect(activePlatform)}
-        >
-          {activePlatform === 'shopee' ? 'เชื่อมต่อร้าน Shopee'
-            : activePlatform === 'tiktok' ? 'เชื่อมต่อ TikTok Shop'
-            : 'เชื่อมต่อร้าน Lazada'}
-        </Button>
+      {/* Platform badge tabs — เลือกดูทีละแพลตฟอร์ม
+          (ปุ่ม "เชื่อมต่อร้าน X" อยู่บน PageHeader ของ parent) */}
+      <div className="flex flex-wrap items-center gap-2 mb-5">
+        {platformChip('shopee', 'Shopee', shopeeAccounts.length, 'border-shopee text-shopee bg-shopee/10')}
+        {platformChip('tiktok', 'TikTok Shop', tiktokAccounts.length, 'border-gray-900 text-gray-900 bg-gray-900/5 dark:border-white dark:text-white dark:bg-white/10')}
+        {platformChip('lazada', 'Lazada', lazadaAccounts.length, 'border-[#0F146E] text-[#0F146E] bg-[#0F146E]/10 dark:border-blue-400 dark:text-blue-400 dark:bg-blue-400/10')}
       </div>
 
       {/* Quota paused banner — ทุก platform ที่ breaker เปิด */}

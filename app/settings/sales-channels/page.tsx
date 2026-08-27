@@ -24,6 +24,7 @@ import { useAuth } from '@/lib/auth-context';
 import { can } from '@/lib/permissions';
 import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
+import { useBfcacheReset } from '@/lib/useBfcacheReset';
 import Tabs from '@/components/ui/Tabs';
 import { useFeatures } from '@/lib/features-context';
 import { isMarketplacePlatform } from '@/lib/marketplace-platforms';
@@ -85,6 +86,12 @@ export default function SalesChannelsPage() {
   const [platformFilter, setPlatformFilter] = useState<'all' | 'line' | 'facebook' | 'instagram' | 'none'>('all');
   // Main tabs: ช่องทางของฉัน (manual + mirror list) / เชื่อมต่อ Marketplace (ย้ายมาจาก /settings/integrations)
   const [mainTab, setMainTab] = useState<'channels' | 'marketplace'>('channels');
+  // แท็บ Marketplace: ปุ่ม "เชื่อมต่อร้าน X" อยู่บน PageHeader (ตำแหน่งเดียวกับ
+  // ปุ่ม "+ เพิ่ม" ของแท็บช่องทางของฉัน) — platform ที่เลือกจึงต้องเป็น state ของหน้านี้
+  const [mpPlatform, setMpPlatform] = useState<'shopee' | 'tiktok' | 'lazada'>('shopee');
+  const [mpConnecting, setMpConnecting] = useState(false);
+  // กด back จากหน้า OAuth → หน้าถูก restore จาก bfcache พร้อม connecting=true ค้าง
+  useBfcacheReset(() => setMpConnecting(false));
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(20);
 
@@ -105,6 +112,28 @@ export default function SalesChannelsPage() {
   // (พฤติกรรมเดียวกับที่เมนู Marketplace เดิมถูกซ่อนจาก Sidebar ตอนปิด feature)
   const marketplaceTabVisible = features.marketplace_sync && can(userProfile?.roles, 'settings.access');
   const showMarketplace = mainTab === 'marketplace' && marketplaceTabVisible;
+
+  // เริ่ม OAuth เชื่อมร้าน marketplace — สำเร็จแล้ว browser จะ redirect ออกไปเลย
+  // จึงไม่ reset connecting ในเส้นทางสำเร็จ (bfcache reset ด้านบนจัดการตอนกด back)
+  const handleMarketplaceConnect = async (platform: 'shopee' | 'tiktok' | 'lazada') => {
+    setMpConnecting(true);
+    const apiUrl = platform === 'tiktok' ? '/api/tiktok/oauth/auth-url'
+      : platform === 'lazada' ? '/api/lazada/oauth/auth-url'
+      : '/api/shopee/oauth/auth-url';
+    try {
+      const res = await apiFetch(apiUrl);
+      if (res.ok) {
+        const { url } = await res.json();
+        window.location.href = url;
+      } else {
+        showToast('ไม่สามารถสร้างลิงก์เชื่อมต่อได้', 'error');
+        setMpConnecting(false);
+      }
+    } catch {
+      showToast('เกิดข้อผิดพลาด', 'error');
+      setMpConnecting(false);
+    }
+  };
 
   const loadChannels = async () => {
     try {
@@ -500,7 +529,19 @@ export default function SalesChannelsPage() {
           title="ช่องทางการขาย"
           subtitle="จัดการช่องทางที่ออเดอร์เข้ามา — ช่องทาง manual, เพจ LINE/FB และร้าน marketplace ที่เชื่อมต่อ"
           actions={
-            showMarketplace ? undefined : (
+            showMarketplace ? (
+              /* ปุ่มเชื่อมต่อของแท็บ Marketplace — ตำแหน่งเดียวกับปุ่ม "+ เพิ่ม" */
+              <Button
+                variant="primary"
+                icon={<Plus className="w-5 h-5" />}
+                loading={mpConnecting}
+                onClick={() => handleMarketplaceConnect(mpPlatform)}
+              >
+                {mpPlatform === 'shopee' ? 'เชื่อมต่อร้าน Shopee'
+                  : mpPlatform === 'tiktok' ? 'เชื่อมต่อ TikTok Shop'
+                  : 'เชื่อมต่อร้าน Lazada'}
+              </Button>
+            ) : (
               /* ปุ่มเพิ่มเป็น dropdown — เลือกแพลตฟอร์มได้เลย แล้วเปิด modal พร้อมค่า preselect */
               /* ทางแยก 2 ทางตั้งแต่กดปุ่ม — เดิมมีรายการ LINE/FB/IG ที่แค่ preselect
                  ป้ายในฟอร์ม คนเข้าใจว่าคือการเชื่อมเพจแล้วสร้างป้ายซ้ำกับ mirror */
@@ -547,7 +588,11 @@ export default function SalesChannelsPage() {
         )}
 
         {showMarketplace ? (
-          <MarketplaceConnections />
+          <MarketplaceConnections
+            activePlatform={mpPlatform}
+            onPlatformChange={setMpPlatform}
+            setConnecting={setMpConnecting}
+          />
         ) : (
           <>
         {/* Platform pill filter — สไตล์เดียวกับแท็บเชื่อมต่อ Marketplace */}
