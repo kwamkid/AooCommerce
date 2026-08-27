@@ -321,11 +321,14 @@ export async function getSellerInfo(creds: LazadaCredentials): Promise<{ name?: 
   const { data, error } = await lazadaApiRequest(creds, 'GET', '/seller/get');
   if (error || !data) return null;
   const d = data as Record<string, unknown>;
+  // Lazada คืน logo_url เป็น http:// — หน้า https จะบล็อกเป็น mixed content
+  // (OSS host เดิมรองรับ https อยู่แล้ว) จึง normalize ก่อนเก็บเสมอ
+  const logoUrl = (d.logo_url as string) || undefined;
   return {
     name: (d.name as string) || (d.short_code as string) || undefined,
     seller_id: d.seller_id ? Number(d.seller_id) : undefined,
     short_code: d.short_code as string | undefined,
-    logo_url: (d.logo_url as string) || undefined,
+    logo_url: logoUrl ? logoUrl.replace(/^http:\/\//, 'https://') : undefined,
   };
 }
 

@@ -502,18 +502,20 @@ export default function MarketplaceConnections({
                     className="relative flex-shrink-0 group"
                     title="กดเพื่ออัพเดทรูปร้าน"
                   >
-                    {(account.metadata?.shop_logo as string) ? (
+                    {/* icon รองพื้น + img ทับ + onError ซ่อนตัวเอง — URL ตายไม่โชว์รูปแตก */}
+                    <div className="w-10 h-10 rounded-lg bg-transparent flex items-center justify-center">
+                      <ShoppingBag className="w-5 h-5 text-shopee" />
+                    </div>
+                    {(account.metadata?.shop_logo as string) && (
                       <img
                         src={account.metadata.shop_logo as string}
                         alt={account.shop_name || 'Shop'}
-                        className="w-10 h-10 rounded-lg object-cover"
+                        className="absolute inset-0 w-10 h-10 rounded-lg object-cover"
+                        onError={e => { e.currentTarget.style.display = 'none'; }}
                       />
-                    ) : (
-                      <div className="w-10 h-10 rounded-lg bg-transparent flex items-center justify-center">
-                        <ShoppingBag className="w-5 h-5 text-shopee" />
-                      </div>
                     )}
-                    <div className="absolute inset-0 bg-black/40 rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                    {/* ระหว่าง refresh spinner ต้องค้างให้เห็น ไม่ใช่รอ hover */}
+                    <div className={`absolute inset-0 bg-black/40 rounded-lg flex items-center justify-center transition-opacity ${isRefreshingLogo ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
                       <RefreshCw className={`w-4 h-4 text-white ${isRefreshingLogo ? 'animate-spin' : ''}`} />
                     </div>
                   </button>
@@ -701,18 +703,20 @@ export default function MarketplaceConnections({
                     className="relative flex-shrink-0 group"
                     title="กดเพื่ออัพเดทรูปร้าน"
                   >
-                    {(account.metadata?.shop_logo as string) ? (
+                    {/* icon รองพื้น + img ทับ + onError ซ่อนตัวเอง — URL ตายไม่โชว์รูปแตก */}
+                    <div className="w-10 h-10 rounded-lg bg-[#0F146E] flex items-center justify-center">
+                      <ShoppingBag className="w-5 h-5 text-white" />
+                    </div>
+                    {(account.metadata?.shop_logo as string) && (
                       <img
                         src={account.metadata.shop_logo as string}
                         alt={account.shop_name || 'Lazada'}
-                        className="w-10 h-10 rounded-lg object-cover"
+                        className="absolute inset-0 w-10 h-10 rounded-lg object-cover"
+                        onError={e => { e.currentTarget.style.display = 'none'; }}
                       />
-                    ) : (
-                      <div className="w-10 h-10 rounded-lg bg-[#0F146E] flex items-center justify-center">
-                        <ShoppingBag className="w-5 h-5 text-white" />
-                      </div>
                     )}
-                    <div className="absolute inset-0 bg-black/40 rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                    {/* ระหว่าง refresh spinner ต้องค้างให้เห็น ไม่ใช่รอ hover */}
+                    <div className={`absolute inset-0 bg-black/40 rounded-lg flex items-center justify-center transition-opacity ${isRefreshingLogo ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
                       <RefreshCw className={`w-4 h-4 text-white ${isRefreshingLogo ? 'animate-spin' : ''}`} />
                     </div>
                   </button>

@@ -16,6 +16,14 @@
 
 ---
 
+## 2026-08-28 — รูปร้าน Lazada แตก (broken image) ทั้งที่ refresh สำเร็จ
+
+**ที่เกิด**: [lib/lazada/api.ts](lib/lazada/api.ts) `getSellerInfo` + card Lazada ใน [MarketplaceConnections.tsx](app/settings/sales-channels/MarketplaceConnections.tsx)
+**อาการ**: กด refresh โลโก้ร้าน Lazada แล้ว API สำเร็จ แต่ card แสดงรูปแตก (broken image glyph)
+**Root cause**: Lazada `/seller/get` คืน `logo_url` เป็น **`http://`** (OSS aliyuncs) — หน้าเราเป็น https เบราว์เซอร์บล็อกเป็น mixed content · host เดิมรองรับ https อยู่แล้ว (curl 200)
+**วิธีแก้**: (1) `getSellerInfo` normalize `http://` → `https://` ก่อนคืนค่าเสมอ (2) SQL update แถวเก่าใน DB (3) avatar ทั้ง Shopee/Lazada เปลี่ยนเป็น icon รองพื้น + img ทับ + `onError` ซ่อนตัวเอง — URL ตายเห็น icon ไม่เห็นรูปแตก · แถม: overlay spinner refresh แสดงค้างระหว่างโหลด (เดิม `opacity-0 group-hover` ต้อง hover ถึงเห็น)
+**ป้องกัน regression**: URL รูปจาก external API (marketplace/social) ต้อง normalize เป็น https ก่อนเก็บเสมอ — docs Lazada เองก็โชว์ตัวอย่างเป็น http · ทุก avatar ใช้ pattern icon รองพื้น + img + onError (ครั้งที่ 4 แล้วที่เจอ avatar ชั้นเดียวพัง)
+
 ## 2026-08-28 — กด back จากหน้า OAuth marketplace แล้วปุ่ม "เชื่อมต่อร้าน" ค้าง loading กดไม่ได้
 
 **ที่เกิด**: [app/settings/sales-channels/page.tsx](app/settings/sales-channels/page.tsx) (ปุ่มเชื่อมต่อ — เดิมอยู่ใน MarketplaceConnections) + [app/settings/chat-channels/page.tsx](app/settings/chat-channels/page.tsx) `handleConnectMarketplaceChat`
