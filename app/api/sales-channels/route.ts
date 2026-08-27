@@ -62,9 +62,14 @@ export async function GET(request: NextRequest) {
     for (const row of chatRows || []) {
       const creds = (row.credentials || {}) as Record<string, unknown>;
       const isLine = row.platform === 'line';
+      // FB: URL ที่เก็บไว้เป็น fbcdn มีวันหมดอายุ — สร้าง URL ถาวรจาก page_id แทน
+      // (graph.facebook.com/{id}/picture เป็น public redirect ไม่ใช้ token ไม่หมดอายุ)
+      const fbPicture = creds.page_id
+        ? `https://graph.facebook.com/${creds.page_id}/picture?width=96&height=96`
+        : (creds.page_picture_url as string) || null;
       profileMap.set(row.id as string, {
         has_ig: !!creds.ig_account_id,
-        picture_url: (isLine ? creds.bot_picture_url : creds.page_picture_url) as string || null,
+        picture_url: isLine ? ((creds.bot_picture_url as string) || null) : fbPicture,
         ig_picture_url: (creds.ig_profile_picture_url as string) || null,
         username: (isLine ? creds.basic_id : creds.page_username) as string || null,
         ig_username: (creds.ig_username as string) || null,

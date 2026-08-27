@@ -365,17 +365,28 @@ export default function SalesChannelsPage() {
           {/* avatar เพจ/OA — สไตล์เดียวกับหน้าช่องทาง Chat (IG ซ้อนมุมขวาล่าง) */}
           {c.channel_type === 'chat' && (
             <div className="relative flex-shrink-0">
-              {c.picture_url ? (
+              {/* ไอคอน platform รองพื้นเสมอ — รูปโหลดพัง (เช่นลิงก์ fbcdn เก่าหมดอายุ)
+                  ก็ซ่อนตัวเองแล้วเผยไอคอนแทน ไม่มีวงกลมว่างโล่ง */}
+              <div className="w-9 h-9 rounded-full bg-gray-100 dark:bg-slate-700 flex items-center justify-center">
+                {c.platform ? <PlatformIcon id={c.platform} size={18} /> : null}
+              </div>
+              {c.picture_url && (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={c.picture_url} alt={c.name} className="w-9 h-9 rounded-full object-cover" />
-              ) : (
-                <div className="w-9 h-9 rounded-full bg-gray-100 dark:bg-slate-700 flex items-center justify-center">
-                  {c.platform ? <PlatformIcon id={c.platform} size={18} /> : null}
-                </div>
+                <img
+                  src={c.picture_url}
+                  alt={c.name}
+                  className="absolute inset-0 w-9 h-9 rounded-full object-cover"
+                  onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                />
               )}
               {c.has_ig && c.ig_picture_url && (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={c.ig_picture_url} alt="Instagram" className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full border-2 border-white dark:border-slate-800 object-cover" />
+                <img
+                  src={c.ig_picture_url}
+                  alt="Instagram"
+                  className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full border-2 border-white dark:border-slate-800 object-cover"
+                  onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                />
               )}
             </div>
           )}
@@ -486,10 +497,16 @@ export default function SalesChannelsPage() {
                 triggerClassName="btn btn-md btn-primary"
                 items={[
                   {
-                    key: 'connect',
-                    label: 'เชื่อมเพจ / LINE OA (รับแชทเข้าระบบ)',
-                    icon: <LinkIcon className="w-4 h-4 text-emerald-500" />,
+                    key: 'connect-fb',
+                    label: 'เชื่อมเพจ Facebook / IG',
+                    icon: <PlatformIcon id="facebook" size={16} />,
                     onClick: () => router.push('/settings/chat-channels'),
+                  },
+                  {
+                    key: 'connect-line',
+                    label: 'เชื่อม LINE OA',
+                    icon: <PlatformIcon id="line" size={16} />,
+                    onClick: () => router.push('/settings/chat-channels#line'),
                   },
                   {
                     key: 'manual',
