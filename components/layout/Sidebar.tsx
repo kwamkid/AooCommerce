@@ -302,7 +302,7 @@ export default function Sidebar() {
     { href: '/settings/carriers', label: 'ขนส่ง', icon: <Truck className="w-[18px] h-[18px] flex-shrink-0" />, isActive: pathname === '/settings/carriers' },
     ...(features.delivery_zone || features.delivery_slot ? [{ href: '/settings/delivery', label: 'การจัดส่ง', icon: <MapPin className="w-[18px] h-[18px] flex-shrink-0" />, isActive: pathname === '/settings/delivery' }] : []),
     { href: '/settings/storefront', label: 'หน้าร้านออนไลน์', icon: <Store className="w-[18px] h-[18px] flex-shrink-0" />, isActive: pathname === '/settings/storefront' },
-    { href: '/settings/counters', label: 'สาขาฝากขาย (PC)', icon: <Store className="w-[18px] h-[18px] flex-shrink-0" />, isActive: pathname === '/settings/counters' },
+    // สาขาฝากขาย (PC) ย้ายไปจัดการในหน้าลูกค้าฝากขายแต่ละราย (การ์ดในหน้า /customers/[id]) แล้ว
     ...(features.pos ? [{ href: '/settings/pos-terminals', label: 'Cashier (POS)', icon: <Monitor className="w-[18px] h-[18px] flex-shrink-0" />, isActive: pathname === '/settings/pos-terminals' }] : []),
     // เมนู Marketplace เดิมย้ายไปรวมใน "ช่องทางการขาย" (แท็บ เชื่อมต่อ Marketplace) แล้ว
     { href: '/settings/features', label: 'Feature เสริม', icon: <Handshake className="w-[18px] h-[18px] flex-shrink-0" />, isActive: pathname === '/settings/features' },
