@@ -318,6 +318,11 @@ export default function Sidebar() {
     setCompanyDropdownOpen(false);
     if (companyId !== currentCompany?.id) {
       switchCompany(companyId);
+      // Reload ทั้งหน้า — หลายหน้า (เช่น /chat) fetch โดยไม่ผูก dep กับบริษัท
+      // สลับแล้วไม่ reload = เห็นข้อมูลค้างของบริษัทเดิมจนกด refresh เอง
+      // (เกิดจริง: สลับบริษัทบนหน้าแชทแล้วลิสต์ว่าง/ค้าง) · realtime channels
+      // กับ in-memory cache ก็ได้ reset สะอาดพร้อมกันด้วย
+      window.location.reload();
     }
   };
 

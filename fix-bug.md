@@ -16,6 +16,16 @@
 
 ---
 
+## 2026-08-27 — สลับบริษัทแล้วหน้าแสดงข้อมูลบริษัทเดิมค้าง (ไม่ reload)
+
+**ที่เกิด**: [components/layout/Sidebar.tsx](components/layout/Sidebar.tsx) `handleSwitchCompany`
+**อาการ**: พนักงานสลับบริษัทใน dropdown แล้วหน้า `/chat` ว่าง/ค้างของบริษัทเดิมจนกด refresh เอง — เข้าใจผิดว่า "แชทหาย"
+**Root cause**: `switchCompany` เปลี่ยนแค่ context + localStorage ไม่ reload — หน้าที่ effect ไม่ได้ผูก dep กับ `currentCompany` (เช่น /chat ผูกกับ userProfile/filters เท่านั้น) จะไม่ refetch, realtime channels เดิมก็ยังต่อบริษัทเก่า
+**วิธีแก้**: `window.location.reload()` หลัง switch — ทุกหน้า/ทุก channel/ทุก cache reset สะอาดพร้อมกัน (สลับบริษัทเป็น action นานๆ ครั้ง reload ได้)
+**ป้องกัน regression**: หน้าที่ fetch ด้วย apiFetch ต้องมองว่า companyId เปลี่ยนกลาง session ได้เสมอ — ถ้าจะเลิก reload ในอนาคต ทุก fetch effect ต้องผูก dep `currentCompany?.id` ครบก่อน
+
+---
+
 ## 2026-08-27 — รับคำเชิญบริษัทใหม่แล้วระบบเปิดบริษัทเก่าให้ทุกครั้ง (invite ไม่ switch company)
 
 **ที่เกิด**: [app/invite/[token]/page.tsx](app/invite/[token]/page.tsx)
