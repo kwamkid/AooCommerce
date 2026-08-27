@@ -21,6 +21,7 @@ import CustomerForm, {
   buildCustomerPayload,
 } from '@/components/customers/CustomerForm';
 import { type BrandGpRow } from '@/components/customers/BrandGpCommissions';
+import CustomerCounters from '@/components/customers/CustomerCounters';
 import { Tag } from '@/components/ui/TagBadge';
 import StickyActionBar from '@/components/ui/StickyActionBar';
 import PageHeader from '@/components/ui/PageHeader';
@@ -380,6 +381,9 @@ export default function CustomerEditPage() {
             </div>
           </Card>
         )}
+
+        {/* สาขาฝากขาย (PC) — โชว์เฉพาะลูกค้าฝากขาย (ห้าง/ตัวแทน) จัดการจากหน้าลูกค้าได้เลย */}
+        <CustomerCounters customerId={customerId} customerType={customer.customer_type} />
 
         {/* Customer Form */}
         <div id="customer-edit-form-wrapper">
