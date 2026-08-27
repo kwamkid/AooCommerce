@@ -373,7 +373,6 @@ export default function SalesChannelsPage() {
                 </span>
               )}
             </div>
-            <div className="text-sm text-gray-400 dark:text-slate-500">{c.code}</div>
           </div>
         </div>
       ),
