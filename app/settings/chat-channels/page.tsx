@@ -128,6 +128,20 @@ export default function ChatChannelsPage() {
   useEffect(() => {
     const hash = window.location.hash.replace('#', '');
     if (hash === 'line' || hash === 'shopee' || hash === 'lazada' || hash === 'tiktok') setActiveTabState(hash);
+
+    // ?connect=line|facebook — มาจากหน้าช่องทางการขาย: เปิด flow เพิ่มให้เลย
+    // ไม่ใช่แค่พามาถึงหน้าแล้วปล่อยให้หาปุ่มเอง
+    const connect = new URLSearchParams(window.location.search).get('connect');
+    if (connect === 'line') {
+      setActiveTabState('line');
+      setShowForm(true); // ฟอร์ม LINE เป็น inline form ของแท็บ
+    } else if (connect === 'facebook') {
+      setActiveTabState('facebook');
+      // FB ต้องกดเองหนึ่งครั้ง — popup OAuth เปิดอัตโนมัติจะโดน browser บล็อก
+      showToast('กดปุ่ม "เชื่อมเพจ FB / IG" เพื่อเลือกเพจที่จะเชื่อม');
+    }
+    if (connect) window.history.replaceState({}, '', '/settings/chat-channels' + window.location.hash);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // กลับมาจาก OAuth ขาแชท (?tiktok_chat= / ?lazada_chat= = connected|failed|skipped)
@@ -810,6 +824,19 @@ export default function ChatChannelsPage() {
         <PageHeader
           title="ช่องทาง Chat"
           subtitle={`เชื่อมต่อ LINE OA, Facebook / Instagram${showMarketplaceChat ? ', Shopee, Lazada และ TikTok' : ''} เพื่อรับข้อความจากลูกค้า`}
+          actions={
+            /* ปุ่มเชื่อมหลักของแท็บที่เปิดอยู่ — บรรทัดเดียวกับ title ให้เหมือนหน้าอื่น
+               (แท็บ marketplace ไม่มีปุ่มรวม — เป็นสวิตช์รายร้านในเนื้อหา) */
+            activeTab === 'facebook' ? (
+              <Button variant="primary" icon={<PlatformIcon id="facebook" size={16} />} loading={fbLoading} disabled={!fbSdkReady} onClick={handleFbLogin}>
+                เชื่อมเพจ FB / IG
+              </Button>
+            ) : activeTab === 'line' ? (
+              <Button variant="primary" icon={<PlatformIcon id="line" size={16} />} onClick={startAdd}>
+                เพิ่ม LINE OA
+              </Button>
+            ) : undefined
+          }
         />
         <Tabs
           activeKey={activeTab}

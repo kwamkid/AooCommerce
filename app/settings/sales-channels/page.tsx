@@ -3,6 +3,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import Layout from '@/components/layout/Layout';
 import Container from '@/components/ui/Container';
 import PageHeader from '@/components/ui/PageHeader';
@@ -72,6 +73,7 @@ const PLATFORM_OPTIONS = [
 
 export default function SalesChannelsPage() {
   const router = useRouter();
+  const { confirm, confirmDialog } = useConfirmDialog();
   const { userProfile, loading: authLoading } = useAuth();
   const { features } = useFeatures();
   const { showToast } = useToast();
@@ -177,6 +179,17 @@ export default function SalesChannelsPage() {
   const totalPages = Math.max(1, Math.ceil(filtered.length / rowsPerPage));
   const startIndex = (currentPage - 1) * rowsPerPage;
   const paginated = filtered.slice(startIndex, startIndex + rowsPerPage);
+
+  // เชื่อมเพจ/OA ทำที่หน้าช่องทาง Chat — ถามให้ชัดก่อนพาไป แล้วเปิด flow เพิ่ม
+  // ของ platform นั้นเลย (?connect=) ไม่ปล่อยให้ไปหาปุ่มเองกลางหน้า
+  const confirmConnectChat = async (platform: 'facebook' | 'line') => {
+    const ok = await confirm({
+      title: platform === 'line' ? 'เชื่อม LINE OA?' : 'เชื่อมเพจ Facebook / IG?',
+      description: 'การเชื่อมเพจ/OA ทำที่หน้า "ช่องทาง Chat" — เชื่อมเสร็จระบบจะสร้างช่องทางการขายให้อัตโนมัติ ไปต่อเลยไหม?',
+      confirmLabel: 'ไปเชื่อมเลย',
+    });
+    if (ok) router.push(`/settings/chat-channels?connect=${platform}${platform === 'line' ? '#line' : ''}`);
+  };
 
   const openCreate = (platform = '') => {
     setEditing(null);
@@ -500,13 +513,13 @@ export default function SalesChannelsPage() {
                     key: 'connect-fb',
                     label: 'เชื่อมเพจ Facebook / IG',
                     icon: <PlatformIcon id="facebook" size={16} />,
-                    onClick: () => router.push('/settings/chat-channels'),
+                    onClick: () => confirmConnectChat('facebook'),
                   },
                   {
                     key: 'connect-line',
                     label: 'เชื่อม LINE OA',
                     icon: <PlatformIcon id="line" size={16} />,
-                    onClick: () => router.push('/settings/chat-channels#line'),
+                    onClick: () => confirmConnectChat('line'),
                   },
                   {
                     key: 'manual',
@@ -714,6 +727,7 @@ export default function SalesChannelsPage() {
           icon={<Trash2 className="w-6 h-6 text-red-600" />}
         />
       </Container>
+      {confirmDialog}
     </Layout>
   );
 }
