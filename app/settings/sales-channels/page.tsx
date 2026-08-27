@@ -2,6 +2,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
 import Container from '@/components/ui/Container';
 import PageHeader from '@/components/ui/PageHeader';
@@ -43,6 +44,10 @@ interface SalesChannel {
   name: string;
   channel_type: 'manual' | 'chat';
   platform: string | null;
+  picture_url?: string | null;
+  ig_picture_url?: string | null;
+  username?: string | null;
+  ig_username?: string | null;
   chat_account_id: string | null;
   has_ig?: boolean;
   icon: string | null;
@@ -66,6 +71,7 @@ const PLATFORM_OPTIONS = [
 ];
 
 export default function SalesChannelsPage() {
+  const router = useRouter();
   const { userProfile, loading: authLoading } = useAuth();
   const { features } = useFeatures();
   const { showToast } = useToast();
@@ -355,7 +361,24 @@ export default function SalesChannelsPage() {
       alwaysVisible: true,
       headerClassName: 'min-w-[240px]',
       render: (c) => (
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
+          {/* avatar เพจ/OA — สไตล์เดียวกับหน้าช่องทาง Chat (IG ซ้อนมุมขวาล่าง) */}
+          {c.channel_type === 'chat' && (
+            <div className="relative flex-shrink-0">
+              {c.picture_url ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={c.picture_url} alt={c.name} className="w-9 h-9 rounded-full object-cover" />
+              ) : (
+                <div className="w-9 h-9 rounded-full bg-gray-100 dark:bg-slate-700 flex items-center justify-center">
+                  {c.platform ? <PlatformIcon id={c.platform} size={18} /> : null}
+                </div>
+              )}
+              {c.has_ig && c.ig_picture_url && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={c.ig_picture_url} alt="Instagram" className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full border-2 border-white dark:border-slate-800 object-cover" />
+              )}
+            </div>
+          )}
           <div>
             <div className="flex items-center gap-2">
               <span className="font-semibold text-[16px] text-gray-900 dark:text-white">{c.name}</span>
@@ -373,6 +396,11 @@ export default function SalesChannelsPage() {
                 </span>
               )}
             </div>
+            {(c.username || c.ig_username) && (
+              <div className="text-sm text-gray-400 dark:text-slate-500">
+                {[c.username, c.ig_username && `IG: ${c.ig_username}`].filter(Boolean).join(' · ')}
+              </div>
+            )}
           </div>
         </div>
       ),
@@ -450,19 +478,26 @@ export default function SalesChannelsPage() {
           actions={
             showMarketplace ? undefined : (
               /* ปุ่มเพิ่มเป็น dropdown — เลือกแพลตฟอร์มได้เลย แล้วเปิด modal พร้อมค่า preselect */
+              /* ทางแยก 2 ทางตั้งแต่กดปุ่ม — เดิมมีรายการ LINE/FB/IG ที่แค่ preselect
+                 ป้ายในฟอร์ม คนเข้าใจว่าคือการเชื่อมเพจแล้วสร้างป้ายซ้ำกับ mirror */
               <ActionMenu
                 placement="bottom"
                 trigger={<><Plus className="w-5 h-5" />เพิ่ม</>}
                 triggerClassName="btn btn-md btn-primary"
                 items={[
-                  { key: 'manual', label: 'ช่องทางทั่วไป (Manual)', icon: <Tag className="w-4 h-4 text-gray-400" />, onClick: () => openCreate('') },
-                  ...PLATFORM_OPTIONS.filter(p => p.id).map(p => ({
-                    key: p.id,
-                    label: p.label,
-                    icon: <PlatformIcon id={p.id} size={16} />,
-                    onClick: () => openCreate(p.id),
-                    dividerBefore: p.id === 'line',
-                  })),
+                  {
+                    key: 'connect',
+                    label: 'เชื่อมเพจ / LINE OA (รับแชทเข้าระบบ)',
+                    icon: <LinkIcon className="w-4 h-4 text-emerald-500" />,
+                    onClick: () => router.push('/settings/chat-channels'),
+                  },
+                  {
+                    key: 'manual',
+                    label: 'สร้างป้ายช่องทางเอง (ไม่เชื่อมระบบ)',
+                    icon: <Tag className="w-4 h-4 text-gray-400" />,
+                    onClick: () => openCreate(''),
+                    dividerBefore: true,
+                  },
                 ]}
               />
             )

@@ -50,22 +50,39 @@ export async function GET(request: NextRequest) {
     .filter(c => c.channel_type === 'chat' && c.chat_account_id)
     .map(c => c.chat_account_id as string);
 
-  const igMap = new Map<string, boolean>();
+  // ข้อมูลโปรไฟล์ของ chat account (รูปเพจ/OA + username) — โชว์ในลิสต์แบบเดียว
+  // กับหน้าช่องทาง Chat · เก็บอยู่ใน credentials ตั้งแต่ตอนเชื่อมอยู่แล้ว
+  type ChatProfile = { has_ig: boolean; picture_url: string | null; ig_picture_url: string | null; username: string | null; ig_username: string | null };
+  const profileMap = new Map<string, ChatProfile>();
   if (chatIds.length > 0) {
     const { data: chatRows } = await supabaseAdmin
       .from('chat_accounts')
-      .select('id, credentials')
+      .select('id, platform, credentials')
       .in('id', chatIds);
     for (const row of chatRows || []) {
-      const creds = row.credentials as Record<string, unknown> | null;
-      igMap.set(row.id as string, !!(creds && creds.ig_account_id));
+      const creds = (row.credentials || {}) as Record<string, unknown>;
+      const isLine = row.platform === 'line';
+      profileMap.set(row.id as string, {
+        has_ig: !!creds.ig_account_id,
+        picture_url: (isLine ? creds.bot_picture_url : creds.page_picture_url) as string || null,
+        ig_picture_url: (creds.ig_profile_picture_url as string) || null,
+        username: (isLine ? creds.basic_id : creds.page_username) as string || null,
+        ig_username: (creds.ig_username as string) || null,
+      });
     }
   }
 
-  const channels = (data || []).map(c => ({
-    ...c,
-    has_ig: c.chat_account_id ? igMap.get(c.chat_account_id) ?? false : false,
-  }));
+  const channels = (data || []).map(c => {
+    const profile = c.chat_account_id ? profileMap.get(c.chat_account_id) : undefined;
+    return {
+      ...c,
+      has_ig: profile?.has_ig ?? false,
+      picture_url: profile?.picture_url ?? null,
+      ig_picture_url: profile?.ig_picture_url ?? null,
+      username: profile?.username ?? null,
+      ig_username: profile?.ig_username ?? null,
+    };
+  });
 
   return NextResponse.json({ channels });
 }
