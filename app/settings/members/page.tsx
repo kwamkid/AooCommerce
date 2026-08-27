@@ -494,8 +494,10 @@ export default function MembersPage() {
 
   // Handle cancel invitation
   const handleCancelInvitation = async (invitationId: string) => {
+    if (deletingId) return;
     const ok = await confirm({ title: 'ต้องการยกเลิกคำเชิญนี้?' }); if (!ok) return;
 
+    setDeletingId(invitationId);
     try {
       const response = await apiFetch(`/api/companies/members?id=${invitationId}&type=invitation`, {
         method: 'DELETE',
@@ -511,6 +513,8 @@ export default function MembersPage() {
       }
     } catch {
       showToast('เกิดข้อผิดพลาดในการยกเลิกคำเชิญ', 'error');
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -828,10 +832,15 @@ export default function MembersPage() {
                               </button>
                               <button
                                 onClick={() => handleRemoveMember(member.id)}
-                                className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                                disabled={deletingId !== null}
+                                className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors disabled:pointer-events-none disabled:opacity-50"
                                 title="ลบสมาชิก"
                               >
-                                <Trash2 className="w-4 h-4" />
+                                {deletingId === member.id ? (
+                                  <Loader2 className="w-4 h-4 animate-spin text-red-500" />
+                                ) : (
+                                  <Trash2 className="w-4 h-4" />
+                                )}
                               </button>
                             </div>
                           )}
@@ -902,10 +911,15 @@ export default function MembersPage() {
                             </button>
                             <button
                               onClick={() => handleCancelInvitation(invitation.id)}
-                              className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                              disabled={deletingId !== null}
+                              className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors disabled:pointer-events-none disabled:opacity-50"
                               title="ยกเลิกคำเชิญ"
                             >
-                              <Trash2 className="w-4 h-4" />
+                              {deletingId === invitation.id ? (
+                                <Loader2 className="w-4 h-4 animate-spin text-red-500" />
+                              ) : (
+                                <Trash2 className="w-4 h-4" />
+                              )}
                             </button>
                           </div>
                         )}
