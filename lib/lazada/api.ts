@@ -317,7 +317,7 @@ export async function ensureValidToken(
 /**
  * Seller profile — used to name the account on connect.
  */
-export async function getSellerInfo(creds: LazadaCredentials): Promise<{ name?: string; seller_id?: number; short_code?: string } | null> {
+export async function getSellerInfo(creds: LazadaCredentials): Promise<{ name?: string; seller_id?: number; short_code?: string; logo_url?: string } | null> {
   const { data, error } = await lazadaApiRequest(creds, 'GET', '/seller/get');
   if (error || !data) return null;
   const d = data as Record<string, unknown>;
@@ -325,6 +325,7 @@ export async function getSellerInfo(creds: LazadaCredentials): Promise<{ name?: 
     name: (d.name as string) || (d.short_code as string) || undefined,
     seller_id: d.seller_id ? Number(d.seller_id) : undefined,
     short_code: d.short_code as string | undefined,
+    logo_url: (d.logo_url as string) || undefined,
   };
 }
 

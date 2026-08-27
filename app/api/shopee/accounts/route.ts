@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { checkAuthWithCompany, can, supabaseAdmin } from '@/lib/supabase-admin';
 import { ensureValidToken, getShopInfo, ShopeeAccountRow } from '@/lib/shopee/api';
+import {
+  ensureValidToken as ensureValidLazadaToken,
+  getSellerInfo as getLazadaSellerInfo,
+  type LazadaAccountRow,
+} from '@/lib/lazada/api';
 import { isChatAppConfigured as isLazadaChatAppConfigured } from '@/lib/lazada/api';
 
 export async function GET(request: NextRequest) {
@@ -151,6 +156,32 @@ export async function PATCH(request: NextRequest) {
 
     if (accError || !account) {
       return NextResponse.json({ error: 'Shop not found' }, { status: 404 });
+    }
+
+    // Lazada — ชื่อ + โลโก้มาจาก /seller/get (ปุ่ม refresh บน card ใช้ route เดียวกันทุก platform)
+    if (account.platform === 'lazada') {
+      const lazadaCreds = await ensureValidLazadaToken(account as LazadaAccountRow);
+      const seller = await getLazadaSellerInfo(lazadaCreds);
+      if (seller) {
+        const updateData: Record<string, unknown> = { updated_at: new Date().toISOString() };
+        if (seller.name) updateData.shop_name = seller.name;
+        if (seller.logo_url) {
+          updateData.metadata = { ...(account.metadata || {}), shop_logo: seller.logo_url };
+        }
+        await supabaseAdmin
+          .from('marketplace_accounts')
+          .update(updateData)
+          .eq('id', account.id);
+      }
+      return NextResponse.json({
+        success: true,
+        shop_name: seller?.name || account.shop_name,
+        shop_logo: seller?.logo_url || '',
+      });
+    }
+
+    if (account.platform === 'tiktok') {
+      return NextResponse.json({ error: 'Refresh not supported for this platform' }, { status: 400 });
     }
 
     const creds = await ensureValidToken(account as ShopeeAccountRow);

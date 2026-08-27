@@ -140,6 +140,7 @@ export async function GET(request: NextRequest) {
           account: tokens.account || null,
           short_code: userInfo?.short_code || seller?.short_code || null,
           user_id: userInfo?.user_id || null,
+          shop_logo: seller?.logo_url || null,
         },
         updated_at: new Date().toISOString(),
       }, { onConflict: 'company_id,platform,shop_id' })

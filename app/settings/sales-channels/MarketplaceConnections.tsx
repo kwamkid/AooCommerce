@@ -686,6 +686,7 @@ export default function MarketplaceConnections({
           </Alert>
           {lazadaAccounts.map(account => {
             const isSyncing = syncingId === account.id;
+            const isRefreshingLogo = refreshingLogoId === account.id;
             return (
               <MarketplaceAccountCard
                 key={account.id}
@@ -694,9 +695,27 @@ export default function MarketplaceConnections({
                 onDisconnect={() => handleDisconnect(account.id)}
                 disconnecting={disconnectingId === account.id}
                 avatar={
-                  <div className="w-10 h-10 rounded-lg bg-[#0F146E] flex items-center justify-center flex-shrink-0">
-                    <ShoppingBag className="w-5 h-5 text-white" />
-                  </div>
+                  <button
+                    onClick={() => handleRefreshLogo(account.id)}
+                    disabled={isRefreshingLogo}
+                    className="relative flex-shrink-0 group"
+                    title="กดเพื่ออัพเดทรูปร้าน"
+                  >
+                    {(account.metadata?.shop_logo as string) ? (
+                      <img
+                        src={account.metadata.shop_logo as string}
+                        alt={account.shop_name || 'Lazada'}
+                        className="w-10 h-10 rounded-lg object-cover"
+                      />
+                    ) : (
+                      <div className="w-10 h-10 rounded-lg bg-[#0F146E] flex items-center justify-center">
+                        <ShoppingBag className="w-5 h-5 text-white" />
+                      </div>
+                    )}
+                    <div className="absolute inset-0 bg-black/40 rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                      <RefreshCw className={`w-4 h-4 text-white ${isRefreshingLogo ? 'animate-spin' : ''}`} />
+                    </div>
+                  </button>
                 }
               >
                 <div className="flex flex-wrap items-center gap-2">
