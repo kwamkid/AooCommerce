@@ -16,6 +16,15 @@
 
 ---
 
+## 2026-08-27 — รับคำเชิญบริษัทใหม่แล้วระบบเปิดบริษัทเก่าให้ทุกครั้ง (invite ไม่ switch company)
+
+**ที่เกิด**: [app/invite/[token]/page.tsx](app/invite/[token]/page.tsx)
+**อาการ**: พนักงานใหม่ (บัญชีเก่าที่เป็นสมาชิกบริษัทอื่นอยู่แล้ว) กดรับคำเชิญเข้า "ทดสอบ จำกัด" แต่ทุกครั้งที่เข้าระบบมันโหลดข้อมูล Joolz — ดูเหมือน cross-tenant แต่ไม่ใช่
+**Root cause**: 3 เรื่องซ้อน — (1) บัญชี kwankwan@gmail.com มีอยู่แล้วตั้งแต่ ธ.ค. 2025 (provider=email) และเป็น manager ของ Joolz → เห็นข้อมูล Joolz ได้ถูกต้องตามสิทธิ์ (2) เครื่องนั้นมี session ค้างตั้งแต่ ก.พ. → กดลิงก์เชิญแล้วเข้าได้เลยไม่ต้อง login (จึงงงว่า "ไม่ได้กด Google") (3) **หน้า accept คำเชิญ redirect ไป dashboard โดยไม่ switch ไปบริษัทที่เพิ่งเข้าร่วม** → `aoo-current-company-id` ใน localStorage ยังเป็น Joolz → CompanyProvider restore เป็น Joolz ทุกครั้ง
+**วิธีแก้**: หลัง accept สำเร็จ set `localStorage['aoo-current-company-id'] = invitation.company.id` ก่อน redirect
+**ป้องกัน regression**: flow ไหนที่พาผู้ใช้ "เข้าร่วม/สร้าง" บริษัทใหม่ ต้องจบด้วยการ switch context ไปบริษัทนั้นเสมอ อย่าปล่อยให้ default/localStorage ตัดสิน · บัญชี provider=email ยุคเก่ายัง login ได้และ session อยู่ได้นานหลายเดือน — จะบังคับ Google-only จริงต้องปิด password path + กวาดบัญชีเก่า
+---
+
 ## 2026-08-27 — Webhook ออเดอร์ซ้อนกันทำ monitor แดงหลอกวันละหลายใบ (duplicate key race)
 
 **ที่เกิด**: [lib/shopee/sync.ts](lib/shopee/sync.ts) `upsertOrder` · [lib/tiktok/sync.ts](lib/tiktok/sync.ts) + [lib/lazada/sync.ts](lib/lazada/sync.ts) (พังแบบเดียวกันรออยู่)

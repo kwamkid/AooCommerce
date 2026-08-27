@@ -103,6 +103,12 @@ export default function InvitePage({ params }: { params: Promise<{ token: string
 
       if (response.ok) {
         setAccepted(true);
+        // สลับไปบริษัทที่เพิ่งตอบรับทันที — คนที่มี membership บริษัทอื่นอยู่แล้ว
+        // (เช่น บัญชีเก่า) จะได้ไม่เด้งเข้าบริษัทเดิมที่ localStorage จำไว้
+        // (เกิดจริง: รับเชิญเข้าบริษัทใหม่แต่ระบบเปิดของบริษัทเก่าให้ทุกครั้ง)
+        if (invitation?.company?.id) {
+          try { localStorage.setItem('aoo-current-company-id', invitation.company.id); } catch {}
+        }
         // Redirect to dashboard after a short delay and reload to update company context
         setTimeout(() => {
           router.push('/dashboard');
