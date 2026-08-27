@@ -11,7 +11,6 @@ import { can } from '@/lib/permissions';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
 import { Building2, FileText, Phone, Mail, MapPin, Receipt, Upload, X, AlertCircle, User, Briefcase, Landmark, Plus, Edit2, Trash2 } from 'lucide-react';
-import ThaiAddressInput from '@/components/ui/ThaiAddressInput';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import SaveButton from '@/components/ui/SaveButton';
@@ -65,7 +64,6 @@ export default function CompanySettingsPage() {
   // Company form state
   const [formData, setFormData] = useState({
     name: '', description: '', phone: '', email: '', address: '',
-    district: '', amphoe: '', province: '', postalCode: '',
     taxId: '', taxCompanyName: '', taxBranch: '',
     businessType: 'individual' as string,
     vatRegistered: false,
@@ -220,20 +218,26 @@ export default function CompanySettingsPage() {
           (m: { company_id: string; company: CompanyData }) => m.company_id === currentCompany!.id
         )?.company as CompanyData | undefined;
         if (company) {
-          // Parse address — if stored as JSON in settings, use structured; otherwise use as street
+          // Address is a single free-text field (billing style). Legacy data kept
+          // district/amphoe/province/postal split in settings — merge them into the
+          // text once here; documents only ever print companies.address.
           const companyAny = company as CompanyData & { settings?: Record<string, unknown> };
           const settings = companyAny.settings || {};
+          const street = company.address || '';
+          const legacyTail = [settings.district, settings.amphoe, settings.province, settings.postal_code]
+            .map(v => (typeof v === 'string' ? v.trim() : ''))
+            .filter(p => p && !street.includes(p))
+            .join(' ');
+          const businessType = company.business_type || 'individual';
           const loaded = {
             name: company.name || '', description: company.description || '',
             phone: company.phone || '', email: company.email || '',
-            address: company.address || '',
-            district: (settings.district as string) || '',
-            amphoe: (settings.amphoe as string) || '',
-            province: (settings.province as string) || '',
-            postalCode: (settings.postal_code as string) || '',
+            address: [street, legacyTail].filter(Boolean).join(' ').trim(),
             taxId: company.tax_id || '',
-            taxCompanyName: company.tax_company_name || '', taxBranch: company.tax_branch || '',
-            businessType: company.business_type || 'individual',
+            taxCompanyName: company.tax_company_name || '',
+            // ทุกกิจการที่จดทะเบียนมีสาขาใหญ่เสมอ — default ให้เลยถ้ายังไม่เคยกรอก
+            taxBranch: company.tax_branch || (businessType !== 'individual' ? 'สำนักงานใหญ่' : ''),
+            businessType,
             vatRegistered: company.vat_registered || false,
           };
           setFormData(loaded);
@@ -316,12 +320,9 @@ export default function CompanySettingsPage() {
           taxBranch: formData.taxBranch || undefined,
           businessType: formData.businessType,
           vatRegistered: formData.vatRegistered,
-          addressParts: {
-            district: formData.district,
-            amphoe: formData.amphoe,
-            province: formData.province,
-            postalCode: formData.postalCode,
-          },
+          // Full address now lives in companies.address — clear the legacy
+          // split fields in settings so stale parts never resurface.
+          addressParts: { district: '', amphoe: '', province: '', postalCode: '' },
         }),
       });
 
@@ -407,41 +408,6 @@ export default function CompanySettingsPage() {
                 </div>
               </Card>
 
-              {/* Business Type */}
-              <Card padding="md">
-                <h3 className="heading-3 mb-4">ประเภทกิจการ</h3>
-                <div className="grid grid-cols-3 gap-3">
-                  {([
-                    { key: 'individual', label: 'บุคคลธรรมดา', icon: <User className="w-6 h-6" /> },
-                    { key: 'corporation', label: 'บริษัท (บจก.)', icon: <Briefcase className="w-6 h-6" /> },
-                    { key: 'partnership', label: 'ห้างหุ้นส่วน (หจก.)', icon: <Landmark className="w-6 h-6" /> },
-                  ] as const).map(({ key, label, icon }) => {
-                    const isSelected = formData.businessType === key;
-                    return (
-                      <button
-                        key={key}
-                        type="button"
-                        onClick={() => setFormData(prev => ({
-                          ...prev,
-                          businessType: key,
-                        }))}
-                        disabled={isSaving}
-                        className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all ${
-                          isSelected
-                            ? 'border-primary bg-orange-50 dark:bg-orange-900/20'
-                            : 'border-gray-200 dark:border-slate-600 hover:border-gray-300 dark:hover:border-slate-500'
-                        }`}
-                      >
-                        <div className={isSelected ? 'text-primary' : 'text-gray-400 dark:text-slate-500'}>{icon}</div>
-                        <span className={`font-medium text-xs sm:text-sm text-center ${isSelected ? 'text-primary' : 'text-gray-700 dark:text-slate-300'}`}>
-                          {label}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </Card>
-
               {/* General Info */}
               <Card padding="md">
                 <h3 className="heading-3 mb-4">ข้อมูลทั่วไป</h3>
@@ -488,36 +454,59 @@ export default function CompanySettingsPage() {
                     placeholder="company@email.com"
                     disabled={isSaving}
                   />
-                  <FormInput
-                    containerClassName="sm:col-span-2"
-                    label="ที่อยู่"
-                    icon={<MapPin className="w-5 h-5" />}
-                    value={formData.address}
-                    onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                    placeholder="เลขที่ ซอย ถนน"
-                    disabled={isSaving}
-                  />
                   <div className="sm:col-span-2">
-                    <ThaiAddressInput
-                      compact
-                      district={formData.district}
-                      amphoe={formData.amphoe}
-                      province={formData.province}
-                      postalCode={formData.postalCode}
-                      onAddressChange={(addr) => setFormData(prev => ({ ...prev, ...addr }))}
-                      disabled={isSaving}
-                    />
+                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">ที่อยู่ <span className="text-xs font-normal text-gray-400 dark:text-slate-500">(ตามที่ต้องการให้แสดงบนบิล/ใบกำกับภาษี)</span></label>
+                    <div className="relative">
+                      <MapPin className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
+                      <textarea value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} className="w-full pl-10 pr-4 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary resize-none" placeholder="บ้านเลขที่ อาคาร ถนน แขวง/ตำบล เขต/อำเภอ จังหวัด รหัสไปรษณีย์" rows={2} disabled={isSaving} />
+                    </div>
                   </div>
                 </div>
               </Card>
 
-              {/* Tax Info — show for non-individual or always allow tax_id */}
+              {/* Tax Info — registration type drives which fields show below.
+                  Not gated behind the VAT toggle: non-VAT businesses still need
+                  a tax/citizen ID on receipts, invoices and withholding docs. */}
               <Card padding="md">
                 <h3 className="heading-3 mb-4 flex items-center">
                   <Receipt className="w-5 h-5 mr-2 text-primary" />
                   ข้อมูลภาษี
                 </h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="sm:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">รูปแบบการจดทะเบียน</label>
+                    <div className="grid grid-cols-3 gap-3">
+                      {([
+                        { key: 'individual', label: 'บุคคลธรรมดา', icon: <User className="w-6 h-6" /> },
+                        { key: 'corporation', label: 'บริษัท (บจก.)', icon: <Briefcase className="w-6 h-6" /> },
+                        { key: 'partnership', label: 'ห้างหุ้นส่วน (หจก.)', icon: <Landmark className="w-6 h-6" /> },
+                      ] as const).map(({ key, label, icon }) => {
+                        const isSelected = formData.businessType === key;
+                        return (
+                          <button
+                            key={key}
+                            type="button"
+                            onClick={() => setFormData(prev => ({
+                              ...prev,
+                              businessType: key,
+                              taxBranch: key !== 'individual' && !prev.taxBranch ? 'สำนักงานใหญ่' : prev.taxBranch,
+                            }))}
+                            disabled={isSaving}
+                            className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all ${
+                              isSelected
+                                ? 'border-primary bg-orange-50 dark:bg-orange-900/20'
+                                : 'border-gray-200 dark:border-slate-600 hover:border-gray-300 dark:hover:border-slate-500'
+                            }`}
+                          >
+                            <div className={isSelected ? 'text-primary' : 'text-gray-400 dark:text-slate-500'}>{icon}</div>
+                            <span className={`font-medium text-xs sm:text-sm text-center ${isSelected ? 'text-primary' : 'text-gray-700 dark:text-slate-300'}`}>
+                              {label}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
                   <FormInput
                     label={formData.businessType === 'individual' ? 'เลขบัตรประชาชน' : 'เลขประจำตัวผู้เสียภาษี'}
                     value={formData.taxId}
