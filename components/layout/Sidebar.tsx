@@ -70,7 +70,7 @@ const menuSections: MenuSection[] = [
   {
     title: 'แคชเชียร์',
     items: [
-      { label: 'แคชเชียร์', href: '/pos', icon: <Monitor className="w-[18px] h-[18px] flex-shrink-0" />, roles: ['admin', 'cashier'] },
+      { label: 'Cashier (POS)', href: '/pos', icon: <Monitor className="w-[18px] h-[18px] flex-shrink-0" />, roles: ['admin', 'cashier'] },
       { label: 'รายการขาย', href: '/pos/orders', icon: <Receipt className="w-[18px] h-[18px] flex-shrink-0" />, roles: ['admin', 'cashier', 'account'] },
       { label: 'หน้าขาย PC', href: '/pc', icon: <Store className="w-[18px] h-[18px] flex-shrink-0" />, roles: ['admin', 'pc'] },
     ]
