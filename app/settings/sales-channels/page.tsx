@@ -626,6 +626,16 @@ export default function SalesChannelsPage() {
                 disabled={isEditingChat}
                 portal
               />
+              {/* เลือก platform ตรงนี้ = ได้แค่ป้าย/ไอคอนติดบิล ไม่ได้เชื่อมแชท —
+                  คนมักเข้าใจผิดแล้วสร้างซ้ำกับช่องทางที่ระบบ mirror จากแชทให้ */}
+              {!isEditingChat && ['line', 'facebook', 'instagram'].includes(formPlatform) && (
+                <p className="mt-1.5 text-sm text-amber-600 dark:text-amber-400">
+                  ช่องทางนี้เป็นแค่ป้ายติดบิล ไม่ได้เชื่อมรับแชท — ถ้าต้องการให้แชทจากเพจ/OA
+                  เข้าระบบด้วย ให้ไปเชื่อมที่{' '}
+                  <a href="/settings/chat-channels" className="underline font-medium">ช่องทาง Chat</a>{' '}
+                  แล้วช่องทางการขายจะถูกสร้างให้อัตโนมัติ (ไม่ต้องสร้างเองซ้ำ)
+                </p>
+              )}
             </div>
 
             <label className="flex items-center gap-2 cursor-pointer">
