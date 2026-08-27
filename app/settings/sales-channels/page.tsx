@@ -73,6 +73,8 @@ export default function SalesChannelsPage() {
   const [channels, setChannels] = useState<SalesChannel[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  // pill quick filter ตามแพลตฟอร์ม — สไตล์เดียวกับแท็บ Marketplace
+  const [platformFilter, setPlatformFilter] = useState<'all' | 'line' | 'facebook' | 'instagram' | 'none'>('all');
   // Main tabs: ช่องทางของฉัน (manual + mirror list) / เชื่อมต่อ Marketplace (ย้ายมาจาก /settings/integrations)
   const [mainTab, setMainTab] = useState<'channels' | 'marketplace'>('channels');
   const [currentPage, setCurrentPage] = useState(1);
@@ -129,10 +131,34 @@ export default function SalesChannelsPage() {
     }
   }, []);
 
+  // แท็บ "ช่องทางของฉัน" ไม่แสดงช่องทาง marketplace เลย (กันสับสน) —
+  // ร้าน Shopee/Lazada/TikTok จัดการที่แท็บ "เชื่อมต่อ Marketplace" ที่เดียว
+  const nonMarketplace = useMemo(
+    () => channels.filter(c => !isMarketplacePlatform(c.platform)),
+    [channels]
+  );
+
+  // count ต่อ pill — นับจากลิสต์เต็ม (ไม่โดน search กรอง) ให้เลขนิ่ง
+  const platformCounts = useMemo(() => {
+    const counts = { all: nonMarketplace.length, line: 0, facebook: 0, instagram: 0, none: 0 };
+    for (const c of nonMarketplace) {
+      const ids = c.platform ? [c.platform, ...(c.channel_type === 'chat' && c.platform === 'facebook' && c.has_ig ? ['instagram'] : [])] : [];
+      if (ids.length === 0) counts.none++;
+      if (ids.includes('line')) counts.line++;
+      if (ids.includes('facebook')) counts.facebook++;
+      if (ids.includes('instagram')) counts.instagram++;
+    }
+    return counts;
+  }, [nonMarketplace]);
+
   const filtered = useMemo(() => {
-    // แท็บ "ช่องทางของฉัน" ไม่แสดงช่องทาง marketplace เลย (กันสับสน) —
-    // ร้าน Shopee/Lazada/TikTok จัดการที่แท็บ "เชื่อมต่อ Marketplace" ที่เดียว
-    const source = channels.filter(c => !isMarketplacePlatform(c.platform));
+    let source = nonMarketplace;
+    if (platformFilter !== 'all') {
+      source = source.filter(c => {
+        const ids = c.platform ? [c.platform, ...(c.channel_type === 'chat' && c.platform === 'facebook' && c.has_ig ? ['instagram'] : [])] : [];
+        return platformFilter === 'none' ? ids.length === 0 : ids.includes(platformFilter);
+      });
+    }
     const q = searchTerm.trim().toLowerCase();
     if (!q) return source;
     return source.filter(c =>
@@ -140,7 +166,7 @@ export default function SalesChannelsPage() {
       c.code.toLowerCase().includes(q) ||
       (c.platform || '').toLowerCase().includes(q)
     );
-  }, [channels, searchTerm]);
+  }, [nonMarketplace, platformFilter, searchTerm]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / rowsPerPage));
   const startIndex = (currentPage - 1) * rowsPerPage;
@@ -303,11 +329,17 @@ export default function SalesChannelsPage() {
     );
   }
 
-  // Show platform as icon(s). Chat channels with IG linked show both FB + IG icons stacked.
-  function renderPlatformIcons(c: SalesChannel) {
+  // platform ids ของ channel — ใช้ทั้งวาดไอคอนและ pill filter (FB ที่ลิงก์ IG นับเป็นทั้งคู่)
+  function channelPlatformIds(c: SalesChannel): string[] {
     const ids: string[] = [];
     if (c.platform) ids.push(c.platform);
     if (c.channel_type === 'chat' && c.platform === 'facebook' && c.has_ig) ids.push('instagram');
+    return ids;
+  }
+
+  // Show platform as icon(s). Chat channels with IG linked show both FB + IG icons stacked.
+  function renderPlatformIcons(c: SalesChannel) {
+    const ids = channelPlatformIds(c);
     if (ids.length === 0) return <span className="data-muted text-gray-400 dark:text-slate-500">-</span>;
     return (
       <div className="flex items-center gap-1.5">
@@ -454,6 +486,34 @@ export default function SalesChannelsPage() {
           <MarketplaceConnections />
         ) : (
           <>
+        {/* Platform pill filter — สไตล์เดียวกับแท็บเชื่อมต่อ Marketplace */}
+        <div className="flex flex-wrap items-center gap-2 mb-4">
+          {([
+            { id: 'all', label: 'ทั้งหมด', icon: null, active: 'border-primary text-primary bg-primary/10' },
+            { id: 'line', label: 'LINE', icon: <PlatformIcon id="line" size={16} />, active: 'border-[#06C755] text-[#06C755] bg-[#06C755]/10' },
+            { id: 'facebook', label: 'Facebook', icon: <PlatformIcon id="facebook" size={16} />, active: 'border-[#1877F2] text-[#1877F2] bg-[#1877F2]/10' },
+            { id: 'instagram', label: 'Instagram', icon: <PlatformIcon id="instagram" size={16} />, active: 'border-[#E1306C] text-[#E1306C] bg-[#E1306C]/10' },
+            { id: 'none', label: 'อื่นๆ', icon: null, active: 'border-gray-500 text-gray-700 bg-gray-500/10 dark:text-slate-200' },
+          ] as const).map(pill => (
+            <button
+              key={pill.id}
+              type="button"
+              onClick={() => { setPlatformFilter(pill.id); setCurrentPage(1); }}
+              className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${
+                platformFilter === pill.id
+                  ? pill.active
+                  : 'border-gray-200 dark:border-slate-600 text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700'
+              }`}
+            >
+              {pill.icon}
+              {pill.label}
+              {platformCounts[pill.id] > 0 && (
+                <span className="text-xs px-1.5 py-0.5 rounded-full bg-black/5 dark:bg-white/10">{platformCounts[pill.id]}</span>
+              )}
+            </button>
+          ))}
+        </div>
+
         {/* Search */}
         <div className="data-filter-card">
           <SearchInput
