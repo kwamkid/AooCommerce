@@ -4,6 +4,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
+import SignedInUser from '@/components/onboarding/SignedInUser';
 import { useFetchOnce } from '@/lib/use-fetch-once';
 import Image from 'next/image';
 import { FullPageLoading } from '@/components/ui/Loading';
@@ -151,14 +152,10 @@ export default function OnboardingPage() {
       <div className="pointer-events-none absolute -top-24 -left-24 w-[420px] h-[420px] rounded-full bg-[#F4511E]/15 blur-3xl" />
       <div className="pointer-events-none absolute -bottom-32 -right-20 w-[480px] h-[480px] rounded-full bg-amber-300/25 blur-3xl" />
 
-      {/* Logout button */}
-      <button
-        onClick={signOut}
-        className="absolute top-4 right-4 z-10 text-gray-500 hover:text-primary dark:text-slate-400 dark:hover:text-white transition-colors flex items-center gap-2 text-sm"
-      >
-        <LogOut className="w-4 h-4" />
-        ออกจากระบบ
-      </button>
+      {/* ตัวตนคน login — ใช้ชิปเดียวกับ wizard (แทนปุ่ม logout จางๆ ที่คนมองข้าม) */}
+      <div className="absolute top-4 right-4 z-10 bg-white/80 dark:bg-slate-800/80 backdrop-blur rounded-xl border border-gray-200 dark:border-slate-700 px-3 py-1.5">
+        <SignedInUser />
+      </div>
 
       <div className="w-full max-w-lg">
         {/* Branding */}
@@ -179,9 +176,13 @@ export default function OnboardingPage() {
           ) : (
             <>
               <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">สร้างบริษัทของคุณ</h2>
-              <p className="text-gray-500 dark:text-slate-400 text-sm">เริ่มต้นใช้งานระบบจัดการธุรกิจ</p>
+              <p className="text-gray-500 dark:text-slate-400 text-sm">
+                เริ่มต้นใช้งานระบบจัดการธุรกิจ — ถ้าคุณเป็น<b>พนักงานที่ถูกเชิญ</b> ไม่ต้องสร้างบริษัทใหม่:
+                แจ้งแอดมินให้ส่งลิงก์เชิญมาที่อีเมลของคุณ (แสดงที่มุมขวาบน) หรือออกจากระบบแล้วเข้าด้วยอีเมลที่ถูกเชิญ
+              </p>
             </>
           )}
+
         </div>
 
         {/* Name completion form (for OAuth users without name) */}

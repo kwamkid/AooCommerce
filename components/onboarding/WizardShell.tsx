@@ -6,6 +6,7 @@ import { Check, ArrowLeft, ArrowRight } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import { useToast } from '@/lib/toast-context';
 import { useCompany } from '@/lib/company-context';
+import SignedInUser from '@/components/onboarding/SignedInUser';
 import { WIZARD_KEYS } from '@/components/onboarding/wizard-storage';
 import { useWizardPackage } from '@/components/onboarding/use-wizard-package';
 
@@ -127,8 +128,10 @@ export default function WizardShell({ step, nextDisabled, onNext, nextHref, fini
     <div className="min-h-screen bg-gray-50 dark:bg-slate-900">
       {/* Header */}
       <div className="bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700">
-        <div className="max-w-4xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
+        <div className="max-w-4xl mx-auto px-6 py-4 flex items-center justify-between gap-4">
+          {/* ซ้าย = กำลังทำอะไร · ขวา = ใครกำลังทำ (โปรไฟล์คน login ไม่ใช่บริษัท —
+              เดิมโชว์โลโก้+ชื่อบริษัทซึ่งชวนงง โดยเฉพาะตอนยังไม่ได้ตั้งชื่อบริษัทเลย) */}
+          <div className="flex items-center gap-3 min-w-0">
             {logoSrc ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
@@ -141,11 +144,12 @@ export default function WizardShell({ step, nextDisabled, onNext, nextHref, fini
                 {initial}
               </div>
             )}
-            <div>
-              <div className="text-sm text-gray-500 dark:text-slate-400">{companyName}</div>
-              <div className="font-semibold text-gray-900 dark:text-white">ตั้งค่าเริ่มต้น</div>
+            <div className="min-w-0">
+              <div className="font-semibold text-gray-900 dark:text-white">สร้างบริษัทใหม่</div>
+              <div className="text-sm text-gray-500 dark:text-slate-400 truncate">{isNewCompanyWizard ? companyName : 'กรอกข้อมูลทีละขั้น — บริษัทจะถูกสร้างเมื่อทำครบทุกขั้น'}</div>
             </div>
           </div>
+          <SignedInUser />
         </div>
 
         {/* Progress */}

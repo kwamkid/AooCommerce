@@ -14,7 +14,7 @@ import { useFeatures } from '@/lib/features-context';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
-import { Users, Mail, UserPlus, Shield, Trash2, Edit2, X, Check, CheckCircle, Clock, Phone, Plus, Link2, Monitor, DollarSign, Warehouse, ShieldCheck, Headset, CreditCard, Calculator, Package, UserCog, Store } from 'lucide-react';
+import { Users, Mail, UserPlus, Shield, Trash2, Edit2, X, Check, CheckCircle, Clock, Phone, Plus, Link2, Loader2, Monitor, DollarSign, Warehouse, ShieldCheck, Headset, CreditCard, Calculator, Package, UserCog, Store } from 'lucide-react';
 import Checkbox from '@/components/ui/Checkbox';
 import Radio from '@/components/ui/Radio';
 import Modal from '@/components/ui/Modal';
@@ -142,6 +142,7 @@ export default function MembersPage() {
   const [members, setMembers] = useState<Member[]>([]);
   const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [stockEnabled, setStockEnabled] = useState(false);
 
@@ -467,8 +468,10 @@ export default function MembersPage() {
 
   // Handle remove member
   const handleRemoveMember = async (memberId: string) => {
+    if (deletingId) return;
     const ok = await confirm({ title: 'ต้องการลบสมาชิกคนนี้?', variant: 'danger' }); if (!ok) return;
 
+    setDeletingId(memberId);
     try {
       const response = await apiFetch(`/api/companies/members?id=${memberId}&type=member`, {
         method: 'DELETE',
@@ -484,6 +487,8 @@ export default function MembersPage() {
       }
     } catch {
       showToast('เกิดข้อผิดพลาดในการลบสมาชิก', 'error');
+    } finally {
+      setDeletingId(null);
     }
   };
 
