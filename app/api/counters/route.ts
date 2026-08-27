@@ -38,16 +38,22 @@ export async function GET(request: NextRequest) {
     }
 
     // PC users (no counter.manage) only see counters they are assigned to —
-    // unless they are a rover (pc_all_counters = หน่วยแทน), who sees every counter
+    // unless they are a rover (pc_all_counters = หน่วยแทน), who sees every counter.
+    // Either way their own assignments are flagged (is_assigned) so /pc can
+    // default a rover to their home branch instead of an arbitrary first row.
+    let assignedSet: Set<string> | null = null;
     if (auth.companyRoles?.includes('pc') && !can(auth.companyRoles, 'counter.manage') && auth.userId) {
-      const rover = await isPcRover(supabaseAdmin, auth.companyId, auth.userId);
-      if (!rover) {
-        const { data: assignments } = await supabaseAdmin
+      const [rover, { data: assignments }] = await Promise.all([
+        isPcRover(supabaseAdmin, auth.companyId, auth.userId),
+        supabaseAdmin
           .from('counter_assignments')
           .select('counter_id')
           .eq('company_id', auth.companyId)
-          .eq('user_id', auth.userId);
-        const assignedIds = (assignments || []).map(a => a.counter_id);
+          .eq('user_id', auth.userId),
+      ]);
+      const assignedIds = (assignments || []).map(a => a.counter_id);
+      assignedSet = new Set(assignedIds);
+      if (!rover) {
         if (assignedIds.length === 0) {
           return NextResponse.json({ counters: [] });
         }
@@ -61,7 +67,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'ไม่สามารถดึงข้อมูลสาขาได้' }, { status: 500 });
     }
 
-    return NextResponse.json({ counters: data || [] });
+    const counters = assignedSet
+      ? (data || []).map(c => ({ ...c, is_assigned: assignedSet.has(c.id) }))
+      : data || [];
+    return NextResponse.json({ counters });
   } catch (error) {
     console.error('GET counters error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

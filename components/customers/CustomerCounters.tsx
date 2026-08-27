@@ -115,8 +115,11 @@ export default function CustomerCounters({ customerId, customerType }: { custome
 
   const rovers = members.filter(m => m.pc_all_counters);
   const assignedNames = (counterId: string) => {
-    const names = assignments.filter(a => a.counter_id === counterId).map(a => a.user_name || 'ไม่ทราบชื่อ');
-    return [...names, ...rovers.map(r => `${r.name} (หน่วยแทน)`)];
+    const rows = assignments.filter(a => a.counter_id === counterId);
+    const assignedIds = new Set(rows.map(a => a.user_id));
+    const names = rows.map(a => a.user_name || 'ไม่ทราบชื่อ');
+    // Rovers reach every branch — list them too, but don't double-list one who is also assigned here
+    return [...names, ...rovers.filter(r => !assignedIds.has(r.user_id)).map(r => `${r.name} (หน่วยแทน)`)];
   };
 
   const openCreate = () => { setEditingId(null); setFormName(''); setModalOpen(true); };
@@ -344,7 +347,8 @@ export default function CustomerCounters({ customerId, customerType }: { custome
           ) : (
             <>
               <p className="subtitle-text text-gray-500 dark:text-slate-400 mb-3">
-                ติ๊กเลือกคนที่ประจำสาขานี้ — ส่วน &quot;หน่วยแทน&quot; คือ PC ที่เข้าได้ทุกสาขาของทุกลูกค้า ไม่ต้องมอบหมายรายสาขา
+                ติ๊ก = ประจำสาขานี้ (เป็นสาขาเริ่มต้นตอนเปิดหน้าขาย PC) · &quot;หน่วยแทน&quot; = เข้าได้ทุกสาขาของทุกลูกค้า —
+                เป็นทั้งสองอย่างพร้อมกันได้ เช่น ประจำลาดพร้าวแต่วิ่งแทนสาขาอื่นด้วย
               </p>
               {members.map(m => {
                 const isAssigned = !!pcTarget && assignments.some(a => a.counter_id === pcTarget.id && a.user_id === m.user_id);
@@ -353,8 +357,8 @@ export default function CustomerCounters({ customerId, customerType }: { custome
                   <div key={m.user_id} className="flex items-center justify-between gap-3 py-2 border-b border-gray-100 dark:border-slate-700 last:border-0">
                     <div className="flex items-center gap-2 min-w-0">
                       <Checkbox
-                        checked={m.pc_all_counters || isAssigned}
-                        disabled={busy || m.pc_all_counters}
+                        checked={isAssigned}
+                        disabled={busy}
                         onChange={() => pcTarget && handleToggleAssign(m, pcTarget)}
                       />
                       <span className="truncate text-gray-900 dark:text-white">{m.name}</span>

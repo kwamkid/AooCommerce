@@ -30,6 +30,8 @@ interface Counter {
   name: string;
   warehouse_id: string;
   customer?: { id: string; name: string } | null;
+  /** This user's own assignment — a rover (หน่วยแทน) sees every counter but is_assigned marks their home branch */
+  is_assigned?: boolean;
 }
 
 interface TodaySale {
@@ -96,7 +98,9 @@ export default function PcPage() {
         const data = await res.json();
         const list: Counter[] = data.counters || [];
         setCounters(list);
-        setCounterId(prev => prev && list.some(c => c.id === prev) ? prev : (list[0]?.id || ''));
+        setCounterId(prev => prev && list.some(c => c.id === prev)
+          ? prev
+          : (list.find(c => c.is_assigned)?.id || list[0]?.id || ''));
       } catch {
         setCounters([]);
       } finally {
