@@ -167,8 +167,11 @@ export async function POST(request: NextRequest) {
           await syncSingleOrder(account, orderId);
         }
       }
-      // Type 2: Reverse order (cancellation/return status change)
-      else if (pushCode === 2 || pushCode === 12) {
+      // Type 2: Reverse order (legacy รวม cancel+return) · 11: cancellation
+      // status change · 12: return status change (คู่ใหม่ที่แยกจาก 2) ·
+      // 3: recipient address update — ทั้งหมดจัดการเหมือนกัน: resync order
+      // จาก API เอาความจริงล่าสุด (idempotent)
+      else if (pushCode === 2 || pushCode === 3 || pushCode === 11 || pushCode === 12) {
         const orderId = (payload.data?.order_id as string) || '';
         if (orderId) {
           await syncSingleOrder(account, orderId);
