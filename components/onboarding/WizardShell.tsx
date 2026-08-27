@@ -2,7 +2,7 @@
 
 import { type ReactNode, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Check, ArrowLeft, ArrowRight } from 'lucide-react';
+import { Check, ArrowLeft, ArrowRight, Building2 } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import { useToast } from '@/lib/toast-context';
 import { useCompany } from '@/lib/company-context';
@@ -72,22 +72,16 @@ function useWizardCompanyPreview(): { name: string; logoDataUrl: string | null }
 export default function WizardShell({ step, nextDisabled, onNext, nextHref, finishLabel, children }: WizardShellProps) {
   const router = useRouter();
   const { showToast } = useToast();
-  const { currentCompany, companies } = useCompany();
+  const { companies } = useCompany();
   const { stockEnabled } = useWizardPackage();
   const wizardPreview = useWizardCompanyPreview();
   const [submitting, setSubmitting] = useState(false);
 
-  // Prefer the in-progress wizard's own logo/name (sessionStorage) over the
-  // current company — the wizard creates the company only at finalize, so
-  // currentCompany may be a previously-selected company, not the new one.
-  //
-  // name กับ logo ต้อง fallback เป็น "คู่" — ถ้า wizard มีชื่อ (กำลังสร้างบริษัทใหม่)
-  // ห้ามหยิบเฉพาะโลโก้จาก currentCompany มาปน ไม่งั้นชื่อบริษัทใหม่แปะคู่โลโก้
-  // บริษัทเก่า (เคยเกิดแล้ว: สร้าง aDay Fresh ไม่อัปโหลดโลโก้ แต่โชว์โลโก้ร้านเดิม)
-  const isNewCompanyWizard = !!wizardPreview.name;
-  const companyName = isNewCompanyWizard ? wizardPreview.name : (currentCompany?.name || 'AooCommerce');
-  const logoSrc = isNewCompanyWizard ? wizardPreview.logoDataUrl : (currentCompany?.logo_url || null);
-  const initial = (companyName.trim().charAt(0) || 'A').toUpperCase();
+  // Header ของ wizard ใช้ข้อมูลของ "บริษัทที่กำลังสร้าง" เท่านั้น — ห้าม fallback
+  // ไป currentCompany เด็ดขาด (เคยพลาดสองรอบ: โลโก้/ชื่อบริษัทเก่าโผล่มาปนกับ
+  // wizard สร้างบริษัทใหม่จนผู้ใช้งง) · ยังไม่กรอกอะไร = ไอคอนกลางๆ + ไม่มีชื่อ
+  const wizardName = wizardPreview.name;
+  const logoSrc = wizardPreview.logoDataUrl;
 
   // Hide the warehouse step when the package doesn't support stock.
   // The 1-based `step` prop refers to the full flow's index; we map it
@@ -136,17 +130,17 @@ export default function WizardShell({ step, nextDisabled, onNext, nextHref, fini
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={logoSrc}
-                alt={companyName}
+                alt={wizardName || 'บริษัทใหม่'}
                 className="w-10 h-10 rounded-lg object-cover border border-gray-200 dark:border-slate-700"
               />
             ) : (
-              <div className="w-10 h-10 rounded-lg bg-primary text-white flex items-center justify-center font-bold">
-                {initial}
+              <div className="w-10 h-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
+                <Building2 className="w-5 h-5" />
               </div>
             )}
             <div className="min-w-0">
               <div className="font-semibold text-gray-900 dark:text-white">สร้างบริษัทใหม่</div>
-              <div className="text-sm text-gray-500 dark:text-slate-400 truncate">{isNewCompanyWizard ? companyName : 'กรอกข้อมูลทีละขั้น — บริษัทจะถูกสร้างเมื่อทำครบทุกขั้น'}</div>
+              {wizardName && <div className="text-sm text-gray-500 dark:text-slate-400 truncate">{wizardName}</div>}
             </div>
           </div>
           <SignedInUser />
