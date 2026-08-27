@@ -56,7 +56,9 @@ export default function MarketplaceConnections() {
       showToast('เชื่อมต่อ TikTok Shop สำเร็จ', 'success');
       refetch();
       setActivePlatform('tiktok');
+      const askChat = params.get('chat') === 'prompt';
       window.history.replaceState({}, '', cleanUrl);
+      if (askChat) promptTikTokChat();
     } else if (params.get('success') === 'lazada_connected') {
       showToast('เชื่อมต่อ Lazada สำเร็จ', 'success');
       refetch();
@@ -77,6 +79,32 @@ export default function MarketplaceConnections() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showToast]);
+
+  // เชื่อมร้าน TikTok สำเร็จแล้ว → ถามต่อว่าจะเชื่อมแชทด้วยมั้ย (app แชทแยกจาก
+  // app ออเดอร์ — บางร้านไม่ใช้แชท / บางร้านเชื่อมไว้แล้ว จึงไม่ต่อขาอัตโนมัติ)
+  const promptTikTokChat = async () => {
+    const ok = await confirm({
+      title: 'เชื่อมต่อแชท TikTok Shop ต่อเลยหรือไม่?',
+      description:
+        'ถ้าต้องการรับ-ส่งแชท TikTok ในหน้ารวมแชท ต้องกดอนุญาตเพิ่มอีกหนึ่งครั้ง — ข้ามไปก่อนได้ แล้วมาเชื่อมทีหลังที่ ตั้งค่า > ช่องทางแชท แท็บ TikTok',
+      confirmLabel: 'เชื่อมต่อแชท',
+      cancelLabel: 'ไว้ทีหลัง',
+    });
+    if (!ok) return;
+    setConnecting(true);
+    try {
+      const res = await apiFetch('/api/tiktok/oauth/auth-url?app=chat');
+      if (res.ok) {
+        const { url } = await res.json();
+        window.location.href = url;
+        return;
+      }
+      showToast('ไม่สามารถสร้างลิงก์เชื่อมต่อได้', 'error');
+    } catch {
+      showToast('เกิดข้อผิดพลาด', 'error');
+    }
+    setConnecting(false);
+  };
 
   const handleConnect = async (platform: 'shopee' | 'tiktok' | 'lazada' = 'shopee') => {
     setConnecting(true);

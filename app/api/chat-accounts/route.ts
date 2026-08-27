@@ -69,7 +69,7 @@ export async function POST(request: NextRequest) {
       }
       const { data: mpAccount } = await supabaseAdmin
         .from('marketplace_accounts')
-        .select('id, shop_id, shop_name, platform')
+        .select('id, shop_id, shop_name, platform, chat_access_token')
         .eq('id', marketplace_account_id)
         .eq('company_id', companyId)
         .maybeSingle();
@@ -78,6 +78,15 @@ export async function POST(request: NextRequest) {
         : mpAccount?.platform === platform;
       if (!mpAccount || !mpPlatformOk) {
         return NextResponse.json({ error: `ไม่พบร้าน ${platformLabel} นี้ในบริษัท` }, { status: 404 });
+      }
+
+      // TikTok: token แชทมาจาก app แชทแยก (OAuth ขาที่สอง) — ยังไม่เชื่อม
+      // เปิดสวิตช์ไปก็เป็นช่องแชทที่รับ-ส่งอะไรไม่ได้
+      if (platform === 'tiktok' && !mpAccount.chat_access_token) {
+        return NextResponse.json(
+          { error: 'ร้านนี้ยังไม่ได้เชื่อมต่อแชท TikTok — กดปุ่ม "เชื่อมต่อแชท" ก่อน' },
+          { status: 400 }
+        );
       }
 
       // Dedupe: one chat channel per shop

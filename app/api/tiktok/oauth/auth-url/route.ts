@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { checkAuthWithCompany, can } from '@/lib/supabase-admin';
-import { generateAuthUrl } from '@/lib/tiktok/api';
+import { generateAuthUrl, isChatAppConfigured, type TikTokApp } from '@/lib/tiktok/api';
 import { signOAuthState } from '@/lib/oauth-state';
 
 export async function GET(request: NextRequest) {
@@ -16,11 +16,16 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'TikTok not configured' }, { status: 500 });
     }
 
+    // ?app=chat = ขาแชท (app หมวด Customer Support แยกจาก app ออเดอร์) —
+    // ผู้ใช้เลือกเชื่อมเองจาก dialog หลังเชื่อมร้าน หรือปุ่มในหน้าช่องทางแชท
+    const app: TikTokApp = new URL(request.url).searchParams.get('app') === 'chat' ? 'chat' : 'order';
+    if (app === 'chat' && !isChatAppConfigured()) {
+      return NextResponse.json({ error: 'TikTok chat app not configured' }, { status: 400 });
+    }
+
     // Signed, user-bound, expiring state (not the raw companyId).
-    // ขาแรกเป็น app ออเดอร์เสมอ — callback จะพาต่อไป app แชทเองถ้าตั้งค่าไว้
-    // (ผู้ใช้กดเชื่อมครั้งเดียว ไม่ต้องรู้ว่าเบื้องหลังมี 2 app)
-    const state = signOAuthState({ companyId, userId, platform: 'tiktok', app: 'order' });
-    const url = generateAuthUrl(state, 'order');
+    const state = signOAuthState({ companyId, userId, platform: 'tiktok', app });
+    const url = generateAuthUrl(state, app);
     console.log('[TikTok OAuth] Generated auth URL');
 
     // Backup the signed state in a cookie for the callback.

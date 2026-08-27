@@ -63,6 +63,8 @@ interface ShopeeShop {
   shop_id: number;
   shop_name: string | null;
   is_active: boolean;
+  // TikTok: token แชทมาจาก app แชทแยก — false = ยังไม่ผ่าน OAuth ขาแชท
+  chat_connected?: boolean;
 }
 
 interface TestInfo {
@@ -126,6 +128,21 @@ export default function ChatChannelsPage() {
   useEffect(() => {
     const hash = window.location.hash.replace('#', '');
     if (hash === 'line' || hash === 'shopee' || hash === 'lazada' || hash === 'tiktok') setActiveTabState(hash);
+  }, []);
+
+  // กลับมาจาก OAuth ขาแชท TikTok (?tiktok_chat=connected|failed|skipped)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const result = params.get('tiktok_chat');
+    if (!result) return;
+    if (result === 'connected') {
+      showToast('เชื่อมต่อแชท TikTok Shop สำเร็จ — เปิดสวิตช์ร้านที่ต้องการรับแชทได้เลย', 'success');
+    } else if (result === 'failed') {
+      showToast('เชื่อมต่อแชท TikTok ไม่สำเร็จ กรุณาลองใหม่', 'error');
+    }
+    // skipped = ผู้ใช้กดยกเลิกเอง — ไม่ต้องเด้งอะไร
+    window.history.replaceState({}, '', `/settings/chat-channels${window.location.hash}`);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ปิดฟีเจอร์ระหว่างที่ค้างอยู่แท็บ marketplace (หรือเปิดหน้าด้วย #shopee) → กลับแท็บแรก
@@ -509,6 +526,28 @@ export default function ChatChannelsPage() {
       return c?.marketplace_account_id === shop.id || Number(c?.shop_id) === shop.shop_id;
     });
 
+  // TikTok: เริ่ม OAuth ขาแชท (app แชทแยกจาก app ออเดอร์) — จบแล้ว callback
+  // เด้งกลับหน้านี้พร้อม ?tiktok_chat=... (token ผูกระดับบัญชี ครอบคลุมทุกร้าน)
+  const [connectingTikTokChat, setConnectingTikTokChat] = useState(false);
+  const handleConnectTikTokChat = async () => {
+    setConnectingTikTokChat(true);
+    try {
+      const res = await apiFetch('/api/tiktok/oauth/auth-url?app=chat');
+      if (res.ok) {
+        const { url } = await res.json();
+        window.location.href = url;
+        return;
+      }
+      const data = await res.json().catch(() => ({}));
+      showToast(data.error === 'TikTok chat app not configured'
+        ? 'ระบบยังไม่ได้ตั้งค่า app แชท TikTok — กรุณาแจ้งผู้ดูแลระบบ'
+        : 'ไม่สามารถสร้างลิงก์เชื่อมต่อได้', 'error');
+    } catch {
+      showToast('เกิดข้อผิดพลาด', 'error');
+    }
+    setConnectingTikTokChat(false);
+  };
+
   const handleMarketplaceToggle = async (platform: MarketplaceChatPlatform, shop: ShopeeShop) => {
     setShopeeToggling(shop.id);
     try {
@@ -841,14 +880,24 @@ export default function ChatChannelsPage() {
                 shops.map(shop => {
                   const chatAccount = findMarketplaceChatAccount(platform, shop);
                   const chatEnabled = !!chatAccount?.is_active;
+                  // TikTok: token แชทมาจาก OAuth ขาแชทแยก — ยังไม่เชื่อมต้องพาไป
+                  // อนุญาตก่อน สวิตช์เปิดไปก็เป็นช่องแชทที่ใช้ไม่ได้
+                  const needsChatAuth = platform === 'tiktok' && shop.chat_connected === false;
                   return (
                     <div key={shop.id} className="bg-white dark:bg-slate-800 rounded-lg shadow-sm px-3 py-2.5 flex items-center gap-3">
                       <PlatformIcon id={platform} size={24} />
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{shop.shop_name || `${platformLabel} ${shop.shop_id}`}</p>
-                        <p className="helper-text text-gray-500">Shop ID: {shop.shop_id}{chatEnabled ? ' · รับแชทอยู่' : ''}</p>
+                        <p className="helper-text text-gray-500">
+                          Shop ID: {shop.shop_id}
+                          {chatEnabled ? ' · รับแชทอยู่' : needsChatAuth ? ' · ยังไม่ได้เชื่อมต่อแชท' : ''}
+                        </p>
                       </div>
-                      {shopeeToggling === shop.id ? (
+                      {needsChatAuth ? (
+                        <Button size="sm" variant="secondary" loading={connectingTikTokChat} onClick={handleConnectTikTokChat}>
+                          เชื่อมต่อแชท
+                        </Button>
+                      ) : shopeeToggling === shop.id ? (
                         <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
                       ) : (
                         <Toggle checked={chatEnabled} onChange={() => handleMarketplaceToggle(platform, shop)} />

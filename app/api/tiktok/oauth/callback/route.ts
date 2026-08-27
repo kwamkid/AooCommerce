@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import {
-  exchangeCodeForToken, getAuthorizedShops, generateAuthUrl,
+  exchangeCodeForToken, getAuthorizedShops,
   isChatAppConfigured, type TikTokApp,
 } from '@/lib/tiktok/api';
-import { authorizeMarketplaceCallback, signOAuthState } from '@/lib/oauth-state';
+import { authorizeMarketplaceCallback } from '@/lib/oauth-state';
 
 /**
  * TikTok OAuth callback — ปลายทางร่วมของ **สอง** app
@@ -14,11 +14,10 @@ import { authorizeMarketplaceCallback, signOAuthState } from '@/lib/oauth-state'
  * Management ที่ใช้งานจริงอยู่แล้ว — จะรวมเป็น app เดียวต้องรื้อของที่ approved
  * แล้วมายื่นใหม่ทั้งชุด ซึ่งเสี่ยงกว่ามาก
  *
- * ผู้ใช้ต้องไม่รับรู้เรื่องนี้: กดเชื่อมร้านครั้งเดียวแล้วได้ทั้งออเดอร์และแชท
- * จึงต่อขาให้เอง — จบขาออเดอร์แล้ว redirect เข้าขาแชททันที ผู้ใช้ยัง login
- * TikTok ค้างอยู่ในเบราว์เซอร์ ขาที่สองจึงเหลือแค่กดยืนยัน ไม่ต้องล็อกอินใหม่
- *
- * ขาแชทล้มไม่กระทบออเดอร์ — ออเดอร์บันทึกเสร็จไปแล้วตั้งแต่ขาแรก
+ * ขาแชท**ไม่ต่ออัตโนมัติแล้ว** — ผู้ใช้บางคนเชื่อมแชทไว้ก่อนแล้ว บางคนไม่ใช้แชท
+ * จบขาออเดอร์จึงกลับหน้า settings พร้อม `chat=prompt` ให้ UI เปิด dialog ถามก่อน
+ * (เฉพาะเมื่อยังมีร้านที่ไม่มี token แชท) — ขาแชทเริ่มจาก
+ * `/api/tiktok/oauth/auth-url?app=chat` แล้วจบที่หน้า ช่องทางแชท
  */
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -28,6 +27,9 @@ export async function GET(request: NextRequest) {
   const protocol = host.includes('localhost') ? 'http' : 'https';
   const baseUrl = `${protocol}://${host}`;
   const settingsUrl = `${baseUrl}/settings/sales-channels?tab=marketplace`;
+  // ขาแชทจบที่หน้าช่องทางแชท — ขั้นถัดไปของผู้ใช้ (เปิดสวิตช์รับแชท) อยู่ที่นั่น
+  const chatSettingsUrl = (result: string) =>
+    `${baseUrl}/settings/chat-channels?tiktok_chat=${result}#tiktok`;
 
   // Verify signed state + completing session; companyId from trusted state only.
   const rawState = searchParams.get('state') || request.cookies.get('tiktok_oauth_state')?.value || null;
@@ -38,15 +40,14 @@ export async function GET(request: NextRequest) {
   }
   const companyId = authz.companyId;
   const app: TikTokApp = authz.payload.app === 'chat' ? 'chat' : 'order';
-  const userId = authz.payload.userId;
 
   console.log('[TikTok Callback] app:', app, 'code:', code ? `${code.substring(0, 10)}...` : null);
 
   if (!code) {
     console.error('[TikTok Callback] Missing code');
-    // ขาแชทไม่มี code (ผู้ใช้กดยกเลิก) — ออเดอร์เชื่อมสำเร็จไปแล้ว ไม่ใช่ error
+    // ขาแชทไม่มี code (ผู้ใช้กดยกเลิก) — ไม่ใช่ error
     return NextResponse.redirect(app === 'chat'
-      ? `${settingsUrl}&tiktok=connected&chat=skipped`
+      ? chatSettingsUrl('skipped')
       : `${settingsUrl}&error=missing_params`);
   }
 
@@ -65,14 +66,14 @@ export async function GET(request: NextRequest) {
     } catch (e) {
       console.error('[TikTok Callback] Failed to get shops:', e);
       return NextResponse.redirect(app === 'chat'
-        ? `${settingsUrl}&tiktok=connected&chat=failed`
+        ? chatSettingsUrl('failed')
         : `${settingsUrl}&error=no_shops`);
     }
 
     if (shops.length === 0) {
       console.error('[TikTok Callback] No shops found');
       return NextResponse.redirect(app === 'chat'
-        ? `${settingsUrl}&tiktok=connected&chat=failed`
+        ? chatSettingsUrl('failed')
         : `${settingsUrl}&error=no_shops`);
     }
 
@@ -133,21 +134,25 @@ export async function GET(request: NextRequest) {
       console.log('[TikTok Callback] Connected shop:', shop.name, '(', shop.id, ')');
     }
 
-    // ── ขาออเดอร์เสร็จ → ต่อขาแชทให้เลย ──────────────────────────────
+    // ── ขาออเดอร์เสร็จ → ถามผู้ใช้ก่อนว่าจะเชื่อมแชทต่อมั้ย (ไม่ต่ออัตโนมัติ) ──
+    // chat=prompt เฉพาะเมื่อ app แชทตั้งค่าไว้ และยังมีร้านที่ไม่มี token แชท
+    // (คนที่เชื่อมแชทครบแล้วไม่ต้องโดนถามซ้ำ)
+    let chatSuffix = '';
     if (app === 'order' && isChatAppConfigured()) {
-      const chatState = signOAuthState({ companyId, userId, platform: 'tiktok', app: 'chat' });
-      const chatUrl = generateAuthUrl(chatState, 'chat');
-      console.log('[TikTok Callback] Chaining to chat app authorization');
-      const chained = NextResponse.redirect(chatUrl);
-      chained.cookies.set('tiktok_oauth_state', chatState, {
-        httpOnly: true, secure: true, sameSite: 'lax', maxAge: 600, path: '/',
-      });
-      return chained;
+      const { data: pendingChat } = await supabaseAdmin
+        .from('marketplace_accounts')
+        .select('id')
+        .eq('company_id', companyId)
+        .eq('platform', 'tiktok')
+        .eq('is_active', true)
+        .is('chat_access_token', null)
+        .limit(1);
+      if (pendingChat && pendingChat.length > 0) chatSuffix = '&chat=prompt';
     }
 
-    const response = NextResponse.redirect(
-      `${settingsUrl}&tiktok=connected${app === 'chat' ? '&chat=connected' : ''}`
-    );
+    const response = NextResponse.redirect(app === 'chat'
+      ? chatSettingsUrl('connected')
+      : `${settingsUrl}&tiktok=connected${chatSuffix}`);
     response.cookies.delete('tiktok_oauth_state');
 
     console.log('[TikTok Callback] Success! app:', app, 'shops:', shops.length);
@@ -156,7 +161,7 @@ export async function GET(request: NextRequest) {
     console.error('[TikTok Callback] Error:', err);
     // ขาแชทล้ม = ออเดอร์ยังใช้ได้ ไม่ควรรายงานว่าเชื่อมร้านไม่สำเร็จ
     return NextResponse.redirect(app === 'chat'
-      ? `${settingsUrl}&tiktok=connected&chat=failed`
+      ? chatSettingsUrl('failed')
       : `${settingsUrl}&error=tiktok_auth_failed`);
   }
 }

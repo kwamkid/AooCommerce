@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
 
     let query = supabaseAdmin
       .from('marketplace_accounts')
-      .select('id, company_id, platform, shop_id, shop_name, is_active, last_sync_at, last_product_sync_at, access_token_expires_at, refresh_token_expires_at, auto_sync_stock, auto_sync_product_info, metadata, created_at, updated_at')
+      .select('id, company_id, platform, shop_id, shop_name, is_active, last_sync_at, last_product_sync_at, access_token_expires_at, refresh_token_expires_at, chat_access_token, auto_sync_stock, auto_sync_product_info, metadata, created_at, updated_at')
       .eq('company_id', companyId)
       .order('created_at', { ascending: false });
 
@@ -65,8 +65,11 @@ export async function GET(request: NextRequest) {
     const accountsWithStatus = (accounts || []).map(a => {
       const refreshExpiry = a.refresh_token_expires_at ? new Date(a.refresh_token_expires_at) : null;
       const isExpired = refreshExpiry ? refreshExpiry.getTime() < now.getTime() : true;
+      // ส่งแค่ธงว่ามี token แชทหรือยัง — ตัว token ห้ามหลุดออกไป
+      const { chat_access_token, ...rest } = a;
       return {
-        ...a,
+        ...rest,
+        chat_connected: !!chat_access_token,
         connection_status: !a.is_active ? 'disconnected' : isExpired ? 'expired' : 'connected',
         linked_product_count: linkCounts[a.id] || 0,
       };
