@@ -29,7 +29,7 @@ import Tabs from '@/components/ui/Tabs';
 import { useFeatures } from '@/lib/features-context';
 import { isMarketplacePlatform } from '@/lib/marketplace-platforms';
 import {
-  Tag, Plus, Pencil, Trash2, Lock, MessageCircle, Link as LinkIcon, Star, ShoppingBag,
+  Tag, Plus, Pencil, Trash2, Lock, MessageCircle, Link as LinkIcon, Star, ShoppingBag, Loader2,
 } from 'lucide-react';
 import dynamic from 'next/dynamic';
 
@@ -530,17 +530,25 @@ export default function SalesChannelsPage() {
           subtitle="จัดการช่องทางที่ออเดอร์เข้ามา — ช่องทาง manual, เพจ LINE/FB และร้าน marketplace ที่เชื่อมต่อ"
           actions={
             showMarketplace ? (
-              /* ปุ่มเชื่อมต่อของแท็บ Marketplace — ตำแหน่งเดียวกับปุ่ม "+ เพิ่ม" */
-              <Button
-                variant="primary"
-                icon={<Plus className="w-5 h-5" />}
-                loading={mpConnecting}
-                onClick={() => handleMarketplaceConnect(mpPlatform)}
-              >
-                {mpPlatform === 'shopee' ? 'เชื่อมต่อร้าน Shopee'
-                  : mpPlatform === 'tiktok' ? 'เชื่อมต่อ TikTok Shop'
-                  : 'เชื่อมต่อร้าน Lazada'}
-              </Button>
+              /* Dropdown เลือกแพลตฟอร์มที่จะเชื่อม — ตำแหน่ง + รูปแบบเดียวกับ
+                 ปุ่ม "+ เพิ่ม" ของแท็บช่องทางของฉัน (ไม่ผูกกับ pill ที่เปิดอยู่
+                 จะได้ไม่กดเชื่อมผิดแพลตฟอร์ม) */
+              <ActionMenu
+                placement="bottom"
+                trigger={mpConnecting
+                  ? <><Loader2 className="w-5 h-5 animate-spin" />กำลังเชื่อมต่อ...</>
+                  : <><Plus className="w-5 h-5" />เชื่อมต่อร้านค้า</>}
+                triggerClassName="btn btn-md btn-primary"
+                items={(['shopee', 'tiktok', 'lazada'] as const).map(platform => ({
+                  key: platform,
+                  label: platform === 'shopee' ? 'เชื่อมต่อร้าน Shopee'
+                    : platform === 'tiktok' ? 'เชื่อมต่อ TikTok Shop'
+                    : 'เชื่อมต่อร้าน Lazada',
+                  icon: <PlatformIcon id={platform} size={16} />,
+                  disabled: mpConnecting,
+                  onClick: () => { setMpPlatform(platform); handleMarketplaceConnect(platform); },
+                }))}
+              />
             ) : (
               /* ปุ่มเพิ่มเป็น dropdown — เลือกแพลตฟอร์มได้เลย แล้วเปิด modal พร้อมค่า preselect */
               /* ทางแยก 2 ทางตั้งแต่กดปุ่ม — เดิมมีรายการ LINE/FB/IG ที่แค่ preselect
