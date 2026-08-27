@@ -130,15 +130,16 @@ export default function ChatChannelsPage() {
     if (hash === 'line' || hash === 'shopee' || hash === 'lazada' || hash === 'tiktok') setActiveTabState(hash);
   }, []);
 
-  // กลับมาจาก OAuth ขาแชท TikTok (?tiktok_chat=connected|failed|skipped)
+  // กลับมาจาก OAuth ขาแชท (?tiktok_chat= / ?lazada_chat= = connected|failed|skipped)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const result = params.get('tiktok_chat');
-    if (!result) return;
+    const platform = params.get('tiktok_chat') ? 'TikTok Shop' : params.get('lazada_chat') ? 'Lazada' : null;
+    if (!platform) return;
+    const result = params.get('tiktok_chat') || params.get('lazada_chat');
     if (result === 'connected') {
-      showToast('เชื่อมต่อแชท TikTok Shop สำเร็จ — เปิดสวิตช์ร้านที่ต้องการรับแชทได้เลย', 'success');
+      showToast(`เชื่อมต่อแชท ${platform} สำเร็จ — เปิดสวิตช์ร้านที่ต้องการรับแชทได้เลย`, 'success');
     } else if (result === 'failed') {
-      showToast('เชื่อมต่อแชท TikTok ไม่สำเร็จ กรุณาลองใหม่', 'error');
+      showToast(`เชื่อมต่อแชท ${platform} ไม่สำเร็จ กรุณาลองใหม่`, 'error');
     }
     // skipped = ผู้ใช้กดยกเลิกเอง — ไม่ต้องเด้งอะไร
     window.history.replaceState({}, '', `/settings/chat-channels${window.location.hash}`);
@@ -526,26 +527,27 @@ export default function ChatChannelsPage() {
       return c?.marketplace_account_id === shop.id || Number(c?.shop_id) === shop.shop_id;
     });
 
-  // TikTok: เริ่ม OAuth ขาแชท (app แชทแยกจาก app ออเดอร์) — จบแล้ว callback
-  // เด้งกลับหน้านี้พร้อม ?tiktok_chat=... (token ผูกระดับบัญชี ครอบคลุมทุกร้าน)
-  const [connectingTikTokChat, setConnectingTikTokChat] = useState(false);
-  const handleConnectTikTokChat = async () => {
-    setConnectingTikTokChat(true);
+  // TikTok/Lazada: เริ่ม OAuth ขาแชท (app แชทแยกจาก app ออเดอร์) — จบแล้ว
+  // callback เด้งกลับหน้านี้พร้อม ?{platform}_chat=... (token ผูกระดับบัญชี
+  // ครอบคลุมทุกร้านของบัญชีนั้น)
+  const [connectingChatAuth, setConnectingChatAuth] = useState(false);
+  const handleConnectMarketplaceChat = async (platform: 'tiktok' | 'lazada') => {
+    setConnectingChatAuth(true);
     try {
-      const res = await apiFetch('/api/tiktok/oauth/auth-url?app=chat');
+      const res = await apiFetch(`/api/${platform}/oauth/auth-url?app=chat`);
       if (res.ok) {
         const { url } = await res.json();
         window.location.href = url;
         return;
       }
       const data = await res.json().catch(() => ({}));
-      showToast(data.error === 'TikTok chat app not configured'
-        ? 'ระบบยังไม่ได้ตั้งค่า app แชท TikTok — กรุณาแจ้งผู้ดูแลระบบ'
+      showToast(typeof data.error === 'string' && data.error.includes('not configured')
+        ? 'ระบบยังไม่ได้ตั้งค่า app แชทของแพลตฟอร์มนี้ — กรุณาแจ้งผู้ดูแลระบบ'
         : 'ไม่สามารถสร้างลิงก์เชื่อมต่อได้', 'error');
     } catch {
       showToast('เกิดข้อผิดพลาด', 'error');
     }
-    setConnectingTikTokChat(false);
+    setConnectingChatAuth(false);
   };
 
   const handleMarketplaceToggle = async (platform: MarketplaceChatPlatform, shop: ShopeeShop) => {
@@ -880,9 +882,10 @@ export default function ChatChannelsPage() {
                 shops.map(shop => {
                   const chatAccount = findMarketplaceChatAccount(platform, shop);
                   const chatEnabled = !!chatAccount?.is_active;
-                  // TikTok: token แชทมาจาก OAuth ขาแชทแยก — ยังไม่เชื่อมต้องพาไป
-                  // อนุญาตก่อน สวิตช์เปิดไปก็เป็นช่องแชทที่ใช้ไม่ได้
-                  const needsChatAuth = platform === 'tiktok' && shop.chat_connected === false;
+                  // TikTok/Lazada: token แชทมาจาก OAuth ขาแชทแยก — ยังไม่เชื่อม
+                  // ต้องพาไปอนุญาตก่อน สวิตช์เปิดไปก็เป็นช่องแชทที่ใช้ไม่ได้
+                  // (API ส่ง chat_connected=true ให้เองเมื่อ platform ไม่มีขาแชทแยก)
+                  const needsChatAuth = (platform === 'tiktok' || platform === 'lazada') && shop.chat_connected === false;
                   return (
                     <div key={shop.id} className="bg-white dark:bg-slate-800 rounded-lg shadow-sm px-3 py-2.5 flex items-center gap-3">
                       <PlatformIcon id={platform} size={24} />
@@ -894,7 +897,7 @@ export default function ChatChannelsPage() {
                         </p>
                       </div>
                       {needsChatAuth ? (
-                        <Button size="sm" variant="secondary" loading={connectingTikTokChat} onClick={handleConnectTikTokChat}>
+                        <Button size="sm" variant="secondary" loading={connectingChatAuth} onClick={() => handleConnectMarketplaceChat(platform as 'tiktok' | 'lazada')}>
                           เชื่อมต่อแชท
                         </Button>
                       ) : shopeeToggling === shop.id ? (

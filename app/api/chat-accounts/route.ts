@@ -6,6 +6,7 @@ import {
   syncSalesChannelFromChatAccount,
   removeSalesChannelForChatAccount,
 } from '@/lib/sales-channels-sync';
+import { isChatAppConfigured as isLazadaChatAppConfigured } from '@/lib/lazada/api';
 
 // GET - List chat accounts
 export async function GET(request: NextRequest) {
@@ -80,11 +81,14 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: `ไม่พบร้าน ${platformLabel} นี้ในบริษัท` }, { status: 404 });
       }
 
-      // TikTok: token แชทมาจาก app แชทแยก (OAuth ขาที่สอง) — ยังไม่เชื่อม
-      // เปิดสวิตช์ไปก็เป็นช่องแชทที่รับ-ส่งอะไรไม่ได้
-      if (platform === 'tiktok' && !mpAccount.chat_access_token) {
+      // TikTok/Lazada: token แชทมาจาก app แชทแยก (OAuth ขาที่สอง) — ยังไม่เชื่อม
+      // เปิดสวิตช์ไปก็เป็นช่องแชทที่รับ-ส่งอะไรไม่ได้ · Lazada เช็คเฉพาะเมื่อตั้ง
+      // LAZADA_CHAT_APP_* แยก (ไม่ตั้ง = token หลักใช้แชทได้ ไม่มีขาที่สอง)
+      const needsChatToken = platform === 'tiktok'
+        || (platform === 'lazada' && isLazadaChatAppConfigured());
+      if (needsChatToken && !mpAccount.chat_access_token) {
         return NextResponse.json(
-          { error: 'ร้านนี้ยังไม่ได้เชื่อมต่อแชท TikTok — กดปุ่ม "เชื่อมต่อแชท" ก่อน' },
+          { error: `ร้านนี้ยังไม่ได้เชื่อมต่อแชท ${platformLabel} — กดปุ่ม "เชื่อมต่อแชท" ก่อน` },
           { status: 400 }
         );
       }

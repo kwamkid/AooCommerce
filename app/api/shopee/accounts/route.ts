@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { checkAuthWithCompany, can, supabaseAdmin } from '@/lib/supabase-admin';
 import { ensureValidToken, getShopInfo, ShopeeAccountRow } from '@/lib/shopee/api';
+import { isChatAppConfigured as isLazadaChatAppConfigured } from '@/lib/lazada/api';
 
 export async function GET(request: NextRequest) {
   try {
@@ -66,10 +67,18 @@ export async function GET(request: NextRequest) {
       const refreshExpiry = a.refresh_token_expires_at ? new Date(a.refresh_token_expires_at) : null;
       const isExpired = refreshExpiry ? refreshExpiry.getTime() < now.getTime() : true;
       // ส่งแค่ธงว่ามี token แชทหรือยัง — ตัว token ห้ามหลุดออกไป
+      // TikTok: แชทต้องผ่าน OAuth app แชทแยกเสมอ · Lazada: มีขาแชทเฉพาะเมื่อ
+      // ตั้ง LAZADA_CHAT_APP_* แยก (ไม่ตั้ง = token หลักใช้แชทได้ ถือว่าเชื่อมแล้ว)
+      // · Shopee: แชทใช้ token หลักอยู่แล้ว
       const { chat_access_token, ...rest } = a;
+      const chatConnected = a.platform === 'tiktok'
+        ? !!chat_access_token
+        : a.platform === 'lazada'
+          ? (!isLazadaChatAppConfigured() || !!chat_access_token)
+          : true;
       return {
         ...rest,
-        chat_connected: !!chat_access_token,
+        chat_connected: chatConnected,
         connection_status: !a.is_active ? 'disconnected' : isExpired ? 'expired' : 'connected',
         linked_product_count: linkCounts[a.id] || 0,
       };

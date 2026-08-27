@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import {
   exchangeCodeForToken, getSellerInfo, getLazadaAppCredentials,
-  isChatAppConfigured, generateLazadaAuthUrl, type LazadaApp, type LazadaCredentials,
+  isChatAppConfigured, type LazadaApp, type LazadaCredentials,
 } from '@/lib/lazada/api';
-import { authorizeMarketplaceCallback, signOAuthState } from '@/lib/oauth-state';
+import { authorizeMarketplaceCallback } from '@/lib/oauth-state';
 import { logIntegration } from '@/lib/integration-logger';
 
 /**
@@ -12,13 +12,15 @@ import { logIntegration } from '@/lib/integration-logger';
  *
  * Lazada ให้สิทธิ์เป็น category ต่อความสามารถ (Seller In-house APP = ออเดอร์ ·
  * In-house IM Chat = แชท) และสร้าง app ต่อ category → ถ้าได้ key คนละชุด
- * ต้อง authorize สองรอบ · ผู้ใช้ต้องไม่รับรู้: กดเชื่อมร้านครั้งเดียวแล้วได้ทั้งคู่
- * จึงต่อขาให้เอง เหมือน TikTok — จบขาออเดอร์แล้ว redirect เข้าขาแชททันที
+ * ต้อง authorize สองรอบ
  *
- * ถ้ายังไม่ตั้ง LAZADA_CHAT_APP_* (app เดียวถือทั้งสอง category) จะไม่มีขาที่สอง
- * และ token ชุดเดียวใช้ได้ทั้งออเดอร์และแชทอยู่แล้ว
+ * ขาแชท**ไม่ต่ออัตโนมัติแล้ว** (เหมือน TikTok) — บางร้านเชื่อมแชทไว้แล้ว
+ * บางร้านไม่ใช้แชท · จบขาออเดอร์กลับหน้า settings พร้อม `chat=prompt` ให้ UI
+ * เปิด dialog ถามก่อน (เฉพาะเมื่อยังมีร้านที่ไม่มี token แชท) — ขาแชทเริ่มจาก
+ * `/api/lazada/oauth/auth-url?app=chat` แล้วจบที่หน้า ช่องทางแชท
  *
- * ขาแชทล้มไม่กระทบออเดอร์ — ออเดอร์บันทึกเสร็จไปแล้วตั้งแต่ขาแรก
+ * ถ้ายังไม่ตั้ง LAZADA_CHAT_APP_* (app เดียวถือทั้งสอง category) ไม่มีขาที่สอง
+ * เลย — token ชุดเดียวใช้ได้ทั้งออเดอร์และแชทอยู่แล้ว
  */
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -27,6 +29,9 @@ export async function GET(request: NextRequest) {
   const host = request.headers.get('host') || 'localhost:3000';
   const protocol = host.includes('localhost') ? 'http' : 'https';
   const baseUrl = `${protocol}://${host}`;
+  // ขาแชทจบที่หน้าช่องทางแชท — ขั้นถัดไปของผู้ใช้ (เปิดสวิตช์รับแชท) อยู่ที่นั่น
+  const chatSettingsUrl = (result: string) =>
+    `${baseUrl}/settings/chat-channels?lazada_chat=${result}#lazada`;
 
   // Verify signed state + completing session — companyId comes only from the
   // trusted state (same pattern as Shopee/TikTok callbacks)
@@ -38,13 +43,12 @@ export async function GET(request: NextRequest) {
   }
   const companyId = authz.companyId;
   const app: LazadaApp = authz.payload.app === 'chat' ? 'chat' : 'main';
-  const userId = authz.payload.userId;
   const settingsUrl = `${baseUrl}/settings/sales-channels?tab=marketplace`;
 
   if (!code) {
-    // ขาแชทไม่มี code (ผู้ใช้กดยกเลิก) — ออเดอร์เชื่อมสำเร็จไปแล้ว ไม่ใช่ error
+    // ขาแชทไม่มี code (ผู้ใช้กดยกเลิก) — ไม่ใช่ error
     return NextResponse.redirect(app === 'chat'
-      ? `${settingsUrl}&success=lazada_connected&chat=skipped`
+      ? chatSettingsUrl('skipped')
       : `${settingsUrl}&error=missing_params`);
   }
 
@@ -73,7 +77,7 @@ export async function GET(request: NextRequest) {
     if (!sellerId) {
       console.error('[Lazada Callback] Could not determine seller_id');
       return NextResponse.redirect(app === 'chat'
-        ? `${settingsUrl}&success=lazada_connected&chat=failed`
+        ? chatSettingsUrl('failed')
         : `${settingsUrl}&error=no_seller_id`);
     }
 
@@ -98,7 +102,7 @@ export async function GET(request: NextRequest) {
 
       if (chatErr) {
         console.error('[Lazada Callback] Chat token update failed:', chatErr);
-        return NextResponse.redirect(`${settingsUrl}&success=lazada_connected&chat=failed`);
+        return NextResponse.redirect(chatSettingsUrl('failed'));
       }
 
       logIntegration({
@@ -112,7 +116,7 @@ export async function GET(request: NextRequest) {
         reference_label: `Lazada chat connected: ${shopName || sellerId}`,
       });
 
-      const done = NextResponse.redirect(`${settingsUrl}&success=lazada_connected&chat=connected`);
+      const done = NextResponse.redirect(chatSettingsUrl('connected'));
       done.cookies.delete('lazada_oauth_state');
       return done;
     }
@@ -155,26 +159,30 @@ export async function GET(request: NextRequest) {
       reference_label: `Lazada connected: ${shopName || sellerId}`,
     });
 
-    // ── ขาออเดอร์เสร็จ → ต่อขาแชทให้เลย (ผู้ใช้ยัง login Lazada ค้างอยู่) ──
+    // ── ขาออเดอร์เสร็จ → ถามผู้ใช้ก่อนว่าจะเชื่อมแชทต่อมั้ย (ไม่ต่ออัตโนมัติ) ──
+    // chat=prompt เฉพาะเมื่อมี app แชทแยก และยังมีร้านที่ไม่มี token แชท
+    // (ไม่มี app แชทแยก = token หลักใช้แชทได้เลย ไม่ต้องถาม)
+    let chatSuffix = '';
     if (isChatAppConfigured()) {
-      const chatState = signOAuthState({ companyId, userId, platform: 'lazada', app: 'chat' });
-      const redirectUri = `${baseUrl}/api/lazada/oauth/callback`;
-      const chained = NextResponse.redirect(generateLazadaAuthUrl(redirectUri, chatState, 'chat'));
-      chained.cookies.set('lazada_oauth_state', chatState, {
-        httpOnly: true, secure: true, sameSite: 'lax', maxAge: 600, path: '/',
-      });
-      console.log('[Lazada Callback] Chaining to chat app authorization');
-      return chained;
+      const { data: pendingChat } = await supabaseAdmin
+        .from('marketplace_accounts')
+        .select('id')
+        .eq('company_id', companyId)
+        .eq('platform', 'lazada')
+        .eq('is_active', true)
+        .is('chat_access_token', null)
+        .limit(1);
+      if (pendingChat && pendingChat.length > 0) chatSuffix = '&chat=prompt';
     }
 
-    const response = NextResponse.redirect(`${settingsUrl}&success=lazada_connected`);
+    const response = NextResponse.redirect(`${settingsUrl}&success=lazada_connected${chatSuffix}`);
     response.cookies.delete('lazada_oauth_state');
     return response;
   } catch (error) {
     console.error('[Lazada Callback] Error:', error);
     // ขาแชทล้ม = ออเดอร์ยังใช้ได้ ไม่ควรรายงานว่าเชื่อมร้านไม่สำเร็จ
     return NextResponse.redirect(app === 'chat'
-      ? `${settingsUrl}&success=lazada_connected&chat=failed`
+      ? chatSettingsUrl('failed')
       : `${settingsUrl}&error=lazada_token_exchange`);
   }
 }
