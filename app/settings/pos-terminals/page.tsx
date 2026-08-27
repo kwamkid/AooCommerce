@@ -585,7 +585,7 @@ export default function PosTerminalsPage() {
     <Layout>
       <Container size="full">
         <div className="flex justify-between items-start mb-6">
-          <PageHeader title="แคชเชียร์" subtitle="จัดการแคชเชียร์ที่เชื่อมกับคลังสินค้าและช่องทางชำระเงิน" />
+          <PageHeader title="Cashier (POS)" subtitle="จัดการแคชเชียร์ที่เชื่อมกับคลังสินค้าและช่องทางชำระเงิน" />
           {features.pos && !loading && (
             activeTab === 'terminals' ? (
               // Terminals: simple button — hidden when list is empty (EmptyCard CTA takes over)
