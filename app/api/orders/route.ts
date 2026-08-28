@@ -64,6 +64,8 @@ interface OrderData {
    *  ได้เหมือนเดิมแม้ลูกค้าแก้ที่อยู่ในสมุดทีหลัง (โมเดลเดียวกับ tax_invoice_address) */
   document_by_post?: boolean;
   document_recipient_name?: string | null;
+  /** เบอร์ผู้รับเอกสาร — ไม่บังคับ (ใช้ตอนส่งซองด้วยขนส่งเอกชนที่ต้องมีเบอร์ปลายทาง) */
+  document_recipient_phone?: string | null;
   document_address?: string | null;
   address_action?: 'update' | 'new';
   tax_invoice_requested?: boolean;
@@ -96,17 +98,22 @@ interface OrderData {
 function buildDocumentByPostFields(src: {
   document_by_post?: boolean;
   document_recipient_name?: string | null;
+  document_recipient_phone?: string | null;
   document_address?: string | null;
 }): Record<string, boolean | string | null> {
   const out: Record<string, boolean | string | null> = {};
   if (src.document_by_post !== undefined) out.document_by_post = !!src.document_by_post;
   if (src.document_by_post === false) {
     out.document_recipient_name = null;
+    out.document_recipient_phone = null;
     out.document_address = null;
     return out;
   }
   if (src.document_recipient_name !== undefined) {
     out.document_recipient_name = (src.document_recipient_name || '').trim() || null;
+  }
+  if (src.document_recipient_phone !== undefined) {
+    out.document_recipient_phone = (src.document_recipient_phone || '').trim() || null;
   }
   if (src.document_address !== undefined) {
     out.document_address = (src.document_address || '').trim() || null;

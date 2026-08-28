@@ -16,6 +16,19 @@
 
 ---
 
+## 2026-08-29 — การ์ด "ของขวัญ": ติ๊กอยู่ข้างบน แต่ช่องกรอกไปกองรวมข้างล่าง (ผู้ใช้งง) + เพิ่มเบอร์ผู้รับเอกสาร
+
+**ที่เกิด**: [components/orders/OrderForm.tsx](components/orders/OrderForm.tsx) การ์ด "ของขวัญ" (โหมดส่งให้คนอื่น)
+**อาการ**: ติ๊ก 3 อันเรียงบนสุด (ไม่แนบใบเสร็จ / แนบการ์ดอวยพร / ส่งเอกสารทางไปรษณีย์) แต่ช่องกรอกของทุกอันไปกองต่อกันท้ายการ์ด — ติ๊กข้างบนแล้วต้องกวาดตาหาว่าช่องไหนเป็นของติ๊กไหน · แถม "ส่งเอกสารทางไปรษณีย์" ติ๊กได้อิสระทั้งที่มันมีเหตุผลก็ต่อเมื่อไม่แนบใบเสร็จไปกับของ
+**วิธีแก้**:
+- **ช่องกรอกอยู่ใต้ติ๊กของตัวเองเสมอ** + เยื้องเข้า (`ml-8` / narrow `ml-4`) — บล็อกเอกสารมีเส้นซ้ายบอกว่าเป็นลูกของติ๊กด้านบน
+- **"ส่งเอกสารทางไปรษณีย์" ขึ้นก็ต่อเมื่อติ๊ก "ไม่แนบใบเสร็จและราคาไปกับของ"** (invariant: `documentByPost ⇒ giftHidePrice`) · เอาติ๊กบนออก → `clearDocumentByPost()` ปิดติ๊กล่าง + ล้างชื่อ/เบอร์/ที่อยู่/id ทิ้ง **ทำใน onChange ของ checkbox ไม่ใช่ useEffect** — ถ้าทำใน effect มันจะยิงตอน `loadOrder` แล้วลบข้อมูลบิลเก่าทิ้งเงียบ ๆ
+- บิลเก่าที่ติ๊กเอกสารไว้แต่ `gift_hide_price=false` (UI รุ่นก่อนติ๊กแยกกันได้) → `loadOrder` normalize ให้ `giftHidePrice = gift_hide_price || document_by_post` เพื่อไม่ให้ติ๊กเอกสารถูกซ่อนทั้งที่ค่ายังอยู่ในบิล (ย้าย `setGiftHidePrice` ออกจากบล็อก `gift_card_requested` มาไว้บล็อกรวม)
+- ถึง/จาก ของการ์ดอวยพรอยู่บรรทัดเดียวกัน (2 คอลัมน์) แล้วค่อยข้อความยาวเต็มความกว้าง — เดิมกินแนวตั้ง 2 เท่า · raw `<input>` ในการ์ดนี้เปลี่ยนเป็น `FormInput` ทั้งหมด (textarea ยังเป็น raw — ไม่มี shared component)
+- **เพิ่ม `orders.document_recipient_phone`** (คอลัมน์มีอยู่แล้ว ไม่ต้อง migration): state + payload + `loadOrder` + whitelist ใน `buildDocumentByPostFields()` (ปิดธง = set null เหมือน field อื่น) + พิมพ์บรรทัด "โทร." บนใบปะหน้าซองเอกสารเมื่อมีค่า — ไม่บังคับกรอก และ**ไม่ fallback เบอร์ลูกค้า** (เว้นว่าง = ตั้งใจเว้น)
+
+**ป้องกัน regression**: ติ๊กที่เป็น "ผลต่อเนื่อง" ของอีกติ๊ก ต้องซ่อน+ล้างค่าเมื่อต้นทางหาย และ**ต้อง normalize ตอนโหลดข้อมูลเก่า** ไม่งั้นจะได้ค่าที่ผู้ใช้มองไม่เห็นแต่ยังถูกบันทึก (หรือหายเงียบ) · field ใหม่ทุกตัวต้องต่อครบ 4 จุด: state → payload → loadOrder → API whitelist
+
 ## 2026-08-29 — Push stock ขึ้น Shopee ตายเงียบ 3 เดือน + refresh token แย่งกันเองจนสำเร็จแค่ 60.8%
 
 **ที่เกิด**: [lib/shopee/auto-sync.ts](lib/shopee/auto-sync.ts) + call site 12 จุด (`app/api/inventory/*`, `app/api/orders/route.ts`, `app/api/pos/orders/route.ts`, `app/api/products/route.ts`, `app/api/marketplace/links/route.ts`) · [lib/shopee/api.ts](lib/shopee/api.ts) `ensureValidToken` · [app/api/shopee/refresh-tokens/route.ts](app/api/shopee/refresh-tokens/route.ts)

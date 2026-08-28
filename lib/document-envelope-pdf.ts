@@ -36,6 +36,9 @@ export interface DocumentEnvelopeData {
   created_at?: string;
   /** snapshot ผู้รับเอกสาร (orders.document_recipient_name) */
   document_recipient_name?: string | null;
+  /** เบอร์ผู้รับเอกสาร (orders.document_recipient_phone) — ไม่บังคับ
+   *  ไปรษณีย์ไม่ต้องใช้ แต่ซองที่ส่งด้วยขนส่งเอกชนต้องมีเบอร์ปลายทางบนหน้าซอง */
+  document_recipient_phone?: string | null;
   /** snapshot ที่อยู่เอกสารทั้งก้อน (orders.document_address) */
   document_address?: string | null;
   /** fallback เมื่อ snapshot ว่าง — ใช้ชื่อลูกค้าผู้สั่งแทน */
@@ -88,6 +91,7 @@ export async function generateDocumentEnvelopePdf({
     (data.customer?.name || '').trim() ||
     (data.customer_name || '').trim();
   const recipientAddress = (data.document_address || '').trim();
+  const recipientPhone = (data.document_recipient_phone || '').trim();
   const dateStr = formatPdfDate(data.order_date || data.created_at || new Date().toISOString());
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -133,6 +137,15 @@ export async function generateDocumentEnvelopePdf({
     lineHeight: 1.35,
     margin: [0, 6, 0, 0],
   });
+  // เบอร์ผู้รับ — พิมพ์เฉพาะเมื่อกรอกไว้ (ซองไปรษณีย์ธรรมดาไม่ต้องมี ไม่ต้องเว้นที่ค้างไว้)
+  if (recipientPhone) {
+    recipientStack.push({
+      text: `โทร. ${recipientPhone}`,
+      fontSize: spec.addrSize,
+      color: '#222222',
+      margin: [0, 4, 0, 0],
+    });
+  }
 
   content.push({
     columns: [

@@ -103,6 +103,12 @@ interface ShippingAddress {
 const addressToText = (a: ShippingAddress): string =>
   [a.address_line1, a.district, a.amphoe, a.province, a.postal_code].filter(Boolean).join(' ');
 
+/** FormInput ไม่ได้ทำสีพื้นตอน disabled มาให้ — เติมให้ตรงกับ textarea ข้าง ๆ */
+const GIFT_INPUT_CLASS = 'disabled:bg-gray-100 dark:disabled:bg-slate-800';
+/** textarea ในการ์ดของขวัญ (ยังไม่มี shared component สำหรับ textarea) */
+const GIFT_TEXTAREA_CLASS =
+  'w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary text-base font-sans disabled:bg-gray-100 dark:disabled:bg-slate-800 resize-none';
+
 interface Product {
   id: string;
   product_id: string;
@@ -2552,121 +2558,154 @@ export default function OrderForm({
         <div className={`bg-white dark:bg-slate-800 rounded-lg ${embedded ? '' : 'border border-gray-200 dark:border-slate-700'} p-4`}>
           <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-2">ของขวัญ</label>
 
-          <div className={`grid grid-cols-1 ${narrowForm ? '' : 'md:grid-cols-2'} gap-3`}>
-            <Checkbox checked={giftHidePrice} onChange={setGiftHidePrice} disabled={isReadOnly} className="!items-start gap-3">
-              <span className="min-w-0">
-                <span className="block text-base text-gray-700 dark:text-slate-300">ไม่แนบใบเสร็จและราคาไปกับของ</span>
-                <span className="block text-sm text-gray-500 dark:text-slate-400">ใบเสร็จส่งให้ผู้สั่งแทน</span>
-              </span>
-            </Checkbox>
+          {/* กติกาของการ์ดนี้: **ช่องกรอกอยู่ใต้ติ๊กของตัวเองเสมอ** (เยื้องเข้าให้เห็นว่าเป็นลูกของติ๊กไหน)
+              ห้ามยกไปกองรวมท้ายการ์ด — ผู้ใช้ติ๊กแล้วต้องเห็นทันทีว่าต้องกรอกอะไรต่อ */}
+          <div className="space-y-3">
 
-            {giftCardEnabled && (
-              <Checkbox checked={giftCardOn} onChange={setGiftCardOn} disabled={isReadOnly} className="!items-start gap-3">
+            {/* ① ไม่แนบใบเสร็จไปกับของ → ② ส่งเอกสารทางไปรษณีย์ (เป็นผลต่อเนื่องของ ①) */}
+            <div>
+              <Checkbox
+                checked={giftHidePrice}
+                onChange={(v) => { setGiftHidePrice(v); if (!v) clearDocumentByPost(); }}
+                disabled={isReadOnly}
+                className="!items-start gap-3"
+              >
                 <span className="min-w-0">
-                  <span className="block text-base text-gray-700 dark:text-slate-300">
-                    แนบการ์ดอวยพร
-                    <span className="ml-2 align-middle">
-                      {giftCard.fee > 0
-                        ? <Badge tone="amber" size="sm">+฿{formatPrice(giftCard.fee)}</Badge>
-                        : <Badge tone="emerald" size="sm">ฟรี</Badge>}
-                    </span>
-                  </span>
-                  <span className="block text-sm text-gray-500 dark:text-slate-400">เขียนข้อความให้ แล้วแนบไปกับของ</span>
+                  <span className="block text-base text-gray-700 dark:text-slate-300">ไม่แนบใบเสร็จและราคาไปกับของ</span>
+                  <span className="block text-sm text-gray-500 dark:text-slate-400">ใบเสร็จส่งให้ผู้สั่งแทน</span>
                 </span>
               </Checkbox>
-            )}
-          </div>
 
-          {/* เอกสารส่งทางไปรษณีย์ — ต่อจาก "ไม่แนบใบเสร็จไปกับของ" ว่าแล้วเอกสารไปไหน
-              ที่อยู่หยิบจาก **สมุดที่อยู่ของลูกค้าเอง** เท่านั้น (ที่อยู่ผู้รับของขวัญคนละเล่ม —
-              เอกสารต้องไปหาผู้ซื้อ) · เก็บเป็นข้อความ snapshot จึงพิมพ์ซ้ำได้เหมือนเดิม
-              แม้ลูกค้าแก้ที่อยู่ทีหลัง และแก้เองได้ถ้าจะส่งไปที่อื่น */}
-          <div className="mt-3 pt-3 border-t border-gray-100 dark:border-slate-700">
-            <Checkbox checked={documentByPost} onChange={setDocumentByPost} disabled={isReadOnly} className="!items-start gap-3">
-              <span className="min-w-0">
-                <span className="block text-base text-gray-700 dark:text-slate-300">ส่งเอกสารทางไปรษณีย์ (ไม่ใส่ในกล่อง)</span>
-                <span className="block text-sm text-gray-500 dark:text-slate-400">พิมพ์ใบปะหน้าซองเอกสารได้จากเมนูพิมพ์ของบิลนี้</span>
-              </span>
-            </Checkbox>
+              {/* เอกสารส่งทางไปรษณีย์ — ขึ้นเฉพาะเมื่อไม่แนบใบเสร็จไปกับของ
+                  (ใบเสร็จอยู่ในกล่องอยู่แล้ว = ไม่มีเหตุต้องส่งซองตามไปอีก)
+                  ที่อยู่หยิบจาก **สมุดที่อยู่ของลูกค้าเอง** เท่านั้น (ที่อยู่ผู้รับของขวัญคนละเล่ม —
+                  เอกสารต้องไปหาผู้ซื้อ) · เก็บเป็นข้อความ snapshot จึงพิมพ์ซ้ำได้เหมือนเดิม
+                  แม้ลูกค้าแก้ที่อยู่ทีหลัง และแก้เองได้ถ้าจะส่งไปที่อื่น */}
+              {giftHidePrice && (
+                <div className={`mt-3 border-l-2 border-gray-100 dark:border-slate-700 ${narrowForm ? 'ml-4 pl-3' : 'ml-8 pl-4'}`}>
+                  <Checkbox checked={documentByPost} onChange={setDocumentByPost} disabled={isReadOnly} className="!items-start gap-3">
+                    <span className="min-w-0">
+                      <span className="block text-base text-gray-700 dark:text-slate-300">ส่งเอกสารทางไปรษณีย์ (ไม่ใส่ในกล่อง)</span>
+                      <span className="block text-sm text-gray-500 dark:text-slate-400">พิมพ์ใบปะหน้าซองเอกสารได้จากเมนูพิมพ์ของบิลนี้</span>
+                    </span>
+                  </Checkbox>
 
-            {documentByPost && (
-              <div className={`mt-3 grid grid-cols-1 ${narrowForm ? '' : 'md:grid-cols-2'} gap-3`}>
-                <div>
-                  <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">ชื่อผู้รับเอกสาร</label>
-                  <input
-                    type="text"
-                    value={documentRecipientName}
-                    onChange={(e) => setDocumentRecipientName(e.target.value)}
-                    disabled={isReadOnly}
-                    placeholder={selectedCustomer?.name || newCustomerName || 'ชื่อผู้สั่ง'}
-                    className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary text-base disabled:bg-gray-100 dark:disabled:bg-slate-800"
-                  />
-                </div>
-                <div>
-                  <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">ที่อยู่ส่งเอกสาร</label>
-                  {ownAddresses.length > 0 && !isReadOnly && (
-                    <FormSelect
-                      /* "เลือกอยู่" เฉพาะเมื่อข้อความด้านล่างยังตรงกับที่อยู่นั้นจริง
-                         (พิมพ์แก้เองแล้ว = ที่อยู่ใหม่ ไม่ใช่ของเดิม) */
-                      value={ownAddresses.some(a => a.id === documentAddressId && addressToText(a) === documentAddress.trim())
-                        ? documentAddressId : ''}
-                      onChange={(id) => {
-                        const addr = ownAddresses.find(a => a.id === id);
-                        if (addr) applyDocumentAddress(addr);
-                      }}
-                      options={ownAddresses.map(a => ({
-                        id: a.id,
-                        label: a.address_name || a.contact_person || 'ที่อยู่ลูกค้า',
-                        subtitle: [a.amphoe || a.district, a.province].filter(Boolean).join(' · '),
-                      }))}
-                      placeholder="เลือกจากที่อยู่ของลูกค้า"
-                      portal
-                    />
+                  {documentByPost && (
+                    <div className="mt-3 space-y-3">
+                      <div className={`grid grid-cols-1 ${narrowForm ? '' : 'md:grid-cols-2'} gap-3`}>
+                        <FormInput
+                          label="ชื่อผู้รับเอกสาร"
+                          value={documentRecipientName}
+                          onChange={(e) => setDocumentRecipientName(e.target.value)}
+                          disabled={isReadOnly}
+                          placeholder={selectedCustomer?.name || newCustomerName || 'ชื่อผู้สั่ง'}
+                          className={GIFT_INPUT_CLASS}
+                        />
+                        {/* เบอร์ = ไม่บังคับ · ไปรษณีย์ไม่ต้องใช้ แต่ขนส่งเอกชนขอเบอร์ปลายทาง */}
+                        <FormInput
+                          label="เบอร์ผู้รับเอกสาร"
+                          type="tel"
+                          inputMode="tel"
+                          value={documentRecipientPhone}
+                          onChange={(e) => setDocumentRecipientPhone(e.target.value)}
+                          disabled={isReadOnly}
+                          placeholder="ไม่บังคับ"
+                          hint="ใส่เมื่อส่งซองด้วยขนส่งเอกชน (ไปรษณีย์ไม่ต้องใช้)"
+                          className={GIFT_INPUT_CLASS}
+                        />
+                      </div>
+                      <div>
+                        <label className="field-label">ที่อยู่ส่งเอกสาร</label>
+                        {ownAddresses.length > 0 && !isReadOnly && (
+                          <FormSelect
+                            /* "เลือกอยู่" เฉพาะเมื่อข้อความด้านล่างยังตรงกับที่อยู่นั้นจริง
+                               (พิมพ์แก้เองแล้ว = ที่อยู่ใหม่ ไม่ใช่ของเดิม) */
+                            value={ownAddresses.some(a => a.id === documentAddressId && addressToText(a) === documentAddress.trim())
+                              ? documentAddressId : ''}
+                            onChange={(id) => {
+                              const addr = ownAddresses.find(a => a.id === id);
+                              if (addr) applyDocumentAddress(addr);
+                            }}
+                            options={ownAddresses.map(a => ({
+                              id: a.id,
+                              label: a.address_name || a.contact_person || 'ที่อยู่ลูกค้า',
+                              subtitle: [a.amphoe || a.district, a.province].filter(Boolean).join(' · '),
+                            }))}
+                            placeholder="เลือกจากที่อยู่ของลูกค้า"
+                            portal
+                          />
+                        )}
+                        <textarea
+                          value={documentAddress}
+                          onChange={(e) => { setDocumentAddress(e.target.value); setDocumentAddressId(''); }}
+                          rows={3}
+                          disabled={isReadOnly}
+                          placeholder="ที่อยู่ที่จะส่งซองเอกสารไปถึง"
+                          className={`${ownAddresses.length > 0 && !isReadOnly ? 'mt-2 ' : ''}${GIFT_TEXTAREA_CLASS}`}
+                        />
+                      </div>
+                    </div>
                   )}
-                  <textarea
-                    value={documentAddress}
-                    onChange={(e) => { setDocumentAddress(e.target.value); setDocumentAddressId(''); }}
-                    rows={3}
-                    disabled={isReadOnly}
-                    placeholder="ที่อยู่ที่จะส่งซองเอกสารไปถึง"
-                    className={`w-full ${ownAddresses.length > 0 && !isReadOnly ? 'mt-2' : ''} px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary text-base font-sans disabled:bg-gray-100 dark:disabled:bg-slate-800 resize-none`}
-                  />
                 </div>
+              )}
+            </div>
+
+            {/* ③ การ์ดอวยพร — ช่องข้อความอยู่ใต้ติ๊กนี้เช่นกัน */}
+            {giftCardEnabled && (
+              <div className="pt-3 border-t border-gray-100 dark:border-slate-700">
+                <Checkbox checked={giftCardOn} onChange={setGiftCardOn} disabled={isReadOnly} className="!items-start gap-3">
+                  <span className="min-w-0">
+                    <span className="block text-base text-gray-700 dark:text-slate-300">
+                      แนบการ์ดอวยพร
+                      <span className="ml-2 align-middle">
+                        {giftCard.fee > 0
+                          ? <Badge tone="amber" size="sm">+฿{formatPrice(giftCard.fee)}</Badge>
+                          : <Badge tone="emerald" size="sm">ฟรี</Badge>}
+                      </span>
+                    </span>
+                    <span className="block text-sm text-gray-500 dark:text-slate-400">เขียนข้อความให้ แล้วแนบไปกับของ</span>
+                  </span>
+                </Checkbox>
+
+                {giftCardOn && (
+                  <div className={`mt-3 space-y-3 ${narrowForm ? 'ml-4' : 'ml-8'}`}>
+                    {/* ถึง/จาก อยู่บรรทัดเดียวกัน (สั้นทั้งคู่) แล้วค่อยข้อความยาวเต็มความกว้าง */}
+                    <div className={`grid grid-cols-1 ${narrowForm ? '' : 'md:grid-cols-2'} gap-3`}>
+                      <FormInput
+                        label="ถึง"
+                        value={giftTo}
+                        onChange={(e) => setGiftTo(e.target.value)}
+                        disabled={isReadOnly}
+                        placeholder={deliveryName || 'ชื่อที่จะขึ้นบนการ์ด'}
+                        className={GIFT_INPUT_CLASS}
+                      />
+                      <FormInput
+                        label="จาก"
+                        value={giftFrom}
+                        onChange={(e) => setGiftFrom(e.target.value)}
+                        disabled={isReadOnly}
+                        placeholder={selectedCustomer?.name || 'ชื่อผู้ให้'}
+                        className={GIFT_INPUT_CLASS}
+                      />
+                    </div>
+                    <div>
+                      <label className="field-label">ข้อความบนการ์ด</label>
+                      <textarea
+                        value={giftMessage}
+                        onChange={(e) => setGiftMessage(e.target.value.slice(0, 220))}
+                        rows={3}
+                        disabled={isReadOnly}
+                        maxLength={220}
+                        className={GIFT_TEXTAREA_CLASS}
+                        placeholder="เช่น สุขสันต์วันเกิดนะครับ ขอให้มีความสุขมากๆ"
+                      />
+                      <p className="text-sm text-gray-400 dark:text-slate-500 mt-0.5 text-right">{giftMessage.length} / 220</p>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
-
-          {giftCardEnabled && giftCardOn && (
-            <div className={`mt-3 pt-3 border-t border-gray-100 dark:border-slate-700 grid grid-cols-1 ${narrowForm ? '' : 'md:grid-cols-2'} gap-3`}>
-              <div>
-                <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">ข้อความบนการ์ด</label>
-                <textarea
-                  value={giftMessage}
-                  onChange={(e) => setGiftMessage(e.target.value.slice(0, 220))}
-                  rows={4}
-                  disabled={isReadOnly}
-                  maxLength={220}
-                  className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary text-base font-sans disabled:bg-gray-100 dark:disabled:bg-slate-800 resize-none"
-                  placeholder="เช่น สุขสันต์วันเกิดนะครับ ขอให้มีความสุขมากๆ"
-                />
-                <p className="text-sm text-gray-400 dark:text-slate-500 mt-0.5 text-right">{giftMessage.length} / 220</p>
-              </div>
-              <div className="space-y-3">
-                <div>
-                  <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">ถึง</label>
-                  <input type="text" value={giftTo} onChange={(e) => setGiftTo(e.target.value)} disabled={isReadOnly}
-                    className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary text-base disabled:bg-gray-100 dark:disabled:bg-slate-800"
-                    placeholder={deliveryName || 'ชื่อที่จะขึ้นบนการ์ด'} />
-                </div>
-                <div>
-                  <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">จาก</label>
-                  <input type="text" value={giftFrom} onChange={(e) => setGiftFrom(e.target.value)} disabled={isReadOnly}
-                    className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary text-base disabled:bg-gray-100 dark:disabled:bg-slate-800"
-                    placeholder={selectedCustomer?.name || 'ชื่อผู้ให้'} />
-                </div>
-              </div>
-            </div>
-          )}
         </div>
         )}
       </div>
