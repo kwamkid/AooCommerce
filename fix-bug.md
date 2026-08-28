@@ -16,6 +16,14 @@
 
 ---
 
+## 2026-08-28 — เปิดบิลจากแชท (contact ยังไม่ลิงก์): สร้างลูกค้าซ้อน 2 คน + ที่อยู่ไปค้างกับคนผิด → บิลถัดไปไม่ prefill
+
+**ที่เกิด**: [components/orders/OrderForm.tsx](components/orders/OrderForm.tsx) `onSuccess` + [app/chat/page.tsx](app/chat/page.tsx) `autoCreateAndLinkCustomer`
+**อาการ**: เปิดบิลแรกจากแชท (contact ยังไม่ผูกลูกค้า) กรอกชื่อ+ที่อยู่ → save สำเร็จ แต่ระบบได้**ลูกค้า 2 คน**: "ยุทธนา" (API สร้างจากข้อมูลที่กรอก พร้อม shipping address) และ "แอมแปมนะจ๊ะ" (หน้าแชทสร้างจากชื่อ LINE) แล้ว order ถูกย้ายไปผูกกับตัวหลัง → **ที่อยู่ติดอยู่กับลูกค้ากำพร้า** เปิดบิลรอบต่อไปไม่มีที่อยู่ prefill ต้องกรอกใหม่ตลอด
+**Root cause**: `/api/orders` POST สร้างลูกค้าให้เมื่อไม่มี customer_id แต่ OrderForm ส่ง `onSuccess(orderId, selectedCustomer?.id)` = **undefined** (ไม่รายงานลูกค้าที่ API เพิ่งสร้าง) → หน้าแชทเข้าใจว่ายังไม่มีลูกค้า → `autoCreateAndLinkCustomer` สร้างจาก display_name ซ้อน + PUT ย้าย order
+**วิธีแก้**: OrderForm เก็บ `customer_id` จริงจาก response (`result.order.customer_id`) แล้วส่งผ่าน `onSuccess` ทั้ง 2 จุด (edit + success modal) → หน้าแชทเข้าเคส "มีลูกค้าแล้ว" ลิงก์ contact กับลูกค้าตัวจริงแทนการสร้างใหม่ · SQL ซ่อมข้อมูล: ย้าย orders+line_contact ไปลูกค้าตัวจริง แล้วลบตัวซ้อน
+**ป้องกัน regression**: เส้นไหนที่ server "สร้าง entity ให้เอง" ต้องคืน id ให้ client รายงานต่อเสมอ — สอง auto-create ที่ไม่รู้จักกัน = ข้อมูลแยกร่าง · แถม: [ThaiAddressInput](components/ui/ThaiAddressInput.tsx) compact pre-highlight ตัวเลือกแรก → พิมพ์แล้ว Enter เลือกได้เลย (ผู้ใช้ขอ keyboard nav)
+
 ## 2026-08-28 — เปิดบิลจากแชท (contact ที่ผูกลูกค้าแล้ว): เบอร์/อีเมล/ที่อยู่ disabled ทั้งใบ กรอกอะไรไม่ได้
 
 **ที่เกิด**: [components/orders/OrderForm.tsx](components/orders/OrderForm.tsx) prop `disabled` ที่ส่งเข้า `CustomerSelectionCard`

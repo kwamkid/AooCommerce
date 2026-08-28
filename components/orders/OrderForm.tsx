@@ -211,6 +211,9 @@ export default function OrderForm({
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [savedOrderId, setSavedOrderId] = useState('');
   const [savedOrderNumber, setSavedOrderNumber] = useState('');
+  // customer id จริงจากผล save — API อาจสร้างลูกค้าใหม่ให้ (order ไม่มี customer เลือก)
+  // ต้องรายงานกลับผ่าน onSuccess ไม่งั้นหน้าแชทคิดว่ายังไม่มีลูกค้าแล้วสร้างซ้อนอีกคน (fix-bug.md 2026-08-28)
+  const [savedCustomerId, setSavedCustomerId] = useState<string | undefined>(undefined);
   const [billLinkCopied, setBillLinkCopied] = useState(false);
 
   // Edit mode
@@ -1870,7 +1873,7 @@ export default function OrderForm({
       if (isEditMode) {
         showToast('บันทึกการแก้ไขสำเร็จ');
         if (onSuccess) {
-          setTimeout(() => onSuccess(newOrderId, selectedCustomer?.id, deliveryName ? { name: deliveryName, phone: deliveryPhone, email: deliveryEmail } : undefined), 1000);
+          setTimeout(() => onSuccess(newOrderId, result.order?.customer_id || selectedCustomer?.id, deliveryName ? { name: deliveryName, phone: deliveryPhone, email: deliveryEmail } : undefined), 1000);
         } else {
           setTimeout(() => { router.push('/orders'); }, 1500);
         }
@@ -1878,6 +1881,7 @@ export default function OrderForm({
         // New order: show success modal with bill online option
         setSavedOrderId(newOrderId);
         setSavedOrderNumber(result.order?.order_number || result.order_number || '');
+        setSavedCustomerId(result.order?.customer_id || selectedCustomer?.id);
 
         setShowSuccessModal(true);
       }
@@ -2739,7 +2743,7 @@ export default function OrderForm({
                       setShowSuccessModal(false);
                       onSendBillToChat(savedOrderId, savedOrderNumber, billUrl);
                       if (onSuccess) {
-                        onSuccess(savedOrderId, selectedCustomer?.id, deliveryName ? { name: deliveryName, phone: deliveryPhone, email: deliveryEmail } : undefined);
+                        onSuccess(savedOrderId, savedCustomerId || selectedCustomer?.id, deliveryName ? { name: deliveryName, phone: deliveryPhone, email: deliveryEmail } : undefined);
                       }
                     }}
                   >

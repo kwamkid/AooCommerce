@@ -173,7 +173,8 @@ export default function ThaiAddressInput({
             setQuery(v);
             setActiveField('district');   // ใช้เป็นจุดอ้างอิงตำแหน่ง dropdown เท่านั้น
             // ไม่ระบุ field = ค้นทุกคอลัมน์ (ตำบล อำเภอ จังหวัด รหัสไปรษณีย์)
-            if (v.trim().length >= 1) { setSuggestions(searchAddress(v.trim(), undefined, 8)); setHighlightIndex(-1); }
+            // pre-highlight ตัวแรกเสมอ — พิมพ์แล้วกด Enter เลือกได้เลยโดยไม่ต้องกดลูกศรก่อน
+            if (v.trim().length >= 1) { setSuggestions(searchAddress(v.trim(), undefined, 8)); setHighlightIndex(0); }
             else setSuggestions([]);
           }}
           onKeyDown={handleKeyDown}
