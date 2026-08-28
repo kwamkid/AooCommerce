@@ -462,7 +462,7 @@ marketplace_accounts → marketplace_product_links → product_variations
 ### API Docs (Local — ดูก่อน web search!)
 - **Shopee v2**: `api_doc_knowledge/Shopee/_INDEX.md`
 - **Lazada**: `api_doc_knowledge/Lazada/_INDEX.md` — scrape ครบ 365 APIs จาก open.lazada.com (2026-08-28, headless Chrome — หน้า docs เป็น SPA ไม่ต้อง login) ยกเว้น 3 หมวดที่กางไม่ได้: LazCredit Risk / Content / Store Flash Sale · script อยู่ scratchpad session นั้น (เขียนใหม่ได้ง่าย: expand sidebar → เก็บ `a[href*=path=]` → เปิดทีละหน้า slice ตั้งแต่ "Latest update" ถึง "Please rate this article")
-- **TikTok**: ใช้ skill **`tts-openapi-guide`** ก่อน (จาก `npm i -g @tts-open-toolkit/cli` → `tts_open_toolkit skill add --agent cc`) — มี **OAS ฉบับเต็มเป็น JSON** ที่ `~/.claude/skills/tts-openapi-guide/references/oas/paths/*.json` อัปเดตได้ด้วย `tts_open_toolkit update` · สำเนา markdown เก่า ` api_doc_knowledge/Tiktok/_INDEX.md` (scrape 2026-03-10) ใช้เป็น fallback — **เลข push code ในนั้นไม่ตรงของจริง** ยึดหน้า Partner Center เสมอ
+- **TikTok**: ใช้ skill **`tts-openapi-guide`** (จาก `npm i -g @tts-open-toolkit/cli` → `tts_open_toolkit skill add --agent cc`) — มี **OAS ฉบับเต็มเป็น JSON** ที่ `~/.claude/skills/tts-openapi-guide/references/oas/paths/*.json` อัปเดตได้ด้วย `tts_open_toolkit update` · สำเนา markdown เก่าใน api_doc_knowledge **ลบทิ้งแล้ว** (2026-08-28 — stale, เลข push code ผิด) · เรื่อง push code ยึดหน้า Partner Center เสมอ
 
 ### Scale & Queue Strategy
 - **ปัจจุบัน**: Vercel serverless + Supabase — รองรับได้หลักพัน orders/วัน ไม่ต้อง queue
