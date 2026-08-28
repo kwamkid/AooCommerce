@@ -8,6 +8,7 @@ import {
   Clock,
   Package,
   Truck,
+  RotateCcw,
 } from 'lucide-react';
 import {
   Order,
@@ -151,6 +152,14 @@ export default function OrderCard({
             </span>
             {deadline && ['ready_to_ship', 'processing'].includes(order.order_status) && (
               <StatusBadge status="deadline" colors={deadline.color} className="flex-shrink-0" icon={<Clock className="w-3 h-3" />}>{deadline.label}</StatusBadge>
+            )}
+            {/* คำขอคืน/ยกเลิกจาก marketplace — สถานะชั่วคราวที่ต้องรีบตอบใน Seller Center
+                (ไม่ใช่ order_status ของเรา: คำขออาจถูกปฏิเสธแล้ว order จบปกติ) */}
+            {order.external_status === 'TO_RETURN' && (
+              <StatusBadge status="TO_RETURN" colors="bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400" className="flex-shrink-0" icon={<RotateCcw className="w-3 h-3" />}>คืนสินค้า</StatusBadge>
+            )}
+            {order.external_status === 'IN_CANCEL' && (
+              <StatusBadge status="IN_CANCEL" colors="bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400" className="flex-shrink-0" icon={<RotateCcw className="w-3 h-3" />}>ขอยกเลิก</StatusBadge>
             )}
             {shouldShowStatus && (
               <StatusBadge status={order.order_status} colors={
