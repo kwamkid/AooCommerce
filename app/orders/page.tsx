@@ -40,6 +40,7 @@ import {
   SlidersHorizontal,
   Repeat,
   FilterX,
+  Mail,
 } from 'lucide-react';
 import Pagination from '@/app/components/Pagination';
 import PlatformChipFilter from '@/app/components/PlatformChipFilter';
@@ -518,6 +519,16 @@ function OrdersPageContent() {
           className: 'p-1.5 text-gray-400 hover:text-blue-600 transition-colors rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/30',
         });
       }
+    }
+
+    // หน้าซองเอกสาร — เฉพาะบิลของขวัญที่ตั้งไว้ว่าเอกสารส่งไปรษณีย์ (ไม่ผูกกับสถานะ:
+    // ร้านมักเตรียมซองตั้งแต่ก่อนแพ็ค)
+    if (order.document_by_post) {
+      menuItems.push({
+        key: 'doc-envelope', label: 'ใบปะหน้าซองเอกสาร', icon: <Mail className="w-4 h-4" />,
+        onClick: (e) => { e.stopPropagation(); handlePrint(order.id, 'doc_envelope'); },
+        className: 'p-1.5 text-gray-400 hover:text-blue-600 transition-colors rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/30',
+      });
     }
 
     // === Section 2: เอกสารการเงิน ===

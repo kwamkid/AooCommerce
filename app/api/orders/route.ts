@@ -59,6 +59,12 @@ interface OrderData {
    *  ไม่ได้เก็บลง orders (ไม่มี column) ใช้บอก API ว่าจะจำที่อยู่ยังไง:
    *  → เก็บเป็นที่อยู่ผู้รับในสมุดที่อยู่ (is_default=false) ห้ามทับที่อยู่หลักของผู้สั่ง */
   ship_to_other?: boolean;
+  /** ส่งเอกสาร (ใบกำกับ/ใบเสร็จ) ทางไปรษณีย์ไปหา "ผู้ซื้อ" แทนการใส่ในกล่องของขวัญ
+   *  document_address = snapshot ข้อความที่อยู่ทั้งก้อน (ไม่ใช่ FK) — เอกสารต้องพิมพ์ซ้ำ
+   *  ได้เหมือนเดิมแม้ลูกค้าแก้ที่อยู่ในสมุดทีหลัง (โมเดลเดียวกับ tax_invoice_address) */
+  document_by_post?: boolean;
+  document_recipient_name?: string | null;
+  document_address?: string | null;
   address_action?: 'update' | 'new';
   tax_invoice_requested?: boolean;
   tax_invoice_type?: 'personal' | 'corporate';
@@ -76,6 +82,36 @@ interface OrderData {
     items: { order_item_id: string; quantity: number }[];
     reason: string;
   };
+}
+
+
+/**
+ * เอกสารส่งทางไปรษณีย์ — whitelist ทีละ field แบบ "ส่งมาเมื่อไหร่ค่อยเขียน"
+ * (undefined = ไม่แตะ เหมือน delivery_*) เพื่อให้เส้นอื่นที่ PUT มาโดยไม่รู้เรื่องนี้
+ * ไม่ล้างค่าทิ้ง
+ *
+ * ปิดธง (false) = ล้างชื่อ/ที่อยู่เอกสารเสมอ — ไม่งั้นข้อมูลผู้ซื้อค้างอยู่ในออเดอร์
+ * ที่เลิกใช้โหมดนี้แล้ว แล้วปุ่มพิมพ์รอบหน้าจะจ่าหน้าซองผิดคน
+ */
+function buildDocumentByPostFields(src: {
+  document_by_post?: boolean;
+  document_recipient_name?: string | null;
+  document_address?: string | null;
+}): Record<string, boolean | string | null> {
+  const out: Record<string, boolean | string | null> = {};
+  if (src.document_by_post !== undefined) out.document_by_post = !!src.document_by_post;
+  if (src.document_by_post === false) {
+    out.document_recipient_name = null;
+    out.document_address = null;
+    return out;
+  }
+  if (src.document_recipient_name !== undefined) {
+    out.document_recipient_name = (src.document_recipient_name || '').trim() || null;
+  }
+  if (src.document_address !== undefined) {
+    out.document_address = (src.document_address || '').trim() || null;
+  }
+  return out;
 }
 
 
@@ -415,6 +451,8 @@ export async function POST(request: NextRequest) {
         gift_to: orderData.gift_to || null,
         gift_from: orderData.gift_from || null,
         gift_hide_price: orderData.gift_hide_price ?? false,
+        // เอกสารส่งไปรษณีย์ไปหาผู้ซื้อ (ของขวัญ) — ไม่ส่งมา = ใช้ default ของคอลัมน์
+        ...buildDocumentByPostFields(orderData),
         tax_invoice_requested: orderData.tax_invoice_requested || false,
         tax_invoice_type: orderData.tax_invoice_type || null,
         tax_invoice_name: orderData.tax_invoice_name || null,
@@ -1268,7 +1306,7 @@ export async function GET(request: NextRequest) {
     // Enrich orders with tax_invoice_doc_type from document tables
     const orderIds = (result?.orders || []).map((o: any) => o.id).filter(Boolean);
     if (orderIds.length > 0) {
-      const [abbRows, taxRows, recRows] = await Promise.all([
+      const [abbRows, taxRows, recRows, docPostRows] = await Promise.all([
         supabaseAdmin.from('abbreviated_invoices')
           .select('order_id, voided_at')
           .in('order_id', orderIds)
@@ -1283,10 +1321,22 @@ export async function GET(request: NextRequest) {
           .eq('source_type', 'order')
           .in('source_id', orderIds)
           .eq('company_id', auth.companyId),
+        // ธง "ส่งเอกสารทางไปรษณีย์" — RPC get_orders_list ไม่ได้คืนมา แต่เมนูพิมพ์ในหน้า list
+        // ต้องใช้ตัดสินว่าจะโชว์ "ใบปะหน้าซองเอกสาร" ไหม (ยิงขนานไปกับ query เดิม ไม่เพิ่ม latency)
+        supabaseAdmin.from('orders')
+          .select('id, document_by_post')
+          .in('id', orderIds)
+          .eq('company_id', auth.companyId),
       ]);
 
       const taxSet = new Set((taxRows.data || []).map((r: any) => r.source_id));
       const recSet = new Set((recRows.data || []).map((r: any) => r.source_id));
+      if (docPostRows.error) {
+        console.error('document_by_post enrichment error:', docPostRows.error.message);
+      }
+      const docPostSet = new Set(
+        (docPostRows.data || []).filter((r: any) => r.document_by_post).map((r: any) => r.id),
+      );
       const abbMap = new Map<string, { hasActive: boolean; hasVoided: boolean }>();
       for (const r of abbRows.data || []) {
         const cur = abbMap.get(r.order_id) || { hasActive: false, hasVoided: false };
@@ -1295,6 +1345,7 @@ export async function GET(request: NextRequest) {
       }
 
       for (const order of result.orders) {
+        if (docPostSet.has(order.id)) order.document_by_post = true;
         if (taxSet.has(order.id)) {
           order.tax_invoice_doc_type = 'tax';
         } else if (abbMap.has(order.id) && abbMap.get(order.id)!.hasActive) {
@@ -2182,6 +2233,8 @@ export async function PUT(request: NextRequest) {
           gift_to: body.gift_to || null,
           gift_from: body.gift_from || null,
           gift_hide_price: body.gift_hide_price ?? false,
+          // เอกสารส่งไปรษณีย์ — ส่งมาเมื่อไหร่ค่อยเขียน (undefined = ไม่แตะ)
+          ...buildDocumentByPostFields(body),
           // Only overwrite sales_channel_id if explicitly provided (undefined = keep existing)
           ...(sales_channel_id !== undefined ? { sales_channel_id: sales_channel_id || null } : {}),
           updated_at: new Date().toISOString()

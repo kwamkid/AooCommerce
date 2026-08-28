@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Printer, FileText, ClipboardList, Package, Loader2 } from 'lucide-react';
+import { Printer, FileText, ClipboardList, Package, Loader2, Mail } from 'lucide-react';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
 import { showPdfPreview, preOpenPrintWindow } from '@/lib/print-pdf';
@@ -9,7 +9,7 @@ import { type MarketplacePlatform } from '@/lib/marketplace/types';
 
 // ── Types ──────────────────────────────────────────────────
 
-export type PrintType = 'tax' | 'dn' | 'packing' | 'label' | 'marketplace_label' | 'all' | 'abbreviated';
+export type PrintType = 'tax' | 'dn' | 'packing' | 'label' | 'marketplace_label' | 'all' | 'abbreviated' | 'doc_envelope';
 
 /** Platform-specific label API routes — extensible for new platforms */
 const MARKETPLACE_LABEL_ROUTES: Record<string, string> = {
@@ -119,6 +119,12 @@ export async function printOrder(
     const { generateShippingLabelPdf } = await import('@/lib/order-shipping-label-pdf');
     const blob = await generateShippingLabelPdf({ data: orderData });
     showPdfPreview(blob, `ใบปะหน้า ${orderNumber}`, win);
+  } else if (type === 'doc_envelope') {
+    // หน้าซองเอกสาร (ของขวัญ: ของไปหาผู้รับ เอกสารส่งไปรษณีย์ไปหาผู้ซื้อ)
+    onProgress?.('กำลังสร้างใบปะหน้าซองเอกสาร...');
+    const { generateDocumentEnvelopePdf } = await import('@/lib/document-envelope-pdf');
+    const blob = await generateDocumentEnvelopePdf({ data: orderData });
+    showPdfPreview(blob, `ใบปะหน้าซองเอกสาร ${orderNumber}`, win);
   } else if (type === 'abbreviated') {
     onProgress?.('กำลังสร้างใบเสร็จ...');
     const { generateOrderInvoicePdf } = await import('@/lib/order-invoice-pdf');
@@ -160,7 +166,8 @@ export async function printAndTrack(
 ): Promise<void> {
   await printOrder(orderId, type, opts);
 
-  // Fire-and-forget print tracking
+  // Fire-and-forget print tracking ('doc_envelope' ไม่ track — ไม่มีคอลัมน์ของตัวเอง
+  // และไม่ควรไปนับรวมกับใบปะหน้าพัสดุ/ใบกำกับ ซึ่งเป็นคนละใบกัน)
   const trackType = type === 'marketplace_label' ? 'label'
     : type === 'abbreviated' ? 'invoice'
     : type === 'tax' || type === 'dn' ? 'invoice'
@@ -221,6 +228,11 @@ export default function OrderPrintButtons({
   visibleTypes.push({ key: 'packing', label: 'ใบจัดของ', icon: ClipboardList });
   visibleTypes.push({ key: 'label', label: 'ใบปะหน้า', icon: Package });
 
+  // เฉพาะบิลที่ตั้งไว้ว่า "ส่งเอกสารทางไปรษณีย์" — บิลปกติไม่ต้องเห็น
+  if (orderData?.document_by_post === true) {
+    visibleTypes.push({ key: 'doc_envelope', label: 'ใบปะหน้าซองเอกสาร', icon: Mail });
+  }
+
   if (!isRetail) {
     visibleTypes.push({ key: 'all', label: 'พิมพ์ทั้งหมด', icon: Printer, color: 'text-primary font-medium' });
   }
@@ -275,12 +287,14 @@ export function getPrintMenuItems(
     flowType?: string;
     source?: string;
     isMarketplace?: boolean;
+    /** บิลของขวัญที่ตั้งไว้ว่าเอกสารส่งไปรษณีย์ — เปิดเมนู "ใบปะหน้าซองเอกสาร" */
+    documentByPost?: boolean;
   },
 ): { key: string; label: string; icon: React.ReactNode; onClick: () => void; className?: string; dividerBefore?: boolean }[] {
   const hasProcessed = ['processing', 'shipping', 'completed'].includes(orderStatus);
   if (!hasProcessed) return [];
 
-  const { flowType, source, isMarketplace } = opts || {};
+  const { flowType, source, isMarketplace, documentByPost } = opts || {};
   const items: { key: string; label: string; icon: React.ReactNode; onClick: () => void; className?: string; dividerBefore?: boolean }[] = [];
   const isRetail = flowType === 'r_retail';
 
@@ -310,6 +324,16 @@ export function getPrintMenuItems(
     });
   } else {
     items.push({ key: 'print_label', label: 'ใบปะหน้า', icon: <Package className="w-4 h-4" />, onClick: () => onPrint(orderId, 'label') });
+  }
+
+  // หน้าซองเอกสาร — เฉพาะบิลที่ตั้งไว้ว่าเอกสารส่งไปรษณีย์ (ของขวัญ)
+  if (documentByPost) {
+    items.push({
+      key: 'print_doc_envelope',
+      label: 'ใบปะหน้าซองเอกสาร',
+      icon: <Mail className="w-4 h-4" />,
+      onClick: () => onPrint(orderId, 'doc_envelope'),
+    });
   }
 
   return items;

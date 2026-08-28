@@ -48,6 +48,7 @@ import {
   Undo2,
   Repeat,
   Copy,
+  Mail,
 } from 'lucide-react';
 import PaymentModal from '../components/PaymentModal';
 import ShopeeShipModal from '../components/ShopeeShipModal';
@@ -683,6 +684,23 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
     }
   };
 
+  // หน้าซองเอกสาร — เฉพาะบิลของขวัญที่ตั้งไว้ว่า "ส่งเอกสารทางไปรษณีย์"
+  const handlePrintDocEnvelope = async () => {
+    if (!fullOrderData) return;
+    setShowPrintMenu(false);
+    setGeneratingPdf(true);
+    try {
+      const { generateDocumentEnvelopePdf } = await import('@/lib/document-envelope-pdf');
+      const blob = await generateDocumentEnvelopePdf({ data: fullOrderData });
+      showPdfPreview(blob, 'ใบปะหน้าซองเอกสาร');
+    } catch (err) {
+      console.error('Error generating document envelope PDF:', err);
+      showToast('สร้าง PDF ไม่สำเร็จ', 'error');
+    } finally {
+      setGeneratingPdf(false);
+    }
+  };
+
   const handlePrintShopeeLabel = async () => {
     try {
       setShopeeActionLoading(true);
@@ -1162,6 +1180,19 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
                         >
                           <Package className="w-4 h-4 text-gray-400" />
                           ใบปะหน้า
+                        </button>
+                      </>
+                    )}
+                    {fullOrderData?.document_by_post && (
+                      <>
+                        <div className="border-t border-gray-100 dark:border-slate-700 my-1" />
+                        <button
+                          onClick={handlePrintDocEnvelope}
+                          disabled={generatingPdf}
+                          className="w-full text-left px-3 py-2.5 text-sm text-gray-700 dark:text-slate-200 hover:bg-gray-50 dark:hover:bg-slate-700 flex items-center gap-2.5 disabled:opacity-50"
+                        >
+                          <Mail className="w-4 h-4 text-gray-400" />
+                          ใบปะหน้าซองเอกสาร
                         </button>
                       </>
                     )}

@@ -52,6 +52,9 @@ export interface Order {
   flow_type?: string | null;
   dn_number?: string | null;
   customer_type?: string | null;
+  /** บิลของขวัญที่ตั้งไว้ว่าเอกสารส่งไปรษณีย์ไปหาผู้ซื้อ (enrich มาจาก /api/orders GET —
+   *  RPC get_orders_list ไม่ได้คืนคอลัมน์นี้) → เปิดเมนูพิมพ์ "ใบปะหน้าซองเอกสาร" */
+  document_by_post?: boolean;
   printed_label_at?: string | null;
   printed_packing_at?: string | null;
   printed_invoice_at?: string | null;

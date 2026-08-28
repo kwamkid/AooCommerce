@@ -98,6 +98,10 @@ interface ShippingAddress {
   delivery_notes?: string;
 }
 
+/** ที่อยู่ในสมุด → ข้อความก้อนเดียว (ใช้เป็น snapshot ที่อยู่ส่งเอกสาร) */
+const addressToText = (a: ShippingAddress): string =>
+  [a.address_line1, a.district, a.amphoe, a.province, a.postal_code].filter(Boolean).join(' ');
+
 interface Product {
   id: string;
   product_id: string;
@@ -309,6 +313,49 @@ export default function OrderForm({
   const [giftTo, setGiftTo] = useState('');
   const [giftFrom, setGiftFrom] = useState('');
   const [giftHidePrice, setGiftHidePrice] = useState(true);
+  // เอกสาร (ใบกำกับ/ใบเสร็จ) ส่งทางไปรษณีย์ไปหา "ผู้ซื้อ" แทนการใส่ในกล่องของขวัญ
+  // documentAddress = ข้อความที่อยู่ทั้งก้อน (snapshot ลง orders) — ไม่ผูก FK เพื่อให้
+  // ใบปะหน้าซองพิมพ์ซ้ำได้เหมือนเดิมแม้ลูกค้าแก้ที่อยู่ในสมุดทีหลัง
+  const [documentByPost, setDocumentByPost] = useState(false);
+  const [documentRecipientName, setDocumentRecipientName] = useState('');
+  const [documentAddress, setDocumentAddress] = useState('');
+  // id ที่อยู่ที่หยิบมาเติม (ใช้แค่ไฮไลต์ใน dropdown) — '' = พิมพ์เอง/ยังไม่ได้เลือก
+  const [documentAddressId, setDocumentAddressId] = useState('');
+
+  // สมุดที่อยู่ของ "ลูกค้าเอง" เท่านั้น — ที่อยู่ผู้รับของขวัญ (is_recipient) อยู่คนละเล่ม
+  // เอกสารต้องไปหาผู้ซื้อ จึงห้ามให้ที่อยู่ผู้รับโผล่ใน dropdown นี้เด็ดขาด
+  const ownAddresses = useMemo(
+    () => shippingAddresses.filter((a: ShippingAddress) => !a.is_recipient),
+    [shippingAddresses],
+  );
+
+  /** เลือกที่อยู่ลูกค้ามาเติมช่องเอกสาร (ผู้ใช้แก้ข้อความต่อได้) */
+  const applyDocumentAddress = (addr: ShippingAddress) => {
+    setDocumentAddressId(addr.id);
+    setDocumentAddress(addressToText(addr));
+    setDocumentRecipientName(prev => prev.trim() || addr.contact_person || selectedCustomer?.name || '');
+  };
+
+  // ติ๊ก "ส่งเอกสารทางไปรษณีย์" ครั้งแรก → เติมที่อยู่ default ของลูกค้าให้เลย
+  // (เคสปกติคือส่งไปที่อยู่เดิมของผู้สั่ง — ผู้ใช้ไม่ต้องกดอะไรเพิ่ม)
+  useEffect(() => {
+    if (!documentByPost) return;
+    if (documentAddress.trim() || documentRecipientName.trim()) return;
+    const def = ownAddresses.find(a => a.is_default) || ownAddresses[0];
+    if (def) {
+      applyDocumentAddress(def);
+    } else if (selectedCustomer?.name) {
+      setDocumentRecipientName(selectedCustomer.name);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [documentByPost, ownAddresses, selectedCustomer?.id]);
+
+  // สลับกลับ "สั่งเอง" = ไม่มีเรื่องของขวัญแล้ว → ปิดธงเอกสารด้วย ไม่งั้นค้างแล้ว
+  // บันทึกไปทั้งที่ผู้ใช้ไม่เห็นช่องนี้อีกแล้ว
+  useEffect(() => {
+    if (!shipToOther && documentByPost) setDocumentByPost(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shipToOther]);
 
   const [deliveryDateValue, setDeliveryDateValue] = useState<DateValueType>({
     startDate: null,
@@ -757,7 +804,13 @@ export default function OrderForm({
         if (order.order_discount_type) setOrderDiscountType(order.order_discount_type);
         if (order.exchange_credit) setStoredExchangeCredit(Number(order.exchange_credit));
 
-        if (order.gift_card_requested || order.gift_hide_price) setShipToOther(true);
+        if (order.gift_card_requested || order.gift_hide_price || order.document_by_post) setShipToOther(true);
+        // เอกสารส่งไปรษณีย์ — ต้อง map กลับ ไม่งั้นเปิดบิลเก่ามาแก้แล้วบันทึก ค่าจะหายเงียบ ๆ
+        if (order.document_by_post) {
+          setDocumentByPost(true);
+          if (order.document_recipient_name) setDocumentRecipientName(order.document_recipient_name);
+          if (order.document_address) setDocumentAddress(order.document_address);
+        }
         if (order.gift_card_requested) {
           setGiftCardOn(true);
           if (order.gift_message) setGiftMessage(order.gift_message);
@@ -1878,6 +1931,12 @@ export default function OrderForm({
         gift_hide_price: shipToOther && giftHidePrice,
         // บอก API ว่าที่อยู่ก้อนนี้เป็นของ "ผู้รับ" → เก็บเข้าสมุดที่อยู่แบบไม่ใช่ที่อยู่หลัก
         ship_to_other: shipToOther,
+        // เอกสารส่งไปรษณีย์ไปหาผู้ซื้อ — ส่งค่าเสมอ (false/null เมื่อไม่ใช้) ไม่ปล่อยค้าง
+        document_by_post: shipToOther && documentByPost,
+        document_recipient_name: shipToOther && documentByPost
+          ? (documentRecipientName.trim() || selectedCustomer?.name || newCustomerName.trim() || null)
+          : null,
+        document_address: shipToOther && documentByPost ? (documentAddress.trim() || null) : null,
         ...(giftCardEnabled && shipToOther && giftCardOn ? {
           gift_card_requested: true,
           gift_message: giftMessage.trim() || undefined,
@@ -2490,6 +2549,65 @@ export default function OrderForm({
                   <span className="block text-sm text-gray-500 dark:text-slate-400">เขียนข้อความให้ แล้วแนบไปกับของ</span>
                 </span>
               </Checkbox>
+            )}
+          </div>
+
+          {/* เอกสารส่งทางไปรษณีย์ — ต่อจาก "ไม่แนบใบเสร็จไปกับของ" ว่าแล้วเอกสารไปไหน
+              ที่อยู่หยิบจาก **สมุดที่อยู่ของลูกค้าเอง** เท่านั้น (ที่อยู่ผู้รับของขวัญคนละเล่ม —
+              เอกสารต้องไปหาผู้ซื้อ) · เก็บเป็นข้อความ snapshot จึงพิมพ์ซ้ำได้เหมือนเดิม
+              แม้ลูกค้าแก้ที่อยู่ทีหลัง และแก้เองได้ถ้าจะส่งไปที่อื่น */}
+          <div className="mt-3 pt-3 border-t border-gray-100 dark:border-slate-700">
+            <Checkbox checked={documentByPost} onChange={setDocumentByPost} disabled={isReadOnly} className="!items-start gap-3">
+              <span className="min-w-0">
+                <span className="block text-base text-gray-700 dark:text-slate-300">ส่งเอกสารทางไปรษณีย์ (ไม่ใส่ในกล่อง)</span>
+                <span className="block text-sm text-gray-500 dark:text-slate-400">พิมพ์ใบปะหน้าซองเอกสารได้จากเมนูพิมพ์ของบิลนี้</span>
+              </span>
+            </Checkbox>
+
+            {documentByPost && (
+              <div className={`mt-3 grid grid-cols-1 ${narrowForm ? '' : 'md:grid-cols-2'} gap-3`}>
+                <div>
+                  <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">ชื่อผู้รับเอกสาร</label>
+                  <input
+                    type="text"
+                    value={documentRecipientName}
+                    onChange={(e) => setDocumentRecipientName(e.target.value)}
+                    disabled={isReadOnly}
+                    placeholder={selectedCustomer?.name || newCustomerName || 'ชื่อผู้สั่ง'}
+                    className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary text-base disabled:bg-gray-100 dark:disabled:bg-slate-800"
+                  />
+                </div>
+                <div>
+                  <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">ที่อยู่ส่งเอกสาร</label>
+                  {ownAddresses.length > 0 && !isReadOnly && (
+                    <FormSelect
+                      /* "เลือกอยู่" เฉพาะเมื่อข้อความด้านล่างยังตรงกับที่อยู่นั้นจริง
+                         (พิมพ์แก้เองแล้ว = ที่อยู่ใหม่ ไม่ใช่ของเดิม) */
+                      value={ownAddresses.some(a => a.id === documentAddressId && addressToText(a) === documentAddress.trim())
+                        ? documentAddressId : ''}
+                      onChange={(id) => {
+                        const addr = ownAddresses.find(a => a.id === id);
+                        if (addr) applyDocumentAddress(addr);
+                      }}
+                      options={ownAddresses.map(a => ({
+                        id: a.id,
+                        label: a.address_name || a.contact_person || 'ที่อยู่ลูกค้า',
+                        subtitle: [a.amphoe || a.district, a.province].filter(Boolean).join(' · '),
+                      }))}
+                      placeholder="เลือกจากที่อยู่ของลูกค้า"
+                      portal
+                    />
+                  )}
+                  <textarea
+                    value={documentAddress}
+                    onChange={(e) => { setDocumentAddress(e.target.value); setDocumentAddressId(''); }}
+                    rows={3}
+                    disabled={isReadOnly}
+                    placeholder="ที่อยู่ที่จะส่งซองเอกสารไปถึง"
+                    className={`w-full ${ownAddresses.length > 0 && !isReadOnly ? 'mt-2' : ''} px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary text-base font-sans disabled:bg-gray-100 dark:disabled:bg-slate-800 resize-none`}
+                  />
+                </div>
+              </div>
             )}
           </div>
 
