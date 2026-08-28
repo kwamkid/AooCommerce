@@ -29,6 +29,7 @@ export type QuotaPlatform = typeof QUOTA_PLATFORMS[number];
 export const QUOTA_SCOPES = [
   'auth',
   'order',
+  'finance',
   'fulfillment',
   'product',
   'inventory',
@@ -81,7 +82,7 @@ export const MARKETPLACE_PLATFORMS: Record<QuotaPlatform, MarketplacePlatformCon
       ['/add_on_deal/', 'promotion'],
       ['/bundle_deal/', 'promotion'],
       ['/order/', 'order'],
-      ['/payment/', 'order'],
+      ['/payment/', 'finance'],
       ['/auth/', 'auth'],
       ['/shop/', 'auth'],
       ['/merchant/', 'auth'],
@@ -97,6 +98,7 @@ export const MARKETPLACE_PLATFORMS: Record<QuotaPlatform, MarketplacePlatformCon
       ['/fulfillment/', 'fulfillment'],
       ['/product/', 'product'],
       ['/order/', 'order'],
+      ['/finance/', 'finance'],
       ['/authorization/', 'auth'],
       ['/seller/', 'auth'],
     ],
@@ -108,6 +110,7 @@ export const MARKETPLACE_PLATFORMS: Record<QuotaPlatform, MarketplacePlatformCon
     scopeRules: [
       ['/im/', 'chat'],
       ['/products', 'product'],
+      ['/finance/', 'finance'],
       ['/order', 'order'],
       ['/auth/', 'auth'],
       ['/seller/', 'auth'],
@@ -123,6 +126,7 @@ export const QUOTA_SCOPE_LABELS: Record<QuotaTarget, string> = {
   all: 'ทั้งระบบ',
   auth: 'เชื่อมต่อร้าน',
   order: 'ดึงออเดอร์',
+  finance: 'รายงานการเงิน',
   fulfillment: 'จัดส่ง / ใบปะหน้า',
   product: 'ข้อมูลสินค้า',
   inventory: 'ราคา / สต็อก',
@@ -146,6 +150,10 @@ export const QUOTA_SCOPE_IMPACT: Record<QuotaTarget, { impact: string; reassure:
   order: {
     impact: 'ออเดอร์ใหม่จะเข้าระบบช้าชั่วคราว',
     reassure: 'ออเดอร์ไม่หาย ถูกเก็บเข้าคิวไว้ครบ ระบบจะดึงเข้าให้อัตโนมัติ',
+  },
+  finance: {
+    impact: 'การดึงยอดเงินเข้าจริงจะพักชั่วคราว',
+    reassure: 'ออเดอร์และการจัดส่งไม่กระทบ — ยอดย้อนหลังดึงตามมาได้ทีหลัง',
   },
   fulfillment: {
     impact: 'การกดจัดส่งและพิมพ์ใบปะหน้าจะทำไม่ได้ชั่วคราว',

@@ -451,6 +451,20 @@ marketplace_accounts → marketplace_product_links → product_variations
 - **➕ เพิ่ม marketplace ใหม่**: เพิ่มชื่อใน `QUOTA_PLATFORMS` → TypeScript บังคับให้กรอก entry ใน `MARKETPLACE_PLATFORMS` → ครอบ request function 2 บรรทัด · จบ ไม่ต้องแตะ breaker/throttle/banner/กระดิ่ง/ปุ่มปลดใน superadmin เลย
 - **ยังไม่ทำ**: breaker เป็นต่อ platform **ไม่ใช่ต่อร้าน** — ร้านเดียวชนลิมิต ร้านอื่นของ platform เดียวกันหยุดตาม (ต้องใส่ `shop_id` เข้า key + ส่ง shop ลงไปถึง request function)
 
+### 💰 Settlement — เงินเข้าจริงจาก marketplace (เพิ่ม 2026-08-29 · Shopee ใช้ได้แล้ว)
+
+ตอบว่า "ขายได้เท่าไหร่ โดนหักอะไรบ้าง เหลือเข้ากระเป๋าจริงเท่าไหร่ กำไรเท่าไหร่" — **ผลสำรวจฟิลด์จริงทั้ง 3 เจ้าอยู่ที่ [memo/settlement-analysis.md](memo/settlement-analysis.md) อ่านก่อนแตะเรื่องนี้เสมอ**
+
+- **ช่องกลาง 13 ช่อง** ใน [lib/marketplace/fee-types.ts](lib/marketplace/fee-types.ts): `gross_sales · seller_discount · platform_discount · commission · payment_fee · service_fee · shipping_cost · affiliate · ads · campaign_fee · tax_withheld · adjustment` (+ `net_payout`) — **ทุกช่องเก็บเป็นบวกเสมอ** ทิศอยู่ที่ความหมายของช่อง ไม่ใช่เครื่องหมาย (แต่ละ platform ใช้ทิศไม่ตรงกัน)
+- **เจอค่าธรรมเนียมชนิดใหม่ → หา bucket ที่ตรงที่สุด ห้ามเพิ่ม bucket ตามชื่อที่ platform เรียก** (สามเจ้ารวมกันมีเป็นร้อยชนิด จะได้รายงานร้อยคอลัมน์ที่เทียบข้าม platform ไม่ได้) · ชื่อจริงไม่หาย อยู่ใน `marketplace_settlement_lines` ทุกบรรทัด
+- **ตาราง**: `marketplace_settlements` (1 แถว = 1 ออเดอร์ · query รายงานจากตัวนี้) + `marketplace_settlement_lines` (บรรทัดดิบตามที่ platform ส่งมา — ตัวที่ทำให้ Lazada ที่เป็น ledger รายบรรทัดลงได้) + `marketplace_account_charges` (ค่าใช้จ่ายที่ไม่ผูกออเดอร์ เช่น Sponsored Affiliates, ค่าโฆษณาที่กรอกเอง)
+- **`gross_profit` เป็น null เมื่อไม่รู้ต้นทุน — ห้าม `coalesce(...,0)` ในรายงาน** ไม่งั้นออเดอร์ที่ไม่มีต้นทุนจะโชว์ margin 100% · `cogs_basis` บอกความน่าเชื่อ (`snapshot` = unit_cost ตอนขายครบ · `mixed`/`wac` = ใช้ WAC ปัจจุบันแทนบางส่วน/ทั้งหมด) · ปัจจุบัน Shopee รู้ต้นทุน 1,156 จาก 2,361 ออเดอร์
+- ⚠️ **Shopee มีฟิลด์ชื่อ `cost_of_goods_sold` แต่หมายถึงราคาที่ลูกค้าจ่าย ไม่ใช่ต้นทุนผู้ขาย** (ยืนยันจากข้อมูลจริง = `order_original_price` ทุกแถว) — ต้นทุนจริงมาจาก `order_items.unit_cost` เท่านั้น
+- ⚠️ **Lazada ส่งตัวเลขเป็น string ที่มีคอมมาคั่นหลัก** (`"3,490.00"` → `Number()` = NaN, เจอ 10/180 แถว และเป็นแถวยอดใหญ่ทั้งหมด) — **ใช้ `parseAmount()` จาก fee-types.ts เสมอ ห้าม `Number()` ตรงๆ กับตัวเลขจาก marketplace**
+- **ออเดอร์ Shopee ใหม่สร้าง settlement เองอัตโนมัติ** — `fetchAndSaveEscrowDetail()` ใน [lib/shopee/sync.ts](lib/shopee/sync.ts) เรียก `normalizeShopeeEscrow()` + `saveSettlement()` ต่อท้าย (ล้มแยกจากกัน — escrow บันทึกแล้วถ้า mapping พังยัง backfill ทีหลังได้)
+- **Backfill**: `POST /api/marketplace/settlements/backfill { platform, limit, offset }` — **ไม่ยิง API ของ marketplace เลย** แปลงจาก `orders.external_data.escrow_detail` ที่ดูดเก็บไว้แล้ว · idempotent (upsert ตาม `order_id`) · **ต้องส่ง `offset` เลื่อนหน้าเอง** ไม่งั้นวนดึงชุดเดิม
+- **ยังไม่ทำ**: TikTok (`/finance/202501/orders/{id}/statement_transactions` — ข้อมูลดีที่สุดในสามเจ้า) · Lazada (`/finance/transaction/details/get` — ต้องประกอบแถวเป็นออเดอร์ + จัดการ reversal) · รอบโอนเงิน/กระทบยอดธนาคาร · หน้ารายงาน UI
+
 ### TikTok vs Shopee Key Differences
 | | Shopee | TikTok |
 |---|---|---|
