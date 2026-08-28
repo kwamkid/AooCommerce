@@ -81,8 +81,25 @@ export default function ProductSearchInput({
   const dropdownRef = useRef<HTMLDivElement>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const blurTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  /** focus รอบถัดไปเป็นของระบบ (หลังเพิ่มสินค้า) ไม่ใช่ผู้ใช้ตั้งใจ → อย่ากางรายการแนะนำ */
-  const skipFocusOpenRef = useRef(false);
+  /**
+   * "focus รอบถัดไปเป็นของระบบ ไม่ใช่ผู้ใช้ตั้งใจ" — เก็บธงไว้บน **DOM node** ไม่ใช่ state ของ component
+   *
+   * ItemsTable มีช่องค้นหา 2 ตัว (ตอนบิลว่าง / ใต้ตารางเมื่อมีสินค้าแล้ว) พอเพิ่มชิ้นแรก
+   * ตัวแรกถูก unmount แล้วตัวที่สอง mount ขึ้นมาแทนด้วย state ใหม่ทั้งชุด — ธงที่เก็บใน ref
+   * ของ instance เดิมจึงหายไปพร้อมกัน ทำให้ชิ้นแรกกางรายการเอง แต่ชิ้นต่อ ๆ ไปไม่กาง (ผู้ใช้ทัก 2026-08-29)
+   * ธงบน node รอดข้าม instance เพราะ `searchRef` ชี้ไปที่ node ที่กำลังจะถูกโฟกัสเสมอ
+   */
+  const markSkipNextOpen = () => {
+    const node = searchRef.current;
+    if (node) node.dataset.skipSuggestOpen = '1';
+  };
+  const consumeSkipFlag = (node: HTMLInputElement | null | undefined) => {
+    if (node?.dataset.skipSuggestOpen) {
+      delete node.dataset.skipSuggestOpen;
+      return true;
+    }
+    return false;
+  };
   const searchRef = externalRef || internalRef;
 
   // Filter products client-side
@@ -183,8 +200,10 @@ export default function ProductSearchInput({
     // Re-focus for next search/scan — แต่ **ไม่กางรายการแนะนำ**: ผู้ใช้ที่เพิ่งเพิ่มของเสร็จ
     // มักจะดูสรุป/กดถัดไปต่อ รายการแนะนำที่เด้งเองจะบังปุ่มพอดี (ผู้ใช้ทัก 2026-08-29)
     // พิมพ์ต่อหรือคลิกช่องอีกทีค่อยกาง
-    skipFocusOpenRef.current = true;
     setTimeout(() => {
+      // ตั้งธงบน node ที่กำลังจะโฟกัส — หลังเพิ่มชิ้นแรก ตารางสลับจาก "บิลว่าง" เป็น
+      // "มีสินค้า" ทำให้ node นี้เป็นคนละตัว/คนละ instance กับตอนกดเลือก
+      markSkipNextOpen();
       searchRef.current?.focus();
     }, 50);
   }, [onSelect, searchRef]);
@@ -224,7 +243,7 @@ export default function ProductSearchInput({
           คลิกโดนขอบกล่องจะเงียบสนิท เหมือนรายการแนะนำขึ้นแค่ชิ้นแรก (ผู้ใช้ทัก 2026-08-29) */}
       <div
         onMouseDown={() => {
-          skipFocusOpenRef.current = false;
+          consumeSkipFlag(searchRef.current);
           setShowDropdown(true);
           searchRef.current?.focus();
         }}
@@ -236,21 +255,18 @@ export default function ProductSearchInput({
           type="text"
           value={search}
           onChange={e => {
-            skipFocusOpenRef.current = false;
+            consumeSkipFlag(e.currentTarget);
             setSearch(e.target.value);
             setShowDropdown(true);
           }}
           // คลิกที่ช่อง = ตั้งใจจะหาของ → กางเสมอ (ตอนถูก focus อยู่แล้ว onFocus ไม่ยิงซ้ำ)
-          onMouseDown={() => {
-            skipFocusOpenRef.current = false;
+          onMouseDown={e => {
+            consumeSkipFlag(e.currentTarget);
             setShowDropdown(true);
           }}
-          onFocus={() => {
+          onFocus={e => {
             // focus ที่ระบบสั่งเองหลังเพิ่มสินค้า — ให้เคอร์เซอร์รออยู่เฉย ๆ ไม่ต้องกางบังปุ่ม
-            if (skipFocusOpenRef.current) {
-              skipFocusOpenRef.current = false;
-              return;
-            }
+            if (consumeSkipFlag(e.currentTarget)) return;
             setShowDropdown(true);
           }}
           onBlur={() => {

@@ -2592,7 +2592,8 @@ export default function OrderForm({
 
                   {documentByPost && (
                     <div className="mt-3 space-y-3">
-                      <div className={`grid grid-cols-1 ${narrowForm ? '' : 'md:grid-cols-2'} gap-3`}>
+                      {/* ชื่อ+เบอร์สั้นทั้งคู่ → บรรทัดเดียวกันเสมอ แม้ใน panel แชท (ผู้ใช้ขอ 2026-08-29) */}
+                      <div className="grid grid-cols-2 gap-3">
                         <FormInput
                           label="ชื่อผู้รับเอกสาร"
                           value={documentRecipientName}
@@ -2669,22 +2670,23 @@ export default function OrderForm({
 
                 {giftCardOn && (
                   <div className={`mt-3 space-y-3 ${narrowForm ? 'ml-4' : 'ml-8'}`}>
-                    {/* ถึง/จาก อยู่บรรทัดเดียวกัน (สั้นทั้งคู่) แล้วค่อยข้อความยาวเต็มความกว้าง */}
-                    <div className={`grid grid-cols-1 ${narrowForm ? '' : 'md:grid-cols-2'} gap-3`}>
-                      <FormInput
-                        label="ถึง"
-                        value={giftTo}
-                        onChange={(e) => setGiftTo(e.target.value)}
-                        disabled={isReadOnly}
-                        placeholder={deliveryName || 'ชื่อที่จะขึ้นบนการ์ด'}
-                        className={GIFT_INPUT_CLASS}
-                      />
+                    {/* "จาก … ถึง …" บรรทัดเดียวกันเสมอ เรียงจาก→ถึง ตามที่พูดบนการ์ดจริง
+                        (ผู้ใช้ขอ 2026-08-29 — เดิมเรียงถึง→จาก และซ้อนแนวตั้งใน panel แชท) */}
+                    <div className="grid grid-cols-2 gap-3">
                       <FormInput
                         label="จาก"
                         value={giftFrom}
                         onChange={(e) => setGiftFrom(e.target.value)}
                         disabled={isReadOnly}
                         placeholder={selectedCustomer?.name || 'ชื่อผู้ให้'}
+                        className={GIFT_INPUT_CLASS}
+                      />
+                      <FormInput
+                        label="ถึง"
+                        value={giftTo}
+                        onChange={(e) => setGiftTo(e.target.value)}
+                        disabled={isReadOnly}
+                        placeholder={deliveryName || 'ชื่อที่จะขึ้นบนการ์ด'}
                         className={GIFT_INPUT_CLASS}
                       />
                     </div>
