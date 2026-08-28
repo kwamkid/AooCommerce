@@ -500,9 +500,29 @@ export interface PullStockResult {
   success: boolean;
   checked: number;        // จำนวน variation ที่ผูกกับร้านนี้และเจอยอดบน Shopee
   filled: number;         // เติมยอดให้ (ช่องที่เดิมเป็น 0 / ยังไม่มีแถว)
-  skipped_nonzero: number; // ข้ามเพราะคลังเรามียอดจริงอยู่แล้ว — ไม่ทับเด็ดขาด
+  skipped_nonzero: number; // ข้ามเพราะคลังเรามียอดจริงอยู่แล้ว — ไม่ทับเด็ดขาด (โหมด fill_blank)
+  overwritten?: number;    // ทับยอดเดิมที่ไม่ใช่ 0 (โหมด overwrite เท่านั้น)
+  unchanged?: number;      // ยอดตรงกันอยู่แล้ว ไม่ต้องเขียน
+  dry_run?: boolean;
+  changes?: PullStockChange[]; // รายการที่จะเปลี่ยน (ใส่ครบเสมอ ใช้ทำ preview)
+  desired?: Record<string, number>; // variation_id → ยอดบน Shopee (ทุกตัวที่เจอ ไม่ใช่แค่ที่เปลี่ยน)
   errors: string[];
 }
+
+export interface PullStockChange {
+  variation_id: string;
+  from: number;      // ยอดที่ขายได้ของเราตอนนี้ (quantity - reserved)
+  to: number;        // ยอดบน Shopee
+}
+
+/**
+ * โหมดการดึงยอด
+ * - `fill_blank` (default, พฤติกรรมเดิม) — เติมเฉพาะช่องที่ของเราเป็น 0 และ Shopee > 0
+ *   ใช้ตอน "ตั้งยอดตั้งต้น" ครั้งแรก ไม่ทับของที่พนักงานตั้งไว้
+ * - `overwrite` — **ยึด Shopee เป็นความจริง** ทับทุกช่องรวมถึงตัวที่ Shopee เป็น 0
+ *   ใช้ตอน reconcile หลัง push ตายจนยอดสองฝั่งหลุดกัน (ดู fix-bug.md 2026-08-29)
+ */
+export type PullStockMode = 'fill_blank' | 'overwrite';
 
 /**
  * ดึงยอดสต็อกจาก Shopee ลงคลัง default — สำหรับ "ตั้งยอดตั้งต้น" ของสินค้าที่
@@ -516,8 +536,16 @@ export interface PullStockResult {
  * ต้นทุน quota: get_item_list ~หน้าละ 100 + รายละเอียดชุดละ 50 → ร้าน ~1,000
  * สินค้า ≈ 30 คอล
  */
-export async function pullStockFromShopee(account: ShopeeAccountRow): Promise<PullStockResult> {
-  const result: PullStockResult = { success: false, checked: 0, filled: 0, skipped_nonzero: 0, errors: [] };
+export async function pullStockFromShopee(
+  account: ShopeeAccountRow,
+  opts: { mode?: PullStockMode; dryRun?: boolean } = {}
+): Promise<PullStockResult> {
+  const mode = opts.mode || 'fill_blank';
+  const dryRun = opts.dryRun === true;
+  const result: PullStockResult = {
+    success: false, checked: 0, filled: 0, skipped_nonzero: 0,
+    overwritten: 0, unchanged: 0, dry_run: dryRun, changes: [], errors: [],
+  };
   const companyId = account.company_id;
 
   try {
@@ -573,34 +601,66 @@ export async function pullStockFromShopee(account: ShopeeAccountRow): Promise<Pu
       offset = page.nextOffset;
     }
     result.checked = stockByVariation.size;
+    result.desired = Object.fromEntries(stockByVariation);
 
     // เขียนลง inventory — เฉพาะช่องว่าง/ศูนย์
     const variationIds = [...stockByVariation.keys()];
-    const { data: existingInv } = await supabaseAdmin
-      .from('inventory')
-      .select('id, variation_id, quantity')
-      .eq('warehouse_id', warehouse.id)
-      .in('variation_id', variationIds);
-    const invByVariation = new Map((existingInv || []).map(r => [r.variation_id, r]));
+    // อ่านทีละ 150 id — `.in()` ที่ยาวเกินทำ URL ทะลุลิมิตของ PostgREST แล้ว **ล้มเงียบ**
+    // (คืน error ไม่ใช่แถว) → โค้ดจะนึกว่าไม่มีแถวเดิมเลยแล้วไป insert ทับของที่มีอยู่
+    // ร้าน 300 สินค้ายังรอด แต่ร้านใหญ่กว่านั้นพังแน่ — เจอตอน reconcile 2026-08-29
+    const invByVariation = new Map<string, { id: string; variation_id: string; quantity: number; reserved_quantity: number }>();
+    for (let i = 0; i < variationIds.length; i += 150) {
+      const { data: existingInv, error: invError } = await supabaseAdmin
+        .from('inventory')
+        .select('id, variation_id, quantity, reserved_quantity')
+        .eq('warehouse_id', warehouse.id)
+        .in('variation_id', variationIds.slice(i, i + 150));
+      if (invError) {
+        result.errors.push(`อ่านคลังเดิมไม่สำเร็จ: ${invError.message}`);
+        return result;
+      }
+      for (const row of existingInv || []) {
+        invByVariation.set(row.variation_id as string, row as { id: string; variation_id: string; quantity: number; reserved_quantity: number });
+      }
+    }
 
     for (const [variationId, shopeeStock] of stockByVariation) {
-      if (shopeeStock <= 0) continue;
       const inv = invByVariation.get(variationId);
-      if (inv) {
-        if ((inv.quantity || 0) > 0) { result.skipped_nonzero++; continue; }
-        await supabaseAdmin.from('inventory')
-          .update({ quantity: shopeeStock, updated_at: new Date().toISOString() })
-          .eq('id', inv.id);
-      } else {
-        await supabaseAdmin.from('inventory').insert({
-          company_id: companyId,
-          warehouse_id: warehouse.id,
-          variation_id: variationId,
-          quantity: shopeeStock,
-          reserved_quantity: 0,
-        });
+      const reserved = inv?.reserved_quantity || 0;
+      const ourAvailable = (inv?.quantity || 0) - reserved;
+
+      if (mode === 'fill_blank') {
+        if (shopeeStock <= 0) continue;
+        if (inv && (inv.quantity || 0) > 0) { result.skipped_nonzero++; continue; }
+      } else if (ourAvailable === shopeeStock) {
+        result.unchanged!++;
+        continue;
       }
-      result.filled++;
+
+      // เขียน quantity = shopeeStock + reserved เพื่อให้ "ยอดขายได้" (quantity - reserved)
+      // เท่ากับเลขบน Shopee เป๊ะ — ต้องสมมาตรกับ pushStockToShopee ที่ส่ง quantity - reserved
+      // ไม่งั้น pull เสร็จปุ๊บ push รอบถัดไปจะส่งเลขคนละตัวแล้วหลุดกันใหม่ทันที
+      const newQuantity = shopeeStock + reserved;
+      result.changes!.push({ variation_id: variationId, from: ourAvailable, to: shopeeStock });
+
+      if (!dryRun) {
+        if (inv) {
+          await supabaseAdmin.from('inventory')
+            .update({ quantity: newQuantity, updated_at: new Date().toISOString() })
+            .eq('id', inv.id);
+        } else {
+          await supabaseAdmin.from('inventory').insert({
+            company_id: companyId,
+            warehouse_id: warehouse.id,
+            variation_id: variationId,
+            quantity: newQuantity,
+            reserved_quantity: 0,
+          });
+        }
+      }
+
+      if (mode === 'overwrite' && ourAvailable > 0) result.overwritten!++;
+      else result.filled++;
     }
 
     result.success = true;
