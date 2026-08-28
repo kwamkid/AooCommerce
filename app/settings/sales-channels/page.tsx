@@ -155,18 +155,35 @@ export default function SalesChannelsPage() {
 
   // Deep link เข้าแท็บ marketplace — จาก OAuth callback (?shopee=connected ฯลฯ),
   // ลิงก์ ?tab=marketplace หรือ redirect จาก /settings/integrations เดิม
+  // hash (#shopee/#lazada/#line ฯลฯ) = sub-tab ของแท็บนั้น — refresh แล้วเปิดที่เดิม
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    if (
+    const marketplace =
       params.get('tab') === 'marketplace' ||
       params.get('shopee') === 'connected' ||
       params.get('tiktok') === 'connected' ||
       params.get('success') === 'lazada_connected' ||
-      params.get('error')
-    ) {
-      setMainTab('marketplace');
+      !!params.get('error');
+    if (marketplace) setMainTab('marketplace');
+    const hash = window.location.hash.replace('#', '');
+    if (marketplace && (hash === 'shopee' || hash === 'tiktok' || hash === 'lazada')) {
+      setMpPlatform(hash);
+    } else if (!marketplace && (hash === 'line' || hash === 'facebook' || hash === 'instagram' || hash === 'none')) {
+      setPlatformFilter(hash);
     }
   }, []);
+
+  // เขียนแท็บ + sub-tab กลับลง URL (?tab= + #anchor) ทุกครั้งที่เปลี่ยน —
+  // ใช้ replaceState ไม่ให้ history รกและหน้าไม่ reload
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    // ระหว่างยังมี query จาก OAuth callback ห้ามเขียนทับ — แท็บ marketplace ต้องอ่านก่อน
+    if (params.get('shopee') || params.get('tiktok') || params.get('success') || params.get('error') || params.get('chat')) return;
+    const url = mainTab === 'marketplace'
+      ? `/settings/sales-channels?tab=marketplace#${mpPlatform}`
+      : `/settings/sales-channels${platformFilter !== 'all' ? `#${platformFilter}` : ''}`;
+    window.history.replaceState({}, '', url);
+  }, [mainTab, mpPlatform, platformFilter]);
 
   // แท็บ "ช่องทางของฉัน" ไม่แสดงช่องทาง marketplace เลย (กันสับสน) —
   // ร้าน Shopee/Lazada/TikTok จัดการที่แท็บ "เชื่อมต่อ Marketplace" ที่เดียว
