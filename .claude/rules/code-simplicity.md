@@ -397,6 +397,18 @@ const columns: DataTableColumn<Order>[] = [
 | `webhook-processor.ts` | Webhook order sync (shared with retry) |
 | `errors.ts` | Error translation (TikTok → Thai messages) |
 
+### งานเบื้องหลังใน route handler — **ต้อง `after()` เสมอ** (เพิ่ม 2026-08-29)
+
+| ต้องการ | ใช้ | ห้าม |
+|---------|-----|------|
+| งานที่ไม่อยากให้ผู้ใช้รอ แต่**ต้องได้ทำจริง** (push ขึ้น marketplace, ส่ง noti, ออกเอกสารอัตโนมัติ) | **`after(() => work())`** จาก `next/server` — เรียกใน request handler ตรงๆ และฟังก์ชันเบื้องหลังต้อง **return promise** | `work().catch(() => {})` ลอยๆ ก่อน `return NextResponse.json()` |
+| log ที่หายไม่ได้ (error ของ API ภายนอก) | `await logIntegrationNow()` | `logIntegration()` แบบปล่อยลอยในงานที่กำลังจะจบ |
+
+- **เหตุผล**: Vercel **freeze ฟังก์ชันทันทีที่ response ออก** — งานที่ยังไม่จบตายกลางทาง (request ออกไปถึงปลายทางแต่ไม่จบ = ปลายทางนับเป็น fail) · push stock ขึ้น Shopee ตายแบบนี้เงียบๆ **3 เดือน** เพราะ log ก็ปล่อยลอยเหมือนกัน **งานตาย + หลักฐานตาย พร้อมกัน** (ดู [fix-bug.md](../../fix-bug.md) 2026-08-29)
+- **`after()` ต้องมีอะไรให้รอ** — ฟังก์ชัน `void` ใส่ใน `after()` ไม่ช่วยอะไร · `lib/shopee/auto-sync.ts` จึงมีคู่: `syncStockNow/syncPriceNow/syncInfoNow/syncCategoryNow` (await ได้ — **ใช้ตัวนี้ใน route**) กับ `triggerShopee*Sync` (void — เหลือไว้ให้ที่ที่ไม่มี request context เท่านั้น)
+- **วาง log ให้ชิดจุดยิง API ภายนอกที่สุด** ไม่ใช่ที่ชั้นงาน — บั๊กข้างบนหาไม่เจอ 3 เดือนเพราะ log อยู่ชั้นบนสุดที่ตายพร้อมงาน · ตอนนี้ `shopeeApiRequest` log ทุก call ที่ fail ให้เองผ่าน [lib/shopee/api-log.ts](../../lib/shopee/api-log.ts)
+- **field ที่ stamp เฉพาะตอนสำเร็จ** (เช่น `last_stock_pushed_at`) คือสัญญาณเดียวที่จับ "พังเงียบ" ได้ — ค้างนานผิดปกติ = ต้องไปดู
+
 ---
 
 ## 5. Key API Routes (ใช้ existing routes — ห้ามสร้าง duplicate)
