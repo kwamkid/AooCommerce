@@ -3,6 +3,10 @@
 import { useState, useRef, useEffect, useCallback, ReactNode } from 'react';
 import { Plus, Package, Loader2, Flame } from 'lucide-react';
 import { formatNumber } from '@/lib/utils/format';
+import { useDropUp } from '@/lib/useDropUp';
+
+/** = max-h-72 ของกล่องผลลัพธ์ — ใช้เดาความสูงเฉพาะรอบแรกที่ยังวัดของจริงไม่ได้ */
+const DROPDOWN_MAX_H = 288;
 
 export interface ProductSearchItem {
   id: string;
@@ -75,6 +79,7 @@ export default function ProductSearchInput({
   const [highlightIndex, setHighlightIndex] = useState(-1);
   const internalRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null);
   const blurTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** focus รอบถัดไปเป็นของระบบ (หลังเพิ่มสินค้า) ไม่ใช่ผู้ใช้ตั้งใจ → อย่ากางรายการแนะนำ */
   const skipFocusOpenRef = useRef(false);
@@ -137,6 +142,21 @@ export default function ProductSearchInput({
     ? (suggestions ?? [])
     : filtered;
 
+  const dropdownOpen = showDropdown && (!!search || isSuggestionMode);
+
+  // รายการสินค้าในบิลยาว ๆ ดันช่องค้นหาลงไปติดขอบจอล่าง — ผลค้นหาจะทะลุออกนอกจอ
+  // จนมองไม่เห็น ถ้าข้างล่างไม่พอ (และข้างบนเหลือมากกว่า) ให้กางขึ้นแทน
+  // วัดความสูงจริงของกล่องผลลัพธ์ (ไม่ใช่เดา 288 เสมอ) → รายการ 2-3 ตัวจะไม่พลิกโดยไม่จำเป็น
+  const { dropUp } = useDropUp(wrapperRef, {
+    open: dropdownOpen,
+    estimatedHeight: DROPDOWN_MAX_H,
+    dropdownRef,
+    margin: 8,
+    requireMoreSpaceAbove: true,
+    layout: true,
+    deps: [displayItems.length, isSuggestionMode, loading],
+  });
+
   // Reset highlight when displayed list changes
   useEffect(() => {
     setHighlightIndex(-1);
@@ -198,7 +218,7 @@ export default function ProductSearchInput({
   }, [showDropdown, displayItems, highlightIndex, isDisabled, handleSelect]);
 
   return (
-    <div className="relative">
+    <div className="relative" ref={wrapperRef}>
       <div className="flex items-center gap-2 px-3 py-1.5 border border-dashed border-gray-300 dark:border-slate-600 rounded-lg hover:border-primary transition-colors" style={{ backgroundColor: '#63f5b121' }}>
         <Plus className="w-4 h-4 text-gray-400 flex-shrink-0" />
         <input
@@ -241,10 +261,12 @@ export default function ProductSearchInput({
       </div>
 
       {/* Dropdown results */}
-      {showDropdown && (search || isSuggestionMode) && (
+      {dropdownOpen && (
         <div
           ref={dropdownRef}
-          className="absolute z-50 w-full mt-1 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg max-h-72 overflow-auto"
+          className={`absolute z-50 w-full bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg max-h-72 overflow-auto ${
+            dropUp ? 'bottom-full mb-1' : 'mt-1'
+          }`}
         >
           {isSuggestionMode && (
             <div className="px-3 py-1.5 flex items-center gap-1.5 text-xs font-medium text-gray-500 dark:text-slate-400 bg-gray-50 dark:bg-slate-700/40 border-b border-gray-100 dark:border-slate-700 sticky top-0">

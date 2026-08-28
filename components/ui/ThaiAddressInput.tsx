@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { searchAddress, ThaiAddress } from '@/lib/thai-address-data';
+import { shouldDropUp, useDropUp } from '@/lib/useDropUp';
 import { MapPin } from 'lucide-react';
 
 interface ThaiAddressInputProps {
@@ -107,15 +108,15 @@ export default function ThaiAddressInput({
       const containerRect = containerRef.current.getBoundingClientRect();
       const fieldRect = fieldEl.getBoundingClientRect();
       const dropdownHeight = suggestions.length * 56; // ~56px per item (2-line wrapped)
-      const spaceBelow = window.innerHeight - fieldRect.bottom;
-      const shouldDropUp = spaceBelow < dropdownHeight + 8;
-      setDropUp(shouldDropUp);
+      // เกณฑ์กลาง (lib/useDropUp.ts) — ที่นี่ใช้ margin 8 และพลิกขึ้นทันทีที่ข้างล่างไม่พอ
+      const dropsUp = shouldDropUp(fieldRect, dropdownHeight, { margin: 8 });
+      setDropUp(dropsUp);
       // Calculate position relative to container
       const left = fieldRect.left - containerRect.left;
       // Use container width but align to the field's left edge; cap so dropdown doesn't overflow container right
       const maxWidth = containerRect.width - left;
       const width = maxWidth;
-      if (shouldDropUp) {
+      if (dropsUp) {
         const bottom = containerRect.bottom - fieldRect.top;
         setDropdownPos({ bottom, left, width });
       } else {
@@ -126,6 +127,18 @@ export default function ThaiAddressInput({
       setDropdownPos(null);
     }
   }, [suggestions, activeField]);
+
+  // โหมดช่องเดียว (compact): กล่องรายการเกาะ container ตรง ๆ ไม่ผ่าน dropdownPos ของโหมด 4 ช่อง
+  // จึงต้องเช็คที่ว่างของตัวเอง — ในฟอร์มเปิดบิล ช่องนี้อยู่ค่อนล่าง รายการยาว ๆ จะทะลุออกนอกจอ
+  const { dropUp: compactDropUp } = useDropUp(containerRef, {
+    open: compact && suggestions.length > 0,
+    estimatedHeight: suggestions.length * 56, // ~56px ต่อรายการ (เท่าโหมด 4 ช่อง)
+    dropdownRef,
+    margin: 8,
+    requireMoreSpaceAbove: true,
+    layout: true,
+    deps: [suggestions.length],
+  });
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (suggestions.length === 0) return;
@@ -186,7 +199,16 @@ export default function ThaiAddressInput({
           style={inputStyle}
         />
         {suggestions.length > 0 && (
-          <div ref={dropdownRef} className={dropdownCls} style={{ top: '100%', left: 0, width: '100%', marginTop: 4, ...dropdownStyle }}>
+          <div
+            ref={dropdownRef}
+            className={dropdownCls}
+            style={{
+              ...(compactDropUp ? { bottom: '100%', marginBottom: 4 } : { top: '100%', marginTop: 4 }),
+              left: 0,
+              width: '100%',
+              ...dropdownStyle,
+            }}
+          >
             {suggestions.map((addr, i) => (
               <button
                 key={`${addr.district}-${addr.amphoe}-${addr.zipcode}-${i}`}

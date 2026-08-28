@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { ChevronDown, Search, Check } from 'lucide-react';
+import { useDropUp } from '@/lib/useDropUp';
 
 export interface FormSelectOption {
   id: string;
@@ -70,7 +71,6 @@ export default function FormSelect({
   const searchRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const [portalPos, setPortalPos] = useState<{ top: number; left: number; width: number } | null>(null);
 
   const selected = options.find(o => o.id === value);
   const showSearch = options.length > searchThreshold;
@@ -103,38 +103,35 @@ export default function FormSelect({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [open, portal]);
 
-  // Portal positioning: calculate dropdown position from trigger button
-  useEffect(() => {
-    if (!open || !portal || !containerRef.current) {
-      setPortalPos(null);
-      return;
-    }
-    const updatePos = () => {
-      const rect = containerRef.current!.getBoundingClientRect();
-      const spaceBelow = window.innerHeight - rect.bottom;
-      const dropdownH = dropdownRef.current?.offsetHeight || 280;
-      // If not enough space below, show above
-      const showAbove = spaceBelow < dropdownH && rect.top > spaceBelow;
-      setPortalPos({
-        top: showAbove ? rect.top - dropdownH - 4 : rect.bottom + 4,
+  // Portal positioning: calculate dropdown position from trigger button.
+  // เกณฑ์ "พลิกขึ้น" อยู่ใน lib/useDropUp.ts (ใช้ร่วมกับ MonthYearPicker /
+  // ThaiAddressInput / ProductSearchInput) — ค่าเดิมของที่นี่คือ estimate 280,
+  // ไม่มี margin, และพลิกเฉพาะตอนข้างบนเหลือมากกว่าข้างล่าง
+  const { dropUp, rect, height: dropdownH } = useDropUp(containerRef, {
+    open: open && portal,
+    estimatedHeight: 280,
+    dropdownRef,
+    requireMoreSpaceAbove: true,
+  });
+  const portalPos = rect
+    ? {
+        top: dropUp ? rect.top - dropdownH - 4 : rect.bottom + 4,
         left: rect.left,
         width: rect.width,
-      });
-    };
-    updatePos();
-    // Close on outside scroll (dropdown would float detached from trigger), but
-    // ignore scrolls inside the dropdown's own scrollable list.
+      }
+    : null;
+
+  // Close on outside scroll (dropdown would float detached from trigger), but
+  // ignore scrolls inside the dropdown's own scrollable list.
+  useEffect(() => {
+    if (!open || !portal) return;
     const handleScroll = (e: Event) => {
       if (dropdownRef.current?.contains(e.target as Node)) return;
       setOpen(false);
       setSearch('');
     };
     window.addEventListener('scroll', handleScroll, true);
-    window.addEventListener('resize', updatePos);
-    return () => {
-      window.removeEventListener('scroll', handleScroll, true);
-      window.removeEventListener('resize', updatePos);
-    };
+    return () => window.removeEventListener('scroll', handleScroll, true);
   }, [open, portal]);
 
   // Focus search when opened

@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
+import { useDropUp } from '@/lib/useDropUp';
 
 const THAI_MONTHS = [
   'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน',
@@ -43,7 +44,6 @@ export default function MonthYearPicker({
   const [viewYear, setViewYear] = useState(year);
   const containerRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const [portalPos, setPortalPos] = useState<{ top: number; left: number; width: number } | null>(null);
 
   const nowYear = new Date().getFullYear();
   const minYear = nowYear - yearsBefore;
@@ -72,31 +72,28 @@ export default function MonthYearPicker({
     return () => document.removeEventListener('mousedown', handle);
   }, [open, portal]);
 
-  // Portal positioning
-  useEffect(() => {
-    if (!open || !portal || !containerRef.current) {
-      setPortalPos(null);
-      return;
-    }
-    const updatePos = () => {
-      const rect = containerRef.current!.getBoundingClientRect();
-      const spaceBelow = window.innerHeight - rect.bottom;
-      const dropdownH = dropdownRef.current?.offsetHeight || 300;
-      const showAbove = spaceBelow < dropdownH && rect.top > spaceBelow;
-      setPortalPos({
-        top: showAbove ? rect.top - dropdownH - 4 : rect.bottom + 4,
+  // Portal positioning — เกณฑ์ "พลิกขึ้น" ใช้ตัวกลาง lib/useDropUp.ts
+  // (estimate 300, ไม่มี margin, พลิกเฉพาะตอนข้างบนเหลือมากกว่าข้างล่าง = ค่าเดิม)
+  const { dropUp, rect, height: dropdownH } = useDropUp(containerRef, {
+    open: open && portal,
+    estimatedHeight: 300,
+    dropdownRef,
+    requireMoreSpaceAbove: true,
+  });
+  const portalPos = rect
+    ? {
+        top: dropUp ? rect.top - dropdownH - 4 : rect.bottom + 4,
         left: rect.left,
         width: Math.max(rect.width, 280),
-      });
-    };
-    updatePos();
+      }
+    : null;
+
+  // Close on scroll (dropdown would float detached from the trigger)
+  useEffect(() => {
+    if (!open || !portal) return;
     const handleScroll = () => setOpen(false);
     window.addEventListener('scroll', handleScroll, true);
-    window.addEventListener('resize', updatePos);
-    return () => {
-      window.removeEventListener('scroll', handleScroll, true);
-      window.removeEventListener('resize', updatePos);
-    };
+    return () => window.removeEventListener('scroll', handleScroll, true);
   }, [open, portal]);
 
   const handleSelect = useCallback((m: number) => {
