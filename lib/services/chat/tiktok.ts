@@ -169,6 +169,7 @@ export class TikTokChatService {
       for (let page = 0; page < 3 && !convo; page++) {
         const { conversations, nextPageToken, error } = await getConversations(creds, { pageSize: 20, pageToken });
         if (error) break;
+        if (page === 0) await this.captureShopLogo(account, conversations);
         convo = conversations.find(c => c.id === conversationId) || null;
         if (!nextPageToken) break;
         pageToken = nextPageToken;
@@ -194,6 +195,7 @@ export class TikTokChatService {
     try {
       const creds = await ensureValidToken(account, 'chat');
       const { conversations } = await getConversations(creds, { pageSize: Math.min(maxConversations, 20) });
+      await this.captureShopLogo(account, conversations);
       let synced = 0;
       for (const convo of conversations.slice(0, maxConversations)) {
         if (!convo.id) continue;
@@ -208,6 +210,29 @@ export class TikTokChatService {
       console.error('[TikTok Chat] syncRecentConversations error:', err instanceof Error ? err.message : err);
       return 0;
     }
+  }
+
+  // ─── Shop logo capture ──────────────────────────────────────────────
+
+  /**
+   * TikTok ไม่มี API ให้ดึงโลโก้ร้านตรง ๆ — แต่ participants ของ conversation
+   * ที่ role = SHOP มี avatar ของร้านติดมา จึงเก็บลง metadata.shop_logo
+   * ระหว่าง sync แชท (การ์ดร้านใน /settings/sales-channels ใช้แสดง)
+   * URL เป็น tiktokcdn ที่หมดอายุได้ — sync แชทรอบถัดไปจะ refresh ค่าให้เอง
+   */
+  private async captureShopLogo(account: TikTokAccountRow, conversations: TikTokConversation[]) {
+    try {
+      const shop = conversations
+        .flatMap(c => c.participants || [])
+        .find(p => p.role === 'SHOP' && p.avatar);
+      if (!shop?.avatar || account.metadata?.shop_logo === shop.avatar) return;
+      const metadata = { ...(account.metadata || {}), shop_logo: shop.avatar };
+      await supabaseAdmin
+        .from('marketplace_accounts')
+        .update({ metadata, updated_at: new Date().toISOString() })
+        .eq('id', account.id);
+      account.metadata = metadata;
+    } catch { /* best-effort — ห้ามล้ม chat sync เพราะโลโก้ */ }
   }
 
   // ─── Contact upsert ─────────────────────────────────────────────────

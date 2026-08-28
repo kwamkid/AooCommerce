@@ -633,8 +633,17 @@ export default function MarketplaceConnections({
                 onDisconnect={() => handleDisconnect(account.id)}
                 disconnecting={disconnectingId === account.id}
                 avatar={
-                  <div className="w-10 h-10 rounded-lg bg-black flex items-center justify-center flex-shrink-0">
+                  /* โลโก้มาจาก chat sync (participants role=SHOP) — ยังไม่เชื่อมแชท = icon */
+                  <div className="relative w-10 h-10 rounded-lg bg-black flex items-center justify-center flex-shrink-0">
                     <ShoppingBag className="w-5 h-5 text-white" />
+                    {(account.metadata?.shop_logo as string) && (
+                      <img
+                        src={account.metadata.shop_logo as string}
+                        alt={account.shop_name || 'TikTok Shop'}
+                        className="absolute inset-0 w-10 h-10 rounded-lg object-cover"
+                        onError={e => { e.currentTarget.style.display = 'none'; }}
+                      />
+                    )}
                   </div>
                 }
               >
