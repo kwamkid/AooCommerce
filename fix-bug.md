@@ -23,6 +23,9 @@
 **Root cause**: (1) insert `customers` ใส่ column `source` ที่**ไม่มีในตาราง** (Shopee เก็บ platform ใน notes/customer_code ไม่มี column นี้) (2) พอผ่านด่านแรก เจอ `orders_payment_method_check` ที่ allow แค่ `'shopee'` — ไม่มี `'tiktok'`/`'lazada'` · เป็น bug ชนิด "เขียน integration เสร็จแต่ไม่เคยเจอ order ที่สร้างลูกค้าใหม่จริง" — Lazada ก็มีทั้ง 2 จุดเป๊ะ รอระเบิดวันมี order แรก
 **วิธีแก้**: ตัด `source` ออกจาก insert ทั้ง tiktok+lazada (ให้เหมือน Shopee) · migration `orders_payment_method_allow_tiktok_lazada` เพิ่ม 'tiktok','lazada' เข้า CHECK · รัน sync local เก็บ order ที่ค้างเข้าระบบสำเร็จ (processing/paid ตรง AWAITING_COLLECTION)
 **ป้องกัน regression**: integration marketplace ใหม่ยังไม่ถือว่าเสร็จจนกว่าจะผ่าน **order จริงที่สร้างลูกค้าใหม่** อย่างน้อย 1 ใบ · จะเขียนค่าใหม่ลง column ที่มี CHECK (payment_method/status ฯลฯ) ต้องดู constraint ก่อนเสมอ · error เดิมซ้ำทุกรอบ cron ใน integration_logs = มี order กำลังหายเงียบ — เวลาสงสัย "order ไม่เข้า" ให้เปิด log นี้ก่อน
+**ภาคต่อ (order จริง 2 ใบแรกของ Lazada — วันเดียวกัน) เจออีก 2 จุด**:
+1. **ยอดเงินติดลบ/เกือบศูนย์ (หักส่วนลดซ้ำสองรอบ)** — Lazada เก็บ `paid_price` (สุทธิหลัง voucher) ลง order_items แต่ก็ set `discount_amount` (ราคาตั้ง−สุทธิ) ที่ order ด้วย → ระบบคำนวณ total = Σitems − discount เลยหักซ้ำ (121.97 กลายเป็น 6.94, อีกใบติดลบ) → แก้เป็นโมเดล Shopee: item เก็บ**ราคาตั้ง** (`item_price`) + discount แยกที่ order · **กติกา: เลือกโมเดลเดียว** — item ราคาตั้ง+discount แยก (Shopee/Lazada) หรือ item สุทธิ+discount 0 (TikTok) ห้ามผสม
+2. **สองออเดอร์แข่งกันสร้างสินค้าตัวเดียวกัน** — order 2 ใบสั่งสินค้าใหม่ตัวเดียวกันมาในรอบ sync เดียว → insert products ชน `products_company_code_key` แล้วล้มทั้งออเดอร์ → เพิ่ม dup-retry (error 23505 → re-match ด้วย code) ทั้ง lazada+tiktok
 
 ## 2026-08-28 — สถานะ Shopee `TO_RETURN` ไม่อยู่ใน mapping → order เด้งกลับ "ใหม่/รอชำระ" และ sync ซ่อมไม่ได้
 

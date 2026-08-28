@@ -1037,6 +1037,27 @@ async function findOrCreateVariationBySku(
     .single();
 
   if (productErr || !newProduct) {
+    // ออเดอร์อื่นในรอบเดียวกันอาจเพิ่งสร้างสินค้าตัวเดียวกัน (insert แข่งกัน) — code ชน unique
+    // ให้กลับไปใช้ตัวที่ชนะแทนการล้มทั้งออเดอร์ (เจอจริงกับ Lazada 2026-08-28 — fix-bug.md)
+    if (productErr?.code === '23505') {
+      const { data: raced } = await supabaseAdmin
+        .from('products')
+        .select('id, code, product_variations(id, sku)')
+        .eq('company_id', companyId)
+        .eq('code', productCode)
+        .limit(1)
+        .maybeSingle();
+      const racedVar = (raced?.product_variations as { id: string; sku: string | null }[] | undefined)?.[0];
+      if (raced && racedVar) {
+        return {
+          variation_id: racedVar.id,
+          product_id: raced.id,
+          product_code: raced.code || '',
+          isNewProduct: false,
+          isNewVariation: false,
+        };
+      }
+    }
     throw new Error(`Failed to create product: ${productErr?.message}`);
   }
 

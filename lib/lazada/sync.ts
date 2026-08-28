@@ -444,15 +444,19 @@ async function createNewOrder(
 
   for (const item of items) {
     const qty = 1;
+    // ราคาตั้ง (item_price) เก็บลง order_items + ส่วนลดแยกที่ order-level แบบเดียวกับ Shopee —
+    // ห้ามเก็บ paid_price (สุทธิ) ลง item พร้อมกับ discount_amount: ระบบคำนวณ total จาก
+    // Σitems − discount จะกลายเป็นหักส่วนลดซ้ำสองรอบ (เจอจริง 2026-08-28 — บิลเหลือ -0.28)
     const price = Number(item.paid_price ?? item.item_price ?? 0);
-    subtotal += Number(item.item_price ?? price);
+    const listPrice = Number(item.item_price ?? price);
+    subtotal += listPrice;
     paidTotal += price;
 
     const itemName = item.variation && item.variation.trim() && item.variation !== '...'
       ? `${item.name} - ${item.variation}`
       : item.name;
 
-    const matched = await findOrCreateVariationBySku(companyId, item.sku || '', itemName, price, {
+    const matched = await findOrCreateVariationBySku(companyId, item.sku || '', itemName, listPrice, {
       externalItemId: String(item.product_id ?? item.shop_sku ?? item.order_item_id),
       externalModelId: String(item.sku_id ?? '0'),
       image: item.product_main_image || '',
@@ -491,8 +495,8 @@ async function createNewOrder(
       product_code: matched.product_code,
       product_name: itemName,
       qty,
-      price,
-      total: price,
+      price: listPrice,
+      total: listPrice,
     });
   }
 
@@ -886,6 +890,27 @@ async function findOrCreateVariationBySku(
     .single();
 
   if (productErr || !newProduct) {
+    // ออเดอร์อื่นในรอบเดียวกันอาจเพิ่งสร้างสินค้าตัวเดียวกัน (insert แข่งกัน) — code ชน unique
+    // ให้กลับไปใช้ตัวที่ชนะแทนการล้มทั้งออเดอร์ (เจอจริง 2 ใบแรกของ Lazada 2026-08-28)
+    if (productErr?.code === '23505') {
+      const { data: raced } = await supabaseAdmin
+        .from('products')
+        .select('id, code, product_variations(id, sku)')
+        .eq('company_id', companyId)
+        .eq('code', productCode)
+        .limit(1)
+        .maybeSingle();
+      const racedVar = (raced?.product_variations as { id: string; sku: string | null }[] | undefined)?.[0];
+      if (raced && racedVar) {
+        return {
+          variation_id: racedVar.id,
+          product_id: raced.id,
+          product_code: raced.code || '',
+          isNewProduct: false,
+          isNewVariation: false,
+        };
+      }
+    }
     throw new Error(`Failed to create product: ${productErr?.message}`);
   }
 
