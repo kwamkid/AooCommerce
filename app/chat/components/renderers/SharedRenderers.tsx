@@ -2,6 +2,7 @@
 
 import { Play, FileText, Download, Music } from 'lucide-react';
 import { ChatMessage } from '@/app/chat/lib/chatTypes';
+import { hasHtmlMarkup, parseRichText } from '@/app/chat/lib/richText';
 
 interface RendererProps {
   msg: ChatMessage;
@@ -219,6 +220,44 @@ function linkify(text: string) {
   );
 }
 
-export function TextBubble({ msg }: RendererProps) {
+export function TextBubble({ msg, onOpenLightbox, onImageLoad }: RendererProps) {
+  // ข้อความบาง platform (Lazada เป็นหลัก) ฝัง HTML มาในช่อง text — วาดรูป/ลิงก์
+  // จริงแทนการโชว์แท็กดิบ · parse เป็น token แล้วให้ React วาด ไม่ยัด HTML เข้า DOM
+  if (hasHtmlMarkup(msg.content)) {
+    const tokens = parseRichText(msg.content);
+    if (tokens.length > 0) {
+      return (
+        <div className="space-y-1.5">
+          <p className="whitespace-pre-wrap break-words">
+            {tokens.map((token, i) => {
+              if (token.kind === 'br') return <br key={i} />;
+              if (token.kind === 'text') return <span key={i}>{token.value}</span>;
+              if (token.kind === 'link') {
+                return (
+                  <a key={i} href={token.url} target="_blank" rel="noopener noreferrer"
+                    className="underline break-all hover:opacity-80">
+                    {token.label}
+                  </a>
+                );
+              }
+              return null;
+            })}
+          </p>
+          {tokens.filter((t): t is { kind: 'image'; url: string } => t.kind === 'image').map((token, i) => (
+            <img
+              key={`img-${i}`}
+              src={token.url}
+              alt=""
+              loading="lazy"
+              className="max-w-full max-h-64 rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
+              onClick={() => onOpenLightbox?.(token.url)}
+              onLoad={onImageLoad}
+              onError={e => { e.currentTarget.style.display = 'none'; }}
+            />
+          ))}
+        </div>
+      );
+    }
+  }
   return <p className="whitespace-pre-wrap break-words">{linkify(msg.content)}</p>;
 }
