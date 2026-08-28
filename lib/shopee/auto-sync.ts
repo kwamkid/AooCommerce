@@ -1,21 +1,43 @@
 import { supabaseAdmin } from '@/lib/supabase-admin';
-import { ShopeeAccountRow } from '@/lib/shopee/api';
+import { ShopeeAccountRow, isShopeeQuotaBlocked } from '@/lib/shopee/api';
+import type { QuotaTarget } from '@/lib/marketplace/quota';
 import { pushStockToShopee, pushPriceToShopee, pushInfoToShopee, pushCategoryToShopee } from '@/lib/shopee/product-sync';
 import { logIntegration } from '@/lib/integration-logger';
 import { parallelLimit } from '@/lib/parallel';
 
 /**
+ * โควตาของ scope นั้นหมดแล้ว = ยิงไปก็ fail ทุกตัว (Shopee นับ success rate จาก call จริง)
+ * — งาน push เป็นงานเบื้องหลัง เลื่อนไปรอบหน้าได้ ไม่ต้องเผาโควตา/คะแนนทิ้ง
+ *
+ * scope ของ push: update_stock/update_price = `inventory` · update_item = `product`
+ * (ตาราง path→scope อยู่ lib/marketplace/platforms.ts)
+ */
+async function quotaBlocked(scope: QuotaTarget, what: string): Promise<boolean> {
+  const { blocked, until } = await isShopeeQuotaBlocked(scope);
+  if (blocked) {
+    console.warn(`[Shopee Auto-Sync] ข้าม ${what} — โควตา scope "${scope}" เต็มถึง ${until}`);
+  }
+  return blocked;
+}
+
+/**
  * Fire-and-forget: trigger stock sync to Shopee for variation(s).
  * Checks account-level auto_sync_stock flag before pushing.
+ *
+ * ⚠️ **ใน route handler ให้ใช้ `after(() => syncStockNow(ids))` แทน** — งานที่ปล่อยลอย
+ * แบบนี้จะถูก Vercel freeze ทิ้งทันทีที่ response ออก (สาเหตุที่ push stock ตายเงียบ
+ * ตั้งแต่ พ.ค. 2026 ดู fix-bug.md 2026-08-29) · ตัวนี้เหลือไว้ให้ที่ที่ไม่มี request context
  */
 export function triggerShopeeStockSync(variationIds: string[]): void {
   if (!variationIds || variationIds.length === 0) return;
-  _doStockSync(variationIds).catch(err => {
+  syncStockNow(variationIds).catch(err => {
     console.error('[Shopee Auto-Sync] Stock sync error:', err);
   });
 }
 
-async function _doStockSync(variationIds: string[]): Promise<void> {
+export async function syncStockNow(variationIds: string[]): Promise<void> {
+  if (await quotaBlocked('inventory', 'stock sync')) return;
+
   const { data: links } = await supabaseAdmin
     .from('marketplace_product_links')
     .select('product_id, account_id')
@@ -82,12 +104,14 @@ async function _doStockSync(variationIds: string[]): Promise<void> {
  */
 export function triggerShopeePriceSync(productId: string): void {
   if (!productId) return;
-  _doPriceSync(productId).catch(err => {
+  syncPriceNow(productId).catch(err => {
     console.error('[Shopee Auto-Sync] Price sync error:', err);
   });
 }
 
-async function _doPriceSync(productId: string): Promise<void> {
+export async function syncPriceNow(productId: string): Promise<void> {
+  if (await quotaBlocked('inventory', 'price sync')) return;
+
   const { data: links } = await supabaseAdmin
     .from('marketplace_product_links')
     .select('account_id')
@@ -146,12 +170,14 @@ async function _doPriceSync(productId: string): Promise<void> {
  */
 export function triggerShopeeInfoSync(productId: string, productName: string): void {
   if (!productId || !productName) return;
-  _doInfoSync(productId, productName).catch(err => {
+  syncInfoNow(productId, productName).catch(err => {
     console.error('[Shopee Auto-Sync] Info sync error:', err);
   });
 }
 
-async function _doInfoSync(productId: string, productName: string): Promise<void> {
+export async function syncInfoNow(productId: string, productName: string): Promise<void> {
+  if (await quotaBlocked('product', 'info sync')) return;
+
   const { data: links } = await supabaseAdmin
     .from('marketplace_product_links')
     .select('account_id, external_item_id')
@@ -220,12 +246,14 @@ export function triggerShopeeCategorySync(linkId: string, categoryId: number | s
   if (!linkId || !categoryId) return;
   const numericId = Number(categoryId);
   if (!Number.isFinite(numericId) || numericId <= 0) return;
-  _doCategorySync(linkId, numericId).catch(err => {
+  syncCategoryNow(linkId, numericId).catch(err => {
     console.error('[Shopee Auto-Sync] Category sync error:', err);
   });
 }
 
-async function _doCategorySync(linkId: string, categoryId: number): Promise<void> {
+export async function syncCategoryNow(linkId: string, categoryId: number): Promise<void> {
+  if (await quotaBlocked('product', 'category sync')) return;
+
   const { data: link } = await supabaseAdmin
     .from('marketplace_product_links')
     .select('account_id, external_item_id, company_id, product_id')

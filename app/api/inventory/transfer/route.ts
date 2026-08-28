@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, after } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany, isAdminRole, can } from '@/lib/supabase-admin';
 import { getStockConfig } from '@/lib/stock-utils';
 import { transferOut, transferIn, InsufficientStockError } from '@/lib/stock-service';
@@ -105,8 +105,7 @@ export async function POST(request: NextRequest) {
     // Auto-sync stock to Shopee if linked
     const syncVariationIds = results.map((r: { variation_id: string }) => r.variation_id);
     if (syncVariationIds.length > 0) {
-      const { triggerShopeeStockSync } = await import('@/lib/shopee/auto-sync');
-      triggerShopeeStockSync(syncVariationIds);
+      after(() => import('@/lib/shopee/auto-sync').then(m => m.syncStockNow(syncVariationIds)));
     }
 
     if (errors.length > 0 && results.length === 0) {

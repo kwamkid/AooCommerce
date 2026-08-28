@@ -57,12 +57,20 @@ function truncateBody(obj: unknown): unknown {
 
 /**
  * Fire-and-forget: insert integration log without blocking the main flow.
+ *
+ * ⚠️ "ปล่อยลอย" แปลว่า log อาจหายจริง ๆ ถ้า serverless freeze ก่อน insert จะลง —
+ * เคสที่ต้องได้ log แน่ ๆ (เช่น error ของ API ภายนอก) ให้ `await logIntegrationNow()`
  */
 export function logIntegration(entry: IntegrationLogEntry): void {
+  void logIntegrationNow(entry);
+}
+
+/** เหมือน logIntegration แต่ await ได้ — ใช้ตอนที่ log หายไม่ได้ */
+export async function logIntegrationNow(entry: IntegrationLogEntry): Promise<void> {
   const sanitizedRequest = sanitize(entry.request_body);
   const sanitizedResponse = truncateBody(sanitize(entry.response_body));
 
-  supabaseAdmin
+  await supabaseAdmin
     .from('integration_logs')
     .insert({
       company_id: entry.company_id,

@@ -1,5 +1,5 @@
 // Path: app/api/products/route.ts
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, after } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
 
 // Type definitions
@@ -963,12 +963,12 @@ export async function PUT(request: NextRequest) {
 
     // Auto-sync price to Shopee if default_price changed
     if (body.default_price !== undefined || (variations && Array.isArray(variations))) {
-      import('@/lib/shopee/auto-sync').then(m => m.triggerShopeePriceSync(id)).catch(() => {});
+      after(() => import('@/lib/shopee/auto-sync').then(m => m.syncPriceNow(id)));
     }
 
     // Auto-sync product name to Shopee if name changed
     if (body.name) {
-      import('@/lib/shopee/auto-sync').then(m => m.triggerShopeeInfoSync(id, body.name)).catch(() => {});
+      after(() => import('@/lib/shopee/auto-sync').then(m => m.syncInfoNow(id, body.name)));
     }
 
     // Fetch complete product with variations

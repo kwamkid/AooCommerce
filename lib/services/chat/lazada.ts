@@ -6,6 +6,7 @@ import {
   sendChatText, sendChatImage, parseLazadaMessageContent, LazadaImMessage, LazadaSession,
 } from '@/lib/lazada/chat';
 import { logIntegration } from '@/lib/integration-logger';
+import { isQuotaBlocked } from '@/lib/marketplace/quota';
 import type { SendMessageParams, SendMessageResult, GetMessagesParams } from './types';
 
 // Lazada push payload (Push Mechanism). IM pushes carry session info in `data`;
@@ -160,9 +161,23 @@ export class LazadaChatService {
   }
 
   /**
+   * เช็ค circuit breaker ของ scope 'chat' ก่อนทุกครั้งที่จะยิง API แชท
+   * (แชทเป็นคนละ app คนละถังโควตากับออเดอร์ — ตายแยกกัน ฟื้นแยกกัน)
+   */
+  private async chatQuotaBlocked(): Promise<boolean> {
+    const quota = await isQuotaBlocked('lazada', 'chat');
+    if (quota.blocked) {
+      console.warn(`[Lazada Chat] circuit breaker เปิดอยู่ (ถึง ${quota.until}) — ข้ามการ sync`);
+      return true;
+    }
+    return false;
+  }
+
+  /**
    * Pull one session (detail + latest messages) into DB.
    */
   async syncSession(account: LazadaAccountRow, sessionId: string): Promise<boolean> {
+    if (await this.chatQuotaBlocked()) return false;
     try {
       const creds = await ensureValidToken(account, 'chat');
       const detail = await getSessionDetail(creds, sessionId);
@@ -183,6 +198,7 @@ export class LazadaChatService {
    * Used for webhook payloads without session_id and initial backfill.
    */
   async syncRecentSessions(account: LazadaAccountRow, maxSessions = 10): Promise<number> {
+    if (await this.chatQuotaBlocked()) return 0;
     try {
       const creds = await ensureValidToken(account, 'chat');
       const { sessions } = await getSessionList(creds, { pageSize: Math.min(maxSessions, 20) });

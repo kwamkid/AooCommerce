@@ -1,7 +1,9 @@
 import crypto from 'crypto';
-import { markQuotaExhausted, isQuotaBlocked } from '@/lib/marketplace/quota';
+import { markQuotaExhausted, isQuotaBlocked, beginMarketplaceCall, reportMarketplaceError, type QuotaTarget } from '@/lib/marketplace/quota';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { parallelLimit } from '@/lib/parallel';
+import { resolveCredentials } from './token-lock';
+import { logShopeeCallFailure } from './api-log';
 
 // --- Configuration ---
 const SHOPEE_SANDBOX_HOST = 'https://partner.test-stable.shopeemobile.com';
@@ -118,6 +120,9 @@ export async function shopeeApiRequest(
     options.body = JSON.stringify(body);
   }
 
+  // หน่วงจังหวะ + รู้ว่า API ตัวนี้อยู่ถังโควตาไหน (chat/order/product/…) — ดู lib/marketplace/platforms.ts
+  const scope = await beginMarketplaceCall('shopee', apiPath);
+
   console.log(`[Shopee API] ${method} ${apiPath}`, { params: Object.fromEntries(Object.entries(params).filter(([k]) => k !== 'access_token')), ...(body ? { body } : {}) });
   const res = await fetch(url, options);
 
@@ -129,17 +134,28 @@ export async function shopeeApiRequest(
     data = JSON.parse(text);
   } catch {
     console.error(`[Shopee API] ${apiPath} returned non-JSON (${res.status}):`, text.substring(0, 500));
-    return { data: null, error: `Shopee API returned non-JSON response (HTTP ${res.status})` };
+    const nonJsonError = `Shopee API returned non-JSON response (HTTP ${res.status})`;
+    await logShopeeCallFailure({
+      shopId: creds.shop_id, method, apiPath, params, body,
+      errorMessage: nonJsonError, httpStatus: res.status, responseBody: text.substring(0, 1000),
+    });
+    return { data: null, error: nonJsonError };
   }
   console.log(`[Shopee API] ${apiPath} response:`, JSON.stringify(data).substring(0, 1000));
 
   if (data.error) {
     const errMsg = data.message || data.error;
-    // Circuit breaker: quota รายวันหมดแล้ว call ต่อ = fail ทุกตัว → success rate พัง
-    // → โดนบทลงโทษต่อ (เกิดจริง 2026-08) — จำสถานะไว้ให้ cron/webhook หยุดยิงจนถึงเที่ยงคืน UTC+8
-    if (typeof errMsg === 'string' && errMsg.includes('daily API call limit')) {
-      markShopeeQuotaExhausted().catch(() => {});
-    }
+    // Circuit breaker: quota หมดแล้ว call ต่อ = fail ทุกตัว → success rate พัง → โดนบทลงโทษต่อ
+    // (เกิดจริง 2026-08) — บล็อกเฉพาะ scope ของ API ที่ชน `update_stock` เต็ม
+    // ไม่ได้แปลว่า `get_order_list` เต็ม
+    reportMarketplaceError('shopee', scope, typeof errMsg === 'string' ? errMsg : null, { httpStatus: res.status });
+    // เก็บ error ทุกตัวไว้ดูย้อนหลัง — ไม่งั้นเวลาพังเงียบเราจะเหลือแค่ % ในหน้า Shopee
+    // ที่บอกไม่ได้ว่าเกิดอะไร (บทเรียนจาก update_stock 0% ที่หาสาเหตุไม่ได้ 3 เดือน)
+    await logShopeeCallFailure({
+      shopId: creds.shop_id, method, apiPath, params, body,
+      errorMessage: typeof errMsg === 'string' ? errMsg : JSON.stringify(errMsg),
+      httpStatus: res.status, responseBody: data,
+    });
     return { data: null, error: errMsg, debug_message: data.debug_message || undefined };
   }
   return { data: data.response || data };
@@ -150,13 +166,18 @@ export async function shopeeApiRequest(
 // ห้ามยิงต่อทั้งวัน: cron/webhook เช็ค isShopeeQuotaBlocked() ก่อนทำงานเสมอ
 
 // ย้าย implementation ไป lib/marketplace/quota.ts (service กลางทุก platform) — คง export ชื่อเดิมไว้
-export async function markShopeeQuotaExhausted(): Promise<void> {
-  await markQuotaExhausted('shopee');
+export async function markShopeeQuotaExhausted(scope: QuotaTarget = 'all'): Promise<void> {
+  await markQuotaExhausted('shopee', scope);
 }
 
-/** true = โควตาวันนี้หมดแล้ว ห้ามยิง Shopee API จนกว่าจะถึงเวลา reset */
-export async function isShopeeQuotaBlocked(): Promise<{ blocked: boolean; until?: string }> {
-  return isQuotaBlocked('shopee');
+/**
+ * true = โควตาของส่วนนั้นหมดแล้ว ห้ามยิง Shopee API จนกว่าจะถึงเวลา reset
+ * @param scope กลุ่ม API ที่กำลังจะยิง (order/product/fulfillment/…) — ไม่ส่ง = ถามระดับทั้ง app
+ */
+export async function isShopeeQuotaBlocked(
+  scope: QuotaTarget = 'all'
+): Promise<{ blocked: boolean; until?: string; scope?: QuotaTarget }> {
+  return isQuotaBlocked('shopee', scope);
 }
 
 /**
@@ -285,63 +306,34 @@ export async function refreshAccessToken(
 /**
  * Ensure the account has a valid access_token.
  * Auto-refreshes if expired or about to expire (within 5 minutes).
+ *
+ * การแย่งกัน refresh ถูกกันไว้ที่ lib/shopee/token-lock.ts — refresh_token ของ Shopee
+ * ใช้ได้ครั้งเดียว ใครยิงพร้อมกันเป็นคนที่สองจะ fail เสมอ (เคยทำให้ refresh_access_token
+ * สำเร็จแค่ 60.8%) — **ทุกที่ที่ต้องใช้ token ต้องผ่านฟังก์ชันนี้ ห้ามเรียก
+ * refreshAccessToken() ตรง ๆ** ไม่งั้นก็กลับไปแย่งกันเหมือนเดิม
  */
 export async function ensureValidToken(account: ShopeeAccountRow): Promise<ShopeeCredentials> {
   const partnerId = getPartnerId();
   const partnerKey = getPartnerKey();
-  const now = new Date();
-  const expiresAt = account.access_token_expires_at ? new Date(account.access_token_expires_at) : null;
-  const BUFFER_MS = 5 * 60 * 1000; // 5 minutes buffer
 
-  // Token is still valid
-  if (account.access_token && expiresAt && expiresAt.getTime() - now.getTime() > BUFFER_MS) {
-    return {
+  return resolveCredentials(
+    account,
+    (accessToken) => ({
       partner_id: partnerId,
       partner_key: partnerKey,
       shop_id: account.shop_id,
-      access_token: account.access_token,
-    };
-  }
-
-  // Need to refresh
-  if (!account.refresh_token) {
-    throw new Error('No refresh token available. Shop needs to re-authorize.');
-  }
-
-  const refreshExpiresAt = account.refresh_token_expires_at ? new Date(account.refresh_token_expires_at) : null;
-  if (refreshExpiresAt && refreshExpiresAt.getTime() < now.getTime()) {
-    // Auto-deactivate so cron jobs stop hammering Shopee with doomed requests,
-    // which would otherwise tank our partner API success rate.
-    await supabaseAdmin
-      .from('marketplace_accounts')
-      .update({ is_active: false, updated_at: new Date().toISOString() })
-      .eq('id', account.id);
-    throw new Error('Refresh token expired. Shop needs to re-authorize.');
-  }
-
-  const tokens = await refreshAccessToken(account.refresh_token, account.shop_id);
-
-  // Update tokens in DB
-  const accessExpiry = new Date(now.getTime() + tokens.expire_in * 1000);
-  const refreshExpiry = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000); // 30 days
-
-  await supabaseAdmin
-    .from('marketplace_accounts')
-    .update({
-      access_token: tokens.access_token,
-      refresh_token: tokens.refresh_token,
-      access_token_expires_at: accessExpiry.toISOString(),
-      refresh_token_expires_at: refreshExpiry.toISOString(),
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', account.id);
-
-  return {
-    partner_id: partnerId,
-    partner_key: partnerKey,
-    shop_id: account.shop_id,
-    access_token: tokens.access_token,
-  };
+      access_token: accessToken,
+    }),
+    refreshAccessToken,
+    async () => {
+      // refresh_token หมดอายุ = ต่อ token เองไม่ได้อีกแล้ว ต้องให้ร้าน authorize ใหม่
+      // ปิดร้านไว้ก่อน ไม่งั้น cron จะยิง API ที่รู้ผลล่วงหน้าว่า fail ทั้งวัน
+      await supabaseAdmin
+        .from('marketplace_accounts')
+        .update({ is_active: false, updated_at: new Date().toISOString() })
+        .eq('id', account.id);
+    }
+  );
 }
 
 /**

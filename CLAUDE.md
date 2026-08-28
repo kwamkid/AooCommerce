@@ -440,6 +440,17 @@ marketplace_accounts → marketplace_product_links → product_variations
 ### helper กลางของทุก marketplace — [lib/marketplace/product-helpers.ts](lib/marketplace/product-helpers.ts) (เพิ่ม 2026-08-26)
 `getOrCreateVariationTypeIds` · `upsertProductImage(s)` · `reactivateProduct` · `tryAutoMatchBySku` · `findMarketplaceLink` — เดิมอยู่ใน `lib/shopee/product-helpers.ts` ยกออกมาตอน TikTok ต้องใช้เหมือนกัน · **`platform` param default = `'shopee'`** ของเดิมจึงไม่เปลี่ยนพฤติกรรม และ shopee/product-helpers.ts re-export ต่อให้ call site เดิมใช้ได้เหมือนเดิม · **เพิ่ม marketplace ใหม่ → ใช้ตัวพวกนี้ ห้าม copy ไปไว้ใน `lib/<platform>/` ของตัวเอง**
 
+### โควตา / rate limit ทุก marketplace — registry เดียวที่ [lib/marketplace/platforms.ts](lib/marketplace/platforms.ts) (แยก scope 2026-08-29)
+
+- **circuit breaker แยกตาม scope** ไม่ใช่ต่อ platform ทั้งก้อน — scope = **กลุ่ม API ที่ใช้โควตาถังเดียวกัน**: `auth · order · fulfillment · product · inventory · promotion · chat` · flag ใน `app_flags` key `{platform}_quota_exhausted[:{scope}]` (key ไม่มี `:scope` = ทั้ง app, ของเดิมที่ live อยู่ยังใช้ได้)
+- **เกณฑ์แบ่ง scope = platform ลงโทษเป็นก้อนไหน ไม่ใช่หน้าจอเราแบ่งยังไง** — (1) คนละ app_key = คนละถังเสมอ (แชท TikTok/Lazada เป็นคนละ app) (2) หลายเจ้าจำกัดราย API (`update_stock` เต็ม ไม่ได้แปลว่า `get_order_list` เต็ม)
+- **client ทุก platform เขียนเหมือนกัน 2 บรรทัด** — `const scope = await beginMarketplaceCall('<platform>', apiPath)` ก่อน fetch (หน่วงจังหวะ + คืน scope) และ `reportMarketplaceError('<platform>', scope, errMsg, { httpStatus, code })` ตอนเจอ error · **ห้ามเรียก `markQuotaExhausted` ตรงๆ ในตัว client** และห้าม map path→scope เองนอก registry
+- **cron/retry/manual sync ต้องเช็ค `isQuotaBlocked(platform, scope)` ก่อนยิงเสมอ พร้อมระบุ scope ให้ตรงงานตัวเอง** — เรียกเปล่าๆ จะเช็คแค่ระดับทั้ง app แล้วพลาดเคสที่ scope นั้นถูกบล็อก
+- **มี breaker แล้วยังต้องมี throttle** ([lib/marketplace/throttle.ts](lib/marketplace/throttle.ts)) — breaker คือตาข่ายรับหลังโดนแบน ไม่ได้กันไม่ให้โดน · ค่าระยะห่างต่อ scope อยู่ใน registry (`minGapMs`) ปัจจุบันตั้งเฉพาะ Lazada (chat 350ms / อื่น 150ms) ที่เคยชนจริง · in-memory = best-effort ต่อ instance
+- **ข้อความที่ผู้ใช้เห็นต้องตรงกับ scope ที่พักจริง** — `QUOTA_SCOPE_IMPACT` ที่เดียว (banner + กระดิ่ง อ่านจากนี่) · แชทพักแล้วขึ้นว่า "ออเดอร์เข้าช้า" = ส่งคนไปไล่หาปัญหาผิดที่
+- **➕ เพิ่ม marketplace ใหม่**: เพิ่มชื่อใน `QUOTA_PLATFORMS` → TypeScript บังคับให้กรอก entry ใน `MARKETPLACE_PLATFORMS` → ครอบ request function 2 บรรทัด · จบ ไม่ต้องแตะ breaker/throttle/banner/กระดิ่ง/ปุ่มปลดใน superadmin เลย
+- **ยังไม่ทำ**: breaker เป็นต่อ platform **ไม่ใช่ต่อร้าน** — ร้านเดียวชนลิมิต ร้านอื่นของ platform เดียวกันหยุดตาม (ต้องใส่ `shop_id` เข้า key + ส่ง shop ลงไปถึง request function)
+
 ### TikTok vs Shopee Key Differences
 | | Shopee | TikTok |
 |---|---|---|

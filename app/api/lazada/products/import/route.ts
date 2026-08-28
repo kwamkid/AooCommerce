@@ -126,7 +126,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const quota = await isQuotaBlocked('lazada');
+    const quota = await isQuotaBlocked('lazada', 'product');
     if (quota.blocked) {
       return NextResponse.json(
         { error: 'Lazada จำกัดความถี่ API ชั่วคราว — ระบบพักการยิงอยู่ ลองใหม่ภายหลัง' },

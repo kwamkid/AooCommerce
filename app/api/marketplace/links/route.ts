@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, after } from 'next/server';
 import { checkAuthWithCompany, supabaseAdmin } from '@/lib/supabase-admin';
 import { ensureValidToken, getShopeeCategories, ShopeeAccountRow } from '@/lib/shopee/api';
 
@@ -247,20 +247,17 @@ export async function PATCH(request: NextRequest) {
 
     // Auto-sync price to Shopee if platform_price changed
     if (platform_price !== undefined && data?.product_id) {
-      const { triggerShopeePriceSync } = await import('@/lib/shopee/auto-sync');
-      triggerShopeePriceSync(data.product_id);
+      after(() => import('@/lib/shopee/auto-sync').then(m => m.syncPriceNow(data.product_id)));
     }
 
     // Auto-sync product name to Shopee if platform_product_name changed
     if (platform_product_name !== undefined && data?.product_id && platform_product_name) {
-      const { triggerShopeeInfoSync } = await import('@/lib/shopee/auto-sync');
-      triggerShopeeInfoSync(data.product_id, platform_product_name);
+      after(() => import('@/lib/shopee/auto-sync').then(m => m.syncInfoNow(data.product_id, platform_product_name)));
     }
 
     // Auto-sync category to Shopee if shopee_category_id changed
     if (shopee_category_id !== undefined && shopee_category_id && data?.id) {
-      const { triggerShopeeCategorySync } = await import('@/lib/shopee/auto-sync');
-      triggerShopeeCategorySync(data.id, shopee_category_id);
+      after(() => import('@/lib/shopee/auto-sync').then(m => m.syncCategoryNow(data.id, Number(shopee_category_id))));
     }
 
     return NextResponse.json({ success: true, link: data });

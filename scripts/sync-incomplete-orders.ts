@@ -33,7 +33,7 @@ async function main() {
   const { syncIncompleteOrders } = await import('../lib/shopee/sync');
   const { isShopeeQuotaBlocked } = await import('../lib/shopee/api');
 
-  const quota = await isShopeeQuotaBlocked();
+  const quota = await isShopeeQuotaBlocked('order');
   if (quota.blocked) {
     console.error(`Shopee quota exhausted — blocked until ${quota.until}`);
     process.exit(1);

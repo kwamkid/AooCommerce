@@ -5,6 +5,7 @@ import {
   parseTikTokMessageContent, TikTokChatMessage, TikTokConversation,
 } from '@/lib/tiktok/chat';
 import { logIntegration } from '@/lib/integration-logger';
+import { isQuotaBlocked } from '@/lib/marketplace/quota';
 import type { SendMessageParams, SendMessageResult, GetMessagesParams } from './types';
 
 // TikTok NEW_MESSAGE webhook payload — `data` carries conversation_id.
@@ -155,11 +156,25 @@ export class TikTokChatService {
   }
 
   /**
+   * เช็ค circuit breaker ของ scope 'chat' ก่อนทุกครั้งที่จะยิง API แชท
+   * (แชทเป็นคนละ app คนละถังโควตากับออเดอร์ — ตายแยกกัน ฟื้นแยกกัน)
+   */
+  private async chatQuotaBlocked(): Promise<boolean> {
+    const quota = await isQuotaBlocked('tiktok', 'chat');
+    if (quota.blocked) {
+      console.warn(`[TikTok Chat] circuit breaker เปิดอยู่ (ถึง ${quota.until}) — ข้ามการ sync`);
+      return true;
+    }
+    return false;
+  }
+
+  /**
    * Pull one conversation's latest messages into DB.
    * Conversation detail comes from the list (Get Conversation 202601 needs a
    * newer API version) — the list carries participants + unread already.
    */
   async syncConversation(account: TikTokAccountRow, conversationId: string): Promise<boolean> {
+    if (await this.chatQuotaBlocked()) return false;
     try {
       const creds = await ensureValidToken(account, 'chat');
 
@@ -192,6 +207,7 @@ export class TikTokChatService {
    * Used for webhook payloads without conversation_id and initial backfill.
    */
   async syncRecentConversations(account: TikTokAccountRow, maxConversations = 10): Promise<number> {
+    if (await this.chatQuotaBlocked()) return 0;
     try {
       const creds = await ensureValidToken(account, 'chat');
       const { conversations } = await getConversations(creds, { pageSize: Math.min(maxConversations, 20) });

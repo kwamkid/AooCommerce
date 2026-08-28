@@ -16,6 +16,63 @@
 
 ---
 
+## 2026-08-29 — Push stock ขึ้น Shopee ตายเงียบ 3 เดือน + refresh token แย่งกันเองจนสำเร็จแค่ 60.8%
+
+**ที่เกิด**: [lib/shopee/auto-sync.ts](lib/shopee/auto-sync.ts) + call site 12 จุด (`app/api/inventory/*`, `app/api/orders/route.ts`, `app/api/pos/orders/route.ts`, `app/api/products/route.ts`, `app/api/marketplace/links/route.ts`) · [lib/shopee/api.ts](lib/shopee/api.ts) `ensureValidToken` · [app/api/shopee/refresh-tokens/route.ts](app/api/shopee/refresh-tokens/route.ts)
+
+**อาการ**: หน้า API Call Statistics ของ Shopee — `v2.product.update_stock` **สำเร็จ 0/139 (0%)** และ `v2.public.refresh_access_token` สำเร็จ 87/143 (60.8%) · ในระบบไม่มีสัญญาณอะไรเลย ไม่มี error ไม่มี log · สต็อกในระบบกับบน Shopee **ต่างกันแทบทุกตัว** (Shopee 19 / เรา 0 = ขายได้ทั้งที่ของหมด · Shopee 0 / เรา 31 = ของมีแต่ขายไม่ออก) ค้างมาตั้งแต่ **22 พ.ค. 2026**
+
+**Root cause**: คนละเรื่องกัน 2 ตัว แต่ทำให้หากันเจอยากทั้งคู่
+
+1. **งาน push ตายไปพร้อมกับ lambda** — ทุก call site เรียกแบบปล่อยลอย
+   `import('...').then(m => m.triggerShopeeStockSync(ids)).catch(() => {})` ตามด้วย `return NextResponse.json(...)` ทันที · บน Vercel ฟังก์ชันถูก freeze ทันทีที่ response ออก งานที่ยังไม่จบจึงค้าง/ตายกลางทาง (call ถึง Shopee แต่ไม่จบ = นับเป็น fail) · **`logIntegration` เป็น fire-and-forget เหมือนกัน จึงตายพร้อมกัน** → ไม่มีแม้แต่ log ว่าพัง เหลือแค่ % ในหน้า Shopee ที่บอกไม่ได้ว่าเกิดอะไร · หลักฐาน: `last_stock_pushed_at` (stamp เฉพาะตอนสำเร็จ) ค้างที่ 22 พ.ค. ทุกร้าน แต่ยิง payload เดิมจาก process ปกติ **สำเร็จทันที**
+2. **refresh_token ของ Shopee ใช้ได้ครั้งเดียว แต่เรามีคนแย่งกัน refresh** — cron `refresh-tokens` (เผื่อ 30 นาที) กับ `ensureValidToken` (เผื่อ 5 นาที) ต่างคนต่างยิง + webhook เข้าเป็นชุด (900+ push/2 วัน) ทุก instance ที่เจอ token หมดอายุพร้อมกันยิงพร้อมกันหมด · ตัวแรกชนะ ที่เหลือถือใบที่ถูก invalidate แล้ว = fail · ยืนยันด้วยตัวเลข 6 ร้าน × token 4 ชม. ต้องใช้ ~72 call/2 วัน แต่ยิงจริง 143
+
+**วิธีแก้**:
+- **เปิดฟังก์ชันที่ await ได้** `syncStockNow/syncPriceNow/syncInfoNow/syncCategoryNow` ใน auto-sync แล้วเปลี่ยนทุก call site เป็น **`after(() => import('...').then(m => m.syncStockNow(ids)))`** — `after()` ถูกเรียกใน request context จริง และ runtime รอจน promise จบ
+- **quota guard ก่อน push** — `isShopeeQuotaBlocked('inventory')` (stock/price) และ `'product'` (info/category) · เดิม auto-sync ไม่เคยเช็ค breaker เลย ช่วง 26 ส.ค. 17:57–27 ส.ค. 16:00 UTC ที่ flag เปิดอยู่จึงยิงต่อ = fail ฟรี ~22 ชม.
+- **log ระดับ request** — [lib/shopee/api-log.ts](lib/shopee/api-log.ts) เขียนทุก call ที่ fail ลง `integration_logs` action `api_error` จากใน `shopeeApiRequest` เอง + เพิ่ม `logIntegrationNow()` (await ได้) ใน [lib/integration-logger.ts](lib/integration-logger.ts)
+- **lock ตอน refresh** — [lib/shopee/token-lock.ts](lib/shopee/token-lock.ts) 3 ชั้น: promise ร่วมใน process → อ่าน row ใหม่ก่อน refresh เสมอ → claim ใน DB (`marketplace_accounts.token_refresh_claimed_at`, conditional update, TTL 30 วิ) ผู้แพ้รอ token ของผู้ชนะสูงสุด 6 วิ · refresh ล้มแล้วมีคนอื่นเพิ่งได้ token ใหม่ → ใช้ของเขาแทนการ throw
+- **cron ใช้ `ensureValidToken` ทางเดียวกับ hot path** — เลิกยิง `refreshAccessToken` เอง ทั้งคู่จึงแย่ง claim ตัวเดียวกัน
+
+**ผลทดสอบ**: 5 request พร้อมกันใน process เดียว → refresh ครั้งเดียว ได้ token ใบเดียวกันทั้งหมด · 3 process แยกกัน → เหมือนกัน ไม่มี fail · `syncStockNow` ยิงจริงกับสินค้าที่ค่าตรงกันอยู่แล้ว (10→10 ไม่กระทบ listing) → `success=true` และ `last_stock_pushed_at` ขยับจาก 22 พ.ค. เป็นปัจจุบัน
+
+**ป้องกัน regression**:
+- **ห้ามปล่อยงานลอยใน route handler** — `foo().catch(() => {})` ก่อน `return NextResponse.json()` = งานตายบน serverless · ต้อง `after(() => ...)` เสมอ และฟังก์ชันเบื้องหลังต้อง **return promise** ไม่ใช่ void (ไม่งั้น `after` ไม่มีอะไรให้รอ) · ตัว `trigger*` เดิมยังอยู่แต่ห้ามใช้ใน route
+- **log ของงานเบื้องหลังต้องไม่ปล่อยลอยด้วย** — ไม่งั้นพังเงียบซ้ำสอง: งานหาย + หลักฐานหาย · จุดที่ต้องได้ log แน่ ๆ ใช้ `logIntegrationNow()`
+- **วาง log ให้ชิด API call ที่สุด** ไม่ใช่ที่ชั้นงาน — บั๊กนี้หาไม่เจอ 3 เดือนเพราะ log อยู่ชั้นบนสุดที่ตายพร้อมงาน
+- **ทุกที่ที่ต้องใช้ token ต้องผ่าน `ensureValidToken()`** ห้ามเรียก `refreshAccessToken()` ตรง ๆ อีก (จะกลับไปแย่งกันเหมือนเดิม)
+- **`last_stock_pushed_at` ค้างนาน = สัญญาณว่า push ตาย** — ควรมี alert เมื่อค่าเก่ากว่า N วันทั้งที่ยังมีความเคลื่อนไหวสต็อก (ยังไม่ได้ทำ)
+- **ยังไม่ได้ reconcile สต็อกที่ drift** — user สั่งพักไว้ (ร้านยังไม่เปิดใช้จริง) ทิศทางที่ตกลง = **ดึงจาก Shopee เป็นตัวตั้ง** ผ่าน `/api/shopee/products/pull-stock` · ⚠️ ต้อง pull **ก่อน** ปล่อยให้ push ทำงาน ไม่งั้นเลขของเราจะทับ Shopee ทันทีที่มีคนแตะสต็อก
+- Lazada/TikTok ยังไม่มี auto-push stock จึงไม่โดนบั๊กนี้ — ถ้าทำเมื่อไหร่ต้องใช้ `after()` ตั้งแต่แรก
+
+---
+
+## 2026-08-29 — แชท Lazada ยิงรัวจนโดน rate limit แล้ว "ลาก" order sync ตายไปด้วย 30 นาที
+
+**ที่เกิด**: [lib/marketplace/quota.ts](lib/marketplace/quota.ts) · [lib/services/chat/lazada.ts](lib/services/chat/lazada.ts) `syncRecentSessions`
+
+**อาการ**: เปิดแชท Lazada 2 ร้านพร้อมกัน → สักพัก **ออเดอร์ Lazada ใหม่ไม่เข้าระบบเลย ~30 นาที** ทั้งที่ไม่ได้ทำอะไรกับออเดอร์ · banner ขึ้นว่า "โควตา API หมด" ทั้ง platform
+
+**Root cause**: สองชั้นทับกัน
+1. **`syncRecentSessions` ยิง IM API รัวไม่เว้นจังหวะ** — 1 session list + (detail + messages) × 10 session ต่อร้าน = ~22 call ติดกัน สองร้านพร้อมกันยิ่งซ้อน → Lazada ตอบ `ApiCallLimit`
+2. **circuit breaker เป็นก้อนเดียวต่อ platform** — flag ชื่อ `lazada_quota_exhausted` ตัวเดียว · แชทชนลิมิตแล้วเปิด flag นี้ → `sync-all` / `sync` ของออเดอร์เช็ค flag เดียวกันเลย skip ทั้งรอบ **ทั้งที่แชทกับออเดอร์เป็นคนละ app คนละ `app_key` คนละถังโควตาสนิท** (`LAZADA_CHAT_APP_KEY` vs `LAZADA_APP_KEY`) — ออเดอร์ไม่ได้ชนอะไรเลยแต่โดนปิดตาม
+
+**วิธีแก้**:
+- **breaker แยกตาม scope** — key เป็น `{platform}_quota_exhausted:{scope}` โดย scope = กลุ่ม API ที่ใช้โควตาถังเดียวกัน (`auth · order · fulfillment · product · inventory · promotion · chat`) · key เดิมที่ไม่มี `:scope` = ระดับทั้ง app ยังใช้ได้ (backward compatible กับ flag ที่ live อยู่) และ `isQuotaBlocked` บล็อกเมื่อ **scope นั้น หรือ ระดับ all** เปิด
+- **client เดา scope จาก API path เอง** ผ่าน `beginMarketplaceCall(platform, apiPath)` — ไม่ต้องแก้ call site เป็นร้อยจุด และไม่มีทางลืมใส่
+- **throttle** ใน [lib/marketplace/throttle.ts](lib/marketplace/throttle.ts) — เว้นจังหวะขั้นต่ำต่อ scope (lazada chat 350ms, lazada อื่น 150ms) ต่อคิวเป็นสายเดียว ผู้เรียกพร้อมกัน 22 ตัวถูกเรียงให้ห่างกันแทนพุ่งออกพร้อมกัน
+- **บริการแชท Lazada/TikTok เช็ค breaker ก่อน sync** (เดิมไม่เคยเช็คเลย — ยิงต่อทั้งที่รู้ว่าจะ fail)
+- พฤติกรรมทั้งหมดต่อ platform ย้ายไป registry เดียวที่ [lib/marketplace/platforms.ts](lib/marketplace/platforms.ts)
+
+**ป้องกัน regression**:
+- **circuit breaker ต้องมี granularity เท่ากับ "ถังโควตาที่ platform นับจริง"** — หยาบไป = ของที่ไม่ได้ผิดตายตาม (บั๊กนี้), ละเอียดกว่าความจริง = ยิงต่อใส่ API ที่บล็อกอยู่แล้ว success rate พังต่อ · เกณฑ์คือ **คนละ app_key = คนละถังเสมอ** และ platform ที่จำกัดราย API ก็แยกราย API ได้
+- **มี breaker แล้วยังต้องมี throttle** — breaker คือตาข่ายรับหลังโดนแบน ไม่ได้กันไม่ให้โดน · การไม่โดนแบนตั้งแต่แรกถูกกว่าเสมอ
+- **ห้ามใช้ข้อความ banner รวมว่า "ออเดอร์เข้าช้า" กับทุก scope** — แชทพักแล้วบอกว่าออเดอร์เข้าช้า = ส่งคนไปไล่หาปัญหาผิดที่ · ข้อความต่อ scope อยู่ที่ `QUOTA_SCOPE_IMPACT` ที่เดียว
+- **ยังเหลือ**: breaker เป็น**ต่อ platform ไม่ใช่ต่อร้าน** — Shopee ร้านเดียวชนลิมิต อีก 5 ร้านหยุดตาม (ต้องเติม shop_id เข้า key + ส่ง shop ลงไปถึง `lazadaApiRequest` ซึ่งตอนนี้ไม่รู้จัก shop)
+
+---
+
 ## 2026-08-28 — Lazada/TikTok: กด "เชื่อมต่อแชท" แล้วไม่มีอะไรเกิดขึ้น + รูปสินค้าในการ์ดออเดอร์เป็นกล่องเปล่า
 
 **ที่เกิด**: [lib/oauth-state.ts](lib/oauth-state.ts) `verifyOAuthState` · [app/api/lazada/oauth/callback/route.ts](app/api/lazada/oauth/callback/route.ts) · [app/api/tiktok/oauth/callback/route.ts](app/api/tiktok/oauth/callback/route.ts) · [lib/lazada/sync.ts](lib/lazada/sync.ts) · [lib/tiktok/sync.ts](lib/tiktok/sync.ts) · [lib/marketplace/product-helpers.ts](lib/marketplace/product-helpers.ts)

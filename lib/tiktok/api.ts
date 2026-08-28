@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { markQuotaExhausted, isQuotaErrorMessage } from '@/lib/marketplace/quota';
+import { beginMarketplaceCall, reportMarketplaceError } from '@/lib/marketplace/quota';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { logIntegration } from '@/lib/integration-logger';
 
@@ -321,6 +321,9 @@ export async function tiktokApiRequest(
     ...(body ? { body } : {}),
   });
 
+  // หน่วงจังหวะ + รู้ว่า API ตัวนี้อยู่ถังโควตาไหน — ดู lib/marketplace/platforms.ts
+  const scope = await beginMarketplaceCall('tiktok', apiPath);
+
   const res = await fetch(url, options);
 
   let data: any;
@@ -336,10 +339,9 @@ export async function tiktokApiRequest(
 
   if (data.code !== 0) {
     const errMsg = data.message || `API error code ${data.code}`;
-    // rate limit → เปิด circuit breaker (พัก 30 นาที) — cron/manual sync จะ skip เอง
-    if (res.status === 429 || isQuotaErrorMessage(errMsg)) {
-      markQuotaExhausted('tiktok').catch(() => {});
-    }
+    // rate limit → เปิด circuit breaker เฉพาะ scope ที่ชน (พัก 30 นาที) — cron/manual sync จะ skip เอง
+    // แชท TikTok เป็นคนละ app คนละถังโควตากับออเดอร์ ตายแยกกันได้
+    reportMarketplaceError('tiktok', scope, errMsg, { httpStatus: res.status });
     return { data: null, error: errMsg, request_id: data.request_id };
   }
 

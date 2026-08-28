@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
   }
 
   // Circuit breaker: โควตารายวันของ Shopee หมดแล้ว — ยิงต่อมีแต่ fail
-  const quota = await isShopeeQuotaBlocked();
+  const quota = await isShopeeQuotaBlocked('order');
   if (quota.blocked) {
     return NextResponse.json({ error: `Shopee จำกัดโควตา API วันนี้แล้ว ระบบพักการยิงถึงเที่ยงคืน (UTC+8) เพื่อกู้ success rate` }, { status: 429 });
   }

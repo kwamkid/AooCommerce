@@ -39,6 +39,7 @@ import StickyActionBar from '@/components/ui/StickyActionBar';
 import Stepper, { type StepItem } from '@/components/ui/Stepper';
 import { LoadingCard } from '@/components/ui/StateCard';
 import Checkbox from '@/components/ui/Checkbox';
+import FormInput from '@/components/ui/FormInput';
 import Badge from '@/components/ui/Badge';
 import {
   Plus,
@@ -318,6 +319,8 @@ export default function OrderForm({
   // ใบปะหน้าซองพิมพ์ซ้ำได้เหมือนเดิมแม้ลูกค้าแก้ที่อยู่ในสมุดทีหลัง
   const [documentByPost, setDocumentByPost] = useState(false);
   const [documentRecipientName, setDocumentRecipientName] = useState('');
+  // เบอร์ผู้รับเอกสาร — ไม่บังคับ (ไปรษณีย์ไม่ต้องใช้ แต่ขนส่งเอกชนขอเบอร์ปลายทาง)
+  const [documentRecipientPhone, setDocumentRecipientPhone] = useState('');
   const [documentAddress, setDocumentAddress] = useState('');
   // id ที่อยู่ที่หยิบมาเติม (ใช้แค่ไฮไลต์ใน dropdown) — '' = พิมพ์เอง/ยังไม่ได้เลือก
   const [documentAddressId, setDocumentAddressId] = useState('');
@@ -334,6 +337,18 @@ export default function OrderForm({
     setDocumentAddressId(addr.id);
     setDocumentAddress(addressToText(addr));
     setDocumentRecipientName(prev => prev.trim() || addr.contact_person || selectedCustomer?.name || '');
+    setDocumentRecipientPhone(prev => prev.trim() || addr.phone || '');
+  };
+
+  /** ปิดโหมด "ส่งเอกสารทางไปรษณีย์" แล้วล้างค่าที่กรอกไว้ทั้งชุด
+   *  เรียกเมื่อเงื่อนไขต้นทางหายไป (เลิกซ่อนราคา / กลับไปโหมดสั่งเอง) —
+   *  ปล่อยค้างไว้เฉย ๆ ไม่ได้ เพราะช่องถูกซ่อนแล้วแต่ค่ายังถูกบันทึกลงบิลเงียบ ๆ */
+  const clearDocumentByPost = () => {
+    setDocumentByPost(false);
+    setDocumentRecipientName('');
+    setDocumentRecipientPhone('');
+    setDocumentAddress('');
+    setDocumentAddressId('');
   };
 
   // ติ๊ก "ส่งเอกสารทางไปรษณีย์" ครั้งแรก → เติมที่อยู่ default ของลูกค้าให้เลย
@@ -350,10 +365,10 @@ export default function OrderForm({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [documentByPost, ownAddresses, selectedCustomer?.id]);
 
-  // สลับกลับ "สั่งเอง" = ไม่มีเรื่องของขวัญแล้ว → ปิดธงเอกสารด้วย ไม่งั้นค้างแล้ว
-  // บันทึกไปทั้งที่ผู้ใช้ไม่เห็นช่องนี้อีกแล้ว
+  // สลับกลับ "สั่งเอง" = ไม่มีเรื่องของขวัญแล้ว → ปิดธงเอกสาร + ล้างค่าที่กรอกไว้
+  // ไม่งั้นค้างแล้วบันทึกไปทั้งที่ผู้ใช้ไม่เห็นช่องนี้อีกแล้ว
   useEffect(() => {
-    if (!shipToOther && documentByPost) setDocumentByPost(false);
+    if (!shipToOther && documentByPost) clearDocumentByPost();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shipToOther]);
 
@@ -804,11 +819,18 @@ export default function OrderForm({
         if (order.order_discount_type) setOrderDiscountType(order.order_discount_type);
         if (order.exchange_credit) setStoredExchangeCredit(Number(order.exchange_credit));
 
-        if (order.gift_card_requested || order.gift_hide_price || order.document_by_post) setShipToOther(true);
+        if (order.gift_card_requested || order.gift_hide_price || order.document_by_post) {
+          setShipToOther(true);
+          // "ส่งเอกสารทางไปรษณีย์" เป็นผลต่อเนื่องของ "ไม่แนบใบเสร็จไปกับของ" — บิลเก่า
+          // ที่ติ๊กเอกสารไว้แต่ไม่ได้ซ่อนราคา (UI รุ่นก่อนติ๊กแยกกันได้) ถือว่าซ่อนราคาด้วย
+          // ไม่งั้นติ๊กเอกสารจะถูกซ่อนตอนเปิดมาแก้ ทั้งที่ค่ายังอยู่ในบิล
+          setGiftHidePrice(!!order.gift_hide_price || !!order.document_by_post);
+        }
         // เอกสารส่งไปรษณีย์ — ต้อง map กลับ ไม่งั้นเปิดบิลเก่ามาแก้แล้วบันทึก ค่าจะหายเงียบ ๆ
         if (order.document_by_post) {
           setDocumentByPost(true);
           if (order.document_recipient_name) setDocumentRecipientName(order.document_recipient_name);
+          if (order.document_recipient_phone) setDocumentRecipientPhone(order.document_recipient_phone);
           if (order.document_address) setDocumentAddress(order.document_address);
         }
         if (order.gift_card_requested) {
@@ -816,7 +838,6 @@ export default function OrderForm({
           if (order.gift_message) setGiftMessage(order.gift_message);
           if (order.gift_to) setGiftTo(order.gift_to);
           if (order.gift_from) setGiftFrom(order.gift_from);
-          setGiftHidePrice(!!order.gift_hide_price);
         }
 
         if (order.tax_invoice_requested) {
@@ -1935,6 +1956,10 @@ export default function OrderForm({
         document_by_post: shipToOther && documentByPost,
         document_recipient_name: shipToOther && documentByPost
           ? (documentRecipientName.trim() || selectedCustomer?.name || newCustomerName.trim() || null)
+          : null,
+        // เบอร์ผู้รับเอกสาร — ไม่บังคับ ไม่ fallback เบอร์ลูกค้า (ผู้ใช้ตั้งใจเว้นว่างได้)
+        document_recipient_phone: shipToOther && documentByPost
+          ? (documentRecipientPhone.trim() || null)
           : null,
         document_address: shipToOther && documentByPost ? (documentAddress.trim() || null) : null,
         ...(giftCardEnabled && shipToOther && giftCardOn ? {

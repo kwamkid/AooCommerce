@@ -248,8 +248,11 @@ export async function POST(request: NextRequest) {
                 importItem.link_to_variation_mappings
               );
               // Push our stock to Shopee immediately
+              // await ไว้เลย — อยู่ใน SSE stream ที่ยังเปิดอยู่ ปล่อยลอยแล้วอาจถูกตัดกลางคัน
+              // (บทเรียนเดียวกับ auto-sync ดู fix-bug.md 2026-08-29)
               const { pushStockToShopee } = await import('@/lib/shopee/product-sync');
-              pushStockToShopee(account as ShopeeAccountRow, importItem.link_to_product_id).catch(() => {});
+              await pushStockToShopee(account as ShopeeAccountRow, importItem.link_to_product_id)
+                .catch(err => console.error('[Shopee Import] push stock error:', err));
               send({ type: 'progress', current: idx + 1, total: items.length, success: true, item_name: detail.item_name });
               successCount++;
             }

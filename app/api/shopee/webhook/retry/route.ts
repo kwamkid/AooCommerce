@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
   const startTime = Date.now();
 
   // Circuit breaker: โควตาหมด — อย่าเผา retry_count ทิ้ง รอ reset แล้วค่อย retry
-  const quota = await isShopeeQuotaBlocked();
+  const quota = await isShopeeQuotaBlocked('order');
   if (quota.blocked) {
     return NextResponse.json({ message: `Shopee daily quota exhausted — retries deferred until ${quota.until}`, skipped: true });
   }

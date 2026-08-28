@@ -23,6 +23,12 @@ import {
   ScrollText,
   ShoppingBag,
 } from 'lucide-react';
+import {
+  QUOTA_PLATFORM_LABELS,
+  QUOTA_SCOPE_LABELS,
+  QUOTA_SCOPE_IMPACT,
+  type QuotaTarget,
+} from '@/lib/marketplace/platforms';
 
 interface Notification {
   id: string;
@@ -54,17 +60,20 @@ export default function Header() {
       read: false,
       href: '/settings/sales-channels?tab=marketplace',
     }));
-    // Circuit breaker ต่อ platform — quota/rate limit หมด ระบบพัก sync รอ reset (ออเดอร์เข้าคิวไว้ ไม่หาย)
-    const platformLabels: Record<string, string> = { shopee: 'Shopee', tiktok: 'TikTok Shop', lazada: 'Lazada' };
+    // Circuit breaker ต่อ platform+scope — quota/rate limit หมด ระบบพักเฉพาะส่วนนั้นรอ reset
+    // ป้ายชื่อ/ข้อความมาจาก lib/marketplace/platforms.ts ที่เดียว — ห้ามประกาศ map ซ้ำที่นี่
     for (const q of summary.marketplaceHealth.quota_paused || []) {
+      const scope = (q.scope || 'all') as QuotaTarget;
       const untilLabel = q.until
         ? new Date(q.until).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) + ' น.'
         : 'อีกสักครู่';
+      const label = QUOTA_PLATFORM_LABELS[q.platform] || q.platform;
+      const scopeSuffix = scope === 'all' ? '' : ` — ${QUOTA_SCOPE_LABELS[scope]}`;
       list.unshift({
-        id: `${q.platform}-quota-paused`,
+        id: `${q.platform}-quota-paused-${scope}`,
         type: 'info' as const,
-        title: `${platformLabels[q.platform] || q.platform} พัก sync ชั่วคราว`,
-        message: `โควตา API หมดชั่วคราว — ออเดอร์ใหม่เข้าคิวไว้ครบ ระบบจะ sync ต่ออัตโนมัติ ${untilLabel}`,
+        title: `${label}${scopeSuffix} พักชั่วคราว`,
+        message: `โควตา API หมดชั่วคราว — ${QUOTA_SCOPE_IMPACT[scope].impact} ระบบจะทำต่ออัตโนมัติ ${untilLabel}`,
         time: '',
         read: false,
         href: '/settings/sales-channels?tab=marketplace',

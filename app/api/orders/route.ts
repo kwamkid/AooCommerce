@@ -1,5 +1,5 @@
 // Path: app/api/orders/route.ts  // v13 - exclude_flow_types filter
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, after } from 'next/server';
 import { parseGiftCard } from '@/lib/gift-card';
 import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
 import { getStockConfig } from '@/lib/stock-utils';
@@ -1820,7 +1820,7 @@ export async function PUT(request: NextRequest) {
 
         // Auto-sync stock to Shopee
         if (allVarIds.length > 0) {
-          import('@/lib/shopee/auto-sync').then(m => m.triggerShopeeStockSync(allVarIds)).catch(() => {});
+          after(() => import('@/lib/shopee/auto-sync').then(m => m.syncStockNow(allVarIds)));
         }
 
         // Auto-issue documents for shipped orders (Flow B: TAX/DN, Flow A completed: ABB/REC)
@@ -2576,7 +2576,7 @@ export async function PUT(request: NextRequest) {
                 // Auto-sync stock to Shopee
                 const shippingVarIds = stockItems.map(s => s.variationId);
                 if (shippingVarIds.length > 0) {
-                  import('@/lib/shopee/auto-sync').then(m => m.triggerShopeeStockSync(shippingVarIds)).catch(() => {});
+                  after(() => import('@/lib/shopee/auto-sync').then(m => m.syncStockNow(shippingVarIds)));
                 }
               } else if (newStatus === 'cancelled') {
                 const stockFn = oldStatus === 'shipping' ? returnStock : unreserveStock;
@@ -2596,7 +2596,7 @@ export async function PUT(request: NextRequest) {
                 if (oldStatus === 'shipping') {
                   const cancelVarIds = stockItems.map(s => s.variationId);
                   if (cancelVarIds.length > 0) {
-                    import('@/lib/shopee/auto-sync').then(m => m.triggerShopeeStockSync(cancelVarIds)).catch(() => {});
+                    after(() => import('@/lib/shopee/auto-sync').then(m => m.syncStockNow(cancelVarIds)));
                   }
                 }
               }
@@ -2738,7 +2738,7 @@ export async function DELETE(request: NextRequest) {
           if (oldStatus === 'shipping') {
             const deleteVarIds = stockItems.map(s => s.variationId);
             if (deleteVarIds.length > 0) {
-              import('@/lib/shopee/auto-sync').then(m => m.triggerShopeeStockSync(deleteVarIds)).catch(() => {});
+              after(() => import('@/lib/shopee/auto-sync').then(m => m.syncStockNow(deleteVarIds)));
             }
           }
         }

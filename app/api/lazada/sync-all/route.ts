@@ -25,7 +25,7 @@ async function handleSyncAll(request: NextRequest) {
   const startTime = Date.now();
 
   // Circuit breaker: rate limit ค้าง — skip ทั้งรอบ รอบหน้าค่อยเก็บตก
-  const quota = await isQuotaBlocked('lazada');
+  const quota = await isQuotaBlocked('lazada', 'order');
   if (quota.blocked) {
     return NextResponse.json({ message: `Lazada rate limited — sync deferred until ${quota.until}`, skipped: true });
   }

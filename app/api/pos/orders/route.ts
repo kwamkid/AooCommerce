@@ -1,5 +1,5 @@
 // Path: app/api/pos/orders/route.ts
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, after } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
 import { getStockConfig } from '@/lib/stock-utils';
 import { deductStock } from '@/lib/stock-service';
@@ -489,7 +489,7 @@ export async function POST(request: NextRequest) {
 
       // Auto-sync stock to Shopee if linked
       if (allVariationIds.length > 0) {
-        import('@/lib/shopee/auto-sync').then(m => m.triggerShopeeStockSync(allVariationIds)).catch(() => {});
+        after(() => import('@/lib/shopee/auto-sync').then(m => m.syncStockNow(allVariationIds)));
       }
     }
 

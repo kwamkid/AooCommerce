@@ -9,7 +9,7 @@ import { logIntegration } from '@/lib/integration-logger';
 export async function syncSingleOrder(account: ShopeeAccountRow, orderSn: string, webhookStatus?: string) {
   // Circuit breaker: โควตารายวันหมด — fail เร็วโดยไม่ยิง API (retry worker จะเก็บหลังเที่ยงคืน UTC+8)
   {
-    const quota = await isShopeeQuotaBlocked();
+    const quota = await isShopeeQuotaBlocked('order');
     if (quota.blocked) {
       throw new Error(`Shopee daily quota exhausted — deferred until ${quota.until}`);
     }

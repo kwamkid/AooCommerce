@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, after } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
 import { getStockConfig } from '@/lib/stock-utils';
 import { adjustStock } from '@/lib/stock-service';
@@ -250,8 +250,7 @@ export async function POST(request: NextRequest) {
     // Trigger Shopee stock auto-sync for touched variations
     if (touchedVariations.size > 0) {
       try {
-        const { triggerShopeeStockSync } = await import('@/lib/shopee/auto-sync');
-        triggerShopeeStockSync(Array.from(touchedVariations));
+        after(() => import('@/lib/shopee/auto-sync').then(m => m.syncStockNow(Array.from(touchedVariations))));
       } catch (err) {
         console.error('Shopee sync trigger error:', err);
       }

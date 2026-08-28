@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const quota = await isQuotaBlocked('tiktok');
+  const quota = await isQuotaBlocked('tiktok', 'order');
   if (quota.blocked) {
     return NextResponse.json({ error: `TikTok จำกัดความถี่ API ชั่วคราว — ระบบพักการยิงและจะ sync ต่อให้อัตโนมัติ ลองใหม่ภายหลัง` }, { status: 429 });
   }

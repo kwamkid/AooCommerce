@@ -21,7 +21,7 @@ async function handleSyncAll(request: NextRequest) {
   }
 
   // Circuit breaker: โควตารายวันหมดแล้ว — ยิงต่อ = fail ทุก call ทำ success rate พัง
-  const quota = await isShopeeQuotaBlocked();
+  const quota = await isShopeeQuotaBlocked('order');
   if (quota.blocked) {
     return NextResponse.json({ message: `Shopee daily quota exhausted — skipped until ${quota.until}`, skipped: true });
   }

@@ -25,8 +25,9 @@ export interface HeaderSummary {
     error_count: number;
     total_issues: number;
     issues: MarketplaceIssue[];
-    /** platform ที่ circuit breaker เปิดอยู่ (quota/rate limit หมด — พัก sync จนถึง until) */
-    quota_paused?: { platform: string; until: string | null }[];
+    /** platform+scope ที่ circuit breaker เปิดอยู่ (quota/rate limit หมด — พักจนถึง until)
+     *  scope = ส่วนที่พัก (order/chat/fulfillment/… · 'all' = ทั้ง platform) */
+    quota_paused?: { platform: string; scope?: string; until: string | null }[];
   };
 }
 

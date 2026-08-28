@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const quota = await isShopeeQuotaBlocked();
+    const quota = await isShopeeQuotaBlocked('product');
     if (quota.blocked) {
       return NextResponse.json({ error: `Shopee quota หมดชั่วคราว — ลองใหม่หลัง ${quota.until}` }, { status: 429 });
     }

@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { markQuotaExhausted, isQuotaErrorMessage } from '@/lib/marketplace/quota';
+import { beginMarketplaceCall, reportMarketplaceError } from '@/lib/marketplace/quota';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 
 // --- Configuration ---
@@ -151,6 +151,9 @@ export async function lazadaApiRequest(
 
   const url = `${getRegionHost(creds.region)}${apiPath}?${new URLSearchParams(common).toString()}`;
 
+  // หน่วงจังหวะ (กันยิงรัวจนโดน ApiCallLimit) + รู้ว่า API ตัวนี้อยู่ถังโควตาไหน
+  const scope = await beginMarketplaceCall('lazada', apiPath);
+
   console.log(`[Lazada API] ${method} ${apiPath}`, Object.fromEntries(Object.entries(params)));
   const res = await fetch(url, { method });
 
@@ -168,10 +171,10 @@ export async function lazadaApiRequest(
   const code = data.code as string | undefined;
   if (code && code !== '0') {
     const errMsg = (data.message as string) || `Lazada error ${code}`;
-    // ApiCallLimit = rate limit ของ Lazada → เปิด circuit breaker (พัก 30 นาที)
-    if (code === 'ApiCallLimit' || isQuotaErrorMessage(errMsg)) {
-      markQuotaExhausted('lazada').catch(() => {});
-    }
+    // ApiCallLimit = rate limit ของ Lazada → เปิด circuit breaker เฉพาะ scope ที่ชน (พัก 30 นาที)
+    // แชท Lazada เป็นคนละ app คนละ app_key — เดิมบล็อกทั้ง platform ทำให้แชทที่ยิงรัว
+    // ลาก order sync ตายด้วย (fix-bug.md 2026-08-29)
+    reportMarketplaceError('lazada', scope, errMsg, { code, httpStatus: res.status });
     return { data: null, error: errMsg, raw: data };
   }
   if (data.success === false) {
