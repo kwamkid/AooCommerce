@@ -19,6 +19,7 @@ import SaveButton from '@/components/ui/SaveButton';
 import Container from '@/components/ui/Container';
 import PageHeader from '@/components/ui/PageHeader';
 import PlatformIcon from '@/components/ui/PlatformIcon';
+import ChannelBadge from '@/components/ui/ChannelBadge';
 import SearchInput from '@/components/ui/SearchInput';
 import Tabs from '@/components/ui/Tabs';
 import { LoadingCard, NoPermissionCard } from '@/components/ui/StateCard';
@@ -66,6 +67,8 @@ interface ShopeeShop {
   is_active: boolean;
   // TikTok: token แชทมาจาก app แชทแยก — false = ยังไม่ผ่าน OAuth ขาแชท
   chat_connected?: boolean;
+  /** metadata.shop_logo = โลโก้ร้านจาก marketplace */
+  metadata?: Record<string, unknown> | null;
 }
 
 interface TestInfo {
@@ -177,7 +180,8 @@ export default function ChatChannelsPage() {
 
   // Shopee/Lazada: connected marketplace shops (chat rides on the marketplace connection)
   const [mpShops, setMpShops] = useState<Record<MarketplaceChatPlatform, ShopeeShop[]>>({ shopee: [], lazada: [], tiktok: [] });
-  const [mpShopsLoaded, setMpShopsLoaded] = useState<Record<MarketplaceChatPlatform, boolean>>({ shopee: false, lazada: false, tiktok: false });
+  // โหลดครั้งเดียวตอน mount ไม่ใช่ต่อแท็บ — count บนแท็บต้องขึ้นตั้งแต่ยังไม่กดเข้าไป
+  const [mpShopsLoaded, setMpShopsLoaded] = useState(false);
   const [shopeeToggling, setShopeeToggling] = useState<string | null>(null);
 
   // Inline form state
@@ -215,22 +219,29 @@ export default function ChatChannelsPage() {
     fetchAccounts();
   }, can(userProfile?.roles, 'masterdata.chat_channels'));
 
-  // Load connected marketplace shops when a Shopee/Lazada tab is active
-  useEffect(() => {
-    const platform = activeTab as MarketplaceChatPlatform;
-    if (!MARKETPLACE_CHAT_PLATFORMS.includes(platform) || mpShopsLoaded[platform]) return;
-    (async () => {
-      try {
-        const res = await apiFetch(`/api/shopee/accounts?platform=${platform}`);
-        if (res.ok) {
-          const data = await res.json();
-          const rows: ShopeeShop[] = Array.isArray(data) ? data : (data.accounts || []);
-          setMpShops(prev => ({ ...prev, [platform]: rows.filter(a => a.is_active) }));
+  // ร้าน marketplace ที่เชื่อมไว้ (แชทเกาะการเชื่อมต่อ marketplace) — ดึงทุก platform
+  // ในคอลเดียวตอน mount เพื่อให้ count บนแท็บถูกต้องก่อนกดเข้าแท็บนั้น
+  const loadMarketplaceShops = useCallback(async () => {
+    try {
+      const res = await apiFetch('/api/shopee/accounts?platform=all');
+      if (res.ok) {
+        const data = await res.json();
+        const rows: (ShopeeShop & { platform?: string })[] = Array.isArray(data) ? data : (data.accounts || []);
+        const grouped: Record<MarketplaceChatPlatform, ShopeeShop[]> = { shopee: [], lazada: [], tiktok: [] };
+        for (const row of rows) {
+          if (!row.is_active) continue;
+          const platform = (row.platform || 'shopee') as MarketplaceChatPlatform;
+          if (MARKETPLACE_CHAT_PLATFORMS.includes(platform)) grouped[platform].push(row);
         }
-      } catch { /* non-critical — tab shows empty state */ }
-      setMpShopsLoaded(prev => ({ ...prev, [platform]: true }));
-    })();
-  }, [activeTab, mpShopsLoaded]);
+        setMpShops(grouped);
+      }
+    } catch { /* non-critical — แท็บจะขึ้น empty state */ }
+    setMpShopsLoaded(true);
+  }, []);
+
+  useFetchOnce(() => {
+    loadMarketplaceShops();
+  }, can(userProfile?.roles, 'masterdata.chat_channels'));
 
   // Load FB SDK when Facebook tab is active
   useEffect(() => {
@@ -864,21 +875,21 @@ export default function ChatChannelsPage() {
                 key: 'shopee',
                 label: 'Shopee',
                 icon: <PlatformIcon id="shopee" size={16} />,
-                count: shopeeAccounts.filter(a => a.is_active).length || undefined,
+                count: mpShops.shopee.length || undefined,
                 activeColorClass: 'border-[#EE4D2D] text-[#EE4D2D]',
               },
               {
                 key: 'lazada',
                 label: 'Lazada',
                 icon: <PlatformIcon id="lazada" size={16} />,
-                count: lazadaAccounts.filter(a => a.is_active).length || undefined,
+                count: mpShops.lazada.length || undefined,
                 activeColorClass: 'border-[#0F146E] text-[#0F146E] dark:border-blue-400 dark:text-blue-400',
               },
               {
                 key: 'tiktok',
                 label: 'TikTok',
                 icon: <PlatformIcon id="tiktok" size={16} />,
-                count: tiktokAccounts.filter(a => a.is_active).length || undefined,
+                count: mpShops.tiktok.length || undefined,
                 activeColorClass: 'border-[#161823] text-[#161823] dark:border-slate-300 dark:text-slate-300',
               },
             ] : []),
@@ -901,7 +912,7 @@ export default function ChatChannelsPage() {
                     ? ' ข้อความใหม่จะเข้าอัตโนมัติผ่าน webhook (ต้องตั้ง Callback URL ใน Lazada Open Platform > Push Mechanism)'
                     : ' ข้อความใหม่จะเข้าอัตโนมัติผ่าน webhook (ต้องเปิด event NEW_MESSAGE ใน TikTok Partner Center > Webhooks)'}
               </div>
-              {!mpShopsLoaded[platform] ? (
+              {!mpShopsLoaded ? (
                 <LoadingCard />
               ) : shops.length === 0 ? (
                 <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm p-6 text-center space-y-2">
@@ -918,7 +929,10 @@ export default function ChatChannelsPage() {
                   const needsChatAuth = (platform === 'tiktok' || platform === 'lazada') && shop.chat_connected === false;
                   return (
                     <div key={shop.id} className="bg-white dark:bg-slate-800 rounded-lg shadow-sm px-3 py-2.5 flex items-center gap-3">
-                      <PlatformIcon id={platform} size={24} />
+                      <ChannelBadge
+                        size="md"
+                        channel={{ platform, picture_url: (shop.metadata?.shop_logo as string) || null }}
+                      />
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{shop.shop_name || `${platformLabel} ${shop.shop_id}`}</p>
                         <p className="helper-text text-gray-500">
@@ -1283,22 +1297,16 @@ export default function ChatChannelsPage() {
             className="relative flex-shrink-0 group cursor-pointer"
             title="กดเพื่ออัพเดตรูปโปรไฟล์"
           >
-            {botPicture ? (
-              <img src={botPicture} alt={botName || ''} className="w-10 h-10 rounded-full group-hover:opacity-75 transition-opacity" />
-            ) : (
-              <div className="w-10 h-10 rounded-lg flex items-center justify-center group-hover:opacity-75 transition-opacity" style={{ backgroundColor: `${config.color}15` }}>
-                {account.platform === 'line' ? (
-                  <PlatformIcon id="line" size={20} />
-                ) : (
-                  <PlatformIcon id="facebook" size={20} />
-                )}
-              </div>
-            )}
+            <div className="group-hover:opacity-75 transition-opacity">
+              <ChannelBadge size="md" channel={{ platform: account.platform, picture_url: botPicture || null }} />
+            </div>
             {igPicture && (
               <img
                 src={igPicture}
                 alt={igUsername || 'IG'}
                 className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full border-2 border-white dark:border-slate-800"
+                // รูปโปรไฟล์ IG จาก Graph API หมดอายุได้ — ตายแล้วซ่อนตัวเอง ไม่ปล่อยรูปแตก
+                onError={e => { e.currentTarget.style.display = 'none'; }}
               />
             )}
             {isTesting && (

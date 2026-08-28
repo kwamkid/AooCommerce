@@ -35,6 +35,12 @@ export interface LazadaProductSyncResult {
   products_skipped: number;
   links_created: number;
   errors: string[];
+  /**
+   * offset ที่ต้องเริ่มรอบถัดไป — null = ครบทั้งร้านแล้ว
+   * ร้านจริงมีได้หลักพันรายการ แต่ serverless มีเพดานเวลา (300s) → รอบเดียวไม่จบ
+   * จึงหยุดเองก่อนหมดเวลาแล้วบอกจุดที่ค้าง ให้ฝั่งเรียกยิงต่อ (idempotent อยู่แล้ว)
+   */
+  next_offset: number | null;
 }
 
 export interface LazadaSyncProgress {
@@ -49,6 +55,13 @@ export type LazadaSyncProgressCallback = (p: LazadaSyncProgress) => void;
 export interface UpsertLazadaProductOptions {
   /** copy SKU ลง product_variations.barcode (ผู้ใช้เลือกตอน import) */
   copySkuToBarcode?: boolean;
+}
+
+export interface SyncProductsOptions extends UpsertLazadaProductOptions {
+  /** เริ่มที่รายการที่เท่าไร (จาก next_offset ของรอบก่อน) */
+  startOffset?: number;
+  /** หยุดเองเมื่อใช้เวลาเกินนี้ แล้วคืน next_offset — default 3.5 นาที (เพดาน route 5 นาที) */
+  timeBudgetMs?: number;
 }
 
 interface UpsertResult {
@@ -423,8 +436,10 @@ export async function upsertLazadaProduct(
 export async function syncProductsFromLazada(
   account: LazadaAccountRow,
   onProgress?: LazadaSyncProgressCallback,
-  options: UpsertLazadaProductOptions = {}
+  options: SyncProductsOptions = {}
 ): Promise<LazadaProductSyncResult> {
+  const startedAt = Date.now();
+  const timeBudgetMs = options.timeBudgetMs ?? 3.5 * 60 * 1000;
   const companyId = account.company_id;
   const accountName = account.shop_name || `Shop ${account.shop_id}`;
   const result: LazadaProductSyncResult = {
@@ -433,12 +448,14 @@ export async function syncProductsFromLazada(
     products_skipped: 0,
     links_created: 0,
     errors: [],
+    next_offset: null,
   };
 
   try {
     const creds = await ensureValidToken(account);
 
-    let offset = 0;
+    let offset = Math.max(options.startOffset ?? 0, 0);
+    // processed = จำนวนที่ทำ "ในรอบนี้" · offset = ตำแหน่งจริงในร้าน (ใช้โชว์ความคืบหน้ารวม)
     let processed = 0;
     let total: number | null = null;
     // offset ของ Lazada ตันที่ 10000 (เอกสารระบุเอง) — 50/หน้า = 200 หน้า
@@ -456,11 +473,12 @@ export async function syncProductsFromLazada(
 
       onProgress?.({
         phase: 'collecting',
-        current: processed,
+        current: offset,
         total,
-        label: `กำลังดึงรายการสินค้า... (${processed}/${total ?? '?'})`,
+        label: `กำลังดึงรายการสินค้า... (${offset}/${total ?? '?'})`,
       });
 
+      let indexInPage = 0;
       for (const product of page.products) {
         try {
           const { count: linksBefore } = await supabaseAdmin
@@ -488,33 +506,44 @@ export async function syncProductsFromLazada(
           console.error(`[Lazada Product] ${msg}`);
         }
         processed++;
+        indexInPage++;
         onProgress?.({
           phase: 'processing',
-          current: processed,
+          current: offset + indexInPage,
           total,
-          label: `กำลังประมวลผลสินค้า ${processed}/${total ?? '?'}`,
+          label: `กำลังประมวลผลสินค้า ${offset + indexInPage}/${total ?? '?'}`,
         });
       }
 
       offset += page.products.length;
-      if (total !== null && processed >= total) break;
+      if (total !== null && offset >= total) break;
       if (offset >= MAX_OFFSET) {
         result.errors.push(`หยุดที่ ${MAX_OFFSET} รายการ — Lazada จำกัด offset สูงสุดเท่านี้`);
         break;
       }
+      // ใกล้หมดเวลาของ request แล้ว — หยุดตรงขอบหน้าพอดี ให้รอบถัดไปเริ่มที่นี่
+      // (หยุดกลางหน้าไม่ได้ เพราะ offset ชี้ได้แค่ระดับรายการที่ดึงมาแล้ว)
+      if (Date.now() - startedAt > timeBudgetMs) {
+        result.next_offset = offset;
+        break;
+      }
     }
 
-    await supabaseAdmin
-      .from('marketplace_accounts')
-      .update({ last_product_sync_at: new Date().toISOString() })
-      .eq('id', account.id);
+    // stamp เฉพาะตอนไล่ครบทั้งร้าน — ค้างกลางทางแล้ว stamp = เข้าใจผิดว่า sync ครบ
+    if (result.next_offset === null) {
+      await supabaseAdmin
+        .from('marketplace_accounts')
+        .update({ last_product_sync_at: new Date().toISOString() })
+        .eq('id', account.id);
+    }
   } catch (e) {
     result.errors.push(e instanceof Error ? e.message : 'Unknown error');
   }
 
   console.log(
     `[Lazada Product] Done: created=${result.products_created} updated=${result.products_updated} ` +
-    `skipped=${result.products_skipped} links=${result.links_created} errors=${result.errors.length}`
+    `skipped=${result.products_skipped} links=${result.links_created} errors=${result.errors.length} ` +
+    `next_offset=${result.next_offset ?? 'done'}`
   );
   return result;
 }

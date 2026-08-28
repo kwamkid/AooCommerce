@@ -135,9 +135,10 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { marketplace_account_id, copy_sku_to_barcode } = body as {
+    const { marketplace_account_id, copy_sku_to_barcode, start_offset } = body as {
       marketplace_account_id?: string;
       copy_sku_to_barcode?: boolean;
+      start_offset?: number;
     };
 
     if (!marketplace_account_id) {
@@ -165,7 +166,10 @@ export async function POST(request: NextRequest) {
           const result = await syncProductsFromLazada(
             account,
             (p) => send({ type: 'progress', ...p }),
-            { copySkuToBarcode: !!copy_sku_to_barcode }
+            {
+              copySkuToBarcode: !!copy_sku_to_barcode,
+              startOffset: Math.max(Number(start_offset) || 0, 0),
+            }
           );
 
           logIntegration({
@@ -178,7 +182,8 @@ export async function POST(request: NextRequest) {
             status: result.errors.length === 0 ? 'success' : 'error',
             reference_type: 'account',
             reference_id: String(account.shop_id),
-            reference_label: `Lazada import: created ${result.products_created}, updated ${result.products_updated}`,
+            reference_label: `Lazada import: created ${result.products_created}, updated ${result.products_updated}`
+              + (result.next_offset !== null ? ` (ค้างที่ ${result.next_offset} — มีรอบต่อ)` : ''),
             error_message: result.errors[0] || undefined,
             response_body: {
               created: result.products_created,

@@ -81,67 +81,94 @@ function LazadaImportContent() {
     if (allowed) loadPreview();
   }, [allowed, loadPreview]);
 
+  /** ยิงหนึ่งรอบ คืน offset ที่ต้องไปต่อ (null = จบแล้ว) */
+  const runImportPass = async (
+    startOffset: number,
+    acc: ImportSummary,
+  ): Promise<number | null> => {
+    // SSE — apiFetch อ่าน body เป็น json ไม่ได้ ต้องยิง fetch ตรงพร้อมแนบ token เอง
+    const token = await getAccessToken();
+    const res = await fetch('/api/lazada/products/import', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({
+        marketplace_account_id: accountId,
+        copy_sku_to_barcode: copySkuToBarcode,
+        start_offset: startOffset,
+      }),
+    });
+
+    if (!res.ok || !res.body) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'เริ่มนำเข้าไม่สำเร็จ');
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let nextOffset: number | null = null;
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+
+      const chunks = buffer.split('\n\n');
+      buffer = chunks.pop() || '';
+
+      for (const chunk of chunks) {
+        const line = chunk.trim();
+        if (!line.startsWith('data: ')) continue;
+        const evt = JSON.parse(line.slice(6));
+
+        if (evt.type === 'progress') {
+          setProgress({ current: evt.current, total: evt.total, label: evt.label });
+        } else if (evt.type === 'done') {
+          acc.products_created += evt.products_created || 0;
+          acc.products_updated += evt.products_updated || 0;
+          acc.products_skipped += evt.products_skipped || 0;
+          acc.links_created += evt.links_created || 0;
+          acc.errors.push(...(evt.errors || []));
+          nextOffset = evt.next_offset ?? null;
+        } else if (evt.type === 'error') {
+          throw new Error(evt.message || 'นำเข้าไม่สำเร็จ');
+        }
+      }
+    }
+    return nextOffset;
+  };
+
   const runImport = async () => {
     if (!accountId) return;
     setImporting(true);
     setSummary(null);
     setProgress({ current: 0, total: null, label: 'กำลังเริ่ม...' });
 
+    // ร้านจริงมีได้หลักพันรายการ แต่ serverless มีเพดานเวลา — ฝั่ง server หยุดเอง
+    // ก่อนหมดเวลาแล้วบอก next_offset มา เราจึงยิงต่อจนกว่าจะครบ (idempotent)
+    const acc: ImportSummary = {
+      products_created: 0, products_updated: 0, products_skipped: 0, links_created: 0, errors: [],
+    };
+
     try {
-      // SSE — apiFetch อ่าน body เป็น json ไม่ได้ ต้องยิง fetch ตรงพร้อมแนบ token เอง
-      const token = await getAccessToken();
-      const res = await fetch('/api/lazada/products/import', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({
-          marketplace_account_id: accountId,
-          copy_sku_to_barcode: copySkuToBarcode,
-        }),
-      });
-
-      if (!res.ok || !res.body) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || 'เริ่มนำเข้าไม่สำเร็จ');
+      let offset: number | null = 0;
+      let passes = 0;
+      while (offset !== null && passes < 40) {
+        offset = await runImportPass(offset, acc);
+        passes++;
       }
-
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-
-        const chunks = buffer.split('\n\n');
-        buffer = chunks.pop() || '';
-
-        for (const chunk of chunks) {
-          const line = chunk.trim();
-          if (!line.startsWith('data: ')) continue;
-          const evt = JSON.parse(line.slice(6));
-
-          if (evt.type === 'progress') {
-            setProgress({ current: evt.current, total: evt.total, label: evt.label });
-          } else if (evt.type === 'done') {
-            setSummary({
-              products_created: evt.products_created,
-              products_updated: evt.products_updated,
-              products_skipped: evt.products_skipped,
-              links_created: evt.links_created,
-              errors: evt.errors || [],
-            });
-            setProgress(null);
-          } else if (evt.type === 'error') {
-            throw new Error(evt.message || 'นำเข้าไม่สำเร็จ');
-          }
-        }
+      if (offset !== null) {
+        acc.errors.push(`หยุดหลังทำไป ${passes} รอบ — กด "นำเข้าอีกครั้ง" เพื่อทำต่อ`);
       }
+      setSummary(acc);
+      setProgress(null);
     } catch (e) {
       showToast(e instanceof Error ? e.message : 'นำเข้าไม่สำเร็จ', 'error');
+      // ทำไปได้บางส่วนก่อนพัง — ต้องรายงานของที่เข้าไปแล้ว ไม่ใช่หายไปเฉยๆ
+      if (acc.products_created + acc.products_updated > 0) setSummary(acc);
       setProgress(null);
     } finally {
       setImporting(false);
