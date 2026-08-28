@@ -2314,12 +2314,15 @@ export default function OrderForm({
         {/* Sales channel — when a portal target is provided (e.g. /orders/new
             header), the picker renders there as a compact control.
             Otherwise (embedded contexts, edit pages without portal), shown inline. */}
-        {salesChannels.length > 0 && !salesChannelPortalRef && (
+        {/* เปิดบิลจากแชท: ช่องทางถูกล็อกตามห้องแชทและแก้ไม่ได้อยู่แล้ว + หัวแชทบอกช่องทางอยู่แล้ว
+            → ไม่ต้องกินพื้นที่ทั้งการ์ด · ยกเว้นล็อกแล้วแต่ยังจับคู่ช่องทางไม่ได้ (ค่าว่าง)
+            อันนั้นต้องให้เห็น ไม่งั้นบิลบันทึกโดยไม่มีช่องทางแบบเงียบ ๆ */}
+        {salesChannels.length > 0 && !salesChannelPortalRef && !(salesChannelLocked && selectedSalesChannelId) && (
           <div className={`bg-white dark:bg-slate-800 rounded-lg ${embedded ? '' : 'border border-gray-200 dark:border-slate-700'} p-4`}>
             <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">
               ช่องทางการขาย
               {salesChannelLocked && (
-                <span className="ml-2 text-xs text-gray-500 dark:text-slate-400">(ล็อกตามที่มา chat)</span>
+                <span className="ml-2 text-xs text-amber-600 dark:text-amber-400">(ยังจับคู่ช่องทางจากแชทไม่ได้)</span>
               )}
             </label>
             <FormSelect
