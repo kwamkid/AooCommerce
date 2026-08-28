@@ -1,6 +1,6 @@
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { newCustomerCode } from '@/lib/customer-code';
-import { upsertProductImage } from '@/lib/marketplace/product-helpers';
+import { ensureVariationImage, upsertProductImage } from '@/lib/marketplace/product-helpers';
 import {
   TikTokAccountRow,
   TikTokCredentials,
@@ -949,25 +949,47 @@ async function findOrCreateCustomer(
 
 // --- Helper: Find or create variation by SKU ---
 
-async function findOrCreateVariationBySku(
-  companyId: string,
-  sku: string,
-  itemName: string,
-  price: number,
-  tiktokInfo: {
-    tiktokProductId: string;
-    tiktokSkuId: string;
-    skuImage: string;
-    accountId: string;
-    accountName?: string;
-  }
-): Promise<{
+interface MatchedVariation {
   variation_id: string;
   product_id: string;
   product_code: string;
   isNewProduct: boolean;
   isNewVariation: boolean;
-}> {
+}
+
+interface TikTokItemInfo {
+  tiktokProductId: string;
+  tiktokSkuId: string;
+  skuImage: string;
+  accountId: string;
+  accountName?: string;
+}
+
+async function findOrCreateVariationBySku(
+  companyId: string,
+  sku: string,
+  itemName: string,
+  price: number,
+  tiktokInfo: TikTokItemInfo
+): Promise<MatchedVariation> {
+  const matched = await resolveTikTokVariation(companyId, sku, itemName, price, tiktokInfo);
+
+  // สินค้าที่ match กับของเดิมในคลัง (link/SKU/code) ก็ต้องได้รูปจาก TikTok ด้วย —
+  // ตอนสร้างใหม่เท่านั้นไม่พอ (helper ข้ามให้เองถ้าสินค้ามีรูปอยู่แล้ว)
+  if (!matched.isNewVariation && tiktokInfo.skuImage) {
+    await ensureVariationImage(companyId, matched.product_id, matched.variation_id, tiktokInfo.skuImage, 'tiktok');
+  }
+
+  return matched;
+}
+
+async function resolveTikTokVariation(
+  companyId: string,
+  sku: string,
+  itemName: string,
+  price: number,
+  tiktokInfo: TikTokItemInfo
+): Promise<MatchedVariation> {
   // 1. Try marketplace_product_links
   const { data: link } = await supabaseAdmin
     .from('marketplace_product_links')

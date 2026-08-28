@@ -141,6 +141,48 @@ export async function upsertProductImages(
   await Promise.all(urls.map((url, i) => upsertProductImage(companyId, productId, variationId, url, i, platform)));
 }
 
+/**
+ * เติมรูปจาก marketplace ให้ variation ที่ "ยังไม่มีรูปเลย"
+ *
+ * order sync เดิมใส่รูปเฉพาะตอน**สร้างสินค้าใหม่** — ออเดอร์ที่ match กับสินค้าที่มี
+ * อยู่แล้ว (ผ่าน link / SKU / product code) จึงไม่เคยได้รูป และ Lazada/TikTok ที่ยัง
+ * ไม่มี product import ก็ไม่มีทางอื่นให้รูปเข้ามา → การ์ดออเดอร์ขึ้นไอคอนกล่องเปล่า
+ * ตลอดไป (เจอจริง 2026-08-28)
+ *
+ * มีรูปอยู่แล้วแม้รูปเดียว (ระดับ variation หรือระดับ product) = ไม่แตะ — รูปที่
+ * ผู้ใช้ใส่เองต้องชนะรูปจาก marketplace เสมอ
+ */
+export async function ensureVariationImage(
+  companyId: string,
+  productId: string | null,
+  variationId: string | null,
+  imageUrl: string,
+  platform: MarketplacePlatform = 'shopee'
+): Promise<void> {
+  if (!imageUrl || !variationId) return;
+  try {
+    // นับทั้งรูป variation นี้ และรูประดับ product (list page fallback ไปใช้ตัวนั้น)
+    const filters = [`variation_id.eq.${variationId}`];
+    if (productId) filters.push(`and(product_id.eq.${productId},variation_id.is.null)`);
+
+    const { count, error } = await supabaseAdmin
+      .from('product_images')
+      .select('id', { count: 'exact', head: true })
+      .eq('company_id', companyId)
+      .or(filters.join(','));
+
+    if (error) {
+      console.error('[Marketplace] ensureVariationImage lookup failed:', error);
+      return;
+    }
+    if ((count ?? 0) > 0) return;
+
+    await upsertProductImage(companyId, productId, variationId, imageUrl, 0, platform);
+  } catch (e) {
+    console.error('[Marketplace] ensureVariationImage failed:', e);
+  }
+}
+
 /** Re-activate a soft-deleted product and all its variations */
 export async function reactivateProduct(
   productId: string,

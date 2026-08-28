@@ -16,6 +16,30 @@
 
 ---
 
+## 2026-08-28 — Lazada/TikTok: กด "เชื่อมต่อแชท" แล้วไม่มีอะไรเกิดขึ้น + รูปสินค้าในการ์ดออเดอร์เป็นกล่องเปล่า
+
+**ที่เกิด**: [lib/oauth-state.ts](lib/oauth-state.ts) `verifyOAuthState` · [app/api/lazada/oauth/callback/route.ts](app/api/lazada/oauth/callback/route.ts) · [app/api/tiktok/oauth/callback/route.ts](app/api/tiktok/oauth/callback/route.ts) · [lib/lazada/sync.ts](lib/lazada/sync.ts) · [lib/tiktok/sync.ts](lib/tiktok/sync.ts) · [lib/marketplace/product-helpers.ts](lib/marketplace/product-helpers.ts)
+
+**อาการ**:
+1. หน้าช่องทางแชท กดปุ่ม "เชื่อมต่อแชท" ของร้าน Lazada → เด้งไปหน้า authorize แล้วกลับมา **ไม่มีอะไรเปลี่ยน** ยังขึ้น "ยังไม่ได้เชื่อมต่อแชท" ทุกครั้ง (TikTok เป็นเหมือนกัน — ขาแชทใช้งานไม่ได้เลยตั้งแต่เขียนมา)
+2. การ์ดออเดอร์ Lazada ขึ้นไอคอนกล่องเปล่าแทนรูปสินค้า
+
+**Root cause**:
+1. **`verifyOAuthState()` คืน object ที่ประกอบเองแบบ whitelist** (`{ companyId, userId, platform }`) — **ตก `app`** ที่ `signOAuthState()` เซ็นมาให้ · callback ทั้ง Lazada/TikTok อ่าน `authz.payload.app === 'chat'` จึงได้ `undefined` เสมอ → เดินเส้นขาออเดอร์ แล้วเอา `code` ที่ออกโดย **app แชท** ไป exchange ด้วย **key ของ app ออเดอร์** → token exchange ล้ม เด้งกลับ `?error=lazada_token_exchange` · เป็น optional field ⇒ TypeScript จับไม่ได้
+2. ซ้ำอีกชั้น: ถึงจะเข้าเส้นแชทถูก `.update(...).eq('shop_id', sellerId)` ที่ **ไม่ตรงแถวไหนเลยก็ไม่ใช่ error ของ supabase-js** → รายงาน `connected` ทั้งที่ไม่มี token ลง (app แชทกับ app ออเดอร์คืน seller_id คนละชุดได้)
+3. รูปสินค้า: `findOrCreateVariationBySku` ใส่รูป **เฉพาะตอนสร้างสินค้าใหม่** — ออเดอร์ที่ match สินค้าเดิม (link/SKU/product code) หรือชนะ/แพ้ race ไม่เคยได้รูป และ Lazada **ยังไม่มี product import** ของตัวเอง จึงไม่มีทางอื่นให้รูปเข้ามาเลย (ของ order ใบล่าสุดยังซ้ำรอยของเก่าที่ insert ตรงแล้วตก `storage_path` NOT NULL — ดู entry เดียวกันวันนี้)
+
+**วิธีแก้**:
+- `verifyOAuthState` คืน `app` กลับมาด้วย (normalize เป็น `'chat' | undefined`)
+- callback แชททั้ง 2 platform `.update(...).select('id')` แล้วเช็คจำนวนแถวจริง — Lazada มี fallback จับด้วย `metadata->>short_code` ก่อน แล้วถ้ายัง 0 แถว → redirect `lazada_chat=failed` ให้ผู้ใช้เห็น
+- helper กลางใหม่ `ensureVariationImage()` ใน [lib/marketplace/product-helpers.ts](lib/marketplace/product-helpers.ts) — เติมรูปให้ variation ที่**ยังไม่มีรูปเลย** (เช็คทั้งรูป variation และรูประดับ product ที่ list page fallback ไปใช้) · lazada/tiktok sync แยก `resolve*Variation()` (ตรรกะ match เดิม) ออกจาก `findOrCreateVariationBySku()` ที่เป็น wrapper เรียก helper นี้ทุกเส้นทางที่ไม่ได้สร้างใหม่
+
+**ป้องกัน regression**:
+- ฟังก์ชัน verify/parse ที่ **ประกอบ return object เอง** = จุดที่ field ใหม่หล่นเงียบที่สุด — เพิ่ม field เข้า payload ต้องไล่แก้ฝั่ง verify เสมอ (optional field ⇒ compiler ไม่เตือน)
+- **`.update()`/`.delete()` ที่ match 0 แถว ไม่ใช่ error** — เส้นที่ "ต้องมีแถวถูกแก้จริง" ต้อง `.select()` แล้วนับเอง ไม่งั้นได้ success ปลอม (คลาสเดียวกับบั๊ก `onConflict` 42P10 เมื่อ 2026-08-21)
+- **รูป/ข้อมูลเสริมจาก marketplace ห้ามผูกไว้กับ branch "สร้างใหม่" อย่างเดียว** — สินค้าที่มีอยู่แล้วคือเคสปกติ ไม่ใช่เคสขอบ
+- **ห้ามทับรูปที่ผู้ใช้ใส่เอง** — helper เติมให้เฉพาะตอนไม่มีรูปเลย
+
 ## 2026-08-28 — หน้าแชท: ป้าย "ยังไม่เคยสั่ง" ค้าง + การ์ดประวัติโชว์ "ที่อยู่หลัก" + เปิดออเดอร์แล้วไม่เห็นลูกค้า/ที่อยู่
 
 **ที่เกิด**: [app/chat/page.tsx](app/chat/page.tsx) · [app/api/chat/contacts/route.ts](app/api/chat/contacts/route.ts) · [components/orders/OrderForm.tsx](components/orders/OrderForm.tsx) · [app/api/orders/route.ts](app/api/orders/route.ts)

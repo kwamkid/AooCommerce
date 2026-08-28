@@ -85,23 +85,44 @@ export async function GET(request: NextRequest) {
     // ถ้าแถวยังไม่มีแปลว่าขาออเดอร์ล้ม — สร้างแถวที่มีแต่ token แชทจะได้ร้าน
     // ที่ดูดออเดอร์ไม่ได้ (แย่กว่าไม่มีแถวเลย)
     if (app === 'chat') {
-      const { error: chatErr } = await supabaseAdmin
+      const chatPatch = {
+        chat_access_token: tokens.access_token,
+        chat_refresh_token: tokens.refresh_token,
+        chat_access_token_expires_at: new Date(now + tokens.expires_in * 1000).toISOString(),
+        chat_refresh_token_expires_at: tokens.refresh_expires_in
+          ? new Date(now + tokens.refresh_expires_in * 1000).toISOString()
+          : null,
+        updated_at: new Date().toISOString(),
+      };
+
+      const { data: updated, error: chatErr } = await supabaseAdmin
         .from('marketplace_accounts')
-        .update({
-          chat_access_token: tokens.access_token,
-          chat_refresh_token: tokens.refresh_token,
-          chat_access_token_expires_at: new Date(now + tokens.expires_in * 1000).toISOString(),
-          chat_refresh_token_expires_at: tokens.refresh_expires_in
-            ? new Date(now + tokens.refresh_expires_in * 1000).toISOString()
-            : null,
-          updated_at: new Date().toISOString(),
-        })
+        .update(chatPatch)
         .eq('company_id', companyId)
         .eq('platform', 'lazada')
-        .eq('shop_id', sellerId);
+        .eq('shop_id', sellerId)
+        .select('id');
 
-      if (chatErr) {
-        console.error('[Lazada Callback] Chat token update failed:', chatErr);
+      // app แชทอาจคืน seller_id คนละชุดกับ app ออเดอร์ → shop_id ไม่ตรง แล้ว
+      // update จะ "สำเร็จแบบ 0 แถว" (Supabase ไม่ถือเป็น error) = บอกว่าเชื่อมแล้ว
+      // ทั้งที่ไม่มี token ลงจริง — ต้องเช็คจำนวนแถวเสมอ แล้วลองจับด้วย short_code
+      // ซึ่งคงที่ต่อผู้ขายและได้จาก /seller/get ของทั้งสอง app
+      let matched = updated?.length ?? 0;
+      const shortCode = userInfo?.short_code || seller?.short_code || null;
+      if (matched === 0 && shortCode) {
+        const { data: byCode } = await supabaseAdmin
+          .from('marketplace_accounts')
+          .update(chatPatch)
+          .eq('company_id', companyId)
+          .eq('platform', 'lazada')
+          .eq('metadata->>short_code', shortCode)
+          .select('id');
+        matched = byCode?.length ?? 0;
+      }
+
+      if (chatErr || matched === 0) {
+        console.error('[Lazada Callback] Chat token update failed:', chatErr
+          || `no marketplace_accounts row matched (seller_id=${sellerId}, short_code=${shortCode})`);
         return NextResponse.redirect(chatSettingsUrl('failed'));
       }
 

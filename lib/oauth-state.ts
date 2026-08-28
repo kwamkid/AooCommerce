@@ -84,7 +84,16 @@ export function verifyOAuthState(state: string | null | undefined): OAuthStatePa
     const body = JSON.parse(fromB64url(encoded).toString('utf8')) as SignedPayload;
     if (!body.companyId || !body.userId || !body.platform) return null;
     if (typeof body.iat !== 'number' || Date.now() / 1000 - body.iat > TTL_SECONDS) return null;
-    return { companyId: body.companyId, userId: body.userId, platform: body.platform };
+    // `app` ต้องกลับไปด้วยเสมอ — callback ของ TikTok/Lazada ใช้ค่านี้แยกว่ากลับมาจาก
+    // ขาออเดอร์หรือขาแชท ตกหล่นเมื่อไหร่ = ขาแชทถูกมองเป็นขาออเดอร์ แล้วเอา code
+    // ของ app แชทไป exchange ด้วย key ของ app ออเดอร์ → เชื่อมแชทไม่ได้ตลอดกาล
+    // (เจอจริง 2026-08-28)
+    return {
+      companyId: body.companyId,
+      userId: body.userId,
+      platform: body.platform,
+      app: body.app === 'chat' ? 'chat' : undefined,
+    };
   } catch {
     return null;
   }

@@ -84,7 +84,7 @@ export async function GET(request: NextRequest) {
         // ขาแชทเติม token ลงแถวที่ขาออเดอร์สร้างไว้แล้ว — ไม่ upsert
         // เพราะถ้าแถวยังไม่มี แปลว่าขาออเดอร์ล้ม การสร้างแถวที่มีแต่ token แชท
         // จะได้ร้านที่ดูดออเดอร์ไม่ได้ (แย่กว่าไม่มีแถวเลย)
-        const { error } = await supabaseAdmin
+        const { data: updated, error } = await supabaseAdmin
           .from('marketplace_accounts')
           .update({
             chat_access_token: tokens.access_token,
@@ -95,8 +95,12 @@ export async function GET(request: NextRequest) {
           })
           .eq('company_id', companyId)
           .eq('platform', 'tiktok')
-          .eq('shop_id', shopIdNum);
+          .eq('shop_id', shopIdNum)
+          .select('id');
+        // update ที่ไม่ตรงแถวไหนเลยไม่ใช่ error ของ Supabase — ต้องเช็คจำนวนแถวเอง
+        // ไม่งั้นจะเงียบแล้วผู้ใช้เห็นว่า "เชื่อมแล้ว" ทั้งที่ token ไม่ได้ลง
         if (error) console.error('[TikTok Callback] Chat token update failed for shop', shop.id, ':', error);
+        else if ((updated?.length ?? 0) === 0) console.error('[TikTok Callback] Chat token update matched no row for shop', shop.id, '— order leg may not have run');
         else console.log('[TikTok Callback] Chat enabled for shop:', shop.name);
         continue;
       }

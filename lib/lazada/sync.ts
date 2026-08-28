@@ -7,7 +7,7 @@
 
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { newCustomerCode } from '@/lib/customer-code';
-import { upsertProductImage } from '@/lib/marketplace/product-helpers';
+import { ensureVariationImage, upsertProductImage } from '@/lib/marketplace/product-helpers';
 import { sendNewOrderPushById } from '@/lib/push/send';
 import {
   LazadaAccountRow,
@@ -800,25 +800,48 @@ async function findOrCreateCustomer(
 // --- Product matching ---------------------------------------------------------------
 // Priority เดียวกับ Shopee/TikTok: links → SKU → product code → สร้างใหม่
 
-async function findOrCreateVariationBySku(
-  companyId: string,
-  sku: string,
-  itemName: string,
-  price: number,
-  info: {
-    externalItemId: string;
-    externalModelId: string;
-    image: string;
-    accountId: string;
-    accountName?: string;
-  }
-): Promise<{
+interface MatchedVariation {
   variation_id: string;
   product_id: string;
   product_code: string;
   isNewProduct: boolean;
   isNewVariation: boolean;
-}> {
+}
+
+interface LazadaItemInfo {
+  externalItemId: string;
+  externalModelId: string;
+  image: string;
+  accountId: string;
+  accountName?: string;
+}
+
+async function findOrCreateVariationBySku(
+  companyId: string,
+  sku: string,
+  itemName: string,
+  price: number,
+  info: LazadaItemInfo
+): Promise<MatchedVariation> {
+  const matched = await resolveLazadaVariation(companyId, sku, itemName, price, info);
+
+  // สินค้าที่ match กับของเดิมในคลัง (link/SKU/code) ก็ต้องได้รูปจาก Lazada ด้วย —
+  // ตอนสร้างใหม่เท่านั้นไม่พอ เพราะ Lazada ยังไม่มี product import ของตัวเอง
+  // (helper ข้ามให้เองถ้าสินค้ามีรูปอยู่แล้ว)
+  if (!matched.isNewVariation && info.image) {
+    await ensureVariationImage(companyId, matched.product_id, matched.variation_id, info.image, 'lazada');
+  }
+
+  return matched;
+}
+
+async function resolveLazadaVariation(
+  companyId: string,
+  sku: string,
+  itemName: string,
+  price: number,
+  info: LazadaItemInfo
+): Promise<MatchedVariation> {
   // 1. marketplace_product_links
   const { data: link } = await supabaseAdmin
     .from('marketplace_product_links')
