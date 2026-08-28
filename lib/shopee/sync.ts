@@ -1,5 +1,7 @@
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { newCustomerCode } from '@/lib/customer-code';
+import { normalizeShopeeEscrow } from '@/lib/shopee/settlement';
+import { saveSettlement } from '@/lib/marketplace/settlement';
 import { shopeeApiRequest, ensureValidToken, ShopeeAccountRow, getItemFullDetails, ShopeeItemFullDetail, getEscrowDetail, getPackageDetail, getPackageNumberList, getBuyerInvoiceInfo, BuyerInvoiceInfo } from '@/lib/shopee/api';
 import { logIntegration } from '@/lib/integration-logger';
 import { parallelLimit } from '@/lib/parallel';
@@ -695,14 +697,48 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder, 
   const uniqueItemIds = [...new Set((shopeeOrder.item_list || []).map(i => i.item_id))];
   const creds = await ensureValidToken(account);
 
-  // Lazy-load item details: only fetch from Shopee Product API when needed (new order or missing items)
-  // For status-only updates on existing orders, this avoids 2+ unnecessary Shopee API calls
-  let _itemDetailMap: Map<number, ShopeeItemFullDetail> | null = null;
-  const getItemDetails = async () => {
-    if (!_itemDetailMap) {
-      _itemDetailMap = await getItemFullDetails(creds, uniqueItemIds);
+  // Lazy-load item details: ยิง Product API เฉพาะ "สินค้าที่เรายังไม่รู้จัก" เท่านั้น
+  //
+  // เดิมทุก webhook สถานะ/เลขพัสดุ (ซึ่งเข้ามาหลายรอบต่อออเดอร์) จะยิง
+  // get_item_base_info + get_model_list ของทุกสินค้าในออเดอร์ใหม่ทุกครั้ง เพื่อ
+  // "อัปเดตรูป/ชื่อ/หมวดให้ตรง Shopee" ทั้งที่ของพวกนั้นแทบไม่เปลี่ยน —
+  // กินไป ~42% ของโควตา Shopee ทั้งหมด (845 จาก 2,026 call ใน 2 วัน) และเป็นตัวที่
+  // ทำโควตาเต็มเมื่อ 2026-08-26 · สิ่งที่ออเดอร์ต้องการจริงคือ **สต็อก** ไม่ใช่รูป
+  //
+  // ตอนนี้ยิงเมื่อ "ยังไม่มี link ของ (item, model) นั้น" หรือ "สินค้าที่ link ไว้หายไป/ถูกปิด"
+  // เท่านั้น → variation ใหม่บน Shopee ยังถูกดึงเข้ามาอัตโนมัติตอนมีออเดอร์แรกของมัน
+  // ส่วนการอัปเดตรูป/ชื่อของเก่าให้ใช้ปุ่ม sync เอง
+  const _itemDetailCache = new Map<number, ShopeeItemFullDetail>();
+  const _fetchedItemIds = new Set<number>();
+  const getItemDetails = async (onlyItemIds?: number[]) => {
+    const wanted = (onlyItemIds ?? uniqueItemIds).filter(id => !_fetchedItemIds.has(id));
+    if (wanted.length > 0) {
+      const fetched = await getItemFullDetails(creds, wanted);
+      for (const id of wanted) _fetchedItemIds.add(id);
+      for (const [id, detail] of fetched) _itemDetailCache.set(id, detail);
     }
-    return _itemDetailMap;
+    return _itemDetailCache;
+  };
+
+  /** item_id ที่ยัง "ไม่รู้จัก" จริง ๆ — ตรวจจาก DB ล้วน ไม่ยิง API */
+  const itemsNeedingDetail = async (): Promise<number[]> => {
+    const items = shopeeOrder.item_list || [];
+    if (items.length === 0) return [];
+    const { data: links } = await supabaseAdmin
+      .from('marketplace_product_links')
+      .select('external_item_id, external_model_id, product_id, products!inner(is_active)')
+      .eq('account_id', account.id)
+      .in('external_item_id', uniqueItemIds.map(String));
+    const healthy = new Set(
+      (links || [])
+        .filter(l => (l.products as unknown as { is_active: boolean } | null)?.is_active)
+        .map(l => `${l.external_item_id}:${l.external_model_id}`)
+    );
+    const need = new Set<number>();
+    for (const item of items) {
+      if (!healthy.has(`${item.item_id}:${item.model_id || 0}`)) need.add(item.item_id);
+    }
+    return [...need];
   };
   // Shorthand for use in existing code paths
   let itemDetailMap = new Map<number, ShopeeItemFullDetail>();
@@ -908,8 +944,11 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder, 
     }
 
     // Re-create any soft-deleted products referenced by this order's items
-    // Lazy-load item details only when needed for repair/backfill
-    itemDetailMap = await getItemDetails();
+    // โหลด detail เฉพาะสินค้าที่ยังไม่รู้จัก — ออเดอร์ที่ของครบแล้วจะไม่ยิง API เลย
+    const needDetail = await itemsNeedingDetail();
+    if (needDetail.length > 0) {
+      itemDetailMap = await getItemDetails(needDetail);
+    }
     const productsRecreated = await repairOrderProducts(companyId, existing.id, shopeeOrder, itemDetailMap);
 
     // Repair: if order has no items but Shopee now provides item_list, create them
@@ -1058,6 +1097,7 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder, 
     let siblingsBackfilled = 0;
     for (const item of shopeeOrder.item_list || []) {
       if (item.model_id > 0 && item.model_name) {
+        // ไม่มี detail = สินค้าตัวนี้เรารู้จักครบแล้ว ไม่ต้องไล่เติม sibling ซ้ำทุก webhook
         const sibItemDetail = itemDetailMap.get(item.item_id);
         const itemSku = item.model_sku || item.item_sku || '';
         if (sibItemDetail?.models && sibItemDetail.models.length > 0) {
@@ -1117,8 +1157,11 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder, 
 
   // --- Create new order ---
 
-  // Ensure item details are loaded for new order creation
-  itemDetailMap = await getItemDetails();
+  // โหลด detail เฉพาะสินค้าที่ยังไม่รู้จัก (ของที่ผูก link ไว้แล้วใช้ข้อมูลใน DB ได้เลย)
+  const newOrderNeedDetail = await itemsNeedingDetail();
+  if (newOrderNeedDetail.length > 0) {
+    itemDetailMap = await getItemDetails(newOrderNeedDetail);
+  }
 
   // Find or create customer (track if newly created for rollback)
   const { customerId, isNewCustomer, shippingAddressId } = await findOrCreateShopeeCustomer(companyId, shopeeOrder);
@@ -1203,7 +1246,20 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder, 
     if (matched.isNewVariation) newlyCreatedVariationIds.push(matched.variation_id);
 
     // Upsert marketplace link so product is linked to Shopee item/model
+    //
+    // ข้ามเมื่อ "รู้จักสินค้านี้อยู่แล้ว" (ไม่ได้โหลด detail รอบนี้) — ไม่งั้นจะเขียน
+    // null ทับ platform_primary_image / ชื่อ / หมวด / น้ำหนัก ที่เคยเก็บไว้
+    // (รูปหน้าปกต่อร้านเคยหายเพราะจุดนี้ ทับทุกออเดอร์ที่เข้ามา)
+    const hasFreshDetail = !!itemDetail;
     try {
+      if (!hasFreshDetail) {
+        await supabaseAdmin
+          .from('marketplace_product_links')
+          .update({ last_synced_at: new Date().toISOString() })
+          .eq('account_id', account.id)
+          .eq('external_item_id', String(item.item_id))
+          .eq('external_model_id', String(item.model_id || 0));
+      } else {
       await upsertMarketplaceLink({
         companyId,
         accountId: account.id,
@@ -1222,6 +1278,7 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder, 
         brand: itemDetail?.brand || undefined,
         attributes: itemDetail?.attribute_list || undefined,
       });
+      }
     } catch (linkErr) {
       console.error(`[Shopee Sync] Failed to upsert marketplace link for item ${item.item_id}:`, linkErr);
     }
@@ -1625,6 +1682,21 @@ async function fetchAndSaveEscrowDetail(
           .update({ shipping_fee: actualShippingFee })
           .eq('id', shipments[0].id);
       }
+    }
+
+    // แปลง escrow เป็นยอด settlement (เงินเข้าจริง + ค่าธรรมเนียมแยกประเภท) ทันที
+    // ไม่ให้ล้มพร้อมกัน — escrow บันทึกสำเร็จไปแล้ว ถ้าตรงนี้พังยัง backfill ทีหลังได้
+    try {
+      const normalized = normalizeShopeeEscrow(escrow, { orderSn });
+      await saveSettlement({
+        companyId: account.company_id,
+        orderId,
+        platform: 'shopee',
+        marketplaceAccountId: account.id,
+        normalized,
+      });
+    } catch (settlementErr) {
+      console.error(`[Shopee Sync] settlement mapping failed for ${orderSn}:`, settlementErr);
     }
 
     console.log(`[Shopee Sync] Saved escrow detail for ${orderSn}: shipping=${actualShippingFee}, seller_discount=${voucherFromSeller + sellerDiscount}`);
