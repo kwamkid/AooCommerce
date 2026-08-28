@@ -45,6 +45,10 @@ export interface ShippingAddress {
   contact_person: string;
   delivery_notes?: string;
   is_default?: boolean;
+  /** true = ที่อยู่ "ผู้รับของขวัญ" (โหมดส่งให้คนอื่น)
+   *  สองสมุดนี้แยกกันเด็ดขาด: dropdown ใต้ชิปลูกค้า = ที่อยู่ของลูกค้าเอง (false),
+   *  FormSelect "ที่อยู่ที่บันทึกไว้" ในโหมดส่งให้คนอื่น = ที่อยู่ผู้รับ (true) */
+  is_recipient?: boolean;
 }
 
 export interface DeliveryFields {
@@ -253,6 +257,15 @@ export default function CustomerSelectionCard({
 
   const showDeliveryCol = !!(selectedCustomer || hasDelivery);
 
+  // สมุดที่อยู่ 2 เล่ม แยกกันเด็ดขาด
+  //  - ownAddresses = ที่อยู่ของลูกค้าเอง → dropdown บนชิปลูกค้า
+  //  - recipientAddresses = ที่อยู่ผู้รับของขวัญ → FormSelect ในโหมด "ส่งให้คนอื่น"
+  const ownAddresses = shippingAddresses.filter(a => !a.is_recipient);
+  const recipientAddresses = shippingAddresses.filter(a => a.is_recipient);
+  // โหมดส่งให้คนอื่น: ที่อยู่ของบิลนี้เป็นของผู้รับ — ปิด dropdown ที่อยู่ลูกค้า
+  // ไม่งั้นเผลอกดแล้วทับที่อยู่ผู้รับที่กรอกไว้
+  const canPickOwnAddress = !shipToOther && ownAddresses.length > 1 && isEditable;
+
   return (
     <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4">
       <div className={`grid grid-cols-1 ${singleColumn ? '' : 'sm:grid-cols-2'} gap-x-4 gap-y-3`}>
@@ -319,9 +332,9 @@ export default function CustomerSelectionCard({
               <div className="flex items-center h-10 bg-orange-50 dark:bg-orange-900/20 border border-primary/30 rounded-lg overflow-hidden">
                 <button
                   type="button"
-                  onClick={() => { if (shippingAddresses.length > 1 && isEditable) setShowAddressDropdown(!showAddressDropdown); }}
-                  disabled={!(shippingAddresses.length > 1 && isEditable)}
-                  className={`flex items-center gap-2 flex-1 min-w-0 h-full pl-3 text-left ${shippingAddresses.length > 1 && isEditable ? 'cursor-pointer hover:bg-orange-100/40 dark:hover:bg-orange-900/30' : 'cursor-default'}`}
+                  onClick={() => { if (canPickOwnAddress) setShowAddressDropdown(!showAddressDropdown); }}
+                  disabled={!canPickOwnAddress}
+                  className={`flex items-center gap-2 flex-1 min-w-0 h-full pl-3 text-left ${canPickOwnAddress ? 'cursor-pointer hover:bg-orange-100/40 dark:hover:bg-orange-900/30' : 'cursor-default'}`}
                 >
                   {loading
                     ? <Loader2 className="w-4 h-4 text-primary flex-shrink-0 animate-spin" />
@@ -329,7 +342,7 @@ export default function CustomerSelectionCard({
                   }
                   <span className="text-base font-medium text-gray-900 dark:text-slate-200 truncate">{selectedCustomer.name}</span>
                   {resolvedBadge && <span className="flex-shrink-0">{resolvedBadge}</span>}
-                  {shippingAddresses.length > 1 && (
+                  {canPickOwnAddress && (
                     <ChevronDown className="w-4 h-4 text-gray-400 flex-shrink-0 ml-auto mr-2" />
                   )}
                 </button>
@@ -345,11 +358,11 @@ export default function CustomerSelectionCard({
                 )}
               </div>
               {/* Address dropdown */}
-              {showAddressDropdown && shippingAddresses.length > 1 && isEditable && (
+              {showAddressDropdown && canPickOwnAddress && (
                 <>
                   <div className="fixed inset-0 z-10" onClick={() => setShowAddressDropdown(false)} />
                   <div className="absolute z-[999] w-full mt-1 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg overflow-hidden">
-                    {shippingAddresses.map(addr => (
+                    {ownAddresses.map(addr => (
                       <button key={addr.id} type="button" onClick={() => {
                         onAddressSelect?.(addr.id, addr);
                         setShowAddressDropdown(false);
@@ -519,7 +532,7 @@ export default function CustomerSelectionCard({
                       key={String(o.key)}
                       type="button"
                       disabled={!isEditable}
-                      onClick={() => onShipToOtherChange(o.key)}
+                      onClick={() => { setShowAddressDropdown(false); onShipToOtherChange(o.key); }}
                       aria-pressed={active}
                       className={`flex items-center gap-2 text-left px-3 py-2 rounded-lg border transition-colors disabled:cursor-not-allowed ${
                         active ? o.on : 'border-gray-200 dark:border-slate-600 hover:border-gray-300 dark:hover:border-slate-500'
@@ -541,24 +554,24 @@ export default function CustomerSelectionCard({
 
               {/* สมุดที่อยู่ผู้รับ — ส่งของขวัญให้คนเดิมซ้ำโดยไม่ต้องพิมพ์ใหม่
                   (dropdown ในชิปลูกค้าหาไม่เจอเวลาอยู่โหมดนี้ เพราะสายตาอยู่คอลัมน์ขวา) */}
-              {shipToOther && isEditable && onAddressSelect && shippingAddresses.length > 0 && (
+              {shipToOther && isEditable && onAddressSelect && recipientAddresses.length > 0 && (
                 <div className="mt-2">
                   <label className="block text-sm text-gray-600 dark:text-slate-400 mb-1">ที่อยู่ที่บันทึกไว้</label>
                   <FormSelect
                     /* แสดงว่า "เลือกอยู่" เฉพาะเมื่อช่องด้านล่างยังตรงกับที่อยู่นั้นจริง ๆ
                        (พิมพ์แก้เองแล้ว = ที่อยู่ใหม่ ไม่ใช่ของเดิม) */
-                    value={shippingAddresses.find(a =>
+                    value={recipientAddresses.find(a =>
                       a.id === selectedAddressId &&
                       (a.address_line1 || '') === (delivery?.deliveryAddress || '') &&
                       (a.contact_person || '') === (delivery?.deliveryName || ''),
                     )?.id || ''}
                     onChange={(id) => {
                       if (id === NEW_ADDRESS_OPTION_ID) { onNewAddress?.(); return; }
-                      const addr = shippingAddresses.find(a => a.id === id);
+                      const addr = recipientAddresses.find(a => a.id === id);
                       if (addr) onAddressSelect(id, addr);
                     }}
                     options={[
-                      ...shippingAddresses.map(a => ({
+                      ...recipientAddresses.map(a => ({
                         id: a.id,
                         label: a.contact_person?.trim() || a.address_name,
                         subtitle: [

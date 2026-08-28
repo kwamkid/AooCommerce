@@ -282,7 +282,7 @@ export async function POST(request: NextRequest) {
         address_line1: address,
         district, amphoe, province, postal_code: postalCode,
         google_maps_link: safeMapsLink,
-      })
+      }, shipToOther)
     : null;
 
   const { data: order, error: orderError } = await supabaseAdmin

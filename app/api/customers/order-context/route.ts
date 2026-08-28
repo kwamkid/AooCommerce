@@ -26,6 +26,28 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    // RPC ยังไม่คืน is_recipient — เติมจากตารางตรง ๆ (ฟอร์มต้องแยก
+    // "ที่อยู่ของลูกค้าเอง" กับ "ที่อยู่ผู้รับของขวัญ" ออกจากกัน)
+    const addresses = (data as { shipping_addresses?: { id: string }[] } | null)?.shipping_addresses;
+    if (Array.isArray(addresses) && addresses.length > 0) {
+      const { data: flags, error: flagsError } = await supabaseAdmin
+        .from('shipping_addresses')
+        .select('id, is_recipient')
+        .eq('company_id', auth.companyId)
+        .eq('customer_id', customerId)
+        .eq('is_active', true);
+      if (flagsError) {
+        console.error('shipping address recipient flags error:', flagsError);
+      } else {
+        const recipientIds = new Set(
+          (flags || []).filter((f: { is_recipient: boolean | null }) => f.is_recipient).map((f: { id: string }) => f.id),
+        );
+        for (const addr of addresses) {
+          (addr as { is_recipient?: boolean }).is_recipient = recipientIds.has(addr.id);
+        }
+      }
+    }
+
     return NextResponse.json(data);
   } catch (error) {
     console.error('Customer order context error:', error);

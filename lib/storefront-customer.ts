@@ -151,27 +151,36 @@ export async function resolveShippingAddress(
   companyId: string,
   customerId: string,
   addr: RecipientAddress,
+  /** true = สั่งเป็นของขวัญ ที่อยู่นี้เป็นของ "ผู้รับ" ไม่ใช่ของผู้สั่ง
+   *  → เก็บคนละสมุด (dropdown ที่อยู่ของลูกค้าจะไม่โชว์แถวนี้) */
+  isRecipient = false,
 ): Promise<string | null> {
   const line1 = addr.address_line1.trim();
   if (!line1) return null;
 
-  const { data: existing } = await supabaseAdmin
+  const { data: existing, error: findError } = await supabaseAdmin
     .from('shipping_addresses')
-    .select('id, google_maps_link')
+    .select('id, google_maps_link, is_default, is_recipient')
     .eq('company_id', companyId)
     .eq('customer_id', customerId)
     .eq('address_line1', line1)
     .eq('phone', addr.phone)
     .limit(1)
     .maybeSingle();
+  if (findError) console.error('[storefront checkout] shipping address lookup failed:', findError);
 
   if (existing?.id) {
+    const patch: Record<string, unknown> = {};
     // เติมลิงก์แผนที่ให้ที่อยู่เดิมถ้าเพิ่งกรอกมาครั้งแรก — ของเดิมที่มีอยู่แล้วไม่ทับ
-    if (addr.google_maps_link && !existing.google_maps_link) {
-      await supabaseAdmin
+    if (addr.google_maps_link && !existing.google_maps_link) patch.google_maps_link = addr.google_maps_link;
+    // ที่อยู่หลักของลูกค้าห้ามถูกย้ายไปสมุดผู้รับ (สั่งของขวัญไปที่อยู่ตัวเอง)
+    if (isRecipient && !existing.is_recipient && !existing.is_default) patch.is_recipient = true;
+    if (Object.keys(patch).length > 0) {
+      const { error: patchError } = await supabaseAdmin
         .from('shipping_addresses')
-        .update({ google_maps_link: addr.google_maps_link })
+        .update(patch)
         .eq('id', existing.id);
+      if (patchError) console.error('[storefront checkout] shipping address update failed:', patchError);
     }
     return existing.id;
   }
@@ -190,6 +199,7 @@ export async function resolveShippingAddress(
       province: addr.province,
       postal_code: addr.postal_code,
       google_maps_link: addr.google_maps_link,
+      is_recipient: isRecipient,
       is_active: true,
     })
     .select('id')

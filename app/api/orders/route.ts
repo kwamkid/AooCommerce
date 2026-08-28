@@ -128,8 +128,9 @@ async function rememberRecipientAddress(
     const { error: updateError } = await supabaseAdmin
       .from('shipping_addresses')
       .update({
-        // ที่อยู่หลักของลูกค้าห้ามโดนเปลี่ยนชื่อ (เจอเคสส่งของขวัญไปที่อยู่ตัวเอง)
-        ...(match?.is_default ? {} : { address_name: addressName }),
+        // ที่อยู่หลักของลูกค้าห้ามโดนเปลี่ยนชื่อ/ย้ายไปสมุดผู้รับ
+        // (เจอเคสส่งของขวัญไปที่อยู่ตัวเอง — ที่อยู่หลักต้องอยู่ใต้ "ลูกค้า" ต่อไป)
+        ...(match?.is_default ? {} : { address_name: addressName, is_recipient: true }),
         contact_person: contactPerson,
         phone,
         district: d.district || null,
@@ -161,6 +162,9 @@ async function rememberRecipientAddress(
       province: d.province,
       postal_code: d.postal_code || null,
       is_default: false,
+      // สมุดที่อยู่ "ผู้รับของขวัญ" — แยกจากที่อยู่ของลูกค้าเอง
+      // (dropdown ใต้ชิปลูกค้าโชว์เฉพาะ is_recipient=false)
+      is_recipient: true,
       is_active: true,
       created_by: userId || null,
       created_at: new Date().toISOString(),
@@ -600,13 +604,19 @@ export async function POST(request: NextRequest) {
       try {
         // Check if delivery info matches the selected shipping_address
         let needsUpsert = true;
+        // โหมด "สั่งเอง" ห้ามเขียนทับสมุดที่อยู่ผู้รับของขวัญ — ถ้าที่อยู่ที่เลือกค้างอยู่
+        // เป็นของผู้รับ (สลับโหมดไปกลับ) ให้ถือว่าไม่ match แล้วสร้างที่อยู่ของลูกค้าเองแทน
+        let selectedIsRecipient = false;
         if (orderData.shipping_address_id) {
-          const { data: selectedAddr } = await supabaseAdmin
+          const { data: selectedAddr, error: selectedAddrError } = await supabaseAdmin
             .from('shipping_addresses')
-            .select('address_line1, district, amphoe, province, postal_code')
+            .select('address_line1, district, amphoe, province, postal_code, is_recipient')
             .eq('id', orderData.shipping_address_id)
-            .single();
-          if (selectedAddr &&
+            .eq('company_id', auth.companyId)
+            .maybeSingle();
+          if (selectedAddrError) console.error('Selected address lookup error:', selectedAddrError.message);
+          selectedIsRecipient = !!selectedAddr?.is_recipient;
+          if (selectedAddr && !selectedIsRecipient &&
             selectedAddr.address_line1 === (orderData.delivery_address || '') &&
             selectedAddr.district === (orderData.delivery_district || '') &&
             selectedAddr.amphoe === (orderData.delivery_amphoe || '') &&
@@ -624,7 +634,7 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        if (needsUpsert && addressAction === 'update' && orderData.shipping_address_id) {
+        if (needsUpsert && addressAction === 'update' && orderData.shipping_address_id && !selectedIsRecipient) {
           // User chose to update the existing address
           await supabaseAdmin
             .from('shipping_addresses')

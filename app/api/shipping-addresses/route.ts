@@ -20,6 +20,8 @@ interface ShippingAddressData {
   delivery_notes?: string;
   is_default?: boolean;
   is_active?: boolean;
+  /** true = ที่อยู่ "ผู้รับของขวัญ" (โหมดส่งให้คนอื่น) — คนละสมุดกับที่อยู่ของลูกค้าเอง */
+  is_recipient?: boolean;
 }
 
 // GET - Get shipping addresses for a customer
@@ -111,6 +113,8 @@ export async function POST(request: NextRequest) {
         longitude: addressData.longitude || null,
         delivery_notes: addressData.delivery_notes || null,
         is_default: addressData.is_default !== undefined ? addressData.is_default : false,
+        // whitelist — รับเฉพาะ true/false ที่ส่งมาจริง ไม่เปิดรับทั้ง body
+        is_recipient: addressData.is_recipient === true,
         is_active: addressData.is_active !== undefined ? addressData.is_active : true,
         created_by: auth.userId,
         created_at: new Date().toISOString(),

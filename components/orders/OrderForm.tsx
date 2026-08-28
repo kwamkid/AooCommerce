@@ -92,6 +92,8 @@ interface ShippingAddress {
   province: string;
   postal_code?: string;
   is_default?: boolean;
+  /** true = ที่อยู่ "ผู้รับของขวัญ" (โหมดส่งให้คนอื่น) — คนละสมุดกับที่อยู่ของลูกค้าเอง */
+  is_recipient?: boolean;
   created_at?: string;
   delivery_notes?: string;
 }
@@ -603,8 +605,10 @@ export default function OrderForm({
               const addrResult = await addrResponse.json();
               const addresses = addrResult.addresses || [];
               setShippingAddresses(addresses);
-              if (addresses.length > 0) {
-                const defaultAddr = addresses.find((a: ShippingAddress) => a.is_default) || addresses[0];
+              // prefill จากที่อยู่ของลูกค้าเองเท่านั้น — ที่อยู่ผู้รับของขวัญเป็นคนละสมุด
+              const ownAddresses = addresses.filter((a: ShippingAddress) => !a.is_recipient);
+              if (ownAddresses.length > 0) {
+                const defaultAddr = ownAddresses.find((a: ShippingAddress) => a.is_default) || ownAddresses[0];
                 setSelectedAddressId(defaultAddr.id);
                 setDeliveryName(defaultAddr.contact_person || customer.name);
                 setDeliveryPhone(defaultAddr.phone || customer.phone || '');
@@ -1765,6 +1769,8 @@ export default function OrderForm({
                   province: snapshotProvince || undefined,
                   postal_code: snapshotPostalCode || undefined,
                   is_default: !shipToOther,
+                  // แยกสมุด: ที่อยู่ผู้รับของขวัญห้ามโผล่ใน dropdown ที่อยู่ของลูกค้า
+                  is_recipient: shipToOther,
                 }),
               });
               if (addrRes.ok) {
@@ -1797,6 +1803,8 @@ export default function OrderForm({
               province: snapshotProvince || undefined,
               postal_code: snapshotPostalCode || undefined,
               is_default: !shipToOther,
+              // แยกสมุด: ที่อยู่ผู้รับของขวัญห้ามโผล่ใน dropdown ที่อยู่ของลูกค้า
+              is_recipient: shipToOther,
             }),
           });
           if (addrRes.ok) {

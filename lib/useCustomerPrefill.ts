@@ -15,6 +15,8 @@ export interface PrefillShippingAddress {
   province: string;
   postal_code: string;
   is_default?: boolean;
+  /** true = ที่อยู่ "ผู้รับของขวัญ" (โหมดส่งให้คนอื่น) — ไม่ใช่ที่อยู่ของลูกค้าเอง */
+  is_recipient?: boolean;
   delivery_notes?: string;
 }
 
@@ -149,7 +151,10 @@ export function useCustomerPrefill() {
 
       // Addresses
       setShippingAddresses(addrs);
-      const defaultAddr = addrs.find(a => a.is_default) || addrs[0];
+      // prefill ช่องจัดส่งจาก "ที่อยู่ของลูกค้าเอง" เท่านั้น
+      // (ที่อยู่ผู้รับของขวัญเลือกได้จาก dropdown ในโหมดส่งให้คนอื่น)
+      const ownAddrs = addrs.filter(a => !a.is_recipient);
+      const defaultAddr = ownAddrs.find(a => a.is_default) || ownAddrs[0];
       if (defaultAddr) {
         setSelectedAddressId(defaultAddr.id);
         fillDeliveryFromAddress(defaultAddr, c);

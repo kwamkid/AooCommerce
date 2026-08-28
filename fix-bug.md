@@ -40,6 +40,14 @@
 - **รูป/ข้อมูลเสริมจาก marketplace ห้ามผูกไว้กับ branch "สร้างใหม่" อย่างเดียว** — สินค้าที่มีอยู่แล้วคือเคสปกติ ไม่ใช่เคสขอบ
 - **ห้ามทับรูปที่ผู้ใช้ใส่เอง** — helper เติมให้เฉพาะตอนไม่มีรูปเลย
 
+## 2026-08-28 — ที่อยู่ผู้รับของขวัญปนอยู่ในสมุดที่อยู่ของลูกค้า (ออกแบบผิดตั้งแต่ตอนเพิ่มฟีเจอร์วันเดียวกัน)
+
+**ที่เกิด**: `shipping_addresses` + [CustomerSelectionCard](components/ui/CustomerSelectionCard.tsx) + [/api/orders](app/api/orders/route.ts)
+**อาการ**: ตอนบ่ายเพิ่มฟีเจอร์ "จำที่อยู่ผู้รับ" (โหมดส่งให้คนอื่น) โดยเก็บลงตารางเดียวกับที่อยู่ของลูกค้า → **dropdown ที่อยู่บนชิปลูกค้าโชว์ปนกัน**: "ที่อยู่หลัก" (ของลูกค้าเอง) กับ "กอล์ฟ" (คนที่ลูกค้าเคยส่งของขวัญให้) ทั้งที่คนละความหมายกันสิ้นเชิง — user ทักเอง
+**Root cause**: ทั้งสองอย่างเป็น "ที่อยู่" เหมือนกันก็จริง แต่ **เป็นคนละสมุด**: ที่อยู่ของลูกค้า = ใช้ออกบิล/ส่งของให้เขา · ที่อยู่ผู้รับ = ปลายทางของขวัญที่เขาเคยส่ง · แยกด้วย `is_default` ไม่ได้ (ลูกค้ามีที่อยู่ของตัวเองหลายอันได้)
+**วิธีแก้**: migration `shipping_addresses_is_recipient` — คอลัมน์ `is_recipient boolean default false` + index `(customer_id, is_recipient) where is_active` + backfill แถวของขวัญที่สร้างวันนี้ · `rememberRecipientAddress()` เขียน `true` (แต่**ห้าม flip แถว `is_default`** — เคสส่งของขวัญไปที่อยู่ตัวเอง) · เส้นสร้างที่อยู่ลูกค้าทุกเส้นปล่อย default false · `/api/customers/order-context` enrich `is_recipient` เพิ่มเอง (RPC `get_customer_order_context` build jsonb ระบุคอลัมน์ตายตัว — แก้ต้องมี migration จึงยังไม่แตะ) · UI แยก `ownAddresses`/`recipientAddresses` และ**โหมดส่งให้คนอื่นปิด dropdown ที่อยู่บนชิปลูกค้า** (ที่อยู่บิลนั้นเป็นของผู้รับ กดแล้วจะทับ) · storefront checkout ของขวัญก็แยกเหมือนกัน
+**ป้องกัน regression**: ก่อนเก็บ entity ใหม่ลงตารางที่มีอยู่ ให้ถามว่า **"มันคือของสิ่งเดียวกันจริงไหม หรือแค่หน้าตาเหมือนกัน"** — ถ้าคนละความหมาย ต้องมีธงแยกตั้งแต่วันแรก ไม่งั้นทุก dropdown ที่อ่านตารางนั้นจะโชว์ปนทันที · สลับโหมดไปกลับต้องกัน server-side ด้วย (ถ้า `shipping_address_id` ที่ค้างเป็นแถวผู้รับ ห้ามเขียนทับเป็นที่อยู่ลูกค้า)
+
 ## 2026-08-28 — ตารางสินค้าในแชทใช้เลย์เอาต์มือถือทั้งที่ panel กว้าง 690px (viewport ≠ container — ครั้งที่ 3 ของวัน)
 
 **ที่เกิด**: [components/ui/ItemsTable.tsx](components/ui/ItemsTable.tsx) + call site ใน [OrderForm](components/orders/OrderForm.tsx)

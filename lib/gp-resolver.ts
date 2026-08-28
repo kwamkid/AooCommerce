@@ -97,7 +97,7 @@ export function resolveGp(ctx: GpResolverContext, product: ProductForGp): GpReso
 export interface CustomerOrderContext {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   customer: Record<string, any>;
-  shippingAddresses: { id: string; address_name: string; contact_person: string; phone: string; address_line1: string; district: string; amphoe: string; province: string; postal_code: string; delivery_notes: string; is_default: boolean }[];
+  shippingAddresses: { id: string; address_name: string; contact_person: string; phone: string; address_line1: string; district: string; amphoe: string; province: string; postal_code: string; delivery_notes: string; is_default: boolean; is_recipient?: boolean }[];
   gpContext: GpResolverContext;
 }
 
