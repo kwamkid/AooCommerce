@@ -7,6 +7,7 @@
 
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { newCustomerCode } from '@/lib/customer-code';
+import { upsertProductImage } from '@/lib/marketplace/product-helpers';
 import { sendNewOrderPushById } from '@/lib/push/send';
 import {
   LazadaAccountRow,
@@ -442,15 +443,33 @@ async function createNewOrder(
     total: number;
   }[] = [];
 
-  for (const item of items) {
-    const qty = 1;
+  // Lazada ส่ง order item แถวละ 1 ชิ้น — รวมชิ้นที่เป็น SKU/ตัวเลือกเดียวกันเป็นแถวเดียว (qty รวม)
+  // ไม่งั้นหน้า order แสดงชื่อสินค้าซ้ำกันหลายบรรทัด (เจอจริง 2 ใบแรก 2026-08-28)
+  const groupedItems: { item: (typeof items)[number]; qty: number; paidSum: number }[] = [];
+  {
+    const byKey = new Map<string, (typeof groupedItems)[number]>();
+    for (const item of items) {
+      const key = `${item.sku_id ?? ''}|${item.sku ?? ''}|${item.variation ?? ''}`;
+      const paid = Number(item.paid_price ?? item.item_price ?? 0);
+      const g = byKey.get(key);
+      if (g) {
+        g.qty += 1;
+        g.paidSum += paid;
+      } else {
+        const entry = { item, qty: 1, paidSum: paid };
+        byKey.set(key, entry);
+        groupedItems.push(entry);
+      }
+    }
+  }
+
+  for (const { item, qty, paidSum } of groupedItems) {
     // ราคาตั้ง (item_price) เก็บลง order_items + ส่วนลดแยกที่ order-level แบบเดียวกับ Shopee —
     // ห้ามเก็บ paid_price (สุทธิ) ลง item พร้อมกับ discount_amount: ระบบคำนวณ total จาก
     // Σitems − discount จะกลายเป็นหักส่วนลดซ้ำสองรอบ (เจอจริง 2026-08-28 — บิลเหลือ -0.28)
-    const price = Number(item.paid_price ?? item.item_price ?? 0);
-    const listPrice = Number(item.item_price ?? price);
-    subtotal += listPrice;
-    paidTotal += price;
+    const listPrice = Number(item.item_price ?? item.paid_price ?? 0);
+    subtotal += listPrice * qty;
+    paidTotal += paidSum;
 
     const itemName = item.variation && item.variation.trim() && item.variation !== '...'
       ? `${item.name} - ${item.variation}`
@@ -480,7 +499,7 @@ async function createNewOrder(
         external_sku: item.sku || null,
         platform_product_name: item.name,
         platform_primary_image: item.product_main_image || null,
-        platform_price: price || null,
+        platform_price: listPrice || null,
         updated_at: new Date().toISOString(),
       }, {
         onConflict: 'account_id,external_item_id,external_model_id',
@@ -496,7 +515,7 @@ async function createNewOrder(
       product_name: itemName,
       qty,
       price: listPrice,
-      total: listPrice,
+      total: listPrice * qty,
     });
   }
 
@@ -932,16 +951,9 @@ async function findOrCreateVariationBySku(
     throw new Error(`Failed to create variation: ${varErr?.message}`);
   }
 
+  // ใช้ helper กลางเสมอ — insert ตรงเคยพลาด storage_path (NOT NULL) แล้วรูปหายเงียบ (2026-08-28)
   if (info.image) {
-    try {
-      await supabaseAdmin.from('product_images').insert({
-        company_id: companyId,
-        product_id: newProduct.id,
-        variation_id: newVariation.id,
-        image_url: info.image,
-        sort_order: 0,
-      });
-    } catch { /* non-blocking */ }
+    await upsertProductImage(companyId, newProduct.id, newVariation.id, info.image, 0, 'lazada');
   }
 
   console.log(`[Lazada Sync] Created product: ${productName} (${productCode})`);

@@ -26,6 +26,8 @@
 **ภาคต่อ (order จริง 2 ใบแรกของ Lazada — วันเดียวกัน) เจออีก 2 จุด**:
 1. **ยอดเงินติดลบ/เกือบศูนย์ (หักส่วนลดซ้ำสองรอบ)** — Lazada เก็บ `paid_price` (สุทธิหลัง voucher) ลง order_items แต่ก็ set `discount_amount` (ราคาตั้ง−สุทธิ) ที่ order ด้วย → ระบบคำนวณ total = Σitems − discount เลยหักซ้ำ (121.97 กลายเป็น 6.94, อีกใบติดลบ) → แก้เป็นโมเดล Shopee: item เก็บ**ราคาตั้ง** (`item_price`) + discount แยกที่ order · **กติกา: เลือกโมเดลเดียว** — item ราคาตั้ง+discount แยก (Shopee/Lazada) หรือ item สุทธิ+discount 0 (TikTok) ห้ามผสม
 2. **สองออเดอร์แข่งกันสร้างสินค้าตัวเดียวกัน** — order 2 ใบสั่งสินค้าใหม่ตัวเดียวกันมาในรอบ sync เดียว → insert products ชน `products_company_code_key` แล้วล้มทั้งออเดอร์ → เพิ่ม dup-retry (error 23505 → re-match ด้วย code) ทั้ง lazada+tiktok
+3. **ชื่อสินค้าซ้ำหลายบรรทัดในหน้า order** — Lazada/TikTok ส่ง order item **แถวละ 1 ชิ้น** (ไม่มี qty แบบ Shopee) → สั่ง 3 ชิ้นได้ 3 แถวชื่อเดียวกัน → pre-group ตาม sku/ตัวเลือกก่อนสร้าง order_items (qty รวม) ทั้งสอง platform
+4. **รูปสินค้าไม่ขึ้น (insert รูปล้มเงียบ)** — ทั้ง lazada/tiktok insert `product_images` ตรงโดยไม่ใส่ `storage_path` (NOT NULL, ไม่มี default) → fail ทุกครั้ง และมองไม่เห็นเพราะ supabase insert **ไม่ throw** (คืน error ใน object — try/catch จับไม่ได้) → เปลี่ยนไปใช้ helper กลาง `upsertProductImage` (มี storage_path) ตามกฎ code-simplicity · **บทเรียน: supabase query ต้องเช็ค `error` ที่คืนมาเสมอ ห้ามพึ่ง try/catch**
 
 ## 2026-08-28 — สถานะ Shopee `TO_RETURN` ไม่อยู่ใน mapping → order เด้งกลับ "ใหม่/รอชำระ" และ sync ซ่อมไม่ได้
 

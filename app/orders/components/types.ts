@@ -111,12 +111,8 @@ export function getCarrierLabel(carrier: string | null | undefined): string {
   return getCarrierLabelSync(carrier);
 }
 
-export const PLATFORM_ICONS: Record<string, string> = {
-  line: '/social/line_oa.svg',
-  facebook: '/social/facebook.svg',
-  instagram: '/social/instagram.svg',
-  shopee: '/marketplace/shopee.svg',
-};
+// ย้ายไปเป็น component กลาง — re-export ให้ call site เดิมใช้ต่อได้
+export { PLATFORM_ICONS } from '@/components/ui/ChannelBadge';
 
 // Helper: relative time
 export function relativeTime(dateStr: string): string {

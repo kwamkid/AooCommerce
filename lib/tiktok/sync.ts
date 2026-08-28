@@ -1,5 +1,6 @@
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { newCustomerCode } from '@/lib/customer-code';
+import { upsertProductImage } from '@/lib/marketplace/product-helpers';
 import {
   TikTokAccountRow,
   TikTokCredentials,
@@ -601,10 +602,30 @@ async function createNewOrder(
     total: number;
   }[] = [];
 
-  for (const item of tiktokOrder.line_items || []) {
-    const qty = 1; // TikTok line items are per-unit
+  // TikTok ส่ง line item แถวละ 1 ชิ้น — รวมชิ้นที่เป็น SKU เดียวกันเป็นแถวเดียว (qty รวม)
+  // ไม่งั้นหน้า order แสดงชื่อสินค้าซ้ำกันหลายบรรทัด (เจอจริงกับ Lazada 2026-08-28)
+  const lineItems = tiktokOrder.line_items || [];
+  const groupedLineItems: { item: (typeof lineItems)[number]; qty: number; paidSum: number }[] = [];
+  {
+    const byKey = new Map<string, (typeof groupedLineItems)[number]>();
+    for (const item of lineItems) {
+      const key = `${item.product_id}|${item.sku_id || ''}`;
+      const paid = parseFloat(item.sale_price || item.original_price || '0');
+      const g = byKey.get(key);
+      if (g) {
+        g.qty += 1;
+        g.paidSum += paid;
+      } else {
+        const entry = { item, qty: 1, paidSum: paid };
+        byKey.set(key, entry);
+        groupedLineItems.push(entry);
+      }
+    }
+  }
+
+  for (const { item, qty, paidSum } of groupedLineItems) {
     const price = parseFloat(item.sale_price || item.original_price || '0');
-    const total = qty * price;
+    const total = paidSum; // ยอดจริงรวมทุกชิ้น (กันเศษสตางค์ต่างกันรายชิ้น)
     subtotal += total;
 
     const sku = item.seller_sku || '';
@@ -1078,17 +1099,9 @@ async function findOrCreateVariationBySku(
     throw new Error(`Failed to create variation: ${varErr?.message}`);
   }
 
-  // Upload image if available
+  // ใช้ helper กลางเสมอ — insert ตรงเคยพลาด storage_path (NOT NULL) แล้วรูปหายเงียบ (2026-08-28)
   if (tiktokInfo.skuImage) {
-    try {
-      await supabaseAdmin.from('product_images').insert({
-        company_id: companyId,
-        product_id: newProduct.id,
-        variation_id: newVariation.id,
-        image_url: tiktokInfo.skuImage,
-        sort_order: 0,
-      });
-    } catch { /* non-blocking */ }
+    await upsertProductImage(companyId, newProduct.id, newVariation.id, tiktokInfo.skuImage, 0, 'tiktok');
   }
 
   console.log(`[TikTok Sync] Created product: ${productName} (${productCode})`);
