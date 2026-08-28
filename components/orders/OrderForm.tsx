@@ -2895,11 +2895,17 @@ export default function OrderForm({
   return (
     <>
     {printView}
-    <form ref={formRef} onSubmit={handleSubmit} className={`space-y-4 ${printMode ? 'print:hidden' : ''}`}>
+    {/* wizard: ฟอร์มสูงเต็มพื้นที่ที่เลื่อนได้ของ panel เพื่อดันแถบล่างไปติดก้นจอจริง
+        (sticky อย่างเดียวไม่พอ — บิลเปล่า ๆ เนื้อหาสั้น แถบจะไปค้างกลางจอ) */}
+    <form
+      ref={formRef}
+      onSubmit={handleSubmit}
+      className={`space-y-4 ${useWizard ? 'min-h-full flex flex-col' : ''} ${printMode ? 'print:hidden' : ''}`}
+    >
       {portalsFragment}
 
       {useWizard ? (
-        <div className="space-y-4">
+        <div className="space-y-4 flex-1 flex flex-col min-h-0">
           <Stepper
             steps={wizardSteps}
             onSelect={(key) => goToStep(Number(key))}
@@ -2907,16 +2913,19 @@ export default function OrderForm({
             ariaLabel="ขั้นตอนเปิดบิล"
           />
 
-          {step === 1 && productsFragment}
+          {/* เนื้อหาขั้นปัจจุบัน — กินที่ว่างที่เหลือทั้งหมด ดันแถบล่างลงไปติดก้น */}
+          <div className="flex-1 space-y-4">
+            {step === 1 && productsFragment}
 
-          {step === 2 && customerDeliveryFragment}
+            {step === 2 && customerDeliveryFragment}
 
-          {step === 3 && (
-            <div className="space-y-4">
-              {summaryFragment}
-              {notesFragment}
-            </div>
-          )}
+            {step === 3 && (
+              <div className="space-y-4">
+                {summaryFragment}
+                {notesFragment}
+              </div>
+            )}
+          </div>
 
           {wizardBar}
         </div>

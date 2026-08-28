@@ -962,6 +962,9 @@ input[type="number"] {
    (ประกาศไว้ท้ายสุด + specificity สูงกว่า จึงชนะ media query ด้านบนทุกขนาดจอ) */
 .sticky-actions.sticky-actions-inset {
   margin-left: -1rem; margin-right: -1rem; padding-left: 1rem; padding-right: 1rem;
+  /* กินระยะขอบล่างของ panel ด้วย — ให้แถบแนบก้นจริงแบบแถบพิมพ์ข้อความในแชท
+     (ไม่งั้นตอนเนื้อหาสั้นจะลอยเหนือขอบล่างอยู่ 1rem) */
+  margin-bottom: -1rem;
 }
 @media (max-width: 640px) {
   /* ยอดรวมคือเหตุผลที่แถบนี้มี — จอแคบก็ยังต้องเห็น ให้หดข้อความแทนการซ่อน */
