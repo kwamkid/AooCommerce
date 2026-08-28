@@ -152,6 +152,11 @@ interface Props {
    *  for narrow containers (chat panel) where the viewport is wide but the
    *  card itself is ~600px, so sm:grid-cols-2 would crush both columns. */
   singleColumn?: boolean;
+
+  /** ล็อคเฉพาะ "การเปลี่ยนตัวลูกค้า" (ซ่อนปุ่มล้าง/toggle ลูกค้าใหม่) แต่ช่องจัดส่ง/ภาษี
+   *  ยังกรอกได้ — ใช้กับ flow ที่ลูกค้าถูกกำหนดมาแล้ว เช่นเปิดบิลจากแชท
+   *  ห้ามใช้ `disabled` แทน: มันดับทั้งใบ ทำให้กรอกเบอร์/อีเมล/ที่อยู่ไม่ได้ (เจอจริง 2026-08-28) */
+  lockCustomerSelection?: boolean;
 }
 
 // ── Helper: get badge for sale_type ──────────────────────
@@ -221,10 +226,12 @@ export default function CustomerSelectionCard({
   onNewCustomerNameChange,
   readOnly = false,
   singleColumn = false,
+  lockCustomerSelection = false,
 }: Props) {
   const [showAddressDropdown, setShowAddressDropdown] = useState(false);
   const [showTaxModal, setShowTaxModal] = useState(false);
   const isEditable = !disabled && !readOnly;
+  const canChangeCustomer = isEditable && !lockCustomerSelection;
   const hasDelivery = !!delivery && !!onDeliveryChange;
   const resolvedBadge = badge ?? (selectedCustomer ? getSaleTypeBadge(selectedCustomer) : undefined);
 
@@ -276,7 +283,7 @@ export default function CustomerSelectionCard({
           {/* Mode: New Customer — toggle + name input side by side */}
           {newCustomerMode && !selectedCustomer ? (
             <div className="flex items-stretch gap-2">
-              {allowNewCustomer && isEditable && (
+              {allowNewCustomer && canChangeCustomer && (
                 <div className="flex items-center gap-0 bg-gray-100 dark:bg-slate-700 rounded-lg p-0.5 flex-shrink-0">
                   <button
                     type="button"
@@ -322,7 +329,7 @@ export default function CustomerSelectionCard({
                     <ChevronDown className="w-4 h-4 text-gray-400 flex-shrink-0 ml-auto mr-2" />
                   )}
                 </button>
-                {isEditable && (
+                {canChangeCustomer && (
                   <button
                     type="button"
                     onClick={(e) => { e.stopPropagation(); onCustomerClear(); onNewCustomerModeChange?.(false); }}
@@ -364,7 +371,7 @@ export default function CustomerSelectionCard({
             </div>
           ) : (
             <div className="flex items-stretch gap-2">
-              {allowNewCustomer && isEditable && (
+              {allowNewCustomer && canChangeCustomer && (
                 <div className="flex items-center gap-0 bg-gray-100 dark:bg-slate-700 rounded-lg p-0.5 flex-shrink-0">
                   <button
                     type="button"

@@ -16,6 +16,14 @@
 
 ---
 
+## 2026-08-28 — เปิดบิลจากแชท (contact ที่ผูกลูกค้าแล้ว): เบอร์/อีเมล/ที่อยู่ disabled ทั้งใบ กรอกอะไรไม่ได้
+
+**ที่เกิด**: [components/orders/OrderForm.tsx](components/orders/OrderForm.tsx) prop `disabled` ที่ส่งเข้า `CustomerSelectionCard`
+**อาการ**: เปิดบิลจากแชทที่ contact ผูก customer record ไว้แล้ว → ช่องลูกค้าล็อค (ตั้งใจ) แต่เบอร์โทร/อีเมล/ที่อยู่/ตำบล/ภาษี **เทาหมดทั้งการ์ด** พิมพ์อะไรไม่ได้เลย
+**Root cause**: `disabled={isReadOnly || (!!preselectedCustomerId && !!selectedCustomer)}` — อยู่มาตั้งแต่ refactor W4 (24 มี.ค.) เจตนาแค่ "ห้ามเปลี่ยนตัวลูกค้า" แต่ prop `disabled` ดับทั้งการ์ด (`isEditable = !disabled` คุมทุก input) · เพิ่งระเบิดวันนี้เพราะเพิ่งเริ่มใช้เปิดบิลจากแชทกับลูกค้าเก่าจริงจัง
+**วิธีแก้**: เพิ่ม prop `lockCustomerSelection` ใน [CustomerSelectionCard](components/ui/CustomerSelectionCard.tsx) — ซ่อนเฉพาะปุ่มล้างลูกค้า (X) + toggle ลูกค้าใหม่ · OrderForm ส่ง `disabled={isReadOnly}` แยกจาก `lockCustomerSelection={preselected && selected}`
+**ป้องกัน regression**: prop `disabled` ระดับการ์ด = read-only ทั้งใบเท่านั้น — อยากล็อคพฤติกรรมบางส่วนต้องออก prop เฉพาะเจตนา ห้ามยืม `disabled` (ผลข้างเคียงกว้างกว่าที่คิดเสมอ)
+
 ## 2026-08-28 — Order จริงใบแรกของ TikTok เข้าระบบไม่ได้ (customers.source + payment_method CHECK) — Lazada มีครบทั้งคู่เหมือนกัน
 
 **ที่เกิด**: [lib/tiktok/sync.ts](lib/tiktok/sync.ts) + [lib/lazada/sync.ts](lib/lazada/sync.ts) (สร้างลูกค้า/สร้างออเดอร์) + CHECK `orders_payment_method_check`

@@ -2189,7 +2189,8 @@ export default function OrderForm({
           selectedCustomerId={selectedCustomer?.id || ''}
           onCustomerChange={(id) => handleSelectCustomer(id)}
           onCustomerClear={handleCustomerClear}
-          disabled={isReadOnly || (!!preselectedCustomerId && !!selectedCustomer)}
+          disabled={isReadOnly}
+          lockCustomerSelection={!!preselectedCustomerId && !!selectedCustomer}
           delivery={deliveryFields}
           onDeliveryChange={customerPrefill.handleDeliveryChange}
           shipToOther={shipToOther}
