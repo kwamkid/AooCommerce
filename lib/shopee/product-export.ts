@@ -193,7 +193,7 @@ async function getMandatoryAttributes(
 
 // --- Image Upload ---
 
-async function uploadProductImages(
+export async function uploadProductImages(
   creds: ShopeeCredentials,
   imageUrls: string[]
 ): Promise<{ image_id_list: string[]; errors: string[] }> {

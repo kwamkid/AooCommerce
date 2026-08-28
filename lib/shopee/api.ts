@@ -1325,7 +1325,14 @@ export async function updateStock(
 export async function updateItemInfo(
   creds: ShopeeCredentials,
   itemId: number,
-  updates: { item_name?: string; description?: string; category_id?: number | string; attribute_list?: Array<{ attribute_id: number; attribute_value_list: Array<{ value_id: number; original_value_name: string }> }> }
+  updates: {
+    item_name?: string;
+    description?: string;
+    category_id?: number | string;
+    attribute_list?: Array<{ attribute_id: number; attribute_value_list: Array<{ value_id: number; original_value_name: string }> }>;
+    /** เปลี่ยนรูปของประกาศที่มีอยู่แล้ว — image_id ได้จาก uploadImageByUrl (ตัวแรกในลิสต์ = รูปหน้าปก) */
+    image?: { image_id_list: string[] };
+  }
 ): Promise<{ data: unknown; error?: string }> {
   // Coerce category_id to number — Postgres bigint columns deserialize as string in JS,
   // and Shopee's Go backend rejects quoted numbers with "cannot unmarshal string into uint64".
