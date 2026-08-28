@@ -401,6 +401,78 @@ export interface LazadaOrderItem {
   reason?: string;
 }
 
+// ─── Products API ────────────────────────────────────────────────────────────
+
+/** 1 SKU = 1 variation ของเรา (`saleProp` ว่าง = สินค้าเดี่ยว) */
+export interface LazadaSku {
+  SkuId: number | string;
+  SellerSku?: string;
+  ShopSku?: string;
+  Url?: string;
+  Status?: string;
+  price?: number;
+  special_price?: number;
+  special_from_time?: string;
+  special_to_time?: string;
+  quantity?: number;
+  Available?: number;
+  /** รูปเฉพาะตัวเลือกนี้ — มักมีช่องว่าง "" ปนมา ต้อง filter ทิ้ง */
+  Images?: string[];
+  /** { 'color_family': 'Pink' } — ว่าง {} เมื่อเป็นสินค้าเดี่ยว */
+  saleProp?: Record<string, string>;
+  package_weight?: string;
+  package_length?: string;
+  package_width?: string;
+  package_height?: string;
+}
+
+export interface LazadaProduct {
+  item_id: number | string;
+  primary_category?: number | string;
+  status?: string;
+  created_time?: string;
+  updated_time?: string;
+  /** doc เก่าบอกเป็น JSON string แต่ของจริงคืน array — parseLazadaImages() รับทั้งสองแบบ */
+  images?: string[] | string;
+  marketImages?: string[] | string;
+  /** name / name_en / description (HTML) / brand + property ของหมวดหมู่ทั้งหมด */
+  attributes?: Record<string, unknown>;
+  skus?: LazadaSku[];
+}
+
+/** `images` / `marketImages` มาได้ทั้ง array และ JSON string (ตาม doc เก่า) */
+export function parseLazadaImages(value: string[] | string | undefined | null): string[] {
+  if (!value) return [];
+  if (Array.isArray(value)) return value.filter((u): u is string => !!u && typeof u === 'string');
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed.filter((u) => !!u && typeof u === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * สินค้าทั้งร้าน — `/products/get` (limit สูงสุด 50, offset สูงสุด 10000)
+ *
+ * ตัวนี้คืน **ทุกอย่างในคอลเดียว**: ชื่อ, description HTML, รูป product, ทุก SKU
+ * พร้อม saleProp/ราคา/สต็อก/รูปของแต่ละตัว → ไม่ต้องยิง GetProductItem รายตัว
+ * แบบ TikTok
+ */
+export async function getLazadaProducts(
+  creds: LazadaCredentials,
+  opts: { offset: number; limit?: number; filter?: string }
+): Promise<{ products: LazadaProduct[]; total: number; error?: string }> {
+  const { data, error } = await lazadaApiRequest(creds, 'GET', '/products/get', {
+    filter: opts.filter || 'all',
+    offset: opts.offset,
+    limit: Math.min(opts.limit ?? 50, 50),
+  });
+  if (error) return { products: [], total: 0, error };
+  const d = (data || {}) as { products?: LazadaProduct[]; total_products?: number | string };
+  return { products: d.products || [], total: Number(d.total_products || 0) };
+}
+
 /** Lazada expects ISO8601 with explicit offset, no milliseconds */
 function toLazadaTime(ms: number): string {
   return new Date(ms).toISOString().replace(/\.\d{3}Z$/, '+00:00');

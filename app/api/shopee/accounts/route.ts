@@ -159,6 +159,32 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Shop not found' }, { status: 404 });
     }
 
+    // ── ตั้งโลโก้เองด้วย URL ────────────────────────────────────────────────
+    // บาง marketplace ไม่คืนโลโก้ทาง API เลย (เช่น Lazada บางร้าน /seller/get ไม่มี
+    // logo_url ให้เลย ทั้งที่ Seller Center ตั้งรูปไว้แล้ว) — ปล่อยไว้ = ไอคอนเปล่า
+    // ตลอดกาล จึงต้องมีทางใส่ URL ตรงๆ · ส่ง shop_logo = '' เพื่อล้างค่า
+    if (typeof body.shop_logo === 'string') {
+      const raw = body.shop_logo.trim();
+      if (raw) {
+        if (!/^https:\/\//i.test(raw)) {
+          return NextResponse.json({ error: 'ลิงก์รูปต้องขึ้นต้นด้วย https://' }, { status: 400 });
+        }
+        // ต้องโหลดได้จริงและเป็นรูป — กัน URL ตาย/ลิงก์หน้าเว็บมาแทนไฟล์ภาพ
+        if (!(await isReachableImage(raw))) {
+          return NextResponse.json({ error: 'เปิดลิงก์รูปนี้ไม่ได้ หรือไม่ใช่ไฟล์รูป' }, { status: 400 });
+        }
+      }
+      await supabaseAdmin
+        .from('marketplace_accounts')
+        .update({
+          metadata: { ...(account.metadata || {}), shop_logo: raw || null },
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', account.id);
+
+      return NextResponse.json({ success: true, shop_name: account.shop_name, shop_logo: raw });
+    }
+
     // Lazada — ชื่อ + โลโก้มาจาก /seller/get (ปุ่ม refresh บน card ใช้ route เดียวกันทุก platform)
     if (account.platform === 'lazada') {
       const lazadaCreds = await ensureValidLazadaToken(account as LazadaAccountRow);

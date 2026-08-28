@@ -16,6 +16,9 @@ import { ExportButton, ImportButton } from '@/components/ui/ExportImportButton';
 import Alert from '@/components/ui/Alert';
 import MarketplaceQuotaPausedAlert from '@/components/ui/MarketplaceQuotaPausedAlert';
 import Toggle from '@/components/ui/Toggle';
+import Modal from '@/components/ui/Modal';
+import FormInput from '@/components/ui/FormInput';
+import SaveButton from '@/components/ui/SaveButton';
 import LoadingOverlay from '@/components/ui/LoadingOverlay';
 import PlatformIcon from '@/components/ui/PlatformIcon';
 import { LoadingCard } from '@/components/ui/StateCard';
@@ -49,6 +52,9 @@ export default function MarketplaceConnections({
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [syncRange, setSyncRange] = useState<Record<string, number>>({}); // accountId → days
   const [refreshingLogoId, setRefreshingLogoId] = useState<string | null>(null);
+  // ตั้งโลโก้เองด้วย URL — สำหรับร้านที่ API ของ marketplace ไม่คืนโลโก้มาให้เลย
+  const [logoModal, setLogoModal] = useState<{ id: string; name: string; url: string } | null>(null);
+  const [savingLogo, setSavingLogo] = useState(false);
   const [syncProgress, setSyncProgress] = useState<number>(0); // 0-100
   const [syncPhaseLabel, setSyncPhaseLabel] = useState('');
   const syncAbortRef = useRef<AbortController | null>(null);
@@ -419,6 +425,30 @@ export default function MarketplaceConnections({
     }
   };
 
+  const handleSaveLogoUrl = async () => {
+    if (!logoModal) return;
+    setSavingLogo(true);
+    try {
+      const res = await apiFetch('/api/shopee/accounts', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: logoModal.id, shop_logo: logoModal.url.trim() }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        showToast(logoModal.url.trim() ? 'บันทึกโลโก้ร้านแล้ว' : 'ล้างโลโก้ร้านแล้ว', 'success');
+        setLogoModal(null);
+        refetch();
+      } else {
+        showToast(typeof data.error === 'string' ? data.error : 'บันทึกโลโก้ไม่สำเร็จ', 'error');
+      }
+    } catch {
+      showToast('เกิดข้อผิดพลาด', 'error');
+    } finally {
+      setSavingLogo(false);
+    }
+  };
+
   const handleToggleSync = async (accountId: string, field: 'auto_sync_stock' | 'auto_sync_product_info', value: boolean) => {
     // Optimistic update
     patchAccount(accountId, { [field]: value });
@@ -745,6 +775,25 @@ export default function MarketplaceConnections({
                   >
                     {isSyncing ? 'กำลัง Sync...' : 'Sync Now'}
                   </Button>
+                  <ImportButton
+                    disabled={account.connection_status === 'expired'}
+                    onClick={() => {
+                      const name = account.shop_name || `Shop #${account.shop_id}`;
+                      router.push(`/lazada/import?account_id=${account.id}&account_name=${encodeURIComponent(name)}`);
+                    }}
+                  >
+                    นำเข้าสินค้าจาก Lazada
+                  </ImportButton>
+                  <Button
+                    variant="ghost"
+                    onClick={() => setLogoModal({
+                      id: account.id,
+                      name: account.shop_name || `Lazada #${account.shop_id}`,
+                      url: (account.metadata?.shop_logo as string) || '',
+                    })}
+                  >
+                    ตั้งโลโก้เอง
+                  </Button>
                 </div>
               </MarketplaceAccountCard>
             );
@@ -760,6 +809,40 @@ export default function MarketplaceConnections({
         progress={syncProgress}
         onCancel={handleCancelSync}
       />
+      <Modal
+        open={!!logoModal}
+        onClose={() => setLogoModal(null)}
+        title="ตั้งโลโก้ร้านเอง"
+        size="md"
+        footer={
+          <div className="modal-footer px-6 py-4 flex justify-end gap-2">
+            <Button variant="secondary" onClick={() => setLogoModal(null)}>ยกเลิก</Button>
+            <SaveButton loading={savingLogo} onClick={handleSaveLogoUrl} />
+          </div>
+        }
+      >
+        <div className="px-6 py-5 space-y-3">
+          <p className="subtitle-text text-gray-500">
+            ใช้เมื่อ marketplace ไม่ส่งโลโก้มาทาง API — คัดลอกลิงก์รูปโลโก้จากหน้าตั้งค่าร้าน
+            (Seller Center) มาวางที่นี่ · เว้นว่างเพื่อล้างรูป
+          </p>
+          <FormInput
+            label={`โลโก้ของ ${logoModal?.name || ''}`}
+            placeholder="https://..."
+            value={logoModal?.url || ''}
+            onChange={e => setLogoModal(prev => (prev ? { ...prev, url: e.target.value } : prev))}
+          />
+          {logoModal?.url?.trim() && (
+            <img
+              src={logoModal.url.trim()}
+              alt="ตัวอย่างโลโก้"
+              className="w-16 h-16 rounded-lg object-cover border border-gray-200 dark:border-slate-700"
+              onError={e => { e.currentTarget.style.display = 'none'; }}
+            />
+          )}
+        </div>
+      </Modal>
+
       {confirmDialog}
     </div>
   );
