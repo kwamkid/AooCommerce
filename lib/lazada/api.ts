@@ -317,6 +317,21 @@ export async function ensureValidToken(
 /**
  * Seller profile — used to name the account on connect.
  */
+// ไฟล์โลโก้ที่ /seller/get คืนมาอาจถูก archive ฝั่ง OSS ของ Lazada ไปแล้ว
+// (HEAD ตอบ 200 ปกติ แต่ GET ได้ 403 InvalidObjectState — เจอจริง 2026-08-28)
+// จึงต้องเช็คด้วย GET ก่อนเก็บ ไม่งั้นจะทับโลโก้ที่ใช้งานได้ด้วย URL ตาย
+export async function isReachableImage(url: string): Promise<boolean> {
+  try {
+    const res = await fetch(url, {
+      headers: { Range: 'bytes=0-0' },
+      signal: AbortSignal.timeout(5000),
+    });
+    return res.ok && (res.headers.get('content-type') || '').startsWith('image/');
+  } catch {
+    return false;
+  }
+}
+
 export async function getSellerInfo(creds: LazadaCredentials): Promise<{ name?: string; seller_id?: number; short_code?: string; logo_url?: string } | null> {
   const { data, error } = await lazadaApiRequest(creds, 'GET', '/seller/get');
   if (error || !data) return null;

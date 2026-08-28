@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import {
-  exchangeCodeForToken, getSellerInfo, getLazadaAppCredentials,
+  exchangeCodeForToken, getSellerInfo, getLazadaAppCredentials, isReachableImage,
   isChatAppConfigured, type LazadaApp, type LazadaCredentials,
 } from '@/lib/lazada/api';
 import { authorizeMarketplaceCallback } from '@/lib/oauth-state';
@@ -121,6 +121,21 @@ export async function GET(request: NextRequest) {
       return done;
     }
 
+    // โลโก้จาก /seller/get อาจเป็นไฟล์ archive ที่ตายแล้ว — เก็บเฉพาะที่โหลดได้จริง
+    // ไม่งั้นคงค่าเดิมของแถวเดิมไว้ (เช่นโลโก้หน้าร้านที่เก็บไว้ก่อนหน้า)
+    let shopLogo: string | null =
+      seller?.logo_url && (await isReachableImage(seller.logo_url)) ? seller.logo_url : null;
+    if (!shopLogo) {
+      const { data: prev } = await supabaseAdmin
+        .from('marketplace_accounts')
+        .select('metadata')
+        .eq('company_id', companyId)
+        .eq('platform', 'lazada')
+        .eq('shop_id', sellerId)
+        .maybeSingle();
+      shopLogo = ((prev?.metadata as Record<string, unknown> | null)?.shop_logo as string) || null;
+    }
+
     const { error } = await supabaseAdmin
       .from('marketplace_accounts')
       .upsert({
@@ -140,7 +155,7 @@ export async function GET(request: NextRequest) {
           account: tokens.account || null,
           short_code: userInfo?.short_code || seller?.short_code || null,
           user_id: userInfo?.user_id || null,
-          shop_logo: seller?.logo_url || null,
+          shop_logo: shopLogo,
         },
         updated_at: new Date().toISOString(),
       }, { onConflict: 'company_id,platform,shop_id' })

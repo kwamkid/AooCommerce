@@ -4,6 +4,7 @@ import { ensureValidToken, getShopInfo, ShopeeAccountRow } from '@/lib/shopee/ap
 import {
   ensureValidToken as ensureValidLazadaToken,
   getSellerInfo as getLazadaSellerInfo,
+  isReachableImage,
   type LazadaAccountRow,
 } from '@/lib/lazada/api';
 import { isChatAppConfigured as isLazadaChatAppConfigured } from '@/lib/lazada/api';
@@ -165,7 +166,9 @@ export async function PATCH(request: NextRequest) {
       if (seller) {
         const updateData: Record<string, unknown> = { updated_at: new Date().toISOString() };
         if (seller.name) updateData.shop_name = seller.name;
-        if (seller.logo_url) {
+        // ทับ shop_logo เฉพาะเมื่อ URL ใหม่โหลดได้จริง — /seller/get อาจคืนไฟล์
+        // archive ที่ตายแล้ว ห้ามเอาไปทับโลโก้หน้าร้านที่เก็บไว้ (ดู fix-bug.md)
+        if (seller.logo_url && (await isReachableImage(seller.logo_url))) {
           updateData.metadata = { ...(account.metadata || {}), shop_logo: seller.logo_url };
         }
         await supabaseAdmin
