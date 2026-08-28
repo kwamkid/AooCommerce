@@ -36,6 +36,7 @@ import { useCustomerPrefill } from '@/lib/useCustomerPrefill';
 import { fetchCustomerOrderContext } from '@/lib/gp-resolver';
 import { isMarketplaceSource } from '@/lib/marketplace/types';
 import StickyActionBar from '@/components/ui/StickyActionBar';
+import Stepper, { type StepItem } from '@/components/ui/Stepper';
 import { LoadingCard } from '@/components/ui/StateCard';
 import Checkbox from '@/components/ui/Checkbox';
 import Badge from '@/components/ui/Badge';
@@ -52,6 +53,22 @@ import {
   Settings,
   Clock
 } from 'lucide-react';
+
+// ข้อความเดียวกันทั้ง validate ตอนบันทึก และตอนกด "ถัดไป" ในเปลือก wizard
+// (เขียนคนละที่แล้วดริฟต์กันคือวิธีที่ผู้ใช้เจอสองข้อความสำหรับเรื่องเดียวกัน)
+const NO_ITEMS_ERROR = 'กรุณาเพิ่มสินค้าอย่างน้อย 1 รายการ';
+
+// field ไหนอยู่ขั้นไหนของ wizard — ใช้พาผู้ใช้ไป "ขั้นที่ผิด" ตอน validate ไม่ผ่าน
+// ไม่งั้น toast ขึ้นแต่ช่องที่ผิดอยู่คนละขั้นที่มองไม่เห็น = ปุ่มเงียบอีกแบบ
+const WIZARD_STEP_BY_ERROR: Record<string, number> = {
+  branches: 1,
+  customer: 2,
+  recipientName: 2,
+  deliveryPhone: 2,
+  deliveryEmail: 2,
+  deliveryDate: 2,
+};
+const wizardStepForError = (key?: string) => (key && WIZARD_STEP_BY_ERROR[key]) || 3;
 
 // Interfaces
 interface Customer {
@@ -351,19 +368,6 @@ export default function OrderForm({
   const summarySectionRef = useRef<HTMLDivElement>(null);
   const [summaryWide, setSummaryWide] = useState(false);
 
-  // Watch summary section width for side-by-side vs stacked layout
-  const hasProducts = branchOrders.length > 0 && branchOrders[0]?.products.length > 0;
-  useEffect(() => {
-    if (embedded) { setSummaryWide(false); return; }
-    const el = summarySectionRef.current;
-    if (!el) return;
-    const ro = new ResizeObserver(([entry]) => {
-      setSummaryWide(entry.contentRect.width >= 560);
-    });
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [hasProducts, embedded]);
-
   // Tailwind sm:/md: breakpoints see the VIEWPORT — inside the chat panel on a
   // notebook the form is ~600px while the viewport is 1280+, so 2-column grids
   // get crushed. Measure the form's own width and stack sections when cramped.
@@ -377,6 +381,30 @@ export default function OrderForm({
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
+
+  // เปลือก wizard 3 ขั้น (สินค้า → จัดส่ง → สรุป) สำหรับที่แคบ — panel แชท / มือถือ
+  // state + validation + save ใช้ชุดเดียวกับจอกว้างทั้งหมด เปลี่ยนแค่การจัดวาง
+  //
+  // หน้าที่วาดการ์ดลูกค้า/ที่อยู่เองแล้ว (/orders/[id]) ไม่มีของใส่ขั้น "จัดส่ง"
+  // เลย — ทำ wizard ที่นั่นจะได้ขั้นว่างเปล่า จึงคงเปลือกเดิมไว้
+  const useWizard = narrowForm && !customerSectionHandledByHost;
+  const [step, setStep] = useState(1);
+
+  // Watch summary section width for side-by-side vs stacked layout
+  const hasProducts = branchOrders.length > 0 && branchOrders[0]?.products.length > 0;
+  useEffect(() => {
+    if (embedded) { setSummaryWide(false); return; }
+    const el = summarySectionRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([entry]) => {
+      setSummaryWide(entry.contentRect.width >= 560);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+    // useWizard อยู่ใน deps เพราะเปลือก wizard ไม่ได้ render กล่องที่ ref นี้เกาะ —
+    // กลับมาจอกว้างต้อง observe ใหม่ ไม่งั้นค่าค้างจากก่อนหน้า
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasProducts, embedded, useWizard]);
 
   // Initialize default branch (product-first flow for all modes)
   // This allows product section to show immediately without selecting a customer
@@ -1601,7 +1629,7 @@ export default function OrderForm({
     }
     // Check that at least one product exists
     if (branchOrders.length === 0 || !branchOrders[0]?.products.length) {
-      errors.branches = 'กรุณาเพิ่มสินค้าอย่างน้อย 1 รายการ';
+      errors.branches = NO_ITEMS_ERROR;
     }
 
     setFieldErrors(errors);
@@ -1609,14 +1637,25 @@ export default function OrderForm({
       // Never fail silently — some errors (phone/email) have no inline display,
       // so always toast the first one in addition to scrolling.
       showToast(Object.values(errors)[0], 'error');
-      // Scroll to first error
-      if (errors.customer || errors.recipientName || errors.deliveryPhone || errors.deliveryEmail) {
-        // customerSectionRef ไม่เคยถูก attach — fallback ไปการ์ดลูกค้า/จัดส่งจริง
-        (customerSectionRef.current || deliverySectionRef.current)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      } else if (errors.deliveryDate) {
-        deliveryDateRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      } else if (errors.branches) {
-        productsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      const scrollToError = () => {
+        // Scroll to first error
+        if (errors.customer || errors.recipientName || errors.deliveryPhone || errors.deliveryEmail) {
+          // customerSectionRef ไม่เคยถูก attach — fallback ไปการ์ดลูกค้า/จัดส่งจริง
+          (customerSectionRef.current || deliverySectionRef.current)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        } else if (errors.deliveryDate) {
+          deliveryDateRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        } else if (errors.branches) {
+          productsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      };
+      if (useWizard) {
+        // wizard ซ่อนขั้นที่ไม่ได้อยู่ — ต้องพาไปขั้นที่ผิดก่อน ไม่งั้น toast ขึ้นมา
+        // แล้วผู้ใช้หาช่องที่ผิดไม่เจอ · ขั้นที่ไปตรงกับ error ตัวที่ toast แสดง
+        // scroll ต้องรอ render รอบใหม่ — node ของขั้นนั้นเพิ่งถูก mount
+        setStep(wizardStepForError(Object.keys(errors)[0]));
+        requestAnimationFrame(() => requestAnimationFrame(scrollToError));
+      } else {
+        scrollToError();
       }
       return;
     }
@@ -2112,10 +2151,15 @@ export default function OrderForm({
     </div>
   );
 
-  return (
+  // ── ชิ้นส่วนของฟอร์ม (D1) ────────────────────────────────────────────────
+  // แตกเป็น fragment เพื่อให้จอกว้าง (เรียงเหมือนเดิมทุกประการ) กับจอแคบ (wizard)
+  // ใช้ state / validation / save ชุดเดียวกัน — ไม่แตกเป็น child component
+  // เพราะ state ร่วมกันหลายสิบตัว prop drilling เสี่ยงตกหล่นมากกว่า
+  //
+  // portal ทั้งสาม (ปุ่มหัวหน้า / คลัง / ช่องทางขาย) ต้อง render ทุกเปลือกเสมอ
+  // ไม่งั้นตัวเลือกคลังบนหัวหน้าจะหายไปตอนอยู่ขั้นอื่นของ wizard
+  const portalsFragment = (
     <>
-    {printView}
-    <form ref={formRef} onSubmit={handleSubmit} className={`space-y-4 ${printMode ? 'print:hidden' : ''}`}>
       {/* Header actions portal — copy order button in parent header */}
       {headerActionsRef?.current && !isEditMode && selectedCustomer && createPortal(
         <button
@@ -2176,12 +2220,14 @@ export default function OrderForm({
         </div>,
         salesChannelPortalRef.current,
       )}
+    </>
+  );
 
-      {/* Customer + Delivery section
-          ซ่อนเฉพาะเมื่อหน้าที่ห่ออยู่วาดการ์ดลูกค้า/ที่อยู่เองแล้ว (/orders/[id]) — ที่เหลือต้องเห็น
-          เดิม gate ด้วย `!isEditMode` ทำให้ทั้งแชทและ /orders/[id]/edit เห็นแต่รายการสินค้า
-          ไม่รู้ว่าบิลนี้ของใคร ส่งที่ไหน และแก้ที่อยู่ไม่ได้ (เจอจริง 2026-08-28) */}
-      {!customerSectionHandledByHost && (
+  // Customer + Delivery section
+  // ซ่อนเฉพาะเมื่อหน้าที่ห่ออยู่วาดการ์ดลูกค้า/ที่อยู่เองแล้ว (/orders/[id]) — ที่เหลือต้องเห็น
+  // เดิม gate ด้วย `!isEditMode` ทำให้ทั้งแชทและ /orders/[id]/edit เห็นแต่รายการสินค้า
+  // ไม่รู้ว่าบิลนี้ของใคร ส่งที่ไหน และแก้ที่อยู่ไม่ได้ (เจอจริง 2026-08-28)
+  const customerDeliveryFragment = !customerSectionHandledByHost && (
       <div ref={deliverySectionRef} className="space-y-4">
         <CustomerSelectionCard
           customerLabel="ลูกค้า"
@@ -2458,14 +2504,10 @@ export default function OrderForm({
         </div>
         )}
       </div>
-      )}
+  );
 
-      {/* 2-column layout: Products+Notes (left) + Summary (right) on wide screens */}
-      <div ref={summarySectionRef} className="flex flex-wrap gap-4 items-start">
-      <div className="flex-1 basis-[400px] min-w-0 space-y-4">
-
-      {/* Products Section */}
-      {branchOrders.length > 0 && (
+  // Products Section
+  const productsFragment = branchOrders.length > 0 && (
         <div ref={productsSectionRef} className={`bg-white dark:bg-slate-800 rounded-lg ${embedded ? '' : 'border border-gray-200 dark:border-slate-700'} overflow-visible`}>
           <ItemsTable
             items={(branchOrders[0]?.products || []).map((p): OrderTableItem => ({
@@ -2507,10 +2549,10 @@ export default function OrderForm({
             showSummary={false}
           />
         </div>
-      )}
+  );
 
-      {/* Notes + Settings — part of left column */}
-      {hasProducts && (
+  // Notes + Settings — คอลัมน์ซ้ายในจอกว้าง / อยู่ขั้นสรุปใน wizard
+  const notesFragment = hasProducts && (
         <div className={`bg-white dark:bg-slate-800 rounded-lg ${embedded ? '' : 'border border-gray-200 dark:border-slate-700'} p-4`}>
           <div className="space-y-3">
               {/* Notes side-by-side on desktop, stacked on mobile.
@@ -2602,13 +2644,12 @@ export default function OrderForm({
               )}
           </div>
         </div>
-      )}
+  );
 
-      </div>{/* End left column */}
-
-      {/* Order Summary — right column (sticky on wide, full-width on narrow) */}
-      {hasProducts && (
-        <div className={`${summaryWide ? 'w-[340px] flex-shrink-0 sticky top-4' : 'w-full'}`}>
+  // Order Summary — คอลัมน์ขวาในจอกว้าง (sticky) · เต็มความกว้างเสมอใน wizard
+  // (wizard ไม่ได้ render กล่องที่ summarySectionRef เกาะ ค่า summaryWide จึงเชื่อไม่ได้)
+  const summaryFragment = hasProducts && (
+        <div className={useWizard ? 'w-full' : `${summaryWide ? 'w-[340px] flex-shrink-0 sticky top-4' : 'w-full'}`}>
           <div className={`bg-white dark:bg-slate-800 rounded-lg ${embedded ? '' : 'border border-gray-200 dark:border-slate-700'} p-4`}>
             <OrderSummaryBox
               title="สรุปคำสั่งซื้อ"
@@ -2646,18 +2687,99 @@ export default function OrderForm({
             </OrderSummaryBox>
           </div>
         </div>
-      )}
+  );
 
-      </div>{/* End 2-column wrapper */}
-
-      {/* Action Buttons */}
-      {!isReadOnly && hasProducts && (
+  // Action Buttons
+  const actionsFragment = !isReadOnly && hasProducts && (
         <StickyActionBar
           saving={saving}
           onSave={() => formRef.current?.requestSubmit()}
           onCancel={handleCancel}
         />
+  );
+
+  // แถบขั้นตอนของ wizard — ขั้นที่ผ่านแล้วกดย้อนได้ (Stepper กลางของระบบ)
+  const wizardSteps: StepItem[] = ['สินค้า', 'จัดส่ง', 'สรุป'].map((label, i) => ({
+    key: String(i + 1),
+    label,
+    state: step === i + 1 ? 'current' : step > i + 1 ? 'done' : 'todo',
+  }));
+
+  // ออกจากขั้น "สินค้า" ไม่ได้ถ้ายังไม่มีของ — อีกสองขั้นไม่มีอะไรให้ทำเลย
+  // ข้อความเดียวกับตอนกดบันทึก (NO_ITEMS_ERROR) และโชว์ในตารางว่างด้วย
+  const goToNextStep = () => {
+    if (step === 1 && !hasProducts) {
+      setFieldErrors(prev => ({ ...prev, branches: NO_ITEMS_ERROR }));
+      showToast(NO_ITEMS_ERROR, 'error');
+      return;
+    }
+    setStep(s => Math.min(3, s + 1));
+  };
+
+  return (
+    <>
+    {printView}
+    <form ref={formRef} onSubmit={handleSubmit} className={`space-y-4 ${printMode ? 'print:hidden' : ''}`}>
+      {portalsFragment}
+
+      {useWizard ? (
+        <div className="space-y-4">
+          <Stepper
+            steps={wizardSteps}
+            onSelect={(key) => setStep(Number(key))}
+            ariaLabel="ขั้นตอนเปิดบิล"
+          />
+
+          {step === 1 && (
+            <div className="space-y-4">
+              {productsFragment}
+              {hasProducts && (
+                <div className={`flex items-center justify-between bg-white dark:bg-slate-800 rounded-lg ${embedded ? '' : 'border border-gray-200 dark:border-slate-700'} px-4 py-3`}>
+                  <span className="text-gray-600 dark:text-slate-400">ยอดรวมสินค้า</span>
+                  <span className="font-semibold text-gray-900 dark:text-slate-100">฿{formatPrice(itemsTotal)}</span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {step === 2 && customerDeliveryFragment}
+
+          {step === 3 && (
+            <div className="space-y-4">
+              {summaryFragment}
+              {notesFragment}
+              {actionsFragment}
+            </div>
+          )}
+
+          {step < 3 && (
+            <div className="flex justify-end gap-3">
+              {step > 1 && (
+                <Button variant="secondary" onClick={() => setStep(s => Math.max(1, s - 1))}>
+                  ย้อนกลับ
+                </Button>
+              )}
+              <Button variant="primary" onClick={goToNextStep}>ถัดไป</Button>
+            </div>
+          )}
+        </div>
+      ) : (
+        <>
+          {customerDeliveryFragment}
+
+          {/* 2-column layout: Products+Notes (left) + Summary (right) on wide screens */}
+          <div ref={summarySectionRef} className="flex flex-wrap gap-4 items-start">
+            <div className="flex-1 basis-[400px] min-w-0 space-y-4">
+              {productsFragment}
+              {notesFragment}
+            </div>
+            {summaryFragment}
+          </div>
+
+          {actionsFragment}
+        </>
       )}
+
       {/* Address Conflict Dialog */}
       <Modal
         open={!!addressConflict}

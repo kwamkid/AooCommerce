@@ -40,10 +40,17 @@ interface Props {
   dark?: boolean;
   ariaLabel?: string;
   className?: string;
+  /**
+   * ฟอร์มที่เปลี่ยนขั้นอยู่ในหน้าเดียว (ไม่ใช่คนละ URL) — ขั้นที่ผ่านแล้วกลายเป็นปุ่มกดย้อนได้
+   *
+   * `href` มาก่อนเสมอ: ขั้นที่มีลิงก์จริงยังเป็น <Link> เหมือนเดิม
+   * (storefront checkout เป็นคนละหน้า ห้ามให้กลายเป็นปุ่มที่ไม่พาไปไหน)
+   */
+  onSelect?: (key: string) => void;
 }
 
 export default function Stepper({
-  steps, dark = false, ariaLabel = 'ขั้นตอน', className = '',
+  steps, dark = false, ariaLabel = 'ขั้นตอน', className = '', onSelect,
 }: Props) {
   return (
     <ol
@@ -71,7 +78,9 @@ export default function Stepper({
           >
             {s.href && s.state === 'done'
               ? <Link href={s.href} className="stepper-in">{body}</Link>
-              : <span className="stepper-in">{body}</span>}
+              : onSelect && s.state === 'done'
+                ? <button type="button" className="stepper-in" onClick={() => onSelect(s.key)}>{body}</button>
+                : <span className="stepper-in">{body}</span>}
           </li>
         );
       })}
