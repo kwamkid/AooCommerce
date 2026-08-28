@@ -868,7 +868,6 @@ async function findOrCreateCustomer(
         name: buyerName,
         phone: buyerPhone || null,
         customer_type: 'retail',
-        source: 'tiktok',
         notes: `TikTok User ID: ${tiktokOrder.user_id}`,
       })
       .select('id')

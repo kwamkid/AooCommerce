@@ -16,6 +16,14 @@
 
 ---
 
+## 2026-08-28 — Order จริงใบแรกของ TikTok เข้าระบบไม่ได้ (customers.source + payment_method CHECK) — Lazada มีครบทั้งคู่เหมือนกัน
+
+**ที่เกิด**: [lib/tiktok/sync.ts](lib/tiktok/sync.ts) + [lib/lazada/sync.ts](lib/lazada/sync.ts) (สร้างลูกค้า/สร้างออเดอร์) + CHECK `orders_payment_method_check`
+**อาการ**: order TikTok จริงใบแรก (`585764152338908981` ~10:00) ไม่โผล่ในระบบ — webhook เข้าและ cron ดูดเจอทุก 15 นาที แต่สร้างพังวนซ้ำเงียบๆ (เห็นเฉพาะใน integration_logs: error ข้อความเดิมทุกรอบ)
+**Root cause**: (1) insert `customers` ใส่ column `source` ที่**ไม่มีในตาราง** (Shopee เก็บ platform ใน notes/customer_code ไม่มี column นี้) (2) พอผ่านด่านแรก เจอ `orders_payment_method_check` ที่ allow แค่ `'shopee'` — ไม่มี `'tiktok'`/`'lazada'` · เป็น bug ชนิด "เขียน integration เสร็จแต่ไม่เคยเจอ order ที่สร้างลูกค้าใหม่จริง" — Lazada ก็มีทั้ง 2 จุดเป๊ะ รอระเบิดวันมี order แรก
+**วิธีแก้**: ตัด `source` ออกจาก insert ทั้ง tiktok+lazada (ให้เหมือน Shopee) · migration `orders_payment_method_allow_tiktok_lazada` เพิ่ม 'tiktok','lazada' เข้า CHECK · รัน sync local เก็บ order ที่ค้างเข้าระบบสำเร็จ (processing/paid ตรง AWAITING_COLLECTION)
+**ป้องกัน regression**: integration marketplace ใหม่ยังไม่ถือว่าเสร็จจนกว่าจะผ่าน **order จริงที่สร้างลูกค้าใหม่** อย่างน้อย 1 ใบ · จะเขียนค่าใหม่ลง column ที่มี CHECK (payment_method/status ฯลฯ) ต้องดู constraint ก่อนเสมอ · error เดิมซ้ำทุกรอบ cron ใน integration_logs = มี order กำลังหายเงียบ — เวลาสงสัย "order ไม่เข้า" ให้เปิด log นี้ก่อน
+
 ## 2026-08-28 — สถานะ Shopee `TO_RETURN` ไม่อยู่ใน mapping → order เด้งกลับ "ใหม่/รอชำระ" และ sync ซ่อมไม่ได้
 
 **ที่เกิด**: [lib/shopee/sync.ts](lib/shopee/sync.ts) `mapShopeeStatus()` + `SHOPEE_STATUS_ORDER`

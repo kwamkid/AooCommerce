@@ -716,7 +716,6 @@ async function findOrCreateCustomer(
         name: buyerName,
         phone: usablePhone || null,
         customer_type: 'retail',
-        source: 'lazada',
         notes: `Lazada order: ${order.order_id}`,
       })
       .select('id')
