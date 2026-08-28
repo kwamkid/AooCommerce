@@ -27,6 +27,7 @@
 1. ตัด `[-\s()]` ออกก่อน validate เบอร์ · validation fail ทุกกรณี **toast ข้อความ error ตัวแรกเสมอ** (กันคลาส bug "ปุ่มเงียบ" ทั้งชุด) · scroll ครอบเคส phone/email ด้วย
 2. `narrowForm`: ResizeObserver วัดความกว้างจริงของ form root (< 700px = แคบ) → ส่ง `singleColumn` prop เข้า `CustomerSelectionCard` (ลูกค้า/จัดส่งถึง ซ้อนแนวตั้ง) + grid หมายเหตุ/ของขวัญ/วันส่ง-โซน เป็นคอลัมน์เดียว
 **ป้องกัน regression**: inline validation ห้าม return เงียบ — error ทุก field ต้องมีทางมองเห็น (inline หรือ toast อย่างน้อยหนึ่ง) · component ที่ถูกฝังใน panel/sidebar ห้ามใช้ viewport breakpoint ตัดสิน layout — วัด container จริงด้วย ResizeObserver (pattern `narrowForm`/`summaryWide` ใน OrderForm)
+**แก้เพิ่มรอบสอง (เจอหลัง toast ขึ้น)**: (3) ช่องจำนวนใน ItemsTable โหมด card กว้าง ~200px — `NumberInput w-full` แต่ไม่มี parent คุมความกว้าง เบราว์เซอร์ fallback เป็น default width ของ `<input>` → คุม `w-20` ที่ call site + ใส่ `w-full` ให้ wrapper chain ใน QtyCell (input `w-full` ต้องมี parent กว้างชัดเจนเสมอ ไม่งั้น ~200px) (4) อีเมลค่า "-" (ธรรมเนียมกรอกแทน "ไม่มี") ทำ validation fail จนบันทึกไม่ได้ → ถือว่าว่าง + ไม่ snapshot ลง order
 
 ## 2026-08-28 — รูปร้าน Lazada แตก (broken image) ทั้งที่ refresh สำเร็จ
 

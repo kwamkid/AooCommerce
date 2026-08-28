@@ -266,10 +266,10 @@ export default function ItemsTable({
       return <span className="text-sm font-medium text-gray-900 dark:text-white">{item.quantity}</span>;
     }
     return (
-      <div className={`inline-flex items-center border rounded-lg overflow-hidden ${
+      <div className={`inline-flex w-full items-center border rounded-lg overflow-hidden ${
         poMismatch ? 'border-amber-400 dark:border-amber-500' : 'border-gray-300 dark:border-slate-600'
       }`}>
-        <div className="relative">
+        <div className="relative w-full">
           <NumberInput min="1"
             value={item.quantity}
             onChange={(n) => onUpdateField!(idx, 'quantity', n)}
@@ -653,7 +653,8 @@ export default function ItemsTable({
                     </div>
                   </div>
                 )}
-                <div>
+                <div className="w-20">
+                  {/* ไม่คุมความกว้าง = input จะกางเท่า default ของ <input> (~200px) ในโหมด card */}
                   <label className="text-xs text-gray-500 dark:text-slate-400 mb-0.5 block">จำนวน</label>
                   {QtyCell({ item, idx })}
                 </div>

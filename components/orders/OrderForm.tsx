@@ -1587,7 +1587,9 @@ export default function OrderForm({
     if (phoneDigits && !/^(0[0-9]{8,9}|[0-9]{9,10})$/.test(phoneDigits)) {
       errors.deliveryPhone = 'เบอร์โทรไม่ถูกต้อง';
     }
-    if (deliveryEmail.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(deliveryEmail.trim())) {
+    // "-" คือธรรมเนียมกรอกแทน "ไม่มี" — ถือว่าว่าง อย่า block การบันทึก
+    const emailTrimmed = deliveryEmail.trim() === '-' ? '' : deliveryEmail.trim();
+    if (emailTrimmed && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailTrimmed)) {
       errors.deliveryEmail = 'อีเมลไม่ถูกต้อง';
     }
     // Check that at least one product exists
@@ -1651,7 +1653,7 @@ export default function OrderForm({
       let snapshotAmphoe = deliveryAmphoe;
       let snapshotProvince = deliveryProvince;
       let snapshotPostalCode = deliveryPostalCode;
-      let snapshotEmail = deliveryEmail;
+      let snapshotEmail = deliveryEmail.trim() === '-' ? '' : deliveryEmail;
 
       if (selectedCustomer && !deliveryName && primaryAddressId) {
         const addr = shippingAddresses.find(a => a.id === primaryAddressId);
