@@ -2843,23 +2843,54 @@ export default function OrderForm({
         />
   );
 
-  // แถบขั้นตอนของ wizard — ขั้นที่ผ่านแล้วกดย้อนได้ (Stepper กลางของระบบ)
+  // แถบขั้นตอนของ wizard — กดสลับได้ทุกขั้น ทั้งเดินหน้าและถอยหลัง (Stepper กลางของระบบ)
   const wizardSteps: StepItem[] = ['สินค้า', 'จัดส่ง', 'สรุป'].map((label, i) => ({
     key: String(i + 1),
     label,
     state: step === i + 1 ? 'current' : step > i + 1 ? 'done' : 'todo',
   }));
 
-  // ออกจากขั้น "สินค้า" ไม่ได้ถ้ายังไม่มีของ — อีกสองขั้นไม่มีอะไรให้ทำเลย
+  // เดินขั้นได้อิสระทั้งเดินหน้าและถอยหลัง (validation จริงเกิดตอนกดบันทึก
+  // ซึ่งพาไปขั้นที่ผิดให้เองอยู่แล้ว) — กติกาเดียวที่เหลือคือออกจากขั้น "สินค้า"
+  // ไม่ได้ถ้ายังไม่มีของ เพราะอีกสองขั้นไม่มีอะไรให้ทำเลย
   // ข้อความเดียวกับตอนกดบันทึก (NO_ITEMS_ERROR) และโชว์ในตารางว่างด้วย
-  const goToNextStep = () => {
-    if (step === 1 && !hasProducts) {
+  const goToStep = (target: number) => {
+    if (target > 1 && !hasProducts) {
       setFieldErrors(prev => ({ ...prev, branches: NO_ITEMS_ERROR }));
       showToast(NO_ITEMS_ERROR, 'error');
       return;
     }
-    setStep(s => Math.min(3, s + 1));
+    setStep(Math.max(1, Math.min(3, target)));
   };
+  const goToNextStep = () => goToStep(step + 1);
+
+  // แถบล่างของ wizard — ยอดรวมกับปุ่มอยู่บรรทัดเดียวกัน ติดขอบล่างทุกขั้น
+  // (ขั้นสรุปใช้แถบนี้แทน actionsFragment ไม่ใช่ซ้อนกันสองแถบ)
+  //
+  // `inset` เพราะ panel แชทมี padding 1rem คงที่ทุกขนาดจอ — ไม่ใช่ p-4 lg:p-6
+  // ของ page layout ที่คลาสเริ่มต้นเดาไว้
+  const wizardStepTotal = step === 3 ? total : itemsTotal;
+  const wizardBar = useWizard && (
+    <StickyActionBar
+      inset
+      saving={saving}
+      onSave={() => formRef.current?.requestSubmit()}
+      onCancel={step > 1 ? () => goToStep(step - 1) : undefined}
+      cancelLabel="ย้อนกลับ"
+      primary={
+        step < 3
+          ? <Button variant="primary" onClick={goToNextStep}>ถัดไป</Button>
+          : (isReadOnly || !hasProducts ? null : undefined)
+      }
+    >
+      <span className="flex items-baseline gap-1.5 min-w-0">
+        <span className="truncate">{step === 3 ? 'ยอดรวมทั้งสิ้น' : 'ยอดรวมสินค้า'}</span>
+        <span className="text-base font-semibold text-gray-900 dark:text-slate-100 flex-shrink-0">
+          ฿{formatPrice(wizardStepTotal)}
+        </span>
+      </span>
+    </StickyActionBar>
+  );
 
   return (
     <>
@@ -2871,21 +2902,12 @@ export default function OrderForm({
         <div className="space-y-4">
           <Stepper
             steps={wizardSteps}
-            onSelect={(key) => setStep(Number(key))}
+            onSelect={(key) => goToStep(Number(key))}
+            allowJumpAhead
             ariaLabel="ขั้นตอนเปิดบิล"
           />
 
-          {step === 1 && (
-            <div className="space-y-4">
-              {productsFragment}
-              {hasProducts && (
-                <div className={`flex items-center justify-between bg-white dark:bg-slate-800 rounded-lg ${embedded ? '' : 'border border-gray-200 dark:border-slate-700'} px-4 py-3`}>
-                  <span className="text-gray-600 dark:text-slate-400">ยอดรวมสินค้า</span>
-                  <span className="font-semibold text-gray-900 dark:text-slate-100">฿{formatPrice(itemsTotal)}</span>
-                </div>
-              )}
-            </div>
-          )}
+          {step === 1 && productsFragment}
 
           {step === 2 && customerDeliveryFragment}
 
@@ -2893,20 +2915,10 @@ export default function OrderForm({
             <div className="space-y-4">
               {summaryFragment}
               {notesFragment}
-              {actionsFragment}
             </div>
           )}
 
-          {step < 3 && (
-            <div className="flex justify-end gap-3">
-              {step > 1 && (
-                <Button variant="secondary" onClick={() => setStep(s => Math.max(1, s - 1))}>
-                  ย้อนกลับ
-                </Button>
-              )}
-              <Button variant="primary" onClick={goToNextStep}>ถัดไป</Button>
-            </div>
-          )}
+          {wizardBar}
         </div>
       ) : (
         <>

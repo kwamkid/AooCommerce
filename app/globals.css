@@ -956,6 +956,18 @@ input[type="number"] {
   .sticky-actions-inner > :first-child { display: none; }
   .sticky-actions-inner { justify-content: flex-end; }
 }
+/* แถบที่ฝังในกล่องซึ่ง padding ไม่ได้ขยายตามจอ (panel เปิดบิลในแชท = p-4 ตายตัว)
+   ระยะขอบต้องเท่ากับกล่องจริง ห้ามเดาจาก viewport — panel กว้าง 690px บนจอ 1440px
+   ก็ยัง p-4 อยู่ดี ถ้าใช้ -1.5rem ของจอใหญ่ แถบจะล้นออกนอก panel ข้างละ 8px
+   (ประกาศไว้ท้ายสุด + specificity สูงกว่า จึงชนะ media query ด้านบนทุกขนาดจอ) */
+.sticky-actions.sticky-actions-inset {
+  margin-left: -1rem; margin-right: -1rem; padding-left: 1rem; padding-right: 1rem;
+}
+@media (max-width: 640px) {
+  /* ยอดรวมคือเหตุผลที่แถบนี้มี — จอแคบก็ยังต้องเห็น ให้หดข้อความแทนการซ่อน */
+  .sticky-actions-inset .sticky-actions-inner > :first-child { display: block; }
+  .sticky-actions-inset .sticky-actions-inner { justify-content: space-between; }
+}
 
 /* ── แถบขั้นตอน (components/ui/Stepper) — ใช้ทั้งตอนสั่งซื้อและติดตามออเดอร์ ──
    แบบเดียวทั้งระบบ: ไอคอนอยู่บน ชื่ออยู่ใต้ไอคอน

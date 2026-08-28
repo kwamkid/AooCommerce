@@ -47,10 +47,19 @@ interface Props {
    * (storefront checkout เป็นคนละหน้า ห้ามให้กลายเป็นปุ่มที่ไม่พาไปไหน)
    */
   onSelect?: (key: string) => void;
+  /**
+   * ให้กดขั้นที่ "ยังไม่ถึง" ได้ด้วย (ไม่ใช่แค่ขั้นที่ผ่านแล้ว) — ต้องเปิดเอง
+   *
+   * ใช้กับฟอร์มที่ validation เกิดตอนกดบันทึก ไม่ใช่ตอนข้ามขั้น (เปิดบิลในแชท)
+   * ค่าเริ่มต้นปิดไว้ เพราะ flow ที่แต่ละขั้นต้องผ่านจริงก่อน (storefront checkout)
+   * การกดข้ามไปหน้าที่ยังไม่มีข้อมูลคือทางตัน
+   */
+  allowJumpAhead?: boolean;
 }
 
 export default function Stepper({
   steps, dark = false, ariaLabel = 'ขั้นตอน', className = '', onSelect,
+  allowJumpAhead = false,
 }: Props) {
   return (
     <ol
@@ -78,7 +87,7 @@ export default function Stepper({
           >
             {s.href && s.state === 'done'
               ? <Link href={s.href} className="stepper-in">{body}</Link>
-              : onSelect && s.state === 'done'
+              : onSelect && (s.state === 'done' || (allowJumpAhead && s.state === 'todo'))
                 ? <button type="button" className="stepper-in" onClick={() => onSelect(s.key)}>{body}</button>
                 : <span className="stepper-in">{body}</span>}
           </li>
