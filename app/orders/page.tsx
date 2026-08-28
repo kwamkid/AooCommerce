@@ -15,6 +15,7 @@ import Alert from '@/components/ui/Alert';
 import MarketplaceQuotaPausedAlert from '@/components/ui/MarketplaceQuotaPausedAlert';
 import FormInput from '@/components/ui/FormInput';
 import SearchInput, { SearchInputHandle } from '@/components/ui/SearchInput';
+import Tooltip from '@/components/ui/Tooltip';
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/lib/toast-context';
 import { useFeatures } from '@/lib/features-context';
@@ -458,7 +459,7 @@ function OrdersPageContent() {
           key="pay"
           onClick={(e) => { e.stopPropagation(); handlePaymentStatusClick(order); }}
           className="btn-focus-action green"
-          title="บันทึกชำระ"
+          aria-label="บันทึกชำระ"
         >
           <CreditCard className="w-4 h-4" />
           <span className="hidden md:inline">บันทึกชำระ</span>
@@ -473,7 +474,7 @@ function OrdersPageContent() {
           key="accept"
           onClick={(e) => { e.stopPropagation(); handleOrderStatusClick(order); }}
           className="btn-focus-action indigo"
-          title="รับออเดอร์"
+          aria-label="รับออเดอร์"
         >
           <Package className="w-4 h-4" />
           <span className="hidden md:inline">รับออเดอร์</span>
@@ -488,7 +489,7 @@ function OrdersPageContent() {
           key="complete"
           onClick={(e) => { e.stopPropagation(); handleOrderStatusClick(order); }}
           className="btn-focus-action green"
-          title="สำเร็จ"
+          aria-label="สำเร็จ"
         >
           <Package className="w-4 h-4" />
           <span className="hidden md:inline">สำเร็จ</span>
@@ -579,18 +580,19 @@ function OrdersPageContent() {
     // Quick action: Copy bill online link (always visible for non-marketplace orders)
     if (!isMarketplace) {
       primaryActions.push(
-        <button
-          key="copy-link"
-          onClick={(e) => {
-            e.stopPropagation();
-            const billUrl = `${window.location.origin}/bills/${order.id}`;
-            copy(billUrl, 'ลิงก์บิลออนไลน์');
-          }}
-          className="p-2 text-gray-500 hover:text-primary rounded-lg transition-colors"
-          title="คัดลอกลิงก์บิลออนไลน์"
-        >
-          <Link2 className="w-4 h-4" />
-        </button>
+        <Tooltip key="copy-link" text="คัดลอกลิงก์บิลออนไลน์">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              const billUrl = `${window.location.origin}/bills/${order.id}`;
+              copy(billUrl, 'ลิงก์บิลออนไลน์');
+            }}
+            className="p-2 text-gray-500 hover:text-primary rounded-lg transition-colors"
+            aria-label="คัดลอกลิงก์บิลออนไลน์"
+          >
+            <Link2 className="w-4 h-4" />
+          </button>
+        </Tooltip>
       );
     }
 
@@ -757,16 +759,18 @@ function OrdersPageContent() {
           title="คำสั่งซื้อ"
           icon={<ShoppingCart />}
           actions={<>
-            <button
-              type="button"
-              onClick={() => fetchOrders()}
-              disabled={fetching}
-              title="รีเฟรช"
-              aria-label="รีเฟรช"
-              className="text-gray-500 hover:text-primary dark:text-slate-400 dark:hover:text-primary disabled:opacity-50 transition-colors"
-            >
-              <RefreshCw className={`w-5 h-5 ${fetching ? 'animate-spin' : ''}`} />
-            </button>
+            {/* box="inline-flex" — ปุ่มนี้ disabled ตอนกำลังโหลด ซึ่งไม่ยิง pointer event ต้องมีกล่องครอบถึงจะ hover ติด */}
+            <Tooltip text="รีเฟรช" box="inline-flex">
+              <button
+                type="button"
+                onClick={() => fetchOrders()}
+                disabled={fetching}
+                aria-label="รีเฟรช"
+                className="text-gray-500 hover:text-primary dark:text-slate-400 dark:hover:text-primary disabled:opacity-50 transition-colors"
+              >
+                <RefreshCw className={`w-5 h-5 ${fetching ? 'animate-spin' : ''}`} />
+              </button>
+            </Tooltip>
             <Button
               variant="primary"
               icon={<Plus className="w-5 h-5" />}
@@ -857,19 +861,20 @@ function OrdersPageContent() {
             })()}
             {/* Clear filters — icon only, far right */}
             {hasActiveFilters && (
-              <button
-                type="button"
-                onClick={() => {
-                  setSearchTerm('');
-                  setDeliveryDateRange({ startDate: null, endDate: null });
-                  router.replace('/orders', { scroll: false });
-                }}
-                title="ล้างตัวกรอง"
-                aria-label="ล้างตัวกรอง"
-                className="text-gray-400 hover:text-red-500 dark:text-slate-400 dark:hover:text-red-400 transition-colors"
-              >
-                <FilterX className="w-4 h-4" />
-              </button>
+              <Tooltip text="ล้างตัวกรอง">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchTerm('');
+                    setDeliveryDateRange({ startDate: null, endDate: null });
+                    router.replace('/orders', { scroll: false });
+                  }}
+                  aria-label="ล้างตัวกรอง"
+                  className="text-gray-400 hover:text-red-500 dark:text-slate-400 dark:hover:text-red-400 transition-colors"
+                >
+                  <FilterX className="w-4 h-4" />
+                </button>
+              </Tooltip>
             )}
           </div>
 

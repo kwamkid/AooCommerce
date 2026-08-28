@@ -53,7 +53,8 @@ export default function PriceDiscountCombo({
     <div className={`flex items-center ${gap} ${className || ''}`}>
       {/* Level 1: Toggle — ส่วนลด ↔ ราคาพิเศษ */}
       <div className={`flex rounded-lg border border-gray-300 dark:border-slate-500 overflow-hidden ${h} flex-shrink-0`}>
-        <Tooltip text="ส่วนลด — ลดเป็น % หรือ บาท จากราคาปกติ">
+        {/* box="inline-flex" — ปุ่มพวกนี้ disabled ได้ ซึ่งไม่ยิง pointer event ต้องมีกล่องครอบถึงจะ hover ติด */}
+        <Tooltip text="ส่วนลด — ลดเป็น % หรือ บาท จากราคาปกติ" box="inline-flex">
           <button
             type="button"
             disabled={disabled}
@@ -72,7 +73,7 @@ export default function PriceDiscountCombo({
             <Percent className={iconSize} />
           </button>
         </Tooltip>
-        <Tooltip text="ราคาพิเศษ — กำหนดราคาขายตรง เช่น 99 บาท">
+        <Tooltip text="ราคาพิเศษ — กำหนดราคาขายตรง เช่น 99 บาท" box="inline-flex">
           <button
             type="button"
             disabled={disabled}

@@ -52,6 +52,7 @@ import OrderForm from '@/components/orders/OrderForm';
 import CustomerForm, { CustomerFormData, buildCustomerPayload } from '@/components/customers/CustomerForm';
 import TagBadge, { Tag } from '@/components/ui/TagBadge';
 import TagInput from '@/components/ui/TagInput';
+import Tooltip from '@/components/ui/Tooltip';
 import type { UnifiedContact, ChatMessage, Customer, DayRange, ChatAccountInfo, LinkedContact } from './lib/chatTypes';
 import MessageBubble from './components/MessageBubble';
 import { FbIcon, IgIcon, LineIcon, ShopeeIcon, LazadaIcon, TiktokIcon, PlatformIcon, getAccountPicture, getAvatarUrl, getInitials, formatTime, formatLastMessage, compressImage, officialStickers } from './lib/chatHelpers';
@@ -1415,22 +1416,31 @@ function UnifiedChatPageContent() {
                   );
                 })()}
               </div>
-              <button onClick={() => setFilterParams({ sort: sortMode === 'time' ? 'unread' : 'time' })}
-                className={`h-[38px] w-[38px] flex-shrink-0 flex items-center justify-center border rounded-lg transition-colors ${sortMode === 'unread' ? 'bg-red-500 border-red-500 text-white' : 'border-gray-300 dark:border-slate-600 text-gray-500 hover:bg-gray-50 dark:hover:bg-slate-700'}`} title={sortMode === 'time' ? 'เรียงตามเวลา (กดเพื่อเรียงยังไม่อ่านก่อน)' : 'เรียงยังไม่อ่านก่อน (กดเพื่อเรียงตามเวลา)'}>
-                <ArrowUpDown className="w-4 h-4" />
-              </button>
-              <button onClick={() => setFilterParams({ unread: filterUnread ? '' : '1' })}
-                className={`relative h-[38px] w-[38px] flex-shrink-0 flex items-center justify-center border rounded-lg transition-colors ${filterUnread ? 'bg-red-500 border-red-500 text-white' : 'border-gray-300 dark:border-slate-600 text-gray-500 hover:bg-gray-50 dark:hover:bg-slate-700'}`} title="เฉพาะยังไม่อ่าน">
-                <MessageCircle className="w-4 h-4" />
-                {totalUnread > 0 && !filterUnread && (
-                  <span className="absolute -top-1 -right-1 min-w-[16px] h-4 bg-red-500 text-white text-[10px] rounded-full flex items-center justify-center px-0.5">{totalUnread > 9 ? '9+' : totalUnread}</span>
-                )}
-              </button>
-              <div className="relative h-[38px]" data-filter-popover>
-                <button onClick={() => setShowFilterPopover(!showFilterPopover)}
-                  className={`h-full w-[38px] flex items-center justify-center border rounded-lg transition-colors ${hasActiveFilter ? 'bg-primary border-primary text-white' : 'border-gray-300 dark:border-slate-600 text-gray-500 hover:bg-gray-50 dark:hover:bg-slate-700'}`} title="กรองรายชื่อ">
-                  <Filter className="w-5 h-5" />
+              <Tooltip text={sortMode === 'time' ? 'เรียงตามเวลา (กดเพื่อเรียงยังไม่อ่านก่อน)' : 'เรียงยังไม่อ่านก่อน (กดเพื่อเรียงตามเวลา)'}>
+                <button onClick={() => setFilterParams({ sort: sortMode === 'time' ? 'unread' : 'time' })}
+                  aria-label={sortMode === 'time' ? 'เรียงตามเวลา' : 'เรียงยังไม่อ่านก่อน'}
+                  className={`h-[38px] w-[38px] flex-shrink-0 flex items-center justify-center border rounded-lg transition-colors ${sortMode === 'unread' ? 'bg-red-500 border-red-500 text-white' : 'border-gray-300 dark:border-slate-600 text-gray-500 hover:bg-gray-50 dark:hover:bg-slate-700'}`}>
+                  <ArrowUpDown className="w-4 h-4" />
                 </button>
+              </Tooltip>
+              <Tooltip text="เฉพาะยังไม่อ่าน">
+                <button onClick={() => setFilterParams({ unread: filterUnread ? '' : '1' })}
+                  aria-label="เฉพาะยังไม่อ่าน"
+                  className={`relative h-[38px] w-[38px] flex-shrink-0 flex items-center justify-center border rounded-lg transition-colors ${filterUnread ? 'bg-red-500 border-red-500 text-white' : 'border-gray-300 dark:border-slate-600 text-gray-500 hover:bg-gray-50 dark:hover:bg-slate-700'}`}>
+                  <MessageCircle className="w-4 h-4" />
+                  {totalUnread > 0 && !filterUnread && (
+                    <span className="absolute -top-1 -right-1 min-w-[16px] h-4 bg-red-500 text-white text-[10px] rounded-full flex items-center justify-center px-0.5">{totalUnread > 9 ? '9+' : totalUnread}</span>
+                  )}
+                </button>
+              </Tooltip>
+              <div className="relative h-[38px]" data-filter-popover>
+                <Tooltip text="กรองรายชื่อ">
+                  <button onClick={() => setShowFilterPopover(!showFilterPopover)}
+                    aria-label="กรองรายชื่อ"
+                    className={`h-full w-[38px] flex items-center justify-center border rounded-lg transition-colors ${hasActiveFilter ? 'bg-primary border-primary text-white' : 'border-gray-300 dark:border-slate-600 text-gray-500 hover:bg-gray-50 dark:hover:bg-slate-700'}`}>
+                    <Filter className="w-5 h-5" />
+                  </button>
+                </Tooltip>
                 {showFilterPopover && (
                   <div className="absolute right-0 top-full mt-2 w-64 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg z-50">
                     <div className="p-3 border-b border-gray-100 dark:border-slate-700 flex items-center justify-between">
@@ -1441,8 +1451,8 @@ function UnifiedChatPageContent() {
                       <div>
                         <label className="text-base font-medium text-gray-600 dark:text-slate-400 mb-2 block">สถานะลูกค้า</label>
                         <div className="flex gap-2">
-                          <button onClick={() => setFilterParams({ linked: filterLinked === 'linked' ? 'all' : 'linked' })} className={`flex-1 px-3 py-2 text-sm rounded-lg transition-colors flex items-center justify-center gap-1 ${filterLinked === 'linked' ? 'bg-blue-500 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-600'}`} title="ซื้อแล้ว"><UserCheck className="w-4 h-4" /><span>ซื้อแล้ว</span></button>
-                          <button onClick={() => { const next = filterLinked === 'unlinked' ? 'all' : 'unlinked'; setFilterParams({ linked: next }); if (next === 'unlinked') setFilterOrderDaysRange(null); }} className={`flex-1 px-3 py-2 text-sm rounded-lg transition-colors flex items-center justify-center gap-1 ${filterLinked === 'unlinked' ? 'bg-orange-500 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-600'}`} title="ยังไม่ซื้อ"><UserX className="w-4 h-4" /><span>ยังไม่ซื้อ</span></button>
+                          <button onClick={() => setFilterParams({ linked: filterLinked === 'linked' ? 'all' : 'linked' })} className={`flex-1 px-3 py-2 text-sm rounded-lg transition-colors flex items-center justify-center gap-1 ${filterLinked === 'linked' ? 'bg-blue-500 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-600'}`}><UserCheck className="w-4 h-4" /><span>ซื้อแล้ว</span></button>
+                          <button onClick={() => { const next = filterLinked === 'unlinked' ? 'all' : 'unlinked'; setFilterParams({ linked: next }); if (next === 'unlinked') setFilterOrderDaysRange(null); }} className={`flex-1 px-3 py-2 text-sm rounded-lg transition-colors flex items-center justify-center gap-1 ${filterLinked === 'unlinked' ? 'bg-orange-500 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-600'}`}><UserX className="w-4 h-4" /><span>ยังไม่ซื้อ</span></button>
                         </div>
                       </div>
                       {/* Tag filter */}
@@ -1665,15 +1675,15 @@ function UnifiedChatPageContent() {
                 <div className="flex items-center gap-1 flex-shrink-0">
                   {selectedContact.customer ? (
                     <>
-                      <button onClick={handleOpenHistory} className={`p-2 rounded-lg transition-colors ${rightPanel === 'history' ? 'bg-blue-500 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600'}`} title="ดูประวัติออเดอร์"><History className="w-4 h-4" /></button>
-                      <button onClick={() => { setRightPanel(rightPanel === 'order' ? null : 'order'); }} className={`p-2 rounded-lg transition-colors ${rightPanel === 'order' ? 'bg-primary text-white' : 'bg-primary/10 text-primary hover:bg-primary/20'}`} title={rightPanel === 'order' ? 'ปิดหน้าเปิดบิล' : 'เปิดบิล'}><ShoppingCart className="w-4 h-4" /></button>
-                      <button onClick={handleOpenProfile} className={`p-2 rounded-lg transition-colors ${rightPanel === 'profile' ? 'bg-blue-500 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600'}`} title="ดูข้อมูลลูกค้า"><User className="w-4 h-4" /></button>
+                      <Tooltip text="ดูประวัติออเดอร์"><button onClick={handleOpenHistory} aria-label="ดูประวัติออเดอร์" className={`p-2 rounded-lg transition-colors ${rightPanel === 'history' ? 'bg-blue-500 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600'}`}><History className="w-4 h-4" /></button></Tooltip>
+                      <Tooltip text={rightPanel === 'order' ? 'ปิดหน้าเปิดบิล' : 'เปิดบิล'}><button onClick={() => { setRightPanel(rightPanel === 'order' ? null : 'order'); }} aria-label={rightPanel === 'order' ? 'ปิดหน้าเปิดบิล' : 'เปิดบิล'} className={`p-2 rounded-lg transition-colors ${rightPanel === 'order' ? 'bg-primary text-white' : 'bg-primary/10 text-primary hover:bg-primary/20'}`}><ShoppingCart className="w-4 h-4" /></button></Tooltip>
+                      <Tooltip text="ดูข้อมูลลูกค้า"><button onClick={handleOpenProfile} aria-label="ดูข้อมูลลูกค้า" className={`p-2 rounded-lg transition-colors ${rightPanel === 'profile' ? 'bg-blue-500 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600'}`}><User className="w-4 h-4" /></button></Tooltip>
                     </>
                   ) : (
                     <>
-                      <button onClick={() => { setRightPanel(rightPanel === 'order' ? null : 'order'); }} className={`p-2 rounded-lg transition-colors ${rightPanel === 'order' ? 'bg-primary text-white' : 'bg-primary/10 text-primary hover:bg-primary/20'}`} title={rightPanel === 'order' ? 'ปิดหน้าเปิดบิล' : 'เปิดบิล'}><ShoppingCart className="w-4 h-4" /></button>
-                      <button onClick={handleOpenProfile} className={`p-2 rounded-lg transition-colors ${rightPanel === 'profile' ? 'bg-blue-500 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600'}`} title="แท็ก / โปรไฟล์"><User className="w-4 h-4" /></button>
-                      <button onClick={() => { setShowLinkModal(true); }} className="p-2 rounded-lg transition-colors bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600" title="เชื่อมลูกค้าที่มีอยู่"><LinkIcon className="w-4 h-4" /></button>
+                      <Tooltip text={rightPanel === 'order' ? 'ปิดหน้าเปิดบิล' : 'เปิดบิล'}><button onClick={() => { setRightPanel(rightPanel === 'order' ? null : 'order'); }} aria-label={rightPanel === 'order' ? 'ปิดหน้าเปิดบิล' : 'เปิดบิล'} className={`p-2 rounded-lg transition-colors ${rightPanel === 'order' ? 'bg-primary text-white' : 'bg-primary/10 text-primary hover:bg-primary/20'}`}><ShoppingCart className="w-4 h-4" /></button></Tooltip>
+                      <Tooltip text="แท็ก / โปรไฟล์"><button onClick={handleOpenProfile} aria-label="แท็ก / โปรไฟล์" className={`p-2 rounded-lg transition-colors ${rightPanel === 'profile' ? 'bg-blue-500 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600'}`}><User className="w-4 h-4" /></button></Tooltip>
+                      <Tooltip text="เชื่อมลูกค้าที่มีอยู่"><button onClick={() => { setShowLinkModal(true); }} aria-label="เชื่อมลูกค้าที่มีอยู่" className="p-2 rounded-lg transition-colors bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600"><LinkIcon className="w-4 h-4" /></button></Tooltip>
                     </>
                   )}
                 </div>
@@ -1702,7 +1712,7 @@ function UnifiedChatPageContent() {
                               <div className="flex flex-col items-end self-end mb-0.5 text-[10px] text-gray-400 dark:text-slate-500">
                                 {msg.sent_by_user && <span>{msg.sent_by_user.name}</span>}
                                 <div className="flex items-center gap-1">
-                                  {msg._status === 'failed' && (<button onClick={() => { sendMessage(msg); }} className="flex items-center gap-0.5 text-red-500 hover:text-red-600" title="ส่งไม่สำเร็จ กดเพื่อลองใหม่"><AlertCircle className="w-3 h-3" /><RotateCcw className="w-2.5 h-2.5" /></button>)}
+                                  {msg._status === 'failed' && (<Tooltip text="ส่งไม่สำเร็จ กดเพื่อลองใหม่"><button onClick={() => { sendMessage(msg); }} aria-label="ส่งไม่สำเร็จ กดเพื่อลองใหม่" className="flex items-center gap-0.5 text-red-500 hover:text-red-600"><AlertCircle className="w-3 h-3" /><RotateCcw className="w-2.5 h-2.5" /></button></Tooltip>)}
                                   {msg._status === 'sending' && (<Loader2 className="w-2.5 h-2.5 animate-spin text-gray-400" />)}
                                   {msg._status === 'sent' && (<Check className="w-2.5 h-2.5" style={{ color: platformColor }} />)}
                                   <span>{formatTime(msg.created_at)}</span>
@@ -1739,7 +1749,7 @@ function UnifiedChatPageContent() {
               </div>
 
               {/* Scroll to bottom button */}
-              {showScrollButton && (<button onClick={scrollToBottom} className="absolute bottom-24 left-1/2 -translate-x-1/2 p-3 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-full shadow-xl hover:bg-gray-50 dark:hover:bg-slate-700/50 hover:shadow-2xl transition-all z-20 animate-bounce" title="ไปที่ข้อความล่าสุด"><ArrowDown className="w-5 h-5" style={{ color: platformColor }} /></button>)}
+              {showScrollButton && (<Tooltip text="ไปที่ข้อความล่าสุด"><button onClick={scrollToBottom} aria-label="ไปที่ข้อความล่าสุด" className="absolute bottom-24 left-1/2 -translate-x-1/2 p-3 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-full shadow-xl hover:bg-gray-50 dark:hover:bg-slate-700/50 hover:shadow-2xl transition-all z-20 animate-bounce"><ArrowDown className="w-5 h-5" style={{ color: platformColor }} /></button></Tooltip>)}
 
               {/* Message Input */}
               {isWindowExpired ? (
@@ -1753,14 +1763,19 @@ function UnifiedChatPageContent() {
               <div className="p-2 md:p-4 border-t border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800">
                 <div className="flex items-center gap-1 md:gap-2">
                   <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
-                  <button onClick={() => fileInputRef.current?.click()} disabled={uploadingImage} className="p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-full transition-colors disabled:opacity-50" title="ส่งรูปภาพ">
-                    {uploadingImage ? <Loader2 className="w-5 h-5 animate-spin" /> : <ImagePlus className="w-5 h-5" />}
-                  </button>
+                  {/* box="inline-flex" — ปุ่มนี้ disabled ตอนอัปโหลด ซึ่งไม่ยิง pointer event ต้องมีกล่องครอบถึงจะ hover ติด */}
+                  <Tooltip text="ส่งรูปภาพ" box="inline-flex">
+                    <button onClick={() => fileInputRef.current?.click()} disabled={uploadingImage} aria-label="ส่งรูปภาพ" className="p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-full transition-colors disabled:opacity-50">
+                      {uploadingImage ? <Loader2 className="w-5 h-5 animate-spin" /> : <ImagePlus className="w-5 h-5" />}
+                    </button>
+                  </Tooltip>
                   {/* Emoji & Sticker wrapper */}
                   <div className="relative" data-emoji-picker>
-                    <button onClick={() => { setShowEmojiPicker(!showEmojiPicker); setEmojiSearch(''); }} className={`p-2 rounded-full transition-colors ${showEmojiPicker ? 'text-amber-500 bg-amber-50 dark:bg-amber-500/10' : 'text-gray-500 hover:text-amber-500 hover:bg-gray-100 dark:hover:bg-slate-700'}`} title="Emoji & Sticker">
-                      <Smile className="w-5 h-5" />
-                    </button>
+                    <Tooltip text="อีโมจิ & สติกเกอร์">
+                      <button onClick={() => { setShowEmojiPicker(!showEmojiPicker); setEmojiSearch(''); }} aria-label="อีโมจิ และ สติกเกอร์" className={`p-2 rounded-full transition-colors ${showEmojiPicker ? 'text-amber-500 bg-amber-50 dark:bg-amber-500/10' : 'text-gray-500 hover:text-amber-500 hover:bg-gray-100 dark:hover:bg-slate-700'}`}>
+                        <Smile className="w-5 h-5" />
+                      </button>
+                    </Tooltip>
                 {showEmojiPicker && (
                     <EmojiStickerPicker
                       platform={selectedContact?.platform || 'line'}
@@ -1866,7 +1881,7 @@ function UnifiedChatPageContent() {
               <div className="flex items-center gap-2">
                 <div ref={headerActionsRef} />
                 <div ref={warehousePortalRef} />
-                <button onClick={() => setRightPanel(null)} className="hidden md:block p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors" title="ปิด"><X className="w-5 h-5" /></button>
+                <Tooltip text="ปิด"><button onClick={() => setRightPanel(null)} aria-label="ปิด" className="hidden md:block p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"><X className="w-5 h-5" /></button></Tooltip>
               </div>
             </div>
             <div className="flex-1 overflow-y-auto p-4"><OrderForm key={orderFormKey} {...(selectedContact.customer ? { preselectedCustomerId: selectedContact.customer.id } : {})} embedded={true} warehousePortalRef={warehousePortalRef} headerActionsRef={headerActionsRef} source={selectedContact.source || selectedContact.platform} sourceName={selectedContact.account_name} chatAccountId={selectedContact.chat_account_id} onSuccess={(orderId, customerId, deliveryInfo) => { setRightPanel(null); handleBillSaved(orderId, customerId, deliveryInfo); }} onSendBillToChat={sendBillToCustomer} onCancel={() => setRightPanel(null)} /></div>
@@ -1877,7 +1892,7 @@ function UnifiedChatPageContent() {
           <div className="hidden md:flex flex-1 flex-col border-l border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900">
             <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 min-h-[81px]">
               <div className="flex items-center gap-3"><History className="w-5 h-5 text-blue-500" /><div><h2 className="text-lg font-semibold text-gray-900 dark:text-white">ประวัติออเดอร์</h2><p className="text-xs text-gray-500 dark:text-slate-400">{selectedContact.customer.name}</p></div></div>
-              <button onClick={() => setRightPanel(null)} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors" title="ปิด"><X className="w-5 h-5" /></button>
+              <Tooltip text="ปิด"><button onClick={() => setRightPanel(null)} aria-label="ปิด" className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"><X className="w-5 h-5" /></button></Tooltip>
             </div>
             <div className="flex-1 overflow-y-auto p-4">
               {loadingHistory ? (<div className="flex items-center justify-center py-8"><Loader2 className="w-6 h-6 text-gray-400 animate-spin" /></div>) : orderHistory.length === 0 ? (<div className="text-center py-8 text-gray-500 dark:text-slate-400"><History className="w-12 h-12 mx-auto mb-2 text-gray-300" /><p>ยังไม่มีประวัติออเดอร์</p></div>) : (<div className="space-y-3">{orderHistory.map(renderOrderCard)}</div>)}
@@ -1891,7 +1906,7 @@ function UnifiedChatPageContent() {
               <div className="flex items-center gap-3"><User className="w-5 h-5 text-blue-500" /><div><h2 className="text-lg font-semibold text-gray-900 dark:text-white">{selectedContact.customer ? 'ข้อมูลลูกค้า' : 'โปรไฟล์'}</h2>{selectedContact.customer && <p className="text-xs text-gray-500 dark:text-slate-400">{selectedContact.customer.customer_code}</p>}</div></div>
               <div className="flex items-center gap-2">
                 {selectedContact.customer && <button onClick={handleOpenEditCustomer} className="px-3 py-1.5 text-sm font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 rounded-lg transition-colors">แก้ไข</button>}
-                <button onClick={() => setRightPanel(null)} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors" title="ปิด"><X className="w-5 h-5" /></button>
+                <Tooltip text="ปิด"><button onClick={() => setRightPanel(null)} aria-label="ปิด" className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"><X className="w-5 h-5" /></button></Tooltip>
               </div>
             </div>
             <div className="flex-1 overflow-y-auto p-4">
@@ -1918,7 +1933,7 @@ function UnifiedChatPageContent() {
           <div className="hidden md:flex flex-1 flex-col border-l border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900">
             <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 min-h-[81px]">
               <div className="flex items-center gap-3"><User className="w-5 h-5 text-blue-500" /><div><h2 className="text-lg font-semibold text-gray-900 dark:text-white">แก้ไขข้อมูลลูกค้า</h2><p className="text-xs text-gray-500 dark:text-slate-400">{selectedContact.customer.customer_code}</p></div></div>
-              <button onClick={() => setRightPanel('profile')} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors" title="ปิด"><X className="w-5 h-5" /></button>
+              <Tooltip text="ปิด"><button onClick={() => setRightPanel('profile')} aria-label="ปิด" className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"><X className="w-5 h-5" /></button></Tooltip>
             </div>
             <div className="flex-1 overflow-y-auto p-4"><CustomerForm compact={true} initialData={editCustomerInitialData} onSubmit={handleUpdateCustomerInChat} onCancel={() => setRightPanel('profile')} isEditing={true} isLoading={editingCustomer} allTags={allTags} selectedTags={profileTags} onTagsChange={setProfileTags} onTagCreated={(tag) => setAllTags(prev => [...prev, tag])}/></div>
           </div>
@@ -1931,7 +1946,7 @@ function UnifiedChatPageContent() {
               <div className="flex items-center gap-2">
                 <div ref={headerActionsRef} />
                 <div ref={warehousePortalRef} />
-                <button onClick={() => setRightPanel(null)} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors" title="ปิด"><X className="w-5 h-5" /></button>
+                <Tooltip text="ปิด"><button onClick={() => setRightPanel(null)} aria-label="ปิด" className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"><X className="w-5 h-5" /></button></Tooltip>
               </div>
             </div>
             <div className="flex-1 overflow-y-auto p-4"><OrderForm key={selectedOrderId} editOrderId={selectedOrderId} embedded={true} warehousePortalRef={warehousePortalRef} headerActionsRef={headerActionsRef} onSuccess={() => { setRightPanel('history'); showToast('บันทึกการแก้ไขสำเร็จ!'); if (selectedContact?.customer) fetchOrderHistory(selectedContact.customer.id); }} onCancel={() => setRightPanel('history')} /></div>

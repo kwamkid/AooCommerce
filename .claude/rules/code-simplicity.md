@@ -205,7 +205,7 @@
 | สรุปยอด (editable) | `OrderSummaryBox` | สร้าง totals box เอง |
 | สรุปยอด (แบบ card) | `OrderSummaryCard` | สร้าง totals card เอง |
 | Tag/Badge | `TagBadge` | สร้าง badge เอง (8 สีพร้อมใช้) |
-| Tooltip | `Tooltip` | สร้าง tooltip เอง |
+| Tooltip / คำอธิบายปุ่มไอคอน | **`Tooltip`** (`text`, `position?`, `box?`) — portal + delay 350ms + คีย์บอร์ด + **มือถือแตะค้าง** + พลิกเมื่อชนขอบจอ · ใส่ `aria-label` บนปุ่มควบเสมอ (tooltip ไม่ใช่ชื่อ accessible) · **ปุ่มที่ `disabled` ได้ต้องใส่ `box="inline-flex"`** — ค่า default `display:contents` ไม่มีกล่อง ปุ่ม disabled จึงไม่ยิง pointer event เลย | `title=""` ของเบราว์เซอร์บนปุ่ม/ไอคอน (แต่งไม่ได้ · ขึ้นช้า ~1 วิ · **มือถือไม่ขึ้นเลย**) · สร้าง tooltip เอง |
 
 ### Data Table — ทุกหน้า list ต้องใช้
 | ต้องการ | ใช้ | ห้าม |
