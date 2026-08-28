@@ -1823,9 +1823,11 @@ export default function OrderForm({
         ...(stockEnabled && selectedWarehouseId ? { warehouse_id: selectedWarehouseId } : {}),
         // Non-customer: send shipping fee directly
         ...(!selectedCustomer ? { shipping_fee: branch?.shipping_fee || 0 } : {}),
-        // Delivery info snapshot (both customer & non-customer)
-        ...(snapshotName ? {
-          delivery_name: snapshotName,
+        // Delivery info snapshot (both customer & non-customer) — ส่งเมื่อมีข้อมูล
+        // "สักช่อง" ไม่ใช่เฉพาะตอนมีชื่อ: โหมดสั่งเองไม่มีช่องชื่อผู้รับแยก ลูกค้าใหม่
+        // จากแชทจึงไม่มี snapshotName — เดิมทำให้ที่อยู่ที่พิมพ์ไว้หายทั้งก้อน
+        ...((snapshotName || snapshotPhone || snapshotAddress) ? {
+          delivery_name: snapshotName || newCustomerName.trim() || selectedCustomer?.name || undefined,
           delivery_phone: snapshotPhone || undefined,
           delivery_address: snapshotAddress || undefined,
           delivery_district: snapshotDistrict || undefined,
