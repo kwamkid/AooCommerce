@@ -142,7 +142,7 @@ const COLUMN_WIDTH_PX: Record<ColumnKey, number> = {
   unit_price: 112,    // 7rem
   unit_cost: 112,     // 7rem
   special_price: 112, // 7rem
-  discount: 112,      // 7rem
+  discount: 88,       // 5.5rem
   reason: 112,        // 7rem
   total: 120,         // 7.5rem
   stock_badge: 0,     // ไม่ใช่คอลัมน์จริง — badge อยู่ในเซลล์ชื่อสินค้า
@@ -449,7 +449,9 @@ export default function ItemsTable({
               {hasPrice && <th className="data-th text-right" style={{width:'7rem'}}>ราคา/ชิ้น</th>}
               {hasCost && <th className="data-th text-right" style={{width:'7rem'}}>ต้นทุน/ชิ้น</th>}
               {hasSpecialPrice && <th className="data-th text-right" style={{width:'7rem'}}>ราคาพิเศษ</th>}
-              {hasDiscount && <th className="data-th text-center" style={{width:'7rem'}}>ส่วนลด</th>}
+              {/* ส่วนลดแคบกว่าคอลัมน์ราคา: ปกติกรอก % 1-2 หลัก — แต่ยังสลับเป็น ฿ แล้วพิมพ์
+                  เลข 4 หลักได้ จึงบีบความกว้าง ไม่จำกัดจำนวนหลัก (ผู้ใช้ขอ 2026-08-28) */}
+              {hasDiscount && <th className="data-th text-center" style={{width:'5.5rem'}}>ส่วนลด</th>}
               {hasReason && <th className="data-th" style={{width:'7rem'}}>เหตุผล</th>}
               {/* When trash is embedded in the รวม cell, push the "รวม" header text
                   left by (trash button width + gap) so it aligns with the number
