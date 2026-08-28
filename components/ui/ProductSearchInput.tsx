@@ -219,7 +219,17 @@ export default function ProductSearchInput({
 
   return (
     <div className="relative" ref={wrapperRef}>
-      <div className="flex items-center gap-2 px-3 py-1.5 border border-dashed border-gray-300 dark:border-slate-600 rounded-lg hover:border-primary transition-colors" style={{ backgroundColor: '#63f5b121' }}>
+      {/* คลิกที่ "กล่อง" ไม่ใช่แค่ตัว input — หลังเพิ่มสินค้าเคอร์เซอร์ค้างอยู่ในช่องแล้ว
+          (ตั้งใจไม่กางรายการเอง) การคลิกจึงไม่เกิด focus ใหม่ ถ้าดักแค่บน input
+          คลิกโดนขอบกล่องจะเงียบสนิท เหมือนรายการแนะนำขึ้นแค่ชิ้นแรก (ผู้ใช้ทัก 2026-08-29) */}
+      <div
+        onMouseDown={() => {
+          skipFocusOpenRef.current = false;
+          setShowDropdown(true);
+          searchRef.current?.focus();
+        }}
+        className="flex items-center gap-2 px-3 py-1.5 border border-dashed border-gray-300 dark:border-slate-600 rounded-lg hover:border-primary transition-colors cursor-text" style={{ backgroundColor: '#63f5b121' }}
+      >
         <Plus className="w-4 h-4 text-gray-400 flex-shrink-0" />
         <input
           ref={searchRef}
