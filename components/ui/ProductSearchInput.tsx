@@ -76,6 +76,8 @@ export default function ProductSearchInput({
   const internalRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const blurTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** focus รอบถัดไปเป็นของระบบ (หลังเพิ่มสินค้า) ไม่ใช่ผู้ใช้ตั้งใจ → อย่ากางรายการแนะนำ */
+  const skipFocusOpenRef = useRef(false);
   const searchRef = externalRef || internalRef;
 
   // Filter products client-side
@@ -158,7 +160,10 @@ export default function ProductSearchInput({
     setSearch('');
     setShowDropdown(false);
     setHighlightIndex(-1);
-    // Re-focus for next search/scan
+    // Re-focus for next search/scan — แต่ **ไม่กางรายการแนะนำ**: ผู้ใช้ที่เพิ่งเพิ่มของเสร็จ
+    // มักจะดูสรุป/กดถัดไปต่อ รายการแนะนำที่เด้งเองจะบังปุ่มพอดี (ผู้ใช้ทัก 2026-08-29)
+    // พิมพ์ต่อหรือคลิกช่องอีกทีค่อยกาง
+    skipFocusOpenRef.current = true;
     setTimeout(() => {
       searchRef.current?.focus();
     }, 50);
@@ -201,10 +206,23 @@ export default function ProductSearchInput({
           type="text"
           value={search}
           onChange={e => {
+            skipFocusOpenRef.current = false;
             setSearch(e.target.value);
             setShowDropdown(true);
           }}
-          onFocus={() => setShowDropdown(true)}
+          // คลิกที่ช่อง = ตั้งใจจะหาของ → กางเสมอ (ตอนถูก focus อยู่แล้ว onFocus ไม่ยิงซ้ำ)
+          onMouseDown={() => {
+            skipFocusOpenRef.current = false;
+            setShowDropdown(true);
+          }}
+          onFocus={() => {
+            // focus ที่ระบบสั่งเองหลังเพิ่มสินค้า — ให้เคอร์เซอร์รออยู่เฉย ๆ ไม่ต้องกางบังปุ่ม
+            if (skipFocusOpenRef.current) {
+              skipFocusOpenRef.current = false;
+              return;
+            }
+            setShowDropdown(true);
+          }}
           onBlur={() => {
             blurTimeoutRef.current = setTimeout(() => {
               setShowDropdown(false);
