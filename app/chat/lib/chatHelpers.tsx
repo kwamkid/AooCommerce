@@ -35,10 +35,17 @@ export function PlatformIcon({ contact, size = 16 }: { contact: { platform: stri
   return <FbIcon size={size} />;
 }
 
+/**
+ * รูปประจำช่องทาง — `null` = ไม่มีรูปจริง (ให้ UI ตกไปใช้ไอคอน platform เอง)
+ *
+ * ค่าหลักมาจาก `/api/chat-accounts` ที่ resolve ให้แล้ว (รวมโลโก้ร้าน marketplace)
+ * ที่เหลือเป็น fallback สำหรับ payload เก่าที่ยังไม่มี `picture_url`
+ *
+ * ❌ ห้ามคืน path ไอคอน platform เป็น "รูป" — เคยทำแล้วช่องทาง Shopee/Lazada/TikTok
+ * โชว์โลโก้แพลตฟอร์มแทนโลโก้ร้านจริงทุกที่ (เจอจริง 2026-08-28)
+ */
 export function getAccountPicture(account: ChatAccountInfo): string | null {
-  if (account.platform === 'shopee') return '/marketplace/shopee.svg';
-  if (account.platform === 'lazada') return '/marketplace/lazada.svg';
-  if (account.platform === 'tiktok') return '/marketplace/tiktok_shop.svg';
+  if (account.picture_url) return account.picture_url;
   if (!account.credentials) return null;
   if (account.platform === 'line') return (account.credentials.bot_picture_url as string) || null;
   if (account.platform === 'facebook') {

@@ -191,6 +191,8 @@ export interface ChatAccountInfo {
   account_name: string;
   is_active: boolean;
   credentials?: Record<string, unknown>;
+  /** รูปประจำช่องทาง resolve มาจาก API แล้ว (โลโก้ร้าน marketplace / รูป bot LINE / รูปเพจ FB) */
+  picture_url?: string | null;
 }
 
 export interface LinkedContact {

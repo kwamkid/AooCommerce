@@ -58,6 +58,7 @@ import { FbIcon, IgIcon, LineIcon, ShopeeIcon, LazadaIcon, TiktokIcon, PlatformI
 import { FullPageLoading } from '@/components/ui/Loading';
 import { LoadingCard } from '@/components/ui/StateCard';
 import StatusBadge from '@/components/ui/StatusBadge';
+import ChannelBadge from '@/components/ui/ChannelBadge';
 
 // Dynamic imports for components that are not needed on initial load
 const EmojiStickerPicker = dynamic(() => import('./components/EmojiStickerPicker'), { ssr: false });
@@ -1359,18 +1360,7 @@ function UnifiedChatPageContent() {
                         className="w-full h-[38px] flex items-center gap-2 px-2.5 border border-gray-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-800 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors">
                         {selectedAccount ? (
                           <>
-                            {selectedPic ? (
-                              <Image src={selectedPic} alt={selectedAccount.account_name} width={20} height={20} className="w-5 h-5 rounded-full object-cover flex-shrink-0" unoptimized />
-                            ) : (
-                              <span className="flex-shrink-0">
-                                {selectedAccount.platform === 'line' ? <LineIcon size={20} /> : selectedAccount.platform === 'shopee' ? <ShopeeIcon size={20} /> : selectedAccount.platform === 'lazada' ? <LazadaIcon size={20} /> : selectedAccount.platform === 'tiktok' ? <TiktokIcon size={20} /> : selectedAccount.credentials?.ig_account_id ? (
-                                  <span className="relative inline-flex w-7 h-5">
-                                    <span className="absolute left-3 top-0 z-0 rounded-full bg-white dark:bg-slate-800 p-[1px]"><IgIcon size={16} /></span>
-                                    <span className="absolute left-0 top-0 z-10 rounded-full bg-white dark:bg-slate-800 p-[1px]"><FbIcon size={16} /></span>
-                                  </span>
-                                ) : <FbIcon size={20} />}
-                              </span>
-                            )}
+                            <ChannelBadge channel={{ platform: selectedAccount.platform, picture_url: selectedPic }} />
                             <span className="flex-1 text-left text-gray-900 dark:text-white truncate text-sm">{selectedAccount.account_name}</span>
                           </>
                         ) : (
@@ -1403,11 +1393,7 @@ function UnifiedChatPageContent() {
                               return (
                                 <button key={acc.id} onClick={() => { setFilterParams({ account: acc.id, platform: '' }); setShowAccountPicker(false); setAccountSearch(''); }}
                                   className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors ${isActive ? 'bg-gray-50 dark:bg-slate-700' : ''}`}>
-                                  {pic ? (
-                                    <Image src={pic} alt={acc.account_name} width={20} height={20} className="w-5 h-5 rounded-full object-cover" unoptimized />
-                                  ) : (
-                                    acc.platform === 'line' ? <LineIcon size={20} /> : acc.platform === 'shopee' ? <ShopeeIcon size={20} /> : acc.platform === 'lazada' ? <LazadaIcon size={20} /> : acc.platform === 'tiktok' ? <TiktokIcon size={20} /> : <FbIcon size={20} />
-                                  )}
+                                  <ChannelBadge channel={{ platform: acc.platform, picture_url: pic }} />
                                   <span className="text-gray-900 dark:text-white truncate flex-1 text-left">{acc.account_name}</span>
                                   {acc.platform === 'line' ? <LineIcon size={16} /> : acc.platform === 'shopee' ? <ShopeeIcon size={16} /> : acc.platform === 'lazada' ? <LazadaIcon size={16} /> : acc.platform === 'tiktok' ? <TiktokIcon size={16} /> : acc.credentials?.ig_account_id ? (
                                     <span className="relative inline-flex w-6 h-[18px] flex-shrink-0">

@@ -103,6 +103,23 @@ export async function GET(request: NextRequest) {
 
     const [lineContacts, fbContacts, shopeeContacts, lazadaContacts, tiktokContacts, accounts] = await Promise.all([linePromise, fbPromise, shopeePromise, lazadaPromise, tiktokPromise, accountsPromise]);
 
+    // โลโก้ร้าน marketplace อยู่ที่ marketplace_accounts ไม่ใช่ credentials ของ chat_accounts
+    const mpIds = (accounts || [])
+      .map(a => (a.credentials as Record<string, unknown> | null)?.marketplace_account_id)
+      .filter((id): id is string => typeof id === 'string');
+    const shopLogos: Record<string, string> = {};
+    if (mpIds.length > 0) {
+      const { data: shops } = await supabaseAdmin
+        .from('marketplace_accounts')
+        .select('id, metadata')
+        .eq('company_id', companyId)
+        .in('id', mpIds);
+      for (const shop of shops || []) {
+        const logo = (shop.metadata as Record<string, unknown> | null)?.shop_logo;
+        if (typeof logo === 'string' && logo) shopLogos[shop.id] = logo;
+      }
+    }
+
     // Build account lookup
     const accountMap = new Map<string, { name: string; platform: string; picture_url?: string }>();
     const defaultAccountByPlatform = new Map<string, { name: string; platform: string; picture_url?: string }>();
@@ -117,12 +134,10 @@ export async function GET(request: NextRequest) {
         picture_url = pageId
           ? `https://graph.facebook.com/${pageId}/picture?type=small`
           : (creds.page_picture_url || undefined);
-      } else if (a.platform === 'shopee') {
-        picture_url = '/marketplace/shopee.svg';
-      } else if (a.platform === 'lazada') {
-        picture_url = '/marketplace/lazada.svg';
-      } else if (a.platform === 'tiktok') {
-        picture_url = '/marketplace/tiktok_shop.svg';
+      } else {
+        // marketplace — โลโก้ร้านจริง · ไม่มีก็ปล่อย undefined ให้ UI ใช้ไอคอน platform เอง
+        // (เคยยัด path ไอคอน platform เป็นรูป → ทุกร้านหน้าตาเหมือนกันหมด 2026-08-28)
+        picture_url = shopLogos[creds.marketplace_account_id as string] || undefined;
       }
       const info = { name: a.account_name, platform: a.platform, picture_url };
       accountMap.set(a.id, info);
