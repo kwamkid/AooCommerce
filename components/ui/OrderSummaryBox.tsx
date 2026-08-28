@@ -1,8 +1,10 @@
 'use client';
 
 import { ReactNode } from 'react';
+import { Info } from 'lucide-react';
 import { formatNumber } from '@/lib/utils/format';
 import NumberInput from './NumberInput';
+import Tooltip from './Tooltip';
 
 interface OrderSummaryBoxProps {
   /** Box title */
@@ -16,6 +18,14 @@ interface OrderSummaryBoxProps {
   /** Shipping fee — shows input if onShippingChange provided, else read-only if > 0 */
   shippingFee?: number;
   onShippingChange?: (v: number) => void;
+  /**
+   * คำอธิบาย "ค่าส่งนี้มาจากไหน" — ขึ้นเป็น Tooltip ที่ไอคอน (i) ข้างป้ายค่าจัดส่ง
+   * ขึ้นบรรทัดใหม่ด้วย `\n` · ค่าว่าง/ไม่ส่ง = ไม่มีไอคอนเลย
+   *
+   * ⚠️ กล่องนี้ **ไม่คำนวณเอง** — ผู้เรียก (ที่รู้เรื่องโซน/marketplace/staff แก้เอง)
+   * เป็นคนประกอบข้อความแล้วส่งเข้ามา
+   */
+  shippingFeeHint?: string;
 
   /** Discount — shows input if onDiscountChange provided */
   discountValue?: number;
@@ -36,6 +46,7 @@ export default function OrderSummaryBox({
   vatRegistered = false,
   shippingFee = 0,
   onShippingChange,
+  shippingFeeHint,
   discountValue = 0,
   discountType = 'percent',
   onDiscountChange,
@@ -66,7 +77,21 @@ export default function OrderSummaryBox({
         {/* Shipping */}
         {hasShipping && (
           <div className="flex justify-between items-center text-gray-500 dark:text-slate-400">
-            <span>ค่าจัดส่ง</span>
+            <span className="inline-flex items-center gap-1">
+              ค่าจัดส่ง
+              {/* -m-1 p-1 = ขยายพื้นที่แตะบนมือถือ (แตะค้าง = เปิด tooltip) โดยไม่ดันเลย์เอาต์ */}
+              {shippingFeeHint && (
+                <Tooltip text={shippingFeeHint}>
+                  <button
+                    type="button"
+                    aria-label="ที่มาของค่าจัดส่ง"
+                    className="-m-1 p-1 text-gray-400 hover:text-primary dark:text-slate-500 dark:hover:text-primary transition-colors"
+                  >
+                    <Info className="w-4 h-4" />
+                  </button>
+                </Tooltip>
+              )}
+            </span>
             {onShippingChange && !readOnly ? (
               <div className="relative w-[108px]">
                 <NumberInput

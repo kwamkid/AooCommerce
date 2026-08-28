@@ -41,12 +41,15 @@ import { LoadingCard } from '@/components/ui/StateCard';
 import Checkbox from '@/components/ui/Checkbox';
 import FormInput from '@/components/ui/FormInput';
 import Badge from '@/components/ui/Badge';
+import Tooltip from '@/components/ui/Tooltip';
 import {
   Plus,
   Loader2,
   MapPin,
   Copy,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   CheckCircle,
   Send,
   Warehouse,
@@ -2865,6 +2868,58 @@ export default function OrderForm({
         </div>
   );
 
+  // ── "ค่าส่งราคานี้มายังไง" ────────────────────────────────────────────
+  // อธิบาย **ผลลัพธ์ที่คำนวณไปแล้ว** เท่านั้น — ห้ามคำนวณค่าส่งซ้ำที่นี่
+  // (ที่มาของตัวเลขคือ resolveDeliveryFee ใน lib/delivery.ts ที่รันไปแล้วข้างบน)
+  //
+  // เขียนเฉพาะเคสที่ "เกิดจริง" กับบิลใบนี้ — ไม่ไล่อธิบายกฎทั้งหมดของระบบ
+  // ไม่เปิดฟีเจอร์โซน / ยังไม่ได้ตั้งจุดส่ง = ไม่มีอะไรจะอธิบาย → ไม่ต้องมีไอคอน
+  const currentShippingFee = branchOrders[0]?.shipping_fee || 0;
+  const shippingFeeHint = (() => {
+    // ร้านที่ไม่ได้เปิดฟีเจอร์โซน = ค่าส่งกรอกมือล้วน ไม่มีที่มาให้เล่า → ไม่มีไอคอน
+    if (!features.delivery_zone) return '';
+    if (isMarketplaceSource(editOrderSource) || isMarketplaceSource(source)) {
+      return 'ค่าจัดส่งมาจากแพลตฟอร์ม\nไม่ได้คิดจากโซนจัดส่งของร้าน';
+    }
+    if (deliveryZones.length === 0) return '';
+
+    const lines: string[] = [];
+    if (!activeZone) {
+      lines.push(
+        deliveryProvince || deliveryPostalCode
+          ? 'ที่อยู่นี้ไม่ตรงกับโซนจัดส่งไหนเลย'
+          : 'ยังไม่ได้ระบุที่อยู่จัดส่ง',
+        'ค่าจัดส่งจึงต้องกรอกเอง',
+      );
+      return lines.join('\n');
+    }
+
+    // ค่าในบิลไม่ตรงกับที่โซนคิด = staff พิมพ์ทับเอง (ระบบไม่ทับค่าที่แก้เองอยู่แล้ว)
+    const zoneFee = zoneFeeResult?.fee ?? null;
+    if (zoneFee != null && currentShippingFee !== zoneFee) {
+      lines.push('ค่าจัดส่งนี้แก้เอง ไม่ได้คิดจากโซน');
+    }
+
+    lines.push(`โซนจัดส่ง: ${activeZone.name}`);
+    if (zoneFeeResult?.needsQuote) {
+      lines.push('โซนนี้คิดค่าส่งตาม Lalamove', 'เช็คราคาแล้วกรอกค่าจัดส่งเอง');
+    } else if (zoneFeeResult?.freeApplied) {
+      lines.push(
+        `ยอดสินค้า ฿${formatNumber(itemsTotal)} ถึงเกณฑ์ส่งฟรี ฿${formatNumber(activeZone.free_over ?? 0)}`,
+      );
+    } else {
+      lines.push(`ค่าส่งของโซนนี้ ฿${formatNumber(zoneFee ?? 0)}`);
+      if (activeZone.free_over != null && itemsTotal < activeZone.free_over) {
+        // ปัดขึ้น — บอกยอดที่ "สั่งเพิ่มแล้วฟรีแน่" ห้ามปัดลงจนยังขาดอีกไม่กี่สตางค์
+        lines.push(
+          `สั่งเพิ่มอีก ฿${formatNumber(Math.ceil(activeZone.free_over - itemsTotal))} (ครบ ฿${formatNumber(activeZone.free_over)}) ส่งฟรี`,
+        );
+      }
+    }
+    lines.push(zoneOverrideId ? '(เลือกโซนเอง)' : '(จับคู่จากที่อยู่จัดส่งอัตโนมัติ)');
+    return lines.join('\n');
+  })();
+
   // Order Summary — คอลัมน์ขวาในจอกว้าง (sticky) · เต็มความกว้างเสมอใน wizard
   // (wizard ไม่ได้ render กล่องที่ summarySectionRef เกาะ ค่า summaryWide จึงเชื่อไม่ได้)
   const summaryFragment = hasProducts && (
@@ -2874,8 +2929,9 @@ export default function OrderForm({
               title="สรุปคำสั่งซื้อ"
               subtotalAmount={itemsTotal}
               vatRegistered={vatRegistered}
-              shippingFee={branchOrders[0]?.shipping_fee || 0}
+              shippingFee={currentShippingFee}
               onShippingChange={!isReadOnly ? handleUpdateShippingFee : undefined}
+              shippingFeeHint={shippingFeeHint}
               discountValue={orderDiscount}
               discountType={orderDiscountType}
               onDiscountChange={!isReadOnly ? setOrderDiscount : undefined}
@@ -2938,31 +2994,79 @@ export default function OrderForm({
   };
   const goToNextStep = () => goToStep(step + 1);
 
-  // แถบล่างของ wizard — ยอดรวมกับปุ่มอยู่บรรทัดเดียวกัน ติดขอบล่างทุกขั้น
+  // แถบล่างของ wizard — สรุป "สิ่งที่เลือกไว้ในขั้นนี้" กับปุ่มอยู่บรรทัดเดียวกัน
   // (ขั้นสรุปใช้แถบนี้แทน actionsFragment ไม่ใช่ซ้อนกันสองแถบ)
   //
   // `inset` เพราะ panel แชทมี padding 1rem คงที่ทุกขนาดจอ — ไม่ใช่ p-4 lg:p-6
   // ของ page layout ที่คลาสเริ่มต้นเดาไว้
-  const wizardStepTotal = step === 3 ? total : itemsTotal;
+  //
+  // สรุปฝั่งซ้ายต่างกันตามขั้น เพราะ "ยอดรวม" ไม่ใช่คำตอบของทุกขั้น:
+  //   1 สินค้า → จำนวนรายการ + ยอดรวมสินค้า
+  //   2 จัดส่ง → ป้ายสั้น ๆ ของสิ่งที่ติ๊กไว้ (สั่งเอง = ไม่มีอะไรจะบอก → ว่าง)
+  //   3 สรุป  → ยอดรวมทั้งสิ้น
+  const wizardItemCount = branchOrders.reduce((n, b) => n + b.products.length, 0);
+  // ป้ายขั้นจัดส่ง — **ใส่เฉพาะสิ่งที่เลือกไว้จริง** (ไม่เลือก = ไม่มีป้าย) และเรียง
+  // จากสิ่งที่เปลี่ยนความหมายของบิลมากสุดไปน้อยสุด เพราะตัวท้ายคือตัวที่โดนตัดก่อน
+  const wizardShippingTags = shipToOther
+    ? ['ส่งให้คนอื่น', giftCardOn && 'แนบการ์ด', documentByPost && 'ส่งเอกสารไปรษณีย์']
+        .filter((t): t is string => !!t)
+    : [];
+  const wizardHint = step === 2 ? (
+    // overflow-hidden + flex-shrink-0 ของป้าย = ป้ายท้ายถูกตัดหายเมื่อที่ไม่พอ
+    // แทนที่จะดันปุ่มตกบรรทัด (ปุ่มสำคัญกว่าป้าย)
+    <span className="flex items-center gap-1.5 min-w-0 overflow-hidden">
+      {wizardShippingTags.map(t => (
+        <Badge key={t} tone="gray" size="sm" className="flex-shrink-0">{t}</Badge>
+      ))}
+    </span>
+  ) : (
+    <span className="flex items-baseline gap-1.5 min-w-0">
+      <span className="truncate">
+        {step === 3 ? 'ยอดรวมทั้งสิ้น' : hasProducts ? `สินค้า ${wizardItemCount} รายการ` : 'ยังไม่ได้เลือกสินค้า'}
+      </span>
+      {(step === 3 || hasProducts) && (
+        <span className="text-base font-semibold text-gray-900 dark:text-slate-100 flex-shrink-0">
+          ฿{formatPrice(step === 3 ? total : itemsTotal)}
+        </span>
+      )}
+    </span>
+  );
+  // ปุ่มเดินขั้นเป็นไอคอน (ประหยัดที่ให้สรุปฝั่งซ้าย) — ไอคอนล้วนต้องมี Tooltip
+  // + aria-label เสมอ ไม่งั้นปุ่มไม่มีชื่อให้ screen reader อ่าน
+  // box="inline-flex" เพราะปุ่มพวกนี้ disabled ได้ตอนกำลังบันทึก ซึ่งไม่ยิง pointer event
   const wizardBar = useWizard && (
     <StickyActionBar
       inset
       saving={saving}
       onSave={() => formRef.current?.requestSubmit()}
-      onCancel={step > 1 ? () => goToStep(step - 1) : undefined}
-      cancelLabel="ย้อนกลับ"
+      extraActions={step > 1 && (
+        <Tooltip text="ย้อนกลับ" box="inline-flex">
+          <Button
+            variant="secondary"
+            disabled={saving}
+            onClick={() => goToStep(step - 1)}
+            aria-label="ย้อนกลับ"
+            icon={<ChevronLeft className="w-5 h-5" />}
+          />
+        </Tooltip>
+      )}
       primary={
         step < 3
-          ? <Button variant="primary" onClick={goToNextStep}>ถัดไป</Button>
+          ? (
+            <Tooltip text="ถัดไป" box="inline-flex">
+              <Button
+                variant="primary"
+                disabled={saving}
+                onClick={goToNextStep}
+                aria-label="ถัดไป"
+                icon={<ChevronRight className="w-5 h-5" />}
+              />
+            </Tooltip>
+          )
           : (isReadOnly || !hasProducts ? null : undefined)
       }
     >
-      <span className="flex items-baseline gap-1.5 min-w-0">
-        <span className="truncate">{step === 3 ? 'ยอดรวมทั้งสิ้น' : 'ยอดรวมสินค้า'}</span>
-        <span className="text-base font-semibold text-gray-900 dark:text-slate-100 flex-shrink-0">
-          ฿{formatPrice(wizardStepTotal)}
-        </span>
-      </span>
+      {wizardHint}
     </StickyActionBar>
   );
 
