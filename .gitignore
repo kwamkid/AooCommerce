@@ -60,7 +60,6 @@ CLAUDE.md
 
 # local API docs
 api_doc_knowledge/
-" api_doc_knowledge/"
 
 # agent tooling ของเครื่อง (ไม่ใช่ของโปรเจกต์) — เคยหลุดเข้า commit มาแล้ว
 # เพราะ git add -A กวาดไปด้วย และ .codex/config.toml มี credential อยู่ข้างใน
