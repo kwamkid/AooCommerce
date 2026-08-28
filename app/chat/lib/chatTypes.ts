@@ -33,6 +33,9 @@ export interface UnifiedContact {
   last_message?: string;
   last_order_date?: string;
   last_order_created_at?: string;
+  /** API บอกว่ารอบนี้ enrich ข้อมูลออเดอร์จริงหรือไม่ (โหมดค้นหาไม่ enrich)
+   *  false + ไม่มี last_order_date = "ไม่รู้" ห้ามแสดงว่า "ยังไม่เคยสั่ง" */
+  order_stats_loaded?: boolean;
   avg_order_frequency?: number | null;
   account_name?: string;
   account_picture_url?: string;

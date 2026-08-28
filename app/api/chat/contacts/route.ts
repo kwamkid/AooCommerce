@@ -148,6 +148,9 @@ export async function GET(request: NextRequest) {
       last_message?: string;
       last_order_date?: string;
       last_order_created_at?: string;
+      /** true = ข้อมูล "สั่งล่าสุด" ถูก enrich จากตาราง orders จริงในรอบนี้
+       *  false = ข้ามการ enrich (โหมดค้นหา) → ไม่มีค่า ≠ ไม่เคยสั่ง ห้ามให้ UI ขึ้น "ยังไม่เคยสั่ง" */
+      order_stats_loaded?: boolean;
       avg_order_frequency?: number | null;
       chat_account_id?: string;
       account_name?: string;
@@ -314,6 +317,15 @@ export async function GET(request: NextRequest) {
     ]);
 
     // Process order stats
+    // supabase ไม่ throw — ต้องอ่าน error ที่คืนมาเอง (บทเรียน 2026-08-28)
+    const ordersError = (ordersResult as { error?: { message: string } }).error;
+    if (ordersError) console.error('Contacts order stats error:', ordersError.message);
+    // ค้นหา = ข้าม enrichment เพื่อความเร็ว → ค่าที่ได้ (หรือไม่ได้) เชื่อไม่ได้
+    const orderStatsLoaded = !search && !ordersError;
+    for (const contact of unified) {
+      contact.order_stats_loaded = orderStatsLoaded;
+    }
+
     const orders = ordersResult.data || [];
     if (orders.length > 0) {
       const customerOrderMap = new Map<string, { lastOrderDate: string; lastOrderCreatedAt: string | null; orderDates: string[] }>();

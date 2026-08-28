@@ -1737,6 +1737,7 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
           key={orderFormKey}
           editOrderId={orderId}
           preloadedOrder={fullOrderData}
+          customerSectionHandledByHost
           onSuccess={handleOrderSaved}
           onCancel={() => router.push('/orders')}
           printMode={printMode}

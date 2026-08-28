@@ -55,6 +55,10 @@ interface OrderData {
   delivery_province?: string;
   delivery_postal_code?: string;
   delivery_email?: string;
+  /** โหมด "ส่งให้คนอื่น" (ของขวัญ) — ผู้รับไม่ใช่ผู้สั่ง
+   *  ไม่ได้เก็บลง orders (ไม่มี column) ใช้บอก API ว่าจะจำที่อยู่ยังไง:
+   *  → เก็บเป็นที่อยู่ผู้รับในสมุดที่อยู่ (is_default=false) ห้ามทับที่อยู่หลักของผู้สั่ง */
+  ship_to_other?: boolean;
   address_action?: 'update' | 'new';
   tax_invoice_requested?: boolean;
   tax_invoice_type?: 'personal' | 'corporate';
@@ -74,6 +78,102 @@ interface OrderData {
   };
 }
 
+
+/**
+ * จำ "ที่อยู่ผู้รับ" ของโหมดส่งให้คนอื่น ไว้ในสมุดที่อยู่ของลูกค้าผู้สั่ง
+ * เพื่อส่งของขวัญให้คนเดิมซ้ำได้โดยไม่ต้องพิมพ์ใหม่
+ *
+ * - `address_name` = ชื่อผู้รับ (ไม่ใช่ "ที่อยู่จัดส่ง" ลอย ๆ) → เลือกจาก dropdown แล้วรู้เรื่อง
+ * - `is_default` = false เสมอ — ที่อยู่ของขวัญห้ามกลายเป็นที่อยู่หลักของผู้สั่ง
+ * - กันซ้ำด้วย customer_id + ชื่อผู้รับ + เบอร์ + address_line1 (ตรงกัน = update ไม่ insert)
+ *
+ * คืน id ของที่อยู่ที่ใช้ (null = ข้อมูลไม่พอ/ล้มเหลว — caller ไม่ต้องหยุดงาน)
+ * supabase ไม่ throw → เช็ค error ที่คืนมาทุกครั้ง
+ */
+async function rememberRecipientAddress(
+  companyId: string,
+  customerId: string,
+  userId: string | undefined,
+  d: {
+    name?: string; phone?: string; address?: string;
+    district?: string; amphoe?: string; province?: string; postal_code?: string;
+  },
+): Promise<string | null> {
+  // address_line1 + province เป็น NOT NULL — ข้อมูลไม่ครบก็จำไม่ได้
+  if (!d.address || !d.province) return null;
+  const addressName = (d.name || '').trim() || 'ที่อยู่ผู้รับ';
+  const contactPerson = (d.name || '').trim() || null;
+  const phone = (d.phone || '').trim() || null;
+
+  const { data: existing, error: findError } = await supabaseAdmin
+    .from('shipping_addresses')
+    .select('id, contact_person, phone, is_default')
+    .eq('company_id', companyId)
+    .eq('customer_id', customerId)
+    .eq('address_line1', d.address)
+    .eq('is_active', true)
+    .limit(20);
+  if (findError) {
+    console.error('Recipient address lookup error:', findError.message);
+    return null;
+  }
+
+  // ตรง address_line1 แล้วยังต้องตรงชื่อ+เบอร์ด้วย (คนละคนอยู่บ้านเดียวกันได้)
+  const norm = (v: string | null | undefined) => (v || '').replace(/[-\s()]/g, '').trim();
+  const match = (existing || []).find((r: { contact_person: string | null; phone: string | null }) =>
+    (r.contact_person || '').trim() === (contactPerson || '').trim() && norm(r.phone) === norm(phone));
+  const matchId = match?.id || null;
+
+  if (matchId) {
+    const { error: updateError } = await supabaseAdmin
+      .from('shipping_addresses')
+      .update({
+        // ที่อยู่หลักของลูกค้าห้ามโดนเปลี่ยนชื่อ (เจอเคสส่งของขวัญไปที่อยู่ตัวเอง)
+        ...(match?.is_default ? {} : { address_name: addressName }),
+        contact_person: contactPerson,
+        phone,
+        district: d.district || null,
+        amphoe: d.amphoe || null,
+        province: d.province,
+        postal_code: d.postal_code || null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', matchId)
+      .eq('company_id', companyId);
+    if (updateError) {
+      console.error('Recipient address update error:', updateError.message);
+      return null;
+    }
+    return matchId;
+  }
+
+  const { data: inserted, error: insertError } = await supabaseAdmin
+    .from('shipping_addresses')
+    .insert({
+      company_id: companyId,
+      customer_id: customerId,
+      address_name: addressName,
+      contact_person: contactPerson,
+      phone,
+      address_line1: d.address,
+      district: d.district || null,
+      amphoe: d.amphoe || null,
+      province: d.province,
+      postal_code: d.postal_code || null,
+      is_default: false,
+      is_active: true,
+      created_by: userId || null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .select('id')
+    .single();
+  if (insertError) {
+    console.error('Recipient address insert error:', insertError.message);
+    return null;
+  }
+  return inserted?.id || null;
+}
 
 // POST - Create new order with items and shipments
 export async function POST(request: NextRequest) {
@@ -454,7 +554,49 @@ export async function POST(request: NextRequest) {
     // --- Upsert shipping_address from delivery snapshot (when customer exists) ---
     // address_action: 'update' = update selected address, 'new' = create new address, undefined = auto
     const addressAction = orderData.address_action as string | undefined;
-    if (orderData.customer_id && orderData.delivery_address) {
+    if (orderData.customer_id && orderData.delivery_address && orderData.ship_to_other) {
+      // โหมดส่งให้คนอื่น: ที่อยู่นี้เป็นของ "ผู้รับ" ไม่ใช่ที่อยู่ผู้สั่ง
+      // → เก็บเป็นที่อยู่แยกในสมุดของลูกค้า (is_default=false) แล้วชี้ออเดอร์มาที่มัน
+      //   ห้ามเข้าเส้นล่าง เพราะเส้นนั้นจะไปทับ/สร้างที่อยู่ทั่วไปของผู้สั่ง
+      try {
+        const recipientAddressId = await rememberRecipientAddress(
+          auth.companyId, orderData.customer_id, auth.userId,
+          {
+            name: orderData.delivery_name,
+            phone: orderData.delivery_phone,
+            address: orderData.delivery_address,
+            district: orderData.delivery_district,
+            amphoe: orderData.delivery_amphoe,
+            province: orderData.delivery_province,
+            postal_code: orderData.delivery_postal_code,
+          },
+        );
+        if (recipientAddressId && recipientAddressId !== orderData.shipping_address_id) {
+          const { error: orderAddrError } = await supabaseAdmin
+            .from('orders')
+            .update({ shipping_address_id: recipientAddressId })
+            .eq('id', order.id)
+            .eq('company_id', auth.companyId);
+          if (orderAddrError) console.error('Order recipient address link error:', orderAddrError.message);
+
+          const { data: orderItemRows, error: itemRowsError } = await supabaseAdmin
+            .from('order_items')
+            .select('id')
+            .eq('order_id', order.id)
+            .eq('company_id', auth.companyId);
+          if (itemRowsError) console.error('Order items lookup error:', itemRowsError.message);
+          if (orderItemRows && orderItemRows.length > 0) {
+            const { error: shipAddrError } = await supabaseAdmin
+              .from('order_shipments')
+              .update({ shipping_address_id: recipientAddressId })
+              .in('order_item_id', orderItemRows.map((i: { id: string }) => i.id));
+            if (shipAddrError) console.error('Shipment recipient address link error:', shipAddrError.message);
+          }
+        }
+      } catch (e) {
+        console.error('Recipient address upsert error (non-blocking):', e);
+      }
+    } else if (orderData.customer_id && orderData.delivery_address) {
       try {
         // Check if delivery info matches the selected shipping_address
         let needsUpsert = true;
@@ -1149,6 +1291,28 @@ export async function GET(request: NextRequest) {
           order.tax_invoice_doc_type = 'abbreviated';
         } else if (recSet.has(order.id)) {
           order.tax_invoice_doc_type = 'receipt';
+        }
+      }
+
+      // Optional: delivery area snapshot (opt-in — หน้า /orders ไม่ต้องใช้)
+      // ใช้ในการ์ดประวัติออเดอร์ของหน้าแชท เพื่อบอกปลายทางจริงแทนชื่อที่อยู่ทั่วไป
+      if (searchParams.get('include_delivery') === 'true') {
+        const { data: deliveryRows, error: deliveryError } = await supabaseAdmin
+          .from('orders')
+          .select('id, delivery_district, delivery_amphoe, delivery_province')
+          .eq('company_id', auth.companyId)
+          .in('id', orderIds);
+        if (deliveryError) {
+          console.error('Delivery area enrichment error:', deliveryError.message);
+        } else {
+          const deliveryMap = new Map((deliveryRows || []).map((r: any) => [r.id, r]));
+          for (const order of result.orders) {
+            const d = deliveryMap.get(order.id);
+            if (!d) continue;
+            order.delivery_district = d.delivery_district;
+            order.delivery_amphoe = d.delivery_amphoe;
+            order.delivery_province = d.delivery_province;
+          }
         }
       }
     }
@@ -1975,11 +2139,25 @@ export async function PUT(request: NextRequest) {
       const deliverySnapshotUpd = hasDeliveryZoneSlot
         ? await resolveDeliverySnapshot(auth.companyId, body.delivery_zone_id, body.delivery_slot_id)
         : null;
+      // ที่อยู่/ผู้รับ — ส่งมาเมื่อไหร่ค่อยเขียน (undefined = ไม่แตะ) ไม่งั้นเส้นอื่นที่
+      // PUT มาพร้อม items แต่ไม่มี delivery_* จะล้างที่อยู่ทิ้ง
+      const deliveryFieldsUpd: Record<string, string | null> = {};
+      for (const [key, value] of ([
+        ['delivery_name', body.delivery_name], ['delivery_phone', body.delivery_phone],
+        ['delivery_address', body.delivery_address], ['delivery_district', body.delivery_district],
+        ['delivery_amphoe', body.delivery_amphoe], ['delivery_province', body.delivery_province],
+        ['delivery_postal_code', body.delivery_postal_code], ['delivery_email', body.delivery_email],
+        ['shipping_address_id', body.shipping_address_id],
+      ] as [string, string | undefined][])) {
+        if (value !== undefined) deliveryFieldsUpd[key] = value || null;
+      }
+
       const { error: updateOrderError } = await supabaseAdmin
         .from('orders')
         .update({
           delivery_date: delivery_date || null,
           ...(deliverySnapshotUpd || {}),
+          ...deliveryFieldsUpd,
           subtotal: subtotalBeforeVAT,
           vat_amount: vatAmount,
           discount_amount: orderDiscountAmount,
@@ -2080,6 +2258,45 @@ export async function PUT(request: NextRequest) {
         }
       }
 
+      // โหมดส่งให้คนอื่น: จำที่อยู่ผู้รับไว้ในสมุดของลูกค้า (is_default=false) แล้วชี้ออเดอร์มาที่มัน
+      if (body.ship_to_other && existingOrder.customer_id && body.delivery_address) {
+        try {
+          const recipientAddressId = await rememberRecipientAddress(
+            auth.companyId, existingOrder.customer_id, auth.userId,
+            {
+              name: body.delivery_name, phone: body.delivery_phone,
+              address: body.delivery_address, district: body.delivery_district,
+              amphoe: body.delivery_amphoe, province: body.delivery_province,
+              postal_code: body.delivery_postal_code,
+            },
+          );
+          if (recipientAddressId) {
+            const { error: orderAddrError } = await supabaseAdmin
+              .from('orders')
+              .update({ shipping_address_id: recipientAddressId })
+              .eq('id', id)
+              .eq('company_id', auth.companyId);
+            if (orderAddrError) console.error('Order recipient address link error:', orderAddrError.message);
+
+            const { data: orderItemRows, error: itemRowsError } = await supabaseAdmin
+              .from('order_items')
+              .select('id')
+              .eq('order_id', id)
+              .eq('company_id', auth.companyId);
+            if (itemRowsError) console.error('Order items lookup error:', itemRowsError.message);
+            if (orderItemRows && orderItemRows.length > 0) {
+              const { error: shipAddrError } = await supabaseAdmin
+                .from('order_shipments')
+                .update({ shipping_address_id: recipientAddressId })
+                .in('order_item_id', orderItemRows.map((i: { id: string }) => i.id));
+              if (shipAddrError) console.error('Shipment recipient address link error:', shipAddrError.message);
+            }
+          }
+        } catch (e) {
+          console.error('Recipient address upsert error (non-blocking):', e);
+        }
+      }
+
       return NextResponse.json({
         success: true,
         message: 'Order updated successfully'
@@ -2156,7 +2373,8 @@ export async function PUT(request: NextRequest) {
       }
 
       // Auto-sync delivery info to shipping_addresses if customer exists
-      if (body.delivery_name && existingOrder.customer_id) {
+      // ข้ามเมื่อเป็นออเดอร์ "ส่งให้คนอื่น" — ข้อมูลนี้เป็นของผู้รับ ห้ามทับ contact/ที่อยู่หลักของผู้สั่ง
+      if (body.delivery_name && existingOrder.customer_id && !body.ship_to_other) {
         try {
           const cleanPhone = (body.delivery_phone || '').replace(/[-\s]/g, '');
 

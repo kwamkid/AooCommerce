@@ -148,6 +148,9 @@ interface OrderFormProps {
   onCancel?: () => void;
   // Embedded mode (no back button, different styling)
   embedded?: boolean;
+  /** หน้าที่ห่อฟอร์มวาดการ์ดลูกค้า/ที่อยู่เองอยู่แล้ว (มีที่เดียว: /orders/[id])
+   *  → ฟอร์มซ่อนส่วนนั้นกันซ้ำ · หน้าอื่นทุกหน้าต้องเห็น ไม่งั้นแก้บิลโดยไม่รู้ว่าของใคร */
+  customerSectionHandledByHost?: boolean;
   // Callback to send bill to customer via LINE Chat (only from LINE Chat new order)
   onSendBillToChat?: (orderId: string, orderNumber: string, billUrl: string) => void;
   // Print mode: 'order' = order slip, 'packing' = packing list, null = normal view
@@ -182,6 +185,7 @@ export default function OrderForm({
   onSuccess,
   onCancel,
   embedded = false,
+  customerSectionHandledByHost = false,
   onSendBillToChat,
   printMode = null,
   warehousePortalRef,
@@ -1607,7 +1611,8 @@ export default function OrderForm({
       showToast(Object.values(errors)[0], 'error');
       // Scroll to first error
       if (errors.customer || errors.recipientName || errors.deliveryPhone || errors.deliveryEmail) {
-        customerSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        // customerSectionRef ไม่เคยถูก attach — fallback ไปการ์ดลูกค้า/จัดส่งจริง
+        (customerSectionRef.current || deliverySectionRef.current)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       } else if (errors.deliveryDate) {
         deliveryDateRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       } else if (errors.branches) {
@@ -1617,7 +1622,9 @@ export default function OrderForm({
     }
 
     // Check if delivery address differs from selected shipping_address (non-edit, has customer)
-    if (!isEditMode && selectedCustomer && selectedAddressId && selectedAddressId !== 'new') {
+    // โหมด "ส่งให้คนอื่น" ไม่ถือว่าขัดแย้ง — ที่อยู่นี้เป็นของผู้รับ ตั้งใจให้ต่างจากที่อยู่ผู้สั่งอยู่แล้ว
+    // (API จะเก็บเป็นที่อยู่ผู้รับแยกให้ ไม่ทับที่อยู่หลัก)
+    if (!isEditMode && !shipToOther && selectedCustomer && selectedAddressId && selectedAddressId !== 'new') {
       const selectedAddr = shippingAddresses.find(a => a.id === selectedAddressId);
       if (selectedAddr) {
         const differs = (
@@ -1699,7 +1706,8 @@ export default function OrderForm({
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                   customer_id: resolvedCustomerId,
-                  address_name: 'ที่อยู่หลัก',
+                  // ส่งให้คนอื่น = ที่อยู่ผู้รับ ห้ามกลายเป็นที่อยู่หลักของผู้สั่ง
+                  address_name: shipToOther ? (snapshotName.trim() || 'ที่อยู่ผู้รับ') : 'ที่อยู่หลัก',
                   contact_person: snapshotName || newCustomerName.trim(),
                   phone: snapshotPhone || undefined,
                   address_line1: snapshotAddress,
@@ -1707,7 +1715,7 @@ export default function OrderForm({
                   amphoe: snapshotAmphoe || undefined,
                   province: snapshotProvince || undefined,
                   postal_code: snapshotPostalCode || undefined,
-                  is_default: true,
+                  is_default: !shipToOther,
                 }),
               });
               if (addrRes.ok) {
@@ -1730,7 +1738,8 @@ export default function OrderForm({
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               customer_id: resolvedCustomerId,
-              address_name: 'ที่อยู่หลัก',
+              // ส่งให้คนอื่น = ที่อยู่ผู้รับ ห้ามกลายเป็นที่อยู่หลักของผู้สั่ง
+              address_name: shipToOther ? (snapshotName.trim() || 'ที่อยู่ผู้รับ') : 'ที่อยู่หลัก',
               contact_person: snapshotName || selectedCustomer?.name || '',
               phone: snapshotPhone || undefined,
               address_line1: snapshotAddress,
@@ -1738,7 +1747,7 @@ export default function OrderForm({
               amphoe: snapshotAmphoe || undefined,
               province: snapshotProvince || undefined,
               postal_code: snapshotPostalCode || undefined,
-              is_default: true,
+              is_default: !shipToOther,
             }),
           });
           if (addrRes.ok) {
@@ -1808,6 +1817,8 @@ export default function OrderForm({
         // ค่าการ์ดคิดต่อเมื่อ "ขอการ์ด" จริง (ไม่ใช่แค่พิมพ์ข้อความแล้วยกเลิกติ๊ก)
         // ส่งให้คนอื่น = ซ่อนราคาได้แม้ไม่ขอการ์ด (ตรงกับหน้าร้านออนไลน์)
         gift_hide_price: shipToOther && giftHidePrice,
+        // บอก API ว่าที่อยู่ก้อนนี้เป็นของ "ผู้รับ" → เก็บเข้าสมุดที่อยู่แบบไม่ใช่ที่อยู่หลัก
+        ship_to_other: shipToOther,
         ...(giftCardEnabled && shipToOther && giftCardOn ? {
           gift_card_requested: true,
           gift_message: giftMessage.trim() || undefined,
@@ -2166,8 +2177,11 @@ export default function OrderForm({
         salesChannelPortalRef.current,
       )}
 
-      {/* Customer + Delivery section — hidden in edit mode (shown in top card instead) */}
-      {!isEditMode && (
+      {/* Customer + Delivery section
+          ซ่อนเฉพาะเมื่อหน้าที่ห่ออยู่วาดการ์ดลูกค้า/ที่อยู่เองแล้ว (/orders/[id]) — ที่เหลือต้องเห็น
+          เดิม gate ด้วย `!isEditMode` ทำให้ทั้งแชทและ /orders/[id]/edit เห็นแต่รายการสินค้า
+          ไม่รู้ว่าบิลนี้ของใคร ส่งที่ไหน และแก้ที่อยู่ไม่ได้ (เจอจริง 2026-08-28) */}
+      {!customerSectionHandledByHost && (
       <div ref={deliverySectionRef} className="space-y-4">
         <CustomerSelectionCard
           customerLabel="ลูกค้า"
@@ -2194,7 +2208,9 @@ export default function OrderForm({
           onCustomerChange={(id) => handleSelectCustomer(id)}
           onCustomerClear={handleCustomerClear}
           disabled={isReadOnly}
-          lockCustomerSelection={!!preselectedCustomerId && !!selectedCustomer}
+          /* ล็อคเฉพาะการ "เปลี่ยนตัวลูกค้า" — เบอร์/อีเมล/ที่อยู่ยังแก้ได้
+             โหมดแก้ไขก็ล็อค: ย้ายออเดอร์ที่มีอยู่ไปลูกค้าคนอื่นต้องทำจากหน้า order ไม่ใช่เผลอกดที่นี่ */
+          lockCustomerSelection={!!selectedCustomer && (!!preselectedCustomerId || isEditMode)}
           delivery={deliveryFields}
           onDeliveryChange={customerPrefill.handleDeliveryChange}
           shipToOther={shipToOther}

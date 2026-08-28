@@ -12,6 +12,7 @@ import { apiFetch } from '@/lib/api-client';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { formatPrice } from '@/lib/utils/format';
 import { getBadgeColor, getPaymentBadgeColor } from '@/lib/status-tab-colors';
+import { isConsignmentFlow, isDepartmentFlow } from '@/lib/flow-types';
 import { supabase } from '@/lib/supabase';
 import {
   MessageCircle,
@@ -43,6 +44,7 @@ import {
   Unlink,
   ExternalLink,
   UserPlus,
+  MapPin,
   FilterX
 } from 'lucide-react';
 import Image from 'next/image';
@@ -1011,7 +1013,8 @@ function UnifiedChatPageContent() {
   const fetchOrderHistory = async (customerId: string) => {
     try {
       setLoadingHistory(true);
-      const response = await apiFetch(`/api/orders?customer_id=${customerId}&limit=20`);
+      // include_delivery = เอาที่อยู่ปลายทาง (เขต/จังหวัด) มาโชว์บนการ์ดประวัติ
+      const response = await apiFetch(`/api/orders?customer_id=${customerId}&limit=20&include_delivery=true`);
       if (!response.ok) throw new Error('Failed');
       const result = await response.json();
       setOrderHistory(result.orders || []);
@@ -1020,6 +1023,58 @@ function UnifiedChatPageContent() {
     } finally {
       setLoadingHistory(false);
     }
+  };
+
+  /** เปิดบิลสำเร็จ = contact นี้ "เคยสั่ง" แน่นอน — patch state ทันทีไม่ต้องรอ refetch
+   *  (ป้ายในลิสต์/หัวแชทอ่านจาก contact.last_order_* ซึ่ง enrich ตอนโหลด list เท่านั้น) */
+  const markContactOrdered = (contactId: string) => {
+    const now = new Date();
+    const patch = {
+      last_order_date: now.toISOString().split('T')[0],
+      last_order_created_at: now.toISOString(),
+      order_stats_loaded: true,
+    };
+    setSelectedContact(prev => (prev && prev.id === contactId ? { ...prev, ...patch } : prev));
+    setContacts(prev => prev.map(c => (c.id === contactId ? { ...c, ...patch } : c)));
+  };
+
+  /** หลังบันทึกบิลจากแชท: ผูกลูกค้า (ถ้ายัง) → ดึง contacts ใหม่ให้ตรง DB → ย้ำป้าย "สั่งล่าสุด" */
+  const handleBillSaved = async (orderId: string, customerId?: string, deliveryInfo?: { name?: string; phone?: string; email?: string }) => {
+    const contact = selectedContact;
+    if (!contact) return;
+    markContactOrdered(contact.id);
+    try {
+      if (customerId && !contact.customer_id) {
+        await linkCustomer(customerId);
+      } else if (!customerId && !contact.customer_id) {
+        await autoCreateAndLinkCustomer(orderId, deliveryInfo);
+      }
+      await fetchContacts();
+    } catch (error) {
+      console.error('Error refreshing contact after bill save:', error);
+    } finally {
+      // refetch อาจกลับมาก่อน DB enrich ทัน — เรารู้ว่าเพิ่งเปิดบิลจริง จึงย้ำอีกรอบ
+      markContactOrdered(contact.id);
+    }
+  };
+
+  /** ข้อความ "สั่งล่าสุด: ..." — คืน null เมื่อ **ไม่รู้** (โหมดค้นหาไม่ enrich)
+   *  ห้ามเดาเป็น "ยังไม่เคยสั่ง" เพราะลูกค้าอาจมีออเดอร์อยู่จริง */
+  const lastOrderLabel = (contact: UnifiedContact, withYear = false): string | null => {
+    if (contact.last_order_date || contact.last_order_created_at) {
+      const base = contact.last_order_created_at
+        ? new Date(contact.last_order_created_at)
+        : new Date(contact.last_order_date + 'T00:00:00');
+      const date = base.toLocaleDateString('th-TH', withYear
+        ? { day: 'numeric', month: 'short', year: '2-digit' }
+        : { day: 'numeric', month: 'short' });
+      const time = contact.last_order_created_at
+        ? ' ' + new Date(contact.last_order_created_at).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })
+        : '';
+      return `สั่งล่าสุด: ${date}${time}`;
+    }
+    if (contact.order_stats_loaded === false) return null; // ไม่รู้ → ไม่แสดงอะไรเลย
+    return 'ยังไม่เคยสั่ง';
   };
 
   const handleOpenHistory = () => {
@@ -1061,9 +1116,26 @@ function UnifiedChatPageContent() {
             </StatusBadge>
           </div>
         </div>
-        {order.branch_names && order.branch_names.length > 0 && (
-          <div className="flex flex-wrap gap-1 mb-1.5">{order.branch_names.map((name: string, idx: number) => (<span key={idx} className="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400">{name}</span>))}</div>
-        )}
+        {(() => {
+          // ห้าง/ฝากขาย = ส่งหลายสาขาจริง → ชื่อสาขา (address_name) มีความหมาย
+          const multiBranch = isDepartmentFlow(order.flow_type) || isConsignmentFlow(order.flow_type);
+          if (multiBranch && order.branch_names?.length > 0) {
+            return <div className="flex flex-wrap gap-1 mb-1.5">{order.branch_names.map((name: string, idx: number) => (<span key={idx} className="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400">{name}</span>))}</div>;
+          }
+          // ปลีก: address_name เป็นชื่อทั่วไป ("ที่อยู่หลัก") ไม่บอกอะไร → สรุปปลายทางจริงแทน
+          const area = [order.delivery_amphoe || order.delivery_district, order.delivery_province]
+            .filter((v: string | null | undefined, i: number, arr: (string | null | undefined)[]) => v && arr.indexOf(v) === i)
+            .join(' · ');
+          const recipient = order.delivery_name && order.delivery_name !== (selectedContact?.customer?.name || '')
+            ? order.delivery_name : '';
+          if (!area && !recipient) return null;
+          return (
+            <div className="flex flex-wrap items-center gap-1 mb-1.5">
+              {recipient && <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs bg-pink-50 dark:bg-pink-900/30 text-pink-600 dark:text-pink-400"><User className="w-3 h-3" />{recipient}</span>}
+              {area && <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400"><MapPin className="w-3 h-3" />{area}</span>}
+            </div>
+          );
+        })()}
         <div className="text-sm text-gray-500 dark:text-slate-400">
           <div className="flex items-center justify-between">
             <span>{order.delivery_date ? `จัดส่ง ${new Date(order.delivery_date + 'T00:00:00').toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' })}` : ''}</span>
@@ -1526,10 +1598,10 @@ function UnifiedChatPageContent() {
                           {contact.tags.length > 3 && <span className="text-[10px] text-gray-400">+{contact.tags.length - 3}</span>}
                         </div>
                       )}
-                      {filterLinked === 'linked' && (
+                      {filterLinked === 'linked' && lastOrderLabel(contact) && (
                         <div className="text-xs text-gray-400 flex items-center gap-1 mt-0.5">
                           <Clock className="w-3 h-3" />
-                          {contact.last_order_date ? `สั่งล่าสุด: ${new Date(contact.last_order_created_at || contact.last_order_date + 'T00:00:00').toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })}${contact.last_order_created_at ? ' ' + new Date(contact.last_order_created_at).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) : ''}` : 'ยังไม่เคยสั่ง'}
+                          {lastOrderLabel(contact)}
                         </div>
                       )}
                     </div>
@@ -1592,11 +1664,15 @@ function UnifiedChatPageContent() {
                         </div>
                       );
                     })()}
-                    {selectedContact.customer && (
-                      <p className="text-[10px] text-gray-500 dark:text-slate-400">
-                        {selectedContact.last_order_date ? (<>สั่งล่าสุด: {new Date(selectedContact.last_order_created_at || selectedContact.last_order_date + 'T00:00:00').toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' })} {selectedContact.last_order_created_at && new Date(selectedContact.last_order_created_at).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}</>) : (<span className="text-orange-500">ยังไม่เคยสั่ง</span>)}
-                      </p>
-                    )}
+                    {selectedContact.customer && lastOrderLabel(selectedContact, true) && (() => {
+                      const label = lastOrderLabel(selectedContact, true);
+                      const neverOrdered = !selectedContact.last_order_date && !selectedContact.last_order_created_at;
+                      return (
+                        <p className={`text-[10px] ${neverOrdered ? 'text-orange-500' : 'text-gray-500 dark:text-slate-400'}`}>
+                          {label}
+                        </p>
+                      );
+                    })()}
                   </div>
                     </>);
                   })()}
@@ -1807,7 +1883,7 @@ function UnifiedChatPageContent() {
                 <button onClick={() => setRightPanel(null)} className="hidden md:block p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors" title="ปิด"><X className="w-5 h-5" /></button>
               </div>
             </div>
-            <div className="flex-1 overflow-y-auto p-4"><OrderForm key={orderFormKey} {...(selectedContact.customer ? { preselectedCustomerId: selectedContact.customer.id } : {})} embedded={true} warehousePortalRef={warehousePortalRef} headerActionsRef={headerActionsRef} source={selectedContact.source || selectedContact.platform} sourceName={selectedContact.account_name} chatAccountId={selectedContact.chat_account_id} onSuccess={(orderId, customerId, deliveryInfo) => { setRightPanel(null); if (customerId && selectedContact && !selectedContact.customer_id) { linkCustomer(customerId); } else if (!customerId && selectedContact && !selectedContact.customer_id) { autoCreateAndLinkCustomer(orderId, deliveryInfo); } }} onSendBillToChat={sendBillToCustomer} onCancel={() => setRightPanel(null)} /></div>
+            <div className="flex-1 overflow-y-auto p-4"><OrderForm key={orderFormKey} {...(selectedContact.customer ? { preselectedCustomerId: selectedContact.customer.id } : {})} embedded={true} warehousePortalRef={warehousePortalRef} headerActionsRef={headerActionsRef} source={selectedContact.source || selectedContact.platform} sourceName={selectedContact.account_name} chatAccountId={selectedContact.chat_account_id} onSuccess={(orderId, customerId, deliveryInfo) => { setRightPanel(null); handleBillSaved(orderId, customerId, deliveryInfo); }} onSendBillToChat={sendBillToCustomer} onCancel={() => setRightPanel(null)} /></div>
           </div>
         )}
 

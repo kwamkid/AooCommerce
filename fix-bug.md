@@ -16,6 +16,23 @@
 
 ---
 
+## 2026-08-28 — หน้าแชท: ป้าย "ยังไม่เคยสั่ง" ค้าง + การ์ดประวัติโชว์ "ที่อยู่หลัก" + เปิดออเดอร์แล้วไม่เห็นลูกค้า/ที่อยู่
+
+**ที่เกิด**: [app/chat/page.tsx](app/chat/page.tsx) · [app/api/chat/contacts/route.ts](app/api/chat/contacts/route.ts) · [components/orders/OrderForm.tsx](components/orders/OrderForm.tsx) · [app/api/orders/route.ts](app/api/orders/route.ts)
+**อาการ**: (1) เปิดบิลให้ลูกค้าแล้ว หัวแชทยังขึ้น "ยังไม่เคยสั่ง" จนกว่าจะ reload (2) การ์ดประวัติออเดอร์ขึ้น chip "ที่อยู่หลัก" ที่ไม่สื่ออะไร (3) กดเปิดออเดอร์จากประวัติ เห็นแต่รายการสินค้า **ไม่มีชื่อลูกค้า/ที่อยู่เลย** และแก้ที่อยู่ไม่ได้
+**Root cause**:
+1. `last_order_date` enrich เฉพาะตอนโหลด list แบบไม่ search และไม่มีใคร refresh หลังบันทึกบิล · ซ้ำร้าย โหมด search ข้าม enrichment แล้ว UI แปล "ไม่มีค่า" = "ไม่เคยสั่ง" (ทั้งที่แปลว่า "ไม่รู้")
+2. chip = `branch_names` จาก RPC `get_orders_list` (`jsonb_agg(shipping_addresses.address_name)`) — flow ปลีกได้ "ที่อยู่หลัก" เสมอ มีความหมายเฉพาะห้าง/ฝากขายที่ส่งหลายสาขา
+3. OrderForm ซ่อนการ์ดลูกค้าด้วย `{!isEditMode && ...}` เพราะ **หน้า /orders/[id] วาดการ์ดเองอยู่แล้ว** — แต่ gate ด้วย isEditMode ทำให้ทุกที่ที่ไม่มีการ์ดนั้น (แชท **และ /orders/[id]/edit**) พลอยโดนซ่อนไปด้วย · แถม PUT สาย items ไม่เคยเขียน `delivery_*` เลย (ต่อให้โชว์ช่องก็บันทึกไม่ลง)
+**วิธีแก้**: (1) API คืน `order_stats_loaded` บอกว่ารอบนี้ enrich จริงไหม + helper `lastOrderLabel()` คืน null เมื่อ "ไม่รู้" (ซ่อนบรรทัด) · `handleBillSaved()` patch ป้ายทันที + refetch (2) การ์ดแชท: ห้าง/ฝากขายคง chip สาขา, ปลีกโชว์ปลายทางจริง ("ดอนเมือง · กรุงเทพมหานคร") + chip ผู้รับเมื่อชื่อผู้รับต่างจากลูกค้า — ผ่าน param opt-in `include_delivery=true` (3) เปลี่ยน gate เป็น prop เจตนาตรง `customerSectionHandledByHost` ที่ `/orders/[id]` ส่งมาที่เดียว + PUT สาย items เขียน `delivery_*` แบบ "ส่งมาเมื่อไหร่ค่อยเขียน" (`!== undefined`)
+**ป้องกัน regression**: **"ไม่มีข้อมูล" ≠ "ไม่มีจริง"** — endpoint ที่ข้าม enrichment ต้องบอก UI ให้รู้ ห้ามให้ UI เดาแทน · การซ่อน section เพราะ "host วาดเองแล้ว" ต้อง gate ด้วย prop ที่ host ส่งมา ห้ามยืมสถานะอื่น (isEditMode) มาเดา — คลาสเดียวกับบั๊ก `disabled` วันนี้ · ฟอร์มที่โชว์ช่องให้แก้ ต้องมีเส้น save รองรับจริง
+
+## 2026-08-28 — เพิ่ม: จำที่อยู่ผู้รับโหมด "ส่งให้คนอื่น" (ไม่ใช่บั๊ก — ฟีเจอร์ที่กันบั๊กเก่า)
+
+`rememberRecipientAddress()` ใน [app/api/orders/route.ts](app/api/orders/route.ts) — order ที่ `ship_to_other` เก็บที่อยู่ผู้รับเข้าสมุดที่อยู่ของลูกค้าแบบ **`is_default:false` + `address_name` = ชื่อผู้รับ** (กันซ้ำด้วย customer+ที่อยู่+ชื่อ+เบอร์ normalize) แล้วชี้ order/order_shipments มาที่มัน · เลือกซ้ำได้จาก dropdown "ที่อยู่ที่บันทึกไว้" ใน [CustomerSelectionCard](components/ui/CustomerSelectionCard.tsx)
+**กติกาที่ต้องรักษา**: ที่อยู่ของขวัญ **ห้ามกลายเป็นที่อยู่หลักของผู้สั่ง** และห้ามให้เส้น auto-sync เขียนทับ `customers.contact_person/phone/email` (guard `!ship_to_other` ทั้ง POST/PUT) — ไม่งั้นชื่อ/เบอร์ลูกค้าจะกลายเป็นของผู้รับของขวัญ
+**ยังค้าง**: หน้า `/orders/[id]` แก้ที่อยู่ inline ยังไม่ส่ง `ship_to_other` → ออเดอร์ของขวัญที่แก้จากหน้านั้นยังทับ contact ลูกค้าได้ (เส้น simple-update)
+
 ## 2026-08-28 — เปิดบิลจากแชท (contact ยังไม่ลิงก์): สร้างลูกค้าซ้อน 2 คน + ที่อยู่ไปค้างกับคนผิด → บิลถัดไปไม่ prefill
 
 **ที่เกิด**: [components/orders/OrderForm.tsx](components/orders/OrderForm.tsx) `onSuccess` + [app/chat/page.tsx](app/chat/page.tsx) `autoCreateAndLinkCustomer`

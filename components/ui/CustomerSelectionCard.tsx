@@ -7,6 +7,7 @@ import CustomerInfoCard from '@/components/ui/CustomerInfoCard';
 import TaxInvoiceInfo from '@/components/ui/TaxInvoiceInfo';
 import TaxInvoiceEditModal from '@/components/ui/TaxInvoiceEditModal';
 import FormInput from '@/components/ui/FormInput';
+import FormSelect from '@/components/ui/FormSelect';
 import ThaiAddressInput from '@/components/ui/ThaiAddressInput';
 import { parseThaiAddress } from '@/lib/address-parser';
 
@@ -158,6 +159,9 @@ interface Props {
    *  ห้ามใช้ `disabled` แทน: มันดับทั้งใบ ทำให้กรอกเบอร์/อีเมล/ที่อยู่ไม่ได้ (เจอจริง 2026-08-28) */
   lockCustomerSelection?: boolean;
 }
+
+/** sentinel id ของตัวเลือก "กรอกที่อยู่ใหม่" ในสมุดที่อยู่ผู้รับ (ไม่ใช่ id จริงใน DB) */
+const NEW_ADDRESS_OPTION_ID = '__new_address__';
 
 // ── Helper: get badge for sale_type ──────────────────────
 
@@ -534,6 +538,43 @@ export default function CustomerSelectionCard({
                   );
                 })}
               </div>
+
+              {/* สมุดที่อยู่ผู้รับ — ส่งของขวัญให้คนเดิมซ้ำโดยไม่ต้องพิมพ์ใหม่
+                  (dropdown ในชิปลูกค้าหาไม่เจอเวลาอยู่โหมดนี้ เพราะสายตาอยู่คอลัมน์ขวา) */}
+              {shipToOther && isEditable && onAddressSelect && shippingAddresses.length > 0 && (
+                <div className="mt-2">
+                  <label className="block text-sm text-gray-600 dark:text-slate-400 mb-1">ที่อยู่ที่บันทึกไว้</label>
+                  <FormSelect
+                    /* แสดงว่า "เลือกอยู่" เฉพาะเมื่อช่องด้านล่างยังตรงกับที่อยู่นั้นจริง ๆ
+                       (พิมพ์แก้เองแล้ว = ที่อยู่ใหม่ ไม่ใช่ของเดิม) */
+                    value={shippingAddresses.find(a =>
+                      a.id === selectedAddressId &&
+                      (a.address_line1 || '') === (delivery?.deliveryAddress || '') &&
+                      (a.contact_person || '') === (delivery?.deliveryName || ''),
+                    )?.id || ''}
+                    onChange={(id) => {
+                      if (id === NEW_ADDRESS_OPTION_ID) { onNewAddress?.(); return; }
+                      const addr = shippingAddresses.find(a => a.id === id);
+                      if (addr) onAddressSelect(id, addr);
+                    }}
+                    options={[
+                      ...shippingAddresses.map(a => ({
+                        id: a.id,
+                        label: a.contact_person?.trim() || a.address_name,
+                        subtitle: [
+                          a.contact_person?.trim() && a.address_name !== a.contact_person.trim() ? a.address_name : '',
+                          a.amphoe || a.district,
+                          a.province,
+                        ].filter(Boolean).join(' · '),
+                        icon: <MapPin className="w-4 h-4 text-gray-400" />,
+                      })),
+                      { id: NEW_ADDRESS_OPTION_ID, label: 'กรอกที่อยู่ใหม่', icon: <Plus className="w-4 h-4 text-gray-400" /> },
+                    ]}
+                    placeholder="เลือกผู้รับที่เคยส่ง"
+                    portal
+                  />
+                </div>
+              )}
 
               {/* ชื่อ/เบอร์ผู้รับ แทรกเหนือที่อยู่ — ที่อยู่ข้างล่างจึงเป็นของคนนี้ชัดเจน */}
               {shipToOther && (
