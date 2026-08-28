@@ -462,6 +462,14 @@ export default function OrderForm({
   const useWizard = narrowForm && !customerSectionHandledByHost;
   const [step, setStep] = useState(1);
 
+  // เปลี่ยนขั้นแล้วเลื่อนกลับขึ้นบนสุดของ panel — ไม่งั้นขั้นถัดไปเปิดมาค้างกลางหน้า
+  // ตรงตำแหน่งที่เคยเลื่อนไว้ (ผู้ใช้ทัก 2026-08-29) · scrollIntoView ที่ตัวฟอร์มเอง
+  // ทำให้ไม่ต้องรู้ว่า ancestor ตัวไหนเป็นตัวเลื่อน (panel แชท / หน้าเว็บ / มือถือ)
+  useEffect(() => {
+    if (!useWizard) return;
+    formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [step, useWizard]);
+
   // Watch summary section width for side-by-side vs stacked layout
   const hasProducts = branchOrders.length > 0 && branchOrders[0]?.products.length > 0;
   useEffect(() => {

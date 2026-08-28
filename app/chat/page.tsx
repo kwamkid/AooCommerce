@@ -1866,7 +1866,7 @@ function UnifiedChatPageContent() {
                 <div ref={warehousePortalRef} />
               </div>
             </div>
-            <div className="flex-1 overflow-y-auto p-4"><OrderForm key={`mobile-${selectedOrderId}`} editOrderId={selectedOrderId} embedded={true} warehousePortalRef={warehousePortalRef} headerActionsRef={headerActionsRef} onSuccess={() => { setMobileView('history'); showToast('บันทึกการแก้ไขสำเร็จ!'); if (selectedContact?.customer) fetchOrderHistory(selectedContact.customer.id); }} onCancel={() => setMobileView('history')} /></div>
+            <div className="flex-1 overflow-y-auto px-4 pt-4"><OrderForm key={`mobile-${selectedOrderId}`} editOrderId={selectedOrderId} embedded={true} warehousePortalRef={warehousePortalRef} headerActionsRef={headerActionsRef} onSuccess={() => { setMobileView('history'); showToast('บันทึกการแก้ไขสำเร็จ!'); if (selectedContact?.customer) fetchOrderHistory(selectedContact.customer.id); }} onCancel={() => setMobileView('history')} /></div>
           </div>
         )}
 
@@ -1884,7 +1884,7 @@ function UnifiedChatPageContent() {
                 <Tooltip text="ปิด"><button onClick={() => setRightPanel(null)} aria-label="ปิด" className="hidden md:block p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"><X className="w-5 h-5" /></button></Tooltip>
               </div>
             </div>
-            <div className="flex-1 overflow-y-auto p-4"><OrderForm key={orderFormKey} {...(selectedContact.customer ? { preselectedCustomerId: selectedContact.customer.id } : {})} embedded={true} warehousePortalRef={warehousePortalRef} headerActionsRef={headerActionsRef} source={selectedContact.source || selectedContact.platform} sourceName={selectedContact.account_name} chatAccountId={selectedContact.chat_account_id} onSuccess={(orderId, customerId, deliveryInfo) => { setRightPanel(null); handleBillSaved(orderId, customerId, deliveryInfo); }} onSendBillToChat={sendBillToCustomer} onCancel={() => setRightPanel(null)} /></div>
+            <div className="flex-1 overflow-y-auto px-4 pt-4"><OrderForm key={orderFormKey} {...(selectedContact.customer ? { preselectedCustomerId: selectedContact.customer.id } : {})} embedded={true} warehousePortalRef={warehousePortalRef} headerActionsRef={headerActionsRef} source={selectedContact.source || selectedContact.platform} sourceName={selectedContact.account_name} chatAccountId={selectedContact.chat_account_id} onSuccess={(orderId, customerId, deliveryInfo) => { setRightPanel(null); handleBillSaved(orderId, customerId, deliveryInfo); }} onSendBillToChat={sendBillToCustomer} onCancel={() => setRightPanel(null)} /></div>
           </div>
         )}
 
@@ -1949,7 +1949,7 @@ function UnifiedChatPageContent() {
                 <Tooltip text="ปิด"><button onClick={() => setRightPanel(null)} aria-label="ปิด" className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"><X className="w-5 h-5" /></button></Tooltip>
               </div>
             </div>
-            <div className="flex-1 overflow-y-auto p-4"><OrderForm key={selectedOrderId} editOrderId={selectedOrderId} embedded={true} warehousePortalRef={warehousePortalRef} headerActionsRef={headerActionsRef} onSuccess={() => { setRightPanel('history'); showToast('บันทึกการแก้ไขสำเร็จ!'); if (selectedContact?.customer) fetchOrderHistory(selectedContact.customer.id); }} onCancel={() => setRightPanel('history')} /></div>
+            <div className="flex-1 overflow-y-auto px-4 pt-4"><OrderForm key={selectedOrderId} editOrderId={selectedOrderId} embedded={true} warehousePortalRef={warehousePortalRef} headerActionsRef={headerActionsRef} onSuccess={() => { setRightPanel('history'); showToast('บันทึกการแก้ไขสำเร็จ!'); if (selectedContact?.customer) fetchOrderHistory(selectedContact.customer.id); }} onCancel={() => setRightPanel('history')} /></div>
           </div>
         )}
       </div>
