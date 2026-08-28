@@ -45,6 +45,8 @@ interface PackingItem {
   image?: string | null;
   barcode?: string | null;
   sku?: string | null;
+  /** หมายเหตุรายสินค้า (order_items.notes) — คนแพ็คต้องเห็น พิมพ์ตัวหนาใต้ชื่อสินค้า */
+  notes?: string | null;
   promotion_name?: string | null;
   promotion_components?: PackingComponentItem[];
 }
@@ -774,6 +776,10 @@ function buildCompactPackingContent(
           { text: '', fontSize: 9 },
           { text: item.promotion_name || item.product_name, fontSize: 9, bold: true, color: '#6366f1' },
           { text: ` (×${item.quantity})`, fontSize: 8, color: '#888888' },
+          // หมายเหตุของรายการโปรโมชั่น — ตัวหนา + ※ ให้คนแพ็คเห็นชัด
+          ...(item.notes && item.notes.trim()
+            ? [{ text: `\n※ ${item.notes.trim()}`, fontSize: 9.5, bold: true, color: '#000000' }]
+            : []),
         ],
         margin: [0, 1, 0, 0],
         colSpan: 1 + (hasBarcode ? 1 : 0),
@@ -854,7 +860,7 @@ function buildCompactPackingContent(
         item.variation_label,
       ].filter(Boolean).join(' | ');
 
-      const productStack = buildProductNameStack(item.product_name, subtitle);
+      const productStack = buildProductNameStack(item.product_name, subtitle, null, item.notes);
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const row: any[] = [];

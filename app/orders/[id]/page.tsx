@@ -642,6 +642,7 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
               barcode: fullItem?.barcode || null,
               sku: fullItem?.sku || null,
               product_code: fullItem?.product_code || null,
+              notes: fullItem?.notes || null,
             };
           });
           ordersData.push({

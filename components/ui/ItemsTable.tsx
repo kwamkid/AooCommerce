@@ -1,7 +1,7 @@
 'use client';
 
-import { Fragment, useRef } from 'react';
-import { Package, Trash2, AlertTriangle, Gift } from 'lucide-react';
+import { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { Package, Trash2, AlertTriangle, Gift, StickyNote } from 'lucide-react';
 import ProductSearchInput, { type ProductSearchItem, type SearchMode } from '@/components/ui/ProductSearchInput';
 import FormSelect from '@/components/ui/FormSelect';
 import DiscountInput from '@/components/ui/DiscountInput';
@@ -56,6 +56,8 @@ export interface TableItem {
   special_price?: number | null;
   /** Max price across variations — for price range display */
   max_price?: number | null;
+  /** หมายเหตุเฉพาะรายการนี้ (เช่น "เปลี่ยนผลไม้", "ผูกโบว์สีแดง") — แสดงเมื่อ showItemNotes */
+  notes?: string | null;
 }
 
 export type ColumnKey =
@@ -113,8 +115,10 @@ interface ItemsTableProps {
   inputRef?: React.RefObject<HTMLInputElement | null>;
   /** Search mode: 'variation' (default) or 'product' (grouped by product) */
   searchMode?: SearchMode;
-  /** Force mobile/compact card layout regardless of viewport width */
+  /** Force mobile/compact card layout regardless of the table's own width */
   forceCompact?: boolean;
+  /** แสดงช่องหมายเหตุรายสินค้า (ใต้ชื่อสินค้า) — ปิดไว้เป็นค่าเริ่มต้นเพื่อไม่ให้หน้าอื่นรก */
+  showItemNotes?: boolean;
   /** Items shown when search input is focused with empty query (e.g. top sellers). */
   searchSuggestions?: ProductSearchItem[];
   /** Optional header label for the suggestion list (default: "ขายดี 30 วันล่าสุด"). */
@@ -122,6 +126,31 @@ interface ItemsTableProps {
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
+
+/** useLayoutEffect ที่ไม่เตือนตอน SSR — ต้องวัดก่อน paint ไม่งั้นเลย์เอาต์กระพริบ */
+const useIsomorphicLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect;
+
+/** ความกว้างขั้นต่ำของแต่ละคอลัมน์ — ตรงกับ `style={{width:...}}` ที่ประกาศไว้ใน <th> ด้านล่าง
+ *  (rem → px ที่ 16px/rem) · ใช้คำนวณว่า "ตารางพอลงกับความกว้างของ container ตัวเองไหม" */
+const COLUMN_WIDTH_PX: Record<ColumnKey, number> = {
+  role: 144,          // 9rem
+  stock_source: 80,   // 5rem
+  stock_dest: 80,     // 5rem
+  po_quantity: 80,    // 5rem
+  qty: 72,            // 4.5rem — คอลัมน์นี้ render เสมอ
+  qty_received: 64,   // 4rem
+  unit_price: 112,    // 7rem
+  unit_cost: 112,     // 7rem
+  special_price: 112, // 7rem
+  discount: 112,      // 7rem
+  reason: 112,        // 7rem
+  total: 120,         // 7.5rem
+  stock_badge: 0,     // ไม่ใช่คอลัมน์จริง — badge อยู่ในเซลล์ชื่อสินค้า
+};
+/** เผื่อให้คอลัมน์ชื่อสินค้า (รูป 40px + ชื่อ 2 บรรทัด + badge) */
+const PRODUCT_COLUMN_MIN_PX = 200;
+/** คอลัมน์ถังขยะเดี่ยว — โผล่เฉพาะตอนไม่มีคอลัมน์ "รวม" ให้ฝัง */
+const TRASH_COLUMN_PX = 28;
 
 function fmt(n: number) {
   return n.toLocaleString('th-TH', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
@@ -144,6 +173,36 @@ function StockBadge({ qty, destStyle }: { qty: number | null | undefined; destSt
 }
 
 const INPUT_CLS = 'px-2 py-1.5 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary disabled:bg-gray-100 dark:disabled:bg-slate-800 disabled:text-gray-400 dark:disabled:text-slate-500 disabled:cursor-not-allowed';
+
+/** textarea หมายเหตุรายสินค้า — ยืดตามเนื้อหา (ผู้ใช้พิมพ์ยาวหลายบรรทัดได้) */
+function ItemNoteInput({
+  value,
+  onChange,
+  autoFocus,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  autoFocus?: boolean;
+}) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+  useIsomorphicLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${el.scrollHeight}px`;
+  }, [value]);
+  return (
+    <textarea
+      ref={ref}
+      value={value}
+      autoFocus={autoFocus}
+      rows={1}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder="หมายเหตุ เช่น เปลี่ยนผลไม้ / ผูกโบว์สีแดง"
+      className={`mt-1 w-full resize-none overflow-hidden leading-snug ${INPUT_CLS}`}
+    />
+  );
+}
 
 function RoleBadge({ role }: { role: string }) {
   switch (role) {
@@ -186,6 +245,7 @@ export default function ItemsTable({
   inputRef: externalInputRef,
   searchMode = 'variation',
   forceCompact = false,
+  showItemNotes = false,
   searchSuggestions,
   searchSuggestionsLabel,
 }: ItemsTableProps) {
@@ -193,6 +253,22 @@ export default function ItemsTable({
   const searchRef = externalInputRef ?? internalInputRef;
 
   const readOnly = !onAdd && !onUpdateField && !onRemove;
+
+  // ── เลือกเลย์เอาต์จาก "ความกว้างของตัวเอง" ไม่ใช่ viewport ────────────
+  // ตารางนี้ถูกฝังในหลายที่ (panel เปิดบิลในแชท ~690px บนจอ 1440px) — breakpoint
+  // `xl:` มองเห็นแต่ viewport จึงตัดสินผิดทั้งสองทาง วัด container จริงแทน
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [containerWidth, setContainerWidth] = useState<number | null>(null);
+  useIsomorphicLayoutEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    setContainerWidth(el.getBoundingClientRect().width);
+    const ro = new ResizeObserver(([entry]) => {
+      setContainerWidth(entry.contentRect.width);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   const hasDiscount = columns.includes('discount');
   const hasPrice = columns.includes('unit_price');
@@ -207,6 +283,25 @@ export default function ItemsTable({
   const hasRole = columns.includes('role');
   const hasSpecialPrice = columns.includes('special_price');
 
+  // ความกว้างขั้นต่ำที่ตารางอยู่ได้ = ผลรวมคอลัมน์ที่ "หน้านี้" เปิดใช้จริง + ช่องชื่อสินค้า
+  // (แต่ละ call site เปิดคอลัมน์ไม่เท่ากัน จึงคำนวณต่อ instance ห้าม hardcode ตัวเลขเดียว)
+  const minTableWidth =
+    PRODUCT_COLUMN_MIN_PX +
+    COLUMN_WIDTH_PX.qty + // คอลัมน์ "จำนวน" render เสมอ ไม่ว่าจะส่งมาใน columns หรือไม่
+    columns.reduce((sum, key) => (key === 'qty' ? sum : sum + (COLUMN_WIDTH_PX[key] ?? 0)), 0) +
+    (!hasTotal && !readOnly ? TRASH_COLUMN_PX : 0);
+
+  // 'auto' = ยังวัดไม่ได้ (render แรก/SSR) หรือวัดได้ 0 (อยู่ใน container ที่ยังซ่อนอยู่)
+  // → คงพฤติกรรมเดิม (`xl:`) ไว้ก่อน ไม่กระพริบ/ไม่ตัดสินจากค่าปลอม
+  const layoutMode: 'card' | 'table' | 'auto' =
+    forceCompact ? 'card'
+    : !containerWidth ? 'auto'
+    : containerWidth < minTableWidth ? 'card'
+    : 'table';
+
+  // แถวที่ผู้ใช้กด "+ หมายเหตุ" แล้ว (แถวที่มีข้อความอยู่แล้วเปิดเองอัตโนมัติ)
+  const [openNoteRows, setOpenNoteRows] = useState<Record<number, boolean>>({});
+
   const totalQty = items.reduce((s, i) => s + i.quantity, 0);
   const totalAmount = items.reduce((s, i) => {
     const sub = i.quantity * (i.unit_price ?? i.unit_cost ?? 0);
@@ -219,6 +314,44 @@ export default function ItemsTable({
   // Auto-detect whether to show stock in search dropdown
   const hasStockData = Object.keys(stockMap).length > 0;
   const shouldShowStockInSearch = showStockInSearch ?? hasStockData;
+
+  // ── หมายเหตุรายสินค้า ─────────────────────────────────────────────────
+  // ใช้ร่วมทั้งเลย์เอาต์ตารางและการ์ด — ว่าง = ลิงก์ "+ หมายเหตุ", มีข้อความ = ช่องพิมพ์,
+  // อ่านอย่างเดียว = ข้อความธรรมดา (เน้นด้วย ※ + ตัวหนา เหมือนที่พิมพ์บนเอกสาร)
+  function NoteCell({ item, idx }: { item: TableItem; idx?: number }) {
+    if (!showItemNotes) return null;
+    const value = item.notes ?? '';
+    const editable = !readOnly && !!onUpdateField && idx !== undefined;
+
+    if (!editable) {
+      if (!value) return null;
+      return (
+        <p className="mt-1 text-sm font-medium text-amber-700 dark:text-amber-400 whitespace-pre-wrap break-words">
+          ※ {value}
+        </p>
+      );
+    }
+
+    if (!value && !openNoteRows[idx!]) {
+      return (
+        <button
+          type="button"
+          onClick={() => setOpenNoteRows(prev => ({ ...prev, [idx!]: true }))}
+          className="mt-1 inline-flex items-center gap-1 text-xs text-gray-500 hover:text-primary dark:text-slate-400 dark:hover:text-primary transition-colors"
+        >
+          <StickyNote className="w-3 h-3" />+ หมายเหตุ
+        </button>
+      );
+    }
+
+    return (
+      <ItemNoteInput
+        value={value}
+        autoFocus={!value && !!openNoteRows[idx!]}
+        onChange={v => onUpdateField!(idx!, 'notes', v)}
+      />
+    );
+  }
 
   // ── Product cell ──────────────────────────────────────────────────────
 
@@ -239,7 +372,10 @@ export default function ItemsTable({
     return (
       <div className="flex items-center gap-3">
         <ProductImageThumb src={item.image} alt={name} size="md" />
-        <div className="min-w-0">
+        {/* showItemNotes: ต้อง flex-1 ให้ textarea `w-full` มี parent กว้างชัดเจน
+            (ไม่งั้น input กางตาม default ~200px — บั๊กเดียวกับช่องจำนวนในโหมดการ์ด)
+            หน้าอื่นที่ไม่เปิดหมายเหตุคงพฤติกรรมเดิมเป๊ะ */}
+        <div className={showItemNotes ? 'flex-1 min-w-0' : 'min-w-0'}>
           <p className="text-sm font-medium text-gray-900 dark:text-white line-clamp-2">{name}</p>
           <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
             {hasPromo && (
@@ -253,6 +389,7 @@ export default function ItemsTable({
           {item.gpInfo && (
             <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-0.5">{item.gpInfo}</p>
           )}
+          {NoteCell({ item, idx })}
         </div>
       </div>
     );
@@ -298,7 +435,7 @@ export default function ItemsTable({
 
   function DesktopTable() {
     return (
-      <div className={forceCompact ? 'hidden' : 'hidden xl:block'}>
+      <div className={layoutMode === 'card' ? 'hidden' : layoutMode === 'table' ? 'block' : 'hidden xl:block'}>
         <table className="data-table items-table w-full table-fixed">
           <thead className="data-thead">
             <tr>
@@ -576,7 +713,11 @@ export default function ItemsTable({
 
   function MobileCards() {
     return (
-      <div className={`${forceCompact ? 'divide-y divide-gray-100 dark:divide-slate-700' : 'xl:hidden divide-y divide-gray-100 dark:divide-slate-700'} min-w-0`}>
+      <div className={`${
+        layoutMode === 'table' ? 'hidden'
+        : layoutMode === 'card' ? 'divide-y divide-gray-100 dark:divide-slate-700'
+        : 'xl:hidden divide-y divide-gray-100 dark:divide-slate-700'
+      } min-w-0`}>
         {items.map((item, idx) => {
           const mSubtotal = item.quantity * (item.unit_price ?? item.unit_cost ?? 0);
           const mDiscAmt = item.discount_type === 'percent'
@@ -620,6 +761,7 @@ export default function ItemsTable({
                   {item.gpInfo && (
                     <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-0.5">{item.gpInfo}</p>
                   )}
+                  {NoteCell({ item, idx })}
                 </div>
                 {!readOnly && (
                   <button type="button" onClick={() => onRemove!(idx)}
@@ -837,9 +979,11 @@ export default function ItemsTable({
 
   return (
     <>
-      <div className={isEmptyEditable
-        ? ''
-        : 'bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700'}
+      <div
+        ref={containerRef}
+        className={isEmptyEditable
+          ? ''
+          : 'bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700'}
       >
         {isEmptyEditable && (
           searchDisabledMessage

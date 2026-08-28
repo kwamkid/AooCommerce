@@ -40,6 +40,22 @@
 - **รูป/ข้อมูลเสริมจาก marketplace ห้ามผูกไว้กับ branch "สร้างใหม่" อย่างเดียว** — สินค้าที่มีอยู่แล้วคือเคสปกติ ไม่ใช่เคสขอบ
 - **ห้ามทับรูปที่ผู้ใช้ใส่เอง** — helper เติมให้เฉพาะตอนไม่มีรูปเลย
 
+## 2026-08-28 — ตารางสินค้าในแชทใช้เลย์เอาต์มือถือทั้งที่ panel กว้าง 690px (viewport ≠ container — ครั้งที่ 3 ของวัน)
+
+**ที่เกิด**: [components/ui/ItemsTable.tsx](components/ui/ItemsTable.tsx) + call site ใน [OrderForm](components/orders/OrderForm.tsx)
+**อาการ**: panel เปิดบิลในแชทกว้าง ~690px แต่แถวสินค้าเป็นการ์ดแบบมือถือ — จำนวน/ราคา/ส่วนลด กระจุกซ้าย เหลือที่ว่างครึ่งจอ
+**Root cause**: OrderForm ส่ง `forceCompact={embedded}` — "อยู่ในแชท" ไม่ได้แปลว่า "แคบ" (panel กว้างตามหน้าต่าง) · และ default ของ ItemsTable เองก็ตัดสินด้วย `xl:` = **viewport** ทั้งที่สิ่งที่สำคัญคือความกว้างของ container ตัวเอง — **บั๊กคลาสเดียวกับ `narrowForm` และ prop `disabled` ที่เจอวันนี้ (3 ครั้งใน 1 วัน)**
+**วิธีแก้**: ItemsTable วัด container ตัวเองด้วย ResizeObserver แล้วเลือกตาราง/การ์ดเอง — เกณฑ์ `minTableWidth` **คำนวณต่อ instance จากคอลัมน์ที่ render จริง** (map `COLUMN_WIDTH_PX` สะท้อน `<th style={{width}}>` ตัวต่อตัว + `PRODUCT_COLUMN_MIN_PX` 200) เพราะ 14 call site เปิดคอลัมน์ไม่เท่ากัน · ยังวัดไม่ได้/ความกว้าง 0 (ซ่อนอยู่) = `'auto'` → ใช้คลาส `xl:` เดิม (กันกระพริบ + SSR ไม่เพี้ยน) · `forceCompact` คงไว้เป็น override
+**ป้องกัน regression**: component ที่ฝังได้หลายที่ **ห้ามตัดสินเลย์เอาต์จาก viewport หรือจากธง "ฉันอยู่ที่ไหน"** — วัดความกว้างตัวเองเสมอ · เกณฑ์ที่ผูกกับจำนวนคอลัมน์ต้องคำนวณจากคอลัมน์จริง ไม่ hardcode ตัวเลขเดียว
+
+## 2026-08-28 — เพิ่ม: หมายเหตุรายสินค้า (per-item remark) — ร้านช่อ/กระเช้าสั่งรายชิ้น
+
+**ที่มา**: แอดมินร้านขอ — "เปลี่ยนผลไม้", "ผูกโบว์สีอื่น", "แถบคาดข้อความ…" ต้องพิมพ์ต่อสินค้าได้ **และต้องพิมพ์ออกมาให้คนแพ็คเห็นชัด**
+**ของที่มีอยู่แล้ว**: คอลัมน์ `order_items.notes` + `/api/orders` POST/PUT บันทึกให้อยู่แล้ว → **ไม่ต้อง migration**
+**ที่ต่อเพิ่ม**: ItemsTable prop `showItemNotes` (default false — หน้าอื่นไม่รก) + `NoteCell` ตัวเดียวใช้ทั้งเลย์เอาต์ตารางและการ์ด (ว่าง = ลิงก์ "+ หมายเหตุ" · มีข้อความ = textarea ยืดตามเนื้อหา · read-only = ข้อความ `※ …`) · OrderForm: เพิ่ม `notes` ใน BranchProduct + **ส่งใน payload ตอน save + map กลับตอน loadOrder** (เดิมไม่มีทั้งคู่ — ถ้าต่อไม่ครบ เปิดบิลเก่ามาแก้แล้วบันทึกจะลบหมายเหตุทิ้งเงียบๆ) · `/api/bills` select `notes` เพิ่ม
+**PDF**: `buildProductNameStack(name, label, sku, notes?)` — param ที่ 4 optional → 13 call site เดิมไม่กระทบ · บรรทัดหมายเหตุ **ตัวหนา + prefix `※` สีดำ** (ห้ามพึ่งสีอย่างเดียว ร้านพิมพ์ขาวดำ) · ส่งจากเอกสารสายออเดอร์เท่านั้น (ใบจัดของ/DN/ใบกำกับ/ใบเสร็จ) — สาย inventory/supplier/replenishment/consignment/department ไม่ส่ง = เหมือนเดิม
+**จุดที่เกือบพลาด**: ใบจัดของฝั่ง split parcel ([ProcessingTab](app/orders/components/ProcessingTab.tsx) + [/orders/[id]](app/orders/[id]/page.tsx)) ประกอบ item เองทีละ field ไม่ได้ส่ง order ดิบ → ต้องเติม `notes` ให้ด้วย ไม่งั้นออเดอร์ที่แบ่งกล่องจะไม่มีหมายเหตุบนใบจัดของ
+
 ## 2026-08-28 — หน้าแชท: ป้าย "ยังไม่เคยสั่ง" ค้าง + การ์ดประวัติโชว์ "ที่อยู่หลัก" + เปิดออเดอร์แล้วไม่เห็นลูกค้า/ที่อยู่
 
 **ที่เกิด**: [app/chat/page.tsx](app/chat/page.tsx) · [app/api/chat/contacts/route.ts](app/api/chat/contacts/route.ts) · [components/orders/OrderForm.tsx](components/orders/OrderForm.tsx) · [app/api/orders/route.ts](app/api/orders/route.ts)

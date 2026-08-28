@@ -102,12 +102,17 @@ export async function loadLogoDataUrl(logoUrl: string): Promise<string | null> {
  * Variation product: "ชื่อสินค้า - Variation Label"
  * SKU shown as subtitle line below name.
  * Truncates name to ~80 chars (approx 2 lines).
+ *
+ * `notes` = หมายเหตุรายสินค้า (order_items.notes) — คนแพ็คของต้องเห็นชัด จึงพิมพ์เป็น
+ * บรรทัดตัวหนา + prefix "※" (ห้ามพึ่งสีอย่างเดียว เพราะพิมพ์ขาวดำต้องยังเห็น)
+ * param ท้ายสุดและ optional เพื่อไม่กระทบ call site เดิมที่ส่ง 1-3 args
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function buildProductNameStack(
   productName: string,
   variationLabel?: string | null,
   sku?: string | null,
+  notes?: string | null,
 ): any[] {
   const maxLen = 140;
   const cleanLabel = variationLabel && variationLabel !== sku && !/^\d+$/.test(variationLabel)
@@ -125,6 +130,16 @@ export function buildProductNameStack(
   ];
   if (sku) {
     stack.push({ text: sku, fontSize: 9, color: '#999999' });
+  }
+  const noteText = typeof notes === 'string' ? notes.trim() : '';
+  if (noteText) {
+    stack.push({
+      text: `※ ${noteText}`,
+      fontSize: 9.5,
+      bold: true,
+      color: '#000000',
+      margin: [0, 1, 0, 0],
+    });
   }
   return stack;
 }

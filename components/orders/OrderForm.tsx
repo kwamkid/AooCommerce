@@ -125,6 +125,8 @@ interface BranchProduct {
   unit_price: number;
   discount_value: number;
   discount_type: 'percent' | 'amount';
+  /** หมายเหตุเฉพาะรายการนี้ (order_items.notes) — เช่น "เปลี่ยนผลไม้", "ผูกโบว์สีแดง" */
+  notes?: string;
   // Promotion fields
   promotion_id?: string;
   promotion_name?: string;
@@ -813,6 +815,8 @@ export default function OrderForm({
               image: item.image,
               quantity: qty,
               unit_price: item.unit_price,
+              // หมายเหตุรายสินค้า — ต้อง map กลับ ไม่งั้นเปิดบิลเก่ามาแก้แล้วหมายเหตุหายตอน save
+              notes: item.notes || undefined,
               discount_value: item.discount_type === 'amount' ? (item.discount_amount || 0) : (item.discount_percent || 0),
               discount_type: item.discount_type || 'percent',
               // Promotion fields
@@ -1498,6 +1502,12 @@ export default function OrderForm({
     setBranchOrders(newBranchOrders);
   };
 
+  const handleUpdateProductNotes = (productIndex: number, value: string) => {
+    const newBranchOrders = [...branchOrders];
+    newBranchOrders[0].products[productIndex].notes = value;
+    setBranchOrders(newBranchOrders);
+  };
+
   const handleToggleProductDiscountType = (productIndex: number) => {
     const newBranchOrders = [...branchOrders];
     const product = newBranchOrders[0].products[productIndex];
@@ -1819,6 +1829,8 @@ export default function OrderForm({
           unit_price: product.unit_price,
           discount_value: product.discount_value,
           discount_type: product.discount_type,
+          // หมายเหตุรายสินค้า → order_items.notes (API POST/PUT รับอยู่แล้ว)
+          notes: product.notes?.trim() || undefined,
           promotion_id: product.promotion_id || undefined,
           promotion_components: product.promotion_id && product.promotion_components?.length
             ? product.promotion_components.map(c => ({
@@ -2507,6 +2519,8 @@ export default function OrderForm({
   );
 
   // Products Section
+  // ไม่ส่ง forceCompact เข้า ItemsTable แล้ว — ตารางวัดความกว้างของตัวเองและเลือก
+  // เลย์เอาต์เอง ("อยู่ในแชท" ไม่ได้แปลว่าแคบ · panel กว้าง ~690px = ตารางเต็มความกว้าง)
   const productsFragment = branchOrders.length > 0 && (
         <div ref={productsSectionRef} className={`bg-white dark:bg-slate-800 rounded-lg ${embedded ? '' : 'border border-gray-200 dark:border-slate-700'} overflow-visible`}>
           <ItemsTable
@@ -2521,13 +2535,14 @@ export default function OrderForm({
               unit_price: p.unit_price,
               discount_value: p.discount_value,
               discount_type: p.discount_type,
+              notes: p.notes,
               promotion_id: p.promotion_id,
               promotion_name: p.promotion_name,
               promotion_type: p.promotion_type,
               promotion_components: p.promotion_components,
             }))}
             columns={['qty', 'unit_price', 'discount', 'total']}
-            forceCompact={embedded}
+            showItemNotes
             stockMap={stockEnabled && selectedWarehouseId
               ? Object.fromEntries(Object.entries(inventoryMap).map(([k, v]) => [k, v.available]))
               : {}}
@@ -2543,6 +2558,7 @@ export default function OrderForm({
               if (field === 'unit_price') handleUpdateProductPrice(idx, value as number);
               if (field === 'discount_value') handleUpdateProductDiscount(idx, value as number);
               if (field === 'discount_type') handleToggleProductDiscountType(idx);
+              if (field === 'notes') handleUpdateProductNotes(idx, value as string);
             }}
             onRemove={isReadOnly ? undefined : handleRemoveProduct}
             emptyMessage={fieldErrors.branches || 'เพิ่มสินค้าโดยพิมพ์ค้นหาด้านบน'}

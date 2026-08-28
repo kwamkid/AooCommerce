@@ -630,6 +630,7 @@ export default function ProcessingTab({
                 barcode: fullItem?.barcode || null,
                 sku: fullItem?.sku || null,
                 product_code: fullItem?.product_code || null,
+                notes: fullItem?.notes || null,
               };
             });
             ordersData.push({
@@ -807,6 +808,7 @@ export default function ProcessingTab({
           variation_label: item.variation_label,
           sku: item.sku,
           quantity: item.quantity,
+          notes: item.notes || null,
           promotion_name: item.promotion_name || null,
           promotion_components: item.promotion_components || [],
         })),

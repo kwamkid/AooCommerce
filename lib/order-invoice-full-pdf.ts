@@ -43,6 +43,8 @@ interface FullInvoiceItem {
   discount_amount?: number;
   subtotal: number;
   total: number;
+  /** หมายเหตุรายสินค้า (order_items.notes) */
+  notes?: string | null;
   promotion_name?: string | null;
   promotion_type?: string | null;
   promotion_components?: PromotionComponent[];
@@ -308,7 +310,7 @@ export async function generateFullInvoicePdf(
       }
     } else {
       const fullName = productDisplayName(item);
-      const productStack = buildProductNameStack(fullName, null, item.sku || item.product_code);
+      const productStack = buildProductNameStack(fullName, null, item.sku || item.product_code, item.notes);
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const row: any[] = [

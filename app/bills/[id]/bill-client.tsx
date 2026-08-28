@@ -47,6 +47,8 @@ interface BillItem {
   discount_amount: number;
   subtotal: number;
   total: number;
+  /** หมายเหตุรายสินค้า — ลูกค้าต้องเห็นว่าที่ขอไว้ถูกบันทึกแล้ว */
+  notes?: string | null;
   image?: string | null;
   promotion_id?: string;
   promotion_name?: string;
@@ -496,6 +498,9 @@ export default function BillClient({ orderId, initialBill }: { orderId: string; 
                         ) : item.product_code ? (
                           <div className={`text-sm font-mono ${dark ? 'text-slate-500' : 'text-gray-400'}`}>SKU: {item.product_code}</div>
                         ) : null}
+                        {item.notes && (
+                          <div className={`text-base font-medium whitespace-pre-wrap ${dark ? 'text-amber-400' : 'text-amber-700'}`}>※ {item.notes}</div>
+                        )}
                       </div>
                     </div>
                   </td>
@@ -565,6 +570,9 @@ export default function BillClient({ orderId, initialBill }: { orderId: string; 
                   ) : item.product_code ? (
                     <div className={`text-sm font-mono ${dark ? 'text-slate-500' : 'text-gray-400'}`}>SKU: {item.product_code}</div>
                   ) : null}
+                  {item.notes && (
+                    <div className={`text-base font-medium whitespace-pre-wrap ${dark ? 'text-amber-400' : 'text-amber-700'}`}>※ {item.notes}</div>
+                  )}
                   <div className={`text-sm mt-0.5 ${dark ? 'text-slate-400' : 'text-gray-500'}`}>
                     {item.quantity} x ฿{formatNumber(item.unit_price)}
                     {item.discount_amount > 0 && <span className="text-red-400 ml-1">-฿{formatPrice(item.discount_amount)}</span>}
@@ -626,6 +634,7 @@ export default function BillClient({ orderId, initialBill }: { orderId: string; 
                 <div>
                   <span className="font-medium">{productDisplayName({ product_name: item.product_name, variation_label: item.variation_label })}</span>
                   {item.product_code && <div className="text-gray-500 text-xs font-mono">SKU: {item.product_code}</div>}
+                  {item.notes && <div className="font-bold whitespace-pre-wrap">※ {item.notes}</div>}
                 </div>
               </div>
             </td>

@@ -44,6 +44,8 @@ interface AbbreviatedInvoiceItem {
   unit_price: number;
   discount_amount?: number;
   total: number;
+  /** หมายเหตุรายสินค้า (order_items.notes) */
+  notes?: string | null;
   promotion_name?: string | null;
   promotion_type?: string | null;
   promotion_components?: PromotionComponent[];
@@ -297,7 +299,7 @@ function buildCompactInvoiceContent(
     } else {
       // Normal item row
       const fullName = productDisplayName(item);
-      const productStack = buildProductNameStack(fullName, null, item.sku || item.product_code);
+      const productStack = buildProductNameStack(fullName, null, item.sku || item.product_code, item.notes);
 
       tableBody.push([
         { text: `${rowNum}`, alignment: 'center', fontSize: 9, margin: [0, 1, 0, 0] },

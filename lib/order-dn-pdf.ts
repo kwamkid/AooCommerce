@@ -26,6 +26,8 @@ export interface OrderDnItem {
   variation_label?: string | null;
   sku?: string | null;
   quantity: number;
+  /** หมายเหตุรายสินค้า (order_items.notes) */
+  notes?: string | null;
   promotion_name?: string | null;
   promotion_components?: { product_name: string; sku?: string | null; product_code?: string | null; role: string; quantity: number }[];
 }
@@ -174,7 +176,7 @@ export async function generateOrderDnPdf(
       }
     } else {
       const fullName = productDisplayName(item);
-      const productStack = buildProductNameStack(fullName, null, item.sku);
+      const productStack = buildProductNameStack(fullName, null, item.sku, item.notes);
 
       tableBody.push([
         { text: `${rowNum}`, alignment: 'center', fontSize: 10 },

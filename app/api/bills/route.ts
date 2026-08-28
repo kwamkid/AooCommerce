@@ -85,7 +85,8 @@ export async function GET(request: NextRequest) {
         .from('order_items')
         .select(`
           id, variation_id, product_id, product_code, product_name, variation_label,
-          quantity, unit_price, discount_percent, discount_amount, subtotal, total, promotion_id, promotion_components
+          quantity, unit_price, discount_percent, discount_amount, subtotal, total, notes,
+          promotion_id, promotion_components
         `)
         .eq('order_id', order.id),
       supabaseAdmin
@@ -225,6 +226,7 @@ export async function GET(request: NextRequest) {
             discount_amount: item.discount_amount,
             subtotal: item.subtotal,
             total: item.total,
+            notes: (item as any).notes || null,
             image: imageMap[item.id] || null,
             promotion_id: pid || null,
             promotion_name: pm?.name || null,
@@ -251,6 +253,7 @@ export async function GET(request: NextRequest) {
       discount_amount: item.discount_amount,
       subtotal: item.subtotal,
       total: item.total,
+      notes: (item as any).notes || null,
       image: imageMap[item.id] || null,
       promotion_id: pid || null,
       promotion_name: pm?.name || null,
