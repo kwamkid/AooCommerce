@@ -121,7 +121,8 @@ const SHOPEE_STATUS_ORDER: Record<string, number> = {
   PROCESSED: 2,
   SHIPPED: 3,
   TO_CONFIRM_RECEIVE: 4,
-  COMPLETED: 5,
+  TO_RETURN: 5,
+  COMPLETED: 6,
   CANCELLED: 10,
   IN_CANCEL: 10,
 };
@@ -136,6 +137,10 @@ function mapShopeeStatus(shopeeStatus: string): { order_status: string; payment_
       return { order_status: 'processing', payment_status: 'paid' };
     case 'SHIPPED':
     case 'TO_CONFIRM_RECEIVE':
+    // TO_RETURN = ลูกค้าขอคืนสินค้าหลังของถึง — ของออกจากคลังไปแล้ว คงไว้ฝั่ง shipping
+    // (badge แดง "คืนสินค้า" แสดงจาก external_status ผ่าน status-tab-colors อยู่แล้ว)
+    // ห้ามปล่อยตก default: เคยทำให้ order ถูกลากกลับ new/pending — fix-bug.md 2026-08-28
+    case 'TO_RETURN':
       return { order_status: 'shipping', payment_status: 'paid' };
     case 'COMPLETED':
       return { order_status: 'completed', payment_status: 'paid' };
@@ -714,7 +719,7 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder, 
 
       // Auto-sync fulfillment_status based on Shopee status
       const fulfillmentUpdate: Record<string, unknown> = {};
-      if (['SHIPPED', 'TO_CONFIRM_RECEIVE', 'COMPLETED'].includes(shopeeOrder.order_status)) {
+      if (['SHIPPED', 'TO_CONFIRM_RECEIVE', 'TO_RETURN', 'COMPLETED'].includes(shopeeOrder.order_status)) {
         fulfillmentUpdate.fulfillment_status = 'shipped';
         fulfillmentUpdate.shipped_at = new Date().toISOString();
       } else if (['CANCELLED', 'IN_CANCEL'].includes(shopeeOrder.order_status)) {
@@ -779,7 +784,7 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder, 
       // This is the equivalent of commitStock — reduces on_hand and releases reservation
       // (idempotent จาก transaction จริง — เดิมเช็ค wasPreShip จาก order_status ซึ่งพลาด
       //  ถาวรเมื่อสถานะถูกเส้นอื่นเลื่อนไปก่อน)
-      if (['SHIPPED', 'TO_CONFIRM_RECEIVE', 'COMPLETED'].includes(shopeeOrder.order_status) && existing.warehouse_id) {
+      if (['SHIPPED', 'TO_CONFIRM_RECEIVE', 'TO_RETURN', 'COMPLETED'].includes(shopeeOrder.order_status) && existing.warehouse_id) {
         await deductShippedStockOnce(companyId, existing.id, existing.warehouse_id, shopeeOrder.order_sn);
       }
 
@@ -809,7 +814,7 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder, 
     const externalMatches = !existing.external_status || existing.external_status === shopeeOrder.order_status;
     if (!statusUpdated && externalMatches) {
       const expectedMapping = mapShopeeStatus(shopeeOrder.order_status);
-      const shouldBeShipped = ['SHIPPED', 'TO_CONFIRM_RECEIVE', 'COMPLETED'].includes(shopeeOrder.order_status);
+      const shouldBeShipped = ['SHIPPED', 'TO_CONFIRM_RECEIVE', 'TO_RETURN', 'COMPLETED'].includes(shopeeOrder.order_status);
       const needsOrderFix = existing.order_status !== expectedMapping.order_status;
       const needsFulfillmentFix = shouldBeShipped && (existing as Record<string, unknown>).fulfillment_status !== 'shipped';
 

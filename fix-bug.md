@@ -16,6 +16,14 @@
 
 ---
 
+## 2026-08-28 — สถานะ Shopee `TO_RETURN` ไม่อยู่ใน mapping → order เด้งกลับ "ใหม่/รอชำระ" และ sync ซ่อมไม่ได้
+
+**ที่เกิด**: [lib/shopee/sync.ts](lib/shopee/sync.ts) `mapShopeeStatus()` + `SHOPEE_STATUS_ORDER`
+**อาการ**: ใบ `260825ACX7XCDJ` (Hape) ของถึงลูกค้าแล้ว (external ไปถึง TO_CONFIRM_RECEIVE) → ลูกค้ากดขอคืนสินค้า → order เด้งกลับแท็บ "ใหม่" badge "รอชำระ" · รัน re-sync แล้วก็ไม่หาย (โดนนับเป็น skipped)
+**Root cause**: Shopee push `TO_RETURN` แต่ `mapShopeeStatus()` ไม่มี case นี้ → ตก **default = new/pending** และ `SHOPEE_STATUS_ORDER` ไม่มี rank (= -1) → forward path ไม่มองเป็น progression · code เก่า (ก่อนมี externalMatches guard) เอาค่า default นี้ไป "ซ่อม" order ถอยหลังตอน webhook TO_RETURN เข้า (01:26Z) · หลังจากนั้น repair ใหม่ก็ช่วยไม่ได้เพราะ external ใน DB ค้าง TO_CONFIRM_RECEIVE ≠ API TO_RETURN → externalMatches false ตลอด
+**วิธีแก้**: เพิ่ม `TO_RETURN → shipping/paid` (ของออกไปแล้ว คงไว้ฝั่ง shipping — badge แดง "คืนสินค้า" มีใน status-tab-colors อยู่แล้ว) + rank 5 (COMPLETED ขยับเป็น 6) + เพิ่มใน list fulfillment update / stock deduct / shouldBeShipped (ไม่เพิ่มใน auto-issue docs — ไม่ออกเอกสารจาก event คืนของ) → sync รอบถัดไป forward path พาไปถูกทางเอง
+**ป้องกัน regression**: เพิ่ม/เจอสถานะ marketplace ใหม่ ต้องมีทั้ง mapping และ rank เสมอ — **default ของ mapping ห้ามเป็นสถานะต้นทาง (new/pending)** เพราะสถานะไม่รู้จักมักเกิดปลายวงจร ไม่ใช่ต้นวงจร · TikTok/Lazada ควรตรวจแบบเดียวกันถ้าเจออาการ order ถอยหลัง
+
 ## 2026-08-28 — Order Shopee ส่งแล้วแต่ระบบค้าง processing (repair path ดึงสถานะถอยหลัง) + 3 ร้านโดนอด sync
 
 **ที่เกิด**: [lib/shopee/sync.ts](lib/shopee/sync.ts) repair path ใน `upsertOrder` + [app/api/shopee/sync-all/route.ts](app/api/shopee/sync-all/route.ts)

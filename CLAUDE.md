@@ -355,8 +355,12 @@ marketplace_accounts → marketplace_product_links → product_variations
 | READY_TO_SHIP | ready_to_ship | paid |
 | PROCESSED | **processing** | paid |
 | SHIPPED | shipping | paid |
+| TO_CONFIRM_RECEIVE | shipping | paid |
+| TO_RETURN (ลูกค้าขอคืนของหลังได้รับ) | shipping | paid |
 | COMPLETED | completed | paid |
 | CANCELLED | cancelled | cancelled |
+
+- **สถานะใหม่ที่ mapping ไม่รู้จักห้ามปล่อยตก default** (default = new/pending จะลาก order ถอยหลัง — เคยเกิดกับ TO_RETURN, ดู fix-bug.md 2026-08-28) — เพิ่มสถานะต้องเพิ่มทั้ง `mapShopeeStatus()` และ rank ใน `SHOPEE_STATUS_ORDER`
 
 ### Product Matching Priority (Order Sync — ใช้ร่วม Shopee + TikTok)
 1. `marketplace_product_links` (external_item_id + external_model_id)
