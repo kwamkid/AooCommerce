@@ -620,6 +620,56 @@ function mapBuyerInvoiceToTaxFields(
 }
 
 /**
+ * ตัดสต็อก + ปล่อยจองตอนออเดอร์ Shopee ส่งแล้ว — idempotent ด้วยการเช็ค
+ * transaction 'out' จริงของออเดอร์ ไม่เดาจาก order_status (สถานะอาจถูกเส้นอื่น
+ * เลื่อนไปก่อน เช่น tracking push แล้วทำให้เงื่อนไขแบบสถานะข้ามการตัดถาวร —
+ * เจอจริง 2026-08-28 ดู fix-bug.md) — เรียกซ้ำได้ปลอดภัย ใช้เก็บตกตอน re-sync ด้วย
+ */
+async function deductShippedStockOnce(companyId: string, orderId: string, warehouseId: string, orderSn: string) {
+  try {
+    const stockConfig = await getStockConfig(companyId);
+    if (!stockConfig.stockEnabled) return;
+
+    const { data: orderItems } = await supabaseAdmin
+      .from('order_items')
+      .select('id, variation_id, quantity')
+      .eq('order_id', orderId);
+    if (!orderItems?.length) return;
+
+    const { data: outTx } = await supabaseAdmin
+      .from('inventory_transactions')
+      .select('variation_id')
+      .eq('reference_type', 'order')
+      .eq('reference_id', orderId)
+      .eq('type', 'out');
+    const alreadyDeducted = new Set((outTx || []).map(t => t.variation_id));
+
+    let deducted = 0;
+    for (const oi of orderItems) {
+      if (!oi.variation_id || alreadyDeducted.has(oi.variation_id)) continue;
+      try {
+        await deductAndUnreserve({
+          supabase: supabaseAdmin,
+          companyId,
+          warehouseId,
+          variationId: oi.variation_id,
+          qty: Number(oi.quantity),
+          referenceType: 'order',
+          referenceId: orderId,
+          notes: `Shopee shipped: ${orderSn}`,
+        });
+        deducted++;
+      } catch (stockErr) {
+        console.error(`[Shopee Sync] Stock deduct error for ${orderSn} item ${oi.variation_id}:`, stockErr);
+      }
+    }
+    if (deducted > 0) console.log(`[Shopee Sync] Stock deducted for ${orderSn} (${deducted} items)`);
+  } catch (stockErr) {
+    console.error(`[Shopee Sync] Stock deduction failed for ${orderSn}:`, stockErr);
+  }
+}
+
+/**
  * Upsert a single Shopee order.
  */
 async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder, buyerInvoice?: BuyerInvoiceInfo, isDupRetry = false): Promise<UpsertResult> {
@@ -727,41 +777,10 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder, 
 
       // Deduct + unreserve stock when Shopee order ships (SHIPPED/TO_CONFIRM_RECEIVE/COMPLETED)
       // This is the equivalent of commitStock — reduces on_hand and releases reservation
+      // (idempotent จาก transaction จริง — เดิมเช็ค wasPreShip จาก order_status ซึ่งพลาด
+      //  ถาวรเมื่อสถานะถูกเส้นอื่นเลื่อนไปก่อน)
       if (['SHIPPED', 'TO_CONFIRM_RECEIVE', 'COMPLETED'].includes(shopeeOrder.order_status) && existing.warehouse_id) {
-        // Only deduct if previous status was pre-ship (avoid double deduction)
-        const wasPreShip = ['new', 'ready_to_ship', 'processing'].includes(existing.order_status);
-        if (wasPreShip) {
-          try {
-            const stockConfig = await getStockConfig(companyId);
-            if (stockConfig.stockEnabled) {
-              const { data: orderItems } = await supabaseAdmin
-                .from('order_items')
-                .select('id, variation_id, quantity')
-                .eq('order_id', existing.id);
-
-              for (const oi of (orderItems || [])) {
-                if (!oi.variation_id) continue;
-                try {
-                  await deductAndUnreserve({
-                    supabase: supabaseAdmin,
-                    companyId,
-                    warehouseId: existing.warehouse_id,
-                    variationId: oi.variation_id,
-                    qty: Number(oi.quantity),
-                    referenceType: 'order',
-                    referenceId: existing.id,
-                    notes: `Shopee shipped: ${shopeeOrder.order_sn}`,
-                  });
-                } catch (stockErr) {
-                  console.error(`[Shopee Sync] Stock deduct error for ${shopeeOrder.order_sn} item ${oi.variation_id}:`, stockErr);
-                }
-              }
-              console.log(`[Shopee Sync] Stock deducted for ${shopeeOrder.order_sn} (${(orderItems || []).length} items)`);
-            }
-          } catch (stockErr) {
-            console.error(`[Shopee Sync] Stock deduction failed for ${shopeeOrder.order_sn}:`, stockErr);
-          }
-        }
+        await deductShippedStockOnce(companyId, existing.id, existing.warehouse_id, shopeeOrder.order_sn);
       }
 
       // Stock return for CANCELLED/IN_CANCEL orders
@@ -784,7 +803,11 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder, 
     }
 
     // Repair: if external_status matches but order_status/payment_status/fulfillment_status is wrong
-    if (!statusUpdated) {
+    // ต้องเช็คว่า external_status ตรงกันจริงก่อน — ถ้า API ตอบสถานะเก่ากว่าที่บันทึกไว้
+    // (API ตามหลัง webhook เป็นปกติ) การ "ซ่อม" จะกลายเป็นดึง order ถอยหลัง เช่น
+    // shipping → processing ทั้งที่ของออกไปแล้ว (เจอจริง 2026-08-28 — ดู fix-bug.md)
+    const externalMatches = !existing.external_status || existing.external_status === shopeeOrder.order_status;
+    if (!statusUpdated && externalMatches) {
       const expectedMapping = mapShopeeStatus(shopeeOrder.order_status);
       const shouldBeShipped = ['SHIPPED', 'TO_CONFIRM_RECEIVE', 'COMPLETED'].includes(shopeeOrder.order_status);
       const needsOrderFix = existing.order_status !== expectedMapping.order_status;

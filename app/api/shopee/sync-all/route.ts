@@ -27,12 +27,16 @@ async function handleSyncAll(request: NextRequest) {
   }
 
   // Get all active accounts (shopee platform only)
+  // เรียงร้านที่ค้าง sync นานสุดขึ้นก่อน — loop ด้านล่าง time-box 50s แล้ว break
+  // ถ้าไม่เรียง ร้านกลุ่มแรกตามลำดับสุ่มของ DB จะกินเวลาทุกรอบ ร้านท้ายแถวอดถาวร
+  // (เจอจริง: 3 ร้านค้าง last_sync_at 7 วัน — fix-bug.md 2026-08-28)
   const { data: accounts } = await supabaseAdmin
     .from('marketplace_accounts')
     .select('*')
     .eq('is_active', true)
     .or('platform.eq.shopee,platform.is.null')
-    .not('refresh_token', 'is', null);
+    .not('refresh_token', 'is', null)
+    .order('last_sync_at', { ascending: true, nullsFirst: true });
 
   const results: { shop_id: number; orders_created: number; orders_updated: number; products_created: number; customers_created: number; errors: string[]; skipped?: boolean }[] = [];
 

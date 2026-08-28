@@ -16,6 +16,14 @@
 
 ---
 
+## 2026-08-28 — Order Shopee ส่งแล้วแต่ระบบค้าง processing (repair path ดึงสถานะถอยหลัง) + 3 ร้านโดนอด sync
+
+**ที่เกิด**: [lib/shopee/sync.ts](lib/shopee/sync.ts) repair path ใน `upsertOrder` + [app/api/shopee/sync-all/route.ts](app/api/shopee/sync-all/route.ts)
+**อาการ**: 2 ออเดอร์ Tommee Tippee ขึ้น "กำลังจัดส่ง" บน Shopee แต่ระบบค้าง processing (`external_status=SHIPPED` แต่ `order_status=processing`) · อีก 2 ใบค้าง `new` ทั้งที่ external ไป `TO_CONFIRM_RECEIVE` · 3 ร้าน (Tommee Tippee/Hape/Taf Toys) `last_sync_at` ค้าง 21 ส.ค. ทั้งที่ cron เดินปกติ
+**Root cause**: (1) **repair path ไม่เช็คว่า external_status ตรงกันก่อนซ่อม** (ทั้งที่ comment เขียนว่า "if external_status matches") — เมื่อ Shopee API ตอบสถานะเก่ากว่า webhook (ปกติของ Shopee) เส้น forward กันถอยไว้ถูก แต่ repair เอาสถานะ stale มา "ซ่อม" order ถอยหลัง เช่น shipping→processing (2) query ร้านใน sync-all **ไม่มี ORDER BY** — loop time-box 50s แล้ว break ร้านกลุ่มแรกตามลำดับสุ่ม DB กินเวลาทุกรอบ ร้านท้ายแถวอดถาวร
+**วิธีแก้**: (1) repair เฉพาะเมื่อ `external_status` ว่างหรือตรงกับสถานะ API (`externalMatches`) (2) sync-all `.order('last_sync_at', ascending, nullsFirst)` — ร้านค้างนานสุดได้คิวก่อน (3) แถม: การตัดสต็อกตอน SHIPPED เปลี่ยนจากเดา `wasPreShip` จาก order_status → เช็ค transaction `out` จริง (idempotent — เดิมถ้าสถานะถูกเส้นอื่นเลื่อนก่อน เช่น tracking push การตัดจะถูกข้ามถาวร) · SQL แก้ 2 ใบที่ค้างให้เป็น shipping แล้ว
+**ป้องกัน regression**: เส้น "ซ่อม/แก้สถานะ" ทุกเส้นต้องเคารพ forward-only เหมือนเส้นหลัก — ข้อมูล API ภายนอกที่ stale ห้ามใช้เขียนทับ · loop ที่ time-box + break ต้องมี ORDER BY ที่ทำให้ร้านที่อดได้คิวก่อนเสมอ · action ครั้งเดียว (ตัดสต็อก/ออกเอกสาร) ให้ gate ด้วยหลักฐานใน DB ไม่ใช่สถานะที่เปลี่ยนได้หลายทาง
+
 ## 2026-08-28 — หน้าเปิดบิลในแชท: กดบันทึกแล้วเงียบ + layout โดนบีบ/ล้นบนจอ notebook
 
 **ที่เกิด**: [components/orders/OrderForm.tsx](components/orders/OrderForm.tsx) `handleSave` + [components/ui/CustomerSelectionCard.tsx](components/ui/CustomerSelectionCard.tsx)
