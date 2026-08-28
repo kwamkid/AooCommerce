@@ -16,6 +16,18 @@
 
 ---
 
+## 2026-08-28 — หน้าเปิดบิลในแชท: กดบันทึกแล้วเงียบ + layout โดนบีบ/ล้นบนจอ notebook
+
+**ที่เกิด**: [components/orders/OrderForm.tsx](components/orders/OrderForm.tsx) `handleSave` + [components/ui/CustomerSelectionCard.tsx](components/ui/CustomerSelectionCard.tsx)
+**อาการ**: (1) กดบันทึกในหน้าเปิดบิล (panel ในแชท) แล้วไม่มีอะไรเกิดขึ้นเลย — ไม่มี error ไม่มี toast (2) บนจอ notebook ปกติ (1280-1440px) panel เปิดบิลโดนบีบเป็น 2 คอลัมน์แคบๆ + มี scrollbar แนวนอน
+**Root cause**:
+1. validation เบอร์โทรใช้ regex ที่**ไม่รับขีด/เว้นวรรค** — เบอร์ที่ prefill จาก customer record มักเป็น "081-5554544" (placeholder ของ input เองก็เขียน 0xx-xxx-xxxx!) → validate fail → `return` เงียบสนิท เพราะ `fieldErrors.deliveryPhone`/`deliveryEmail` **ไม่มีจุด render ใน UI เลย** + ไม่อยู่ใน scroll-to-error branch + ไม่มี toast
+2. grid ในฟอร์มใช้ **viewport breakpoint** (`sm:`/`md:`/`lg:grid-cols-2`) แต่ฟอร์มถูกฝังใน panel กว้าง ~600px บนจอ 1280+ — breakpoint เห็นจอกว้างเลยบังคับ 2 คอลัมน์ในพื้นที่ที่ไม่พอ
+**วิธีแก้**:
+1. ตัด `[-\s()]` ออกก่อน validate เบอร์ · validation fail ทุกกรณี **toast ข้อความ error ตัวแรกเสมอ** (กันคลาส bug "ปุ่มเงียบ" ทั้งชุด) · scroll ครอบเคส phone/email ด้วย
+2. `narrowForm`: ResizeObserver วัดความกว้างจริงของ form root (< 700px = แคบ) → ส่ง `singleColumn` prop เข้า `CustomerSelectionCard` (ลูกค้า/จัดส่งถึง ซ้อนแนวตั้ง) + grid หมายเหตุ/ของขวัญ/วันส่ง-โซน เป็นคอลัมน์เดียว
+**ป้องกัน regression**: inline validation ห้าม return เงียบ — error ทุก field ต้องมีทางมองเห็น (inline หรือ toast อย่างน้อยหนึ่ง) · component ที่ถูกฝังใน panel/sidebar ห้ามใช้ viewport breakpoint ตัดสิน layout — วัด container จริงด้วย ResizeObserver (pattern `narrowForm`/`summaryWide` ใน OrderForm)
+
 ## 2026-08-28 — รูปร้าน Lazada แตก (broken image) ทั้งที่ refresh สำเร็จ
 
 **ที่เกิด**: [lib/lazada/api.ts](lib/lazada/api.ts) `getSellerInfo` + card Lazada ใน [MarketplaceConnections.tsx](app/settings/sales-channels/MarketplaceConnections.tsx)

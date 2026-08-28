@@ -357,6 +357,20 @@ export default function OrderForm({
     return () => ro.disconnect();
   }, [hasProducts, embedded]);
 
+  // Tailwind sm:/md: breakpoints see the VIEWPORT — inside the chat panel on a
+  // notebook the form is ~600px while the viewport is 1280+, so 2-column grids
+  // get crushed. Measure the form's own width and stack sections when cramped.
+  const [narrowForm, setNarrowForm] = useState(false);
+  useEffect(() => {
+    const el = formRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([entry]) => {
+      setNarrowForm(entry.contentRect.width < 700);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   // Initialize default branch (product-first flow for all modes)
   // This allows product section to show immediately without selecting a customer
   useEffect(() => {
@@ -1568,7 +1582,9 @@ export default function OrderForm({
     if (shipToOther && !deliveryName.trim()) {
       errors.recipientName = 'กรุณากรอกชื่อผู้รับ';
     }
-    if (deliveryPhone.trim() && !/^(0[0-9]{8,9}|[0-9]{9,10})$/.test(deliveryPhone.trim())) {
+    // เบอร์จาก customer record/การพิมพ์มักมีขีดหรือเว้นวรรค (081-5554544) — ตัดทิ้งก่อนตรวจ
+    const phoneDigits = deliveryPhone.replace(/[-\s()]/g, '');
+    if (phoneDigits && !/^(0[0-9]{8,9}|[0-9]{9,10})$/.test(phoneDigits)) {
       errors.deliveryPhone = 'เบอร์โทรไม่ถูกต้อง';
     }
     if (deliveryEmail.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(deliveryEmail.trim())) {
@@ -1581,13 +1597,14 @@ export default function OrderForm({
 
     setFieldErrors(errors);
     if (Object.keys(errors).length > 0) {
+      // Never fail silently — some errors (phone/email) have no inline display,
+      // so always toast the first one in addition to scrolling.
+      showToast(Object.values(errors)[0], 'error');
       // Scroll to first error
-      if (errors.customer) {
+      if (errors.customer || errors.recipientName || errors.deliveryPhone || errors.deliveryEmail) {
         customerSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       } else if (errors.deliveryDate) {
         deliveryDateRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      } else if (errors.recipientName) {
-        customerSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       } else if (errors.branches) {
         productsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
@@ -2146,6 +2163,7 @@ export default function OrderForm({
       <div ref={deliverySectionRef} className="space-y-4">
         <CustomerSelectionCard
           customerLabel="ลูกค้า"
+          singleColumn={narrowForm}
           customerRequired={false}
           allowNewCustomer
           newCustomerMode={newCustomerMode}
@@ -2240,8 +2258,8 @@ export default function OrderForm({
             แยกเป็นสามการ์ดเตี้ย ๆ ทำให้จอ desktop เหลือที่ว่างเปล่า ๆ */}
         {(features.delivery_date.enabled || features.delivery_zone) && (
         <div ref={deliveryDateRef} className={`bg-white dark:bg-slate-800 rounded-lg ${embedded ? '' : 'border border-gray-200 dark:border-slate-700'} p-4`}>
-          <div className={features.delivery_date.enabled && features.delivery_zone
-            ? 'grid grid-cols-1 lg:grid-cols-2 gap-4 items-start' : ''}>
+          <div className={features.delivery_date.enabled && features.delivery_zone && !narrowForm
+            ? 'grid grid-cols-1 lg:grid-cols-2 gap-4 items-start' : 'space-y-4'}>
           {features.delivery_date.enabled && (<div>
           <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">
             วันที่ส่งของ {features.delivery_date.required && <span className="text-red-500">*</span>}
@@ -2356,7 +2374,7 @@ export default function OrderForm({
         <div className={`bg-white dark:bg-slate-800 rounded-lg ${embedded ? '' : 'border border-gray-200 dark:border-slate-700'} p-4`}>
           <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-2">ของขวัญ</label>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className={`grid grid-cols-1 ${narrowForm ? '' : 'md:grid-cols-2'} gap-3`}>
             <Checkbox checked={giftHidePrice} onChange={setGiftHidePrice} disabled={isReadOnly} className="!items-start gap-3">
               <span className="min-w-0">
                 <span className="block text-base text-gray-700 dark:text-slate-300">ไม่แนบใบเสร็จและราคาไปกับของ</span>
@@ -2382,7 +2400,7 @@ export default function OrderForm({
           </div>
 
           {giftCardEnabled && giftCardOn && (
-            <div className="mt-3 pt-3 border-t border-gray-100 dark:border-slate-700 grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className={`mt-3 pt-3 border-t border-gray-100 dark:border-slate-700 grid grid-cols-1 ${narrowForm ? '' : 'md:grid-cols-2'} gap-3`}>
               <div>
                 <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">ข้อความบนการ์ด</label>
                 <textarea
@@ -2472,7 +2490,7 @@ export default function OrderForm({
           <div className="space-y-3">
               {/* Notes side-by-side on desktop, stacked on mobile.
                   Both textareas use rows=3 so they line up visually. */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className={`grid grid-cols-1 ${narrowForm ? '' : 'md:grid-cols-2'} gap-3`}>
                 <div>
                   <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">
                     หมายเหตุ <span className="text-gray-400 dark:text-slate-500 font-normal">(แสดงในบิล / การจัดส่ง)</span>

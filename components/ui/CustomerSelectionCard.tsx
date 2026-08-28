@@ -147,6 +147,11 @@ interface Props {
   // ── Read-only display mode ──
   /** Show customer info as read-only (no editable fields) */
   readOnly?: boolean;
+
+  /** Stack customer/delivery vertically regardless of viewport breakpoints —
+   *  for narrow containers (chat panel) where the viewport is wide but the
+   *  card itself is ~600px, so sm:grid-cols-2 would crush both columns. */
+  singleColumn?: boolean;
 }
 
 // ── Helper: get badge for sale_type ──────────────────────
@@ -215,6 +220,7 @@ export default function CustomerSelectionCard({
   newCustomerName = '',
   onNewCustomerNameChange,
   readOnly = false,
+  singleColumn = false,
 }: Props) {
   const [showAddressDropdown, setShowAddressDropdown] = useState(false);
   const [showTaxModal, setShowTaxModal] = useState(false);
@@ -238,7 +244,7 @@ export default function CustomerSelectionCard({
 
   return (
     <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4">
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
+      <div className={`grid grid-cols-1 ${singleColumn ? '' : 'sm:grid-cols-2'} gap-x-4 gap-y-3`}>
         {/* Section header — Left (toggle moved out, sits inline with the input below) */}
         <div className="flex items-center gap-1.5 pb-1 border-b border-gray-100 dark:border-slate-700">
           <Users className="w-4 h-4 text-gray-500 dark:text-slate-400" />
@@ -250,19 +256,19 @@ export default function CustomerSelectionCard({
 
         {/* Section header — Right */}
         {showDeliveryCol ? (
-          <div className="hidden sm:flex items-center gap-1.5 pb-1 border-b border-gray-100 dark:border-slate-700 sm:border-l sm:border-l-transparent sm:pl-4">
+          <div className={`${singleColumn ? 'hidden' : 'hidden sm:flex'} items-center gap-1.5 pb-1 border-b border-gray-100 dark:border-slate-700 sm:border-l sm:border-l-transparent sm:pl-4`}>
             <MapPin className="w-4 h-4 text-gray-500 dark:text-slate-400" />
             <span className="text-sm font-semibold text-gray-700 dark:text-slate-300">
               {onShipToOtherChange ? 'จัดส่งถึง' : 'ที่อยู่จัดส่ง'}
             </span>
           </div>
         ) : (
-          <div className="hidden sm:block" />
+          <div className={singleColumn ? 'hidden' : 'hidden sm:block'} />
         )}
 
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3 items-start">
+      <div className={`grid grid-cols-1 ${singleColumn ? '' : 'sm:grid-cols-2'} gap-x-4 gap-y-3 items-start`}>
         <div className="space-y-3 min-w-0">
         {/* Row 1 Left: [toggle] + [search/name input] OR [selected customer card] */}
         <div className="relative flex flex-col">
@@ -488,7 +494,7 @@ export default function CustomerSelectionCard({
         <div className="space-y-3 min-w-0">
         {/* Row 1 Right: ที่อยู่ textarea (label is in the section header above) */}
         {showDeliveryCol && (
-        <div className="flex flex-col sm:border-l sm:border-gray-200 dark:sm:border-slate-700 sm:pl-4">
+        <div className={`flex flex-col ${singleColumn ? 'pt-3 border-t border-gray-100 dark:border-slate-700' : 'sm:border-l sm:border-gray-200 dark:sm:border-slate-700 sm:pl-4'}`}>
           {onShipToOtherChange && (
             <div className="mb-3">
               <div className="grid grid-cols-2 gap-2">
@@ -592,7 +598,7 @@ export default function CustomerSelectionCard({
 
         {/* Row 2 Right: ThaiAddressInput */}
         {(selectedCustomer || hasDelivery) && (
-          <div className="sm:border-l sm:border-gray-200 dark:sm:border-slate-700 sm:pl-4">
+          <div className={singleColumn ? 'pt-3 border-t border-gray-100 dark:border-slate-700' : 'sm:border-l sm:border-gray-200 dark:sm:border-slate-700 sm:pl-4'}>
             <ThaiAddressInput
               compact
               district={delivery?.deliveryDistrict || ''}
