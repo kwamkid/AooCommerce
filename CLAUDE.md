@@ -460,7 +460,7 @@ marketplace_accounts → marketplace_product_links → product_variations
 - ใช้ `p_exclude_flow_types` parameter ใน RPC `get_orders_list`
 
 ### API Docs (Local — ดูก่อน web search!)
-- **Shopee v2**: `api_doc_knowledge/Shopee/_INDEX.md`
+- **Shopee v2**: `api_doc_knowledge/Shopee/_INDEX.md` — refresh ได้ทุกเมื่อด้วย `node scripts/scrape-shopee-docs.mjs` (ดึงจาก JSON endpoint สาธารณะของ open.shopee.com — **ไม่ต้อง login/headless browser**; re-scrape ล่าสุด 2026-08-28: 444 APIs 29 หมวด รวมหมวดใหม่ BrandPortal)
 - **Lazada**: `api_doc_knowledge/Lazada/_INDEX.md` — scrape ครบ 365 APIs จาก open.lazada.com (2026-08-28, headless Chrome — หน้า docs เป็น SPA ไม่ต้อง login) ยกเว้น 3 หมวดที่กางไม่ได้: LazCredit Risk / Content / Store Flash Sale · script อยู่ scratchpad session นั้น (เขียนใหม่ได้ง่าย: expand sidebar → เก็บ `a[href*=path=]` → เปิดทีละหน้า slice ตั้งแต่ "Latest update" ถึง "Please rate this article")
 - **TikTok**: ใช้ skill **`tts-openapi-guide`** (จาก `npm i -g @tts-open-toolkit/cli` → `tts_open_toolkit skill add --agent cc`) — มี **OAS ฉบับเต็มเป็น JSON** ที่ `~/.claude/skills/tts-openapi-guide/references/oas/paths/*.json` อัปเดตได้ด้วย `tts_open_toolkit update` · สำเนา markdown เก่าใน api_doc_knowledge **ลบทิ้งแล้ว** (2026-08-28 — stale, เลข push code ผิด) · เรื่อง push code ยึดหน้า Partner Center เสมอ
 
