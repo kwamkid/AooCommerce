@@ -965,6 +965,12 @@ input[type="number"] {
   /* ไม่ต้องดึงขอบล่าง — margin ลบไม่ได้ "ย้าย" ตัวเอง แค่ดึงของที่ตามมาขึ้น
      host ที่ใช้แถบนี้ต้องไม่มี padding ล่าง (panel แชทใช้ px-4 pt-4) แถบจึงแนบก้นจริง */
 }
+/* วางเคียงกับแถบพิมพ์ข้อความของแชท (p-2 md:p-4 + คอนโทรลสูง 40px) — เส้นบนต้องตรงกัน
+   ระยะในต้องเท่ากันเป๊ะ ไม่งั้นสองแถบที่อยู่ติดกันจะดูเหลื่อมทันที (ผู้ใช้ทัก 2026-08-29) */
+.sticky-actions-inset .sticky-actions-inner { padding-top: 0.5rem; padding-bottom: 0.5rem; }
+@media (min-width: 768px) {
+  .sticky-actions-inset .sticky-actions-inner { padding-top: 1rem; padding-bottom: 1rem; }
+}
 @media (max-width: 640px) {
   /* ยอดรวมคือเหตุผลที่แถบนี้มี — จอแคบก็ยังต้องเห็น ให้หดข้อความแทนการซ่อน */
   .sticky-actions-inset .sticky-actions-inner > :first-child { display: block; }
