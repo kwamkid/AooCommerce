@@ -43,7 +43,9 @@ interface ShopeeOrderItem {
   model_original_price: number;
   model_discounted_price: number;
   image_info?: { image_url: string };
-  promotion_list?: { promotion_type: string; promotion_id: number }[];
+  // promotion_id เป็น uint64 ฝั่ง Shopee (เปลี่ยน type 2026-07-31) — เทียบ/จับคู่เป็น string เสมอ
+  // กัน precision เกิน 2^53 และกัน driver คืน bigint คนละแบบ (number vs string)
+  promotion_list?: { promotion_type: string; promotion_id: number | string }[];
 }
 
 interface ShopeeRecipientAddress {
@@ -1139,7 +1141,7 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder, 
     total: number;
     shopeeItemId: number;
     shopeeModelId: number;
-    shopeePromotionIds: number[];
+    shopeePromotionIds: string[];
   }[] = [];
 
   for (const item of shopeeOrder.item_list || []) {
@@ -1227,7 +1229,7 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder, 
     // Extract Shopee promotion IDs (bundle_deal, add_on_deal)
     const shopeePromotionIds = (item.promotion_list || [])
       .filter(p => ['bundle_deal', 'add_on_deal_main', 'add_on_deal_sub'].includes(p.promotion_type))
-      .map(p => p.promotion_id);
+      .map(p => String(p.promotion_id));
 
     resolvedItems.push({
       variation_id: matched.variation_id,
@@ -1390,7 +1392,7 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder, 
   // Map Shopee deal IDs → local promotion_id on order_items
   try {
     // Collect unique Shopee promotion IDs from all items
-    const allShopeePromotionIds = new Set<number>();
+    const allShopeePromotionIds = new Set<string>();
     for (const item of resolvedItems) {
       for (const pid of item.shopeePromotionIds) {
         allShopeePromotionIds.add(pid);
@@ -1406,9 +1408,9 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder, 
         .in('external_deal_id', Array.from(allShopeePromotionIds));
 
       if (deals && deals.length > 0) {
-        const dealMap = new Map<number, string>(); // external_deal_id → promotion_id
+        const dealMap = new Map<string, string>(); // external_deal_id (as string) → promotion_id
         for (const d of deals) {
-          dealMap.set(d.external_deal_id, d.promotion_id);
+          dealMap.set(String(d.external_deal_id), d.promotion_id);
         }
 
         // Fetch inserted order_items to get their IDs (in insertion order)
