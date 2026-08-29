@@ -28,6 +28,8 @@ export interface MarketplaceAccount {
   linked_product_count: number;
   metadata: Record<string, unknown>;
   created_at: string;
+  /** ร้าน TikTok ที่ดึงรูปโปรไฟล์จากบัญชีได้ (ตั้ง TIKTOK_CLIENT_* แล้ว) */
+  profile_link_available?: boolean;
 }
 
 export function useMarketplaceAccounts(enabled: boolean) {

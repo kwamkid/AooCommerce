@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { checkAuthWithCompany, can, supabaseAdmin } from '@/lib/supabase-admin';
 import { isReachableImage } from '@/lib/lazada/api';
 import { QUOTA_PLATFORMS } from '@/lib/marketplace/platforms';
+import { isLoginKitConfigured } from '@/lib/tiktok/login-kit';
 import { isChatAppConfigured as isLazadaChatAppConfigured } from '@/lib/lazada/api';
 
 // จัดการร้านที่เชื่อมต่อไว้ — **ทุก marketplace ใช้ route นี้ร่วมกัน**
@@ -90,6 +91,9 @@ export async function GET(request: NextRequest) {
       return {
         ...rest,
         chat_connected: chatConnected,
+        // TikTok ไม่มีโลโก้ร้านใน API ฝั่งขาย — ดึงจาก avatar บัญชีผ่าน Login Kit ได้
+        // ถ้าตั้ง TIKTOK_CLIENT_* ไว้ (ไม่ตั้ง = ซ่อนปุ่ม ไม่ใช่ให้กดแล้วพัง)
+        profile_link_available: a.platform === 'tiktok' && isLoginKitConfigured(),
         connection_status: !a.is_active ? 'disconnected' : isExpired ? 'expired' : 'connected',
         linked_product_count: linkCounts[a.id] || 0,
       };

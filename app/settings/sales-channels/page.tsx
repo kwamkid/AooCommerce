@@ -192,7 +192,8 @@ export default function SalesChannelsPage() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     // ระหว่างยังมี query จาก OAuth callback ห้ามเขียนทับ — แท็บ marketplace ต้องอ่านก่อน
-    if (params.get('shopee') || params.get('tiktok') || params.get('success') || params.get('error') || params.get('chat')) return;
+    if (params.get('shopee') || params.get('tiktok') || params.get('success') || params.get('error')
+      || params.get('chat') || params.get('tiktok_profile')) return;
     const url = mainTab === 'marketplace'
       ? `/settings/sales-channels?tab=marketplace#${mpPlatform}`
       : `/settings/sales-channels${platformFilter !== 'all' ? `#${platformFilter}` : ''}`;

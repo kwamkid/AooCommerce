@@ -57,8 +57,11 @@ export default function MarketplaceConnections({
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [syncRange, setSyncRange] = useState<Record<string, number>>({}); // accountId → days
   // ตั้งโลโก้เองด้วย URL — สำหรับร้านที่ API ของ marketplace ไม่คืนโลโก้มาให้เลย
-  const [logoModal, setLogoModal] = useState<{ id: string; name: string; url: string } | null>(null);
+  const [logoModal, setLogoModal] = useState<
+    { id: string; name: string; url: string; canLinkProfile?: boolean } | null
+  >(null);
   const [savingLogo, setSavingLogo] = useState(false);
+  const [linkingProfile, setLinkingProfile] = useState(false);
   const [syncProgress, setSyncProgress] = useState<number>(0); // 0-100
   const [syncPhaseLabel, setSyncPhaseLabel] = useState('');
   const syncAbortRef = useRef<AbortController | null>(null);
@@ -84,6 +87,26 @@ export default function MarketplaceConnections({
       const askChat = params.get('chat') === 'prompt';
       window.history.replaceState({}, '', cleanUrl);
       if (askChat) promptChatConnect('lazada');
+    } else if (params.get('tiktok_profile')) {
+      // กลับจาก Login Kit (ขาดึงรูปโปรไฟล์) — คนละขากับการเชื่อมร้าน
+      const r = params.get('tiktok_profile') || '';
+      const profileMessages: Record<string, string> = {
+        connected: 'ดึงรูปจากบัญชี TikTok มาเป็นโลโก้ร้านแล้ว',
+        cancelled: 'ยกเลิกการเชื่อมบัญชี TikTok',
+        error_no_avatar: 'บัญชี TikTok นี้ยังไม่ได้ตั้งรูปโปรไฟล์ — ตั้งรูปในแอป TikTok แล้วลองใหม่',
+        error_bad_avatar: 'รูปโปรไฟล์ที่ TikTok ส่งมาเปิดไม่ได้ — คงรูปเดิมไว้',
+        error_expired: 'ลิงก์หมดอายุ (เกิน 10 นาที) — กดเชื่อมใหม่อีกครั้ง',
+        error_no_account: 'ไม่พบร้านที่จะแปะรูป',
+        error_failed: 'เชื่อมบัญชี TikTok ไม่สำเร็จ',
+      };
+      const okResult = r === 'connected';
+      showToast(
+        profileMessages[r] || (r.startsWith('error_auth_') ? 'เซสชันหลุดระหว่างเชื่อมต่อ — เข้าสู่ระบบใหม่แล้วลองอีกครั้ง' : `เชื่อมบัญชีไม่สำเร็จ (${r})`),
+        okResult ? 'success' : 'error'
+      );
+      if (okResult) refetch();
+      onPlatformChange('tiktok');
+      window.history.replaceState({}, '', cleanUrl);
     } else if (params.get('error')) {
       const err = params.get('error');
       const messages: Record<string, string> = {
@@ -374,6 +397,24 @@ export default function MarketplaceConnections({
 
   // ดึงชื่อร้าน+โลโก้ใหม่จากแพลตฟอร์ม โดยไม่ต้องผ่าน OAuth และไม่แตะ token
   const [resyncingId, setResyncingId] = useState<string | null>(null);
+  // พาไปหน้าอนุญาตของ TikTok — กลับมาที่ /api/tiktok/profile/callback ซึ่งจะเก็บรูปให้เอง
+  const handleLinkTikTokProfile = async (accountId: string) => {
+    setLinkingProfile(true);
+    try {
+      const res = await apiFetch(`/api/tiktok/profile/auth-url?account_id=${accountId}`);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.url) {
+        showToast(data.error || 'สร้างลิงก์เชื่อมต่อไม่ได้', 'error');
+        setLinkingProfile(false);
+        return;
+      }
+      window.location.href = data.url;   // ออกจากหน้าไปเลย ไม่ต้อง reset loading
+    } catch {
+      showToast('เกิดข้อผิดพลาด', 'error');
+      setLinkingProfile(false);
+    }
+  };
+
   const handleResyncInfo = async (accountId: string) => {
     setResyncingId(accountId);
     try {
@@ -395,6 +436,7 @@ export default function MarketplaceConnections({
           id: accountId,
           name: data.shop_name || acc?.shop_name || 'ร้าน',
           url: '',
+          canLinkProfile: acc?.profile_link_available,
         });
         return;
       }
@@ -1019,9 +1061,27 @@ export default function MarketplaceConnections({
         }
       >
         <div className="px-6 py-5 space-y-3">
+          {logoModal?.canLinkProfile && (
+            <div className="rounded-lg border border-gray-200 dark:border-slate-700 p-4 space-y-2">
+              <p className="body-text text-gray-900 dark:text-white font-medium">
+                ดึงรูปจากบัญชี TikTok
+              </p>
+              <p className="subtitle-text text-gray-500">
+                TikTok Shop ไม่เปิด API โลโก้ร้าน แต่ดึงรูปโปรไฟล์ของบัญชีที่เป็นเจ้าของร้านมาใช้แทนได้
+                — กดแล้วจะพาไปหน้าอนุญาตของ TikTok · เราขอแค่ชื่อกับรูป ไม่โพสต์อะไรทั้งสิ้น
+              </p>
+              <Button
+                variant="secondary"
+                loading={linkingProfile}
+                onClick={() => handleLinkTikTokProfile(logoModal.id)}
+              >
+                เชื่อมบัญชี TikTok
+              </Button>
+            </div>
+          )}
           <p className="subtitle-text text-gray-500">
-            ใช้เมื่อ marketplace ไม่ส่งโลโก้มาทาง API — คัดลอกลิงก์รูปโลโก้จากหน้าตั้งค่าร้าน
-            (Seller Center) มาวางที่นี่ · เว้นว่างเพื่อล้างรูป
+            {logoModal?.canLinkProfile ? 'หรือ' : 'ใช้เมื่อ marketplace ไม่ส่งโลโก้มาทาง API — '}
+            คัดลอกลิงก์รูปโลโก้จากหน้าตั้งค่าร้าน (Seller Center) มาวางที่นี่ · เว้นว่างเพื่อล้างรูป
           </p>
           <FormInput
             label={`โลโก้ของ ${logoModal?.name || ''}`}

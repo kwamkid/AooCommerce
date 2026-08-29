@@ -24,10 +24,16 @@ export interface OAuthStatePayload {
   userId: string;
   platform: OAuthPlatform;
   /**
-   * TikTok + Lazada: การเชื่อมร้านหนึ่งครั้งต้องผ่าน 2 app (ออเดอร์ → แชท)
-   * ค่านี้บอก callback ว่ากำลังกลับมาจากขาไหน — ไม่ใส่ = ขาออเดอร์
+   * ร้านหนึ่งร้านอาจต้องผ่าน OAuth หลายขา — ค่านี้บอก callback ว่ากลับมาจากขาไหน
+   * ไม่ใส่ = ขาออเดอร์
+   *   order   — TikTok/Lazada/Shopee ขาหลัก (ออเดอร์ สินค้า สต็อก)
+   *   chat    — TikTok/Lazada ขาแชท ซึ่งเป็น app คนละตัวใน Partner Center
+   *   profile — TikTok Login Kit (developers.tiktok.com) **คนละระบบกับ Shop เลย**
+   *             ใช้ดึงรูปโปรไฟล์บัญชีมาเป็นโลโก้ร้าน เพราะ Shop API ไม่มีโลโก้
    */
-  app?: 'order' | 'chat';
+  app?: 'order' | 'chat' | 'profile';
+  /** ขา profile ต้องรู้ว่าจะเอารูปไปแปะร้านไหน (ขาอื่นหาร้านจาก response ของแพลตฟอร์ม) */
+  accountId?: string;
 }
 
 interface SignedPayload extends OAuthStatePayload {
@@ -88,11 +94,15 @@ export function verifyOAuthState(state: string | null | undefined): OAuthStatePa
     // ขาออเดอร์หรือขาแชท ตกหล่นเมื่อไหร่ = ขาแชทถูกมองเป็นขาออเดอร์ แล้วเอา code
     // ของ app แชทไป exchange ด้วย key ของ app ออเดอร์ → เชื่อมแชทไม่ได้ตลอดกาล
     // (เจอจริง 2026-08-28)
+    // ⚠️ ค่า app ที่ไม่อยู่ในลิสต์นี้จะกลายเป็น undefined = ถูกมองเป็นขาออเดอร์
+    //    เพิ่มขาใหม่แล้วลืมเติมตรงนี้ = ขานั้นพังแบบเงียบ ๆ (เคยเกิดกับขาแชท)
+    const app = body.app === 'chat' || body.app === 'profile' ? body.app : undefined;
     return {
       companyId: body.companyId,
       userId: body.userId,
       platform: body.platform,
-      app: body.app === 'chat' ? 'chat' : undefined,
+      app,
+      accountId: typeof body.accountId === 'string' ? body.accountId : undefined,
     };
   } catch {
     return null;
