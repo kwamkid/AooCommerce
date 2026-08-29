@@ -32,9 +32,18 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'ออเดอร์นี้ไม่ใช่ของ TikTok' }, { status: 400 });
   }
 
+  // เหมือน ship route — หลังแบ่งกล่อง external_data จะเก่า ใช้ order_parcels เป็นหลัก
+  const { data: parcelRows } = await supabaseAdmin
+    .from('order_parcels')
+    .select('package_number')
+    .eq('order_id', order_id)
+    .not('package_number', 'is', null);
+
   const lineItems = ((order.external_data as Record<string, unknown>)?.line_items || []) as
     { package_id?: string }[];
-  const packageIds = [...new Set(lineItems.map(li => li.package_id).filter((v): v is string => !!v))];
+  const packageIds = (parcelRows?.length || 0) > 0
+    ? [...new Set(parcelRows!.map(p => p.package_number as string))]
+    : [...new Set(lineItems.map(li => li.package_id).filter((v): v is string => !!v))];
   if (packageIds.length === 0) {
     return NextResponse.json({ error: 'ยังไม่มีเลขพัสดุ — ต้องกดจัดส่งก่อน' }, { status: 400 });
   }

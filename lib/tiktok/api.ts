@@ -524,6 +524,38 @@ export async function getTikTokHandoverTimeSlots(
   };
 }
 
+/**
+ * รอบเวลาที่ **ใช้ได้กับทุกพัสดุในออเดอร์** — ต้องหาส่วนร่วม ไม่ใช่เอาของใบแรกไปใช้กับทุกใบ
+ * (ออเดอร์ที่แบ่งกล่องแล้วอาจได้รอบเวลาไม่ตรงกัน การยัดรอบของใบแรกให้ใบอื่น = จองรอบที่
+ * ไม่เคยถูกตรวจว่าใช้ได้จริง แล้วไปพังตอน BatchShipPackages)
+ */
+export async function getCommonHandoverSlots(
+  creds: TikTokCredentials,
+  packageIds: string[]
+): Promise<{ slots: TikTokPickupSlot[]; perPackage: Map<string, number>; error?: string }> {
+  const perPackage = new Map<string, number>();
+  let common: Map<string, TikTokPickupSlot> | null = null;
+  let firstError: string | undefined;
+
+  for (const id of packageIds) {
+    const { slots, error } = await getTikTokHandoverTimeSlots(creds, id);
+    if (error && !firstError) firstError = error;
+    perPackage.set(id, slots.length);
+    const keyed = new Map(slots.map(s => [`${s.start_time}:${s.end_time}`, s]));
+    if (common === null) {
+      common = keyed;
+    } else {
+      for (const k of [...common.keys()]) if (!keyed.has(k)) common.delete(k);
+    }
+  }
+
+  return {
+    slots: [...(common?.values() || [])].sort((a, b) => a.start_time - b.start_time),
+    perPackage,
+    error: firstError,
+  };
+}
+
 export interface TikTokShipPackageInput {
   id: string;
   handover_method?: 'PICKUP' | 'DROP_OFF';

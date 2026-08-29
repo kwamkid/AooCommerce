@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { checkAuthWithCompany, can, supabaseAdmin } from '@/lib/supabase-admin';
 import {
   ensureValidToken,
-  getTikTokHandoverTimeSlots,
+  getCommonHandoverSlots,
   batchShipTikTokPackages,
   type TikTokAccountRow,
   type TikTokShipPackageInput,
@@ -87,10 +87,20 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'TikTok จำกัดการเรียกชั่วคราว — ลองใหม่อีกครั้งภายหลัง' }, { status: 429 });
   }
 
-  // package_id มาพร้อมออเดอร์ตอน sync — หนึ่งออเดอร์มีได้หลายพัสดุ (เช่นหลังแบ่งกล่อง)
+  // เลขพัสดุ: ถ้าเคยแบ่งกล่อง ให้ใช้ของ order_parcels เพราะการแบ่งสร้างพัสดุชุดใหม่
+  // ส่วน external_data เป็นภาพ ณ ตอน sync ครั้งล่าสุด — หลังแบ่งกล่องมันจะเก่าทันที
+  // (split route ไม่ได้ refresh external_data) ถ้าใช้ของเก่าจะส่งเลขที่ TikTok ไม่รู้จักแล้ว
+  const { data: parcelRows } = await supabaseAdmin
+    .from('order_parcels')
+    .select('package_number')
+    .eq('order_id', order_id)
+    .not('package_number', 'is', null);
+
   const lineItems = ((order.external_data as Record<string, unknown>)?.line_items || []) as
     { package_id?: string }[];
-  const packageIds = [...new Set(lineItems.map(li => li.package_id).filter((v): v is string => !!v))];
+  const packageIds = (parcelRows?.length || 0) > 0
+    ? [...new Set(parcelRows!.map(p => p.package_number as string))]
+    : [...new Set(lineItems.map(li => li.package_id).filter((v): v is string => !!v))];
 
   if (packageIds.length === 0) {
     return NextResponse.json({
@@ -110,7 +120,20 @@ export async function POST(request: NextRequest) {
 
     // preview = ให้หน้าเว็บเอารอบเวลาไปให้ผู้ใช้เลือกก่อน ยังไม่ส่งจริง
     if (preview) {
-      const { slots, error } = await getTikTokHandoverTimeSlots(creds, packageIds[0]);
+      // ถามทุกพัสดุแล้วเอาเฉพาะรอบที่ใช้ได้ร่วมกัน — ผู้ใช้เลือกครั้งเดียวแล้วใช้ได้จริงทุกใบ
+      const { slots, perPackage, error } = await getCommonHandoverSlots(creds, packageIds);
+      const anyHasSlots = [...perPackage.values()].some(n => n > 0);
+
+      // มีพัสดุที่ต้องเลือกรอบ แต่หารอบร่วมไม่เจอ — บอกตรง ๆ ดีกว่าเลือกให้มั่ว
+      if (anyHasSlots && slots.length === 0 && packageIds.length > 1) {
+        return NextResponse.json({
+          package_ids: packageIds,
+          needs_pickup_slot: true,
+          pickup_slots: [],
+          error: 'พัสดุในออเดอร์นี้มีรอบเวลาเข้ารับไม่ตรงกัน — ต้องแจ้งส่งทีละกล่องใน TikTok Seller Center',
+        });
+      }
+
       return NextResponse.json({
         package_ids: packageIds,
         // มีรอบเวลาให้เลือก = ต้องถามผู้ใช้ก่อน · ไม่มี = ส่งได้เลยแบบ DROP_OFF
