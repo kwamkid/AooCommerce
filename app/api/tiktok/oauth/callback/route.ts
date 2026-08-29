@@ -92,6 +92,9 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // ร้านที่เชื่อมสำเร็จ "ในรอบนี้" — ใช้เจาะจงว่าจะชวนตั้งโลโก้ให้ร้านไหนต่อ
+    const connectedShopIds: number[] = [];
+
     for (const shop of shops) {
       const shopIdNum = parseInt(shop.id) || 0;
 
@@ -154,6 +157,7 @@ export async function GET(request: NextRequest) {
         console.error('[TikTok Callback] Upsert error for shop', shop.id, ':', error);
         continue;
       }
+      connectedShopIds.push(shopIdNum);
       console.log('[TikTok Callback] Connected shop:', shop.name, '(', shop.id, ')');
     }
 
@@ -178,14 +182,17 @@ export async function GET(request: NextRequest) {
     // OAuth คนละระบบอีกขา · ถ้าไม่ชวนต่อตรงนี้ ผู้ใช้ต้องไปตามหาปุ่มเองทีหลัง
     // ซึ่งแทบไม่มีใครทำ แล้วการ์ดร้านก็เป็นไอคอนเปล่าตลอดไป
     let logoSuffix = '';
-    if (app === 'order' && isLoginKitConfigured()) {
-      const { data: noLogo } = await supabaseAdmin
+    if (app === 'order' && isLoginKitConfigured() && connectedShopIds.length > 0) {
+      // ⚠️ ต้องเจาะจง **ร้านที่เพิ่งเชื่อมในรอบนี้** ไม่ใช่ร้านไหนก็ได้ที่ยังไม่มีโลโก้
+      //    ของเดิมหยิบตัวแรกที่เจอ → เชื่อม gb Thailand แล้วไปแปะรูปให้ ABC the Baby
+      //    (เกิดจริง 2026-08-30 · ผู้ใช้เจอทันทีในรอบทดสอบแรก)
+      const { data: rows } = await supabaseAdmin
         .from('marketplace_accounts')
         .select('id, metadata')
         .eq('company_id', companyId)
         .eq('platform', 'tiktok')
-        .eq('is_active', true);
-      const target = (noLogo || []).find(
+        .in('shop_id', connectedShopIds);
+      const target = (rows || []).find(
         a => !((a.metadata || {}) as Record<string, unknown>).shop_logo
       );
       if (target) logoSuffix = `&logo=prompt&logo_account=${target.id}`;
