@@ -475,7 +475,10 @@ export async function getShippingServices(
 }
 
 /**
- * Ship a package (arrange shipment).
+ * ⚠️ **เลิกใช้แล้ว** — body ไม่ตรงกับ BatchShipPackages ของจริง และไม่เคยมีใครเรียก
+ * (ตรวจเมื่อ 2026-08-29: caller = 0) ใช้ `batchShipTikTokPackages` แทน
+ *
+ * @deprecated
  */
 export async function shipPackage(
   creds: TikTokCredentials,
@@ -492,6 +495,62 @@ export async function shipPackage(
     throw new Error(result.error);
   }
   return result.data;
+}
+
+export interface TikTokPickupSlot {
+  start_time: number;
+  end_time: number;
+}
+
+/**
+ * ช่วงเวลาให้ขนส่งเข้ารับของพัสดุนี้ — ต้องถามก่อนถ้าจะใช้ handover แบบ PICKUP
+ * (โครงเดียวกับ Shopee ที่ต้องเลือกรอบเวลาเข้ารับ)
+ */
+export async function getTikTokHandoverTimeSlots(
+  creds: TikTokCredentials,
+  packageId: string
+): Promise<{ slots: TikTokPickupSlot[]; error?: string }> {
+  const { data, error } = await tiktokApiRequest(
+    creds, 'GET', `/fulfillment/202309/packages/${packageId}/handover_time_slots`
+  );
+  if (error) return { slots: [], error };
+  const d = data as Record<string, unknown> | null;
+  const raw = (d?.pickup_slots || d?.handover_time_slots || d?.time_slots) as
+    { start_time?: number; end_time?: number }[] | undefined;
+  return {
+    slots: (raw || [])
+      .filter(s => s.start_time && s.end_time)
+      .map(s => ({ start_time: s.start_time!, end_time: s.end_time! })),
+  };
+}
+
+export interface TikTokShipPackageInput {
+  id: string;
+  handover_method?: 'PICKUP' | 'DROP_OFF';
+  pickup_slot?: TikTokPickupSlot;
+  self_shipment?: { tracking_number: string; shipping_provider_id: string };
+}
+
+/**
+ * จัดส่งพัสดุเป็นชุด (BatchShipPackages)
+ *
+ * `PICKUP` = ขนส่งมารับที่ร้าน (ต้องมี pickup_slot) · `DROP_OFF` = เอาไปส่งเอง
+ * คืน `errors[]` รายพัสดุ — **ตัวที่ไม่อยู่ใน errors คือสำเร็จ** ไม่มี success list ให้
+ * (คลาสเดียวกับบั๊ก mass_ship_order ของ Shopee ที่เคยทำออเดอร์หาย — ห้าม assume success)
+ */
+export async function batchShipTikTokPackages(
+  creds: TikTokCredentials,
+  packages: TikTokShipPackageInput[]
+): Promise<{ errors: { package_id?: string; code?: number; message?: string }[]; error?: string }> {
+  const { data, error } = await tiktokApiRequest(
+    creds, 'POST', '/fulfillment/202309/packages/ship', {}, { packages }
+  );
+  if (error) return { errors: [], error };
+  const d = data as Record<string, unknown> | null;
+  const raw = (d?.errors || []) as { code?: number; message?: string; detail?: { package_id?: string } }[];
+  return {
+    errors: raw.map(e => ({ package_id: e.detail?.package_id, code: e.code, message: e.message })),
+  };
 }
 
 /**

@@ -62,10 +62,30 @@ export async function POST(request: NextRequest) {
     const creds = await ensureValidToken(account as unknown as LazadaAccountRow, 'main');
     const { file, pdfUrl, error } = await getLazadaShippingLabel(creds, packageIds);
     if (error) return NextResponse.json({ error: `ดึงใบปะหน้าไม่สำเร็จ: ${error}` }, { status: 400 });
-    if (!file && !pdfUrl) {
+
+    // ฝั่งหน้าเว็บทำ res.blob() แล้วส่งเข้า showPdfPreview → **ต้องคืนไฟล์ดิบ ไม่ใช่ JSON**
+    // (สัญญาเดียวกับ /api/shopee/orders/shipping-document)
+    let pdf: Uint8Array<ArrayBuffer> | null = null;
+    if (file) {
+      // Buffer ใช้ ArrayBufferLike ซึ่ง NextResponse ไม่รับ — คัดลอกลง Uint8Array ปกติ
+      const decoded = Buffer.from(file, 'base64');
+      const bytes = new Uint8Array(decoded.byteLength);
+      bytes.set(decoded);
+      pdf = bytes;
+    } else if (pdfUrl) {
+      const res = await fetch(pdfUrl);
+      if (res.ok) pdf = new Uint8Array(await res.arrayBuffer());
+    }
+    if (!pdf || pdf.byteLength === 0) {
       return NextResponse.json({ error: 'Lazada ไม่ได้ส่งไฟล์กลับมา' }, { status: 400 });
     }
-    return NextResponse.json({ success: true, file, pdf_url: pdfUrl, package_ids: packageIds });
+
+    return new NextResponse(pdf, {
+      headers: {
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': `inline; filename="lazada-label-${packageIds[0]}.pdf"`,
+      },
+    });
   } catch (err) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : 'เกิดข้อผิดพลาด' },

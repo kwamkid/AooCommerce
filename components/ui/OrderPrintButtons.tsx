@@ -12,10 +12,11 @@ import { type MarketplacePlatform } from '@/lib/marketplace/types';
 export type PrintType = 'tax' | 'dn' | 'packing' | 'label' | 'marketplace_label' | 'all' | 'abbreviated' | 'doc_envelope';
 
 /** Platform-specific label API routes — extensible for new platforms */
+// ทุก route ต้องคืน **ไฟล์ PDF ดิบ** ไม่ใช่ JSON — ฝั่งนี้ทำ res.blob() แล้วส่งเข้า showPdfPreview
 const MARKETPLACE_LABEL_ROUTES: Record<string, string> = {
   shopee: '/api/shopee/orders/shipping-document',
-  // tiktok: '/api/tiktok/orders/shipping-label',
-  // lazada: '/api/lazada/orders/shipping-label',
+  tiktok: '/api/tiktok/orders/shipping-document',
+  lazada: '/api/lazada/orders/shipping-document',
   // line_shopping: '/api/line-shopping/orders/shipping-label',
   // shippop: '/api/shippop/orders/shipping-label',
 };

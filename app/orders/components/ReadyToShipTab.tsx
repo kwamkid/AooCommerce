@@ -373,9 +373,31 @@ export default function ReadyToShipTab({
     setOverlayMessage(`0 / ${ids.length}`);
     setOverlayProgress(0);
     try {
-      // Split Shopee vs manual orders
-      const shopeeIds = ids.filter(id => orders.find(o => o.id === id)?.source === 'shopee');
-      const manualIds = ids.filter(id => !shopeeIds.includes(id));
+      // แยกกองตามสิ่งที่ "กดรับ" หมายถึงจริง ๆ ของแต่ละที่ — คนละ API คนละผลข้างเคียง
+      //   เปิดบิลเอง = เปลี่ยนสถานะในระบบเท่านั้น
+      //   Shopee     = จองรถเข้ารับ (บางใบต้องเลือกรอบเวลา)
+      //   TikTok     = แจ้งส่งพัสดุ (บางใบต้องเลือกรอบเวลาเช่นกัน)
+      //   Lazada     = แพ็ค + เรียกขนส่ง **ย้อนไม่ได้**
+      // ⚠️ เดิมแบ่งแค่ shopee กับ "ที่เหลือ" → TikTok/Lazada ตกกอง manual แล้วถูกเปลี่ยน
+      //    สถานะลอย ๆ โดยไม่บอกแพลตฟอร์ม = ของไม่ได้ถูกส่งจริงแต่ระบบบอกว่าส่งแล้ว
+      const sourceOf = (id: string) => orders.find(o => o.id === id)?.source || '';
+      const shopeeIds = ids.filter(id => sourceOf(id) === 'shopee');
+      const tiktokIds = ids.filter(id => sourceOf(id) === 'tiktok');
+      const lazadaIds = ids.filter(id => sourceOf(id) === 'lazada');
+      const marketplaceSet = new Set([...shopeeIds, ...tiktokIds, ...lazadaIds]);
+      const manualIds = ids.filter(id => !marketplaceSet.has(id));
+
+      // Lazada แพ็คแล้วยกเลิกไม่ได้ (ไม่มี API) — ต้องให้ยืนยันแยกก่อนเสมอ
+      let lazadaApproved: string[] = [];
+      if (lazadaIds.length > 0) {
+        const ok = await confirm({
+          title: `จัดส่ง Lazada ${lazadaIds.length} รายการ`,
+          description: 'Lazada จะแพ็คพัสดุและเรียกขนส่งทันที ยกเลิกในระบบไม่ได้ — ถ้าต้องแก้ต้องทำใน Lazada Seller Center',
+          confirmLabel: 'จัดส่งเลย',
+          variant: 'danger',
+        });
+        if (ok) lazadaApproved = lazadaIds;
+      }
 
       const successIds: string[] = [];
       let processedCount = 0;
@@ -437,6 +459,43 @@ export default function ReadyToShipTab({
         } else {
           errors.push('Shopee accept failed');
         }
+      }
+
+      // TikTok และ Lazada ยังไม่มี bulk endpoint — ยิงทีละใบ
+      // ทั้งคู่ซ่อมสถานะเองถ้าแพลตฟอร์มรับไปแล้ว จึงกดซ้ำได้ปลอดภัย
+      for (const [label, groupIds, endpoint] of [
+        ['TikTok', tiktokIds, '/api/tiktok/orders/ship'],
+        ['Lazada', lazadaApproved, '/api/lazada/orders/ship'],
+      ] as const) {
+        for (const id of groupIds) {
+          setOverlayMessage(`${processedCount} / ${total} — กำลังส่งไป ${label}...`);
+          try {
+            const res = await apiFetch(endpoint, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ order_id: id }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (res.ok && (data.success || data.repaired)) {
+              successIds.push(id);
+            } else {
+              const o = orders.find(x => x.id === id);
+              errors.push(`${o?.order_number || id}: ${data.error || `${label} ปฏิเสธ`}`);
+            }
+          } catch (e) {
+            errors.push(`${label}: ${e instanceof Error ? e.message : 'เกิดข้อผิดพลาด'}`);
+          }
+          processedCount++;
+          setOverlayProgress(Math.round((processedCount / total) * 100));
+          setOverlayMessage(`${processedCount} / ${total}`);
+        }
+      }
+
+      // ผู้ใช้ไม่ยืนยัน Lazada — ไม่ใช่ความผิดพลาด แค่ไม่ได้ทำ ต้องบอกให้รู้
+      const lazadaSkipped = lazadaIds.length - lazadaApproved.length;
+      if (lazadaSkipped > 0) {
+        processedCount += lazadaSkipped;
+        errors.push(`Lazada ${lazadaSkipped} รายการ — ยังไม่ได้จัดส่ง (ไม่ได้ยืนยัน)`);
       }
 
       setOverlayProgress(100);
