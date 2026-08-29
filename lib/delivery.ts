@@ -56,6 +56,28 @@ export interface ZoneMatchInput {
  * Returns null = ไม่รับส่งพื้นที่นั้น — caller must show a clear message,
  * never fail silently.
  */
+/**
+ * ตัดคำนำหน้าที่คนพิมพ์เติมเองออกก่อนเทียบชื่อเขต/อำเภอ/จังหวัด
+ *
+ * รายการในโซนมาจากฐานที่อยู่ไทย ("ปทุมวัน") แต่คนกรอกมักพิมพ์ "เขตปทุมวัน" /
+ * "อ.เมือง" / "จ.ชลบุรี" — ถ้าเทียบตรง ๆ จะไม่ match แล้วตกไปโซนกว้างกว่า
+ * (คิดค่าส่งแพงเกิน) หรือกลายเป็น "ไม่รับส่ง" ทั้งที่พื้นที่นั้นส่งได้
+ */
+function normalizeAreaName(v: string): string {
+  return v
+    .trim()
+    .replace(/^(เขต|แขวง|อำเภอ|อ\.|ตำบล|ต\.|จังหวัด|จ\.)\s*/, '')
+    .replace(/\s+/g, '')
+    .toLowerCase();
+}
+
+const matchesArea = (value: string, list: string[]) => {
+  if (!value) return false;
+  if (list.includes(value)) return true; // ทางเร็ว: ตรงเป๊ะ (เคสปกติจาก ThaiAddressInput)
+  const target = normalizeAreaName(value);
+  return list.some(item => normalizeAreaName(item) === target);
+};
+
 export function resolveZone(address: ZoneMatchInput, zones: DeliveryZone[]): DeliveryZone | null {
   const postcode = address.postal_code?.trim() || '';
   const district = address.amphoe?.trim() || '';
@@ -64,9 +86,10 @@ export function resolveZone(address: ZoneMatchInput, zones: DeliveryZone[]): Del
 
   const sorted = [...zones].filter(z => z.is_active).sort((a, b) => a.sort_order - b.sort_order);
   for (const zone of sorted) {
+    // รหัสไปรษณีย์มาก่อนเสมอ — ชี้พื้นที่ได้แม่นกว่าชื่อที่สะกดได้หลายแบบ
     if (postcode && zone.postcodes.includes(postcode)) return zone;
-    if (district && zone.districts.includes(district)) return zone;
-    if (province && zone.provinces.includes(province)) return zone;
+    if (matchesArea(district, zone.districts)) return zone;
+    if (matchesArea(province, zone.provinces)) return zone;
   }
   return null;
 }
