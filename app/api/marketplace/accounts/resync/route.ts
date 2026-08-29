@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
 import { isQuotaBlocked } from '@/lib/marketplace/quota';
-import { ensureValidToken as ensureShopeeToken, getShopInfo, type ShopeeAccountRow } from '@/lib/shopee/api';
-import { ensureValidToken as ensureLazadaToken, getSellerInfo, type LazadaAccountRow } from '@/lib/lazada/api';
-import { getAuthorizedShops } from '@/lib/tiktok/api';
+import { fetchShopInfo, supportsShopInfo } from '@/lib/marketplace/shop-info';
 
 // ดึงชื่อร้าน + โลโก้จากแพลตฟอร์มมาอัปเดตใหม่ — POST { account_id }
 //
@@ -51,25 +49,14 @@ export async function POST(request: NextRequest) {
   let shopLogo: string | null = null;
   let note: string | undefined;
 
+  if (!supportsShopInfo(platform)) {
+    return NextResponse.json({ error: `ยังไม่รองรับ ${platform}` }, { status: 400 });
+  }
+
   try {
-    if (platform === 'shopee') {
-      const info = await getShopInfo(await ensureShopeeToken(account as ShopeeAccountRow));
-      shopName = info?.shop_name || null;
-      shopLogo = info?.shop_logo || null;
-    } else if (platform === 'lazada') {
-      const seller = await getSellerInfo(await ensureLazadaToken(account as unknown as LazadaAccountRow, 'main'));
-      shopName = seller?.name || null;
-      shopLogo = seller?.logo_url || null;
-      if (!shopLogo) note = 'Lazada ไม่ได้ส่งโลโก้ของร้านนี้มา — ใส่ลิงก์รูปเองได้เลย';
-    } else if (platform === 'tiktok') {
-      const shops = await getAuthorizedShops(account.access_token as string);
-      const mine = shops.find(s => String(s.id) === String(account.shop_id)) || shops[0];
-      shopName = mine?.name || null;
-      // ไม่มีโลโก้ให้ดึง (ดูหมายเหตุหัวไฟล์) — ปล่อย null แล้วคงของเดิมไว้ข้างล่าง
-      note = 'TikTok ไม่เปิด API โลโก้ร้าน — ใส่ลิงก์รูปเองได้เลย';
-    } else {
-      return NextResponse.json({ error: `ยังไม่รองรับ ${platform}` }, { status: 400 });
-    }
+    // แต่ละเจ้าไปถามที่ไหนอยู่ใน lib/marketplace/shop-info.ts ที่เดียว — route นี้ไม่รู้จัก
+    // ชื่อแพลตฟอร์มเลย เพิ่มเจ้าใหม่จึงไม่ต้องแตะไฟล์นี้
+    ({ name: shopName, logo: shopLogo, note } = await fetchShopInfo(platform, account));
   } catch (err) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : 'ดึงข้อมูลร้านไม่สำเร็จ' },

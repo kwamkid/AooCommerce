@@ -1,12 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { checkAuthWithCompany, can, supabaseAdmin } from '@/lib/supabase-admin';
-import { ensureValidToken, getShopInfo, ShopeeAccountRow } from '@/lib/shopee/api';
-import {
-  ensureValidToken as ensureValidLazadaToken,
-  getSellerInfo as getLazadaSellerInfo,
-  isReachableImage,
-  type LazadaAccountRow,
-} from '@/lib/lazada/api';
+import { isReachableImage } from '@/lib/lazada/api';
+import { QUOTA_PLATFORMS } from '@/lib/marketplace/platforms';
 import { isChatAppConfigured as isLazadaChatAppConfigured } from '@/lib/lazada/api';
 
 // จัดการร้านที่เชื่อมต่อไว้ — **ทุก marketplace ใช้ route นี้ร่วมกัน**
@@ -36,15 +31,14 @@ export async function GET(request: NextRequest) {
       .eq('company_id', companyId)
       .order('created_at', { ascending: false });
 
-    // Filter by platform — 'all' คืนทุก platform ใน call เดียว (หน้า settings ใช้แทนการยิง 3 รอบ)
-    if (platformParam === 'tiktok') {
-      query = query.eq('platform', 'tiktok');
-    } else if (platformParam === 'lazada') {
-      query = query.eq('platform', 'lazada');
-    } else if (platformParam === 'all') {
-      // no platform filter
+    // 'all' = ทุกแพลตฟอร์มใน call เดียว (หน้า settings ใช้แทนการยิง 3 รอบ)
+    // ชื่อแพลตฟอร์มอ่านจาก QUOTA_PLATFORMS — เพิ่มเจ้าใหม่ในนั้นแล้วที่นี่รองรับเอง
+    if (platformParam === 'all') {
+      // ไม่กรอง
+    } else if ((QUOTA_PLATFORMS as readonly string[]).includes(platformParam) && platformParam !== 'shopee') {
+      query = query.eq('platform', platformParam);
     } else {
-      // Default to shopee (includes legacy accounts without platform field)
+      // shopee เป็นค่าเริ่มต้น และต้องรวมแถวเก่าที่ยังไม่มีคอลัมน์ platform ด้วย
       query = query.or('platform.eq.shopee,platform.is.null');
     }
 
@@ -196,56 +190,15 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ success: true, shop_name: account.shop_name, shop_logo: raw });
     }
 
-    // Lazada — ชื่อ + โลโก้มาจาก /seller/get (ปุ่ม refresh บน card ใช้ route เดียวกันทุก platform)
-    if (account.platform === 'lazada') {
-      const lazadaCreds = await ensureValidLazadaToken(account as LazadaAccountRow);
-      const seller = await getLazadaSellerInfo(lazadaCreds);
-      if (seller) {
-        const updateData: Record<string, unknown> = { updated_at: new Date().toISOString() };
-        if (seller.name) updateData.shop_name = seller.name;
-        // ทับ shop_logo เฉพาะเมื่อ URL ใหม่โหลดได้จริง — /seller/get อาจคืนไฟล์
-        // archive ที่ตายแล้ว ห้ามเอาไปทับโลโก้หน้าร้านที่เก็บไว้ (ดู fix-bug.md)
-        if (seller.logo_url && (await isReachableImage(seller.logo_url))) {
-          updateData.metadata = { ...(account.metadata || {}), shop_logo: seller.logo_url };
-        }
-        await supabaseAdmin
-          .from('marketplace_accounts')
-          .update(updateData)
-          .eq('id', account.id);
-      }
-      return NextResponse.json({
-        success: true,
-        shop_name: seller?.name || account.shop_name,
-        shop_logo: seller?.logo_url || '',
-      });
-    }
-
-    if (account.platform === 'tiktok') {
-      return NextResponse.json({ error: 'Refresh not supported for this platform' }, { status: 400 });
-    }
-
-    const creds = await ensureValidToken(account as ShopeeAccountRow);
-    const shopInfo = await getShopInfo(creds);
-
-    if (shopInfo) {
-      const updateData: Record<string, unknown> = { updated_at: new Date().toISOString() };
-      if (shopInfo.shop_name) updateData.shop_name = shopInfo.shop_name;
-      if (shopInfo.shop_logo) {
-        updateData.metadata = { ...(account.metadata || {}), shop_logo: shopInfo.shop_logo };
-      }
-      await supabaseAdmin
-        .from('marketplace_accounts')
-        .update(updateData)
-        .eq('id', account.id);
-    }
-
-    return NextResponse.json({
-      success: true,
-      shop_name: shopInfo?.shop_name || account.shop_name,
-      shop_logo: shopInfo?.shop_logo || '',
-    });
+    // ดึงชื่อ+โลโก้ใหม่จากแพลตฟอร์มย้ายไปอยู่ /api/marketplace/accounts/resync แล้ว
+    // (ตัวนั้นรู้จักทุกแพลตฟอร์มผ่าน lib/marketplace/shop-info.ts และคงของเดิมไว้เมื่อ
+    //  แพลตฟอร์มไม่ส่งมา) — ที่นี่เหลือเฉพาะการตั้งลิงก์รูปเอง
+    return NextResponse.json(
+      { error: 'ต้องส่ง shop_logo มาด้วย — ถ้าต้องการดึงข้อมูลจากแพลตฟอร์มใช้ /api/marketplace/accounts/resync' },
+      { status: 400 }
+    );
   } catch (error) {
-    console.error('Shopee accounts PATCH error:', error);
+    console.error('marketplace accounts PATCH error:', error);
     return NextResponse.json({ error: 'Failed to refresh profile' }, { status: 500 });
   }
 }
