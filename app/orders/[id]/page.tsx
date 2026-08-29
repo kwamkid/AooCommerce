@@ -2072,7 +2072,7 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
               {refundItems.map((item, idx) => (
                 <div key={item.order_item_id} className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-slate-700/50 rounded-lg">
                   {/* Product image */}
-                  <div className="w-12 h-[3.75rem] flex-shrink-0 rounded-md overflow-hidden bg-white dark:bg-slate-600 border border-gray-200 dark:border-slate-500 group relative">
+                  <div className="w-12 h-12 flex-shrink-0 rounded-md overflow-hidden bg-white dark:bg-slate-600 border border-gray-200 dark:border-slate-500 group relative">
                     {item.image ? (
                       <>
                         <img src={item.image} alt="" className="w-full h-full object-contain" />

@@ -832,10 +832,9 @@ function ProductsPageContent() {
             src={product.main_image_url || getImageUrl(product.image)}
             alt={product.name}
             size="lg"
-            ratio="portrait"
           />
         ) : (
-          <div className="w-16 h-20 bg-gray-200 dark:bg-slate-700 rounded-md flex items-center justify-center">
+          <div className="w-16 h-16 bg-gray-200 dark:bg-slate-700 rounded-md flex items-center justify-center">
             <Package2 className="w-6 h-6 text-gray-400" />
           </div>
         )}

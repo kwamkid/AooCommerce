@@ -353,9 +353,9 @@ export default function ProductSearchInput({
                   }`}
                 >
                   {product.image ? (
-                    <ProductImageThumb src={product.image} alt={product.name} size="sm" ratio="portrait" disabled />
+                    <ProductImageThumb src={product.image} alt={product.name} size="sm" disabled />
                   ) : (
-                    <div className="w-10 h-[3.125rem] bg-gray-100 dark:bg-slate-700 rounded-md flex items-center justify-center flex-shrink-0">
+                    <div className="w-10 h-10 bg-gray-100 dark:bg-slate-700 rounded-md flex items-center justify-center flex-shrink-0">
                       <Package className="w-5 h-5 text-gray-400 dark:text-slate-500" />
                     </div>
                   )}

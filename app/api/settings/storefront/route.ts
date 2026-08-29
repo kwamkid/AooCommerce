@@ -30,7 +30,8 @@ const LAYOUT = new Set(['grid', 'editorial', 'masonry']);
 const HEADER = new Set(['light', 'brand', 'dark']);
 const HEADER_LAYOUT = new Set(['left', 'stacked', 'center']);
 const HEADER_BEHAVIOR = new Set(['sticky', 'auto_hide', 'static']);
-const RATIO = new Set(['1:1', '4:5', 'auto']);
+// ล้อกับที่ Shopee รองรับ (1:1 / 3:4) — มาตรฐานเดียวทั้งระบบ · ค่าเก่า '4:5' map เป็น '3:4'
+const RATIO = new Set(['1:1', '3:4', 'auto']);
 const LOGO = new Set(['logo_name', 'logo_only', 'name_only']);
 const BTN = new Set(['solid', 'outline', 'soft']);
 const HEX = /^#[0-9a-f]{6}$/i;

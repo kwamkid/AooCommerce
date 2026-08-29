@@ -648,7 +648,7 @@ export default function StorefrontSettingsPage() {
                     onChange={(v) => patch({ image_ratio: v })}
                     options={[
                       { id: '1:1' as const, label: 'จัตุรัส 1:1', description: 'ทุกใบเท่ากัน · ตัดขอบ', preview: <RatioPreview ratio="1 / 1" /> },
-                      { id: '4:5' as const, label: 'แนวตั้ง 4:5', description: 'ทุกใบเท่ากัน · ตัดขอบ', preview: <RatioPreview ratio="4 / 5" /> },
+                      { id: '3:4' as const, label: 'แนวตั้ง 3:4', description: 'ทุกใบเท่ากัน · ตัดขอบ', preview: <RatioPreview ratio="3 / 4" /> },
                       { id: 'auto' as const, label: 'ตามไฟล์ต้นฉบับ', description: 'เห็นทั้งรูป · สูงไม่เท่ากัน', preview: <AutoRatioPreview /> },
                     ]}
                   />

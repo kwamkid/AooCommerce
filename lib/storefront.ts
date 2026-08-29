@@ -84,14 +84,16 @@ export interface StorefrontConfig {
   layout: 'grid' | 'editorial' | 'masonry';
   /**
    * สัดส่วนกรอบรูปสินค้า — เป็นการ crop ตอนแสดงผล ไม่แตะไฟล์รูปจริง
-   *  '1:1' / '4:5' = บังคับกรอบให้เท่ากันทุกใบ ส่วนที่เกินถูกตัด (object-fit: cover)
+   *  '1:1' / '3:4' = บังคับกรอบให้เท่ากันทุกใบ ส่วนที่เกินถูกตัด (object-fit: cover)
+   *  สองค่านี้ล้อกับที่ Shopee รองรับ (1:1 default / 3:4) — ใช้มาตรฐานเดียวทั้งระบบ
+   *  จะได้ไม่ต้องมีรูปคนละชุดระหว่างหน้าร้านเรากับ marketplace
    *  'auto'        = ไม่บังคับกรอบ ใช้สัดส่วนของไฟล์ต้นฉบับ (การ์ดจะสูงไม่เท่ากัน)
    *
    * เคยมีตัวเลือกแยก `image_fit` (ย่อให้เห็นทั้งรูปแล้วเติมพื้นเบลอ/พื้นเรียบ) —
    * ยุบทิ้งแล้ว เพราะมันตอบโจทย์เดียวกับ 'auto' คือ "ไม่อยากให้รูปโดนตัด"
    * แต่แลกด้วยแถบเติมขอบทุกใบ ขณะที่ 'auto' + เลย์เอาต์ก่ออิฐ ได้รูปเต็มโดยไม่เสียพื้นที่
    */
-  image_ratio: '1:1' | '4:5' | 'auto';
+  image_ratio: '1:1' | '3:4' | 'auto';
   /** ข้อความประกาศบนหัวร้าน (ว่าง = ไม่แสดง) */
   announcement: string;
 }
@@ -138,7 +140,9 @@ export function parseStorefront(settings: Record<string, unknown> | null | undef
     button_style: stored.button_style ?? DEFAULT_STOREFRONT.button_style,
     radius: stored.radius ?? DEFAULT_STOREFRONT.radius,
     layout: stored.layout ?? DEFAULT_STOREFRONT.layout,
-    image_ratio: stored.image_ratio ?? DEFAULT_STOREFRONT.image_ratio,
+    // ค่าเก่า '4:5' (ก่อนยุบมาตรฐานให้ตรงกับ Shopee) map เป็น '3:4' ที่ใกล้ที่สุด
+    // ค่าที่ไม่รู้จักตกไป default — ไม่ปล่อยให้หลุดไปเป็น CSS var ที่ undefined
+    image_ratio: normalizeRatio(stored.image_ratio),
     announcement: stored.announcement ?? DEFAULT_STOREFRONT.announcement,
   };
 }
@@ -173,9 +177,15 @@ const RADIUS_PX: Record<StorefrontConfig['radius'], string> = {
   round: '28px',
 };
 
+function normalizeRatio(v: unknown): StorefrontConfig['image_ratio'] {
+  if (v === '1:1' || v === '3:4' || v === 'auto') return v;
+  if (v === '4:5') return '3:4';
+  return DEFAULT_STOREFRONT.image_ratio;
+}
+
 const RATIO_CSS: Record<StorefrontConfig['image_ratio'], string> = {
   '1:1': '1 / 1',
-  '4:5': '4 / 5',
+  '3:4': '3 / 4',
   auto: 'auto',
 };
 

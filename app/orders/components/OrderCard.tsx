@@ -189,8 +189,7 @@ export default function OrderCard({
                   onClick={item.image ? (e) => { e.stopPropagation(); onImageClick?.(item.image!); } : undefined}
                   className="flex-shrink-0"
                 >
-                  {/* กรอบ 4:5 + object-contain — รูปสินค้าแนวตั้งเห็นครบ ไม่ถูกครอป */}
-                  <ProductImageThumb src={item.image} size="md" ratio="portrait" disabled />
+                  <ProductImageThumb src={item.image} size="md" disabled />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-start gap-1.5">

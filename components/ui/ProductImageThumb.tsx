@@ -6,8 +6,15 @@ import ImageLightbox from './ImageLightbox';
 
 export type ThumbSize = 'xs' | 'sm' | 'md' | 'lg';
 /**
- * สัดส่วนกรอบ — `square` สำหรับแถวในตาราง (ความสูงแถวคงที่)
- * `portrait` (4:5) สำหรับที่ที่รูปสินค้าเป็นพระเอก เช่น การ์ดออเดอร์ / ผลค้นหา
+ * สัดส่วนกรอบ — ล้อตามที่ marketplace รองรับจริง ไม่ใช่ที่เราชอบ
+ * Shopee รับแค่ **1:1 (default) กับ 3:4** เท่านั้น (3:4 ต้องอยู่ใน whitelist ตอนสร้างสินค้า
+ * ดู api_doc_knowledge/Shopee/product.md — add_item / update_item `image_ratio`)
+ *
+ * - `square` = 1:1 — รูปเกือบทั้งหมดในระบบเป็นแบบนี้ ใช้เป็น default
+ * - `portrait` = 3:4 — สำหรับร้านที่ใช้รูปแนวตั้งของ Shopee
+ *
+ * หน้าร้านออนไลน์ (`storefront.image_ratio`) ใช้ชุดเดียวกันแล้ว (1:1 / 3:4 / auto)
+ * — มาตรฐานเดียวทั้งระบบ ไม่ต้องเตรียมรูปคนละชุดสำหรับหน้าร้านกับ marketplace
  */
 export type ThumbRatio = 'square' | 'portrait';
 
@@ -18,12 +25,12 @@ const SIZE_CLASS: Record<ThumbRatio, Record<ThumbSize, string>> = {
     md: 'w-12 h-12',
     lg: 'w-16 h-16',
   },
-  // 4:5 — กว้างเท่าเดิม สูงขึ้น 25%
+  // 3:4 — กว้างเท่าเดิม สูง = กว้าง × 4/3
   portrait: {
-    xs: 'w-8 h-10',
-    sm: 'w-10 h-[3.125rem]',
-    md: 'w-12 h-[3.75rem]',
-    lg: 'w-16 h-20',
+    xs: 'w-8 h-[2.667rem]',
+    sm: 'w-10 h-[3.333rem]',
+    md: 'w-12 h-16',
+    lg: 'w-16 h-[5.333rem]',
   },
 };
 
@@ -56,7 +63,7 @@ interface ProductImageThumbProps {
 }
 
 /**
- * Product thumbnail with hover magnifying-glass overlay — จัตุรัสหรือ 4:5 (`ratio`).
+ * Product thumbnail with hover magnifying-glass overlay — 1:1 หรือ 3:4 (`ratio`).
  * Click → opens fullscreen ImageLightbox. When no image, renders a Package
  * icon placeholder (or custom `fallbackIcon`) and is not clickable.
  *
@@ -93,8 +100,8 @@ export default function ProductImageThumb({
         aria-label={clickable ? `ดูรูป ${alt || 'สินค้า'} ขนาดเต็ม` : alt}
         className={`relative ${sizeClass} rounded-md overflow-hidden flex-shrink-0 bg-gray-50 dark:bg-slate-700/50 group ${clickable ? 'cursor-zoom-in' : 'cursor-default'} ${className}`}
       >
-        {/* object-contain ไม่ใช่ cover — รูปสินค้าแนวตั้ง (4:5) ต้องเห็นครบ ไม่ใช่ถูกครอปหัวท้าย
-            ร้านถ่ายรูปมาหลายสัดส่วน กรอบเดียวจึงต้องรับได้ทุกแบบโดยไม่ตัดของทิ้ง */}
+        {/* object-contain ไม่ใช่ cover — รูปแนวตั้งต้องเห็นครบ ไม่ใช่ถูกครอปหัวท้าย
+            ของเก่าบางร้านอาจเป็นสัดส่วนอื่นที่ไม่ใช่ 1:1/3:4 กรอบจึงต้องรับได้โดยไม่ตัดทิ้ง */}
         <img src={src} alt={alt} className="w-full h-full object-contain" />
         {clickable && (
           <span className="absolute inset-0 flex items-center justify-center bg-black/40 text-white opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
