@@ -10,6 +10,7 @@ import { resolveAccountWarehouseId } from '@/lib/marketplace/warehouse';
 import { newCustomerCode } from '@/lib/customer-code';
 import { ensureVariationImage, upsertProductImage } from '@/lib/marketplace/product-helpers';
 import { sendNewOrderPushById } from '@/lib/push/send';
+import type { OrderImportOptions } from '@/lib/marketplace/order-import';
 import {
   LazadaAccountRow,
   LazadaCredentials,
@@ -140,7 +141,8 @@ function parseLazadaDate(s: string | undefined): Date {
  */
 export async function syncSingleLazadaOrder(
   account: LazadaAccountRow,
-  orderId: string | number
+  orderId: string | number,
+  opts: OrderImportOptions = {}
 ): Promise<SyncResult> {
   const creds = await ensureValidToken(account);
   const result: SyncResult = { orders_created: 0, orders_updated: 0, orders_skipped: 0, products_created: 0, customers_created: 0, errors: [] };
@@ -157,7 +159,7 @@ export async function syncSingleLazadaOrder(
   }
 
   try {
-    const upsert = await upsertOrder(account, order, items);
+    const upsert = await upsertOrder(account, order, items, opts);
     if (upsert.action === 'created') result.orders_created++;
     else if (upsert.action === 'updated') result.orders_updated++;
     else result.orders_skipped++;
@@ -176,7 +178,9 @@ export async function syncOrdersByTimeRange(
   account: LazadaAccountRow,
   timeFromMs: number,
   timeToMs: number,
-  onProgress?: SyncProgressCallback
+  onProgress?: SyncProgressCallback,
+  /** ดูดย้อนหลังเติมประวัติ → ส่ง IMPORT_HISTORY_ONLY เพื่อไม่ให้แตะสต็อก/เอกสาร */
+  opts: OrderImportOptions = {}
 ): Promise<SyncResult> {
   console.log(`[Lazada Sync] syncOrdersByTimeRange: seller=${account.shop_id}, from=${new Date(timeFromMs).toISOString()}, to=${new Date(timeToMs).toISOString()}`);
   const creds = await ensureValidToken(account);
@@ -225,7 +229,7 @@ export async function syncOrdersByTimeRange(
       await parallelLimit(batch, async (order) => {
         try {
           const items = byOrder[String(order.order_id)] || [];
-          const upsert = await upsertOrder(account, order, items);
+          const upsert = await upsertOrder(account, order, items, opts);
           if (upsert.action === 'created') result.orders_created++;
           else if (upsert.action === 'updated') result.orders_updated++;
           else result.orders_skipped++;
@@ -263,7 +267,8 @@ interface UpsertResult {
 async function upsertOrder(
   account: LazadaAccountRow,
   order: LazadaOrder,
-  items: LazadaOrderItem[]
+  items: LazadaOrderItem[],
+  opts: OrderImportOptions = {}
 ): Promise<UpsertResult> {
   const companyId = account.company_id;
   const effStatus = effectiveLazadaStatus(
@@ -283,7 +288,7 @@ async function upsertOrder(
     return updateExistingOrder(account, existing, order, items, effStatus, order_status, payment_status);
   }
   try {
-    return await createNewOrder(account, order, items, effStatus, order_status, payment_status);
+    return await createNewOrder(account, order, items, effStatus, order_status, payment_status, opts);
   } catch (e) {
     // webhook + cron แข่งกัน insert ออเดอร์เดียวกัน — ตัวแพ้ชน unique = มีอยู่แล้ว
     // ไม่ใช่ความล้มเหลว → เดินเส้น update แทน (pattern เดียวกับ Shopee/TikTok)
@@ -423,7 +428,8 @@ async function createNewOrder(
   items: LazadaOrderItem[],
   effStatus: string,
   order_status: string,
-  payment_status: string
+  payment_status: string,
+  opts: OrderImportOptions = {}
 ): Promise<UpsertResult> {
   const companyId = account.company_id;
 
@@ -631,7 +637,9 @@ async function createNewOrder(
       if (stockConfig.stockEnabled) {
         for (const item of resolvedItems) {
           if (item.variation_id) {
-            await reserveStockService({
+            if (opts.skipStock) {
+              // backfill: ของออกจากชั้นไปแล้วหรือยังไม่ควรจอง — ข้ามไป
+            } else await reserveStockService({
               supabase: supabaseAdmin,
               companyId,
               warehouseId,
@@ -692,12 +700,16 @@ async function createNewOrder(
 
   // Auto-issue documents ถ้าเข้ามาเลย processing แล้ว
   if (['packed', 'ready_to_ship_pending', 'ready_to_ship', 'shipped', 'delivered', 'confirmed'].includes(effStatus)) {
-    const { autoIssueDocument } = await import('@/lib/invoice-service');
-    autoIssueDocument(newOrder.id, companyId).catch(() => {});
+    if (!opts.skipDocuments) {
+      const { autoIssueDocument } = await import('@/lib/invoice-service');
+      autoIssueDocument(newOrder.id, companyId).catch(() => {});
+    }
   }
 
   // Push แจ้งเตือนออเดอร์ใหม่ (ออเดอร์เก่าจาก initial sync ถูกกรองด้วยเวลาใน helper)
-  await sendNewOrderPushById(companyId, newOrder.id, new Date(order.created_at).getTime());
+  if (!opts.skipNotify) {
+    await sendNewOrderPushById(companyId, newOrder.id, new Date(order.created_at).getTime());
+  }
 
   return {
     action: 'created',
