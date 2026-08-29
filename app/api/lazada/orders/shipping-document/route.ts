@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { checkAuthWithCompany, can, supabaseAdmin } from '@/lib/supabase-admin';
 import { ensureValidToken, getLazadaShippingLabel, type LazadaAccountRow } from '@/lib/lazada/api';
 import { isQuotaBlocked } from '@/lib/marketplace/quota';
+import { logIntegration } from '@/lib/integration-logger';
 
 // ใบปะหน้าพัสดุ Lazada — POST { order_id }
 //
@@ -80,6 +81,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Lazada ไม่ได้ส่งไฟล์กลับมา' }, { status: 400 });
     }
 
+    logIntegration({
+      company_id: companyId,
+      integration: 'lazada',
+      account_id: account.id,
+      account_name: account.shop_name,
+      direction: 'outgoing',
+      action: 'shipping_document',
+      api_path: '/order/package/document/get',
+      request_body: { package_ids: packageIds },
+      status: 'success',
+      reference_type: 'order',
+      reference_id: order_id,
+    });
+
     return new NextResponse(pdf, {
       headers: {
         'Content-Type': 'application/pdf',
@@ -87,6 +102,19 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (err) {
+    logIntegration({
+      company_id: companyId,
+      integration: 'lazada',
+      account_id: account.id,
+      account_name: account.shop_name,
+      direction: 'outgoing',
+      action: 'shipping_document',
+      api_path: '/order/package/document/get',
+      status: 'error',
+      error_message: err instanceof Error ? err.message : 'unknown',
+      reference_type: 'order',
+      reference_id: order_id,
+    });
     return NextResponse.json(
       { error: err instanceof Error ? err.message : 'เกิดข้อผิดพลาด' },
       { status: 500 }

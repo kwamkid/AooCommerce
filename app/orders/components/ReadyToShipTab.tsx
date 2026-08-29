@@ -368,6 +368,22 @@ export default function ReadyToShipTab({
   };
 
   const handleBulkAccept = async (ids: string[]) => {
+    // ⚠️ ถามยืนยันให้เสร็จ **ก่อน** เปิด overlay — LoadingOverlay เป็น z-[60] ส่วน Modal z-50
+    // ถ้าเปิด overlay ก่อน dialog จะโดนบังจนกดไม่ได้ แล้ว await confirm() ค้างตลอดกาล
+    // ทำให้ทั้งชุดหยุดนิ่ง รวมออเดอร์เจ้าอื่นที่เลือกมาด้วย
+    const sourceOfPre = (id: string) => orders.find(o => o.id === id)?.source || '';
+    const lazadaPending = ids.filter(id => sourceOfPre(id) === 'lazada');
+    let lazadaApproved: string[] = [];
+    if (lazadaPending.length > 0) {
+      const ok = await confirm({
+        title: `จัดส่ง Lazada ${lazadaPending.length} รายการ`,
+        description: 'Lazada จะสร้างพัสดุและตั้งสถานะเป็นพร้อมส่ง — ยกเลิกจากในระบบไม่ได้ ถ้าต้องแก้ต้องทำใน Lazada Seller Center',
+        confirmLabel: 'จัดส่งเลย',
+        variant: 'danger',
+      });
+      if (ok) lazadaApproved = lazadaPending;
+    }
+
     setBulkLoading(true);
     setOverlayOpen(true);
     setOverlayTitle('กำลังรับออเดอร์...');
@@ -384,23 +400,9 @@ export default function ReadyToShipTab({
       const sourceOf = (id: string) => orders.find(o => o.id === id)?.source || '';
       const shopeeIds = ids.filter(id => sourceOf(id) === 'shopee');
       const tiktokIds = ids.filter(id => sourceOf(id) === 'tiktok');
-      const lazadaIds = ids.filter(id => sourceOf(id) === 'lazada');
+      const lazadaIds = lazadaPending;
       const marketplaceSet = new Set([...shopeeIds, ...tiktokIds, ...lazadaIds]);
       const manualIds = ids.filter(id => !marketplaceSet.has(id));
-
-      // Lazada แพ็คแล้วยกเลิกจากในระบบไม่ได้ (ไม่มี API ถอน) — ต้องให้ยืนยันแยกก่อนเสมอ
-      // หมายเหตุ: ReadyToShip = "ตั้งสถานะว่าพร้อมส่ง" ไม่ใช่การกดเรียกรถ
-      // การนัดรับเกิดทางโทรศัพท์ตามปกติ — จึงไม่ต้องแยกเป็น 2 ปุ่ม
-      let lazadaApproved: string[] = [];
-      if (lazadaIds.length > 0) {
-        const ok = await confirm({
-          title: `จัดส่ง Lazada ${lazadaIds.length} รายการ`,
-          description: 'Lazada จะสร้างพัสดุและตั้งสถานะเป็นพร้อมส่ง — ยกเลิกจากในระบบไม่ได้ ถ้าต้องแก้ต้องทำใน Lazada Seller Center',
-          confirmLabel: 'จัดส่งเลย',
-          variant: 'danger',
-        });
-        if (ok) lazadaApproved = lazadaIds;
-      }
 
       const successIds: string[] = [];
       let processedCount = 0;
@@ -543,9 +545,11 @@ export default function ReadyToShipTab({
           const o = orders.find(o => o.id === id);
           return o && !isMarketplaceSource(o.source);
         });
+        // ⚠️ endpoint ใบปะหน้าเป็นของ Shopee เท่านั้น — ยัด id ของ TikTok/Lazada เข้าไปจะ throw
+        // แล้วทำให้ใบจัดของ/ใบกำกับที่ติ๊กไว้ไม่ได้พิมพ์ตามไปด้วย (อยู่ใน loop เดียวกัน)
         const successShopeeIds = successIds.filter(id => {
           const o = orders.find(o => o.id === id);
-          return o && isMarketplaceSource(o.source);
+          return o?.source === 'shopee';
         });
 
         const printOptions: Array<{ key: string; label: string; count: number; defaultChecked: boolean }> = [];

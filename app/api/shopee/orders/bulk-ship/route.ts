@@ -36,8 +36,18 @@ interface BulkShipResult {
 export const maxDuration = 300;
 const TIME_BUDGET_MS = 210_000;
 
-/** สถานะฝั่ง Shopee ที่แปลว่า "รับออเดอร์ไปแล้ว" — เจอแล้วห้ามยิงซ้ำ ให้ซ่อมสถานะแทน */
-const ALREADY_ACCEPTED = new Set(['PROCESSED', 'SHIPPED', 'TO_CONFIRM_RECEIVE', 'COMPLETED', 'TO_RETURN']);
+/**
+ * สถานะฝั่ง Shopee ที่แปลว่า "รับออเดอร์ไปแล้ว" — เจอแล้วห้ามยิงซ้ำ
+ *
+ * ⚠️ ค่าที่ซ่อมได้ต้องเป็น `processing` เท่านั้น — ใส่ SHIPPED/COMPLETED เข้ามาไม่ได้
+ * เพราะสถานะจริงของมันคือ shipping/completed การเซ็ตเป็น processing = **ลากออเดอร์ถอยหลัง**
+ * (คลาสเดียวกับบั๊ก TO_RETURN ที่ CLAUDE.md เตือนไว้ — ดู fix-bug.md 2026-08-28)
+ * สถานะที่ล้ำไปกว่านี้ปล่อยให้ sync ปกติจัดการ ไม่ต้องมายุ่งตรงนี้
+ */
+const ALREADY_ACCEPTED = new Set(['PROCESSED']);
+
+/** ล้ำไปกว่ารับออเดอร์แล้ว — ไม่ต้องยิงซ้ำ และ **ห้ามแตะสถานะ** ปล่อยให้ sync จัดการ */
+const BEYOND_ACCEPTED = new Set(['SHIPPED', 'TO_CONFIRM_RECEIVE', 'COMPLETED', 'TO_RETURN', 'CANCELLED']);
 
 function formatTimeSlot(slot: { pickup_time_id: string; date: number; time_text?: string; flags?: string[] }): TimeSlot {
   const date = new Date(slot.date * 1000);
@@ -112,6 +122,9 @@ export async function POST(request: NextRequest) {
         quickResults.push({ order_id: orderId, order_sn: '', success: false, error: 'Order not found' });
       } else if (order.source !== 'shopee') {
         quickResults.push({ order_id: orderId, order_sn: order.external_order_sn || '', success: false, error: 'Not a Shopee order' });
+      } else if (BEYOND_ACCEPTED.has(order.external_status || '')) {
+        // Shopee ไปไกลกว่า "รับแล้ว" — ไม่ยิงซ้ำ และไม่แตะสถานะ (แตะ = ลากถอยหลัง)
+        quickResults.push({ order_id: orderId, order_sn: order.external_order_sn || '', success: false, error: `Shopee อยู่สถานะ ${order.external_status} แล้ว — รอ sync อัปเดตให้เอง` });
       } else if (ALREADY_ACCEPTED.has(order.external_status || '')) {
         // Shopee รับไปแล้ว แต่ระบบเรายังค้างที่ "รอกดรับ" — เกิดได้เมื่อรอบก่อนถูกตัดกลางคัน
         // (ยิงสำเร็จแล้วแต่ยังไม่ทันเขียน DB) → **ซ่อมสถานะ ไม่ใช่ยิงซ้ำ**

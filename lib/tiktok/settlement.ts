@@ -161,7 +161,8 @@ export function normalizeTikTokStatement(
     map: Record<string, FeeBucket>,
     fallback: FeeBucket,
     skuId: string | null,
-    prefix: string
+    prefix: string,
+    rowIndex: number
   ) => {
     if (!group) return;
     for (const [field, value] of Object.entries(group)) {
@@ -177,19 +178,34 @@ export function normalizeTikTokStatement(
         platformFeeName: field,
         amount: Math.abs(amount),
         externalItemId: skuId,
-        lineKey: `tiktok:${skuId || 'order'}:${prefix}:${field}`,
+        // ต้องมีลำดับแถวด้วย — statement เดียวมี sku_transactions ที่ sku_id ซ้ำกันได้
+        // (ขายกับคืนของอยู่คนละแถว) ถ้า key ซ้ำ upsert ทั้ง batch จะถูก Postgres ปฏิเสธ
+        // แล้ว error ถูกกลืนไปกับ console.error → บรรทัดค่าธรรมเนียมหายเงียบทั้งออเดอร์
+        lineKey: `tiktok:${rowIndex}:${skuId || 'order'}:${prefix}:${field}`,
       });
     }
   };
 
-  for (const sku of skus) {
+  skus.forEach((sku, idx) => {
     const skuId = sku.sku_id ? String(sku.sku_id) : null;
     const feeTax = (sku.fee_tax_breakdown as Record<string, unknown>) || {};
 
-    add(sku.revenue_breakdown as Record<string, unknown>, REVENUE_TO_BUCKET, 'other_fee', skuId, 'rev');
-    add(feeTax.fee as Record<string, unknown>, FEE_TO_BUCKET, 'other_fee', skuId, 'fee');
-    add(feeTax.tax as Record<string, unknown>, {}, 'tax_withheld', skuId, 'tax');
-    add(sku.shipping_cost_breakdown as Record<string, unknown>, SHIPPING_TO_BUCKET, 'shipping_cost', skuId, 'ship');
+    add(sku.revenue_breakdown as Record<string, unknown>, REVENUE_TO_BUCKET, 'other_fee', skuId, 'rev', idx);
+    add(feeTax.fee as Record<string, unknown>, FEE_TO_BUCKET, 'other_fee', skuId, 'fee', idx);
+    add(feeTax.tax as Record<string, unknown>, {}, 'tax_withheld', skuId, 'tax', idx);
+    add(sku.shipping_cost_breakdown as Record<string, unknown>, SHIPPING_TO_BUCKET, 'shipping_cost', skuId, 'ship', idx);
+  });
+
+  // statement ที่ไม่มี sku_transactions เลย — เก็บยอดรวมระดับบนไว้ ดีกว่าปล่อยเป็นศูนย์เงียบ ๆ
+  // (getOrderStatement เผื่อ wrapper ไว้ 2 ชั้นอยู่แล้ว = รูปร่างไม่นิ่ง)
+  if (skus.length === 0) {
+    const feeTotal = Math.abs(parseAmount(statement.fee_and_tax_amount));
+    const shipTotal = Math.abs(parseAmount(statement.shipping_cost_amount));
+    const revenue = Math.abs(parseAmount(statement.revenue_amount));
+    if (revenue) { buckets.gross_sales += revenue; lines.push({ bucket: 'gross_sales', platformFeeCode: 'revenue_amount', platformFeeName: 'revenue_amount', amount: revenue, lineKey: 'tiktok:top:revenue_amount' }); }
+    if (feeTotal) { buckets.other_fee += feeTotal; lines.push({ bucket: 'other_fee', platformFeeCode: 'fee_and_tax_amount', platformFeeName: 'fee_and_tax_amount (ยอดรวม ไม่มีรายละเอียด)', amount: feeTotal, lineKey: 'tiktok:top:fee_and_tax_amount' }); }
+    if (shipTotal) { buckets.shipping_cost += shipTotal; lines.push({ bucket: 'shipping_cost', platformFeeCode: 'shipping_cost_amount', platformFeeName: 'shipping_cost_amount', amount: shipTotal, lineKey: 'tiktok:top:shipping_cost_amount' }); }
+    console.warn(`[TikTok Settlement] ${opts.orderId || statement.order_id}: ไม่มี sku_transactions — เก็บได้แค่ยอดรวม ไม่มีรายละเอียดค่าธรรมเนียม`);
   }
 
   return {

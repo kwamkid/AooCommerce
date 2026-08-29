@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { checkAuthWithCompany, can, supabaseAdmin } from '@/lib/supabase-admin';
 import { ensureValidToken, getShippingDocument, type TikTokAccountRow } from '@/lib/tiktok/api';
 import { isQuotaBlocked } from '@/lib/marketplace/quota';
+import { logIntegration } from '@/lib/integration-logger';
 
 // ใบปะหน้าพัสดุ TikTok — POST { order_id }
 //
@@ -69,6 +70,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'ไฟล์ใบปะหน้าว่างเปล่า' }, { status: 400 });
     }
 
+    logIntegration({
+      company_id: companyId,
+      integration: 'tiktok',
+      account_id: account.id,
+      account_name: account.shop_name,
+      direction: 'outgoing',
+      action: 'shipping_document',
+      api_path: '/fulfillment/202309/packages/shipping_document',
+      request_body: { package_ids: packageIds },
+      status: 'success',
+      reference_type: 'order',
+      reference_id: order_id,
+    });
+
     return new NextResponse(pdf, {
       headers: {
         'Content-Type': 'application/pdf',
@@ -76,6 +91,19 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (err) {
+    logIntegration({
+      company_id: companyId,
+      integration: 'tiktok',
+      account_id: account.id,
+      account_name: account.shop_name,
+      direction: 'outgoing',
+      action: 'shipping_document',
+      api_path: '/fulfillment/202309/packages/shipping_document',
+      status: 'error',
+      error_message: err instanceof Error ? err.message : 'unknown',
+      reference_type: 'order',
+      reference_id: order_id,
+    });
     return NextResponse.json(
       { error: err instanceof Error ? err.message : 'เกิดข้อผิดพลาด' },
       { status: 500 }

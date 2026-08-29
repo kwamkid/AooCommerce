@@ -20,10 +20,17 @@ import { logIntegration } from '@/lib/integration-logger';
 
 export const maxDuration = 120;
 
-/** สถานะฝั่ง TikTok ที่แปลว่ารับไปแล้ว — เจอแล้วให้ซ่อมสถานะ ไม่ใช่ยิงซ้ำ */
-const ALREADY_SHIPPED = new Set([
-  'AWAITING_COLLECTION', 'PARTIALLY_SHIPPING', 'IN_TRANSIT', 'DELIVERED', 'COMPLETED',
-]);
+/**
+ * สถานะที่แปลว่า "แจ้งส่งแล้ว" และ mapTikTokStatus แปลเป็น processing เหมือนกัน
+ * → ซ่อมเป็น processing ได้ปลอดภัย
+ */
+const ALREADY_SHIPPED = new Set(['AWAITING_COLLECTION', 'PARTIALLY_SHIPPING']);
+
+/**
+ * ล้ำไปกว่านั้นแล้ว (shipping/completed) — **ห้ามเซ็ตเป็น processing** จะลากถอยหลัง
+ * ปล่อยให้ sync ปกติอัปเดตให้ตรง
+ */
+const BEYOND_SHIPPED = new Set(['IN_TRANSIT', 'DELIVERED', 'COMPLETED', 'CANCELLED']);
 
 export async function POST(request: NextRequest) {
   const { isAuth, companyId, companyRoles } = await checkAuthWithCompany(request);
@@ -59,6 +66,12 @@ export async function POST(request: NextRequest) {
 
   // TikTok รับไปแล้วแต่ระบบเรายังค้าง — ซ่อมสถานะ ไม่ยิงซ้ำ
   // (เกิดเมื่อรอบก่อนถูกตัดกลางคัน: ยิงสำเร็จแล้วแต่ยังไม่ทันเขียน DB)
+  if (BEYOND_SHIPPED.has(order.external_status || '')) {
+    return NextResponse.json({
+      error: `TikTok อยู่สถานะ ${order.external_status} แล้ว — รอ sync อัปเดตให้เอง`,
+    }, { status: 400 });
+  }
+
   if (ALREADY_SHIPPED.has(order.external_status || '')) {
     await supabaseAdmin
       .from('orders')

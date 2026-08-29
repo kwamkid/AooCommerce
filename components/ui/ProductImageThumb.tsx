@@ -5,12 +5,26 @@ import { Package, Search } from 'lucide-react';
 import ImageLightbox from './ImageLightbox';
 
 export type ThumbSize = 'xs' | 'sm' | 'md' | 'lg';
+/**
+ * สัดส่วนกรอบ — `square` สำหรับแถวในตาราง (ความสูงแถวคงที่)
+ * `portrait` (4:5) สำหรับที่ที่รูปสินค้าเป็นพระเอก เช่น การ์ดออเดอร์ / ผลค้นหา
+ */
+export type ThumbRatio = 'square' | 'portrait';
 
-const SIZE_CLASS: Record<ThumbSize, string> = {
-  xs: 'w-8 h-8',
-  sm: 'w-10 h-10',
-  md: 'w-12 h-12',
-  lg: 'w-16 h-16',
+const SIZE_CLASS: Record<ThumbRatio, Record<ThumbSize, string>> = {
+  square: {
+    xs: 'w-8 h-8',
+    sm: 'w-10 h-10',
+    md: 'w-12 h-12',
+    lg: 'w-16 h-16',
+  },
+  // 4:5 — กว้างเท่าเดิม สูงขึ้น 25%
+  portrait: {
+    xs: 'w-8 h-10',
+    sm: 'w-10 h-[3.125rem]',
+    md: 'w-12 h-[3.75rem]',
+    lg: 'w-16 h-20',
+  },
 };
 
 const FALLBACK_ICON_CLASS: Record<ThumbSize, string> = {
@@ -37,10 +51,12 @@ interface ProductImageThumbProps {
   fallbackIcon?: ReactNode;
   /** Extra class on the wrapper square */
   className?: string;
+  /** สัดส่วนกรอบ — default 'square' */
+  ratio?: ThumbRatio;
 }
 
 /**
- * Square product thumbnail with hover magnifying-glass overlay.
+ * Product thumbnail with hover magnifying-glass overlay — จัตุรัสหรือ 4:5 (`ratio`).
  * Click → opens fullscreen ImageLightbox. When no image, renders a Package
  * icon placeholder (or custom `fallbackIcon`) and is not clickable.
  *
@@ -54,13 +70,14 @@ export default function ProductImageThumb({
   disabled = false,
   fallbackIcon,
   className = '',
+  ratio = 'square',
 }: ProductImageThumbProps) {
   const [open, setOpen] = useState(false);
-  const sizeClass = SIZE_CLASS[size];
+  const sizeClass = SIZE_CLASS[ratio][size];
 
   if (!src) {
     return (
-      <div className={`${sizeClass} rounded bg-gray-100 dark:bg-slate-700 flex items-center justify-center flex-shrink-0 ${className}`}>
+      <div className={`${sizeClass} rounded-md bg-gray-100 dark:bg-slate-700 flex items-center justify-center flex-shrink-0 ${className}`}>
         {fallbackIcon ?? <Package className={`${FALLBACK_ICON_CLASS[size]} text-gray-400 dark:text-slate-500`} />}
       </div>
     );
@@ -74,9 +91,11 @@ export default function ProductImageThumb({
         onClick={clickable ? () => setOpen(true) : undefined}
         disabled={!clickable}
         aria-label={clickable ? `ดูรูป ${alt || 'สินค้า'} ขนาดเต็ม` : alt}
-        className={`relative ${sizeClass} rounded overflow-hidden flex-shrink-0 group ${clickable ? 'cursor-zoom-in' : 'cursor-default'} ${className}`}
+        className={`relative ${sizeClass} rounded-md overflow-hidden flex-shrink-0 bg-gray-50 dark:bg-slate-700/50 group ${clickable ? 'cursor-zoom-in' : 'cursor-default'} ${className}`}
       >
-        <img src={src} alt={alt} className="w-full h-full object-cover" />
+        {/* object-contain ไม่ใช่ cover — รูปสินค้าแนวตั้ง (4:5) ต้องเห็นครบ ไม่ใช่ถูกครอปหัวท้าย
+            ร้านถ่ายรูปมาหลายสัดส่วน กรอบเดียวจึงต้องรับได้ทุกแบบโดยไม่ตัดของทิ้ง */}
+        <img src={src} alt={alt} className="w-full h-full object-contain" />
         {clickable && (
           <span className="absolute inset-0 flex items-center justify-center bg-black/40 text-white opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
             <Search className={ZOOM_ICON_CLASS[size]} />

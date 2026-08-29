@@ -828,13 +828,14 @@ function ProductsPageContent() {
     <div className="flex gap-3">
       <div className="flex-shrink-0">
         {(product.main_image_url || product.image) ? (
-          <img
+          <ProductImageThumb
             src={product.main_image_url || getImageUrl(product.image)}
             alt={product.name}
-            className="w-14 h-14 object-cover rounded"
+            size="lg"
+            ratio="portrait"
           />
         ) : (
-          <div className="w-14 h-14 bg-gray-200 dark:bg-slate-700 rounded flex items-center justify-center">
+          <div className="w-16 h-20 bg-gray-200 dark:bg-slate-700 rounded-md flex items-center justify-center">
             <Package2 className="w-6 h-6 text-gray-400" />
           </div>
         )}

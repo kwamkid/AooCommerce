@@ -247,10 +247,29 @@ export async function POST(req: NextRequest) {
         remainingIds.set(oi.id, [...(oi.external_line_item_ids || [])]);
       }
 
+      // คอลัมน์นี้เขียนตอน "สร้าง" ออเดอร์เท่านั้น — ออเดอร์ที่เข้าระบบก่อนหน้านี้จะว่าง
+      // และ sync ซ้ำก็ไม่เติมให้ → ถอยไปจับคู่จาก external_data ที่ TikTok ส่งมาพร้อมออเดอร์
       const missing = orderItems.filter(oi => (remainingIds.get(oi.id) || []).length < oi.quantity);
       if (missing.length > 0) {
+        const { data: fullOrder } = await supabaseAdmin
+          .from('orders').select('external_data').eq('id', order_id).single();
+        const liByName = new Map<string, string[]>();
+        for (const li of (((fullOrder?.external_data as Record<string, unknown>)?.line_items || []) as
+          { id?: string; product_name?: string; sku_name?: string }[])) {
+          if (!li.id) continue;
+          const name = li.sku_name ? `${li.product_name} - ${li.sku_name}` : (li.product_name || '');
+          liByName.set(name, [...(liByName.get(name) || []), String(li.id)]);
+        }
+        for (const oi of missing) {
+          const ids = liByName.get(oi.product_name || '');
+          if (ids && ids.length >= oi.quantity) remainingIds.set(oi.id, [...ids]);
+        }
+      }
+
+      const stillMissing = orderItems.filter(oi => (remainingIds.get(oi.id) || []).length < oi.quantity);
+      if (stillMissing.length > 0) {
         return NextResponse.json({
-          error: `ไม่มีรหัสรายชิ้นของ TikTok สำหรับ: ${missing.map(m => m.product_name).join(', ')} — ลอง sync ออเดอร์นี้ใหม่ก่อน`,
+          error: `ไม่มีรหัสรายชิ้นของ TikTok สำหรับ: ${stillMissing.map(m => m.product_name).join(', ')}`,
         }, { status: 400 });
       }
 

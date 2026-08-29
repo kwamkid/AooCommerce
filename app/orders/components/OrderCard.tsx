@@ -1,6 +1,7 @@
 'use client';
 
 import { formatPrice } from '@/lib/utils/format';
+import ProductImageThumb from '@/components/ui/ProductImageThumb';
 import { useCopy } from '@/lib/useCopy';
 import { useToast } from '@/lib/toast-context';
 import {
@@ -185,17 +186,11 @@ export default function OrderCard({
             {(order.items_preview || []).map((item, idx) => (
               <div key={idx} className="flex items-start gap-3">
                 <div
-                  className="w-12 h-12 rounded-lg bg-gray-100 dark:bg-slate-700 overflow-hidden flex-shrink-0"
                   onClick={item.image ? (e) => { e.stopPropagation(); onImageClick?.(item.image!); } : undefined}
-                  style={item.image ? { cursor: 'zoom-in' } : undefined}
+                  className="flex-shrink-0"
                 >
-                  {item.image ? (
-                    <img src={item.image} alt="" className="w-full h-full object-cover" />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center">
-                      <Package className="w-5 h-5 text-gray-300 dark:text-slate-500" />
-                    </div>
-                  )}
+                  {/* กรอบ 4:5 + object-contain — รูปสินค้าแนวตั้งเห็นครบ ไม่ถูกครอป */}
+                  <ProductImageThumb src={item.image} size="md" ratio="portrait" disabled />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-start gap-1.5">
