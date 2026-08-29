@@ -11,7 +11,7 @@ import { useToast } from '@/lib/toast-context';
 import { useFeatures } from '@/lib/features-context';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { apiFetch } from '@/lib/api-client';
-import { ShoppingBag, RefreshCw, Clock, PackageSearch, Warehouse, Link2, RotateCw } from 'lucide-react';
+import { ChevronDown, Clock, ImagePlus, Link2, PackageSearch, RefreshCw, RotateCw, ShoppingBag, Trash2, Warehouse } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import FormSelect from '@/components/ui/FormSelect';
 import { ExportButton, ImportButton } from '@/components/ui/ExportImportButton';
@@ -22,6 +22,7 @@ import Modal from '@/components/ui/Modal';
 import FormInput from '@/components/ui/FormInput';
 import SaveButton from '@/components/ui/SaveButton';
 import ImageDropzone from '@/components/ui/ImageDropzone';
+import ActionMenu, { type ActionItem } from '@/components/ui/ActionMenu';
 import LoadingOverlay from '@/components/ui/LoadingOverlay';
 import PlatformIcon from '@/components/ui/PlatformIcon';
 import { LoadingCard } from '@/components/ui/StateCard';
@@ -456,6 +457,82 @@ export default function MarketplaceConnections({
     });
   };
 
+
+  /** เมนูที่เด้งจากการกดรูปโลโก้ — ทางเลือกทั้งหมดอยู่ตรงนี้ ไม่ยัดรวมใน modal */
+  const logoMenuItems = (account: MarketplaceAccount): ActionItem[] => {
+    const hasLogo = !!(account.metadata?.shop_logo as string);
+    const items: ActionItem[] = [
+      {
+        key: 'resync',
+        label: 'ดึงจากแพลตฟอร์ม',
+        description: 'อัปเดตชื่อร้าน + โลโก้ล่าสุด',
+        icon: <RefreshCw className="w-4 h-4" />,
+        onClick: () => handleResyncInfo(account.id),
+      },
+    ];
+    if (account.profile_link_available) {
+      items.push({
+        key: 'tiktok-profile',
+        label: 'ดึงรูปจากบัญชี TikTok',
+        description: 'TikTok Shop ไม่เปิด API โลโก้ร้าน',
+        icon: <PlatformIcon id="tiktok" size={16} />,
+        onClick: () => promptProfileConnect(account.id),
+      });
+    }
+    items.push({
+      key: 'upload',
+      label: 'อัปโหลดรูปเอง',
+      description: 'ลากรูปมาวางหรือเลือกจากเครื่อง',
+      icon: <ImagePlus className="w-4 h-4" />,
+      onClick: () => openLogoModal(account),
+    });
+    if (hasLogo) {
+      items.push({
+        key: 'clear',
+        label: 'ลบรูปโลโก้',
+        icon: <Trash2 className="w-4 h-4" />,
+        danger: true,
+        dividerBefore: true,
+        onClick: () => handleClearLogo(account.id),
+      });
+    }
+    return items;
+  };
+
+  /** รูปโลโก้ — เนื้อในของ trigger (ActionMenu ห่อ <button> ให้แล้ว ห้ามซ้อนปุ่ม) */
+  const shopAvatar = (account: MarketplaceAccount, tile: string, iconCls: string, fallbackAlt: string) => (
+    <span className="relative block w-10 h-10 flex-shrink-0 group">
+      {/* icon รองพื้น + img ทับ + onError ซ่อนตัวเอง — URL ตายไม่โชว์รูปแตก */}
+      <span className={`w-10 h-10 rounded-lg ${tile} flex items-center justify-center`}>
+        <ShoppingBag className={iconCls} />
+      </span>
+      {(account.metadata?.shop_logo as string) && (
+        <img
+          src={account.metadata.shop_logo as string}
+          alt={account.shop_name || fallbackAlt}
+          className="absolute inset-0 w-10 h-10 rounded-lg object-cover"
+          onError={e => { e.currentTarget.style.display = 'none'; }}
+        />
+      )}
+      {/* ระหว่างดึงข้อมูล spinner ต้องค้างให้เห็น ไม่ใช่รอ hover */}
+      <span className={`absolute inset-0 bg-black/40 rounded-lg flex items-center justify-center transition-opacity ${resyncingId === account.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+        <ChevronDown className={`w-4 h-4 text-white ${resyncingId === account.id ? 'animate-pulse' : ''}`} />
+      </span>
+    </span>
+  );
+
+  const handleClearLogo = async (accountId: string) => {
+    try {
+      const res = await apiFetch('/api/marketplace/accounts', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: accountId, shop_logo: '' }),
+      });
+      if (res.ok) { showToast('ลบโลโก้ร้านแล้ว', 'success'); refetch(); }
+      else showToast('ลบไม่สำเร็จ', 'error');
+    } catch { showToast('เกิดข้อผิดพลาด', 'error'); }
+  };
+
   const handleResyncInfo = async (accountId: string) => {
     setResyncingId(accountId);
     try {
@@ -775,29 +852,12 @@ export default function MarketplaceConnections({
                 onDisconnect={() => handleDisconnect(account.id)}
                 disconnecting={disconnectingId === account.id}
                 avatar={
-                  <button
-                    onClick={() => openLogoModal(account)}
-                    disabled={isRefreshingLogo}
-                    className="relative flex-shrink-0 group"
-                    title="กดเพื่ออัปเดตชื่อร้าน + โลโก้"
-                  >
-                    {/* icon รองพื้น + img ทับ + onError ซ่อนตัวเอง — URL ตายไม่โชว์รูปแตก */}
-                    <div className="w-10 h-10 rounded-lg bg-transparent flex items-center justify-center">
-                      <ShoppingBag className="w-5 h-5 text-shopee" />
-                    </div>
-                    {(account.metadata?.shop_logo as string) && (
-                      <img
-                        src={account.metadata.shop_logo as string}
-                        alt={account.shop_name || 'Shop'}
-                        className="absolute inset-0 w-10 h-10 rounded-lg object-cover"
-                        onError={e => { e.currentTarget.style.display = 'none'; }}
-                      />
-                    )}
-                    {/* ระหว่าง refresh spinner ต้องค้างให้เห็น ไม่ใช่รอ hover */}
-                    <div className={`absolute inset-0 bg-black/40 rounded-lg flex items-center justify-center transition-opacity ${isRefreshingLogo ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
-                      <RefreshCw className={`w-4 h-4 text-white ${isRefreshingLogo ? 'animate-spin' : ''}`} />
-                    </div>
-                  </button>
+                  <ActionMenu
+                    placement="bottom"
+                    triggerClassName="relative flex-shrink-0 rounded-lg"
+                    trigger={shopAvatar(account, 'bg-transparent', 'w-5 h-5 text-shopee', 'Shop')}
+                    items={logoMenuItems(account)}
+                  />
                 }
               >
                 {/* Details */}
@@ -926,29 +986,12 @@ export default function MarketplaceConnections({
                 onDisconnect={() => handleDisconnect(account.id)}
                 disconnecting={disconnectingId === account.id}
                 avatar={
-                  /* โลโก้มาจาก chat sync (participants role=SHOP) — ยังไม่เชื่อมแชท = icon */
-                  <button
-                    onClick={() => openLogoModal(account)}
-                    disabled={resyncingId === account.id}
-                    className="relative flex-shrink-0 group"
-                    title="กดเพื่ออัปเดตชื่อร้าน + โลโก้"
-                  >
-                  <div className="relative w-10 h-10 rounded-lg bg-black flex items-center justify-center flex-shrink-0">
-                    <ShoppingBag className="w-5 h-5 text-white" />
-                    {(account.metadata?.shop_logo as string) && (
-                      <img
-                        src={account.metadata.shop_logo as string}
-                        alt={account.shop_name || 'TikTok Shop'}
-                        className="absolute inset-0 w-10 h-10 rounded-lg object-cover"
-                        onError={e => { e.currentTarget.style.display = 'none'; }}
-                      />
-                    )}
-                    {/* ระหว่าง refresh spinner ค้างให้เห็น ไม่ใช่รอ hover */}
-                    <div className={`absolute inset-0 bg-black/40 rounded-lg flex items-center justify-center transition-opacity ${resyncingId === account.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
-                      <RefreshCw className={`w-4 h-4 text-white ${resyncingId === account.id ? 'animate-spin' : ''}`} />
-                    </div>
-                  </div>
-                  </button>
+                  <ActionMenu
+                    placement="bottom"
+                    triggerClassName="relative flex-shrink-0 rounded-lg"
+                    trigger={shopAvatar(account, 'bg-black', 'w-5 h-5 text-white', 'TikTok Shop')}
+                    items={logoMenuItems(account)}
+                  />
                 }
               >
                 <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-slate-400">
@@ -1021,29 +1064,12 @@ export default function MarketplaceConnections({
                 onDisconnect={() => handleDisconnect(account.id)}
                 disconnecting={disconnectingId === account.id}
                 avatar={
-                  <button
-                    onClick={() => openLogoModal(account)}
-                    disabled={isRefreshingLogo}
-                    className="relative flex-shrink-0 group"
-                    title="กดเพื่ออัปเดตชื่อร้าน + โลโก้"
-                  >
-                    {/* icon รองพื้น + img ทับ + onError ซ่อนตัวเอง — URL ตายไม่โชว์รูปแตก */}
-                    <div className="w-10 h-10 rounded-lg bg-[#0F146E] flex items-center justify-center">
-                      <ShoppingBag className="w-5 h-5 text-white" />
-                    </div>
-                    {(account.metadata?.shop_logo as string) && (
-                      <img
-                        src={account.metadata.shop_logo as string}
-                        alt={account.shop_name || 'Lazada'}
-                        className="absolute inset-0 w-10 h-10 rounded-lg object-cover"
-                        onError={e => { e.currentTarget.style.display = 'none'; }}
-                      />
-                    )}
-                    {/* ระหว่าง refresh spinner ต้องค้างให้เห็น ไม่ใช่รอ hover */}
-                    <div className={`absolute inset-0 bg-black/40 rounded-lg flex items-center justify-center transition-opacity ${isRefreshingLogo ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
-                      <RefreshCw className={`w-4 h-4 text-white ${isRefreshingLogo ? 'animate-spin' : ''}`} />
-                    </div>
-                  </button>
+                  <ActionMenu
+                    placement="bottom"
+                    triggerClassName="relative flex-shrink-0 rounded-lg"
+                    trigger={shopAvatar(account, 'bg-[#0F146E]', 'w-5 h-5 text-white', 'Lazada')}
+                    items={logoMenuItems(account)}
+                  />
                 }
               >
                 {warehousePicker(account)}
@@ -1097,61 +1123,19 @@ export default function MarketplaceConnections({
       <Modal
         open={!!logoModal}
         onClose={closeLogoModal}
-        title={`โลโก้ของ ${logoModal?.name || 'ร้าน'}`}
+        title={`อัปโหลดโลโก้ — ${logoModal?.name || 'ร้าน'}`}
         size="md"
         footer={
           <div className="modal-footer px-6 py-4 flex justify-end gap-2">
             <Button variant="secondary" onClick={closeLogoModal}>ยกเลิก</Button>
-            <SaveButton loading={savingLogo} onClick={handleSaveLogo} disabled={!logoFile && !logoModal?.currentUrl} />
+            <SaveButton loading={savingLogo} onClick={handleSaveLogo} disabled={!logoFile} />
           </div>
         }
       >
         <div className="px-6 py-5 space-y-3">
-          {/* ทางที่ 1 — ให้แพลตฟอร์มส่งมาเอง (Shopee ได้เสมอ · Lazada บางร้าน · TikTok ไม่มี) */}
-          <div className="rounded-lg border border-gray-200 dark:border-slate-700 p-4 space-y-2">
-            <p className="body-text text-gray-900 dark:text-white font-medium">ดึงจากแพลตฟอร์ม</p>
-            <p className="subtitle-text text-gray-500">
-              ดึงชื่อร้านและโลโก้ล่าสุดจากแพลตฟอร์มโดยตรง — ได้ผลกับร้านที่แพลตฟอร์มเปิดข้อมูลโลโก้ให้
-            </p>
-            <Button
-              variant="secondary"
-              loading={resyncingId === logoModal?.id}
-              onClick={() => logoModal && handleResyncInfo(logoModal.id)}
-            >
-              ดึงข้อมูลร้าน
-            </Button>
-          </div>
-
-          {logoModal?.canLinkProfile && (
-            <div className="rounded-lg border border-gray-200 dark:border-slate-700 p-4 space-y-2">
-              <p className="body-text text-gray-900 dark:text-white font-medium">
-                หรือดึงรูปจากบัญชี TikTok
-              </p>
-              <p className="subtitle-text text-gray-500">
-                TikTok Shop ไม่เปิด API โลโก้ร้าน แต่ดึงรูปโปรไฟล์ของบัญชีที่เป็นเจ้าของร้านมาใช้แทนได้
-                — กดแล้วจะพาไปหน้าอนุญาตของ TikTok · เราขอแค่ชื่อกับรูป ไม่โพสต์อะไรทั้งสิ้น
-              </p>
-              {/* TikTok ไม่ให้สลับบัญชีในหน้า authorize (ลอง prompt=login แล้วมันปฏิเสธ)
-                  ทางเดียวคือออกจากระบบ tiktok.com ก่อน — ถ้าไม่บอก ผู้ใช้จะได้รูปผิดร้าน */}
-              <p className="subtitle-text text-amber-700 bg-amber-50 dark:bg-amber-500/10 rounded px-3 py-2">
-                ⚠️ TikTok จะใช้บัญชีที่ล็อกอินค้างอยู่ในเบราว์เซอร์ทันที และไม่มีให้เลือกสลับบัญชี
-                — ถ้าคุณดูแลหลายร้าน ให้เปิดหน้าต่างไม่ระบุตัวตน หรือออกจากระบบ tiktok.com ก่อนกด
-              </p>
-              <Button
-                variant="secondary"
-                loading={linkingProfile}
-                onClick={() => handleLinkTikTokProfile(logoModal.id)}
-              >
-                เชื่อมบัญชี TikTok
-              </Button>
-            </div>
-          )}
           <div className="space-y-2">
-            <p className="body-text text-gray-900 dark:text-white font-medium">
-              {logoModal?.canLinkProfile ? 'หรืออัปโหลดรูปเอง' : 'อัปโหลดรูปโลโก้'}
-            </p>
             <p className="subtitle-text text-gray-500">
-              ใช้รูปเดียวกับที่ตั้งไว้ในหน้าร้าน (Seller Center) จะตรงที่สุด — รูปจะถูกย่อให้อัตโนมัติ
+              ใช้รูปเดียวกับที่ตั้งไว้ในหน้าร้าน (Seller Center) จะตรงที่สุด — ระบบย่อให้เหลือ 300px อัตโนมัติ
             </p>
             <ImageDropzone
               value={logoFile}
@@ -1160,16 +1144,12 @@ export default function MarketplaceConnections({
               label="เลือกรูปโลโก้"
               hint="ลากรูปมาวาง หรือวางจากคลิปบอร์ดก็ได้"
               initialPreviewUrl={logoFile ? null : logoModal?.currentUrl || null}
-              // โลโก้โชว์จริงแค่ 40px — ย่อเหลือ 512 พอเผื่อจอความละเอียดสูง
-              // (ค่า default 1920 ของสลิปทำให้ไฟล์ใหญ่เกินความจำเป็นหลายเท่า)
-              maxWidthOrHeight={512}
-              maxSizeMB={0.2}
+              // โลโก้โชว์จริงแค่ 40px — 300px พอเผื่อจอ retina แล้ว ไม่ต้องเก็บใหญ่กว่านี้
+              // (ค่า default 1920 ของสลิปทำให้ไฟล์ใหญ่เกินความจำเป็นสิบเท่า)
+              maxWidthOrHeight={300}
+              maxSizeMB={0.1}
               classNames={{ preview: 'relative inline-block [&_img]:w-24 [&_img]:h-24 [&_img]:rounded-lg [&_img]:object-cover [&_img]:border [&_img]:border-gray-200' }}
             />
-            {/* ไม่มีรูปให้บันทึก + เคยมีรูปอยู่ = การกดบันทึกคือการล้างรูป บอกให้ชัด */}
-            {!logoFile && logoModal?.currentUrl && (
-              <p className="subtitle-text text-gray-500">เอารูปออกแล้วกดบันทึก = ล้างโลโก้ร้านนี้</p>
-            )}
           </div>
         </div>
       </Modal>
