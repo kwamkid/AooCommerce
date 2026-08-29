@@ -872,8 +872,8 @@ export default function ReadyToShipTab({
   const handleOpenSplit = async (order: Order) => {
     setActionLoading(true);
     try {
-      // Pre-check can_split_order from Shopee API before opening modal
-      if (order.source === 'shopee' && !order.can_split_order) {
+      // ถามแพลตฟอร์มก่อนเปิดโมดัล — ทั้ง Shopee และ TikTok มี API บอกว่าแบ่งได้มั้ย
+      if ((order.source === 'shopee' && !order.can_split_order) || order.source === 'tiktok') {
         const checkRes = await apiFetch(`/api/orders/split/check?order_id=${order.id}`);
         if (!checkRes.ok) {
           const checkData = await checkRes.json();
@@ -906,6 +906,7 @@ export default function ReadyToShipTab({
 
   const renderCardActions = (order: Order) => {
     const isShopee = order.source === 'shopee';
+    const isTikTok = order.source === 'tiktok';
     const isMarketplace = isMarketplaceSource(order.source);
     const isOnHold = order.fulfillment_status === 'on_hold';
     const primaryActions: React.ReactNode[] = [];
@@ -954,8 +955,9 @@ export default function ReadyToShipTab({
       );
     } else {
       // Normal tab: Split + Accept
-      // Primary: Split button — show for Shopee orders with >1 line items, or when Shopee explicitly says can_split
-      if ((order.can_split_order || (isShopee && order.item_line_count > 1)) && !order.is_split) {
+      // ปุ่มแบ่งกล่อง — แสดงเมื่อแพลตฟอร์มบอกว่าแบ่งได้ หรือออเดอร์มีสินค้ามากกว่า 1 บรรทัด
+      // (Shopee/TikTok เท่านั้น — ออเดอร์ที่เปิดบิลเองแบ่งกล่องที่ปลายทางไม่ได้)
+      if ((order.can_split_order || ((isShopee || isTikTok) && order.item_line_count > 1)) && !order.is_split) {
         primaryActions.push(
           <Button
             key="split"

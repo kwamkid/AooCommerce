@@ -697,3 +697,39 @@ export async function getOrderStatement(
   const stmt = (d?.statement_transactions as Record<string, unknown>) || d;
   return { statement: stmt || null };
 }
+
+// ─── Package split ──────────────────────────────────────────────────────────
+
+/** ออเดอร์นี้แบ่งกล่องได้มั้ย (ต้องเช็คก่อนเสมอ — บางออเดอร์แบ่งไม่ได้ บางออเดอร์บังคับแบ่ง) */
+export async function getOrderSplitAttributes(
+  creds: TikTokCredentials,
+  orderIds: string[]
+): Promise<{ attributes: { order_id: string; can_split: boolean; must_split: boolean }[]; error?: string }> {
+  const { data, error } = await tiktokApiRequest(
+    creds, 'GET', '/fulfillment/202309/orders/split_attributes',
+    { order_ids: orderIds.join(',') }
+  );
+  if (error) return { attributes: [], error };
+  const d = data as { split_attributes?: { order_id: string; can_split: boolean; must_split: boolean }[] } | null;
+  return { attributes: d?.split_attributes || [] };
+}
+
+/**
+ * แบ่งออเดอร์เป็นหลายกล่อง
+ *
+ * ⚠️ TikTok แบ่งด้วย **id รายชิ้น** (`order_line_item_ids`) ไม่ใช่จำนวนแบบ Shopee
+ * หนึ่งชิ้น = หนึ่ง id · id พวกนี้เก็บไว้ที่ `order_items.external_line_item_ids` ตอน sync
+ */
+export async function splitTikTokOrder(
+  creds: TikTokCredentials,
+  orderId: string,
+  groups: { id: string; order_line_item_ids: string[] }[]
+): Promise<{ packages: { id: string; splittable_group_id: string }[]; error?: string }> {
+  const { data, error } = await tiktokApiRequest(
+    creds, 'POST', `/fulfillment/202309/orders/${orderId}/split`, {},
+    { splittable_groups: groups }
+  );
+  if (error) return { packages: [], error };
+  const d = data as { packages?: { id: string; splittable_group_id: string }[] } | null;
+  return { packages: d?.packages || [] };
+}

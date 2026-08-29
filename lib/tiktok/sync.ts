@@ -600,12 +600,18 @@ async function createNewOrder(
     qty: number;
     price: number;
     total: number;
+    /** id รายชิ้นของ TikTok ที่ประกอบเป็นแถวนี้ — ใช้ตอนแบ่งกล่อง */
+    lineItemIds: string[];
   }[] = [];
 
   // TikTok ส่ง line item แถวละ 1 ชิ้น — รวมชิ้นที่เป็น SKU เดียวกันเป็นแถวเดียว (qty รวม)
   // ไม่งั้นหน้า order แสดงชื่อสินค้าซ้ำกันหลายบรรทัด (เจอจริงกับ Lazada 2026-08-28)
   const lineItems = tiktokOrder.line_items || [];
-  const groupedLineItems: { item: (typeof lineItems)[number]; qty: number; paidSum: number }[] = [];
+  // เก็บ id รายชิ้นของทุกตัวในกลุ่มไว้ด้วย — TikTok แบ่งกล่องด้วย order_line_item_ids
+  // ย้อนกลับไปหาทีหลังไม่ได้แม่น (variation เดียวผูกได้หลาย listing) ต้องเก็บตอนนี้
+  const groupedLineItems: {
+    item: (typeof lineItems)[number]; qty: number; paidSum: number; lineItemIds: string[];
+  }[] = [];
   {
     const byKey = new Map<string, (typeof groupedLineItems)[number]>();
     for (const item of lineItems) {
@@ -615,15 +621,16 @@ async function createNewOrder(
       if (g) {
         g.qty += 1;
         g.paidSum += paid;
+        if (item.id) g.lineItemIds.push(String(item.id));
       } else {
-        const entry = { item, qty: 1, paidSum: paid };
+        const entry = { item, qty: 1, paidSum: paid, lineItemIds: item.id ? [String(item.id)] : [] };
         byKey.set(key, entry);
         groupedLineItems.push(entry);
       }
     }
   }
 
-  for (const { item, qty, paidSum } of groupedLineItems) {
+  for (const { item, qty, paidSum, lineItemIds } of groupedLineItems) {
     const price = parseFloat(item.sale_price || item.original_price || '0');
     const total = paidSum; // ยอดจริงรวมทุกชิ้น (กันเศษสตางค์ต่างกันรายชิ้น)
     subtotal += total;
@@ -675,6 +682,7 @@ async function createNewOrder(
       qty,
       price,
       total,
+      lineItemIds,
     });
   }
 
@@ -787,6 +795,7 @@ async function createNewOrder(
     discount_type: 'percent',
     subtotal: item.total,
     total: item.total,
+    external_line_item_ids: item.lineItemIds?.length ? item.lineItemIds : null,
   }));
   await supabaseAdmin.from('order_items').insert(orderItemsToInsert);
 

@@ -267,7 +267,7 @@ export default function SplitParcelModal({
         <div className="px-5 py-4 flex items-center justify-between">
           <div className="text-sm text-gray-500">
             {parcels.length} กล่อง, {totalAssigned}/{totalRequired} ชิ้น
-            {isShopee && <span className="text-xs text-gray-400 ml-2">(Shopee max 5)</span>}
+            <span className="text-xs text-gray-400 ml-2">(สูงสุด 5 กล่อง)</span>
           </div>
           <div className="flex gap-3">
             <button

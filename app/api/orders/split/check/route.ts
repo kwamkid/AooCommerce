@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
 import { getPackageDetail, ensureValidToken } from '@/lib/shopee/api';
+import { ensureValidToken as ensureTikTokToken, getOrderSplitAttributes } from '@/lib/tiktok/api';
 
 /**
  * GET /api/orders/split/check?order_id=xxx
- * Pre-check whether a Shopee order can be split.
+ * Pre-check whether a marketplace order can be split (Shopee / TikTok).
  * Returns 200 if ok, 400 with error message if not.
  */
 export async function GET(req: NextRequest) {
@@ -29,6 +30,31 @@ export async function GET(req: NextRequest) {
 
     if (!order) {
       return NextResponse.json({ error: 'ไม่พบออเดอร์' }, { status: 404 });
+    }
+
+    // TikTok มี API บอกตรง ๆ ว่าออเดอร์นี้แบ่งได้มั้ย / บังคับแบ่งมั้ย
+    if (order.source === 'tiktok') {
+      if (!order.marketplace_account_id || !order.external_order_sn) {
+        return NextResponse.json({ error: 'ไม่พบบัญชี TikTok' }, { status: 400 });
+      }
+      const { data: ttAccount } = await supabaseAdmin
+        .from('marketplace_accounts')
+        .select('*')
+        .eq('id', order.marketplace_account_id)
+        .single();
+      if (!ttAccount) {
+        return NextResponse.json({ error: 'ไม่พบบัญชี TikTok' }, { status: 404 });
+      }
+      const ttCreds = await ensureTikTokToken(ttAccount);
+      const { attributes, error } = await getOrderSplitAttributes(ttCreds, [order.external_order_sn]);
+      if (error) {
+        return NextResponse.json({ error: `เช็คสิทธิ์แบ่งกล่องไม่สำเร็จ: ${error}` }, { status: 400 });
+      }
+      const attr = attributes.find(a => String(a.order_id) === order.external_order_sn) || attributes[0];
+      if (attr && attr.can_split === false) {
+        return NextResponse.json({ error: 'TikTok ไม่อนุญาตให้แบ่งกล่องออเดอร์นี้' }, { status: 400 });
+      }
+      return NextResponse.json({ can_split: true, must_split: attr?.must_split ?? false });
     }
 
     if (order.source !== 'shopee') {

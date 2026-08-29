@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
 import { splitOrder, getPackageDetail, ensureValidToken } from '@/lib/shopee/api';
+import {
+  ensureValidToken as ensureTikTokToken,
+  getOrderSplitAttributes,
+  splitTikTokOrder,
+} from '@/lib/tiktok/api';
 
 interface ParcelInput {
   items: { order_item_id: string; quantity: number }[];
@@ -49,7 +54,7 @@ export async function POST(req: NextRequest) {
     // 2. Fetch order items to validate quantities
     const { data: orderItems, error: itemsErr } = await supabaseAdmin
       .from('order_items')
-      .select('id, quantity, product_name, variation_label, variation_id')
+      .select('id, quantity, product_name, variation_label, variation_id, external_line_item_ids')
       .eq('order_id', order_id);
 
     if (itemsErr || !orderItems) {
@@ -85,8 +90,10 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 4. If Shopee order → call split_order API
+    // 4. ส่งคำสั่งแบ่งกล่องไปที่แพลตฟอร์ม (ถ้าเป็นออเดอร์จาก marketplace)
+    //    Shopee แบ่งด้วย item_id + model_id + จำนวน · TikTok แบ่งด้วย id รายชิ้น
     let shopeePackages: { package_number: string }[] | undefined;
+    let tiktokPackages: { id: string; splittable_group_id: string }[] | undefined;
 
     if (order.source === 'shopee' && order.external_order_sn && order.marketplace_account_id) {
       // Fetch marketplace account
@@ -210,11 +217,68 @@ export async function POST(req: NextRequest) {
       shopeePackages = result.packageList;
     }
 
+    if (order.source === 'tiktok' && order.external_order_sn && order.marketplace_account_id) {
+      const { data: account } = await supabaseAdmin
+        .from('marketplace_accounts')
+        .select('*')
+        .eq('id', order.marketplace_account_id)
+        .single();
+
+      if (!account) {
+        return NextResponse.json({ error: 'ไม่พบบัญชี TikTok' }, { status: 404 });
+      }
+
+      const creds = await ensureTikTokToken(account);
+
+      // เช็คก่อนเสมอว่าออเดอร์นี้แบ่งได้ — บางออเดอร์แบ่งไม่ได้เลย
+      const { attributes, error: attrError } = await getOrderSplitAttributes(creds, [order.external_order_sn]);
+      if (attrError) {
+        return NextResponse.json({ error: `เช็คสิทธิ์แบ่งกล่องไม่สำเร็จ: ${attrError}` }, { status: 400 });
+      }
+      const attr = attributes.find(a => String(a.order_id) === order.external_order_sn) || attributes[0];
+      if (attr && attr.can_split === false) {
+        return NextResponse.json({ error: 'TikTok ไม่อนุญาตให้แบ่งกล่องออเดอร์นี้' }, { status: 400 });
+      }
+
+      // TikTok แบ่งด้วย id รายชิ้น — order item หนึ่งแถวของเราคือหลายชิ้นของ TikTok
+      // (sync รวมชิ้นที่ SKU เดียวกันเป็นแถวเดียว) จึงต้องหยิบ id ตามจำนวนที่ใส่ในแต่ละกล่อง
+      const remainingIds = new Map<string, string[]>();
+      for (const oi of orderItems) {
+        remainingIds.set(oi.id, [...(oi.external_line_item_ids || [])]);
+      }
+
+      const missing = orderItems.filter(oi => (remainingIds.get(oi.id) || []).length < oi.quantity);
+      if (missing.length > 0) {
+        return NextResponse.json({
+          error: `ไม่มีรหัสรายชิ้นของ TikTok สำหรับ: ${missing.map(m => m.product_name).join(', ')} — ลอง sync ออเดอร์นี้ใหม่ก่อน`,
+        }, { status: 400 });
+      }
+
+      const groups = parcels.map((parcel, idx) => {
+        const ids: string[] = [];
+        for (const item of parcel.items) {
+          const pool = remainingIds.get(item.order_item_id)!;
+          ids.push(...pool.splice(0, item.quantity));
+        }
+        return { id: String(idx + 1), order_line_item_ids: ids };
+      });
+
+      const result = await splitTikTokOrder(creds, order.external_order_sn, groups);
+      if (result.error) {
+        return NextResponse.json({ error: `TikTok split failed: ${result.error}` }, { status: 400 });
+      }
+      tiktokPackages = result.packages;
+    }
+
     // 5. Create order_parcels + order_parcel_items
     const parcelIds: string[] = [];
     for (let i = 0; i < parcels.length; i++) {
       const parcel = parcels[i];
-      const packageNumber = shopeePackages?.[i]?.package_number || null;
+      // TikTok คืน package id ผูกกับ splittable_group_id ที่เราส่งไป (เราใช้ลำดับกล่องเป็น id)
+      const packageNumber =
+        shopeePackages?.[i]?.package_number
+        || tiktokPackages?.find(p => String(p.splittable_group_id) === String(i + 1))?.id
+        || null;
 
       const { data: newParcel, error: parcelErr } = await supabaseAdmin
         .from('order_parcels')
