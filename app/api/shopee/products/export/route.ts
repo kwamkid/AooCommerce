@@ -10,6 +10,7 @@ import { exportProductToShopee, exportBulkToShopee, ExportOptions } from '@/lib/
  *   marketplace_account_id: string,
  *   shopee_category_id?: number,       // shared fallback (used for single export)
  *   weight?: number,                   // shared fallback
+ *   cover_image_url?: string,          // รูปหน้าปกเฉพาะร้านนี้ (Shopee ห้ามใช้รูปหน้าปกซ้ำข้ามร้าน)
  *   per_product_options?: Record<string, { shopee_category_id: number, shopee_category_name?: string, weight?: number }>
  *   mode?: 'json' | 'stream'          // default: 'stream' (SSE) for bulk modal, 'json' for single modal
  * }
@@ -22,7 +23,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { product_ids, marketplace_account_id, shopee_category_id, shopee_category_name, weight, per_product_options, mode } = body;
+    const { product_ids, marketplace_account_id, shopee_category_id, shopee_category_name, weight, cover_image_url, per_product_options, mode } = body;
 
     if (!product_ids || !Array.isArray(product_ids) || product_ids.length === 0) {
       return NextResponse.json({ error: 'product_ids is required' }, { status: 400 });
@@ -51,6 +52,7 @@ export async function POST(request: NextRequest) {
 
     const sharedOptions: ExportOptions = {
       shopee_category_id: shopee_category_id || 0,
+      cover_image_url: cover_image_url || undefined,
       shopee_category_name: shopee_category_name || '',
       weight,
     };

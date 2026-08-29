@@ -8,6 +8,8 @@ import FormSelect from '@/components/ui/FormSelect';
 import Modal from '@/components/ui/Modal';
 import Button from '@/components/ui/Button';
 import ShopeeCategoryPicker from './ShopeeCategoryPicker';
+import { supabase } from '@/lib/supabase';
+import imageCompression from 'browser-image-compression';
 
 interface ShopeeAccount {
   id: string;
@@ -34,12 +36,35 @@ export default function ShopeeExportModal({
 }: ShopeeExportModalProps) {
   const { showToast } = useToast();
 
+  const handleCoverUpload = async (file: File) => {
+    setUploadingCover(true);
+    try {
+      const compressed = await imageCompression(file, { maxSizeMB: 1, maxWidthOrHeight: 1600, useWebWorker: true });
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const path = `marketplace/covers/${productId}/${Date.now()}-${safeName}`;
+      const { error } = await supabase.storage.from('product-images')
+        .upload(path, compressed, { contentType: compressed.type || 'image/jpeg' });
+      if (error) { showToast('อัปโหลดรูปไม่สำเร็จ', 'error'); return; }
+      const { data } = supabase.storage.from('product-images').getPublicUrl(path);
+      setCoverImageUrl(data.publicUrl);
+      showToast('ตั้งรูปหน้าปกสำหรับร้านนี้แล้ว');
+    } catch {
+      showToast('อัปโหลดรูปไม่สำเร็จ', 'error');
+    } finally {
+      setUploadingCover(false);
+    }
+  };
+
   const [accounts, setAccounts] = useState<ShopeeAccount[]>([]);
   const [loadingAccounts, setLoadingAccounts] = useState(true);
   const [selectedAccountId, setSelectedAccountId] = useState<string>('');
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
   const [selectedCategoryName, setSelectedCategoryName] = useState('');
   const [weight, setWeight] = useState<string>('0.5');
+  // รูปหน้าปกเฉพาะร้านนี้ — Shopee ไม่ยอมให้ประกาศต่างร้านใช้รูปหน้าปกเดียวกัน
+  // (ร้านแบรนด์ + ร้านรวมแบรนด์ที่ขายสินค้าตัวเดียวกันจึงต้องใช้คนละรูป)
+  const [coverImageUrl, setCoverImageUrl] = useState<string>('');
+  const [uploadingCover, setUploadingCover] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [exportResult, setExportResult] = useState<{ success: boolean; error?: string; item_id?: number } | null>(null);
   const [linkedItemId, setLinkedItemId] = useState<string | null>(null);
@@ -149,6 +174,7 @@ export default function ShopeeExportModal({
           shopee_category_id: selectedCategoryId,
           shopee_category_name: selectedCategoryName,
           weight: parseFloat(weight) || 0.5,
+          cover_image_url: coverImageUrl || undefined,
           mode: 'json',
         }),
       });
@@ -302,6 +328,44 @@ export default function ShopeeExportModal({
               min="0.01"
               className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-shopee/50"
             />
+          </div>
+
+          {/* รูปหน้าปกเฉพาะร้านนี้ */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+              รูปหน้าปกสำหรับร้านนี้
+            </label>
+            <div className="flex items-start gap-3">
+              {coverImageUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={coverImageUrl} alt="รูปหน้าปกที่เลือก" className="w-20 h-20 rounded-lg object-cover border border-gray-200 dark:border-slate-600" />
+              ) : (
+                <div className="w-20 h-20 rounded-lg border border-dashed border-gray-300 dark:border-slate-600 flex items-center justify-center text-gray-400">
+                  <ShoppingBag className="w-6 h-6" />
+                </div>
+              )}
+              <div className="flex-1">
+                <label className="inline-flex items-center gap-2 px-3 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-slate-600 cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-700">
+                  {uploadingCover ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                  {coverImageUrl ? 'เปลี่ยนรูป' : 'เลือกรูป'}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    disabled={uploadingCover}
+                    onChange={e => { const f = e.target.files?.[0]; if (f) handleCoverUpload(f); e.target.value = ''; }}
+                  />
+                </label>
+                {coverImageUrl && (
+                  <button type="button" onClick={() => setCoverImageUrl('')} className="ml-2 text-sm text-gray-500 hover:text-red-500">
+                    เอาออก
+                  </button>
+                )}
+                <p className="text-xs text-gray-500 dark:text-slate-400 mt-1.5">
+                  Shopee ไม่ยอมให้ประกาศต่างร้านใช้รูปหน้าปกเดียวกัน — ถ้าสินค้านี้ลงร้านอื่นอยู่แล้วให้ใช้คนละรูป · ไม่เลือก = ใช้รูปหลักของสินค้า
+                </p>
+              </div>
+            </div>
           </div>
         </div>
 

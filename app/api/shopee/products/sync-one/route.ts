@@ -23,12 +23,13 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json();
-  const { product_id, marketplace_account_id, direction, fields, dry_run } = body as {
+  const { product_id, marketplace_account_id, direction, fields, dry_run, cover_image_url } = body as {
     product_id?: string;
     marketplace_account_id?: string;
     direction?: string;
     fields?: string[];
     dry_run?: boolean;
+    cover_image_url?: string;
   };
 
   if (!product_id || !marketplace_account_id) {
@@ -83,6 +84,7 @@ export async function POST(request: NextRequest) {
     direction: direction as SyncDirection,
     fields: fields as SyncField[] | undefined,
     dryRun: dry_run === true,
+    coverImageUrl: cover_image_url,
   });
 
   return NextResponse.json(result, { status: result.success ? 200 : 400 });

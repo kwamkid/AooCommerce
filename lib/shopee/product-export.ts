@@ -19,6 +19,12 @@ export interface ExportOptions {
   shopee_category_id: number;
   shopee_category_name?: string;
   weight?: number; // kg, default 0.5
+  /**
+   * รูปหน้าปกเฉพาะร้านนี้ — Shopee ไม่ยอมให้ประกาศต่างร้านใช้รูปหน้าปกเดียวกัน
+   * (ร้านแบรนด์ + ร้านรวมแบรนด์ที่ขายตัวเดียวกันจึงต้องใช้คนละรูป)
+   * ไม่ส่ง = ใช้รูปหลักของสินค้าตามปกติ · ส่งมา = แทนที่รูปแรก ที่เหลือเรียงตามเดิม
+   */
+  cover_image_url?: string;
 }
 
 export interface ExportProgressEvent {
@@ -526,10 +532,13 @@ export async function exportProductToShopee(
       product_name: product.name,
     });
 
-    // 2. Upload images
+    // 2. Upload images — รูปหน้าปกเฉพาะร้าน (ถ้ามี) มาก่อนเสมอ
     let imageIds: string[] = [];
-    if (product.images.length > 0) {
-      const uploadResult = await uploadProductImages(creds, product.images);
+    const imagesToUpload = options.cover_image_url
+      ? [options.cover_image_url, ...product.images.filter(u => u !== options.cover_image_url)]
+      : product.images;
+    if (imagesToUpload.length > 0) {
+      const uploadResult = await uploadProductImages(creds, imagesToUpload);
       imageIds = uploadResult.image_id_list;
       if (imageIds.length === 0 && uploadResult.errors.length > 0) {
         console.error('[Shopee Export] All image uploads failed:', uploadResult.errors);
@@ -733,6 +742,8 @@ export async function exportProductToShopee(
           brand_name: null,
         },
         sync_enabled: true,
+        // รูปหน้าปกที่ประกาศนี้ใช้จริง — ร้านอื่นของสินค้าเดียวกันจะเป็นคนละรูป
+        platform_primary_image: imagesToUpload[0] || null,
         last_synced_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
@@ -774,6 +785,7 @@ export async function exportProductToShopee(
             brand_name: null,
           },
           sync_enabled: true,
+          platform_primary_image: imagesToUpload[0] || null,
           last_synced_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         };

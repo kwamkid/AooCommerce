@@ -66,7 +66,13 @@ const short = (v: unknown, n = 60) => {
 export async function syncProductWithShop(
   account: ShopeeAccountRow,
   productId: string,
-  opts: { direction: SyncDirection; fields?: SyncField[]; dryRun?: boolean }
+  opts: {
+    direction: SyncDirection;
+    fields?: SyncField[];
+    dryRun?: boolean;
+    /** push + field 'image': ใช้รูปนี้เป็นหน้าปกของร้านนี้ (แทนรูปแรกของสินค้า) */
+    coverImageUrl?: string;
+  }
 ): Promise<SyncOneResult> {
   const fields = opts.fields?.length ? opts.fields : [...SYNC_FIELDS];
   const dryRun = opts.dryRun === true;
@@ -102,7 +108,7 @@ export async function syncProductWithShop(
     if (opts.direction === 'pull') {
       await pullIntoSystem(account, product, links, itemId, fields, dryRun, result);
     } else {
-      await pushToShopee(account, product, links, itemId, fields, dryRun, result);
+      await pushToShopee(account, product, links, itemId, fields, dryRun, result, opts.coverImageUrl);
     }
     result.success = result.errors.length === 0;
   } catch (e) {
@@ -234,7 +240,8 @@ async function pushToShopee(
   itemId: number,
   fields: SyncField[],
   dryRun: boolean,
-  result: SyncOneResult
+  result: SyncOneResult,
+  coverImageUrl?: string
 ): Promise<void> {
   // preview เทียบกับ "ค่าล่าสุดที่เรารู้จากร้าน" (platform_*) — ไม่ยิง API เพื่อดูเฉย ๆ
   // ค่าจริงจะถูกยืนยันตอนกดส่งจริง
@@ -251,8 +258,10 @@ async function pushToShopee(
       .from('product_images').select('image_url')
       .eq('product_id', product.id).eq('company_id', product.company_id)
       .order('sort_order', { ascending: true });
-    const urls = (images || []).map(i => i.image_url).filter(Boolean) as string[];
+    let urls = (images || []).map(i => i.image_url).filter(Boolean) as string[];
     if (urls.length === 0 && product.image) urls.push(product.image);
+    // รูปหน้าปกเฉพาะร้าน (ถ้าส่งมา) ต้องมาก่อนเสมอ — Shopee ใช้รูปแรกเป็นหน้าปก
+    if (coverImageUrl) urls = [coverImageUrl, ...urls.filter(u => u !== coverImageUrl)];
 
     if (urls.length > 0) {
       result.changes.push({ field: 'image', label: SYNC_FIELD_LABEL.image, from: short(links[0].platform_primary_image), to: short(urls[0]) });

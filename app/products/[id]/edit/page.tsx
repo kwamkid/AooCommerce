@@ -21,9 +21,10 @@ import { supabase } from '@/lib/supabase';
 import imageCompression from 'browser-image-compression';
 import { useToast } from '@/lib/toast-context';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
-import { ArrowLeft, Loader2, ExternalLink, Unlink2, Package2, Camera, Merge, Search, X, ChevronRight, Trash2, HelpCircle } from 'lucide-react';
+import { ArrowLeft, Loader2, ExternalLink, Unlink2, Package2, Camera, Merge, Search, X, ChevronRight, Trash2, HelpCircle, RefreshCw } from 'lucide-react';
 import FormSelect from '@/components/ui/FormSelect';
 import ShopeeCategoryPicker from '@/components/shopee/ShopeeCategoryPicker';
+import ProductSyncModal from '@/components/marketplace/ProductSyncModal';
 
 interface MarketplaceLink {
   id: string;
@@ -122,6 +123,8 @@ export default function EditProductPage() {
 
   // Marketplace links state
   const [marketplaceLinks, setMarketplaceLinks] = useState<MarketplaceLink[]>([]);
+  // ซิงค์สินค้ากับร้าน — เก็บ link ที่กดไว้ (null = ปิด modal)
+  const [syncTarget, setSyncTarget] = useState<MarketplaceLink | null>(null);
   const [activeTab, setActiveTabState] = useState<string>(() => {
     if (typeof window !== 'undefined') {
       const hash = window.location.hash.replace('#', '');
@@ -263,6 +266,21 @@ export default function EditProductPage() {
   }, [authLoading, userProfile, productId]);
 
   // Refresh marketplace links
+  /**
+   * โหลดข้อมูลสินค้าใหม่หลังซิงค์ — pull อาจเปลี่ยนชื่อ/รูป/ราคาระดับสินค้า
+   * ไม่ใช่แค่ค่าใน link (refreshLinks ตัวล่างดูแลเฉพาะฝั่ง link)
+   */
+  const reloadProductData = async () => {
+    try {
+      const res = await apiFetch(`/api/products/${productId}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.product) setProduct(data.product as ProductItem);
+      setProductImages(data.images || []);
+      setVariationImages(data.variation_images || {});
+    } catch { /* ปล่อยผ่าน — ค่าที่ค้างอยู่ยังใช้ได้ ผู้ใช้กด refresh เองได้ */ }
+  };
+
   const refreshLinks = async () => {
     try {
       const res = await apiFetch(`/api/marketplace/links?product_id=${productId}`);
@@ -463,10 +481,35 @@ export default function EditProductPage() {
         body: JSON.stringify({ link_id: linkId, platform_primary_image: urlData.publicUrl }),
       });
 
-      if (res.ok) {
-        showToast('เปลี่ยนรูปสำเร็จ');
-        await refreshLinks();
+      if (!res.ok) {
+        showToast('บันทึกรูปไม่สำเร็จ', 'error');
+        return;
       }
+
+      // ดันรูปขึ้น Shopee ด้วย — ไม่งั้นรูปจะตรงแค่ในระบบเรา แล้วเพี้ยนกลับตอน sync ครั้งหน้า
+      const link = marketplaceLinks.find(l => l.id === linkId);
+      if (link?.account_id) {
+        const pushRes = await apiFetch('/api/shopee/products/sync-one', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            product_id: productId,
+            marketplace_account_id: link.account_id,
+            direction: 'push',
+            fields: ['image'],
+            cover_image_url: urlData.publicUrl,
+          }),
+        });
+        const pushData = await pushRes.json().catch(() => ({}));
+        if (!pushRes.ok) {
+          showToast(`บันทึกรูปในระบบแล้ว แต่ส่งขึ้น Shopee ไม่สำเร็จ: ${pushData.error || pushData.errors?.join('; ') || ''}`, 'error');
+        } else {
+          showToast('เปลี่ยนรูปสำเร็จ — อัปเดตบน Shopee แล้ว');
+        }
+      } else {
+        showToast('เปลี่ยนรูปสำเร็จ');
+      }
+      await refreshLinks();
     } catch {
       showToast('เกิดข้อผิดพลาดในการอัปโหลดรูป', 'error');
     } finally {
@@ -708,6 +751,13 @@ export default function EditProductPage() {
                 </a>
               )}
               <button
+                onClick={() => setSyncTarget(link)}
+                className="p-2 text-gray-500 hover:text-primary transition-colors rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700"
+                title="ซิงค์กับร้านนี้"
+              >
+                <RefreshCw className="w-4 h-4" />
+              </button>
+              <button
                 onClick={() => handleUnlink(link.id)}
                 className="p-2 text-gray-500 hover:text-red-500 transition-colors rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700"
                 title="ยกเลิกเชื่อมโยง"
@@ -931,6 +981,13 @@ export default function EditProductPage() {
                     <ExternalLink className="w-4 h-4" />
                   </a>
                 )}
+                <button
+                  onClick={() => setSyncTarget(firstLink)}
+                  className="p-2 text-gray-500 hover:text-primary transition-colors rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700"
+                  title="ซิงค์กับร้านนี้"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                </button>
               </div>
             </div>
             {/* Product name — full width */}
@@ -1613,6 +1670,17 @@ export default function EditProductPage() {
           <p className="text-xs text-gray-400 dark:text-slate-500">สินค้าที่ถูกรวมเข้ามา (ไม่ใช่ master) จะถูกปิดการใช้งานอัตโนมัติ</p>
         </div>
       </Modal>
+
+      {syncTarget && (
+        <ProductSyncModal
+          open
+          onClose={() => setSyncTarget(null)}
+          productId={productId}
+          accountId={syncTarget.account_id}
+          shopName={syncTarget.account_name || 'Shopee'}
+          onSynced={() => { refreshLinks(); reloadProductData(); }}
+        />
+      )}
 
       {confirmDialog}
     </Layout>
