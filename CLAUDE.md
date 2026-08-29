@@ -417,6 +417,18 @@ marketplace_accounts → marketplace_product_links → product_variations
 | `/api/tiktok/sync-order` | Sync single order by ID |
 | `/api/tiktok/products/import` | GET พรีวิวสินค้าในร้าน · POST ดูดเข้าทั้งร้าน (SSE progress) |
 
+### โลโก้ร้าน TikTok — **ไม่มีใน API ฝั่งขาย** (ยืนยัน 2026-08-30 อย่าไล่ scope ซ้ำ)
+- `/authorization/202309/shops` → cipher/code/id/name/region/seller_type · `/seller/202309/shops` → **id กับ region เท่านั้น** (เปิด scope ได้ก็ไม่มีโลโก้)
+- ค้นทั้ง OAS แล้ว avatar ของ**ร้าน**มีที่เดียวคือ `customer_service/*/conversations` — ที่เหลือเป็น avatar ของ creator/affiliate
+- ทางที่ได้โลโก้จริงมี 2 ทาง: **chat sync** ([lib/services/chat/tiktok.ts](lib/services/chat/tiktok.ts) เก็บ avatar ของ participant `role='SHOP'`) หรือ **ผู้ใช้ใส่ URL เอง**
+- **กดที่รูปโลโก้ในการ์ดร้าน = อัปเดตข้อมูลร้าน** (ชื่อ+โลโก้) ทุกแพลตฟอร์มผ่าน `/api/marketplace/accounts/resync` · แพลตฟอร์มไม่ส่งโลโก้มา → เด้งช่องใส่ URL ต่อทันที
+- ⚠️ OAuth callback **ต้อง merge `metadata` ห้ามเขียนทับทั้งก้อน** — โลโก้ที่ตั้งเองจะหายทุกครั้งที่ re-authorize (เคยเกิดแล้ว)
+
+### ยอดโอนจริง TikTok (settlement) — ใช้ `/finance/**202501**/orders/{id}/statement_transactions`
+- **202309 คนละโครงและไม่มีสนามยอดเงินเลย** — เรียกผิดเวอร์ชันจะได้ ฿0 ทุกออเดอร์โดย API ตอบ `code 0` ไม่มี error ให้จับ
+- ออเดอร์ที่ยังไม่ถึงรอบโอนก็ตอบ `code 0` + ค่า 0 ล้วนเหมือนกัน → **ห้ามบันทึกเป็นแถวยอด 0** (รายงานกำไรจะอ่านว่าขายแล้วไม่ได้เงิน) ให้นับเป็น pending รอบหน้าค่อยเก็บ
+- ตรวจกับเงินจริงแล้ว: ขาย 720 → คอม 106.49 + ค่าส่ง 38 + อื่น ๆ 19.36 → **โอนจริง 477.15** ตรงกับที่ TikTok แจ้งในรอบจ่าย
+
 ### TikTok Sign Algorithm
 ```
 1. Extract all query params EXCEPT 'sign', 'access_token'
