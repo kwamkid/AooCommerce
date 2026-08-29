@@ -194,6 +194,7 @@ async function syncTikTokAccount(account: TikTokAccountRow, since: Date) {
   let failed = 0;
   const unmapped = new Set<string>();
   const errors = new Set<string>();
+  let pending = 0;  // ยังไม่ถึงรอบโอน — ไม่ใช่ความล้มเหลว รอบหน้าค่อยมาเก็บ
 
   for (const order of ourOrders) {
     const { statement, error } = await getOrderStatement(creds, order.external_order_sn!);
@@ -207,6 +208,15 @@ async function syncTikTokAccount(account: TikTokAccountRow, since: Date) {
     unmappedTikTokFields(statement).forEach(f => unmapped.add(f));
 
     const normalized = normalizeTikTokStatement(statement, { orderId: order.external_order_sn });
+
+    // ⚠️ ออเดอร์ที่ยังไม่ถึงรอบโอน TikTok ตอบ code 0 พร้อมค่า 0 ล้วน (ไม่ใช่ error)
+    //    ถ้าเก็บลงเป็นแถว ฿0 รายงานกำไรจะอ่านว่า "ขายแล้วไม่ได้เงินเลย" ทั้งที่ความจริง
+    //    คือ "ยังไม่ถึงรอบจ่าย" — ไม่มีแถวเลยซื่อสัตย์กว่าแถวที่บอกศูนย์
+    if (normalized.lines.length === 0 && !normalized.netPayout) {
+      pending++;
+      continue;
+    }
+
     const saved = await saveSettlement({
       companyId: order.company_id,
       orderId: order.id,
@@ -221,6 +231,7 @@ async function syncTikTokAccount(account: TikTokAccountRow, since: Date) {
   return {
     orders: ourOrders.length,
     processed,
+    pending,
     failed,
     // ถ้ามีค่าในนี้ = มีค่าธรรมเนียมที่ยังไม่ได้แมป ต้องเพิ่มใน lib/tiktok/settlement.ts
     unmapped_fields: [...unmapped],

@@ -784,9 +784,17 @@ export async function getOrderStatement(
   );
   if (error) return { statement: null, error };
   const d = data as Record<string, unknown> | null;
-  // API ห่อผลลัพธ์ไว้หลายชั้นแล้วแต่เวอร์ชัน — เอาชั้นที่มี settlement_amount
-  const stmt = (d?.statement_transactions as Record<string, unknown>) || d;
-  return { statement: stmt || null };
+  // API ห่อผลลัพธ์ไว้หลายชั้นแล้วแต่เวอร์ชัน — เลือก "ชั้นที่มียอดจริง" ไม่ใช่ชั้นที่มี key
+  //
+  // ⚠️ 202309 คืน { order_id, statement_transactions } โดยไม่มีสนามยอดเงินเลย ส่วน 202501
+  //    คืนยอด + sku_transactions ที่ชั้นบนสุด · ถ้าเลือกชั้นผิดจะได้ ฿0 ทุกออเดอร์แบบ
+  //    ไม่มี error ให้จับ (API ตอบ code 0) — เช็คว่าชั้นนั้นมียอดจริงก่อนเสมอ
+  const hasAmounts = (o: unknown): o is Record<string, unknown> =>
+    !!o && typeof o === 'object' && !Array.isArray(o) &&
+    ('settlement_amount' in o || 'sku_transactions' in o);
+  const nested = d?.statement_transactions;
+  const stmt = hasAmounts(d) ? d : hasAmounts(nested) ? nested : null;
+  return { statement: stmt };
 }
 
 // ─── Package split ──────────────────────────────────────────────────────────
