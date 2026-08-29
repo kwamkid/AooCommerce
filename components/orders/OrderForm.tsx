@@ -55,8 +55,10 @@ import {
   Warehouse,
   Store,
   Settings,
-  Clock
+  Clock,
+  ExternalLink
 } from 'lucide-react';
+import Link from 'next/link';
 
 // ข้อความเดียวกันทั้ง validate ตอนบันทึก และตอนกด "ถัดไป" ในเปลือก wizard
 // (เขียนคนละที่แล้วดริฟต์กันคือวิธีที่ผู้ใช้เจอสองข้อความสำหรับเรื่องเดียวกัน)
@@ -2453,9 +2455,10 @@ export default function OrderForm({
             แยกเป็นสามการ์ดเตี้ย ๆ ทำให้จอ desktop เหลือที่ว่างเปล่า ๆ */}
         {(features.delivery_date.enabled || features.delivery_zone) && (
         <div ref={deliveryDateRef} className={`bg-white dark:bg-slate-800 rounded-lg ${embedded ? '' : 'border border-gray-200 dark:border-slate-700'} p-4`}>
-          <div className={features.delivery_date.enabled && features.delivery_zone && !narrowForm
-            ? 'grid grid-cols-1 lg:grid-cols-2 gap-4 items-start' : 'space-y-4'}>
-          {features.delivery_date.enabled && (<div>
+          <div className="space-y-4">
+          {features.delivery_date.enabled && (
+          <div className={features.delivery_slot ? 'grid grid-cols-2 gap-3 items-start' : ''}>
+          <div>
           <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">
             วันที่ส่งของ {features.delivery_date.required && <span className="text-red-500">*</span>}
           </label>
@@ -2463,17 +2466,41 @@ export default function OrderForm({
             <DateRangePicker value={deliveryDateValue} onChange={(val) => { setDeliveryDateValue(val); setFieldErrors(prev => { const { deliveryDate, ...rest } = prev; return rest; }); }} asSingle={true} useRange={false} showShortcuts={false} showFooter={false} placeholder="เลือกวันที่ส่ง" disabled={isReadOnly} />
           </div>
           {fieldErrors.deliveryDate && <p className="text-red-500 text-xs mt-1">{fieldErrors.deliveryDate}</p>}
+          </div>
 
-          {/* ช่วงเวลาส่ง — ช่วงที่เลือกไม่ได้แสดงจาง + บอกเหตุผล (ห้ามซ่อน) */}
+          {/* ช่วงเวลาส่ง — อยู่บรรทัดเดียวกับวันที่ (ผู้ใช้ขอ 2026-08-29)
+              ช่วงที่เลือกไม่ได้แสดงจาง + บอกเหตุผล (ห้ามซ่อน) */}
           {features.delivery_slot && (
-            <div className="mt-3">
+            <div>
               <label className="block text-sm font-medium text-gray-600 dark:text-slate-400 mb-1.5">ช่วงเวลาส่ง</label>
               {!deliveryDate ? (
                 <p className="text-sm text-gray-400 dark:text-slate-500">เลือกวันที่ส่งก่อน แล้วเลือกรอบเวลา</p>
               ) : deliverySlots.length === 0 ? (
-                <p className="text-sm text-gray-400 dark:text-slate-500">ยังไม่ได้ตั้งค่ารอบส่ง — ตั้งได้ที่ ตั้งค่า → การจัดส่ง</p>
+                /* ยังไม่ได้ตั้งรอบ = พาไปตั้งเลย ไม่ใช่บอกทางแล้วให้ไปหาเอง */
+                <Link
+                  href="/settings/delivery?tab=slots"
+                  target="_blank"
+                  className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
+                >
+                  ยังไม่ได้ตั้งค่ารอบส่ง — ตั้งค่าเลย
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </Link>
               ) : (
                 <div className="flex flex-wrap gap-2">
+                  {/* ไม่ใช่ทุกร้าน/ทุกออเดอร์ต้องระบุรอบ — ให้ "ทั้งวัน" เป็นตัวเลือกที่เห็นได้
+                      (ค่าว่าง = ทั้งวันอยู่แล้ว แต่ถ้าไม่มีปุ่มนี้ผู้ใช้จะไม่รู้ว่าไม่เลือกก็ได้) */}
+                  <button
+                    type="button"
+                    disabled={isReadOnly}
+                    onClick={() => setSelectedSlotId('')}
+                    className={`px-3 py-2 rounded-lg border text-sm transition-colors ${
+                      !selectedSlotId
+                        ? 'border-[#F4511E] bg-orange-50 dark:bg-orange-950/30 text-[#C2410C] font-medium'
+                        : 'border-gray-200 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:border-gray-300'
+                    }`}
+                  >
+                    ทั้งวัน
+                  </button>
                   {deliverySlots.map((slot) => {
                     const avail = getSlotAvailability(slot, deliveryDate, activeZone);
                     const isSelected = selectedSlotId === slot.id;

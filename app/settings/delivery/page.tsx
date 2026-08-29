@@ -102,7 +102,12 @@ export default function DeliverySettingsPage() {
   const { showToast } = useToast();
   const { confirm, confirmDialog } = useConfirmDialog();
 
-  const [tab, setTab] = useState<TabKey>('zones');
+  // ?tab=slots — ให้ลิงก์จากฟอร์มเปิดบิล ("ยังไม่ได้ตั้งค่ารอบส่ง") พามาถึงแท็บที่ต้องตั้งเลย
+  // อ่านครั้งเดียวตอน mount จาก window (ไม่ใช้ useSearchParams เพื่อไม่ต้องห่อ Suspense ทั้งหน้า)
+  const [tab, setTab] = useState<TabKey>(() => {
+    if (typeof window === 'undefined') return 'zones';
+    return new URLSearchParams(window.location.search).get('tab') === 'slots' ? 'slots' : 'zones';
+  });
 
   const [zones, setZones] = useState<DeliveryZone[]>([]);
   const [slots, setSlots] = useState<DeliverySlot[]>([]);
