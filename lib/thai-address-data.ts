@@ -16,6 +16,66 @@ export interface ThaiAddress {
   zipcode: number;
 }
 
+/**
+ * Reverse indexes over the same dataset the address autocomplete uses.
+ * Built once (memoized) on first call — consumers that need to derive area
+ * lists (เช่น preset โซนจัดส่ง) MUST read them from here instead of hardcoding
+ * names by hand, so the values always match exactly what ThaiAddressInput
+ * writes into an address (เขต กทม. ในชุดข้อมูลนี้ "ไม่มี" คำว่า เขต นำหน้า).
+ */
+export interface AddressIndex {
+  /** จังหวัด → รายชื่ออำเภอ/เขต (unique, sorted) */
+  amphoesByProvince: Record<string, string[]>;
+  /** จังหวัด → อำเภอ/เขต → รหัสไปรษณีย์ (string, unique, sorted) */
+  postcodesByAmphoe: Record<string, Record<string, string[]>>;
+  /** ชื่ออำเภอ/เขต → จังหวัดที่ใช้ชื่อนี้ (ชื่อซ้ำข้ามจังหวัดได้ เช่น จอมทอง) */
+  provincesByAmphoe: Record<string, string[]>;
+  /** รหัสไปรษณีย์ → จังหวัดที่ใช้รหัสนี้ */
+  provincesByPostcode: Record<string, string[]>;
+}
+
+let addressIndexCache: AddressIndex | null = null;
+
+export function buildAddressIndex(): AddressIndex {
+  if (addressIndexCache) return addressIndexCache;
+
+  const amphoesByProvince: Record<string, Set<string>> = {};
+  const postcodesByAmphoe: Record<string, Record<string, Set<string>>> = {};
+  const provincesByAmphoe: Record<string, Set<string>> = {};
+  const provincesByPostcode: Record<string, Set<string>> = {};
+
+  for (const [, amphoe, provinceIndex, zipcode] of DATA) {
+    const province = PROVINCES[provinceIndex];
+    const zip = String(zipcode);
+
+    (amphoesByProvince[province] ||= new Set()).add(amphoe);
+    const byAmphoe = (postcodesByAmphoe[province] ||= {});
+    (byAmphoe[amphoe] ||= new Set()).add(zip);
+    (provincesByAmphoe[amphoe] ||= new Set()).add(province);
+    (provincesByPostcode[zip] ||= new Set()).add(province);
+  }
+
+  const sortedList = (s: Set<string>) => [...s].sort();
+  addressIndexCache = {
+    amphoesByProvince: Object.fromEntries(
+      Object.entries(amphoesByProvince).map(([p, s]) => [p, sortedList(s)]),
+    ),
+    postcodesByAmphoe: Object.fromEntries(
+      Object.entries(postcodesByAmphoe).map(([p, m]) => [
+        p,
+        Object.fromEntries(Object.entries(m).map(([a, s]) => [a, sortedList(s)])),
+      ]),
+    ),
+    provincesByAmphoe: Object.fromEntries(
+      Object.entries(provincesByAmphoe).map(([a, s]) => [a, sortedList(s)]),
+    ),
+    provincesByPostcode: Object.fromEntries(
+      Object.entries(provincesByPostcode).map(([z, s]) => [z, sortedList(s)]),
+    ),
+  };
+  return addressIndexCache;
+}
+
 export function searchAddress(query: string, field?: 'district' | 'amphoe' | 'province' | 'zipcode', limit = 20): ThaiAddress[] {
   if (!query || query.length < 1) return [];
   const q = query.trim();

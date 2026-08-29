@@ -30,12 +30,54 @@ import { apiFetch } from '@/lib/api-client';
 import { useFormValidation } from '@/lib/useFormValidation';
 import { PROVINCES } from '@/lib/thai-address-data';
 import {
+  DELIVERY_ZONE_PRESETS, DELIVERY_SLOT_PRESETS,
+  type DeliveryZonePreset, type DeliverySlotPreset,
+} from '@/lib/constants/delivery-presets';
+import {
   type DeliveryZone, type DeliverySlot,
   formatSlotTime, formatDays, DAY_LABELS,
 } from '@/lib/delivery';
 import { MapPin, Clock, Pencil, Trash2, Bike } from 'lucide-react';
 
 type TabKey = 'zones' | 'slots';
+
+/**
+ * Preset chips (pattern เดียวกับ /settings/carriers) — กดแล้ว "เติมค่าลงฟอร์ม"
+ * ให้ผู้ใช้แก้ต่อก่อนกดบันทึกเอง ไม่ได้เขียน DB ตอนกด · ตัวที่สร้างไปแล้วถูก
+ * กรองออกที่ call site ถ้าไม่เหลือเลย = ไม่แสดงแถบนี้
+ */
+function PresetChips({
+  items, selectedKey, onPick, hint,
+}: {
+  items: { key: string; label: string }[];
+  selectedKey: string;
+  onPick: (key: string) => void;
+  hint: string;
+}) {
+  if (items.length === 0) return null;
+  return (
+    <div>
+      <div className="mb-2 text-sm text-gray-500 dark:text-slate-400">{hint}</div>
+      <div className="flex flex-wrap gap-1.5">
+        {items.map(item => (
+          <button
+            key={item.key}
+            type="button"
+            onClick={() => onPick(item.key)}
+            className={`px-3 py-1.5 rounded-full text-sm transition-colors border ${
+              selectedKey === item.key
+                ? 'bg-primary/10 border-primary text-primary'
+                : 'bg-white dark:bg-slate-700 border-gray-200 dark:border-slate-600 text-gray-700 dark:text-slate-200 hover:border-primary hover:text-primary'
+            }`}
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
+      <div className="mt-4 border-t border-gray-200 dark:border-slate-700" />
+    </div>
+  );
+}
 
 const EMPTY_ZONE_FORM = {
   id: '', name: '', provinces: [] as string[], districts: '', postcodes: '',
@@ -69,6 +111,9 @@ export default function DeliverySettingsPage() {
   const [zoneForm, setZoneForm] = useState(EMPTY_ZONE_FORM);
   const [slotModal, setSlotModal] = useState(false);
   const [slotForm, setSlotForm] = useState(EMPTY_SLOT_FORM);
+  // preset ที่กดล่าสุดในโมดัล (highlight chip เฉย ๆ — ไม่ถูกส่งไป DB)
+  const [zonePresetKey, setZonePresetKey] = useState('');
+  const [slotPresetKey, setSlotPresetKey] = useState('');
   const form = useFormValidation();
 
   // ถ้าแท็บที่เปิดอยู่ถูกปิดที่ Feature เสริม ให้เด้งไปแท็บที่ยังเปิดอยู่
@@ -96,7 +141,33 @@ export default function DeliverySettingsPage() {
   useFetchOnce(fetchAll, allowed);
 
   // ── Zone helpers ──────────────────────────────────────────────────
-  const openZoneCreate = () => { setZoneForm(EMPTY_ZONE_FORM); setZoneModal(true); };
+  const openZoneCreate = () => { setZoneForm(EMPTY_ZONE_FORM); setZonePresetKey(''); setZoneModal(true); };
+
+  // preset ที่ยังไม่ได้สร้าง (เทียบด้วยชื่อ) — สร้างครบแล้วแถบ chip จะหายไปเอง
+  const availableZonePresets = DELIVERY_ZONE_PRESETS.filter(
+    p => !zones.some(z => z.name.trim() === p.name),
+  );
+
+  const applyZonePreset = (key: string) => {
+    const p = DELIVERY_ZONE_PRESETS.find(x => x.key === key);
+    if (!p) return;
+    setZonePresetKey(p.key);
+    setZoneForm(f => ({
+      ...f,
+      name: p.name,
+      provinces: p.provinces,
+      districts: p.districts.join(', '),
+      postcodes: p.postcodes.join(', '),
+      fee_type: p.fee_type,
+      fee: String(p.fee),
+      free_over: p.free_over != null ? String(p.free_over) : '',
+      lead_minutes: String(p.lead_minutes),
+    }));
+  };
+
+  const zonePresetLabel = (p: DeliveryZonePreset) =>
+    p.fee_type === 'lalamove' ? p.name : `${p.name} · ฿${p.fee.toLocaleString()}`;
+
   const openZoneEdit = (z: DeliveryZone) => {
     setZoneForm({
       id: z.id, name: z.name, provinces: z.provinces,
@@ -106,6 +177,7 @@ export default function DeliverySettingsPage() {
       lead_minutes: String(z.lead_minutes ?? 0),
       slot_ids: z.slot_ids || [], is_active: z.is_active,
     });
+    setZonePresetKey('');
     setZoneModal(true);
   };
 
@@ -186,7 +258,29 @@ export default function DeliverySettingsPage() {
   };
 
   // ── Slot helpers ──────────────────────────────────────────────────
-  const openSlotCreate = () => { setSlotForm(EMPTY_SLOT_FORM); setSlotModal(true); };
+  const openSlotCreate = () => { setSlotForm(EMPTY_SLOT_FORM); setSlotPresetKey(''); setSlotModal(true); };
+
+  const availableSlotPresets = DELIVERY_SLOT_PRESETS.filter(
+    p => !slots.some(s => s.name.trim() === p.name),
+  );
+
+  const applySlotPreset = (key: string) => {
+    const p = DELIVERY_SLOT_PRESETS.find(x => x.key === key);
+    if (!p) return;
+    setSlotPresetKey(p.key);
+    setSlotForm(f => ({
+      ...f,
+      name: p.name,
+      start_time: p.start_time,
+      end_time: p.end_time,
+      days: p.days_of_week,
+      capacity: p.capacity != null ? String(p.capacity) : '',
+      cutoff_minutes: String(p.cutoff_minutes),
+    }));
+  };
+
+  const slotPresetLabel = (p: DeliverySlotPreset) => `${p.name} ${p.start_time}-${p.end_time}`;
+
   const openSlotEdit = (s: DeliverySlot) => {
     setSlotForm({
       id: s.id, name: s.name,
@@ -194,6 +288,7 @@ export default function DeliverySettingsPage() {
       days: s.days_of_week, capacity: s.capacity != null ? String(s.capacity) : '',
       cutoff_minutes: String(s.cutoff_minutes ?? 0), is_active: s.is_active,
     });
+    setSlotPresetKey('');
     setSlotModal(true);
   };
 
@@ -437,6 +532,16 @@ export default function DeliverySettingsPage() {
           }
         >
           <div className="px-6 py-5 space-y-4">
+            {/* Preset — create mode เท่านั้น (โซนที่สร้างแล้วถูกกรองออก) */}
+            {!zoneForm.id && (
+              <PresetChips
+                items={availableZonePresets.map(p => ({ key: p.key, label: zonePresetLabel(p) }))}
+                selectedKey={zonePresetKey}
+                onPick={applyZonePreset}
+                hint="เลือกโซนสำเร็จรูป (กดเพื่อกรอกฟอร์มอัตโนมัติ แก้ต่อได้) หรือกรอกเองด้านล่าง — แนะนำเพิ่มเรียงซ้าย→ขวา เพราะโซนแคบต้องอยู่เหนือโซนกว้าง"
+              />
+            )}
+
             <FormInput
               ref={form.register('zone_name')}
               label="ชื่อจุดส่ง"
@@ -558,6 +663,16 @@ export default function DeliverySettingsPage() {
           }
         >
           <div className="px-6 py-5 space-y-4">
+            {/* Preset — create mode เท่านั้น (รอบที่สร้างแล้วถูกกรองออก) */}
+            {!slotForm.id && (
+              <PresetChips
+                items={availableSlotPresets.map(p => ({ key: p.key, label: slotPresetLabel(p) }))}
+                selectedKey={slotPresetKey}
+                onPick={applySlotPreset}
+                hint="เลือกรอบสำเร็จรูป (กดเพื่อกรอกฟอร์มอัตโนมัติ แก้ต่อได้) หรือกรอกเองด้านล่าง"
+              />
+            )}
+
             <FormInput
               ref={form.register('slot_name')}
               label="ชื่อรอบส่ง"
