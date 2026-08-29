@@ -77,6 +77,21 @@ function setAuthCache(userId: string, profile: any, companies: CompanyMembership
   } catch { /* ignore */ }
 }
 
+/**
+ * บริษัทที่เลือกไว้เก็บใน localStorage แบบไม่ผูกกับ user — สลับบัญชีแล้วค่าเก่ายังอยู่
+ * ถ้าปล่อยไว้จะไปหลอกด่าน "ไม่มีบริษัท → เด้งไป onboarding" ให้ผ่าน แล้วบัญชีที่ยัง
+ * ไม่มีบริษัทเลยหลุดเข้า dashboard ได้ (เจอจริง 2026-08-30 ตอนสลับบัญชี Google)
+ * เรียกทุกครั้งที่รู้รายชื่อบริษัทของ user คนปัจจุบัน
+ */
+function dropStaleCompanySelection(companies: CompanyMembershipRaw[]) {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved && !companies.some(c => c.company_id === saved)) {
+      localStorage.removeItem(STORAGE_KEY);
+    }
+  } catch { /* ignore */ }
+}
+
 function clearAuthCache() {
   try { sessionStorage.removeItem(AUTH_CACHE_KEY); } catch { /* ignore */ }
 }
@@ -122,6 +137,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const companiesData: CompanyMembershipRaw[] = result.companies || [];
       setCompanies(companiesData);
       setHasCompany(companiesData.length > 0);
+      dropStaleCompanySelection(companiesData);
 
       // Cache for subsequent page navigations
       setAuthCache(authUser.id, data, companiesData, result.subscription || null);
@@ -182,6 +198,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           const cached = getAuthCache(currentSession.user.id);
           if (cached) {
             profileFetchedRef.current = true;
+            // ล้างก่อนอ่าน — ไม่งั้นบรรทัดล่างยังหยิบบริษัทของบัญชีเก่ามาใช้
+            dropStaleCompanySelection(cached.companies);
             const savedCompanyId = localStorage.getItem(STORAGE_KEY);
             const currentMembership = cached.companies.find(m => m.company_id === savedCompanyId) || cached.companies[0];
             const effectiveRoles = (currentMembership?.roles || ['sales']) as CompanyRole[];

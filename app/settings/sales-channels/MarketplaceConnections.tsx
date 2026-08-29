@@ -21,6 +21,7 @@ import Toggle from '@/components/ui/Toggle';
 import Modal from '@/components/ui/Modal';
 import FormInput from '@/components/ui/FormInput';
 import SaveButton from '@/components/ui/SaveButton';
+import ImageDropzone from '@/components/ui/ImageDropzone';
 import LoadingOverlay from '@/components/ui/LoadingOverlay';
 import PlatformIcon from '@/components/ui/PlatformIcon';
 import { LoadingCard } from '@/components/ui/StateCard';
@@ -58,8 +59,9 @@ export default function MarketplaceConnections({
   const [syncRange, setSyncRange] = useState<Record<string, number>>({}); // accountId → days
   // ตั้งโลโก้เองด้วย URL — สำหรับร้านที่ API ของ marketplace ไม่คืนโลโก้มาให้เลย
   const [logoModal, setLogoModal] = useState<
-    { id: string; name: string; url: string; canLinkProfile?: boolean } | null
+    { id: string; name: string; currentUrl: string; canLinkProfile?: boolean } | null
   >(null);
+  const [logoFile, setLogoFile] = useState<File | null>(null);
   const [savingLogo, setSavingLogo] = useState(false);
   const [linkingProfile, setLinkingProfile] = useState(false);
   const [syncProgress, setSyncProgress] = useState<number>(0); // 0-100
@@ -442,6 +444,18 @@ export default function MarketplaceConnections({
     }
   };
 
+  /** กดที่รูปโลโก้ = เปิดตัวเลือก (ดึงจากแพลตฟอร์ม / ดึงจากบัญชี TikTok / อัปโหลดเอง)
+   *  เดิมกดแล้วยิง resync ทันที ซึ่งแปลว่าร้านที่มีโลโก้อยู่แล้วจะแก้อะไรไม่ได้เลย */
+  const openLogoModal = (account: MarketplaceAccount) => {
+    setLogoFile(null);
+    setLogoModal({
+      id: account.id,
+      name: account.shop_name || 'ร้าน',
+      currentUrl: (account.metadata?.shop_logo as string) || '',
+      canLinkProfile: account.profile_link_available,
+    });
+  };
+
   const handleResyncInfo = async (accountId: string) => {
     setResyncingId(accountId);
     try {
@@ -453,21 +467,14 @@ export default function MarketplaceConnections({
       const data = await res.json().catch(() => ({}));
       if (!res.ok) { showToast(data.error || 'อัปเดตข้อมูลร้านไม่สำเร็จ', 'error'); return; }
       refetch();
-      // แพลตฟอร์มไม่มีโลโก้ให้ (TikTok ไม่มีใน API เลย · Lazada บางร้านไม่ส่ง)
-      // → เปิดช่องใส่ URL ต่อทันที ไม่ใช่บอกแล้วปล่อยผู้ใช้ค้างว่าต้องทำยังไงต่อ
-      if (!data.shop_logo) {
-        const acc = [...shopeeAccounts, ...tiktokAccounts, ...lazadaAccounts]
-          .find(a => a.id === accountId);
+      // อัปเดตพรีวิวในโมดัลที่เปิดค้างอยู่ ไม่ปิดโมดัล — ผู้ใช้จะได้ลองทางอื่นต่อ
+      // ได้ทันทีถ้าแพลตฟอร์มไม่มีโลโก้ให้ (TikTok ไม่มีเลย · Lazada บางร้านไม่ส่ง)
+      if (data.shop_logo) {
+        setLogoModal(prev => (prev ? { ...prev, currentUrl: data.shop_logo as string } : prev));
+        showToast('ดึงข้อมูลร้านจากแพลตฟอร์มแล้ว', 'success');
+      } else {
         showToast(data.note || 'อัปเดตชื่อร้านแล้ว — แพลตฟอร์มไม่ได้ส่งโลโก้มา', 'success');
-        setLogoModal({
-          id: accountId,
-          name: data.shop_name || acc?.shop_name || 'ร้าน',
-          url: '',
-          canLinkProfile: acc?.profile_link_available,
-        });
-        return;
       }
-      showToast('อัปเดตข้อมูลร้านแล้ว', 'success');
     } catch {
       showToast('เกิดข้อผิดพลาด', 'error');
     } finally {
@@ -534,19 +541,31 @@ export default function MarketplaceConnections({
     }
   };
 
-  const handleSaveLogoUrl = async () => {
+  const closeLogoModal = () => { setLogoModal(null); setLogoFile(null); };
+
+  const handleSaveLogo = async () => {
     if (!logoModal) return;
     setSavingLogo(true);
     try {
-      const res = await apiFetch('/api/marketplace/accounts', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: logoModal.id, shop_logo: logoModal.url.trim() }),
-      });
+      let res: Response;
+      if (logoFile) {
+        // multipart — ห้ามตั้ง Content-Type เอง ต้องให้เบราว์เซอร์ใส่ boundary ให้
+        const fd = new FormData();
+        fd.append('file', logoFile);
+        fd.append('account_id', logoModal.id);
+        res = await apiFetch('/api/marketplace/accounts/logo', { method: 'POST', body: fd });
+      } else {
+        // ไม่ได้เลือกไฟล์ = ต้องการล้างรูปที่มีอยู่
+        res = await apiFetch('/api/marketplace/accounts', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: logoModal.id, shop_logo: '' }),
+        });
+      }
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
-        showToast(logoModal.url.trim() ? 'บันทึกโลโก้ร้านแล้ว' : 'ล้างโลโก้ร้านแล้ว', 'success');
-        setLogoModal(null);
+        showToast(logoFile ? 'บันทึกโลโก้ร้านแล้ว' : 'ล้างโลโก้ร้านแล้ว', 'success');
+        closeLogoModal();
         refetch();
       } else {
         showToast(typeof data.error === 'string' ? data.error : 'บันทึกโลโก้ไม่สำเร็จ', 'error');
@@ -757,7 +776,7 @@ export default function MarketplaceConnections({
                 disconnecting={disconnectingId === account.id}
                 avatar={
                   <button
-                    onClick={() => handleResyncInfo(account.id)}
+                    onClick={() => openLogoModal(account)}
                     disabled={isRefreshingLogo}
                     className="relative flex-shrink-0 group"
                     title="กดเพื่ออัปเดตชื่อร้าน + โลโก้"
@@ -909,7 +928,7 @@ export default function MarketplaceConnections({
                 avatar={
                   /* โลโก้มาจาก chat sync (participants role=SHOP) — ยังไม่เชื่อมแชท = icon */
                   <button
-                    onClick={() => handleResyncInfo(account.id)}
+                    onClick={() => openLogoModal(account)}
                     disabled={resyncingId === account.id}
                     className="relative flex-shrink-0 group"
                     title="กดเพื่ออัปเดตชื่อร้าน + โลโก้"
@@ -1003,7 +1022,7 @@ export default function MarketplaceConnections({
                 disconnecting={disconnectingId === account.id}
                 avatar={
                   <button
-                    onClick={() => handleResyncInfo(account.id)}
+                    onClick={() => openLogoModal(account)}
                     disabled={isRefreshingLogo}
                     className="relative flex-shrink-0 group"
                     title="กดเพื่ออัปเดตชื่อร้าน + โลโก้"
@@ -1077,21 +1096,36 @@ export default function MarketplaceConnections({
       />
       <Modal
         open={!!logoModal}
-        onClose={() => setLogoModal(null)}
-        title="ตั้งโลโก้ร้านเอง"
+        onClose={closeLogoModal}
+        title={`โลโก้ของ ${logoModal?.name || 'ร้าน'}`}
         size="md"
         footer={
           <div className="modal-footer px-6 py-4 flex justify-end gap-2">
-            <Button variant="secondary" onClick={() => setLogoModal(null)}>ยกเลิก</Button>
-            <SaveButton loading={savingLogo} onClick={handleSaveLogoUrl} />
+            <Button variant="secondary" onClick={closeLogoModal}>ยกเลิก</Button>
+            <SaveButton loading={savingLogo} onClick={handleSaveLogo} disabled={!logoFile && !logoModal?.currentUrl} />
           </div>
         }
       >
         <div className="px-6 py-5 space-y-3">
+          {/* ทางที่ 1 — ให้แพลตฟอร์มส่งมาเอง (Shopee ได้เสมอ · Lazada บางร้าน · TikTok ไม่มี) */}
+          <div className="rounded-lg border border-gray-200 dark:border-slate-700 p-4 space-y-2">
+            <p className="body-text text-gray-900 dark:text-white font-medium">ดึงจากแพลตฟอร์ม</p>
+            <p className="subtitle-text text-gray-500">
+              ดึงชื่อร้านและโลโก้ล่าสุดจากแพลตฟอร์มโดยตรง — ได้ผลกับร้านที่แพลตฟอร์มเปิดข้อมูลโลโก้ให้
+            </p>
+            <Button
+              variant="secondary"
+              loading={resyncingId === logoModal?.id}
+              onClick={() => logoModal && handleResyncInfo(logoModal.id)}
+            >
+              ดึงข้อมูลร้าน
+            </Button>
+          </div>
+
           {logoModal?.canLinkProfile && (
             <div className="rounded-lg border border-gray-200 dark:border-slate-700 p-4 space-y-2">
               <p className="body-text text-gray-900 dark:text-white font-medium">
-                ดึงรูปจากบัญชี TikTok
+                หรือดึงรูปจากบัญชี TikTok
               </p>
               <p className="subtitle-text text-gray-500">
                 TikTok Shop ไม่เปิด API โลโก้ร้าน แต่ดึงรูปโปรไฟล์ของบัญชีที่เป็นเจ้าของร้านมาใช้แทนได้
@@ -1112,24 +1146,31 @@ export default function MarketplaceConnections({
               </Button>
             </div>
           )}
-          <p className="subtitle-text text-gray-500">
-            {logoModal?.canLinkProfile ? 'หรือ' : 'ใช้เมื่อ marketplace ไม่ส่งโลโก้มาทาง API — '}
-            คัดลอกลิงก์รูปโลโก้จากหน้าตั้งค่าร้าน (Seller Center) มาวางที่นี่ · เว้นว่างเพื่อล้างรูป
-          </p>
-          <FormInput
-            label={`โลโก้ของ ${logoModal?.name || ''}`}
-            placeholder="https://..."
-            value={logoModal?.url || ''}
-            onChange={e => setLogoModal(prev => (prev ? { ...prev, url: e.target.value } : prev))}
-          />
-          {logoModal?.url?.trim() && (
-            <img
-              src={logoModal.url.trim()}
-              alt="ตัวอย่างโลโก้"
-              className="w-16 h-16 rounded-lg object-cover border border-gray-200 dark:border-slate-700"
-              onError={e => { e.currentTarget.style.display = 'none'; }}
+          <div className="space-y-2">
+            <p className="body-text text-gray-900 dark:text-white font-medium">
+              {logoModal?.canLinkProfile ? 'หรืออัปโหลดรูปเอง' : 'อัปโหลดรูปโลโก้'}
+            </p>
+            <p className="subtitle-text text-gray-500">
+              ใช้รูปเดียวกับที่ตั้งไว้ในหน้าร้าน (Seller Center) จะตรงที่สุด — รูปจะถูกย่อให้อัตโนมัติ
+            </p>
+            <ImageDropzone
+              value={logoFile}
+              onChange={setLogoFile}
+              alt="โลโก้ร้าน"
+              label="เลือกรูปโลโก้"
+              hint="ลากรูปมาวาง หรือวางจากคลิปบอร์ดก็ได้"
+              initialPreviewUrl={logoFile ? null : logoModal?.currentUrl || null}
+              // โลโก้โชว์จริงแค่ 40px — ย่อเหลือ 512 พอเผื่อจอความละเอียดสูง
+              // (ค่า default 1920 ของสลิปทำให้ไฟล์ใหญ่เกินความจำเป็นหลายเท่า)
+              maxWidthOrHeight={512}
+              maxSizeMB={0.2}
+              classNames={{ preview: 'relative inline-block [&_img]:w-24 [&_img]:h-24 [&_img]:rounded-lg [&_img]:object-cover [&_img]:border [&_img]:border-gray-200' }}
             />
-          )}
+            {/* ไม่มีรูปให้บันทึก + เคยมีรูปอยู่ = การกดบันทึกคือการล้างรูป บอกให้ชัด */}
+            {!logoFile && logoModal?.currentUrl && (
+              <p className="subtitle-text text-gray-500">เอารูปออกแล้วกดบันทึก = ล้างโลโก้ร้านนี้</p>
+            )}
+          </div>
         </div>
       </Modal>
 
