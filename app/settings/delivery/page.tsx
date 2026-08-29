@@ -79,6 +79,9 @@ function PresetChips({
   );
 }
 
+/** 1 preset ที่จะถูก POST — ใช้ร่วมทั้งแท็บโซนและแท็บรอบส่ง */
+interface PresetJob { label: string; endpoint: string; body: Record<string, unknown> }
+
 const EMPTY_ZONE_FORM = {
   id: '', name: '', provinces: [] as string[], districts: '', postcodes: '',
   fee_type: 'fixed' as 'fixed' | 'lalamove', fee: '0', free_over: '', lead_minutes: '0',
@@ -106,6 +109,8 @@ export default function DeliverySettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [reordering, setReordering] = useState(false);
+  // กำลังสร้าง preset ทั้งชุด — ปุ่ม loading กันกดซ้ำ (สร้างเรียงทีละตัว)
+  const [applyingPreset, setApplyingPreset] = useState(false);
 
   const [zoneModal, setZoneModal] = useState(false);
   const [zoneForm, setZoneForm] = useState(EMPTY_ZONE_FORM);
@@ -372,6 +377,103 @@ export default function DeliverySettingsPage() {
     }
   };
 
+  // ── ชุดมาตรฐาน (สร้าง preset ที่ยังไม่มีทั้งชุดในคลิกเดียว) ──────────
+  // ปุ่มบนหัวหน้ากับปุ่มในการ์ดว่างเรียกฟังก์ชันเดียวกัน — ทำงานตามแท็บที่เปิดอยู่
+  const presetJobs: PresetJob[] = showZones
+    ? availableZonePresets.map(p => ({
+        label: zonePresetLabel(p),
+        endpoint: '/api/delivery-zones',
+        body: {
+          name: p.name, provinces: p.provinces, districts: p.districts, postcodes: p.postcodes,
+          fee_type: p.fee_type, fee: p.fee, free_over: p.free_over,
+          lead_minutes: p.lead_minutes, slot_ids: [], is_active: true,
+        },
+      }))
+    : showSlots
+      ? availableSlotPresets.map(p => ({
+          label: slotPresetLabel(p),
+          endpoint: '/api/delivery-slots',
+          body: {
+            name: p.name, start_time: p.start_time, end_time: p.end_time,
+            days_of_week: p.days_of_week, capacity: p.capacity,
+            cutoff_minutes: 0, is_active: true,
+          },
+        }))
+      : [];
+
+  // ซ่อนปุ่มจนกว่าจะรู้ของจริงในระบบ (ตอน loading รายการยังว่าง = preset ดูเหมือนยัง
+  // ไม่ถูกสร้างทั้งชุด) และซ่อนเมื่อสร้าง preset ของแท็บนั้นครบแล้ว
+  const canApplyPresetSet = !loading && presetJobs.length > 0;
+
+  const applyPresetSet = async () => {
+    if (!canApplyPresetSet || applyingPreset) return;
+    const isZones = showZones;
+    const jobs = presetJobs;
+    const unit = isZones ? 'โซน' : 'รอบ';
+
+    const ok = await confirm({
+      title: isZones ? 'ใช้ชุดจุดส่งมาตรฐาน' : 'ใช้ชุดรอบส่งมาตรฐาน',
+      icon: isZones ? <MapPin className="w-6 h-6 text-primary" /> : <Clock className="w-6 h-6 text-primary" />,
+      description: [
+        isZones
+          ? `จะเพิ่ม ${jobs.length} ${unit} ตามลำดับนี้ (โซนแคบอยู่เหนือโซนกว้าง):`
+          : `จะเพิ่ม ${jobs.length} ${unit}:`,
+        jobs.map(j => `• ${j.label}`).join('\n'),
+        isZones
+          ? 'พื้นที่ ค่าส่ง และเวลาสั่งล่วงหน้าแก้ทีหลังได้ทุกโซน · จุดส่งที่มีอยู่แล้วจะไม่ถูกแก้ไข'
+          : 'เวลา วัน และจำนวนที่รับได้แก้ทีหลังได้ทุกรอบ · รอบส่งที่มีอยู่แล้วจะไม่ถูกแก้ไข',
+      ].join('\n\n'),
+      confirmLabel: 'เพิ่มทั้งหมด',
+    });
+    if (!ok) return;
+
+    setApplyingPreset(true);
+    let created = 0;
+    let failedLabel = '';
+    let failedReason = '';
+    try {
+      // ⚠️ ต้องสร้าง "ทีละตัวเรียงกัน" ห้ามยิงขนาน — POST ให้ sort_order = ตัวท้ายสุด + 1
+      // ยิงพร้อมกันแล้วลำดับจะสลับ ทำให้โซนกว้างขึ้นมาอยู่เหนือโซนแคบ = จับคู่โซนผิด
+      for (const job of jobs) {
+        try {
+          const res = await apiFetch(job.endpoint, { method: 'POST', body: JSON.stringify(job.body) });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) {
+            failedLabel = job.label;
+            failedReason = data.error || `เกิดข้อผิดพลาด (${res.status})`;
+            break;   // หยุดทันที ไม่งั้นลำดับที่เหลือจะเพี้ยนตาม
+          }
+          created++;
+        } catch {
+          failedLabel = job.label;
+          failedReason = 'เชื่อมต่อไม่สำเร็จ';
+          break;
+        }
+      }
+      await fetchAll().catch(() => {});
+    } finally {
+      setApplyingPreset(false);
+    }
+
+    if (failedLabel) {
+      // ล้มกลางคัน = บอกตามจริงว่าได้ไปกี่รายการ และค้างที่ตัวไหน
+      showToast(
+        created > 0
+          ? `เพิ่มสำเร็จ ${created} จาก ${jobs.length} รายการ — หยุดที่ "${failedLabel}": ${failedReason}`
+          : `เพิ่มไม่สำเร็จ — "${failedLabel}": ${failedReason}`,
+        'error',
+      );
+    } else {
+      showToast(`เพิ่ม${isZones ? 'จุดส่ง' : 'รอบส่ง'}มาตรฐานแล้ว ${created} รายการ`, 'success');
+    }
+  };
+
+  const presetSetButton = (variant: 'primary' | 'secondary') => (
+    <Button variant={variant} loading={applyingPreset} onClick={applyPresetSet}>
+      ใช้ชุดมาตรฐาน
+    </Button>
+  );
+
   // ── Render ────────────────────────────────────────────────────────
   if (guardLoading) return <Layout><Container size="2xl"><LoadingCard /></Container></Layout>;
   if (!allowed) return <Layout><Container size="2xl"><NoPermissionCard /></Container></Layout>;
@@ -401,9 +503,9 @@ export default function DeliverySettingsPage() {
           backHref="/settings/company"
           actions={
             showZones
-              ? <Button variant="primary" onClick={openZoneCreate}>+ เพิ่มจุดส่ง</Button>
+              ? <>{canApplyPresetSet && presetSetButton('secondary')}<Button variant="primary" onClick={openZoneCreate}>+ เพิ่มจุดส่ง</Button></>
               : showSlots
-                ? <Button variant="primary" onClick={openSlotCreate}>+ เพิ่มรอบส่ง</Button>
+                ? <>{canApplyPresetSet && presetSetButton('secondary')}<Button variant="primary" onClick={openSlotCreate}>+ เพิ่มรอบส่ง</Button></>
                 : undefined
           }
         />
@@ -434,6 +536,7 @@ export default function DeliverySettingsPage() {
               title="ยังไม่มีจุดส่ง"
               subtitle="เพิ่มโซนพื้นที่ที่ร้านรับส่ง พร้อมค่าส่งของแต่ละโซน — ที่อยู่นอกโซนทั้งหมด = ไม่รับส่ง"
               icon={<MapPin className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
+              actions={canApplyPresetSet ? presetSetButton('primary') : undefined}
             />
           ) : (
             <div className="space-y-2">
@@ -477,6 +580,7 @@ export default function DeliverySettingsPage() {
               title="ยังไม่มีช่วงเวลาส่ง"
               subtitle="เพิ่มรอบส่งเป็นช่วงเวลา 2-3 ชั่วโมง เช่น 09:00-12:00 — ลูกค้าเลือกได้เฉพาะช่วง ไม่ใช่เวลาเป๊ะ"
               icon={<Clock className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
+              actions={canApplyPresetSet ? presetSetButton('primary') : undefined}
             />
           ) : (
             <div className="space-y-2">
