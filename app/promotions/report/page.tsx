@@ -1,6 +1,7 @@
 // Path: app/promotions/report/page.tsx
 'use client';
 
+import ProductImageThumb from '@/components/ui/ProductImageThumb';
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { apiFetch } from '@/lib/api-client';
@@ -188,13 +189,7 @@ export default function PromotionReportPage() {
                     <tr key={item.id} className="border-b border-gray-100 dark:border-gray-700/30 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-3">
-                          {item.image ? (
-                            <img src={item.image} alt="" className="w-10 h-10 rounded-lg object-cover" />
-                          ) : (
-                            <div className="w-10 h-10 rounded-lg bg-gray-100 dark:bg-white/10 flex items-center justify-center">
-                              <Tag className="w-5 h-5 text-gray-400" />
-                            </div>
-                          )}
+                          <ProductImageThumb src={item.image} alt="" size="sm" />
                           <div>
                             <p className="text-gray-900 dark:text-white font-medium">{item.name}</p>
                             <Badge
@@ -231,13 +226,7 @@ export default function PromotionReportPage() {
               {report.map((item) => (
                 <div key={item.id} className="p-4">
                   <div className="flex items-center gap-3 mb-3">
-                    {item.image ? (
-                      <img src={item.image} alt="" className="w-10 h-10 rounded-lg object-cover" />
-                    ) : (
-                      <div className="w-10 h-10 rounded-lg bg-gray-100 dark:bg-white/10 flex items-center justify-center">
-                        <Tag className="w-5 h-5 text-gray-400" />
-                      </div>
-                    )}
+                    <ProductImageThumb src={item.image} alt="" size="sm" />
                     <div className="flex-1 min-w-0">
                       <p className="text-gray-900 dark:text-white font-medium truncate">{item.name}</p>
                       <div className="flex items-center gap-2 mt-0.5">

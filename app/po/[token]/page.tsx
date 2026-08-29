@@ -1,9 +1,10 @@
 'use client';
 
+import ProductImageThumb from '@/components/ui/ProductImageThumb';
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import Image from 'next/image';
-import { Loader2, Printer, Sun, Moon, Package2, Factory, FileText, CalendarDays, Clock, CheckCircle2, XCircle, Send } from 'lucide-react';
+import { Printer, Sun, Moon, Package2, Factory, FileText, CheckCircle2, XCircle, Send } from 'lucide-react';
 import { FullPageLoading } from '@/components/ui/Loading';
 import StatusBadge from '@/components/ui/StatusBadge';
 import { getImageUrl } from '@/lib/utils/image';
@@ -293,13 +294,7 @@ export default function PublicPOPage() {
             {items.map((item, idx) => (
               <div key={idx} className="p-4">
                 <div className="flex items-start gap-3 mb-2">
-                  {item.image ? (
-                    <img src={getImageUrl(item.image)} alt="" className="w-10 h-10 rounded-lg object-cover" />
-                  ) : (
-                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${dark ? 'bg-white/10' : 'bg-gray-100'}`}>
-                      <Package2 className="w-5 h-5 text-gray-400" />
-                    </div>
-                  )}
+                  <ProductImageThumb src={getImageUrl(item.image)} alt="" size="sm" />
                   <div className="flex-1 min-w-0">
                     <div className={`text-sm font-medium truncate ${dark ? 'text-white' : 'text-gray-900'}`}>
                       {item.product_name}

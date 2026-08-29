@@ -1,7 +1,8 @@
 'use client';
 
+import ProductImageThumb from '@/components/ui/ProductImageThumb';
 import { useState } from 'react';
-import { Loader2, Package2, Warehouse } from 'lucide-react';
+import { Loader2, Warehouse } from 'lucide-react';
 import FormSelect from '@/components/ui/FormSelect';
 import Modal from '@/components/ui/Modal';
 import { apiFetch } from '@/lib/api-client';
@@ -118,13 +119,7 @@ export default function AdjustStockModal({ item, warehouses, initialWarehouseId,
     >
       <div className="p-6 space-y-4">
         <div className="flex items-center gap-3 bg-gray-50 dark:bg-slate-700/50 rounded-lg p-3">
-          {item.product_image ? (
-            <img src={item.product_image} alt="" className="w-10 h-10 rounded object-cover" />
-          ) : (
-            <div className="w-10 h-10 rounded bg-gray-200 dark:bg-slate-600 flex items-center justify-center">
-              <Package2 className="w-5 h-5 text-gray-400" />
-            </div>
-          )}
+          <ProductImageThumb src={item.product_image} alt="" size="sm" />
           <div className="min-w-0">
             <p className="font-medium text-gray-900 dark:text-white truncate">{item.product_name}</p>
             <p className="text-xs text-gray-500 dark:text-slate-400">

@@ -1,12 +1,10 @@
 'use client';
 
+import ProductImageThumb from '@/components/ui/ProductImageThumb';
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { FullPageLoading } from '@/components/ui/Loading';
-import {
-  ArrowLeft, Warehouse, Package, BarChart3,
-  AlertTriangle, ShoppingCart,
-} from 'lucide-react';
+import { ArrowLeft, Warehouse, BarChart3, AlertTriangle, ShoppingCart } from 'lucide-react';
 
 interface VariationInfo {
   id: string;
@@ -186,13 +184,7 @@ export default function PortalReportDetailPage() {
                 {group.items.map((item, idx) => (
                   <div key={idx} className="flex items-center justify-between px-4 py-2">
                     <div className="flex items-center gap-2 min-w-0">
-                      {item.variation?.product?.image ? (
-                        <img src={item.variation.product.image} alt="" className="w-8 h-8 rounded object-cover flex-shrink-0" />
-                      ) : (
-                        <div className="w-8 h-8 rounded bg-gray-100 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
-                          <Package className="w-4 h-4 text-gray-400" />
-                        </div>
-                      )}
+                      <ProductImageThumb src={item.variation?.product?.image} alt="" size="xs" />
                       <p className="text-sm text-gray-900 dark:text-white truncate">{getDisplayName(item.variation)}</p>
                     </div>
                     <span className="text-sm font-medium text-gray-900 dark:text-white ml-4">{item.quantity.toLocaleString()}</span>

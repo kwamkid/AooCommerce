@@ -1,5 +1,6 @@
 'use client';
 
+import ProductImageThumb from '@/components/ui/ProductImageThumb';
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
@@ -11,14 +12,7 @@ import { formatPrice } from '@/lib/utils/format';
 import { showPdfPreview } from '@/lib/print-pdf';
 import { LoadingCard } from '@/components/ui/StateCard';
 import StatusBadge from '@/components/ui/StatusBadge';
-import {
-  ArrowLeft,
-  Loader2,
-  Printer,
-  ReceiptText,
-  ExternalLink,
-  Package,
-} from 'lucide-react';
+import { ArrowLeft, Loader2, Printer, ReceiptText, ExternalLink } from 'lucide-react';
 
 interface CreditNoteDetail {
   id: string;
@@ -310,13 +304,7 @@ export default function CreditNoteDetailPage() {
                     <td className="px-4 py-3 text-sm text-gray-400">{idx + 1}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
-                        {item.image ? (
-                          <img src={item.image} alt={item.product_name} className="w-10 h-10 rounded object-cover flex-shrink-0" />
-                        ) : (
-                          <div className="w-10 h-10 rounded bg-gray-100 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
-                            <Package className="w-5 h-5 text-gray-400 dark:text-slate-500" />
-                          </div>
-                        )}
+                        <ProductImageThumb src={item.image} alt={item.product_name} size="sm" />
                         <div className="min-w-0">
                           <div className="text-sm text-gray-900 dark:text-white">{item.product_name}</div>
                           {(item.product_code || item.variation_label) && (
@@ -349,13 +337,7 @@ export default function CreditNoteDetailPage() {
           <div className="md:hidden divide-y divide-gray-100 dark:divide-slate-700">
             {cn.items.map((item, idx) => (
               <div key={item.id} className="px-4 py-3 flex gap-3">
-                {item.image ? (
-                  <img src={item.image} alt={item.product_name} className="w-10 h-10 rounded object-cover flex-shrink-0" />
-                ) : (
-                  <div className="w-10 h-10 rounded bg-gray-100 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
-                    <Package className="w-5 h-5 text-gray-400 dark:text-slate-500" />
-                  </div>
-                )}
+                <ProductImageThumb src={item.image} alt={item.product_name} size="sm" />
                 <div className="min-w-0 flex-1">
                   <div className="flex justify-between mb-1">
                     <span className="text-sm font-medium text-gray-900 dark:text-white truncate">{item.product_name}</span>

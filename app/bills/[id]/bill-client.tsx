@@ -1,11 +1,12 @@
 'use client';
 
+import ProductImageThumb from '@/components/ui/ProductImageThumb';
 import { useState, useEffect, useRef, useMemo, Fragment } from 'react';
 import { useCopy } from '@/lib/useCopy';
 import Image from 'next/image';
 import imageCompression from 'browser-image-compression';
 import { useToast } from '@/lib/toast-context';
-import { Loader2, Printer, FileText, MapPin, Package, Camera, Upload, Clock, CheckCircle2, CreditCard, Banknote, Globe, Copy, Check, Sun, Moon, QrCode, Download, Pencil, Calendar, AlertTriangle, ChevronDown } from 'lucide-react';
+import { Loader2, Printer, FileText, MapPin, Camera, Upload, Clock, CheckCircle2, CreditCard, Banknote, Globe, Copy, Check, Sun, Moon, QrCode, Download, Pencil, AlertTriangle, ChevronDown } from 'lucide-react';
 import { generateOrderInvoicePdf } from '@/lib/order-invoice-pdf';
 import { showPdfPreview } from '@/lib/print-pdf';
 import { getInvoiceMenuLabel } from '@/lib/invoice-utils';
@@ -482,13 +483,7 @@ export default function BillClient({ orderId, initialBill }: { orderId: string; 
                   <td className={`py-3 align-top ${dark ? 'text-slate-500' : 'text-gray-400'}`}>{startIndex + idx + 1}</td>
                   <td className={`py-3 pl-3 ${dark ? 'text-white' : 'text-gray-900'}`}>
                     <div className="flex items-center gap-3">
-                      {item.image ? (
-                        <img src={item.image} alt={item.product_name} className="w-12 h-12 rounded-lg object-cover flex-shrink-0" />
-                      ) : (
-                        <div className={`w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0 ${dark ? 'bg-slate-700' : 'bg-gray-100'}`}>
-                          <Package className={`w-5 h-5 ${dark ? 'text-slate-500' : 'text-gray-300'}`} />
-                        </div>
-                      )}
+                      <ProductImageThumb src={item.image} alt={item.product_name} size="md" />
                       <div>
                         <div className="font-medium text-base">{productDisplayName({ product_name: item.product_name, variation_label: item.variation_label })}</div>
                         {hasPromo ? (
@@ -517,13 +512,7 @@ export default function BillClient({ orderId, initialBill }: { orderId: string; 
                     <td></td>
                     <td className="py-1.5 pl-6">
                       <div className="flex items-center gap-2">
-                        {comp.image ? (
-                          <img src={comp.image} alt="" className="w-8 h-8 rounded object-cover flex-shrink-0" />
-                        ) : (
-                          <div className={`w-8 h-8 rounded flex items-center justify-center flex-shrink-0 ${dark ? 'bg-slate-700' : 'bg-gray-100'}`}>
-                            <Package className={`w-3.5 h-3.5 ${dark ? 'text-slate-500' : 'text-gray-300'}`} />
-                          </div>
-                        )}
+                        <ProductImageThumb src={comp.image} alt="" size="xs" />
                         <div className="min-w-0">
                           <div className={`text-sm line-clamp-2 ${dark ? 'text-slate-400' : 'text-gray-500'}`}>{comp.product_name}</div>
                           <div className="flex items-center gap-1.5">
@@ -554,13 +543,7 @@ export default function BillClient({ orderId, initialBill }: { orderId: string; 
           return (
             <div key={idx}>
               <div className={`flex items-center gap-3 py-3 border-b last:border-0 ${dark ? 'border-slate-700' : 'border-gray-100'}`}>
-                {item.image ? (
-                  <img src={item.image} alt={item.product_name} className="w-16 h-16 rounded-lg object-cover flex-shrink-0" />
-                ) : (
-                  <div className={`w-16 h-16 rounded-lg flex items-center justify-center flex-shrink-0 ${dark ? 'bg-slate-700' : 'bg-gray-100'}`}>
-                    <Package className={`w-6 h-6 ${dark ? 'text-slate-500' : 'text-gray-300'}`} />
-                  </div>
-                )}
+                <ProductImageThumb src={item.image} alt={item.product_name} size="lg" />
                 <div className="flex-1 min-w-0">
                   <div className={`font-medium text-base truncate ${dark ? 'text-white' : 'text-gray-900'}`}>{productDisplayName({ product_name: item.product_name, variation_label: item.variation_label })}</div>
                   {hasPromo ? (
@@ -584,13 +567,7 @@ export default function BillClient({ orderId, initialBill }: { orderId: string; 
                 <div className={`ml-6 pl-3 border-l-2 ${dark ? 'border-purple-800' : 'border-purple-200'} py-1 space-y-1`}>
                   {item.promotion_components!.map((comp, ci) => (
                     <div key={ci} className="flex items-center gap-2">
-                      {comp.image ? (
-                        <img src={comp.image} alt="" className="w-8 h-8 rounded object-cover flex-shrink-0" />
-                      ) : (
-                        <div className={`w-8 h-8 rounded flex items-center justify-center flex-shrink-0 ${dark ? 'bg-slate-700' : 'bg-gray-100'}`}>
-                          <Package className={`w-3.5 h-3.5 ${dark ? 'text-slate-500' : 'text-gray-300'}`} />
-                        </div>
-                      )}
+                      <ProductImageThumb src={comp.image} alt="" size="xs" />
                       <div className="flex-1 min-w-0">
                         <div className={`text-sm line-clamp-2 ${dark ? 'text-slate-400' : 'text-gray-500'}`}>{comp.product_name}</div>
                         <div className="flex items-center gap-1">

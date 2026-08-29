@@ -1,5 +1,6 @@
 'use client';
 
+import ProductImageThumb from '@/components/ui/ProductImageThumb';
 import { useState, useEffect, useRef } from 'react';
 import { useCopy } from '@/lib/useCopy';
 import { useParams, useRouter } from 'next/navigation';
@@ -13,7 +14,7 @@ import { generateInventoryPdf } from '@/lib/inventory-pdf';
 import { showPdfPreview } from '@/lib/print-pdf';
 import { getBadgeColor } from '@/lib/status-tab-colors';
 import { QRCodeSVG } from 'qrcode.react';
-import { Warehouse, Package, ArrowRightLeft, CheckCircle2, Clock, XCircle, AlertTriangle, Truck, User, FileText, ArrowLeft, PackageCheck, Printer, Link2, Copy, Check, Image as ImageIcon } from 'lucide-react';
+import { Warehouse, CheckCircle2, Clock, XCircle, AlertTriangle, Truck, User, ArrowLeft, Printer, Link2, Copy, Check } from 'lucide-react';
 import { flattenVariationItem, productDisplayName, productSubtitle } from '../../components/types';
 import Button from '@/components/ui/Button';
 import SaveButton from '@/components/ui/SaveButton';
@@ -582,13 +583,7 @@ export default function TransferDetailPage() {
                           <td className="px-4 py-3 text-gray-400">{idx + 1}</td>
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-3">
-                              {item.variation?.product?.image ? (
-                                <img src={item.variation.product.image} alt="" className="w-10 h-10 rounded object-cover flex-shrink-0" />
-                              ) : (
-                                <div className="w-10 h-10 bg-gray-100 dark:bg-slate-700 rounded flex items-center justify-center flex-shrink-0">
-                                  <Package className="w-5 h-5 text-gray-400" />
-                                </div>
-                              )}
+                              <ProductImageThumb src={item.variation.product.image} alt="" size="sm" />
                               <div className="min-w-0">
                                 <p className="text-gray-900 dark:text-white truncate">{name.main}</p>
                                 {name.sub && <p className="text-xs text-gray-500 dark:text-slate-400 truncate">{name.sub}</p>}

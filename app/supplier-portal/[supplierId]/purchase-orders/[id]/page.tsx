@@ -1,13 +1,11 @@
 'use client';
 
+import ProductImageThumb from '@/components/ui/ProductImageThumb';
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { FullPageLoading } from '@/components/ui/Loading';
 import StatusBadge from '@/components/ui/StatusBadge';
-import {
-  ArrowLeft, Warehouse, Package, CheckCircle2, Clock,
-  AlertTriangle,
-} from 'lucide-react';
+import { ArrowLeft, Warehouse, CheckCircle2, Clock, AlertTriangle } from 'lucide-react';
 
 interface POItem {
   id: string;
@@ -181,13 +179,7 @@ export default function PortalPODetailPage() {
                   <tr key={item.id}>
                     <td className="px-4 py-2">
                       <div className="flex items-center gap-2">
-                        {item.variation?.product?.image ? (
-                          <img src={item.variation.product.image} alt="" className="w-8 h-8 rounded object-cover flex-shrink-0" />
-                        ) : (
-                          <div className="w-8 h-8 rounded bg-gray-100 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
-                            <Package className="w-4 h-4 text-gray-400" />
-                          </div>
-                        )}
+                        <ProductImageThumb src={item.variation?.product?.image} alt="" size="xs" />
                         <div className="min-w-0">
                           <p className="text-gray-900 dark:text-white truncate">{getDisplayName(item.variation)}</p>
                           {item.variation?.sku && <p className="text-xs text-gray-500">SKU: {item.variation.sku}</p>}
