@@ -11,7 +11,7 @@ import { useToast } from '@/lib/toast-context';
 import { useFeatures } from '@/lib/features-context';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { apiFetch } from '@/lib/api-client';
-import { ShoppingBag, RefreshCw, Clock, PackageSearch, Warehouse } from 'lucide-react';
+import { ShoppingBag, RefreshCw, Clock, PackageSearch, Warehouse, Link2, RotateCw } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import FormSelect from '@/components/ui/FormSelect';
 import { ExportButton, ImportButton } from '@/components/ui/ExportImportButton';
@@ -349,6 +349,43 @@ export default function MarketplaceConnections({
     tiktok: { url: '/api/tiktok/sync', label: 'กำลัง Sync TikTok Shop...' },
     lazada: { url: '/api/lazada/sync', label: 'กำลัง Sync Lazada...' },
   } as const;
+
+  // เชื่อมต่อใหม่ — พาไป OAuth ของร้านนั้น · ใช้ตอนเปิด scope เพิ่มหรือ token ตาย
+  // (scope ของแพลตฟอร์มผูกกับ token ตอน authorize เปิด scope เฉย ๆ ไม่พอ ต้องขอ token ใหม่)
+  const handleReconnect = async (platform: 'shopee' | 'tiktok' | 'lazada') => {
+    setConnecting(true);
+    try {
+      const res = await apiFetch(`/api/${platform}/oauth/auth-url`);
+      if (!res.ok) { showToast('สร้างลิงก์เชื่อมต่อไม่ได้', 'error'); setConnecting(false); return; }
+      const { url } = await res.json();
+      window.location.href = url;   // สำเร็จแล้วเด้งออกไปเลย ไม่ต้อง reset loading
+    } catch {
+      showToast('เกิดข้อผิดพลาด', 'error');
+      setConnecting(false);
+    }
+  };
+
+  // ดึงชื่อร้าน+โลโก้ใหม่จากแพลตฟอร์ม โดยไม่ต้องผ่าน OAuth และไม่แตะ token
+  const [resyncingId, setResyncingId] = useState<string | null>(null);
+  const handleResyncInfo = async (accountId: string) => {
+    setResyncingId(accountId);
+    try {
+      const res = await apiFetch('/api/marketplace/accounts/resync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ account_id: accountId }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { showToast(data.error || 'อัปเดตข้อมูลร้านไม่สำเร็จ', 'error'); return; }
+      // note = แพลตฟอร์มไม่ได้ส่งโลโก้มา (เช่น TikTok) — บอกไปตรง ๆ ดีกว่าขึ้นว่าสำเร็จเฉย ๆ
+      showToast(data.note || 'อัปเดตข้อมูลร้านแล้ว', 'success');
+      refetch();
+    } catch {
+      showToast('เกิดข้อผิดพลาด', 'error');
+    } finally {
+      setResyncingId(null);
+    }
+  };
 
   const handleSimpleSync = async (platform: 'tiktok' | 'lazada', accountId: string) => {
     setSyncingId(accountId);
@@ -744,6 +781,23 @@ export default function MarketplaceConnections({
                   >
                     นำเข้าสินค้าจาก Shopee
                   </ImportButton>
+                  <Button
+                    variant="ghost"
+                    icon={<RotateCw className="w-4 h-4" />}
+                    loading={resyncingId === account.id}
+                    onClick={() => handleResyncInfo(account.id)}
+                    title="ดึงชื่อร้านและโลโก้ใหม่จากแพลตฟอร์ม (ไม่ต้อง authorize)"
+                  >
+                    อัปเดตข้อมูลร้าน
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    icon={<Link2 className="w-4 h-4" />}
+                    onClick={() => handleReconnect('shopee')}
+                    title="ขอสิทธิ์ใหม่จากแพลตฟอร์ม — ใช้เมื่อเปิด scope เพิ่มหรือ token หมดอายุ"
+                  >
+                    เชื่อมต่อใหม่
+                  </Button>
                   {stockEnabled && (
                     <Button
                       variant="secondary"
@@ -843,6 +897,23 @@ export default function MarketplaceConnections({
                   >
                     นำเข้าสินค้าจาก TikTok
                   </ImportButton>
+                  <Button
+                    variant="ghost"
+                    icon={<RotateCw className="w-4 h-4" />}
+                    loading={resyncingId === account.id}
+                    onClick={() => handleResyncInfo(account.id)}
+                    title="ดึงชื่อร้านและโลโก้ใหม่จากแพลตฟอร์ม (ไม่ต้อง authorize)"
+                  >
+                    อัปเดตข้อมูลร้าน
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    icon={<Link2 className="w-4 h-4" />}
+                    onClick={() => handleReconnect('tiktok')}
+                    title="ขอสิทธิ์ใหม่จากแพลตฟอร์ม — ใช้เมื่อเปิด scope เพิ่มหรือ token หมดอายุ"
+                  >
+                    เชื่อมต่อใหม่
+                  </Button>
                 </div>
               </MarketplaceAccountCard>
             );
@@ -921,6 +992,23 @@ export default function MarketplaceConnections({
                   >
                     นำเข้าสินค้าจาก Lazada
                   </ImportButton>
+                  <Button
+                    variant="ghost"
+                    icon={<RotateCw className="w-4 h-4" />}
+                    loading={resyncingId === account.id}
+                    onClick={() => handleResyncInfo(account.id)}
+                    title="ดึงชื่อร้านและโลโก้ใหม่จากแพลตฟอร์ม (ไม่ต้อง authorize)"
+                  >
+                    อัปเดตข้อมูลร้าน
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    icon={<Link2 className="w-4 h-4" />}
+                    onClick={() => handleReconnect('lazada')}
+                    title="ขอสิทธิ์ใหม่จากแพลตฟอร์ม — ใช้เมื่อเปิด scope เพิ่มหรือ token หมดอายุ"
+                  >
+                    เชื่อมต่อใหม่
+                  </Button>
                   <Button
                     variant="ghost"
                     onClick={() => setLogoModal({
