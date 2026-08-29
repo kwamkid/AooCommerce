@@ -1,82 +1,39 @@
 // แปลง statement ของ TikTok Shop → ช่องกลาง (server-only)
 //
-// TikTok ให้ข้อมูลละเอียดที่สุดในสามเจ้า — ยอดต่อออเดอร์พร้อม breakdown ~100 ฟิลด์
-// และแยกถึงระดับ SKU (`sku_transactions`) · endpoint: /finance/202501/orders/{id}/statement_transactions
+// endpoint: /finance/202501/orders/{id}/statement_transactions
 //
-// ⚠️ **การแมปนี้เขียนจากสเปค OAS ยังไม่ได้ยืนยันกับข้อมูลจริงของร้านไทย**
-//    (ต่างจาก Shopee/Lazada ที่สำรวจข้อมูลจริงแล้ว) — ตอนดึงชุดแรกให้เทียบว่า
-//    ผลรวมช่องกลางกับ settlement_amount ตรงกันไหม ถ้าไม่ตรงแปลว่ามีฟิลด์ที่ยังไม่ได้แมป
-//    ใช้ `unmappedTikTokFields()` ช่วยหา
+// ⚠️ **ค่าธรรมเนียมไม่ได้อยู่ระดับบนสุด** — ระดับบนมีแค่ยอดรวม 4 ตัว
+// (revenue_amount / fee_and_tax_amount / shipping_cost_amount / settlement_amount)
+// ของจริงซ้อนอยู่ใน `sku_transactions[]` แล้วแตกอีก 3 กลุ่ม:
+//
+//   sku_transactions[].revenue_breakdown        → ยอดขาย + ส่วนลดร้าน
+//   sku_transactions[].fee_tax_breakdown.fee    → ค่าธรรมเนียมทุกชนิด (~50 ฟิลด์)
+//   sku_transactions[].fee_tax_breakdown.tax    → ภาษี (~13 ฟิลด์)
+//   sku_transactions[].shipping_cost_breakdown  → ค่าส่ง + เงินอุดหนุนค่าส่ง
+//
+// ยืนยันกับข้อมูลจริงของร้านไทยแล้ว (2026-08-29):
+//   699 − 45 − 20.99 − 52.52 − 62.98 − 78.48 − 38 + 38 = 439.03 = settlement_amount ✓
 
 import {
   emptyBuckets, parseAmount,
   type FeeBucket, type NormalizedSettlement, type SettlementLine,
 } from '@/lib/marketplace/fee-types';
 
-/**
- * ฟิลด์ของ TikTok → ช่องกลาง
- * ฟิลด์ภาษีเฉพาะประเทศอื่น (ISR/IVA เม็กซิโก, SST มาเลเซีย, VN infrastructure) รวมไว้
- * ในช่องภาษีเหมือนกัน — ร้านไทยจะได้ค่า 0 ไปเอง ไม่ต้องแยกโค้ดต่อประเทศ
- */
-const FIELD_TO_BUCKET: Record<string, FeeBucket> = {
-  // รายรับ
-  subtotal_before_discount_amount: 'gross_sales',
-
-  // ส่วนลดที่ร้านออกเอง
-  seller_discount_amount: 'seller_discount',
-
+/** ค่าธรรมเนียมใน fee_tax_breakdown.fee → ช่องกลาง (ตัวที่ไม่อยู่ในนี้ตกไป other_fee) */
+const FEE_TO_BUCKET: Record<string, FeeBucket> = {
   // ค่าคอมมิชชั่น
   platform_commission_amount: 'commission',
-  referral_fee_amount: 'commission',
   dynamic_commission_amount: 'commission',
+  referral_fee_amount: 'commission',
   tsp_commission_amount: 'commission',
+  platform_semi_managed_commission_fee: 'commission',
+  platform_semi_managed_commission_fee_tax: 'commission',
 
   // ค่าธรรมเนียมรับชำระเงิน
   transaction_fee_amount: 'payment_fee',
   credit_card_handling_fee_amount: 'payment_fee',
   seller_paylater_handling_fee_amount: 'payment_fee',
-  cod_service_fee_amount: 'payment_fee',
   dt_handling_fee_amount: 'payment_fee',
-
-  // ค่าบริการ / โปรแกรมร้าน
-  sfp_service_fee_amount: 'service_fee',
-  mall_service_fee_amount: 'service_fee',
-  live_specials_fee_amount: 'service_fee',
-  flash_sales_service_fee_amount: 'service_fee',
-  voucher_xtra_service_fee_amount: 'service_fee',
-  bonus_cashback_service_fee_amount: 'service_fee',
-  pre_order_service_fee_amount: 'service_fee',
-  epr_pob_service_fee_amount: 'service_fee',
-  fee_per_item_sold_amount: 'service_fee',
-  seller_self_shipping_service_fee_amount: 'service_fee',
-  installation_service_fee: 'service_fee',
-  shipping_fee_guarantee_service_fee: 'service_fee',
-
-  // ค่าส่งฝั่งที่ร้านรับ
-  actual_shipping_fee_amount: 'shipping_cost',
-  shipping_cost_amount: 'shipping_cost',
-  return_shipping_fee_amount: 'shipping_cost',
-  return_shipping_label_fee_amount: 'shipping_cost',
-  exchange_shipping_fee_amount: 'shipping_cost',
-  replacement_shipping_fee_amount: 'shipping_cost',
-  shipping_insurance_fee_amount: 'shipping_cost',
-  signature_confirmation_fee_amount: 'shipping_cost',
-  fbt_shipping_cost_amount: 'shipping_cost',
-  fbm_shipping_cost_amount: 'shipping_cost',
-  fbt_fulfillment_fee_amount: 'shipping_cost',
-
-  // เงินที่ TikTok ช่วยจ่าย
-  customer_paid_shipping_fee_amount: 'platform_subsidy',
-  shipping_fee_subsidy_amount: 'platform_subsidy',
-  platform_shipping_fee_discount_amount: 'platform_subsidy',
-  promo_shipping_incentive_amount: 'platform_subsidy',
-  shipping_fee_guarantee_reimbursement: 'platform_subsidy',
-  failed_delivery_subsidy_amount: 'platform_subsidy',
-  free_return_subsidy_amount: 'platform_subsidy',
-  return_refund_subsidy_amount: 'platform_subsidy',
-  fbt_fulfillment_fee_reimbursement_amount: 'platform_subsidy',
-  fbt_free_shipping_fee_amount: 'platform_subsidy',
-  customer_shipping_fee_offset_amount: 'platform_subsidy',
 
   // ส่วนแบ่งนักขาย / ครีเอเตอร์
   affiliate_commission_amount: 'affiliate',
@@ -87,43 +44,105 @@ const FIELD_TO_BUCKET: Record<string, FeeBucket> = {
   // โฆษณา
   affiliate_ads_commission_amount: 'ads',
   tap_shop_ads_commission: 'ads',
+  cps_shop_ads_commission_tax_amount: 'ads',
+  gmv_max_ad_fee_amount: 'ads',
+  gmv_max_coupon_fee: 'ads',
+  brand_amplification_program_commission: 'ads',
+  brand_amplification_program_fee_tax: 'ads',
 
   // แคมเปญ
-  campaign_resource_fee: 'campaign_fee',
+  brand_campaign_fee: 'campaign_fee',
+  brand_campaign_fee_tax: 'campaign_fee',
+  category_led_campaign_fee_amount: 'campaign_fee',
+  category_led_campaign_fee_tax_amount: 'campaign_fee',
+  campaign_period_fee_sp_amount: 'campaign_fee',
+  campaign_period_fee_sp_tax_amount: 'campaign_fee',
+  campaign_period_fee_cfp_amount: 'campaign_fee',
+  campaign_period_fee_cfp_tax_amount: 'campaign_fee',
+  flash_sales_service_fee_amount: 'campaign_fee',
+  smart_promotion_fee_amount: 'campaign_fee',
   cofunded_promotion_service_fee_amount: 'campaign_fee',
+  voucher_xtra_service_fee_amount: 'campaign_fee',
+  bonus_cashback_service_fee_amount: 'campaign_fee',
+  live_specials_fee_amount: 'campaign_fee',
 
-  // ภาษี
-  vat_amount: 'tax_withheld',
-  pit_amount: 'tax_withheld',
-  gst_amount: 'tax_withheld',
-  sst_amount: 'tax_withheld',
-  local_vat_amount: 'tax_withheld',
-  import_vat_amount: 'tax_withheld',
-  isr_amount: 'tax_withheld',
-  iva_amount: 'tax_withheld',
-  anti_dumping_duty_amount: 'tax_withheld',
-  customs_duty_amount: 'tax_withheld',
-  customs_clearance_amount: 'tax_withheld',
-  fee_tax_amount: 'tax_withheld',
-  fee_and_tax_amount: 'tax_withheld',
-  vn_fix_infrastructure_fee: 'other_fee',
+  // ค่าบริการ / โปรแกรมร้าน
+  sfp_service_fee_amount: 'service_fee',
+  mall_service_fee_amount: 'service_fee',
+  fee_per_item_sold_amount: 'service_fee',
+  installation_service_fee: 'service_fee',
+  seller_growth_fee_amount: 'service_fee',
+  epr_pob_service_fee_amount: 'service_fee',
+  pre_order_service_fee_amount: 'service_fee',
+  platform_special_service_fee_amount: 'service_fee',
+  shipping_fee_guarantee_service_fee: 'service_fee',
+  vn_fix_infrastructure_fee: 'service_fee',
+  insurance_fee: 'service_fee',
+  shipping_insurance_fee_tax_amount: 'service_fee',
+
+  // ค่าส่งที่โผล่ในกลุ่ม fee
+  failed_delivery_shipping_fee: 'shipping_cost',
+  buyer_fault_return_shipping_fee: 'shipping_cost',
 
   // คืนของ / ปรับยอด
-  refund_subtotal_before_discount_amount: 'adjustment',
-  seller_discount_refund_amount: 'adjustment',
   refund_administration_fee_amount: 'adjustment',
-  refund_cod_service_fee_amount: 'adjustment',
-  refunded_customer_shipping_fee_amount: 'adjustment',
-  return_shipping_fee_paid_buyer_amount: 'adjustment',
 };
 
-/** ฟิลด์ที่ไม่ใช่ค่าธรรมเนียม — ข้ามไป ไม่ต้องเตือนว่ายังไม่ได้แมป */
-const NON_FEE_FIELDS = new Set([
-  'settlement_amount', 'revenue_amount', 'revenue_breakdown', 'currency',
-  'order_id', 'order_create_time', 'statement_id', 'sku_id', 'sku_name',
-  'product_name', 'quantity', 'sku_transactions', 'shipping_cost_breakdown',
-  'fee_tax_breakdown', 'supplementary_component', 'total_count', 'affiliate_commission_amount_before_pit',
-  'affiliate_commission_deposit', 'affiliate_commission_release',
+/** revenue_breakdown → ช่องกลาง */
+const REVENUE_TO_BUCKET: Record<string, FeeBucket> = {
+  subtotal_before_discount_amount: 'gross_sales',
+  seller_discount_amount: 'seller_discount',
+  cod_service_fee_amount: 'payment_fee',
+  refund_cod_service_fee_amount: 'adjustment',
+  seller_discount_refund_amount: 'adjustment',
+  refund_subtotal_before_discount_amount: 'adjustment',
+  distant_item_fee_amount: 'other_fee',
+};
+
+/** shipping_cost_breakdown → ช่องกลาง (ค่าบวก = แพลตฟอร์มช่วยจ่าย) */
+const SHIPPING_TO_BUCKET: Record<string, FeeBucket> = {
+  actual_shipping_fee_amount: 'shipping_cost',
+  return_shipping_fee_amount: 'shipping_cost',
+  return_shipping_label_fee_amount: 'shipping_cost',
+  exchange_shipping_fee_amount: 'shipping_cost',
+  replacement_shipping_fee_amount: 'shipping_cost',
+  distant_shipping_fee_amount: 'shipping_cost',
+  shipping_insurance_fee_amount: 'shipping_cost',
+  signature_confirmation_fee_amount: 'shipping_cost',
+  seller_self_shipping_service_fee_amount: 'shipping_cost',
+  shipping_app_service_fee_amount: 'shipping_cost',
+  logistics_service_fee: 'shipping_cost',
+  return_shipping_fee_paid_buyer_amount: 'shipping_cost',
+
+  shipping_fee_discount_amount: 'platform_subsidy',
+  customer_paid_shipping_fee_amount: 'platform_subsidy',
+  free_return_subsidy_amount: 'platform_subsidy',
+  failed_delivery_subsidy_amount: 'platform_subsidy',
+  tiktok_shop_shipping_incentive_amount: 'platform_subsidy',
+  fbt_free_shipping_fee_amount: 'platform_subsidy',
+  fbt_key_merchant_subsidy: 'platform_subsidy',
+  fbt_overall_merchant_subsidy: 'platform_subsidy',
+  fbt_fulfillment_fee_reimbursement_amount: 'platform_subsidy',
+
+  fbm_shipping_cost_amount: 'shipping_cost',
+  fbt_shipping_cost_amount: 'shipping_cost',
+  fbt_fulfillment_fee_amount: 'shipping_cost',
+
+  refunded_customer_shipping_fee_amount: 'adjustment',
+};
+
+/**
+ * ฟิลด์ที่ต้องข้าม — **เป็นยอดย่อยของฟิลด์อื่น ถ้านับจะซ้ำ**
+ *
+ * - `supplementary_component` = การแตกยอดของ shipping_fee_discount_amount อีกชั้น
+ *   (ข้อมูลจริง: discount 38 = platform_shipping_fee_discount_amount 38 ตัวเดียวกัน)
+ * - `*_before_pit` / `_deposit` / `_release` = มุมมองอื่นของ affiliate_commission_amount
+ */
+const SKIP_FIELDS = new Set([
+  'supplementary_component',
+  'affiliate_commission_amount_before_pit',
+  'affiliate_commission_deposit',
+  'affiliate_commission_release',
 ]);
 
 export function normalizeTikTokStatement(
@@ -133,29 +152,54 @@ export function normalizeTikTokStatement(
   const buckets = emptyBuckets();
   const lines: SettlementLine[] = [];
 
-  for (const [field, bucket] of Object.entries(FIELD_TO_BUCKET)) {
-    const amount = parseAmount(statement[field]);
-    if (!amount) continue;
-    buckets[bucket] += Math.abs(amount);
-    lines.push({
-      bucket,
-      platformFeeCode: field,
-      platformFeeName: field,
-      amount: Math.abs(amount),
-      lineKey: `tiktok:${field}`,
-    });
-  }
+  const skus = Array.isArray(statement.sku_transactions)
+    ? (statement.sku_transactions as Record<string, unknown>[])
+    : [];
 
-  const netPayout = parseAmount(statement.settlement_amount);
+  const add = (
+    group: Record<string, unknown> | undefined,
+    map: Record<string, FeeBucket>,
+    fallback: FeeBucket,
+    skuId: string | null,
+    prefix: string
+  ) => {
+    if (!group) return;
+    for (const [field, value] of Object.entries(group)) {
+      if (SKIP_FIELDS.has(field)) continue;
+      if (typeof value === 'object') continue;   // ชั้นย่อยอื่นที่ไม่ได้ตั้งใจอ่าน
+      const amount = parseAmount(value);
+      if (!amount) continue;
+      const bucket = map[field] || fallback;
+      buckets[bucket] += Math.abs(amount);
+      lines.push({
+        bucket,
+        platformFeeCode: field,
+        platformFeeName: field,
+        amount: Math.abs(amount),
+        externalItemId: skuId,
+        lineKey: `tiktok:${skuId || 'order'}:${prefix}:${field}`,
+      });
+    }
+  };
+
+  for (const sku of skus) {
+    const skuId = sku.sku_id ? String(sku.sku_id) : null;
+    const feeTax = (sku.fee_tax_breakdown as Record<string, unknown>) || {};
+
+    add(sku.revenue_breakdown as Record<string, unknown>, REVENUE_TO_BUCKET, 'other_fee', skuId, 'rev');
+    add(feeTax.fee as Record<string, unknown>, FEE_TO_BUCKET, 'other_fee', skuId, 'fee');
+    add(feeTax.tax as Record<string, unknown>, {}, 'tax_withheld', skuId, 'tax');
+    add(sku.shipping_cost_breakdown as Record<string, unknown>, SHIPPING_TO_BUCKET, 'shipping_cost', skuId, 'ship');
+  }
 
   return {
     buckets,
-    netPayout,
-    // TikTok ไม่ได้ให้ยอดที่ลูกค้าจ่ายใน statement — ปล่อย null อย่าเดา
+    netPayout: parseAmount(statement.settlement_amount),
+    // TikTok ไม่ได้บอกยอดที่ลูกค้าจ่าย — ปล่อย null อย่าเดา
     buyerPaid: null,
     lines,
     currency: (statement.currency as string) || 'THB',
-    statementPeriod: statement.statement_id ? String(statement.statement_id) : null,
+    statementPeriod: skus[0]?.statement_id ? String(skus[0].statement_id) : null,
     settledAt: null,
     paidStatus: null,
     externalOrderId: opts.orderId ?? (statement.order_id ? String(statement.order_id) : null),
@@ -164,13 +208,27 @@ export function normalizeTikTokStatement(
 }
 
 /**
- * ฟิลด์ตัวเลขที่ยังไม่ได้แมป — ใช้ตอนดึงข้อมูลจริงชุดแรกเพื่อหาว่าตกอะไรไป
- * (TikTok เพิ่มฟิลด์ใหม่บ่อยตามโปรแกรมที่เปิดใหม่)
+ * ฟิลด์ที่ยังไม่ได้แมป — ไล่เข้าไปในชั้นย่อยด้วย
+ * TikTok เพิ่มค่าธรรมเนียมใหม่บ่อยตามโปรแกรมที่เปิดใหม่ ตัวใหม่จะตกไป other_fee
+ * แล้วโผล่ในนี้ให้เห็นว่าต้องมาแมปเพิ่ม
  */
 export function unmappedTikTokFields(statement: Record<string, unknown>): string[] {
-  return Object.keys(statement).filter(k => {
-    if (FIELD_TO_BUCKET[k] || NON_FEE_FIELDS.has(k)) return false;
-    const v = statement[k];
-    return (typeof v === 'number' || typeof v === 'string') && parseAmount(v) !== 0;
-  });
+  const out = new Set<string>();
+  const skus = Array.isArray(statement.sku_transactions)
+    ? (statement.sku_transactions as Record<string, unknown>[])
+    : [];
+  const scan = (group: Record<string, unknown> | undefined, map: Record<string, FeeBucket>) => {
+    if (!group) return;
+    for (const [field, value] of Object.entries(group)) {
+      if (SKIP_FIELDS.has(field) || typeof value === 'object') continue;
+      if (!map[field] && parseAmount(value) !== 0) out.add(field);
+    }
+  };
+  for (const sku of skus) {
+    const feeTax = (sku.fee_tax_breakdown as Record<string, unknown>) || {};
+    scan(sku.revenue_breakdown as Record<string, unknown>, REVENUE_TO_BUCKET);
+    scan(feeTax.fee as Record<string, unknown>, FEE_TO_BUCKET);
+    scan(sku.shipping_cost_breakdown as Record<string, unknown>, SHIPPING_TO_BUCKET);
+  }
+  return [...out];
 }
