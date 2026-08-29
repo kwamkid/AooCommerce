@@ -27,7 +27,17 @@ interface BulkShipResult {
   error?: string;
   needs_time_slot?: boolean;
   time_slots?: TimeSlot[];
+  /** true = ไม่ได้ยิงซ้ำ แค่ซ่อมสถานะที่ค้างให้ตรงกับแพลตฟอร์ม */
+  repaired?: boolean;
 }
+
+// เพดานเวลาของ route + งบเวลาที่ยอมใช้จริง (หยุดเองก่อนโดนตัด แล้วบอกว่าค้างที่ไหน)
+// pattern เดียวกับ product import — ดู lib/lazada/product-sync.ts
+export const maxDuration = 300;
+const TIME_BUDGET_MS = 210_000;
+
+/** สถานะฝั่ง Shopee ที่แปลว่า "รับออเดอร์ไปแล้ว" — เจอแล้วห้ามยิงซ้ำ ให้ซ่อมสถานะแทน */
+const ALREADY_ACCEPTED = new Set(['PROCESSED', 'SHIPPED', 'TO_CONFIRM_RECEIVE', 'COMPLETED', 'TO_RETURN']);
 
 function formatTimeSlot(slot: { pickup_time_id: string; date: number; time_text?: string; flags?: string[] }): TimeSlot {
   const date = new Date(slot.date * 1000);
@@ -93,6 +103,8 @@ export async function POST(request: NextRequest) {
     // Pre-validate orders and prepare work items
     const validOrders: typeof orders = [];
     const quickResults: BulkShipResult[] = [];
+    // ออเดอร์ที่แพลตฟอร์มรับไปแล้วแต่สถานะฝั่งเราค้าง — ซ่อมเป็นชุดเดียวท้ายสุด
+    const repairIds: string[] = [];
 
     for (const orderId of order_ids) {
       const order = orderMap.get(orderId);
@@ -100,6 +112,12 @@ export async function POST(request: NextRequest) {
         quickResults.push({ order_id: orderId, order_sn: '', success: false, error: 'Order not found' });
       } else if (order.source !== 'shopee') {
         quickResults.push({ order_id: orderId, order_sn: order.external_order_sn || '', success: false, error: 'Not a Shopee order' });
+      } else if (ALREADY_ACCEPTED.has(order.external_status || '')) {
+        // Shopee รับไปแล้ว แต่ระบบเรายังค้างที่ "รอกดรับ" — เกิดได้เมื่อรอบก่อนถูกตัดกลางคัน
+        // (ยิงสำเร็จแล้วแต่ยังไม่ทันเขียน DB) → **ซ่อมสถานะ ไม่ใช่ยิงซ้ำ**
+        // ทำให้ "กดซ้ำ" กลายเป็นการซ่อมตัวเอง แทนที่จะเป็นการสั่งซ้ำ
+        repairIds.push(order.id);
+        quickResults.push({ order_id: orderId, order_sn: order.external_order_sn || '', success: true, repaired: true });
       } else if (order.external_status !== 'READY_TO_SHIP') {
         quickResults.push({ order_id: orderId, order_sn: order.external_order_sn || '', success: false, error: `สถานะปัจจุบัน: ${order.external_status}` });
       } else if (!order.marketplace_account_id || !order.external_order_sn) {
@@ -136,7 +154,18 @@ export async function POST(request: NextRequest) {
 
     const parallelResults: BulkShipResult[] = [];
 
+    const startedAt = Date.now();
+    let ranOutOfTime = false;
+    const notProcessed: string[] = [];
+
     for (const [accountId, accountOrders] of byAccount) {
+      // หมดงบเวลา — หยุดตรงนี้แล้วบอกผู้เรียกว่าเหลือใบไหน ดีกว่าโดนตัดกลาง loop
+      // ซึ่งจะทำให้มีใบที่ยิงไปแล้วแต่ไม่ได้บันทึก
+      if (Date.now() - startedAt > TIME_BUDGET_MS) {
+        ranOutOfTime = true;
+        notProcessed.push(...accountOrders.map(o => o.id));
+        continue;
+      }
       const creds = credsCache.get(accountId);
       if (!creds) {
         for (const order of accountOrders) {
@@ -474,9 +503,30 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // ซ่อมสถานะที่ค้าง — ทำเป็นชุดเดียว ไม่ยิง API แพลตฟอร์มเลยสักครั้ง
+    if (repairIds.length > 0) {
+      await supabaseAdmin
+        .from('orders')
+        .update({ order_status: 'processing', updated_at: new Date().toISOString() })
+        .in('id', repairIds)
+        .eq('company_id', companyId)
+        .eq('order_status', 'ready_to_ship');
+      console.warn(`[Shopee Bulk Ship] ซ่อมสถานะที่ค้าง ${repairIds.length} ใบ (แพลตฟอร์มรับไปแล้วแต่ระบบยังไม่อัปเดต)`);
+    }
+
     return NextResponse.json({
       results,
-      summary: { total: order_ids.length, success: successCount, needs_time_slot: needsTimeSlotCount, error: errorCount },
+      summary: {
+        total: order_ids.length,
+        success: successCount,
+        needs_time_slot: needsTimeSlotCount,
+        error: errorCount,
+        repaired: repairIds.length,
+      },
+      // หมดงบเวลาระหว่างทาง — ผู้เรียกต้องยิงต่อด้วยรายการที่เหลือ
+      // ใบที่ทำไปแล้วจะถูกข้ามเองรอบหน้า (external_status เปลี่ยนเป็น PROCESSED แล้ว)
+      timed_out: ranOutOfTime || undefined,
+      remaining_order_ids: notProcessed.length > 0 ? notProcessed : undefined,
     });
   } catch (error) {
     console.error('[Shopee Bulk Ship] Error:', error);

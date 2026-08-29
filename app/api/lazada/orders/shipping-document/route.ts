@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { checkAuthWithCompany, can, supabaseAdmin } from '@/lib/supabase-admin';
 import { ensureValidToken, getLazadaShippingLabel, type LazadaAccountRow } from '@/lib/lazada/api';
+import { isQuotaBlocked } from '@/lib/marketplace/quota';
 
 // ใบปะหน้าพัสดุ Lazada — POST { order_id }
 //
@@ -51,6 +52,11 @@ export async function POST(request: NextRequest) {
     .eq('id', order.marketplace_account_id)
     .single();
   if (!account) return NextResponse.json({ error: 'ไม่พบร้าน Lazada' }, { status: 404 });
+
+  const quota = await isQuotaBlocked('lazada', 'fulfillment');
+  if (quota.blocked) {
+    return NextResponse.json({ error: 'Lazada จำกัดการเรียกชั่วคราว — ลองใหม่อีกครั้งภายหลัง' }, { status: 429 });
+  }
 
   try {
     const creds = await ensureValidToken(account as unknown as LazadaAccountRow, 'main');

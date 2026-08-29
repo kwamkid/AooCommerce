@@ -111,6 +111,11 @@ export const MARKETPLACE_PLATFORMS: Record<QuotaPlatform, MarketplacePlatformCon
       ['/im/', 'chat'],
       ['/products', 'product'],
       ['/finance/', 'finance'],
+      // path จัดส่งของ Lazada ขึ้นต้นด้วย /order/ เหมือนกันหมด — ต้องมาก่อนกฎ '/order'
+      // ไม่งั้นการแพ็ค/ใบปะหน้าจะถูกนับรวมถังเดียวกับการดึงออเดอร์
+      ['/order/fulfill/', 'fulfillment'],
+      ['/order/package/', 'fulfillment'],
+      ['/order/shipment/', 'fulfillment'],
       ['/order', 'order'],
       ['/auth/', 'auth'],
       ['/seller/', 'auth'],

@@ -8,6 +8,7 @@ import {
   type LazadaAccountRow,
 } from '@/lib/lazada/api';
 import { logIntegration } from '@/lib/integration-logger';
+import { isQuotaBlocked } from '@/lib/marketplace/quota';
 
 // จัดส่งออเดอร์ Lazada
 //
@@ -61,6 +62,15 @@ export async function POST(request: NextRequest) {
     .single();
   if (!account) return NextResponse.json({ error: 'ไม่พบร้าน Lazada' }, { status: 404 });
 
+  // เช็ค circuit breaker ก่อนยิงเสมอ — ถ้าโควตาฝั่งจัดส่งเต็มอยู่ ยิงไปก็ fail
+  // แล้วยิ่งลาก success rate ลง (กติกาเดียวกับ sync routes ทุกตัว)
+  const quota = await isQuotaBlocked('lazada', 'fulfillment');
+  if (quota.blocked) {
+    return NextResponse.json({
+      error: `Lazada จำกัดการเรียกชั่วคราว — ลองใหม่หลัง ${quota.until ? new Date(quota.until).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) + ' น.' : 'สักครู่'}`,
+    }, { status: 429 });
+  }
+
   // รหัสรายชิ้นของ Lazada — เก็บไว้ตอน sync เพราะย้อนกลับไปหาทีหลังไม่ได้แม่น
   const { data: orderItems } = await supabaseAdmin
     .from('order_items')
@@ -74,6 +84,22 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       error: `ไม่มีรหัสรายชิ้นของ Lazada สำหรับ: ${missing.map(m => m.product_name).join(', ')} — ลอง sync ออเดอร์นี้ใหม่ก่อน`,
     }, { status: 400 });
+  }
+
+  // เคยแพ็คไปแล้วมั้ย — Lazada **ไม่มี API ยกเลิกการแพ็ค** ถ้ายิงซ้ำจะได้พัสดุเกินจริง
+  // ร่องรอยถูกบันทึกทันทีที่ Pack สำเร็จ (ก่อน ReadyToShip) จึงทนต่อการถูกตัดกลางคัน
+  const { data: existingParcels } = await supabaseAdmin
+    .from('order_parcels')
+    .select('package_number')
+    .eq('order_id', order_id)
+    .not('package_number', 'is', null);
+
+  if ((existingParcels?.length || 0) > 0 && !preview) {
+    return NextResponse.json({
+      already_packed: true,
+      packages: existingParcels!.map(p => ({ package_id: p.package_number as string })),
+      error: 'ออเดอร์นี้แพ็คไปแล้ว — ถ้าต้องการแก้ไขต้องทำใน Lazada Seller Center',
+    }, { status: 409 });
   }
 
   const allItemIds = (orderItems || []).flatMap(oi => oi.external_line_item_ids || []);
@@ -137,6 +163,18 @@ export async function POST(request: NextRequest) {
 
     if (packedPackages.length === 0) {
       return NextResponse.json({ error: 'Lazada ไม่ได้คืนเลขพัสดุกลับมา' }, { status: 400 });
+    }
+
+    // **บันทึกร่องรอยก่อนทำ ReadyToShip** — ถ้าล้มหลังจากนี้ ยังรู้ว่าแพ็คไปแล้ว
+    // ไม่งั้นกดซ้ำจะแพ็คใหม่ ได้พัสดุเกินและเสียค่าส่งฟรี ๆ
+    for (let i = 0; i < packedPackages.length; i++) {
+      await supabaseAdmin.from('order_parcels').insert({
+        company_id: companyId,
+        order_id,
+        parcel_number: i + 1,
+        package_number: packedPackages[i].package_id,
+        status: 'pending',
+      });
     }
 
     // แจ้งพร้อมส่ง — ถ้าไม่ทำขั้นนี้ขนส่งจะไม่มารับของ

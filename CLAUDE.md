@@ -498,10 +498,34 @@ marketplace_accounts → marketplace_product_links → product_variations
 - **TikTok**: ใช้ skill **`tts-openapi-guide`** (จาก `npm i -g @tts-open-toolkit/cli` → `tts_open_toolkit skill add --agent cc`) — มี **OAS ฉบับเต็มเป็น JSON** ที่ `~/.claude/skills/tts-openapi-guide/references/oas/paths/*.json` อัปเดตได้ด้วย `tts_open_toolkit update` · สำเนา markdown เก่าใน api_doc_knowledge **ลบทิ้งแล้ว** (2026-08-28 — stale, เลข push code ผิด) · เรื่อง push code ยึดหน้า Partner Center เสมอ
 
 ### Scale & Queue Strategy
-- **ปัจจุบัน**: Vercel serverless + Supabase — รองรับได้หลักพัน orders/วัน ไม่ต้อง queue
-- **เมื่อ scale ขึ้น** (10+ ร้าน, หลาย marketplace): เพิ่ม **Upstash QStash** หรือ **BullMQ + Redis**
-- **Architecture เป้าหมาย**: Webhook → save log → Queue → Worker (controlled concurrency, rate limit per platform, retry + dead letter)
-- **จุดที่ต้องเปลี่ยน**: แค่ webhook route — เพิ่มยิง queue แทน `after()` async
+
+**ปัจจุบันยังไม่ใช้ queue — ใช้ "หยุดเองก่อนหมดเวลา แล้วบอกว่าค้างตรงไหน" แทน**
+
+งานยาว (import สินค้า, backfill, bulk accept) ทำแบบนี้ทุกตัว:
+```ts
+export const maxDuration = 300;        // เพดาน route
+const TIME_BUDGET_MS = 210_000;        // งบเวลาจริง — หยุดเองก่อนโดนตัด
+if (Date.now() - startedAt > TIME_BUDGET_MS) { result.next_offset = i; break; }
+```
+ผู้เรียกเห็น `next_offset` / `remaining_order_ids` แล้วยิงรอบต่อไป — **cursor อยู่ที่ผู้เรียก แทนที่จะอยู่ใน Redis**
+ตัวอย่าง: [lib/lazada/product-sync.ts](lib/lazada/product-sync.ts) (788 สินค้า) · [settlements/backfill](app/api/marketplace/settlements/backfill/route.ts) (2,364 ออเดอร์ 8 รอบ) · [shopee/orders/bulk-ship](app/api/shopee/orders/bulk-ship/route.ts)
+
+**⚠️ queue แก้ "ทำไม่ครบ" แต่ไม่แก้ "ทำแล้วไม่รู้ว่าทำแล้ว"** — ต่อให้มี queue ถ้า worker ตายหลังยิง
+API แพลตฟอร์มสำเร็จแต่ก่อนเขียน DB ก็ยังได้สถานะผิดเหมือนเดิม · งานที่มีผลข้างเคียงข้างนอก
+(กดรับออเดอร์ แพ็คพัสดุ ตัดสต็อก) **ต้องทำ idempotency ก่อนเสมอ ไม่ว่าจะมี queue หรือไม่**:
+- เช็คสถานะฝั่งแพลตฟอร์มก่อนยิง — ถ้าเขารับไปแล้วให้ **ซ่อมสถานะเรา ไม่ใช่ยิงซ้ำ**
+- บันทึกร่องรอย **ทันทีที่ผลข้างเคียงเกิด** ก่อนทำขั้นถัดไป (Lazada บันทึก `package_id` ก่อน ReadyToShip)
+- ผลลัพธ์: จอปิด เน็ตหลุด ฟังก์ชันตาย → **กดซ้ำได้เสมอโดยไม่เกิดของซ้ำ**
+
+**เมื่อไหร่ถึงค่อยเอา queue จริง** (ยังไม่ถึงสักข้อ):
+- งานเดียวใช้เวลาเกิน 300s แม้แบ่งรอบแล้ว
+- ต้องคุม concurrency/rate limit **ข้าม request** (ตอนนี้ throttle เป็น in-memory ต่อ instance — best-effort)
+- ต้องการ retry + dead letter อัตโนมัติโดยไม่มีคนกด
+- 10+ ร้าน หลาย marketplace ยิงพร้อมกันจนชนกันเอง
+
+**ถ้าถึงจุดนั้น**: Upstash QStash (ง่ายกว่า ไม่ต้องดูแล Redis) หรือ BullMQ + Redis ·
+Architecture เป้าหมาย: Webhook → save log → Queue → Worker (concurrency + rate limit ต่อ platform, retry + dead letter) ·
+**จุดที่ต้องเปลี่ยนน้อยมาก** — webhook route เปลี่ยนจาก `after()` เป็นยิงเข้า queue และงาน bulk เปลี่ยนจากคืน cursor เป็น enqueue
 
 ### Shopee Description Sync + Central Product Upsert (เพิ่มเมื่อ 2026-05-21)
 - **Description**: ดึง description จริงจาก Shopee เก็บใน `products.description` + per-platform ใน `marketplace_product_links.platform_description` (column ใหม่) — ลบ stub `"Shopee Item #..."`
