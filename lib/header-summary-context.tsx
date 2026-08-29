@@ -10,7 +10,7 @@ interface MarketplaceIssue {
   account_id: string;
   shop_name: string | null;
   platform: string;
-  type: 'expired' | 'disconnected';
+  type: 'expired' | 'disconnected' | 'duplicate_listing';
   message: string;
 }
 

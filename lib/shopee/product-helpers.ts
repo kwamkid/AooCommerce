@@ -228,6 +228,26 @@ export async function upsertMarketplaceLink(params: UpsertMarketplaceLinkParams)
     upsertData,
     { onConflict: 'account_id,external_item_id,external_model_id' }
   );
+
+  // เตือนตั้งแต่ตอนผูก: สินค้าตัวเดียวไปโผล่หลายประกาศในร้านเดียวกัน = ของกองเดียวโชว์หลายที่
+  // ระบบเรามี 1 variation = 1 ยอด แบ่งให้หลายประกาศไม่ได้ → ลูกค้าซื้อรวมกันเกินของจริงได้
+  // ไม่บล็อกการผูก (บางทีร้านตั้งใจลงซ้ำจริง) แต่ต้องมีร่องรอยไว้ ไม่ใช่รู้ตอนสต็อกหลุดไปแล้ว
+  // กระดิ่งบน Header อ่านเคสนี้จาก /api/marketplace/health อีกทาง
+  if (params.variationId) {
+    const { data: siblings } = await supabaseAdmin
+      .from('marketplace_product_links')
+      .select('external_item_id')
+      .eq('account_id', params.accountId)
+      .eq('variation_id', params.variationId)
+      .eq('sync_enabled', true);
+    const items = new Set((siblings || []).map(l => String(l.external_item_id)));
+    if (items.size > 1) {
+      console.warn(
+        `[Marketplace] variation ${params.variationId} ผูกกับ ${items.size} ประกาศในร้านเดียวกัน ` +
+        `(${[...items].join(', ')}) — สต็อกจะถูกส่งเลขเดียวกันขึ้นทุกใบ เสี่ยงขายเกิน`
+      );
+    }
+  }
 }
 
 // ============================================

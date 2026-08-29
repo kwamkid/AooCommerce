@@ -52,9 +52,12 @@ export default function Header() {
   const notifications = useMemo<Notification[]>(() => {
     if (!features.marketplace_sync || !summary) return [];
     const list: Notification[] = summary.marketplaceHealth.issues.map(issue => ({
-      id: `mp-${issue.account_id}`,
+      id: `mp-${issue.account_id}-${issue.type}`,
       type: 'warning' as const,
-      title: issue.type === 'expired' ? 'Token Shopee หมดอายุ' : 'ร้านถูกปิดการเชื่อมต่อ',
+      title:
+        issue.type === 'expired' ? 'Token Shopee หมดอายุ'
+        : issue.type === 'duplicate_listing' ? 'สินค้าลงซ้ำหลายประกาศ'
+        : 'ร้านถูกปิดการเชื่อมต่อ',
       message: `${issue.shop_name || 'Shop'} — ${issue.message}`,
       time: '',
       read: false,
