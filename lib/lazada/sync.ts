@@ -441,29 +441,37 @@ async function createNewOrder(
     qty: number;
     price: number;
     total: number;
+    /** order_item_id ของ Lazada ทุกชิ้นในแถวนี้ — ใช้ตอนแพ็ค/จัดส่ง (Pack รับเป็นรายชิ้น) */
+    lineItemIds: string[];
   }[] = [];
 
   // Lazada ส่ง order item แถวละ 1 ชิ้น — รวมชิ้นที่เป็น SKU/ตัวเลือกเดียวกันเป็นแถวเดียว (qty รวม)
   // ไม่งั้นหน้า order แสดงชื่อสินค้าซ้ำกันหลายบรรทัด (เจอจริง 2 ใบแรก 2026-08-28)
-  const groupedItems: { item: (typeof items)[number]; qty: number; paidSum: number }[] = [];
+  // เก็บ order_item_id ของทุกชิ้นไว้ด้วย — Pack ของ Lazada รับเป็นรายชิ้น
+  // และย้อนกลับไปหาทีหลังไม่ได้แม่น (variation เดียวผูกได้หลาย listing)
+  const groupedItems: {
+    item: (typeof items)[number]; qty: number; paidSum: number; lineItemIds: string[];
+  }[] = [];
   {
     const byKey = new Map<string, (typeof groupedItems)[number]>();
     for (const item of items) {
       const key = `${item.sku_id ?? ''}|${item.sku ?? ''}|${item.variation ?? ''}`;
       const paid = Number(item.paid_price ?? item.item_price ?? 0);
+      const lineId = item.order_item_id != null ? String(item.order_item_id) : null;
       const g = byKey.get(key);
       if (g) {
         g.qty += 1;
         g.paidSum += paid;
+        if (lineId) g.lineItemIds.push(lineId);
       } else {
-        const entry = { item, qty: 1, paidSum: paid };
+        const entry = { item, qty: 1, paidSum: paid, lineItemIds: lineId ? [lineId] : [] };
         byKey.set(key, entry);
         groupedItems.push(entry);
       }
     }
   }
 
-  for (const { item, qty, paidSum } of groupedItems) {
+  for (const { item, qty, paidSum, lineItemIds } of groupedItems) {
     // ราคาตั้ง (item_price) เก็บลง order_items + ส่วนลดแยกที่ order-level แบบเดียวกับ Shopee —
     // ห้ามเก็บ paid_price (สุทธิ) ลง item พร้อมกับ discount_amount: ระบบคำนวณ total จาก
     // Σitems − discount จะกลายเป็นหักส่วนลดซ้ำสองรอบ (เจอจริง 2026-08-28 — บิลเหลือ -0.28)
@@ -516,6 +524,7 @@ async function createNewOrder(
       qty,
       price: listPrice,
       total: listPrice * qty,
+      lineItemIds,
     });
   }
 
@@ -617,6 +626,7 @@ async function createNewOrder(
     discount_type: 'percent',
     subtotal: item.total,
     total: item.total,
+      external_line_item_ids: item.lineItemIds?.length ? item.lineItemIds : null,
   }));
   await supabaseAdmin.from('order_items').insert(orderItemsToInsert);
 

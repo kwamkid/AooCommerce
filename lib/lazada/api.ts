@@ -566,3 +566,105 @@ export async function getFinanceTransactions(
   if (error) return { rows: [], error };
   return { rows: Array.isArray(data) ? (data as Record<string, unknown>[]) : [] };
 }
+
+// ─── Fulfillment (จัดส่ง) ───────────────────────────────────────────────────
+//
+// ⚠️ Lazada ไม่มี API "แบ่งกล่อง" เพราะการแบ่งเกิดตอนแพ็ค — เรียก Pack หลายครั้ง
+// ครั้งละกลุ่มสินค้า แต่ละครั้งได้พัสดุหนึ่งใบ (ต่างจาก Shopee/TikTok ที่ผ่าทีหลัง)
+//
+// ลำดับที่ต้องทำ: GetShipmentProvider → Pack → ReadyToShip → PrintAWB
+//
+// ทุกตัวรับ payload เป็น **JSON string ในพารามิเตอร์เดียว** ตามแบบ TOP protocol
+// (packReq / readyToShipReq / getDocumentReq) ไม่ใช่ body แบบ REST ปกติ
+
+export interface LazadaShipmentProvider {
+  name: string;
+  provider_code: string;
+  shipping_allocate_type?: string;
+}
+
+/** ขนส่งที่ใช้ได้กับออเดอร์นี้ — ต้องถามก่อน Pack เสมอ เพราะแต่ละออเดอร์ไม่เหมือนกัน */
+export async function getLazadaShipmentProviders(
+  creds: LazadaCredentials,
+  orders: { orderId: string; orderItemIds: string[] }[]
+): Promise<{ providers: LazadaShipmentProvider[]; platformDefault?: string; error?: string }> {
+  const req = { orders: orders.map(o => ({ order_id: o.orderId, order_item_ids: o.orderItemIds })) };
+  const { data, error } = await lazadaApiRequest(creds, 'POST', '/order/shipment/providers/get', {
+    getShipmentProvidersReq: JSON.stringify(req),
+  });
+  if (error) return { providers: [], error };
+  const d = (data as Record<string, unknown>)?.data as Record<string, unknown> | undefined;
+  return {
+    providers: (d?.shipment_providers as LazadaShipmentProvider[]) || [],
+    platformDefault: d?.platform_default as string | undefined,
+  };
+}
+
+export interface LazadaPackedItem {
+  order_id?: string;
+  order_item_id?: string;
+  package_id?: string;
+  tracking_number?: string;
+  shipment_provider?: string;
+  item_err_code?: string;
+  msg?: string;
+}
+
+/**
+ * แพ็คสินค้าเป็นพัสดุ — **หนึ่งครั้ง = หนึ่งพัสดุ**
+ * อยากแยกกล่องให้เรียกหลายครั้ง ครั้งละกลุ่ม order_item_ids
+ */
+export async function packLazadaOrder(
+  creds: LazadaCredentials,
+  params: {
+    orderId: string;
+    orderItemIds: string[];
+    deliveryType?: string;            // dropship (ขนส่งมารับ) — ค่าปกติของร้านไทย
+    shipmentProviderCode?: string;
+    shippingAllocateType?: string;
+  }
+): Promise<{ items: LazadaPackedItem[]; error?: string }> {
+  const req: Record<string, unknown> = {
+    pack_order_list: [{ order_id: params.orderId, order_item_list: params.orderItemIds }],
+    delivery_type: params.deliveryType || 'dropship',
+  };
+  if (params.shipmentProviderCode) req.shipment_provider_code = params.shipmentProviderCode;
+  if (params.shippingAllocateType) req.shipping_allocate_type = params.shippingAllocateType;
+
+  const { data, error } = await lazadaApiRequest(creds, 'POST', '/order/fulfill/pack', {
+    packReq: JSON.stringify(req),
+  });
+  if (error) return { items: [], error };
+  const d = (data as Record<string, unknown>)?.data as Record<string, unknown> | undefined;
+  return { items: (d?.pack_order_list as LazadaPackedItem[]) || (d?.order_item_list as LazadaPackedItem[]) || [] };
+}
+
+/** แจ้งว่าพัสดุพร้อมส่ง — ต้องทำหลัง Pack ไม่งั้นขนส่งไม่มารับ */
+export async function readyToShipLazada(
+  creds: LazadaCredentials,
+  packageIds: string[]
+): Promise<{ packages: Record<string, unknown>[]; error?: string }> {
+  const { data, error } = await lazadaApiRequest(creds, 'POST', '/order/package/rts', {
+    readyToShipReq: JSON.stringify({ packages: packageIds.map(id => ({ package_id: id })) }),
+  });
+  if (error) return { packages: [], error };
+  const d = (data as Record<string, unknown>)?.data as Record<string, unknown> | undefined;
+  return { packages: (d?.packages as Record<string, unknown>[]) || [] };
+}
+
+/** ใบปะหน้า — คืน base64 หรือ URL แล้วแต่ร้าน (เช็คทั้งสองเสมอ) */
+export async function getLazadaShippingLabel(
+  creds: LazadaCredentials,
+  packageIds: string[]
+): Promise<{ file?: string; pdfUrl?: string; error?: string }> {
+  const { data, error } = await lazadaApiRequest(creds, 'POST', '/order/package/document/get', {
+    getDocumentReq: JSON.stringify({
+      doc_type: 'PDF',
+      print_item_list: 'false',
+      packages: packageIds.map(id => ({ package_id: id })),
+    }),
+  });
+  if (error) return { error };
+  const d = (data as Record<string, unknown>)?.data as Record<string, unknown> | undefined;
+  return { file: d?.file as string | undefined, pdfUrl: d?.pdf_url as string | undefined };
+}
