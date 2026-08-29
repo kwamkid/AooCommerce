@@ -11,9 +11,14 @@ import { getAuthorizedShops } from '@/lib/tiktok/api';
 // ใช้ตอนร้านเปลี่ยนชื่อ/โลโก้บนแพลตฟอร์มแล้วอยากให้ในระบบตรงกัน
 //
 // ⚠️ **เขียนทับเฉพาะค่าที่แพลตฟอร์มส่งมาจริง** — ค่าที่ผู้ใช้ตั้งเองต้องอยู่ต่อ
-//    TikTok ไม่มี API โลโก้ร้านเลย (ยืนยันแล้ว 2026-08-29: /authorization/202309/shops
-//    คืนแค่ cipher/code/id/name/region/seller_type) → โลโก้ TikTok ต้องกรอกมือเท่านั้น
 //    ถ้า resync ไปล้างทิ้ง โลโก้จะหายทุกครั้งที่กด
+//
+// 📌 **TikTok ไม่มีโลโก้ร้านใน API ฝั่งขายเลย** (ยืนยัน 2026-08-30 จาก OAS ทั้งชุด)
+//    · /authorization/202309/shops → cipher/code/id/name/region/seller_type
+//    · /seller/202309/shops        → **id กับ region เท่านั้น** (ต่อให้เปิด scope ก็ไม่มีโลโก้)
+//    · ทั้ง OAS มี avatar ของร้านที่เดียวคือ customer_service/*/conversations (ฝั่งแชท)
+//    → โลโก้ TikTok มาได้ 2 ทาง: chat sync (lib/services/chat/tiktok.ts — ต้องรอ app แชท
+//      ผ่านรีวิวก่อน) หรือผู้ใช้ใส่ URL เอง · **อย่าเสียเวลาไล่ scope หาโลโก้อีก**
 
 export const maxDuration = 60;
 
@@ -55,13 +60,13 @@ export async function POST(request: NextRequest) {
       const seller = await getSellerInfo(await ensureLazadaToken(account as unknown as LazadaAccountRow, 'main'));
       shopName = seller?.name || null;
       shopLogo = seller?.logo_url || null;
-      if (!shopLogo) note = 'Lazada ไม่ได้ส่งโลโก้ของร้านนี้มา — ตั้งเองได้ที่ปุ่มโลโก้';
+      if (!shopLogo) note = 'Lazada ไม่ได้ส่งโลโก้ของร้านนี้มา — ใส่ลิงก์รูปเองได้เลย';
     } else if (platform === 'tiktok') {
       const shops = await getAuthorizedShops(account.access_token as string);
       const mine = shops.find(s => String(s.id) === String(account.shop_id)) || shops[0];
       shopName = mine?.name || null;
-      // TikTok ไม่มีโลโก้ร้านใน API — ปล่อยเป็น null แล้วคงของเดิมไว้ข้างล่าง
-      note = 'TikTok ไม่มีโลโก้ร้านใน API — ต้องตั้งเองด้วยปุ่มโลโก้';
+      // ไม่มีโลโก้ให้ดึง (ดูหมายเหตุหัวไฟล์) — ปล่อย null แล้วคงของเดิมไว้ข้างล่าง
+      note = 'TikTok ไม่เปิด API โลโก้ร้าน — ใส่ลิงก์รูปเองได้เลย';
     } else {
       return NextResponse.json({ error: `ยังไม่รองรับ ${platform}` }, { status: 400 });
     }

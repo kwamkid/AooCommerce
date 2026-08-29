@@ -56,7 +56,6 @@ export default function MarketplaceConnections({
   const [disconnectingId, setDisconnectingId] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [syncRange, setSyncRange] = useState<Record<string, number>>({}); // accountId → days
-  const [refreshingLogoId, setRefreshingLogoId] = useState<string | null>(null);
   // ตั้งโลโก้เองด้วย URL — สำหรับร้านที่ API ของ marketplace ไม่คืนโลโก้มาให้เลย
   const [logoModal, setLogoModal] = useState<{ id: string; name: string; url: string } | null>(null);
   const [savingLogo, setSavingLogo] = useState(false);
@@ -377,9 +376,21 @@ export default function MarketplaceConnections({
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) { showToast(data.error || 'อัปเดตข้อมูลร้านไม่สำเร็จ', 'error'); return; }
-      // note = แพลตฟอร์มไม่ได้ส่งโลโก้มา (เช่น TikTok) — บอกไปตรง ๆ ดีกว่าขึ้นว่าสำเร็จเฉย ๆ
-      showToast(data.note || 'อัปเดตข้อมูลร้านแล้ว', 'success');
       refetch();
+      // แพลตฟอร์มไม่มีโลโก้ให้ (TikTok ไม่มีใน API เลย · Lazada บางร้านไม่ส่ง)
+      // → เปิดช่องใส่ URL ต่อทันที ไม่ใช่บอกแล้วปล่อยผู้ใช้ค้างว่าต้องทำยังไงต่อ
+      if (!data.shop_logo) {
+        const acc = [...shopeeAccounts, ...tiktokAccounts, ...lazadaAccounts]
+          .find(a => a.id === accountId);
+        showToast(data.note || 'อัปเดตชื่อร้านแล้ว — แพลตฟอร์มไม่ได้ส่งโลโก้มา', 'success');
+        setLogoModal({
+          id: accountId,
+          name: data.shop_name || acc?.shop_name || 'ร้าน',
+          url: '',
+        });
+        return;
+      }
+      showToast('อัปเดตข้อมูลร้านแล้ว', 'success');
     } catch {
       showToast('เกิดข้อผิดพลาด', 'error');
     } finally {
@@ -443,27 +454,6 @@ export default function MarketplaceConnections({
       showToast('เกิดข้อผิดพลาด', 'error');
     } finally {
       setDisconnectingId(null);
-    }
-  };
-
-  const handleRefreshLogo = async (accountId: string) => {
-    setRefreshingLogoId(accountId);
-    try {
-      const res = await apiFetch('/api/shopee/accounts', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: accountId }),
-      });
-      if (res.ok) {
-        showToast('อัพเดทข้อมูลร้านสำเร็จ', 'success');
-        refetch();
-      } else {
-        showToast('ไม่สามารถอัพเดทได้', 'error');
-      }
-    } catch {
-      showToast('เกิดข้อผิดพลาด', 'error');
-    } finally {
-      setRefreshingLogoId(null);
     }
   };
 
@@ -676,7 +666,7 @@ export default function MarketplaceConnections({
         <div className="space-y-4">
           {shopeeAccounts.map(account => {
             const isSyncing = syncingId === account.id;
-            const isRefreshingLogo = refreshingLogoId === account.id;
+            const isRefreshingLogo = resyncingId === account.id;
             return (
               <MarketplaceAccountCard
                 key={account.id}
@@ -690,10 +680,10 @@ export default function MarketplaceConnections({
                 disconnecting={disconnectingId === account.id}
                 avatar={
                   <button
-                    onClick={() => handleRefreshLogo(account.id)}
+                    onClick={() => handleResyncInfo(account.id)}
                     disabled={isRefreshingLogo}
                     className="relative flex-shrink-0 group"
-                    title="กดเพื่ออัพเดทรูปร้าน"
+                    title="กดเพื่ออัปเดตชื่อร้าน + โลโก้"
                   >
                     {/* icon รองพื้น + img ทับ + onError ซ่อนตัวเอง — URL ตายไม่โชว์รูปแตก */}
                     <div className="w-10 h-10 rounded-lg bg-transparent flex items-center justify-center">
@@ -783,15 +773,6 @@ export default function MarketplaceConnections({
                   </ImportButton>
                   <Button
                     variant="ghost"
-                    icon={<RotateCw className="w-4 h-4" />}
-                    loading={resyncingId === account.id}
-                    onClick={() => handleResyncInfo(account.id)}
-                    title="ดึงชื่อร้านและโลโก้ใหม่จากแพลตฟอร์ม (ไม่ต้อง authorize)"
-                  >
-                    อัปเดตข้อมูลร้าน
-                  </Button>
-                  <Button
-                    variant="ghost"
                     icon={<Link2 className="w-4 h-4" />}
                     onClick={() => handleReconnect('shopee')}
                     title="ขอสิทธิ์ใหม่จากแพลตฟอร์ม — ใช้เมื่อเปิด scope เพิ่มหรือ token หมดอายุ"
@@ -850,6 +831,12 @@ export default function MarketplaceConnections({
                 disconnecting={disconnectingId === account.id}
                 avatar={
                   /* โลโก้มาจาก chat sync (participants role=SHOP) — ยังไม่เชื่อมแชท = icon */
+                  <button
+                    onClick={() => handleResyncInfo(account.id)}
+                    disabled={resyncingId === account.id}
+                    className="relative flex-shrink-0 group"
+                    title="กดเพื่ออัปเดตชื่อร้าน + โลโก้"
+                  >
                   <div className="relative w-10 h-10 rounded-lg bg-black flex items-center justify-center flex-shrink-0">
                     <ShoppingBag className="w-5 h-5 text-white" />
                     {(account.metadata?.shop_logo as string) && (
@@ -860,7 +847,12 @@ export default function MarketplaceConnections({
                         onError={e => { e.currentTarget.style.display = 'none'; }}
                       />
                     )}
+                    {/* ระหว่าง refresh spinner ค้างให้เห็น ไม่ใช่รอ hover */}
+                    <div className={`absolute inset-0 bg-black/40 rounded-lg flex items-center justify-center transition-opacity ${resyncingId === account.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+                      <RefreshCw className={`w-4 h-4 text-white ${resyncingId === account.id ? 'animate-spin' : ''}`} />
+                    </div>
                   </div>
+                  </button>
                 }
               >
                 <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-slate-400">
@@ -899,15 +891,6 @@ export default function MarketplaceConnections({
                   </ImportButton>
                   <Button
                     variant="ghost"
-                    icon={<RotateCw className="w-4 h-4" />}
-                    loading={resyncingId === account.id}
-                    onClick={() => handleResyncInfo(account.id)}
-                    title="ดึงชื่อร้านและโลโก้ใหม่จากแพลตฟอร์ม (ไม่ต้อง authorize)"
-                  >
-                    อัปเดตข้อมูลร้าน
-                  </Button>
-                  <Button
-                    variant="ghost"
                     icon={<Link2 className="w-4 h-4" />}
                     onClick={() => handleReconnect('tiktok')}
                     title="ขอสิทธิ์ใหม่จากแพลตฟอร์ม — ใช้เมื่อเปิด scope เพิ่มหรือ token หมดอายุ"
@@ -933,7 +916,7 @@ export default function MarketplaceConnections({
           </Alert>
           {lazadaAccounts.map(account => {
             const isSyncing = syncingId === account.id;
-            const isRefreshingLogo = refreshingLogoId === account.id;
+            const isRefreshingLogo = resyncingId === account.id;
             return (
               <MarketplaceAccountCard
                 key={account.id}
@@ -943,10 +926,10 @@ export default function MarketplaceConnections({
                 disconnecting={disconnectingId === account.id}
                 avatar={
                   <button
-                    onClick={() => handleRefreshLogo(account.id)}
+                    onClick={() => handleResyncInfo(account.id)}
                     disabled={isRefreshingLogo}
                     className="relative flex-shrink-0 group"
-                    title="กดเพื่ออัพเดทรูปร้าน"
+                    title="กดเพื่ออัปเดตชื่อร้าน + โลโก้"
                   >
                     {/* icon รองพื้น + img ทับ + onError ซ่อนตัวเอง — URL ตายไม่โชว์รูปแตก */}
                     <div className="w-10 h-10 rounded-lg bg-[#0F146E] flex items-center justify-center">
@@ -994,30 +977,11 @@ export default function MarketplaceConnections({
                   </ImportButton>
                   <Button
                     variant="ghost"
-                    icon={<RotateCw className="w-4 h-4" />}
-                    loading={resyncingId === account.id}
-                    onClick={() => handleResyncInfo(account.id)}
-                    title="ดึงชื่อร้านและโลโก้ใหม่จากแพลตฟอร์ม (ไม่ต้อง authorize)"
-                  >
-                    อัปเดตข้อมูลร้าน
-                  </Button>
-                  <Button
-                    variant="ghost"
                     icon={<Link2 className="w-4 h-4" />}
                     onClick={() => handleReconnect('lazada')}
                     title="ขอสิทธิ์ใหม่จากแพลตฟอร์ม — ใช้เมื่อเปิด scope เพิ่มหรือ token หมดอายุ"
                   >
                     เชื่อมต่อใหม่
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    onClick={() => setLogoModal({
-                      id: account.id,
-                      name: account.shop_name || `Lazada #${account.shop_id}`,
-                      url: (account.metadata?.shop_logo as string) || '',
-                    })}
-                  >
-                    ตั้งโลโก้เอง
                   </Button>
                 </div>
               </MarketplaceAccountCard>
