@@ -34,6 +34,9 @@ const PUBLIC_PREFIXES = [
   // หน้าร้านออนไลน์ — ต้อง public จริง ไม่งั้น Googlebot โดนเด้งไป /login
   // แล้วไม่มีอะไรถูก index เลย (custom domain map เข้ามาที่ path นี้ผ่าน edge proxy)
   '/store',
+  // ข้อตกลง / ความเป็นส่วนตัว / วิธีลบข้อมูล — ผู้ตรวจแอปของแพลตฟอร์ม (TikTok, Meta,
+  // Google) เปิดดูโดยไม่ได้ login · โดนเด้งไป /login = ถูกตีกลับว่า URL ใช้ไม่ได้
+  '/legal',
 ];
 
 function isPublicPath(pathname: string): boolean {
