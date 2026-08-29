@@ -9,6 +9,8 @@ interface SalesChannelRow {
   channel_type: 'manual' | 'chat';
   platform: string | null;
   chat_account_id: string | null;
+  /** คลังที่ช่องทางนี้ตัดสต็อก — null = ใช้คลังหลักของบริษัท */
+  warehouse_id: string | null;
   icon: string | null;
   color: string | null;
   is_active: boolean;
@@ -34,7 +36,7 @@ export async function GET(request: NextRequest) {
 
   let query = supabaseAdmin
     .from('sales_channels')
-    .select('id, code, name, channel_type, platform, chat_account_id, icon, color, is_active, is_system, is_default, sort_order')
+    .select('id, code, name, channel_type, platform, chat_account_id, warehouse_id, icon, color, is_active, is_system, is_default, sort_order')
     .eq('company_id', auth.companyId)
     .or('channel_type.neq.chat,chat_account_id.not.is.null')
     .order('sort_order', { ascending: true })
@@ -152,10 +154,11 @@ export async function POST(request: NextRequest) {
       icon: body.icon?.toString().trim() || null,
       color: body.color?.toString().trim() || null,
       is_active: body.is_active !== false,
+      warehouse_id: body.warehouse_id || null,
       is_system: false,
       sort_order: nextSort,
     })
-    .select('id, code, name, channel_type, platform, chat_account_id, icon, color, is_active, is_system, is_default, sort_order')
+    .select('id, code, name, channel_type, platform, chat_account_id, warehouse_id, icon, color, is_active, is_system, is_default, sort_order')
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -198,6 +201,24 @@ export async function PUT(request: NextRequest) {
     const name = body.name.trim();
     if (!name) return NextResponse.json({ error: 'กรุณาระบุชื่อช่องทาง' }, { status: 400 });
     patch.name = name;
+  }
+
+  // คลังตัดสต็อก — แก้ได้ทุกช่องทางรวมถึงที่ mirror มาจากแชท (ออเดอร์ก็ตัดสต็อกเหมือนกัน)
+  if ('warehouse_id' in body) {
+    const wid = body.warehouse_id;
+    if (!wid) {
+      patch.warehouse_id = null;
+    } else {
+      const { data: wh } = await supabaseAdmin
+        .from('warehouses')
+        .select('id')
+        .eq('id', wid)
+        .eq('company_id', auth.companyId)
+        .eq('is_active', true)
+        .maybeSingle();
+      if (!wh) return NextResponse.json({ error: 'ไม่พบคลังนี้ หรือคลังถูกปิดใช้งานอยู่' }, { status: 400 });
+      patch.warehouse_id = wid;
+    }
   }
 
   if (!isChatLinked) {
@@ -251,7 +272,7 @@ export async function PUT(request: NextRequest) {
     .from('sales_channels')
     .update(patch)
     .eq('id', body.id)
-    .select('id, code, name, channel_type, platform, chat_account_id, icon, color, is_active, is_system, is_default, sort_order')
+    .select('id, code, name, channel_type, platform, chat_account_id, warehouse_id, icon, color, is_active, is_system, is_default, sort_order')
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

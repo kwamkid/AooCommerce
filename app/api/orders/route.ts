@@ -749,8 +749,26 @@ export async function POST(request: NextRequest) {
     try {
       const stockConfig = await getStockConfig(auth.companyId!);
       if (stockConfig.stockEnabled) {
-        // Determine warehouse: use provided warehouse_id or find company's default warehouse
+        // ลำดับการเลือกคลัง: ที่ staff เลือกในฟอร์ม → คลังของช่องทางขาย → คลังหลัก
+        // (ช่องทางมีคลังของตัวเองได้ เช่น ไลฟ์ที่แพ็คจากสาขา — ดู sales_channels.warehouse_id)
         let warehouseId = orderData.warehouse_id || null;
+        if (!warehouseId && orderData.sales_channel_id) {
+          const { data: channel } = await supabaseAdmin
+            .from('sales_channels')
+            .select('warehouse_id')
+            .eq('id', orderData.sales_channel_id)
+            .eq('company_id', auth.companyId)
+            .maybeSingle();
+          if (channel?.warehouse_id) {
+            const { data: chWh } = await supabaseAdmin
+              .from('warehouses')
+              .select('id')
+              .eq('id', channel.warehouse_id)
+              .eq('is_active', true)
+              .maybeSingle();
+            warehouseId = chWh?.id || null;
+          }
+        }
         if (!warehouseId) {
           const { data: defaultWarehouse } = await supabaseAdmin
             .from('warehouses')

@@ -8,6 +8,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { can } from '@/lib/permissions';
 import { useToast } from '@/lib/toast-context';
+import { useFeatures } from '@/lib/features-context';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { apiFetch } from '@/lib/api-client';
 import { ShoppingBag, RefreshCw, Clock, PackageSearch, Warehouse } from 'lucide-react';
@@ -42,6 +43,9 @@ export default function MarketplaceConnections({
   const router = useRouter();
   const { userProfile } = useAuth();
   const { showToast } = useToast();
+  // แพ็กเกจที่ไม่มีระบบคลัง = ไม่ต้องโชว์อะไรที่เกี่ยวกับสต็อกเลย (server ก็ปฏิเสธอยู่แล้ว)
+  const { gates } = useFeatures();
+  const stockEnabled = gates.stockEnabled;
   const { confirmDialog, confirm } = useConfirmDialog();
   // fetch เดียวได้ทุก platform (แทน 3 calls เดิม) — refetch หลัง write ใดๆ
   const {
@@ -468,7 +472,7 @@ export default function MarketplaceConnections({
    * โชว์เมื่อบริษัทมีมากกว่า 1 คลังเท่านั้น (คลังเดียวไม่มีอะไรให้เลือก ไม่ต้องรก)
    */
   const warehousePicker = (account: MarketplaceAccount) => {
-    if (warehouses.length <= 1) return null;
+    if (!stockEnabled || warehouses.length <= 1) return null;
     return (
       <div className="flex flex-wrap items-center gap-2 pt-1">
         <span className="text-xs text-gray-700 dark:text-slate-300 flex items-center gap-1">
@@ -497,8 +501,30 @@ export default function MarketplaceConnections({
 
   const handleSelectWarehouse = async (accountId: string, warehouseId: string) => {
     const all = [...shopeeAccounts, ...tiktokAccounts, ...lazadaAccounts];
-    const prev = all.find(a => a.id === accountId)?.warehouse_id ?? null;
+    const account = all.find(a => a.id === accountId);
+    const prev = account?.warehouse_id ?? null;
     const next = warehouseId || null;
+    if (prev === next) return;
+
+    // ย้ายคลังของร้านที่ผูกสินค้าไว้แล้ว = ยอดที่ส่งขึ้นร้านจะเปลี่ยนชุดทันที
+    // ต้องบอกให้ครบว่าอะไรเปลี่ยนและอะไรไม่เปลี่ยน ก่อนให้กดยืนยัน
+    const linked = account?.linked_product_count || 0;
+    if (linked > 0) {
+      const nameOf = (id: string | null) =>
+        id ? (warehouses.find(w => w.id === id)?.name || 'คลังที่เลือก') : `คลังหลัก${defaultWarehouseName ? ` (${defaultWarehouseName})` : ''}`;
+      const ok = await confirm({
+        title: `ย้ายคลังของ ${account?.shop_name || 'ร้านนี้'} จาก ${nameOf(prev)} ไป ${nameOf(next)}?`,
+        description:
+          `• ออเดอร์ที่รับมาแล้วยังตัดสต็อกจากคลังเดิม — ระบบจำคลังไว้กับออเดอร์ตั้งแต่ตอนสร้าง จึงไม่กระทบของที่ยังไม่ได้ส่ง\n` +
+          `• ออเดอร์ใหม่จะตัดจาก ${nameOf(next)} แทน\n` +
+          `• ยอดที่ส่งขึ้นร้านจะกลายเป็นยอดของ ${nameOf(next)} — ถ้าของจริงยังอยู่ที่ ${nameOf(prev)} ต้องโอนย้ายเองที่เมนูคลังสินค้า\n` +
+          `• หลังยืนยัน ระบบจะส่งยอดของคลังใหม่ขึ้นร้านให้ทันที (${linked} สินค้า ใช้โควตา Shopee ${linked} ครั้ง)`,
+        confirmLabel: 'ย้ายคลัง',
+        cancelLabel: 'ยกเลิก',
+      });
+      if (!ok) return;
+    }
+
     patchAccount(accountId, { warehouse_id: next });
     try {
       const res = await apiFetch('/api/shopee/accounts', {
@@ -509,6 +535,21 @@ export default function MarketplaceConnections({
       if (!res.ok) {
         patchAccount(accountId, { warehouse_id: prev });
         showToast('เปลี่ยนคลังไม่สำเร็จ', 'error');
+      } else if (linked > 0) {
+        // ส่งยอดของคลังใหม่ขึ้นร้านทันที ไม่งั้นร้านจะโชว์ยอดของคลังเดิมค้างไว้
+        showToast(`บันทึกคลังแล้ว — กำลังส่งยอดของคลังใหม่ขึ้นร้าน (${linked} สินค้า)`);
+        const pushRes = await apiFetch('/api/shopee/products/push-stock', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ marketplace_account_id: accountId }),
+        });
+        const pushData = await pushRes.json().catch(() => ({}));
+        showToast(
+          pushRes.ok && pushData.success
+            ? `ส่งยอดขึ้นร้านครบแล้ว (${pushData.updated_models} รายการ)`
+            : `บันทึกคลังแล้ว แต่ส่งยอดขึ้นร้านไม่ครบ — กดส่งใหม่ได้ที่ปุ่มซิงค์ในหน้าสินค้า`,
+          pushRes.ok && pushData.success ? 'success' : 'error'
+        );
       } else {
         showToast('บันทึกคลังของร้านนี้แล้ว');
       }
@@ -634,14 +675,16 @@ export default function MarketplaceConnections({
 
                 {/* Auto-Sync Toggles */}
                 <div className="flex flex-wrap gap-x-6 gap-y-2 pt-1">
-                  <div className="flex items-center gap-2">
-                    <Toggle
-                      checked={account.auto_sync_stock !== false}
-                      onChange={v => handleToggleSync(account.id, 'auto_sync_stock', v)}
-                      aria-label="Sync Stock อัตโนมัติ"
-                    />
-                    <span className="text-xs text-gray-700 dark:text-slate-300">Sync Stock อัตโนมัติ</span>
-                  </div>
+                  {stockEnabled && (
+                    <div className="flex items-center gap-2">
+                      <Toggle
+                        checked={account.auto_sync_stock !== false}
+                        onChange={v => handleToggleSync(account.id, 'auto_sync_stock', v)}
+                        aria-label="Sync Stock อัตโนมัติ"
+                      />
+                      <span className="text-xs text-gray-700 dark:text-slate-300">Sync Stock อัตโนมัติ</span>
+                    </div>
+                  )}
                   <div className="flex items-center gap-2">
                     <Toggle
                       checked={account.auto_sync_product_info !== false}
@@ -685,15 +728,17 @@ export default function MarketplaceConnections({
                   >
                     นำเข้าสินค้าจาก Shopee
                   </ImportButton>
-                  <Button
-                    variant="secondary"
-                    icon={<PackageSearch className="w-4 h-4" />}
-                    loading={isSyncing}
-                    disabled={account.connection_status === 'expired'}
-                    onClick={() => handlePullStock(account.id, account.shop_name || `Shop #${account.shop_id}`)}
-                  >
-                    ดึงสต็อกจาก Shopee
-                  </Button>
+                  {stockEnabled && (
+                    <Button
+                      variant="secondary"
+                      icon={<PackageSearch className="w-4 h-4" />}
+                      loading={isSyncing}
+                      disabled={account.connection_status === 'expired'}
+                      onClick={() => handlePullStock(account.id, account.shop_name || `Shop #${account.shop_id}`)}
+                    >
+                      ดึงสต็อกจาก Shopee
+                    </Button>
+                  )}
                   <ExportButton
                     disabled={account.connection_status === 'expired'}
                     onClick={() => {

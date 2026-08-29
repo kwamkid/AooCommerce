@@ -51,6 +51,8 @@ interface SalesChannel {
   username?: string | null;
   ig_username?: string | null;
   chat_account_id: string | null;
+  /** คลังที่ช่องทางนี้ตัดสต็อก — null = ใช้คลังหลัก */
+  warehouse_id?: string | null;
   has_ig?: boolean;
   icon: string | null;
   color: string | null;
@@ -106,6 +108,9 @@ export default function SalesChannelsPage() {
   const [formName, setFormName] = useState('');
   const [formPlatform, setFormPlatform] = useState('');
   const [formActive, setFormActive] = useState(true);
+  // คลังที่ช่องทางนี้ตัดสต็อก — '' = ใช้คลังหลักของบริษัท (เหมือน marketplace)
+  const [formWarehouse, setFormWarehouse] = useState('');
+  const [warehouses, setWarehouses] = useState<{ id: string; name: string; is_default: boolean; is_active?: boolean }[]>([]);
 
   const isAdmin = can(userProfile?.roles, 'masterdata.sales_channels');
   // แท็บเชื่อมต่อ marketplace โชว์เฉพาะตอนเปิด feature marketplace_sync เท่านั้น
@@ -149,7 +154,16 @@ export default function SalesChannelsPage() {
   };
 
   useEffect(() => {
-    if (!authLoading) loadChannels();
+    if (!authLoading) {
+      loadChannels();
+      apiFetch('/api/warehouses')
+        .then(r => (r.ok ? r.json() : null))
+        .then(d => {
+          const list = Array.isArray(d) ? d : (d?.warehouses || []);
+          setWarehouses(list.filter((w: { is_active?: boolean }) => w.is_active !== false));
+        })
+        .catch(() => { /* ไม่มีคลัง = ไม่ต้องโชว์ตัวเลือก */ });
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authLoading]);
 
@@ -242,6 +256,7 @@ export default function SalesChannelsPage() {
     setFormName('');
     setFormPlatform(platform);
     setFormActive(true);
+    setFormWarehouse('');
     setModalMode('create');
   };
 
@@ -251,6 +266,7 @@ export default function SalesChannelsPage() {
     setFormName(c.name);
     setFormPlatform(c.platform || '');
     setFormActive(c.is_active);
+    setFormWarehouse(c.warehouse_id || '');
     setModalMode('edit');
   };
 
@@ -288,15 +304,18 @@ export default function SalesChannelsPage() {
           name: formName.trim(),
           platform: formPlatform || null,
           is_active: formActive,
+          warehouse_id: formWarehouse || null,
         };
       } else if (isChat) {
-        payload = { id: editing!.id, is_active: formActive };
+        // ช่องทางที่ mirror มาจากแชท แก้ชื่อไม่ได้ แต่เลือกคลังได้ (ออเดอร์ก็ตัดสต็อกเหมือนกัน)
+        payload = { id: editing!.id, is_active: formActive, warehouse_id: formWarehouse || null };
       } else {
         payload = {
           id: editing!.id,
           name: formName.trim(),
           platform: formPlatform || null,
           is_active: formActive,
+          warehouse_id: formWarehouse || null,
         };
       }
       const res = await apiFetch('/api/sales-channels', {
@@ -772,6 +791,26 @@ export default function SalesChannelsPage() {
                 </p>
               )}
             </div>
+
+            {warehouses.length > 1 && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+                  คลังที่ตัดสต็อก
+                </label>
+                <FormSelect
+                  value={formWarehouse}
+                  onChange={v => setFormWarehouse(v)}
+                  options={[
+                    { id: '', label: `ใช้คลังหลัก${warehouses.find(w => w.is_default) ? ` (${warehouses.find(w => w.is_default)!.name})` : ''}` },
+                    ...warehouses.map(w => ({ id: w.id, label: w.name })),
+                  ]}
+                  portal
+                />
+                <p className="mt-1.5 text-sm text-gray-500 dark:text-slate-400">
+                  ออเดอร์ที่เปิดผ่านช่องทางนี้จะตัดสต็อกจากคลังที่เลือก — ออเดอร์เดิมไม่กระทบ
+                </p>
+              </div>
+            )}
 
             <label className="flex items-center gap-2 cursor-pointer">
               <input
