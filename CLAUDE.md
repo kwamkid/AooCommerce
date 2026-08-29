@@ -462,8 +462,16 @@ marketplace_accounts → marketplace_product_links → product_variations
 - ⚠️ **Shopee มีฟิลด์ชื่อ `cost_of_goods_sold` แต่หมายถึงราคาที่ลูกค้าจ่าย ไม่ใช่ต้นทุนผู้ขาย** (ยืนยันจากข้อมูลจริง = `order_original_price` ทุกแถว) — ต้นทุนจริงมาจาก `order_items.unit_cost` เท่านั้น
 - ⚠️ **Lazada ส่งตัวเลขเป็น string ที่มีคอมมาคั่นหลัก** (`"3,490.00"` → `Number()` = NaN, เจอ 10/180 แถว และเป็นแถวยอดใหญ่ทั้งหมด) — **ใช้ `parseAmount()` จาก fee-types.ts เสมอ ห้าม `Number()` ตรงๆ กับตัวเลขจาก marketplace**
 - **ออเดอร์ Shopee ใหม่สร้าง settlement เองอัตโนมัติ** — `fetchAndSaveEscrowDetail()` ใน [lib/shopee/sync.ts](lib/shopee/sync.ts) เรียก `normalizeShopeeEscrow()` + `saveSettlement()` ต่อท้าย (ล้มแยกจากกัน — escrow บันทึกแล้วถ้า mapping พังยัง backfill ทีหลังได้)
-- **Backfill**: `POST /api/marketplace/settlements/backfill { platform, limit, offset }` — **ไม่ยิง API ของ marketplace เลย** แปลงจาก `orders.external_data.escrow_detail` ที่ดูดเก็บไว้แล้ว · idempotent (upsert ตาม `order_id`) · **ต้องส่ง `offset` เลื่อนหน้าเอง** ไม่งั้นวนดึงชุดเดิม
-- **ยังไม่ทำ**: TikTok (`/finance/202501/orders/{id}/statement_transactions` — ข้อมูลดีที่สุดในสามเจ้า) · Lazada (`/finance/transaction/details/get` — ต้องประกอบแถวเป็นออเดอร์ + จัดการ reversal) · รอบโอนเงิน/กระทบยอดธนาคาร · หน้ารายงาน UI
+- **`buyer_paid`** = เงินที่ลูกค้าควักจ่ายจริง (nullable — Lazada/TikTok ไม่บอก **ห้ามเดาเป็น 0**) · ส่วนต่างจาก `gross_sales − seller_discount` คือเงินที่แพลตฟอร์มออกแทนลูกค้า → ตอบได้ว่า "สินค้าตัวนี้ขายได้เพราะของดี หรือเพราะแพลตฟอร์มแจกคูปอง"
+- ⚠️ **ค่าคอมของ Shopee คิดจากราคาขายของเรา ไม่ใช่เงินที่ลูกค้าจ่าย** — ยืนยันจากข้อมูลจริง: คอม/ราคาขาย = 13.71% (sd 2.69 คงที่) · คอม/เงินลูกค้าจ่าย = 18.35% (sd 4.12 กระจาย) · แปลว่า Shopee แจกคูปองให้ลูกค้าแต่เก็บค่าคอมจากราคาเต็ม
+- ⚠️ **ส่วนลดรายชิ้นของร้านไม่มีฟิลด์ของตัวเอง** — ซ่อนอยู่ในผลต่าง `order_original_price` (ราคาป้าย) กับ `original_cost_of_goods_sold` (ราคาขายจริง ซึ่งเป็นตัวตั้งต้นของสูตร escrow) · ใช้ราคาป้ายเป็นยอดขายเฉย ๆ = ยอดเกินจริง 8% และมีเงิน "หายไป" อธิบายไม่ได้ 1%
+- **การแมป Shopee กระทบยอดลงศูนย์แล้ว** (2,363 ออเดอร์ ส่วนต่าง 0.00) — เทียบกับสูตร `escrow_amount` ที่เอกสาร Shopee เขียนไว้ · `final_product_protection` **ไม่อยู่ในสูตร** ห้ามนับเป็นค่าใช้จ่าย
+- **2 เส้นทางเก็บข้อมูล**:
+  - `POST /api/marketplace/settlements/backfill { platform:'shopee', limit, offset }` — **ไม่ยิง API เลย** แปลงจาก `orders.external_data.escrow_detail` ที่ดูดเก็บไว้แล้ว · **ต้องส่ง `offset` เลื่อนหน้าเอง** ไม่งั้นวนดึงชุดเดิม
+  - `POST /api/marketplace/settlements/sync { platform:'lazada'|'tiktok', days }` — ยิง API จริง (เช็ค breaker scope `finance` ก่อนเสมอ) · **ควรตั้ง cron รายวัน** เพราะยอด settlement โผล่หลังออเดอร์จบหลายวัน ไม่ใช่ตอน sync ออเดอร์
+- **Lazada**: ledger รายบรรทัดต่อ order item — `normalizeLazadaTransactions()` ประกอบเป็นออเดอร์เอง · แมปด้วย **`fee_type` (รหัสตัวเลข) ไม่ใช่ `fee_name`** · แถวที่ไม่มี `order_no` → `marketplace_account_charges`
+- **TikTok**: ⚠️ **การแมปเขียนจากสเปค OAS ยังไม่เคยเจอข้อมูลจริง** — route คืน `unmapped_fields` มาให้ดูว่ามีค่าธรรมเนียมตัวไหนตกหล่น ต้องเช็คตอนดึงชุดแรก
+- **ยังไม่ทำ**: รอบโอนเงิน/กระทบยอดธนาคาร · หน้ารายงาน UI · Shopee AMS (ค่าแอดที่ไม่ได้หักจาก escrow) · แยกทิศทาง `adjustment` (ตอนนี้เก็บค่าสัมบูรณ์ คืนเงินกับเงินชดเชยอยู่ถังเดียวกัน)
 
 ### TikTok vs Shopee Key Differences
 | | Shopee | TikTok |

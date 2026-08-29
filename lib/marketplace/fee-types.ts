@@ -19,6 +19,7 @@ export const FEE_BUCKETS = [
   'gross_sales',
   'seller_discount',
   'platform_discount',
+  'platform_subsidy',
   'commission',
   'payment_fee',
   'service_fee',
@@ -27,6 +28,7 @@ export const FEE_BUCKETS = [
   'ads',
   'campaign_fee',
   'tax_withheld',
+  'other_fee',
   'adjustment',
 ] as const;
 export type FeeBucket = typeof FEE_BUCKETS[number];
@@ -36,6 +38,7 @@ export const BUCKET_SIGN: Record<FeeBucket, '+' | '-' | '±'> = {
   gross_sales: '+',
   seller_discount: '-',
   platform_discount: '±',
+  platform_subsidy: '+',
   commission: '-',
   payment_fee: '-',
   service_fee: '-',
@@ -44,13 +47,15 @@ export const BUCKET_SIGN: Record<FeeBucket, '+' | '-' | '±'> = {
   ads: '-',
   campaign_fee: '-',
   tax_withheld: '-',
+  other_fee: '-',
   adjustment: '±',
 };
 
 export const BUCKET_LABELS: Record<FeeBucket | 'net_payout' | 'cogs' | 'gross_profit', string> = {
   gross_sales: 'ยอดขาย',
   seller_discount: 'ส่วนลดร้าน',
-  platform_discount: 'ส่วนลดแพลตฟอร์ม',
+  platform_discount: 'ส่วนลดที่แพลตฟอร์มออกให้',
+  platform_subsidy: 'เงินที่แพลตฟอร์มช่วยจ่าย',
   commission: 'ค่าคอมมิชชั่น',
   payment_fee: 'ค่าธรรมเนียมชำระเงิน',
   service_fee: 'ค่าบริการ',
@@ -59,6 +64,7 @@ export const BUCKET_LABELS: Record<FeeBucket | 'net_payout' | 'cogs' | 'gross_pr
   ads: 'ค่าโฆษณา',
   campaign_fee: 'ค่าแคมเปญ',
   tax_withheld: 'ภาษีหัก ณ ที่จ่าย',
+  other_fee: 'ค่าธรรมเนียมอื่น',
   adjustment: 'ปรับยอด / คืนของ',
   net_payout: 'เงินเข้าจริง',
   cogs: 'ต้นทุนสินค้า',
@@ -69,15 +75,17 @@ export const BUCKET_LABELS: Record<FeeBucket | 'net_payout' | 'cogs' | 'gross_pr
 export const BUCKET_HINTS: Record<FeeBucket, string> = {
   gross_sales: 'ราคาสินค้ารวมก่อนหักส่วนลดและค่าธรรมเนียมใด ๆ',
   seller_discount: 'ส่วนลดและโค้ดที่ร้านออกค่าใช้จ่ายเอง',
-  platform_discount: 'ส่วนลดที่แพลตฟอร์มออกให้ลูกค้า ไม่ได้หักจากเงินเรา แต่ทำให้ยอดที่ลูกค้าจ่ายต่างจากราคาขาย',
+  platform_discount: 'ส่วนลดที่แพลตฟอร์มออกค่าใช้จ่ายให้ลูกค้า แล้วคืนเงินส่วนนั้นให้เรา — ลูกค้าจ่ายน้อยลงแต่เราได้เต็ม',
+  platform_subsidy: 'เงินที่แพลตฟอร์มจ่ายให้เราตรง ๆ เช่น ช่วยออกค่าส่ง เงินชดเชยของหาย เคลมประกันพัสดุ',
   commission: 'ค่าคอมมิชชั่นตามหมวดสินค้าที่แพลตฟอร์มเก็บ',
   payment_fee: 'ค่าธรรมเนียมรับชำระเงิน / บัตรเครดิต',
   service_fee: 'ค่าบริการ ค่าดำเนินการ และโปรแกรมสมาชิกร้าน',
-  shipping_cost: 'ค่าส่งเฉพาะส่วนที่ร้านรับเอง หลังหักที่ลูกค้าจ่ายและที่แพลตฟอร์มช่วย',
+  shipping_cost: 'ค่าส่งส่วนที่ร้านต้องรับ หลังหักที่ลูกค้าจ่าย — ยังไม่หักเงินที่แพลตฟอร์มช่วย (ดูช่องเงินที่แพลตฟอร์มช่วยจ่าย)',
   affiliate: 'ส่วนแบ่งที่จ่ายให้คนช่วยขายผ่านระบบ affiliate ของแพลตฟอร์ม',
   ads: 'ค่าโฆษณาที่ถูกหักจากยอดขายโดยตรง',
   campaign_fee: 'ค่าเข้าร่วมแคมเปญและโปรโมชั่นของแพลตฟอร์ม',
   tax_withheld: 'ภาษีที่แพลตฟอร์มหักไว้ก่อนโอนเงิน',
+  other_fee: 'ค่าธรรมเนียมเบ็ดเตล็ดที่ยังไม่มีหมวดเฉพาะ ดูชื่อจริงได้ที่รายการย่อย',
   adjustment: 'การคืนเงิน ชดเชย และการปรับยอดย้อนหลัง',
 };
 
@@ -104,6 +112,11 @@ export interface SettlementLine {
 export interface NormalizedSettlement {
   buckets: BucketAmounts;
   netPayout: number;
+  /**
+   * เงินที่ลูกค้าจ่ายจริงตอน checkout — **ไม่เท่ากับราคาที่เราตั้ง** เพราะแพลตฟอร์ม
+   * ออกคูปองแทนลูกค้า · undefined = แพลตฟอร์มนั้นไม่ได้บอก (เก็บเป็น null อย่าเดาเป็น 0)
+   */
+  buyerPaid?: number | null;
   lines: SettlementLine[];
   currency: string;
   statementPeriod?: string | null;

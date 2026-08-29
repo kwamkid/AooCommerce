@@ -677,3 +677,23 @@ export async function getProductDetail(
     hasVariation: skus.length > 1 || (skus[0]?.salesAttributes?.length || 0) > 0,
   };
 }
+
+// ─── Finance ────────────────────────────────────────────────────────────────
+
+/**
+ * ยอด settlement ของออเดอร์เดียว (/finance/202501/orders/{id}/statement_transactions)
+ * ให้ breakdown ละเอียดที่สุดในสามแพลตฟอร์ม รวม affiliate/ads ระดับออเดอร์
+ */
+export async function getOrderStatement(
+  creds: TikTokCredentials,
+  orderId: string
+): Promise<{ statement: Record<string, unknown> | null; error?: string }> {
+  const { data, error } = await tiktokApiRequest(
+    creds, 'GET', `/finance/202501/orders/${orderId}/statement_transactions`
+  );
+  if (error) return { statement: null, error };
+  const d = data as Record<string, unknown> | null;
+  // API ห่อผลลัพธ์ไว้หลายชั้นแล้วแต่เวอร์ชัน — เอาชั้นที่มี settlement_amount
+  const stmt = (d?.statement_transactions as Record<string, unknown>) || d;
+  return { statement: stmt || null };
+}

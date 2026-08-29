@@ -23,13 +23,14 @@ import {
  *    มาจาก order_items.unit_cost เท่านั้น
  */
 const FIELD_TO_BUCKET: Record<string, FeeBucket> = {
-  // รายรับ
-  order_original_price: 'gross_sales',
+  // รายรับ + ส่วนลดรายชิ้นของร้าน คำนวณแยกข้างล่าง (ต้องใช้ผลต่างของสองฟิลด์)
+  //   order_original_price          = ราคาป้าย
+  //   original_cost_of_goods_sold   = ราคาที่ขายจริงหลังส่วนลดรายชิ้น ← สูตร escrow ตั้งต้นจากตัวนี้
+  // ⚠️ เคยใช้ order_original_price เป็นยอดขายแล้วไม่นับผลต่าง → ยอดขายเกินจริง 8%
+  //    และมีเงิน "หายไป" 1% ที่อธิบายไม่ได้
 
-  // ส่วนลดที่ร้านออกเอง
-  seller_discount: 'seller_discount',
+  // โค้ดส่วนลดร้าน (แยกจากส่วนลดรายชิ้น)
   voucher_from_seller: 'seller_discount',
-  seller_shipping_discount: 'seller_discount',
 
   // ส่วนลดที่ Shopee ออกให้ (ไม่ใช่ต้นทุนเรา แต่ทำให้ยอดที่ลูกค้าจ่ายต่างจากราคาขาย)
   shopee_discount: 'platform_discount',
@@ -47,7 +48,7 @@ const FIELD_TO_BUCKET: Record<string, FeeBucket> = {
   //    ฝั่งที่ "ร้านจ่าย" คือ seller_transaction_fee เท่านั้น — เอาตัวรวมมาใส่จะนับซ้ำ
   seller_transaction_fee: 'payment_fee',
 
-  // ค่าส่ง — ตัวที่ร้านรับจริงคำนวณแยกข้างล่าง ตรงนี้เก็บเฉพาะส่วนเสริม
+  // ค่าส่ง — ส่วนที่ร้านรับคำนวณแยกข้างล่าง ตรงนี้เก็บเฉพาะค่าธรรมเนียมเสริม
   shipping_seller_protection_fee_amount: 'shipping_cost',
   delivery_seller_protection_fee_premium_amount: 'shipping_cost',
   reverse_shipping_fee: 'shipping_cost',
@@ -63,20 +64,37 @@ const FIELD_TO_BUCKET: Record<string, FeeBucket> = {
   withholding_tax: 'tax_withheld',
   th_import_duty: 'tax_withheld',
 
+  // เงินที่ Shopee จ่าย/ชดเชยให้เราจริง — แยกจาก adjustment เพราะตอบคนละคำถาม
+  // ("แพลตฟอร์มช่วยเราเท่าไหร่" ไม่ใช่ "ยอดถูกปรับเท่าไหร่")
+  shopee_shipping_rebate: 'platform_subsidy',
+  shipping_fee_discount_from_3pl: 'platform_subsidy',
+  seller_lost_compensation: 'platform_subsidy',
+  rsf_seller_protection_fee_claim_amount: 'platform_subsidy',
+  fsf_seller_protection_fee_claim_amount: 'platform_subsidy',
+
   // ปรับยอด / คืนของ
   seller_return_refund: 'adjustment',
-  drc_adjustable_refund: 'adjustment',
-  total_adjustment_amount: 'adjustment',
-  seller_lost_compensation: 'adjustment',
-  rsf_seller_protection_fee_claim_amount: 'adjustment',
-  fsf_seller_protection_fee_claim_amount: 'adjustment',
+
+  // เบ็ดเตล็ดที่อยู่ในสูตร escrow จริง
+  // ⚠️ final_product_protection **ไม่อยู่ในสูตร** — ไม่กระทบเงินเข้า ห้ามนับเป็นค่าใช้จ่าย
+  seller_coin_cash_back: 'other_fee',
+  fbs_fee: 'other_fee',
+  trade_in_bonus_by_seller: 'other_fee',
+};
+
+/**
+ * ฟิลด์ที่อยู่ในสูตรแต่เป็น "รายรับ" — ไม่ใช่ค่าใช้จ่าย
+ * ส่วนลดของ Shopee (original_shopee_discount / shopee_discount) หักออกแล้วบวกกลับ
+ * ในสูตรเดียวกัน = สุทธิเป็นศูนย์ ไม่กระทบเงินเข้าเราเลย (พิสูจน์จากข้อมูลจริง 2,363 ออเดอร์)
+ */
+const INCOME_FIELDS: Record<string, FeeBucket> = {
+  buyer_paid_packaging_fee: 'platform_subsidy',
 };
 
 /** ฟิลด์ที่ประกอบเป็น shipping_cost แบบคำนวณ — ไม่ได้แมปตรง ๆ ทีละตัว */
 const SHIPPING_FORMULA_FIELDS = [
   'actual_shipping_fee',
   'buyer_paid_shipping_fee',
-  'shopee_shipping_rebate',
 ] as const;
 
 export function normalizeShopeeEscrow(
@@ -103,17 +121,29 @@ export function normalizeShopeeEscrow(
   for (const [field, bucket] of Object.entries(FIELD_TO_BUCKET)) {
     push(bucket, field, num(field));
   }
+  for (const [field, bucket] of Object.entries(INCOME_FIELDS)) {
+    push(bucket, field, num(field));
+  }
 
-  // ค่าส่งที่ร้านรับจริง = ค่าส่งจริง − ที่ลูกค้าจ่าย − ที่ Shopee ช่วย
-  // ติดลบได้ (Shopee ช่วยมากกว่าที่จ่ายจริง) → กรณีนั้นไม่ใช่ต้นทุน ไม่นับเข้า shipping_cost
-  const shippingBorne =
-    num('actual_shipping_fee') - num('buyer_paid_shipping_fee') - num('shopee_shipping_rebate');
+  // ยอดขายตามป้าย และส่วนลดรายชิ้นที่ร้านออกเอง
+  // สูตร escrow ของ Shopee ตั้งต้นจาก original_cost_of_goods_sold (ราคาหลังส่วนลดรายชิ้น)
+  // ผลต่างจากราคาป้าย = ส่วนลดที่ร้านให้รายชิ้น ซึ่งไม่มีฟิลด์ของตัวเอง
+  const listPrice = num('order_original_price');
+  const soldPrice = num('original_cost_of_goods_sold') || listPrice;
+  push('gross_sales', 'order_original_price', listPrice, 'ยอดขายตามราคาป้าย');
+  push('seller_discount', 'item_level_seller_discount', listPrice - soldPrice,
+       'ส่วนลดรายชิ้นที่ร้านออกเอง (ราคาป้าย − ราคาที่ขายจริง)');
+
+  // ค่าส่งส่วนที่ร้านต้องรับ = ค่าส่งจริง − ที่ลูกค้าจ่าย
+  // **ยังไม่หักเงินที่ Shopee ช่วย** — ตัวนั้นไปอยู่ platform_subsidy แยกต่างหาก
+  // เดิมหักรวมกันแล้วเก็บแต่ยอดสุทธิ ทำให้มองไม่เห็นเลยว่าแพลตฟอร์มอุดหนุนไปเท่าไหร่
+  const shippingBorne = num('actual_shipping_fee') - num('buyer_paid_shipping_fee');
   if (shippingBorne > 0) {
     buckets.shipping_cost += shippingBorne;
     lines.push({
       bucket: 'shipping_cost',
       platformFeeCode: 'actual_shipping_fee_borne',
-      platformFeeName: 'ค่าส่งส่วนที่ร้านรับ (actual − buyer_paid − rebate)',
+      platformFeeName: 'ค่าส่งส่วนที่ร้านรับ (actual − buyer_paid)',
       amount: shippingBorne,
       lineKey: 'shopee:actual_shipping_fee_borne',
     });
@@ -124,9 +154,12 @@ export function normalizeShopeeEscrow(
   const base = parseAmount(income.escrow_amount);
   const netPayout = income.escrow_amount_after_adjustment != null && afterAdj !== 0 ? afterAdj : base;
 
+  const buyerPaid = income.buyer_total_amount != null ? parseAmount(income.buyer_total_amount) : null;
+
   return {
     buckets,
     netPayout,
+    buyerPaid,
     lines,
     currency: (income.currency as string) || 'THB',
     externalOrderId: opts.orderSn ?? ((escrow.order_sn as string) || null),

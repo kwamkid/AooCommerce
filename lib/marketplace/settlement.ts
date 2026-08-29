@@ -111,6 +111,7 @@ export async function saveSettlement(params: SaveSettlementParams): Promise<{ id
     settled_at: normalized.settledAt ?? null,
     paid_status: normalized.paidStatus ?? null,
     net_payout: normalized.netPayout,
+    buyer_paid: normalized.buyerPaid ?? null,
     cogs: cogs.value,
     cogs_basis: cogs.basis,
     raw: normalized.raw,

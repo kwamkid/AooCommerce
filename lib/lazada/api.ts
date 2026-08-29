@@ -539,3 +539,30 @@ export async function getLazadaOrdersItems(
   }
   return { byOrder };
 }
+
+// ─── Finance ────────────────────────────────────────────────────────────────
+
+/**
+ * ดึง ledger การเงินตามช่วงวันที่ (/finance/transaction/details/get)
+ *
+ * ข้อจำกัดของ Lazada: ช่วงวันที่ต้อง **ไม่เกิน 180 วัน** ต่อการเรียกหนึ่งครั้ง
+ * และ `limit` สูงสุด 500 · หนึ่งแถว = หนึ่งค่าธรรมเนียม ต่อหนึ่ง order item
+ * (ไม่ใช่ต่อออเดอร์ — ต้องประกอบเองด้วย normalizeLazadaTransactions)
+ */
+export async function getFinanceTransactions(
+  creds: LazadaCredentials,
+  opts: { startDate: string; endDate: string; limit?: number; offset?: number; orderNo?: string }
+): Promise<{ rows: Record<string, unknown>[]; error?: string }> {
+  const params: Record<string, unknown> = {
+    start_time: opts.startDate,
+    end_time: opts.endDate,
+    limit: String(Math.min(opts.limit ?? 500, 500)),
+    offset: String(opts.offset ?? 0),
+    trans_type: '-1',
+  };
+  if (opts.orderNo) params.trade_order_id = opts.orderNo;
+
+  const { data, error } = await lazadaApiRequest(creds, 'GET', '/finance/transaction/details/get', params);
+  if (error) return { rows: [], error };
+  return { rows: Array.isArray(data) ? (data as Record<string, unknown>[]) : [] };
+}
