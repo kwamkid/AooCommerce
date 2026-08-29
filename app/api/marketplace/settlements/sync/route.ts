@@ -193,10 +193,15 @@ async function syncTikTokAccount(account: TikTokAccountRow, since: Date) {
   let processed = 0;
   let failed = 0;
   const unmapped = new Set<string>();
+  const errors = new Set<string>();
 
   for (const order of ourOrders) {
     const { statement, error } = await getOrderStatement(creds, order.external_order_sn!);
-    if (error || !statement) { failed++; continue; }
+    if (error || !statement) {
+      failed++;
+      errors.add(error || 'statement ว่าง (ออเดอร์อาจยังไม่ถึงรอบจ่ายเงิน)');
+      continue;
+    }
 
     // การแมปของ TikTok ยังไม่เคยเจอข้อมูลจริง — เก็บชื่อฟิลด์ที่ยังไม่รู้จักไว้รายงาน
     unmappedTikTokFields(statement).forEach(f => unmapped.add(f));
@@ -219,5 +224,6 @@ async function syncTikTokAccount(account: TikTokAccountRow, since: Date) {
     failed,
     // ถ้ามีค่าในนี้ = มีค่าธรรมเนียมที่ยังไม่ได้แมป ต้องเพิ่มใน lib/tiktok/settlement.ts
     unmapped_fields: [...unmapped],
+    errors: [...errors].slice(0, 5),
   };
 }
