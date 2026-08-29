@@ -326,9 +326,11 @@ export async function pushStockToShopee(
           });
         } else {
           // Check for partial failure in response (failure_list)
-          const resp = stockResult as { failure_list?: { model_id: number; fail_message: string }[] } | null;
+          // Shopee ตอบสนามนี้ว่า `failed_reason` (เคยอ่านผิดเป็น fail_message → ขึ้น "undefined"
+          // เวลาพัง = อ่านไม่ออกว่าเกิดอะไร) · เผื่อ fail_message ไว้ด้วยกันสองชื่อในอนาคต
+          const resp = stockResult as { failure_list?: { model_id: number; failed_reason?: string; fail_message?: string }[] } | null;
           if (resp?.failure_list && resp.failure_list.length > 0) {
-            const failMsgs = resp.failure_list.map(f => `model_id=${f.model_id}: ${f.fail_message}`);
+            const failMsgs = resp.failure_list.map(f => `model_id=${f.model_id}: ${f.failed_reason || f.fail_message || 'ไม่ทราบสาเหตุ'}`);
             errors.push(`Item ${externalItemId} partial fail: ${failMsgs.join('; ')}`);
             console.warn(`[Shopee Stock] update_stock PARTIAL FAIL item=${externalItemId}:`, failMsgs);
           }
