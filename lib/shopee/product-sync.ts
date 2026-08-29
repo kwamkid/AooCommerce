@@ -580,27 +580,28 @@ export async function pullStockFromShopee(
     const linkMap = new Map<string, string>(); // `${item}:${model}` → variation_id
     for (const l of links) linkMap.set(`${l.external_item_id}:${l.external_model_id}`, l.variation_id as string);
 
-    // ไล่ยอดจาก Shopee
+    // ไล่ยอดจาก Shopee — **เดินจาก link ที่เราผูกไว้ ไม่ใช่จากรายการสินค้าของร้าน**
+    //
+    // เดิมเดินด้วย getItemList(itemStatus:'NORMAL') ซึ่งคืนเฉพาะประกาศที่ยังโชว์ขายอยู่
+    // → ประกาศที่ถูก UNLIST / SELLER_DELETE หลุดออกจากการ reconcile ทั้งหมด
+    // **UNLIST = คนขายกดซ่อนเอง ไม่ได้แปลว่าของหมด** (พบจริง 2026-08-29: ประกาศที่ปิดขาย
+    // แต่ยังมีของเหลือ 50 / 16 / 4 ชิ้น) พอเปิดขายกลับ เลขสองฝั่งจะขัดกันตั้งแต่วินาทีแรก
+    //
+    // เดินจาก link แทน = ครอบคลุมทุกตัวที่เราผูกไว้ไม่ว่าสถานะอะไร และประหยัด
+    // get_item_list ทั้งร้านไปด้วย (สินค้าที่ไม่ได้ผูกก็ไม่ต้องดึงมาตั้งแต่แรก)
     const stockByVariation = new Map<string, number>();
-    let offset = 0;
-    let hasMore = true;
-    while (hasMore) {
-      const page = await getItemList(creds, { offset, pageSize: 100, itemStatus: 'NORMAL' });
-      const ids = page.items.map(i => i.item_id);
-      for (let i = 0; i < ids.length; i += 50) {
-        const details = await getItemFullDetails(creds, ids.slice(i, i + 50));
-        for (const [itemId, item] of details) {
-          const models = item.models.length > 0
-            ? item.models
-            : [{ model_id: 0, stock: 0 }];
-          for (const m of models) {
-            const variationId = linkMap.get(`${itemId}:${m.model_id}`);
-            if (variationId) stockByVariation.set(variationId, m.stock ?? 0);
-          }
+    const linkedItemIds = [...new Set(links.map(l => Number(l.external_item_id)))].filter(Boolean);
+    for (let i = 0; i < linkedItemIds.length; i += 50) {
+      const details = await getItemFullDetails(creds, linkedItemIds.slice(i, i + 50));
+      for (const [itemId, item] of details) {
+        const models = item.models.length > 0
+          ? item.models
+          : [{ model_id: 0, stock: 0 }];
+        for (const m of models) {
+          const variationId = linkMap.get(`${itemId}:${m.model_id}`);
+          if (variationId) stockByVariation.set(variationId, m.stock ?? 0);
         }
       }
-      hasMore = page.hasMore;
-      offset = page.nextOffset;
     }
     result.checked = stockByVariation.size;
     result.desired = Object.fromEntries(stockByVariation);

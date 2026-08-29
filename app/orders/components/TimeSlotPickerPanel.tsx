@@ -17,6 +17,11 @@ export interface TimeSlotOrder {
   orderSn: string;
   orderNumber: string;
   timeSlots: TimeSlot[];
+  /**
+   * มาจากแพลตฟอร์มไหน — จอนี้ไม่ได้ใช้แสดงผล แต่ผู้เรียกใช้ตัดสินว่าจะยิงปลายทางไหน
+   * ตอนยืนยัน · **เจตนาให้ผู้ใช้ไม่เห็นความต่างตรงนี้เลย** ทุกใบหน้าตาเหมือนกันหมด
+   */
+  source?: string;
 }
 
 interface TimeSlotPickerPanelProps {

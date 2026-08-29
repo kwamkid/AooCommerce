@@ -42,6 +42,7 @@ import { Order } from './types';
 import { isMarketplaceSource } from '@/lib/marketplace/types';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import TimeSlotPickerPanel, { type TimeSlotOrder } from './TimeSlotPickerPanel';
+import { toHandoverSlots, decodeTikTokSlotId } from '@/lib/marketplace/handover';
 
 const ON_HOLD_KEY = '__on_hold__';
 const ACTIVE_KEY = '__active__';
@@ -461,10 +462,39 @@ export default function ReadyToShipTab({
         }
       }
 
-      // TikTok และ Lazada ยังไม่มี bulk endpoint — ยิงทีละใบ
-      // ทั้งคู่ซ่อมสถานะเองถ้าแพลตฟอร์มรับไปแล้ว จึงกดซ้ำได้ปลอดภัย
+      // TikTok: ถามแพลตฟอร์มก่อนว่าใบนี้ต้องเลือกรอบเวลาให้ขนส่งมารับมั้ย
+      // ใบที่ต้องเลือก → เข้าคิวไปจอเดียวกับ Shopee (พนักงานไม่ต้องรู้ว่ามาจากไหน)
+      // **ห้ามเดาให้เอง** — เดา DROP_OFF แล้วแพลตฟอร์มรับไว้ = ของถูกตั้งเป็น "เอาไปส่งเอง"
+      // ทั้งที่ร้านอาจต้องการให้ขนส่งมารับ โดยไม่มีใครสั่ง
+      const tiktokDirectShip: string[] = [];
+      for (const id of tiktokIds) {
+        try {
+          const res = await apiFetch('/api/tiktok/orders/ship', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ order_id: id, preview: true }),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (res.ok && data.needs_pickup_slot && data.pickup_slots?.length > 0) {
+            const o = orders.find(x => x.id === id);
+            timeSlotQueue.push({
+              orderId: id,
+              orderSn: o?.external_order_sn || '',
+              orderNumber: o?.order_number || id,
+              timeSlots: toHandoverSlots(data.pickup_slots),
+              source: 'tiktok',
+            });
+          } else {
+            tiktokDirectShip.push(id);
+          }
+        } catch {
+          tiktokDirectShip.push(id);   // ถามไม่ได้ = ลองส่งตรง แล้วให้แพลตฟอร์มบอกเองว่าไม่ได้
+        }
+      }
+
+      // ที่เหลือคือใบที่ไม่ต้องตอบอะไร — ส่งได้เลย
       for (const [label, groupIds, endpoint] of [
-        ['TikTok', tiktokIds, '/api/tiktok/orders/ship'],
+        ['TikTok', tiktokDirectShip, '/api/tiktok/orders/ship'],
         ['Lazada', lazadaApproved, '/api/lazada/orders/ship'],
       ] as const) {
         for (const id of groupIds) {
@@ -836,6 +866,23 @@ export default function ReadyToShipTab({
 
     for (const [orderId, pickupTimeId] of selections) {
       try {
+        // จอเดียวกันแต่ปลายทางคนละที่ — แปลงตามที่มาของออเดอร์
+        const queued = timeSlotOrders.find(o => o.orderId === orderId);
+        if (queued?.source === 'tiktok') {
+          const slot = decodeTikTokSlotId(pickupTimeId);
+          const res = await apiFetch('/api/tiktok/orders/ship', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ order_id: orderId, handover_method: 'PICKUP', pickup_slot: slot }),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (res.ok && (data.success || data.repaired)) successIds.push(orderId);
+          else errors.push(`${queued.orderNumber}: ${data.error || 'ไม่สำเร็จ'}`);
+          processed++;
+          setOverlayProgress(Math.round((processed / total) * 100));
+          continue;
+        }
+
         const res = await apiFetch('/api/shopee/orders/bulk-ship', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
