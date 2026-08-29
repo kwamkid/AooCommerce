@@ -78,8 +78,14 @@ export default function MarketplaceConnections({
       refetch();
       onPlatformChange('tiktok');
       const askChat = params.get('chat') === 'prompt';
+      const logoAccount = params.get('logo') === 'prompt' ? params.get('logo_account') : null;
       window.history.replaceState({}, '', cleanUrl);
-      if (askChat) promptChatConnect('tiktok');
+      // ถามต่อกันเป็นสาย: แชท → โลโก้ · ถ้าตอบตกลงขาแรกจะเด้งออกไปเลย
+      // ขาที่เหลือจะถูกถามอีกทีตอนกลับมา ไม่ใช่ถามซ้อนกันสองอันพร้อมกัน
+      (async () => {
+        if (askChat && (await promptChatConnect('tiktok'))) return;
+        if (logoAccount) await promptProfileConnect(logoAccount);
+      })();
     } else if (params.get('success') === 'lazada_connected') {
       showToast('เชื่อมต่อ Lazada สำเร็จ', 'success');
       refetch();
@@ -100,8 +106,13 @@ export default function MarketplaceConnections({
         error_failed: 'เชื่อมบัญชี TikTok ไม่สำเร็จ',
       };
       const okResult = r === 'connected';
+      // บอกชื่อบัญชีที่ดึงมาเสมอ — ถ้าเบราว์เซอร์ค้างบัญชีอื่นไว้ จะได้เห็นตั้งแต่วินาทีแรก
+      // ว่าเป็นคนละร้าน แทนที่จะไปเจอเองตอนโลโก้ผิดขึ้นบนการ์ด
+      const who = params.get('profile_name');
       showToast(
-        profileMessages[r] || (r.startsWith('error_auth_') ? 'เซสชันหลุดระหว่างเชื่อมต่อ — เข้าสู่ระบบใหม่แล้วลองอีกครั้ง' : `เชื่อมบัญชีไม่สำเร็จ (${r})`),
+        okResult && who
+          ? `ใช้รูปจากบัญชี "${who}" เป็นโลโก้ร้านแล้ว — ถ้าไม่ใช่บัญชีของร้านนี้ กดที่โลโก้เพื่อแก้`
+          : profileMessages[r] || (r.startsWith('error_auth_') ? 'เซสชันหลุดระหว่างเชื่อมต่อ — เข้าสู่ระบบใหม่แล้วลองอีกครั้ง' : `เชื่อมบัญชีไม่สำเร็จ (${r})`),
         okResult ? 'success' : 'error'
       );
       if (okResult) refetch();
@@ -134,7 +145,8 @@ export default function MarketplaceConnections({
   // เชื่อมร้านสำเร็จแล้ว → ถามต่อว่าจะเชื่อมแชทด้วยมั้ย (app แชทแยกจาก app
   // ออเดอร์ — บางร้านไม่ใช้แชท / บางร้านเชื่อมไว้แล้ว จึงไม่ต่อขาอัตโนมัติ)
   // callback ส่ง chat=prompt มาเฉพาะเมื่อยังมีร้านที่ไม่มี token แชทเท่านั้น
-  const promptChatConnect = async (platform: 'tiktok' | 'lazada') => {
+  /** คืน true เมื่อกำลังจะเด้งออกไป TikTok — ผู้เรียกจะได้ไม่ถามคำถามถัดไปซ้อน */
+  const promptChatConnect = async (platform: 'tiktok' | 'lazada'): Promise<boolean> => {
     const label = platform === 'tiktok' ? 'TikTok Shop' : 'Lazada';
     const ok = await confirm({
       title: `เชื่อมต่อแชท ${label} ต่อเลยหรือไม่?`,
@@ -143,20 +155,35 @@ export default function MarketplaceConnections({
       confirmLabel: 'เชื่อมต่อแชท',
       cancelLabel: 'ไว้ทีหลัง',
     });
-    if (!ok) return;
+    if (!ok) return false;
     setConnecting(true);
     try {
       const res = await apiFetch(`/api/${platform}/oauth/auth-url?app=chat`);
       if (res.ok) {
         const { url } = await res.json();
         window.location.href = url;
-        return;
+        return true;
       }
       showToast('ไม่สามารถสร้างลิงก์เชื่อมต่อได้', 'error');
     } catch {
       showToast('เกิดข้อผิดพลาด', 'error');
     }
     setConnecting(false);
+    return false;
+  };
+
+  /** ขาที่สาม — โลโก้ร้าน · ถามต่อจากขาแชทเพื่อให้การเพิ่มร้านจบในลำดับเดียว */
+  const promptProfileConnect = async (accountId: string) => {
+    const ok = await confirm({
+      title: 'ดึงโลโก้ร้านจากบัญชี TikTok ต่อเลยหรือไม่?',
+      description:
+        'TikTok Shop ไม่เปิด API โลโก้ร้าน ต้องกดอนุญาตอีกครั้งเพื่อใช้รูปโปรไฟล์ของบัญชีเจ้าของร้านแทน — ข้ามไปก่อนได้ แล้วมากดที่รูปโลโก้ในการ์ดร้านทีหลัง\n\nTikTok จะใช้บัญชีที่ล็อกอินค้างอยู่ในเบราว์เซอร์ทันทีโดยไม่ให้เลือก — ถ้าดูแลหลายร้าน ให้ออกจากระบบ tiktok.com ก่อน',
+      confirmLabel: 'ดึงโลโก้',
+      cancelLabel: 'ไว้ทีหลัง',
+    });
+    if (!ok) return;
+    setConnecting(true);
+    await handleLinkTikTokProfile(accountId);
   };
 
   // Helper: read SSE stream from fetch response
@@ -1069,6 +1096,12 @@ export default function MarketplaceConnections({
               <p className="subtitle-text text-gray-500">
                 TikTok Shop ไม่เปิด API โลโก้ร้าน แต่ดึงรูปโปรไฟล์ของบัญชีที่เป็นเจ้าของร้านมาใช้แทนได้
                 — กดแล้วจะพาไปหน้าอนุญาตของ TikTok · เราขอแค่ชื่อกับรูป ไม่โพสต์อะไรทั้งสิ้น
+              </p>
+              {/* TikTok ไม่ให้สลับบัญชีในหน้า authorize (ลอง prompt=login แล้วมันปฏิเสธ)
+                  ทางเดียวคือออกจากระบบ tiktok.com ก่อน — ถ้าไม่บอก ผู้ใช้จะได้รูปผิดร้าน */}
+              <p className="subtitle-text text-amber-700 bg-amber-50 dark:bg-amber-500/10 rounded px-3 py-2">
+                ⚠️ TikTok จะใช้บัญชีที่ล็อกอินค้างอยู่ในเบราว์เซอร์ทันที และไม่มีให้เลือกสลับบัญชี
+                — ถ้าคุณดูแลหลายร้าน ให้เปิดหน้าต่างไม่ระบุตัวตน หรือออกจากระบบ tiktok.com ก่อนกด
               </p>
               <Button
                 variant="secondary"

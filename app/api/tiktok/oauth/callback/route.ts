@@ -5,6 +5,7 @@ import {
   isChatAppConfigured, type TikTokApp,
 } from '@/lib/tiktok/api';
 import { authorizeMarketplaceCallback } from '@/lib/oauth-state';
+import { isLoginKitConfigured } from '@/lib/tiktok/login-kit';
 
 /**
  * TikTok OAuth callback — ปลายทางร่วมของ **สอง** app
@@ -172,9 +173,27 @@ export async function GET(request: NextRequest) {
       if (pendingChat && pendingChat.length > 0) chatSuffix = '&chat=prompt';
     }
 
+    // ── ต่อด้วยโลโก้ร้าน ──
+    // TikTok Shop ไม่มี API โลโก้ร้าน ต้องดึง avatar ของบัญชีผ่าน Login Kit ซึ่งเป็น
+    // OAuth คนละระบบอีกขา · ถ้าไม่ชวนต่อตรงนี้ ผู้ใช้ต้องไปตามหาปุ่มเองทีหลัง
+    // ซึ่งแทบไม่มีใครทำ แล้วการ์ดร้านก็เป็นไอคอนเปล่าตลอดไป
+    let logoSuffix = '';
+    if (app === 'order' && isLoginKitConfigured()) {
+      const { data: noLogo } = await supabaseAdmin
+        .from('marketplace_accounts')
+        .select('id, metadata')
+        .eq('company_id', companyId)
+        .eq('platform', 'tiktok')
+        .eq('is_active', true);
+      const target = (noLogo || []).find(
+        a => !((a.metadata || {}) as Record<string, unknown>).shop_logo
+      );
+      if (target) logoSuffix = `&logo=prompt&logo_account=${target.id}`;
+    }
+
     const response = NextResponse.redirect(app === 'chat'
       ? chatSettingsUrl('connected')
-      : `${settingsUrl}&tiktok=connected${chatSuffix}`);
+      : `${settingsUrl}&tiktok=connected${chatSuffix}${logoSuffix}`);
     response.cookies.delete('tiktok_oauth_state');
 
     console.log('[TikTok Callback] Success! app:', app, 'shops:', shops.length);

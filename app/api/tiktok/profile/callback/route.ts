@@ -15,8 +15,13 @@ export async function GET(request: NextRequest) {
   const host = request.headers.get('host') || 'localhost:3000';
   const protocol = host.includes('localhost') ? 'http' : 'https';
   const baseUrl = `${protocol}://${host}`;
-  const back = (result: string) =>
-    NextResponse.redirect(`${baseUrl}/settings/sales-channels?tab=marketplace&tiktok_profile=${result}`);
+  // ชื่อบัญชีต้องเด้งกลับไปให้ผู้ใช้เห็นทันที — เบราว์เซอร์ที่ล็อกอิน TikTok ค้างไว้
+  // หลายบัญชีจะยกรูปของบัญชีที่ค้างอยู่มาให้ โดยที่ผู้ใช้ไม่รู้ว่าเป็นคนละร้าน
+  const back = (result: string, profileName?: string | null) => {
+    const q = new URLSearchParams({ tab: 'marketplace', tiktok_profile: result });
+    if (profileName) q.set('profile_name', profileName);
+    return NextResponse.redirect(`${baseUrl}/settings/sales-channels?${q.toString()}`);
+  };
 
   const rawState = searchParams.get('state') || null;
   const authz = await authorizeMarketplaceCallback(request, rawState);
@@ -69,7 +74,7 @@ export async function GET(request: NextRequest) {
       })
       .eq('id', accountId);
 
-    const res = back('connected');
+    const res = back('connected', displayName);
     res.cookies.delete('tiktok_profile_verifier');
     return res;
   } catch (err) {
