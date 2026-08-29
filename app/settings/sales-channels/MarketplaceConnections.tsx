@@ -93,8 +93,16 @@ export default function MarketplaceConnections({
         missing_params: 'ข้อมูลไม่ครบ กรุณาลองใหม่',
         no_shops: 'ไม่พบร้านค้าในบัญชีนี้',
         lazada_token_exchange: 'เชื่อมต่อ Lazada ไม่สำเร็จ กรุณาลองใหม่',
+
+        // ล้มตั้งแต่ตรวจสิทธิ์ ยังไม่ทันคุยกับแพลตฟอร์ม — ต้องบอกว่าให้ทำอะไรต่อ
+        // ไม่งั้นผู้ใช้เห็นแค่ "เกิดข้อผิดพลาด" แล้วเข้าใจว่าเชื่อมต่อสำเร็จไปแล้ว
+        auth_invalid_state: 'ลิงก์เชื่อมต่อหมดอายุ (เกิน 10 นาที) — กดเชื่อมต่อใหม่อีกครั้ง',
+        auth_not_authenticated: 'เซสชันหลุดระหว่างเชื่อมต่อ — เข้าสู่ระบบใหม่แล้วกดเชื่อมต่ออีกครั้ง',
+        auth_user_mismatch: 'เริ่มเชื่อมต่อด้วยบัญชีหนึ่งแต่จบด้วยอีกบัญชี — ใช้บัญชีเดิมตลอดขั้นตอน',
+        auth_not_member: 'บัญชีนี้ไม่มีสิทธิ์เชื่อมต่อร้านของบริษัทนี้',
       };
-      showToast(messages[err || ''] || 'เกิดข้อผิดพลาด', 'error');
+      // reason ใหม่จากฝั่ง callback จะได้ไม่กลายเป็นข้อความเปล่า ๆ อีก
+      showToast(messages[err || ''] || `เชื่อมต่อไม่สำเร็จ (${err})`, 'error');
       window.history.replaceState({}, '', cleanUrl);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
