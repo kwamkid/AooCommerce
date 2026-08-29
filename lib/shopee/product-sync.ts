@@ -160,14 +160,6 @@ export async function pushPriceToShopee(
   let updatedModels = 0;
 
   try {
-    // แพ็กเกจที่ไม่มีระบบคลัง = ไม่มี "ยอดของเรา" ที่จะส่งขึ้นไปตั้งแต่แรก
-    // ยิงไปก็ได้เลข 0 ทับของจริงบนร้าน — อันตรายกว่าไม่ทำ
-    const stockConfig = await getStockConfig(account.company_id);
-    if (!stockConfig.stockEnabled) {
-      errors.push('แพ็คเกจปัจจุบันยังไม่รองรับระบบคลังสินค้า — ซิงค์สต็อกไม่ได้');
-      return { success: false, updated_models: 0, errors };
-    }
-
     const creds = await ensureValidToken(account);
 
     const { data: links } = await supabaseAdmin
@@ -249,6 +241,14 @@ export async function pushStockToShopee(
   let updatedModels = 0;
 
   try {
+    // แพ็กเกจที่ไม่มีระบบคลัง = ไม่มี "ยอดของเรา" ที่จะส่งขึ้นไปตั้งแต่แรก
+    // ยิงไปก็ได้เลข 0 ทับของจริงบนร้าน — อันตรายกว่าไม่ทำ
+    const stockConfig = await getStockConfig(account.company_id);
+    if (!stockConfig.stockEnabled) {
+      errors.push('แพ็คเกจปัจจุบันยังไม่รองรับระบบคลังสินค้า — ซิงค์สต็อกไม่ได้');
+      return { success: false, updated_models: 0, errors };
+    }
+
     const creds = await ensureValidToken(account);
 
     const { data: links } = await supabaseAdmin

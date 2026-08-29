@@ -658,7 +658,7 @@ export default function ItemsTable({
                       <div className="flex items-center gap-2">
                         <div className="w-1 h-8 rounded bg-purple-300 dark:bg-purple-700 flex-shrink-0" />
                         {comp.image
-                          ? <img src={comp.image} alt="" className="w-8 h-8 rounded object-cover flex-shrink-0" />
+                          ? <img src={comp.image} alt="" className="w-8 h-8 rounded-md object-contain bg-gray-50 dark:bg-slate-700/50 flex-shrink-0" />
                           : <div className="w-8 h-8 rounded bg-gray-100 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
                               <Package className="w-3.5 h-3.5 text-gray-400 dark:text-slate-500" />
                             </div>
@@ -934,7 +934,7 @@ export default function ItemsTable({
                   {item.promotion_components.map((comp, ci) => (
                     <div key={ci} className="flex items-center gap-2">
                       {comp.image
-                        ? <img src={comp.image} alt="" className="w-8 h-8 rounded object-cover flex-shrink-0" />
+                        ? <img src={comp.image} alt="" className="w-8 h-8 rounded-md object-contain bg-gray-50 dark:bg-slate-700/50 flex-shrink-0" />
                         : <div className="w-8 h-8 rounded bg-gray-100 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
                             <Package className="w-3.5 h-3.5 text-gray-400" />
                           </div>

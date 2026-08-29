@@ -366,7 +366,7 @@ export default function SplitParcelModal({
                         {/* Image */}
                         <div className="w-11 h-11 rounded-lg bg-gray-100 dark:bg-gray-700 overflow-hidden flex-shrink-0">
                           {item.image ? (
-                            <img src={item.image} alt="" className="w-full h-full object-cover" />
+                            <img src={item.image} alt="" className="w-full h-full object-contain" />
                           ) : (
                             <div className="w-full h-full flex items-center justify-center">
                               <Package className="w-5 h-5 text-gray-300" />

@@ -508,8 +508,11 @@ export default function MarketplaceConnections({
 
     // ย้ายคลังของร้านที่ผูกสินค้าไว้แล้ว = ยอดที่ส่งขึ้นร้านจะเปลี่ยนชุดทันที
     // ต้องบอกให้ครบว่าอะไรเปลี่ยนและอะไรไม่เปลี่ยน ก่อนให้กดยืนยัน
-    const linked = account?.linked_product_count || 0;
-    if (linked > 0) {
+    // มีแต่ Shopee ที่ส่งสต็อกขึ้นร้านได้ตอนนี้ — TikTok/Lazada ยังไม่มี push stock
+    // อย่าสัญญาในข้อความสิ่งที่ทำไม่ได้ และอย่ายิง route ของ Shopee ด้วย account ของ platform อื่น
+    const canPushStock = !account?.platform || account.platform === 'shopee';
+    const linked = canPushStock ? (account?.linked_product_count || 0) : 0;
+    if ((account?.linked_product_count || 0) > 0) {
       const nameOf = (id: string | null) =>
         id ? (warehouses.find(w => w.id === id)?.name || 'คลังที่เลือก') : `คลังหลัก${defaultWarehouseName ? ` (${defaultWarehouseName})` : ''}`;
       const ok = await confirm({
@@ -517,8 +520,10 @@ export default function MarketplaceConnections({
         description:
           `• ออเดอร์ที่รับมาแล้วยังตัดสต็อกจากคลังเดิม — ระบบจำคลังไว้กับออเดอร์ตั้งแต่ตอนสร้าง จึงไม่กระทบของที่ยังไม่ได้ส่ง\n` +
           `• ออเดอร์ใหม่จะตัดจาก ${nameOf(next)} แทน\n` +
-          `• ยอดที่ส่งขึ้นร้านจะกลายเป็นยอดของ ${nameOf(next)} — ถ้าของจริงยังอยู่ที่ ${nameOf(prev)} ต้องโอนย้ายเองที่เมนูคลังสินค้า\n` +
-          `• หลังยืนยัน ระบบจะส่งยอดของคลังใหม่ขึ้นร้านให้ทันที (${linked} สินค้า ใช้โควตา Shopee ${linked} ครั้ง)`,
+          (canPushStock
+            ? `• ยอดที่ส่งขึ้นร้านจะกลายเป็นยอดของ ${nameOf(next)} — ถ้าของจริงยังอยู่ที่ ${nameOf(prev)} ต้องโอนย้ายเองที่เมนูคลังสินค้า\n` +
+              `• หลังยืนยัน ระบบจะส่งยอดของคลังใหม่ขึ้นร้านให้ทันที (${linked} สินค้า ใช้โควตา Shopee ${linked} ครั้ง)`
+            : `• ${account?.platform === 'tiktok' ? 'TikTok' : 'Lazada'} ยังไม่รองรับการส่งสต็อกขึ้นร้านจากระบบ — ยอดบนร้านต้องแก้เองที่ Seller Center`),
         confirmLabel: 'ย้ายคลัง',
         cancelLabel: 'ยกเลิก',
       });
@@ -538,17 +543,28 @@ export default function MarketplaceConnections({
       } else if (linked > 0) {
         // ส่งยอดของคลังใหม่ขึ้นร้านทันที ไม่งั้นร้านจะโชว์ยอดของคลังเดิมค้างไว้
         showToast(`บันทึกคลังแล้ว — กำลังส่งยอดของคลังใหม่ขึ้นร้าน (${linked} สินค้า)`);
-        const pushRes = await apiFetch('/api/shopee/products/push-stock', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ marketplace_account_id: accountId }),
-        });
-        const pushData = await pushRes.json().catch(() => ({}));
+        // ร้านใหญ่ยิงไม่จบใน request เดียว — route คืน next_cursor มาให้ทำต่อ
+        let cursor: number | undefined;
+        let pushedModels = 0;
+        let failed = false;
+        for (let round = 0; round < 20; round++) {
+          const pushRes = await apiFetch('/api/shopee/products/push-stock', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ marketplace_account_id: accountId, cursor }),
+          });
+          const pushData = await pushRes.json().catch(() => ({}));
+          if (!pushRes.ok) { failed = true; break; }
+          pushedModels += pushData.updated_models || 0;
+          if (!pushData.partial) { failed = !pushData.success; break; }
+          cursor = pushData.next_cursor;
+          showToast(pushData.message || `กำลังส่ง... (${pushData.done}/${pushData.total})`);
+        }
         showToast(
-          pushRes.ok && pushData.success
-            ? `ส่งยอดขึ้นร้านครบแล้ว (${pushData.updated_models} รายการ)`
-            : `บันทึกคลังแล้ว แต่ส่งยอดขึ้นร้านไม่ครบ — กดส่งใหม่ได้ที่ปุ่มซิงค์ในหน้าสินค้า`,
-          pushRes.ok && pushData.success ? 'success' : 'error'
+          failed
+            ? 'บันทึกคลังแล้ว แต่ส่งยอดขึ้นร้านไม่ครบ — กดซิงค์ซ้ำได้ที่หน้าสินค้า'
+            : `ส่งยอดขึ้นร้านครบแล้ว (${pushedModels} รายการ)`,
+          failed ? 'error' : 'success'
         );
       } else {
         showToast('บันทึกคลังของร้านนี้แล้ว');

@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { product_id, marketplace_account_id } = await request.json();
+    const { product_id, marketplace_account_id, cursor } = await request.json();
     if (!marketplace_account_id) {
       return NextResponse.json({ error: 'Missing marketplace_account_id' }, { status: 400 });
     }
@@ -31,6 +31,14 @@ export async function POST(request: NextRequest) {
     if (accError || !account) {
       return NextResponse.json({ error: 'Shop not found' }, { status: 404 });
     }
+    // route นี้เซ็นคำขอด้วย partner key ของ Shopee — ส่ง account ของ TikTok/Lazada เข้ามา
+    // จะกลายเป็นยิง Shopee ด้วย token ของ platform อื่น (fail ทุกครั้ง + log ผิด platform)
+    if (account.platform && account.platform !== 'shopee') {
+      return NextResponse.json(
+        { error: `ร้านนี้เป็น ${account.platform} — ยังไม่รองรับการส่งสต็อกขึ้น ${account.platform}` },
+        { status: 400 }
+      );
+    }
 
     const startMs = Date.now();
     let result: { success: boolean; updated_models: number; errors: string[] };
@@ -44,15 +52,47 @@ export async function POST(request: NextRequest) {
         .select('product_id')
         .eq('account_id', account.id)
         .eq('sync_enabled', true);
-      const productIds = [...new Set((links || []).map(l => l.product_id as string))].filter(Boolean);
+      const allIds = [...new Set((links || []).map(l => l.product_id as string))].filter(Boolean);
+      // เริ่มต่อจากตัวที่ค้างไว้ได้ — ร้านใหญ่ยิงไม่จบใน 1 request แน่
+      const startIndex = Math.max(0, Number(cursor) || 0);
+      const productIds = allIds.slice(startIndex);
+
+      // หยุดก่อน maxDuration แล้วคืน cursor กลับไป ไม่ใช่ปล่อยให้ platform ตัดกลางคัน
+      // แล้วไม่มีใครรู้ว่าทำถึงไหน (pattern เดียวกับ bulk-ship — ดู CLAUDE.md Scale & Queue)
+      const TIME_BUDGET_MS = 240_000;
       const { parallelLimit } = await import('@/lib/parallel');
-      const results = await parallelLimit(productIds, (pid) =>
-        pushStockToShopee(account as ShopeeAccountRow, pid), 3);
+      let done = 0;
+      let stoppedAt: number | null = null;
+      const collected: { success: boolean; updated_models: number; errors: string[] }[] = [];
+
+      const CHUNK = 15;
+      for (let i = 0; i < productIds.length; i += CHUNK) {
+        if (Date.now() - startMs > TIME_BUDGET_MS) {
+          stoppedAt = startIndex + done;
+          break;
+        }
+        const chunk = productIds.slice(i, i + CHUNK);
+        const rs = await parallelLimit(chunk, (pid) =>
+          pushStockToShopee(account as ShopeeAccountRow, pid), 3);
+        collected.push(...rs);
+        done += chunk.length;
+      }
+
       result = {
-        success: results.every(r => r.success),
-        updated_models: results.reduce((n, r) => n + r.updated_models, 0),
-        errors: results.flatMap(r => r.errors).slice(0, 20),
+        success: stoppedAt === null && collected.every(r => r.success),
+        updated_models: collected.reduce((n, r) => n + r.updated_models, 0),
+        errors: collected.flatMap(r => r.errors).slice(0, 20),
       };
+      if (stoppedAt !== null) {
+        return NextResponse.json({
+          ...result,
+          partial: true,
+          next_cursor: stoppedAt,
+          total: allIds.length,
+          done: stoppedAt,
+          message: `ส่งไปแล้ว ${stoppedAt}/${allIds.length} สินค้า — เรียกซ้ำพร้อม cursor เพื่อทำต่อ`,
+        });
+      }
     }
     const durationMs = Date.now() - startMs;
 

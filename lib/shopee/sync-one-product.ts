@@ -173,6 +173,9 @@ async function pullIntoSystem(
     linkUpdate.shopee_category_id = detail.category_id;
   }
 
+  // คลังของร้าน — resolve ครั้งเดียวนอก loop (เดิมเรียกต่อ variation = DB round-trip ซ้ำ)
+  const pullWarehouseId = fields.includes('stock') ? await resolveAccountWarehouseId(account) : null;
+
   for (const link of links) {
     const model = detail.models.find(m => String(m.model_id) === String(link.external_model_id))
       || (detail.models.length === 1 ? detail.models[0] : undefined);
@@ -193,9 +196,8 @@ async function pullIntoSystem(
     }
 
     if (fields.includes('stock')) {
-      const whId = await resolveAccountWarehouseId(account);
-      if (whId) {
-        const wh = { id: whId };
+      if (pullWarehouseId) {
+        const wh = { id: pullWarehouseId };
         const { data: inv } = await supabaseAdmin.from('inventory')
           .select('id, quantity, reserved_quantity').eq('warehouse_id', wh.id).eq('variation_id', link.variation_id).maybeSingle();
         const reserved = inv?.reserved_quantity || 0;
