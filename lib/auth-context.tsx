@@ -84,6 +84,10 @@ function setAuthCache(userId: string, profile: any, companies: CompanyMembership
  * เรียกทุกครั้งที่รู้รายชื่อบริษัทของ user คนปัจจุบัน
  */
 function dropStaleCompanySelection(companies: CompanyMembershipRaw[]) {
+  // ⚠️ ล้างเฉพาะตอนที่ "รู้แน่ว่ามีบริษัทอยู่จริงแต่ไม่ใช่ตัวที่ค้างอยู่"
+  //    รายการว่างอาจแปลว่าโหลดไม่สำเร็จ (เน็ตสะดุด / API ล้ม) ไม่ใช่ว่าไม่มีบริษัท
+  //    ถ้าล้างตอนนั้นด้วย ผู้ใช้ที่เน็ตกระตุกจะโดนดีดออกจากบริษัทตัวเองทุกครั้ง
+  if (companies.length === 0) return;
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved && !companies.some(c => c.company_id === saved)) {
@@ -112,6 +116,42 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
   const fetchUserProfile = useCallback(async (authUser: User, accessToken: string): Promise<UserProfile | null> => {
+    // แปลงผลจาก /api/auth/me เป็น state ของแอป — แยกออกมาเพราะทั้งรอบแรกและรอบที่
+    // ยิงซ้ำหลังต่ออายุ token ต้องทำเหมือนกันเป๊ะ
+    const buildProfile = (u: User, result: {
+      profile: Record<string, unknown>;
+      companies?: CompanyMembershipRaw[];
+      subscription?: unknown;
+    }): UserProfile => {
+      const data = result.profile as Record<string, any>;
+      const companiesData: CompanyMembershipRaw[] = result.companies || [];
+      setCompanies(companiesData);
+      setHasCompany(companiesData.length > 0);
+      dropStaleCompanySelection(companiesData);
+      setConnectionError(false);
+
+      // Cache for subsequent page navigations
+      setAuthCache(u.id, data, companiesData, result.subscription || null);
+
+      // Use company roles directly as the user's effective roles
+      const savedCompanyId = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEY) : null;
+      const currentMembership = companiesData.find(m => m.company_id === savedCompanyId) || companiesData[0];
+      const effectiveRoles = (currentMembership?.roles || ['sales']) as CompanyRole[];
+
+      return {
+        id: data.id,
+        email: data.email || u.email || '',
+        name: data.name || u.email?.split('@')[0] || 'User',
+        roles: effectiveRoles,
+        canViewCost: currentMembership?.can_view_cost === true,
+        avatar: data.avatar || undefined,
+        phone: data.phone || undefined,
+        isActive: data.is_active ?? true,
+        createdAt: new Date(data.created_at),
+        updatedAt: new Date(data.updated_at),
+      };
+    };
+
     try {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 15000);
@@ -123,42 +163,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
       clearTimeout(timeout);
 
-      if (response.status === 500) {
-        // Server error (likely Supabase connection timeout)
+      // ⚠️ **"โหลดไม่สำเร็จ" กับ "ยังไม่มีโปรไฟล์" ต้องแยกกันให้ขาด**
+      //    เดิม 401 ตกมาที่ return null เฉย ๆ แล้วแอปตีความว่าเป็นผู้ใช้ใหม่
+      //    → เด้งไปหน้า onboarding ให้กรอกชื่อ ทั้งที่มีบัญชี+บริษัทอยู่ครบ
+      //    (เจอจริง 2026-08-30 · น่ากลัวตรงที่มันชวนให้สร้างโปรไฟล์ซ้ำ)
+      //    สรุปว่าไม่มีโปรไฟล์ได้เฉพาะเมื่อ server ตอบ 200 แล้วไม่มี profile มาให้
+      if (!response.ok) {
+        if (response.status === 401) {
+          // token อาจหมดอายุพอดี — ลองต่ออายุแล้วยิงซ้ำครั้งเดียว
+          const { data: refreshed } = await supabase.auth.refreshSession();
+          const newToken = refreshed?.session?.access_token;
+          if (newToken && newToken !== accessToken) {
+            const retry = await fetch('/api/auth/me', {
+              method: 'GET',
+              headers: { Authorization: `Bearer ${newToken}` },
+            });
+            if (retry.ok) {
+              const retried = await retry.json();
+              if (retried?.profile) return buildProfile(authUser, retried);
+            }
+          }
+        }
+        // ต่ออายุแล้วยังไม่ผ่าน = แสดงจอ "เชื่อมต่อไม่ได้ + ลองใหม่" ไม่ใช่ onboarding
         setConnectionError(true);
         return null;
       }
 
       const result = await response.json();
-      if (!response.ok || !result.profile) return null;
+      if (!result.profile) return null;
       setConnectionError(false);
-
-      const data = result.profile;
-      const companiesData: CompanyMembershipRaw[] = result.companies || [];
-      setCompanies(companiesData);
-      setHasCompany(companiesData.length > 0);
-      dropStaleCompanySelection(companiesData);
-
-      // Cache for subsequent page navigations
-      setAuthCache(authUser.id, data, companiesData, result.subscription || null);
-
-      // Use company roles directly as the user's effective roles
-      const savedCompanyId = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEY) : null;
-      const currentMembership = companiesData.find((m: { company_id: string }) => m.company_id === savedCompanyId) || companiesData[0];
-      const effectiveRoles = (currentMembership?.roles || ['sales']) as CompanyRole[];
-
-      return {
-        id: data.id,
-        email: data.email || authUser.email || '',
-        name: data.name || authUser.email?.split('@')[0] || 'User',
-        roles: effectiveRoles,
-        canViewCost: currentMembership?.can_view_cost === true,
-        avatar: data.avatar || undefined,
-        phone: data.phone || undefined,
-        isActive: data.is_active ?? true,
-        createdAt: new Date(data.created_at),
-        updatedAt: new Date(data.updated_at)
-      };
+      return buildProfile(authUser, result);
     } catch (error) {
       console.error('Error fetching user profile:', error);
       // Network error (fetch failed, timeout, DNS, etc.)
