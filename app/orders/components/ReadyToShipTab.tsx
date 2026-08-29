@@ -388,12 +388,14 @@ export default function ReadyToShipTab({
       const marketplaceSet = new Set([...shopeeIds, ...tiktokIds, ...lazadaIds]);
       const manualIds = ids.filter(id => !marketplaceSet.has(id));
 
-      // Lazada แพ็คแล้วยกเลิกไม่ได้ (ไม่มี API) — ต้องให้ยืนยันแยกก่อนเสมอ
+      // Lazada แพ็คแล้วยกเลิกจากในระบบไม่ได้ (ไม่มี API ถอน) — ต้องให้ยืนยันแยกก่อนเสมอ
+      // หมายเหตุ: ReadyToShip = "ตั้งสถานะว่าพร้อมส่ง" ไม่ใช่การกดเรียกรถ
+      // การนัดรับเกิดทางโทรศัพท์ตามปกติ — จึงไม่ต้องแยกเป็น 2 ปุ่ม
       let lazadaApproved: string[] = [];
       if (lazadaIds.length > 0) {
         const ok = await confirm({
           title: `จัดส่ง Lazada ${lazadaIds.length} รายการ`,
-          description: 'Lazada จะแพ็คพัสดุและเรียกขนส่งทันที ยกเลิกในระบบไม่ได้ — ถ้าต้องแก้ต้องทำใน Lazada Seller Center',
+          description: 'Lazada จะสร้างพัสดุและตั้งสถานะเป็นพร้อมส่ง — ยกเลิกจากในระบบไม่ได้ ถ้าต้องแก้ต้องทำใน Lazada Seller Center',
           confirmLabel: 'จัดส่งเลย',
           variant: 'danger',
         });

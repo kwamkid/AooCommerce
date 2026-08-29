@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
 
   const { data: order } = await supabaseAdmin
     .from('orders')
-    .select('id, source, order_status, external_order_sn, marketplace_account_id')
+    .select('id, source, order_status, external_order_sn, marketplace_account_id, external_data')
     .eq('id', order_id)
     .eq('company_id', companyId)
     .single();
@@ -102,6 +102,25 @@ export async function POST(request: NextRequest) {
     }, { status: 409 });
   }
 
+  // รูปแบบการขายของออเดอร์นี้ — Lazada บอกมาในตัวออเดอร์อยู่แล้ว ไม่ต้องเดา
+  //   dropship        = ของอยู่ที่ร้าน ร้านแพ็คเอง (ปกติของร้านไทย)
+  //   fbl             = ฝากของไว้คลัง Lazada — Lazada แพ็คให้ ไม่ใช่หน้าที่เรา
+  //   pickup_in_store = ลูกค้ามารับที่ร้าน — เอกสารระบุว่า **แพ็คผ่าน API ไม่ได้**
+  // ⚠️ dropship ของ Lazada ≠ DROP_OFF ของ Shopee/TikTok — คนละแกนกัน
+  //    (อันนี้คือ "ของอยู่ที่ไหน ใครแพ็ค" ส่วนอันนั้นคือ "พัสดุออกจากร้านยังไง")
+  const lazadaItems = ((order.external_data as Record<string, unknown>)?.items || []) as
+    { is_fbl?: number; shipping_type?: string; warehouse_code?: string }[];
+  const isFbl = lazadaItems.some(i => Number(i.is_fbl) === 1);
+  const isPickupInStore = lazadaItems.some(
+    i => (i.shipping_type || '').toLowerCase().includes('pickup_in_store')
+  );
+  if (isPickupInStore) {
+    return NextResponse.json({
+      error: 'ออเดอร์แบบลูกค้ามารับที่ร้าน แพ็คผ่านระบบไม่ได้ — ต้องทำใน Lazada Seller Center',
+    }, { status: 400 });
+  }
+  const deliveryType = isFbl ? 'fbl' : 'dropship';
+
   const allItemIds = (orderItems || []).flatMap(oi => oi.external_line_item_ids || []);
   if (allItemIds.length === 0) {
     return NextResponse.json({ error: 'ไม่พบสินค้าในออเดอร์' }, { status: 400 });
@@ -141,6 +160,7 @@ export async function POST(request: NextRequest) {
       const { items, error } = await packLazadaOrder(creds, {
         orderId: order.external_order_sn,
         orderItemIds: ids,
+        deliveryType,
         shipmentProviderCode: chosen?.provider_code,
         shippingAllocateType: chosen?.shipping_allocate_type,
       });
