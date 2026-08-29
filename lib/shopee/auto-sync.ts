@@ -1,6 +1,7 @@
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { ShopeeAccountRow, isShopeeQuotaBlocked } from '@/lib/shopee/api';
 import type { QuotaTarget } from '@/lib/marketplace/quota';
+import { resolveAccountWarehouseId } from '@/lib/marketplace/warehouse';
 import { pushStockToShopee, pushPriceToShopee, pushInfoToShopee, pushCategoryToShopee } from '@/lib/shopee/product-sync';
 import { logIntegration } from '@/lib/integration-logger';
 import { parallelLimit } from '@/lib/parallel';
@@ -35,8 +36,17 @@ export function triggerShopeeStockSync(variationIds: string[]): void {
   });
 }
 
-export async function syncStockNow(variationIds: string[]): Promise<void> {
+/**
+ * ส่งยอดสต็อกขึ้นร้าน Shopee ที่ผูกกับ variation เหล่านี้
+ *
+ * @param changedWarehouseIds คลังที่เพิ่งเปลี่ยนจริง — ส่งมาแล้วจะข้ามร้านที่ใช้คลังอื่น
+ *   เพราะยอดของร้านนั้นไม่ได้ขยับ ยิงไปก็ส่งเลขเดิม เผาโควตาเปล่า ๆ
+ *   (สำคัญขึ้นมากตั้งแต่แต่ละร้านเลือกคลังเองได้ — ขายที่สาขาไม่ควรไปกวนร้านที่แพ็คจากคลังกลาง)
+ *   ไม่ส่ง = ยิงทุกร้านเหมือนเดิม (call site เก่าที่ยังไม่รู้คลัง)
+ */
+export async function syncStockNow(variationIds: string[], changedWarehouseIds?: (string | null | undefined)[]): Promise<void> {
   if (await quotaBlocked('inventory', 'stock sync')) return;
+  const changed = (changedWarehouseIds || []).filter(Boolean) as string[];
 
   const { data: links } = await supabaseAdmin
     .from('marketplace_product_links')
@@ -70,6 +80,12 @@ export async function syncStockNow(variationIds: string[]): Promise<void> {
       if (!account) return;
       // Check account-level toggle
       if (account.auto_sync_stock === false) return;
+
+      // ร้านนี้แพ็คจากคลังที่ไม่ได้ขยับ → ยอดเท่าเดิม ไม่ต้องยิง
+      if (changed.length > 0) {
+        const accountWarehouseId = await resolveAccountWarehouseId(account);
+        if (accountWarehouseId && !changed.includes(accountWarehouseId)) return;
+      }
 
       const startMs = Date.now();
       const result = await pushStockToShopee(account as ShopeeAccountRow, product_id);

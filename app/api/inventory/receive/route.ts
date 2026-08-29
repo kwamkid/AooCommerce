@@ -77,7 +77,7 @@ export async function POST(request: NextRequest) {
     // Auto-sync stock to Shopee if linked
     const syncVariationIds = results.map((r: { variation_id: string }) => r.variation_id);
     if (syncVariationIds.length > 0) {
-      after(() => import('@/lib/shopee/auto-sync').then(m => m.syncStockNow(syncVariationIds)));
+      after(() => import('@/lib/shopee/auto-sync').then(m => m.syncStockNow(syncVariationIds, [warehouse_id])));
     }
 
     return NextResponse.json({ success: true, results });

@@ -482,7 +482,7 @@ export async function POST(request: NextRequest) {
     });
 
     // Auto-sync stock to Shopee if linked
-    after(() => import('@/lib/shopee/auto-sync').then(m => m.syncStockNow([variation_id])));
+    after(() => import('@/lib/shopee/auto-sync').then(m => m.syncStockNow([variation_id], [warehouse_id])));
 
     return NextResponse.json({ success: true });
   } catch (error) {

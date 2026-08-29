@@ -2601,7 +2601,7 @@ export async function PUT(request: NextRequest) {
                 // Auto-sync stock to Shopee
                 const shippingVarIds = stockItems.map(s => s.variationId);
                 if (shippingVarIds.length > 0) {
-                  after(() => import('@/lib/shopee/auto-sync').then(m => m.syncStockNow(shippingVarIds)));
+                  after(() => import('@/lib/shopee/auto-sync').then(m => m.syncStockNow(shippingVarIds, [warehouseId])));
                 }
               } else if (newStatus === 'cancelled') {
                 const stockFn = oldStatus === 'shipping' ? returnStock : unreserveStock;
@@ -2621,7 +2621,7 @@ export async function PUT(request: NextRequest) {
                 if (oldStatus === 'shipping') {
                   const cancelVarIds = stockItems.map(s => s.variationId);
                   if (cancelVarIds.length > 0) {
-                    after(() => import('@/lib/shopee/auto-sync').then(m => m.syncStockNow(cancelVarIds)));
+                    after(() => import('@/lib/shopee/auto-sync').then(m => m.syncStockNow(cancelVarIds, [warehouseId])));
                   }
                 }
               }
