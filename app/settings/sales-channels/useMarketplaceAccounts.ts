@@ -22,6 +22,8 @@ export interface MarketplaceAccount {
   refresh_token_expires_at: string | null;
   auto_sync_stock: boolean;
   auto_sync_product_info: boolean;
+  /** คลังที่ร้านนี้ตัด/ซิงค์สต็อก — null = ใช้คลัง default ของบริษัท */
+  warehouse_id: string | null;
   connection_status: 'connected' | 'expired' | 'disconnected';
   linked_product_count: number;
   metadata: Record<string, unknown>;

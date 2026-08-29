@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
 
     let query = supabaseAdmin
       .from('marketplace_accounts')
-      .select('id, company_id, platform, shop_id, shop_name, is_active, last_sync_at, last_product_sync_at, access_token_expires_at, refresh_token_expires_at, chat_access_token, auto_sync_stock, auto_sync_product_info, metadata, created_at, updated_at')
+      .select('id, company_id, platform, shop_id, shop_name, is_active, last_sync_at, last_product_sync_at, access_token_expires_at, refresh_token_expires_at, chat_access_token, auto_sync_stock, auto_sync_product_info, warehouse_id, metadata, created_at, updated_at')
       .eq('company_id', companyId)
       .order('created_at', { ascending: false });
 
@@ -248,7 +248,7 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { id, auto_sync_stock, auto_sync_product_info } = body;
+    const { id, auto_sync_stock, auto_sync_product_info, warehouse_id } = body;
     if (!id) {
       return NextResponse.json({ error: 'Missing account ID' }, { status: 400 });
     }
@@ -256,6 +256,26 @@ export async function PUT(request: NextRequest) {
     const updateData: Record<string, unknown> = { updated_at: new Date().toISOString() };
     if (typeof auto_sync_stock === 'boolean') updateData.auto_sync_stock = auto_sync_stock;
     if (typeof auto_sync_product_info === 'boolean') updateData.auto_sync_product_info = auto_sync_product_info;
+
+    // คลังที่ร้านนี้ตัด/ซิงค์สต็อก — null = ใช้คลัง default ของบริษัท
+    if (warehouse_id !== undefined) {
+      if (warehouse_id === null || warehouse_id === '') {
+        updateData.warehouse_id = null;
+      } else {
+        // ต้องเป็นคลังของบริษัทตัวเองและยังเปิดใช้อยู่
+        const { data: wh } = await supabaseAdmin
+          .from('warehouses')
+          .select('id')
+          .eq('id', warehouse_id)
+          .eq('company_id', companyId)
+          .eq('is_active', true)
+          .maybeSingle();
+        if (!wh) {
+          return NextResponse.json({ error: 'ไม่พบคลังนี้ หรือคลังถูกปิดใช้งานอยู่' }, { status: 400 });
+        }
+        updateData.warehouse_id = warehouse_id;
+      }
+    }
 
     const { error } = await supabaseAdmin
       .from('marketplace_accounts')

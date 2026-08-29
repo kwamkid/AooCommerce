@@ -6,6 +6,7 @@
 // - ไม่มี 15-day cap แบบ Shopee แต่ห้าม stamp last_sync_at ถ้า collect ล้ม (บทเรียน fix-bug.md 2026-08-21)
 
 import { supabaseAdmin } from '@/lib/supabase-admin';
+import { resolveAccountWarehouseId } from '@/lib/marketplace/warehouse';
 import { newCustomerCode } from '@/lib/customer-code';
 import { ensureVariationImage, upsertProductImage } from '@/lib/marketplace/product-helpers';
 import { sendNewOrderPushById } from '@/lib/push/send';
@@ -536,15 +537,8 @@ async function createNewOrder(
     ? `Lazada: ${order.order_id}\nข้อความจากผู้ซื้อ: ${order.remarks}`
     : `Lazada: ${order.order_id}`;
 
-  const { data: defaultWarehouse } = await supabaseAdmin
-    .from('warehouses')
-    .select('id')
-    .eq('company_id', companyId)
-    .eq('is_default', true)
-    .eq('is_active', true)
-    .limit(1)
-    .single();
-  const warehouseId = defaultWarehouse?.id || null;
+  // คลังของร้านนี้ — ไม่ได้เลือกไว้ = คลัง default (ดู lib/marketplace/warehouse.ts)
+  const warehouseId = await resolveAccountWarehouseId(account);
 
   const tracking = items.find(it => it.tracking_code)?.tracking_code || null;
   const carrier = items.find(it => it.shipment_provider)?.shipment_provider || null;

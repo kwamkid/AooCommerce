@@ -1,4 +1,6 @@
 import { supabaseAdmin } from '@/lib/supabase-admin';
+import { resolveAccountWarehouseId } from '@/lib/marketplace/warehouse';
+import { getStockConfig } from '@/lib/stock-utils';
 import {
   ensureValidToken,
   getItemList,
@@ -158,6 +160,14 @@ export async function pushPriceToShopee(
   let updatedModels = 0;
 
   try {
+    // แพ็กเกจที่ไม่มีระบบคลัง = ไม่มี "ยอดของเรา" ที่จะส่งขึ้นไปตั้งแต่แรก
+    // ยิงไปก็ได้เลข 0 ทับของจริงบนร้าน — อันตรายกว่าไม่ทำ
+    const stockConfig = await getStockConfig(account.company_id);
+    if (!stockConfig.stockEnabled) {
+      errors.push('แพ็คเกจปัจจุบันยังไม่รองรับระบบคลังสินค้า — ซิงค์สต็อกไม่ได้');
+      return { success: false, updated_models: 0, errors };
+    }
+
     const creds = await ensureValidToken(account);
 
     const { data: links } = await supabaseAdmin
@@ -262,19 +272,10 @@ export async function pushStockToShopee(
     const allVariationIds = links.map(l => l.variation_id).filter(Boolean) as string[];
     const inventoryMap = new Map<string, number>();
     if (allVariationIds.length > 0) {
-      // Push stock ไป Shopee จะใช้แค่ default warehouse (is_default=true) เท่านั้น
-      // เพื่อกันไม่ให้ stock ที่อยู่คลังฝากขาย/คลังสาขา รวมเข้าไปด้วย
-      // คลังแรกที่สร้าง API auto-set is_default=true ให้เสมอ ดังนั้นจะเจอเสมอ
-      const { data: defaultWh } = await supabaseAdmin
-        .from('warehouses')
-        .select('id')
-        .eq('company_id', account.company_id)
-        .eq('is_active', true)
-        .eq('is_default', true)
-        .limit(1)
-        .maybeSingle();
-
-      const warehouseId = defaultWh?.id;
+      // สต็อกที่ส่งขึ้นร้าน = ของคลังที่ร้านนี้เลือกไว้ (ไม่ได้เลือก = คลัง default)
+      // ต้องเป็นคลังเดียวกับที่ออเดอร์ของร้านนี้ตัดสต็อก ไม่งั้นจะส่งยอดของคลังหนึ่ง
+      // แต่ตัดอีกคลังหนึ่ง — ดู lib/marketplace/warehouse.ts
+      const warehouseId = await resolveAccountWarehouseId(account);
 
       if (warehouseId) {
         const { data: inventoryRows } = await supabaseAdmin
@@ -551,21 +552,21 @@ export async function pullStockFromShopee(
   const companyId = account.company_id;
 
   try {
-    const creds = await ensureValidToken(account);
-
-    // คลัง default เท่านั้น — convention เดียวกับ pushStockToShopee
-    const { data: warehouse } = await supabaseAdmin
-      .from('warehouses')
-      .select('id')
-      .eq('company_id', companyId)
-      .eq('is_active', true)
-      .eq('is_default', true)
-      .limit(1)
-      .maybeSingle();
-    if (!warehouse) {
-      result.errors.push('ไม่พบคลัง default ของบริษัท — สร้างคลังก่อน');
+    const stockConfig = await getStockConfig(companyId);
+    if (!stockConfig.stockEnabled) {
+      result.errors.push('แพ็คเกจปัจจุบันยังไม่รองรับระบบคลังสินค้า — ซิงค์สต็อกไม่ได้');
       return result;
     }
+
+    const creds = await ensureValidToken(account);
+
+    // คลังของร้านนี้ — convention เดียวกับ pushStockToShopee (ต้องเป็นคลังเดียวกันเสมอ)
+    const warehouseId = await resolveAccountWarehouseId(account);
+    if (!warehouseId) {
+      result.errors.push('ยังไม่มีคลังที่ใช้งานได้ — สร้างคลังก่อน');
+      return result;
+    }
+    const warehouse = { id: warehouseId };
 
     // links ของร้านนี้: (item_id, model_id) → variation_id
     const { data: links } = await supabaseAdmin

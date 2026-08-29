@@ -1,4 +1,5 @@
 import { supabaseAdmin } from '@/lib/supabase-admin';
+import { resolveAccountWarehouseId } from '@/lib/marketplace/warehouse';
 import { newCustomerCode } from '@/lib/customer-code';
 import { ensureVariationImage, upsertProductImage } from '@/lib/marketplace/product-helpers';
 import {
@@ -694,16 +695,8 @@ async function createNewOrder(
     ? `TikTok: ${tiktokOrder.id}\nข้อความจากผู้ซื้อ: ${tiktokOrder.buyer_message}`
     : `TikTok: ${tiktokOrder.id}`;
 
-  // Get default warehouse
-  const { data: defaultWarehouse } = await supabaseAdmin
-    .from('warehouses')
-    .select('id')
-    .eq('company_id', companyId)
-    .eq('is_default', true)
-    .eq('is_active', true)
-    .limit(1)
-    .single();
-  const warehouseId = defaultWarehouse?.id || null;
+  // คลังของร้านนี้ — ไม่ได้เลือกไว้ = คลัง default (ดู lib/marketplace/warehouse.ts)
+  const warehouseId = await resolveAccountWarehouseId(account);
 
   // Extract tracking/carrier
   const tracking = tiktokOrder.tracking_number ||

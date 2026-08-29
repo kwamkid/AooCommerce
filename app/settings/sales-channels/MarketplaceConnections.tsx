@@ -10,8 +10,9 @@ import { can } from '@/lib/permissions';
 import { useToast } from '@/lib/toast-context';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { apiFetch } from '@/lib/api-client';
-import { ShoppingBag, RefreshCw, Clock, PackageSearch } from 'lucide-react';
+import { ShoppingBag, RefreshCw, Clock, PackageSearch, Warehouse } from 'lucide-react';
 import Button from '@/components/ui/Button';
+import FormSelect from '@/components/ui/FormSelect';
 import { ExportButton, ImportButton } from '@/components/ui/ExportImportButton';
 import Alert from '@/components/ui/Alert';
 import MarketplaceQuotaPausedAlert from '@/components/ui/MarketplaceQuotaPausedAlert';
@@ -449,6 +450,74 @@ export default function MarketplaceConnections({
     }
   };
 
+  // คลังของบริษัท — ใช้ทำตัวเลือก "ร้านนี้ตัดสต็อกจากคลังไหน"
+  const [warehouses, setWarehouses] = useState<{ id: string; name: string; is_default: boolean }[]>([]);
+  useEffect(() => {
+    apiFetch('/api/warehouses')
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => {
+        const list = Array.isArray(d) ? d : (d?.warehouses || []);
+        setWarehouses(list.filter((w: { is_active?: boolean }) => w.is_active !== false));
+      })
+      .catch(() => { /* ไม่มีคลัง = ไม่ต้องโชว์ตัวเลือก */ });
+  }, []);
+  const defaultWarehouseName = warehouses.find(w => w.is_default)?.name || '';
+
+  /**
+   * ตัวเลือก "ร้านนี้ตัด/ซิงค์สต็อกจากคลังไหน" — ใช้ร่วมทั้ง Shopee / TikTok / Lazada
+   * โชว์เมื่อบริษัทมีมากกว่า 1 คลังเท่านั้น (คลังเดียวไม่มีอะไรให้เลือก ไม่ต้องรก)
+   */
+  const warehousePicker = (account: MarketplaceAccount) => {
+    if (warehouses.length <= 1) return null;
+    return (
+      <div className="flex flex-wrap items-center gap-2 pt-1">
+        <span className="text-xs text-gray-700 dark:text-slate-300 flex items-center gap-1">
+          <Warehouse className="w-3.5 h-3.5" />
+          คลังที่ตัด/ซิงค์สต็อก
+        </span>
+        <div className="w-64">
+          <FormSelect
+            size="sm"
+            value={account.warehouse_id || ''}
+            onChange={v => handleSelectWarehouse(account.id, v)}
+            options={[
+              { id: '', label: defaultWarehouseName ? `ใช้คลังหลัก (${defaultWarehouseName})` : 'ใช้คลังหลัก' },
+              ...warehouses.map(w => ({ id: w.id, label: w.name })),
+            ]}
+          />
+        </div>
+        {!account.warehouse_id && (
+          <span className="text-xs text-amber-600 dark:text-amber-400">
+            ยังไม่ได้เลือก — ออเดอร์ร้านนี้ตัดสต็อกจากคลังหลัก
+          </span>
+        )}
+      </div>
+    );
+  };
+
+  const handleSelectWarehouse = async (accountId: string, warehouseId: string) => {
+    const all = [...shopeeAccounts, ...tiktokAccounts, ...lazadaAccounts];
+    const prev = all.find(a => a.id === accountId)?.warehouse_id ?? null;
+    const next = warehouseId || null;
+    patchAccount(accountId, { warehouse_id: next });
+    try {
+      const res = await apiFetch('/api/shopee/accounts', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: accountId, warehouse_id: next }),
+      });
+      if (!res.ok) {
+        patchAccount(accountId, { warehouse_id: prev });
+        showToast('เปลี่ยนคลังไม่สำเร็จ', 'error');
+      } else {
+        showToast('บันทึกคลังของร้านนี้แล้ว');
+      }
+    } catch {
+      patchAccount(accountId, { warehouse_id: prev });
+      showToast('เปลี่ยนคลังไม่สำเร็จ', 'error');
+    }
+  };
+
   const handleToggleSync = async (accountId: string, field: 'auto_sync_stock' | 'auto_sync_product_info', value: boolean) => {
     // Optimistic update
     patchAccount(accountId, { [field]: value });
@@ -560,6 +629,8 @@ export default function MarketplaceConnections({
                   </span>
                   <span>เชื่อมต่อเมื่อ: {formatThaiDateTime(account.created_at)}</span>
                 </div>
+
+                {warehousePicker(account)}
 
                 {/* Auto-Sync Toggles */}
                 <div className="flex flex-wrap gap-x-6 gap-y-2 pt-1">
@@ -685,6 +756,9 @@ export default function MarketplaceConnections({
                   </span>
                   <span>เชื่อมต่อเมื่อ: {formatThaiDateTime(account.created_at)}</span>
                 </div>
+
+                {warehousePicker(account)}
+
                 <div className="flex flex-wrap items-center gap-2 pt-1">
                   <SyncRangeSelect
                     value={syncRange[account.id] || 1}
@@ -761,6 +835,8 @@ export default function MarketplaceConnections({
                   </button>
                 }
               >
+                {warehousePicker(account)}
+
                 <div className="flex flex-wrap items-center gap-2">
                   <SyncRangeSelect
                     value={syncRange[account.id] || 1}

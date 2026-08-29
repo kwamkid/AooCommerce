@@ -1,4 +1,5 @@
 import { supabaseAdmin } from '@/lib/supabase-admin';
+import { resolveAccountWarehouseId } from '@/lib/marketplace/warehouse';
 import { newCustomerCode } from '@/lib/customer-code';
 import { normalizeShopeeEscrow } from '@/lib/shopee/settlement';
 import { saveSettlement } from '@/lib/marketplace/settlement';
@@ -961,16 +962,8 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder, 
     if ((existingItemCount || 0) === 0 && (shopeeOrder.item_list || []).length > 0) {
       console.log(`[Shopee Sync] Order ${shopeeOrder.order_sn} has 0 items but Shopee has ${shopeeOrder.item_list.length} — creating items`);
 
-      // Get default warehouse
-      const { data: defaultWarehouse } = await supabaseAdmin
-        .from('warehouses')
-        .select('id')
-        .eq('company_id', companyId)
-        .eq('is_default', true)
-        .eq('is_active', true)
-        .limit(1)
-        .single();
-      const warehouseId = defaultWarehouse?.id || null;
+      // คลังของร้านนี้ — ไม่ได้เลือกไว้ = คลัง default (ดู lib/marketplace/warehouse.ts)
+      const warehouseId = await resolveAccountWarehouseId(account);
 
       let subtotal = 0;
       for (const item of shopeeOrder.item_list) {
@@ -1314,17 +1307,8 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder, 
     ? `Shopee: ${shopeeOrder.order_sn}\nข้อความจากผู้ซื้อ: ${shopeeOrder.note}`
     : `Shopee: ${shopeeOrder.order_sn}`;
 
-  // Get default warehouse for stock reservation
-  const { data: defaultWarehouse } = await supabaseAdmin
-    .from('warehouses')
-    .select('id')
-    .eq('company_id', companyId)
-    .eq('is_default', true)
-    .eq('is_active', true)
-    .limit(1)
-    .single();
-
-  const warehouseId = defaultWarehouse?.id || null;
+  // คลังของร้านนี้สำหรับจองสต็อก — ไม่ได้เลือกไว้ = คลัง default
+  const warehouseId = await resolveAccountWarehouseId(account);
 
   // Create order
   const { data: order, error: orderError } = await supabaseAdmin

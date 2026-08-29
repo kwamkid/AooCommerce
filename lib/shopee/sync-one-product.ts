@@ -25,6 +25,7 @@ import {
   pushCategoryToShopee,
 } from '@/lib/shopee/product-sync';
 import { upsertProductImage } from '@/lib/marketplace/product-helpers';
+import { resolveAccountWarehouseId } from '@/lib/marketplace/warehouse';
 
 export type SyncDirection = 'pull' | 'push';
 export const SYNC_FIELDS = ['image', 'name', 'price', 'stock', 'category'] as const;
@@ -192,9 +193,9 @@ async function pullIntoSystem(
     }
 
     if (fields.includes('stock')) {
-      const { data: wh } = await supabaseAdmin.from('warehouses')
-        .select('id').eq('company_id', product.company_id).eq('is_active', true).eq('is_default', true).maybeSingle();
-      if (wh) {
+      const whId = await resolveAccountWarehouseId(account);
+      if (whId) {
+        const wh = { id: whId };
         const { data: inv } = await supabaseAdmin.from('inventory')
           .select('id, quantity, reserved_quantity').eq('warehouse_id', wh.id).eq('variation_id', link.variation_id).maybeSingle();
         const reserved = inv?.reserved_quantity || 0;
@@ -304,10 +305,10 @@ async function pushToShopee(
 
   if (fields.includes('stock')) {
     // ยอดบน Shopee ตอนนี้เราไม่รู้โดยไม่ยิง API (ไม่ได้เก็บไว้ใน link) — บอกให้ชัดว่าจะส่งเลขอะไรขึ้นไป
-    const { data: wh } = await supabaseAdmin.from('warehouses')
-      .select('id').eq('company_id', product.company_id).eq('is_active', true).eq('is_default', true).maybeSingle();
+    const whId = await resolveAccountWarehouseId(account);
     for (const link of links) {
-      if (!wh || !link.variation_id) continue;
+      if (!whId || !link.variation_id) continue;
+      const wh = { id: whId };
       const { data: inv } = await supabaseAdmin.from('inventory')
         .select('quantity, reserved_quantity').eq('warehouse_id', wh.id).eq('variation_id', link.variation_id).maybeSingle();
       const available = Math.max(0, (inv?.quantity || 0) - (inv?.reserved_quantity || 0));
