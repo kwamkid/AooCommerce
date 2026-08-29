@@ -144,18 +144,19 @@ export async function GET(request: NextRequest) {
 
     // โลโก้จาก /seller/get อาจเป็นไฟล์ archive ที่ตายแล้ว — เก็บเฉพาะที่โหลดได้จริง
     // ไม่งั้นคงค่าเดิมของแถวเดิมไว้ (เช่นโลโก้หน้าร้านที่เก็บไว้ก่อนหน้า)
+    // อ่าน metadata เดิมเสมอ — ต้อง merge ไม่ใช่ทับ ไม่งั้นค่าที่ผู้ใช้ตั้งเองหายตอน re-auth
+    const { data: prev } = await supabaseAdmin
+      .from('marketplace_accounts')
+      .select('metadata')
+      .eq('company_id', companyId)
+      .eq('platform', 'lazada')
+      .eq('shop_id', sellerId)
+      .maybeSingle();
+    const prevMeta = (prev?.metadata || {}) as Record<string, unknown>;
+
     let shopLogo: string | null =
       seller?.logo_url && (await isReachableImage(seller.logo_url)) ? seller.logo_url : null;
-    if (!shopLogo) {
-      const { data: prev } = await supabaseAdmin
-        .from('marketplace_accounts')
-        .select('metadata')
-        .eq('company_id', companyId)
-        .eq('platform', 'lazada')
-        .eq('shop_id', sellerId)
-        .maybeSingle();
-      shopLogo = ((prev?.metadata as Record<string, unknown> | null)?.shop_logo as string) || null;
-    }
+    if (!shopLogo) shopLogo = (prevMeta.shop_logo as string) || null;
 
     const { error } = await supabaseAdmin
       .from('marketplace_accounts')
@@ -172,6 +173,7 @@ export async function GET(request: NextRequest) {
           : null,
         is_active: true,
         metadata: {
+          ...prevMeta,
           country,
           account: tokens.account || null,
           short_code: userInfo?.short_code || seller?.short_code || null,

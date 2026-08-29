@@ -81,6 +81,19 @@ export async function GET(request: NextRequest) {
     // For each shop, we need shop-level tokens
     // If main_account_id flow, we need to get individual shop tokens
     let connectedCount = 0;
+    // metadata เดิมของแต่ละร้าน — ต้อง merge ไม่ใช่ทับ (ดูเหตุผลที่ upsert ข้างล่าง)
+    const shopMeta = new Map<number, Record<string, unknown>>();
+    {
+      const { data: rows } = await supabaseAdmin
+        .from('marketplace_accounts')
+        .select('shop_id, metadata')
+        .eq('company_id', companyId)
+        .eq('platform', 'shopee');
+      for (const r of rows || []) {
+        shopMeta.set(r.shop_id as number, (r.metadata || {}) as Record<string, unknown>);
+      }
+    }
+
     for (const sid of shopIds) {
       let shopAccessToken = tokens.access_token;
       let shopRefreshToken = tokens.refresh_token;
@@ -102,7 +115,13 @@ export async function GET(request: NextRequest) {
           access_token_expires_at: accessExpiry.toISOString(),
           refresh_token_expires_at: refreshExpiry.toISOString(),
           is_active: true,
-          metadata: mainAccountId ? { main_account_id: mainAccountId } : {},
+          // ⚠️ ห้ามเขียนทับด้วย {} — จะล้างค่าที่ผู้ใช้ตั้งเอง (เช่นโลโก้ที่กรอกมือ)
+          // ทุกครั้งที่ re-authorize · Shopee พอฟื้นเองได้จาก get_shop_info ข้างล่าง
+          // แต่ถ้า call นั้นล้มก็หายจริง
+          metadata: {
+            ...(shopMeta.get(sid) || {}),
+            ...(mainAccountId ? { main_account_id: mainAccountId } : {}),
+          },
           updated_at: now.toISOString(),
         }, {
           // unique index จริงคือ (company_id, platform, shop_id) — ใช้ target อื่น

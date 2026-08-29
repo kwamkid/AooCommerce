@@ -77,6 +77,20 @@ export async function GET(request: NextRequest) {
         : `${settingsUrl}&error=no_shops`);
     }
 
+    // อ่าน metadata เดิมของทุกร้านไว้ก่อน — ต้อง merge ไม่ใช่ทับ
+    // (ค่าที่ผู้ใช้ตั้งเองอย่าง shop_logo อยู่ในนั้น และแพลตฟอร์มไม่ได้ส่งกลับมา)
+    const existingMeta = new Map<number, Record<string, unknown>>();
+    {
+      const { data: rows } = await supabaseAdmin
+        .from('marketplace_accounts')
+        .select('shop_id, metadata')
+        .eq('company_id', companyId)
+        .eq('platform', 'tiktok');
+      for (const r of rows || []) {
+        existingMeta.set(r.shop_id as number, (r.metadata || {}) as Record<string, unknown>);
+      }
+    }
+
     for (const shop of shops) {
       const shopIdNum = parseInt(shop.id) || 0;
 
@@ -117,7 +131,11 @@ export async function GET(request: NextRequest) {
           access_token_expires_at: accessExpiry.toISOString(),
           refresh_token_expires_at: refreshExpiry.toISOString(),
           is_active: true,
+          // ⚠️ ต้อง merge ของเดิม ไม่ใช่ทับ — ค่าที่ผู้ใช้ตั้งเอง (เช่น shop_logo ที่กรอกมือ
+          // เพราะ TikTok ไม่ส่งโลโก้มาให้) จะหายทุกครั้งที่ re-authorize เปิด scope เพิ่ม
+          // เกิดจริงเมื่อ 2026-08-29: เปิด scope Finance แล้วโลโก้ร้านหายไปเฉย ๆ
           metadata: {
+            ...(existingMeta.get(shopIdNum) || {}),
             shop_cipher: shop.cipher,
             shop_code: shop.code,
             region: shop.region,
