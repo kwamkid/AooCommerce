@@ -135,7 +135,7 @@ export default function ShopeeExportModal({
   const fetchAccounts = async () => {
     setLoadingAccounts(true);
     try {
-      const res = await apiFetch('/api/shopee/accounts');
+      const res = await apiFetch('/api/marketplace/accounts?platform=shopee');
       if (res.ok) {
         const data = await res.json();
         const active = (data as ShopeeAccount[]).filter(a => a.is_active && a.connection_status === 'connected');

@@ -223,7 +223,7 @@ export default function ChatChannelsPage() {
   // ในคอลเดียวตอน mount เพื่อให้ count บนแท็บถูกต้องก่อนกดเข้าแท็บนั้น
   const loadMarketplaceShops = useCallback(async () => {
     try {
-      const res = await apiFetch('/api/shopee/accounts?platform=all');
+      const res = await apiFetch('/api/marketplace/accounts?platform=all');
       if (res.ok) {
         const data = await res.json();
         const rows: (ShopeeShop & { platform?: string })[] = Array.isArray(data) ? data : (data.accounts || []);

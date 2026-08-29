@@ -9,6 +9,17 @@ import {
 } from '@/lib/lazada/api';
 import { isChatAppConfigured as isLazadaChatAppConfigured } from '@/lib/lazada/api';
 
+// จัดการร้านที่เชื่อมต่อไว้ — **ทุก marketplace ใช้ route นี้ร่วมกัน**
+// (เดิมอยู่ที่ /api/shopee/accounts สมัยที่ยังมีแค่ Shopee · ย้ายมาชื่อกลาง 2026-08-30)
+//
+//   GET    ?platform=shopee|tiktok|lazada|all   รายการร้าน (ไม่ระบุ = shopee ตามของเดิม)
+//   PUT    { id, warehouse_id | auto_sync_* }   แก้การตั้งค่าของร้าน
+//   PATCH  { id }                               ดึงชื่อ+โลโก้จากแพลตฟอร์มมาใหม่
+//   PATCH  { id, shop_logo }                    ตั้ง/ล้างลิงก์โลโก้เอง (ทุกแพลตฟอร์ม)
+//   DELETE ?id=                                 ยกเลิกการเชื่อมต่อ
+//
+// ⚠️ เพิ่ม marketplace ใหม่ = เพิ่ม branch ที่นี่ ห้ามสร้าง /api/<platform>/accounts ของตัวเอง
+
 export async function GET(request: NextRequest) {
   try {
     const { isAuth, companyId, companyRoles } = await checkAuthWithCompany(request);

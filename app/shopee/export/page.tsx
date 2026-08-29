@@ -132,7 +132,7 @@ function ShopeeExportContent() {
   const fetchAccountInfo = useCallback(async () => {
     if (!accountId) return;
     try {
-      const res = await apiFetch('/api/shopee/accounts');
+      const res = await apiFetch('/api/marketplace/accounts?platform=shopee');
       if (res.ok) {
         const accounts = await res.json();
         const account = (accounts as { id: string; shop_name: string | null; metadata: Record<string, unknown> }[])

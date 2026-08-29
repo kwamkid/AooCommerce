@@ -441,7 +441,7 @@ export default function MarketplaceConnections({
     const ok = await confirm({ title: 'ต้องการยกเลิกการเชื่อมต่อร้านนี้?', variant: 'danger' }); if (!ok) return;
     setDisconnectingId(accountId);
     try {
-      const res = await apiFetch(`/api/shopee/accounts?id=${accountId}`, {
+      const res = await apiFetch(`/api/marketplace/accounts?id=${accountId}`, {
         method: 'DELETE',
       });
       if (res.ok) {
@@ -461,7 +461,7 @@ export default function MarketplaceConnections({
     if (!logoModal) return;
     setSavingLogo(true);
     try {
-      const res = await apiFetch('/api/shopee/accounts', {
+      const res = await apiFetch('/api/marketplace/accounts', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: logoModal.id, shop_logo: logoModal.url.trim() }),
@@ -559,7 +559,7 @@ export default function MarketplaceConnections({
 
     patchAccount(accountId, { warehouse_id: next });
     try {
-      const res = await apiFetch('/api/shopee/accounts', {
+      const res = await apiFetch('/api/marketplace/accounts', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: accountId, warehouse_id: next }),
@@ -606,7 +606,7 @@ export default function MarketplaceConnections({
     // Optimistic update
     patchAccount(accountId, { [field]: value });
     try {
-      const res = await apiFetch('/api/shopee/accounts', {
+      const res = await apiFetch('/api/marketplace/accounts', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: accountId, [field]: value }),

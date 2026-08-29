@@ -36,7 +36,7 @@ export function useMarketplaceAccounts(enabled: boolean) {
 
   const refetch = useCallback(async () => {
     try {
-      const res = await apiFetch('/api/shopee/accounts?platform=all');
+      const res = await apiFetch('/api/marketplace/accounts?platform=all');
       if (res.ok) {
         const data = await res.json();
         setAccounts(Array.isArray(data) ? data : []);
