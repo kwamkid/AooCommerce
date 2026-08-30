@@ -60,7 +60,13 @@ export default function ImageDropzone({
   const [busy, setBusy] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [warn, setWarn] = useState('');
+  // ผู้ใช้กดกากบาททิ้งรูปเดิมแล้วหรือยัง — ถ้าไม่จำ ปุ่มกากบาทจะกดแล้วไม่มีอะไรเกิดขึ้น
+  // เพราะ initialPreviewUrl ยังค้างอยู่ทำให้พรีวิวไม่หายไปไหน (บั๊กจริง 2026-08-30)
+  const [dismissedInitial, setDismissedInitial] = useState(false);
   const cn = { ...TW, ...(classNames || {}) };
+
+  // ผู้เรียกเปลี่ยนรูปตั้งต้น (เช่นเพิ่งดึงจากแพลตฟอร์มมาใหม่) → กลับมาแสดงอีกครั้ง
+  useEffect(() => { setDismissedInitial(false); }, [initialPreviewUrl]);
 
   // ผู้เรียกล้างค่า (เช่นส่งสำเร็จ) → ล้างรูปพรีวิวตาม
   useEffect(() => {
@@ -92,12 +98,13 @@ export default function ImageDropzone({
 
   const clear = () => {
     setPreview(prev => { if (prev) URL.revokeObjectURL(prev); return null; });
+    setDismissedInitial(true);
     setWarn('');
     onChange(null);
     if (inputRef.current) inputRef.current.value = '';
   };
 
-  const shown = preview || initialPreviewUrl;
+  const shown = preview || (dismissedInitial ? null : initialPreviewUrl);
   if (shown) {
     return (
       <div className={cn.preview}>

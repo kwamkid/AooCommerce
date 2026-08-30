@@ -1184,7 +1184,8 @@ export default function MarketplaceConnections({
               alt="โลโก้ร้าน"
               label="เลือกรูปโลโก้"
               hint="ลากรูปมาวาง หรือวางจากคลิปบอร์ดก็ได้"
-              initialPreviewUrl={logoFile ? null : logoModal?.currentUrl || null}
+              // ไม่ส่งรูปเดิมมาโชว์ตรงนี้ — ขั้นแรกโชว์ให้ดูแล้ว ถ้าเอามาบังอีก
+              // กล่องลากไฟล์จะไม่ขึ้นเลย ผู้ใช้เลือกรูปใหม่ไม่ได้
               // โลโก้โชว์จริงแค่ 40px — 300px พอเผื่อจอ retina แล้ว ไม่ต้องเก็บใหญ่กว่านี้
               maxWidthOrHeight={300}
               maxSizeMB={0.1}
