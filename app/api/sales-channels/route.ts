@@ -142,6 +142,16 @@ export async function POST(request: NextRequest) {
     .maybeSingle();
   const nextSort = Math.min((maxRow?.sort_order ?? 100) + 10, 199);
 
+  // ยังไม่มีช่องทางเริ่มต้นเลย → ตัวที่สร้างตอนนี้รับหน้าที่ไป
+  // (ไม่งั้นบริษัทใหม่จะไม่มีค่าเริ่มต้น แล้ว OrderForm ตกไปหยิบ "ตัวแรกที่ active"
+  //  ซึ่งอาจเป็นเพจแชท — กลายเป็นปัญหาเดิมที่เพิ่งแก้)
+  const { data: existingDefault } = await supabaseAdmin
+    .from('sales_channels')
+    .select('id')
+    .eq('company_id', auth.companyId)
+    .eq('is_default', true)
+    .maybeSingle();
+
   const { data, error } = await supabaseAdmin
     .from('sales_channels')
     .insert({
@@ -157,6 +167,7 @@ export async function POST(request: NextRequest) {
       warehouse_id: body.warehouse_id || null,
       is_system: false,
       sort_order: nextSort,
+      is_default: !existingDefault,
     })
     .select('id, code, name, channel_type, platform, chat_account_id, warehouse_id, icon, color, is_active, is_system, is_default, sort_order')
     .single();
@@ -244,8 +255,19 @@ export async function PUT(request: NextRequest) {
     patch.is_active = body.is_active;
   }
 
-  // Default channel — at most one per company (enforced by partial unique index).
-  // Setting one as default unsets all the others first, in the same request.
+  // ── ช่องทางเริ่มต้น — บริษัทละหนึ่ง (partial unique index บังคับที่ DB อีกชั้น) ──
+  //
+  // ⚠️ **ตั้งได้เฉพาะช่องทาง manual** — ค่านี้ใช้ตอนเดียวคือ "เปิดบิลเองโดยไม่ได้มาจากแชท"
+  //    (ดู OrderForm) ส่วนออเดอร์ที่มาจากห้องแชทจับคู่ช่องทางเองด้วย chat_account_id
+  //    อยู่แล้ว · ตั้งไว้ที่เพจ/ร้าน marketplace จึงไม่ช่วยอะไรเลย มีแต่จะทำให้ออเดอร์
+  //    ที่พนักงานเปิดเองถูกติดป้ายว่ามาจากเพจนั้น แล้วรายงานแยกช่องทางเพี้ยน
+  //    (เกิดจริง — ค่าเริ่มต้นไปค้างอยู่ที่เพจ Facebook)
+  if (body.is_default === true && isChatLinked) {
+    return NextResponse.json(
+      { error: 'ตั้งเป็นช่องทางเริ่มต้นได้เฉพาะช่องทางที่สร้างเอง — ออเดอร์จากแชทจับคู่ช่องทางให้อัตโนมัติอยู่แล้ว' },
+      { status: 400 }
+    );
+  }
   if (body.is_default === true) {
     await supabaseAdmin
       .from('sales_channels')

@@ -19,6 +19,7 @@ import Toggle from '@/components/ui/Toggle';
 import FormSelect from '@/components/ui/FormSelect';
 import PlatformIcon from '@/components/ui/PlatformIcon';
 import FilterChips from '@/components/ui/FilterChips';
+import Tooltip from '@/components/ui/Tooltip';
 import { LoadingCard, NoPermissionCard } from '@/components/ui/StateCard';
 import { PageSkeleton } from '@/components/ui/Skeleton';
 import { useAuth } from '@/lib/auth-context';
@@ -474,7 +475,9 @@ export default function SalesChannelsPage() {
             <div className="flex items-center gap-2">
               <span className="font-semibold text-[16px] text-gray-900 dark:text-white">{c.name}</span>
               {c.is_default && (
-                <Badge tone="amber" size="sm" title="ค่าเริ่มต้น" icon={<Star className="w-3 h-3 fill-current" />}>ค่าเริ่มต้น</Badge>
+                <Tooltip text="ช่องทางที่ระบบเลือกไว้ให้ล่วงหน้าตอนเปิดบิลเอง — ออเดอร์ที่มาจากแชทจะใช้ช่องทางของแชทนั้นแทน" box="inline-flex">
+                  <Badge tone="amber" size="sm" icon={<Star className="w-3 h-3 fill-current" />}>ค่าเริ่มต้น</Badge>
+                </Tooltip>
               )}
               {c.is_system && (
                 <span title="ช่องทางของระบบ" className="inline-flex items-center text-gray-400">
@@ -530,10 +533,13 @@ export default function SalesChannelsPage() {
       hideMobile: true,
       render: (c) => {
         const items: ActionItem[] = [];
-        if (!c.is_default && c.is_active) {
+        // เฉพาะช่องทางที่สร้างเอง — ออเดอร์จากแชท/marketplace จับคู่ช่องทางเองอยู่แล้ว
+        // ตั้งค่าเริ่มต้นให้พวกนั้นจึงไม่ช่วยอะไร มีแต่จะทำให้บิลที่เปิดเองติดป้ายผิดที่มา
+        if (!c.is_default && c.is_active && c.channel_type === 'manual') {
           items.push({
             key: 'default',
             label: 'ตั้งเป็นค่าเริ่มต้น',
+            description: 'ใช้เป็นช่องทางที่เลือกไว้ให้ตอนเปิดบิลเอง',
             icon: <Star className="w-4 h-4" />,
             onClick: () => handleSetDefault(c),
           });
