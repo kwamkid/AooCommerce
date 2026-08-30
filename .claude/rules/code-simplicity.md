@@ -316,6 +316,8 @@ const columns: DataTableColumn<Order>[] = [
 | `marketplace/shop-info.ts` | `lib/marketplace/shop-info.ts` | ดึง **ชื่อร้าน + โลโก้** จากแพลตฟอร์ม — `Record<QuotaPlatform, fetcher>` ที่ TypeScript บังคับให้กรอกครบ · **เพิ่มแพลตฟอร์มใหม่ = เพิ่ม 1 entry ที่นี่ ไม่ต้องแตะ route** · การ์ด `isReachableImage` อยู่ในตัวกลางแล้ว (โลโก้ที่เปิดไม่ได้ถูกตัดเป็น null เพื่อคงของเดิม) | เขียน if แยกแพลตฟอร์มใน route · ทับโลโก้ที่มีอยู่ด้วย URL ที่ยังไม่ได้เช็คว่าโหลดได้ |
 | `marketplace/product-helpers.ts` | `lib/marketplace/product-helpers.ts` | helper import สินค้าที่ทุก marketplace ใช้ร่วม — `getOrCreateVariationTypeIds`, `upsertProductImage(s)`, `reactivateProduct`, `tryAutoMatchBySku`, `findMarketplaceLink` (มี `platform` param, default `'shopee'`) | copy helper พวกนี้ไปไว้ใน `lib/<platform>/` ของตัวเอง |
 | `print-tracking.ts` | `lib/print-tracking.ts` | markPrinted, markPrintedOptimistic | track print status เอง |
+| `order-totals.ts` | `lib/order-totals.ts` | **สูตรเดียวของยอดที่ลูกค้าต้องจ่าย** — `computeOrderTotals()` (สินค้า − ส่วนลด + ค่าส่ง + ค่าการ์ด แล้วถอด VAT) + `splitVatInclusive()` · client-safe ใช้ได้ทั้ง OrderForm และ API | เขียน `total/1.07` เอง หรือประกอบยอดรวมเองในหน้า/route ใหม่ · ให้ DB trigger คิด `total_amount` ทับ (เคยกินค่าส่งหายทุกบิล ดู fix-bug.md 2026-08-30) |
+| `pdf-utils.ts` → `loadImageDataUrl()` | `lib/pdf-utils.ts` | โหลดรูปเป็น data URL ให้ pdfMake — ยิงตรงก่อน โดน CORS ค่อยวิ่งผ่าน `/api/image-proxy` | `fetch(url)` + `readAsDataURL` เองในไฟล์ PDF (รูปสินค้าที่ host อยู่เว็บอื่นจะขึ้น "-" ทั้งที่หน้าจอเห็นรูป) |
 | `print-actions.ts` | `lib/print-actions.ts` | getAvailablePrintActions (by status/payment) | เช็ค print availability เอง |
 
 ### Utility Libraries

@@ -16,6 +16,22 @@
 
 ---
 
+## 2026-08-30 — ค่าจัดส่งไม่ถูกนับในยอดที่ลูกค้าต้องจ่าย (บิลออนไลน์เก็บเงินขาด) + ใบจัดของรูปไม่ขึ้น
+
+**ที่เกิด**: DB trigger `update_order_totals()` บน `order_items` (ทุกเส้นทางที่สร้าง/แก้ออเดอร์) · [lib/orders-packing-pdf.ts](lib/orders-packing-pdf.ts)
+**อาการ**: ORD-202608-0007 — หน้าแก้ออเดอร์สรุปยอด ฿1,799 (สินค้า 1,699 + ค่าส่ง 100) แต่**บิลออนไลน์ที่ลูกค้าเห็นขึ้น ฿1,699** ทั้งที่บรรทัด "ค่าจัดส่ง 100" แสดงอยู่ในบิลใบเดียวกัน → เก็บเงินขาดทุกใบที่มีค่าส่ง (รวมออเดอร์จากหน้าร้านออนไลน์ 2 ใบ) · ใบจัดของขึ้น "-" แทนรูปสินค้า ทั้งที่หน้าจอเห็นรูป
+**Root cause**: **(1) ยอดเงิน** — trigger เก่าคิดยอดใหม่เป็น `SUM(order_items.total) − discount_amount` แล้ว `UPDATE orders` ทับ · **ไม่นับ `shipping_fee` กับ `gift_card_fee`** และหาร 1.07 ทุกบริษัทไม่ว่าจด VAT หรือไม่ · API เขียนแถว `orders` (ยอดถูกครบ) **ก่อน** insert `order_items` เสมอ → trigger ยิงทีหลังทับยอดที่คำนวณถูกแล้วทุกครั้ง · ที่ไม่มีใครจับได้เพราะ `orders.shipping_fee` ถูกบันทึกถูกต้อง แค่ `total_amount` ไม่รวมมัน (ตัวเลขสองตัวมาจากคนละมือ) · ซ้ำ: sync marketplace เขียน `discount_amount = subtotal − total` ไว้ให้สูตรของ trigger คืนค่าเดิมพอดี = พึ่ง trigger โดยไม่ตั้งใจ · **(2) รูป** — `product_images.image_url` ของร้านนี้เป็น URL ภายนอก (`adayfresh.com`, `storage_path: external:*`) ซึ่ง**ไม่ส่ง CORS header** — `<img>` แสดงได้แต่ `fetch()` ที่ pdfMake ต้องใช้แปลงเป็น data URL โดนบล็อก
+**วิธีแก้**:
+- [migration 20260830_order_totals_vat_split_only](supabase/migrations/20260830_order_totals_vat_split_only.sql) — trigger ใหม่ `sync_order_vat_split()` **แตะแค่ `subtotal`/`vat_amount`** (แตกจาก `total_amount` ตาม `companies.vat_registered` จริง) ไม่ยุ่งกับ `total_amount` อีก · ลบ trigger ซ้ำซ้อน 4 ตัวที่ชี้ฟังก์ชันเดิม · backfill ออเดอร์ที่ยอดขาดไป 4 ใบ (ยอดกับ VAT ทั้ง 3,278 ใบตรงกันหมดแล้ว)
+- [lib/order-totals.ts](lib/order-totals.ts) ใหม่ = สูตรเดียวของ "ยอดที่ลูกค้าต้องจ่าย" ใช้ร่วม OrderForm + API
+- ค่าส่งไม่หายอีกเมื่อบิลยังไม่มีที่อยู่: OrderForm ส่ง `shipping_fee` ตรงเสมอ และ API ใช้เป็นค่าสำรองเมื่อไม่มี `shipments` · PUT ที่แก้เฉพาะค่าส่ง/ส่วนลด (ไม่แตะรายการสินค้า) คิดยอดใหม่ให้ด้วย — ยกเว้นออเดอร์ marketplace
+- [lib/pdf-utils.ts](lib/pdf-utils.ts) `loadImageDataUrl()` — ยิงตรงก่อน ถ้าโดน CORS ค่อยวิ่งผ่าน `/api/image-proxy` (same-origin) · proxy เดิมรับเฉพาะ host ของ Google ตอนนี้รับ host อื่นได้เมื่อ **ล็อกอินแล้ว** พร้อมการ์ด SSRF (https เท่านั้น · ปลายทางต้องเป็น IP สาธารณะ · ตรวจซ้ำทุก redirect hop · ต้องเป็น `image/*`)
+**ป้องกัน regression**:
+- **`orders.total_amount` เป็นของแอป ห้ามให้ DB trigger คิดทับอีก** — ค่าธรรมเนียมมีหลายช่อง (ค่าส่ง/ค่าการ์ด/ส่วนลด) และความหมายไม่เหมือนกันทุกช่องทาง: `shipping_fee` ของออเดอร์ marketplace คือ**ค่าส่งที่แพลตฟอร์มหักเรา** ไม่ใช่ยอดที่บวกให้ลูกค้าจ่าย บวกเข้าไปยอดจะเกิน
+- ค่าที่ **แสดงคู่กัน** (ค่าส่งในบิล vs ยอดรวม) ถ้ามาจากคนละที่คำนวณ ต้องมีจุดตรวจว่าตรงกัน — บั๊กนี้อยู่มานานเพราะแต่ละตัวเลขดู "ถูก" ของมันเอง
+- รูปจากโดเมนอื่นใช้ `fetch()` ไม่ได้เสมอไป — งาน PDF ต้องเรียก `loadImageDataUrl()` เท่านั้น ห้ามเขียน `fetch(url) + readAsDataURL` เองอีก
+**หมายเหตุ**: ข้อ (1) เป็นบทเรียนระดับ pattern กลาง จดใน `aoo-techstack/BUGS.md` ด้วยแล้ว
+
 ## 2026-08-30 — โหลดโปรไฟล์ไม่สำเร็จ แล้วแอปพาไปหน้า onboarding ให้กรอกชื่อใหม่
 
 **ที่เกิด**: [lib/auth-context.tsx](lib/auth-context.tsx) `fetchUserProfile()`

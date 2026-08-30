@@ -82,19 +82,52 @@ export async function setupPdfMake() {
   return pdfMake;
 }
 
+const blobToDataUrl = (blob: Blob) =>
+  new Promise<string | null>((resolve) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result as string);
+    reader.onerror = () => resolve(null);
+    reader.readAsDataURL(blob);
+  });
+
+/**
+ * โหลดรูปมาเป็น data URL ให้ pdfMake ฝังลงไฟล์
+ *
+ * pdfMake ฝังรูปจาก URL ตรง ๆ ไม่ได้ ต้อง fetch() มาก่อน — และ fetch() **ติด CORS**
+ * กับรูปที่ host อยู่เว็บอื่น (รูปสินค้าที่ import มาจากเว็บลูกค้า/WordPress แสดงใน
+ * <img> ได้ปกติ แต่ fetch ไม่ได้) ผลคือ PDF ขึ้น "-" แทนรูปทั้งที่หน้าจอเห็นรูป
+ * → ยิงตรงก่อน ถ้าไม่ผ่านค่อยวิ่งผ่าน /api/image-proxy (same-origin ไม่มี CORS)
+ *
+ * ห้ามเรียก fetch(url) + readAsDataURL เองในไฟล์ PDF อื่น — ใช้ตัวนี้เสมอ
+ */
+export async function loadImageDataUrl(url: string, timeoutMs = 8000): Promise<string | null> {
+  const attempt = async (target: string): Promise<string | null> => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const response = await fetch(target, { signal: controller.signal });
+      if (!response.ok) return null;
+      return await blobToDataUrl(await response.blob());
+    } catch {
+      return null;
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+
+  const direct = await attempt(url);
+  if (direct) return direct;
+
+  // data:/blob: ไม่ต้อง proxy · path ภายในเว็บเราเองก็ไม่ต้อง (ยิงตรงพลาดแปลว่าไม่มีจริง)
+  if (!/^https?:\/\//i.test(url)) return null;
+  if (typeof window !== 'undefined' && url.startsWith(window.location.origin)) return null;
+
+  return attempt(`/api/image-proxy?url=${encodeURIComponent(url)}`);
+}
+
 /** Fetch logo image and convert to data URL */
 export async function loadLogoDataUrl(logoUrl: string): Promise<string | null> {
-  try {
-    const response = await fetch(logoUrl);
-    if (!response.ok) return null;
-    const blob = await response.blob();
-    return await new Promise<string | null>((resolve) => {
-      const reader = new FileReader();
-      reader.onloadend = () => resolve(reader.result as string);
-      reader.onerror = () => resolve(null);
-      reader.readAsDataURL(blob);
-    });
-  } catch { return null; }
+  return loadImageDataUrl(logoUrl);
 }
 
 /** Build product name stack for PDF item tables.

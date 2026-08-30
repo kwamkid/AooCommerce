@@ -35,6 +35,7 @@ import CustomerSelectionCard, { type CustomerOption, type DeliveryFields, type T
 import { useCustomerPrefill } from '@/lib/useCustomerPrefill';
 import { fetchCustomerOrderContext } from '@/lib/gp-resolver';
 import { isMarketplaceSource } from '@/lib/marketplace/types';
+import { computeOrderTotals } from '@/lib/order-totals';
 import StickyActionBar from '@/components/ui/StickyActionBar';
 import Stepper, { type StepItem } from '@/components/ui/Stepper';
 import { LoadingCard } from '@/components/ui/StateCard';
@@ -1705,10 +1706,14 @@ export default function OrderForm({
     }
     return orderDiscount;
   };
-  const totalWithVAT = itemsTotal - calculateOrderDiscount() + totalShippingFee + giftCardFee;
-  const subtotal = vatRegistered ? Math.round((totalWithVAT / 1.07) * 100) / 100 : totalWithVAT;
-  const vat = vatRegistered ? totalWithVAT - subtotal : 0;
-  const total = totalWithVAT;
+  // สูตรเดียวกับฝั่ง API (lib/order-totals.ts) — ตัวเลขบนจอกับในบิลจึงตรงกันเสมอ
+  const { subtotal, vatAmount: vat, totalAmount: total } = computeOrderTotals({
+    itemsTotal,
+    discountAmount: calculateOrderDiscount(),
+    shippingFee: totalShippingFee,
+    giftCardFee,
+    vatRegistered,
+  });
 
   // Submit
   const handleSubmit = async (e: React.FormEvent) => {
@@ -1997,8 +2002,10 @@ export default function OrderForm({
         } : {}),
         items,
         ...(stockEnabled && selectedWarehouseId ? { warehouse_id: selectedWarehouseId } : {}),
-        // Non-customer: send shipping fee directly
-        ...(!selectedCustomer ? { shipping_fee: branch?.shipping_fee || 0 } : {}),
+        // ค่าจัดส่งส่งตรงเสมอ — ปกติ API จะอ่านจาก shipments (ผูกกับที่อยู่) แต่บิลที่
+        // ยังไม่มีที่อยู่ (ลูกค้ากรอกเองทีหลัง) ไม่มี shipments ให้ค่าส่งเกาะ ค่าที่พิมพ์
+        // ไว้จะหายทั้งก้อน — ส่งมาด้วยเสมอแล้วให้ API ใช้เป็นค่าสำรอง
+        shipping_fee: branch?.shipping_fee || 0,
         // Delivery info snapshot (both customer & non-customer) — ส่งเมื่อมีข้อมูล
         // "สักช่อง" ไม่ใช่เฉพาะตอนมีชื่อ: โหมดสั่งเองไม่มีช่องชื่อผู้รับแยก ลูกค้าใหม่
         // จากแชทจึงไม่มี snapshotName — เดิมทำให้ที่อยู่ที่พิมพ์ไว้หายทั้งก้อน

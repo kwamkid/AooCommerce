@@ -20,6 +20,7 @@ import {
   fetchCompanyInfo,
   setupPdfMake,
   loadLogoDataUrl,
+  loadImageDataUrl,
   formatPdfDate,
   buildCompanyStack,
   buildProductNameStack,
@@ -105,24 +106,6 @@ function generateBarcodeDataUrl(value: string): string | null {
   }
 }
 
-async function loadImageAsDataUrl(url: string): Promise<string | null> {
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 5000);
-    const response = await fetch(url, { signal: controller.signal });
-    clearTimeout(timeout);
-    if (!response.ok) return null;
-    const blob = await response.blob();
-    return await new Promise<string | null>((resolve) => {
-      const reader = new FileReader();
-      reader.onloadend = () => resolve(reader.result as string);
-      reader.onerror = () => resolve(null);
-      reader.readAsDataURL(blob);
-    });
-  } catch {
-    return null;
-  }
-}
 
 function generateCheckboxDataUrl(): string {
   const size = 28;
@@ -223,7 +206,7 @@ async function buildPickListContent(
   const imagePromises = items
     .filter((item) => item.image)
     .map(async (item) => {
-      const dataUrl = await loadImageAsDataUrl(item.image!);
+      const dataUrl = await loadImageDataUrl(item.image!);
       if (dataUrl) imageMap.set(item.image!, dataUrl);
     });
   await Promise.all(imagePromises);
@@ -709,7 +692,9 @@ function buildCompactPackingContent(
   const hasBarcode = order.items.some(
     (item) => item.barcode || item.sku || item.product_code
   ) || allComponents.some(c => c.barcode || c.sku || c.product_code);
-  const hasImage = order.items.some((item) => item.image) || allComponents.some(c => c.image);
+  // นับเฉพาะรูปที่โหลดสำเร็จจริง — รูปที่โหลดไม่ได้ไม่ควรทิ้งคอลัมน์ "รูป" ที่มีแต่ "-"
+  const hasImage = order.items.some((item) => item.image && imageMap.has(item.image))
+    || allComponents.some(c => c.image && imageMap.has(c.image));
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const headerCols: any[] = [];
@@ -1015,7 +1000,7 @@ export async function generatePackingPdf(
       if (item.image && !allImageMap.has(item.image)) {
         const imgUrl = item.image;
         imagePromises.push(
-          loadImageAsDataUrl(imgUrl).then((dataUrl) => {
+          loadImageDataUrl(imgUrl).then((dataUrl) => {
             if (dataUrl) allImageMap.set(imgUrl, dataUrl);
           }),
         );

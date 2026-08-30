@@ -234,6 +234,12 @@ import { getTabColor, getBadgeColor } from '@/lib/status-tab-colors';
   - Use case: พนักงานพิมพ์ชื่อลูกค้า + สินค้า → save → ลูกค้ากรอกที่อยู่เองทีหลังผ่าน link (TBD)
   - `OrderForm.doSave()` auto-create shipping_address เมื่อ user กรอก delivery fields เท่านั้น — ถ้าไม่กรอก ก็ save with shipments=[] ได้
 
+### ยอดเงินของออเดอร์ — **แอปเป็นเจ้าของ `orders.total_amount`** (2026-08-30)
+- สูตรเดียวอยู่ที่ [lib/order-totals.ts](lib/order-totals.ts) — `computeOrderTotals()` = สินค้า − ส่วนลดท้ายบิล **+ ค่าจัดส่ง + ค่าการ์ดอวยพร** แล้วถอด VAT ออกจากยอดรวม (ราคาทุกที่เป็นราคารวม VAT แล้ว) · ใช้ร่วมทั้ง OrderForm กับ `/api/orders` — **ห้ามเขียนสูตร `/1.07` เองที่อื่นอีก**
+- DB trigger เหลือ `sync_order_vat_split()` ที่**แตะแค่ `subtotal`/`vat_amount`** (แตกตาม `companies.vat_registered` จริง) — **ห้ามเอาการคิด `total_amount` กลับเข้า trigger** ตัวเก่าคิดจากรายการสินค้าอย่างเดียวจึงกินค่าส่งหายทุกบิล (ดู [fix-bug.md](fix-bug.md) 2026-08-30)
+- **`shipping_fee` มีสองความหมาย** — บิลที่ร้านออกเอง = ค่าส่งที่บวกให้ลูกค้าจ่าย · ออเดอร์ marketplace = ค่าส่งที่แพลตฟอร์มหักเรา (`total_amount` มาจากยอดของแพลตฟอร์ม) **ห้ามบวกเข้ายอด**
+- ค่าส่ง**แก้มือได้เสมอ** (เคส Lalamove/ส่งด่วน) — โซนจัดส่งเติมให้เป็นค่าตั้งต้นเท่านั้น ไม่ทับค่าที่ staff พิมพ์เอง · บิลที่ยังไม่มีที่อยู่ก็เก็บค่าส่งได้ (API รับ `shipping_fee` ตรงเป็นค่าสำรองเมื่อไม่มี `shipments`)
+
 ### Weighted Average Cost (WAC)
 - `product_variations.cost_price` = WAC
 - สูตร: `new_wac = (existing_qty × old_wac + received_qty × new_cost) / total_qty`

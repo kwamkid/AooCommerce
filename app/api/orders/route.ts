@@ -8,6 +8,7 @@ import { reserveStock, unreserveStock, returnStock, deductAndUnreserve } from '@
 import { getPromotionComponents } from '@/lib/promotion-service';
 import { fetchCostMap } from '@/lib/cost-utils';
 import { resolveDeliverySnapshot } from '@/lib/delivery-server';
+import { computeOrderTotals } from '@/lib/order-totals';
 
 // Type definitions
 interface OrderItemInput {
@@ -295,21 +296,21 @@ export async function POST(request: NextRequest) {
     });
 
 
-    // Calculate total shipping fee (deduplicated by address)
-    let totalShippingFee = 0;
-    if (orderData.customer_id) {
-      const shippingFeeByAddress = new Map<string, number>();
-      orderData.items.forEach(item => {
-        (item.shipments || []).forEach(s => {
-          if (s.shipping_fee && !shippingFeeByAddress.has(s.shipping_address_id)) {
-            shippingFeeByAddress.set(s.shipping_address_id, s.shipping_fee);
-          }
-        });
+    // ค่าจัดส่ง — ปกติผูกกับที่อยู่ (dedupe ตาม address เผื่อส่งหลายจุด)
+    // ออเดอร์ที่ยัง "ไม่มีที่อยู่" (เปิดบิลจากแชทแล้วให้ลูกค้ากรอกที่อยู่เองทีหลัง)
+    // ไม่มี shipments ให้ค่าส่งเกาะ → ต้องรับค่าที่ staff กรอกจาก field ตรง ๆ
+    // ไม่งั้นค่าส่งที่พิมพ์ไว้หายทั้งก้อนตอนบันทึก
+    const shippingFeeByAddress = new Map<string, number>();
+    orderData.items.forEach(item => {
+      (item.shipments || []).forEach(s => {
+        if (s.shipping_fee && !shippingFeeByAddress.has(s.shipping_address_id)) {
+          shippingFeeByAddress.set(s.shipping_address_id, s.shipping_fee);
+        }
       });
-      totalShippingFee = Array.from(shippingFeeByAddress.values()).reduce((sum, f) => sum + f, 0);
-    } else if ((orderData as any).shipping_fee) {
-      // Non-customer orders: shipping fee sent directly
-      totalShippingFee = (orderData as any).shipping_fee;
+    });
+    let totalShippingFee = Array.from(shippingFeeByAddress.values()).reduce((sum, f) => sum + f, 0);
+    if (totalShippingFee === 0) {
+      totalShippingFee = Number((orderData as any).shipping_fee) || 0;
     }
 
     const discountAmount = orderData.discount_amount || 0;
@@ -335,10 +336,17 @@ export async function POST(request: NextRequest) {
     }
 
     // Prices are VAT-inclusive (if VAT registered), so we reverse-calculate VAT from the total
-    const totalWithVAT = subtotal - discountAmount + totalShippingFee + giftCardFee;
-    const subtotalBeforeVAT = isVatRegistered ? Math.round((totalWithVAT / 1.07) * 100) / 100 : totalWithVAT;
-    const vatAmount = isVatRegistered ? totalWithVAT - subtotalBeforeVAT : 0;
-    const totalAmount = totalWithVAT;
+    const {
+      subtotal: subtotalBeforeVAT,
+      vatAmount,
+      totalAmount,
+    } = computeOrderTotals({
+      itemsTotal: subtotal,
+      discountAmount,
+      shippingFee: totalShippingFee,
+      giftCardFee,
+      vatRegistered: isVatRegistered,
+    });
 
     // Determine flow_type from customer_type + sale_type
     let flowType = 'r_retail'; // default
@@ -2168,7 +2176,8 @@ export async function PUT(request: NextRequest) {
 
       console.log('[UPDATE ORDER] items count:', items.length, 'subtotal:', subtotal, 'items:', items.map((i: any) => ({ name: i.product_name, qty: i.quantity, price: i.unit_price, address: i.shipments?.[0]?.shipping_address_id })));
 
-      // Calculate total shipping fee (deduplicated by address)
+      // ค่าจัดส่ง — เหมือนตอนสร้าง: เกาะที่อยู่เป็นหลัก แต่ออเดอร์ที่ยังไม่มีที่อยู่
+      // ไม่มี shipments ให้เกาะ จึง fallback มาที่ field ตรง ๆ ที่ staff กรอก
       const shippingFeeByAddress = new Map<string, number>();
       items.forEach((item: any) => {
         item.shipments.forEach((s: any) => {
@@ -2177,7 +2186,10 @@ export async function PUT(request: NextRequest) {
           }
         });
       });
-      const totalShippingFee = Array.from(shippingFeeByAddress.values()).reduce((sum, f) => sum + f, 0);
+      let totalShippingFee = Array.from(shippingFeeByAddress.values()).reduce((sum, f) => sum + f, 0);
+      if (totalShippingFee === 0) {
+        totalShippingFee = Number(body.shipping_fee) || 0;
+      }
 
       const orderDiscountAmount = discount_amount || 0;
 
@@ -2200,10 +2212,17 @@ export async function PUT(request: NextRequest) {
       }
 
       // Prices are VAT-inclusive (if VAT registered), so we reverse-calculate VAT from the total
-      const totalWithVAT = subtotal - orderDiscountAmount + totalShippingFee + giftFeeUpd;
-      const subtotalBeforeVAT = isVatRegisteredUpdate ? Math.round((totalWithVAT / 1.07) * 100) / 100 : totalWithVAT;
-      const vatAmount = isVatRegisteredUpdate ? totalWithVAT - subtotalBeforeVAT : 0;
-      const totalAmount = totalWithVAT;
+      const {
+        subtotal: subtotalBeforeVAT,
+        vatAmount,
+        totalAmount,
+      } = computeOrderTotals({
+        itemsTotal: subtotal,
+        discountAmount: orderDiscountAmount,
+        shippingFee: totalShippingFee,
+        giftCardFee: giftFeeUpd,
+        vatRegistered: isVatRegisteredUpdate,
+      });
       console.log('[UPDATE ORDER] itemsSubtotal:', subtotal, 'discount:', orderDiscountAmount, 'shipping:', totalShippingFee, 'subtotalBeforeVAT:', subtotalBeforeVAT, 'vat:', vatAmount, 'TOTAL:', totalAmount);
 
       // Delete existing order items (cascades to shipments via foreign key)
@@ -2406,6 +2425,48 @@ export async function PUT(request: NextRequest) {
       if (internal_notes !== undefined) updateData.internal_notes = internal_notes || null;
       if (body.shipping_fee !== undefined) updateData.shipping_fee = body.shipping_fee || 0;
       if (body.tracking_number !== undefined) updateData.tracking_number = body.tracking_number || null;
+
+      // แก้ค่าส่ง/ส่วนลดท้ายบิลโดยไม่ได้แตะรายการสินค้า (เช่น เปลี่ยนไปส่ง Lalamove
+      // ทีหลัง) = ยอดที่ลูกค้าต้องจ่ายเปลี่ยน → ต้องคิดยอดใหม่ตรงนี้ด้วย
+      // แอปเป็นเจ้าของ total_amount แล้ว ไม่มี trigger คอยคิดให้ (2026-08-30)
+      if (body.shipping_fee !== undefined || discount_amount !== undefined) {
+        const { data: currentItems } = await supabaseAdmin
+          .from('order_items')
+          .select('total')
+          .eq('order_id', id)
+          .eq('company_id', auth.companyId);
+        const { data: currentOrder } = await supabaseAdmin
+          .from('orders')
+          .select('discount_amount, shipping_fee, gift_card_fee, source')
+          .eq('id', id)
+          .eq('company_id', auth.companyId)
+          .single();
+
+        // ออเดอร์ marketplace: total_amount เป็นยอดของแพลตฟอร์ม และ shipping_fee
+        // คือค่าส่งที่แพลตฟอร์มหักเรา ไม่ใช่ยอดที่บวกให้ลูกค้าจ่าย → ห้ามคิดใหม่
+        const isMarketplaceOrder = ['shopee', 'lazada', 'tiktok'].includes(currentOrder?.source || '');
+        if (!isMarketplaceOrder) {
+          const { data: companyVatRow } = await supabaseAdmin
+            .from('companies')
+            .select('vat_registered')
+            .eq('id', auth.companyId)
+            .single();
+
+          const itemsTotal = (currentItems || []).reduce(
+            (sum: number, row: { total: number | string | null }) => sum + Number(row.total || 0), 0,
+          );
+          const totals = computeOrderTotals({
+            itemsTotal,
+            discountAmount: updateData.discount_amount ?? Number(currentOrder?.discount_amount || 0),
+            shippingFee: updateData.shipping_fee ?? Number(currentOrder?.shipping_fee || 0),
+            giftCardFee: Number(currentOrder?.gift_card_fee || 0),
+            vatRegistered: !!companyVatRow?.vat_registered,
+          });
+          updateData.subtotal = totals.subtotal;
+          updateData.vat_amount = totals.vatAmount;
+          updateData.total_amount = totals.totalAmount;
+        }
+      }
       if (body.shipping_carrier !== undefined) updateData.shipping_carrier = body.shipping_carrier || null;
       if (body.order_status !== undefined) {
         updateData.order_status = body.order_status;
