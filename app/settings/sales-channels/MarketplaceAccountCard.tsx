@@ -8,7 +8,6 @@
 import { ReactNode } from 'react';
 import { CheckCircle2, AlertTriangle, XCircle, ChevronDown, ChevronUp, Package, Trash2 } from 'lucide-react';
 import ActionMenu from '@/components/ui/ActionMenu';
-import Button from '@/components/ui/Button';
 import FormSelect from '@/components/ui/FormSelect';
 import type { MarketplaceAccount } from './useMarketplaceAccounts';
 
