@@ -502,7 +502,6 @@ function OrdersPageContent() {
       menuItems.push({
         key: 'packing', label: 'ใบจัดของ', icon: <ClipboardList className="w-4 h-4" />,
         onClick: (e) => { e.stopPropagation(); handlePrintPackingList(order.id); },
-        className: 'p-1.5 text-gray-400 hover:text-indigo-600 transition-colors rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-900/30',
       });
     }
     if (['processing', 'shipping'].includes(order.order_status)) {
@@ -511,13 +510,11 @@ function OrdersPageContent() {
         menuItems.push({
           key: 'label', label: `ใบปะหน้า${sourceLabel}`, icon: <Printer className="w-4 h-4" />,
           onClick: (e) => { e.stopPropagation(); handlePrintShopeeLabel(order.id, order.source); },
-          className: 'p-1.5 text-gray-400 hover:text-blue-600 transition-colors rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/30',
         });
       } else {
         menuItems.push({
           key: 'label', label: 'ใบปะหน้า', icon: <Printer className="w-4 h-4" />,
           onClick: (e) => { e.stopPropagation(); handlePrintShippingLabel(order.id); },
-          className: 'p-1.5 text-gray-400 hover:text-blue-600 transition-colors rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/30',
         });
       }
     }
@@ -528,7 +525,6 @@ function OrdersPageContent() {
       menuItems.push({
         key: 'doc-envelope', label: 'ใบปะหน้าซองเอกสาร', icon: <Mail className="w-4 h-4" />,
         onClick: (e) => { e.stopPropagation(); handlePrint(order.id, 'doc_envelope'); },
-        className: 'p-1.5 text-gray-400 hover:text-blue-600 transition-colors rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/30',
       });
     }
 
@@ -541,7 +537,6 @@ function OrdersPageContent() {
       menuItems.push({
         key: 'invoice', label: 'ใบแจ้งหนี้', icon: <Banknote className="w-4 h-4" />,
         onClick: (e) => { e.stopPropagation(); handlePrintInvoice(order.id); },
-        className: 'p-1.5 text-gray-400 hover:text-green-600 transition-colors rounded-lg hover:bg-green-50 dark:hover:bg-green-900/30',
       });
     } else if (vatRegistered) {
       // จด VAT + paid
@@ -550,19 +545,16 @@ function OrdersPageContent() {
         menuItems.push({
           key: 'abbreviated-invoice', label: 'ใบกำกับอย่างย่อ', icon: <Banknote className="w-4 h-4" />,
           onClick: (e) => { e.stopPropagation(); handlePrintAbbreviatedInvoice(order.id); },
-          className: 'p-1.5 text-gray-400 hover:text-green-600 transition-colors rounded-lg hover:bg-green-50 dark:hover:bg-green-900/30',
         });
         menuItems.push({
           key: 'full-invoice', label: <><span className="text-orange-500 font-semibold">ออก</span>ใบกำกับแบบเต็ม</>, icon: <Banknote className="w-4 h-4" />,
           onClick: async (e) => { e.stopPropagation(); const ok = await confirm({ title: 'ออกใบกำกับภาษีแบบเต็ม', description: 'หากออกใบกำกับแบบเต็มแล้ว ระบบจะยกเลิก (void) ใบกำกับภาษีอย่างย่อให้อัตโนมัติ', confirmLabel: 'ออกใบกำกับแบบเต็ม' }); if (!ok) return; setTaxInvoiceModal({ orderId: order.id, orderNumber: order.order_number, customerId: order.customer_id, hasAbbrev: docType === 'abbreviated' && !order.tax_invoice_voided_at }); },
-          className: 'p-1.5 text-gray-400 hover:text-emerald-600 transition-colors rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-900/30',
         });
       } else {
         // ออกแบบเต็มแล้ว → แสดงแค่ใบกำกับแบบเต็ม (ซ่อน ABB)
         menuItems.push({
           key: 'full-invoice', label: 'ใบกำกับแบบเต็ม', icon: <Banknote className="w-4 h-4" />,
           onClick: (e) => { e.stopPropagation(); handlePrintFullTaxInvoice(order.id); },
-          className: 'p-1.5 text-gray-400 hover:text-emerald-600 transition-colors rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-900/30',
         });
       }
     } else {
@@ -570,7 +562,6 @@ function OrdersPageContent() {
       menuItems.push({
         key: 'receipt', label: 'ใบเสร็จรับเงิน', icon: <Banknote className="w-4 h-4" />,
         onClick: (e) => { e.stopPropagation(); handlePrintInvoice(order.id); },
-        className: 'p-1.5 text-gray-400 hover:text-green-600 transition-colors rounded-lg hover:bg-green-50 dark:hover:bg-green-900/30',
       });
     }
     if (menuItems.length > section2Start && section2Start > 0) {
@@ -603,14 +594,12 @@ function OrdersPageContent() {
         menuItems.push({
           key: 'edit', label: 'แก้ไข', icon: <Edit2 className="w-4 h-4" />,
           onClick: (e) => { e.stopPropagation(); router.push(`/orders/${order.id}/edit`); },
-          className: 'p-1.5 text-blue-500 hover:text-blue-700 transition-colors rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/30',
         });
       }
       if (!['ready_to_ship', 'processing', 'shipping'].includes(statusFilter)) {
         menuItems.push({
           key: 'duplicate', label: 'สั่งซ้ำ', icon: <Copy className="w-4 h-4" />,
           onClick: (e) => { e.stopPropagation(); router.push(`/orders/new?duplicate=${order.id}`); },
-          className: 'p-1.5 text-gray-400 hover:text-blue-600 transition-colors rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/30',
         });
       }
       if (section3Start > 0) menuItems[section3Start].dividerBefore = true;
@@ -640,7 +629,6 @@ function OrdersPageContent() {
               showToast(error instanceof Error ? error.message : 'ไม่สามารถยกเลิกได้', 'error');
             }
           },
-          className: 'p-1.5 text-gray-400 hover:text-red-500 transition-colors rounded-lg hover:bg-red-50 dark:hover:bg-red-900/30',
           danger: true,
         });
       }
@@ -648,7 +636,6 @@ function OrdersPageContent() {
         menuItems.push({
           key: 'del', label: 'ลบ', icon: <Trash2 className="w-4 h-4" />,
           onClick: (e) => handleDeleteOrder(e, order),
-          className: 'p-1.5 text-red-400 hover:text-red-600 transition-colors rounded-lg hover:bg-red-50 dark:hover:bg-red-900/30',
           danger: true,
         });
       }

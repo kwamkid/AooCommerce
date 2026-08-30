@@ -1006,12 +1006,10 @@ export default function ProcessingTab({
           const billUrl = `${window.location.origin}/bills/${order.id}`;
           copy(billUrl, 'ลิงก์บิลออนไลน์');
         },
-        className: 'p-1.5 text-gray-400 hover:text-primary transition-colors rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700',
       });
       menuItems.push({
         key: 'edit', label: 'แก้ไข', icon: <Edit2 className="w-4 h-4" />,
         onClick: (e) => { e.stopPropagation(); router.push(`/orders/${order.id}/edit`); },
-        className: 'p-1.5 text-blue-500 hover:text-blue-700 transition-colors rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/30',
       });
       if (section3Start > 0) menuItems[section3Start].dividerBefore = true;
     }
@@ -1023,14 +1021,12 @@ export default function ProcessingTab({
         menuItems.push({
           key: 'hold', label: 'พักไว้', icon: <Pause className="w-4 h-4" />,
           onClick: (e) => { e.stopPropagation(); setHoldModal({ orderId: order.id, orderNumber: order.order_number }); },
-          className: 'p-1.5 text-gray-400 hover:text-gray-600 transition-colors rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700',
         });
       }
       if (!isMarketplace) {
         menuItems.push({
           key: 'cancel', label: 'ยกเลิก', icon: <Trash2 className="w-4 h-4" />,
           onClick: (e) => { e.stopPropagation(); confirmBulkCancel([order.id]); },
-          className: 'p-1.5 text-gray-400 hover:text-red-500 transition-colors rounded-lg hover:bg-red-50 dark:hover:bg-red-900/30',
           danger: true,
         });
       }

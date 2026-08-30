@@ -12,6 +12,8 @@ export interface ActionItem {
   /** Optional node rendered at the far right of the menu item (e.g. a print status dot) */
   suffix?: React.ReactNode;
   onClick?: (e: React.MouseEvent) => void;
+  /** เน้นเมนูที่ต้องเด่นจริง ๆ เท่านั้น (เช่น 'text-primary font-medium' ของ "พิมพ์ทั้งหมด")
+   *  — สี/ระยะปกติมาจาก `.action-menu-item` ห้ามส่งคลาสปุ่มไอคอน (p-1.5 text-gray-400 …) มาที่นี่ */
   className?: string;
   danger?: boolean;
   disabled?: boolean;
@@ -94,20 +96,19 @@ export default function ActionMenu({ items, trigger, triggerClassName, placement
               {idx > 0 && item.dividerBefore && <div className="border-t border-gray-200 dark:border-slate-700 my-1" />}
               <button
                 onClick={(e) => { e.stopPropagation(); if (item.disabled) return; setOpen(false); item.onClick?.(e); }}
-                className={`w-full px-3 py-2 text-left text-sm font-medium flex items-center gap-2.5 whitespace-nowrap transition-colors ${
-                  item.disabled
-                    ? 'text-gray-400 dark:text-slate-500 cursor-default'
-                    : item.danger
-                      ? 'text-red-600 dark:text-red-400 hover:bg-gray-50 dark:hover:bg-slate-700'
-                      : item.className
-                        ? `${item.className} hover:bg-gray-50 dark:hover:bg-slate-700`
-                        : 'text-gray-900 dark:text-slate-100 hover:bg-gray-50 dark:hover:bg-slate-700'
-                }`}
+                // หน้าตาทั้งหมดอยู่ที่ `.action-menu-item` ใน globals.css ที่เดียว
+                // (เขียนคลาสเต็มเป็น literal เพื่อให้ Tailwind มองเห็น ไม่ถูก purge)
+                className={[
+                  item.disabled ? 'action-menu-item disabled'
+                    : item.danger ? 'action-menu-item danger'
+                    : 'action-menu-item',
+                  item.className || '',
+                ].filter(Boolean).join(' ')}
               >
                 {item.icon}
                 <span className="flex flex-col flex-1">
                   <span>{item.label}</span>
-                  {item.description && <span className="text-xs font-normal text-gray-500 dark:text-slate-400">{item.description}</span>}
+                  {item.description && <span className="action-menu-item-desc">{item.description}</span>}
                 </span>
                 {item.suffix}
               </button>

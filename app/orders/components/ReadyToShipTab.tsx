@@ -1110,12 +1110,10 @@ export default function ReadyToShipTab({
       menuItems.push({
         key: 'view-slip', label: 'ดูสลิป', icon: <ImageIcon className="w-4 h-4" />,
         onClick: (e) => { e.stopPropagation(); handleViewSlip(order.id, order.order_number); },
-        className: 'p-1.5 text-gray-400 hover:text-purple-600 transition-colors rounded-lg hover:bg-purple-50 dark:hover:bg-purple-900/30',
       });
       menuItems.push({
         key: 'reject-slip', label: 'ปฏิเสธสลิป', icon: <XCircle className="w-4 h-4" />,
         onClick: (e) => { e.stopPropagation(); handleRejectSlip(order.id); },
-        className: 'p-1.5 text-gray-400 hover:text-red-500 transition-colors rounded-lg hover:bg-red-50 dark:hover:bg-red-900/30',
         danger: true,
       });
     }
@@ -1139,7 +1137,6 @@ export default function ReadyToShipTab({
             showToast(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด', 'error');
           } finally { setActionLoading(false); }
         },
-        className: 'p-1.5 text-gray-400 hover:text-amber-600 transition-colors rounded-lg hover:bg-amber-50 dark:hover:bg-amber-900/30',
       });
     }
 
@@ -1152,7 +1149,6 @@ export default function ReadyToShipTab({
       menuItems.push({
         key: 'invoice', label: 'ใบแจ้งหนี้', icon: <Banknote className="w-4 h-4" />,
         onClick: (e) => { e.stopPropagation(); handlePrintInvoice(order.id); },
-        className: 'p-1.5 text-gray-400 hover:text-green-600 transition-colors rounded-lg hover:bg-green-50 dark:hover:bg-green-900/30',
       });
     } else if (vatRegistered) {
       if (!hasFullTax) {
@@ -1160,19 +1156,16 @@ export default function ReadyToShipTab({
         menuItems.push({
           key: 'abbreviated-invoice', label: 'ใบกำกับอย่างย่อ', icon: <Banknote className="w-4 h-4" />,
           onClick: (e) => { e.stopPropagation(); handlePrintAbbreviatedInvoice(order.id); },
-          className: 'p-1.5 text-gray-400 hover:text-green-600 transition-colors rounded-lg hover:bg-green-50 dark:hover:bg-green-900/30',
         });
         menuItems.push({
           key: 'full-invoice', label: <><span className="text-orange-500 font-semibold">ออก</span>ใบกำกับแบบเต็ม</>, icon: <Banknote className="w-4 h-4" />,
           onClick: async (e) => { e.stopPropagation(); const ok = await confirm({ title: 'ออกใบกำกับภาษีแบบเต็ม', description: 'หากออกใบกำกับแบบเต็มแล้ว ระบบจะยกเลิก (void) ใบกำกับภาษีอย่างย่อให้อัตโนมัติ', confirmLabel: 'ออกใบกำกับแบบเต็ม' }); if (!ok) return; setTaxInvoiceModal({ orderId: order.id, orderNumber: order.order_number, customerId: order.customer_id, hasAbbrev: order.tax_invoice_doc_type === 'abbreviated' && !order.tax_invoice_voided_at }); },
-          className: 'p-1.5 text-gray-400 hover:text-emerald-600 transition-colors rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-900/30',
         });
       } else {
         // ออกแบบเต็มแล้ว → แสดงแค่ใบกำกับแบบเต็ม (ซ่อน ABB)
         menuItems.push({
           key: 'full-invoice', label: 'ใบกำกับแบบเต็ม', icon: <Banknote className="w-4 h-4" />,
           onClick: (e) => { e.stopPropagation(); handlePrintFullTaxInvoice(order.id); },
-          className: 'p-1.5 text-gray-400 hover:text-emerald-600 transition-colors rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-900/30',
         });
       }
     } else {
@@ -1180,7 +1173,6 @@ export default function ReadyToShipTab({
       menuItems.push({
         key: 'receipt', label: 'ใบเสร็จรับเงิน', icon: <Banknote className="w-4 h-4" />,
         onClick: (e) => { e.stopPropagation(); handlePrintInvoice(order.id); },
-        className: 'p-1.5 text-gray-400 hover:text-green-600 transition-colors rounded-lg hover:bg-green-50 dark:hover:bg-green-900/30',
       });
     }
     if (menuItems.length > section2Start && section2Start > 0) {
@@ -1197,12 +1189,10 @@ export default function ReadyToShipTab({
           const billUrl = `${window.location.origin}/bills/${order.id}`;
           copy(billUrl, 'ลิงก์บิลออนไลน์');
         },
-        className: 'p-1.5 text-gray-400 hover:text-primary transition-colors rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700',
       });
       menuItems.push({
         key: 'edit', label: 'แก้ไข', icon: <Edit2 className="w-4 h-4" />,
         onClick: (e) => { e.stopPropagation(); router.push(`/orders/${order.id}/edit`); },
-        className: 'p-1.5 text-blue-500 hover:text-blue-700 transition-colors rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/30',
       });
       if (section3Start > 0) menuItems[section3Start].dividerBefore = true;
     }
@@ -1214,14 +1204,12 @@ export default function ReadyToShipTab({
         menuItems.push({
           key: 'hold', label: 'พักไว้', icon: <Pause className="w-4 h-4" />,
           onClick: (e) => { e.stopPropagation(); setHoldModal({ orderId: order.id, orderNumber: order.order_number }); },
-          className: 'p-1.5 text-gray-400 hover:text-gray-600 transition-colors rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700',
         });
       }
       if (!isMarketplace) {
         menuItems.push({
           key: 'cancel', label: 'ยกเลิก', icon: <Trash2 className="w-4 h-4" />,
           onClick: (e) => { e.stopPropagation(); confirmBulkCancel([order.id]); },
-          className: 'p-1.5 text-gray-400 hover:text-red-500 transition-colors rounded-lg hover:bg-red-50 dark:hover:bg-red-900/30',
           danger: true,
         });
       }

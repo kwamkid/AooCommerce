@@ -407,6 +407,27 @@ h6:where(.heading-1, .heading-2, .heading-3, .heading-4) {
     @apply bg-amber-500 hover:bg-amber-600;
   }
 
+  /* ─── Action menu item (แถวใน ActionMenu dropdown) ─── */
+  /* หน้าตาของทุกเมนูอยู่ที่นี่ที่เดียว — ห้ามส่ง className สีเทา/สีเน้นจากหน้าเรียกอีก
+   * (ของเดิมเป็นคลาสของ "ปุ่มไอคอน" ที่ติดมาตอนย้ายเข้า ActionMenu ทำให้ตัวหนังสือ
+   * จางเหมือนกดไม่ได้ และเมนู "แก้ไข" ถูกเน้นสีฟ้าโดยไม่มีเหตุผล)
+   * ตัว utility ที่ส่งมาทาง `className` ยังชนะได้ (utilities layer > components layer)
+   * — ใช้เฉพาะเมนูที่ต้องเน้นจริง ๆ เช่น `text-primary font-medium` */
+  .action-menu-item {
+    @apply w-full px-3 py-2 text-left text-sm font-medium flex items-center gap-2.5
+           whitespace-nowrap transition-colors text-gray-900 dark:text-slate-100
+           hover:bg-gray-50 dark:hover:bg-slate-700;
+  }
+  .action-menu-item.danger {
+    @apply text-red-600 dark:text-red-400;
+  }
+  .action-menu-item.disabled {
+    @apply text-gray-400 dark:text-slate-500 cursor-default hover:bg-transparent dark:hover:bg-transparent;
+  }
+  .action-menu-item-desc {
+    @apply text-xs font-normal text-gray-500 dark:text-slate-400;
+  }
+
   /* ─── DataTable resize handle ─── */
   /* Wider hit area (5px) sits half outside the cell so adjacent cells stay
    * flush. A thin always-visible line (1px) signals where to grab; the line
