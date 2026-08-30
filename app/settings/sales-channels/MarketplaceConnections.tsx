@@ -11,7 +11,7 @@ import { useToast } from '@/lib/toast-context';
 import { useFeatures } from '@/lib/features-context';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { apiFetch } from '@/lib/api-client';
-import { ChevronDown, Clock, ImagePlus, Link2, PackageSearch, RefreshCw, RotateCw, ShoppingBag, Trash2, Warehouse } from 'lucide-react';
+import { ChevronDown, Clock, ImagePlus, Link2, Loader2, PackageSearch, RefreshCw, RotateCw, ShoppingBag, Trash2, Warehouse } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import FormSelect from '@/components/ui/FormSelect';
 import { ExportButton, ImportButton } from '@/components/ui/ExportImportButton';
@@ -22,13 +22,12 @@ import Modal from '@/components/ui/Modal';
 import FormInput from '@/components/ui/FormInput';
 import SaveButton from '@/components/ui/SaveButton';
 import ImageDropzone from '@/components/ui/ImageDropzone';
-import ActionMenu, { type ActionItem } from '@/components/ui/ActionMenu';
 import LoadingOverlay from '@/components/ui/LoadingOverlay';
 import PlatformIcon from '@/components/ui/PlatformIcon';
 import { LoadingCard } from '@/components/ui/StateCard';
 import { formatThaiDateTime } from '@/lib/utils/format';
 import MarketplaceAccountCard, { SyncRangeSelect } from './MarketplaceAccountCard';
-import { useMarketplaceAccounts, type MarketplaceAccount } from './useMarketplaceAccounts';
+import { useMarketplaceAccounts, type MarketplaceAccount, type MarketplacePlatform } from './useMarketplaceAccounts';
 
 interface MarketplaceConnectionsProps {
   // Badge-tab เลือกดูทีละแพลตฟอร์ม — state อยู่ที่ parent เพราะปุ่ม
@@ -60,7 +59,13 @@ export default function MarketplaceConnections({
   const [syncRange, setSyncRange] = useState<Record<string, number>>({}); // accountId → days
   // ตั้งโลโก้เองด้วย URL — สำหรับร้านที่ API ของ marketplace ไม่คืนโลโก้มาให้เลย
   const [logoModal, setLogoModal] = useState<
-    { id: string; name: string; currentUrl: string; canLinkProfile?: boolean } | null
+    {
+      id: string; name: string; currentUrl: string;
+      platform: MarketplacePlatform | null;
+      canLinkProfile?: boolean;
+      /** choose = หน้าเลือกวิธี · upload = หน้าลากไฟล์ */
+      step: 'choose' | 'upload';
+    } | null
   >(null);
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [savingLogo, setSavingLogo] = useState(false);
@@ -453,53 +458,68 @@ export default function MarketplaceConnections({
       id: account.id,
       name: account.shop_name || 'ร้าน',
       currentUrl: (account.metadata?.shop_logo as string) || '',
+      platform: account.platform,
       canLinkProfile: account.profile_link_available,
+      step: 'choose',
     });
   };
 
 
-  /** เมนูที่เด้งจากการกดรูปโลโก้ — ทางเลือกทั้งหมดอยู่ตรงนี้ ไม่ยัดรวมใน modal */
-  const logoMenuItems = (account: MarketplaceAccount): ActionItem[] => {
-    const hasLogo = !!(account.metadata?.shop_logo as string);
-    const items: ActionItem[] = [
+  /** ทางเลือกในหน้าแรกของโมดัลโลโก้ — คำอธิบายต้องตรงกับความจริงของแต่ละแพลตฟอร์ม */
+  const logoOptions = (m: NonNullable<typeof logoModal>) => {
+    // ⚠️ "ดึงจากแพลตฟอร์ม" ได้ผลไม่เท่ากัน — เขียนป้ายรวม ๆ ว่าได้โลโก้ด้วยคือโกหก
+    //    Shopee (/shop/get_profile) คืนโลโก้จริง · Lazada (/seller/get) คืนบางร้าน
+    //    TikTok ไม่คืนเลย เหลือแค่ชื่อร้าน (ยืนยันแล้ว — ดู lib/marketplace/shop-info.ts)
+    const fetchDesc = m.platform === 'tiktok'
+      ? 'ได้เฉพาะชื่อร้าน — TikTok ไม่เปิด API โลโก้'
+      : m.platform === 'lazada'
+        ? 'อัปเดตชื่อร้าน + โลโก้ (Lazada บางร้านไม่ส่งโลโก้มา)'
+        : 'อัปเดตชื่อร้าน + โลโก้ล่าสุดจาก Shopee';
+
+    const opts: {
+      key: string; label: string; description: string; icon: React.ReactNode;
+      onClick: () => void; danger?: boolean; busy?: boolean;
+    }[] = [
       {
         key: 'resync',
         label: 'ดึงจากแพลตฟอร์ม',
-        description: 'อัปเดตชื่อร้าน + โลโก้ล่าสุด',
-        icon: <RefreshCw className="w-4 h-4" />,
-        onClick: () => handleResyncInfo(account.id),
+        description: fetchDesc,
+        icon: <RefreshCw className="w-5 h-5" />,
+        busy: resyncingId === m.id,
+        onClick: () => handleResyncInfo(m.id),
       },
     ];
-    if (account.profile_link_available) {
-      items.push({
+    if (m.canLinkProfile) {
+      opts.push({
         key: 'tiktok-profile',
         label: 'ดึงรูปจากบัญชี TikTok',
-        description: 'TikTok Shop ไม่เปิด API โลโก้ร้าน',
-        icon: <PlatformIcon id="tiktok" size={16} />,
-        onClick: () => promptProfileConnect(account.id),
+        description: 'ใช้รูปโปรไฟล์ของบัญชีเจ้าของร้าน — ต้องกดอนุญาตที่ TikTok',
+        icon: <PlatformIcon id="tiktok" size={20} />,
+        busy: linkingProfile,
+        onClick: () => promptProfileConnect(m.id),
       });
     }
-    items.push({
+    opts.push({
       key: 'upload',
       label: 'อัปโหลดรูปเอง',
-      description: 'ลากรูปมาวางหรือเลือกจากเครื่อง',
-      icon: <ImagePlus className="w-4 h-4" />,
-      onClick: () => openLogoModal(account),
+      description: 'ลากไฟล์มาวางหรือเลือกจากเครื่อง — ได้รูปตรงที่สุด',
+      icon: <ImagePlus className="w-5 h-5" />,
+      onClick: () => setLogoModal(prev => (prev ? { ...prev, step: 'upload' } : prev)),
     });
-    if (hasLogo) {
-      items.push({
+    if (m.currentUrl) {
+      opts.push({
         key: 'clear',
         label: 'ลบรูปโลโก้',
-        icon: <Trash2 className="w-4 h-4" />,
+        description: 'กลับไปใช้ไอคอนแพลตฟอร์มแทน',
+        icon: <Trash2 className="w-5 h-5" />,
         danger: true,
-        dividerBefore: true,
-        onClick: () => handleClearLogo(account.id),
+        onClick: () => handleClearLogo(m.id),
       });
     }
-    return items;
+    return opts;
   };
 
-  /** รูปโลโก้ — เนื้อในของ trigger (ActionMenu ห่อ <button> ให้แล้ว ห้ามซ้อนปุ่ม) */
+  /** รูปโลโก้ — เนื้อในของปุ่มที่เปิดโมดัล (ห้ามใส่ <button> ซ้อนอีกชั้น) */
   const shopAvatar = (account: MarketplaceAccount, tile: string, iconCls: string, fallbackAlt: string) => (
     <span className="relative block w-10 h-10 flex-shrink-0 group">
       {/* icon รองพื้น + img ทับ + onError ซ่อนตัวเอง — URL ตายไม่โชว์รูปแตก */}
@@ -528,7 +548,11 @@ export default function MarketplaceConnections({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: accountId, shop_logo: '' }),
       });
-      if (res.ok) { showToast('ลบโลโก้ร้านแล้ว', 'success'); refetch(); }
+      if (res.ok) {
+        showToast('ลบโลโก้ร้านแล้ว', 'success');
+        setLogoModal(prev => (prev ? { ...prev, currentUrl: '' } : prev));
+        refetch();
+      }
       else showToast('ลบไม่สำเร็จ', 'error');
     } catch { showToast('เกิดข้อผิดพลาด', 'error'); }
   };
@@ -852,12 +876,14 @@ export default function MarketplaceConnections({
                 onDisconnect={() => handleDisconnect(account.id)}
                 disconnecting={disconnectingId === account.id}
                 avatar={
-                  <ActionMenu
-                    placement="bottom"
-                    triggerClassName="relative flex-shrink-0 rounded-lg"
-                    trigger={shopAvatar(account, 'bg-transparent', 'w-5 h-5 text-shopee', 'Shop')}
-                    items={logoMenuItems(account)}
-                  />
+                  <button
+                    type="button"
+                    onClick={() => openLogoModal(account)}
+                    className="relative flex-shrink-0 rounded-lg"
+                    title="เปลี่ยนโลโก้ร้าน"
+                  >
+                    {shopAvatar(account, 'bg-transparent', 'w-5 h-5 text-shopee', 'Shop')}
+                  </button>
                 }
               >
                 {/* Details */}
@@ -986,12 +1012,14 @@ export default function MarketplaceConnections({
                 onDisconnect={() => handleDisconnect(account.id)}
                 disconnecting={disconnectingId === account.id}
                 avatar={
-                  <ActionMenu
-                    placement="bottom"
-                    triggerClassName="relative flex-shrink-0 rounded-lg"
-                    trigger={shopAvatar(account, 'bg-black', 'w-5 h-5 text-white', 'TikTok Shop')}
-                    items={logoMenuItems(account)}
-                  />
+                  <button
+                    type="button"
+                    onClick={() => openLogoModal(account)}
+                    className="relative flex-shrink-0 rounded-lg"
+                    title="เปลี่ยนโลโก้ร้าน"
+                  >
+                    {shopAvatar(account, 'bg-black', 'w-5 h-5 text-white', 'TikTok Shop')}
+                  </button>
                 }
               >
                 <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-slate-400">
@@ -1064,12 +1092,14 @@ export default function MarketplaceConnections({
                 onDisconnect={() => handleDisconnect(account.id)}
                 disconnecting={disconnectingId === account.id}
                 avatar={
-                  <ActionMenu
-                    placement="bottom"
-                    triggerClassName="relative flex-shrink-0 rounded-lg"
-                    trigger={shopAvatar(account, 'bg-[#0F146E]', 'w-5 h-5 text-white', 'Lazada')}
-                    items={logoMenuItems(account)}
-                  />
+                  <button
+                    type="button"
+                    onClick={() => openLogoModal(account)}
+                    className="relative flex-shrink-0 rounded-lg"
+                    title="เปลี่ยนโลโก้ร้าน"
+                  >
+                    {shopAvatar(account, 'bg-[#0F146E]', 'w-5 h-5 text-white', 'Lazada')}
+                  </button>
                 }
               >
                 {warehousePicker(account)}
@@ -1123,17 +1153,28 @@ export default function MarketplaceConnections({
       <Modal
         open={!!logoModal}
         onClose={closeLogoModal}
-        title={`อัปโหลดโลโก้ — ${logoModal?.name || 'ร้าน'}`}
+        title={logoModal?.step === 'upload'
+          ? `อัปโหลดโลโก้ — ${logoModal?.name || 'ร้าน'}`
+          : `โลโก้ร้าน — ${logoModal?.name || 'ร้าน'}`}
         size="md"
-        footer={
+        footer={logoModal?.step === 'upload' ? (
           <div className="modal-footer px-6 py-4 flex justify-end gap-2">
-            <Button variant="secondary" onClick={closeLogoModal}>ยกเลิก</Button>
+            <Button
+              variant="secondary"
+              onClick={() => { setLogoFile(null); setLogoModal(prev => (prev ? { ...prev, step: 'choose' } : prev)); }}
+            >
+              ย้อนกลับ
+            </Button>
             <SaveButton loading={savingLogo} onClick={handleSaveLogo} disabled={!logoFile} />
           </div>
-        }
+        ) : (
+          <div className="modal-footer px-6 py-4 flex justify-end gap-2">
+            <Button variant="secondary" onClick={closeLogoModal}>ปิด</Button>
+          </div>
+        )}
       >
-        <div className="px-6 py-5 space-y-3">
-          <div className="space-y-2">
+        {logoModal?.step === 'upload' ? (
+          <div className="px-6 py-5 space-y-3">
             <p className="subtitle-text text-gray-500">
               ใช้รูปเดียวกับที่ตั้งไว้ในหน้าร้าน (Seller Center) จะตรงที่สุด — ระบบย่อให้เหลือ 300px อัตโนมัติ
             </p>
@@ -1145,13 +1186,59 @@ export default function MarketplaceConnections({
               hint="ลากรูปมาวาง หรือวางจากคลิปบอร์ดก็ได้"
               initialPreviewUrl={logoFile ? null : logoModal?.currentUrl || null}
               // โลโก้โชว์จริงแค่ 40px — 300px พอเผื่อจอ retina แล้ว ไม่ต้องเก็บใหญ่กว่านี้
-              // (ค่า default 1920 ของสลิปทำให้ไฟล์ใหญ่เกินความจำเป็นสิบเท่า)
               maxWidthOrHeight={300}
               maxSizeMB={0.1}
               classNames={{ preview: 'relative inline-block [&_img]:w-24 [&_img]:h-24 [&_img]:rounded-lg [&_img]:object-cover [&_img]:border [&_img]:border-gray-200' }}
             />
           </div>
-        </div>
+        ) : (
+          <div className="px-6 py-5 space-y-4">
+            {/* รูปปัจจุบัน — ให้เห็นก่อนว่ากำลังจะเปลี่ยนอะไร */}
+            <div className="flex items-center gap-3">
+              {logoModal?.currentUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={logoModal.currentUrl}
+                  alt="โลโก้ปัจจุบัน"
+                  className="w-14 h-14 rounded-lg object-cover border border-gray-200 dark:border-slate-700"
+                />
+              ) : (
+                <div className="w-14 h-14 rounded-lg border border-dashed border-gray-300 dark:border-slate-600 flex items-center justify-center text-gray-400">
+                  <ShoppingBag className="w-6 h-6" />
+                </div>
+              )}
+              <p className="subtitle-text text-gray-500">
+                {logoModal?.currentUrl ? 'โลโก้ที่ใช้อยู่' : 'ยังไม่มีโลโก้'}
+              </p>
+            </div>
+
+            <div className="border-t border-gray-100 dark:border-slate-700" />
+
+            {logoModal && logoOptions(logoModal).map(opt => (
+              <button
+                key={opt.key}
+                type="button"
+                disabled={opt.busy}
+                onClick={opt.onClick}
+                className={`w-full text-left flex items-start gap-3 rounded-lg border p-3 transition-colors disabled:opacity-60 ${
+                  opt.danger
+                    ? 'border-red-200 hover:bg-red-50 dark:border-red-500/30 dark:hover:bg-red-500/10'
+                    : 'border-gray-200 hover:border-primary hover:bg-primary/5 dark:border-slate-700'
+                }`}
+              >
+                <span className={`mt-0.5 ${opt.danger ? 'text-red-600' : 'text-gray-500'}`}>
+                  {opt.busy ? <Loader2 className="w-5 h-5 animate-spin" /> : opt.icon}
+                </span>
+                <span className="min-w-0">
+                  <span className={`block body-text font-medium ${opt.danger ? 'text-red-600' : 'text-gray-900 dark:text-white'}`}>
+                    {opt.label}
+                  </span>
+                  <span className="block subtitle-text text-gray-500">{opt.description}</span>
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
       </Modal>
 
       {confirmDialog}
