@@ -974,8 +974,9 @@ export default function ProcessingTab({
         label: action.type === 'request_full' ? 'ออกใบกำกับแบบเต็ม' : labelOverride,
         icon,
         onClick: getPrintActionHandler(action, order),
-        // ออกใบกำกับแบบเต็ม = สร้างเอกสารใบใหม่ (void ใบย่อ) — เมนูสำคัญสุดของกลุ่มนี้
-        primary: action.type === 'request_full',
+        // แท็บนี้คือขั้น "แพ็คของ" — เอกสารที่ต้องพิมพ์ตอนนี้คือใบจัดของ + ใบปะหน้า
+        // (เอกสารการเงินยังไม่ใช่งานของขั้นนี้ ปล่อยเป็นสีปกติ)
+        primary: action.category === 'shipping',
       };
 
       // Add divider before first financial item
