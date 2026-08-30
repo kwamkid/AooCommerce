@@ -13,6 +13,7 @@ import { supabaseAdmin } from '@/lib/supabase-admin';
 import { sendNewOrderPushById } from '@/lib/push/send';
 import { getStorefrontCompany } from '@/lib/storefront-server';
 import { effectivePrice } from '@/lib/storefront';
+import { splitVatInclusive } from '@/lib/order-totals';
 import {
   resolveZone, resolveDeliveryFee, getSlotAvailability,
   getSlotWindow, buildWindowLabel,
@@ -230,8 +231,7 @@ export async function POST(request: NextRequest) {
   const vatRegistered = await supabaseAdmin
     .from('companies').select('vat_registered').eq('id', company.id).single()
     .then(r => r.data?.vat_registered || false);
-  const subtotalBeforeVat = vatRegistered ? Math.round((totalWithVat / 1.07) * 100) / 100 : totalWithVat;
-  const vatAmount = vatRegistered ? Math.round((totalWithVat - subtotalBeforeVat) * 100) / 100 : 0;
+  const { subtotal: subtotalBeforeVat, vatAmount } = splitVatInclusive(totalWithVat, vatRegistered);
 
   const { data: orderNumber, error: numberError } = await supabaseAdmin
     .rpc('generate_order_number', { p_company_id: company.id });

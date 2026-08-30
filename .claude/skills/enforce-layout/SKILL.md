@@ -78,7 +78,7 @@
 - [ ] Items: `ItemsTable`
 - [ ] Address: `ThaiAddressInput`
 - [ ] Tax: `TaxInfoForm` / `TaxInvoiceInfo`
-- [ ] Summary: `OrderSummaryBox` หรือ `OrderSummaryCard`
+- [ ] Summary: `OrderSummaryBox`
 - [ ] Shipping: `ShipModal`
 - [ ] Payment: `PaymentModal`
 

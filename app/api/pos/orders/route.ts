@@ -4,6 +4,7 @@ import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
 import { getStockConfig } from '@/lib/stock-utils';
 import { deductStock } from '@/lib/stock-service';
 import { fetchCostMap } from '@/lib/cost-utils';
+import { computeOrderTotals } from '@/lib/order-totals';
 
 interface PosItemInput {
   variation_id: string;
@@ -279,9 +280,11 @@ export async function POST(request: NextRequest) {
     const posVatRegistered = posCompanyInfo?.vat_registered || false;
 
     // VAT calculation (prices are VAT-inclusive if registered, reverse-calculate)
-    const totalWithVAT = itemsSubtotal - orderDiscountAmount;
-    const subtotalBeforeVAT = posVatRegistered ? Math.round((totalWithVAT / 1.07) * 100) / 100 : totalWithVAT;
-    const vatAmount = posVatRegistered ? Math.round((totalWithVAT - subtotalBeforeVAT) * 100) / 100 : 0;
+    const { subtotal: subtotalBeforeVAT, vatAmount, totalAmount: totalWithVAT } = computeOrderTotals({
+      itemsTotal: itemsSubtotal,
+      discountAmount: orderDiscountAmount,
+      vatRegistered: posVatRegistered,
+    });
 
     // Validate payment total
     const paymentTotal = payments.reduce((sum, p) => sum + Number(p.amount), 0);

@@ -18,6 +18,7 @@ import {
   buildProductNameStack,
   withOriginalAndCopy,
 } from './pdf-utils';
+import { splitVatInclusive } from './order-totals';
 
 // ─── Interfaces ──────────────────────────────────────────
 
@@ -295,9 +296,7 @@ export async function generateDepartmentStoreReportPdf(data: DeptStoreReportPdfD
   const summaryRows: any[][] = [];
 
   if (!!docNumber && vatRegistered) {
-    const totalWithVAT = data.our_amount;
-    const subtotalExVAT = Math.round((totalWithVAT / 1.07) * 100) / 100;
-    const vatAmt = totalWithVAT - subtotalExVAT;
+    const { subtotal: subtotalExVAT, vatAmount: vatAmt } = splitVatInclusive(data.our_amount, true);
     summaryRows.push(
       [
         { text: 'ยอดก่อน VAT', fontSize: 10, alignment: 'right', color: '#666666' },

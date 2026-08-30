@@ -1,5 +1,7 @@
 // POS utility functions
 
+import { computeOrderTotals } from './order-totals';
+
 export interface PosCartItem {
   variation_id: string;
   product_id: string;
@@ -44,14 +46,17 @@ export function calculatePosOrderTotals(
     itemsSubtotal += lineSubtotal - lineDiscount;
   }
 
-  const totalWithVAT = itemsSubtotal - orderDiscount;
-  const subtotalBeforeVAT = vatRegistered ? Math.round((totalWithVAT / 1.07) * 100) / 100 : totalWithVAT;
-  const vatAmount = vatRegistered ? Math.round((totalWithVAT - subtotalBeforeVAT) * 100) / 100 : 0;
+  // สูตรยอด/ถอด VAT อยู่ที่ lib/order-totals.ts ที่เดียวทั้งระบบ
+  const { subtotal: subtotalBeforeVAT, vatAmount, totalAmount } = computeOrderTotals({
+    itemsTotal: itemsSubtotal,
+    discountAmount: orderDiscount,
+    vatRegistered,
+  });
 
   return {
     subtotalBeforeVAT,
     vatAmount,
-    totalAmount: totalWithVAT,
+    totalAmount,
     discountAmount: orderDiscount,
     itemsSubtotal,
   };

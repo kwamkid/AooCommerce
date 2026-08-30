@@ -6,6 +6,7 @@ import { Minus, Plus, Trash2, User, Tag } from 'lucide-react';
 import { formatPrice } from '@/lib/utils/format';
 import Button from '@/components/ui/Button';
 import NumberInput from '@/components/ui/NumberInput';
+import { computeOrderTotals } from '@/lib/order-totals';
 
 export interface CartItemComponent {
   variation_id: string;
@@ -165,9 +166,12 @@ export default function CartPanel({
   const orderDiscountAmount = orderDiscountType === 'percent'
     ? Math.round(itemsSubtotal * (orderDiscount / 100) * 100) / 100
     : orderDiscount;
-  const totalWithVAT = itemsSubtotal - orderDiscountAmount;
-  const subtotalBeforeVAT = vatRegistered ? Math.round((totalWithVAT / 1.07) * 100) / 100 : totalWithVAT;
-  const vatAmount = vatRegistered ? Math.round((totalWithVAT - subtotalBeforeVAT) * 100) / 100 : 0;
+  // ยอดบนตะกร้าต้องเท่ากับยอดที่ /api/pos/orders บันทึก → ใช้สูตรกลางตัวเดียวกัน
+  const { subtotal: subtotalBeforeVAT, vatAmount, totalAmount: totalWithVAT } = computeOrderTotals({
+    itemsTotal: itemsSubtotal,
+    discountAmount: orderDiscountAmount,
+    vatRegistered,
+  });
 
   return (
     <div className="flex flex-col h-full">

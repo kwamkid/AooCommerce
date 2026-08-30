@@ -29,6 +29,7 @@ import { showPdfPreview, mergePdfBlobs } from '@/lib/print-pdf';
 import { LoadingCard } from '@/components/ui/StateCard';
 import StatusBadge from '@/components/ui/StatusBadge';
 import { useDebouncedCallback } from '@/lib/useDebounce';
+import { splitVatInclusive } from '@/lib/order-totals';
 
 interface DeptOrder {
   id: string;
@@ -602,10 +603,8 @@ function DepartmentOrdersContent() {
         };
       });
     const totalAmount = order.confirmed_total ?? order.total_amount ?? 0;
-    // dept store = VAT inclusive price → extract VAT
-    const vatRate = 0.07;
-    const subtotalBeforeVat = totalAmount / (1 + vatRate);
-    const vatAmount = totalAmount - subtotalBeforeVat;
+    // dept store = VAT inclusive price → ถอด VAT ด้วยสูตรกลาง lib/order-totals.ts
+    const { subtotal: subtotalBeforeVat, vatAmount } = splitVatInclusive(totalAmount, true);
 
     return {
       order_number: order.department_order_number,

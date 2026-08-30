@@ -24,6 +24,7 @@ import { showPdfPreview } from '@/lib/print-pdf';
 import StickyActionBar from '@/components/ui/StickyActionBar';
 import { LoadingCard } from '@/components/ui/StateCard';
 import UiStatusBadge from '@/components/ui/StatusBadge';
+import { splitVatInclusive } from '@/lib/order-totals';
 
 interface Customer {
   id: string;
@@ -481,9 +482,11 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
   const discountAmount = orderDiscountType === 'percent'
     ? subtotalBeforeDiscount * orderDiscount / 100
     : orderDiscount;
-  const totalWithVAT = Math.max(0, subtotalBeforeDiscount - discountAmount + shippingFee);
-  const subtotalExVAT = vatRegistered ? Math.round((totalWithVAT / 1.07) * 100) / 100 : totalWithVAT;
-  const vat = vatRegistered ? totalWithVAT - subtotalExVAT : 0;
+  // ถอด VAT ด้วยสูตรกลาง (lib/order-totals.ts) เหมือนทุกเอกสารในระบบ
+  const { subtotal: subtotalExVAT, vatAmount: vat, totalAmount: totalWithVAT } = splitVatInclusive(
+    Math.max(0, subtotalBeforeDiscount - discountAmount + shippingFee),
+    vatRegistered,
+  );
   const totalAmount = totalWithVAT;
 
   // Confirmed subtotal (for pending_confirm / completed with mismatch)
@@ -498,6 +501,10 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
     : 0;
   const confirmedTotalWithVAT = confirmedSubtotal !== null
     ? Math.max(0, confirmedSubtotal - confirmedDiscountAmount + shippingFee)
+    : null;
+  // ยอดที่ตัวแทนยืนยันกลับมา — แตก VAT ด้วยสูตรเดียวกับยอดตั้งต้น
+  const confirmedSplit = confirmedTotalWithVAT !== null
+    ? splitVatInclusive(confirmedTotalWithVAT, vatRegistered)
     : null;
   const hasItems = items.length > 0;
 
@@ -1057,12 +1064,12 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
                     <div className="grid grid-cols-[1fr_auto_auto] gap-x-3 items-center text-sm py-1 border-t border-gray-100 dark:border-slate-700">
                       <span className="text-gray-500 dark:text-slate-400">ก่อน VAT</span>
                       <span className="text-right w-20 text-gray-400 dark:text-slate-500 line-through">฿{formatNumber(subtotalExVAT)}</span>
-                      <span className="text-right w-20 text-gray-600 dark:text-slate-300">฿{formatNumber(Math.round((confirmedTotalWithVAT / 1.07) * 100) / 100)}</span>
+                      <span className="text-right w-20 text-gray-600 dark:text-slate-300">฿{formatNumber(confirmedSplit!.subtotal)}</span>
                     </div>
                     <div className="grid grid-cols-[1fr_auto_auto] gap-x-3 items-center text-sm py-1">
                       <span className="text-gray-500 dark:text-slate-400">VAT 7%</span>
                       <span className="text-right w-20 text-gray-400 dark:text-slate-500 line-through">฿{formatNumber(vat)}</span>
-                      <span className="text-right w-20 text-gray-600 dark:text-slate-300">฿{formatNumber(confirmedTotalWithVAT - Math.round((confirmedTotalWithVAT / 1.07) * 100) / 100)}</span>
+                      <span className="text-right w-20 text-gray-600 dark:text-slate-300">฿{formatNumber(confirmedSplit!.vatAmount)}</span>
                     </div>
                   </>
                 )}

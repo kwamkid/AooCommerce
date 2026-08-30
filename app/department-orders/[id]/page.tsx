@@ -19,6 +19,7 @@ import {
 import Link from 'next/link';
 import { LoadingCard } from '@/components/ui/StateCard';
 import StatusBadge from '@/components/ui/StatusBadge';
+import { splitVatInclusive } from '@/lib/order-totals';
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
   draft: { label: 'ที่ต้องจัดส่ง', ...getBadgeColor('draft') },
@@ -99,10 +100,12 @@ export default function DepartmentOrderDetailPage() {
         return { product_name: i.product_name, variation_label: i.variation_label, quantity: qty, unit_price: i.unit_price || 0, subtotal: lineTotal, total: lineTotal };
       });
     const totalAmt = order.confirmed_total ?? order.total_amount ?? 0;
-    const subtotalBeforeVat = totalAmt / 1.07;
+    // ใบกำกับของออเดอร์ห้างคิด VAT เสมอ (ออกให้เฉพาะร้านที่จด VAT อยู่แล้ว)
+    // — ถอดด้วยสูตรกลาง lib/order-totals.ts ให้ปัดเศษตรงกับเอกสารใบอื่น
+    const { subtotal: subtotalBeforeVat, vatAmount: vatAmt } = splitVatInclusive(totalAmt, true);
     return {
       order_number: order.department_order_number, created_at: order.created_at, payment_status: 'paid',
-      subtotal: subtotalBeforeVat, discount_amount: 0, shipping_fee: 0, vat_amount: totalAmt - subtotalBeforeVat, total_amount: totalAmt,
+      subtotal: subtotalBeforeVat, discount_amount: 0, shipping_fee: 0, vat_amount: vatAmt, total_amount: totalAmt,
       notes: order.notes,
       customer: order.customer ? { name: order.customer.name, phone: order.customer.phone } : null,
       delivery_name: order.customer?.name, delivery_phone: order.customer?.phone,

@@ -25,7 +25,7 @@ Scan for patterns that should use shared components:
 | Custom image upload | `ImageUploader` |
 | Custom tooltip | `Tooltip` |
 | Custom loading overlay | `LoadingOverlay` |
-| Custom order summary totals | `OrderSummaryBox` or `OrderSummaryCard` |
+| Custom order summary totals | `OrderSummaryBox` |
 | Custom print buttons | `OrderPrintButtons` |
 
 ### 2. Hooks

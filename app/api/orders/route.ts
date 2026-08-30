@@ -8,7 +8,7 @@ import { reserveStock, unreserveStock, returnStock, deductAndUnreserve } from '@
 import { getPromotionComponents } from '@/lib/promotion-service';
 import { fetchCostMap } from '@/lib/cost-utils';
 import { resolveDeliverySnapshot } from '@/lib/delivery-server';
-import { computeOrderTotals } from '@/lib/order-totals';
+import { computeOrderTotals, splitVatInclusive } from '@/lib/order-totals';
 
 // Type definitions
 interface OrderItemInput {
@@ -895,9 +895,9 @@ export async function POST(request: NextRequest) {
             }
             // Recalculate VAT from new total
             if (isVatRegistered && newTotal > 0) {
-              const newSubtotalBV = Math.round((newTotal / 1.07) * 100) / 100;
-              updateFields.subtotal = newSubtotalBV;
-              updateFields.vat_amount = newTotal - newSubtotalBV;
+              const newSplit = splitVatInclusive(newTotal, true);
+              updateFields.subtotal = newSplit.subtotal;
+              updateFields.vat_amount = newSplit.vatAmount;
             } else if (newTotal === 0) {
               updateFields.subtotal = 0;
               updateFields.vat_amount = 0;
