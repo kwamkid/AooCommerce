@@ -83,6 +83,7 @@ export async function POST(request: NextRequest) {
         account_id: account?.id || null,
         push_code: pushCode,
         push_label: getPushLabel(pushCode),
+        platform: 'shopee',
         raw_payload: payload,
         signature: authorization || null,
         signature_valid: signatureValid,

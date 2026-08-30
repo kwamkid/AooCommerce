@@ -1,179 +1,35 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { after } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase-admin';
-import { ShopeeAccountRow, isShopeeQuotaBlocked } from '@/lib/shopee/api';
+// Path: app/api/shopee/webhook/retry/route.ts
+// Cron: ทุก 5 นาที — ไล่ webhook Shopee ที่ทำไม่สำเร็จ
+// โครงกลาง (auth, breaker, backoff, dead letter, ใบที่ค้าง processing)
+// อยู่ที่ lib/marketplace/webhook-retry.ts ใช้ร่วมกับ TikTok/Lazada
+import { NextRequest } from 'next/server';
+import { runWebhookRetry } from '@/lib/marketplace/webhook-retry';
+import type { ShopeeAccountRow } from '@/lib/shopee/api';
 import { syncSingleOrder } from '@/lib/shopee/webhook-processor';
-import { logIntegration } from '@/lib/integration-logger';
 
 export const maxDuration = 60;
 
-/**
- * Queue worker: retry failed/pending webhooks.
- * Called by cron job (Vercel cron or external) every 30-60 seconds.
- * Protected by CRON_SECRET header.
- */
 export async function GET(request: NextRequest) {
-  // Verify cron secret (supports both Authorization: Bearer and x-cron-secret headers)
-  // Fail closed: if CRON_SECRET isn't configured, reject — previously the
-  // whole check was skipped when unset, leaving this endpoint public.
-  const cronSecret = process.env.CRON_SECRET;
-  const authHeader = request.headers.get('authorization') || '';
-  const xCronHeader = request.headers.get('x-cron-secret') || '';
-  const bearerToken = authHeader.replace(/^Bearer\s+/i, '');
-  if (!cronSecret || (bearerToken !== cronSecret && xCronHeader !== cronSecret)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  return runWebhookRetry<ShopeeAccountRow>(request, {
+    platform: 'shopee',
+    // ใบยุคก่อนมีหลาย marketplace ไม่มี platform ติดมา — ของ Shopee ทั้งหมด
+    includeLegacyNullPlatform: true,
+    process: async (job, account) => {
+      const payload = job.raw_payload as { data?: Record<string, unknown> };
 
-  const startTime = Date.now();
-
-  // Circuit breaker: โควตาหมด — อย่าเผา retry_count ทิ้ง รอ reset แล้วค่อย retry
-  const quota = await isShopeeQuotaBlocked('order');
-  if (quota.blocked) {
-    return NextResponse.json({ message: `Shopee daily quota exhausted — retries deferred until ${quota.until}`, skipped: true });
-  }
-
-  // Pick up failed Shopee webhooks ready for retry (limit 10 per run to avoid timeout)
-  // Filter by push_code (Shopee uses numeric codes 3, 4, 14 etc. — not prefixed with 'tiktok_')
-  // Also filter by account platform to ensure we only process Shopee webhooks
-  const { data: jobs } = await supabaseAdmin
-    .from('marketplace_webhook_log')
-    .select('*, marketplace_accounts!account_id(platform)')
-    .eq('processing_status', 'failed')
-    .lte('next_retry_at', new Date().toISOString())
-    .order('next_retry_at', { ascending: true })
-    .limit(20);
-
-  // Filter to Shopee only (platform = 'shopee' or null for legacy)
-  const shopeeJobs = (jobs || []).filter((j: any) => {
-    const platform = j.marketplace_accounts?.platform;
-    return !platform || platform === 'shopee';
-  }).slice(0, 10);
-
-  if (shopeeJobs.length === 0) {
-    return NextResponse.json({ processed: 0, duration_ms: Date.now() - startTime });
-  }
-
-  // ตอบ 200 ทันทีแล้วไล่คิวใน after() — งานจริงใบละหลาย Shopee call, 10 ใบ
-  // เกิน 60 วิ ทำ cron-job.org เห็น 504 ซ้ำๆ จนปิด job อัตโนมัติ (เกิดแล้ว
-  // ก.ค. 2026 — คิวค้าง 179 ใบไม่มีใครไล่) · pattern เดียวกับ webhook route
-  after(async () => {
-  let processed = 0;
-  let succeeded = 0;
-  let failed = 0;
-
-  for (const job of shopeeJobs) {
-    // กันโดน Vercel ฆ่ากลาง DB write — เหลือเวลาไม่พอก็หยุด รอบหน้า (5 นาที) มาต่อ
-    if (Date.now() - startTime > 45_000) break;
-    const jobStart = Date.now();
-
-    // Mark as processing
-    await supabaseAdmin
-      .from('marketplace_webhook_log')
-      .update({ processing_status: 'processing' })
-      .eq('id', job.id);
-
-    // Look up account
-    let account: ShopeeAccountRow | null = null;
-    if (job.account_id) {
-      const { data } = await supabaseAdmin
-        .from('marketplace_accounts')
-        .select('*')
-        .eq('id', job.account_id)
-        .eq('is_active', true)
-        .single();
-      account = data as ShopeeAccountRow | null;
-    }
-
-    if (!account) {
-      await supabaseAdmin
-        .from('marketplace_webhook_log')
-        .update({
-          processing_status: 'dead_letter',
-          processing_error: 'Account not found or inactive on retry',
-          processed_at: new Date().toISOString(),
-        })
-        .eq('id', job.id);
-      failed++;
-      processed++;
-      continue;
-    }
-
-    const payload = job.raw_payload as { shop_id?: number; code?: number; data?: Record<string, unknown> };
-    const pushCode = job.push_code;
-
-    try {
-      if (pushCode === 3 || pushCode === 14) {
+      if (job.push_code === 3 || job.push_code === 14) {
         const orderSn = (payload.data?.ordersn as string) || '';
-        if (orderSn) {
-          await syncSingleOrder(account, orderSn, (payload.data?.status as string) || undefined);
-        }
-      } else if (pushCode === 10) {
+        if (!orderSn) return;
+        await syncSingleOrder(account, orderSn, (payload.data?.status as string) || undefined);
+        return;
+      }
+
+      if (job.push_code === 10) {
         const { processShopeeWebchatPush } = await import('@/lib/services/chat/shopee');
         type WebchatPayload = import('@/lib/services/chat/shopee').ShopeeWebchatPayload;
         await processShopeeWebchatPush(account, payload as WebchatPayload);
       }
-      // Tracking (code 4) — handled by original webhook, skip on retry since tracking updates are idempotent
-
-      await supabaseAdmin
-        .from('marketplace_webhook_log')
-        .update({
-          processing_status: 'processed',
-          processing_error: null,
-          processing_duration_ms: Date.now() - jobStart,
-          processed_at: new Date().toISOString(),
-        })
-        .eq('id', job.id);
-      succeeded++;
-    } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : 'Unknown error';
-      const retryCount = (job.retry_count || 0) + 1;
-      const maxRetries = job.max_retries || 3;
-
-      if (retryCount >= maxRetries) {
-        await supabaseAdmin
-          .from('marketplace_webhook_log')
-          .update({
-            processing_status: 'dead_letter',
-            processing_error: errorMsg,
-            retry_count: retryCount,
-            processing_duration_ms: Date.now() - jobStart,
-            processed_at: new Date().toISOString(),
-          })
-          .eq('id', job.id);
-      } else {
-        const backoffMs = 30_000 * Math.pow(2, retryCount - 1);
-        await supabaseAdmin
-          .from('marketplace_webhook_log')
-          .update({
-            processing_status: 'failed',
-            processing_error: errorMsg,
-            retry_count: retryCount,
-            next_retry_at: new Date(Date.now() + backoffMs).toISOString(),
-            processing_duration_ms: Date.now() - jobStart,
-            processed_at: new Date().toISOString(),
-          })
-          .eq('id', job.id);
-      }
-      failed++;
-    }
-    processed++;
-  }
-
-  // Log the queue worker run
-  if (shopeeJobs.length > 0 && shopeeJobs[0].company_id) {
-    logIntegration({
-      company_id: shopeeJobs[0].company_id,
-      integration: 'shopee',
-      direction: 'outgoing',
-      action: 'webhook_queue_retry',
-      status: failed > 0 ? 'error' : 'success',
-      reference_label: `Retried ${processed} webhooks: ${succeeded} ok, ${failed} failed`,
-      duration_ms: Date.now() - startTime,
-    });
-  }
-
-  console.log(`[Shopee Retry] processed=${processed} ok=${succeeded} failed=${failed} in ${Date.now() - startTime}ms`);
+      // tracking (code 4) — webhook เดิมทำไปแล้วและ idempotent ไม่ต้องยิงซ้ำ
+    },
   });
-
-  return NextResponse.json({ started: true, queued: shopeeJobs.length });
 }

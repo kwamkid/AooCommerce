@@ -20,6 +20,7 @@ import {
   backfillSiblingVariations,
   resolveShopeePrice,
   upsertShopeeProduct,
+  tryAutoMatchBySku,
 } from '@/lib/shopee/product-helpers';
 
 // --- Sync Progress Types ---
@@ -2074,7 +2075,31 @@ async function findOrCreateVariationBySku(
       .limit(1)
       .maybeSingle();
 
-    const finalVariationId = link?.variation_id || upsertRes.variationIds[0];
+    let finalVariationId = link?.variation_id || upsertRes.variationIds[0];
+
+    // Shopee ยิง push ของออเดอร์เดียวกันซ้ำห่างกันไม่กี่วินาทีเป็นเรื่องปกติ
+    // (30 วัน = 1,488 ครั้ง ห่างกันน้อยสุด 0 วิ) — สองตัวจึงสร้างสินค้าตัวเดียวกัน
+    // พร้อมกันได้ ตัวที่แพ้จะอ่าน link ไม่เจอเพราะอีกฝั่งยัง commit ไม่เสร็จ
+    // → อ่านซ้ำ + ลองจับด้วย SKU ก่อน ค่อยยอมล้มทั้งออเดอร์ (fix-bug.md 2026-08-30)
+    if (!finalVariationId) {
+      for (let attempt = 0; attempt < 2 && !finalVariationId; attempt++) {
+        await new Promise((resolve) => setTimeout(resolve, 800));
+        const { data: retryLink } = await supabaseAdmin
+          .from('marketplace_product_links')
+          .select('variation_id')
+          .eq('account_id', shopeeInfo.accountId)
+          .eq('external_item_id', String(shopeeInfo.shopeeItemId))
+          .eq('external_model_id', String(shopeeInfo.shopeeModelId || 0))
+          .limit(1)
+          .maybeSingle();
+        finalVariationId = retryLink?.variation_id || '';
+      }
+      if (!finalVariationId && sku) {
+        const bySku = await tryAutoMatchBySku(companyId, sku, 'shopee');
+        finalVariationId = bySku?.variation_id || '';
+      }
+    }
+
     if (!finalVariationId) {
       throw new Error(`Failed to resolve variation after upsertShopeeProduct for item=${shopeeInfo.shopeeItemId} model=${shopeeInfo.shopeeModelId}`);
     }

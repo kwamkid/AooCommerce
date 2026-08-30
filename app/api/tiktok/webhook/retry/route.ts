@@ -1,173 +1,24 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { after } from 'next/server';
-import { isQuotaBlocked } from '@/lib/marketplace/quota';
-import { supabaseAdmin } from '@/lib/supabase-admin';
-import { TikTokAccountRow } from '@/lib/tiktok/api';
+// Path: app/api/tiktok/webhook/retry/route.ts
+// Cron: ทุก 5 นาที — ไล่ webhook TikTok ที่ทำไม่สำเร็จ
+// โครงกลาง (auth, breaker, backoff, dead letter, ใบที่ค้าง processing)
+// อยู่ที่ lib/marketplace/webhook-retry.ts ใช้ร่วมกับ Shopee/Lazada
+import { NextRequest } from 'next/server';
+import { runWebhookRetry } from '@/lib/marketplace/webhook-retry';
+import type { TikTokAccountRow } from '@/lib/tiktok/api';
 import { syncSingleOrder } from '@/lib/tiktok/webhook-processor';
-import { logIntegration } from '@/lib/integration-logger';
 
 export const maxDuration = 60;
 
-/**
- * Queue worker: retry failed TikTok webhooks.
- * Called by cron job every 5 minutes.
- * Protected by CRON_SECRET header.
- */
 export async function GET(request: NextRequest) {
-  // Verify cron secret
-  // Fail closed: if CRON_SECRET isn't configured, reject — previously the
-  // whole check was skipped when unset, leaving this endpoint public.
-  const cronSecret = process.env.CRON_SECRET;
-  const authHeader = request.headers.get('authorization') || '';
-  const xCronHeader = request.headers.get('x-cron-secret') || '';
-  const bearerToken = authHeader.replace(/^Bearer\s+/i, '');
-  if (!cronSecret || (bearerToken !== cronSecret && xCronHeader !== cronSecret)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  const startTime = Date.now();
-
-  // Pick up failed webhooks that are TikTok-related (push_label starts with tiktok_ or is ORDER_STATUS_CHANGE etc.)
-  // We identify TikTok webhooks by checking the account platform
-  // Circuit breaker: rate limit ค้าง — อย่าเผา retry_count รอ reset แล้วค่อย retry
-  const quota = await isQuotaBlocked('tiktok', 'order');
-  if (quota.blocked) {
-    return NextResponse.json({ message: `TikTok rate limited — retries deferred until ${quota.until}`, skipped: true });
-  }
-
-  const { data: jobs } = await supabaseAdmin
-    .from('marketplace_webhook_log')
-    .select('*, marketplace_accounts!account_id(platform)')
-    .eq('processing_status', 'failed')
-    .lte('next_retry_at', new Date().toISOString())
-    .order('next_retry_at', { ascending: true })
-    .limit(10);
-
-  // Filter to TikTok only
-  const tiktokJobs = (jobs || []).filter((j: any) => {
-    const platform = j.marketplace_accounts?.platform;
-    return platform === 'tiktok';
+  return runWebhookRetry<TikTokAccountRow>(request, {
+    platform: 'tiktok',
+    process: async (job, account) => {
+      // order-related push types
+      if (![1, 2, 4, 12].includes(job.push_code)) return;
+      const payload = job.raw_payload as { data?: Record<string, unknown> };
+      const orderId = (payload.data?.order_id as string) || '';
+      if (!orderId) return;
+      await syncSingleOrder(account, orderId, (payload.data?.order_status as string) || undefined);
+    },
   });
-
-  if (tiktokJobs.length === 0) {
-    return NextResponse.json({ processed: 0, duration_ms: Date.now() - startTime });
-  }
-
-  // ตอบ 200 ทันทีแล้วไล่คิวใน after() — บทเรียนจาก Shopee: งานทั้งชุดเกิน
-  // timeout → cron-job.org เห็น fail ซ้ำจนปิด job อัตโนมัติ
-  after(async () => {
-  let processed = 0;
-  let succeeded = 0;
-  let failed = 0;
-
-  for (const job of tiktokJobs) {
-    if (Date.now() - startTime > 45_000) break; // รอบหน้า (5 นาที) มาต่อ
-    const jobStart = Date.now();
-
-    // Mark as processing
-    await supabaseAdmin
-      .from('marketplace_webhook_log')
-      .update({ processing_status: 'processing' })
-      .eq('id', job.id);
-
-    // Look up account
-    let account: TikTokAccountRow | null = null;
-    if (job.account_id) {
-      const { data } = await supabaseAdmin
-        .from('marketplace_accounts')
-        .select('*')
-        .eq('id', job.account_id)
-        .eq('is_active', true)
-        .single();
-      account = data as TikTokAccountRow | null;
-    }
-
-    if (!account) {
-      await supabaseAdmin
-        .from('marketplace_webhook_log')
-        .update({
-          processing_status: 'dead_letter',
-          processing_error: 'Account not found or inactive on retry',
-          processed_at: new Date().toISOString(),
-        })
-        .eq('id', job.id);
-      failed++;
-      processed++;
-      continue;
-    }
-
-    const payload = job.raw_payload as { type?: number; data?: Record<string, unknown> };
-    const pushCode = job.push_code;
-
-    try {
-      // Order-related webhooks (type 1, 2, 4, 12)
-      if ([1, 2, 4, 12].includes(pushCode)) {
-        const orderId = (payload.data?.order_id as string) || '';
-        if (orderId) {
-          await syncSingleOrder(account, orderId, (payload.data?.order_status as string) || undefined);
-        }
-      }
-
-      await supabaseAdmin
-        .from('marketplace_webhook_log')
-        .update({
-          processing_status: 'processed',
-          processing_error: null,
-          processing_duration_ms: Date.now() - jobStart,
-          processed_at: new Date().toISOString(),
-        })
-        .eq('id', job.id);
-      succeeded++;
-    } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : 'Unknown error';
-      const retryCount = (job.retry_count || 0) + 1;
-      const maxRetries = job.max_retries || 3;
-
-      if (retryCount >= maxRetries) {
-        await supabaseAdmin
-          .from('marketplace_webhook_log')
-          .update({
-            processing_status: 'dead_letter',
-            processing_error: errorMsg,
-            retry_count: retryCount,
-            processing_duration_ms: Date.now() - jobStart,
-            processed_at: new Date().toISOString(),
-          })
-          .eq('id', job.id);
-      } else {
-        const backoffMs = 30_000 * Math.pow(2, retryCount - 1);
-        await supabaseAdmin
-          .from('marketplace_webhook_log')
-          .update({
-            processing_status: 'failed',
-            processing_error: errorMsg,
-            retry_count: retryCount,
-            next_retry_at: new Date(Date.now() + backoffMs).toISOString(),
-            processing_duration_ms: Date.now() - jobStart,
-            processed_at: new Date().toISOString(),
-          })
-          .eq('id', job.id);
-      }
-      failed++;
-    }
-    processed++;
-  }
-
-  // Log the queue worker run
-  if (tiktokJobs.length > 0 && tiktokJobs[0].company_id) {
-    logIntegration({
-      company_id: tiktokJobs[0].company_id,
-      integration: 'tiktok',
-      direction: 'outgoing',
-      action: 'webhook_queue_retry',
-      status: failed > 0 ? 'error' : 'success',
-      reference_label: `Retried ${processed} webhooks: ${succeeded} ok, ${failed} failed`,
-      duration_ms: Date.now() - startTime,
-    });
-  }
-
-  console.log(`[TikTok Retry] processed=${processed} ok=${succeeded} failed=${failed} in ${Date.now() - startTime}ms`);
-  });
-
-  return NextResponse.json({ started: true, queued: tiktokJobs.length });
 }

@@ -388,6 +388,15 @@ marketplace_accounts → marketplace_product_links → product_variations
 |-----|-----|----------|
 | TikTok Webhook Retry | `GET /api/tiktok/webhook/retry` | `*/5 * * * *` |
 | TikTok Sync All | `GET /api/tiktok/sync-all` | `*/15 * * * *` |
+| **Lazada Webhook Retry** | `GET /api/lazada/webhook/retry` | `*/5 * * * *` |
+| **Lazada Sync All** | `GET /api/lazada/sync-all` | `*/15 * * * *` |
+
+**⚠️ worker ของ retry ทั้ง 3 เจ้าเป็นตัวเดียวกันแล้ว** — [lib/marketplace/webhook-retry.ts](lib/marketplace/webhook-retry.ts)
+(`runWebhookRetry()`) route ของแต่ละแพลตฟอร์มเหลือแค่บอกว่า "งานหนึ่งใบทำยังไง"
+เพิ่ม marketplace ใหม่ = สร้าง route 3 บรรทัด **ห้าม copy worker ไปทั้งก้อนอีก** ·
+worker หยิบทั้งใบที่ `failed` (รวม `next_retry_at` เป็น NULL) **และใบที่ค้าง
+`processing` เกิน 10 นาที** (ฟังก์ชันตายกลางทาง) — ของเดิมมองแค่ `failed` ที่ถึงรอบ
+จึงมีใบค้างถาวรทั้งสองแบบ (ดู [fix-bug.md](fix-bug.md) 2026-08-30)
 
 ### TikTok Status Mapping (`lib/tiktok/sync.ts` → `mapTikTokStatus()`)
 | TikTok | → order_status | → payment_status |
@@ -576,7 +585,7 @@ Architecture เป้าหมาย: Webhook → save log → Queue → Worker
 - **Ingest แบบ notify-then-pull**: webhook `/api/lazada/webhook` (**ต้องตอบ 200 ใน 500ms** — ตอบทันที ทำทุกอย่างใน `after()` รวมถึง log) → payload IM ไม่มี spec แน่นอน → แค่ trigger `syncSession()`/`syncRecentSessions()` ใน [lib/services/chat/lazada.ts](lib/services/chat/lazada.ts) ดึงความจริงจาก `/im/session/*` + `/im/message/list` (idempotent, dedupe ด้วย message_id) — webhook signature: `Authorization` = HMAC(app_key + raw body)
 - **Tables**: `lazada_contacts` (1 row = 1 session) + `lazada_messages` + RPC + realtime (pattern เดียวกับ shopee_)
 - **ส่งข้อความ**: `/im/message/send` template_id 1=text 3=image (แนบ img_url ภายนอกได้) — direction จาก `from_account_type` (1=buyer, 2=seller)
-- **Order sync Lazada ✅ (เพิ่ม 2026-08-22)** — [lib/lazada/sync.ts](lib/lazada/sync.ts) โครงเดียวกับ TikTok: webhook order push (message_type 0) → `syncSingleLazadaOrder()` (notify-then-pull จาก `/order/get` + `/order/items/get`) · cron `/api/lazada/sync-all` ทุก 15 นาที (CRON_SECRET, ไล่จาก `last_sync_at`, **ไม่ stamp เมื่อ collect ล้ม**) · manual `/api/lazada/sync` ต่อร้าน · **สถานะ Lazada เป็นราย item** — สถานะรวม = สถานะช้าสุดของชิ้นที่ไม่ถูกยกเลิก (`effectiveLazadaStatus`) · mapping: unpaid→new/pending, pending→ready_to_ship/paid, packed/ready_to_ship*→processing/paid, shipped/delivered→shipping/paid, confirmed→completed/paid, canceled/failed/returned→cancelled · เบอร์ลูกค้า Lazada mask เป็น `66****` — ห้ามใช้ match/บันทึก (เช็คใน `findOrCreateCustomer`) · **ต้องเพิ่ม cron-job.org: `GET /api/lazada/sync-all` ทุก 15 นาที**
+- **Order sync Lazada ✅ (เพิ่ม 2026-08-22)** — [lib/lazada/sync.ts](lib/lazada/sync.ts) โครงเดียวกับ TikTok: webhook order push (message_type 0) → `syncSingleLazadaOrder()` (notify-then-pull จาก `/order/get` + `/order/items/get`) · cron `/api/lazada/sync-all` ทุก 15 นาที (CRON_SECRET, ไล่จาก `last_sync_at`, **ไม่ stamp เมื่อ collect ล้ม**) · manual `/api/lazada/sync` ต่อร้าน · **สถานะ Lazada เป็นราย item** — สถานะรวม = สถานะช้าสุดของชิ้นที่ไม่ถูกยกเลิก (`effectiveLazadaStatus`) · mapping: unpaid→new/pending, pending→ready_to_ship/paid, packed/ready_to_ship*→processing/paid, shipped/delivered→shipping/paid, confirmed→completed/paid, canceled/failed/returned→cancelled · เบอร์ลูกค้า Lazada mask เป็น `66****` — ห้ามใช้ match/บันทึก (เช็คใน `findOrCreateCustomer`) · **ต้องเพิ่ม cron-job.org 2 ตัว: `GET /api/lazada/sync-all` ทุก 15 นาที + `GET /api/lazada/webhook/retry` ทุก 5 นาที**
 - **Product import Lazada ✅ (เพิ่ม 2026-08-28)** — [lib/lazada/product-sync.ts](lib/lazada/product-sync.ts) + [/api/lazada/products/import](app/api/lazada/products/import/route.ts) + หน้า [/lazada/import](app/lazada/import/page.tsx) (ปุ่มอยู่การ์ดร้านใน `/settings/sales-channels`) · **`/products/get` คืนทุกอย่างในคอลเดียว** (ชื่อ ไทย/อังกฤษ · description HTML · รูป product · ทุก SKU พร้อม `saleProp`/ราคา/สต็อก/รูปของตัวเอง) → ไม่ต้องยิง detail รายตัวแบบ TikTok · แบ่งหน้าด้วย offset (limit ≤50, **offset ตันที่ 10000**) · ลำดับจับคู่เหมือน Shopee/TikTok: link เดิม → `products.code` (= SellerSku ตัวแรก หรือ `LZ-{item_id}`) → ปลุกของที่ soft-delete → สร้างใหม่ · property ของหมวดหมู่ (มีเป็นสิบตัวและต่างกันทุกหมวด) เก็บทั้งก้อนใน `marketplace_product_links.platform_data.attributes` · **Lazada ไม่มีสนาม video ตายตัว** — เก็บที่ `platform_data.video_url` เมื่อเจอ (คลังสินค้าของเรายังไม่มีคอลัมน์วิดีโอ)
 - **ตั้งโลโก้ร้านเองด้วย URL** — `PATCH /api/shopee/accounts { id, shop_logo }` (ทุก platform) validate https + โหลดได้จริงก่อนบันทึก · จำเป็นเพราะ `/seller/get` ของ Lazada **บางร้านไม่คืน `logo_url` เลย** ทั้งที่ Seller Center ตั้งรูปไว้แล้ว
 - **เปิดใช้**: สร้าง app open.lazada.com → ใส่ env 2 ตัว → เชื่อมร้านที่ Integrations → เปิดแชทรายร้านที่ `/settings/chat-channels#lazada` (เปิดครั้งแรกจะ backfill 10 sessions ล่าสุดให้) → ตั้ง Callback URL `/api/lazada/webhook` ใน Lazada Console > Push Mechanism

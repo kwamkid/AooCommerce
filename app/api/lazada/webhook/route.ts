@@ -67,6 +67,7 @@ export async function POST(request: NextRequest) {
           account_id: account?.id || null,
           push_code: messageType,
           push_label: `lazada_${messageType}`,
+          platform: 'lazada',
           raw_payload: payload,
           signature: authorization || null,
           signature_valid: signatureValid,
@@ -79,9 +80,14 @@ export async function POST(request: NextRequest) {
       if (!signatureValid || !account) return;
       const logId = webhookLog?.id;
 
-      const updateLog = async (status: string, error?: string) => {
+      // ⚠️ status ต้องเป็นค่าที่ CHECK constraint ยอมรับเท่านั้น
+      // ('pending' | 'processing' | 'processed' | 'failed' | 'skipped' | 'dead_letter')
+      // เคยส่ง 'completed' ไป → DB ปฏิเสธ แต่โค้ดไม่ได้ดู error เลยไม่มีใครรู้
+      // ผลคือใบนั้นค้าง 'processing' ตลอดกาล (worker หยิบแต่ 'failed')
+      type WebhookStatus = 'pending' | 'processing' | 'processed' | 'failed' | 'skipped' | 'dead_letter';
+      const updateLog = async (status: WebhookStatus, error?: string) => {
         if (!logId) return;
-        await supabaseAdmin
+        const { error: updateErr } = await supabaseAdmin
           .from('marketplace_webhook_log')
           .update({
             processing_status: status,
@@ -90,6 +96,10 @@ export async function POST(request: NextRequest) {
             processed_at: new Date().toISOString(),
           })
           .eq('id', logId);
+        // เขียนสถานะไม่ลง = ใบนี้จะค้างคิว ต้องเห็นใน log ไม่ใช่เงียบ
+        if (updateErr) {
+          console.error('[Lazada Webhook] failed to update webhook log status:', updateErr.message);
+        }
       };
 
       // Order pushes — notify-then-pull: ดึงความจริงจาก /order/get เสมอ
@@ -125,7 +135,7 @@ export async function POST(request: NextRequest) {
           if (result.errors.length > 0) {
             await updateLog('failed', result.errors.join('; '));
           } else {
-            await updateLog('completed');
+            await updateLog('processed');
           }
         } catch (err) {
           await updateLog('failed', err instanceof Error ? err.message : 'Unknown error');

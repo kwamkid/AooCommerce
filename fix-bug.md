@@ -16,6 +16,27 @@
 
 ---
 
+## 2026-08-30 — webhook ที่ทำไม่สำเร็จค้างคิวถาวร: Lazada ไม่มี retry เลย · ใบค้าง `processing` ไม่มีใครหยิบ · push ซ้ำทำออเดอร์ล้ม
+
+**ที่เกิด**: [app/api/lazada/webhook/route.ts](app/api/lazada/webhook/route.ts) · worker retry ของ Shopee/TikTok · [lib/shopee/sync.ts](lib/shopee/sync.ts) `findOrCreateVariationBySku()`
+**อาการ**: ตรวจ log ประจำวันเจอ (1) Lazada 16 ใบค้างสถานะ `processing` ตั้งแต่ 28 ส.ค. (2) Lazada 1 ใบ `failed` ไม่มีใคร retry (3) วันนี้ Shopee order `260830P805QVWA` ขึ้น error `Failed to resolve variation` — ออเดอร์เข้าครบเพราะ push อีกใบทำสำเร็จ แต่ถ้าใบที่พังเป็นใบสุดท้ายจะได้ออเดอร์ไม่ครบโดยไม่มีใครรู้
+**Root cause**: **สามเรื่องแยกกัน แต่ปลายทางเดียวกันคือ "งานหายไปเงียบ ๆ"**
+1. `updateLog('completed')` — `'completed'` **ไม่อยู่ใน CHECK constraint** (`pending|processing|processed|failed|skipped|dead_letter`) DB จึงปฏิเสธ แต่โค้ดไม่ได้ดู `error` ที่ supabase คืนมา → ใบนั้นค้าง `processing` ตลอดกาล
+2. worker retry มองเฉพาะ `processing_status = 'failed'` **และ** `next_retry_at <= now` → ใบที่ค้าง `processing` (ฟังก์ชันตายกลางทาง) กับใบที่ mark failed โดยไม่ตั้ง `next_retry_at` (NULL) **หลุดตะแกรงทั้งคู่** · ซ้ำร้าย Lazada ไม่มี route retry เลย ส่วน retry ของ Shopee กรอง `platform === 'shopee'` จึงไม่แตะให้
+3. Shopee ยิง push ของออเดอร์เดียวกันซ้ำห่างกันไม่กี่วินาทีเป็นเรื่องปกติ (30 วัน = 1,488 ครั้ง / 658 ออเดอร์ ห่างกันน้อยสุด 0 วิ) — สองตัวสร้างสินค้าตัวเดียวกันพร้อมกัน ตัวที่แพ้อ่าน link ไม่เจอเพราะอีกฝั่งยัง commit ไม่เสร็จ แล้ว `throw` ทิ้งทั้งออเดอร์
+**วิธีแก้**:
+- **worker กลางตัวเดียวทุก marketplace** [lib/marketplace/webhook-retry.ts](lib/marketplace/webhook-retry.ts) — Shopee/TikTok/Lazada เหลือ route ละ ~20 บรรทัดที่บอกแค่ "งานหนึ่งใบทำยังไง" · หยิบใบ `failed` (รวม `next_retry_at` NULL) **และใบค้าง `processing` เกิน 10 นาที**
+- เพิ่ม [/api/lazada/webhook/retry](app/api/lazada/webhook/retry/route.ts) (ต้องตั้ง cron `*/5`)
+- Lazada webhook: `'completed'` → `'processed'` + ผูก type ให้ compiler กันค่าผิด + **log error ของ DB update** ไม่ปล่อยเงียบ
+- Shopee: หา variation ไม่เจอ → **อ่านซ้ำ 2 รอบ (800ms) แล้วลองจับด้วย SKU ก่อน** ค่อยยอมล้มออเดอร์
+- stamp `marketplace_webhook_log.platform` ให้ถูกตั้งแต่ insert ทั้ง 3 route (เดิมทุกแถวเป็น `'shopee'` เพราะไม่มีใครใส่) + backfill ของเก่าจาก `marketplace_accounts.platform`
+- เคลียร์ 19 ใบที่ค้าง (ตรวจแล้วออเดอร์ทั้งหมดเข้าระบบถูกต้อง — ไม่ใช่ของหาย)
+**ป้องกัน regression**:
+- **เขียนสถานะลง DB ไม่สำเร็จ = งานหายทั้งใบ** — ทุกที่ที่ `update` สถานะคิว ต้องดู `error` เสมอ · ค่า status ต้องผูก type ไม่ใช่ `string` ลอย ๆ (CHECK constraint จับได้ตอน runtime ก็สายไปแล้ว)
+- **คิวต้องมีทางออกทุกสถานะ** — ใบที่ค้าง `processing` คือสถานะที่ไม่มีใครเป็นเจ้าของ ต้องมี worker ยึดคืนตามเวลาเสมอ
+- **push ซ้ำของออเดอร์เดียวกันเป็นเรื่องปกติของ marketplace** — งานที่สร้างข้อมูลใหม่ต้องทนการแข่งกันเอง (อ่านซ้ำ/จับด้วยคีย์สำรอง) ไม่ใช่ throw ทิ้งทั้งออเดอร์
+**หมายเหตุ**: บทเรียนข้อ 1-2 เป็นระดับ pattern กลาง จดใน `aoo-techstack/BUGS.md` ด้วยแล้ว
+
 ## 2026-08-30 — ค่าจัดส่งไม่ถูกนับในยอดที่ลูกค้าต้องจ่าย (บิลออนไลน์เก็บเงินขาด) + ใบจัดของรูปไม่ขึ้น
 
 **ที่เกิด**: DB trigger `update_order_totals()` บน `order_items` (ทุกเส้นทางที่สร้าง/แก้ออเดอร์) · [lib/orders-packing-pdf.ts](lib/orders-packing-pdf.ts)

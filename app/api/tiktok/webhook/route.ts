@@ -109,6 +109,7 @@ export async function POST(request: NextRequest) {
       account_id: account?.id || null,
       push_code: pushCode,
       push_label: PUSH_LABELS[pushCode] || `tiktok_type_${pushCode}`,
+      platform: 'tiktok',
       raw_payload: payload,
       signature,
       signature_valid: signatureValid,
