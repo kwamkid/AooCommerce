@@ -550,7 +550,7 @@ export default function MarketplaceConnections({
       });
       if (res.ok) {
         showToast('ลบโลโก้ร้านแล้ว', 'success');
-        setLogoModal(prev => (prev ? { ...prev, currentUrl: '' } : prev));
+        closeLogoModal();
         refetch();
       }
       else showToast('ลบไม่สำเร็จ', 'error');
@@ -568,14 +568,15 @@ export default function MarketplaceConnections({
       const data = await res.json().catch(() => ({}));
       if (!res.ok) { showToast(data.error || 'อัปเดตข้อมูลร้านไม่สำเร็จ', 'error'); return; }
       refetch();
-      // อัปเดตพรีวิวในโมดัลที่เปิดค้างอยู่ ไม่ปิดโมดัล — ผู้ใช้จะได้ลองทางอื่นต่อ
-      // ได้ทันทีถ้าแพลตฟอร์มไม่มีโลโก้ให้ (TikTok ไม่มีเลย · Lazada บางร้านไม่ส่ง)
-      if (data.shop_logo) {
-        setLogoModal(prev => (prev ? { ...prev, currentUrl: data.shop_logo as string } : prev));
-        showToast('ดึงข้อมูลร้านจากแพลตฟอร์มแล้ว', 'success');
-      } else {
-        showToast(data.note || 'อัปเดตชื่อร้านแล้ว — แพลตฟอร์มไม่ได้ส่งโลโก้มา', 'success');
-      }
+      // งานจบแล้วก็ปิดโมดัลไป — toast บอกผลอยู่แล้ว ค้างไว้เฉย ๆ ให้ต้องกดปิดเองอีกที
+      // คือให้ผู้ใช้ทำงานซ้ำโดยไม่ได้อะไรเพิ่ม
+      closeLogoModal();
+      showToast(
+        data.shop_logo
+          ? 'ดึงข้อมูลร้านจากแพลตฟอร์มแล้ว'
+          : data.note || 'อัปเดตชื่อร้านแล้ว — แพลตฟอร์มไม่ได้ส่งโลโก้มา',
+        'success'
+      );
     } catch {
       showToast('เกิดข้อผิดพลาด', 'error');
     } finally {
