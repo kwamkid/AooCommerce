@@ -2964,6 +2964,7 @@ export default function OrderForm({
               subtotalAmount={itemsTotal}
               vatRegistered={vatRegistered}
               shippingFee={currentShippingFee}
+              giftCardFee={giftCardFee}
               onShippingChange={!isReadOnly ? handleUpdateShippingFee : undefined}
               shippingFeeHint={shippingFeeHint}
               discountValue={orderDiscount}

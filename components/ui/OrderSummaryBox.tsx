@@ -3,6 +3,7 @@
 import { ReactNode } from 'react';
 import { Info } from 'lucide-react';
 import { formatNumber } from '@/lib/utils/format';
+import { splitVatInclusive } from '@/lib/order-totals';
 import NumberInput from './NumberInput';
 import Tooltip from './Tooltip';
 
@@ -33,6 +34,9 @@ interface OrderSummaryBoxProps {
   onDiscountChange?: (v: number) => void;
   onDiscountTypeToggle?: () => void;
 
+  /** ค่าการ์ดอวยพร — คิดเข้ายอดเหมือนฝั่ง API (0 = ไม่ได้ขอการ์ด/ร้านไม่คิดเงิน) */
+  giftCardFee?: number;
+
   /** Disable inputs (view mode) */
   readOnly?: boolean;
 
@@ -51,15 +55,19 @@ export default function OrderSummaryBox({
   discountType = 'percent',
   onDiscountChange,
   onDiscountTypeToggle,
+  giftCardFee = 0,
   readOnly = false,
   children,
 }: OrderSummaryBoxProps) {
   const discountAmount = discountType === 'percent'
     ? subtotalAmount * discountValue / 100
     : discountValue;
-  const totalWithVAT = Math.max(0, subtotalAmount - discountAmount + shippingFee);
-  const subtotalExVAT = vatRegistered ? Math.round((totalWithVAT / 1.07) * 100) / 100 : totalWithVAT;
-  const vat = vatRegistered ? totalWithVAT - subtotalExVAT : 0;
+  // ถอด VAT ด้วยสูตรกลางตัวเดียวกับฝั่ง API (lib/order-totals.ts) — ตัวเลขในกล่องนี้
+  // คือตัวเลขที่จะไปโผล่ในบิลลูกค้า ห้ามคิดคนละสูตรกัน
+  const { subtotal: subtotalExVAT, vatAmount: vat, totalAmount: totalWithVAT } = splitVatInclusive(
+    Math.max(0, subtotalAmount - discountAmount + shippingFee + giftCardFee),
+    vatRegistered,
+  );
 
   const hasShipping = onShippingChange || shippingFee > 0;
   const hasDiscount = onDiscountChange || discountValue > 0;
@@ -137,6 +145,14 @@ export default function OrderSummaryBox({
                 {discountType === 'percent' ? `${formatNumber(discountValue)}%` : `฿${formatNumber(discountValue)}`}
               </span>
             )}
+          </div>
+        )}
+
+        {/* การ์ดอวยพร — โชว์เมื่อร้านคิดเงินค่าการ์ดจริง ไม่งั้นยอดรวมจะไม่ตรงกับบรรทัดที่เห็น */}
+        {giftCardFee > 0 && (
+          <div className="flex justify-between items-center text-gray-500 dark:text-slate-400">
+            <span>ค่าการ์ดอวยพร</span>
+            <span>฿{formatNumber(giftCardFee)}</span>
           </div>
         )}
 
