@@ -26,6 +26,7 @@ import {
   fetchCompanyInfo,
   setupPdfMake,
   formatPdfDate,
+  formatDeliverySchedule,
 } from './pdf-utils';
 import { cleanVariationLabel } from './product-display';
 import { resolveCarrierLabel } from './carrier-lookup';
@@ -56,6 +57,9 @@ export interface ShippingLabelData {
   delivery_amphoe?: string;
   delivery_province?: string;
   delivery_postal_code?: string;
+  /** กำหนดส่ง — snapshot จากโซน/รอบส่ง (ฟีเจอร์ delivery) */
+  delivery_date?: string | null;
+  delivery_slot_label?: string | null;
   items: LabelItem[];
   parcel_number?: number;
   total_parcels?: number;
@@ -226,6 +230,18 @@ export async function generateShippingLabelPdf({ data, company, pageSizeOverride
   ];
   if (receiverAddress) {
     receiverCol.push({ text: receiverAddress, fontSize: 7.5, color: '#333333', lineHeight: 0.85, margin: [0, 1, 0, 0] });
+  }
+  // กำหนดส่ง — คนขับต้องเห็นบนกล่อง ไม่ใช่แค่ในระบบ
+  const scheduleText = formatDeliverySchedule(data);
+  if (scheduleText) {
+    receiverCol.push({
+      text: `ส่ง ${scheduleText}`,
+      fontSize: 8,
+      bold: true,
+      color: '#b45309',
+      lineHeight: 0.9,
+      margin: [0, 2, 0, 0],
+    });
   }
 
   content.push({

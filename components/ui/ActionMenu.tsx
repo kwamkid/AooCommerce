@@ -73,7 +73,7 @@ export default function ActionMenu({ items, trigger, triggerClassName, placement
       <button
         ref={buttonRef}
         onClick={(e) => { e.stopPropagation(); setOpen(!open); }}
-        className={triggerClassName ?? 'p-1.5 text-gray-400 hover:text-gray-600 transition-colors rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700'}
+        className={triggerClassName ?? 'p-1.5 text-gray-500 hover:text-gray-800 dark:text-slate-400 dark:hover:text-slate-100 transition-colors rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700'}
       >
         {trigger ?? <MoreVertical className="w-4 h-4" />}
       </button>
@@ -94,20 +94,20 @@ export default function ActionMenu({ items, trigger, triggerClassName, placement
               {idx > 0 && item.dividerBefore && <div className="border-t border-gray-200 dark:border-slate-700 my-1" />}
               <button
                 onClick={(e) => { e.stopPropagation(); if (item.disabled) return; setOpen(false); item.onClick?.(e); }}
-                className={`w-full px-3 py-2 text-left text-sm flex items-center gap-2.5 whitespace-nowrap transition-colors ${
+                className={`w-full px-3 py-2 text-left text-sm font-medium flex items-center gap-2.5 whitespace-nowrap transition-colors ${
                   item.disabled
                     ? 'text-gray-400 dark:text-slate-500 cursor-default'
                     : item.danger
-                      ? 'text-red-500 hover:bg-gray-50 dark:hover:bg-slate-700'
+                      ? 'text-red-600 dark:text-red-400 hover:bg-gray-50 dark:hover:bg-slate-700'
                       : item.className
                         ? `${item.className} hover:bg-gray-50 dark:hover:bg-slate-700`
-                        : 'text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700'
+                        : 'text-gray-900 dark:text-slate-100 hover:bg-gray-50 dark:hover:bg-slate-700'
                 }`}
               >
                 {item.icon}
                 <span className="flex flex-col flex-1">
                   <span>{item.label}</span>
-                  {item.description && <span className="text-xs font-normal text-gray-400 dark:text-slate-500">{item.description}</span>}
+                  {item.description && <span className="text-xs font-normal text-gray-500 dark:text-slate-400">{item.description}</span>}
                 </span>
                 {item.suffix}
               </button>

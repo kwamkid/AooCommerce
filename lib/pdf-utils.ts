@@ -17,6 +17,21 @@ export interface CompanyInfo {
 export const formatPdfDate = (d: string) =>
   new Date(d).toLocaleDateString('th-TH', { day: '2-digit', month: 'long', year: 'numeric' });
 
+/**
+ * ข้อความ "กำหนดส่ง" — วันที่ส่ง + รอบเวลาที่ลูกค้าเลือกไว้ (snapshot บน orders)
+ * ใช้ให้ตรงกันทุกเอกสาร: ใบจัดของ · ใบปะหน้า · ใบเสร็จ/ใบกำกับ · บิลออนไลน์
+ * คืน '' เมื่อออเดอร์ไม่ได้ระบุกำหนดส่ง (ร้านที่ไม่ได้เปิดฟีเจอร์ delivery)
+ */
+export function formatDeliverySchedule(data: {
+  delivery_date?: string | null;
+  delivery_slot_label?: string | null;
+}): string {
+  return [
+    data.delivery_date ? formatPdfDate(data.delivery_date) : '',
+    data.delivery_slot_label || '',
+  ].filter(Boolean).join('  ·  ');
+}
+
 const toBase64 = (buf: ArrayBuffer) => {
   const bytes = new Uint8Array(buf);
   let binary = '';
@@ -137,7 +152,9 @@ export async function loadLogoDataUrl(logoUrl: string): Promise<string | null> {
  * Truncates name to ~80 chars (approx 2 lines).
  *
  * `notes` = หมายเหตุรายสินค้า (order_items.notes) — คนแพ็คของต้องเห็นชัด จึงพิมพ์เป็น
- * บรรทัดตัวหนา + prefix "※" (ห้ามพึ่งสีอย่างเดียว เพราะพิมพ์ขาวดำต้องยังเห็น)
+ * บรรทัดตัวหนา + prefix "•" (ห้ามพึ่งสีอย่างเดียว เพราะพิมพ์ขาวดำต้องยังเห็น)
+ * ⚠️ เครื่องหมายนำหน้าต้องมีใน IBMPlexSansThai — ※ ✔ ★ ● ไม่มี glyph พิมพ์ออกมาเป็นกล่องเปล่า
+ * (ที่ใช้ได้: • · » → ✓ — –)
  * param ท้ายสุดและ optional เพื่อไม่กระทบ call site เดิมที่ส่ง 1-3 args
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -167,7 +184,7 @@ export function buildProductNameStack(
   const noteText = typeof notes === 'string' ? notes.trim() : '';
   if (noteText) {
     stack.push({
-      text: `※ ${noteText}`,
+      text: `• ${noteText}`,
       fontSize: 9.5,
       bold: true,
       color: '#000000',

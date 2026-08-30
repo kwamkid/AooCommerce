@@ -29,6 +29,7 @@ export async function GET(request: NextRequest) {
       .from('orders')
       .select(`
         id, order_number, order_date, delivery_date,
+        delivery_slot_label, delivery_zone_label,
         subtotal, discount_amount, vat_amount, shipping_fee, total_amount,
         order_status, payment_status, notes, company_id, customer_id,
         delivery_name, delivery_phone, delivery_address,

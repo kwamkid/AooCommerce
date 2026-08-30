@@ -275,7 +275,7 @@ export default function FormSelect({
                   } ${
                     o.id === value
                       ? 'text-primary font-medium'
-                      : 'text-gray-700 dark:text-slate-300'
+                      : 'text-gray-900 dark:text-slate-100'
                   }`}
                 >
                   {level > 0 && (
@@ -289,7 +289,7 @@ export default function FormSelect({
                   <div className="flex-1 text-left">
                     <div className="whitespace-nowrap">{o.label}</div>
                     {o.subtitle && (
-                      <div className="text-xs text-gray-400 dark:text-slate-500 whitespace-nowrap">{o.subtitle}</div>
+                      <div className="text-xs text-gray-500 dark:text-slate-400 whitespace-nowrap">{o.subtitle}</div>
                     )}
                   </div>
                   {o.id === value && <Check className="w-4 h-4 text-primary flex-shrink-0" />}

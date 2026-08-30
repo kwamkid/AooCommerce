@@ -375,7 +375,7 @@ const columns: DataTableColumn<Order>[] = [
 | `generatePaymentReceiptPdf()` | `lib/payment-receipt-pdf.ts` | ใบเสร็จรับเงิน |
 | `showPdfPreview()` | `lib/print-pdf.ts` | แสดง PDF preview + print |
 | `mergePdfBlobs()` | `lib/print-pdf.ts` | รวม PDF หลายใบ |
-| PDF building blocks | `lib/pdf-utils.ts` | `buildCompanyStack()`, `buildCornerTriangle()`, `buildSignatureFooter()`, `buildProductNameStack()`, `withOriginalAndCopy()`, `formatPdfPrice()`, `formatPdfDate()` |
+| PDF building blocks | `lib/pdf-utils.ts` | `buildCompanyStack()`, `buildCornerTriangle()`, `buildSignatureFooter()`, `buildProductNameStack()`, `withOriginalAndCopy()`, `formatPdfPrice()`, `formatPdfDate()`, **`formatDeliverySchedule()`** (วันที่+รอบส่ง — ห้ามประกอบเอง) · ⛔ ห้ามใส่ emoji ในเอกสาร (ฟอนต์ไม่มี glyph → กล่องเปล่า) |
 
 ### Chat Services
 | Service | Path | ใช้สำหรับ |

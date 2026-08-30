@@ -22,6 +22,7 @@ import {
   loadLogoDataUrl,
   loadImageDataUrl,
   formatPdfDate,
+  formatDeliverySchedule,
   buildCompanyStack,
   buildProductNameStack,
 } from './pdf-utils';
@@ -71,6 +72,10 @@ export interface PackingListData {
   delivery_amphoe?: string;
   delivery_province?: string;
   delivery_postal_code?: string;
+  /** กำหนดส่ง — snapshot ตอนกดสั่ง (ฟีเจอร์ delivery_date / delivery_slot) */
+  delivery_date?: string | null;
+  delivery_slot_label?: string | null;
+  delivery_zone_label?: string | null;
   source?: string;
   items: PackingItem[];
   is_split?: boolean;
@@ -517,6 +522,51 @@ async function buildPickListContent(
 
 // ─── Compact Packing List Content ────────────────────────
 
+/**
+ * ทุกอย่างของใบจัดของที่ต้อง "รู้ก่อนวาด" — ข้อความที่ประกอบแล้ว + ความสูงของทุกบล็อก
+ * ที่ไม่ใช่แถวสินค้า ใช้ 2 ที่: ตอนตัดสินว่าออเดอร์นี้ลงครึ่งหน้าได้ไหม (generatePackingPdf)
+ * และตอนคิดขนาดรูปสินค้า (buildCompactPackingContent) — ต้องเป็นตัวเลขชุดเดียวกัน
+ * ตัวเลขความสูงได้จากการวัดหน้าจริง เผื่อฝั่งมากไว้ก่อน (ล้น = ไปทับออเดอร์ครึ่งล่าง)
+ */
+function compactPackingParts(order: PackingListData, hasLogo: boolean) {
+  const deliveryAddress = [
+    order.delivery_address,
+    order.delivery_district,
+    order.delivery_amphoe,
+    order.delivery_province,
+    order.delivery_postal_code,
+  ].filter(Boolean).join(' ');
+
+  const noteSource = order.source === 'shopee' && !(order.notes || '').includes(order.order_number)
+    ? `Shopee: ${order.order_number}` : '';
+  const noteText = [order.notes, noteSource].filter(Boolean).join(' | ');
+
+  const scheduleText = formatDeliverySchedule(order);
+
+  const rowCount = order.items.reduce(
+    (n, item) => n + (item.promotion_components?.length ? 1 + item.promotion_components.length : 1),
+    0,
+  );
+  // บิลรายการเยอะ → บล็อกผู้รับตัดกรอบทิ้ง เอาที่ว่างไปให้แถวสินค้า
+  const dense = rowCount >= 7;
+
+  const addrLines = deliveryAddress ? Math.max(1, Math.ceil(deliveryAddress.length / 66)) : 0;
+  const recipientH = (dense
+    ? 16 + addrLines * 14 + (noteText ? 12 : 0)
+    : 30 + addrLines * 18 + (noteText ? 15 : 0))
+    + (scheduleText ? (dense ? 14 : 17) : 0);
+
+  let overheadH = (hasLogo ? 118 : 74)   // หัวเอกสาร (โลโก้ + ชื่อ/ที่อยู่ร้าน + กล่องเลขที่)
+    + recipientH
+    + 32;                                // หัวตาราง + บรรทัดสรุป
+  if (order.gift_card_requested) overheadH += order.gift_message ? 70 : 54;
+  if (order.gift_hide_price) overheadH += 48;
+  if (order.tax_invoice_requested) overheadH += 18;
+  overheadH += 10;   // เผื่อความคลาดเคลื่อนของการประมาณ — ล้นแล้วทับอีกออเดอร์
+
+  return { deliveryAddress, noteText, scheduleText, rowCount, dense, overheadH };
+}
+
 function buildCompactPackingContent(
   order: PackingListData,
   company: CompanyInfo | undefined,
@@ -524,7 +574,11 @@ function buildCompactPackingContent(
   checkboxDataUrl: string,
   barcodeMap: Map<string, string>,
   imageMap: Map<string, string>,
+  /** ความสูงที่บล็อกนี้มีให้ใช้ — ครึ่งหน้า (คู่กับอีกออเดอร์) หรือเต็มหน้า */
+  availableH: number,
 ) {
+  const { deliveryAddress, noteText, scheduleText, rowCount, dense, overheadH } =
+    compactPackingParts(order, !!logoDataUrl);
   const dateStr = formatPdfDate(order.order_date || order.created_at);
   const customerName =
     order.delivery_name || order.customer?.name || 'ลูกค้าทั่วไป';
@@ -611,69 +665,108 @@ function buildCompactPackingContent(
     margin: [0, 0, 0, 4],
   });
 
-  // ── Customer name (left) + Notes (right) — same line ──
+  // ── ผู้รับ + ที่อยู่จัดส่ง (กล่องเด่น) + หมายเหตุ ──
+  // คนแพ็คใช้ใบนี้เทียบกับใบปะหน้าว่าของตรงกล่องไหน — ที่อยู่ต้องอ่านได้จากระยะแขน
   const customerPhone = order.delivery_phone || order.customer?.phone || '';
-  const customerLabel = customerPhone ? `${customerName}  โทร: ${customerPhone}` : customerName;
-  const noteSource = order.source === 'shopee' && !(order.notes || '').includes(order.order_number)
-    ? `Shopee: ${order.order_number}` : '';
-  const noteText = [order.notes, noteSource].filter(Boolean).join(' | ');
 
-  if (customerLabel || noteText) {
-    content.push({
-      columns: [
-        {
-          width: '*',
-          text: customerLabel ? [
-            { text: 'จัดส่งถึง ', fontSize: 9, bold: true, color: THEME.primary },
-            { text: customerLabel, fontSize: 9, bold: true, color: '#333333' },
-          ] : '',
-        },
-        ...(noteText ? [{
-          width: 'auto',
-          text: [
-            { text: 'หมายเหตุ: ', fontSize: 8, bold: true, color: THEME.primary },
-            { text: noteText, fontSize: 8, color: '#555555' },
-          ],
-        }] : []),
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const recipientStack: any[] = [
+    {
+      text: [
+        { text: 'จัดส่งถึง  ', fontSize: 9, bold: true, color: THEME.primary },
+        { text: customerName, fontSize: dense ? 11 : 13, bold: true, color: '#111111' },
+        ...(customerPhone
+          ? [{ text: `   โทร ${customerPhone}`, fontSize: dense ? 10 : 12, bold: true, color: '#111111' }]
+          : []),
       ],
-      margin: [0, 0, 0, 4],
+    },
+  ];
+  if (deliveryAddress) {
+    recipientStack.push({
+      text: deliveryAddress,
+      fontSize: dense ? 9.5 : 11,
+      color: '#1f2937',
+      lineHeight: 1.15,
+      margin: [0, 2, 0, 0],
+    });
+  }
+  // กำหนดส่ง — ของสด/ของขวัญพลาดรอบส่งแล้วแก้ไม่ได้ คนแพ็คต้องเห็นคู่กับที่อยู่
+  if (scheduleText) {
+    recipientStack.push({
+      text: [
+        { text: 'กำหนดส่ง  ', fontSize: 9, bold: true, color: THEME.primary },
+        { text: scheduleText, fontSize: dense ? 10 : 11.5, bold: true, color: '#b45309' },
+        ...(order.delivery_zone_label
+          ? [{ text: `   (${order.delivery_zone_label})`, fontSize: 9, color: '#666666' }]
+          : []),
+      ],
+      margin: [0, 2, 0, 0],
+    });
+  }
+  if (noteText) {
+    recipientStack.push({
+      text: [
+        { text: 'หมายเหตุ: ', fontSize: 9, bold: true, color: THEME.primary },
+        { text: noteText, fontSize: 9, color: '#555555' },
+      ],
+      margin: [0, 2, 0, 0],
     });
   }
 
-  // ── การ์ดอวยพร ──
-  // ใส่กรอบไว้เลย เพราะเป็นงานมือที่คนแพ็คต้องทำเพิ่ม (เขียนการ์ด) ถ้าพลาด
-  // ของถึงมือคนรับโดยไม่มีการ์ด = แก้ไม่ได้แล้ว
-  // ซ่อนราคาอย่างเดียว (ส่งให้คนอื่นแต่ไม่ขอการ์ด) ก็ต้องเตือน — คนแพ็คคือคนเดียว
-  // ที่หยุดใบเสร็จไม่ให้ลงกล่องได้ ถ้าไม่เห็นตรงนี้ก็ไม่มีใครรู้
-  if (order.gift_card_requested || order.gift_hide_price) {
-    const giftLines: object[] = [];
-    if (order.gift_card_requested) {
-      giftLines.push({ text: '🎁 แนบการ์ดอวยพร', fontSize: 10, bold: true, color: '#be185d', margin: [0, 0, 0, 2] });
-    } else {
-      giftLines.push({ text: '🎁 ของขวัญ — ส่งให้ผู้รับโดยตรง', fontSize: 10, bold: true, color: '#be185d', margin: [0, 0, 0, 2] });
-    }
+  if (dense) {
+    // บิลรายการเยอะ — ตัดกรอบ/ระยะขอบทิ้ง เหลือแค่ตัวหนังสือ เอาที่ว่างไปให้แถวสินค้า
+    content.push({ stack: recipientStack, margin: [0, 1, 0, 3] });
+  } else {
+    content.push({
+      table: { widths: ['*'], body: [[{ stack: recipientStack, margin: [8, 5, 8, 5] }]] },
+      layout: {
+        hLineWidth: () => 0.8,
+        // เส้นซ้ายหนา = แถบเน้นให้กล่องผู้รับสะดุดตากว่าบล็อกอื่น
+        vLineWidth: (i: number) => (i === 0 ? 3 : 0.8),
+        hLineColor: () => '#c7d2fe',
+        vLineColor: (i: number) => (i === 0 ? THEME.primary : '#c7d2fe'),
+      },
+      margin: [0, 1, 0, 5],
+    });
+  }
+
+  // ── การ์ดอวยพร / ห้ามแนบราคา — กล่องละ option ──
+  // แยกกล่องเพราะเป็นคนละงานของคนแพ็ค: อันหนึ่ง "ต้องหยิบการ์ดมาเขียน"
+  // อีกอันคือ "ต้องไม่หยิบใบเสร็จลงกล่อง" — รวมกล่องเดียวแล้วอ่านตกไปข้อ
+  // ⚠️ ห้ามใส่ emoji (🎁 ฯลฯ) — IBMPlexSansThai ไม่มี glyph จะพิมพ์ออกมาเป็นกล่องเปล่า
+  const giftBox = (lines: object[], borderColor: string) => ({
+    table: { widths: ['*'], body: [[{ stack: lines, margin: [8, 5, 8, 5] }]] },
+    layout: {
+      hLineWidth: () => 1, vLineWidth: () => 1,
+      hLineColor: () => borderColor, vLineColor: () => borderColor,
+    },
+    margin: [0, 2, 0, 4],
+  });
+
+  if (order.gift_card_requested) {
+    const giftLines: object[] = [
+      { text: 'แนบการ์ดอวยพร', fontSize: 11, bold: true, color: '#be185d', margin: [0, 0, 0, 2] },
+    ];
     if (order.gift_message) {
-      giftLines.push({ text: order.gift_message, fontSize: 10, color: '#333333', margin: [0, 0, 0, 2] });
+      giftLines.push({ text: order.gift_message, fontSize: 10.5, color: '#111111', margin: [0, 0, 0, 2] });
     }
     const toFrom = [
       order.gift_to ? `ถึง: ${order.gift_to}` : '',
       order.gift_from ? `จาก: ${order.gift_from}` : '',
-    ].filter(Boolean).join('   ');
-    if (toFrom) giftLines.push({ text: toFrom, fontSize: 9, color: '#555555' });
-    if (order.gift_hide_price) {
-      giftLines.push({
-        text: '** ห้ามแนบใบเสร็จ / ราคา ไปกับของ **',
-        fontSize: 9, bold: true, color: '#dc2626', margin: [0, 2, 0, 0],
-      });
+    ].filter(Boolean).join('     ');
+    if (toFrom) giftLines.push({ text: toFrom, fontSize: 10, color: '#333333' });
+    // ไม่มีทั้งข้อความและชื่อผู้ส่ง = ลูกค้าขอการ์ดเปล่า — บอกให้ชัด คนแพ็คจะได้ไม่นั่งหา
+    if (!order.gift_message && !toFrom) {
+      giftLines.push({ text: 'ลูกค้าไม่ได้ฝากข้อความ — แนบการ์ดเปล่า', fontSize: 9.5, color: '#888888' });
     }
-    content.push({
-      table: { widths: ['*'], body: [[{ stack: giftLines, margin: [6, 5, 6, 5] }]] },
-      layout: {
-        hLineWidth: () => 1, vLineWidth: () => 1,
-        hLineColor: () => '#f9a8d4', vLineColor: () => '#f9a8d4',
-      },
-      margin: [0, 2, 0, 5],
-    });
+    content.push(giftBox(giftLines, '#f9a8d4'));
+  }
+
+  if (order.gift_hide_price) {
+    content.push(giftBox([
+      { text: 'ห้ามแนบใบเสร็จ / ราคา ไปกับของ', fontSize: 11, bold: true, color: '#dc2626' },
+      { text: 'ของขวัญ — ส่งตรงถึงผู้รับ', fontSize: 9.5, color: '#991b1b', margin: [0, 1, 0, 0] },
+    ], '#fca5a5'));
   }
 
   // ── Tax invoice badge ──
@@ -696,6 +789,13 @@ function buildCompactPackingContent(
   const hasImage = order.items.some((item) => item.image && imageMap.has(item.image))
     || allComponents.some(c => c.image && imageMap.has(c.image));
 
+  // ── ขนาดรูปสินค้า — ใหญ่ที่สุดเท่าที่พื้นที่ที่เหลือรับได้ ──
+  // คนแพ็คหยิบของจาก "รูป" ไม่ใช่ชื่อ (บางคนอ่านไทยไม่ออก) รูปจึงต้องใหญ่ที่สุด
+  // เท่าที่ยังไม่ล้นบล็อกของตัวเอง — บิลรายการเดียวได้รูปใหญ่, รายการเยอะหดลงมาเอง
+  // แถวหนึ่ง ≈ รูป + 12pt (ระยะขอบรูป + padding ของเซลล์ + เส้นคั่น)
+  const IMG_SIZE = Math.max(25, Math.min(75,
+    Math.floor((availableH - overheadH) / Math.max(rowCount, 1)) - 12));
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const headerCols: any[] = [];
   const widths: (number | string)[] = [];
@@ -708,7 +808,7 @@ function buildCompactPackingContent(
       color: '#666666',
       alignment: 'center',
     });
-    widths.push(35);
+    widths.push(IMG_SIZE + 10);
   }
 
   headerCols.push({ text: 'รายละเอียด', fontSize: 8, bold: true, color: '#666666' });
@@ -761,9 +861,9 @@ function buildCompactPackingContent(
           { text: '', fontSize: 9 },
           { text: item.promotion_name || item.product_name, fontSize: 9, bold: true, color: '#6366f1' },
           { text: ` (×${item.quantity})`, fontSize: 8, color: '#888888' },
-          // หมายเหตุของรายการโปรโมชั่น — ตัวหนา + ※ ให้คนแพ็คเห็นชัด
+          // หมายเหตุของรายการโปรโมชั่น — ตัวหนา + • ให้คนแพ็คเห็นชัด
           ...(item.notes && item.notes.trim()
-            ? [{ text: `\n※ ${item.notes.trim()}`, fontSize: 9.5, bold: true, color: '#000000' }]
+            ? [{ text: `\n• ${item.notes.trim()}`, fontSize: 9.5, bold: true, color: '#000000' }]
             : []),
         ],
         margin: [0, 1, 0, 0],
@@ -790,9 +890,9 @@ function buildCompactPackingContent(
           if (imgDataUrl) {
             compRow.push({
               image: imgDataUrl,
-              width: 25,
-              height: 25,
-              fit: [25, 25],
+              width: IMG_SIZE,
+              height: IMG_SIZE,
+              fit: [IMG_SIZE, IMG_SIZE],
               alignment: 'center' as const,
               margin: [0, 1, 0, 1],
             });
@@ -855,9 +955,9 @@ function buildCompactPackingContent(
         if (imgDataUrl) {
           row.push({
             image: imgDataUrl,
-            width: 25,
-            height: 25,
-            fit: [25, 25],
+            width: IMG_SIZE,
+            height: IMG_SIZE,
+            fit: [IMG_SIZE, IMG_SIZE],
             alignment: 'center' as const,
             margin: [0, 1, 0, 1],
           });
@@ -1024,41 +1124,56 @@ export async function generatePackingPdf(
     fullContent.push(...pickListContent);
   }
 
-  // Build compact packing list content (2 per page, 50:50 split)
-  // A4 = 842pt, exact vertical center = 421pt
-  // Top half: fixed-height table = 381pt (421 - 40 top margin)
-  // Dashed divider: absolutePosition canvas at y=421 (pixel-perfect page center)
-  // Bottom half: content flows below divider
+  // Build compact packing list content
+  // ปกติ 2 ออเดอร์ต่อหน้า (แบ่งครึ่ง 50:50) — A4 = 842pt, กึ่งกลางพอดี = 421pt
+  //   ครึ่งบน: ตารางความสูงคงที่ 381pt (421 − 40 ขอบบน)
+  //   เส้นประ: canvas absolutePosition ที่ y=421 (กึ่งกลางหน้าเป๊ะ)
+  //   ครึ่งล่าง: เนื้อหาไหลต่อจากเส้นประ
+  // ⚠️ ออเดอร์ที่เนื้อหาไม่ลงครึ่งหน้า (การ์ดอวยพร + ที่อยู่ + หลายรายการ) จะ
+  // "กินเต็มหน้า" ของตัวเอง แทนที่จะยัดลงครึ่งหน้าแล้วล้นไปทับออเดอร์ครึ่งล่าง
+  // — และได้พื้นที่ไปทำรูปสินค้าให้ใหญ่ขึ้นด้วย
   const PAGE_CENTER_Y = 421;
-  const TOP_HALF_HEIGHT = PAGE_CENTER_Y - 40; // 381pt
+  const HALF_HEIGHT = PAGE_CENTER_Y - 40;  // 381pt (ครึ่งบน — ตารางความสูงคงที่)
+  // ครึ่งล่างเหลือน้อยกว่าครึ่งบน: 762 − 381 − 12 (ระยะห่างจากเส้นประ)
+  const BOTTOM_HEIGHT = 842 - 40 * 2 - HALF_HEIGHT - 12; // 369pt
+  const FULL_HEIGHT = 842 - 40 * 2;        // 762pt
+  const MIN_ROW_H = 37;                    // แถวสินค้าเตี้ยสุด (รูป 25pt + ระยะขอบ)
   const PAGE_WIDTH = 595; // A4 width in pt
   const H_MARGIN = 40;
   const LINE_LENGTH = PAGE_WIDTH - H_MARGIN * 2; // 515pt
 
-  for (let i = 0; i < orders.length; i += 2) {
-    // Page break before each new page pair (except if first content)
-    if (fullContent.length > 0) {
-      fullContent.push({ text: '', pageBreak: 'before' });
+  const fitsHalfPage = (order: PackingListData) => {
+    const { overheadH, rowCount } = compactPackingParts(order, !!logoDataUrl);
+    return overheadH + rowCount * MIN_ROW_H <= BOTTOM_HEIGHT;  // ใช้ครึ่งที่เล็กกว่าเป็นเกณฑ์
+  };
+
+  const build = (order: PackingListData, availableH: number) => buildCompactPackingContent(
+    order, company, logoDataUrl, checkboxDataUrl, allBarcodeMap, allImageMap, availableH,
+  );
+
+  let i = 0;
+  while (i < orders.length) {
+    const pairWithNext = fitsHalfPage(orders[i])
+      && i + 1 < orders.length
+      && fitsHalfPage(orders[i + 1]);
+
+    // ขึ้นหน้าใหม่ทุกบล็อก — ติด pageBreak กับตัวบล็อกเอง ไม่ใช่ node ข้อความเปล่า
+    // (node เปล่ากินความสูง 1 บรรทัดที่หัวหน้า แล้วดันครึ่งล่างตกไปอีกหน้า)
+    const pageBreak = fullContent.length > 0 ? { pageBreak: 'before' as const } : {};
+
+    if (!pairWithNext) {
+      fullContent.push({ ...pageBreak, stack: build(orders[i], FULL_HEIGHT) });
+      i += 1;
+      continue;
     }
-
-    const topOrder = orders[i];
-    const bottomOrder = i + 1 < orders.length ? orders[i + 1] : null;
-
-    const topContent = buildCompactPackingContent(
-      topOrder, company, logoDataUrl, checkboxDataUrl, allBarcodeMap, allImageMap,
-    );
-    const bottomContent = bottomOrder
-      ? buildCompactPackingContent(
-          bottomOrder, company, logoDataUrl, checkboxDataUrl, allBarcodeMap, allImageMap,
-        )
-      : null;
 
     // Top half — fixed height container (no border, we draw divider separately)
     fullContent.push({
+      ...pageBreak,
       table: {
         widths: ['*'],
-        heights: [TOP_HALF_HEIGHT],
-        body: [[{ stack: topContent, margin: [0, 0, 0, 0] }]],
+        heights: [HALF_HEIGHT],
+        body: [[{ stack: build(orders[i], HALF_HEIGHT), margin: [0, 0, 0, 0] }]],
       },
       layout: {
         hLineWidth: () => 0,
@@ -1071,29 +1186,29 @@ export async function generatePackingPdf(
     });
 
     // Dashed divider at exact page center using absolutePosition
-    if (bottomContent) {
-      fullContent.push({
-        canvas: [
-          {
-            type: 'line',
-            x1: 0,
-            y1: 0,
-            x2: LINE_LENGTH,
-            y2: 0,
-            lineWidth: 0.5,
-            lineColor: '#cccccc',
-            dash: { length: 4, space: 3 },
-          },
-        ],
-        absolutePosition: { x: H_MARGIN, y: PAGE_CENTER_Y },
-      });
+    fullContent.push({
+      canvas: [
+        {
+          type: 'line',
+          x1: 0,
+          y1: 0,
+          x2: LINE_LENGTH,
+          y2: 0,
+          lineWidth: 0.5,
+          lineColor: '#cccccc',
+          dash: { length: 4, space: 3 },
+        },
+      ],
+      absolutePosition: { x: H_MARGIN, y: PAGE_CENTER_Y },
+    });
 
-      // Bottom half content
-      fullContent.push({
-        stack: bottomContent,
-        margin: [0, 12, 0, 0],
-      });
-    }
+    // Bottom half content
+    fullContent.push({
+      stack: build(orders[i + 1], BOTTOM_HEIGHT),
+      margin: [0, 12, 0, 0],
+    });
+
+    i += 2;
   }
 
   const docDefinition = {

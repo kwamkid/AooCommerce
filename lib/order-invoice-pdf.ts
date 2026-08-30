@@ -14,6 +14,7 @@ import {
   setupPdfMake,
   loadLogoDataUrl,
   formatPdfDate,
+  formatDeliverySchedule,
   formatPdfPrice,
   buildCompanyStack,
   buildCornerTriangle,
@@ -87,6 +88,9 @@ export interface OrderInvoiceData {
   delivery_province?: string;
   delivery_postal_code?: string;
   delivery_email?: string;
+  /** กำหนดส่ง — snapshot จากโซน/รอบส่ง (ฟีเจอร์ delivery) */
+  delivery_date?: string | null;
+  delivery_slot_label?: string | null;
   voided_at?: string | null;
   items: OrderItemData[];
 }
@@ -236,6 +240,17 @@ export async function generateOrderInvoicePdf({ data, company }: GenerateOptions
     }
     if (addressParts) {
       customerInfoStack.push({ text: `ที่อยู่: ${addressParts}`, fontSize: 10, color: '#666666', margin: [0, 1, 0, 0] });
+    }
+    // กำหนดส่ง — ลูกค้าต้องเห็นรอบที่ตัวเองเลือกบนเอกสารด้วย ไม่ใช่แค่ตอนกดสั่ง
+    const scheduleText = formatDeliverySchedule(data);
+    if (scheduleText) {
+      customerInfoStack.push({
+        text: [
+          { text: 'กำหนดส่ง: ', fontSize: 10, bold: true, color: theme.primary },
+          { text: scheduleText, fontSize: 10, bold: true, color: '#b45309' },
+        ],
+        margin: [0, 1, 0, 0],
+      });
     }
 
     // Tax info (from customer record)

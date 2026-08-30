@@ -14,6 +14,7 @@ import {
   setupPdfMake,
   loadLogoDataUrl,
   formatPdfDate,
+  formatDeliverySchedule,
   formatPdfPrice,
   buildCompanyStack,
   buildCornerTriangle,
@@ -76,6 +77,9 @@ export interface FullInvoiceData {
   delivery_amphoe?: string;
   delivery_province?: string;
   delivery_postal_code?: string;
+  /** กำหนดส่ง — snapshot จากโซน/รอบส่ง (ฟีเจอร์ delivery) */
+  delivery_date?: string | null;
+  delivery_slot_label?: string | null;
   delivery_email?: string;
   // Tax invoice snapshot fields (from order)
   tax_invoice_number?: string | null;
@@ -229,6 +233,18 @@ export async function generateFullInvoicePdf(
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const content: any[] = [];
+
+  // กำหนดส่ง — ลูกค้าต้องเห็นรอบที่ตัวเองเลือกบนเอกสารด้วย ไม่ใช่แค่ตอนกดสั่ง
+  const scheduleText = formatDeliverySchedule(data);
+  if (scheduleText) {
+    content.push({
+      text: [
+        { text: 'กำหนดส่ง: ', fontSize: 10, bold: true, color: THEME.primary },
+        { text: scheduleText, fontSize: 10, bold: true, color: '#b45309' },
+      ],
+      margin: [0, 0, 0, 8],
+    });
+  }
 
   // Notes (if any, show above items table)
   if (data.notes) {

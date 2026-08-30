@@ -100,6 +100,9 @@ export interface BillData {
   order_number: string;
   order_date: string;
   delivery_date?: string;
+  /** รอบเวลาส่ง + โซน — snapshot ตอนกดสั่ง (ฟีเจอร์ delivery_slot / delivery_zone) */
+  delivery_slot_label?: string | null;
+  delivery_zone_label?: string | null;
   subtotal: number;
   discount_amount: number;
   vat_amount: number;
@@ -299,6 +302,8 @@ export default function BillClient({ orderId, initialBill }: { orderId: string; 
         vat_amount: bill.vat_amount,
         total_amount: bill.total_amount,
         notes: bill.notes,
+        delivery_date: bill.delivery_date,
+        delivery_slot_label: bill.delivery_slot_label,
         customer: bill.customer,
         items: bill.items,
       };
@@ -924,12 +929,21 @@ export default function BillClient({ orderId, initialBill }: { orderId: string; 
             )}
 
             {/* Right: Delivery date + Notes — only show when data exists */}
-            {(bill.delivery_date || bill.notes) && (
+            {(bill.delivery_date || bill.delivery_slot_label || bill.notes) && (
             <div className={`print:bg-transparent rounded-lg p-4 print:p-0 ${dark ? 'bg-slate-900' : 'bg-gray-50'}`}>
-              {bill.delivery_date && (
+              {(bill.delivery_date || bill.delivery_slot_label) && (
                 <div className="mb-2">
-                  <div className={`text-sm font-medium mb-1 ${dark ? 'text-slate-500' : 'text-gray-400'}`}>วันจัดส่ง</div>
-                  <div className={`text-base font-semibold ${dark ? 'text-white' : 'text-gray-900'}`} suppressHydrationWarning>{formatDate(bill.delivery_date)}</div>
+                  <div className={`text-sm font-medium mb-1 ${dark ? 'text-slate-500' : 'text-gray-400'}`}>กำหนดส่ง</div>
+                  {bill.delivery_date && (
+                    <div className={`text-base font-semibold ${dark ? 'text-white' : 'text-gray-900'}`} suppressHydrationWarning>{formatDate(bill.delivery_date)}</div>
+                  )}
+                  {/* รอบเวลาที่ลูกค้าเลือก = คำสัญญาที่ให้ไว้ตอนกดสั่ง ต้องเห็นบนบิลด้วย */}
+                  {bill.delivery_slot_label && (
+                    <div className={`text-base font-semibold ${dark ? 'text-white' : 'text-gray-900'}`}>{bill.delivery_slot_label}</div>
+                  )}
+                  {bill.delivery_zone_label && (
+                    <div className={`text-sm ${dark ? 'text-slate-400' : 'text-gray-500'}`}>{bill.delivery_zone_label}</div>
+                  )}
                 </div>
               )}
               {bill.notes && (
