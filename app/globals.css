@@ -413,8 +413,10 @@ h6:where(.heading-1, .heading-2, .heading-3, .heading-4) {
    * จางเหมือนกดไม่ได้ และเมนู "แก้ไข" ถูกเน้นสีฟ้าโดยไม่มีเหตุผล)
    * ตัว utility ที่ส่งมาทาง `className` ยังชนะได้ (utilities layer > components layer)
    * — ใช้เฉพาะเมนูที่ต้องเน้นจริง ๆ เช่น `text-primary font-medium` */
+  /* น้ำหนักปกติ (400) — ตัวหนาสงวนไว้ให้เมนู primary ตัวเดียว ถ้าหนาหมดก็เท่ากับไม่เน้นอะไร
+   * (ฟอนต์ไทย 14px ที่ font-medium อ่านเหมือนหนาทั้งเมนู) */
   .action-menu-item {
-    @apply w-full px-3 py-2 text-left text-sm font-medium flex items-center gap-2.5
+    @apply w-full px-3 py-2 text-left text-sm font-normal flex items-center gap-2.5
            whitespace-nowrap transition-colors text-gray-900 dark:text-slate-100
            hover:bg-gray-50 dark:hover:bg-slate-700;
   }
