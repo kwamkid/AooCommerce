@@ -192,6 +192,8 @@
 | Checkbox | `Checkbox` | สร้าง checkbox เอง |
 | Tag input | `TagInput` | สร้าง tag input เอง |
 | Upload รูป (drag-drop, reorder, compress) | `ImageUploader` | สร้าง uploader เอง |
+| เลือกรูป **1 ใบ** (ลากวาง / วางจากคลิปบอร์ด / ถ่ายรูป / ย่อรูปให้) | **`ImageDropzone`** — คืน `File` ให้ผู้เรียกอัปเอง ไม่รู้จัก storage · ปรับหน้าตาผ่าน `classNames` (หน้าร้านส่ง `sf-*` ของธีมตัวเองเข้ามา) · `maxWidthOrHeight`/`maxSizeMB` ตั้งได้ (โลโก้ร้าน 300px · สลิป 1920px) | สร้าง dropzone ตัวที่สอง · `<input type="file">` ดิบ ๆ · ลืมย่อรูป |
+| ชิปกรอง (pill + ไอคอน + จำนวน) เช่นกรองตามแพลตฟอร์ม | **`FilterChips`** (`chips` + `value` + `onChange` · `activeClass` ใส่สีประจำแพลตฟอร์ม) | เขียน `rounded-full border px-3 py-1.5` เองในแต่ละหน้า (เคย copy 2 ที่ในหน้าเดียวแล้วสไตล์หลุดกัน) — **อย่าสับสนกับ `StatusTabs`** ที่เป็น filter สถานะของหน้า list |
 | เลือกสี (ชุดสีสำเร็จรูป + จานสี + กรอกรหัสเอง) | `ColorPicker` — เปิด Modal จานสี · presets จาก `lib/color-presets.ts` | วาง `<input type="color">` ดิบ ๆ ในหน้า |
 | ตัวเลือกที่ **อธิบายด้วยภาพได้ดีกว่าคำ** (สัดส่วนรูป, เลย์เอาต์, สไตล์แถบ) | `OptionCards` — การ์ดพร้อม `preview` ที่วาดรูปทรงจริง | ใช้ `FormSelect` แล้วให้ผู้ใช้เดาเองว่าหน้าตาเป็นยังไง |
 
@@ -311,6 +313,7 @@ const columns: DataTableColumn<Order>[] = [
 | `marketplace/fee-types.ts` | `lib/marketplace/fee-types.ts` | ช่องกลาง 13 ช่องของค่าธรรมเนียม marketplace + `parseAmount()` (**ห้าม `Number()` ตรงๆ กับตัวเลขจาก marketplace** — Lazada ส่งคอมมาคั่นหลัก) · เจอค่าธรรมเนียมใหม่ให้หา bucket ที่ตรงที่สุด | เพิ่ม bucket ตามชื่อที่ platform เรียก (จะได้รายงานร้อยคอลัมน์ที่เทียบข้าม platform ไม่ได้) |
 | `marketplace/settlement.ts` | `lib/marketplace/settlement.ts` | เขียน settlement ลง DB ใช้ร่วมทุก platform — `saveSettlement()` + `computeOrderCogs()` · ตัว platform แค่แปลงเป็น `NormalizedSettlement` แล้วส่งมา | เขียน logic insert settlement/ต้นทุนซ้ำใน `lib/<platform>/` |
 | `marketplace/throttle.ts` | `lib/marketplace/throttle.ts` | เว้นจังหวะระหว่าง call ของถังโควตาเดียวกัน — ค่าอยู่ที่ `minGapMs` ใน registry · เรียกผ่าน `beginMarketplaceCall()` ไม่ต้อง import เอง | ยิง API ภายนอกรัวเป็นชุดโดยไม่เว้นจังหวะ (breaker เป็นตาข่ายรับ ไม่ได้กันไม่ให้โดนแบน) |
+| `marketplace/shop-info.ts` | `lib/marketplace/shop-info.ts` | ดึง **ชื่อร้าน + โลโก้** จากแพลตฟอร์ม — `Record<QuotaPlatform, fetcher>` ที่ TypeScript บังคับให้กรอกครบ · **เพิ่มแพลตฟอร์มใหม่ = เพิ่ม 1 entry ที่นี่ ไม่ต้องแตะ route** · การ์ด `isReachableImage` อยู่ในตัวกลางแล้ว (โลโก้ที่เปิดไม่ได้ถูกตัดเป็น null เพื่อคงของเดิม) | เขียน if แยกแพลตฟอร์มใน route · ทับโลโก้ที่มีอยู่ด้วย URL ที่ยังไม่ได้เช็คว่าโหลดได้ |
 | `marketplace/product-helpers.ts` | `lib/marketplace/product-helpers.ts` | helper import สินค้าที่ทุก marketplace ใช้ร่วม — `getOrCreateVariationTypeIds`, `upsertProductImage(s)`, `reactivateProduct`, `tryAutoMatchBySku`, `findMarketplaceLink` (มี `platform` param, default `'shopee'`) | copy helper พวกนี้ไปไว้ใน `lib/<platform>/` ของตัวเอง |
 | `print-tracking.ts` | `lib/print-tracking.ts` | markPrinted, markPrintedOptimistic | track print status เอง |
 | `print-actions.ts` | `lib/print-actions.ts` | getAvailablePrintActions (by status/payment) | เช็ค print availability เอง |
@@ -425,6 +428,7 @@ const columns: DataTableColumn<Order>[] = [
 | Products | `/api/products` | GET, POST, PUT, DELETE |
 | Customers | `/api/customers` | GET, POST, PUT, DELETE |
 | Inventory | `/api/inventory` | GET, POST |
+| **ร้าน marketplace ที่เชื่อมต่อ (ทุกแพลตฟอร์ม)** | `/api/marketplace/accounts` | GET `?platform=shopee\|tiktok\|lazada\|all` · PUT (คลัง/auto-sync) · PATCH `{id, shop_logo}` ตั้งลิงก์รูปเอง · DELETE · **ย่อย**: `/resync` ดึงชื่อ+โลโก้ใหม่ · `/logo` อัปโหลดไฟล์ — *เดิมอยู่ที่ `/api/shopee/accounts` ย้ายมาชื่อกลาง 2026-08-30* |
 
 ### Customer Context (1 RPC — ห้ามเรียกหลาย API)
 | Route | ใช้สำหรับ |
