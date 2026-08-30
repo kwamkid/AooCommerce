@@ -24,6 +24,7 @@ import SaveButton from '@/components/ui/SaveButton';
 import ImageDropzone from '@/components/ui/ImageDropzone';
 import LoadingOverlay from '@/components/ui/LoadingOverlay';
 import PlatformIcon from '@/components/ui/PlatformIcon';
+import FilterChips from '@/components/ui/FilterChips';
 import { LoadingCard } from '@/components/ui/StateCard';
 import { formatThaiDateTime } from '@/lib/utils/format';
 import MarketplaceAccountCard, { SyncRangeSelect } from './MarketplaceAccountCard';
@@ -819,38 +820,20 @@ export default function MarketplaceConnections({
     }
   };
 
-  const platformChip = (
-    id: 'shopee' | 'tiktok' | 'lazada',
-    label: string,
-    count: number,
-    activeClass: string,
-  ) => (
-    <button
-      type="button"
-      onClick={() => onPlatformChange(id)}
-      className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${
-        activePlatform === id
-          ? activeClass
-          : 'border-gray-200 dark:border-slate-600 text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700'
-      }`}
-    >
-      <PlatformIcon id={id} size={16} />
-      {label}
-      {count > 0 && (
-        <span className="text-xs px-1.5 py-0.5 rounded-full bg-black/5 dark:bg-white/10">{count}</span>
-      )}
-    </button>
-  );
-
   return (
     <div>
       {/* Platform badge tabs — เลือกดูทีละแพลตฟอร์ม
           (ปุ่ม "เชื่อมต่อร้าน X" อยู่บน PageHeader ของ parent) */}
-      <div className="flex flex-wrap items-center gap-2 mb-5">
-        {platformChip('shopee', 'Shopee', shopeeAccounts.length, 'border-shopee text-shopee bg-shopee/10')}
-        {platformChip('tiktok', 'TikTok Shop', tiktokAccounts.length, 'border-gray-900 text-gray-900 bg-gray-900/5 dark:border-white dark:text-white dark:bg-white/10')}
-        {platformChip('lazada', 'Lazada', lazadaAccounts.length, 'border-[#0F146E] text-[#0F146E] bg-[#0F146E]/10 dark:border-blue-400 dark:text-blue-400 dark:bg-blue-400/10')}
-      </div>
+      <FilterChips
+        className="mb-5"
+        value={activePlatform}
+        onChange={onPlatformChange}
+        chips={[
+          { id: 'shopee' as const, label: 'Shopee', count: shopeeAccounts.length, icon: <PlatformIcon id="shopee" size={16} />, activeClass: 'border-shopee text-shopee bg-shopee/10' },
+          { id: 'tiktok' as const, label: 'TikTok Shop', count: tiktokAccounts.length, icon: <PlatformIcon id="tiktok" size={16} />, activeClass: 'border-gray-900 text-gray-900 bg-gray-900/5 dark:border-white dark:text-white dark:bg-white/10' },
+          { id: 'lazada' as const, label: 'Lazada', count: lazadaAccounts.length, icon: <PlatformIcon id="lazada" size={16} />, activeClass: 'border-[#0F146E] text-[#0F146E] bg-[#0F146E]/10 dark:border-blue-400 dark:text-blue-400 dark:bg-blue-400/10' },
+        ]}
+      />
 
       {/* Quota paused banner — ทุก platform ที่ breaker เปิด */}
       <div className="mb-4 empty:mb-0 space-y-3">

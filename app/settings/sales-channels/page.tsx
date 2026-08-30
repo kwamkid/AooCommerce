@@ -18,6 +18,7 @@ import Badge from '@/components/ui/Badge';
 import Toggle from '@/components/ui/Toggle';
 import FormSelect from '@/components/ui/FormSelect';
 import PlatformIcon from '@/components/ui/PlatformIcon';
+import FilterChips from '@/components/ui/FilterChips';
 import { LoadingCard, NoPermissionCard } from '@/components/ui/StateCard';
 import { PageSkeleton } from '@/components/ui/Skeleton';
 import { useAuth } from '@/lib/auth-context';
@@ -498,21 +499,19 @@ export default function SalesChannelsPage() {
     {
       key: 'type',
       label: 'ประเภท',
-      headerClassName: 'w-[110px]',
+      headerClassName: 'w-[150px]',
+      // ยุบคอลัมน์ "ประเภท" กับ "แพลตฟอร์ม" เข้าด้วยกัน — แถวแชทเดิมขึ้นป้าย Chat
+      // แล้วมีไอคอน fb/ig ซ้ำความหมายกันอยู่คนละช่อง · ช่องทางแชทคือแพลตฟอร์มของมันเอง
       render: (c) =>
         c.channel_type === 'chat' ? (
           <Badge tone="emerald" size="sm">
-            <MessageCircle className="w-3 h-3 mr-1" />Chat
+            <MessageCircle className="w-3 h-3 mr-1" />
+            <span className="mr-1">Chat</span>
+            {renderPlatformIcons(c)}
           </Badge>
         ) : (
           <Badge tone="gray" size="sm">Manual</Badge>
         ),
-    },
-    {
-      key: 'platform',
-      label: 'แพลตฟอร์ม',
-      headerClassName: 'w-[110px]',
-      render: (c) => renderPlatformIcons(c),
     },
     {
       key: 'status',
@@ -640,33 +639,18 @@ export default function SalesChannelsPage() {
           />
         ) : (
           <>
-        {/* Platform pill filter — สไตล์เดียวกับแท็บเชื่อมต่อ Marketplace */}
-        <div className="flex flex-wrap items-center gap-2 mb-4">
-          {([
-            { id: 'all', label: 'ทั้งหมด', icon: null, active: 'border-primary text-primary bg-primary/10' },
-            { id: 'line', label: 'LINE', icon: <PlatformIcon id="line" size={16} />, active: 'border-[#06C755] text-[#06C755] bg-[#06C755]/10' },
-            { id: 'facebook', label: 'Facebook', icon: <PlatformIcon id="facebook" size={16} />, active: 'border-[#1877F2] text-[#1877F2] bg-[#1877F2]/10' },
-            { id: 'instagram', label: 'Instagram', icon: <PlatformIcon id="instagram" size={16} />, active: 'border-[#E1306C] text-[#E1306C] bg-[#E1306C]/10' },
-            { id: 'none', label: 'อื่นๆ', icon: null, active: 'border-gray-500 text-gray-700 bg-gray-500/10 dark:text-slate-200' },
-          ] as const).map(pill => (
-            <button
-              key={pill.id}
-              type="button"
-              onClick={() => { setPlatformFilter(pill.id); setCurrentPage(1); }}
-              className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${
-                platformFilter === pill.id
-                  ? pill.active
-                  : 'border-gray-200 dark:border-slate-600 text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700'
-              }`}
-            >
-              {pill.icon}
-              {pill.label}
-              {platformCounts[pill.id] > 0 && (
-                <span className="text-xs px-1.5 py-0.5 rounded-full bg-black/5 dark:bg-white/10">{platformCounts[pill.id]}</span>
-              )}
-            </button>
-          ))}
-        </div>
+        <FilterChips
+          className="mb-4"
+          value={platformFilter}
+          onChange={id => { setPlatformFilter(id); setCurrentPage(1); }}
+          chips={[
+            { id: 'all' as const, label: 'ทั้งหมด', count: platformCounts.all, activeClass: 'border-primary text-primary bg-primary/10' },
+            { id: 'line' as const, label: 'LINE', count: platformCounts.line, icon: <PlatformIcon id="line" size={16} />, activeClass: 'border-[#06C755] text-[#06C755] bg-[#06C755]/10' },
+            { id: 'facebook' as const, label: 'Facebook', count: platformCounts.facebook, icon: <PlatformIcon id="facebook" size={16} />, activeClass: 'border-[#1877F2] text-[#1877F2] bg-[#1877F2]/10' },
+            { id: 'instagram' as const, label: 'Instagram', count: platformCounts.instagram, icon: <PlatformIcon id="instagram" size={16} />, activeClass: 'border-[#E1306C] text-[#E1306C] bg-[#E1306C]/10' },
+            { id: 'none' as const, label: 'อื่นๆ', count: platformCounts.none, activeClass: 'border-gray-500 text-gray-700 bg-gray-500/10 dark:text-slate-200' },
+          ]}
+        />
 
         {/* Search */}
         <div className="data-filter-card">
