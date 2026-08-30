@@ -406,7 +406,7 @@ function CustomersPageContent() {
       items.push({
         key: 'portal-link',
         label: 'ลิงก์ Portal',
-        icon: <ExternalLink className="w-4 h-4 text-amber-500" />,
+        icon: <ExternalLink className="w-4 h-4" />,
         onClick: () => window.open(`/portal/consignment/${customer.portal_token}`, '_blank'),
       });
       items.push({

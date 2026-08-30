@@ -12,8 +12,12 @@ export interface ActionItem {
   /** Optional node rendered at the far right of the menu item (e.g. a print status dot) */
   suffix?: React.ReactNode;
   onClick?: (e: React.MouseEvent) => void;
-  /** เน้นเมนูที่ต้องเด่นจริง ๆ เท่านั้น (เช่น 'text-primary font-medium' ของ "พิมพ์ทั้งหมด")
-   *  — สี/ระยะปกติมาจาก `.action-menu-item` ห้ามส่งคลาสปุ่มไอคอน (p-1.5 text-gray-400 …) มาที่นี่ */
+  /** เมนูที่สำคัญที่สุดของ dropdown นี้ — สีแบรนด์ + ตัวหนา · **ใส่ได้แค่ 1 รายการต่อเมนู**
+   *  เกณฑ์: "สร้างของใหม่/ลัดขั้นตอน" (พิมพ์ทั้งหมด · ออกใบกำกับแบบเต็ม)
+   *  ไม่ใช่ "เปิดดู/พิมพ์ซ้ำของที่มีอยู่" (ใบจัดของ · ใบปะหน้า · แก้ไข · สั่งซ้ำ = ปกติ) */
+  primary?: boolean;
+  /** หนีจากสไตล์กลาง — ปกติไม่ต้องใช้ ใช้ `primary` / `danger` แทน
+   *  ห้ามส่งคลาสปุ่มไอคอน (p-1.5 text-gray-400 …) มาที่นี่ ตัวหนังสือจะจางเหมือนกดไม่ได้ */
   className?: string;
   danger?: boolean;
   disabled?: boolean;
@@ -101,6 +105,7 @@ export default function ActionMenu({ items, trigger, triggerClassName, placement
                 className={[
                   item.disabled ? 'action-menu-item disabled'
                     : item.danger ? 'action-menu-item danger'
+                    : item.primary ? 'action-menu-item primary'
                     : 'action-menu-item',
                   item.className || '',
                 ].filter(Boolean).join(' ')}

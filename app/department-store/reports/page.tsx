@@ -548,7 +548,7 @@ function DeptStoreReportsContent() {
         key: 'print_all',
         label: isPrinting ? 'กำลังสร้าง...' : 'พิมพ์ทั้งหมด',
         icon: isPrinting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />,
-        className: 'text-primary font-medium',
+        primary: true,
         onClick: () => handlePrintAll(report),
         disabled: isPrinting,
       });

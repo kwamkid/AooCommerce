@@ -648,7 +648,7 @@ function ReplenishmentsPageContent() {
           key: 'all',
           label: isPrinting && printingType === 'all' ? 'กำลังสร้าง...' : 'พิมพ์ทั้งหมด',
           icon: isPrinting && printingType === 'all' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />,
-          className: 'text-primary font-medium',
+          primary: true,
           onClick: () => handlePrintAll(r.id, true),
           disabled: isPrinting,
         },

@@ -204,7 +204,8 @@ export default function AbbreviatedInvoicesPage() {
                   {
                     key: 'issue_full_invoice',
                     label: 'ออกใบกำกับภาษีแบบเต็ม',
-                    icon: <FileUp className="w-4 h-4 text-green-600" />,
+                    icon: <FileUp className="w-4 h-4" />,
+                    primary: true,
                     onClick: () => handleIssueFullInvoice(inv),
                   },
                 ]}
@@ -308,7 +309,8 @@ export default function AbbreviatedInvoicesPage() {
                           {
                             key: 'issue_full_invoice',
                             label: 'ออกใบกำกับภาษีแบบเต็ม',
-                            icon: <FileUp className="w-4 h-4 text-green-600" />,
+                            icon: <FileUp className="w-4 h-4" />,
+                            primary: true,
                             onClick: () => handleIssueFullInvoice(inv),
                           },
                         ]}

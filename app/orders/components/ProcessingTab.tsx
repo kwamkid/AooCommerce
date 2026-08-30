@@ -969,22 +969,13 @@ export default function ProcessingTab({
         ? (action.type === 'packing' ? <ClipboardList className="w-4 h-4" /> : <Printer className="w-4 h-4" />)
         : <Banknote className="w-4 h-4" />;
 
-      const displayLabel = action.type === 'request_full'
-        ? <><span className="text-orange-500 font-semibold">ออก</span>ใบกำกับแบบเต็ม</>
-        : labelOverride;
-
       const item: ActionItem = {
         key: action.type,
-        label: displayLabel,
+        label: action.type === 'request_full' ? 'ออกใบกำกับแบบเต็ม' : labelOverride,
         icon,
         onClick: getPrintActionHandler(action, order),
-        className: action.category === 'shipping'
-          ? (action.type === 'packing'
-              ? 'p-1.5 text-gray-400 hover:text-indigo-600 transition-colors rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-900/30'
-              : 'p-1.5 text-gray-400 hover:text-blue-600 transition-colors rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/30')
-          : (action.type === 'request_full' || action.type === 'print_full_tax'
-              ? 'p-1.5 text-gray-400 hover:text-emerald-600 transition-colors rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-900/30'
-              : 'p-1.5 text-gray-400 hover:text-green-600 transition-colors rounded-lg hover:bg-green-50 dark:hover:bg-green-900/30'),
+        // ออกใบกำกับแบบเต็ม = สร้างเอกสารใบใหม่ (void ใบย่อ) — เมนูสำคัญสุดของกลุ่มนี้
+        primary: action.type === 'request_full',
       };
 
       // Add divider before first financial item

@@ -193,7 +193,7 @@ export default function DeptWholesaleOrdersPage() {
       items.push({ key: 'print_dn', label: 'ใบส่งสินค้า', icon: <FileText className="w-4 h-4" />, onClick: () => handlePrint(order.id, 'dn') });
       items.push({
         key: 'print_all', label: 'พิมพ์ทั้งหมด', icon: <Printer className="w-4 h-4" />,
-        className: 'text-primary font-medium',
+        primary: true,
         onClick: () => handlePrint(order.id, 'all'),
       });
     }

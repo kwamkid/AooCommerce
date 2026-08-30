@@ -615,7 +615,7 @@ export default function SalesChannelsPage() {
                   {
                     key: 'manual',
                     label: 'สร้างป้ายช่องทางเอง (ไม่เชื่อมระบบ)',
-                    icon: <Tag className="w-4 h-4 text-gray-400" />,
+                    icon: <Tag className="w-4 h-4" />,
                     onClick: () => openCreate(''),
                     dividerBefore: true,
                   },

@@ -1158,7 +1158,7 @@ export default function ReadyToShipTab({
           onClick: (e) => { e.stopPropagation(); handlePrintAbbreviatedInvoice(order.id); },
         });
         menuItems.push({
-          key: 'full-invoice', label: <><span className="text-orange-500 font-semibold">ออก</span>ใบกำกับแบบเต็ม</>, icon: <Banknote className="w-4 h-4" />,
+          key: 'full-invoice', label: 'ออกใบกำกับแบบเต็ม', primary: true, icon: <Banknote className="w-4 h-4" />,
           onClick: async (e) => { e.stopPropagation(); const ok = await confirm({ title: 'ออกใบกำกับภาษีแบบเต็ม', description: 'หากออกใบกำกับแบบเต็มแล้ว ระบบจะยกเลิก (void) ใบกำกับภาษีอย่างย่อให้อัตโนมัติ', confirmLabel: 'ออกใบกำกับแบบเต็ม' }); if (!ok) return; setTaxInvoiceModal({ orderId: order.id, orderNumber: order.order_number, customerId: order.customer_id, hasAbbrev: order.tax_invoice_doc_type === 'abbreviated' && !order.tax_invoice_voided_at }); },
         });
       } else {

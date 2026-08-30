@@ -235,7 +235,7 @@ const columns: DataTableColumn<Order>[] = [
 ### Action Components
 | ต้องการ | ใช้ | ห้าม |
 |---------|-----|------|
-| Dropdown menu (row action) | `ActionMenu` (portal, z-9999) | สร้าง inline dropdown เอง |
+| Dropdown menu (row action) | `ActionMenu` (portal, z-9999) — สไตล์อยู่ที่ `.action-menu-item` ใน globals.css · เน้นเมนูสำคัญสุดด้วย `primary: true` (1 ตัว/เมนู) · ลบ/ยกเลิกใช้ `danger: true` | สร้าง inline dropdown เอง · **ส่ง `className` สีเทา/สีเน้นเข้ามาเอง** (ตัวหนังสือจะจางเหมือนกดไม่ได้) |
 | Modal จัดส่ง (3 วิธี) | `ShipModal` | สร้าง ship dialog เอง |
 | Modal ชำระเงิน+แนบ slip | `PaymentModal` | สร้าง payment dialog เอง |
 | Confirm dialog | `ConfirmDialog` | สร้าง confirm modal เอง |

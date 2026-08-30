@@ -296,7 +296,7 @@ export function getPrintMenuItems(
   if (!hasProcessed) return [];
 
   const { flowType, source, isMarketplace, documentByPost } = opts || {};
-  const items: { key: string; label: string; icon: React.ReactNode; onClick: () => void; className?: string; dividerBefore?: boolean }[] = [];
+  const items: { key: string; label: string; icon: React.ReactNode; onClick: () => void; primary?: boolean; dividerBefore?: boolean }[] = [];
   const isRetail = flowType === 'r_retail';
 
   // Financial documents
@@ -307,7 +307,7 @@ export function getPrintMenuItems(
     items.push({ key: 'print_dn', label: 'ใบส่งสินค้า', icon: <FileText className="w-4 h-4" />, onClick: () => onPrint(orderId, 'dn') });
     items.push({
       key: 'print_all', label: 'พิมพ์ทั้งหมด', icon: <Printer className="w-4 h-4" />,
-      className: 'text-primary font-medium',
+      primary: true,
       onClick: () => onPrint(orderId, 'all'),
     });
   }
