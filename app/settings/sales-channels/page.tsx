@@ -29,9 +29,7 @@ import { useBfcacheReset } from '@/lib/useBfcacheReset';
 import Tabs from '@/components/ui/Tabs';
 import { useFeatures } from '@/lib/features-context';
 import { isMarketplacePlatform } from '@/lib/marketplace-platforms';
-import {
-  Tag, Plus, Pencil, Trash2, Lock, MessageCircle, Link as LinkIcon, Star, ShoppingBag, Loader2,
-} from 'lucide-react';
+import { Link as LinkIcon, Loader2, Lock, MessageCircle, Pencil, Plus, ShoppingBag, SlidersHorizontal, Star, Tag, Trash2 } from 'lucide-react';
 import dynamic from 'next/dynamic';
 
 // Lazy chunk — โค้ดแท็บ marketplace โหลดเฉพาะตอนผู้ใช้กดแท็บจริง
@@ -86,7 +84,11 @@ export default function SalesChannelsPage() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   // pill quick filter ตามแพลตฟอร์ม — สไตล์เดียวกับแท็บ Marketplace
-  const [platformFilter, setPlatformFilter] = useState<'all' | 'line' | 'facebook' | 'instagram' | 'none'>('all');
+  // ไม่มีชิป "ทั้งหมด" แล้ว (ให้เข้าชุดกับแท็บ Marketplace ที่ดูทีละแพลตฟอร์ม)
+  // จึงต้องเริ่มที่แพลตฟอร์มใดแพลตฟอร์มหนึ่งเสมอ ไม่งั้นจะได้หน้าที่ไม่มีชิปไหนถูกเลือก
+  // แล้วกดกลับมาสถานะนั้นไม่ได้อีกเลย
+  type ChannelPlatformFilter = 'line' | 'facebook' | 'instagram' | 'none';
+  const [platformFilter, setPlatformFilter] = useState<ChannelPlatformFilter>('none');
   // Main tabs: ช่องทางของฉัน (manual + mirror list) / เชื่อมต่อ Marketplace (ย้ายมาจาก /settings/integrations)
   const [mainTab, setMainTab] = useState<'channels' | 'marketplace'>('channels');
   // แท็บ Marketplace: ปุ่ม "เชื่อมต่อร้าน X" อยู่บน PageHeader (ตำแหน่งเดียวกับ
@@ -197,7 +199,7 @@ export default function SalesChannelsPage() {
       || params.get('chat') || params.get('tiktok_profile')) return;
     const url = mainTab === 'marketplace'
       ? `/settings/sales-channels?tab=marketplace#${mpPlatform}`
-      : `/settings/sales-channels${platformFilter !== 'all' ? `#${platformFilter}` : ''}`;
+      : `/settings/sales-channels#${platformFilter}`;
     window.history.replaceState({}, '', url);
   }, [mainTab, mpPlatform, platformFilter]);
 
@@ -210,7 +212,7 @@ export default function SalesChannelsPage() {
 
   // count ต่อ pill — นับจากลิสต์เต็ม (ไม่โดน search กรอง) ให้เลขนิ่ง
   const platformCounts = useMemo(() => {
-    const counts = { all: nonMarketplace.length, line: 0, facebook: 0, instagram: 0, none: 0 };
+    const counts = { line: 0, facebook: 0, instagram: 0, none: 0 };
     for (const c of nonMarketplace) {
       const ids = c.platform ? [c.platform, ...(c.channel_type === 'chat' && c.platform === 'facebook' && c.has_ig ? ['instagram'] : [])] : [];
       if (ids.length === 0) counts.none++;
@@ -222,13 +224,11 @@ export default function SalesChannelsPage() {
   }, [nonMarketplace]);
 
   const filtered = useMemo(() => {
-    let source = nonMarketplace;
-    if (platformFilter !== 'all') {
-      source = source.filter(c => {
-        const ids = c.platform ? [c.platform, ...(c.channel_type === 'chat' && c.platform === 'facebook' && c.has_ig ? ['instagram'] : [])] : [];
-        return platformFilter === 'none' ? ids.length === 0 : ids.includes(platformFilter);
-      });
-    }
+    const source0 = nonMarketplace.filter(c => {
+      const ids = c.platform ? [c.platform, ...(c.channel_type === 'chat' && c.platform === 'facebook' && c.has_ig ? ['instagram'] : [])] : [];
+      return platformFilter === 'none' ? ids.length === 0 : ids.includes(platformFilter);
+    });
+    const source = source0;
     const q = searchTerm.trim().toLowerCase();
     if (!q) return source;
     return source.filter(c =>
@@ -644,11 +644,11 @@ export default function SalesChannelsPage() {
           value={platformFilter}
           onChange={id => { setPlatformFilter(id); setCurrentPage(1); }}
           chips={[
-            { id: 'all' as const, label: 'ทั้งหมด', count: platformCounts.all, activeClass: 'border-primary text-primary bg-primary/10' },
+            // ตั้งค่าเอง = ช่องทาง manual ที่ผู้ใช้สร้างเอง — เป็นค่าเริ่มต้นจึงอยู่ซ้ายสุด
+            { id: 'none' as const, label: 'ตั้งค่าเอง', count: platformCounts.none, icon: <SlidersHorizontal className="w-4 h-4" />, activeClass: 'border-primary text-primary bg-primary/10' },
             { id: 'line' as const, label: 'LINE', count: platformCounts.line, icon: <PlatformIcon id="line" size={16} />, activeClass: 'border-[#06C755] text-[#06C755] bg-[#06C755]/10' },
             { id: 'facebook' as const, label: 'Facebook', count: platformCounts.facebook, icon: <PlatformIcon id="facebook" size={16} />, activeClass: 'border-[#1877F2] text-[#1877F2] bg-[#1877F2]/10' },
             { id: 'instagram' as const, label: 'Instagram', count: platformCounts.instagram, icon: <PlatformIcon id="instagram" size={16} />, activeClass: 'border-[#E1306C] text-[#E1306C] bg-[#E1306C]/10' },
-            { id: 'none' as const, label: 'อื่นๆ', count: platformCounts.none, activeClass: 'border-gray-500 text-gray-700 bg-gray-500/10 dark:text-slate-200' },
           ]}
         />
 

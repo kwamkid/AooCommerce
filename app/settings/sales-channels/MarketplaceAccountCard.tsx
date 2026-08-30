@@ -7,6 +7,7 @@
 
 import { ReactNode } from 'react';
 import { CheckCircle2, AlertTriangle, XCircle, ChevronDown, ChevronUp, Package, Trash2 } from 'lucide-react';
+import ActionMenu from '@/components/ui/ActionMenu';
 import Button from '@/components/ui/Button';
 import FormSelect from '@/components/ui/FormSelect';
 import type { MarketplaceAccount } from './useMarketplaceAccounts';
@@ -114,13 +115,18 @@ export default function MarketplaceAccountCard({
               {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
             </button>
           )}
-          <Button
-            variant="ghost"
-            size="sm"
-            loading={disconnecting}
-            onClick={onDisconnect}
-            icon={<Trash2 className="w-4 h-4 text-red-500" />}
-            aria-label="ยกเลิกการเชื่อมต่อ"
+          {/* ยกเลิกการเชื่อมต่อเป็นงานอันตราย — เก็บไว้ใน ⋮ เหมือนแท็บช่องทางของฉัน
+              ไม่ใช่ถังขยะแดงลอยอยู่ข้างนอกให้กดพลาดได้ */}
+          <ActionMenu
+            placement="bottom"
+            items={[{
+              key: 'disconnect',
+              label: disconnecting ? 'กำลังยกเลิก…' : 'ยกเลิกการเชื่อมต่อ',
+              icon: <Trash2 className="w-4 h-4" />,
+              danger: true,
+              disabled: disconnecting,
+              onClick: onDisconnect,
+            }]}
           />
         </div>
       </div>
