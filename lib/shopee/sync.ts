@@ -313,54 +313,91 @@ export async function syncOrdersByOrderSn(
   return result;
 }
 
+export interface TimeRangeSyncResult extends SyncResult {
+  /** ไล่ออเดอร์ครบถึงวินาทีไหนแล้ว (unix sec) — ค่าที่ stamp ลง last_sync_at */
+  synced_until: number;
+  /** ยังเหลือช่วงเวลาที่ยังไม่ได้ไล่ (หมดงบเวลาก่อน) — ผู้เรียกยิงรอบต่อไปได้เลย */
+  has_more: boolean;
+}
+
 /**
  * Poll orders by time range (for periodic sync / manual sync).
+ *
+ * ⚠️ **ไล่ทีละช่วงย่อย + stamp ความคืบหน้าทุกช่วงที่จบ** — ห้ามกลับไปยิงรวดเดียว
+ * ทั้งช่วง: cron ตายกลางทางแล้วไม่ stamp = รอบหน้าเริ่มที่เดิมแต่ช่วงยาวขึ้น →
+ * ยิ่งไม่มีทางจบ (วนตายตัวเอง — ค้าง 29 ส.ค.–2 ก.ย. 2026 ดู fix-bug.md)
+ * ผู้เรียกที่มีเพดานเวลา (route ของ Vercel) ต้องส่ง `deadlineAt` มาเสมอ
  */
 export async function syncOrdersByTimeRange(
   account: ShopeeAccountRow,
   timeFrom: number,
   timeTo: number,
-  onProgress?: SyncProgressCallback
-): Promise<SyncResult> {
+  onProgress?: SyncProgressCallback,
+  opts: {
+    /** Date.now() ที่ต้องหยุด — หยุดระหว่างช่วงย่อย ไม่ทิ้งช่วงที่ทำค้าง */
+    deadlineAt?: number;
+    /** ความกว้างของช่วงย่อย (วินาที) — ค่าเริ่มต้น 6 ชม. */
+    sliceSeconds?: number;
+  } = {}
+): Promise<TimeRangeSyncResult> {
   console.log(`[Shopee Sync] syncOrdersByTimeRange: shop_id=${account.shop_id}, timeFrom=${timeFrom} (${new Date(timeFrom * 1000).toISOString()}), timeTo=${timeTo} (${new Date(timeTo * 1000).toISOString()})`);
   const creds = await ensureValidToken(account);
   console.log(`[Shopee Sync] Token OK, shop_id=${creds.shop_id}`);
-  const result: SyncResult = {
+  const result: TimeRangeSyncResult = {
     orders_created: 0,
     orders_updated: 0,
     orders_skipped: 0,
     products_created: 0,
     customers_created: 0,
     errors: [],
+    synced_until: timeFrom,
+    has_more: false,
   };
-  const allOrderSns: string[] = [];
-  const seenSns = new Set<string>();
 
-  // Shopee get_order_list รับช่วงเวลาได้ไม่เกิน 15 วันต่อ call — ช่วงยาวกว่านั้น
-  // (เช่น cron ไล่จาก last_sync_at หลังร้านหลุดการเชื่อมต่อไปนาน) ต้องหั่นเป็นท่อน
-  // ไม่งั้น error ทั้ง sync แล้วช่องว่างไม่ถูกดึงเลย (ดู fix-bug.md 2026-08-21)
+  // Shopee get_order_list รับช่วงเวลาได้ไม่เกิน 15 วันต่อ call — ช่วงย่อยจึงห้ามเกินนั้น
+  // (ดู fix-bug.md 2026-08-21) · ค่าเริ่มต้น 6 ชม. เพื่อให้แต่ละช่วงจบเร็วพอที่จะ stamp ได้
   const MAX_WINDOW = 15 * 24 * 60 * 60 - 60;
-  let collectFailed = false;
+  const MIN_SLICE = 15 * 60;
+  // ออเดอร์ต่อช่วงมากเกินไป = ช่วงนั้นทำไม่จบในเพดานเวลาของ route → หดช่วงลงเอง
+  // (ช่วงถัดไปในรอบเดียวกัน ไม่ต้องยิงรายการซ้ำ) — ร้านที่ยอดโตขึ้นจะไม่กลับไปค้างอีก
+  const MAX_ORDERS_PER_SLICE = 150;
+  let slice = Math.max(60, Math.min(opts.sliceSeconds ?? 6 * 60 * 60, MAX_WINDOW));
+  const deadlineAt = opts.deadlineAt ?? Infinity;
 
-  for (let chunkFrom = timeFrom; chunkFrom < timeTo && !collectFailed; chunkFrom += MAX_WINDOW) {
-    const chunkTo = Math.min(chunkFrom + MAX_WINDOW, timeTo);
+  let sliceFrom = timeFrom;
+  let sliceCount = 0;
+  // last_sync_at เดินหน้าอย่างเดียว — sync ย้อนหลังด้วยมือ (เลือกช่วงเก่า) ต้องไม่ลาก
+  // จุดตั้งต้นของ cron ถอยกลับไป ไม่งั้นรอบหน้าไล่ซ้ำทั้งเดือน
+  const stampFloorMs = account.last_sync_at ? new Date(account.last_sync_at).getTime() : 0;
 
-    // Paginate through order list of this window
+  while (sliceFrom < timeTo) {
+    // หมดงบเวลาแล้ว — ออกตรงรอยต่อของช่วงที่เพิ่งเสร็จพอดี ไม่มีของค้างครึ่งช่วง
+    // (ช่วงแรกต้องได้ทำเสมอ ไม่งั้นบางรอบไม่คืบเลย)
+    if (sliceCount > 0 && Date.now() > deadlineAt) {
+      result.has_more = true;
+      break;
+    }
+    sliceCount++;
+
+    const sliceTo = Math.min(sliceFrom + slice, timeTo);
+    const orderSns: string[] = [];
+    const seenSns = new Set<string>();
     let cursor = '';
     let hasMore = true;
     let pageNum = 0;
+    let collectFailed = false;
 
     while (hasMore) {
       pageNum++;
       const params: Record<string, unknown> = {
         time_range_field: 'update_time',
-        time_from: chunkFrom,
-        time_to: chunkTo,
+        time_from: sliceFrom,
+        time_to: sliceTo,
         page_size: 100,
       };
       if (cursor) params.cursor = cursor;
 
-      console.log(`[Shopee Sync] Fetching order list page ${pageNum} (window ${new Date(chunkFrom * 1000).toISOString()} → ${new Date(chunkTo * 1000).toISOString()})...`);
+      console.log(`[Shopee Sync] Fetching order list page ${pageNum} (window ${new Date(sliceFrom * 1000).toISOString()} → ${new Date(sliceTo * 1000).toISOString()})...`);
       const { data, error } = await shopeeApiRequest(creds, 'GET', '/api/v2/order/get_order_list', params);
 
       if (error) {
@@ -382,45 +419,62 @@ export async function syncOrdersByTimeRange(
       for (const order of orderList) {
         if (!seenSns.has(order.order_sn)) {
           seenSns.add(order.order_sn);
-          allOrderSns.push(order.order_sn);
+          orderSns.push(order.order_sn);
         }
       }
 
       onProgress?.({
         phase: 'collecting',
-        current: allOrderSns.length,
+        current: orderSns.length,
         total: null,
-        label: `กำลังดึงรายการออเดอร์... (${allOrderSns.length} รายการ)`,
+        label: `กำลังดึงรายการออเดอร์... (${orderSns.length} รายการ)`,
       });
 
       hasMore = response.more;
       cursor = response.next_cursor || '';
     }
+
+    // ไล่รายการช่วงนี้ไม่ครบ → **ห้าม stamp ข้ามช่วงนี้** ไม่งั้นออเดอร์ในช่วงหายถาวร
+    if (collectFailed) {
+      result.has_more = true;
+      break;
+    }
+
+    if (orderSns.length > MAX_ORDERS_PER_SLICE && slice > MIN_SLICE) {
+      const shrunk = Math.max(MIN_SLICE, Math.floor(slice / 2));
+      console.warn(`[Shopee Sync] ${orderSns.length} orders in one slice — shrinking ${slice}s → ${shrunk}s for the rest of this run`);
+      slice = shrunk;
+    }
+
+    if (orderSns.length > 0) {
+      const syncResult = await syncOrdersByOrderSn(account, orderSns, onProgress);
+      result.orders_created += syncResult.orders_created;
+      result.orders_updated += syncResult.orders_updated;
+      result.orders_skipped += syncResult.orders_skipped;
+      result.products_created += syncResult.products_created;
+      result.customers_created += syncResult.customers_created;
+      result.errors.push(...syncResult.errors);
+    }
+
+    // ช่วงนี้จบครบแล้ว — จำไว้ว่าไล่ถึงไหน แล้ว stamp ทันที
+    // (stamp ทุกช่วง ไม่ใช่ตอนจบทั้งก้อน — ฟังก์ชันโดนฆ่ากลางทางก็ยังไม่เสียของ)
+    result.synced_until = sliceTo;
+    if (sliceTo * 1000 > stampFloorMs) {
+      await supabaseAdmin
+        .from('marketplace_accounts')
+        .update({
+          last_sync_at: new Date(sliceTo * 1000).toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', account.id);
+    }
+
+    sliceFrom = sliceTo;
   }
 
-  console.log(`[Shopee Sync] Total order_sns collected: ${allOrderSns.length}`, allOrderSns.slice(0, 10));
+  if (sliceFrom < timeTo) result.has_more = true;
 
-  // Fetch full details and sync
-  if (allOrderSns.length > 0) {
-    const syncResult = await syncOrdersByOrderSn(account, allOrderSns, onProgress);
-    result.orders_created = syncResult.orders_created;
-    result.orders_updated = syncResult.orders_updated;
-    result.orders_skipped = syncResult.orders_skipped;
-    result.products_created = syncResult.products_created;
-    result.customers_created = syncResult.customers_created;
-    result.errors.push(...syncResult.errors);
-  }
-
-  // Update last_sync_at — เฉพาะเมื่อไล่รายการออเดอร์ครบทุกช่วง; ถ้า collect ล้ม
-  // ห้าม stamp ไม่งั้น cron รอบถัดไปจะข้ามช่วงที่พลาดไปอย่างถาวร
-  if (!collectFailed) {
-    await supabaseAdmin
-      .from('marketplace_accounts')
-      .update({ last_sync_at: new Date().toISOString(), updated_at: new Date().toISOString() })
-      .eq('id', account.id);
-  }
-
-  console.log(`[Shopee Sync] Done: orders_created=${result.orders_created}, orders_updated=${result.orders_updated}, products_created=${result.products_created}, customers_created=${result.customers_created}, errors=${result.errors.length}`, result.errors.slice(0, 5));
+  console.log(`[Shopee Sync] Done: slices=${sliceCount}, synced_until=${new Date(result.synced_until * 1000).toISOString()}, has_more=${result.has_more}, orders_created=${result.orders_created}, orders_updated=${result.orders_updated}, products_created=${result.products_created}, customers_created=${result.customers_created}, errors=${result.errors.length}`, result.errors.slice(0, 5));
   return result;
 }
 

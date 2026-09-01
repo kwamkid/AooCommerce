@@ -64,11 +64,14 @@ export async function POST(request: NextRequest) {
         send({ type: 'started' });
 
         const startMs = Date.now();
+        // sync ด้วยมือ = คนกดเองและเห็น progress อยู่ → ไล่ช่วงที่ขอรวดเดียว
+        // (cron เท่านั้นที่ต้องหั่นช่วง เพราะมีเพดานเวลาแล้วโดนฆ่ากลางทาง)
         const result = await syncOrdersByTimeRange(
           account as ShopeeAccountRow,
           from,
           to,
-          (event) => send({ type: 'progress', ...event })
+          (event) => send({ type: 'progress', ...event }),
+          { sliceSeconds: 15 * 24 * 60 * 60 }
         );
         const durationMs = Date.now() - startMs;
 

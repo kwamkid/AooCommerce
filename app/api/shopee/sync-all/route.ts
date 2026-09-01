@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { after } from 'next/server';
 
-// ตอบเร็ว งานจริงต่อใน after() ได้จนถึงเพดานนี้
-export const maxDuration = 60;
+// ตอบเร็ว งานจริงต่อใน after() ได้จนถึงเพดานนี้ (เท่ากับ cron ของ Lazada/TikTok)
+export const maxDuration = 120;
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { ShopeeAccountRow, isShopeeQuotaBlocked } from '@/lib/shopee/api';
 import { syncOrdersByTimeRange } from '@/lib/shopee/sync';
-import { logIntegration } from '@/lib/integration-logger';
+import { logIntegrationNow } from '@/lib/integration-logger';
 
 async function handleSyncAll(request: NextRequest) {
   // Verify cron secret (supports both Authorization: Bearer and x-cron-secret headers)
@@ -56,7 +56,8 @@ async function handleSyncAll(request: NextRequest) {
       .in('id', expiredAccountIds);
 
     for (const account of (accounts || []).filter(a => expiredAccountIds.includes(a.id))) {
-      logIntegration({
+      // await — response กำลังจะออก ปล่อยลอยแล้วหลักฐานว่าร้านถูกปิดจะหายไปด้วย
+      await logIntegrationNow({
         company_id: account.company_id,
         integration: 'shopee',
         account_id: account.id,
@@ -84,9 +85,13 @@ async function handleSyncAll(request: NextRequest) {
   // ทั้ง timeout ของ Vercel และของ cron-job.org (30 วิ) → job โดนปิดอัตโนมัติ
   // last_sync_at stamp ต่อร้านเมื่อร้านนั้นเสร็จ ร้านที่ไม่ทันรอบนี้รอบหน้ามาต่อเอง
   const startedAt = Date.now();
+  // งบเวลาจริงต้องต่ำกว่า maxDuration — โดนฆ่ากลางทางแล้ว log กับ last_sync_at
+  // ไม่ถูกเขียนพร้อมกัน = พังเงียบ · ต่อร้านก็จำกัดด้วย เพื่อให้ร้านท้ายแถวได้คิวบ้าง
+  const TOTAL_BUDGET_MS = 90_000;
+  const PER_SHOP_BUDGET_MS = 25_000;
   after(async () => {
   for (const account of activeAccounts as ShopeeAccountRow[]) {
-    if (Date.now() - startedAt > 50_000) break; // กันโดนฆ่ากลางร้าน — รอบหน้าต่อ
+    if (Date.now() - startedAt > TOTAL_BUDGET_MS) break; // กันโดนฆ่ากลางร้าน — รอบหน้าต่อ
     try {
       // Sync from last_sync_at or last 15 minutes
       const lastSync = account.last_sync_at
@@ -105,7 +110,9 @@ async function handleSyncAll(request: NextRequest) {
         .single();
 
       const startMs = Date.now();
-      const result = await syncOrdersByTimeRange(account, lastSync, now);
+      const result = await syncOrdersByTimeRange(account, lastSync, now, undefined, {
+        deadlineAt: Math.min(startMs + PER_SHOP_BUDGET_MS, startedAt + TOTAL_BUDGET_MS),
+      });
       const durationMs = Date.now() - startMs;
 
       // Update sync log
@@ -122,8 +129,9 @@ async function handleSyncAll(request: NextRequest) {
           .eq('id', log.id);
       }
 
-      // Integration log
-      logIntegration({
+      // Integration log — **await** เพราะอยู่ใน after() ปล่อยลอยแล้วโดน freeze ทิ้ง
+      // (งานตาย + หลักฐานตายพร้อมกัน = พังเงียบ ดู .claude/rules/code-simplicity.md)
+      await logIntegrationNow({
         company_id: account.company_id,
         integration: 'shopee',
         account_id: account.id,
@@ -137,6 +145,10 @@ async function handleSyncAll(request: NextRequest) {
           orders_fetched: result.orders_created + result.orders_updated + result.orders_skipped,
           orders_created: result.orders_created,
           orders_updated: result.orders_updated,
+          // ไล่ถึงไหนแล้ว + ยังเหลือช่วงค้างไหม — ตัวเลขที่ทำให้ "ตามไม่ทัน" มองเห็นได้
+          synced_until: new Date(result.synced_until * 1000).toISOString(),
+          behind_seconds: Math.max(0, now - result.synced_until),
+          has_more: result.has_more,
           errors: result.errors,
         },
         status: result.errors.length > 0 ? 'error' : 'success',

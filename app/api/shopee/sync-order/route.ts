@@ -64,7 +64,10 @@ export async function POST(request: NextRequest) {
       // Search last 7 days of orders
       const now = Math.floor(Date.now() / 1000);
       const sevenDaysAgo = now - 7 * 24 * 60 * 60;
-      const fallbackResult = await syncOrdersByTimeRange(account as ShopeeAccountRow, sevenDaysAgo, now);
+      // หาออเดอร์ใบเดียว — ยิงรายการรวดเดียวทั้ง 7 วันพอ ไม่ต้องหั่นเป็นช่วงย่อยแบบ cron
+      const fallbackResult = await syncOrdersByTimeRange(account as ShopeeAccountRow, sevenDaysAgo, now, undefined, {
+        sliceSeconds: 7 * 24 * 60 * 60,
+      });
 
       // Check if the order was created by the fallback
       const { data: orderExists } = await supabaseAdmin
