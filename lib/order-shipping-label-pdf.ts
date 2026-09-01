@@ -26,7 +26,7 @@ import {
   fetchCompanyInfo,
   setupPdfMake,
   formatPdfDate,
-  formatDeliverySchedule,
+  deliveryScheduleParts,
 } from './pdf-utils';
 import { cleanVariationLabel } from './product-display';
 import { resolveCarrierLabel } from './carrier-lookup';
@@ -163,13 +163,42 @@ export async function generateShippingLabelPdf({ data, company, pageSizeOverride
   // Section 1 — Tracking number (left-aligned) + barcode
   // ══════════════════════════════════════════════════
 
+  // กำหนดส่ง (วันที่ + รอบเวลา) — มุมบนขวา คนขับ/คนคัดของเห็นก่อนอย่างอื่น
+  // แยกเป็น 2 บรรทัดสั้น ๆ ไม่ใช่บรรทัดเดียวยาว ๆ — ป้าย A6 กว้างไม่พอให้อยู่แถวเดียวกับเลขพัสดุ
+  const schedule = deliveryScheduleParts(data);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const scheduleLines: any[] = [];
+  if (schedule.date) {
+    scheduleLines.push({
+      text: `ส่ง ${schedule.date}`,
+      fontSize: 10, bold: true, color: '#b45309', alignment: 'right' as const,
+    });
+  }
+  if (schedule.slot) {
+    scheduleLines.push({
+      text: schedule.slot,
+      fontSize: 10, bold: true, color: '#b45309', alignment: 'right' as const,
+      margin: [0, 1, 0, 0],
+    });
+  }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const scheduleCol: any[] = scheduleLines.length > 0
+    ? [{ width: 'auto' as const, stack: scheduleLines }]
+    : [];
+
   if (data.tracking_number) {
     content.push({
-      text: `เลขพัสดุ: ${data.tracking_number}`,
-      fontSize: 9,
-      bold: true,
-      alignment: 'left' as const,
-      color: '#000000',
+      columns: [
+        {
+          width: '*',
+          text: `เลขพัสดุ: ${data.tracking_number}`,
+          fontSize: 9,
+          bold: true,
+          color: '#000000',
+        },
+        ...scheduleCol,
+      ],
+      columnGap: 6,
       margin: [0, 2, 0, 2],
     });
     const barcodeDataUrl = generateBarcodeDataUrl(data.tracking_number, { width: 2, height: 45 });
@@ -183,10 +212,16 @@ export async function generateShippingLabelPdf({ data, company, pageSizeOverride
     }
   } else {
     content.push({
-      text: 'เลขพัสดุ: ___________________________',
-      fontSize: 9,
-      color: '#999999',
-      alignment: 'left' as const,
+      columns: [
+        {
+          width: '*',
+          text: 'เลขพัสดุ: ____________________',
+          fontSize: 9,
+          color: '#999999',
+        },
+        ...scheduleCol,
+      ],
+      columnGap: 6,
       margin: [0, 6, 0, 6],
     });
   }
@@ -231,18 +266,7 @@ export async function generateShippingLabelPdf({ data, company, pageSizeOverride
   if (receiverAddress) {
     receiverCol.push({ text: receiverAddress, fontSize: 7.5, color: '#333333', lineHeight: 0.85, margin: [0, 1, 0, 0] });
   }
-  // กำหนดส่ง — คนขับต้องเห็นบนกล่อง ไม่ใช่แค่ในระบบ
-  const scheduleText = formatDeliverySchedule(data);
-  if (scheduleText) {
-    receiverCol.push({
-      text: `ส่ง ${scheduleText}`,
-      fontSize: 8,
-      bold: true,
-      color: '#b45309',
-      lineHeight: 0.9,
-      margin: [0, 2, 0, 0],
-    });
-  }
+
 
   content.push({
     table: {

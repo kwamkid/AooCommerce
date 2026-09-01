@@ -26,10 +26,19 @@ export function formatDeliverySchedule(data: {
   delivery_date?: string | null;
   delivery_slot_label?: string | null;
 }): string {
-  return [
-    data.delivery_date ? formatPdfDate(data.delivery_date) : '',
-    data.delivery_slot_label || '',
-  ].filter(Boolean).join('  ·  ');
+  const { date, slot } = deliveryScheduleParts(data);
+  return [date, slot].filter(Boolean).join('  ·  ');
+}
+
+/** แยกชิ้นของกำหนดส่ง — สำหรับที่ที่ต้องขึ้นคนละบรรทัด (ใบปะหน้า A6 กว้างไม่พอบรรทัดเดียว) */
+export function deliveryScheduleParts(data: {
+  delivery_date?: string | null;
+  delivery_slot_label?: string | null;
+}): { date: string; slot: string } {
+  return {
+    date: data.delivery_date ? formatPdfDate(data.delivery_date) : '',
+    slot: data.delivery_slot_label || '',
+  };
 }
 
 const toBase64 = (buf: ArrayBuffer) => {
