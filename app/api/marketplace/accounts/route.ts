@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
 
     let query = supabaseAdmin
       .from('marketplace_accounts')
-      .select('id, company_id, platform, shop_id, shop_name, is_active, last_sync_at, last_product_sync_at, access_token_expires_at, refresh_token_expires_at, chat_access_token, auto_sync_stock, auto_sync_product_info, warehouse_id, metadata, created_at, updated_at')
+      .select('id, company_id, platform, shop_id, shop_name, is_active, last_sync_at, last_product_sync_at, access_token_expires_at, refresh_token_expires_at, chat_access_token, chat_refresh_token_expires_at, auto_sync_stock, auto_sync_product_info, warehouse_id, metadata, created_at, updated_at')
       .eq('company_id', companyId)
       .order('created_at', { ascending: false });
 
@@ -82,15 +82,23 @@ export async function GET(request: NextRequest) {
       // TikTok: แชทต้องผ่าน OAuth app แชทแยกเสมอ · Lazada: มีขาแชทเฉพาะเมื่อ
       // ตั้ง LAZADA_CHAT_APP_* แยก (ไม่ตั้ง = token หลักใช้แชทได้ ถือว่าเชื่อมแล้ว)
       // · Shopee: แชทใช้ token หลักอยู่แล้ว
-      const { chat_access_token, ...rest } = a;
+      const { chat_access_token, chat_refresh_token_expires_at, ...rest } = a;
+      // refresh token ของขาแชทตายแล้ว = ต่ออายุเองไม่ได้ ต้องพาไปอนุญาตใหม่
+      // (ไม่งั้นสวิตช์ยังเปิดค้างอยู่ แต่พอพิมพ์ตอบลูกค้าจะเด้ง token refresh failed)
+      const chatRefreshDead = chat_refresh_token_expires_at
+        ? new Date(chat_refresh_token_expires_at).getTime() < now.getTime()
+        : false;
+      const hasLiveChatToken = !!chat_access_token && !chatRefreshDead;
       const chatConnected = a.platform === 'tiktok'
-        ? !!chat_access_token
+        ? hasLiveChatToken
         : a.platform === 'lazada'
-          ? (!isLazadaChatAppConfigured() || !!chat_access_token)
+          ? (!isLazadaChatAppConfigured() || hasLiveChatToken)
           : true;
       return {
         ...rest,
         chat_connected: chatConnected,
+        // แยก "ยังไม่เคยเชื่อม" ออกจาก "เคยเชื่อมแล้วหมดอายุ" เพื่อบอกผู้ใช้ให้ตรง
+        chat_expired: !!chat_access_token && chatRefreshDead,
         // TikTok ไม่มีโลโก้ร้านใน API ฝั่งขาย — ดึงจาก avatar บัญชีผ่าน Login Kit ได้
         // ถ้าตั้ง TIKTOK_CLIENT_* ไว้ (ไม่ตั้ง = ซ่อนปุ่ม ไม่ใช่ให้กดแล้วพัง)
         profile_link_available: a.platform === 'tiktok' && isLoginKitConfigured(),

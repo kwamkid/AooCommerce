@@ -67,6 +67,7 @@ interface ShopeeShop {
   is_active: boolean;
   // TikTok: token แชทมาจาก app แชทแยก — false = ยังไม่ผ่าน OAuth ขาแชท
   chat_connected?: boolean;
+  chat_expired?: boolean;
   /** metadata.shop_logo = โลโก้ร้านจาก marketplace */
   metadata?: Record<string, unknown> | null;
 }
@@ -937,12 +938,14 @@ export default function ChatChannelsPage() {
                         <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{shop.shop_name || `${platformLabel} ${shop.shop_id}`}</p>
                         <p className="helper-text text-gray-500">
                           Shop ID: {shop.shop_id}
-                          {chatEnabled ? ' · รับแชทอยู่' : needsChatAuth ? ' · ยังไม่ได้เชื่อมต่อแชท' : ''}
+                          {needsChatAuth
+                            ? (shop.chat_expired ? ' · การเชื่อมต่อแชทหมดอายุ' : ' · ยังไม่ได้เชื่อมต่อแชท')
+                            : chatEnabled ? ' · รับแชทอยู่' : ''}
                         </p>
                       </div>
                       {needsChatAuth ? (
                         <Button size="sm" variant="secondary" loading={connectingChatAuth} onClick={() => handleConnectMarketplaceChat(platform as 'tiktok' | 'lazada')}>
-                          เชื่อมต่อแชท
+                          {shop.chat_expired ? 'เชื่อมต่อแชทใหม่' : 'เชื่อมต่อแชท'}
                         </Button>
                       ) : shopeeToggling === shop.id ? (
                         <Loader2 className="w-4 h-4 animate-spin text-gray-400" />

@@ -332,8 +332,9 @@ marketplace_accounts → marketplace_product_links → product_variations
 ## Marketplace
 
 ### Architecture Overview
+- **📊 สถานะรายแพลตฟอร์มว่าใครถึงไหนแล้ว (เช็คจาก DB จริง) อยู่ที่ [memo/platform-status.md](memo/platform-status.md) — อ่าน/อัปเดตที่นั่นที่เดียว ห้ามทำตารางสถานะซ้ำในไฟล์นี้**
 - **Multi-tenant SaaS** — หลายร้านค้าใช้ระบบเดียวกัน
-- **Multi-platform** — Shopee ✅ | TikTok ✅ | Lazada, LINE Shopping → planned
+- **Multi-platform** — Shopee ✅ | TikTok ✅ | Lazada ✅ (ออเดอร์+สินค้า+settlement ครบทั้ง 3 · LINE Shopping → planned)
 - **Shared product helpers** — `lib/shopee/product-helpers.ts` (ใช้ร่วมระหว่าง order sync + product sync)
 
 ### Order Sync Mechanism (Shopee)
@@ -593,6 +594,7 @@ Architecture เป้าหมาย: Webhook → save log → Queue → Worker
 - **Order sync Lazada ✅ (เพิ่ม 2026-08-22)** — [lib/lazada/sync.ts](lib/lazada/sync.ts) โครงเดียวกับ TikTok: webhook order push (message_type 0) → `syncSingleLazadaOrder()` (notify-then-pull จาก `/order/get` + `/order/items/get`) · cron `/api/lazada/sync-all` ทุก 15 นาที (CRON_SECRET, ไล่จาก `last_sync_at`, **ไม่ stamp เมื่อ collect ล้ม**) · manual `/api/lazada/sync` ต่อร้าน · **สถานะ Lazada เป็นราย item** — สถานะรวม = สถานะช้าสุดของชิ้นที่ไม่ถูกยกเลิก (`effectiveLazadaStatus`) · mapping: unpaid→new/pending, pending→ready_to_ship/paid, packed/ready_to_ship*→processing/paid, shipped/delivered→shipping/paid, confirmed→completed/paid, canceled/failed/returned→cancelled · เบอร์ลูกค้า Lazada mask เป็น `66****` — ห้ามใช้ match/บันทึก (เช็คใน `findOrCreateCustomer`) · cron ตั้งครบแล้วทั้ง `sync-all` (15 นาที) และ `webhook/retry` (5 นาที)
 - **Product import Lazada ✅ (เพิ่ม 2026-08-28)** — [lib/lazada/product-sync.ts](lib/lazada/product-sync.ts) + [/api/lazada/products/import](app/api/lazada/products/import/route.ts) + หน้า [/lazada/import](app/lazada/import/page.tsx) (ปุ่มอยู่การ์ดร้านใน `/settings/sales-channels`) · **`/products/get` คืนทุกอย่างในคอลเดียว** (ชื่อ ไทย/อังกฤษ · description HTML · รูป product · ทุก SKU พร้อม `saleProp`/ราคา/สต็อก/รูปของตัวเอง) → ไม่ต้องยิง detail รายตัวแบบ TikTok · แบ่งหน้าด้วย offset (limit ≤50, **offset ตันที่ 10000**) · ลำดับจับคู่เหมือน Shopee/TikTok: link เดิม → `products.code` (= SellerSku ตัวแรก หรือ `LZ-{item_id}`) → ปลุกของที่ soft-delete → สร้างใหม่ · property ของหมวดหมู่ (มีเป็นสิบตัวและต่างกันทุกหมวด) เก็บทั้งก้อนใน `marketplace_product_links.platform_data.attributes` · **Lazada ไม่มีสนาม video ตายตัว** — เก็บที่ `platform_data.video_url` เมื่อเจอ (คลังสินค้าของเรายังไม่มีคอลัมน์วิดีโอ)
 - **ตั้งโลโก้ร้านเองด้วย URL** — `PATCH /api/shopee/accounts { id, shop_logo }` (ทุก platform) validate https + โหลดได้จริงก่อนบันทึก · จำเป็นเพราะ `/seller/get` ของ Lazada **บางร้านไม่คืน `logo_url` เลย** ทั้งที่ Seller Center ตั้งรูปไว้แล้ว
+- ⚠️ **token ที่ได้ตอน app ยังไม่ผ่านรีวิว อายุแค่ 1 วันทั้ง access และ refresh** (ของ app ที่ผ่านแล้ว = 7 วัน / refresh 30 วัน) — refresh ตายไปด้วยจึงต่ออายุเองไม่ได้ **พอ app ผ่านแล้วต้องกด "เชื่อมต่อแชทใหม่" เสมอ** · ธง `chat_connected` ดูวันหมดอายุของ refresh token ด้วยแล้ว (ดู [fix-bug.md](fix-bug.md) 2026-09-02)
 - **เปิดใช้**: สร้าง app open.lazada.com → ใส่ env 2 ตัว → เชื่อมร้านที่ Integrations → เปิดแชทรายร้านที่ `/settings/chat-channels#lazada` (เปิดครั้งแรกจะ backfill 10 sessions ล่าสุดให้) → ตั้ง Callback URL `/api/lazada/webhook` ใน Lazada Console > Push Mechanism
 
 ---

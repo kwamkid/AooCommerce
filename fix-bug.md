@@ -16,6 +16,20 @@
 
 ---
 
+## 2026-09-02 — แชท Lazada ตอบลูกค้าไม่ได้ แต่หน้าตั้งค่ายังบอกว่าเชื่อมอยู่
+
+**ที่เกิด**: [app/api/marketplace/accounts/route.ts](app/api/marketplace/accounts/route.ts) `chat_connected` · [app/settings/chat-channels/page.tsx](app/settings/chat-channels/page.tsx) · [lib/services/chat/lazada.ts](lib/services/chat/lazada.ts)
+**อาการ**: พิมพ์ตอบลูกค้าในหน้า `/chat` แล้วเด้ง `Lazada chat token refresh failed: The specified refresh token is invalid or expired` · หน้า `/settings/chat-channels#lazada` ยังโชว์สวิตช์ "รับแชทอยู่" เปิดค้าง **ไม่มีปุ่มให้เชื่อมต่อใหม่** → ผู้ใช้ติดตาย ทำอะไรต่อไม่ได้
+**Root cause**: token ขาแชทได้มาตอน **app แชทของ Lazada ยังไม่ผ่านรีวิว** — Lazada ให้อายุแค่ **1 วันทั้ง access และ refresh** (`chat_access_token_expires_at` = `chat_refresh_token_expires_at` = 28 ส.ค. +24 ชม.) ต่างจากขาออเดอร์ที่ app ผ่านแล้วได้ 7 วัน / refresh 30 วัน · refresh token ตายไปด้วย = ต่ออายุเองไม่ได้ **ต้องให้คนไปกดอนุญาตใหม่** · แต่ธง `chat_connected` เช็คแค่ "มี `chat_access_token` ไหม" **ไม่ได้ดูวันหมดอายุ** → UI คิดว่ายังเชื่อมอยู่ ปุ่ม "เชื่อมต่อแชท" จึงไม่ขึ้น
+**วิธีแก้**:
+- `chat_connected` = มี token **และ** `chat_refresh_token_expires_at` ยังไม่ผ่าน (ใช้กับทั้ง tiktok/lazada) + เพิ่มธง `chat_expired` แยก "ยังไม่เคยเชื่อม" ออกจาก "เคยเชื่อมแล้วหมดอายุ"
+- หน้าช่องทางแชทขึ้น "· การเชื่อมต่อแชทหมดอายุ" + ปุ่ม **"เชื่อมต่อแชทใหม่"**
+- `LazadaChatService.sendMessage()` แปล error ของ token เป็นภาษาคนพร้อมบอกทางไปกดต่อ แทนที่จะโยนข้อความดิบของ Lazada ให้คนขายอ่าน
+**ป้องกัน regression**:
+- **ธง "เชื่อมต่อแล้ว" ทุกตัวต้องดูวันหมดอายุ ไม่ใช่แค่ว่ามีค่าอยู่ในคอลัมน์** — token ที่ตายแล้วยังอยู่ในตารางเสมอ
+- **token ที่ได้ตอน app ยังไม่ผ่านรีวิวมีอายุสั้นกว่าของจริง** — ต่อ integration ระหว่างรออนุมัติได้ แต่พออนุมัติแล้ว **ต้องกดเชื่อมใหม่** ไม่งั้นค้างอายุสั้นเดิม · เช็คได้จาก `*_expires_at` ว่าห่างจากเวลาที่ออก token กี่วัน
+- ช่องทางที่ "พังแล้วต้องให้คนกดแก้" ต้องมีปุ่มแก้อยู่ในหน้าเดียวกับที่แสดงว่าพัง — ไม่งั้นผู้ใช้เห็นปัญหาแต่ทำอะไรไม่ได้
+
 ## 2026-08-30 — ใบจัดของ: emoji/สัญลักษณ์พิมพ์ออกมาเป็นกล่องเปล่า + ที่อยู่ผู้รับไม่มีในใบ + รูปสินค้าเล็กจนคนแพ็คดูไม่ออก
 
 **ที่เกิด**: [lib/orders-packing-pdf.ts](lib/orders-packing-pdf.ts) · [lib/pdf-utils.ts](lib/pdf-utils.ts) `buildProductNameStack()`

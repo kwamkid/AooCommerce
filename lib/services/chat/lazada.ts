@@ -44,7 +44,16 @@ export class LazadaChatService {
     try {
       creds = await ensureValidToken(account, 'chat');
     } catch (err) {
-      return { success: false, error: err instanceof Error ? err.message : 'Lazada token หมดอายุ กรุณาเชื่อมต่อร้านใหม่' };
+      const msg = err instanceof Error ? err.message : '';
+      // refresh token ตายแล้ว = ต่ออายุเองไม่ได้ ต้องให้คนไปกดอนุญาตใหม่
+      // บอกทางไปเลย ดีกว่าโยนข้อความดิบของ Lazada ให้คนขายอ่าน
+      if (!msg || /refresh token|invalid|expired|missing/i.test(msg)) {
+        return {
+          success: false,
+          error: 'การเชื่อมต่อแชท Lazada หมดอายุ — ไปที่ ตั้งค่า > ช่องทางแชท > Lazada แล้วกด "เชื่อมต่อแชทใหม่"',
+        };
+      }
+      return { success: false, error: msg };
     }
 
     const startTime = Date.now();
