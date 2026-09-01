@@ -718,65 +718,73 @@ function buildCompactPackingContent(
     margin: [0, 0, 0, 4],
   });
 
-  // ── ผู้รับ + ที่อยู่จัดส่ง (กล่องเด่น) + หมายเหตุ ──
+  // ── ผู้รับ + ที่อยู่จัดส่ง + กำหนดส่ง (บล็อกเด่น) ──
   // คนแพ็คใช้ใบนี้เทียบกับใบปะหน้าว่าของตรงกล่องไหน — ที่อยู่ต้องอ่านได้จากระยะแขน
+  // จัดเป็นตาราง 2 คอลัมน์ (ป้ายชื่อ | ค่า) เพื่อให้ที่อยู่/กำหนดส่ง "เริ่มตรงกัน"
+  // ที่ขอบเดียวกับชื่อผู้รับ — ไม่ใช่ไหลไปชิดซ้ายใต้ป้ายชื่อ
   const customerPhone = order.delivery_phone || order.customer?.phone || '';
+  const LABEL_W = dense ? 46 : 52;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const recipientStack: any[] = [
+  const label = (text: string): any =>
+    ({ text, fontSize: 9, bold: true, color: THEME.primary, margin: [0, 2, 0, 0] });
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const recipientRows: any[][] = [[
+    label('จัดส่งถึง'),
     {
       text: [
-        { text: 'จัดส่งถึง  ', fontSize: 9, bold: true, color: THEME.primary },
         { text: customerName, fontSize: dense ? 11 : 13, bold: true, color: '#111111' },
         ...(customerPhone
           ? [{ text: `   โทร ${customerPhone}`, fontSize: dense ? 10 : 12, bold: true, color: '#111111' }]
           : []),
       ],
     },
-  ];
+  ]];
   if (deliveryAddress) {
-    recipientStack.push({
-      text: deliveryAddress,
-      fontSize: dense ? 9.5 : 11,
-      color: '#1f2937',
-      lineHeight: 1.15,
-      margin: [0, 2, 0, 0],
-    });
+    recipientRows.push([
+      { text: '' },
+      { text: deliveryAddress, fontSize: dense ? 9.5 : 11, color: '#1f2937', lineHeight: 1.15, margin: [0, 2, 0, 0] },
+    ]);
   }
   // กำหนดส่ง — ของสด/ของขวัญพลาดรอบส่งแล้วแก้ไม่ได้ คนแพ็คต้องเห็นคู่กับที่อยู่
   if (scheduleText) {
-    recipientStack.push({
-      text: [
-        { text: 'กำหนดส่ง  ', fontSize: 9, bold: true, color: THEME.primary },
-        { text: scheduleText, fontSize: dense ? 10 : 11.5, bold: true, color: '#b45309' },
-        ...(order.delivery_zone_label
-          ? [{ text: `   (${order.delivery_zone_label})`, fontSize: 9, color: '#666666' }]
-          : []),
-      ],
-      margin: [0, 2, 0, 0],
-    });
+    recipientRows.push([
+      label('กำหนดส่ง'),
+      {
+        text: [
+          { text: scheduleText, fontSize: dense ? 10 : 11.5, bold: true, color: '#b45309' },
+          ...(order.delivery_zone_label
+            ? [{ text: `   (${order.delivery_zone_label})`, fontSize: 9, color: '#666666' }]
+            : []),
+        ],
+        margin: [0, 2, 0, 0],
+      },
+    ]);
   }
   if (noteText) {
-    recipientStack.push({
-      text: [
-        { text: 'หมายเหตุ: ', fontSize: 9, bold: true, color: THEME.primary },
-        { text: noteText, fontSize: 9, color: '#555555' },
-      ],
-      margin: [0, 2, 0, 0],
-    });
+    recipientRows.push([
+      label('หมายเหตุ'),
+      { text: noteText, fontSize: 9, color: '#555555', margin: [0, 2, 0, 0] },
+    ]);
   }
 
-  if (dense) {
-    // บิลรายการเยอะ — ตัดพื้น/ระยะขอบทิ้ง เหลือแค่ตัวหนังสือ เอาที่ว่างไปให้แถวสินค้า
-    content.push({ stack: recipientStack, margin: [0, 1, 0, 3] });
-  } else {
-    // พื้นอ่อนล้วน ไม่มีกรอบ — เด่นด้วยขนาดตัวอักษร ไม่ใช่ด้วยเส้น
-    content.push({
-      table: { widths: ['*'], body: [[{ stack: recipientStack, margin: [8, 5, 8, 5], fillColor: '#f1f5f9' }]] },
-      layout: { hLineWidth: () => 0, vLineWidth: () => 0, paddingLeft: () => 0, paddingRight: () => 0, paddingTop: () => 0, paddingBottom: () => 0 },
-      margin: [0, 1, 0, 5],
-    });
-  }
+  content.push({
+    table: { widths: [LABEL_W, '*'], body: recipientRows },
+    layout: {
+      hLineWidth: () => 0,
+      vLineWidth: () => 0,
+      // พื้นอ่อนล้วน ไม่มีกรอบ — เด่นด้วยขนาดตัวอักษร ไม่ใช่ด้วยเส้น
+      // (บิลรายการเยอะตัดพื้นทิ้ง เอาที่ว่างไปให้แถวสินค้า)
+      fillColor: () => (dense ? null : '#f1f5f9'),
+      paddingLeft: (i: number) => (i === 0 ? (dense ? 0 : 8) : 0),
+      paddingRight: (i: number) => (i === 1 ? (dense ? 0 : 8) : 0),
+      paddingTop: (i: number) => (i === 0 ? (dense ? 1 : 5) : 0),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      paddingBottom: (i: number, node: any) => (i === node.table.body.length - 1 ? (dense ? 1 : 6) : 0),
+    },
+    margin: [0, 1, 0, dense ? 3 : 5],
+  });
 
   // ── ตัวเลือกพิเศษของบิล — ชิปแถวเดียว ──
   // เดิมเป็นกล่องเต็มความกว้างกล่องละ option กินที่ ~120pt ทั้งที่ข้อความสั้นมาก
