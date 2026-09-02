@@ -9,6 +9,7 @@
 import Link from 'next/link';
 import { AlertTriangle, ChevronRight } from 'lucide-react';
 import Card from '@/components/ui/Card';
+import ChannelBadge from '@/components/ui/ChannelBadge';
 import { useHeaderSummary } from '@/lib/header-summary-context';
 import { useFeatures } from '@/lib/features-context';
 
@@ -27,12 +28,19 @@ export default function SystemIssuesCard({ className = '' }: { className?: strin
       </div>
       <ul className="divide-y divide-gray-100 dark:divide-slate-700">
         {issues.map(issue => (
-          <li key={issue.code} className="px-5 py-4 flex flex-col sm:flex-row sm:items-center gap-3">
-            <span
-              className={`hidden sm:block w-2 h-2 rounded-full flex-shrink-0 ${
-                issue.severity === 'critical' ? 'bg-red-500' : 'bg-amber-400'
-              }`}
-            />
+          <li
+            key={issue.code}
+            // ความรุนแรงอ่านจากแถบซ้าย เพื่อเว้นที่ให้โลโก้ร้านบอกว่า "เรื่องของร้านไหน"
+            className={`px-5 py-4 flex flex-col sm:flex-row sm:items-center gap-3 border-l-2 ${
+              issue.severity === 'critical' ? 'border-red-500' : 'border-amber-400'
+            }`}
+          >
+            {issue.channel && (
+              <ChannelBadge
+                size="md"
+                channel={{ platform: issue.channel.platform, picture_url: issue.channel.picture_url }}
+              />
+            )}
             <div className="min-w-0 flex-1">
               <p className="font-medium text-gray-900 dark:text-white">{issue.title}</p>
               <p className="subtitle-text text-gray-600 dark:text-slate-300">{issue.detail}</p>

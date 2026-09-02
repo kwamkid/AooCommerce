@@ -12,6 +12,7 @@ import { LoadingCard } from '@/components/ui/StateCard';
 import { formatThaiDateTime } from '@/lib/utils/format';
 // `import type` ถูกลบตอน compile — ไม่ลากโค้ดฝั่ง server เข้ามาใน bundle
 import type { WatchdogIssue } from '@/lib/marketplace/watchdog';
+import ChannelBadge from '@/components/ui/ChannelBadge';
 import {
   RefreshCw, ShieldAlert, ShieldCheck, Zap, Radio, AlertTriangle, Store,
 } from 'lucide-react';
@@ -183,12 +184,20 @@ export default function ApiMonitorPage() {
             ) : (
               <ul className="divide-y divide-slate-700/50">
                 {(data?.issues || []).map(issue => (
-                  <li key={issue.code} className="px-4 py-3 flex items-start gap-3">
-                    <span
-                      className={`mt-1.5 w-2 h-2 rounded-full flex-shrink-0 ${
-                        issue.severity === 'critical' ? 'bg-red-500' : 'bg-amber-400'
-                      }`}
-                    />
+                  <li
+                    key={issue.code}
+                    className={`px-4 py-3 flex items-start gap-3 border-l-2 ${
+                      issue.severity === 'critical' ? 'border-red-500' : 'border-amber-400'
+                    }`}
+                  >
+                    {issue.channel ? (
+                      <ChannelBadge
+                        size="sm"
+                        channel={{ platform: issue.channel.platform, picture_url: issue.channel.picture_url }}
+                      />
+                    ) : (
+                      <span className="mt-1.5 w-2 h-2 rounded-full flex-shrink-0 bg-slate-500" />
+                    )}
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium text-white">{issue.title}</p>
                       <p className="text-sm text-slate-400">{issue.detail}</p>
