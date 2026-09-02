@@ -768,6 +768,8 @@ PC (พนักงานประจำจุดขายในห้าง) �
 
 ### กติกา
 - `checkAuthWithCompany` / `checkAuth` / `checkSuperAdmin` ใน [lib/supabase-admin.ts](lib/supabase-admin.ts) ใช้ `extractRequestToken` + `verifyAccessToken` แล้ว — **ห้ามเรียก `supabaseAdmin.auth.getUser(token)` ตรงๆ ใน route ใหม่**
+- **หน้าคำเชิญพนักงาน `/invite/[token]` มีทางเข้าเดียว = Google** — ห้ามเพิ่มปุ่มล็อกอินทางอื่นหรือลิงก์ไป `/login` `/register` ในหน้านี้ ถ้าทางนั้นไม่ได้พา `invite_token` ไปด้วย (คนกดแล้วจะไปโผล่หน้า "สร้างบริษัทใหม่") · LINE Login เหลือใช้เฉพาะหน้าร้านฝั่งลูกค้า
+- **อะไรที่ต้องรอดข้าม OAuth round trip ห้ามฝากไว้กับ cookie อย่างเดียว** — ใส่ใน `state` หรือ query ของ redirect (เบราว์เซอร์ในแอป LINE/FB สลับ context ได้ ทำ cookie หาย ดู fix-bug.md 2026-09-02)
 - Google OAuth เป็น **PKCE** แล้ว (default ของ @supabase/ssr) — [app/auth/callback/page.tsx](app/auth/callback/page.tsx) poll getSession สูงสุด 10×300ms รอ exchange
 - `AuthResult.aal` = `'aal2'` เมื่อ session ผ่าน 2FA — ไว้บังคับ MFA per-route ในอนาคต
 - Trade-off ที่ยอมรับ: ban user กลางทาง token เดิมยังผ่าน local verify จนหมดอายุ (~1 ชม.) แต่ปิด membership (`is_active=false`) มีผล ≤30s เท่าเดิม (auth cache TTL); middleware เช็คแค่ cookie presence สำหรับหน้า protected (token หมดอายุแต่ refresh ได้ต้องผ่านเข้าไปให้ client refresh)

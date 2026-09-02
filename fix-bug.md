@@ -61,6 +61,8 @@
 - `/line-callback` ส่ง `inviteToken` ไปกับ body · `/api/auth/line` รับจาก body ก่อน แล้วค่อย fallback cookie · **log เมื่อรับคำเชิญไม่สำเร็จ** ไม่เงียบอีก
 - รับคำเชิญสำเร็จ → คืน `joined_company_id` ให้ callback พาเข้า `/dashboard` ของบริษัทนั้นเลย ไม่ต้องผ่าน onboarding
 - **Google ล็อกอินใน webview ของแอปไม่ได้** (`disallowed_useragent`) — เพิ่ม [lib/in-app-browser.ts](lib/in-app-browser.ts) + [InAppBrowserNotice](components/auth/InAppBrowserNotice.tsx) เตือนบนหน้า login/คำเชิญ พร้อมปุ่ม "เปิดด้วยเบราว์เซอร์" (LINE: ต่อ `openExternalBrowser=1`) · ลิงก์เชิญที่ระบบสร้าง/คัดลอกต่อธงนี้ให้อัตโนมัติ
+- คำเชิญที่ใช้ไม่ได้ (ถูกใช้แล้ว/หมดอายุ) → พากลับหน้า `/invite/<token>` ให้บอกเหตุผล แทนที่จะโยนไปหน้าสร้างบริษัท
+- **หน้าคำเชิญเหลือทางเข้าเดียวคือ Google** (2026-09-02 ตามที่เจ้าของสั่ง) — ถอดปุ่ม LINE, ลิงก์ "สมัครด้วยอีเมล" และลิงก์ "เข้าสู่ระบบ" ออก เพราะทั้งสามทางพา token คำเชิญหลุดหาย (`/login` กับ `/register` ไม่รับ token จาก path นั้น) · LINE Login ยังใช้กับหน้าร้านฝั่งลูกค้าเหมือนเดิม
 **ป้องกัน regression**:
 - **อะไรที่ต้องรอดข้าม OAuth round trip ห้ามฝากไว้กับ cookie อย่างเดียว** — ใส่ใน `state` หรือ query ของ redirect ที่กลับมากับ URL · เบราว์เซอร์ในแอป (LINE/FB/IG) สลับ context ได้ตลอด
 - **ทางเข้าระบบมีหลายทาง ต้องทดสอบเรื่องคำเชิญให้ครบทุกทาง** — Google callback ทำถูก แต่ LINE callback ไม่ได้ทำตาม พังอยู่เงียบ ๆ จนมีคนสมัครจริงถึงรู้
