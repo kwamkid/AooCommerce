@@ -12,7 +12,18 @@ export interface PushPayload {
   url?: string;
   /** แจ้งเตือน tag เดียวกันจะแทนที่กัน (กัน spam ต่อ conversation/order เดียวกัน) */
   tag?: string;
+  /** ไอคอนบนแจ้งเตือน — ใส่เมื่ออยากให้แยกออกว่ามาจากแอปไหน (ค่าเริ่มต้น = ไอคอนแอปร้าน) */
+  icon?: string;
 }
+
+/** สายแจ้งเตือน — ต้องตรงกับ PushAudience ใน lib/push/client.ts */
+export type PushAudience = 'app' | 'superadmin';
+
+/** ไอคอนประจำสาย — แอดมินใช้ไอคอนพื้นเข้ม จะได้รู้ตั้งแต่ยังไม่อ่านว่ามาจากแอปไหน */
+const AUDIENCE_ICON: Record<PushAudience, string> = {
+  app: '/icons/icon-192.png',
+  superadmin: '/icons/admin-icon-192.png',
+};
 
 // แชทเก่ากว่านี้ไม่ยิง push — กัน backfill ครั้งแรก / webhook retry เก่าๆ ปลุกเครื่องทั้งบริษัท
 const CHAT_PUSH_MAX_AGE_MS = 10 * 60 * 1000;
@@ -40,7 +51,9 @@ export async function sendPushToCompany(companyId: string, payload: PushPayload)
     const { data: subs, error } = await supabaseAdmin
       .from('push_subscriptions')
       .select('id, endpoint, p256dh, auth')
-      .eq('company_id', companyId);
+      .eq('company_id', companyId)
+      // เรื่องของร้านต้องไม่ไปโผล่ในแอปผู้ดูแลระบบ
+      .eq('audience', 'app');
     if (error || !subs || subs.length === 0) return;
 
     await deliver(subs, payload);
@@ -54,19 +67,25 @@ export async function sendPushToCompany(companyId: string, payload: PushPayload)
  * ใช้กับเรื่องที่ผูกกับตัวคน ไม่ได้ผูกกับบริษัท (เช่น superadmin เฝ้าระบบข้ามบริษัท)
  * ไม่ throw เด็ดขาด · endpoint ที่ตายแล้ว (404/410) ถูกลบทิ้งอัตโนมัติ
  */
-export async function sendPushToUsers(userIds: string[], payload: PushPayload): Promise<void> {
+export async function sendPushToUsers(
+  userIds: string[],
+  payload: PushPayload,
+  opts: { audience?: PushAudience } = {}
+): Promise<void> {
   try {
     if (!ensureVapid()) return;
     const ids = [...new Set(userIds)].filter(Boolean);
     if (ids.length === 0) return;
 
+    const audience = opts.audience || 'app';
     const { data: subs, error } = await supabaseAdmin
       .from('push_subscriptions')
       .select('id, endpoint, p256dh, auth')
-      .in('user_id', ids);
+      .in('user_id', ids)
+      .eq('audience', audience);
     if (error || !subs || subs.length === 0) return;
 
-    await deliver(subs, payload);
+    await deliver(subs, { icon: AUDIENCE_ICON[audience], ...payload });
   } catch (err) {
     console.error('[Push] sendPushToUsers error:', err);
   }
@@ -82,6 +101,7 @@ async function deliver(
     body: payload.body,
     url: payload.url || '/',
     tag: payload.tag,
+    icon: payload.icon,
   });
 
   const staleIds: string[] = [];

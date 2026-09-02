@@ -667,8 +667,20 @@ PC (พนักงานประจำจุดขายในห้าง) �
 
 เว็บติดตั้งเป็นแอพได้ (Add to Home Screen) + แจ้งเตือนแชทใหม่/ออเดอร์ใหม่ถึงมือถือแม้ปิดจอ — repo เดียวกับเว็บ deploy เดียวกัน
 
+- **2 แอปแยกกัน (เพิ่ม 2026-09-02)** — ติดตั้งเป็นคนละไอคอน **และแจ้งเตือนแยกสายกันจริง**:
+  | | แอปของร้าน | แอปผู้ดูแลระบบ |
+  |---|---|---|
+  | manifest | [app/manifest.ts](app/manifest.ts) → `/manifest.webmanifest` | [app/superadmin/manifest.webmanifest/route.ts](app/superadmin/manifest.webmanifest/route.ts) |
+  | เปิดที่ / scope | `/dashboard` · ทั้งเว็บ | `/superadmin/api-monitor` · `/superadmin` |
+  | ไอคอน / ธีม | โลโก้พื้นขาว · `#F4511E` | โลโก้พื้น slate เข้ม (`admin-*.png`) · `#0f172a` |
+  | SW scope | `/` | `/superadmin/` |
+  | ได้รับแจ้งเตือน | แชท · ออเดอร์ใหม่ · เรื่องที่ร้านแก้เอง | เรื่องระดับระบบจาก watchdog |
+  - **กลไกที่ทำให้แยกได้**: ไฟล์ `/sw.js` ตัวเดียวกัน แต่ `register()` คนละ `scope` → เบราว์เซอร์นับเป็นคนละ registration → `pushManager.subscribe()` ได้คนละ endpoint · คอลัมน์ `push_subscriptions.audience` (`app`/`superadmin`) บอกว่าแถวนั้นเป็นของแอปไหน · `sendPushToUsers(ids, payload, { audience })` เลือกสายตอนส่ง
+  - **1 เครื่องเปิดได้ทั้งสองสาย** ต้องกดเปิดแยกกัน 2 ครั้ง (สวิตช์ในกระดิ่ง = สาย `app` · สวิตช์มุมขวาบนของ shell superadmin = สาย `superadmin`)
+  - **สาย `superadmin` ขอได้เฉพาะ superadmin จริง** — `/api/push/subscribe` เช็ค `is_super_admin` ก่อนบันทึก
+  - ⚠️ **แยกแอปไม่ใช่การกันสิทธิ์** — คนทั่วไปเข้า `/superadmin` ไม่ได้อยู่แล้วจาก `useSuperAdminGuard` + `checkSuperAdmin` (และไม่มีเมนูใน Sidebar) · manifest เป็นแค่ทางลัด
 - **ชิ้นส่วน**: [app/manifest.ts](app/manifest.ts) (Next serve `/manifest.webmanifest` เอง) · [public/sw.js](public/sw.js) (**push-only — ห้ามเพิ่ม offline caching** stale cache กับ Next = บั๊กยาก) · [lib/push/client.ts](lib/push/client.ts) (browser: register SW + state `unsupported/ios-needs-install/denied/subscribed/unsubscribed`) · [lib/push/send.ts](lib/push/send.ts) (server: `sendPushToCompany` / `sendChatPush` / `sendNewOrderPushById` — **ไม่ throw เด็ดขาด** อยู่ใน webhook flow, endpoint ตาย 404/410 ลบ row อัตโนมัติ) · `/api/push/subscribe` (POST/DELETE) + `/api/push/test` · toggle ต่อ device ใน dropdown กระดิ่ง Header ([components/ui/PushNotificationToggle.tsx](components/ui/PushNotificationToggle.tsx)) · icon gen ด้วย [scripts/generate-pwa-icons.mjs](scripts/generate-pwa-icons.mjs)
-- **Table**: `push_subscriptions` (unique `endpoint`, upsert ทับ = device ตาม company ล่าสุดที่เปิด, RLS มาตรฐาน)
+- **Table**: `push_subscriptions` (unique `endpoint`, upsert ทับ = device ตาม company ล่าสุดที่เปิด, RLS มาตรฐาน) + `audience` (`app`/`superadmin`) แยกสายแจ้งเตือน
 - **จุดยิง push ปัจจุบัน**: แชทขาเข้า 4 platform (line/facebook/shopee/lazada — หลัง insert message สำเร็จใน `lib/services/chat/*`) + ออเดอร์ใหม่ (shopee/tiktok/lazada `createNewOrder` + storefront checkout — ผ่าน `sendNewOrderPushById`)
 - **Freshness guard บังคับ**: แชทเก่า >10 นาที / ออเดอร์เก่า >30 นาที (ใช้เวลาจริงของ platform) **ไม่ยิง** — กัน initial sync/backfill/webhook retry ถล่มแจ้งเตือนทุกเครื่อง · เพิ่ม event ใหม่ต้องคิดเรื่องนี้เสมอ
 - **tag ต่อ conversation/order** — แจ้งเตือน tag เดียวกันแทนที่กัน กัน spam

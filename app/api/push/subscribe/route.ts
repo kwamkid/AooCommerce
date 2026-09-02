@@ -14,9 +14,24 @@ export async function POST(request: NextRequest) {
     const endpoint: string | undefined = body?.endpoint;
     const p256dh: string | undefined = body?.keys?.p256dh;
     const authKey: string | undefined = body?.keys?.auth;
+    // สายแจ้งเตือน — 'superadmin' = แอปผู้ดูแลระบบ (คนละ service worker scope
+    // จึงเป็นคนละ endpoint ทำให้ device เดียวเปิดได้ทั้งสองสายโดยไม่ทับกัน)
+    const audience = body?.audience === 'superadmin' ? 'superadmin' : 'app';
 
     if (!endpoint || !p256dh || !authKey) {
       return NextResponse.json({ error: 'Invalid subscription payload' }, { status: 400 });
+    }
+    // สาย superadmin ต้องเป็น superadmin จริงเท่านั้น — ไม่งั้นใครก็ยิง POST มาขอรับ
+    // แจ้งเตือนระดับระบบของทุกบริษัทได้
+    if (audience === 'superadmin') {
+      const { data: profile } = await supabaseAdmin
+        .from('user_profiles')
+        .select('is_super_admin')
+        .eq('id', auth.userId)
+        .single();
+      if (profile?.is_super_admin !== true) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
     }
 
     const { error } = await supabaseAdmin
@@ -25,6 +40,7 @@ export async function POST(request: NextRequest) {
         {
           company_id: auth.companyId,
           user_id: auth.userId,
+          audience,
           endpoint,
           p256dh,
           auth: authKey,

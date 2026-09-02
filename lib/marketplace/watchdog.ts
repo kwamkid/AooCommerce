@@ -276,7 +276,9 @@ export async function runWatchdog(): Promise<{ issues: number; notified: number;
   // ── ผู้ดูแลระบบ: เฉพาะเรื่องระดับระบบ · รวมตามสาเหตุ
   if (superAdminIds.length > 0) {
     for (const [, group] of groupBy(due.filter(i => i.scope === 'system'), i => i.groupKey)) {
-      await sendPushToUsers(superAdminIds, buildPush(group, '/superadmin/api-monitor'));
+      await sendPushToUsers(superAdminIds, buildPush(group, '/superadmin/api-monitor'), {
+        audience: 'superadmin',
+      });
       notified++;
     }
   }
@@ -285,7 +287,8 @@ export async function runWatchdog(): Promise<{ issues: number; notified: number;
   for (const [companyId, group] of groupBy(due.filter(i => i.companyId), i => i.companyId!)) {
     const targets = await getCompanyManagerIds(companyId);
     if (targets.length === 0) continue;
-    await sendPushToUsers(targets, buildPush(group, '/dashboard'));
+    // เรื่องของร้าน → แอปของร้าน (แม้ผู้รับจะเป็น superadmin ที่ควบเจ้าของร้านอยู่ด้วย)
+    await sendPushToUsers(targets, buildPush(group, '/dashboard'), { audience: 'app' });
     notified++;
   }
 
@@ -300,7 +303,7 @@ export async function runWatchdog(): Promise<{ issues: number; notified: number;
         : `${goneCodes.length} เรื่องที่แจ้งไว้ก่อนหน้านี้หายแล้ว`,
       url: '/superadmin/api-monitor',
       tag: 'watchdog_recovered',
-    });
+    }, { audience: 'superadmin' });
     recovered = goneCodes.length;
   }
 

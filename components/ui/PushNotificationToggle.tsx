@@ -6,27 +6,29 @@ import { Smartphone } from 'lucide-react';
 import Toggle from '@/components/ui/Toggle';
 import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
-import { getPushState, enablePush, disablePush, type PushState } from '@/lib/push/client';
+import { getPushState, enablePush, disablePush, type PushState, type PushAudience } from '@/lib/push/client';
 
 interface Props {
   /** compact = แถวเดี่ยวไม่มีเส้นคั่น/ระยะขอบ สำหรับวางใน header (shell ของ superadmin) */
   compact?: boolean;
+  /** สายแจ้งเตือนของแอปที่สวิตช์นี้อยู่ — 'superadmin' = แอปผู้ดูแลระบบ (คนละ subscription) */
+  audience?: PushAudience;
 }
 
-export default function PushNotificationToggle({ compact = false }: Props) {
+export default function PushNotificationToggle({ compact = false, audience = 'app' }: Props) {
   const { showToast } = useToast();
   const [state, setState] = useState<PushState | null>(null);
   const [busy, setBusy] = useState(false);
   const [testing, setTesting] = useState(false);
 
   useEffect(() => {
-    getPushState().then(setState);
-  }, []);
+    getPushState(audience).then(setState);
+  }, [audience]);
 
   const handleToggle = async (on: boolean) => {
     setBusy(true);
     try {
-      const next = on ? await enablePush() : await disablePush();
+      const next = on ? await enablePush(audience) : await disablePush(audience);
       setState(next);
       if (on && next === 'subscribed') showToast('เปิดการแจ้งเตือนบนอุปกรณ์นี้แล้ว');
       if (on && next === 'denied') showToast('การแจ้งเตือนถูกปิดไว้ในเบราว์เซอร์ — เปิดได้ในตั้งค่าเว็บไซต์', 'error');
@@ -42,7 +44,7 @@ export default function PushNotificationToggle({ compact = false }: Props) {
   const handleTest = async () => {
     setTesting(true);
     try {
-      await apiFetch('/api/push/test', { method: 'POST' });
+      await apiFetch('/api/push/test', { method: 'POST', body: JSON.stringify({ audience }) });
     } catch {
       showToast('ส่งแจ้งเตือนทดสอบไม่สำเร็จ', 'error');
     } finally {

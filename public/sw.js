@@ -10,7 +10,7 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('push', (event) => {
-  let payload = { title: 'AooCommerce', body: '', url: '/', tag: undefined };
+  let payload = { title: 'AooCommerce', body: '', url: '/', tag: undefined, icon: undefined };
   try {
     if (event.data) payload = { ...payload, ...event.data.json() };
   } catch (e) {
@@ -21,7 +21,9 @@ self.addEventListener('push', (event) => {
     self.registration.showNotification(payload.title, {
       body: payload.body,
       tag: payload.tag,
-      icon: '/icons/icon-192.png',
+      // ไอคอนมาจาก payload ได้ — แอปผู้ดูแลระบบส่งไอคอนของตัวเองมา จะได้แยกออก
+      // ตั้งแต่ยังไม่กดอ่านว่าเป็นเรื่องระบบหรือเรื่องร้าน
+      icon: payload.icon || '/icons/icon-192.png',
       badge: '/icons/badge-96.png',
       data: { url: payload.url },
     })

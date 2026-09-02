@@ -41,7 +41,7 @@ export default function SuperAdminLayout({ children, title, subtitle }: SuperAdm
               {/* เปิดแจ้งเตือนได้จากตรงนี้เลย — คนที่ต้องรับ alert ของระบบใช้เวลาอยู่ในหน้านี้
                   ไม่ใช่ในแอปหลัก · แถวนี้บันทึก subscription ด้วย user_id เดียวกัน
                   ตัวเฝ้าจึงยิงหาได้โดยไม่สนว่าเปิดจากบริษัทไหน */}
-              <PushNotificationToggle compact />
+              <PushNotificationToggle compact audience="superadmin" />
               <span className="px-3 py-1 bg-violet-500/20 text-violet-400 text-xs font-semibold rounded-full border border-violet-500/30">
                 SUPER ADMIN
               </span>
