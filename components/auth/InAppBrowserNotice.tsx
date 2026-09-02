@@ -27,13 +27,13 @@ export default function InAppBrowserNotice() {
   return (
     <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-4 dark:border-amber-400/40 dark:bg-amber-400/10">
       <p className="text-sm font-semibold text-amber-900 dark:text-amber-200">
-        กำลังเปิดในแอป {IN_APP_LABELS[app]}
+        {app === 'other' ? 'กำลังเปิดในหน้าต่างของแอป' : `กำลังเปิดในแอป ${IN_APP_LABELS[app]}`}
       </p>
       <p className="mt-1 text-sm text-amber-800 dark:text-amber-100/80">
         การเข้าสู่ระบบด้วย Google ใช้ในหน้าต่างของแอปไม่ได้ (Google ปิดกั้นไว้)
         {app === 'line'
           ? ' — กดปุ่มด้านล่างเพื่อเปิดด้วยเบราว์เซอร์ของเครื่อง'
-          : ' — กดปุ่ม ⋯ มุมขวาบน แล้วเลือก “เปิดในเบราว์เซอร์”'}
+          : ' — เปิดเมนูของแอป (ปุ่ม ⋯ หรือ ⋮) แล้วเลือก “เปิดในเบราว์เซอร์” ก่อน'}
       </p>
       {app === 'line' && (
         <button

@@ -160,6 +160,9 @@ export async function POST(request: NextRequest) {
     const inviteToken = (typeof inviteFromBody === 'string' && inviteFromBody)
       || request.cookies.get('invite_token')?.value;
     let joinedCompanyId: string | null = null;
+    // 'unusable' = มี token มาแต่ใช้ไม่ได้ (หมดอายุ/ถูกใช้แล้ว/ไม่ใช่บัญชีที่ถูกเชิญ)
+    // ต้องบอกผู้ใช้ ไม่ใช่ปล่อยไปหน้า "สร้างบริษัทใหม่" เงียบ ๆ
+    let inviteStatus: 'none' | 'applied' | 'unusable' = 'none';
     if (inviteToken) {
       const { data: invitation } = await supabaseAdmin
         .from('company_invitations')
@@ -175,11 +178,14 @@ export async function POST(request: NextRequest) {
         const applied = await applyInvitation(supabaseAdmin, invitation, { id: userId, email: lineEmail });
         if (applied.status === 'joined' || applied.status === 'updated' || applied.status === 'already_member') {
           joinedCompanyId = invitation.company_id;
+          inviteStatus = 'applied';
         } else {
           console.error('LINE login: apply invitation failed', applied);
+          inviteStatus = 'unusable';
         }
       } else {
         console.error('LINE login: invite token not usable (expired/used/not found)');
+        inviteStatus = 'unusable';
       }
     }
 
@@ -194,6 +200,7 @@ export async function POST(request: NextRequest) {
         name: lineProfile.displayName,
       },
       joined_company_id: joinedCompanyId,
+      invite_status: inviteStatus,
     });
   } catch (error) {
     console.error('LINE auth error:', error);

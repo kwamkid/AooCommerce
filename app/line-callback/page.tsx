@@ -83,6 +83,13 @@ function LineCallbackContent() {
           return;
         }
 
+        // มีคำเชิญแต่ใช้ไม่ได้ → กลับไปหน้าคำเชิญ ให้มันบอกเหตุผลเอง
+        // (ลิงก์ถูกใช้ไปแล้ว / หมดอายุ / ถูกยกเลิก) ดีกว่าโยนไปหน้าสร้างบริษัทใหม่
+        if (data.invite_status === 'unusable' && inviteToken) {
+          router.replace(`/invite/${inviteToken}`);
+          return;
+        }
+
         // Redirect to onboarding
         router.replace(takeAuthReturnPath() || '/onboarding');
       } catch {
