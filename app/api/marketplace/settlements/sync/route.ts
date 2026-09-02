@@ -16,7 +16,8 @@ import type { ShopeeAccountRow } from '@/lib/shopee/api';
 // Lazada  = ดึง ledger ตามช่วงวันที่ แล้วประกอบเป็นออเดอร์เอง
 // TikTok  = ดึงทีละออเดอร์
 //
-// POST { platform: 'shopee'|'lazada'|'tiktok', days?: number }
+// POST { platform: 'shopee'|'lazada'|'tiktok'|'all', days?: number }
+// GET  (cron รายวัน) = เท่ากับ POST { platform:'all', days:30 }
 
 export const maxDuration = 300;
 
@@ -44,54 +45,82 @@ export async function POST(request: NextRequest) {
     companyFilter = auth.companyId ?? null;
   }
 
-  if (platform !== 'lazada' && platform !== 'tiktok' && platform !== 'shopee') {
+  // 'all' = ไล่ทั้ง 3 เจ้าใน call เดียว — cron รายวันจะได้ตั้ง job เดียวพอ
+  const SETTLEMENT_PLATFORMS = ['shopee', 'lazada', 'tiktok'] as const;
+  type SettlementPlatform = typeof SETTLEMENT_PLATFORMS[number];
+  const targets: SettlementPlatform[] = platform === 'all'
+    ? [...SETTLEMENT_PLATFORMS]
+    : (SETTLEMENT_PLATFORMS as readonly string[]).includes(platform)
+      ? [platform as SettlementPlatform]
+      : [];
+
+  if (targets.length === 0) {
     return NextResponse.json(
-      { error: "platform ต้องเป็น 'shopee', 'lazada' หรือ 'tiktok'" },
+      { error: "platform ต้องเป็น 'shopee', 'lazada', 'tiktok' หรือ 'all'" },
       { status: 400 }
     );
   }
 
-  // เช็ค breaker ของ scope finance ก่อนยิงเสมอ — ถ้าโควตาการเงินเต็มอยู่ ยิงไปก็ fail ทุกตัว
-  const quota = await isQuotaBlocked(platform, 'finance');
-  if (quota.blocked) {
-    return NextResponse.json({ skipped: true, reason: 'quota_blocked', until: quota.until });
-  }
-
-  let accountQuery = supabaseAdmin
-    .from('marketplace_accounts')
-    .select('*')
-    .eq('platform', platform)
-    .eq('is_active', true);
-  if (companyFilter) accountQuery = accountQuery.eq('company_id', companyFilter);
-  const { data: accounts } = await accountQuery;
-
-  if (!accounts?.length) {
-    return NextResponse.json({ processed: 0, accounts: 0, note: 'ไม่มีร้านที่เชื่อมต่ออยู่' });
-  }
-
   const since = new Date(Date.now() - days * 86_400_000);
-  const results: Record<string, unknown>[] = [];
   // หยุดเองก่อนโดนตัด แล้วบอกว่าค้างตรงไหน (pattern เดียวกับงานยาวตัวอื่นในระบบ)
   const deadline = Date.now() + 240_000;
+  const byPlatform: Record<string, unknown> = {};
 
-  for (const account of accounts) {
-    if (Date.now() > deadline) {
-      results.push({ shop: account.shop_name, skipped: true, reason: 'หมดงบเวลา — ยิงรอบใหม่ต่อได้' });
+  for (const target of targets) {
+    // เช็ค breaker ของ scope finance ก่อนยิงเสมอ — โควตาการเงินเต็มอยู่ ยิงไปก็ fail ทุกตัว
+    const quota = await isQuotaBlocked(target, 'finance');
+    if (quota.blocked) {
+      byPlatform[target] = { skipped: true, reason: 'quota_blocked', until: quota.until };
       continue;
     }
-    try {
-      const r = platform === 'shopee'
-        ? await syncShopeeAccount(account as unknown as ShopeeAccountRow, since, deadline)
-        : platform === 'lazada'
-          ? await syncLazadaAccount(account as unknown as LazadaAccountRow, since)
-          : await syncTikTokAccount(account as unknown as TikTokAccountRow, since);
-      results.push({ shop: account.shop_name, ...r });
-    } catch (err) {
-      results.push({ shop: account.shop_name, error: err instanceof Error ? err.message : 'unknown' });
+    if (Date.now() > deadline) {
+      byPlatform[target] = { skipped: true, reason: 'หมดงบเวลา — ยิงรอบใหม่ต่อได้' };
+      continue;
     }
+
+    let accountQuery = supabaseAdmin
+      .from('marketplace_accounts')
+      .select('*')
+      .eq('platform', target)
+      .eq('is_active', true);
+    if (companyFilter) accountQuery = accountQuery.eq('company_id', companyFilter);
+    const { data: accounts } = await accountQuery;
+
+    if (!accounts?.length) {
+      byPlatform[target] = { accounts: 0, note: 'ไม่มีร้านที่เชื่อมต่ออยู่' };
+      continue;
+    }
+
+    const results: Record<string, unknown>[] = [];
+    for (const account of accounts) {
+      if (Date.now() > deadline) {
+        results.push({ shop: account.shop_name, skipped: true, reason: 'หมดงบเวลา — ยิงรอบใหม่ต่อได้' });
+        continue;
+      }
+      try {
+        const r = target === 'shopee'
+          ? await syncShopeeAccount(account as unknown as ShopeeAccountRow, since, deadline)
+          : target === 'lazada'
+            ? await syncLazadaAccount(account as unknown as LazadaAccountRow, since)
+            : await syncTikTokAccount(account as unknown as TikTokAccountRow, since);
+        results.push({ shop: account.shop_name, ...r });
+      } catch (err) {
+        results.push({ shop: account.shop_name, error: err instanceof Error ? err.message : 'unknown' });
+      }
+    }
+    byPlatform[target] = { accounts: accounts.length, results };
   }
 
-  return NextResponse.json({ platform, days, accounts: accounts.length, results });
+  return NextResponse.json({ platforms: targets, days, ...byPlatform });
+}
+
+// cron ยิงเป็น GET ได้ (cron-job.org ตั้ง GET ง่ายกว่า) — เท่ากับ POST { platform:'all' }
+export async function GET(request: NextRequest) {
+  return POST(new NextRequest(request.url, {
+    method: 'POST',
+    headers: request.headers,
+    body: JSON.stringify({ platform: 'all', days: 30 }),
+  }));
 }
 
 // ─── Shopee ─────────────────────────────────────────────────────────────────
