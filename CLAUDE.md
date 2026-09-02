@@ -518,7 +518,8 @@ worker หยิบทั้งใบที่ `failed` (รวม `next_retry_a
 - **การแมป Shopee กระทบยอดลงศูนย์แล้ว** (2,363 ออเดอร์ ส่วนต่าง 0.00) — เทียบกับสูตร `escrow_amount` ที่เอกสาร Shopee เขียนไว้ · `final_product_protection` **ไม่อยู่ในสูตร** ห้ามนับเป็นค่าใช้จ่าย
 - **2 เส้นทางเก็บข้อมูล**:
   - `POST /api/marketplace/settlements/backfill { platform:'shopee', limit, offset }` — **ไม่ยิง API เลย** แปลงจาก `orders.external_data.escrow_detail` ที่ดูดเก็บไว้แล้ว · **ต้องส่ง `offset` เลื่อนหน้าเอง** ไม่งั้นวนดึงชุดเดิม
-  - `POST /api/marketplace/settlements/sync { platform:'lazada'|'tiktok', days }` — ยิง API จริง (เช็ค breaker scope `finance` ก่อนเสมอ) · **ควรตั้ง cron รายวัน** เพราะยอด settlement โผล่หลังออเดอร์จบหลายวัน ไม่ใช่ตอน sync ออเดอร์
+  - `POST /api/marketplace/settlements/sync { platform:'shopee'|'lazada'|'tiktok', days }` — ยิง API จริง (เช็ค breaker scope `finance` ก่อนเสมอ) · **ควรตั้ง cron รายวัน** เพราะยอด settlement โผล่หลังออเดอร์จบหลายวัน ไม่ใช่ตอน sync ออเดอร์ · **shopee = ตามเก็บ escrow ของออเดอร์ที่จบแล้วแต่ยังไม่มียอด** (ทางกู้เมื่อพลาดรอบแรก — `/backfill` แปลงได้เฉพาะที่มี escrow อยู่แล้ว)
+- ⚠️ **การดึง escrow ต้อง `await` ห้ามปล่อยลอย** — อยู่ในสายที่วิ่งใน `after()` ปล่อยลอยแล้วโดน freeze ทิ้ง เคยทำให้ 19/482 ออเดอร์ที่จบแล้วไม่มียอดเงินเลย (ดู [fix-bug.md](fix-bug.md) 2026-09-02)
 - **Lazada**: ledger รายบรรทัดต่อ order item — `normalizeLazadaTransactions()` ประกอบเป็นออเดอร์เอง · แมปด้วย **`fee_type` (รหัสตัวเลข) ไม่ใช่ `fee_name`** · แถวที่ไม่มี `order_no` → `marketplace_account_charges`
 - **TikTok**: ⚠️ **การแมปเขียนจากสเปค OAS ยังไม่เคยเจอข้อมูลจริง** — route คืน `unmapped_fields` มาให้ดูว่ามีค่าธรรมเนียมตัวไหนตกหล่น ต้องเช็คตอนดึงชุดแรก
 - **ยังไม่ทำ**: รอบโอนเงิน/กระทบยอดธนาคาร · หน้ารายงาน UI · Shopee AMS (ค่าแอดที่ไม่ได้หักจาก escrow) · แยกทิศทาง `adjustment` (ตอนนี้เก็บค่าสัมบูรณ์ คืนเงินกับเงินชดเชยอยู่ถังเดียวกัน)

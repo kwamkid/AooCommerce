@@ -16,6 +16,21 @@
 
 ---
 
+## 2026-09-02 — ยอดเงินที่ร้านได้จริงหายเงียบ 4% ของออเดอร์ที่จบแล้ว (escrow ปล่อยลอยใน after())
+
+**ที่เกิด**: [lib/shopee/sync.ts](lib/shopee/sync.ts) `upsertOrder()` → `fetchAndSaveEscrowDetail()` (3 จุด)
+**อาการ**: ออเดอร์ Shopee ที่ `completed` ใน 45 วันมี 482 ใบ แต่ **19 ใบไม่มี `escrow_detail` เลย** (18 ใบไม่มีทั้ง escrow และ settlement) → รายงานกำไรขาดไปราว 4% โดยไม่มีอะไรฟ้อง · นับทั้งหมดตั้งแต่ต้นมี 2,514 ใบ ขาด settlement 6 ใบ
+**Root cause**: เรียก `fetchAndSaveEscrowDetail(...).catch(...)` **แบบปล่อยลอย** ทั้ง 3 จุด ซึ่งอยู่ในสาย sync ที่วิ่งใน `after()` ของ route — Vercel **freeze ฟังก์ชันทันทีที่ response ออก** งานที่ยังไม่จบจึงตายกลางทาง (กฎข้อนี้เขียนไว้ใน `.claude/rules/code-simplicity.md` แล้ว แต่โค้ดตรงนี้ยังไม่ทำตาม) · ซ้ำร้าย **ไม่มีทางกู้**: `/settlements/backfill` แปลงได้เฉพาะออเดอร์ที่มี escrow เก็บไว้แล้ว ส่วน `/settlements/sync` ปฏิเสธ shopee ตรง ๆ → ออเดอร์ที่พลาดรอบแรกเงินหายถาวร
+**วิธีแก้**:
+- `await` การดึง escrow ทั้ง 3 จุด — ช้าลงบ้างแต่มี slicing + deadline ของ cron คุมเวลาให้อยู่แล้ว (ดู entry cron ด้านล่าง)
+- `fetchAndSaveEscrowDetail()` เปลี่ยนเป็น export เพื่อให้ route กู้ย้อนหลังเรียกได้
+- `/api/marketplace/settlements/sync` รับ `platform: 'shopee'` แล้ว — ไล่ออเดอร์ที่ `completed` แต่ `external_data->>escrow_detail` เป็น null แล้วยิง `get_escrow_detail` ตามเก็บ (งบเวลา 240 วิ · คืน `remaining` ให้ยิงต่อ)
+- รันกู้จริงแล้ว: escrow **2,514/2,514** · settlement **2,514/2,514** (จากเดิมขาด 6 ใบ และ 45 วันล่าสุดขาด 19 ใบ)
+**ป้องกัน regression**:
+- **งานที่มีผลต่อ "ตัวเลขเงิน" ห้ามปล่อยลอยเด็ดขาด** — พังแล้วไม่มีใครเห็น เพราะออเดอร์ยังอยู่ครบ ขาดแค่ยอดเงิน · ต่างจากออเดอร์หายที่มีคนโวยภายในวันเดียว
+- **ทุกอย่างที่ดูดมาจากภายนอกต้องมี "ทางตามเก็บย้อนหลัง" ตั้งแต่วันแรก** — ไม่ใช่แค่ทางดูดตอน real-time · ถ้าไม่มี วันที่พลาดคือหายถาวร
+- เช็คความครบเป็นระยะ: `select count(*) filter (where not exists(select 1 from marketplace_settlements s where s.order_id=o.id)) from orders o where source='shopee' and order_status='completed'`
+
 ## 2026-09-02 — cron ดูดออเดอร์ Shopee วนตายตัวเอง: ไม่จบสักรอบตั้งแต่ 21/29 ส.ค. โดยไม่มีใครรู้
 
 **ที่เกิด**: [app/api/shopee/sync-all/route.ts](app/api/shopee/sync-all/route.ts) · [lib/shopee/sync.ts](lib/shopee/sync.ts) `syncOrdersByTimeRange()`
