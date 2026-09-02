@@ -12,6 +12,13 @@ import DateRangePicker, { DateValueType } from '@/components/ui/DateRangePicker'
 import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
 import PaymentModal from '@/app/orders/components/PaymentModal';
+import OrderCard from '@/app/orders/components/OrderCard';
+import ActionMenu from '@/components/ui/ActionMenu';
+import Tabs from '@/components/ui/Tabs';
+import Tooltip from '@/components/ui/Tooltip';
+import Badge from '@/components/ui/Badge';
+import { printAndTrack } from '@/components/ui/OrderPrintButtons';
+import type { Order } from '@/app/orders/components/types';
 import { getImageUrl } from '@/lib/utils/image';
 import {
   DndContext,
@@ -35,7 +42,6 @@ import { LoadingCard, EmptyCard } from '@/components/ui/StateCard';
 import { Stat } from '@/components/ui/Chart';
 import ProductImageThumb from '@/components/ui/ProductImageThumb';
 import StatusBadge from '@/components/ui/StatusBadge';
-import { downloadBlob } from '@/lib/utils/download';
 import { showPdfPreview, preOpenPrintWindow } from '@/lib/print-pdf';
 import {
   Truck,
@@ -51,6 +57,8 @@ import {
   GripVertical,
   FileText,
   ClipboardList,
+  Printer,
+  Loader2,
 } from 'lucide-react';
 
 // Interfaces
@@ -217,14 +225,16 @@ function SortableDeliveryCard({
       {/* Card Header */}
       <div className="px-4 py-3 border-b border-gray-100 dark:border-slate-700 bg-gray-50 dark:bg-slate-900 flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-3">
+          <Tooltip text="ลากเพื่อเรียงลำดับ">
           <button
             {...attributes}
             {...listeners}
             className="touch-none text-gray-400 hover:text-gray-600 dark:hover:text-slate-300 cursor-grab active:cursor-grabbing p-1 -ml-1"
-            title="ลากเพื่อเรียงลำดับ"
+            aria-label="ลากเพื่อเรียงลำดับ"
           >
             <GripVertical className="w-5 h-5" />
           </button>
+          </Tooltip>
           <span className="flex items-center justify-center w-8 h-8 rounded-full bg-primary text-white text-base font-bold flex-shrink-0">
             {index + 1}
           </span>
@@ -235,23 +245,21 @@ function SortableDeliveryCard({
         </div>
         <div className="flex items-center gap-1.5">
           {getNextOrderStatus(delivery.orderStatus) ? (
-            <button
-              onClick={() => handleOrderStatusClick(delivery)}
-              title={`คลิกเพื่อเปลี่ยนเป็น "${getOrderStatusLabel(getNextOrderStatus(delivery.orderStatus) || '')}"`}
-            >
-              <OrderStatusBadge status={delivery.orderStatus} clickable />
-            </button>
+            <Tooltip text={`คลิกเพื่อเปลี่ยนเป็น "${getOrderStatusLabel(getNextOrderStatus(delivery.orderStatus) || '')}"`}>
+              <button onClick={() => handleOrderStatusClick(delivery)}>
+                <OrderStatusBadge status={delivery.orderStatus} clickable />
+              </button>
+            </Tooltip>
           ) : (
             <OrderStatusBadge status={delivery.orderStatus} />
           )}
           {delivery.orderStatus !== 'cancelled' && (
             getNextPaymentStatus(delivery.paymentStatus) ? (
-              <button
-                onClick={() => handlePaymentStatusClick(delivery)}
-                title={`คลิกเพื่อเปลี่ยนเป็น "${getPaymentStatusLabel(getNextPaymentStatus(delivery.paymentStatus) || '')}"`}
-              >
-                <PaymentStatusBadge status={delivery.paymentStatus} clickable />
-              </button>
+              <Tooltip text={`คลิกเพื่อเปลี่ยนเป็น "${getPaymentStatusLabel(getNextPaymentStatus(delivery.paymentStatus) || '')}"`}>
+                <button onClick={() => handlePaymentStatusClick(delivery)}>
+                  <PaymentStatusBadge status={delivery.paymentStatus} clickable />
+                </button>
+              </Tooltip>
             ) : (
               <PaymentStatusBadge status={delivery.paymentStatus} />
             )
@@ -362,6 +370,11 @@ export default function DeliverySummaryPage() {
   const [reportData, setReportData] = useState<ReportData | null>(null);
   const [copySuccess, setCopySuccess] = useState(false);
   const [showProductSummary, setShowProductSummary] = useState(false);
+  // แท็บ "จัดของ" แสดงรายบิลเหมือนหน้าคำสั่งซื้อ → ดึงจาก /api/orders ชุดเดียวกัน
+  // (RPC เดียวกัน = การ์ด/แบดจ์/ปุ่มพิมพ์เหมือนกันหมด ไม่ต้องแปลงข้อมูลเอง)
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [ordersLoading, setOrdersLoading] = useState(false);
+  const [printingOrderId, setPrintingOrderId] = useState<string | null>(null);
 
   // PDF generation state
   const [generatingPdf, setGeneratingPdf] = useState(false);
@@ -445,10 +458,51 @@ export default function DeliverySummaryPage() {
     }
   };
 
+  /** ออเดอร์ที่ต้องส่งวันนี้ — พารามิเตอร์เดียวกับหน้าคำสั่งซื้อ (ปลีก, ไม่เอา POS) */
+  const fetchOrders = useCallback(async () => {
+    if (!session?.access_token || !deliveryDate) return;
+    setOrdersLoading(true);
+    try {
+      const params = new URLSearchParams({
+        delivery_date_start: deliveryDate,
+        delivery_date_end: deliveryDate,
+        flow_type: 'r_retail',
+        source: 'exclude_pos',
+        limit: '200',
+        sort_by: 'created_at',
+        sort_dir: 'asc',
+      });
+      const res = await apiFetch(`/api/orders?${params.toString()}`);
+      if (!res.ok) throw new Error('Failed to fetch orders');
+      const result = await res.json();
+      setOrders(result.orders || []);
+    } catch (err) {
+      console.error('Error fetching orders:', err);
+    } finally {
+      setOrdersLoading(false);
+    }
+  }, [session?.access_token, deliveryDate]);
+
+  /** พิมพ์เอกสารของบิลเดียว — ใช้ตัวกลางเดียวกับหน้าคำสั่งซื้อ (เด้ง print dialog + จดว่าพิมพ์แล้ว) */
+  const printOne = async (orderId: string, type: 'packing' | 'label') => {
+    setPrintingOrderId(orderId);
+    const printWindow = preOpenPrintWindow();
+    try {
+      await printAndTrack(orderId, type, { printWindow });
+      fetchOrders();
+    } catch (err) {
+      printWindow?.close();
+      showToast(err instanceof Error ? err.message : 'พิมพ์ไม่สำเร็จ', 'error');
+    } finally {
+      setPrintingOrderId(null);
+    }
+  };
+
   const isAuthReady = !authLoading && !!session?.access_token;
   useEffect(() => {
     if (!isAuthReady || !deliveryDate) return;
     fetchReport();
+    fetchOrders();
   }, [isAuthReady, deliveryDate]);
 
   // Initialize delivery order when reportData changes
@@ -656,12 +710,6 @@ export default function DeliverySummaryPage() {
     }
   };
 
-  const handleDownloadText = () => {
-    const text = generateDeliveryText();
-    if (!text) return;
-    const blob = new Blob(['\ufeff' + text], { type: 'text/plain;charset=utf-8;' });
-    downloadBlob(blob, `delivery-summary-${deliveryDate}.txt`);
-  };
 
   /**
    * พิมพ์ใบจัดของของวันนั้น — ใช้ตัวกลางตัวเดียวกับหน้าคำสั่งซื้อ
@@ -734,7 +782,7 @@ export default function DeliverySummaryPage() {
         />
 
         {/* Date Picker + Tab Switcher + Action Buttons */}
-        <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4">
+        <div className="data-filter-card">
           <div className="flex flex-col sm:flex-row sm:items-center gap-4">
             {/* Date Picker - first priority */}
             <div className="max-w-xs">
@@ -749,38 +797,16 @@ export default function DeliverySummaryPage() {
               />
             </div>
 
-            {/* Tabs */}
-            <div className="flex bg-gray-100 dark:bg-slate-700 rounded-lg p-1">
-              <button
-                onClick={() => setActiveTab('packing')}
-                className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                  activeTab === 'packing'
-                    ? 'bg-primary text-white shadow-sm'
-                    : 'text-gray-600 dark:text-slate-300 hover:text-gray-900 dark:hover:text-white'
-                }`}
-              >
-                <ClipboardList className="w-4 h-4" />
-                จัดของ
-              </button>
-              <button
-                onClick={() => setActiveTab('delivery')}
-                className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                  activeTab === 'delivery'
-                    ? 'bg-primary text-white shadow-sm'
-                    : 'text-gray-600 dark:text-slate-300 hover:text-gray-900 dark:hover:text-white'
-                }`}
-              >
-                <Truck className="w-4 h-4" />
-                จัดส่ง
-                {reportData && reportData.totals.totalDeliveries > 0 && (
-                  <span className={`px-1.5 py-0.5 rounded-full text-xs ${
-                    activeTab === 'delivery' ? 'bg-[#1A1A2E]/20 text-[#1A1A2E] dark:text-white' : 'bg-gray-200 dark:bg-slate-600 text-gray-600 dark:text-slate-300'
-                  }`}>
-                    {reportData.totals.totalDeliveries}
-                  </span>
-                )}
-              </button>
-            </div>
+            {/* Tabs — ใช้ <Tabs> ตัวกลาง (เดิมประกอบ pill switcher เอง) */}
+            <Tabs
+              className="border-b-0 flex-1"
+              activeKey={activeTab}
+              onSelect={(key) => setActiveTab(key as 'packing' | 'delivery')}
+              tabs={[
+                { key: 'packing', label: 'จัดของ', icon: <ClipboardList className="w-4 h-4" />, count: orders.length },
+                { key: 'delivery', label: 'จัดส่ง', icon: <Truck className="w-4 h-4" />, count: reportData?.totals.totalDeliveries },
+              ]}
+            />
 
             {/* Action buttons - contextual per tab */}
             <div className="sm:ml-auto flex items-center gap-2">
@@ -824,107 +850,99 @@ export default function DeliverySummaryPage() {
             {/* Summary Cards */}
             {reportData.totals.totalDeliveries > 0 && (
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <Stat label="บิลที่ต้องจัด" value={reportData.totals.totalDeliveries} icon={<ClipboardList className="w-5 h-5" />} />
                 <Stat label="ชนิดสินค้า" value={reportData.productSummary.length} icon={<Package className="w-5 h-5" />} />
-                <Stat label="จำนวนรวม" value={`${reportData.totals.totalBottles.toLocaleString()} ชิ้น`} icon={<ClipboardList className="w-5 h-5" />} />
-                <Stat label="จุดส่ง" value={reportData.totals.totalDeliveries} icon={<MapPin className="w-5 h-5" />} />
+                <Stat label="จำนวนรวม" value={`${reportData.totals.totalBottles.toLocaleString()} ชิ้น`} icon={<Truck className="w-5 h-5" />} />
               </div>
             )}
 
-            {/* Product Packing Table */}
-            {reportData.productSummary.length === 0 ? (
+            {/* สรุปสินค้ารวมทั้งวัน (ใบหยิบของบนจอ) — พับเก็บได้ ของหลักคือรายบิลด้านล่าง */}
+            {reportData.productSummary.length > 0 && (
+              <Card padding="none">
+                <button
+                  onClick={() => setShowProductSummary(!showProductSummary)}
+                  className="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors rounded-lg"
+                >
+                  <div className="flex items-center gap-2">
+                    <Package className="w-5 h-5 text-primary" />
+                    <span className="font-medium text-gray-900 dark:text-white">สรุปสินค้าที่ต้องหยิบทั้งวัน</span>
+                    <span className="text-sm text-gray-500 dark:text-slate-400">
+                      ({reportData.productSummary.length} รายการ / {reportData.totals.totalBottles.toLocaleString()} ชิ้น)
+                    </span>
+                  </div>
+                  {showProductSummary ? <ChevronDown className="w-5 h-5 text-gray-400" /> : <ChevronRight className="w-5 h-5 text-gray-400" />}
+                </button>
+                {showProductSummary && (
+                  <div className="px-4 pb-4 border-t border-gray-100 dark:border-slate-700">
+                    <div className="space-y-2 mt-3">
+                      {reportData.productSummary.map((product, index) => (
+                        <div key={index} className="flex items-center gap-3">
+                          <ProductImageThumb
+                            src={product.image ? getImageUrl(product.image) : null}
+                            alt={product.productName}
+                            size="sm"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <div className="text-gray-900 dark:text-white truncate">
+                              {product.productName}{product.variationLabel ? ` - ${product.variationLabel}` : ''}
+                            </div>
+                            <div className="helper-text text-gray-400 font-mono">{product.productCode}</div>
+                          </div>
+                          <Badge tone="orange" size="md">{product.totalQuantity} ชิ้น</Badge>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </Card>
+            )}
+
+            {/* รายบิล — การ์ดเดียวกับหน้าคำสั่งซื้อ แท็บ "ที่ต้องจัดส่ง" */}
+            {ordersLoading ? (
+              <LoadingCard />
+            ) : orders.length === 0 ? (
               <EmptyCard
                 icon={<Package className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
-                title="ไม่มีสินค้าที่ต้องจัดในวันที่เลือก"
+                title="ไม่มีบิลที่ต้องจัดในวันที่เลือก"
               />
             ) : (
-              <>
-              {/* Desktop Table */}
-              <div className="data-table-wrap overflow-hidden hidden md:block">
-                <table className="w-full">
-                  <thead className="data-thead">
-                    <tr>
-                      <th className="data-th w-10">#</th>
-                      <th className="data-th">สินค้า</th>
-                      <th className="data-th text-right w-28">จำนวน</th>
-                    </tr>
-                  </thead>
-                  <tbody className="data-tbody">
-                    {reportData.productSummary.map((product, index) => (
-                      <tr key={index} className="hover:bg-gray-50 dark:hover:bg-slate-700/50 dark:bg-slate-900">
-                        <td className="px-4 py-3 text-sm text-gray-400 dark:text-slate-500">{index + 1}</td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-3">
-                            <ProductImageThumb
-                              src={product.image ? getImageUrl(product.image) : null}
-                              alt={product.productName}
-                              size="lg"
-                              fallbackIcon={<Package className="w-8 h-8 text-gray-300" />}
-                            />
-                            <div>
-                              <div className="font-medium text-gray-900 dark:text-white text-sm">
-                                {product.productName}{product.variationLabel ? ` - ${product.variationLabel}` : ''}
-                              </div>
-                              <div className="text-xs text-gray-400 font-mono">{product.productCode}</div>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          <span className="inline-flex items-center gap-1 bg-primary/10 text-primary px-3 py-1 rounded-full">
-                            <span className="text-lg font-bold">{product.totalQuantity}</span>
-                            <span className="text-xs text-gray-600 dark:text-slate-400">ชิ้น</span>
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot>
-                    <tr className="bg-gray-50 dark:bg-slate-900 border-t border-gray-200 dark:border-slate-700">
-                      <td colSpan={2} className="px-4 py-3 text-sm text-gray-600 dark:text-slate-400">
-                        {reportData.productSummary.length} รายการ
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <span className="text-lg font-bold text-gray-900 dark:text-white">
-                          รวม {reportData.totals.totalBottles.toLocaleString()} ชิ้น
-                        </span>
-                      </td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-
-              {/* Mobile Card Layout */}
-              <div className="md:hidden space-y-3">
-                {reportData.productSummary.map((product, index) => (
-                  <Card key={index} padding="sm">
-                    <div className="flex items-center gap-3">
-                      <ProductImageThumb
-                        src={product.image ? getImageUrl(product.image) : null}
-                        alt={product.productName}
-                        size="md"
-                        fallbackIcon={<Package className="w-6 h-6 text-gray-300" />}
-                      />
-                      <div className="flex-1 min-w-0">
-                        <div className="font-medium text-gray-900 dark:text-white text-sm truncate">
-                          {product.productName}{product.variationLabel ? ` - ${product.variationLabel}` : ''}
-                        </div>
-                        <div className="text-xs text-gray-400 font-mono">{product.productCode}</div>
-                      </div>
-                      <span className="inline-flex items-center gap-1 bg-primary/10 text-primary px-3 py-1 rounded-full flex-shrink-0">
-                        <span className="text-lg font-bold">{product.totalQuantity}</span>
-                        <span className="text-xs text-gray-600 dark:text-slate-400">ชิ้น</span>
-                      </span>
-                    </div>
-                  </Card>
+              <div className="space-y-3">
+                {orders.map((order) => (
+                  <OrderCard
+                    key={order.id}
+                    order={order}
+                    statusFilter="processing"
+                    showOrderStatus
+                    showPaymentStatus
+                    actions={
+                      <>
+                        <button
+                          onClick={() => printOne(order.id, 'packing')}
+                          disabled={printingOrderId === order.id}
+                          className="btn-focus-action indigo"
+                        >
+                          {printingOrderId === order.id
+                            ? <Loader2 className="w-4 h-4 animate-spin" />
+                            : <ClipboardList className="w-4 h-4" />}
+                          ใบจัดของ
+                        </button>
+                        <ActionMenu
+                          items={[
+                            {
+                              key: 'label', label: 'ใบปะหน้า', icon: <Printer className="w-4 h-4" />,
+                              onClick: () => printOne(order.id, 'label'),
+                            },
+                            {
+                              key: 'open', label: 'เปิดคำสั่งซื้อ', icon: <ChevronRight className="w-4 h-4" />,
+                              onClick: () => router.push(`/orders/${order.id}`),
+                            },
+                          ]}
+                        />
+                      </>
+                    }
+                  />
                 ))}
-                {/* Mobile Totals */}
-                <div className="bg-gray-50 dark:bg-slate-900 rounded-lg border border-gray-200 dark:border-slate-700 p-4">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600 dark:text-slate-400">{reportData.productSummary.length} รายการ</span>
-                    <span className="text-lg font-bold text-gray-900 dark:text-white">รวม {reportData.totals.totalBottles.toLocaleString()} ชิ้น</span>
-                  </div>
-                </div>
               </div>
-              </>
             )}
           </>
         )}
@@ -997,7 +1015,7 @@ export default function DeliverySummaryPage() {
 
             {/* Product Summary - Collapsible */}
             {reportData.productSummary.length > 0 && (
-              <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700">
+              <Card padding="none">
                 <button
                   onClick={() => setShowProductSummary(!showProductSummary)}
                   className="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors"
@@ -1038,7 +1056,7 @@ export default function DeliverySummaryPage() {
                     </div>
                   </div>
                 )}
-              </div>
+              </Card>
             )}
           </>
         )}
