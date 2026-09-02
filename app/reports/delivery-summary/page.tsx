@@ -8,10 +8,10 @@ import PageHeader from '@/components/ui/PageHeader';
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
-import { formatPrice } from '@/lib/utils/format';
 import DateRangePicker, { DateValueType } from '@/components/ui/DateRangePicker';
 import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
+import PaymentModal from '@/app/orders/components/PaymentModal';
 import { getImageUrl } from '@/lib/utils/image';
 import {
   DndContext,
@@ -376,13 +376,6 @@ export default function DeliverySummaryPage() {
   const [updatingStatus, setUpdatingStatus] = useState(false);
 
   // Payment details state
-  const [paymentDetails, setPaymentDetails] = useState({
-    paymentMethod: 'cash',
-    collectedBy: '',
-    transferDate: '',
-    transferTime: '',
-    notes: '',
-  });
 
   // Custom delivery ordering per date
   const [deliveryOrder, setDeliveryOrder] = useState<Map<string, string[]>>(new Map());
@@ -527,28 +520,18 @@ export default function DeliverySummaryPage() {
   const handlePaymentStatusClick = (delivery: Delivery) => {
     const nextStatus = getNextPaymentStatus(delivery.paymentStatus);
     if (!nextStatus) return;
-    setPaymentDetails({
-      paymentMethod: delivery.paymentMethod || 'cash',
-      collectedBy: '', transferDate: '', transferTime: '', notes: '',
-    });
     setStatusUpdateModal({ show: true, delivery, nextStatus, statusType: 'payment' });
   };
 
-  // Confirm status update
+  const isPaymentModal = statusUpdateModal.statusType === 'payment' && statusUpdateModal.nextStatus === 'paid';
+  const closeStatusModal = () =>
+    setStatusUpdateModal({ show: false, delivery: null, nextStatus: '', statusType: 'order' });
+
+  // ยืนยันเปลี่ยนสถานะ — เหลือเฉพาะสถานะออเดอร์ / สถานะชำระที่ไม่ใช่ "จ่ายแล้ว"
+  // (เคส "จ่ายแล้ว" ใช้ PaymentModal ตัวกลาง ซึ่งบันทึก payment_records ให้เอง)
   const confirmStatusUpdate = async () => {
     const delivery = statusUpdateModal.delivery;
     if (!delivery) return;
-
-    if (statusUpdateModal.statusType === 'payment' && statusUpdateModal.nextStatus === 'paid') {
-      if (paymentDetails.paymentMethod === 'cash' && !paymentDetails.collectedBy.trim()) {
-        showToast('กรุณาระบุชื่อคนเก็บเงิน', 'error');
-        return;
-      }
-      if (paymentDetails.paymentMethod === 'transfer' && (!paymentDetails.transferDate || !paymentDetails.transferTime)) {
-        showToast('กรุณาระบุวันที่และเวลาจากสลิป', 'error');
-        return;
-      }
-    }
 
     try {
       setUpdatingStatus(true);
@@ -568,25 +551,8 @@ export default function DeliverySummaryPage() {
 
       if (!response.ok) throw new Error('Failed to update status');
 
-      // Create payment record if marking as paid
-      if (statusUpdateModal.statusType === 'payment' && statusUpdateModal.nextStatus === 'paid') {
-        await apiFetch('/api/payment-records', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            order_id: delivery.orderId,
-            payment_method: paymentDetails.paymentMethod,
-            amount: delivery.totalAmount,
-            collected_by: paymentDetails.paymentMethod === 'cash' ? paymentDetails.collectedBy : null,
-            transfer_date: paymentDetails.paymentMethod === 'transfer' ? paymentDetails.transferDate : null,
-            transfer_time: paymentDetails.paymentMethod === 'transfer' ? paymentDetails.transferTime : null,
-            notes: paymentDetails.notes || null,
-          }),
-        });
-      }
-
       await fetchReport();
-      setStatusUpdateModal({ show: false, delivery: null, nextStatus: '', statusType: 'order' });
+      closeStatusModal();
     } catch (err) {
       console.error('Error updating status:', err);
       showToast(err instanceof Error ? err.message : 'ไม่สามารถอัพเดทสถานะได้', 'error');
@@ -1077,8 +1043,22 @@ export default function DeliverySummaryPage() {
           </>
         )}
 
+        {/* บันทึกชำระเงิน — ใช้ PaymentModal ตัวกลาง (แนบสลิปได้ + ใช้ตัวเลือกวัน/เวลาของระบบ)
+            เดิมหน้านี้ประกอบฟอร์มเอง ใช้ <input type="date"/"time"> ดิบ และแนบสลิปไม่ได้ */}
+        {isPaymentModal && statusUpdateModal.delivery && (
+          <PaymentModal
+            show
+            orderId={statusUpdateModal.delivery.orderId}
+            orderNumber={statusUpdateModal.delivery.orderNumber}
+            totalAmount={statusUpdateModal.delivery.totalAmount}
+            defaultPaymentMethod={statusUpdateModal.delivery.paymentMethod || 'cash'}
+            onClose={closeStatusModal}
+            onSuccess={() => { closeStatusModal(); fetchReport(); }}
+          />
+        )}
+
         {/* Status Update Confirmation Modal */}
-        {statusUpdateModal.show && (
+        {statusUpdateModal.show && !isPaymentModal && (
           <div
             className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
             onClick={() => setStatusUpdateModal({ show: false, delivery: null, nextStatus: '', statusType: 'order' })}
@@ -1111,101 +1091,6 @@ export default function DeliverySummaryPage() {
                     </>
                   )}
                 </div>
-
-                {/* Payment Details Form */}
-                {statusUpdateModal.statusType === 'payment' && statusUpdateModal.nextStatus === 'paid' && (
-                  <div className="mt-6 pt-6 border-t dark:border-slate-700 space-y-4">
-                    <h4 className="font-medium text-gray-900 dark:text-white">รายละเอียดการชำระเงิน</h4>
-                    <p className="text-sm text-gray-600 dark:text-slate-400">
-                      ยอดชำระ: <span className="font-semibold text-primary">
-                        ฿{formatPrice(statusUpdateModal.delivery?.totalAmount)}
-                      </span>
-                    </p>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
-                        วิธีการชำระเงิน <span className="text-red-500">*</span>
-                      </label>
-                      <div className="flex gap-3">
-                        <button
-                          type="button"
-                          onClick={() => setPaymentDetails({ ...paymentDetails, paymentMethod: 'cash' })}
-                          className={`flex-1 px-4 py-2 rounded-lg border-2 transition-colors ${
-                            paymentDetails.paymentMethod === 'cash'
-                              ? 'border-primary bg-primary bg-opacity-10 text-primary font-medium'
-                              : 'border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:border-gray-400 dark:hover:border-slate-500'
-                          }`}
-                        >
-                          เงินสด
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setPaymentDetails({ ...paymentDetails, paymentMethod: 'transfer' })}
-                          className={`flex-1 px-4 py-2 rounded-lg border-2 transition-colors ${
-                            paymentDetails.paymentMethod === 'transfer'
-                              ? 'border-primary bg-primary bg-opacity-10 text-primary font-medium'
-                              : 'border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:border-gray-400 dark:hover:border-slate-500'
-                          }`}
-                        >
-                          โอนเงิน
-                        </button>
-                      </div>
-                    </div>
-
-                    {paymentDetails.paymentMethod === 'cash' && (
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
-                          ชื่อคนเก็บเงิน <span className="text-red-500">*</span>
-                        </label>
-                        <input
-                          type="text"
-                          value={paymentDetails.collectedBy}
-                          onChange={(e) => setPaymentDetails({ ...paymentDetails, collectedBy: e.target.value })}
-                          placeholder="ระบุชื่อคนเก็บเงิน"
-                          className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-gray-900 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                        />
-                      </div>
-                    )}
-
-                    {paymentDetails.paymentMethod === 'transfer' && (
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
-                            วันที่จากสลิป <span className="text-red-500">*</span>
-                          </label>
-                          <input
-                            type="date"
-                            value={paymentDetails.transferDate}
-                            onChange={(e) => setPaymentDetails({ ...paymentDetails, transferDate: e.target.value })}
-                            className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-gray-900 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
-                            เวลาจากสลิป <span className="text-red-500">*</span>
-                          </label>
-                          <input
-                            type="time"
-                            value={paymentDetails.transferTime}
-                            onChange={(e) => setPaymentDetails({ ...paymentDetails, transferTime: e.target.value })}
-                            className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-gray-900 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                          />
-                        </div>
-                      </div>
-                    )}
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">หมายเหตุ</label>
-                      <textarea
-                        value={paymentDetails.notes}
-                        onChange={(e) => setPaymentDetails({ ...paymentDetails, notes: e.target.value })}
-                        placeholder="หมายเหตุเพิ่มเติม (ถ้ามี)"
-                        rows={2}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-gray-900 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                      />
-                    </div>
-                  </div>
-                )}
               </div>
 
               <div className="flex gap-3 justify-end">
