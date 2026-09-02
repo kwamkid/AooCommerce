@@ -10,6 +10,8 @@ import { useToast } from '@/lib/toast-context';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { LoadingCard } from '@/components/ui/StateCard';
 import { formatThaiDateTime } from '@/lib/utils/format';
+// `import type` ถูกลบตอน compile — ไม่ลากโค้ดฝั่ง server เข้ามาใน bundle
+import type { WatchdogIssue } from '@/lib/marketplace/watchdog';
 import {
   RefreshCw, ShieldAlert, ShieldCheck, Zap, Radio, AlertTriangle, Store,
 } from 'lucide-react';
@@ -20,16 +22,6 @@ interface WebhookLast { platform: string; last_at: string }
 interface Webhook24h { platform: string; processing_status: string; n: number }
 interface DeadLetter { id: string; platform: string; shop_id: number; push_label: string | null; processing_error: string | null; retry_count: number; created_at: string }
 interface ProblemAccount { id: string; platform: string; shop_id: number; shop_name: string | null; is_active: boolean; refresh_token_expires_at: string | null; company_name: string | null }
-interface WatchdogIssue {
-  code: string;
-  scope: 'system' | 'company';
-  companyId: string | null;
-  companyName: string | null;
-  severity: 'critical' | 'warning';
-  title: string;
-  detail: string;
-  url: string;
-}
 interface MonitorData {
   daily: DailyRow[];
   heartbeats: Heartbeat[];
@@ -200,6 +192,12 @@ export default function ApiMonitorPage() {
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium text-white">{issue.title}</p>
                       <p className="text-sm text-slate-400">{issue.detail}</p>
+                      <p className="text-sm text-slate-500 mt-0.5">
+                        <span className="text-slate-400">วิธีแก้:</span> {issue.fix}
+                      </p>
+                      <a href={issue.url} className="text-sm text-violet-400 hover:underline mt-1 inline-block">
+                        {issue.actionLabel} →
+                      </a>
                     </div>
                     <span className="text-xs text-slate-500 flex-shrink-0 text-right">
                       {issue.companyName || 'ทั้งระบบ'}

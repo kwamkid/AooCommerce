@@ -394,9 +394,23 @@ marketplace_accounts → marketplace_product_links → product_variations
 | TikTok Webhook Retry | `GET /api/tiktok/webhook/retry` | `*/5 * * * *` |
 | Lazada Sync All | `GET /api/lazada/sync-all` | `*/15 * * * *` |
 | Lazada Webhook Retry | `GET /api/lazada/webhook/retry` | `*/5 * * * *` |
+| **Watchdog (เฝ้าสุขภาพทุกเจ้า)** | `GET /api/marketplace/watchdog` | `*/15 * * * *` |
 
 **เพิ่ม marketplace ใหม่ = ต้องตั้ง cron 2 ตัวเสมอ** (sync-all + webhook/retry)
 ทุกตัวยิงด้วย header `x-cron-secret: {CRON_SECRET}`
+
+### 🔔 Watchdog — ตัวเฝ้าที่ทำให้ "พังเงียบ" เป็นไปไม่ได้ (เพิ่ม 2026-09-02)
+
+[lib/marketplace/watchdog.ts](lib/marketplace/watchdog.ts) — **แหล่งความจริงเดียว** ของ "ตอนนี้มีอะไรพังอยู่":
+หน้า superadmin API Monitor · การ์ดบน dashboard ของร้าน ([SystemIssuesCard](components/ui/SystemIssuesCard.tsx)) ·
+กระดิ่งบน Header · push แจ้งเตือน — **อ่านจาก `collectWatchdogIssues()` ตัวเดียวกันหมด** จึงไม่มีทางพูดคนละเรื่อง
+
+- **ทุก issue ต้องมี `fix` (วิธีแก้ที่ลงมือได้จริง) + `actionLabel` + `url`** — บอกว่าพังเฉย ๆ แล้วให้ผู้ใช้ไปหาทางเอง ไม่นับว่าแจ้งเตือน
+- **ใครได้รับ**: `scope: 'system'` → superadmin · ทุก issue ที่มี `companyId` → เจ้าของ/แอดมินของบริษัทนั้น (เรื่อง cron ตายก็บอกร้านด้วย เพราะกระทบตัวเลขที่ร้านเห็น)
+- **กันสแปม**: เรื่องเดิมเตือนซ้ำได้ทุก 6 ชม. · เรื่องที่มี `groupKey` เดียวกันรวมเป็นใบเดียว (cron เจ้าหนึ่งตาย = 1 ใบ ไม่ใช่ 6 ใบ) · หายแล้วบอก "กลับมาปกติ" ครั้งเดียว · state เก็บใน `app_flags.watchdog_state`
+- **push ส่งถึงคนไม่ใช่ถึงบริษัท** — `sendPushToUsers()` ยิงตาม `user_id` จึงถึง superadmin ได้ไม่ว่าตอนเปิดแจ้งเตือนจะอยู่บริษัทไหน (สวิตช์เปิดได้ทั้งกระดิ่งในแอปหลักและมุมขวาบนของ shell superadmin)
+- ⚠️ **ตัวเฝ้าเองก็ตายเงียบได้** — ชั้นนอกสุดต้องเป็นของนอกระบบเรา: **เปิด "Notify on failure" ของ job นี้ใน cron-job.org เสมอ** · หน้า superadmin แสดง "ตัวเฝ้าตรวจล่าสุดเมื่อ ..." จาก `app_flags.watchdog_last_run` — ค่านี้ค้าง = ตัวเฝ้าตาย
+- **เพิ่มเรื่องที่ต้องเฝ้า = เพิ่ม check ในไฟล์เดียว** ห้ามไปเขียน logic ตรวจสุขภาพซ้ำในหน้าใดหน้าหนึ่ง
 
 **⚠️ worker ของ retry ทั้ง 3 เจ้าเป็นตัวเดียวกันแล้ว** — [lib/marketplace/webhook-retry.ts](lib/marketplace/webhook-retry.ts)
 (`runWebhookRetry()`) route ของแต่ละแพลตฟอร์มเหลือแค่บอกว่า "งานหนึ่งใบทำยังไง"

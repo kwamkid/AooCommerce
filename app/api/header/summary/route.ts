@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { checkAuthWithCompany, supabaseAdmin } from '@/lib/supabase-admin';
 import { getBlockedPlatforms } from '@/lib/marketplace/quota';
+import { collectWatchdogIssues } from '@/lib/marketplace/watchdog';
 import { getStockConfig } from '@/lib/stock-utils';
 
 /**
@@ -101,34 +102,12 @@ export async function GET(request: NextRequest) {
     (lazadaUnreadResult.data || []).forEach(c => { chatUnread += c.unread_count || 0; });
     (tiktokUnreadResult.data || []).forEach(c => { chatUnread += c.unread_count || 0; });
 
-    type Issue = { account_id: string; shop_name: string | null; platform: string; type: 'expired' | 'disconnected'; message: string };
-    const issues: Issue[] = [];
-    let expiredCount = 0;
-    let inactiveCount = 0;
-    const now = Date.now();
-    for (const a of marketplaceAccountsResult.data || []) {
-      const hasRefresh = !!a.refresh_token;
-      const refreshExpired = a.refresh_token_expires_at && new Date(a.refresh_token_expires_at).getTime() < now;
-      if (!a.is_active && hasRefresh) {
-        inactiveCount++;
-        issues.push({
-          account_id: a.id,
-          shop_name: a.shop_name,
-          platform: a.platform || 'shopee',
-          type: 'disconnected',
-          message: 'ร้านถูกปิดการเชื่อมต่อ กรุณาเชื่อมต่อใหม่',
-        });
-      } else if (a.is_active && refreshExpired) {
-        expiredCount++;
-        issues.push({
-          account_id: a.id,
-          shop_name: a.shop_name,
-          platform: a.platform || 'shopee',
-          type: 'expired',
-          message: 'Token หมดอายุ กรุณาเชื่อมต่อใหม่',
-        });
-      }
-    }
+    // รายการปัญหามาจากตัวเฝ้าตัวเดียวกับที่ใช้เด้ง push และหน้า superadmin
+    // (lib/marketplace/watchdog.ts) — กระดิ่ง · การ์ดใน dashboard · แจ้งเตือน
+    // จึงพูดเรื่องเดียวกันเสมอ พร้อมวิธีแก้ + ทางไปแก้
+    const issues = await collectWatchdogIssues({ companyId });
+    const expiredCount = issues.filter(i => i.code.startsWith('token_expired:')).length;
+    const inactiveCount = issues.filter(i => i.code.startsWith('shop_disconnected:')).length;
 
     // Circuit breaker ต่อ platform (quota/rate limit หมด) — แจ้งเฉพาะ platform ที่บริษัทนี้มีร้าน active
     const activePlatforms = new Set(

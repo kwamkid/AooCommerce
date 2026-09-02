@@ -1,11 +1,12 @@
-// ตัวเฝ้าสุขภาพ integration ข้ามทุกบริษัท — "ของที่พังแล้วไม่มีอาการ" ต้องมีคนคอยดูให้
+// ตัวเฝ้าสุขภาพ integration — "ของที่พังแล้วไม่มีอาการ" ต้องมีคนคอยดูให้
 //
 // ⚠️ เกิดขึ้นเพราะ cron ดูดออเดอร์ Shopee ตายเงียบ 12 วัน (21 ส.ค.–2 ก.ย. 2026)
 // หน้า superadmin แสดงสัญญาณอยู่แล้ว แต่ไม่มีใครเปิดดู → การ "แสดงผล" ไม่พอ
-// ต้อง **เด้งไปหาคน** และต้องเด้งไปหา *คนที่แก้ได้* ไม่ใช่เด้งใส่ทุกคน
+// ต้อง **เด้งไปหาคน** · เด้งไปหา *คนที่แก้ได้* · และต้องบอก **วิธีแก้ + ทางไปแก้**
+// ไม่ใช่บอกแค่ว่าพัง (เจ้าของร้านอ่านแล้วต้องลงมือต่อได้ทันที)
 //
-// เพิ่มเรื่องที่ต้องเฝ้า = เพิ่ม check ในไฟล์นี้ไฟล์เดียว
-// หน้า superadmin กับตัวส่งแจ้งเตือนอ่านจากผลชุดเดียวกัน (ไม่มีทางเห็นไม่ตรงกัน)
+// เพิ่มเรื่องที่ต้องเฝ้า = เพิ่ม check ในไฟล์นี้ไฟล์เดียว — หน้า superadmin · การ์ดใน
+// dashboard ของร้าน · กระดิ่ง · push ทั้งหมดอ่านจากผลชุดเดียวกัน ไม่มีทางเห็นไม่ตรงกัน
 
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { sendPushToUsers } from '@/lib/push/send';
@@ -16,14 +17,19 @@ export type WatchdogSeverity = 'critical' | 'warning';
 export interface WatchdogIssue {
   /** คีย์ประจำปัญหา — ใช้กันแจ้งซ้ำ และเป็น tag ของ push (เด้งซ้ำจะทับใบเดิม) */
   code: string;
-  /** system = ปัญหาของระบบ ร้านทำอะไรไม่ได้ (เตือน superadmin) · company = เจ้าของร้านแก้เองได้ */
+  /** ปัญหาที่มีสาเหตุร่วมกัน (เช่น cron เจ้าเดียวตาย = ทุกร้านของเจ้านั้น) — รวมเป็นแจ้งเตือนใบเดียว */
+  groupKey: string;
+  /** system = ระบบพัง เจ้าของร้านแก้เองไม่ได้ · company = ร้านแก้เองได้ */
   scope: 'system' | 'company';
   companyId: string | null;
   companyName: string | null;
   severity: WatchdogSeverity;
   title: string;
   detail: string;
-  /** เปิดหน้าไหนเมื่อกดแจ้งเตือน */
+  /** วิธีแก้แบบลงมือได้ทันที — ห้ามเขียนลอย ๆ ว่า "ตรวจสอบระบบ" */
+  fix: string;
+  /** ป้ายบนปุ่มที่พาไปหน้าที่แก้ได้จริง */
+  actionLabel: string;
   url: string;
 }
 
@@ -36,6 +42,9 @@ const RENOTIFY_HOURS = 6;
 
 const WATCHDOG_STATE_KEY = 'watchdog_state';
 const WATCHDOG_HEARTBEAT_KEY = 'watchdog_last_run';
+
+const MARKETPLACE_SETTINGS_URL = '/settings/sales-channels?tab=marketplace';
+const CHAT_SETTINGS_URL = '/settings/chat-channels';
 
 function hoursAgo(iso: string | null): number | null {
   if (!iso) return null;
@@ -53,22 +62,27 @@ function roundHours(h: number): string {
 
 /**
  * ตรวจทุกอย่างแล้วคืนรายการปัญหาที่ "กำลังเกิดอยู่ตอนนี้" — อ่านอย่างเดียว ไม่ส่งอะไร
- * ใช้ทั้งจาก cron (เพื่อส่งแจ้งเตือน) และหน้า superadmin (เพื่อแสดงผล)
+ *
+ * @param opts.companyId ระบุ = เอาเฉพาะของบริษัทนั้น (การ์ดใน dashboard + กระดิ่ง)
+ *        ไม่ระบุ = ทั้งระบบ รวมเรื่องที่ไม่ผูกบริษัท (หน้า superadmin + cron)
  */
-export async function collectWatchdogIssues(): Promise<WatchdogIssue[]> {
+export async function collectWatchdogIssues(
+  opts: { companyId?: string } = {}
+): Promise<WatchdogIssue[]> {
   const issues: WatchdogIssue[] = [];
   const now = Date.now();
-  const stale: {
-    platform: string; label: string; shop: string; behind: number;
-    companyId: string; companyName: string | null;
-  }[] = [];
+  const scoped = !!opts.companyId;
 
-  const [{ data: accounts }, { data: companies }, { data: flags }] = await Promise.all([
-    supabaseAdmin
-      .from('marketplace_accounts')
-      .select('id, company_id, platform, shop_id, shop_name, is_active, last_sync_at, created_at, refresh_token, refresh_token_expires_at, chat_access_token, chat_refresh_token_expires_at, updated_at'),
-    supabaseAdmin.from('companies').select('id, name'),
-    supabaseAdmin.from('app_flags').select('key, value').like('key', '%quota_exhausted%'),
+  let accountQuery = supabaseAdmin
+    .from('marketplace_accounts')
+    .select('id, company_id, platform, shop_id, shop_name, is_active, last_sync_at, created_at, refresh_token, refresh_token_expires_at, chat_access_token, chat_refresh_token_expires_at, updated_at');
+  if (opts.companyId) accountQuery = accountQuery.eq('company_id', opts.companyId);
+
+  const [{ data: accounts }, { data: companies }] = await Promise.all([
+    accountQuery,
+    scoped
+      ? Promise.resolve({ data: [] as { id: string; name: string }[] })
+      : supabaseAdmin.from('companies').select('id, name'),
   ]);
 
   const companyName = new Map((companies || []).map(c => [c.id, c.name as string]));
@@ -88,21 +102,36 @@ export async function collectWatchdogIssues(): Promise<WatchdogIssue[]> {
         issues.push({
           ...base,
           code: `shop_disconnected:${a.id}`,
+          groupKey: 'shop_disconnected',
           scope: 'company',
           severity: 'critical',
           title: `${label} หลุดการเชื่อมต่อ`,
-          detail: `ร้าน ${shop} ถูกปิดการเชื่อมต่ออัตโนมัติ — ออเดอร์จะไม่เข้าระบบจนกว่าจะเชื่อมใหม่`,
-          url: '/settings/sales-channels?tab=marketplace',
+          detail: `ร้าน ${shop} ถูกปิดการเชื่อมต่ออัตโนมัติ — ออเดอร์ใหม่จะไม่เข้าระบบจนกว่าจะเชื่อมใหม่`,
+          fix: `เปิด ตั้งค่า > ช่องทางการขาย > เชื่อมต่อ Marketplace แล้วกดเชื่อมต่อร้าน ${shop} ใหม่ (ล็อกอิน ${label} ของร้านให้พร้อม)`,
+          actionLabel: 'ไปเชื่อมต่อร้านใหม่',
+          url: MARKETPLACE_SETTINGS_URL,
         });
       }
       continue; // ร้านที่ปิดอยู่ ไม่ต้องเช็คเรื่องอื่นต่อ
     }
 
     // ซิงค์ตามหลัง — cron ตาย / ร้านถูกข้ามคิวถาวร (บทเรียน 21 ส.ค.–2 ก.ย. 2026)
-    // เก็บไว้ก่อน ค่อยรวมกลุ่มทีหลัง (หลายร้านของเจ้าเดียวกันค้าง = สาเหตุเดียว ไม่ใช่หลายเรื่อง)
+    // scope=system เพราะร้านแก้เองไม่ได้ แต่ยังผูก companyId ไว้ → ร้านเห็นบน dashboard
+    // ของตัวเองด้วย จะได้รู้ว่าตัวเลขที่เห็นอาจยังไม่ครบ ไม่ใช่รู้กันแค่ผู้ดูแลระบบ
     const behind = hoursAgo(a.last_sync_at || a.created_at);
     if (behind !== null && behind > STALE_SYNC_HOURS) {
-      stale.push({ platform: a.platform || 'shopee', label, shop, behind, ...base });
+      issues.push({
+        ...base,
+        code: `sync_stale:${a.id}`,
+        groupKey: `sync_stale:${a.platform || 'shopee'}`,
+        scope: 'system',
+        severity: behind > 24 ? 'critical' : 'warning',
+        title: `${label} ซิงค์ตามหลัง ${roundHours(behind)}`,
+        detail: `ร้าน ${shop} ดูดออเดอร์รอบล่าสุดถึงเมื่อ ${roundHours(behind)}ที่แล้ว (ปกติทุก 15 นาที) — ออเดอร์ที่เข้าทาง webhook ยังครบ แต่ตัวสำรองที่คอยเก็บตกไม่ทำงาน`,
+        fix: `กด "ซิงค์ออเดอร์" ของร้านนี้ที่หน้าเชื่อมต่อ Marketplace เพื่อดึงย้อนหลังทันที · ถ้าอีก 1 ชม. ยังตามหลังอยู่ แปลว่า cron มีปัญหา ให้แจ้งผู้ดูแลระบบ`,
+        actionLabel: 'ไปซิงค์ด้วยตัวเอง',
+        url: MARKETPLACE_SETTINGS_URL,
+      });
     }
 
     // refresh token ของขาออเดอร์
@@ -113,21 +142,27 @@ export async function collectWatchdogIssues(): Promise<WatchdogIssue[]> {
       issues.push({
         ...base,
         code: `token_expired:${a.id}`,
+        groupKey: 'token_expired',
         scope: 'company',
         severity: 'critical',
         title: `${label} token หมดอายุ`,
-        detail: `ร้าน ${shop} ต้องกดเชื่อมต่อใหม่ ไม่งั้นออเดอร์จะไม่เข้าระบบ`,
-        url: '/settings/sales-channels?tab=marketplace',
+        detail: `ร้าน ${shop} หมดสิทธิ์เข้าถึง API แล้ว — ออเดอร์ใหม่จะไม่เข้าระบบ`,
+        fix: `เปิด ตั้งค่า > ช่องทางการขาย > เชื่อมต่อ Marketplace แล้วกดเชื่อมต่อร้าน ${shop} ใหม่`,
+        actionLabel: 'ไปเชื่อมต่อใหม่',
+        url: MARKETPLACE_SETTINGS_URL,
       });
     } else if (tokenLeftH !== null && tokenLeftH < TOKEN_EXPIRY_WARN_DAYS * 24) {
       issues.push({
         ...base,
         code: `token_expiring:${a.id}`,
+        groupKey: 'token_expiring',
         scope: 'company',
         severity: 'warning',
         title: `${label} token ใกล้หมดอายุ`,
-        detail: `ร้าน ${shop} เหลืออีก ${roundHours(tokenLeftH)} — เชื่อมต่อใหม่ก่อนของจะหมดอายุ`,
-        url: '/settings/sales-channels?tab=marketplace',
+        detail: `ร้าน ${shop} เหลืออีก ${roundHours(tokenLeftH)} ก่อนหมดสิทธิ์เข้าถึง API`,
+        fix: `กดเชื่อมต่อร้าน ${shop} ใหม่ตั้งแต่ตอนนี้ จะได้ไม่ขาดตอนตอนหมดอายุจริง`,
+        actionLabel: 'ไปต่ออายุการเชื่อมต่อ',
+        url: MARKETPLACE_SETTINGS_URL,
       });
     }
 
@@ -139,87 +174,64 @@ export async function collectWatchdogIssues(): Promise<WatchdogIssue[]> {
       issues.push({
         ...base,
         code: `chat_token_expired:${a.id}`,
+        groupKey: 'chat_token_expired',
         scope: 'company',
         severity: 'warning',
         title: `แชท ${label} หมดอายุ`,
-        detail: `ร้าน ${shop} ตอบแชทลูกค้าไม่ได้ — ไปกด "เชื่อมต่อแชทใหม่" ที่ตั้งค่า > ช่องทางแชท`,
-        url: '/settings/chat-channels',
+        detail: `ร้าน ${shop} รับ/ตอบแชทลูกค้าไม่ได้ — ข้อความใหม่จะไม่เข้าหน้ารวมแชท`,
+        fix: `เปิด ตั้งค่า > ช่องทางแชท > ${label} แล้วกดปุ่ม "เชื่อมต่อแชทใหม่" ที่ร้าน ${shop}`,
+        actionLabel: 'ไปเชื่อมต่อแชทใหม่',
+        url: CHAT_SETTINGS_URL,
       });
     }
   }
 
-  // ร้านของแพลตฟอร์มเดียวกันค้างพร้อมกันหลายร้าน = cron ของเจ้านั้นตาย ไม่ใช่ปัญหาราย
-  // ร้าน — รวมเป็นใบเดียว ไม่งั้นเปิดมือถือมาเจอแจ้งเตือน 6 ใบที่บอกเรื่องเดียวกัน
-  const staleByPlatform = new Map<string, typeof stale>();
-  for (const s of stale) {
-    const list = staleByPlatform.get(s.platform) || [];
-    list.push(s);
-    staleByPlatform.set(s.platform, list);
-  }
-  for (const [platform, list] of staleByPlatform) {
-    const worst = Math.max(...list.map(s => s.behind));
-    const severity: WatchdogSeverity = worst > 24 ? 'critical' : 'warning';
-    if (list.length === 1) {
-      const only = list[0];
+  // เรื่องระดับระบบที่ไม่ผูกบริษัท — หน้า dashboard ของร้านไม่ต้องเห็น
+  if (!scoped) {
+    // webhook ที่ retry จนหมดสิทธิ์แล้ว = ออเดอร์/ข้อความหายจริง ต้องมีคนไปดู
+    const { count: deadLetters } = await supabaseAdmin
+      .from('marketplace_webhook_log')
+      .select('id', { count: 'exact', head: true })
+      .eq('processing_status', 'dead_letter')
+      .gte('created_at', new Date(now - 24 * 3_600_000).toISOString());
+
+    if (deadLetters && deadLetters > 0) {
       issues.push({
-        code: `sync_stale:${platform}:${only.shop}`,
-        scope: 'system',
-        companyId: only.companyId,
-        companyName: only.companyName,
-        severity,
-        title: `${only.label} ซิงค์ตามหลัง ${roundHours(worst)}`,
-        detail: `ร้าน ${only.shop} ดูดออเดอร์ล่าสุดเมื่อ ${roundHours(worst)}ที่แล้ว — ปกติทุก 15 นาที`,
-        url: '/superadmin/api-monitor',
-      });
-    } else {
-      issues.push({
-        code: `sync_stale:${platform}`,
+        code: 'dead_letter',
+        groupKey: 'dead_letter',
         scope: 'system',
         companyId: null,
         companyName: null,
-        severity,
-        title: `${list[0].label} ซิงค์ตามหลัง ${list.length} ร้าน`,
-        detail: `ร้านที่ค้างนานสุด ${roundHours(worst)} — น่าจะเป็น cron ของ ${list[0].label} ไม่ใช่ปัญหาของร้านใดร้านหนึ่ง`,
+        severity: 'critical',
+        title: `webhook ตกค้าง ${deadLetters} ใบ`,
+        detail: `24 ชม.ที่ผ่านมามี webhook ${deadLetters} ใบที่ retry จนครบแล้วยังไม่สำเร็จ — ของในใบนั้นยังไม่เข้าระบบ`,
+        fix: 'เปิด API Monitor ดูรายการ dead letter แล้วไล่ซิงค์ออเดอร์ใบนั้นด้วยมือ',
+        actionLabel: 'เปิด API Monitor',
         url: '/superadmin/api-monitor',
       });
     }
-  }
 
-  // webhook ที่ retry จนหมดสิทธิ์แล้ว = ออเดอร์/ข้อความหายจริง ต้องมีคนไปดู
-  const { count: deadLetters } = await supabaseAdmin
-    .from('marketplace_webhook_log')
-    .select('id', { count: 'exact', head: true })
-    .eq('processing_status', 'dead_letter')
-    .gte('created_at', new Date(now - 24 * 3_600_000).toISOString());
-
-  if (deadLetters && deadLetters > 0) {
-    issues.push({
-      code: 'dead_letter',
-      scope: 'system',
-      companyId: null,
-      companyName: null,
-      severity: 'critical',
-      title: `webhook ตกค้าง ${deadLetters} ใบ`,
-      detail: `24 ชม.ที่ผ่านมามี webhook ${deadLetters} ใบที่ retry จนครบแล้วยังไม่สำเร็จ — ของในใบนั้นยังไม่เข้าระบบ`,
-      url: '/superadmin/api-monitor',
-    });
-  }
-
-  // โควตาโดนแบนอยู่ — งานของ scope นั้นหยุดหมดจนกว่าจะถึงเวลาปลด
-  for (const f of flags || []) {
-    const until = (f.value as { until?: string } | null)?.until;
-    if (!until || new Date(until).getTime() < now) continue;
-    const name = f.key.replace('_quota_exhausted', '').replace(':', ' · ');
-    issues.push({
-      code: `quota:${f.key}`,
-      scope: 'system',
-      companyId: null,
-      companyName: null,
-      severity: 'warning',
-      title: `โควตา ${name} เต็ม`,
-      detail: `พักการเรียก API ถึง ${new Date(until).toLocaleString('th-TH', { timeZone: 'Asia/Bangkok' })}`,
-      url: '/superadmin/api-monitor',
-    });
+    // โควตาโดนแบนอยู่ — งานของ scope นั้นหยุดหมดจนกว่าจะถึงเวลาปลด
+    const { data: flags } = await supabaseAdmin
+      .from('app_flags').select('key, value').like('key', '%quota_exhausted%');
+    for (const f of flags || []) {
+      const until = (f.value as { until?: string } | null)?.until;
+      if (!until || new Date(until).getTime() < now) continue;
+      const name = f.key.replace('_quota_exhausted', '').replace(':', ' · ');
+      issues.push({
+        code: `quota:${f.key}`,
+        groupKey: 'quota',
+        scope: 'system',
+        companyId: null,
+        companyName: null,
+        severity: 'warning',
+        title: `โควตา ${name} เต็ม`,
+        detail: `พักการเรียก API ถึง ${new Date(until).toLocaleString('th-TH', { timeZone: 'Asia/Bangkok' })}`,
+        fix: 'ปกติรอให้ถึงเวลาปลดเองได้ · ถ้าแน่ใจว่าโควตากลับมาแล้ว กด "ปลดก่อนเวลา" ใน API Monitor',
+        actionLabel: 'เปิด API Monitor',
+        url: '/superadmin/api-monitor',
+      });
+    }
   }
 
   return issues;
@@ -229,55 +241,51 @@ type WatchdogState = Record<string, { since: string; notified_at: string }>;
 
 /**
  * ตรวจ + เด้งเตือนคนที่แก้ได้ + จำว่าเตือนอะไรไปแล้ว
- * - เรื่องใหม่ → เตือนทันที
- * - เรื่องเดิมที่ยังไม่หาย → เตือนซ้ำได้ทุก RENOTIFY_HOURS ชม.
+ * - เรื่องใหม่ → เตือนทันที · เรื่องเดิมที่ยังไม่หาย → ซ้ำได้ทุก RENOTIFY_HOURS ชม.
  * - เรื่องที่หายแล้ว → บอกว่ากลับมาปกติ 1 ครั้ง แล้วลืมมันไป
+ * - หลายเรื่องที่มีสาเหตุเดียวกัน → รวมเป็นใบเดียว (ไม่เด้ง 6 ใบบอกเรื่องเดียวกัน)
  */
-export async function runWatchdog(): Promise<{
-  issues: number;
-  notified: number;
-  recovered: number;
-}> {
+export async function runWatchdog(): Promise<{ issues: number; notified: number; recovered: number }> {
   const issues = await collectWatchdogIssues();
   const now = new Date();
 
   const { data: flagRow } = await supabaseAdmin
-    .from('app_flags')
-    .select('value')
-    .eq('key', WATCHDOG_STATE_KEY)
-    .maybeSingle();
+    .from('app_flags').select('value').eq('key', WATCHDOG_STATE_KEY).maybeSingle();
   const prev = ((flagRow?.value as WatchdogState) || {}) as WatchdogState;
 
-  const superAdminIds = await getSuperAdminIds();
   const next: WatchdogState = {};
-  let notified = 0;
-
+  const due: WatchdogIssue[] = [];
   for (const issue of issues) {
     const before = prev[issue.code];
     const lastNotified = before ? new Date(before.notified_at).getTime() : 0;
-    const due = now.getTime() - lastNotified > RENOTIFY_HOURS * 3_600_000;
-
+    const isDue = now.getTime() - lastNotified > RENOTIFY_HOURS * 3_600_000;
     next[issue.code] = {
       since: before?.since || now.toISOString(),
-      notified_at: due ? now.toISOString() : before!.notified_at,
+      notified_at: isDue ? now.toISOString() : before!.notified_at,
     };
-    if (!due) continue;
+    if (isDue) due.push(issue);
+  }
 
-    const targets = issue.scope === 'system'
-      ? superAdminIds
-      : await getCompanyManagerIds(issue.companyId!);
+  let notified = 0;
+  const superAdminIds = await getSuperAdminIds();
+
+  // ── ผู้ดูแลระบบ: เฉพาะเรื่องระดับระบบ · รวมตามสาเหตุ
+  if (superAdminIds.length > 0) {
+    for (const [, group] of groupBy(due.filter(i => i.scope === 'system'), i => i.groupKey)) {
+      await sendPushToUsers(superAdminIds, buildPush(group, '/superadmin/api-monitor'));
+      notified++;
+    }
+  }
+
+  // ── เจ้าของร้าน: ทุกเรื่องที่เป็นของร้านตัวเอง (รวมเรื่องระบบที่กระทบร้าน) · รวมต่อบริษัท
+  for (const [companyId, group] of groupBy(due.filter(i => i.companyId), i => i.companyId!)) {
+    const targets = await getCompanyManagerIds(companyId);
     if (targets.length === 0) continue;
-
-    await sendPushToUsers(targets, {
-      title: issue.severity === 'critical' ? `⚠️ ${issue.title}` : issue.title,
-      body: issue.detail,
-      url: issue.url,
-      tag: issue.code,
-    });
+    await sendPushToUsers(targets, buildPush(group, '/dashboard'));
     notified++;
   }
 
-  // เรื่องที่หายไปแล้ว — บอกครั้งเดียวว่ากลับมาปกติ (เฉพาะที่เคยเตือนไปจริง)
+  // เรื่องที่หายไปแล้ว — บอกครั้งเดียวว่ากลับมาปกติ
   const goneCodes = Object.keys(prev).filter(code => !next[code]);
   let recovered = 0;
   if (goneCodes.length > 0 && superAdminIds.length > 0) {
@@ -304,21 +312,48 @@ export async function runWatchdog(): Promise<{
   return summary;
 }
 
+/** หลายเรื่องรวมใบเดียว — ใบเดียวบอกวิธีแก้ได้เลย หลายใบบอกจำนวนแล้วพาไปดูรายการ */
+function buildPush(group: WatchdogIssue[], listUrl: string) {
+  const worst = group.some(i => i.severity === 'critical');
+  if (group.length === 1) {
+    const only = group[0];
+    return {
+      title: worst ? `⚠️ ${only.title}` : only.title,
+      body: `${only.detail}\n\nวิธีแก้: ${only.fix}`,
+      url: only.url,
+      tag: only.code,
+    };
+  }
+  return {
+    title: worst ? `⚠️ มี ${group.length} เรื่องต้องแก้` : `มี ${group.length} เรื่องต้องดู`,
+    body: group.map(i => `• ${i.title}`).join('\n'),
+    url: listUrl,
+    tag: group[0].groupKey,
+  };
+}
+
+function groupBy<T>(items: T[], key: (item: T) => string): Map<string, T[]> {
+  const map = new Map<string, T[]>();
+  for (const item of items) {
+    const k = key(item);
+    const list = map.get(k) || [];
+    list.push(item);
+    map.set(k, list);
+  }
+  return map;
+}
+
 async function getSuperAdminIds(): Promise<string[]> {
   const { data } = await supabaseAdmin
-    .from('user_profiles')
-    .select('id')
-    .eq('is_super_admin', true);
+    .from('user_profiles').select('id').eq('is_super_admin', true);
   return (data || []).map(u => u.id as string);
 }
 
 /** เจ้าของ/แอดมินของบริษัทนั้น — เรื่องที่ร้านแก้เองได้ ไม่ต้องปลุกพนักงานทุกคน */
 async function getCompanyManagerIds(companyId: string): Promise<string[]> {
   const { data } = await supabaseAdmin
-    .from('company_members')
-    .select('user_id, roles')
-    .eq('company_id', companyId)
-    .eq('is_active', true);
+    .from('company_members').select('user_id, roles')
+    .eq('company_id', companyId).eq('is_active', true);
   return (data || [])
     .filter(m => (m.roles as string[] | null)?.some(r => r === 'owner' || r === 'admin'))
     .map(m => m.user_id as string);

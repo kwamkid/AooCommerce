@@ -51,17 +51,16 @@ export default function Header() {
   // Build marketplace notification list from shared header summary
   const notifications = useMemo<Notification[]>(() => {
     if (!features.marketplace_sync || !summary) return [];
+    // หัวข้อ/รายละเอียด/วิธีแก้/ปลายทาง มาจากตัวเฝ้าทั้งหมด — ห้ามแปลชนิดปัญหาเป็น
+    // ข้อความเองที่นี่อีก (เคยฮาร์ดโค้ดว่า "Token Shopee หมดอายุ" ทั้งที่เป็นร้าน Lazada)
     const list: Notification[] = summary.marketplaceHealth.issues.map(issue => ({
-      id: `mp-${issue.account_id}-${issue.type}`,
+      id: issue.code,
       type: 'warning' as const,
-      title:
-        issue.type === 'expired' ? 'Token Shopee หมดอายุ'
-        : issue.type === 'duplicate_listing' ? 'สินค้าลงซ้ำหลายประกาศ'
-        : 'ร้านถูกปิดการเชื่อมต่อ',
-      message: `${issue.shop_name || 'Shop'} — ${issue.message}`,
+      title: issue.title,
+      message: `${issue.detail} · วิธีแก้: ${issue.fix}`,
       time: '',
       read: false,
-      href: '/settings/sales-channels?tab=marketplace',
+      href: issue.url,
     }));
     // Circuit breaker ต่อ platform+scope — quota/rate limit หมด ระบบพักเฉพาะส่วนนั้นรอ reset
     // ป้ายชื่อ/ข้อความมาจาก lib/marketplace/platforms.ts ที่เดียว — ห้ามประกาศ map ซ้ำที่นี่

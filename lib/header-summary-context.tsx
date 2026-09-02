@@ -6,13 +6,9 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth-context';
 import { useCompany } from '@/lib/company-context';
 
-interface MarketplaceIssue {
-  account_id: string;
-  shop_name: string | null;
-  platform: string;
-  type: 'expired' | 'disconnected' | 'duplicate_listing';
-  message: string;
-}
+// รูปร่างเดียวกับที่ตัวเฝ้าคืนมา — `import type` ถูกลบตอน compile จึงไม่ลาก
+// โค้ดฝั่ง server (supabaseAdmin) เข้ามาใน bundle ของเบราว์เซอร์
+import type { WatchdogIssue as MarketplaceIssue } from '@/lib/marketplace/watchdog';
 
 export interface HeaderSummary {
   stockConfig: { stockEnabled: boolean; maxWarehouses: number | null; allowOversell: boolean };

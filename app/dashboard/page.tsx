@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Layout from '@/components/layout/Layout';
 import PageHeader from '@/components/ui/PageHeader';
+import SystemIssuesCard from '@/components/ui/SystemIssuesCard';
 import { PageSkeleton } from '@/components/ui/Skeleton';
 import { useAuth } from '@/lib/auth-context';
 import { useCompany } from '@/lib/company-context';
@@ -148,6 +149,10 @@ export default function DashboardPage() {
         title="Dashboard"
         subtitle={<>สวัสดี, {userProfile.name || 'ผู้ใช้งาน'} — {can(userProfile.roles, 'settings.access') && 'ภาพรวมระบบทั้งหมด'} {userProfile.roles?.includes('sales') && 'ภาพรวมการขายและลูกค้า'}</>}
       />
+
+      {/* ช่องทางขาย/แชทของร้านที่พังอยู่ — พร้อมวิธีแก้ + ปุ่มไปหน้าที่แก้ได้ทันที
+          (ตัวเฝ้าเดียวกับกระดิ่งและ push — ไม่มีทางเห็นไม่ตรงกัน) */}
+      <SystemIssuesCard className="mb-6" />
 
       {/* Error Message */}
       {error && (
