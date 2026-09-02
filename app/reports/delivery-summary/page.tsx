@@ -11,6 +11,7 @@ import { apiFetch } from '@/lib/api-client';
 import { formatPrice } from '@/lib/utils/format';
 import DateRangePicker, { DateValueType } from '@/components/ui/DateRangePicker';
 import Button from '@/components/ui/Button';
+import Card from '@/components/ui/Card';
 import { getImageUrl } from '@/lib/utils/image';
 import {
   DndContext,
@@ -30,9 +31,12 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { ORDER_STATUS_LABEL, getNextOrderStatus } from '@/lib/order-status';
-import { LoadingCard } from '@/components/ui/StateCard';
+import { LoadingCard, EmptyCard } from '@/components/ui/StateCard';
+import { Stat } from '@/components/ui/Chart';
+import ProductImageThumb from '@/components/ui/ProductImageThumb';
 import StatusBadge from '@/components/ui/StatusBadge';
 import { downloadBlob } from '@/lib/utils/download';
+import { showPdfPreview, preOpenPrintWindow } from '@/lib/print-pdf';
 import {
   Truck,
   MapPin,
@@ -323,18 +327,11 @@ function SortableDeliveryCard({
             <div className="space-y-1.5">
               {delivery.products.map((product, pIndex) => (
                 <div key={pIndex} className="flex items-center gap-2 text-sm">
-                  {product.image ? (
-                    <img
-                      src={getImageUrl(product.image)}
-                      alt={product.productName}
-                      className="w-8 h-8 rounded object-cover flex-shrink-0"
-                      onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                    />
-                  ) : (
-                    <div className="w-8 h-8 rounded bg-gray-100 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
-                      <Package className="w-4 h-4 text-gray-400" />
-                    </div>
-                  )}
+                  <ProductImageThumb
+                    src={product.image ? getImageUrl(product.image) : null}
+                    alt={product.productName}
+                    size="xs"
+                  />
                   <span className="text-gray-700 dark:text-slate-300 flex-1">
                     {product.productName}
                     {product.variationLabel && <span className="text-gray-400 dark:text-slate-500 ml-1">{product.variationLabel}</span>}
@@ -344,7 +341,7 @@ function SortableDeliveryCard({
               ))}
             </div>
             <div className="flex justify-end mt-2 pt-2 border-t border-gray-100 dark:border-slate-700">
-              <span className="text-sm font-medium text-gray-700 dark:text-slate-300">รวม: {delivery.totalBottles} ขวด</span>
+              <span className="text-sm font-medium text-gray-700 dark:text-slate-300">รวม: {delivery.totalBottles} ชิ้น</span>
             </div>
           </div>
         </div>
@@ -640,14 +637,14 @@ export default function DeliverySummaryPage() {
         text += '\n';
       });
 
-      text += `📊 รวม: ${dateGroup.dateTotals.totalDeliveries} จุดส่ง, ${dateGroup.dateTotals.totalBottles} ขวด\n\n`;
+      text += `📊 รวม: ${dateGroup.dateTotals.totalDeliveries} จุดส่ง, ${dateGroup.dateTotals.totalBottles} ชิ้น\n\n`;
     });
 
     if (reportData.productSummary.length > 0) {
       text += `${'═'.repeat(30)}\n📋 สรุปสินค้าทั้งหมด:\n`;
       reportData.productSummary.forEach(product => {
         const variationInfo = product.variationLabel ? ` ${product.variationLabel}` : '';
-        text += `   - ${product.productName}${variationInfo}: ${product.totalQuantity} ขวด\n`;
+        text += `   - ${product.productName}${variationInfo}: ${product.totalQuantity} ชิ้น\n`;
       });
     }
 
@@ -700,266 +697,36 @@ export default function DeliverySummaryPage() {
     downloadBlob(blob, `delivery-summary-${deliveryDate}.txt`);
   };
 
-  // Generate barcode as data URL using JsBarcode
-  const generateBarcodeDataUrl = (barcodeValue: string): string | null => {
-    try {
-      const JsBarcode = require('jsbarcode');
-      const canvas = document.createElement('canvas');
-      JsBarcode(canvas, barcodeValue, {
-        format: 'CODE128',
-        width: 1.5,
-        height: 40,
-        displayValue: true,
-        fontSize: 10,
-        margin: 2,
-      });
-      return canvas.toDataURL('image/png');
-    } catch {
-      return null;
-    }
-  };
-
-  // PDF export for packing list — pdfmake with Thai font (Sarabun)
+  /**
+   * พิมพ์ใบจัดของของวันนั้น — ใช้ตัวกลางตัวเดียวกับหน้าคำสั่งซื้อ
+   * (`generatePackingPdf` ให้ **ใบหยิบของ** รวมทุกออเดอร์ + **ใบจัดของ** รายออเดอร์
+   *  2 ใบต่อหน้า) เดิมหน้านี้ประกอบ pdfMake เองอีกชุด ทำให้ต้องแก้สองที่ทุกครั้ง
+   *  และรูปสินค้าไม่ขึ้นเพราะ fetch ตรงโดน CORS (ตัวกลางมี /api/image-proxy ให้แล้ว)
+   */
   const handleExportPackingPdf = async () => {
-    if (!reportData || reportData.productSummary.length === 0) return;
+    const orderIds = (reportData?.byDate || []).flatMap(g => g.deliveries.map(d => d.orderId));
+    if (orderIds.length === 0) return;
 
     setGeneratingPdf(true);
+    // เปิดแท็บรอไว้ก่อน — Safari บนมือถือบล็อก window.open ที่ไม่ได้เกิดจากการกดปุ่มโดยตรง
+    const printWindow = preOpenPrintWindow();
     try {
-      const pdfMake = (await import('pdfmake/build/pdfmake')).default;
+      const orders = [];
+      for (const id of orderIds) {
+        const res = await apiFetch(`/api/orders/${id}`);
+        if (!res.ok) continue;
+        const data = await res.json();
+        if (data.order) orders.push(data.order);
+      }
+      if (orders.length === 0) throw new Error('ไม่พบข้อมูลออเดอร์');
 
-      // Load IBM Plex Sans Thai fonts as base64 for pdfmake VFS
-      const [regularBuf, boldBuf] = await Promise.all([
-        fetch('/fonts/IBMPlexSansThai-Regular.ttf').then(r => r.arrayBuffer()),
-        fetch('/fonts/IBMPlexSansThai-Bold.ttf').then(r => r.arrayBuffer()),
-      ]);
-
-      const toBase64 = (buf: ArrayBuffer) => {
-        const bytes = new Uint8Array(buf);
-        let binary = '';
-        for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
-        return btoa(binary);
-      };
-
-      const fontVfs = {
-        'IBMPlexSansThai-Regular.ttf': toBase64(regularBuf),
-        'IBMPlexSansThai-Bold.ttf': toBase64(boldBuf),
-      };
-
-      const fontDefs = {
-        IBMPlexSansThai: {
-          normal: 'IBMPlexSansThai-Regular.ttf',
-          bold: 'IBMPlexSansThai-Bold.ttf',
-          italics: 'IBMPlexSansThai-Regular.ttf',
-          bolditalics: 'IBMPlexSansThai-Bold.ttf',
-        },
-      };
-
-      pdfMake.addFontContainer({ vfs: fontVfs, fonts: fontDefs });
-
-      // Date string in Thai
-      const dateStr = new Date(deliveryDate).toLocaleDateString('th-TH', {
-        weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
-      });
-      const summaryText = `${reportData.productSummary.length} รายการ / ${reportData.totals.totalBottles.toLocaleString()} ขวด`;
-
-      // Check if any product has a barcode
-      const hasAnyBarcode = reportData.productSummary.some(p => p.barcode);
-
-      // Helper: draw image with rounded corners on canvas
-      const roundImage = (dataUrl: string, size: number, radius: number): Promise<string> => {
-        return new Promise((resolve) => {
-          const img = new window.Image();
-          img.onload = () => {
-            const canvas = document.createElement('canvas');
-            canvas.width = size;
-            canvas.height = size;
-            const ctx = canvas.getContext('2d')!;
-            ctx.beginPath();
-            ctx.moveTo(radius, 0);
-            ctx.lineTo(size - radius, 0);
-            ctx.quadraticCurveTo(size, 0, size, radius);
-            ctx.lineTo(size, size - radius);
-            ctx.quadraticCurveTo(size, size, size - radius, size);
-            ctx.lineTo(radius, size);
-            ctx.quadraticCurveTo(0, size, 0, size - radius);
-            ctx.lineTo(0, radius);
-            ctx.quadraticCurveTo(0, 0, radius, 0);
-            ctx.closePath();
-            ctx.clip();
-            ctx.drawImage(img, 0, 0, size, size);
-            resolve(canvas.toDataURL('image/png'));
-          };
-          img.onerror = () => resolve(dataUrl);
-          img.src = dataUrl;
-        });
-      };
-
-      // Load all product images as base64 data URLs (with rounded corners)
-      const imageDataUrls = await Promise.all(
-        reportData.productSummary.map(async (product) => {
-          if (!product.image) return null;
-          try {
-            const imgUrl = getImageUrl(product.image);
-            const response = await fetch(imgUrl);
-            if (!response.ok) return null;
-            const blob = await response.blob();
-            const rawDataUrl = await new Promise<string | null>((resolve) => {
-              const reader = new FileReader();
-              reader.onloadend = () => resolve(reader.result as string);
-              reader.onerror = () => resolve(null);
-              reader.readAsDataURL(blob);
-            });
-            if (!rawDataUrl) return null;
-            return await roundImage(rawDataUrl, 200, 24);
-          } catch {
-            return null;
-          }
-        })
-      );
-
-      // Generate barcode images
-      const barcodeDataUrls = reportData.productSummary.map(product => {
-        if (!product.barcode) return null;
-        return generateBarcodeDataUrl(product.barcode);
-      });
-
-      // Build table body — columns vary based on barcode availability
-      const tableHeader = hasAnyBarcode
-        ? [
-            { text: '#', style: 'tableHeader', alignment: 'center' as const },
-            { text: 'รูป', style: 'tableHeader', alignment: 'center' as const },
-            { text: 'สินค้า', style: 'tableHeader' },
-            { text: 'บาร์โค้ด', style: 'tableHeader', alignment: 'center' as const },
-            { text: 'จำนวน', style: 'tableHeader', alignment: 'center' as const },
-          ]
-        : [
-            { text: '#', style: 'tableHeader', alignment: 'center' as const },
-            { text: 'รูป', style: 'tableHeader', alignment: 'center' as const },
-            { text: 'สินค้า', style: 'tableHeader' },
-            { text: 'จำนวน', style: 'tableHeader', alignment: 'center' as const },
-          ];
-
-      const tableBody: any[][] = [tableHeader];
-
-      reportData.productSummary.forEach((product, index) => {
-        const fullName = product.productName + (product.variationLabel ? ` - ${product.variationLabel}` : '');
-        const imgDataUrl = imageDataUrls[index];
-        const barcodeDataUrl = barcodeDataUrls[index];
-
-        const imageCell = imgDataUrl
-          ? { image: imgDataUrl, width: 84, height: 84, alignment: 'center' as const, margin: [0, 2, 0, 2] as [number, number, number, number] }
-          : { text: '-', alignment: 'center' as const, color: '#aaaaaa', fontSize: 8, margin: [0, 36, 0, 36] as [number, number, number, number] };
-
-        const row: any[] = [
-          { text: `${index + 1}`, alignment: 'center' as const, color: '#999999', fontSize: 9, margin: [0, 34, 0, 0] as [number, number, number, number] },
-          imageCell,
-          {
-            stack: [
-              { text: fullName, bold: true, fontSize: 9, color: '#1e1e1e' },
-              { text: product.productCode || '-', fontSize: 7, color: '#8c8c8c', margin: [0, 2, 0, 0] as [number, number, number, number] },
-            ],
-            margin: [0, 28, 0, 4] as [number, number, number, number],
-          },
-        ];
-
-        if (hasAnyBarcode) {
-          const barcodeCell = barcodeDataUrl
-            ? { image: barcodeDataUrl, width: 100, height: 45, alignment: 'center' as const, margin: [0, 20, 0, 2] as [number, number, number, number] }
-            : { text: '-', alignment: 'center' as const, color: '#cccccc', fontSize: 8, margin: [0, 36, 0, 36] as [number, number, number, number] };
-          row.push(barcodeCell);
-        }
-
-        row.push({
-          stack: [
-            { text: `${product.totalQuantity}`, bold: true, fontSize: 14, color: '#1A1A2E', alignment: 'center' as const },
-            { text: 'ขวด', fontSize: 7, color: '#787878', alignment: 'center' as const, margin: [0, 1, 0, 0] as [number, number, number, number] },
-          ],
-          margin: [0, 30, 0, 0] as [number, number, number, number],
-        });
-
-        tableBody.push(row);
-      });
-
-      // Table widths depend on barcode column
-      const tableWidths = hasAnyBarcode
-        ? [22, 92, '*', 110, 50]
-        : [22, 92, '*', 50];
-
-      // Footer colSpan depends on columns
-      const footerColSpan = hasAnyBarcode ? 4 : 3;
-
-      // pdfmake document definition
-      const docDefinition: any = {
-        pageSize: 'A4',
-        pageMargins: [30, 30, 30, 30],
-        defaultStyle: {
-          font: 'IBMPlexSansThai',
-          fontSize: 10,
-        },
-        content: [
-          // Title
-          { text: 'รายการจัดของ (Packing List)', style: 'title', alignment: 'center' },
-          { text: dateStr, style: 'subtitle', alignment: 'center', margin: [0, 4, 0, 0] },
-          { text: summaryText, fontSize: 9, color: '#666666', alignment: 'center', margin: [0, 2, 0, 8] },
-
-          // Gold divider
-          {
-            canvas: [
-              { type: 'line', x1: 0, y1: 0, x2: 535, y2: 0, lineWidth: 1, lineColor: '#F4511E' },
-            ],
-            margin: [0, 0, 0, 8],
-          },
-
-          // Product table
-          {
-            table: {
-              headerRows: 1,
-              widths: tableWidths,
-              body: tableBody,
-            },
-            layout: {
-              fillColor: (rowIndex: number) => {
-                if (rowIndex === 0) return '#f5f5f5';
-                return rowIndex % 2 === 0 ? '#fafafa' : null;
-              },
-              hLineWidth: (i: number, node: any) => (i === 0 || i === 1 || i === node.table.body.length) ? 0.5 : 0.3,
-              vLineWidth: () => 0,
-              hLineColor: (i: number) => i === 0 || i === 1 ? '#c8c8c8' : '#e6e6e6',
-              paddingLeft: () => 4,
-              paddingRight: () => 4,
-              paddingTop: () => 2,
-              paddingBottom: () => 2,
-            },
-          },
-
-          // Gold divider after table
-          {
-            canvas: [
-              { type: 'line', x1: 0, y1: 0, x2: 535, y2: 0, lineWidth: 1, lineColor: '#F4511E' },
-            ],
-            margin: [0, 8, 0, 6],
-          },
-
-          // Footer total
-          {
-            text: `รวมทั้งหมด: ${reportData.totals.totalBottles.toLocaleString()} ขวด (${reportData.productSummary.length} รายการ)`,
-            bold: true,
-            fontSize: 12,
-            color: '#1A1A2E',
-            alignment: 'center',
-          },
-        ],
-        styles: {
-          title: { fontSize: 16, bold: true, color: '#1A1A2E' },
-          subtitle: { fontSize: 10, color: '#666666' },
-          tableHeader: { fontSize: 9, bold: true, color: '#666666', margin: [0, 2, 0, 2] },
-        },
-      };
-
-      pdfMake.createPdf(docDefinition).download(`packing-list-${deliveryDate}.pdf`);
+      const { generatePackingPdf } = await import('@/lib/orders-packing-pdf');
+      const blob = await generatePackingPdf(orders);
+      showPdfPreview(blob, `ใบจัดของ ${deliveryDate}`, printWindow);
     } catch (err) {
       console.error('Error generating PDF:', err);
-      showToast('ไม่สามารถสร้าง PDF ได้', 'error');
+      printWindow?.close();
+      showToast(err instanceof Error ? err.message : 'ไม่สามารถสร้าง PDF ได้', 'error');
     } finally {
       setGeneratingPdf(false);
     }
@@ -1063,17 +830,15 @@ export default function DeliverySummaryPage() {
                   {generatingPdf ? 'กำลังสร้าง PDF...' : 'Export PDF'}
                 </Button>
               ) : (
-                <button
+                <Button
+                  variant="secondary"
+                  size="sm"
                   onClick={handleCopyText}
                   disabled={!reportData || reportData.byDate.length === 0}
-                  className="flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg border border-gray-300 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  icon={copySuccess ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
                 >
-                  {copySuccess ? (
-                    <><Check className="w-4 h-4 text-green-500" /><span className="text-green-600">คัดลอกแล้ว!</span></>
-                  ) : (
-                    <><Copy className="w-4 h-4" />สรุปการส่ง</>
-                  )}
-                </button>
+                  {copySuccess ? 'คัดลอกแล้ว!' : 'สรุปการส่ง'}
+                </Button>
               )}
             </div>
           </div>
@@ -1092,58 +857,43 @@ export default function DeliverySummaryPage() {
           <>
             {/* Summary Cards */}
             {reportData.totals.totalDeliveries > 0 && (
-              <div className="grid grid-cols-3 gap-3">
-                <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4 text-center">
-                  <div className="text-2xl font-bold text-gray-900 dark:text-white">{reportData.productSummary.length}</div>
-                  <div className="text-xs text-gray-500 dark:text-slate-400 mt-1">ชนิดสินค้า</div>
-                </div>
-                <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4 text-center">
-                  <div className="text-2xl font-bold text-gray-900 dark:text-white">{reportData.totals.totalBottles.toLocaleString()}</div>
-                  <div className="text-xs text-gray-500 dark:text-slate-400 mt-1">ขวดทั้งหมด</div>
-                </div>
-                <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4 text-center">
-                  <div className="text-2xl font-bold text-gray-900 dark:text-white">{reportData.totals.totalDeliveries}</div>
-                  <div className="text-xs text-gray-500 dark:text-slate-400 mt-1">จุดส่ง</div>
-                </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <Stat label="ชนิดสินค้า" value={reportData.productSummary.length} icon={<Package className="w-5 h-5" />} />
+                <Stat label="จำนวนรวม" value={`${reportData.totals.totalBottles.toLocaleString()} ชิ้น`} icon={<ClipboardList className="w-5 h-5" />} />
+                <Stat label="จุดส่ง" value={reportData.totals.totalDeliveries} icon={<MapPin className="w-5 h-5" />} />
               </div>
             )}
 
             {/* Product Packing Table */}
             {reportData.productSummary.length === 0 ? (
-              <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-12 text-center">
-                <Package className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                <p className="text-gray-500 dark:text-slate-400">ไม่มีสินค้าที่ต้องจัดในวันที่เลือก</p>
-              </div>
+              <EmptyCard
+                icon={<Package className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
+                title="ไม่มีสินค้าที่ต้องจัดในวันที่เลือก"
+              />
             ) : (
               <>
               {/* Desktop Table */}
-              <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden hidden md:block">
+              <div className="data-table-wrap overflow-hidden hidden md:block">
                 <table className="w-full">
-                  <thead>
-                    <tr className="bg-gray-50 dark:bg-slate-900 border-b border-gray-200 dark:border-slate-700">
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase w-10">#</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">สินค้า</th>
-                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase w-28">จำนวน</th>
+                  <thead className="data-thead">
+                    <tr>
+                      <th className="data-th w-10">#</th>
+                      <th className="data-th">สินค้า</th>
+                      <th className="data-th text-right w-28">จำนวน</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
+                  <tbody className="data-tbody">
                     {reportData.productSummary.map((product, index) => (
                       <tr key={index} className="hover:bg-gray-50 dark:hover:bg-slate-700/50 dark:bg-slate-900">
                         <td className="px-4 py-3 text-sm text-gray-400 dark:text-slate-500">{index + 1}</td>
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-3">
-                            {product.image ? (
-                              <img
-                                src={getImageUrl(product.image)}
-                                alt={product.productName}
-                                className="w-16 h-16 rounded-lg object-cover flex-shrink-0 border border-gray-200 dark:border-slate-700"
-                                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                              />
-                            ) : (
-                              <div className="w-16 h-16 rounded-lg bg-gray-100 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
-                                <Package className="w-8 h-8 text-gray-300" />
-                              </div>
-                            )}
+                            <ProductImageThumb
+                              src={product.image ? getImageUrl(product.image) : null}
+                              alt={product.productName}
+                              size="lg"
+                              fallbackIcon={<Package className="w-8 h-8 text-gray-300" />}
+                            />
                             <div>
                               <div className="font-medium text-gray-900 dark:text-white text-sm">
                                 {product.productName}{product.variationLabel ? ` - ${product.variationLabel}` : ''}
@@ -1155,7 +905,7 @@ export default function DeliverySummaryPage() {
                         <td className="px-4 py-3 text-right">
                           <span className="inline-flex items-center gap-1 bg-primary/10 text-primary px-3 py-1 rounded-full">
                             <span className="text-lg font-bold">{product.totalQuantity}</span>
-                            <span className="text-xs text-gray-600 dark:text-slate-400">ขวด</span>
+                            <span className="text-xs text-gray-600 dark:text-slate-400">ชิ้น</span>
                           </span>
                         </td>
                       </tr>
@@ -1168,7 +918,7 @@ export default function DeliverySummaryPage() {
                       </td>
                       <td className="px-4 py-3 text-right">
                         <span className="text-lg font-bold text-gray-900 dark:text-white">
-                          รวม {reportData.totals.totalBottles.toLocaleString()} ขวด
+                          รวม {reportData.totals.totalBottles.toLocaleString()} ชิ้น
                         </span>
                       </td>
                     </tr>
@@ -1179,20 +929,14 @@ export default function DeliverySummaryPage() {
               {/* Mobile Card Layout */}
               <div className="md:hidden space-y-3">
                 {reportData.productSummary.map((product, index) => (
-                  <div key={index} className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-3">
+                  <Card key={index} padding="sm">
                     <div className="flex items-center gap-3">
-                      {product.image ? (
-                        <img
-                          src={getImageUrl(product.image)}
-                          alt={product.productName}
-                          className="w-14 h-14 rounded-lg object-cover flex-shrink-0 border border-gray-200 dark:border-slate-700"
-                          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                        />
-                      ) : (
-                        <div className="w-14 h-14 rounded-lg bg-gray-100 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
-                          <Package className="w-6 h-6 text-gray-300" />
-                        </div>
-                      )}
+                      <ProductImageThumb
+                        src={product.image ? getImageUrl(product.image) : null}
+                        alt={product.productName}
+                        size="md"
+                        fallbackIcon={<Package className="w-6 h-6 text-gray-300" />}
+                      />
                       <div className="flex-1 min-w-0">
                         <div className="font-medium text-gray-900 dark:text-white text-sm truncate">
                           {product.productName}{product.variationLabel ? ` - ${product.variationLabel}` : ''}
@@ -1201,16 +945,16 @@ export default function DeliverySummaryPage() {
                       </div>
                       <span className="inline-flex items-center gap-1 bg-primary/10 text-primary px-3 py-1 rounded-full flex-shrink-0">
                         <span className="text-lg font-bold">{product.totalQuantity}</span>
-                        <span className="text-xs text-gray-600 dark:text-slate-400">ขวด</span>
+                        <span className="text-xs text-gray-600 dark:text-slate-400">ชิ้น</span>
                       </span>
                     </div>
-                  </div>
+                  </Card>
                 ))}
                 {/* Mobile Totals */}
                 <div className="bg-gray-50 dark:bg-slate-900 rounded-lg border border-gray-200 dark:border-slate-700 p-4">
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-gray-600 dark:text-slate-400">{reportData.productSummary.length} รายการ</span>
-                    <span className="text-lg font-bold text-gray-900 dark:text-white">รวม {reportData.totals.totalBottles.toLocaleString()} ขวด</span>
+                    <span className="text-lg font-bold text-gray-900 dark:text-white">รวม {reportData.totals.totalBottles.toLocaleString()} ชิ้น</span>
                   </div>
                 </div>
               </div>
@@ -1224,28 +968,19 @@ export default function DeliverySummaryPage() {
           <>
             {/* Summary Cards */}
             {reportData.totals.totalDeliveries > 0 && (
-              <div className="grid grid-cols-3 gap-3">
-                <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4 text-center">
-                  <div className="text-2xl font-bold text-gray-900 dark:text-white">{reportData.totals.totalDeliveries}</div>
-                  <div className="text-xs text-gray-500 dark:text-slate-400 mt-1">จุดส่ง</div>
-                </div>
-                <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4 text-center">
-                  <div className="text-2xl font-bold text-gray-900 dark:text-white">{reportData.totals.totalBottles.toLocaleString()}</div>
-                  <div className="text-xs text-gray-500 dark:text-slate-400 mt-1">ขวดทั้งหมด</div>
-                </div>
-                <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4 text-center">
-                  <div className="text-2xl font-bold text-gray-900 dark:text-white">{reportData.productSummary.length}</div>
-                  <div className="text-xs text-gray-500 dark:text-slate-400 mt-1">ชนิดสินค้า</div>
-                </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <Stat label="จุดส่ง" value={reportData.totals.totalDeliveries} icon={<MapPin className="w-5 h-5" />} />
+                <Stat label="จำนวนรวม" value={`${reportData.totals.totalBottles.toLocaleString()} ชิ้น`} icon={<ClipboardList className="w-5 h-5" />} />
+                <Stat label="ชนิดสินค้า" value={reportData.productSummary.length} icon={<Package className="w-5 h-5" />} />
               </div>
             )}
 
             {/* Delivery List by Date */}
             {reportData.byDate.length === 0 ? (
-              <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-12 text-center">
-                <Truck className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                <p className="text-gray-500 dark:text-slate-400">ไม่มีรายการจัดส่งในช่วงวันที่เลือก</p>
-              </div>
+              <EmptyCard
+                icon={<Truck className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
+                title="ไม่มีรายการจัดส่งในช่วงวันที่เลือก"
+              />
             ) : (
               reportData.byDate.map(dateGroup => {
                 const orderedDeliveries = getOrderedDeliveries(dateGroup);
@@ -1260,7 +995,7 @@ export default function DeliverySummaryPage() {
                         })}
                       </h2>
                       <span className="text-sm text-gray-500 dark:text-slate-400">
-                        {dateGroup.dateTotals.totalDeliveries} จุดส่ง / {dateGroup.dateTotals.totalBottles} ขวด
+                        {dateGroup.dateTotals.totalDeliveries} จุดส่ง / {dateGroup.dateTotals.totalBottles} ชิ้น
                       </span>
                     </div>
 
@@ -1317,18 +1052,11 @@ export default function DeliverySummaryPage() {
                     <div className="space-y-2 mt-3">
                       {reportData.productSummary.map((product, index) => (
                         <div key={index} className="flex items-center gap-2 text-sm">
-                          {product.image ? (
-                            <img
-                              src={getImageUrl(product.image)}
-                              alt={product.productName}
-                              className="w-8 h-8 rounded object-cover flex-shrink-0"
-                              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                            />
-                          ) : (
-                            <div className="w-8 h-8 rounded bg-gray-100 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
-                              <Package className="w-4 h-4 text-gray-400" />
-                            </div>
-                          )}
+                          <ProductImageThumb
+                            src={product.image ? getImageUrl(product.image) : null}
+                            alt={product.productName}
+                            size="xs"
+                          />
                           <span className="text-gray-900 dark:text-white flex-1">
                             {product.productName}
                             {product.variationLabel && <span className="text-gray-400 dark:text-slate-500 ml-1">{product.variationLabel}</span>}
@@ -1339,7 +1067,7 @@ export default function DeliverySummaryPage() {
                     </div>
                     <div className="flex justify-end mt-3 pt-2 border-t border-gray-200 dark:border-slate-700">
                       <span className="text-sm font-medium text-gray-700 dark:text-slate-300">
-                        รวมทั้งหมด: {reportData.totals.totalBottles.toLocaleString()} ขวด
+                        รวมทั้งหมด: {reportData.totals.totalBottles.toLocaleString()} ชิ้น
                       </span>
                     </div>
                   </div>
