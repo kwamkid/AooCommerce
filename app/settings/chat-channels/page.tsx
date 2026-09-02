@@ -131,8 +131,15 @@ export default function ChatChannelsPage() {
 
   // Read hash on mount — allow #line / #shopee / #lazada to override the default
   useEffect(() => {
-    const hash = window.location.hash.replace('#', '');
-    if (hash === 'line' || hash === 'shopee' || hash === 'lazada' || hash === 'tiktok') setActiveTabState(hash);
+    const applyHash = () => {
+      const hash = window.location.hash.replace('#', '');
+      if (hash === 'line' || hash === 'shopee' || hash === 'lazada' || hash === 'tiktok') setActiveTabState(hash);
+    };
+    applyHash();
+    // ถ้าอยู่หน้านี้อยู่แล้วแล้วกดลิงก์ที่ต่างกันแค่ #anchor Next จะไม่ remount
+    // ต้องฟัง hashchange เอง ไม่งั้นแจ้งเตือน/การ์ดบน dashboard ที่ลิงก์มาที่
+    // แท็บของแพลตฟอร์มโดยตรงจะกดแล้วไม่เกิดอะไรขึ้น
+    window.addEventListener('hashchange', applyHash);
 
     // ?connect=line|facebook — มาจากหน้าช่องทางการขาย: เปิด flow เพิ่มให้เลย
     // ไม่ใช่แค่พามาถึงหน้าแล้วปล่อยให้หาปุ่มเอง
@@ -146,6 +153,7 @@ export default function ChatChannelsPage() {
       showToast('กดปุ่ม "เชื่อมเพจ FB / IG" เพื่อเลือกเพจที่จะเชื่อม');
     }
     if (connect) window.history.replaceState({}, '', '/settings/chat-channels' + window.location.hash);
+    return () => window.removeEventListener('hashchange', applyHash);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

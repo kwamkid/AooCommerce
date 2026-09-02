@@ -43,8 +43,11 @@ const RENOTIFY_HOURS = 6;
 const WATCHDOG_STATE_KEY = 'watchdog_state';
 const WATCHDOG_HEARTBEAT_KEY = 'watchdog_last_run';
 
-const MARKETPLACE_SETTINGS_URL = '/settings/sales-channels?tab=marketplace';
-const CHAT_SETTINGS_URL = '/settings/chat-channels';
+// ลิงก์ต้องพาไปถึง **แท็บของแพลตฟอร์มนั้น** ไม่ใช่แค่หน้ารวม — คนกดแจ้งเตือนแล้วต้อง
+// เห็นร้านที่มีปัญหาเลย ไม่ใช่มาไล่หาแท็บเอง (ทั้งสองหน้าอ่าน #anchor ตอน mount อยู่แล้ว)
+const marketplaceSettingsUrl = (platform: string) =>
+  `/settings/sales-channels?tab=marketplace#${platform}`;
+const chatSettingsUrl = (platform: string) => `/settings/chat-channels#${platform}`;
 
 function hoursAgo(iso: string | null): number | null {
   if (!iso) return null;
@@ -88,6 +91,7 @@ export async function collectWatchdogIssues(
   const companyName = new Map((companies || []).map(c => [c.id, c.name as string]));
 
   for (const a of accounts || []) {
+    const platform = a.platform || 'shopee';
     const label = platformLabel(a.platform);
     const shop = a.shop_name || `${label} ${a.shop_id}`;
     const base = {
@@ -109,7 +113,7 @@ export async function collectWatchdogIssues(
           detail: `ร้าน ${shop} ถูกปิดการเชื่อมต่ออัตโนมัติ — ออเดอร์ใหม่จะไม่เข้าระบบจนกว่าจะเชื่อมใหม่`,
           fix: `เปิด ตั้งค่า > ช่องทางการขาย > เชื่อมต่อ Marketplace แล้วกดเชื่อมต่อร้าน ${shop} ใหม่ (ล็อกอิน ${label} ของร้านให้พร้อม)`,
           actionLabel: 'ไปเชื่อมต่อร้านใหม่',
-          url: MARKETPLACE_SETTINGS_URL,
+          url: marketplaceSettingsUrl(platform),
         });
       }
       continue; // ร้านที่ปิดอยู่ ไม่ต้องเช็คเรื่องอื่นต่อ
@@ -123,14 +127,14 @@ export async function collectWatchdogIssues(
       issues.push({
         ...base,
         code: `sync_stale:${a.id}`,
-        groupKey: `sync_stale:${a.platform || 'shopee'}`,
+        groupKey: `sync_stale:${platform}`,
         scope: 'system',
         severity: behind > 24 ? 'critical' : 'warning',
         title: `${label} ซิงค์ตามหลัง ${roundHours(behind)}`,
         detail: `ร้าน ${shop} ดูดออเดอร์รอบล่าสุดถึงเมื่อ ${roundHours(behind)}ที่แล้ว (ปกติทุก 15 นาที) — ออเดอร์ที่เข้าทาง webhook ยังครบ แต่ตัวสำรองที่คอยเก็บตกไม่ทำงาน`,
         fix: `กด "ซิงค์ออเดอร์" ของร้านนี้ที่หน้าเชื่อมต่อ Marketplace เพื่อดึงย้อนหลังทันที · ถ้าอีก 1 ชม. ยังตามหลังอยู่ แปลว่า cron มีปัญหา ให้แจ้งผู้ดูแลระบบ`,
         actionLabel: 'ไปซิงค์ด้วยตัวเอง',
-        url: MARKETPLACE_SETTINGS_URL,
+        url: marketplaceSettingsUrl(platform),
       });
     }
 
@@ -149,7 +153,7 @@ export async function collectWatchdogIssues(
         detail: `ร้าน ${shop} หมดสิทธิ์เข้าถึง API แล้ว — ออเดอร์ใหม่จะไม่เข้าระบบ`,
         fix: `เปิด ตั้งค่า > ช่องทางการขาย > เชื่อมต่อ Marketplace แล้วกดเชื่อมต่อร้าน ${shop} ใหม่`,
         actionLabel: 'ไปเชื่อมต่อใหม่',
-        url: MARKETPLACE_SETTINGS_URL,
+        url: marketplaceSettingsUrl(platform),
       });
     } else if (tokenLeftH !== null && tokenLeftH < TOKEN_EXPIRY_WARN_DAYS * 24) {
       issues.push({
@@ -162,7 +166,7 @@ export async function collectWatchdogIssues(
         detail: `ร้าน ${shop} เหลืออีก ${roundHours(tokenLeftH)} ก่อนหมดสิทธิ์เข้าถึง API`,
         fix: `กดเชื่อมต่อร้าน ${shop} ใหม่ตั้งแต่ตอนนี้ จะได้ไม่ขาดตอนตอนหมดอายุจริง`,
         actionLabel: 'ไปต่ออายุการเชื่อมต่อ',
-        url: MARKETPLACE_SETTINGS_URL,
+        url: marketplaceSettingsUrl(platform),
       });
     }
 
@@ -181,7 +185,7 @@ export async function collectWatchdogIssues(
         detail: `ร้าน ${shop} รับ/ตอบแชทลูกค้าไม่ได้ — ข้อความใหม่จะไม่เข้าหน้ารวมแชท`,
         fix: `เปิด ตั้งค่า > ช่องทางแชท > ${label} แล้วกดปุ่ม "เชื่อมต่อแชทใหม่" ที่ร้าน ${shop}`,
         actionLabel: 'ไปเชื่อมต่อแชทใหม่',
-        url: CHAT_SETTINGS_URL,
+        url: chatSettingsUrl(platform),
       });
     }
   }

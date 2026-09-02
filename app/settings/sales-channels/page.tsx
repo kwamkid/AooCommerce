@@ -175,20 +175,27 @@ export default function SalesChannelsPage() {
   // ลิงก์ ?tab=marketplace หรือ redirect จาก /settings/integrations เดิม
   // hash (#shopee/#lazada/#line ฯลฯ) = sub-tab ของแท็บนั้น — refresh แล้วเปิดที่เดิม
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const marketplace =
-      params.get('tab') === 'marketplace' ||
-      params.get('shopee') === 'connected' ||
-      params.get('tiktok') === 'connected' ||
-      params.get('success') === 'lazada_connected' ||
-      !!params.get('error');
-    if (marketplace) setMainTab('marketplace');
-    const hash = window.location.hash.replace('#', '');
-    if (marketplace && (hash === 'shopee' || hash === 'tiktok' || hash === 'lazada')) {
-      setMpPlatform(hash);
-    } else if (!marketplace && (hash === 'line' || hash === 'facebook' || hash === 'instagram' || hash === 'none')) {
-      setPlatformFilter(hash);
-    }
+    const applyLocation = () => {
+      const params = new URLSearchParams(window.location.search);
+      const marketplace =
+        params.get('tab') === 'marketplace' ||
+        params.get('shopee') === 'connected' ||
+        params.get('tiktok') === 'connected' ||
+        params.get('success') === 'lazada_connected' ||
+        !!params.get('error');
+      if (marketplace) setMainTab('marketplace');
+      const hash = window.location.hash.replace('#', '');
+      if (marketplace && (hash === 'shopee' || hash === 'tiktok' || hash === 'lazada')) {
+        setMpPlatform(hash);
+      } else if (!marketplace && (hash === 'line' || hash === 'facebook' || hash === 'instagram' || hash === 'none')) {
+        setPlatformFilter(hash);
+      }
+    };
+    applyLocation();
+    // อยู่หน้านี้อยู่แล้วแล้วกดลิงก์ที่ต่างกันแค่ #anchor → Next ไม่ remount ต้องฟังเอง
+    // (replaceState ที่เราเขียน URL กลับเองไม่ยิง hashchange จึงไม่วนลูป)
+    window.addEventListener('hashchange', applyLocation);
+    return () => window.removeEventListener('hashchange', applyLocation);
   }, []);
 
   // เขียนแท็บ + sub-tab กลับลง URL (?tab= + #anchor) ทุกครั้งที่เปลี่ยน —
