@@ -3,6 +3,7 @@
 
 import { useState, useCallback } from 'react';
 import { useCopy } from '@/lib/useCopy';
+import { withExternalBrowserFlag } from '@/lib/in-app-browser';
 import CopyField from '@/components/ui/CopyField';
 import { useFetchOnce } from '@/lib/use-fetch-once';
 import Layout from '@/components/layout/Layout';
@@ -316,7 +317,9 @@ export default function MembersPage() {
       const data = await response.json();
 
       if (response.ok) {
-        setGeneratedLink(`${window.location.origin}/invite/${data.invitation.token}`);
+        // ต่อ openExternalBrowser=1 ไว้เสมอ — ลิงก์เชิญมักถูกส่งทาง LINE แล้วเปิดใน
+        // เบราว์เซอร์ของแอป ซึ่ง Google ไม่ยอมให้ล็อกอิน (พารามิเตอร์นี้ที่อื่นไม่มีผล)
+        setGeneratedLink(withExternalBrowserFlag(`${window.location.origin}/invite/${data.invitation.token}`));
         await fetchMembers();
       } else {
         showToast(data.error || 'ไม่สามารถสร้างลิงก์ได้', 'error');
@@ -520,7 +523,7 @@ export default function MembersPage() {
 
   // Copy invite link
   const copyInviteLink = (token: string) => {
-    const link = `${window.location.origin}/invite/${token}`;
+    const link = withExternalBrowserFlag(`${window.location.origin}/invite/${token}`);
     copy(link, 'ลิงก์คำเชิญ')
   };
 

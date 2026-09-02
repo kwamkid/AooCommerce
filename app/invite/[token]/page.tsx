@@ -7,6 +7,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useAuth } from '@/lib/auth-context';
 import { FullPageLoading } from '@/components/ui/Loading';
+import InAppBrowserNotice from '@/components/auth/InAppBrowserNotice';
 import {
   Building2, Shield, AlertCircle, Loader2, CheckCircle,
   UserPlus, LogIn, Clock, XCircle,
@@ -316,6 +317,9 @@ export default function InvitePage({ params }: { params: Promise<{ token: string
             </div>
           ) : (
             <div className="space-y-3">
+              {/* เปิดจากลิงก์ในแอป LINE → ปุ่ม Google จะใช้ไม่ได้ (Google บล็อก webview) */}
+              <InAppBrowserNotice />
+
               {/* Social login */}
               <button
                 onClick={() => signInWithGoogle(token)}

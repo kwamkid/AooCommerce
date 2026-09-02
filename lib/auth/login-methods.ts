@@ -98,7 +98,12 @@ export async function loginWithLINE(
       else sessionStorage.removeItem('sf_line_shop');
     } catch { /* โหมดส่วนตัวบางเบราว์เซอร์เขียนไม่ได้ — ตกไปใช้ channel ระบบ */ }
     const redirectUri = `${window.location.origin}/line-callback`;
-    const state = Math.random().toString(36).substring(2);
+    // ⚠️ invite token ต้องเดินทางไปกับ `state` ไม่ใช่พึ่ง cookie อย่างเดียว —
+    // ลิงก์เชิญมักถูกเปิดในเบราว์เซอร์ในแอป LINE แล้วขา OAuth เด้งไปเบราว์เซอร์คนละตัว
+    // cookie ที่เพิ่งเซ็ตจึงหายไป ปลายทางเลยไม่รู้ว่ามาจากคำเชิญ → พาไปสร้างบริษัทใหม่
+    // (เกิดจริง 1 ก.ย. 2569 — คนถูกเชิญ 2 คนหลุดเป็นบัญชีลอย ดู fix-bug.md)
+    const nonce = Math.random().toString(36).substring(2);
+    const state = inviteToken ? `${nonce}.invite-${inviteToken}` : nonce;
     const lineAuthUrl = `https://access.line.me/oauth2/v2.1/authorize?response_type=code&client_id=${channelId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}&scope=profile%20openid`;
     window.location.href = lineAuthUrl;
     return { status: 'redirect' };

@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 import { AlertCircle, Loader2 } from 'lucide-react';
 import { AuthSplitShell, GoogleLogo } from '@/components/auth/AuthHero';
+import InAppBrowserNotice from '@/components/auth/InAppBrowserNotice';
 import { FullPageLoading } from '@/components/ui/Loading';
 
 // Google-only login — email/password ถูกถอดออกแล้ว (2026-08-14)
@@ -48,6 +49,9 @@ export default function LoginPage() {
           <p className="text-sm text-gray-500 dark:text-slate-400 mb-6">
             ใช้บัญชี Google ในการเข้าสู่ระบบเท่านั้น
           </p>
+
+          {/* เปิดจากลิงก์ในแอป LINE/FB → Google ล็อกอินไม่ได้ ต้องพาออกไปเบราว์เซอร์จริงก่อน */}
+          <InAppBrowserNotice />
 
           {error && (
             <div className="mb-4 p-3 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-lg flex items-start gap-3">

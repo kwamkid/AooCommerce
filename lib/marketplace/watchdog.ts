@@ -24,6 +24,8 @@ export interface WatchdogIssue {
   companyId: string | null;
   companyName: string | null;
   severity: WatchdogSeverity;
+  /** ร้าน/ช่องทางที่เป็นต้นเรื่อง — UI เอาไปวาด <ChannelBadge> (โลโก้ร้าน + ไอคอนช่องทาง) */
+  channel: { platform: string; picture_url: string | null; shopName: string | null } | null;
   title: string;
   detail: string;
   /** วิธีแก้แบบลงมือได้ทันที — ห้ามเขียนลอย ๆ ว่า "ตรวจสอบระบบ" */
@@ -78,7 +80,7 @@ export async function collectWatchdogIssues(
 
   let accountQuery = supabaseAdmin
     .from('marketplace_accounts')
-    .select('id, company_id, platform, shop_id, shop_name, is_active, last_sync_at, created_at, refresh_token, refresh_token_expires_at, chat_access_token, chat_refresh_token_expires_at, updated_at');
+    .select('id, company_id, platform, shop_id, shop_name, is_active, last_sync_at, created_at, refresh_token, refresh_token_expires_at, chat_access_token, chat_refresh_token_expires_at, updated_at, metadata');
   if (opts.companyId) accountQuery = accountQuery.eq('company_id', opts.companyId);
 
   const [{ data: accounts }, { data: companies }] = await Promise.all([
@@ -97,6 +99,13 @@ export async function collectWatchdogIssues(
     const base = {
       companyId: a.company_id as string,
       companyName: companyName.get(a.company_id) || null,
+      channel: {
+        platform,
+        // โลโก้ร้านที่ดึงมาจากแพลตฟอร์ม (หรือที่ผู้ใช้ตั้งเอง) — ไม่มีก็ปล่อยให้
+        // ChannelBadge วาดไอคอนช่องทางบนพื้นกลมแทน
+        picture_url: ((a.metadata as Record<string, unknown> | null)?.shop_logo as string) || null,
+        shopName: a.shop_name as string | null,
+      },
     };
 
     // ร้านถูกปิดอัตโนมัติ (refresh token ตาย) — เจ้าของร้านต้องไปกดเชื่อมใหม่เอง
@@ -206,6 +215,7 @@ export async function collectWatchdogIssues(
         scope: 'system',
         companyId: null,
         companyName: null,
+        channel: null,
         severity: 'critical',
         title: `webhook ตกค้าง ${deadLetters} ใบ`,
         detail: `24 ชม.ที่ผ่านมามี webhook ${deadLetters} ใบที่ retry จนครบแล้วยังไม่สำเร็จ — ของในใบนั้นยังไม่เข้าระบบ`,
@@ -228,6 +238,7 @@ export async function collectWatchdogIssues(
         scope: 'system',
         companyId: null,
         companyName: null,
+        channel: null,
         severity: 'warning',
         title: `โควตา ${name} เต็ม`,
         detail: `พักการเรียก API ถึง ${new Date(until).toLocaleString('th-TH', { timeZone: 'Asia/Bangkok' })}`,

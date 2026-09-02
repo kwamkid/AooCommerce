@@ -12,7 +12,10 @@ export async function GET() {
       name: 'AooCommerce Admin — ผู้ดูแลระบบ',
       short_name: 'Aoo Admin',
       description: 'เฝ้าสุขภาพ integration และจัดการระบบข้ามทุกบริษัท',
-      start_url: '/superadmin/api-monitor',
+      // เปิดที่หน้าแรกของ superadmin แล้วเดินต่อไปหน้าไหนก็ได้ในเมนู —
+      // scope '/superadmin' ครอบทุกหน้า (Dashboard/Companies/Packages/Users/
+      // API Logs/API Monitor/Error Translations) ไม่ได้จำกัดแค่หน้าเดียว
+      start_url: '/superadmin',
       scope: '/superadmin',
       display: 'standalone',
       orientation: 'portrait',

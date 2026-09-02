@@ -36,10 +36,21 @@ function LineCallbackContent() {
         let shop: string | null = null;
         try { shop = sessionStorage.getItem('sf_line_shop'); } catch { /* ignore */ }
 
+        // คำเชิญเดินทางมากับ state (ทางหลัก) — cookie เป็นทางสำรองสำหรับลิงก์เก่า
+        const stateParam = searchParams.get('state') || '';
+        const inviteFromState = stateParam.includes('.invite-')
+          ? stateParam.split('.invite-')[1]
+          : '';
+        const inviteFromCookie = document.cookie
+          .split('; ')
+          .find(row => row.startsWith('invite_token='))
+          ?.split('=')[1];
+        const inviteToken = inviteFromState || inviteFromCookie || undefined;
+
         const response = await fetch('/api/auth/line', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ code, redirectUri, shop }),
+          body: JSON.stringify({ code, redirectUri, shop, inviteToken }),
         });
         try { sessionStorage.removeItem('sf_line_shop'); } catch { /* ignore */ }
 
@@ -64,6 +75,13 @@ function LineCallbackContent() {
 
         // Clear invite token cookie
         document.cookie = 'invite_token=; path=/; max-age=0';
+
+        // รับคำเชิญสำเร็จ = เป็นสมาชิกบริษัทแล้ว เข้าหน้าหลักได้เลย ไม่ต้องผ่าน onboarding
+        if (data.joined_company_id) {
+          try { localStorage.setItem('aoo-current-company-id', data.joined_company_id); } catch { /* ignore */ }
+          window.location.href = '/dashboard';
+          return;
+        }
 
         // Redirect to onboarding
         router.replace(takeAuthReturnPath() || '/onboarding');

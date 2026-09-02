@@ -23,7 +23,7 @@ interface LINEProfile {
 
 export async function POST(request: NextRequest) {
   try {
-    const { code, redirectUri, shop } = await request.json();
+    const { code, redirectUri, shop, inviteToken: inviteFromBody } = await request.json();
 
     if (!code) {
       return NextResponse.json({ error: 'Missing authorization code' }, { status: 400 });
@@ -155,7 +155,11 @@ export async function POST(request: NextRequest) {
     }
 
     // 5. Handle invite token
-    const inviteToken = request.cookies.get('invite_token')?.value;
+    // ทางหลักคือค่าที่ส่งมากับ body (มาจาก `state` ของ OAuth) — cookie เป็นทางสำรอง
+    // เพราะเบราว์เซอร์ในแอป LINE อาจเด้งขา OAuth ไปเบราว์เซอร์คนละตัวจน cookie หาย
+    const inviteToken = (typeof inviteFromBody === 'string' && inviteFromBody)
+      || request.cookies.get('invite_token')?.value;
+    let joinedCompanyId: string | null = null;
     if (inviteToken) {
       const { data: invitation } = await supabaseAdmin
         .from('company_invitations')
@@ -168,7 +172,14 @@ export async function POST(request: NextRequest) {
       if (invitation) {
         // Logic รับคำเชิญอยู่ใน lib/invitations.ts ที่เดียว — login สำเร็จแล้ว
         // ผลรับคำเชิญเป็น best-effort เหมือนเดิม (ผู้ใช้เข้าระบบต่อได้เสมอ)
-        await applyInvitation(supabaseAdmin, invitation, { id: userId, email: lineEmail });
+        const applied = await applyInvitation(supabaseAdmin, invitation, { id: userId, email: lineEmail });
+        if (applied.status === 'joined' || applied.status === 'updated' || applied.status === 'already_member') {
+          joinedCompanyId = invitation.company_id;
+        } else {
+          console.error('LINE login: apply invitation failed', applied);
+        }
+      } else {
+        console.error('LINE login: invite token not usable (expired/used/not found)');
       }
     }
 
@@ -182,6 +193,7 @@ export async function POST(request: NextRequest) {
         email: lineEmail,
         name: lineProfile.displayName,
       },
+      joined_company_id: joinedCompanyId,
     });
   } catch (error) {
     console.error('LINE auth error:', error);
