@@ -51,6 +51,20 @@
 - **token ที่ได้ตอน app ยังไม่ผ่านรีวิวมีอายุสั้นกว่าของจริง** — ต่อ integration ระหว่างรออนุมัติได้ แต่พออนุมัติแล้ว **ต้องกดเชื่อมใหม่** ไม่งั้นค้างอายุสั้นเดิม · เช็คได้จาก `*_expires_at` ว่าห่างจากเวลาที่ออก token กี่วัน
 - ช่องทางที่ "พังแล้วต้องให้คนกดแก้" ต้องมีปุ่มแก้อยู่ในหน้าเดียวกับที่แสดงว่าพัง — ไม่งั้นผู้ใช้เห็นปัญหาแต่ทำอะไรไม่ได้
 
+## 2026-09-02 — จ่ายบัตรผ่านบิลออนไลน์สำเร็จ แต่ระบบไม่รู้ว่าจ่ายแล้ว (เก็บเงินได้ ออเดอร์ค้าง pending)
+
+**ที่เกิด**: [app/api/beam/create-payment-link/route.ts](app/api/beam/create-payment-link/route.ts) · [app/api/beam/webhook/route.ts](app/api/beam/webhook/route.ts) · CHECK `valid_payment_method` บน `payment_records`
+**อาการ**: ลูกค้ากดจ่ายบัตรบนบิลออนไลน์ → Beam ตัดบัตรผ่านจริง → **ออเดอร์ไม่ขยับ** ยังเป็น `pending` ไม่ไป "รอจัดส่ง" และหน้าหลังบ้านยังขอให้ยืนยัน/บันทึกยอดชำระอยู่ · ร้านต้องมาบันทึกชำระเองแบบ transfer (เกิดกับ ORD-202609-0006)
+**Root cause**: `create-payment-link` insert `payment_records` ด้วย `payment_method = 'payment_gateway'` แต่ CHECK เดิมอนุญาตแค่ `cash | transfer | credit | cheque` → **insert ถูก DB ปฏิเสธทุกครั้ง** และโค้ด**ไม่ได้เช็ค error** เลยส่งลูกค้าไปหน้าจ่ายเงินต่อตามปกติ · แถวนั้นคือหลักฐานเดียวที่ผูก `gateway_payment_link_id` กับออเดอร์ → ตอน webhook กลับมาหาไม่เจอ → `return 200` แล้วจบ ไม่มีใครอัพเดทออเดอร์ · ตรวจ DB ยืนยัน: **ไม่มีแถว gateway สักแถวตั้งแต่เปิดใช้ระบบ** · ซ้ำ: โค้ด 2 จุดเขียน `updated_at` ลง `payment_records` ที่**ไม่มีคอลัมน์นี้** → update ล้มเงียบทั้งคู่
+**วิธีแก้**:
+- [migration 20260902_payment_records_gateway](supabase/migrations/20260902_payment_records_gateway.sql) — CHECK รับ `payment_gateway` เพิ่ม + เพิ่มคอลัมน์ `updated_at`
+- `create-payment-link`: **บันทึกแถวไม่ติด = ไม่ส่งลูกค้าไปจ่าย** (คืน 500 พร้อมข้อความ) — ยอมให้จ่ายไม่ได้ดีกว่าเก็บเงินแล้วไม่มีหลักฐานผูกออเดอร์
+- `webhook`: หาแถวไม่เจอ → **กู้จาก `referenceId`** (เราส่ง `order.id` ไปกับ order ตอนสร้างลิงก์) สร้างแถวย้อนหลังแล้วเดินต่อ แทนที่จะ ack ทิ้ง · เช็ค error ของทุก update แล้ว log
+**ป้องกัน regression**:
+- **ทุก write ที่เป็น "หลักฐานว่าเก็บเงินได้" ต้องเช็ค error เสมอ** — เขียนไม่ติดแล้วเดินต่อ = เก็บเงินได้แต่ระบบไม่รู้ ซึ่งไม่มีทางรู้จนลูกค้าทวง
+- **ค่าใหม่ของคอลัมน์ที่มี CHECK constraint ต้องเพิ่มใน constraint ด้วยเสมอ** — โค้ดคอมไพล์ผ่าน เทสไม่มี ปัญหาโผล่ตอน runtime บน production เท่านั้น
+- **ห้ามเขียนคอลัมน์ที่ยังไม่มีจริง** (`updated_at`) — Supabase ไม่ throw ให้ ต้องอ่าน `error` เอง
+
 ## 2026-09-02 — เชิญพนักงานผ่านลิงก์ใน LINE: กดสมัครด้วย LINE แล้วระบบพาไป "สร้างบริษัทใหม่" แทนที่จะเข้าบริษัทที่เชิญ
 
 **ที่เกิด**: [lib/auth/login-methods.ts](lib/auth/login-methods.ts) `loginWithLINE()` · [app/line-callback/page.tsx](app/line-callback/page.tsx) · [app/api/auth/line/route.ts](app/api/auth/line/route.ts)

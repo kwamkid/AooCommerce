@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { logIntegrationNow } from '@/lib/integration-logger';
 import { LineChatService } from '@/lib/services/chat';
 
 const lineService = new LineChatService();
@@ -45,6 +46,11 @@ interface LineWebhookBody {
 
 // POST - Receive LINE webhook events
 export async function POST(request: NextRequest) {
+  // เก็บไว้นอก try เพื่อให้ตอน error ยังรู้ว่าเป็นของบริษัทไหน (integration_logs
+  // บังคับ company_id) — LINE/FB เคยไม่มี log เลยสักบรรทัด ทั้งที่คุยกันวันละ
+  // หลายร้อยข้อความ พังเมื่อไหร่จะไม่มีร่องรอยให้จับ
+  let companyIdForLog: string | null = null;
+  let chatAccountIdForLog: string | null = null;
   try {
     const body = await request.text();
     const signature = request.headers.get('x-line-signature') || '';
@@ -56,6 +62,8 @@ export async function POST(request: NextRequest) {
     // Resolve credentials
     const webhookCreds = await lineService.resolveWebhookCredentials(accountId, companyParam);
     const { channelSecret, accessToken, companyId, chatAccountId } = webhookCreds;
+    companyIdForLog = companyId;
+    chatAccountIdForLog = chatAccountId;
 
     const webhookBody: LineWebhookBody = JSON.parse(body);
 
@@ -67,6 +75,16 @@ export async function POST(request: NextRequest) {
     // Verify signature
     if (!lineService.verifySignature(body, signature, channelSecret)) {
       console.error('Invalid LINE signature');
+      if (companyId) await logIntegrationNow({
+        company_id: companyId,
+        integration: 'line',
+        account_id: chatAccountId,
+        direction: 'incoming',
+        action: 'webhook_invalid_signature',
+        status: 'error',
+        error_message: 'ลายเซ็นไม่ตรง — channel secret อาจถูกเปลี่ยนที่ LINE Developers',
+        http_status: 401,
+      });
       return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
     }
 
@@ -78,6 +96,20 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('LINE webhook error:', error);
+    // **await** — response กำลังจะออก ปล่อยลอยแล้ว Vercel freeze ทิ้ง
+    // (งานตาย + หลักฐานตายพร้อมกัน — บทเรียนเดียวกับ cron ที่พังเงียบ 12 วัน)
+    if (companyIdForLog) {
+      await logIntegrationNow({
+        company_id: companyIdForLog,
+        integration: 'line',
+        account_id: chatAccountIdForLog,
+        direction: 'incoming',
+        action: 'webhook_error',
+        status: 'error',
+        error_message: error instanceof Error ? error.message : String(error),
+        http_status: 500,
+      });
+    }
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

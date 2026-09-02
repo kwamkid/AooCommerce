@@ -231,7 +231,7 @@ export async function POST(request: NextRequest) {
 
     // 8. Cancel any existing pending gateway payment records for this order
     // (customer might have clicked pay before but didn't complete)
-    await supabaseAdmin.from('payment_records').update({
+    const { error: cancelError } = await supabaseAdmin.from('payment_records').update({
       status: 'cancelled',
       gateway_status: 'CANCELLED',
       updated_at: new Date().toISOString(),
@@ -240,9 +240,19 @@ export async function POST(request: NextRequest) {
       .eq('company_id', companyId)
       .eq('payment_method', 'payment_gateway')
       .eq('status', 'pending');
+    if (cancelError) {
+      // ไม่ถึงกับหยุด flow — แต่ต้องรู้ ไม่ใช่ล้มเงียบ (เคยล้มเงียบเพราะคอลัมน์ไม่มีจริง)
+      console.error('Beam: cancel old payment records failed:', cancelError);
+    }
 
     // Create new payment record
-    await supabaseAdmin.from('payment_records').insert({
+    //
+    // ⚠️ แถวนี้คือ "หลักฐานเดียว" ที่ผูกลิงก์จ่ายเงินของ Beam กับออเดอร์ —
+    // ตอน webhook กลับมา มันหาออเดอร์จาก gateway_payment_link_id แถวนี้เท่านั้น
+    // ถ้า insert ไม่ติดแล้วปล่อยลูกค้าไปจ่ายต่อ = **เก็บเงินได้แต่ระบบไม่รู้**
+    // (เกิดจริง 2 ก.ย. 2569 — CHECK constraint ไม่ยอมรับ 'payment_gateway'
+    //  โค้ดไม่ได้เช็ค error เลยส่งลูกค้าไปจ่าย ดู fix-bug.md)
+    const { error: recordError } = await supabaseAdmin.from('payment_records').insert({
       company_id: companyId,
       order_id: order.id,
       payment_method: 'payment_gateway',
@@ -253,6 +263,13 @@ export async function POST(request: NextRequest) {
       gateway_status: beamResult.status || 'ACTIVE',
       gateway_raw_response: beamResult,
     });
+    if (recordError) {
+      console.error('Beam: could not save payment record — refusing to send customer to pay:', recordError);
+      return NextResponse.json(
+        { error: 'ไม่สามารถบันทึกรายการชำระเงินได้ กรุณาลองใหม่หรือติดต่อร้านค้า' },
+        { status: 500 },
+      );
+    }
 
     // 9. Do NOT change payment_status here — keep it 'pending' until
     // Beam webhook confirms actual payment. This allows the customer

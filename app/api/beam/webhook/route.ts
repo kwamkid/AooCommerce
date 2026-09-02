@@ -95,15 +95,50 @@ export async function POST(request: NextRequest) {
       }
 
       // Find payment_record by gateway_payment_link_id
-      const { data: paymentRecord } = await supabaseAdmin
+      const { data: existingRecord } = await supabaseAdmin
         .from('payment_records')
         .select('id, order_id, status')
         .eq('gateway_payment_link_id', paymentLinkId)
         .single();
 
+      let paymentRecord = existingRecord;
+
+      // ไม่เจอแถว = ตอนสร้างลิงก์บันทึกไม่ติด — **ห้ามปล่อยผ่าน** เพราะเงินเข้าจริงแล้ว
+      // กู้จาก referenceId (เราส่ง order.id ไปกับ order ตอนสร้างลิงก์) แล้วสร้างแถวย้อนหลัง
       if (!paymentRecord) {
-        console.error('No payment record found for paymentLinkId:', paymentLinkId);
-        return NextResponse.json({ success: true }); // Ack
+        const orderRef = (eventData.referenceId
+          || (eventData.order as Record<string, unknown> | undefined)?.referenceId) as string | undefined;
+        console.error('No payment record for paymentLinkId:', paymentLinkId, '— referenceId:', orderRef);
+
+        if (!orderRef) return NextResponse.json({ success: true }); // Ack — ไม่มีอะไรให้กู้
+
+        const { data: refOrder } = await supabaseAdmin
+          .from('orders')
+          .select('id, company_id, total_amount')
+          .eq('id', orderRef)
+          .single();
+        if (!refOrder) return NextResponse.json({ success: true }); // Ack
+
+        const { data: created, error: createError } = await supabaseAdmin
+          .from('payment_records')
+          .insert({
+            company_id: refOrder.company_id,
+            order_id: refOrder.id,
+            payment_method: 'payment_gateway',
+            amount: refOrder.total_amount,
+            status: 'pending',
+            gateway_provider: 'beam',
+            gateway_payment_link_id: paymentLinkId,
+            gateway_status: 'PAID',
+            gateway_raw_response: event,
+          })
+          .select('id, order_id, status')
+          .single();
+        if (createError || !created) {
+          console.error('Beam webhook: could not backfill payment record:', createError);
+          return NextResponse.json({ success: true }); // Ack — กัน Beam retry ไม่จบ
+        }
+        paymentRecord = created;
       }
 
       // Idempotency: skip if already verified
@@ -113,13 +148,17 @@ export async function POST(request: NextRequest) {
       }
 
       // Update payment record to verified
-      await supabaseAdmin.from('payment_records').update({
+      const { error: verifyError } = await supabaseAdmin.from('payment_records').update({
         status: 'verified',
         gateway_charge_id: chargeId,
         gateway_status: 'PAID',
         gateway_raw_response: event,
         updated_at: new Date().toISOString(),
       }).eq('id', paymentRecord.id);
+      if (verifyError) {
+        // เงินเข้าแล้วแต่บันทึกไม่ติด — ต้องเห็นใน log ไม่ใช่เงียบ (เคยล้มเงียบมาแล้ว)
+        console.error('Beam webhook: mark payment record verified failed:', verifyError);
+      }
 
       // Update order payment_status to paid
       //
@@ -133,11 +172,14 @@ export async function POST(request: NextRequest) {
         .eq('id', paymentRecord.order_id)
         .single();
 
-      await supabaseAdmin.from('orders').update({
+      const { error: orderError } = await supabaseAdmin.from('orders').update({
         payment_status: 'paid',
         ...(paidOrder?.order_status === 'new' ? { order_status: 'ready_to_ship' } : {}),
         updated_at: new Date().toISOString(),
       }).eq('id', paymentRecord.order_id);
+      if (orderError) {
+        console.error('Beam webhook: mark order paid failed:', orderError, paymentRecord.order_id);
+      }
 
       console.log('Payment verified via webhook for order:', paymentRecord.order_id);
     } else {
