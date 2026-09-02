@@ -87,22 +87,16 @@ export default function MarketplaceConnections({
       showToast('เชื่อมต่อ TikTok Shop สำเร็จ', 'success');
       refetch();
       onPlatformChange('tiktok');
-      const askChat = params.get('chat') === 'prompt';
+      // ขาแชทต่อให้เองใน callback แล้ว (ไม่มี dialog ถามคั่น) — มาถึงตรงนี้ได้
+      // แปลว่าไม่ต้องต่อแชท เหลือแค่ชวนดึงโลโก้จากบัญชี TikTok
       const logoAccount = params.get('logo') === 'prompt' ? params.get('logo_account') : null;
       window.history.replaceState({}, '', cleanUrl);
-      // ถามต่อกันเป็นสาย: แชท → โลโก้ · ถ้าตอบตกลงขาแรกจะเด้งออกไปเลย
-      // ขาที่เหลือจะถูกถามอีกทีตอนกลับมา ไม่ใช่ถามซ้อนกันสองอันพร้อมกัน
-      (async () => {
-        if (askChat && (await promptChatConnect('tiktok'))) return;
-        if (logoAccount) await promptProfileConnect(logoAccount);
-      })();
+      if (logoAccount) promptProfileConnect(logoAccount);
     } else if (params.get('success') === 'lazada_connected') {
       showToast('เชื่อมต่อ Lazada สำเร็จ', 'success');
       refetch();
       onPlatformChange('lazada');
-      const askChat = params.get('chat') === 'prompt';
       window.history.replaceState({}, '', cleanUrl);
-      if (askChat) promptChatConnect('lazada');
     } else if (params.get('tiktok_profile')) {
       // กลับจาก Login Kit (ขาดึงรูปโปรไฟล์) — คนละขากับการเชื่อมร้าน
       const r = params.get('tiktok_profile') || '';
@@ -151,36 +145,6 @@ export default function MarketplaceConnections({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showToast]);
-
-  // เชื่อมร้านสำเร็จแล้ว → ถามต่อว่าจะเชื่อมแชทด้วยมั้ย (app แชทแยกจาก app
-  // ออเดอร์ — บางร้านไม่ใช้แชท / บางร้านเชื่อมไว้แล้ว จึงไม่ต่อขาอัตโนมัติ)
-  // callback ส่ง chat=prompt มาเฉพาะเมื่อยังมีร้านที่ไม่มี token แชทเท่านั้น
-  /** คืน true เมื่อกำลังจะเด้งออกไป TikTok — ผู้เรียกจะได้ไม่ถามคำถามถัดไปซ้อน */
-  const promptChatConnect = async (platform: 'tiktok' | 'lazada'): Promise<boolean> => {
-    const label = platform === 'tiktok' ? 'TikTok Shop' : 'Lazada';
-    const ok = await confirm({
-      title: `เชื่อมต่อแชท ${label} ต่อเลยหรือไม่?`,
-      description:
-        `ถ้าต้องการรับ-ส่งแชท ${label} ในหน้ารวมแชท ต้องกดอนุญาตเพิ่มอีกหนึ่งครั้ง — ข้ามไปก่อนได้ แล้วมาเชื่อมทีหลังที่ ตั้งค่า > ช่องทางแชท แท็บ ${label}`,
-      confirmLabel: 'เชื่อมต่อแชท',
-      cancelLabel: 'ไว้ทีหลัง',
-    });
-    if (!ok) return false;
-    setConnecting(true);
-    try {
-      const res = await apiFetch(`/api/${platform}/oauth/auth-url?app=chat`);
-      if (res.ok) {
-        const { url } = await res.json();
-        window.location.href = url;
-        return true;
-      }
-      showToast('ไม่สามารถสร้างลิงก์เชื่อมต่อได้', 'error');
-    } catch {
-      showToast('เกิดข้อผิดพลาด', 'error');
-    }
-    setConnecting(false);
-    return false;
-  };
 
   /** ขาที่สาม — โลโก้ร้าน · ถามต่อจากขาแชทเพื่อให้การเพิ่มร้านจบในลำดับเดียว */
   const promptProfileConnect = async (accountId: string) => {
