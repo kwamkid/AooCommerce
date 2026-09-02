@@ -893,9 +893,12 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder, 
         );
       }
 
-      // Fetch escrow detail for COMPLETED orders (fire-and-forget)
+      // ยอดเงินที่ร้านได้จริงของออเดอร์ที่จบแล้ว
+      // ⚠️ **ต้อง await** — sync ทั้งชุดวิ่งใน after() ของ route ปล่อยลอยแล้ว
+      // Vercel freeze ทิ้งกลางทาง (พบจริง: 19/482 ออเดอร์ที่ completed ใน 45 วัน
+      // ไม่มี escrow เลย = รายงานกำไรขาดหายไปเงียบ ๆ ดู fix-bug.md 2026-09-02)
       if (shopeeOrder.order_status === 'COMPLETED') {
-        fetchAndSaveEscrowDetail(account, shopeeOrder.order_sn, existing.id).catch(err => {
+        await fetchAndSaveEscrowDetail(account, shopeeOrder.order_sn, existing.id).catch(err => {
           console.error(`[Shopee Sync] Escrow fetch error for ${shopeeOrder.order_sn}:`, err);
         });
       }
@@ -946,7 +949,7 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder, 
     if (!statusUpdated && shopeeOrder.order_status === 'COMPLETED') {
       const existingExternalData = (existing.external_data || {}) as Record<string, unknown>;
       if (!existingExternalData.escrow_detail) {
-        fetchAndSaveEscrowDetail(account, shopeeOrder.order_sn, existing.id).catch(err => {
+        await fetchAndSaveEscrowDetail(account, shopeeOrder.order_sn, existing.id).catch(err => {
           console.error(`[Shopee Sync] Escrow backfill error for ${shopeeOrder.order_sn}:`, err);
         });
       }
@@ -1637,9 +1640,9 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder, 
   // Check can_split_order via get_package_detail
   await syncCanSplitOrder(order.id, creds, shopeeOrder).catch(() => {});
 
-  // Fetch escrow detail for COMPLETED orders (fire-and-forget)
+  // ยอดเงินที่ร้านได้จริง — await ด้วยเหตุผลเดียวกับด้านบน (ห้ามปล่อยลอยใน after())
   if (shopeeOrder.order_status === 'COMPLETED') {
-    fetchAndSaveEscrowDetail(account, shopeeOrder.order_sn, order.id).catch(err => {
+    await fetchAndSaveEscrowDetail(account, shopeeOrder.order_sn, order.id).catch(err => {
       console.error(`[Shopee Sync] Escrow fetch error for ${shopeeOrder.order_sn}:`, err);
     });
   }
@@ -1663,7 +1666,14 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder, 
  * Fetch and save escrow detail for a completed Shopee order.
  * Merges escrow data into external_data.escrow_detail and updates financial fields.
  */
-async function fetchAndSaveEscrowDetail(
+/**
+ * ดึงยอดเงินที่ร้านได้จริง (escrow) ของออเดอร์ที่จบแล้ว → เก็บลง external_data
+ * แล้วแปลงเป็นแถว settlement ต่อทันที
+ *
+ * export เพื่อให้ route กู้ย้อนหลังเรียกได้ด้วย — ออเดอร์ที่พลาดรอบแรกไป
+ * (เช่นตอนที่ยังปล่อยลอยแล้วโดน freeze) ต้องมีทางตามเก็บ ไม่งั้นเงินหายถาวร
+ */
+export async function fetchAndSaveEscrowDetail(
   account: ShopeeAccountRow,
   orderSn: string,
   orderId: string

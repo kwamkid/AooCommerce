@@ -6,14 +6,17 @@ import { ensureValidToken as ensureLazadaToken, getFinanceTransactions, type Laz
 import { normalizeLazadaTransactions, type LazadaTransactionRow } from '@/lib/lazada/settlement';
 import { ensureValidToken as ensureTikTokToken, getOrderStatement, type TikTokAccountRow } from '@/lib/tiktok/api';
 import { normalizeTikTokStatement, unmappedTikTokFields } from '@/lib/tiktok/settlement';
+import { fetchAndSaveEscrowDetail } from '@/lib/shopee/sync';
+import type { ShopeeAccountRow } from '@/lib/shopee/api';
 
 // ดึงยอด settlement จาก API ของแพลตฟอร์ม (ต่างจาก /backfill ที่แปลงจากข้อมูลที่เก็บไว้แล้ว)
 //
-// Shopee ไม่ต้องใช้ route นี้ — escrow ถูกดูดมาตอน sync ออเดอร์อยู่แล้ว ใช้ /backfill แทน
+// Shopee  = ตามเก็บ escrow ของออเดอร์ที่จบแล้วแต่ยังไม่มียอด (พลาดตอน sync รอบแรก)
+//            — ต่างจาก /backfill ที่แปลงจาก escrow ที่เก็บไว้แล้วโดยไม่ยิง API
 // Lazada  = ดึง ledger ตามช่วงวันที่ แล้วประกอบเป็นออเดอร์เอง
 // TikTok  = ดึงทีละออเดอร์
 //
-// POST { platform: 'lazada'|'tiktok', days?: number }
+// POST { platform: 'shopee'|'lazada'|'tiktok', days?: number }
 
 export const maxDuration = 300;
 
@@ -41,9 +44,9 @@ export async function POST(request: NextRequest) {
     companyFilter = auth.companyId ?? null;
   }
 
-  if (platform !== 'lazada' && platform !== 'tiktok') {
+  if (platform !== 'lazada' && platform !== 'tiktok' && platform !== 'shopee') {
     return NextResponse.json(
-      { error: "platform ต้องเป็น 'lazada' หรือ 'tiktok' — Shopee ใช้ /api/marketplace/settlements/backfill" },
+      { error: "platform ต้องเป็น 'shopee', 'lazada' หรือ 'tiktok'" },
       { status: 400 }
     );
   }
@@ -68,12 +71,20 @@ export async function POST(request: NextRequest) {
 
   const since = new Date(Date.now() - days * 86_400_000);
   const results: Record<string, unknown>[] = [];
+  // หยุดเองก่อนโดนตัด แล้วบอกว่าค้างตรงไหน (pattern เดียวกับงานยาวตัวอื่นในระบบ)
+  const deadline = Date.now() + 240_000;
 
   for (const account of accounts) {
+    if (Date.now() > deadline) {
+      results.push({ shop: account.shop_name, skipped: true, reason: 'หมดงบเวลา — ยิงรอบใหม่ต่อได้' });
+      continue;
+    }
     try {
-      const r = platform === 'lazada'
-        ? await syncLazadaAccount(account as unknown as LazadaAccountRow, since)
-        : await syncTikTokAccount(account as unknown as TikTokAccountRow, since);
+      const r = platform === 'shopee'
+        ? await syncShopeeAccount(account as unknown as ShopeeAccountRow, since, deadline)
+        : platform === 'lazada'
+          ? await syncLazadaAccount(account as unknown as LazadaAccountRow, since)
+          : await syncTikTokAccount(account as unknown as TikTokAccountRow, since);
       results.push({ shop: account.shop_name, ...r });
     } catch (err) {
       results.push({ shop: account.shop_name, error: err instanceof Error ? err.message : 'unknown' });
@@ -81,6 +92,46 @@ export async function POST(request: NextRequest) {
   }
 
   return NextResponse.json({ platform, days, accounts: accounts.length, results });
+}
+
+// ─── Shopee ─────────────────────────────────────────────────────────────────
+
+/**
+ * ตามเก็บออเดอร์ที่ "จบแล้วแต่ไม่มี escrow" — เกิดจากรอบ sync แรกยิง escrow
+ * แบบปล่อยลอยแล้วโดน Vercel freeze ทิ้ง (แก้ที่ต้นเหตุแล้ว แต่ของเก่ายังค้าง)
+ *
+ * ไม่มีทางนี้ = เงินของออเดอร์เหล่านั้นหายถาวร เพราะ /backfill แปลงได้เฉพาะ
+ * ออเดอร์ที่มี escrow เก็บไว้แล้ว
+ */
+async function syncShopeeAccount(account: ShopeeAccountRow, since: Date, deadline: number) {
+  const { data: orders } = await supabaseAdmin
+    .from('orders')
+    .select('id, external_order_sn')
+    .eq('marketplace_account_id', account.id)
+    .eq('source', 'shopee')
+    .eq('order_status', 'completed')
+    .is('external_data->>escrow_detail', null)
+    .not('external_order_sn', 'is', null)
+    .gte('created_at', since.toISOString())
+    .order('created_at', { ascending: false })
+    .limit(200);
+
+  if (!orders?.length) return { missing: 0, fetched: 0, remaining: 0 };
+
+  let fetched = 0;
+  let i = 0;
+  for (const order of orders) {
+    if (Date.now() > deadline) break;
+    i++;
+    try {
+      await fetchAndSaveEscrowDetail(account, order.external_order_sn!, order.id);
+      fetched++;
+    } catch (err) {
+      console.error('[Settlement Sync] shopee escrow failed', order.external_order_sn, err);
+    }
+  }
+
+  return { missing: orders.length, fetched, remaining: Math.max(0, orders.length - i) };
 }
 
 // ─── Lazada ─────────────────────────────────────────────────────────────────
