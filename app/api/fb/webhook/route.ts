@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { logIntegrationNow } from '@/lib/integration-logger';
 import { FacebookChatService } from '@/lib/services/chat';
 import { getFbCredsFromAccount } from '@/lib/chat-config';
 import type { FbWebhookBody } from '@/lib/services/chat';
@@ -34,6 +35,9 @@ export async function GET(request: NextRequest) {
 
 // POST - Receive Facebook + Instagram webhook events
 export async function POST(request: NextRequest) {
+  // เก็บนอก try — ตอน error ต้องยังรู้ว่าเป็นของบริษัทไหน (integration_logs บังคับ company_id)
+  let companyIdForLog: string | null = null;
+  let chatAccountIdForLog: string | null = null;
   try {
     const body = await request.text();
     const signature = request.headers.get('x-hub-signature-256') || '';
@@ -80,11 +84,24 @@ export async function POST(request: NextRequest) {
       const pageAccessToken = creds.page_access_token;
       const companyId = account.company_id;
       const chatAccountId = account.id;
+      companyIdForLog = companyId;
+      chatAccountIdForLog = chatAccountId;
       const pageId = creds.page_id; // Always use actual page_id for API calls
 
       // Verify signature
       if (appSecret && !fbService.verifySignature(body, signature, appSecret)) {
         console.error('Webhook: invalid signature for account:', account.id);
+        // LINE/FB เคยไม่มี log สักบรรทัด — ลายเซ็นไม่ตรงแปลว่า app secret เปลี่ยน
+        // หรือมีคนยิงมั่ว ทั้งสองอย่างต้องเห็นได้ ไม่ใช่ตกไปกับ console เฉย ๆ
+        await logIntegrationNow({
+          company_id: companyId,
+          account_id: chatAccountId,
+          integration: 'facebook',
+          direction: 'incoming',
+          action: 'webhook_invalid_signature',
+          status: 'error',
+          error_message: 'ลายเซ็นไม่ตรง — app secret อาจถูกเปลี่ยนที่ Meta Developers',
+        });
         continue;
       }
 
@@ -143,6 +160,18 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ status: 'ok' });
   } catch (error) {
     console.error('Webhook error:', error);
+    // **await** — response กำลังจะออก ปล่อยลอยแล้วโดน freeze ทิ้ง
+    if (companyIdForLog) {
+      await logIntegrationNow({
+        company_id: companyIdForLog,
+        account_id: chatAccountIdForLog,
+        integration: 'facebook',
+        direction: 'incoming',
+        action: 'webhook_error',
+        status: 'error',
+        error_message: error instanceof Error ? error.message : String(error),
+      });
+    }
     return NextResponse.json({ status: 'ok' });
   }
 }

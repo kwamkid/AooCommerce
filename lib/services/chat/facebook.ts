@@ -1,5 +1,6 @@
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { sendChatPush } from '@/lib/push/send';
+import { logIntegrationNow } from '@/lib/integration-logger';
 import { getChatAccount, getDefaultChatAccount, getFbCredsFromAccount } from '@/lib/chat-config';
 import { getFbCredentials } from '@/lib/fb-config';
 import crypto from 'crypto';
@@ -163,6 +164,26 @@ export class FacebookChatService {
     const sendUrl = `https://graph.facebook.com/v21.0/${creds.pageId}/messages?access_token=${creds.accessToken}`;
     const sendPayload = { recipient: { id: contact.fb_psid }, message: fbMessage, messaging_type: 'RESPONSE' };
 
+    const startTime = Date.now();
+    // LINE/FB เคยไม่มี log สักบรรทัด — token เพจหมดอายุ (FB บังคับต่ออายุทุก 60 วัน)
+    // หรือเพจถูกถอดสิทธิ์ จะเงียบสนิท ทั้งที่เป็นช่องทางที่คุยเยอะที่สุดของร้าน
+    // **await** เพราะอยู่ใน request handler — ปล่อยลอยแล้วโดน freeze ทิ้ง
+    const logSend = (httpStatus: number, errorMessage?: string) => logIntegrationNow({
+      company_id: companyId,
+      account_id: contact.chat_account_id,
+      integration: 'facebook',
+      direction: 'outgoing',
+      action: 'chat_send_message',
+      method: 'POST',
+      api_path: `/${creds.pageId}/messages`,
+      http_status: httpStatus,
+      status: errorMessage ? 'error' : 'success',
+      error_message: errorMessage,
+      reference_type: 'chat',
+      reference_id: contact.fb_psid,
+      duration_ms: Date.now() - startTime,
+    });
+
     let fbRes = await fetch(sendUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -192,6 +213,7 @@ export class FacebookChatService {
         if (!fbRes.ok) {
           const retryErr = await fbRes.json();
           console.error('Facebook Send API error (HUMAN_AGENT):', retryErr);
+          await logSend(fbRes.status, `HUMAN_AGENT: ${retryErr.error?.message || 'send failed'}`);
           return {
             success: false,
             error: 'ไม่สามารถส่งข้อความได้ — ลูกค้าไม่ได้ส่งข้อความมาภายใน 7 วัน (หมดเวลาตอบกลับ)',
@@ -200,9 +222,11 @@ export class FacebookChatService {
         }
       } else {
         console.error('Facebook Send API error:', err);
+        await logSend(fbRes.status, err.error?.message || 'Facebook API error');
         return { success: false, error: err.error?.message || 'Facebook API error' };
       }
     }
+    await logSend(fbRes.status);
 
     const fbResult = await fbRes.json();
 

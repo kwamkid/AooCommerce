@@ -1,5 +1,6 @@
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { sendChatPush } from '@/lib/push/send';
+import { logIntegrationNow } from '@/lib/integration-logger';
 import { getChatAccount, getDefaultChatAccount, getLineCredsFromAccount } from '@/lib/chat-config';
 import { getLineCredentials } from '@/lib/line-config';
 import crypto from 'crypto';
@@ -82,16 +83,39 @@ export class LineChatService {
     }
 
     // Send via LINE API
+    const startTime = Date.now();
     const lineRes = await fetch('https://api.line.me/v2/bot/message/push', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${creds.accessToken}` },
       body: JSON.stringify({ to: contact.line_user_id, messages: [lineMessage] }),
     });
 
+    const errBody = lineRes.ok ? null : await lineRes.json().catch(() => ({} as { message?: string }));
+    const errMessage = lineRes.ok
+      ? undefined
+      : (errBody as { message?: string })?.message || `LINE API ${lineRes.status}`;
+
+    // **await** — อยู่ใน request handler ปล่อยลอยแล้ว Vercel freeze ทิ้ง
+    // token ของ OA หมดอายุ/ถูกเปลี่ยนคือเรื่องที่ต้องเห็นในหน้า API Monitor
+    await logIntegrationNow({
+      company_id: companyId,
+      account_id: contact.chat_account_id,
+      integration: 'line',
+      direction: 'outgoing',
+      action: 'chat_send_message',
+      method: 'POST',
+      api_path: '/v2/bot/message/push',
+      http_status: lineRes.status,
+      status: lineRes.ok ? 'success' : 'error',
+      error_message: errMessage,
+      reference_type: 'chat',
+      reference_id: contact.line_user_id,
+      duration_ms: Date.now() - startTime,
+    });
+
     if (!lineRes.ok) {
-      const err = await lineRes.json();
-      console.error('LINE API error:', err);
-      return { success: false, error: err.message || 'LINE API error' };
+      console.error('LINE API error:', errBody);
+      return { success: false, error: errMessage };
     }
 
     // Save to DB

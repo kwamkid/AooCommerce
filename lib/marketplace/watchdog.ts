@@ -199,6 +199,67 @@ export async function collectWatchdogIssues(
     }
   }
 
+  // ── ช่องทางแชท push (LINE/Facebook) — จับ "เงียบผิดปกติ" ──
+  //
+  // ช่องทางพวกนี้ไม่มี cron ให้ดูว่าตามหลังไหม (ข้อความวิ่งเข้ามาเองทาง webhook)
+  // ถ้า webhook หลุด · channel secret เปลี่ยน · token เพจหมดอายุ **มันจะเงียบสนิท
+  // โดยไม่มีอะไรฟ้อง** — ซึ่งเป็นรูปแบบเดียวกับ cron Shopee ที่ตายเงียบ 12 วัน
+  //
+  // เกณฑ์ต้องเทียบกับ "จังหวะปกติของช่องทางนั้นเอง" ไม่ใช่ตัวเลขตายตัว — เพจที่
+  // คุยวันละ 6 ข้อความเงียบ 20 ชม. คือเรื่องปกติ ส่วน OA ที่คุยวันละร้อยเงียบ
+  // 6 ชม. คือผิดปกติแล้ว · เพจที่แทบไม่มีใครทัก (< 20 ข้อความ/สัปดาห์) ไม่ตรวจเลย
+  // เพราะตัดสินไม่ได้ว่าเงียบเพราะพังหรือเพราะไม่มีคนทัก
+  const CHAT_MIN_WEEKLY = 20;
+  const CHAT_GAP_MULTIPLIER = 8;
+  const CHAT_MIN_HOURS = 6;
+  const CHAT_MAX_HOURS = 36;
+
+  let chatQuery = supabaseAdmin
+    .from('chat_accounts')
+    .select('id, company_id, platform, account_name')
+    .in('platform', ['line', 'facebook'])
+    .eq('is_active', true);
+  if (opts.companyId) chatQuery = chatQuery.eq('company_id', opts.companyId);
+
+  const [{ data: chatAccounts }, { data: chatActivity }] = await Promise.all([
+    chatQuery,
+    supabaseAdmin.rpc('get_chat_channel_activity', { p_company_id: opts.companyId ?? null }),
+  ]);
+
+  type ChatActivityRow = { chat_account_id: string; last_incoming_at: string | null; incoming_7d: number };
+  const activityById = new Map(
+    ((chatActivity as ChatActivityRow[] | null) || []).map(r => [r.chat_account_id, r])
+  );
+
+  for (const acc of chatAccounts || []) {
+    const stat = activityById.get(acc.id);
+    if (!stat || !stat.last_incoming_at || Number(stat.incoming_7d) < CHAT_MIN_WEEKLY) continue;
+
+    const silentH = hoursAgo(stat.last_incoming_at)!;
+    const avgGapH = (7 * 24) / Number(stat.incoming_7d);
+    const thresholdH = Math.min(CHAT_MAX_HOURS, Math.max(CHAT_MIN_HOURS, avgGapH * CHAT_GAP_MULTIPLIER));
+    if (silentH <= thresholdH) continue;
+
+    const label = acc.platform === 'line' ? 'LINE' : 'Facebook';
+    const name = acc.account_name || label;
+    issues.push({
+      companyId: acc.company_id as string,
+      companyName: companyName.get(acc.company_id) || null,
+      channel: { platform: acc.platform as string, picture_url: null, shopName: name },
+      code: `chat_silent:${acc.id}`,
+      groupKey: `chat_silent:${acc.platform}`,
+      scope: 'company',
+      severity: 'warning',
+      title: `${label} เงียบผิดปกติ ${roundHours(silentH)}`,
+      detail: `${name} ไม่มีข้อความเข้าเลย ${roundHours(silentH)} ทั้งที่ปกติมีทุก ${roundHours(avgGapH)} — webhook อาจหลุดหรือ token หมดอายุ`,
+      fix: acc.platform === 'line'
+        ? `เช็คที่ LINE Developers ว่า Webhook URL ยังชี้มาที่ระบบและเปิด "Use webhook" อยู่ แล้วกด Verify · ถ้าเปลี่ยน Channel secret/Access token ต้องมาแก้ที่ ตั้งค่า > ช่องทางแชท > LINE`
+        : `เพจ Facebook ต้องต่ออายุสิทธิ์ทุก 60 วัน — เปิด ตั้งค่า > ช่องทางแชท > Facebook แล้วกดเชื่อมเพจใหม่ (ถ้าเพจเงียบเพราะไม่มีคนทักจริง ๆ ก็ข้ามได้)`,
+      actionLabel: 'ไปตรวจช่องทางแชท',
+      url: chatSettingsUrl(acc.platform as string),
+    });
+  }
+
   // เรื่องระดับระบบที่ไม่ผูกบริษัท — หน้า dashboard ของร้านไม่ต้องเห็น
   if (!scoped) {
     // webhook ที่ retry จนหมดสิทธิ์แล้ว = ออเดอร์/ข้อความหายจริง ต้องมีคนไปดู
