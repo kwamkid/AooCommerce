@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import {
   exchangeCodeForToken, getSellerInfo, getLazadaAppCredentials, isReachableImage,
-  isChatAppConfigured, type LazadaApp, type LazadaCredentials,
+  isChatAppConfigured, generateLazadaAuthUrl, type LazadaApp, type LazadaCredentials,
 } from '@/lib/lazada/api';
-import { authorizeMarketplaceCallback } from '@/lib/oauth-state';
+import { authorizeMarketplaceCallback, signOAuthState } from '@/lib/oauth-state';
 import { logIntegration } from '@/lib/integration-logger';
 
 /**
@@ -14,10 +14,10 @@ import { logIntegration } from '@/lib/integration-logger';
  * In-house IM Chat = แชท) และสร้าง app ต่อ category → ถ้าได้ key คนละชุด
  * ต้อง authorize สองรอบ
  *
- * ขาแชท**ไม่ต่ออัตโนมัติแล้ว** (เหมือน TikTok) — บางร้านเชื่อมแชทไว้แล้ว
- * บางร้านไม่ใช้แชท · จบขาออเดอร์กลับหน้า settings พร้อม `chat=prompt` ให้ UI
- * เปิด dialog ถามก่อน (เฉพาะเมื่อยังมีร้านที่ไม่มี token แชท) — ขาแชทเริ่มจาก
- * `/api/lazada/oauth/auth-url?app=chat` แล้วจบที่หน้า ช่องทางแชท
+ * **จบขาออเดอร์แล้วพาไปอนุญาตแชทต่อทันที** (ไม่มี dialog ถามคั่น) — Lazada
+ * บังคับสองรอบอยู่แล้ว การถามเพิ่มอีกจังหวะไม่ได้ให้ทางเลือกที่มีความหมาย
+ * เพราะยกเลิกที่หน้า Lazada ก็ได้ผลเดียวกัน · ต่อเฉพาะเมื่อยังมีร้านที่ไม่มี
+ * token แชท · ขาแชทจบที่หน้า ช่องทางแชท (ยกเลิก = `skipped` ไม่ใช่ error)
  *
  * ถ้ายังไม่ตั้ง LAZADA_CHAT_APP_* (app เดียวถือทั้งสอง category) ไม่มีขาที่สอง
  * เลย — token ชุดเดียวใช้ได้ทั้งออเดอร์และแชทอยู่แล้ว
@@ -198,10 +198,16 @@ export async function GET(request: NextRequest) {
       reference_label: `Lazada connected: ${shopName || sellerId}`,
     });
 
-    // ── ขาออเดอร์เสร็จ → ถามผู้ใช้ก่อนว่าจะเชื่อมแชทต่อมั้ย (ไม่ต่ออัตโนมัติ) ──
-    // chat=prompt เฉพาะเมื่อมี app แชทแยก และยังมีร้านที่ไม่มี token แชท
-    // (ไม่มี app แชทแยก = token หลักใช้แชทได้เลย ไม่ต้องถาม)
-    let chatSuffix = '';
+    // ── ขาออเดอร์เสร็จ → พาไปอนุญาตแชทต่อทันที ──
+    //
+    // Lazada บังคับ authorize สองรอบ (Seller In-house = ออเดอร์ · In-house IM
+    // Chat = แชท คนละ app คนละ token) **เลี่ยงไม่ได้** — แต่ทำให้เป็นจังหวะเดียว
+    // ได้ · ของเดิมเด้งกล่องถาม "จะต่อแชทมั้ย" คั่นกลาง กลายเป็น 3 จังหวะและ
+    // ผู้ใช้รู้สึกว่าวุ่นวาย · ร้านที่ไม่ใช้แชทกด "ยกเลิก" ที่หน้า Lazada ได้
+    // แล้วจะไปจบที่หน้าช่องทางแชทพร้อมข้อความว่าร้านเชื่อมแล้ว (ไม่ใช่ error)
+    //
+    // ต่อเฉพาะเมื่อมี app แชทแยก และยังมีร้านที่ไม่มี token แชท
+    // (ไม่มี app แชทแยก = token หลักใช้แชทได้เลย ไม่มีขาที่สอง)
     if (isChatAppConfigured()) {
       const { data: pendingChat } = await supabaseAdmin
         .from('marketplace_accounts')
@@ -211,10 +217,32 @@ export async function GET(request: NextRequest) {
         .eq('is_active', true)
         .is('chat_access_token', null)
         .limit(1);
-      if (pendingChat && pendingChat.length > 0) chatSuffix = '&chat=prompt';
+
+      if (pendingChat && pendingChat.length > 0) {
+        const chatState = signOAuthState({
+          companyId,
+          userId: authz.payload.userId,
+          platform: 'lazada',
+          app: 'chat',
+        });
+        const chatAuthUrl = generateLazadaAuthUrl(
+          `${baseUrl}/api/lazada/oauth/callback`,
+          chatState,
+          'chat'
+        );
+        const chained = NextResponse.redirect(chatAuthUrl);
+        chained.cookies.set('lazada_oauth_state', chatState, {
+          httpOnly: true,
+          secure: true,
+          sameSite: 'lax',
+          maxAge: 600,
+          path: '/',
+        });
+        return chained;
+      }
     }
 
-    const response = NextResponse.redirect(`${settingsUrl}&success=lazada_connected${chatSuffix}`);
+    const response = NextResponse.redirect(`${settingsUrl}&success=lazada_connected`);
     response.cookies.delete('lazada_oauth_state');
     return response;
   } catch (error) {

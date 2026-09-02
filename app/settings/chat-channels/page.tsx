@@ -167,8 +167,11 @@ export default function ChatChannelsPage() {
       showToast(`เชื่อมต่อแชท ${platform} สำเร็จ — เปิดสวิตช์ร้านที่ต้องการรับแชทได้เลย`, 'success');
     } else if (result === 'failed') {
       showToast(`เชื่อมต่อแชท ${platform} ไม่สำเร็จ กรุณาลองใหม่`, 'error');
+    } else {
+      // skipped = กดยกเลิกที่หน้าอนุญาตของแพลตฟอร์ม — **ร้านเชื่อมสำเร็จไปแล้ว**
+      // (ขาออเดอร์พามาต่อขาแชทเอง) ต้องบอกให้ชัด ไม่งั้นจะนึกว่าทั้งอย่างล้ม
+      showToast(`เชื่อมต่อร้าน ${platform} แล้ว — ยังไม่ได้เปิดแชท กดปุ่ม "เชื่อมต่อแชท" ที่ร้านได้ทีหลัง`);
     }
-    // skipped = ผู้ใช้กดยกเลิกเอง — ไม่ต้องเด้งอะไร
     window.history.replaceState({}, '', `/settings/chat-channels${window.location.hash}`);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

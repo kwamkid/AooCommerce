@@ -11,6 +11,7 @@ import { useToast } from '@/lib/toast-context';
 import { useFeatures } from '@/lib/features-context';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { apiFetch } from '@/lib/api-client';
+import Tooltip from '@/components/ui/Tooltip';
 import { ChevronDown, Clock, ImagePlus, Link2, Loader2, PackageSearch, RefreshCw, RotateCw, ShoppingBag, Trash2, Warehouse } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import FormSelect from '@/components/ui/FormSelect';
@@ -520,27 +521,40 @@ export default function MarketplaceConnections({
     return opts;
   };
 
-  /** รูปโลโก้ — เนื้อในของปุ่มที่เปิดโมดัล (ห้ามใส่ <button> ซ้อนอีกชั้น) */
-  const shopAvatar = (account: MarketplaceAccount, tile: string, iconCls: string, fallbackAlt: string) => (
-    <span className="relative block w-10 h-10 flex-shrink-0 group">
-      {/* icon รองพื้น + img ทับ + onError ซ่อนตัวเอง — URL ตายไม่โชว์รูปแตก */}
-      <span className={`w-10 h-10 rounded-lg ${tile} flex items-center justify-center`}>
-        <ShoppingBag className={iconCls} />
+  /** รูปโลโก้ — เนื้อในของปุ่มที่เปิดโมดัล (ห้ามใส่ <button> ซ้อนอีกชั้น)
+   *
+   *  ร้านที่ยังไม่มีโลโก้ (Lazada บางร้าน /seller/get ไม่ส่ง logo_url มาเลย)
+   *  ต้อง **เห็นได้เลยว่ากดใส่เองได้** — ของเดิมเป็นเงาจาง ๆ ตอน hover เท่านั้น
+   *  บนมือถือไม่มี hover ด้วยซ้ำ ผู้ใช้จึงไม่มีทางรู้ว่ากดได้ */
+  const shopAvatar = (account: MarketplaceAccount, tile: string, iconCls: string, fallbackAlt: string) => {
+    const logo = (account.metadata?.shop_logo as string) || '';
+    return (
+      <span className="relative block w-10 h-10 flex-shrink-0 group">
+        {/* icon รองพื้น + img ทับ + onError ซ่อนตัวเอง — URL ตายไม่โชว์รูปแตก */}
+        <span className={`w-10 h-10 rounded-lg ${tile} flex items-center justify-center ${logo ? '' : 'border border-dashed border-gray-300 dark:border-slate-600'}`}>
+          <ShoppingBag className={iconCls} />
+        </span>
+        {logo && (
+          <img
+            src={logo}
+            alt={account.shop_name || fallbackAlt}
+            className="absolute inset-0 w-10 h-10 rounded-lg object-cover"
+            onError={e => { e.currentTarget.style.display = 'none'; }}
+          />
+        )}
+        {/* ยังไม่มีโลโก้ → ป้าย + มุมขวาล่าง เห็นตลอดเวลา ไม่ต้อง hover */}
+        {!logo && resyncingId !== account.id && (
+          <span className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-primary text-white flex items-center justify-center shadow-sm">
+            <ImagePlus className="w-2.5 h-2.5" />
+          </span>
+        )}
+        {/* ระหว่างดึงข้อมูล spinner ต้องค้างให้เห็น ไม่ใช่รอ hover */}
+        <span className={`absolute inset-0 bg-black/40 rounded-lg flex items-center justify-center transition-opacity ${resyncingId === account.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+          <ChevronDown className={`w-4 h-4 text-white ${resyncingId === account.id ? 'animate-pulse' : ''}`} />
+        </span>
       </span>
-      {(account.metadata?.shop_logo as string) && (
-        <img
-          src={account.metadata.shop_logo as string}
-          alt={account.shop_name || fallbackAlt}
-          className="absolute inset-0 w-10 h-10 rounded-lg object-cover"
-          onError={e => { e.currentTarget.style.display = 'none'; }}
-        />
-      )}
-      {/* ระหว่างดึงข้อมูล spinner ต้องค้างให้เห็น ไม่ใช่รอ hover */}
-      <span className={`absolute inset-0 bg-black/40 rounded-lg flex items-center justify-center transition-opacity ${resyncingId === account.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
-        <ChevronDown className={`w-4 h-4 text-white ${resyncingId === account.id ? 'animate-pulse' : ''}`} />
-      </span>
-    </span>
-  );
+    );
+  };
 
   const handleClearLogo = async (accountId: string) => {
     try {
@@ -860,14 +874,19 @@ export default function MarketplaceConnections({
                 onDisconnect={() => handleDisconnect(account.id)}
                 disconnecting={disconnectingId === account.id}
                 avatar={
+                  <Tooltip
+                    text={(account.metadata?.shop_logo as string) ? 'เปลี่ยนโลโก้ร้าน' : 'ใส่โลโก้ร้าน'}
+                    box="inline-flex"
+                  >
                   <button
                     type="button"
                     onClick={() => openLogoModal(account)}
                     className="relative flex-shrink-0 rounded-lg"
-                    title="เปลี่ยนโลโก้ร้าน"
+                    aria-label={(account.metadata?.shop_logo as string) ? 'เปลี่ยนโลโก้ร้าน' : 'ใส่โลโก้ร้าน'}
                   >
                     {shopAvatar(account, 'bg-transparent', 'w-5 h-5 text-shopee', 'Shop')}
                   </button>
+                </Tooltip>
                 }
               >
                 {/* Details */}
@@ -996,14 +1015,19 @@ export default function MarketplaceConnections({
                 onDisconnect={() => handleDisconnect(account.id)}
                 disconnecting={disconnectingId === account.id}
                 avatar={
+                  <Tooltip
+                    text={(account.metadata?.shop_logo as string) ? 'เปลี่ยนโลโก้ร้าน' : 'ใส่โลโก้ร้าน'}
+                    box="inline-flex"
+                  >
                   <button
                     type="button"
                     onClick={() => openLogoModal(account)}
                     className="relative flex-shrink-0 rounded-lg"
-                    title="เปลี่ยนโลโก้ร้าน"
+                    aria-label={(account.metadata?.shop_logo as string) ? 'เปลี่ยนโลโก้ร้าน' : 'ใส่โลโก้ร้าน'}
                   >
                     {shopAvatar(account, 'bg-black', 'w-5 h-5 text-white', 'TikTok Shop')}
                   </button>
+                </Tooltip>
                 }
               >
                 <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-slate-400">
@@ -1076,14 +1100,19 @@ export default function MarketplaceConnections({
                 onDisconnect={() => handleDisconnect(account.id)}
                 disconnecting={disconnectingId === account.id}
                 avatar={
+                  <Tooltip
+                    text={(account.metadata?.shop_logo as string) ? 'เปลี่ยนโลโก้ร้าน' : 'ใส่โลโก้ร้าน'}
+                    box="inline-flex"
+                  >
                   <button
                     type="button"
                     onClick={() => openLogoModal(account)}
                     className="relative flex-shrink-0 rounded-lg"
-                    title="เปลี่ยนโลโก้ร้าน"
+                    aria-label={(account.metadata?.shop_logo as string) ? 'เปลี่ยนโลโก้ร้าน' : 'ใส่โลโก้ร้าน'}
                   >
                     {shopAvatar(account, 'bg-[#0F146E]', 'w-5 h-5 text-white', 'Lazada')}
                   </button>
+                </Tooltip>
                 }
               >
                 {warehousePicker(account)}
