@@ -71,11 +71,11 @@ export async function sendPushToUsers(
   userIds: string[],
   payload: PushPayload,
   opts: { audience?: PushAudience } = {}
-): Promise<void> {
+): Promise<number> {
   try {
-    if (!ensureVapid()) return;
+    if (!ensureVapid()) return 0;
     const ids = [...new Set(userIds)].filter(Boolean);
-    if (ids.length === 0) return;
+    if (ids.length === 0) return 0;
 
     const audience = opts.audience || 'app';
     const { data: subs, error } = await supabaseAdmin
@@ -83,11 +83,12 @@ export async function sendPushToUsers(
       .select('id, endpoint, p256dh, auth')
       .in('user_id', ids)
       .eq('audience', audience);
-    if (error || !subs || subs.length === 0) return;
+    if (error || !subs || subs.length === 0) return 0;
 
-    await deliver(subs, { icon: AUDIENCE_ICON[audience], ...payload });
+    return await deliver(subs, { icon: AUDIENCE_ICON[audience], ...payload });
   } catch (err) {
     console.error('[Push] sendPushToUsers error:', err);
+    return 0;
   }
 }
 
@@ -95,7 +96,7 @@ export async function sendPushToUsers(
 async function deliver(
   subs: { id: string; endpoint: string; p256dh: string; auth: string }[],
   payload: PushPayload
-): Promise<void> {
+): Promise<number> {
   const body = JSON.stringify({
     title: payload.title,
     body: payload.body,
@@ -105,6 +106,7 @@ async function deliver(
   });
 
   const staleIds: string[] = [];
+  let sent = 0;
   await parallelLimit(subs, async (sub) => {
     try {
       await webpush.sendNotification(
@@ -112,6 +114,7 @@ async function deliver(
         body,
         { TTL: 300, urgency: 'high' }
       );
+      sent++;
     } catch (err) {
       const statusCode = (err as { statusCode?: number })?.statusCode;
       if (statusCode === 404 || statusCode === 410) {
@@ -125,6 +128,7 @@ async function deliver(
   if (staleIds.length > 0) {
     await supabaseAdmin.from('push_subscriptions').delete().in('id', staleIds);
   }
+  return sent;
 }
 
 const CHAT_PLATFORM_LABELS: Record<string, string> = {

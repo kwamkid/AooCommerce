@@ -252,7 +252,8 @@ export async function collectWatchdogIssues(
   return issues;
 }
 
-type WatchdogState = Record<string, { since: string; notified_at: string }>;
+// notified_at ว่าง = ยังไม่เคยส่งถึงเครื่องไหนเลย (รอบหน้าจะพยายามใหม่)
+type WatchdogState = Record<string, { since: string; notified_at?: string }>;
 
 /**
  * ตรวจ + เด้งเตือนคนที่แก้ได้ + จำว่าเตือนอะไรไปแล้ว
@@ -272,25 +273,31 @@ export async function runWatchdog(): Promise<{ issues: number; notified: number;
   const due: WatchdogIssue[] = [];
   for (const issue of issues) {
     const before = prev[issue.code];
-    const lastNotified = before ? new Date(before.notified_at).getTime() : 0;
+    const lastNotified = before?.notified_at ? new Date(before.notified_at).getTime() : 0;
     const isDue = now.getTime() - lastNotified > RENOTIFY_HOURS * 3_600_000;
-    next[issue.code] = {
-      since: before?.since || now.toISOString(),
-      notified_at: isDue ? now.toISOString() : before!.notified_at,
-    };
+    // ยังไม่ stamp ตรงนี้ — stamp เฉพาะใบที่ "ส่งถึงเครื่องจริง" หลังยิงเสร็จ
+    next[issue.code] = { since: before?.since || now.toISOString(), notified_at: before?.notified_at };
     if (isDue) due.push(issue);
   }
 
   let notified = 0;
   const superAdminIds = await getSuperAdminIds();
 
+  // นับว่าส่งถึงเครื่องจริงกี่เครื่อง ถ้า 0 = ยังไม่มีใครเปิดแจ้งเตือน → **ห้ามจดว่าแจ้งแล้ว**
+  // ไม่งั้นพอผู้ใช้เพิ่งมาเปิดสวิตช์ จะเงียบไปอีก 6 ชม. แล้วเข้าใจว่าระบบพัง
+  const markNotified = (group: WatchdogIssue[], sent: number) => {
+    if (sent <= 0) return;
+    for (const i of group) next[i.code].notified_at = now.toISOString();
+    notified += sent;
+  };
+
   // ── ผู้ดูแลระบบ: เฉพาะเรื่องระดับระบบ · รวมตามสาเหตุ
   if (superAdminIds.length > 0) {
     for (const [, group] of groupBy(due.filter(i => i.scope === 'system'), i => i.groupKey)) {
-      await sendPushToUsers(superAdminIds, buildPush(group, '/superadmin/api-monitor'), {
+      const sent = await sendPushToUsers(superAdminIds, buildPush(group, '/superadmin/api-monitor'), {
         audience: 'superadmin',
       });
-      notified++;
+      markNotified(group, sent);
     }
   }
 
@@ -299,8 +306,8 @@ export async function runWatchdog(): Promise<{ issues: number; notified: number;
     const targets = await getCompanyManagerIds(companyId);
     if (targets.length === 0) continue;
     // เรื่องของร้าน → แอปของร้าน (แม้ผู้รับจะเป็น superadmin ที่ควบเจ้าของร้านอยู่ด้วย)
-    await sendPushToUsers(targets, buildPush(group, '/dashboard'), { audience: 'app' });
-    notified++;
+    const sent = await sendPushToUsers(targets, buildPush(group, '/dashboard'), { audience: 'app' });
+    markNotified(group, sent);
   }
 
   // เรื่องที่หายไปแล้ว — บอกครั้งเดียวว่ากลับมาปกติ
