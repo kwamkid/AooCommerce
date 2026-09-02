@@ -4,6 +4,7 @@
 import { useEffect, useState } from 'react';
 import Layout from '@/components/layout/Layout';
 import Modal from '@/components/ui/Modal';
+import Tooltip from '@/components/ui/Tooltip';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import Container from '@/components/ui/Container';
 import PageHeader from '@/components/ui/PageHeader';
@@ -339,9 +340,9 @@ export default function CarriersSettingsPage() {
                   <span className="flex items-center gap-2">
                     {c.name}
                     {c.is_system && (
-                      <span title="ขนส่งของระบบ" className="inline-flex items-center text-gray-400">
+                      <Tooltip text="ขนส่งของระบบ"><span className="inline-flex items-center text-gray-400">
                         <Lock className="w-3.5 h-3.5" />
-                      </span>
+                      </span></Tooltip>
                     )}
                   </span>
                 }

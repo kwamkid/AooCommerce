@@ -5,6 +5,7 @@ import { useCopy } from '@/lib/useCopy';
 import { useRouter } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
 import Button from '@/components/ui/Button';
+import Tooltip from '@/components/ui/Tooltip';
 import { useAuth } from '@/lib/auth-context';
 import { useFetchOnce } from '@/lib/use-fetch-once';
 import { useToast } from '@/lib/toast-context';
@@ -293,7 +294,7 @@ export default function TransferListPage() {
               key: 'transferInfo', label: 'เลขที่', alwaysVisible: true,
               render: (t) => (
                 <>
-                  <p className="id-text-clickable text-gray-900 dark:text-white" title="คัดลอก" onClick={(e) => { e.stopPropagation(); copy(t.transfer_number, 'เลขที่ใบโอน'); }}>{t.transfer_number}</p>
+                  <Tooltip text="คัดลอก"><p className="id-text-clickable text-gray-900 dark:text-white" onClick={(e) => { e.stopPropagation(); copy(t.transfer_number, 'เลขที่ใบโอน'); }}>{t.transfer_number}</p></Tooltip>
                   <p className="data-timestamp text-gray-400 dark:text-slate-500 mt-0.5">{formatDate(t.created_at)}</p>
                 </>
               ),
@@ -397,9 +398,9 @@ export default function TransferListPage() {
               <>
                 <div className="flex items-center justify-between mb-2">
                   <div>
-                    <span className="id-text-clickable text-gray-900 dark:text-white" title="คัดลอก" onClick={(e) => { e.stopPropagation(); copy(t.transfer_number, 'เลขที่ใบโอน'); }}>
+                    <Tooltip text="คัดลอก"><span className="id-text-clickable text-gray-900 dark:text-white" onClick={(e) => { e.stopPropagation(); copy(t.transfer_number, 'เลขที่ใบโอน'); }}>
                       {t.transfer_number}
-                    </span>
+                    </span></Tooltip>
                     <p className="data-timestamp text-gray-400 dark:text-slate-500 mt-0.5">{formatDate(t.created_at)}</p>
                   </div>
                   <div className="flex items-center gap-1">

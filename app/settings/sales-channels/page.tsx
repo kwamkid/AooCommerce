@@ -480,14 +480,14 @@ export default function SalesChannelsPage() {
                 </Tooltip>
               )}
               {c.is_system && (
-                <span title="ช่องทางของระบบ" className="inline-flex items-center text-gray-400">
+                <Tooltip text="ช่องทางของระบบ"><span className="inline-flex items-center text-gray-400">
                   <Lock className="w-3.5 h-3.5" />
-                </span>
+                </span></Tooltip>
               )}
               {c.channel_type === 'chat' && (
-                <span title="เชื่อมกับ chat account" className="inline-flex items-center text-emerald-500">
+                <Tooltip text="เชื่อมกับ chat account"><span className="inline-flex items-center text-emerald-500">
                   <LinkIcon className="w-3.5 h-3.5" />
-                </span>
+                </span></Tooltip>
               )}
             </div>
             {(c.username || c.ig_username) && (

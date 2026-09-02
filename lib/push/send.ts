@@ -43,36 +43,67 @@ export async function sendPushToCompany(companyId: string, payload: PushPayload)
       .eq('company_id', companyId);
     if (error || !subs || subs.length === 0) return;
 
-    const body = JSON.stringify({
-      title: payload.title,
-      body: payload.body,
-      url: payload.url || '/',
-      tag: payload.tag,
-    });
-
-    const staleIds: string[] = [];
-    await parallelLimit(subs, async (sub) => {
-      try {
-        await webpush.sendNotification(
-          { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
-          body,
-          { TTL: 300, urgency: 'high' }
-        );
-      } catch (err) {
-        const statusCode = (err as { statusCode?: number })?.statusCode;
-        if (statusCode === 404 || statusCode === 410) {
-          staleIds.push(sub.id); // device ยกเลิก/ลบ app แล้ว
-        } else {
-          console.error(`[Push] send failed (${statusCode || 'network'}):`, (err as Error)?.message);
-        }
-      }
-    }, 8);
-
-    if (staleIds.length > 0) {
-      await supabaseAdmin.from('push_subscriptions').delete().in('id', staleIds);
-    }
+    await deliver(subs, payload);
   } catch (err) {
     console.error('[Push] sendPushToCompany error:', err);
+  }
+}
+
+/**
+ * ส่ง push ไปทุก device ของ "ผู้ใช้" ที่ระบุ — ไม่สนว่าตอนเปิดแจ้งเตือนอยู่บริษัทไหน
+ * ใช้กับเรื่องที่ผูกกับตัวคน ไม่ได้ผูกกับบริษัท (เช่น superadmin เฝ้าระบบข้ามบริษัท)
+ * ไม่ throw เด็ดขาด · endpoint ที่ตายแล้ว (404/410) ถูกลบทิ้งอัตโนมัติ
+ */
+export async function sendPushToUsers(userIds: string[], payload: PushPayload): Promise<void> {
+  try {
+    if (!ensureVapid()) return;
+    const ids = [...new Set(userIds)].filter(Boolean);
+    if (ids.length === 0) return;
+
+    const { data: subs, error } = await supabaseAdmin
+      .from('push_subscriptions')
+      .select('id, endpoint, p256dh, auth')
+      .in('user_id', ids);
+    if (error || !subs || subs.length === 0) return;
+
+    await deliver(subs, payload);
+  } catch (err) {
+    console.error('[Push] sendPushToUsers error:', err);
+  }
+}
+
+/** ยิงจริงไปทีละ subscription + เก็บกวาด endpoint ที่ตายแล้ว (ใช้ร่วมทุกตัวส่ง) */
+async function deliver(
+  subs: { id: string; endpoint: string; p256dh: string; auth: string }[],
+  payload: PushPayload
+): Promise<void> {
+  const body = JSON.stringify({
+    title: payload.title,
+    body: payload.body,
+    url: payload.url || '/',
+    tag: payload.tag,
+  });
+
+  const staleIds: string[] = [];
+  await parallelLimit(subs, async (sub) => {
+    try {
+      await webpush.sendNotification(
+        { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+        body,
+        { TTL: 300, urgency: 'high' }
+      );
+    } catch (err) {
+      const statusCode = (err as { statusCode?: number })?.statusCode;
+      if (statusCode === 404 || statusCode === 410) {
+        staleIds.push(sub.id); // device ยกเลิก/ลบ app แล้ว
+      } else {
+        console.error(`[Push] send failed (${statusCode || 'network'}):`, (err as Error)?.message);
+      }
+    }
+  }, 8);
+
+  if (staleIds.length > 0) {
+    await supabaseAdmin.from('push_subscriptions').delete().in('id', staleIds);
   }
 }
 

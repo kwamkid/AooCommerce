@@ -20,6 +20,16 @@ interface WebhookLast { platform: string; last_at: string }
 interface Webhook24h { platform: string; processing_status: string; n: number }
 interface DeadLetter { id: string; platform: string; shop_id: number; push_label: string | null; processing_error: string | null; retry_count: number; created_at: string }
 interface ProblemAccount { id: string; platform: string; shop_id: number; shop_name: string | null; is_active: boolean; refresh_token_expires_at: string | null; company_name: string | null }
+interface WatchdogIssue {
+  code: string;
+  scope: 'system' | 'company';
+  companyId: string | null;
+  companyName: string | null;
+  severity: 'critical' | 'warning';
+  title: string;
+  detail: string;
+  url: string;
+}
 interface MonitorData {
   daily: DailyRow[];
   heartbeats: Heartbeat[];
@@ -29,6 +39,9 @@ interface MonitorData {
   retry_queue: number;
   accounts: ProblemAccount[];
   breakers: Record<string, { until?: string }>;
+  issues: WatchdogIssue[];
+  /** ตัวเฝ้าตรวจรอบล่าสุดเมื่อไหร่ — ค่านี้ค้าง = ตัวเฝ้าตาย ให้ไปดู cron ที่ cron-job.org */
+  watchdog_last_run: string | null;
   generated_at: string;
 }
 
@@ -158,6 +171,47 @@ export default function ApiMonitorPage() {
         <LoadingCard />
       ) : (
         <div className="space-y-5 max-w-6xl">
+          {/* สิ่งที่ต้องดูตอนนี้ — ชุดเดียวกับที่ตัวเฝ้าใช้เด้งแจ้งเตือน (lib/marketplace/watchdog.ts)
+              อยู่บนสุดเพราะเปิดหน้านี้มาต้องเห็นก่อนอย่างอื่น */}
+          <div className="bg-slate-900 border border-slate-700/50 rounded-xl overflow-hidden">
+            <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-slate-700/50">
+              <h2 className="text-sm font-semibold text-white flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-amber-400" /> สิ่งที่ต้องดูตอนนี้
+              </h2>
+              <span className="text-xs text-slate-500">
+                {data?.watchdog_last_run
+                  ? `ตัวเฝ้าตรวจล่าสุด ${agoLabel(data.watchdog_last_run)}`
+                  : 'ตัวเฝ้ายังไม่เคยทำงาน — ตรวจ cron watchdog'}
+              </span>
+            </div>
+            {(data?.issues || []).length === 0 ? (
+              <p className="px-4 py-3 text-sm text-emerald-400/90 flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4" /> ไม่มีเรื่องค้าง — ทุกร้านซิงค์ตามปกติ
+              </p>
+            ) : (
+              <ul className="divide-y divide-slate-700/50">
+                {(data?.issues || []).map(issue => (
+                  <li key={issue.code} className="px-4 py-3 flex items-start gap-3">
+                    <span
+                      className={`mt-1.5 w-2 h-2 rounded-full flex-shrink-0 ${
+                        issue.severity === 'critical' ? 'bg-red-500' : 'bg-amber-400'
+                      }`}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium text-white">{issue.title}</p>
+                      <p className="text-sm text-slate-400">{issue.detail}</p>
+                    </div>
+                    <span className="text-xs text-slate-500 flex-shrink-0 text-right">
+                      {issue.companyName || 'ทั้งระบบ'}
+                      <br />
+                      {issue.scope === 'system' ? 'แจ้ง superadmin' : 'แจ้งเจ้าของร้าน'}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
           {/* Circuit breaker banners — หนึ่งแถวต่อ platform ที่โดนพัก */}
           {activeBreakers.length > 0 ? (
             activeBreakers.map(([p, v]) => (

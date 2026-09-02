@@ -360,6 +360,9 @@ function ReplenishmentsPageContent() {
   };
 
   // Print state tracking (DB-backed via printed_*_at columns)
+  /** ข้อความป้ายสถานะการพิมพ์ — ใช้ร่วมทั้งตาราง (desktop) และการ์ด (mobile) */
+  const printStatusTip = (r: Replenishment) =>
+    `ใบจัดของ: ${isPrintedDoc(r, 'packing') ? 'พิมพ์แล้ว' : 'ยังไม่พิมพ์'}\nใบปะหน้า: ${isPrintedDoc(r, 'label') ? 'พิมพ์แล้ว' : 'ยังไม่พิมพ์'}\nใบส่งของ: ${isPrintedDoc(r, 'dn') ? 'พิมพ์แล้ว' : 'ยังไม่พิมพ์'}`;
   const isPrintedDoc = (r: Replenishment, docType: string) => {
     const col = `printed_${docType}_at` as keyof Replenishment;
     return !!r[col];
@@ -817,7 +820,7 @@ function ReplenishmentsPageContent() {
                 const isPrinting = printingId === r.id;
                 if (r.status === 'cancelled') return <span className="data-muted text-gray-400 dark:text-slate-500">-</span>;
                 return (
-                  <Tooltip text={`ใบจัดของ: ${isPrintedDoc(r, 'packing') ? 'พิมพ์แล้ว' : 'ยังไม่พิมพ์'}\nใบปะหน้า: ${isPrintedDoc(r, 'label') ? 'พิมพ์แล้ว' : 'ยังไม่พิมพ์'}\nใบส่งของ: ${isPrintedDoc(r, 'dn') ? 'พิมพ์แล้ว' : 'ยังไม่พิมพ์'}`}>
+                  <Tooltip text={printStatusTip(r)}>
                     <div className="relative flex items-center justify-center gap-1">
                       {isPrinting && <Loader2 className="w-3.5 h-3.5 text-gray-400 animate-spin absolute" />}
                       <span className={`w-2.5 h-2.5 rounded-full transition-opacity ${isPrinting ? 'opacity-30' : ''} ${isPrintedDoc(r, 'packing') ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600'}`} />
@@ -904,12 +907,14 @@ function ReplenishmentsPageContent() {
                     {r.created_by_profile?.name && <span>{r.created_by_profile.name}</span>}
                   </div>
                   {r.status !== 'cancelled' && (
-                    <div className="relative flex items-center gap-1" title="สถานะการพิมพ์">
+                    <Tooltip text={printStatusTip(r)}>
+                    <div className="relative flex items-center gap-1" aria-label="สถานะการพิมพ์เอกสาร">
                       {isPrinting && <Loader2 className="w-3 h-3 text-gray-400 animate-spin absolute" />}
                       <span className={`w-2 h-2 rounded-full transition-opacity ${isPrinting ? 'opacity-30' : ''} ${isPrintedDoc(r, 'packing') ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600'}`} />
                       <span className={`w-2 h-2 rounded-full transition-opacity ${isPrinting ? 'opacity-30' : ''} ${isPrintedDoc(r, 'label') ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600'}`} />
                       <span className={`w-2 h-2 rounded-full transition-opacity ${isPrinting ? 'opacity-30' : ''} ${isPrintedDoc(r, 'dn') ? 'bg-green-500' : 'bg-gray-300 dark:bg-slate-600'}`} />
                     </div>
+                    </Tooltip>
                   )}
                 </div>
                 {r.receiver_name && (

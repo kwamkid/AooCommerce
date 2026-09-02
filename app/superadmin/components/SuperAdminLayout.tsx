@@ -4,6 +4,7 @@ import { ReactNode } from 'react';
 import SuperAdminSidebar from './SuperAdminSidebar';
 import { useSuperAdminGuard } from '../hooks/useSuperAdminGuard';
 import SuperAdminSkeleton from './SuperAdminSkeleton';
+import PushNotificationToggle from '@/components/ui/PushNotificationToggle';
 
 interface SuperAdminLayoutProps {
   children: ReactNode;
@@ -36,9 +37,15 @@ export default function SuperAdminLayout({ children, title, subtitle }: SuperAdm
               <h1 className="text-xl lg:text-2xl font-bold text-white">{title}</h1>
               {subtitle && <p className="text-sm text-slate-400 mt-0.5">{subtitle}</p>}
             </div>
-            <span className="px-3 py-1 bg-violet-500/20 text-violet-400 text-xs font-semibold rounded-full border border-violet-500/30">
-              SUPER ADMIN
-            </span>
+            <div className="flex items-center gap-4">
+              {/* เปิดแจ้งเตือนได้จากตรงนี้เลย — คนที่ต้องรับ alert ของระบบใช้เวลาอยู่ในหน้านี้
+                  ไม่ใช่ในแอปหลัก · แถวนี้บันทึก subscription ด้วย user_id เดียวกัน
+                  ตัวเฝ้าจึงยิงหาได้โดยไม่สนว่าเปิดจากบริษัทไหน */}
+              <PushNotificationToggle compact />
+              <span className="px-3 py-1 bg-violet-500/20 text-violet-400 text-xs font-semibold rounded-full border border-violet-500/30">
+                SUPER ADMIN
+              </span>
+            </div>
           </div>
         </header>
         <main className="flex-1 overflow-y-auto p-4 lg:p-6">

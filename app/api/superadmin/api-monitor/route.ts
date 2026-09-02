@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkSuperAdmin } from '@/lib/supabase-admin';
 import { clearQuotaFlag, QUOTA_PLATFORMS, type QuotaPlatform } from '@/lib/marketplace/quota';
+import { collectWatchdogIssues } from '@/lib/marketplace/watchdog';
 
 // Superadmin API Monitor — สุขภาพ integration ทุก platform ใน call เดียว
 // GET  ?days=14  → aggregate จาก RPC get_api_monitor_stats
@@ -15,10 +16,20 @@ export async function GET(request: NextRequest) {
     const daysRaw = parseInt(request.nextUrl.searchParams.get('days') || '14', 10);
     const days = Math.min(Math.max(isNaN(daysRaw) ? 14 : daysRaw, 1), 30);
 
-    const { data, error } = await supabaseAdmin.rpc('get_api_monitor_stats', { p_days: days });
+    // สถิติดิบ + รายการปัญหาที่ "ตัวเฝ้า" มองเห็นอยู่ตอนนี้ (ชุดเดียวกับที่ใช้เด้งเตือน
+    // — หน้าจอกับแจ้งเตือนจึงไม่มีทางเห็นไม่ตรงกัน) + heartbeat ว่าตัวเฝ้ายังทำงานอยู่ไหม
+    const [{ data, error }, issues, { data: heartbeat }] = await Promise.all([
+      supabaseAdmin.rpc('get_api_monitor_stats', { p_days: days }),
+      collectWatchdogIssues(),
+      supabaseAdmin.from('app_flags').select('value').eq('key', 'watchdog_last_run').maybeSingle(),
+    ]);
     if (error) throw error;
 
-    return NextResponse.json(data);
+    return NextResponse.json({
+      ...(data as Record<string, unknown>),
+      issues,
+      watchdog_last_run: (heartbeat?.value as { at?: string } | null)?.at || null,
+    });
   } catch (error) {
     console.error('API monitor GET error:', error);
     return NextResponse.json({ error: 'Failed to load monitor stats' }, { status: 500 });

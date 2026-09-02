@@ -8,7 +8,12 @@ import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
 import { getPushState, enablePush, disablePush, type PushState } from '@/lib/push/client';
 
-export default function PushNotificationToggle() {
+interface Props {
+  /** compact = แถวเดี่ยวไม่มีเส้นคั่น/ระยะขอบ สำหรับวางใน header (shell ของ superadmin) */
+  compact?: boolean;
+}
+
+export default function PushNotificationToggle({ compact = false }: Props) {
   const { showToast } = useToast();
   const [state, setState] = useState<PushState | null>(null);
   const [busy, setBusy] = useState(false);
@@ -61,11 +66,13 @@ export default function PushNotificationToggle() {
   if (state === 'unsupported') return null;
 
   return (
-    <div className="p-4 border-t border-gray-200 dark:border-slate-700">
+    <div className={compact ? '' : 'p-4 border-t border-gray-200 dark:border-slate-700'}>
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2.5 min-w-0">
           <Smartphone className="w-4 h-4 text-gray-400 flex-shrink-0" />
-          <span className="text-sm font-medium text-gray-700 dark:text-slate-200">แจ้งเตือนบนอุปกรณ์นี้</span>
+          <span className="text-sm font-medium text-gray-700 dark:text-slate-200">
+            {compact ? 'แจ้งเตือนเครื่องนี้' : 'แจ้งเตือนบนอุปกรณ์นี้'}
+          </span>
         </div>
         <Toggle
           checked={state === 'subscribed'}

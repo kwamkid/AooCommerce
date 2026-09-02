@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { apiFetch } from '@/lib/api-client';
 import DateRangePicker, { DateValueType } from '@/components/ui/DateRangePicker';
+import Tooltip from '@/components/ui/Tooltip';
 import { Search, Warehouse, ArrowDownUp, ExternalLink, X, Package2 } from 'lucide-react';
 import FormSelect from '@/components/ui/FormSelect';
 import { LoadingCard } from '@/components/ui/StateCard';
@@ -246,7 +247,7 @@ export default function HistoryTab({ warehouses, filterVariationId, filterProduc
                     <th className="data-th text-right">
                       คงเหลือ
                       {!warehouseFilter && (
-                        <span className="ml-1 text-amber-400 cursor-help" title="ค่านี้เป็นยอดต่อคลัง ไม่ใช่ยอดรวมทุกคลัง">⚠</span>
+                        <Tooltip text="ค่านี้เป็นยอดต่อคลัง ไม่ใช่ยอดรวมทุกคลัง"><span className="ml-1 text-amber-400 cursor-help" aria-label="ค่านี้เป็นยอดต่อคลัง">⚠</span></Tooltip>
                       )}
                     </th>
                   )}

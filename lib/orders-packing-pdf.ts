@@ -612,9 +612,15 @@ function compactPackingParts(order: PackingListData, hasLogo: boolean) {
   let overheadH = (hasLogo ? 118 : 74)   // หัวเอกสาร (โลโก้ + ชื่อ/ที่อยู่ร้าน + กล่องเลขที่)
     + recipientH
     + 32;                                // หัวตาราง + บรรทัดสรุป
-  // ชิปตัวเลือกพิเศษอยู่แถวเดียวกันหมด — คิดความสูงครั้งเดียวไม่ว่าจะมีกี่ชิป
-  if (order.gift_card_requested || order.gift_hide_price || order.tax_invoice_requested) overheadH += 24;
-  if (order.gift_card_requested) overheadH += 16;   // บรรทัดข้อความการ์ด / ถึง-จาก
+  // ชิป (ห้ามแนบราคา/ขอใบกำกับ) อยู่แถวเดียวกันหมด — คิดความสูงครั้งเดียวไม่ว่าจะมีกี่ชิป
+  if (order.gift_hide_price || order.tax_invoice_requested) overheadH += 24;
+  // การ์ดอวยพรเป็นการ์ดใบเดียว (หัวข้อ + ข้อความ + ถึง/จาก) และซ้อนแถวเดียวกับชิปฝั่งขวา
+  if (order.gift_card_requested) {
+    overheadH += 34
+      + (order.gift_message ? 16 : 0)
+      + (order.gift_to || order.gift_from ? 16 : 0)
+      - (order.gift_hide_price || order.tax_invoice_requested ? 24 : 0);
+  }
   overheadH += 10;   // เผื่อความคลาดเคลื่อนของการประมาณ — ล้นแล้วทับอีกออเดอร์
 
   return { deliveryAddress, noteText, scheduleText, rowCount, dense, overheadH };
@@ -720,57 +726,82 @@ function buildCompactPackingContent(
 
   // ── ผู้รับ + ที่อยู่จัดส่ง + กำหนดส่ง (บล็อกเด่น) ──
   // คนแพ็คใช้ใบนี้เทียบกับใบปะหน้าว่าของตรงกล่องไหน — ที่อยู่ต้องอ่านได้จากระยะแขน
-  // จัดเป็นตาราง 2 คอลัมน์ (ป้ายชื่อ | ค่า) เพื่อให้ที่อยู่/กำหนดส่ง "เริ่มตรงกัน"
-  // ที่ขอบเดียวกับชื่อผู้รับ — ไม่ใช่ไหลไปชิดซ้ายใต้ป้ายชื่อ
+  // วางเป็นตารางเดียว: [ป้าย | ค่า] ซ้าย = ผู้รับ+ที่อยู่ · ขวา = กำหนดส่ง · ล่าง = หมายเหตุ
+  // (ไม่ไล่เป็นบรรทัด ๆ ลงมา — กำหนดส่งอยู่ข้างผู้รับ ประหยัดความสูงและกวาดตาครั้งเดียวจบ)
   const customerPhone = order.delivery_phone || order.customer?.phone || '';
   const LABEL_W = dense ? 46 : 52;
+  const SCHEDULE_W = dense ? 120 : 140;
+  const hasSchedule = !!scheduleText;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const label = (text: string): any =>
     ({ text, fontSize: 9, bold: true, color: THEME.primary, margin: [0, 2, 0, 0] });
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const recipientRows: any[][] = [[
-    label('จัดส่งถึง'),
-    {
-      text: [
-        { text: customerName, fontSize: dense ? 11 : 13, bold: true, color: '#111111' },
-        ...(customerPhone
-          ? [{ text: `   โทร ${customerPhone}`, fontSize: dense ? 10 : 12, bold: true, color: '#111111' }]
-          : []),
-      ],
-    },
-  ]];
-  if (deliveryAddress) {
-    recipientRows.push([
-      { text: '' },
-      { text: deliveryAddress, fontSize: dense ? 9.5 : 11, color: '#1f2937', lineHeight: 1.15, margin: [0, 2, 0, 0] },
-    ]);
-  }
-  // กำหนดส่ง — ของสด/ของขวัญพลาดรอบส่งแล้วแก้ไม่ได้ คนแพ็คต้องเห็นคู่กับที่อยู่
-  if (scheduleText) {
-    recipientRows.push([
-      label('กำหนดส่ง'),
-      {
-        text: [
-          { text: scheduleText, fontSize: dense ? 10 : 11.5, bold: true, color: '#b45309' },
-          ...(order.delivery_zone_label
-            ? [{ text: `   (${order.delivery_zone_label})`, fontSize: 9, color: '#666666' }]
-            : []),
-        ],
+  const scheduleCell: any = {
+    text: [
+      { text: scheduleText, fontSize: dense ? 10 : 11.5, bold: true, color: '#b45309' },
+      ...(order.delivery_zone_label
+        ? [{ text: `  (${order.delivery_zone_label})`, fontSize: 9, color: '#666666' }]
+        : []),
+    ],
+    margin: [0, 2, 0, 0],
+  };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const recipientRows: any[][] = [];
+  const nameCell = {
+    text: [
+      { text: customerName, fontSize: dense ? 11 : 13, bold: true, color: '#111111' },
+      ...(customerPhone
+        ? [{ text: `   โทร ${customerPhone}`, fontSize: dense ? 10 : 12, bold: true, color: '#111111' }]
+        : []),
+    ],
+  };
+
+  const addressCell = deliveryAddress
+    ? {
+        text: deliveryAddress,
+        fontSize: dense ? 9.5 : 11,
+        color: '#1f2937',
+        lineHeight: 1.15,
         margin: [0, 2, 0, 0],
-      },
-    ]);
+      }
+    : null;
+
+  // ช่องกำหนดส่งกินสูงคร่อมทั้งชื่อและที่อยู่ (rowSpan) — ไม่งั้นถ้าฝั่งขวาสูง 2 บรรทัด
+  // ที่อยู่ฝั่งซ้ายจะถูกดันลงกลายเป็นช่องว่างใต้ชื่อ
+  const scheduleSpan = hasSchedule && addressCell ? 2 : 1;
+  recipientRows.push(hasSchedule
+    ? [
+        label('จัดส่งถึง'),
+        nameCell,
+        { ...label('กำหนดส่ง'), rowSpan: scheduleSpan },
+        { ...scheduleCell, rowSpan: scheduleSpan },
+      ]
+    : [label('จัดส่งถึง'), nameCell]);
+
+  if (addressCell) {
+    recipientRows.push(hasSchedule
+      ? [{ text: '' }, addressCell, {}, {}]
+      : [{ text: '' }, addressCell]);
   }
+
   if (noteText) {
-    recipientRows.push([
-      label('หมายเหตุ'),
-      { text: noteText, fontSize: 9, color: '#555555', margin: [0, 2, 0, 0] },
-    ]);
+    const noteCell = {
+      text: noteText, fontSize: 9, color: '#555555', margin: [0, 2, 0, 0],
+      colSpan: hasSchedule ? 3 : 1,
+    };
+    recipientRows.push(hasSchedule
+      ? [label('หมายเหตุ'), noteCell, {}, {}]
+      : [label('หมายเหตุ'), noteCell]);
   }
 
   content.push({
-    table: { widths: [LABEL_W, '*'], body: recipientRows },
+    table: {
+      widths: hasSchedule ? [LABEL_W, '*', LABEL_W, SCHEDULE_W] : [LABEL_W, '*'],
+      body: recipientRows,
+    },
     layout: {
       hLineWidth: () => 0,
       vLineWidth: () => 0,
@@ -778,7 +809,8 @@ function buildCompactPackingContent(
       // (บิลรายการเยอะตัดพื้นทิ้ง เอาที่ว่างไปให้แถวสินค้า)
       fillColor: () => (dense ? null : '#f1f5f9'),
       paddingLeft: (i: number) => (i === 0 ? (dense ? 0 : 8) : 0),
-      paddingRight: (i: number) => (i === 1 ? (dense ? 0 : 8) : 0),
+      paddingRight: (i: number, node: { table: { widths: unknown[] } }) =>
+        (i === node.table.widths.length - 1 ? (dense ? 0 : 8) : 0),
       paddingTop: (i: number) => (i === 0 ? (dense ? 1 : 5) : 0),
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       paddingBottom: (i: number, node: any) => (i === node.table.body.length - 1 ? (dense ? 1 : 6) : 0),
@@ -786,55 +818,90 @@ function buildCompactPackingContent(
     margin: [0, 1, 0, dense ? 3 : 5],
   });
 
-  // ── ตัวเลือกพิเศษของบิล — ชิปแถวเดียว ──
-  // เดิมเป็นกล่องเต็มความกว้างกล่องละ option กินที่ ~120pt ทั้งที่ข้อความสั้นมาก
-  // ตอนนี้ยุบเป็นชิปเรียงแถวเดียว ~22pt เน้นด้วย "ไอคอน + พื้นสี" แทนกรอบใหญ่
+  // ── ตัวเลือกพิเศษของบิล ──
+  // การ์ดอวยพร = การ์ดใบเดียวจบ (หัวข้อ + ข้อความ + ถึง/จาก) เพราะคนแพ็คต้องคัดลอกลงการ์ดจริง
+  // ที่เหลือเป็นชิปสั้น ๆ วางข้างกัน — เดิมเป็นกล่องเต็มความกว้างกล่องละ option กินที่ ~120pt
   // ⚠️ ไอคอนต้องเป็น SVG เท่านั้น — emoji ไม่มี glyph ใน IBMPlexSansThai (พิมพ์เป็นกล่องเปล่า)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const chips: any[] = [];
-
-  if (order.gift_card_requested) {
-    chips.push(buildChip(ICON_GIFT, 'แนบการ์ดอวยพร', '#be185d', '#fce7f3'));
-  }
+  const sideChips: any[] = [];
   if (order.gift_hide_price) {
-    chips.push(buildChip(ICON_NO_RECEIPT, 'ห้ามแนบใบเสร็จ / ราคา', '#dc2626', '#fee2e2'));
+    sideChips.push(buildChip(ICON_NO_RECEIPT, 'ห้ามแนบใบเสร็จ / ราคา', '#dc2626', '#fee2e2'));
   }
   if (order.tax_invoice_requested) {
-    chips.push(buildChip(ICON_TAX, 'ขอใบกำกับภาษี', '#b45309', '#fef3c7'));
+    sideChips.push(buildChip(ICON_TAX, 'ขอใบกำกับภาษี', '#b45309', '#fef3c7'));
   }
 
-  if (chips.length > 0) {
-    content.push({
-      columns: [...chips, { width: '*', text: '' }],
-      columnGap: 6,
-      margin: [0, 0, 0, 4],
-    });
-  }
-
-  // ข้อความการ์ด — บรรทัดเดียวต่อจากชิป (คนแพ็คต้องคัดลอกลงการ์ดจริง จึงต้องอ่านออกชัด)
   if (order.gift_card_requested) {
-    const toFrom = [
-      order.gift_to ? `ถึง: ${order.gift_to}` : '',
-      order.gift_from ? `จาก: ${order.gift_from}` : '',
-    ].filter(Boolean).join('     ');
-    if (order.gift_message || toFrom) {
-      content.push({
-        text: [
-          ...(order.gift_message
-            ? [{ text: order.gift_message, fontSize: 10.5, color: '#111111' }]
-            : []),
-          ...(order.gift_message && toFrom ? [{ text: '     ', fontSize: 10 }] : []),
-          ...(toFrom ? [{ text: toFrom, fontSize: 10, color: '#555555' }] : []),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const cardLines: any[] = [{
+      columns: [
+        { svg: ICON_GIFT, width: 12, height: 12, margin: [0, 1, 0, 0] },
+        { text: 'แนบการ์ดอวยพร', fontSize: 10.5, bold: true, color: '#be185d', width: 'auto', margin: [5, 0, 0, 0] },
+      ],
+      columnGap: 0,
+      margin: [0, 0, 0, 3],
+    }];
+
+    if (order.gift_message) {
+      cardLines.push({
+        columns: [
+          { width: 36, text: 'ข้อความ', fontSize: 9, bold: true, color: '#be185d', margin: [0, 1, 0, 0] },
+          { width: '*', text: order.gift_message, fontSize: 10.5, color: '#111111', lineHeight: 1.15 },
         ],
-        margin: [2, 0, 0, 5],
-      });
-    } else {
-      // ลูกค้าขอการ์ดแต่ไม่ฝากข้อความ — บอกให้ชัด คนแพ็คจะได้ไม่นั่งหา
-      content.push({
-        text: 'ลูกค้าไม่ได้ฝากข้อความ — แนบการ์ดเปล่า',
-        fontSize: 9, color: '#888888', margin: [2, 0, 0, 5],
+        columnGap: 4,
       });
     }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const toFromCols: any[] = [];
+    if (order.gift_to) {
+      toFromCols.push({
+        width: 'auto',
+        text: [
+          { text: 'ถึง  ', fontSize: 9, bold: true, color: '#be185d' },
+          { text: order.gift_to, fontSize: 10.5, bold: true, color: '#111111' },
+        ],
+      });
+    }
+    if (order.gift_from) {
+      toFromCols.push({
+        width: 'auto',
+        text: [
+          { text: 'จาก  ', fontSize: 9, bold: true, color: '#be185d' },
+          { text: order.gift_from, fontSize: 10.5, bold: true, color: '#111111' },
+        ],
+      });
+    }
+    if (toFromCols.length > 0) {
+      cardLines.push({ columns: [...toFromCols, { width: '*', text: '' }], columnGap: 16, margin: [0, 3, 0, 0] });
+    }
+    // ลูกค้าขอการ์ดแต่ไม่ฝากอะไรมาเลย — บอกให้ชัด คนแพ็คจะได้ไม่นั่งหา
+    if (!order.gift_message && toFromCols.length === 0) {
+      cardLines.push({ text: 'ลูกค้าไม่ได้ฝากข้อความ — แนบการ์ดเปล่า', fontSize: 9.5, color: '#9f1239' });
+    }
+
+    const giftCard = {
+      width: '*' as const,
+      table: { widths: ['*'], body: [[{ stack: cardLines, margin: [8, 5, 8, 6], fillColor: '#fdf2f8' }]] },
+      layout: {
+        hLineWidth: () => 1, vLineWidth: () => 1,
+        hLineColor: () => '#f9a8d4', vLineColor: () => '#f9a8d4',
+      },
+    };
+
+    content.push({
+      columns: sideChips.length > 0
+        ? [giftCard, { width: 'auto', stack: sideChips }]
+        : [giftCard],
+      columnGap: 6,
+      margin: [0, 0, 0, 5],
+    });
+  } else if (sideChips.length > 0) {
+    content.push({
+      columns: [...sideChips, { width: '*', text: '' }],
+      columnGap: 6,
+      margin: [0, 0, 0, 5],
+    });
   }
 
   // ── Compact item table ──
