@@ -5,6 +5,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
+import PushNotificationToggle from '@/components/ui/PushNotificationToggle';
 import {
   LayoutDashboard,
   Building2,
@@ -45,10 +46,14 @@ export default function SuperAdminSidebar() {
 
   return (
     <>
-      {/* Mobile Menu Button */}
+      {/* Mobile Menu Button
+          ⚠️ ต้องเลื่อนลงตาม safe area — แอปนี้ status bar เป็น black-translucent
+          ปุ่มที่ top-3 เฉย ๆ จะไปนั่งทับนาฬิกา แล้ว **กดไม่โดน** เพราะระบบกินทัชไปก่อน
+          (เจอจริง 4 ก.ย. 2026 — ดู fix-bug.md) */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="lg:hidden fixed top-3 left-3 z-50 p-2 rounded-lg hover:bg-white/10 transition-colors"
+        aria-label={isOpen ? 'ปิดเมนู' : 'เปิดเมนู'}
+        className="lg:hidden fixed top-safe-2 left-safe-3 z-50 p-2.5 rounded-lg hover:bg-white/10 active:bg-white/15 transition-colors"
       >
         {isOpen ? <X className="w-6 h-6 text-violet-400" /> : <Menu className="w-6 h-6 text-violet-400" />}
       </button>
@@ -60,7 +65,7 @@ export default function SuperAdminSidebar() {
 
       {/* Sidebar */}
       <aside
-        className={`fixed lg:static inset-y-0 left-0 z-40 w-64 bg-slate-900 border-r border-violet-500/20 transform transition-transform duration-300 ease-in-out ${
+        className={`fixed lg:static inset-y-0 left-0 z-40 w-64 bg-slate-900 border-r border-violet-500/20 pt-safe pb-safe transform transition-transform duration-300 ease-in-out ${
           isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         }`}
       >
@@ -74,10 +79,16 @@ export default function SuperAdminSidebar() {
           <div className="px-4 py-3 border-b border-violet-500/20">
             <div className="flex items-center gap-2 px-3 py-2 bg-violet-900/30 rounded-lg border border-violet-500/20">
               <Shield className="w-5 h-5 text-violet-400" />
-              <div>
+              <div className="min-w-0">
                 <p className="text-violet-400 text-sm font-semibold">Super Admin</p>
                 <p className="text-slate-400 text-xs truncate">{userProfile?.email || ''}</p>
               </div>
+            </div>
+            {/* สวิตช์แจ้งเตือนของ "เครื่องนี้" — ย้ายมาจาก header เพราะบนมือถือแถวเดียว
+                ใส่ทั้งหัวข้อ+สวิตช์+ป้ายแล้วเบียดจนกดไม่โดน · subscription บันทึกด้วย
+                user_id เดียวกัน ตัวเฝ้าจึงยิงหาได้โดยไม่สนว่าเปิดจากบริษัทไหน */}
+            <div className="mt-2 px-3 py-2 bg-slate-800/50 rounded-lg border border-slate-700/60">
+              <PushNotificationToggle compact audience="superadmin" />
             </div>
           </div>
 

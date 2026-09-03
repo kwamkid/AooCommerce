@@ -125,3 +125,28 @@ export async function disablePush(audience: PushAudience = 'app'): Promise<PushS
   }
   return 'unsubscribed';
 }
+
+/**
+ * ล้างเลขบนไอคอนแอป (Badging API)
+ *
+ * ⚠️ iOS/Android **ไม่ได้** แปะจำนวนแจ้งเตือนบนไอคอน PWA ให้เอง — ต้องเรียก
+ * `setAppBadge()` เองใน service worker (ตอน push เข้า) และ `clearAppBadge()`
+ * ที่นี่ตอนผู้ใช้เปิดแอปมาเห็นแล้ว · iOS 16.4+ เฉพาะแอปที่ติดตั้งแล้ว
+ *
+ * เรียกทั้งสองฝั่งเพราะตัวนับอยู่ที่ SW แต่หน้าเว็บล้างไอคอนได้เร็วกว่า —
+ * ฝั่งไหนไม่รองรับก็เงียบไป ไม่ throw
+ */
+export async function clearAppBadge(): Promise<void> {
+  const nav = navigator as Navigator & { clearAppBadge?: () => Promise<void> };
+  if (typeof nav.clearAppBadge === 'function') {
+    try { await nav.clearAppBadge(); } catch { /* ไม่ได้ติดตั้งเป็นแอป */ }
+  }
+  if (!('serviceWorker' in navigator)) return;
+  try {
+    // บอกทุก registration (สายแอปร้าน + สายผู้ดูแลระบบ) ให้ reset ตัวนับของตัวเอง
+    const regs = await navigator.serviceWorker.getRegistrations();
+    for (const reg of regs) {
+      (reg.active || reg.waiting || reg.installing)?.postMessage({ type: 'clear-badge' });
+    }
+  } catch { /* ignore */ }
+}

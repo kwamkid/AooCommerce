@@ -12,6 +12,38 @@ html, body {
   max-width: 100%;
 }
 
+/* ── ขอบจอโค้ง / รอยบาก / แถบ home indicator (safe area) ────────────────────
+   root layout ตั้ง `viewportFit: 'cover'` ไว้ = หน้าเว็บกินเต็มจอจริงรวมส่วนที่
+   โดนมุมโค้งกับแถบ home indicator ทับ → **ทุกอย่างที่ fixed/sticky ติดขอบจอ
+   ต้องเผื่อระยะเอง** ไม่งั้นปุ่มไปอยู่ใต้นาฬิกาแล้วกดไม่โดน (เจอจริงกับ shell
+   ของ superadmin ที่ตั้ง status bar เป็น black-translucent — ดู fix-bug.md)
+
+   ใช้ `env(safe-area-inset-*, 0px)` เสมอ — เบราว์เซอร์เดสก์ท็อป/แอนดรอยด์รุ่นเก่า
+   ไม่รู้จัก env() จะได้ 0 แทนที่จะพัง */
+.pt-safe  { padding-top:    env(safe-area-inset-top, 0px); }
+.pb-safe  { padding-bottom: env(safe-area-inset-bottom, 0px); }
+.px-safe  { padding-left:   env(safe-area-inset-left, 0px);
+            padding-right:  env(safe-area-inset-right, 0px); }
+
+/* ตัวบวกทับระยะเดิม — ใช้กับกล่องที่มี padding ของตัวเองอยู่แล้ว
+   ⚠️ ห้ามใช้ `.px-safe` คู่กับ `p-4` ของ Tailwind — มันจะ**แทนที่** padding ซ้ายขวา
+   ไม่ใช่บวกเพิ่ม (ในแนวตั้ง inset ซ้ายขวา = 0 เนื้อหาจะไปชนขอบจอ) ใช้ตัว -4 แทน */
+.pt-safe-3 { padding-top:    calc(env(safe-area-inset-top, 0px)    + 0.75rem); }
+.pt-safe-4 { padding-top:    calc(env(safe-area-inset-top, 0px)    + 1rem); }
+.pb-safe-4 { padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 1rem); }
+.pb-safe-6 { padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 1.5rem); }
+.px-safe-4 { padding-left:   calc(env(safe-area-inset-left, 0px)  + 1rem);
+             padding-right:  calc(env(safe-area-inset-right, 0px) + 1rem); }
+.top-safe-2  { top:  calc(env(safe-area-inset-top, 0px)  + 0.5rem); }
+.left-safe-3 { left: calc(env(safe-area-inset-left, 0px) + 0.75rem); }
+
+@media (min-width: 1024px) {
+  /* จอใหญ่ไม่มีรอยบาก — คืนระยะปกติให้ layout เดสก์ท็อปไม่เพี้ยน */
+  .lg\:px-safe-6 { padding-left:  calc(env(safe-area-inset-left, 0px)  + 1.5rem);
+                    padding-right: calc(env(safe-area-inset-right, 0px) + 1.5rem); }
+  .lg\:pt-safe-4 { padding-top: calc(env(safe-area-inset-top, 0px) + 1rem); }
+}
+
 /* Consistent form controls - apply to all inputs and selects */
 @layer base {
   input[type="text"],

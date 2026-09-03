@@ -147,14 +147,19 @@ export default function OnboardingPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-amber-50 dark:from-slate-900 dark:via-slate-900 dark:to-slate-800 flex items-start sm:items-center justify-center pt-8 sm:pt-0 p-4 relative overflow-hidden">
+    <div className="min-h-dvh bg-gradient-to-br from-orange-50 via-white to-amber-50 dark:from-slate-900 dark:via-slate-900 dark:to-slate-800 flex flex-col sm:justify-center justify-start items-center px-4 pt-safe-4 pb-safe-6 relative overflow-hidden">
       {/* Decorative soft blobs — ให้พื้นหลังสว่างมีมิติ ไม่แบนจนโล่ง */}
       <div className="pointer-events-none absolute -top-24 -left-24 w-[420px] h-[420px] rounded-full bg-[#F4511E]/15 blur-3xl" />
       <div className="pointer-events-none absolute -bottom-32 -right-20 w-[480px] h-[480px] rounded-full bg-amber-300/25 blur-3xl" />
 
-      {/* ตัวตนคน login — ใช้ชิปเดียวกับ wizard (แทนปุ่ม logout จางๆ ที่คนมองข้าม) */}
-      <div className="absolute top-4 right-4 z-10 bg-white/80 dark:bg-slate-800/80 backdrop-blur rounded-xl border border-gray-200 dark:border-slate-700 px-3 py-1.5">
-        <SignedInUser />
+      {/* ตัวตนคน login — ใช้ชิปเดียวกับ wizard (แทนปุ่ม logout จางๆ ที่คนมองข้าม)
+          ⚠️ บนมือถือชิปนี้ต้องอยู่ **ในสายการวาง** ห้ามลอย absolute — ชื่อ+อีเมลทำให้มัน
+          กว้างเกือบเต็มจอ แล้วไปทับโลโก้ที่อยู่กึ่งกลางด้านบน (เจอจริง 4 ก.ย. 2026)
+          จอใหญ่ค่อยลอยไปมุมขวาบนได้ เพราะมีที่เหลือพอ */}
+      <div className="w-full max-w-lg sm:max-w-none sm:w-auto sm:absolute sm:top-4 sm:right-4 z-10 mb-4 sm:mb-0 flex justify-end">
+        <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur rounded-xl border border-gray-200 dark:border-slate-700 px-3 py-1.5">
+          <SignedInUser />
+        </div>
       </div>
 
       <div className="w-full max-w-lg">

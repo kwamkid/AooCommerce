@@ -9,9 +9,9 @@ const bar = 'bg-slate-800 rounded animate-pulse';
 
 export default function SuperAdminSkeleton() {
   return (
-    <div className="flex h-screen bg-slate-950 overflow-hidden">
+    <div className="flex h-dvh bg-slate-950 overflow-hidden">
       {/* Sidebar — โครงเดียวกับ SuperAdminSidebar (w-64 bg-slate-900) */}
-      <aside className="hidden lg:block w-64 bg-slate-900 border-r border-violet-500/20 p-4 space-y-6 flex-shrink-0">
+      <aside className="hidden lg:block w-64 bg-slate-900 border-r border-violet-500/20 p-4 pt-safe pb-safe space-y-6 flex-shrink-0">
         <div className={`${bar} h-10 w-10 rounded-lg`} />
         <div className={`${bar} h-14 w-full rounded-xl`} />
         <div className="space-y-3 pt-2">
@@ -23,18 +23,20 @@ export default function SuperAdminSkeleton() {
 
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Header bar */}
-        <header className="bg-slate-900 border-b border-slate-700/50 px-4 lg:px-6 py-4">
+        {/* ระยะเดียวกับ header จริงใน SuperAdminLayout — skeleton ที่สูงไม่เท่าของจริง
+            จะทำให้หน้ากระโดดตอนโหลดเสร็จ (safe area ของจอขอบโค้งต้องนับด้วย) */}
+        <header className="bg-slate-900 border-b border-slate-700/50 px-safe-4 lg:px-safe-6 pt-safe-3 pb-3 lg:pt-safe-4 lg:pb-4">
           <div className="flex items-center justify-between">
-            <div className="space-y-2 pl-10 lg:pl-0">
+            <div className="space-y-2 pl-11 lg:pl-0">
               <div className={`${bar} h-6 w-44`} />
               <div className={`${bar} h-3 w-64`} />
             </div>
-            <div className={`${bar} h-6 w-28 rounded-full`} />
+            <div className={`${bar} hidden lg:block h-6 w-28 rounded-full`} />
           </div>
         </header>
 
         {/* Content — แถว stat cards + บล็อกตาราง */}
-        <main className="flex-1 overflow-hidden p-4 lg:p-6 space-y-5">
+        <main className="flex-1 overflow-hidden px-safe-4 lg:px-safe-6 pt-4 lg:pt-6 pb-safe-6 space-y-5">
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             {Array.from({ length: 4 }).map((_, i) => (
               <div key={i} className="bg-slate-900 border border-slate-700/50 rounded-xl p-4 space-y-3">

@@ -9,13 +9,37 @@ import { supabase } from '@/lib/supabase';
 
 let cachedAccessToken: string | null = null;
 
+/**
+ * ให้เซิร์ฟเวอร์เขียนคุกกี้ session ทับด้วยอายุยาว
+ *
+ * ⚠️ Safari (ITP) บีบอายุคุกกี้ที่เขียนด้วย `document.cookie` เหลือ **7 วัน** เสมอ
+ * ซึ่งเป็นวิธีที่ @supabase/ssr ฝั่งเบราว์เซอร์ใช้ → ผู้ใช้ iPhone หลุด login เป็นระยะ
+ * โดยเฉพาะในแอปที่ติดตั้ง (PWA) ที่มีถังคุกกี้ของตัวเองแยกจาก Safari
+ * คุกกี้จาก `Set-Cookie` ของเซิร์ฟเวอร์ไม่โดนเพดานนั้น — จึงยิงตามหลังทุกครั้งที่
+ * SDK เพิ่งเขียนคุกกี้ใหม่ เพื่อให้ "คนเขียนคนสุดท้าย" เป็นเซิร์ฟเวอร์
+ *
+ * เงียบเสมอ: ต่ออายุไม่สำเร็จก็แค่กลับไปมีอายุ 7 วันเท่าเดิม ไม่ใช่เรื่องที่ต้องขัดจังหวะผู้ใช้
+ */
+let lastPersistAt = 0;
+function persistSessionCookie(): void {
+  const now = Date.now();
+  if (now - lastPersistAt < 60_000) return; // กันยิงรัวตอน event หลายตัวมาพร้อมกัน
+  lastPersistAt = now;
+  fetch('/api/auth/persist-session', { method: 'POST', credentials: 'same-origin' }).catch(() => {});
+}
+
 // Keep the cache in sync with sign-in / sign-out / silent token refresh.
 if (typeof window !== 'undefined') {
   supabase.auth.getSession().then(({ data: { session } }) => {
     cachedAccessToken = session?.access_token ?? null;
+    if (session) persistSessionCookie();
   });
-  supabase.auth.onAuthStateChange((_event, session) => {
+  supabase.auth.onAuthStateChange((event, session) => {
     cachedAccessToken = session?.access_token ?? null;
+    // ทุก event ที่ทำให้ SDK เขียนคุกกี้ใหม่ (ซึ่งจะโดน Safari ตัดเหลือ 7 วัน)
+    if (session && (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED')) {
+      persistSessionCookie();
+    }
   });
 }
 

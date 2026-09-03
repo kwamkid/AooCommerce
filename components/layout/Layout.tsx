@@ -48,7 +48,9 @@ export default function Layout({ children, title, breadcrumbs, noPadding }: Layo
         </div>
 
         {/* Page Content */}
-        <main className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden print:overflow-visible">
+        {/* pb-safe = เผื่อแถบ home indicator ของจอขอบโค้ง (root layout ตั้ง viewportFit: cover
+            หน้าเว็บจึงกินถึงขอบจอจริง) — ไม่งั้นแถวล่างสุดของตารางโดนบังตลอด */}
+        <main className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden pb-safe print:overflow-visible">
           {/* Page Header — hidden on print */}
           {(title || breadcrumbs) && (
             <div className="bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-700 px-4 lg:px-6 py-4 print:hidden">

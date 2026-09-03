@@ -2,12 +2,13 @@
 
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth-context';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { apiFetch } from '@/lib/api-client';
 
 export function useSuperAdminGuard() {
   const { user, session, loading: authLoading } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -15,7 +16,10 @@ export function useSuperAdminGuard() {
     if (authLoading) return;
 
     if (!user || !session) {
-      router.replace('/login');
+      // ต้องพก ?redirect กลับมาด้วยเสมอ — ไม่งั้นล็อกอินเสร็จจะไปโผล่ "เลือกบริษัท"
+      // (ค่า default ของหน้า login) ทั้งที่ตั้งใจจะเข้าหน้าผู้ดูแลระบบ
+      // เห็นชัดสุดในแอปที่ติดตั้ง: เปิดแอปแอดมิน แล้วโดนถามให้เลือกบริษัท
+      router.replace(`/login?redirect=${encodeURIComponent(pathname || '/superadmin')}`);
       return;
     }
 
@@ -37,7 +41,7 @@ export function useSuperAdminGuard() {
     };
 
     checkAccess();
-  }, [user, session, authLoading, router]);
+  }, [user, session, authLoading, router, pathname]);
 
   return { isSuperAdmin, loading };
 }

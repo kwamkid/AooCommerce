@@ -349,9 +349,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     // Logged in → handle routing
-    // On login/register page → go to company list
+    // On login/register page → กลับไปที่ที่ตั้งใจจะไป ถ้ามี ?redirect= ติดมา
+    // (proxy.ts ใส่ให้ตอนเด้งมา และตัวกันสิทธิ์ของ /superadmin ก็ใส่เอง)
+    // ห้ามทิ้งแล้วส่งไป /onboarding ดื้อ ๆ — superadmin ที่ session หมดอายุจะไปโผล่
+    // หน้า "เลือกบริษัท" ทุกครั้งแทนที่จะกลับเข้าหน้าผู้ดูแลระบบ
+    // (ใช้ window.location แทน useSearchParams เพราะ provider นี้อยู่ใน root layout —
+    //  useSearchParams ที่นั่นจะลาก client bailout ไปทั้งแอป)
     if (pathname === '/login' || pathname === '/register') {
-      router.replace('/onboarding');
+      const back = new URLSearchParams(window.location.search).get('redirect');
+      const safeBack = back && back.startsWith('/') && !back.startsWith('//') ? back : null;
+      router.replace(safeBack || '/onboarding');
       return;
     }
 
