@@ -66,6 +66,20 @@
 - **token ที่ได้ตอน app ยังไม่ผ่านรีวิวมีอายุสั้นกว่าของจริง** — ต่อ integration ระหว่างรออนุมัติได้ แต่พออนุมัติแล้ว **ต้องกดเชื่อมใหม่** ไม่งั้นค้างอายุสั้นเดิม · เช็คได้จาก `*_expires_at` ว่าห่างจากเวลาที่ออก token กี่วัน
 - ช่องทางที่ "พังแล้วต้องให้คนกดแก้" ต้องมีปุ่มแก้อยู่ในหน้าเดียวกับที่แสดงว่าพัง — ไม่งั้นผู้ใช้เห็นปัญหาแต่ทำอะไรไม่ได้
 
+## 2026-09-04 — จ่ายบัตรแล้วสถานะยังไม่ขยับ (ต่อจาก 2 ก.ย.) — อ่านชื่อฟิลด์ของ Beam ผิด
+
+**ที่เกิด**: [app/api/beam/create-payment-link/route.ts](app/api/beam/create-payment-link/route.ts)
+**อาการ**: หลังแก้ CHECK constraint เมื่อ 2 ก.ย. แถว `payment_records` ถูกสร้างแล้วจริง แต่ออเดอร์ยัง**ไม่ขยับเป็นชำระแล้ว** (ORD-202609-0009, -0012 ต้องบันทึกชำระมือซ้ำอีกรอบ)
+**Root cause**: โค้ดอ่าน `beamResult.paymentLinkId` แต่ Beam ตอบกลับเป็น **`{ id, url }`** (ยืนยันจาก `gateway_raw_response` ของจริง) → `gateway_payment_link_id` ถูกบันทึกเป็น **NULL** ทุกแถว → ตอน webhook กลับมาค้นด้วย paymentLinkId จึงหาไม่เจอ = ไม่มีใครอัพเดทออเดอร์ · ชั้นเดียวกับบั๊กเดิมเป๊ะ (เขียนค่าลงไปโดยไม่มีใครตรวจว่าค่านั้นมีจริง)
+**วิธีแก้**:
+- อ่าน `beamResult.paymentLinkId || beamResult.id` และ **ไม่มี id = ไม่ส่งลูกค้าไปจ่าย** (คืน 500)
+- backfill `gateway_payment_link_id` ของ 3 แถวเดิมจาก `gateway_raw_response->>'id'`
+- **webhook บันทึกทุก event ลง `integration_logs`** (ผ่าน/ไม่ผ่าน/ไม่รองรับ event นี้) — เดิมมีแต่ `console.log` บน Vercel ทำให้ตอบคำถาม "webhook มาถึงไหม" ไม่ได้เลย
+**ป้องกัน regression**:
+- **ค่าที่ได้จาก API ภายนอกแล้วเอาไปเป็นกุญแจจับคู่ ต้องเช็คว่าไม่ว่างก่อนใช้เสมอ** — undefined เขียนลง DB ได้เงียบ ๆ แล้วไปพังตอน webhook ซึ่งห่างกันเป็นนาที/ชั่วโมง
+- **ยึด response จริงเป็นหลัก ไม่ใช่ชื่อฟิลด์ที่เดาจากเอกสาร** — `gateway_raw_response` ที่เก็บไว้คือสิ่งที่ทำให้จับได้ในนาทีเดียว
+- ทางเข้าที่เป็นเงิน (webhook) **ต้องมี log ถาวรใน DB** ไม่ใช่ log ของ hosting
+
 ## 2026-09-02 — จ่ายบัตรผ่านบิลออนไลน์สำเร็จ แต่ระบบไม่รู้ว่าจ่ายแล้ว (เก็บเงินได้ ออเดอร์ค้าง pending)
 
 **ที่เกิด**: [app/api/beam/create-payment-link/route.ts](app/api/beam/create-payment-link/route.ts) · [app/api/beam/webhook/route.ts](app/api/beam/webhook/route.ts) · CHECK `valid_payment_method` บน `payment_records`

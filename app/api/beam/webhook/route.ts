@@ -3,6 +3,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
+import { logIntegrationNow } from '@/lib/integration-logger';
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -47,7 +48,7 @@ export async function POST(request: NextRequest) {
     // Fetch gateway config for signature verification
     const { data: gatewayChannel } = await supabaseAdmin
       .from('payment_channels')
-      .select('config')
+      .select('config, company_id')
       .eq('channel_group', 'bill_online')
       .eq('type', 'payment_gateway')
       .eq('is_active', true)
@@ -81,6 +82,28 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
     }
 
+    // บันทึกทุก event ที่ผ่านการตรวจลายเซ็นแล้ว — เวลาสถานะไม่ขยับจะได้ตอบได้ว่า
+    // "webhook มาถึงไหม / ชื่อ event อะไร / จับคู่ออเดอร์ได้ไหม" (เดิมมีแต่ console.log
+    // บน Vercel ซึ่งย้อนดูยากและหายตามอายุ log)
+    const logWebhook = (
+      status: 'success' | 'error',
+      note: string,
+      companyId?: string | null,
+      orderId?: string | null,
+    ) => logIntegrationNow({
+      company_id: companyId || (gatewayChannel as { company_id?: string }).company_id || '',
+      integration: 'beam',
+      direction: 'incoming',
+      action: `webhook_${eventType || 'unknown'}`,
+      api_path: '/api/beam/webhook',
+      request_body: event,
+      status,
+      error_message: status === 'error' ? note : undefined,
+      response_body: { note },
+      reference_type: orderId ? 'order' : undefined,
+      reference_id: orderId || undefined,
+    }).catch(() => { /* log ห้ามทำให้ webhook ล้ม */ });
+
     // Handle payment success events
     if (eventType === 'payment_link.paid' || eventType === 'charge.succeeded') {
       // Extract payment link ID from event data
@@ -110,7 +133,10 @@ export async function POST(request: NextRequest) {
           || (eventData.order as Record<string, unknown> | undefined)?.referenceId) as string | undefined;
         console.error('No payment record for paymentLinkId:', paymentLinkId, '— referenceId:', orderRef);
 
-        if (!orderRef) return NextResponse.json({ success: true }); // Ack — ไม่มีอะไรให้กู้
+        if (!orderRef) {
+          await logWebhook('error', `หาแถวจาก paymentLinkId=${paymentLinkId} ไม่เจอ และไม่มี referenceId ให้กู้`);
+          return NextResponse.json({ success: true }); // Ack — ไม่มีอะไรให้กู้
+        }
 
         const { data: refOrder } = await supabaseAdmin
           .from('orders')
@@ -182,8 +208,12 @@ export async function POST(request: NextRequest) {
       }
 
       console.log('Payment verified via webhook for order:', paymentRecord.order_id);
+      await logWebhook('success', 'อัพเดทออเดอร์เป็นชำระแล้ว', null, paymentRecord.order_id);
     } else {
+      // event ที่เราไม่ได้รองรับ — ต้องเห็นใน log ไม่งั้นจะไม่มีวันรู้ว่า Beam
+      // ส่งชื่อ event อะไรมาจริง ๆ แล้วเราตกไปกี่ใบ
       console.log('Unhandled webhook event type:', eventType);
+      await logWebhook('error', `ไม่รองรับ event นี้: ${eventType || '(ไม่มีชื่อ event)'}`);
     }
 
     // Always return 200 to acknowledge receipt

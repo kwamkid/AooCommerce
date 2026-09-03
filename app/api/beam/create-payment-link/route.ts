@@ -229,6 +229,19 @@ export async function POST(request: NextRequest) {
 
     const beamResult = await beamResponse.json();
 
+    // ⚠️ Beam ตอบกลับเป็น `{ id, url }` — **ไม่ใช่ `paymentLinkId`**
+    // (ยืนยันจาก gateway_raw_response ของจริง 3 ก.ย. 2569)
+    // อ่านผิดชื่อ = เก็บ id ไม่ได้ → ตอน webhook กลับมาจับคู่กับออเดอร์ไม่ได้
+    // → จ่ายเงินแล้วสถานะไม่ขยับ (รองรับทั้งสองชื่อไว้เผื่อ Beam เปลี่ยน)
+    const paymentLinkId: string | undefined = beamResult.paymentLinkId || beamResult.id;
+    if (!paymentLinkId) {
+      console.error('Beam: response has no payment link id:', JSON.stringify(beamResult).slice(0, 300));
+      return NextResponse.json(
+        { error: 'ไม่สามารถสร้างลิงก์ชำระเงินได้ (ไม่พบรหัสอ้างอิงจากผู้ให้บริการ)' },
+        { status: 500 },
+      );
+    }
+
     // 8. Cancel any existing pending gateway payment records for this order
     // (customer might have clicked pay before but didn't complete)
     const { error: cancelError } = await supabaseAdmin.from('payment_records').update({
@@ -259,7 +272,7 @@ export async function POST(request: NextRequest) {
       amount: order.total_amount,
       status: 'pending',
       gateway_provider: 'beam',
-      gateway_payment_link_id: beamResult.paymentLinkId,
+      gateway_payment_link_id: paymentLinkId,
       gateway_status: beamResult.status || 'ACTIVE',
       gateway_raw_response: beamResult,
     });
@@ -278,7 +291,7 @@ export async function POST(request: NextRequest) {
     // 10. Return payment URL
     return NextResponse.json({
       payment_url: beamResult.url,
-      payment_link_id: beamResult.paymentLinkId,
+      payment_link_id: paymentLinkId,
     });
   } catch (error) {
     console.error('Create payment link error:', error);
