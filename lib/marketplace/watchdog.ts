@@ -205,14 +205,20 @@ export async function collectWatchdogIssues(
   // ถ้า webhook หลุด · channel secret เปลี่ยน · token เพจหมดอายุ **มันจะเงียบสนิท
   // โดยไม่มีอะไรฟ้อง** — ซึ่งเป็นรูปแบบเดียวกับ cron Shopee ที่ตายเงียบ 12 วัน
   //
-  // เกณฑ์ต้องเทียบกับ "จังหวะปกติของช่องทางนั้นเอง" ไม่ใช่ตัวเลขตายตัว — เพจที่
-  // คุยวันละ 6 ข้อความเงียบ 20 ชม. คือเรื่องปกติ ส่วน OA ที่คุยวันละร้อยเงียบ
-  // 6 ชม. คือผิดปกติแล้ว · เพจที่แทบไม่มีใครทัก (< 20 ข้อความ/สัปดาห์) ไม่ตรวจเลย
-  // เพราะตัดสินไม่ได้ว่าเงียบเพราะพังหรือเพราะไม่มีคนทัก
+  // เกณฑ์เทียบกับ **ช่องว่างที่ยาวที่สุดที่ช่องทางนี้เคยเงียบได้ตามปกติ** (30 วัน)
+  //
+  // ⚠️ เคยใช้ "8 × ระยะห่างเฉลี่ย" แล้ว**เตือนผิดทุกคืน** — สูตรเฉลี่ยสมมติว่า
+  // ข้อความกระจายเท่ากันทั้ง 168 ชม./สัปดาห์ ซึ่งไม่จริงเลย ลูกค้าไม่ทักตอนตี 3
+  // LINE ที่คุยวันละ ~95 ข้อความจึงได้เกณฑ์ 6 ชม. แล้วลั่นทุกเช้ามืด
+  // (เจอจริง 3–4 ก.ย. 2026 — ดู fix-bug.md)
+  //
+  // max gap รวม "กลางคืน/วันหยุด/ช่วงร้านปิด" ไว้ในตัวเองแล้ว ไม่ต้องฮาร์ดโค้ด
+  // เวลาทำการของแต่ละร้าน (ซึ่งไม่มีทางรู้) · เพจที่แทบไม่มีใครทัก
+  // (< 20 ข้อความ/สัปดาห์) ไม่ตรวจเลย เพราะตัดสินไม่ได้ว่าพังหรือไม่มีคนทัก
   const CHAT_MIN_WEEKLY = 20;
-  const CHAT_GAP_MULTIPLIER = 8;
+  const CHAT_GAP_MULTIPLIER = 1.5;
   const CHAT_MIN_HOURS = 6;
-  const CHAT_MAX_HOURS = 36;
+  const CHAT_MAX_HOURS = 48;
 
   let chatQuery = supabaseAdmin
     .from('chat_accounts')
@@ -226,7 +232,12 @@ export async function collectWatchdogIssues(
     supabaseAdmin.rpc('get_chat_channel_activity', { p_company_id: opts.companyId ?? null }),
   ]);
 
-  type ChatActivityRow = { chat_account_id: string; last_incoming_at: string | null; incoming_7d: number };
+  type ChatActivityRow = {
+    chat_account_id: string;
+    last_incoming_at: string | null;
+    incoming_7d: number;
+    max_gap_h: number | null;
+  };
   const activityById = new Map(
     ((chatActivity as ChatActivityRow[] | null) || []).map(r => [r.chat_account_id, r])
   );
@@ -235,9 +246,14 @@ export async function collectWatchdogIssues(
     const stat = activityById.get(acc.id);
     if (!stat || !stat.last_incoming_at || Number(stat.incoming_7d) < CHAT_MIN_WEEKLY) continue;
 
+    // ไม่มีประวัติช่องว่าง (ช่องทางเพิ่งเปิด) = ยังตัดสินไม่ได้ว่าปกติเงียบได้แค่ไหน
+    if (stat.max_gap_h === null) continue;
     const silentH = hoursAgo(stat.last_incoming_at)!;
-    const avgGapH = (7 * 24) / Number(stat.incoming_7d);
-    const thresholdH = Math.min(CHAT_MAX_HOURS, Math.max(CHAT_MIN_HOURS, avgGapH * CHAT_GAP_MULTIPLIER));
+    const normalGapH = Number(stat.max_gap_h);
+    const thresholdH = Math.min(
+      CHAT_MAX_HOURS,
+      Math.max(CHAT_MIN_HOURS, normalGapH * CHAT_GAP_MULTIPLIER)
+    );
     if (silentH <= thresholdH) continue;
 
     const label = acc.platform === 'line' ? 'LINE' : 'Facebook';
@@ -251,7 +267,7 @@ export async function collectWatchdogIssues(
       scope: 'company',
       severity: 'warning',
       title: `${label} เงียบผิดปกติ ${roundHours(silentH)}`,
-      detail: `${name} ไม่มีข้อความเข้าเลย ${roundHours(silentH)} ทั้งที่ปกติมีทุก ${roundHours(avgGapH)} — webhook อาจหลุดหรือ token หมดอายุ`,
+      detail: `${name} ไม่มีข้อความเข้าเลย ${roundHours(silentH)} ทั้งที่ปกติเงียบนานสุดแค่ ${roundHours(normalGapH)} — webhook อาจหลุดหรือ token หมดอายุ`,
       fix: acc.platform === 'line'
         ? `เช็คที่ LINE Developers ว่า Webhook URL ยังชี้มาที่ระบบและเปิด "Use webhook" อยู่ แล้วกด Verify · ถ้าเปลี่ยน Channel secret/Access token ต้องมาแก้ที่ ตั้งค่า > ช่องทางแชท > LINE`
         : `เพจ Facebook ต้องต่ออายุสิทธิ์ทุก 60 วัน — เปิด ตั้งค่า > ช่องทางแชท > Facebook แล้วกดเชื่อมเพจใหม่ (ถ้าเพจเงียบเพราะไม่มีคนทักจริง ๆ ก็ข้ามได้)`,
