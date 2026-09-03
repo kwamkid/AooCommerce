@@ -166,6 +166,20 @@ async function syncShopeeAccount(account: ShopeeAccountRow, since: Date, deadlin
 // ─── Lazada ─────────────────────────────────────────────────────────────────
 
 async function syncLazadaAccount(account: LazadaAccountRow, since: Date) {
+  // ร้านที่ยังไม่มีออเดอร์ในระบบเลย = ยังไงก็จับคู่ไม่ได้สักรายการ
+  //
+  // ต่างจาก Shopee/TikTok ที่ไล่จาก "ออเดอร์ของเรา" อยู่แล้ว — Lazada ต้องดึง ledger
+  // ทั้งก้อนมาก่อนค่อยจับคู่ ร้านที่เพิ่งเชื่อม (ออเดอร์เริ่มนับจากวันเชื่อม ไม่ดูด
+  // ประวัติย้อนหลัง) จึงถูกดึงร้อยกว่ารายการทุกวันเพื่อจับคู่ได้ 0 ตลอดไป
+  // เช็คก่อน 1 query ถูกกว่าจ่ายโควตา API ทุกรอบ
+  const { count: ordersInSystem } = await supabaseAdmin
+    .from('orders')
+    .select('id', { count: 'exact', head: true })
+    .eq('marketplace_account_id', account.id);
+  if (!ordersInSystem) {
+    return { skipped: true, reason: 'ยังไม่มีออเดอร์ของร้านนี้ในระบบ — ไม่มีอะไรให้จับคู่' };
+  }
+
   const creds = await ensureLazadaToken(account, 'main');
 
   // ดึง ledger ทั้งช่วงแบบแบ่งหน้า — ค่าธรรมเนียมหนึ่งออเดอร์อาจกระจายข้ามหน้าได้
