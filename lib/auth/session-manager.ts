@@ -6,6 +6,7 @@
 // (api-client) share the same session source.
 
 import { supabase } from '@/lib/supabase';
+import { getSessionTokensFromCookies } from '@/lib/auth/cookie-token';
 
 let cachedAccessToken: string | null = null;
 
@@ -28,6 +29,46 @@ function persistSessionCookie(): void {
   fetch('/api/auth/persist-session', { method: 'POST', credentials: 'same-origin' }).catch(() => {});
 }
 
+/**
+ * ตรวจว่า session ที่ SDK ถืออยู่ "ใน memory" ยังตรงกับคุกกี้จริงหรือเปล่า ถ้าไม่ตรงให้เอาของในคุกกี้มาใช้
+ *
+ * ⚠️ **นี่คือตัวกันไม่ให้ผู้ใช้หลุด login แบบไม่มีสาเหตุ** — อย่าถอดออก
+ *
+ * Supabase หมุน refresh token ทุกครั้งที่ต่ออายุ (ใบเก่าถูกเพิกถอนทันที) และถ้ามีใคร
+ * เอา **ใบที่ถูกใช้ไปแล้ว** มายื่นซ้ำ มันจะถือว่าเป็นการขโมย token แล้ว
+ * **เพิกถอนทั้งสายทิ้งทันที** (log ขึ้นว่า `Possible abuse attempt`) = หลุดทุกที่พร้อมกัน
+ *
+ * ปัญหาคือ supabase-js เก็บ session ไว้ใน memory ด้วย ไม่ได้อ่านคุกกี้ใหม่ทุกครั้ง
+ * บน iOS หน้าเว็บที่ถูกพักไว้ (สลับแอป / bfcache / แอปที่ติดตั้งถูกแช่แข็ง) จะ **ตื่นมา
+ * พร้อมสำเนาเก่า** แล้วยิงต่ออายุด้วย token ที่โดนหมุนทิ้งไปแล้ว
+ * ของจริงที่เจอ: ตื่นมาใช้ใบที่เก่า 20 ชั่วโมง → โดนเพิกถอนทั้งสาย → เด้งหน้า login
+ * (2026-09-02/03 ดู fix-bug.md)
+ *
+ * เทียบแล้วไม่ตรงจึงต้องดึงของในคุกกี้ (= ของล่าสุดที่ทุก context ใช้ร่วมกัน) มาใส่ก่อน
+ * ที่ตัวต่ออายุอัตโนมัติจะได้ทำงาน
+ */
+export async function resyncSessionFromCookie(): Promise<void> {
+  if (typeof document === 'undefined') return;
+  try {
+    const cookies = document.cookie.split('; ').flatMap((pair) => {
+      const i = pair.indexOf('=');
+      if (i < 1) return [];
+      return [{ name: pair.slice(0, i), value: pair.slice(i + 1) }];
+    });
+    const fromCookie = getSessionTokensFromCookies(cookies);
+    if (!fromCookie) return; // ไม่มีคุกกี้ = ออกจากระบบไปแล้วจริง ๆ ไม่ต้องยัด session กลับ
+
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+    if (session.refresh_token === fromCookie.refresh_token) return; // ตรงกันอยู่แล้ว
+
+    // ของในคุกกี้ใหม่กว่าเสมอ — ทุก context เขียนลงที่เดียวกัน ส่วนใน memory เป็นสำเนา
+    await supabase.auth.setSession(fromCookie);
+  } catch {
+    // อ่าน/ตั้งค่าไม่ได้ก็ปล่อยให้ SDK ทำงานตามปกติ — อย่างแย่คือกลับไปเป็นพฤติกรรมเดิม
+  }
+}
+
 // Keep the cache in sync with sign-in / sign-out / silent token refresh.
 if (typeof window !== 'undefined') {
   supabase.auth.getSession().then(({ data: { session } }) => {
@@ -40,6 +81,16 @@ if (typeof window !== 'undefined') {
     if (session && (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED')) {
       persistSessionCookie();
     }
+  });
+
+  // จังหวะที่หน้าเว็บ "ตื่น" — ต้องเช็คก่อนที่ตัวต่ออายุอัตโนมัติจะยิง token เก่าออกไป
+  // visibilitychange = สลับกลับมาที่แอป · pageshow(persisted) = โดนคืนจาก bfcache
+  // ซึ่ง **ไม่ยิง visibilitychange** จึงต้องดักทั้งสองตัว
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') void resyncSessionFromCookie();
+  });
+  window.addEventListener('pageshow', (e) => {
+    if ((e as PageTransitionEvent).persisted) void resyncSessionFromCookie();
   });
 }
 

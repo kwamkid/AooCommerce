@@ -16,6 +16,37 @@
 
 ---
 
+## 2026-09-04 — หลุด login ทุกวันบน iPhone: Supabase เพิกถอน session ทั้งสายเพราะหน้าเว็บที่ถูกแช่แข็งตื่นมายื่น refresh token เก่า
+
+**ที่เกิด**: [lib/auth/session-manager.ts](lib/auth/session-manager.ts) (การจัดการ session ฝั่ง client)
+**อาการ**: iPhone ต้องล็อกอินใหม่แทบทุกวัน ทั้งที่ Mac Chrome เปิดค้างได้เป็นสัปดาห์ · **เดารอบแรกว่าเป็นเพดาน 7 วันของ Safari แต่ผิด** — ผู้ใช้แย้งว่า "ยังไม่ถึง 1 วันก็หลุดแล้ว" จึงไปขุด log ของจริง
+
+**Root cause** (ยืนยันจาก `auth.refresh_tokens` + auth log ของ Supabase):
+```
+session 394ea059 (iPhone) — ตารางการหมุน token
+id 4384 pp4xg6o3ohng  parent=null          ใช้ไป 09-02 07:54
+id 4389 g73lz7fuzc44  parent=pp4xg6o3ohng  ใช้ไป 09-02 09:00   ← ใบนี้
+id 4390 mielbkshnt4u  parent=g73lz7fuzc44  ใช้ไป 09-02 10:30
+id 4391 rjf5q4vnhtsu  parent=mielbkshnt4u  โดนเพิกถอน 09-03 05:17
+
+auth log 09-03 05:17:17  400  "Possible abuse attempt: 4389"   ← ยื่นใบที่เก่า 20 ชม.
+auth log 09-03 22:04:03  400  "Possible abuse attempt: 4391"
+```
+- Supabase **หมุน refresh token ทุกครั้งที่ต่ออายุ** ใบเก่าถูกเพิกถอนทันที · ถ้ามีใครยื่นใบที่ใช้ไปแล้วซ้ำ (พ้นช่วงผ่อนผัน 10 วินาที) มันถือว่า token ถูกขโมย แล้ว **เพิกถอนทั้งสายทิ้ง** = หลุดทุกที่พร้อมกัน
+- supabase-js เก็บ session ไว้ **ใน memory** ด้วย ไม่ได้อ่านคุกกี้ใหม่ทุกครั้ง · บน iOS หน้าเว็บที่ถูกพักไว้ (สลับแอป / bfcache / แอปที่ติดตั้งถูกแช่แข็ง) **ตื่นมาพร้อมสำเนาเก่า** แล้วตัวต่ออายุอัตโนมัติก็ยิงใบเก่านั้นออกไป — ของจริงคือใบที่เก่า **20 ชั่วโมง**
+- ทำไม Mac ไม่เป็น: หน้าต่างไม่เคยถูกแช่แข็งนานขนาดนั้น สำเนาใน memory จึงไม่เคยตกยุค
+- **หลักฐานที่ตัดเรื่องคุกกี้หมดอายุทิ้ง**: แถวใน `auth.sessions` ยังอยู่ครบ (เซิร์ฟเวอร์ไม่ได้ลบ session) และมี request /token ยิงเข้ามาจริงแล้วถูกปฏิเสธ — ถ้าคุกกี้หายไป client จะไม่ยิงอะไรเลย
+
+**วิธีแก้**: `resyncSessionFromCookie()` — ตอนหน้าเว็บ "ตื่น" ให้เทียบ refresh token ที่ SDK ถืออยู่ใน memory กับ**ค่าในคุกกี้จริง** ไม่ตรงเมื่อไหร่ให้ `setSession()` ด้วยของในคุกกี้ก่อน (คุกกี้คือที่ที่ทุก context เขียนร่วมกัน = ใหม่กว่าเสมอ) แล้วค่อยปล่อยให้ต่ออายุตามปกติ
+- ดัก **ทั้ง `visibilitychange` และ `pageshow(persisted)`** — bfcache คืนหน้าโดย**ไม่ยิง visibilitychange** ซึ่งเป็นรูที่ตัว supabase-js เองก็ไม่ได้ดัก
+- อ่านคุกกี้ด้วย `getSessionTokensFromCookies()` ที่แยกออกมาจาก [lib/auth/cookie-token.ts](lib/auth/cookie-token.ts) — ตรรกะต่อ chunk + ถอด base64 ใช้ร่วมกับฝั่ง server ตัวเดียว
+
+**ป้องกัน regression**:
+- **"ผู้ใช้บอกว่าไม่ตรง" = สัญญาณให้ไปดูข้อมูลจริง ไม่ใช่ให้เถียง** — รอบแรกผมสรุปจากพฤติกรรมของไลบรารีล้วน ๆ แล้วผิด · `auth.refresh_tokens` + auth log ของ Supabase ตอบได้ใน 2 query ว่า client ยื่นใบไหนตอนไหน
+- **หลุด login ต้องแยกให้ออกก่อนว่า "เครื่องไม่มี token" หรือ "เครื่องมี token แต่ถูกปฏิเสธ"** — ดูว่ามี request `/token` ยิงเข้ามาไหม · ไม่มี = เรื่องที่เก็บของ · มี + 400 = เรื่อง token/เซิร์ฟเวอร์ · คนละทางแก้กันคนละเรื่อง
+- **`Possible abuse attempt` ใน auth log = ยื่น refresh token ซ้ำ** ไม่ใช่มีคนแฮ็ก — เจอเมื่อไหร่ให้มองหา context ที่ถือสำเนาเก่า (แท็บที่ถูกแช่แข็ง / แอปที่ถูกพัก / โค้ดที่สร้าง Supabase client มากกว่าหนึ่งตัว)
+- **สิ่งที่แชร์กันข้าม context คือคุกกี้ ไม่ใช่ตัวแปรใน memory** — โค้ดที่ตื่นจากการถูกพักต้องอ่านของกลางใหม่ก่อนเสมอ ห้ามเชื่อสำเนาในมือ
+
 ## 2026-09-04 — แอปที่ติดตั้ง (PWA) ใช้จริงไม่ได้ 5 เรื่อง: ไอคอนแยกไม่ออก · ไม่มีเลขแจ้งเตือน · หลุด login · กดเมนูไม่โดน · เด้งออก Safari ไปหน้าเลือกบริษัท
 
 **ที่เกิด**: [scripts/generate-pwa-icons.mjs](scripts/generate-pwa-icons.mjs) · [public/sw.js](public/sw.js) · [app/superadmin/components/](app/superadmin/components/) · [app/superadmin/manifest.webmanifest/route.ts](app/superadmin/manifest.webmanifest/route.ts) · [lib/auth/session-manager.ts](lib/auth/session-manager.ts) · [app/onboarding/page.tsx](app/onboarding/page.tsx)
@@ -29,9 +60,9 @@ Root cause: **iOS 18 ย้อมไอคอนที่ไม่มีเว�
 Root cause: **iOS/Android ไม่ได้แปะจำนวนแจ้งเตือนบนไอคอน PWA ให้เอง** ต่างจากแอป native — ต้องเรียก `navigator.setAppBadge()` เองทุกครั้ง ซึ่งไม่เคยมีในโค้ด
 วิธีแก้: `sw.js` เก็บตัวนับใน **Cache API** (service worker ถูกฆ่าเป็นรอบ ๆ ตัวแปรใน memory อยู่ไม่รอด) → `bumpBadge()` ตอน push เข้า · `clearBadge()` ตอนกดแจ้งเตือน · `clearAppBadge()` ใน [components/PwaRegister.tsx](components/PwaRegister.tsx) ตอนหน้าจอกลับมาเห็น
 
-**3. หลุด login เป็นระยะ ต้องล็อกอินใหม่**
-Root cause: **Safari (ITP) บีบอายุคุกกี้ที่เขียนด้วย `document.cookie` เหลือ 7 วัน** ไม่ว่าจะสั่ง Max-Age เท่าไหร่ · @supabase/ssr ฝั่งเบราว์เซอร์เขียนคุกกี้แบบนั้น (สั่ง 400 วัน ได้จริง 7) · เจ็บเป็นพิเศษในแอปที่ติดตั้งเพราะ **มีถังคุกกี้ของตัวเอง แยกจาก Safari และแยกจากอีกแอป** — ล็อกอินใน Safari ไว้ไม่ช่วยเลย
-วิธีแก้: `POST /api/auth/persist-session` อ่านคุกกี้ชุดเดิมจาก request แล้วเขียนกลับด้วยค่าเดิมเป๊ะ + `Max-Age` 400 วัน (คุกกี้จาก `Set-Cookie` ของเซิร์ฟเวอร์ first-party ไม่โดนเพดาน 7 วัน) — ไม่แตะ token ไม่ยิง Supabase · session-manager ยิงตามหลังทุก `SIGNED_IN`/`TOKEN_REFRESHED` (throttle 60 วิ) เพื่อให้ **คนเขียนคนสุดท้ายเป็นเซิร์ฟเวอร์เสมอ**
+**3. หลุด login เป็นระยะ ต้องล็อกอินใหม่** — ⚠️ **วินิจฉัยรอบแรกผิด แก้ใหม่ในวันเดียวกัน ดู entry ถัดไป**
+เดารอบแรกว่าเป็นเพดาน 7 วันของ Safari (ITP บีบอายุคุกกี้ที่เขียนด้วย `document.cookie`) แล้วเพิ่ม `POST /api/auth/persist-session` ให้เซิร์ฟเวอร์เขียนคุกกี้ทับด้วย Max-Age 400 วัน
+**แต่ผู้ใช้แย้งว่าหลุดภายในไม่ถึงวัน** ซึ่งเพดาน 7 วันอธิบายไม่ได้ → ไปดู log จริงแล้วเจอคนละเรื่อง (refresh token reuse) · โค้ดที่เพิ่มยังมีประโยชน์กับเคสไม่ได้เปิดแอปนาน ๆ จึงเก็บไว้ แต่**ไม่ใช่ต้นเหตุของอาการที่ผู้ใช้เจอ**
 
 **4. หน้า superadmin ในแอป: หัวข้อทับนาฬิกา กดเมนู/สวิตช์แจ้งเตือนไม่โดน + header แน่น**
 Root cause: root layout ตั้ง `viewportFit: 'cover'` และ superadmin ตั้ง status bar เป็น `black-translucent` = **เนื้อหาไหลไปอยู่ใต้นาฬิกา** แต่ทั้ง shell ไม่มี `env(safe-area-inset-*)` สักจุด → ปุ่มเมนูที่ `fixed top-3 left-3` ไปนั่งทับ status bar แล้วระบบกินทัชไปก่อน · ซ้ำด้วย header ที่ยัดหัวข้อ + สวิตช์แจ้งเตือน + ป้าย SUPER ADMIN ไว้แถวเดียวจนเบียดกันบนมือถือ
