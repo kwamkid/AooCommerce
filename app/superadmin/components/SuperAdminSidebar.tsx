@@ -46,17 +46,21 @@ export default function SuperAdminSidebar() {
 
   return (
     <>
-      {/* Mobile Menu Button
+      {/* ปุ่มเปิดเมนู (มือถือ) — โผล่เฉพาะตอนเมนูปิด
           ⚠️ ต้องเลื่อนลงตาม safe area — แอปนี้ status bar เป็น black-translucent
           ปุ่มที่ top-3 เฉย ๆ จะไปนั่งทับนาฬิกา แล้ว **กดไม่โดน** เพราะระบบกินทัชไปก่อน
-          (เจอจริง 4 ก.ย. 2026 — ดู fix-bug.md) */}
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        aria-label={isOpen ? 'ปิดเมนู' : 'เปิดเมนู'}
-        className="lg:hidden fixed top-safe-2 left-safe-3 z-50 p-2.5 rounded-lg hover:bg-white/10 active:bg-white/15 transition-colors"
-      >
-        {isOpen ? <X className="w-6 h-6 text-violet-400" /> : <Menu className="w-6 h-6 text-violet-400" />}
-      </button>
+          ⚠️ และห้ามเอาปุ่มปิด (X) มาไว้ตำแหน่งนี้ — ตรงกับโลโก้ในหัว sidebar พอดี
+          พอเมนูเปิดจะไปทับโลโก้ · ปุ่มปิดอยู่ในหัว sidebar ด้านขวาแทน
+          (ทั้งสองข้อเจอจริง 4 ก.ย. 2026 — ดู fix-bug.md) */}
+      {!isOpen && (
+        <button
+          onClick={() => setIsOpen(true)}
+          aria-label="เปิดเมนู"
+          className="lg:hidden fixed top-safe-2 left-safe-3 z-50 p-2.5 rounded-lg hover:bg-white/10 active:bg-white/15 transition-colors"
+        >
+          <Menu className="w-6 h-6 text-violet-400" />
+        </button>
+      )}
 
       {/* Mobile Overlay */}
       {isOpen && (
@@ -70,9 +74,18 @@ export default function SuperAdminSidebar() {
         }`}
       >
         <div className="flex flex-col h-full">
-          {/* Logo */}
-          <div className="flex items-center justify-center h-16 border-b border-violet-500/20 px-4">
-            <Image src="/logo.svg" alt="AooCommerce" width={100} height={65} className="h-10 w-auto" priority />
+          {/* Logo + ปุ่มปิด (มือถือ) */}
+          <div className="flex items-center h-16 border-b border-violet-500/20 px-4 gap-2">
+            <div className="flex-1 flex justify-center lg:justify-center">
+              <Image src="/logo.svg" alt="AooCommerce" width={100} height={65} className="h-10 w-auto" priority />
+            </div>
+            <button
+              onClick={() => setIsOpen(false)}
+              aria-label="ปิดเมนู"
+              className="lg:hidden p-2 rounded-lg text-slate-400 hover:text-violet-400 hover:bg-white/10 transition-colors flex-shrink-0"
+            >
+              <X className="w-5 h-5" />
+            </button>
           </div>
 
           {/* Super Admin Badge */}

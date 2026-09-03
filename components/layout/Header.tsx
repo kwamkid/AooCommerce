@@ -140,7 +140,9 @@ export default function Header() {
   const unreadCount = notifications.filter(n => !n.read).length;
 
   return (
-    <header className="bg-[#1A1A2E] lg:bg-white lg:dark:bg-slate-900 border-b border-primary/20 lg:border-gray-200 lg:dark:border-slate-700 sticky top-0 z-30">
+    // แถบหัว: มือถือใช้สีเดียวกับเดสก์ท็อป (ขาว / slate ตอนโหมดมืด)
+    // เดิมมือถือถูกฮาร์ดโค้ดเป็น #1A1A2E ทำให้ย่อจอแล้วหัวเปลี่ยนสีไปคนละโทนกับ sidebar
+    <header className="bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-700 sticky top-0 z-30">
       <div className="relative flex items-center justify-end h-16 px-4 lg:px-6">
         {/* Mobile Logo (absolute center) */}
         <div className="lg:hidden absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
@@ -164,7 +166,7 @@ export default function Header() {
                 setShowNotifications(!showNotifications);
                 setShowUserMenu(false);
               }}
-              className="relative p-2 text-primary lg:text-gray-600 lg:dark:text-slate-400 hover:bg-white/10 lg:hover:bg-gray-100 lg:dark:hover:bg-slate-800 rounded-lg transition-colors"
+              className="relative p-2 text-gray-600 dark:text-slate-400 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
             >
               <Bell className="w-5 h-5" />
               {unreadCount > 0 && (
@@ -243,7 +245,7 @@ export default function Header() {
                 setShowUserMenu(!showUserMenu);
                 setShowNotifications(false);
               }}
-              className="flex items-center space-x-2 p-2 text-white lg:text-gray-700 lg:dark:text-slate-200 hover:bg-white/10 lg:hover:bg-gray-100 lg:dark:hover:bg-slate-800 rounded-lg transition-colors"
+              className="flex items-center space-x-2 p-2 text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
             >
               <UserAvatar
                 src={userProfile?.avatar}

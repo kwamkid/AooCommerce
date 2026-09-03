@@ -333,13 +333,18 @@ export default function Sidebar() {
 
   return (
     <>
-      {/* Mobile Menu Button */}
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="lg:hidden fixed top-3 left-3 z-50 p-2 rounded-lg hover:bg-white/10 transition-colors"
-      >
-        {isOpen ? <X className="w-6 h-6 text-primary" /> : <Menu className="w-6 h-6 text-primary" />}
-      </button>
+      {/* ปุ่มเปิดเมนู (มือถือ) — โผล่เฉพาะตอนเมนูปิด
+          ⚠️ ห้ามเอาปุ่มปิด (X) มาไว้ตรงนี้ ตำแหน่งนี้ตรงกับโลโก้ในหัว sidebar พอดี
+          พอเมนูเปิดมันจะไปทับโลโก้ · ปุ่มปิดอยู่ในหัว sidebar ด้านขวาแทน */}
+      {!isOpen && (
+        <button
+          onClick={() => setIsOpen(true)}
+          aria-label="เปิดเมนู"
+          className="lg:hidden fixed top-safe-2 left-safe-3 z-50 p-2.5 rounded-lg text-primary hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors"
+        >
+          <Menu className="w-6 h-6" />
+        </button>
+      )}
 
       {/* Mobile Overlay */}
       {isOpen && (
@@ -349,7 +354,7 @@ export default function Sidebar() {
       {/* Sidebar */}
       <aside
         data-collapsed={collapsed ? 'true' : undefined}
-        className={`sidebar-panel fixed lg:static inset-y-0 left-0 z-40 ${collapsed ? 'lg:w-[68px]' : 'lg:w-[232px]'} w-[248px] lg:h-full bg-white dark:bg-slate-900 border-r border-gray-200 dark:border-slate-800 transform transition-transform duration-300 ease-in-out ${
+        className={`sidebar-panel fixed lg:static inset-y-0 left-0 z-40 ${collapsed ? 'lg:w-[68px]' : 'lg:w-[232px]'} w-[248px] lg:h-full bg-white dark:bg-slate-900 border-r border-gray-200 dark:border-slate-800 pt-safe pb-safe transform transition-transform duration-300 ease-in-out ${
           isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         }`}
       >
@@ -373,6 +378,14 @@ export default function Sidebar() {
               className="hidden lg:flex nav-collapse-btn p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors flex-shrink-0"
             >
               {collapsed ? <PanelLeftOpen className="w-[18px] h-[18px]" /> : <PanelLeftClose className="w-[18px] h-[18px]" />}
+            </button>
+            {/* ปิดเมนู (มือถือ) — อยู่ในหัว sidebar ฝั่งตรงข้ามโลโก้ ไม่ใช่ปุ่มลอยทับโลโก้ */}
+            <button
+              onClick={() => setIsOpen(false)}
+              aria-label="ปิดเมนู"
+              className="lg:hidden p-2 rounded-lg text-gray-400 hover:text-gray-700 dark:hover:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors flex-shrink-0"
+            >
+              <X className="w-5 h-5" />
             </button>
           </div>
 

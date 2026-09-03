@@ -42,21 +42,92 @@ function ensureVapid(): boolean {
 }
 
 /**
- * ส่ง push ไปทุก subscription ของ company — ไม่ throw เด็ดขาด (fire-safe สำหรับ webhook flow)
+ * ใส่ `?company=` ต่อท้าย url ของแจ้งเตือน — กดแล้วแอปสลับไปบริษัทนั้นให้เอง
+ * (อ่านและสลับที่ lib/company-context.tsx ตอน provider เริ่มทำงาน)
+ */
+export function withCompanyParam(url: string, companyId: string): string {
+  if (!url.startsWith('/')) return url;
+  return url + (url.includes('?') ? '&' : '?') + `company=${companyId}`;
+}
+
+/** ผู้รับของบริษัทหนึ่ง + ข้อมูลที่ต้องใช้ประกอบข้อความ — cache สั้น ๆ กัน query ซ้ำ (แชทวันละหลายร้อยใบ) */
+type CompanyAudience = { name: string; userIds: string[]; multiCompanyUserIds: Set<string> };
+const audienceCache = new Map<string, { at: number; value: CompanyAudience }>();
+const AUDIENCE_TTL_MS = 60_000;
+
+async function getCompanyAudience(companyId: string): Promise<CompanyAudience | null> {
+  const hit = audienceCache.get(companyId);
+  if (hit && Date.now() - hit.at < AUDIENCE_TTL_MS) return hit.value;
+
+  const [{ data: company }, { data: members }] = await Promise.all([
+    supabaseAdmin.from('companies').select('name').eq('id', companyId).single(),
+    supabaseAdmin.from('company_members').select('user_id').eq('company_id', companyId).eq('is_active', true),
+  ]);
+  const userIds = [...new Set((members || []).map(m => m.user_id as string).filter(Boolean))];
+  if (userIds.length === 0) return null;
+
+  // ใครอยู่หลายบริษัทบ้าง — คนพวกนี้เท่านั้นที่ต้องบอกว่า "ของร้านไหน"
+  // (คนที่มีร้านเดียวไม่ต้องเปลืองบรรทัดบอกสิ่งที่รู้อยู่แล้ว)
+  const { data: allMemberships } = await supabaseAdmin
+    .from('company_members')
+    .select('user_id, company_id')
+    .in('user_id', userIds)
+    .eq('is_active', true);
+  const countByUser = new Map<string, number>();
+  for (const m of allMemberships || []) {
+    countByUser.set(m.user_id as string, (countByUser.get(m.user_id as string) || 0) + 1);
+  }
+  const value: CompanyAudience = {
+    name: (company?.name as string) || '',
+    userIds,
+    multiCompanyUserIds: new Set(userIds.filter(id => (countByUser.get(id) || 1) > 1)),
+  };
+  audienceCache.set(companyId, { at: Date.now(), value });
+  return value;
+}
+
+/**
+ * ส่ง push เรื่องของบริษัทหนึ่ง — ไม่ throw เด็ดขาด (fire-safe สำหรับ webhook flow)
+ *
+ * ⚠️ **ส่งตาม "คน" ไม่ใช่ตาม company_id ของ subscription** — เดิมกรองด้วย
+ * `push_subscriptions.company_id` ซึ่งเป็นแค่ "บริษัทล่าสุดที่เครื่องนี้เปิดค้างไว้"
+ * คนที่ดูแลหลายร้านจึงได้แจ้งเตือนแค่ร้านเดียว **และไม่มีอะไรบอกเลยว่าอีกร้านเงียบ
+ * เพราะไม่มีลูกค้า หรือเพราะไม่ได้รับแจ้งเตือน** ต้องคอยกดสลับบริษัทไปเช็คเอง
+ * ตอนนี้ยิงหาสมาชิกที่ยัง active ของบริษัทนั้นทุกคน ทุกเครื่อง — ไม่ต้องสลับบริษัทอีก
+ *
  * endpoint ที่ตายแล้ว (404/410) จะถูกลบทิ้งอัตโนมัติ
  */
 export async function sendPushToCompany(companyId: string, payload: PushPayload): Promise<void> {
   try {
     if (!ensureVapid()) return; // ยังไม่ตั้ง VAPID env → เงียบๆ ข้าม
+    const audience = await getCompanyAudience(companyId);
+    if (!audience) return;
+
     const { data: subs, error } = await supabaseAdmin
       .from('push_subscriptions')
-      .select('id, endpoint, p256dh, auth')
-      .eq('company_id', companyId)
+      .select('id, endpoint, p256dh, auth, user_id')
+      .in('user_id', audience.userIds)
       // เรื่องของร้านต้องไม่ไปโผล่ในแอปผู้ดูแลระบบ
       .eq('audience', 'app');
     if (error || !subs || subs.length === 0) return;
 
-    await deliver(subs, payload);
+    // กดแจ้งเตือนแล้วต้องไปโผล่ในบริษัทที่ถูกต้อง ไม่ใช่บริษัทที่ค้างอยู่บนเครื่อง
+    const url = withCompanyParam(payload.url || '/', companyId);
+
+    // แยกส่งสองชุด: คนหลายร้านได้ชื่อร้านนำหน้า · คนร้านเดียวได้ข้อความเดิม
+    const multi = subs.filter(s => audience.multiCompanyUserIds.has(s.user_id as string));
+    const single = subs.filter(s => !audience.multiCompanyUserIds.has(s.user_id as string));
+
+    await Promise.all([
+      multi.length
+        ? deliver(multi, {
+            ...payload,
+            url,
+            body: audience.name ? `${audience.name} · ${payload.body}` : payload.body,
+          })
+        : Promise.resolve(0),
+      single.length ? deliver(single, { ...payload, url }) : Promise.resolve(0),
+    ]);
   } catch (err) {
     console.error('[Push] sendPushToCompany error:', err);
   }

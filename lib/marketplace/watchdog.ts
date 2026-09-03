@@ -9,7 +9,7 @@
 // dashboard ของร้าน · กระดิ่ง · push ทั้งหมดอ่านจากผลชุดเดียวกัน ไม่มีทางเห็นไม่ตรงกัน
 
 import { supabaseAdmin } from '@/lib/supabase-admin';
-import { sendPushToUsers } from '@/lib/push/send';
+import { sendPushToUsers, withCompanyParam } from '@/lib/push/send';
 import { MARKETPLACE_PLATFORMS, type QuotaPlatform } from '@/lib/marketplace/platforms';
 
 export type WatchdogSeverity = 'critical' | 'warning';
@@ -383,7 +383,14 @@ export async function runWatchdog(): Promise<{ issues: number; notified: number;
     const targets = await getCompanyManagerIds(companyId);
     if (targets.length === 0) continue;
     // เรื่องของร้าน → แอปของร้าน (แม้ผู้รับจะเป็น superadmin ที่ควบเจ้าของร้านอยู่ด้วย)
-    const sent = await sendPushToUsers(targets, buildPush(group, '/dashboard'), { audience: 'app' });
+    // ต่อ ?company= เพื่อให้กดแล้วสลับไปร้านที่มีปัญหาเอง — คนดูแลหลายร้านจะได้ไม่ต้อง
+    // มานั่งเดาว่าเรื่องนี้ของร้านไหนแล้วกดสลับหาเอง
+    const push = buildPush(group, '/dashboard');
+    const sent = await sendPushToUsers(
+      targets,
+      { ...push, url: withCompanyParam(push.url, companyId) },
+      { audience: 'app' }
+    );
     markNotified(group, sent);
   }
 

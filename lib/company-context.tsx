@@ -51,8 +51,25 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    // Restore from localStorage or use first company
-    const stored = localStorage.getItem(STORAGE_KEY);
+    // ① แจ้งเตือนพามา (`?company=<id>`) — กดแจ้งเตือนของร้าน B ขณะค้างอยู่ร้าน A
+    //    ต้องไปโผล่ที่ร้าน B เลย ไม่ใช่ให้ผู้ใช้มานั่งกดสลับเอง
+    //    ตั้งค่าตรงนี้ตอน "เริ่มต้น" จึงไม่ต้อง reload หน้า (switchCompany สั่ง reload
+    //    ซึ่งจะทำให้หลุดจากหน้าปลายทางที่แจ้งเตือนตั้งใจพามา)
+    //    รับเฉพาะ id ที่ผู้ใช้เป็นสมาชิกจริง — ค่าใน URL เชื่อไม่ได้
+    const fromNotification = new URLSearchParams(window.location.search).get('company');
+    const invited = fromNotification && companies.some((m) => m.company_id === fromNotification)
+      ? fromNotification
+      : null;
+    if (fromNotification) {
+      // เก็บ ?company= ออกจาก URL เสมอ — ไม่งั้นค้างอยู่ตอนแชร์ลิงก์/refresh
+      const url = new URL(window.location.href);
+      url.searchParams.delete('company');
+      window.history.replaceState({}, '', url.pathname + url.search + url.hash);
+    }
+    if (invited) localStorage.setItem(STORAGE_KEY, invited);
+
+    // ② ไม่มีก็ใช้ค่าที่จำไว้ล่าสุด แล้วค่อยตกไปบริษัทแรก
+    const stored = invited || localStorage.getItem(STORAGE_KEY);
     const valid = companies.find((m) => m.company_id === stored);
     setCurrentCompanyId(valid ? stored : companies[0]?.company_id || null);
     setInitialized(true);
