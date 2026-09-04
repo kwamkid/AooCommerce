@@ -98,6 +98,8 @@ export default function SalesChannelsPage() {
   const [mpConnecting, setMpConnecting] = useState(false);
   // ตั้ง app แบบ seller ไว้หรือยัง — ไม่ตั้ง = ซ่อนปุ่ม "เชื่อมผ่าน app ของร้าน" ไปเลย
   const [shopeeSellerAppAvailable, setShopeeSellerAppAvailable] = useState(false);
+  // sandbox = ปุ่มพาไป login ของ sandbox ต้องใช้บัญชี test shop ไม่ใช่บัญชีร้านจริง
+  const [shopeeSellerAppEnv, setShopeeSellerAppEnv] = useState<'sandbox' | 'production'>('production');
   // กด back จากหน้า OAuth → หน้าถูก restore จาก bfcache พร้อม connecting=true ค้าง
   useBfcacheReset(() => setMpConnecting(false));
   const [currentPage, setCurrentPage] = useState(1);
@@ -159,7 +161,7 @@ export default function SalesChannelsPage() {
     let cancelled = false;
     apiFetch('/api/shopee/oauth/auth-url?app=seller&check=1')
       .then(r => (r.ok ? r.json() : null))
-      .then(d => { if (!cancelled) setShopeeSellerAppAvailable(!!d?.available); })
+      .then(d => { if (cancelled) return; setShopeeSellerAppAvailable(!!d?.available); setShopeeSellerAppEnv(d?.env === 'sandbox' ? 'sandbox' : 'production'); })
       .catch(() => { /* ถามไม่ได้ = ถือว่าไม่มี ซ่อนปุ่มไว้ */ });
     return () => { cancelled = true; };
   }, [showMarketplace]);
@@ -671,6 +673,7 @@ export default function SalesChannelsPage() {
             setConnecting={setMpConnecting}
             connecting={mpConnecting}
             shopeeSellerAppAvailable={shopeeSellerAppAvailable}
+            shopeeSellerAppEnv={shopeeSellerAppEnv}
             onConnect={handleMarketplaceConnect}
           />
         ) : (

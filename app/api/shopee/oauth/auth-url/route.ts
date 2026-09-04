@@ -15,7 +15,12 @@ export async function GET(request: NextRequest) {
     // ไม่ปั๊ม state/cookie (ยังไม่ใช่การเริ่ม OAuth จริง)
     const params = new URL(request.url).searchParams;
     if (params.get('check') === '1') {
-      return NextResponse.json({ available: isSellerAppConfigured() });
+      // env บอกด้วยว่าปุ่มจะพาไปที่ไหน — seller app ยังอยู่ sandbox ระหว่างรอ Go Live
+      // ผู้ใช้จะได้ไม่เอาบัญชี sandbox ไป login หน้า production (หรือกลับกัน)
+      return NextResponse.json({
+        available: isSellerAppConfigured(),
+        env: (process.env.SHOPEE_SELLER_APP_ENV || process.env.SHOPEE_PARTNER_APP_ENV || 'production') === 'sandbox' ? 'sandbox' : 'production',
+      });
     }
 
     const partnerId = process.env.SHOPEE_PARTNER_APP_ID;

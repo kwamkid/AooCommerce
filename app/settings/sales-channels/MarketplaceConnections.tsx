@@ -43,13 +43,15 @@ interface MarketplaceConnectionsProps {
   connecting?: boolean;
   /** ตั้ง SHOPEE_SELLER_PARTNER_* ไว้หรือยัง — ไม่ตั้ง = ซ่อนปุ่มเชื่อมผ่าน app ของร้าน */
   shopeeSellerAppAvailable?: boolean;
+  /** seller app อยู่ environment ไหน — sandbox ต้อง login ด้วยบัญชี test shop */
+  shopeeSellerAppEnv?: 'sandbox' | 'production';
   /** เริ่ม OAuth เชื่อมร้าน — ตัวเดียวกับปุ่มบน PageHeader ของ parent */
   onConnect: (platform: 'shopee' | 'tiktok' | 'lazada', opts?: { app?: 'seller' }) => void;
 }
 
 export default function MarketplaceConnections({
   activePlatform, onPlatformChange, setConnecting,
-  connecting, shopeeSellerAppAvailable, onConnect,
+  connecting, shopeeSellerAppAvailable, shopeeSellerAppEnv = 'production', onConnect,
 }: MarketplaceConnectionsProps) {
   const router = useRouter();
   const { userProfile } = useAuth();
@@ -836,7 +838,9 @@ export default function MarketplaceConnections({
           {shopeeSellerAppAvailable && (
             <div className="flex justify-end">
               <Tooltip
-                text="ใช้ app ที่จดในนามร้านเอง (Seller In House) — เปิดแชท Shopee ได้ · ร้านที่เชื่อมทางนี้ใช้ app นี้ทั้งออเดอร์และแชท"
+                text={shopeeSellerAppEnv === 'sandbox'
+                  ? 'app ของร้านยังอยู่ Sandbox v2 — หน้า login ที่เด้งไปเป็นของ sandbox ต้องใช้บัญชี test shop (SANDBOX.xxx) จากคอนโซล ไม่ใช่บัญชีร้านจริง'
+                  : 'ใช้ app ที่จดในนามร้านเอง (Seller In House) — เปิดแชท Shopee ได้ · ร้านที่เชื่อมทางนี้ใช้ app นี้ทั้งออเดอร์และแชท'}
                 box="inline-flex"
               >
                 <Button
@@ -846,6 +850,8 @@ export default function MarketplaceConnections({
                   onClick={() => onConnect('shopee', { app: 'seller' })}
                 >
                   เชื่อมผ่าน app ของร้าน
+                  {/* บอกให้เห็นตั้งแต่ก่อนกดว่าจะพาไป sandbox — เคยเอาบัญชี sandbox ไป login หน้า production แล้วงงว่าทำไมเข้าไม่ได้ */}
+                  {shopeeSellerAppEnv === 'sandbox' && <Badge tone="amber" size="sm">sandbox</Badge>}
                 </Button>
               </Tooltip>
             </div>
