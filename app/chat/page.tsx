@@ -16,6 +16,8 @@ import { isConsignmentFlow, isDepartmentFlow } from '@/lib/flow-types';
 import { supabase } from '@/lib/supabase';
 import {
   MessageCircle,
+  Mail,
+  CheckCheck,
   Search,
   Send,
   User,
@@ -1337,6 +1339,38 @@ function UnifiedChatPageContent() {
     shipping_google_maps_link: '', shipping_delivery_notes: ''
   } : undefined;
 
+  // เคลียร์ "ยังไม่อ่าน" ทั้งชุด — ตามตัวกรองช่องทางที่เลือกอยู่
+  const [markingAllRead, setMarkingAllRead] = useState(false);
+  const markAllRead = useCallback(async () => {
+    const scope = filterAccountId
+      ? 'ช่องทางที่เลือกอยู่'
+      : filterPlatform !== 'all' ? `ช่องทาง ${filterPlatform}` : 'ทุกช่องทาง';
+    const ok = await confirm({
+      title: 'ทำเครื่องหมายว่าอ่านแล้วทั้งหมด?',
+      description: `ล้างตัวเลขยังไม่อ่านของ${scope} — ข้อความยังอยู่ครบ แค่เลิกนับว่ายังไม่ได้อ่าน · ย้อนกลับไม่ได้`,
+      confirmLabel: 'อ่านทั้งหมด',
+    });
+    if (!ok) return;
+    setMarkingAllRead(true);
+    try {
+      const res = await apiFetch('/api/chat/contacts/read-all', {
+        method: 'POST',
+        body: JSON.stringify({
+          ...(filterAccountId ? { account_id: filterAccountId } : {}),
+          ...(filterPlatform !== 'all' ? { platform: filterPlatform } : {}),
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || 'ล้างไม่สำเร็จ');
+      showToast(`ล้างแล้ว ${data.cleared || 0} แชท`);
+      await fetchContacts();
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'ล้างไม่สำเร็จ', 'error');
+    } finally {
+      setMarkingAllRead(false);
+    }
+  }, [confirm, filterAccountId, filterPlatform, showToast]);
+
   // ── ย้อนกลับจากหน้าคุย → รายชื่อแชท ──
   //
   // ⚠️ **ห้ามเขียนท่าปัดขวาเอง** — เคยทำแล้วมันไป**ชนกับท่า back ของระบบ** (iOS/Android
@@ -1384,12 +1418,23 @@ function UnifiedChatPageContent() {
         <div className={`w-full md:w-80 border-r border-gray-200 dark:border-slate-700 flex flex-col ${mobileView !== 'contacts' ? 'hidden md:flex' : 'flex'} ${rightPanel ? 'md:hidden xl:flex' : ''}`}>
           {/* Header */}
           <div className="p-4 border-b border-gray-200 dark:border-slate-700">
-            <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center justify-between gap-2 mb-3">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
                 <MessageCircle className="w-5 h-5 text-primary" />
                 แชท
               </h2>
-              {totalUnread > 0 && (<span className="bg-red-500 text-white text-xs px-2 py-0.5 rounded-full">{totalUnread}</span>)}
+              {totalUnread > 0 && (
+                <div className="flex items-center gap-2">
+                  <span className="bg-red-500 text-white text-xs px-2 py-0.5 rounded-full">{totalUnread}</span>
+                  {/* บางแพลตฟอร์มบอกเราไม่ได้ว่าแอดมินไปตอบจากแอปของมันเอง (LINE ไม่มี
+                      event ทั้งขาส่งและขาอ่าน) ตัวเลขยังไม่อ่านจึงค้างได้ — ต้องมีทางล้างเอง */}
+                  <button onClick={markAllRead} disabled={markingAllRead}
+                    className="flex items-center gap-1 px-2 py-1 text-xs rounded-lg border border-gray-300 dark:border-slate-500 text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 disabled:opacity-50 transition-colors">
+                    {markingAllRead ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCheck className="w-3.5 h-3.5" />}
+                    อ่านทั้งหมด
+                  </button>
+                </div>
+              )}
             </div>
             {/* Row 1: Account dropdown + Sort + Filter */}
             <div className="flex gap-2 mb-2">
@@ -1471,7 +1516,8 @@ function UnifiedChatPageContent() {
                 <button onClick={() => setFilterParams({ unread: filterUnread ? '' : '1' })}
                   aria-label="เฉพาะยังไม่อ่าน"
                   className={`relative h-[42px] w-[42px] flex-shrink-0 flex items-center justify-center border rounded-lg transition-colors ${filterUnread ? 'bg-red-500 border-red-500 text-white' : 'border-gray-300 dark:border-slate-500 text-gray-500 hover:bg-gray-50 dark:hover:bg-slate-700'}`}>
-                  <MessageCircle className="w-4 h-4" />
+                  {/* ซองจดหมาย = ยังไม่อ่าน (ไอคอนแชทกลม ๆ ซ้ำกับไอคอนหัวข้อหน้า สื่อไม่ออกว่าเป็นตัวกรอง) */}
+                  <Mail className="w-4 h-4" />
                   {totalUnread > 0 && !filterUnread && (
                     <span className="absolute -top-1 -right-1 min-w-[16px] h-4 bg-red-500 text-white text-[10px] rounded-full flex items-center justify-center px-0.5">{totalUnread > 9 ? '9+' : totalUnread}</span>
                   )}

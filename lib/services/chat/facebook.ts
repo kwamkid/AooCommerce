@@ -525,10 +525,16 @@ export class FacebookChatService {
     if (error) console.error('Failed to save FB echo message:', error);
 
     // Update contact last_message_at
+    //
+    // ⚠️ **ต้องเคลียร์ unread_count ด้วย** — echo แปลว่าแอดมินตอบไปแล้วจากที่อื่น
+    // (Meta Business Suite / แอป Messenger / Instagram) ถ้าไม่เคลียร์ แชทที่ตอบจบไปแล้ว
+    // จะค้างเป็น "ยังไม่อ่าน" ตลอดไป แล้วตัวเลขค้างสะสมจนคนเลิกเชื่อตัวเลข
+    // (เจอจริง 4 ก.ย. 2026 — ดู fix-bug.md)
     await supabaseAdmin
       .from('fb_contacts')
       .update({
         last_message_at: new Date(event.timestamp).toISOString(),
+        unread_count: 0,
         updated_at: new Date().toISOString(),
       })
       .eq('id', contact.id);

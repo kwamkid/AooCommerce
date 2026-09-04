@@ -261,6 +261,10 @@ export class ShopeeChatService {
     };
     if (!isOutgoing) {
       contactUpdate.unread_count = (contact.unread_count || 0) + 1;
+    } else {
+      // ร้านตอบไปแล้ว (ไม่ว่าจะตอบจากระบบเราหรือจากแอป Shopee) = อ่านแล้ว
+      // ไม่เคลียร์ = ตัวเลขยังไม่อ่านค้างทั้งที่คุยจบไปแล้ว
+      contactUpdate.unread_count = 0;
     }
     if (buyerName && contact.display_name !== buyerName && !isOutgoing) {
       contactUpdate.display_name = buyerName;
