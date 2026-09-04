@@ -1423,37 +1423,96 @@ function UnifiedChatPageContent() {
         <div className={`w-full md:w-80 border-r border-gray-200 dark:border-slate-700 flex flex-col ${mobileView !== 'contacts' ? 'hidden md:flex' : 'flex'} ${rightPanel ? 'md:hidden xl:flex' : ''}`}>
           {/* Header */}
           <div className="p-3 md:p-4 border-b border-gray-200 dark:border-slate-700">
-            {/* แถวหัวข้อ (ตัวเลขยังไม่อ่าน + อ่านทั้งหมด) = เดสก์ท็อปเท่านั้น — บนมือถือหัวข้อ "แชท"
-                ย้ายไปอยู่แถวเดียวกับตัวกรองข้างล่าง (ได้ที่แนวตั้งคืน ~50px ให้รายชื่อ) ·
-                "อ่านทั้งหมด" ไปอยู่ท้าย popover กรองรายชื่อ · ตัวเลขเต็มดูจาก tooltip ปุ่มซองจดหมาย */}
-            <div className="hidden md:flex items-center justify-between gap-2 mb-3">
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                <MessageCircle className="w-5 h-5 text-primary" />
-                แชท
-              </h2>
-              {totalUnread > 0 && (
-                <div className="flex items-center gap-2">
-                  <span className="bg-red-500 text-white text-xs px-2 py-0.5 rounded-full">{totalUnread}</span>
-                  {/* บางแพลตฟอร์มบอกเราไม่ได้ว่าแอดมินไปตอบจากแอปของมันเอง (LINE ไม่มี
-                      event ทั้งขาส่งและขาอ่าน) ตัวเลขยังไม่อ่านจึงค้างได้ — ต้องมีทางล้างเอง */}
-                  <button onClick={markAllRead} disabled={markingAllRead}
-                    className="flex items-center gap-1 px-2 py-1 text-xs rounded-lg border border-gray-300 dark:border-slate-500 text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 disabled:opacity-50 transition-colors">
-                    {markingAllRead ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCheck className="w-3.5 h-3.5" />}
-                    อ่านทั้งหมด
-                  </button>
-                </div>
-              )}
-            </div>
-            {/* Row 1: (มือถือ: หัวข้อ) + Account dropdown + Sort + Unread + Filter */}
-            <div className="flex gap-2 mb-2">
-              {/* บนมือถือตัวเลขรวมอยู่ที่นี่แทนแถวหัวข้อที่ยุบไป ·
-                  ตัดไอคอนออกเพราะช่อง "ทุกช่องทาง" ต้องเหลือที่ (≥ ~110px บนจอ 390px) */}
-              <h2 className="md:hidden flex-shrink-0 flex items-center gap-1.5 text-lg font-semibold text-gray-900 dark:text-white">
+            {/* Row 1: หัวข้อ + ตัวเลขยังไม่อ่านรวม | เรียง · เฉพาะยังไม่อ่าน · กรอง */}
+            <div className="flex items-center gap-2 mb-2">
+              {/* ตัวเลขยังไม่อ่านโชว์เต็มจำนวนติดหัวข้อ (ไม่ตัดเป็น "9+") — เป็นที่เดียวที่บอกยอดรวม
+                  ทุกขนาดจอแล้ว หลังยุบแถวหัวข้อของเดสก์ท็อปทิ้ง */}
+              <h2 className="flex-1 min-w-0 flex items-center gap-1.5 text-lg font-semibold text-gray-900 dark:text-white">
+                <MessageCircle className="w-5 h-5 text-primary flex-shrink-0" />
                 แชท
                 {totalUnread > 0 && (
                   <span className="bg-red-500 text-white text-xs font-medium leading-none px-1.5 py-1 rounded-full">{formatNumber(totalUnread)}</span>
                 )}
               </h2>
+              <Tooltip text={sortMode === 'time' ? 'เรียงตามเวลา (กดเพื่อเรียงยังไม่อ่านก่อน)' : 'เรียงยังไม่อ่านก่อน (กดเพื่อเรียงตามเวลา)'}>
+                <button onClick={() => setFilterParams({ sort: sortMode === 'time' ? 'unread' : 'time' })}
+                  aria-label={sortMode === 'time' ? 'เรียงตามเวลา' : 'เรียงยังไม่อ่านก่อน'}
+                  className={`h-[42px] w-[42px] flex-shrink-0 flex items-center justify-center border rounded-lg transition-colors ${sortMode === 'unread' ? 'bg-red-500 border-red-500 text-white' : 'border-gray-300 dark:border-slate-500 text-gray-500 hover:bg-gray-50 dark:hover:bg-slate-700'}`}>
+                  <ArrowUpDown className="w-4 h-4" />
+                </button>
+              </Tooltip>
+              <Tooltip text={totalUnread > 0 ? `เฉพาะยังไม่อ่าน (${formatNumber(totalUnread)} ข้อความ)` : 'เฉพาะยังไม่อ่าน'}>
+                <button onClick={() => setFilterParams({ unread: filterUnread ? '' : '1' })}
+                  aria-label="เฉพาะยังไม่อ่าน"
+                  className={`h-[42px] w-[42px] flex-shrink-0 flex items-center justify-center border rounded-lg transition-colors ${filterUnread ? 'bg-red-500 border-red-500 text-white' : 'border-gray-300 dark:border-slate-500 text-gray-500 hover:bg-gray-50 dark:hover:bg-slate-700'}`}>
+                  {/* ซองจดหมาย = ยังไม่อ่าน (ไอคอนแชทกลม ๆ ซ้ำกับไอคอนหัวข้อหน้า สื่อไม่ออกว่าเป็นตัวกรอง) ·
+                      ไม่ต้องมีตัวเลขซ้อนบนปุ่ม — ยอดเต็มอยู่ข้างหัวข้อ "แชท" และใน tooltip แล้ว */}
+                  <Mail className="w-4 h-4" />
+                </button>
+              </Tooltip>
+              <div className="relative h-[42px]" data-filter-popover>
+                <Tooltip text="กรองรายชื่อ">
+                  <button onClick={() => setShowFilterPopover(!showFilterPopover)}
+                    aria-label="กรองรายชื่อ"
+                    className={`h-full w-[42px] flex items-center justify-center border rounded-lg transition-colors ${hasActiveFilter ? 'bg-primary border-primary text-white' : 'border-gray-300 dark:border-slate-500 text-gray-500 hover:bg-gray-50 dark:hover:bg-slate-700'}`}>
+                    <Filter className="w-5 h-5" />
+                  </button>
+                </Tooltip>
+                {showFilterPopover && (
+                  <div className="absolute right-0 top-full mt-2 w-64 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg z-50">
+                    <div className="p-3 border-b border-gray-100 dark:border-slate-700 flex items-center justify-between">
+                      <span className="text-base font-medium text-gray-900 dark:text-white">กรองรายชื่อ</span>
+                      {hasActiveFilter && (<button onClick={() => { setFilterParams({ linked: 'all', tag: '', account: '', platform: 'all', sort: 'time', unread: '' }); setFilterOrderDaysRange(null); setShowFilterPopover(false); }} className="text-xs text-red-500 hover:text-red-600">ล้างทั้งหมด</button>)}
+                    </div>
+                    <div className="p-3 space-y-4">
+                      <div>
+                        <label className="text-base font-medium text-gray-600 dark:text-slate-400 mb-2 block">สถานะลูกค้า</label>
+                        <div className="flex gap-2">
+                          <button onClick={() => { setFilterParams({ linked: filterLinked === 'linked' ? 'all' : 'linked' }); setShowFilterPopover(false); }} className={`flex-1 px-3 py-2 text-sm rounded-lg transition-colors flex items-center justify-center gap-1 ${filterLinked === 'linked' ? 'bg-blue-500 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-600'}`}><UserCheck className="w-4 h-4" /><span>ซื้อแล้ว</span></button>
+                          <button onClick={() => { const next = filterLinked === 'unlinked' ? 'all' : 'unlinked'; setFilterParams({ linked: next }); if (next === 'unlinked') setFilterOrderDaysRange(null); setShowFilterPopover(false); }} className={`flex-1 px-3 py-2 text-sm rounded-lg transition-colors flex items-center justify-center gap-1 ${filterLinked === 'unlinked' ? 'bg-orange-500 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-600'}`}><UserX className="w-4 h-4" /><span>ยังไม่ซื้อ</span></button>
+                        </div>
+                      </div>
+                      {/* Tag filter */}
+                      {allTags.length > 0 && (
+                        <div>
+                          <label className="text-base font-medium text-gray-600 dark:text-slate-400 mb-2 block">แท็ก</label>
+                          <div className="flex flex-wrap gap-1">
+                            <button onClick={() => { setFilterParams({ tag: '' }); setShowFilterPopover(false); }}
+                              className={`px-2 py-1 text-sm rounded-lg transition-colors ${filterTag === '' ? 'bg-gray-900 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-600'}`}>ทั้งหมด</button>
+                            {allTags.map(tag => {
+                              const isActive = filterTag === tag.id;
+                              return (
+                                <button key={tag.id} onClick={() => { setFilterParams({ tag: isActive ? '' : tag.id }); setShowFilterPopover(false); }}
+                                  className={`px-2 py-1 text-sm rounded-lg transition-colors flex items-center gap-1 ${isActive ? 'text-white' : 'hover:opacity-80'}`}
+                                  style={isActive ? { backgroundColor: tag.color } : { backgroundColor: tag.color + '20', color: tag.color }}>
+                                  <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: isActive ? 'white' : tag.color }} />
+                                  {tag.name}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    {/* บางแพลตฟอร์มบอกเราไม่ได้ว่าแอดมินไปตอบจากแอปของมันเอง (LINE ไม่มี event ทั้งขาส่ง
+                        และขาอ่าน) ตัวเลขยังไม่อ่านจึงค้างได้ — ที่นี่คือที่เดียวที่ล้างเองได้แล้ว จึงต้องโชว์ทุกจอ */}
+                    {totalUnread > 0 && (
+                      <div className="p-3 border-t border-gray-100 dark:border-slate-700">
+                        <button onClick={() => { setShowFilterPopover(false); markAllRead(); }} disabled={markingAllRead}
+                          className="w-full flex items-center justify-center gap-1.5 px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-slate-500 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 disabled:opacity-50 transition-colors">
+                          {markingAllRead ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCheck className="w-4 h-4" />}
+                          อ่านทั้งหมด · ยังไม่อ่าน {formatNumber(totalUnread)}
+                        </button>
+                      </div>
+                    )}
+                    {/* ไม่มีปุ่มปิด — เลือกแล้วปิดเอง / แตะข้างนอกก็ปิด
+                        (ตัวเลือกมีแค่ 2–3 ตัว กดทีละอันแล้วดูผลทันทีดีกว่า) */}
+                  </div>
+                )}
+              </div>
+            </div>
+            {/* Row 2: ช่องทาง | ค้นหา — อยู่แถวเดียวกันตามที่ผู้ใช้ขอ (ประหยัดที่แนวตั้งบนมือถือ) */}
+            <div className="flex gap-2">
               <div className="relative flex-1 min-w-0" data-account-picker>
                 {(() => {
                   const selectedAccount = filterAccountId ? chatAccounts.find(a => a.id === filterAccountId) : null;
@@ -1479,7 +1538,9 @@ function UnifiedChatPageContent() {
                         )}
                       </button>
                       {showAccountPicker && (
-                        <div className="absolute top-full mt-1 left-0 right-0 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg z-50 max-h-60 overflow-hidden flex flex-col" style={{ width: 'min(calc(100vw - 7rem), 288px)' }}>
+                        // ปุ่มอยู่ริมซ้ายของแถวแล้ว (ครึ่งซ้าย) — ป๊อปอัปจึงกางได้เต็มความกว้างแถบ
+                        // 288px = ความกว้างในของ sidebar บนเดสก์ท็อป · มือถือเผื่อขอบจอ 1.5rem
+                        <div className="absolute top-full mt-1 left-0 right-0 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg z-50 max-h-60 overflow-hidden flex flex-col" style={{ width: 'min(calc(100vw - 1.5rem), 288px)' }}>
                           <div className="p-2 border-b border-gray-100 dark:border-slate-700">
                             <input type="text" value={accountSearch} onChange={e => setAccountSearch(e.target.value)} placeholder="ค้นหาบัญชี..." autoFocus
                               className="w-full px-2.5 py-1.5 text-sm border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-primary" />
@@ -1521,109 +1582,31 @@ function UnifiedChatPageContent() {
                   );
                 })()}
               </div>
-              <Tooltip text={sortMode === 'time' ? 'เรียงตามเวลา (กดเพื่อเรียงยังไม่อ่านก่อน)' : 'เรียงยังไม่อ่านก่อน (กดเพื่อเรียงตามเวลา)'}>
-                <button onClick={() => setFilterParams({ sort: sortMode === 'time' ? 'unread' : 'time' })}
-                  aria-label={sortMode === 'time' ? 'เรียงตามเวลา' : 'เรียงยังไม่อ่านก่อน'}
-                  className={`h-[42px] w-[42px] flex-shrink-0 flex items-center justify-center border rounded-lg transition-colors ${sortMode === 'unread' ? 'bg-red-500 border-red-500 text-white' : 'border-gray-300 dark:border-slate-500 text-gray-500 hover:bg-gray-50 dark:hover:bg-slate-700'}`}>
-                  <ArrowUpDown className="w-4 h-4" />
-                </button>
-              </Tooltip>
-              <Tooltip text={totalUnread > 0 ? `เฉพาะยังไม่อ่าน (${formatNumber(totalUnread)} ข้อความ)` : 'เฉพาะยังไม่อ่าน'}>
-                <button onClick={() => setFilterParams({ unread: filterUnread ? '' : '1' })}
-                  aria-label="เฉพาะยังไม่อ่าน"
-                  className={`relative h-[42px] w-[42px] flex-shrink-0 flex items-center justify-center border rounded-lg transition-colors ${filterUnread ? 'bg-red-500 border-red-500 text-white' : 'border-gray-300 dark:border-slate-500 text-gray-500 hover:bg-gray-50 dark:hover:bg-slate-700'}`}>
-                  {/* ซองจดหมาย = ยังไม่อ่าน (ไอคอนแชทกลม ๆ ซ้ำกับไอคอนหัวข้อหน้า สื่อไม่ออกว่าเป็นตัวกรอง) */}
-                  <Mail className="w-4 h-4" />
-                  {totalUnread > 0 && !filterUnread && (
-                    // มือถือไม่ต้องมี "9+" ตรงนี้ — ตัวเลขเต็มอยู่ข้างหัวข้อ "แชท" แล้ว
-                    <span className="absolute -top-1 -right-1 min-w-[16px] h-4 bg-red-500 text-white text-[10px] rounded-full hidden md:flex items-center justify-center px-0.5">{totalUnread > 9 ? '9+' : totalUnread}</span>
-                  )}
-                </button>
-              </Tooltip>
-              <div className="relative h-[42px]" data-filter-popover>
-                <Tooltip text="กรองรายชื่อ">
-                  <button onClick={() => setShowFilterPopover(!showFilterPopover)}
-                    aria-label="กรองรายชื่อ"
-                    className={`h-full w-[42px] flex items-center justify-center border rounded-lg transition-colors ${hasActiveFilter ? 'bg-primary border-primary text-white' : 'border-gray-300 dark:border-slate-500 text-gray-500 hover:bg-gray-50 dark:hover:bg-slate-700'}`}>
-                    <Filter className="w-5 h-5" />
-                  </button>
-                </Tooltip>
-                {showFilterPopover && (
-                  <div className="absolute right-0 top-full mt-2 w-64 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg z-50">
-                    <div className="p-3 border-b border-gray-100 dark:border-slate-700 flex items-center justify-between">
-                      <span className="text-base font-medium text-gray-900 dark:text-white">กรองรายชื่อ</span>
-                      {hasActiveFilter && (<button onClick={() => { setFilterParams({ linked: 'all', tag: '', account: '', platform: 'all', sort: 'time', unread: '' }); setFilterOrderDaysRange(null); }} className="text-xs text-red-500 hover:text-red-600">ล้างทั้งหมด</button>)}
-                    </div>
-                    <div className="p-3 space-y-4">
-                      <div>
-                        <label className="text-base font-medium text-gray-600 dark:text-slate-400 mb-2 block">สถานะลูกค้า</label>
-                        <div className="flex gap-2">
-                          <button onClick={() => setFilterParams({ linked: filterLinked === 'linked' ? 'all' : 'linked' })} className={`flex-1 px-3 py-2 text-sm rounded-lg transition-colors flex items-center justify-center gap-1 ${filterLinked === 'linked' ? 'bg-blue-500 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-600'}`}><UserCheck className="w-4 h-4" /><span>ซื้อแล้ว</span></button>
-                          <button onClick={() => { const next = filterLinked === 'unlinked' ? 'all' : 'unlinked'; setFilterParams({ linked: next }); if (next === 'unlinked') setFilterOrderDaysRange(null); }} className={`flex-1 px-3 py-2 text-sm rounded-lg transition-colors flex items-center justify-center gap-1 ${filterLinked === 'unlinked' ? 'bg-orange-500 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-600'}`}><UserX className="w-4 h-4" /><span>ยังไม่ซื้อ</span></button>
-                        </div>
-                      </div>
-                      {/* Tag filter */}
-                      {allTags.length > 0 && (
-                        <div>
-                          <label className="text-base font-medium text-gray-600 dark:text-slate-400 mb-2 block">แท็ก</label>
-                          <div className="flex flex-wrap gap-1">
-                            <button onClick={() => setFilterParams({ tag: '' })}
-                              className={`px-2 py-1 text-sm rounded-lg transition-colors ${filterTag === '' ? 'bg-gray-900 text-white' : 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-600'}`}>ทั้งหมด</button>
-                            {allTags.map(tag => {
-                              const isActive = filterTag === tag.id;
-                              return (
-                                <button key={tag.id} onClick={() => setFilterParams({ tag: isActive ? '' : tag.id })}
-                                  className={`px-2 py-1 text-sm rounded-lg transition-colors flex items-center gap-1 ${isActive ? 'text-white' : 'hover:opacity-80'}`}
-                                  style={isActive ? { backgroundColor: tag.color } : { backgroundColor: tag.color + '20', color: tag.color }}>
-                                  <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: isActive ? 'white' : tag.color }} />
-                                  {tag.name}
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                    {totalUnread > 0 && (
-                      <div className="md:hidden p-3 border-t border-gray-100 dark:border-slate-700">
-                        <button onClick={() => { setShowFilterPopover(false); markAllRead(); }} disabled={markingAllRead}
-                          className="w-full flex items-center justify-center gap-1.5 px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-slate-500 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 disabled:opacity-50 transition-colors">
-                          {markingAllRead ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCheck className="w-4 h-4" />}
-                          อ่านทั้งหมด · ยังไม่อ่าน {formatNumber(totalUnread)}
+              <div className="relative flex-1 min-w-0">
+                {/* ⚠️ ห้ามส่ง h-[..] มา override — SearchInput สูง 42px อยู่แล้ว และการส่ง
+                    ความสูงคนละค่ามาทับทำให้ "ค่าไหนชนะ" ขึ้นกับลำดับที่ Tailwind สร้าง CSS
+                    (specificity เท่ากัน) = ความสูงเดาไม่ได้ · ทุกช่องในแถบกรองนี้ใช้ 42px เท่ากันหมด */}
+                <SearchInput value={searchTerm} onChange={setSearchTerm} placeholder="ค้นหาชื่อ / แท็ก" />
+                {searchTerm.length >= 1 && !filterTag && (() => {
+                  const q = searchTerm.toLowerCase();
+                  const matchedTags = allTags.filter(t => t.name.toLowerCase().includes(q));
+                  if (matchedTags.length === 0) return null;
+                  return (
+                    // ช่องค้นหาเหลือครึ่งแถว — รายการแท็กจึงยึดขอบขวาแล้วกางย้อนไปทางซ้ายเต็มแถว
+                    <div className="absolute z-50 top-full right-0 mt-1 w-[min(18rem,calc(100vw-1.5rem))] bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg overflow-hidden">
+                      <div className="px-3 py-1.5 text-[10px] font-medium text-gray-400 uppercase tracking-wider">แท็ก</div>
+                      {matchedTags.slice(0, 5).map(tag => (
+                        <button key={tag.id} onClick={() => { setFilterParams({ tag: tag.id }); setSearchTerm(''); }}
+                          className="w-full flex items-center gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors text-left">
+                          <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: tag.color }} />
+                          <span className="text-sm text-gray-700 dark:text-slate-300">tag:</span>
+                          <span className="text-sm font-medium text-gray-900 dark:text-white">{tag.name}</span>
                         </button>
-                      </div>
-                    )}
-                    <div className="p-3 border-t border-gray-100 dark:border-slate-700">
-                      <button onClick={() => setShowFilterPopover(false)} className="w-full px-3 py-2 bg-gray-900 text-white text-sm rounded-lg hover:bg-gray-800 transition-colors">ปิด</button>
+                      ))}
                     </div>
-                  </div>
-                )}
+                  );
+                })()}
               </div>
-            </div>
-            {/* Row 2: Search (full width) with tag suggestions */}
-            <div className="relative">
-              {/* ⚠️ ห้ามส่ง h-[..] มา override — SearchInput สูง 42px อยู่แล้ว และการส่ง
-                  ความสูงคนละค่ามาทับทำให้ "ค่าไหนชนะ" ขึ้นกับลำดับที่ Tailwind สร้าง CSS
-                  (specificity เท่ากัน) = ความสูงเดาไม่ได้ · ทุกช่องในแถบกรองนี้ใช้ 42px เท่ากันหมด */}
-              <SearchInput value={searchTerm} onChange={setSearchTerm} placeholder="ค้นหาชื่อ หรือแท็ก..." />
-              {searchTerm.length >= 1 && !filterTag && (() => {
-                const q = searchTerm.toLowerCase();
-                const matchedTags = allTags.filter(t => t.name.toLowerCase().includes(q));
-                if (matchedTags.length === 0) return null;
-                return (
-                  <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg overflow-hidden">
-                    <div className="px-3 py-1.5 text-[10px] font-medium text-gray-400 uppercase tracking-wider">แท็ก</div>
-                    {matchedTags.slice(0, 5).map(tag => (
-                      <button key={tag.id} onClick={() => { setFilterParams({ tag: tag.id }); setSearchTerm(''); }}
-                        className="w-full flex items-center gap-2 px-3 py-2 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors text-left">
-                        <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: tag.color }} />
-                        <span className="text-sm text-gray-700 dark:text-slate-300">tag:</span>
-                        <span className="text-sm font-medium text-gray-900 dark:text-white">{tag.name}</span>
-                      </button>
-                    ))}
-                  </div>
-                );
-              })()}
             </div>
             {/* Active filters display */}
             {hasActiveFilter && (
