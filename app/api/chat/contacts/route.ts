@@ -1,5 +1,6 @@
 import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, after } from 'next/server';
+import { isLineBotProfileStale, refreshLineBotProfile } from '@/lib/chat/line-bot-profile';
 
 // GET - Get unified contacts from all platforms
 export async function GET(request: NextRequest) {
@@ -146,6 +147,12 @@ export async function GET(request: NextRequest) {
       let picture_url: string | undefined;
       if (a.platform === 'line') {
         picture_url = creds.bot_picture_url || undefined;
+        // รูป OA ตายเมื่อ OA เปลี่ยนรูป (URL เดิม 404) → เส้นนี้คือเส้นที่หน้าแชทวิ่งทุกครั้ง
+        // ที่เปิด จึงเป็นที่ที่รูปจะกลับมาเองเร็วที่สุด · after() เพราะงานเบื้องหลังใน
+        // route handler ที่ปล่อยลอยจะโดน Vercel freeze ทิ้ง
+        if (isLineBotProfileStale(creds)) {
+          after(() => refreshLineBotProfile(a.id, creds));
+        }
       } else if (a.platform === 'facebook') {
         // Use permanent Graph API URL (CDN URLs from page_picture_url expire)
         const pageId = creds.page_id;

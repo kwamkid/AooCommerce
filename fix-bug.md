@@ -16,6 +16,24 @@
 
 ---
 
+## 2026-09-04 — แชทมือถือในแอปที่ติดตั้ง: ที่ว่างใต้ช่องพิมพ์เมื่อลาก · รูป OA LINE เป็นวงกลมว่าง · ตัวเลขรวมหาย
+
+**ที่เกิด**: [app/chat/page.tsx](app/chat/page.tsx) · [app/globals.css](app/globals.css) `.chat-container` · [components/layout/Layout.tsx](components/layout/Layout.tsx) · [app/api/chat-accounts/route.ts](app/api/chat-accounts/route.ts) · [app/api/chat/contacts/route.ts](app/api/chat/contacts/route.ts)
+
+**1. ลากรายการข้อความสุดทางแล้วเห็นที่ว่างใต้ช่องพิมพ์ (iPhone แอปที่ติดตั้ง)**
+Root cause: `.chat-container` สูง `calc(100dvh - 64px)` แต่หัวเว็บจริงสูง **65px** (`h-16` + `border-b`) → กล่องล้น `main` (ซึ่งเป็น `overflow-y-auto`) อยู่ 1px → main กลายเป็นเลื่อนได้ · พอลากรายการข้อความเลยสุด scroll chaining ส่งต่อให้ main → main เด้ง (rubber band) โชว์พื้นหลังใต้ช่องพิมพ์ · `overscroll-behavior: contain` ที่ใส่ไว้บน `.chat-container` ไม่ช่วย เพราะมันไม่ใช่ scroll container (คุณสมบัตินี้มีผลเฉพาะตัวที่เลื่อนได้เอง)
+วิธีแก้: **เลิกคิดความสูงจาก viewport** — Layout เมื่อ `noPadding` ให้กล่องเนื้อหาเป็น `h-full` แล้ว `.chat-container { height: 100% }` (สูงเท่า main พอดีไม่ว่าหัวเว็บ/แถบชวนติดตั้งจะสูงเท่าไร) · ระยะขอบเดสก์ท็อปย้ายจาก `margin` ของ `.chat-container` ไปเป็น `md:p-6` ของตัวครอบ (margin จะทะลุตัวครอบ `h-full` ออกไปทำให้ล้นอีก) · ใส่ `overscroll-contain` ที่ตัวที่เลื่อนได้จริง (รายการข้อความ + รายชื่อ) · ช่องพิมพ์ใช้ `pb-safe-min-2` = `max(inset, 0.5rem)` ชิดล่างเท่าที่ทำได้โดยไม่ลงไปใต้แถบ gesture
+- **บทเรียน**: กล่องที่ต้อง "สูงเท่าพื้นที่ที่เหลือ" ให้ใช้ percentage/flex จากตัวครอบ ไม่ใช่ `100dvh - <เลขที่เดาจากหัวเว็บ>` — เลขนั้นผิดได้ทุกครั้งที่ header เปลี่ยน (border · แถบแทรก · safe area) และผิดแค่ 1px ก็เกิด rubber band
+
+**2. ตราช่องทางมุมรูปโปรไฟล์ของแชท LINE เป็นวงกลมขาวว่าง (FB ปกติ)**
+Root cause: `chat_accounts.credentials.bot_picture_url` ดึงจาก `GET /v2/bot/info` **ครั้งเดียวตอนสร้างบัญชี** — LINE ให้ URL ที่ `profile.line-scdn.net` ซึ่ง **ตายเมื่อ OA เปลี่ยนรูป** (เช็คจริง: aDay Fresh เก็บไว้ตั้งแต่ ก.พ. → ตอนนี้ 404 · Joolz ยัง 200) · `<img>` พังแล้วเหลือแค่ขอบขาว ไม่มี fallback
+วิธีแก้: [lib/chat/line-bot-profile.ts](lib/chat/line-bot-profile.ts) `refreshLineBotProfile()` + stamp `bot_profile_fetched_at` · GET `/api/chat-accounts` และ `/api/chat/contacts` เห็นบัญชี LINE ที่เก่าเกิน 24 ชม. → รีเฟรชใน `after()` (รอบนี้ค่าเก่า รอบหน้าค่าใหม่) · ล้มก็ stamp เพื่อไม่ยิง LINE ทุก request · UI: `AccountCornerBadge` ใน [chatHelpers.tsx](app/chat/lib/chatHelpers.tsx) จำ "URL ที่พัง" แล้วตกไปไอคอนแพลตฟอร์ม (บทเรียนเดียวกับ `ChannelBadge` 2026-08-28)
+- **บทเรียน**: รูปโปรไฟล์จากแพลตฟอร์มภายนอก (LINE · FB CDN · marketplace) เป็นของที่หมดอายุได้ทั้งหมด — ต้องมีทั้ง **รีเฟรชเป็นระยะ** และ **fallback ตอนโหลดพัง** เสมอ ไม่ใช่อย่างใดอย่างหนึ่ง
+
+**3. ตัวเลขยังไม่อ่านรวมหายบนมือถือ**
+Root cause: ตอนยุบแถวหัวข้อลงแถวตัวกรอง (commit `666ac54`) ตัดตัวเลขรวมออกไปด้วย เหลือแค่ `9+` บนปุ่มซองจดหมาย — ผู้ใช้ต้องการเห็นตัวเลขจริง
+วิธีแก้: หัวข้อ "แชท" บนมือถือมี pill ตัวเลขเต็มต่อท้าย (ตัดไอคอนออกให้ช่อง "ทุกช่องทาง" เหลือที่) · ซ่อน `9+` บนซองจดหมายเฉพาะมือถือ (ซ้ำ)
+
 ## 2026-09-04 — หน้าแชทพังทั้งหน้า: "React has detected a change in the order of Hooks" หลังเพิ่มปุ่มอ่านทั้งหมด
 
 **ที่เกิด**: [app/chat/page.tsx](app/chat/page.tsx) `UnifiedChatPageContent` — `useState(markingAllRead)` + `useCallback(markAllRead)` + hooks ของท่า back (`backToContacts` · `useEffect` pushState/popstate · `handleBackTap`)

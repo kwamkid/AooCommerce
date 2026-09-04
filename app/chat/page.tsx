@@ -57,7 +57,7 @@ import TagInput from '@/components/ui/TagInput';
 import Tooltip from '@/components/ui/Tooltip';
 import type { UnifiedContact, ChatMessage, Customer, DayRange, ChatAccountInfo, LinkedContact } from './lib/chatTypes';
 import MessageBubble from './components/MessageBubble';
-import { FbIcon, IgIcon, LineIcon, ShopeeIcon, LazadaIcon, TiktokIcon, PlatformIcon, getAccountPicture, getAvatarUrl, getInitials, formatTime, formatLastMessage, compressImage, officialStickers } from './lib/chatHelpers';
+import { FbIcon, IgIcon, LineIcon, ShopeeIcon, LazadaIcon, TiktokIcon, PlatformIcon, AccountCornerBadge, getAccountPicture, getAvatarUrl, getInitials, formatTime, formatLastMessage, compressImage, officialStickers } from './lib/chatHelpers';
 import { FullPageLoading } from '@/components/ui/Loading';
 import { LoadingCard } from '@/components/ui/StateCard';
 import StatusBadge from '@/components/ui/StatusBadge';
@@ -1415,6 +1415,9 @@ function UnifiedChatPageContent() {
 
   return (
     <Layout noPadding>
+      {/* ระยะขอบเดสก์ท็อปเป็น padding ของตัวครอบ (ไม่ใช่ margin ของ .chat-container)
+          — margin จะทะลุตัวครอบ h-full ออกไปทำให้ main สูงเกินแล้วเลื่อนได้อีก */}
+      <div className="h-full md:p-6">
       <div className="chat-container flex relative bg-white dark:bg-slate-800 md:rounded-lg md:border border-gray-200 dark:border-slate-700 overflow-hidden">
         {/* Contacts Sidebar */}
         <div className={`w-full md:w-80 border-r border-gray-200 dark:border-slate-700 flex flex-col ${mobileView !== 'contacts' ? 'hidden md:flex' : 'flex'} ${rightPanel ? 'md:hidden xl:flex' : ''}`}>
@@ -1443,9 +1446,13 @@ function UnifiedChatPageContent() {
             </div>
             {/* Row 1: (มือถือ: หัวข้อ) + Account dropdown + Sort + Unread + Filter */}
             <div className="flex gap-2 mb-2">
+              {/* บนมือถือตัวเลขรวมอยู่ที่นี่แทนแถวหัวข้อที่ยุบไป ·
+                  ตัดไอคอนออกเพราะช่อง "ทุกช่องทาง" ต้องเหลือที่ (≥ ~110px บนจอ 390px) */}
               <h2 className="md:hidden flex-shrink-0 flex items-center gap-1.5 text-lg font-semibold text-gray-900 dark:text-white">
-                <MessageCircle className="w-5 h-5 text-primary" />
                 แชท
+                {totalUnread > 0 && (
+                  <span className="bg-red-500 text-white text-xs font-medium leading-none px-1.5 py-1 rounded-full">{formatNumber(totalUnread)}</span>
+                )}
               </h2>
               <div className="relative flex-1 min-w-0" data-account-picker>
                 {(() => {
@@ -1528,7 +1535,8 @@ function UnifiedChatPageContent() {
                   {/* ซองจดหมาย = ยังไม่อ่าน (ไอคอนแชทกลม ๆ ซ้ำกับไอคอนหัวข้อหน้า สื่อไม่ออกว่าเป็นตัวกรอง) */}
                   <Mail className="w-4 h-4" />
                   {totalUnread > 0 && !filterUnread && (
-                    <span className="absolute -top-1 -right-1 min-w-[16px] h-4 bg-red-500 text-white text-[10px] rounded-full flex items-center justify-center px-0.5">{totalUnread > 9 ? '9+' : totalUnread}</span>
+                    // มือถือไม่ต้องมี "9+" ตรงนี้ — ตัวเลขเต็มอยู่ข้างหัวข้อ "แชท" แล้ว
+                    <span className="absolute -top-1 -right-1 min-w-[16px] h-4 bg-red-500 text-white text-[10px] rounded-full hidden md:flex items-center justify-center px-0.5">{totalUnread > 9 ? '9+' : totalUnread}</span>
                   )}
                 </button>
               </Tooltip>
@@ -1633,8 +1641,8 @@ function UnifiedChatPageContent() {
             )}
           </div>
 
-          {/* Contacts List */}
-          <div className="flex-1 overflow-y-auto">
+          {/* Contacts List — overscroll-contain กันลากสุดรายชื่อแล้ว main เด้งตาม */}
+          <div className="flex-1 overflow-y-auto overscroll-contain">
             {loadingContacts ? (
               <div className="flex items-center justify-center py-8"><Loader2 className="w-6 h-6 text-gray-400 animate-spin" /></div>
             ) : contacts.length === 0 ? (
@@ -1664,13 +1672,7 @@ function UnifiedChatPageContent() {
                         </div>
                       )}
                       {/* Channel profile pic badge (bottom-left) */}
-                      {contact.account_picture_url ? (
-                        <img src={contact.account_picture_url} alt={contact.account_name || ''} loading="lazy" className="absolute -bottom-0.5 -left-0.5 w-5 h-5 rounded-full object-cover shadow-sm border-2 border-white dark:border-slate-800" />
-                      ) : (
-                        <span className={`absolute -bottom-0.5 -left-0.5 w-5 h-5 rounded-full flex items-center justify-center shadow-sm border-2 border-white dark:border-slate-800 ${contact.source === 'instagram' ? 'bg-[#E4405F]' : contact.platform === 'line' ? 'bg-line' : contact.platform === 'shopee' ? 'bg-[#EE4D2D]' : contact.platform === 'lazada' ? 'bg-[#0F146E]' : contact.platform === 'tiktok' ? 'bg-[#161823]' : 'bg-facebook'}`}>
-                          <PlatformIcon contact={contact} size={10} />
-                        </span>
-                      )}
+                      <AccountCornerBadge contact={contact} sizeClass="w-5 h-5" />
                       {/* Linked customer indicator */}
                       {contact.customer && (<span className="absolute -bottom-0.5 -right-0.5 bg-blue-500 text-white w-4 h-4 rounded-full flex items-center justify-center shadow-sm border border-white dark:border-slate-800"><LinkIcon className="w-2.5 h-2.5" /></span>)}
                     </div>
@@ -1742,15 +1744,7 @@ function UnifiedChatPageContent() {
                     const avatarEl = (
                       <div className="relative flex-shrink-0">
                         {avatarInner}
-                        {selectedContact.account_picture_url ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={selectedContact.account_picture_url} alt={selectedContact.account_name || ''} loading="lazy"
-                            className="absolute -bottom-0.5 -left-0.5 w-[18px] h-[18px] rounded-full object-cover shadow-sm border-2 border-white dark:border-slate-800" />
-                        ) : (
-                          <span className="absolute -bottom-0.5 -left-0.5 w-[18px] h-[18px] rounded-full flex items-center justify-center shadow-sm border-2 border-white dark:border-slate-800" style={{ backgroundColor: platformColor }}>
-                            <PlatformIcon contact={selectedContact} size={10} />
-                          </span>
-                        )}
+                        <AccountCornerBadge contact={selectedContact} sizeClass="w-[18px] h-[18px]" />
                       </div>
                     );
                     return (<>
@@ -1818,7 +1812,8 @@ function UnifiedChatPageContent() {
               </div>
 
               {/* Messages */}
-              <div ref={messagesContainerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50 dark:bg-slate-900 relative font-sarabun">
+              {/* overscroll-contain — ลากเลยสุดรายการแล้วห้ามส่งต่อให้ main เลื่อน/เด้ง */}
+              <div ref={messagesContainerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto overscroll-contain p-4 space-y-4 bg-gray-50 dark:bg-slate-900 relative font-sarabun">
                 {loadingMessages ? (
                   <div className="flex items-center justify-center py-8"><Loader2 className="w-6 h-6 text-gray-400 animate-spin" /></div>
                 ) : messages.length === 0 ? (
@@ -1888,9 +1883,11 @@ function UnifiedChatPageContent() {
                   </div>
                 </div>
               ) : (
-              // pb-safe-2 = ตัวนี้แหละที่ติดขอบล่างจอจริง ๆ จึงเป็นที่ที่ต้องเผื่อแถบ home indicator
+              // ตัวนี้แหละที่ติดขอบล่างจอจริง ๆ จึงเป็นที่ที่ต้องเผื่อแถบ home indicator
               // (ห้ามไปเผื่อที่ตัวครอบทั้งหน้า — จะกลายเป็นแถบว่างค้างท้ายจอแทน)
-              <div className="p-2 md:p-4 pb-safe-2 md:pb-safe-4 border-t border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+              // บนมือถือใช้ pb-safe-min-2 = เท่ากับ inset ของ home indicator พอดี ไม่บวกเพิ่ม
+              // (ผู้ใช้ขอให้ชิดล่างสุด) — ห้ามลดต่ำกว่า inset ไม่งั้นช่องพิมพ์ไปอยู่ใต้แถบ gesture ของ iOS
+              <div className="p-2 md:p-4 pb-safe-min-2 md:pb-safe-4 border-t border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800">
                 <div className="flex items-center gap-1 md:gap-2">
                   <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
                   {/* box="inline-flex" — ปุ่มนี้ disabled ตอนอัปโหลด ซึ่งไม่ยิง pointer event ต้องมีกล่องครอบถึงจะ hover ติด */}
@@ -2104,6 +2101,7 @@ function UnifiedChatPageContent() {
         />
       )}
       {confirmDialog}
+      </div>
     </Layout>
   );
 }

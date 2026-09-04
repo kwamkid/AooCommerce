@@ -1,4 +1,7 @@
+'use client';
+
 import Image from 'next/image';
+import { useState } from 'react';
 import type { ChatAccountInfo, UnifiedContact } from './chatTypes';
 
 export function FbIcon({ size = 16 }: { size?: number }) {
@@ -33,6 +36,53 @@ export function PlatformIcon({ contact, size = 16 }: { contact: { platform: stri
   if (contact.platform === 'lazada') return <LazadaIcon size={size} />;
   if (contact.platform === 'tiktok') return <TiktokIcon size={size} />;
   return <FbIcon size={size} />;
+}
+
+/** สีประจำแพลตฟอร์ม — ที่เดียวของทั้งหน้าแชท (เดิม copy เป็น ternary ยาวสองที่) */
+export function getPlatformColor(contact: { platform: string; source?: string }): string {
+  if (contact.source === 'instagram') return '#E4405F';
+  if (contact.platform === 'line') return '#06C755';
+  if (contact.platform === 'shopee') return '#EE4D2D';
+  if (contact.platform === 'lazada') return '#0F146E';
+  if (contact.platform === 'tiktok') return '#161823';
+  return '#1877F2';
+}
+
+/**
+ * ตราช่องทางมุมซ้ายล่างของรูปโปรไฟล์ (รายชื่อแชท + หัวแชท)
+ *
+ * รูปช่องทางเป็น URL ภายนอกที่ตายได้ (LINE คืน 404 เมื่อ OA เปลี่ยนรูป) → พังแล้ว
+ * ต้องตกไปเป็นไอคอน platform ไม่ใช่วงกลมว่าง (บทเรียนเดียวกับ ChannelBadge)
+ */
+export function AccountCornerBadge({
+  contact,
+  sizeClass,
+}: {
+  contact: { platform: string; source?: string; account_picture_url?: string; account_name?: string };
+  sizeClass: string;
+}) {
+  const url = contact.account_picture_url;
+  // จำ "URL ไหนที่พัง" ไม่ใช่ boolean — พอสลับไปคู่สนทนาคนอื่น (หรือรูปถูกรีเฟรชแล้ว)
+  // ค่าจะไม่ตรงกันเอง = กลับไปลองโหลดใหม่ โดยไม่ต้องมี effect คอย reset
+  const [brokenUrl, setBrokenUrl] = useState<string | null>(null);
+  const broken = !!url && brokenUrl === url;
+
+  const base = `absolute -bottom-0.5 -left-0.5 ${sizeClass} rounded-full shadow-sm border-2 border-white dark:border-slate-800`;
+
+  if (url && !broken) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img src={url} alt={contact.account_name || ''} loading="lazy"
+        onError={() => setBrokenUrl(url)}
+        className={`${base} object-cover`} />
+    );
+  }
+
+  return (
+    <span className={`${base} flex items-center justify-center`} style={{ backgroundColor: getPlatformColor(contact) }}>
+      <PlatformIcon contact={contact} size={10} />
+    </span>
+  );
 }
 
 /**

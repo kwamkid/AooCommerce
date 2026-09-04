@@ -1,5 +1,6 @@
 import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, after } from 'next/server';
+import { isLineBotProfileStale, refreshLineBotProfile } from '@/lib/chat/line-bot-profile';
 import crypto from 'crypto';
 import {
   createSalesChannelForChatAccount,
@@ -31,6 +32,16 @@ export async function GET(request: NextRequest) {
 
     const { data, error } = await query;
     if (error) throw error;
+
+    // รูป OA ของ LINE ตายได้เมื่อ OA เปลี่ยนรูป → รีเฟรชเงียบ ๆ หลังตอบ request
+    // (รอบนี้ยังใช้ค่าเก่า รอบหน้าได้รูปใหม่) · ต้องผ่าน after() ไม่งั้น Vercel
+    // freeze ฟังก์ชันทันทีที่ response ออก แล้วงานตายกลางทาง
+    for (const account of data || []) {
+      const creds = account.credentials as Record<string, unknown> | null;
+      if (account.platform === 'line' && isLineBotProfileStale(creds)) {
+        after(() => refreshLineBotProfile(account.id, creds as Record<string, unknown>));
+      }
+    }
 
     // รูปประจำช่องทาง — resolve ที่เดียวตรงนี้ ไม่ให้แต่ละหน้าไปเดาเอง
     // (แชท marketplace ไม่มีรูปใน credentials ของตัวเอง — โลโก้ร้านอยู่ที่
@@ -260,29 +271,10 @@ export async function POST(request: NextRequest) {
       console.warn('createSalesChannelForChatAccount failed:', e);
     }
 
-    // Auto-fetch LINE bot profile (non-blocking)
+    // Auto-fetch LINE bot profile — ตัวเดียวกับที่ GET ใช้รีเฟรชตอนรูปเก่าเกิน TTL
     if (platform === 'line' && finalCredentials.channel_access_token) {
-      try {
-        const botInfoRes = await fetch('https://api.line.me/v2/bot/info', {
-          headers: { 'Authorization': `Bearer ${finalCredentials.channel_access_token}` },
-        });
-        if (botInfoRes.ok) {
-          const botInfo = await botInfoRes.json();
-          const updatedCreds = {
-            ...finalCredentials,
-            bot_name: botInfo.displayName || '',
-            bot_picture_url: botInfo.pictureUrl || '',
-            basic_id: botInfo.basicId || '',
-          };
-          await supabaseAdmin
-            .from('chat_accounts')
-            .update({ credentials: updatedCreds, updated_at: new Date().toISOString() })
-            .eq('id', data.id);
-          data.credentials = updatedCreds;
-        }
-      } catch (e) {
-        console.warn('Auto-fetch LINE bot profile failed:', e);
-      }
+      const updatedCreds = await refreshLineBotProfile(data.id, finalCredentials);
+      if (updatedCreds) data.credentials = updatedCreds;
     }
 
     return NextResponse.json({

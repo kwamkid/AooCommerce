@@ -37,6 +37,9 @@ html, body {
 .pt-safe-3 { padding-top:    calc(env(safe-area-inset-top, 0px)    + 0.75rem); }
 .pt-safe-4 { padding-top:    calc(env(safe-area-inset-top, 0px)    + 1rem); }
 .pb-safe-2 { padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 0.5rem); }
+/* "ชิดขอบล่างสุดเท่าที่ทำได้" — เผื่อแค่แถบ home indicator เท่านั้น (34px บน iPhone รุ่นไม่มีปุ่ม)
+   เครื่องที่ไม่มี inset (Android/เดสก์ท็อป) ได้ 0.5rem แทน 0 */
+.pb-safe-min-2 { padding-bottom: max(env(safe-area-inset-bottom, 0px), 0.5rem); }
 .pb-safe-4 { padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 1rem); }
 .pb-safe-6 { padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 1.5rem); }
 .px-safe-4 { padding-left:   calc(env(safe-area-inset-left, 0px)  + 1rem);
@@ -700,22 +703,17 @@ input[type="number"] {
 
 /* ── Chat page — full bleed on mobile, padded on desktop ── */
 .chat-container {
-  /* สูงเท่าพื้นที่ที่เหลือจากหัวเว็บพอดี — `main` ไม่มี padding ล่างแล้ว (ดู Layout.tsx)
+  /* สูงเท่า main พอดี — ผ่าน h-full ของ Layout (noPadding) → ไม่ต้องคิดจาก 100dvh ลบหัวเว็บอีก
+     เดิมใช้ calc(100dvh - 64px) แต่หัวเว็บจริงสูง 65px (h-16 + border-b) → ล้น 1px → main เลื่อนได้
+     → ลากรายการข้อความสุดทางแล้ว main เด้ง (rubber band) เห็นที่ว่างใต้ช่องพิมพ์ (4 ก.ย. 2026)
      พอความสูงพอดี **หัวแชทกับช่องพิมพ์ยึดอยู่กับที่เอง** เพราะพาเนลเป็น flex column
      ที่มีเฉพาะรายการข้อความเป็น flex-1 overflow-y-auto — ไม่ต้องใส่ sticky/fixed เพิ่ม
-     ส่วนแถบ home indicator เผื่อไว้ในแถบพิมพ์ข้อความ (ตัวที่ติดขอบล่างจริง ๆ)
-     --app-banner-h = ความสูงแถบชวนติดตั้งแอป (components/InstallAppBanner.tsx) ที่แทรก
-     อยู่ระหว่างหัวเว็บกับ main — ไม่หักออกแล้วช่องพิมพ์ข้อความจะหลุดพ้นขอบจอล่าง */
-  height: calc(100dvh - 64px - var(--app-banner-h, 0px));
+     ระยะขอบบนเดสก์ท็อปอยู่ที่ wrapper `md:p-6` ในหน้าแชท (ไม่ใช้ margin ที่นี่ ไม่งั้น margin
+     ทะลุ wrapper h-full ออกไปทำให้ main ล้นอีก) · แถบชวนติดตั้งแอป (--app-banner-h) ไม่ต้อง
+     หักแล้ว เพราะ main หดให้เองเมื่อมีแถบแทรกข้างบน */
+  height: 100%;
   /* กันการลากแล้วเด้งไปโดนหน้าข้างหลัง (rubber band) ในกล่องที่เนื้อหาพอดีอยู่แล้ว */
   overscroll-behavior: contain;
-}
-@media (min-width: 768px) {
-  .chat-container {
-    height: calc(100vh - 120px - var(--app-banner-h, 0px));
-    margin: 1.5rem;
-    width: calc(100% - 3rem);
-  }
 }
 
 /* ── Page header responsive — smaller titles on mobile ──

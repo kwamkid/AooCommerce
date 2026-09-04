@@ -97,7 +97,9 @@ export default function Layout({ children, title, breadcrumbs, noPadding }: Layo
           )}
 
           {/* Page Body */}
-          <div className={noPadding ? 'print:p-0' : 'p-4 lg:p-6 pb-24 lg:pb-6 print:p-0'}>
+          {/* หน้าที่ส่ง noPadding (หน้าแชท) ต้องการกล่องที่สูงเท่า main พอดี — คิดจาก 100dvh
+              ลบหัวเว็บเองจะพลาด 1px (เส้นขอบล่างของหัวเว็บ) แล้ว main เลื่อน/เด้งได้ */}
+          <div className={noPadding ? 'h-full print:h-auto print:p-0' : 'p-4 lg:p-6 pb-24 lg:pb-6 print:p-0'}>
             {children}
           </div>
         </main>
