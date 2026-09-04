@@ -70,6 +70,15 @@ export async function proxy(request: NextRequest) {
   // headed (?redirect= must always be forwarded — AUTH.md §3.5), else
   // onboarding. Requires a locally verified (non-expired) token so dead
   // cookies can't loop.
+  // ล็อกอินแล้วเปิดหน้าแรก → เข้าระบบเลย ไม่ต้องเห็นหน้าแนะนำระบบ
+  // (หน้าแรกมีไว้ให้คนนอกและผู้ตรวจแอปของแพลตฟอร์มเปิดดูโดยไม่ต้อง login)
+  if (pathname === '/' && hasAuthCookie(request)) {
+    const url = request.nextUrl.clone();
+    url.pathname = '/dashboard';
+    url.search = '';
+    return NextResponse.redirect(url);
+  }
+
   if (pathname === '/login' || pathname === '/register') {
     const token = getAccessTokenFromCookies(request.cookies.getAll());
     if (token) {
