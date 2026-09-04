@@ -87,6 +87,27 @@ export interface FbWebhookBody {
   entry: FbWebhookEntry[];
 }
 
+/**
+ * ป้ายภาษาไทยของชนิดไฟล์แนบที่ Facebook/Instagram ส่งมาแต่เราไม่มีตัวแสดงเฉพาะ
+ *
+ * ⚠️ **ห้ามปล่อยโค้ดดิบของแพลตฟอร์มไปเป็นข้อความในแชท** — ของเดิมเขียน `[${type}]` ตรง ๆ
+ * ทำให้ในแชทจริงมีข้อความอย่าง `[unsupported_type]` `[ig_post]` `[ephemeral]` โผล่ให้
+ * แอดมินอ่าน 242 ข้อความ (เจอ 4 ก.ย. 2026 — ดู fix-bug.md) · ชนิดใหม่ที่ยังไม่รู้จัก
+ * ตกไปที่ `[ไฟล์แนบ]` แล้วเก็บชื่อชนิดจริงไว้ใน metadata สำหรับไล่ทีหลัง
+ *
+ * `unsupported_type` = แพลตฟอร์มเองไม่ยอมส่งเนื้อหาผ่าน API (สื่อที่หายเอง ข้อความเสียง
+ * การแชร์บางแบบ) ไม่ใช่บั๊กของเรา และดึงมาแสดงไม่ได้ — ต้องบอกให้ไปเปิดดูในแอปต้นทาง
+ */
+const ATTACHMENT_LABELS: Record<string, string> = {
+  unsupported_type: '[แพลตฟอร์มไม่ส่งเนื้อหานี้มาให้ — เปิดดูในแอปต้นทาง]',
+  ig_post: '[โพสต์ Instagram]',
+  ig_reel: '[รีล Instagram]',
+  ig_story: '[สตอรี่ Instagram]',
+  reel: '[รีล]',
+  share: '[แชร์ลิงก์]',
+  ephemeral: '[สื่อที่ดูได้ครั้งเดียว]',
+};
+
 export class FacebookChatService {
   // ─── Credential Resolution ───────────────────────────────────────────
 
@@ -708,7 +729,14 @@ export class FacebookChatService {
         if (attachment.payload?.url) metadata.linkUrl = attachment.payload.url;
         if (attachment.title) metadata.linkTitle = attachment.title;
       } else {
-        messageContent = `[${attachment.type}]`;
+        // ชนิดที่ไม่มี branch เฉพาะ — แปลเป็นป้ายภาษาไทยจาก ATTACHMENT_LABELS
+        // ⚠️ ห้ามตกมาถึงตรงนี้แล้วเขียน `[${attachment.type}]` เด็ดขาด (ของเดิมทำแบบนั้น)
+        // โค้ดดิบของแพลตฟอร์มจะหลุดไปเป็นข้อความในแชทให้ลูกค้า/แอดมินอ่าน
+        messageContent = ATTACHMENT_LABELS[attachment.type] || '[ไฟล์แนบ]';
+        if (!ATTACHMENT_LABELS[attachment.type]) metadata.attachment_type = attachment.type;
+        // ชนิดพวกนี้ (แชร์โพสต์/รีล/ลิงก์) มักแนบ url มาด้วย — เก็บไว้ให้กดดูต้นทางได้
+        if (attachment.payload?.url) metadata.linkUrl = attachment.payload.url;
+        if (attachment.url) metadata.linkUrl = attachment.url;
       }
 
       if (message.attachments.length > 1) {

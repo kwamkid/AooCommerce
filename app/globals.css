@@ -693,7 +693,13 @@ input[type="number"] {
 
 /* ── Chat page — full bleed on mobile, padded on desktop ── */
 .chat-container {
-  height: calc(100dvh - 64px);
+  /* ⚠️ ต้องลบ safe-area ท้ายจอออกด้วย — `main` ใน Layout มี `pb-safe` อยู่แล้ว
+     ถ้ากล่องนี้สูงเท่า (จอ − หัว) เฉย ๆ มันจะสูงเกินพื้นที่จริงไปเท่าแถบ home indicator
+     → `main` กลายเป็นเลื่อนได้ → พอเปิดแชทหน้าจะไหลลงนิดนึงจนหัวแชท (ชื่อคนที่คุยอยู่)
+     หลุดขึ้นไปข้างบน (เจอจริงในแอปที่ติดตั้ง 4 ก.ย. 2026 — ดู fix-bug.md)
+     พอความสูงพอดีแล้ว หัวแชทกับช่องพิมพ์จะยึดอยู่กับที่เองเพราะพาเนลเป็น flex column
+     ที่มีเฉพาะรายการข้อความเป็น flex-1 overflow-y-auto */
+  height: calc(100dvh - 64px - env(safe-area-inset-bottom, 0px));
 }
 @media (min-width: 768px) {
   .chat-container {

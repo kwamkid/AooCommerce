@@ -14,6 +14,7 @@ import { formatPrice } from '@/lib/utils/format';
 import { getBadgeColor, getPaymentBadgeColor } from '@/lib/status-tab-colors';
 import { isConsignmentFlow, isDepartmentFlow } from '@/lib/flow-types';
 import { supabase } from '@/lib/supabase';
+import { useSwipeBack } from '@/lib/useSwipeBack';
 import {
   MessageCircle,
   Search,
@@ -151,6 +152,9 @@ function UnifiedChatPageContent() {
 
   // Mobile view mode
   const [mobileView, setMobileView] = useState<'contacts' | 'chat' | 'history' | 'profile' | 'edit-customer' | 'order-detail'>('contacts');
+  // ปัดขวาในหน้าคุย = กลับไปรายชื่อแชท (ท่าเดียวกับแอปแชททั่วไป — หน้านี้ไม่เปลี่ยน URL
+  // เบราว์เซอร์จึงไม่มีท่าย้อนกลับให้เอง)
+  const chatPanelRef = useRef<HTMLDivElement>(null);
 
   // Order detail view
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
@@ -1333,6 +1337,13 @@ function UnifiedChatPageContent() {
     shipping_google_maps_link: '', shipping_delivery_notes: ''
   } : undefined;
 
+  // ปัดขวา → กลับรายชื่อแชท (เฉพาะมุมมองมือถือที่หน้าคุยทับรายชื่ออยู่)
+  const backToContacts = useCallback(() => {
+    setSelectedContact(null);
+    setMobileView('contacts');
+  }, []);
+  useSwipeBack(chatPanelRef, backToContacts, mobileView === 'chat');
+
   return (
     <Layout noPadding>
       <div className="chat-container flex relative bg-white dark:bg-slate-800 md:rounded-lg md:border border-gray-200 dark:border-slate-700 overflow-hidden">
@@ -1358,7 +1369,7 @@ function UnifiedChatPageContent() {
                   return (
                     <>
                       <button onClick={() => { setShowAccountPicker(!showAccountPicker); if (showAccountPicker) setAccountSearch(''); }}
-                        className="w-full h-[38px] flex items-center gap-2 px-2.5 border border-gray-200 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-800 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors">
+                        className="w-full h-[42px] flex items-center gap-2 px-2.5 border border-gray-300 dark:border-slate-500 rounded-lg text-sm bg-white dark:bg-slate-800 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors">
                         {selectedAccount ? (
                           <>
                             <ChannelBadge channel={{ platform: selectedAccount.platform, picture_url: selectedPic }} />
@@ -1419,25 +1430,25 @@ function UnifiedChatPageContent() {
               <Tooltip text={sortMode === 'time' ? 'เรียงตามเวลา (กดเพื่อเรียงยังไม่อ่านก่อน)' : 'เรียงยังไม่อ่านก่อน (กดเพื่อเรียงตามเวลา)'}>
                 <button onClick={() => setFilterParams({ sort: sortMode === 'time' ? 'unread' : 'time' })}
                   aria-label={sortMode === 'time' ? 'เรียงตามเวลา' : 'เรียงยังไม่อ่านก่อน'}
-                  className={`h-[38px] w-[38px] flex-shrink-0 flex items-center justify-center border rounded-lg transition-colors ${sortMode === 'unread' ? 'bg-red-500 border-red-500 text-white' : 'border-gray-300 dark:border-slate-600 text-gray-500 hover:bg-gray-50 dark:hover:bg-slate-700'}`}>
+                  className={`h-[42px] w-[42px] flex-shrink-0 flex items-center justify-center border rounded-lg transition-colors ${sortMode === 'unread' ? 'bg-red-500 border-red-500 text-white' : 'border-gray-300 dark:border-slate-500 text-gray-500 hover:bg-gray-50 dark:hover:bg-slate-700'}`}>
                   <ArrowUpDown className="w-4 h-4" />
                 </button>
               </Tooltip>
               <Tooltip text="เฉพาะยังไม่อ่าน">
                 <button onClick={() => setFilterParams({ unread: filterUnread ? '' : '1' })}
                   aria-label="เฉพาะยังไม่อ่าน"
-                  className={`relative h-[38px] w-[38px] flex-shrink-0 flex items-center justify-center border rounded-lg transition-colors ${filterUnread ? 'bg-red-500 border-red-500 text-white' : 'border-gray-300 dark:border-slate-600 text-gray-500 hover:bg-gray-50 dark:hover:bg-slate-700'}`}>
+                  className={`relative h-[42px] w-[42px] flex-shrink-0 flex items-center justify-center border rounded-lg transition-colors ${filterUnread ? 'bg-red-500 border-red-500 text-white' : 'border-gray-300 dark:border-slate-500 text-gray-500 hover:bg-gray-50 dark:hover:bg-slate-700'}`}>
                   <MessageCircle className="w-4 h-4" />
                   {totalUnread > 0 && !filterUnread && (
                     <span className="absolute -top-1 -right-1 min-w-[16px] h-4 bg-red-500 text-white text-[10px] rounded-full flex items-center justify-center px-0.5">{totalUnread > 9 ? '9+' : totalUnread}</span>
                   )}
                 </button>
               </Tooltip>
-              <div className="relative h-[38px]" data-filter-popover>
+              <div className="relative h-[42px]" data-filter-popover>
                 <Tooltip text="กรองรายชื่อ">
                   <button onClick={() => setShowFilterPopover(!showFilterPopover)}
                     aria-label="กรองรายชื่อ"
-                    className={`h-full w-[38px] flex items-center justify-center border rounded-lg transition-colors ${hasActiveFilter ? 'bg-primary border-primary text-white' : 'border-gray-300 dark:border-slate-600 text-gray-500 hover:bg-gray-50 dark:hover:bg-slate-700'}`}>
+                    className={`h-full w-[42px] flex items-center justify-center border rounded-lg transition-colors ${hasActiveFilter ? 'bg-primary border-primary text-white' : 'border-gray-300 dark:border-slate-500 text-gray-500 hover:bg-gray-50 dark:hover:bg-slate-700'}`}>
                     <Filter className="w-5 h-5" />
                   </button>
                 </Tooltip>
@@ -1486,7 +1497,10 @@ function UnifiedChatPageContent() {
             </div>
             {/* Row 2: Search (full width) with tag suggestions */}
             <div className="relative">
-              <SearchInput value={searchTerm} onChange={setSearchTerm} placeholder="ค้นหาชื่อ หรือแท็ก..." className="h-[38px]" />
+              {/* ⚠️ ห้ามส่ง h-[..] มา override — SearchInput สูง 42px อยู่แล้ว และการส่ง
+                  ความสูงคนละค่ามาทับทำให้ "ค่าไหนชนะ" ขึ้นกับลำดับที่ Tailwind สร้าง CSS
+                  (specificity เท่ากัน) = ความสูงเดาไม่ได้ · ทุกช่องในแถบกรองนี้ใช้ 42px เท่ากันหมด */}
+              <SearchInput value={searchTerm} onChange={setSearchTerm} placeholder="ค้นหาชื่อ หรือแท็ก..." />
               {searchTerm.length >= 1 && !filterTag && (() => {
                 const q = searchTerm.toLowerCase();
                 const matchedTags = allTags.filter(t => t.name.toLowerCase().includes(q));
@@ -1612,7 +1626,7 @@ function UnifiedChatPageContent() {
         </div>
 
         {/* Chat Area */}
-        <div className={`flex-col relative ${mobileView === 'chat' ? 'flex' : 'hidden md:flex'} ${rightPanel ? 'w-full md:w-[340px] xl:w-[420px]' : 'flex-1'}`}>
+        <div ref={chatPanelRef} className={`flex-col relative ${mobileView === 'chat' ? 'flex' : 'hidden md:flex'} ${rightPanel ? 'w-full md:w-[340px] xl:w-[420px]' : 'flex-1'}`}>
           {selectedContact ? (
             <>
               {/* Chat Header */}
