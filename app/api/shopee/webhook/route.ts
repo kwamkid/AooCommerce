@@ -69,8 +69,8 @@ export async function POST(request: NextRequest) {
     // ตัวไหนตรงก็ถือว่าของจริง (แบบเดียวกับ verifyWebhookSignature ของ TikTok)
     // ตกตัวใดตัวหนึ่งไป = push ของ app นั้นถูกตีตกทั้งหมดแบบเงียบ ๆ
     const partnerKeys = [
-      process.env.SHOPEE_PUSH_PARTNER_KEY || process.env.SHOPEE_PARTNER_KEY || '',
-      process.env.SHOPEE_SELLER_PUSH_PARTNER_KEY || process.env.SHOPEE_SELLER_PARTNER_KEY || '',
+      process.env.SHOPEE_PARTNER_APP_PUSH_KEY || process.env.SHOPEE_PARTNER_APP_KEY || '',
+      process.env.SHOPEE_SELLER_APP_PUSH_KEY || process.env.SHOPEE_SELLER_APP_KEY || '',
     ].filter(Boolean);
     if (authorization && partnerKeys.length > 0) {
       const publicUrl = 'https://aoocommerce.vercel.app/api/shopee/webhook';

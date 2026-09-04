@@ -54,13 +54,13 @@ export interface LazadaAccountRow {
 export type LazadaApp = 'main' | 'chat';
 
 function getAppKey(app: LazadaApp = 'main'): string {
-  if (app === 'chat') return process.env.LAZADA_CHAT_APP_KEY || process.env.LAZADA_APP_KEY || '';
-  return process.env.LAZADA_APP_KEY || '';
+  if (app === 'chat') return process.env.LAZADA_CHAT_APP_KEY || process.env.LAZADA_SHOP_APP_KEY || '';
+  return process.env.LAZADA_SHOP_APP_KEY || '';
 }
 
 function getAppSecret(app: LazadaApp = 'main'): string {
-  if (app === 'chat') return process.env.LAZADA_CHAT_APP_SECRET || process.env.LAZADA_APP_SECRET || '';
-  return process.env.LAZADA_APP_SECRET || '';
+  if (app === 'chat') return process.env.LAZADA_CHAT_APP_SECRET || process.env.LAZADA_SHOP_APP_SECRET || '';
+  return process.env.LAZADA_SHOP_APP_SECRET || '';
 }
 
 /** มี app แชทแยกจริงไหม — ไม่มี = app เดียวถือทั้งออเดอร์และแชท */

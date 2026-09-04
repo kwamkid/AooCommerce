@@ -13,9 +13,8 @@ import { createBrowserClient } from '@supabase/ssr';
 // working until Vercel/local envs are updated.
 // Docs: https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabasePublishableKey =
-  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+// ใช้ publishable key รูปแบบใหม่เท่านั้น — anon key เลิกใช้แล้ว (เก็บกวาด 2026-09-05)
+const supabasePublishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!;
 
 export const supabase = createBrowserClient(supabaseUrl, supabasePublishableKey);
 

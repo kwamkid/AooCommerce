@@ -10,8 +10,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const appKey = process.env.TIKTOK_APP_KEY;
-    const appSecret = process.env.TIKTOK_APP_SECRET;
+    const appKey = process.env.TIKTOK_SHOP_APP_KEY;
+    const appSecret = process.env.TIKTOK_SHOP_APP_SECRET;
     if (!appKey || !appSecret) {
       return NextResponse.json({ error: 'TikTok not configured' }, { status: 500 });
     }

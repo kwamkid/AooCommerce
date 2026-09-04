@@ -351,19 +351,38 @@ marketplace_accounts → marketplace_product_links → product_variations
 
 **Auth:** ทุก cron route รองรับ `Authorization: Bearer {CRON_SECRET}` และ `x-cron-secret` header
 
+### Env ของ marketplace/แชท — กติกาชื่อ `{PLATFORM}_{APP}_{FIELD}` (จัดใหม่ 2026-09-05)
+
+app ทุกตัวของแพลตฟอร์มเดียวกัน**ต้องมีคำบอกบทบาท**ในชื่อ ไม่มี "ตัวหลัก" ที่ไม่มีคำนำหน้าอีก (ของเดิม `TIKTOK_APP_KEY` กับ `TIKTOK_CHAT_APP_KEY` / `SHOPEE_PARTNER_KEY` กับ `SHOPEE_SELLER_PARTNER_KEY` อ่านแล้วตีกัน)
+
+| แพลตฟอร์ม | APP | ใช้ทำอะไร | ตัวแปร |
+|---|---|---|---|
+| Shopee | `PARTNER` | app กลางของ AOO (Third-party Partner Platform) ทุกร้าน · production | `SHOPEE_PARTNER_APP_ID` · `_KEY` · `_PUSH_KEY` (Live Push Partner Key) · `_ENV` |
+| Shopee | `SELLER` | app ที่จดในนามร้านเอง (Seller In House) — ร้านที่เชื่อมทางนี้ใช้ทั้งออเดอร์+แชท · ตอนนี้ Sandbox v2 | `SHOPEE_SELLER_APP_ID` · `_KEY` · `_PUSH_KEY` (ถ้าต่าง) · `_ENV` |
+| TikTok | `SHOP` | TikTok Shop app หลัก (ออเดอร์/สินค้า) | `TIKTOK_SHOP_APP_KEY` · `_SECRET` |
+| TikTok | `CHAT` | app หมวด Customer Support | `TIKTOK_CHAT_APP_KEY` · `_SECRET` |
+| TikTok | `LOGIN` | Login Kit (developers.tiktok.com) เอา avatar มาเป็นโลโก้ร้าน | `TIKTOK_LOGIN_APP_KEY` · `_SECRET` |
+| Lazada | `SHOP` | Seller In-house APP (ออเดอร์/สินค้า) | `LAZADA_SHOP_APP_KEY` · `_SECRET` |
+| Lazada | `CHAT` | In-house IM Chat (ไม่ตั้ง = ใช้คู่ SHOP) | `LAZADA_CHAT_APP_KEY` · `_SECRET` |
+
+- **ไม่มี fallback ชื่อเก่า** — เปลี่ยนชื่อในโค้ดต้องเปลี่ยนบน Vercel พร้อมกัน (ตั้งชื่อใหม่ก่อน deploy แล้วค่อยลบชื่อเก่า)
+- Supabase ใช้คีย์รูปแบบใหม่เท่านั้น: `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` + `SUPABASE_SECRET_KEY` — `NEXT_PUBLIC_SUPABASE_ANON_KEY` / `SUPABASE_SERVICE_ROLE_KEY` ถอดออกจากโค้ดแล้ว
+- `LINE_CHANNEL_SECRET` / `LINE_CHANNEL_ACCESS_TOKEN` = **legacy** fallback ยุคก่อน multi-tenant (token จริงอยู่ใน `chat_accounts` ต่อบริษัท) ใช้เฉพาะเมื่อ webhook ของ OA ชี้ URL ที่ไม่มี `?account=` — ยืนยันใน LINE Developers แล้วค่อยถอด
+- เพิ่ม app ใหม่ = ตั้งชื่อตามตารางนี้ + จดในตารางนี้ · `.env.local` จัดหมวดตามลำดับเดียวกัน
+
 ### Shopee dual-app — partner / seller (เพิ่ม 2026-09-04)
 
 Shopee ให้ **Chat API เฉพาะ app ประเภท seller** (นโยบาย 18 พ.ย. 2024) ระบบจึงรองรับ 2 app พร้อมกัน
 
 - **แยกตาม "ใครเป็นเจ้าของ app" ไม่ใช่ "ใช้ทำอะไร"** — `marketplace_accounts.metadata.shopee_app` = `'partner'` (ค่าเริ่มต้น) หรือ `'seller'` บอกว่า **ร้านนี้ authorize มาด้วย app ไหน** · ทุกอย่างของร้านนั้น (ออเดอร์ สินค้า แชท) ใช้ credentials ของ app ตัวนั้น
 - ⚠️ **ห้ามเขียนเงื่อนไขว่า "แชท = seller"** — ถ้าวันหนึ่ง Shopee เปิด Chat API ให้ partner app ด้วย ร้านที่อยู่บน partner app จะใช้แชทได้ทันทีโดยไม่ต้องแก้โค้ด
-- env: `SHOPEE_SELLER_PARTNER_ID` / `SHOPEE_SELLER_PARTNER_KEY` (+ `SHOPEE_SELLER_PUSH_PARTNER_KEY` ถ้า push key ต่างจาก API key) — **ไม่ตั้ง = ทั้งระบบใช้ app เดียวเหมือนเดิม** ของเก่าไม่เปลี่ยนพฤติกรรม
+- env: `SHOPEE_SELLER_APP_ID` / `SHOPEE_SELLER_APP_KEY` (+ `SHOPEE_SELLER_APP_PUSH_KEY` ถ้า push key ต่างจาก API key) — **ไม่ตั้ง = ทั้งระบบใช้ app เดียวเหมือนเดิม** ของเก่าไม่เปลี่ยนพฤติกรรม
 - เชื่อมร้านผ่าน app seller: `/api/shopee/oauth/auth-url?app=seller` → `signOAuthState({ app: 'seller' })` → callback แลก token ด้วย app เดียวกันแล้วบันทึก `metadata.shopee_app`
 - **ห้ามเซ็นด้วย env ตรง ๆ ในที่ที่มี `creds` อยู่แล้ว** — ใช้ `creds.partner_id/partner_key` (มี `signWith()` ให้) ไม่งั้นร้านที่อยู่คนละ app จะเซ็นด้วย key ผิดแล้ว fail ทุก call
 - webhook ตรวจลายเซ็นด้วย key **ทั้งสอง app** — ตกตัวใดตัวหนึ่ง = push ของ app นั้นถูกตีตกเงียบ ๆ ทั้งหมด
 - **ย้ายได้ทีละร้าน** ไม่ต้องสลับทั้งระบบพร้อมกัน (ร้านที่ยังไม่ย้ายยังใช้ partner app ต่อได้)
 - ⚠️ app แบบ seller ผูกกับบัญชี seller ของเจ้าของ app — **เชื่อมได้เฉพาะร้านของบัญชีนั้น** · ถ้ามีบริษัทอื่นมาใช้ระบบ ต้องทำ credentials ต่อบริษัทเพิ่ม (ยังไม่ทำ)
-- **สอง app อยู่คนละ environment ได้พร้อมกัน (เพิ่ม 2026-09-05)** — partner app อยู่ production ส่วน seller app ยังเป็น Developing บน **Sandbox v2** จนกว่าจะผ่าน Go Live → โฮสต์เลือก**ต่อ app** ด้วย `getBaseUrl(app)` / `resolveBaseUrl(creds)` (creds มี `app`) · env `SHOPEE_SELLER_ENV=sandbox` (ไม่ตั้ง = ตาม `SHOPEE_ENV`) · **ต้องตั้ง `SHOPEE_SELLER_PARTNER_ID/KEY` + `SHOPEE_SELLER_ENV` บน Vercel ด้วย** ไม่งั้น webhook ตีตกลายเซ็นของ app seller และ OAuth ขา seller ใช้ไม่ได้
+- **สอง app อยู่คนละ environment ได้พร้อมกัน (เพิ่ม 2026-09-05)** — partner app อยู่ production ส่วน seller app ยังเป็น Developing บน **Sandbox v2** จนกว่าจะผ่าน Go Live → โฮสต์เลือก**ต่อ app** ด้วย `getBaseUrl(app)` / `resolveBaseUrl(creds)` (creds มี `app`) · env `SHOPEE_SELLER_APP_ENV=sandbox` (ไม่ตั้ง = ตาม `SHOPEE_PARTNER_APP_ENV`) · **ต้องตั้ง `SHOPEE_SELLER_APP_ID/KEY` + `SHOPEE_SELLER_APP_ENV` บน Vercel ด้วย** ไม่งั้น webhook ตีตกลายเซ็นของ app seller และ OAuth ขา seller ใช้ไม่ได้
 - ⚠️ **Sandbox v2 ใช้โฮสต์ `https://openplatform.sandbox.test-stable.shopee.sg`** — `partner.test-stable.shopeemobile.com` เป็น sandbox รุ่นเก่า ตอบ `error_sign / Wrong sign` กับ partner ที่จดใน v2 (เสียเวลาไล่ key ไปรอบหนึ่ง 5 ก.ย. 2026) · sandbox ทดสอบได้กับ **test shop จากเมนู Test Account-Sandbox v2 เท่านั้น** ร้านจริง (gbthailandofficial) ต้องรอ app ผ่าน Go Live
 - ✅ **ยืนยันแล้ว 5 ก.ย. 2026: app หมวด Seller In House เปิด push code 10 (webchat) ได้** (`set_app_push_config` → success บน sandbox, callback ชี้ `https://aoocommerce.vercel.app/api/shopee/webhook`) — นโยบายที่บล็อกแชทใช้กับ Third-party Partner app เท่านั้น · สคริปต์ `scripts/enable-shopee-webchat-push.mjs --app seller [--apply --callback URL]`
 - **ทุกที่ที่มี `creds` ต้องเซ็นด้วย `signForCreds(creds, …)` และใช้โฮสต์จาก `resolveBaseUrl(creds)`** — `generateSign()`/`getBaseUrl()` เปล่า ๆ อ่านจาก env ของ partner app (เคยหลุดที่ upload รูปทั้ง media_space และ sellerchat) · เหลือใช้ `generateSign` ได้เฉพาะขา OAuth ระดับ partner ที่ยังไม่มี creds
@@ -624,7 +643,7 @@ Architecture เป้าหมาย: Webhook → save log → Queue → Worker
 - **เปิดใช้จริง**: เชื่อมร้าน TikTok + เปิด scope Customer Service ของ app แชท + เปิด target market Thailand ทั้งสอง app + subscribe event **NEW_MESSAGE** ใน TikTok Partner Center > Webhooks
 
 ### Lazada Chat — IM API (เพิ่ม 2026-08-14 — Lazada integration แรกของระบบ)
-- **Base layer ใหม่** [lib/lazada/api.ts](lib/lazada/api.ts): signing แบบ TOP (sort params → concat path+kv → HMAC-SHA256 **hex ตัวใหญ่**, timestamp เป็น **มิลลิวินาที**), OAuth `/auth/token/create|refresh` ที่ auth.lazada.com, `ensureValidToken(account, app)` + auto-deactivate — env: `LAZADA_APP_KEY`, `LAZADA_APP_SECRET` (สมัคร app ที่ open.lazada.com)
+- **Base layer ใหม่** [lib/lazada/api.ts](lib/lazada/api.ts): signing แบบ TOP (sort params → concat path+kv → HMAC-SHA256 **hex ตัวใหญ่**, timestamp เป็น **มิลลิวินาที**), OAuth `/auth/token/create|refresh` ที่ auth.lazada.com, `ensureValidToken(account, app)` + auto-deactivate — env: `LAZADA_SHOP_APP_KEY`, `LAZADA_SHOP_APP_SECRET` (สมัคร app ที่ open.lazada.com)
 - **Dual-app รองรับแล้ว (2026-08-26)** — Lazada ให้สิทธิ์เป็น **category ต่อความสามารถ** (`Seller In-house APP` = ออเดอร์/สินค้า · `In-house IM Chat` = แชท) และ console สร้าง app ต่อ category → อาจได้ app key คนละชุด · ใส่ `LAZADA_CHAT_APP_KEY`/`LAZADA_CHAT_APP_SECRET` เมื่อได้ key ชุดที่สอง **ถ้าไม่ใส่ ทุกอย่าง fallback มาใช้คู่หลักเอง** (app เดียวถือทั้งสอง category ก็ทำงานได้ ไม่ต้องแก้ code) · token แชทเก็บใน `marketplace_accounts.chat_*` (คอลัมน์ร่วมกับ TikTok) · **ขาแชทต่ออัตโนมัติ (แก้ 2026-09-02)**: จบขาออเดอร์แล้ว callback **พาไปหน้าอนุญาตแชทของ Lazada ต่อทันที** ไม่มี dialog ถามคั่น — Lazada บังคับ authorize สองรอบอยู่แล้ว การถามเพิ่มไม่ได้ให้ทางเลือกที่มีความหมาย (กดยกเลิกที่หน้า Lazada ได้ผลเดียวกัน) · ยกเลิก = ไปจบที่หน้าช่องทางแชทพร้อมข้อความว่า **ร้านเชื่อมแล้ว** แค่ยังไม่เปิดแชท · ~~เดิม (2026-08-28) จบขาออเดอร์กลับ sales-channels พร้อม `chat=prompt`~~ (เฉพาะเมื่อตั้ง `LAZADA_CHAT_APP_*` แยกและยังมีร้านที่ `chat_access_token` ว่าง) → dialog ถามก่อน · ขาแชทเริ่มที่ `/api/lazada/oauth/auth-url?app=chat` จบที่ `/settings/chat-channels?lazada_chat=...#lazada` ซึ่งมีปุ่ม "เชื่อมต่อแชท" ต่อร้านด้วย (ธง `chat_connected` — ไม่ตั้ง chat app แยก = true เสมอเพราะ token หลักใช้แชทได้) · **ขาแชทล้มไม่ปิดร้าน** — `is_active=false` เกิดจากขาออเดอร์เท่านั้น · `verifyLazadaPushSignature()` ยอมรับลายเซ็นทั้งสอง app (order push + IM push ยิงมา webhook เดียวกัน)
 - **OAuth**: `/api/lazada/oauth/auth-url` + `/callback` ใช้ signed state จาก [lib/oauth-state.ts](lib/oauth-state.ts) เหมือน Shopee/TikTok — account เก็บใน `marketplace_accounts` platform `'lazada'` (`shop_id` = seller_id) — เชื่อมที่ `/settings/sales-channels` แท็บ "เชื่อมต่อ Marketplace" (path เดิม `/settings/integrations` redirect มาที่นี่ — ย้ายรวมเมื่อ 2026-08-21)
 - **Ingest แบบ notify-then-pull**: webhook `/api/lazada/webhook` (**ต้องตอบ 200 ใน 500ms** — ตอบทันที ทำทุกอย่างใน `after()` รวมถึง log) → payload IM ไม่มี spec แน่นอน → แค่ trigger `syncSession()`/`syncRecentSessions()` ใน [lib/services/chat/lazada.ts](lib/services/chat/lazada.ts) ดึงความจริงจาก `/im/session/*` + `/im/message/list` (idempotent, dedupe ด้วย message_id) — webhook signature: `Authorization` = HMAC(app_key + raw body)

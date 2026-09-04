@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
 
   // Verify signature
   const signature = request.headers.get('authorization') || '';
-  const appKey = process.env.TIKTOK_APP_KEY;
+  const appKey = process.env.TIKTOK_SHOP_APP_KEY;
   if (!appKey) {
     return NextResponse.json({ error: 'Not configured' }, { status: 500 });
   }

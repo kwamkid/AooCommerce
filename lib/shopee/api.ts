@@ -55,20 +55,20 @@ export type ShopeeApp = 'partner' | 'seller';
 
 function getPartnerId(app: ShopeeApp = 'partner'): number {
   const raw = app === 'seller'
-    ? process.env.SHOPEE_SELLER_PARTNER_ID || process.env.SHOPEE_PARTNER_ID
-    : process.env.SHOPEE_PARTNER_ID;
+    ? process.env.SHOPEE_SELLER_APP_ID || process.env.SHOPEE_PARTNER_APP_ID
+    : process.env.SHOPEE_PARTNER_APP_ID;
   return parseInt(raw || '0');
 }
 
 function getPartnerKey(app: ShopeeApp = 'partner'): string {
   return (app === 'seller'
-    ? process.env.SHOPEE_SELLER_PARTNER_KEY || process.env.SHOPEE_PARTNER_KEY
-    : process.env.SHOPEE_PARTNER_KEY) || '';
+    ? process.env.SHOPEE_SELLER_APP_KEY || process.env.SHOPEE_PARTNER_APP_KEY
+    : process.env.SHOPEE_PARTNER_APP_KEY) || '';
 }
 
 /** ตั้ง app แบบ seller แยกไว้หรือยัง — ไม่ตั้ง = มี app เดียวเหมือนเดิมทั้งระบบ */
 export function isSellerAppConfigured(): boolean {
-  return !!(process.env.SHOPEE_SELLER_PARTNER_KEY && process.env.SHOPEE_SELLER_PARTNER_ID);
+  return !!(process.env.SHOPEE_SELLER_APP_KEY && process.env.SHOPEE_SELLER_APP_ID);
 }
 
 /** ร้านนี้ authorize มาด้วย app ไหน (ไม่ระบุ = partner ตามของเดิม) */
@@ -81,12 +81,12 @@ export function shopeeAppOf(account: { metadata?: Record<string, unknown> | null
 /**
  * เลือกโฮสต์ **ต่อ app** ไม่ใช่ต่อระบบ — สอง app อยู่คนละ environment พร้อมกันได้
  * (ตอนนี้: partner app ขึ้น production แล้ว ส่วน seller app ยังอยู่ sandbox จนกว่าจะผ่าน Go Live)
- * ไม่ตั้ง SHOPEE_SELLER_ENV = ใช้ค่าเดียวกับ SHOPEE_ENV เหมือนของเดิม
+ * ไม่ตั้ง SHOPEE_SELLER_APP_ENV = ใช้ค่าเดียวกับ SHOPEE_PARTNER_APP_ENV เหมือนของเดิม
  */
 export function getBaseUrl(app: ShopeeApp = 'partner'): string {
   const env = (app === 'seller'
-    ? process.env.SHOPEE_SELLER_ENV || process.env.SHOPEE_ENV
-    : process.env.SHOPEE_ENV) || 'production';
+    ? process.env.SHOPEE_SELLER_APP_ENV || process.env.SHOPEE_PARTNER_APP_ENV
+    : process.env.SHOPEE_PARTNER_APP_ENV) || 'production';
   return env === 'sandbox' ? SHOPEE_SANDBOX_HOST : SHOPEE_PROD_HOST;
 }
 

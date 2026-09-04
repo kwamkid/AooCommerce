@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    if (!process.env.LAZADA_APP_KEY || !process.env.LAZADA_APP_SECRET) {
+    if (!process.env.LAZADA_SHOP_APP_KEY || !process.env.LAZADA_SHOP_APP_SECRET) {
       return NextResponse.json({ error: 'Lazada not configured' }, { status: 500 });
     }
 

@@ -35,14 +35,14 @@ const API_BASE = 'https://open.tiktokapis.com';
 const SCOPES = ['user.info.basic'];
 
 export function isLoginKitConfigured(): boolean {
-  return !!(process.env.TIKTOK_CLIENT_KEY && process.env.TIKTOK_CLIENT_SECRET);
+  return !!(process.env.TIKTOK_LOGIN_APP_KEY && process.env.TIKTOK_LOGIN_APP_SECRET);
 }
 
 function creds(): { key: string; secret: string } {
-  const key = process.env.TIKTOK_CLIENT_KEY;
-  const secret = process.env.TIKTOK_CLIENT_SECRET;
+  const key = process.env.TIKTOK_LOGIN_APP_KEY;
+  const secret = process.env.TIKTOK_LOGIN_APP_SECRET;
   if (!key || !secret) {
-    throw new Error('ยังไม่ได้ตั้ง TIKTOK_CLIENT_KEY / TIKTOK_CLIENT_SECRET');
+    throw new Error('ยังไม่ได้ตั้ง TIKTOK_LOGIN_APP_KEY / TIKTOK_LOGIN_APP_SECRET');
   }
   return { key, secret };
 }

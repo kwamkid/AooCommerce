@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
 
   if (!isLoginKitConfigured()) {
     return NextResponse.json(
-      { error: 'ยังไม่ได้ตั้งค่า TikTok Login Kit (TIKTOK_CLIENT_KEY / TIKTOK_CLIENT_SECRET)' },
+      { error: 'ยังไม่ได้ตั้งค่า TikTok Login Kit (TIKTOK_LOGIN_APP_KEY / TIKTOK_LOGIN_APP_SECRET)' },
       { status: 400 }
     );
   }

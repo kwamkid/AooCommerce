@@ -8,9 +8,9 @@
 //   node scripts/enable-shopee-webchat-push.mjs --app seller --apply
 //   node scripts/enable-shopee-webchat-push.mjs --apply --callback https://example.com/api/shopee/webhook
 //
-// --app partner (default) reads SHOPEE_PARTNER_ID / SHOPEE_PARTNER_KEY / SHOPEE_ENV
-// --app seller           reads SHOPEE_SELLER_PARTNER_ID / SHOPEE_SELLER_PARTNER_KEY / SHOPEE_SELLER_ENV
-//                        (SHOPEE_SELLER_ENV falls back to SHOPEE_ENV)
+// --app partner (default) reads SHOPEE_PARTNER_APP_ID / SHOPEE_PARTNER_APP_KEY / SHOPEE_PARTNER_APP_ENV
+// --app seller           reads SHOPEE_SELLER_APP_ID / SHOPEE_SELLER_APP_KEY / SHOPEE_SELLER_APP_ENV
+//                        (SHOPEE_SELLER_APP_ENV falls back to SHOPEE_PARTNER_APP_ENV)
 //
 // ⚠️ set_app_push_config needs callback_url in the SAME call — Shopee test-pings
 //    that URL and wants a 2xx within 3s, so it can't be set separately afterwards.
@@ -37,12 +37,12 @@ const app = argValue('--app') === 'seller' ? 'seller' : 'partner';
 const isSeller = app === 'seller';
 
 const partnerId = parseInt(
-  (isSeller ? process.env.SHOPEE_SELLER_PARTNER_ID : process.env.SHOPEE_PARTNER_ID) || '0'
+  (isSeller ? process.env.SHOPEE_SELLER_APP_ID : process.env.SHOPEE_PARTNER_APP_ID) || '0'
 );
-const partnerKey = (isSeller ? process.env.SHOPEE_SELLER_PARTNER_KEY : process.env.SHOPEE_PARTNER_KEY) || '';
+const partnerKey = (isSeller ? process.env.SHOPEE_SELLER_APP_KEY : process.env.SHOPEE_PARTNER_APP_KEY) || '';
 const env = (isSeller
-  ? process.env.SHOPEE_SELLER_ENV || process.env.SHOPEE_ENV
-  : process.env.SHOPEE_ENV) || 'production';
+  ? process.env.SHOPEE_SELLER_APP_ENV || process.env.SHOPEE_PARTNER_APP_ENV
+  : process.env.SHOPEE_PARTNER_APP_ENV) || 'production';
 // Sandbox v2 host — partner.test-stable.shopeemobile.com is the OLD sandbox and
 // answers error_sign / "Wrong sign" for partners registered in Sandbox v2.
 const baseUrl = env === 'sandbox'
@@ -53,8 +53,8 @@ const callbackUrl = argValue('--callback') || 'https://aoocommerce.vercel.app/ap
 
 if (!partnerId || !partnerKey) {
   console.error(isSeller
-    ? 'Missing SHOPEE_SELLER_PARTNER_ID / SHOPEE_SELLER_PARTNER_KEY'
-    : 'Missing SHOPEE_PARTNER_ID / SHOPEE_PARTNER_KEY');
+    ? 'Missing SHOPEE_SELLER_APP_ID / SHOPEE_SELLER_APP_KEY'
+    : 'Missing SHOPEE_PARTNER_APP_ID / SHOPEE_PARTNER_APP_KEY');
   process.exit(1);
 }
 

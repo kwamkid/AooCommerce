@@ -18,8 +18,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ available: isSellerAppConfigured() });
     }
 
-    const partnerId = process.env.SHOPEE_PARTNER_ID;
-    const partnerKey = process.env.SHOPEE_PARTNER_KEY;
+    const partnerId = process.env.SHOPEE_PARTNER_APP_ID;
+    const partnerKey = process.env.SHOPEE_PARTNER_APP_KEY;
     if (!partnerId || !partnerKey) {
       return NextResponse.json({ error: 'Shopee not configured' }, { status: 500 });
     }
@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
     // — แลกผิด app = ลายเซ็นไม่ผ่านตั้งแต่ก้าวแรก
     const app: ShopeeApp = params.get('app') === 'seller' ? 'seller' : 'partner';
     if (app === 'seller' && !isSellerAppConfigured()) {
-      return NextResponse.json({ error: 'ยังไม่ได้ตั้งค่า app แบบ seller (SHOPEE_SELLER_PARTNER_ID/KEY)' }, { status: 400 });
+      return NextResponse.json({ error: 'ยังไม่ได้ตั้งค่า app แบบ seller (SHOPEE_SELLER_APP_ID/KEY)' }, { status: 400 });
     }
 
     // state ใช้คำว่า 'seller' เฉพาะขา seller — ขาปกติไม่ต้องใส่ (undefined = ขาหลัก)

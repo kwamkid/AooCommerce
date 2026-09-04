@@ -17,8 +17,8 @@ for (const line of readFileSync('.env.local', 'utf8').split('\n')) {
   if (m) env[m[1]] = m[2].replace(/^"|"$/g, '').split(/\s+/)[0].replace(/[^\x20-\x7E]/g, '');
 }
 const SUPABASE_URL = env.NEXT_PUBLIC_SUPABASE_URL;
-const PUB_KEY = env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-const SECRET_KEY = env.SUPABASE_SECRET_KEY || env.SUPABASE_SERVICE_ROLE_KEY;
+const PUB_KEY = env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+const SECRET_KEY = env.SUPABASE_SECRET_KEY;
 if (!SUPABASE_URL || !PUB_KEY || !SECRET_KEY) {
   console.error('missing supabase env in .env.local'); process.exit(1);
 }

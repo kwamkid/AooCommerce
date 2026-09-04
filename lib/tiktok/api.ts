@@ -45,11 +45,11 @@ export type TikTokApp = 'order' | 'chat';
 
 // --- ENV helpers ---
 function getAppKey(app: TikTokApp = 'order'): string {
-  return (app === 'chat' ? process.env.TIKTOK_CHAT_APP_KEY : process.env.TIKTOK_APP_KEY) || '';
+  return (app === 'chat' ? process.env.TIKTOK_CHAT_APP_KEY : process.env.TIKTOK_SHOP_APP_KEY) || '';
 }
 
 function getAppSecret(app: TikTokApp = 'order'): string {
-  return (app === 'chat' ? process.env.TIKTOK_CHAT_APP_SECRET : process.env.TIKTOK_APP_SECRET) || '';
+  return (app === 'chat' ? process.env.TIKTOK_CHAT_APP_SECRET : process.env.TIKTOK_SHOP_APP_SECRET) || '';
 }
 
 /** app แชทถูกตั้งค่าไว้ไหม — ไม่มีก็ใช้ได้แค่ออเดอร์ (ไม่พัง) */

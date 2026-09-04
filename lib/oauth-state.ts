@@ -48,8 +48,7 @@ const TTL_SECONDS = 600; // 10 min — enough to complete an OAuth round-trip
 function secret(): string {
   const s =
     process.env.OAUTH_STATE_SECRET ||
-    process.env.SUPABASE_SECRET_KEY ||
-    process.env.SUPABASE_SERVICE_ROLE_KEY;
+    process.env.SUPABASE_SECRET_KEY;
   if (!s) throw new Error('oauth-state: no signing secret configured');
   return s;
 }

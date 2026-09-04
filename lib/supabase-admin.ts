@@ -15,7 +15,7 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 // service_role key during the migration window. Both work simultaneously.
 // Docs: https://supabase.com/docs/guides/getting-started/migrating-to-new-api-keys
 const supabaseSecretKey =
-  process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY!;
+  process.env.SUPABASE_SECRET_KEY!;
 
 export const supabaseAdmin = createClient(supabaseUrl, supabaseSecretKey, {
   auth: {
