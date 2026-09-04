@@ -16,6 +16,14 @@
 
 ---
 
+## 2026-09-04 — กด "อ่านทั้งหมด" แล้วเลขแชทที่ sidebar/กระดิ่งยังค้าง
+
+**ที่เกิด**: [app/chat/page.tsx](app/chat/page.tsx) `markAllRead` · [lib/header-summary-context.tsx](lib/header-summary-context.tsx)
+**อาการ**: หน้าแชทล้างยังไม่อ่านครบ (toast บอกจำนวน) แต่ badge "แชท" ใน sidebar ยังโชว์ตัวเลขเดิม
+**Root cause**: ตัวเลขใน sidebar มาจาก `/api/header/summary` ซึ่งรีเฟรชตาม **Supabase Realtime** ของตาราง `*_contacts` — การล้างทีเดียวเป็น UPDATE หลายพันแถวใน transaction เดียว ซึ่ง Realtime **ทิ้ง event ก้อนใหญ่เกินเพดาน** ไม่ส่งมาให้เลย (แก้ทีละแถวตอนเปิดแชทจึงทำงานปกติ แต่ bulk ไม่)
+**วิธีแก้**: หลัง read-all สำเร็จ หน้าแชทเรียก `refresh()` จาก `useHeaderSummary()` ตรง ๆ คู่กับ `fetchContacts()`
+**ป้องกัน regression**: **งานที่แก้ข้อมูลเป็นชุดใหญ่ห้ามพึ่ง realtime ให้ UI อื่นตามทัน** — ต้องสั่งรีเฟรช consumer ที่รู้จักเอง (header summary · รายการ) · realtime ไว้สำหรับการเปลี่ยนทีละแถวเท่านั้น
+
 ## 2026-09-04 — เลขบนไอคอนแอป "มีบ้างไม่มีบ้าง" · แอปที่ติดตั้งไม่มีท่ารูดรีเฟรช
 
 **ที่เกิด**: [components/PwaRegister.tsx](components/PwaRegister.tsx) · [public/sw.js](public/sw.js) · [components/PullToRefresh.tsx](components/PullToRefresh.tsx) (ใหม่)

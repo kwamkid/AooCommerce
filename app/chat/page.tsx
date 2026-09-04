@@ -8,6 +8,7 @@ import Button from '@/components/ui/Button';
 import SearchInput from '@/components/ui/SearchInput';
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/lib/toast-context';
+import { useHeaderSummary } from '@/lib/header-summary-context';
 import { apiFetch } from '@/lib/api-client';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { formatPrice, formatNumber } from '@/lib/utils/format';
@@ -73,6 +74,8 @@ function UnifiedChatPageContent() {
   const searchParams = useSearchParams();
   const { userProfile, loading: authLoading } = useAuth();
   const { showToast } = useToast();
+  // ตัวเลขแชทที่ sidebar/กระดิ่ง — ต้องสั่งรีเฟรชเองหลังงานที่แก้หลายพันแถวทีเดียว (ดู markAllRead)
+  const { refresh: refreshHeaderSummary } = useHeaderSummary();
   const { confirmDialog, confirm } = useConfirmDialog();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -1359,13 +1362,16 @@ function UnifiedChatPageContent() {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.error || 'ล้างไม่สำเร็จ');
       showToast(`ล้างแล้ว ${data.cleared || 0} แชท`);
-      await fetchContacts();
+      // sidebar/กระดิ่งอ่านตัวเลขจาก /api/header/summary ซึ่งปกติรีเฟรชตาม realtime ของตาราง
+      // contacts — แต่การล้างทีเดียวหลายพันแถว Supabase Realtime **ทิ้ง event ก้อนใหญ่** ได้
+      // (ผู้ใช้กดอ่านทั้งหมดแล้วเลขที่ sidebar ค้าง 4 ก.ย. 2026) → สั่งรีเฟรชตรง ๆ เสมอ
+      await Promise.all([fetchContacts(), refreshHeaderSummary()]);
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'ล้างไม่สำเร็จ', 'error');
     } finally {
       setMarkingAllRead(false);
     }
-  }, [confirm, filterAccountId, filterPlatform, showToast]);
+  }, [confirm, filterAccountId, filterPlatform, showToast, refreshHeaderSummary]);
 
   // ── ย้อนกลับจากหน้าคุย → รายชื่อแชท ──
   //
