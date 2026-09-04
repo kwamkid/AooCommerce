@@ -703,14 +703,16 @@ input[type="number"] {
   /* สูงเท่าพื้นที่ที่เหลือจากหัวเว็บพอดี — `main` ไม่มี padding ล่างแล้ว (ดู Layout.tsx)
      พอความสูงพอดี **หัวแชทกับช่องพิมพ์ยึดอยู่กับที่เอง** เพราะพาเนลเป็น flex column
      ที่มีเฉพาะรายการข้อความเป็น flex-1 overflow-y-auto — ไม่ต้องใส่ sticky/fixed เพิ่ม
-     ส่วนแถบ home indicator เผื่อไว้ในแถบพิมพ์ข้อความ (ตัวที่ติดขอบล่างจริง ๆ) */
-  height: calc(100dvh - 64px);
+     ส่วนแถบ home indicator เผื่อไว้ในแถบพิมพ์ข้อความ (ตัวที่ติดขอบล่างจริง ๆ)
+     --app-banner-h = ความสูงแถบชวนติดตั้งแอป (components/InstallAppBanner.tsx) ที่แทรก
+     อยู่ระหว่างหัวเว็บกับ main — ไม่หักออกแล้วช่องพิมพ์ข้อความจะหลุดพ้นขอบจอล่าง */
+  height: calc(100dvh - 64px - var(--app-banner-h, 0px));
   /* กันการลากแล้วเด้งไปโดนหน้าข้างหลัง (rubber band) ในกล่องที่เนื้อหาพอดีอยู่แล้ว */
   overscroll-behavior: contain;
 }
 @media (min-width: 768px) {
   .chat-container {
-    height: calc(100vh - 120px);
+    height: calc(100vh - 120px - var(--app-banner-h, 0px));
     margin: 1.5rem;
     width: calc(100% - 3rem);
   }

@@ -63,6 +63,18 @@ export default function RootLayout({
               if (dark) document.documentElement.classList.add('dark');
             } catch(e) {}
           })();
+
+          (function() {
+            // Chrome ยิง 'beforeinstallprompt' **ครั้งเดียวและเร็วมาก** (ก่อน React hydrate)
+            // ถ้าไม่มีใครรับไว้ตรงนี้ ปุ่ม "ติดตั้งแอปเลย" ในหน้า /install จะไม่มีวันโผล่
+            // — เก็บ event ไว้ที่ window.__aooBip แล้วบอกฝั่ง React ผ่าน event 'aoo-bip'
+            // (ตัวรับช่วงอยู่ที่ initInstallPromptCapture ใน lib/pwa-install.ts)
+            window.addEventListener('beforeinstallprompt', function (e) {
+              e.preventDefault();
+              window.__aooBip = e;
+              window.dispatchEvent(new Event('aoo-bip'));
+            });
+          })();
         `}} />
       </head>
       <body className={`${ibmPlexSansThai.className} ${sarabun.variable}`} suppressHydrationWarning>

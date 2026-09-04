@@ -1275,7 +1275,7 @@ function LineChatPageContent() {
 
   return (
     <Layout>
-      <div className="flex h-[calc(100vh-120px)] bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden">
+      <div className="flex h-[calc(100vh-120px-var(--app-banner-h,0px))] bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden">
         {/* Contacts Sidebar - hidden on mobile when chat or order is open */}
         <div className={`w-full md:w-80 border-r border-gray-200 dark:border-slate-700 flex flex-col ${mobileView !== 'contacts' ? 'hidden md:flex' : 'flex'} ${rightPanel ? 'md:hidden xl:flex' : ''}`}>
           {/* Header */}

@@ -6,6 +6,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import { useCompany } from '@/lib/company-context';
 import Sidebar from './Sidebar';
 import Header from './Header';
+import InstallAppBanner from '@/components/InstallAppBanner';
 
 interface LayoutProps {
   children: ReactNode;
@@ -45,6 +46,11 @@ export default function Layout({ children, title, breadcrumbs, noPadding }: Layo
         {/* Header — hidden on print */}
         <div className="print:hidden">
           <Header />
+        </div>
+
+        {/* แถบชวนติดตั้งแอป — ตัวมันเองตัดสินว่าจะโผล่ไหม (มือถือ + ยังไม่ติดตั้ง + ยังไม่ปิดแถบ) */}
+        <div className="print:hidden">
+          <InstallAppBanner />
         </div>
 
         {/* Page Content */}

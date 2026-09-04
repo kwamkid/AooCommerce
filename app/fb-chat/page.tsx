@@ -633,7 +633,7 @@ function FbChatPageContent() {
 
   return (
     <Layout>
-      <div className="flex h-[calc(100vh-64px)] overflow-hidden">
+      <div className="flex h-[calc(100vh-64px-var(--app-banner-h,0px))] overflow-hidden">
 
         {/* Contacts List */}
         <div className={`w-full md:w-80 lg:w-96 flex-shrink-0 border-r border-gray-200 dark:border-slate-700 flex flex-col bg-white dark:bg-slate-800 ${
@@ -921,7 +921,7 @@ export default function FbChatPage() {
   return (
     <Suspense fallback={
       <Layout>
-        <div className="flex items-center justify-center h-[calc(100vh-64px)]">
+        <div className="flex items-center justify-center h-[calc(100vh-64px-var(--app-banner-h,0px))]">
           <Loader2 className="w-6 h-6 text-facebook animate-spin" />
         </div>
       </Layout>

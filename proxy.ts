@@ -37,6 +37,8 @@ const PUBLIC_PREFIXES = [
   // ข้อตกลง / ความเป็นส่วนตัว / วิธีลบข้อมูล — ผู้ตรวจแอปของแพลตฟอร์ม (TikTok, Meta,
   // Google) เปิดดูโดยไม่ได้ login · โดนเด้งไป /login = ถูกตีกลับว่า URL ใช้ไม่ได้
   '/legal',
+  // หน้าสอนติดตั้งแอป — เจ้าของร้านส่งลิงก์ให้พนักงานเปิดก่อน login ได้
+  '/install',
 ];
 
 function isPublicPath(pathname: string): boolean {

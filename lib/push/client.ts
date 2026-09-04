@@ -2,6 +2,11 @@
 'use client';
 
 import { apiFetch } from '@/lib/api-client';
+import { detectPlatform, isStandalone } from '@/lib/pwa-install';
+
+// "เครื่องนี้เป็นอะไร / เปิดจากแอปที่ติดตั้งแล้วหรือยัง" อยู่ที่ lib/pwa-install.ts
+// ที่เดียว — ทั้งเรื่องแจ้งเตือนและเรื่องชวนติดตั้งใช้เกณฑ์ชุดเดียวกัน
+export { isStandalone };
 
 /**
  * สายแจ้งเตือนของ device นี้ — คนละสาย = คนละ service worker scope = คนละ subscription
@@ -25,12 +30,7 @@ export type PushState =
   | 'unsubscribed';     // รองรับแต่ยังไม่เปิด
 
 function isIos(): boolean {
-  return /iphone|ipad|ipod/i.test(navigator.userAgent);
-}
-
-export function isStandalone(): boolean {
-  return window.matchMedia('(display-mode: standalone)').matches
-    || (navigator as unknown as { standalone?: boolean }).standalone === true;
+  return detectPlatform() === 'ios';
 }
 
 /**

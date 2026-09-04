@@ -2,6 +2,7 @@
 
 // Toggle เปิด/ปิด push notification ของ "อุปกรณ์นี้" — ใช้ใน dropdown กระดิ่งของ Header
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { Smartphone } from 'lucide-react';
 import Toggle from '@/components/ui/Toggle';
 import { useToast } from '@/lib/toast-context';
@@ -60,7 +61,8 @@ export default function PushNotificationToggle({ compact = false, audience = 'ap
       <div className="p-4 border-t border-gray-200 dark:border-slate-700 flex items-start gap-2.5">
         <Smartphone className="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" />
         <p className="text-sm text-gray-500 dark:text-slate-400">
-          รับแจ้งเตือนบน iPhone/iPad: กดปุ่มแชร์ใน Safari แล้วเลือก <span className="font-medium text-gray-700 dark:text-slate-200">&ldquo;เพิ่มไปยังหน้าจอโฮม&rdquo;</span> จากนั้นเปิดใช้งานจากไอคอนแอพ
+          รับแจ้งเตือนบน iPhone/iPad: กดปุ่มแชร์ใน Safari แล้วเลือก <span className="font-medium text-gray-700 dark:text-slate-200">&ldquo;เพิ่มลงหน้าจอโฮม&rdquo;</span> จากนั้นเปิดใช้งานจากไอคอนแอพ{' '}
+          <Link href="/install" className="text-primary font-medium hover:underline">ดูวิธีติดตั้ง</Link>
         </p>
       </div>
     );

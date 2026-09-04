@@ -22,6 +22,7 @@ import {
   CheckCircle,
   ScrollText,
   ShoppingBag,
+  Smartphone,
 } from 'lucide-react';
 import {
   QUOTA_PLATFORM_LABELS,
@@ -296,6 +297,17 @@ export default function Header() {
                       <span className="text-sm">ตั้งค่าระบบ</span>
                     </button>
                   )}
+
+                  {/* ทางเข้าหน้าสอนติดตั้งแอป — คนที่ยังใช้ผ่านแท็บเบราว์เซอร์
+                      จะไม่ได้รับแจ้งเตือนแชท/ออเดอร์เลยบน iOS */}
+                  <Link
+                    href="/install"
+                    onClick={() => setShowUserMenu(false)}
+                    className="w-full flex items-center space-x-3 px-3 py-2 text-gray-700 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
+                  >
+                    <Smartphone className="w-4 h-4" />
+                    <span className="text-sm">ติดตั้งแอปมือถือ</span>
+                  </Link>
                 </div>
 
                 {/* Support / Logs */}
