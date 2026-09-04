@@ -12,6 +12,12 @@ html, body {
   max-width: 100%;
 }
 
+/* ในแอปที่ติดตั้งแล้วไม่มีแถบเบราว์เซอร์ให้ดึง — การลากจนทั้งหน้าเด้งจึงมีแต่ทำให้
+   รู้สึกว่า "จอหลุด" · ปิดเฉพาะโหมดแอป ในเบราว์เซอร์ปกติยังดึงรีเฟรชได้เหมือนเดิม */
+@media (display-mode: standalone) {
+  html, body { overscroll-behavior: none; }
+}
+
 /* ── ขอบจอโค้ง / รอยบาก / แถบ home indicator (safe area) ────────────────────
    root layout ตั้ง `viewportFit: 'cover'` ไว้ = หน้าเว็บกินเต็มจอจริงรวมส่วนที่
    โดนมุมโค้งกับแถบ home indicator ทับ → **ทุกอย่างที่ fixed/sticky ติดขอบจอ
@@ -30,6 +36,7 @@ html, body {
    ไม่ใช่บวกเพิ่ม (ในแนวตั้ง inset ซ้ายขวา = 0 เนื้อหาจะไปชนขอบจอ) ใช้ตัว -4 แทน */
 .pt-safe-3 { padding-top:    calc(env(safe-area-inset-top, 0px)    + 0.75rem); }
 .pt-safe-4 { padding-top:    calc(env(safe-area-inset-top, 0px)    + 1rem); }
+.pb-safe-2 { padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 0.5rem); }
 .pb-safe-4 { padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 1rem); }
 .pb-safe-6 { padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 1.5rem); }
 .px-safe-4 { padding-left:   calc(env(safe-area-inset-left, 0px)  + 1rem);
@@ -693,13 +700,13 @@ input[type="number"] {
 
 /* ── Chat page — full bleed on mobile, padded on desktop ── */
 .chat-container {
-  /* ⚠️ ต้องลบ safe-area ท้ายจอออกด้วย — `main` ใน Layout มี `pb-safe` อยู่แล้ว
-     ถ้ากล่องนี้สูงเท่า (จอ − หัว) เฉย ๆ มันจะสูงเกินพื้นที่จริงไปเท่าแถบ home indicator
-     → `main` กลายเป็นเลื่อนได้ → พอเปิดแชทหน้าจะไหลลงนิดนึงจนหัวแชท (ชื่อคนที่คุยอยู่)
-     หลุดขึ้นไปข้างบน (เจอจริงในแอปที่ติดตั้ง 4 ก.ย. 2026 — ดู fix-bug.md)
-     พอความสูงพอดีแล้ว หัวแชทกับช่องพิมพ์จะยึดอยู่กับที่เองเพราะพาเนลเป็น flex column
-     ที่มีเฉพาะรายการข้อความเป็น flex-1 overflow-y-auto */
-  height: calc(100dvh - 64px - env(safe-area-inset-bottom, 0px));
+  /* สูงเท่าพื้นที่ที่เหลือจากหัวเว็บพอดี — `main` ไม่มี padding ล่างแล้ว (ดู Layout.tsx)
+     พอความสูงพอดี **หัวแชทกับช่องพิมพ์ยึดอยู่กับที่เอง** เพราะพาเนลเป็น flex column
+     ที่มีเฉพาะรายการข้อความเป็น flex-1 overflow-y-auto — ไม่ต้องใส่ sticky/fixed เพิ่ม
+     ส่วนแถบ home indicator เผื่อไว้ในแถบพิมพ์ข้อความ (ตัวที่ติดขอบล่างจริง ๆ) */
+  height: calc(100dvh - 64px);
+  /* กันการลากแล้วเด้งไปโดนหน้าข้างหลัง (rubber band) ในกล่องที่เนื้อหาพอดีอยู่แล้ว */
+  overscroll-behavior: contain;
 }
 @media (min-width: 768px) {
   .chat-container {

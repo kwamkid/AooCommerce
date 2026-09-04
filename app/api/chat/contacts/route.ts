@@ -95,11 +95,29 @@ export async function GET(request: NextRequest) {
     const tagTiktokContactIds = tagContactIds?.filter(t => t.platform === 'tiktok').map(t => t.id) || null;
     // Only force linkedOnly when tag filter matches customers only (no contact-level tags)
     const tagLinkedOnly = linkedOnly || (!!tagCustomerIds && !tagContactIds);
-    const linePromise = queryLine ? fetchLineContacts(companyId, { search, unreadOnly, linkedOnly: tagLinkedOnly, unlinkedOnly, accountId, includeNullAccountId, customerIds: tagCustomerIds, contactIds: tagLineContactIds }) : Promise.resolve([]);
-    const fbPromise = queryFb ? fetchFbContacts(companyId, { search, unreadOnly, linkedOnly: tagLinkedOnly, unlinkedOnly, accountId, includeNullAccountId, customerIds: tagCustomerIds, contactIds: tagFbContactIds }) : Promise.resolve([]);
-    const shopeePromise = queryShopee ? fetchShopeeContacts(companyId, { search, unreadOnly, linkedOnly: tagLinkedOnly, unlinkedOnly, accountId, includeNullAccountId, customerIds: tagCustomerIds, contactIds: tagShopeeContactIds }) : Promise.resolve([]);
-    const lazadaPromise = queryLazada ? fetchLazadaContacts(companyId, { search, unreadOnly, linkedOnly: tagLinkedOnly, unlinkedOnly, accountId, includeNullAccountId, customerIds: tagCustomerIds, contactIds: tagLazadaContactIds }) : Promise.resolve([]);
-    const tiktokPromise = queryTiktok ? fetchTiktokContacts(companyId, { search, unreadOnly, linkedOnly: tagLinkedOnly, unlinkedOnly, accountId, includeNullAccountId, customerIds: tagCustomerIds, contactIds: tagTiktokContactIds }) : Promise.resolve([]);
+    // ── ดึงมาแค่ "หัวตาราง" ของแต่ละแพลตฟอร์มพอ ──
+    // ข้ามการจำกัดเมื่อมีตัวกรองที่ทำในหน่วยความจำหลังดึงข้อมูล (ค้นหา · แท็ก · ช่วงวันสั่งซื้อ)
+    // เพราะการตัดแถวก่อนกรองจะทำให้ผลลัพธ์ขาด — เคสพวกนั้นชุดข้อมูลเล็กอยู่แล้ว
+    const canLimit = !search && !tagId && !orderDaysMin;
+    const fetchLimit = canLimit ? offset + limit + 1 : undefined;
+
+    // นับยอดรวมแยก (ยิงคู่ขนาน ไม่ต่อคิว) — พอจำกัดแถวแล้วนับจากของที่ดึงมาไม่ได้อีก
+    const activeTables = [
+      queryLine ? CONTACT_TABLES.line : null,
+      queryFb ? CONTACT_TABLES.facebook : null,
+      queryShopee ? CONTACT_TABLES.shopee : null,
+      queryLazada ? CONTACT_TABLES.lazada : null,
+      queryTiktok ? CONTACT_TABLES.tiktok : null,
+    ].filter(Boolean) as string[];
+    const totalsPromise = canLimit
+      ? getContactTotals(companyId, activeTables, { accountId, includeNullAccountId, unreadOnly, linkedOnly, unlinkedOnly })
+      : null;
+
+    const linePromise = queryLine ? fetchLineContacts(companyId, { search, unreadOnly, linkedOnly: tagLinkedOnly, unlinkedOnly, accountId, includeNullAccountId, customerIds: tagCustomerIds, contactIds: tagLineContactIds, fetchLimit }) : Promise.resolve([]);
+    const fbPromise = queryFb ? fetchFbContacts(companyId, { search, unreadOnly, linkedOnly: tagLinkedOnly, unlinkedOnly, accountId, includeNullAccountId, customerIds: tagCustomerIds, contactIds: tagFbContactIds, fetchLimit }) : Promise.resolve([]);
+    const shopeePromise = queryShopee ? fetchShopeeContacts(companyId, { search, unreadOnly, linkedOnly: tagLinkedOnly, unlinkedOnly, accountId, includeNullAccountId, customerIds: tagCustomerIds, contactIds: tagShopeeContactIds, fetchLimit }) : Promise.resolve([]);
+    const lazadaPromise = queryLazada ? fetchLazadaContacts(companyId, { search, unreadOnly, linkedOnly: tagLinkedOnly, unlinkedOnly, accountId, includeNullAccountId, customerIds: tagCustomerIds, contactIds: tagLazadaContactIds, fetchLimit }) : Promise.resolve([]);
+    const tiktokPromise = queryTiktok ? fetchTiktokContacts(companyId, { search, unreadOnly, linkedOnly: tagLinkedOnly, unlinkedOnly, accountId, includeNullAccountId, customerIds: tagCustomerIds, contactIds: tagTiktokContactIds, fetchLimit }) : Promise.resolve([]);
 
     const [lineContacts, fbContacts, shopeeContacts, lazadaContacts, tiktokContacts, accounts] = await Promise.all([linePromise, fbPromise, shopeePromise, lazadaPromise, tiktokPromise, accountsPromise]);
 
@@ -453,10 +471,13 @@ export async function GET(request: NextRequest) {
       return bTime - aTime;
     });
 
-    const totalCount = unified.length;
-    const totalUnread = unified.reduce((sum, c) => sum + c.unread_count, 0);
+    // จำกัดแถวแล้ว = `unified` เป็นแค่หัวตาราง ยอดรวมต้องเอาจากตัวนับแยก
+    const totals = totalsPromise ? await totalsPromise : null;
+    const totalCount = totals ? totals.total : unified.length;
+    const totalUnread = totals ? totals.totalUnread : unified.reduce((sum, c) => sum + c.unread_count, 0);
     const paged = unified.slice(offset, offset + limit);
-    const hasMore = offset + limit < totalCount;
+    // ดึงมาเกินมา 1 แถวต่อแพลตฟอร์ม → เหลือเกินหน้าปัจจุบัน = ยังมีต่อ
+    const hasMore = totals ? unified.length > offset + limit : offset + limit < totalCount;
 
     return NextResponse.json({
       contacts: paged,
@@ -500,6 +521,8 @@ async function fetchLineContacts(companyId: string, filters: {
   search?: string | null; unreadOnly?: boolean; linkedOnly?: boolean;
   unlinkedOnly?: boolean; accountId?: string | null; includeNullAccountId?: boolean;
   customerIds?: string[] | null; contactIds?: string[] | null;
+  /** ดึงมาแค่กี่แถวพอ — ดูเหตุผลที่ CONTACT_TABLES ด้านล่าง */
+  fetchLimit?: number;
 }) {
   let contacts: any[];
 
@@ -569,6 +592,9 @@ async function fetchLineContacts(companyId: string, filters: {
       if (filters.unlinkedOnly) query = query.is('customer_id', null);
     }
 
+    // ⚠️ ต้องมี limit เสมอ — ดูเหตุผลที่ CONTACT_TABLES
+    if (filters.fetchLimit) query = query.limit(filters.fetchLimit);
+
     const { data, error } = await query;
     if (error) throw error;
     contacts = data || [];
@@ -621,6 +647,8 @@ async function fetchFbContacts(companyId: string, filters: {
   search?: string | null; unreadOnly?: boolean; linkedOnly?: boolean;
   unlinkedOnly?: boolean; accountId?: string | null; includeNullAccountId?: boolean;
   customerIds?: string[] | null; contactIds?: string[] | null;
+  /** ดึงมาแค่กี่แถวพอ — ดูเหตุผลที่ CONTACT_TABLES ด้านล่าง */
+  fetchLimit?: number;
 }) {
   let contacts: any[];
 
@@ -690,6 +718,9 @@ async function fetchFbContacts(companyId: string, filters: {
       if (filters.unlinkedOnly) query = query.is('customer_id', null);
     }
 
+    // ⚠️ ต้องมี limit เสมอ — ดูเหตุผลที่ CONTACT_TABLES
+    if (filters.fetchLimit) query = query.limit(filters.fetchLimit);
+
     const { data, error } = await query;
     if (error) throw error;
     contacts = data || [];
@@ -740,6 +771,8 @@ async function fetchShopeeContacts(companyId: string, filters: {
   search?: string | null; unreadOnly?: boolean; linkedOnly?: boolean;
   unlinkedOnly?: boolean; accountId?: string | null; includeNullAccountId?: boolean;
   customerIds?: string[] | null; contactIds?: string[] | null;
+  /** ดึงมาแค่กี่แถวพอ — ดูเหตุผลที่ CONTACT_TABLES ด้านล่าง */
+  fetchLimit?: number;
 }) {
   let contacts: any[];
 
@@ -809,6 +842,9 @@ async function fetchShopeeContacts(companyId: string, filters: {
       if (filters.unlinkedOnly) query = query.is('customer_id', null);
     }
 
+    // ⚠️ ต้องมี limit เสมอ — ดูเหตุผลที่ CONTACT_TABLES
+    if (filters.fetchLimit) query = query.limit(filters.fetchLimit);
+
     const { data, error } = await query;
     if (error) throw error;
     contacts = data || [];
@@ -860,6 +896,8 @@ async function fetchLazadaContacts(companyId: string, filters: {
   search?: string | null; unreadOnly?: boolean; linkedOnly?: boolean;
   unlinkedOnly?: boolean; accountId?: string | null; includeNullAccountId?: boolean;
   customerIds?: string[] | null; contactIds?: string[] | null;
+  /** ดึงมาแค่กี่แถวพอ — ดูเหตุผลที่ CONTACT_TABLES ด้านล่าง */
+  fetchLimit?: number;
 }) {
   let contacts: any[];
 
@@ -925,6 +963,9 @@ async function fetchLazadaContacts(companyId: string, filters: {
       if (filters.unlinkedOnly) query = query.is('customer_id', null);
     }
 
+    // ⚠️ ต้องมี limit เสมอ — ดูเหตุผลที่ CONTACT_TABLES
+    if (filters.fetchLimit) query = query.limit(filters.fetchLimit);
+
     const { data, error } = await query;
     if (error) throw error;
     contacts = data || [];
@@ -975,6 +1016,8 @@ async function fetchTiktokContacts(companyId: string, filters: {
   search?: string | null; unreadOnly?: boolean; linkedOnly?: boolean;
   unlinkedOnly?: boolean; accountId?: string | null; includeNullAccountId?: boolean;
   customerIds?: string[] | null; contactIds?: string[] | null;
+  /** ดึงมาแค่กี่แถวพอ — ดูเหตุผลที่ CONTACT_TABLES ด้านล่าง */
+  fetchLimit?: number;
 }) {
   let contacts: any[];
 
@@ -1039,6 +1082,9 @@ async function fetchTiktokContacts(companyId: string, filters: {
       if (filters.linkedOnly) query = query.not('customer_id', 'is', null);
       if (filters.unlinkedOnly) query = query.is('customer_id', null);
     }
+
+    // ⚠️ ต้องมี limit เสมอ — ดูเหตุผลที่ CONTACT_TABLES
+    if (filters.fetchLimit) query = query.limit(filters.fetchLimit);
 
     const { data, error } = await query;
     if (error) throw error;
@@ -1168,4 +1214,60 @@ async function getLinkedContactsByCustomer(companyId: string, customerId: string
   });
 
   return NextResponse.json({ linked_contacts: linked });
+}
+
+
+/**
+ * ตารางแชททั้ง 5 แพลตฟอร์ม — โครงเหมือนกันหมด (company_id · status · chat_account_id
+ * · unread_count · customer_id · last_message_at) จึงนับยอดรวมด้วยโค้ดชุดเดียวได้
+ *
+ * ⚠️ **ทำไมต้อง limit ตอนดึงรายการ** — ของเดิมดึง "ทุกแชทของบริษัท" พร้อม join ลูกค้า
+ * เต็มก้อน แล้วไปดึงข้อความล่าสุด + ออเดอร์ + แท็ก ของ **ทุกแถว** ก่อนจะ slice เอาแค่ 30
+ * ร้านที่มี 3,004 แชท (ของจริง 4 ก.ย. 2026) จึงรอหลายวินาทีทุกครั้งที่เปิดหน้าแชท
+ *
+ * เอา "หัวตาราง N แถว" จากแต่ละแพลตฟอร์มมารวมแล้วตัด N แถวแรก **ได้ผลเท่ากับเรียงทั้งหมด
+ * แล้วตัด** (ทุกตารางเรียงด้วย last_message_at เหมือนกัน) — ตัวที่ 31 ของแพลตฟอร์มใด
+ * ก็ไม่มีทางแซงขึ้นมาอยู่ใน 30 อันดับแรกของภาพรวม
+ *
+ * แลกมาด้วยการที่ยอดรวมนับจากหน้าที่ดึงมาไม่ได้อีก → getContactTotals() นับแยก
+ */
+const CONTACT_TABLES = {
+  line: 'line_contacts',
+  facebook: 'fb_contacts',
+  shopee: 'shopee_contacts',
+  lazada: 'lazada_contacts',
+  tiktok: 'tiktok_contacts',
+} as const;
+
+/**
+ * นับจำนวนแชท + ยอดยังไม่อ่านของทุกแพลตฟอร์มที่ผ่านตัวกรองเดียวกันกับรายการ
+ * เลือกมาแค่คอลัมน์ `unread_count` ไม่ join อะไรเลย — หลายพันแถวก็ยังเบากว่าดึงของจริง
+ * หลายสิบเท่า · ยิงคู่ขนานไปกับการดึงรายการ ไม่ได้ต่อคิวเพิ่มเวลา
+ */
+async function getContactTotals(
+  companyId: string,
+  tables: string[],
+  filters: { accountId?: string | null; includeNullAccountId?: boolean; unreadOnly?: boolean; linkedOnly?: boolean; unlinkedOnly?: boolean }
+): Promise<{ total: number; totalUnread: number }> {
+  const perTable = await Promise.all(tables.map(async (table) => {
+    let q = supabaseAdmin.from(table).select('unread_count')
+      .eq('company_id', companyId)
+      .eq('status', 'active');
+    if (filters.accountId) {
+      q = filters.includeNullAccountId
+        ? q.or(`chat_account_id.eq.${filters.accountId},chat_account_id.is.null`)
+        : q.eq('chat_account_id', filters.accountId);
+    }
+    if (filters.unreadOnly) q = q.gt('unread_count', 0);
+    if (filters.linkedOnly) q = q.not('customer_id', 'is', null);
+    if (filters.unlinkedOnly) q = q.is('customer_id', null);
+    const { data, error } = await q;
+    if (error) { console.error(`[chat/contacts] totals ${table}:`, error.message); return []; }
+    return data || [];
+  }));
+  const rows = perTable.flat();
+  return {
+    total: rows.length,
+    totalUnread: rows.reduce((sum, r) => sum + ((r as { unread_count?: number }).unread_count || 0), 0),
+  };
 }

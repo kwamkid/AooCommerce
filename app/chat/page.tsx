@@ -14,7 +14,6 @@ import { formatPrice } from '@/lib/utils/format';
 import { getBadgeColor, getPaymentBadgeColor } from '@/lib/status-tab-colors';
 import { isConsignmentFlow, isDepartmentFlow } from '@/lib/flow-types';
 import { supabase } from '@/lib/supabase';
-import { useSwipeBack } from '@/lib/useSwipeBack';
 import {
   MessageCircle,
   Search,
@@ -154,7 +153,8 @@ function UnifiedChatPageContent() {
   const [mobileView, setMobileView] = useState<'contacts' | 'chat' | 'history' | 'profile' | 'edit-customer' | 'order-detail'>('contacts');
   // ปัดขวาในหน้าคุย = กลับไปรายชื่อแชท (ท่าเดียวกับแอปแชททั่วไป — หน้านี้ไม่เปลี่ยน URL
   // เบราว์เซอร์จึงไม่มีท่าย้อนกลับให้เอง)
-  const chatPanelRef = useRef<HTMLDivElement>(null);
+  const mobileViewRef = useRef(mobileView);
+  mobileViewRef.current = mobileView;
 
   // Order detail view
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
@@ -1337,12 +1337,45 @@ function UnifiedChatPageContent() {
     shipping_google_maps_link: '', shipping_delivery_notes: ''
   } : undefined;
 
-  // ปัดขวา → กลับรายชื่อแชท (เฉพาะมุมมองมือถือที่หน้าคุยทับรายชื่ออยู่)
+  // ── ย้อนกลับจากหน้าคุย → รายชื่อแชท ──
+  //
+  // ⚠️ **ห้ามเขียนท่าปัดขวาเอง** — เคยทำแล้วมันไป**ชนกับท่า back ของระบบ** (iOS/Android
+  // มีท่าปัดกลับของตัวเองในแอปที่ติดตั้ง) ผลคือปัดทีเดียวเกิดสองอย่าง: ของเราพากลับ
+  // รายชื่อ ส่วนของระบบถอย history จริงไปหน้าก่อนหน้า = เด้งออกไป /dashboard
+  // (เจอจริง 4 ก.ย. 2026 — ดู fix-bug.md)
+  //
+  // ทางที่ถูกคือ **ทำให้การเปิดแชทเป็นหนึ่งขั้นใน history จริง ๆ** แล้วท่าปัดของระบบ
+  // (และปุ่ม back ของ Android / ปุ่มย้อนกลับของเบราว์เซอร์) จะพากลับรายชื่อเองทั้งหมด
+  // โดยไม่ต้องเขียน gesture สักบรรทัด
   const backToContacts = useCallback(() => {
     setSelectedContact(null);
     setMobileView('contacts');
   }, []);
-  useSwipeBack(chatPanelRef, backToContacts, mobileView === 'chat');
+
+  // เปิดหน้าคุยบนมือถือ = ดันหนึ่งขั้นเข้า history (URL เท่าเดิม — Next 16 รองรับการ
+  // เรียก history.pushState ตรง ๆ โดยยังคง state ภายในของ router ไว้ให้)
+  useEffect(() => {
+    if (mobileView !== 'chat') return;
+    if (typeof window === 'undefined' || window.innerWidth >= 768) return;
+    if ((window.history.state as { aooChatOpen?: boolean } | null)?.aooChatOpen) return;
+    window.history.pushState({ ...window.history.state, aooChatOpen: true }, '');
+  }, [mobileView]);
+
+  // ระบบพาถอยกลับมา (ปัดขวา / ปุ่ม back) → ปิดหน้าคุย
+  useEffect(() => {
+    const onPopState = () => {
+      if (mobileViewRef.current !== 'contacts') backToContacts();
+    };
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, [backToContacts]);
+
+  // ปุ่มย้อนกลับในหัวแชทต้องเดินผ่านทางเดียวกับท่าปัด ไม่งั้นขั้นที่ดันไว้จะค้าง
+  // แล้วกด back ครั้งถัดไปจะกระเด็นออกจากหน้าแชทไปเลย
+  const handleBackTap = useCallback(() => {
+    if ((window.history.state as { aooChatOpen?: boolean } | null)?.aooChatOpen) window.history.back();
+    else backToContacts();
+  }, [backToContacts]);
 
   return (
     <Layout noPadding>
@@ -1626,18 +1659,35 @@ function UnifiedChatPageContent() {
         </div>
 
         {/* Chat Area */}
-        <div ref={chatPanelRef} className={`flex-col relative ${mobileView === 'chat' ? 'flex' : 'hidden md:flex'} ${rightPanel ? 'w-full md:w-[340px] xl:w-[420px]' : 'flex-1'}`}>
+        <div className={`flex-col relative ${mobileView === 'chat' ? 'flex' : 'hidden md:flex'} ${rightPanel ? 'w-full md:w-[340px] xl:w-[420px]' : 'flex-1'}`}>
           {selectedContact ? (
             <>
               {/* Chat Header */}
               <div className="px-2 py-2 md:p-4 border-b border-gray-200 dark:border-slate-700 flex items-center gap-2 md:gap-3">
-                <button onClick={() => { setSelectedContact(null); setMobileView('contacts'); }} className="md:hidden p-1 text-gray-500 hover:text-gray-700 flex-shrink-0"><ChevronLeft className="w-5 h-5" /></button>
+                <button onClick={handleBackTap} aria-label="กลับไปรายชื่อแชท" className="md:hidden p-1 text-gray-500 hover:text-gray-700 flex-shrink-0"><ChevronLeft className="w-5 h-5" /></button>
                   {(() => {
                     const avatar = getAvatarUrl(selectedContact);
-                    const avatarEl = avatar ? (
-                      <Image src={avatar} alt={selectedContact.display_name} width={36} height={36} className="w-9 h-9 md:w-10 md:h-10 rounded-full object-cover flex-shrink-0" unoptimized />
+                    // รูปลูกค้า + **โลโก้ช่องทางที่คุยอยู่** ซ้อนมุมล่างซ้าย — ชุดเดียวกับในรายชื่อแชท
+                    // (เดิมหัวแชทบอกที่มาด้วยตัวหนังสือจาง ๆ บรรทัดเดียว ซึ่งมองข้ามง่ายมาก
+                    //  ทั้งที่คนคุยหลายเพจ/หลายร้านต้องรู้ตลอดว่ากำลังตอบในนามใคร)
+                    const avatarInner = avatar ? (
+                      <Image src={avatar} alt={selectedContact.display_name} width={36} height={36} className="w-9 h-9 md:w-10 md:h-10 rounded-full object-cover" unoptimized />
                     ) : (
-                      <div className="w-9 h-9 md:w-10 md:h-10 rounded-full flex items-center justify-center text-white font-semibold text-sm flex-shrink-0" style={{ backgroundColor: platformColor }}>{getInitials(selectedContact.display_name)}</div>
+                      <div className="w-9 h-9 md:w-10 md:h-10 rounded-full flex items-center justify-center text-white font-semibold text-sm" style={{ backgroundColor: platformColor }}>{getInitials(selectedContact.display_name)}</div>
+                    );
+                    const avatarEl = (
+                      <div className="relative flex-shrink-0">
+                        {avatarInner}
+                        {selectedContact.account_picture_url ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={selectedContact.account_picture_url} alt={selectedContact.account_name || ''} loading="lazy"
+                            className="absolute -bottom-0.5 -left-0.5 w-[18px] h-[18px] rounded-full object-cover shadow-sm border-2 border-white dark:border-slate-800" />
+                        ) : (
+                          <span className="absolute -bottom-0.5 -left-0.5 w-[18px] h-[18px] rounded-full flex items-center justify-center shadow-sm border-2 border-white dark:border-slate-800" style={{ backgroundColor: platformColor }}>
+                            <PlatformIcon contact={selectedContact} size={10} />
+                          </span>
+                        )}
+                      </div>
                     );
                     return (<>
                       {avatarEl}
@@ -1646,7 +1696,7 @@ function UnifiedChatPageContent() {
                           <span className="flex-shrink-0"><PlatformIcon contact={selectedContact} size={16} /></span>
                           <span className="truncate">{selectedContact.display_name}</span>
                         </h3>
-                    {selectedContact.account_name && (<p className="text-xs text-gray-400 truncate">{selectedContact.account_name}</p>)}
+                    {selectedContact.account_name && (<p className="text-xs text-gray-500 dark:text-slate-400 truncate">{selectedContact.account_name}</p>)}
                     {selectedContact.referral_ad_title && (() => {
                       const adData = selectedContact.referral_data?.ads_context_data;
                       const postId = adData?.post_id;
@@ -1774,7 +1824,9 @@ function UnifiedChatPageContent() {
                   </div>
                 </div>
               ) : (
-              <div className="p-2 md:p-4 border-t border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+              // pb-safe-2 = ตัวนี้แหละที่ติดขอบล่างจอจริง ๆ จึงเป็นที่ที่ต้องเผื่อแถบ home indicator
+              // (ห้ามไปเผื่อที่ตัวครอบทั้งหน้า — จะกลายเป็นแถบว่างค้างท้ายจอแทน)
+              <div className="p-2 md:p-4 pb-safe-2 md:pb-safe-4 border-t border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800">
                 <div className="flex items-center gap-1 md:gap-2">
                   <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
                   {/* box="inline-flex" — ปุ่มนี้ disabled ตอนอัปโหลด ซึ่งไม่ยิง pointer event ต้องมีกล่องครอบถึงจะ hover ติด */}

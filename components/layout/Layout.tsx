@@ -48,9 +48,11 @@ export default function Layout({ children, title, breadcrumbs, noPadding }: Layo
         </div>
 
         {/* Page Content */}
-        {/* pb-safe = เผื่อแถบ home indicator ของจอขอบโค้ง (root layout ตั้ง viewportFit: cover
-            หน้าเว็บจึงกินถึงขอบจอจริง) — ไม่งั้นแถวล่างสุดของตารางโดนบังตลอด */}
-        <main className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden pb-safe print:overflow-visible">
+        {/* ⚠️ ห้ามใส่ `pb-safe` ที่นี่ — เคยใส่แล้วหน้าที่สูงเต็มจอ (เช่นหน้าแชท) เกิด
+            **แถบว่างค้างท้ายจอ** เพราะกล่องลูกสูงเต็มพื้นที่อยู่แล้วแต่ถูกดันขึ้นมาอีกชั้น
+            การเผื่อแถบ home indicator ต้องทำที่ "ตัวที่ติดขอบล่างจริง ๆ" (แถบพิมพ์ข้อความ
+            ในหน้าแชท / ท้ายเนื้อหาของหน้าที่เลื่อนได้) ไม่ใช่ที่ตัวครอบทั้งหมด */}
+        <main className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden print:overflow-visible">
           {/* Page Header — hidden on print */}
           {(title || breadcrumbs) && (
             <div className="bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-700 px-4 lg:px-6 py-4 print:hidden">
