@@ -165,8 +165,44 @@ export class LazadaChatService {
     }
 
     // No session id in payload — pull recent sessions (covers unknown shapes)
+    //
+    // ⚠️ Lazada ส่ง push ใบเดียวกันมา **สองครั้ง** เป็นปกติ และใบที่ไม่มี session_id
+    // ทำให้ต้องไล่ 5 ห้องสนทนา (~10 API call) ต่อหนึ่งใบ · สองใบมาพร้อมกันจึงยิงรัว
+    // จนชน ApiCallLimit แล้ว breaker ปิดแชททั้งร้าน 30 นาที (เจอจริง 4 ก.ย. 2026
+    // 09:50 กับ 11:14 — สอง push วินาทีเดียวกัน ใช้เวลา 9.6 กับ 11.5 วิ ทับกันพอดี)
+    // throttle ที่มีเป็น in-memory ต่อ instance จึงคุมข้าม lambda ไม่ได้ ต้องกันที่นี่
+    if (!(await this.claimRecentSync(account.shop_id))) {
+      return { status: 'skipped', detail: 'เพิ่งไล่ห้องสนทนาไปเมื่อครู่ — ข้าม push ใบซ้ำ' };
+    }
     const count = await this.syncRecentSessions(account, 5);
     return { status: 'processed', detail: `Synced ${count} recent sessions` };
+  }
+
+  /**
+   * จับจองสิทธิ์ไล่ห้องสนทนาของร้านนี้ — คืน true เฉพาะผู้ชนะ
+   *
+   * ใช้ `update ... where at < cutoff` เป็นตัวจับจอง ซึ่ง **atomic ใน Postgres**
+   * (แถวเดียวกัน ใครอัปเดตได้ก่อนคนนั้นได้ไป) จึงกันการยิงพร้อมกันข้าม lambda ได้
+   * ต่างจาก throttle ใน memory ที่คุมได้แค่ instance ตัวเอง
+   */
+  private async claimRecentSync(sellerId: number | string, windowSec = 30): Promise<boolean> {
+    const key = `lazada_chat_sync:${sellerId}`;
+    const now = new Date().toISOString();
+    const cutoff = new Date(Date.now() - windowSec * 1000).toISOString();
+
+    const { data: won } = await supabaseAdmin
+      .from('app_flags')
+      .update({ value: { at: now }, updated_at: now })
+      .eq('key', key)
+      .lt('value->>at', cutoff)   // ISO-8601 UTC เทียบแบบ string ได้ตรงกับเทียบเวลา
+      .select('key');
+    if (won && won.length > 0) return true;
+
+    // ยังไม่เคยมีแถว → สร้าง · ถ้าชน unique แปลว่าอีกใบชิงไปแล้ว (แพ้ ไม่ต้องทำ)
+    const { error } = await supabaseAdmin
+      .from('app_flags')
+      .insert({ key, value: { at: now } });
+    return !error;
   }
 
   /**

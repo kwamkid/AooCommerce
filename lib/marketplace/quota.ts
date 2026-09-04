@@ -116,20 +116,24 @@ export function reportMarketplaceError(
   const isDaily = reset.kind === 'daily-utc8' && /daily/i.test(message || '');
   const until = reset.kind === 'daily-utc8' && !isDaily ? pauseUntil(30) : undefined;
 
-  markQuotaExhausted(platform, scope, until).catch(() => {});
+  markQuotaExhausted(platform, scope, until, message || undefined).catch(() => {});
 }
 
 /** เปิด circuit breaker ของ platform+scope จนถึง untilIso (ไม่ส่ง = ค่า default ต่อ platform) */
 export async function markQuotaExhausted(
   platform: QuotaPlatform,
   scope: QuotaTarget = 'all',
-  untilIso?: string
+  untilIso?: string,
+  /** ข้อความจริงจาก platform ที่ทำให้ breaker เปิด — ไม่เก็บไว้จะไม่มีใครรู้ว่าเพราะอะไร */
+  reason?: string
 ): Promise<void> {
   const until = untilIso || defaultUntilIso(platform);
-  console.warn(`[Quota] ${platform}:${scope} quota exhausted — circuit open until ${until}`);
+  console.warn(`[Quota] ${platform}:${scope} quota exhausted — circuit open until ${until}`, reason || '');
+  // เก็บ reason ไว้ด้วยเสมอ — breaker เปิดโดยไม่มีร่องรอยว่าโดนอะไร ทำให้ไล่หา
+  // ต้นเหตุไม่ได้เลย (ตัว client ไม่ได้ log error ของ Lazada ไว้ที่ไหน)
   await supabaseAdmin.from('app_flags').upsert({
     key: flagKey(platform, scope),
-    value: { until },
+    value: { until, reason: reason?.slice(0, 300), at: new Date().toISOString() },
     updated_at: new Date().toISOString(),
   }, { onConflict: 'key' });
 }
