@@ -30,8 +30,10 @@ export interface OAuthStatePayload {
    *   chat    — TikTok/Lazada ขาแชท ซึ่งเป็น app คนละตัวใน Partner Center
    *   profile — TikTok Login Kit (developers.tiktok.com) **คนละระบบกับ Shop เลย**
    *             ใช้ดึงรูปโปรไฟล์บัญชีมาเป็นโลโก้ร้าน เพราะ Shop API ไม่มีโลโก้
+   *   seller  — Shopee app ที่จดในนามบัญชี seller (Chat API มีเฉพาะ app แบบนี้)
+   *             ต่างจาก chat ตรงที่ app ตัวนี้ทำได้ทุกอย่าง ไม่ใช่แค่แชท
    */
-  app?: 'order' | 'chat' | 'profile';
+  app?: 'order' | 'chat' | 'profile' | 'seller';
   /** ขา profile ต้องรู้ว่าจะเอารูปไปแปะร้านไหน (ขาอื่นหาร้านจาก response ของแพลตฟอร์ม) */
   accountId?: string;
 }
@@ -96,7 +98,9 @@ export function verifyOAuthState(state: string | null | undefined): OAuthStatePa
     // (เจอจริง 2026-08-28)
     // ⚠️ ค่า app ที่ไม่อยู่ในลิสต์นี้จะกลายเป็น undefined = ถูกมองเป็นขาออเดอร์
     //    เพิ่มขาใหม่แล้วลืมเติมตรงนี้ = ขานั้นพังแบบเงียบ ๆ (เคยเกิดกับขาแชท)
-    const app = body.app === 'chat' || body.app === 'profile' ? body.app : undefined;
+    const app = body.app === 'chat' || body.app === 'profile' || body.app === 'seller'
+      ? body.app
+      : undefined;
     return {
       companyId: body.companyId,
       userId: body.userId,

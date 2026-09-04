@@ -64,11 +64,20 @@ export async function POST(request: NextRequest) {
     let signatureValid = false;
     // Shopee signs pushes with the "Live Push Partner Key" (Push Mechanism > Set Push),
     // which is separate from the API-calling partner key after a key rotation.
-    const partnerKey = process.env.SHOPEE_PUSH_PARTNER_KEY || process.env.SHOPEE_PARTNER_KEY || '';
-    if (authorization && partnerKey) {
+    //
+    // ⚠️ push มาจากได้ทั้ง app partner และ app seller (คนละ key) — ลองทีละตัว
+    // ตัวไหนตรงก็ถือว่าของจริง (แบบเดียวกับ verifyWebhookSignature ของ TikTok)
+    // ตกตัวใดตัวหนึ่งไป = push ของ app นั้นถูกตีตกทั้งหมดแบบเงียบ ๆ
+    const partnerKeys = [
+      process.env.SHOPEE_PUSH_PARTNER_KEY || process.env.SHOPEE_PARTNER_KEY || '',
+      process.env.SHOPEE_SELLER_PUSH_PARTNER_KEY || process.env.SHOPEE_SELLER_PARTNER_KEY || '',
+    ].filter(Boolean);
+    if (authorization && partnerKeys.length > 0) {
       const publicUrl = 'https://aoocommerce.vercel.app/api/shopee/webhook';
-      signatureValid = verifySignature(publicUrl, rawBody, authorization, partnerKey)
-        || verifySignature(request.url, rawBody, authorization, partnerKey);
+      signatureValid = partnerKeys.some(key =>
+        verifySignature(publicUrl, rawBody, authorization, key)
+        || verifySignature(request.url, rawBody, authorization, key)
+      );
     }
     if (!signatureValid) {
       console.error('Shopee webhook: signature not valid — not processing. shop_id:', shopId);

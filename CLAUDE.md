@@ -351,6 +351,19 @@ marketplace_accounts → marketplace_product_links → product_variations
 
 **Auth:** ทุก cron route รองรับ `Authorization: Bearer {CRON_SECRET}` และ `x-cron-secret` header
 
+### Shopee dual-app — partner / seller (เพิ่ม 2026-09-04)
+
+Shopee ให้ **Chat API เฉพาะ app ประเภท seller** (นโยบาย 18 พ.ย. 2024) ระบบจึงรองรับ 2 app พร้อมกัน
+
+- **แยกตาม "ใครเป็นเจ้าของ app" ไม่ใช่ "ใช้ทำอะไร"** — `marketplace_accounts.metadata.shopee_app` = `'partner'` (ค่าเริ่มต้น) หรือ `'seller'` บอกว่า **ร้านนี้ authorize มาด้วย app ไหน** · ทุกอย่างของร้านนั้น (ออเดอร์ สินค้า แชท) ใช้ credentials ของ app ตัวนั้น
+- ⚠️ **ห้ามเขียนเงื่อนไขว่า "แชท = seller"** — ถ้าวันหนึ่ง Shopee เปิด Chat API ให้ partner app ด้วย ร้านที่อยู่บน partner app จะใช้แชทได้ทันทีโดยไม่ต้องแก้โค้ด
+- env: `SHOPEE_SELLER_PARTNER_ID` / `SHOPEE_SELLER_PARTNER_KEY` (+ `SHOPEE_SELLER_PUSH_PARTNER_KEY` ถ้า push key ต่างจาก API key) — **ไม่ตั้ง = ทั้งระบบใช้ app เดียวเหมือนเดิม** ของเก่าไม่เปลี่ยนพฤติกรรม
+- เชื่อมร้านผ่าน app seller: `/api/shopee/oauth/auth-url?app=seller` → `signOAuthState({ app: 'seller' })` → callback แลก token ด้วย app เดียวกันแล้วบันทึก `metadata.shopee_app`
+- **ห้ามเซ็นด้วย env ตรง ๆ ในที่ที่มี `creds` อยู่แล้ว** — ใช้ `creds.partner_id/partner_key` (มี `signWith()` ให้) ไม่งั้นร้านที่อยู่คนละ app จะเซ็นด้วย key ผิดแล้ว fail ทุก call
+- webhook ตรวจลายเซ็นด้วย key **ทั้งสอง app** — ตกตัวใดตัวหนึ่ง = push ของ app นั้นถูกตีตกเงียบ ๆ ทั้งหมด
+- **ย้ายได้ทีละร้าน** ไม่ต้องสลับทั้งระบบพร้อมกัน (ร้านที่ยังไม่ย้ายยังใช้ partner app ต่อได้)
+- ⚠️ app แบบ seller ผูกกับบัญชี seller ของเจ้าของ app — **เชื่อมได้เฉพาะร้านของบัญชีนั้น** · ถ้ามีบริษัทอื่นมาใช้ระบบ ต้องทำ credentials ต่อบริษัทเพิ่ม (ยังไม่ทำ)
+
 ### Shopee Shared Helpers (`lib/shopee/product-helpers.ts`)
 - ใช้ร่วมระหว่าง `sync.ts` (order sync) และ `product-sync.ts` (product import)
 - Functions: `getOrCreateVariationTypeIds`, `buildVariationAttributes`, `upsertProductImage`, `upsertProductImages`, `getCategoryName`, `findExistingLink`, `upsertMarketplaceLink`, `tryAutoMatchBySku`, `resolveShopeePrice`, `reactivateProduct`, `backfillSiblingVariations`

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
-import { exchangeCodeForToken, getShopListByMerchant, ensureValidToken, getShopInfo } from '@/lib/shopee/api';
+import { exchangeCodeForToken, getShopListByMerchant, ensureValidToken, getShopInfo, type ShopeeApp } from '@/lib/shopee/api';
 import { authorizeMarketplaceCallback } from '@/lib/oauth-state';
 
 export async function GET(request: NextRequest) {
@@ -43,10 +43,12 @@ export async function GET(request: NextRequest) {
   try {
     // Exchange code for tokens
     console.log('[Shopee Callback] Exchanging code for tokens...');
+    // ต้องแลก token ด้วย app ตัวเดียวกับที่ใช้พาผู้ใช้ไปหน้าอนุญาต — คนละตัว = ลายเซ็นไม่ผ่าน
+    const shopeeApp: ShopeeApp = authz.payload.app === 'seller' ? 'seller' : 'partner';
     const tokens = await exchangeCodeForToken(code, {
       shopId: shopId || undefined,
       mainAccountId: mainAccountId || undefined,
-    });
+    }, shopeeApp);
     console.log('[Shopee Callback] Token exchange success, expire_in:', tokens.expire_in);
 
     const now = new Date();
@@ -121,6 +123,9 @@ export async function GET(request: NextRequest) {
           metadata: {
             ...(shopMeta.get(sid) || {}),
             ...(mainAccountId ? { main_account_id: mainAccountId } : {}),
+            // ร้านนี้ authorize มาด้วย app ไหน — ทุก call หลังจากนี้ต้องเซ็นด้วย
+            // คู่ partner_id/key ของ app ตัวนั้น (ดู shopeeAppOf ใน lib/shopee/api.ts)
+            shopee_app: shopeeApp,
           },
           updated_at: now.toISOString(),
         }, {
