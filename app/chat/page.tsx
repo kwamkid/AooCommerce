@@ -61,6 +61,7 @@ import MessageBubble from './components/MessageBubble';
 import { FbIcon, IgIcon, LineIcon, ShopeeIcon, LazadaIcon, TiktokIcon, PlatformIcon, AccountCornerBadge, getAccountPicture, getAvatarUrl, getInitials, formatTime, formatLastMessage, compressImage, officialStickers } from './lib/chatHelpers';
 import { FullPageLoading } from '@/components/ui/Loading';
 import { LoadingCard } from '@/components/ui/StateCard';
+import LoadingOverlay from '@/components/ui/LoadingOverlay';
 import StatusBadge from '@/components/ui/StatusBadge';
 import ChannelBadge from '@/components/ui/ChannelBadge';
 
@@ -1503,11 +1504,13 @@ function UnifiedChatPageContent() {
                     {/* บางแพลตฟอร์มบอกเราไม่ได้ว่าแอดมินไปตอบจากแอปของมันเอง (LINE ไม่มี event ทั้งขาส่ง
                         และขาอ่าน) ตัวเลขยังไม่อ่านจึงค้างได้ — ที่นี่คือที่เดียวที่ล้างเองได้แล้ว จึงต้องโชว์ทุกจอ */}
                     {totalUnread > 0 && (
-                      <div className="p-3 border-t border-gray-100 dark:border-slate-700">
-                        <button onClick={() => { setShowFilterPopover(false); markAllRead(); }} disabled={markingAllRead}
-                          className="w-full flex items-center justify-center gap-1.5 px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-slate-500 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 disabled:opacity-50 transition-colors">
-                          {markingAllRead ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCheck className="w-4 h-4" />}
-                          อ่านทั้งหมด · ยังไม่อ่าน {formatNumber(totalUnread)}
+                      // เป็นลิงก์ข้อความ ไม่ใช่ปุ่มกรอบ — ในเมนูนี้กรอบเทาดูไม่ออกว่ากดได้ ·
+                      // ระหว่างทำงานใช้ LoadingOverlay (popover ปิดไปแล้ว spinner ในนี้ไม่มีใครเห็น)
+                      <div className="p-3 border-t border-gray-100 dark:border-slate-700 text-center">
+                        <button type="button" onClick={() => { setShowFilterPopover(false); markAllRead(); }} disabled={markingAllRead}
+                          className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline disabled:opacity-50">
+                          <CheckCheck className="w-4 h-4" />
+                          อ่านทั้งหมด (ยังไม่อ่าน {formatNumber(totalUnread)})
                         </button>
                       </div>
                     )}
@@ -2092,6 +2095,8 @@ function UnifiedChatPageContent() {
         />
       )}
       {confirmDialog}
+      {/* ล้างยังไม่อ่านเป็นงานเขียนข้อมูลเป็นชุด (หลายพันแถว) — บังจอกันกดซ้ำจนกว่าจะเสร็จ */}
+      <LoadingOverlay isOpen={markingAllRead} title="กำลังล้างยังไม่อ่าน..." message="ข้อความยังอยู่ครบ แค่เลิกนับว่ายังไม่ได้อ่าน" />
       </div>
     </Layout>
   );
