@@ -20,6 +20,8 @@ import Container from '@/components/ui/Container';
 import PageHeader from '@/components/ui/PageHeader';
 import PlatformIcon from '@/components/ui/PlatformIcon';
 import ChannelBadge from '@/components/ui/ChannelBadge';
+import Badge from '@/components/ui/Badge';
+import Tooltip from '@/components/ui/Tooltip';
 import SearchInput from '@/components/ui/SearchInput';
 import Tabs from '@/components/ui/Tabs';
 import { LoadingCard, NoPermissionCard } from '@/components/ui/StateCard';
@@ -919,7 +921,7 @@ export default function ChatChannelsPage() {
               <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg p-3 text-sm text-blue-800 dark:text-blue-300">
                 แชท {platformLabel} ใช้การเชื่อมต่อร้านจากหน้า Integrations โดยตรง — เปิดสวิตช์เพื่อรับแชทของร้านนั้นเข้าหน้ารวมแชท
                 {platform === 'shopee'
-                  ? ' ข้อความใหม่จะเข้าอัตโนมัติผ่าน webhook (ต้องเปิด Webchat Push ใน Shopee Open Platform Console)'
+                  ? ' ⚠️ Shopee ให้แชทเฉพาะร้านที่เชื่อมผ่าน "app ของร้าน" (Seller In House) — ร้านที่เชื่อมผ่าน partner app ของระบบจะไม่มีข้อความเข้าเลย (นโยบาย Shopee 18 พ.ย. 2024) · ข้อความใหม่เข้าอัตโนมัติผ่าน webhook'
                   : platform === 'lazada'
                     ? ' ข้อความใหม่จะเข้าอัตโนมัติผ่าน webhook (ต้องตั้ง Callback URL ใน Lazada Open Platform > Push Mechanism)'
                     : ' ข้อความใหม่จะเข้าอัตโนมัติผ่าน webhook (ต้องเปิด event NEW_MESSAGE ใน TikTok Partner Center > Webhooks)'}
@@ -939,6 +941,10 @@ export default function ChatChannelsPage() {
                   // ต้องพาไปอนุญาตก่อน สวิตช์เปิดไปก็เป็นช่องแชทที่ใช้ไม่ได้
                   // (API ส่ง chat_connected=true ให้เองเมื่อ platform ไม่มีขาแชทแยก)
                   const needsChatAuth = (platform === 'tiktok' || platform === 'lazada') && shop.chat_connected === false;
+                  // Shopee: แชทมีให้เฉพาะร้านที่ authorize มาด้วย app ของร้านเอง (metadata.shopee_app = 'seller')
+                  // ร้านบน partner app เปิดสวิตช์ไปก็ไม่มีข้อความเข้า — บอกตรง ๆ แทนที่จะปล่อยให้เปิดเปล่า ๆ
+                  const shopeeApp = platform === 'shopee' ? (shop.metadata?.shopee_app === 'seller' ? 'seller' : 'partner') : null;
+                  const shopeeNoChat = shopeeApp === 'partner';
                   return (
                     <div key={shop.id} className="bg-white dark:bg-slate-800 rounded-lg shadow-sm px-3 py-2.5 flex items-center gap-3">
                       <ChannelBadge
@@ -946,15 +952,26 @@ export default function ChatChannelsPage() {
                         channel={{ platform, picture_url: (shop.metadata?.shop_logo as string) || null }}
                       />
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{shop.shop_name || `${platformLabel} ${shop.shop_id}`}</p>
+                        <p className="text-sm font-medium text-gray-900 dark:text-white truncate flex items-center gap-1.5">
+                          <span className="truncate">{shop.shop_name || `${platformLabel} ${shop.shop_id}`}</span>
+                          {shopeeApp === 'seller' && <Badge tone="indigo" size="sm">app ของร้าน</Badge>}
+                        </p>
                         <p className="helper-text text-gray-500">
                           Shop ID: {shop.shop_id}
-                          {needsChatAuth
-                            ? (shop.chat_expired ? ' · การเชื่อมต่อแชทหมดอายุ' : ' · ยังไม่ได้เชื่อมต่อแชท')
-                            : chatEnabled ? ' · รับแชทอยู่' : ''}
+                          {shopeeNoChat
+                            ? ' · เชื่อมผ่าน partner app — Shopee ไม่ส่งแชทให้ app ประเภทนี้'
+                            : needsChatAuth
+                              ? (shop.chat_expired ? ' · การเชื่อมต่อแชทหมดอายุ' : ' · ยังไม่ได้เชื่อมต่อแชท')
+                              : chatEnabled ? ' · รับแชทอยู่' : ''}
                         </p>
                       </div>
-                      {needsChatAuth ? (
+                      {shopeeNoChat ? (
+                        <Tooltip text="ต้องเชื่อมร้านนี้ใหม่ผ่าน app ของร้าน (ปุ่มในหน้า ช่องทางการขาย › Marketplace) · ร้านจริงทำได้เมื่อ app ผ่าน Go Live แล้ว" box="inline-flex">
+                          <a href="/settings/sales-channels?tab=marketplace">
+                            <Button size="sm" variant="secondary">เชื่อมผ่าน app ของร้าน</Button>
+                          </a>
+                        </Tooltip>
+                      ) : needsChatAuth ? (
                         <Button size="sm" variant="secondary" loading={connectingChatAuth} onClick={() => handleConnectMarketplaceChat(platform as 'tiktok' | 'lazada')}>
                           {shop.chat_expired ? 'เชื่อมต่อแชทใหม่' : 'เชื่อมต่อแชท'}
                         </Button>
