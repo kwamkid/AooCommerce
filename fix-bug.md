@@ -16,6 +16,17 @@
 
 ---
 
+## 2026-09-04 — หน้าแชทพังทั้งหน้า: "React has detected a change in the order of Hooks" หลังเพิ่มปุ่มอ่านทั้งหมด
+
+**ที่เกิด**: [app/chat/page.tsx](app/chat/page.tsx) `UnifiedChatPageContent` — `useState(markingAllRead)` + `useCallback(markAllRead)` + hooks ของท่า back (`backToContacts` · `useEffect` pushState/popstate · `handleBackTap`)
+**อาการ**: เปิดหน้าแชทแล้ว error ทับทั้งหน้า `React has detected a change in the order of Hooks called by UnifiedChatPageContent` — hook ที่ 81 เป็น `undefined` ในรอบก่อน แต่เป็น `useState` ในรอบถัดไป
+**Root cause**: ในตัว component มี early return `if (authLoading) return <Layout><LoadingCard/></Layout>` วางอยู่**กลางไฟล์** (หลัง hooks 80 ตัวแรก แต่ก่อนพวก helper render) · hooks ที่เพิ่มทีหลัง 2 รอบ (ท่า back ใน `f8e9df3` และปุ่มอ่านทั้งหมดใน `5bb2ba5`) ถูกวางต่อท้ายใต้ early return นั้นโดยไม่ทันสังเกต → รอบแรกที่ `authLoading=true` React นับได้ 80 hooks พอพลิกเป็น `false` นับได้ 87 = ลำดับเปลี่ยน · ไฟล์ยาว 2,100 บรรทัด มองไม่เห็นว่าบรรทัด 1103 เป็น return ของ component ไม่ใช่ของ helper
+**วิธีแก้**: ย้าย early return ไปอยู่**ติดกับ `return (` หลักของ component** (หลัง hook ตัวสุดท้าย) พร้อมคอมเมนต์เตือน — [app/chat/page.tsx](app/chat/page.tsx) ค้นคำว่า `if (authLoading)`
+**ป้องกัน regression**:
+- **early return ของ component ต้องอยู่ที่เดียว = ก่อน `return (` หลัก** ห้ามวางกลางไฟล์ — ไฟล์ยาวจะมีคนมาเพิ่ม hook ต่อท้ายเสมอ
+- เพิ่ม hook ในไฟล์ใหญ่ → `grep -n "^  if (.*) {$\|^  return" ` ดูก่อนว่าจุดที่วางอยู่ใต้ return ไหนหรือไม่
+- error นี้โผล่เฉพาะตอน state ที่คุม early return **พลิกค่าระหว่างที่ component ยัง mount อยู่** (authLoading true→false) · ทดสอบแบบ hot reload ที่ auth โหลดเสร็จแล้วจะไม่เห็น — ต้อง refresh ทั้งหน้า
+
 ## 2026-09-04 — ตัวเลข "ยังไม่อ่าน" ค้างสะสม: แอดมินตอบจากแอปของแพลตฟอร์มแล้วฝั่งเราไม่เคลียร์
 
 **ที่เกิด**: [lib/services/chat/facebook.ts](lib/services/chat/facebook.ts) `saveEchoMessage()` · [lib/services/chat/shopee.ts](lib/services/chat/shopee.ts)

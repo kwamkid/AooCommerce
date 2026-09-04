@@ -10,7 +10,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
-import { formatPrice } from '@/lib/utils/format';
+import { formatPrice, formatNumber } from '@/lib/utils/format';
 import { getBadgeColor, getPaymentBadgeColor } from '@/lib/status-tab-colors';
 import { isConsignmentFlow, isDepartmentFlow } from '@/lib/flow-types';
 import { supabase } from '@/lib/supabase';
@@ -1100,10 +1100,6 @@ function UnifiedChatPageContent() {
     setProfileTags(selectedContact.tags || []);
   };
 
-  if (authLoading) {
-    return <Layout><LoadingCard /></Layout>;
-  }
-
   // Helper to render order card (used in both mobile and desktop history)
   const renderOrderCard = (order: any) => {
     const orderStatus = order.order_status || order.status;
@@ -1411,14 +1407,23 @@ function UnifiedChatPageContent() {
     else backToContacts();
   }, [backToContacts]);
 
+  // ⚠️ early return ต้องอยู่หลัง hooks ทุกตัว — เคยวางไว้กลางไฟล์แล้ว hooks ที่เพิ่มทีหลัง
+  // ไปอยู่ใต้มัน → ลำดับ hooks เปลี่ยนตอน authLoading พลิกจาก true เป็น false (4 ก.ย. 2026)
+  if (authLoading) {
+    return <Layout><LoadingCard /></Layout>;
+  }
+
   return (
     <Layout noPadding>
       <div className="chat-container flex relative bg-white dark:bg-slate-800 md:rounded-lg md:border border-gray-200 dark:border-slate-700 overflow-hidden">
         {/* Contacts Sidebar */}
         <div className={`w-full md:w-80 border-r border-gray-200 dark:border-slate-700 flex flex-col ${mobileView !== 'contacts' ? 'hidden md:flex' : 'flex'} ${rightPanel ? 'md:hidden xl:flex' : ''}`}>
           {/* Header */}
-          <div className="p-4 border-b border-gray-200 dark:border-slate-700">
-            <div className="flex items-center justify-between gap-2 mb-3">
+          <div className="p-3 md:p-4 border-b border-gray-200 dark:border-slate-700">
+            {/* แถวหัวข้อ (ตัวเลขยังไม่อ่าน + อ่านทั้งหมด) = เดสก์ท็อปเท่านั้น — บนมือถือหัวข้อ "แชท"
+                ย้ายไปอยู่แถวเดียวกับตัวกรองข้างล่าง (ได้ที่แนวตั้งคืน ~50px ให้รายชื่อ) ·
+                "อ่านทั้งหมด" ไปอยู่ท้าย popover กรองรายชื่อ · ตัวเลขเต็มดูจาก tooltip ปุ่มซองจดหมาย */}
+            <div className="hidden md:flex items-center justify-between gap-2 mb-3">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
                 <MessageCircle className="w-5 h-5 text-primary" />
                 แชท
@@ -1436,8 +1441,12 @@ function UnifiedChatPageContent() {
                 </div>
               )}
             </div>
-            {/* Row 1: Account dropdown + Sort + Filter */}
+            {/* Row 1: (มือถือ: หัวข้อ) + Account dropdown + Sort + Unread + Filter */}
             <div className="flex gap-2 mb-2">
+              <h2 className="md:hidden flex-shrink-0 flex items-center gap-1.5 text-lg font-semibold text-gray-900 dark:text-white">
+                <MessageCircle className="w-5 h-5 text-primary" />
+                แชท
+              </h2>
               <div className="relative flex-1 min-w-0" data-account-picker>
                 {(() => {
                   const selectedAccount = filterAccountId ? chatAccounts.find(a => a.id === filterAccountId) : null;
@@ -1463,7 +1472,7 @@ function UnifiedChatPageContent() {
                         )}
                       </button>
                       {showAccountPicker && (
-                        <div className="absolute top-full mt-1 left-0 right-0 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg z-50 max-h-60 overflow-hidden flex flex-col" style={{ width: 'min(calc(100vw - 2rem), 288px)' }}>
+                        <div className="absolute top-full mt-1 left-0 right-0 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg z-50 max-h-60 overflow-hidden flex flex-col" style={{ width: 'min(calc(100vw - 7rem), 288px)' }}>
                           <div className="p-2 border-b border-gray-100 dark:border-slate-700">
                             <input type="text" value={accountSearch} onChange={e => setAccountSearch(e.target.value)} placeholder="ค้นหาบัญชี..." autoFocus
                               className="w-full px-2.5 py-1.5 text-sm border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-primary" />
@@ -1512,7 +1521,7 @@ function UnifiedChatPageContent() {
                   <ArrowUpDown className="w-4 h-4" />
                 </button>
               </Tooltip>
-              <Tooltip text="เฉพาะยังไม่อ่าน">
+              <Tooltip text={totalUnread > 0 ? `เฉพาะยังไม่อ่าน (${formatNumber(totalUnread)} ข้อความ)` : 'เฉพาะยังไม่อ่าน'}>
                 <button onClick={() => setFilterParams({ unread: filterUnread ? '' : '1' })}
                   aria-label="เฉพาะยังไม่อ่าน"
                   className={`relative h-[42px] w-[42px] flex-shrink-0 flex items-center justify-center border rounded-lg transition-colors ${filterUnread ? 'bg-red-500 border-red-500 text-white' : 'border-gray-300 dark:border-slate-500 text-gray-500 hover:bg-gray-50 dark:hover:bg-slate-700'}`}>
@@ -1567,6 +1576,15 @@ function UnifiedChatPageContent() {
                         </div>
                       )}
                     </div>
+                    {totalUnread > 0 && (
+                      <div className="md:hidden p-3 border-t border-gray-100 dark:border-slate-700">
+                        <button onClick={() => { setShowFilterPopover(false); markAllRead(); }} disabled={markingAllRead}
+                          className="w-full flex items-center justify-center gap-1.5 px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-slate-500 text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700 disabled:opacity-50 transition-colors">
+                          {markingAllRead ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCheck className="w-4 h-4" />}
+                          อ่านทั้งหมด · ยังไม่อ่าน {formatNumber(totalUnread)}
+                        </button>
+                      </div>
+                    )}
                     <div className="p-3 border-t border-gray-100 dark:border-slate-700">
                       <button onClick={() => setShowFilterPopover(false)} className="w-full px-3 py-2 bg-gray-900 text-white text-sm rounded-lg hover:bg-gray-800 transition-colors">ปิด</button>
                     </div>
