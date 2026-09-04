@@ -610,15 +610,30 @@ export default function SalesChannelsPage() {
                   ? <><Loader2 className="w-5 h-5 animate-spin" />กำลังเชื่อมต่อ...</>
                   : <><Plus className="w-5 h-5" />เชื่อมต่อร้านค้า</>}
                 triggerClassName="btn btn-md btn-primary"
-                items={(['shopee', 'tiktok', 'lazada'] as const).map(platform => ({
-                  key: platform,
-                  label: platform === 'shopee' ? 'เชื่อมต่อร้าน Shopee'
-                    : platform === 'tiktok' ? 'เชื่อมต่อ TikTok Shop'
-                    : 'เชื่อมต่อร้าน Lazada',
-                  icon: <PlatformIcon id={platform} size={16} />,
-                  disabled: mpConnecting,
-                  onClick: () => { setMpPlatform(platform); handleMarketplaceConnect(platform); },
-                }))}
+                items={[
+                  ...(['shopee', 'tiktok', 'lazada'] as const).map(platform => ({
+                    key: platform,
+                    label: platform === 'shopee' ? 'เชื่อมต่อร้าน Shopee'
+                      : platform === 'tiktok' ? 'เชื่อมต่อ TikTok Shop'
+                      : 'เชื่อมต่อร้าน Lazada',
+                    icon: <PlatformIcon id={platform} size={16} />,
+                    disabled: mpConnecting,
+                    onClick: () => { setMpPlatform(platform); handleMarketplaceConnect(platform); },
+                  })),
+                  // ทางเชื่อม Shopee เส้นที่สอง — app ที่จดในนามร้านเอง (แชทได้) อยู่ในเมนูเดียวกัน
+                  // เพราะคนมองหาที่นี่ก่อน · โชว์เสมอ: ถ้า env บน server ยังไม่ครบก็บอกตรง ๆ
+                  // แทนที่จะหายไปเฉย ๆ แล้วคนไปกดเชื่อมผ่าน partner app แทน (เกิดจริง 5 ก.ย. 2026)
+                  {
+                    key: 'shopee-seller',
+                    dividerBefore: true,
+                    label: shopeeSellerAppAvailable
+                      ? `เชื่อมต่อร้าน Shopee ผ่าน app ของร้าน${shopeeSellerAppEnv === 'sandbox' ? ' (sandbox — ใช้บัญชี test shop)' : ''}`
+                      : 'Shopee ผ่าน app ของร้าน — server ยังไม่มี SHOPEE_SELLER_APP_ID/KEY',
+                    icon: <PlatformIcon id="shopee" size={16} />,
+                    disabled: mpConnecting || !shopeeSellerAppAvailable,
+                    onClick: () => { setMpPlatform('shopee'); handleMarketplaceConnect('shopee', { app: 'seller' }); },
+                  },
+                ]}
               />
             ) : (
               /* ปุ่มเพิ่มเป็น dropdown — เลือกแพลตฟอร์มได้เลย แล้วเปิด modal พร้อมค่า preselect */
@@ -671,10 +686,6 @@ export default function SalesChannelsPage() {
             activePlatform={mpPlatform}
             onPlatformChange={setMpPlatform}
             setConnecting={setMpConnecting}
-            connecting={mpConnecting}
-            shopeeSellerAppAvailable={shopeeSellerAppAvailable}
-            shopeeSellerAppEnv={shopeeSellerAppEnv}
-            onConnect={handleMarketplaceConnect}
           />
         ) : (
           <>
