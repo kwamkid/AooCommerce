@@ -363,6 +363,11 @@ Shopee ให้ **Chat API เฉพาะ app ประเภท seller** (น
 - webhook ตรวจลายเซ็นด้วย key **ทั้งสอง app** — ตกตัวใดตัวหนึ่ง = push ของ app นั้นถูกตีตกเงียบ ๆ ทั้งหมด
 - **ย้ายได้ทีละร้าน** ไม่ต้องสลับทั้งระบบพร้อมกัน (ร้านที่ยังไม่ย้ายยังใช้ partner app ต่อได้)
 - ⚠️ app แบบ seller ผูกกับบัญชี seller ของเจ้าของ app — **เชื่อมได้เฉพาะร้านของบัญชีนั้น** · ถ้ามีบริษัทอื่นมาใช้ระบบ ต้องทำ credentials ต่อบริษัทเพิ่ม (ยังไม่ทำ)
+- **สอง app อยู่คนละ environment ได้พร้อมกัน (เพิ่ม 2026-09-05)** — partner app อยู่ production ส่วน seller app ยังเป็น Developing บน **Sandbox v2** จนกว่าจะผ่าน Go Live → โฮสต์เลือก**ต่อ app** ด้วย `getBaseUrl(app)` / `resolveBaseUrl(creds)` (creds มี `app`) · env `SHOPEE_SELLER_ENV=sandbox` (ไม่ตั้ง = ตาม `SHOPEE_ENV`) · **ต้องตั้ง `SHOPEE_SELLER_PARTNER_ID/KEY` + `SHOPEE_SELLER_ENV` บน Vercel ด้วย** ไม่งั้น webhook ตีตกลายเซ็นของ app seller และ OAuth ขา seller ใช้ไม่ได้
+- ⚠️ **Sandbox v2 ใช้โฮสต์ `https://openplatform.sandbox.test-stable.shopee.sg`** — `partner.test-stable.shopeemobile.com` เป็น sandbox รุ่นเก่า ตอบ `error_sign / Wrong sign` กับ partner ที่จดใน v2 (เสียเวลาไล่ key ไปรอบหนึ่ง 5 ก.ย. 2026) · sandbox ทดสอบได้กับ **test shop จากเมนู Test Account-Sandbox v2 เท่านั้น** ร้านจริง (gbthailandofficial) ต้องรอ app ผ่าน Go Live
+- ✅ **ยืนยันแล้ว 5 ก.ย. 2026: app หมวด Seller In House เปิด push code 10 (webchat) ได้** (`set_app_push_config` → success บน sandbox, callback ชี้ `https://aoocommerce.vercel.app/api/shopee/webhook`) — นโยบายที่บล็อกแชทใช้กับ Third-party Partner app เท่านั้น · สคริปต์ `scripts/enable-shopee-webchat-push.mjs --app seller [--apply --callback URL]`
+- **ทุกที่ที่มี `creds` ต้องเซ็นด้วย `signForCreds(creds, …)` และใช้โฮสต์จาก `resolveBaseUrl(creds)`** — `generateSign()`/`getBaseUrl()` เปล่า ๆ อ่านจาก env ของ partner app (เคยหลุดที่ upload รูปทั้ง media_space และ sellerchat) · เหลือใช้ `generateSign` ได้เฉพาะขา OAuth ระดับ partner ที่ยังไม่มี creds
+- UI: ปุ่ม **"เชื่อมผ่าน app ของร้าน"** ในแท็บ Marketplace ของ `/settings/sales-channels` โผล่เฉพาะเมื่อ `GET /api/shopee/oauth/auth-url?app=seller&check=1` ตอบ `available: true` (ไม่ตั้ง env = ซ่อน ไม่ใช่กดแล้วพัง) · การ์ดร้านที่ผูก app seller มี badge "app ของร้าน"
 
 ### Shopee Shared Helpers (`lib/shopee/product-helpers.ts`)
 - ใช้ร่วมระหว่าง `sync.ts` (order sync) และ `product-sync.ts` (product import)

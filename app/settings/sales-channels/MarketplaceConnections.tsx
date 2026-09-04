@@ -17,6 +17,7 @@ import Button from '@/components/ui/Button';
 import FormSelect from '@/components/ui/FormSelect';
 import { ExportButton, ImportButton } from '@/components/ui/ExportImportButton';
 import Alert from '@/components/ui/Alert';
+import Badge from '@/components/ui/Badge';
 import MarketplaceQuotaPausedAlert from '@/components/ui/MarketplaceQuotaPausedAlert';
 import Toggle from '@/components/ui/Toggle';
 import Modal from '@/components/ui/Modal';
@@ -38,10 +39,17 @@ interface MarketplaceConnectionsProps {
   onPlatformChange: (platform: 'shopee' | 'tiktok' | 'lazada') => void;
   // flow เชื่อมแชท (promptChatConnect) ตั้ง loading ให้ปุ่มบน PageHeader
   setConnecting: (value: boolean) => void;
+  /** กำลังเชื่อมต่ออยู่ (ของ PageHeader) — ปุ่มเชื่อมในแท็บนี้ต้อง disable ตามด้วย */
+  connecting?: boolean;
+  /** ตั้ง SHOPEE_SELLER_PARTNER_* ไว้หรือยัง — ไม่ตั้ง = ซ่อนปุ่มเชื่อมผ่าน app ของร้าน */
+  shopeeSellerAppAvailable?: boolean;
+  /** เริ่ม OAuth เชื่อมร้าน — ตัวเดียวกับปุ่มบน PageHeader ของ parent */
+  onConnect: (platform: 'shopee' | 'tiktok' | 'lazada', opts?: { app?: 'seller' }) => void;
 }
 
 export default function MarketplaceConnections({
   activePlatform, onPlatformChange, setConnecting,
+  connecting, shopeeSellerAppAvailable, onConnect,
 }: MarketplaceConnectionsProps) {
   const router = useRouter();
   const { userProfile } = useAuth();
@@ -823,6 +831,25 @@ export default function MarketplaceConnections({
         <LoadingCard />
       ) : (
         <div className="space-y-4">
+          {/* ทางเชื่อมเส้นที่สอง — ปุ่มหลัก "เชื่อมต่อร้านค้า" อยู่บน PageHeader ของหน้า
+              โผล่เฉพาะตอนตั้ง app แบบ seller ไว้แล้ว (ไม่ตั้ง = ซ่อน ไม่ใช่กดแล้วพัง) */}
+          {shopeeSellerAppAvailable && (
+            <div className="flex justify-end">
+              <Tooltip
+                text="ใช้ app ที่จดในนามร้านเอง (Seller In House) — เปิดแชท Shopee ได้ · ร้านที่เชื่อมทางนี้ใช้ app นี้ทั้งออเดอร์และแชท"
+                box="inline-flex"
+              >
+                <Button
+                  variant="secondary"
+                  icon={<Link2 className="w-4 h-4" />}
+                  disabled={connecting}
+                  onClick={() => onConnect('shopee', { app: 'seller' })}
+                >
+                  เชื่อมผ่าน app ของร้าน
+                </Button>
+              </Tooltip>
+            </div>
+          )}
           {shopeeAccounts.map(account => {
             const isSyncing = syncingId === account.id;
             const isRefreshingLogo = resyncingId === account.id;
@@ -831,6 +858,11 @@ export default function MarketplaceConnections({
                 key={account.id}
                 account={account}
                 title={account.shop_name || `Shop #${account.shop_id}`}
+                titleExtra={account.metadata?.shopee_app === 'seller' ? (
+                  /* ร้านนี้ผูกกับ app ของร้านเอง — คนละ credentials (และอาจคนละ environment)
+                     กับร้านที่เชื่อมผ่าน partner app ตามปกติ */
+                  <Badge tone="indigo" size="sm">app ของร้าน</Badge>
+                ) : undefined}
                 showProductCount
                 expandable
                 expanded={expandedId === account.id}

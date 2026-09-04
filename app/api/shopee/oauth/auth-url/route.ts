@@ -10,6 +10,14 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    // ?check=1 = หน้า settings ถามเฉย ๆ ว่าจะโชว์ปุ่ม "เชื่อมผ่าน app ของร้าน" ไหม
+    // ไม่ตั้ง env = ซ่อนปุ่มไปเลย ดีกว่าให้กดแล้วเด้ง error · ตอบอย่างเดียว
+    // ไม่ปั๊ม state/cookie (ยังไม่ใช่การเริ่ม OAuth จริง)
+    const params = new URL(request.url).searchParams;
+    if (params.get('check') === '1') {
+      return NextResponse.json({ available: isSellerAppConfigured() });
+    }
+
     const partnerId = process.env.SHOPEE_PARTNER_ID;
     const partnerKey = process.env.SHOPEE_PARTNER_KEY;
     if (!partnerId || !partnerKey) {
@@ -26,7 +34,7 @@ export async function GET(request: NextRequest) {
     // ?app=seller = เชื่อมผ่าน app ที่จดในนามบัญชี seller (Chat API มีเฉพาะ app แบบนี้)
     // ต้องฝังไว้ใน state ด้วย เพราะ callback ต้องแลก token ด้วย app ตัวเดียวกัน
     // — แลกผิด app = ลายเซ็นไม่ผ่านตั้งแต่ก้าวแรก
-    const app: ShopeeApp = new URL(request.url).searchParams.get('app') === 'seller' ? 'seller' : 'partner';
+    const app: ShopeeApp = params.get('app') === 'seller' ? 'seller' : 'partner';
     if (app === 'seller' && !isSellerAppConfigured()) {
       return NextResponse.json({ error: 'ยังไม่ได้ตั้งค่า app แบบ seller (SHOPEE_SELLER_PARTNER_ID/KEY)' }, { status: 400 });
     }

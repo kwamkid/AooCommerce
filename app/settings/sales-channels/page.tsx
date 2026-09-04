@@ -96,6 +96,8 @@ export default function SalesChannelsPage() {
   // ปุ่ม "+ เพิ่ม" ของแท็บช่องทางของฉัน) — platform ที่เลือกจึงต้องเป็น state ของหน้านี้
   const [mpPlatform, setMpPlatform] = useState<'shopee' | 'tiktok' | 'lazada'>('shopee');
   const [mpConnecting, setMpConnecting] = useState(false);
+  // ตั้ง app แบบ seller ไว้หรือยัง — ไม่ตั้ง = ซ่อนปุ่ม "เชื่อมผ่าน app ของร้าน" ไปเลย
+  const [shopeeSellerAppAvailable, setShopeeSellerAppAvailable] = useState(false);
   // กด back จากหน้า OAuth → หน้าถูก restore จาก bfcache พร้อม connecting=true ค้าง
   useBfcacheReset(() => setMpConnecting(false));
   const [currentPage, setCurrentPage] = useState(1);
@@ -124,10 +126,15 @@ export default function SalesChannelsPage() {
 
   // เริ่ม OAuth เชื่อมร้าน marketplace — สำเร็จแล้ว browser จะ redirect ออกไปเลย
   // จึงไม่ reset connecting ในเส้นทางสำเร็จ (bfcache reset ด้านบนจัดการตอนกด back)
-  const handleMarketplaceConnect = async (platform: 'shopee' | 'tiktok' | 'lazada') => {
+  // opts.app = 'seller' → เชื่อม Shopee ผ่าน app ที่จดในนามบัญชีร้านเอง (Chat API ใช้ได้)
+  const handleMarketplaceConnect = async (
+    platform: 'shopee' | 'tiktok' | 'lazada',
+    opts?: { app?: 'seller' },
+  ) => {
     setMpConnecting(true);
     const apiUrl = platform === 'tiktok' ? '/api/tiktok/oauth/auth-url'
       : platform === 'lazada' ? '/api/lazada/oauth/auth-url'
+      : opts?.app === 'seller' ? '/api/shopee/oauth/auth-url?app=seller'
       : '/api/shopee/oauth/auth-url';
     try {
       const res = await apiFetch(apiUrl);
@@ -135,7 +142,9 @@ export default function SalesChannelsPage() {
         const { url } = await res.json();
         window.location.href = url;
       } else {
-        showToast('ไม่สามารถสร้างลิงก์เชื่อมต่อได้', 'error');
+        // server บอกเหตุผลมาแล้ว (เช่นยังไม่ได้ตั้ง env ของ app seller) — อย่ากลบด้วยข้อความกลาง
+        const detail = await res.json().catch(() => null);
+        showToast(detail?.error || 'ไม่สามารถสร้างลิงก์เชื่อมต่อได้', 'error');
         setMpConnecting(false);
       }
     } catch {
@@ -143,6 +152,17 @@ export default function SalesChannelsPage() {
       setMpConnecting(false);
     }
   };
+
+  // ถามครั้งเดียวตอนเปิดแท็บ marketplace ว่ามี app แบบ seller ให้เลือกไหม
+  useEffect(() => {
+    if (!showMarketplace) return;
+    let cancelled = false;
+    apiFetch('/api/shopee/oauth/auth-url?app=seller&check=1')
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (!cancelled) setShopeeSellerAppAvailable(!!d?.available); })
+      .catch(() => { /* ถามไม่ได้ = ถือว่าไม่มี ซ่อนปุ่มไว้ */ });
+    return () => { cancelled = true; };
+  }, [showMarketplace]);
 
   const loadChannels = async () => {
     try {
@@ -649,6 +669,9 @@ export default function SalesChannelsPage() {
             activePlatform={mpPlatform}
             onPlatformChange={setMpPlatform}
             setConnecting={setMpConnecting}
+            connecting={mpConnecting}
+            shopeeSellerAppAvailable={shopeeSellerAppAvailable}
+            onConnect={handleMarketplaceConnect}
           />
         ) : (
           <>

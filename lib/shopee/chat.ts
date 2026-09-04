@@ -1,4 +1,4 @@
-import { ShopeeCredentials, shopeeApiRequest, generateSign } from '@/lib/shopee/api';
+import { ShopeeCredentials, shopeeApiRequest, signForCreds, resolveBaseUrl } from '@/lib/shopee/api';
 
 // SellerChat (v2.sellerchat.*) API wrappers.
 //
@@ -6,14 +6,6 @@ import { ShopeeCredentials, shopeeApiRequest, generateSign } from '@/lib/shopee/
 // JS number precision. Never read conversation_id from a parsed response —
 // the webhook push delivers it as a quoted string; that is the only source
 // of truth we store (shopee_contacts.conversation_id TEXT).
-
-const SHOPEE_SANDBOX_HOST = 'https://partner.test-stable.shopeemobile.com';
-const SHOPEE_PROD_HOST = 'https://partner.shopeemobile.com';
-
-function getBaseUrl(): string {
-  const env = process.env.SHOPEE_ENV || 'production';
-  return env === 'sandbox' ? SHOPEE_SANDBOX_HOST : SHOPEE_PROD_HOST;
-}
 
 export interface ShopeeChatSendResult {
   message_id?: string;
@@ -51,7 +43,8 @@ export async function uploadChatImage(
 ): Promise<{ url?: string; thumbnail?: string; error?: string }> {
   const apiPath = '/api/v2/sellerchat/upload_image';
   const timestamp = Math.floor(Date.now() / 1000);
-  const sign = generateSign(apiPath, timestamp, creds.access_token, creds.shop_id);
+  // เซ็นด้วย key ของร้าน ไม่ใช่ env — ร้านที่อยู่ app seller จะ Wrong sign ทันที
+  const sign = signForCreds(creds, apiPath, timestamp);
 
   const queryParams = new URLSearchParams({
     partner_id: String(creds.partner_id),
@@ -61,7 +54,7 @@ export async function uploadChatImage(
     shop_id: String(creds.shop_id),
   });
 
-  const url = `${getBaseUrl()}${apiPath}?${queryParams.toString()}`;
+  const url = `${resolveBaseUrl(creds)}${apiPath}?${queryParams.toString()}`;
 
   try {
     const imageRes = await fetch(imageUrl);

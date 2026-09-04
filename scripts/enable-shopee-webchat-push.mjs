@@ -1,12 +1,19 @@
 #!/usr/bin/env node
-// Enable Shopee webchat push (code 10) on the partner app's push config.
-// Partner-level API — run ONCE per app (affects all connected shops).
+// Enable Shopee webchat push (code 10) on an app's push config.
+// Partner-level API — run ONCE per app (affects all shops connected through it).
 //
 // Usage:
-//   node scripts/enable-shopee-webchat-push.mjs           # show current config
-//   node scripts/enable-shopee-webchat-push.mjs --apply   # turn on push code 10
+//   node scripts/enable-shopee-webchat-push.mjs                     # show current config (partner app)
+//   node scripts/enable-shopee-webchat-push.mjs --app seller        # show config of the seller app
+//   node scripts/enable-shopee-webchat-push.mjs --app seller --apply
+//   node scripts/enable-shopee-webchat-push.mjs --apply --callback https://example.com/api/shopee/webhook
 //
-// Reads SHOPEE_PARTNER_ID / SHOPEE_PARTNER_KEY / SHOPEE_ENV from .env.local
+// --app partner (default) reads SHOPEE_PARTNER_ID / SHOPEE_PARTNER_KEY / SHOPEE_ENV
+// --app seller           reads SHOPEE_SELLER_PARTNER_ID / SHOPEE_SELLER_PARTNER_KEY / SHOPEE_SELLER_ENV
+//                        (SHOPEE_SELLER_ENV falls back to SHOPEE_ENV)
+//
+// ⚠️ set_app_push_config needs callback_url in the SAME call — Shopee test-pings
+//    that URL and wants a 2xx within 3s, so it can't be set separately afterwards.
 
 import crypto from 'node:crypto';
 import fs from 'node:fs';
@@ -21,16 +28,37 @@ if (fs.existsSync(envPath)) {
   }
 }
 
-const partnerId = parseInt(process.env.SHOPEE_PARTNER_ID || '0');
-const partnerKey = process.env.SHOPEE_PARTNER_KEY || '';
-const baseUrl = (process.env.SHOPEE_ENV || 'production') === 'sandbox'
-  ? 'https://partner.test-stable.shopeemobile.com'
+function argValue(flag) {
+  const i = process.argv.indexOf(flag);
+  return i >= 0 ? process.argv[i + 1] : undefined;
+}
+
+const app = argValue('--app') === 'seller' ? 'seller' : 'partner';
+const isSeller = app === 'seller';
+
+const partnerId = parseInt(
+  (isSeller ? process.env.SHOPEE_SELLER_PARTNER_ID : process.env.SHOPEE_PARTNER_ID) || '0'
+);
+const partnerKey = (isSeller ? process.env.SHOPEE_SELLER_PARTNER_KEY : process.env.SHOPEE_PARTNER_KEY) || '';
+const env = (isSeller
+  ? process.env.SHOPEE_SELLER_ENV || process.env.SHOPEE_ENV
+  : process.env.SHOPEE_ENV) || 'production';
+// Sandbox v2 host — partner.test-stable.shopeemobile.com is the OLD sandbox and
+// answers error_sign / "Wrong sign" for partners registered in Sandbox v2.
+const baseUrl = env === 'sandbox'
+  ? 'https://openplatform.sandbox.test-stable.shopee.sg'
   : 'https://partner.shopeemobile.com';
 
+const callbackUrl = argValue('--callback') || 'https://aoocommerce.vercel.app/api/shopee/webhook';
+
 if (!partnerId || !partnerKey) {
-  console.error('Missing SHOPEE_PARTNER_ID / SHOPEE_PARTNER_KEY');
+  console.error(isSeller
+    ? 'Missing SHOPEE_SELLER_PARTNER_ID / SHOPEE_SELLER_PARTNER_KEY'
+    : 'Missing SHOPEE_PARTNER_ID / SHOPEE_PARTNER_KEY');
   process.exit(1);
 }
+
+console.log(`App: ${app} · partner_id: ${partnerId} · env: ${env} · host: ${baseUrl}`);
 
 function sign(apiPath, timestamp) {
   // Partner-level: base = partner_id + api_path + timestamp
@@ -64,7 +92,10 @@ if (!apply) {
   process.exit(0);
 }
 
+console.log('Setting callback_url:', callbackUrl);
 const result = await call('POST', '/api/v2/push/set_app_push_config', {
+  // callback_url ต้องส่งมาด้วยทุกครั้ง — Shopee ยิงทดสอบ URL นี้และรอ 2xx ใน 3 วิ
+  callback_url: callbackUrl,
   set_push_config_on: [10],
 });
 console.log('set_app_push_config result:', JSON.stringify(result, null, 2));

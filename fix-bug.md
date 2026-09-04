@@ -16,6 +16,20 @@
 
 ---
 
+## 2026-09-05 — Shopee app seller (sandbox) ยิงแล้ว "Wrong sign" ทุก call — โฮสต์ sandbox ผิดรุ่น + เซ็นผิด app ตอนอัปโหลดรูป
+
+**ที่เกิด**: [lib/shopee/api.ts](lib/shopee/api.ts) `SHOPEE_SANDBOX_HOST` / `getBaseUrl()` · [lib/shopee/chat.ts](lib/shopee/chat.ts) `uploadChatImage` · `uploadImageByUrl` · [scripts/enable-shopee-webchat-push.mjs](scripts/enable-shopee-webchat-push.mjs)
+**อาการ**: app seller ตัวใหม่ (Test Partner บน Sandbox v2) เรียก `get_app_push_config` ได้ `error_sign: Wrong sign` ทั้งที่ key ถูก (ไล่เช็คความยาว/ตัวอักษรอยู่รอบหนึ่งเปล่า ๆ)
+**Root cause**:
+1. โค้ดชี้ sandbox ไป `partner.test-stable.shopeemobile.com` = sandbox **รุ่นเก่า** · partner ที่จดใน **Sandbox v2** ต้องยิง `https://openplatform.sandbox.test-stable.shopee.sg` — ยิง 3 โฮสต์เทียบกัน: v2 → 200, รุ่นเก่า → Wrong sign, production → invalid_partner_id
+2. โฮสต์เป็นค่าเดียวทั้งระบบ (`SHOPEE_ENV`) แต่ตอนนี้ **สอง app อยู่คนละ environment** (partner = production, seller = sandbox) → ต้องเลือกต่อ app
+3. `uploadChatImage` และ `uploadImageByUrl` เซ็นด้วย `generateSign()` ที่อ่าน key จาก env ของ partner app — ร้านที่ผูก app seller จะ Wrong sign ตอนส่งรูปแม้ call อื่นผ่าน (สองจุดนี้เป็นทางเดียวที่ไม่ได้ผ่าน `shopeeApiRequest`)
+**วิธีแก้**: `SHOPEE_SANDBOX_HOST` → โฮสต์ v2 · `getBaseUrl(app)` + `SHOPEE_SELLER_ENV` · `ShopeeCredentials.app` + `resolveBaseUrl(creds)` / `signForCreds(creds, …)` ใช้ทุกที่ที่มี creds · สคริปต์ push รับ `--app seller --callback URL`
+**ป้องกัน regression**:
+- **"Wrong sign" ไม่ได้แปลว่า key ผิดเสมอ** — เช็คโฮสต์/environment ก่อนไล่ key (ยิง `get_app_push_config` ระดับ partner เทียบหลายโฮสต์ใช้เวลา 10 วินาที)
+- ที่ไหนมี `creds` ห้ามเรียก `generateSign()` / `getBaseUrl()` เปล่า ๆ อีก (grep แล้วต้องเจอเฉพาะขา OAuth ระดับ partner)
+- อะไรที่เป็น "ค่าเดียวทั้งระบบ" (env, host) ต้องถามตัวเองว่ามี app/ร้านที่อยู่คนละค่าได้ไหม ก่อนอ่านจาก env ตรง ๆ
+
 ## 2026-09-05 — เลขบนไอคอนแอปยังไม่ขึ้น (รอบ 2) · ไอคอนสองแอปแยกไม่ออกในโหมดมืด
 
 **ที่เกิด**: [public/sw.js](public/sw.js) · [lib/push/client.ts](lib/push/client.ts) · [components/ui/PushNotificationToggle.tsx](components/ui/PushNotificationToggle.tsx) · [scripts/generate-pwa-icons.mjs](scripts/generate-pwa-icons.mjs)

@@ -6,7 +6,11 @@ import { resolveCredentials } from './token-lock';
 import { logShopeeCallFailure } from './api-log';
 
 // --- Configuration ---
-const SHOPEE_SANDBOX_HOST = 'https://partner.test-stable.shopeemobile.com';
+// Sandbox v2 — โฮสต์ของ sandbox รุ่นใหม่ (เมนู "Test Account-Sandbox v2" ใน console)
+// ⚠️ partner.test-stable.shopeemobile.com คือ sandbox **รุ่นเก่า** ตอบ error_sign
+// "Wrong sign" กับ partner ที่จดใน v2 — เช็คจริงด้วย get_app_push_config ทั้ง 3
+// โฮสต์เมื่อ 5 ก.ย. 2026 (ผ่านเฉพาะโฮสต์นี้)
+const SHOPEE_SANDBOX_HOST = 'https://openplatform.sandbox.test-stable.shopee.sg';
 const SHOPEE_PROD_HOST = 'https://partner.shopeemobile.com';
 
 export interface ShopeeCredentials {
@@ -14,6 +18,11 @@ export interface ShopeeCredentials {
   partner_key: string;
   shop_id: number;
   access_token: string;
+  /**
+   * ร้านนี้ authorize มาด้วย app ไหน — ใช้เลือก "โฮสต์" ของ call นี้
+   * (ไม่ระบุ = partner ตามของเดิม) · สอง app อยู่คนละ environment พร้อมกันได้
+   */
+  app?: ShopeeApp;
 }
 
 export interface ShopeeAccountRow {
@@ -69,8 +78,15 @@ export function shopeeAppOf(account: { metadata?: Record<string, unknown> | null
     : 'partner';
 }
 
-function getBaseUrl(): string {
-  const env = process.env.SHOPEE_ENV || 'production';
+/**
+ * เลือกโฮสต์ **ต่อ app** ไม่ใช่ต่อระบบ — สอง app อยู่คนละ environment พร้อมกันได้
+ * (ตอนนี้: partner app ขึ้น production แล้ว ส่วน seller app ยังอยู่ sandbox จนกว่าจะผ่าน Go Live)
+ * ไม่ตั้ง SHOPEE_SELLER_ENV = ใช้ค่าเดียวกับ SHOPEE_ENV เหมือนของเดิม
+ */
+export function getBaseUrl(app: ShopeeApp = 'partner'): string {
+  const env = (app === 'seller'
+    ? process.env.SHOPEE_SELLER_ENV || process.env.SHOPEE_ENV
+    : process.env.SHOPEE_ENV) || 'production';
   return env === 'sandbox' ? SHOPEE_SANDBOX_HOST : SHOPEE_PROD_HOST;
 }
 
@@ -110,6 +126,19 @@ function signWith(
   return crypto.createHmac('sha256', partnerKey).update(baseString).digest('hex');
 }
 
+/** โฮสต์ของร้านนี้ — ร้านที่อยู่คนละ app อาจอยู่คนละ environment */
+export function resolveBaseUrl(creds: ShopeeCredentials): string {
+  return getBaseUrl(creds.app ?? 'partner');
+}
+
+/**
+ * เซ็นด้วยคู่ partner_id/key ของร้านนี้ — **ใช้ตัวนี้ทุกที่ที่มี `creds` อยู่แล้ว**
+ * (generateSign() อ่านจาก env จึงเซ็นด้วย key ของ app ผิดตัวเมื่อร้านอยู่คนละ app)
+ */
+export function signForCreds(creds: ShopeeCredentials, apiPath: string, timestamp: number): string {
+  return signWith(creds.partner_id, creds.partner_key, apiPath, timestamp, creds.access_token, creds.shop_id);
+}
+
 /**
  * Generate Shopee OAuth authorization URL.
  * state parameter is forwarded back by Shopee in the callback.
@@ -119,7 +148,7 @@ export function generateAuthUrl(redirectUrl: string, state?: string, app: Shopee
   const apiPath = '/api/v2/shop/auth_partner';
   const timestamp = getTimestamp();
   const sign = generateSign(apiPath, timestamp, undefined, undefined, app);
-  const baseUrl = getBaseUrl();
+  const baseUrl = getBaseUrl(app);
   let url = `${baseUrl}${apiPath}?partner_id=${partnerId}&timestamp=${timestamp}&sign=${sign}&redirect=${encodeURIComponent(redirectUrl)}`;
   if (state) {
     url += `&state=${encodeURIComponent(state)}`;
@@ -139,9 +168,7 @@ export async function shopeeApiRequest(
 ): Promise<{ data: unknown; error?: string; debug_message?: string }> {
   const timestamp = getTimestamp();
   // เซ็นด้วยคู่ของร้านนี้ — ร้านที่ผูกกับ app คนละตัวใช้ partner_key คนละอัน
-  const sign = signWith(
-    creds.partner_id, creds.partner_key, apiPath, timestamp, creds.access_token, creds.shop_id
-  );
+  const sign = signForCreds(creds, apiPath, timestamp);
 
   const queryParams = new URLSearchParams({
     partner_id: String(creds.partner_id),
@@ -158,7 +185,7 @@ export async function shopeeApiRequest(
     }
   }
 
-  const url = `${getBaseUrl()}${apiPath}?${queryParams.toString()}`;
+  const url = `${resolveBaseUrl(creds)}${apiPath}?${queryParams.toString()}`;
 
   const options: RequestInit = {
     method,
@@ -247,7 +274,7 @@ export async function exchangeCodeForToken(
   const apiPath = '/api/v2/auth/token/get';
   const timestamp = getTimestamp();
   const sign = generateSign(apiPath, timestamp, undefined, undefined, app);
-  const baseUrl = getBaseUrl();
+  const baseUrl = getBaseUrl(app);
 
   // Build body: use shop_id if available, otherwise main_account_id
   const body: Record<string, unknown> = {
@@ -291,7 +318,7 @@ export async function getShopListByMerchant(
   // Merchant-level sign: partner_id + apiPath + timestamp + access_token + merchant_id
   const baseString = `${partnerId}${apiPath}${timestamp}${accessToken}${merchantId}`;
   const sign = crypto.createHmac('sha256', partnerKey).update(baseString).digest('hex');
-  const baseUrl = getBaseUrl();
+  const baseUrl = getBaseUrl(app);
 
   const queryParams = new URLSearchParams({
     partner_id: String(partnerId),
@@ -335,7 +362,7 @@ export async function refreshAccessToken(
   const apiPath = '/api/v2/auth/access_token/get';
   const timestamp = getTimestamp();
   const sign = generateSign(apiPath, timestamp, undefined, undefined, app);
-  const baseUrl = getBaseUrl();
+  const baseUrl = getBaseUrl(app);
 
   const url = `${baseUrl}${apiPath}?partner_id=${partnerId}&timestamp=${timestamp}&sign=${sign}`;
   const res = await fetch(url, {
@@ -377,6 +404,7 @@ export async function ensureValidToken(account: ShopeeAccountRow): Promise<Shope
       partner_key: partnerKey,
       shop_id: account.shop_id,
       access_token: accessToken,
+      app,
     }),
     (refreshToken, shopId) => refreshAccessToken(refreshToken, shopId, app),
     async () => {
@@ -624,9 +652,7 @@ export async function shopeeApiRequestRaw(
 ): Promise<Response> {
   const timestamp = getTimestamp();
   // เซ็นด้วยคู่ของร้านนี้ — ร้านที่ผูกกับ app คนละตัวใช้ partner_key คนละอัน
-  const sign = signWith(
-    creds.partner_id, creds.partner_key, apiPath, timestamp, creds.access_token, creds.shop_id
-  );
+  const sign = signForCreds(creds, apiPath, timestamp);
 
   const queryParams = new URLSearchParams({
     partner_id: String(creds.partner_id),
@@ -642,7 +668,7 @@ export async function shopeeApiRequestRaw(
     }
   }
 
-  const url = `${getBaseUrl()}${apiPath}?${queryParams.toString()}`;
+  const url = `${resolveBaseUrl(creds)}${apiPath}?${queryParams.toString()}`;
 
   const options: RequestInit = {
     method,
@@ -1490,7 +1516,8 @@ export async function uploadImageByUrl(
   imageUrl: string
 ): Promise<{ data: unknown; error?: string }> {
   const timestamp = getTimestamp();
-  const sign = generateSign('/api/v2/media_space/upload_image', timestamp, creds.access_token, creds.shop_id);
+  // ต้องเซ็นด้วย key ของร้าน ไม่ใช่ env — ร้านที่อยู่ app seller จะ Wrong sign ทันที
+  const sign = signForCreds(creds, '/api/v2/media_space/upload_image', timestamp);
 
   const queryParams = new URLSearchParams({
     partner_id: String(creds.partner_id),
@@ -1500,7 +1527,7 @@ export async function uploadImageByUrl(
     shop_id: String(creds.shop_id),
   });
 
-  const url = `${getBaseUrl()}/api/v2/media_space/upload_image?${queryParams.toString()}`;
+  const url = `${resolveBaseUrl(creds)}/api/v2/media_space/upload_image?${queryParams.toString()}`;
 
   // Download the image first, then upload as multipart form data
   try {

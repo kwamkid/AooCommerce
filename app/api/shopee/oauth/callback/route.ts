@@ -69,7 +69,8 @@ export async function GET(request: NextRequest) {
       } else {
         // Fetch shop list via merchant API
         console.log('[Shopee Callback] Fetching shop list for merchant:', mainAccountId);
-        const shops = await getShopListByMerchant(mainAccountId, tokens.access_token);
+        // ต้องยิงด้วย app เดียวกับที่แลก token มา — คนละ app = คนละ key และคนละโฮสต์
+        const shops = await getShopListByMerchant(mainAccountId, tokens.access_token, shopeeApp);
         shopIds = shops.map(s => s.shop_id);
         console.log('[Shopee Callback] Shop IDs from merchant API:', shopIds);
       }
