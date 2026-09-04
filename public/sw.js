@@ -37,21 +37,35 @@ async function writeBadgeCount(n) {
   } catch { /* โควตาเต็ม/โหมดส่วนตัว — ตัวนับพลาดได้ ไม่คุ้มให้ push ทั้งใบล้ม */ }
 }
 
+// ตัวนับเป็นแบบ "อ่านแล้วเขียนทับ" — push สองใบที่มาพร้อมกันจะอ่านค่าเดิมพร้อมกัน
+// (ทั้งคู่อ่าน 0 → ทั้งคู่เขียน 1) แล้วเลขบนไอคอนจะหายไปหนึ่งใบทุกครั้งที่ลูกค้าทัก
+// ติด ๆ กัน — ต่อคิวงานตัวนับไว้เส้นเดียว ใบหลังจึงอ่านค่าที่ใบก่อนเขียนไปแล้วเสมอ
+// (ใส่ body ทั้งขา resolve และ reject เพื่อให้คิวเดินต่อแม้ใบก่อนหน้าจะล้ม)
+let badgeOp = Promise.resolve();
+function queueBadgeOp(body) {
+  badgeOp = badgeOp.then(body, body);
+  return badgeOp;
+}
+
 /** บวกตัวนับแล้วแปะเลขบนไอคอน — เงียบเสมอเมื่อเบราว์เซอร์ไม่รองรับ */
-async function bumpBadge() {
-  const next = (await readBadgeCount()) + 1;
-  await writeBadgeCount(next);
-  if (self.navigator && 'setAppBadge' in self.navigator) {
-    try { await self.navigator.setAppBadge(next); } catch { /* ไม่รองรับ/ไม่ได้ติดตั้ง */ }
-  }
+function bumpBadge() {
+  return queueBadgeOp(async () => {
+    const next = (await readBadgeCount()) + 1;
+    await writeBadgeCount(next);
+    if (self.navigator && 'setAppBadge' in self.navigator) {
+      try { await self.navigator.setAppBadge(next); } catch { /* ไม่รองรับ/ไม่ได้ติดตั้ง */ }
+    }
+  });
 }
 
 /** ล้างเลขบนไอคอน — เรียกตอนผู้ใช้เปิดแอปมาอ่านแล้ว */
-async function clearBadge() {
-  await writeBadgeCount(0);
-  if (self.navigator && 'clearAppBadge' in self.navigator) {
-    try { await self.navigator.clearAppBadge(); } catch { /* ignore */ }
-  }
+function clearBadge() {
+  return queueBadgeOp(async () => {
+    await writeBadgeCount(0);
+    if (self.navigator && 'clearAppBadge' in self.navigator) {
+      try { await self.navigator.clearAppBadge(); } catch { /* ignore */ }
+    }
+  });
 }
 
 self.addEventListener('push', (event) => {

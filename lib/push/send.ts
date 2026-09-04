@@ -4,6 +4,7 @@ import webpush from 'web-push';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { parallelLimit } from '@/lib/parallel';
 import { formatPrice } from '@/lib/utils/format';
+import { logIntegrationNow } from '@/lib/integration-logger';
 
 export interface PushPayload {
   title: string;
@@ -120,13 +121,19 @@ export async function sendPushToCompany(companyId: string, payload: PushPayload)
 
     await Promise.all([
       multi.length
-        ? deliver(multi, {
-            ...payload,
-            url,
-            body: audience.name ? `${audience.name} · ${payload.body}` : payload.body,
-          })
+        ? deliver(
+            multi,
+            {
+              ...payload,
+              url,
+              body: audience.name ? `${audience.name} · ${payload.body}` : payload.body,
+            },
+            { companyId, audience: 'app' }
+          )
         : Promise.resolve(0),
-      single.length ? deliver(single, { ...payload, url }) : Promise.resolve(0),
+      single.length
+        ? deliver(single, { ...payload, url }, { companyId, audience: 'app' })
+        : Promise.resolve(0),
     ]);
   } catch (err) {
     console.error('[Push] sendPushToCompany error:', err);
@@ -156,17 +163,24 @@ export async function sendPushToUsers(
       .eq('audience', audience);
     if (error || !subs || subs.length === 0) return 0;
 
-    return await deliver(subs, { icon: AUDIENCE_ICON[audience], ...payload });
+    // ไม่ส่ง companyId — สายนี้ยิงตามตัวคน (ข้ามบริษัท) จึงไม่มีบริษัทให้ลง log
+    return await deliver(subs, { icon: AUDIENCE_ICON[audience], ...payload }, { audience });
   } catch (err) {
     console.error('[Push] sendPushToUsers error:', err);
     return 0;
   }
 }
 
-/** ยิงจริงไปทีละ subscription + เก็บกวาด endpoint ที่ตายแล้ว (ใช้ร่วมทุกตัวส่ง) */
+/**
+ * ยิงจริงไปทีละ subscription + เก็บกวาด endpoint ที่ตายแล้ว (ใช้ร่วมทุกตัวส่ง)
+ *
+ * `opts.companyId` มีเมื่อรู้ว่าเป็นเรื่องของบริษัทไหน — ใช้ลง integration log ตอนยิงพลาด
+ * (`integration_logs.company_id` บังคับ ไม่มีก็ลงไม่ได้ เช่นสาย superadmin ที่ยิงตามตัวคน)
+ */
 async function deliver(
   subs: { id: string; endpoint: string; p256dh: string; auth: string }[],
-  payload: PushPayload
+  payload: PushPayload,
+  opts: { companyId?: string; audience?: PushAudience } = {}
 ): Promise<number> {
   const body = JSON.stringify({
     title: payload.title,
@@ -192,6 +206,25 @@ async function deliver(
         staleIds.push(sub.id); // device ยกเลิก/ลบ app แล้ว
       } else {
         console.error(`[Push] send failed (${statusCode || 'network'}):`, (err as Error)?.message);
+      }
+      // push service (FCM/APNs/Mozilla) = แพลตฟอร์มภายนอก → ต้องมี log ทุกครั้งที่ยิงพลาด
+      // ไม่งั้น "แจ้งเตือนไม่เข้า" จะไม่มีหลักฐานเลยว่าเป็นที่เราไม่ได้ยิง หรือปลายทางปฏิเสธ
+      // (ขาสำเร็จไม่ log — แชทวันละหลายร้อยใบ × ทุกเครื่อง จะท่วมตาราง)
+      if (opts.companyId) {
+        await logIntegrationNow({
+          company_id: opts.companyId,
+          integration: 'webpush',
+          direction: 'outgoing',
+          action: 'send_notification',
+          method: 'POST',
+          // เก็บแค่ host ของ endpoint — ส่วนที่เหลือเป็นคีย์ลับของ device นั้น
+          api_path: new URL(sub.endpoint).host,
+          request_body: { title: payload.title, tag: payload.tag, audience: opts.audience },
+          response_body: (err as { body?: unknown })?.body ?? null,
+          http_status: statusCode,
+          status: 'error',
+          error_message: (err as Error)?.message,
+        }).catch(() => { /* log ล้มต้องไม่ทำให้เครื่องอื่นที่เหลือไม่ได้รับ */ });
       }
     }
   }, 8);

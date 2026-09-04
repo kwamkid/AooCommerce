@@ -1,12 +1,13 @@
 // Path: components/layout/Layout.tsx
 'use client';
 
-import { ReactNode, useEffect } from 'react';
+import { ReactNode, useEffect, useRef } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useCompany } from '@/lib/company-context';
 import Sidebar from './Sidebar';
 import Header from './Header';
 import InstallAppBanner from '@/components/InstallAppBanner';
+import PullToRefresh from '@/components/PullToRefresh';
 
 interface LayoutProps {
   children: ReactNode;
@@ -22,6 +23,8 @@ export default function Layout({ children, title, breadcrumbs, noPadding }: Layo
   const router = useRouter();
   const pathname = usePathname();
   const { currentCompany, loading } = useCompany();
+  // กล่องที่เลื่อนจริงของหน้า — ท่ารูดลงเพื่อรีเฟรชต้องฟัง touch จากตัวนี้
+  const mainRef = useRef<HTMLElement>(null);
 
   // Redirect to onboarding wizard if the active company hasn't completed it.
   // Layout-level guard (rather than middleware) because session lives in localStorage,
@@ -58,7 +61,12 @@ export default function Layout({ children, title, breadcrumbs, noPadding }: Layo
             **แถบว่างค้างท้ายจอ** เพราะกล่องลูกสูงเต็มพื้นที่อยู่แล้วแต่ถูกดันขึ้นมาอีกชั้น
             การเผื่อแถบ home indicator ต้องทำที่ "ตัวที่ติดขอบล่างจริง ๆ" (แถบพิมพ์ข้อความ
             ในหน้าแชท / ท้ายเนื้อหาของหน้าที่เลื่อนได้) ไม่ใช่ที่ตัวครอบทั้งหมด */}
-        <main className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden print:overflow-visible">
+        <main ref={mainRef} className="relative flex-1 min-w-0 overflow-y-auto overflow-x-hidden print:overflow-visible">
+          {/* รูดลงเพื่อรีเฟรช (เฉพาะแอปที่ติดตั้งแล้ว) — วางเป็นลูกตัวแรกเพราะตัวชี้วาง
+              แบบ absolute อิงกับ main และต้องอยู่เหนือเนื้อหาตอนลาก */}
+          <div className="print:hidden">
+            <PullToRefresh scrollRef={mainRef} />
+          </div>
           {/* Page Header — hidden on print */}
           {(title || breadcrumbs) && (
             <div className="bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-slate-700 px-4 lg:px-6 py-4 print:hidden">

@@ -1796,7 +1796,9 @@ function UnifiedChatPageContent() {
 
               {/* Messages */}
               {/* overscroll-contain — ลากเลยสุดรายการแล้วห้ามส่งต่อให้ main เลื่อน/เด้ง */}
-              <div ref={messagesContainerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto overscroll-contain p-4 space-y-4 bg-gray-50 dark:bg-slate-900 relative font-sarabun">
+              {/* data-ptr-ignore — รายการข้อความเลื่อนขึ้นไปดูของเก่าบ่อย ถึงยอดแล้วลากต่อ
+                  ไม่ควรรีเฟรชทั้งแอปทิ้งที่อ่านอยู่ — รูดรีเฟรชได้จากรายชื่อแชท/หัวแชทแทน */}
+              <div ref={messagesContainerRef} onScroll={handleScroll} data-ptr-ignore className="flex-1 overflow-y-auto overscroll-contain p-4 space-y-4 bg-gray-50 dark:bg-slate-900 relative font-sarabun">
                 {loadingMessages ? (
                   <div className="flex items-center justify-center py-8"><Loader2 className="w-6 h-6 text-gray-400 animate-spin" /></div>
                 ) : messages.length === 0 ? (

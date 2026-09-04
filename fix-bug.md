@@ -16,6 +16,20 @@
 
 ---
 
+## 2026-09-04 — เลขบนไอคอนแอป "มีบ้างไม่มีบ้าง" · แอปที่ติดตั้งไม่มีท่ารูดรีเฟรช
+
+**ที่เกิด**: [components/PwaRegister.tsx](components/PwaRegister.tsx) · [public/sw.js](public/sw.js) · [components/PullToRefresh.tsx](components/PullToRefresh.tsx) (ใหม่)
+**อาการ**: ผู้ใช้ (iPhone แอปที่ติดตั้ง) บอกว่าแจ้งเตือนเข้าแต่เลขบนไอคอนบางครั้งไม่ขึ้น · และรูดลงเพื่อรีเฟรชเหมือนใน Safari แล้วไม่มีอะไรเกิดขึ้น
+**Root cause**:
+1. `PwaRegister` ล้างเลขทุกครั้งที่ `visibilitychange → visible` — เคส "เปิดแอปค้างไว้แล้วล็อกจอ → push เข้า (เลขขึ้น) → ปลดล็อก" แอปเด้งกลับมาข้างหน้าเองแล้วยิง visible ทันที เลขจึงถูกล้างก่อนผู้ใช้จะได้กลับไปมองหน้า home screen · ส่วนเคส "อยู่หน้า home แล้ว push เข้า" เลขอยู่ครบ → ดูเหมือนสุ่ม
+2. ตัวนับใน SW เป็น อ่าน→เขียนทับ ผ่าน Cache API — push 2 ใบที่มาติดกัน (ลูกค้าพิมพ์รัว) อ่าน 0 พร้อมกันแล้วเขียน 1 ทั้งคู่ → เลขขาดไป 1
+3. iOS ไม่มีท่ารูดรีเฟรชในแอปที่ติดตั้ง และเราปิด `overscroll-behavior` ใน standalone ไว้ด้วย (ตั้งใจกันหน้าเด้ง) → รูดแล้วเงียบสนิท
+**วิธีแก้**: mount = ล้างทันที (กดไอคอนเข้ามาเอง) · กลับมา visible = ตั้งท่ารอแล้วล้างเมื่อ `pointerdown/keydown` ครั้งแรก (hidden = ปลดท่ารอ) · SW ต่อคิวงานตัวนับเส้นเดียว (`queueBadgeOp`) · เพิ่ม `PullToRefresh` ใน Layout เฉพาะ standalone: touch บน `<main>` ลากลง ≥80px → `location.reload()` · ไล่เช็คกล่องที่เลื่อนได้ทุกชั้นต้องอยู่ที่ยอด · รายการข้อความแชทใส่ `data-ptr-ignore` · ยิง push พลาดลง `integration_logs` (`webpush`) เพื่อให้ครั้งหน้ามีหลักฐานว่าเป็นฝั่งส่งหรือฝั่งเครื่อง
+**ป้องกัน regression**:
+- **"เห็นบนจอ" ≠ "เห็นแล้ว"** — สัญญาณที่ใช้ล้างสถานะค้างต้องเป็นการกระทำของผู้ใช้ (แตะ/กด/เปิดจากไอคอน) ไม่ใช่ lifecycle event ของเบราว์เซอร์ที่ยิงเองตอนปลดล็อก
+- ตัวนับใน SW ต้อง serialize เสมอ — SW ถูกปลุกพร้อมกันได้หลาย event
+- อะไรที่เบราว์เซอร์เคยให้ฟรีแล้วแอปที่ติดตั้งไม่มี (รูดรีเฟรช · ปุ่ม back · แถบที่อยู่) ต้องเช็คตั้งแต่วันติดตั้งจริงบนเครื่อง ทดสอบใน Safari ไม่เจอ (บทเรียนซ้ำจาก 3 ก.ย.)
+
 ## 2026-09-04 — แชทมือถือในแอปที่ติดตั้ง: ที่ว่างใต้ช่องพิมพ์เมื่อลาก · รูป OA LINE เป็นวงกลมว่าง · ตัวเลขรวมหาย
 
 **ที่เกิด**: [app/chat/page.tsx](app/chat/page.tsx) · [app/globals.css](app/globals.css) `.chat-container` · [components/layout/Layout.tsx](components/layout/Layout.tsx) · [app/api/chat-accounts/route.ts](app/api/chat-accounts/route.ts) · [app/api/chat/contacts/route.ts](app/api/chat/contacts/route.ts)
