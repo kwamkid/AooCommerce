@@ -60,7 +60,9 @@ export default function PushNotificationToggle({ compact = false, audience = 'ap
       if (!on) showToast('ปิดการแจ้งเตือนบนอุปกรณ์นี้แล้ว');
     } catch (err) {
       console.error('[Push] toggle error:', err);
-      showToast('เปิดการแจ้งเตือนไม่สำเร็จ ลองใหม่อีกครั้ง', 'error');
+      // บอกสาเหตุจริง (จาก browser หรือเซิร์ฟเวอร์) — ผู้ใช้ส่งภาพหน้าจอมาแล้วรู้เลยว่าตายที่ไหน
+      const msg = err instanceof Error && err.message ? err.message : 'ลองใหม่อีกครั้ง';
+      showToast(`เปิดการแจ้งเตือนไม่สำเร็จ: ${msg}`, 'error');
     } finally {
       setBusy(false);
     }

@@ -16,6 +16,20 @@
 
 ---
 
+## 2026-09-05 — เปิดแจ้งเตือนในแอปผู้ดูแลระบบ "ไม่สำเร็จ" หลังติดตั้งแอปใหม่
+
+**ที่เกิด**: [lib/push/client.ts](lib/push/client.ts) `enablePush()` · [app/superadmin/components/SuperAdminLayout.tsx](app/superadmin/components/SuperAdminLayout.tsx)
+**อาการ**: ลบแอป Aoo Admin แล้ว Add to Home Screen ใหม่ → กดสวิตช์แจ้งเตือน → toast "เปิดการแจ้งเตือนไม่สำเร็จ ลองใหม่อีกครั้ง" ทุกครั้ง · แอปร้านเครื่องเดียวกันเปิดได้ปกติ
+**Root cause**: สาย `superadmin` เพิ่ง `register('/sw.js', {scope:'/superadmin/'})` **ตอนกดสวิตช์นั่นเอง** แล้ว `pushManager.subscribe()` ต่อทันที — subscribe บน registration ที่ worker ยังไม่ active โยน error (Safari/Chrome เหมือนกัน) · สาย `app` ไม่เคยเจอเพราะ `PwaRegister` จด scope `/` ตั้งแต่เปิดแอป กว่าจะกดสวิตช์ก็ active แล้ว · เครื่องที่เคยเปิดได้ (2–4 ก.ย.) คือเครื่องที่ registration มีอยู่ก่อนแล้ว พอติดตั้งใหม่ถังข้อมูลว่าง อาการจึงโผล่ · ซ้ำด้วย `enablePush` **ไม่เช็คผล `/api/push/subscribe`** — เซิร์ฟเวอร์ตอบ 401/403 ก็คืน `subscribed` (สวิตช์เปิดทั้งที่ไม่มีใครยิงหา) และ toast กลืนข้อความ error จริงทิ้ง
+**วิธีแก้**: `waitForActiveWorker(reg)` หลัง register ก่อน subscribe · `SuperAdminLayout` จด SW สาย superadmin ตั้งแต่ mount (แบบเดียวกับ PwaRegister) · เช็ค `res.ok` ของ subscribe — ไม่ผ่านให้ `sub.unsubscribe()` แล้ว throw ข้อความจากเซิร์ฟเวอร์ · toast โชว์ `err.message` จริง · ย้ายสวิตช์จาก sidebar ไปอยู่ในกระดิ่งบน header ([SuperAdminNotificationBell](app/superadmin/components/SuperAdminNotificationBell.tsx)) พร้อมรายการ issue จาก `/api/superadmin/api-monitor?issues_only=1` (โหมดใหม่ ไม่ลาก RPC 14 วัน)
+**ป้องกัน regression**:
+- **SW ที่จะใช้ subscribe ต้องถูกจดตั้งแต่เปิดแอป ไม่ใช่ตอนกดปุ่ม** — เพิ่มสายแจ้งเตือนใหม่ = จด scope นั้นใน shell ของแอปนั้นด้วยเสมอ
+- **ผลจาก API ที่เป็นเงื่อนไขของ "สำเร็จ" ห้ามทิ้ง** — `await apiFetch(...)` เฉย ๆ โดยไม่ดู `res.ok` = ทุก error กลายเป็นสำเร็จเงียบ ๆ
+- toast error ต้องพก `err.message` — ข้อความ "ไม่สำเร็จ ลองใหม่" ทำให้แก้ต่อไม่ได้เลยจากภาพหน้าจอ
+- ทดสอบ flow ที่ขึ้นกับ storage ของแอป (SW · subscription · คุกกี้) **จากแอปที่ติดตั้งใหม่สด ๆ** ทุกครั้ง เครื่องที่มีของเก่าค้างจะไม่เจอ
+
+---
+
 ## 2026-09-05 — Shopee app seller (sandbox) ยิงแล้ว "Wrong sign" ทุก call — โฮสต์ sandbox ผิดรุ่น + เซ็นผิด app ตอนอัปโหลดรูป
 
 **ที่เกิด**: [lib/shopee/api.ts](lib/shopee/api.ts) `SHOPEE_SANDBOX_HOST` / `getBaseUrl()` · [lib/shopee/chat.ts](lib/shopee/chat.ts) `uploadChatImage` · `uploadImageByUrl` · [scripts/enable-shopee-webchat-push.mjs](scripts/enable-shopee-webchat-push.mjs)

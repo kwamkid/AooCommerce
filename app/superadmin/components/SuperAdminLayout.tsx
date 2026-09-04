@@ -1,9 +1,11 @@
 'use client';
 
-import { ReactNode } from 'react';
+import { ReactNode, useEffect } from 'react';
 import SuperAdminSidebar from './SuperAdminSidebar';
+import SuperAdminNotificationBell from './SuperAdminNotificationBell';
 import { useSuperAdminGuard } from '../hooks/useSuperAdminGuard';
 import SuperAdminSkeleton from './SuperAdminSkeleton';
+import { registerServiceWorker } from '@/lib/push/client';
 
 interface SuperAdminLayoutProps {
   children: ReactNode;
@@ -13,6 +15,13 @@ interface SuperAdminLayoutProps {
 
 export default function SuperAdminLayout({ children, title, subtitle }: SuperAdminLayoutProps) {
   const { isSuperAdmin, loading } = useSuperAdminGuard();
+
+  // จด service worker สายผู้ดูแลระบบ (scope /superadmin/) ตั้งแต่เปิด shell — แบบเดียวกับที่
+  // PwaRegister จดสาย '/' ให้แอปร้าน · จะได้ active ไว้ก่อน กว่าผู้ใช้จะกดเปิดแจ้งเตือน
+  // (subscribe บน worker ที่ยังไม่ active = ล้มทันที ดู waitForActiveWorker ใน lib/push/client.ts)
+  useEffect(() => {
+    if (isSuperAdmin) registerServiceWorker('superadmin');
+  }, [isSuperAdmin]);
 
   if (loading) {
     // skeleton เต็มโครง shell (sidebar+header+เนื้อหา) — ไม่ใช่การ์ดลอยกลางจอ
@@ -44,12 +53,15 @@ export default function SuperAdminLayout({ children, title, subtitle }: SuperAdm
               <h1 className="text-xl lg:text-2xl font-bold text-white truncate">{title}</h1>
               {subtitle && <p className="text-sm text-slate-400 mt-0.5 truncate">{subtitle}</p>}
             </div>
-            {/* บนมือถือไม่ต้องย้ำว่าเป็น superadmin — sidebar บอกอยู่แล้ว
-                และแถวเดียวใส่ทั้งหัวข้อ+สวิตช์+ป้าย มันแน่นจนอ่านไม่ออก
-                (สวิตช์แจ้งเตือนย้ายไปอยู่ใน sidebar ที่มีที่พอให้กดจริง) */}
-            <span className="hidden lg:inline-block flex-shrink-0 px-3 py-1 bg-violet-500/20 text-violet-400 text-xs font-semibold rounded-full border border-violet-500/30">
-              SUPER ADMIN
-            </span>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              {/* กระดิ่ง = เรื่องที่ตัวเฝ้าเห็นว่าพังอยู่ + สวิตช์แจ้งเตือนของเครื่องนี้ (เหมือนแอปร้าน)
+                  ไอคอนเดียวจึงอยู่บนแถวเดียวกับหัวข้อได้แม้บนมือถือ */}
+              <SuperAdminNotificationBell />
+              {/* บนมือถือไม่ต้องย้ำว่าเป็น superadmin — sidebar บอกอยู่แล้ว */}
+              <span className="hidden lg:inline-block px-3 py-1 bg-violet-500/20 text-violet-400 text-xs font-semibold rounded-full border border-violet-500/30">
+                SUPER ADMIN
+              </span>
+            </div>
           </div>
         </header>
         {/* pb เผื่อแถบ home indicator ของจอขอบโค้ง — ไม่งั้นการ์ดใบสุดท้ายโดนบัง */}

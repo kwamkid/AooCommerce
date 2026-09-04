@@ -16,6 +16,19 @@ export async function GET(request: NextRequest) {
     const daysRaw = parseInt(request.nextUrl.searchParams.get('days') || '14', 10);
     const days = Math.min(Math.max(isNaN(daysRaw) ? 14 : daysRaw, 1), 30);
 
+    // ?issues_only=1 = กระดิ่งบน header ของ shell superadmin ถามทุก 5 นาทีว่า "ตอนนี้มีอะไรพัง"
+    // ไม่ต้องลาก aggregate 14 วันมาด้วย (RPC หนัก) — ชุด issues เดียวกับหน้าเต็มเป๊ะ
+    if (request.nextUrl.searchParams.get('issues_only') === '1') {
+      const [issues, { data: heartbeat }] = await Promise.all([
+        collectWatchdogIssues(),
+        supabaseAdmin.from('app_flags').select('value').eq('key', 'watchdog_last_run').maybeSingle(),
+      ]);
+      return NextResponse.json({
+        issues,
+        watchdog_last_run: (heartbeat?.value as { at?: string } | null)?.at || null,
+      });
+    }
+
     // สถิติดิบ + รายการปัญหาที่ "ตัวเฝ้า" มองเห็นอยู่ตอนนี้ (ชุดเดียวกับที่ใช้เด้งเตือน
     // — หน้าจอกับแจ้งเตือนจึงไม่มีทางเห็นไม่ตรงกัน) + heartbeat ว่าตัวเฝ้ายังทำงานอยู่ไหม
     const [{ data, error }, issues, { data: heartbeat }] = await Promise.all([

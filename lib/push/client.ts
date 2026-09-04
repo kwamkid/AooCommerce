@@ -50,6 +50,33 @@ export async function registerServiceWorker(
   }
 }
 
+/**
+ * รอให้ worker ของ registration นี้ activate ก่อน — `pushManager.subscribe()` บน registration
+ * ที่ยังไม่มี active worker จะโยน error ทันที (Safari/Chrome เหมือนกัน)
+ *
+ * สาย 'app' ไม่เคยเจอเพราะ PwaRegister จด scope '/' ตั้งแต่เปิดแอป กว่าผู้ใช้จะกดสวิตช์
+ * ก็ active แล้ว · แต่สาย 'superadmin' เพิ่งจด scope '/superadmin/' ตอนกดสวิตช์นั่นเอง
+ * → เครื่องที่ติดตั้งใหม่ subscribe ชนกับ activate แล้ว "เปิดการแจ้งเตือนไม่สำเร็จ" (5 ก.ย. 2026)
+ */
+async function waitForActiveWorker(reg: ServiceWorkerRegistration, timeoutMs = 10_000): Promise<void> {
+  if (reg.active) return;
+  const worker = reg.installing || reg.waiting;
+  if (!worker) return;
+  await new Promise<void>((resolve) => {
+    const done = () => {
+      clearTimeout(timer);
+      worker.removeEventListener('statechange', onChange);
+      resolve();
+    };
+    const onChange = () => {
+      if (worker.state === 'activated' || worker.state === 'redundant') done();
+    };
+    const timer = setTimeout(done, timeoutMs);
+    worker.addEventListener('statechange', onChange);
+    onChange();
+  });
+}
+
 export async function getPushState(audience: PushAudience = 'app'): Promise<PushState> {
   if (typeof window === 'undefined') return 'unsupported';
   if (isIos() && !isStandalone()) return 'ios-needs-install';
@@ -86,6 +113,7 @@ export async function enablePush(audience: PushAudience = 'app'): Promise<PushSt
 
   const reg = await registerServiceWorker(audience);
   if (!reg) return 'unsupported';
+  await waitForActiveWorker(reg);
 
   const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
   if (!publicKey) {
@@ -93,16 +121,24 @@ export async function enablePush(audience: PushAudience = 'app'): Promise<PushSt
     return 'unsupported';
   }
 
+  // โยน error ออกไปให้สวิตช์โชว์ข้อความจริง — "ไม่สำเร็จ" เปล่า ๆ แก้ต่อไม่ได้
   const sub = await reg.pushManager.subscribe({
     userVisibleOnly: true,
     applicationServerKey: urlBase64ToUint8Array(publicKey) as BufferSource,
   });
 
   const json = sub.toJSON();
-  await apiFetch('/api/push/subscribe', {
+  const res = await apiFetch('/api/push/subscribe', {
     method: 'POST',
     body: JSON.stringify({ endpoint: json.endpoint, keys: json.keys, audience }),
   });
+  if (!res.ok) {
+    // เซิร์ฟเวอร์ไม่รับ = ไม่มีใครยิงหาเครื่องนี้แน่ ๆ ต้องถอย subscription ฝั่งเบราว์เซอร์ด้วย
+    // ไม่งั้นสวิตช์จะโชว์ "เปิด" ทั้งที่ไม่มีวันได้รับอะไร (เดิมไม่เช็ค → เงียบเป็นสำเร็จ)
+    const serverMsg = await res.json().then((j: { error?: string }) => j?.error).catch(() => null);
+    await sub.unsubscribe().catch(() => {});
+    throw new Error(serverMsg || `บันทึกอุปกรณ์ไม่สำเร็จ (${res.status})`);
+  }
   return 'subscribed';
 }
 

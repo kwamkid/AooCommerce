@@ -5,7 +5,6 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
-import PushNotificationToggle from '@/components/ui/PushNotificationToggle';
 import {
   LayoutDashboard,
   Building2,
@@ -97,12 +96,8 @@ export default function SuperAdminSidebar() {
                 <p className="text-slate-400 text-xs truncate">{userProfile?.email || ''}</p>
               </div>
             </div>
-            {/* สวิตช์แจ้งเตือนของ "เครื่องนี้" — ย้ายมาจาก header เพราะบนมือถือแถวเดียว
-                ใส่ทั้งหัวข้อ+สวิตช์+ป้ายแล้วเบียดจนกดไม่โดน · subscription บันทึกด้วย
-                user_id เดียวกัน ตัวเฝ้าจึงยิงหาได้โดยไม่สนว่าเปิดจากบริษัทไหน */}
-            <div className="mt-2 px-3 py-2 bg-slate-800/50 rounded-lg border border-slate-700/60">
-              <PushNotificationToggle compact audience="superadmin" />
-            </div>
+            {/* สวิตช์แจ้งเตือนของเครื่องนี้ย้ายไปอยู่ในกระดิ่งที่ header แล้ว
+                (SuperAdminNotificationBell) — เหมือนแอปร้าน ไอคอนเดียวไม่เบียดบนมือถือ */}
           </div>
 
           {/* Navigation */}
