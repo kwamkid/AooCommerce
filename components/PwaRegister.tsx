@@ -33,7 +33,7 @@ export default function PwaRegister() {
       if (disarm) return;
       const onInteract = () => {
         cancelArm();
-        clearAppBadge();
+        clearAppBadge('interact');
       };
       // capture: true — จับให้ได้ก่อนที่ handler ของหน้าจะ stopPropagation
       document.addEventListener('pointerdown', onInteract, true);
@@ -51,7 +51,7 @@ export default function PwaRegister() {
       else cancelArm();
     };
 
-    clearAppBadge();
+    clearAppBadge('mount');
     document.addEventListener('visibilitychange', onVisibility);
     // bfcache: กลับมาจากปุ่ม back ไม่ยิง visibilitychange เสมอไป
     window.addEventListener('pageshow', arm);

@@ -152,7 +152,7 @@ export default function InstallClient() {
               alt=""
               width={72}
               height={72}
-              className="rounded-2xl shadow shrink-0"
+              className="rounded-2xl shadow ring-1 ring-gray-200 dark:ring-slate-600 shrink-0"
             />
             <div className="min-w-0">
               <h1 className="heading-2 text-gray-900 dark:text-white">ติดตั้ง AooCommerce เป็นแอป</h1>

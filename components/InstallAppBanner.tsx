@@ -106,7 +106,7 @@ export default function InstallAppBanner() {
         alt=""
         width={36}
         height={36}
-        className="rounded-lg flex-shrink-0"
+        className="rounded-lg ring-1 ring-gray-200 dark:ring-slate-600 flex-shrink-0"
       />
       <div className="flex-1 min-w-0">
         <p className="font-medium text-gray-900 dark:text-white truncate">ใช้เป็นแอปดีกว่า</p>

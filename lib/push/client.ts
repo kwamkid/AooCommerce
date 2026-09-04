@@ -136,7 +136,7 @@ export async function disablePush(audience: PushAudience = 'app'): Promise<PushS
  * เรียกทั้งสองฝั่งเพราะตัวนับอยู่ที่ SW แต่หน้าเว็บล้างไอคอนได้เร็วกว่า —
  * ฝั่งไหนไม่รองรับก็เงียบไป ไม่ throw
  */
-export async function clearAppBadge(): Promise<void> {
+export async function clearAppBadge(reason: 'mount' | 'interact' | 'manual' = 'manual'): Promise<void> {
   const nav = navigator as Navigator & { clearAppBadge?: () => Promise<void> };
   if (typeof nav.clearAppBadge === 'function') {
     try { await nav.clearAppBadge(); } catch { /* ไม่ได้ติดตั้งเป็นแอป */ }
@@ -144,9 +144,89 @@ export async function clearAppBadge(): Promise<void> {
   if (!('serviceWorker' in navigator)) return;
   try {
     // บอกทุก registration (สายแอปร้าน + สายผู้ดูแลระบบ) ให้ reset ตัวนับของตัวเอง
+    // `reason` ไปโผล่ในบันทึก "ล้างล่าสุด" ของ SW — ไว้ดูว่าเลขหายเพราะเปิดแอป หรือเพราะแตะ
     const regs = await navigator.serviceWorker.getRegistrations();
     for (const reg of regs) {
-      (reg.active || reg.waiting || reg.installing)?.postMessage({ type: 'clear-badge' });
+      (reg.active || reg.waiting || reg.installing)?.postMessage({ type: 'clear-badge', reason });
     }
   } catch { /* ignore */ }
+}
+
+/** บันทึกจาก SW ว่า push ใบล่าสุดตั้งเลขบนไอคอนได้ไหม */
+export interface BadgeLastPush {
+  at: number;
+  count: number;
+  /** 'cache' = อ่านตัวนับได้ · 'timeout' = อ่านไม่ทันเลยตั้งเป็น 1 ไปก่อน */
+  source: 'cache' | 'timeout';
+  supported: boolean;
+  ok: boolean;
+  error: string | null;
+}
+
+export interface BadgeLastClear {
+  at: number;
+  /** ใครสั่งล้าง — 'mount' เปิดแอป · 'interact' แตะครั้งแรกหลังกลับมา · 'notification-click' กดแจ้งเตือน */
+  reason: string;
+  supported: boolean;
+  ok: boolean;
+  error: string | null;
+}
+
+export interface BadgeDiagnostics {
+  /** หน้าเว็บนี้มี navigator.setAppBadge (= ติดตั้งเป็นแอปและ OS รองรับ) */
+  pageSupported: boolean;
+  /** SW ของสายนี้มี setAppBadge — null = ยังไม่มี SW/ตอบไม่ทัน */
+  swSupported: boolean | null;
+  /** ตัวนับปัจจุบันใน SW — null = อ่านไม่ได้ */
+  count: number | null;
+  lastPush: BadgeLastPush | null;
+  lastClear: BadgeLastClear | null;
+}
+
+/**
+ * ถาม SW ของสายนั้นว่า "ตั้ง/ล้างเลขบนไอคอนครั้งล่าสุดเมื่อไหร่ สำเร็จไหม"
+ *
+ * เลขบนไอคอน "มีบ้างไม่มีบ้าง" ดูจากข้างนอกไม่ออกว่าตายฝั่งไหน — บันทึกนี้บอกได้ว่า
+ * push ใบล่าสุด SW ถูกปลุกจริง · setAppBadge สำเร็จ · แล้วถูกล้างเมื่อไหร่ด้วยเหตุผลอะไร
+ * (ถ้า push ok แต่ผู้ใช้ไม่เห็นเลข = OS ปิด "ป้ายกำกับ" ของแอปนี้ไว้ในตั้งค่าการแจ้งเตือน)
+ */
+export async function getBadgeDiagnostics(audience: PushAudience = 'app'): Promise<BadgeDiagnostics> {
+  const pageSupported = typeof navigator !== 'undefined' && 'setAppBadge' in navigator;
+  const result: BadgeDiagnostics = { pageSupported, swSupported: null, count: null, lastPush: null, lastClear: null };
+  if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return result;
+  try {
+    const reg = await navigator.serviceWorker.getRegistration(PUSH_SCOPES[audience]);
+    const worker = reg && reg.scope.endsWith(PUSH_SCOPES[audience])
+      ? reg.active || reg.waiting || reg.installing
+      : null;
+    if (!worker) return result;
+
+    const status = await new Promise<Partial<BadgeDiagnostics> & { supported?: boolean } | null>((resolve) => {
+      const channel = new MessageChannel();
+      const timer = setTimeout(() => resolve(null), 2000);
+      channel.port1.onmessage = (e) => { clearTimeout(timer); resolve(e.data); };
+      worker.postMessage({ type: 'badge-status' }, [channel.port2]);
+    });
+    if (!status) return result;
+    result.swSupported = status.supported ?? null;
+    result.count = typeof status.count === 'number' ? status.count : null;
+    result.lastPush = (status.lastPush as BadgeLastPush | null) ?? null;
+    result.lastClear = (status.lastClear as BadgeLastClear | null) ?? null;
+  } catch { /* SW ไม่ตอบ — คืนเท่าที่รู้ */ }
+  return result;
+}
+
+/**
+ * ตั้งเลขบนไอคอนจากหน้าเว็บตรง ๆ (ไม่ผ่าน push) — ไว้แยกว่า "OS ไม่โชว์เลขให้แอปนี้เลย"
+ * กับ "สาย push → SW ตั้งไม่สำเร็จ" · คืน false เมื่อเครื่องนี้ไม่มี API
+ */
+export async function testAppBadge(count = 1): Promise<boolean> {
+  const nav = navigator as Navigator & { setAppBadge?: (n?: number) => Promise<void> };
+  if (typeof nav.setAppBadge !== 'function') return false;
+  try {
+    await nav.setAppBadge(count);
+    return true;
+  } catch {
+    return false;
+  }
 }

@@ -15,26 +15,64 @@ self.addEventListener('activate', (event) => {
 //
 // service worker ถูกปลุก-ฆ่าเป็นรอบ ๆ ตัวแปรใน memory จึงอยู่ไม่รอด — เก็บตัวนับไว้
 // ใน Cache API (คีย์-ค่าเล็ก ๆ ที่ SW เข้าถึงได้ ไม่ต้องแบก IndexedDB มาทั้งก้อน)
+//
+// นอกจากตัวนับ ยังจด "ครั้งล่าสุดที่พยายามตั้ง/ล้างเลข" ไว้ด้วย (BADGE_LAST_PUSH /
+// BADGE_LAST_CLEAR) — เพราะเลขบนไอคอน "มีบ้างไม่มีบ้าง" เป็นอาการที่ดูจากข้างนอกไม่ออก
+// เลยว่าตายที่ไหน: SW ไม่ได้ถูกปลุก · setAppBadge ไม่รองรับ/โยน error · หรือถูกล้างไป
+// ก่อนผู้ใช้ทันเห็น · หน้าเว็บขอดูบันทึกนี้ผ่าน message 'badge-status' แล้วโชว์ใน
+// สวิตช์แจ้งเตือน (PushNotificationToggle) จะได้มีหลักฐานแทนการเดา
 const BADGE_CACHE = 'aoo-badge';
 const BADGE_KEY = '/__badge_count';
+const BADGE_LAST_PUSH = '/__badge_last_push';
+const BADGE_LAST_CLEAR = '/__badge_last_clear';
 
-async function readBadgeCount() {
+// Cache API ตอบช้าผิดปกติได้ตอน SW เพิ่งถูกปลุกจากศูนย์ (storage ยังไม่ตื่น) — รอเกินนี้
+// ให้ถือว่าอ่านไม่ได้แล้วตั้งเลขไปก่อน ดีกว่ารอจน iOS ฆ่า SW แล้วไม่มีเลขเลย
+const BADGE_READ_TIMEOUT_MS = 1500;
+
+function withTimeout(promise, ms, fallback) {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(fallback), ms);
+    promise.then(
+      (v) => { clearTimeout(timer); resolve(v); },
+      () => { clearTimeout(timer); resolve(fallback); }
+    );
+  });
+}
+
+async function cacheReadText(key) {
+  const cache = await caches.open(BADGE_CACHE);
+  const res = await cache.match(key);
+  return res ? res.text() : null;
+}
+
+async function cacheWriteText(key, text) {
   try {
     const cache = await caches.open(BADGE_CACHE);
-    const res = await cache.match(BADGE_KEY);
-    if (!res) return 0;
-    const n = parseInt(await res.text(), 10);
-    return Number.isFinite(n) && n > 0 ? n : 0;
+    await cache.put(key, new Response(text));
+  } catch { /* โควตาเต็ม/โหมดส่วนตัว — บันทึกพลาดได้ ไม่คุ้มให้ push ทั้งใบล้ม */ }
+}
+
+/** อ่านตัวนับ — คืน null เมื่ออ่านไม่ได้/ช้าเกิน (ต่างจาก 0 = อ่านได้แต่ยังไม่มี) */
+async function readBadgeCount() {
+  const text = await withTimeout(cacheReadText(BADGE_KEY), BADGE_READ_TIMEOUT_MS, undefined);
+  if (text === undefined) return null;
+  if (text === null) return 0;
+  const n = parseInt(text, 10);
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+async function readJson(key) {
+  try {
+    const text = await withTimeout(cacheReadText(key), BADGE_READ_TIMEOUT_MS, null);
+    return text ? JSON.parse(text) : null;
   } catch {
-    return 0;
+    return null;
   }
 }
 
-async function writeBadgeCount(n) {
-  try {
-    const cache = await caches.open(BADGE_CACHE);
-    await cache.put(BADGE_KEY, new Response(String(n)));
-  } catch { /* โควตาเต็ม/โหมดส่วนตัว — ตัวนับพลาดได้ ไม่คุ้มให้ push ทั้งใบล้ม */ }
+function badgeSupported() {
+  return !!(self.navigator && 'setAppBadge' in self.navigator);
 }
 
 // ตัวนับเป็นแบบ "อ่านแล้วเขียนทับ" — push สองใบที่มาพร้อมกันจะอ่านค่าเดิมพร้อมกัน
@@ -47,24 +85,52 @@ function queueBadgeOp(body) {
   return badgeOp;
 }
 
-/** บวกตัวนับแล้วแปะเลขบนไอคอน — เงียบเสมอเมื่อเบราว์เซอร์ไม่รองรับ */
+/**
+ * บวกตัวนับแล้วแปะเลขบนไอคอน — เงียบเสมอเมื่อเบราว์เซอร์ไม่รองรับ
+ *
+ * ลำดับสำคัญ: **ตั้งเลขก่อน แล้วค่อยเขียนตัวนับลง cache** — สิ่งที่ผู้ใช้ต้องเห็นคือเลข
+ * บนไอคอน ตัวนับเป็นแค่ความจำสำหรับใบถัดไป ถ้า SW โดนฆ่ากลางทางให้เสียตัวนับ
+ * ไม่ใช่เสียเลข · อ่านตัวนับไม่ได้ (timeout) ก็ตั้งเป็น 1 ไปก่อน
+ */
 function bumpBadge() {
   return queueBadgeOp(async () => {
-    const next = (await readBadgeCount()) + 1;
-    await writeBadgeCount(next);
-    if (self.navigator && 'setAppBadge' in self.navigator) {
-      try { await self.navigator.setAppBadge(next); } catch { /* ไม่รองรับ/ไม่ได้ติดตั้ง */ }
+    const read = await readBadgeCount();
+    const next = (read === null ? 0 : read) + 1;
+    const record = {
+      at: Date.now(),
+      count: next,
+      source: read === null ? 'timeout' : 'cache',
+      supported: badgeSupported(),
+      ok: false,
+      error: null,
+    };
+    if (record.supported) {
+      try {
+        await self.navigator.setAppBadge(next);
+        record.ok = true;
+      } catch (e) {
+        record.error = String((e && e.message) || e);
+      }
     }
+    await cacheWriteText(BADGE_KEY, String(next));
+    await cacheWriteText(BADGE_LAST_PUSH, JSON.stringify(record));
   });
 }
 
-/** ล้างเลขบนไอคอน — เรียกตอนผู้ใช้เปิดแอปมาอ่านแล้ว */
-function clearBadge() {
+/** ล้างเลขบนไอคอน — เรียกตอนผู้ใช้เปิดแอปมาอ่านแล้ว · `reason` เก็บไว้ดูว่าใครสั่งล้าง */
+function clearBadge(reason) {
   return queueBadgeOp(async () => {
-    await writeBadgeCount(0);
-    if (self.navigator && 'clearAppBadge' in self.navigator) {
-      try { await self.navigator.clearAppBadge(); } catch { /* ignore */ }
+    const record = { at: Date.now(), reason: reason || 'unknown', supported: badgeSupported(), ok: false, error: null };
+    if (record.supported) {
+      try {
+        await self.navigator.clearAppBadge();
+        record.ok = true;
+      } catch (e) {
+        record.error = String((e && e.message) || e);
+      }
     }
+    await cacheWriteText(BADGE_KEY, '0');
+    await cacheWriteText(BADGE_LAST_CLEAR, JSON.stringify(record));
   });
 }
 
@@ -98,7 +164,7 @@ self.addEventListener('notificationclick', (event) => {
 
   event.waitUntil(
     Promise.all([
-      clearBadge(),
+      clearBadge('notification-click'),
       self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
         // มีแท็บ/แอพเปิดอยู่แล้ว → focus แล้วนำทางไปหน้าเป้าหมาย
         for (const client of clients) {
@@ -116,10 +182,29 @@ self.addEventListener('notificationclick', (event) => {
   );
 });
 
-// หน้าเว็บบอกมาว่า "ผู้ใช้เปิดแอปมาดูแล้ว" → ล้างเลข
-// (ตัวหน้าเว็บเรียก clearAppBadge ของตัวเองด้วย แต่ตัวนับอยู่ที่ SW จึงต้องบอกให้ reset)
+// หน้าเว็บคุยกับ SW:
+// - 'clear-badge'  = ผู้ใช้เปิดแอปมาดูแล้ว → ล้างเลข (หน้าเว็บเรียก clearAppBadge ของตัวเอง
+//                    ด้วย แต่ตัวนับอยู่ที่ SW จึงต้องบอกให้ reset)
+// - 'badge-status' = ขอดูว่า SW ตั้ง/ล้างเลขล่าสุดเมื่อไหร่ สำเร็จไหม (ตอบกลับทาง port)
 self.addEventListener('message', (event) => {
-  if (event.data && event.data.type === 'clear-badge') {
-    event.waitUntil(clearBadge());
+  const data = event.data || {};
+  if (data.type === 'clear-badge') {
+    event.waitUntil(clearBadge(data.reason || 'page'));
+    return;
+  }
+  if (data.type === 'badge-status') {
+    event.waitUntil(
+      (async () => {
+        const [count, lastPush, lastClear] = await Promise.all([
+          readBadgeCount(),
+          readJson(BADGE_LAST_PUSH),
+          readJson(BADGE_LAST_CLEAR),
+        ]);
+        const status = { type: 'badge-status', supported: badgeSupported(), scope: self.registration.scope, count, lastPush, lastClear };
+        const port = event.ports && event.ports[0];
+        if (port) port.postMessage(status);
+        else if (event.source) event.source.postMessage(status);
+      })()
+    );
   }
 });
