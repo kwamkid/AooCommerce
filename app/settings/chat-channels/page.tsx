@@ -856,11 +856,11 @@ export default function ChatChannelsPage() {
             /* ปุ่มเชื่อมหลักของแท็บที่เปิดอยู่ — บรรทัดเดียวกับ title ให้เหมือนหน้าอื่น
                (แท็บ marketplace ไม่มีปุ่มรวม — เป็นสวิตช์รายร้านในเนื้อหา) */
             activeTab === 'facebook' ? (
-              <Button variant="primary" icon={<PlatformIcon id="facebook" size={16} />} loading={fbLoading} disabled={!fbSdkReady} onClick={handleFbLogin}>
+              <Button variant="primary" icon={<PlatformIcon id="facebook" size={16} mono />} loading={fbLoading} disabled={!fbSdkReady} onClick={handleFbLogin}>
                 เชื่อมเพจ FB / IG
               </Button>
             ) : activeTab === 'line' ? (
-              <Button variant="primary" icon={<PlatformIcon id="line" size={16} />} onClick={startAdd}>
+              <Button variant="primary" icon={<PlatformIcon id="line" size={16} mono />} onClick={startAdd}>
                 เพิ่ม LINE OA
               </Button>
             ) : undefined

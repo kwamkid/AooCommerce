@@ -72,3 +72,6 @@ export function useMarketplaceAccounts(enabled: boolean) {
 
   return { ...byPlatform, loading, refetch, patchAccount };
 }
+
+/** ค่าที่ hook คืน — parent ส่งต่อให้ MarketplaceConnections ทั้งก้อน */
+export type MarketplaceAccountsState = ReturnType<typeof useMarketplaceAccounts>;

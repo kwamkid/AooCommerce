@@ -18,7 +18,6 @@ import Badge from '@/components/ui/Badge';
 import Toggle from '@/components/ui/Toggle';
 import FormSelect from '@/components/ui/FormSelect';
 import PlatformIcon from '@/components/ui/PlatformIcon';
-import FilterChips from '@/components/ui/FilterChips';
 import Tooltip from '@/components/ui/Tooltip';
 import { LoadingCard, NoPermissionCard } from '@/components/ui/StateCard';
 import { PageSkeleton } from '@/components/ui/Skeleton';
@@ -30,7 +29,8 @@ import { useBfcacheReset } from '@/lib/useBfcacheReset';
 import Tabs from '@/components/ui/Tabs';
 import { useFeatures } from '@/lib/features-context';
 import { isMarketplacePlatform } from '@/lib/marketplace-platforms';
-import { Link as LinkIcon, Loader2, Lock, MessageCircle, Pencil, Plus, ShoppingBag, SlidersHorizontal, Star, Tag, Trash2 } from 'lucide-react';
+import { useMarketplaceAccounts, type MarketplacePlatform } from './useMarketplaceAccounts';
+import { Link as LinkIcon, Loader2, Lock, MessageCircle, Pencil, Plus, SlidersHorizontal, Star, Tag, Trash2 } from 'lucide-react';
 import dynamic from 'next/dynamic';
 
 // Lazy chunk — โค้ดแท็บ marketplace โหลดเฉพาะตอนผู้ใช้กดแท็บจริง
@@ -64,6 +64,49 @@ interface SalesChannel {
 
 type ModalMode = 'create' | 'edit' | null;
 
+// แท็บ = ช่องทาง (โครงเดียวกับหน้า ช่องทาง Chat): ตั้งค่าเอง · FB/IG · LINE · Shopee · Lazada · TikTok
+// FB กับ IG รวมแท็บเดียว — เพจ FB ที่ผูก IG คือบัญชีเดียวกัน แถวไหนมีแค่ IG ก็โชว์ไอคอน IG อย่างเดียว
+type ChannelTab = 'manual' | 'facebook' | 'line' | MarketplacePlatform;
+const CHANNEL_TABS: ChannelTab[] = ['manual', 'facebook', 'line', 'shopee', 'lazada', 'tiktok'];
+const isMarketplaceTab = (t: ChannelTab): t is MarketplacePlatform =>
+  t === 'shopee' || t === 'lazada' || t === 'tiktok';
+
+/**
+ * แท็บจาก URL — รองรับลิงก์รูปเก่าทั้งหมด: `?tab=marketplace#shopee` (watchdog · ปุ่มย้อนกลับ
+ * ของหน้า import · callback ของ OAuth) และ hash เก่า `#none` / `#instagram`
+ * callback ของ OAuth บอกแพลตฟอร์มมาในตัว — ต้องตั้งแท็บให้ถูกก่อน MarketplaceConnections mount
+ * (ตัวนั้นอ่าน query เดียวกันแล้วโชว์ toast/ล้าง URL)
+ */
+function tabFromLocation(): ChannelTab {
+  const params = new URLSearchParams(window.location.search);
+  const hash = window.location.hash.replace('#', '');
+  if (params.get('shopee') === 'connected') return 'shopee';
+  if (params.get('tiktok') === 'connected' || params.get('tiktok_profile')) return 'tiktok';
+  if (params.get('success') === 'lazada_connected') return 'lazada';
+  if (params.get('tab') === 'marketplace' || params.get('error')) {
+    return hash === 'tiktok' || hash === 'lazada' ? hash : 'shopee';
+  }
+  if (hash === 'none') return 'manual';
+  if (hash === 'instagram') return 'facebook';
+  return CHANNEL_TABS.includes(hash as ChannelTab) ? (hash as ChannelTab) : 'manual';
+}
+
+// platform ids ของ channel — ใช้ทั้งวาดไอคอนและจัดแท็บ (FB ที่ลิงก์ IG นับเป็นทั้งคู่)
+function channelPlatformIds(c: SalesChannel): string[] {
+  const ids: string[] = [];
+  if (c.platform) ids.push(c.platform);
+  if (c.channel_type === 'chat' && c.platform === 'facebook' && c.has_ig) ids.push('instagram');
+  return ids;
+}
+
+/** แท็บที่แถวนี้อยู่ — ไม่มีแพลตฟอร์ม = ตั้งค่าเอง · ป้าย IG ล้วนก็อยู่แท็บ FB/IG */
+function channelTabOf(c: SalesChannel): 'manual' | 'facebook' | 'line' {
+  const ids = channelPlatformIds(c);
+  if (ids.includes('facebook') || ids.includes('instagram')) return 'facebook';
+  if (ids.includes('line')) return 'line';
+  return 'manual';
+}
+
 // เฉพาะแพลตฟอร์มที่ขาย manual ได้จริง — Shopee/Lazada/TikTok (marketplace) ตัดออก
 // เพราะออเดอร์เข้าผ่านการเชื่อมต่อ API เท่านั้น (แท็บ "เชื่อมต่อ Marketplace")
 // ขาย Live/DM แบบ manual → สร้างช่องทางชื่อเองแบบไม่ระบุแพลตฟอร์มได้
@@ -84,17 +127,12 @@ export default function SalesChannelsPage() {
   const [channels, setChannels] = useState<SalesChannel[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  // pill quick filter ตามแพลตฟอร์ม — สไตล์เดียวกับแท็บ Marketplace
-  // ไม่มีชิป "ทั้งหมด" แล้ว (ให้เข้าชุดกับแท็บ Marketplace ที่ดูทีละแพลตฟอร์ม)
-  // จึงต้องเริ่มที่แพลตฟอร์มใดแพลตฟอร์มหนึ่งเสมอ ไม่งั้นจะได้หน้าที่ไม่มีชิปไหนถูกเลือก
-  // แล้วกดกลับมาสถานะนั้นไม่ได้อีกเลย
-  type ChannelPlatformFilter = 'line' | 'facebook' | 'instagram' | 'none';
-  const [platformFilter, setPlatformFilter] = useState<ChannelPlatformFilter>('none');
-  // Main tabs: ช่องทางของฉัน (manual + mirror list) / เชื่อมต่อ Marketplace (ย้ายมาจาก /settings/integrations)
-  const [mainTab, setMainTab] = useState<'channels' | 'marketplace'>('channels');
-  // แท็บ Marketplace: ปุ่ม "เชื่อมต่อร้าน X" อยู่บน PageHeader (ตำแหน่งเดียวกับ
-  // ปุ่ม "+ เพิ่ม" ของแท็บช่องทางของฉัน) — platform ที่เลือกจึงต้องเป็น state ของหน้านี้
-  const [mpPlatform, setMpPlatform] = useState<'shopee' | 'tiktok' | 'lazada'>('shopee');
+  // แท็บเริ่มจาก URL ตั้งแต่ render แรก (lazy init) — ไม่ setState ใน effect · ฝั่ง server
+  // ไม่มี window แต่ตอนนั้นยังโชว์ skeleton อยู่ (authLoading) จึงไม่ hydration mismatch
+  const [activeTab, setActiveTab] = useState<ChannelTab>(() =>
+    typeof window === 'undefined' ? 'manual' : tabFromLocation()
+  );
+  // ปุ่ม "เชื่อมต่อร้าน X" ของแท็บ marketplace อยู่บน PageHeader — loading จึงเป็น state ของหน้านี้
   const [mpConnecting, setMpConnecting] = useState(false);
   // ตั้ง app แบบ seller ไว้หรือยัง — ไม่ตั้ง = ซ่อนปุ่ม "เชื่อมผ่าน app ของร้าน" ไปเลย
   const [shopeeSellerAppAvailable, setShopeeSellerAppAvailable] = useState(false);
@@ -124,7 +162,14 @@ export default function SalesChannelsPage() {
   // แท็บเชื่อมต่อ marketplace โชว์เฉพาะตอนเปิด feature marketplace_sync เท่านั้น
   // (พฤติกรรมเดียวกับที่เมนู Marketplace เดิมถูกซ่อนจาก Sidebar ตอนปิด feature)
   const marketplaceTabVisible = features.marketplace_sync && can(userProfile?.roles, 'settings.access');
-  const showMarketplace = mainTab === 'marketplace' && marketplaceTabVisible;
+  // แท็บ marketplace ที่มองไม่เห็น (ปิด feature) → ตกไปแท็บตั้งค่าเอง
+  const effectiveTab: ChannelTab = isMarketplaceTab(activeTab) && !marketplaceTabVisible ? 'manual' : activeTab;
+  const showMarketplace = isMarketplaceTab(effectiveTab);
+  const channelTab: 'manual' | 'facebook' | 'line' =
+    effectiveTab === 'facebook' || effectiveTab === 'line' ? effectiveTab : 'manual';
+  // ร้าน marketplace ทุกแพลตฟอร์มดึงครั้งเดียวที่นี่ — ตัวเลขบนแท็บต้องรู้ตั้งแต่ก่อนเปิดแท็บนั้น
+  // (MarketplaceConnections รับไปใช้ต่อ ไม่ดึงซ้ำ)
+  const mpAccounts = useMarketplaceAccounts(marketplaceTabVisible);
 
   // เริ่ม OAuth เชื่อมร้าน marketplace — สำเร็จแล้ว browser จะ redirect ออกไปเลย
   // จึงไม่ reset connecting ในเส้นทางสำเร็จ (bfcache reset ด้านบนจัดการตอนกด back)
@@ -193,45 +238,23 @@ export default function SalesChannelsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authLoading]);
 
-  // Deep link เข้าแท็บ marketplace — จาก OAuth callback (?shopee=connected ฯลฯ),
-  // ลิงก์ ?tab=marketplace หรือ redirect จาก /settings/integrations เดิม
-  // hash (#shopee/#lazada/#line ฯลฯ) = sub-tab ของแท็บนั้น — refresh แล้วเปิดที่เดิม
+  // อยู่หน้านี้อยู่แล้วแล้วกดลิงก์ที่ต่างกันแค่ #anchor (แจ้งเตือน/การ์ดบน dashboard) →
+  // Next ไม่ remount ต้องฟัง hashchange เอง (replaceState ที่เราเขียนเองไม่ยิง event จึงไม่วนลูป)
   useEffect(() => {
-    const applyLocation = () => {
-      const params = new URLSearchParams(window.location.search);
-      const marketplace =
-        params.get('tab') === 'marketplace' ||
-        params.get('shopee') === 'connected' ||
-        params.get('tiktok') === 'connected' ||
-        params.get('success') === 'lazada_connected' ||
-        !!params.get('error');
-      if (marketplace) setMainTab('marketplace');
-      const hash = window.location.hash.replace('#', '');
-      if (marketplace && (hash === 'shopee' || hash === 'tiktok' || hash === 'lazada')) {
-        setMpPlatform(hash);
-      } else if (!marketplace && (hash === 'line' || hash === 'facebook' || hash === 'instagram' || hash === 'none')) {
-        setPlatformFilter(hash);
-      }
-    };
-    applyLocation();
-    // อยู่หน้านี้อยู่แล้วแล้วกดลิงก์ที่ต่างกันแค่ #anchor → Next ไม่ remount ต้องฟังเอง
-    // (replaceState ที่เราเขียน URL กลับเองไม่ยิง hashchange จึงไม่วนลูป)
-    window.addEventListener('hashchange', applyLocation);
-    return () => window.removeEventListener('hashchange', applyLocation);
+    const onHashChange = () => setActiveTab(tabFromLocation());
+    window.addEventListener('hashchange', onHashChange);
+    return () => window.removeEventListener('hashchange', onHashChange);
   }, []);
 
-  // เขียนแท็บ + sub-tab กลับลง URL (?tab= + #anchor) ทุกครั้งที่เปลี่ยน —
+  // เขียนแท็บกลับลง URL (#anchor) ทุกครั้งที่เปลี่ยน — refresh แล้วเปิดที่เดิม
   // ใช้ replaceState ไม่ให้ history รกและหน้าไม่ reload
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    // ระหว่างยังมี query จาก OAuth callback ห้ามเขียนทับ — แท็บ marketplace ต้องอ่านก่อน
+    // ระหว่างยังมี query จาก OAuth callback ห้ามเขียนทับ — MarketplaceConnections ต้องอ่านก่อน
     if (params.get('shopee') || params.get('tiktok') || params.get('success') || params.get('error')
       || params.get('chat') || params.get('tiktok_profile')) return;
-    const url = mainTab === 'marketplace'
-      ? `/settings/sales-channels?tab=marketplace#${mpPlatform}`
-      : `/settings/sales-channels#${platformFilter}`;
-    window.history.replaceState({}, '', url);
-  }, [mainTab, mpPlatform, platformFilter]);
+    window.history.replaceState({}, '', `/settings/sales-channels#${activeTab}`);
+  }, [activeTab]);
 
   // แท็บ "ช่องทางของฉัน" ไม่แสดงช่องทาง marketplace เลย (กันสับสน) —
   // ร้าน Shopee/Lazada/TikTok จัดการที่แท็บ "เชื่อมต่อ Marketplace" ที่เดียว
@@ -240,25 +263,15 @@ export default function SalesChannelsPage() {
     [channels]
   );
 
-  // count ต่อ pill — นับจากลิสต์เต็ม (ไม่โดน search กรอง) ให้เลขนิ่ง
+  // count ต่อแท็บ — นับจากลิสต์เต็ม (ไม่โดน search กรอง) ให้เลขนิ่ง · เพจ FB ที่ผูก IG = 1 แถว
   const platformCounts = useMemo(() => {
-    const counts = { line: 0, facebook: 0, instagram: 0, none: 0 };
-    for (const c of nonMarketplace) {
-      const ids = c.platform ? [c.platform, ...(c.channel_type === 'chat' && c.platform === 'facebook' && c.has_ig ? ['instagram'] : [])] : [];
-      if (ids.length === 0) counts.none++;
-      if (ids.includes('line')) counts.line++;
-      if (ids.includes('facebook')) counts.facebook++;
-      if (ids.includes('instagram')) counts.instagram++;
-    }
+    const counts = { manual: 0, facebook: 0, line: 0 };
+    for (const c of nonMarketplace) counts[channelTabOf(c)]++;
     return counts;
   }, [nonMarketplace]);
 
   const filtered = useMemo(() => {
-    const source0 = nonMarketplace.filter(c => {
-      const ids = c.platform ? [c.platform, ...(c.channel_type === 'chat' && c.platform === 'facebook' && c.has_ig ? ['instagram'] : [])] : [];
-      return platformFilter === 'none' ? ids.length === 0 : ids.includes(platformFilter);
-    });
-    const source = source0;
+    const source = nonMarketplace.filter(c => channelTabOf(c) === channelTab);
     const q = searchTerm.trim().toLowerCase();
     if (!q) return source;
     return source.filter(c =>
@@ -266,7 +279,7 @@ export default function SalesChannelsPage() {
       c.code.toLowerCase().includes(q) ||
       (c.platform || '').toLowerCase().includes(q)
     );
-  }, [nonMarketplace, platformFilter, searchTerm]);
+  }, [nonMarketplace, channelTab, searchTerm]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / rowsPerPage));
   const startIndex = (currentPage - 1) * rowsPerPage;
@@ -445,14 +458,6 @@ export default function SalesChannelsPage() {
     );
   }
 
-  // platform ids ของ channel — ใช้ทั้งวาดไอคอนและ pill filter (FB ที่ลิงก์ IG นับเป็นทั้งคู่)
-  function channelPlatformIds(c: SalesChannel): string[] {
-    const ids: string[] = [];
-    if (c.platform) ids.push(c.platform);
-    if (c.channel_type === 'chat' && c.platform === 'facebook' && c.has_ig) ids.push('instagram');
-    return ids;
-  }
-
   // Show platform as icon(s). Chat channels with IG linked show both FB + IG icons stacked.
   function renderPlatformIcons(c: SalesChannel) {
     const ids = channelPlatformIds(c);
@@ -600,108 +605,88 @@ export default function SalesChannelsPage() {
           title="ช่องทางการขาย"
           subtitle="จัดการช่องทางที่ออเดอร์เข้ามา — ช่องทาง manual, เพจ LINE/FB และร้าน marketplace ที่เชื่อมต่อ"
           actions={
-            showMarketplace ? (
-              /* Dropdown เลือกแพลตฟอร์มที่จะเชื่อม — ตำแหน่ง + รูปแบบเดียวกับ
-                 ปุ่ม "+ เพิ่ม" ของแท็บช่องทางของฉัน (ไม่ผูกกับ pill ที่เปิดอยู่
-                 จะได้ไม่กดเชื่อมผิดแพลตฟอร์ม) */
+            /* ปุ่มหลักของแท็บที่เปิดอยู่ — บรรทัดเดียวกับ title เหมือนหน้า ช่องทาง Chat
+               ไอคอนแพลตฟอร์มบนปุ่ม primary ใช้ mono (สีเดียวตามตัวหนังสือ) โลโก้สีแบรนด์เต็มตัวจะตีกับพื้นส้ม */
+            effectiveTab === 'manual' ? (
+              <Button variant="primary" icon={<Plus className="w-5 h-5" />} onClick={() => openCreate('')}>
+                เพิ่มช่องทาง
+              </Button>
+            ) : effectiveTab === 'facebook' ? (
+              /* เชื่อมเพจ/OA ทำที่หน้าช่องทาง Chat — ถามให้ชัดแล้วพาไปเปิด flow นั้นเลย */
+              <Button variant="primary" icon={<PlatformIcon id="facebook" size={16} mono />} onClick={() => confirmConnectChat('facebook')}>
+                เชื่อมเพจ FB / IG
+              </Button>
+            ) : effectiveTab === 'line' ? (
+              <Button variant="primary" icon={<PlatformIcon id="line" size={16} mono />} onClick={() => confirmConnectChat('line')}>
+                เชื่อม LINE OA
+              </Button>
+            ) : effectiveTab === 'shopee' ? (
+              /* Shopee มี 2 ทางเชื่อม (partner app / app ที่จดในนามร้านเอง — แชทได้) จึงเป็นเมนู
+                 ทางที่สองโชว์เสมอ: env บน server ยังไม่ครบก็บอกตรง ๆ แทนที่จะหายไปเฉย ๆ
+                 แล้วคนไปกดเชื่อมผ่าน partner app แทน (เกิดจริง 5 ก.ย. 2026) */
               <ActionMenu
                 placement="bottom"
                 trigger={mpConnecting
                   ? <><Loader2 className="w-5 h-5 animate-spin" />กำลังเชื่อมต่อ...</>
-                  : <><Plus className="w-5 h-5" />เชื่อมต่อร้านค้า</>}
+                  : <><Plus className="w-5 h-5" />เชื่อมต่อร้าน Shopee</>}
                 triggerClassName="btn btn-md btn-primary"
                 items={[
-                  ...(['shopee', 'tiktok', 'lazada'] as const).map(platform => ({
-                    key: platform,
-                    label: platform === 'shopee' ? 'เชื่อมต่อร้าน Shopee'
-                      : platform === 'tiktok' ? 'เชื่อมต่อ TikTok Shop'
-                      : 'เชื่อมต่อร้าน Lazada',
-                    icon: <PlatformIcon id={platform} size={16} />,
+                  {
+                    key: 'shopee',
+                    label: 'เชื่อมต่อร้าน Shopee',
+                    icon: <PlatformIcon id="shopee" size={16} />,
                     disabled: mpConnecting,
-                    onClick: () => { setMpPlatform(platform); handleMarketplaceConnect(platform); },
-                  })),
-                  // ทางเชื่อม Shopee เส้นที่สอง — app ที่จดในนามร้านเอง (แชทได้) อยู่ในเมนูเดียวกัน
-                  // เพราะคนมองหาที่นี่ก่อน · โชว์เสมอ: ถ้า env บน server ยังไม่ครบก็บอกตรง ๆ
-                  // แทนที่จะหายไปเฉย ๆ แล้วคนไปกดเชื่อมผ่าน partner app แทน (เกิดจริง 5 ก.ย. 2026)
+                    onClick: () => handleMarketplaceConnect('shopee'),
+                  },
                   {
                     key: 'shopee-seller',
                     dividerBefore: true,
                     label: shopeeSellerAppAvailable
-                      ? `เชื่อมต่อร้าน Shopee ผ่าน app ของร้าน${shopeeSellerAppEnv === 'sandbox' ? ' (sandbox — ใช้บัญชี test shop)' : ''}`
-                      : 'Shopee ผ่าน app ของร้าน — server ยังไม่มี SHOPEE_SELLER_APP_ID/KEY',
+                      ? `เชื่อมต่อผ่าน app ของร้าน${shopeeSellerAppEnv === 'sandbox' ? ' (sandbox — ใช้บัญชี test shop)' : ''}`
+                      : 'ผ่าน app ของร้าน — server ยังไม่มี SHOPEE_SELLER_APP_ID/KEY',
                     icon: <PlatformIcon id="shopee" size={16} />,
                     disabled: mpConnecting || !shopeeSellerAppAvailable,
-                    onClick: () => { setMpPlatform('shopee'); handleMarketplaceConnect('shopee', { app: 'seller' }); },
+                    onClick: () => handleMarketplaceConnect('shopee', { app: 'seller' }),
                   },
                 ]}
               />
             ) : (
-              /* ปุ่มเพิ่มเป็น dropdown — เลือกแพลตฟอร์มได้เลย แล้วเปิด modal พร้อมค่า preselect */
-              /* ทางแยก 2 ทางตั้งแต่กดปุ่ม — เดิมมีรายการ LINE/FB/IG ที่แค่ preselect
-                 ป้ายในฟอร์ม คนเข้าใจว่าคือการเชื่อมเพจแล้วสร้างป้ายซ้ำกับ mirror */
-              <ActionMenu
-                placement="bottom"
-                trigger={<><Plus className="w-5 h-5" />เพิ่ม</>}
-                triggerClassName="btn btn-md btn-primary"
-                items={[
-                  {
-                    key: 'connect-fb',
-                    label: 'เชื่อมเพจ Facebook / IG',
-                    icon: <PlatformIcon id="facebook" size={16} />,
-                    onClick: () => confirmConnectChat('facebook'),
-                  },
-                  {
-                    key: 'connect-line',
-                    label: 'เชื่อม LINE OA',
-                    icon: <PlatformIcon id="line" size={16} />,
-                    onClick: () => confirmConnectChat('line'),
-                  },
-                  {
-                    key: 'manual',
-                    label: 'สร้างป้ายช่องทางเอง (ไม่เชื่อมระบบ)',
-                    icon: <Tag className="w-4 h-4" />,
-                    onClick: () => openCreate(''),
-                    dividerBefore: true,
-                  },
-                ]}
-              />
+              <Button
+                variant="primary"
+                icon={<Plus className="w-5 h-5" />}
+                loading={mpConnecting}
+                onClick={() => handleMarketplaceConnect(effectiveTab)}
+              >
+                {effectiveTab === 'tiktok' ? 'เชื่อมต่อ TikTok Shop' : 'เชื่อมต่อร้าน Lazada'}
+              </Button>
             )
           }
         />
 
-        {/* Main tabs: ช่องทางของฉัน / เชื่อมต่อ Marketplace (convention เดียวกับ carriers, payment-channels) */}
-        {marketplaceTabVisible && (
-          <Tabs
-            activeKey={mainTab}
-            onSelect={(key) => setMainTab(key as 'channels' | 'marketplace')}
-            tabs={[
-              { key: 'channels', label: 'ช่องทางของฉัน', icon: <Tag className="w-4 h-4" /> },
-              { key: 'marketplace', label: 'เชื่อมต่อ Marketplace', icon: <ShoppingBag className="w-4 h-4" /> },
-            ]}
-          />
-        )}
-
-        {showMarketplace ? (
-          <MarketplaceConnections
-            activePlatform={mpPlatform}
-            onPlatformChange={setMpPlatform}
-            setConnecting={setMpConnecting}
-          />
-        ) : (
-          <>
-        <FilterChips
-          className="mb-4"
-          value={platformFilter}
-          onChange={id => { setPlatformFilter(id); setCurrentPage(1); }}
-          chips={[
+        {/* แท็บ = ช่องทาง (โครงเดียวกับหน้า ช่องทาง Chat) — แท็บ marketplace โชว์เฉพาะตอนเปิด feature */}
+        <Tabs
+          activeKey={effectiveTab}
+          onSelect={(key) => { setActiveTab(key as ChannelTab); setCurrentPage(1); }}
+          tabs={[
             // ตั้งค่าเอง = ช่องทาง manual ที่ผู้ใช้สร้างเอง — เป็นค่าเริ่มต้นจึงอยู่ซ้ายสุด
-            { id: 'none' as const, label: 'ตั้งค่าเอง', count: platformCounts.none, icon: <SlidersHorizontal className="w-4 h-4" />, activeClass: 'border-primary text-primary bg-primary/10' },
-            { id: 'line' as const, label: 'LINE', count: platformCounts.line, icon: <PlatformIcon id="line" size={16} />, activeClass: 'border-[#06C755] text-[#06C755] bg-[#06C755]/10' },
-            { id: 'facebook' as const, label: 'Facebook', count: platformCounts.facebook, icon: <PlatformIcon id="facebook" size={16} />, activeClass: 'border-[#1877F2] text-[#1877F2] bg-[#1877F2]/10' },
-            { id: 'instagram' as const, label: 'Instagram', count: platformCounts.instagram, icon: <PlatformIcon id="instagram" size={16} />, activeClass: 'border-[#E1306C] text-[#E1306C] bg-[#E1306C]/10' },
+            { key: 'manual', label: 'ตั้งค่าเอง', icon: <SlidersHorizontal className="w-4 h-4" />, count: platformCounts.manual || undefined },
+            { key: 'facebook', label: 'FB / IG', icon: <PlatformIcon id="facebook" size={16} />, count: platformCounts.facebook || undefined, activeColorClass: 'border-facebook text-facebook' },
+            { key: 'line', label: 'LINE', icon: <PlatformIcon id="line" size={16} />, count: platformCounts.line || undefined, activeColorClass: 'border-line text-line' },
+            { key: 'shopee', label: 'Shopee', icon: <PlatformIcon id="shopee" size={16} />, count: mpAccounts.shopee.length || undefined, activeColorClass: 'border-shopee text-shopee', hidden: !marketplaceTabVisible },
+            { key: 'lazada', label: 'Lazada', icon: <PlatformIcon id="lazada" size={16} />, count: mpAccounts.lazada.length || undefined, activeColorClass: 'border-[#0F146E] text-[#0F146E] dark:border-blue-400 dark:text-blue-400', hidden: !marketplaceTabVisible },
+            { key: 'tiktok', label: 'TikTok', icon: <PlatformIcon id="tiktok" size={16} />, count: mpAccounts.tiktok.length || undefined, activeColorClass: 'border-[#161823] text-[#161823] dark:border-slate-300 dark:text-slate-300', hidden: !marketplaceTabVisible },
           ]}
         />
 
+        {showMarketplace ? (
+          <MarketplaceConnections
+            activePlatform={effectiveTab as MarketplacePlatform}
+            onPlatformChange={setActiveTab}
+            setConnecting={setMpConnecting}
+            accounts={mpAccounts}
+          />
+        ) : (
+          <>
         {/* Search */}
         <div className="data-filter-card">
           <SearchInput
@@ -722,7 +707,11 @@ export default function SalesChannelsPage() {
           onRowClick={(c) => {
             if (c.channel_type === 'manual' && !c.is_system) openEdit(c);
           }}
-          emptyMessage="ยังไม่มีช่องทางการขาย"
+          emptyMessage={
+            channelTab === 'facebook' ? 'ยังไม่มีเพจ Facebook / IG ที่เชื่อม — กด "เชื่อมเพจ FB / IG" ด้านบน'
+            : channelTab === 'line' ? 'ยังไม่มี LINE OA ที่เชื่อม — กด "เชื่อม LINE OA" ด้านบน'
+            : 'ยังไม่มีช่องทางที่ตั้งค่าเอง — กด "เพิ่มช่องทาง" ด้านบน'
+          }
           emptyIcon={<Tag className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
           currentPage={currentPage}
           totalPages={totalPages}

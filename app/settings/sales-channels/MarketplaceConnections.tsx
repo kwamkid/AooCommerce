@@ -6,7 +6,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
-import { can } from '@/lib/permissions';
 import { useToast } from '@/lib/toast-context';
 import { useFeatures } from '@/lib/features-context';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
@@ -26,11 +25,10 @@ import SaveButton from '@/components/ui/SaveButton';
 import ImageDropzone from '@/components/ui/ImageDropzone';
 import LoadingOverlay from '@/components/ui/LoadingOverlay';
 import PlatformIcon from '@/components/ui/PlatformIcon';
-import FilterChips from '@/components/ui/FilterChips';
 import { LoadingCard } from '@/components/ui/StateCard';
 import { formatThaiDateTime } from '@/lib/utils/format';
 import MarketplaceAccountCard, { SyncRangeSelect } from './MarketplaceAccountCard';
-import { useMarketplaceAccounts, type MarketplaceAccount, type MarketplacePlatform } from './useMarketplaceAccounts';
+import type { MarketplaceAccountsState, MarketplaceAccount, MarketplacePlatform } from './useMarketplaceAccounts';
 
 interface MarketplaceConnectionsProps {
   // Badge-tab เลือกดูทีละแพลตฟอร์ม — state อยู่ที่ parent เพราะปุ่ม
@@ -39,10 +37,12 @@ interface MarketplaceConnectionsProps {
   onPlatformChange: (platform: 'shopee' | 'tiktok' | 'lazada') => void;
   // flow เชื่อมแชท (promptChatConnect) ตั้ง loading ให้ปุ่มบน PageHeader
   setConnecting: (value: boolean) => void;
+  // ร้านทุก platform เป็นของ parent (ดึงครั้งเดียว — ตัวเลขบนแท็บต้องรู้ก่อนเปิดแท็บนี้)
+  accounts: MarketplaceAccountsState;
 }
 
 export default function MarketplaceConnections({
-  activePlatform, onPlatformChange, setConnecting,
+  activePlatform, onPlatformChange, setConnecting, accounts,
 }: MarketplaceConnectionsProps) {
   const router = useRouter();
   const { userProfile } = useAuth();
@@ -51,11 +51,11 @@ export default function MarketplaceConnections({
   const { gates } = useFeatures();
   const stockEnabled = gates.stockEnabled;
   const { confirmDialog, confirm } = useConfirmDialog();
-  // fetch เดียวได้ทุก platform (แทน 3 calls เดิม) — refetch หลัง write ใดๆ
+  // fetch เดียวได้ทุก platform (แทน 3 calls เดิม) — refetch() หลัง write ใดๆ ได้เลย
   const {
     shopee: shopeeAccounts, tiktok: tiktokAccounts, lazada: lazadaAccounts,
     loading, refetch, patchAccount,
-  } = useMarketplaceAccounts(can(userProfile?.roles, 'settings.access'));
+  } = accounts;
   const [syncingId, setSyncingId] = useState<string | null>(null);
   const [disconnectingId, setDisconnectingId] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -79,7 +79,8 @@ export default function MarketplaceConnections({
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const cleanUrl = '/settings/sales-channels?tab=marketplace';
+    // parent ตั้งแท็บจาก query เดียวกันนี้ตั้งแต่ก่อนเรา mount — activePlatform ตอนนี้จึงถูกแล้ว
+    const cleanUrl = `/settings/sales-channels#${activePlatform}`;
     if (params.get('shopee') === 'connected') {
       showToast('เชื่อมต่อ Shopee สำเร็จ', 'success');
       refetch();
@@ -801,19 +802,7 @@ export default function MarketplaceConnections({
 
   return (
     <div>
-      {/* Platform badge tabs — เลือกดูทีละแพลตฟอร์ม
-          (ปุ่ม "เชื่อมต่อร้าน X" อยู่บน PageHeader ของ parent) */}
-      <FilterChips
-        className="mb-5"
-        value={activePlatform}
-        onChange={onPlatformChange}
-        chips={[
-          { id: 'shopee' as const, label: 'Shopee', count: shopeeAccounts.length, icon: <PlatformIcon id="shopee" size={16} />, activeClass: 'border-shopee text-shopee bg-shopee/10' },
-          { id: 'tiktok' as const, label: 'TikTok Shop', count: tiktokAccounts.length, icon: <PlatformIcon id="tiktok" size={16} />, activeClass: 'border-gray-900 text-gray-900 bg-gray-900/5 dark:border-white dark:text-white dark:bg-white/10' },
-          { id: 'lazada' as const, label: 'Lazada', count: lazadaAccounts.length, icon: <PlatformIcon id="lazada" size={16} />, activeClass: 'border-[#0F146E] text-[#0F146E] bg-[#0F146E]/10 dark:border-blue-400 dark:text-blue-400 dark:bg-blue-400/10' },
-        ]}
-      />
-
+      {/* แท็บเลือกแพลตฟอร์มอยู่ที่ parent (แท็บหลักของหน้า) — ที่นี่แสดงเฉพาะร้านของแท็บที่เปิดอยู่ */}
       {/* Quota paused banner — ทุก platform ที่ breaker เปิด */}
       <div className="mb-4 empty:mb-0 space-y-3">
         <MarketplaceQuotaPausedAlert note="ปุ่ม Sync ของ platform ที่โดนพักจะใช้ไม่ได้จนกว่าโควตาจะ reset" />
