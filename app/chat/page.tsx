@@ -674,15 +674,16 @@ function UnifiedChatPageContent() {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ contact_id: contactId, platform, message: messageText })
       });
-      if (!response.ok) throw new Error('Failed');
+      if (!response.ok) { const errData = await response.json().catch(() => ({})); throw new Error(errData.error || 'Failed'); }
       const result = await response.json();
       if (result.message) {
         setMessages(prev => prev.map(m => m._tempId === tempId ? { ...result.message, contact_id: contactId, _status: 'sent' as const } : m));
       }
       showToast('ส่งบิลให้ลูกค้าสำเร็จ!');
-    } catch {
-      setMessages(prev => prev.map(m => m._tempId === tempId ? { ...m, _status: 'failed' as const } : m));
-      showToast('ส่งบิลไม่สำเร็จ', 'error');
+    } catch (error) {
+      const reason = error instanceof Error && error.message !== 'Failed' ? error.message : undefined;
+      setMessages(prev => prev.map(m => m._tempId === tempId ? { ...m, _status: 'failed' as const, _error: reason } : m));
+      showToast(reason ? `ส่งบิลไม่สำเร็จ: ${reason}` : 'ส่งบิลไม่สำเร็จ', 'error');
     }
   };
 
@@ -727,8 +728,10 @@ function UnifiedChatPageContent() {
         }
       } catch (error) {
         console.error('Error sending message:', error);
-        setMessages(prev => prev.map(m => m._tempId === tempId ? { ...m, _status: 'failed' as const } : m));
-        showToast('ส่งข้อความไม่สำเร็จ', 'error');
+        // เก็บเหตุผลจากแพลตฟอร์มไว้ที่ข้อความ — คนกดลองใหม่ต้องรู้ว่าล้มเพราะอะไร ไม่ใช่ลองซ้ำเปล่า ๆ
+        const reason = error instanceof Error && error.message !== 'Failed' ? error.message : undefined;
+        setMessages(prev => prev.map(m => m._tempId === tempId ? { ...m, _status: 'failed' as const, _error: reason } : m));
+        showToast(reason ? `ส่งข้อความไม่สำเร็จ: ${reason}` : 'ส่งข้อความไม่สำเร็จ', 'error');
       }
     })();
   };
@@ -782,8 +785,9 @@ function UnifiedChatPageContent() {
       URL.revokeObjectURL(localUrl);
     } catch (error) {
       console.error('Error uploading image:', error);
-      setMessages(prev => prev.map(m => m._tempId === tempId ? { ...m, _status: 'failed' as const } : m));
-      showToast('ส่งรูปภาพไม่สำเร็จ', 'error');
+      const reason = error instanceof Error && error.message !== 'Failed' ? error.message : undefined;
+      setMessages(prev => prev.map(m => m._tempId === tempId ? { ...m, _status: 'failed' as const, _error: reason } : m));
+      showToast(reason ? `ส่งรูปภาพไม่สำเร็จ: ${reason}` : 'ส่งรูปภาพไม่สำเร็จ', 'error');
     } finally {
       setUploadingImage(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -815,8 +819,10 @@ function UnifiedChatPageContent() {
         }
       } catch (error) {
         console.error('Error sending sticker:', error);
-        setMessages(prev => prev.map(m => m._tempId === tempId ? { ...m, _status: 'failed' as const } : m));
-        showToast('ส่งสติกเกอร์ไม่สำเร็จ', 'error');
+        // เก็บเหตุผลจากแพลตฟอร์มไว้ที่ข้อความ — คนกดลองใหม่ต้องรู้ว่าล้มเพราะอะไร ไม่ใช่ลองซ้ำเปล่า ๆ
+        const reason = error instanceof Error && error.message !== 'Failed' ? error.message : undefined;
+        setMessages(prev => prev.map(m => m._tempId === tempId ? { ...m, _status: 'failed' as const, _error: reason } : m));
+        showToast(reason ? `ส่งสติกเกอร์ไม่สำเร็จ: ${reason}` : 'ส่งสติกเกอร์ไม่สำเร็จ', 'error');
       }
     })();
   };
@@ -1829,7 +1835,7 @@ function UnifiedChatPageContent() {
                               <div className="flex flex-col items-end self-end mb-0.5 text-[10px] text-gray-400 dark:text-slate-500">
                                 {msg.sent_by_user && <span>{msg.sent_by_user.name}</span>}
                                 <div className="flex items-center gap-1">
-                                  {msg._status === 'failed' && (<Tooltip text="ส่งไม่สำเร็จ กดเพื่อลองใหม่"><button onClick={() => { sendMessage(msg); }} aria-label="ส่งไม่สำเร็จ กดเพื่อลองใหม่" className="flex items-center gap-0.5 text-red-500 hover:text-red-600"><AlertCircle className="w-3 h-3" /><RotateCcw className="w-2.5 h-2.5" /></button></Tooltip>)}
+                                  {msg._status === 'failed' && (<Tooltip text={msg._error ? `ส่งไม่สำเร็จ: ${msg._error} — กดเพื่อลองใหม่` : 'ส่งไม่สำเร็จ กดเพื่อลองใหม่'}><button onClick={() => { sendMessage(msg); }} aria-label="ส่งไม่สำเร็จ กดเพื่อลองใหม่" className="flex items-center gap-0.5 text-red-500 hover:text-red-600"><AlertCircle className="w-3 h-3" /><RotateCcw className="w-2.5 h-2.5" /></button></Tooltip>)}
                                   {msg._status === 'sending' && (<Loader2 className="w-2.5 h-2.5 animate-spin text-gray-400" />)}
                                   {msg._status === 'sent' && (<Check className="w-2.5 h-2.5" style={{ color: platformColor }} />)}
                                   <span>{formatTime(msg.created_at)}</span>

@@ -163,6 +163,8 @@ export interface ChatMessage {
   };
   created_at: string;
   _status?: 'sending' | 'sent' | 'failed';
+  /** เหตุผลที่ส่งไม่สำเร็จ (ข้อความจากแพลตฟอร์ม เช่น Shopee 'Invalid to_id') — โชว์ใน tooltip ไม่ใช่แค่ 'ส่งไม่สำเร็จ' */
+  _error?: string;
   _tempId?: string;
   line_contact_id?: string;
   fb_contact_id?: string;
