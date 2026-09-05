@@ -40,7 +40,87 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   }
 }
 
+// PATCH — ติด/ปลดแท็กเป็นรายตัว { add?: string[], remove?: string[] }
+//
+// WHY: การกดแท็กหนึ่งครั้งต้องแตะเฉพาะแท็กตัวนั้น — ของเดิมทุกหน้าใช้ PUT (replace-all)
+// โดยส่ง "ชุดที่จอถืออยู่" ซึ่งเป็น snapshot เก่า พอมีคนอื่นติดแท็กระหว่างนั้น
+// การกดครั้งถัดไปจะลบแท็กของเขาทิ้งเงียบ ๆ (ดู lib/tag-links.ts)
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const { isAuth, companyId } = await checkAuthWithCompany(request);
+    if (!isAuth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!companyId) return NextResponse.json({ error: 'No company context' }, { status: 403 });
+
+    const { id: customerId } = await params;
+    if (!(await customerInCompany(customerId, companyId))) {
+      return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    }
+
+    const body = await request.json();
+    const add = body?.add;
+    const remove = body?.remove;
+    if (add !== undefined && !Array.isArray(add)) {
+      return NextResponse.json({ error: 'add must be an array' }, { status: 400 });
+    }
+    if (remove !== undefined && !Array.isArray(remove)) {
+      return NextResponse.json({ error: 'remove must be an array' }, { status: 400 });
+    }
+
+    const addIds: string[] = Array.isArray(add) ? add.filter((v: unknown) => typeof v === 'string') : [];
+    const removeIds: string[] = Array.isArray(remove) ? remove.filter((v: unknown) => typeof v === 'string') : [];
+
+    if (addIds.length > 0) {
+      // รับเฉพาะแท็กของบริษัทนี้ — id แปลกปลอมถูกตัดทิ้งเงียบ ๆ (ไม่ใช่ error)
+      const { data: ownTags, error: ownErr } = await supabaseAdmin
+        .from('customer_tags')
+        .select('id')
+        .eq('company_id', companyId)
+        .in('id', addIds);
+      if (ownErr) throw ownErr;
+
+      const validAddIds = (ownTags || []).map(t => t.id);
+      if (validAddIds.length > 0) {
+        // ⚠️ onConflict ต้องตรงกับ primary key เป๊ะ ๆ (customer_id, tag_id)
+        // ไม่ตรง = ล้มด้วย 42P10 ทุกแถวทั้งที่ flow ดูสำเร็จ (aoo-techstack/BUGS.md)
+        const { error: upErr } = await supabaseAdmin
+          .from('customer_tag_links')
+          .upsert(
+            validAddIds.map(tag_id => ({ customer_id: customerId, tag_id })),
+            { onConflict: 'customer_id,tag_id', ignoreDuplicates: true }
+          );
+        if (upErr) throw upErr;
+      }
+    }
+
+    if (removeIds.length > 0) {
+      const { error: delErr } = await supabaseAdmin
+        .from('customer_tag_links')
+        .delete()
+        .eq('customer_id', customerId)
+        .in('tag_id', removeIds);
+      if (delErr) throw delErr;
+    }
+
+    // Return updated tags
+    const { data, error } = await supabaseAdmin
+      .from('customer_tag_links')
+      .select('tag:customer_tags(*)')
+      .eq('customer_id', customerId);
+    if (error) throw error;
+
+    const tags = (data || []).map((d: any) => d.tag).filter(Boolean);
+    return NextResponse.json({ tags });
+  } catch (error) {
+    console.error('Customer tags PATCH error:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
 // PUT — set tags for customer (replace all)
+//
+// ⛔ ใช้ได้เฉพาะเมื่อผู้เรียก "ถือชุดล่าสุดของเซิร์ฟเวอร์จริง" — ตอนนี้เหลือที่เดียวคือ
+// หน้าสร้างลูกค้าใหม่ (/customers/new) ที่ลูกค้าเพิ่งเกิด ยังไม่มีแท็กให้หาย
+// ที่อื่นทั้งหมดต้องใช้ PATCH (diff) ไม่งั้นจะลบแท็กที่คนอื่นเพิ่งติดทิ้ง
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { isAuth, companyId } = await checkAuthWithCompany(request);

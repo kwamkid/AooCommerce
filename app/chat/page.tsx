@@ -58,6 +58,7 @@ import type { CustomerFormData } from '@/components/customers/customer-payload';
 import { buildCustomerPayload } from '@/components/customers/customer-payload';
 import TagBadge, { Tag } from '@/components/ui/TagBadge';
 import TagInput from '@/components/ui/TagInput';
+import { diffTagIds, patchCustomerTags, patchContactTags } from '@/lib/tag-links';
 import Tooltip from '@/components/ui/Tooltip';
 import type { UnifiedContact, ChatMessage, Customer, DayRange, ChatAccountInfo, LinkedContact } from './lib/chatTypes';
 import MessageBubble from './components/MessageBubble';
@@ -199,6 +200,12 @@ function UnifiedChatPageContent() {
   // Tags
   const [allTags, setAllTags] = useState<Tag[]>([]);
   const [profileTags, setProfileTags] = useState<Tag[]>([]);
+  // ชุดแท็กล่าสุดที่ "เซิร์ฟเวอร์ยืนยัน" ของผู้ติดต่อที่เลือกอยู่ = baseline ของ diff
+  // ⛔ ห้าม diff กับสิ่งที่จอแสดง (profileTags / contact.tags) — นั่นคือ snapshot ตอนกดเปิด
+  // ซึ่งอาจเก่ากว่าความจริงใน DB แล้วจะไปลบแท็กที่คนอื่นเพิ่งติด (ดู lib/tag-links.ts)
+  const profileTagsServerRef = useRef<Tag[]>([]);
+  // baseline ข้างบนเป็นของผู้ติดต่อคนไหน — กันหยิบ baseline ของคนก่อนหน้ามา diff
+  const profileTagsServerKeyRef = useRef<string | null>(null);
 
   const hasActiveFilter = filterLinked !== 'all' || filterOrderDaysRange !== null || filterTag !== '' || filterUnread || filterAccountId !== '' || sortMode !== 'time';
 
@@ -981,6 +988,57 @@ function UnifiedChatPageContent() {
     })();
   };
 
+  // ---- แท็ก: ตัวช่วยกลาง (ดู lib/tag-links.ts ว่าทำไมต้อง diff ไม่ใช่ replace-all) ----
+
+  const contactTagKey = (c: { id: string; platform: string }) => `${c.platform}:${c.id}`;
+
+  /** ชุดแท็กจริงจากเซิร์ฟเวอร์ — ผูกลูกค้าแล้วใช้แท็กของลูกค้า, ยังไม่ผูกใช้แท็กระดับ contact */
+  const fetchTagsFor = async (contact: { id: string; platform: string; customer_id?: string | null }): Promise<Tag[]> => {
+    const url = contact.customer_id
+      ? `/api/customers/${contact.customer_id}/tags`
+      : `/api/chat/contacts/${contact.id}/tags?platform=${encodeURIComponent(contact.platform)}`;
+    const res = await apiFetch(url);
+    if (!res.ok) throw new Error('Failed to load tags');
+    const data = await res.json();
+    return (data.tags || []) as Tag[];
+  };
+
+  /** ตั้ง baseline ของ diff (ไม่แตะแถวในลิสต์) */
+  const setTagBaseline = (contact: { id: string; platform: string }, tags: Tag[]) => {
+    profileTagsServerRef.current = tags;
+    profileTagsServerKeyRef.current = contactTagKey(contact);
+    setProfileTags(tags);
+  };
+
+  /**
+   * เอาชุดที่เซิร์ฟเวอร์ยืนยันมาแปะทั้ง baseline, แถวในลิสต์ และผู้ติดต่อที่เลือกอยู่
+   * แท็กของลูกค้าใช้ร่วมกันทุก contact ที่ผูกลูกค้าคนเดียวกัน → อัปเดตทุกแถวที่เกี่ยวข้อง
+   */
+  const applyServerTags = (contact: { id: string; platform: string; customer_id?: string | null }, tags: Tag[]) => {
+    setTagBaseline(contact, tags);
+    setContacts(prev => prev.map(ct =>
+      (ct.id === contact.id && ct.platform === contact.platform) ||
+      (!!contact.customer_id && ct.customer_id === contact.customer_id)
+        ? { ...ct, tags } : ct
+    ));
+    setSelectedContact(prev =>
+      prev && prev.id === contact.id && prev.platform === contact.platform ? { ...prev, tags } : prev
+    );
+  };
+
+  /**
+   * ขอบเขตของแท็กเปลี่ยนทันทีที่เชื่อม/ยกเลิกเชื่อมลูกค้า (ลูกค้า ↔ ระดับ contact)
+   * ต้องดึงชุดใหม่มาตั้ง baseline ไม่งั้นการกดแท็กครั้งแรกหลังเชื่อมจะ diff กับชุดของ
+   * "อีกขอบเขตหนึ่ง" แล้วสั่งลบแท็กเดิมของลูกค้าทิ้งทั้งหมด
+   */
+  const refreshTagsForContact = async (contact: { id: string; platform: string; customer_id?: string | null }) => {
+    try {
+      applyServerTags(contact, await fetchTagsFor(contact));
+    } catch {
+      // แท็กโหลดไม่ได้ไม่ควรทำให้การเชื่อม/ยกเลิกเชื่อมลูกค้าล้มตาม
+    }
+  };
+
   const linkCustomer = async (customerId: string | null) => {
     if (!selectedContact) return;
     try {
@@ -1006,6 +1064,8 @@ function UnifiedChatPageContent() {
         setSelectedContact(prev => prev ? { ...prev, customer_id: undefined, customer: undefined } : null);
         setContacts(prev => prev.map(c => c.id === selectedContact.id ? { ...c, customer_id: undefined, customer: undefined } : c));
       }
+      // เชื่อมแล้วต้องเห็นแท็กเดิมของลูกค้าทันที + ตั้ง baseline ใหม่ให้ตรงขอบเขต
+      await refreshTagsForContact({ id: selectedContact.id, platform: selectedContact.platform, customer_id: customerId });
     } catch (error) {
       console.error('Error linking customer:', error);
     }
@@ -1079,6 +1139,9 @@ function UnifiedChatPageContent() {
         const updated = refreshedContacts.find((c: UnifiedContact) => c.id === contactId);
         if (updated) setSelectedContact(updated);
       }
+
+      // 6. ขอบเขตแท็กย้ายมาอยู่ที่ลูกค้าแล้ว — ตั้ง baseline ใหม่ (ลูกค้าเพิ่งสร้างจะได้ [])
+      await refreshTagsForContact({ id: contactId, platform: contactPlatform, customer_id: customerId });
     } catch (error) {
       console.error('Error auto-creating customer:', error);
     } finally {
@@ -1109,6 +1172,8 @@ function UnifiedChatPageContent() {
       setContacts(prev => prev.map(c =>
         c.id === selectedContact.id ? { ...c, customer_id: undefined, customer: undefined } : c
       ));
+      // ขอบเขตแท็กกลับมาเป็นระดับ contact — baseline ต้องเปลี่ยนตาม
+      await refreshTagsForContact({ id: selectedContact.id, platform: selectedContact.platform, customer_id: null });
       setRightPanel(null);
       setMobileView('chat');
       showToast('ยกเลิกการเชื่อมต่อลูกค้าแล้ว');
@@ -1152,11 +1217,25 @@ function UnifiedChatPageContent() {
       });
       if (!response.ok) { const error = await response.json(); throw new Error(error.error || 'Failed'); }
 
-      // Save tags
-      await apiFetch(`/api/customers/${selectedContact.customer.id}/tags`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tag_ids: profileTags.map(t => t.id) }),
-      });
+      // Save tags — diff เท่านั้น: ฟอร์มนี้เปิดค้างได้นาน ถ้าส่งทั้งชุดทับ (PUT)
+      // แท็กที่คนอื่นติดระหว่างนั้นจะหายไปทั้งที่ผู้ใช้ไม่ได้แตะแท็กเลย
+      const customerId = selectedContact.customer.id;
+      let tagBaseline: Tag[] | null =
+        profileTagsServerKeyRef.current === contactTagKey(selectedContact) ? profileTagsServerRef.current : null;
+      if (!tagBaseline) {
+        // ปกติเข้าฟอร์มนี้ผ่านแผงโปรไฟล์ (baseline ถูก seed แล้ว) — กันเหนียวเผื่อเข้าทางอื่น
+        try {
+          tagBaseline = await fetchTagsFor({ id: selectedContact.id, platform: selectedContact.platform, customer_id: customerId });
+        } catch {
+          tagBaseline = [];
+        }
+      }
+      let savedTags = profileTags;
+      const returnedTags = await patchCustomerTags(customerId, diffTagIds(tagBaseline, profileTags));
+      if (returnedTags) {
+        savedTags = returnedTags;
+        setTagBaseline(selectedContact, returnedTags);
+      }
 
       const updatedCustomer = {
         ...selectedContact.customer, name: formData.name, contact_person: formData.contact_person,
@@ -1169,8 +1248,8 @@ function UnifiedChatPageContent() {
         credit_limit: formData.credit_limit, credit_days: formData.credit_days,
         notes: formData.notes, is_active: formData.is_active
       };
-      setSelectedContact(prev => prev ? { ...prev, customer: updatedCustomer, tags: profileTags } : null);
-      setContacts(prev => prev.map(c => c.id === selectedContact.id ? { ...c, customer: updatedCustomer, tags: profileTags } : c));
+      setSelectedContact(prev => prev ? { ...prev, customer: updatedCustomer, tags: savedTags } : null);
+      setContacts(prev => prev.map(c => c.id === selectedContact.id ? { ...c, customer: updatedCustomer, tags: savedTags } : c));
       setRightPanel('profile');
       setMobileView('chat');
     } catch (error) {
@@ -1260,8 +1339,24 @@ function UnifiedChatPageContent() {
     if (!selectedContact) return;
     if (window.innerWidth < 768) setMobileView('profile');
     else setRightPanel(rightPanel === 'profile' ? null : 'profile');
-    // Load tags (customer tags or contact tags)
-    setProfileTags(selectedContact.tags || []);
+
+    // วาดด้วย snapshot ของแถวก่อน (จอไม่ว่าง) แล้วดึงชุดจริงจากเซิร์ฟเวอร์มาทับ —
+    // snapshot ถ่ายไว้ตอนโหลดลิสต์ อาจเก่ากว่าความจริง ถ้าเอาไปเป็น baseline ของ diff
+    // การกดแท็กครั้งแรกจะไปลบแท็กที่คนอื่นเพิ่งติด
+    const contact = selectedContact;
+    setTagBaseline(contact, contact.tags || []);
+    (async () => {
+      try {
+        const serverTags = await fetchTagsFor(contact);
+        // สลับผู้ติดต่อไปแล้วระหว่างรอ = ทิ้งผลนี้ ห้ามเอาแท็กของคนก่อนหน้ามาทับ
+        const cur = selectedContactRef.current;
+        if (!cur || cur.id !== contact.id || cur.platform !== contact.platform) return;
+        setTagBaseline(contact, serverTags);
+      } catch {
+        // คง snapshot ไว้เป็น baseline ต่อ (diff รอบหน้าจะได้มีอะไรอ้างอิง ไม่ใช่ลบทั้งชุด)
+        showToast('โหลดแท็กล่าสุดไม่ได้', 'error');
+      }
+    })();
   };
 
   // Helper to render order card (used in both mobile and desktop history)
@@ -1315,35 +1410,30 @@ function UnifiedChatPageContent() {
   };
 
   // Helper to save tags (works for both customer and contact)
+  //
+  // ส่งเฉพาะ "ส่วนต่าง" ไม่ใช่ทั้งชุด — กดติดแท็ก 1 ตัวต้องแตะแค่ตัวนั้น
+  // NOTE: `tags` ของแถวในลิสต์ที่ /api/chat/contacts ส่งมา = แท็กของลูกค้า ∪ แท็กระดับ contact
+  // หลัง PATCH ฝั่งลูกค้า เราแปะกลับเฉพาะชุดของลูกค้า → แท็กระดับ contact (ถ้ามี) จะหายจาก
+  // แถวชั่วคราวและกลับมาเองตอนดึงลิสต์รอบหน้า — ยอมรับได้ เพราะสำคัญกว่าคือแท็กไม่หายจริงใน DB
   const handleSaveProfileTags = async (newTags: Tag[]) => {
-    setProfileTags(newTags);
+    if (!selectedContact) { setProfileTags(newTags); return; }
+    const contact = selectedContact;
+    const baseline = profileTagsServerKeyRef.current === contactTagKey(contact)
+      ? profileTagsServerRef.current
+      : (contact.tags || []);
+    const diff = diffTagIds(baseline, newTags);
+
+    setProfileTags(newTags); // optimistic — เห็นผลทันทีระหว่างรอเซิร์ฟเวอร์
+    if (diff.add.length === 0 && diff.remove.length === 0) return;
+
     try {
-      if (selectedContact?.customer_id) {
-        // Save to customer_tag_links
-        await apiFetch(`/api/customers/${selectedContact.customer_id}/tags`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ tag_ids: newTags.map(t => t.id) }),
-        });
-        setContacts(prev => prev.map(ct =>
-          ct.customer_id === selectedContact.customer_id ? { ...ct, tags: newTags } : ct
-        ));
-      } else if (selectedContact) {
-        // Save to contact_tag_links
-        await apiFetch(`/api/chat/contacts/${selectedContact.id}/tags`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ tag_ids: newTags.map(t => t.id), platform: selectedContact.platform }),
-        });
-        setContacts(prev => prev.map(ct =>
-          ct.id === selectedContact.id && ct.platform === selectedContact.platform ? { ...ct, tags: newTags } : ct
-        ));
-      }
-      if (selectedContact) {
-        setSelectedContact(prev => prev ? { ...prev, tags: newTags } : prev);
-      }
-    } catch {
-      showToast('ไม่สามารถบันทึกแท็กได้', 'error');
+      const returned = contact.customer_id
+        ? await patchCustomerTags(contact.customer_id, diff)
+        : await patchContactTags(contact.id, contact.platform, diff);
+      if (returned) applyServerTags(contact, returned);
+    } catch (error) {
+      setProfileTags(baseline); // ล้มแล้วต้องกลับไปตรงกับความจริงฝั่งเซิร์ฟเวอร์
+      showToast(error instanceof Error ? error.message : 'ไม่สามารถบันทึกแท็กได้', 'error');
     }
   };
 

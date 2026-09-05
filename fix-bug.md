@@ -16,6 +16,27 @@
 
 ---
 
+## 2026-09-06 — แท็กลูกค้าหายเงียบ ๆ (ติดแล้วหลุด) — บันทึกแท็กแบบ "ลบทั้งชุดแล้วใส่ชุดที่จอถือ" จาก snapshot เก่า
+
+**ที่เกิด**: `PUT /api/customers/[id]/tags` · `PUT /api/chat/contacts/[id]/tags` · [app/chat/page.tsx](app/chat/page.tsx) `handleOpenProfile`/`handleSaveProfileTags`/`handleUpdateCustomerInChat` · [app/customers/[id]/page.tsx](app/customers/[id]/page.tsx) ตอนบันทึก
+**อาการ**: ตัวกรองแท็กในหน้าแชทมีแท็ก Mom Club / KoL แต่ "ลูกค้าที่ติดแท็ก = 0" ทั้งที่เคยติดไปแล้ว · ตัวนับ Postgres: `customer_tag_links` insert 22 / delete 16 เหลือ 1 · `contact_tag_links` insert 15 / delete 11 เหลือ 0 (ตารางลิงก์ไม่มี created_at/audit จึงไม่รู้ว่าใครลบเมื่อไหร่)
+**Root cause**:
+1. API บันทึกแท็กเป็น **replace-all**: ลบลิงก์ทั้งหมดของลูกค้าแล้ว insert ชุดที่ client ส่งมา · client ทุกหน้าส่ง "ชุดที่จอถืออยู่" ซึ่งหน้าแชทเอามาจาก **snapshot ของแถวในรายชื่อตอนคลิก** (`selectedContact.tags`) ไม่ได้ถามเซิร์ฟเวอร์ → A ติดแท็กจากหน้าลูกค้า · B (หน้าแชทเปิดค้าง) กดเพิ่มแท็กอีกตัว → ส่งชุดเก่า+1 ทับ = แท็กของ A หาย · เคสหนักสุด: ผูกลูกค้าให้แชทแล้วติดแท็กต่อเลย แถวยังไม่รู้จักแท็กเดิมของลูกค้า → กดแรกล้างหมด · ฟอร์มแก้ไขลูกค้าในแชทก็ PUT ทั้งชุดทุกครั้งที่กดบันทึกแม้ไม่ได้แตะแท็ก
+2. ลบตัวแท็ก = FK `ON DELETE CASCADE` ถอดออกจากทุกคนทันที กล่องยืนยันเดิมไม่บอกจำนวน · สร้างชื่อเดิมกลับมา = แท็กใหม่ที่ไม่มีใครติด (Mom Club/KoL ถูกสร้างห่างกัน 15 วิ 28 พ.ค. น่าจะเป็นแบบนี้)
+3. (เจอพลอย) `contact_tag_links.platform` CHECK ยอมแค่ `line/facebook` — ติดแท็กระดับ contact บน Shopee/Lazada/TikTok ล้มที่ DB ทั้งที่ API รับ 5 แพลตฟอร์ม
+**วิธีแก้**:
+- `PATCH { add, remove }` ทั้งสอง route (upsert `ignoreDuplicates` บน PK เป๊ะ ๆ + delete เฉพาะ id ที่ถอด) · ตัวช่วย [lib/tag-links.ts](lib/tag-links.ts) (`diffTagIds` · `patchCustomerTags` · `patchContactTags`) · PUT เหลือใช้เฉพาะ `/customers/new` (ลูกค้าเพิ่งเกิด ไม่มีอะไรให้หาย)
+- หน้าแชท: เปิดแผงโปรไฟล์วาดด้วย snapshot แล้ว **ดึงชุดจริงจากเซิร์ฟเวอร์มาเป็น baseline** (`profileTagsServerRef` + key ว่าเป็นของ contact ไหน) · diff กับ baseline เท่านั้น · ผูก/ยกเลิกผูกลูกค้า → โหลด baseline ใหม่ (ขอบเขตแท็กเปลี่ยนจากระดับ contact ↔ ลูกค้า) · หน้าลูกค้า diff กับชุดที่โหลดตอน mount
+- ย้ายจัดการแท็กไป **ตั้งค่า → ทั่วไป → แท็กลูกค้า** (`/settings/tags` · [components/customers/TagManager.tsx](components/customers/TagManager.tsx)) · กล่องลบบอก "ติดอยู่กับลูกค้า N คน และแชท M รายการ" ด้วยตัวเลขสด (invalidate cache ก่อนอ่าน) · capability ใหม่ `masterdata.tags` (ADMIN) กั้น PUT/DELETE ส่วน POST เปิดไว้ให้ quick-add
+- migration `20260906_contact_tag_links_all_platforms` ขยาย CHECK เป็น 5 แพลตฟอร์ม
+**ป้องกัน regression**:
+- **ความสัมพันธ์ many-to-many ที่หลายหน้าจอแก้ได้ ห้ามบันทึกแบบ replace-all จาก state ฝั่ง client** — ส่ง diff ต่อการกด และ baseline ต้องเป็นชุดที่เซิร์ฟเวอร์ยืนยัน ไม่ใช่สิ่งที่จอแสดง (grep `method: 'PUT'` กับ `/tags` ต้องเจอแค่หน้าสร้างลูกค้าใหม่)
+- ลบ master data ที่มี cascade → confirm ต้องบอกจำนวนที่จะกระทบ **จากตัวเลขสด**
+- ตารางลิงก์ที่ไม่มี audit ทำให้ "หายไปตอนไหน" ตอบไม่ได้ — ถ้าเจอกรณีแบบนี้อีกให้ดู `pg_stat_user_tables.n_tup_ins/n_tup_del` ก่อน มันบอกได้ว่า "เคยมีแล้วถูกลบ" หรือ "ไม่เคยมี"
+- CHECK constraint ที่ enumerate ค่า (platform ฯลฯ) ต้องไล่แก้ทุกครั้งที่เพิ่มแพลตฟอร์ม — grep `platform_check` ใน migrations
+
+---
+
 ## 2026-09-05 — หน้าแชทช้า 1.5–2 วิ + กิน server เกินจำเป็น: function อยู่คนละทวีปกับ DB · realtime ดึงรายชื่อใหม่ทุกข้อความ · รูปโปรไฟล์ FB ผ่าน function ทีละรูป
 
 **ที่เกิด**: [vercel.json](vercel.json) · [app/api/chat/contacts/route.ts](app/api/chat/contacts/route.ts) · [app/chat/page.tsx](app/chat/page.tsx) (realtime effect) · [lib/header-summary-context.tsx](lib/header-summary-context.tsx) · [app/api/chat/profile-picture/route.ts](app/api/chat/profile-picture/route.ts) · `getMessages()` ใน `lib/services/chat/*.ts`

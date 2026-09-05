@@ -16,7 +16,7 @@ import Button from '@/components/ui/Button';
 import SaveButton from '@/components/ui/SaveButton';
 import Container from '@/components/ui/Container';
 import PageHeader from '@/components/ui/PageHeader';
-import Tabs from '@/components/ui/Tabs';
+import GeneralSettingsTabs from '@/components/settings/GeneralSettingsTabs';
 import Modal from '@/components/ui/Modal';
 import FormInput from '@/components/ui/FormInput';
 import { useFormValidation } from '@/lib/useFormValidation';
@@ -361,13 +361,7 @@ export default function CompanySettingsPage() {
     <Layout>
       <Container size="full">
         <PageHeader title="ตั้งค่า" subtitle="ตั้งค่าชื่อร้านค้า ที่อยู่ เลขประจำตัวผู้เสียภาษี และโลโก้" />
-        <Tabs
-          activeKey="company"
-          tabs={[
-            { key: 'company', label: 'ข้อมูลร้านค้า', href: '/settings/company' },
-            { key: 'general', label: 'บิล และสินค้า', href: '/settings' },
-          ]}
-        />
+        <GeneralSettingsTabs active="company" />
       {isLoading ? (
         <LoadingCard />
       ) : (

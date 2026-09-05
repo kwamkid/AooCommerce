@@ -6,7 +6,10 @@ export interface Tag {
   id: string;
   name: string;
   color: string;
+  /** จำนวนลูกค้าที่ติดแท็กนี้ (มาจาก GET /api/customers/tags) */
   count?: number;
+  /** จำนวนผู้ติดต่อในแชทที่ติดแท็กนี้ — แท็กชุดเดียวกันใช้ทั้ง 2 ฝั่ง */
+  contact_count?: number;
 }
 
 // Preset 8 colors

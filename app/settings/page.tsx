@@ -10,7 +10,7 @@ import Card from '@/components/ui/Card';
 import ToggleCard from '@/components/ui/ToggleCard';
 import Button from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
-import Tabs from '@/components/ui/Tabs';
+import GeneralSettingsTabs from '@/components/settings/GeneralSettingsTabs';
 import { NoPermissionCard } from '@/components/ui/StateCard';
 import FormInput from '@/components/ui/FormInput';
 import Toggle from '@/components/ui/Toggle';
@@ -282,13 +282,7 @@ export default function SettingsPage() {
     <Layout>
       <Container size="full">
         <PageHeader title="ตั้งค่า" subtitle="ตั้งค่าประเภทตัวเลือกสินค้า และอายุของบิล" />
-        <Tabs
-          activeKey="general"
-          tabs={[
-            { key: 'company', label: 'ข้อมูลร้านค้า', href: '/settings/company' },
-            { key: 'general', label: 'บิล และสินค้า', href: '/settings' },
-          ]}
-        />
+        <GeneralSettingsTabs active="general" />
 
         {/* Success Message */}
         {success && (

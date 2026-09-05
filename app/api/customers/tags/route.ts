@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
+import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
 
 // GET — list all tags for company
 export async function GET(request: NextRequest) {
@@ -8,9 +8,11 @@ export async function GET(request: NextRequest) {
     if (!isAuth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     if (!companyId) return NextResponse.json({ error: 'No company context' }, { status: 403 });
 
+    // นับทั้ง 2 ฝั่งที่ผูกแท็กเดียวกัน — ลูกค้า (customer_tag_links) และผู้ติดต่อในแชท
+    // (contact_tag_links) — คนกดลบต้องเห็นว่าแท็กติดอยู่กับอะไรบ้างก่อนตัดสินใจ
     const { data, error } = await supabaseAdmin
       .from('customer_tags')
-      .select('*, customer_tag_links(count)')
+      .select('*, customer_tag_links(count), contact_tag_links(count)')
       .eq('company_id', companyId)
       .order('name');
 
@@ -20,6 +22,7 @@ export async function GET(request: NextRequest) {
       name: t.name,
       color: t.color,
       count: t.customer_tag_links?.[0]?.count ?? 0,
+      contact_count: t.contact_tag_links?.[0]?.count ?? 0,
     }));
     return NextResponse.json({ tags });
   } catch (error) {
@@ -62,9 +65,14 @@ export async function POST(request: NextRequest) {
 // PUT — update tag
 export async function PUT(request: NextRequest) {
   try {
-    const { isAuth, companyId } = await checkAuthWithCompany(request);
+    const { isAuth, companyId, companyRoles } = await checkAuthWithCompany(request);
     if (!isAuth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     if (!companyId) return NextResponse.json({ error: 'No company context' }, { status: 403 });
+    // สร้างแท็ก (POST) เปิดให้ทุกคน เพราะ quick-add จากฟอร์มลูกค้า/แชทต้องใช้ได้
+    // แต่แก้ชื่อ/สี กระทบทุกคนที่เห็นแท็กนั้น จึงจำกัดที่ผู้ดูแล
+    if (!can(companyRoles, 'masterdata.tags')) {
+      return NextResponse.json({ error: 'ไม่มีสิทธิ์แก้ไขแท็ก' }, { status: 403 });
+    }
 
     const { id, name, color } = await request.json();
     if (!id) return NextResponse.json({ error: 'Tag id is required' }, { status: 400 });
@@ -97,9 +105,13 @@ export async function PUT(request: NextRequest) {
 // DELETE — delete tag (cascade removes links)
 export async function DELETE(request: NextRequest) {
   try {
-    const { isAuth, companyId } = await checkAuthWithCompany(request);
+    const { isAuth, companyId, companyRoles } = await checkAuthWithCompany(request);
     if (!isAuth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     if (!companyId) return NextResponse.json({ error: 'No company context' }, { status: 403 });
+    // ลบแท็ก = FK cascade ถอดแท็กออกจากทั้งลูกค้าและผู้ติดต่อในแชทพร้อมกัน ย้อนไม่ได้
+    if (!can(companyRoles, 'masterdata.tags')) {
+      return NextResponse.json({ error: 'ไม่มีสิทธิ์ลบแท็ก' }, { status: 403 });
+    }
 
     const { id } = await request.json();
     if (!id) return NextResponse.json({ error: 'Tag id is required' }, { status: 400 });

@@ -921,8 +921,10 @@ PC (พนักงานประจำจุดขายในห้าง) �
   - **ข้อมูลภาษีแบ่งตามรูปแบบจดทะเบียน** (picker บุคคลธรรมดา/บจก./หจก. อยู่ในการ์ดข้อมูลภาษี) — บุคคล = เลขบัตรประชาชน, นิติบุคคล = เลขผู้เสียภาษี+สาขา+ชื่อจดทะเบียน · **ช่อง "สาขา" โชว์เฉพาะเมื่อเปิด VAT** (สาขาเป็นแนวคิด ภ.พ.20) ปิด VAT แล้วบันทึก = เคลียร์ค่า · เลข tax id ไม่ gate ด้วย VAT (ร้านไม่จด VAT ก็ต้องใช้บนใบเสร็จ/หัก ณ ที่จ่าย)
   - **บันทึกครั้งแรกแบบเปิด VAT → API PUT `/api/companies` seed สาขา VAT "สำนักงานใหญ่" code `00000` ให้อัตโนมัติ** (idempotent, address null = ใช้ที่อยู่บริษัท) — POS terminal picker จึงไม่มีทางว่าง
 - **Tab "บิล และสินค้า"** — variation types + bill expiry settings
+- **Tab "แท็กลูกค้า"** ([/settings/tags](app/settings/tags/page.tsx) · [TagManager](components/customers/TagManager.tsx)) — จัดการแท็กที่ใช้ร่วมกันทั้งหน้าลูกค้าและหน้าแชท (ย้ายมาจาก Modal ในหน้า /customers 2026-09-06) · แท็บของหมวดนี้อยู่ที่เดียวใน [components/settings/GeneralSettingsTabs.tsx](components/settings/GeneralSettingsTabs.tsx) · สิทธิ์ `masterdata.tags` (ADMIN) สำหรับแก้/ลบ ส่วนสร้างเปิดให้ทุกคนผ่าน quick-add ใน `TagInput`
+- **ติด/ปลดแท็กต้องส่ง diff ผ่าน [lib/tag-links.ts](lib/tag-links.ts) (`PATCH {add, remove}`) ห้าม PUT ทั้งชุด** — replace-all จาก snapshot ฝั่ง client เคยลบแท็กของคนอื่นเงียบ ๆ (ดู [fix-bug.md](fix-bug.md) 2026-09-06) · baseline ของ diff = ชุดที่เซิร์ฟเวอร์ยืนยันเท่านั้น
 
-Sidebar entry "ทั่วไป" link ไป `/settings/company` (= tab แรก) — `(pathname === '/settings' || pathname === '/settings/company')` ใช้ active state
+Sidebar entry "ทั่วไป" link ไป `/settings/company` (= tab แรก) — active state ครอบ `/settings` · `/settings/company` · `/settings/tags` (เพิ่มแท็บใหม่ต้องเพิ่มที่นี่ด้วย)
 
 ### Card density mất ทุก list row
 - Card inner padding: `px-3 py-2.5` (ไม่ใช่ `p-4`)

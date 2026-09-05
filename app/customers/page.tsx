@@ -9,14 +9,13 @@ import Layout from '@/components/layout/Layout';
 import Container from '@/components/ui/Container';
 import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
-import Modal from '@/components/ui/Modal';
 import { LoadingCard } from '@/components/ui/StateCard';
 import Alert from '@/components/ui/Alert';
-import FormInput from '@/components/ui/FormInput';
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
 import SearchInput from '@/components/ui/SearchInput';
 import { useAuth } from '@/lib/auth-context';
 import { useAuthGuard } from '@/lib/useAuthGuard';
+import { can } from '@/lib/permissions';
 import { useToast } from '@/lib/toast-context';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { apiFetch } from '@/lib/api-client';
@@ -25,7 +24,6 @@ import { useFeatures } from '@/lib/features-context';
 import {
   UserCircle,
   Plus,
-  X,
   Loader2,
   Phone,
   Mail,
@@ -37,7 +35,7 @@ import {
   RefreshCw,
   KeyRound,
 } from 'lucide-react';
-import TagBadge, { Tag, TAG_COLORS } from '@/components/ui/TagBadge';
+import TagBadge, { Tag } from '@/components/ui/TagBadge';
 import PlatformChipFilter from '@/app/components/PlatformChipFilter';
 import FormSelect from '@/components/ui/FormSelect';
 import ActionMenu, { ActionItem } from '@/components/ui/ActionMenu';
@@ -144,13 +142,8 @@ function CustomersPageContent() {
   const [filterTag, setFilterTag] = useState<string>(() => searchParams.get('tag') || '');
   const [filterChannel, setFilterChannel] = useState<string>(() => searchParams.get('channel') || '');
 
-  // Tag management
+  // แท็ก — หน้านี้ใช้แค่เป็นตัวกรอง ส่วนการสร้าง/แก้/ลบ ย้ายไป /settings/tags
   const [allTags, setAllTags] = useState<Tag[]>([]);
-  const [showTagModal, setShowTagModal] = useState(false);
-  const [editingTag, setEditingTag] = useState<Tag | null>(null);
-  const [tagName, setTagName] = useState('');
-  const [tagColor, setTagColor] = useState(TAG_COLORS[0]);
-  const [tagSaving, setTagSaving] = useState(false);
 
   // Selection & bulk delete
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -333,71 +326,6 @@ function CustomersPageContent() {
 
   // Pagination
   const totalPages = Math.ceil(totalCustomers / rowsPerPage);
-
-  // Tag CRUD handlers
-  const handleSaveTag = async () => {
-    if (!tagName.trim() || tagSaving) return;
-    setTagSaving(true);
-    try {
-      if (editingTag) {
-        // Update
-        const res = await apiFetch('/api/customers/tags', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id: editingTag.id, name: tagName.trim(), color: tagColor }),
-        });
-        if (!res.ok) { const r = await res.json(); throw new Error(r.error); }
-        const { tag } = await res.json();
-        setAllTags(prev => prev.map(t => t.id === tag.id ? { ...tag, count: t.count } : t));
-        // Update tags in customers too
-        setCustomers(prev => prev.map(c => ({
-          ...c,
-          tags: c.tags?.map(t => t.id === tag.id ? tag : t),
-        })));
-        showToast('แก้ไขแท็กสำเร็จ');
-      } else {
-        // Create
-        const res = await apiFetch('/api/customers/tags', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: tagName.trim(), color: tagColor }),
-        });
-        if (!res.ok) { const r = await res.json(); throw new Error(r.error); }
-        const { tag } = await res.json();
-        setAllTags(prev => [...prev, tag]);
-        showToast('สร้างแท็กสำเร็จ');
-      }
-      setEditingTag(null);
-      setTagName('');
-      setTagColor(TAG_COLORS[0]);
-    } catch (err) {
-      showToast(err instanceof Error ? err.message : 'ไม่สามารถบันทึกแท็กได้', 'error');
-    } finally {
-      setTagSaving(false);
-    }
-  };
-
-  const handleDeleteTag = async (tag: Tag) => {
-    const ok = await confirm({ title: `ลบแท็ก "${tag.name}"?`, description: 'ลูกค้าทุกรายจะถูกถอดแท็กนี้ออก', variant: 'danger' });
-    if (!ok) return;
-    try {
-      const res = await apiFetch('/api/customers/tags', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: tag.id }),
-      });
-      if (!res.ok) throw new Error();
-      setAllTags(prev => prev.filter(t => t.id !== tag.id));
-      setCustomers(prev => prev.map(c => ({
-        ...c,
-        tags: c.tags?.filter(t => t.id !== tag.id),
-      })));
-      if (filterTag === tag.id) { setFilterTag(''); syncUrl({ tag: '' }); }
-      showToast('ลบแท็กสำเร็จ');
-    } catch {
-      showToast('ไม่สามารถลบแท็กได้', 'error');
-    }
-  };
 
   // Build action menu items (shared between desktop + mobile cards)
   const buildActionMenuItems = useCallback((customer: Customer): ActionItem[] => {
@@ -654,13 +582,15 @@ function CustomersPageContent() {
           subtitle="จัดการข้อมูลลูกค้าและความสัมพันธ์"
           icon={<UserCircle />}
           actions={<>
-            <Button
-              variant="secondary"
-              icon={<Tags className="w-4 h-4" />}
-              onClick={() => { setEditingTag(null); setTagName(''); setTagColor(TAG_COLORS[0]); setShowTagModal(true); }}
-            >
-              <span className="hidden md:inline">จัดการแท็ก</span>
-            </Button>
+            {can(userProfile?.roles, 'masterdata.tags') && (
+              <Button
+                variant="secondary"
+                icon={<Tags className="w-4 h-4" />}
+                onClick={() => router.push('/settings/tags')}
+              >
+                <span className="hidden md:inline">จัดการแท็ก</span>
+              </Button>
+            )}
             <Button
               variant="primary"
               icon={<Plus className="w-5 h-5" />}
@@ -810,95 +740,6 @@ function CustomersPageContent() {
           emptyIcon={<UserCircle className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
         />
       </Container>
-
-      {/* Tag Management Modal */}
-      <Modal
-        open={showTagModal}
-        onClose={() => setShowTagModal(false)}
-        title={
-          <span className="flex items-center gap-2">
-            <Tags className="w-5 h-5 text-primary" />
-            จัดการแท็ก
-          </span>
-        }
-        size="md"
-      >
-        {/* Create / Edit form */}
-        <div className="px-5 py-4 border-b border-gray-100 dark:border-slate-700">
-          <div className="flex items-center gap-2">
-            <FormInput
-              type="text"
-              value={tagName}
-              onChange={e => setTagName(e.target.value)}
-              onKeyDown={e => {
-                if (e.key === 'Enter') handleSaveTag();
-                if (e.key === 'Escape' && editingTag) { setEditingTag(null); setTagName(''); setTagColor(TAG_COLORS[0]); }
-              }}
-              placeholder={editingTag ? 'แก้ไขชื่อแท็ก...' : 'ชื่อแท็กใหม่...'}
-              containerClassName="flex-1 min-w-0"
-            />
-            <Button
-              variant="primary"
-              disabled={!tagName.trim() || tagSaving}
-              loading={tagSaving}
-              onClick={handleSaveTag}
-            >
-              {editingTag ? 'แก้ไข' : 'สร้าง'}
-            </Button>
-            {editingTag && (
-              <Button
-                variant="ghost"
-                size="sm"
-                icon={<X className="w-4 h-4" />}
-                onClick={() => { setEditingTag(null); setTagName(''); setTagColor(TAG_COLORS[0]); }}
-                title="ยกเลิกแก้ไข"
-                aria-label="ยกเลิกแก้ไข"
-              />
-            )}
-          </div>
-          <div className="flex items-center gap-1.5 mt-2">
-            {TAG_COLORS.map(c => (
-              <button
-                key={c}
-                onClick={() => setTagColor(c)}
-                className={`w-6 h-6 rounded-full transition-all ${tagColor === c ? 'ring-2 ring-offset-2 ring-gray-400 dark:ring-offset-slate-800' : 'hover:scale-110'}`}
-                style={{ backgroundColor: c }}
-              />
-            ))}
-          </div>
-        </div>
-
-        {/* Tag list */}
-        <div className="px-5 py-3">
-          {allTags.length === 0 ? (
-            <p className="text-center text-gray-400 dark:text-slate-500 text-sm py-8">ยังไม่มีแท็ก</p>
-          ) : (
-            <div className="flex flex-wrap gap-1.5">
-              {allTags.map(tag => {
-                const bg = tag.color + '20';
-                const isEditing = editingTag?.id === tag.id;
-                return (
-                  <span
-                    key={tag.id}
-                    className={`inline-flex items-center gap-1 rounded-full text-sm font-medium pl-3 pr-1.5 py-1 cursor-pointer transition-all ${isEditing ? 'ring-2 ring-offset-1 ring-gray-400' : 'hover:opacity-80'}`}
-                    style={{ backgroundColor: bg, color: tag.color }}
-                    onClick={() => { setEditingTag(tag); setTagName(tag.name); setTagColor(tag.color); }}
-                  >
-                    {tag.name}
-                    <span className="opacity-60">({tag.count ?? 0})</span>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); handleDeleteTag(tag); }}
-                      className="p-0.5 rounded-full hover:bg-black/10 transition-colors"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </span>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      </Modal>
 
       {confirmDialog}
     </Layout>

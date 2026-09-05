@@ -1,7 +1,7 @@
 // Path: app/customers/[id]/page.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useCopy } from '@/lib/useCopy';
 import { useRouter, useParams } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
@@ -23,6 +23,7 @@ import CustomerForm, {
 import { type BrandGpRow } from '@/components/customers/BrandGpCommissions';
 import CustomerCounters from '@/components/customers/CustomerCounters';
 import { Tag } from '@/components/ui/TagBadge';
+import { diffTagIds, patchCustomerTags } from '@/lib/tag-links';
 import StickyActionBar from '@/components/ui/StickyActionBar';
 import PageHeader from '@/components/ui/PageHeader';
 import {
@@ -85,6 +86,10 @@ export default function CustomerEditPage() {
 
   const [allTags, setAllTags] = useState<Tag[]>([]);
   const [selectedTags, setSelectedTags] = useState<Tag[]>([]);
+  // ชุดแท็กล่าสุดที่เซิร์ฟเวอร์ยืนยัน = baseline ของ diff ตอนบันทึก
+  // ⛔ ห้ามส่งทั้งชุดทับ (PUT) — ฟอร์มนี้เปิดค้างได้นาน แท็กที่คนอื่นติดระหว่างนั้นจะหาย
+  // ทั้งที่ผู้ใช้ไม่ได้แตะแท็กเลย (ดู lib/tag-links.ts)
+  const tagBaselineRef = useRef<Tag[]>([]);
   const [defaultAddressId, setDefaultAddressId] = useState<string | null>(null);
 
   // Form data
@@ -115,7 +120,10 @@ export default function CustomerEditPage() {
       const tagsResult = await tagsRes.json();
       if (tagsResult.tags) setAllTags(tagsResult.tags);
       const customerTagsResult = await customerTagsRes.json();
-      if (customerTagsResult.tags) setSelectedTags(customerTagsResult.tags);
+      if (customerTagsResult.tags) {
+        setSelectedTags(customerTagsResult.tags);
+        tagBaselineRef.current = customerTagsResult.tags;
+      }
       const ordersResult = await ordersRes.json();
       setHasOrders((ordersResult.orders?.length || 0) > 0);
       const addressResult = await addressRes.json();
@@ -216,12 +224,9 @@ export default function CustomerEditPage() {
         }
       }
 
-      // Save tags
-      await apiFetch(`/api/customers/${customerId}/tags`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tag_ids: selectedTags.map(t => t.id) }),
-      });
+      // Save tags — ส่งเฉพาะส่วนต่างจากชุดที่โหลดมาตอนเปิดหน้า
+      const returnedTags = await patchCustomerTags(customerId, diffTagIds(tagBaselineRef.current, selectedTags));
+      if (returnedTags) tagBaselineRef.current = returnedTags;
 
       // Save brand GP commissions (replace all)
       if (brandGpRows && (data.customer_type === 'consignment_dealer' || data.customer_type === 'dealer' || data.sale_type === 'consignment')) {

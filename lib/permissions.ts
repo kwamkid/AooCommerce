@@ -50,6 +50,7 @@ export const CAPABILITIES = {
   'masterdata.categories':       ADMIN,
   'masterdata.variation_types':  ADMIN,
   'masterdata.delivery':         ADMIN,         // delivery zones + time slots
+  'masterdata.tags':             ADMIN,         // แท็กลูกค้า/แชท — แก้ชื่อ/สี + ลบ (สร้างใหม่เปิดให้ทุกคนผ่าน quick-add)
 
   // Inventory
   'inventory.view':              STAFF,

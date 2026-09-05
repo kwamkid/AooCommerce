@@ -293,7 +293,7 @@ export default function Sidebar() {
 
   // เมนูในชุด "ตั้งค่าระบบ" — gate ตาม feature flag เหมือนเดิม
   const settingsItems: { href: string; label: string; icon: React.ReactNode; isActive: boolean }[] = [
-    { href: '/settings/company', label: 'ทั่วไป', icon: <Settings className="w-[18px] h-[18px] flex-shrink-0" />, isActive: pathname === '/settings' || pathname === '/settings/company' },
+    { href: '/settings/company', label: 'ทั่วไป', icon: <Settings className="w-[18px] h-[18px] flex-shrink-0" />, isActive: pathname === '/settings' || pathname === '/settings/company' || pathname === '/settings/tags' },
     { href: '/settings/members', label: 'จัดการสมาชิก', icon: <UserCog className="w-[18px] h-[18px] flex-shrink-0" />, isActive: pathname === '/settings/members' },
     { href: '/settings/payment-channels', label: 'ช่องทางชำระเงิน', icon: <CreditCard className="w-[18px] h-[18px] flex-shrink-0" />, isActive: pathname === '/settings/payment-channels' },
     { href: '/settings/chat-channels', label: 'ช่องทาง Chat', icon: <MessageCircle className="w-[18px] h-[18px] flex-shrink-0" />, isActive: pathname === '/settings/chat-channels' },
