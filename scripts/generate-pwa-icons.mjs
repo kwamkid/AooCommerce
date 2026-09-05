@@ -1,7 +1,7 @@
 // Generate PWA icons from public/logo.svg → public/icons/
 // Usage: node scripts/generate-pwa-icons.mjs
 import sharp from 'sharp';
-import { mkdirSync, readFileSync } from 'fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'fs';
 
 const SRC = 'public/logo.svg';
 const OUT = 'public/icons';
@@ -93,4 +93,10 @@ await icon(192, PLAIN, 'admin-icon-192.png', ADMIN_BG, ADMIN_LOGO);
 await icon(512, PLAIN, 'admin-icon-512.png', ADMIN_BG, ADMIN_LOGO);
 await icon(512, MASKABLE, 'admin-maskable-512.png', ADMIN_BG, ADMIN_LOGO);
 await icon(180, APPLE, 'admin-apple-touch-icon.png', ADMIN_BG, ADMIN_LOGO);
+
+// favicon ของแอปผู้ดูแลระบบ = โลโก้ม่วง **พื้นโปร่ง** (คู่กับ /logo.svg ของแอปร้าน)
+// ⚠️ ห้ามเอา PNG พื้นขาว (admin-icon-192) ไปเป็น favicon — บนแท็บเบราว์เซอร์จะเห็นเป็น
+// สี่เหลี่ยมขาวมีโลโก้ข้างใน ดูเป็นก้อน ไม่เหมือนไอคอนแท็บ (ผู้ใช้ตีกลับ 5 ก.ย. 2026)
+writeFileSync('public/logo-admin.svg', recolored(ADMIN_LOGO));
+console.log('✓ logo-admin.svg (favicon พื้นโปร่ง)');
 console.log('Done.');

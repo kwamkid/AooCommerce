@@ -6,7 +6,9 @@ export const metadata: Metadata = {
   title: 'AooCommerce Admin',
   manifest: '/superadmin/manifest.webmanifest',
   icons: {
-    icon: '/icons/admin-icon-192.png',
+    // favicon ต้องพื้นโปร่ง (SVG) เหมือน /logo.svg ของแอปร้าน — PNG พื้นขาวบนแท็บดูเป็นก้อนสี่เหลี่ยม
+    icon: '/logo-admin.svg',
+    // ไอคอนหน้าจอโฮม iOS ค่อยเป็นแบบมีพื้น (iOS ไม่รับพื้นโปร่ง จะถมดำให้)
     apple: '/icons/admin-apple-touch-icon.png',
   },
   appleWebApp: {
