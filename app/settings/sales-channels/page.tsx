@@ -628,7 +628,7 @@ export default function SalesChannelsPage() {
                 placement="bottom"
                 trigger={mpConnecting
                   ? <><Loader2 className="w-5 h-5 animate-spin" />กำลังเชื่อมต่อ...</>
-                  : <><Plus className="w-5 h-5" />เชื่อมต่อร้าน Shopee</>}
+                  : <><PlatformIcon id="shopee" size={16} mono />เชื่อมต่อร้าน Shopee</>}
                 triggerClassName="btn btn-md btn-primary"
                 items={[
                   {
@@ -653,7 +653,7 @@ export default function SalesChannelsPage() {
             ) : (
               <Button
                 variant="primary"
-                icon={<Plus className="w-5 h-5" />}
+                icon={<PlatformIcon id={effectiveTab} size={16} mono />}
                 loading={mpConnecting}
                 onClick={() => handleMarketplaceConnect(effectiveTab)}
               >
