@@ -7,6 +7,12 @@
 //   node scripts/enable-shopee-webchat-push.mjs --app seller        # show config of the seller app
 //   node scripts/enable-shopee-webchat-push.mjs --app seller --apply
 //   node scripts/enable-shopee-webchat-push.mjs --apply --callback https://example.com/api/shopee/webhook
+//   node scripts/enable-shopee-webchat-push.mjs --app seller --apply --codes 3,4,10,12,15   # เปิดหลาย code
+//   node scripts/enable-shopee-webchat-push.mjs --app partner --apply --block 111,222        # ร้านที่ไม่ให้ app นี้ push
+//
+// --codes a,b,c  = set_push_config_on (ไม่ใส่ = [10] ตามชื่อสคริปต์) · code ที่เปิดอยู่แล้วและไม่ได้ระบุยังเปิดต่อ
+// --block a,b,c  = blocked_shop_id_list — ใช้ตอนร้านย้ายไป app อีกตัวแล้ว ไม่ให้ app นี้ยิงซ้ำ (ส่ง [] = ปลด block)
+//                  ใส่ --block โดยไม่ใส่ --codes = ไม่แตะ code ที่เปิดอยู่
 //
 // --app partner (default) reads SHOPEE_PARTNER_APP_ID / SHOPEE_PARTNER_APP_KEY / SHOPEE_PARTNER_APP_ENV
 // --app seller           reads SHOPEE_SELLER_APP_ID / SHOPEE_SELLER_APP_KEY / SHOPEE_SELLER_APP_ENV
@@ -92,12 +98,22 @@ if (!apply) {
   process.exit(0);
 }
 
-console.log('Setting callback_url:', callbackUrl);
-const result = await call('POST', '/api/v2/push/set_app_push_config', {
+const parseIds = (flag) => {
+  const i = process.argv.indexOf(flag);
+  if (i < 0) return null;
+  return String(process.argv[i + 1] || '').split(',').map(v => Number(v.trim())).filter(v => Number.isFinite(v) && v > 0);
+};
+const codes = parseIds('--codes');
+const blocked = parseIds('--block');
+const payload = {
   // callback_url ต้องส่งมาด้วยทุกครั้ง — Shopee ยิงทดสอบ URL นี้และรอ 2xx ใน 3 วิ
   callback_url: callbackUrl,
-  set_push_config_on: [10],
-});
+  // --block อย่างเดียว = ไม่แตะ code ที่เปิดอยู่ · ไม่ใส่อะไรเลย = เปิด 10 ตามชื่อสคริปต์
+  ...(codes ? { set_push_config_on: codes } : blocked ? {} : { set_push_config_on: [10] }),
+  ...(blocked ? { blocked_shop_id_list: blocked } : {}),
+};
+console.log('Setting:', JSON.stringify(payload));
+const result = await call('POST', '/api/v2/push/set_app_push_config', payload);
 console.log('set_app_push_config result:', JSON.stringify(result, null, 2));
 
 const after = await call('GET', '/api/v2/push/get_app_push_config');
