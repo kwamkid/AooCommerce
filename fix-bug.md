@@ -16,6 +16,31 @@
 
 ---
 
+## 2026-09-05 — หน้าแชทช้า 1.5–2 วิ + กิน server เกินจำเป็น: function อยู่คนละทวีปกับ DB · realtime ดึงรายชื่อใหม่ทุกข้อความ · รูปโปรไฟล์ FB ผ่าน function ทีละรูป
+
+**ที่เกิด**: [vercel.json](vercel.json) · [app/api/chat/contacts/route.ts](app/api/chat/contacts/route.ts) · [app/chat/page.tsx](app/chat/page.tsx) (realtime effect) · [lib/header-summary-context.tsx](lib/header-summary-context.tsx) · [app/api/chat/profile-picture/route.ts](app/api/chat/profile-picture/route.ts) · `getMessages()` ใน `lib/services/chat/*.ts`
+**อาการ**: เปิดหน้าแชทรอ 1.5–2 วิ · คลิกแชทหนึ่งคนแล้วรายชื่อกระพริบโหลดใหม่ · ร้านที่คุยเยอะ (250 ข้อความ/วัน) ทุกแท็บที่เปิดค้างยิง API ตลอดเวลา
+**Root cause** (4 เรื่องซ้อนกัน — **DB ไม่ใช่คอขวด** EXPLAIN ANALYZE ทุก query 3–20 ms):
+1. **ไม่ได้ตั้ง region ของ Vercel** → function รันที่ `iad1` (อเมริกา) ขณะที่ Supabase อยู่สิงคโปร์ — ยืนยันจาก header `x-vercel-id: sin1::iad1::…` บน production · ทุก round-trip ไป DB ~220 ms และ `/api/chat/contacts` ยิงต่อคิว 5–6 รอบ (รายชื่อ → ข้อความล่าสุด → โลโก้ร้าน → orders+แท็ก → ชื่อแท็ก) = 1.2–1.5 วิของการรอเครือข่ายล้วน ๆ
+2. **realtime 10 channel ไม่กรองบริษัท + ทุก event → `fetchContacts()` ทั้งก้อน** (1 invocation + ~6 query) · ซ้ำด้วย `getMessages()` ที่ `UPDATE unread_count=0` ทุกครั้งแม้เป็น 0 อยู่แล้ว — **UPDATE ค่าเดิมก็ยิง realtime event** → คลิกเปิดแชท 1 ครั้ง = ดึงรายชื่อใหม่ + header summary (9 query) ใหม่ทั้งที่ไม่มีอะไรเปลี่ยน
+3. รายชื่อ 30 แถวแต่ enrich ทั้ง 5×31 แถวที่ดึงมา · ดึง `orders` **ทุกใบ** ของลูกค้าทุกคนในหน้ามาคำนวณ "สั่งล่าสุด" ใน Node ทั้งที่แสดงเฉพาะตอนกรอง "เชื่อมลูกค้าแล้ว" · ยอดรวมดึง `unread_count` ทุกแถว (3,000+) มานับใน Node · RPC ค้นหาไม่มี LIMIT (พิมพ์ตัวเดียวได้ทั้งตารางแล้ว enrich ทุกแถว)
+4. รูปโปรไฟล์ FB/IG ผ่าน `/api/chat/profile-picture` มีแต่ `max-age` (browser cache ต่อคน) → เปิดลิสต์ 1 ครั้ง = 30 invocation + 60 fetch ไป Graph API **ต่อผู้ใช้หนึ่งคน** · และ `OrderForm` (3.3k บรรทัด) + `CustomerForm` import static ทั้งที่ใช้แค่แผงข้าง
+**วิธีแก้**:
+- `vercel.json` → `{ "regions": ["sin1"] }` (ทำที่ dashboard ก็ได้: Settings → Functions → Function Region)
+- route รายชื่อเหลือ **2 wave** หลัง auth: wave 1 = 5 ตาราง + accounts + โลโก้ร้าน + แท็กทั้งบริษัท + RPC `get_chat_contact_totals` พร้อมกัน → เรียง/ตัดหน้า → wave 2 enrich เฉพาะ 30 แถวที่ส่ง (ข้อความล่าสุด · แท็ก · RPC `get_chat_customer_order_stats` เฉพาะตอนกรอง) · helper 5 ตัวยุบเป็น `fetchPlatformContacts()` ตัวเดียว (1,281 → ~800 บรรทัด) · migration [supabase/migrations/20260905_chat_perf.sql](supabase/migrations/20260905_chat_perf.sql) (index LINE ที่ขาด · `LIMIT 100` ใน `search_*_contacts` · RPC 2 ตัว)
+- หน้าแชท: **1 channel ต่อบริษัท + `filter: company_id=eq.`** · ข้อความเข้า → patch แถวในที่จาก payload (preview ผ่าน [lib/chat/message-preview.ts](lib/chat/message-preview.ts) ตัวเดียวกับ API) · ดึงรายชื่อใหม่เฉพาะแถวที่ไม่อยู่บนจอ/ลูกค้าที่ผูกเปลี่ยน · `totalUnread` ปรับจากส่วนต่างใน UPDATE payload เทียบ baseline ก่อนบวกเอง (กันนับซ้ำไม่ว่า event ไหนมาก่อน) · สถิติออเดอร์ของแชทที่เปิดมากับ `?customer_id=` ที่ยิงอยู่แล้ว
+- mark-read ทุกจุด `.gt('unread_count', 0)` · header summary: event จาก contacts ใช้ throttle 5 วิ
+- proxy รูป: `s-maxage=86400` (200) / `s-maxage=3600` (204) → edge cache ใช้ร่วมทั้งร้าน · `OrderForm`/`CustomerForm`/renderer Flex+FB template เป็น `dynamic()` · `buildCustomerPayload` ย้ายไป [components/customers/customer-payload.ts](components/customers/customer-payload.ts) (pure)
+**ป้องกัน regression**:
+- **"API ช้าแต่ query เร็ว" → ดู `x-vercel-id` ก่อน** (`sin1::iad1::` = function อยู่ผิดทวีป) — โปรเจกต์ใหม่ต้องมี `regions` ใน vercel.json ตั้งแต่ commit แรก (จดใน `aoo-techstack/BUGS.md` §Deploy แล้ว · aoobooking ยังไม่มี)
+- นับ "wave" ที่ต่อคิวกันใน route ไม่ใช่นับ query — latency ต่อ wave คือตัวคูณ · ของใหม่ต้องเข้า wave ที่มีอยู่ ห้ามต่อท้าย
+- **realtime handler ห้ามตอบ event ด้วยการดึงทั้งลิสต์ใหม่** — patch จาก payload ก่อนเสมอ ดึงใหม่เฉพาะที่ payload ไม่พอ (join) · listener ทุกตัวต้องมี `filter: company_id`
+- **UPDATE ที่ค่าไม่เปลี่ยนก็ยิง realtime** — เขียน `unread_count=0` / flag ใด ๆ ต้องมีเงื่อนไข `.gt()`/`.neq()` เสมอ
+- response ของ function ที่อยากให้ edge cache ต้องมี `s-maxage` (`max-age` เฉย ๆ = แคชแค่เบราว์เซอร์ของแต่ละคน)
+- component ใหญ่ที่ใช้เฉพาะแผงข้าง/modal = `dynamic()` และ**ห้าม import ค่าอื่นจากไฟล์เดียวกันแบบ static** (ไม่งั้น dynamic ไม่มีผล) — แยก helper pure ออกเป็นไฟล์ต่างหาก
+
+---
+
 ## 2026-09-05 — เปิดแจ้งเตือนในแอปผู้ดูแลระบบ "ไม่สำเร็จ" หลังติดตั้งแอปใหม่
 
 **ที่เกิด**: [lib/push/client.ts](lib/push/client.ts) `enablePush()` · [app/superadmin/components/SuperAdminLayout.tsx](app/superadmin/components/SuperAdminLayout.tsx)

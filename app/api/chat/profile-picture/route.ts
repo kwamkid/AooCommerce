@@ -28,7 +28,20 @@ async function getCachedCredentials(accountId: string): Promise<Record<string, s
 // Proxy for FB/IG/LINE customer profile pictures — avoids CDN URL expiry
 // Usage: /api/chat/profile-picture?platform=facebook&psid=XXX&account_id=YYY
 //    or: /api/chat/profile-picture?platform=line&uid=XXX&account_id=YYY
-// Returns the image directly with cache headers (browser caches 1h)
+//
+// ⚠️ `s-maxage` คือสิ่งเดียวที่ทำให้ edge cache ของ Vercel ยอมเก็บ response ของ function ไว้
+// — cache key คือ URL เต็ม (psid + account_id) ดังนั้นดึงครั้งเดียวเสิร์ฟได้ทั้งร้านทั้งวัน
+// ของเดิมมีแต่ `max-age` (แคชในเบราว์เซอร์ของแต่ละคน) → เปิดรายชื่อแชท 1 ครั้ง = ปลุกฟังก์ชัน
+// 1 ครั้ง + ยิง Graph API 2 ครั้ง **ต่อผู้ติดต่อ FB หนึ่งคน ต่อผู้ใช้หนึ่งคน**
+const IMAGE_CACHE = 'public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800';
+// ไม่มีรูป/ไม่มี token/ปลายทางล่ม — ต้องแคชด้วย ไม่งั้นผู้ติดต่อที่ไม่มีรูปจะปลุกฟังก์ชันใหม่
+// ทุกครั้งที่ทุกคนเปิดหน้า · สั้นกว่าขามีรูปเพราะรูปอาจถูกเพิ่มทีหลัง
+const EMPTY_CACHE = 'public, max-age=600, s-maxage=3600';
+
+/** 204 = ไม่มีรูปให้ (UI แสดง avatar ตัวอักษรแทน) */
+function noPicture() {
+  return new NextResponse(null, { status: 204, headers: { 'Cache-Control': EMPTY_CACHE } });
+}
 export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl;
   const platform = searchParams.get('platform');
@@ -39,13 +52,13 @@ export async function GET(req: NextRequest) {
 
   const userId = psid || uid;
   if (!userId || !accountId) {
-    return new NextResponse(null, { status: 204 });
+    return noPicture();
   }
 
   // Get access token from cache or DB
   const credentials = await getCachedCredentials(accountId);
   if (!credentials) {
-    return new NextResponse(null, { status: 204 });
+    return noPicture();
   }
 
   try {
@@ -53,7 +66,7 @@ export async function GET(req: NextRequest) {
 
     if (platform === 'line') {
       const accessToken = credentials.channel_access_token;
-      if (!accessToken) return new NextResponse(null, { status: 204 });
+      if (!accessToken) return noPicture();
 
       const res = await fetch(`https://api.line.me/v2/bot/profile/${userId}`, {
         headers: { 'Authorization': `Bearer ${accessToken}` },
@@ -64,7 +77,7 @@ export async function GET(req: NextRequest) {
       }
     } else if (platform === 'instagram') {
       const accessToken = credentials.page_access_token;
-      if (!accessToken) return new NextResponse(null, { status: 204 });
+      if (!accessToken) return noPicture();
 
       const res = await fetch(
         `https://graph.facebook.com/v21.0/${userId}?fields=profile_pic&access_token=${accessToken}`
@@ -76,16 +89,16 @@ export async function GET(req: NextRequest) {
     } else {
       // Facebook Messenger
       const accessToken = credentials.page_access_token;
-      if (!accessToken) return new NextResponse(null, { status: 204 });
+      if (!accessToken) return noPicture();
 
       imageUrl = `https://graph.facebook.com/v21.0/${userId}/picture?type=normal&access_token=${accessToken}`;
     }
 
-    if (!imageUrl) return new NextResponse(null, { status: 204 });
+    if (!imageUrl) return noPicture();
 
     // Fetch actual image and pipe through with cache headers
     const imgRes = await fetch(imageUrl, { redirect: 'follow' });
-    if (!imgRes.ok) return new NextResponse(null, { status: 204 });
+    if (!imgRes.ok) return noPicture();
 
     const contentType = imgRes.headers.get('content-type') || 'image/jpeg';
     const body = await imgRes.arrayBuffer();
@@ -94,10 +107,10 @@ export async function GET(req: NextRequest) {
       status: 200,
       headers: {
         'Content-Type': contentType,
-        'Cache-Control': 'public, max-age=3600, stale-while-revalidate=86400',
+        'Cache-Control': IMAGE_CACHE,
       },
     });
   } catch {
-    return new NextResponse(null, { status: 204 });
+    return noPicture();
   }
 }

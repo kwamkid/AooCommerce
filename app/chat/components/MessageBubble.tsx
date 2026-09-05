@@ -11,12 +11,18 @@ import {
   FallbackBubble,
   TextBubble,
 } from './renderers/SharedRenderers';
-import {
-  LineFlexRenderer,
-  LineTemplateRenderer,
-  ImagemapBubble,
-} from './renderers/LineRenderers';
-import { FbTemplateRenderer, StoryMentionBubble, StoryReplyBubble } from './renderers/FbRenderers';
+import dynamic from 'next/dynamic';
+
+// ตัวอ่าน Flex/Template/Imagemap ของ LINE กับ template/story ของ FB โผล่เฉพาะบางข้อความ
+// แต่โค้ดหนัก — โหลดตอนเจอข้อความชนิดนั้นจริงพอ (SharedRenderers = text/image/sticker
+// มีอยู่แทบทุกจอ จึง import ตรง ๆ ต่อไป)
+const RENDERER_FALLBACK = () => <div className="min-h-[40px]" />;
+const LineFlexRenderer = dynamic(() => import('./renderers/LineRenderers').then(m => m.LineFlexRenderer), { ssr: false, loading: RENDERER_FALLBACK });
+const LineTemplateRenderer = dynamic(() => import('./renderers/LineRenderers').then(m => m.LineTemplateRenderer), { ssr: false, loading: RENDERER_FALLBACK });
+const ImagemapBubble = dynamic(() => import('./renderers/LineRenderers').then(m => m.ImagemapBubble), { ssr: false, loading: RENDERER_FALLBACK });
+const FbTemplateRenderer = dynamic(() => import('./renderers/FbRenderers').then(m => m.FbTemplateRenderer), { ssr: false, loading: RENDERER_FALLBACK });
+const StoryMentionBubble = dynamic(() => import('./renderers/FbRenderers').then(m => m.StoryMentionBubble), { ssr: false, loading: RENDERER_FALLBACK });
+const StoryReplyBubble = dynamic(() => import('./renderers/FbRenderers').then(m => m.StoryReplyBubble), { ssr: false, loading: RENDERER_FALLBACK });
 
 interface MessageBubbleProps {
   msg: ChatMessage;

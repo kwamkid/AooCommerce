@@ -9,12 +9,15 @@ import SearchInput from '@/components/ui/SearchInput';
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/lib/toast-context';
 import { useHeaderSummary } from '@/lib/header-summary-context';
+import { useCompany } from '@/lib/company-context';
+import { buildMessagePreview } from '@/lib/chat/message-preview';
 import { apiFetch } from '@/lib/api-client';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { formatPrice, formatNumber } from '@/lib/utils/format';
 import { getBadgeColor, getPaymentBadgeColor } from '@/lib/status-tab-colors';
 import { isConsignmentFlow, isDepartmentFlow } from '@/lib/flow-types';
 import { supabase } from '@/lib/supabase';
+import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 import {
   MessageCircle,
   Mail,
@@ -51,8 +54,8 @@ import {
   FilterX
 } from 'lucide-react';
 import Image from 'next/image';
-import OrderForm from '@/components/orders/OrderForm';
-import CustomerForm, { CustomerFormData, buildCustomerPayload } from '@/components/customers/CustomerForm';
+import type { CustomerFormData } from '@/components/customers/customer-payload';
+import { buildCustomerPayload } from '@/components/customers/customer-payload';
 import TagBadge, { Tag } from '@/components/ui/TagBadge';
 import TagInput from '@/components/ui/TagInput';
 import Tooltip from '@/components/ui/Tooltip';
@@ -69,6 +72,10 @@ import ChannelBadge from '@/components/ui/ChannelBadge';
 const EmojiStickerPicker = dynamic(() => import('./components/EmojiStickerPicker'), { ssr: false });
 const LinkCustomerModal = dynamic(() => import('./components/LinkCustomerModal'), { ssr: false });
 const LightboxViewer = dynamic(() => import('./components/LightboxViewer'), { ssr: false });
+// ฟอร์มสองตัวนี้ใหญ่มาก (OrderForm ~3,300 บรรทัด · CustomerForm ~700) แต่ใช้แค่ตอนเปิด
+// แผงด้านข้าง — import ตรง ๆ = ติดไปกับ first-load JS ของหน้าแชททุกครั้งที่เปิดหน้า
+const OrderForm = dynamic(() => import('@/components/orders/OrderForm'), { ssr: false, loading: () => <LoadingCard /> });
+const CustomerForm = dynamic(() => import('@/components/customers/CustomerForm'), { ssr: false, loading: () => <LoadingCard /> });
 
 function UnifiedChatPageContent() {
   const router = useRouter();
@@ -77,6 +84,9 @@ function UnifiedChatPageContent() {
   const { showToast } = useToast();
   // ตัวเลขแชทที่ sidebar/กระดิ่ง — ต้องสั่งรีเฟรชเองหลังงานที่แก้หลายพันแถวทีเดียว (ดู markAllRead)
   const { refresh: refreshHeaderSummary } = useHeaderSummary();
+  // realtime ต้องกรองตามบริษัท — ไม่กรอง = ทุกแท็บรับ event ของทุกบริษัทในระบบ
+  const { currentCompany } = useCompany();
+  const companyId = currentCompany?.id;
   const { confirmDialog, confirm } = useConfirmDialog();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -85,6 +95,10 @@ function UnifiedChatPageContent() {
 
   // Contacts list state
   const [contacts, setContacts] = useState<UnifiedContact[]>([]);
+  // สำเนาล่าสุดของลิสต์ให้ handler realtime (ที่ subscribe ครั้งเดียว) เช็คได้ว่าแถวนั้นอยู่บนจอไหม
+  // โดยไม่ต้องผูกเป็น dependency แล้วถอน+สมัคร channel ใหม่ทุกครั้งที่ลิสต์เปลี่ยน
+  const contactsRef = useRef<UnifiedContact[]>([]);
+  contactsRef.current = contacts;
   const [loadingContacts, setLoadingContacts] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -331,16 +345,37 @@ function UnifiedChatPageContent() {
   }, [selectedContact]);
 
   // Fetch linked contacts when customer changes
+  // + สถิติออเดอร์ของแชทที่เปิดอยู่ — ลิสต์รายชื่อไม่ enrich ให้แล้ว (order_stats_loaded=false)
+  //   บล็อก "สั่งล่าสุด / ยังไม่เคยสั่ง" ในแผงโปรไฟล์จึงมาทางนี้แทน (call เดิม ไม่เพิ่ม request)
   useEffect(() => {
     const customerId = selectedContact?.customer_id || selectedContact?.customer?.id;
-    if (customerId) {
-      apiFetch(`/api/chat/contacts?customer_id=${customerId}`)
-        .then(r => r.json())
-        .then(data => setLinkedContacts(data.linked_contacts || []))
-        .catch(() => setLinkedContacts([]));
-    } else {
+    if (!customerId) {
       setLinkedContacts([]);
+      return;
     }
+    let cancelled = false;
+    apiFetch(`/api/chat/contacts?customer_id=${customerId}`)
+      .then(r => r.json())
+      .then(data => {
+        if (cancelled) return;
+        setLinkedContacts(data?.linked_contacts || []);
+        const stats = data?.order_stats as { last_order_date?: string | null; last_order_created_at?: string | null; avg_order_frequency?: number | null } | null | undefined;
+        // API รุ่นเก่าไม่ส่ง order_stats มาเลย → ถือว่า "ไม่รู้" (ห้ามแสดงว่ายังไม่เคยสั่ง)
+        const loaded = !!data && typeof data === 'object' && 'order_stats' in data;
+        setSelectedContact(prev => {
+          // ผู้ใช้อาจสลับแชทไปแล้วระหว่างรอ response — ห้ามเอาสถิติของลูกค้าคนก่อนมาแปะ
+          if (!prev || (prev.customer_id || prev.customer?.id) !== customerId) return prev;
+          return {
+            ...prev,
+            last_order_date: stats?.last_order_date ?? undefined,
+            last_order_created_at: stats?.last_order_created_at ?? undefined,
+            avg_order_frequency: stats?.avg_order_frequency ?? null,
+            order_stats_loaded: loaded,
+          };
+        });
+      })
+      .catch(() => { if (!cancelled) setLinkedContacts([]); });
+    return () => { cancelled = true; };
   }, [selectedContact?.customer_id, selectedContact?.customer?.id]);
 
   // Fetch shipping addresses when customer changes
@@ -448,22 +483,54 @@ function UnifiedChatPageContent() {
     return () => observer.disconnect();
   }, [hasMoreMessages, loadingMore, loadingMessages, selectedContact?.id, messages.length]);
 
-  // Supabase Realtime — subscribe ครั้งเดียวตอน mount (เดิม deps [selectedContact] ทำให้
-  // คลิก contact 1 ครั้ง = ถอน+สมัครใหม่ 8 channels ทุกรอบ) — อ่านค่าปัจจุบันผ่าน ref แทน
+  // ค่าตัวกรองล่าสุดสำหรับ handler ของ realtime — subscribe ครั้งเดียวต่อบริษัท handler จึงปิดทับ
+  // (closure) ค่าตอน mount ไปตลอด ถ้าไม่อ่านผ่าน ref
+  const filtersRef = useRef({ filterUnread, debouncedSearch, filterTag, filterOrderDaysRange, filterLinked, filterAccountId, filterPlatform, sortMode });
+  filtersRef.current = { filterUnread, debouncedSearch, filterTag, filterOrderDaysRange, filterLinked, filterAccountId, filterPlatform, sortMode };
+
+  /** unread ฝั่ง server "ก่อน" ที่เราจะ +1 เองตอนข้อความเข้า — ใช้คิดส่วนต่างของ totalUnread
+   *  ตอน event ของตาราง contacts ตามมา (ไม่งั้นจะนับซ้ำหรือนับหาย แล้วแต่ลำดับ event) */
+  const unreadBaselineRef = useRef<Map<string, number>>(new Map());
+
+  // ── Supabase Realtime — channel เดียว กรองด้วย company_id ──────────────────────────
+  //
+  // WHY: ของเดิมเปิด 10 channel **ไม่กรองบริษัท** แล้วทุก event ยิง /api/chat/contacts ใหม่ทั้งชุด
+  // (1 serverless invocation + ~6 query ต่อครั้ง) · ร้านหนึ่งมีข้อความ 125–250 ข้อความ/วัน คูณ
+  // จำนวนแท็บที่เปิดค้าง = โหลดที่ไม่มีใครเห็นบนจอ และยังได้ event ของบริษัทอื่นมาด้วย
+  // ตอนนี้: 1 channel · กรอง company_id · **patch แถวในลิสต์จาก payload ตรง ๆ** ดึงรายชื่อใหม่
+  // เฉพาะเคสที่ patch เองไม่ได้ (แถวอยู่นอกหน้าที่โหลด / ผู้ติดต่อใหม่ / ลูกค้าที่ผูกเปลี่ยน)
   useEffect(() => {
-    // Debounce fetchContacts to prevent multiple rapid calls from cascading realtime events
-    let debounceTimer: NodeJS.Timeout | null = null;
-    const debouncedFetchContacts = () => {
-      if (debounceTimer) clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(() => latestFetchContactsRef.current(), 500);
+    if (!companyId) return;
+    // ผูกตัว Map ไว้ครั้งเดียว (ตัวเดิมตลอดอายุ component) — cleanup ห้ามอ่าน ref.current
+    const baselines = unreadBaselineRef.current;
+
+    // ทางสำรองเมื่อ patch เองไม่ได้ — หน่วงไว้เพื่อรวม event ที่มาเป็นชุด
+    const REFETCH_MISSING_MS = 1500;      // แถวไม่อยู่ในลิสต์ → ต้องดึงถึงจะรู้ว่าควรโผล่ตรงไหน
+    const REFETCH_UNREAD_SYNC_MS = 5000;  // แถวนอกจอเปลี่ยนตัวเลขยังไม่อ่าน → sync totalUnread ช้า ๆ พอ
+    let refetchTimer: ReturnType<typeof setTimeout> | null = null;
+    let refetchDelay = 0;
+    const scheduleRefetch = (delayMs: number) => {
+      // มีคิวที่จะยิงเร็วกว่าอยู่แล้ว → ปล่อยตัวเดิมทำงาน ห้ามเลื่อนออกไปไกลกว่าเดิม
+      if (refetchTimer && refetchDelay <= delayMs) return;
+      if (refetchTimer) clearTimeout(refetchTimer);
+      refetchDelay = delayMs;
+      refetchTimer = setTimeout(() => {
+        refetchTimer = null;
+        baselines.clear();
+        latestFetchContactsRef.current();
+      }, delayMs);
     };
 
-    const handleNewMessage = (payload: any, contactIdField: string) => {
-      const newMsg = payload.new as ChatMessage;
-      const msgContactId = (newMsg as any)[contactIdField];
+    type Row = Record<string, unknown>;
+    const handleNewMessage = (payload: RealtimePostgresChangesPayload<Row>, contactIdField: string) => {
+      const raw = payload.new as Row;
+      const newMsg = raw as unknown as ChatMessage;
+      const msgContactId = raw[contactIdField] as string | undefined;
+      if (!msgContactId) return;
       const selected = selectedContactRef.current;
+      const isSelected = !!selected && msgContactId === selected.id;
 
-      if (selected && msgContactId === selected.id) {
+      if (selected && isSelected) {
         setMessages(prev => {
           const existsById = prev.some(m => m.id === newMsg.id);
           if (existsById) return prev;
@@ -479,80 +546,160 @@ function UnifiedChatPageContent() {
           apiFetch(`/api/chat/contacts/${selected.id}/read`, { method: 'POST', body: JSON.stringify({ platform: selected.platform }) }).catch(() => {});
         }
       }
-      debouncedFetchContacts();
+
+      const known = contactsRef.current.some(c => c.id === msgContactId);
+      if (!known) {
+        // ผู้ติดต่อใหม่ หรืออยู่นอก 30 แถวที่โหลดไว้ — ต้องดึงรายชื่อถึงจะรู้ว่าควรอยู่ตรงไหน
+        scheduleRefetch(REFETCH_MISSING_MS);
+        return;
+      }
+
+      const incomingUnread = newMsg.direction === 'incoming' && !isSelected;
+      if (incomingUnread && !baselines.has(msgContactId)) {
+        // จำค่าจาก server ไว้ก่อนบวกเอง — event ของตาราง contacts ที่ตามมาจะเอาไปคิดส่วนต่าง
+        // (เก็บนอก updater เพราะ updater ของ React ต้องไม่มีผลข้างเคียง)
+        const current = contactsRef.current.find(c => c.id === msgContactId);
+        baselines.set(msgContactId, current?.unread_count || 0);
+      }
+      setContacts(prev => {
+        const idx = prev.findIndex(c => c.id === msgContactId);
+        if (idx === -1) return prev;
+        const row = prev[idx];
+        const updated: UnifiedContact = {
+          ...row,
+          last_message: buildMessagePreview(newMsg.message_type, newMsg.content),
+          last_message_at: newMsg.created_at,
+          unread_count: incomingUnread ? (row.unread_count || 0) + 1 : row.unread_count,
+        };
+        // ลิสต์เรียงตามข้อความล่าสุดก่อน (โหมด "ยังไม่อ่าน" เรียงตอน render อยู่แล้ว)
+        const next = prev.slice();
+        next.splice(idx, 1);
+        next.unshift(updated);
+        return next;
+      });
+      // ⚠️ ไม่ยุ่งกับ totalUnread ที่นี่ — ให้ event ของตาราง contacts เป็นคนเดียวที่ปรับ
+      // (มันมีค่าจริงจาก DB มาด้วย จึงไม่นับซ้ำไม่ว่า event ไหนจะมาถึงก่อน)
     };
 
-    const lineMessagesChannel = supabase
-      .channel('line_messages_realtime')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'line_messages' },
-        (payload) => handleNewMessage(payload, 'line_contact_id'))
-      .subscribe();
+    const handleContactChange = (payload: RealtimePostgresChangesPayload<Row>) => {
+      const row = payload.new as Row | undefined;
+      const oldRow = payload.old as Partial<Row> | undefined;
 
-    const fbMessagesChannel = supabase
-      .channel('fb_messages_realtime')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'fb_messages' },
-        (payload) => handleNewMessage(payload, 'fb_contact_id'))
-      .subscribe();
+      if (payload.eventType === 'DELETE') {
+        const id = oldRow?.id as string | undefined;
+        if (!id) return;
+        const local = contactsRef.current.find(c => c.id === id);
+        if (!local) return;
+        setContacts(prev => prev.filter(c => c.id !== id));
+        if (local.unread_count) setTotalUnread(t => Math.max(0, t - local.unread_count));
+        baselines.delete(id);
+        return;
+      }
 
-    const shopeeMessagesChannel = supabase
-      .channel('shopee_messages_realtime')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'shopee_messages' },
-        (payload) => handleNewMessage(payload, 'shopee_contact_id'))
-      .subscribe();
+      const id = row?.id as string | undefined;
+      if (!id) return;
+      const local = contactsRef.current.find(c => c.id === id);
 
-    const lazadaMessagesChannel = supabase
-      .channel('lazada_messages_realtime')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'lazada_messages' },
-        (payload) => handleNewMessage(payload, 'lazada_contact_id'))
-      .subscribe();
+      if (payload.eventType === 'INSERT') {
+        if (local) return; // มีอยู่แล้ว (เช่นเพิ่งดึงรายชื่อมาพอดี)
+        const { filterLinked } = filtersRef.current;
+        // ตัวกรอง "ผูกลูกค้าแล้ว / ยังไม่ผูก" ตัดสินได้จาก payload เลย — แถวที่ยังไงก็ไม่เข้าเกณฑ์
+        // ไม่ต้องเสียการดึงรายชื่อทั้งชุด
+        if (filterLinked === 'linked' && !row?.customer_id) return;
+        if (filterLinked === 'unlinked' && row?.customer_id) return;
+        scheduleRefetch(REFETCH_MISSING_MS);
+        return;
+      }
 
-    const lineContactsChannel = supabase
-      .channel('line_contacts_realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'line_contacts' }, debouncedFetchContacts)
-      .subscribe();
+      // ── UPDATE ──
+      const newUnread = typeof row?.unread_count === 'number' ? (row.unread_count as number) : undefined;
 
-    const fbContactsChannel = supabase
-      .channel('fb_contacts_realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'fb_contacts' }, debouncedFetchContacts)
-      .subscribe();
+      if (!local) {
+        // แถวอยู่นอกหน้าที่โหลด — เราแสดงมันไม่ได้อยู่แล้ว สนใจแค่ตอนตัวเลขยังไม่อ่านเปลี่ยน
+        // เพราะ totalUnread นับ "ทุกแถว" ไม่ใช่แค่ที่โหลดมา · payload.old ของ Postgres ปกติมี
+        // แค่ primary key (REPLICA IDENTITY DEFAULT) → ไม่รู้ค่าเก่า = ถือว่าเปลี่ยน แล้ว sync ช้า ๆ
+        const oldUnread = typeof oldRow?.unread_count === 'number' ? (oldRow.unread_count as number) : undefined;
+        if (oldUnread === undefined || oldUnread !== newUnread) scheduleRefetch(REFETCH_UNREAD_SYNC_MS);
+        return;
+      }
 
-    const shopeeContactsChannel = supabase
-      .channel('shopee_contacts_realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'shopee_contacts' }, debouncedFetchContacts)
-      .subscribe();
+      const selected = selectedContactRef.current;
+      const isSelectedRow = selected?.id === id;
+      const status = row?.status as string | undefined;
 
-    const lazadaContactsChannel = supabase
-      .channel('lazada_contacts_realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'lazada_contacts' }, debouncedFetchContacts)
-      .subscribe();
+      // ถูกบล็อก/ปิดไปแล้ว → เอาออกจากลิสต์ (แถวที่มองไม่เห็นแล้วไม่ควรถูกนับใน totalUnread ต่อ)
+      if (status && status !== 'active') {
+        setContacts(prev => prev.filter(c => c.id !== id));
+        if (local.unread_count) setTotalUnread(t => Math.max(0, t - local.unread_count));
+        baselines.delete(id);
+        if (isSelectedRow) setSelectedContact(prev => (prev && prev.id === id ? { ...prev, status } : prev));
+        return;
+      }
 
-    const tiktokMessagesChannel = supabase
-      .channel('tiktok_messages_realtime')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'tiktok_messages' },
-        (payload) => handleNewMessage(payload, 'tiktok_contact_id'))
-      .subscribe();
+      // ลูกค้าที่ผูกเปลี่ยน → payload ไม่มี object `customer` (มาจาก join) ต้องดึงใหม่ถึงจะได้ชื่อ/แท็ก
+      const newCustomerId = (row?.customer_id as string | null | undefined) ?? undefined;
+      if (newCustomerId !== (local.customer_id ?? undefined)) scheduleRefetch(REFETCH_MISSING_MS);
 
-    const tiktokContactsChannel = supabase
-      .channel('tiktok_contacts_realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'tiktok_contacts' }, debouncedFetchContacts)
+      // ตัวเลขยังไม่อ่าน: DB เป็นเจ้าของค่าจริง — เทียบกับ "ค่าก่อนที่เราจะบวกเอง" เพื่อไม่นับซ้ำ
+      // กับ event ข้อความที่มาคู่กัน · แถวที่เปิดคุยอยู่คงเป็น 0 เสมอ (อ่านแล้วทันที)
+      const baseUnread = baselines.get(id) ?? local.unread_count ?? 0;
+      baselines.delete(id);
+      const nextUnread = isSelectedRow ? 0 : (newUnread ?? local.unread_count ?? 0);
+      const delta = nextUnread - baseUnread;
+      if (delta !== 0) setTotalUnread(t => Math.max(0, t + delta));
+
+      setContacts(prev => prev.map(c => {
+        if (c.id !== id) return c;
+        return {
+          ...c,
+          unread_count: nextUnread,
+          last_message_at: (row?.last_message_at as string | undefined) ?? c.last_message_at,
+          display_name: (row?.display_name as string | undefined) ?? c.display_name,
+          status: status ?? c.status,
+          chat_account_id: (row?.chat_account_id as string | undefined) ?? c.chat_account_id,
+          // FB: picture_url ที่ API ประกอบให้เป็น URL ผ่าน proxy ของเรา ส่วนใน DB เป็น CDN ที่หมดอายุ
+          // → ทับไม่ได้ ไม่งั้นรูปโปรไฟล์เฟซจะกลายเป็นรูปเสียหลังลูกค้าทักครั้งแรก
+          ...(c.platform !== 'facebook' && row?.picture_url ? { picture_url: row.picture_url as string } : {}),
+        };
+      }));
+      // ⚠️ ตั้งใจ: แถวที่เพิ่ง patch อาจไม่ตรงตัวกรองที่เปิดอยู่แล้ว (เช่นกรอง "ยังไม่อ่าน" แล้วมันเพิ่ง
+      // ถูกอ่าน) — เราปล่อยให้มันค้างอยู่บนจอ ไม่ดึงรายชื่อใหม่เพื่อไล่ออก เพราะการดึงใหม่ทุกครั้งที่
+      // ตัวเลขขยับคือสิ่งที่หน้านี้กำลังหนีอยู่พอดี · รอบ fetch ครั้งถัดไปจัดให้เอง
+
+      if (isSelectedRow) {
+        // หัวหน้าคุยต้องเปลี่ยนชื่อตาม แต่ **คงตัวเลขยังไม่อ่านของเดิมไว้** (กำลังอ่านอยู่)
+        setSelectedContact(prev => (prev && prev.id === id ? {
+          ...prev,
+          display_name: (row?.display_name as string | undefined) ?? prev.display_name,
+          status: status ?? prev.status,
+        } : prev));
+      }
+    };
+
+    const channel = supabase.channel(`chat-page-${companyId}`);
+    // ข้อความเข้าใหม่ (5 แพลตฟอร์ม) — INSERT อย่างเดียวพอ
+    channel
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'line_messages', filter: `company_id=eq.${companyId}` }, (p) => handleNewMessage(p, 'line_contact_id'))
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'fb_messages', filter: `company_id=eq.${companyId}` }, (p) => handleNewMessage(p, 'fb_contact_id'))
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'shopee_messages', filter: `company_id=eq.${companyId}` }, (p) => handleNewMessage(p, 'shopee_contact_id'))
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'lazada_messages', filter: `company_id=eq.${companyId}` }, (p) => handleNewMessage(p, 'lazada_contact_id'))
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'tiktok_messages', filter: `company_id=eq.${companyId}` }, (p) => handleNewMessage(p, 'tiktok_contact_id'))
+      // ตัวผู้ติดต่อเอง (ชื่อ/รูป/ยังไม่อ่าน/สถานะ/ลูกค้าที่ผูก) — ต้องฟังครบทุก event
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'line_contacts', filter: `company_id=eq.${companyId}` }, handleContactChange)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'fb_contacts', filter: `company_id=eq.${companyId}` }, handleContactChange)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'shopee_contacts', filter: `company_id=eq.${companyId}` }, handleContactChange)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'lazada_contacts', filter: `company_id=eq.${companyId}` }, handleContactChange)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tiktok_contacts', filter: `company_id=eq.${companyId}` }, handleContactChange)
       .subscribe();
 
     return () => {
-      if (debounceTimer) clearTimeout(debounceTimer);
-      supabase.removeChannel(lineMessagesChannel);
-      supabase.removeChannel(fbMessagesChannel);
-      supabase.removeChannel(shopeeMessagesChannel);
-      supabase.removeChannel(lazadaMessagesChannel);
-      supabase.removeChannel(lineContactsChannel);
-      supabase.removeChannel(fbContactsChannel);
-      supabase.removeChannel(shopeeContactsChannel);
-      supabase.removeChannel(lazadaContactsChannel);
-      supabase.removeChannel(tiktokMessagesChannel);
-      supabase.removeChannel(tiktokContactsChannel);
+      if (refetchTimer) clearTimeout(refetchTimer);
+      baselines.clear();
+      supabase.removeChannel(channel);
     };
-    // subscribe once — ค่า selectedContact/fetchContacts อ่านผ่าน ref ด้านบน
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    // ค่าที่ handler ต้องใช้ (selectedContact / fetchContacts / ตัวกรอง) อ่านผ่าน ref ทั้งหมด
+    // จึง subscribe ใหม่เฉพาะตอนเปลี่ยนบริษัท
+  }, [companyId]);
 
   const fetchContactsRef = useRef<AbortController | null>(null);
   const fetchContacts = async (loadMore = false) => {
@@ -589,6 +736,8 @@ function UnifiedChatPageContent() {
         );
       }
 
+      // ค่าจาก server มาแล้ว → ทิ้ง baseline ของการบวก unread เองที่ค้างอยู่ (ไม่งั้นรอบหน้าจะคิดส่วนต่างผิด)
+      unreadBaselineRef.current.clear();
       if (loadMore) {
         setContacts(prev => [...prev, ...contactsList]);
       } else {
@@ -644,6 +793,11 @@ function UnifiedChatPageContent() {
 
       setHasMoreMessages(newMessages.length === limit);
       if (!loadMore) {
+        // เปิดอ่าน = แถวนี้ไม่ค้างแล้ว — **ต้องหักออกจากยอดรวมด้วย** เพราะยอดรวมนับทุกแถว
+        // (เดิมได้ค่าใหม่ฟรีจากการดึงรายชื่อใหม่ทุก event ตอนนี้ patch เองจึงต้องหักเอง)
+        const before = contactsRef.current.find(c => c.id === contactId)?.unread_count || 0;
+        if (before) setTotalUnread(t => Math.max(0, t - before));
+        unreadBaselineRef.current.delete(contactId);
         setContacts(prev => prev.map(c => c.id === contactId ? { ...c, unread_count: 0 } : c));
       }
     } catch (error) {

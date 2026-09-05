@@ -81,28 +81,43 @@ export function HeaderSummaryProvider({ children }: { children: ReactNode }) {
       debounceTimer = setTimeout(refresh, 500);
     };
 
+    // แชทมาถี่กว่าออเดอร์มาก (ร้านหนึ่ง 125–250 ข้อความ/วัน) และทุกแท็บที่เปิดค้างก็ฟังเหมือนกันหมด
+    // — ถ้าใช้ debounce 500ms เหมือนออเดอร์ ทุกข้อความจะกลายเป็น /api/header/summary หนึ่งใบ
+    // (~9 query) ต่อแท็บ · ตัวเลขกระดิ่งช้าไป 5 วิไม่มีใครเดือดร้อน จึงใช้ **throttle ท้ายหน้าต่าง**:
+    // event แรกจองคิวไว้ 5 วิ · ที่มาระหว่างนั้นถูกกลืน · ยิงแล้วค่อยเปิดหน้าต่างใหม่
+    const CHAT_THROTTLE_MS = 5000;
+    let chatThrottleTimer: ReturnType<typeof setTimeout> | null = null;
+    const throttledChatRefresh = () => {
+      if (chatThrottleTimer) return;
+      chatThrottleTimer = setTimeout(() => {
+        chatThrottleTimer = null;
+        refresh();
+      }, CHAT_THROTTLE_MS);
+    };
+
     window.addEventListener('orders-count-changed', debouncedRefresh);
 
     const channel = supabase
       .channel(`header-summary-${companyId}`)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders', filter: `company_id=eq.${companyId}` }, debouncedRefresh)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'orders', filter: `company_id=eq.${companyId}` }, debouncedRefresh)
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'line_contacts', filter: `company_id=eq.${companyId}` }, debouncedRefresh)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'line_contacts', filter: `company_id=eq.${companyId}` }, debouncedRefresh)
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'fb_contacts', filter: `company_id=eq.${companyId}` }, debouncedRefresh)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'fb_contacts', filter: `company_id=eq.${companyId}` }, debouncedRefresh)
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'shopee_contacts', filter: `company_id=eq.${companyId}` }, debouncedRefresh)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'shopee_contacts', filter: `company_id=eq.${companyId}` }, debouncedRefresh)
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'lazada_contacts', filter: `company_id=eq.${companyId}` }, debouncedRefresh)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'lazada_contacts', filter: `company_id=eq.${companyId}` }, debouncedRefresh)
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'tiktok_contacts', filter: `company_id=eq.${companyId}` }, debouncedRefresh)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'tiktok_contacts', filter: `company_id=eq.${companyId}` }, debouncedRefresh)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'line_contacts', filter: `company_id=eq.${companyId}` }, throttledChatRefresh)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'line_contacts', filter: `company_id=eq.${companyId}` }, throttledChatRefresh)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'fb_contacts', filter: `company_id=eq.${companyId}` }, throttledChatRefresh)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'fb_contacts', filter: `company_id=eq.${companyId}` }, throttledChatRefresh)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'shopee_contacts', filter: `company_id=eq.${companyId}` }, throttledChatRefresh)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'shopee_contacts', filter: `company_id=eq.${companyId}` }, throttledChatRefresh)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'lazada_contacts', filter: `company_id=eq.${companyId}` }, throttledChatRefresh)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'lazada_contacts', filter: `company_id=eq.${companyId}` }, throttledChatRefresh)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'tiktok_contacts', filter: `company_id=eq.${companyId}` }, throttledChatRefresh)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'tiktok_contacts', filter: `company_id=eq.${companyId}` }, throttledChatRefresh)
       .subscribe();
 
     const marketplaceInterval = setInterval(refresh, 5 * 60 * 1000);
 
     return () => {
       if (debounceTimer) clearTimeout(debounceTimer);
+      if (chatThrottleTimer) clearTimeout(chatThrottleTimer);
       window.removeEventListener('orders-count-changed', debouncedRefresh);
       supabase.removeChannel(channel);
       clearInterval(marketplaceInterval);

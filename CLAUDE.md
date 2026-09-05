@@ -7,6 +7,7 @@
 - **Multi-tenant**: ทุก query ต้อง filter `company_id` (ชั้น UX) + **RLS บังคับจริงที่ DB แล้ว** (2026-07-24 — policy มาตรฐาน `is_company_member(company_id) or is_super_admin()` ทั้ง 62 ตาราง ตาม `aoo-techstack/multi-tenant/MULTI-TENANT.md`; API routes ใช้ service role จึง bypass — ห้ามลืม filter ใน code)
 - **Language**: UI ภาษาไทย, code/comments ภาษาอังกฤษได้
 - **Files**: `todo.md` = งานที่ยังไม่ได้ทำ
+- **Deploy**: Vercel function region = `sin1` ใน [vercel.json](vercel.json) ให้อยู่ที่เดียวกับ Supabase (`ap-southeast-1`) — **ห้ามลบ** · ไม่ตั้ง = function รันที่ iad1 (อเมริกา) ทุก query เสีย ~220ms (เจอ 2026-09-05 หน้าแชทช้า 1.5–2 วิทั้งที่ query 3–20ms — ดู `aoo-techstack/BUGS.md` §Deploy)
 
 ## 🏗 Techstack กลาง (ตระกูล aoo)
 
@@ -882,6 +883,17 @@ PC (พนักงานประจำจุดขายในห้าง) �
 - `DEFAULT_FEATURES` = all-off baseline (ไม่ใช่ delivery preset) — ป้องกัน feature-gated UI flash visible→hidden ตอน config โหลด
 - localStorage cache per company id → returning user เห็น feature state ถูกต้องทันทีตอน first render
 - Network error → ใช้ค่า cache ล่าสุด (ไม่ใช่ defaults)
+
+### หน้าแชท `/chat` — กติกาที่ทำให้เร็วและไม่กิน server (ปรับ 2026-09-05)
+ก่อนปรับ: โหลดรายชื่อ = 5–6 wave ต่อคิวไป DB · ทุกข้อความเข้า → ทุกหน้าแชทที่เปิด **ดึงรายชื่อใหม่ทั้งก้อน** + ทุกแท็บดึง header summary (9 query) · คลิกเปิดแชท = UPDATE `unread_count=0` แม้เป็น 0 อยู่แล้ว → realtime → ดึงซ้ำอีกรอบ · รูปโปรไฟล์ FB = 1 function invocation ต่อรูปต่อคน
+- **`/api/chat/contacts` = 2 wave หลัง auth** — wave 1 ดึงรายชื่อ 5 แพลตฟอร์ม + `chat_accounts` + โลโก้ร้าน + แท็กของบริษัท + ยอดรวม (RPC `get_chat_contact_totals`) พร้อมกัน → เรียง/ตัดหน้า → wave 2 enrich **เฉพาะ 30 แถวที่จะส่ง** (ข้อความล่าสุด · แท็ก · สถิติออเดอร์ผ่าน RPC `get_chat_customer_order_stats` เฉพาะตอนกรอง "เชื่อมลูกค้าแล้ว"/ช่วงวันสั่ง) · ห้ามเพิ่ม wave ใหม่ต่อท้าย — ของใหม่ต้องเข้า wave ใดwave หนึ่ง
+- **ข้อความตัวอย่าง ("ข้อความล่าสุด") ใช้ `buildMessagePreview()` จาก [lib/chat/message-preview.ts](lib/chat/message-preview.ts) ที่เดียว** ทั้ง API และหน้าแชท — หน้าแชท patch แถวจาก realtime payload เอง ถ้าแปลคนละแบบแถวจะกระพริบ
+- **Realtime = 1 channel ต่อบริษัท + `filter: company_id=eq.` ทุก listener** (เหมือน `HeaderSummaryProvider`) · ข้อความเข้า → **patch แถวในที่** (เลื่อนขึ้นบน · +unread · เปลี่ยน preview) · ดึงรายชื่อใหม่เฉพาะเมื่อ contact ไม่อยู่ในหน้าที่โหลด หรือ `customer_id` เปลี่ยน · `totalUnread` ปรับจากส่วนต่าง `unread_count` ใน UPDATE payload
+- **UPDATE ที่ค่าไม่เปลี่ยนก็ยิง realtime event** — mark-read ทุกจุดต้อง `.gt('unread_count', 0)` (services `getMessages` · `/read` · `/read-all`)
+- **header summary: event จากตาราง contacts ใช้ throttle 5 วิ** (ออเดอร์ยังเป็น debounce 500ms) — ร้านคุย 250 ข้อความ/วัน × ทุกแท็บที่เปิด × 9 query
+- **รูปโปรไฟล์ FB/IG ผ่าน `/api/chat/profile-picture` ต้องมี `s-maxage`** — edge ของ Vercel cache เฉพาะ response ที่มี `s-maxage` (`max-age` อย่างเดียว = browser cache ต่อคน) · key = URL (psid+account_id) จึงใช้ร่วมทั้งร้าน
+- **ฟอร์มหนักในแผงข้าง (`OrderForm` 3.3k บรรทัด · `CustomerForm`) โหลดด้วย `dynamic()`** — `buildCustomerPayload`/`CustomerFormData` แยกอยู่ [components/customers/customer-payload.ts](components/customers/customer-payload.ts) (pure) จะได้ import ได้โดยไม่ลาก UI มาด้วย
+- RPC ค้นหา `search_*_contacts` มี `LIMIT 100` — route enrich ทุกแถวที่ RPC คืน · `/api/chat-accounts` + `/api/settings/crm` cache 60 วิใน `apiFetch`
 
 ### กฎทั่วไป
 - **เพิ่ม endpoint cacheable** → เพิ่มเข้า `CACHED_GET_PATHS` ใน [lib/api-client.ts](lib/api-client.ts) (อย่ายุ่ง CACHE_DEPENDENCIES ถ้าไม่ใช่ composite)
