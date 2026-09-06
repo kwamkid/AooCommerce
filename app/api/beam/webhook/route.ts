@@ -85,6 +85,9 @@ export async function POST(request: NextRequest) {
     const candidateCompanies = [...new Set(candidates.map(c => c.companyId))];
 
     if (!signature) {
+      // ปุ่ม "ทดสอบ" ในหน้าตั้งค่ายิง test.ping มาเช็คว่า endpoint ถึง (ไม่มีลายเซ็นโดยตั้งใจ)
+      // — ตอบให้รู้ว่าถึงแล้วพอ ไม่ต้องลง log แดงให้ทุกร้าน (เคยขึ้น 3 แถวต่อการกดหนึ่งครั้ง)
+      if (eventType === 'test.ping') return NextResponse.json({ ok: true, note: 'reachable (unsigned ping)' });
       await logFor(candidateCompanies, 'error', 'Beam ส่งมาโดยไม่มี X-Beam-Signature — ปฏิเสธ');
       return NextResponse.json({ error: 'Missing signature' }, { status: 401 });
     }
