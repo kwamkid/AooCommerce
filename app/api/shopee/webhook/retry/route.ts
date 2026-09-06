@@ -6,6 +6,11 @@ import { NextRequest } from 'next/server';
 import { runWebhookRetry } from '@/lib/marketplace/webhook-retry';
 import type { ShopeeAccountRow } from '@/lib/shopee/api';
 import { syncSingleOrder } from '@/lib/shopee/webhook-processor';
+import {
+  handleShopeeShopEvent,
+  isShopEventPushCode,
+  type ShopeePushPayload,
+} from '@/lib/shopee/push-handlers';
 
 export const maxDuration = 60;
 
@@ -28,6 +33,15 @@ export async function GET(request: NextRequest) {
         const { processShopeeWebchatPush } = await import('@/lib/services/chat/shopee');
         type WebchatPayload = import('@/lib/services/chat/shopee').ShopeeWebchatPayload;
         await processShopeeWebchatPush(account, payload as WebchatPayload);
+        return;
+      }
+
+      // push ระดับร้าน/สินค้า (1/2/8/16/22/28) — ตัวเดียวกับที่ webhook ใช้
+      // ทุกตัวเขียนแบบ idempotent (set ค่าสุดท้าย ไม่ใช่ +=) จึงยิงซ้ำได้
+      // แจ้งเตือนจะไม่ถูกส่งซ้ำเองเพราะใบที่มาถึง retry เก่ากว่า 30 นาทีแล้ว (freshness guard)
+      if (isShopEventPushCode(job.push_code)) {
+        await handleShopeeShopEvent(job.push_code, payload as ShopeePushPayload, account);
+        return;
       }
       // tracking (code 4) — webhook เดิมทำไปแล้วและ idempotent ไม่ต้องยิงซ้ำ
     },

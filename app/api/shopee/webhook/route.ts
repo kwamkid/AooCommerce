@@ -6,6 +6,12 @@ import { logIntegration } from '@/lib/integration-logger';
 import { getPushLabel } from '@/lib/shopee/webhook-codes';
 import { createCreditNote, hasCreditNote } from '@/lib/credit-notes/auto-cn';
 import { syncSingleOrder } from '@/lib/shopee/webhook-processor';
+import {
+  handleShopeeShopEvent,
+  isShopEventPushCode,
+  toShopeeNumber,
+  type ShopeePushPayload,
+} from '@/lib/shopee/push-handlers';
 import crypto from 'crypto';
 
 // Allow up to 60s — sync runs in background via after() but Vercel
@@ -34,27 +40,49 @@ export async function POST(request: NextRequest) {
     const rawBody = await request.text();
     const authorization = request.headers.get('authorization') || '';
 
-    let payload: { shop_id?: number; code?: number; data?: Record<string, unknown> };
+    let payload: ShopeePushPayload;
     try {
       payload = JSON.parse(rawBody);
     } catch {
       return new NextResponse('', { status: 200 });
     }
 
-    const shopId = payload.shop_id;
+    // ⚠️ Shopee ส่ง code/shop_id มาเป็น **สตริง** ในบาง push (ยืนยันแล้วกับ code "28"
+    // penalty — ทั้งใบเป็นสตริง) ส่วน 3/4/15/16/22 เป็นตัวเลข · ไม่ coerce แล้ว
+    // `payload.code ?? -1` จะได้ "28" ซึ่ง `=== 28` ไม่จริง → ตกไปเป็น unhandled เงียบ ๆ
+    // และ shop_id ที่เป็นสตริงก็เสี่ยงหาไม่เจอตอน .eq() กับคอลัมน์ bigint
+    const shopId = toShopeeNumber(payload.shop_id);
     if (!shopId) {
       return new NextResponse('', { status: 200 });
     }
 
-    const pushCode = payload.code ?? -1;
+    const pushCode = toShopeeNumber(payload.code) ?? -1;
 
     // Look up account by shop_id (best-effort, don't fail if not found)
-    const { data: account } = await supabaseAdmin
+    const { data: activeAccount } = await supabaseAdmin
       .from('marketplace_accounts')
       .select('*')
       .eq('shop_id', shopId)
       .eq('is_active', true)
       .single();
+
+    // ร้านที่ "ปิดอยู่" ก็ยัง push เรื่อง authorization เข้ามาได้ — และ code 1 มีหน้าที่
+    // ปลุกร้านแบบนั้นกลับมาโดยเฉพาะ · หาเจอไว้ด้วยเพื่อ (ก) ผูก log ให้ถูกบริษัท
+    // (ข) ส่งให้ handler ระดับร้าน · **ไม่ส่งให้สาย order/tracking/chat** เพราะร้านที่
+    // ปิดอยู่ token ใช้ไม่ได้ ยิงไปก็ fail แล้ว retry วนเปล่า ๆ
+    let shopEventAccount = activeAccount as ShopeeAccountRow | null;
+    if (!shopEventAccount && isShopEventPushCode(pushCode)) {
+      const { data: inactiveAccount } = await supabaseAdmin
+        .from('marketplace_accounts')
+        .select('*')
+        .eq('shop_id', shopId)
+        .eq('platform', 'shopee')
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      shopEventAccount = (inactiveAccount as ShopeeAccountRow | null) || null;
+    }
+    const account = activeAccount || shopEventAccount;
 
     // Verify signature — a forged webhook could otherwise trigger
     // tryAutoCreditNote (auto credit note + stock return) on attacker-chosen
@@ -107,9 +135,10 @@ export async function POST(request: NextRequest) {
 
     // === RETURN 200 FAST → process in background ONLY if verified ===
     if (signatureValid) {
-      const acct = account as ShopeeAccountRow | null;
+      const acct = (activeAccount as ShopeeAccountRow | null) || null;
+      const shopAcct = shopEventAccount;
       after(async () => {
-        await processWebhook(logId, pushCode, payload, acct, startTime);
+        await processWebhook(logId, pushCode, payload, acct, shopAcct, startTime);
       });
     }
 
@@ -130,8 +159,11 @@ export async function GET() {
 async function processWebhook(
   logId: string | undefined,
   pushCode: number,
-  payload: { shop_id?: number; code?: number; data?: Record<string, unknown> },
+  payload: ShopeePushPayload,
+  /** ร้านที่ยังเปิดอยู่ — ใช้กับสาย order/tracking/chat ที่ต้องยิง API ด้วย token */
   account: ShopeeAccountRow | null,
+  /** ร้านเดียวกันแต่รวมร้านที่ปิดอยู่ด้วย — ใช้กับ push ระดับร้าน/สินค้า (1/2/8/16/22/28) */
+  shopEventAccount: ShopeeAccountRow | null,
   startTime: number,
 ) {
   const updateLog = async (status: string, error?: string) => {
@@ -307,6 +339,21 @@ async function processWebhook(
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : 'Unknown webchat error';
         console.error('Shopee webhook webchat error:', err);
+        await updateLog('failed', errorMsg);
+      }
+      return;
+    }
+
+    // Push ระดับร้าน/สินค้า (1 authorize · 2 deauthorize · 8 reserved stock ·
+    // 16 item violation · 22 price update · 28 penalty) — ตัวจัดการอยู่ที่
+    // lib/shopee/push-handlers.ts ใช้ร่วมกับ retry worker
+    if (isShopEventPushCode(pushCode)) {
+      try {
+        const result = await handleShopeeShopEvent(pushCode, payload, shopEventAccount, { startedAt: startTime });
+        await updateLog(result.status, result.detail);
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : 'Unknown shop event error';
+        console.error(`Shopee webhook shop event error (code ${pushCode}):`, err);
         await updateLog('failed', errorMsg);
       }
       return;
