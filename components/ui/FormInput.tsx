@@ -250,7 +250,9 @@ const FormInput = forwardRef<FormInputHandle, FormInputProps>(function FormInput
           </span>
         )}
         {postfix && (
-          <span className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center text-gray-500 dark:text-slate-400 text-sm pointer-events-none">
+          // pointer-events-none ให้คลิกทะลุไปโฟกัส input ได้เมื่อ postfix เป็นข้อความ (฿, kg)
+          // แต่ปุ่มข้างใน (ตาเปิด/ปิดรหัส) ต้องกดได้ — ไม่งั้นปุ่มโชว์แต่กดไม่ติด (API Key ของ Beam 7 ก.ย. 2026)
+          <span className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center text-gray-500 dark:text-slate-400 text-sm pointer-events-none [&_button]:pointer-events-auto [&_a]:pointer-events-auto">
             {postfix}
           </span>
         )}
