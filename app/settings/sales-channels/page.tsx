@@ -138,6 +138,9 @@ export default function SalesChannelsPage() {
   const [shopeeSellerAppAvailable, setShopeeSellerAppAvailable] = useState(false);
   // sandbox = ปุ่มพาไป login ของ sandbox ต้องใช้บัญชี test shop ไม่ใช่บัญชีร้านจริง
   const [shopeeSellerAppEnv, setShopeeSellerAppEnv] = useState<'sandbox' | 'production'>('production');
+  // โหมดที่บริษัทตั้งไว้ — full = app ของร้านเป็นทางเข้าหลัก ⇒ ต้องเป็นตัวเลือกแรกของเมนู
+  // ไม่งั้นคนกดตัวบนสุด (app กลาง) ตามสัญชาตญาณแล้วร้านไปอยู่ผิดโครง
+  const [shopeeSellerAppUsage, setShopeeSellerAppUsage] = useState<'full' | 'chat' | null>(null);
   // กด back จากหน้า OAuth → หน้าถูก restore จาก bfcache พร้อม connecting=true ค้าง
   useBfcacheReset(() => setMpConnecting(false));
   const [currentPage, setCurrentPage] = useState(1);
@@ -207,7 +210,12 @@ export default function SalesChannelsPage() {
     let cancelled = false;
     apiFetch('/api/shopee/oauth/auth-url?app=seller&check=1')
       .then(r => (r.ok ? r.json() : null))
-      .then(d => { if (cancelled) return; setShopeeSellerAppAvailable(!!d?.available); setShopeeSellerAppEnv(d?.env === 'sandbox' ? 'sandbox' : 'production'); })
+      .then(d => {
+        if (cancelled) return;
+        setShopeeSellerAppAvailable(!!d?.available);
+        setShopeeSellerAppEnv(d?.env === 'sandbox' ? 'sandbox' : 'production');
+        setShopeeSellerAppUsage(d?.usage === 'full' || d?.usage === 'chat' ? d.usage : null);
+      })
       .catch(() => { /* ถามไม่ได้ = ถือว่าไม่มี ซ่อนปุ่มไว้ */ });
     return () => { cancelled = true; };
   }, [showMarketplace]);
@@ -622,34 +630,40 @@ export default function SalesChannelsPage() {
                 เชื่อม LINE OA
               </Button>
             ) : effectiveTab === 'shopee' ? (
-              /* Shopee มี 2 ทางเชื่อม (partner app / app ที่จดในนามร้านเอง — แชทได้) จึงเป็นเมนู
+              /* Shopee มี 2 ทางเชื่อม (app กลางของระบบ / app ที่บริษัทจดเอง — แชทได้) จึงเป็นเมนู
                  ทางที่สองโชว์เสมอ: บริษัทยังไม่ได้เพิ่ม app ของตัวเองก็บอกตรง ๆ แทนที่จะหายไป
-                 เฉย ๆ แล้วคนไปกดเชื่อมผ่าน app กลางแทน (เกิดจริง 5 ก.ย. 2026) */
+                 เฉย ๆ แล้วคนไปกดเชื่อมผ่าน app กลางแทน (เกิดจริง 5 ก.ย. 2026)
+                 **ลำดับสลับตามโหมดที่บริษัทตั้งไว้** — โหมด "ครบในตัว" (usage='full') แปลว่าร้าน
+                 ต้องเชื่อมผ่าน app ของบริษัท ตัวเลือกนั้นจึงต้องอยู่บนสุด ไม่งั้นคนกดตัวแรก
+                 ตามสัญชาตญาณแล้วร้านไปอยู่บน app กลาง = ผิดโครงตั้งแต่วันแรก */
               <ActionMenu
                 placement="bottom"
                 trigger={mpConnecting
                   ? <><Loader2 className="w-5 h-5 animate-spin" />กำลังเชื่อมต่อ...</>
                   : <><PlatformIcon id="shopee" size={16} mono />เชื่อมต่อร้าน Shopee</>}
                 triggerClassName="btn btn-md btn-primary"
-                items={[
-                  {
-                    key: 'shopee',
-                    label: 'เชื่อมต่อร้าน Shopee',
-                    icon: <PlatformIcon id="shopee" size={16} />,
-                    disabled: mpConnecting,
-                    onClick: () => handleMarketplaceConnect('shopee'),
-                  },
-                  {
+                items={(() => {
+                  const sellerFirst = shopeeSellerAppAvailable && shopeeSellerAppUsage === 'full';
+                  const seller = {
                     key: 'shopee-seller',
-                    dividerBefore: true,
                     label: shopeeSellerAppAvailable
-                      ? `เชื่อมต่อผ่าน app ของร้าน${shopeeSellerAppEnv === 'sandbox' ? ' (sandbox — ใช้บัญชี test shop)' : ''}`
+                      ? `เชื่อมต่อ Shopee ผ่าน app ของร้าน${shopeeSellerAppEnv === 'sandbox' ? ' (sandbox — ใช้บัญชี test shop)' : ''}`
                       : 'ผ่าน app ของร้าน — ยังไม่ได้เพิ่ม app ของบริษัทที่ ตั้งค่า > ช่องทางแชท > Shopee',
                     icon: <PlatformIcon id="shopee" size={16} />,
                     disabled: mpConnecting || !shopeeSellerAppAvailable,
                     onClick: () => handleMarketplaceConnect('shopee', { app: 'seller' }),
-                  },
-                ]}
+                  };
+                  const partner = {
+                    key: 'shopee',
+                    label: sellerFirst ? 'เชื่อมผ่าน app กลางของระบบ' : 'เชื่อมต่อร้าน Shopee',
+                    icon: <PlatformIcon id="shopee" size={16} />,
+                    disabled: mpConnecting,
+                    onClick: () => handleMarketplaceConnect('shopee'),
+                  };
+                  return sellerFirst
+                    ? [seller, { ...partner, dividerBefore: true }]
+                    : [partner, { ...seller, dividerBefore: true }];
+                })()}
               />
             ) : (
               <Button

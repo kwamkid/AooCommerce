@@ -8,7 +8,7 @@
 //    และรอ 2xx ภายใน 3 วิ จึงตั้งแยกทีหลังไม่ได้
 
 import crypto from 'crypto';
-import { baseUrlForKeys, type ShopeeAppKeys } from './api';
+import { baseUrlForKeys, resolveAppKeys, type ShopeeAppKeys } from './api';
 
 export interface ShopeePushConfig {
   /** push code ที่เปิดอยู่ (10 = webchat) */
@@ -76,11 +76,13 @@ export function getAppPushConfig(keys: ShopeeAppKeys): Promise<PushConfigResult>
  */
 export function setAppPushConfig(
   keys: ShopeeAppKeys,
-  opts: { callbackUrl: string; codes?: number[]; offCodes?: number[]; blockedShopIds?: number[] }
+  opts: { callbackUrl: string; codes?: number[] | null; offCodes?: number[]; blockedShopIds?: number[] }
 ): Promise<PushConfigResult> {
   return call(keys, 'POST', '/api/v2/push/set_app_push_config', {
     callback_url: opts.callbackUrl,
-    set_push_config_on: opts.codes ?? [10],
+    // codes: undefined = เปิด 10 ตามชื่อ · null = ไม่แตะ code เลย (ใช้ตอนแก้แค่ block list
+    // ของ app กลาง — app กลางขอ code 10 ไม่ได้ ส่งไปจะโดน error_param)
+    ...(opts.codes === null ? {} : { set_push_config_on: opts.codes ?? [10] }),
     // set_push_config_on เป็น "เพิ่ม" ไม่ใช่ "แทนที่" — code ที่เปิดค้างอยู่ไม่ได้ปิดเอง
     // ต้องส่ง set_push_config_off มาด้วยถึงจะปิดจริง (ห้ามส่งลิสต์ว่าง Shopee ตอบ error_param)
     ...(opts.offCodes && opts.offCodes.length > 0 ? { set_push_config_off: opts.offCodes } : {}),
@@ -102,6 +104,36 @@ export async function setChatOnlyPushConfig(
   const turnedOff = (current.config?.push_config_on_list || []).filter(c => c !== 10);
   const applied = await setAppPushConfig(keys, { callbackUrl, codes: [10], offCodes: turnedOff });
   return { ...applied, turnedOff };
+}
+
+/**
+ * code ทั้งหมดที่ webhook ของเรามีตัวรับ — ใช้เมื่อ **app ของบริษัทเป็นทางเข้าออเดอร์ด้วย**
+ * (บริษัทที่เชื่อมร้านผ่าน app ของตัวเองตั้งแต่แรก เช่น ABC the Baby ทั้ง 7 ร้าน)
+ * เพิ่มตัวรับ code ใหม่ใน push-handlers.ts แล้วต้องเพิ่มที่นี่ด้วย ไม่งั้น app บริษัทไม่ได้เปิด
+ */
+export const SHOPEE_PUSH_CODES_FULL = [1, 2, 3, 4, 8, 10, 12, 15, 16, 22];
+
+/**
+ * กันออเดอร์เข้าสองใบ — ร้านที่รับออเดอร์ผ่าน app ของบริษัทเองต้องถูก block ที่ app กลาง
+ * (เผื่อร้านนั้นเคย authorize app กลางไว้ด้วย) · `blocked_shop_id_list` เป็นการ**แทนที่**
+ * ทั้งลิสต์ จึงต้องอ่านของเดิมมารวมก่อน ไม่งั้นร้านของบริษัทอื่นที่ block อยู่หลุดหมด
+ */
+export async function blockShopsOnPartnerApp(
+  shopIds: number[]
+): Promise<PushConfigResult & { blocked: number[] }> {
+  const keys = await resolveAppKeys('partner');
+  if (!keys) return { ok: false, config: null, error: 'server ยังไม่ได้ตั้งค่า app กลาง (SHOPEE_PARTNER_APP_*)', blocked: [] };
+  const current = await getAppPushConfig(keys);
+  if (!current.ok) return { ...current, blocked: [] };
+  const existing = current.config?.blocked_shop_id_list || [];
+  const merged = [...new Set([...existing, ...shopIds])];
+  if (merged.length === existing.length) return { ...current, blocked: existing };
+  const applied = await setAppPushConfig(keys, {
+    callbackUrl: current.config?.callback_url || shopeeWebhookUrl(),
+    codes: null,
+    blockedShopIds: merged,
+  });
+  return { ...applied, blocked: applied.ok ? merged : existing };
 }
 
 /** URL ที่ Shopee ต้องยิง push มา — ต้องเป็นโดเมนจริง (Shopee test-ping ตอนตั้งค่า) */

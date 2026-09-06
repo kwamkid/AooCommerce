@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">AooCommerce</string>
+    <string name="title_activity_main">AooCommerce</string>
+    <string name="package_name">com.aoocommerce.app</string>
+    <string name="custom_url_scheme">com.aoocommerce.app</string>
+</resources>

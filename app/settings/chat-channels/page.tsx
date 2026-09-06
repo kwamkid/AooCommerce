@@ -98,10 +98,14 @@ interface ShopeeChatApp {
   push_key_masked: string | null;
   has_push_key: boolean;
   env: 'production' | 'sandbox';
+  /** โหมดที่บริษัทตั้งเอง — full = ออเดอร์+สินค้า+แชทผ่าน app นี้ · chat = แชทอย่างเดียว */
+  usage: 'full' | 'chat';
   is_active: boolean;
   last_push_config_check: {
     at?: string;
     ok?: boolean;
+    /** โหมดที่ใช้ตอนตั้ง push ครั้งนั้น (chat_only = ค่าเก่าก่อนมีคอลัมน์ usage) */
+    mode?: 'full' | 'chat' | 'chat_only';
     error?: string | null;
     config?: { push_config_on_list?: number[]; live_push_status?: string; callback_url?: string } | null;
   } | null;
@@ -237,10 +241,16 @@ export default function ChatChannelsPage() {
   // และ app ผูกกับบัญชี seller ที่จดมัน ⇒ ทุกบริษัทต้องมีของตัวเอง ใช้ app กลางแทนไม่ได้
   const [shopeeApp, setShopeeApp] = useState<ShopeeChatApp | null>(null);
   const [shopeeAppLoaded, setShopeeAppLoaded] = useState(false);
-  const [shopeeAppForm, setShopeeAppForm] = useState({ partner_id: '', partner_key: '', push_key: '', env: 'production', label: '' });
+  // usage ว่าง = ยังไม่ได้เลือกเอง → ส่งไปแบบว่าง ให้ server เดาจากสภาพร้านให้ (กติกาเดียวกัน)
+  const [shopeeAppForm, setShopeeAppForm] = useState({ partner_id: '', partner_key: '', push_key: '', env: 'production', usage: '', label: '' });
   const [shopeeAppEditing, setShopeeAppEditing] = useState(false);
   const [shopeeAppSaving, setShopeeAppSaving] = useState(false);
   const [shopeeAppPushing, setShopeeAppPushing] = useState(false);
+  // โหมดตั้งต้นของ app ใบใหม่ — กติกาเดียวกับฝั่ง server: มีร้านอยู่บน app กลางแล้ว = บริษัทนี้
+  // มา "เติมแชท" ⇒ chat · ไม่มีร้านเลย หรือมีร้านที่เชื่อมผ่าน app ตัวเองแล้ว ⇒ full
+  const shopeeUsageDefault: 'full' | 'chat' =
+    mpShops.shopee.some(s => s.metadata?.shopee_app === 'seller') ? 'full'
+      : mpShops.shopee.length > 0 ? 'chat' : 'full';
 
   // Inline form state
   const [showForm, setShowForm] = useState(false);
@@ -331,7 +341,7 @@ export default function ChatChannelsPage() {
       } else {
         setShopeeApp(data);
         setShopeeAppEditing(false);
-        setShopeeAppForm({ partner_id: '', partner_key: '', push_key: '', env: 'production', label: '' });
+        setShopeeAppForm({ partner_id: '', partner_key: '', push_key: '', env: 'production', usage: '', label: '' });
         showToast('บันทึก app แชท Shopee แล้ว — ขั้นต่อไปกด "ตั้งค่า push (webchat)"', 'success');
       }
     } catch {
@@ -1046,7 +1056,7 @@ export default function ChatChannelsPage() {
                         setShopeeAppEditing(true);
                         setShopeeAppForm({
                           partner_id: String(shopeeApp.partner_id), partner_key: '', push_key: '',
-                          env: shopeeApp.env, label: shopeeApp.label || '',
+                          env: shopeeApp.env, usage: shopeeApp.usage, label: shopeeApp.label || '',
                         });
                       }}>แก้ไข</Button>
                     )}
@@ -1061,6 +1071,12 @@ export default function ChatChannelsPage() {
                         <div>
                           <span className="helper-text text-gray-500">Live Push Partner Key</span>
                           <p>{shopeeApp.has_push_key ? shopeeApp.push_key_masked : 'ใช้ Partner Key ใบเดียวกัน'}</p>
+                        </div>
+                        <div className="sm:col-span-2">
+                          <span className="helper-text text-gray-500">ใช้ app นี้กับ</span>
+                          <p>{shopeeApp.usage === 'chat'
+                            ? 'แชทอย่างเดียว — ออเดอร์/สินค้าผ่าน app กลางของระบบ'
+                            : 'ทุกอย่าง — ออเดอร์ สินค้า แชท (ร้านเชื่อมผ่าน app นี้โดยตรง)'}</p>
                         </div>
                       </div>
                       <div className="flex flex-wrap items-center gap-3">
@@ -1078,8 +1094,12 @@ export default function ChatChannelsPage() {
                           </p>
                         )}
                       </div>
+                      {/* บอกจาก **โหมดที่ตั้งไว้** ไม่ใช่ผลการตั้งครั้งก่อน — เปลี่ยนโหมดแล้วยังไม่กดปุ่ม
+                          ต้องอ่านออกว่ากดแล้วจะได้อะไร */}
                       <p className="helper-text text-gray-500">
-                        เปิดให้เฉพาะ code 10 (แชท) — ออเดอร์/สินค้ายังเข้าทาง app กลางของระบบ ถ้าเปิด code ออเดอร์ที่ app นี้ด้วยจะได้ push ซ้ำสองใบ
+                        {shopeeApp.usage === 'full'
+                          ? 'โหมด "ทุกอย่าง": เปิด push ครบทุก code ที่ระบบรองรับ และ block ร้านที่เชื่อมผ่าน app นี้ที่ app กลาง กันออเดอร์เข้าสองใบ'
+                          : 'โหมด "แชทอย่างเดียว": เปิดเฉพาะ code 10 (แชท) และปิด code อื่นที่ค้างอยู่ — ออเดอร์/สินค้าเข้าทาง app กลางของระบบ'}
                       </p>
                     </div>
                   ) : (
@@ -1113,6 +1133,19 @@ export default function ChatChannelsPage() {
                           hint="เว้นว่าง = ใช้ Partner Key ใบเดียวกัน"
                           placeholder="ถ้า Shopee ออกคีย์ push แยก"
                         />
+                        {/* โหมดของ app — ตัวนี้คุมทั้ง push ที่เปิด และลำดับปุ่มเชื่อมร้านในหน้าช่องทางการขาย
+                            ยังไม่เคยเลือก = โชว์ค่าที่ระบบจะเลือกให้ตามสภาพร้าน (ค่าเดียวกับฝั่ง server) */}
+                        <div className="sm:col-span-2">
+                          <label className="field-label">ใช้ app นี้กับ</label>
+                          <FormSelect
+                            value={shopeeAppForm.usage || shopeeUsageDefault}
+                            onChange={(v) => setShopeeAppForm(f => ({ ...f, usage: v }))}
+                            options={[
+                              { id: 'full', label: 'ทุกอย่าง — ออเดอร์ สินค้า แชท (ร้านเชื่อมผ่าน app นี้โดยตรง)' },
+                              { id: 'chat', label: 'แชทอย่างเดียว — ออเดอร์/สินค้าผ่าน app กลางของระบบ' },
+                            ]}
+                          />
+                        </div>
                       </div>
                       <p className="helper-text text-gray-500">
                         Live Push Partner Key ต้องกดสร้างเองใน Shopee Open Platform ที่ <strong>Push Mechanism › Set Push</strong>
@@ -1148,6 +1181,7 @@ export default function ChatChannelsPage() {
                   const onSellerApp = platform === 'shopee' && shop.metadata?.shopee_app === 'seller';
                   // ยังไม่มี app ของบริษัท = กดเชื่อมต่อแชทไปก็เด้ง ต้องกรอก app ในการ์ดข้างบนก่อน
                   const shopeeAppMissing = platform === 'shopee' && shopeeAppLoaded && !shopeeApp;
+                  const shopeeAppUsageFull = platform === 'shopee' && shopeeApp?.usage === 'full';
                   return (
                     <div key={shop.id} className="bg-white dark:bg-slate-800 rounded-lg shadow-sm px-3 py-2.5 flex items-center gap-3">
                       <ChannelBadge
@@ -1170,6 +1204,12 @@ export default function ChatChannelsPage() {
                         <Tooltip text="กรอก app แชท Shopee ของบริษัทในการ์ดด้านบนก่อน แล้วปุ่มนี้ถึงจะใช้ได้" box="inline-flex">
                           <Button size="sm" variant="secondary" disabled>เชื่อมต่อแชท</Button>
                         </Tooltip>
+                      ) : needsChatAuth && shopeeAppUsageFull ? (
+                        // โหมด "ทุกอย่าง" แต่ร้านนี้ยังไม่มี token แชท = ร้านนี้ยังอยู่บน app กลาง
+                        // ต่อ token แชทเพิ่มให้ก็ผิดโครง (โหมดนี้ตั้งใจให้ทุกอย่างมาทาง app ของร้าน)
+                        <p className="helper-text text-gray-500 max-w-[16rem] text-right">
+                          ร้านนี้เชื่อมผ่าน app กลาง — เชื่อมร้านใหม่ผ่าน app ของร้าน หรือเปลี่ยนโหมดเป็นแชทอย่างเดียว
+                        </p>
                       ) : needsChatAuth ? (
                         <Button size="sm" variant="secondary" loading={connectingChatAuth} onClick={() => handleConnectMarketplaceChat(platform)}>
                           {shop.chat_expired ? 'เชื่อมต่อแชทใหม่' : 'เชื่อมต่อแชท'}

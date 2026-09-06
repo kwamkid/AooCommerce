@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
-import { invalidateShopeeAppCache, maskSecret } from '@/lib/shopee/app-credentials';
+import {
+  invalidateShopeeAppCache, maskSecret, normalizeUsage, getCompanyShopeeShopSplit,
+  SHOPEE_CHAT_ONLY_BLOCKED, type ShopeeAppUsage,
+} from '@/lib/shopee/app-credentials';
 import { getAppPushConfig } from '@/lib/shopee/push-config';
 
 // app แชท Shopee ของบริษัท (Seller In House)
@@ -10,6 +13,7 @@ import { getAppPushConfig } from '@/lib/shopee/push-config';
 //
 //   GET    รายการ app ของบริษัท (**key ถูกปิดบังเสมอ**)
 //   POST   เพิ่ม/แก้ (upsert ที่ company_id+platform+app_role) — ตรวจ key กับ Shopee ก่อนบันทึก
+//          + `usage` (full/chat) = บริษัทเลือกเองว่า app ใบนี้ทำอะไรบ้าง (push-config ยึดค่านี้)
 //   PUT    เหมือน POST (เผื่อ client เรียกด้วย verb นี้)
 //   DELETE ปิดใช้งาน (is_active=false) — ไม่ลบทิ้ง เพราะ push key ยังต้องใช้ตรวจ push ที่ค้างมา
 
@@ -23,6 +27,7 @@ interface AppRow {
   partner_key: string;
   push_key: string | null;
   env: string;
+  usage: string;
   is_active: boolean;
   last_push_config_check: unknown;
   created_at: string;
@@ -40,6 +45,8 @@ function toPublic(row: AppRow) {
     /** ไม่ได้ตั้ง push key แยก = ใช้ partner key ตรวจ push (Shopee ให้ตั้งแยกได้) */
     has_push_key: !!row.push_key,
     env: row.env === 'sandbox' ? 'sandbox' : 'production',
+    /** full = app นี้รับออเดอร์+สินค้า+แชท · chat = แชทอย่างเดียว (บริษัทเลือกเอง) */
+    usage: normalizeUsage(row.usage),
     is_active: row.is_active,
     last_push_config_check: row.last_push_config_check,
     created_at: row.created_at,
@@ -47,7 +54,7 @@ function toPublic(row: AppRow) {
   };
 }
 
-const SELECT = 'id, label, partner_id, partner_key, push_key, env, is_active, last_push_config_check, created_at, updated_at';
+const SELECT = 'id, label, partner_id, partner_key, push_key, env, usage, is_active, last_push_config_check, created_at, updated_at';
 
 export async function GET(request: NextRequest) {
   const { isAuth, companyId, companyRoles } = await checkAuthWithCompany(request);
@@ -83,10 +90,20 @@ async function upsert(request: NextRequest) {
     return NextResponse.json({ error: 'Partner ID ไม่ถูกต้อง' }, { status: 400 });
   }
 
+  // โหมดของ app = ค่าที่บริษัทตั้งเอง — ค่าแปลก ๆ ต้องตีตกตั้งแต่ต้นทาง ไม่ใช่ปล่อยให้
+  // CHECK ของ DB ตอบเป็น error ดิบ ๆ · ไม่ส่งมา = undefined (คงของเดิม / เดาให้ตอนสร้างใหม่)
+  let requestedUsage: ShopeeAppUsage | undefined;
+  if (body.usage !== undefined && body.usage !== null && body.usage !== '') {
+    if (body.usage !== 'full' && body.usage !== 'chat') {
+      return NextResponse.json({ error: 'usage ต้องเป็น full หรือ chat' }, { status: 400 });
+    }
+    requestedUsage = body.usage;
+  }
+
   // แก้ของเดิมโดยไม่กรอก key ใหม่ = เก็บใบเดิมไว้ (หน้าจอโชว์แค่ 4 ตัวท้าย พิมพ์ซ้ำไม่ได้)
   const { data: current } = await supabaseAdmin
     .from('marketplace_app_credentials')
-    .select('id, partner_key, push_key')
+    .select('id, partner_key, push_key, usage')
     .eq('company_id', companyId)
     .eq('platform', PLATFORM)
     .eq('app_role', APP_ROLE)
@@ -96,6 +113,20 @@ async function upsert(request: NextRequest) {
   const finalPushKey = pushKey || (partnerKey ? null : (current?.push_key as string) || null);
   if (!finalKey) {
     return NextResponse.json({ error: 'ต้องกรอก Partner Key' }, { status: 400 });
+  }
+
+  const { sellerMainShopIds, partnerShopIds } = await getCompanyShopeeShopSplit(companyId);
+  // ตั้งใบใหม่โดยไม่ระบุโหมด = เดาจากสภาพร้านที่มีอยู่ให้ครั้งเดียว (แก้ทีหลังได้):
+  // มีร้านอยู่บน app กลางแล้ว → บริษัทนี้มา "เติมแชท" ⇒ chat · ไม่มีร้านเลย → เริ่มใหม่ทั้งชุด ⇒ full
+  // มีร้านที่อยู่บน app ของบริษัทเองอยู่แล้ว → chat ไม่มีทางถูก (ออเดอร์จะขาด) ⇒ full เสมอ
+  const fallbackUsage: ShopeeAppUsage =
+    sellerMainShopIds.length > 0 ? 'full' : partnerShopIds.length > 0 ? 'chat' : 'full';
+  const finalUsage: ShopeeAppUsage =
+    requestedUsage ?? (current ? normalizeUsage(current.usage as string) : fallbackUsage);
+
+  // ⚠️ ลดเป็น "แชทอย่างเดียว" ทั้งที่มีร้านรับออเดอร์ผ่าน app นี้ = push ออเดอร์ของร้านนั้นถูกปิด
+  if (requestedUsage === 'chat' && sellerMainShopIds.length > 0) {
+    return NextResponse.json({ error: SHOPEE_CHAT_ONLY_BLOCKED, shop_ids: sellerMainShopIds }, { status: 409 });
   }
 
   // ตรวจกับ Shopee จริงก่อนบันทึก — key ผิดแล้วบันทึกไว้ = ทุก call ของบริษัทนี้ fail เงียบ ๆ
@@ -120,6 +151,7 @@ async function upsert(request: NextRequest) {
       partner_key: finalKey,
       push_key: finalPushKey,
       env,
+      usage: finalUsage,
       is_active: true,
       last_push_config_check: { at: now, ok: true, config: probe.config },
       created_by: userId,

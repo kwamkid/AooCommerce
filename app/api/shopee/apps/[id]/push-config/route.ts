@@ -1,12 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
-import { invalidateShopeeAppCache } from '@/lib/shopee/app-credentials';
-import { getAppPushConfig, setChatOnlyPushConfig, shopeeWebhookUrl } from '@/lib/shopee/push-config';
+import {
+  invalidateShopeeAppCache, normalizeUsage, getCompanyShopeeShopSplit, SHOPEE_CHAT_ONLY_BLOCKED,
+} from '@/lib/shopee/app-credentials';
+import {
+  getAppPushConfig, setAppPushConfig, setChatOnlyPushConfig, blockShopsOnPartnerApp,
+  shopeeWebhookUrl, SHOPEE_PUSH_CODES_FULL,
+} from '@/lib/shopee/push-config';
 
-// เปิด push แชท (code 10) ให้ app ของบริษัทนี้
+// ตั้งค่า push ให้ app ของบริษัทนี้ — โหมดมาจาก **ค่าที่บริษัทตั้งไว้** (`usage`) ไม่ใช่การเดา
+// จากสภาพร้าน · ของเดิมเดาว่า "มีร้านที่ shopee_app='seller' ไหม" ซึ่งตอบผิดตอนบริษัทตั้ง app
+// ไว้ก่อนเชื่อมร้านสักร้าน (ได้ chat_only แล้วร้านที่เชื่อมทีหลังไม่มี push ออเดอร์)
 //
-// ⚠️ **เปิดแค่ code 10 เท่านั้น** — ออเดอร์/สินค้าเข้าทาง app กลางอยู่แล้ว
-// ถ้า app นี้เปิด code ออเดอร์ด้วย ทุกเหตุการณ์จะ push มาสองใบ
+//   chat  ร้านรับออเดอร์ผ่าน app กลาง → app นี้เปิด **แค่ code 10** (ปิด code อื่นที่ค้าง)
+//         เปิด code ออเดอร์ด้วยจะได้ push ซ้ำสองใบทุกเหตุการณ์
+//   full  app นี้คือทางเข้าออเดอร์ของบริษัทด้วย → เปิดครบทุก code ที่ webhook รองรับ
+//         และ block ร้านที่ authorize ผ่าน app นี้ที่ app กลาง กันออเดอร์เข้าสองใบ
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { isAuth, companyId, companyRoles } = await checkAuthWithCompany(request);
@@ -17,7 +26,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   const { data: row } = await supabaseAdmin
     .from('marketplace_app_credentials')
-    .select('id, partner_id, partner_key, env')
+    .select('id, partner_id, partner_key, env, usage')
     .eq('id', id)
     .eq('company_id', companyId)      // app ของบริษัทตัวเองเท่านั้น
     .eq('platform', 'shopee')
@@ -32,8 +41,23 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   };
   const callbackUrl = shopeeWebhookUrl();
 
-  // เปิด 10 + ปิด code อื่นที่เปิดค้างอยู่ (ดูเหตุผลใน setChatOnlyPushConfig)
-  const applied = await setChatOnlyPushConfig(keys, callbackUrl);
+  const mode = normalizeUsage(row.usage as string);
+  // ร้านที่ authorize ผ่าน app นี้เป็นชุดหลัก — โหมด full ต้อง block ร้านพวกนี้ที่ app กลาง
+  const { sellerMainShopIds: ownShopIds } = await getCompanyShopeeShopSplit(companyId);
+
+  // ⚠️ ปิด code ออเดอร์ทั้งที่ร้านรับออเดอร์ผ่าน app นี้ = ออเดอร์หายเงียบ — ตีตกก่อนยิง Shopee
+  if (mode === 'chat' && ownShopIds.length > 0) {
+    return NextResponse.json({ error: SHOPEE_CHAT_ONLY_BLOCKED, shop_ids: ownShopIds }, { status: 409 });
+  }
+
+  const applied = mode === 'full'
+    ? { ...(await setAppPushConfig(keys, { callbackUrl, codes: SHOPEE_PUSH_CODES_FULL })), turnedOff: [] as number[] }
+    : await setChatOnlyPushConfig(keys, callbackUrl);
+  // โหมด full: ร้านพวกนี้ต้องไม่ได้รับ push จาก app กลางอีกทาง (ล้มก็แค่จดไว้ — ไม่ใช่เหตุให้ทั้งปุ่มล้ม)
+  // ยังไม่มีร้านบน app นี้ = ไม่มีอะไรต้อง block ข้ามไปเลย (ยิงไปก็ไปกวน list ของ app กลางเปล่า ๆ)
+  const partnerBlock = mode === 'full' && applied.ok && ownShopIds.length > 0
+    ? await blockShopsOnPartnerApp(ownShopIds)
+    : null;
   // อ่านซ้ำหลังตั้ง — ค่าที่ Shopee ตอบกลับตอน set ไม่ครบเท่า get (ไม่มี live_push_status)
   const after = applied.ok ? await getAppPushConfig(keys) : applied;
 
@@ -42,7 +66,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     ok: applied.ok,
     callback_url: callbackUrl,
     error: applied.error || null,
+    mode,
     turned_off: applied.turnedOff,
+    own_shop_ids: ownShopIds,
+    partner_block: partnerBlock ? { ok: partnerBlock.ok, error: partnerBlock.error || null, blocked: partnerBlock.blocked } : null,
     config: after.config,
   };
   await supabaseAdmin

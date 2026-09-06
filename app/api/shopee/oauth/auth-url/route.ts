@@ -27,6 +27,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({
         available: !!sellerApp,
         env: sellerApp?.env || 'production',
+        // full = app ของบริษัทเป็นทางเข้าหลัก ⇒ หน้าเชื่อมร้านต้องชูปุ่มนี้เป็นตัวหลัก
+        usage: sellerApp?.usage || null,
         source: sellerApp ? sellerApp.source : null,
       });
     }

@@ -1,0 +1,29 @@
+{
+  "name": "aoocommerce-mobile",
+  "private": true,
+  "version": "1.0.0",
+  "description": "เปลือกแอป (Capacitor) ของ AooCommerce — เปิดเว็บตัวจริงใน WebView + push/badge/deep link แบบ native",
+  "scripts": {
+    "assets:src": "node scripts/make-assets.mjs",
+    "assets": "npx @capacitor/assets generate --iconBackgroundColor '#ffffff' --iconBackgroundColorDark '#000000' --splashBackgroundColor '#ffffff' --splashBackgroundColorDark '#0f172a'",
+    "sync": "cap sync",
+    "ios": "cap open ios",
+    "android": "cap open android"
+  },
+  "dependencies": {
+    "@capacitor/android": "^7.4.0",
+    "@capacitor/app": "^7.0.0",
+    "@capacitor/browser": "^7.0.0",
+    "@capacitor/core": "^7.4.0",
+    "@capacitor/ios": "^7.4.0",
+    "@capacitor/push-notifications": "^7.0.0",
+    "@capacitor/splash-screen": "^7.0.0",
+    "@capacitor/status-bar": "^7.0.0",
+    "@capawesome/capacitor-badge": "^7.0.0"
+  },
+  "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
+    "@capacitor/cli": "^7.4.0",
+    "sharp": "^0.34.5"
+  }
+}

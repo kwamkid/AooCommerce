@@ -13,6 +13,7 @@ import { useFetchOnce } from '@/lib/use-fetch-once';
 import { LoadingCard, EmptyCard } from '@/components/ui/StateCard';
 import Badge from '@/components/ui/Badge';
 import Toggle from '@/components/ui/Toggle';
+import FormSelect from '@/components/ui/FormSelect';
 import PlatformIcon from '@/components/ui/PlatformIcon';
 import { formatThaiDateTime } from '@/lib/utils/format';
 
@@ -28,6 +29,8 @@ interface MarketplaceApp {
   push_key_masked: string | null;
   has_push_key: boolean;
   env: string;
+  /** full = app นี้รับออเดอร์+สินค้า+แชทของบริษัท · chat = แชทอย่างเดียว */
+  usage: 'full' | 'chat';
   is_active: boolean;
   last_push_config_check: {
     at?: string; ok?: boolean; error?: string | null;
@@ -41,6 +44,7 @@ export default function SuperAdminMarketplaceApps() {
   const [rows, setRows] = useState<MarketplaceApp[]>([]);
   const [loading, setLoading] = useState(true);
   const [toggling, setToggling] = useState<string | null>(null);
+  const [savingUsage, setSavingUsage] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -67,6 +71,30 @@ export default function SuperAdminMarketplaceApps() {
       showToast('เปลี่ยนสถานะไม่สำเร็จ', 'error');
     }
     setToggling(null);
+  };
+
+  // เปลี่ยนโหมดแทนบริษัท — server อาจตอบ 409 (มีร้านรับออเดอร์ผ่าน app นี้อยู่)
+  // ต้องโชว์เหตุผลของจริง ไม่ใช่ "ไม่สำเร็จ" ลอย ๆ เพราะทางแก้ต่างกันคนละเรื่อง
+  const changeUsage = async (row: MarketplaceApp, usage: 'full' | 'chat') => {
+    if (usage === row.usage) return;
+    setSavingUsage(row.id);
+    try {
+      const res = await apiFetch('/api/superadmin/marketplace-apps', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: row.id, usage }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        showToast(typeof data.error === 'string' ? data.error : 'เปลี่ยนโหมดไม่สำเร็จ', 'error');
+      } else {
+        setRows(prev => prev.map(r => r.id === row.id ? { ...r, usage } : r));
+        showToast('เปลี่ยนโหมดแล้ว — บริษัทต้องกด "ตั้งค่า push" อีกครั้งให้ push ตรงกับโหมดใหม่', 'success');
+      }
+    } catch {
+      showToast('เปลี่ยนโหมดไม่สำเร็จ', 'error');
+    }
+    setSavingUsage(null);
   };
 
   return (
@@ -104,9 +132,24 @@ export default function SuperAdminMarketplaceApps() {
                     {check?.config?.live_push_status ? ` · live push: ${check.config.live_push_status}` : ''}
                   </p>
                 </div>
-                {toggling === row.id
-                  ? <span className="helper-text text-gray-400">กำลังบันทึก…</span>
-                  : <Toggle checked={row.is_active} onChange={() => toggle(row)} />}
+                <div className="flex flex-col items-end gap-2 shrink-0">
+                  {/* โหมดของ app — คุมว่า push เปิด code อะไร และหน้าเชื่อมร้านชูปุ่มไหนเป็นตัวหลัก */}
+                  <div className="w-52">
+                    <FormSelect
+                      size="sm"
+                      value={row.usage}
+                      disabled={savingUsage === row.id}
+                      onChange={(v) => changeUsage(row, v === 'chat' ? 'chat' : 'full')}
+                      options={[
+                        { id: 'full', label: 'ทุกอย่าง (ออเดอร์+แชท)' },
+                        { id: 'chat', label: 'แชทอย่างเดียว' },
+                      ]}
+                    />
+                  </div>
+                  {toggling === row.id
+                    ? <span className="helper-text text-gray-400">กำลังบันทึก…</span>
+                    : <Toggle checked={row.is_active} onChange={() => toggle(row)} />}
+                </div>
               </div>
             );
           })}

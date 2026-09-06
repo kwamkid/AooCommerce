@@ -1,9 +1,14 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, after } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import {
   exchangeCodeForToken, getShopListByMerchant, ensureValidToken, getShopInfo,
   resolveAppKeys, shopeeAppOf, type ShopeeApp,
 } from '@/lib/shopee/api';
+import { getCompanyShopeeApp } from '@/lib/shopee/app-credentials';
+import {
+  setAppPushConfig, blockShopsOnPartnerApp, shopeeWebhookUrl, SHOPEE_PUSH_CODES_FULL,
+} from '@/lib/shopee/push-config';
+import { logIntegrationNow } from '@/lib/integration-logger';
 import { authorizeMarketplaceCallback } from '@/lib/oauth-state';
 
 export async function GET(request: NextRequest) {
@@ -121,6 +126,8 @@ export async function GET(request: NextRequest) {
     }
 
     let connectedCount = 0;
+    // ร้านที่ "เพิ่งเข้าระบบผ่าน app ของบริษัทเอง" ในรอบนี้ — ต้องตามไปตั้ง push ให้ (ดูท้ายฟังก์ชัน)
+    const newSellerShopIds: number[] = [];
 
     for (const sid of shopIds) {
       const prior = existing.get(sid);
@@ -210,6 +217,8 @@ export async function GET(request: NextRequest) {
         continue;
       }
       connectedCount++;
+      // ขา seller + ยังไม่เคยมีร้านนี้ = ร้านใหม่ที่ token ชุดหลักออกจาก app ของบริษัท
+      if (isChatLeg && !prior) newSellerShopIds.push(sid);
 
       // Fetch shop name and logo (best effort)
       try {
@@ -236,6 +245,51 @@ export async function GET(request: NextRequest) {
     if (connectedCount === 0) {
       console.error('[Shopee Callback] All upserts failed for', shopIds.length, 'shop(s)');
       return fail('shopee_save_failed');
+    }
+
+    // ร้านใหม่ที่เข้ามาทาง app ของบริษัท + บริษัทตั้งโหมด "ครบในตัว" ⇒ app ใบนั้นต้องเปิด push
+    // ครบทุก code และร้านต้องถูก block ที่ app กลาง — ไม่ทำ = ออเดอร์ร้านใหม่เงียบ (หรือเข้าซ้ำ
+    // สองใบถ้าร้านเคยผูก app กลางไว้) และไม่มีใครรู้จนกว่าจะมีคนสังเกตว่าออเดอร์หาย
+    // ⚠️ ต้องอยู่ใน after() — งานที่ปล่อยลอยก่อน redirect โดน Vercel freeze ทิ้งกลางทาง
+    if (newSellerShopIds.length > 0) {
+      const shopIdsToPush = [...newSellerShopIds];
+      after(async () => {
+        const fix = 'กดปุ่ม "ตั้งค่า push (webchat)" ที่ ตั้งค่า > ช่องทางแชท > Shopee';
+        try {
+          const app = await getCompanyShopeeApp(companyId, 'seller');
+          // โหมด chat = ออเดอร์เข้าทาง app กลางอยู่แล้ว ห้ามไปเปิด code ออเดอร์ให้ app นี้
+          if (app?.usage !== 'full') return;
+
+          const applied = await setAppPushConfig(keys, {
+            callbackUrl: shopeeWebhookUrl(),
+            codes: SHOPEE_PUSH_CODES_FULL,
+          });
+          const blocked = applied.ok ? await blockShopsOnPartnerApp(shopIdsToPush) : null;
+          if (applied.ok && (!blocked || blocked.ok)) return;
+
+          await logIntegrationNow({
+            company_id: companyId,
+            integration: 'shopee',
+            direction: 'outgoing',
+            action: 'push_config_auto',
+            status: 'error',
+            error_message: `ตั้ง push อัตโนมัติหลังเชื่อมร้านไม่สำเร็จ — ${applied.error || blocked?.error || 'ไม่ทราบสาเหตุ'} · วิธีแก้: ${fix}`,
+            reference_type: 'shopee_shop',
+            reference_id: shopIdsToPush.join(','),
+          });
+        } catch (e) {
+          await logIntegrationNow({
+            company_id: companyId,
+            integration: 'shopee',
+            direction: 'outgoing',
+            action: 'push_config_auto',
+            status: 'error',
+            error_message: `ตั้ง push อัตโนมัติหลังเชื่อมร้านล้ม — ${e instanceof Error ? e.message : String(e)} · วิธีแก้: ${fix}`,
+            reference_type: 'shopee_shop',
+            reference_id: shopIdsToPush.join(','),
+          });
+        }
+      });
     }
 
     // Clear the cookie

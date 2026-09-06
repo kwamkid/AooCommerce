@@ -13,6 +13,14 @@ import { supabaseAdmin } from '@/lib/supabase-admin';
 
 export type ShopeeAppRole = 'seller';
 
+/**
+ * app ใบนี้ทำหน้าที่อะไรให้บริษัท — **บริษัทเลือกเอง** ไม่ใช่ระบบเดาจากสภาพร้าน
+ *   full = ทางเข้าออเดอร์ + สินค้า + แชท (ร้าน authorize ผ่าน app นี้ตรง ๆ ตั้งแต่แรก)
+ *   chat = แชทอย่างเดียว — ออเดอร์/สินค้าเข้าทาง app กลางของระบบ
+ * เดาเอาไม่ได้เพราะสองโครงหน้าตาเหมือนกันตอนที่ยังไม่มีร้านเชื่อมสักร้าน
+ */
+export type ShopeeAppUsage = 'full' | 'chat';
+
 export interface ShopeeAppCredentials {
   /** row id ใน marketplace_app_credentials — null = มาจาก env (legacy fallback) */
   id: string | null;
@@ -21,6 +29,7 @@ export interface ShopeeAppCredentials {
   /** Live Push Partner Key (Push Mechanism > Set Push) — ไม่ตั้ง = ใช้ partner_key ตรวจ push */
   push_key: string | null;
   env: 'production' | 'sandbox';
+  usage: ShopeeAppUsage;
   /** company = แถวของบริษัทนี้ · env = ตกมาใช้ค่าใน environment ของ server */
   source: 'company' | 'env';
   label: string | null;
@@ -61,6 +70,8 @@ function envSellerApp(): ShopeeAppCredentials | null {
     partner_key: partnerKey,
     push_key: process.env.SHOPEE_SELLER_APP_PUSH_KEY || null,
     env: normalizeEnv(process.env.SHOPEE_SELLER_APP_ENV || process.env.SHOPEE_PARTNER_APP_ENV),
+    // env app ยุคก่อนมีตารางนี้ = app ของ ABC ที่รับทั้งออเดอร์และแชท → full คือพฤติกรรมเดิม
+    usage: 'full',
     source: 'env',
     label: 'app จาก environment (legacy)',
   };
@@ -72,7 +83,12 @@ interface AppRow {
   partner_key: string;
   push_key: string | null;
   env: string;
+  usage: string;
   label: string | null;
+}
+
+export function normalizeUsage(value: string | null | undefined): ShopeeAppUsage {
+  return value === 'chat' ? 'chat' : 'full';
 }
 
 function rowToCreds(row: AppRow): ShopeeAppCredentials {
@@ -83,6 +99,7 @@ function rowToCreds(row: AppRow): ShopeeAppCredentials {
     partner_key: row.partner_key,
     push_key: row.push_key || null,
     env: normalizeEnv(row.env),
+    usage: normalizeUsage(row.usage),
     source: 'company',
     label: row.label,
   };
@@ -105,7 +122,7 @@ export async function getCompanyShopeeApp(
 
   const { data } = await supabaseAdmin
     .from('marketplace_app_credentials')
-    .select('id, partner_id, partner_key, push_key, env, label')
+    .select('id, partner_id, partner_key, push_key, env, usage, label')
     .eq('company_id', companyId)
     .eq('platform', 'shopee')
     .eq('app_role', role)
@@ -145,6 +162,42 @@ export async function listActiveSellerPushKeys(): Promise<string[]> {
   pushKeyCache = { at: Date.now(), value };
   return value;
 }
+
+/**
+ * ร้าน Shopee ที่ยังใช้งานของบริษัทนี้ แบ่งตาม app ที่ออก **token ชุดหลัก** ให้ร้านนั้น
+ *
+ * ใช้ตัดสินเรื่องที่ต้องอ้างของจริง ไม่ใช่ค่าที่ผู้ใช้เลือก: ร้านใน `sellerMainShopIds`
+ * รับออเดอร์ผ่าน app ของบริษัท ⇒ ลดโหมดเป็น "แชทอย่างเดียว" เมื่อไหร่ push ออเดอร์ของ
+ * ร้านพวกนี้ถูกปิดตาม (ออเดอร์หายเงียบ) และร้านพวกนี้ต้องถูก block ที่ app กลางเสมอ
+ */
+export async function getCompanyShopeeShopSplit(companyId: string): Promise<{
+  sellerMainShopIds: number[];
+  partnerShopIds: number[];
+}> {
+  const { data } = await supabaseAdmin
+    .from('marketplace_accounts')
+    .select('shop_id, metadata')
+    .eq('company_id', companyId)
+    .eq('platform', 'shopee')
+    .eq('is_active', true);
+
+  const sellerMainShopIds: number[] = [];
+  const partnerShopIds: number[] = [];
+  for (const row of (data || []) as { shop_id: number | string; metadata: Record<string, unknown> | null }[]) {
+    const id = Number(row.shop_id);
+    if (!id) continue;
+    (row.metadata?.shopee_app === 'seller' ? sellerMainShopIds : partnerShopIds).push(id);
+  }
+  return { sellerMainShopIds, partnerShopIds };
+}
+
+/**
+ * ข้อความตอนปฏิเสธการลดโหมดเป็น "แชทอย่างเดียว" — บอกทางออกทั้งสองทาง ไม่ใช่แค่ห้าม
+ * (ปฏิเสธเฉย ๆ ผู้ใช้จะไปกดปิด app ทิ้งแทน ซึ่งแย่กว่าเดิม)
+ */
+export const SHOPEE_CHAT_ONLY_BLOCKED =
+  'มีร้านที่เชื่อมผ่าน app ของบริษัทนี้อยู่ — ออเดอร์ของร้านเหล่านั้นเข้าทาง app นี้ เปลี่ยนเป็น "แชทอย่างเดียว" จะทำให้ push ออเดอร์ถูกปิด ' +
+  'ให้คงโหมด "ครบในตัว" ไว้ หรือเชื่อมร้านเหล่านั้นใหม่ผ่าน app กลางของระบบก่อนแล้วค่อยเปลี่ยนโหมด';
 
 /**
  * ปิดบัง secret ก่อนส่งออกจาก API — โชว์ 4 ตัวท้ายพอให้ผู้ใช้ยืนยันว่าใส่ใบไหนไว้
