@@ -77,6 +77,11 @@ export async function GET(request: NextRequest) {
       ),
       credentials: maskCredentials(account.credentials as Record<string, unknown>, account.platform),
       webhook_url: getWebhookUrl(request, account.id, account.platform),
+      // ผลตรวจสุขภาพจริงล่าสุด (ตัวเฝ้าเขียนไว้ทุก 6 ชม. — lib/chat/channel-health.ts)
+      // ระบุชื่อฟิลด์ตรง ๆ เพื่อไม่ให้หลุดหายถ้าวันหนึ่ง select ข้างบนถูกหั่นให้แคบลง
+      health_status: account.health_status ?? null,
+      health_detail: account.health_detail ?? null,
+      health_checked_at: account.health_checked_at ?? null,
     }));
 
     return NextResponse.json({ accounts });

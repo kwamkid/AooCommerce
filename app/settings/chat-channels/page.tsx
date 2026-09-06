@@ -60,7 +60,19 @@ interface ChatAccount {
   is_active: boolean;
   webhook_url: string;
   created_at: string;
+  /** ผลตรวจจริงล่าสุดจากตัวเฝ้า (lib/chat/channel-health.ts) — null = ยังไม่เคยตรวจ */
+  health_status?: string | null;
+  health_detail?: string | null;
+  health_checked_at?: string | null;
 }
+
+// ป้ายเตือนบนการ์ดช่องทาง — โชว์เฉพาะ 3 สถานะที่เป็นปัญหาจริง
+// (`check_failed` = ตรวจไม่สำเร็จ ไม่ใช่ช่องทางพัง จึงไม่ขึ้นป้าย)
+const HEALTH_BADGE: Record<string, { tone: 'red' | 'amber'; label: string }> = {
+  token_invalid: { tone: 'red', label: 'token หมดอายุ' },
+  webhook_missing: { tone: 'amber', label: 'webhook ไม่ต่อ' },
+  webhook_unreachable: { tone: 'amber', label: 'webhook เรียกไม่ถึง' },
+};
 
 interface ShopeeShop {
   id: string;
@@ -1315,6 +1327,7 @@ export default function ChatChannelsPage() {
     const igAccountId = account.credentials.ig_account_id as string | undefined;
     const igUsername = account.credentials.ig_username as string | undefined;
     const igPicture = account.credentials.ig_profile_picture_url as string | undefined;
+    const health = account.health_status ? HEALTH_BADGE[account.health_status] : undefined;
 
     return (
       <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm overflow-hidden">
@@ -1353,6 +1366,11 @@ export default function ChatChannelsPage() {
               <p className="font-medium text-gray-900 dark:text-white truncate">{account.account_name}</p>
               {botName && botName !== account.account_name ? (
                 <span className="text-xs text-gray-400 dark:text-slate-500 truncate">({botName})</span>
+              ) : null}
+              {health ? (
+                <Tooltip text={`${account.health_detail || health.label}${account.health_checked_at ? `\nตรวจเมื่อ ${new Date(account.health_checked_at).toLocaleString('th-TH')}` : ''}`}>
+                  <Badge tone={health.tone} size="sm">{health.label}</Badge>
+                </Tooltip>
               ) : null}
             </div>
             <div className="flex items-center gap-2 subtitle-text text-gray-500 dark:text-slate-400">

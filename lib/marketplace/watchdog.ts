@@ -12,6 +12,8 @@ import { supabaseAdmin } from '@/lib/supabase-admin';
 import { sendPushToUsers, withCompanyParam } from '@/lib/push/send';
 import { MARKETPLACE_PLATFORMS, type QuotaPlatform } from '@/lib/marketplace/platforms';
 import { BEAM_RECONCILE_NOTE } from '@/lib/beam/settle';
+// ตรวจสุขภาพช่องทางแชทแบบถามแพลตฟอร์มจริง — แทนการเดาจาก "ความเงียบ" ที่เตือนผิดตลอด
+import { runChatChannelHealthChecks, chatHealthFix } from '@/lib/chat/channel-health';
 
 export type WatchdogSeverity = 'critical' | 'warning';
 
@@ -202,87 +204,65 @@ export async function collectWatchdogIssues(
     }
   }
 
-  // ── ช่องทางแชท push (LINE/Facebook) — จับ "เงียบผิดปกติ" ──
+  // ── ช่องทางแชท push (LINE/Facebook) — ตรวจจริงกับ API ของแพลตฟอร์ม ──
   //
   // ช่องทางพวกนี้ไม่มี cron ให้ดูว่าตามหลังไหม (ข้อความวิ่งเข้ามาเองทาง webhook)
-  // ถ้า webhook หลุด · channel secret เปลี่ยน · token เพจหมดอายุ **มันจะเงียบสนิท
-  // โดยไม่มีอะไรฟ้อง** — ซึ่งเป็นรูปแบบเดียวกับ cron Shopee ที่ตายเงียบ 12 วัน
+  // ถ้า webhook หลุด · channel secret เปลี่ยน · token เพจหมดอายุ **มันจะเงียบสนิท**
   //
-  // เกณฑ์เทียบกับ **ช่องว่างที่ยาวที่สุดที่ช่องทางนี้เคยเงียบได้ตามปกติ** (30 วัน)
+  // ⚠️ เคยเดาจาก "ความเงียบ" (1.5 × ช่องว่างที่เคยเงียบนานสุดใน 30 วัน) แล้ว
+  // **เตือนผิดทั้งสุดสัปดาห์** — "ไม่มีใครทัก" กับ "ช่องทางพัง" มองจากฝั่งเราแล้ว
+  // เหมือนกันเป๊ะ ไม่ว่าจะปรับสูตร/เพดานยังไงก็แยกไม่ออก (3–7 ก.ย. 2026)
+  // ตอนนี้ถามแพลตฟอร์มตรง ๆ ว่า token ใช้ได้ไหม + webhook ชี้มาที่เราไหม
+  // → [lib/chat/channel-health.ts](../chat/channel-health.ts) ตรวจซ้ำทุก 6 ชม./ช่องทาง
+  //   แล้วเก็บผลไว้บน chat_accounts.health_* · ที่นี่แค่อ่านผลมาแจ้ง
   //
-  // ⚠️ เคยใช้ "8 × ระยะห่างเฉลี่ย" แล้ว**เตือนผิดทุกคืน** — สูตรเฉลี่ยสมมติว่า
-  // ข้อความกระจายเท่ากันทั้ง 168 ชม./สัปดาห์ ซึ่งไม่จริงเลย ลูกค้าไม่ทักตอนตี 3
-  // LINE ที่คุยวันละ ~95 ข้อความจึงได้เกณฑ์ 6 ชม. แล้วลั่นทุกเช้ามืด
-  // (เจอจริง 3–4 ก.ย. 2026 — ดู fix-bug.md)
-  //
-  // max gap รวม "กลางคืน/วันหยุด/ช่วงร้านปิด" ไว้ในตัวเองแล้ว ไม่ต้องฮาร์ดโค้ด
-  // เวลาทำการของแต่ละร้าน (ซึ่งไม่มีทางรู้) · เพจที่แทบไม่มีใครทัก
-  // (< 20 ข้อความ/สัปดาห์) ไม่ตรวจเลย เพราะตัดสินไม่ได้ว่าพังหรือไม่มีคนทัก
-  const CHAT_MIN_WEEKLY = 20;
-  const CHAT_GAP_MULTIPLIER = 1.5;
-  const CHAT_MIN_HOURS = 6;
-  // ⚠️ เพดานเคยเป็น 48 ชม. → เพจที่ปกติเงียบได้ 51–68 ชม. (Hape · aDay Fresh - Fruit Delivery)
-  // โดนเตือนก่อนถึงช่วงเงียบปกติของตัวเอง = เตือนผิดทุกสุดสัปดาห์ (6–7 ก.ย. 2026)
-  // เพดานต้องสูงกว่าช่องว่างปกติที่เห็นจริง ไม่งั้นสถิติ 30 วันที่เก็บมาก็ไร้ความหมาย
-  const CHAT_MAX_HOURS = 24 * 7;
+  // **ห้ามกลับไปเตือนจากความเงียบอีก** (สถิติความเงียบยังมีค่าในเชิงรายงาน —
+  // RPC get_chat_channel_activity ยังอยู่ใน DB สำหรับหน้ารายงานในอนาคต แค่ไม่ใช่เกณฑ์เตือน)
+  // ⚠️ ตัวตรวจจริง (ยิง API LINE/Facebook) รันใน runWatchdog() = cron เท่านั้น — ฟังก์ชันนี้
+  // ถูกเรียกจาก /api/header/summary ทุกครั้งที่เปิดหน้า ถ้าตรวจตรงนี้ผู้ใช้จะรอ API ภายนอก
+  // ทุกหน้าโหลด · ที่นี่อ่านผลที่ cron เก็บไว้บน chat_accounts.health_* อย่างเดียว
 
   let chatQuery = supabaseAdmin
     .from('chat_accounts')
-    .select('id, company_id, platform, account_name')
+    .select('id, company_id, platform, account_name, health_status, health_detail, health_checked_at')
     .in('platform', ['line', 'facebook'])
-    .eq('is_active', true);
+    .eq('is_active', true)
+    // check_failed ไม่อยู่ในลิสต์ตั้งใจ — "ตรวจไม่สำเร็จ" ไม่ใช่หลักฐานว่าช่องทางพัง
+    // (เน็ตสะดุดรอบเดียวแล้วปลุกเจ้าของร้าน = กลับไปเป็นเตือนผิดแบบเดิม)
+    .in('health_status', ['token_invalid', 'webhook_missing', 'webhook_unreachable']);
   if (opts.companyId) chatQuery = chatQuery.eq('company_id', opts.companyId);
+  const { data: unhealthyChats } = await chatQuery;
 
-  const [{ data: chatAccounts }, { data: chatActivity }] = await Promise.all([
-    chatQuery,
-    supabaseAdmin.rpc('get_chat_channel_activity', { p_company_id: opts.companyId ?? null }),
-  ]);
-
-  type ChatActivityRow = {
-    chat_account_id: string;
-    last_incoming_at: string | null;
-    incoming_7d: number;
-    max_gap_h: number | null;
-  };
-  const activityById = new Map(
-    ((chatActivity as ChatActivityRow[] | null) || []).map(r => [r.chat_account_id, r])
-  );
-
-  for (const acc of chatAccounts || []) {
-    const stat = activityById.get(acc.id);
-    if (!stat || !stat.last_incoming_at || Number(stat.incoming_7d) < CHAT_MIN_WEEKLY) continue;
-
-    // ไม่มีประวัติช่องว่าง (ช่องทางเพิ่งเปิด) = ยังตัดสินไม่ได้ว่าปกติเงียบได้แค่ไหน
-    if (stat.max_gap_h === null) continue;
-    const silentH = hoursAgo(stat.last_incoming_at)!;
-    const normalGapH = Number(stat.max_gap_h);
-    const thresholdH = Math.min(
-      CHAT_MAX_HOURS,
-      Math.max(CHAT_MIN_HOURS, normalGapH * CHAT_GAP_MULTIPLIER)
-    );
-    if (silentH <= thresholdH) continue;
-
-    const label = acc.platform === 'line' ? 'LINE' : 'Facebook';
-    const name = acc.account_name || label;
+  for (const acc of unhealthyChats || []) {
+    const platform = acc.platform as string;
+    const status = acc.health_status as string;
     // ต้องบอกว่าเป็น "เพจ/OA ไหน" ไม่ใช่แค่ชื่อ — เพจชื่อ "aDay Fresh - Fruit Delivery" ของ
-    // บริษัท aDay Fresh ถูกอ่านว่า "บริษัทไม่มีข้อความ 3 วัน" ทั้งที่อีกเพจ/OA ของบริษัทเดียวกัน
-    // ยังคุยอยู่ทุกชั่วโมง (6–7 ก.ย. 2026)
-    const kind = acc.platform === 'line' ? 'LINE OA' : 'เพจ Facebook';
+    // บริษัท aDay Fresh ถูกอ่านว่า "บริษัทนี้พัง" ทั้งที่อีกช่องทางของบริษัทเดียวกันปกติดี
+    const kind = platform === 'line' ? 'LINE OA' : 'เพจ Facebook';
+    const name = acc.account_name || (platform === 'line' ? 'LINE' : 'Facebook');
+    const shortProblem = status === 'token_invalid'
+      ? 'token หมดอายุ'
+      : status === 'webhook_unreachable'
+        ? 'เรียก webhook ของเราไม่ถึง'
+        : platform === 'line' ? 'webhook ไม่ได้ชี้มาที่ระบบ' : 'ไม่ได้ subscribe แอปเราแล้ว';
+    const checkedAt = acc.health_checked_at
+      ? new Date(acc.health_checked_at).toLocaleString('th-TH', { timeZone: 'Asia/Bangkok' })
+      : '-';
+
     issues.push({
       companyId: acc.company_id as string,
       companyName: companyName.get(acc.company_id) || null,
-      channel: { platform: acc.platform as string, picture_url: null, shopName: name },
-      code: `chat_silent:${acc.id}`,
-      groupKey: `chat_silent:${acc.platform}`,
+      channel: { platform, picture_url: null, shopName: name },
+      code: `chat_health:${acc.id}`,
+      groupKey: `chat_health:${platform}`,
       scope: 'company',
-      severity: 'warning',
-      title: `${kind} "${name}" เงียบผิดปกติ ${roundHours(silentH)}`,
-      detail: `${kind} "${name}" ไม่มีข้อความเข้าเลย ${roundHours(silentH)} ทั้งที่ปกติเงียบนานสุดแค่ ${roundHours(normalGapH)} (ช่องทางอื่นของบริษัทไม่เกี่ยว) — webhook อาจหลุดหรือ token หมดอายุ`,
-      fix: acc.platform === 'line'
-        ? `เช็คที่ LINE Developers ว่า Webhook URL ยังชี้มาที่ระบบและเปิด "Use webhook" อยู่ แล้วกด Verify · ถ้าเปลี่ยน Channel secret/Access token ต้องมาแก้ที่ ตั้งค่า > ช่องทางแชท > LINE`
-        : `เพจ Facebook ต้องต่ออายุสิทธิ์ทุก 60 วัน — เปิด ตั้งค่า > ช่องทางแชท > Facebook แล้วกดเชื่อมเพจใหม่ (ถ้าเพจเงียบเพราะไม่มีคนทักจริง ๆ ก็ข้ามได้)`,
+      // token ตาย = รับ/ตอบไม่ได้เลย · อีกสองอย่างยังตอบขาออกได้ ข้อความขาเข้าหายอย่างเดียว
+      severity: status === 'token_invalid' ? 'critical' : 'warning',
+      title: `${kind} "${name}" ${shortProblem}`,
+      detail: `${acc.health_detail || shortProblem} · ตรวจเมื่อ ${checkedAt}`,
+      fix: chatHealthFix(platform, acc.id as string),
       actionLabel: 'ไปตรวจช่องทางแชท',
-      url: chatSettingsUrl(acc.platform as string),
+      url: chatSettingsUrl(platform),
     });
   }
 
@@ -381,6 +361,11 @@ type WatchdogState = Record<string, { since: string; notified_at?: string }>;
  * - หลายเรื่องที่มีสาเหตุเดียวกัน → รวมเป็นใบเดียว (ไม่เด้ง 6 ใบบอกเรื่องเดียวกัน)
  */
 export async function runWatchdog(): Promise<{ issues: number; notified: number; recovered: number }> {
+  // ตรวจสุขภาพช่องทางแชทแบบถามแพลตฟอร์มจริงก่อน (ทุก 6 ชม./ช่องทาง, มีงบเวลาในตัว)
+  // แล้วค่อยรวบรวมปัญหาจากผลที่เก็บไว้ — ทำเฉพาะใน cron ไม่ทำในสายที่ผู้ใช้รอ
+  await runChatChannelHealthChecks({ companyId: null }).catch(err =>
+    console.error('[watchdog] chat health checks failed:', err instanceof Error ? err.message : err)
+  );
   const issues = await collectWatchdogIssues();
   const now = new Date();
 
