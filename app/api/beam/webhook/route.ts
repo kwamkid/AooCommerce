@@ -130,7 +130,9 @@ export async function POST(request: NextRequest) {
       chargeId: eventType.startsWith('refund.') ? chargeId : null,
       orderId: isOurReference(orderRef) ? orderRef : null,
     });
-    let orderRow: { id: string; company_id: string; total_amount: number } | null = null;
+    // ประกาศ type แยก — `typeof orderRow` หลัง `= null` ถูก TS narrow เป็น null แล้ว cast จะกลายเป็น never
+    type OrderRow = { id: string; company_id: string; total_amount: number };
+    let orderRow: OrderRow | null = null;
     if (!record && isOurReference(orderRef)) {
       const { data: found } = await supabaseAdmin
         .from('orders')
@@ -138,7 +140,7 @@ export async function POST(request: NextRequest) {
         .eq('id', orderRef)
         .in('company_id', scopeCompanies)
         .maybeSingle();
-      orderRow = (found as typeof orderRow) || null;
+      orderRow = (found as OrderRow | null) ?? null;
     }
     const companyId = record?.company_id || orderRow?.company_id || null;
     const gateway: BeamGateway | undefined = companyId ? candidates.find(c => c.companyId === companyId) : undefined;
