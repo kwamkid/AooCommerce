@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { checkAuthWithCompany, supabaseAdmin } from '@/lib/supabase-admin';
 import { getBlockedPlatforms } from '@/lib/marketplace/quota';
-import { collectWatchdogIssues } from '@/lib/marketplace/watchdog';
+import { collectWatchdogIssuesCached } from '@/lib/marketplace/watchdog';
 import { getStockConfig } from '@/lib/stock-utils';
 
 /**
@@ -105,7 +105,8 @@ export async function GET(request: NextRequest) {
     // รายการปัญหามาจากตัวเฝ้าตัวเดียวกับที่ใช้เด้ง push และหน้า superadmin
     // (lib/marketplace/watchdog.ts) — กระดิ่ง · การ์ดใน dashboard · แจ้งเตือน
     // จึงพูดเรื่องเดียวกันเสมอ พร้อมวิธีแก้ + ทางไปแก้
-    const issues = await collectWatchdogIssues({ companyId });
+    // cache 5 นาทีต่อบริษัท — หน้าโหลดทุกครั้งไม่ต้องคำนวณใหม่ (ผลจริงเปลี่ยนตาม cron 15 นาที)
+    const issues = await collectWatchdogIssuesCached({ companyId });
     const expiredCount = issues.filter(i => i.code.startsWith('token_expired:')).length;
     const inactiveCount = issues.filter(i => i.code.startsWith('shop_disconnected:')).length;
 

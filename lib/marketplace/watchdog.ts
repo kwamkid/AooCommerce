@@ -360,6 +360,34 @@ type WatchdogState = Record<string, { since: string; notified_at?: string }>;
  * - เรื่องที่หายแล้ว → บอกว่ากลับมาปกติ 1 ครั้ง แล้วลืมมันไป
  * - หลายเรื่องที่มีสาเหตุเดียวกัน → รวมเป็นใบเดียว (ไม่เด้ง 6 ใบบอกเรื่องเดียวกัน)
  */
+/**
+ * ผลของ collectWatchdogIssues แบบ cache 5 นาทีต่อบริษัท — สำหรับสายที่ผู้ใช้รอ
+ * (กระดิ่งบน header ผ่าน /api/header/summary เรียกทุกครั้งที่เปิดหน้า) ทั้งที่ผลจริง
+ * เปลี่ยนแค่ตอน cron รอบละ 15 นาที · single-flight: หลายหน้าโหลดพร้อมกันคำนวณครั้งเดียว
+ * cache อยู่ในหน่วยความจำของ instance นั้น (Vercel มีหลาย instance) จึงเป็น best-effort
+ * — cron (`runWatchdog`) ล้าง cache หลังคำนวณรอบใหม่ ให้กระดิ่งได้ผลสดตามหลัง cron
+ */
+const ISSUE_CACHE_TTL_MS = 5 * 60_000;
+const issueCache = new Map<string, { at: number; promise: Promise<WatchdogIssue[]> }>();
+
+export function collectWatchdogIssuesCached(
+  opts: { companyId?: string } = {}
+): Promise<WatchdogIssue[]> {
+  const key = opts.companyId || '*';
+  const hit = issueCache.get(key);
+  if (hit && Date.now() - hit.at < ISSUE_CACHE_TTL_MS) return hit.promise;
+  const promise = collectWatchdogIssues(opts).catch(err => {
+    issueCache.delete(key); // ผลที่ล้มไม่ควรถูกจำไว้ 5 นาที
+    throw err;
+  });
+  issueCache.set(key, { at: Date.now(), promise });
+  return promise;
+}
+
+export function invalidateWatchdogIssueCache(): void {
+  issueCache.clear();
+}
+
 export async function runWatchdog(): Promise<{ issues: number; notified: number; recovered: number }> {
   // ตรวจสุขภาพช่องทางแชทแบบถามแพลตฟอร์มจริงก่อน (ทุก 6 ชม./ช่องทาง, มีงบเวลาในตัว)
   // แล้วค่อยรวบรวมปัญหาจากผลที่เก็บไว้ — ทำเฉพาะใน cron ไม่ทำในสายที่ผู้ใช้รอ
@@ -367,6 +395,8 @@ export async function runWatchdog(): Promise<{ issues: number; notified: number;
     console.error('[watchdog] chat health checks failed:', err instanceof Error ? err.message : err)
   );
   const issues = await collectWatchdogIssues();
+  // รอบใหม่คำนวณแล้ว → กระดิ่งที่อ่านจาก cache ต้องเห็นผลชุดนี้ ไม่ใช่ของ 5 นาทีก่อน
+  invalidateWatchdogIssueCache();
   const now = new Date();
 
   const { data: flagRow } = await supabaseAdmin
