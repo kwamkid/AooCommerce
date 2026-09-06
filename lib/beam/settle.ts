@@ -235,15 +235,20 @@ export interface GatewayRecordFull extends GatewayPaymentRecord {
   notes: string | null;
 }
 
-/** หาแถว gateway ของออเดอร์ — ลิงก์ → charge → ออเดอร์ (ล่าสุดก่อน) เฉพาะบริษัทนี้ */
+/**
+ * หาแถว gateway ของออเดอร์ — ลิงก์ → charge → ออเดอร์ (ล่าสุดก่อน)
+ * `companyIds` = บริษัทที่ใช้ merchant นี้ (หลายบริษัทแชร์บัญชี Beam เดียวได้ — บริษัทจริงของแถวคือ `company_id` ที่คืนมา)
+ */
 export async function findGatewayRecord(
-  companyId: string,
+  companyIds: string | string[],
   key: { paymentLinkId?: string | null; chargeId?: string | null; orderId?: string | null },
 ): Promise<GatewayRecordFull | null> {
+  const ids = Array.isArray(companyIds) ? companyIds : [companyIds];
+  if (ids.length === 0) return null;
   const base = () => supabaseAdmin
     .from('payment_records')
     .select('id, order_id, company_id, status, gateway_payment_link_id, gateway_charge_id, gateway_raw_response, notes, created_at')
-    .eq('company_id', companyId)
+    .in('company_id', ids)
     .eq('gateway_provider', 'beam');
   if (key.paymentLinkId) {
     const { data } = await base().eq('gateway_payment_link_id', key.paymentLinkId).order('created_at', { ascending: false }).limit(1).maybeSingle();

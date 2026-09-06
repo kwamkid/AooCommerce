@@ -1,4 +1,4 @@
-// Beam Checkout webhook receiver — รับ event "จ่ายแล้ว" แล้วอัพเดทออเดอร์
+// Beam Checkout webhook receiver — รับ event "จ่ายแล้ว / จ่ายไม่ผ่าน / คืนเงิน / ค่าธรรมเนียม" แล้วอัพเดทออเดอร์
 //
 // เอกสาร: https://docs.beamcheckout.com/webhook-authentication · /webhook-event-types
 //   header  X-Beam-Event      = ชื่อ event (payment_link.paid · charge.succeeded · …)
@@ -10,10 +10,15 @@
 //           transaction.created = { transactionId, referenceId, transactionType, grossAmount, feeAmount, vatAmount, netAmount, … }
 //                                 → marketplace_settlements platform 'beam' (lib/beam/transactions.ts)
 //
+// **merchant เดียวใช้ได้หลายบริษัท** (เจ้าของหลายแบรนด์ใช้บัญชี Beam เดียว): ลายเซ็นตรวจด้วย HMAC key
+// ของบริษัทไหนก็ได้ที่ตั้ง merchant นี้ไว้ (webhook ต่อ merchant มีตัวเดียว key จึงตัวเดียวกัน) แล้ว
+// **หาบริษัทจากออเดอร์** (referenceId = order.id ที่เราส่งไปตอนสร้างลิงก์) ไม่ใช่จาก config ที่ key ตรง
+// — ผู้ใช้ทักถูก 7 ก.ย. 2026 ว่า "มัน link กลับมาก็รู้อยู่แล้วว่า order ของบริษัทไหน"
+// ด่านความปลอดภัยคือ ออเดอร์ต้องเป็นของบริษัทที่ตั้ง merchant นี้ไว้เท่านั้น
+//
 // ⚠️ บทเรียน 2026-09-06 (จ่ายบัตรผ่าน 3 ใบ ไม่มีใบไหนอัพเดทเอง):
 //   1. เดิมหา config ด้วย `.single()` โดยไม่กรองบริษัท — พอมีร้านเปิด gateway มากกว่า 1 ร้าน
 //      `.single()` คืน error → ตอบ 401 "Not configured" ให้ Beam **ทุกใบ** โดยไม่ log อะไรเลย
-//      → ตอนนี้เลือก config จาก `merchantId` ที่ Beam ส่งมาใน body (แต่ละร้านมี merchant คนละตัว)
 //   2. HMAC key ของ webhook เป็น**คนละตัวกับ API key** (Lighthouse ให้ตอนสร้าง webhook) —
 //      เดิม fallback ไปใช้ API key จึงไม่มีทางตรง · ไม่ตั้ง key = บอกตรง ๆ ใน log ว่าต้องไปตั้ง
 //   3. **ทุกทางที่ปฏิเสธต้องลง integration_logs** — 401 ที่มีแต่ console.error คือความเงียบ
@@ -23,7 +28,13 @@ import crypto from 'crypto';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { logIntegrationNow } from '@/lib/integration-logger';
 import { loadBeamGateways, type BeamGateway } from '@/lib/beam/client';
-import { settleGatewayPayment, findGatewayRecord, markGatewayAttemptFailed, markGatewayRefund, type GatewayPaymentRecord } from '@/lib/beam/settle';
+import {
+  settleGatewayPayment,
+  findGatewayRecord,
+  markGatewayAttemptFailed,
+  markGatewayRefund,
+  type GatewayPaymentRecord,
+} from '@/lib/beam/settle';
 import { isOurReference, saveBeamSettlementForOrder, type BeamTransaction } from '@/lib/beam/transactions';
 
 function verifyBeamSignature(body: string, signature: string, hmacKey: string): boolean {
@@ -40,6 +51,7 @@ function verifyBeamSignature(body: string, signature: string, hmacKey: string): 
 
 const asRecord = (v: unknown): Record<string, unknown> =>
   v && typeof v === 'object' ? (v as Record<string, unknown>) : {};
+const str = (v: unknown): string => (typeof v === 'string' ? v : '');
 
 export async function POST(request: NextRequest) {
   try {
@@ -55,10 +67,11 @@ export async function POST(request: NextRequest) {
     }
     // บาง event ห่อใน data — รองรับทั้งสองทรง
     const data = asRecord(event.data ?? event);
-    const merchantId = typeof data.merchantId === 'string' ? data.merchantId : undefined;
+    const merchantId = str(data.merchantId) || undefined;
 
-    // ── เลือกร้านจาก merchantId ── (ไม่มี merchantId = ลองทุกร้านที่เปิด gateway แล้วให้ลายเซ็นตัดสิน)
+    // ── ทุกบริษัทที่ตั้ง merchant นี้ไว้ ── (ไม่มี merchantId = ทุกร้านที่เปิด gateway แล้วให้ลายเซ็นตัดสิน)
     const candidates = await loadBeamGateways(merchantId ? { merchantId } : {});
+    const scopeCompanies = [...new Set(candidates.map(c => c.companyId))];
     const logFor = (
       companyIds: string[],
       status: 'success' | 'error',
@@ -82,85 +95,78 @@ export async function POST(request: NextRequest) {
       console.error('[Beam webhook] no active gateway for merchantId:', merchantId);
       return NextResponse.json({ error: 'Not configured' }, { status: 401 });
     }
-    const candidateCompanies = [...new Set(candidates.map(c => c.companyId))];
 
     if (!signature) {
       // ปุ่ม "ทดสอบ" ในหน้าตั้งค่ายิง test.ping มาเช็คว่า endpoint ถึง (ไม่มีลายเซ็นโดยตั้งใจ)
       // — ตอบให้รู้ว่าถึงแล้วพอ ไม่ต้องลง log แดงให้ทุกร้าน (เคยขึ้น 3 แถวต่อการกดหนึ่งครั้ง)
       if (eventType === 'test.ping') return NextResponse.json({ ok: true, note: 'reachable (unsigned ping)' });
-      await logFor(candidateCompanies, 'error', 'Beam ส่งมาโดยไม่มี X-Beam-Signature — ปฏิเสธ');
+      await logFor(scopeCompanies, 'error', 'Beam ส่งมาโดยไม่มี X-Beam-Signature — ปฏิเสธ');
       return NextResponse.json({ error: 'Missing signature' }, { status: 401 });
     }
 
     const withKey = candidates.filter(c => c.webhookSecret);
     if (withKey.length === 0) {
-      await logFor(candidateCompanies, 'error',
+      await logFor(scopeCompanies, 'error',
         'ยังไม่ได้ตั้ง Webhook HMAC key — ไปที่ ตั้งค่า › ช่องทางชำระเงิน › Beam วาง key ที่ได้จาก Beam Lighthouse ตอนสร้าง webhook แล้วบันทึก (ระหว่างนี้ระบบถามสถานะกับ Beam เองทุก 15 นาที)');
       return NextResponse.json({ error: 'Webhook key not configured' }, { status: 401 });
     }
 
-    const gateway: BeamGateway | undefined = withKey.find(c => verifyBeamSignature(body, signature, c.webhookSecret!));
-    if (!gateway) {
+    // key ของบริษัทไหนก็ได้ที่ใช้ merchant นี้ตรง = ของจริงจาก Beam (บริษัทที่แชร์ merchant ไม่ต้องวาง key ซ้ำ)
+    if (!withKey.some(c => verifyBeamSignature(body, signature, c.webhookSecret!))) {
       await logFor(withKey.map(c => c.companyId), 'error',
         'ลายเซ็นไม่ตรง — HMAC key ในระบบไม่ใช่ key ของ webhook ตัวนี้ใน Beam Lighthouse (คนละตัวกับ API key) ตรวจแล้ววางใหม่');
       return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
     }
-    const companyId = gateway.companyId;
+
+    // ── หาออเดอร์ + บริษัทจาก payload (ในขอบเขตบริษัทที่ตั้ง merchant นี้เท่านั้น) ──
+    // payment_link.paid มี paymentLinkId ตรง ๆ · charge.* บอกผ่าน source/sourceId · refund.* มี chargeId
+    const paymentLinkId = str(data.paymentLinkId)
+      || (data.source === 'PAYMENT_LINK' ? str(data.sourceId) : '');
+    const chargeId = str(data.chargeId) || null;
+    const orderRef = str(data.referenceId) || str(asRecord(data.order).referenceId);
+
+    const record = await findGatewayRecord(scopeCompanies, {
+      paymentLinkId: paymentLinkId || null,
+      chargeId: eventType.startsWith('refund.') ? chargeId : null,
+      orderId: isOurReference(orderRef) ? orderRef : null,
+    });
+    let orderRow: { id: string; company_id: string; total_amount: number } | null = null;
+    if (!record && isOurReference(orderRef)) {
+      const { data: found } = await supabaseAdmin
+        .from('orders')
+        .select('id, company_id, total_amount')
+        .eq('id', orderRef)
+        .in('company_id', scopeCompanies)
+        .maybeSingle();
+      orderRow = (found as typeof orderRow) || null;
+    }
+    const companyId = record?.company_id || orderRow?.company_id || null;
+    const gateway: BeamGateway | undefined = companyId ? candidates.find(c => c.companyId === companyId) : undefined;
+
+    if (!companyId || !gateway) {
+      if (eventType === 'transaction.created' && !isOurReference(orderRef)) {
+        // merchant เดียวถูกระบบอื่นใช้ด้วย (referenceId แบบ ONL…) — ไม่ใช่ของเราก็แค่ ack เงียบ ๆ
+        return NextResponse.json({ success: true });
+      }
+      await logFor(scopeCompanies, 'error',
+        `${eventType}: จับคู่ออเดอร์ไม่ได้ (paymentLinkId=${paymentLinkId || '-'} chargeId=${chargeId || '-'} referenceId=${orderRef || '-'}) — ไม่ใช่ออเดอร์ของบริษัทที่ใช้ merchant นี้`);
+      return NextResponse.json({ success: true }); // ack — ไม่มีอะไรให้ทำ
+    }
     const logWebhook = (status: 'success' | 'error', note: string, orderId?: string | null) =>
       logFor([companyId], status, note, orderId);
 
-    // ── event ที่แปลว่า "เงินเข้าแล้ว" ──
+    // ── เงินเข้าแล้ว ──
     if (eventType === 'payment_link.paid' || eventType === 'charge.succeeded') {
-      // payment_link.paid มี paymentLinkId ตรง ๆ · charge.succeeded บอกผ่าน source/sourceId
-      const paymentLinkId = (typeof data.paymentLinkId === 'string' && data.paymentLinkId)
-        || (data.source === 'PAYMENT_LINK' && typeof data.sourceId === 'string' ? data.sourceId : '')
-        || '';
-      const chargeId = typeof data.chargeId === 'string' ? data.chargeId : null;
-      const orderRef = (typeof data.referenceId === 'string' && data.referenceId)
-        || (typeof asRecord(data.order).referenceId === 'string' ? (asRecord(data.order).referenceId as string) : '')
-        || '';
-
-      if (!paymentLinkId && !orderRef) {
-        await logWebhook('error', 'event นี้ไม่มีทั้ง paymentLinkId และ referenceId — จับคู่ออเดอร์ไม่ได้');
-        return NextResponse.json({ success: true }); // ack — ไม่มีอะไรให้ทำ
-      }
-
-      // 1) หาแถวจากลิงก์ (เฉพาะร้านนี้ — กันข้ามบริษัท)
-      let record: GatewayPaymentRecord | null = null;
-      if (paymentLinkId) {
-        const { data: found } = await supabaseAdmin
-          .from('payment_records')
-          .select('id, order_id, company_id, status, gateway_payment_link_id')
-          .eq('gateway_payment_link_id', paymentLinkId)
-          .eq('company_id', companyId)
-          .maybeSingle();
-        record = (found as GatewayPaymentRecord | null) || null;
-      }
-
-      // 2) ไม่เจอ = ตอนสร้างลิงก์บันทึกไม่ติด — **ห้ามปล่อยผ่าน** เพราะเงินเข้าจริงแล้ว
-      //    กู้จาก referenceId (เราส่ง order.id ไปกับ order ตอนสร้างลิงก์) แล้วสร้างแถวย้อนหลัง
-      if (!record) {
-        if (!orderRef) {
-          await logWebhook('error', `หาแถวจาก paymentLinkId=${paymentLinkId} ไม่เจอ และไม่มี referenceId ให้กู้`);
-          return NextResponse.json({ success: true });
-        }
-        const { data: refOrder } = await supabaseAdmin
-          .from('orders')
-          .select('id, company_id, total_amount')
-          .eq('id', orderRef)
-          .eq('company_id', companyId)
-          .maybeSingle();
-        if (!refOrder) {
-          await logWebhook('error', `referenceId=${orderRef} ไม่ใช่ออเดอร์ของร้านนี้`);
-          return NextResponse.json({ success: true });
-        }
+      let paid: GatewayPaymentRecord | null = record;
+      // ไม่มีแถว = ตอนสร้างลิงก์บันทึกไม่ติด — **ห้ามปล่อยผ่าน** เพราะเงินเข้าจริงแล้ว สร้างแถวย้อนหลังจากออเดอร์
+      if (!paid && orderRow) {
         const { data: created, error: createError } = await supabaseAdmin
           .from('payment_records')
           .insert({
-            company_id: refOrder.company_id,
-            order_id: refOrder.id,
+            company_id: orderRow.company_id,
+            order_id: orderRow.id,
             payment_method: 'payment_gateway',
-            amount: refOrder.total_amount,
+            amount: orderRow.total_amount,
             status: 'pending',
             gateway_provider: 'beam',
             gateway_payment_link_id: paymentLinkId || null,
@@ -170,26 +176,26 @@ export async function POST(request: NextRequest) {
           .select('id, order_id, company_id, status, gateway_payment_link_id')
           .single();
         if (createError || !created) {
-          await logWebhook('error', `สร้างแถวชำระย้อนหลังไม่ติด: ${createError?.message || 'unknown'}`, refOrder.id);
+          await logWebhook('error', `สร้างแถวชำระย้อนหลังไม่ติด: ${createError?.message || 'unknown'}`, orderRow.id);
           return NextResponse.json({ success: true }); // ack — กัน Beam retry ไม่จบ
         }
-        record = created as GatewayPaymentRecord;
+        paid = created as GatewayPaymentRecord;
       }
-
-      const result = await settleGatewayPayment({ record, chargeId, raw: event, via: 'webhook', gateway });
+      if (!paid) {
+        await logWebhook('error', 'ไม่มีแถวชำระและไม่มีออเดอร์ให้กู้');
+        return NextResponse.json({ success: true });
+      }
+      const result = await settleGatewayPayment({ record: paid, chargeId, raw: event, via: 'webhook', gateway });
       if (result === 'already_verified') {
-        await logWebhook('success', 'แถวนี้ verified อยู่แล้ว (Beam ส่งซ้ำ) — ข้าม', record.order_id);
+        await logWebhook('success', 'แถวนี้ verified อยู่แล้ว (Beam ส่งซ้ำ) — ข้าม', paid.order_id);
       }
       return NextResponse.json({ success: true });
     }
 
     // ── จ่ายไม่ผ่าน (ลิงก์ยังเปิด ลูกค้าลองใหม่ได้) ──
     if (eventType === 'charge.failed' || eventType === 'card_authorization.failed' || eventType === 'card_authorization.canceled') {
-      const paymentLinkId = data.source === 'PAYMENT_LINK' && typeof data.sourceId === 'string' ? data.sourceId : null;
-      const orderRef = typeof data.referenceId === 'string' ? data.referenceId : null;
-      const record = await findGatewayRecord(companyId, { paymentLinkId, orderId: orderRef });
       if (!record) {
-        await logWebhook('error', `${eventType}: หาแถวจากลิงก์/ออเดอร์ไม่เจอ (sourceId=${paymentLinkId} referenceId=${orderRef})`);
+        await logWebhook('error', `${eventType}: ไม่มีแถว gateway ของออเดอร์นี้ให้ติดป้าย`, orderRow?.id);
         return NextResponse.json({ success: true });
       }
       await markGatewayAttemptFailed(record, { event: eventType, raw: data });
@@ -198,11 +204,8 @@ export async function POST(request: NextRequest) {
 
     // ── คืนเงิน — เงินออกจากร้านจริง ต้องเห็นบนออเดอร์และเด้งเตือน ──
     if (eventType === 'refund.succeeded' || eventType === 'refund.failed') {
-      const chargeId = typeof data.chargeId === 'string' ? data.chargeId : null;
-      const orderRef = typeof data.referenceId === 'string' ? data.referenceId : null;
-      const record = await findGatewayRecord(companyId, { chargeId, orderId: orderRef });
       if (!record) {
-        await logWebhook('error', `${eventType}: หาแถวจาก charge/ออเดอร์ไม่เจอ (chargeId=${chargeId} referenceId=${orderRef})`);
+        await logWebhook('error', `${eventType}: ไม่มีแถว gateway ของออเดอร์นี้ (chargeId=${chargeId || '-'})`, orderRow?.id);
         return NextResponse.json({ success: true });
       }
       await markGatewayRefund(record, { succeeded: eventType === 'refund.succeeded', raw: data, gateway });
@@ -212,22 +215,20 @@ export async function POST(request: NextRequest) {
     // ── ค่าธรรมเนียมต่อธุรกรรม → settlement (รายงานยอดขาย-ค่าธรรมเนียม-กำไร) ──
     if (eventType === 'transaction.created') {
       const tx = data as unknown as BeamTransaction;
-      // merchant เดียวถูกระบบอื่นใช้ด้วย (referenceId แบบ ONL…) — ไม่ใช่ของเราก็แค่ ack เงียบ ๆ
-      if (!isOurReference(tx.referenceId)) return NextResponse.json({ success: true });
-      const result = await saveBeamSettlementForOrder(gateway, tx.referenceId, tx);
+      const orderId = record?.order_id || orderRow?.id || orderRef;
+      const result = await saveBeamSettlementForOrder(gateway, orderId, tx);
       await logWebhook(
         result.saved ? 'success' : 'error',
         result.saved
           ? `เก็บค่าธรรมเนียมแล้ว (${result.transactions} ธุรกรรม) ${tx.transactionType || ''} gross ${tx.grossAmount} fee ${tx.feeAmount} vat ${tx.vatAmount} net ${tx.netAmount}`
-          : `referenceId=${tx.referenceId} ไม่ใช่ออเดอร์ของร้านนี้ หรือไม่มีธุรกรรมให้เก็บ`,
-        result.saved ? tx.referenceId : null,
+          : 'ไม่มีธุรกรรมของออเดอร์นี้ให้เก็บ',
+        orderId,
       );
       return NextResponse.json({ success: true });
     }
 
-    // event ที่เราไม่ได้ใช้ (card_authorization.authorized · bolt_intent.* · purchase V0)
-    // — จดไว้ให้รู้ว่า Beam ส่งอะไรมาบ้าง
-    await logWebhook('success', `รับแล้วแต่ไม่ได้ใช้ event นี้: ${eventType || '(ไม่มีชื่อ event)'}`);
+    // event ที่เราไม่ได้ใช้ (card_authorization.authorized · bolt_intent.* · purchase V0) — จดไว้ให้รู้ว่า Beam ส่งอะไรมาบ้าง
+    await logWebhook('success', `รับแล้วแต่ไม่ได้ใช้ event นี้: ${eventType || '(ไม่มีชื่อ event)'}`, record?.order_id || orderRow?.id);
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('[Beam webhook] error:', error);
