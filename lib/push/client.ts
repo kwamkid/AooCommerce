@@ -3,6 +3,15 @@
 
 import { apiFetch } from '@/lib/api-client';
 import { detectPlatform, isStandalone } from '@/lib/pwa-install';
+import {
+  isNativeApp,
+  nativePlatform,
+  getNativePushPermission,
+  getStoredNativeToken,
+  registerNativePush,
+  unregisterNativePush,
+  setNativeBadge,
+} from '@/lib/native/bridge';
 
 // "เครื่องนี้เป็นอะไร / เปิดจากแอปที่ติดตั้งแล้วหรือยัง" อยู่ที่ lib/pwa-install.ts
 // ที่เดียว — ทั้งเรื่องแจ้งเตือนและเรื่องชวนติดตั้งใช้เกณฑ์ชุดเดียวกัน
@@ -41,6 +50,8 @@ function isIos(): boolean {
 export async function registerServiceWorker(
   audience: PushAudience = 'app'
 ): Promise<ServiceWorkerRegistration | null> {
+  // เปลือกแอป native ไม่ใช้ service worker — push/เลขบนไอคอนเป็นของ OS ผ่าน plugin (lib/native/bridge.ts)
+  if (isNativeApp()) return null;
   if (!('serviceWorker' in navigator)) return null;
   try {
     return await navigator.serviceWorker.register('/sw.js', { scope: PUSH_SCOPES[audience] });
@@ -79,6 +90,11 @@ async function waitForActiveWorker(reg: ServiceWorkerRegistration, timeoutMs = 1
 
 export async function getPushState(audience: PushAudience = 'app'): Promise<PushState> {
   if (typeof window === 'undefined') return 'unsupported';
+  if (isNativeApp()) {
+    const perm = await getNativePushPermission();
+    if (perm === 'denied') return 'denied';
+    return perm === 'granted' && getStoredNativeToken() ? 'subscribed' : 'unsubscribed';
+  }
   if (isIos() && !isStandalone()) return 'ios-needs-install';
   if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
     return 'unsupported';
@@ -105,6 +121,20 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
 
 /** ขอ permission + subscribe + บันทึกลง server — คืน state ใหม่ */
 export async function enablePush(audience: PushAudience = 'app'): Promise<PushState> {
+  if (isNativeApp()) {
+    // แอป native: device token (FCM) แทน subscription ของ Web Push — เซิร์ฟเวอร์ยิงผ่าน lib/push/fcm.ts
+    const token = await registerNativePush();
+    if (!token) return (await getNativePushPermission()) === 'denied' ? 'denied' : 'unsubscribed';
+    const res = await apiFetch('/api/push/subscribe', {
+      method: 'POST',
+      body: JSON.stringify({ kind: 'fcm', token, platform: nativePlatform(), audience }),
+    });
+    if (!res.ok) {
+      const serverMsg = await res.json().then((j: { error?: string }) => j?.error).catch(() => null);
+      throw new Error(serverMsg || `บันทึกอุปกรณ์ไม่สำเร็จ (${res.status})`);
+    }
+    return 'subscribed';
+  }
   const state = await getPushState(audience);
   if (state === 'unsupported' || state === 'ios-needs-install' || state === 'denied') return state;
 
@@ -144,6 +174,14 @@ export async function enablePush(audience: PushAudience = 'app'): Promise<PushSt
 
 /** ยกเลิกแจ้งเตือนของ device นี้ */
 export async function disablePush(audience: PushAudience = 'app'): Promise<PushState> {
+  if (isNativeApp()) {
+    const token = getStoredNativeToken();
+    if (token) {
+      await apiFetch('/api/push/subscribe', { method: 'DELETE', body: JSON.stringify({ endpoint: `fcm:${token}` }) }).catch(() => {});
+    }
+    await unregisterNativePush();
+    return 'unsubscribed';
+  }
   try {
     const reg = await navigator.serviceWorker.getRegistration(PUSH_SCOPES[audience]);
     const sub = reg && reg.scope.endsWith(PUSH_SCOPES[audience])
@@ -173,6 +211,11 @@ export async function disablePush(audience: PushAudience = 'app'): Promise<PushS
  * ฝั่งไหนไม่รองรับก็เงียบไป ไม่ throw
  */
 export async function clearAppBadge(reason: 'mount' | 'interact' | 'manual' = 'manual'): Promise<void> {
+  if (isNativeApp()) {
+    // เลขบนไอคอนของแอป native มาจากเซิร์ฟเวอร์ (ส่งกับ push) — เปิดแอปแล้วล้างพอ ไม่มีตัวนับใน SW ให้ reset
+    await setNativeBadge(0);
+    return;
+  }
   const nav = navigator as Navigator & { clearAppBadge?: () => Promise<void> };
   if (typeof nav.clearAppBadge === 'function') {
     try { await nav.clearAppBadge(); } catch { /* ไม่ได้ติดตั้งเป็นแอป */ }

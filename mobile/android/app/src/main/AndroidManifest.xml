@@ -18,6 +18,16 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <!-- App Links: ขา OAuth (Google/LINE) ที่เปิดใน Custom Tabs กลับเข้าแอปที่นี่
+                 ต้องมี public/.well-known/assetlinks.json บนเว็บ (SHA256 ของ upload key) ถึงจะ autoVerify ผ่าน
+                 จำกัดแค่ 2 path นี้ — ไม่ดักลิงก์บิล/หน้าร้านที่ลูกค้ากด -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="aoocommerce.vercel.app" android:pathPrefix="/auth/callback" />
+                <data android:scheme="https" android:host="aoocommerce.vercel.app" android:pathPrefix="/line-callback" />
+            </intent-filter>
         </activity>
 
         <provider
@@ -32,4 +42,6 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Android 13+ ต้องขอสิทธิ์แจ้งเตือน (PushNotifications plugin ขอให้ตอน requestPermissions) -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 </manifest>

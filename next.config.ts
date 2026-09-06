@@ -1,6 +1,15 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // apple-app-site-association ไม่มีนามสกุล — Apple ต้องการ application/json ไม่งั้น Universal Link ไม่ทำงาน
+  async headers() {
+    return [
+      {
+        source: '/.well-known/apple-app-site-association',
+        headers: [{ key: 'Content-Type', value: 'application/json' }],
+      },
+    ];
+  },
   // ไฟล์ใน public/ **ไม่ได้** ถูกแพ็คลง serverless function ให้อัตโนมัติ และตัวตามรอย
   // ของ Next อ่าน path ที่ประกอบจากตัวแปรตอน runtime ไม่ออก — /api/push/icon อ่านโลโก้
   // แพลตฟอร์ม (SVG) กับไอคอนแอปสำรองจาก public/ จึงต้องสั่งแพ็คเอง ไม่งั้นบน Vercel

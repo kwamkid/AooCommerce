@@ -19,6 +19,8 @@ import { verifyJwtLocally } from '@/lib/auth/jwt-local';
 // Mirrors PUBLIC_ROUTES in lib/auth-context.tsx (prefix match) + pages with
 // their own guard (/invite, /superadmin). Keep the two lists in sync.
 const PUBLIC_PREFIXES = [
+  // ไฟล์ยืนยันแอป native (Universal Links / App Links) — Apple/Google ดึงโดยไม่มี cookie และไม่มีนามสกุลไฟล์
+  '/.well-known',
   '/login',
   '/register',
   '/auth/callback',

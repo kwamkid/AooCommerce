@@ -12,6 +12,7 @@
 // UI/enrollment task only — this layer is ready.
 
 import { supabase } from '@/lib/supabase';
+import { isNativeApp, openInSystemBrowser } from '@/lib/native/bridge';
 
 export type LoginResult =
   | { status: 'success' }
@@ -57,11 +58,18 @@ export async function loginWithGoogle(inviteToken?: string, returnTo?: string): 
       document.cookie = `invite_token=${inviteToken}; path=/; max-age=3600; SameSite=Lax`;
     }
     setReturnTo(returnTo);
-    const { error } = await supabase.auth.signInWithOAuth({
+    // แอป native (Capacitor): Google บล็อกการล็อกอินใน WebView (disallowed_useragent) — ขอ URL มาเปิดใน
+    // system browser แทน แล้วกลับเข้าแอปด้วย Universal Link ที่ /auth/callback (PKCE verifier อยู่ใน WebView อยู่แล้ว)
+    const native = isNativeApp();
+    const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: `${window.location.origin}/auth/callback` },
+      options: { redirectTo: `${window.location.origin}/auth/callback`, ...(native ? { skipBrowserRedirect: true } : {}) },
     });
     if (error) return { status: 'error', error: error.message };
+    if (native && data?.url) {
+      const opened = await openInSystemBrowser(data.url);
+      if (!opened) window.location.href = data.url;
+    }
     return { status: 'redirect' };
   } catch {
     return { status: 'error', error: 'เกิดข้อผิดพลาดในการเข้าสู่ระบบด้วย Google' };
@@ -105,6 +113,8 @@ export async function loginWithLINE(
     const nonce = Math.random().toString(36).substring(2);
     const state = inviteToken ? `${nonce}.invite-${inviteToken}` : nonce;
     const lineAuthUrl = `https://access.line.me/oauth2/v2.1/authorize?response_type=code&client_id=${channelId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}&scope=profile%20openid`;
+    // แอป native: เปิดใน system browser (เหตุผลเดียวกับ Google) แล้วกลับเข้าแอปด้วย Universal Link ที่ /line-callback
+    if (isNativeApp() && (await openInSystemBrowser(lineAuthUrl))) return { status: 'redirect' };
     window.location.href = lineAuthUrl;
     return { status: 'redirect' };
   } catch {

@@ -5,6 +5,7 @@ import { supabaseAdmin } from '@/lib/supabase-admin';
 import { parallelLimit } from '@/lib/parallel';
 import { formatPrice } from '@/lib/utils/format';
 import { logIntegrationNow } from '@/lib/integration-logger';
+import { sendFcm } from '@/lib/push/fcm';
 
 export interface PushPayload {
   title: string;
@@ -111,7 +112,7 @@ export async function sendPushToCompany(companyId: string, payload: PushPayload)
 
     const { data: subs, error } = await supabaseAdmin
       .from('push_subscriptions')
-      .select('id, endpoint, p256dh, auth, user_id')
+      .select('id, endpoint, p256dh, auth, user_id, kind, device_token')
       .in('user_id', audience.userIds)
       // เรื่องของร้านต้องไม่ไปโผล่ในแอปผู้ดูแลระบบ
       .eq('audience', 'app');
@@ -163,7 +164,7 @@ export async function sendPushToUsers(
     const audience = opts.audience || 'app';
     const { data: subs, error } = await supabaseAdmin
       .from('push_subscriptions')
-      .select('id, endpoint, p256dh, auth')
+      .select('id, endpoint, p256dh, auth, user_id, kind, device_token')
       .in('user_id', ids)
       .eq('audience', audience);
     if (error || !subs || subs.length === 0) return 0;
@@ -182,8 +183,44 @@ export async function sendPushToUsers(
  * `opts.companyId` มีเมื่อรู้ว่าเป็นเรื่องของบริษัทไหน — ใช้ลง integration log ตอนยิงพลาด
  * (`integration_logs.company_id` บังคับ ไม่มีก็ลงไม่ได้ เช่นสาย superadmin ที่ยิงตามตัวคน)
  */
+type Sub = {
+  id: string;
+  endpoint: string;
+  p256dh: string | null;
+  auth: string | null;
+  user_id?: string;
+  /** 'webpush' (PWA/เบราว์เซอร์) | 'fcm' (แอป native ผ่าน Firebase) */
+  kind?: string | null;
+  device_token?: string | null;
+};
+
+/** ตารางผู้ติดต่อของทุกแพลตฟอร์มแชท — ใช้นับ "แชทที่ยังไม่อ่าน" เป็นเลขบนไอคอนแอป native */
+const CHAT_CONTACT_TABLES = ['line_contacts', 'fb_contacts', 'shopee_contacts', 'lazada_contacts', 'tiktok_contacts'];
+
+/**
+ * เลขบนไอคอนของแอป native = จำนวนคู่สนทนาที่ยังไม่อ่านในทุกบริษัทที่คนนี้เป็นสมาชิก
+ * (iOS รับแต่เลขจริงกับ push — ไม่มี "บวกหนึ่ง" · PWA ยังนับเองใน SW เหมือนเดิม)
+ */
+async function countUnreadChatForUser(userId: string): Promise<number> {
+  try {
+    const { data: memberships } = await supabaseAdmin
+      .from('company_members').select('company_id').eq('user_id', userId).eq('is_active', true);
+    const companyIds = (memberships || []).map(m => m.company_id as string);
+    if (!companyIds.length) return 0;
+    const counts = await Promise.all(CHAT_CONTACT_TABLES.map(async (table) => {
+      const { count } = await supabaseAdmin
+        .from(table).select('id', { count: 'exact', head: true })
+        .in('company_id', companyIds).gt('unread_count', 0);
+      return count || 0;
+    }));
+    return counts.reduce((a, b) => a + b, 0);
+  } catch {
+    return 0;
+  }
+}
+
 async function deliver(
-  subs: { id: string; endpoint: string; p256dh: string; auth: string }[],
+  subs: Sub[],
   payload: PushPayload,
   opts: { companyId?: string; audience?: PushAudience } = {}
 ): Promise<number> {
@@ -197,7 +234,45 @@ async function deliver(
 
   const staleIds: string[] = [];
   let sent = 0;
+  // เลขบนไอคอนคิดครั้งเดียวต่อคน (คนเดียวหลายเครื่องได้เลขเดียวกัน) · เฉพาะสาย app
+  const badgeCache = new Map<string, Promise<number>>();
+  const badgeFor = (userId?: string): Promise<number | null> => {
+    if (!userId || opts.audience === 'superadmin') return Promise.resolve(null);
+    if (!badgeCache.has(userId)) badgeCache.set(userId, countUnreadChatForUser(userId));
+    return badgeCache.get(userId)!;
+  };
+
   await parallelLimit(subs, async (sub) => {
+    // ── แอป native (Capacitor) → FCM ──
+    if (sub.kind === 'fcm' && sub.device_token) {
+      const result = await sendFcm(sub.device_token, {
+        title: payload.title,
+        body: payload.body,
+        url: payload.url || '/',
+        tag: payload.tag,
+        badge: await badgeFor(sub.user_id),
+      });
+      if (result.ok) { sent++; return; }
+      if (result.unregistered) { staleIds.push(sub.id); return; }
+      console.error(`[Push] fcm send failed (${result.status}):`, result.error);
+      if (opts.companyId) {
+        await logIntegrationNow({
+          company_id: opts.companyId,
+          integration: 'fcm',
+          direction: 'outgoing',
+          action: 'send_notification',
+          method: 'POST',
+          api_path: 'fcm.googleapis.com',
+          request_body: { title: payload.title, tag: payload.tag, audience: opts.audience },
+          response_body: result.error,
+          http_status: result.status || undefined,
+          status: 'error',
+          error_message: result.error,
+        }).catch(() => { /* log ล้มต้องไม่ทำให้เครื่องอื่นไม่ได้รับ */ });
+      }
+      return;
+    }
+    if (!sub.p256dh || !sub.auth) return; // แถวไม่สมบูรณ์ — ยิงไม่ได้
     try {
       await webpush.sendNotification(
         { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },

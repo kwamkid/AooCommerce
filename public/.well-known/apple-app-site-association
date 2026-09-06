@@ -1,0 +1,17 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appIDs": ["TEAM_ID.com.aoocommerce.app"],
+        "components": [
+          { "/": "/auth/callback", "comment": "Google OAuth กลับเข้าแอป" },
+          { "/": "/auth/callback/*" },
+          { "/": "/line-callback", "comment": "LINE Login กลับเข้าแอป" },
+          { "/": "/line-callback/*" }
+        ]
+      }
+    ]
+  },
+  "webcredentials": { "apps": ["TEAM_ID.com.aoocommerce.app"] }
+}

@@ -11,14 +11,18 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const endpoint: string | undefined = body?.endpoint;
+    // kind 'fcm' = แอป native (Capacitor) ส่ง device token มา · endpoint ใช้ 'fcm:<token>' เป็นคีย์ unique เดิม
+    const kind: 'webpush' | 'fcm' = body?.kind === 'fcm' ? 'fcm' : 'webpush';
+    const deviceToken: string | undefined = kind === 'fcm' ? body?.token : undefined;
+    const platform: string | null = kind === 'fcm' && (body?.platform === 'ios' || body?.platform === 'android') ? body.platform : null;
+    const endpoint: string | undefined = kind === 'fcm' ? (deviceToken ? `fcm:${deviceToken}` : undefined) : body?.endpoint;
     const p256dh: string | undefined = body?.keys?.p256dh;
     const authKey: string | undefined = body?.keys?.auth;
     // สายแจ้งเตือน — 'superadmin' = แอปผู้ดูแลระบบ (คนละ service worker scope
     // จึงเป็นคนละ endpoint ทำให้ device เดียวเปิดได้ทั้งสองสายโดยไม่ทับกัน)
     const audience = body?.audience === 'superadmin' ? 'superadmin' : 'app';
 
-    if (!endpoint || !p256dh || !authKey) {
+    if (!endpoint || (kind === 'webpush' && (!p256dh || !authKey))) {
       return NextResponse.json({ error: 'Invalid subscription payload' }, { status: 400 });
     }
     // สาย superadmin ต้องเป็น superadmin จริงเท่านั้น — ไม่งั้นใครก็ยิง POST มาขอรับ
@@ -42,8 +46,11 @@ export async function POST(request: NextRequest) {
           user_id: auth.userId,
           audience,
           endpoint,
-          p256dh,
-          auth: authKey,
+          kind,
+          device_token: deviceToken ?? null,
+          platform,
+          p256dh: p256dh ?? null,
+          auth: authKey ?? null,
           user_agent: request.headers.get('user-agent')?.slice(0, 500) || null,
           updated_at: new Date().toISOString(),
         },

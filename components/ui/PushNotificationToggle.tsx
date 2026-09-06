@@ -19,6 +19,7 @@ import {
   type BadgeDiagnostics,
 } from '@/lib/push/client';
 import { formatThaiDateTime } from '@/lib/utils/format';
+import { isNativeApp } from '@/lib/native/bridge';
 
 interface Props {
   /** compact = แถวเดี่ยวไม่มีเส้นคั่น/ระยะขอบ สำหรับวางใน header (shell ของ superadmin) */
@@ -39,7 +40,8 @@ export default function PushNotificationToggle({ compact = false, audience = 'ap
 
   useEffect(() => {
     getPushState(audience).then(setState);
-    setStandalone(isStandalone());
+    // แอป native ไม่มี service worker ให้ถามบันทึกเลขบนไอคอน (OS จัดการเอง) — ซ่อนส่วนวินิจฉัย
+    setStandalone(isStandalone() && !isNativeApp());
   }, [audience]);
 
   const refreshBadge = () => getBadgeDiagnostics(audience).then(setBadge);

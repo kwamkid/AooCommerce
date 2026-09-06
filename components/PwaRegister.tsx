@@ -1,13 +1,25 @@
 'use client';
 
 import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { registerServiceWorker, clearAppBadge } from '@/lib/push/client';
 import { initInstallPromptCapture } from '@/lib/pwa-install';
+import { isNativeApp, bindNativeNavigation } from '@/lib/native/bridge';
 
 // ลงทะเบียน service worker ตอนเปิดแอพ (แค่ register — ยังไม่ขอ permission แจ้งเตือน)
 // + ล้างเลขบนไอคอนแอปเมื่อผู้ใช้ "เห็น" ของใหม่จริง ๆ
 export default function PwaRegister() {
+  const router = useRouter();
   useEffect(() => {
+    if (isNativeApp()) {
+      // เปลือกแอป native (mobile/): ไม่มี service worker · แจ้งเตือน+เลขบนไอคอนเป็นของ OS
+      // ทำแค่ 2 อย่าง — ฟังการแตะแจ้งเตือน/Universal Link ให้พาไปหน้าที่ถูก และล้างเลขเมื่อผู้ใช้เปิดแอป
+      const unbind = bindNativeNavigation((path) => router.push(path));
+      clearAppBadge('mount');
+      const onVisible = () => { if (document.visibilityState === 'visible') clearAppBadge('mount'); };
+      document.addEventListener('visibilitychange', onVisible);
+      return () => { unbind(); document.removeEventListener('visibilitychange', onVisible); };
+    }
     // รับช่วง beforeinstallprompt ที่ inline script ใน layout เก็บไว้ให้ (idempotent)
     initInstallPromptCapture();
     registerServiceWorker();
@@ -60,6 +72,7 @@ export default function PwaRegister() {
       window.removeEventListener('pageshow', arm);
       cancelArm();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   return null;
 }

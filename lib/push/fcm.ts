@@ -93,7 +93,6 @@ export async function sendFcm(deviceToken: string, msg: FcmMessage): Promise<Fcm
       android: {
         priority: 'HIGH',
         notification: {
-          channel_id: 'default',
           ...(msg.tag ? { tag: msg.tag } : {}),
           ...(typeof msg.badge === 'number' ? { notification_count: Math.max(0, Math.round(msg.badge)) } : {}),
         },
