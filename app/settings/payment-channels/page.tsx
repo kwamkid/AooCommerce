@@ -30,7 +30,7 @@ import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { apiFetch } from '@/lib/api-client';
 import { THAI_BANKS, getBankByCode } from '@/lib/constants/banks';
 import { BEAM_CHANNELS, BEAM_CHANNEL_CATEGORIES, CUSTOMER_TYPES, FEE_PAYERS } from '@/lib/constants/payment-gateway';
-import { Banknote, Building2, Globe, Plus, Edit2, Trash2, Eye, EyeOff, ChevronDown, ChevronUp, ArrowUp, ArrowDown, QrCode, ExternalLink } from 'lucide-react';
+import { Banknote, Building2, Globe, Plus, Edit2, Trash2, Eye, EyeOff, ChevronDown, ChevronUp, ArrowUp, ArrowDown, QrCode, ExternalLink, Check } from 'lucide-react';
 
 // Types
 interface PaymentChannel {
@@ -53,6 +53,49 @@ interface GatewayChannelConfig {
   installment_plans?: string[];
 }
 
+
+// ภาพประกอบหน้า "Event types" ของ Beam Lighthouse — วาดในหน้าเลยแทน screenshot (คมทุกจอ ·
+// แก้ตามโค้ดได้เมื่อ webhook รองรับ event เพิ่ม) · ติ๊กเฉพาะ 2 event ที่ /api/beam/webhook ใช้จริง
+function BeamEventTypesMock() {
+  const Box = ({ on }: { on: boolean }) => (
+    <span className={`inline-flex w-4 h-4 rounded border items-center justify-center flex-shrink-0 ${
+      on ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-gray-300 dark:border-slate-500 bg-white dark:bg-slate-700'
+    }`}>
+      {on && <Check className="w-3 h-3" strokeWidth={3} />}
+    </span>
+  );
+  const Chip = ({ label }: { label: string }) => (
+    <span className="font-mono text-xs px-2 py-0.5 rounded border border-gray-300 dark:border-slate-500 bg-white dark:bg-slate-700 text-gray-800 dark:text-slate-100">
+      {label}
+    </span>
+  );
+  const groups = [
+    { title: 'Payment Link', on: true, events: [{ label: 'payment_link.paid', on: true }] },
+    { title: 'Charge', on: false, events: [{ label: 'charge.succeeded', on: true }, { label: 'charge.failed', on: false }] },
+  ];
+  return (
+    <div className="mt-2 rounded-lg border border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-800 p-3 text-gray-800 dark:text-slate-200 max-w-xl">
+      <p className="text-sm font-semibold mb-2">Event types</p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
+        {groups.map(g => (
+          <div key={g.title}>
+            <div className="flex items-center gap-2 text-sm font-medium"><Box on={g.on} />{g.title}</div>
+            <div className="mt-1.5 ml-6 space-y-1.5">
+              {g.events.map(e => (
+                <div key={e.label} className={`flex items-center gap-2 ${e.on ? '' : 'opacity-50'}`}>
+                  <Box on={e.on} /><Chip label={e.label} />
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+      <p className="text-xs text-gray-500 dark:text-slate-400 mt-3 flex items-center gap-2">
+        <Box on={false} /> Card Authorization · Refund · Transaction · Bolt Intent · Purchase — ไม่ต้องติ๊ก
+      </p>
+    </div>
+  );
+}
 
 export default function PaymentChannelsPage() {
   const { userProfile } = useAuth();
@@ -708,7 +751,9 @@ export default function PaymentChannelsPage() {
                                   <li>ใน Beam Lighthouse ไปที่ Developers › Webhooks › สร้าง endpoint ด้วย URL นี้
                                     <div className="mt-1"><CopyField value={webhookUrl} /></div>
                                   </li>
-                                  <li>เลือก event <span className="font-mono">payment_link.paid</span> (จะติ๊ก <span className="font-mono">charge.succeeded</span> ด้วยก็ได้)</li>
+                                  <li>ที่ Event types ติ๊กตามรูป — แค่ <span className="font-mono">payment_link.paid</span> กับ <span className="font-mono">charge.succeeded</span> (ตัวอื่นระบบยังไม่ได้ใช้ ติ๊กไปก็แค่เพิ่ม log)
+                                    <BeamEventTypesMock />
+                                  </li>
                                   <li>คัดลอก <strong>HMAC key</strong> ที่ Beam แสดงหลังสร้าง มาวางในช่องด้านล่างแล้วบันทึก — key นี้<strong>คนละตัวกับ API Key</strong></li>
                                 </ol>
                                 <div className="mt-3">
