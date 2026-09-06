@@ -219,7 +219,10 @@ export async function collectWatchdogIssues(
   const CHAT_MIN_WEEKLY = 20;
   const CHAT_GAP_MULTIPLIER = 1.5;
   const CHAT_MIN_HOURS = 6;
-  const CHAT_MAX_HOURS = 48;
+  // ⚠️ เพดานเคยเป็น 48 ชม. → เพจที่ปกติเงียบได้ 51–68 ชม. (Hape · aDay Fresh - Fruit Delivery)
+  // โดนเตือนก่อนถึงช่วงเงียบปกติของตัวเอง = เตือนผิดทุกสุดสัปดาห์ (6–7 ก.ย. 2026)
+  // เพดานต้องสูงกว่าช่องว่างปกติที่เห็นจริง ไม่งั้นสถิติ 30 วันที่เก็บมาก็ไร้ความหมาย
+  const CHAT_MAX_HOURS = 24 * 7;
 
   let chatQuery = supabaseAdmin
     .from('chat_accounts')
@@ -259,6 +262,10 @@ export async function collectWatchdogIssues(
 
     const label = acc.platform === 'line' ? 'LINE' : 'Facebook';
     const name = acc.account_name || label;
+    // ต้องบอกว่าเป็น "เพจ/OA ไหน" ไม่ใช่แค่ชื่อ — เพจชื่อ "aDay Fresh - Fruit Delivery" ของ
+    // บริษัท aDay Fresh ถูกอ่านว่า "บริษัทไม่มีข้อความ 3 วัน" ทั้งที่อีกเพจ/OA ของบริษัทเดียวกัน
+    // ยังคุยอยู่ทุกชั่วโมง (6–7 ก.ย. 2026)
+    const kind = acc.platform === 'line' ? 'LINE OA' : 'เพจ Facebook';
     issues.push({
       companyId: acc.company_id as string,
       companyName: companyName.get(acc.company_id) || null,
@@ -267,8 +274,8 @@ export async function collectWatchdogIssues(
       groupKey: `chat_silent:${acc.platform}`,
       scope: 'company',
       severity: 'warning',
-      title: `${label} เงียบผิดปกติ ${roundHours(silentH)}`,
-      detail: `${name} ไม่มีข้อความเข้าเลย ${roundHours(silentH)} ทั้งที่ปกติเงียบนานสุดแค่ ${roundHours(normalGapH)} — webhook อาจหลุดหรือ token หมดอายุ`,
+      title: `${kind} "${name}" เงียบผิดปกติ ${roundHours(silentH)}`,
+      detail: `${kind} "${name}" ไม่มีข้อความเข้าเลย ${roundHours(silentH)} ทั้งที่ปกติเงียบนานสุดแค่ ${roundHours(normalGapH)} (ช่องทางอื่นของบริษัทไม่เกี่ยว) — webhook อาจหลุดหรือ token หมดอายุ`,
       fix: acc.platform === 'line'
         ? `เช็คที่ LINE Developers ว่า Webhook URL ยังชี้มาที่ระบบและเปิด "Use webhook" อยู่ แล้วกด Verify · ถ้าเปลี่ยน Channel secret/Access token ต้องมาแก้ที่ ตั้งค่า > ช่องทางแชท > LINE`
         : `เพจ Facebook ต้องต่ออายุสิทธิ์ทุก 60 วัน — เปิด ตั้งค่า > ช่องทางแชท > Facebook แล้วกดเชื่อมเพจใหม่ (ถ้าเพจเงียบเพราะไม่มีคนทักจริง ๆ ก็ข้ามได้)`,

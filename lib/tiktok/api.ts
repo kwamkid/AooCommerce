@@ -175,6 +175,21 @@ export async function exchangeCodeForToken(authCode: string, app: TikTokApp = 'o
 /**
  * Refresh access token using refresh_token.
  */
+/**
+ * แปลง `*_expire_in` ของ TikTok เป็นเวลาหมดอายุ
+ *
+ * ⚠️ ชื่อฟิลด์บอกว่า "expire in" แต่ค่าจริงเป็น **เวลาสัมบูรณ์ (unix วินาที)** ไม่ใช่
+ * จำนวนวินาทีนับจากตอนนี้ — ของเดิมเอาไปบวก now แล้วได้ปี 2083 → ระบบเชื่อว่า token
+ * ยังไม่หมดอายุตลอดกาล ไม่เคย refresh พอ token จริงหมด (7 วัน) ก็ล้ม "Expired credentials"
+ * ทุก 15 นาที (5–6 ก.ย. 2026 ดู fix-bug.md) · เผื่อ TikTok เปลี่ยนเป็นส่งจำนวนวินาทีจริง ๆ
+ * ในอนาคต: ค่าที่ต่ำกว่า ~ปี 2001 ในหน่วยวินาที (1e9) ถือว่าเป็นระยะเวลา
+ */
+export function tiktokExpiryToDate(expireIn: number, now: Date = new Date()): Date {
+  const n = Number(expireIn) || 0;
+  if (n > 1e9) return new Date(n * 1000);
+  return new Date(now.getTime() + n * 1000);
+}
+
 export async function refreshAccessToken(refreshToken: string, app: TikTokApp = 'order'): Promise<{
   access_token: string;
   refresh_token: string;
@@ -248,8 +263,8 @@ export async function ensureValidToken(
   const tokens = await refreshAccessToken(refreshToken, app);
 
   // Update tokens in DB
-  const accessExpiry = new Date(now.getTime() + tokens.access_token_expire_in * 1000);
-  const refreshExpiry = new Date(now.getTime() + tokens.refresh_token_expire_in * 1000);
+  const accessExpiry = tiktokExpiryToDate(tokens.access_token_expire_in, now);
+  const refreshExpiry = tiktokExpiryToDate(tokens.refresh_token_expire_in, now);
 
   await supabaseAdmin
     .from('marketplace_accounts')

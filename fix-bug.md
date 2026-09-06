@@ -37,6 +37,26 @@
 
 ---
 
+## 2026-09-07 — TikTok ซิงค์ตายเงียบ 22 ชม. ("Expired credentials" ทุก 15 นาที) — บันทึกวันหมดอายุ token เป็นปี 2083
+
+**ที่เกิด**: [lib/tiktok/api.ts](lib/tiktok/api.ts) `ensureValidToken` · [app/api/tiktok/oauth/callback/route.ts](app/api/tiktok/oauth/callback/route.ts)
+**อาการ**: ตัวเฝ้าแจ้ง "TikTok ซิงค์ตามหลัง 21 ชม." · `integration_logs` มี `sync_orders_poll` error 86–88 ครั้ง/ร้าน ข้อความ "Expired credentials. The 'access_token' ... has expired" ตั้งแต่ 5 ก.ย. 23:00 UTC
+**Root cause**: TikTok คืน `access_token_expire_in` / `refresh_token_expire_in` เป็น **unix timestamp สัมบูรณ์ (วินาที)** ทั้งที่ชื่อบอกว่า "expire in" — โค้ดเอาไปบวก `now` → `access_token_expires_at = 2083`, `refresh_token_expires_at = 2182` → `ensureValidToken` เห็นว่ายังไม่หมดจึงไม่เคย refresh · token จริงอายุ 7 วัน พอหมดก็ล้มทุกรอบ cron โดยไม่มีทางฟื้นเอง
+**วิธีแก้**: `tiktokExpiryToDate()` — ค่า > 1e9 ถือเป็นเวลาสัมบูรณ์ ต่ำกว่านั้นถือเป็นระยะเวลา (เผื่อ TikTok เปลี่ยน) ใช้ทั้ง callback และ refresh · ข้อมูลเก่า: ตั้ง `access_token_expires_at` = ตอนนี้ เพื่อบังคับ refresh (ฟื้นทันที 21:08 UTC) แล้วตั้งใหม่เป็น +6 วัน / refresh +25 วัน ให้รอบ refresh ถัดไปเขียนค่าจริงทับ
+**ป้องกัน regression**:
+- **วันหมดอายุที่ไกลผิดปกติ (> 1 ปี) ของ token marketplace = บั๊กหน่วยเวลาแน่นอน** — Shopee/Lazada/TikTok ไม่มี token อายุเกินหลักเดือน · ตัวเฝ้าควรฟ้อง (ยังไม่ทำ)
+- ฟิลด์ที่ชื่อเหมือน "ระยะเวลา" ของ API ภายนอกให้เช็คค่าจริงก่อนคิดเลข (Shopee `expire_in` = วินาทีจริง · TikTok = timestamp)
+
+## 2026-09-07 — ตัวเฝ้าเตือน "เพจ Facebook เงียบผิดปกติ" ผิดทุกสุดสัปดาห์ + ข้อความอ่านเหมือนบริษัททั้งบริษัทเงียบ
+
+**ที่เกิด**: [lib/marketplace/watchdog.ts](lib/marketplace/watchdog.ts) ส่วน chat silence
+**อาการ**: "Facebook เงียบผิดปกติ 2 วัน" (เพจ Hape) และ "aDay Fresh ไม่มีข้อความเข้า 3 วัน" ทั้งที่ LINE OA และเพจอื่นของ aDay Fresh มีข้อความเข้าทุกชั่วโมง
+**Root cause**: (1) เกณฑ์ = 1.5 × ช่องว่างปกติสูงสุด 30 วัน แต่มี**เพดาน 48 ชม.** — เพจ "aDay Fresh - Fruit Delivery" ปกติเงียบได้ 68 ชม. และ Hape 51 ชม. (เสาร์-อาทิตย์) เพดานจึงเตือนก่อนถึงช่วงเงียบปกติของตัวเอง ทำให้สถิติที่เก็บมาไร้ผล (2) หัวข้อบอกแค่ "Facebook" และรายละเอียดขึ้นชื่อเพจเปล่า ๆ — เพจชื่อ "aDay Fresh - Fruit Delivery" ถูกอ่านเป็นชื่อบริษัท
+**วิธีแก้**: เพดานเป็น 7 วัน (ยังมี floor 6 ชม. และตัด < 20 ข้อความ/สัปดาห์เหมือนเดิม) · หัวข้อ/รายละเอียดระบุ `เพจ Facebook "ชื่อ"` / `LINE OA "ชื่อ"` และบอกว่าช่องทางอื่นของบริษัทไม่เกี่ยว
+**ป้องกัน regression**: เกณฑ์ที่ "เรียนรู้จากสถิติ" ห้ามมี clamp ที่ต่ำกว่าค่าที่สถิติเห็นจริง · ข้อความเตือนต้องระบุหน่วยที่พัง (เพจ/OA/ร้าน) ไม่ใช่ชื่อเปล่า
+
+---
+
 ## 2026-09-06 — ยกเลิกเชื่อมต่อร้าน marketplace แล้ว ช่องแชทของร้านยังโผล่ในตัวกรองหน้าแชท
 
 **ที่เกิด**: [app/api/marketplace/accounts/route.ts](app/api/marketplace/accounts/route.ts) `DELETE` · ตัวกรองช่องทางใน [app/chat/page.tsx](app/chat/page.tsx) (อ่านจาก `/api/chat-accounts`)

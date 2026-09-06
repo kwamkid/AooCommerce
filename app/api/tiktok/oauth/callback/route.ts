@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/supabase-admin';
 import {
   exchangeCodeForToken, getAuthorizedShops, generateAuthUrl,
   isChatAppConfigured, type TikTokApp,
+  tiktokExpiryToDate,
 } from '@/lib/tiktok/api';
 import { authorizeMarketplaceCallback, signOAuthState } from '@/lib/oauth-state';
 import { isLoginKitConfigured } from '@/lib/tiktok/login-kit';
@@ -57,8 +58,9 @@ export async function GET(request: NextRequest) {
     console.log('[TikTok Callback] Token exchange success for', app);
 
     const now = new Date();
-    const accessExpiry = new Date(now.getTime() + tokens.access_token_expire_in * 1000);
-    const refreshExpiry = new Date(now.getTime() + tokens.refresh_token_expire_in * 1000);
+    // TikTok ส่ง expire_in เป็น unix วินาที (สัมบูรณ์) — ดู tiktokExpiryToDate
+    const accessExpiry = tiktokExpiryToDate(tokens.access_token_expire_in, now);
+    const refreshExpiry = tiktokExpiryToDate(tokens.refresh_token_expire_in, now);
 
     let shops: { id: string; name: string; region: string; cipher: string; code: string; seller_type: string }[] = [];
     try {
