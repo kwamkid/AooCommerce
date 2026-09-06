@@ -11,6 +11,7 @@ import { sendPushToCompany } from '@/lib/push/send';
 import { formatPrice } from '@/lib/utils/format';
 import { getBeamPaymentLink, getBeamPaymentLinkCharges, loadBeamGateways, type BeamGateway } from './client';
 import { beamMethodLabel } from './labels';
+import { backfillBeamSettlements, saveBeamSettlementForOrder } from './transactions';
 
 /** ข้อความในช่อง notes ของแถวที่ระบบต้องไปถาม Beam เอง — ตัวเฝ้าใช้จับว่า webhook ไม่เข้า */
 export const BEAM_RECONCILE_NOTE = 'ยืนยันจาก Beam API โดยตรง (webhook ไม่เข้า)';
@@ -34,6 +35,22 @@ export type SettleResult = 'settled' | 'already_verified' | 'order_already_paid'
  *   ปิดแถว gateway เป็น cancelled พร้อมจดว่า Beam ตัดเงินจริง (กันเงินหายจากสายตา)
  */
 export async function settleGatewayPayment(opts: {
+  record: GatewayPaymentRecord;
+  chargeId: string | null;
+  raw: unknown;
+  via: 'webhook' | 'reconcile';
+  /** มี = เก็บค่าธรรมเนียมของออเดอร์ลง settlement ต่อทันที (ถาม Beam ด้วย credentials ร้าน) */
+  gateway?: BeamGateway | null;
+}): Promise<SettleResult> {
+  const result = await settleGatewayPaymentCore(opts);
+  if ((result === 'settled' || result === 'order_already_paid') && opts.gateway) {
+    // ค่าธรรมเนียมเป็นเรื่องรายงาน ล้มแล้วห้ามทำให้การบันทึกเงินล้ม — cron backfill ตามเก็บให้อยู่แล้ว
+    await saveBeamSettlementForOrder(opts.gateway, opts.record.order_id).catch(() => null);
+  }
+  return result;
+}
+
+async function settleGatewayPaymentCore(opts: {
   record: GatewayPaymentRecord;
   chargeId: string | null;
   raw: unknown;
@@ -134,6 +151,7 @@ export async function reconcileGatewayRecord(gw: BeamGateway, record: GatewayPay
       chargeId: success?.chargeId || null,
       raw: { ...link.data, charge: success || null },
       via: 'reconcile',
+      gateway: gw,
     });
   }
   if (status === 'ACTIVE') return 'still_pending';
@@ -185,7 +203,10 @@ export async function reconcilePendingBeamPayments(opts: { maxAgeDays?: number; 
     .gte('created_at', since)
     .order('created_at', { ascending: false })
     .limit(opts.limit ?? 50);
-  if (!records || records.length === 0) return { checked: 0, settled: 0, closed: 0 };
+  if (!records || records.length === 0) {
+    await backfillBeamSettlements().catch(() => null);
+    return { checked: 0, settled: 0, closed: 0 };
+  }
 
   const gateways = new Map<string, BeamGateway | null>();
   let settled = 0;
@@ -201,6 +222,8 @@ export async function reconcilePendingBeamPayments(opts: { maxAgeDays?: number; 
     if (result === 'settled' || result === 'order_already_paid') settled++;
     if (result === 'closed') closed++;
   }
+  // ตามเก็บค่าธรรมเนียมที่ยังไม่มี (ออเดอร์ก่อนมีฟีเจอร์ · webhook พลาด) — เรื่องรายงาน ล้มได้ไม่กระทบเงิน
+  await backfillBeamSettlements().catch(() => null);
   return { checked: records.length, settled, closed };
 }
 
@@ -280,7 +303,7 @@ export async function markGatewayAttemptFailed(
  */
 export async function markGatewayRefund(
   record: GatewayRecordFull,
-  opts: { succeeded: boolean; raw: Record<string, unknown> },
+  opts: { succeeded: boolean; raw: Record<string, unknown>; gateway?: BeamGateway | null },
 ): Promise<void> {
   const amount = typeof opts.raw.amount === 'number' ? opts.raw.amount / 100 : null;
   const refundId = typeof opts.raw.refundId === 'string' ? opts.raw.refundId : null;
@@ -296,6 +319,11 @@ export async function markGatewayRefund(
     updated_at: new Date().toISOString(),
   }).eq('id', record.id);
   await log(record, 'webhook', opts.succeeded ? 'success' : 'error', `${note}${refundId ? ` [${refundId}]` : ''}`);
+
+  // ยอดคืนต้องไปหักใน settlement ด้วย (รายงานกำไร) — ธุรกรรม REFUND ของ Beam โผล่ใน list ของออเดอร์
+  if (opts.succeeded && opts.gateway) {
+    await saveBeamSettlementForOrder(opts.gateway, record.order_id).catch(() => null);
+  }
 
   const orderNo = await orderNumberOf(record.order_id);
   await sendPushToCompany(record.company_id, {

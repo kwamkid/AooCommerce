@@ -75,6 +75,7 @@ function BeamEventTypesMock() {
     { title: 'Payment Link', on: true, events: [{ label: 'payment_link.paid', on: true }] },
     { title: 'Charge', on: true, events: [{ label: 'charge.succeeded', on: true }, { label: 'charge.failed', on: true }] },
     { title: 'Refund', on: true, events: [{ label: 'refund.succeeded', on: true }, { label: 'refund.failed', on: true }] },
+    { title: 'Transaction', on: true, events: [{ label: 'transaction.created', on: true }] },
   ];
   return (
     <div className="mt-2 rounded-lg border border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-800 p-3 text-gray-800 dark:text-slate-200 max-w-xl">
@@ -94,7 +95,7 @@ function BeamEventTypesMock() {
         ))}
       </div>
       <p className="text-xs text-gray-500 dark:text-slate-400 mt-3 flex items-center gap-2">
-        <MockCheckbox on={false} /> Card Authorization · Transaction · Bolt Intent · Purchase (V0) — ไม่ต้องติ๊ก (flow ที่ระบบไม่ได้ใช้)
+        <MockCheckbox on={false} /> Card Authorization · Bolt Intent · Purchase (V0) — ไม่ต้องติ๊ก (flow ที่ระบบไม่ได้ใช้)
       </p>
     </div>
   );
@@ -754,7 +755,7 @@ export default function PaymentChannelsPage() {
                                   <li>ใน Beam Lighthouse ไปที่ Developers › Webhooks › สร้าง endpoint ด้วย URL นี้
                                     <div className="mt-1"><CopyField value={webhookUrl} /></div>
                                   </li>
-                                  <li>ที่ Event types ติ๊กตามรูป — จ่ายสำเร็จ (<span className="font-mono">payment_link.paid</span>, <span className="font-mono">charge.succeeded</span>) · จ่ายไม่ผ่าน (<span className="font-mono">charge.failed</span>) · คืนเงิน (<span className="font-mono">refund.*</span>) ทั้งหมดจะขึ้นบนหน้าออเดอร์และเด้งแจ้งเตือน
+                                  <li>ที่ Event types ติ๊กตามรูป — จ่ายสำเร็จ (<span className="font-mono">payment_link.paid</span>, <span className="font-mono">charge.succeeded</span>) · จ่ายไม่ผ่าน (<span className="font-mono">charge.failed</span>) · คืนเงิน (<span className="font-mono">refund.*</span>) · ค่าธรรมเนียม (<span className="font-mono">transaction.created</span> — เข้ารายงานยอดขาย/ค่าธรรมเนียม) ทั้งหมดจะขึ้นบนหน้าออเดอร์และเด้งแจ้งเตือน
                                     <BeamEventTypesMock />
                                   </li>
                                   <li>คัดลอก <strong>HMAC key</strong> ที่ Beam แสดงหลังสร้าง มาวางในช่องด้านล่างแล้วบันทึก — key นี้<strong>คนละตัวกับ API Key</strong></li>

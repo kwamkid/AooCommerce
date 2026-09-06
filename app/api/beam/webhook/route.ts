@@ -7,6 +7,8 @@
 //           charge.succeeded  = { chargeId, merchantId, referenceId, status, source, sourceId, paymentMethod, … }
 //           charge.failed     = เหมือน charge.succeeded + failureCode → ป้าย "จ่ายไม่ผ่าน" บนออเดอร์
 //           refund.succeeded  = { refundId, chargeId, merchantId, referenceId, amount, status, refundReason, … }
+//           transaction.created = { transactionId, referenceId, transactionType, grossAmount, feeAmount, vatAmount, netAmount, … }
+//                                 → marketplace_settlements platform 'beam' (lib/beam/transactions.ts)
 //
 // ⚠️ บทเรียน 2026-09-06 (จ่ายบัตรผ่าน 3 ใบ ไม่มีใบไหนอัพเดทเอง):
 //   1. เดิมหา config ด้วย `.single()` โดยไม่กรองบริษัท — พอมีร้านเปิด gateway มากกว่า 1 ร้าน
@@ -22,6 +24,7 @@ import { supabaseAdmin } from '@/lib/supabase-admin';
 import { logIntegrationNow } from '@/lib/integration-logger';
 import { loadBeamGateways, type BeamGateway } from '@/lib/beam/client';
 import { settleGatewayPayment, findGatewayRecord, markGatewayAttemptFailed, markGatewayRefund, type GatewayPaymentRecord } from '@/lib/beam/settle';
+import { isOurReference, saveBeamSettlementForOrder, type BeamTransaction } from '@/lib/beam/transactions';
 
 function verifyBeamSignature(body: string, signature: string, hmacKey: string): boolean {
   try {
@@ -170,7 +173,7 @@ export async function POST(request: NextRequest) {
         record = created as GatewayPaymentRecord;
       }
 
-      const result = await settleGatewayPayment({ record, chargeId, raw: event, via: 'webhook' });
+      const result = await settleGatewayPayment({ record, chargeId, raw: event, via: 'webhook', gateway });
       if (result === 'already_verified') {
         await logWebhook('success', 'แถวนี้ verified อยู่แล้ว (Beam ส่งซ้ำ) — ข้าม', record.order_id);
       }
@@ -199,11 +202,27 @@ export async function POST(request: NextRequest) {
         await logWebhook('error', `${eventType}: หาแถวจาก charge/ออเดอร์ไม่เจอ (chargeId=${chargeId} referenceId=${orderRef})`);
         return NextResponse.json({ success: true });
       }
-      await markGatewayRefund(record, { succeeded: eventType === 'refund.succeeded', raw: data });
+      await markGatewayRefund(record, { succeeded: eventType === 'refund.succeeded', raw: data, gateway });
       return NextResponse.json({ success: true });
     }
 
-    // event ที่เราไม่ได้ใช้ (card_authorization.authorized · bolt_intent.* · transaction.created · purchase V0)
+    // ── ค่าธรรมเนียมต่อธุรกรรม → settlement (รายงานยอดขาย-ค่าธรรมเนียม-กำไร) ──
+    if (eventType === 'transaction.created') {
+      const tx = data as unknown as BeamTransaction;
+      // merchant เดียวถูกระบบอื่นใช้ด้วย (referenceId แบบ ONL…) — ไม่ใช่ของเราก็แค่ ack เงียบ ๆ
+      if (!isOurReference(tx.referenceId)) return NextResponse.json({ success: true });
+      const result = await saveBeamSettlementForOrder(gateway, tx.referenceId, tx);
+      await logWebhook(
+        result.saved ? 'success' : 'error',
+        result.saved
+          ? `เก็บค่าธรรมเนียมแล้ว (${result.transactions} ธุรกรรม) ${tx.transactionType || ''} gross ${tx.grossAmount} fee ${tx.feeAmount} vat ${tx.vatAmount} net ${tx.netAmount}`
+          : `referenceId=${tx.referenceId} ไม่ใช่ออเดอร์ของร้านนี้ หรือไม่มีธุรกรรมให้เก็บ`,
+        result.saved ? tx.referenceId : null,
+      );
+      return NextResponse.json({ success: true });
+    }
+
+    // event ที่เราไม่ได้ใช้ (card_authorization.authorized · bolt_intent.* · purchase V0)
     // — จดไว้ให้รู้ว่า Beam ส่งอะไรมาบ้าง
     await logWebhook('success', `รับแล้วแต่ไม่ได้ใช้ event นี้: ${eventType || '(ไม่มีชื่อ event)'}`);
     return NextResponse.json({ success: true });
