@@ -1392,6 +1392,14 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
                       </div>
                     );
                   }
+                  if (r.notes && r.notes.startsWith('ยอดที่จ่ายผ่าน Beam')) {
+                    rows.push(
+                      <div key={`${r.id}-mismatch`} className="flex items-center gap-2 flex-wrap text-red-600 dark:text-red-400 font-medium">
+                        <XCircle className="w-4 h-4" />
+                        <span>{r.notes}</span>
+                      </div>
+                    );
+                  }
                   if (rows.length === 0 && r.status === 'pending') {
                     rows.push(
                       <div key={`${r.id}-pending`} className="flex items-center gap-2 flex-wrap text-gray-500 dark:text-slate-400">

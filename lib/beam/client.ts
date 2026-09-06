@@ -76,7 +76,11 @@ export interface BeamCharge {
   currency?: string;
   transactionTime?: string;
   paymentMethod?: { paymentMethodType?: string } | null;
+  /** เบอร์ที่ลูกค้ากรอกตอนจ่าย (ลิงก์เราเปิด collectPhoneNumber) — เอาไปเติมออเดอร์/ลูกค้าที่ยังไม่มีเบอร์ */
+  customer?: { primaryPhone?: { countryCode?: string; number?: string } | null; email?: string | null } | null;
 }
+
+export type BeamPhone = { countryCode?: string; number?: string } | null | undefined;
 
 async function beamGet<T>(gw: BeamGateway, path: string): Promise<{ ok: boolean; status: number; data: T | null; raw: string }> {
   const res = await fetch(`${beamBaseUrl(gw.environment)}${path}`, {
@@ -87,6 +91,23 @@ async function beamGet<T>(gw: BeamGateway, path: string): Promise<{ ok: boolean;
   let data: T | null = null;
   try { data = raw ? (JSON.parse(raw) as T) : null; } catch { data = null; }
   return { ok: res.ok, status: res.status, data, raw };
+}
+
+/**
+ * ปิดลิงก์ที่ Beam (PATCH …/disable → 202, status กลายเป็น DISABLED — ยืนยันจริง 7 ก.ย. 2026)
+ * ลิงก์ที่สร้างแล้วไม่หมดอายุเอง ถ้าแค่ปิดแถวใน DB ลูกค้าที่ค้างหน้าจอเก่าไว้ยังจ่ายซ้ำได้
+ */
+export async function disableBeamPaymentLink(gw: BeamGateway, paymentLinkId: string): Promise<boolean> {
+  try {
+    const res = await fetch(`${beamBaseUrl(gw.environment)}/api/v1/payment-links/${encodeURIComponent(paymentLinkId)}/disable`, {
+      method: 'PATCH',
+      headers: { Authorization: 'Basic ' + Buffer.from(`${gw.merchantId}:${gw.apiKey}`).toString('base64') },
+      cache: 'no-store',
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
 }
 
 /** สถานะลิงก์จ่ายเงินตามที่ Beam รู้ — แหล่งความจริงเมื่อ webhook ไม่มา */

@@ -2521,6 +2521,13 @@ export async function PUT(request: NextRequest) {
         );
       }
 
+      // ลิงก์จ่ายเงิน Beam ที่ยังเปิดอยู่ต้องปิดที่ Beam ด้วย เมื่อออเดอร์ชำระทางอื่นแล้ว/ถูกยกเลิก
+      // — ลิงก์ Beam ไม่หมดอายุเอง ปล่อยไว้ลูกค้าจ่ายซ้ำได้ (lib/beam/settle.ts)
+      if (body.payment_status === 'paid' || body.order_status === 'cancelled') {
+        const reason = body.order_status === 'cancelled' ? 'cancelled' : 'paid_elsewhere';
+        after(() => import('@/lib/beam/settle').then(m => m.closeBeamLinksForOrder(id, reason)).catch(() => null));
+      }
+
       // Auto-sync delivery info to shipping_addresses if customer exists
       // ข้ามเมื่อเป็นออเดอร์ "ส่งให้คนอื่น" — ข้อมูลนี้เป็นของผู้รับ ห้ามทับ contact/ที่อยู่หลักของผู้สั่ง
       if (body.delivery_name && existingOrder.customer_id && !body.ship_to_other) {
@@ -2761,6 +2768,9 @@ export async function DELETE(request: NextRequest) {
         { status: 500 }
       );
     }
+
+    // ปิดลิงก์จ่ายเงิน Beam ที่ยังเปิดอยู่ (ที่ Beam ด้วย) — ออเดอร์ที่ยกเลิกแล้วต้องรับเงินไม่ได้
+    after(() => import('@/lib/beam/settle').then(m => m.closeBeamLinksForOrder(orderId, 'cancelled')).catch(() => null));
 
     // --- Stock return/unreserve on cancel (best-effort) ---
     if (orderBeforeCancel && orderBeforeCancel.order_status !== 'cancelled') {

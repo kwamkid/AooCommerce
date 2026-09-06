@@ -2,6 +2,10 @@
 // Public API - no authentication required (called from customer-facing bill page)
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
+import { closeBeamLinksForOrder } from '@/lib/beam/settle';
+
+// ลิงก์ Beam ไม่หมดอายุเองถ้าไม่บอก — ตั้ง 30 วันเป็นตาข่ายสุดท้าย (ปกติถูกปิดก่อนหน้านั้นตอนจ่าย/ยกเลิก/สร้างใหม่)
+const BEAM_LINK_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
 // Map internal channel codes to Beam linkSettings keys
 const BEAM_LINK_SETTINGS_MAP: Record<string, string> = {
@@ -168,6 +172,7 @@ export async function POST(request: NextRequest) {
           },
           linkSettings: settings,
           redirectUrl,
+          expiresAt: new Date(Date.now() + BEAM_LINK_TTL_MS).toISOString(),
         }),
       });
     };
@@ -242,21 +247,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 8. Cancel any existing pending gateway payment records for this order
-    // (customer might have clicked pay before but didn't complete)
-    const { error: cancelError } = await supabaseAdmin.from('payment_records').update({
-      status: 'cancelled',
-      gateway_status: 'CANCELLED',
-      updated_at: new Date().toISOString(),
-    })
-      .eq('order_id', order.id)
-      .eq('company_id', companyId)
-      .eq('payment_method', 'payment_gateway')
-      .eq('status', 'pending');
-    if (cancelError) {
-      // ไม่ถึงกับหยุด flow — แต่ต้องรู้ ไม่ใช่ล้มเงียบ (เคยล้มเงียบเพราะคอลัมน์ไม่มีจริง)
-      console.error('Beam: cancel old payment records failed:', cancelError);
-    }
+    // 8. ลิงก์เก่าของออเดอร์นี้ที่ยังเปิดอยู่ (ลูกค้ากดจ่ายแล้วไม่จ่าย) — ปิด**ที่ Beam** ด้วย ไม่ใช่แค่ใน DB
+    //    ไม่งั้นลูกค้าที่ค้างหน้าจอเก่าจ่ายได้ทั้งสองลิงก์ (ลิงก์ Beam ไม่หมดอายุเอง)
+    await closeBeamLinksForOrder(order.id, 'superseded').catch((e) => {
+      // ไม่ถึงกับหยุด flow — แต่ต้องรู้ ไม่ใช่ล้มเงียบ
+      console.error('Beam: close old payment links failed:', e);
+    });
 
     // Create new payment record
     //

@@ -187,7 +187,14 @@ export async function POST(request: NextRequest) {
         await logWebhook('error', 'ไม่มีแถวชำระและไม่มีออเดอร์ให้กู้');
         return NextResponse.json({ success: true });
       }
-      const result = await settleGatewayPayment({ record: paid, chargeId, raw: event, via: 'webhook', gateway });
+      // ยอดที่ตัดจริง: charge.succeeded = amount · payment_link.paid = order.netAmount (สตางค์) · เบอร์จาก charge
+      const satang = (v: unknown) => (typeof v === 'number' ? v / 100 : null);
+      const paidAmount = satang(data.amount) ?? satang(asRecord(data.order).netAmount);
+      const phone = asRecord(asRecord(data.customer).primaryPhone);
+      const result = await settleGatewayPayment({
+        record: paid, chargeId, raw: event, via: 'webhook', gateway, paidAmount,
+        customerPhone: phone.number ? { countryCode: str(phone.countryCode), number: str(phone.number) } : null,
+      });
       if (result === 'already_verified') {
         await logWebhook('success', 'แถวนี้ verified อยู่แล้ว (Beam ส่งซ้ำ) — ข้าม', paid.order_id);
       }

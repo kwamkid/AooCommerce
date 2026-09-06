@@ -9,7 +9,7 @@ import { supabaseAdmin } from '@/lib/supabase-admin';
 import { logIntegrationNow } from '@/lib/integration-logger';
 import { sendPushToCompany } from '@/lib/push/send';
 import { formatPrice } from '@/lib/utils/format';
-import { getBeamPaymentLink, getBeamPaymentLinkCharges, loadBeamGateways, type BeamGateway } from './client';
+import { disableBeamPaymentLink, getBeamPaymentLink, getBeamPaymentLinkCharges, loadBeamGateways, type BeamGateway, type BeamPhone } from './client';
 import { beamMethodLabel } from './labels';
 import { backfillBeamSettlements, saveBeamSettlementForOrder } from './transactions';
 
@@ -25,7 +25,8 @@ export interface GatewayPaymentRecord {
   created_at?: string;
 }
 
-export type SettleResult = 'settled' | 'already_verified' | 'order_already_paid' | 'failed';
+/** settled_partial = Beam ตัดเงินจริงแต่ยอดน้อยกว่าบิล — แถวชำระบันทึกแล้ว ออเดอร์ยังไม่ paid ให้ร้านตัดสิน */
+export type SettleResult = 'settled' | 'settled_partial' | 'already_verified' | 'order_already_paid' | 'failed';
 
 /**
  * ทำให้ออเดอร์ "ชำระแล้ว" จากหลักฐานว่า Beam ตัดเงินสำเร็จ — idempotent
@@ -41,10 +42,22 @@ export async function settleGatewayPayment(opts: {
   via: 'webhook' | 'reconcile';
   /** มี = เก็บค่าธรรมเนียมของออเดอร์ลง settlement ต่อทันที (ถาม Beam ด้วย credentials ร้าน) */
   gateway?: BeamGateway | null;
+  /** ยอดที่ Beam ตัดจริง (บาท) — เทียบกับยอดบิล ไม่ตรง = ติดป้าย + เด้งเตือน (ลิงก์เก่าที่ยอดบิลเปลี่ยนไปแล้ว) */
+  paidAmount?: number | null;
+  /** เบอร์ที่ลูกค้ากรอกตอนจ่าย — เติมให้ออเดอร์/ลูกค้าที่ยังไม่มีเบอร์ */
+  customerPhone?: BeamPhone;
 }): Promise<SettleResult> {
   const result = await settleGatewayPaymentCore(opts);
-  if ((result === 'settled' || result === 'order_already_paid') && opts.gateway) {
-    // ค่าธรรมเนียมเป็นเรื่องรายงาน ล้มแล้วห้ามทำให้การบันทึกเงินล้ม — cron backfill ตามเก็บให้อยู่แล้ว
+  const moneyIn = result === 'settled' || result === 'settled_partial' || result === 'order_already_paid';
+  if (!moneyIn) return result;
+  // ทั้งหมดข้างล่างเป็นงานตาม — ล้มแล้วห้ามทำให้การบันทึกเงินล้ม
+  if (opts.customerPhone) await applyBeamCustomerPhone(opts.record, opts.customerPhone).catch(() => null);
+  if (result !== 'order_already_paid') {
+    // ลิงก์อื่นของออเดอร์เดียวกันที่ยังเปิดอยู่ (สร้างซ้ำก่อนหน้า) ต้องปิดที่ Beam — ไม่งั้นจ่ายซ้ำได้
+    await closeBeamLinksForOrder(opts.record.order_id, 'superseded', { exceptRecordId: opts.record.id }).catch(() => null);
+  }
+  if (opts.gateway) {
+    // ค่าธรรมเนียมเป็นเรื่องรายงาน — cron backfill ตามเก็บให้อยู่แล้วถ้าพลาดตรงนี้
     await saveBeamSettlementForOrder(opts.gateway, opts.record.order_id).catch(() => null);
   }
   return result;
@@ -55,19 +68,29 @@ async function settleGatewayPaymentCore(opts: {
   chargeId: string | null;
   raw: unknown;
   via: 'webhook' | 'reconcile';
+  paidAmount?: number | null;
 }): Promise<SettleResult> {
   const { record, chargeId, raw, via } = opts;
   if (record.status === 'verified') return 'already_verified';
 
   const { data: order } = await supabaseAdmin
     .from('orders')
-    .select('id, order_status, payment_status')
+    .select('id, order_number, order_status, payment_status, total_amount')
     .eq('id', record.order_id)
     .eq('company_id', record.company_id)
     .single();
   if (!order) return 'failed';
 
   const now = new Date().toISOString();
+
+  // เทียบยอดที่ตัดจริงกับยอดบิล — ลิงก์ที่ส่งไปแล้วไม่รู้ว่าร้านแก้ยอดบิลทีหลัง
+  const total = Number(order.total_amount) || 0;
+  const paid = typeof opts.paidAmount === 'number' && Number.isFinite(opts.paidAmount) ? opts.paidAmount : null;
+  const mismatch = paid !== null && Math.abs(paid - total) >= 0.5;
+  const short = mismatch && paid < total;
+  const mismatchNote = mismatch
+    ? `ยอดที่จ่ายผ่าน Beam ฿${formatPrice(paid!)} ไม่ตรงยอดบิล ฿${formatPrice(total)}${short ? ' — ยังไม่ครบ' : ' — จ่ายเกิน'}`
+    : null;
 
   if (order.payment_status === 'paid') {
     await supabaseAdmin.from('payment_records').update({
@@ -88,7 +111,9 @@ async function settleGatewayPaymentCore(opts: {
     gateway_charge_id: chargeId,
     gateway_raw_response: raw,
     payment_date: now,
-    ...(via === 'reconcile' ? { notes: BEAM_RECONCILE_NOTE } : {}),
+    // ยอดในแถวชำระ = ยอดที่ตัดจริง (ไม่ใช่ยอดบิลตอนสร้างลิงก์) เมื่อไม่ตรงกัน
+    ...(mismatch ? { amount: paid } : {}),
+    ...(mismatchNote ? { notes: mismatchNote } : via === 'reconcile' ? { notes: BEAM_RECONCILE_NOTE } : {}),
     updated_at: now,
   }).eq('id', record.id);
   if (verifyError) {
@@ -96,6 +121,18 @@ async function settleGatewayPaymentCore(opts: {
     console.error('[Beam] mark payment record verified failed:', verifyError);
     await log(record, via, 'error', `บันทึกแถวชำระไม่ติด: ${verifyError.message}`);
     return 'failed';
+  }
+
+  if (short) {
+    // ได้เงินไม่ครบ — ห้ามติ๊กว่าออเดอร์ชำระแล้ว ให้ร้านตัดสิน (เก็บเพิ่ม/คืน/ยอมรับ)
+    await log(record, via, 'error', mismatchNote!);
+    await sendPushToCompany(record.company_id, {
+      title: '⚠️ ลูกค้าจ่ายผ่าน Beam ไม่ครบยอดบิล',
+      body: `${order.order_number || ''} · ${mismatchNote} — ตรวจสอบก่อนส่งของ`,
+      url: `/orders/${record.order_id}`,
+      tag: `beam-mismatch-${record.id}`,
+    }).catch(() => null);
+    return 'settled_partial';
   }
 
   // เลื่อน order_status ด้วย (new → ready_to_ship) ให้ตรงกับทางแจ้งโอนสลิปใน /api/bills —
@@ -111,8 +148,88 @@ async function settleGatewayPaymentCore(opts: {
     return 'failed';
   }
 
-  await log(record, via, 'success', via === 'webhook' ? 'อัพเดทออเดอร์เป็นชำระแล้ว (webhook)' : BEAM_RECONCILE_NOTE);
+  await log(record, via, 'success', `${via === 'webhook' ? 'อัพเดทออเดอร์เป็นชำระแล้ว (webhook)' : BEAM_RECONCILE_NOTE}${mismatchNote ? ` · ${mismatchNote}` : ''}`);
+  if (mismatchNote) {
+    await sendPushToCompany(record.company_id, {
+      title: '⚠️ ลูกค้าจ่ายผ่าน Beam เกินยอดบิล',
+      body: `${order.order_number || ''} · ${mismatchNote} — เช็คว่าต้องคืนส่วนเกินไหม`,
+      url: `/orders/${record.order_id}`,
+      tag: `beam-mismatch-${record.id}`,
+    }).catch(() => null);
+  }
   return 'settled';
+}
+
+/**
+ * ปิดลิงก์จ่ายเงินของออเดอร์ที่ยังเปิดอยู่ — **ที่ Beam ด้วย ไม่ใช่แค่ใน DB**
+ * ลิงก์ Beam ไม่หมดอายุเอง: ออเดอร์ยกเลิก/จ่ายทางอื่นแล้ว/สร้างลิงก์ใหม่ ลิงก์เก่าต้องรับเงินไม่ได้อีก
+ */
+export async function closeBeamLinksForOrder(
+  orderId: string,
+  reason: 'superseded' | 'paid_elsewhere' | 'cancelled',
+  opts: { exceptRecordId?: string } = {},
+): Promise<number> {
+  const { data: records } = await supabaseAdmin
+    .from('payment_records')
+    .select('id, company_id, gateway_payment_link_id')
+    .eq('order_id', orderId)
+    .eq('gateway_provider', 'beam')
+    .eq('status', 'pending');
+  const targets = (records || []).filter(r => r.id !== opts.exceptRecordId);
+  if (!targets.length) return 0;
+
+  const note = reason === 'cancelled'
+    ? 'ปิดลิงก์เพราะออเดอร์ถูกยกเลิก'
+    : reason === 'paid_elsewhere'
+      ? 'ปิดลิงก์เพราะออเดอร์ชำระทางอื่นแล้ว'
+      : 'ปิดลิงก์เพราะมีลิงก์ใหม่/จ่ายผ่านลิงก์อื่นแล้ว';
+  const gateways = new Map<string, BeamGateway | null>();
+  let closed = 0;
+  for (const r of targets) {
+    let disabled = false;
+    const linkId = r.gateway_payment_link_id as string | null;
+    if (linkId) {
+      const companyId = r.company_id as string;
+      if (!gateways.has(companyId)) {
+        const [gw] = await loadBeamGateways({ companyId });
+        gateways.set(companyId, gw || null);
+      }
+      const gw = gateways.get(companyId);
+      if (gw) disabled = await disableBeamPaymentLink(gw, linkId);
+    }
+    await supabaseAdmin.from('payment_records').update({
+      status: 'cancelled',
+      gateway_status: disabled ? 'DISABLED' : 'CANCELLED',
+      notes: disabled ? note : `${note} (ปิดที่ Beam ไม่สำเร็จ — ลิงก์อาจยังเปิดอยู่)`,
+      updated_at: new Date().toISOString(),
+    }).eq('id', r.id);
+    closed++;
+  }
+  return closed;
+}
+
+/** เบอร์ที่ลูกค้ากรอกตอนจ่ายที่ Beam → เติมออเดอร์/ลูกค้าที่ยังไม่มีเบอร์ (ไม่ทับของเดิม) */
+export async function applyBeamCustomerPhone(record: GatewayPaymentRecord, phone: BeamPhone): Promise<void> {
+  const digits = (phone?.number || '').replace(/\D/g, '');
+  if (!digits) return;
+  const cc = (phone?.countryCode || '').replace(/\D/g, '');
+  const local = digits.startsWith('0') ? digits : (cc === '66' || !cc) ? `0${digits}` : `+${cc}${digits}`;
+
+  const { data: order } = await supabaseAdmin
+    .from('orders')
+    .select('id, customer_id, delivery_phone')
+    .eq('id', record.order_id)
+    .maybeSingle();
+  if (!order) return;
+  if (!order.delivery_phone) {
+    await supabaseAdmin.from('orders').update({ delivery_phone: local }).eq('id', order.id);
+  }
+  if (order.customer_id) {
+    const { data: customer } = await supabaseAdmin.from('customers').select('id, phone').eq('id', order.customer_id).maybeSingle();
+    if (customer && !customer.phone) {
+      await supabaseAdmin.from('customers').update({ phone: local }).eq('id', customer.id);
+    }
+  }
 }
 
 function log(record: GatewayPaymentRecord, via: 'webhook' | 'reconcile', status: 'success' | 'error', note: string) {
@@ -146,12 +263,15 @@ export async function reconcileGatewayRecord(gw: BeamGateway, record: GatewayPay
   if (status === 'PAID') {
     const charges = await getBeamPaymentLinkCharges(gw, record.gateway_payment_link_id);
     const success = charges.find(c => String(c.status).toUpperCase() === 'SUCCEEDED');
+    const satang = (v: unknown) => (typeof v === 'number' ? v / 100 : null);
     return settleGatewayPayment({
       record,
       chargeId: success?.chargeId || null,
       raw: { ...link.data, charge: success || null },
       via: 'reconcile',
       gateway: gw,
+      paidAmount: satang(success?.amount) ?? satang(link.data.order?.netAmount),
+      customerPhone: success?.customer?.primaryPhone ?? null,
     });
   }
   if (status === 'ACTIVE') return 'still_pending';
@@ -183,7 +303,7 @@ export async function reconcileBeamForOrder(orderId: string): Promise<{ checked:
   let settled = 0;
   for (const r of records as GatewayPaymentRecord[]) {
     const result = await reconcileGatewayRecord(gw, r);
-    if (result === 'settled' || result === 'order_already_paid') settled++;
+    if (result === 'settled' || result === 'settled_partial' || result === 'order_already_paid') settled++;
   }
   return { checked: records.length, settled };
 }
@@ -219,7 +339,7 @@ export async function reconcilePendingBeamPayments(opts: { maxAgeDays?: number; 
     const gw = gateways.get(r.company_id);
     if (!gw) continue;
     const result = await reconcileGatewayRecord(gw, r);
-    if (result === 'settled' || result === 'order_already_paid') settled++;
+    if (result === 'settled' || result === 'settled_partial' || result === 'order_already_paid') settled++;
     if (result === 'closed') closed++;
   }
   // ตามเก็บค่าธรรมเนียมที่ยังไม่มี (ออเดอร์ก่อนมีฟีเจอร์ · webhook พลาด) — เรื่องรายงาน ล้มได้ไม่กระทบเงิน
