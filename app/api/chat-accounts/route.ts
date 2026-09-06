@@ -187,6 +187,29 @@ export async function POST(request: NextRequest) {
         } catch { /* non-critical */ }
       }
 
+      // Shopee: เหมือนกัน — push จะมาเฉพาะข้อความ "หลังจากนี้" ถ้าไม่ดึงห้องสนทนา
+      // ที่คุยค้างไว้มาก่อน หน้าแชทจะว่างทั้งที่ลูกค้าทักมาแล้ว
+      //
+      // ใช้ after() ไม่ใช่ปล่อยลอย — งานนี้ยิง API หลายรอบ (list + get_message ต่อห้อง)
+      // ปล่อยลอยแล้วตอบ response ไป Vercel จะ freeze ฟังก์ชันทิ้งกลางคัน
+      if (platform === 'shopee') {
+        after(async () => {
+          try {
+            const { data: fullAccount } = await supabaseAdmin
+              .from('marketplace_accounts')
+              .select('*')
+              .eq('id', mpAccount.id)
+              .single();
+            if (!fullAccount) return;
+            const { syncShopeeRecentConversations } = await import('@/lib/services/chat/shopee');
+            const synced = await syncShopeeRecentConversations(fullAccount, 10);
+            console.log(`[Shopee Chat] backfill ตอนเปิดสวิตช์: ${synced} ห้องสนทนา`);
+          } catch (e) {
+            console.warn('[Shopee Chat] backfill ตอนเปิดสวิตช์ล้มเหลว:', e instanceof Error ? e.message : e);
+          }
+        });
+      }
+
       // No sales_channels mirror — marketplace orders already flow via sync
       return NextResponse.json({ success: true, account: data });
     }
@@ -384,6 +407,24 @@ export async function PUT(request: NextRequest) {
       .eq('company_id', companyId);
 
     if (error) throw error;
+
+    // เปิดสวิตช์แชท Shopee กลับมา = ช่วงที่ปิดอยู่ webhook ถูกข้ามทิ้งไปหมด
+    // ตามเก็บห้องสนทนาล่าสุดให้ก่อน ไม่งั้นจะเห็นแค่ข้อความหลังจากนี้
+    if (existing.platform === 'shopee' && is_active === true && !existing.is_active) {
+      const shopId = (existing.credentials as Record<string, unknown> | null)?.marketplace_account_id as string | undefined;
+      after(async () => {
+        try {
+          if (!shopId) return;
+          const { data: fullAccount } = await supabaseAdmin
+            .from('marketplace_accounts').select('*').eq('id', shopId).eq('company_id', companyId).single();
+          if (!fullAccount) return;
+          const { syncShopeeRecentConversations } = await import('@/lib/services/chat/shopee');
+          await syncShopeeRecentConversations(fullAccount, 10);
+        } catch (e) {
+          console.warn('[Shopee Chat] backfill ตอนเปิดสวิตช์ซ้ำล้มเหลว:', e instanceof Error ? e.message : e);
+        }
+      });
+    }
 
     // Keep the sales_channels mirror in step (name + is_active).
     // Shopee/Lazada have no mirror — orders already flow via marketplace sync.

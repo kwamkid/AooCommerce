@@ -142,8 +142,34 @@ export interface ChatMessage {
     order_sn?: string;
     order_id?: string;
     shopee_status?: string;
+    shopee_source?: string;
     auto_reply?: boolean;
     recalled?: boolean;
+
+    // Shopee: การ์ดสินค้า/ออเดอร์ที่เติมเนื้อไว้ตอนบันทึกข้อความ (lib/shopee/chat-enrich.ts)
+    // — push ส่งมาแค่ id เลยต้อง resolve ตั้งแต่ตอนเก็บ ไม่ใช่ให้หน้าจอไปยิงหาเอง
+    item?: {
+      item_id: string;
+      shop_id?: number | null;
+      name?: string | null;
+      image_url?: string | null;
+      price?: number | null;
+      /** uuid สินค้าในระบบเรา — ไม่มี = ยังไม่ได้ผูก (กด "เปิดในระบบ" ไม่ได้) */
+      product_id?: string | null;
+      variation_id?: string | null;
+      shopee_url: string;
+    };
+    order?: {
+      order_sn: string;
+      /** uuid ออเดอร์ในระบบเรา — ไม่มี = ยังไม่ sync เข้ามา */
+      order_id?: string;
+      order_number?: string;
+      order_status?: string;
+      payment_status?: string;
+      total_amount?: number;
+    };
+    /** เหตุการณ์เชิงระบบ ไม่ใช่คำพูดของใคร (เช่น ลูกค้ากดขอคุยกับเจ้าหน้าที่) */
+    system_event?: string;
 
     // LINE Flex Message
     flexContents?: Record<string, unknown>;

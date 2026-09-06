@@ -23,6 +23,9 @@ const ImagemapBubble = dynamic(() => import('./renderers/LineRenderers').then(m 
 const FbTemplateRenderer = dynamic(() => import('./renderers/FbRenderers').then(m => m.FbTemplateRenderer), { ssr: false, loading: RENDERER_FALLBACK });
 const StoryMentionBubble = dynamic(() => import('./renderers/FbRenderers').then(m => m.StoryMentionBubble), { ssr: false, loading: RENDERER_FALLBACK });
 const StoryReplyBubble = dynamic(() => import('./renderers/FbRenderers').then(m => m.StoryReplyBubble), { ssr: false, loading: RENDERER_FALLBACK });
+const ProductCardBubble = dynamic(() => import('./renderers/ShopeeRenderers').then(m => m.ProductCardBubble), { ssr: false, loading: RENDERER_FALLBACK });
+const OrderCardBubble = dynamic(() => import('./renderers/ShopeeRenderers').then(m => m.OrderCardBubble), { ssr: false, loading: RENDERER_FALLBACK });
+const SystemEventChip = dynamic(() => import('./renderers/ShopeeRenderers').then(m => m.SystemEventChip), { ssr: false, loading: RENDERER_FALLBACK });
 
 interface MessageBubbleProps {
   msg: ChatMessage;
@@ -91,11 +94,17 @@ export default function MessageBubble({
       if (msg.raw_message?.linkUrl || msg.raw_message?.templateUrl) return <FallbackBubble {...props} />;
       break;
 
-    // Shopee: product / order reference messages — link bubble when we have a URL
+    // Shopee: การ์ดสินค้า/ออเดอร์ — ฟองเดิมมีแต่ id ที่พนักงานอ่านไม่ออกว่าคือตัวไหน
+    // (renderer จัดการเคส raw_message ยังไม่มีเนื้อเองแล้ว จึงไม่ต้อง fallback ที่นี่)
     case 'item':
+      return <ProductCardBubble {...props} />;
+
     case 'order':
-      if (msg.raw_message?.linkUrl) return <FallbackBubble {...props} />;
-      break;
+      return <OrderCardBubble {...props} />;
+
+    // ลูกค้ากดปุ่ม "คุยกับเจ้าหน้าที่" — เหตุการณ์ ไม่ใช่ข้อความ (หน้าแชทจัดกลางจอให้)
+    case 'faq_liveagent':
+      return <SystemEventChip {...props} />;
   }
 
   // Default: plain text

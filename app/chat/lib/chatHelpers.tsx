@@ -127,6 +127,16 @@ export function formatTime(dateString: string) {
   return date.toLocaleDateString('th-TH', { day: 'numeric', month: 'short' }) + ' ' + date.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
 }
 
+/**
+ * ข้อความที่เป็น "เหตุการณ์" ไม่ใช่คำพูดของใคร (ตอนนี้: ลูกค้า Shopee กดขอคุยกับเจ้าหน้าที่)
+ *
+ * วาดเป็นชิปกลางจอ — ไม่มีรูปโปรไฟล์ ไม่มีหางฟอง ไม่มีเวลา เพราะไม่มีใคร "พูด"
+ * ประโยคนี้ ถ้าวาดเป็นฟองจะอ่านเหมือนลูกค้าพิมพ์เอง
+ */
+export function isSystemEventMessage(msg: { message_type: string; raw_message?: { system_event?: string } | null }): boolean {
+  return msg.message_type === 'faq_liveagent' || !!msg.raw_message?.system_event;
+}
+
 export function formatLastMessage(dateString?: string) {
   if (!dateString) return '';
   const date = new Date(dateString);

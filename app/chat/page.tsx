@@ -62,7 +62,7 @@ import { diffTagIds, patchCustomerTags, patchContactTags } from '@/lib/tag-links
 import Tooltip from '@/components/ui/Tooltip';
 import type { UnifiedContact, ChatMessage, Customer, DayRange, ChatAccountInfo, LinkedContact } from './lib/chatTypes';
 import MessageBubble from './components/MessageBubble';
-import { FbIcon, IgIcon, LineIcon, ShopeeIcon, LazadaIcon, TiktokIcon, PlatformIcon, AccountCornerBadge, getAccountPicture, getAvatarUrl, getInitials, formatTime, formatLastMessage, compressImage, officialStickers } from './lib/chatHelpers';
+import { FbIcon, IgIcon, LineIcon, ShopeeIcon, LazadaIcon, TiktokIcon, PlatformIcon, AccountCornerBadge, getAccountPicture, getAvatarUrl, getInitials, formatTime, formatLastMessage, compressImage, officialStickers, isSystemEventMessage } from './lib/chatHelpers';
 import { FullPageLoading } from '@/components/ui/Loading';
 import { LoadingCard } from '@/components/ui/StateCard';
 import LoadingOverlay from '@/components/ui/LoadingOverlay';
@@ -77,6 +77,12 @@ const LightboxViewer = dynamic(() => import('./components/LightboxViewer'), { ss
 // แผงด้านข้าง — import ตรง ๆ = ติดไปกับ first-load JS ของหน้าแชททุกครั้งที่เปิดหน้า
 const OrderForm = dynamic(() => import('@/components/orders/OrderForm'), { ssr: false, loading: () => <LoadingCard /> });
 const CustomerForm = dynamic(() => import('@/components/customers/CustomerForm'), { ssr: false, loading: () => <LoadingCard /> });
+
+/**
+ * ชนิดข้อความที่ "วาดกล่องของตัวเอง" — ฟองรอบนอกต้องโปร่งใส ไม่งั้นจะได้กล่องซ้อนกล่อง
+ * (การ์ดสินค้า/ออเดอร์ของ Shopee มีพื้นขาว+ขอบของตัวเองเหมือนการ์ด template ของ FB)
+ */
+const BARE_BUBBLE_TYPES = ['sticker', 'image', 'video', 'flex', 'template', 'imagemap', 'story_mention', 'item', 'order'];
 
 function UnifiedChatPageContent() {
   const router = useRouter();
@@ -545,7 +551,14 @@ function UnifiedChatPageContent() {
             const alreadyHave = prev.some(m => m.content === newMsg.content && m.direction === 'outgoing');
             if (alreadyHave) return prev;
           }
-          return [...prev, { ...newMsg, contact_id: msgContactId }];
+          // แทรกตามเวลาจริง ไม่ใช่ต่อท้ายดื้อ ๆ — ข้อความที่ระบบ "ตามเก็บ" มาทีหลัง
+          // อาจเก่ากว่าใบที่อยู่บนจอแล้ว (ร้านตอบจากแอป Shopee/ข้อความอัตโนมัติ
+          // ที่แพลตฟอร์มไม่ push มา เราดึงเข้ามาภายหลัง) ต่อท้ายจะได้ลำดับเวลาสลับ
+          const row = { ...newMsg, contact_id: msgContactId };
+          const at = new Date(row.created_at).getTime();
+          let i = prev.length;
+          while (i > 0 && new Date(prev[i - 1].created_at).getTime() > at) i--;
+          return [...prev.slice(0, i), row, ...prev.slice(i)];
         });
 
         // Mark as read if viewing this contact (lightweight PATCH instead of re-fetching messages)
@@ -2065,7 +2078,12 @@ function UnifiedChatPageContent() {
                 ) : (
                   <>
                     <div ref={messagesTopRef} className="py-1">{loadingMore && (<div className="flex items-center justify-center py-2"><Loader2 className="w-4 h-4 text-gray-400 animate-spin" /></div>)}</div>
-                    {messages.map((msg) => (
+                    {messages.map((msg) => isSystemEventMessage(msg) ? (
+                      // เหตุการณ์ของระบบ (ลูกค้ากดขอคุยกับเจ้าหน้าที่) — ชิปกลางจอ ไม่ใช่ฟองคำพูด
+                      <div key={msg.id} className="flex justify-center">
+                        <MessageBubble msg={msg} platform={selectedContact?.platform || 'line'} direction={msg.direction} />
+                      </div>
+                    ) : (
                       <div key={msg.id} className={`flex ${msg.direction === 'outgoing' ? 'justify-end pl-8' : 'justify-start pr-8'} gap-2`}>
                         {msg.direction === 'incoming' && (
                           <div className="flex-shrink-0 self-end">
@@ -2078,6 +2096,8 @@ function UnifiedChatPageContent() {
                             {msg.direction === 'outgoing' && (
                               <div className="flex flex-col items-end self-end mb-0.5 text-[10px] text-gray-400 dark:text-slate-500">
                                 {msg.sent_by_user && <span>{msg.sent_by_user.name}</span>}
+                                {/* ระบบของแพลตฟอร์มตอบเอง (นอกเวลาทำการ/แชทบอท) — ไม่ใช่คนของร้าน อย่าให้เข้าใจผิดว่ามีคนตอบแล้ว */}
+                                {msg.raw_message?.auto_reply && <span>ตอบอัตโนมัติ</span>}
                                 <div className="flex items-center gap-1">
                                   {msg._status === 'failed' && (<Tooltip text={msg._error ? `ส่งไม่สำเร็จ: ${msg._error} — กดเพื่อลองใหม่` : 'ส่งไม่สำเร็จ กดเพื่อลองใหม่'}><button onClick={() => { sendMessage(msg); }} aria-label="ส่งไม่สำเร็จ กดเพื่อลองใหม่" className="flex items-center gap-0.5 text-red-500 hover:text-red-600"><AlertCircle className="w-3 h-3" /><RotateCcw className="w-2.5 h-2.5" /></button></Tooltip>)}
                                   {msg._status === 'sending' && (<Loader2 className="w-2.5 h-2.5 animate-spin text-gray-400" />)}
@@ -2086,11 +2106,11 @@ function UnifiedChatPageContent() {
                                 </div>
                               </div>
                             )}
-                            <div className={`rounded-2xl max-w-[75vw] md:max-w-[min(70vw,400px)] ${['sticker', 'image', 'video', 'flex', 'template', 'imagemap', 'story_mention'].includes(msg.message_type) ? 'bg-transparent' : msg.direction === 'outgoing'
+                            <div className={`rounded-2xl max-w-[75vw] md:max-w-[min(70vw,400px)] ${BARE_BUBBLE_TYPES.includes(msg.message_type) ? 'bg-transparent' : msg.direction === 'outgoing'
                               ? msg._status === 'failed' ? 'bg-red-400 text-white rounded-br-sm px-3 py-1.5 md:px-4 md:py-2'
                               : msg._status === 'sending' ? 'text-white rounded-br-sm px-3 py-1.5 md:px-4 md:py-2' : 'text-white rounded-br-sm px-3 py-1.5 md:px-4 md:py-2'
                               : 'text-gray-900 dark:text-white rounded-bl-sm shadow-sm px-3 py-1.5 md:px-4 md:py-2'}`}
-                              style={!['sticker', 'image', 'video', 'flex', 'template', 'imagemap', 'story_mention'].includes(msg.message_type)
+                              style={!BARE_BUBBLE_TYPES.includes(msg.message_type)
                                 ? msg.direction === 'outgoing' && msg._status !== 'failed'
                                   ? { backgroundColor: msg._status === 'sending' ? platformColor + 'B3' : platformColor }
                                   : msg.direction === 'incoming'
