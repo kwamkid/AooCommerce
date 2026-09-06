@@ -16,6 +16,27 @@
 
 ---
 
+## 2026-09-06 — จ่ายบัตรผ่าน Beam แล้วออเดอร์ไม่ขยับ (รอบ 3 — คราวนี้เจอต้นตอจริง: webhook ถูกเราปฏิเสธ 401 เงียบทุกใบ)
+
+**ที่เกิด**: [app/api/beam/webhook/route.ts](app/api/beam/webhook/route.ts) · [lib/beam/settle.ts](lib/beam/settle.ts) (ใหม่) · [lib/beam/client.ts](lib/beam/client.ts) (ใหม่) · [app/api/beam/reconcile/route.ts](app/api/beam/reconcile/route.ts) (ใหม่) · [app/settings/payment-channels/page.tsx](app/settings/payment-channels/page.tsx)
+**อาการ**: ORD-202609-0014 ลูกค้าจ่ายบัตร 13:15 (Beam: charge SUCCEEDED, ลิงก์ PAID) แต่ออเดอร์ยัง "รอชำระ" จนร้านบันทึกชำระมือ 13:21 · ย้อนดู: **ลิงก์จ่ายเงินของ Beam ทั้ง 3 ใบตั้งแต่เปิดใช้ (0009, 0012, 0014) เป็น PAID ที่ Beam ทุกใบ แต่ไม่มีใบไหนอัพเดทเอง** และ `integration_logs` ไม่มีแถว beam เลยสักแถว ทั้งที่รอบ 4 ก.ย. เพิ่งใส่ log ให้ webhook
+**Root cause**: webhook ตาย**ก่อน**ถึงบรรทัด log — 2 ด่านที่ตอบ 401 แล้วมีแต่ `console.error`:
+1. หา config ด้วย `.from('payment_channels')…eq('type','payment_gateway').single()` **ไม่กรองบริษัท** — มี 3 บริษัทเปิด gateway (aDay Fresh, ABC the Baby, ร้านค้าทดสอบ) → `.single()` คืน error → `gatewayChannel` null → **401 "Not configured" ทุกใบ**
+2. ต่อให้ผ่านด่านแรก HMAC key ก็ผิด — โค้ด fallback `webhook_secret || api_key` แต่เอกสาร Beam ("Authenticating Webhooks") ระบุว่า key ของ webhook เป็น**คนละตัวกับ API key** (ได้จาก Lighthouse ตอนสร้าง webhook) และหน้าตั้งค่าไม่มีช่องให้ใส่ `webhook_secret` เลย → config ทั้ง 3 บริษัทไม่มี key → ลายเซ็นไม่มีวันตรง
+สองรอบก่อน (2 ก.ย. CHECK constraint · 4 ก.ย. ชื่อฟิลด์ paymentLinkId) แก้ของจริงแต่เป็นด่านที่อยู่**หลัง**สองด่านนี้ จึงไม่เคยมีโอกาสได้ทำงาน
+**วิธีแก้**:
+- webhook: เลือก config จาก **`merchantId` ใน body** (แต่ละร้าน merchant คนละตัว) → ตรวจลายเซ็นด้วย `webhook_secret` เท่านั้น (ตัด fallback api_key) → **ทุกทางที่ปฏิเสธลง integration_logs พร้อมบอกว่าต้องไปทำอะไร** (ไม่มี key / key ไม่ตรง / ไม่มีลายเซ็น) · `charge.succeeded` อ่านลิงก์จาก `source/sourceId`
+- **ทางสำรองที่ไม่พึ่ง webhook**: [lib/beam/settle.ts](lib/beam/settle.ts) `reconcileBeamForOrder()` ถาม `GET /api/v1/payment-links/{id}` + charges กับ Beam โดยตรง — หน้าบิลเรียกทันทีที่ลูกค้ากลับมาจาก Beam (`?payment=success`) และ cron ตัวเฝ้า (ทุก 15 นาที) กวาดแถว pending ที่ค้าง ≤3 วัน · ใช้ `settleGatewayPayment()` ตัวเดียวกับ webhook
+- `settleGatewayPayment()` กันนับซ้ำ: ออเดอร์ที่ร้านบันทึกชำระมือไปแล้ว → ปิดแถว gateway เป็น cancelled พร้อมจดว่า Beam ตัดเงินจริง ไม่สร้างยอดชำระใบที่สอง
+- หน้าตั้งค่า Beam มีช่อง **Webhook HMAC Key** + ขั้นตอนตั้ง webhook ใน Lighthouse (event `payment_link.paid`) · watchdog เพิ่ม issue `beam_webhook_silent` เมื่อ 7 วันมีแถวที่ต้อง settle ผ่าน reconcile
+**ป้องกัน regression**:
+- **ทางเข้าที่เป็นเงิน ห้ามมีทางออก 401/400 ที่ไม่ลง log** — log ที่อยู่หลังด่านตรวจ = ไม่มี log ในเคสที่พังจริง · ไล่บั๊กเดิม 3 รอบเพราะดูแต่ปลายทาง ไม่ดูว่า request ตกที่ด่านไหน
+- **`.single()` บนตารางที่มีได้หลายบริษัทต้องกรอง company เสมอ** — วันแรกมีร้านเดียวผ่าน วันที่มีร้านที่สองพังทั้งระบบเงียบ ๆ
+- **ระบบที่รับเงินต้องมีทาง "ถามแหล่งความจริงเอง" เสมอ ไม่ใช่รอ push อย่างเดียว** — push ขึ้นกับการตั้งค่าฝั่งเขา (URL, key, event) ซึ่งพลาดได้และไม่มีใครบอก · ที่นี่คือ reconcile ตอนลูกค้ากลับมา + cron
+- **ยึดเอกสารจริงเรื่อง key/header ของ webhook** — "HMAC key จาก Lighthouse" ≠ API key · เดาว่าใช้ตัวเดียวกันแล้วไม่มีทางตรวจผ่าน
+
+---
+
 ## 2026-09-06 — ยกเลิกเชื่อมต่อร้าน marketplace แล้ว ช่องแชทของร้านยังโผล่ในตัวกรองหน้าแชท
 
 **ที่เกิด**: [app/api/marketplace/accounts/route.ts](app/api/marketplace/accounts/route.ts) `DELETE` · ตัวกรองช่องทางใน [app/chat/page.tsx](app/chat/page.tsx) (อ่านจาก `/api/chat-accounts`)

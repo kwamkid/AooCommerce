@@ -247,10 +247,19 @@ export default function BillClient({ orderId, initialBill }: { orderId: string; 
     } else if (initialBill?.needs_delivery_info && initialBill.customer) {
       prefillDeliveryForm(initialBill.customer);
     }
-    // Clean up Beam redirect query param (no longer used for status display)
+    // กลับมาจากหน้าจ่ายเงินของ Beam (?payment=success) — ถามสถานะกับ Beam ทันทีแล้วโหลดบิลใหม่
+    // ไม่รอ webhook (ซึ่งขึ้นกับการตั้งค่าใน Beam Lighthouse และเคยเงียบทั้งเดือน) —
+    // ลูกค้าจ่ายเสร็จต้องเห็น "ชำระแล้ว" ตั้งแต่วินาทีที่กลับมา
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('payment') === 'success') {
       window.history.replaceState({}, '', `/bills/${orderId}`);
+      fetch('/api/beam/reconcile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ order_id: orderId }),
+      })
+        .catch(() => null)
+        .finally(() => { fetchBill(); });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orderId]);

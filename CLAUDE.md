@@ -670,6 +670,15 @@ Architecture เป้าหมาย: Webhook → save log → Queue → Worker
 
 ---
 
+## 💳 Beam Checkout (บิลออนไลน์จ่ายบัตร/QR) — webhook + reconcile (แก้ 2026-09-06)
+
+- **ทางเข้าเงินมี 2 ทางเสมอ**: webhook `/api/beam/webhook` (Beam push ทันที) **และ** reconcile ถาม Beam เอง ([lib/beam/settle.ts](lib/beam/settle.ts)) — หน้าบิลเรียก `POST /api/beam/reconcile {order_id}` ทันทีที่ลูกค้ากลับมาจาก Beam (`?payment=success`) · cron ตัวเฝ้าเรียก `reconcilePendingBeamPayments()` ทุก 15 นาที (แถว pending ≤3 วัน) · **ห้ามพึ่ง webhook อย่างเดียว** — มันขึ้นกับการตั้งค่าใน Beam Lighthouse ซึ่งเงียบมาทั้งเดือนโดยไม่มีใครรู้
+- **"เงินเข้า → ออเดอร์ชำระแล้ว" ทำที่ `settleGatewayPayment()` ที่เดียว** (webhook + reconcile ใช้ร่วม) — idempotent · ออเดอร์ที่ร้านบันทึกชำระมือไปแล้ว → ปิดแถว gateway เป็น cancelled + จดว่า Beam ตัดเงินจริง ไม่สร้างยอดซ้ำ
+- **webhook เลือก config จาก `merchantId` ใน body** (ร้านละ merchant) · ตรวจลายเซ็นด้วย `payment_channels.config.webhook_secret` = **HMAC key ที่ Lighthouse ให้ตอนสร้าง webhook (คนละตัวกับ API key)** · header `X-Beam-Signature` (base64 HMAC-SHA256 ของ body ดิบ) + `X-Beam-Event` · event ที่ใช้ `payment_link.paid` (`{paymentLinkId, merchantId, status, order.referenceId}`) และ `charge.succeeded` (`source/sourceId`)
+- **ทุกทางที่ webhook ปฏิเสธต้องลง `integration_logs` (integration `beam`) พร้อมบอกวิธีแก้** — เคยตอบ 401 เงียบ ๆ 3 รอบจนไล่ไม่เจอ (ดู [fix-bug.md](fix-bug.md) 2026-09-06) · watchdog issue `beam_webhook_silent` เตือนเมื่อระบบต้อง settle ผ่าน reconcile
+- เรียก Beam API ผ่าน [lib/beam/client.ts](lib/beam/client.ts) เท่านั้น (`loadBeamGateways` · `getBeamPaymentLink` · `getBeamPaymentLinkCharges`) — ห้ามประกอบ Basic auth เองใน route
+- เอกสาร: https://docs.beamcheckout.com (Payment Links API · Webhook Notifications)
+
 ## 🏬 PC Counter Sales (เพิ่ม 2026-07-26 — ครบทั้ง 3 Phase)
 
 PC (พนักงานประจำจุดขายในห้าง) บันทึกยอดขายรายวันผ่านมือถือ — **overlay เท่านั้น ไม่ใช่ยอดขายจริงทางบัญชี**: ไม่สร้าง order ไม่ออกเอกสาร ไม่ตัดสต็อกจริง; DSR จาก report ห้างยังเป็นตัวจริง (ตัดสต็อก + INV/ST)

@@ -11,6 +11,7 @@
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { sendPushToUsers, withCompanyParam } from '@/lib/push/send';
 import { MARKETPLACE_PLATFORMS, type QuotaPlatform } from '@/lib/marketplace/platforms';
+import { BEAM_RECONCILE_NOTE } from '@/lib/beam/settle';
 
 export type WatchdogSeverity = 'critical' | 'warning';
 
@@ -322,6 +323,38 @@ export async function collectWatchdogIssues(
         fix: 'ปกติรอให้ถึงเวลาปลดเองได้ · ถ้าแน่ใจว่าโควตากลับมาแล้ว กด "ปลดก่อนเวลา" ใน API Monitor',
         actionLabel: 'เปิด API Monitor',
         url: '/superadmin/api-monitor',
+      });
+    }
+  }
+
+  // ── Beam Checkout: webhook ไม่เข้า ──
+  // ระบบยังเก็บเงินได้เพราะมี reconcile ถาม Beam เอง (ทุก 15 นาที / ตอนลูกค้ากลับมาหน้าบิล)
+  // แต่แปลว่าฝั่ง Beam Lighthouse ยังตั้ง webhook/HMAC key ไม่ครบ — ออเดอร์จะขยับช้ากว่าที่ควร
+  // จับจากแถวที่ต้อง settle ผ่าน reconcile ใน 7 วัน (notes = BEAM_RECONCILE_NOTE)
+  {
+    let q = supabaseAdmin
+      .from('payment_records')
+      .select('company_id, created_at')
+      .eq('gateway_provider', 'beam')
+      .eq('notes', BEAM_RECONCILE_NOTE)
+      .gte('updated_at', new Date(now - 7 * 86_400_000).toISOString());
+    if (opts.companyId) q = q.eq('company_id', opts.companyId);
+    const { data: reconciled } = await q;
+    const byCompany = groupBy(reconciled || [], r => r.company_id as string);
+    for (const [companyId, rows] of byCompany) {
+      issues.push({
+        companyId,
+        companyName: companyName.get(companyId) || null,
+        channel: null,
+        code: `beam_webhook_silent:${companyId}`,
+        groupKey: 'beam_webhook_silent',
+        scope: 'company',
+        severity: 'warning',
+        title: 'Webhook ของ Beam Checkout ไม่เข้า',
+        detail: `${rows.length} รายการใน 7 วันที่ระบบต้องไปถามสถานะกับ Beam เอง — ลูกค้าจ่ายแล้วออเดอร์ขยับช้าได้ถึง 15 นาที`,
+        fix: 'ใน Beam Lighthouse สร้าง webhook ชี้มาที่ /api/beam/webhook เลือก event payment_link.paid แล้วนำ HMAC key ที่ได้มาวางในช่อง "Webhook HMAC Key" ของ Beam ในหน้าช่องทางชำระเงิน (ดู log ใน API Logs ว่าปฏิเสธเพราะอะไร)',
+        actionLabel: 'ไปตั้งค่าช่องทางชำระเงิน',
+        url: '/settings/payment-channels',
       });
     }
   }

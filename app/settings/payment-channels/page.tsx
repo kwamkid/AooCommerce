@@ -83,7 +83,10 @@ export default function PaymentChannelsPage() {
   const [savingPromptPay, setSavingPromptPay] = useState(false);
 
   // Gateway form state
-  const [gatewayForm, setGatewayForm] = useState({ merchant_id: '', api_key: '', environment: 'sandbox' as 'sandbox' | 'production' });
+  // webhook_secret = HMAC key ที่ Beam Lighthouse ให้ตอนสร้าง webhook — **คนละตัวกับ API key**
+  // ไม่มี = webhook ของ Beam ถูกปฏิเสธทุกใบ (ระบบยังเก็บเงินได้ผ่านการถาม Beam เอง แต่ช้ากว่า)
+  const [gatewayForm, setGatewayForm] = useState({ merchant_id: '', api_key: '', webhook_secret: '', environment: 'sandbox' as 'sandbox' | 'production' });
+  const [showWebhookSecret, setShowWebhookSecret] = useState(false);
   const [showApiKey, setShowApiKey] = useState(false);
   const [savingGateway, setSavingGateway] = useState(false);
   const [gatewayChannels, setGatewayChannels] = useState<Record<string, GatewayChannelConfig>>({});
@@ -132,6 +135,7 @@ export default function PaymentChannelsPage() {
         setGatewayForm({
           merchant_id: (cfg.merchant_id as string) || '',
           api_key: (cfg.api_key as string) || '',
+          webhook_secret: (cfg.webhook_secret as string) || '',
           environment: (cfg.environment as 'sandbox' | 'production') || 'sandbox',
         });
         setGatewayChannels((cfg.channels as Record<string, GatewayChannelConfig>) || {});
@@ -316,6 +320,7 @@ export default function PaymentChannelsPage() {
       const config = {
         merchant_id: gatewayForm.merchant_id.trim(),
         api_key: gatewayForm.api_key.trim(),
+        webhook_secret: gatewayForm.webhook_secret.trim(),
         environment: gatewayForm.environment,
         channels: gatewayChannels,
       };
@@ -698,10 +703,38 @@ export default function PaymentChannelsPage() {
                           {gatewayForm.merchant_id && (() => {
                             const webhookUrl = typeof window !== 'undefined' ? `${window.location.origin}/api/beam/webhook` : '/api/beam/webhook';
                             return (
-                              <Alert tone="info" title="Webhook URL (ตั้งค่าที่ Beam Lighthouse)">
-                                <div className="mt-2">
-                                  <CopyField value={webhookUrl} />
+                              <Alert tone={gatewayForm.webhook_secret ? 'info' : 'warning'} title="Webhook — ให้ Beam แจ้งทันทีที่ลูกค้าจ่ายเงิน">
+                                <ol className="list-decimal pl-5 mt-1 space-y-1">
+                                  <li>ใน Beam Lighthouse ไปที่ Developers › Webhooks › สร้าง endpoint ด้วย URL นี้
+                                    <div className="mt-1"><CopyField value={webhookUrl} /></div>
+                                  </li>
+                                  <li>เลือก event <span className="font-mono">payment_link.paid</span> (จะติ๊ก <span className="font-mono">charge.succeeded</span> ด้วยก็ได้)</li>
+                                  <li>คัดลอก <strong>HMAC key</strong> ที่ Beam แสดงหลังสร้าง มาวางในช่องด้านล่างแล้วบันทึก — key นี้<strong>คนละตัวกับ API Key</strong></li>
+                                </ol>
+                                <div className="mt-3">
+                                  <FormInput
+                                    label="Webhook HMAC Key"
+                                    type={showWebhookSecret ? 'text' : 'password'}
+                                    value={gatewayForm.webhook_secret}
+                                    onChange={e => setGatewayForm(prev => ({ ...prev, webhook_secret: e.target.value }))}
+                                    placeholder="วาง HMAC key จาก Beam Lighthouse"
+                                    postfix={
+                                      <button
+                                        type="button"
+                                        onClick={() => setShowWebhookSecret(!showWebhookSecret)}
+                                        className="text-gray-400 hover:text-gray-600 dark:hover:text-slate-300 transition-colors"
+                                        aria-label={showWebhookSecret ? 'ซ่อน HMAC key' : 'แสดง HMAC key'}
+                                      >
+                                        {showWebhookSecret ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                      </button>
+                                    }
+                                  />
                                 </div>
+                                <p className="helper-text mt-2">
+                                  {gatewayForm.webhook_secret
+                                    ? 'ถ้า Beam ส่งมาแล้วออเดอร์ยังไม่ขยับ ดูเหตุผลที่ปฏิเสธได้ใน API Logs (integration: beam)'
+                                    : 'ยังไม่ใส่ key: ระบบจะไปถามสถานะกับ Beam เองตอนลูกค้ากลับมาหน้าบิล และทุก 15 นาที — ออเดอร์ยังขยับได้แต่ช้ากว่า'}
+                                </p>
                                 <div className="flex items-center gap-2 mt-2">
                                   <Button
                                     variant="success"
@@ -737,9 +770,6 @@ export default function PaymentChannelsPage() {
                                     ทดสอบ
                                   </Button>
                                 </div>
-                                <p className="helper-text mt-2">
-                                  Events: <span className="font-mono">payment_link.paid</span>, <span className="font-mono">charge.succeeded</span>
-                                </p>
                               </Alert>
                             );
                           })()}

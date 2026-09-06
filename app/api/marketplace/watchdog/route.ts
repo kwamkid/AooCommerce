@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { runWatchdog } from '@/lib/marketplace/watchdog';
+import { reconcilePendingBeamPayments } from '@/lib/beam/settle';
 
 // ตัวเฝ้าสุขภาพ integration — cron ทุก 15 นาที (cron-job.org, header x-cron-secret)
 //
@@ -18,8 +19,14 @@ async function handle(request: NextRequest) {
   }
 
   try {
+    // ตาข่ายของ Beam: ลิงก์จ่ายเงินที่ค้าง pending ให้ไปถาม Beam เองก่อนตรวจสุขภาพ
+    // (webhook ไม่เข้า = ลูกค้าจ่ายแล้วแต่ออเดอร์ไม่ขยับ — เกิดจริง ก.ย. 2026) · ล้มแยกจากตัวเฝ้า
+    const beam = await reconcilePendingBeamPayments().catch((e) => {
+      console.error('[Watchdog] beam reconcile failed:', e instanceof Error ? e.message : e);
+      return null;
+    });
     const result = await runWatchdog();
-    return NextResponse.json({ ok: true, ...result });
+    return NextResponse.json({ ok: true, ...result, beam });
   } catch (e) {
     const message = e instanceof Error ? e.message : 'Unknown error';
     console.error('[Watchdog] run failed:', message);
