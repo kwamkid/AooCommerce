@@ -119,7 +119,9 @@ export async function collectWatchdogIssues(
           groupKey: 'shop_disconnected',
           scope: 'company',
           severity: 'critical',
-          title: `${label} หลุดการเชื่อมต่อ`,
+          // ชื่อร้านต้องอยู่ในหัวข้อ — บริษัทที่มี 7 ร้านบนแพลตฟอร์มเดียวกันจะได้แจ้งเตือน
+          // "TikTok Shop ซิงค์ตามหลัง" ซ้ำกัน 2 ใบโดยไม่รู้ว่าร้านไหน (7 ก.ย. 2026)
+          title: `${label} "${shop}" หลุดการเชื่อมต่อ`,
           detail: `ร้าน ${shop} ถูกปิดการเชื่อมต่ออัตโนมัติ — ออเดอร์ใหม่จะไม่เข้าระบบจนกว่าจะเชื่อมใหม่`,
           fix: `เปิด ตั้งค่า > ช่องทางการขาย > เชื่อมต่อ Marketplace แล้วกดเชื่อมต่อร้าน ${shop} ใหม่ (ล็อกอิน ${label} ของร้านให้พร้อม)`,
           actionLabel: 'ไปเชื่อมต่อร้านใหม่',
@@ -140,7 +142,7 @@ export async function collectWatchdogIssues(
         groupKey: `sync_stale:${platform}`,
         scope: 'system',
         severity: behind > 24 ? 'critical' : 'warning',
-        title: `${label} ซิงค์ตามหลัง ${roundHours(behind)}`,
+        title: `${label} "${shop}" ซิงค์ตามหลัง ${roundHours(behind)}`,
         detail: `ร้าน ${shop} ดูดออเดอร์รอบล่าสุดถึงเมื่อ ${roundHours(behind)}ที่แล้ว (ปกติทุก 15 นาที) — ออเดอร์ที่เข้าทาง webhook ยังครบ แต่ตัวสำรองที่คอยเก็บตกไม่ทำงาน`,
         fix: `กด "ซิงค์ออเดอร์" ของร้านนี้ที่หน้าเชื่อมต่อ Marketplace เพื่อดึงย้อนหลังทันที · ถ้าอีก 1 ชม. ยังตามหลังอยู่ แปลว่า cron มีปัญหา ให้แจ้งผู้ดูแลระบบ`,
         actionLabel: 'ไปซิงค์ด้วยตัวเอง',
