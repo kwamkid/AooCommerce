@@ -7,7 +7,10 @@
 //   2. cron กวาดแถว pending ที่ค้าง → ถามซ้ำ (เผื่อลูกค้าปิดเบราว์เซอร์ก่อนกลับมา)
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { logIntegrationNow } from '@/lib/integration-logger';
+import { sendPushToCompany } from '@/lib/push/send';
+import { formatPrice } from '@/lib/utils/format';
 import { getBeamPaymentLink, getBeamPaymentLinkCharges, loadBeamGateways, type BeamGateway } from './client';
+import { beamMethodLabel } from './labels';
 
 /** ข้อความในช่อง notes ของแถวที่ระบบต้องไปถาม Beam เอง — ตัวเฝ้าใช้จับว่า webhook ไม่เข้า */
 export const BEAM_RECONCILE_NOTE = 'ยืนยันจาก Beam API โดยตรง (webhook ไม่เข้า)';
@@ -199,4 +202,106 @@ export async function reconcilePendingBeamPayments(opts: { maxAgeDays?: number; 
     if (result === 'closed') closed++;
   }
   return { checked: records.length, settled, closed };
+}
+
+// ── สถานะอื่นของเงิน (จ่ายไม่ผ่าน · คืนเงิน) — ผู้ใช้ต้องเห็นบนออเดอร์ ไม่ใช่รู้แค่ตอนสำเร็จ ──
+
+export interface GatewayRecordFull extends GatewayPaymentRecord {
+  gateway_charge_id: string | null;
+  gateway_raw_response: unknown;
+  notes: string | null;
+}
+
+/** หาแถว gateway ของออเดอร์ — ลิงก์ → charge → ออเดอร์ (ล่าสุดก่อน) เฉพาะบริษัทนี้ */
+export async function findGatewayRecord(
+  companyId: string,
+  key: { paymentLinkId?: string | null; chargeId?: string | null; orderId?: string | null },
+): Promise<GatewayRecordFull | null> {
+  const base = () => supabaseAdmin
+    .from('payment_records')
+    .select('id, order_id, company_id, status, gateway_payment_link_id, gateway_charge_id, gateway_raw_response, notes, created_at')
+    .eq('company_id', companyId)
+    .eq('gateway_provider', 'beam');
+  if (key.paymentLinkId) {
+    const { data } = await base().eq('gateway_payment_link_id', key.paymentLinkId).order('created_at', { ascending: false }).limit(1).maybeSingle();
+    if (data) return data as GatewayRecordFull;
+  }
+  if (key.chargeId) {
+    const { data } = await base().eq('gateway_charge_id', key.chargeId).limit(1).maybeSingle();
+    if (data) return data as GatewayRecordFull;
+  }
+  if (key.orderId) {
+    const { data } = await base().eq('order_id', key.orderId).order('created_at', { ascending: false }).limit(1).maybeSingle();
+    if (data) return data as GatewayRecordFull;
+  }
+  return null;
+}
+
+const asObj = (v: unknown): Record<string, unknown> => (v && typeof v === 'object' ? (v as Record<string, unknown>) : {});
+
+async function orderNumberOf(orderId: string): Promise<string> {
+  const { data } = await supabaseAdmin.from('orders').select('order_number').eq('id', orderId).maybeSingle();
+  return (data?.order_number as string) || '';
+}
+
+/**
+ * ลูกค้าพยายามจ่ายแล้วไม่ผ่าน (charge.failed / card_authorization.failed|canceled)
+ * ลิงก์ยังเปิดอยู่ ลูกค้ากดจ่ายใหม่ได้ — แถวคง pending แต่ติดป้าย FAILED ให้ร้านเห็นและตามลูกค้าได้
+ */
+export async function markGatewayAttemptFailed(
+  record: GatewayRecordFull,
+  opts: { event: string; raw: Record<string, unknown> },
+): Promise<void> {
+  if (record.status === 'verified') return; // จ่ายผ่านไปแล้ว — ความล้มเหลวเก่ามาช้า ไม่ต้องทับ
+  const method = beamMethodLabel(opts.raw.paymentMethod);
+  const code = typeof opts.raw.failureCode === 'string' ? opts.raw.failureCode : null;
+  const note = `ลูกค้าจ่ายไม่ผ่าน${method ? ` (${method})` : ''}${code ? ` — ${code}` : ''}`;
+  await supabaseAdmin.from('payment_records').update({
+    gateway_status: 'FAILED',
+    gateway_raw_response: { ...asObj(record.gateway_raw_response), last_failure: opts.raw },
+    notes: note,
+    updated_at: new Date().toISOString(),
+  }).eq('id', record.id);
+  await log(record, 'webhook', 'success', `${opts.event}: ${note}`);
+
+  const orderNo = await orderNumberOf(record.order_id);
+  await sendPushToCompany(record.company_id, {
+    title: '⚠️ ลูกค้าจ่ายผ่าน Beam ไม่ผ่าน',
+    body: `${orderNo}${method ? ` · ${method}` : ''}${code ? ` · ${code}` : ''} — ลูกค้ากดจ่ายใหม่ได้จากลิงก์เดิม`,
+    url: `/orders/${record.order_id}`,
+    // ลิงก์เดียวกันล้มหลายรอบ → แทนที่ใบเดิม ไม่ท่วม
+    tag: `beam-failed-${record.gateway_payment_link_id || record.id}`,
+  });
+}
+
+/**
+ * Beam คืนเงินให้ลูกค้า (refund.succeeded / refund.failed) — เงินออกจากร้านจริง
+ * ระบบไม่เปลี่ยนสถานะออเดอร์เอง (ใบลดหนี้/คืนสต็อกเป็นเรื่องที่ร้านต้องตัดสินใจ) แต่ต้องเห็นชัด + เด้งเตือน
+ */
+export async function markGatewayRefund(
+  record: GatewayRecordFull,
+  opts: { succeeded: boolean; raw: Record<string, unknown> },
+): Promise<void> {
+  const amount = typeof opts.raw.amount === 'number' ? opts.raw.amount / 100 : null;
+  const refundId = typeof opts.raw.refundId === 'string' ? opts.raw.refundId : null;
+  const reason = typeof opts.raw.refundReason === 'string' && opts.raw.refundReason ? opts.raw.refundReason : null;
+  const code = typeof opts.raw.failureCode === 'string' ? opts.raw.failureCode : null;
+  const note = opts.succeeded
+    ? `Beam คืนเงิน ฿${amount !== null ? formatPrice(amount) : '?'} ให้ลูกค้าแล้ว${reason ? ` (${reason})` : ''}`
+    : `Beam คืนเงินไม่สำเร็จ${code ? ` — ${code}` : ''}`;
+  await supabaseAdmin.from('payment_records').update({
+    ...(opts.succeeded ? { gateway_status: 'REFUNDED' } : {}),
+    gateway_raw_response: { ...asObj(record.gateway_raw_response), refund: opts.raw },
+    notes: record.notes ? `${record.notes} · ${note}` : note,
+    updated_at: new Date().toISOString(),
+  }).eq('id', record.id);
+  await log(record, 'webhook', opts.succeeded ? 'success' : 'error', `${note}${refundId ? ` [${refundId}]` : ''}`);
+
+  const orderNo = await orderNumberOf(record.order_id);
+  await sendPushToCompany(record.company_id, {
+    title: opts.succeeded ? '💸 Beam คืนเงินให้ลูกค้าแล้ว' : '⚠️ Beam คืนเงินไม่สำเร็จ',
+    body: `${orderNo} · ${note}${opts.succeeded ? ' — ออกใบลดหนี้/ปรับสถานะออเดอร์ให้ตรง' : ''}`,
+    url: `/orders/${record.order_id}`,
+    tag: `beam-refund-${refundId || record.id}`,
+  });
 }

@@ -4,7 +4,9 @@
 //   header  X-Beam-Event      = ชื่อ event (payment_link.paid · charge.succeeded · …)
 //   header  X-Beam-Signature  = base64( HMAC-SHA256( key = base64decode(HMAC key จาก Lighthouse), body ดิบ ) )
 //   body    payment_link.paid = { paymentLinkId, merchantId, status:'PAID', order:{ referenceId, … } }
-//           charge.succeeded  = { chargeId, merchantId, referenceId, status, source, sourceId, … }
+//           charge.succeeded  = { chargeId, merchantId, referenceId, status, source, sourceId, paymentMethod, … }
+//           charge.failed     = เหมือน charge.succeeded + failureCode → ป้าย "จ่ายไม่ผ่าน" บนออเดอร์
+//           refund.succeeded  = { refundId, chargeId, merchantId, referenceId, amount, status, refundReason, … }
 //
 // ⚠️ บทเรียน 2026-09-06 (จ่ายบัตรผ่าน 3 ใบ ไม่มีใบไหนอัพเดทเอง):
 //   1. เดิมหา config ด้วย `.single()` โดยไม่กรองบริษัท — พอมีร้านเปิด gateway มากกว่า 1 ร้าน
@@ -19,7 +21,7 @@ import crypto from 'crypto';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { logIntegrationNow } from '@/lib/integration-logger';
 import { loadBeamGateways, type BeamGateway } from '@/lib/beam/client';
-import { settleGatewayPayment, type GatewayPaymentRecord } from '@/lib/beam/settle';
+import { settleGatewayPayment, findGatewayRecord, markGatewayAttemptFailed, markGatewayRefund, type GatewayPaymentRecord } from '@/lib/beam/settle';
 
 function verifyBeamSignature(body: string, signature: string, hmacKey: string): boolean {
   try {
@@ -175,7 +177,34 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true });
     }
 
-    // event ที่เราไม่ได้ใช้ (refund/failed/…) — จดไว้ให้รู้ว่า Beam ส่งอะไรมาบ้าง
+    // ── จ่ายไม่ผ่าน (ลิงก์ยังเปิด ลูกค้าลองใหม่ได้) ──
+    if (eventType === 'charge.failed' || eventType === 'card_authorization.failed' || eventType === 'card_authorization.canceled') {
+      const paymentLinkId = data.source === 'PAYMENT_LINK' && typeof data.sourceId === 'string' ? data.sourceId : null;
+      const orderRef = typeof data.referenceId === 'string' ? data.referenceId : null;
+      const record = await findGatewayRecord(companyId, { paymentLinkId, orderId: orderRef });
+      if (!record) {
+        await logWebhook('error', `${eventType}: หาแถวจากลิงก์/ออเดอร์ไม่เจอ (sourceId=${paymentLinkId} referenceId=${orderRef})`);
+        return NextResponse.json({ success: true });
+      }
+      await markGatewayAttemptFailed(record, { event: eventType, raw: data });
+      return NextResponse.json({ success: true });
+    }
+
+    // ── คืนเงิน — เงินออกจากร้านจริง ต้องเห็นบนออเดอร์และเด้งเตือน ──
+    if (eventType === 'refund.succeeded' || eventType === 'refund.failed') {
+      const chargeId = typeof data.chargeId === 'string' ? data.chargeId : null;
+      const orderRef = typeof data.referenceId === 'string' ? data.referenceId : null;
+      const record = await findGatewayRecord(companyId, { chargeId, orderId: orderRef });
+      if (!record) {
+        await logWebhook('error', `${eventType}: หาแถวจาก charge/ออเดอร์ไม่เจอ (chargeId=${chargeId} referenceId=${orderRef})`);
+        return NextResponse.json({ success: true });
+      }
+      await markGatewayRefund(record, { succeeded: eventType === 'refund.succeeded', raw: data });
+      return NextResponse.json({ success: true });
+    }
+
+    // event ที่เราไม่ได้ใช้ (card_authorization.authorized · bolt_intent.* · transaction.created · purchase V0)
+    // — จดไว้ให้รู้ว่า Beam ส่งอะไรมาบ้าง
     await logWebhook('success', `รับแล้วแต่ไม่ได้ใช้ event นี้: ${eventType || '(ไม่มีชื่อ event)'}`);
     return NextResponse.json({ success: true });
   } catch (error) {

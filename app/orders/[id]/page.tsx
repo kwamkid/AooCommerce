@@ -18,7 +18,8 @@ import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/lib/toast-context';
 import { useFeatures } from '@/lib/features-context';
 import { apiFetch } from '@/lib/api-client';
-import { formatPrice } from '@/lib/utils/format';
+import { formatPrice, formatThaiDateTime } from '@/lib/utils/format';
+import { summarizeBeamRaw } from '@/lib/beam/labels';
 import { useCompany } from '@/lib/company-context';
 import { getInvoiceMenuLabel } from '@/lib/invoice-utils';
 import {
@@ -124,7 +125,14 @@ interface PaymentRecord {
   transfer_time?: string;
   notes?: string;
   slip_image_url?: string;
-  status?: string; // 'pending' | 'verified' | 'rejected'
+  status?: string; // 'pending' | 'verified' | 'rejected' | 'cancelled'
+  // แถวที่มาจาก Beam (จ่ายบัตร/QR ผ่านบิลออนไลน์) — ดู lib/beam/settle.ts
+  gateway_provider?: string | null;
+  gateway_status?: string | null; // ACTIVE | PAID | FAILED | REFUNDED | EXPIRED…
+  gateway_charge_id?: string | null;
+  gateway_raw_response?: unknown;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?: string } = {}) {
@@ -183,6 +191,8 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
 
   // Payment record
   const [paymentRecord, setPaymentRecord] = useState<PaymentRecord | null>(null);
+  // แถวจาก Beam ทุกสถานะ (ล่าสุดก่อน) — จ่ายไม่ผ่าน/คืนเงินต้องเห็นบนออเดอร์ ไม่ใช่รู้แค่ตอนสำเร็จ
+  const [gatewayRecords, setGatewayRecords] = useState<PaymentRecord[]>([]);
 
   // Status update confirmation modal (same UX as orders list)
   // Payment modal
@@ -279,9 +289,12 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
       const response = await apiFetch(`/api/payment-records?order_id=${orderId}`);
       if (!response.ok) return;
       const result = await response.json();
-      if (result.payment_records?.length > 0) {
-        setPaymentRecord(result.payment_records[0]);
+      const list: PaymentRecord[] = result.payment_records || [];
+      if (list.length > 0) {
+        // แถวที่ยืนยันแล้วก่อน — ไม่งั้นแถว Beam ที่ค้าง pending (ลูกค้ากดจ่ายแล้วไม่จ่าย) จะบังสลิปจริง
+        setPaymentRecord(list.find(r => r.status === 'verified') || list[0]);
       }
+      setGatewayRecords(list.filter(r => r.gateway_provider));
     } catch (err) {
       console.error('Error fetching payment record:', err);
     }
@@ -1316,6 +1329,7 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
                   {paymentRecord.payment_method === 'transfer' && 'โอนเงิน'}
                   {paymentRecord.payment_method === 'credit' && 'เครดิต'}
                   {paymentRecord.payment_method === 'cheque' && 'เช็ค'}
+                  {paymentRecord.payment_method === 'payment_gateway' && 'บัตร/QR ผ่าน Beam'}
                   {paymentRecord.amount > 0 && ` · ฿${formatPrice(paymentRecord.amount)}`}
                 </span>
                 {paymentRecord.payment_method === 'cash' && paymentRecord.collected_by && (
@@ -1333,6 +1347,62 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
                     ดูสลิป
                   </button>
                 )}
+              </div>
+            )}
+
+            {/* Beam Checkout — ทุกเหตุการณ์ของเงินที่ผ่าน gateway: จ่ายผ่าน · จ่ายไม่ผ่าน · คืนเงิน
+                (ร้านต้องเห็นบนออเดอร์ ไม่ใช่ไปเปิด Beam Lighthouse เอง) */}
+            {gatewayRecords.length > 0 && (
+              <div className="mt-3 pt-3 border-t border-gray-200 dark:border-slate-600 space-y-1.5 text-sm">
+                {gatewayRecords.slice(0, 3).map((r) => {
+                  const info = summarizeBeamRaw(r.gateway_raw_response);
+                  const when = (iso?: string | null) => (iso ? formatThaiDateTime(iso) : '');
+                  const rows: React.ReactNode[] = [];
+                  if (r.gateway_status === 'PAID' || r.gateway_status === 'REFUNDED') {
+                    rows.push(
+                      <div key={`${r.id}-paid`} className="flex items-center gap-2 flex-wrap text-emerald-700 dark:text-emerald-400">
+                        <CreditCard className="w-4 h-4" />
+                        <span>ชำระผ่าน Beam{info.method ? ` · ${info.method}` : ''} · ฿{formatPrice(r.amount)}</span>
+                        <span className="text-gray-400 dark:text-slate-500">{when(r.payment_date || r.updated_at)}</span>
+                        {r.status === 'cancelled' && <span className="text-gray-500 dark:text-slate-400">(ร้านบันทึกชำระมือไว้ก่อน — ไม่นับซ้ำ)</span>}
+                      </div>
+                    );
+                  }
+                  if (r.gateway_status === 'FAILED' && info.failure) {
+                    rows.push(
+                      <div key={`${r.id}-failed`} className="flex items-center gap-2 flex-wrap text-red-600 dark:text-red-400">
+                        <XCircle className="w-4 h-4" />
+                        <span>ลูกค้าจ่ายผ่าน Beam ไม่ผ่าน{info.failure.method ? ` · ${info.failure.method}` : ''}{info.failure.code ? ` · ${info.failure.code}` : ''}</span>
+                        <span className="text-gray-400 dark:text-slate-500">{when(info.failure.at || r.updated_at)}</span>
+                        <span className="text-gray-500 dark:text-slate-400">ลูกค้ากดจ่ายใหม่จากลิงก์เดิมได้</span>
+                      </div>
+                    );
+                  }
+                  if (info.refund) {
+                    rows.push(
+                      <div key={`${r.id}-refund`} className={`flex items-center gap-2 flex-wrap ${info.refund.succeeded ? 'text-amber-700 dark:text-amber-400' : 'text-red-600 dark:text-red-400'}`}>
+                        <Undo2 className="w-4 h-4" />
+                        <span>
+                          {info.refund.succeeded
+                            ? `Beam คืนเงินให้ลูกค้าแล้ว${info.refund.amount !== null ? ` ฿${formatPrice(info.refund.amount)}` : ''}${info.refund.reason ? ` (${info.refund.reason})` : ''}`
+                            : `Beam คืนเงินไม่สำเร็จ${info.refund.code ? ` · ${info.refund.code}` : ''}`}
+                        </span>
+                        <span className="text-gray-400 dark:text-slate-500">{when(info.refund.at || r.updated_at)}</span>
+                        {info.refund.succeeded && <span className="text-gray-500 dark:text-slate-400">ออกใบลดหนี้/ปรับสถานะออเดอร์ให้ตรง</span>}
+                      </div>
+                    );
+                  }
+                  if (rows.length === 0 && r.status === 'pending') {
+                    rows.push(
+                      <div key={`${r.id}-pending`} className="flex items-center gap-2 flex-wrap text-gray-500 dark:text-slate-400">
+                        <CreditCard className="w-4 h-4" />
+                        <span>ลูกค้ากดจ่ายผ่าน Beam แล้ว ยังไม่จ่าย (ลิงก์ยังเปิดอยู่)</span>
+                        <span className="text-gray-400 dark:text-slate-500">{when(r.created_at)}</span>
+                      </div>
+                    );
+                  }
+                  return rows;
+                })}
               </div>
             )}
 
