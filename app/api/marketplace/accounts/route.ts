@@ -143,6 +143,18 @@ export async function DELETE(request: NextRequest) {
 
     if (error) throw error;
 
+    // ช่องแชทของร้านนี้ (Shopee/Lazada/TikTok) อ้างร้านผ่าน credentials.marketplace_account_id —
+    // ปิดร้านแล้วต้องปิดช่องแชทด้วย ไม่งั้นหน้าตั้งค่าซ่อนร้านไป (ดูจาก marketplace_accounts)
+    // แต่ตัวกรองในหน้าแชทยังเห็นช่องนั้นอยู่ (ดูจาก chat_accounts) — เจอจริง 6 ก.ย. 2026
+    // เวลาเชื่อมร้านกลับมา ผู้ใช้เปิดสวิตช์แชทเองที่ /settings/chat-channels (ไม่เปิดให้อัตโนมัติ)
+    const { error: chatError } = await supabaseAdmin
+      .from('chat_accounts')
+      .update({ is_active: false, updated_at: new Date().toISOString() })
+      .eq('company_id', companyId)
+      .eq('is_active', true)
+      .filter('credentials->>marketplace_account_id', 'eq', accountId);
+    if (chatError) console.error('[marketplace/accounts] deactivate chat account failed:', chatError.message);
+
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Shopee accounts DELETE error:', error);

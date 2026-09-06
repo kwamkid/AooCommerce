@@ -339,7 +339,7 @@ export class LazadaChatService {
 
   private async saveMessages(
     account: LazadaAccountRow,
-    contact: { id: string; display_name?: string | null },
+    contact: { id: string; display_name?: string | null; chat_account_id?: string | null },
     messages: LazadaImMessage[]
   ) {
     if (messages.length === 0) return;
@@ -398,6 +398,8 @@ export class LazadaChatService {
           preview: `${messageContent}${extra}`,
           contactId: contact.id,
           messageTime: newestIncoming.send_time || null,
+          accountName: account.shop_name,
+          chatAccountId: contact.chat_account_id || null,
         });
       }
     }

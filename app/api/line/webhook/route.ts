@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
 
     // Resolve credentials
     const webhookCreds = await lineService.resolveWebhookCredentials(accountId, companyParam);
-    const { channelSecret, accessToken, companyId, chatAccountId } = webhookCreds;
+    const { channelSecret, accessToken, companyId, chatAccountId, accountName } = webhookCreds;
     companyIdForLog = companyId;
     chatAccountIdForLog = chatAccountId;
 
@@ -90,7 +90,7 @@ export async function POST(request: NextRequest) {
 
     // Process each event
     for (const event of webhookBody.events) {
-      await processEvent(event, accessToken, companyId, chatAccountId);
+      await processEvent(event, accessToken, companyId, chatAccountId, accountName);
     }
 
     return NextResponse.json({ success: true });
@@ -115,7 +115,14 @@ export async function POST(request: NextRequest) {
 }
 
 // Process individual LINE event
-async function processEvent(event: LineEvent, accessToken: string, companyId: string | null, chatAccountId: string | null) {
+async function processEvent(
+  event: LineEvent,
+  accessToken: string,
+  companyId: string | null,
+  chatAccountId: string | null,
+  // ชื่อ OA — ไปขึ้นหัวข้อแจ้งเตือน ("Joolz Juice · LINE")
+  accountName: string | null
+) {
   const sourceType = event.source.type;
   const lineUserId = event.source.userId;
   const groupId = event.source.groupId;
@@ -148,7 +155,9 @@ async function processEvent(event: LineEvent, accessToken: string, companyId: st
       companyId,
       lineUserId,
       isGroup,
-      contactId
+      contactId,
+      chatAccountId,
+      accountName
     );
   }
 

@@ -444,7 +444,10 @@ export class FacebookChatService {
   async saveIncomingMessage(
     contact: { id: string; unread_count: number; display_name?: string | null },
     event: FbMessagingEvent,
-    companyId: string
+    companyId: string,
+    // เพจ/บัญชี IG ที่ข้อความเข้ามา — ไปขึ้นหัวข้อ + ไอคอนของแจ้งเตือน
+    chatAccountId?: string | null,
+    accountName?: string | null
   ) {
     const message = event.message!;
     const { messageContent, messageType, metadata } = this.parseMessageContent(message);
@@ -484,6 +487,8 @@ export class FacebookChatService {
         preview: messageContent,
         contactId: contact.id,
         messageTime: event.timestamp,
+        accountName,
+        chatAccountId,
       });
     }
   }

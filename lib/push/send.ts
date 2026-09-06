@@ -240,18 +240,28 @@ const CHAT_PLATFORM_LABELS: Record<string, string> = {
   facebook: 'Facebook',
   shopee: 'Shopee',
   lazada: 'Lazada',
+  tiktok: 'TikTok',
 };
 
-/** แจ้งเตือนแชทขาเข้า — เรียกหลัง insert message สำเร็จเท่านั้น */
+/**
+ * หัวข้อแจ้งเตือน = ช่องทางที่มีคนทักมา ไม่ใช่ชื่อคนทัก
+ *
+ * ทีมงานดูหลายร้านหลายแพลตฟอร์ม สิ่งที่ต้องรู้ก่อนจะกดอ่านคือ "ต้องไปตอบที่ไหน" — ชื่อลูกค้า
+ * ไปอยู่ต้นบรรทัดคู่กับข้อความแทน · ไม่รู้ชื่อร้าน = เหลือแค่ชื่อแพลตฟอร์ม ห้ามเหลือหัวข้อเปล่า
+ */
 export async function sendChatPush(
   companyId: string,
   opts: {
-    platform: 'line' | 'facebook' | 'shopee' | 'lazada';
+    platform: 'line' | 'facebook' | 'shopee' | 'lazada' | 'tiktok';
     senderName?: string | null;
     preview?: string | null;
     contactId: string;
     /** เวลาข้อความจริง (ms epoch หรือ ISO) — เก่าเกิน 10 นาทีจะไม่ยิง */
     messageTime?: number | string | null;
+    /** ชื่อร้าน/เพจ/OA ที่ลูกค้าทักมา — ขึ้นนำหัวข้อ */
+    accountName?: string | null;
+    /** chat_accounts.id — ใช้ดึงรูปมาทำไอคอนบนแจ้งเตือน */
+    chatAccountId?: string | null;
   }
 ): Promise<void> {
   if (opts.messageTime) {
@@ -260,10 +270,12 @@ export async function sendChatPush(
   }
   const platformLabel = CHAT_PLATFORM_LABELS[opts.platform] || opts.platform;
   await sendPushToCompany(companyId, {
-    title: `💬 ${opts.senderName || 'ลูกค้า'} (${platformLabel})`,
-    body: (opts.preview || 'ส่งข้อความใหม่').slice(0, 120),
+    title: opts.accountName ? `${opts.accountName} · ${platformLabel}` : platformLabel,
+    body: `${opts.senderName || 'ลูกค้า'}: ${(opts.preview || 'ส่งข้อความใหม่').slice(0, 120)}`,
     url: `/chat?platform=${opts.platform}`,
     tag: `chat-${opts.platform}-${opts.contactId}`,
+    // URL สัมพัทธ์ — service worker resolve เองตอน showNotification
+    ...(opts.chatAccountId ? { icon: `/api/push/icon?chat_account=${opts.chatAccountId}` } : {}),
   });
 }
 
@@ -274,7 +286,12 @@ const ORDER_SOURCE_LABELS: Record<string, string> = {
   storefront: 'หน้าร้านออนไลน์',
 };
 
-/** แจ้งเตือนออเดอร์ใหม่ — เรียกเฉพาะตอนสร้างออเดอร์ใหม่ (ไม่ใช่ตอน update สถานะ) */
+/**
+ * แจ้งเตือนออเดอร์ใหม่ — เรียกเฉพาะตอนสร้างออเดอร์ใหม่ (ไม่ใช่ตอน update สถานะ)
+ *
+ * หัวข้อเป็นชุดเดียวกับแจ้งเตือนแชท (`{ร้าน} · {แพลตฟอร์ม}`) เพื่อให้กวาดตาดูสายเดียวกันได้
+ * **ไม่ใส่เลขที่ออเดอร์** — กดแล้วเปิดใบนั้นอยู่แล้ว เอาที่ว่างไปบอกยอดกับชื่อลูกค้าดีกว่า
+ */
 export async function sendNewOrderPush(
   companyId: string,
   opts: {
@@ -283,15 +300,27 @@ export async function sendNewOrderPush(
     source: string;
     totalAmount?: number | null;
     customerName?: string | null;
+    /** ชื่อร้านบนแพลตฟอร์ม — ไม่มี (เช่น หน้าร้านออนไลน์) ใช้ชื่อแพลตฟอร์มอย่างเดียว */
+    shopName?: string | null;
+    /** marketplace_accounts.id — ใช้ดึงโลโก้ร้านมาทำไอคอนบนแจ้งเตือน */
+    marketplaceAccountId?: string | null;
   }
 ): Promise<void> {
   const sourceLabel = ORDER_SOURCE_LABELS[opts.source] || opts.source;
-  const amount = opts.totalAmount ? ` ฿${formatPrice(Number(opts.totalAmount))}` : '';
+  // ตัด ".00" ทิ้งเมื่อยอดเป็นจำนวนเต็ม — แจ้งเตือนมีที่ให้กวาดตาแค่บรรทัดเดียว
+  // ("฿1,290" ไม่ใช่ "฿1,290.00") แต่ยอดที่มีสตางค์จริงยังต้องแสดงครบ ("฿477.15")
+  const amount = opts.totalAmount
+    ? ` ฿${formatPrice(Number(opts.totalAmount)).replace(/\.00$/, '')}`
+    : '';
   await sendPushToCompany(companyId, {
-    title: `🛒 ออเดอร์ใหม่จาก ${sourceLabel}`,
-    body: `${opts.orderNo || ''}${opts.customerName ? ` — ${opts.customerName}` : ''}${amount}`.trim() || 'มีคำสั่งซื้อใหม่เข้ามา',
+    title: opts.shopName ? `${opts.shopName} · ${sourceLabel}` : sourceLabel,
+    body: `ออเดอร์ใหม่${amount}${opts.customerName ? ` · ${opts.customerName}` : ''}`,
     url: `/orders/${opts.orderId}`,
     tag: `order-${opts.orderId}`,
+    // ออเดอร์หน้าร้านออนไลน์ไม่มีร้านบนแพลตฟอร์ม → ไม่ส่ง icon, SW ใช้ไอคอนแอป
+    ...(opts.marketplaceAccountId
+      ? { icon: `/api/push/icon?marketplace_account=${opts.marketplaceAccountId}` }
+      : {}),
   });
 }
 
@@ -310,7 +339,7 @@ export async function sendNewOrderPushById(
 
     const { data: order } = await supabaseAdmin
       .from('orders')
-      .select('id, order_number, source, total_amount, created_at, customers(name)')
+      .select('id, order_number, source, total_amount, created_at, customers(name), marketplace_account_id')
       .eq('id', orderId)
       .eq('company_id', companyId)
       .single();
@@ -319,12 +348,29 @@ export async function sendNewOrderPushById(
 
     const customer = order.customers as { name?: string } | { name?: string }[] | null;
     const customerName = Array.isArray(customer) ? customer[0]?.name : customer?.name;
+
+    // ชื่อร้านถามแยกใบ ไม่ embed มากับ query ข้างบน — embed ที่พัง (FK เปลี่ยนชื่อ,
+    // สิทธิ์, ฯลฯ) จะทำให้ทั้ง query คืน null แล้ว **แจ้งเตือนหายทั้งใบ** ซึ่งแย่กว่า
+    // การไม่รู้ชื่อร้านมาก · ถามไม่ได้ = หัวข้อเหลือชื่อแพลตฟอร์ม แต่ push ยังออก
+    const marketplaceAccountId = (order.marketplace_account_id as string | null) || null;
+    let shopName: string | null = null;
+    if (marketplaceAccountId) {
+      const { data: shop } = await supabaseAdmin
+        .from('marketplace_accounts')
+        .select('shop_name')
+        .eq('id', marketplaceAccountId)
+        .maybeSingle();
+      shopName = (shop?.shop_name as string | null) || null;
+    }
+
     await sendNewOrderPush(companyId, {
       orderId: order.id,
       orderNo: order.order_number,
       source: order.source || 'marketplace',
       totalAmount: order.total_amount,
       customerName: customerName || null,
+      shopName,
+      marketplaceAccountId,
     });
   } catch (err) {
     console.error('[Push] sendNewOrderPushById error:', err);

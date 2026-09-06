@@ -152,7 +152,7 @@ export async function POST(request: NextRequest) {
             await fbService.saveReferralData(contact.id, event.referral);
           }
 
-          await fbService.saveIncomingMessage(contact, event, companyId);
+          await fbService.saveIncomingMessage(contact, event, companyId, chatAccountId, account.account_name);
         }
       }
     }

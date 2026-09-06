@@ -185,12 +185,16 @@ export class LineChatService {
   // ─── Webhook: Resolve credentials from query params ─────────────────
 
   async resolveWebhookCredentials(accountId: string | null, companyId: string | null): Promise<{
-    channelSecret: string; accessToken: string; companyId: string | null; chatAccountId: string | null;
+    channelSecret: string; accessToken: string; companyId: string | null;
+    chatAccountId: string | null; accountName: string | null;
   }> {
     let channelSecret = process.env.LINE_CHANNEL_SECRET || '';
     let accessToken = process.env.LINE_CHANNEL_ACCESS_TOKEN || '';
     let resolvedCompanyId = companyId;
     let chatAccountId = accountId;
+    // ชื่อ OA ไปขึ้นหัวข้อแจ้งเตือน — แถว chat_accounts ถูกอ่านอยู่ตรงนี้แล้ว
+    // เอาชื่อติดกลับไปด้วยเลย จะได้ไม่ต้อง query ซ้ำตอนยิง push ทุกข้อความ
+    let accountName: string | null = null;
 
     if (accountId) {
       const account = await getChatAccount(accountId);
@@ -200,6 +204,7 @@ export class LineChatService {
           channelSecret = creds.channel_secret;
           accessToken = creds.channel_access_token;
           resolvedCompanyId = account.company_id;
+          accountName = account.account_name || null;
         }
       }
     } else if (companyId) {
@@ -210,6 +215,7 @@ export class LineChatService {
         if (creds) {
           channelSecret = creds.channel_secret;
           accessToken = creds.channel_access_token;
+          accountName = account.account_name || null;
         }
       } else {
         const credentials = await getLineCredentials(companyId);
@@ -220,7 +226,7 @@ export class LineChatService {
       }
     }
 
-    return { channelSecret, accessToken, companyId: resolvedCompanyId, chatAccountId };
+    return { channelSecret, accessToken, companyId: resolvedCompanyId, chatAccountId, accountName };
   }
 
   // ─── Webhook: Get or Create Contact ─────────────────────────────────
@@ -277,7 +283,9 @@ export class LineChatService {
     companyId: string | null,
     senderUserId?: string,
     isGroup?: boolean,
-    contactId?: string
+    contactId?: string,
+    chatAccountId?: string | null,
+    accountName?: string | null
   ) {
     // Get sender profile
     let senderName: string | null = null;
@@ -399,6 +407,8 @@ export class LineChatService {
         preview: messageContent,
         contactId: contact.id,
         messageTime: event.timestamp,
+        accountName,
+        chatAccountId,
       });
     }
   }

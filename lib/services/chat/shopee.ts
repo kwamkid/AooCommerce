@@ -377,6 +377,8 @@ export class ShopeeChatService {
           preview: pulled.newestIncoming.content,
           contactId: contact.id,
           messageTime: pulled.newestIncoming.at,
+          accountName: account.shop_name,
+          chatAccountId: chatAccount?.id || null,
         });
       }
       return { status: 'processed', detail: `bundle_message → ดึงข้อความจริง ${pulled.inserted}/${bundleIds.length} ใบ` };
@@ -455,6 +457,8 @@ export class ShopeeChatService {
         preview: messageContent,
         contactId: contact.id,
         messageTime: messageTime,
+        accountName: account.shop_name,
+        chatAccountId: chatAccount?.id || null,
       });
     }
 

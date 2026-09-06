@@ -16,6 +16,16 @@
 
 ---
 
+## 2026-09-06 — ยกเลิกเชื่อมต่อร้าน marketplace แล้ว ช่องแชทของร้านยังโผล่ในตัวกรองหน้าแชท
+
+**ที่เกิด**: [app/api/marketplace/accounts/route.ts](app/api/marketplace/accounts/route.ts) `DELETE` · ตัวกรองช่องทางใน [app/chat/page.tsx](app/chat/page.tsx) (อ่านจาก `/api/chat-accounts`)
+**อาการ**: กดยกเลิกเชื่อมต่อร้าน AmpStark Official Store → หน้า ตั้งค่า → ช่องทาง Chat ไม่มีร้านนี้แล้ว แต่ dropdown "ทุกช่องทาง" ในหน้าแชทยังมี AmpStark อยู่
+**Root cause**: ร้านกับช่องแชทเป็นคนละแถว — `marketplace_accounts` (ร้าน) กับ `chat_accounts` (ช่องแชท อ้างร้านผ่าน `credentials.marketplace_account_id`) · DELETE ปิดแค่ร้าน (`is_active=false` + ล้าง token) ไม่แตะช่องแชท · หน้าตั้งค่าสร้างรายการจากร้านที่ active จึงซ่อนให้ แต่หน้าแชทอ่านช่องแชทตรง ๆ ซึ่งยัง active
+**วิธีแก้**: DELETE ปิด `chat_accounts` ที่อ้างร้านนั้นด้วย (`.filter('credentials->>marketplace_account_id', 'eq', id)`) · แถวค้างของ AmpStark แก้ใน DB แล้ว · เชื่อมร้านกลับมาไม่เปิดช่องแชทให้อัตโนมัติ (ผู้ใช้เปิดเองที่ /settings/chat-channels เหมือนเดิม)
+**ป้องกัน regression**: ข้อมูลที่ "อ้างกันสองชั้น" (ร้าน ↔ ช่องแชท · ร้าน ↔ sales_channels) เวลาปิด/ลบต้องไล่ปิดชั้นที่อ้างถึงด้วยเสมอ — เช็คด้วย `grep marketplace_account_id` ว่ามีตารางไหนถือ id นี้อีก
+
+---
+
 ## 2026-09-06 — แท็กลูกค้าหายเงียบ ๆ (ติดแล้วหลุด) — บันทึกแท็กแบบ "ลบทั้งชุดแล้วใส่ชุดที่จอถือ" จาก snapshot เก่า
 
 **ที่เกิด**: `PUT /api/customers/[id]/tags` · `PUT /api/chat/contacts/[id]/tags` · [app/chat/page.tsx](app/chat/page.tsx) `handleOpenProfile`/`handleSaveProfileTags`/`handleUpdateCustomerInChat` · [app/customers/[id]/page.tsx](app/customers/[id]/page.tsx) ตอนบันทึก

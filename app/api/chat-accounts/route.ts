@@ -1,6 +1,10 @@
 import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
 import { NextRequest, NextResponse, after } from 'next/server';
 import { isLineBotProfileStale, refreshLineBotProfile } from '@/lib/chat/line-bot-profile';
+// รูปประจำช่องทาง (avatar) — null = ไม่มีรูปจริง ให้ฝั่ง UI ตกไปใช้ไอคอน platform แทน
+// ห้ามคืน path ของไอคอน platform เป็น "รูป" เด็ดขาด — เคยทำแบบนั้นแล้วการ์ดร้าน
+// marketplace โชว์โลโก้ Lazada/Shopee แทนโลโก้ร้านจริงตลอดไป (เจอจริง 2026-08-28)
+import { resolveAccountPicture } from '@/lib/chat/account-picture';
 import crypto from 'crypto';
 import {
   createSalesChannelForChatAccount,
@@ -489,30 +493,6 @@ export async function DELETE(request: NextRequest) {
 }
 
 // Helper: mask secrets
-/**
- * รูปประจำช่องทาง (avatar) — null = ไม่มีรูปจริง ให้ฝั่ง UI ตกไปใช้ไอคอน platform แทน
- *
- * ห้ามคืน path ของไอคอน platform เป็น "รูป" เด็ดขาด — เคยทำแบบนั้นแล้วการ์ดร้าน
- * marketplace โชว์โลโก้ Lazada/Shopee แทนโลโก้ร้านจริงตลอดไป (เจอจริง 2026-08-28)
- */
-function resolveAccountPicture(
-  platform: string,
-  creds: Record<string, unknown> | null,
-  shopLogos: Record<string, string>
-): string | null {
-  const mpId = creds?.marketplace_account_id;
-  if (typeof mpId === 'string' && shopLogos[mpId]) return shopLogos[mpId];
-
-  if (!creds) return null;
-  if (platform === 'line') return (creds.bot_picture_url as string) || null;
-  if (platform === 'facebook') {
-    const pageId = creds.page_id as string | undefined;
-    if (pageId) return `https://graph.facebook.com/${pageId}/picture?type=small`;
-    return (creds.page_picture_url as string) || (creds.ig_profile_picture_url as string) || null;
-  }
-  return null;
-}
-
 function maskCredentials(creds: Record<string, unknown>, platform: string): Record<string, unknown> {
   const masked = { ...creds };
   const secretKeys = platform === 'line'
