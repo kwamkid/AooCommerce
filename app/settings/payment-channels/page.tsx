@@ -56,19 +56,21 @@ interface GatewayChannelConfig {
 
 // ภาพประกอบหน้า "Event types" ของ Beam Lighthouse — วาดในหน้าเลยแทน screenshot (คมทุกจอ ·
 // แก้ตามโค้ดได้เมื่อ webhook รองรับ event เพิ่ม) · ติ๊กเฉพาะ 2 event ที่ /api/beam/webhook ใช้จริง
+// ชิ้นส่วนของภาพ — อยู่นอก component แม่ (ประกาศใน render จะถูกสร้างใหม่ทุกรอบ)
+const MockCheckbox = ({ on }: { on: boolean }) => (
+  <span className={`inline-flex w-4 h-4 rounded border items-center justify-center flex-shrink-0 ${
+    on ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-gray-300 dark:border-slate-500 bg-white dark:bg-slate-700'
+  }`}>
+    {on && <Check className="w-3 h-3" strokeWidth={3} />}
+  </span>
+);
+const MockChip = ({ label }: { label: string }) => (
+  <span className="font-mono text-xs px-2 py-0.5 rounded border border-gray-300 dark:border-slate-500 bg-white dark:bg-slate-700 text-gray-800 dark:text-slate-100">
+    {label}
+  </span>
+);
+
 function BeamEventTypesMock() {
-  const Box = ({ on }: { on: boolean }) => (
-    <span className={`inline-flex w-4 h-4 rounded border items-center justify-center flex-shrink-0 ${
-      on ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-gray-300 dark:border-slate-500 bg-white dark:bg-slate-700'
-    }`}>
-      {on && <Check className="w-3 h-3" strokeWidth={3} />}
-    </span>
-  );
-  const Chip = ({ label }: { label: string }) => (
-    <span className="font-mono text-xs px-2 py-0.5 rounded border border-gray-300 dark:border-slate-500 bg-white dark:bg-slate-700 text-gray-800 dark:text-slate-100">
-      {label}
-    </span>
-  );
   const groups = [
     { title: 'Payment Link', on: true, events: [{ label: 'payment_link.paid', on: true }] },
     { title: 'Charge', on: false, events: [{ label: 'charge.succeeded', on: true }, { label: 'charge.failed', on: false }] },
@@ -79,11 +81,11 @@ function BeamEventTypesMock() {
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
         {groups.map(g => (
           <div key={g.title}>
-            <div className="flex items-center gap-2 text-sm font-medium"><Box on={g.on} />{g.title}</div>
+            <div className="flex items-center gap-2 text-sm font-medium"><MockCheckbox on={g.on} />{g.title}</div>
             <div className="mt-1.5 ml-6 space-y-1.5">
               {g.events.map(e => (
                 <div key={e.label} className={`flex items-center gap-2 ${e.on ? '' : 'opacity-50'}`}>
-                  <Box on={e.on} /><Chip label={e.label} />
+                  <MockCheckbox on={e.on} /><MockChip label={e.label} />
                 </div>
               ))}
             </div>
@@ -91,7 +93,7 @@ function BeamEventTypesMock() {
         ))}
       </div>
       <p className="text-xs text-gray-500 dark:text-slate-400 mt-3 flex items-center gap-2">
-        <Box on={false} /> Card Authorization · Refund · Transaction · Bolt Intent · Purchase — ไม่ต้องติ๊ก
+        <MockCheckbox on={false} /> Card Authorization · Refund · Transaction · Bolt Intent · Purchase — ไม่ต้องติ๊ก
       </p>
     </div>
   );
