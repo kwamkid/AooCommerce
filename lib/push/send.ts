@@ -15,6 +15,11 @@ export interface PushPayload {
   tag?: string;
   /** ไอคอนบนแจ้งเตือน — ใส่เมื่ออยากให้แยกออกว่ามาจากแอปไหน (ค่าเริ่มต้น = ไอคอนแอปร้าน) */
   icon?: string;
+  /**
+   * ไม่ต้องเอาชื่อบริษัทนำหน้า body ให้คนที่ดูแลหลายบริษัท — ใช้เมื่อหัวข้อบอกร้าน/เพจอยู่แล้ว
+   * (แชท/ออเดอร์ที่หัวเป็น "ร้าน · แพลตฟอร์ม") · ผู้ใช้ตีกลับ 7 ก.ย. 2026 ว่าซ้ำและกินที่บนมือถือ
+   */
+  omitCompanyName?: boolean;
 }
 
 /** สายแจ้งเตือน — ต้องตรงกับ PushAudience ใน lib/push/client.ts */
@@ -126,7 +131,7 @@ export async function sendPushToCompany(companyId: string, payload: PushPayload)
             {
               ...payload,
               url,
-              body: audience.name ? `${audience.name} · ${payload.body}` : payload.body,
+              body: audience.name && !payload.omitCompanyName ? `${audience.name} · ${payload.body}` : payload.body,
             },
             { companyId, audience: 'app' }
           )
@@ -274,6 +279,8 @@ export async function sendChatPush(
     body: `${opts.senderName || 'ลูกค้า'}: ${(opts.preview || 'ส่งข้อความใหม่').slice(0, 120)}`,
     url: `/chat?platform=${opts.platform}`,
     tag: `chat-${opts.platform}-${opts.contactId}`,
+    // หัวข้อมีชื่อเพจ/OA แล้ว — ไม่ต้องซ้ำชื่อบริษัทใน body
+    omitCompanyName: !!opts.accountName,
     // URL สัมพัทธ์ — service worker resolve เองตอน showNotification
     ...(opts.chatAccountId ? { icon: `/api/push/icon?chat_account=${opts.chatAccountId}` } : {}),
   });
@@ -315,6 +322,8 @@ export async function sendNewOrderPush(
   await sendPushToCompany(companyId, {
     title: opts.shopName ? `${opts.shopName} · ${sourceLabel}` : sourceLabel,
     body: `ออเดอร์ใหม่${amount}${opts.customerName ? ` · ${opts.customerName}` : ''}`,
+    // หัวข้อมีชื่อร้านแล้ว — ไม่ต้องซ้ำชื่อบริษัทใน body
+    omitCompanyName: !!opts.shopName,
     url: `/orders/${opts.orderId}`,
     tag: `order-${opts.orderId}`,
     // ออเดอร์หน้าร้านออนไลน์ไม่มีร้านบนแพลตฟอร์ม → ไม่ส่ง icon, SW ใช้ไอคอนแอป
