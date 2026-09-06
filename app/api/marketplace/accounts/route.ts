@@ -81,7 +81,9 @@ export async function GET(request: NextRequest) {
       // ส่งแค่ธงว่ามี token แชทหรือยัง — ตัว token ห้ามหลุดออกไป
       // TikTok: แชทต้องผ่าน OAuth app แชทแยกเสมอ · Lazada: มีขาแชทเฉพาะเมื่อ
       // ตั้ง LAZADA_CHAT_APP_* แยก (ไม่ตั้ง = token หลักใช้แชทได้ ถือว่าเชื่อมแล้ว)
-      // · Shopee: แชทใช้ token หลักอยู่แล้ว
+      // · Shopee: แชทต้องมาจาก app ของบริษัท (Seller In House) — ร้านที่ authorize
+      //   มาด้วย app นั้นตั้งแต่แรก (metadata.shopee_app='seller') ใช้ token ชุดหลัก
+      //   ได้เลย จึงถือว่าเชื่อมแล้วเหมือนกัน (สภาพของร้านที่ live อยู่ทุกวันนี้)
       const { chat_access_token, chat_refresh_token_expires_at, ...rest } = a;
       // refresh token ของขาแชทตายแล้ว = ต่ออายุเองไม่ได้ ต้องพาไปอนุญาตใหม่
       // (ไม่งั้นสวิตช์ยังเปิดค้างอยู่ แต่พอพิมพ์ตอบลูกค้าจะเด้ง token refresh failed)
@@ -89,11 +91,14 @@ export async function GET(request: NextRequest) {
         ? new Date(chat_refresh_token_expires_at).getTime() < now.getTime()
         : false;
       const hasLiveChatToken = !!chat_access_token && !chatRefreshDead;
+      const shopeeLegacySellerApp = (a.metadata as Record<string, unknown> | null)?.shopee_app === 'seller';
       const chatConnected = a.platform === 'tiktok'
         ? hasLiveChatToken
         : a.platform === 'lazada'
           ? (!isLazadaChatAppConfigured() || hasLiveChatToken)
-          : true;
+          : a.platform === 'shopee' || !a.platform
+            ? (hasLiveChatToken || shopeeLegacySellerApp)
+            : true;
       return {
         ...rest,
         chat_connected: chatConnected,

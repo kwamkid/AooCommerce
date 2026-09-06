@@ -11,6 +11,7 @@
 //   node scripts/enable-shopee-webchat-push.mjs --app partner --apply --block 111,222        # ร้านที่ไม่ให้ app นี้ push
 //
 // --codes a,b,c  = set_push_config_on (ไม่ใส่ = [10] ตามชื่อสคริปต์) · code ที่เปิดอยู่แล้วและไม่ได้ระบุยังเปิดต่อ
+// --off a,b      = set_push_config_off ปิด code ที่เปิดค้างอยู่ (ใช้ตอน cutover: app บริษัทเหลือแค่ 10)
 // --block a,b,c  = blocked_shop_id_list — ใช้ตอนร้านย้ายไป app อีกตัวแล้ว ไม่ให้ app นี้ยิงซ้ำ (ส่ง [] = ปลด block)
 //                  ใส่ --block โดยไม่ใส่ --codes = ไม่แตะ code ที่เปิดอยู่
 //
@@ -104,12 +105,15 @@ const parseIds = (flag) => {
   return String(process.argv[i + 1] || '').split(',').map(v => Number(v.trim())).filter(v => Number.isFinite(v) && v > 0);
 };
 const codes = parseIds('--codes');
+const off = parseIds('--off');
 const blocked = parseIds('--block');
 const payload = {
   // callback_url ต้องส่งมาด้วยทุกครั้ง — Shopee ยิงทดสอบ URL นี้และรอ 2xx ใน 3 วิ
   callback_url: callbackUrl,
   // --block อย่างเดียว = ไม่แตะ code ที่เปิดอยู่ · ไม่ใส่อะไรเลย = เปิด 10 ตามชื่อสคริปต์
-  ...(codes ? { set_push_config_on: codes } : blocked ? {} : { set_push_config_on: [10] }),
+  ...(codes ? { set_push_config_on: codes } : (blocked || off) ? {} : { set_push_config_on: [10] }),
+  // --off a,b = set_push_config_off — set_push_config_on ไม่ปิด code ที่เปิดค้างอยู่ให้เอง
+  ...(off && off.length ? { set_push_config_off: off } : {}),
   ...(blocked ? { blocked_shop_id_list: blocked } : {}),
 };
 console.log('Setting:', JSON.stringify(payload));

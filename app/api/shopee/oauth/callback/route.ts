@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
-import { exchangeCodeForToken, getShopListByMerchant, ensureValidToken, getShopInfo, type ShopeeApp } from '@/lib/shopee/api';
+import {
+  exchangeCodeForToken, getShopListByMerchant, ensureValidToken, getShopInfo,
+  resolveAppKeys, shopeeAppOf, type ShopeeApp,
+} from '@/lib/shopee/api';
 import { authorizeMarketplaceCallback } from '@/lib/oauth-state';
 
 export async function GET(request: NextRequest) {
@@ -24,31 +27,47 @@ export async function GET(request: NextRequest) {
   }
   const companyId = authz.companyId;
 
+  // ขา seller = "เชื่อมต่อแชท" (app ของบริษัท) → จบที่หน้าช่องทางแชท
+  // ขาปกติ = เชื่อมร้านเข้าระบบ (app กลาง) → จบที่หน้าช่องทางการขาย
+  const shopeeApp: ShopeeApp = authz.payload.app === 'seller' ? 'seller' : 'partner';
+  const isChatLeg = shopeeApp === 'seller';
+  const fail = (reason: string) => NextResponse.redirect(
+    isChatLeg
+      ? `${baseUrl}/settings/chat-channels?shopee_chat=failed#shopee`
+      : `${baseUrl}/settings/sales-channels?tab=marketplace&error=${reason}`
+  );
+
   console.log('[Shopee Callback] Received params:', {
     code: code ? `${code.substring(0, 10)}...` : null,
     shop_id: shopId,
     main_account_id: mainAccountId,
+    app: shopeeApp,
   });
 
   if (!code) {
     console.error('[Shopee Callback] Missing code');
-    return NextResponse.redirect(`${baseUrl}/settings/sales-channels?tab=marketplace&error=missing_params`);
+    return fail('missing_params');
   }
 
   if (!shopId && !mainAccountId) {
     console.error('[Shopee Callback] No shop_id or main_account_id');
-    return NextResponse.redirect(`${baseUrl}/settings/sales-channels?tab=marketplace&error=missing_params`);
+    return fail('missing_params');
   }
 
   try {
-    // Exchange code for tokens
-    console.log('[Shopee Callback] Exchanging code for tokens...');
     // ต้องแลก token ด้วย app ตัวเดียวกับที่ใช้พาผู้ใช้ไปหน้าอนุญาต — คนละตัว = ลายเซ็นไม่ผ่าน
-    const shopeeApp: ShopeeApp = authz.payload.app === 'seller' ? 'seller' : 'partner';
+    // app แบบ seller เป็นของบริษัท จึงต้อง resolve จาก marketplace_app_credentials ก่อน
+    const keys = await resolveAppKeys(shopeeApp, companyId);
+    if (!keys) {
+      console.error('[Shopee Callback] No app credentials for', shopeeApp, 'company', companyId);
+      return fail('shopee_app_missing');
+    }
+
+    console.log('[Shopee Callback] Exchanging code for tokens...');
     const tokens = await exchangeCodeForToken(code, {
       shopId: shopId || undefined,
       mainAccountId: mainAccountId || undefined,
-    }, shopeeApp);
+    }, shopeeApp, keys);
     console.log('[Shopee Callback] Token exchange success, expire_in:', tokens.expire_in);
 
     const now = new Date();
@@ -70,7 +89,7 @@ export async function GET(request: NextRequest) {
         // Fetch shop list via merchant API
         console.log('[Shopee Callback] Fetching shop list for merchant:', mainAccountId);
         // ต้องยิงด้วย app เดียวกับที่แลก token มา — คนละ app = คนละ key และคนละโฮสต์
-        const shops = await getShopListByMerchant(mainAccountId, tokens.access_token, shopeeApp);
+        const shops = await getShopListByMerchant(mainAccountId, tokens.access_token, shopeeApp, keys);
         shopIds = shops.map(s => s.shop_id);
         console.log('[Shopee Callback] Shop IDs from merchant API:', shopIds);
       }
@@ -78,43 +97,89 @@ export async function GET(request: NextRequest) {
 
     if (shopIds.length === 0) {
       console.error('[Shopee Callback] No shops found for this account');
-      return NextResponse.redirect(`${baseUrl}/settings/sales-channels?tab=marketplace&error=no_shops`);
+      return fail('no_shops');
     }
 
-    // For each shop, we need shop-level tokens
-    // If main_account_id flow, we need to get individual shop tokens
-    let connectedCount = 0;
-    // metadata เดิมของแต่ละร้าน — ต้อง merge ไม่ใช่ทับ (ดูเหตุผลที่ upsert ข้างล่าง)
-    const shopMeta = new Map<number, Record<string, unknown>>();
+    // ร้านเดิมของบริษัทนี้ — ต้องรู้ทั้ง metadata (merge ไม่ใช่ทับ) และ id ก่อนตัดสินใจว่า
+    // ขา seller จะเขียนลง chat_* หรือเป็นการต่ออายุการเชื่อมต่อหลัก (ดูเหตุผลข้างล่าง)
+    interface ExistingShop { id: string; metadata: Record<string, unknown>; mainApp: ShopeeApp }
+    const existing = new Map<number, ExistingShop>();
     {
       const { data: rows } = await supabaseAdmin
         .from('marketplace_accounts')
-        .select('shop_id, metadata')
+        .select('id, shop_id, metadata')
         .eq('company_id', companyId)
         .eq('platform', 'shopee');
       for (const r of rows || []) {
-        shopMeta.set(r.shop_id as number, (r.metadata || {}) as Record<string, unknown>);
+        const metadata = (r.metadata || {}) as Record<string, unknown>;
+        existing.set(r.shop_id as number, {
+          id: r.id as string,
+          metadata,
+          mainApp: shopeeAppOf({ metadata }),
+        });
       }
     }
 
+    let connectedCount = 0;
+
     for (const sid of shopIds) {
-      let shopAccessToken = tokens.access_token;
-      let shopRefreshToken = tokens.refresh_token;
-      let shopExpireIn = tokens.expire_in;
+      const prior = existing.get(sid);
 
-      // If merchant flow and multiple shops, the token from exchange might be merchant-level
-      // For shop-level API calls, we may need to refresh per shop
-      // But first let's save with the merchant token and refresh per-shop later
+      // ── ขาแชท: ร้านมีอยู่แล้ว ────────────────────────────────────────────
+      if (isChatLeg && prior) {
+        // ⚠️ ร้านที่ **token ชุดหลักก็ออกจาก app seller ใบเดียวกัน** (สภาพของ ABC ทุกร้าน
+        // วันนี้) ห้ามเก็บ token 2 ชุดของ app เดียวกัน — refresh_token ของ Shopee ใช้ได้
+        // ครั้งเดียว ใบใหม่ทำใบเก่าตาย ⇒ เขียน chat_* เพิ่มจะไปฆ่าการเชื่อมต่อหลักของร้าน
+        // เอง · เคสนี้จึงถือว่าเป็น "ต่ออายุการเชื่อมต่อเดิม" แล้วปล่อยให้แชทตกไปใช้ token
+        // ชุดหลักเหมือนเดิม (ensureValidToken purpose:'chat' fallback) — ใช้งานได้ครบ
+        // พอเจ้าของย้ายขาออเดอร์ไป partner app แล้ว รอบหน้าถึงจะแยกเป็นสองชุดจริง
+        const sameApp = prior.mainApp === 'seller';
+        const metadata = {
+          ...prior.metadata,
+          shopee_chat_app: 'seller',
+          // เคยหมดอายุแล้วต่อใหม่ = ล้างธงทิ้ง ไม่งั้นหน้าตั้งค่ายังขึ้นว่าหมดอายุ
+          shopee_chat_expired_at: undefined,
+        };
+        const { error } = await supabaseAdmin
+          .from('marketplace_accounts')
+          .update(sameApp ? {
+            access_token: tokens.access_token,
+            refresh_token: tokens.refresh_token,
+            access_token_expires_at: accessExpiry.toISOString(),
+            refresh_token_expires_at: refreshExpiry.toISOString(),
+            is_active: true,
+            metadata,
+            updated_at: now.toISOString(),
+          } : {
+            // ร้านอยู่บน app กลาง — token ชุดหลักเป็นคนละ app คนละถัง แตะไม่ได้เด็ดขาด
+            chat_access_token: tokens.access_token,
+            chat_refresh_token: tokens.refresh_token,
+            chat_access_token_expires_at: accessExpiry.toISOString(),
+            chat_refresh_token_expires_at: refreshExpiry.toISOString(),
+            metadata,
+            updated_at: now.toISOString(),
+          })
+          .eq('id', prior.id);
+        if (error) {
+          console.error('[Shopee Callback] Chat token update failed for shop', sid, ':', error);
+          continue;
+        }
+        console.log('[Shopee Callback] Chat leg saved for shop', sid, sameApp ? '(refreshed main — same app)' : '(chat_* columns)');
+        connectedCount++;
+        continue;
+      }
 
-      // Upsert shop connection
+      // ── ร้านใหม่ (หรือขาปกติ) ────────────────────────────────────────────
+      // ขา seller ที่ยังไม่มีร้านในระบบ = บริษัทที่มีแต่ app ของตัวเอง — สร้างร้านด้วย
+      // token ชุดหลักของ app นั้นเหมือนของเดิม แชทจะตกไปใช้ token ชุดเดียวกันนี้เอง
       const { data: account, error } = await supabaseAdmin
         .from('marketplace_accounts')
         .upsert({
           company_id: companyId,
           platform: 'shopee',
           shop_id: sid,
-          access_token: shopAccessToken,
-          refresh_token: shopRefreshToken,
+          access_token: tokens.access_token,
+          refresh_token: tokens.refresh_token,
           access_token_expires_at: accessExpiry.toISOString(),
           refresh_token_expires_at: refreshExpiry.toISOString(),
           is_active: true,
@@ -122,11 +187,12 @@ export async function GET(request: NextRequest) {
           // ทุกครั้งที่ re-authorize · Shopee พอฟื้นเองได้จาก get_shop_info ข้างล่าง
           // แต่ถ้า call นั้นล้มก็หายจริง
           metadata: {
-            ...(shopMeta.get(sid) || {}),
+            ...(prior?.metadata || {}),
             ...(mainAccountId ? { main_account_id: mainAccountId } : {}),
             // ร้านนี้ authorize มาด้วย app ไหน — ทุก call หลังจากนี้ต้องเซ็นด้วย
             // คู่ partner_id/key ของ app ตัวนั้น (ดู shopeeAppOf ใน lib/shopee/api.ts)
             shopee_app: shopeeApp,
+            ...(isChatLeg ? { shopee_chat_app: 'seller' } : {}),
           },
           updated_at: now.toISOString(),
         }, {
@@ -169,17 +235,21 @@ export async function GET(request: NextRequest) {
     // (เคยเกิดจริง: onConflict ไม่ตรง unique index → upsert พังทุกร้านแบบเงียบ)
     if (connectedCount === 0) {
       console.error('[Shopee Callback] All upserts failed for', shopIds.length, 'shop(s)');
-      return NextResponse.redirect(`${baseUrl}/settings/sales-channels?tab=marketplace&error=shopee_save_failed`);
+      return fail('shopee_save_failed');
     }
 
     // Clear the cookie
-    const response = NextResponse.redirect(`${baseUrl}/settings/sales-channels?tab=marketplace&shopee=connected`);
+    const response = NextResponse.redirect(
+      isChatLeg
+        ? `${baseUrl}/settings/chat-channels?shopee_chat=connected#shopee`
+        : `${baseUrl}/settings/sales-channels?tab=marketplace&shopee=connected`
+    );
     response.cookies.delete('shopee_oauth_state');
 
     console.log('[Shopee Callback] Success! Connected', connectedCount, 'of', shopIds.length, 'shop(s)');
     return response;
   } catch (err) {
     console.error('[Shopee Callback] Error:', err);
-    return NextResponse.redirect(`${baseUrl}/settings/sales-channels?tab=marketplace&error=shopee_auth_failed`);
+    return fail('shopee_auth_failed');
   }
 }

@@ -26,6 +26,9 @@ import SearchInput from '@/components/ui/SearchInput';
 import Tabs from '@/components/ui/Tabs';
 import { LoadingCard, NoPermissionCard } from '@/components/ui/StateCard';
 import Toggle from '@/components/ui/Toggle';
+import Card from '@/components/ui/Card';
+import FormInput from '@/components/ui/FormInput';
+import FormSelect from '@/components/ui/FormSelect';
 
 // Lazy-load modals — only needed on edit / after FB OAuth returns pages.
 const Modal = dynamic(() => import('@/components/ui/Modal'), { ssr: false });
@@ -84,6 +87,24 @@ interface ShopeeShop {
   chat_expired?: boolean;
   /** metadata.shop_logo = โลโก้ร้านจาก marketplace */
   metadata?: Record<string, unknown> | null;
+}
+
+/** app แชท Shopee ของบริษัท — key ถูกปิดบังมาจาก API (โชว์ 4 ตัวท้ายพอให้ยืนยันใบ) */
+interface ShopeeChatApp {
+  id: string;
+  label: string | null;
+  partner_id: number;
+  partner_key_masked: string | null;
+  push_key_masked: string | null;
+  has_push_key: boolean;
+  env: 'production' | 'sandbox';
+  is_active: boolean;
+  last_push_config_check: {
+    at?: string;
+    ok?: boolean;
+    error?: string | null;
+    config?: { push_config_on_list?: number[]; live_push_status?: string; callback_url?: string } | null;
+  } | null;
 }
 
 interface TestInfo {
@@ -174,9 +195,11 @@ export default function ChatChannelsPage() {
   // กลับมาจาก OAuth ขาแชท (?tiktok_chat= / ?lazada_chat= = connected|failed|skipped)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const platform = params.get('tiktok_chat') ? 'TikTok Shop' : params.get('lazada_chat') ? 'Lazada' : null;
+    const platform = params.get('tiktok_chat') ? 'TikTok Shop'
+      : params.get('lazada_chat') ? 'Lazada'
+        : params.get('shopee_chat') ? 'Shopee' : null;
     if (!platform) return;
-    const result = params.get('tiktok_chat') || params.get('lazada_chat');
+    const result = params.get('tiktok_chat') || params.get('lazada_chat') || params.get('shopee_chat');
     if (result === 'connected') {
       showToast(`เชื่อมต่อแชท ${platform} สำเร็จ — เปิดสวิตช์ร้านที่ต้องการรับแชทได้เลย`, 'success');
     } else if (result === 'failed') {
@@ -209,6 +232,15 @@ export default function ChatChannelsPage() {
   // โหลดครั้งเดียวตอน mount ไม่ใช่ต่อแท็บ — count บนแท็บต้องขึ้นตั้งแต่ยังไม่กดเข้าไป
   const [mpShopsLoaded, setMpShopsLoaded] = useState(false);
   const [shopeeToggling, setShopeeToggling] = useState<string | null>(null);
+
+  // app แชท Shopee ของบริษัท (Seller In House) — Shopee ให้ Chat API เฉพาะ app ประเภทนี้
+  // และ app ผูกกับบัญชี seller ที่จดมัน ⇒ ทุกบริษัทต้องมีของตัวเอง ใช้ app กลางแทนไม่ได้
+  const [shopeeApp, setShopeeApp] = useState<ShopeeChatApp | null>(null);
+  const [shopeeAppLoaded, setShopeeAppLoaded] = useState(false);
+  const [shopeeAppForm, setShopeeAppForm] = useState({ partner_id: '', partner_key: '', push_key: '', env: 'production', label: '' });
+  const [shopeeAppEditing, setShopeeAppEditing] = useState(false);
+  const [shopeeAppSaving, setShopeeAppSaving] = useState(false);
+  const [shopeeAppPushing, setShopeeAppPushing] = useState(false);
 
   // Inline form state
   const [showForm, setShowForm] = useState(false);
@@ -268,6 +300,63 @@ export default function ChatChannelsPage() {
   useFetchOnce(() => {
     loadMarketplaceShops();
   }, can(userProfile?.roles, 'masterdata.chat_channels'));
+
+  const loadShopeeApp = useCallback(async () => {
+    try {
+      const res = await apiFetch('/api/shopee/apps');
+      if (res.ok) {
+        const rows: ShopeeChatApp[] = await res.json();
+        setShopeeApp(rows.find(r => r.is_active) || null);
+      }
+    } catch { /* non-critical — การ์ดจะขึ้นเป็นฟอร์มเปล่าให้กรอกใหม่ */ }
+    setShopeeAppLoaded(true);
+  }, []);
+
+  useFetchOnce(() => {
+    loadShopeeApp();
+  }, can(userProfile?.roles, 'masterdata.chat_channels'));
+
+  const saveShopeeApp = async () => {
+    setShopeeAppSaving(true);
+    try {
+      const res = await apiFetch('/api/shopee/apps', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(shopeeAppForm),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        // ข้อความจาก Shopee ตรง ๆ — "บันทึกไม่สำเร็จ" ลอย ๆ ไม่ช่วยให้รู้ว่ากรอกอะไรผิด
+        showToast(typeof data.error === 'string' ? data.error : 'บันทึก app ไม่สำเร็จ', 'error');
+      } else {
+        setShopeeApp(data);
+        setShopeeAppEditing(false);
+        setShopeeAppForm({ partner_id: '', partner_key: '', push_key: '', env: 'production', label: '' });
+        showToast('บันทึก app แชท Shopee แล้ว — ขั้นต่อไปกด "ตั้งค่า push (webchat)"', 'success');
+      }
+    } catch {
+      showToast('เกิดข้อผิดพลาด', 'error');
+    }
+    setShopeeAppSaving(false);
+  };
+
+  const applyShopeePushConfig = async () => {
+    if (!shopeeApp) return;
+    setShopeeAppPushing(true);
+    try {
+      const res = await apiFetch(`/api/shopee/apps/${shopeeApp.id}/push-config`, { method: 'POST' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        showToast(typeof data.error === 'string' ? data.error : 'ตั้งค่า push ไม่สำเร็จ', 'error');
+      } else {
+        showToast('เปิด push แชท (code 10) ให้ app นี้แล้ว', 'success');
+      }
+      await loadShopeeApp();
+    } catch {
+      showToast('เกิดข้อผิดพลาด', 'error');
+    }
+    setShopeeAppPushing(false);
+  };
 
   // Load FB SDK when Facebook tab is active
   useEffect(() => {
@@ -585,10 +674,14 @@ export default function ChatChannelsPage() {
   const [connectingChatAuth, setConnectingChatAuth] = useState(false);
   // กด back จากหน้า OAuth → หน้าเดิมถูก restore จาก bfcache พร้อม loading ค้าง
   useBfcacheReset(() => setConnectingChatAuth(false));
-  const handleConnectMarketplaceChat = async (platform: 'tiktok' | 'lazada') => {
+  const handleConnectMarketplaceChat = async (platform: MarketplaceChatPlatform) => {
     setConnectingChatAuth(true);
     try {
-      const res = await apiFetch(`/api/${platform}/oauth/auth-url?app=chat`);
+      // Shopee ไม่มี "app แชท" แยกแบบ TikTok/Lazada — เป็น app ของร้าน (seller) ที่ทำได้ทุกอย่าง
+      // แต่เราขออนุญาตมาเพื่อใช้แชทอย่างเดียว จึงเข้าทาง ?app=seller
+      const res = await apiFetch(platform === 'shopee'
+        ? '/api/shopee/oauth/auth-url?app=seller'
+        : `/api/${platform}/oauth/auth-url?app=chat`);
       if (res.ok) {
         const { url } = await res.json();
         window.location.href = url;
@@ -933,11 +1026,109 @@ export default function ChatChannelsPage() {
               <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg p-3 text-sm text-blue-800 dark:text-blue-300">
                 แชท {platformLabel} ใช้การเชื่อมต่อร้านจากหน้า Integrations โดยตรง — เปิดสวิตช์เพื่อรับแชทของร้านนั้นเข้าหน้ารวมแชท
                 {platform === 'shopee'
-                  ? ' ⚠️ Shopee ให้แชทเฉพาะร้านที่เชื่อมผ่าน "app ของร้าน" (Seller In House) — ร้านที่เชื่อมผ่าน partner app ของระบบจะไม่มีข้อความเข้าเลย (นโยบาย Shopee 18 พ.ย. 2024) · ข้อความใหม่เข้าอัตโนมัติผ่าน webhook'
+                  ? ' ⚠️ Shopee ให้ Chat API เฉพาะ app ประเภท "Seller In House" ที่จดในนามบัญชีร้านเอง (นโยบาย 18 พ.ย. 2024) — บริษัทต้องมี app ของตัวเอง แล้วกด "เชื่อมต่อแชท" ทีละร้าน · ข้อความใหม่เข้าอัตโนมัติผ่าน webhook'
                   : platform === 'lazada'
                     ? ' ข้อความใหม่จะเข้าอัตโนมัติผ่าน webhook (ต้องตั้ง Callback URL ใน Lazada Open Platform > Push Mechanism)'
                     : ' ข้อความใหม่จะเข้าอัตโนมัติผ่าน webhook (ต้องเปิด event NEW_MESSAGE ใน TikTok Partner Center > Webhooks)'}
               </div>
+              {platform === 'shopee' && (!shopeeAppLoaded ? <LoadingCard /> : (
+                <Card>
+                  <div className="flex items-start justify-between gap-3 mb-3">
+                    <div>
+                      <h3 className="heading-4">app แชท Shopee ของบริษัท</h3>
+                      <p className="section-desc">
+                        จด app ประเภท <strong>Seller In House</strong> ที่ open.shopee.com ด้วยบัญชีร้านของคุณเอง แล้วเอา Partner ID/Key มาใส่ที่นี่
+                        — app กลางของระบบใช้แทนไม่ได้ เพราะ Shopee ผูก Chat API ไว้กับบัญชี seller ที่จด app
+                      </p>
+                    </div>
+                    {shopeeApp && !shopeeAppEditing && (
+                      <Button size="sm" variant="secondary" icon={<Edit2 className="w-4 h-4" />} onClick={() => {
+                        setShopeeAppEditing(true);
+                        setShopeeAppForm({
+                          partner_id: String(shopeeApp.partner_id), partner_key: '', push_key: '',
+                          env: shopeeApp.env, label: shopeeApp.label || '',
+                        });
+                      }}>แก้ไข</Button>
+                    )}
+                  </div>
+
+                  {shopeeApp && !shopeeAppEditing ? (
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2">
+                        <div><span className="helper-text text-gray-500">Partner ID</span><p>{shopeeApp.partner_id}</p></div>
+                        <div><span className="helper-text text-gray-500">Environment</span><p>{shopeeApp.env === 'sandbox' ? 'Sandbox (test shop เท่านั้น)' : 'Production'}</p></div>
+                        <div><span className="helper-text text-gray-500">Partner Key</span><p>{shopeeApp.partner_key_masked}</p></div>
+                        <div>
+                          <span className="helper-text text-gray-500">Live Push Partner Key</span>
+                          <p>{shopeeApp.has_push_key ? shopeeApp.push_key_masked : 'ใช้ Partner Key ใบเดียวกัน'}</p>
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-3">
+                        <Button size="sm" variant="secondary" loading={shopeeAppPushing} onClick={applyShopeePushConfig}>
+                          ตั้งค่า push (webchat)
+                        </Button>
+                        {shopeeApp.last_push_config_check && (
+                          <p className="helper-text text-gray-500">
+                            {shopeeApp.last_push_config_check.ok === false
+                              ? `ล่าสุดล้มเหลว: ${shopeeApp.last_push_config_check.error || '-'}`
+                              : `push ที่เปิดอยู่: ${(shopeeApp.last_push_config_check.config?.push_config_on_list || []).join(', ') || '-'}`}
+                            {shopeeApp.last_push_config_check.config?.live_push_status
+                              ? ` · สถานะ: ${shopeeApp.last_push_config_check.config.live_push_status}`
+                              : ''}
+                          </p>
+                        )}
+                      </div>
+                      <p className="helper-text text-gray-500">
+                        เปิดให้เฉพาะ code 10 (แชท) — ออเดอร์/สินค้ายังเข้าทาง app กลางของระบบ ถ้าเปิด code ออเดอร์ที่ app นี้ด้วยจะได้ push ซ้ำสองใบ
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <FormInput
+                          label="Partner ID" required value={shopeeAppForm.partner_id}
+                          onChange={(e) => setShopeeAppForm(f => ({ ...f, partner_id: e.target.value }))}
+                          placeholder="เช่น 2043961"
+                        />
+                        <div>
+                          <label className="field-label">Environment</label>
+                          <FormSelect
+                            value={shopeeAppForm.env}
+                            onChange={(v) => setShopeeAppForm(f => ({ ...f, env: v }))}
+                            options={[
+                              { id: 'production', label: 'Production (ร้านจริง)' },
+                              { id: 'sandbox', label: 'Sandbox (test shop เท่านั้น)' },
+                            ]}
+                          />
+                        </div>
+                        <FormInput
+                          label="Partner Key" type="password" value={shopeeAppForm.partner_key}
+                          onChange={(e) => setShopeeAppForm(f => ({ ...f, partner_key: e.target.value }))}
+                          hint={shopeeApp ? 'เว้นว่าง = ใช้ใบเดิม' : undefined}
+                          placeholder="Live Partner Key จากหน้า App ใน Shopee Open Platform"
+                        />
+                        <FormInput
+                          label="Live Push Partner Key" type="password" value={shopeeAppForm.push_key}
+                          onChange={(e) => setShopeeAppForm(f => ({ ...f, push_key: e.target.value }))}
+                          hint="เว้นว่าง = ใช้ Partner Key ใบเดียวกัน"
+                          placeholder="ถ้า Shopee ออกคีย์ push แยก"
+                        />
+                      </div>
+                      <p className="helper-text text-gray-500">
+                        Live Push Partner Key ต้องกดสร้างเองใน Shopee Open Platform ที่ <strong>Push Mechanism › Set Push</strong>
+                        — ถ้าไม่ได้กดสร้าง Shopee จะเซ็น push ด้วย Partner Key ใบเดิม (เว้นช่องนี้ไว้ได้)
+                      </p>
+                      <div className="flex justify-end gap-3">
+                        {shopeeApp && (
+                          <Button variant="secondary" onClick={() => setShopeeAppEditing(false)}>ยกเลิก</Button>
+                        )}
+                        <SaveButton loading={shopeeAppSaving} onClick={saveShopeeApp} />
+                      </div>
+                    </div>
+                  )}
+                </Card>
+              ))}
+
               {!mpShopsLoaded ? (
                 <LoadingCard />
               ) : shops.length === 0 ? (
@@ -949,14 +1140,14 @@ export default function ChatChannelsPage() {
                 shops.map(shop => {
                   const chatAccount = findMarketplaceChatAccount(platform, shop);
                   const chatEnabled = !!chatAccount?.is_active;
-                  // TikTok/Lazada: token แชทมาจาก OAuth ขาแชทแยก — ยังไม่เชื่อม
-                  // ต้องพาไปอนุญาตก่อน สวิตช์เปิดไปก็เป็นช่องแชทที่ใช้ไม่ได้
-                  // (API ส่ง chat_connected=true ให้เองเมื่อ platform ไม่มีขาแชทแยก)
-                  const needsChatAuth = (platform === 'tiktok' || platform === 'lazada') && shop.chat_connected === false;
-                  // Shopee: แชทมีให้เฉพาะร้านที่ authorize มาด้วย app ของร้านเอง (metadata.shopee_app = 'seller')
-                  // ร้านบน partner app เปิดสวิตช์ไปก็ไม่มีข้อความเข้า — บอกตรง ๆ แทนที่จะปล่อยให้เปิดเปล่า ๆ
-                  const shopeeApp = platform === 'shopee' ? (shop.metadata?.shopee_app === 'seller' ? 'seller' : 'partner') : null;
-                  const shopeeNoChat = shopeeApp === 'partner';
+                  // ทุกแพลตฟอร์ม: token แชทมาจาก OAuth ขาแชทแยก — ยังไม่เชื่อมต้องพาไปอนุญาตก่อน
+                  // สวิตช์เปิดไปก็เป็นช่องแชทที่ใช้ไม่ได้ (API ส่ง chat_connected=true ให้เอง
+                  // เมื่อร้านนั้นใช้ token ชุดหลักคุยแชทได้อยู่แล้ว)
+                  const needsChatAuth = shop.chat_connected === false;
+                  // ร้านที่ authorize ทั้งร้านมาด้วย app ของบริษัทเอง — แชทเกาะ token ชุดหลักได้เลย
+                  const onSellerApp = platform === 'shopee' && shop.metadata?.shopee_app === 'seller';
+                  // ยังไม่มี app ของบริษัท = กดเชื่อมต่อแชทไปก็เด้ง ต้องกรอก app ในการ์ดข้างบนก่อน
+                  const shopeeAppMissing = platform === 'shopee' && shopeeAppLoaded && !shopeeApp;
                   return (
                     <div key={shop.id} className="bg-white dark:bg-slate-800 rounded-lg shadow-sm px-3 py-2.5 flex items-center gap-3">
                       <ChannelBadge
@@ -966,25 +1157,21 @@ export default function ChatChannelsPage() {
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-gray-900 dark:text-white truncate flex items-center gap-1.5">
                           <span className="truncate">{shop.shop_name || `${platformLabel} ${shop.shop_id}`}</span>
-                          {shopeeApp === 'seller' && <Badge tone="indigo" size="sm">app ของร้าน</Badge>}
+                          {onSellerApp && <Badge tone="indigo" size="sm">app ของร้าน</Badge>}
                         </p>
                         <p className="helper-text text-gray-500">
                           Shop ID: {shop.shop_id}
-                          {shopeeNoChat
-                            ? ' · เชื่อมผ่าน partner app — Shopee ไม่ส่งแชทให้ app ประเภทนี้'
-                            : needsChatAuth
-                              ? (shop.chat_expired ? ' · การเชื่อมต่อแชทหมดอายุ' : ' · ยังไม่ได้เชื่อมต่อแชท')
-                              : chatEnabled ? ' · รับแชทอยู่' : ''}
+                          {needsChatAuth
+                            ? (shop.chat_expired ? ' · การเชื่อมต่อแชทหมดอายุ' : ' · ยังไม่ได้เชื่อมต่อแชท')
+                            : chatEnabled ? ' · รับแชทอยู่' : ''}
                         </p>
                       </div>
-                      {shopeeNoChat ? (
-                        <Tooltip text="ต้องเชื่อมร้านนี้ใหม่ผ่าน app ของร้าน (ปุ่มในหน้า ช่องทางการขาย › Marketplace) · ร้านจริงทำได้เมื่อ app ผ่าน Go Live แล้ว" box="inline-flex">
-                          <a href="/settings/sales-channels?tab=marketplace">
-                            <Button size="sm" variant="secondary">เชื่อมผ่าน app ของร้าน</Button>
-                          </a>
+                      {needsChatAuth && shopeeAppMissing ? (
+                        <Tooltip text="กรอก app แชท Shopee ของบริษัทในการ์ดด้านบนก่อน แล้วปุ่มนี้ถึงจะใช้ได้" box="inline-flex">
+                          <Button size="sm" variant="secondary" disabled>เชื่อมต่อแชท</Button>
                         </Tooltip>
                       ) : needsChatAuth ? (
-                        <Button size="sm" variant="secondary" loading={connectingChatAuth} onClick={() => handleConnectMarketplaceChat(platform as 'tiktok' | 'lazada')}>
+                        <Button size="sm" variant="secondary" loading={connectingChatAuth} onClick={() => handleConnectMarketplaceChat(platform)}>
                           {shop.chat_expired ? 'เชื่อมต่อแชทใหม่' : 'เชื่อมต่อแชท'}
                         </Button>
                       ) : shopeeToggling === shop.id ? (

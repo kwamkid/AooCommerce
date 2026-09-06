@@ -1,5 +1,8 @@
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { sendChatPush } from '@/lib/push/send';
+// ⚠️ ทุก call ของแชทต้องขอ token ด้วย { purpose: 'chat' } — Shopee ให้ Chat API เฉพาะ
+// app ประเภท Seller In House ซึ่งเป็น "app ของบริษัท" ไม่ใช่ app กลางที่ใช้ดูดออเดอร์
+// (ร้านที่ยังไม่มี chat_access_token จะตกกลับไปใช้ token ชุดหลักเองเหมือนเดิม)
 import { ensureValidToken, ShopeeAccountRow } from '@/lib/shopee/api';
 import {
   sendChatText, sendChatImage, getConversationInfo, resolveShopeeCdnUrl,
@@ -203,7 +206,7 @@ export class ShopeeChatService {
 
     let creds;
     try {
-      creds = await ensureValidToken(account);
+      creds = await ensureValidToken(account, { purpose: 'chat' });
     } catch (err) {
       return { success: false, error: err instanceof Error ? err.message : 'Shopee token หมดอายุ กรุณาเชื่อมต่อร้านใหม่' };
     }
@@ -500,7 +503,7 @@ export class ShopeeChatService {
 
     let creds;
     try {
-      creds = await ensureValidToken(account);
+      creds = await ensureValidToken(account, { purpose: 'chat' });
     } catch (err) {
       console.warn('[Shopee Chat] syncConversationMessages: token ใช้ไม่ได้', err instanceof Error ? err.message : err);
       return empty;
@@ -667,7 +670,7 @@ export class ShopeeChatService {
 
     let creds;
     try {
-      creds = await ensureValidToken(account);
+      creds = await ensureValidToken(account, { purpose: 'chat' });
     } catch {
       return 0;
     }
@@ -724,7 +727,7 @@ export class ShopeeChatService {
     let displayName = buyerName || 'Shopee User';
     let pictureUrl: string | null = null;
     try {
-      const creds = await ensureValidToken(account);
+      const creds = await ensureValidToken(account, { purpose: 'chat' });
       const convo = await getConversationInfo(creds, conversationId);
       if (convo) {
         displayName = convo.to_name || displayName;

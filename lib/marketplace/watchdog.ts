@@ -184,10 +184,11 @@ export async function collectWatchdogIssues(
       });
     }
 
-    // token ขาแชท (TikTok/Lazada ใช้ app แชทแยก) — ตายแล้วต่ออายุเองไม่ได้ ต้องกดอนุญาตใหม่
-    const chatDead = a.chat_access_token
-      && a.chat_refresh_token_expires_at
-      && new Date(a.chat_refresh_token_expires_at).getTime() < now;
+    // token ขาแชท (Shopee/TikTok/Lazada ใช้ app แชทแยก) — ตายแล้วต่ออายุเองไม่ได้ ต้องกดอนุญาตใหม่
+    const chatLeftH = a.chat_access_token && a.chat_refresh_token_expires_at
+      ? (new Date(a.chat_refresh_token_expires_at).getTime() - now) / 3_600_000
+      : null;
+    const chatDead = chatLeftH !== null && chatLeftH <= 0;
     if (chatDead) {
       issues.push({
         ...base,
@@ -199,6 +200,21 @@ export async function collectWatchdogIssues(
         detail: `ร้าน ${shop} รับ/ตอบแชทลูกค้าไม่ได้ — ข้อความใหม่จะไม่เข้าหน้ารวมแชท`,
         fix: `เปิด ตั้งค่า > ช่องทางแชท > ${label} แล้วกดปุ่ม "เชื่อมต่อแชทใหม่" ที่ร้าน ${shop}`,
         actionLabel: 'ไปเชื่อมต่อแชทใหม่',
+        url: chatSettingsUrl(platform),
+      });
+    } else if (chatLeftH !== null && chatLeftH < TOKEN_EXPIRY_WARN_DAYS * 24) {
+      // เตือนล่วงหน้าเหมือนขาออเดอร์ — ขาแชทหมดอายุเงียบกว่ามาก (ไม่มี cron ยิงให้รู้)
+      // กว่าจะรู้ตัวคือตอนพนักงานกดตอบลูกค้าแล้วเด้ง error ซึ่งสายไปแล้ว
+      issues.push({
+        ...base,
+        code: `chat_token_expiring:${a.id}`,
+        groupKey: 'chat_token_expiring',
+        scope: 'company',
+        severity: 'warning',
+        title: `แชท ${label} ใกล้หมดอายุ`,
+        detail: `ร้าน ${shop} เหลืออีก ${roundHours(chatLeftH)} ก่อนหมดสิทธิ์รับ/ตอบแชท`,
+        fix: `เปิด ตั้งค่า > ช่องทางแชท > ${label} แล้วกดปุ่ม "เชื่อมต่อแชทใหม่" ที่ร้าน ${shop} ตั้งแต่ตอนนี้`,
+        actionLabel: 'ไปต่ออายุแชท',
         url: chatSettingsUrl(platform),
       });
     }

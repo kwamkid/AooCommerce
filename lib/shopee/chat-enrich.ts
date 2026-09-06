@@ -55,6 +55,10 @@ export function createShopeeEnrichContext(account: ShopeeAccountRow): ShopeeEnri
   return { account, itemCache: new Map(), orderCache: new Map() };
 }
 
+/**
+ * creds ที่นี่ใช้ยิง **Product API** (get_item_base_info) ไม่ใช่ sellerchat —
+ * จึงเป็น token ชุดหลักโดยตั้งใจ (ขาแชทมี quota/app คนละถัง ไม่ต้องเอามาปนกัน)
+ */
 function getCreds(ctx: ShopeeEnrichContext): Promise<ShopeeCredentials | null> {
   if (!ctx.credsPromise) {
     ctx.credsPromise = ensureValidToken(ctx.account).catch(() => null);

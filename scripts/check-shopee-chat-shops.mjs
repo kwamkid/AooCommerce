@@ -3,6 +3,9 @@
 // ด้วย key ของ app ที่ร้านผูกอยู่ (metadata.shopee_app) และ token ในตาราง marketplace_accounts
 //
 // Usage: node scripts/check-shopee-chat-shops.mjs [--company <company_id>] [--include-inactive]
+// --company ยังใช้กรองร้านเหมือนเดิม และ **ทำให้ script อ่าน app ของบริษัทนั้นจากตาราง
+//           marketplace_app_credentials** (ตกไป env เมื่อไม่มีแถว) — app แบบ seller
+//           เป็นของบริษัท ไม่มีใบเดียวทั้งระบบอีกแล้ว
 // อ่าน .env.local: NEXT_PUBLIC_SUPABASE_URL · SUPABASE_SECRET_KEY · SHOPEE_{PARTNER,SELLER}_APP_{ID,KEY,ENV}
 // อ่านอย่างเดียว ไม่แก้อะไรทั้งฝั่ง Shopee และ DB · ไม่พิมพ์ token/key ออกจอ
 
@@ -32,7 +35,7 @@ function appCreds(app) {
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SECRET_KEY);
 let q = supabase.from('marketplace_accounts')
-  .select('id, shop_id, shop_name, access_token, access_token_expires_at, metadata, is_active, company_id')
+  .select('id, shop_id, shop_name, access_token, access_token_expires_at, chat_access_token, metadata, is_active, company_id')
   .eq('platform', 'shopee').order('shop_name');
 if (!hasFlag('--include-inactive')) q = q.eq('is_active', true);
 const company = argValue('--company');
@@ -40,15 +43,37 @@ if (company) q = q.eq('company_id', company);
 const { data: shops, error } = await q;
 if (error) { console.error('DB error:', error.message); process.exit(1); }
 
+// app แบบ seller ของแต่ละบริษัท — โหลดทีเดียวแล้ว map ตาม company_id ของร้าน
+const sellerApps = new Map();
+{
+  let aq = supabase.from('marketplace_app_credentials')
+    .select('company_id, partner_id, partner_key, env')
+    .eq('platform', 'shopee').eq('app_role', 'seller').eq('is_active', true);
+  if (company) aq = aq.eq('company_id', company);
+  const { data: apps } = await aq;
+  for (const a of apps || []) {
+    sellerApps.set(a.company_id, {
+      partnerId: Number(a.partner_id),
+      key: a.partner_key,
+      host: a.env === 'sandbox' ? SANDBOX : PROD,
+      source: 'db',
+    });
+  }
+}
+
 let failed = 0;
 for (const s of shops || []) {
   const app = s.metadata?.shopee_app === 'seller' ? 'seller' : 'partner';
-  const { partnerId, key, host } = appCreds(app);
+  // app ของบริษัทมาก่อน env เสมอ (env = ทางถอยของบริษัทที่ยังไม่ได้ย้ายเข้าตาราง)
+  const creds = app === 'seller' ? (sellerApps.get(s.company_id) || appCreds('seller')) : appCreds('partner');
+  const { partnerId, key, host } = creds;
+  // ร้านที่ผ่าน OAuth ขาแชทแล้วมี token ชุดที่ 2 — ใช้ใบนั้น ไม่งั้นตกไปใช้ชุดหลักเหมือนเดิม
+  const token = s.chat_access_token || s.access_token;
   const apiPath = '/api/v2/sellerchat/get_conversation_list';
   const ts = Math.floor(Date.now() / 1000);
-  const sign = crypto.createHmac('sha256', key).update(`${partnerId}${apiPath}${ts}${s.access_token}${s.shop_id}`).digest('hex');
-  const url = `${host}${apiPath}?partner_id=${partnerId}&timestamp=${ts}&sign=${sign}&access_token=${s.access_token}&shop_id=${s.shop_id}&direction=latest&type=all&page_size=5`;
-  let line = `${String(s.shop_id).padEnd(11)} ${s.shop_name.padEnd(26)} app=${app.padEnd(7)}`;
+  const sign = crypto.createHmac('sha256', key).update(`${partnerId}${apiPath}${ts}${token}${s.shop_id}`).digest('hex');
+  const url = `${host}${apiPath}?partner_id=${partnerId}&timestamp=${ts}&sign=${sign}&access_token=${token}&shop_id=${s.shop_id}&direction=latest&type=all&page_size=5`;
+  let line = `${String(s.shop_id).padEnd(11)} ${(s.shop_name || '').padEnd(26)} app=${app.padEnd(7)} token=${s.chat_access_token ? 'chat ' : 'main '}`;
   try {
     const res = await fetch(url);
     const body = await res.json();

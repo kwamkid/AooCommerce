@@ -2,7 +2,8 @@ import crypto from 'crypto';
 import { markQuotaExhausted, isQuotaBlocked, beginMarketplaceCall, reportMarketplaceError, type QuotaTarget } from '@/lib/marketplace/quota';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { parallelLimit } from '@/lib/parallel';
-import { resolveCredentials } from './token-lock';
+import { resolveCredentials, CHAT_TOKEN_COLUMNS, MAIN_TOKEN_COLUMNS } from './token-lock';
+import { getCompanyShopeeApp } from './app-credentials';
 import { logShopeeCallFailure } from './api-log';
 
 // --- Configuration ---
@@ -23,6 +24,16 @@ export interface ShopeeCredentials {
    * (ไม่ระบุ = partner ตามของเดิม) · สอง app อยู่คนละ environment พร้อมกันได้
    */
   app?: ShopeeApp;
+  /**
+   * environment ของ app ที่ออก token ใบนี้ — **มาก่อน env ของ server เสมอ**
+   * เพราะ app แบบ seller เป็นของบริษัท แต่ละบริษัทอยู่คนละ environment ได้
+   */
+  env?: 'production' | 'sandbox';
+  /**
+   * token ใบนี้ออกมาเพื่ออะไร — `api` = ออเดอร์/สินค้า (ชุดหลัก) · `chat` = SellerChat
+   * (ชุด chat_* ที่เซ็นด้วย app แบบ seller ของบริษัทนั้น) · ไม่ระบุ = api
+   */
+  purpose?: 'api' | 'chat';
 }
 
 export interface ShopeeAccountRow {
@@ -37,6 +48,14 @@ export interface ShopeeAccountRow {
   is_active: boolean;
   last_sync_at: string | null;
   metadata: Record<string, unknown>;
+  /**
+   * token ชุดที่ 2 — ออกจาก app แบบ seller ของบริษัท ใช้เฉพาะ SellerChat
+   * (โครงเดียวกับ TikTok/Lazada) · null ทั้งชุด = ร้านนี้ยังไม่ได้เชื่อมขาแชท
+   */
+  chat_access_token?: string | null;
+  chat_refresh_token?: string | null;
+  chat_access_token_expires_at?: string | null;
+  chat_refresh_token_expires_at?: string | null;
 }
 
 /**
@@ -53,22 +72,46 @@ export interface ShopeeAccountRow {
  */
 export type ShopeeApp = 'partner' | 'seller';
 
-function getPartnerId(app: ShopeeApp = 'partner'): number {
-  const raw = app === 'seller'
-    ? process.env.SHOPEE_SELLER_APP_ID || process.env.SHOPEE_PARTNER_APP_ID
-    : process.env.SHOPEE_PARTNER_APP_ID;
-  return parseInt(raw || '0');
+/**
+ * คู่ key ที่ใช้เซ็น call ระดับ partner (OAuth / push config) และเลือกโฮสต์
+ * — app กลางอ่านจาก env · app แบบ seller เป็นของบริษัท จึงต้อง resolve ผ่าน DB
+ */
+export interface ShopeeAppKeys {
+  partner_id: number;
+  partner_key: string;
+  env: 'production' | 'sandbox';
 }
 
-function getPartnerKey(app: ShopeeApp = 'partner'): string {
-  return (app === 'seller'
-    ? process.env.SHOPEE_SELLER_APP_KEY || process.env.SHOPEE_PARTNER_APP_KEY
-    : process.env.SHOPEE_PARTNER_APP_KEY) || '';
+/** app กลางของ AOO (Third-party Partner) — ตัวเดียวทั้งระบบ อ่านจาก env ได้ */
+function partnerAppKeys(): ShopeeAppKeys {
+  return {
+    partner_id: parseInt(process.env.SHOPEE_PARTNER_APP_ID || '0', 10),
+    partner_key: process.env.SHOPEE_PARTNER_APP_KEY || '',
+    env: process.env.SHOPEE_PARTNER_APP_ENV === 'sandbox' ? 'sandbox' : 'production',
+  };
 }
 
-/** ตั้ง app แบบ seller แยกไว้หรือยัง — ไม่ตั้ง = มี app เดียวเหมือนเดิมทั้งระบบ */
-export function isSellerAppConfigured(): boolean {
-  return !!(process.env.SHOPEE_SELLER_APP_KEY && process.env.SHOPEE_SELLER_APP_ID);
+/**
+ * คู่ key ของ app ที่จะใช้ — **จุดเดียวที่ตอบว่า "ร้าน/บริษัทนี้เซ็นด้วยอะไร"**
+ *
+ *   partner → env ของ server (app กลาง)
+ *   seller  → `marketplace_app_credentials` ของบริษัทนั้น → ตกไป env (legacy)
+ *
+ * คืน null เมื่อบริษัทนั้นยังไม่มี app แบบ seller เลย — ผู้เรียกต้องบอกผู้ใช้ให้ไปตั้งค่า
+ * ไม่ใช่ยิงด้วย key เปล่าแล้วได้ error_sign ที่อ่านไม่ออก
+ */
+export async function resolveAppKeys(
+  app: ShopeeApp,
+  companyId?: string | null
+): Promise<ShopeeAppKeys | null> {
+  if (app === 'partner') {
+    const keys = partnerAppKeys();
+    return keys.partner_id && keys.partner_key ? keys : null;
+  }
+  const sellerApp = await getCompanyShopeeApp(companyId, 'seller');
+  return sellerApp
+    ? { partner_id: sellerApp.partner_id, partner_key: sellerApp.partner_key, env: sellerApp.env }
+    : null;
 }
 
 /** ร้านนี้ authorize มาด้วย app ไหน (ไม่ระบุ = partner ตามของเดิม) */
@@ -81,13 +124,20 @@ export function shopeeAppOf(account: { metadata?: Record<string, unknown> | null
 /**
  * เลือกโฮสต์ **ต่อ app** ไม่ใช่ต่อระบบ — สอง app อยู่คนละ environment พร้อมกันได้
  * (ตอนนี้: partner app ขึ้น production แล้ว ส่วน seller app ยังอยู่ sandbox จนกว่าจะผ่าน Go Live)
- * ไม่ตั้ง SHOPEE_SELLER_APP_ENV = ใช้ค่าเดียวกับ SHOPEE_PARTNER_APP_ENV เหมือนของเดิม
+ * env ของ app แบบ seller เป็นของบริษัท (marketplace_app_credentials.env) จึงต้องส่งเข้ามา
+ * ทาง `env` — ไม่ส่ง = ตกไปใช้ environment ของ app กลาง
  */
-export function getBaseUrl(app: ShopeeApp = 'partner'): string {
-  const env = (app === 'seller'
-    ? process.env.SHOPEE_SELLER_APP_ENV || process.env.SHOPEE_PARTNER_APP_ENV
-    : process.env.SHOPEE_PARTNER_APP_ENV) || 'production';
-  return env === 'sandbox' ? SHOPEE_SANDBOX_HOST : SHOPEE_PROD_HOST;
+export function getBaseUrl(app: ShopeeApp = 'partner', env?: 'production' | 'sandbox'): string {
+  // env ที่ส่งมา (ของ app ตัวนั้นจริง ๆ) ชนะเสมอ — ไม่ส่งมา (เช่น call ระดับ partner)
+  // ก็ตกมาที่ env ของ app กลาง · app แบบ seller ต้องส่ง env มาด้วยเสมอ เพราะเป็นของบริษัท
+  void app;
+  const resolved = env || partnerAppKeys().env;
+  return resolved === 'sandbox' ? SHOPEE_SANDBOX_HOST : SHOPEE_PROD_HOST;
+}
+
+/** โฮสต์ของ app ชุดนี้ (ใช้กับ call ระดับ partner ที่ยังไม่มี creds ของร้าน) */
+export function baseUrlForKeys(keys: ShopeeAppKeys): string {
+  return keys.env === 'sandbox' ? SHOPEE_SANDBOX_HOST : SHOPEE_PROD_HOST;
 }
 
 function getTimestamp(): number {
@@ -95,24 +145,13 @@ function getTimestamp(): number {
 }
 
 /**
- * Generate HMAC-SHA256 signature for Shopee API.
- * base_string = partner_id + api_path + timestamp [+ access_token + shop_id]
+ * เซ็นด้วย partner_id/key ที่ส่งมาตรง ๆ — **ทางเดียวที่เซ็นได้แล้ว**
+ *
+ * ของเดิมมี generateSign() ที่อ่าน key จาก env ให้เอง แต่พอ app แบบ seller กลายเป็น
+ * "ของบริษัท" (คนละใบต่อบริษัท) การอ่าน env ก็เซ็นด้วย key ผิดใบทันที — ตัดทิ้งไปเลย
+ * ดีกว่าเหลือไว้ให้เผลอเรียก · ผู้เรียกต้อง resolveAppKeys(app, companyId) มาก่อนเสมอ
  */
-export function generateSign(
-  apiPath: string,
-  timestamp: number,
-  accessToken?: string,
-  shopId?: number,
-  app: ShopeeApp = 'partner'
-): string {
-  return signWith(getPartnerId(app), getPartnerKey(app), apiPath, timestamp, accessToken, shopId);
-}
-
-/**
- * เซ็นด้วย credentials ที่ส่งมาตรง ๆ — ใช้ตอนมี creds ของร้านอยู่แล้ว
- * (ร้านที่ผูกกับ app คนละตัวใช้คนละคู่ partner_id/key อ่านจาก env ตรงนี้ไม่ได้)
- */
-function signWith(
+export function signWith(
   partnerId: number,
   partnerKey: string,
   apiPath: string,
@@ -128,7 +167,8 @@ function signWith(
 
 /** โฮสต์ของร้านนี้ — ร้านที่อยู่คนละ app อาจอยู่คนละ environment */
 export function resolveBaseUrl(creds: ShopeeCredentials): string {
-  return getBaseUrl(creds.app ?? 'partner');
+  // env ติดมากับ creds = environment ของ app ที่ออก token ใบนี้ (ต่อบริษัท) — เชื่อค่านี้ก่อน
+  return getBaseUrl(creds.app ?? 'partner', creds.env);
 }
 
 /**
@@ -143,12 +183,20 @@ export function signForCreds(creds: ShopeeCredentials, apiPath: string, timestam
  * Generate Shopee OAuth authorization URL.
  * state parameter is forwarded back by Shopee in the callback.
  */
-export function generateAuthUrl(redirectUrl: string, state?: string, app: ShopeeApp = 'partner'): string {
-  const partnerId = getPartnerId(app);
+export function generateAuthUrl(
+  redirectUrl: string,
+  state?: string,
+  app: ShopeeApp = 'partner',
+  keys?: ShopeeAppKeys
+): string {
+  // app แบบ seller เป็นของบริษัท — ผู้เรียกต้อง resolveAppKeys() มาส่งให้ ห้ามเดาจาก env
+  const resolved = keys || partnerAppKeys();
+  const partnerId = resolved.partner_id;
   const apiPath = '/api/v2/shop/auth_partner';
   const timestamp = getTimestamp();
-  const sign = generateSign(apiPath, timestamp, undefined, undefined, app);
-  const baseUrl = getBaseUrl(app);
+  const sign = signWith(resolved.partner_id, resolved.partner_key, apiPath, timestamp);
+  const baseUrl = baseUrlForKeys(resolved);
+  void app;
   let url = `${baseUrl}${apiPath}?partner_id=${partnerId}&timestamp=${timestamp}&sign=${sign}&redirect=${encodeURIComponent(redirectUrl)}`;
   if (state) {
     url += `&state=${encodeURIComponent(state)}`;
@@ -262,7 +310,8 @@ export async function isShopeeQuotaBlocked(
 export async function exchangeCodeForToken(
   code: string,
   opts: { shopId?: number; mainAccountId?: number },
-  app: ShopeeApp = 'partner'
+  app: ShopeeApp = 'partner',
+  keys?: ShopeeAppKeys
 ): Promise<{
   access_token: string;
   refresh_token: string;
@@ -270,11 +319,13 @@ export async function exchangeCodeForToken(
   shop_id_list?: number[];
   merchant_id_list?: number[];
 }> {
-  const partnerId = getPartnerId(app);
+  const resolved = keys || partnerAppKeys();
+  const partnerId = resolved.partner_id;
   const apiPath = '/api/v2/auth/token/get';
   const timestamp = getTimestamp();
-  const sign = generateSign(apiPath, timestamp, undefined, undefined, app);
-  const baseUrl = getBaseUrl(app);
+  const sign = signWith(resolved.partner_id, resolved.partner_key, apiPath, timestamp);
+  const baseUrl = baseUrlForKeys(resolved);
+  void app;
 
   // Build body: use shop_id if available, otherwise main_account_id
   const body: Record<string, unknown> = {
@@ -308,17 +359,20 @@ export async function exchangeCodeForToken(
 export async function getShopListByMerchant(
   merchantId: number,
   accessToken: string,
-  app: ShopeeApp = 'partner'
+  app: ShopeeApp = 'partner',
+  keys?: ShopeeAppKeys
 ): Promise<{ shop_id: number; shop_name?: string }[]> {
-  const partnerId = getPartnerId(app);
-  const partnerKey = getPartnerKey(app);
+  const resolved = keys || partnerAppKeys();
+  const partnerId = resolved.partner_id;
+  const partnerKey = resolved.partner_key;
   const apiPath = '/api/v2/merchant/get_shop_list_by_merchant';
   const timestamp = getTimestamp();
 
   // Merchant-level sign: partner_id + apiPath + timestamp + access_token + merchant_id
   const baseString = `${partnerId}${apiPath}${timestamp}${accessToken}${merchantId}`;
   const sign = crypto.createHmac('sha256', partnerKey).update(baseString).digest('hex');
-  const baseUrl = getBaseUrl(app);
+  const baseUrl = baseUrlForKeys(resolved);
+  void app;
 
   const queryParams = new URLSearchParams({
     partner_id: String(partnerId),
@@ -352,17 +406,20 @@ export async function getShopListByMerchant(
 export async function refreshAccessToken(
   refreshToken: string,
   shopId: number,
-  app: ShopeeApp = 'partner'
+  app: ShopeeApp = 'partner',
+  keys?: ShopeeAppKeys
 ): Promise<{
   access_token: string;
   refresh_token: string;
   expire_in: number;
 }> {
-  const partnerId = getPartnerId(app);
+  const resolved = keys || partnerAppKeys();
+  const partnerId = resolved.partner_id;
   const apiPath = '/api/v2/auth/access_token/get';
   const timestamp = getTimestamp();
-  const sign = generateSign(apiPath, timestamp, undefined, undefined, app);
-  const baseUrl = getBaseUrl(app);
+  const sign = signWith(resolved.partner_id, resolved.partner_key, apiPath, timestamp);
+  const baseUrl = baseUrlForKeys(resolved);
+  void app;
 
   const url = `${baseUrl}${apiPath}?partner_id=${partnerId}&timestamp=${timestamp}&sign=${sign}`;
   const res = await fetch(url, {
@@ -390,23 +447,79 @@ export async function refreshAccessToken(
  * สำเร็จแค่ 60.8%) — **ทุกที่ที่ต้องใช้ token ต้องผ่านฟังก์ชันนี้ ห้ามเรียก
  * refreshAccessToken() ตรง ๆ** ไม่งั้นก็กลับไปแย่งกันเหมือนเดิม
  */
-export async function ensureValidToken(account: ShopeeAccountRow): Promise<ShopeeCredentials> {
+export async function ensureValidToken(
+  account: ShopeeAccountRow,
+  opts: { purpose?: 'api' | 'chat' } = {}
+): Promise<ShopeeCredentials> {
+  // ── ขาแชท ───────────────────────────────────────────────────────────────
+  // ร้านที่ผ่าน OAuth ขาแชทแล้วจะมี token ชุดที่ 2 (chat_*) ที่ออกจาก **app แบบ seller
+  // ของบริษัทนั้น** — Shopee ให้ Chat API เฉพาะ app ประเภทนี้ และ app ผูกกับบัญชี
+  // seller ที่จดมัน จึงเป็นของบริษัท ไม่ใช่ของระบบ
+  //
+  // ⚠️ ยังไม่มี chat_access_token = **ตกกลับไปใช้ creds ชุดหลัก** (พฤติกรรมเดิมเป๊ะ) —
+  // ร้านที่วันนี้ authorize มาด้วย app seller อยู่แล้ว (ABC the Baby ทั้ง 7 ร้าน) ต้อง
+  // แชทได้ต่อโดยไม่ต้องทำอะไร จนกว่าเจ้าของจะย้ายมาโครงสองชุดเอง
+  if (opts.purpose === 'chat' && account.chat_access_token) {
+    const sellerApp = await getCompanyShopeeApp(account.company_id, 'seller');
+    if (!sellerApp) {
+      throw new Error('บริษัทนี้ยังไม่ได้ตั้งค่า app แชท Shopee — เพิ่มที่ ตั้งค่า > ช่องทางแชท > Shopee');
+    }
+    return resolveCredentials(
+      account,
+      (accessToken) => ({
+        partner_id: sellerApp.partner_id,
+        partner_key: sellerApp.partner_key,
+        shop_id: account.shop_id,
+        access_token: accessToken,
+        app: 'seller',
+        env: sellerApp.env,
+        purpose: 'chat',
+      }),
+      (refreshToken, shopId) => refreshAccessToken(refreshToken, shopId, 'seller', {
+        partner_id: sellerApp.partner_id,
+        partner_key: sellerApp.partner_key,
+        env: sellerApp.env,
+      }),
+      async () => {
+        // ⚠️ **ห้ามปิดร้าน** เมื่อ token ขาแชทตาย (เหมือน TikTok/Lazada) — ออเดอร์/สินค้า
+        // ใช้ token คนละชุดและยังทำงานได้ปกติ · ปล่อยคอลัมน์ chat_* ไว้ตามเดิมเพื่อให้
+        // watchdog กับหน้าตั้งค่าแยกออกว่า "หมดอายุ" ไม่ใช่ "ยังไม่เคยเชื่อม"
+        console.error(`[Shopee Chat] shop ${account.shop_id}: refresh token ขาแชทหมดอายุ — ต้องกด "เชื่อมต่อแชทใหม่"`);
+        await supabaseAdmin
+          .from('marketplace_accounts')
+          .update({
+            metadata: { ...(account.metadata || {}), shopee_chat_expired_at: new Date().toISOString() },
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', account.id);
+      },
+      CHAT_TOKEN_COLUMNS
+    );
+  }
+
+  // ── ขาหลัก (ออเดอร์ สินค้า สต็อก — และแชทของร้านที่ยังไม่ได้ย้าย) ────────
   // ร้านไหนผูกกับ app ไหนอ่านจาก metadata ของร้านเอง — ห้ามอ่าน env ตรง ๆ
   // ไม่งั้นร้านที่ authorize มาด้วย app อีกตัวจะเซ็นด้วย key ผิดแล้ว fail ทุก call
   const app = shopeeAppOf(account);
-  const partnerId = getPartnerId(app);
-  const partnerKey = getPartnerKey(app);
+  const keys = await resolveAppKeys(app, account.company_id);
+  if (!keys) {
+    throw new Error(app === 'seller'
+      ? 'บริษัทนี้ยังไม่ได้ตั้งค่า app ของร้าน (Shopee Seller In House) — เพิ่มที่ ตั้งค่า > ช่องทางแชท > Shopee'
+      : 'ยังไม่ได้ตั้งค่า Shopee partner app บน server');
+  }
 
   return resolveCredentials(
     account,
     (accessToken) => ({
-      partner_id: partnerId,
-      partner_key: partnerKey,
+      partner_id: keys.partner_id,
+      partner_key: keys.partner_key,
       shop_id: account.shop_id,
       access_token: accessToken,
       app,
+      env: keys.env,
+      purpose: 'api',
     }),
-    (refreshToken, shopId) => refreshAccessToken(refreshToken, shopId, app),
+    (refreshToken, shopId) => refreshAccessToken(refreshToken, shopId, app, keys),
     async () => {
       // refresh_token หมดอายุ = ต่อ token เองไม่ได้อีกแล้ว ต้องให้ร้าน authorize ใหม่
       // ปิดร้านไว้ก่อน ไม่งั้น cron จะยิง API ที่รู้ผลล่วงหน้าว่า fail ทั้งวัน
@@ -414,7 +527,8 @@ export async function ensureValidToken(account: ShopeeAccountRow): Promise<Shope
         .from('marketplace_accounts')
         .update({ is_active: false, updated_at: new Date().toISOString() })
         .eq('id', account.id);
-    }
+    },
+    MAIN_TOKEN_COLUMNS
   );
 }
 

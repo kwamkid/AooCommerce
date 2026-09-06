@@ -6,9 +6,12 @@
 //
 // Usage:
 //   node scripts/simulate-shopee-webchat-push.mjs --shop 227886408 [--app seller|partner]
-//        [--text "ข้อความ"] [--buyer 900000001] [--name "ผู้ซื้อทดสอบ"] [--url https://.../api/shopee/webhook]
+//        [--company <uuid>] [--text "ข้อความ"] [--buyer 900000001] [--name "ผู้ซื้อทดสอบ"] [--url https://.../api/shopee/webhook]
 //
-// --app เลือกคู่ key ที่ใช้เซ็น (ร้านที่ผูกกับ app ไหนต้องเซ็นด้วย key ของ app นั้น ไม่งั้น webhook ตีตก)
+// --app     เลือกคู่ key ที่ใช้เซ็น (ร้านที่ผูกกับ app ไหนต้องเซ็นด้วย key ของ app นั้น ไม่งั้น webhook ตีตก)
+// --company อ่าน key ของ app แบบ seller จากตาราง marketplace_app_credentials ของบริษัทนั้น
+//           (app แบบ seller เป็น "ของบริษัท" — ไม่มีใบเดียวทั้งระบบอีกแล้ว) · ไม่ใส่ = ใช้ env
+//           ต้องมี NEXT_PUBLIC_SUPABASE_URL + SUPABASE_SECRET_KEY ใน .env.local
 // ⚠️ สร้างผู้ติดต่อปลอมในบริษัทที่ร้านนั้นสังกัด — ทดสอบเสร็จลบ shopee_contacts/shopee_messages ของ
 //    conversation_id ที่พิมพ์ออกมาทิ้งด้วย · ห้ามกดตอบในแชทนั้น (Shopee ไม่รู้จัก conversation นี้)
 
@@ -31,10 +34,25 @@ function argValue(flag, fallback) {
 }
 
 const app = argValue('--app', 'seller') === 'partner' ? 'partner' : 'seller';
-const key = app === 'seller' ? process.env.SHOPEE_SELLER_APP_KEY : process.env.SHOPEE_PARTNER_APP_KEY;
+const company = argValue('--company');
+let key = app === 'seller' ? process.env.SHOPEE_SELLER_APP_KEY : process.env.SHOPEE_PARTNER_APP_KEY;
+
+// push key ที่ Shopee ใช้เซ็นคือ Live Push Partner Key (ถ้าตั้งไว้) ไม่ใช่ API key
+// — webhook ฝั่งเราลองทั้งสองใบอยู่แล้ว ที่นี่จึงเลือกใบเดียวกับที่ webhook คาดหวัง
+if (company && app === 'seller') {
+  const { createClient } = await import('@supabase/supabase-js');
+  const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SECRET_KEY);
+  const { data } = await supabase.from('marketplace_app_credentials')
+    .select('partner_key, push_key')
+    .eq('company_id', company).eq('platform', 'shopee').eq('app_role', 'seller').eq('is_active', true)
+    .maybeSingle();
+  if (data) key = data.push_key || data.partner_key;
+  else console.warn(`⚠️ ไม่พบ app แบบ seller ของบริษัท ${company} — ตกไปใช้ key จาก env`);
+}
+
 const shopId = Number(argValue('--shop'));
 if (!key || !shopId) {
-  console.error('ต้องมี --shop <shop_id> และ key ของ app ใน .env.local (SHOPEE_SELLER_APP_KEY / SHOPEE_PARTNER_APP_KEY)');
+  console.error('ต้องมี --shop <shop_id> และ key ของ app (จาก --company หรือ .env.local SHOPEE_SELLER_APP_KEY / SHOPEE_PARTNER_APP_KEY)');
   process.exit(1);
 }
 

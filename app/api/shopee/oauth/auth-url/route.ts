@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { checkAuthWithCompany, can } from '@/lib/supabase-admin';
-import { generateAuthUrl, isSellerAppConfigured, type ShopeeApp } from '@/lib/shopee/api';
+import { generateAuthUrl, resolveAppKeys, type ShopeeApp } from '@/lib/shopee/api';
+import { getCompanyShopeeApp } from '@/lib/shopee/app-credentials';
 import { signOAuthState } from '@/lib/oauth-state';
 
 export async function GET(request: NextRequest) {
@@ -10,23 +11,33 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // ?check=1 = หน้า settings ถามเฉย ๆ ว่าจะโชว์ปุ่ม "เชื่อมผ่าน app ของร้าน" ไหม
-    // ไม่ตั้ง env = ซ่อนปุ่มไปเลย ดีกว่าให้กดแล้วเด้ง error · ตอบอย่างเดียว
-    // ไม่ปั๊ม state/cookie (ยังไม่ใช่การเริ่ม OAuth จริง)
     const params = new URL(request.url).searchParams;
+    // ?app=seller = เชื่อมผ่าน app ที่จดในนามบัญชี seller ของบริษัทนี้ (Chat API มีเฉพาะ app แบบนี้)
+    // ต้องฝังไว้ใน state ด้วย เพราะ callback ต้องแลก token ด้วย app ตัวเดียวกัน
+    // — แลกผิด app = ลายเซ็นไม่ผ่านตั้งแต่ก้าวแรก
+    const app: ShopeeApp = params.get('app') === 'seller' ? 'seller' : 'partner';
+
+    // ?check=1 = หน้า settings ถามเฉย ๆ ว่าจะโชว์ปุ่ม "เชื่อมผ่าน app ของร้าน" ไหม
+    // ตอบอย่างเดียว ไม่ปั๊ม state/cookie (ยังไม่ใช่การเริ่ม OAuth จริง)
     if (params.get('check') === '1') {
-      // env บอกด้วยว่าปุ่มจะพาไปที่ไหน — seller app ยังอยู่ sandbox ระหว่างรอ Go Live
-      // ผู้ใช้จะได้ไม่เอาบัญชี sandbox ไป login หน้า production (หรือกลับกัน)
+      // app แบบ seller เป็น "ของบริษัท" — ตอบตามบริษัทที่ผู้ใช้อยู่ ไม่ใช่ตาม env ของ server
+      // env บอกด้วยว่าปุ่มจะพาไปที่ไหน (sandbox/production) ผู้ใช้จะได้ไม่เอาบัญชี
+      // sandbox ไป login หน้า production (หรือกลับกัน)
+      const sellerApp = await getCompanyShopeeApp(companyId, 'seller');
       return NextResponse.json({
-        available: isSellerAppConfigured(),
-        env: (process.env.SHOPEE_SELLER_APP_ENV || process.env.SHOPEE_PARTNER_APP_ENV || 'production') === 'sandbox' ? 'sandbox' : 'production',
+        available: !!sellerApp,
+        env: sellerApp?.env || 'production',
+        source: sellerApp ? sellerApp.source : null,
       });
     }
 
-    const partnerId = process.env.SHOPEE_PARTNER_APP_ID;
-    const partnerKey = process.env.SHOPEE_PARTNER_APP_KEY;
-    if (!partnerId || !partnerKey) {
-      return NextResponse.json({ error: 'Shopee not configured' }, { status: 500 });
+    const keys = await resolveAppKeys(app, companyId);
+    if (!keys) {
+      return app === 'seller'
+        ? NextResponse.json({
+            error: 'บริษัทนี้ยังไม่ได้เพิ่ม app ของร้าน (Shopee Seller In House) — ไปเพิ่มที่ ตั้งค่า > ช่องทางแชท > Shopee ก่อน',
+          }, { status: 400 })
+        : NextResponse.json({ error: 'Shopee not configured' }, { status: 500 });
     }
 
     // Build redirect URL
@@ -36,21 +47,13 @@ export async function GET(request: NextRequest) {
 
     // Signed, user-bound, expiring state (not the raw companyId) — the callback
     // verifies this + the completing session before attaching any shop.
-    // ?app=seller = เชื่อมผ่าน app ที่จดในนามบัญชี seller (Chat API มีเฉพาะ app แบบนี้)
-    // ต้องฝังไว้ใน state ด้วย เพราะ callback ต้องแลก token ด้วย app ตัวเดียวกัน
-    // — แลกผิด app = ลายเซ็นไม่ผ่านตั้งแต่ก้าวแรก
-    const app: ShopeeApp = params.get('app') === 'seller' ? 'seller' : 'partner';
-    if (app === 'seller' && !isSellerAppConfigured()) {
-      return NextResponse.json({ error: 'ยังไม่ได้ตั้งค่า app แบบ seller (SHOPEE_SELLER_APP_ID/KEY)' }, { status: 400 });
-    }
-
     // state ใช้คำว่า 'seller' เฉพาะขา seller — ขาปกติไม่ต้องใส่ (undefined = ขาหลัก)
     const state = signOAuthState({
       companyId, userId, platform: 'shopee',
       ...(app === 'seller' ? { app: 'seller' as const } : {}),
     });
-    const url = generateAuthUrl(redirectUrl, state, app);
-    console.log('[Shopee OAuth] Generated auth URL, redirect:', redirectUrl);
+    const url = generateAuthUrl(redirectUrl, state, app, keys);
+    console.log('[Shopee OAuth] Generated auth URL, app:', app, 'redirect:', redirectUrl);
 
     // Backup the signed state in a cookie (Shopee doesn't reliably forward state).
     const response = NextResponse.json({ url });

@@ -55,10 +55,39 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // ── token ขาแชท (app ของบริษัท) ──────────────────────────────────────
+  // ต่ออายุแยกจากชุดหลัก เพราะเป็นคนละ app คนละคอลัมน์ · **ต้องมี cron ตัวนี้**
+  // ไม่งั้นร้านที่ไม่มีคนทักติดกัน 30 วันจะถูก refresh_token หมดอายุเงียบ ๆ แล้ว
+  // เจ้าของร้านมารู้ตอนพนักงานกดตอบลูกค้าไม่ได้ (ขาหลักไม่มีปัญหานี้เพราะ cron ดูดออเดอร์
+  // ทุก 15 นาทีทำให้ token ถูกใช้ตลอด)
+  const { data: chatAccounts } = await supabaseAdmin
+    .from('marketplace_accounts')
+    .select('*')
+    .eq('is_active', true)
+    .or('platform.eq.shopee,platform.is.null')
+    .not('chat_refresh_token', 'is', null)
+    .lt('chat_access_token_expires_at', cutoff.toISOString());
+
+  let chatRefreshed = 0;
+  for (const account of chatAccounts || []) {
+    // refresh token ขาแชทตายแล้ว = ต่อเองไม่ได้ ต้องให้เจ้าของกด "เชื่อมต่อแชทใหม่"
+    // (ห้ามปิดร้าน — ออเดอร์ยังวิ่งได้ปกติ · watchdog เตือนล่วงหน้า 3 วันอยู่แล้ว)
+    if (account.chat_refresh_token_expires_at
+      && new Date(account.chat_refresh_token_expires_at).getTime() < now.getTime()) continue;
+    try {
+      await ensureValidToken(account as ShopeeAccountRow, { purpose: 'chat' });
+      chatRefreshed++;
+    } catch (e) {
+      errors.push(`Shop ${account.shop_id} (chat): ${e instanceof Error ? e.message : 'Unknown'}`);
+    }
+  }
+
   return NextResponse.json({
     refreshed,
     total: (accounts || []).length,
     deactivated: expiredIds.length,
+    chat_refreshed: chatRefreshed,
+    chat_total: (chatAccounts || []).length,
     errors,
   });
 }

@@ -17,6 +17,7 @@ import {
   Activity,
   Gauge,
   Languages,
+  KeyRound,
 } from 'lucide-react';
 
 const menuItems = [
@@ -26,6 +27,7 @@ const menuItems = [
   { label: 'Users', href: '/superadmin/users', icon: <Users className="w-5 h-5" /> },
   { label: 'API Logs', href: '/superadmin/api-logs', icon: <Activity className="w-5 h-5" /> },
   { label: 'API Monitor', href: '/superadmin/api-monitor', icon: <Gauge className="w-5 h-5" /> },
+  { label: 'App ของบริษัท', href: '/superadmin/marketplace-apps', icon: <KeyRound className="w-5 h-5" /> },
   { label: 'Error Translations', href: '/superadmin/error-translations', icon: <Languages className="w-5 h-5" /> },
 ];
 

@@ -200,7 +200,8 @@ export default function SalesChannelsPage() {
     }
   };
 
-  // ถามครั้งเดียวตอนเปิดแท็บ marketplace ว่ามี app แบบ seller ให้เลือกไหม
+  // ถามครั้งเดียวตอนเปิดแท็บ marketplace ว่า **บริษัทนี้** มี app ของร้านให้เลือกไหม
+  // (app แบบ seller เป็นของบริษัท ไม่ใช่ของ server — ตั้งที่ ตั้งค่า > ช่องทางแชท > Shopee)
   useEffect(() => {
     if (!showMarketplace) return;
     let cancelled = false;
@@ -622,8 +623,8 @@ export default function SalesChannelsPage() {
               </Button>
             ) : effectiveTab === 'shopee' ? (
               /* Shopee มี 2 ทางเชื่อม (partner app / app ที่จดในนามร้านเอง — แชทได้) จึงเป็นเมนู
-                 ทางที่สองโชว์เสมอ: env บน server ยังไม่ครบก็บอกตรง ๆ แทนที่จะหายไปเฉย ๆ
-                 แล้วคนไปกดเชื่อมผ่าน partner app แทน (เกิดจริง 5 ก.ย. 2026) */
+                 ทางที่สองโชว์เสมอ: บริษัทยังไม่ได้เพิ่ม app ของตัวเองก็บอกตรง ๆ แทนที่จะหายไป
+                 เฉย ๆ แล้วคนไปกดเชื่อมผ่าน app กลางแทน (เกิดจริง 5 ก.ย. 2026) */
               <ActionMenu
                 placement="bottom"
                 trigger={mpConnecting
@@ -643,7 +644,7 @@ export default function SalesChannelsPage() {
                     dividerBefore: true,
                     label: shopeeSellerAppAvailable
                       ? `เชื่อมต่อผ่าน app ของร้าน${shopeeSellerAppEnv === 'sandbox' ? ' (sandbox — ใช้บัญชี test shop)' : ''}`
-                      : 'ผ่าน app ของร้าน — server ยังไม่มี SHOPEE_SELLER_APP_ID/KEY',
+                      : 'ผ่าน app ของร้าน — ยังไม่ได้เพิ่ม app ของบริษัทที่ ตั้งค่า > ช่องทางแชท > Shopee',
                     icon: <PlatformIcon id="shopee" size={16} />,
                     disabled: mpConnecting || !shopeeSellerAppAvailable,
                     onClick: () => handleMarketplaceConnect('shopee', { app: 'seller' }),

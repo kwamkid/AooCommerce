@@ -1,0 +1,117 @@
+'use client';
+
+// Superadmin — app ของแพลตฟอร์มที่ "เป็นของบริษัท" (ตอนนี้มีแค่ Shopee Seller In House)
+//
+// มีไว้ตอบคำถามเดียว: ตอนนี้บริษัทไหนมี app ของตัวเองแล้วบ้าง และใบไหนพัง
+// key ถูกปิดบังมาจาก API — หน้านี้ไม่มีทางเห็นใบเต็ม (ตั้ง/แก้ทำที่หน้าตั้งค่าของบริษัทเอง)
+
+import { useState, useCallback } from 'react';
+import SuperAdminLayout from '../components/SuperAdminLayout';
+import { apiFetch } from '@/lib/api-client';
+import { useToast } from '@/lib/toast-context';
+import { useFetchOnce } from '@/lib/use-fetch-once';
+import { LoadingCard, EmptyCard } from '@/components/ui/StateCard';
+import Badge from '@/components/ui/Badge';
+import Toggle from '@/components/ui/Toggle';
+import PlatformIcon from '@/components/ui/PlatformIcon';
+import { formatThaiDateTime } from '@/lib/utils/format';
+
+interface MarketplaceApp {
+  id: string;
+  company_id: string;
+  company_name: string | null;
+  platform: string;
+  app_role: string;
+  label: string | null;
+  partner_id: number;
+  partner_key_masked: string | null;
+  push_key_masked: string | null;
+  has_push_key: boolean;
+  env: string;
+  is_active: boolean;
+  last_push_config_check: {
+    at?: string; ok?: boolean; error?: string | null;
+    config?: { push_config_on_list?: number[]; live_push_status?: string } | null;
+  } | null;
+  updated_at: string;
+}
+
+export default function SuperAdminMarketplaceApps() {
+  const { showToast } = useToast();
+  const [rows, setRows] = useState<MarketplaceApp[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [toggling, setToggling] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await apiFetch('/api/superadmin/marketplace-apps');
+      if (res.ok) setRows(await res.json());
+    } catch { /* หน้าจะขึ้น empty state */ }
+    setLoading(false);
+  }, []);
+
+  useFetchOnce(() => { load(); }, true);
+
+  const toggle = async (row: MarketplaceApp) => {
+    setToggling(row.id);
+    try {
+      const res = await apiFetch('/api/superadmin/marketplace-apps', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: row.id, is_active: !row.is_active }),
+      });
+      if (!res.ok) throw new Error();
+      setRows(prev => prev.map(r => r.id === row.id ? { ...r, is_active: !r.is_active } : r));
+    } catch {
+      showToast('เปลี่ยนสถานะไม่สำเร็จ', 'error');
+    }
+    setToggling(null);
+  };
+
+  return (
+    <SuperAdminLayout title="App ของบริษัท" subtitle="app ที่บริษัทจดเอง (Shopee Seller In House) — ใช้สำหรับแชท">
+      {loading ? (
+        <LoadingCard />
+      ) : rows.length === 0 ? (
+        <EmptyCard title="ยังไม่มีบริษัทไหนเพิ่ม app ของตัวเอง" />
+      ) : (
+        <div className="space-y-2">
+          {rows.map(row => {
+            const check = row.last_push_config_check;
+            const codes = check?.config?.push_config_on_list || [];
+            return (
+              <div key={row.id} className="bg-white dark:bg-slate-800 rounded-lg shadow-sm px-3 py-2.5 flex items-start gap-3">
+                <PlatformIcon id={row.platform as 'shopee'} size={20} />
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-gray-900 dark:text-white flex flex-wrap items-center gap-2">
+                    {row.company_name || row.company_id}
+                    <Badge tone="indigo" size="sm">{row.app_role}</Badge>
+                    {row.env === 'sandbox' && <Badge tone="amber" size="sm">sandbox</Badge>}
+                    {/* code 10 = webchat · ไม่มี = ยังไม่ได้กด "ตั้งค่า push" ⇒ แชทจะเงียบสนิท */}
+                    {codes.includes(10)
+                      ? <Badge tone="emerald" size="sm">push แชทเปิดแล้ว</Badge>
+                      : <Badge tone="gray" size="sm">ยังไม่เปิด push แชท</Badge>}
+                  </p>
+                  <p className="helper-text text-gray-500">
+                    Partner ID {row.partner_id} · key {row.partner_key_masked}
+                    {row.has_push_key ? ` · push key ${row.push_key_masked}` : ' · push ใช้ key เดียวกัน'}
+                    {row.label ? ` · ${row.label}` : ''}
+                  </p>
+                  <p className="helper-text text-gray-500">
+                    {check?.at ? `ตรวจล่าสุด ${formatThaiDateTime(check.at)}` : 'ยังไม่เคยตรวจ'}
+                    {check?.ok === false ? ` · ล้มเหลว: ${check.error || '-'}` : ''}
+                    {check?.config?.live_push_status ? ` · live push: ${check.config.live_push_status}` : ''}
+                  </p>
+                </div>
+                {toggling === row.id
+                  ? <span className="helper-text text-gray-400">กำลังบันทึก…</span>
+                  : <Toggle checked={row.is_active} onChange={() => toggle(row)} />}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </SuperAdminLayout>
+  );
+}

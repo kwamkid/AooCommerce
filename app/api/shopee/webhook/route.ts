@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { after } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { ShopeeAccountRow } from '@/lib/shopee/api';
+import { listActiveSellerPushKeys } from '@/lib/shopee/app-credentials';
 import { logIntegration } from '@/lib/integration-logger';
 import { getPushLabel } from '@/lib/shopee/webhook-codes';
 import { createCreditNote, hasCreditNote } from '@/lib/credit-notes/auto-cn';
@@ -93,12 +94,12 @@ export async function POST(request: NextRequest) {
     // Shopee signs pushes with the "Live Push Partner Key" (Push Mechanism > Set Push),
     // which is separate from the API-calling partner key after a key rotation.
     //
-    // ⚠️ push มาจากได้ทั้ง app partner และ app seller (คนละ key) — ลองทีละตัว
-    // ตัวไหนตรงก็ถือว่าของจริง (แบบเดียวกับ verifyWebhookSignature ของ TikTok)
-    // ตกตัวใดตัวหนึ่งไป = push ของ app นั้นถูกตีตกทั้งหมดแบบเงียบ ๆ
+    // ⚠️ push มาจากได้ทั้ง app กลาง และ app แบบ seller **ของทุกบริษัท** (คนละ key ทุกใบ)
+    // — ลองทีละตัว ตัวไหนตรงก็ถือว่าของจริง (แบบเดียวกับ verifyWebhookSignature ของ TikTok)
+    // ตกใบใดใบหนึ่งไป = push ของบริษัทนั้นถูกตีตกทั้งหมดแบบเงียบ ๆ
     const partnerKeys = [
       process.env.SHOPEE_PARTNER_APP_PUSH_KEY || process.env.SHOPEE_PARTNER_APP_KEY || '',
-      process.env.SHOPEE_SELLER_APP_PUSH_KEY || process.env.SHOPEE_SELLER_APP_KEY || '',
+      ...(await listActiveSellerPushKeys()),
     ].filter(Boolean);
     if (authorization && partnerKeys.length > 0) {
       const publicUrl = 'https://aoocommerce.vercel.app/api/shopee/webhook';
