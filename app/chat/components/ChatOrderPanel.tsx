@@ -20,11 +20,15 @@ interface ChatOrderPanelProps {
   source?: string;
   sourceName?: string;
   chatAccountId?: string;
+  /** key ของร่างบิลใน localStorage — 1 ห้องแชท 1 ร่าง (ดู lib/order-draft.ts) */
+  draftKey?: string;
   warehousePortalRef: RefObject<HTMLDivElement | null>;
   headerActionsRef: RefObject<HTMLDivElement | null>;
   onSuccess: (orderId: string, customerId?: string, deliveryInfo?: { name?: string; phone?: string; email?: string }) => void;
   onSendBillToChat: (orderId: string, orderNumber: string, billUrl: string) => void;
   onClose: () => void;
+  /** ผู้ใช้กด "ล้างร่าง" ในฟอร์ม — หน้าแชทเด้ง orderFormKey เพื่อ remount ฟอร์มเปล่า */
+  onDiscardDraft: () => void;
 }
 
 /**
@@ -45,11 +49,13 @@ function ChatOrderPanel({
   source,
   sourceName,
   chatAccountId,
+  draftKey,
   warehousePortalRef,
   headerActionsRef,
   onSuccess,
   onSendBillToChat,
   onClose,
+  onDiscardDraft,
 }: ChatOrderPanelProps) {
   return (
     <div className="flex w-full md:w-auto md:flex-1 flex-col border-l border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900 absolute inset-0 md:static md:inset-auto z-10">
@@ -78,9 +84,11 @@ function ChatOrderPanel({
           source={source}
           sourceName={sourceName}
           chatAccountId={chatAccountId}
+          draftKey={draftKey}
           onSuccess={onSuccess}
           onSendBillToChat={onSendBillToChat}
           onCancel={onClose}
+          onDiscardDraft={onDiscardDraft}
         />
       </div>
     </div>

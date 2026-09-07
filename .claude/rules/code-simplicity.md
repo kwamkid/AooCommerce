@@ -290,6 +290,7 @@ const columns: DataTableColumn<Order>[] = [
 | `useConfirmDialog()` | `lib/useConfirmDialog.tsx` | promise-based confirm dialog แทน native `confirm()` |
 | `useFetchOnce()` | `lib/use-fetch-once.ts` | run callback ครั้งเดียวเมื่อ ready (กัน duplicate API calls) |
 | `useColumnToggle()` | `lib/useColumnToggle.ts` | column visibility toggle (localStorage persist) — ใช้ใน DataTable |
+| `useStableCallback()` | `lib/useStableCallback.ts` | callback ที่ **identity คงที่ตลอดอายุ component** แต่เรียกโค้ดล่าสุดเสมอ — ใช้ตอนส่ง callback เข้า component ที่ `memo()` โดยไม่ต้องไล่ deps ของฟังก์ชันใหญ่ · ส่ง arrow function ตรง ๆ หรือ `useCallback` ที่ deps เปลี่ยนบ่อย = **memo ไร้ผลทันที** (หน้าแชท: `ChatOrderPanel` · `MessageBubble`) · ⚠️ ห้ามเรียกระหว่าง render — handler/effect เท่านั้น |
 | `useServerSearch()` | `lib/useServerSearch.ts` | **ช่องค้นหาที่ค้นฝั่ง server** — คืน `{ query, results, loading, search }` ต่อเข้า `onSearchChange` ของ `ProductSearchInput`/`EntitySearchInput` ได้ตรง ๆ · ทำ seq guard (ทิ้งผลของคำค้นเก่าที่มาช้า) · แคชผลต่อคำค้น 30 วิ · กรองต่อในเครื่องด้วย `narrow` เมื่อพิมพ์ต่อจากคำเดิมและชุดนั้น `complete` · พิมพ์ต่ำกว่า `minLength` (default 2) ไม่ยิง — **ห้ามเขียน seq/debounce/cache เองในหน้า** |
 | `useSuperAdminGuard()` | `app/superadmin/hooks/` | guard superadmin pages |
 | `usePromotionForm()` | `app/promotions/components/` | form state management สำหรับ promotion |
@@ -342,6 +343,7 @@ const columns: DataTableColumn<Order>[] = [
 | `utils/format.ts` | `lib/utils/format.ts` | `formatPrice()`, `formatNumber()`, `formatThaiDate()`, `formatThaiDateTime()` — **ห้ามเขียน `toLocaleDateString('th-TH')` / `toLocaleString` เงินเอง inline** (เคย copy กัน 96/31 จุด สูตร drift 16 แบบ) |
 | `utils/download.ts` | `lib/utils/download.ts` | `downloadBlob(blob, filename)` — **ห้ามเขียน `createElement('a')` + `createObjectURL` เอง** (เคยลืม revokeObjectURL = memory leak) |
 | `useDebounce.ts` | `lib/useDebounce.ts` | `useDebouncedCallback(fn, delayMs=400)` — debounce search ทุกหน้า list, clear timer ตอน unmount ให้เอง — **ห้ามเขียน setTimeout/clearTimeout debounce เอง** |
+| `order-draft.ts` | `lib/order-draft.ts` | ร่างบิลที่กรอกค้างไว้ใน localStorage — `readOrderDraft` / `writeOrderDraft` / `clearOrderDraft` / `isDraftEmpty` + type `OrderDraftSnapshot` · key `chat-order-draft:<company>:<contact>` อายุ 24 ชม. · เปิดใช้โดยส่ง `draftKey` ให้ `OrderForm` (ไม่ส่ง = ไม่มีเรื่องร่าง) — **ห้ามให้ component แตะ localStorage เอง** (Safari โหมดส่วนตัว throw ทุกการเขียน · ห่อ try/catch ไว้ที่นี่แล้ว) · เก็บเฉพาะสิ่งที่ผู้ใช้กรอก **ห้ามใส่สต็อก/ผลค้นหา/รายการอ้างอิง** |
 | `thai-address-data.ts` | `lib/thai-address-data.ts` | `searchAddress()`, `PROVINCES` — Thai address DB |
 
 ### Bulk Excel Templates — Per-action import/export (อัพเดท 2026-05-27)

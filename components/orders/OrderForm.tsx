@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useRef, useMemo, RefObject } from 'react';
 import { useCopy } from '@/lib/useCopy';
+import { useDebouncedCallback } from '@/lib/useDebounce';
+import { readOrderDraft, writeOrderDraft, clearOrderDraft, isDraftEmpty, type OrderDraftSnapshot } from '@/lib/order-draft';
 import { createPortal } from 'react-dom';
 import { useFetchOnce } from '@/lib/use-fetch-once';
 import { useRouter } from 'next/navigation';
@@ -44,6 +46,7 @@ import { LoadingCard } from '@/components/ui/StateCard';
 import Checkbox from '@/components/ui/Checkbox';
 import FormInput from '@/components/ui/FormInput';
 import Badge from '@/components/ui/Badge';
+import Alert from '@/components/ui/Alert';
 import Tooltip from '@/components/ui/Tooltip';
 import {
   Plus,
@@ -292,6 +295,12 @@ interface OrderFormProps {
   // Originating chat account — when present, lock the sales channel selector to that
   // chat-linked sales_channels row so e.g. "LINE - ABC" orders can't be miscategorized.
   chatAccountId?: string;
+  /** เปิดโหมด "จำร่างบิล" — ไม่ส่ง = ไม่มีเรื่องร่างเลย (ทุกหน้าเดิมทำงานเหมือนเดิมเป๊ะ)
+   *  ค่าที่ส่งคือ key ของ localStorage เช่น `chat-order-draft:<company>:<contact>`
+   *  ⚠️ **บิลใหม่เท่านั้น** — โหมดแก้ไข (`editOrderId`) ฟอร์มไม่แตะร่างไม่ว่าจะส่ง key มาหรือไม่ */
+  draftKey?: string;
+  /** ผู้ใช้กด "ล้างร่าง" — หน้าที่ห่ออยู่ควร remount ฟอร์มให้ได้ฟอร์มเปล่าจริง ๆ */
+  onDiscardDraft?: () => void;
   // Exchange data — items to return from original order (CN created atomically on save)
   exchangeData?: {
     from_order_id: string;
@@ -319,6 +328,8 @@ export default function OrderForm({
   source,
   sourceName,
   chatAccountId,
+  draftKey,
+  onDiscardDraft,
   exchangeData,
   exchangeCreditAmount,
 }: OrderFormProps) {
@@ -714,18 +725,52 @@ export default function OrderForm({
     if (def) setSelectedSalesChannelId(def.id);
   }, [salesChannels, chatAccountId, selectedSalesChannelId]);
 
-  // Auto-select preselected customer (มาจากหน้าแชท) — ดึงรายคน ไม่รอ/ไม่หาในรายการ
-  // ที่โหลดมา เพราะรายการนั้นคือลูกค้าล่าสุด 30 คนเท่านั้น
+  // ── ตั้งต้นฟอร์ม: เลือกลูกค้า (จากร่าง > preselected) แล้วค่อยทับด้วยร่าง ──
+  //
+  // ต้องเป็น flow **เดียว** ไม่ใช่สอง effect แข่งกัน เพราะ `handleSelectCustomer` จะ prefill
+  // ที่อยู่/ภาษีของลูกค้าทับทุกช่อง — กู้ร่างก่อนแล้วค่อยเลือกลูกค้า = ที่กรอกไว้หายเกลี้ยง
   const preselectedApplied = useRef(false);
+  /** true เมื่อ "ตั้งต้นเสร็จแล้ว" — ก่อนหน้านี้ห้ามเขียนร่าง ไม่งั้นฟอร์มเปล่าตอน mount
+   *  จะไปทับร่างที่กรอกไว้จริงทันทีที่เปิดแผง */
+  const draftReadyRef = useRef(false);
+  /** ปิดการเขียนร่างถาวร — บันทึกบิลสำเร็จแล้ว หรือผู้ใช้กดล้างร่าง */
+  const draftDisabledRef = useRef(false);
+  const [restoredDraftAt, setRestoredDraftAt] = useState<Date | null>(null);
+
   useEffect(() => {
-    if (!preselectedCustomerId || preselectedApplied.current) return;
+    if (preselectedApplied.current) return;
+    // โหมดแก้ไข / สั่งซ้ำ มีทางเติมข้อมูลของตัวเองอยู่แล้ว — ไม่ยุ่งด้วย
+    if (isEditMode || initialOrderData) return;
+
+    const draft = draftKey && !draftDisabledRef.current ? readOrderDraft(draftKey) : null;
+    // มีร่างจริงเท่านั้นที่ต้องรอ /init ให้จบก่อน — ไม่งั้น fetchInitBundle (closure จากตอน mount)
+    // จะเซ็ตคลัง/ช่องทางทับค่าที่เพิ่งกู้มา · ไม่มีร่าง = เดินทันทีเหมือนเดิมทุกประการ
+    if (draft && loadingProducts) return;
+    if (!draft && !preselectedCustomerId) {
+      draftReadyRef.current = true; // ฟอร์มเปล่า พร้อมเริ่มจำร่างตั้งแต่ตัวอักษรแรก
+      return;
+    }
+
     preselectedApplied.current = true;
     (async () => {
-      const customer = await fetchCustomerById(preselectedCustomerId);
-      if (customer) handleSelectCustomer(customer);
+      try {
+        // 1) ลูกค้า — ในร่างมาก่อน (ผู้ใช้อาจเปลี่ยนตัวลูกค้าไปแล้ว) ไม่มีค่อยใช้ preselected
+        const customerId = draft?.data.customerId || preselectedCustomerId;
+        if (customerId) {
+          const customer = await fetchCustomerById(customerId);
+          if (customer) await handleSelectCustomer(customer);
+        }
+        // 2) ทับด้วยสิ่งที่ผู้ใช้กรอกไว้จริง (หลัง prefill ของลูกค้าเสมอ)
+        if (draft) {
+          applyDraft(draft.data);
+          setRestoredDraftAt(draft.savedAt);
+        }
+      } finally {
+        draftReadyRef.current = true;
+      }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [preselectedCustomerId]);
+  }, [preselectedCustomerId, draftKey, loadingProducts, isEditMode]);
 
   // Initialize from copied order data
   const initialDataApplied = useRef(false);
@@ -1201,6 +1246,129 @@ export default function OrderForm({
       console.error('Error fetching customer prices:', error);
     }
   };
+
+  // ── ร่างบิล: เขียนกลับเข้าฟอร์ม ──
+  // เซ็ตเฉพาะคีย์ที่ "มีอยู่จริงในร่าง" — ร่างรุ่นเก่าที่ยังไม่มีบางฟิลด์จะไม่ไปล้างค่า
+  // ที่ prefill ของลูกค้าเพิ่งเติมให้ (undefined ทับ string = ช่องว่างเปล่า)
+  const applyDraft = (d: OrderDraftSnapshot) => {
+    const put = <T,>(v: T | undefined, set: (x: T) => void) => { if (v !== undefined) set(v); };
+
+    put(d.selectedSalesChannelId, setSelectedSalesChannelId);
+    put(d.newCustomerMode, setNewCustomerMode);
+    put(d.newCustomerName, setNewCustomerName);
+    put(d.branchOrders, setBranchOrders);
+
+    put(d.selectedAddressId, setSelectedAddressId);
+    put(d.deliveryName, setDeliveryName);
+    put(d.deliveryPhone, setDeliveryPhone);
+    put(d.deliveryEmail, setDeliveryEmail);
+    put(d.deliveryAddress, setDeliveryAddress);
+    put(d.deliveryDistrict, setDeliveryDistrict);
+    put(d.deliveryAmphoe, setDeliveryAmphoe);
+    put(d.deliveryProvince, setDeliveryProvince);
+    put(d.deliveryPostalCode, setDeliveryPostalCode);
+
+    put(d.taxInvoiceRequested, setTaxInvoiceRequested);
+    put(d.taxType, setTaxType);
+    put(d.taxName, setTaxName);
+    put(d.taxTaxId, setTaxTaxId);
+    put(d.taxBranch, setTaxBranch);
+    put(d.taxAddress, setTaxAddress);
+
+    put(d.shipToOther, setShipToOther);
+    put(d.giftCardOn, setGiftCardOn);
+    put(d.giftMessage, setGiftMessage);
+    put(d.giftTo, setGiftTo);
+    put(d.giftFrom, setGiftFrom);
+    put(d.giftHidePrice, setGiftHidePrice);
+
+    put(d.documentByPost, setDocumentByPost);
+    put(d.documentRecipientName, setDocumentRecipientName);
+    put(d.documentRecipientPhone, setDocumentRecipientPhone);
+    put(d.documentAddress, setDocumentAddress);
+    put(d.documentAddressId, setDocumentAddressId);
+
+    if (d.deliveryDate) {
+      const dt = new Date(d.deliveryDate);
+      if (Number.isFinite(dt.getTime())) setDeliveryDateValue({ startDate: dt, endDate: dt });
+    }
+    put(d.selectedSlotId, setSelectedSlotId);
+    put(d.zoneOverrideId, setZoneOverrideId);
+
+    put(d.notes, setNotes);
+    put(d.internalNotes, setInternalNotes);
+    put(d.orderDiscount, setOrderDiscount);
+    put(d.orderDiscountType, setOrderDiscountType);
+    if (d.expiryMode !== undefined || d.expiryDays !== undefined) {
+      // ค่าที่ผู้ใช้ตั้งเองต้องชนะค่าเริ่มต้นของบริษัท — กันไม่ให้ effect ที่ sync
+      // billExpiryDays มาทับทีหลัง (มันเช็ค ref ตัวนี้ตัวเดียว)
+      expirySyncedRef.current = true;
+      put(d.expiryMode, setExpiryMode);
+      put(d.expiryDays, setExpiryDays);
+    }
+
+    put(d.selectedWarehouseId, setSelectedWarehouseId);
+    put(d.step, setStep);
+  };
+
+  /** ผู้ใช้กด "ล้างร่าง" — ลบของที่เก็บไว้ แล้วให้หน้าแม่ remount ฟอร์มเปล่า */
+  const handleDiscardDraft = () => {
+    if (draftKey) clearOrderDraft(draftKey);
+    draftDisabledRef.current = true;
+    setRestoredDraftAt(null);
+    onDiscardDraft?.();
+  };
+
+  // ── ร่างบิล: เก็บสิ่งที่กรอกไว้ ──
+  // ประกอบใหม่ทุก render (เฉพาะตอนเปิดใช้ร่าง) แล้วใช้ตัวสตริงเป็น dep ของ effect —
+  // ไล่ deps ทีละตัวจาก state 40 ตัวเป็นทางที่พลาดง่ายกว่ามาก
+  const draftEnabled = !!draftKey && !isEditMode;
+  const draftJson = draftEnabled ? JSON.stringify({
+    customerId: selectedCustomer?.id,
+    newCustomerMode, newCustomerName, selectedSalesChannelId,
+    branchOrders,
+    selectedAddressId,
+    deliveryName, deliveryPhone, deliveryEmail, deliveryAddress,
+    deliveryDistrict, deliveryAmphoe, deliveryProvince, deliveryPostalCode,
+    taxInvoiceRequested, taxType, taxName, taxTaxId, taxBranch, taxAddress,
+    shipToOther, giftCardOn, giftMessage, giftTo, giftFrom, giftHidePrice,
+    documentByPost, documentRecipientName, documentRecipientPhone, documentAddress, documentAddressId,
+    deliveryDate: deliveryDate || null,
+    selectedSlotId, zoneOverrideId,
+    notes, internalNotes, orderDiscount, orderDiscountType,
+    expiryMode, expiryDays,
+    selectedWarehouseId, step,
+  } satisfies OrderDraftSnapshot) : '';
+
+  /** ค่าล่าสุดที่ยังไม่ได้ลงดิสก์ — **พก key ไปด้วย** ไม่ใช่ไปอ่าน draftKey ตอนเขียน
+   *  เพราะจังหวะสลับห้อง ฟอร์มยังถือ state ของห้องเก่าอยู่ชั่วขณะแต่ draftKey เป็นของห้องใหม่แล้ว
+   *  (มัดคู่กันตั้งแต่ตอนถ่าย snapshot = เขียนผิดห้องไม่ได้เลย ไม่ว่า timer จะเด้งตอนไหน) */
+  type PendingDraft = { key: string; json: string };
+  const pendingDraftRef = useRef<PendingDraft | null>(null);
+  const writeDraftNow = (p: PendingDraft | null) => {
+    if (!p || draftDisabledRef.current) return;
+    try {
+      const data = JSON.parse(p.json) as OrderDraftSnapshot;
+      if (isDraftEmpty(data)) clearOrderDraft(p.key);
+      else writeOrderDraft(p.key, data);
+      pendingDraftRef.current = null;
+    } catch { /* ร่างเป็นของแถม — พังแล้วห้ามลาก UI ไปด้วย */ }
+  };
+  const saveDraftDebounced = useDebouncedCallback((p: PendingDraft) => writeDraftNow(p), 500);
+
+  useEffect(() => {
+    if (!draftEnabled || !draftKey) return;
+    // ก่อน "ตั้งต้นเสร็จ" ห้ามเขียน — ฟอร์มยังเปล่าอยู่ จะไปทับร่างที่กรอกไว้จริง
+    if (!draftReadyRef.current || draftDisabledRef.current) return;
+    const pending: PendingDraft = { key: draftKey, json: draftJson };
+    pendingDraftRef.current = pending;
+    saveDraftDebounced(pending);
+  }, [draftJson, draftEnabled, draftKey, saveDraftDebounced]);
+
+  // ปิดแผง/สลับห้องก่อนครบ debounce → เขียนค่าล่าสุดทันที ไม่ให้ตัวอักษรท้าย ๆ หาย
+  // (deps ว่างได้เพราะ payload พก key ของตัวเองมาแล้ว)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => () => { writeDraftNow(pendingDraftRef.current); }, []);
 
   // Copy from latest order
   const handleCopyLatestOrder = async () => {
@@ -2044,6 +2212,14 @@ export default function OrderForm({
       if (!response.ok) throw new Error(result.error || 'เกิดข้อผิดพลาด');
 
       const newOrderId = result.order?.id || result.id || editOrderId!;
+
+      // บิลลงระบบแล้ว = ร่างหมดหน้าที่ · ปิดการเขียนถาวรด้วย เพราะ state ในฟอร์มยังอยู่ครบ
+      // (หน้าจอสำเร็จค้างอยู่) แล้ว debounce รอบท้ายจะเขียนร่างกลับมาใหม่
+      if (draftKey) {
+        draftDisabledRef.current = true;
+        pendingDraftRef.current = null;
+        clearOrderDraft(draftKey);
+      }
 
       if (isEditMode) {
         showToast('บันทึกการแก้ไขสำเร็จ');
@@ -3114,6 +3290,16 @@ export default function OrderForm({
       className={`space-y-4 ${useWizard ? 'min-h-full flex flex-col' : ''} ${printMode ? 'print:hidden' : ''}`}
     >
       {portalsFragment}
+
+      {/* กู้ร่างที่กรอกค้างไว้ — บอกให้รู้ว่าของบนจอไม่ใช่ฟอร์มเปล่า พร้อมทางออกถ้าอยากเริ่มใหม่ */}
+      {restoredDraftAt && (
+        <Alert tone="info" onClose={() => setRestoredDraftAt(null)}>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span>กู้ร่างบิลที่กรอกค้างไว้ ({restoredDraftAt.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })})</span>
+            <Button variant="ghost" size="sm" onClick={handleDiscardDraft}>ล้างร่าง</Button>
+          </div>
+        </Alert>
+      )}
 
       {useWizard ? (
         <div className="space-y-4 flex-1 flex flex-col min-h-0">

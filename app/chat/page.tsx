@@ -1363,6 +1363,8 @@ function UnifiedChatPageContent() {
     sendBillToCustomer(orderId, orderNumber, billUrl);
   });
   const closeOrderPanel = useStableCallback(() => setRightPanel(null));
+  // กด "ล้างร่าง" ในฟอร์ม → remount ฟอร์ม (ร่างถูกลบไปแล้วฝั่ง OrderForm) = ได้บิลเปล่าจริง
+  const discardOrderDraft = useStableCallback(() => setOrderFormKey(k => k + 1));
 
   /** ข้อความ "สั่งล่าสุด: ..." — คืน null เมื่อ **ไม่รู้** (โหมดค้นหาไม่ enrich)
    *  ห้ามเดาเป็น "ยังไม่เคยสั่ง" เพราะลูกค้าอาจมีออเดอร์อยู่จริง */
@@ -2319,11 +2321,13 @@ function UnifiedChatPageContent() {
             source={selectedContact.source || selectedContact.platform}
             sourceName={selectedContact.account_name}
             chatAccountId={selectedContact.chat_account_id}
+            draftKey={companyId ? `chat-order-draft:${companyId}:${selectedContact.id}` : undefined}
             warehousePortalRef={warehousePortalRef}
             headerActionsRef={headerActionsRef}
             onSuccess={handleOrderPanelSuccess}
             onSendBillToChat={handleOrderPanelSendBill}
             onClose={closeOrderPanel}
+            onDiscardDraft={discardOrderDraft}
           />
         )}
 
