@@ -116,7 +116,15 @@ export interface ChatMessage {
       price?: number;
       currency?: string;
       buttons?: Array<{ type: string; title: string; url?: string }>;
+      /** การ์ดสินค้าของ Facebook Shop — id ของสินค้าในแคตตาล็อก + รหัสที่ร้านตั้งเอง */
+      id?: string;
+      retailer_id?: string;
     }>;
+    /** เทมเพลตที่แกะเนื้อไม่ได้ — เก็บ attachment ทั้งก้อนไว้ไล่จากข้อมูลจริง */
+    raw_attachment?: Record<string, unknown>;
+    /** ข้อความที่ไม่มีทั้ง text/attachment/sticker — เก็บ event ทั้งก้อน (เล็ก) */
+    raw_event?: Record<string, unknown>;
+    raw_keys?: string[];
     // Facebook receipt template
     recipient_name?: string;
     order_number?: string;
@@ -179,6 +187,10 @@ export interface ChatMessage {
       /** ลิงก์ไปหน้าสินค้าบนแพลตฟอร์ม — `shopee_url` เป็นชื่อเดิมของข้อความ Shopee ยุคแรก */
       platform_url?: string;
       shopee_url?: string;
+      /** Facebook Shop: รหัสที่ร้านตั้งไว้ในแคตตาล็อก (ตัวที่ใช้จับคู่กับสินค้าเรา) */
+      retailer_id?: string;
+      /** subtitle ของการ์ดที่อ่านแล้วไม่ใช่ราคา (ไซซ์/สี/คำโปรย) */
+      subtitle?: string;
     };
     order?: {
       order_sn: string;
@@ -194,8 +206,32 @@ export interface ChatMessage {
       order_type?: string;
       platform_url?: string;
     };
-    /** เหตุการณ์เชิงระบบ ไม่ใช่คำพูดของใคร (เช่น ลูกค้ากดขอคุยกับเจ้าหน้าที่) */
+    /** เหตุการณ์เชิงระบบ ไม่ใช่คำพูดของใคร (เช่น ลูกค้ากดขอคุยกับเจ้าหน้าที่ · เข้า/ออกกลุ่ม) */
     system_event?: string;
+
+    // ─── ตอบกลับข้อความเดิม (quote reply) ────────────────────────────────
+    /** id ของข้อความที่ถูกอ้างถึง (LINE quotedMessageId · FB reply_to.mid) */
+    reply_to_id?: string;
+    /** LINE บังคับใช้โทเคนนี้ตอนเรา "ตอบกลับ" กลับไป — เก็บไว้ใช้ทีหลัง */
+    quote_token?: string;
+    /** snapshot ของข้อความที่ถูกอ้างถึง — ไม่ต้อง join ตอนแสดง */
+    quoted?: {
+      message_id?: string | null;
+      content?: string;
+      message_type?: string | null;
+      direction?: string;
+      image_url?: string;
+    };
+
+    // ─── LINE เพิ่มเติม ──────────────────────────────────────────────────
+    /** รูปชุดเดียวกันที่ส่งรวดเดียว — total > 1 ถึงจะแสดงเลขลำดับ */
+    image_set?: { id?: string; index?: number; total?: number };
+    /** อีโมจิของ LINE — ในข้อความเป็นตัวยึดตำแหน่ง ต้องวาดเป็นรูปทับตามช่วง index */
+    emojis?: Array<{ index: number; length: number; productId: string; emojiId: string }>;
+    mention?: { mentionees?: Array<Record<string, unknown>> };
+
+    /** ลูกค้ากดปุ่ม (LINE postback / FB postback) */
+    postback?: { data?: string; params?: Record<string, string>; title?: string; payload?: string };
 
     // LINE Flex Message
     flexContents?: Record<string, unknown>;

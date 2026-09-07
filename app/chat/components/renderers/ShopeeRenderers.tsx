@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { ExternalLink, Headset, Info, Package, Receipt, Store, Ticket } from 'lucide-react';
+import { ExternalLink, Headset, Info, Package, Receipt, Store, Ticket, UserMinus, UserPlus } from 'lucide-react';
 import { ChatMessage } from '@/app/chat/lib/chatTypes';
 import { linkify } from './SharedRenderers';
 import Badge from '@/components/ui/Badge';
@@ -20,12 +20,17 @@ import { orderStatusLabel, paymentStatusLabel } from '@/lib/order-status';
 // ⚠️ ชื่อ/สีของแพลตฟอร์มอยู่ที่ PLATFORM_META ตัวเดียว — ห้าม hardcode "Shopee" ในการ์ด
 // (การ์ดใบเดียวกันนี้ใช้กับ Lazada/TikTok ด้วย)
 
-type CardPlatform = 'shopee' | 'lazada' | 'tiktok';
+// การ์ดสินค้าไม่ใช่ของ marketplace อย่างเดียวแล้ว — ลูกค้าแตะสินค้าในร้านค้าของเพจ
+// Facebook/Instagram แล้วส่งมาถามก็ได้การ์ดใบเดียวกัน (สีของ CTA จึงต้องเป็นสีของช่องทางนั้น)
+type CardPlatform = 'shopee' | 'lazada' | 'tiktok' | 'facebook' | 'instagram' | 'line';
 
 const PLATFORM_META: Record<CardPlatform, { label: string; color: string }> = {
   shopee: { label: 'Shopee', color: '#EE4D2D' },
   lazada: { label: 'Lazada', color: '#0F146E' },
   tiktok: { label: 'TikTok', color: '#161823' },
+  facebook: { label: 'Facebook', color: '#1877F2' },
+  instagram: { label: 'Instagram', color: '#E4405F' },
+  line: { label: 'LINE', color: '#06C755' },
 };
 
 interface RendererProps {
@@ -78,6 +83,7 @@ export function ProductCardBubble({ msg, platform }: RendererProps) {
   }
 
   const name = item.name || `สินค้าจาก ${meta.label}`;
+  const extraCount = Math.max((msg.raw_message?.elements?.length ?? 0) - 1, 0);
   const voucherPrice = item.voucher_price;
   const showVoucher = voucherPrice != null && voucherPrice > 0
     && (item.price == null || voucherPrice < item.price);
@@ -97,13 +103,25 @@ export function ProductCardBubble({ msg, platform }: RendererProps) {
               ราคาหลังคูปอง ฿{formatPrice(voucherPrice)}
             </p>
           )}
+          {/* ราคาอ่านไม่ออกว่าเป็นราคา (ไซซ์/สี/คำโปรย) — ยังมีค่ากับพนักงาน แสดงตามที่มา */}
+          {item.price == null && item.subtitle && (
+            <p className="text-xs text-gray-500 dark:text-slate-400 mt-0.5 break-words">{item.subtitle}</p>
+          )}
+          {/* ลูกค้าส่งมาหลายชิ้นในข้อความเดียว — การ์ดโชว์ใบแรก บอกไว้ว่ายังมีอีก */}
+          {extraCount > 0 && (
+            <p className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">+{extraCount} รายการ</p>
+          )}
         </div>
       </div>
-      <div className="flex items-center gap-3 mt-2 pt-2 border-t border-gray-100 dark:border-slate-700">
-        {/* ผูกกับสินค้าในระบบแล้วเท่านั้นถึงเปิดหน้าสินค้าได้ — ไม่มี link = ปุ่มพาไปหน้าเปล่า */}
-        {item.product_id && <CardLink href={`/products/${item.product_id}`} color={meta.color}>เปิดในระบบ</CardLink>}
-        {url && <CardLink href={url} external color={meta.color}>ดูบน {meta.label}</CardLink>}
-      </div>
+      {/* ไม่มีทั้งลิงก์ในระบบและลิงก์บนแพลตฟอร์ม (การ์ดของ Facebook Shop ไม่มี URL) —
+          แถวปุ่มว่างเปล่าพร้อมเส้นคั่นดูเหมือนของพัง จึงซ่อนทั้งแถว */}
+      {(item.product_id || url) && (
+        <div className="flex items-center gap-3 mt-2 pt-2 border-t border-gray-100 dark:border-slate-700">
+          {/* ผูกกับสินค้าในระบบแล้วเท่านั้นถึงเปิดหน้าสินค้าได้ — ไม่มี link = ปุ่มพาไปหน้าเปล่า */}
+          {item.product_id && <CardLink href={`/products/${item.product_id}`} color={meta.color}>เปิดในระบบ</CardLink>}
+          {url && <CardLink href={url} external color={meta.color}>ดูบน {meta.label}</CardLink>}
+        </div>
+      )}
     </div>
   );
 }
@@ -238,9 +256,15 @@ export function FollowInviteChip({ msg, platform }: RendererProps) {
  */
 const CHIP_MAX_CHARS = 60;
 
+const SYSTEM_EVENT_ICONS: Record<string, typeof Info> = {
+  faq_liveagent: Headset,
+  member_joined: UserPlus,
+  member_left: UserMinus,
+};
+
 export function SystemEventChip({ msg }: RendererProps) {
   const event = msg.raw_message?.system_event;
-  const Icon = event === 'faq_liveagent' ? Headset : Info;
+  const Icon = (event && SYSTEM_EVENT_ICONS[event]) || Info;
   const text = msg.content || 'ลูกค้ากดขอคุยกับเจ้าหน้าที่';
 
   if (text.length > CHIP_MAX_CHARS) {

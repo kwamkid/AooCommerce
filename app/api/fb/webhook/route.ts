@@ -107,7 +107,8 @@ export async function POST(request: NextRequest) {
 
       for (const event of entry.messaging) {
         // Handle referral events (from ads, shops, etc.) — can come with or without message
-        if (event.referral && !event.message) {
+        // (มากับ postback ได้ด้วย — ปล่อยให้สาขา postback จัดการต่อ ห้าม continue ทิ้ง)
+        if (event.referral && !event.message && !event.postback) {
           const senderId = event.sender.id;
           if (isInstagram && senderId === entryId) continue;
           if (!isInstagram && senderId === pageId) continue;
@@ -119,8 +120,22 @@ export async function POST(request: NextRequest) {
           continue;
         }
 
-        if (!event.message && !event.postback) continue;
-        if (!event.message) continue; // postback handling can be added later
+        // ลูกค้ากดปุ่มใน template / เมนูถาวร — เป็นการกระทำที่ต้องเห็นในสายสนทนา
+        // (ของเดิมข้ามทิ้ง แชทเลยขาดตอนตรงที่ลูกค้า "กดเลือก" อะไรบางอย่าง)
+        if (event.postback && !event.message) {
+          const senderId = event.sender.id;
+          if (isInstagram && senderId === entryId) continue;
+          if (!isInstagram && senderId === pageId) continue;
+
+          const contact = await fbService.getOrCreateContact(senderId, pageId, pageAccessToken, companyId, chatAccountId, isInstagram);
+          if (!contact) continue;
+          if (event.referral) await fbService.saveReferralData(contact.id, event.referral);
+          await fbService.savePostbackMessage(contact, event, companyId, chatAccountId, account.account_name);
+          continue;
+        }
+
+        // reaction / read / delivery ฯลฯ — ไม่มีอะไรให้บันทึก ข้ามไปเงียบ ๆ ห้าม throw
+        if (!event.message) continue;
 
         const senderId = event.sender.id;
         const recipientId = event.recipient.id;

@@ -3,6 +3,8 @@ import { sendChatPush } from '@/lib/push/send';
 import { logIntegrationNow } from '@/lib/integration-logger';
 import { getChatAccount, getDefaultChatAccount, getFbCredsFromAccount } from '@/lib/chat-config';
 import { getFbCredentials } from '@/lib/fb-config';
+import { findProductByRetailerId } from '@/lib/marketplace/chat-enrich';
+import { buildMessagePreview } from '@/lib/chat/message-preview';
 import crypto from 'crypto';
 import type { SendMessageParams, SendMessageResult, ResolvedCredentials, PlatformProfile, GetMessagesParams } from './types';
 
@@ -16,6 +18,8 @@ export interface FbMessagingEvent {
     text?: string;
     is_echo?: boolean;
     app_id?: number;
+    /** ผู้ส่งกด "ยกเลิกการส่ง" — ข้อความเดิมต้องถูกทำเครื่องหมาย ไม่ใช่เพิ่มแถวใหม่ */
+    is_deleted?: boolean;
     attachments?: Array<{
       type: string; // 'image' | 'video' | 'audio' | 'file' | 'fallback' | 'template' | 'story_mention' | 'story_reply'
       title?: string;
@@ -50,15 +54,27 @@ export interface FbMessagingEvent {
         // Coupon template
         coupon_url?: string;
         coupon_code?: string;
+        // Product template — ลูกค้าแตะสินค้าในร้านค้าของเพจแล้วส่งมาถาม
+        // (โครงตามเอกสารของ Meta: payload.product.elements[])
+        product?: {
+          elements?: Array<{
+            id?: string;
+            retailer_id?: string;
+            image_url?: string;
+            title?: string;
+            subtitle?: string;
+          }>;
+        };
       };
     }>;
     sticker_id?: number;
-    // Instagram story reply context
-    reply_to?: { story?: { url?: string; id?: string } };
+    // Instagram story reply context + quote reply (ตอบกลับข้อความเดิม)
+    reply_to?: { mid?: string; story?: { url?: string; id?: string } };
   };
   postback?: {
-    title: string;
-    payload: string;
+    mid?: string;
+    title?: string;
+    payload?: string;
   };
   // Facebook/Instagram referral (from ads, shops, etc.)
   referral?: {
@@ -105,6 +121,8 @@ const ATTACHMENT_LABELS: Record<string, string> = {
   ig_story: '[สตอรี่ Instagram]',
   reel: '[รีล]',
   share: '[แชร์ลิงก์]',
+  post: '[โพสต์ Facebook]',
+  appointment_booking: '[นัดหมาย]',
   ephemeral: '[สื่อที่ดูได้ครั้งเดียว]',
 };
 
@@ -450,7 +468,17 @@ export class FacebookChatService {
     accountName?: string | null
   ) {
     const message = event.message!;
-    const { messageContent, messageType, metadata } = this.parseMessageContent(message);
+
+    // ผู้ส่งเรียกข้อความคืน — ทำเครื่องหมายที่แถวเดิม ไม่ใช่บันทึกเป็นข้อความใหม่
+    if (message.is_deleted) {
+      await this.markMessageRecalled(companyId, contact.id, message.mid);
+      return;
+    }
+
+    const { messageContent, messageType, metadata } = await this.parseMessageContent(message, {
+      companyId,
+      contactId: contact.id,
+    });
 
     // Save to DB
     const { error } = await supabaseAdmin
@@ -502,6 +530,12 @@ export class FacebookChatService {
   ) {
     const message = event.message!;
 
+    // ผู้ส่งเรียกข้อความคืน (แอดมินกดยกเลิกการส่งจาก Business Suite/แอป)
+    if (message.is_deleted) {
+      await this.markMessageRecalled(companyId, contact.id, message.mid);
+      return;
+    }
+
     // Skip if we already have this message (sent via our API)
     if (message.mid) {
       const { data: existing } = await supabaseAdmin
@@ -514,7 +548,10 @@ export class FacebookChatService {
       if (existing) return; // Already saved from our sendMessage()
     }
 
-    const { messageContent, messageType, metadata } = this.parseMessageContent(message);
+    const { messageContent, messageType, metadata } = await this.parseMessageContent(message, {
+      companyId,
+      contactId: contact.id,
+    });
 
     const { error } = await supabaseAdmin
       .from('fb_messages')
@@ -646,9 +683,126 @@ export class FacebookChatService {
     return { messageContent, rawMessage };
   }
 
-  private parseMessageContent(message: NonNullable<FbMessagingEvent['message']>): {
+  /**
+   * ข้อความความยาวหนึ่งบรรทัดของข้อความที่ถูก quote — ใช้ตัวแปลตัวเดียวกับรายชื่อแชท
+   * เพื่อให้ "ตอบกลับ: …" อ่านได้เหมือนกับที่เห็นในรายชื่อ
+   */
+  private async buildQuotedSnapshot(
+    companyId: string,
+    contactId: string,
+    mid: string
+  ): Promise<Record<string, unknown> | null> {
+    const { data } = await supabaseAdmin
+      .from('fb_messages')
+      .select('fb_message_id, content, message_type, direction, raw_message')
+      .eq('company_id', companyId)
+      .eq('fb_contact_id', contactId)
+      .eq('fb_message_id', mid)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (!data) return null;
+
+    const raw = (data.raw_message as Record<string, unknown> | null) || {};
+    const imageUrl = typeof raw.imageUrl === 'string' ? raw.imageUrl : undefined;
+    return {
+      message_id: data.fb_message_id,
+      content: buildMessagePreview(data.message_type, data.content),
+      message_type: data.message_type,
+      direction: data.direction,
+      ...(imageUrl ? { image_url: imageUrl } : {}),
+    };
+  }
+
+  /**
+   * ผู้ส่งกด "ยกเลิกการส่ง" — ทำเครื่องหมายที่แถวเดิม **ห้ามเพิ่มแถวใหม่**
+   * (ไม่นับเป็นข้อความใหม่: ไม่ขยับ last_message_at ไม่บวก unread ไม่ยิงแจ้งเตือน)
+   */
+  async markMessageRecalled(companyId: string, contactId: string, mid: string) {
+    if (!mid) return;
+    const { data: existing } = await supabaseAdmin
+      .from('fb_messages')
+      .select('id, raw_message')
+      .eq('company_id', companyId)
+      .eq('fb_contact_id', contactId)
+      .eq('fb_message_id', mid)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (!existing) {
+      console.warn('FB unsend: ไม่พบข้อความต้นทางที่จะทำเครื่องหมาย', mid);
+      return;
+    }
+
+    const raw = (existing.raw_message as Record<string, unknown> | null) || {};
+    const { error } = await supabaseAdmin
+      .from('fb_messages')
+      .update({ content: '[ข้อความถูกเรียกคืน]', raw_message: { ...raw, recalled: true } })
+      .eq('id', existing.id);
+    if (error) console.error('Failed to mark FB message recalled:', error);
+  }
+
+  /**
+   * ลูกค้ากดปุ่มใน template/เมนูถาวร — เป็นการกระทำที่ต้องเห็นในสายสนทนา
+   * (ของเดิม webhook ข้ามทิ้ง แชทเลยขาดตอนตรงที่ลูกค้า "กดเลือก" อะไรบางอย่าง)
+   */
+  async savePostbackMessage(
+    contact: { id: string; unread_count: number; display_name?: string | null },
+    event: FbMessagingEvent,
+    companyId: string,
+    chatAccountId?: string | null,
+    accountName?: string | null
+  ) {
+    const postback = event.postback!;
+    const label = postback.title || postback.payload || '';
+    const messageContent = `[กดปุ่ม] ${label}`.trim();
+
+    const { error } = await supabaseAdmin
+      .from('fb_messages')
+      .insert({
+        company_id: companyId,
+        fb_contact_id: contact.id,
+        fb_message_id: postback.mid || null,
+        direction: 'incoming',
+        message_type: 'postback',
+        content: messageContent,
+        raw_message: { postback: { title: postback.title, payload: postback.payload } },
+        received_at: new Date(event.timestamp).toISOString(),
+        created_at: new Date().toISOString(),
+      });
+
+    if (error) {
+      console.error('Failed to save FB postback:', error);
+      return;
+    }
+
+    await supabaseAdmin
+      .from('fb_contacts')
+      .update({
+        last_message_at: new Date(event.timestamp).toISOString(),
+        unread_count: (contact.unread_count || 0) + 1,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', contact.id);
+
+    await sendChatPush(companyId, {
+      platform: 'facebook',
+      senderName: contact.display_name,
+      preview: messageContent,
+      contactId: contact.id,
+      messageTime: event.timestamp,
+      accountName,
+      chatAccountId,
+    });
+  }
+
+  private async parseMessageContent(
+    message: NonNullable<FbMessagingEvent['message']>,
+    ctx?: { companyId?: string | null; contactId?: string | null }
+  ): Promise<{
     messageContent: string; messageType: string; metadata: Record<string, unknown>;
-  } {
+  }> {
     let messageContent = '';
     let messageType = 'text';
     const metadata: Record<string, unknown> = {};
@@ -683,47 +837,95 @@ export class FacebookChatService {
         messageContent = '[ไฟล์]';
         if (attachment.payload?.url) metadata.fileUrl = attachment.payload.url;
       } else if (attachment.type === 'template') {
-        // Rich messages: receipts, buttons, generic, coupon templates
-        messageType = 'template';
         const payload = attachment.payload;
-        // Extract meaningful text from template
-        if (payload?.text) {
-          messageContent = payload.text;
-        } else if (payload?.template_type === 'receipt') {
-          messageContent = payload.recipient_name
-            ? `ใบเสร็จสำหรับ ${payload.recipient_name}`
-            : '[ใบเสร็จ]';
-        } else if (payload?.elements && payload.elements.length > 0) {
-          // Generic template — use first element's title + subtitle
-          const el = payload.elements[0];
-          messageContent = el.title || '';
-          if (el.subtitle) messageContent += (messageContent ? ' — ' : '') + el.subtitle;
-          if (!messageContent) messageContent = '[เทมเพลต]';
+        const productElements = payload?.product?.elements?.filter(el => el && (el.title || el.id || el.retailer_id));
+
+        if (productElements && productElements.length > 0) {
+          // ลูกค้าแตะสินค้าในร้านค้าของเพจแล้วส่งมาถาม — 228 จาก 265 ใบตามด้วย
+          // "อันนี้ราคาเท่าไร?" ภายใน 2 นาที · ของเดิมเก็บเป็น "[เทมเพลต]" เปล่า ๆ
+          // พนักงานจึงไม่รู้ว่าลูกค้าถามถึงตัวไหน
+          messageType = 'item';
+          const first = productElements[0];
+          const title = (first.title || '').trim();
+          messageContent = title ? `[สินค้า] ${title}` : '[สินค้า]';
+
+          const price = parsePriceLabel(first.subtitle);
+          const item: Record<string, unknown> = {
+            item_id: first.id || first.retailer_id || '',
+            retailer_id: first.retailer_id,
+            name: title || null,
+            image_url: first.image_url || null,
+            price,
+            product_id: null,
+            variation_id: null,
+          };
+          // subtitle ที่ไม่ใช่ราคา (ไซซ์/สี/สถานะ) ยังมีค่ากับพนักงาน — เก็บไว้ตามที่มา
+          if (price == null && first.subtitle) item.subtitle = first.subtitle;
+
+          // จับคู่กับสินค้าของเราด้วยรหัสที่ร้านตั้งไว้ในแคตตาล็อก
+          // ⚠️ หาไม่เจอ/พัง ต้องไม่ทำให้บันทึกข้อความล้ม — ตกไปใช้ค่าที่ Facebook ส่งมา
+          if (ctx?.companyId && first.retailer_id) {
+            try {
+              const found = await findProductByRetailerId(ctx.companyId, first.retailer_id);
+              if (found) {
+                item.product_id = found.product_id;
+                item.variation_id = found.variation_id;
+                if (found.name) item.name = found.name;
+                if (found.image_url) item.image_url = found.image_url;
+                if (found.price != null) item.price = found.price;
+              }
+            } catch (err) {
+              console.error('FB product lookup failed:', err);
+            }
+          }
+
+          metadata.item = item;
+          if (productElements.length > 1) metadata.elements = productElements;
         } else {
-          messageContent = attachment.title || payload?.title || '[เทมเพลต]';
-        }
-        // Store buttons info
-        if (payload?.buttons) metadata.buttons = payload.buttons;
-        if (payload?.elements) metadata.elements = payload.elements;
-        if (payload?.url) metadata.templateUrl = payload.url;
-        if (attachment.url) metadata.templateUrl = attachment.url;
-        metadata.template_type = payload?.template_type;
-        // Receipt template fields
-        if (payload?.template_type === 'receipt') {
-          if (payload.recipient_name) metadata.recipient_name = payload.recipient_name;
-          if (payload.order_number) metadata.order_number = payload.order_number;
-          if (payload.currency) metadata.currency = payload.currency;
-          if (payload.payment_method) metadata.payment_method = payload.payment_method;
-          if (payload.order_url) metadata.order_url = payload.order_url;
-          if (payload.timestamp) metadata.timestamp = payload.timestamp;
-          if (payload.summary) metadata.summary = payload.summary;
-          if (payload.address) metadata.receipt_address = payload.address;
-          if (payload.adjustments) metadata.adjustments = payload.adjustments;
-        }
-        // Coupon template fields
-        if (payload?.template_type === 'coupon') {
-          if (payload.coupon_url) metadata.coupon_url = payload.coupon_url;
-          if (payload.coupon_code) metadata.coupon_code = payload.coupon_code;
+          // Rich messages: receipts, buttons, generic, coupon templates
+          messageType = 'template';
+          // Extract meaningful text from template
+          if (payload?.text) {
+            messageContent = payload.text;
+          } else if (payload?.template_type === 'receipt') {
+            messageContent = payload.recipient_name
+              ? `ใบเสร็จสำหรับ ${payload.recipient_name}`
+              : '[ใบเสร็จ]';
+          } else if (payload?.elements && payload.elements.length > 0) {
+            // Generic template — use first element's title + subtitle
+            const el = payload.elements[0];
+            messageContent = el.title || '';
+            if (el.subtitle) messageContent += (messageContent ? ' — ' : '') + el.subtitle;
+            if (!messageContent) messageContent = '[เทมเพลต]';
+          } else {
+            messageContent = attachment.title || payload?.title || '[เทมเพลต]';
+          }
+          // Store buttons info
+          if (payload?.buttons) metadata.buttons = payload.buttons;
+          if (payload?.elements) metadata.elements = payload.elements;
+          if (payload?.url) metadata.templateUrl = payload.url;
+          if (attachment.url) metadata.templateUrl = attachment.url;
+          metadata.template_type = payload?.template_type;
+          // Receipt template fields
+          if (payload?.template_type === 'receipt') {
+            if (payload.recipient_name) metadata.recipient_name = payload.recipient_name;
+            if (payload.order_number) metadata.order_number = payload.order_number;
+            if (payload.currency) metadata.currency = payload.currency;
+            if (payload.payment_method) metadata.payment_method = payload.payment_method;
+            if (payload.order_url) metadata.order_url = payload.order_url;
+            if (payload.timestamp) metadata.timestamp = payload.timestamp;
+            if (payload.summary) metadata.summary = payload.summary;
+            if (payload.address) metadata.receipt_address = payload.address;
+            if (payload.adjustments) metadata.adjustments = payload.adjustments;
+          }
+          // Coupon template fields
+          if (payload?.template_type === 'coupon') {
+            if (payload.coupon_url) metadata.coupon_url = payload.coupon_url;
+            if (payload.coupon_code) metadata.coupon_code = payload.coupon_code;
+          }
+          // แกะอะไรไม่ได้เลย — เก็บ attachment ทั้งก้อนไว้ให้ไล่จากข้อมูลจริงรอบหน้า
+          // (ของเดิมทิ้งไป ชนิดใหม่ที่ยังไม่รู้จักจึงวิเคราะห์ย้อนหลังไม่ได้)
+          if (messageContent === '[เทมเพลต]') metadata.raw_attachment = attachment;
         }
       } else if (attachment.type === 'story_mention') {
         // Instagram: someone mentioned our account in their Story
@@ -762,11 +964,48 @@ export class FacebookChatService {
       metadata.sticker_id = message.sticker_id;
     } else {
       // Echo messages from FB Pages Manager / Business Suite may not include text
-      // Store raw keys for debugging
+      // เก็บ event ทั้งก้อน (เล็ก) ไม่ใช่แค่ชื่อคีย์ — เจอโครงแปลกครั้งหน้าจะได้ไล่จากของจริง
       messageContent = '[ข้อความ]';
       metadata.raw_keys = Object.keys(message);
+      metadata.raw_event = message;
+    }
+
+    // ตอบกลับข้อความเดิม (quote reply) — snapshot ไว้ในข้อความนี้เลย ไม่ต้อง join ตอนแสดง
+    const replyToMid = message.reply_to?.mid;
+    if (replyToMid) {
+      metadata.reply_to_id = replyToMid;
+      if (ctx?.companyId && ctx.contactId) {
+        try {
+          const quoted = await this.buildQuotedSnapshot(ctx.companyId, ctx.contactId, replyToMid);
+          if (quoted) metadata.quoted = quoted;
+        } catch (err) {
+          console.error('FB quoted lookup failed:', err);
+        }
+      }
     }
 
     return { messageContent, messageType, metadata };
   }
+}
+
+/**
+ * subtitle ของการ์ดสินค้า → ตัวเลขราคา **เฉพาะเมื่อมันเป็นราคาจริง**
+ *
+ * Facebook ใส่อะไรก็ได้ใน subtitle (ราคา / ไซซ์ / คำโปรย) — เดาเป็นราคาทุกครั้งที่มีเลข
+ * จะได้การ์ดที่บอกราคาผิด · ต้องมีสัญลักษณ์สกุลเงิน หรือเป็นตัวเลขล้วนเท่านั้น
+ */
+export function parsePriceLabel(subtitle?: string | null): number | null {
+  if (!subtitle) return null;
+  const text = subtitle.trim();
+  if (!text) return null;
+
+  const hasCurrency = /(฿|\$|€|£|¥|\bTHB\b|\bUSD\b|บาท)/i.test(text);
+  const looksNumericOnly = /^[\d,.\s]+$/.test(text);
+  if (!hasCurrency && !looksNumericOnly) return null;
+
+  // จับกลุ่มที่มีคอมมาคั่นหลักก่อน ไม่งั้น "1,290" จะอ่านได้แค่ "1"
+  const match = text.match(/\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?/);
+  if (!match) return null;
+  const value = Number(match[0].replace(/,/g, ''));
+  return Number.isFinite(value) && value > 0 ? value : null;
 }

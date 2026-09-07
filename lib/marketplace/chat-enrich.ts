@@ -58,6 +58,56 @@ export async function findProductImageUrl(
 }
 
 /**
+ * ประกอบข้อมูลการ์ดจาก "สินค้าในระบบเรา" ที่รู้ id แล้ว
+ *
+ * ใช้ร่วมทุกทางที่หาสินค้าเจอ (link ของ marketplace · retailer_id ของ Facebook Shop)
+ * — ชื่อ/รูป/ราคาต้องมาจากที่เดียวกันเสมอ ไม่งั้นการ์ดของคนละช่องทางจะพูดคนละราคา
+ * `fallback` = ค่าที่ช่องทางนั้นส่งมาเอง ใช้เมื่อของเราไม่มี
+ */
+async function buildProductInfo(
+  companyId: string,
+  productId: string,
+  variationId: string | null,
+  fallback?: { name?: string | null; image?: string | null; price?: number | null }
+): Promise<LinkedProductInfo> {
+  const [{ data: product }, { data: variation }] = await Promise.all([
+    supabaseAdmin.from('products').select('id, name, code').eq('id', productId).maybeSingle(),
+    variationId
+      ? supabaseAdmin
+          .from('product_variations')
+          .select('id, variation_label, sku, attributes, default_price, discount_price')
+          .eq('id', variationId)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
+  ]);
+
+  const name = product
+    ? productDisplayName({
+        product_name: product.name,
+        product_code: product.code,
+        variation_label: variation?.variation_label ?? null,
+        sku: variation?.sku ?? null,
+        attributes: (variation?.attributes as Record<string, string> | null) ?? null,
+      })
+    : fallback?.name || null;
+
+  const ourPrice = variation
+    ? (Number(variation.discount_price) > 0 ? Number(variation.discount_price) : Number(variation.default_price))
+    : null;
+
+  return {
+    product_id: productId,
+    variation_id: variationId,
+    name: name || fallback?.name || null,
+    image_url:
+      (await findProductImageUrl(companyId, productId, variationId)) ||
+      fallback?.image ||
+      null,
+    price: ourPrice && ourPrice > 0 ? ourPrice : (fallback?.price ?? null),
+  };
+}
+
+/**
  * id สินค้าของแพลตฟอร์ม → สินค้าในระบบเรา
  *
  * `externalModelId` (model/sku/variation ของแพลตฟอร์ม) เป็นตัวเลือก — ส่งมาเมื่อการ์ด
@@ -96,41 +146,48 @@ export async function findLinkedProduct(
   }
   if (!link?.product_id) return null;
 
-  const [{ data: product }, { data: variation }] = await Promise.all([
-    supabaseAdmin.from('products').select('id, name, code').eq('id', link.product_id).maybeSingle(),
-    link.variation_id
-      ? supabaseAdmin
-          .from('product_variations')
-          .select('id, variation_label, sku, attributes, default_price, discount_price')
-          .eq('id', link.variation_id)
-          .maybeSingle()
-      : Promise.resolve({ data: null }),
-  ]);
+  return buildProductInfo(companyId, link.product_id, link.variation_id ?? null, {
+    name: link.platform_product_name,
+    image: link.platform_primary_image,
+    price: Number(link.platform_price) || null,
+  });
+}
 
-  const name = product
-    ? productDisplayName({
-        product_name: product.name,
-        product_code: product.code,
-        variation_label: variation?.variation_label ?? null,
-        sku: variation?.sku ?? null,
-        attributes: (variation?.attributes as Record<string, string> | null) ?? null,
-      })
-    : link.platform_product_name || null;
+/**
+ * รหัสสินค้าที่ร้านตั้งไว้ในแคตตาล็อกของ Facebook/Instagram Shop (`retailer_id`)
+ * → สินค้าในระบบเรา
+ *
+ * Facebook ไม่มีตาราง link แบบ marketplace (สินค้าอยู่ใน Commerce Manager ไม่ได้ผูก
+ * กับเรา) — สิ่งเดียวที่โยงกลับได้คือรหัสที่ร้านพิมพ์เอง จึงไล่หาจาก SKU ของ variation
+ * ก่อน แล้วค่อยรหัสสินค้า · หาไม่เจอ = คืน null แล้วใช้ชื่อ/รูป/ราคาที่ Facebook ส่งมา
+ */
+export async function findProductByRetailerId(
+  companyId: string,
+  retailerId: string
+): Promise<LinkedProductInfo | null> {
+  const code = (retailerId || '').trim();
+  if (!code) return null;
 
-  const ourPrice = variation
-    ? (Number(variation.discount_price) > 0 ? Number(variation.discount_price) : Number(variation.default_price))
-    : null;
+  const { data: variation } = await supabaseAdmin
+    .from('product_variations')
+    .select('id, product_id')
+    .eq('company_id', companyId)
+    .eq('sku', code)
+    .is('deleted_at', null)
+    .limit(1)
+    .maybeSingle();
+  if (variation?.product_id) return buildProductInfo(companyId, variation.product_id, variation.id);
 
-  return {
-    product_id: link.product_id,
-    variation_id: link.variation_id ?? null,
-    name: name || link.platform_product_name || null,
-    image_url:
-      (await findProductImageUrl(companyId, link.product_id, link.variation_id)) ||
-      link.platform_primary_image ||
-      null,
-    price: ourPrice && ourPrice > 0 ? ourPrice : (Number(link.platform_price) || null),
-  };
+  const { data: product } = await supabaseAdmin
+    .from('products')
+    .select('id')
+    .eq('company_id', companyId)
+    .eq('code', code)
+    .limit(1)
+    .maybeSingle();
+  if (product?.id) return buildProductInfo(companyId, product.id, null);
+
+  return null;
 }
 
 /** เลขออเดอร์ของแพลตฟอร์ม → ออเดอร์ที่ sync เข้าระบบแล้ว (ไม่เจอ = ยังไม่ sync) */

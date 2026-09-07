@@ -22,6 +22,17 @@ const PREVIEW_BY_TYPE: Record<string, string> = {
   order: '📦 คำสั่งซื้อ',
   voucher: '🎟️ คูปอง',
   follow_invite: '🏪 ชวนติดตามร้าน',
+  // แชร์โพสต์/รีล/สตอรี่จาก Facebook & Instagram — เนื้อความจริงอยู่ที่ต้นทาง
+  // ฟองข้อความมีแต่ป้าย จึงต้องมีป้ายในรายชื่อด้วย ไม่งั้นแถวจะว่าง
+  ig_post: '📷 โพสต์ Instagram',
+  ig_reel: '🎞️ รีล',
+  reel: '🎞️ รีล',
+  share: '🔗 แชร์',
+  post: '🔗 แชร์',
+  ig_story: '📖 สตอรี่',
+  ephemeral: '👁️ ดูได้ครั้งเดียว',
+  unsupported_type: '⚠️ เนื้อหาที่แพลตฟอร์มไม่ส่งมา',
+  postback: '🔘 กดปุ่ม',
 };
 
 function decodeEntities(s: string): string {

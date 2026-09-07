@@ -33,10 +33,25 @@ interface LineEvent {
       originalContentUrl?: string;
       previewImageUrl?: string;
     };
+    /** รูปชุดเดียวกันที่ส่งรวดเดียว — LINE ส่งมาทีละใบพร้อมเลขลำดับ */
+    imageSet?: { id: string; index: number; total: number };
+    /** อีโมจิของ LINE (ไม่ใช่ตัวอักษร) — ในข้อความเป็นตัวยึดตำแหน่ง */
+    emojis?: Array<{ index: number; length: number; productId: string; emojiId: string }>;
+    mention?: { mentionees?: Array<Record<string, unknown>> };
+    /** ตอบกลับข้อความเดิม */
+    quotedMessageId?: string;
+    quoteToken?: string;
   };
   postback?: {
-    data: string;
+    data?: string;
+    params?: Record<string, string>;
   };
+  /** ผู้ส่งกด "ยกเลิกการส่ง" — ต้องไปทำเครื่องหมายที่ข้อความเดิม */
+  unsend?: {
+    messageId: string;
+  };
+  joined?: { members?: Array<{ type?: string; userId?: string }> };
+  left?: { members?: Array<{ type?: string; userId?: string }> };
 }
 
 interface LineWebhookBody {
@@ -159,6 +174,38 @@ async function processEvent(
       chatAccountId,
       accountName
     );
+  }
+
+  // ผู้ส่งเรียกข้อความคืน — ทำเครื่องหมายที่แถวเดิม ไม่ใช่เพิ่มแถวใหม่
+  if (event.type === 'unsend' && event.unsend?.messageId) {
+    await lineService.handleUnsendEvent(event.unsend.messageId, companyId);
+    return;
+  }
+
+  // ลูกค้ากดปุ่มใน rich menu / template
+  if (event.type === 'postback' && event.postback) {
+    const contact = await lineService.getOrCreateContact(contactId, isGroup, lineUserId, accessToken, companyId, chatAccountId);
+    if (!contact) return;
+    await lineService.savePostbackMessage(contact, event.postback, event.timestamp, companyId, chatAccountId, accountName);
+    return;
+  }
+
+  // มีคนเข้า/ออกกลุ่ม — เหตุการณ์ในสายสนทนา ไม่ใช่ข้อความของใคร
+  if ((event.type === 'memberJoined' || event.type === 'memberLeft') && isGroup) {
+    const contact = await lineService.getOrCreateContact(contactId, isGroup, lineUserId, accessToken, companyId, chatAccountId);
+    if (!contact) return;
+    const joined = event.type === 'memberJoined';
+    await lineService.handleMemberChangeEvent(
+      contact,
+      joined ? 'joined' : 'left',
+      (joined ? event.joined?.members : event.left?.members),
+      contactId,
+      sourceType === 'group',
+      accessToken,
+      companyId,
+      event.timestamp
+    );
+    return;
   }
 
   if (event.type === 'follow' && lineUserId && !isGroup) {

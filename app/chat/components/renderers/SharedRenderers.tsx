@@ -48,7 +48,11 @@ export function ImageBubble({ msg, onOpenLightbox, onImageLoad }: RendererProps)
   const imageUrl = msg.raw_message?.imageUrl;
   if (!imageUrl) return <p className="whitespace-pre-wrap break-words">{msg.content}</p>;
 
-  return (
+  // LINE ส่งรูปชุดเดียวกันมาทีละใบ — บอกลำดับไว้ พนักงานจะได้รู้ว่ายังมีอีกกี่ใบ
+  const set = msg.raw_message?.image_set;
+  const total = set?.total ?? 0;
+
+  const img = (
     <img
       src={imageUrl}
       alt="image"
@@ -56,6 +60,17 @@ export function ImageBubble({ msg, onOpenLightbox, onImageLoad }: RendererProps)
       onClick={() => onOpenLightbox?.(imageUrl)}
       onLoad={onImageLoad}
     />
+  );
+
+  if (total <= 1) return img;
+
+  return (
+    <div className="relative inline-block">
+      {img}
+      <span className="absolute bottom-1.5 right-1.5 px-1.5 py-0.5 rounded-full bg-black/60 text-white text-[10px] leading-none">
+        {set?.index ?? 1}/{total}
+      </span>
+    </div>
   );
 }
 
@@ -221,7 +236,67 @@ export function linkify(text: string) {
   );
 }
 
+/**
+ * อีโมจิของ LINE (ไม่ใช่ตัวอักษร Unicode) — ในตัวข้อความเป็นแค่ตัวยึดตำแหน่ง `$`
+ * ต้องวาดรูปทับตามช่วง index/length ที่ LINE บอกมา ไม่งั้นลูกค้าส่งอะไรมาก็อ่านไม่ออก
+ *
+ * ช่วงต้องเรียงและห้ามซ้อนกัน — ตัวที่ย้อนหลังกว่าเคอร์เซอร์ให้ข้ามทิ้ง (ข้อมูลเพี้ยน)
+ */
+function renderLineEmojis(
+  text: string,
+  emojis: NonNullable<NonNullable<ChatMessage['raw_message']>['emojis']>
+) {
+  const ranges = emojis
+    .filter(e => e && Number.isFinite(e.index) && e.index >= 0 && e.productId && e.emojiId)
+    .sort((a, b) => a.index - b.index);
+
+  const nodes: React.ReactNode[] = [];
+  let cursor = 0;
+
+  ranges.forEach((emoji, i) => {
+    if (emoji.index < cursor || emoji.index > text.length) return;
+    if (emoji.index > cursor) nodes.push(<span key={`t${i}`}>{linkify(text.slice(cursor, emoji.index))}</span>);
+    nodes.push(
+      <img
+        key={`e${i}`}
+        src={`https://stickershop.line-scdn.net/sticonshop/v1/sticon/${emoji.productId}/android/${emoji.emojiId}.png`}
+        alt=""
+        className="inline-block h-5 w-5 align-text-bottom"
+      />
+    );
+    cursor = emoji.index + (emoji.length > 0 ? emoji.length : 1);
+  });
+
+  if (cursor < text.length) nodes.push(<span key="tail">{linkify(text.slice(cursor))}</span>);
+  return nodes;
+}
+
+/** ข้อความที่ถูกอ้างถึง (ตอบกลับ) — สีรับมาจากฟองที่ครอบอยู่ ใช้ได้ทั้งขาเข้า/ขาออก */
+export function QuotedMessage({
+  quoted,
+}: {
+  quoted: NonNullable<NonNullable<ChatMessage['raw_message']>['quoted']>;
+}) {
+  return (
+    <div className="border-l-2 border-current/40 pl-2 mb-1 text-xs opacity-80 flex items-start gap-2">
+      <div className="min-w-0 flex-1">
+        <p className="font-medium">ตอบกลับ</p>
+        <p className="line-clamp-2 break-words whitespace-pre-wrap">{quoted.content || ''}</p>
+      </div>
+      {quoted.image_url && (
+        <img src={quoted.image_url} alt="" className="w-8 h-8 rounded object-cover flex-shrink-0" />
+      )}
+    </div>
+  );
+}
+
 export function TextBubble({ msg, onOpenLightbox, onImageLoad }: RendererProps) {
+  // อีโมจิของ LINE — ต้องวาดก่อน ไม่ต้องผ่านตัวถอด HTML (LINE ไม่เคยส่ง HTML มา)
+  const emojis = msg.raw_message?.emojis;
+  if (emojis && emojis.length > 0) {
+    return <p className="whitespace-pre-wrap break-words">{renderLineEmojis(msg.content, emojis)}</p>;
+  }
+
   // ข้อความบาง platform (Lazada เป็นหลัก) ฝัง HTML มาในช่อง text — วาดรูป/ลิงก์
   // จริงแทนการโชว์แท็กดิบ · parse เป็น token แล้วให้ React วาด ไม่ยัด HTML เข้า DOM
   if (hasHtmlMarkup(msg.content)) {

@@ -1,5 +1,6 @@
 'use client';
 
+import { memo } from 'react';
 import { ChatMessage } from '@/app/chat/lib/chatTypes';
 import {
   StickerBubble,
@@ -10,6 +11,7 @@ import {
   FileBubble,
   FallbackBubble,
   TextBubble,
+  QuotedMessage,
 } from './renderers/SharedRenderers';
 import dynamic from 'next/dynamic';
 
@@ -29,8 +31,6 @@ const SystemEventChip = dynamic(() => import('./renderers/ShopeeRenderers').then
 const VoucherCardBubble = dynamic(() => import('./renderers/ShopeeRenderers').then(m => m.VoucherCardBubble), { ssr: false, loading: RENDERER_FALLBACK });
 const FollowInviteChip = dynamic(() => import('./renderers/ShopeeRenderers').then(m => m.FollowInviteChip), { ssr: false, loading: RENDERER_FALLBACK });
 
-const MARKETPLACE_PLATFORMS = ['shopee', 'lazada', 'tiktok'];
-
 interface MessageBubbleProps {
   msg: ChatMessage;
   platform: 'line' | 'facebook' | 'shopee' | 'lazada' | 'tiktok';
@@ -39,7 +39,45 @@ interface MessageBubbleProps {
   onImageLoad?: () => void;
 }
 
-export default function MessageBubble({
+function MessageBubble({
+  msg,
+  platform,
+  direction,
+  onOpenLightbox,
+  onImageLoad,
+}: MessageBubbleProps) {
+  // ผู้ส่งเรียกข้อความคืนแล้ว — เนื้อความเดิมไม่มีสิทธิ์โผล่ ไม่ว่าจะเป็นชนิดไหน
+  if (msg.raw_message?.recalled) {
+    return <p className="italic opacity-70">ข้อความถูกเรียกคืน</p>;
+  }
+
+  const inner = renderBody({ msg, platform, direction, onOpenLightbox, onImageLoad });
+
+  // ตอบกลับข้อความเดิม — บล็อกอ้างอิงอยู่เหนือเนื้อในฟองเดียวกัน (สีรับจากฟอง)
+  if (msg.raw_message?.quoted) {
+    return (
+      <>
+        <QuotedMessage quoted={msg.raw_message.quoted} />
+        {inner}
+      </>
+    );
+  }
+
+  return inner;
+}
+
+/**
+ * ห้องที่เปิดอยู่มีฟองข้อความหลายสิบใบ และหน้าแชท re-render ทุกครั้งที่มีข้อความเข้า —
+ * ถ้าไม่ memo ฟองทุกใบจะ render ใหม่หมดทั้งที่มีใบเดียวที่เปลี่ยน
+ *
+ * ⚠️ ใช้ได้เพราะ props ทุกตัวเป็นค่าพื้นฐานหรือ identity คงที่: `msg` เปลี่ยน object
+ * เฉพาะใบที่ถูกแก้จริง (`setMessages(prev => prev.map(...))` คืนตัวเดิมสำหรับใบอื่น) ·
+ * `onOpenLightbox`/`onImageLoad` เป็น useCallback ฝั่งหน้าแชท — **ส่ง inline lambda
+ * เข้ามาเมื่อไหร่ memo ไร้ผลทันที**
+ */
+export default memo(MessageBubble);
+
+function renderBody({
   msg,
   platform,
   direction,
@@ -47,14 +85,10 @@ export default function MessageBubble({
   onImageLoad,
 }: MessageBubbleProps) {
   const props = { msg, direction, onOpenLightbox, onImageLoad };
-  // การ์ดของ marketplace ใช้ renderer ชุดเดียวกันทุกเจ้า — ต้องบอกไปว่าเป็นเจ้าไหน
-  // ไม่งั้นการ์ดของ Lazada จะเขียนว่า "ดูบน Shopee"
-  const cardProps = { msg, direction, platform: MARKETPLACE_PLATFORMS.includes(platform) ? platform as 'shopee' | 'lazada' | 'tiktok' : undefined };
-
-  // ผู้ส่งเรียกข้อความคืนแล้ว — เนื้อความเดิมไม่มีสิทธิ์โผล่ ไม่ว่าจะเป็นชนิดไหน
-  if (msg.raw_message?.recalled) {
-    return <p className="italic opacity-70">ข้อความถูกเรียกคืน</p>;
-  }
+  // การ์ดสินค้า/ออเดอร์ใช้ renderer ชุดเดียวกันทุกช่องทาง — ต้องบอกไปว่าเป็นเจ้าไหน
+  // ไม่งั้นการ์ดของ Lazada จะเขียนว่า "ดูบน Shopee" และการ์ดของ Facebook Shop
+  // จะได้สีส้มของ Shopee
+  const cardProps = { msg, direction, platform };
 
   switch (msg.message_type) {
     case 'sticker':
@@ -104,6 +138,19 @@ export default function MessageBubble({
 
     case 'fallback':
       if (msg.raw_message?.linkUrl || msg.raw_message?.templateUrl) return <FallbackBubble {...props} />;
+      break;
+
+    // โพสต์/รีล/สตอรี่/ลิงก์ที่แชร์มาจาก Facebook & Instagram — ป้ายอย่างเดียวเปิดอะไร
+    // ไม่ได้เลย (ของเดิมตกมาที่ TextBubble) ทั้งที่ webhook เก็บ linkUrl ไว้ให้แล้ว
+    case 'ig_post':
+    case 'ig_reel':
+    case 'reel':
+    case 'share':
+    case 'post':
+    case 'ig_story':
+    case 'ephemeral':
+    case 'unsupported_type':
+      if (msg.raw_message?.linkUrl) return <FallbackBubble {...props} />;
       break;
 
     // Shopee: การ์ดสินค้า/ออเดอร์ — ฟองเดิมมีแต่ id ที่พนักงานอ่านไม่ออกว่าคือตัวไหน

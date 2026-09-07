@@ -26,6 +26,30 @@
 
 ---
 
+## 2026-09-08 — แชท FB/IG/LINE: การ์ดสินค้าจาก Facebook Shop หายทั้ง 265 ใบ · unsend กลายเป็นข้อความใหม่ · แชร์โพสต์กดไม่ได้ · LINE ไม่รู้จัก unsend/quote/emoji/postback
+
+**ที่เกิด**: [lib/services/chat/facebook.ts](lib/services/chat/facebook.ts) `parseMessageContent()` · [app/api/fb/webhook/route.ts](app/api/fb/webhook/route.ts) · [lib/services/chat/line.ts](lib/services/chat/line.ts) · [app/api/line/webhook/route.ts](app/api/line/webhook/route.ts) · `app/chat/components/MessageBubble.tsx` + renderers
+
+**อาการ**:
+- ลูกค้าแตะสินค้าในร้านค้าของเพจ Facebook แล้วส่งมาถาม "อันนี้ราคาเท่าไร?" — แอดมินเห็นแค่ "[เทมเพลต]" ไม่รู้ว่าสินค้าตัวไหน (265 ใบ · Taf Toys 206 · 228 ใบตามด้วยคำถามราคาภายใน 2 นาที)
+- ลูกค้ากด unsend บน FB → ระบบเพิ่มฟอง "[ข้อความ]" ใบใหม่ ส่วนข้อความเดิมยังอยู่ (7 ใบ) · LINE unsend ไม่มีอะไรเกิดขึ้นเลย
+- โพสต์/รีล/ลิงก์ที่ลูกค้าแชร์จาก IG/FB (ig_post 87, ig_reel 26, share 18) ขึ้นแค่ป้าย เปิดต้นทางไม่ได้ทั้งที่เก็บ URL ไว้แล้ว
+- LINE: ตอบแบบ quote ไม่รู้ว่าตอบใบไหน · อีโมจิของ LINE เป็นช่องว่าง · รูปหลายใบไม่รู้ว่าเป็นชุดเดียวกัน · คนเข้า/ออกกลุ่มและการกดปุ่มใน rich menu หายไปจากสายสนทนา
+
+**Root cause**:
+- Meta ส่งการ์ดสินค้าเป็น `attachments[].type='template'` + `payload.product.elements[]` แต่ parser อ่าน `payload.elements` / `payload.text` / `template_type` เท่านั้น → แกะไม่ได้ และ**ทิ้ง payload ทั้งก้อน** (เก็บแค่ `{}`) จึงไล่ย้อนหลังไม่ได้ว่าคืออะไร — ต้องเทียบเวลากับข้อความถัดไปถึงเดาออก แล้วยืนยันจากเอกสาร Meta
+- `message.is_deleted` ตกไปสาขา "ไม่มี text/attachment" → insert แถวใหม่ · route ของ LINE handle แค่ message/follow/unfollow/join/leave
+- MessageBubble ไม่มี case ของ ig_post/ig_reel/share/… → TextBubble วาดแค่ป้าย
+- LINE `quotedMessageId`/`quoteToken`/`imageSet`/`emojis`/`mention` และ event `unsend`/`postback`/`memberJoined`/`memberLeft` ไม่เคยถูกอ่าน
+
+**วิธีแก้**: ดูรายละเอียดใน CLAUDE.md §"แชท LINE / Facebook / Instagram — ชนิดข้อความที่รองรับ" — สรุป: การ์ดสินค้า FB → `item` + จับคู่ `retailer_id` กับ SKU/รหัสสินค้า (`findProductByRetailerId`) · unsend ทั้งสองแพลตฟอร์ม = UPDATE แถวเดิมเป็นเรียกคืน · แชร์ → FallbackBubble มีลิงก์ · quote snapshot ตอนบันทึก + `QuotedMessage` · LINE emoji/imageSet/member/postback · โครงที่แกะไม่ได้เก็บ `raw_attachment`/`raw_event` · ข้อมูลเก่า: FB unsend 7 ใบทำเครื่องหมายใบเดิม + ลบใบ "[ข้อความ]" ด้วย SQL แล้ว · การ์ดสินค้า 265 ใบเก่ากู้ไม่ได้ (raw ว่าง) รองรับตั้งแต่ใบถัดไป
+
+**ป้องกัน regression**:
+- **โครง payload ที่แกะไม่ได้ต้องเก็บดิบไว้เสมอ** (`raw_attachment` / `raw_event`) — บั๊กนี้หาต้นตอไม่ได้จากข้อมูลเพราะของเดิมเก็บแค่ชื่อคีย์ · เจอ `raw_attachment` โผล่ใน DB = มีชนิดใหม่ให้รองรับ
+- **เหตุการณ์ที่ "แก้ข้อความเดิม" (unsend/edit) ห้ามเดินสายเดียวกับ "ข้อความใหม่"** — เช็คธงพวกนี้ก่อนเข้า parser ทุกครั้ง
+- webhook ทุกแพลตฟอร์มต้องมีสาขา "event ที่ไม่ใช่ข้อความ" ที่**ข้ามเงียบ ๆ ไม่ throw** (reaction/read/delivery) — และ event ที่มีความหมายกับพนักงาน (postback/member) ต้องลงสายสนทนา
+- ป้ายชื่อ/สีของช่องทางในการ์ดอ่านจาก `PLATFORM_META` ตัวเดียว (มี facebook/instagram/line แล้ว) — ห้าม hardcode
+
 ## 2026-09-07 — แชท Lazada: รายชื่อโชว์ HTML ดิบ · auto-reply เป็น JSON `{"th":…}` · การ์ดสินค้า/ออเดอร์ไม่ขึ้น · ข้อความระบบ/คูปอง/เรียกคืนไม่มีตัววาด
 
 **ที่เกิด**: [lib/lazada/chat.ts](lib/lazada/chat.ts) `parseLazadaMessageContent()` · [lib/services/chat/lazada.ts](lib/services/chat/lazada.ts) `saveMessages()` · [lib/chat/message-preview.ts](lib/chat/message-preview.ts) · renderer ใน `app/chat/components/`

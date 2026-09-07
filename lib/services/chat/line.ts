@@ -2,6 +2,7 @@ import { supabaseAdmin } from '@/lib/supabase-admin';
 import { sendChatPush } from '@/lib/push/send';
 import { logIntegrationNow } from '@/lib/integration-logger';
 import { getChatAccount, getDefaultChatAccount, getLineCredsFromAccount } from '@/lib/chat-config';
+import { buildMessagePreview } from '@/lib/chat/message-preview';
 import crypto from 'crypto';
 import sharp from 'sharp';
 import type { SendMessageParams, SendMessageResult, ResolvedCredentials, PlatformProfile, GetMessagesParams } from './types';
@@ -364,6 +365,26 @@ export class LineChatService {
       messageContent = `[${msgType}]`;
     }
 
+    // รูปชุดเดียวกันที่ลูกค้าส่งรวดเดียว — LINE ส่งมาทีละใบพร้อมเลขลำดับ
+    if (message.imageSet) metadata.image_set = message.imageSet;
+    // อีโมจิของ LINE (ไม่ใช่ตัวอักษร) — ในข้อความเป็นตัวยึดตำแหน่ง ต้องวาดเป็นรูปทับ
+    if (Array.isArray(message.emojis) && message.emojis.length > 0) metadata.emojis = message.emojis;
+    // การกล่าวถึงในกลุ่ม — เก็บไว้ก่อน (ยังไม่มีตัวแสดงเฉพาะ)
+    if (message.mention) metadata.mention = message.mention;
+
+    // ตอบกลับข้อความเดิม — snapshot ไว้ในข้อความนี้เลย ไม่ต้อง join ตอนแสดง
+    // quoteToken เก็บไว้ใช้ตอนเรา "ตอบกลับ" กลับไปบ้างในอนาคต (LINE บังคับใช้โทเคนนี้)
+    if (typeof message.quoteToken === 'string') metadata.quote_token = message.quoteToken;
+    if (typeof message.quotedMessageId === 'string' && message.quotedMessageId) {
+      metadata.reply_to_id = message.quotedMessageId;
+      try {
+        const quoted = await this.buildQuotedSnapshot(companyId, contact.id, message.quotedMessageId);
+        if (quoted) metadata.quoted = quoted;
+      } catch (err) {
+        console.error('LINE quoted lookup failed:', err);
+      }
+    }
+
     // Save to DB
     const insertData: Record<string, unknown> = {
       line_contact_id: contact.id,
@@ -402,6 +423,165 @@ export class LineChatService {
         preview: messageContent,
         contactId: contact.id,
         messageTime: event.timestamp,
+        accountName,
+        chatAccountId,
+      });
+    }
+  }
+
+  /**
+   * ข้อความความยาวหนึ่งบรรทัดของข้อความที่ถูกอ้างถึง — ใช้ตัวแปลตัวเดียวกับรายชื่อแชท
+   * เพื่อให้ "ตอบกลับ: …" อ่านได้เหมือนที่เห็นในรายชื่อ
+   */
+  private async buildQuotedSnapshot(
+    companyId: string | null,
+    contactId: string,
+    quotedMessageId: string
+  ): Promise<Record<string, unknown> | null> {
+    let query = supabaseAdmin
+      .from('line_messages')
+      .select('line_message_id, content, message_type, direction, raw_message')
+      .eq('line_contact_id', contactId)
+      .eq('line_message_id', quotedMessageId);
+    if (companyId) query = query.eq('company_id', companyId);
+
+    const { data } = await query.order('created_at', { ascending: false }).limit(1).maybeSingle();
+    if (!data) return null;
+
+    const raw = (data.raw_message as Record<string, unknown> | null) || {};
+    const imageUrl = typeof raw.imageUrl === 'string' ? raw.imageUrl : undefined;
+    return {
+      message_id: data.line_message_id,
+      content: buildMessagePreview(data.message_type, data.content),
+      message_type: data.message_type,
+      direction: data.direction,
+      ...(imageUrl ? { image_url: imageUrl } : {}),
+    };
+  }
+
+  /**
+   * ผู้ส่งกด "ยกเลิกการส่ง" — ทำเครื่องหมายที่แถวเดิม **ห้ามเพิ่มแถวใหม่**
+   * (ไม่ขยับ last_message_at ไม่บวก unread ไม่ยิงแจ้งเตือน)
+   */
+  async handleUnsendEvent(messageId: string, companyId: string | null) {
+    if (!messageId) return;
+    let query = supabaseAdmin
+      .from('line_messages')
+      .select('id, raw_message')
+      .eq('line_message_id', messageId);
+    if (companyId) query = query.eq('company_id', companyId);
+
+    const { data: existing } = await query.order('created_at', { ascending: false }).limit(1).maybeSingle();
+    if (!existing) {
+      console.warn('LINE unsend: ไม่พบข้อความต้นทางที่จะทำเครื่องหมาย', messageId);
+      return;
+    }
+
+    const raw = (existing.raw_message as Record<string, unknown> | null) || {};
+    const { error } = await supabaseAdmin
+      .from('line_messages')
+      .update({ content: '[ข้อความถูกเรียกคืน]', raw_message: { ...raw, recalled: true } })
+      .eq('id', existing.id);
+    if (error) console.error('Failed to mark LINE message recalled:', error);
+  }
+
+  /**
+   * มีคนเข้า/ออกกลุ่ม — เป็นเหตุการณ์ ไม่ใช่ข้อความของใคร (หน้าแชทวาดเป็นชิปกลางจอ)
+   * ดึงชื่อแบบ best effort · ไม่บวก unread และไม่ยิงแจ้งเตือน
+   */
+  async handleMemberChangeEvent(
+    contact: { id: string },
+    action: 'joined' | 'left',
+    members: Array<{ userId?: string }> | undefined,
+    groupId: string,
+    isGroup: boolean,
+    accessToken: string,
+    companyId: string | null,
+    timestamp: number
+  ) {
+    const ids = (members || []).map(m => m?.userId).filter((id): id is string => !!id);
+    const names = await Promise.all(
+      ids.map(async userId => {
+        try {
+          const profile = await this.getGroupMemberProfile(groupId, userId, isGroup, accessToken);
+          return profile?.displayName || 'สมาชิก';
+        } catch {
+          return 'สมาชิก';
+        }
+      })
+    );
+    const label = names.length > 0 ? names.join(', ') : 'สมาชิก';
+    const content = action === 'joined' ? `${label} เข้าร่วมกลุ่ม` : `${label} ออกจากกลุ่ม`;
+
+    const insertData: Record<string, unknown> = {
+      line_contact_id: contact.id,
+      direction: 'incoming',
+      message_type: 'system',
+      content,
+      raw_message: {
+        system_event: action === 'joined' ? 'member_joined' : 'member_left',
+        members: ids,
+      },
+      received_at: new Date(timestamp).toISOString(),
+      created_at: new Date().toISOString(),
+    };
+    if (companyId) insertData.company_id = companyId;
+
+    const { error } = await supabaseAdmin.from('line_messages').insert(insertData);
+    if (error) console.error('Failed to save LINE member event:', error);
+  }
+
+  /**
+   * ลูกค้ากดปุ่มใน rich menu / template — เป็นการกระทำที่ต้องเห็นในสายสนทนา
+   * (ของเดิม webhook ข้ามทิ้ง แชทเลยขาดตอนตรงที่ลูกค้า "กดเลือก" อะไรบางอย่าง)
+   */
+  async savePostbackMessage(
+    contact: { id: string; unread_count: number; display_name?: string | null },
+    postback: { data?: string; params?: Record<string, string> },
+    timestamp: number,
+    companyId: string | null,
+    chatAccountId?: string | null,
+    accountName?: string | null
+  ) {
+    const paramLabel = postback.params
+      ? Object.values(postback.params).filter(Boolean).join(' ')
+      : '';
+    const label = paramLabel || postback.data || '';
+    const content = `[กดปุ่ม] ${label}`.trim();
+
+    const insertData: Record<string, unknown> = {
+      line_contact_id: contact.id,
+      direction: 'incoming',
+      message_type: 'postback',
+      content,
+      raw_message: { postback },
+      received_at: new Date(timestamp).toISOString(),
+      created_at: new Date().toISOString(),
+    };
+    if (companyId) insertData.company_id = companyId;
+
+    const { error } = await supabaseAdmin.from('line_messages').insert(insertData);
+    if (error) {
+      console.error('Failed to save LINE postback:', error);
+      return;
+    }
+
+    await supabaseAdmin
+      .from('line_contacts')
+      .update({
+        last_message_at: new Date(timestamp).toISOString(),
+        unread_count: (contact.unread_count || 0) + 1,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', contact.id);
+
+    if (companyId) {
+      await sendChatPush(companyId, {
+        platform: 'line',
+        senderName: contact.display_name,
+        preview: content,
+        contactId: contact.id,
+        messageTime: timestamp,
         accountName,
         chatAccountId,
       });

@@ -388,7 +388,8 @@ const columns: DataTableColumn<Order>[] = [
 | `LineChatService` | `lib/services/chat/line.ts` | LINE messaging |
 | `FacebookChatService` | `lib/services/chat/facebook.ts` | Facebook Messenger |
 | `buildMessagePreview()` / `htmlToPlainText()` | `lib/chat/message-preview.ts` | ข้อความตัวอย่างบรรทัดเดียว (รายชื่อแชท · push) — ถอด HTML / JSON i18n ให้ · server+client · **ห้ามส่ง `content` ดิบขึ้นรายชื่อหรือแจ้งเตือน** |
-| `findLinkedProduct()` / `findSyncedOrder()` | `lib/marketplace/chat-enrich.ts` | แปลง item_id / เลขออเดอร์ของ marketplace เป็นสินค้า/ออเดอร์ในระบบเรา (DB อย่างเดียว) — Shopee/Lazada ใช้ร่วม · ห้าม query `marketplace_product_links`/`orders` เองใน `lib/<platform>/chat-enrich.ts` |
+| `findLinkedProduct()` / `findProductByRetailerId()` / `findSyncedOrder()` | `lib/marketplace/chat-enrich.ts` | แปลง item_id ของ marketplace / `retailer_id` ของ Facebook Shop / เลขออเดอร์ เป็นสินค้า/ออเดอร์ในระบบเรา (DB อย่างเดียว · ชื่อ/รูป/ราคาประกอบที่ `buildProductInfo` ที่เดียว) — Shopee/Lazada/FB ใช้ร่วม · ห้าม query `marketplace_product_links`/`products`/`orders` เองใน service ของแพลตฟอร์ม |
+| `QuotedMessage` · `renderLineEmojis` (ใน TextBubble) | `app/chat/components/renderers/SharedRenderers.tsx` | บล็อก "ตอบกลับ" จาก `raw_message.quoted` (ครอบทุกชนิดฟองใน MessageBubble) · อีโมจิ LINE จาก `raw_message.emojis` — ห้ามวาดซ้ำในหน้า |
 | `normalizeLazadaMessage()` · `normalizeShopeeMessage()` | `lib/lazada/chat-enrich.ts` · `lib/services/chat/shopee.ts` | แปลงข้อความ IM ทุก template + เติมการ์ด (`raw_message.item/order` โครงเดียวกันทุก marketplace — renderer การ์ดใน `app/chat/components/renderers/ShopeeRenderers.tsx` รับ `platform`) |
 
 ### Shopee Integration (`lib/shopee/`)
