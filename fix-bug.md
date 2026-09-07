@@ -16,6 +16,23 @@
 
 ---
 
+## 2026-09-07 — หน้าแชท LINE: ผู้ติดต่อค้างเป็น "Unknown" ไม่มีรูป ทั้งที่ทุกข้อความรู้ชื่อคนส่ง
+
+**ที่เกิด**: [lib/services/chat/line.ts](lib/services/chat/line.ts) `getOrCreateContact()` + `saveIncomingMessage()` · หน้า `/chat` (ABC the Baby)
+
+**อาการ**: LINE OA ใหม่ของ ABC the Baby ทักมา หัวแชทและรายชื่อขึ้น "Unknown" + วงกลม "UN" ไม่มีรูป แต่ในสายสนทนาทุกฟองมีชื่อ "Nokzi3659" และรูปของคนส่งครบ
+
+**Root cause**: ผู้ติดต่อถูกสร้าง 05:17 UTC ตอน channel access token ของ OA ยังผิด (ตัวเฝ้า 05:15 บอก `token_invalid` — วาง Channel secret ผิดช่อง แก้ 05:30) → `fetchProfile()` ได้ 401 → บันทึก `display_name='Unknown'` `picture_url=null` · **`getOrCreateContact()` เจอแถวเดิมแล้วคืนทันทีโดยไม่ดึงโปรไฟล์ซ้ำ** จึงค้างแบบนั้นถาวร ทั้งที่ `saveIncomingMessage()` ดึงโปรไฟล์คนส่งสำเร็จทุกข้อความหลังจากนั้น (15/19 ข้อความมีรูป) แต่เอาไปใส่แค่ `sender_name/sender_picture_url` ของข้อความ
+
+**วิธีแก้**:
+- `saveIncomingMessage()` แชท 1:1: โปรไฟล์ที่ดึงได้ต่างจาก `display_name`/`picture_url` ของ contact → แพตช์รวมเข้า UPDATE `line_contacts` ที่ทำอยู่แล้ว (last_message_at/unread) ไม่ยิง query เพิ่ม — ซ่อม "Unknown" ให้เองตั้งแต่ข้อความถัดไป และตามชื่อ/รูปใหม่เมื่อลูกค้าเปลี่ยนใน LINE
+- ข้อมูลเก่า: SQL ตรงบน DB เติมชื่อ/รูปจากข้อความล่าสุดของคนนั้นเอง (`sender_user_id = line_user_id`) — ทั้งระบบมีแค่ 1 แถว (ABC the Baby)
+
+**ป้องกัน regression**:
+- **แถวที่สร้างตอน API ภายนอกล้มต้องมีทางซ่อมตัวเอง** — "สร้างครั้งเดียวแล้วไม่แตะอีก" + fallback ค่าเปล่า ('Unknown'/null) = ค้างถาวร · แบบเดียวกับที่รูป OA LINE รีเฟรชทุก 24 ชม. ([lib/chat/line-bot-profile.ts](lib/chat/line-bot-profile.ts))
+- OA ใหม่ที่ token เคยผิดแล้วแก้ทีหลัง: ผู้ติดต่อที่ทักมาช่วงนั้นจะเป็น Unknown จนกว่าจะทักอีกครั้ง (ซ่อมเองตอนนั้น) — ถ้าต้องการทันทีให้รัน SQL แบบเดียวกัน
+- Facebook/IG (`fb_contacts`) ยังไม่มีการซ่อมแบบนี้ — โปรไฟล์ FB ดึงผ่าน `/api/chat/profile-picture` ตอนแสดงผลอยู่แล้ว จึงไม่ค้าง แต่ชื่อค้างได้
+
 ## 2026-09-07 — ฟอร์มเปิดบิลค้นสินค้าไม่เจอ (ร้าน 5.8k สินค้า) — Supabase ตัดที่ 1,000 แถวเงียบ ๆ
 
 **ที่เกิด**: [app/api/orders/new/init/route.ts](app/api/orders/new/init/route.ts) · [components/orders/OrderForm.tsx](components/orders/OrderForm.tsx) · [components/ui/ProductSearchInput.tsx](components/ui/ProductSearchInput.tsx) · [components/ui/ItemsTable.tsx](components/ui/ItemsTable.tsx) · [components/ui/CustomerSelectionCard.tsx](components/ui/CustomerSelectionCard.tsx) · [lib/supabase-paging.ts](lib/supabase-paging.ts) (ใหม่)

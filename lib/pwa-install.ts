@@ -48,24 +48,9 @@ export function detectPlatform(): InstallPlatform {
   return 'desktop';
 }
 
-export type InAppBrowser = 'LINE' | 'Facebook' | 'Instagram' | 'TikTok' | 'Messenger';
-
-/**
- * เบราว์เซอร์ในแอปโซเชียล — **ติดตั้ง PWA จากในนี้ไม่ได้ทุกตัว**
- * (ไม่มีเมนูแชร์ของ Safari / ไม่ยิง beforeinstallprompt) ต้องบอกผู้ใช้ให้
- * "เปิดในเบราว์เซอร์" ก่อน ไม่งั้นเขาจะกดหาปุ่มที่ไม่มีอยู่จริงจนเลิกไปเอง
- */
-export function getInAppBrowserName(): InAppBrowser | null {
-  if (typeof window === 'undefined') return null;
-  const ua = navigator.userAgent;
-  if (/\bLine\//i.test(ua)) return 'LINE';
-  if (/Instagram/i.test(ua)) return 'Instagram';
-  // Messenger ต้องเช็คก่อน Facebook — UA ของมันมี FBAN/ ติดมาด้วย
-  if (/Messenger/i.test(ua)) return 'Messenger';
-  if (/FBAN|FBAV|FB_IAB/i.test(ua)) return 'Facebook';
-  if (/TikTok|BytedanceWebview|musical_ly/i.test(ua)) return 'TikTok';
-  return null;
-}
+// เบราว์เซอร์ในแอปโซเชียล (LINE / Facebook / IG / TikTok) ตรวจที่ lib/in-app-browser.ts
+// (`detectInAppBrowser()`) ที่เดียว — หน้า /install กับแถบเตือนหน้า login ใช้ตัวเดียวกัน
+// (เคยมี getInAppBrowserName() ซ้ำอยู่ที่นี่แล้วเกณฑ์หลุดกัน — ยุบแล้ว 2026-09-07)
 
 // ─────────────────────────────────────────────────────────────
 // ที่เก็บ beforeinstallprompt (external store สำหรับ React)

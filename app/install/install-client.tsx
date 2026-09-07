@@ -11,6 +11,7 @@ import {
   Bell,
   Copy,
   Download,
+  ExternalLink,
   Maximize2,
   MonitorDown,
   MoreVertical,
@@ -25,12 +26,16 @@ import Tabs from '@/components/ui/Tabs';
 import { useToast } from '@/lib/toast-context';
 import {
   detectPlatform,
-  getInAppBrowserName,
   isStandalone,
   useInstallPrompt,
-  type InAppBrowser,
   type InstallPlatform,
 } from '@/lib/pwa-install';
+import {
+  detectInAppBrowser,
+  currentUrlForExternalBrowser,
+  IN_APP_LABELS,
+  type InAppBrowser,
+} from '@/lib/in-app-browser';
 
 const TABS = [
   { key: 'ios', label: 'iPhone / iPad' },
@@ -70,7 +75,7 @@ export default function InstallClient() {
   const [mounted, setMounted] = useState(false);
   const [platform, setPlatform] = useState<InstallPlatform>('ios');
   const [installedApp, setInstalledApp] = useState(false);
-  const [inApp, setInApp] = useState<InAppBrowser | null>(null);
+  const [inApp, setInApp] = useState<InAppBrowser>(null);
   const [tab, setTab] = useState<string>('ios');
   const [justInstalled, setJustInstalled] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -81,7 +86,7 @@ export default function InstallClient() {
     setPlatform(p);
     setTab(p);
     setInstalledApp(isStandalone());
-    setInApp(getInAppBrowserName());
+    setInApp(detectInAppBrowser());
     setShareUrl(`${window.location.origin}/install`);
     setMounted(true);
   }, []);
@@ -192,9 +197,31 @@ export default function InstallClient() {
 
         {/* เบราว์เซอร์ในแอปโซเชียล — ติดตั้งจากในนี้ไม่ได้ ต้องบอกตรง ๆ ก่อนสอนขั้นตอน */}
         {mounted && !installedApp && inApp && (
-          <Alert tone="warning" title={`คุณเปิดอยู่ในแอป ${inApp}`}>
-            ติดตั้งจากในนี้ไม่ได้ — กดเมนู ⋯ (มุมขวาบนหรือล่าง) แล้วเลือก
-            &ldquo;เปิดในเบราว์เซอร์&rdquo; / &ldquo;เปิดใน Safari&rdquo; ก่อน แล้วทำตามขั้นตอนด้านล่าง
+          <Alert
+            tone="warning"
+            title={inApp === 'other' ? 'คุณเปิดอยู่ในหน้าต่างของแอป' : `คุณเปิดอยู่ในแอป ${IN_APP_LABELS[inApp]}`}
+          >
+            {inApp === 'line' ? (
+              // LINE เปิดลิงก์ด้วยเบราว์เซอร์ประจำเครื่องได้ด้วยธง openExternalBrowser=1 — ไม่ต้องให้หาเมนูเอง
+              <>
+                ติดตั้งจากในนี้ไม่ได้ — กดปุ่มด้านล่างเพื่อเปิดหน้านี้ด้วยเบราว์เซอร์ของเครื่อง แล้วทำตามขั้นตอน
+                <div className="mt-3">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    icon={<ExternalLink />}
+                    onClick={() => { window.location.href = currentUrlForExternalBrowser(); }}
+                  >
+                    เปิดด้วยเบราว์เซอร์
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <>
+                ติดตั้งจากในนี้ไม่ได้ — กดเมนู ⋯ (มุมขวาบนหรือล่าง) แล้วเลือก
+                &ldquo;เปิดในเบราว์เซอร์&rdquo; / &ldquo;เปิดใน Safari&rdquo; ก่อน แล้วทำตามขั้นตอนด้านล่าง
+              </>
+            )}
           </Alert>
         )}
 

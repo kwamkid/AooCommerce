@@ -2,7 +2,6 @@ import { supabaseAdmin } from '@/lib/supabase-admin';
 import { sendChatPush } from '@/lib/push/send';
 import { logIntegrationNow } from '@/lib/integration-logger';
 import { getChatAccount, getDefaultChatAccount, getLineCredsFromAccount } from '@/lib/chat-config';
-import { getLineCredentials } from '@/lib/line-config';
 import crypto from 'crypto';
 import sharp from 'sharp';
 import type { SendMessageParams, SendMessageResult, ResolvedCredentials, PlatformProfile, GetMessagesParams } from './types';
@@ -36,14 +35,6 @@ export class LineChatService {
           secret = creds.channel_secret;
           accountId = account.id;
         }
-      }
-    }
-
-    if (!accessToken && companyId) {
-      const credentials = await getLineCredentials(companyId);
-      if (credentials) {
-        accessToken = credentials.channel_access_token;
-        secret = credentials.channel_secret;
       }
     }
 
@@ -188,8 +179,10 @@ export class LineChatService {
     channelSecret: string; accessToken: string; companyId: string | null;
     chatAccountId: string | null; accountName: string | null;
   }> {
-    let channelSecret = process.env.LINE_CHANNEL_SECRET || '';
-    let accessToken = process.env.LINE_CHANNEL_ACCESS_TOKEN || '';
+    // ไม่มี env fallback แล้ว (ถอด 2026-09-07 หลังตัวเฝ้ายืนยันว่าทุก OA ชี้ URL ที่มี ?account=)
+    // — webhook ที่ไม่มี ?account= / ?company= จะได้ secret ว่าง → verifySignature ตก → 401
+    let channelSecret = '';
+    let accessToken = '';
     let resolvedCompanyId = companyId;
     let chatAccountId = accountId;
     // ชื่อ OA ไปขึ้นหัวข้อแจ้งเตือน — แถว chat_accounts ถูกอ่านอยู่ตรงนี้แล้ว
@@ -216,12 +209,6 @@ export class LineChatService {
           channelSecret = creds.channel_secret;
           accessToken = creds.channel_access_token;
           accountName = account.account_name || null;
-        }
-      } else {
-        const credentials = await getLineCredentials(companyId);
-        if (credentials && credentials.is_active) {
-          channelSecret = credentials.channel_secret;
-          accessToken = credentials.channel_access_token;
         }
       }
     }
@@ -276,7 +263,7 @@ export class LineChatService {
   // ─── Webhook: Save Incoming Message ─────────────────────────────────
 
   async saveIncomingMessage(
-    contact: { id: string; unread_count: number; display_name?: string | null },
+    contact: { id: string; unread_count: number; display_name?: string | null; picture_url?: string | null },
     message: Record<string, unknown>,
     event: { timestamp: number; source: { type: string; userId?: string; groupId?: string } },
     accessToken: string,
@@ -290,6 +277,11 @@ export class LineChatService {
     // Get sender profile
     let senderName: string | null = null;
     let senderPictureUrl: string | null = null;
+    // ซ่อมชื่อ/รูปของผู้ติดต่อ 1:1 จากโปรไฟล์ที่เพิ่งดึงได้ — ผู้ติดต่อที่ถูกสร้างตอน token ยังใช้
+    // ไม่ได้จะค้างเป็น "Unknown" ไม่มีรูปตลอดไป เพราะ getOrCreateContact คืนแถวเดิมโดยไม่ดึงซ้ำ
+    // (เคสจริง ABC the Baby 7 ก.ย. 2026: ทุกข้อความมีชื่อ Nokzi3659 แต่หัวแชทเป็น Unknown)
+    // และคนที่เปลี่ยนชื่อ/รูปใน LINE ก็ได้ของใหม่ตาม · แพตช์รวมไป UPDATE เดิมข้างล่าง ไม่ยิงเพิ่ม
+    const contactPatch: Record<string, unknown> = {};
 
     if (senderUserId) {
       if (isGroup && contactId) {
@@ -300,6 +292,8 @@ export class LineChatService {
         const profile = await this.fetchProfile(senderUserId, accessToken);
         senderName = profile?.displayName || null;
         senderPictureUrl = profile?.pictureUrl || null;
+        if (profile?.displayName && profile.displayName !== contact.display_name) contactPatch.display_name = profile.displayName;
+        if (profile?.pictureUrl && profile.pictureUrl !== contact.picture_url) contactPatch.picture_url = profile.pictureUrl;
       }
     }
 
@@ -389,10 +383,11 @@ export class LineChatService {
     const { error } = await supabaseAdmin.from('line_messages').insert(insertData);
     if (error) console.error('Failed to save message:', error);
 
-    // Update contact
+    // Update contact (+ ชื่อ/รูปที่ซ่อมได้จากโปรไฟล์รอบนี้)
     await supabaseAdmin
       .from('line_contacts')
       .update({
+        ...contactPatch,
         last_message_at: new Date(event.timestamp).toISOString(),
         unread_count: contact.unread_count + 1,
         updated_at: new Date().toISOString(),
