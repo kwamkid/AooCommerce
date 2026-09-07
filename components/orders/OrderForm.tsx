@@ -30,7 +30,7 @@ import NumberInput from '@/components/ui/NumberInput';
 import { calculateQtyDiscount, type PromotionTier } from '@/lib/promotions';
 import DateRangePicker, { DateValueType } from '@/components/ui/DateRangePicker';
 import FormSelect from '@/components/ui/FormSelect';
-import { formatPrice, formatNumber } from '@/lib/utils/format';
+import { formatPrice, formatNumber, formatThaiDateTime } from '@/lib/utils/format';
 import OrderSummaryBox from '@/components/ui/OrderSummaryBox';
 import CustomerInfoCard from '@/components/ui/CustomerInfoCard';
 import TaxInvoiceInfo from '@/components/ui/TaxInvoiceInfo';
@@ -3295,7 +3295,7 @@ export default function OrderForm({
       {restoredDraftAt && (
         <Alert tone="info" onClose={() => setRestoredDraftAt(null)}>
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <span>กู้ร่างบิลที่กรอกค้างไว้ ({restoredDraftAt.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })})</span>
+            <span>กู้ร่างบิลที่กรอกค้างไว้ ({formatThaiDateTime(restoredDraftAt)})</span>
             <Button variant="ghost" size="sm" onClick={handleDiscardDraft}>ล้างร่าง</Button>
           </div>
         </Alert>
