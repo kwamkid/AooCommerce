@@ -5,6 +5,17 @@
 
 **รูปแบบ entry:**
 ```
+## YYYY-MM-DD — <ชื่อ bug สั้นๆ>
+
+**ที่เกิด**: <path:line> หรือหน้าไหน
+**อาการ**: <ลูกค้าเจออะไร>
+**Root cause**: <สาเหตุจริง>
+**วิธีแก้**: <ที่ทำไป> — link ไฟล์:บรรทัด
+**ป้องกัน regression**: <ข้อควรระวังในอนาคต>
+```
+
+---
+
 ## 2026-09-07 — ฟอร์มเปิดบิลค้นสินค้าไม่เจอ (ร้าน 5.8k สินค้า) — Supabase ตัดที่ 1,000 แถวเงียบ ๆ
 
 **ที่เกิด**: [app/api/orders/new/init/route.ts](app/api/orders/new/init/route.ts) · [components/orders/OrderForm.tsx](components/orders/OrderForm.tsx) · [components/ui/ProductSearchInput.tsx](components/ui/ProductSearchInput.tsx) · [components/ui/ItemsTable.tsx](components/ui/ItemsTable.tsx) · [components/ui/CustomerSelectionCard.tsx](components/ui/CustomerSelectionCard.tsx) · [lib/supabase-paging.ts](lib/supabase-paging.ts) (ใหม่)
@@ -70,17 +81,6 @@
 - **เลขบนไอคอนต้องเป็น "สถานะ" (unread จริง) ไม่ใช่ "เหตุการณ์" (นับ push)** — ตัวนับในเครื่องดริฟต์ได้ทุกทาง (push ตกหล่น ล้างก่อนเห็น อ่านจากเครื่องอื่น) แหล่งความจริงต้องอยู่ที่เซิร์ฟเวอร์และตั้งเลขตรง ๆ
 - แหล่งเลขต้องมี**ตัวเดียว** (badge.ts) ใช้ทั้ง push, FCM และหน้าเว็บ — ไม่งั้นเลขบนไอคอนกับเลขในแอปจะไม่ตรงกันอีก
 - SW ยังรองรับ push ที่ไม่มี badge (บวกหนึ่ง) ไว้ เผื่อ deploy ฝั่ง SW กับเซิร์ฟเวอร์ไม่พร้อมกัน
-
----
-
-## YYYY-MM-DD — <ชื่อ bug สั้นๆ>
-
-**ที่เกิด**: <path:line> หรือหน้าไหน
-**อาการ**: <ลูกค้าเจออะไร>
-**Root cause**: <สาเหตุจริง>
-**วิธีแก้**: <ที่ทำไป> — link ไฟล์:บรรทัด
-**ป้องกัน regression**: <ข้อควรระวังในอนาคต>
-```
 
 ---
 
