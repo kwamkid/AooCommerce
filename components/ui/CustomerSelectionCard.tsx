@@ -1,8 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { Users, X, UserPlus, MapPin, ChevronDown, CheckCircle, Plus, UserCheck, Loader2 } from 'lucide-react';
+import Link from 'next/link';
+import { Users, X, UserPlus, MapPin, ChevronDown, CheckCircle, Plus, UserCheck, Loader2, Pencil, Gift } from 'lucide-react';
 import EntitySearchInput from '@/components/ui/EntitySearchInput';
+import Tabs from '@/components/ui/Tabs';
+import Tooltip from '@/components/ui/Tooltip';
 import CustomerInfoCard from '@/components/ui/CustomerInfoCard';
 import TaxInvoiceInfo from '@/components/ui/TaxInvoiceInfo';
 import TaxInvoiceEditModal from '@/components/ui/TaxInvoiceEditModal';
@@ -105,6 +108,18 @@ interface Props {
   badge?: React.ReactNode;
   /** Disabled (read-only mode) */
   disabled?: boolean;
+  /**
+   * แก้ข้อมูลลูกค้าที่เลือกอยู่ (ชื่อ/เบอร์/ที่อยู่หลัก) — ดินสอบนชิปลูกค้า
+   *
+   * ช่องเบอร์/อีเมล/ที่อยู่ในการ์ดนี้เป็นของ **บิลใบนี้** ไม่ใช่ของลูกค้า — แก้ชื่อลูกค้า
+   * จึงไม่มีทางทำจากในการ์ด ต้องมีทางออกไปแก้ที่ตัวลูกค้าจริง (เจ้าของถาม 8 ก.ย. 2026)
+   * ส่ง callback = แก้ในแผงเดียวกัน (หน้าแชท) · ไม่ส่ง = ใช้ `editCustomerUrl` เปิดแท็บใหม่
+   */
+  onEditCustomer?: () => void;
+  /** ลิงก์หน้าแก้ไขลูกค้า — ใช้เมื่อไม่มี `onEditCustomer` (เปิดแท็บใหม่ ไม่ทิ้งบิลที่กรอกค้าง) */
+  editCustomerUrl?: string;
+  /** ไม่วาดกรอบ/พื้นการ์ด — ใช้ในที่แคบ (แผงแชท/มือถือ) ให้เนื้อหากว้างเต็มพื้นที่ */
+  bare?: boolean;
 
   // ── Delivery fields (editable mode) ──
   delivery?: DeliveryFields;
@@ -248,6 +263,9 @@ export default function CustomerSelectionCard({
   readOnly = false,
   singleColumn = false,
   lockCustomerSelection = false,
+  onEditCustomer,
+  editCustomerUrl,
+  bare = false,
 }: Props) {
   const [showAddressDropdown, setShowAddressDropdown] = useState(false);
   const [showTaxModal, setShowTaxModal] = useState(false);
@@ -279,8 +297,10 @@ export default function CustomerSelectionCard({
   // ไม่งั้นเผลอกดแล้วทับที่อยู่ผู้รับที่กรอกไว้
   const canPickOwnAddress = !shipToOther && ownAddresses.length > 1 && isEditable;
 
+  const canEditCustomer = isEditable && !!selectedCustomer && !!(onEditCustomer || editCustomerUrl);
+
   return (
-    <div className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4">
+    <div className={bare ? '' : 'bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4'}>
       <div className={`grid grid-cols-1 ${singleColumn ? '' : 'sm:grid-cols-2'} gap-x-4 gap-y-3`}>
         {/* Section header — Left (toggle moved out, sits inline with the input below) */}
         <div className="flex items-center gap-1.5 pb-1 border-b border-gray-100 dark:border-slate-700">
@@ -292,11 +312,12 @@ export default function CustomerSelectionCard({
         </div>
 
         {/* Section header — Right */}
-        {showDeliveryCol ? (
+        {/* มีแท็บ "สั่งเอง / ส่งให้คนอื่น" แล้วไม่ต้องมีหัวข้อซ้ำ — แท็บเป็นหัวข้อของบล็อกนั้นในตัว */}
+        {showDeliveryCol && !onShipToOtherChange ? (
           <div className={`${singleColumn ? 'hidden' : 'hidden sm:flex'} items-center gap-1.5 pb-1 border-b border-gray-100 dark:border-slate-700 sm:border-l sm:border-l-transparent sm:pl-4`}>
             <MapPin className="w-4 h-4 text-gray-500 dark:text-slate-400" />
             <span className="text-sm font-semibold text-gray-700 dark:text-slate-300">
-              {onShipToOtherChange ? 'จัดส่งถึง' : 'ที่อยู่จัดส่ง'}
+              ที่อยู่จัดส่ง
             </span>
           </div>
         ) : (
@@ -359,15 +380,43 @@ export default function CustomerSelectionCard({
                     <ChevronDown className="w-4 h-4 text-gray-400 flex-shrink-0 ml-auto mr-2" />
                   )}
                 </button>
+                {/* แก้ข้อมูลลูกค้า (ชื่อ/เบอร์หลัก) — ช่องในการ์ดนี้เป็นของบิล ไม่ใช่ของลูกค้า */}
+                {canEditCustomer && (
+                  <Tooltip text="แก้ข้อมูลลูกค้า (ชื่อ, เบอร์, ที่อยู่หลัก)">
+                    {onEditCustomer ? (
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); onEditCustomer(); }}
+                        aria-label="แก้ข้อมูลลูกค้า"
+                        className="h-full px-3 hover:bg-orange-100 dark:hover:bg-orange-900/40 transition-colors flex-shrink-0 border-l border-primary/20 flex items-center"
+                      >
+                        <Pencil className="w-4 h-4 text-gray-400" />
+                      </button>
+                    ) : (
+                      <Link
+                        href={editCustomerUrl!}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        aria-label="แก้ข้อมูลลูกค้า"
+                        className="h-full px-3 hover:bg-orange-100 dark:hover:bg-orange-900/40 transition-colors flex-shrink-0 border-l border-primary/20 flex items-center"
+                      >
+                        <Pencil className="w-4 h-4 text-gray-400" />
+                      </Link>
+                    )}
+                  </Tooltip>
+                )}
                 {canChangeCustomer && (
-                  <button
-                    type="button"
-                    onClick={(e) => { e.stopPropagation(); onCustomerClear(); onNewCustomerModeChange?.(false); }}
-                    className="h-full px-3 hover:bg-orange-100 dark:hover:bg-orange-900/40 transition-colors flex-shrink-0 border-l border-primary/20"
-                    title="ล้างลูกค้า"
-                  >
-                    <X className="w-4 h-4 text-gray-400" />
-                  </button>
+                  <Tooltip text="ล้างลูกค้า — เลือกคนใหม่">
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); onCustomerClear(); onNewCustomerModeChange?.(false); }}
+                      aria-label="ล้างลูกค้า"
+                      className="h-full px-3 hover:bg-orange-100 dark:hover:bg-orange-900/40 transition-colors flex-shrink-0 border-l border-primary/20 flex items-center"
+                    >
+                      <X className="w-4 h-4 text-gray-400" />
+                    </button>
+                  </Tooltip>
                 )}
               </div>
               {/* Address dropdown */}
@@ -537,36 +586,21 @@ export default function CustomerSelectionCard({
         <div className={`flex flex-col ${singleColumn ? 'pt-3 border-t border-gray-100 dark:border-slate-700' : 'sm:border-l sm:border-gray-200 dark:sm:border-slate-700 sm:pl-4'}`}>
           {onShipToOtherChange && (
             <div className="mb-3">
-              <div className="grid grid-cols-2 gap-2">
-                {([
-                  { key: false, title: 'สั่งเอง', desc: 'ผู้สั่งเป็นผู้รับ', on: 'border-blue-500 bg-blue-50 dark:bg-blue-900/20', dot: 'border-blue-500 bg-blue-500' },
-                  { key: true, title: 'ส่งให้คนอื่น', desc: 'เป็นของขวัญ', on: 'border-pink-500 bg-pink-50 dark:bg-pink-900/20', dot: 'border-pink-500 bg-pink-500' },
-                ] as const).map(o => {
-                  const active = shipToOther === o.key;
-                  return (
-                    <button
-                      key={String(o.key)}
-                      type="button"
-                      disabled={!isEditable}
-                      onClick={() => { setShowAddressDropdown(false); onShipToOtherChange(o.key); }}
-                      aria-pressed={active}
-                      className={`flex items-center gap-2 text-left px-3 py-2 rounded-lg border transition-colors disabled:cursor-not-allowed ${
-                        active ? o.on : 'border-gray-200 dark:border-slate-600 hover:border-gray-300 dark:hover:border-slate-500'
-                      }`}
-                    >
-                      <span className={`w-4 h-4 rounded-full border-2 flex-shrink-0 grid place-items-center ${
-                        active ? o.dot : 'border-gray-300 dark:border-slate-500'
-                      }`}>
-                        {active && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
-                      </span>
-                      <span className="min-w-0">
-                        <span className="block text-base font-medium text-gray-800 dark:text-slate-200 leading-tight">{o.title}</span>
-                        <span className="block text-sm text-gray-500 dark:text-slate-400 leading-tight">{o.desc}</span>
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
+              {/* แท็บ = หัวข้อของบล็อกนี้ในตัว · ช่องที่อยู่/ผู้รับข้างล่างคือเนื้อของแท็บที่เลือก
+                  (ของเดิมเป็นปุ่มสองใบลอย ๆ ผู้ใช้ไม่เห็นความเชื่อมโยงกับช่องข้างล่าง) */}
+              <Tabs
+                className="!mb-3"
+                activeKey={shipToOther ? 'other' : 'self'}
+                onSelect={(k) => {
+                  if (!isEditable) return;
+                  setShowAddressDropdown(false);
+                  onShipToOtherChange(k === 'other');
+                }}
+                tabs={[
+                  { key: 'self', label: 'สั่งเอง', icon: <UserCheck className="w-4 h-4" /> },
+                  { key: 'other', label: 'ส่งให้คนอื่น', icon: <Gift className="w-4 h-4" />, activeColorClass: 'border-pink-500 text-pink-600 dark:text-pink-400' },
+                ]}
+              />
 
               {/* สมุดที่อยู่ผู้รับ — ส่งของขวัญให้คนเดิมซ้ำโดยไม่ต้องพิมพ์ใหม่
                   (dropdown ในชิปลูกค้าหาไม่เจอเวลาอยู่โหมดนี้ เพราะสายตาอยู่คอลัมน์ขวา) */}

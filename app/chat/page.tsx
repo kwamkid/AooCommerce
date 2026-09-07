@@ -1378,6 +1378,8 @@ function UnifiedChatPageContent() {
     sendBillToCustomer(orderId, orderNumber, billUrl);
   });
   const closeOrderPanel = useStableCallback(() => setRightPanel(null));
+  // ดินสอบนชิปลูกค้าในฟอร์มเปิดบิล → แผงแก้ไขลูกค้า (ร่างบิลเก็บไว้ใน localStorage กลับมากรอกต่อได้)
+  const openEditCustomerFromPanel = useStableCallback(() => handleOpenEditCustomer());
   // กด "ล้างร่าง" ในฟอร์ม → remount ฟอร์ม (ร่างถูกลบไปแล้วฝั่ง OrderForm) = ได้บิลเปล่าจริง
   const discardOrderDraft = useStableCallback(() => setOrderFormKey(k => k + 1));
 
@@ -2314,7 +2316,7 @@ function UnifiedChatPageContent() {
             <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800">
               <div className="flex items-center gap-3"><button onClick={() => setMobileView('history')} className="p-1 -ml-1 text-gray-500 hover:text-gray-700"><ChevronLeft className="w-6 h-6" /></button><FileText className="w-5 h-5 text-blue-500" /><div><div className="flex items-center gap-1.5 flex-wrap"><h2 className="text-lg font-semibold text-gray-900 dark:text-white">{orderHistory.find(o => o.id === selectedOrderId)?.order_number || 'รายละเอียดออเดอร์'}</h2>{(() => { const o = orderHistory.find(o => o.id === selectedOrderId); if (!o) return null; const s = o.order_status || o.status; const p = o.payment_status; return (<><span className={`px-2 py-0.5 text-xs font-medium rounded-full ${getBadgeColor(s).bg} ${getBadgeColor(s).color}`}>{s === 'completed' ? 'สำเร็จ' : s === 'new' ? 'ใหม่' : s === 'shipping' ? 'กำลังส่ง' : s === 'cancelled' ? 'ยกเลิก' : s}</span><span className={`px-2 py-0.5 text-xs font-medium rounded-full ${getPaymentBadgeColor(p).bg} ${getPaymentBadgeColor(p).color}`}>{p === 'paid' ? 'ชำระแล้ว' : p === 'verifying' ? 'รอตรวจสอบ' : p === 'cancelled' ? 'ยกเลิก' : 'รอชำระ'}</span></>); })()}</div>{selectedContact?.customer && <p className="text-xs text-gray-500 dark:text-slate-400">{selectedContact.customer.name}</p>}</div></div>
               <div className="flex items-center gap-2">
-                <div ref={headerActionsRef} />
+                <div ref={headerActionsRef} className="flex items-center gap-2" />
                 <div ref={warehousePortalRef} />
               </div>
             </div>
@@ -2343,6 +2345,7 @@ function UnifiedChatPageContent() {
             onSendBillToChat={handleOrderPanelSendBill}
             onClose={closeOrderPanel}
             onDiscardDraft={discardOrderDraft}
+            onEditCustomer={openEditCustomerFromPanel}
           />
         )}
 
@@ -2402,7 +2405,7 @@ function UnifiedChatPageContent() {
             <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 min-h-[81px]">
               <div className="flex items-center gap-3"><button onClick={() => setRightPanel('history')} className="p-1 -ml-1 text-gray-500 hover:text-gray-700"><ChevronLeft className="w-5 h-5" /></button><FileText className="w-5 h-5 text-blue-500" /><div><div className="flex items-center gap-1.5 flex-wrap"><h2 className="text-lg font-semibold text-gray-900 dark:text-white">{orderHistory.find(o => o.id === selectedOrderId)?.order_number || 'รายละเอียดออเดอร์'}</h2>{(() => { const o = orderHistory.find(o => o.id === selectedOrderId); if (!o) return null; const s = o.order_status || o.status; const p = o.payment_status; return (<><span className={`px-2 py-0.5 text-xs font-medium rounded-full ${getBadgeColor(s).bg} ${getBadgeColor(s).color}`}>{s === 'completed' ? 'สำเร็จ' : s === 'new' ? 'ใหม่' : s === 'shipping' ? 'กำลังส่ง' : s === 'cancelled' ? 'ยกเลิก' : s}</span><span className={`px-2 py-0.5 text-xs font-medium rounded-full ${getPaymentBadgeColor(p).bg} ${getPaymentBadgeColor(p).color}`}>{p === 'paid' ? 'ชำระแล้ว' : p === 'verifying' ? 'รอตรวจสอบ' : p === 'cancelled' ? 'ยกเลิก' : 'รอชำระ'}</span></>); })()}</div>{selectedContact?.customer && <p className="text-xs text-gray-500 dark:text-slate-400">{selectedContact.customer.name}</p>}</div></div>
               <div className="flex items-center gap-2">
-                <div ref={headerActionsRef} />
+                <div ref={headerActionsRef} className="flex items-center gap-2" />
                 <div ref={warehousePortalRef} />
                 <Tooltip text="ปิด"><button onClick={() => setRightPanel(null)} aria-label="ปิด" className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"><X className="w-5 h-5" /></button></Tooltip>
               </div>

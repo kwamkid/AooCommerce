@@ -29,6 +29,8 @@ interface ChatOrderPanelProps {
   onClose: () => void;
   /** ผู้ใช้กด "ล้างร่าง" ในฟอร์ม — หน้าแชทเด้ง orderFormKey เพื่อ remount ฟอร์มเปล่า */
   onDiscardDraft: () => void;
+  /** กดดินสอบนชิปลูกค้า — เปิดแผงแก้ไขลูกค้าของหน้าแชท (ร่างบิลถูกเก็บไว้ กลับมากรอกต่อได้) */
+  onEditCustomer: () => void;
 }
 
 /**
@@ -56,6 +58,7 @@ function ChatOrderPanel({
   onSendBillToChat,
   onClose,
   onDiscardDraft,
+  onEditCustomer,
 }: ChatOrderPanelProps) {
   return (
     <div className="flex w-full md:w-auto md:flex-1 flex-col border-l border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900 absolute inset-0 md:static md:inset-auto z-10">
@@ -69,7 +72,8 @@ function ChatOrderPanel({
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <div ref={headerActionsRef} />
+          {/* ปุ่มไอคอนของฟอร์ม (ล้างร่าง / คัดลอก Order ล่าสุด) — ต้อง flex ไม่งั้น portal วางซ้อนกันเป็นสองบรรทัด */}
+          <div ref={headerActionsRef} className="flex items-center gap-2" />
           <div ref={warehousePortalRef} />
           <Tooltip text="ปิด"><button onClick={onClose} aria-label="ปิด" className="hidden md:block p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"><X className="w-5 h-5" /></button></Tooltip>
         </div>
@@ -89,6 +93,7 @@ function ChatOrderPanel({
           onSendBillToChat={onSendBillToChat}
           onCancel={onClose}
           onDiscardDraft={onDiscardDraft}
+          onEditCustomer={onEditCustomer}
         />
       </div>
     </div>

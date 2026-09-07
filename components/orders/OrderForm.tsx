@@ -300,6 +300,9 @@ interface OrderFormProps {
   draftKey?: string;
   /** ผู้ใช้กด "ล้างร่าง" — หน้าที่ห่ออยู่ควร remount ฟอร์มให้ได้ฟอร์มเปล่าจริง ๆ */
   onDiscardDraft?: () => void;
+  /** กดดินสอบนชิปลูกค้า — หน้าที่ห่ออยู่พาไปแก้ข้อมูลลูกค้าในแผงของตัวเอง
+   *  ไม่ส่ง = การ์ดลิงก์ไป /customers/[id] ในแท็บใหม่แทน (บิลที่กรอกค้างไม่หาย) */
+  onEditCustomer?: (customerId: string) => void;
   // Exchange data — items to return from original order (CN created atomically on save)
   exchangeData?: {
     from_order_id: string;
@@ -329,6 +332,7 @@ export default function OrderForm({
   chatAccountId,
   draftKey,
   onDiscardDraft,
+  onEditCustomer,
   exchangeData,
   exchangeCreditAmount,
 }: OrderFormProps) {
@@ -2552,6 +2556,10 @@ export default function OrderForm({
         <CustomerSelectionCard
           customerLabel="ลูกค้า"
           singleColumn={narrowForm}
+          /* ที่แคบ (แผงแชท/มือถือ) ตัดกรอบการ์ดออก — เนื้อหาได้ความกว้างคืนทั้งซ้ายขวา */
+          bare={narrowForm}
+          onEditCustomer={selectedCustomer && onEditCustomer ? () => onEditCustomer(selectedCustomer.id) : undefined}
+          editCustomerUrl={selectedCustomer && !onEditCustomer ? `/customers/${selectedCustomer.id}` : undefined}
           customerRequired={false}
           allowNewCustomer
           newCustomerMode={newCustomerMode}
