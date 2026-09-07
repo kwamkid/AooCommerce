@@ -331,6 +331,31 @@ export async function checkFacebookPage(account: ChatChannelForHealth): Promise<
  * @param opts.maxAgeHours ตรวจซ้ำถี่สุดเท่านี้ (default 6)
  * @param opts.limit      ตรวจได้กี่ช่องทางต่อรอบ (default 10) — ที่เหลือรอรอบหน้า
  */
+/**
+ * ตรวจสุขภาพบัญชีเดียว**ทันที**แล้วบันทึกผล — เรียกหลังผู้ใช้เพิ่ม/แก้ credentials
+ * ไม่งั้นป้าย "token หมดอายุ" ค้างต่ออีกถึง 6 ชม. ทั้งที่แก้ token ถูกแล้ว (เจอจริง 7 ก.ย. 2026)
+ * ห้าม throw — เรียกจาก after() ของ route handler
+ */
+export async function recheckChatChannelHealth(accountId: string): Promise<void> {
+  try {
+    const { data: account } = await supabaseAdmin
+      .from('chat_accounts')
+      .select('id, company_id, platform, account_name, credentials')
+      .eq('id', accountId)
+      .maybeSingle();
+    if (!account || (account.platform !== 'line' && account.platform !== 'facebook')) return;
+    const result = account.platform === 'line'
+      ? await checkLineChannel(account as ChatChannelForHealth)
+      : await checkFacebookPage(account as ChatChannelForHealth);
+    await supabaseAdmin
+      .from('chat_accounts')
+      .update({ health_status: result.status, health_detail: result.detail, health_checked_at: new Date().toISOString() })
+      .eq('id', accountId);
+  } catch (e) {
+    console.warn('recheckChatChannelHealth failed:', e instanceof Error ? e.message : e);
+  }
+}
+
 export async function runChatChannelHealthChecks(
   opts: { companyId?: string | null; maxAgeHours?: number; limit?: number } = {}
 ): Promise<{ checked: number; problems: number }> {

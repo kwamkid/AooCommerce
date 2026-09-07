@@ -1,6 +1,7 @@
 import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
 import { NextRequest, NextResponse, after } from 'next/server';
 import { isLineBotProfileStale, refreshLineBotProfile, fetchLineBotInfo, describeLineTokenError } from '@/lib/chat/line-bot-profile';
+import { recheckChatChannelHealth } from '@/lib/chat/channel-health';
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // รูปประจำช่องทาง (avatar) — null = ไม่มีรูปจริง ให้ฝั่ง UI ตกไปใช้ไอคอน platform แทน
@@ -317,6 +318,9 @@ export async function POST(request: NextRequest) {
       throw error;
     }
 
+    // ตรวจ webhook/token ของบัญชีใหม่ทันที (ไม่รอรอบ 6 ชม.) — ป้ายสถานะบนการ์ดจะได้ตรงตั้งแต่แรก
+    if (platform === 'line') after(() => recheckChatChannelHealth(data.id));
+
     // Mirror into sales_channels so OrderForm + filters pick it up immediately.
     // Best-effort: if it fails we still return the chat_account success and rely on
     // the next chat-accounts edit / migration backfill to reconcile.
@@ -463,6 +467,11 @@ export async function PUT(request: NextRequest) {
       .eq('company_id', companyId);
 
     if (error) throw error;
+
+    // แก้ credentials แล้วต้องตรวจสุขภาพใหม่ทันที — ไม่งั้นป้าย "token หมดอายุ" เก่าค้างอีกถึง 6 ชม.
+    if (credentials && (existing.platform === 'line' || existing.platform === 'facebook')) {
+      after(() => recheckChatChannelHealth(id));
+    }
 
     // เปิดสวิตช์แชท Shopee กลับมา = ช่วงที่ปิดอยู่ webhook ถูกข้ามทิ้งไปหมด
     // ตามเก็บห้องสนทนาล่าสุดให้ก่อน ไม่งั้นจะเห็นแค่ข้อความหลังจากนี้
