@@ -36,6 +36,8 @@ interface MarketplaceApp {
     at?: string; ok?: boolean; error?: string | null;
     config?: { push_config_on_list?: number[]; live_push_status?: string } | null;
   } | null;
+  /** ถาม Shopee สด ๆ ตอนโหลดหน้าไม่สำเร็จ — ค่าข้างบนเป็นของเก่า */
+  live_error: string | null;
   updated_at: string;
 }
 
@@ -98,7 +100,7 @@ export default function SuperAdminMarketplaceApps() {
   };
 
   return (
-    <SuperAdminLayout title="App ของบริษัท" subtitle="app ที่บริษัทจดเอง (Shopee Seller In House) — ใช้สำหรับแชท">
+    <SuperAdminLayout title="App ของบริษัท" subtitle="app ที่บริษัทจดเอง (Shopee Seller In House) — แชท หรือทั้งออเดอร์+แชท ตามโหมด · สถานะ push ถาม Shopee สดทุกครั้งที่เปิดหน้า">
       {loading ? (
         <LoadingCard />
       ) : rows.length === 0 ? (
@@ -116,7 +118,7 @@ export default function SuperAdminMarketplaceApps() {
                     {row.company_name || row.company_id}
                     <Badge tone="indigo" size="sm">{row.app_role}</Badge>
                     {row.env === 'sandbox' && <Badge tone="amber" size="sm">sandbox</Badge>}
-                    {/* code 10 = webchat · ไม่มี = ยังไม่ได้กด "ตั้งค่า push" ⇒ แชทจะเงียบสนิท */}
+                    {/* code 10 = webchat · ไม่มี = ยังไม่ได้เปิด push แชทที่ Shopee ⇒ แชทจะเงียบสนิท */}
                     {codes.includes(10)
                       ? <Badge tone="emerald" size="sm">push แชทเปิดแล้ว</Badge>
                       : <Badge tone="gray" size="sm">ยังไม่เปิด push แชท</Badge>}
@@ -129,6 +131,8 @@ export default function SuperAdminMarketplaceApps() {
                   <p className="helper-text text-gray-500">
                     {check?.at ? `ตรวจล่าสุด ${formatThaiDateTime(check.at)}` : 'ยังไม่เคยตรวจ'}
                     {check?.ok === false ? ` · ล้มเหลว: ${check.error || '-'}` : ''}
+                    {row.live_error ? ` · ตรวจสดไม่ได้: ${row.live_error}` : ''}
+                    {codes.length ? ` · push ที่เปิด: ${codes.join(', ')}` : ''}
                     {check?.config?.live_push_status ? ` · live push: ${check.config.live_push_status}` : ''}
                   </p>
                 </div>

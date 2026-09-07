@@ -16,6 +16,16 @@
 
 ---
 
+## 2026-09-08 — superadmin "App ของบริษัท" บอก "ยังไม่เปิด push แชท · ยังไม่เคยตรวจ" ทั้งที่แชท Shopee ของ ABC วิ่งอยู่
+
+**ที่เกิด**: [app/api/superadmin/marketplace-apps/route.ts](app/api/superadmin/marketplace-apps/route.ts) · [app/superadmin/marketplace-apps/page.tsx](app/superadmin/marketplace-apps/page.tsx)
+**อาการ**: การ์ด app seller ของ ABC the Baby ขึ้นป้ายเทา "ยังไม่เปิด push แชท" + "ยังไม่เคยตรวจ" แต่หน้าแชทมีข้อความ Shopee เข้าปกติ
+**Root cause**: ป้ายอ่านจาก `marketplace_app_credentials.last_push_config_check` ซึ่งเขียน**เฉพาะตอนกดปุ่ม "ตั้งค่า push (webchat)" ในหน้าบริษัท** · app ของ ABC ตั้ง push ผ่านสคริปต์ `enable-shopee-webchat-push.mjs` (6 ก.ย.) จึงไม่เคยมี record → หน้า superadmin สรุปว่า "ยังไม่เปิด" จากความไม่รู้ ไม่ใช่จากของจริง
+**วิธีแก้**: GET ของ superadmin ถาม `get_app_push_config` สด ๆ ทุก app ที่ active (call ระดับ partner ไม่กินโควตาร้าน) แล้วเขียนทับ `last_push_config_check` (คง field เดิมจากปุ่มบริษัทไว้ เติม `source:'superadmin'`) → หน้าบริษัทเห็นผลเดียวกัน · ถามไม่สำเร็จ = คงค่าเดิม + โชว์ "ตรวจสดไม่ได้: …" · การ์ดโชว์ code ที่เปิดอยู่ด้วย
+**ป้องกัน regression**: สถานะที่ถามแพลตฟอร์มได้ต้องถาม ไม่สรุปจาก record ที่เขียนโดย flow เดียว · มีหลายทางตั้งค่า (ปุ่มในเว็บ / สคริปต์ / คอนโซล Shopee) = DB ไม่ใช่แหล่งความจริงของ push config
+
+---
+
 ## 2026-09-08 — หน้า superadmin API Monitor บอก "Circuit breaker ปิดทุก platform" ทั้งที่ dashboard ขึ้นป้าย breaker TikTok เปิดอยู่
 
 **ที่เกิด**: RPC `get_api_monitor_stats` key `breakers` · [app/api/superadmin/api-monitor/route.ts](app/api/superadmin/api-monitor/route.ts) · [app/superadmin/api-monitor/page.tsx](app/superadmin/api-monitor/page.tsx)
