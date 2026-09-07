@@ -24,10 +24,13 @@
 - Auth ของโปรเจกต์นี้ = **hybrid variant** ตาม `aoo-techstack/auth/AUTH.md` §9
   (aoocommerce เป็นต้นทางของ variant นี้ — แก้ pattern ที่นี่ต้อง sync กลับคลังกลาง)
 
-## 🚫 Git Workflow — **ห้าม `git push` จนกว่าจะได้รับคำสั่ง**
+## 🚫 Git Workflow — **ห้าม `git push` จนกว่าจะได้รับคำสั่ง · push ได้เฉพาะ commit ของ session ตัวเอง**
 
 - **Commit ได้** เมื่องานเสร็จ (ตามคำสั่งหรือสมเหตุสมผล)
 - **ห้าม `git push`** จนกว่า user จะบอกเองชัดๆ ("push เลย", "push ขึ้นไป", "deploy")
+- **ก่อน push ทุกครั้งต้องถามและได้รับคำยินยอมจาก user ของรอบนั้นก่อนเสมอ** (เพิ่ม 2026-09-08) — แสดงรายการ commit ที่จะขึ้น (`git log --oneline origin/main..HEAD`) แล้วรอคำตอบ "push ได้" · คำสั่ง push ครั้งก่อนไม่ครอบรอบถัดไป · "ทำต่อ / โอเค / ลุยเลย" ไม่ใช่การอนุมัติ push
+- **push ได้เฉพาะ commit ของ session ตัวเอง** — user เปิดหลาย Claude session ใน repo เดียวกันพร้อมกัน จำ hash ของ commit ที่ตัวเองทำไว้ตลอด session · ก่อน push เช็ค `git log origin/main..HEAD` ถ้ามี commit ที่ session นี้ไม่ได้ทำ → **ห้าม push** บอก user ว่ามี commit ของ session อื่นค้างอยู่ (hash + ชื่อ) แล้วให้ user ตัดสินใจ · `git push` ขึ้นทั้ง branch แยกเฉพาะ commit ของเราไม่ได้ ถ้า commit ของคนอื่นอยู่ก่อนหน้าของเรา ต้องรอเขา push เอง หรือ user สั่งชัดว่า "เอาขึ้นทั้งหมด"
+- **commit ด้วย pathspec ของไฟล์ที่แก้เสมอ** (`git commit -m "..." -- <files>`) ห้าม `git add -A` / `git commit -a` — ไม่งั้นไฟล์ที่ session อื่นแก้ค้างอยู่จะถูกกวาดเข้า commit ของเรา (เกิดแล้ว 7 ก.ย. 2026: งาน 10 ไฟล์ไปโผล่ใน commit ชื่อ "ช่องทาง Chat › LINE")
 - ถ้าทำงานหลายรอบ → commit สะสมไว้ใน local จนกว่า user จะอนุมัติ push
 - เหตุผล: user ต้องการ review/ทดสอบ local ก่อนขึ้น production
 - เวลาแจ้งงานเสร็จ บอกแค่ "commit แล้ว" หรือระบุ hash — อย่าเสนอ push เอง
