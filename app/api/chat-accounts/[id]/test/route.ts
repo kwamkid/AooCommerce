@@ -71,6 +71,7 @@ async function testLineConnection(creds: Record<string, unknown>, accountId: str
         bot_name: botInfo.displayName,
         bot_picture_url: botInfo.pictureUrl,
         basic_id: botInfo.basicId,
+        premium_id: botInfo.premiumId || '',
       },
       updated_at: new Date().toISOString(),
     })
@@ -83,6 +84,7 @@ async function testLineConnection(creds: Record<string, unknown>, accountId: str
       name: botInfo.displayName,
       picture_url: botInfo.pictureUrl,
       basic_id: botInfo.basicId,
+      premium_id: botInfo.premiumId || null,
     },
   });
 }

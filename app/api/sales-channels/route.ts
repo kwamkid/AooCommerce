@@ -73,7 +73,8 @@ export async function GET(request: NextRequest) {
         has_ig: !!creds.ig_account_id,
         picture_url: isLine ? ((creds.bot_picture_url as string) || null) : fbPicture,
         ig_picture_url: (creds.ig_profile_picture_url as string) || null,
-        username: (isLine ? creds.basic_id : creds.page_username) as string || null,
+        // LINE: premium ID (@abcthebaby) ก่อน basic ID ที่ LINE สุ่ม (@vyq5483e)
+        username: (isLine ? (creds.premium_id || creds.basic_id) : creds.page_username) as string || null,
         ig_username: (creds.ig_username as string) || null,
       });
     }

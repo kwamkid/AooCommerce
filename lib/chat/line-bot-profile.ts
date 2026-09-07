@@ -23,7 +23,8 @@ export function isLineBotProfileStale(creds: Record<string, unknown> | null): bo
   return Date.now() - ts > LINE_BOT_PROFILE_TTL_MS;
 }
 
-export interface LineBotInfo { displayName?: string; pictureUrl?: string; basicId?: string; userId?: string }
+/** premiumId = ID แบบตั้งเอง (@abcthebaby) มีเฉพาะ OA ที่ซื้อ premium ID — โชว์ตัวนี้ก่อน basicId (@vyq5483e) */
+export interface LineBotInfo { displayName?: string; pictureUrl?: string; basicId?: string; premiumId?: string; userId?: string }
 
 /**
  * ยิง `/v2/bot/info` ด้วย channel access token — ใช้ทั้ง "ตรวจว่า token ใช้ได้จริง" ตอนบันทึก
@@ -92,6 +93,7 @@ export async function refreshLineBotProfile(
       bot_name: botInfo.displayName || '',
       bot_picture_url: botInfo.pictureUrl || '',
       basic_id: botInfo.basicId || '',
+      premium_id: botInfo.premiumId || '',
       bot_profile_error: null,
       bot_profile_fetched_at: stampedAt,
     };

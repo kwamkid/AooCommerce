@@ -19,6 +19,7 @@ export interface LineCredentialsData {
   bot_name?: string;
   bot_picture_url?: string;
   basic_id?: string;
+  premium_id?: string;
 }
 
 export interface FbCredentialsData {
@@ -100,6 +101,7 @@ export function getLineCredsFromAccount(account: ChatAccount): LineCredentialsDa
     bot_name: creds.bot_name as string | undefined,
     bot_picture_url: creds.bot_picture_url as string | undefined,
     basic_id: creds.basic_id as string | undefined,
+    premium_id: creds.premium_id as string | undefined,
   };
 }
 

@@ -98,7 +98,9 @@ async function getCompanyLineOa(companyId: string): Promise<StorefrontLineOa | n
     .maybeSingle();
 
   const cred = (data?.credentials as Record<string, unknown> | null) || {};
-  const basicId = typeof cred.basic_id === 'string' ? cred.basic_id.trim() : '';
+  // ลิงก์เพิ่มเพื่อนใช้ premium ID (@abcthebaby) ถ้ามี — จำง่ายกว่า basic ID ที่ LINE สุ่ม
+  const premiumId = typeof cred.premium_id === 'string' ? cred.premium_id.trim() : '';
+  const basicId = premiumId || (typeof cred.basic_id === 'string' ? cred.basic_id.trim() : '');
   if (!basicId) return null;
   return {
     name: (cred.bot_name as string) || data?.account_name || 'LINE',

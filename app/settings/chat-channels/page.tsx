@@ -115,6 +115,8 @@ interface TestInfo {
   name: string;
   picture_url?: string;
   basic_id?: string;
+  /** premium ID ที่ตั้งเอง (@abcthebaby) — โชว์ก่อน basic_id */
+  premium_id?: string;
   page_id?: string;
 }
 
@@ -1593,7 +1595,10 @@ export default function ChatChannelsPage() {
       : fbPageId
         ? `https://graph.facebook.com/${fbPageId}/picture?type=small`
         : account.credentials.page_picture_url as string | undefined);
-    const basicId = account.credentials.basic_id as string | undefined;
+    const basicIdRaw = account.credentials.basic_id as string | undefined;
+    const premiumId = account.credentials.premium_id as string | undefined;
+    // premium ID (@abcthebaby) คือชื่อที่ร้านใช้จริง — โชว์ก่อน basic ID (@vyq5483e) ที่ LINE สุ่มให้
+    const basicId = premiumId || basicIdRaw;
     // LINE: token ผิดตั้งแต่ตอนบันทึก = ไม่มีชื่อ/รูป OA และส่งข้อความไม่ได้ — ต้องบอกบนการ์ด ไม่ใช่รูปว่างเงียบ ๆ
     const lineProfileError = account.platform === 'line' ? (account.credentials.bot_profile_error as string | undefined) : undefined;
     const pageId = account.credentials.page_id as string | undefined;
@@ -1653,7 +1658,8 @@ export default function ChatChannelsPage() {
                 <span className="inline-flex items-center gap-1">
                   <PlatformIcon id="line" size={14} />
                   <span className="text-line dark:text-line">LINE</span>
-                  {basicId ? <span className="text-gray-500 dark:text-slate-400">@{basicId}</span> : null}
+                  {basicId ? <span className="text-gray-500 dark:text-slate-400">{basicId.startsWith('@') ? basicId : `@${basicId}`}</span> : null}
+                  {premiumId && basicIdRaw ? <span className="text-gray-400 dark:text-slate-500">({basicIdRaw})</span> : null}
                 </span>
                 {lineProfileError ? (
                   <span className="inline-flex items-center gap-1 text-amber-600 dark:text-amber-400">
@@ -1728,7 +1734,7 @@ export default function ChatChannelsPage() {
                 {info.picture_url ? <img src={info.picture_url} alt={info.name} className="w-10 h-10 rounded-full" /> : null}
                 <div className="flex-1">
                   <p className="text-sm font-medium text-gray-900 dark:text-white">{info.name}</p>
-                  {info.basic_id ? <p className="text-xs text-gray-500">@{info.basic_id}</p> : null}
+                  {(info.premium_id || info.basic_id) ? <p className="text-xs text-gray-500">{info.premium_id || info.basic_id}{info.premium_id && info.basic_id ? ` (${info.basic_id})` : ''}</p> : null}
                   {info.page_id ? <p className="text-xs text-gray-500">Page ID: {info.page_id}</p> : null}
                 </div>
                 <CheckCircle2 className="w-5 h-5 flex-shrink-0" style={{ color: config.color }} />

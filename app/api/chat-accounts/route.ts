@@ -289,6 +289,7 @@ export async function POST(request: NextRequest) {
       finalCredentials.bot_name = check.info.displayName || '';
       finalCredentials.bot_picture_url = check.info.pictureUrl || '';
       finalCredentials.basic_id = check.info.basicId || '';
+      finalCredentials.premium_id = check.info.premiumId || '';
       finalCredentials.bot_profile_error = null;
       finalCredentials.bot_profile_fetched_at = new Date().toISOString();
     }
@@ -451,6 +452,7 @@ export async function PUT(request: NextRequest) {
           mergedCreds.bot_name = check.info.displayName || '';
           mergedCreds.bot_picture_url = check.info.pictureUrl || '';
           mergedCreds.basic_id = check.info.basicId || '';
+          mergedCreds.premium_id = check.info.premiumId || '';
           mergedCreds.bot_profile_error = null;
           mergedCreds.bot_profile_fetched_at = new Date().toISOString();
         }
