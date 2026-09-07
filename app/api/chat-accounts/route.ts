@@ -1,6 +1,8 @@
 import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
 import { NextRequest, NextResponse, after } from 'next/server';
-import { isLineBotProfileStale, refreshLineBotProfile } from '@/lib/chat/line-bot-profile';
+import { isLineBotProfileStale, refreshLineBotProfile, fetchLineBotInfo, describeLineTokenError } from '@/lib/chat/line-bot-profile';
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 // รูปประจำช่องทาง (avatar) — null = ไม่มีรูปจริง ให้ฝั่ง UI ตกไปใช้ไอคอน platform แทน
 // ห้ามคืน path ของไอคอน platform เป็น "รูป" เด็ดขาด — เคยทำแบบนั้นแล้วการ์ดร้าน
 // marketplace โชว์โลโก้ Lazada/Shopee แทนโลโก้ร้านจริงตลอดไป (เจอจริง 2026-08-28)
@@ -269,9 +271,34 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // LINE: ตรวจ token กับ LINE **ก่อนบันทึก** — token ผิดแล้วบันทึกได้ = webhook verify ผ่าน แต่ส่งข้อความ/
+    // ดึงรูปพังเงียบ (เคสจริง 7 ก.ย. 2026 วาง Channel secret ลงช่อง token) · ผ่านแล้วได้ชื่อ/รูป OA ทันที
+    if (platform === 'line') {
+      const secret = String(finalCredentials.channel_secret || '').trim();
+      const token = String(finalCredentials.channel_access_token || '').trim();
+      if (!/^[0-9a-f]{32}$/i.test(secret)) {
+        return NextResponse.json({ error: 'Channel secret ต้องเป็นตัวอักษร/ตัวเลข 32 ตัว (Basic settings › Channel secret)' }, { status: 400 });
+      }
+      const check = await fetchLineBotInfo(token);
+      if (!check.ok) {
+        return NextResponse.json({ error: describeLineTokenError(token, check.status) }, { status: 400 });
+      }
+      finalCredentials.channel_secret = secret;
+      finalCredentials.channel_access_token = token;
+      finalCredentials.bot_name = check.info.displayName || '';
+      finalCredentials.bot_picture_url = check.info.pictureUrl || '';
+      finalCredentials.basic_id = check.info.basicId || '';
+      finalCredentials.bot_profile_error = null;
+      finalCredentials.bot_profile_fetched_at = new Date().toISOString();
+    }
+
+    // id ที่หน้าเว็บสุ่มไว้ตอนเปิดฟอร์ม (โชว์ Webhook URL ให้คัดลอกก่อนบันทึก) — รับเฉพาะ UUID และเฉพาะ LINE
+    const requestedId = platform === 'line' && typeof body.id === 'string' && UUID_RE.test(body.id) ? body.id : undefined;
+
     const { data, error } = await supabaseAdmin
       .from('chat_accounts')
       .insert({
+        ...(requestedId ? { id: requestedId } : {}),
         company_id: companyId,
         platform,
         account_name: account_name.trim(),
@@ -305,10 +332,6 @@ export async function POST(request: NextRequest) {
     }
 
     // Auto-fetch LINE bot profile — ตัวเดียวกับที่ GET ใช้รีเฟรชตอนรูปเก่าเกิน TTL
-    if (platform === 'line' && finalCredentials.channel_access_token) {
-      const updatedCreds = await refreshLineBotProfile(data.id, finalCredentials);
-      if (updatedCreds) data.credentials = updatedCreds;
-    }
 
     return NextResponse.json({
       success: true,
@@ -406,6 +429,28 @@ export async function PUT(request: NextRequest) {
           return c && c.channel_secret === mergedCreds.channel_secret;
         });
         if (dup) return NextResponse.json({ error: 'LINE OA นี้ถูกเชื่อมต่อแล้วในระบบ' }, { status: 400 });
+      }
+
+      // LINE: credentials เปลี่ยน → ตรวจ token กับ LINE ก่อนบันทึก (เหมือน POST) และรีเฟรชชื่อ/รูป OA ทันที
+      if (existing.platform === 'line') {
+        const token = String(mergedCreds.channel_access_token || '').trim();
+        const secret = String(mergedCreds.channel_secret || '').trim();
+        if (secret && !/^[0-9a-f]{32}$/i.test(secret)) {
+          return NextResponse.json({ error: 'Channel secret ต้องเป็นตัวอักษร/ตัวเลข 32 ตัว (Basic settings › Channel secret)' }, { status: 400 });
+        }
+        if (token) {
+          const check = await fetchLineBotInfo(token);
+          if (!check.ok) {
+            return NextResponse.json({ error: describeLineTokenError(token, check.status) }, { status: 400 });
+          }
+          mergedCreds.channel_access_token = token;
+          mergedCreds.bot_name = check.info.displayName || '';
+          mergedCreds.bot_picture_url = check.info.pictureUrl || '';
+          mergedCreds.basic_id = check.info.basicId || '';
+          mergedCreds.bot_profile_error = null;
+          mergedCreds.bot_profile_fetched_at = new Date().toISOString();
+        }
+        if (secret) mergedCreds.channel_secret = secret;
       }
 
       updateData.credentials = mergedCreds;

@@ -23,6 +23,45 @@ export function isLineBotProfileStale(creds: Record<string, unknown> | null): bo
   return Date.now() - ts > LINE_BOT_PROFILE_TTL_MS;
 }
 
+export interface LineBotInfo { displayName?: string; pictureUrl?: string; basicId?: string; userId?: string }
+
+/**
+ * ยิง `/v2/bot/info` ด้วย channel access token — ใช้ทั้ง "ตรวจว่า token ใช้ได้จริง" ตอนบันทึก
+ * และดึงชื่อ/รูป OA · 401 = token ผิด (เคสจริง 7 ก.ย. 2026: วาง Channel secret (32 ตัว) ลงช่อง
+ * access token — webhook verify ผ่านเพราะไม่ได้ใช้ token แต่ส่งข้อความ/ดึงรูปพังหมด)
+ */
+export async function fetchLineBotInfo(token: string): Promise<{ ok: true; info: LineBotInfo } | { ok: false; status: number; message: string }> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 5000);
+  try {
+    const res = await fetch('https://api.line.me/v2/bot/info', {
+      headers: { Authorization: `Bearer ${token.trim()}` },
+      signal: controller.signal,
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      return { ok: false, status: res.status, message: text.slice(0, 200) };
+    }
+    return { ok: true, info: (await res.json()) as LineBotInfo };
+  } catch (e) {
+    return { ok: false, status: 0, message: e instanceof Error ? e.message : 'network' };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** ข้อความอธิบายให้คนแก้ได้ — token 32 ตัว = วาง Channel secret ผิดช่องแน่นอน */
+export function describeLineTokenError(token: string, status: number): string {
+  const t = token.trim();
+  if (status === 401) {
+    if (/^[0-9a-f]{32}$/i.test(t)) {
+      return 'Channel access token ไม่ถูกต้อง — ค่าที่วางเป็นรูปแบบเดียวกับ Channel secret (32 ตัว) · token จริงยาว ~170 ตัว ได้จาก LINE Developers › แท็บ Messaging API › Channel access token (long-lived) › Issue';
+    }
+    return 'Channel access token ไม่ถูกต้อง (LINE ตอบ 401) — กด Issue token ใหม่ในแท็บ Messaging API ของ Channel นี้ แล้ววางทั้งก้อน';
+  }
+  return `LINE ไม่รับ token (HTTP ${status || 'network'}) — ลองใหม่อีกครั้ง`;
+}
+
 /**
  * ดึงชื่อ + รูป OA จาก LINE แล้วเขียนทับลง `chat_accounts.credentials`
  *
@@ -40,29 +79,20 @@ export async function refreshLineBotProfile(
   const stampedAt = new Date().toISOString();
 
   try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 5000);
-    let res: Response;
-    try {
-      res = await fetch('https://api.line.me/v2/bot/info', {
-        headers: { Authorization: `Bearer ${token}` },
-        signal: controller.signal,
-      });
-    } finally {
-      clearTimeout(timer);
-    }
-
-    if (!res.ok) {
-      await stampFetchedAt(accountId, creds, stampedAt);
+    const result = await fetchLineBotInfo(token);
+    if (!result.ok) {
+      // จดเหตุผลไว้ให้การ์ดบอกผู้ใช้ (ไม่ใช่รูปว่างเงียบ ๆ) — ล้างเมื่อสำเร็จรอบถัดไป
+      await stampFetchedAt(accountId, { ...creds, bot_profile_error: describeLineTokenError(token, result.status) }, stampedAt);
       return null;
     }
 
-    const botInfo = await res.json();
+    const botInfo = result.info;
     const updated: Record<string, unknown> = {
       ...creds,
       bot_name: botInfo.displayName || '',
       bot_picture_url: botInfo.pictureUrl || '',
       basic_id: botInfo.basicId || '',
+      bot_profile_error: null,
       bot_profile_fetched_at: stampedAt,
     };
 

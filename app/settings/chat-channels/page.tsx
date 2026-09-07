@@ -262,6 +262,9 @@ export default function ChatChannelsPage() {
 
   // Guide state (for inline form)
   const [formGuideOpen, setFormGuideOpen] = useState(false);
+  // id ของบัญชี LINE ที่กำลังจะสร้าง — สุ่มไว้ตั้งแต่เปิดฟอร์ม เพื่อโชว์ Webhook URL ให้คัดลอกไปวางใน
+  // LINE Developers ได้เลยระหว่างกรอก (เดิมต้องบันทึกก่อนแล้วกดแก้ไขถึงเห็น URL — คนไม่รู้ว่าต้องทำ)
+  const [pendingLineId, setPendingLineId] = useState<string | null>(null);
 
   // Test state
   const [testingId, setTestingId] = useState<string | null>(null);
@@ -576,6 +579,7 @@ export default function ChatChannelsPage() {
   // Start adding
   const startAdd = () => {
     resetForm();
+    setPendingLineId(typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : null);
     setShowForm(true);
   };
 
@@ -637,6 +641,8 @@ export default function ChatChannelsPage() {
             platform,
             account_name: accountName,
             credentials,
+            // LINE: ใช้ id ที่โชว์ใน Webhook URL ตอนกรอก — URL ที่คนวางไปแล้วใน LINE จะได้ตรงกับบัญชีจริง
+            ...(platform === 'line' && pendingLineId ? { id: pendingLineId } : {}),
           }),
         });
         const data = await response.json().catch(() => ({}));
@@ -651,13 +657,9 @@ export default function ChatChannelsPage() {
       // LINE ที่เพิ่งสร้าง: Webhook URL เพิ่งมี (มี id ของบัญชี) — เปิดหน้าตั้งค่า Webhook ให้ต่อทันที
       // ไม่งั้นคนจะเข้าใจว่าเสร็จแล้ว ทั้งที่ยังไม่ได้ลงทะเบียน webhook ที่ LINE = ข้อความไม่เข้าระบบ
       const created = wasCreate && platform === 'line' && createdId ? list.find(a => a.id === createdId) : undefined;
-      if (created) {
-        startEdit(created);
-        setFormGuideOpen(true);
-        showToast('เพิ่ม LINE OA แล้ว — ขั้นต่อไป: คัดลอก Webhook URL ด้านล่างไปตั้งใน LINE Developers');
-      } else {
-        showToast(wasCreate ? 'เพิ่ม Account สำเร็จ' : 'อัปเดตสำเร็จ');
-      }
+      showToast(created
+        ? 'เพิ่ม LINE OA แล้ว — อย่าลืมวาง Webhook URL ใน LINE Developers และเปิด Use webhook (กดแก้ไขบัญชีเพื่อดู URL อีกครั้งได้)'
+        : wasCreate ? 'เพิ่ม Account สำเร็จ' : 'อัปเดตสำเร็จ');
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'บันทึกไม่สำเร็จ';
       showToast(message, 'error');
@@ -896,6 +898,14 @@ export default function ChatChannelsPage() {
               </div>
             ))}
 
+            {/* Webhook URL ตั้งแต่ตอนสร้าง — id สุ่มไว้แล้ว (pendingLineId) เซิร์ฟเวอร์จะใช้ id นี้ตอนบันทึก */}
+            {formPlatform === 'line' && !editingId && pendingLineId && (
+              <div className="bg-line/5 dark:bg-line/10 border border-line/30 rounded-lg p-3 space-y-2">
+                <CopyField label="Webhook URL (เอาไปวางใน LINE Developers › Messaging API › Webhook settings)" value={`${typeof window !== 'undefined' ? window.location.origin : ''}/api/line/webhook?account=${pendingLineId}`} />
+                <p className="text-xs text-gray-500 dark:text-slate-400">วางแล้วกด Verify → เปิด Use webhook · URL นี้ผูกกับบัญชีที่กำลังสร้าง กดบันทึกด้านล่างให้เสร็จด้วย ไม่งั้น LINE จะยิงมาแล้วไม่มีใครรับ</p>
+              </div>
+            )}
+
             {/* Guide toggle */}
             {formPlatform === 'line' && (
               <>
@@ -951,8 +961,8 @@ export default function ChatChannelsPage() {
                     <div className="flex gap-2">
                       <StepNumber number={5} />
                       <div>
-                        <p className="font-medium text-gray-900 dark:text-white text-sm">กดบันทึก แล้วเอา Webhook URL ไปตั้งใน LINE</p>
-                        <p>Webhook URL ของบัญชีนี้จะขึ้นให้หลังบันทึก (ระบบเปิดหน้าตั้งค่า Webhook ให้ต่อทันที) &rarr; วางใน LINE Developers &rarr; แท็บ Messaging API &rarr; Webhook settings &rarr; Verify &rarr; เปิด Use webhook · ไม่ทำขั้นนี้ข้อความลูกค้าจะไม่เข้าระบบ</p>
+                        <p className="font-medium text-gray-900 dark:text-white text-sm">วาง Webhook URL (กล่องเขียวด้านบน) ใน LINE แล้วกดบันทึก</p>
+                        <p>LINE Developers &rarr; แท็บ Messaging API &rarr; Webhook settings &rarr; Edit &rarr; วาง URL &rarr; Update &rarr; Verify &rarr; เปิด Use webhook · แล้วปิด Auto-response ใน OA Manager (Settings &rarr; Response settings) · ไม่ทำขั้นนี้ข้อความลูกค้าจะไม่เข้าระบบ</p>
                       </div>
                     </div>
                   </div>
@@ -1584,6 +1594,8 @@ export default function ChatChannelsPage() {
         ? `https://graph.facebook.com/${fbPageId}/picture?type=small`
         : account.credentials.page_picture_url as string | undefined);
     const basicId = account.credentials.basic_id as string | undefined;
+    // LINE: token ผิดตั้งแต่ตอนบันทึก = ไม่มีชื่อ/รูป OA และส่งข้อความไม่ได้ — ต้องบอกบนการ์ด ไม่ใช่รูปว่างเงียบ ๆ
+    const lineProfileError = account.platform === 'line' ? (account.credentials.bot_profile_error as string | undefined) : undefined;
     const pageId = account.credentials.page_id as string | undefined;
     const pageUsername = account.credentials.page_username as string | undefined;
     const igAccountId = account.credentials.ig_account_id as string | undefined;
@@ -1637,11 +1649,18 @@ export default function ChatChannelsPage() {
             </div>
             <div className="flex items-center gap-2 subtitle-text text-gray-500 dark:text-slate-400">
               {account.platform === 'line' ? (
+                <>
                 <span className="inline-flex items-center gap-1">
                   <PlatformIcon id="line" size={14} />
                   <span className="text-line dark:text-line">LINE</span>
                   {basicId ? <span className="text-gray-500 dark:text-slate-400">@{basicId}</span> : null}
                 </span>
+                {lineProfileError ? (
+                  <span className="inline-flex items-center gap-1 text-amber-600 dark:text-amber-400">
+                    <XCircle className="w-3.5 h-3.5" /> {lineProfileError}
+                  </span>
+                ) : null}
+                </>
               ) : (
                 <>
                   <span className="inline-flex items-center gap-1">
