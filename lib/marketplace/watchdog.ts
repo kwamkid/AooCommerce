@@ -9,6 +9,7 @@
 // dashboard ของร้าน · กระดิ่ง · push ทั้งหมดอ่านจากผลชุดเดียวกัน ไม่มีทางเห็นไม่ตรงกัน
 
 import { supabaseAdmin } from '@/lib/supabase-admin';
+import { isShortPause } from '@/lib/marketplace/quota';
 import { sendPushToUsers, withCompanyParam } from '@/lib/push/send';
 import { MARKETPLACE_PLATFORMS, type QuotaPlatform } from '@/lib/marketplace/platforms';
 import { BEAM_RECONCILE_NOTE } from '@/lib/beam/settle';
@@ -312,8 +313,11 @@ export async function collectWatchdogIssues(
     const { data: flags } = await supabaseAdmin
       .from('app_flags').select('key, value').like('key', '%quota_exhausted%');
     for (const f of flags || []) {
-      const until = (f.value as { until?: string } | null)?.until;
+      const value = f.value as { until?: string; at?: string } | null;
+      const until = value?.until;
       if (!until || new Date(until).getTime() < now) continue;
+      // แบนไม่กี่วินาที (rate limit ต่อวินาที) ไม่ใช่โควตาหมด — ไม่ต้องเตือน
+      if (isShortPause(value)) continue;
       const name = f.key.replace('_quota_exhausted', '').replace(':', ' · ');
       issues.push({
         code: `quota:${f.key}`,

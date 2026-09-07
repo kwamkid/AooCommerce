@@ -5,6 +5,23 @@
 
 **รูปแบบ entry:**
 ```
+## 2026-09-07 — "โควตาแชท Lazada หมด" เตือนผิด: Lazada แบน 1 วินาที แต่เราพักเอง 30 นาที + ยิงถี่เพราะหน่วงจังหวะคนละ instance
+
+**อาการ**: กระดิ่ง/banner ขึ้น "โควตา lazada · chat เต็ม พักถึง …" บ่อย ทั้งที่แชท Lazada ไม่ได้ใช้เยอะ · ระหว่างนั้นข้อความ Lazada เข้าช้าครึ่งชั่วโมง
+
+**Root cause** (2 ชั้น):
+1. Lazada ตอบ `ApiCallLimit` พร้อมข้อความ "Api access frequency exceeds the limit. this ban will last **1 seconds**" = rate limit ต่อวินาที ไม่ใช่โควตาหมด แต่ `reportMarketplaceError()` ถือทุกข้อความที่เข้าข่าย rate limit เป็นโควตาหมดแล้วเปิด breaker **30 นาที** (ค่า default ของ platform) + แจ้งเตือนทุกช่องทาง
+2. ยิงถี่เกินตั้งแต่แรกเพราะตัวหน่วง (`throttle.ts`) เก็บ state **ในหน่วยความจำต่อ instance** — push ของ Lazada หลายใบเข้าพร้อมกันวิ่งคนละ instance บน Vercel ต่างคนต่างคิดว่าเว้นจังหวะแล้ว รวมกันเกิน 1 call/วินาที · และไม่มี log ในตารางไหนเลย (มีแต่ flag ใบล่าสุดใน `app_flags`) จึงนับไม่ได้ว่าโดนบ่อยแค่ไหน
+
+**แก้**:
+- `quota.ts`: `parseBanSeconds()` อ่านวินาทีที่ platform บอก → พักเท่านั้น (ต่ำสุด 2 วิ สูงสุด 30 นาที) · พักที่สั้นกว่า 2 นาที (`isShortPause`) ไม่ขึ้น banner/กระดิ่ง/ตัวเฝ้า (breaker ยังกันยิงซ้ำในช่วงนั้นเหมือนเดิม)
+- `throttle.ts`: จองจังหวะที่ DB ผ่าน RPC `claim_marketplace_call_slot(key, gap_ms)` (ตาราง `marketplace_call_slots` แถวเดียวต่อ `platform:scope` · row lock = atomic) ทุก instance ต่อคิวเดียวกัน · RPC ล้มตกกลับไปหน่วงในหน่วยความจำ · แชท Lazada ถ่างเป็น 1000ms/call
+- `lazada/api.ts`: โดนแบน ≤5 วิ → รอแล้วยิงซ้ำหนึ่งครั้งเอง · ทุกครั้งที่โดน `ApiCallLimit` ลง `integration_logs` (action `rate_limited`) — creds พก `company_id/account_id` มาจาก `ensureValidToken` แล้ว
+
+**ป้องกัน regression**: ถ้าเห็น `rate_limited` ของ Lazada เกินวันละไม่กี่ใบ ให้ถ่าง `minGapMs.chat` ใน platforms.ts ไม่ใช่ไปแก้ให้พักนานขึ้น · อย่าเอาตัวหน่วงกลับไปเป็น in-memory อย่างเดียว
+
+---
+
 ## YYYY-MM-DD — <ชื่อ bug สั้นๆ>
 
 **ที่เกิด**: <path:line> หรือหน้าไหน

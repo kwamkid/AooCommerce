@@ -114,9 +114,37 @@ export function reportMarketplaceError(
 
   const reset = MARKETPLACE_PLATFORMS[platform].quotaReset;
   const isDaily = reset.kind === 'daily-utc8' && /daily/i.test(message || '');
-  const until = reset.kind === 'daily-utc8' && !isDaily ? pauseUntil(30) : undefined;
+
+  // platform บอกมาเองว่าแบนกี่วินาที (Lazada: "this ban will last 1 seconds") = rate limit
+  // ต่อวินาที ไม่ใช่โควตาหมด — พักเท่าที่เขาบอกพอ ของเดิมพัก 30 นาทีทุกกรณี ทำให้แชท Lazada
+  // เข้าช้าไปครึ่งชั่วโมงและขึ้นเตือน "โควตาหมด" ทั้งที่จริงโดนแบนแค่ 1 วินาที (ดู fix-bug.md 2026-09-07)
+  const banSeconds = parseBanSeconds(message);
+  const until = banSeconds !== null
+    ? new Date(Date.now() + Math.min(Math.max(banSeconds, 2), 30 * 60) * 1000).toISOString()
+    : reset.kind === 'daily-utc8' && !isDaily ? pauseUntil(30) : undefined;
 
   markQuotaExhausted(platform, scope, until, message || undefined).catch(() => {});
+}
+
+/** จำนวนวินาทีที่ platform บอกว่าแบน — null = ไม่ได้บอก (ใช้ค่า default ของ platform) */
+export function parseBanSeconds(message: string | null | undefined): number | null {
+  if (!message) return null;
+  const m = message.match(/ban will last (\d+) ?s|retry after (\d+) ?s|(\d+) seconds?/i);
+  if (!m) return null;
+  const n = Number(m[1] ?? m[2] ?? m[3]);
+  return Number.isFinite(n) && n >= 0 ? n : null;
+}
+
+/**
+ * พักสั้น ๆ (ไม่ถึง 2 นาที) = แค่โดนหน่วงจังหวะ ไม่ใช่โควตาหมด — breaker ยังกันการยิงซ้ำ
+ * ในช่วงนั้นเหมือนเดิม แต่ **ไม่ต้องขึ้น banner / กระดิ่ง / ตัวเฝ้า** (คนอ่านแล้วตกใจเปล่า)
+ */
+export const QUOTA_ALERT_MIN_MS = 2 * 60_000;
+export function isShortPause(value: { until?: string; at?: string } | null | undefined): boolean {
+  if (!value?.until) return false;
+  const at = value.at ? new Date(value.at).getTime() : NaN;
+  const until = new Date(value.until).getTime();
+  return Number.isFinite(at) && until - at < QUOTA_ALERT_MIN_MS;
 }
 
 /** เปิด circuit breaker ของ platform+scope จนถึง untilIso (ไม่ส่ง = ค่า default ต่อ platform) */
@@ -183,8 +211,11 @@ export async function getBlockedPlatforms(): Promise<
   const now = Date.now();
   const out: { platform: QuotaPlatform; scope: QuotaTarget; until: string }[] = [];
   for (const row of data || []) {
-    const until = (row.value as { until?: string } | null)?.until;
+    const value = row.value as { until?: string; at?: string } | null;
+    const until = value?.until;
     if (!until || new Date(until).getTime() <= now) continue;
+    // แบนไม่กี่วินาที = ไม่ใช่เรื่องที่ผู้ใช้ต้องรู้ (ดู isShortPause)
+    if (isShortPause(value)) continue;
     const parsed = parseFlagKey(row.key);
     if (parsed) out.push({ ...parsed, until });
   }

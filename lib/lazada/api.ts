@@ -1,5 +1,7 @@
 import crypto from 'crypto';
-import { beginMarketplaceCall, reportMarketplaceError } from '@/lib/marketplace/quota';
+import { beginMarketplaceCall, reportMarketplaceError, parseBanSeconds } from '@/lib/marketplace/quota';
+import { sleep } from '@/lib/marketplace/throttle';
+import { logIntegrationNow } from '@/lib/integration-logger';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 
 // --- Configuration ---
@@ -20,6 +22,10 @@ export interface LazadaCredentials {
   app_secret: string;
   access_token: string;
   region: string; // 'th' etc.
+  /** ไว้ลง integration_logs ตอนโดน rate limit — ไม่มีก็ยิงได้ แค่ log ไม่ได้ */
+  company_id?: string;
+  account_id?: string;
+  account_name?: string | null;
 }
 
 export interface LazadaAccountRow {
@@ -136,7 +142,9 @@ export async function lazadaApiRequest(
   creds: LazadaCredentials,
   method: 'GET' | 'POST',
   apiPath: string,
-  params: Record<string, unknown> = {}
+  params: Record<string, unknown> = {},
+  /** internal — รอบที่ยิงซ้ำหลังโดนแบนสั้น ๆ ห้ามวนอีก */
+  isRetry = false
 ): Promise<{ data: unknown; error?: string; raw?: Record<string, unknown> }> {
   const common: Record<string, string> = {
     app_key: creds.app_key,
@@ -171,10 +179,34 @@ export async function lazadaApiRequest(
   const code = data.code as string | undefined;
   if (code && code !== '0') {
     const errMsg = (data.message as string) || `Lazada error ${code}`;
-    // ApiCallLimit = rate limit ของ Lazada → เปิด circuit breaker เฉพาะ scope ที่ชน (พัก 30 นาที)
+    // ApiCallLimit = rate limit ของ Lazada → เปิด circuit breaker เฉพาะ scope ที่ชน
     // แชท Lazada เป็นคนละ app คนละ app_key — เดิมบล็อกทั้ง platform ทำให้แชทที่ยิงรัว
     // ลาก order sync ตายด้วย (fix-bug.md 2026-08-29)
+    const banSeconds = code === 'ApiCallLimit' ? parseBanSeconds(errMsg) : null;
+    // แบนไม่กี่วินาที ("this ban will last 1 seconds") = แค่ยิงถี่ไป — รอให้พ้นแล้วยิงซ้ำ
+    // หนึ่งครั้งแทนที่จะคืน error ให้งานล้ม (ข้อความแชทจะได้ไม่ค้างรอ push ใบถัดไป)
+    if (banSeconds !== null && banSeconds <= 5 && !isRetry) {
+      console.warn(`[Lazada API] ${apiPath} โดน rate limit (แบน ${banSeconds} วิ) — รอแล้วยิงซ้ำ`);
+      await sleep(banSeconds * 1000 + 500);
+      return lazadaApiRequest(creds, method, apiPath, params, true);
+    }
     reportMarketplaceError('lazada', scope, errMsg, { code, httpStatus: res.status });
+    // จดไว้ให้นับได้ว่าโดนบ่อยแค่ไหน — ของเดิมมีแต่ flag ใบล่าสุดใน app_flags ไล่ย้อนไม่ได้เลย
+    if (code === 'ApiCallLimit' && creds.company_id) {
+      await logIntegrationNow({
+        company_id: creds.company_id,
+        account_id: creds.account_id,
+        account_name: creds.account_name,
+        integration: 'lazada',
+        direction: 'outgoing',
+        action: 'rate_limited',
+        method,
+        api_path: apiPath,
+        http_status: res.status,
+        status: 'error',
+        error_message: `${errMsg} (scope ${scope}${isRetry ? ' · ยิงซ้ำแล้วยังโดน' : ''})`,
+      });
+    }
     return { data: null, error: errMsg, raw: data };
   }
   if (data.success === false) {
@@ -265,6 +297,9 @@ export async function ensureValidToken(
     app_secret: getAppSecret(useChat ? 'chat' : 'main'),
     access_token: accessToken,
     region,
+    company_id: account.company_id,
+    account_id: account.id,
+    account_name: account.shop_name,
   };
 
   const expiresAt = expiresAtRaw ? new Date(expiresAtRaw).getTime() : 0;

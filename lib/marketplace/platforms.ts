@@ -121,8 +121,10 @@ export const MARKETPLACE_PLATFORMS: Record<QuotaPlatform, MarketplacePlatformCon
       ['/seller/', 'auth'],
     ],
     // เคยชนจริง: เปิดแชท 2 ร้านพร้อมกันยิง IM 22 call ติดกันจนโดน ApiCallLimit
-    // แล้วลาก order sync ตายด้วย (fix-bug.md 2026-08-29)
-    minGapMs: { chat: 350, default: 150 },
+    // แล้วลาก order sync ตายด้วย (fix-bug.md 2026-08-29) · 350ms ยังโดน "frequency exceeds
+    // the limit … ban 1 seconds" อยู่เรื่อย ๆ เพราะ push หลายใบวิ่งคนละ instance
+    // (ตัวหน่วงอยู่ในหน่วยความจำ มองไม่เห็นกัน) — ถ่างเป็น 1 วินาทีต่อ call ของแชท
+    minGapMs: { chat: 1000, default: 150 },
   },
 };
 
