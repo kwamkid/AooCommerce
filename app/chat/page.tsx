@@ -348,15 +348,23 @@ function UnifiedChatPageContent() {
     }
   }, [searchParams, contacts, selectedContact, router]);
 
-  // Fetch messages when contact selected
+  // Fetch messages when contact selected — ผูกกับ **id** ของห้อง ไม่ใช่ตัว object
+  //
+  // `selectedContact` ถูก patch เป็น object ใหม่บ่อยมากทั้งที่ยังเป็นห้องเดิม: ข้อความใหม่เข้า
+  // (realtime UPDATE ของ contacts → ชื่อ/สถานะ), สถิติออเดอร์โหลดเสร็จ, แก้แท็ก, ผูกลูกค้า,
+  // บันทึกบิล — เดิม deps เป็น [selectedContact] จึงนึกว่า "เปลี่ยนห้อง" ทุกครั้ง แล้วสั่ง
+  // setRightPanel(null) ทิ้งฟอร์มเปิดบิลที่พนักงานกรอกค้างอยู่ทันทีที่ลูกค้าทักมา
+  // (+ เด้งมือถือกลับหน้าแชท + โหลดข้อความซ้ำ + แย่งโฟกัสช่องพิมพ์) — ดู fix-bug.md 2026-09-08
+  const selectedContactId = selectedContact?.id;
   useEffect(() => {
-    if (selectedContact) {
-      fetchMessages(selectedContact.id);
+    if (selectedContactId) {
+      fetchMessages(selectedContactId);
       setMobileView('chat');
       setRightPanel(null);
       setTimeout(() => inputRef.current?.focus(), 100);
     }
-  }, [selectedContact]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedContactId]);
 
   // Fetch linked contacts when customer changes
   // + สถิติออเดอร์ของแชทที่เปิดอยู่ — ลิสต์รายชื่อไม่ enrich ให้แล้ว (order_stats_loaded=false)

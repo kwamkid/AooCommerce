@@ -16,6 +16,16 @@
 
 ---
 
+## 2026-09-08 — หน้าแชท: กำลังกรอกฟอร์มเปิดบิลอยู่ ลูกค้าทักมาพอดี แผงขวาเด้งปิด ข้อมูลที่กรอกหาย
+
+**ที่เกิด**: [app/chat/page.tsx](app/chat/page.tsx) effect "Fetch messages when contact selected"
+**อาการ**: กดเปิดบิลจากแชท กรอกสินค้า/ที่อยู่ค้างไว้ พอมีข้อความใหม่เข้าห้องนั้น (หรืออะไรก็ตามที่ทำให้ contact ที่เลือกถูก patch) แผงเปิดบิลปิดเอง OrderForm ถูกถอดออกจาก DOM ข้อมูลที่กรอกหายทั้งหมด · บนมือถือถูกเด้งกลับหน้าแชทด้วย
+**Root cause**: effect ผูก deps กับ `[selectedContact]` (ตัว object) แต่ทั้งหน้ามีที่ patch `setSelectedContact(prev => ({ ...prev, … }))` โดยยังเป็นห้องเดิมอยู่หลายจุด — realtime UPDATE ของตาราง contacts ทุกครั้งที่มีข้อความเข้า (ชื่อ/สถานะ) · สถิติออเดอร์โหลดเสร็จ · แก้แท็ก · ผูก/ยกเลิกผูกลูกค้า · บันทึกบิล → object ใหม่ = effect ทำงานเหมือน "เปลี่ยนห้อง": `fetchMessages` ซ้ำ + `setMobileView('chat')` + **`setRightPanel(null)`** + แย่งโฟกัสช่องพิมพ์ · พนักงานเจอบ่อยเพราะทางแรกเกิดทุกข้อความ
+**วิธีแก้**: deps เป็น `[selectedContact?.id]` — งานชุดนี้เป็นของ "เปลี่ยนห้อง" เท่านั้น · ผลพลอยได้: เลิกโหลดข้อความซ้ำทุกครั้งที่ contact ถูก patch
+**ป้องกัน regression**: effect ที่หมายถึง "เมื่อเปลี่ยนห้อง/เปลี่ยนตัวที่เลือก" ห้ามผูกกับ object ที่ถูก patch ในที่ ให้ผูกกับ id · `{...prev, x}` = identity ใหม่เสมอแม้ค่าเท่าเดิม · ทดสอบ: เปิดบิล → ยิงข้อความเข้าห้องเดิม (หรือ `scripts/simulate-shopee-webchat-push.mjs`) → ฟอร์มต้องอยู่
+
+---
+
 ## 2026-09-07 — แชท Lazada: รายชื่อโชว์ HTML ดิบ · auto-reply เป็น JSON `{"th":…}` · การ์ดสินค้า/ออเดอร์ไม่ขึ้น · ข้อความระบบ/คูปอง/เรียกคืนไม่มีตัววาด
 
 **ที่เกิด**: [lib/lazada/chat.ts](lib/lazada/chat.ts) `parseLazadaMessageContent()` · [lib/services/chat/lazada.ts](lib/services/chat/lazada.ts) `saveMessages()` · [lib/chat/message-preview.ts](lib/chat/message-preview.ts) · renderer ใน `app/chat/components/`
