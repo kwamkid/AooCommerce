@@ -12,7 +12,7 @@ import { useToast } from '@/lib/toast-context';
 import { useHeaderSummary } from '@/lib/header-summary-context';
 import { useCompany } from '@/lib/company-context';
 import { buildMessagePreview } from '@/lib/chat/message-preview';
-import { apiFetch } from '@/lib/api-client';
+import { apiFetch, invalidateApiCache } from '@/lib/api-client';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { useStableCallback } from '@/lib/useStableCallback';
 import { formatPrice, formatNumber } from '@/lib/utils/format';
@@ -70,6 +70,7 @@ import ChatOrderPanel from './components/ChatOrderPanel';
 import { FbIcon, IgIcon, LineIcon, ShopeeIcon, LazadaIcon, TiktokIcon, PlatformIcon, AccountCornerBadge, getAccountPicture, getAvatarUrl, getInitials, formatTime, formatLastMessage, compressImage, officialStickers, isSystemEventMessage } from './lib/chatHelpers';
 import { FullPageLoading } from '@/components/ui/Loading';
 import { LoadingCard } from '@/components/ui/StateCard';
+import { SkeletonChat } from '@/components/ui/Skeleton';
 import LoadingOverlay from '@/components/ui/LoadingOverlay';
 import StatusBadge from '@/components/ui/StatusBadge';
 import ChannelBadge from '@/components/ui/ChannelBadge';
@@ -561,6 +562,8 @@ function UnifiedChatPageContent() {
       const newMsg = raw as unknown as ChatMessage;
       const msgContactId = raw[contactIdField] as string | undefined;
       if (!msgContactId) return;
+      // ผลที่ prefetch ไว้ของห้องนี้เก่าแล้ว — ล้างทิ้ง คลิกครั้งหน้าดึงใหม่
+      invalidateApiCache(`/api/chat/messages?contact_id=${msgContactId}`);
       const selected = selectedContactRef.current;
       const isSelected = !!selected && msgContactId === selected.id;
 
@@ -816,6 +819,13 @@ function UnifiedChatPageContent() {
   // ให้ realtime effect (subscribe ครั้งเดียว) เรียก fetchContacts เวอร์ชันล่าสุดเสมอ
   latestFetchContactsRef.current = fetchContacts;
 
+  // เมาส์ชี้รายชื่อ = ดึงข้อความห้องนั้นรอไว้ (apiFetch cache 20 วิ) — คลิกแล้วขึ้นทันที
+  // peek = ไม่ mark read จึงชี้ผ่านได้โดยเลขค้างไม่หาย · มือถือไม่มี hover ก็แค่ไม่ได้ผล
+  const prefetchMessages = (contact: UnifiedContact) => {
+    if (selectedContactRef.current?.id === contact.id) return;
+    apiFetch(`/api/chat/messages?contact_id=${contact.id}&platform=${contact.platform}&limit=50&offset=0&peek=1`).catch(() => {});
+  };
+
   const fetchMessages = async (contactId: string, loadMore = false) => {
     if (!selectedContact) return;
     try {
@@ -823,7 +833,8 @@ function UnifiedChatPageContent() {
       else setLoadingMessages(true);
       const offset = loadMore ? messages.length : 0;
       const limit = 50;
-      const response = await apiFetch(`/api/chat/messages?contact_id=${contactId}&platform=${selectedContact.platform}&limit=${limit}&offset=${offset}`);
+      // peek=1 ทั้งตอนคลิกและตอน prefetch — URL เดียวกันถึงจะได้ใช้ cache ร่วมกัน · การ mark read แยกไปด้านล่าง
+      const response = await apiFetch(`/api/chat/messages?contact_id=${contactId}&platform=${selectedContact.platform}&limit=${limit}&offset=${offset}&peek=1`);
       if (!response.ok) throw new Error('Failed to fetch messages');
 
       const result = await response.json();
@@ -849,6 +860,10 @@ function UnifiedChatPageContent() {
         // (เดิมได้ค่าใหม่ฟรีจากการดึงรายชื่อใหม่ทุก event ตอนนี้ patch เองจึงต้องหักเอง)
         const before = contactsRef.current.find(c => c.id === contactId)?.unread_count || 0;
         if (before) setTotalUnread(t => Math.max(0, t - before));
+        // เปิดอ่านจริงถึงบอก server ว่าอ่านแล้ว (GET เป็น peek) — เฉพาะเมื่อมีค้าง ไม่ยิง UPDATE เปล่า
+        if (before) {
+          apiFetch(`/api/chat/contacts/${contactId}/read`, { method: 'POST', body: JSON.stringify({ platform: selectedContact.platform }) }).catch(() => {});
+        }
         unreadBaselineRef.current.delete(contactId);
         setContacts(prev => prev.map(c => c.id === contactId ? { ...c, unread_count: 0 } : c));
       }
@@ -1959,7 +1974,7 @@ function UnifiedChatPageContent() {
                     : contacts;
                   return sorted;
                 })().map((contact) => (
-                  <button key={contact.id} onClick={() => setSelectedContact(contact)}
+                  <button key={contact.id} onClick={() => setSelectedContact(contact)} onMouseEnter={() => prefetchMessages(contact)}
                     className={`w-full px-3 py-4 flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors border-b border-gray-100 dark:border-slate-700 ${selectedContact?.id === contact.id ? (contact.platform === 'line' ? 'bg-line/10' : contact.platform === 'shopee' ? 'bg-[#EE4D2D]/10' : contact.platform === 'lazada' ? 'bg-[#0F146E]/10' : contact.platform === 'tiktok' ? 'bg-[#161823]/10' : 'bg-facebook/10') : ''}`}>
                     {/* Avatar with channel profile badge */}
                     <div className="relative flex-shrink-0">
@@ -2116,7 +2131,7 @@ function UnifiedChatPageContent() {
                   ไม่ควรรีเฟรชทั้งแอปทิ้งที่อ่านอยู่ — รูดรีเฟรชได้จากรายชื่อแชท/หัวแชทแทน */}
               <div ref={messagesContainerRef} onScroll={handleScroll} data-ptr-ignore className="flex-1 overflow-y-auto overscroll-contain p-4 space-y-4 bg-gray-50 dark:bg-slate-900 relative font-sarabun">
                 {loadingMessages ? (
-                  <div className="flex items-center justify-center py-8"><Loader2 className="w-6 h-6 text-gray-400 animate-spin" /></div>
+                  <SkeletonChat />
                 ) : messages.length === 0 ? (
                   <div className="text-center py-8 text-gray-500 dark:text-slate-400"><MessageCircle className="w-12 h-12 mx-auto mb-2 text-gray-300" /><p>ยังไม่มีข้อความ</p></div>
                 ) : (

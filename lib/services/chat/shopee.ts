@@ -277,7 +277,7 @@ export class ShopeeChatService {
   // ─── Get Messages ───────────────────────────────────────────────────
 
   async getMessages(params: GetMessagesParams) {
-    const { contactId, companyId, limit, offset } = params;
+    const { contactId, companyId, limit, offset, markRead = true } = params;
 
     const { data: messages, error } = await supabaseAdmin
       .from('shopee_messages')
@@ -292,12 +292,14 @@ export class ShopeeChatService {
     // Mark as read
     // .gt() ไม่ใช่การกันงานเปล่า — UPDATE ค่าเดิมก็ยังยิง Realtime event ทำให้ทุกหน้าแชท
     // ที่เปิดอยู่ + header ของทุกคนดึงรายชื่อใหม่ทั้งชุด (เปิดแชทที่อ่านแล้วก็เกิด)
-    await supabaseAdmin
-      .from('shopee_contacts')
-      .update({ unread_count: 0 })
-      .eq('id', contactId)
-      .eq('company_id', companyId)
-      .gt('unread_count', 0);
+    if (markRead) {
+      await supabaseAdmin
+        .from('shopee_contacts')
+        .update({ unread_count: 0 })
+        .eq('id', contactId)
+        .eq('company_id', companyId)
+        .gt('unread_count', 0);
+    }
 
     return { messages: (messages || []).reverse(), error: null };
   }

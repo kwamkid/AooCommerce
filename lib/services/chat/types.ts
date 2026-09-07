@@ -48,4 +48,6 @@ export interface GetMessagesParams {
   companyId: string;
   limit: number;
   offset: number;
+  /** false = แค่อ่าน (prefetch ตอนเมาส์ชี้) ไม่ทำเครื่องหมายว่าอ่านแล้ว — ค่าตั้งต้น true */
+  markRead?: boolean;
 }

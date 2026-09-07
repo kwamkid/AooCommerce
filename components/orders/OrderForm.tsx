@@ -48,7 +48,7 @@ import FormInput from '@/components/ui/FormInput';
 import Badge from '@/components/ui/Badge';
 import Alert from '@/components/ui/Alert';
 import Tooltip from '@/components/ui/Tooltip';
-import {
+import { Trash2,
   Plus,
   Loader2,
   MapPin,
@@ -3293,10 +3293,11 @@ export default function OrderForm({
 
       {/* กู้ร่างที่กรอกค้างไว้ — บอกให้รู้ว่าของบนจอไม่ใช่ฟอร์มเปล่า พร้อมทางออกถ้าอยากเริ่มใหม่ */}
       {restoredDraftAt && (
-        <Alert tone="info" onClose={() => setRestoredDraftAt(null)}>
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <span>กู้ร่างบิลที่กรอกค้างไว้ ({formatThaiDateTime(restoredDraftAt)})</span>
-            <Button variant="ghost" size="sm" onClick={handleDiscardDraft}>ล้างร่าง</Button>
+        <Alert tone="info" title="กู้ร่างบิลที่กรอกค้างไว้" onClose={() => setRestoredDraftAt(null)}>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <span>ของบนจอคือร่างล่าสุดเมื่อ {formatThaiDateTime(restoredDraftAt)} ไม่ใช่ฟอร์มเปล่า — จะเริ่มใหม่ให้ล้างร่างก่อน</span>
+            {/* ต้องเป็นปุ่ม secondary (พื้นขาวมีขอบ) — ghost บนพื้นฟ้าอ่อนกลืนจนดูเป็นข้อความธรรมดา */}
+            <Button variant="secondary" size="sm" icon={<Trash2 />} onClick={handleDiscardDraft}>ล้างร่าง</Button>
           </div>
         </Alert>
       )}

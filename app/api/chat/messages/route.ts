@@ -1,6 +1,6 @@
 import { checkAuthWithCompany } from '@/lib/supabase-admin';
 import { NextRequest, NextResponse } from 'next/server';
-import { getChatService } from '@/lib/services/chat';
+import { getChatServiceLazy } from '@/lib/services/chat/registry';
 
 // GET - Get messages for a contact (any platform)
 export async function GET(request: NextRequest) {
@@ -19,8 +19,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'contact_id and platform are required' }, { status: 400 });
     }
 
-    const service = getChatService(platform);
-    const { messages, error } = await service.getMessages({ contactId, companyId, limit, offset });
+    // peek=1 = หน้าแชท prefetch ตอนเมาส์ชี้รายชื่อ — ห้าม mark read (เลขค้างต้องอยู่จนกว่าจะเปิดจริง)
+    const peek = searchParams.get('peek') === '1';
+
+    // โหลดเฉพาะ service ของแพลตฟอร์มนี้ — สายที่ผู้ใช้รอ cold start ต้องเบาที่สุด
+    const service = await getChatServiceLazy(platform);
+    const { messages, error } = await service.getMessages({ contactId, companyId, limit, offset, markRead: !peek });
 
     if (error) return NextResponse.json({ error }, { status: 500 });
     return NextResponse.json({ messages });
@@ -47,7 +51,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'message is required for text type' }, { status: 400 });
     }
 
-    const service = getChatService(platform);
+    const service = await getChatServiceLazy(platform);
     const result = await service.sendMessage({
       contactId: contact_id,
       companyId,

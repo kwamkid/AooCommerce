@@ -35,6 +35,24 @@ export function SkeletonText({ lines = 3, className = '' }: { lines?: number; cl
   );
 }
 
+/** ห้องแชท — ฟองซ้าย/ขวาสลับกัน กว้างไม่เท่ากันให้ดูเป็นบทสนทนาจริง (ใช้ตอนเปิดห้องแชท) */
+export function SkeletonChat({ bubbles = 6 }: { bubbles?: number }) {
+  const widths = ['w-2/3', 'w-1/2', 'w-3/4', 'w-2/5', 'w-1/2', 'w-3/5'];
+  return (
+    <div className="space-y-3 p-1" aria-label="กำลังโหลดข้อความ">
+      {Array.from({ length: bubbles }).map((_, i) => {
+        const mine = i % 3 === 2;
+        return (
+          <div key={i} className={`flex items-end gap-2 ${mine ? 'justify-end' : 'justify-start'}`}>
+            {!mine && <Skeleton circle className="w-8 h-8 flex-shrink-0" />}
+            <Skeleton className={`h-10 ${widths[i % widths.length]} max-w-[70%] !rounded-2xl`} />
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 /** การ์ดเปล่า + ข้อความข้างใน */
 export function SkeletonCard({ lines = 3, className = '' }: { lines?: number; className?: string }) {
   return (

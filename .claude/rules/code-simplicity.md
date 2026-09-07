@@ -33,7 +33,7 @@
 | Loading **ชั้น 3** — อยู่ในหน้าแล้ว กำลัง**อ่าน**ข้อมูลของบล็อกใดบล็อกหนึ่ง | `LoadingCard` (from `StateCard.tsx`) — ไม่ส่ง `title` = **skeleton** (ห้ามใส่ "กำลังโหลด..." ทั่วไป); ส่ง `title` เฉพาะงานประมวลผลที่ควรบอกผู้ใช้ เช่น "กำลังตรวจสอบข้อมูล..." → spinner + ข้อความ | inline spinner + ข้อความเอง · `Loader2` ตัวใหญ่กลางบล็อก · `title="กำลังโหลด..."` |
 | Loading **ชั้น 4** — ผู้ใช้สั่งงานเป็นชุด ระบบกำลัง**เขียน**ข้อมูล | `LoadingOverlay` — บังจอกันกดซ้ำ + progress `(7/20)` | ปล่อยให้กดซ้ำได้ระหว่างทำงาน (ออเดอร์จะโดนรับสองรอบ) |
 | Loading — spinner เล็กในปุ่ม/ในแถว | `Loader2` ของ lucide ตรง ๆ (`Button` มี `loading` prop อยู่แล้ว) | — |
-| อยากได้ skeleton ในจุดอื่น | `PageSkeleton variant="list\|form\|dashboard\|detail"` หรือชิ้นย่อย `SkeletonTable/List/Form/Stats/Card/Text` (from `Skeleton.tsx`) | ใช้ spinner ทั้งที่รู้ layout (skeleton รู้สึกเร็วกว่า + หน้าไม่เด้ง) |
+| อยากได้ skeleton ในจุดอื่น | `PageSkeleton variant="list\|form\|dashboard\|detail"` หรือชิ้นย่อย `SkeletonTable/List/Form/Stats/Card/Text/Chat` (from `Skeleton.tsx` — `SkeletonChat` = ฟองแชทซ้าย/ขวา ใช้ตอนเปิดห้องแชท) | ใช้ spinner ทั้งที่รู้ layout (skeleton รู้สึกเร็วกว่า + หน้าไม่เด้ง) |
 
 > ❌ `PageLoading` กับ `Spinner` ใน `Loading.tsx` **ถูกลบแล้ว** (2026-08-21) — export ไว้แต่ทั้งระบบเรียก 0 จุด ทำให้เอกสารชี้คนละทางกับของจริง
 | Empty / no-data state | `EmptyCard` (from `StateCard.tsx`) | สร้าง empty card เอง |

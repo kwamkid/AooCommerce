@@ -4,7 +4,6 @@ import { logIntegrationNow } from '@/lib/integration-logger';
 import { getChatAccount, getDefaultChatAccount, getLineCredsFromAccount } from '@/lib/chat-config';
 import { buildMessagePreview } from '@/lib/chat/message-preview';
 import crypto from 'crypto';
-import sharp from 'sharp';
 import type { SendMessageParams, SendMessageResult, ResolvedCredentials, PlatformProfile, GetMessagesParams } from './types';
 
 /**
@@ -206,7 +205,7 @@ export class LineChatService {
   // ─── Get Messages ───────────────────────────────────────────────────
 
   async getMessages(params: GetMessagesParams) {
-    const { contactId, companyId, limit, offset } = params;
+    const { contactId, companyId, limit, offset, markRead = true } = params;
 
     const { data: messages, error } = await supabaseAdmin
       .from('line_messages')
@@ -221,12 +220,14 @@ export class LineChatService {
     // Mark as read
     // .gt() ไม่ใช่การกันงานเปล่า — UPDATE ค่าเดิมก็ยังยิง Realtime event ทำให้ทุกหน้าแชท
     // ที่เปิดอยู่ + header ของทุกคนดึงรายชื่อใหม่ทั้งชุด (เปิดแชทที่อ่านแล้วก็เกิด)
-    await supabaseAdmin
-      .from('line_contacts')
-      .update({ unread_count: 0 })
-      .eq('id', contactId)
-      .eq('company_id', companyId)
-      .gt('unread_count', 0);
+    if (markRead) {
+      await supabaseAdmin
+        .from('line_contacts')
+        .update({ unread_count: 0 })
+        .eq('id', contactId)
+        .eq('company_id', companyId)
+        .gt('unread_count', 0);
+    }
 
     return { messages: (messages || []).reverse(), error: null };
   }
@@ -736,6 +737,9 @@ export class LineChatService {
       const MAX_IMAGE_SIZE = 500 * 1024;
       if (type === 'image' && buffer.length > MAX_IMAGE_SIZE) {
         try {
+          // sharp โหลดตอนต้องย่อรูปจริงเท่านั้น — native module ก้อนใหญ่ ถ้า import บนหัวไฟล์
+          // ทุก route ที่แตะ service นี้ (แค่อ่านข้อความ) ต้องรอมันโหลดตอน cold start
+          const { default: sharp } = await import('sharp');
           const img = sharp(buffer).resize(1920, 1920, { fit: 'inside', withoutEnlargement: true });
           for (const quality of [80, 60, 40]) {
             const compressed = await img.jpeg({ quality }).toBuffer();

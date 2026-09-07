@@ -57,6 +57,25 @@
 
 ---
 
+## 2026-09-08 — หน้าแชท: เปิดห้องแล้วรอนาน ไม่มี skeleton · แถบ "กู้ร่างบิล" ปุ่มล้างร่างกลืนกับพื้น
+
+**ที่เกิด**: [app/chat/page.tsx](app/chat/page.tsx) `fetchMessages` · [app/api/chat/messages/route.ts](app/api/chat/messages/route.ts) · [lib/services/chat/index.ts](lib/services/chat/index.ts) · [components/orders/OrderForm.tsx](components/orders/OrderForm.tsx) แถบกู้ร่าง
+
+**อาการ**: คลิกรายชื่อแล้วข้อความขึ้นช้า (เจ้าของแจ้ง 8 ก.ย.) เห็นแค่ spinner เล็ก ๆ ไม่ใช่ skeleton แบบ shared component · ในแผงเปิดบิล แถบ "กู้ร่างบิลที่กรอกค้างไว้ (…)" กับปุ่ม "ล้างร่าง" (ghost บนพื้นฟ้าอ่อน) กลืนกันจนดูเป็นข้อความบรรทัดเดียว
+
+**Root cause**:
+- DB ไม่ใช่ตัวช้า — `pg_stat_statements` บอกว่า query ข้อความห้อง ~4.5ms (มี index `(line_contact_id, created_at desc)` แล้ว) · ที่ช้าคือ **cold start ของ route**: `/api/chat/messages` import `getChatService` จาก index.ts ซึ่งดึง service ครบ 5 แพลตฟอร์ม (Shopee/Lazada/TikTok api + `sharp` native module ของ LINE) มาประเมินทั้งหมดเพื่ออ่านข้อความห้องเดียว + ไม่มี prefetch เลย ทุกคลิกคือรอบเดินทางเต็ม
+- GET mark read ในตัว จึง prefetch ตอน hover ไม่ได้ (จะล้างเลขค้างของห้องที่ยังไม่เปิด)
+- ปุ่ม ghost ไม่มีพื้น/ขอบ พอวางบน Alert สีฟ้าจึงกลืน
+
+**วิธีแก้**: prefetch ตอนเมาส์ชี้รายชื่อ (`apiFetch` cache 20 วิ + ล้างเมื่อ realtime มีข้อความใหม่ของห้องนั้น) · GET เป็น `peek=1` (`markRead:false` ทุก service) แล้วค่อย `POST …/read` ตอนเปิดจริง · `getChatServiceLazy()` (registry.ts dynamic import ต่อแพลตฟอร์ม) + `sharp` โหลดตอนย่อรูปเท่านั้น · `SkeletonChat` ใหม่ใน Skeleton.tsx แทน spinner · แถบกู้ร่างเป็น Alert มี title + คำอธิบาย + ปุ่ม secondary (พื้นขาวมีขอบ) ไอคอนถังขยะ
+
+**ป้องกัน regression**:
+- **route ที่อยู่ในสายที่ผู้ใช้รอ ห้าม import barrel ที่ลากทุกแพลตฟอร์ม/native module** — ใช้ dynamic import ต่อแพลตฟอร์ม (`registry.ts`) · `sharp`/`pdfmake`/SDK ก้อนใหญ่ต้อง import ตอนใช้
+- **GET ห้ามมีผลข้างเคียง (mark read)** — ไม่งั้น prefetch/hover ทำไม่ได้ · การอ่านจริงบอกผ่าน POST แยก
+- URL ที่ prefetch กับ URL ที่คลิกต้อง**ตรงกันทุกตัวอักษร** ไม่งั้น cache ไม่ hit
+- ปุ่มบน Alert/พื้นสี = `secondary` เสมอ (`ghost` สงวนไว้กับพื้นขาว)
+
 ## 2026-09-08 — แชท FB/IG/LINE: การ์ดสินค้าจาก Facebook Shop หายทั้ง 265 ใบ · unsend กลายเป็นข้อความใหม่ · แชร์โพสต์กดไม่ได้ · LINE ไม่รู้จัก unsend/quote/emoji/postback
 
 **ที่เกิด**: [lib/services/chat/facebook.ts](lib/services/chat/facebook.ts) `parseMessageContent()` · [app/api/fb/webhook/route.ts](app/api/fb/webhook/route.ts) · [lib/services/chat/line.ts](lib/services/chat/line.ts) · [app/api/line/webhook/route.ts](app/api/line/webhook/route.ts) · `app/chat/components/MessageBubble.tsx` + renderers
