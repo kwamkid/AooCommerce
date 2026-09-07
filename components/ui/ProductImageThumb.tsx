@@ -95,33 +95,40 @@ export default function ProductImageThumb({
   }
 
   const clickable = !disabled;
+  const frameClass = `relative ${sizeClass} rounded-md overflow-hidden flex-shrink-0 bg-gray-50 dark:bg-slate-700/50 ${className}`;
+  // object-contain ไม่ใช่ cover — รูปแนวตั้งต้องเห็นครบ ไม่ใช่ถูกครอปหัวท้าย
+  // ของเก่าบางร้านอาจเป็นสัดส่วนอื่นที่ไม่ใช่ 1:1/3:4 กรอบจึงต้องรับได้โดยไม่ตัดทิ้ง
+  const image = (
+    <img
+      src={thumbUrl(src, size === 'lg' ? 160 : 96)}
+      alt={alt}
+      loading="lazy"
+      decoding="async"
+      className="w-full h-full object-contain"
+    />
+  );
+
+  // `disabled` = อยู่ในปุ่ม/ลิงก์ของคนอื่น (แถวผลค้นหาสินค้า, การ์ดที่กดได้) → ต้องเป็น <div>
+  // ไม่ใช่ <button disabled> — HTML ห้าม <button> ซ้อน <button> React 19 ฟ้อง hydration error
+  // ทุกครั้งที่กางผลค้นหา (8 ก.ย. 2026)
+  if (!clickable) {
+    return <div className={`${frameClass} cursor-default`} role="img" aria-label={alt || undefined}>{image}</div>;
+  }
+
   return (
     <>
       <button
         type="button"
-        onClick={clickable ? () => setOpen(true) : undefined}
-        disabled={!clickable}
-        aria-label={clickable ? `ดูรูป ${alt || 'สินค้า'} ขนาดเต็ม` : alt}
-        className={`relative ${sizeClass} rounded-md overflow-hidden flex-shrink-0 bg-gray-50 dark:bg-slate-700/50 group ${clickable ? 'cursor-zoom-in' : 'cursor-default'} ${className}`}
+        onClick={() => setOpen(true)}
+        aria-label={`ดูรูป ${alt || 'สินค้า'} ขนาดเต็ม`}
+        className={`${frameClass} group cursor-zoom-in`}
       >
-        {/* object-contain ไม่ใช่ cover — รูปแนวตั้งต้องเห็นครบ ไม่ใช่ถูกครอปหัวท้าย
-            ของเก่าบางร้านอาจเป็นสัดส่วนอื่นที่ไม่ใช่ 1:1/3:4 กรอบจึงต้องรับได้โดยไม่ตัดทิ้ง */}
-        <img
-          src={thumbUrl(src, size === 'lg' ? 160 : 96)}
-          alt={alt}
-          loading="lazy"
-          decoding="async"
-          className="w-full h-full object-contain"
-        />
-        {clickable && (
-          <span className="absolute inset-0 flex items-center justify-center bg-black/40 text-white opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-            <Search className={ZOOM_ICON_CLASS[size]} />
-          </span>
-        )}
+        {image}
+        <span className="absolute inset-0 flex items-center justify-center bg-black/40 text-white opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+          <Search className={ZOOM_ICON_CLASS[size]} />
+        </span>
       </button>
-      {clickable && (
-        <ImageLightbox src={open ? src : null} onClose={() => setOpen(false)} alt={alt} />
-      )}
+      <ImageLightbox src={open ? src : null} onClose={() => setOpen(false)} alt={alt} />
     </>
   );
 }
