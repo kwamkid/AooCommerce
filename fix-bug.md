@@ -68,7 +68,7 @@
 - GET mark read ในตัว จึง prefetch ตอน hover ไม่ได้ (จะล้างเลขค้างของห้องที่ยังไม่เปิด)
 - ปุ่ม ghost ไม่มีพื้น/ขอบ พอวางบน Alert สีฟ้าจึงกลืน
 
-**วิธีแก้**: prefetch ตอนเมาส์ชี้รายชื่อ (`apiFetch` cache 20 วิ + ล้างเมื่อ realtime มีข้อความใหม่ของห้องนั้น) · GET เป็น `peek=1` (`markRead:false` ทุก service) แล้วค่อย `POST …/read` ตอนเปิดจริง · `getChatServiceLazy()` (registry.ts dynamic import ต่อแพลตฟอร์ม) + `sharp` โหลดตอนย่อรูปเท่านั้น · `SkeletonChat` ใหม่ใน Skeleton.tsx แทน spinner · แถบกู้ร่างเป็น Alert มี title + คำอธิบาย + ปุ่ม secondary (พื้นขาวมีขอบ) ไอคอนถังขยะ
+**วิธีแก้**: (รอบ 2 — เจ้าของให้**ตัดแถบกู้ร่างออกทั้งแถบ** เพราะการเติมค่าที่เคยกรอกให้เองดีอยู่แล้ว เหลือแค่ไอคอนถังขยะ "ล้างร่าง" บนหัวแผงข้างปุ่มคัดลอก Order ล่าสุด โชว์เฉพาะตอนมีร่างที่กู้มา ทั้งสองปุ่มใช้ shared `Tooltip` แทน `title` · หน้า /orders/new ส่ง `headerActionsRef` ให้ฟอร์มด้วยจึงได้ปุ่มชุดเดียวกัน) · prefetch ตอนเมาส์ชี้รายชื่อ (`apiFetch` cache 20 วิ + ล้างเมื่อ realtime มีข้อความใหม่ของห้องนั้น) · GET เป็น `peek=1` (`markRead:false` ทุก service) แล้วค่อย `POST …/read` ตอนเปิดจริง · `getChatServiceLazy()` (registry.ts dynamic import ต่อแพลตฟอร์ม) + `sharp` โหลดตอนย่อรูปเท่านั้น · `SkeletonChat` ใหม่ใน Skeleton.tsx แทน spinner · แถบกู้ร่างเป็น Alert มี title + คำอธิบาย + ปุ่ม secondary (พื้นขาวมีขอบ) ไอคอนถังขยะ
 
 **ป้องกัน regression**:
 - **route ที่อยู่ในสายที่ผู้ใช้รอ ห้าม import barrel ที่ลากทุกแพลตฟอร์ม/native module** — ใช้ dynamic import ต่อแพลตฟอร์ม (`registry.ts`) · `sharp`/`pdfmake`/SDK ก้อนใหญ่ต้อง import ตอนใช้

@@ -30,7 +30,7 @@ import NumberInput from '@/components/ui/NumberInput';
 import { calculateQtyDiscount, type PromotionTier } from '@/lib/promotions';
 import DateRangePicker, { DateValueType } from '@/components/ui/DateRangePicker';
 import FormSelect from '@/components/ui/FormSelect';
-import { formatPrice, formatNumber, formatThaiDateTime } from '@/lib/utils/format';
+import { formatPrice, formatNumber } from '@/lib/utils/format';
 import OrderSummaryBox from '@/components/ui/OrderSummaryBox';
 import CustomerInfoCard from '@/components/ui/CustomerInfoCard';
 import TaxInvoiceInfo from '@/components/ui/TaxInvoiceInfo';
@@ -46,7 +46,6 @@ import { LoadingCard } from '@/components/ui/StateCard';
 import Checkbox from '@/components/ui/Checkbox';
 import FormInput from '@/components/ui/FormInput';
 import Badge from '@/components/ui/Badge';
-import Alert from '@/components/ui/Alert';
 import Tooltip from '@/components/ui/Tooltip';
 import { Trash2,
   Plus,
@@ -2461,17 +2460,37 @@ export default function OrderForm({
   // ไม่งั้นตัวเลือกคลังบนหัวหน้าจะหายไปตอนอยู่ขั้นอื่นของ wizard
   const portalsFragment = (
     <>
-      {/* Header actions portal — copy order button in parent header */}
-      {headerActionsRef?.current && !isEditMode && selectedCustomer && createPortal(
-        <button
-          type="button"
-          onClick={handleCopyLatestOrder}
-          disabled={loadingLatestOrder}
-          className="p-1.5 text-blue-700 bg-blue-50 dark:bg-blue-900/30 dark:text-blue-300 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors disabled:opacity-50 flex items-center"
-          title="คัดลอก Order ล่าสุด"
-        >
-          {loadingLatestOrder ? <Loader2 className="w-4 h-4 animate-spin" /> : <Copy className="w-4 h-4" />}
-        </button>,
+      {/* Header actions portal — ปุ่มไอคอนบนหัวแผง/หัวหน้า: ล้างร่าง (เฉพาะตอนกู้ร่างมา) + คัดลอก Order ล่าสุด
+          ร่างที่กู้มาไม่ต้องมีแถบบอก (เจ้าของบอก 8 ก.ย. 2026 ว่าเติมให้เองแบบนี้ดีอยู่แล้ว)
+          แค่มีทางล้างถ้าไม่เอา · tooltip ต้องเป็น shared Tooltip ไม่ใช่ title ของเบราว์เซอร์ */}
+      {headerActionsRef?.current && !isEditMode && (selectedCustomer || restoredDraftAt) && createPortal(
+        <>
+          {restoredDraftAt && (
+            <Tooltip text="ล้างร่างบิลที่กู้มา — เริ่มบิลเปล่า">
+              <button
+                type="button"
+                onClick={handleDiscardDraft}
+                aria-label="ล้างร่างบิลที่กู้มา"
+                className="p-1.5 text-red-600 bg-red-50 dark:bg-red-900/30 dark:text-red-300 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/50 transition-colors flex items-center"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </Tooltip>
+          )}
+          {selectedCustomer && (
+            <Tooltip text="คัดลอก Order ล่าสุด" box="inline-flex">
+              <button
+                type="button"
+                onClick={handleCopyLatestOrder}
+                disabled={loadingLatestOrder}
+                aria-label="คัดลอก Order ล่าสุด"
+                className="p-1.5 text-blue-700 bg-blue-50 dark:bg-blue-900/30 dark:text-blue-300 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors disabled:opacity-50 flex items-center"
+              >
+                {loadingLatestOrder ? <Loader2 className="w-4 h-4 animate-spin" /> : <Copy className="w-4 h-4" />}
+              </button>
+            </Tooltip>
+          )}
+        </>,
         headerActionsRef.current
       )}
 
@@ -3290,17 +3309,6 @@ export default function OrderForm({
       className={`space-y-4 ${useWizard ? 'min-h-full flex flex-col' : ''} ${printMode ? 'print:hidden' : ''}`}
     >
       {portalsFragment}
-
-      {/* กู้ร่างที่กรอกค้างไว้ — บอกให้รู้ว่าของบนจอไม่ใช่ฟอร์มเปล่า พร้อมทางออกถ้าอยากเริ่มใหม่ */}
-      {restoredDraftAt && (
-        <Alert tone="info" title="กู้ร่างบิลที่กรอกค้างไว้" onClose={() => setRestoredDraftAt(null)}>
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <span>ของบนจอคือร่างล่าสุดเมื่อ {formatThaiDateTime(restoredDraftAt)} ไม่ใช่ฟอร์มเปล่า — จะเริ่มใหม่ให้ล้างร่างก่อน</span>
-            {/* ต้องเป็นปุ่ม secondary (พื้นขาวมีขอบ) — ghost บนพื้นฟ้าอ่อนกลืนจนดูเป็นข้อความธรรมดา */}
-            <Button variant="secondary" size="sm" icon={<Trash2 />} onClick={handleDiscardDraft}>ล้างร่าง</Button>
-          </div>
-        </Alert>
-      )}
 
       {useWizard ? (
         <div className="space-y-4 flex-1 flex flex-col min-h-0">

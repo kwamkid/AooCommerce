@@ -76,6 +76,7 @@ function NewOrderContent() {
   const fromOrderId = searchParams.get('from_order');
   const warehouseRef = useRef<HTMLDivElement>(null);
   const salesChannelRef = useRef<HTMLDivElement>(null);
+  const headerActionsRef = useRef<HTMLDivElement>(null);
 
   const isExchange = !!exchangeDataParam && !!fromOrderId;
 
@@ -302,6 +303,8 @@ function NewOrderContent() {
             <div className="flex items-center gap-2">
               <div ref={warehouseRef} />
               <div ref={salesChannelRef} />
+              {/* ปุ่มไอคอนของฟอร์ม (ล้างร่างที่กู้มา / คัดลอก Order ล่าสุด) — OrderForm portal มาใส่ */}
+              <div ref={headerActionsRef} className="flex items-center gap-2" />
             </div>
           }
         />
@@ -350,6 +353,7 @@ function NewOrderContent() {
         <OrderForm
           warehousePortalRef={warehouseRef}
           salesChannelPortalRef={salesChannelRef}
+          headerActionsRef={headerActionsRef}
           initialOrderData={initialData}
           exchangeData={exchangeData}
           exchangeCreditAmount={exchangeCreditAmount}
