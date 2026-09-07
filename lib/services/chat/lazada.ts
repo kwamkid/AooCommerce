@@ -382,8 +382,13 @@ export class LazadaChatService {
       const pure = parseLazadaMessageContent(m);
       const raw = (row.raw_message as Record<string, unknown> | null) || {};
       const isCard = pure.messageType === 'item' || pure.messageType === 'order';
+      // การ์ดสินค้าที่ "ยังไม่ผูกกับสินค้าเรา และไม่มีรูป" = แถวที่ backfill ด้วย SQL จากข้อมูลเก่า
+      // (parser รุ่นก่อนทิ้ง iconUrl/ราคาของ Lazada) — Lazada ส่งรูปมาทุกใบ ซ่อมรอบเดียวก็จบ
+      // ส่วนที่ผูกแล้วแต่ไม่มีรูป (สินค้าเราไม่มีรูปจริง ๆ) ถือว่าปกติ ไม่วน UPDATE ทุกรอบ
+      const item = (raw.item as Record<string, unknown> | undefined) ?? undefined;
+      const bareItemCard = pure.messageType === 'item' && !!item && !item.product_id && !item.image_url;
       const healthy = isCard
-        ? row.message_type === pure.messageType && !!raw[pure.messageType]
+        ? row.message_type === pure.messageType && !!raw[pure.messageType] && !bareItemCard
         : row.message_type === pure.messageType && row.content === pure.messageContent;
       if (healthy) continue;
 
