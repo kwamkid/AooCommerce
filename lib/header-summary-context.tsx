@@ -1,6 +1,7 @@
 'use client';
 
 import { createContext, useContext, useEffect, useCallback, useState, useRef, type ReactNode } from 'react';
+import { syncAppBadge } from '@/lib/push/client';
 import { apiFetch } from '@/lib/api-client';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/auth-context';
@@ -11,6 +12,8 @@ import { useCompany } from '@/lib/company-context';
 import type { WatchdogIssue as MarketplaceIssue } from '@/lib/marketplace/watchdog';
 
 export interface HeaderSummary {
+  /** เลขบนไอคอนแอป — ข้อความแชทยังไม่อ่านรวมทุกบริษัทของผู้ใช้ */
+  badgeTotal?: number;
   stockConfig: { stockEnabled: boolean; maxWarehouses: number | null; allowOversell: boolean };
   lowStockCount: number;
   chatUnread: number;
@@ -59,6 +62,8 @@ export function HeaderSummaryProvider({ children }: { children: ReactNode }) {
       if (!res.ok) return;
       const data = (await res.json()) as HeaderSummary;
       setSummary(data);
+      // เลขบนไอคอนแอป = unread จริง — ตั้งทุกครั้งที่ตัวเลขในแอปเปลี่ยน (อ่านแล้ว/อ่านทั้งหมด/ข้อความใหม่)
+      syncAppBadge(typeof data.badgeTotal === 'number' ? data.badgeTotal : data.chatUnread || 0);
     } catch {
       // non-fatal — keep last value
     } finally {
@@ -96,6 +101,9 @@ export function HeaderSummaryProvider({ children }: { children: ReactNode }) {
     };
 
     window.addEventListener('orders-count-changed', debouncedRefresh);
+    // กลับมาเปิดแอป (ปลดล็อก/สลับกลับ) → ดึงเลขล่าสุด แล้ว sync เลขบนไอคอนให้ตรงกับที่อ่านไปแล้วบนเครื่องอื่น
+    const onVisible = () => { if (document.visibilityState === 'visible') debouncedRefresh(); };
+    document.addEventListener('visibilitychange', onVisible);
 
     const channel = supabase
       .channel(`header-summary-${companyId}`)
@@ -118,6 +126,7 @@ export function HeaderSummaryProvider({ children }: { children: ReactNode }) {
     return () => {
       if (debounceTimer) clearTimeout(debounceTimer);
       if (chatThrottleTimer) clearTimeout(chatThrottleTimer);
+      document.removeEventListener('visibilitychange', onVisible);
       window.removeEventListener('orders-count-changed', debouncedRefresh);
       supabase.removeChannel(channel);
       clearInterval(marketplaceInterval);

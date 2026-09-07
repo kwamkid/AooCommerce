@@ -117,6 +117,28 @@ function bumpBadge() {
   });
 }
 
+/**
+ * ตั้งเลขตรง ๆ ตามที่เซิร์ฟเวอร์/หน้าเว็บบอก (= ข้อความแชทที่ยังไม่อ่านจริง) — ทางหลักตั้งแต่ 7 ก.ย. 2026
+ * bumpBadge() เหลือเป็นทางสำรองเมื่อ push ใบไหนไม่มี badge มา
+ */
+function setBadgeExact(n, source) {
+  return queueBadgeOp(async () => {
+    const count = Math.max(0, Math.round(Number(n) || 0));
+    const record = { at: Date.now(), count, source: source || 'server', supported: badgeSupported(), ok: false, error: null };
+    if (record.supported) {
+      try {
+        if (count > 0) await self.navigator.setAppBadge(count);
+        else await self.navigator.clearAppBadge();
+        record.ok = true;
+      } catch (e) {
+        record.error = String((e && e.message) || e);
+      }
+    }
+    await cacheWriteText(BADGE_KEY, String(count));
+    await cacheWriteText(source === 'page-sync' ? BADGE_LAST_CLEAR : BADGE_LAST_PUSH, JSON.stringify({ ...record, reason: source }));
+  });
+}
+
 /** ล้างเลขบนไอคอน — เรียกตอนผู้ใช้เปิดแอปมาอ่านแล้ว · `reason` เก็บไว้ดูว่าใครสั่งล้าง */
 function clearBadge(reason) {
   return queueBadgeOp(async () => {
@@ -135,7 +157,7 @@ function clearBadge(reason) {
 }
 
 self.addEventListener('push', (event) => {
-  let payload = { title: 'AooCommerce', body: '', url: '/', tag: undefined, icon: undefined };
+  let payload = { title: 'AooCommerce', body: '', url: '/', tag: undefined, icon: undefined, badge: undefined };
   try {
     if (event.data) payload = { ...payload, ...event.data.json() };
   } catch (e) {
@@ -153,7 +175,8 @@ self.addEventListener('push', (event) => {
         badge: '/icons/badge-96.png',
         data: { url: payload.url },
       }),
-      bumpBadge(),
+      // เซิร์ฟเวอร์แนบเลขที่ยังไม่อ่านจริงมาด้วย → ตั้งตรง ๆ · ไม่มีมา (push รุ่นเก่า) → บวกหนึ่งแบบเดิม
+      typeof payload.badge === 'number' ? setBadgeExact(payload.badge, 'server') : bumpBadge(),
     ])
   );
 });
@@ -162,9 +185,9 @@ self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   const url = (event.notification.data && event.notification.data.url) || '/';
 
+  // ไม่ล้างเลขตอนแตะแจ้งเตือน — เลขคือ unread จริง จะลดเองเมื่ออ่าน (หน้าเว็บ sync ให้)
   event.waitUntil(
     Promise.all([
-      clearBadge('notification-click'),
       self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
         // มีแท็บ/แอพเปิดอยู่แล้ว → focus แล้วนำทางไปหน้าเป้าหมาย
         for (const client of clients) {
@@ -190,6 +213,11 @@ self.addEventListener('message', (event) => {
   const data = event.data || {};
   if (data.type === 'clear-badge') {
     event.waitUntil(clearBadge(data.reason || 'page'));
+    return;
+  }
+  // หน้าเว็บบอกเลข unread จริง (จาก /api/header/summary) → ตั้งตาม
+  if (data.type === 'set-badge') {
+    event.waitUntil(setBadgeExact(data.count, data.reason || 'page-sync'));
     return;
   }
   if (data.type === 'badge-status') {

@@ -6,6 +6,7 @@ import { parallelLimit } from '@/lib/parallel';
 import { formatPrice } from '@/lib/utils/format';
 import { logIntegrationNow } from '@/lib/integration-logger';
 import { sendFcm } from '@/lib/push/fcm';
+import { countUnreadChatForUser } from '@/lib/push/badge';
 
 export interface PushPayload {
   title: string;
@@ -194,47 +195,15 @@ type Sub = {
   device_token?: string | null;
 };
 
-/** ตารางผู้ติดต่อของทุกแพลตฟอร์มแชท — ใช้นับ "แชทที่ยังไม่อ่าน" เป็นเลขบนไอคอนแอป native */
-const CHAT_CONTACT_TABLES = ['line_contacts', 'fb_contacts', 'shopee_contacts', 'lazada_contacts', 'tiktok_contacts'];
-
-/**
- * เลขบนไอคอนของแอป native = จำนวนคู่สนทนาที่ยังไม่อ่านในทุกบริษัทที่คนนี้เป็นสมาชิก
- * (iOS รับแต่เลขจริงกับ push — ไม่มี "บวกหนึ่ง" · PWA ยังนับเองใน SW เหมือนเดิม)
- */
-async function countUnreadChatForUser(userId: string): Promise<number> {
-  try {
-    const { data: memberships } = await supabaseAdmin
-      .from('company_members').select('company_id').eq('user_id', userId).eq('is_active', true);
-    const companyIds = (memberships || []).map(m => m.company_id as string);
-    if (!companyIds.length) return 0;
-    const counts = await Promise.all(CHAT_CONTACT_TABLES.map(async (table) => {
-      const { count } = await supabaseAdmin
-        .from(table).select('id', { count: 'exact', head: true })
-        .in('company_id', companyIds).gt('unread_count', 0);
-      return count || 0;
-    }));
-    return counts.reduce((a, b) => a + b, 0);
-  } catch {
-    return 0;
-  }
-}
-
 async function deliver(
   subs: Sub[],
   payload: PushPayload,
   opts: { companyId?: string; audience?: PushAudience } = {}
 ): Promise<number> {
-  const body = JSON.stringify({
-    title: payload.title,
-    body: payload.body,
-    url: payload.url || '/',
-    tag: payload.tag,
-    icon: payload.icon,
-  });
-
   const staleIds: string[] = [];
   let sent = 0;
-  // เลขบนไอคอนคิดครั้งเดียวต่อคน (คนเดียวหลายเครื่องได้เลขเดียวกัน) · เฉพาะสาย app
+  // เลขบนไอคอน = ข้อความแชทที่ยังไม่อ่านจริงของคนนั้น (lib/push/badge.ts) แนบไปทั้ง Web Push และ FCM
+  // — SW/OS ตั้งเลขนี้ตรง ๆ แทนการนับเอง · คิดครั้งเดียวต่อคน · เฉพาะสาย app
   const badgeCache = new Map<string, Promise<number>>();
   const badgeFor = (userId?: string): Promise<number | null> => {
     if (!userId || opts.audience === 'superadmin') return Promise.resolve(null);
@@ -274,6 +243,15 @@ async function deliver(
     }
     if (!sub.p256dh || !sub.auth) return; // แถวไม่สมบูรณ์ — ยิงไม่ได้
     try {
+      const badge = await badgeFor(sub.user_id);
+      const body = JSON.stringify({
+        title: payload.title,
+        body: payload.body,
+        url: payload.url || '/',
+        tag: payload.tag,
+        icon: payload.icon,
+        ...(typeof badge === 'number' ? { badge } : {}),
+      });
       await webpush.sendNotification(
         { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
         body,

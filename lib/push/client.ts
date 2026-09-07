@@ -201,34 +201,38 @@ export async function disablePush(audience: PushAudience = 'app'): Promise<PushS
 }
 
 /**
- * ล้างเลขบนไอคอนแอป (Badging API)
+ * ตั้งเลขบนไอคอนแอปให้เท่ากับ "ข้อความแชทที่ยังไม่อ่าน" จริง (Badging API)
  *
- * ⚠️ iOS/Android **ไม่ได้** แปะจำนวนแจ้งเตือนบนไอคอน PWA ให้เอง — ต้องเรียก
- * `setAppBadge()` เองใน service worker (ตอน push เข้า) และ `clearAppBadge()`
- * ที่นี่ตอนผู้ใช้เปิดแอปมาเห็นแล้ว · iOS 16.4+ เฉพาะแอปที่ติดตั้งแล้ว
+ * ⚠️ iOS/Android **ไม่ได้** แปะจำนวนแจ้งเตือนบนไอคอน PWA ให้เอง — เลขมาจาก 2 ทางที่ให้ค่าเดียวกัน:
+ *   - push ทุกใบแนบ `badge` จากเซิร์ฟเวอร์ → SW ตั้งเลขนั้นตรง ๆ (ไม่ "บวกหนึ่ง" อีก)
+ *   - หน้าเว็บเรียกฟังก์ชันนี้จาก HeaderSummaryProvider ทุกครั้งที่ตัวเลขในแอปเปลี่ยน (อ่านแล้ว/อ่านทั้งหมด)
+ * ผลคือเปิดแอปแล้วเลข**ไม่หาย**จนกว่าจะอ่านจริง · iOS 16.4+ เฉพาะแอปที่ติดตั้งแล้ว
  *
- * เรียกทั้งสองฝั่งเพราะตัวนับอยู่ที่ SW แต่หน้าเว็บล้างไอคอนได้เร็วกว่า —
- * ฝั่งไหนไม่รองรับก็เงียบไป ไม่ throw
+ * ตั้งทั้งสองฝั่ง (หน้าเว็บ + ตัวนับใน SW) — SW จะได้เริ่มนับต่อจากเลขที่ถูกเมื่อ push ใบไหนไม่มี badge มา
  */
-export async function clearAppBadge(reason: 'mount' | 'interact' | 'manual' = 'manual'): Promise<void> {
+export async function syncAppBadge(count: number): Promise<void> {
+  const n = Math.max(0, Math.round(count || 0));
   if (isNativeApp()) {
-    // เลขบนไอคอนของแอป native มาจากเซิร์ฟเวอร์ (ส่งกับ push) — เปิดแอปแล้วล้างพอ ไม่มีตัวนับใน SW ให้ reset
-    await setNativeBadge(0);
+    await setNativeBadge(n);
     return;
   }
-  const nav = navigator as Navigator & { clearAppBadge?: () => Promise<void> };
-  if (typeof nav.clearAppBadge === 'function') {
-    try { await nav.clearAppBadge(); } catch { /* ไม่ได้ติดตั้งเป็นแอป */ }
-  }
+  const nav = navigator as Navigator & { setAppBadge?: (n: number) => Promise<void>; clearAppBadge?: () => Promise<void> };
+  try {
+    if (n > 0 && typeof nav.setAppBadge === 'function') await nav.setAppBadge(n);
+    else if (n === 0 && typeof nav.clearAppBadge === 'function') await nav.clearAppBadge();
+  } catch { /* ไม่ได้ติดตั้งเป็นแอป */ }
   if (!('serviceWorker' in navigator)) return;
   try {
-    // บอกทุก registration (สายแอปร้าน + สายผู้ดูแลระบบ) ให้ reset ตัวนับของตัวเอง
-    // `reason` ไปโผล่ในบันทึก "ล้างล่าสุด" ของ SW — ไว้ดูว่าเลขหายเพราะเปิดแอป หรือเพราะแตะ
     const regs = await navigator.serviceWorker.getRegistrations();
     for (const reg of regs) {
-      (reg.active || reg.waiting || reg.installing)?.postMessage({ type: 'clear-badge', reason });
+      (reg.active || reg.waiting || reg.installing)?.postMessage({ type: 'set-badge', count: n, reason: 'page-sync' });
     }
   } catch { /* ignore */ }
+}
+
+/** @deprecated ใช้ syncAppBadge(0) — เหลือไว้ให้ที่เรียกเก่า */
+export async function clearAppBadge(): Promise<void> {
+  return syncAppBadge(0);
 }
 
 /** บันทึกจาก SW ว่า push ใบล่าสุดตั้งเลขบนไอคอนได้ไหม */

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { checkAuthWithCompany, supabaseAdmin } from '@/lib/supabase-admin';
+import { countUnreadChatForUser } from '@/lib/push/badge';
 import { getBlockedPlatforms } from '@/lib/marketplace/quota';
 import { collectWatchdogIssuesCached } from '@/lib/marketplace/watchdog';
 import { getStockConfig } from '@/lib/stock-utils';
@@ -118,10 +119,14 @@ export async function GET(request: NextRequest) {
       ? (await getBlockedPlatforms()).filter(b => activePlatforms.has(b.platform))
       : [];
 
+    // เลขบนไอคอนแอป — รวมทุกบริษัทของคนนี้ (ไม่ใช่แค่บริษัทที่เปิดอยู่) ให้ตรงกับที่แนบมากับ push
+    const badgeTotal = auth.userId ? await countUnreadChatForUser(auth.userId) : chatUnread;
+
     return NextResponse.json({
       stockConfig,
       lowStockCount: lowStockResult.count || 0,
       chatUnread,
+      badgeTotal,
       ordersReadyCount: ordersReadyResult.count || 0,
       marketplaceHealth: {
         expired_count: expiredCount,
