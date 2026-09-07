@@ -119,8 +119,12 @@ export function reportMarketplaceError(
   // ต่อวินาที ไม่ใช่โควตาหมด — พักเท่าที่เขาบอกพอ ของเดิมพัก 30 นาทีทุกกรณี ทำให้แชท Lazada
   // เข้าช้าไปครึ่งชั่วโมงและขึ้นเตือน "โควตาหมด" ทั้งที่จริงโดนแบนแค่ 1 วินาที (ดู fix-bug.md 2026-09-07)
   const banSeconds = parseBanSeconds(message);
+  // TikTok "A dependent service is temporarily rate limited. Retry later." = ระบบข้างในของ
+  // แพลตฟอร์มเองสะดุด ไม่ใช่โควตาของเราหมด (8 ก.ย. 2026 เจอทั้งที่ยิงไปแค่ 4 call) — พักสั้นพอให้
+  // ผู้เรียกรอแล้วลองซ้ำในรอบเดียวกันได้ และไม่ปลุกคน (isShortPause · ดู fix-bug.md 2026-09-08)
   const until = banSeconds !== null
     ? new Date(Date.now() + Math.min(Math.max(banSeconds, 2), 30 * 60) * 1000).toISOString()
+    : isTransientUpstreamError(message) ? pauseUntil(1)
     : reset.kind === 'daily-utc8' && !isDaily ? pauseUntil(30) : undefined;
 
   markQuotaExhausted(platform, scope, until, message || undefined).catch(() => {});
@@ -133,6 +137,11 @@ export function parseBanSeconds(message: string | null | undefined): number | nu
   if (!m) return null;
   const n = Number(m[1] ?? m[2] ?? m[3]);
   return Number.isFinite(n) && n >= 0 ? n : null;
+}
+
+/** แพลตฟอร์มบอกเองว่า "บริการข้างในของฉันสะดุด" — ไม่ใช่โควตาของเรา ควรรอแล้วลองซ้ำ ไม่ใช่หยุดยาว */
+export function isTransientUpstreamError(message: string | null | undefined): boolean {
+  return /dependent service/i.test(message || '');
 }
 
 /**

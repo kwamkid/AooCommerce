@@ -102,7 +102,7 @@ export async function POST(request: NextRequest) {
           ? await syncShopeeAccount(account as unknown as ShopeeAccountRow, since, deadline)
           : target === 'lazada'
             ? await syncLazadaAccount(account as unknown as LazadaAccountRow, since)
-            : await syncTikTokAccount(account as unknown as TikTokAccountRow, since);
+            : await syncTikTokAccount(account as unknown as TikTokAccountRow, since, deadline);
         results.push({ shop: account.shop_name, ...r });
       } catch (err) {
         results.push({ shop: account.shop_name, error: err instanceof Error ? err.message : 'unknown' });
@@ -114,12 +114,15 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({ platforms: targets, days, ...byPlatform });
 }
 
-// cron ยิงเป็น GET ได้ (cron-job.org ตั้ง GET ง่ายกว่า) — เท่ากับ POST { platform:'all' }
+// cron ยิงเป็น GET ได้ (cron-job.org ตั้ง GET ง่ายกว่า) — ไม่ใส่อะไร = POST { platform:'all', days:30 }
+// แยก job ต่อเจ้าได้ด้วย `?platform=shopee|lazada|tiktok` — แต่ละ job ได้งบเวลา 300 วิของตัวเอง ไม่ต้อง
+// รอคิวกัน (job เดียวเรียง Shopee → Lazada → TikTok ถ้าเจ้าแรกกินเวลาหมด เจ้าท้ายโดนข้ามทั้งรอบ)
 export async function GET(request: NextRequest) {
+  const q = request.nextUrl.searchParams;
   return POST(new NextRequest(request.url, {
     method: 'POST',
     headers: request.headers,
-    body: JSON.stringify({ platform: 'all', days: 30 }),
+    body: JSON.stringify({ platform: q.get('platform') || 'all', days: Number(q.get('days')) || 30 }),
   }));
 }
 
@@ -269,29 +272,68 @@ async function syncLazadaAccount(account: LazadaAccountRow, since: Date) {
 
 // ─── TikTok ─────────────────────────────────────────────────────────────────
 
-async function syncTikTokAccount(account: TikTokAccountRow, since: Date) {
-  const { data: ourOrders } = await supabaseAdmin
+// เจอ 429 รอแล้วลองซ้ำก่อน — TikTok เองแนะนำ backoff+retry ไม่ใช่หยุดยาว (ดู fix-bug.md 2026-09-08)
+const TIKTOK_RATE_LIMIT_RETRY_MS = [5_000, 10_000];
+
+async function getOrderStatementWithRetry(
+  creds: Parameters<typeof getOrderStatement>[0],
+  orderId: string
+): ReturnType<typeof getOrderStatement> {
+  for (let attempt = 0; ; attempt++) {
+    const result = await getOrderStatement(creds, orderId);
+    if (!result.rateLimited || attempt >= TIKTOK_RATE_LIMIT_RETRY_MS.length) return result;
+    await new Promise(r => setTimeout(r, TIKTOK_RATE_LIMIT_RETRY_MS[attempt]));
+  }
+}
+
+async function syncTikTokAccount(account: TikTokAccountRow, since: Date, deadline: number) {
+  const { data: candidates } = await supabaseAdmin
     .from('orders')
     .select('id, company_id, external_order_sn')
     .eq('company_id', account.company_id)
     .eq('marketplace_account_id', account.id)
     .not('external_order_sn', 'is', null)
     .gte('created_at', since.toISOString())
-    .limit(200);
+    .order('created_at', { ascending: false })
+    .limit(500);
 
-  if (!ourOrders?.length) return { orders: 0, processed: 0 };
+  if (!candidates?.length) return { orders: 0, processed: 0 };
+
+  // backfill = เอาเฉพาะใบที่ยังไม่มี settlement — ของเดิมยิงทุกใบใน 30 วันซ้ำทุกเช้า
+  // (ร้าน 200 ใบ/เดือน = 200 call/วัน เพื่อได้ของใหม่ไม่กี่ใบ) · ใบที่ยังไม่ถึงรอบโอนไม่มีแถว
+  // จึงถูกลองใหม่ทุกวันจนกว่าจะได้ ซึ่งคือพฤติกรรมที่ต้องการ
+  const settled = new Set<string>();
+  for (let i = 0; i < candidates.length; i += 200) {
+    const { data } = await supabaseAdmin
+      .from('marketplace_settlements')
+      .select('order_id')
+      .in('order_id', candidates.slice(i, i + 200).map(o => o.id));
+    for (const row of data || []) settled.add(row.order_id as string);
+  }
+  const ourOrders = candidates.filter(o => !settled.has(o.id));
+  if (!ourOrders.length) return { orders: candidates.length, already: settled.size, processed: 0 };
 
   const creds = await ensureTikTokToken(account);
   const cogsMap = await computeOrderCogs(ourOrders.map(o => o.id));
 
   let processed = 0;
   let failed = 0;
+  let attempted = 0;
+  let stopped: string | null = null;
   const unmapped = new Set<string>();
   const errors = new Set<string>();
   let pending = 0;  // ยังไม่ถึงรอบโอน — ไม่ใช่ความล้มเหลว รอบหน้าค่อยมาเก็บ
 
   for (const order of ourOrders) {
-    const { statement, error } = await getOrderStatement(creds, order.external_order_sn!);
+    if (Date.now() > deadline) { stopped = 'หมดงบเวลา — ยิงรอบใหม่ต่อได้'; break; }
+    const { statement, error, rateLimited } = await getOrderStatementWithRetry(creds, order.external_order_sn!);
+    if (rateLimited) {
+      // รอแล้วลองซ้ำแล้วยังโดนหน่วง — ยิงใบต่อไปก็ล้มทั้งแถว หยุดรอบนี้ให้ cron พรุ่งนี้เก็บตก
+      errors.add(error || 'rate limited');
+      stopped = 'rate_limited';
+      break;
+    }
+    attempted++;
     if (error || !statement) {
       failed++;
       errors.add(error || 'statement ว่าง (ออเดอร์อาจยังไม่ถึงรอบจ่ายเงิน)');
@@ -323,10 +365,13 @@ async function syncTikTokAccount(account: TikTokAccountRow, since: Date) {
   }
 
   return {
-    orders: ourOrders.length,
+    orders: candidates.length,
+    already: settled.size,
     processed,
     pending,
     failed,
+    remaining: ourOrders.length - attempted,
+    ...(stopped ? { stopped } : {}),
     // ถ้ามีค่าในนี้ = มีค่าธรรมเนียมที่ยังไม่ได้แมป ต้องเพิ่มใน lib/tiktok/settlement.ts
     unmapped_fields: [...unmapped],
     errors: [...errors].slice(0, 5),

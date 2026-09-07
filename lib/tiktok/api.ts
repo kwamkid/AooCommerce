@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { beginMarketplaceCall, reportMarketplaceError } from '@/lib/marketplace/quota';
+import { beginMarketplaceCall, reportMarketplaceError, isQuotaErrorMessage } from '@/lib/marketplace/quota';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { logIntegration } from '@/lib/integration-logger';
 
@@ -297,7 +297,7 @@ export async function tiktokApiRequest(
   apiPath: string,
   queryParams: Record<string, string> = {},
   body?: Record<string, unknown>
-): Promise<{ data: unknown; error?: string; request_id?: string }> {
+): Promise<{ data: unknown; error?: string; request_id?: string; rate_limited?: boolean }> {
   const timestamp = Math.floor(Date.now() / 1000);
 
   // Build query params
@@ -357,7 +357,9 @@ export async function tiktokApiRequest(
     // rate limit → เปิด circuit breaker เฉพาะ scope ที่ชน (พัก 30 นาที) — cron/manual sync จะ skip เอง
     // แชท TikTok เป็นคนละ app คนละถังโควตากับออเดอร์ ตายแยกกันได้
     reportMarketplaceError('tiktok', scope, errMsg, { httpStatus: res.status });
-    return { data: null, error: errMsg, request_id: data.request_id };
+    // บอกผู้เรียกว่า "ล้มเพราะโดนหน่วง" (รอแล้วลองใหม่ได้) ไม่ใช่ล้มเพราะข้อมูล — ดู fix-bug.md 2026-09-08
+    const rateLimited = res.status === 429 || isQuotaErrorMessage(errMsg);
+    return { data: null, error: errMsg, request_id: data.request_id, rate_limited: rateLimited };
   }
 
   return { data: data.data, request_id: data.request_id };
@@ -793,11 +795,11 @@ export async function getProductDetail(
 export async function getOrderStatement(
   creds: TikTokCredentials,
   orderId: string
-): Promise<{ statement: Record<string, unknown> | null; error?: string }> {
-  const { data, error } = await tiktokApiRequest(
+): Promise<{ statement: Record<string, unknown> | null; error?: string; rateLimited?: boolean }> {
+  const { data, error, rate_limited } = await tiktokApiRequest(
     creds, 'GET', `/finance/202501/orders/${orderId}/statement_transactions`
   );
-  if (error) return { statement: null, error };
+  if (error) return { statement: null, error, rateLimited: rate_limited };
   const d = data as Record<string, unknown> | null;
   // API ห่อผลลัพธ์ไว้หลายชั้นแล้วแต่เวอร์ชัน — เลือก "ชั้นที่มียอดจริง" ไม่ใช่ชั้นที่มี key
   //

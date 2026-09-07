@@ -16,6 +16,16 @@
 
 ---
 
+## 2026-09-08 — Settlement TikTok: cron ตี 4 โดน 429 "dependent service" ครั้งเดียว → breaker 30 นาที + ป้าย + push ปลุกคน ทั้งที่ยิงไป 4 call · และยิงทุกออเดอร์ 30 วันซ้ำทุกเช้า
+
+**ที่เกิด**: [app/api/marketplace/settlements/sync/route.ts](app/api/marketplace/settlements/sync/route.ts) `syncTikTokAccount` · [lib/marketplace/quota.ts](lib/marketplace/quota.ts) `reportMarketplaceError` · [lib/tiktok/api.ts](lib/tiktok/api.ts) `tiktokApiRequest`
+**อาการ**: dashboard ขึ้นป้าย "TikTok Shop (รายงานการเงิน) — โควตา API หมดชั่วคราว" ตอน 04:00 น. + ตัวเฝ้า push 2 คน · `app_flags.tiktok_quota_exhausted:finance` reason = `Too many requests. A dependent service is temporarily rate limited. Retry later.` · หน้า superadmin API Monitor กลับบอก "breaker ปิดทุก platform" (RPC `get_api_monitor_stats` อ่านเฉพาะ key ที่**ไม่มี** scope — ยังไม่แก้)
+**Root cause**: (1) ข้อความนี้คือ**ระบบข้างในของ TikTok สะดุด** (platform-level throttling ตอบ 429 เหมือนกันแม้ app ไม่เกินโควตา) ไม่ใช่เรายิงถี่ — รอบนั้นยิง 4 call ทั้งวัน · TikTok แนะนำ backoff+retry แต่โค้ดไม่ retry เลย เปิด breaker 30 นาทีทันที (rolling default) ซึ่งเกิน 2 นาที → ขึ้นป้าย+push แล้วลูปยัง `continue` ยิงใบถัดไปต่อ (2) `syncTikTokAccount` เลือก**ทุกออเดอร์ 30 วัน** (≤200) โดยไม่ดูว่ามี settlement แล้ว → ร้าน 200 ใบ/เดือนยิง 200 call ทุกเช้าเพื่อได้ของใหม่ไม่กี่ใบ · ไม่มี deadline check ในลูปด้วย
+**วิธีแก้**: `tiktokApiRequest` คืน `rate_limited` (HTTP 429 หรือข้อความเข้าข่าย `isQuotaErrorMessage`) → `getOrderStatement` ส่งต่อเป็น `rateLimited` · ลูป TikTok รอ 5 วิ / 10 วิ ลองซ้ำ 2 ครั้ง ยังโดน = `break` รอบนี้ (คืน `stopped: 'rate_limited'` + `remaining`) ให้ cron พรุ่งนี้เก็บตก · เช็ค `deadline` ในลูปเหมือน Shopee · เลือกเฉพาะใบที่ไม่มีแถวใน `marketplace_settlements` (candidates 500 ใบล่าสุด เช็คเป็นชุด 200) · `reportMarketplaceError`: ข้อความมี "dependent service" (`isTransientUpstreamError`) → พัก 1 นาที = `isShortPause` ไม่ขึ้นป้าย/ไม่ push แต่ breaker ยังกันการยิงซ้ำในนาทีนั้น · GET ของ route รับ `?platform=shopee|lazada|tiktok` ให้แยก cron ต่อเจ้าได้ (job เดียวเรียง Shopee→Lazada→TikTok ในงบ 300 วิเดียว เจ้าท้ายโดนข้ามได้)
+**ป้องกัน regression**: 429 ของ marketplace ต้องแยก "โควตาเราหมด" กับ "ปลายทางสะดุด" — อย่างหลังรอแล้วลองซ้ำในรอบเดียวกัน ไม่หยุดยาว ไม่ปลุกคน · งาน backfill ต้องเลือกเฉพาะที่ยังไม่มีเสมอ (Shopee/Beam ทำอยู่แล้ว) · ลูปที่ยิง API ทีละใบต้องมี deadline check + หยุดเมื่อโดนหน่วง ไม่ `continue` ยิงต่อ · TikTok มี bulk (`GET /finance/202309/statements` → `GET /finance/202501/statements/{id}/statement_transactions` 100 ใบ/หน้า) แต่แถวไม่มี `sku_transactions` ต้องเขียน normalizer อีก variant — ค่อยย้ายเมื่อยอดถึงหลักร้อยใบ/เดือน · ทดสอบ: `curl -H "x-cron-secret: $CRON_SECRET" "https://aoocommerce.vercel.app/api/marketplace/settlements/sync?platform=tiktok"` ต้องคืน `already` = จำนวนที่มีแล้ว และไม่ยิงซ้ำ
+
+---
+
 ## 2026-09-08 — หน้าแชท: กำลังกรอกฟอร์มเปิดบิลอยู่ ลูกค้าทักมาพอดี แผงขวาเด้งปิด ข้อมูลที่กรอกหาย
 
 **ที่เกิด**: [app/chat/page.tsx](app/chat/page.tsx) effect "Fetch messages when contact selected"
