@@ -13,6 +13,7 @@ import { formatThaiDateTime } from '@/lib/utils/format';
 // `import type` ถูกลบตอน compile — ไม่ลากโค้ดฝั่ง server เข้ามาใน bundle
 import type { WatchdogIssue } from '@/lib/marketplace/watchdog';
 import ChannelBadge from '@/components/ui/ChannelBadge';
+import { QUOTA_SCOPE_LABELS, type QuotaTarget } from '@/lib/marketplace/platforms';
 import {
   RefreshCw, ShieldAlert, ShieldCheck, Zap, Radio, AlertTriangle, Store,
 } from 'lucide-react';
@@ -31,7 +32,8 @@ interface MonitorData {
   dead_letters: DeadLetter[];
   retry_queue: number;
   accounts: ProblemAccount[];
-  breakers: Record<string, { until?: string }>;
+  /** breaker ที่เปิดอยู่จริง (ยังไม่หมดเวลา · ไม่นับพักสั้น) — แหล่งเดียวกับ banner บน dashboard */
+  breakers: { platform: string; scope: QuotaTarget; until: string }[];
   issues: WatchdogIssue[];
   /** ตัวเฝ้าตรวจรอบล่าสุดเมื่อไหร่ — ค่านี้ค้าง = ตัวเฝ้าตาย ให้ไปดู cron ที่ cron-job.org */
   watchdog_last_run: string | null;
@@ -93,10 +95,11 @@ export default function ApiMonitorPage() {
     return () => clearInterval(interval);
   }, [fetchData]);
 
-  const handleResetBreaker = async (p: Platform) => {
+  const handleResetBreaker = async (p: Platform, scope: QuotaTarget) => {
+    const what = `${PLATFORM_LABEL[p]} · ${QUOTA_SCOPE_LABELS[scope]}`;
     const ok = await confirm({
-      title: `ปลด circuit breaker ${PLATFORM_LABEL[p]}?`,
-      description: `ระบบจะกลับไปยิง ${PLATFORM_LABEL[p]} API ทันที — ทำเฉพาะเมื่อแน่ใจว่า quota/rate limit ฟื้นแล้ว ไม่งั้น success rate จะยิ่งตก`,
+      title: `ปลด circuit breaker ${what}?`,
+      description: `ระบบจะกลับไปยิง ${what} ทันที — ทำเฉพาะเมื่อแน่ใจว่า quota/rate limit ฟื้นแล้ว ไม่งั้น success rate จะยิ่งตก`,
       variant: 'danger',
       confirmLabel: 'ปลด breaker',
     });
@@ -106,7 +109,7 @@ export default function ApiMonitorPage() {
       const res = await apiFetch('/api/superadmin/api-monitor', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'reset_breaker', platform: p }),
+        body: JSON.stringify({ action: 'reset_breaker', platform: p, scope }),
       });
       if (res.ok) {
         showToast('ปลด circuit breaker แล้ว', 'success');
@@ -140,10 +143,9 @@ export default function ApiMonitorPage() {
   const whCount = (st: string) => wh24.find(w => w.processing_status === st)?.n || 0;
   const whLast = (data?.webhook_last || []).find(w => w.platform === platform);
   const heartbeat = (data?.heartbeats || []).find(h => h.integration === platform);
-  // breaker ทุก platform ที่เปิดอยู่ (โชว์ banner เฉพาะที่ยังไม่หมดเวลา)
-  const activeBreakers = Object.entries(data?.breakers || {})
-    .filter(([, v]) => v?.until && new Date(v.until).getTime() > Date.now()) as [Platform, { until: string }][];
-  const breakerActive = activeBreakers.some(([p]) => p === platform);
+  // breaker ทุก platform/scope ที่เปิดอยู่ — server กรองใบหมดเวลาให้แล้ว เช็คซ้ำเผื่อหน้าค้างเกิน 60 วิ
+  const activeBreakers = (data?.breakers || []).filter(b => new Date(b.until).getTime() > Date.now());
+  const breakerActive = activeBreakers.some(b => b.platform === platform);
   const deadForPlatform = (data?.dead_letters || []).filter(d => d.platform === platform);
 
   const rateColor = (rate: number | null) =>
@@ -219,17 +221,17 @@ export default function ApiMonitorPage() {
             )}
           </div>
 
-          {/* Circuit breaker banners — หนึ่งแถวต่อ platform ที่โดนพัก */}
+          {/* Circuit breaker banners — หนึ่งแถวต่อ platform+scope ที่โดนพัก (scope อื่นของเจ้าเดียวกันยังยิงปกติ) */}
           {activeBreakers.length > 0 ? (
-            activeBreakers.map(([p, v]) => (
-              <div key={p} className="flex flex-wrap items-center gap-3 bg-red-950/40 border border-red-800/60 rounded-xl px-4 py-3">
+            activeBreakers.map(b => (
+              <div key={`${b.platform}:${b.scope}`} className="flex flex-wrap items-center gap-3 bg-red-950/40 border border-red-800/60 rounded-xl px-4 py-3">
                 <ShieldAlert className="w-5 h-5 text-red-400 flex-shrink-0" />
                 <div className="flex-1 min-w-0 text-sm">
-                  <span className="text-red-300 font-semibold">พักการยิง {PLATFORM_LABEL[p] || p} API ชั่วคราว</span>
-                  <span className="text-red-400/80"> — quota/rate limit หมด หยุดยิงจนถึง {formatThaiDateTime(v.until)} (cron/retry เก็บตกเองหลังกลับมา)</span>
+                  <span className="text-red-300 font-semibold">พักการยิง {PLATFORM_LABEL[b.platform as Platform] || b.platform} · {QUOTA_SCOPE_LABELS[b.scope]} ชั่วคราว</span>
+                  <span className="text-red-400/80"> — quota/rate limit หมด หยุดยิงจนถึง {formatThaiDateTime(b.until)} (cron/retry เก็บตกเองหลังกลับมา)</span>
                 </div>
                 <button
-                  onClick={() => handleResetBreaker(p)}
+                  onClick={() => handleResetBreaker(b.platform as Platform, b.scope)}
                   disabled={resetting}
                   className="px-3 py-1.5 text-sm font-medium text-red-300 border border-red-700 rounded-lg hover:bg-red-900/40 disabled:opacity-50"
                 >

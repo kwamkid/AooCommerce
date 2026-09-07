@@ -16,6 +16,16 @@
 
 ---
 
+## 2026-09-08 — หน้า superadmin API Monitor บอก "Circuit breaker ปิดทุก platform" ทั้งที่ dashboard ขึ้นป้าย breaker TikTok เปิดอยู่
+
+**ที่เกิด**: RPC `get_api_monitor_stats` key `breakers` · [app/api/superadmin/api-monitor/route.ts](app/api/superadmin/api-monitor/route.ts) · [app/superadmin/api-monitor/page.tsx](app/superadmin/api-monitor/page.tsx)
+**อาการ**: 8 ก.ย. 04:16 น. dashboard ร้านขึ้นป้าย "TikTok Shop (รายงานการเงิน) — โควตา API หมดชั่วคราว" แต่หน้า API Monitor แท็บ TikTok บอกเขียว "breaker ปิดทุก platform" · ปุ่ม "ปลดก่อนเวลา" ก็ไม่โผล่ให้กด
+**Root cause**: RPC อ่าน `app_flags` เองด้วย `key like '%\_quota\_exhausted'` (ลงท้ายด้วยคำนี้) ซึ่งเป็นรูป key ก่อนแยก scope · ตั้งแต่ 2026-08-29 key เป็น `{platform}_quota_exhausted:{scope}` จึงไม่ match สักใบ เหลือแต่ซาก shopee/lazada แบบเก่าที่หมดอายุไปแล้ว · banner บน dashboard กับตัวเฝ้าอ่านผ่าน `getBlockedPlatforms()` / `like '%quota_exhausted%'` จึงเห็นถูก = **สองแหล่งความจริงตีความ flag คนละแบบ**
+**วิธีแก้**: route อ่าน `breakers` จาก `getBlockedPlatforms()` (ตัวเดียวกับ banner · กรองใบหมดเวลาและพักสั้นให้แล้ว) แล้วทับค่าจาก RPC · ถอด `breakers` ออกจาก RPC (migration `20260908_api_monitor_breakers_from_code.sql` apply แล้ว) · หน้า monitor รับเป็น array `{platform, scope, until}` โชว์ "พักการยิง TikTok · รายงานการเงิน" และปุ่มปลดส่ง `scope` ไปด้วย (POST `reset_breaker` รับ `scope` optional — ไม่ส่ง = ปลดทุก scope เหมือนเดิม)
+**ป้องกัน regression**: สถานะ breaker อ่านผ่าน `getBlockedPlatforms()` ที่เดียวเท่านั้น ห้ามให้ SQL/หน้าไหน parse `app_flags` เอง · รูป key ของ flag เปลี่ยนเมื่อไหร่ต้อง grep `quota_exhausted` ทั้ง repo **รวม supabase/migrations** ด้วย
+
+---
+
 ## 2026-09-08 — Settlement TikTok: cron ตี 4 โดน 429 "dependent service" ครั้งเดียว → breaker 30 นาที + ป้าย + push ปลุกคน ทั้งที่ยิงไป 4 call · และยิงทุกออเดอร์ 30 วันซ้ำทุกเช้า
 
 **ที่เกิด**: [app/api/marketplace/settlements/sync/route.ts](app/api/marketplace/settlements/sync/route.ts) `syncTikTokAccount` · [lib/marketplace/quota.ts](lib/marketplace/quota.ts) `reportMarketplaceError` · [lib/tiktok/api.ts](lib/tiktok/api.ts) `tiktokApiRequest`

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkSuperAdmin } from '@/lib/supabase-admin';
-import { clearQuotaFlag, QUOTA_PLATFORMS, type QuotaPlatform } from '@/lib/marketplace/quota';
+import { clearQuotaFlag, getBlockedPlatforms, QUOTA_PLATFORMS, type QuotaPlatform } from '@/lib/marketplace/quota';
+import { QUOTA_TARGETS, type QuotaTarget } from '@/lib/marketplace/platforms';
 import { collectWatchdogIssues } from '@/lib/marketplace/watchdog';
 
 // Superadmin API Monitor — สุขภาพ integration ทุก platform ใน call เดียว
@@ -31,15 +32,20 @@ export async function GET(request: NextRequest) {
 
     // สถิติดิบ + รายการปัญหาที่ "ตัวเฝ้า" มองเห็นอยู่ตอนนี้ (ชุดเดียวกับที่ใช้เด้งเตือน
     // — หน้าจอกับแจ้งเตือนจึงไม่มีทางเห็นไม่ตรงกัน) + heartbeat ว่าตัวเฝ้ายังทำงานอยู่ไหม
-    const [{ data, error }, issues, { data: heartbeat }] = await Promise.all([
+    // breaker อ่านผ่าน getBlockedPlatforms() ตัวเดียวกับ banner บน dashboard — RPC เคยอ่าน
+    // app_flags เองด้วย `like '%_quota_exhausted'` ซึ่งจับเฉพาะ key ที่ไม่มี scope จึงบอก
+    // "ปิดทุก platform" ทั้งที่ tiktok:finance เปิดอยู่ (ดู fix-bug.md 2026-09-08)
+    const [{ data, error }, issues, { data: heartbeat }, breakers] = await Promise.all([
       supabaseAdmin.rpc('get_api_monitor_stats', { p_days: days }),
       collectWatchdogIssues(),
       supabaseAdmin.from('app_flags').select('value').eq('key', 'watchdog_last_run').maybeSingle(),
+      getBlockedPlatforms(),
     ]);
     if (error) throw error;
 
     return NextResponse.json({
       ...(data as Record<string, unknown>),
+      breakers,
       issues,
       watchdog_last_run: (heartbeat?.value as { at?: string } | null)?.at || null,
     });
@@ -63,8 +69,13 @@ export async function POST(request: NextRequest) {
     if (!QUOTA_PLATFORMS.includes(platform)) {
       return NextResponse.json({ error: 'Unknown platform' }, { status: 400 });
     }
+    // ระบุ scope = ปลดเฉพาะถังนั้น · ไม่ระบุ = ปลดทุก scope ของ platform (พฤติกรรมเดิม)
+    const scope = body.scope as QuotaTarget | undefined;
+    if (scope !== undefined && !QUOTA_TARGETS.includes(scope)) {
+      return NextResponse.json({ error: 'Unknown scope' }, { status: 400 });
+    }
 
-    await clearQuotaFlag(platform);
+    await clearQuotaFlag(platform, scope);
 
     return NextResponse.json({ success: true });
   } catch (error) {
