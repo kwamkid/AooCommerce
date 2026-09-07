@@ -12,6 +12,7 @@ import { useMemo, useState } from 'react';
 import { Check, Crown, Monitor, ShieldCheck, UserCog, Users } from 'lucide-react';
 import FilterChips, { type FilterChip } from '@/components/ui/FilterChips';
 import Tabs from '@/components/ui/Tabs';
+import Badge from '@/components/ui/Badge';
 import OptionCards, { type OptionCardItem } from '@/components/ui/OptionCards';
 import Radio from '@/components/ui/Radio';
 import Toggle from '@/components/ui/Toggle';
@@ -266,6 +267,14 @@ export default function PermissionEditor({
           {needsWarehouseScope && warehouses.length > 0 && (
             <div>
               <label className="field-label">คลังที่เข้าถึงได้</label>
+              {/* บอกให้ชัดว่าการเลือกคลังครอบคลุมอะไร — เจ้าของถามว่า "คลังรวม POS ด้วยใช่ไหม" (7 ก.ย.) */}
+              <p className="helper-text text-gray-400 dark:text-slate-500 mb-2">
+                {levelOf('inventory') !== 'none' && levelOf('pos') !== 'none'
+                  ? 'ใช้กับทั้งสต๊อกและหน้าขาย POS — คลังที่มีเครื่อง POS จะมีป้ายชื่อเครื่องต่อท้าย ติ๊กคลังนั้น = ขายผ่านเครื่องนั้นได้'
+                  : levelOf('pos') !== 'none'
+                    ? 'ใช้กับหน้าขาย POS — ป้ายท้ายชื่อคือเครื่อง POS ของคลังนั้น ติ๊กคลังไหน = ขายผ่านเครื่องของคลังนั้นได้'
+                    : 'ใช้กับสต๊อก รับเข้า/เบิกออก/โอนย้าย ของคลังที่เลือก'}
+              </p>
               <div className="space-y-2 mb-2">
                 <Radio
                   checked={warehouseMode === 'all'}
@@ -321,14 +330,13 @@ export default function PermissionEditor({
                         <span className="min-w-0">
                           <span className="subtitle-text text-gray-700 dark:text-slate-300">{wh.name}</span>
                           {showTerminalNames && whTerminals.length > 0 && (
-                            <span className="helper-text text-gray-400 dark:text-slate-500 ml-1">
-                              ({whTerminals.map((t, i) => (
-                                <span key={t.id}>
-                                  {i > 0 && ', '}
-                                  <Monitor className="w-3 h-3 inline -mt-0.5 mr-0.5" />
-                                  {t.name}
-                                </span>
-                              ))})
+                            // ป้าย "POS · ชื่อเครื่อง" แทนวงเล็บจาง ๆ — ต้องอ่านออกทันทีว่าคลังนี้พ่วงเครื่องแคชเชียร์
+                            <span className="inline-flex flex-wrap gap-1 ml-2 align-middle">
+                              {whTerminals.map(t => (
+                                <Badge key={t.id} tone="indigo" size="sm" icon={<Monitor className="w-3 h-3" />}>
+                                  POS · {t.name}
+                                </Badge>
+                              ))}
                             </span>
                           )}
                         </span>
