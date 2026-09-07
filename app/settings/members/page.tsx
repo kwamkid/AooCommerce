@@ -1,7 +1,12 @@
 // Path: app/settings/members/page.tsx
+// จัดการสมาชิก — ตำแหน่งหลัก 1 ค่า/คน + สิทธิ์รายกลุ่มงานสำหรับพนักงาน
+//
+// UI ทั้งหมดของ "ตำแหน่ง/สิทธิ์" อยู่ที่ components/members/* เท่านั้น
+// (PermissionEditor = ตัวตั้งค่า · AreaBadges/AreaCell = ตัวแสดงผล)
+// ห้ามประกอบ checkbox ตำแหน่ง หรือ badge สิทธิ์ขึ้นมาใหม่ในหน้านี้อีก
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { useCopy } from '@/lib/useCopy';
 import { withExternalBrowserFlag } from '@/lib/in-app-browser';
 import CopyField from '@/components/ui/CopyField';
@@ -10,14 +15,19 @@ import Layout from '@/components/layout/Layout';
 import SearchInput from '@/components/ui/SearchInput';
 import { useCompany } from '@/lib/company-context';
 import { useAuth } from '@/lib/auth-context';
-import { can } from '@/lib/permissions';
+import {
+  AREAS, ROLE_LEVELS, can, isAdminTierRole,
+  type Permissions, type RoleLevel,
+} from '@/lib/permissions';
 import { useFeatures } from '@/lib/features-context';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
-import { Users, Mail, UserPlus, Shield, Trash2, Edit2, X, Check, CheckCircle, Clock, Phone, Plus, Link2, Loader2, Monitor, DollarSign, Warehouse, ShieldCheck, Headset, CreditCard, Calculator, Package, UserCog, Store } from 'lucide-react';
+import {
+  Users, Mail, UserPlus, Trash2, Edit2, CheckCircle, Clock, Phone,
+  Plus, Link2, Loader2, DollarSign, Table2,
+} from 'lucide-react';
 import Checkbox from '@/components/ui/Checkbox';
-import Radio from '@/components/ui/Radio';
 import Modal from '@/components/ui/Modal';
 import UserAvatar from '@/components/ui/UserAvatar';
 import Container from '@/components/ui/Container';
@@ -25,14 +35,24 @@ import PageHeader from '@/components/ui/PageHeader';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import SaveButton from '@/components/ui/SaveButton';
+import Badge from '@/components/ui/Badge';
+import Tabs from '@/components/ui/Tabs';
+import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
 import { LoadingCard } from '@/components/ui/StateCard';
 import StatusBadge from '@/components/ui/StatusBadge';
+import PermissionEditor, {
+  DEFAULT_STAFF_PERMISSIONS, type MemberPermissionValue,
+} from '@/components/members/PermissionEditor';
+import { AreaBadges, AreaCell, AreaLegend, RoleBadge } from '@/components/members/AreaSummary';
 
 interface Member {
   id: string;
-  roles: string[];
+  /** ตำแหน่งหลักค่าเดียว — API แปลงมาให้แล้วแม้แถวนั้นยังเก็บค่าเก่าหลายตัว */
+  role: RoleLevel;
+  permissions: Permissions | null;
   is_active: boolean;
   can_view_cost?: boolean;
+  pc_all_counters?: boolean;
   joined_at: string;
   created_at: string;
   user: {
@@ -47,7 +67,8 @@ interface Member {
 interface Invitation {
   id: string;
   email: string | null;
-  roles: string[];
+  role: RoleLevel;
+  permissions: Permissions | null;
   can_view_cost?: boolean;
   status: string;
   token: string;
@@ -55,52 +76,15 @@ interface Invitation {
   created_at: string;
 }
 
-const ROLE_OPTIONS: { value: string; label: string; icon: React.ElementType; desc: string }[] = [
-  { value: 'admin', label: 'ผู้ดูแลระบบ', icon: ShieldCheck, desc: 'จัดการระบบทั้งหมด รวมสมาชิกและ Marketplace' },
-  { value: 'manager', label: 'ผู้จัดการ', icon: UserCog, desc: 'ดูแลทีม สินค้า Marketplace ตั้งค่าระบบ (แต่งตั้งผู้ดูแลระบบไม่ได้)' },
-  { value: 'sales', label: 'แอดมินออนไลน์', icon: Headset, desc: 'ออเดอร์ แชท CRM รายงาน (จัดการ Marketplace ไม่ได้)' },
-  { value: 'cashier', label: 'แคชเชียร์', icon: CreditCard, desc: 'POS + สต็อกสาขา' },
-  { value: 'account', label: 'บัญชี', icon: Calculator, desc: 'บัญชี รายงาน ดูคำสั่งซื้อ' },
-  { value: 'warehouse', label: 'คลังสินค้า', icon: Package, desc: 'จัดส่ง จัดการคลัง แก้ไขแบบชุด' },
-  { value: 'pc', label: 'PC ประจำห้าง', icon: Store, desc: 'บันทึกยอดขายรายวันของสาขาห้างที่ได้รับมอบหมาย' },
-];
-
-// Roles that are exclusive (cannot combine with others)
-const EXCLUSIVE_ROLES = ['owner', 'admin'];
-
-const ROLE_LABELS: Record<string, string> = {
-  owner: 'เจ้าของ',
-  admin: 'ผู้ดูแลระบบ',
-  manager: 'ผู้จัดการ',
-  account: 'บัญชี',
-  warehouse: 'คลังสินค้า',
-  sales: 'แอดมินออนไลน์',
-  cashier: 'แคชเชียร์',
-  pc: 'PC ประจำห้าง',
-};
-
-const ROLE_COLORS: Record<string, string> = {
-  owner: 'bg-purple-100 text-purple-800 border-purple-200',
-  admin: 'bg-red-100 text-red-800 border-red-200',
-  manager: 'bg-indigo-100 text-indigo-800 border-indigo-200',
-  account: 'bg-green-100 text-green-800 border-green-200',
-  warehouse: 'bg-orange-100 text-orange-800 border-orange-200',
-  sales: 'bg-cyan-100 text-cyan-800 border-cyan-200',
-  cashier: 'bg-amber-100 text-amber-800 border-amber-200',
-  pc: 'bg-teal-100 text-teal-800 border-teal-200',
-};
-
 interface EditMemberForm {
   memberId: string;
   userId: string;
   name: string;
-  roles: string[];
   phone: string;
   is_active: boolean;
-  can_view_cost: boolean;
-  warehouseAccess: boolean;
-  warehouse_ids: string[];
-  terminal_ids: string[];
+  /** ค่าตอนเปิดโมดัล — ใช้ดูว่าธง "หน่วยแทน" ถูกแก้จริงไหม (คนละ endpoint กับที่เหลือ) */
+  initialPcRover: boolean;
+  perm: MemberPermissionValue;
 }
 
 interface WarehouseItem {
@@ -117,21 +101,19 @@ interface TerminalItem {
   warehouse_id: string | null;
 }
 
-// Toggle a role in a roles array, enforcing exclusive rules
-function toggleRole(currentRoles: string[], role: string): string[] {
-  if (currentRoles.includes(role)) {
-    // Remove role (but must keep at least one)
-    const newRoles = currentRoles.filter(r => r !== role);
-    return newRoles.length > 0 ? newRoles : currentRoles;
-  }
-  // Adding role
-  if (EXCLUSIVE_ROLES.includes(role)) {
-    // Exclusive role replaces all others
-    return [role];
-  }
-  // Non-exclusive: remove any exclusive roles
-  return [...currentRoles.filter(r => !EXCLUSIVE_ROLES.includes(r)), role];
-}
+/** มีกลุ่มงานที่เปิดให้อย่างน้อย 1 กลุ่มไหม (none/undefined ไม่นับ) */
+const hasAnyArea = (perms: Permissions): boolean =>
+  Object.values(perms).some(level => level === 'view' || level === 'manage');
+
+/** ค่าตั้งต้นของคนที่เพิ่งถูกเชิญ — พนักงาน + แม่แบบ "แอดมินออนไลน์" */
+const newInviteValue = (): MemberPermissionValue => ({
+  role: 'staff',
+  permissions: { ...DEFAULT_STAFF_PERMISSIONS },
+  can_view_cost: false,
+  pc_all_counters: false,
+  warehouse_ids: [],
+  terminal_ids: [],
+});
 
 export default function MembersPage() {
   const { currentCompany, companyRoles, permissions } = useCompany();
@@ -146,15 +128,11 @@ export default function MembersPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [stockEnabled, setStockEnabled] = useState(false);
+  const [activeTab, setActiveTab] = useState<'members' | 'matrix'>('members');
 
-  // Add member modal
+  // Add member modal (ลิงก์เชิญ)
   const [showAddModal, setShowAddModal] = useState(false);
-
-  // Invite link state
-  const [linkRoles, setLinkRoles] = useState<string[]>(['sales']);
-  const [linkWarehouseAccess, setLinkWarehouseAccess] = useState(true);
-  const [linkWarehouseIds, setLinkWarehouseIds] = useState<string[]>([]);
-  const [linkCanViewCost, setLinkCanViewCost] = useState(false);
+  const [inviteValue, setInviteValue] = useState<MemberPermissionValue>(newInviteValue);
   const [generatedLink, setGeneratedLink] = useState('');
   const [isGeneratingLink, setIsGeneratingLink] = useState(false);
 
@@ -163,18 +141,17 @@ export default function MembersPage() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Inline role edit
-  const [editingRoleMemberId, setEditingRoleMemberId] = useState<string | null>(null);
-  const [editingRoles, setEditingRoles] = useState<string[]>([]);
-
   // Warehouses & terminals (for permission assignment)
   const [warehouses, setWarehouses] = useState<WarehouseItem[]>([]);
   const [terminals, setTerminals] = useState<TerminalItem[]>([]);
 
   const isOwnerOrAdmin = can({ roles: companyRoles, permissions }, 'members.view');
-  // Strict admin = can grant/revoke admin & owner roles. Manager has admin-level
-  // access but cannot manage owner/admin members (enforced at API too).
-  const isStrictAdmin = can({ roles: companyRoles, permissions }, 'members.grant_admin');
+  // members.grant_admin = มอบ/แก้ตำแหน่งผู้ดูแลระบบกับเจ้าของได้ (ผู้จัดการทำไม่ได้ — API บังคับซ้ำ)
+  const canGrantAdmin = can({ roles: companyRoles, permissions }, 'members.grant_admin');
+
+  // สิทธิ์คลัง/POS ไม่มีความหมายเลยเมื่อร้านปิดทั้งสต๊อกและ POS → ซ่อนทั้งบล็อก
+  // (PermissionEditor ซ่อนเองเมื่อไม่มีคลังให้เลือก)
+  const warehouseOptions = stockEnabled || features.pos ? warehouses : [];
 
   // Fetch members and invitations
   const fetchMembers = useCallback(async () => {
@@ -224,93 +201,49 @@ export default function MembersPage() {
     fetchTerminals();
   }, !!currentCompany?.id);
 
-  // Derive terminal_ids from warehouse_ids
-  const deriveTerminalIds = (warehouseIds: string[]): string[] => {
-    if (warehouseIds.length === 0) return [];
-    return terminals
-      .filter(t => t.warehouse_id && warehouseIds.includes(t.warehouse_id))
-      .map(t => t.id);
+  /**
+   * แปลงค่าจากตัวตั้งสิทธิ์เป็นขอบเขตคลังที่ API เข้าใจ
+   * null = ทุกคลัง · [] = ไม่ให้เข้าถึง · [ids] = เฉพาะที่เลือก
+   * ผู้บริหาร = ทุกคลังเสมอ · พนักงานที่ไม่ได้เปิดกลุ่มงานคลัง/แคชเชียร์ = ไม่ให้เข้าถึง
+   */
+  const scopeOf = (perm: MemberPermissionValue): { warehouse_ids: string[] | null; terminal_ids: string[] | null } => {
+    if (isAdminTierRole(perm.role)) return { warehouse_ids: null, terminal_ids: null };
+    const needsScope = (perm.permissions.inventory ?? 'none') !== 'none'
+      || (perm.permissions.pos ?? 'none') !== 'none';
+    if (!needsScope) return { warehouse_ids: [], terminal_ids: [] };
+    return {
+      warehouse_ids: perm.warehouse_ids.length > 0 ? perm.warehouse_ids : null,
+      terminal_ids: perm.terminal_ids.length > 0 ? perm.terminal_ids : null,
+    };
   };
-
-  // Reset add modal state
-  // Role preset helper — auto-set warehouse permissions when role changes
-  const getRolePreset = (roles: string[]): { warehouseAccess: boolean; warehouseIds: string[] } => {
-    if (roles.includes('owner') || roles.includes('admin')) {
-      return { warehouseAccess: true, warehouseIds: [] }; // all warehouses
-    }
-    if (roles.includes('sales')) {
-      const defaultWh = warehouses.find(w => w.is_default);
-      return { warehouseAccess: true, warehouseIds: defaultWh ? [defaultWh.id] : [] };
-    }
-    // cashier, account, warehouse = ON + choose
-    return { warehouseAccess: true, warehouseIds: [] };
-  };
-
-  const isExclusiveRole = (roles: string[]) => roles.includes('owner') || roles.includes('admin');
 
   const openAddModal = () => {
-    setLinkRoles(['sales']);
-    const preset = getRolePreset(['sales']);
-    setLinkWarehouseAccess(preset.warehouseAccess);
-    setLinkWarehouseIds(preset.warehouseIds);
-    setLinkCanViewCost(false);
+    setInviteValue(newInviteValue());
     setGeneratedLink('');
     setShowAddModal(true);
   };
 
-  // Handle role change with preset
-  const handleLinkRoleChange = (newRoles: string[]) => {
-    setLinkRoles(newRoles);
-    const preset = getRolePreset(newRoles);
-    setLinkWarehouseAccess(preset.warehouseAccess);
-    setLinkWarehouseIds(preset.warehouseIds);
-    // owner/admin always see cost — auto-enable
-    if (isExclusiveRole(newRoles)) setLinkCanViewCost(true);
-  };
-
-  const handleEditRoleChange = (newRoles: string[]) => {
-    if (!editingMember) return;
-    // Unlike the invite modal, editing keeps the member's existing warehouse
-    // selection — role presets here would silently wipe it. ยกเว้นตอน "ลดขั้น"
-    // จาก owner/admin (ซึ่ง scope เดิมคือ null = ทุกคลัง): ต้อง apply preset
-    // ไม่งั้น ex-admin ที่ถูกลดเป็น sales ยังเข้าได้ทุกคลังเงียบ ๆ
-    const wasExclusive = isExclusiveRole(editingMember.roles);
-    const nowExclusive = isExclusiveRole(newRoles);
-    const demotedFromExclusive = wasExclusive && !nowExclusive;
-    const preset = demotedFromExclusive ? getRolePreset(newRoles) : null;
-    setEditingMember({
-      ...editingMember,
-      roles: newRoles,
-      // owner/admin always see cost
-      can_view_cost: nowExclusive ? true : editingMember.can_view_cost,
-      ...(preset ? { warehouseAccess: preset.warehouseAccess, warehouse_ids: preset.warehouseIds } : {}),
-    });
-  };
-
   // Handle create invite link
   const handleCreateLink = async () => {
+    // พนักงานที่ไม่ได้เปิดกลุ่มงานเลย = ล็อกอินเข้ามาแล้วไม่เห็นเมนูอะไรเลย (ดูเหมือนระบบพัง)
+    if (inviteValue.role === 'staff' && !hasAnyArea(inviteValue.permissions)) {
+      showToast('เลือกกลุ่มงานให้พนักงานอย่างน้อย 1 กลุ่ม', 'error');
+      return;
+    }
     setIsGeneratingLink(true);
 
     try {
-      // warehouseAccess=false → [] (no access), true + empty → undefined (all), specific → ['id']
-      const warehouseIdsToSend = !linkWarehouseAccess
-        ? []
-        : linkWarehouseIds.length > 0
-          ? linkWarehouseIds
-          : undefined;
-      const terminalIdsToSend = !linkWarehouseAccess
-        ? []
-        : deriveTerminalIds(linkWarehouseIds).length > 0
-          ? deriveTerminalIds(linkWarehouseIds)
-          : undefined;
+      const scope = scopeOf(inviteValue);
       const response = await apiFetch('/api/companies/members', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          roles: linkRoles,
-          warehouse_ids: warehouseIdsToSend,
-          terminal_ids: terminalIdsToSend,
-          can_view_cost: linkCanViewCost,
+          role: inviteValue.role,
+          permissions: inviteValue.permissions,
+          can_view_cost: inviteValue.can_view_cost,
+          // คำเชิญไม่มี "null" ให้ส่ง — ไม่ส่ง field เลย = ทุกคลัง (ตาม convention เดิม)
+          ...(scope.warehouse_ids ? { warehouse_ids: scope.warehouse_ids } : {}),
+          ...(scope.terminal_ids ? { terminal_ids: scope.terminal_ids } : {}),
         }),
       });
 
@@ -331,43 +264,23 @@ export default function MembersPage() {
     }
   };
 
-  // Handle inline role change
-  const handleChangeRole = async (memberId: string) => {
-
-    try {
-      const response = await apiFetch('/api/companies/members', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ memberId, roles: editingRoles }),
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        showToast('เปลี่ยนตำแหน่งสำเร็จ');
-        setEditingRoleMemberId(null);
-        await fetchMembers();
-      } else {
-        showToast(data.error || 'ไม่สามารถเปลี่ยนตำแหน่งได้', 'error');
-      }
-    } catch {
-      showToast('เกิดข้อผิดพลาดในการเปลี่ยนตำแหน่ง', 'error');
-    }
-  };
-
   // Handle edit member (full edit modal)
   const handleOpenEditModal = async (member: Member) => {
     setEditingMember({
       memberId: member.id,
       userId: member.user.id,
       name: member.user.name || '',
-      roles: member.roles,
       phone: member.user.phone || '',
       is_active: member.is_active,
-      can_view_cost: member.can_view_cost === true,
-      warehouseAccess: true,
-      warehouse_ids: [],
-      terminal_ids: [],
+      initialPcRover: member.pc_all_counters === true,
+      perm: {
+        role: member.role,
+        permissions: member.permissions ?? {},
+        can_view_cost: member.can_view_cost === true,
+        pc_all_counters: member.pc_all_counters === true,
+        warehouse_ids: [],
+        terminal_ids: [],
+      },
     });
     setShowEditModal(true);
 
@@ -376,13 +289,24 @@ export default function MembersPage() {
       const res = await apiFetch(`/api/users/warehouse-permissions?user_id=${member.user.id}`);
       if (res.ok) {
         const data = await res.json();
-        // null = all access (toggle on, no specific), [] = no access (toggle off), ['id'] = specific
         const whIds = data.warehouse_ids;
+        // null = ทุกคลัง → [] ในตัวตั้งค่า
+        // [] = สมาชิกรุ่นเก่าที่ถูกตั้ง "ไม่ให้เข้าถึงคลัง" — โมเดลใหม่แสดงเรื่องนี้ด้วย
+        //      "กลุ่มงานคลัง = ไม่เห็น" แทน จึงไม่มีตัวเลือกนั้นในลิสต์แล้ว ตกลงมาที่คลังหลัก
+        //      (แคบสุดที่เลือกได้) แทนที่จะเด้งเป็น "ทุกคลัง" ซึ่งเป็นการขยายสิทธิ์เงียบ ๆ
+        const fallbackWh = warehouses.find(w => w.is_default) || warehouses[0];
+        const resolved: string[] = Array.isArray(whIds)
+          ? (whIds.length > 0 ? whIds : (fallbackWh ? [fallbackWh.id] : []))
+          : [];
         setEditingMember(prev => prev ? {
           ...prev,
-          warehouseAccess: whIds === null || (Array.isArray(whIds) && whIds.length > 0),
-          warehouse_ids: Array.isArray(whIds) ? whIds : [],
-          terminal_ids: Array.isArray(data.terminal_ids) ? data.terminal_ids : [],
+          perm: {
+            ...prev.perm,
+            warehouse_ids: resolved,
+            terminal_ids: terminals
+              .filter(t => t.warehouse_id && resolved.includes(t.warehouse_id))
+              .map(t => t.id),
+          },
         } : prev);
       }
     } catch { /* silent */ }
@@ -397,61 +321,76 @@ export default function MembersPage() {
       showToast('กรุณากรอกชื่อ-นามสกุล', 'error');
       return;
     }
+    const { perm } = editingMember;
+    if (perm.role === 'staff' && !hasAnyArea(perm.permissions)) {
+      showToast('เลือกกลุ่มงานให้พนักงานอย่างน้อย 1 กลุ่ม', 'error');
+      return;
+    }
     setIsSaving(true);
 
     try {
-      // Update user profile + company_members roles via /api/users PUT
+      // 1) ตำแหน่ง + สิทธิ์รายกลุ่มงาน + สิทธิ์ดูต้นทุน (endpoint เดียวที่รับ permissions)
+      const roleRes = await apiFetch('/api/companies/members', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          memberId: editingMember.memberId,
+          role: perm.role,
+          permissions: perm.permissions,
+          can_view_cost: perm.can_view_cost,
+        }),
+      });
+      if (!roleRes.ok) {
+        const r = await roleRes.json().catch(() => ({}));
+        throw new Error(r.error || 'ไม่สามารถบันทึกตำแหน่งได้');
+      }
+
+      // 2) ข้อมูลส่วนตัว + เปิด/ปิดการใช้งาน (ไม่ส่ง roles — ไม่งั้น API จะคำนวณ
+      //    permissions ใหม่จาก roles แล้วลบสิทธิ์รายกลุ่มงานที่เพิ่งบันทึกไปทิ้ง)
       const profileRes = await apiFetch('/api/users', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           id: editingMember.userId,
           name: editingMember.name,
-          roles: editingMember.roles,
           phone: editingMember.phone || null,
           is_active: editingMember.is_active,
-          can_view_cost: editingMember.can_view_cost,
         }),
       });
-
-      const profileResult = await profileRes.json();
-
       if (!profileRes.ok) {
-        throw new Error(profileResult.error || 'ไม่สามารถอัพเดทข้อมูลได้');
+        const r = await profileRes.json().catch(() => ({}));
+        throw new Error(r.error || 'บันทึกตำแหน่งแล้ว แต่บันทึกข้อมูลส่วนตัวไม่สำเร็จ');
       }
 
-      // Save warehouse + terminal permissions
-      // owner/admin = ทุกคลังเสมอ (null) — ต้อง save ให้ตรงกับที่ UI ประกาศ
-      // ไม่งั้น scope เก่าก่อนโปรโมทค้างอยู่แล้ว admin ใหม่โดน 403 ที่ POS
-      // warehouseAccess=false → [] (no access), true + empty → null (all), specific → ['id']
-      const exclusive = isExclusiveRole(editingMember.roles);
-      const warehouseIdsToSave = exclusive
-        ? null
-        : !editingMember.warehouseAccess
-          ? []
-          : editingMember.warehouse_ids.length > 0
-            ? editingMember.warehouse_ids
-            : null;
-      const terminalIdsToSave = exclusive
-        ? null
-        : !editingMember.warehouseAccess
-          ? []
-          : deriveTerminalIds(editingMember.warehouse_ids).length > 0
-            ? deriveTerminalIds(editingMember.warehouse_ids)
-            : null;
+      // 3) ขอบเขตคลัง / เครื่อง POS
+      const scope = scopeOf(perm);
       const whRes = await apiFetch('/api/users/warehouse-permissions', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           user_id: editingMember.userId,
-          warehouse_ids: warehouseIdsToSave,
-          terminal_ids: terminalIdsToSave,
+          warehouse_ids: scope.warehouse_ids,
+          terminal_ids: scope.terminal_ids,
         }),
       });
       if (!whRes.ok) {
         const whResult = await whRes.json().catch(() => ({}));
-        // roles ถูก save ไปแล้ว — บอกตรงๆ ว่าส่วนสิทธิ์คลังไม่สำเร็จ อย่าโกหกว่าเรียบร้อย
+        // ตำแหน่งถูก save ไปแล้ว — บอกตรงๆ ว่าส่วนสิทธิ์คลังไม่สำเร็จ อย่าโกหกว่าเรียบร้อย
         throw new Error(whResult.error || 'บันทึกตำแหน่งแล้ว แต่บันทึกสิทธิ์คลังไม่สำเร็จ');
+      }
+
+      // 4) ธง "PC หน่วยแทน" อยู่คนละ endpoint (ตัวเดียวกับหน้าลูกค้าฝากขาย) — ยิงเมื่อเปลี่ยนจริง
+      const nextRover = perm.role === 'staff' && perm.permissions.pc === 'manage' && perm.pc_all_counters;
+      if (nextRover !== editingMember.initialPcRover) {
+        const roverRes = await apiFetch('/api/counters/assignments', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user_id: editingMember.userId, pc_all_counters: nextRover }),
+        });
+        if (!roverRes.ok) {
+          const r = await roverRes.json().catch(() => ({}));
+          throw new Error(r.error || 'บันทึกสิทธิ์แล้ว แต่ตั้งค่าหน่วยแทนไม่สำเร็จ');
+        }
       }
 
       showToast('อัพเดทข้อมูลสมาชิกสำเร็จ');
@@ -534,185 +473,55 @@ export default function MembersPage() {
     (m.user?.email || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // Role badges component (multiple)
-  const RoleBadges = ({ roles, canViewCost }: { roles: string[]; canViewCost?: boolean }) => (
-    <div className="flex flex-wrap gap-1">
-      {roles.map(role => (
-        <StatusBadge key={role} status={role} size="md" className="border" colors={ROLE_COLORS[role] || 'bg-gray-100 text-gray-800 border-gray-200'}>
-          {ROLE_LABELS[role] || role}
-        </StatusBadge>
-      ))}
-      {canViewCost && !isExclusiveRole(roles) && (
-        <StatusBadge status="cost" className="border" colors="bg-emerald-50 text-emerald-700 border-emerald-200" title="ดูต้นทุนได้" icon={<DollarSign className="w-3 h-3" />}>ต้นทุน</StatusBadge>
+  /** ป้ายสิทธิ์ + ป้ายต้นทุน (ต้นทุนเป็นสวิตช์แยก ไม่ใช่กลุ่มงาน จึงอยู่นอก AreaBadges) */
+  const PermissionBadges = ({ role, perms, canViewCost }: {
+    role: RoleLevel; perms?: Permissions | null; canViewCost?: boolean;
+  }) => (
+    <div className="flex flex-wrap items-center gap-1">
+      <AreaBadges role={role} permissions={perms} />
+      {canViewCost && !isAdminTierRole(role) && (
+        <Badge tone="emerald" size="sm" icon={<DollarSign className="w-3 h-3" />} title="ดูต้นทุนได้">
+          ต้นทุน
+        </Badge>
       )}
     </div>
   );
 
-  // Role checkboxes component — vertical list with icons.
-  // Manager can invite/edit any role EXCEPT admin (only strict admin/owner can grant admin).
-  const RoleCheckboxes = ({ selectedRoles, onChange, disabled }: { selectedRoles: string[]; onChange: (roles: string[]) => void; disabled?: boolean }) => (
-    <div className="space-y-1.5">
-      {ROLE_OPTIONS.filter(o => isStrictAdmin || o.value !== 'admin').map((option) => {
-        const Icon = option.icon;
-        const isSelected = selectedRoles.includes(option.value);
-        return (
-          <label
-            key={option.value}
-            className={`flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-colors border ${
-              isSelected
-                ? 'bg-primary/5 border-primary/30 dark:bg-primary/10 dark:border-primary/40'
-                : 'bg-gray-50 dark:bg-slate-700 border-transparent hover:bg-gray-100 dark:hover:bg-slate-600'
-            } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
-          >
-            <input
-              type="checkbox"
-              checked={isSelected}
-              onChange={() => !disabled && onChange(toggleRole(selectedRoles, option.value))}
-              className="sr-only"
-              disabled={disabled}
-            />
-            <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
-              isSelected
-                ? 'bg-primary text-white'
-                : 'bg-gray-200 dark:bg-slate-600 text-gray-500 dark:text-slate-400'
-            }`}>
-              <Icon className="w-4 h-4" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className={`text-sm font-medium ${isSelected ? 'text-primary dark:text-[#FF7043]' : 'text-gray-700 dark:text-slate-300'}`}>
-                {option.label}
-              </p>
-              <p className="text-xs text-gray-400 dark:text-slate-500">{option.desc}</p>
-            </div>
-            <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
-              isSelected
-                ? 'bg-primary border-primary'
-                : 'border-gray-300 dark:border-slate-500'
-            }`}>
-              {isSelected && <Check className="w-3 h-3 text-white" />}
-            </div>
-          </label>
-        );
-      })}
-    </div>
-  );
-
-  // Build terminal lookup by warehouse_id
-  const terminalsByWarehouse: Record<string, TerminalItem[]> = {};
-  for (const t of terminals) {
-    if (t.warehouse_id) {
-      if (!terminalsByWarehouse[t.warehouse_id]) terminalsByWarehouse[t.warehouse_id] = [];
-      terminalsByWarehouse[t.warehouse_id].push(t);
-    }
-  }
-
-  // Warehouse permissions component (merged POS + warehouse)
-  // accessEnabled: true = has warehouse access, false = no access at all
-  // selectedIds: specific warehouse IDs (empty = all warehouses when accessEnabled is true)
-  //
-  // UI เป็น 3 ตัวเลือกชัด ๆ (ทุกคลัง / เฉพาะที่เลือก / ไม่ให้เข้าถึง) — เดิมเป็น
-  // สวิตช์ + กติกาแฝง "ไม่ติ๊กเลย = ได้ทุกคลัง" ซึ่งกลับหัวจนผู้ใช้ตีความผิด
-  const WarehousePermissions = ({ accessEnabled, onAccessChange, selectedIds, onChange, disabled }: {
-    accessEnabled: boolean;
-    onAccessChange: (enabled: boolean) => void;
-    selectedIds: string[];
-    onChange: (ids: string[]) => void;
-    disabled?: boolean;
-  }) => {
-    if (warehouses.length === 0 || (!stockEnabled && !features.pos)) return null;
-    const mode: 'all' | 'custom' | 'none' = !accessEnabled ? 'none' : selectedIds.length === 0 ? 'all' : 'custom';
-    const pickCustom = () => {
-      if (disabled) return;
-      onAccessChange(true);
-      if (selectedIds.length === 0) {
-        // เริ่มโหมด "เฉพาะที่เลือก" ด้วยคลัง default กัน state ว่าง (ว่าง = ทุกคลัง)
-        const defaultWh = warehouses.find(w => w.is_default) || warehouses[0];
-        onChange(defaultWh ? [defaultWh.id] : []);
-      }
-    };
-    return (
-      <div>
-        <div className="space-y-2 mb-3">
-          <Radio
-            checked={mode === 'all'}
-            onChange={() => { if (!disabled) { onAccessChange(true); onChange([]); } }}
-            label="ทุกคลัง"
-            disabled={disabled}
-          />
-          <Radio
-            checked={mode === 'custom'}
-            onChange={pickCustom}
-            label="เฉพาะคลังที่เลือก"
-            disabled={disabled}
-          />
-          <Radio
-            checked={mode === 'none'}
-            onChange={() => { if (!disabled) onAccessChange(false); }}
-            label="ไม่ให้เข้าถึงคลัง / POS"
-            disabled={disabled}
-          />
+  // ── ตาราง "ใครเห็นอะไร" ────────────────────────────────────────────
+  const matrixColumns = useMemo<DataTableColumn<Member>[]>(() => [
+    {
+      key: 'member',
+      label: 'สมาชิก',
+      alwaysVisible: true,
+      defaultWidth: 240,
+      render: (m) => (
+        <div className="flex items-center gap-2 min-w-0">
+          <UserAvatar src={m.user?.avatar} name={m.user?.name} email={m.user?.email} size="sm" />
+          <div className="min-w-0">
+            <p className="data-primary text-gray-900 dark:text-white truncate">{m.user?.name || 'ไม่ระบุชื่อ'}</p>
+            <p className="data-secondary text-gray-500 dark:text-slate-400 truncate">{m.user?.email}</p>
+          </div>
+          <RoleBadge role={m.role} />
         </div>
-        {mode === 'custom' && (
-          <>
-            <p className="text-xs text-gray-400 dark:text-slate-500 mb-2">ต้องเลือกอย่างน้อย 1 คลัง</p>
-            <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
-              {warehouses.map(wh => {
-                const whTerminals = terminalsByWarehouse[wh.id] || [];
-                const isChecked = selectedIds.includes(wh.id);
-                return (
-                  <label
-                    key={wh.id}
-                    className={`flex items-center gap-2.5 px-3 py-2 rounded-lg cursor-pointer transition-colors ${
-                      isChecked
-                        ? 'bg-primary/5 dark:bg-primary/10'
-                        : 'bg-gray-50 dark:bg-slate-700 hover:bg-gray-100 dark:hover:bg-slate-600'
-                    } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={isChecked}
-                      onChange={() => {
-                        if (disabled) return;
-                        // ห้ามเอาตัวสุดท้ายออก — list ว่างแปลว่า "ทุกคลัง" จะสลับโหมดเงียบๆ
-                        if (isChecked && selectedIds.length === 1) return;
-                        const ids = isChecked
-                          ? selectedIds.filter(id => id !== wh.id)
-                          : [...selectedIds, wh.id];
-                        onChange(ids);
-                      }}
-                      className="sr-only"
-                      disabled={disabled}
-                    />
-                    <div className={`w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
-                      isChecked
-                        ? 'bg-primary border-primary'
-                        : 'border-gray-300 dark:border-slate-500'
-                    }`}>
-                      {isChecked && <Check className="w-3 h-3 text-white" />}
-                    </div>
-                    <div className="min-w-0">
-                      <span className="text-sm text-gray-700 dark:text-slate-300">{wh.name}</span>
-                      {whTerminals.length > 0 && (
-                        <span className="text-xs text-gray-400 dark:text-slate-500 ml-1">
-                          ({whTerminals.map((t, i) => (
-                            <span key={t.id}>
-                              {i > 0 && ', '}
-                              <Monitor className="w-3 h-3 inline -mt-0.5 mr-0.5" />
-                              {t.name}
-                            </span>
-                          ))})
-                        </span>
-                      )}
-                    </div>
-                  </label>
-                );
-              })}
-            </div>
-          </>
-        )}
-      </div>
-    );
-  };
+      ),
+    },
+    ...AREAS.map<DataTableColumn<Member>>(area => ({
+      key: area.key,
+      label: area.label,
+      headerClassName: 'text-center',
+      cellClassName: 'text-center',
+      render: (m) => (
+        <AreaCell level={isAdminTierRole(m.role) ? 'manage' : m.permissions?.[area.key]} />
+      ),
+    })),
+    {
+      key: 'admin',
+      label: 'ตั้งค่า/สมาชิก',
+      headerClassName: 'text-center',
+      cellClassName: 'text-center',
+      render: (m) => <AreaCell level={isAdminTierRole(m.role) ? 'manage' : 'none'} />,
+    },
+  ], []);
 
   return (
     <Layout>
@@ -722,6 +531,17 @@ export default function MembersPage() {
         <LoadingCard />
       ) : (
         <>
+          <Tabs
+            activeKey={activeTab}
+            onSelect={(k) => setActiveTab(k as 'members' | 'matrix')}
+            tabs={[
+              { key: 'members', label: 'สมาชิก', icon: <Users className="w-4 h-4" />, count: activeMembers.length },
+              { key: 'matrix', label: 'ใครเห็นอะไร', icon: <Table2 className="w-4 h-4" /> },
+            ]}
+          />
+
+          {activeTab === 'members' ? (
+          <>
           {/* Members List */}
           <Card padding="none">
             <div className="p-5 sm:p-6 border-b border-gray-200 dark:border-slate-700">
@@ -782,72 +602,38 @@ export default function MembersPage() {
                         </div>
                         {/* Role badges on mobile (below name) */}
                         <div className="mt-1.5 sm:hidden">
-                          <RoleBadges roles={member.roles} canViewCost={member.can_view_cost} />
+                          <PermissionBadges role={member.role} perms={member.permissions} canViewCost={member.can_view_cost} />
                         </div>
                       </div>
                     </div>
 
                     <div className="flex items-center space-x-3 flex-shrink-0">
-                      {editingRoleMemberId === member.id ? (
-                        <div className="flex items-center space-x-2">
-                          <div className="max-w-xs">
-                            <RoleCheckboxes selectedRoles={editingRoles} onChange={setEditingRoles} />
-                          </div>
+                      {/* Role badges on desktop */}
+                      <div className="hidden sm:block max-w-md">
+                        <PermissionBadges role={member.role} perms={member.permissions} canViewCost={member.can_view_cost} />
+                      </div>
+                      {isOwnerOrAdmin && member.role !== 'owner' && (canGrantAdmin || member.role !== 'admin') && member.user?.id !== userProfile?.id && (
+                        <div className="flex items-center space-x-1">
                           <button
-                            onClick={() => handleChangeRole(member.id)}
-                            className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
-                            title="บันทึก"
+                            onClick={() => handleOpenEditModal(member)}
+                            className="p-2 text-gray-400 hover:text-primary hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
+                            title="แก้ไขข้อมูลและสิทธิ์"
                           >
-                            <Check className="w-4 h-4" />
+                            <Edit2 className="w-4 h-4" />
                           </button>
                           <button
-                            onClick={() => setEditingRoleMemberId(null)}
-                            className="p-1.5 text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
-                            title="ยกเลิก"
+                            onClick={() => handleRemoveMember(member.id)}
+                            disabled={deletingId !== null}
+                            className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors disabled:pointer-events-none disabled:opacity-50"
+                            title="ลบสมาชิก"
                           >
-                            <X className="w-4 h-4" />
+                            {deletingId === member.id ? (
+                              <Loader2 className="w-4 h-4 animate-spin text-red-500" />
+                            ) : (
+                              <Trash2 className="w-4 h-4" />
+                            )}
                           </button>
                         </div>
-                      ) : (
-                        <>
-                          {/* Role badges on desktop */}
-                          <div className="hidden sm:block">
-                            <RoleBadges roles={member.roles} canViewCost={member.can_view_cost} />
-                          </div>
-                          {isOwnerOrAdmin && !member.roles.includes('owner') && (isStrictAdmin || !member.roles.includes('admin')) && member.user?.id !== userProfile?.id && (
-                            <div className="flex items-center space-x-1">
-                              <button
-                                onClick={() => handleOpenEditModal(member)}
-                                className="p-2 text-gray-400 hover:text-primary hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
-                                title="แก้ไขข้อมูล"
-                              >
-                                <Edit2 className="w-4 h-4" />
-                              </button>
-                              <button
-                                onClick={() => {
-                                  setEditingRoleMemberId(member.id);
-                                  setEditingRoles([...member.roles]);
-                                }}
-                                className="p-2 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"
-                                title="เปลี่ยนตำแหน่ง"
-                              >
-                                <Shield className="w-4 h-4" />
-                              </button>
-                              <button
-                                onClick={() => handleRemoveMember(member.id)}
-                                disabled={deletingId !== null}
-                                className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors disabled:pointer-events-none disabled:opacity-50"
-                                title="ลบสมาชิก"
-                              >
-                                {deletingId === member.id ? (
-                                  <Loader2 className="w-4 h-4 animate-spin text-red-500" />
-                                ) : (
-                                  <Trash2 className="w-4 h-4" />
-                                )}
-                              </button>
-                            </div>
-                          )}
-                        </>
                       )}
                     </div>
                   </div>
@@ -891,19 +677,19 @@ export default function MembersPage() {
                             })}
                           </p>
                           {/* Role badges on mobile */}
-                          <div className="mt-1.5 sm:hidden flex flex-wrap gap-1">
-                            <RoleBadges roles={invitation.roles} canViewCost={invitation.can_view_cost} />
+                          <div className="mt-1.5 sm:hidden flex flex-wrap items-center gap-1">
+                            <PermissionBadges role={invitation.role} perms={invitation.permissions} canViewCost={invitation.can_view_cost} />
                             <StatusBadge status="pending" size="md" className="border" colors="bg-yellow-100 text-yellow-800 border-yellow-200">รอตอบรับ</StatusBadge>
                           </div>
                         </div>
                       </div>
                       <div className="flex items-center space-x-3 flex-shrink-0">
                         {/* Role badges + status on desktop */}
-                        <div className="hidden sm:flex items-center space-x-2">
-                          <RoleBadges roles={invitation.roles} canViewCost={invitation.can_view_cost} />
+                        <div className="hidden sm:flex items-center gap-2 max-w-md">
+                          <PermissionBadges role={invitation.role} perms={invitation.permissions} canViewCost={invitation.can_view_cost} />
                           <StatusBadge status="pending" size="md" className="border" colors="bg-yellow-100 text-yellow-800 border-yellow-200">รอตอบรับ</StatusBadge>
                         </div>
-                        {isOwnerOrAdmin && (isStrictAdmin || (!invitation.roles?.includes('admin') && !invitation.roles?.includes('owner'))) && (
+                        {isOwnerOrAdmin && (canGrantAdmin || (invitation.role !== 'admin' && invitation.role !== 'owner')) && (
                           <div className="flex items-center space-x-1">
                             <button
                               onClick={() => copyInviteLink(invitation.token)}
@@ -932,6 +718,36 @@ export default function MembersPage() {
                 ))}
               </div>
             </Card>
+          )}
+          </>
+          ) : (
+          /* ── แท็บ "ใครเห็นอะไร" ─────────────────────────────────── */
+          <>
+            <Card padding="md" className="space-y-3">
+              <AreaLegend />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1">
+                {ROLE_LEVELS.map(r => (
+                  <p key={r.key} className="subtitle-text text-gray-500 dark:text-slate-400">
+                    <span className="font-medium text-gray-700 dark:text-slate-300">{r.label}</span> — {r.desc}
+                  </p>
+                ))}
+              </div>
+            </Card>
+            <DataTable
+              storageKey="members-matrix"
+              columns={matrixColumns}
+              data={activeMembers}
+              getRowId={(m) => m.id}
+              emptyMessage="ยังไม่มีสมาชิก"
+              hidePagination
+              currentPage={1}
+              totalPages={1}
+              totalRecords={activeMembers.length}
+              recordsPerPage={Math.max(activeMembers.length, 1)}
+              onPageChange={() => {}}
+              onRecordsPerPageChange={() => {}}
+            />
+          </>
           )}
         </>
       )}
@@ -968,7 +784,7 @@ export default function MembersPage() {
               icon={<Plus className="w-4 h-4" />}
               onClick={() => {
                 setGeneratedLink('');
-                handleLinkRoleChange(['sales']);
+                setInviteValue(newInviteValue());
               }}
             >
               สร้างลิงก์ใหม่
@@ -977,79 +793,20 @@ export default function MembersPage() {
         )}
       >
         {!generatedLink ? (
-          <>
-            <p className="text-sm text-gray-500 dark:text-slate-400 px-5 pt-4">
-              สร้างลิงก์เชิญเพื่อให้ผู้ใช้สมัครและเข้าร่วมบริษัท
+          <div className="px-6 py-5 space-y-4">
+            <p className="subtitle-text text-gray-500 dark:text-slate-400">
+              สร้างลิงก์เชิญเพื่อให้ผู้ใช้สมัครและเข้าร่วมบริษัท — สิทธิ์ด้านล่างจะถูกมอบให้ตอนกดรับคำเชิญ
             </p>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 px-6 py-5 items-start">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
-                  <Shield className="w-4 h-4 inline mr-1 -mt-0.5" />
-                  ตำแหน่ง *
-                </label>
-                <RoleCheckboxes selectedRoles={linkRoles} onChange={handleLinkRoleChange} disabled={isGeneratingLink} />
-              </div>
-
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
-                    <Warehouse className="w-4 h-4 inline mr-1 -mt-0.5" />
-                    สิทธิ์คลัง / POS
-                  </label>
-                  {isExclusiveRole(linkRoles) ? (
-                    <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
-                      <p className="text-sm text-green-700 dark:text-green-400 flex items-center gap-1.5">
-                        <Check className="w-4 h-4" />
-                        เข้าถึงทุกคลังอัตโนมัติ
-                      </p>
-                    </div>
-                  ) : (
-                    <WarehousePermissions
-                      accessEnabled={linkWarehouseAccess}
-                      onAccessChange={setLinkWarehouseAccess}
-                      selectedIds={linkWarehouseIds}
-                      onChange={setLinkWarehouseIds}
-                      disabled={isGeneratingLink}
-                    />
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
-                    <DollarSign className="w-4 h-4 inline mr-1 -mt-0.5" />
-                    สิทธิ์ดูต้นทุน
-                  </label>
-                  {isExclusiveRole(linkRoles) ? (
-                    <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
-                      <p className="text-sm text-green-700 dark:text-green-400 flex items-center gap-1.5">
-                        <Check className="w-4 h-4" />
-                        เห็นต้นทุนอัตโนมัติ
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-slate-700 rounded-lg">
-                      <span className="text-sm text-gray-700 dark:text-slate-300">เห็นราคาทุนสินค้า</span>
-                      <button
-                        type="button"
-                        role="switch"
-                        aria-checked={linkCanViewCost}
-                        onClick={() => !isGeneratingLink && setLinkCanViewCost(!linkCanViewCost)}
-                        disabled={isGeneratingLink}
-                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary/50 ${
-                          linkCanViewCost ? 'bg-primary' : 'bg-gray-300 dark:bg-slate-600'
-                        } ${isGeneratingLink ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-                      >
-                        <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow-sm ${
-                          linkCanViewCost ? 'translate-x-6' : 'translate-x-1'
-                        }`} />
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          </>
+            <PermissionEditor
+              value={inviteValue}
+              onChange={setInviteValue}
+              canGrantAdmin={canGrantAdmin}
+              warehouses={warehouseOptions}
+              terminals={terminals}
+              disabled={isGeneratingLink}
+              showPcRover={false}
+            />
+          </div>
         ) : (
           <div className="p-5 space-y-4">
             <div className="text-center py-2">
@@ -1085,12 +842,10 @@ export default function MembersPage() {
       >
         {editingMember && (
           <form onSubmit={handleSaveEdit}>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 px-6 py-5 items-start">
-              <div className="space-y-4">
+            <div className="px-6 py-5 space-y-5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
-                    ชื่อ-นามสกุล
-                  </label>
+                  <label className="field-label">ชื่อ-นามสกุล</label>
                   <input
                     type="text"
                     value={editingMember.name}
@@ -1099,20 +854,8 @@ export default function MembersPage() {
                     required
                   />
                 </div>
-
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
-                    <Shield className="w-4 h-4 inline mr-1 -mt-0.5" />
-                    ตำแหน่ง
-                  </label>
-                  <RoleCheckboxes
-                    selectedRoles={editingMember.roles}
-                    onChange={handleEditRoleChange}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+                  <label className="field-label">
                     <Phone className="w-4 h-4 inline mr-1 -mt-0.5" />
                     เบอร์โทร
                   </label>
@@ -1124,71 +867,23 @@ export default function MembersPage() {
                     placeholder="0812345678"
                   />
                 </div>
-
-                <div>
-                  <Checkbox
-                    checked={editingMember.is_active}
-                    onChange={(v) => setEditingMember({ ...editingMember, is_active: v })}
-                    label="เปิดใช้งาน"
-                  />
-                </div>
               </div>
 
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
-                    <Warehouse className="w-4 h-4 inline mr-1 -mt-0.5" />
-                    สิทธิ์คลัง / POS
-                  </label>
-                  {isExclusiveRole(editingMember.roles) ? (
-                    <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
-                      <p className="text-sm text-green-700 dark:text-green-400 flex items-center gap-1.5">
-                        <Check className="w-4 h-4" />
-                        เข้าถึงทุกคลังอัตโนมัติ
-                      </p>
-                    </div>
-                  ) : (
-                    <WarehousePermissions
-                      accessEnabled={editingMember.warehouseAccess}
-                      onAccessChange={(v) => setEditingMember({ ...editingMember, warehouseAccess: v })}
-                      selectedIds={editingMember.warehouse_ids}
-                      onChange={(ids) => setEditingMember({ ...editingMember, warehouse_ids: ids })}
-                    />
-                  )}
-                </div>
+              <Checkbox
+                checked={editingMember.is_active}
+                onChange={(v) => setEditingMember({ ...editingMember, is_active: v })}
+                label="เปิดใช้งาน"
+              />
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
-                    <DollarSign className="w-4 h-4 inline mr-1 -mt-0.5" />
-                    สิทธิ์ดูต้นทุน
-                  </label>
-                  {isExclusiveRole(editingMember.roles) ? (
-                    <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
-                      <p className="text-sm text-green-700 dark:text-green-400 flex items-center gap-1.5">
-                        <Check className="w-4 h-4" />
-                        เห็นต้นทุนอัตโนมัติ
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-slate-700 rounded-lg">
-                      <span className="text-sm text-gray-700 dark:text-slate-300">เห็นราคาทุนสินค้า</span>
-                      <button
-                        type="button"
-                        role="switch"
-                        aria-checked={editingMember.can_view_cost}
-                        onClick={() => setEditingMember({ ...editingMember, can_view_cost: !editingMember.can_view_cost })}
-                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary/50 cursor-pointer ${
-                          editingMember.can_view_cost ? 'bg-primary' : 'bg-gray-300 dark:bg-slate-600'
-                        }`}
-                      >
-                        <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow-sm ${
-                          editingMember.can_view_cost ? 'translate-x-6' : 'translate-x-1'
-                        }`} />
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
+              <PermissionEditor
+                value={editingMember.perm}
+                onChange={(perm) => setEditingMember({ ...editingMember, perm })}
+                canGrantAdmin={canGrantAdmin}
+                warehouses={warehouseOptions}
+                terminals={terminals}
+                isOwnerTarget={editingMember.perm.role === 'owner'}
+                disabled={isSaving}
+              />
             </div>
           </form>
         )}

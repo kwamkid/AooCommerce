@@ -8,6 +8,8 @@ import Image from 'next/image';
 import { useAuth } from '@/lib/auth-context';
 import { FullPageLoading } from '@/components/ui/Loading';
 import InAppBrowserNotice from '@/components/auth/InAppBrowserNotice';
+import { AreaBadges, roleLabel } from '@/components/members/AreaSummary';
+import { isAdminTierRole, type Permissions, type RoleLevel } from '@/lib/permissions';
 import {
   Building2, Shield, AlertCircle, Loader2, CheckCircle,
   LogIn, Clock, XCircle,
@@ -16,6 +18,9 @@ import {
 interface InvitationData {
   id: string;
   email: string | null;
+  /** ตำแหน่งหลัก + สิทธิ์รายกลุ่มงาน — API แปลงคำเชิญรุ่นเก่ามาให้แล้ว */
+  role: RoleLevel;
+  permissions: Permissions | null;
   roles: string[];
   status: string;
   expires_at: string;
@@ -27,21 +32,6 @@ interface InvitationData {
     logo_url: string | null;
   };
 }
-
-const ROLE_LABELS: Record<string, string> = {
-  owner: 'เจ้าของ',
-  admin: 'ผู้ดูแลระบบ',
-  account: 'บัญชี',
-  warehouse: 'คลังสินค้า',
-  sales: 'แอดมินออนไลน์',
-  cashier: 'แคชเชียร์',
-  pc: 'PC ประจำห้าง',
-};
-
-const formatRoleLabels = (roles?: string[]) => {
-  if (!roles || roles.length === 0) return '-';
-  return roles.map(r => ROLE_LABELS[r] || r).join(', ');
-};
 
 export default function InvitePage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = use(params);
@@ -270,17 +260,23 @@ export default function InvitePage({ params }: { params: Promise<{ token: string
             <p className="text-gray-400 text-sm">เชิญคุณเข้าร่วมบริษัท</p>
           </div>
 
-          {/* Role Info */}
-          <div className="bg-white/5 rounded-lg p-4 mb-6">
+          {/* Role + กลุ่มงานที่จะได้ — บอกก่อนกดรับว่าเข้ามาแล้วจะเห็นอะไร */}
+          <div className="bg-white/5 rounded-lg p-4 mb-6 space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2 text-gray-300">
                 <Shield className="w-4 h-4" />
                 <span className="text-sm">ตำแหน่ง</span>
               </div>
               <span className="text-primary font-medium">
-                {formatRoleLabels(invitation?.roles)}
+                {invitation?.role ? roleLabel(invitation.role) : '-'}
               </span>
             </div>
+            {invitation?.role && !isAdminTierRole(invitation.role) && (
+              <div>
+                <p className="text-xs text-gray-400 mb-1.5">กลุ่มงานที่เข้าถึงได้</p>
+                <AreaBadges role={invitation.role} permissions={invitation.permissions} />
+              </div>
+            )}
           </div>
 
           {/* Error Alert */}

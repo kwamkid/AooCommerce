@@ -20,12 +20,14 @@ export interface FilterChip<T extends string> {
 }
 
 export default function FilterChips<T extends string>({
-  chips, value, onChange, className,
+  chips, value, onChange, className, disabled,
 }: {
   chips: FilterChip<T>[];
   value: T;
   onChange: (id: T) => void;
   className?: string;
+  /** อ่านอย่างเดียว — ใช้ตอนฟอร์มกำลังบันทึก หรือแถวที่แก้ไม่ได้ */
+  disabled?: boolean;
 }) {
   return (
     <div className={`flex flex-wrap items-center gap-2 ${className || ''}`}>
@@ -34,10 +36,11 @@ export default function FilterChips<T extends string>({
           key={chip.id}
           type="button"
           onClick={() => onChange(chip.id)}
-          className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${
+          disabled={disabled}
+          className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
             value === chip.id
               ? chip.activeClass
-              : 'border-gray-200 dark:border-slate-600 text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700'
+              : 'border-gray-200 dark:border-slate-600 text-gray-600 dark:text-slate-300 enabled:hover:bg-gray-50 dark:enabled:hover:bg-slate-700'
           }`}
         >
           {chip.icon}

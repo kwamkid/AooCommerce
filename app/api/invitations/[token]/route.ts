@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { applyInvitation } from '@/lib/invitations';
+import { mainRoleOf, permissionsFromLegacyRoles, type Permissions } from '@/lib/permissions';
 
 // GET - Get invitation details (public)
 export async function GET(
@@ -10,18 +11,29 @@ export async function GET(
   try {
     const { token } = await params;
 
-    const { data: invitation, error } = await supabaseAdmin
+    const { data: row, error } = await supabaseAdmin
       .from('company_invitations')
       .select(`
-        id, email, roles, status, expires_at, created_at,
+        id, email, roles, permissions, status, expires_at, created_at,
         company:companies (id, name, slug, logo_url)
       `)
       .eq('token', token)
       .single();
 
-    if (error || !invitation) {
+    if (error || !row) {
       return NextResponse.json({ error: 'ไม่พบคำเชิญนี้' }, { status: 404 });
     }
+
+    // หน้ารับคำเชิญต้องบอกได้ว่า "เข้ามาแล้วจะเห็นอะไร" — ตอบเป็นโมเดลใหม่เสมอ
+    // (คำเชิญที่ออกก่อน 2026-09-07 ยังเก็บ roles รุ่นเก่า จึงแปลผ่านแม่แบบให้ตรงกับ
+    //  สิ่งที่ lib/invitations.ts จะเขียนลง membership จริงตอนกดรับ)
+    const role = mainRoleOf(row.roles);
+    const invitation = {
+      ...row,
+      role,
+      permissions: (row.permissions as Permissions | null)
+        ?? (role === 'staff' ? permissionsFromLegacyRoles(row.roles) : null),
+    };
 
     if (invitation.status !== 'pending') {
       return NextResponse.json({ error: 'คำเชิญนี้ถูกใช้งานแล้ว', invitation }, { status: 400 });

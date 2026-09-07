@@ -523,3 +523,13 @@ const { allowed, loading } = useAuthGuard('settings.access', { noRedirect: true 
 **Capability ที่มี** (เลือกตัวที่ตรงความหมายที่สุด): `company.*` · `members.*` · `settings.*` · `masterdata.*` (12 หน้า) · `order.{view,manage,split,delete}` · `chat.{view,reply}` · `product.{view,manage,bulk_edit}` · `inventory.{view,manage}` · `customer.{view,edit}` · `finance.{view,manage}` · `pos.{sell,view,manage}` · `counter.{record,manage}` · `marketplace.*` · `supplier.edit` · `report.supplier.*` · `onboarding.manage` · `logs.view` · `invoice.backfill`
 
 **เพิ่ม capability ใหม่** = เพิ่ม 1 บรรทัดใน `CAPABILITIES` (pattern `{domain}.{action}`) แล้วใส่ token: `ADMIN_TIER` / `ADMIN_PLUS` / `OWNER_ONLY` และ (ถ้าเปิดให้ staff) token ของกลุ่มงาน เช่น `[...ADMIN_TIER, 'orders:manage']` — เมนูใน Sidebar อ้าง capability นี้ได้ทันที
+
+**UI ของตำแหน่ง/สิทธิ์มีชุดเดียว — `components/members/`** (ห้ามสร้างใหม่):
+
+| ต้องการ | ใช้ | ห้าม |
+|---|---|---|
+| ตั้งตำแหน่ง + กลุ่มงาน + ขอบเขตคลัง/POS + ต้นทุน + PC หน่วยแทน | **`PermissionEditor`** — โมดัลเชิญกับโมดัลแก้ไขใช้ตัวเดียวกัน (`showPcRover={false}` ตอนเชิญ เพราะ `company_invitations` ไม่มีคอลัมน์นั้น) | checkbox หลาย role · dropdown ตำแหน่ง · บล็อกเลือกคลังที่ประกอบเอง |
+| แสดงว่า "คนนี้เป็นใคร เห็นอะไร" | **`AreaBadges`** (ตำแหน่ง + กลุ่มงาน) · `RoleBadge` (ตำแหน่งอย่างเดียว) · `AreaCell` + `AreaLegend` (ตาราง "ใครเห็นอะไร") | ตาราง `ROLE_LABELS`/`ROLE_COLORS` ประจำไฟล์ (เคยมี 3 ชุดแล้วชื่อ/สีไม่ตรงกันสักชุด) |
+
+- ป้ายกำกับ/คำอธิบายทั้งหมดอ่านจาก `ROLE_LEVELS` · `AREAS` · `STAFF_PRESETS` — **ห้าม hardcode ชื่อตำแหน่งหรือชื่อกลุ่มงานเป็นสตริงในหน้าใด ๆ**
+- ระดับสิทธิ์อ่านจาก `role` + `permissions` ที่ API ส่งมา **ห้ามอ่านจาก `roles[]` ดิบ** (ค่าเก่ายังค้างใน DB — `mainRoleOf()`/`permissionsFromLegacyRoles()` แปลงให้แล้วที่ชั้น API)
