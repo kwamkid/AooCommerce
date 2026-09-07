@@ -82,7 +82,7 @@
 | `Checkbox` | checkbox |
 | `ActionMenu` | row action dropdown (portal z-9999) — items: `[{key,label,icon,onClick,danger?,dividerBefore?}]` |
 | `ImageLightbox` | fullscreen image viewer — `src` + `onClose` |
-| `ProductImageThumb` | square product thumbnail (xs/sm/md/lg) — hover magnifying-glass overlay + click → `ImageLightbox` (internal state) + `fallbackIcon`. **ใช้แทน inline `<img>` + setLightboxSrc ทุกครั้ง** — เลิก duplicate ESC + lightbox div |
+| `ProductImageThumb` | square product thumbnail (xs/sm/md/lg) — hover magnifying-glass overlay + click → `ImageLightbox` (internal state) + `fallbackIcon`. **ใช้แทน inline `<img>` + setLightboxSrc ทุกครั้ง** — เลิก duplicate ESC + lightbox div · **รูปจิ๋วโหลดผ่าน `thumbUrl()` ให้เอง** (lightbox ยังเปิดรูปเต็ม — ส่ง `src` เป็นรูปเต็มเสมอ) |
 | `ListRow` | horizontal list row card สำหรับ sortable settings lists — slots: `icon` + `title` + `subtitle?` + `reorder?` + `actions?` + `inactive?`. **ใช้แทน inline `<Card padding="none"><div flex gap-3 p-4>...</div></Card>`** (payment-channels, pos-terminals) |
 | `ReorderArrows` | vertical up/down arrow column สำหรับ manual sort — `onMoveUp`/`onMoveDown` + `disableUp?`/`disableDown?`/`disabled?`. ใช้ภายใน `ListRow` หรือ standalone |
 | `PlatformIcon` | social icon — `id='line\|facebook\|instagram\|tiktok\|shopee\|lazada'` + size? + title? (จาก `/public/social/*.svg`) — ใช้ตอนแสดง chat platform / sales channel platform เสมอ · **`mono`** = วาดด้วย currentColor (ทุกแพลตฟอร์ม — CSS mask จากไฟล์ SVG เดิม · LINE วาด inline เจาะตัว L) สำหรับวางบนปุ่ม primary — โลโก้สีแบรนด์เต็มตัวบนพื้นส้มตีกัน ห้ามใช้แบบสี |
@@ -282,6 +282,7 @@ products → product_variations (1:N) → product_images (variation-level)
 - Simple: `variation_label IS NOT NULL`, 1 variation
 - Variable: `variation_label IS NULL`, 2+ variations
 - Image priority: `variation_image > product_image > null`
+- **รูปจิ๋วทุกที่ต้องผ่าน `thumbUrl()` จาก [lib/image-thumb.ts](lib/image-thumb.ts)** (2026-09-07) — Shopee CDN ต่อ `_tn` (190KB→42KB) · Lazada `_120x120q80.jpg` (150KB→6KB) · storage ของเรา → Supabase Image Transformation `render/image` (150KB→2KB, CDN แคช 1 ชม.) · เก็บรูปเดียว 1200px ไม่มีไฟล์ย่อ (ย่อตอนเรียก ไม่เพิ่มพื้นที่) · **Image Transformation เป็นของแผน Pro**: รวม 100 origin images/เดือน เกินคิด $5/1,000 (นับรูปต้นฉบับที่ถูกย่ออย่างน้อยหนึ่งครั้งในเดือน ไม่ใช่จำนวน request) · ห้ามใช้กับอวาตาร์/โลโก้/สลิป/QR/lightbox
 - Variable product: **ห้าม** fallback ไปรูป product ถ้า variation ไม่มีรูป
 
 ### Order System

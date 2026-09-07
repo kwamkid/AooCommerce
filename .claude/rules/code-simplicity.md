@@ -206,6 +206,7 @@
 | แก้ไขใบกำกับ (modal) | `TaxInvoiceEditModal` | สร้าง tax edit form เอง |
 | สรุปยอด (editable) | `OrderSummaryBox` | สร้าง totals box เอง |
 | Tag/Badge | `TagBadge` | สร้าง badge เอง (8 สีพร้อมใช้) |
+| รูปสินค้าจิ๋ว (dropdown / ตาราง / การ์ด) | `ProductImageThumb` (xs/sm/md/lg — **โหลด URL ย่อผ่าน `thumbUrl()` ให้เอง** · กดขยายได้รูปเต็ม) หรือ `<img src={thumbUrl(url, 96\|160\|320)}>` เมื่อ layout พิเศษ | `<img src={image_url}>` รูปเต็มในกรอบ 32–64px (Shopee 190KB/แถว — ดู fix-bug.md 2026-09-07 รอบ 3) |
 | Tooltip / คำอธิบายปุ่มไอคอน | **`Tooltip`** (`text`, `position?`, `box?`) — portal + delay 350ms + คีย์บอร์ด + **มือถือแตะค้าง** + พลิกเมื่อชนขอบจอ · ใส่ `aria-label` บนปุ่มควบเสมอ (tooltip ไม่ใช่ชื่อ accessible) · **ปุ่มที่ `disabled` ได้ต้องใส่ `box="inline-flex"`** — ค่า default `display:contents` ไม่มีกล่อง ปุ่ม disabled จึงไม่ยิง pointer event เลย | `title=""` ของเบราว์เซอร์บนปุ่ม/ไอคอน (แต่งไม่ได้ · ขึ้นช้า ~1 วิ · **มือถือไม่ขึ้นเลย**) · สร้าง tooltip เอง |
 
 ### Data Table — ทุกหน้า list ต้องใช้
@@ -328,6 +329,7 @@ const columns: DataTableColumn<Order>[] = [
 | `supabase.ts` | `lib/supabase.ts` | `supabase` client (public) + `handleSupabaseError()` |
 | `supabase-admin.ts` | `lib/supabase-admin.ts` | `supabaseAdmin` (service role — server only); re-exports `can` from `permissions.ts` |
 | `supabase-paging.ts` | `lib/supabase-paging.ts` | `fetchAllRows((from,to) => q.range(from,to))` — ดึงข้ามเพดาน **1,000 แถว** ที่ Supabase Cloud ตัดเงียบ ๆ (`.range()` กว้างแค่ไหนก็ได้ไม่เกินนี้) · ใส่ `{count:'exact'}` ใน query แล้วหน้าที่เหลือยิงขนาน — **query ที่ "ต้องได้ครบ" ต้องผ่านตัวนี้** ส่วนรายการใหญ่ที่ไม่จำเป็นต้องได้ทั้งตารางให้ค้นฝั่ง server แทน |
+| `image-thumb.ts` | `lib/image-thumb.ts` | `thumbUrl(url, 96\|160\|320)` — URL รูปย่อตามโฮสต์: Supabase storage → `render/image` · Shopee `_tn` · Lazada `_{s}x{s}q80.jpg` · โฮสต์อื่นคืนเดิม · idempotent · **ห้ามใช้กับอวาตาร์/โลโก้/สลิป/QR/lightbox/ImageUploader** (ต้องเห็นของจริง) |
 | `permissions.ts` | `lib/permissions.ts` | **Single source of truth** สำหรับ role-based permissions — `can(roles, 'capability')` + 30 capabilities (`inventory.manage`, `customer.edit`, `settings.access`, ฯลฯ) |
 | `useAuthGuard.ts` | `lib/useAuthGuard.ts` | Client hook ป้องกันหน้า: `useAuthGuard('cap')` (redirect ไป `/dashboard`) หรือ `useAuthGuard('cap', { noRedirect: true })` (render fallback เอง) |
 | `flow-types.ts` | `lib/flow-types.ts` | `isCreditFlow()`, `isCashFlow()`, `isConsignmentFlow()`, `isDepartmentFlow()`, `getFlowLabel()` |
