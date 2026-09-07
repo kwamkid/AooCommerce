@@ -14,6 +14,7 @@ import { useCompany } from '@/lib/company-context';
 import { buildMessagePreview } from '@/lib/chat/message-preview';
 import { apiFetch } from '@/lib/api-client';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
+import { useStableCallback } from '@/lib/useStableCallback';
 import { formatPrice, formatNumber } from '@/lib/utils/format';
 import { getBadgeColor, getPaymentBadgeColor } from '@/lib/status-tab-colors';
 import { isConsignmentFlow, isDepartmentFlow } from '@/lib/flow-types';
@@ -63,6 +64,9 @@ import { diffTagIds, patchCustomerTags, patchContactTags } from '@/lib/tag-links
 import Tooltip from '@/components/ui/Tooltip';
 import type { UnifiedContact, ChatMessage, Customer, DayRange, ChatAccountInfo, LinkedContact } from './lib/chatTypes';
 import MessageBubble from './components/MessageBubble';
+// แผง "เปิดบิล" แยกไฟล์เพราะห่อ memo ไว้ (ดูหมายเหตุในไฟล์นั้น) — ตัวห่อเล็กมาก
+// ส่วน OrderForm ที่หนักจริงยังเป็น dynamic อยู่ข้างใน จึงไม่ติดมากับ first-load JS
+import ChatOrderPanel from './components/ChatOrderPanel';
 import { FbIcon, IgIcon, LineIcon, ShopeeIcon, LazadaIcon, TiktokIcon, PlatformIcon, AccountCornerBadge, getAccountPicture, getAvatarUrl, getInitials, formatTime, formatLastMessage, compressImage, officialStickers, isSystemEventMessage } from './lib/chatHelpers';
 import { FullPageLoading } from '@/components/ui/Loading';
 import { LoadingCard } from '@/components/ui/StateCard';
@@ -242,10 +246,18 @@ function UnifiedChatPageContent() {
       }));
   }, [messages]);
 
-  const openLightbox = useCallback((url: string) => {
+  // identity ต้องคงที่ — ส่งเข้า MessageBubble ที่ memo ไว้ · ผูกกับ `mediaList` ตรง ๆ
+  // จะเปลี่ยนค่าใหม่ทุกข้อความที่เข้ามา (mediaList คิดจาก messages) = ฟองทุกใบ render ใหม่
+  // ทั้งแถบพอดีตอนที่ memo ควรช่วยที่สุด · เรียกจาก onClick เท่านั้น จึงอ่านค่าล่าสุดได้ครบ
+  const openLightbox = useStableCallback((url: string) => {
     const idx = mediaList.findIndex(m => m.url === url);
     setLightboxIndex(idx >= 0 ? idx : null);
-  }, [mediaList]);
+  });
+
+  // ref อย่างเดียว → deps ว่างได้ · inline lambda ตรงนี้ = memo ของ MessageBubble ไร้ผล
+  const scrollToLatestOnImageLoad = useCallback(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, []);
 
   // Fetch chat accounts
   useEffect(() => {
@@ -661,7 +673,12 @@ function UnifiedChatPageContent() {
         setContacts(prev => prev.filter(c => c.id !== id));
         if (local.unread_count) setTotalUnread(t => Math.max(0, t - local.unread_count));
         baselines.delete(id);
-        if (isSelectedRow) setSelectedContact(prev => (prev && prev.id === id ? { ...prev, status } : prev));
+        // object ใหม่ = ทั้งหน้า re-render — คืน prev เดิมเมื่อค่าที่จะตั้งเท่าของเดิม
+        if (isSelectedRow) setSelectedContact(prev => {
+          if (!prev || prev.id !== id) return prev;
+          if (prev.status === status) return prev;
+          return { ...prev, status };
+        });
         return;
       }
 
@@ -697,11 +714,17 @@ function UnifiedChatPageContent() {
 
       if (isSelectedRow) {
         // หัวหน้าคุยต้องเปลี่ยนชื่อตาม แต่ **คงตัวเลขยังไม่อ่านของเดิมไว้** (กำลังอ่านอยู่)
-        setSelectedContact(prev => (prev && prev.id === id ? {
-          ...prev,
-          display_name: (row?.display_name as string | undefined) ?? prev.display_name,
-          status: status ?? prev.status,
-        } : prev));
+        //
+        // ⚠️ object ใหม่ทุกครั้ง = ทั้งหน้า re-render (ฟองข้อความทุกใบ + แผงเปิดบิลที่เปิดค้าง)
+        // ทั้งที่ชื่อ/สถานะไม่ได้เปลี่ยนเลย — และมันเกิด **ทุกข้อความที่เข้ามา** เพราะ UPDATE
+        // ของ unread_count/last_message_at ก็วิ่งผ่านทางนี้ → เทียบค่าก่อน ไม่เปลี่ยนคืน prev
+        setSelectedContact(prev => {
+          if (!prev || prev.id !== id) return prev;
+          const nextName = (row?.display_name as string | undefined) ?? prev.display_name;
+          const nextStatus = status ?? prev.status;
+          if (prev.display_name === nextName && prev.status === nextStatus) return prev;
+          return { ...prev, display_name: nextName, status: nextStatus };
+        });
       }
     };
 
@@ -1330,6 +1353,16 @@ function UnifiedChatPageContent() {
       markContactOrdered(contact.id);
     }
   };
+
+  // ── callback ที่ส่งเข้า ChatOrderPanel (memo) — identity ต้องคงที่ ไม่งั้น memo ไร้ผล ──
+  const handleOrderPanelSuccess = useStableCallback((orderId: string, customerId?: string, deliveryInfo?: { name?: string; phone?: string; email?: string }) => {
+    setRightPanel(null);
+    handleBillSaved(orderId, customerId, deliveryInfo);
+  });
+  const handleOrderPanelSendBill = useStableCallback((orderId: string, orderNumber: string, billUrl: string) => {
+    sendBillToCustomer(orderId, orderNumber, billUrl);
+  });
+  const closeOrderPanel = useStableCallback(() => setRightPanel(null));
 
   /** ข้อความ "สั่งล่าสุด: ..." — คืน null เมื่อ **ไม่รู้** (โหมดค้นหาไม่ enrich)
    *  ห้ามเดาเป็น "ยังไม่เคยสั่ง" เพราะลูกค้าอาจมีออเดอร์อยู่จริง */
@@ -2133,7 +2166,7 @@ function UnifiedChatPageContent() {
                                 platform={selectedContact?.platform || 'line'}
                                 direction={msg.direction}
                                 onOpenLightbox={openLightbox}
-                                onImageLoad={() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })}
+                                onImageLoad={scrollToLatestOnImageLoad}
                               />
                             </div>
                             {msg.direction === 'incoming' && (<span className="text-[10px] text-gray-400 self-end mb-0.5 whitespace-nowrap">{formatTime(msg.created_at)}</span>)}
@@ -2273,21 +2306,25 @@ function UnifiedChatPageContent() {
         )}
 
         {/* Desktop Right Panels */}
+        {/* ⚠️ ส่งเป็นค่าพื้นฐาน/ref/callback คงที่เท่านั้น — ส่ง selectedContact ทั้งก้อนหรือ
+            inline lambda เมื่อไหร่ memo ของ ChatOrderPanel ไร้ผลทันที (ข้อความเข้าทีเดียว
+            OrderForm 3.3k บรรทัดที่เปิดค้างอยู่ก็ render ตามทั้งตัว) */}
         {rightPanel === 'order' && selectedContact && (
-          <div className="flex w-full md:w-auto md:flex-1 flex-col border-l border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900 absolute inset-0 md:static md:inset-auto z-10">
-            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 min-h-[81px]">
-              <div className="flex items-center gap-3">
-                <button onClick={() => setRightPanel(null)} className="p-1 -ml-1 text-gray-500 hover:text-gray-700 md:hidden"><ChevronLeft className="w-6 h-6" /></button>
-                <ShoppingCart className="w-5 h-5 text-primary" /><div><h2 className="text-lg font-semibold text-gray-900 dark:text-white">เปิดบิล</h2><p className="text-xs text-gray-500 dark:text-slate-400">{selectedContact.customer ? selectedContact.customer.name : `${selectedContact.platform === 'line' ? 'LINE' : selectedContact.platform === 'shopee' ? 'Shopee' : selectedContact.platform === 'lazada' ? 'Lazada' : selectedContact.platform === 'tiktok' ? 'TikTok' : 'Facebook'}: ${selectedContact.display_name}`}</p></div>
-              </div>
-              <div className="flex items-center gap-2">
-                <div ref={headerActionsRef} />
-                <div ref={warehousePortalRef} />
-                <Tooltip text="ปิด"><button onClick={() => setRightPanel(null)} aria-label="ปิด" className="hidden md:block p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"><X className="w-5 h-5" /></button></Tooltip>
-              </div>
-            </div>
-            <div className="flex-1 overflow-y-auto px-4 pt-4"><OrderForm key={orderFormKey} {...(selectedContact.customer ? { preselectedCustomerId: selectedContact.customer.id } : {})} embedded={true} warehousePortalRef={warehousePortalRef} headerActionsRef={headerActionsRef} source={selectedContact.source || selectedContact.platform} sourceName={selectedContact.account_name} chatAccountId={selectedContact.chat_account_id} onSuccess={(orderId, customerId, deliveryInfo) => { setRightPanel(null); handleBillSaved(orderId, customerId, deliveryInfo); }} onSendBillToChat={sendBillToCustomer} onCancel={() => setRightPanel(null)} /></div>
-          </div>
+          <ChatOrderPanel
+            orderFormKey={orderFormKey}
+            platformLabel={selectedContact.platform === 'line' ? 'LINE' : selectedContact.platform === 'shopee' ? 'Shopee' : selectedContact.platform === 'lazada' ? 'Lazada' : selectedContact.platform === 'tiktok' ? 'TikTok' : 'Facebook'}
+            contactName={selectedContact.display_name}
+            customerName={selectedContact.customer?.name}
+            customerId={selectedContact.customer?.id}
+            source={selectedContact.source || selectedContact.platform}
+            sourceName={selectedContact.account_name}
+            chatAccountId={selectedContact.chat_account_id}
+            warehousePortalRef={warehousePortalRef}
+            headerActionsRef={headerActionsRef}
+            onSuccess={handleOrderPanelSuccess}
+            onSendBillToChat={handleOrderPanelSendBill}
+            onClose={closeOrderPanel}
+          />
         )}
 
         {rightPanel === 'history' && selectedContact?.customer && (
