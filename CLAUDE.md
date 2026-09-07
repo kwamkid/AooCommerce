@@ -899,7 +899,9 @@ PC (พนักงานประจำจุดขายในห้าง) �
 | Endpoint | รวมอะไร | ใช้กับ |
 |---|---|---|
 | `/api/header/summary` | warehouses+stockConfig+low_stock_count+chat_unread+orders_ready_count+marketplace_health | `HeaderSummaryProvider` ใน [lib/header-summary-context.tsx](lib/header-summary-context.tsx) → Sidebar + Header. Realtime subs: orders, line_contacts, fb_contacts (debounced 500ms refresh) + 5-min interval สำหรับ marketplace health |
-| `/api/orders/new/init` | customers + products + warehouses + sales_channels + stockConfig + default-warehouse inventory | OrderForm `fetchInitBundle()` (non-marketplace path) → 1 call แทน 5; fallback เป็น individual fetches ถ้า /init error |
+| `/api/orders/new/init` | **ลูกค้าล่าสุด 30 คน** + warehouses + sales_channels + stockConfig + default-warehouse inventory (แบ่งหน้าด้วย `fetchAllRows`) — **ไม่มี products แล้ว** | OrderForm `fetchInitBundle()` (non-marketplace path) → 1 call; fallback เป็น individual fetches ถ้า /init error · **สินค้า/ลูกค้าค้นฝั่ง server** ตอนผู้ใช้พิมพ์ (`/api/products?search=` · `/api/customers?search=`) ผ่านโหมด API ของ `ProductSearchInput`/`EntitySearchInput` |
+
+⛔ **ห้ามส่งรายการทั้งตารางให้ client กรองเอง** — ร้านที่มีสินค้า/ลูกค้าหลักพันจะโดน **เพดาน 1,000 แถวของ Supabase** (ตัดเงียบ ไม่มี error) และ **4.5MB ของ Vercel** · ของที่ต้องได้ครบจริง ๆ ใช้ `fetchAllRows()` จาก [lib/supabase-paging.ts](lib/supabase-paging.ts) · ที่เหลือค้นฝั่ง server (ดู [fix-bug.md](fix-bug.md) 2026-09-07 — ร้าน 5.8k สินค้า ค้น "yoyo" ไม่เจอ)
 
 ### apiFetch cache layer ([lib/api-client.ts](lib/api-client.ts))
 - **In-memory response cache** key by `(URL, companyId)` พร้อม TTL ต่อ path:

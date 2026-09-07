@@ -176,8 +176,8 @@
 |---------|-----|------|
 | Dropdown | `FormSelect` | native `<select>` |
 | Multi-select dropdown + search (chips trigger, checkbox list) | `MultiSelectSearch` | chip-toggle list เรียงยาว / สร้าง multi-select dropdown เอง |
-| ค้นหาลูกค้า/สินค้า | `EntitySearchInput` | สร้าง search dropdown เอง |
-| ค้นหาสินค้า (พร้อมราคา/รูป/variation) | `ProductSearchInput` | สร้าง product picker เอง |
+| ค้นหาลูกค้า/สินค้า | `EntitySearchInput` — รายการใหญ่ให้ส่ง **`onSearchChange`** (โหมด API: ข้ามการกรองภายใน + debounce 300ms) คู่กับ `loading`/`minSearchLength` | สร้าง search dropdown เอง · โหลดทั้งตารางมาให้มันกรอง |
+| ค้นหาสินค้า (พร้อมราคา/รูป/variation) | `ProductSearchInput` — โหมด API เหมือนกัน (`onSearchChange` · ผ่าน `ItemsTable` ใช้ชื่อ `onProductSearchChange` · ผ่าน `CustomerSelectionCard` ใช้ `onCustomerSearchChange`) | สร้าง product picker เอง · **ส่งสินค้าทั้งร้านมาให้กรองใน client** (ร้าน 5.8k สินค้าโดนเพดาน 1,000 แถวของ Supabase — ของที่มีอยู่จะ "หาไม่เจอ" เงียบ ๆ ดู fix-bug.md 2026-09-07) |
 | ตารางสินค้าในฟอร์ม | `ItemsTable` | สร้าง items table เอง |
 | ที่อยู่ไทย autocomplete | `ThaiAddressInput` | สร้าง address autocomplete เอง |
 | ข้อมูลภาษี (บุคคล/นิติบุคคล toggle) | `TaxInfoForm` | สร้าง tax form เอง |
@@ -326,6 +326,7 @@ const columns: DataTableColumn<Order>[] = [
 | `api-client.ts` | `lib/api-client.ts` | `apiFetch()` — authenticated API client (auto token, company_id, dedup GET) |
 | `supabase.ts` | `lib/supabase.ts` | `supabase` client (public) + `handleSupabaseError()` |
 | `supabase-admin.ts` | `lib/supabase-admin.ts` | `supabaseAdmin` (service role — server only); re-exports `can` from `permissions.ts` |
+| `supabase-paging.ts` | `lib/supabase-paging.ts` | `fetchAllRows((from,to) => q.range(from,to))` — ดึงข้ามเพดาน **1,000 แถว** ที่ Supabase Cloud ตัดเงียบ ๆ (`.range()` กว้างแค่ไหนก็ได้ไม่เกินนี้) · ใส่ `{count:'exact'}` ใน query แล้วหน้าที่เหลือยิงขนาน — **query ที่ "ต้องได้ครบ" ต้องผ่านตัวนี้** ส่วนรายการใหญ่ที่ไม่จำเป็นต้องได้ทั้งตารางให้ค้นฝั่ง server แทน |
 | `permissions.ts` | `lib/permissions.ts` | **Single source of truth** สำหรับ role-based permissions — `can(roles, 'capability')` + 30 capabilities (`inventory.manage`, `customer.edit`, `settings.access`, ฯลฯ) |
 | `useAuthGuard.ts` | `lib/useAuthGuard.ts` | Client hook ป้องกันหน้า: `useAuthGuard('cap')` (redirect ไป `/dashboard`) หรือ `useAuthGuard('cap', { noRedirect: true })` (render fallback เอง) |
 | `flow-types.ts` | `lib/flow-types.ts` | `isCreditFlow()`, `isCashFlow()`, `isConsignmentFlow()`, `isDepartmentFlow()`, `getFlowLabel()` |

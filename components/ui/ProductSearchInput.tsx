@@ -5,6 +5,7 @@ import ProductImageThumb from '@/components/ui/ProductImageThumb';
 import { Plus, Package, Loader2, Flame } from 'lucide-react';
 import { formatNumber } from '@/lib/utils/format';
 import { useDropUp } from '@/lib/useDropUp';
+import { useDebouncedCallback } from '@/lib/useDebounce';
 
 /** = max-h-72 ของกล่องผลลัพธ์ — ใช้เดาความสูงเฉพาะรอบแรกที่ยังวัดของจริงไม่ได้ */
 const DROPDOWN_MAX_H = 288;
@@ -32,6 +33,10 @@ export interface ProductSearchItem {
 export type SearchMode = 'variation' | 'product';
 
 interface ProductSearchInputProps {
+  /**
+   * รายการที่เอามาค้น — โหมดปกติคือ "สินค้าทั้งหมดที่โหลดไว้" แล้วกรองในนี้
+   * · **โหมด API (ส่ง `onSearchChange`) = ผลค้นหาที่ parent ค้นมาให้แล้ว** ไม่กรองซ้ำ
+   */
   products: ProductSearchItem[];
   onSelect: (product: ProductSearchItem) => void;
   placeholder?: string;
@@ -39,6 +44,16 @@ interface ProductSearchInputProps {
   searchFields?: (keyof ProductSearchItem)[];
   /** Loading indicator */
   loading?: boolean;
+  /**
+   * โหมดค้นฝั่ง server — ส่งมาเมื่อรายการใหญ่เกินกว่าจะโหลดมาทั้งก้อน
+   * (ร้านที่มีสินค้าหลักพันชน 1,000 แถวของ Supabase + 4.5MB ของ Vercel)
+   *
+   * เมื่อส่งมา: ข้ามการกรองภายใน (`products` = ผลค้นหาแล้ว) · เรียกหลัง debounce 300ms
+   * · เรียกด้วย `''` ทันทีเมื่อช่องถูกล้าง (เลือกสินค้าแล้ว/กด Escape) ให้ parent เคลียร์ผล
+   */
+  onSearchChange?: (search: string) => void;
+  /** จำนวนตัวอักษรขั้นต่ำก่อนนับว่า "กำลังรอผลค้น" (default 1 — โหมด API เท่านั้น) */
+  minSearchLength?: number;
   /** Custom render for each result row (for stock badges, etc.) */
   renderExtra?: (product: ProductSearchItem) => ReactNode;
   /** Show "+1" badge for already-added items */
@@ -65,6 +80,8 @@ export default function ProductSearchInput({
   placeholder = 'พิมพ์ชื่อสินค้า, รหัส หรือ SKU เพื่อค้นหา...',
   searchFields = ['sku', 'barcode'],
   loading = false,
+  onSearchChange,
+  minSearchLength = 1,
   renderExtra,
   isAlreadyAdded,
   isDisabled,
@@ -78,6 +95,8 @@ export default function ProductSearchInput({
   const [search, setSearch] = useState('');
   const [showDropdown, setShowDropdown] = useState(false);
   const [highlightIndex, setHighlightIndex] = useState(-1);
+  /** โหมด API: พิมพ์แล้วยังไม่ได้ผลกลับมา — กัน "ไม่พบสินค้า" ของผลชุดเก่าโผล่คั่น */
+  const [pendingSearch, setPendingSearch] = useState(false);
   const internalRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -103,19 +122,53 @@ export default function ProductSearchInput({
   };
   const searchRef = externalRef || internalRef;
 
-  // Filter products client-side
-  const filteredRaw = search
-    ? products.filter(p => {
-        const q = search.toLowerCase();
-        if (p.name.toLowerCase().includes(q)) return true;
-        if (p.code.toLowerCase().includes(q)) return true;
-        for (const field of searchFields) {
-          const val = p[field];
-          if (val && String(val).toLowerCase().includes(q)) return true;
-        }
-        return false;
-      })
-    : [];
+  // โหมด API — ยิงค้นหลังหยุดพิมพ์ 300ms (ห้ามเขียน setTimeout เอง ดู lib/useDebounce.ts)
+  const debouncedSearchChange = useDebouncedCallback((val: string) => {
+    onSearchChange?.(val);
+  }, 300);
+
+  /** ล้างช่องค้นหา + บอก parent ทันที (ไม่รอ debounce) ให้เคลียร์ผลชุดเดิม */
+  const clearSearch = useCallback(() => {
+    setSearch('');
+    setPendingSearch(false);
+    if (onSearchChange) {
+      // เรียกทั้งสองทาง: ตัวตรงเคลียร์ผลเดี๋ยวนี้ · ตัว debounce ไปทับ timer ของคำค้นเก่า
+      // ที่ยังค้างอยู่ (ไม่งั้นอีก 300ms ผลของคำเดิมจะไหลกลับมาทั้งที่ช่องว่างแล้ว)
+      onSearchChange('');
+      debouncedSearchChange('');
+    }
+  }, [onSearchChange, debouncedSearchChange]);
+
+  // เลิกรอเมื่อ (ก) parent บอกว่าโหลดเสร็จ — loading เปลี่ยน true→false หรือ
+  // (ข) ผลชุดใหม่มาถึง — parent ส่ง array ใหม่เสมอ (เผื่อ parent ที่ไม่ได้ส่ง loading มา)
+  const loadingStartedRef = useRef(false);
+  const prevProductsRef = useRef(products);
+  useEffect(() => {
+    const loadingFinished = !loading && loadingStartedRef.current;
+    const gotNewResults = prevProductsRef.current !== products;
+    loadingStartedRef.current = loading;
+    prevProductsRef.current = products;
+    if (loadingFinished || gotNewResults) setPendingSearch(false);
+  }, [loading, products]);
+
+  /** โหมด API นับว่ากำลังโหลดตั้งแต่ผู้ใช้พิมพ์ ไม่ใช่รอ parent ตั้ง loading */
+  const effectiveLoading = loading || (pendingSearch && !!onSearchChange);
+
+  // Filter products client-side — โหมด API ข้ามขั้นนี้ (products = ผลค้นหาแล้ว)
+  const filteredRaw = !search
+    ? []
+    : onSearchChange
+      ? products
+      : products.filter(p => {
+          const q = search.toLowerCase();
+          if (p.name.toLowerCase().includes(q)) return true;
+          if (p.code.toLowerCase().includes(q)) return true;
+          for (const field of searchFields) {
+            const val = p[field];
+            if (val && String(val).toLowerCase().includes(q)) return true;
+          }
+          return false;
+        });
 
   // In product mode: group by product_id, show 1 row per product
   const filtered = mode === 'product'
@@ -172,7 +225,7 @@ export default function ProductSearchInput({
     margin: 8,
     requireMoreSpaceAbove: true,
     layout: true,
-    deps: [displayItems.length, isSuggestionMode, loading],
+    deps: [displayItems.length, isSuggestionMode, effectiveLoading],
   });
 
   // Reset highlight when displayed list changes
@@ -195,7 +248,7 @@ export default function ProductSearchInput({
       blurTimeoutRef.current = null;
     }
     onSelect(product);
-    setSearch('');
+    clearSearch();
     setShowDropdown(false);
     setHighlightIndex(-1);
     // Re-focus for next search/scan — แต่ **ไม่กางรายการแนะนำ**: ผู้ใช้ที่เพิ่งเพิ่มของเสร็จ
@@ -207,11 +260,11 @@ export default function ProductSearchInput({
       markSkipNextOpen();
       searchRef.current?.focus();
     }, 50);
-  }, [onSelect, searchRef]);
+  }, [onSelect, searchRef, clearSearch]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Escape') {
-      setSearch('');
+      clearSearch();
       setShowDropdown(false);
       setHighlightIndex(-1);
       return;
@@ -235,7 +288,7 @@ export default function ProductSearchInput({
         }
       }
     }
-  }, [showDropdown, displayItems, highlightIndex, isDisabled, handleSelect]);
+  }, [showDropdown, displayItems, highlightIndex, isDisabled, handleSelect, clearSearch]);
 
   return (
     <div className="relative" ref={wrapperRef}>
@@ -257,8 +310,13 @@ export default function ProductSearchInput({
           value={search}
           onChange={e => {
             consumeSkipFlag(e.currentTarget);
-            setSearch(e.target.value);
+            const val = e.target.value;
+            setSearch(val);
             setShowDropdown(true);
+            if (onSearchChange) {
+              setPendingSearch(val.length >= minSearchLength);
+              debouncedSearchChange(val);
+            }
           }}
           // คลิกที่ช่อง = ตั้งใจจะหาของ → กางเสมอ (ตอนถูก focus อยู่แล้ว onFocus ไม่ยิงซ้ำ)
           onMouseDown={e => {
@@ -282,7 +340,7 @@ export default function ProductSearchInput({
           autoFocus={autoFocus}
           className="flex-1 outline-none bg-transparent text-base text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-slate-500"
         />
-        {loading && (
+        {effectiveLoading && (
           <Loader2 className="w-4 h-4 text-gray-400 animate-spin flex-shrink-0" />
         )}
       </div>
@@ -301,10 +359,10 @@ export default function ProductSearchInput({
               {suggestionsLabel}
             </div>
           )}
-          {loading && displayItems.length === 0 ? (
+          {effectiveLoading && displayItems.length === 0 ? (
             <div className="px-4 py-3 flex items-center gap-2 text-sm text-gray-500 dark:text-slate-400">
               <Loader2 className="w-4 h-4 animate-spin" />
-              กำลังโหลดสินค้า...
+              {onSearchChange ? 'กำลังค้นหาสินค้า...' : 'กำลังโหลดสินค้า...'}
             </div>
           ) : displayItems.length === 0 ? (
             <div className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">

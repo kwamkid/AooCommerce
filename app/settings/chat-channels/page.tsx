@@ -401,12 +401,13 @@ export default function ChatChannelsPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, showForm]);
 
-  const fetchAccounts = async () => {
+  const fetchAccounts = async (): Promise<ChatAccount[]> => {
     try {
       const response = await apiFetch('/api/chat-accounts');
       if (!response.ok) throw new Error('Failed to fetch');
       const data = await response.json();
-      setAccounts(data.accounts || []);
+      const list: ChatAccount[] = data.accounts || [];
+      setAccounts(list);
 
       // Re-subscribe all FB pages to ensure message_echoes is enabled
       const hasFb = (data.accounts || []).some((a: { platform: string }) => a.platform === 'facebook');
@@ -425,9 +426,11 @@ export default function ChatChannelsPage() {
           }
         } catch { /* non-critical */ }
       }
+      return list;
     } catch (error) {
       console.error('Error fetching chat accounts:', error);
       showToast('โหลดข้อมูลไม่สำเร็จ', 'error');
+      return [];
     } finally {
       setLoading(false);
     }
@@ -610,6 +613,7 @@ export default function ChatChannelsPage() {
     }
 
     setSaving(true);
+    let createdId: string | null = null;
     try {
       if (editingId) {
         const response = await apiFetch('/api/chat-accounts', {
@@ -635,14 +639,25 @@ export default function ChatChannelsPage() {
             credentials,
           }),
         });
+        const data = await response.json().catch(() => ({}));
         if (!response.ok) {
-          const data = await response.json();
           throw new Error(data.error || 'Failed to create');
         }
+        createdId = data?.account?.id || data?.data?.id || data?.id || null;
       }
-      showToast(editingId ? 'อัปเดตสำเร็จ' : 'เพิ่ม Account สำเร็จ');
+      const wasCreate = !editingId;
       resetForm();
-      await fetchAccounts();
+      const list = await fetchAccounts();
+      // LINE ที่เพิ่งสร้าง: Webhook URL เพิ่งมี (มี id ของบัญชี) — เปิดหน้าตั้งค่า Webhook ให้ต่อทันที
+      // ไม่งั้นคนจะเข้าใจว่าเสร็จแล้ว ทั้งที่ยังไม่ได้ลงทะเบียน webhook ที่ LINE = ข้อความไม่เข้าระบบ
+      const created = wasCreate && platform === 'line' && createdId ? list.find(a => a.id === createdId) : undefined;
+      if (created) {
+        startEdit(created);
+        setFormGuideOpen(true);
+        showToast('เพิ่ม LINE OA แล้ว — ขั้นต่อไป: คัดลอก Webhook URL ด้านล่างไปตั้งใน LINE Developers');
+      } else {
+        showToast(wasCreate ? 'เพิ่ม Account สำเร็จ' : 'อัปเดตสำเร็จ');
+      }
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'บันทึกไม่สำเร็จ';
       showToast(message, 'error');
@@ -898,36 +913,46 @@ export default function ChatChannelsPage() {
                     <div className="flex gap-2">
                       <StepNumber number={1} />
                       <div>
-                        <p className="font-medium text-gray-900 dark:text-white text-sm">สร้าง LINE Official Account</p>
-                        <a href="https://www.linebiz.com/th/entry/" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 mt-1 text-line hover:underline">
-                          <ExternalLink className="w-3 h-3" /> สร้าง LINE OA
+                        <p className="font-medium text-gray-900 dark:text-white text-sm">สร้าง / Login LINE Official Account</p>
+                        <a href="https://manager.line.biz/" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 mt-1 text-line hover:underline">
+                          <ExternalLink className="w-3 h-3" /> manager.line.biz (LINE OA Manager)
                         </a>
+                        <p className="mt-1">มี OA อยู่แล้วก็ Login เข้าไปเลือกบัญชีนั้น · ยังไม่มีให้กด &ldquo;สร้าง LINE Official Account&rdquo; ในหน้านี้</p>
                       </div>
                     </div>
                     <div className="flex gap-2">
                       <StepNumber number={2} />
                       <div>
                         <p className="font-medium text-gray-900 dark:text-white text-sm">เปิดใช้ Messaging API</p>
-                        <p>LINE OA Manager &rarr; Settings &rarr; Messaging API &rarr; Enable</p>
+                        <p>LINE OA Manager &rarr; Settings (ตั้งค่า) &rarr; Messaging API &rarr; Enable &rarr; เลือก/สร้าง Provider &rarr; ตกลง</p>
+                        <p className="mt-1">ขั้นนี้ LINE จะสร้าง Channel ให้ใน LINE Developers อัตโนมัติ (ผูกกับบัญชี LINE ที่ใช้ Login OA Manager)</p>
                       </div>
                     </div>
                     <div className="flex gap-2">
                       <StepNumber number={3} />
                       <div>
-                        <p className="font-medium text-gray-900 dark:text-white text-sm">คัดลอก Channel Secret</p>
+                        <p className="font-medium text-gray-900 dark:text-white text-sm">เข้า LINE Developers Console แล้วคัดลอก Channel Secret</p>
                         <p>
                           <a href="https://developers.line.biz/console/" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-line hover:underline">
-                            <ExternalLink className="w-3 h-3" /> LINE Developers Console
+                            <ExternalLink className="w-3 h-3" /> developers.line.biz/console
                           </a>
-                          {' '}&rarr; เลือก Channel &rarr; Basic settings &rarr; Channel secret &rarr; Copy
+                          {' '}&rarr; ถ้าเด้งไปหน้าแรก ให้กด <span className="font-medium">Console</span> มุมขวาบน แล้ว Login ด้วยบัญชี LINE <span className="font-medium">เดียวกับที่ใช้ใน OA Manager</span>
                         </p>
+                        <p className="mt-1">เลือก Provider &rarr; เลือก Channel ของ OA &rarr; แท็บ Basic settings &rarr; Channel secret &rarr; Copy</p>
                       </div>
                     </div>
                     <div className="flex gap-2">
                       <StepNumber number={4} />
                       <div>
                         <p className="font-medium text-gray-900 dark:text-white text-sm">คัดลอก Channel Access Token</p>
-                        <p>LINE Developers Console &rarr; เลือก Channel &rarr; Messaging API &rarr; Channel access token &rarr; Issue &rarr; Copy</p>
+                        <p>Channel เดิม &rarr; แท็บ Messaging API &rarr; เลื่อนล่างสุด Channel access token (long-lived) &rarr; Issue &rarr; Copy</p>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <StepNumber number={5} />
+                      <div>
+                        <p className="font-medium text-gray-900 dark:text-white text-sm">กดบันทึก แล้วเอา Webhook URL ไปตั้งใน LINE</p>
+                        <p>Webhook URL ของบัญชีนี้จะขึ้นให้หลังบันทึก (ระบบเปิดหน้าตั้งค่า Webhook ให้ต่อทันที) &rarr; วางใน LINE Developers &rarr; แท็บ Messaging API &rarr; Webhook settings &rarr; Verify &rarr; เปิด Use webhook · ไม่ทำขั้นนี้ข้อความลูกค้าจะไม่เข้าระบบ</p>
                       </div>
                     </div>
                   </div>
@@ -1505,20 +1530,30 @@ export default function ChatChannelsPage() {
                       <div>
                         <p className="font-medium text-gray-900 dark:text-white subtitle-text">เปิด LINE Developers Console</p>
                         <a href="https://developers.line.biz/console/" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 mt-1 text-line hover:underline">
-                          <ExternalLink className="w-3 h-3" /> เปิด LINE Developers
+                          <ExternalLink className="w-3 h-3" /> developers.line.biz/console
                         </a>
-                        <p className="mt-1">เลือก Channel &rarr; แท็บ Messaging API &rarr; Webhook settings &rarr; Edit</p>
+                        <p className="mt-1">ถ้าเด้งไปหน้าแรก กด <span className="font-medium">Console</span> มุมขวาบนแล้ว Login ด้วยบัญชี LINE เดียวกับ OA Manager &rarr; เลือก Provider &rarr; Channel ของ OA นี้ &rarr; แท็บ Messaging API &rarr; Webhook settings &rarr; Edit</p>
                       </div>
                     </div>
                     <div className="flex gap-2">
                       <StepNumber number={2} />
-                      <p className="font-medium text-gray-900 dark:text-white subtitle-text">วาง Webhook URL ด้านบน &rarr; กด Update &rarr; เปิด Use webhook</p>
+                      <div>
+                        <p className="font-medium text-gray-900 dark:text-white subtitle-text">วาง Webhook URL ด้านบน &rarr; Update &rarr; กด Verify &rarr; เปิดสวิตช์ Use webhook</p>
+                        <p>Verify ต้องขึ้น Success — ถ้าไม่ ให้เช็คว่า Channel secret / Access token ที่กรอกไว้ตรงกับ Channel นี้</p>
+                      </div>
                     </div>
                     <div className="flex gap-2">
                       <StepNumber number={3} />
                       <div>
-                        <p className="font-medium text-gray-900 dark:text-white subtitle-text">ปิดข้อความอัตโนมัติ (แนะนำ)</p>
-                        <p>LINE OA Manager &rarr; Settings &rarr; Response settings &rarr; ปิด Auto-response</p>
+                        <p className="font-medium text-gray-900 dark:text-white subtitle-text">ปิดข้อความตอบกลับอัตโนมัติของ LINE (จำเป็น ไม่งั้นลูกค้าได้ 2 คำตอบ)</p>
+                        <p>LINE OA Manager &rarr; Settings &rarr; Response settings &rarr; Chat = เปิด · Auto-response = ปิด · Webhooks = เปิด</p>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <StepNumber number={4} />
+                      <div>
+                        <p className="font-medium text-gray-900 dark:text-white subtitle-text">ทดสอบ</p>
+                        <p>ทักหา OA จากมือถือ 1 ข้อความ &rarr; ต้องเห็นในหน้าแชทของระบบภายในไม่กี่วินาที</p>
                       </div>
                     </div>
                   </div>

@@ -90,6 +90,14 @@ interface Props {
   onCustomerClear: () => void;
   /** Loading indicator (e.g., GP data loading) */
   loading?: boolean;
+  /**
+   * โหมดค้นลูกค้าฝั่ง server — ส่งต่อให้ `EntitySearchInput` เป็น `onSearchChange`
+   * เมื่อส่งมา `customers` = ผลค้นหา (หรือลูกค้าล่าสุด) ที่ผู้เรียกเตรียมไว้แล้ว
+   * ใช้กับร้านที่มีลูกค้าหลักพัน ซึ่งโหลดมาทั้งก้อนไม่ได้ (เพดาน 1,000 แถวของ Supabase)
+   */
+  onCustomerSearchChange?: (search: string) => void;
+  /** สปินเนอร์ระหว่างค้นลูกค้า (คู่กับ onCustomerSearchChange) */
+  customersLoading?: boolean;
   /** Badge to show next to customer name */
   badge?: React.ReactNode;
   /** Disabled (read-only mode) */
@@ -207,6 +215,8 @@ export default function CustomerSelectionCard({
   onCustomerChange,
   onCustomerClear,
   loading = false,
+  onCustomerSearchChange,
+  customersLoading = false,
   badge,
   disabled = false,
   delivery,
@@ -412,6 +422,9 @@ export default function CustomerSelectionCard({
                   options={searchOptions}
                   placeholder={searchPlaceholder}
                   emptyMessage="ไม่พบลูกค้า"
+                  onSearchChange={onCustomerSearchChange}
+                  loading={onCustomerSearchChange ? customersLoading : undefined}
+                  minSearchLength={onCustomerSearchChange ? 1 : undefined}
                 />
               </div>
             </div>

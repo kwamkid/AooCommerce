@@ -89,6 +89,12 @@ interface ItemsTableProps {
   loadingProducts?: boolean;
   searchPlaceholder?: string;
   searchDisabledMessage?: string;
+  /**
+   * โหมดค้นสินค้าฝั่ง server — ส่งต่อให้ `ProductSearchInput` เป็น `onSearchChange`
+   * เมื่อส่งมา `products` = ผลค้นหาที่ผู้เรียกค้นมาให้แล้ว (ไม่กรองซ้ำในตัว input)
+   * ใช้กับร้านที่มีสินค้าหลักพัน ซึ่งโหลดมาทั้งก้อนไม่ได้ (เพดาน 1,000 แถวของ Supabase)
+   */
+  onProductSearchChange?: (search: string) => void;
 
   // stock data
   stockMap?: Record<string, number>;
@@ -227,6 +233,7 @@ export default function ItemsTable({
   loadingProducts = false,
   searchPlaceholder = '+ เพิ่มสินค้า — พิมพ์ชื่อหรือรหัส...',
   searchDisabledMessage,
+  onProductSearchChange,
   stockMap = {},
   showStockInSearch,
   disableOutOfStock = false,
@@ -994,6 +1001,7 @@ export default function ItemsTable({
                 products={products}
                 onSelect={onAdd}
                 loading={loadingProducts}
+                onSearchChange={onProductSearchChange}
                 placeholder={searchPlaceholder}
                 inputRef={searchRef as React.RefObject<HTMLInputElement>}
                 mode={searchMode}
@@ -1037,6 +1045,7 @@ export default function ItemsTable({
                       products={products}
                       onSelect={onAdd}
                       loading={loadingProducts}
+                      onSearchChange={onProductSearchChange}
                       placeholder={searchPlaceholder}
                       inputRef={searchRef as React.RefObject<HTMLInputElement>}
                       mode={searchMode}

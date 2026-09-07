@@ -1,6 +1,7 @@
 // Path: app/api/products/route.ts
 import { NextRequest, NextResponse, after } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
+import { fetchAllRows } from '@/lib/supabase-paging';
 
 // Type definitions
 interface ProductData {
@@ -418,42 +419,25 @@ export async function GET(request: NextRequest) {
     };
 
     // Supabase Cloud caps responses at 1000 rows regardless of .range() —
-    // fetch the first page (also gets the exact total), then fire additional
-    // 1000-row pages in parallel until we have everything the caller asked for.
-    const SUPABASE_PAGE_CAP = 1000;
+    // fetchAllRows() walks the pages for us (query carries { count: 'exact' }
+    // so the remaining pages fire in parallel).
     const desiredOffset = paginate ? (page - 1) * limit : 0;
     const desiredEnd = paginate ? desiredOffset + limit - 1 : Number.MAX_SAFE_INTEGER;
 
-    const firstStart = desiredOffset;
-    const firstEnd = Math.min(firstStart + SUPABASE_PAGE_CAP - 1, desiredEnd);
-    const firstPageResult = await buildBaseQuery().range(firstStart, firstEnd);
+    const paged = await fetchAllRows<{ id: string }>(
+      (from, to) => buildBaseQuery().range(from, to),
+      { from: desiredOffset, to: desiredEnd },
+    );
 
-    if (firstPageResult.error) {
+    if (paged.error) {
       return NextResponse.json(
-        { error: firstPageResult.error.message },
+        { error: paged.error.message },
         { status: 500 }
       );
     }
 
-    const totalCount = firstPageResult.count || 0;
-    let productRows = firstPageResult.data || [];
-    const effectiveEnd = Math.min(desiredEnd, totalCount - 1);
-
-    if (productRows.length > 0 && firstEnd < effectiveEnd) {
-      const additionalStarts: number[] = [];
-      for (let start = firstEnd + 1; start <= effectiveEnd; start += SUPABASE_PAGE_CAP) {
-        additionalStarts.push(start);
-      }
-      const additionalPages = await Promise.all(
-        additionalStarts.map(start => {
-          const end = Math.min(start + SUPABASE_PAGE_CAP - 1, effectiveEnd);
-          return buildBaseQuery().range(start, end);
-        })
-      );
-      for (const r of additionalPages) {
-        if (r.data) productRows = productRows.concat(r.data);
-      }
-    }
+    const totalCount = paged.count || 0;
+    const productRows = paged.rows;
 
     if (!productRows || productRows.length === 0) {
       return NextResponse.json({

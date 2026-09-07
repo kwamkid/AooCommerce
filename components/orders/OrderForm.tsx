@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useMemo, RefObject } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback, RefObject } from 'react';
 import { useCopy } from '@/lib/useCopy';
 import { createPortal } from 'react-dom';
 import { useFetchOnce } from '@/lib/use-fetch-once';
@@ -127,6 +127,79 @@ interface Product {
   default_price: number;
   discount_price?: number;
   stock: number;
+}
+
+/**
+ * แถวสินค้าแบบ grouped จาก `/api/products` → รายการแบนที่ช่องค้นหาใช้
+ * (simple = 1 แถวจาก variations[0] · variation = 1 แถวต่อ variation)
+ *
+ * **ข้าม variation ที่ `is_active === false`** — ของที่พักขายไม่ควรโผล่ให้เลือกในบิล
+ * (หน้า /products ยังโชว์อยู่แต่ติดป้าย "ปิด")
+ */
+function flattenProducts(rows: any[]): Product[] {
+  const flat: Product[] = [];
+  (rows || []).forEach((sp: any) => {
+    if (sp.product_type === 'simple') {
+      const active = (sp.variations || []).filter((v: any) => v.is_active !== false);
+      if (active.length === 0) return;
+      flat.push({
+        id: active[0].variation_id || sp.product_id,
+        product_id: sp.product_id,
+        code: sp.code,
+        name: sp.name,
+        image: sp.main_image_url || sp.image,
+        variation_label: sp.simple_variation_label,
+        product_type: 'simple',
+        sku: sp.simple_sku,
+        default_price: sp.simple_default_price || 0,
+        discount_price: sp.simple_discount_price || 0,
+        stock: sp.simple_stock || 0,
+      });
+    } else {
+      (sp.variations || []).forEach((v: any) => {
+        if (v.is_active === false) return;
+        flat.push({
+          id: v.variation_id,
+          product_id: sp.product_id,
+          code: `${sp.code}-${v.variation_label}`,
+          name: sp.name,
+          image: v.image_url || sp.main_image_url || sp.image,
+          variation_label: v.variation_label,
+          product_type: 'variation',
+          sku: v.sku,
+          default_price: v.default_price || 0,
+          discount_price: v.discount_price || 0,
+          stock: v.stock || 0,
+        });
+      });
+    }
+  });
+  return flat;
+}
+
+/**
+ * ดึงลูกค้ารายคนจาก id — ห้ามหาใน `customers` แทน เพราะรายการนั้นคือ
+ * "ลูกค้าล่าสุด 30 คน / ผลค้นหาที่กำลังโชว์" ไม่ใช่ลูกค้าทั้งร้าน
+ * (ลูกค้าเก่าที่ทักมาในแชทจะหาไม่เจอ แล้วบิลจะไม่มีชื่อลูกค้า)
+ */
+async function fetchCustomerById(id: string): Promise<Customer | null> {
+  try {
+    const res = await apiFetch(`/api/customers/${id}`);
+    if (!res.ok) return null;
+    const data = await res.json();
+    return (data.customer ?? data) as Customer;
+  } catch (error) {
+    console.error('Error fetching customer:', error);
+    return null;
+  }
+}
+
+/** ฟอร์มนี้เป็นบิลปลีก — เอาเฉพาะลูกค้าที่เข้ากันได้ (ตัดตัวแทน/ห้างออก) แล้วเรียงตามชื่อ */
+const RETAIL_CUSTOMER_TYPES = ['retail', 'dropship', 'affiliate', null, undefined, ''];
+function filterRetailCustomers(rows: unknown[]): Customer[] {
+  return (rows as (Customer & { is_active?: boolean })[])
+    .filter(c => c.is_active !== false && RETAIL_CUSTOMER_TYPES.includes(c.customer_type || ''))
+    .sort((a, b) => a.name.localeCompare(b.name));
 }
 
 interface PromotionTierData { min_qty: number; discount_type: string; discount_value: number }
@@ -282,8 +355,14 @@ export default function OrderForm({
   const [selectedSalesChannelId, setSelectedSalesChannelId] = useState<string>('');
   const salesChannelLocked = !!chatAccountId;
 
-  // Customer selection
+  // Customer selection — `customers` = สิ่งที่ dropdown กำลังโชว์ (ผลค้นหา หรือลูกค้าล่าสุด)
+  // ร้านที่มีลูกค้าหลักพันโหลดมาทั้งก้อนไม่ได้ (เพดาน 1,000 แถวของ Supabase) จึงค้นฝั่ง server
   const [customers, setCustomers] = useState<Customer[]>([]);
+  /** ลูกค้าล่าสุด 30 คนจาก /init — รายการตั้งต้นตอนช่องค้นหายังว่าง */
+  const [recentCustomers, setRecentCustomers] = useState<Customer[]>([]);
+  const [customersLoading, setCustomersLoading] = useState(false);
+  /** กัน response ของคำค้นเก่ามาทับผลของคำค้นใหม่ (มาสลับลำดับได้) */
+  const customerSearchSeq = useRef(0);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   // customerSearch removed — using selectedCustomer?.name directly
 
@@ -300,9 +379,12 @@ export default function OrderForm({
   // shows extra "บันทึก + อัพเดทลูกค้า" button for explicit master update.
   const [customerHasTax, setCustomerHasTax] = useState(false);
 
-  // Products
+  // Products — `products` = **ผลค้นหาล่าสุด** ไม่ใช่สินค้าทั้งร้าน (ค้นฝั่ง server)
   const [products, setProducts] = useState<Product[]>([]);
   const [loadingProducts, setLoadingProducts] = useState(true);
+  /** คำค้นที่ผลชุดปัจจุบันมาจาก — ใช้กรองโปรโมชั่น (ProductSearchInput ไม่กรองให้แล้ว) */
+  const [productQuery, setProductQuery] = useState('');
+  const productSearchSeq = useRef(0);
 
   // Top sellers (30d, prefer this customer's history, fall back to company)
   const [topSellers, setTopSellers] = useState<Product[]>([]);
@@ -542,10 +624,13 @@ export default function OrderForm({
   };
 
   // Single round-trip mount fetch — replaces 4 parallel client calls
-  // (customers + products + warehouses + sales-channels) with one consolidated
+  // (customers + warehouses + sales-channels + inventory) with one consolidated
   // request whose DB queries fan out in parallel on the serverless side. Falls
   // back to the individual fetches if /init errors so a deploy gone wrong
   // doesn't brick the form.
+  //
+  // **ไม่มีสินค้าในก้อนนี้** — สินค้าค้นฝั่ง server ตอนผู้ใช้พิมพ์ (handleProductSearchChange)
+  // เพราะร้านที่มีสินค้า 5.8k รายการชนเพดาน 1,000 แถวของ Supabase + 4.5MB ของ Vercel
   const fetchInitBundle = async () => {
     try {
       setLoadingProducts(true);
@@ -553,51 +638,10 @@ export default function OrderForm({
       if (!res.ok) throw new Error('init failed');
       const data = await res.json();
 
-      // Customers — same retail-only filter + alphabetical sort as fetchCustomers
-      const retailTypes = ['retail', 'dropship', 'affiliate', null, undefined, ''];
-      const sortedCustomers = (data.customers || [])
-        .filter((c: Customer & { is_active?: boolean; customer_type?: string }) =>
-          c.is_active !== false && retailTypes.includes(c.customer_type || ''))
-        .sort((a: Customer, b: Customer) => a.name.localeCompare(b.name));
+      // Customers — ลูกค้าล่าสุด 30 คน (รายการตั้งต้นก่อนผู้ใช้พิมพ์ค้นหา)
+      const sortedCustomers = filterRetailCustomers(data.customers || []);
+      setRecentCustomers(sortedCustomers);
       setCustomers(sortedCustomers);
-
-      // Products — same flatten-variations pattern as fetchProducts
-      const flatProducts: Product[] = [];
-      (data.products || []).forEach((sp: any) => {
-        if (sp.product_type === 'simple') {
-          const variation_id = sp.variations && sp.variations.length > 0 ? sp.variations[0].variation_id : null;
-          flatProducts.push({
-            id: variation_id || sp.product_id,
-            product_id: sp.product_id,
-            code: sp.code,
-            name: sp.name,
-            image: sp.main_image_url || sp.image,
-            variation_label: sp.simple_variation_label,
-            product_type: 'simple',
-            sku: sp.simple_sku,
-            default_price: sp.simple_default_price || 0,
-            discount_price: sp.simple_discount_price || 0,
-            stock: sp.simple_stock || 0,
-          });
-        } else {
-          (sp.variations || []).forEach((v: any) => {
-            flatProducts.push({
-              id: v.variation_id,
-              product_id: sp.product_id,
-              code: `${sp.code}-${v.variation_label}`,
-              name: sp.name,
-              image: v.image_url || sp.main_image_url || sp.image,
-              variation_label: v.variation_label,
-              product_type: 'variation',
-              sku: v.sku,
-              default_price: v.default_price || 0,
-              discount_price: v.discount_price || 0,
-              stock: v.stock || 0,
-            });
-          });
-        }
-      });
-      setProducts(flatProducts);
 
       // Warehouses + stock config — same default-pick logic as fetchWarehouses,
       // but inventory for the default warehouse comes embedded so we skip the
@@ -623,7 +667,6 @@ export default function OrderForm({
     } catch (e) {
       console.warn('init bundle failed, falling back to individual fetches:', e);
       fetchCustomers();
-      fetchProducts();
       fetchSalesChannels();
       fetchWarehouses();
     } finally {
@@ -651,15 +694,18 @@ export default function OrderForm({
     if (def) setSelectedSalesChannelId(def.id);
   }, [salesChannels, chatAccountId, selectedSalesChannelId]);
 
-  // Auto-select preselected customer
+  // Auto-select preselected customer (มาจากหน้าแชท) — ดึงรายคน ไม่รอ/ไม่หาในรายการ
+  // ที่โหลดมา เพราะรายการนั้นคือลูกค้าล่าสุด 30 คนเท่านั้น
+  const preselectedApplied = useRef(false);
   useEffect(() => {
-    if (preselectedCustomerId && customers.length > 0 && !selectedCustomer) {
-      const customer = customers.find(c => c.id === preselectedCustomerId);
-      if (customer) {
-        handleSelectCustomer(customer);
-      }
-    }
-  }, [preselectedCustomerId, customers]);
+    if (!preselectedCustomerId || preselectedApplied.current) return;
+    preselectedApplied.current = true;
+    (async () => {
+      const customer = await fetchCustomerById(preselectedCustomerId);
+      if (customer) handleSelectCustomer(customer);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [preselectedCustomerId]);
 
   // Initialize from copied order data
   const initialDataApplied = useRef(false);
@@ -667,84 +713,65 @@ export default function OrderForm({
     if (!initialOrderData || initialDataApplied.current) return;
     // Don't apply if no meaningful data (branches empty = data not ready yet)
     if (initialOrderData.branches.length === 0 && !initialOrderData.customer_id) return;
-    // Wait for customers/products to load (only if we have a customer to match)
-    if (initialOrderData.customer_id && customers.length === 0) return;
-    if (initialOrderData.branches.some(b => b.products.length > 0) && products.length === 0) return;
 
     initialDataApplied.current = true;
 
-    // Set customer if available
+    // Set customer if available — ดึงรายคน ไม่รอรายการลูกค้า/สินค้าโหลดครบอีกต่อไป
     if (initialOrderData.customer_id) {
-      const customer = customers.find(c => c.id === initialOrderData.customer_id);
-      if (customer) {
+      (async () => {
+        const customer = await fetchCustomerById(initialOrderData.customer_id);
+        if (!customer) return;
         setSelectedCustomer(customer);
-        // customerSearch removed
         // Fetch addresses and auto-select default
-        (async () => {
-          try {
-            const addrResponse = await apiFetch(`/api/shipping-addresses?customer_id=${customer.id}`);
-            if (addrResponse.ok) {
-              const addrResult = await addrResponse.json();
-              const addresses = addrResult.addresses || [];
-              setShippingAddresses(addresses);
-              // prefill จากที่อยู่ของลูกค้าเองเท่านั้น — ที่อยู่ผู้รับของขวัญเป็นคนละสมุด
-              const ownAddresses = addresses.filter((a: ShippingAddress) => !a.is_recipient);
-              if (ownAddresses.length > 0) {
-                const defaultAddr = ownAddresses.find((a: ShippingAddress) => a.is_default) || ownAddresses[0];
-                setSelectedAddressId(defaultAddr.id);
-                setDeliveryName(defaultAddr.contact_person || customer.name);
-                setDeliveryPhone(defaultAddr.phone || customer.phone || '');
-                setDeliveryEmail(customer.email || '');
-                setDeliveryAddress(defaultAddr.address_line1 || '');
-                setDeliveryDistrict(defaultAddr.district || '');
-                setDeliveryAmphoe(defaultAddr.amphoe || '');
-                setDeliveryProvince(defaultAddr.province || '');
-                setDeliveryPostalCode(defaultAddr.postal_code || '');
-              }
+        try {
+          const addrResponse = await apiFetch(`/api/shipping-addresses?customer_id=${customer.id}`);
+          if (addrResponse.ok) {
+            const addrResult = await addrResponse.json();
+            const addresses = addrResult.addresses || [];
+            setShippingAddresses(addresses);
+            // prefill จากที่อยู่ของลูกค้าเองเท่านั้น — ที่อยู่ผู้รับของขวัญเป็นคนละสมุด
+            const ownAddresses = addresses.filter((a: ShippingAddress) => !a.is_recipient);
+            if (ownAddresses.length > 0) {
+              const defaultAddr = ownAddresses.find((a: ShippingAddress) => a.is_default) || ownAddresses[0];
+              setSelectedAddressId(defaultAddr.id);
+              setDeliveryName(defaultAddr.contact_person || customer.name);
+              setDeliveryPhone(defaultAddr.phone || customer.phone || '');
+              setDeliveryEmail(customer.email || '');
+              setDeliveryAddress(defaultAddr.address_line1 || '');
+              setDeliveryDistrict(defaultAddr.district || '');
+              setDeliveryAmphoe(defaultAddr.amphoe || '');
+              setDeliveryProvince(defaultAddr.province || '');
+              setDeliveryPostalCode(defaultAddr.postal_code || '');
             }
-          } catch (error) {
-            console.error('Error fetching shipping addresses:', error);
           }
-          try {
-            const response = await apiFetch(`/api/customer-prices?customer_id=${customer.id}`);
-            if (response.ok) {
-              const result = await response.json();
-              setCustomerPrices(result.prices || {});
-            }
-          } catch (error) {
-            console.error('Error fetching customer prices:', error);
+        } catch (error) {
+          console.error('Error fetching shipping addresses:', error);
+        }
+        try {
+          const response = await apiFetch(`/api/customer-prices?customer_id=${customer.id}`);
+          if (response.ok) {
+            const result = await response.json();
+            setCustomerPrices(result.prices || {});
           }
-        })();
-        // Pre-fill tax invoice fields
-        (async () => {
-          try {
-            const res = await apiFetch(`/api/customers/${customer.id}`);
-            if (res.ok) {
-              const data = await res.json();
-              const c = data.customer || data;
-              if (c.tax_type === 'personal' || c.tax_type === 'corporate') setTaxType(c.tax_type);
-              if (c.tax_company_name) setTaxName(c.tax_company_name);
-              if (c.tax_id) setTaxTaxId(c.tax_id);
-              if (c.tax_branch) setTaxBranch(c.tax_branch);
-              const addrParts = [c.billing_address, c.billing_district, c.billing_amphoe, c.billing_province, c.billing_postal_code].filter(Boolean).join(' ');
-              if (addrParts) setTaxAddress(addrParts);
-              setCustomerHasTax(!!c.tax_id);
-            }
-          } catch {
-            // Ignore tax pre-fill errors
-          }
-        })();
-      }
+        } catch (error) {
+          console.error('Error fetching customer prices:', error);
+        }
+        // Pre-fill tax invoice fields — ใบเดียวกับที่เพิ่งดึงมา ไม่ต้องยิงซ้ำ
+        const c = customer as Customer & Record<string, string | undefined>;
+        if (c.tax_type === 'personal' || c.tax_type === 'corporate') setTaxType(c.tax_type);
+        if (c.tax_company_name) setTaxName(c.tax_company_name);
+        if (c.tax_id) setTaxTaxId(c.tax_id);
+        if (c.tax_branch) setTaxBranch(c.tax_branch);
+        const addrParts = [c.billing_address, c.billing_district, c.billing_amphoe, c.billing_province, c.billing_postal_code].filter(Boolean).join(' ');
+        if (addrParts) setTaxAddress(addrParts);
+        setCustomerHasTax(!!c.tax_id);
+      })();
     }
 
-    // Set products from initial data (flatten all branches into one, enrich with product images)
+    // Set products from initial data (flatten all branches into one)
+    // รูปมาจากออเดอร์ต้นทางอยู่แล้ว — ไม่มีรายการสินค้าทั้งร้านให้ resolve ทับ
     if (initialOrderData.branches.length > 0) {
-      const allProducts = initialOrderData.branches.flatMap(branch =>
-        branch.products.map(p => {
-          const match = products.find(pr => pr.id === p.variation_id);
-          return { ...p, image: match?.image || p.image };
-        })
-      );
+      const allProducts = initialOrderData.branches.flatMap(branch => branch.products.map(p => ({ ...p })));
       const firstBranch = initialOrderData.branches[0];
       setBranchOrders([{
         shipping_address_id: firstBranch.shipping_address_id || '',
@@ -774,7 +801,8 @@ export default function OrderForm({
     if (initialOrderData.notes) setNotes(initialOrderData.notes);
     if (initialOrderData.internal_notes) setInternalNotes(initialOrderData.internal_notes);
     if (initialOrderData.discount_amount) setOrderDiscount(initialOrderData.discount_amount);
-  }, [initialOrderData, customers, products]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialOrderData]);
 
   // Load existing order for editing
   useEffect(() => {
@@ -887,10 +915,8 @@ export default function OrderForm({
           }
         }
 
-        // Fetch products (only for manual orders — needed for product search)
-        if (!isMarketplace) {
-          await fetchProducts();
-        }
+        // ไม่ต้องโหลดสินค้าทั้งร้านมารอ — รายการในบิลมาจาก order.items อยู่แล้ว
+        // และช่องค้นหาจะไปค้นฝั่ง server ตอนผู้ใช้พิมพ์
 
         // Convert order items to single branch
         const loadedProducts: BranchProduct[] = [];
@@ -944,76 +970,73 @@ export default function OrderForm({
     loadOrder();
   }, [editOrderId, authLoading, userProfile]);
 
+  // ทางถอยเมื่อ /init ล้ม — เอาแค่ลูกค้าล่าสุด 30 คนพอ (เท่ากับที่ /init ให้)
   const fetchCustomers = async () => {
     try {
-      const response = await apiFetch('/api/customers?active=true');
+      const response = await apiFetch('/api/customers?active=true&limit=30');
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || 'Failed to fetch customers');
 
-      // Only show retail-compatible customers (exclude dealers and department stores)
-      const retailTypes = ['retail', 'dropship', 'affiliate', null, undefined, ''];
-      const sortedCustomers = (result.customers || [])
-        .filter((c: Customer & { is_active?: boolean; customer_type?: string }) =>
-          c.is_active !== false && retailTypes.includes(c.customer_type || ''))
-        .sort((a: Customer, b: Customer) => a.name.localeCompare(b.name));
+      const sortedCustomers = filterRetailCustomers(result.customers || []);
+      setRecentCustomers(sortedCustomers);
       setCustomers(sortedCustomers);
     } catch (error) {
       console.error('Error fetching customers:', error);
     }
   };
 
-  const fetchProducts = async () => {
-    try {
-      setLoadingProducts(true);
-      const productsResponse = await apiFetch('/api/products');
-
-      if (!productsResponse.ok) throw new Error('Failed to fetch products');
-
-      const result = await productsResponse.json();
-      const fetchedProducts = result.products || [];
-
-      const flatProducts: Product[] = [];
-      fetchedProducts.forEach((sp: any) => {
-        if (sp.product_type === 'simple') {
-          const variation_id = sp.variations && sp.variations.length > 0 ? sp.variations[0].variation_id : null;
-          flatProducts.push({
-            id: variation_id || sp.product_id,
-            product_id: sp.product_id,
-            code: sp.code,
-            name: sp.name,
-            image: sp.main_image_url || sp.image,
-            variation_label: sp.simple_variation_label,
-            product_type: 'simple',
-            sku: sp.simple_sku,
-            default_price: sp.simple_default_price || 0,
-            discount_price: sp.simple_discount_price || 0,
-            stock: sp.simple_stock || 0
-          });
-        } else {
-          (sp.variations || []).forEach((v: any) => {
-            flatProducts.push({
-              id: v.variation_id,
-              product_id: sp.product_id,
-              code: `${sp.code}-${v.variation_label}`,
-              name: sp.name,
-              image: v.image_url || sp.main_image_url || sp.image,
-              variation_label: v.variation_label,
-              product_type: 'variation',
-              sku: v.sku,
-              default_price: v.default_price || 0,
-              discount_price: v.discount_price || 0,
-              stock: v.stock || 0
-            });
-          });
-        }
-      });
-      setProducts(flatProducts);
-    } catch (error) {
-      console.error('Error fetching products:', error);
-    } finally {
+  /**
+   * ค้นสินค้าฝั่ง server — ProductSearchInput เรียกให้หลัง debounce 300ms
+   *
+   * ห้ามกลับไปโหลดสินค้าทั้งร้านมากรองใน client: Supabase ตัดที่ 1,000 แถวเงียบ ๆ
+   * ร้านที่มีสินค้า 5,826 รายการจึงค้นตัวที่ 5,043 ไม่เจอ (ดู fix-bug.md 2026-09-07)
+   */
+  const handleProductSearchChange = useCallback(async (raw: string) => {
+    const q = raw.trim();
+    const seq = ++productSearchSeq.current;
+    setProductQuery(q);
+    if (!q) {
+      setProducts([]);
       setLoadingProducts(false);
+      return;
     }
-  };
+    setLoadingProducts(true);
+    try {
+      // ไม่ต้องส่ง active= — route กรองเฉพาะสินค้าเปิดขายอยู่แล้วเป็นค่าเริ่มต้น
+      const res = await apiFetch(`/api/products?search=${encodeURIComponent(q)}&limit=50`);
+      if (seq !== productSearchSeq.current) return;  // มีคำค้นใหม่กว่าแล้ว ทิ้งผลนี้
+      const json = res.ok ? await res.json() : { products: [] };
+      setProducts(flattenProducts(json.products || []));
+    } catch (error) {
+      console.error('Error searching products:', error);
+      if (seq === productSearchSeq.current) setProducts([]);
+    } finally {
+      if (seq === productSearchSeq.current) setLoadingProducts(false);
+    }
+  }, []);
+
+  /** ค้นลูกค้าฝั่ง server — ช่องว่าง = กลับไปโชว์ลูกค้าล่าสุด 30 คน */
+  const handleCustomerSearchChange = useCallback(async (raw: string) => {
+    const q = raw.trim();
+    const seq = ++customerSearchSeq.current;
+    if (!q) {
+      setCustomers(recentCustomers);
+      setCustomersLoading(false);
+      return;
+    }
+    setCustomersLoading(true);
+    try {
+      const res = await apiFetch(`/api/customers?search=${encodeURIComponent(q)}&active=true&limit=20`);
+      if (seq !== customerSearchSeq.current) return;
+      const json = res.ok ? await res.json() : { customers: [] };
+      setCustomers(filterRetailCustomers(json.customers || []));
+    } catch (error) {
+      console.error('Error searching customers:', error);
+      if (seq === customerSearchSeq.current) setCustomers([]);
+    } finally {
+      if (seq === customerSearchSeq.current) setCustomersLoading(false);
+    }
+  }, [recentCustomers]);
 
   // Top sellers — prefer this customer's history; backend falls back to
   // company-wide if customer has none. Deferred ~300ms so it stays out of
@@ -1299,7 +1322,11 @@ export default function OrderForm({
   };
 
   // Merge promotions into product search list
+  //
+  // ProductSearchInput อยู่ในโหมด API แล้ว = ไม่กรองอะไรให้เลย · สินค้าถูกกรองมาจาก
+  // server ตาม productQuery ส่วนโปรโมชั่นอยู่ในหน่วยความจำ ต้องกรองเองตรงนี้
   const allSearchItems: Product[] = useMemo(() => {
+    if (!productQuery) return [];
     const promoAsProducts: Product[] = promotions.map(p => {
       // Calculate display price based on type
       let displayPrice = 0;
@@ -1328,21 +1355,11 @@ export default function OrderForm({
         stock: 999,
       };
     });
-    return [...promoAsProducts, ...products];
-  }, [products, promotions]);
-
-  // Resolve top sellers against the loaded product list — pick up current
-  // stock/price and drop ones that no longer exist in the catalog.
-  const resolvedTopSellers = useMemo<Product[]>(() => {
-    if (!topSellers.length || !products.length) return [];
-    const byId = new Map(products.map(p => [p.id, p]));
-    const out: Product[] = [];
-    for (const t of topSellers) {
-      const live = byId.get(t.id);
-      if (live) out.push(live);
-    }
-    return out;
-  }, [topSellers, products]);
+    const q = productQuery.toLowerCase();
+    const matchedPromos = promoAsProducts.filter(p =>
+      p.name.toLowerCase().includes(q) || p.code.toLowerCase().includes(q));
+    return [...matchedPromos, ...products];
+  }, [products, promotions, productQuery]);
 
   // Promotion modal confirm handler
   const handlePromoConfirm = (result: PromotionSelectResult) => {
@@ -2383,6 +2400,8 @@ export default function OrderForm({
           selectedCustomerId={selectedCustomer?.id || ''}
           onCustomerChange={(id) => handleSelectCustomer(id)}
           onCustomerClear={handleCustomerClear}
+          onCustomerSearchChange={handleCustomerSearchChange}
+          customersLoading={customersLoading}
           disabled={isReadOnly}
           /* ล็อคเฉพาะการ "เปลี่ยนตัวลูกค้า" — เบอร์/อีเมล/ที่อยู่ยังแก้ได้
              โหมดแก้ไขก็ล็อค: ย้ายออเดอร์ที่มีอยู่ไปลูกค้าคนอื่นต้องทำจากหน้า order ไม่ใช่เผลอกดที่นี่ */
@@ -2790,8 +2809,9 @@ export default function OrderForm({
             disableOutOfStock={!allowOversell && stockEnabled && !!selectedWarehouseId}
             products={isReadOnly ? [] : allSearchItems}
             loadingProducts={loadingProducts}
+            onProductSearchChange={isReadOnly ? undefined : handleProductSearchChange}
             searchPlaceholder="เพิ่มสินค้าหรือโปรโมชั่น — พิมพ์ชื่อหรือรหัส..."
-            searchSuggestions={isReadOnly ? undefined : resolvedTopSellers}
+            searchSuggestions={isReadOnly ? undefined : topSellers}
             onAdd={isReadOnly ? undefined : (p) => handleAddProductToBranch(p as Product)}
             onUpdateField={isReadOnly ? undefined : (idx, field, value) => {
               if (field === 'quantity') handleUpdateProductQuantity(idx, value as number);

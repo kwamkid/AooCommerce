@@ -5,6 +5,44 @@
 
 **รูปแบบ entry:**
 ```
+## 2026-09-07 — ฟอร์มเปิดบิลค้นสินค้าไม่เจอ (ร้าน 5.8k สินค้า) — Supabase ตัดที่ 1,000 แถวเงียบ ๆ
+
+**ที่เกิด**: [app/api/orders/new/init/route.ts](app/api/orders/new/init/route.ts) · [components/orders/OrderForm.tsx](components/orders/OrderForm.tsx) · [components/ui/ProductSearchInput.tsx](components/ui/ProductSearchInput.tsx) · [components/ui/ItemsTable.tsx](components/ui/ItemsTable.tsx) · [components/ui/CustomerSelectionCard.tsx](components/ui/CustomerSelectionCard.tsx) · [lib/supabase-paging.ts](lib/supabase-paging.ts) (ใหม่)
+
+**อาการ**: ร้าน ABC the Baby พิมพ์ "yoyo" ในช่องเพิ่มสินค้าของฟอร์มเปิดบิล (แผงขวาหน้า `/chat` และ `/orders/new`) ได้ "ไม่พบสินค้า" ทั้งที่หน้า `/products` ค้นเจอปกติ · ลูกค้าเก่าก็หายจาก dropdown เหมือนกัน
+
+**Root cause**: `/api/orders/new/init` ส่ง **ทั้งตาราง** ให้ client กรองเอง แต่ query ไม่มี `.range()` — **Supabase Cloud ตัด response ที่ 1,000 แถวเสมอโดยไม่มี error ให้จับ**
+- สินค้าเปิดใช้ 5,826 รายการ (6,211 variations) · YOYO อยู่ลำดับที่ 5,043+ ตามชื่อ → ไม่เคยถูกส่งมาให้ `ProductSearchInput` (ซึ่งกรองฝั่ง client จาก prop `products`) ค้นเลย
+- ลูกค้าเปิดใช้ 2,621 คน → ส่งมาแค่ 1,000 คนล่าสุด (`customers.find(preselectedCustomerId)` ในแชทจึงพลาดลูกค้าเก่า)
+- **"ส่งให้ครบ" ไม่ใช่ทางออก**: JSON สินค้าทั้งร้าน ≈ 5.6MB + ลูกค้าทั้งหมด ≈ 3.7MB > เพดาน 4.5MB ของ Vercel function response และหนักทุกครั้งที่เปิดฟอร์ม
+- `inventory` ของคลังหลักใน init ก็ไม่ได้แบ่งหน้า (ตอนนี้ 850 แถว — ใกล้ตัน)
+
+**วิธีแก้**: ค้นฝั่ง server แบบเดียวกับ POS (`/api/pos/products?search=`) โดยใช้ endpoint ที่มีอยู่ ไม่สร้าง route ใหม่
+- `/init` **ตัด `products` ออกทั้งก้อน** · `customers` เหลือ **ลูกค้าล่าสุด 30 คน** (รายการตั้งต้นก่อนพิมพ์) · `inventory` ผ่าน `fetchAllRows()`
+- `ProductSearchInput` / `ItemsTable` / `CustomerSelectionCard` รับ **โหมด API** (`onSearchChange` / `onProductSearchChange` / `onCustomerSearchChange`) — mirror ของที่ `EntitySearchInput` มีอยู่แล้ว: ข้ามการกรองภายใน · debounce 300ms ผ่าน `useDebouncedCallback` · ตอนรอผลไม่โชว์ "ไม่พบสินค้า" ของชุดเก่า
+- `OrderForm` ค้นผ่าน `GET /api/products?search=&limit=50` และ `GET /api/customers?search=&active=true&limit=20` (มี seq ref กัน response มาสลับลำดับ) · ลูกค้าที่ preselect จากแชท/สั่งซ้ำดึงรายคนด้วย `GET /api/customers/<id>` ไม่หาในรายการที่โหลดมา
+- **`lib/supabase-paging.ts` (`fetchAllRows`)** — helper กลางสำหรับ query ที่ต้องได้ครบเกิน 1,000 แถว (ยกโค้ดแบ่งหน้าเดิมใน `/api/products` ออกมา)
+
+**ป้องกัน regression**:
+- **query ที่ไม่มี `.range()` ได้สูงสุด 1,000 แถวเสมอ** — endpoint ที่ส่ง "ทั้งตาราง" ให้ client กรองเองต้องมีเพดานที่รู้ตัว หรือไม่ก็ค้นฝั่ง server · ต้องได้ครบจริง ๆ ให้ใช้ `fetchAllRows`
+- อาการของบั๊กชนิดนี้คือ **"ของที่มีอยู่หาไม่เจอ"** ไม่ใช่ error — ทดสอบด้วยร้านที่มีข้อมูลหลักพันเท่านั้นถึงจะเจอ
+- `ProductSearchInput` ในโหมด API ถือว่า prop `products` = ผลค้นหาแล้ว **ห้ามกรองซ้ำ** · โปรโมชั่นที่ merge เข้าไปต้องกรองด้วย `productQuery` เองใน OrderForm
+- DealerOrderForm / ReplenishmentForm ยังโหลดสินค้าทั้งร้านอยู่ (`/api/products?limit=9999`) — อยู่ใน todo.md
+
+---
+
+## 2026-09-07 — ย้ายสมาชิกเป็น role "staff" ไม่ติดสักแถว: CHECK ของ company_members.roles ไม่รู้จักค่าใหม่
+
+**อาการ**: รัน `scripts/migrate-member-permissions.mjs --apply` แล้วแถวคำเชิญ (company_invitations) ย้ายครบ แต่สมาชิกที่ควรกลายเป็น `staff` ยังเป็น role เก่า (sales/cashier/…) ทั้งหมด · แปลว่าหน้าสมาชิกใหม่ก็บันทึก "พนักงาน" ไม่ได้เหมือนกัน (DB ตีตก)
+
+**Root cause**: `company_members_roles_valid` = `CHECK (roles <@ ARRAY[8 role เดิม])` — ตอนออกแบบโมเดลใหม่ตรวจแค่ RLS/function ที่อ้าง `roles` แล้วสรุปว่า "ไม่ต้องแตะ DB" ลืมไล่ CHECK constraint ของตารางเอง (ส่วน `company_invitations` ไม่มี CHECK จึงผ่าน) · สคริปต์กลืน error รายแถวจึงบอกว่าเรียบร้อย
+
+**แก้**: migration `company_members_roles_allow_staff` เพิ่ม `'staff'` เข้า CHECK (ยังยอมค่าเก่าจนกว่าจะย้ายครบ) แล้วรันสคริปต์ย้ายอีกรอบ
+
+**ป้องกัน**: เพิ่มค่า enum-แบบ-text ที่ไหน → `select conname, pg_get_constraintdef(oid) from pg_constraint where conrelid='<table>'::regclass and contype='c'` ก่อนเสมอ · สคริปต์ย้ายข้อมูลต้องพิมพ์ error ของแถวที่ล้ม ไม่ใช่นับว่าสำเร็จ
+
+---
+
 ## 2026-09-07 — "โควตาแชท Lazada หมด" เตือนผิด: Lazada แบน 1 วินาที แต่เราพักเอง 30 นาที + ยิงถี่เพราะหน่วงจังหวะคนละ instance
 
 **อาการ**: กระดิ่ง/banner ขึ้น "โควตา lazada · chat เต็ม พักถึง …" บ่อย ทั้งที่แชท Lazada ไม่ได้ใช้เยอะ · ระหว่างนั้นข้อความ Lazada เข้าช้าครึ่งชั่วโมง
