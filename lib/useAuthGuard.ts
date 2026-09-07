@@ -52,7 +52,7 @@ export function useAuthGuard(
   const router = useRouter();
   const { redirectTo = '/dashboard', noRedirect = false } = options;
 
-  const allowed = !loading && !!userProfile && can(userProfile.roles, capability);
+  const allowed = !loading && !!userProfile && can(userProfile, capability);
 
   useEffect(() => {
     if (loading) return;
@@ -60,7 +60,7 @@ export function useAuthGuard(
       router.push('/login');
       return;
     }
-    if (!can(userProfile.roles, capability) && !noRedirect) {
+    if (!can(userProfile, capability) && !noRedirect) {
       router.push(redirectTo);
     }
   }, [userProfile, loading, capability, redirectTo, noRedirect, router]);

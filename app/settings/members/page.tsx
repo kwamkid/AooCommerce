@@ -134,7 +134,7 @@ function toggleRole(currentRoles: string[], role: string): string[] {
 }
 
 export default function MembersPage() {
-  const { currentCompany, companyRoles } = useCompany();
+  const { currentCompany, companyRoles, permissions } = useCompany();
   const { userProfile } = useAuth();
   const { features } = useFeatures();
   const { showToast } = useToast();
@@ -171,10 +171,10 @@ export default function MembersPage() {
   const [warehouses, setWarehouses] = useState<WarehouseItem[]>([]);
   const [terminals, setTerminals] = useState<TerminalItem[]>([]);
 
-  const isOwnerOrAdmin = can(companyRoles, 'members.view');
+  const isOwnerOrAdmin = can({ roles: companyRoles, permissions }, 'members.view');
   // Strict admin = can grant/revoke admin & owner roles. Manager has admin-level
   // access but cannot manage owner/admin members (enforced at API too).
-  const isStrictAdmin = can(companyRoles, 'members.grant_admin');
+  const isStrictAdmin = can({ roles: companyRoles, permissions }, 'members.grant_admin');
 
   // Fetch members and invitations
   const fetchMembers = useCallback(async () => {

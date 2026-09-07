@@ -285,7 +285,7 @@ export default function ChatChannelsPage() {
 
   useFetchOnce(() => {
     fetchAccounts();
-  }, can(userProfile?.roles, 'masterdata.chat_channels'));
+  }, can(userProfile, 'masterdata.chat_channels'));
 
   // ร้าน marketplace ที่เชื่อมไว้ (แชทเกาะการเชื่อมต่อ marketplace) — ดึงทุก platform
   // ในคอลเดียวตอน mount เพื่อให้ count บนแท็บถูกต้องก่อนกดเข้าแท็บนั้น
@@ -309,7 +309,7 @@ export default function ChatChannelsPage() {
 
   useFetchOnce(() => {
     loadMarketplaceShops();
-  }, can(userProfile?.roles, 'masterdata.chat_channels'));
+  }, can(userProfile, 'masterdata.chat_channels'));
 
   const loadShopeeApp = useCallback(async () => {
     try {
@@ -324,7 +324,7 @@ export default function ChatChannelsPage() {
 
   useFetchOnce(() => {
     loadShopeeApp();
-  }, can(userProfile?.roles, 'masterdata.chat_channels'));
+  }, can(userProfile, 'masterdata.chat_channels'));
 
   const saveShopeeApp = async () => {
     setShopeeAppSaving(true);
@@ -789,7 +789,7 @@ export default function ChatChannelsPage() {
   const tabConfig = PLATFORM_CONFIG[activeTab];
 
   // Admin guard
-  if (userProfile && !can(userProfile.roles, 'masterdata.chat_channels')) {
+  if (userProfile && !can(userProfile, 'masterdata.chat_channels')) {
     return (
       <Layout>
         <NoPermissionCard />

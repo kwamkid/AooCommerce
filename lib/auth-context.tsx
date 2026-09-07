@@ -7,11 +7,14 @@ import { useRouter, usePathname } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { loginWithPassword, loginWithGoogle, loginWithLINE, verifyMfaCode } from '@/lib/auth/login-methods';
 import { clearSession, migrateLegacyLocalStorageSession } from '@/lib/auth/session-manager';
+import type { Permissions } from '@/lib/permissions';
 import { UserProfile, CompanyRole } from '@/types';
 
 interface CompanyMembershipRaw {
   company_id: string;
   roles: string[];
+  /** สิทธิ์รายกลุ่มงานของ staff — null เมื่อเป็น owner/admin/manager */
+  permissions?: Permissions | null;
   can_view_cost?: boolean;
   company: {
     id: string;
@@ -133,7 +136,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Cache for subsequent page navigations
       setAuthCache(u.id, data, companiesData, result.subscription || null);
 
-      // Use company roles directly as the user's effective roles
+      // Use company roles directly as the user's effective roles.
+      // ตกไป ['sales'] เมื่อยังไม่รู้ membership — 'sales' เป็น **แม่แบบ** ของ staff
+      // (lib/permissions STAFF_PRESETS) ไม่ใช่ role หลัก จึงได้สิทธิ์เท่าแอดมินออนไลน์ชั่วคราว
       const savedCompanyId = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEY) : null;
       const currentMembership = companiesData.find(m => m.company_id === savedCompanyId) || companiesData[0];
       const effectiveRoles = (currentMembership?.roles || ['sales']) as CompanyRole[];
@@ -143,6 +148,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         email: data.email || u.email || '',
         name: data.name || u.email?.split('@')[0] || 'User',
         roles: effectiveRoles,
+        permissions: currentMembership?.permissions ?? null,
         canViewCost: currentMembership?.can_view_cost === true,
         avatar: data.avatar || undefined,
         phone: data.phone || undefined,
@@ -242,6 +248,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               email: cached.profile.email || currentSession.user.email || '',
               name: cached.profile.name || currentSession.user.email?.split('@')[0] || 'User',
               roles: effectiveRoles,
+              permissions: currentMembership?.permissions ?? null,
               canViewCost: currentMembership?.can_view_cost === true,
               avatar: cached.profile.avatar || undefined,
               phone: cached.profile.phone || undefined,

@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
     // Either way their own assignments are flagged (is_assigned) so /pc can
     // default a rover to their home branch instead of an arbitrary first row.
     let assignedSet: Set<string> | null = null;
-    if (auth.companyRoles?.includes('pc') && !can(auth.companyRoles, 'counter.manage') && auth.userId) {
+    if (auth.companyRoles?.includes('pc') && !can(auth, 'counter.manage') && auth.userId) {
       const [rover, { data: assignments }] = await Promise.all([
         isPcRover(supabaseAdmin, auth.companyId, auth.userId),
         supabaseAdmin
@@ -84,7 +84,7 @@ export async function POST(request: NextRequest) {
     if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    if (!can(auth.companyRoles, 'counter.manage')) {
+    if (!can(auth, 'counter.manage')) {
       return NextResponse.json({ error: 'Admin only' }, { status: 403 });
     }
 
@@ -188,7 +188,7 @@ export async function PUT(request: NextRequest) {
     if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    if (!can(auth.companyRoles, 'counter.manage')) {
+    if (!can(auth, 'counter.manage')) {
       return NextResponse.json({ error: 'Admin only' }, { status: 403 });
     }
 
@@ -238,7 +238,7 @@ export async function DELETE(request: NextRequest) {
     if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    if (!can(auth.companyRoles, 'counter.manage')) {
+    if (!can(auth, 'counter.manage')) {
       return NextResponse.json({ error: 'Admin only' }, { status: 403 });
     }
 

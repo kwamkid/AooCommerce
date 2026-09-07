@@ -7,6 +7,7 @@ import { useAuth } from '@/lib/auth-context';
 import { apiFetch } from '@/lib/api-client';
 import { formatPrice } from '@/lib/utils/format';
 import Layout from '@/components/layout/Layout';
+import { useAuthGuard } from '@/lib/useAuthGuard';
 import PageHeader from '@/components/ui/PageHeader';
 import { PageSkeleton } from '@/components/ui/Skeleton';
 import { ExportButton } from '@/components/ui/ExportImportButton';
@@ -84,6 +85,8 @@ interface GroupedDataByProduct {
 type GroupBy = 'date' | 'customer' | 'product';
 
 export default function SalesReportPage() {
+  // ด่านสิทธิ์ระดับหน้า — เมนูใน Sidebar ซ่อนให้แล้ว แต่ URL ตรงยังเข้าได้
+  const { allowed, loading: permLoading } = useAuthGuard('finance.view');
   const router = useRouter();
   const { session, userProfile, loading: authLoading } = useAuth();
 
@@ -262,6 +265,9 @@ export default function SalesReportPage() {
   }
 
   if (!userProfile) return null;
+
+  if (permLoading) return <Layout><LoadingCard /></Layout>;
+  if (!allowed) return null;   // กำลังเด้งไป /dashboard
 
   return (
     <Layout>

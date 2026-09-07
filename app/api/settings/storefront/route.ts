@@ -41,7 +41,7 @@ export async function PUT(request: NextRequest) {
   if (!auth.isAuth || !auth.companyId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
-  if (!can(auth.companyRoles, 'settings.access')) {
+  if (!can(auth, 'settings.access')) {
     return NextResponse.json({ error: 'ไม่มีสิทธิ์แก้ไขหน้าร้านออนไลน์' }, { status: 403 });
   }
 

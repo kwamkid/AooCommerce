@@ -6,8 +6,9 @@ import { signOAuthState } from '@/lib/oauth-state';
 
 export async function GET(request: NextRequest) {
   try {
-    const { isAuth, companyId, companyRoles, userId } = await checkAuthWithCompany(request);
-    if (!isAuth || !companyId || !userId || !can(companyRoles, 'marketplace.connect')) {
+    const auth = await checkAuthWithCompany(request);
+    const { isAuth, companyId, userId } = auth;
+    if (!isAuth || !companyId || !userId || !can(auth, 'marketplace.connect')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 

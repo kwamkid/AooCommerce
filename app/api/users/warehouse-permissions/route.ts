@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
     if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    if (!can(auth.companyRoles, 'members.invite')) {
+    if (!can(auth, 'members.invite')) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
 
@@ -59,7 +59,7 @@ export async function PUT(request: NextRequest) {
     if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    if (!can(auth.companyRoles, 'members.invite')) {
+    if (!can(auth, 'members.invite')) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
 

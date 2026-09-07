@@ -31,7 +31,7 @@ export default function EditSupplierPage() {
   useEffect(() => {
     if (authLoading) return;
     if (!userProfile) { router.push('/login'); return; }
-    if (!can(userProfile.roles, 'masterdata.suppliers')) {
+    if (!can(userProfile, 'masterdata.suppliers')) {
       router.push('/dashboard');
     }
   }, [userProfile, authLoading, router]);

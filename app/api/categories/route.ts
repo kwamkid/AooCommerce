@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
     if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    if (!can(auth.companyRoles, 'masterdata.categories')) {
+    if (!can(auth, 'masterdata.categories')) {
       return NextResponse.json({ error: 'Admin only' }, { status: 403 });
     }
 
@@ -111,7 +111,7 @@ export async function PUT(request: NextRequest) {
     if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    if (!can(auth.companyRoles, 'masterdata.categories')) {
+    if (!can(auth, 'masterdata.categories')) {
       return NextResponse.json({ error: 'Admin only' }, { status: 403 });
     }
 
@@ -156,7 +156,7 @@ export async function DELETE(request: NextRequest) {
     if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    if (!can(auth.companyRoles, 'masterdata.categories')) {
+    if (!can(auth, 'masterdata.categories')) {
       return NextResponse.json({ error: 'Admin only' }, { status: 403 });
     }
 

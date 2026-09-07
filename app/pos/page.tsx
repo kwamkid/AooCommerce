@@ -8,6 +8,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { useCompany } from '@/lib/company-context';
+import { useAuthGuard } from '@/lib/useAuthGuard';
 import { apiFetch } from '@/lib/api-client';
 import { ArrowLeft, Clock, ListOrdered } from 'lucide-react';
 import ThemeToggle from '@/components/ThemeToggle';
@@ -42,6 +43,8 @@ interface Customer {
 
 export default function PosPage() {
   const router = useRouter();
+  // ด่านสิทธิ์ระดับหน้า — เมนูใน Sidebar ซ่อนให้แล้ว แต่ URL ตรงยังเข้าได้
+  const { allowed, loading: permLoading } = useAuthGuard('pos.sell');
   const { loading: authLoading, userProfile } = useAuth();
   const { currentCompany } = useCompany();
 
@@ -190,11 +193,12 @@ export default function PosPage() {
   };
 
   // Loading state
-  if (authLoading || loadingSession) {
+  if (permLoading || authLoading || loadingSession) {
     return (
       <FullPageLoading />
     );
   }
+  if (!allowed) return null;   // กำลังเด้งไป /dashboard
 
   // No session — show session modal
   if (!session) {

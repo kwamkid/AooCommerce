@@ -1,7 +1,11 @@
 // Path: src/types/index.ts
 
+import type { Permissions } from '@/lib/permissions';
+
 // Company & Multi-Tenant Types
-export type CompanyRole = 'owner' | 'admin' | 'manager' | 'account' | 'warehouse' | 'sales' | 'cashier' | 'pc';
+// role หลักที่เขียนลง DB ตั้งแต่ 2026-09-07 คือ 4 ค่าแรกเท่านั้น —
+// ที่เหลือเป็นค่าเดิมในฐานข้อมูลที่ยัง "อ่าน" ได้ (แปลงเป็นแม่แบบใน lib/permissions.ts)
+export type CompanyRole = 'owner' | 'admin' | 'manager' | 'staff' | 'account' | 'warehouse' | 'sales' | 'cashier' | 'pc';
 
 // UserRole is an alias for CompanyRole (single source of truth)
 export type UserRole = CompanyRole;
@@ -28,6 +32,8 @@ export interface Company {
 export interface CompanyMembership {
   companyId: string;
   roles: CompanyRole[];
+  /** สิทธิ์รายกลุ่มงานของ staff — null เมื่อเป็น owner/admin/manager (ได้ทุกกลุ่ม) */
+  permissions?: Permissions | null;
   company: Company;
 }
 
@@ -36,6 +42,7 @@ export interface CompanyInvitation {
   companyId: string;
   email: string;
   roles: CompanyRole[];
+  permissions?: Permissions | null;
   token: string;
   status: 'pending' | 'accepted' | 'expired' | 'cancelled';
   invitedBy: string;
@@ -71,6 +78,8 @@ export interface UserProfile {
   email: string;
   name: string;
   roles: CompanyRole[];
+  /** สิทธิ์รายกลุ่มงานของบริษัทที่กำลังเปิดอยู่ (staff เท่านั้น) */
+  permissions?: Permissions | null;
   canViewCost?: boolean;
   lineUserId?: string;
   phone?: string;

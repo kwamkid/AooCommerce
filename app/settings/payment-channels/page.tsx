@@ -197,7 +197,7 @@ export default function PaymentChannelsPage() {
 
   useFetchOnce(() => {
     fetchChannels();
-  }, can(userProfile?.roles, 'masterdata.payment_channels'));
+  }, can(userProfile, 'masterdata.payment_channels'));
 
   // Close bank dropdown on outside click
   useEffect(() => {
@@ -447,7 +447,7 @@ export default function PaymentChannelsPage() {
   };
 
   // Admin guard
-  if (userProfile && !can(userProfile.roles, 'masterdata.payment_channels')) {
+  if (userProfile && !can(userProfile, 'masterdata.payment_channels')) {
     return (
       <Layout>
         <NoPermissionCard />

@@ -124,7 +124,7 @@ export default function CarriersSettingsPage() {
   const [formTrackingUrl, setFormTrackingUrl] = useState('');
   const [formActive, setFormActive] = useState(true);
 
-  const isAdmin = can(userProfile?.roles, 'masterdata.carriers');
+  const isAdmin = can(userProfile, 'masterdata.carriers');
 
   const loadCarriers = async () => {
     try {

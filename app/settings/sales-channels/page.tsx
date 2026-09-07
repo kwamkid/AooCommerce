@@ -161,10 +161,10 @@ export default function SalesChannelsPage() {
   const [formWarehouse, setFormWarehouse] = useState('');
   const [warehouses, setWarehouses] = useState<{ id: string; name: string; is_default: boolean; is_active?: boolean }[]>([]);
 
-  const isAdmin = can(userProfile?.roles, 'masterdata.sales_channels');
+  const isAdmin = can(userProfile, 'masterdata.sales_channels');
   // แท็บเชื่อมต่อ marketplace โชว์เฉพาะตอนเปิด feature marketplace_sync เท่านั้น
   // (พฤติกรรมเดียวกับที่เมนู Marketplace เดิมถูกซ่อนจาก Sidebar ตอนปิด feature)
-  const marketplaceTabVisible = features.marketplace_sync && can(userProfile?.roles, 'settings.access');
+  const marketplaceTabVisible = features.marketplace_sync && can(userProfile, 'settings.access');
   // แท็บ marketplace ที่มองไม่เห็น (ปิด feature) → ตกไปแท็บตั้งค่าเอง
   const effectiveTab: ChannelTab = isMarketplaceTab(activeTab) && !marketplaceTabVisible ? 'manual' : activeTab;
   const showMarketplace = isMarketplaceTab(effectiveTab);

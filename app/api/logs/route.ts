@@ -3,8 +3,9 @@ import { checkAuthWithCompany, can, supabaseAdmin } from '@/lib/supabase-admin';
 
 export async function GET(request: NextRequest) {
   try {
-    const { isAuth, companyId, companyRoles } = await checkAuthWithCompany(request);
-    if (!isAuth || !companyId || !can(companyRoles, 'logs.view')) {
+    const auth = await checkAuthWithCompany(request);
+    const { isAuth, companyId } = auth;
+    if (!isAuth || !companyId || !can(auth, 'logs.view')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 

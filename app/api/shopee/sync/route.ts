@@ -6,8 +6,9 @@ import { logIntegration } from '@/lib/integration-logger';
 
 export async function POST(request: NextRequest) {
   // Auth + validation (must happen before streaming)
-  const { isAuth, companyId, companyRoles } = await checkAuthWithCompany(request);
-  if (!isAuth || !companyId || !can(companyRoles, 'marketplace.sync')) {
+  const auth = await checkAuthWithCompany(request);
+  const { isAuth, companyId } = auth;
+  if (!isAuth || !companyId || !can(auth, 'marketplace.sync')) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

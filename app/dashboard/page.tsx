@@ -9,7 +9,7 @@ import SystemIssuesCard from '@/components/ui/SystemIssuesCard';
 import { PageSkeleton } from '@/components/ui/Skeleton';
 import { useAuth } from '@/lib/auth-context';
 import { useCompany } from '@/lib/company-context';
-import { can } from '@/lib/permissions';
+import { can, isPcOnly } from '@/lib/permissions';
 import { useFetchOnce } from '@/lib/use-fetch-once';
 import { apiFetch } from '@/lib/api-client';
 import { formatPrice } from '@/lib/utils/format';
@@ -87,19 +87,20 @@ function StatCard({
 
 export default function DashboardPage() {
   const { userProfile, loading: authLoading } = useAuth();
-  const { companyRoles, loading: companyLoading } = useCompany();
+  const { companyRoles, permissions, loading: companyLoading } = useCompany();
   const router = useRouter();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
   // PC-only members work at /pc — the dashboard has nothing for them
+  // (คนที่มีกลุ่มงานอื่นด้วยไม่โดนเด้ง เพราะเขามีงานอื่นให้ทำในระบบ)
   useEffect(() => {
     if (companyLoading) return;
-    if (companyRoles.length > 0 && companyRoles.every(r => r === 'pc')) {
+    if (companyRoles.length > 0 && isPcOnly({ roles: companyRoles, permissions })) {
       router.replace('/pc');
     }
-  }, [companyLoading, companyRoles, router]);
+  }, [companyLoading, companyRoles, permissions, router]);
 
   // Fetch dashboard stats
   useFetchOnce(async () => {
@@ -147,7 +148,7 @@ export default function DashboardPage() {
       <PageHeader
         className="mb-6"
         title="Dashboard"
-        subtitle={<>สวัสดี, {userProfile.name || 'ผู้ใช้งาน'} — {can(userProfile.roles, 'settings.access') && 'ภาพรวมระบบทั้งหมด'} {userProfile.roles?.includes('sales') && 'ภาพรวมการขายและลูกค้า'}</>}
+        subtitle={<>สวัสดี, {userProfile.name || 'ผู้ใช้งาน'} — {can(userProfile, 'settings.access') && 'ภาพรวมระบบทั้งหมด'} {can(userProfile, 'order.manage') && !can(userProfile, 'settings.access') && 'ภาพรวมการขายและลูกค้า'}</>}
       />
 
       {/* ช่องทางขาย/แชทของร้านที่พังอยู่ — พร้อมวิธีแก้ + ปุ่มไปหน้าที่แก้ได้ทันที

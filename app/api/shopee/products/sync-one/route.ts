@@ -17,8 +17,9 @@ import {
  * 3 เดือนโดยไม่มีใครรู้ (ดู fix-bug.md 2026-08-29)
  */
 export async function POST(request: NextRequest) {
-  const { isAuth, companyId, companyRoles } = await checkAuthWithCompany(request);
-  if (!isAuth || !companyId || !can(companyRoles, 'marketplace.sync')) {
+  const auth = await checkAuthWithCompany(request);
+  const { isAuth, companyId } = auth;
+  if (!isAuth || !companyId || !can(auth, 'marketplace.sync')) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

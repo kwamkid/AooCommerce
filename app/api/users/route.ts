@@ -1,7 +1,24 @@
 // Path: app/api/users/route.ts
 import { supabaseAdmin, checkAuthWithCompany, can, validateRoles } from '@/lib/supabase-admin';
-import { assertMemberMutationAllowed, resolveCanViewCost } from '@/lib/permissions';
+import {
+  assertMemberMutationAllowed, resolveCanViewCost, mainRoleOf,
+  permissionsFromLegacyRoles, type Permissions,
+} from '@/lib/permissions';
 import { NextRequest, NextResponse } from 'next/server';
+
+/**
+ * หน้า /users เป็นของเดิมที่ยังส่ง roles หลายค่า (sales/cashier/…) มาให้
+ * แปลงเป็นรูปแบบที่ DB เก็บตั้งแต่ 2026-09-07: role หลักค่าเดียว + สิทธิ์รายกลุ่มงาน
+ * ส่ง role ใหม่ (['staff']) มาก็ผ่านตัวนี้ได้เหมือนกัน
+ */
+function toMemberRole(roles: unknown): { roles: string[]; permissions: Permissions | null } {
+  const list = Array.isArray(roles) ? (roles as string[]) : [];
+  const role = mainRoleOf(list);
+  return {
+    roles: [role],
+    permissions: role === 'staff' ? permissionsFromLegacyRoles(list) : null,
+  };
+}
 
 // Type definitions
 interface UserData {
@@ -18,7 +35,8 @@ interface UserData {
 // POST - สร้าง user ใหม่ (Admin only)
 export async function POST(request: NextRequest) {
   try {
-    const { isAuth, companyId, companyRoles } = await checkAuthWithCompany(request);
+    const auth = await checkAuthWithCompany(request);
+    const { isAuth, companyId } = auth;
 
     if (!isAuth) {
       return NextResponse.json(
@@ -32,7 +50,7 @@ export async function POST(request: NextRequest) {
         { status: 403 }
       );
     }
-    if (!can(companyRoles, 'members.invite')) {
+    if (!can(auth, 'members.invite')) {
       return NextResponse.json(
         { error: 'Unauthorized. Admin access required.' },
         { status: 401 }
@@ -49,7 +67,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const rolesError = validateRoles(userData.roles);
+    const member = toMemberRole(userData.roles);
+    const rolesError = validateRoles(member.roles);
     if (rolesError) {
       return NextResponse.json({ error: rolesError }, { status: 400 });
     }
@@ -92,7 +111,7 @@ export async function POST(request: NextRequest) {
       email_confirm: true, // Auto confirm email
       user_metadata: {
         name: userData.name,
-        roles: userData.roles,
+        roles: member.roles,
         phone: userData.phone
       }
     });
@@ -142,7 +161,8 @@ export async function POST(request: NextRequest) {
       .insert({
         company_id: companyId,
         user_id: authData.user.id,
-        roles: userData.roles,
+        roles: member.roles,
+        permissions: member.permissions,
         is_active: true,
         joined_at: new Date().toISOString(),
         warehouse_ids: Array.isArray(userData.warehouse_ids) ? userData.warehouse_ids : null,
@@ -160,7 +180,7 @@ export async function POST(request: NextRequest) {
         id: authData.user.id,
         email: userData.email,
         name: userData.name,
-        roles: userData.roles
+        roles: member.roles
       }
     });
   } catch (error) {
@@ -175,7 +195,8 @@ export async function POST(request: NextRequest) {
 // GET - ดึงรายการ users (Admin only, scoped to company members)
 export async function GET(request: NextRequest) {
   try {
-    const { isAuth, companyId, companyRoles } = await checkAuthWithCompany(request);
+    const auth = await checkAuthWithCompany(request);
+    const { isAuth, companyId } = auth;
 
     if (!isAuth) {
       return NextResponse.json(
@@ -189,7 +210,7 @@ export async function GET(request: NextRequest) {
         { status: 403 }
       );
     }
-    if (!can(companyRoles, 'members.invite')) {
+    if (!can(auth, 'members.invite')) {
       return NextResponse.json(
         { error: 'Unauthorized. Admin access required.' },
         { status: 401 }
@@ -254,7 +275,8 @@ export async function GET(request: NextRequest) {
 // PUT - อัพเดท user (Admin only)
 export async function PUT(request: NextRequest) {
   try {
-    const { isAuth, companyId, companyRoles } = await checkAuthWithCompany(request);
+    const auth = await checkAuthWithCompany(request);
+    const { isAuth, companyId, companyRoles } = auth;
 
     if (!isAuth) {
       return NextResponse.json(
@@ -268,7 +290,7 @@ export async function PUT(request: NextRequest) {
         { status: 403 }
       );
     }
-    if (!can(companyRoles, 'members.invite')) {
+    if (!can(auth, 'members.invite')) {
       return NextResponse.json(
         { error: 'Unauthorized. Admin access required.' },
         { status: 401 }
@@ -299,8 +321,9 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    if (roles) {
-      const rolesErr = validateRoles(roles);
+    const nextMember = roles ? toMemberRole(roles) : null;
+    if (nextMember) {
+      const rolesErr = validateRoles(nextMember.roles);
       if (rolesErr) {
         return NextResponse.json({ error: rolesErr }, { status: 400 });
       }
@@ -312,7 +335,7 @@ export async function PUT(request: NextRequest) {
     }
 
     // Shared escalation guard — ห้าม inline เอง (lib/permissions.ts)
-    const guardError = assertMemberMutationAllowed(companyRoles, membership.roles, roles);
+    const guardError = assertMemberMutationAllowed(companyRoles, membership.roles, nextMember?.roles);
     if (guardError) {
       return NextResponse.json({ error: guardError.error }, { status: guardError.status });
     }
@@ -323,10 +346,11 @@ export async function PUT(request: NextRequest) {
     if (typeof is_active === 'boolean') {
       memberUpdate.is_active = is_active;
     }
-    if (roles && Array.isArray(roles) && roles.length > 0) {
-      memberUpdate.roles = roles;
-      if (typeof can_view_cost === 'boolean' || resolveCanViewCost(roles, false)) {
-        memberUpdate.can_view_cost = resolveCanViewCost(roles, can_view_cost);
+    if (nextMember) {
+      memberUpdate.roles = nextMember.roles;
+      memberUpdate.permissions = nextMember.permissions;
+      if (typeof can_view_cost === 'boolean' || resolveCanViewCost(nextMember.roles, false)) {
+        memberUpdate.can_view_cost = resolveCanViewCost(nextMember.roles, can_view_cost);
       }
     }
 
@@ -343,7 +367,7 @@ export async function PUT(request: NextRequest) {
 
       if (memberUpdate.roles) {
         await supabaseAdmin.auth.admin.updateUserById(id, {
-          user_metadata: { roles }
+          user_metadata: { roles: memberUpdate.roles }
         });
       }
     }
@@ -382,7 +406,8 @@ export async function PUT(request: NextRequest) {
 // DELETE - ลบ/ระงับ user (Admin only)
 export async function DELETE(request: NextRequest) {
   try {
-    const { isAuth, companyId, companyRoles } = await checkAuthWithCompany(request);
+    const auth = await checkAuthWithCompany(request);
+    const { isAuth, companyId, companyRoles } = auth;
 
     if (!isAuth) {
       return NextResponse.json(
@@ -396,7 +421,7 @@ export async function DELETE(request: NextRequest) {
         { status: 403 }
       );
     }
-    if (!can(companyRoles, 'members.invite')) {
+    if (!can(auth, 'members.invite')) {
       return NextResponse.json(
         { error: 'Unauthorized. Admin access required.' },
         { status: 401 }
@@ -430,7 +455,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     // ห้ามลบ/ระงับเจ้าของ และ manager ห้ามแตะ admin (guard เดียวกับ PUT)
-    if (membership.roles?.includes('owner')) {
+    if (mainRoleOf(membership.roles) === 'owner') {
       return NextResponse.json({ error: 'ไม่สามารถลบเจ้าของบริษัทได้' }, { status: 403 });
     }
     const guardError = assertMemberMutationAllowed(companyRoles, membership.roles);

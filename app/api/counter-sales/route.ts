@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
     if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    if (!can(auth.companyRoles, 'counter.record')) {
+    if (!can(auth, 'counter.record')) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
     const limit = Math.min(parseInt(searchParams.get('limit') || '100'), 500);
     const page = parseInt(searchParams.get('page') || '1');
 
-    const isManager = can(auth.companyRoles, 'counter.manage');
+    const isManager = can(auth, 'counter.manage');
     if (!isManager) {
       // PC: must ask for a specific counter they are assigned to
       if (!counterId) {
@@ -131,7 +131,7 @@ export async function POST(request: NextRequest) {
     if (!auth.isAuth || !auth.companyId || !auth.userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    if (!can(auth.companyRoles, 'counter.record')) {
+    if (!can(auth, 'counter.record')) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
@@ -158,7 +158,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'ไม่พบสาขา หรือสาขาถูกปิดใช้งาน' }, { status: 404 });
     }
 
-    if (!can(auth.companyRoles, 'counter.manage')) {
+    if (!can(auth, 'counter.manage')) {
       if (!(await canAccessCounter(supabaseAdmin, auth.companyId, counter_id, auth.userId))) {
         return NextResponse.json({ error: 'คุณไม่ได้รับมอบหมายสาขานี้' }, { status: 403 });
       }
@@ -209,7 +209,7 @@ export async function DELETE(request: NextRequest) {
     if (!auth.isAuth || !auth.companyId || !auth.userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    if (!can(auth.companyRoles, 'counter.record')) {
+    if (!can(auth, 'counter.record')) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
@@ -232,7 +232,7 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'รายการนี้ถูกรวมเข้ารายงานห้างแล้ว ลบไม่ได้' }, { status: 400 });
     }
 
-    if (!can(auth.companyRoles, 'counter.manage')) {
+    if (!can(auth, 'counter.manage')) {
       if (sale.recorded_by !== auth.userId) {
         return NextResponse.json({ error: 'ลบได้เฉพาะรายการที่ตัวเองบันทึก' }, { status: 403 });
       }

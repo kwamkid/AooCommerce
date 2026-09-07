@@ -15,7 +15,7 @@ import { can } from '@/lib/permissions';
 export default function SettingsTagsPage() {
   const { userProfile } = useAuth();
 
-  if (!can(userProfile?.roles, 'masterdata.tags')) {
+  if (!can(userProfile, 'masterdata.tags')) {
     return (
       <Layout>
         <NoPermissionCard />

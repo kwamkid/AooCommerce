@@ -12,8 +12,9 @@ import { getLoginKitAuthUrl, generatePkcePair, isLoginKitConfigured } from '@/li
 // ไว้เป๊ะ ๆ เราจึงประกอบจาก host ของ request เอง (แทนที่จะไปตั้งค่าที่ portal อย่างเดียว)
 
 export async function GET(request: NextRequest) {
-  const { isAuth, companyId, companyRoles, userId } = await checkAuthWithCompany(request);
-  if (!isAuth || !companyId || !userId || !can(companyRoles, 'marketplace.connect')) {
+  const auth = await checkAuthWithCompany(request);
+  const { isAuth, companyId, userId } = auth;
+  if (!isAuth || !companyId || !userId || !can(auth, 'marketplace.connect')) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

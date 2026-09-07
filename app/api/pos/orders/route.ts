@@ -49,7 +49,7 @@ export async function GET(request: NextRequest) {
 
     // Check warehouse permission for cashier role
     let allowedWarehouseIds: string[] | null = null; // null = all
-    if (!can(auth.companyRoles, 'pos.manage')) {
+    if (!can(auth, 'pos.manage')) {
       const { data: membership } = await supabaseAdmin
         .from('company_members')
         .select('warehouse_ids')

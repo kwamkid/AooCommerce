@@ -4,6 +4,7 @@
 import { useState, useEffect, useRef, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
+import { useAuthGuard } from '@/lib/useAuthGuard';
 import Container from '@/components/ui/Container';
 import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
@@ -1193,6 +1194,11 @@ function ProductsPageContent() {
 }
 
 export default function ProductsPage() {
+  // ด่านสิทธิ์ระดับหน้า — เมนูใน Sidebar ซ่อนให้แล้ว แต่ URL ตรงยังเข้าได้
+  const { allowed, loading: permLoading } = useAuthGuard('product.view');
+  if (permLoading) return <Layout><LoadingCard /></Layout>;
+  if (!allowed) return null;   // กำลังเด้งไป /dashboard
+
   return (
     <Suspense fallback={
       <Layout>

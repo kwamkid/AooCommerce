@@ -4,8 +4,9 @@ import { NextRequest, NextResponse } from 'next/server';
 // POST - Exchange short-lived FB token for long-lived token and return pages
 export async function POST(request: NextRequest) {
   try {
-    const { isAuth, companyId, companyRoles } = await checkAuthWithCompany(request);
-    if (!isAuth || !companyId || !can(companyRoles, 'masterdata.chat_channels')) {
+    const auth = await checkAuthWithCompany(request);
+    const { isAuth, companyId } = auth;
+    if (!isAuth || !companyId || !can(auth, 'masterdata.chat_channels')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 

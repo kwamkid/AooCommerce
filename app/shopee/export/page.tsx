@@ -98,7 +98,7 @@ function ShopeeExportContent() {
   // Linked product IDs (already exported to this account)
   const [linkedProductIds, setLinkedProductIds] = useState<Set<string>>(new Set());
 
-  const isAdmin = can(userProfile?.roles, 'marketplace.push');
+  const isAdmin = can(userProfile, 'marketplace.push');
 
   const fetchProducts = useCallback(async () => {
     setLoadingProducts(true);

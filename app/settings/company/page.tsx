@@ -52,7 +52,7 @@ const validateCompanyPhone = (phone: string): string | null => {
 
 
 export default function CompanySettingsPage() {
-  const { currentCompany, companyRoles, refreshCompanies } = useCompany();
+  const { currentCompany, companyRoles, permissions, refreshCompanies } = useCompany();
   const { session } = useAuth();
   const { showToast } = useToast();
   const [isLoading, setIsLoading] = useState(true);
@@ -347,7 +347,7 @@ export default function CompanySettingsPage() {
   };
 
   // Check permissions
-  const isOwnerOrAdmin = can(companyRoles, 'company.edit');
+  const isOwnerOrAdmin = can({ roles: companyRoles, permissions }, 'company.edit');
 
   if (!isOwnerOrAdmin && !isLoading) {
     return (

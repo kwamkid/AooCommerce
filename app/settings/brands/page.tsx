@@ -104,7 +104,7 @@ function BrandsPageInner() {
     : brands;
 
   useEffect(() => {
-    if (can(userProfile?.roles, 'masterdata.brands')) {
+    if (can(userProfile, 'masterdata.brands')) {
       fetchBrands();
       if (features.supplier) fetchSuppliers();
     }
@@ -235,7 +235,7 @@ function BrandsPageInner() {
   };
 
   // Admin guard
-  if (userProfile && !can(userProfile.roles, 'masterdata.brands')) {
+  if (userProfile && !can(userProfile, 'masterdata.brands')) {
     return (
       <Layout>
         <NoPermissionCard />

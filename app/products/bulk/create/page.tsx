@@ -74,12 +74,12 @@ interface RunResponse {
 export default function BulkCreateProductsPage() {
   const router = useRouter();
   const { userProfile } = useAuth();
-  const { companyRoles } = useCompany();
+  const { companyRoles, permissions } = useCompany();
   const { features } = useFeatures();
   const { showToast } = useToast();
   const brandEnabled = features.product_brand;
 
-  const isAdmin = can(companyRoles, 'product.bulk_edit');
+  const isAdmin = can({ roles: companyRoles, permissions }, 'product.bulk_edit');
   const canEditCost = userProfile?.canViewCost === true;
 
   const [step, setStep] = useState<'upload' | 'checking' | 'preview' | 'importing' | 'done'>('upload');

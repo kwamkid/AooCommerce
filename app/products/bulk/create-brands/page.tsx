@@ -45,9 +45,9 @@ interface RunResponse {
 export default function BulkCreateBrandsPage() {
   const router = useRouter();
   const { userProfile } = useAuth();
-  const { companyRoles } = useCompany();
+  const { companyRoles, permissions } = useCompany();
   const { showToast } = useToast();
-  const isAdmin = can(companyRoles, 'product.bulk_edit');
+  const isAdmin = can({ roles: companyRoles, permissions }, 'product.bulk_edit');
 
   const [step, setStep] = useState<'upload' | 'checking' | 'preview' | 'importing' | 'done'>('upload');
   const [parsedItems, setParsedItems] = useState<CreateItem[]>([]);

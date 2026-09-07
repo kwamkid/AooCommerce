@@ -17,8 +17,9 @@ export const maxDuration = 60;
 const MAX_BYTES = 2 * 1024 * 1024;  // ฝั่งหน้าเว็บย่อมาให้แล้ว (~0.5MB) นี่คือกันพลาด
 
 export async function POST(request: NextRequest) {
-  const { isAuth, companyId, companyRoles } = await checkAuthWithCompany(request);
-  if (!isAuth || !companyId || !can(companyRoles, 'marketplace.connect')) {
+  const auth = await checkAuthWithCompany(request);
+  const { isAuth, companyId } = auth;
+  if (!isAuth || !companyId || !can(auth, 'marketplace.connect')) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

@@ -85,7 +85,7 @@ export async function POST(request: NextRequest) {
     if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    if (!can(auth.companyRoles, 'report.supplier.create')) {
+    if (!can(auth, 'report.supplier.create')) {
       return NextResponse.json({ error: 'ไม่มีสิทธิ์สร้างรายงาน' }, { status: 403 });
     }
 

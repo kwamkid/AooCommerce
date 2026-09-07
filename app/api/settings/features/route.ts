@@ -63,7 +63,8 @@ export async function GET(request: NextRequest) {
 // PUT - save feature flags to companies.settings (admin only)
 export async function PUT(request: NextRequest) {
   try {
-    const { isAuth, companyId, companyRoles } = await checkAuthWithCompany(request);
+    const auth = await checkAuthWithCompany(request);
+    const { isAuth, companyId } = auth;
 
     if (!isAuth) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -71,7 +72,7 @@ export async function PUT(request: NextRequest) {
     if (!companyId) {
       return NextResponse.json({ error: 'No company context' }, { status: 403 });
     }
-    if (!can(companyRoles, 'settings.access')) {
+    if (!can(auth, 'settings.access')) {
       return NextResponse.json({ error: 'Only admin can update settings' }, { status: 403 });
     }
 

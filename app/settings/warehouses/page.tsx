@@ -59,7 +59,7 @@ export default function WarehouseSettingsPage() {
 
   useFetchOnce(() => {
     fetchWarehouses();
-  }, can(userProfile?.roles, 'masterdata.warehouses'));
+  }, can(userProfile, 'masterdata.warehouses'));
 
   const fetchWarehouses = async () => {
     try {
@@ -200,7 +200,7 @@ export default function WarehouseSettingsPage() {
   };
 
   // Admin guard
-  if (userProfile && !can(userProfile.roles, 'masterdata.warehouses')) {
+  if (userProfile && !can(userProfile, 'masterdata.warehouses')) {
     return (
       <Layout>
         <NoPermissionCard />

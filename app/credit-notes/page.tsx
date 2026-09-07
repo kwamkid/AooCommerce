@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
+import { useAuthGuard } from '@/lib/useAuthGuard';
 import PageHeader from '@/components/ui/PageHeader';
 import { useAuth } from '@/lib/auth-context';
 import { apiFetch } from '@/lib/api-client';
@@ -47,6 +48,8 @@ const STATUS_LABELS: Record<string, { label: string; color: string }> = {
 };
 
 export default function CreditNotesPage() {
+  // ด่านสิทธิ์ระดับหน้า — เมนูใน Sidebar ซ่อนให้แล้ว แต่ URL ตรงยังเข้าได้
+  const { allowed, loading: permLoading } = useAuthGuard('finance.view');
   const router = useRouter();
   const { userProfile, loading: authLoading } = useAuth();
   const [data, setData] = useState<CreditNote[]>([]);
@@ -101,6 +104,9 @@ export default function CreditNotesPage() {
       </Layout>
     );
   }
+
+  if (permLoading) return <Layout><LoadingCard /></Layout>;
+  if (!allowed) return null;   // กำลังเด้งไป /dashboard
 
   return (
     <Layout>

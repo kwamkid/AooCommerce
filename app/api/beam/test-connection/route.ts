@@ -11,7 +11,7 @@ export async function POST(request: NextRequest) {
     if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    if (!can(auth.companyRoles, 'masterdata.payment_channels')) {
+    if (!can(auth, 'masterdata.payment_channels')) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 

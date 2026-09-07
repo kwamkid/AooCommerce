@@ -496,42 +496,30 @@ const columns: DataTableColumn<Order>[] = [
 ### DealerOrderForm = 1 form หลายโหมด
 ใช้ `mode` prop แยก wholesale/consignment/department — **ห้ามสร้างฟอร์มแยก**
 
-### Permissions — ใช้ `can()` + `useAuthGuard()` เสมอ (อย่าใช้ role check แบบเดิม)
-- **Single source of truth**: [lib/permissions.ts](../../lib/permissions.ts) — 30 capabilities (`inventory.manage`, `customer.edit`, `settings.access`, `marketplace.sync`, ฯลฯ)
-- **เพิ่ม/แก้สิทธิ์** → แก้ที่ `lib/permissions.ts` ไฟล์เดียว (capability matrix + role groups)
-- **ห้ามเขียน** `roles.includes('admin') || roles.includes('owner') || ...` กระจายในไฟล์ — ใช้ `can(roles, 'capability')` เสมอ
-- **ห้ามใช้** deprecated helpers: `isAdminRole`, `isStrictAdmin`, `canBulkEdit`, `canManageInventory`, `hasAnyRole` (เก็บไว้เป็น @deprecated alias ใน supabase-admin.ts)
+### Permissions — role หลัก 1 ค่า + กลุ่มงาน (อ่าน/เขียนผ่าน `can()` เท่านั้น)
+
+**Single source of truth**: [lib/permissions.ts](../../lib/permissions.ts) — sidebar, ด่านหน้า (`useAuthGuard`) และ API อ่าน matrix เดียวกัน จึงไม่มีทางที่ "เห็นเมนูแต่กดเข้าไม่ได้"
+
+- **role หลักค่าเดียว** ใน `company_members.roles` (array สมาชิกเดียว): `owner` (ทุกอย่าง + ลบบริษัท) · `admin` (ทุกอย่าง + แต่งตั้งผู้ดูแล) · `manager` (ทุกอย่าง ยกเว้นแต่งตั้งผู้ดูแล/ลบข้อมูลทั้งหมด) · `staff`
+- **staff เพิ่มสิทธิ์รายกลุ่มงาน** ใน `company_members.permissions` jsonb = `{area: 'view'|'manage'}` (manage ครอบ view) · 8 กลุ่มงาน: `orders · chat · products · inventory · customers · finance · pos · pc` · owner/admin/manager ได้ทุกกลุ่มอัตโนมัติ (`permissions = null` — ห้ามเก็บสองแหล่งความจริง)
+- **แม่แบบ (`STAFF_PRESETS`)**: `sales` แอดมินออนไลน์ · `cashier` แคชเชียร์ · `account` บัญชี · `warehouse` คลังสินค้า · `pc` PC ประจำห้าง — เป็นทั้งปุ่มลัดในหน้าเชิญ **และ** ตัวแปลค่า `roles` รุ่นเก่าที่ยังค้างใน DB (ย้ายด้วย `node scripts/migrate-member-permissions.mjs [--apply]`)
+- **`can(subject, cap)`** รับได้ทั้ง `auth` (API), `userProfile` (client), `{ roles, permissions }` หรือ array ของ roles — **ห้ามส่งแค่ `.roles`** ถ้ามี permissions ให้ส่งด้วย ไม่งั้น staff จะถูกปฏิเสธทั้งที่มีสิทธิ์
+- **ห้ามเขียน** `roles.includes('admin') || ...` กระจายในไฟล์ · ห้ามให้ sidebar มีตารางสิทธิ์ของตัวเอง (เคยมีแล้วเมนูกับ API พูดคนละเรื่อง) · deprecated helpers (`isAdminRole`, `isStrictAdmin`, `canBulkEdit`, `canManageInventory`, `hasAnyRole`) ยังใช้ได้แต่ห้ามเรียกในโค้ดใหม่
 
 **Pattern**:
 ```ts
-// API route
-import { can } from '@/lib/supabase-admin';  // or '@/lib/permissions'
-if (!can(auth.companyRoles, 'inventory.manage')) return 403;
+// API route — ส่ง auth ทั้งก้อน (มี companyRoles + permissions)
+if (!can(auth, 'inventory.manage')) return 403;
 
 // Client page — redirect (default /dashboard)
-import { useAuthGuard } from '@/lib/useAuthGuard';
-useAuthGuard('customer.edit');
+const { allowed, loading } = useAuthGuard('order.view');
+if (loading) return <Layout><LoadingCard /></Layout>;
+if (!allowed) return null;
 
-// Client page — render NoPermissionCard
+// Settings-style page — render NoPermissionCard เอง
 const { allowed, loading } = useAuthGuard('settings.access', { noRedirect: true });
-if (loading) return <LoadingCard />;
-if (!allowed) return <NoPermissionCard />;
-
-// Conditional UI flag
-import { can } from '@/lib/permissions';
-const canEdit = can(userProfile?.roles, 'customer.edit');
 ```
 
-**Capability ที่มี (เลือกตัวที่ตรงความหมายที่สุด)**:
-- `company.*` — delete, edit
-- `members.*` — view, invite, grant_admin (strict, ป้องกัน privilege escalation)
-- `settings.*` — access, delete_all_data
-- `masterdata.*` — warehouses, carriers, suppliers, payment_channels, sales_channels, pos_terminals, chat_channels, brands, categories
-- `inventory.*` — view, manage (transfer/receive/issue/adjust)
-- `product.bulk_edit`
-- `customer.*` — view, edit
-- `supplier.edit`, `report.supplier.*` — view, create, delete
-- `marketplace.*` — connect, sync, ship, push
-- `order.split`, `pos.manage`, `onboarding.manage`, `logs.view`, `invoice.backfill`
+**Capability ที่มี** (เลือกตัวที่ตรงความหมายที่สุด): `company.*` · `members.*` · `settings.*` · `masterdata.*` (12 หน้า) · `order.{view,manage,split,delete}` · `chat.{view,reply}` · `product.{view,manage,bulk_edit}` · `inventory.{view,manage}` · `customer.{view,edit}` · `finance.{view,manage}` · `pos.{sell,view,manage}` · `counter.{record,manage}` · `marketplace.*` · `supplier.edit` · `report.supplier.*` · `onboarding.manage` · `logs.view` · `invoice.backfill`
 
-ถ้าต้อง capability ใหม่ → เพิ่มใน `CAPABILITIES` matrix ของ [lib/permissions.ts](../../lib/permissions.ts) (ใช้ pattern `{domain}.{action}`)
+**เพิ่ม capability ใหม่** = เพิ่ม 1 บรรทัดใน `CAPABILITIES` (pattern `{domain}.{action}`) แล้วใส่ token: `ADMIN_TIER` / `ADMIN_PLUS` / `OWNER_ONLY` และ (ถ้าเปิดให้ staff) token ของกลุ่มงาน เช่น `[...ADMIN_TIER, 'orders:manage']` — เมนูใน Sidebar อ้าง capability นี้ได้ทันที

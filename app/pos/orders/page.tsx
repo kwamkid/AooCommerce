@@ -8,6 +8,8 @@ import { can } from '@/lib/permissions';
 import { apiFetch } from '@/lib/api-client';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import Layout from '@/components/layout/Layout';
+import { useAuthGuard } from '@/lib/useAuthGuard';
+import { LoadingCard } from '@/components/ui/StateCard';
 import PageHeader from '@/components/ui/PageHeader';
 import { formatPrice } from '@/lib/utils/format';
 import DateRangePicker, { DateValueType } from '@/components/ui/DateRangePicker';
@@ -301,7 +303,7 @@ function PosOrdersContent() {
                 onViewReceipt={handleViewReceipt}
                 onVoid={handleVoid}
                 voidingId={voidingId}
-                canVoid={can(userProfile?.roles, 'pos.manage')}
+                canVoid={can(userProfile, 'pos.manage')}
               />
             ))}
           </div>
@@ -338,6 +340,11 @@ function PosOrdersContent() {
 }
 
 export default function PosOrdersPage() {
+  // ด่านสิทธิ์ระดับหน้า — เมนูใน Sidebar ซ่อนให้แล้ว แต่ URL ตรงยังเข้าได้
+  const { allowed, loading: permLoading } = useAuthGuard('pos.view');
+  if (permLoading) return <Layout><LoadingCard /></Layout>;
+  if (!allowed) return null;   // กำลังเด้งไป /dashboard
+
   return (
     <Suspense fallback={
       <Layout>

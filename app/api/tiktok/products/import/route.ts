@@ -28,7 +28,7 @@ async function loadAccount(accountId: string, companyId: string) {
 export async function GET(request: NextRequest) {
   try {
     const auth = await checkAuthWithCompany(request);
-    if (!auth.isAuth || !auth.companyId || !can(auth.companyRoles, 'marketplace.sync')) {
+    if (!auth.isAuth || !auth.companyId || !can(auth, 'marketplace.sync')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -127,7 +127,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const auth = await checkAuthWithCompany(request);
-    if (!auth.isAuth || !auth.companyId || !can(auth.companyRoles, 'marketplace.sync')) {
+    if (!auth.isAuth || !auth.companyId || !can(auth, 'marketplace.sync')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 

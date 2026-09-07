@@ -1,6 +1,32 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin, checkAuthWithCompany, can, validateRoles } from '@/lib/supabase-admin';
-import { assertMemberMutationAllowed, resolveCanViewCost } from '@/lib/permissions';
+import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
+import {
+  assertMemberMutationAllowed, resolveCanViewCost, mainRoleOf, isAdminTierRole,
+  permissionsFromLegacyRoles, validateRole, validatePermissions,
+  type Permissions, type RoleLevel,
+} from '@/lib/permissions';
+
+/**
+ * รับได้ทั้งรูปแบบใหม่ (`role` + `permissions`) และรูปแบบเก่า (`roles: string[]`)
+ * แล้วคืนสิ่งที่จะเขียนลง DB เสมอ: role หลักค่าเดียว + สิทธิ์รายกลุ่มงาน
+ * (ชั้นผู้บริหารได้ทุกกลุ่มอยู่แล้ว → permissions = null ไม่ให้มีสองแหล่งความจริง)
+ */
+function normalizeRoleInput(body: { role?: unknown; roles?: unknown; permissions?: unknown }):
+  { role: RoleLevel; permissions: Permissions | null } | { error: string } {
+  const legacyRoles = Array.isArray(body.roles) ? (body.roles as string[]) : null;
+  const role = typeof body.role === 'string' ? body.role : mainRoleOf(legacyRoles);
+  const roleError = validateRole(role);
+  if (roleError) return { error: roleError };
+
+  if (isAdminTierRole(role as RoleLevel)) return { role: role as RoleLevel, permissions: null };
+
+  // staff: ใช้ permissions ที่ส่งมา ถ้าไม่ส่งค่อยแปลจาก roles รุ่นเก่าเป็นแม่แบบ
+  const raw = body.permissions !== undefined ? body.permissions
+    : (legacyRoles ? permissionsFromLegacyRoles(legacyRoles) : {});
+  const permError = validatePermissions(raw);
+  if (permError) return { error: permError };
+  return { role: role as RoleLevel, permissions: (raw as Permissions) || {} };
+}
 
 // GET - List company members
 export async function GET(request: NextRequest) {
@@ -13,7 +39,7 @@ export async function GET(request: NextRequest) {
     // Get company members
     const { data: memberRows, error } = await supabaseAdmin
       .from('company_members')
-      .select('id, user_id, roles, is_active, can_view_cost, pc_all_counters, joined_at, created_at')
+      .select('id, user_id, roles, permissions, is_active, can_view_cost, pc_all_counters, joined_at, created_at')
       .eq('company_id', auth.companyId)
       .order('joined_at', { ascending: true });
 
@@ -41,7 +67,11 @@ export async function GET(request: NextRequest) {
     // Join members with user profiles
     const members = (memberRows || []).map(m => ({
       id: m.id,
+      // role = ตำแหน่งหลักค่าเดียว (แปลงให้แม้แถวนั้นยังเก็บค่าเก่าหลายตัว)
+      // roles = ค่าดิบ คงไว้ให้ตัวเรียกเดิมที่ยังอ่านอยู่
+      role: mainRoleOf(m.roles),
       roles: m.roles,
+      permissions: (m.permissions as Permissions | null) ?? (mainRoleOf(m.roles) === 'staff' ? permissionsFromLegacyRoles(m.roles) : null),
       is_active: m.is_active,
       can_view_cost: m.can_view_cost === true,
       pc_all_counters: m.pc_all_counters === true,
@@ -58,7 +88,13 @@ export async function GET(request: NextRequest) {
       .eq('status', 'pending')
       .order('created_at', { ascending: false });
 
-    return NextResponse.json({ members: members || [], invitations: invitations || [] });
+    const invitationRows = (invitations || []).map(inv => ({
+      ...inv,
+      role: mainRoleOf(inv.roles),
+      permissions: (inv.permissions as Permissions | null) ?? (mainRoleOf(inv.roles) === 'staff' ? permissionsFromLegacyRoles(inv.roles) : null),
+    }));
+
+    return NextResponse.json({ members: members || [], invitations: invitationRows });
   } catch (error) {
     console.error('Get members error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -74,21 +110,22 @@ export async function POST(request: NextRequest) {
     }
 
     // Check permission (owner, admin, or manager)
-    if (!can(auth.companyRoles, 'members.invite')) {
+    if (!can(auth, 'members.invite')) {
       return NextResponse.json({ error: 'ไม่มีสิทธิ์เชิญสมาชิก' }, { status: 403 });
     }
 
-    const { email, roles, warehouse_ids, terminal_ids, can_view_cost } = await request.json();
+    const body = await request.json();
+    const { email, warehouse_ids, terminal_ids, can_view_cost } = body;
 
-    const rolesError = validateRoles(roles);
-    if (rolesError) {
-      return NextResponse.json({ error: rolesError }, { status: 400 });
+    const normalized = normalizeRoleInput(body);
+    if ('error' in normalized) {
+      return NextResponse.json({ error: normalized.error }, { status: 400 });
     }
+    const { role, permissions } = normalized;
+    const roles = [role];
 
     // Manager cannot invite owner/admin roles
-    if (!can(auth.companyRoles, 'members.grant_admin')
-        && Array.isArray(roles)
-        && (roles.includes('owner') || roles.includes('admin'))) {
+    if (!can(auth, 'members.grant_admin') && (role === 'owner' || role === 'admin')) {
       return NextResponse.json({ error: 'ผู้จัดการไม่สามารถเชิญตำแหน่งผู้ดูแลระบบหรือเจ้าของได้' }, { status: 403 });
     }
 
@@ -161,6 +198,7 @@ export async function POST(request: NextRequest) {
         company_id: auth.companyId,
         ...(email ? { email } : {}),
         roles,
+        permissions,
         invited_by: auth.userId,
         can_view_cost: resolveCanViewCost(roles, can_view_cost),
         ...(Array.isArray(warehouse_ids) ? { warehouse_ids } : {}),
@@ -188,19 +226,22 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    if (!can(auth.companyRoles, 'members.invite')) {
+    if (!can(auth, 'members.invite')) {
       return NextResponse.json({ error: 'ไม่มีสิทธิ์แก้ไขตำแหน่ง' }, { status: 403 });
     }
 
-    const { memberId, roles, can_view_cost } = await request.json();
+    const body = await request.json();
+    const { memberId, can_view_cost } = body;
 
     if (!memberId) {
       return NextResponse.json({ error: 'Missing member ID' }, { status: 400 });
     }
-    const rolesError = validateRoles(roles);
-    if (rolesError) {
-      return NextResponse.json({ error: rolesError }, { status: 400 });
+    const normalized = normalizeRoleInput(body);
+    if ('error' in normalized) {
+      return NextResponse.json({ error: normalized.error }, { status: 400 });
     }
+    const { role, permissions } = normalized;
+    const roles = [role];
 
     // Cannot change owner roles unless you are the owner
     const { data: targetMember } = await supabaseAdmin
@@ -220,6 +261,7 @@ export async function PUT(request: NextRequest) {
       .from('company_members')
       .update({
         roles,
+        permissions,
         can_view_cost: resolveCanViewCost(roles, can_view_cost),
       })
       .eq('id', memberId)
@@ -246,7 +288,7 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    if (!can(auth.companyRoles, 'members.invite')) {
+    if (!can(auth, 'members.invite')) {
       return NextResponse.json({ error: 'ไม่มีสิทธิ์ลบสมาชิก' }, { status: 403 });
     }
 
@@ -260,14 +302,15 @@ export async function DELETE(request: NextRequest) {
 
     if (type === 'invitation') {
       // Manager cannot cancel invitations to owner/admin roles
-      if (!can(auth.companyRoles, 'members.grant_admin')) {
+      if (!can(auth, 'members.grant_admin')) {
         const { data: inv } = await supabaseAdmin
           .from('company_invitations')
           .select('roles')
           .eq('id', memberId)
           .eq('company_id', auth.companyId)
           .single();
-        if (inv?.roles?.includes('owner') || inv?.roles?.includes('admin')) {
+        const invRole = mainRoleOf(inv?.roles);
+        if (invRole === 'owner' || invRole === 'admin') {
           return NextResponse.json({ error: 'ผู้จัดการไม่สามารถยกเลิกคำเชิญของผู้ดูแลระบบได้' }, { status: 403 });
         }
       }
@@ -285,12 +328,12 @@ export async function DELETE(request: NextRequest) {
         .eq('company_id', auth.companyId)
         .single();
 
-      if (targetMember?.roles?.includes('owner')) {
+      if (mainRoleOf(targetMember?.roles) === 'owner') {
         return NextResponse.json({ error: 'ไม่สามารถลบเจ้าของบริษัทได้' }, { status: 403 });
       }
 
       // Manager cannot remove admin members
-      if (!can(auth.companyRoles, 'members.grant_admin') && targetMember?.roles?.includes('admin')) {
+      if (!can(auth, 'members.grant_admin') && mainRoleOf(targetMember?.roles) === 'admin') {
         return NextResponse.json({ error: 'ผู้จัดการไม่สามารถลบผู้ดูแลระบบได้' }, { status: 403 });
       }
 

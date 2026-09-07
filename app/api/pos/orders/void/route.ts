@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
     }
     // Void reverses stock + cancels a completed sale + adjusts session totals —
     // manager/admin only, not cashier self-service.
-    if (!can(auth.companyRoles, 'pos.manage')) {
+    if (!can(auth, 'pos.manage')) {
       return NextResponse.json({ error: 'ไม่มีสิทธิ์ยกเลิกบิล (เฉพาะผู้จัดการ)' }, { status: 403 });
     }
 

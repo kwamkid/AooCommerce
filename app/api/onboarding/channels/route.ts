@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
   if (!auth.isAuth || !auth.companyId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
-  if (!can(auth.companyRoles, 'onboarding.manage')) {
+  if (!can(auth, 'onboarding.manage')) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 

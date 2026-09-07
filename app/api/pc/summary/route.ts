@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
     if (!auth.isAuth || !auth.companyId || !auth.userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    if (!can(auth.companyRoles, 'counter.record')) {
+    if (!can(auth, 'counter.record')) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'ไม่พบสาขา' }, { status: 404 });
     }
 
-    if (!can(auth.companyRoles, 'counter.manage')) {
+    if (!can(auth, 'counter.manage')) {
       if (!(await canAccessCounter(supabaseAdmin, auth.companyId, counterId, auth.userId))) {
         return NextResponse.json({ error: 'คุณไม่ได้รับมอบหมายสาขานี้' }, { status: 403 });
       }

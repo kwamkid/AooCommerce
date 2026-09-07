@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Layout from '@/components/layout/Layout';
+import { useAuthGuard } from '@/lib/useAuthGuard';
+import { LoadingCard } from '@/components/ui/StateCard';
 import PageHeader from '@/components/ui/PageHeader';
 import Link from 'next/link';
 import { apiFetch } from '@/lib/api-client';
@@ -46,6 +48,8 @@ function getSourceLink(row: DnRow): { href: string; label: string; subtitle?: st
 }
 
 export default function DeliveryNotesPage() {
+  // ด่านสิทธิ์ระดับหน้า — เมนูใน Sidebar ซ่อนให้แล้ว แต่ URL ตรงยังเข้าได้
+  const { allowed, loading: permLoading } = useAuthGuard('finance.view');
   const [rows, setRows] = useState<DnRow[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -133,6 +137,9 @@ export default function DeliveryNotesPage() {
       ),
     },
   ];
+
+  if (permLoading) return <Layout><LoadingCard /></Layout>;
+  if (!allowed) return null;   // กำลังเด้งไป /dashboard
 
   return (
     <Layout>

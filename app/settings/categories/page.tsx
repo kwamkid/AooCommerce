@@ -111,7 +111,7 @@ function CategoriesPage() {
 
   useFetchOnce(() => {
     fetchCategories();
-  }, can(userProfile?.roles, 'masterdata.categories'));
+  }, can(userProfile, 'masterdata.categories'));
 
   const fetchCategories = async () => {
     try {
@@ -275,7 +275,7 @@ function CategoriesPage() {
   };
 
   // Admin guard
-  if (userProfile && !can(userProfile.roles, 'masterdata.categories')) {
+  if (userProfile && !can(userProfile, 'masterdata.categories')) {
     return (
       <Layout>
         <NoPermissionCard />

@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
   if (!authorizeCron(request)) {
     const auth = await checkAuthWithCompany(request);
     if (!auth.isAuth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    if (!can(auth.companyRoles, 'marketplace.sync')) {
+    if (!can(auth, 'marketplace.sync')) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
     companyFilter = auth.companyId ?? null;   // ผู้ใช้ทำได้เฉพาะบริษัทตัวเอง

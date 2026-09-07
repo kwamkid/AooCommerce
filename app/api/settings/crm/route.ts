@@ -60,7 +60,8 @@ export async function GET(request: NextRequest) {
 // PUT - อัปเดตค่า settings
 export async function PUT(request: NextRequest) {
   try {
-    const { isAuth, companyId, companyRoles } = await checkAuthWithCompany(request);
+    const auth = await checkAuthWithCompany(request);
+    const { isAuth, companyId } = auth;
 
     if (!isAuth) {
       return NextResponse.json(
@@ -76,7 +77,7 @@ export async function PUT(request: NextRequest) {
     }
 
     // Check admin role
-    if (!can(companyRoles, 'settings.access')) {
+    if (!can(auth, 'settings.access')) {
       return NextResponse.json(
         { error: 'Only admin can update settings' },
         { status: 403 }

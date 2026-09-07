@@ -221,7 +221,7 @@ export default function BrandDetailPage() {
 
   if (!brand) return null;
 
-  const isAdmin = can(userProfile?.roles, 'masterdata.brands');
+  const isAdmin = can(userProfile, 'masterdata.brands');
   if (!isAdmin || !features.product_brand) {
     router.replace('/settings/brands');
     return null;

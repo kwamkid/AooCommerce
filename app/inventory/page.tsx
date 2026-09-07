@@ -3,6 +3,7 @@
 import { useState, useEffect, Suspense } from 'react';
 import { useRouter } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
+import { useAuthGuard } from '@/lib/useAuthGuard';
 import Container from '@/components/ui/Container';
 import PageHeader from '@/components/ui/PageHeader';
 import Button from '@/components/ui/Button';
@@ -19,6 +20,8 @@ import HistoryTab from './components/HistoryTab';
 import MonitorTab from './components/MonitorTab';
 
 export default function InventoryPage() {
+  // ด่านสิทธิ์ระดับหน้า — เมนูใน Sidebar ซ่อนให้แล้ว แต่ URL ตรงยังเข้าได้
+  const { allowed, loading: permLoading } = useAuthGuard('inventory.view');
   const router = useRouter();
   const [activeTab, setActiveTabState] = useState<TabKey>('stock');
 
@@ -52,6 +55,9 @@ export default function InventoryPage() {
         ? 'border-primary text-primary'
         : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-300'
     }`;
+
+  if (permLoading) return <Layout><LoadingCard /></Layout>;
+  if (!allowed) return null;   // กำลังเด้งไป /dashboard
 
   return (
     <Layout>

@@ -65,12 +65,13 @@ export async function POST(request: NextRequest) {
 // PUT — update tag
 export async function PUT(request: NextRequest) {
   try {
-    const { isAuth, companyId, companyRoles } = await checkAuthWithCompany(request);
+    const auth = await checkAuthWithCompany(request);
+    const { isAuth, companyId } = auth;
     if (!isAuth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     if (!companyId) return NextResponse.json({ error: 'No company context' }, { status: 403 });
     // สร้างแท็ก (POST) เปิดให้ทุกคน เพราะ quick-add จากฟอร์มลูกค้า/แชทต้องใช้ได้
     // แต่แก้ชื่อ/สี กระทบทุกคนที่เห็นแท็กนั้น จึงจำกัดที่ผู้ดูแล
-    if (!can(companyRoles, 'masterdata.tags')) {
+    if (!can(auth, 'masterdata.tags')) {
       return NextResponse.json({ error: 'ไม่มีสิทธิ์แก้ไขแท็ก' }, { status: 403 });
     }
 
@@ -105,11 +106,12 @@ export async function PUT(request: NextRequest) {
 // DELETE — delete tag (cascade removes links)
 export async function DELETE(request: NextRequest) {
   try {
-    const { isAuth, companyId, companyRoles } = await checkAuthWithCompany(request);
+    const auth = await checkAuthWithCompany(request);
+    const { isAuth, companyId } = auth;
     if (!isAuth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     if (!companyId) return NextResponse.json({ error: 'No company context' }, { status: 403 });
     // ลบแท็ก = FK cascade ถอดแท็กออกจากทั้งลูกค้าและผู้ติดต่อในแชทพร้อมกัน ย้อนไม่ได้
-    if (!can(companyRoles, 'masterdata.tags')) {
+    if (!can(auth, 'masterdata.tags')) {
       return NextResponse.json({ error: 'ไม่มีสิทธิ์ลบแท็ก' }, { status: 403 });
     }
 

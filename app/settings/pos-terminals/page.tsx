@@ -197,7 +197,7 @@ export default function PosTerminalsPage() {
     fetchWarehouses();
     fetchChannels();
     if (isVatRegistered) fetchTaxBranches();
-  }, can(userProfile?.roles, 'masterdata.pos_terminals'));
+  }, can(userProfile, 'masterdata.pos_terminals'));
 
   const fetchTaxBranches = async () => {
     try {
@@ -573,7 +573,7 @@ export default function PosTerminalsPage() {
   };
 
   // Admin guard
-  if (userProfile && !can(userProfile.roles, 'masterdata.pos_terminals')) {
+  if (userProfile && !can(userProfile, 'masterdata.pos_terminals')) {
     return (
       <Layout>
         <NoPermissionCard />

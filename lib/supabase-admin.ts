@@ -4,11 +4,12 @@ import { NextRequest } from 'next/server';
 // fallback) — safe because both sides only touch the import inside functions.
 import { verifyAccessToken } from '@/lib/auth/verify-token';
 import { extractRequestToken } from '@/lib/auth/cookie-token';
+import type { Permissions } from '@/lib/permissions';
 
 // Re-export capability checker so existing imports can migrate one helper at a time.
 // New code should prefer `import { can } from '@/lib/permissions'` directly.
-export { can } from '@/lib/permissions';
-export type { Capability } from '@/lib/permissions';
+export { can, validateRole, validatePermissions, validateRoles } from '@/lib/permissions';
+export type { Capability, Permissions, PermissionSubject } from '@/lib/permissions';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 // Prefer the new secret key (sb_secret_...). Falls back to the legacy
@@ -29,6 +30,8 @@ export interface AuthResult {
   userId?: string;
   companyId?: string;
   companyRoles?: string[];
+  /** สิทธิ์รายกลุ่มงานของ staff — ส่งเข้า can() คู่กับ companyRoles เสมอ (ใช้ `can(auth, ...)`) */
+  permissions?: Permissions | null;
   canViewCost?: boolean;
   /** Authenticator Assurance Level — 'aal2' means the session passed 2FA. Only set when verified locally. */
   aal?: string;
@@ -79,7 +82,7 @@ export async function checkAuthWithCompany(request: NextRequest): Promise<AuthRe
     if (companyId) {
       const { data: membership } = await supabaseAdmin
         .from('company_members')
-        .select('roles, can_view_cost')
+        .select('roles, can_view_cost, permissions')
         .eq('user_id', verified.userId)
         .eq('company_id', companyId)
         .eq('is_active', true)
@@ -93,6 +96,7 @@ export async function checkAuthWithCompany(request: NextRequest): Promise<AuthRe
           userId: verified.userId,
           companyId,
           companyRoles: membership.roles,
+          permissions: (membership.permissions as Permissions | null) ?? null,
           canViewCost: membership.can_view_cost === true,
           aal: verified.aal,
         };
@@ -101,7 +105,7 @@ export async function checkAuthWithCompany(request: NextRequest): Promise<AuthRe
       // No company header — get user's default (first) company
       const { data: membership } = await supabaseAdmin
         .from('company_members')
-        .select('company_id, roles, can_view_cost')
+        .select('company_id, roles, can_view_cost, permissions')
         .eq('user_id', verified.userId)
         .eq('is_active', true)
         .order('joined_at', { ascending: true })
@@ -113,6 +117,7 @@ export async function checkAuthWithCompany(request: NextRequest): Promise<AuthRe
         userId: verified.userId,
         companyId: membership?.company_id || undefined,
         companyRoles: membership?.roles || undefined,
+        permissions: (membership?.permissions as Permissions | null) ?? null,
         canViewCost: membership?.can_view_cost === true,
         aal: verified.aal,
       };
@@ -193,29 +198,6 @@ export function canBulkEdit(roles?: string[]): boolean {
 export function canManageInventory(roles?: string[]): boolean {
   if (!roles) return false;
   return roles.includes('owner') || roles.includes('admin') || roles.includes('manager') || roles.includes('warehouse');
-}
-
-const VALID_ROLES = ['owner', 'admin', 'manager', 'account', 'warehouse', 'sales', 'cashier', 'pc'];
-const EXCLUSIVE_ROLES = ['owner', 'admin'];
-
-/**
- * Validate roles array: must be non-empty, contain valid values,
- * and owner/admin must be exclusive (cannot combine with other roles).
- * Returns error message or null if valid.
- */
-export function validateRoles(roles: unknown): string | null {
-  if (!Array.isArray(roles) || roles.length === 0) {
-    return 'ต้องระบุตำแหน่งอย่างน้อย 1 ตำแหน่ง';
-  }
-  for (const r of roles) {
-    if (typeof r !== 'string' || !VALID_ROLES.includes(r)) {
-      return `ตำแหน่ง "${r}" ไม่ถูกต้อง`;
-    }
-  }
-  if (roles.some((r: string) => EXCLUSIVE_ROLES.includes(r)) && roles.length > 1) {
-    return 'ตำแหน่ง owner/admin ไม่สามารถรวมกับตำแหน่งอื่นได้';
-  }
-  return null;
 }
 
 /**

@@ -12,8 +12,9 @@ export const maxDuration = 120;
  * POST { account_id: string, days_back?: number }
  */
 export async function POST(request: NextRequest) {
-  const { isAuth, companyId, companyRoles } = await checkAuthWithCompany(request);
-  if (!isAuth || !companyId || !can(companyRoles, 'marketplace.sync')) {
+  const auth = await checkAuthWithCompany(request);
+  const { isAuth, companyId } = auth;
+  if (!isAuth || !companyId || !can(auth, 'marketplace.sync')) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

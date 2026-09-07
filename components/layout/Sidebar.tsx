@@ -9,6 +9,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useCompany } from '@/lib/company-context';
 import { useFeatures } from '@/lib/features-context';
 import { useHeaderSummary } from '@/lib/header-summary-context';
+import { can, mainRoleOf, ROLE_LEVELS, type Capability, type PermissionSubject } from '@/lib/permissions';
 import {
   Home,
   Users,
@@ -56,7 +57,8 @@ interface MenuItem {
   label: string;
   href: string;
   icon: React.ReactNode;
-  roles: string[];
+  /** เมนูอ่าน capability เดียวกับด่านหน้า/API — เห็นเมนู = กดเข้าได้จริงเสมอ */
+  caps: Capability[];   // any-of
   badge?: number;
   badgeColor?: string; // tailwind bg class e.g. 'bg-orange-500'
 }
@@ -70,60 +72,52 @@ const menuSections: MenuSection[] = [
   {
     title: 'แคชเชียร์',
     items: [
-      { label: 'Cashier (POS)', href: '/pos', icon: <Monitor className="w-[18px] h-[18px] flex-shrink-0" />, roles: ['admin', 'cashier'] },
-      { label: 'รายการขาย', href: '/pos/orders', icon: <Receipt className="w-[18px] h-[18px] flex-shrink-0" />, roles: ['admin', 'cashier', 'account'] },
-      { label: 'หน้าขาย PC', href: '/pc', icon: <Store className="w-[18px] h-[18px] flex-shrink-0" />, roles: ['admin', 'pc'] },
+      { label: 'Cashier (POS)', href: '/pos', icon: <Monitor className="w-[18px] h-[18px] flex-shrink-0" />, caps: ['pos.sell'] },
+      { label: 'รายการขาย', href: '/pos/orders', icon: <Receipt className="w-[18px] h-[18px] flex-shrink-0" />, caps: ['pos.view'] },
+      { label: 'หน้าขาย PC', href: '/pc', icon: <Store className="w-[18px] h-[18px] flex-shrink-0" />, caps: ['counter.record'] },
     ]
   },
   {
     title: 'ระบบการขาย',
     items: [
-      { label: 'Chat', href: '/chat', icon: <MessageCircle className="w-[18px] h-[18px] flex-shrink-0" />, roles: ['admin', 'sales'] },
-      { label: 'คำสั่งซื้อ', href: '/orders', icon: <ShoppingCart className="w-[18px] h-[18px] flex-shrink-0" />, roles: ['admin', 'sales', 'account', 'warehouse'] },
-      { label: 'จัดของ & ส่ง', href: '/reports/delivery-summary', icon: <Truck className="w-[18px] h-[18px] flex-shrink-0" />, roles: ['admin', 'sales', 'warehouse'] },
+      { label: 'Chat', href: '/chat', icon: <MessageCircle className="w-[18px] h-[18px] flex-shrink-0" />, caps: ['chat.view'] },
+      { label: 'คำสั่งซื้อ', href: '/orders', icon: <ShoppingCart className="w-[18px] h-[18px] flex-shrink-0" />, caps: ['order.view'] },
+      { label: 'จัดของ & ส่ง', href: '/reports/delivery-summary', icon: <Truck className="w-[18px] h-[18px] flex-shrink-0" />, caps: ['order.view'] },
     ]
   },
   {
     title: 'สินค้า',
     items: [
-      { label: 'สินค้า', href: '/products', icon: <Package2 className="w-[18px] h-[18px] flex-shrink-0" />, roles: ['admin', 'sales', 'warehouse'] },
-      { label: 'สินค้าคงคลัง', href: '/inventory', icon: <Warehouse className="w-[18px] h-[18px] flex-shrink-0" />, roles: ['admin', 'warehouse', 'cashier', 'sales'] },
-      { label: 'โปรโมชั่น', href: '/promotions', icon: <Tag className="w-[18px] h-[18px] flex-shrink-0" />, roles: ['admin', 'sales'] },
+      { label: 'สินค้า', href: '/products', icon: <Package2 className="w-[18px] h-[18px] flex-shrink-0" />, caps: ['product.view'] },
+      { label: 'สินค้าคงคลัง', href: '/inventory', icon: <Warehouse className="w-[18px] h-[18px] flex-shrink-0" />, caps: ['inventory.view'] },
+      { label: 'โปรโมชั่น', href: '/promotions', icon: <Tag className="w-[18px] h-[18px] flex-shrink-0" />, caps: ['product.manage'] },
     ]
   },
   {
     title: 'Contact',
     items: [
-      { label: 'ซัพพลายเออร์', href: '/settings/suppliers', icon: <Factory className="w-[18px] h-[18px] flex-shrink-0" />, roles: ['admin'] },
-      { label: 'ลูกค้า', href: '/customers', icon: <UserCircle className="w-[18px] h-[18px] flex-shrink-0" />, roles: ['admin', 'sales', 'account'] },
+      { label: 'ซัพพลายเออร์', href: '/settings/suppliers', icon: <Factory className="w-[18px] h-[18px] flex-shrink-0" />, caps: ['masterdata.suppliers'] },
+      { label: 'ลูกค้า', href: '/customers', icon: <UserCircle className="w-[18px] h-[18px] flex-shrink-0" />, caps: ['customer.view'] },
     ]
   },
   {
     title: 'รายงาน',
     items: [
-      { label: 'เอกสารบัญชี', href: '/invoices/tax', icon: <FileText className="w-[18px] h-[18px] flex-shrink-0" />, roles: ['admin', 'account'] },
-      { label: 'รายงานยอดขาย', href: '/reports/sales', icon: <BarChart3 className="w-[18px] h-[18px] flex-shrink-0" />, roles: ['admin', 'sales', 'account'] },
-      { label: 'ยอดขาย PC', href: '/counter-sales', icon: <Store className="w-[18px] h-[18px] flex-shrink-0" />, roles: ['admin'] },
-      { label: 'รายงานโปรโมชั่น', href: '/promotions/report', icon: <Tag className="w-[18px] h-[18px] flex-shrink-0" />, roles: ['admin', 'sales'] },
-      { label: 'รายงานซัพพลายเออร์', href: '/reports/supplier', icon: <Factory className="w-[18px] h-[18px] flex-shrink-0" />, roles: ['admin', 'account'] }
+      { label: 'เอกสารบัญชี', href: '/invoices/tax', icon: <FileText className="w-[18px] h-[18px] flex-shrink-0" />, caps: ['finance.view'] },
+      { label: 'รายงานยอดขาย', href: '/reports/sales', icon: <BarChart3 className="w-[18px] h-[18px] flex-shrink-0" />, caps: ['finance.view'] },
+      { label: 'ยอดขาย PC', href: '/counter-sales', icon: <Store className="w-[18px] h-[18px] flex-shrink-0" />, caps: ['counter.manage'] },
+      { label: 'รายงานโปรโมชั่น', href: '/promotions/report', icon: <Tag className="w-[18px] h-[18px] flex-shrink-0" />, caps: ['product.manage'] },
+      { label: 'รายงานซัพพลายเออร์', href: '/reports/supplier', icon: <Factory className="w-[18px] h-[18px] flex-shrink-0" />, caps: ['report.supplier.view'] }
     ]
   }
 ];
 
-const ROLE_LABELS: Record<string, string> = {
-  owner: 'เจ้าของ',
-  admin: 'ผู้ดูแลระบบ',
-  manager: 'ผู้จัดการ',
-  account: 'บัญชี',
-  warehouse: 'คลังสินค้า',
-  sales: 'แอดมินออนไลน์',
-  cashier: 'แคชเชียร์',
-  pc: 'PC ประจำห้าง',
-};
-
+// ป้ายตำแหน่ง = role หลักค่าเดียว (staff จะเห็นแค่ "พนักงาน" — รายละเอียดกลุ่มงาน
+// อยู่ในหน้าจัดการสมาชิก ไม่ยัดมาอยู่ในแถบข้างซึ่งพื้นที่จำกัด)
 const getRoleLabels = (roles: string[]) => {
   if (!roles || roles.length === 0) return '';
-  return roles.map(r => ROLE_LABELS[r] || r).join(', ');
+  const main = mainRoleOf(roles);
+  return ROLE_LEVELS.find(r => r.key === main)?.label || main;
 };
 
 export default function Sidebar() {
@@ -161,26 +155,16 @@ export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const { userProfile, loading: authLoading, signOut } = useAuth();
-  const { currentCompany, companies, switchCompany, companyRoles, loading: companyLoading } = useCompany();
+  const { currentCompany, companies, switchCompany, companyRoles, permissions, loading: companyLoading } = useCompany();
   const { features, loading: featuresLoading } = useFeatures();
   const companyDropdownRef = useRef<HTMLDivElement>(null);
 
-  const effectiveRoles = (() => {
-    const roles = new Set<string>();
-    for (const r of companyRoles) {
-      if (r === 'owner' || r === 'admin' || r === 'manager') {
-        roles.add('admin');
-      } else {
-        roles.add(r);
-      }
-    }
-    if (roles.size === 0) {
-      for (const r of (userProfile?.roles || ['sales'])) {
-        roles.add(r);
-      }
-    }
-    return roles;
-  })();
+  // สิทธิ์ของ "บริษัทที่กำลังเปิดอยู่" — company context เป็นตัวจริง
+  // (userProfile เป็นทางถอยตอน context ยังไม่พร้อม) · ทั้ง sidebar ใช้ตัวนี้ตัวเดียว
+  // แล้วถามผ่าน can() เหมือนด่านหน้า/API — เมนูกับสิทธิ์จริงจึงพูดตรงกันเสมอ
+  const subject: PermissionSubject = companyRoles.length > 0
+    ? { roles: companyRoles, permissions }
+    : userProfile;
 
   useEffect(() => {
     // /settings/* ไม่ต้องเปิด accordion อีก — ใช้ drill-down (ดู navView)
@@ -226,7 +210,7 @@ export default function Sidebar() {
     .map(section => ({
       ...section,
       items: section.items.filter(item => {
-        if (effectiveRoles.size === 0 || !item.roles.some(r => effectiveRoles.has(r))) return false;
+        if (!item.caps.some(c => can(subject, c))) return false;
         // Hide delivery-only menus when feature is off
         if (item.href === '/reports/delivery-summary' && !features.delivery_date.enabled) return false;
         if (item.href === '/reports/supplier' && !features.supplier) return false;
@@ -245,9 +229,9 @@ export default function Sidebar() {
         label: 'แก้ไขแบบชุด',
         href: '/products/bulk',
         icon: <Pencil className="w-[18px] h-[18px] flex-shrink-0" />,
-        roles: ['admin'],
+        caps: ['product.bulk_edit'],
       };
-      if (!bulkItem.roles.some(r => effectiveRoles.has(r))) return section;
+      if (!bulkItem.caps.some(c => can(subject, c))) return section;
       const items = [...section.items];
       const anchorHref = features.stock ? '/inventory' : '/products';
       const idx = items.findIndex(i => i.href === anchorHref);
@@ -294,7 +278,7 @@ export default function Sidebar() {
   // เมนูในชุด "ตั้งค่าระบบ" — gate ตาม feature flag เหมือนเดิม
   const settingsItems: { href: string; label: string; icon: React.ReactNode; isActive: boolean }[] = [
     { href: '/settings/company', label: 'ทั่วไป', icon: <Settings className="w-[18px] h-[18px] flex-shrink-0" />, isActive: pathname === '/settings' || pathname === '/settings/company' || pathname === '/settings/tags' },
-    { href: '/settings/members', label: 'จัดการสมาชิก', icon: <UserCog className="w-[18px] h-[18px] flex-shrink-0" />, isActive: pathname === '/settings/members' },
+    ...(can(subject, 'members.view') ? [{ href: '/settings/members', label: 'จัดการสมาชิก', icon: <UserCog className="w-[18px] h-[18px] flex-shrink-0" />, isActive: pathname === '/settings/members' }] : []),
     { href: '/settings/payment-channels', label: 'ช่องทางชำระเงิน', icon: <CreditCard className="w-[18px] h-[18px] flex-shrink-0" />, isActive: pathname === '/settings/payment-channels' },
     { href: '/settings/chat-channels', label: 'ช่องทาง Chat', icon: <MessageCircle className="w-[18px] h-[18px] flex-shrink-0" />, isActive: pathname === '/settings/chat-channels' },
     { href: '/settings/sales-channels', label: 'ช่องทางการขาย', icon: <Store className="w-[18px] h-[18px] flex-shrink-0" />, isActive: pathname === '/settings/sales-channels' },
@@ -543,7 +527,7 @@ export default function Sidebar() {
             {!authLoading && !companyLoading && !featuresLoading && filteredSections.map((section, sectionIndex) => (
               <div key={sectionIndex}>
                 {/* Consignment Section — render before สินค้า */}
-                {section.title === 'สินค้า' && features.consignment && (effectiveRoles.has('admin') || effectiveRoles.has('sales') || effectiveRoles.has('account')) && (
+                {section.title === 'สินค้า' && features.consignment && can(subject, 'order.view') && (
                   <>
                     <h3 className="nav-section-title text-[11px] font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-[0.08em] mt-5 mb-1.5 px-3">
                       ตัวแทนจำหน่าย
@@ -587,7 +571,7 @@ export default function Sidebar() {
                   </>
                 )}
                 {/* Department Store Section */}
-                {section.title === 'สินค้า' && features.department_store && (effectiveRoles.has('admin') || effectiveRoles.has('sales') || effectiveRoles.has('account')) && (
+                {section.title === 'สินค้า' && features.department_store && can(subject, 'order.view') && (
                   <>
                     <h3 className="nav-section-title text-[11px] font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-[0.08em] mt-5 mb-1.5 px-3">
                       ห้างสรรพสินค้า
@@ -825,7 +809,7 @@ export default function Sidebar() {
           </nav>
 
           {/* ตั้งค่า — ปุ่มเปิด drill-down (ปักไว้ล่างสุดเหนือปุ่มออกจากระบบ) */}
-          {!authLoading && !companyLoading && effectiveRoles.has('admin') && navView === 'main' && (
+          {!authLoading && !companyLoading && can(subject, 'settings.access') && navView === 'main' && (
             <div className="px-3 pb-2">
               <button
                 onClick={() => setNavView('settings')}

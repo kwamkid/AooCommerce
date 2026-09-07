@@ -137,13 +137,13 @@ export async function authorizeMarketplaceCallback(
 
   const { data: membership } = await supabaseAdmin
     .from('company_members')
-    .select('roles')
+    .select('roles, permissions')
     .eq('user_id', verified.userId)
     .eq('company_id', payload.companyId)
     .eq('is_active', true)
     .single();
 
-  if (!membership || !can(membership.roles, 'marketplace.connect')) {
+  if (!membership || !can(membership, 'marketplace.connect')) {
     return { ok: false, reason: 'not_member' };
   }
   return { ok: true, companyId: payload.companyId, payload };

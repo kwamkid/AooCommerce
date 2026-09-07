@@ -169,7 +169,7 @@ export default function UsersPage() {
       return;
     }
     
-    if (!can(userProfile.roles, 'members.view')) {
+    if (!can(userProfile, 'members.view')) {
       router.push('/dashboard');
       return;
     }
@@ -178,7 +178,7 @@ export default function UsersPage() {
   // Fetch users
   useFetchOnce(() => {
     fetchUsers();
-  }, !authLoading && can(userProfile?.roles, 'members.view') && !dataFetched);
+  }, !authLoading && can(userProfile, 'members.view') && !dataFetched);
 
   // Handle create/update user
   const handleSaveUser = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -406,7 +406,7 @@ export default function UsersPage() {
   }
 
   // Not authorized
-  if (!userProfile || !can(userProfile.roles, 'members.view')) {
+  if (!userProfile || !can(userProfile, 'members.view')) {
     return null;
   }
 

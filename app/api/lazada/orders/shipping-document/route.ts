@@ -10,8 +10,9 @@ import { logIntegration } from '@/lib/integration-logger';
 // ต้องเช็คทั้งคู่เสมอ · เลขพัสดุมาจาก order_parcels (ถ้าแบ่งกล่อง) หรือ external_data
 
 export async function POST(request: NextRequest) {
-  const { isAuth, companyId, companyRoles } = await checkAuthWithCompany(request);
-  if (!isAuth || !companyId || !can(companyRoles, 'marketplace.ship')) {
+  const auth = await checkAuthWithCompany(request);
+  const { isAuth, companyId } = auth;
+  if (!isAuth || !companyId || !can(auth, 'marketplace.ship')) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

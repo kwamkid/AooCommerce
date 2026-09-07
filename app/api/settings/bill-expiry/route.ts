@@ -24,10 +24,11 @@ export async function GET(request: NextRequest) {
 // PUT - save bill_expiry_days to companies.settings (admin only)
 export async function PUT(request: NextRequest) {
   try {
-    const { isAuth, companyId, companyRoles } = await checkAuthWithCompany(request);
+    const auth = await checkAuthWithCompany(request);
+    const { isAuth, companyId } = auth;
     if (!isAuth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     if (!companyId) return NextResponse.json({ error: 'No company context' }, { status: 403 });
-    if (!can(companyRoles, 'settings.access')) return NextResponse.json({ error: 'Only admin can update settings' }, { status: 403 });
+    if (!can(auth, 'settings.access')) return NextResponse.json({ error: 'Only admin can update settings' }, { status: 403 });
 
     const body = await request.json();
     const { bill_expiry_days } = body as { bill_expiry_days: number | null };

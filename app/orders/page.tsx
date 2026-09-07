@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback, Suspense } from 'react';
 import { useCopy } from '@/lib/useCopy';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
+import { useAuthGuard } from '@/lib/useAuthGuard';
 import Container from '@/components/ui/Container';
 import Button from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
@@ -17,6 +18,7 @@ import FormInput from '@/components/ui/FormInput';
 import SearchInput, { SearchInputHandle } from '@/components/ui/SearchInput';
 import Tooltip from '@/components/ui/Tooltip';
 import { useAuth } from '@/lib/auth-context';
+import { can } from '@/lib/permissions';
 import { useToast } from '@/lib/toast-context';
 import { useFeatures } from '@/lib/features-context';
 import { apiFetch } from '@/lib/api-client';
@@ -632,7 +634,7 @@ function OrdersPageContent() {
           danger: true,
         });
       }
-      if (order.order_status === 'cancelled' && (userProfile?.roles?.includes('owner') || userProfile?.roles?.includes('admin'))) {
+      if (order.order_status === 'cancelled' && can(userProfile, 'order.delete')) {
         menuItems.push({
           key: 'del', label: 'ลบ', icon: <Trash2 className="w-4 h-4" />,
           onClick: (e) => handleDeleteOrder(e, order),
@@ -1179,6 +1181,11 @@ function OrdersPageContent() {
 }
 
 export default function OrdersPage() {
+  // ด่านสิทธิ์ระดับหน้า — เมนูใน Sidebar ซ่อนให้แล้ว แต่ URL ตรงยังเข้าได้
+  const { allowed, loading: permLoading } = useAuthGuard('order.view');
+  if (permLoading) return <Layout><LoadingCard /></Layout>;
+  if (!allowed) return null;   // กำลังเด้งไป /dashboard
+
   return (
     <Suspense fallback={
       <Layout>

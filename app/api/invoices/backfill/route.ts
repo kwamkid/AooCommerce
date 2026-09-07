@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Only allow admin
-    if (!can(auth.companyRoles, 'invoice.backfill')) {
+    if (!can(auth, 'invoice.backfill')) {
       return NextResponse.json({ error: 'Admin only' }, { status: 403 });
     }
 

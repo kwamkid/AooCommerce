@@ -17,7 +17,7 @@ import Checkbox from '@/components/ui/Checkbox';
 import Badge from '@/components/ui/Badge';
 import FormInput from '@/components/ui/FormInput';
 import { useAuth } from '@/lib/auth-context';
-import { can } from '@/lib/permissions';
+import { can, type Permissions } from '@/lib/permissions';
 import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
 import { useFetchOnce } from '@/lib/use-fetch-once';
@@ -42,13 +42,18 @@ interface MemberOption {
   user_id: string;
   name: string;
   roles: string[];
+  permissions: Permissions | null;
   pc_all_counters: boolean;
 }
+
+/** พนักงานที่หน้าที่คือบันทึกยอด PC เท่านั้น (ไม่ใช่ผู้ดูแลที่บันทึกได้อยู่แล้ว) — ขึ้นก่อนในรายชื่อ + ติดป้าย PC */
+const isPcStaff = (m: MemberOption) =>
+  can(m, 'counter.record') && !can(m, 'counter.manage');
 
 export default function CustomerCounters({ customerId, customerType }: { customerId: string; customerType: string }) {
   const { userProfile } = useAuth();
   const { showToast } = useToast();
-  const canManage = can(userProfile?.roles, 'counter.manage');
+  const canManage = can(userProfile, 'counter.manage');
 
   const [counters, setCounters] = useState<Counter[]>([]);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
@@ -94,12 +99,13 @@ export default function CustomerCounters({ customerId, customerType }: { custome
               user_id: m.user.id as string,
               name: (m.user?.name as string) || 'Unknown',
               roles: (m.roles as string[]) || [],
+              permissions: (m.permissions as Permissions | null) ?? null,
               pc_all_counters: m.pc_all_counters === true,
             }))
             // PC-role members first, then by name — same ordering as the old settings page
             .sort((a, b) => {
-              const aPc = a.roles.includes('pc') ? 0 : 1;
-              const bPc = b.roles.includes('pc') ? 0 : 1;
+              const aPc = isPcStaff(a) ? 0 : 1;
+              const bPc = isPcStaff(b) ? 0 : 1;
               return aPc - bPc || a.name.localeCompare(b.name, 'th');
             })
         );
@@ -362,7 +368,7 @@ export default function CustomerCounters({ customerId, customerType }: { custome
                         onChange={() => pcTarget && handleToggleAssign(m, pcTarget)}
                       />
                       <span className="truncate text-gray-900 dark:text-white">{m.name}</span>
-                      {m.roles.includes('pc') && <Badge tone="orange" size="sm">PC</Badge>}
+                      {isPcStaff(m) && <Badge tone="orange" size="sm">PC</Badge>}
                       {m.pc_all_counters && <Badge tone="indigo" size="sm">หน่วยแทน</Badge>}
                     </div>
                     <label className="flex items-center gap-1.5 flex-shrink-0 text-xs text-gray-500 dark:text-slate-400">

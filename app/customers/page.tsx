@@ -582,7 +582,7 @@ function CustomersPageContent() {
           subtitle="จัดการข้อมูลลูกค้าและความสัมพันธ์"
           icon={<UserCircle />}
           actions={<>
-            {can(userProfile?.roles, 'masterdata.tags') && (
+            {can(userProfile, 'masterdata.tags') && (
               <Button
                 variant="secondary"
                 icon={<Tags className="w-4 h-4" />}

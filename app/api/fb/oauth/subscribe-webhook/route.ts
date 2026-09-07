@@ -8,8 +8,9 @@ const SUBSCRIBED_FIELDS = 'messages,messaging_postbacks,message_echoes';
 // Body: { resubscribeAll: true } — re-subscribe all FB pages for this company
 export async function POST(request: NextRequest) {
   try {
-    const { isAuth, companyId, companyRoles } = await checkAuthWithCompany(request);
-    if (!isAuth || !companyId || !can(companyRoles, 'masterdata.chat_channels')) {
+    const auth = await checkAuthWithCompany(request);
+    const { isAuth, companyId } = auth;
+    if (!isAuth || !companyId || !can(auth, 'masterdata.chat_channels')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 

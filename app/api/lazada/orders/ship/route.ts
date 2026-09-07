@@ -22,8 +22,9 @@ import { isQuotaBlocked } from '@/lib/marketplace/quota';
 //   ไม่ส่ง parcels = แพ็ครวมกล่องเดียว
 
 export async function POST(request: NextRequest) {
-  const { isAuth, companyId, companyRoles } = await checkAuthWithCompany(request);
-  if (!isAuth || !companyId || !can(companyRoles, 'marketplace.ship')) {
+  const auth = await checkAuthWithCompany(request);
+  const { isAuth, companyId } = auth;
+  if (!isAuth || !companyId || !can(auth, 'marketplace.ship')) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

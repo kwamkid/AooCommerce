@@ -98,9 +98,9 @@ function ActionCard({ a }: { a: BulkAction }) {
 }
 
 export default function BulkProductsHub() {
-  const { companyRoles } = useCompany();
+  const { companyRoles, permissions } = useCompany();
   const { features } = useFeatures();
-  const canEdit = can(companyRoles, 'product.bulk_edit');
+  const canEdit = can({ roles: companyRoles, permissions }, 'product.bulk_edit');
   const visibleEditActions = EDIT_ACTIONS.filter(a => !a.requiresStock || features.stock);
 
   if (!canEdit) {

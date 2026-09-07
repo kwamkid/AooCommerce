@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useCopy } from '@/lib/useCopy';
 import { useRouter } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
+import { useAuthGuard } from '@/lib/useAuthGuard';
 import PageHeader from '@/components/ui/PageHeader';
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/lib/toast-context';
@@ -359,6 +360,8 @@ function SortableDeliveryCard({
 }
 
 export default function DeliverySummaryPage() {
+  // ด่านสิทธิ์ระดับหน้า — เมนูใน Sidebar ซ่อนให้แล้ว แต่ URL ตรงยังเข้าได้
+  const { allowed, loading: permLoading } = useAuthGuard('order.view');
   const router = useRouter();
   const { session, userProfile, loading: authLoading } = useAuth();
   const { showToast } = useToast();
@@ -770,6 +773,9 @@ export default function DeliverySummaryPage() {
   }
 
   if (!userProfile) return null;
+
+  if (permLoading) return <Layout><LoadingCard /></Layout>;
+  if (!allowed) return null;   // กำลังเด้งไป /dashboard
 
   return (
     <Layout>

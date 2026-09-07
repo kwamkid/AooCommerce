@@ -4,7 +4,8 @@ import { NextRequest, NextResponse } from 'next/server';
 // GET - Fetch payment channels
 export async function GET(request: NextRequest) {
   try {
-    const { isAuth, companyId, companyRoles } = await checkAuthWithCompany(request);
+    const auth = await checkAuthWithCompany(request);
+    const { isAuth, companyId } = auth;
     if (!isAuth) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -124,7 +125,7 @@ export async function GET(request: NextRequest) {
     // Gateway credentials (Beam api_key / webhook_secret / merchant_id) must
     // not leak to members who can't manage payment channels (cashier/sales).
     // Managers see raw values so they can edit; everyone else gets them masked.
-    const canManage = can(companyRoles, 'masterdata.payment_channels');
+    const canManage = can(auth, 'masterdata.payment_channels');
     const safe = (data || []).map(row => canManage ? row : maskChannelSecrets(row));
 
     return NextResponse.json({ data: safe });
@@ -155,10 +156,11 @@ function maskChannelSecrets(row: Record<string, unknown>): Record<string, unknow
 // POST - Create payment channel (bank_transfer or payment_gateway)
 export async function POST(request: NextRequest) {
   try {
-    const { isAuth, companyId, companyRoles } = await checkAuthWithCompany(request);
+    const auth = await checkAuthWithCompany(request);
+    const { isAuth, companyId } = auth;
     if (!isAuth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     if (!companyId) return NextResponse.json({ error: 'No company context' }, { status: 403 });
-    if (!can(companyRoles, 'masterdata.payment_channels')) return NextResponse.json({ error: 'Admin only' }, { status: 403 });
+    if (!can(auth, 'masterdata.payment_channels')) return NextResponse.json({ error: 'Admin only' }, { status: 403 });
 
     const body = await request.json();
     const { type, name, config, channel_group = 'bill_online' } = body;
@@ -231,10 +233,11 @@ export async function POST(request: NextRequest) {
 // PUT - Update payment channel
 export async function PUT(request: NextRequest) {
   try {
-    const { isAuth, companyId, companyRoles } = await checkAuthWithCompany(request);
+    const auth = await checkAuthWithCompany(request);
+    const { isAuth, companyId } = auth;
     if (!isAuth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     if (!companyId) return NextResponse.json({ error: 'No company context' }, { status: 403 });
-    if (!can(companyRoles, 'masterdata.payment_channels')) return NextResponse.json({ error: 'Admin only' }, { status: 403 });
+    if (!can(auth, 'masterdata.payment_channels')) return NextResponse.json({ error: 'Admin only' }, { status: 403 });
 
     const body = await request.json();
     const { id, name, is_active, config, sort_order } = body;
@@ -272,10 +275,11 @@ export async function PUT(request: NextRequest) {
 // PATCH - Batch reorder payment channels
 export async function PATCH(request: NextRequest) {
   try {
-    const { isAuth, companyId, companyRoles } = await checkAuthWithCompany(request);
+    const auth = await checkAuthWithCompany(request);
+    const { isAuth, companyId } = auth;
     if (!isAuth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     if (!companyId) return NextResponse.json({ error: 'No company context' }, { status: 403 });
-    if (!can(companyRoles, 'masterdata.payment_channels')) return NextResponse.json({ error: 'Admin only' }, { status: 403 });
+    if (!can(auth, 'masterdata.payment_channels')) return NextResponse.json({ error: 'Admin only' }, { status: 403 });
 
     const body = await request.json();
     const { orders } = body as { orders: { id: string; sort_order: number }[] };
@@ -303,10 +307,11 @@ export async function PATCH(request: NextRequest) {
 // DELETE - Delete bank account (bank_transfer only)
 export async function DELETE(request: NextRequest) {
   try {
-    const { isAuth, companyId, companyRoles } = await checkAuthWithCompany(request);
+    const auth = await checkAuthWithCompany(request);
+    const { isAuth, companyId } = auth;
     if (!isAuth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     if (!companyId) return NextResponse.json({ error: 'No company context' }, { status: 403 });
-    if (!can(companyRoles, 'masterdata.payment_channels')) return NextResponse.json({ error: 'Admin only' }, { status: 403 });
+    if (!can(auth, 'masterdata.payment_channels')) return NextResponse.json({ error: 'Admin only' }, { status: 403 });
 
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');

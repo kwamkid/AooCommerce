@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
     if (!auth.isAuth || !auth.companyId || !auth.userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    if (!can(auth.companyRoles, 'product.bulk_edit')) {
+    if (!can(auth, 'product.bulk_edit')) {
       return NextResponse.json({ error: 'ไม่มีสิทธิ์' }, { status: 403 });
     }
 

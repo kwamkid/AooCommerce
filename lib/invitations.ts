@@ -15,7 +15,7 @@
 //   ปล่อย pending ไว้ให้คนที่ถูกเชิญตัวจริงใช้ต่อ
 
 import { SupabaseClient } from '@supabase/supabase-js';
-import { resolveCanViewCost } from '@/lib/permissions';
+import { resolveCanViewCost, mainRoleOf, permissionsFromLegacyRoles, type Permissions } from '@/lib/permissions';
 
 export interface InvitationRow {
   id: string;
@@ -26,6 +26,18 @@ export interface InvitationRow {
   warehouse_ids: string[] | null;
   terminal_ids: string[] | null;
   can_view_cost: boolean | null;
+  /** สิทธิ์รายกลุ่มงานที่จะมอบให้ — คำเชิญที่ออกก่อน 2026-09-07 ไม่มีค่านี้ */
+  permissions?: Permissions | null;
+}
+
+/**
+ * สิทธิ์รายกลุ่มงานที่จะเขียนลง membership
+ * คำเชิญเก่า (roles = sales/cashier/…) ไม่มี permissions → แปลจากแม่แบบให้
+ * เพื่อไม่ให้คนที่กดรับหลังเปลี่ยนโมเดลกลายเป็นพนักงานที่เปิดอะไรไม่ได้เลย
+ */
+function invitationPermissions(invitation: InvitationRow): Permissions | null {
+  if (mainRoleOf(invitation.roles) !== 'staff') return null;   // ชั้นผู้บริหารได้ทุกกลุ่มอยู่แล้ว
+  return invitation.permissions ?? permissionsFromLegacyRoles(invitation.roles);
 }
 
 export type ApplyInvitationResult =
@@ -68,6 +80,7 @@ export async function applyInvitation(
       .from('company_members')
       .update({
         roles: invitation.roles,
+        permissions: invitationPermissions(invitation),
         terminal_ids: invitation.terminal_ids ?? null,
         warehouse_ids: invitation.warehouse_ids ?? null,
         can_view_cost: resolveCanViewCost(invitation.roles, invitation.can_view_cost),
@@ -87,6 +100,7 @@ export async function applyInvitation(
     company_id: invitation.company_id,
     user_id: user.id,
     roles: invitation.roles,
+    permissions: invitationPermissions(invitation),
     invited_by: invitation.invited_by,
     terminal_ids: invitation.terminal_ids ?? null,
     warehouse_ids: invitation.warehouse_ids ?? null,

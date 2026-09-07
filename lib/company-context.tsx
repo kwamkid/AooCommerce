@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '@/lib/auth-context';
+import type { Permissions } from '@/lib/permissions';
 
 interface Company {
   id: string;
@@ -18,12 +19,16 @@ interface Company {
 interface CompanyMembership {
   company_id: string;
   roles: string[];
+  /** สิทธิ์รายกลุ่มงานของ staff — null เมื่อเป็น owner/admin/manager (ได้ทุกกลุ่ม) */
+  permissions?: Permissions | null;
   company: Company;
 }
 
 interface CompanyContextType {
   currentCompany: Company | null;
   companyRoles: string[];
+  /** คู่กับ companyRoles — ส่งทั้งคู่เข้า can({ roles, permissions }, cap) */
+  permissions: Permissions | null;
   companies: CompanyMembership[];
   switchCompany: (companyId: string) => void;
   loading: boolean;
@@ -90,10 +95,11 @@ export function CompanyProvider({ children }: { children: React.ReactNode }) {
   const currentMembership = companies.find((m) => m.company_id === currentCompanyId);
   const currentCompany = currentMembership?.company || null;
   const companyRoles = currentMembership?.roles || [];
+  const permissions = currentMembership?.permissions ?? null;
   const loading = !initialized;
 
   const value = useMemo(() => ({
-    currentCompany, companyRoles, companies, switchCompany, loading, refreshCompanies,
+    currentCompany, companyRoles, permissions, companies, switchCompany, loading, refreshCompanies,
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }), [currentCompanyId, companies, loading]);
 

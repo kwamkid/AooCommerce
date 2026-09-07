@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, Suspense, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import Layout from '@/components/layout/Layout';
+import { useAuthGuard } from '@/lib/useAuthGuard';
 import { apiFetch } from '@/lib/api-client';
 import SearchInput from '@/components/ui/SearchInput';
 import SearchableDropdown from '@/components/ui/SearchableDropdown';
@@ -700,6 +701,11 @@ function PromotionsPageContent() {
 }
 
 export default function PromotionsPage() {
+  // ด่านสิทธิ์ระดับหน้า — เมนูใน Sidebar ซ่อนให้แล้ว แต่ URL ตรงยังเข้าได้
+  const { allowed, loading: permLoading } = useAuthGuard('product.manage');
+  if (permLoading) return <Layout><LoadingCard /></Layout>;
+  if (!allowed) return null;   // กำลังเด้งไป /dashboard
+
   return (
     <Layout>
       <Suspense fallback={<LoadingCard />}>

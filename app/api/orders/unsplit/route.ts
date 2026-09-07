@@ -3,8 +3,9 @@ import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
 import { unsplitOrder, ensureValidToken } from '@/lib/shopee/api';
 
 export async function POST(req: NextRequest) {
-  const { isAuth, companyId, companyRoles } = await checkAuthWithCompany(req);
-  if (!isAuth || !companyId || !can(companyRoles, 'order.split')) {
+  const auth = await checkAuthWithCompany(req);
+  const { isAuth, companyId } = auth;
+  if (!isAuth || !companyId || !can(auth, 'order.split')) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Permission: owner/admin/manager/warehouse
-    if (!can(auth.companyRoles, 'product.bulk_edit')) {
+    if (!can(auth, 'product.bulk_edit')) {
       return NextResponse.json({ error: 'ไม่มีสิทธิ์' }, { status: 403 });
     }
 

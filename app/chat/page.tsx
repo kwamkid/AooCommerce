@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useMemo, useCallback, Suspense } from 'rea
 import { useRouter, useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import Layout from '@/components/layout/Layout';
+import { useAuthGuard } from '@/lib/useAuthGuard';
 import Button from '@/components/ui/Button';
 import SearchInput from '@/components/ui/SearchInput';
 import { useAuth } from '@/lib/auth-context';
@@ -2373,6 +2374,11 @@ function UnifiedChatPageContent() {
 }
 
 export default function ChatPage() {
+  // ด่านสิทธิ์ระดับหน้า — เมนูใน Sidebar ซ่อนให้แล้ว แต่ URL ตรงยังเข้าได้
+  const { allowed, loading: permLoading } = useAuthGuard('chat.view');
+  if (permLoading) return <Layout><LoadingCard /></Layout>;
+  if (!allowed) return null;   // กำลังเด้งไป /dashboard
+
   return (
     <Suspense fallback={
       <FullPageLoading />

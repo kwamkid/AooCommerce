@@ -96,10 +96,11 @@ export async function POST(request: NextRequest) {
 
   let companyFilter: string | null = body.company_id || null;
   if (!authorizeCron(request)) {
-    const { isAuth, companyId, companyRoles } = await checkAuthWithCompany(request);
+    const auth = await checkAuthWithCompany(request);
+    const { isAuth, companyId } = auth;
     if (!isAuth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     if (!companyId) return NextResponse.json({ error: 'No company context' }, { status: 403 });
-    if (!can(companyRoles, 'masterdata.chat_channels')) {
+    if (!can(auth, 'masterdata.chat_channels')) {
       return NextResponse.json({ error: 'Admin only' }, { status: 403 });
     }
     companyFilter = companyId;   // ผู้ใช้ทำได้เฉพาะบริษัทตัวเอง

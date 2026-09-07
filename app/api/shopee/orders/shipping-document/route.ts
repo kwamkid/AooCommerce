@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const auth = await checkAuthWithCompany(request);
-    if (!auth.isAuth || !auth.companyId || !can(auth.companyRoles, 'marketplace.ship')) {
+    if (!auth.isAuth || !auth.companyId || !can(auth, 'marketplace.ship')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     companyId = auth.companyId;

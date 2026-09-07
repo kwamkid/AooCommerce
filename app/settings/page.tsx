@@ -24,7 +24,7 @@ import { Gift, Plus, X, Loader2, Tag, Edit2, Check, Trash2, AlertTriangle, Clock
 
 export default function SettingsPage() {
   const { userProfile } = useAuth();
-  const { currentCompany, companyRoles } = useCompany();
+  const { currentCompany, companyRoles, permissions } = useCompany();
   const { confirmDialog, confirm } = useConfirmDialog();
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -105,7 +105,7 @@ export default function SettingsPage() {
   useFetchOnce(() => {
     fetchVariationTypes();
     fetchBillExpiry();
-  }, can(userProfile?.roles, 'settings.access'));
+  }, can(userProfile, 'settings.access'));
 
   // --- Variation Types Functions ---
   const fetchVariationTypes = async () => {
@@ -270,7 +270,7 @@ export default function SettingsPage() {
 
 
   // Only allow admin to access this page
-  if (!can(userProfile?.roles, 'settings.access')) {
+  if (!can(userProfile, 'settings.access')) {
     return (
       <Layout>
         <NoPermissionCard />
@@ -478,7 +478,7 @@ export default function SettingsPage() {
         </Card>
 
         {/* Danger Zone: Delete Company (owners only) */}
-        {can(companyRoles, 'company.delete') && currentCompany && (
+        {can({ roles: companyRoles, permissions }, 'company.delete') && currentCompany && (
           <Card padding="none" className="border-2 border-red-300 dark:border-red-900/60">
             <div className="flex items-center justify-between p-4 border-b border-red-100 dark:border-red-900/30">
               <div className="flex items-center gap-2">

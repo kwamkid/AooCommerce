@@ -25,7 +25,7 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     // Regenerating a supplier's portal access code is a supplier-management action
-    if (!can(auth.companyRoles, 'masterdata.suppliers')) {
+    if (!can(auth, 'masterdata.suppliers')) {
       return NextResponse.json({ error: 'Admin only' }, { status: 403 });
     }
 

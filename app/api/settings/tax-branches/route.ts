@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
   if (!auth.isAuth || !auth.companyId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
-  if (!can(auth.companyRoles, 'settings.access')) {
+  if (!can(auth, 'settings.access')) {
     return NextResponse.json({ error: 'ไม่มีสิทธิ์จัดการสาขา VAT' }, { status: 403 });
   }
 
@@ -101,7 +101,7 @@ export async function PUT(request: NextRequest) {
   if (!auth.isAuth || !auth.companyId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
-  if (!can(auth.companyRoles, 'settings.access')) {
+  if (!can(auth, 'settings.access')) {
     return NextResponse.json({ error: 'ไม่มีสิทธิ์จัดการสาขา VAT' }, { status: 403 });
   }
 
@@ -131,7 +131,7 @@ export async function DELETE(request: NextRequest) {
   if (!auth.isAuth || !auth.companyId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
-  if (!can(auth.companyRoles, 'settings.access')) {
+  if (!can(auth, 'settings.access')) {
     return NextResponse.json({ error: 'ไม่มีสิทธิ์จัดการสาขา VAT' }, { status: 403 });
   }
 
@@ -170,7 +170,7 @@ export async function PATCH(request: NextRequest) {
   if (!auth.isAuth || !auth.companyId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
-  if (!can(auth.companyRoles, 'settings.access')) {
+  if (!can(auth, 'settings.access')) {
     return NextResponse.json({ error: 'ไม่มีสิทธิ์จัดการสาขา VAT' }, { status: 403 });
   }
 

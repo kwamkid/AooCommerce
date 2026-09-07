@@ -35,8 +35,9 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const { isAuth, companyId, companyRoles } = await checkAuthWithCompany(request);
-    if (!isAuth || !companyId || !can(companyRoles, 'marketplace.push')) {
+    const auth = await checkAuthWithCompany(request);
+    const { isAuth, companyId } = auth;
+    if (!isAuth || !companyId || !can(auth, 'marketplace.push')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -102,8 +103,9 @@ export async function POST(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    const { isAuth, companyId, companyRoles } = await checkAuthWithCompany(request);
-    if (!isAuth || !companyId || !can(companyRoles, 'marketplace.push')) {
+    const auth = await checkAuthWithCompany(request);
+    const { isAuth, companyId } = auth;
+    if (!isAuth || !companyId || !can(auth, 'marketplace.push')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 

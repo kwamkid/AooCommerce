@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, Suspense } from 'react';
 import { useCopy } from '@/lib/useCopy';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
+import { useAuthGuard } from '@/lib/useAuthGuard';
 import PageHeader from '@/components/ui/PageHeader';
 import Button from '@/components/ui/Button';
 import SearchInput from '@/components/ui/SearchInput';
@@ -1273,6 +1274,11 @@ function DepartmentOrdersContent() {
 }
 
 export default function DepartmentOrdersPage() {
+  // ด่านสิทธิ์ระดับหน้า — เมนูใน Sidebar ซ่อนให้แล้ว แต่ URL ตรงยังเข้าได้
+  const { allowed, loading: permLoading } = useAuthGuard('order.view');
+  if (permLoading) return <Layout><LoadingCard /></Layout>;
+  if (!allowed) return null;   // กำลังเด้งไป /dashboard
+
   return (
     <Suspense fallback={<Layout><LoadingCard /></Layout>}>
       <DepartmentOrdersContent />

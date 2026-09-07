@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
   let companyId: string | null = null;
   if (!isCron) {
     const auth = await checkAuthWithCompany(request);
-    if (!auth.isAuth || !auth.companyId || !can(auth.companyRoles, 'marketplace.sync')) {
+    if (!auth.isAuth || !auth.companyId || !can(auth, 'marketplace.sync')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     companyId = auth.companyId;

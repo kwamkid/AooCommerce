@@ -21,7 +21,8 @@ async function deleteTable(table: string, companyId: string) {
 //            payment_channels, chat_accounts, shopee_accounts, pos_terminals, crm_settings
 export async function DELETE(request: NextRequest) {
   try {
-    const { isAuth, companyId, companyRoles } = await checkAuthWithCompany(request);
+    const auth = await checkAuthWithCompany(request);
+    const { isAuth, companyId } = auth;
 
     if (!isAuth) {
       return NextResponse.json(
@@ -35,7 +36,7 @@ export async function DELETE(request: NextRequest) {
         { status: 403 }
       );
     }
-    if (!can(companyRoles, 'settings.delete_all_data')) {
+    if (!can(auth, 'settings.delete_all_data')) {
       return NextResponse.json(
         { error: 'Forbidden. Admin access required.' },
         { status: 403 }

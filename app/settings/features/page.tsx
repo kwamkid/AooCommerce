@@ -72,7 +72,7 @@ interface FeatureSection {
 }
 
 export default function FeaturesPage() {
-  const { currentCompany, companyRoles } = useCompany();
+  const { currentCompany, companyRoles, permissions } = useCompany();
   const { features: currentFeatures, gates, fetched: featuresFetched, refreshFeatures } = useFeatures();
   const { showToast } = useToast();
 
@@ -195,7 +195,7 @@ export default function FeaturesPage() {
     }
   };
 
-  const isOwnerOrAdmin = can(companyRoles, 'settings.access');
+  const isOwnerOrAdmin = can({ roles: companyRoles, permissions }, 'settings.access');
 
   const isDirty = featuresLoaded && savedRef.current !== null && (
     JSON.stringify(featureFlags) !== JSON.stringify(savedRef.current.featureFlags) ||
