@@ -8,9 +8,10 @@
 //    ที่ผสมกันเองได้ ทำให้เจ้าของร้าน "งงว่าใครเห็นอะไร ใครทำอะไรได้"
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Check, Crown, Monitor, ShieldCheck, UserCog, Users } from 'lucide-react';
 import FilterChips, { type FilterChip } from '@/components/ui/FilterChips';
+import Tabs from '@/components/ui/Tabs';
 import OptionCards, { type OptionCardItem } from '@/components/ui/OptionCards';
 import Radio from '@/components/ui/Radio';
 import Toggle from '@/components/ui/Toggle';
@@ -171,6 +172,10 @@ export default function PermissionEditor({
   const showTerminalNames = levelOf('pos') !== 'none';
   const warehouseMode: 'all' | 'custom' = value.warehouse_ids.length === 0 ? 'all' : 'custom';
 
+  // โมดัลแก้ไขสูงเกินจอเมื่อกลุ่มงาน 8 แถว + รายชื่อคลัง + สวิตช์ต่อกันหมด (เจ้าของแจ้ง 7 ก.ย.)
+  // → แยกเป็น 2 แท็บ: "สิทธิ์" (แม่แบบ + กลุ่มงาน) กับ "คลัง / ต้นทุน" (ขอบเขตคลัง POS PC ต้นทุน)
+  const [tab, setTab] = useState<'access' | 'scope'>('access');
+
   return (
     <div className="space-y-5">
       {/* ── ตำแหน่ง ─────────────────────────────────────────────── */}
@@ -194,6 +199,17 @@ export default function PermissionEditor({
         </div>
       ) : (
         <>
+          <Tabs
+            className="mb-0"
+            activeKey={tab}
+            onSelect={key => setTab(key === 'scope' ? 'scope' : 'access')}
+            tabs={[
+              { key: 'access', label: 'สิทธิ์' },
+              { key: 'scope', label: 'คลัง / ต้นทุน' },
+            ]}
+          />
+
+          {tab === 'access' && (<>
           {/* ── แม่แบบ ─────────────────────────────────────────── */}
           <div>
             <label className="field-label">แม่แบบ</label>
@@ -220,23 +236,33 @@ export default function PermissionEditor({
                   key={area.key}
                   className="flex flex-col gap-2 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
                 >
-                  <div className="min-w-0">
+                  <div className="min-w-0 sm:pr-2">
                     <p className="subtitle-text font-medium text-gray-700 dark:text-slate-300">{area.label}</p>
                     <p className="helper-text text-gray-400 dark:text-slate-500">{area.desc}</p>
                   </div>
-                  <FilterChips
-                    chips={LEVEL_CHIPS}
-                    value={levelOf(area.key)}
-                    onChange={level => setArea(area.key, level)}
-                    disabled={disabled}
-                    className="sm:justify-end"
-                  />
+                  {/* ชิป 3 ตัวห้ามหักบรรทัด (แถว "บัญชี/รายงาน" คำอธิบายยาวเคยดันชิปตกลงมา 2 บรรทัด) */}
+                  <div className="sm:flex-shrink-0">
+                    <FilterChips
+                      chips={LEVEL_CHIPS}
+                      value={levelOf(area.key)}
+                      onChange={level => setArea(area.key, level)}
+                      disabled={disabled}
+                      className="sm:min-w-max sm:justify-end"
+                    />
+                  </div>
                 </div>
               ))}
             </div>
           </div>
+          </>)}
 
+          {tab === 'scope' && (<>
           {/* ── ขอบเขตคลัง / POS ─────────────────────────────────── */}
+          {!needsWarehouseScope && (
+            <p className="helper-text text-gray-400 dark:text-slate-500 px-1">
+              ขอบเขตคลังจะตั้งได้เมื่อเปิดกลุ่มงาน &ldquo;คลังสินค้า&rdquo; หรือ &ldquo;แคชเชียร์&rdquo; ในแท็บสิทธิ์
+            </p>
+          )}
           {needsWarehouseScope && warehouses.length > 0 && (
             <div>
               <label className="field-label">คลังที่เข้าถึงได้</label>
@@ -351,6 +377,7 @@ export default function PermissionEditor({
               aria-label="เห็นต้นทุนสินค้า"
             />
           </div>
+          </>)}
         </>
       )}
     </div>
