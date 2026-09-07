@@ -87,9 +87,12 @@ export function useServerSearch<T>(opts: ServerSearchOptions<T>): ServerSearchRe
     const fresh = (e: CacheEntry<T> | undefined): e is CacheEntry<T> => !!e && now - e.at < cacheTtlMs;
 
     // 2. คำนี้เคยค้นแล้วและยังไม่หมดอายุ
+    // ⚠️ คืน array ใหม่เสมอ (ไม่ใช่ตัวเดียวกับที่ state ถืออยู่) — ถ้า reference เดิม React จะไม่ re-render
+    // แล้ว ProductSearchInput/EntitySearchInput ที่รอ "ผลชุดใหม่" เพื่อปิดสปินเนอร์จะค้างหมุน
+    // (เกิดกับ "yoyo" → "yoyo " ที่ trim แล้วเป็นคำเดิม)
     const exact = cache.get(q);
     if (fresh(exact)) {
-      setResults(exact.rows);
+      setResults([...exact.rows]);
       setLoading(false);
       return;
     }
@@ -107,7 +110,7 @@ export function useServerSearch<T>(opts: ServerSearchOptions<T>): ServerSearchRe
       if (best) {
         const rows = narrow(best.entry.rows, q);
         cache.set(q, { rows, complete: true, at: now });
-        setResults(rows);
+        setResults([...rows]);
         setLoading(false);
         return;
       }
