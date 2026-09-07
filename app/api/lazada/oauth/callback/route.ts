@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import {
   exchangeCodeForToken, getSellerInfo, getLazadaAppCredentials, isReachableImage,
-  isChatAppConfigured, generateLazadaAuthUrl, type LazadaApp, type LazadaCredentials,
+  isChatAppConfigured, type LazadaApp, type LazadaCredentials,
 } from '@/lib/lazada/api';
-import { authorizeMarketplaceCallback, signOAuthState } from '@/lib/oauth-state';
+import { authorizeMarketplaceCallback } from '@/lib/oauth-state';
 import { logIntegration } from '@/lib/integration-logger';
 
 /**
@@ -198,15 +198,16 @@ export async function GET(request: NextRequest) {
       reference_label: `Lazada connected: ${shopName || sellerId}`,
     });
 
-    // ── ขาออเดอร์เสร็จ → พาไปอนุญาตแชทต่อทันที ──
+    // ── ขาออเดอร์เสร็จ → หน้าคั่น "เชื่อมร้านแล้ว จะเชื่อมแชทด้วยไหม" ──
     //
     // Lazada บังคับ authorize สองรอบ (Seller In-house = ออเดอร์ · In-house IM
-    // Chat = แชท คนละ app คนละ token) **เลี่ยงไม่ได้** — แต่ทำให้เป็นจังหวะเดียว
-    // ได้ · ของเดิมเด้งกล่องถาม "จะต่อแชทมั้ย" คั่นกลาง กลายเป็น 3 จังหวะและ
-    // ผู้ใช้รู้สึกว่าวุ่นวาย · ร้านที่ไม่ใช้แชทกด "ยกเลิก" ที่หน้า Lazada ได้
-    // แล้วจะไปจบที่หน้าช่องทางแชทพร้อมข้อความว่าร้านเชื่อมแล้ว (ไม่ใช่ error)
+    // Chat = แชท คนละ app คนละ token) **เลี่ยงไม่ได้** · เคยลองทั้ง dialog ถาม
+    // (28 ส.ค.) และเด้งไปหน้า login รอบสองทันที (2 ก.ย.) — แบบหลังผู้ใช้งงว่า
+    // "เพิ่ง login แล้วทำไมให้ login อีก" และไม่รู้ว่ารอบสองคือ AooCommerce Chat
+    // (เจ้าของแจ้ง 7 ก.ย.) ⇒ คั่นด้วยหน้าที่บอกว่ารอบแรกจบแล้ว รอบสองคืออะไร
+    // แล้วให้กดเลือกเอง (app/settings/sales-channels/connected)
     //
-    // ต่อเฉพาะเมื่อมี app แชทแยก และยังมีร้านที่ไม่มี token แชท
+    // พาไปหน้าคั่นเฉพาะเมื่อมี app แชทแยก และยังมีร้านที่ไม่มี token แชท
     // (ไม่มี app แชทแยก = token หลักใช้แชทได้เลย ไม่มีขาที่สอง)
     if (isChatAppConfigured()) {
       const { data: pendingChat } = await supabaseAdmin
@@ -219,26 +220,10 @@ export async function GET(request: NextRequest) {
         .limit(1);
 
       if (pendingChat && pendingChat.length > 0) {
-        const chatState = signOAuthState({
-          companyId,
-          userId: authz.payload.userId,
-          platform: 'lazada',
-          app: 'chat',
-        });
-        const chatAuthUrl = generateLazadaAuthUrl(
-          `${baseUrl}/api/lazada/oauth/callback`,
-          chatState,
-          'chat'
-        );
-        const chained = NextResponse.redirect(chatAuthUrl);
-        chained.cookies.set('lazada_oauth_state', chatState, {
-          httpOnly: true,
-          secure: true,
-          sameSite: 'lax',
-          maxAge: 600,
-          path: '/',
-        });
-        return chained;
+        const qs = new URLSearchParams({ platform: 'lazada', shops: shopName || String(sellerId) });
+        const prompt = NextResponse.redirect(`${baseUrl}/settings/sales-channels/connected?${qs}`);
+        prompt.cookies.delete('lazada_oauth_state');
+        return prompt;
       }
     }
 

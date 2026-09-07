@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import {
-  exchangeCodeForToken, getAuthorizedShops, generateAuthUrl,
-  isChatAppConfigured, type TikTokApp,
+  exchangeCodeForToken, getAuthorizedShops, isChatAppConfigured, type TikTokApp,
   tiktokExpiryToDate,
 } from '@/lib/tiktok/api';
-import { authorizeMarketplaceCallback, signOAuthState } from '@/lib/oauth-state';
+import { authorizeMarketplaceCallback } from '@/lib/oauth-state';
 import { isLoginKitConfigured } from '@/lib/tiktok/login-kit';
 
 /**
@@ -206,22 +205,17 @@ export async function GET(request: NextRequest) {
     }
 
     if (chainChat) {
-      const chatState = signOAuthState({
-        companyId,
-        userId: authz.payload.userId,
+      // หน้าคั่น "เชื่อมร้านแล้ว จะเชื่อมแชทด้วยไหม" — ไม่เด้งไปหน้า login ของ TikTok รอบสอง
+      // ทันทีอีกแล้ว (ผู้ใช้งงว่าเพิ่ง login ไปทำไมให้ login อีก — เหตุผลเดียวกับ Lazada
+      // ดู app/api/lazada/oauth/callback) · ปุ่มในหน้านั้นเรียก /api/tiktok/oauth/auth-url?app=chat
+      const qs = new URLSearchParams({
         platform: 'tiktok',
-        app: 'chat',
+        shops: shops.map(sh => sh.name).filter(Boolean).join('|'),
       });
-      const chained = NextResponse.redirect(generateAuthUrl(chatState, 'chat'));
-      chained.cookies.set('tiktok_oauth_state', chatState, {
-        httpOnly: true,
-        secure: true,
-        sameSite: 'lax',
-        maxAge: 600,
-        path: '/',
-      });
-      console.log('[TikTok Callback] Order leg done → chaining chat authorization');
-      return chained;
+      const prompt = NextResponse.redirect(`${settingsUrl.replace(/\?.*$/, '')}/connected?${qs}`);
+      prompt.cookies.delete('tiktok_oauth_state');
+      console.log('[TikTok Callback] Order leg done → chat prompt page');
+      return prompt;
     }
 
     const response = NextResponse.redirect(app === 'chat'
