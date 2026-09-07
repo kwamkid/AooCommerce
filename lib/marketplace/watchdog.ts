@@ -37,14 +37,19 @@ export interface WatchdogIssue {
   /** ป้ายบนปุ่มที่พาไปหน้าที่แก้ได้จริง */
   actionLabel: string;
   url: string;
+  /** เตือนซ้ำเรื่องนี้ได้บ่อยสุดกี่ชั่วโมง — ไม่ใส่ = RENOTIFY_HOURS (6 ชม.)
+   *  เรื่องที่ไม่เร่ง (บริษัทเงียบ/รอครบกำหนดลบ) ตั้งยาวขึ้นได้ ไม่งั้นกวนทุก 6 ชม. เป็นเดือน */
+  renotifyHours?: number;
 }
 
 /** ซิงค์ตามหลังเกินเท่านี้ = ผิดปกติ (cron ทุก 15 นาที — เผื่อพลาดได้หลายรอบก่อนกวน) */
 const STALE_SYNC_HOURS = 3;
 /** refresh token เหลือน้อยกว่านี้ = เตือนล่วงหน้าให้ไปต่ออายุ */
 const TOKEN_EXPIRY_WARN_DAYS = 3;
-/** เตือนซ้ำเรื่องเดิมได้บ่อยสุดเท่านี้ ตราบใดที่ยังไม่หาย */
+/** เตือนซ้ำเรื่องเดิมได้บ่อยสุดเท่านี้ ตราบใดที่ยังไม่หาย (ต่อ issue ตั้งเองได้ด้วย renotifyHours) */
 const RENOTIFY_HOURS = 6;
+/** บริษัทเงียบเกินเท่านี้ = น่าจะเลิกใช้ · ปิดครบเท่านี้ = ลบถาวรได้ (ตรงกับกติกาใน /api/superadmin/companies) */
+const COMPANY_QUIET_DAYS = 30;
 
 const WATCHDOG_STATE_KEY = 'watchdog_state';
 const WATCHDOG_HEARTBEAT_KEY = 'watchdog_last_run';
@@ -334,6 +339,92 @@ export async function collectWatchdogIssues(
         url: '/superadmin/api-monitor',
       });
     }
+
+    // ── บริษัทที่เลิกใช้ไปเงียบ ๆ / ปิดครบกำหนดจนลบถาวรได้ ──
+    //
+    // เรื่องของผู้ดูแลระบบล้วน ๆ — **ห้ามผูก companyId** ไม่งั้น push จะไปโผล่ที่เจ้าของร้าน
+    // ว่า "ร้านคุณเงียบนะ" ซึ่งไม่ใช่เรื่องที่เขาต้องแก้ · เตือนซ้ำสัปดาห์ละครั้งพอ
+    // (ของแบบนี้ไม่มีอะไรเปลี่ยนภายใน 6 ชม. — เตือนถี่เท่ากับ cron ตายคือกวนเปล่า)
+    try {
+      const { data: overviewRaw, error: overviewErr } = await supabaseAdmin.rpc('get_company_overview');
+      if (overviewErr) throw overviewErr;
+
+      type Overview = {
+        id: string; last_activity: string | null; last_login: string | null;
+        last_order: string | null; last_chat: string | null; last_pos: string | null;
+        last_product_edit: string | null;
+      };
+      const overview = new Map(
+        ((Array.isArray(overviewRaw) ? overviewRaw : []) as Overview[]).map(o => [o.id, o]),
+      );
+
+      const { data: companyRows } = await supabaseAdmin
+        .from('companies')
+        .select('id, name, is_active, deactivated_at');
+
+      for (const c of companyRows || []) {
+        const name = (c.name as string) || 'ไม่มีชื่อ';
+
+        if (c.is_active) {
+          const o = overview.get(c.id as string);
+          const lastActivity = o?.last_activity || null;
+          if (!lastActivity) continue;
+          const days = Math.floor((now - new Date(lastActivity).getTime()) / 86_400_000);
+          if (days < COMPANY_QUIET_DAYS) continue;
+
+          // บอกด้วยว่า "ครั้งสุดท้ายที่ขยับคืออะไร" — เงียบเพราะไม่มีออเดอร์ กับ
+          // เงียบเพราะไม่มีใครล็อกอินเลย เป็นคนละเรื่องตอนตัดสินใจว่าจะติดต่อยังไง
+          const signal =
+            o?.last_order === lastActivity ? 'ออเดอร์ล่าสุด'
+            : o?.last_chat === lastActivity ? 'ข้อความแชทล่าสุด'
+            : o?.last_login === lastActivity ? 'การเข้าใช้งานล่าสุด'
+            : o?.last_pos === lastActivity ? 'การขายหน้าร้านล่าสุด'
+            : o?.last_product_edit === lastActivity ? 'การแก้ข้อมูลสินค้าล่าสุด'
+            : 'ความเคลื่อนไหวล่าสุด';
+
+          issues.push({
+            code: `company_quiet:${c.id}`,
+            groupKey: 'company_quiet',
+            scope: 'system',
+            companyId: null,
+            companyName: name,
+            channel: null,
+            severity: 'warning',
+            title: `บริษัท ${name} ไม่มีความเคลื่อนไหวมา ${days} วัน`,
+            detail: `${signal}เมื่อ ${new Date(lastActivity).toLocaleDateString('th-TH', { timeZone: 'Asia/Bangkok' })} — ไม่มีสัญญาณการใช้งานใด ๆ หลังจากนั้น`,
+            fix: 'ถ้าเลิกใช้แล้วให้ปิดบริษัทในหน้า Companies — ปิดครบ 30 วันจึงลบถาวรได้ (บริษัทที่ไม่มีข้อมูลเลยลบได้ทันที)',
+            actionLabel: 'ไปหน้า Companies',
+            url: '/superadmin/companies?filter=quiet',
+            renotifyHours: 24 * 7,
+          });
+          continue;
+        }
+
+        // ปิดแล้วและครบกำหนด — เตือนให้ไปเก็บกวาด (ข้อมูลที่ไม่มีใครใช้ยังกินที่และยังเป็นภาระ PDPA)
+        const closedAt = c.deactivated_at ? new Date(c.deactivated_at as string).getTime() : null;
+        if (closedAt === null || isNaN(closedAt)) continue;
+        if (now - closedAt < COMPANY_QUIET_DAYS * 86_400_000) continue;
+
+        issues.push({
+          code: `company_purgeable:${c.id}`,
+          groupKey: 'company_purgeable',
+          scope: 'system',
+          companyId: null,
+          companyName: name,
+          channel: null,
+          severity: 'warning',
+          title: `บริษัท ${name} ปิดครบ 30 วันแล้ว ลบถาวรได้`,
+          detail: `ปิดการใช้งานเมื่อ ${new Date(closedAt).toLocaleDateString('th-TH', { timeZone: 'Asia/Bangkok' })} — ข้อมูลทั้งหมดยังอยู่ในระบบ`,
+          fix: 'ถ้าแน่ใจว่าไม่กลับมาใช้แล้ว เปิดหน้า Companies แล้วกด "ลบถาวร" (ต้องพิมพ์ชื่อบริษัทยืนยัน · ลบแล้วกู้คืนไม่ได้)',
+          actionLabel: 'ไปหน้า Companies',
+          url: '/superadmin/companies?filter=inactive',
+          renotifyHours: 24 * 7,
+        });
+      }
+    } catch (err) {
+      // เรื่องนี้ล้มต้องไม่ทำให้ check อื่นทั้งหมดหายไป
+      console.error('[watchdog] company activity check failed:', err instanceof Error ? err.message : err);
+    }
   }
 
   // ── Beam Checkout: webhook ไม่เข้า ──
@@ -428,7 +519,7 @@ export async function runWatchdog(): Promise<{ issues: number; notified: number;
   for (const issue of issues) {
     const before = prev[issue.code];
     const lastNotified = before?.notified_at ? new Date(before.notified_at).getTime() : 0;
-    const isDue = now.getTime() - lastNotified > RENOTIFY_HOURS * 3_600_000;
+    const isDue = now.getTime() - lastNotified > (issue.renotifyHours ?? RENOTIFY_HOURS) * 3_600_000;
     // ยังไม่ stamp ตรงนี้ — stamp เฉพาะใบที่ "ส่งถึงเครื่องจริง" หลังยิงเสร็จ
     next[issue.code] = { since: before?.since || now.toISOString(), notified_at: before?.notified_at };
     if (isDue) due.push(issue);
