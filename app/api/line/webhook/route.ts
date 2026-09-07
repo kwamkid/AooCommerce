@@ -172,7 +172,8 @@ async function processEvent(
       isGroup,
       contactId,
       chatAccountId,
-      accountName
+      accountName,
+      event.replyToken
     );
   }
 
@@ -186,7 +187,7 @@ async function processEvent(
   if (event.type === 'postback' && event.postback) {
     const contact = await lineService.getOrCreateContact(contactId, isGroup, lineUserId, accessToken, companyId, chatAccountId);
     if (!contact) return;
-    await lineService.savePostbackMessage(contact, event.postback, event.timestamp, companyId, chatAccountId, accountName);
+    await lineService.savePostbackMessage(contact, event.postback, event.timestamp, companyId, chatAccountId, accountName, event.replyToken);
     return;
   }
 

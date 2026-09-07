@@ -168,6 +168,12 @@ export interface ChatMessage {
     broadcast?: { topic?: string; summary?: string };
     /** ข้อความนี้มาจากบรอดแคสต์ LINE ใบไหน — พนักงานต้องแยกออกว่าไม่ใช่การตอบรายคน */
     broadcast_id?: string;
+    /** LINE: reply token ของข้อความขาเข้า (ตอบฟรีภายใน ~1 นาที ครั้งเดียว) + เวลาที่ได้มา + ใช้ไปหรือยัง */
+    reply_token?: string;
+    reply_token_at?: string;
+    reply_token_used?: boolean;
+    /** ขาออก LINE: ส่งผ่าน reply token (ไม่นับโควตา) — ไม่มี = push */
+    sent_via?: 'reply' | 'push';
     /** คูปองที่แนบมากับข้อความ — โครงต่างกันไปตามแพลตฟอร์ม เก็บเท่าที่ส่งมา */
     voucher?: Record<string, string | number | undefined>;
 

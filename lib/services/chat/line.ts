@@ -7,6 +7,12 @@ import crypto from 'crypto';
 import sharp from 'sharp';
 import type { SendMessageParams, SendMessageResult, ResolvedCredentials, PlatformProfile, GetMessagesParams } from './types';
 
+/**
+ * reply token ของ LINE ใช้ได้ **ครั้งเดียว** และ **ภายในราว 1 นาที** หลัง webhook เข้า
+ * เผื่อเวลาเดินทางของ webhook + คิว จึงถือว่าใช้ได้แค่ 50 วิ (เกินนั้นให้ push ไปเลย ไม่เสียเที่ยว)
+ */
+const REPLY_TOKEN_TTL_MS = 50_000;
+
 export class LineChatService {
   // ─── Credential Resolution ───────────────────────────────────────────
 
@@ -74,13 +80,37 @@ export class LineChatService {
       return { success: false, error: 'Unsupported message type' };
     }
 
-    // Send via LINE API
+    // ตอบด้วย reply token ก่อน — **ไม่นับโควตาข้อความของ OA** (push/multicast/broadcast นับทุกใบ)
+    // ใช้ได้เฉพาะตอบข้อความล่าสุดของลูกค้าภายใน ~1 นาทีและครั้งเดียว · หยิบไม่ได้/LINE ปฏิเสธ
+    // → push ตามเดิมโดยผู้ใช้ไม่รู้สึกอะไร (ข้อความต้องถึงลูกค้าเสมอ ประหยัดโควตาเป็นของแถม)
     const startTime = Date.now();
-    const lineRes = await fetch('https://api.line.me/v2/bot/message/push', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${creds.accessToken}` },
-      body: JSON.stringify({ to: contact.line_user_id, messages: [lineMessage] }),
-    });
+    const replyToken = await this.claimReplyToken(contactId);
+    let sentVia: 'reply' | 'push' = 'push';
+    let lineRes: Response | null = null;
+
+    if (replyToken) {
+      const replyRes = await fetch('https://api.line.me/v2/bot/message/reply', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${creds.accessToken}` },
+        body: JSON.stringify({ replyToken, messages: [lineMessage] }),
+      });
+      if (replyRes.ok) {
+        sentVia = 'reply';
+        lineRes = replyRes;
+      } else {
+        // 400 "Invalid reply token" = หมดอายุ/ถูกใช้ไปแล้ว — ไม่ใช่ความผิดพลาดของการส่ง แค่ตกไป push
+        const replyErr = await replyRes.json().catch(() => ({} as { message?: string }));
+        console.warn('LINE reply token ใช้ไม่ได้ → push:', replyRes.status, (replyErr as { message?: string })?.message);
+      }
+    }
+
+    if (!lineRes) {
+      lineRes = await fetch('https://api.line.me/v2/bot/message/push', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${creds.accessToken}` },
+        body: JSON.stringify({ to: contact.line_user_id, messages: [lineMessage] }),
+      });
+    }
 
     const errBody = lineRes.ok ? null : await lineRes.json().catch(() => ({} as { message?: string }));
     const errMessage = lineRes.ok
@@ -96,12 +126,15 @@ export class LineChatService {
       direction: 'outgoing',
       action: 'chat_send_message',
       method: 'POST',
-      api_path: '/v2/bot/message/push',
+      api_path: sentVia === 'reply' ? '/v2/bot/message/reply' : '/v2/bot/message/push',
       http_status: lineRes.status,
       status: lineRes.ok ? 'success' : 'error',
       error_message: errMessage,
       reference_type: 'chat',
       reference_id: contact.line_user_id,
+      reference_label: sentVia === 'reply'
+        ? 'ตอบผ่าน reply token (ไม่นับโควตา)'
+        : replyToken ? 'reply token ใช้ไม่ได้ → push' : undefined,
       duration_ms: Date.now() - startTime,
     });
 
@@ -112,6 +145,7 @@ export class LineChatService {
 
     // Save to DB
     const { messageContent, rawMessage } = this.buildMessageContent(type, text, imageUrl, packageId, stickerId);
+    if (sentVia === 'reply') rawMessage.sent_via = 'reply';
 
     const { data: savedMessage } = await supabaseAdmin
       .from('line_messages')
@@ -136,6 +170,37 @@ export class LineChatService {
       .eq('company_id', companyId);
 
     return { success: true, message: savedMessage };
+  }
+
+  /**
+   * หยิบ reply token ของข้อความล่าสุดที่ลูกค้าส่งมา — เฉพาะที่ยังไม่ถูกใช้และอายุไม่เกิน
+   * REPLY_TOKEN_TTL_MS · "จอง" ด้วย UPDATE แบบมีเงื่อนไข (ยังไม่ถูกใช้) จึงกันสองคนตอบ
+   * พร้อมกันหยิบ token ใบเดียวกัน · คืน null = ให้ push ตามเดิม
+   */
+  private async claimReplyToken(contactId: string): Promise<string | null> {
+    const { data: latest } = await supabaseAdmin
+      .from('line_messages')
+      .select('id, raw_message')
+      .eq('line_contact_id', contactId)
+      .eq('direction', 'incoming')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (!latest) return null;
+
+    const raw = (latest.raw_message as Record<string, unknown> | null) || {};
+    const token = typeof raw.reply_token === 'string' ? raw.reply_token : null;
+    if (!token || raw.reply_token_used) return null;
+    const issuedAt = typeof raw.reply_token_at === 'string' ? Date.parse(raw.reply_token_at) : NaN;
+    if (!Number.isFinite(issuedAt) || Date.now() - issuedAt > REPLY_TOKEN_TTL_MS) return null;
+
+    const { data: claimed } = await supabaseAdmin
+      .from('line_messages')
+      .update({ raw_message: { ...raw, reply_token_used: true } })
+      .eq('id', latest.id)
+      .is('raw_message->>reply_token_used', null)
+      .select('id');
+    return claimed && claimed.length > 0 ? token : null;
   }
 
   // ─── Get Messages ───────────────────────────────────────────────────
@@ -273,7 +338,8 @@ export class LineChatService {
     isGroup?: boolean,
     contactId?: string,
     chatAccountId?: string | null,
-    accountName?: string | null
+    accountName?: string | null,
+    replyToken?: string | null
   ) {
     // Get sender profile
     let senderName: string | null = null;
@@ -371,6 +437,11 @@ export class LineChatService {
     if (Array.isArray(message.emojis) && message.emojis.length > 0) metadata.emojis = message.emojis;
     // การกล่าวถึงในกลุ่ม — เก็บไว้ก่อน (ยังไม่มีตัวแสดงเฉพาะ)
     if (message.mention) metadata.mention = message.mention;
+    // reply token — ตอบกลับได้ฟรี (ไม่นับโควตา) ภายใน ~1 นาที ครั้งเดียว · sendMessage หยิบไปใช้ก่อน push
+    if (replyToken) {
+      metadata.reply_token = replyToken;
+      metadata.reply_token_at = new Date().toISOString();
+    }
 
     // ตอบกลับข้อความเดิม — snapshot ไว้ในข้อความนี้เลย ไม่ต้อง join ตอนแสดง
     // quoteToken เก็บไว้ใช้ตอนเรา "ตอบกลับ" กลับไปบ้างในอนาคต (LINE บังคับใช้โทเคนนี้)
@@ -541,7 +612,8 @@ export class LineChatService {
     timestamp: number,
     companyId: string | null,
     chatAccountId?: string | null,
-    accountName?: string | null
+    accountName?: string | null,
+    replyToken?: string | null
   ) {
     const paramLabel = postback.params
       ? Object.values(postback.params).filter(Boolean).join(' ')
@@ -554,7 +626,11 @@ export class LineChatService {
       direction: 'incoming',
       message_type: 'postback',
       content,
-      raw_message: { postback },
+      // การกดปุ่มก็มี reply token — ตอบกลับได้ฟรีเหมือนข้อความ
+      raw_message: {
+        postback,
+        ...(replyToken ? { reply_token: replyToken, reply_token_at: new Date().toISOString() } : {}),
+      },
       received_at: new Date(timestamp).toISOString(),
       created_at: new Date().toISOString(),
     };
