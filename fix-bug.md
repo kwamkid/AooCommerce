@@ -57,6 +57,20 @@
 
 ---
 
+## 2026-09-08 — ฟอร์มลูกค้า: dropdown "ประเภทลูกค้า" โชว์ชื่อไอคอนเป็นข้อความ ("ShoppingBag ลูกค้าปลีก")
+
+**ที่เกิด**: [components/customers/CustomerForm.tsx](components/customers/CustomerForm.tsx) `<FormSelect options={CUSTOMER_TYPE_OPTIONS}>` (โหมดกะทัดรัด — แผงแก้ไขลูกค้าในหน้าแชท)
+
+**อาการ**: ช่อง "ประเภทลูกค้า" ขึ้นว่า `ShoppingBag ลูกค้าปลีก` · `Briefcase องค์กร/B2B` · `Share2 Dropship` · `Heart Affiliate` — มีชื่อคอมโพเนนต์ไอคอนโผล่นำหน้าทุกบรรทัด (เจ้าของทัก 8 ก.ย. 2026)
+
+**Root cause**: `ALL_CUSTOMER_TYPE_OPTIONS` เก็บ `icon` เป็น **ชื่อ** ไอคอน (`'ShoppingBag'`) แล้วมีตาราง `TYPE_ICONS` แปลงเป็น node อีกที · การ์ดแบบกริดด้านล่างเรียก `TYPE_ICONS[opt.icon]` ถูกต้อง แต่ตอนส่งเข้า `FormSelect` ส่ง array ดิบไปทั้งก้อน — `FormSelectOption.icon` เป็น `React.ReactNode` ซึ่ง **string ก็เป็น ReactNode ที่ถูกต้อง** TypeScript จึงไม่ฟ้องสักตัว แล้ว React วาดสตริงนั้นออกมาตรง ๆ
+
+**วิธีแก้**: map ก่อนส่ง — `options={CUSTOMER_TYPE_OPTIONS.map(o => ({ ...o, icon: TYPE_ICONS[o.icon] }))}`
+
+**ป้องกัน regression**:
+- **`icon` ของ shared component เป็น `ReactNode` เสมอ — ห้ามส่ง string** ไม่ว่าจะเป็นชื่อไอคอนหรือ path (type checker จับไม่ได้เลยเพราะ string เป็น ReactNode) · ที่ไหนเก็บไอคอนเป็นชื่อในค่าคงที่ ต้องแปลงที่ call site ทุกที่ ไม่ใช่เฉพาะที่นึกออก
+- grep `icon: '` ในไฟล์ tsx = จุดที่ต้องสงสัยเสมอ (ตรวจแล้ว 8 ก.ย. เหลือแค่ไฟล์นี้ที่เก็บเป็นชื่อ ที่อื่นเป็นคลาส Tailwind ของ ChannelBadge ซึ่งไม่ใช่ prop icon)
+
 ## 2026-09-08 — หน้าแชท: เปิดห้องแล้วรอนาน ไม่มี skeleton · แถบ "กู้ร่างบิล" ปุ่มล้างร่างกลืนกับพื้น
 
 **ที่เกิด**: [app/chat/page.tsx](app/chat/page.tsx) `fetchMessages` · [app/api/chat/messages/route.ts](app/api/chat/messages/route.ts) · [lib/services/chat/index.ts](lib/services/chat/index.ts) · [components/orders/OrderForm.tsx](components/orders/OrderForm.tsx) แถบกู้ร่าง

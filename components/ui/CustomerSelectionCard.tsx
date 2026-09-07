@@ -596,9 +596,21 @@ export default function CustomerSelectionCard({
                   setShowAddressDropdown(false);
                   onShipToOtherChange(k === 'other');
                 }}
+                /* พื้นหลังคนละสีต่อแท็บ — เหลือบตาแล้วรู้ทันทีว่าที่อยู่ข้างล่างเป็นของผู้สั่งหรือของผู้รับ
+                    (สีเดียวกับปุ่มชุดเดิม: ฟ้า = สั่งเอง · ชมพู = ของขวัญ) */
                 tabs={[
-                  { key: 'self', label: 'สั่งเอง', icon: <UserCheck className="w-4 h-4" /> },
-                  { key: 'other', label: 'ส่งให้คนอื่น', icon: <Gift className="w-4 h-4" />, activeColorClass: 'border-pink-500 text-pink-600 dark:text-pink-400' },
+                  {
+                    key: 'self',
+                    label: 'สั่งเอง',
+                    icon: <UserCheck className="w-4 h-4" />,
+                    activeColorClass: 'border-blue-500 text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 rounded-t-lg',
+                  },
+                  {
+                    key: 'other',
+                    label: 'ส่งให้คนอื่น',
+                    icon: <Gift className="w-4 h-4" />,
+                    activeColorClass: 'border-pink-500 text-pink-600 dark:text-pink-400 bg-pink-50 dark:bg-pink-900/20 rounded-t-lg',
+                  },
                 ]}
               />
 

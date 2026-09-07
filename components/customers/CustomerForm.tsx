@@ -400,7 +400,11 @@ export default function CustomerForm({
           <label className={labelCompact}>ประเภทลูกค้า</label>
           <FormSelect value={formData.customer_type}
             onChange={(val) => setFormData(prev => ({ ...prev, customer_type: val }))}
-            options={CUSTOMER_TYPE_OPTIONS} placeholder="-- เลือกประเภท --" />
+            /* ⚠️ `icon` ในรายการเป็น **ชื่อ** ไอคอน (string) ต้องแปลงเป็น node ก่อนเสมอ —
+                string ก็เป็น ReactNode ที่ถูกต้อง TypeScript จึงไม่ฟ้อง แล้ว dropdown ไป
+                วาดคำว่า "ShoppingBag ลูกค้าปลีก" ให้ผู้ใช้อ่าน (เจอจริง 8 ก.ย. 2026) */
+            options={CUSTOMER_TYPE_OPTIONS.map(o => ({ ...o, icon: TYPE_ICONS[o.icon] }))}
+            placeholder="-- เลือกประเภท --" />
         </div>
         {allTags && onTagsChange && (
           <div>
