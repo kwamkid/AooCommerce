@@ -201,7 +201,7 @@
 | ต้องการ | ใช้ | ห้าม |
 |---------|-----|------|
 | แสดงข้อมูลลูกค้า (ชื่อ+badge+เบอร์) | `CustomerInfoCard` | สร้าง customer display เอง |
-| เลือกลูกค้า+ที่อยู่+ภาษี | `CustomerSelectionCard` | สร้าง customer picker เอง |
+| เลือกลูกค้า+ที่อยู่+ภาษี | `CustomerSelectionCard` — `bare` (ที่แคบ/แผงแชท: ไม่วาดกรอบการ์ด ได้ความกว้างคืน) · `onEditCustomer`/`editCustomerUrl` (ดินสอบนชิปลูกค้า → แก้ **ตัวลูกค้า** เพราะช่องเบอร์/ที่อยู่ในการ์ดเป็นของ**บิลใบนี้**) · `shipToOther`+`onShipToOtherChange` วาดเป็น **แท็บ** (`Tabs`) ที่เป็นหัวข้อของบล็อกที่อยู่ในตัว — ส่งมาแล้วห้ามวาดหัวข้อ "ที่อยู่จัดส่ง" ซ้ำ | สร้าง customer picker เอง · วาดตัวเลือก สั่งเอง/ส่งให้คนอื่น เป็นปุ่มลอย ๆ แยกจากช่องที่อยู่ (ผู้ใช้ไม่เห็นว่าเกี่ยวกัน) |
 | ข้อมูลใบกำกับ (แสดง) | `TaxInvoiceInfo` | สร้าง tax display เอง |
 | แก้ไขใบกำกับ (modal) | `TaxInvoiceEditModal` | สร้าง tax edit form เอง |
 | สรุปยอด (editable) | `OrderSummaryBox` | สร้าง totals box เอง |
