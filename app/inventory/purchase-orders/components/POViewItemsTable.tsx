@@ -3,6 +3,7 @@
 import type { POItem } from './types';
 import { itemStatusBadge, formatCurrency } from './types';
 import { Package2, CheckCircle2 } from 'lucide-react';
+import { thumbUrl } from '@/lib/image-thumb';
 
 interface Props {
   items: POItem[];
@@ -40,7 +41,7 @@ export default function POViewItemsTable({ items, totalAmount }: Props) {
               return (
                 <tr key={item.id} className="data-tr">
                   <td className="px-3 py-3">
-                    {item.variation?.product?.image ? <img src={item.variation.product.image} alt="" className="w-16 h-16 rounded-lg object-cover border border-gray-200 dark:border-slate-600" /> : <div className="w-16 h-16 rounded-lg bg-gray-100 dark:bg-slate-700 flex items-center justify-center"><Package2 className="w-6 h-6 text-gray-400" /></div>}
+                    {item.variation?.product?.image ? <img src={thumbUrl(item.variation.product.image, 160)} alt="" loading="lazy" decoding="async" className="w-16 h-16 rounded-lg object-cover border border-gray-200 dark:border-slate-600" /> : <div className="w-16 h-16 rounded-lg bg-gray-100 dark:bg-slate-700 flex items-center justify-center"><Package2 className="w-6 h-6 text-gray-400" /></div>}
                   </td>
                   <td className="px-4 py-3">
                     <div className="data-primary text-gray-900 dark:text-white">{item.variation?.product?.name || '-'}{item.variation?.variation_label && item.variation.variation_label !== 'default' ? ` - ${item.variation.variation_label}` : ''}</div>
@@ -67,7 +68,7 @@ export default function POViewItemsTable({ items, totalAmount }: Props) {
           return (
             <div key={item.id} className="p-4">
               <div className="flex items-start gap-3 mb-2">
-                {item.variation?.product?.image ? <img src={item.variation.product.image} alt="" className="w-16 h-16 rounded-lg object-cover" /> : <div className="w-16 h-16 rounded-lg bg-gray-100 dark:bg-slate-700 flex items-center justify-center"><Package2 className="w-6 h-6 text-gray-400" /></div>}
+                {item.variation?.product?.image ? <img src={thumbUrl(item.variation.product.image, 160)} alt="" loading="lazy" decoding="async" className="w-16 h-16 rounded-lg object-cover" /> : <div className="w-16 h-16 rounded-lg bg-gray-100 dark:bg-slate-700 flex items-center justify-center"><Package2 className="w-6 h-6 text-gray-400" /></div>}
                 <div className="flex-1 min-w-0">
                   <div className="data-primary text-gray-900 dark:text-white truncate">{item.variation?.product?.name}{item.variation?.variation_label && item.variation.variation_label !== 'default' ? ` - ${item.variation.variation_label}` : ''}</div>
                   <div className="data-secondary text-gray-500">{item.variation?.product?.code}</div>

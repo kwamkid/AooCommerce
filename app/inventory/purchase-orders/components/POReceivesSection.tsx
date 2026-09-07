@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { ReceiveRef, POItem } from './types';
 import { ArrowDownToLine, ChevronDown, ChevronUp, Package } from 'lucide-react';
+import { thumbUrl } from '@/lib/image-thumb';
 
 interface Props {
   receives: ReceiveRef[];
@@ -82,7 +83,7 @@ export default function POReceivesSection({ receives, poItems }: Props) {
                       return (
                         <div key={item.id} className="flex items-center gap-2 py-1">
                           {item.variation?.product?.image ? (
-                            <img src={item.variation.product.image} alt="" className="w-7 h-7 rounded object-cover flex-shrink-0" />
+                            <img src={thumbUrl(item.variation.product.image, 96)} alt="" loading="lazy" decoding="async" className="w-7 h-7 rounded object-cover flex-shrink-0" />
                           ) : (
                             <div className="w-7 h-7 bg-gray-200 dark:bg-slate-600 rounded flex items-center justify-center flex-shrink-0">
                               <Package className="w-3.5 h-3.5 text-gray-400" />

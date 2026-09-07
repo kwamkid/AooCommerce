@@ -26,6 +26,7 @@ import { ORDER_STATUS_LABEL, PAYMENT_STATUS_LABEL } from '@/lib/order-status';
 import { getBadgeColorPair, getPaymentBadgeColorPair } from '@/lib/status-tab-colors';
 import { FullPageLoading } from '@/components/ui/Loading';
 import StatusBadge from '@/components/ui/StatusBadge';
+import { thumbUrl } from '@/lib/image-thumb';
 
 interface PromotionComponent {
   variation_id: string;
@@ -620,7 +621,7 @@ export default function BillClient({ orderId, initialBill }: { orderId: string; 
             <td className="py-1.5 pl-2 text-sm align-top">
               <div className="flex items-center gap-2">
                 {item.image && (
-                  <img src={item.image} alt="" className="w-8 h-8 rounded object-cover flex-shrink-0" />
+                  <img src={thumbUrl(item.image, 160)} alt="" loading="lazy" decoding="async" className="w-8 h-8 rounded object-cover flex-shrink-0" />
                 )}
                 <div>
                   <span className="font-medium">{productDisplayName({ product_name: item.product_name, variation_label: item.variation_label })}</span>

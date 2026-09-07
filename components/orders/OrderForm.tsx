@@ -37,6 +37,7 @@ import { useCustomerPrefill } from '@/lib/useCustomerPrefill';
 import { fetchCustomerOrderContext } from '@/lib/gp-resolver';
 import { isMarketplaceSource } from '@/lib/marketplace/types';
 import { computeOrderTotals } from '@/lib/order-totals';
+import { thumbUrl } from '@/lib/image-thumb';
 import StickyActionBar from '@/components/ui/StickyActionBar';
 import Stepper, { type StepItem } from '@/components/ui/Stepper';
 import { LoadingCard } from '@/components/ui/StateCard';
@@ -2166,7 +2167,7 @@ export default function OrderForm({
                     )}
                     <td className="py-2 align-middle">
                       {product.image ? (
-                        <img src={product.image} alt={product.product_name} className="w-16 h-16 object-cover rounded border border-gray-200" />
+                        <img src={thumbUrl(product.image, 160)} alt={product.product_name} loading="lazy" decoding="async" className="w-16 h-16 object-cover rounded border border-gray-200" />
                       ) : (
                         <div className="w-16 h-16 bg-gray-100 rounded border border-gray-200 flex items-center justify-center text-gray-400 text-xs">N/A</div>
                       )}

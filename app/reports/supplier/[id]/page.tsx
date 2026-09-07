@@ -10,6 +10,7 @@ import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
 import { generateReportPdf } from '@/lib/supplier-pdf';
 import { showPdfPreview } from '@/lib/print-pdf';
+import { thumbUrl } from '@/lib/image-thumb';
 import Button from '@/components/ui/Button';
 import {
   Loader2, ArrowLeft, Factory, Calendar, Warehouse, Package,
@@ -373,7 +374,7 @@ export default function SnapshotDetailPage() {
                         <td className="px-4 py-2">
                           <div className="flex items-center gap-3">
                             {item.variation?.product?.image ? (
-                              <img src={item.variation.product.image} alt="" className="w-8 h-8 rounded object-cover flex-shrink-0" />
+                              <img src={thumbUrl(item.variation.product.image, 96)} alt="" loading="lazy" decoding="async" className="w-8 h-8 rounded object-cover flex-shrink-0" />
                             ) : (
                               <div className="w-8 h-8 rounded bg-gray-100 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
                                 <Package className="w-4 h-4 text-gray-400" />

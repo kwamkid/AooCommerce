@@ -3,6 +3,7 @@
 
 import { Package2 } from 'lucide-react';
 import { formatPrice } from '@/lib/utils/format';
+import { thumbUrl } from '@/lib/image-thumb';
 
 export interface PosProduct {
   variation_id: string;
@@ -69,8 +70,10 @@ export default function ProductGrid({ products, onAddToCart, loading, allowOvers
             <div className="aspect-square bg-gray-100 dark:bg-white/10 rounded-lg mb-2 overflow-hidden flex items-center justify-center">
               {product.image_url ? (
                 <img
-                  src={product.image_url}
+                  src={thumbUrl(product.image_url, 320)}
                   alt={product.product_name}
+                  loading="lazy"
+                  decoding="async"
                   className="w-full h-full object-cover"
                 />
               ) : (

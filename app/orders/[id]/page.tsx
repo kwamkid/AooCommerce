@@ -67,6 +67,7 @@ import Badge from '@/components/ui/Badge';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { ORDER_STATUS_LABEL, orderStatusLabel, getNextOrderStatus } from '@/lib/order-status';
 import { getBadgeColor } from '@/lib/status-tab-colors';
+import { thumbUrl } from '@/lib/image-thumb';
 
 // Status badge components
 function OrderStatusBadge({ status }: { status: string }) {
@@ -2153,9 +2154,9 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
                   <div className="w-12 h-12 flex-shrink-0 rounded-md overflow-hidden bg-white dark:bg-slate-600 border border-gray-200 dark:border-slate-500 group relative">
                     {item.image ? (
                       <>
-                        <img src={item.image} alt="" className="w-full h-full object-contain" />
+                        <img src={thumbUrl(item.image, 96)} alt="" loading="lazy" decoding="async" className="w-full h-full object-contain" />
                         <div className="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
-                          <img src={item.image} alt="" className="max-w-[200px] max-h-[200px] object-contain rounded shadow-lg pointer-events-none absolute bottom-full left-0 mb-2" />
+                          <img src={thumbUrl(item.image, 320)} alt="" loading="lazy" decoding="async" className="max-w-[200px] max-h-[200px] object-contain rounded shadow-lg pointer-events-none absolute bottom-full left-0 mb-2" />
                         </div>
                       </>
                     ) : (

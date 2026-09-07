@@ -6,6 +6,7 @@ import DateRangePicker, { DateValueType } from '@/components/ui/DateRangePicker'
 import FormSelect from '@/components/ui/FormSelect';
 import Pagination from '@/app/components/Pagination';
 import { LoadingCard } from '@/components/ui/StateCard';
+import { thumbUrl } from '@/lib/image-thumb';
 import {
   Loader2, RefreshCw, Package, ArrowDownToLine, ArrowUpFromLine,
   ArrowLeftRight, Bookmark, BookmarkX, Settings2, RotateCcw,
@@ -337,7 +338,7 @@ export default function MonitorTab({ warehouses }: MonitorTabProps) {
                   {/* Product image */}
                   <div className="flex-shrink-0 w-10 h-10 rounded bg-gray-100 dark:bg-slate-700 overflow-hidden">
                     {tx.product_image ? (
-                      <img src={tx.product_image} alt="" className="w-full h-full object-cover" />
+                      <img src={thumbUrl(tx.product_image, 96)} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center">
                         <Package className="w-4 h-4 text-gray-300 dark:text-slate-600" />

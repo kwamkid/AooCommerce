@@ -36,6 +36,7 @@ import PushDealModal from './components/PushDealModal';
 import { useFeatures } from '@/lib/features-context';
 import { useToast } from '@/lib/toast-context';
 import { getBadgeColor, getStatusHeaderTint } from '@/lib/status-tab-colors';
+import { thumbUrl } from '@/lib/image-thumb';
 
 // ─── Types ──────────────────────────────────────────────
 
@@ -295,7 +296,7 @@ function PromotionCard({
                   style={item.image ? { cursor: 'zoom-in' } : undefined}
                 >
                   {item.image ? (
-                    <img src={item.image} alt="" className="w-full h-full object-cover" />
+                    <img src={thumbUrl(item.image, 96)} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center">
                       <Package className="w-5 h-5 text-gray-300 dark:text-slate-500" />
@@ -350,7 +351,7 @@ function PromotionCard({
               onClick={(e) => { e.stopPropagation(); onImageClick(promo.image!); }}
               style={{ cursor: 'zoom-in' }}
             >
-              <img src={promo.image} alt="" className="w-full h-full object-cover" />
+              <img src={thumbUrl(promo.image, 160)} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
             </div>
           )}
 

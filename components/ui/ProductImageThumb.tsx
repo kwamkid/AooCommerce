@@ -3,6 +3,7 @@
 import { useState, type ReactNode } from 'react';
 import { Package, Search } from 'lucide-react';
 import ImageLightbox from './ImageLightbox';
+import { thumbUrl } from '@/lib/image-thumb';
 
 export type ThumbSize = 'xs' | 'sm' | 'md' | 'lg';
 /**
@@ -69,6 +70,9 @@ interface ProductImageThumbProps {
  *
  * Used in: items tables, product lists, replenishment receive screens, refund
  * modals — anywhere a product thumbnail should preview at full size on click.
+ *
+ * รูปจิ๋วโหลดผ่าน `thumbUrl()` เสมอ (กรอบ 32–48px = 96px · lg = 160px) ส่วน lightbox ใช้ `src` เดิม
+ * — **ห้ามส่ง URL ที่ย่อมาแล้วเข้ามาเป็น `src`** ไม่งั้นกดขยายจะได้รูปเบลอ
  */
 export default function ProductImageThumb({
   src,
@@ -102,7 +106,13 @@ export default function ProductImageThumb({
       >
         {/* object-contain ไม่ใช่ cover — รูปแนวตั้งต้องเห็นครบ ไม่ใช่ถูกครอปหัวท้าย
             ของเก่าบางร้านอาจเป็นสัดส่วนอื่นที่ไม่ใช่ 1:1/3:4 กรอบจึงต้องรับได้โดยไม่ตัดทิ้ง */}
-        <img src={src} alt={alt} className="w-full h-full object-contain" />
+        <img
+          src={thumbUrl(src, size === 'lg' ? 160 : 96)}
+          alt={alt}
+          loading="lazy"
+          decoding="async"
+          className="w-full h-full object-contain"
+        />
         {clickable && (
           <span className="absolute inset-0 flex items-center justify-center bg-black/40 text-white opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
             <Search className={ZOOM_ICON_CLASS[size]} />

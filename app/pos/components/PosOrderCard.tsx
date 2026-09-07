@@ -8,6 +8,7 @@ import { getBadgeColor, getStatusHeaderTint } from '@/lib/status-tab-colors';
 import { Eye, Printer, Ban, Loader2, Package, Store, Tag } from 'lucide-react';
 import StatusBadge from '@/components/ui/StatusBadge';
 import Badge from '@/components/ui/Badge';
+import { thumbUrl } from '@/lib/image-thumb';
 
 const ORDER_STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; headerBg: string; headerText: string }> = {
   completed: { label: 'สำเร็จ', ...getBadgeColor('completed'), headerBg: getStatusHeaderTint('completed').bg, headerText: getStatusHeaderTint('completed').text },
@@ -126,7 +127,7 @@ export default function PosOrderCard({ order, onViewReceipt, onVoid, voidingId, 
               <div key={idx} className="flex items-center gap-2.5">
                 <div className="w-9 h-9 rounded-lg bg-gray-100 dark:bg-slate-700 overflow-hidden flex-shrink-0 flex items-center justify-center">
                   {item.product?.image ? (
-                    <img src={item.product.image} alt="" className="w-full h-full object-cover" />
+                    <img src={thumbUrl(item.product.image, 96)} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
                   ) : (
                     <Package className="w-4 h-4 text-gray-300 dark:text-slate-500" />
                   )}

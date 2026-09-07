@@ -664,12 +664,7 @@ export default function ItemsTable({
                     <td className="py-2 pl-16">
                       <div className="flex items-center gap-2">
                         <div className="w-1 h-8 rounded bg-purple-300 dark:bg-purple-700 flex-shrink-0" />
-                        {comp.image
-                          ? <img src={comp.image} alt="" className="w-8 h-8 rounded-md object-contain bg-gray-50 dark:bg-slate-700/50 flex-shrink-0" />
-                          : <div className="w-8 h-8 rounded bg-gray-100 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
-                              <Package className="w-3.5 h-3.5 text-gray-400 dark:text-slate-500" />
-                            </div>
-                        }
+                        <ProductImageThumb src={comp.image} alt={comp.product_name} size="xs" />
                         <div className="min-w-0">
                           <p className="text-sm text-gray-900 dark:text-slate-200 line-clamp-2">{comp.product_name}</p>
                           <div className="flex items-center gap-1.5 mt-0.5">
@@ -940,12 +935,7 @@ export default function ItemsTable({
                 <div className="mt-2 ml-3 pl-3 border-l-2 border-purple-200 dark:border-purple-800 space-y-2">
                   {item.promotion_components.map((comp, ci) => (
                     <div key={ci} className="flex items-center gap-2">
-                      {comp.image
-                        ? <img src={comp.image} alt="" className="w-8 h-8 rounded-md object-contain bg-gray-50 dark:bg-slate-700/50 flex-shrink-0" />
-                        : <div className="w-8 h-8 rounded bg-gray-100 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
-                            <Package className="w-3.5 h-3.5 text-gray-400" />
-                          </div>
-                      }
+                      <ProductImageThumb src={comp.image} alt={comp.product_name} size="xs" />
                       <div className="flex-1 min-w-0">
                         <p className="text-sm text-gray-900 dark:text-slate-200 line-clamp-2">{comp.product_name}</p>
                         <div className="flex items-center gap-1.5 mt-0.5">
