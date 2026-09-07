@@ -23,6 +23,7 @@ import {
   Package2,
   Truck,
   MessageCircle,
+  Megaphone,
   CreditCard,
   ChevronDown,
   PanelLeftClose,
@@ -81,6 +82,7 @@ const menuSections: MenuSection[] = [
     title: 'ระบบการขาย',
     items: [
       { label: 'Chat', href: '/chat', icon: <MessageCircle className="w-[18px] h-[18px] flex-shrink-0" />, caps: ['chat.view'] },
+      { label: 'บรอดแคสต์', href: '/chat/broadcast', icon: <Megaphone className="w-[18px] h-[18px] flex-shrink-0" />, caps: ['chat.broadcast'] },
       { label: 'คำสั่งซื้อ', href: '/orders', icon: <ShoppingCart className="w-[18px] h-[18px] flex-shrink-0" />, caps: ['order.view'] },
       { label: 'จัดของ & ส่ง', href: '/reports/delivery-summary', icon: <Truck className="w-[18px] h-[18px] flex-shrink-0" />, caps: ['order.view'] },
     ]
@@ -618,7 +620,8 @@ export default function Sidebar() {
                   {section.title}
                 </h3>
                 {section.items.map((item) => {
-                  const isActive = pathname === item.href || (item.href !== '/' && item.href !== '/inventory' && item.href !== '/pos' && pathname?.startsWith(item.href + '/')) || (item.href === '/chat' && (pathname === '/line-chat' || pathname === '/fb-chat'));
+                  // '/chat' ไม่กินหน้าลูก — บรอดแคสต์เป็นเมนูของตัวเองที่อยู่ใต้ /chat/broadcast
+                  const isActive = pathname === item.href || (item.href !== '/' && item.href !== '/inventory' && item.href !== '/pos' && item.href !== '/chat' && pathname?.startsWith(item.href + '/')) || (item.href === '/chat' && (pathname === '/line-chat' || pathname === '/fb-chat'));
 
                   // Products item: render as collapsible with submenu
                   if (item.href === '/products') {

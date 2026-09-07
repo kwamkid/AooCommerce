@@ -166,6 +166,8 @@ export interface ChatMessage {
     height?: number;
     /** Lazada: ประกาศ/โปรโมชันที่แพลตฟอร์มยิงหาผู้ขาย ไม่ใช่ข้อความของลูกค้า */
     broadcast?: { topic?: string; summary?: string };
+    /** ข้อความนี้มาจากบรอดแคสต์ LINE ใบไหน — พนักงานต้องแยกออกว่าไม่ใช่การตอบรายคน */
+    broadcast_id?: string;
     /** คูปองที่แนบมากับข้อความ — โครงต่างกันไปตามแพลตฟอร์ม เก็บเท่าที่ส่งมา */
     voucher?: Record<string, string | number | undefined>;
 

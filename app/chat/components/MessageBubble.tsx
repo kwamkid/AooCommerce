@@ -54,16 +54,24 @@ function MessageBubble({
   const inner = renderBody({ msg, platform, direction, onOpenLightbox, onImageLoad });
 
   // ตอบกลับข้อความเดิม — บล็อกอ้างอิงอยู่เหนือเนื้อในฟองเดียวกัน (สีรับจากฟอง)
-  if (msg.raw_message?.quoted) {
+  const body = msg.raw_message?.quoted ? (
+    <>
+      <QuotedMessage quoted={msg.raw_message.quoted} />
+      {inner}
+    </>
+  ) : inner;
+
+  // บรอดแคสต์ — คนอ่านต้องรู้ทันทีว่านี่ไม่ใช่ข้อความที่ใครสักคนพิมพ์ตอบลูกค้ารายนี้
+  if (msg.raw_message?.broadcast_id) {
     return (
       <>
-        <QuotedMessage quoted={msg.raw_message.quoted} />
-        {inner}
+        <p className="text-[11px] opacity-80 mb-0.5">📣 บรอดแคสต์</p>
+        {body}
       </>
     );
   }
 
-  return inner;
+  return body;
 }
 
 /**

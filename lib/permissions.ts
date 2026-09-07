@@ -124,6 +124,7 @@ export const CAPABILITIES = {
   // Chat (กล่องแชทรวมทุกช่องทาง)
   'chat.view':                   [...ADMIN_TIER, 'chat:view'],
   'chat.reply':                  [...ADMIN_TIER, 'chat:manage'],   // ส่งข้อความออก + ผูกลูกค้า
+  'chat.broadcast':              ADMIN_TIER,    // ส่งข้อความหาลูกค้าหลายคนพร้อมกัน — กินโควตา OA จึงให้เฉพาะระดับผู้บริหาร
 
   // Inventory
   'inventory.view':              [...ADMIN_TIER, 'inventory:view'],
