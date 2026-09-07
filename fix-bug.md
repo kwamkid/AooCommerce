@@ -35,11 +35,11 @@
 
 **อาการ**: รัน `scripts/migrate-member-permissions.mjs --apply` แล้วแถวคำเชิญ (company_invitations) ย้ายครบ แต่สมาชิกที่ควรกลายเป็น `staff` ยังเป็น role เก่า (sales/cashier/…) ทั้งหมด · แปลว่าหน้าสมาชิกใหม่ก็บันทึก "พนักงาน" ไม่ได้เหมือนกัน (DB ตีตก)
 
-**Root cause**: `company_members_roles_valid` = `CHECK (roles <@ ARRAY[8 role เดิม])` — ตอนออกแบบโมเดลใหม่ตรวจแค่ RLS/function ที่อ้าง `roles` แล้วสรุปว่า "ไม่ต้องแตะ DB" ลืมไล่ CHECK constraint ของตารางเอง (ส่วน `company_invitations` ไม่มี CHECK จึงผ่าน) · สคริปต์กลืน error รายแถวจึงบอกว่าเรียบร้อย
+**Root cause**: `company_members_roles_valid` = `CHECK (roles <@ ARRAY[8 role เดิม])` — ตอนออกแบบโมเดลใหม่ตรวจแค่ RLS/function ที่อ้าง `roles` แล้วสรุปว่า "ไม่ต้องแตะ DB" ลืมไล่ CHECK constraint ของตารางเอง (ส่วน `company_invitations` ไม่มี CHECK จึงผ่าน) · สคริปต์พิมพ์ `FAILED …` รายแถวแต่ปิดท้ายด้วยสรุปที่อ่านแล้วเหมือนสำเร็จ
 
 **แก้**: migration `company_members_roles_allow_staff` เพิ่ม `'staff'` เข้า CHECK (ยังยอมค่าเก่าจนกว่าจะย้ายครบ) แล้วรันสคริปต์ย้ายอีกรอบ
 
-**ป้องกัน**: เพิ่มค่า enum-แบบ-text ที่ไหน → `select conname, pg_get_constraintdef(oid) from pg_constraint where conrelid='<table>'::regclass and contype='c'` ก่อนเสมอ · สคริปต์ย้ายข้อมูลต้องพิมพ์ error ของแถวที่ล้ม ไม่ใช่นับว่าสำเร็จ
+**ป้องกัน**: เพิ่มค่า enum-แบบ-text ที่ไหน → `select conname, pg_get_constraintdef(oid) from pg_constraint where conrelid='<table>'::regclass and contype='c'` ก่อนเสมอ · สคริปต์ย้ายข้อมูลต้องจบด้วย exit code ≠ 0 และสรุปตัวเลขที่ล้มให้เด่น ไม่ใช่ปล่อยให้บรรทัดสุดท้ายอ่านเหมือนสำเร็จ
 
 ---
 
