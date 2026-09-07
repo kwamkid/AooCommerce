@@ -39,6 +39,7 @@
 - อาการของบั๊กชนิดนี้คือ **"ของที่มีอยู่หาไม่เจอ"** ไม่ใช่ error — ทดสอบด้วยร้านที่มีข้อมูลหลักพันเท่านั้นถึงจะเจอ
 - `ProductSearchInput` ในโหมด API ถือว่า prop `products` = ผลค้นหาแล้ว **ห้ามกรองซ้ำ** · โปรโมชั่นที่ merge เข้าไปต้องกรองด้วย `productQuery` เองใน OrderForm
 - DealerOrderForm / ReplenishmentForm ยังโหลดสินค้าทั้งร้านอยู่ (`/api/products?limit=9999`) — อยู่ใน todo.md
+- **regression ที่เจอตอนทดสอบ (7 ก.ย. รอบเดียวกัน)**: เปิดบิลจากแชทแล้วหน้าพัง `Cannot read properties of undefined (reading 'length')` ที่ `hasProducts` — เพราะลูกค้าจากแชทถูกเลือกให้ **ตั้งแต่ mount** (fetch รายคนแล้วเรียก `handleSelectCustomer` จาก closure แรก) ซึ่ง `branchOrders` ใน closure ยังเป็น `[]` → `{...branchOrders[0]}` ได้กล่องบิลที่ไม่มี `products` · ของเดิมไม่เจอเพราะรอ `customers` โหลดเสร็จก่อน (render หลัง ๆ closure สดแล้ว) · แก้: `setBranchOrders(prev => …)` อ่านค่าล่าสุดเสมอ + เติม `products: []` เมื่อยังไม่มีกล่อง · **บทเรียน**: callback ที่ถูกเรียกจาก effect ตอน mount ห้าม spread state จาก closure — ใช้ functional update
 
 ### รอบ 2 — ทำให้ไว+เบา (2026-09-07)
 

@@ -1161,12 +1161,25 @@ export default function OrderForm({
     setSelectedAddressId('');
 
     // Keep existing products, just reset shipping address
-    const existingShippingFee = branchOrders[0]?.shipping_fee || 0;
-    setBranchOrders([{
-      ...branchOrders[0],
-      shipping_address_id: '',
-      shipping_fee: existingShippingFee,
-    }]);
+    // ต้องอ่านค่าล่าสุดผ่าน functional update — ลูกค้าจากแชทถูกเลือกให้ตั้งแต่ตอน mount
+    // (fetch รายคนแล้วเรียกฟังก์ชันนี้จาก closure แรก) ซึ่ง `branchOrders` ใน closure ยังเป็น []
+    // ถ้า spread `branchOrders[0]` ที่ยังไม่มี จะได้กล่องบิลที่ไม่มี `products` → หน้าพัง
+    // "Cannot read properties of undefined (reading 'length')" (7 ก.ย. 2026)
+    setBranchOrders(prev => {
+      const first = prev[0] ?? {
+        shipping_address_id: '',
+        address_name: 'รายการสินค้า',
+        delivery_notes: '',
+        shipping_fee: 0,
+        products: [],
+      };
+      return [{
+        ...first,
+        products: first.products ?? [],
+        shipping_address_id: '',
+        shipping_fee: first.shipping_fee || 0,
+      }];
+    });
 
     // Fetch customer context (addresses + tax) via hook
     try {
