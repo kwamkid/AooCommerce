@@ -94,6 +94,9 @@ interface Props {
    * โหมดค้นลูกค้าฝั่ง server — ส่งต่อให้ `EntitySearchInput` เป็น `onSearchChange`
    * เมื่อส่งมา `customers` = ผลค้นหา (หรือลูกค้าล่าสุด) ที่ผู้เรียกเตรียมไว้แล้ว
    * ใช้กับร้านที่มีลูกค้าหลักพัน ซึ่งโหลดมาทั้งก้อนไม่ได้ (เพดาน 1,000 แถวของ Supabase)
+   *
+   * ฝั่ง parent ให้ต่อกับ `useServerSearch` ([lib/useServerSearch.ts](lib/useServerSearch.ts))
+   * — guard ลำดับ response · จำผล 30 วิ · กรองต่อในเครื่องเมื่อพิมพ์ต่อจากคำเดิม
    */
   onCustomerSearchChange?: (search: string) => void;
   /** สปินเนอร์ระหว่างค้นลูกค้า (คู่กับ onCustomerSearchChange) */
@@ -424,7 +427,7 @@ export default function CustomerSelectionCard({
                   emptyMessage="ไม่พบลูกค้า"
                   onSearchChange={onCustomerSearchChange}
                   loading={onCustomerSearchChange ? customersLoading : undefined}
-                  minSearchLength={onCustomerSearchChange ? 1 : undefined}
+                  minSearchLength={onCustomerSearchChange ? 2 : undefined}
                 />
               </div>
             </div>

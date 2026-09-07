@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useMemo, useCallback, RefObject } from 'react';
+import { useState, useEffect, useRef, useMemo, RefObject } from 'react';
 import { useCopy } from '@/lib/useCopy';
 import { createPortal } from 'react-dom';
 import { useFetchOnce } from '@/lib/use-fetch-once';
@@ -10,6 +10,7 @@ import { useToast } from '@/lib/toast-context';
 import { useFeatures } from '@/lib/features-context';
 import { useCompany } from '@/lib/company-context';
 import { apiFetch } from '@/lib/api-client';
+import { useServerSearch, type ServerSearchPage } from '@/lib/useServerSearch';
 import { supabase } from '@/lib/supabase';
 import { parseThaiAddress } from '@/lib/address-parser';
 import {
@@ -124,57 +125,51 @@ interface Product {
   variation_label?: string;
   product_type: 'simple' | 'variation';
   sku?: string;
+  /** มาจาก RPC ค้นหา — ใช้กรองต่อในเครื่อง (narrowProducts) ให้ตรงกับที่ server ค้นให้ */
+  barcode?: string;
   default_price: number;
   discount_price?: number;
   stock: number;
 }
 
 /**
- * แถวสินค้าแบบ grouped จาก `/api/products` → รายการแบนที่ช่องค้นหาใช้
- * (simple = 1 แถวจาก variations[0] · variation = 1 แถวต่อ variation)
+ * ค้นสินค้าฝั่ง server — RPC `search_order_products` รอบเดียว คืนแถวแบนที่ dropdown ใช้
+ * (แถวละ 1 variation ที่เปิดขายอยู่ · route ค้นเดิมของหน้า /products ยิง DB 3 รอบ ~220KB)
  *
- * **ข้าม variation ที่ `is_active === false`** — ของที่พักขายไม่ควรโผล่ให้เลือกในบิล
- * (หน้า /products ยังโชว์อยู่แต่ติดป้าย "ปิด")
+ * ห้ามกลับไปโหลดสินค้าทั้งร้านมากรองใน client: Supabase ตัดที่ 1,000 แถวเงียบ ๆ
+ * ร้านที่มีสินค้า 5,826 รายการจึงค้นตัวที่ 5,043 ไม่เจอ (ดู fix-bug.md 2026-09-07)
  */
-function flattenProducts(rows: any[]): Product[] {
-  const flat: Product[] = [];
-  (rows || []).forEach((sp: any) => {
-    if (sp.product_type === 'simple') {
-      const active = (sp.variations || []).filter((v: any) => v.is_active !== false);
-      if (active.length === 0) return;
-      flat.push({
-        id: active[0].variation_id || sp.product_id,
-        product_id: sp.product_id,
-        code: sp.code,
-        name: sp.name,
-        image: sp.main_image_url || sp.image,
-        variation_label: sp.simple_variation_label,
-        product_type: 'simple',
-        sku: sp.simple_sku,
-        default_price: sp.simple_default_price || 0,
-        discount_price: sp.simple_discount_price || 0,
-        stock: sp.simple_stock || 0,
-      });
-    } else {
-      (sp.variations || []).forEach((v: any) => {
-        if (v.is_active === false) return;
-        flat.push({
-          id: v.variation_id,
-          product_id: sp.product_id,
-          code: `${sp.code}-${v.variation_label}`,
-          name: sp.name,
-          image: v.image_url || sp.main_image_url || sp.image,
-          variation_label: v.variation_label,
-          product_type: 'variation',
-          sku: v.sku,
-          default_price: v.default_price || 0,
-          discount_price: v.discount_price || 0,
-          stock: v.stock || 0,
-        });
-      });
-    }
-  });
-  return flat;
+async function fetchProductSearchPage(q: string): Promise<ServerSearchPage<Product>> {
+  const res = await apiFetch(`/api/products/search?q=${encodeURIComponent(q)}&limit=80`);
+  if (!res.ok) throw new Error('product search failed');
+  const json = await res.json();
+  const rows: Product[] = (json.items || []).map((r: any) => ({
+    id: r.variation_id,
+    product_id: r.product_id,
+    // parity กับรายการเดิม: simple ใช้รหัสสินค้าเปล่า · variation ต่อท้ายด้วยชื่อตัวเลือก
+    code: r.product_type === 'simple' ? r.code : `${r.code}-${r.variation_label ?? ''}`,
+    name: r.name,
+    image: r.image_url ?? undefined,
+    variation_label: r.variation_label ?? undefined,
+    product_type: r.product_type === 'simple' ? 'simple' : 'variation',
+    sku: r.sku ?? undefined,
+    barcode: r.barcode ?? undefined,
+    default_price: Number(r.default_price) || 0,
+    discount_price: Number(r.discount_price) || 0,
+    stock: 0, // สต็อกจริงมาจาก stockMap ของคลังที่เลือก ไม่ได้มากับผลค้นหา
+  }));
+  return { rows, complete: json.complete !== false };
+}
+
+/** กรองผลชุดเดิมในเครื่องเมื่อพิมพ์ต่อจากคำเดิม — ต้องเทียบช่องเดียวกับที่ RPC ค้น */
+function narrowProducts(rows: Product[], q: string): Product[] {
+  const term = q.toLowerCase();
+  return rows.filter(p =>
+    p.name.toLowerCase().includes(term)
+    || p.code.toLowerCase().includes(term)
+    || (p.sku || '').toLowerCase().includes(term)
+    || (p.barcode || '').toLowerCase().includes(term)
+    || (p.variation_label || '').toLowerCase().includes(term));
 }
 
 /**
@@ -200,6 +195,24 @@ function filterRetailCustomers(rows: unknown[]): Customer[] {
   return (rows as (Customer & { is_active?: boolean })[])
     .filter(c => c.is_active !== false && RETAIL_CUSTOMER_TYPES.includes(c.customer_type || ''))
     .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/** ค้นลูกค้าฝั่ง server — `complete` วัดจากจำนวนแถวดิบก่อนกรองประเภท (นั่นคือสิ่งที่ limit ตัด) */
+async function fetchCustomerSearchPage(q: string): Promise<ServerSearchPage<Customer>> {
+  const res = await apiFetch(`/api/customers?search=${encodeURIComponent(q)}&active=true&limit=20`);
+  if (!res.ok) throw new Error('customer search failed');
+  const json = await res.json();
+  const raw = json.customers || [];
+  return { rows: filterRetailCustomers(raw), complete: raw.length < 20 };
+}
+
+/** กรองผลลูกค้าชุดเดิมในเครื่อง — ช่องเดียวกับที่ `/api/customers?search=` ค้น */
+function narrowCustomers(rows: Customer[], q: string): Customer[] {
+  const term = q.toLowerCase();
+  return rows.filter(c =>
+    c.name.toLowerCase().includes(term)
+    || (c.phone || '').toLowerCase().includes(term)
+    || (c.customer_code || '').toLowerCase().includes(term));
 }
 
 interface PromotionTierData { min_qty: number; discount_type: string; discount_value: number }
@@ -357,12 +370,15 @@ export default function OrderForm({
 
   // Customer selection — `customers` = สิ่งที่ dropdown กำลังโชว์ (ผลค้นหา หรือลูกค้าล่าสุด)
   // ร้านที่มีลูกค้าหลักพันโหลดมาทั้งก้อนไม่ได้ (เพดาน 1,000 แถวของ Supabase) จึงค้นฝั่ง server
-  const [customers, setCustomers] = useState<Customer[]>([]);
   /** ลูกค้าล่าสุด 30 คนจาก /init — รายการตั้งต้นตอนช่องค้นหายังว่าง */
   const [recentCustomers, setRecentCustomers] = useState<Customer[]>([]);
-  const [customersLoading, setCustomersLoading] = useState(false);
-  /** กัน response ของคำค้นเก่ามาทับผลของคำค้นใหม่ (มาสลับลำดับได้) */
-  const customerSearchSeq = useRef(0);
+  // seq guard + แคช 30 วิ + กรองต่อในเครื่องอยู่ใน useServerSearch แล้ว — ห้ามเขียนเองที่นี่
+  const customerSearch = useServerSearch<Customer>({
+    fetch: fetchCustomerSearchPage,
+    narrow: narrowCustomers,
+    emptyResults: recentCustomers,
+  });
+  const customers = customerSearch.results;
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   // customerSearch removed — using selectedCustomer?.name directly
 
@@ -380,11 +396,15 @@ export default function OrderForm({
   const [customerHasTax, setCustomerHasTax] = useState(false);
 
   // Products — `products` = **ผลค้นหาล่าสุด** ไม่ใช่สินค้าทั้งร้าน (ค้นฝั่ง server)
-  const [products, setProducts] = useState<Product[]>([]);
-  const [loadingProducts, setLoadingProducts] = useState(true);
+  const productSearch = useServerSearch<Product>({
+    fetch: fetchProductSearchPage,
+    narrow: narrowProducts,
+  });
+  const products = productSearch.results;
   /** คำค้นที่ผลชุดปัจจุบันมาจาก — ใช้กรองโปรโมชั่น (ProductSearchInput ไม่กรองให้แล้ว) */
-  const [productQuery, setProductQuery] = useState('');
-  const productSearchSeq = useRef(0);
+  const productQuery = productSearch.query;
+  /** true ระหว่าง /init ยังไม่เสร็จ — คนละเรื่องกับ productSearch.loading (กำลังค้น) */
+  const [loadingProducts, setLoadingProducts] = useState(true);
 
   // Top sellers (30d, prefer this customer's history, fall back to company)
   const [topSellers, setTopSellers] = useState<Product[]>([]);
@@ -629,7 +649,7 @@ export default function OrderForm({
   // back to the individual fetches if /init errors so a deploy gone wrong
   // doesn't brick the form.
   //
-  // **ไม่มีสินค้าในก้อนนี้** — สินค้าค้นฝั่ง server ตอนผู้ใช้พิมพ์ (handleProductSearchChange)
+  // **ไม่มีสินค้าในก้อนนี้** — สินค้าค้นฝั่ง server ตอนผู้ใช้พิมพ์ (productSearch → /api/products/search)
   // เพราะร้านที่มีสินค้า 5.8k รายการชนเพดาน 1,000 แถวของ Supabase + 4.5MB ของ Vercel
   const fetchInitBundle = async () => {
     try {
@@ -639,9 +659,8 @@ export default function OrderForm({
       const data = await res.json();
 
       // Customers — ลูกค้าล่าสุด 30 คน (รายการตั้งต้นก่อนผู้ใช้พิมพ์ค้นหา)
-      const sortedCustomers = filterRetailCustomers(data.customers || []);
-      setRecentCustomers(sortedCustomers);
-      setCustomers(sortedCustomers);
+      // hook สะท้อนค่านี้เป็นผลลัพธ์ให้เองตอนช่องค้นหายังว่าง
+      setRecentCustomers(filterRetailCustomers(data.customers || []));
 
       // Warehouses + stock config — same default-pick logic as fetchWarehouses,
       // but inventory for the default warehouse comes embedded so we skip the
@@ -977,66 +996,11 @@ export default function OrderForm({
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || 'Failed to fetch customers');
 
-      const sortedCustomers = filterRetailCustomers(result.customers || []);
-      setRecentCustomers(sortedCustomers);
-      setCustomers(sortedCustomers);
+      setRecentCustomers(filterRetailCustomers(result.customers || []));
     } catch (error) {
       console.error('Error fetching customers:', error);
     }
   };
-
-  /**
-   * ค้นสินค้าฝั่ง server — ProductSearchInput เรียกให้หลัง debounce 300ms
-   *
-   * ห้ามกลับไปโหลดสินค้าทั้งร้านมากรองใน client: Supabase ตัดที่ 1,000 แถวเงียบ ๆ
-   * ร้านที่มีสินค้า 5,826 รายการจึงค้นตัวที่ 5,043 ไม่เจอ (ดู fix-bug.md 2026-09-07)
-   */
-  const handleProductSearchChange = useCallback(async (raw: string) => {
-    const q = raw.trim();
-    const seq = ++productSearchSeq.current;
-    setProductQuery(q);
-    if (!q) {
-      setProducts([]);
-      setLoadingProducts(false);
-      return;
-    }
-    setLoadingProducts(true);
-    try {
-      // ไม่ต้องส่ง active= — route กรองเฉพาะสินค้าเปิดขายอยู่แล้วเป็นค่าเริ่มต้น
-      const res = await apiFetch(`/api/products?search=${encodeURIComponent(q)}&limit=50`);
-      if (seq !== productSearchSeq.current) return;  // มีคำค้นใหม่กว่าแล้ว ทิ้งผลนี้
-      const json = res.ok ? await res.json() : { products: [] };
-      setProducts(flattenProducts(json.products || []));
-    } catch (error) {
-      console.error('Error searching products:', error);
-      if (seq === productSearchSeq.current) setProducts([]);
-    } finally {
-      if (seq === productSearchSeq.current) setLoadingProducts(false);
-    }
-  }, []);
-
-  /** ค้นลูกค้าฝั่ง server — ช่องว่าง = กลับไปโชว์ลูกค้าล่าสุด 30 คน */
-  const handleCustomerSearchChange = useCallback(async (raw: string) => {
-    const q = raw.trim();
-    const seq = ++customerSearchSeq.current;
-    if (!q) {
-      setCustomers(recentCustomers);
-      setCustomersLoading(false);
-      return;
-    }
-    setCustomersLoading(true);
-    try {
-      const res = await apiFetch(`/api/customers?search=${encodeURIComponent(q)}&active=true&limit=20`);
-      if (seq !== customerSearchSeq.current) return;
-      const json = res.ok ? await res.json() : { customers: [] };
-      setCustomers(filterRetailCustomers(json.customers || []));
-    } catch (error) {
-      console.error('Error searching customers:', error);
-      if (seq === customerSearchSeq.current) setCustomers([]);
-    } finally {
-      if (seq === customerSearchSeq.current) setCustomersLoading(false);
-    }
-  }, [recentCustomers]);
 
   // Top sellers — prefer this customer's history; backend falls back to
   // company-wide if customer has none. Deferred ~300ms so it stays out of
@@ -2400,8 +2364,8 @@ export default function OrderForm({
           selectedCustomerId={selectedCustomer?.id || ''}
           onCustomerChange={(id) => handleSelectCustomer(id)}
           onCustomerClear={handleCustomerClear}
-          onCustomerSearchChange={handleCustomerSearchChange}
-          customersLoading={customersLoading}
+          onCustomerSearchChange={customerSearch.search}
+          customersLoading={customerSearch.loading}
           disabled={isReadOnly}
           /* ล็อคเฉพาะการ "เปลี่ยนตัวลูกค้า" — เบอร์/อีเมล/ที่อยู่ยังแก้ได้
              โหมดแก้ไขก็ล็อค: ย้ายออเดอร์ที่มีอยู่ไปลูกค้าคนอื่นต้องทำจากหน้า order ไม่ใช่เผลอกดที่นี่ */
@@ -2808,8 +2772,8 @@ export default function OrderForm({
             showStockInSearch={stockEnabled && !!selectedWarehouseId}
             disableOutOfStock={!allowOversell && stockEnabled && !!selectedWarehouseId}
             products={isReadOnly ? [] : allSearchItems}
-            loadingProducts={loadingProducts}
-            onProductSearchChange={isReadOnly ? undefined : handleProductSearchChange}
+            loadingProducts={loadingProducts || productSearch.loading}
+            onProductSearchChange={isReadOnly ? undefined : productSearch.search}
             searchPlaceholder="เพิ่มสินค้าหรือโปรโมชั่น — พิมพ์ชื่อหรือรหัส..."
             searchSuggestions={isReadOnly ? undefined : topSellers}
             onAdd={isReadOnly ? undefined : (p) => handleAddProductToBranch(p as Product)}

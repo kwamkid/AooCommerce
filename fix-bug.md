@@ -40,6 +40,13 @@
 - `ProductSearchInput` ในโหมด API ถือว่า prop `products` = ผลค้นหาแล้ว **ห้ามกรองซ้ำ** · โปรโมชั่นที่ merge เข้าไปต้องกรองด้วย `productQuery` เองใน OrderForm
 - DealerOrderForm / ReplenishmentForm ยังโหลดสินค้าทั้งร้านอยู่ (`/api/products?limit=9999`) — อยู่ใน todo.md
 
+### รอบ 2 — ทำให้ไว+เบา (2026-09-07)
+
+ค้นเจอแล้วแต่ยัง **ช้าและหนักเกินจำเป็น**: วัดได้ว่า `/api/products?search=` ยิง DB **3 รอบต่อกัน** (sku/barcode → products → view + รูป) แล้วส่ง ~**220KB** ต่อการค้นหนึ่งครั้ง เพราะมันคืนสินค้าทั้งก้อนสำหรับหน้า `/products` ส่วน dropdown ใช้จริงแค่ 11 คอลัมน์
+- **RPC `search_order_products`** (migration `supabase/migrations/20260907_search_order_products.sql`) — ค้น **1 รอบ** คืนแถวแบน ~**30KB** (DB 39ms ตอนอุ่น) · โครง UNION สองขาเพื่อให้ planner ใช้ **ดัชนี trigram** ที่เพิ่มพร้อมกัน (`idx_products_name_trgm` · `_code_trgm` · `idx_product_variations_sku_trgm` · `_barcode_trgm`) แทน seq scan ทั้งตาราง · route ใหม่ [app/api/products/search/route.ts](app/api/products/search/route.ts) คืน `{ items, complete }`
+- **client: [lib/useServerSearch.ts](lib/useServerSearch.ts)** — hook กลางของช่องค้นหาที่ค้นฝั่ง server: seq guard (ย้ายมาจาก OrderForm) · **แคชผลต่อคำค้น 30 วิ** · **กรองต่อในเครื่องเมื่อพิมพ์ต่อจากคำเดิมและชุดนั้นครบ** (`complete`) → พิมพ์ทีละตัวอักษรยิงครั้งเดียว · **พิมพ์ ≥2 ตัวอักษรค่อยค้น** (1 ตัวอักษรได้ผลเป็นพันแถวซึ่งไม่มีประโยชน์) — ต่ำกว่านั้น dropdown บอก "พิมพ์อย่างน้อย 2 ตัวอักษร" ไม่ใช่ "ไม่พบสินค้า"
+- **ป้องกัน regression**: ช่องค้นหาที่ค้นฝั่ง server ตัวใหม่ **ต้องใช้ `useServerSearch`** ห้ามเขียน seq/debounce/cache เองในหน้า · `narrow` ทำงานได้เฉพาะกับชุดที่ `complete` — ชุดที่โดน limit ตัดกรองต่อไม่ได้ (ของที่ตรงอาจอยู่นอกชุด) route จึงต้องบอก `complete` ตามจริงเสมอ
+
 ---
 
 ## 2026-09-07 — ย้ายสมาชิกเป็น role "staff" ไม่ติดสักแถว: CHECK ของ company_members.roles ไม่รู้จักค่าใหม่

@@ -899,7 +899,9 @@ PC (พนักงานประจำจุดขายในห้าง) �
 | Endpoint | รวมอะไร | ใช้กับ |
 |---|---|---|
 | `/api/header/summary` | warehouses+stockConfig+low_stock_count+chat_unread+orders_ready_count+marketplace_health | `HeaderSummaryProvider` ใน [lib/header-summary-context.tsx](lib/header-summary-context.tsx) → Sidebar + Header. Realtime subs: orders, line_contacts, fb_contacts (debounced 500ms refresh) + 5-min interval สำหรับ marketplace health |
-| `/api/orders/new/init` | **ลูกค้าล่าสุด 30 คน** + warehouses + sales_channels + stockConfig + default-warehouse inventory (แบ่งหน้าด้วย `fetchAllRows`) — **ไม่มี products แล้ว** | OrderForm `fetchInitBundle()` (non-marketplace path) → 1 call; fallback เป็น individual fetches ถ้า /init error · **สินค้า/ลูกค้าค้นฝั่ง server** ตอนผู้ใช้พิมพ์ (`/api/products?search=` · `/api/customers?search=`) ผ่านโหมด API ของ `ProductSearchInput`/`EntitySearchInput` |
+| `/api/orders/new/init` | **ลูกค้าล่าสุด 30 คน** + warehouses + sales_channels + stockConfig + default-warehouse inventory (แบ่งหน้าด้วย `fetchAllRows`) — **ไม่มี products แล้ว** | OrderForm `fetchInitBundle()` (non-marketplace path) → 1 call; fallback เป็น individual fetches ถ้า /init error · **สินค้า/ลูกค้าค้นฝั่ง server** ตอนผู้ใช้พิมพ์ (**`/api/products/search`** = RPC `search_order_products` รอบเดียว ~30KB · `/api/customers?search=`) ผ่านโหมด API ของ `ProductSearchInput`/`EntitySearchInput` |
+
+- **ช่องค้นหาที่ค้นฝั่ง server ทุกตัวใช้ `useServerSearch`** ([lib/useServerSearch.ts](lib/useServerSearch.ts)) — seq guard · แคช 30 วิ · กรองต่อในเครื่องเมื่อพิมพ์ต่อจากคำเดิม (ชุดที่ `complete`) · พิมพ์ ≥2 ตัวอักษรค่อยยิง — **ห้ามเขียน seq/debounce/cache เองในหน้า**
 
 ⛔ **ห้ามส่งรายการทั้งตารางให้ client กรองเอง** — ร้านที่มีสินค้า/ลูกค้าหลักพันจะโดน **เพดาน 1,000 แถวของ Supabase** (ตัดเงียบ ไม่มี error) และ **4.5MB ของ Vercel** · ของที่ต้องได้ครบจริง ๆ ใช้ `fetchAllRows()` จาก [lib/supabase-paging.ts](lib/supabase-paging.ts) · ที่เหลือค้นฝั่ง server (ดู [fix-bug.md](fix-bug.md) 2026-09-07 — ร้าน 5.8k สินค้า ค้น "yoyo" ไม่เจอ)
 

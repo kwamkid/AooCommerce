@@ -176,8 +176,8 @@
 |---------|-----|------|
 | Dropdown | `FormSelect` | native `<select>` |
 | Multi-select dropdown + search (chips trigger, checkbox list) | `MultiSelectSearch` | chip-toggle list เรียงยาว / สร้าง multi-select dropdown เอง |
-| ค้นหาลูกค้า/สินค้า | `EntitySearchInput` — รายการใหญ่ให้ส่ง **`onSearchChange`** (โหมด API: ข้ามการกรองภายใน + debounce 300ms) คู่กับ `loading`/`minSearchLength` | สร้าง search dropdown เอง · โหลดทั้งตารางมาให้มันกรอง |
-| ค้นหาสินค้า (พร้อมราคา/รูป/variation) | `ProductSearchInput` — โหมด API เหมือนกัน (`onSearchChange` · ผ่าน `ItemsTable` ใช้ชื่อ `onProductSearchChange` · ผ่าน `CustomerSelectionCard` ใช้ `onCustomerSearchChange`) | สร้าง product picker เอง · **ส่งสินค้าทั้งร้านมาให้กรองใน client** (ร้าน 5.8k สินค้าโดนเพดาน 1,000 แถวของ Supabase — ของที่มีอยู่จะ "หาไม่เจอ" เงียบ ๆ ดู fix-bug.md 2026-09-07) |
+| ค้นหาลูกค้า/สินค้า | `EntitySearchInput` — รายการใหญ่ให้ส่ง **`onSearchChange`** (โหมด API: ข้ามการกรองภายใน + debounce 300ms) คู่กับ `loading`/`minSearchLength` · **ฝั่ง parent ต่อกับ `useServerSearch`** | สร้าง search dropdown เอง · โหลดทั้งตารางมาให้มันกรอง · เขียน seq/debounce/cache เองในหน้า |
+| ค้นหาสินค้า (พร้อมราคา/รูป/variation) | `ProductSearchInput` — โหมด API เหมือนกัน (`onSearchChange` · ผ่าน `ItemsTable` ใช้ชื่อ `onProductSearchChange` · ผ่าน `CustomerSelectionCard` ใช้ `onCustomerSearchChange`) · **ฝั่ง parent ต่อกับ `useServerSearch`** คู่กับ `/api/products/search` | สร้าง product picker เอง · **ส่งสินค้าทั้งร้านมาให้กรองใน client** (ร้าน 5.8k สินค้าโดนเพดาน 1,000 แถวของ Supabase — ของที่มีอยู่จะ "หาไม่เจอ" เงียบ ๆ ดู fix-bug.md 2026-09-07) |
 | ตารางสินค้าในฟอร์ม | `ItemsTable` | สร้าง items table เอง |
 | ที่อยู่ไทย autocomplete | `ThaiAddressInput` | สร้าง address autocomplete เอง |
 | ข้อมูลภาษี (บุคคล/นิติบุคคล toggle) | `TaxInfoForm` | สร้าง tax form เอง |
@@ -289,6 +289,7 @@ const columns: DataTableColumn<Order>[] = [
 | `useConfirmDialog()` | `lib/useConfirmDialog.tsx` | promise-based confirm dialog แทน native `confirm()` |
 | `useFetchOnce()` | `lib/use-fetch-once.ts` | run callback ครั้งเดียวเมื่อ ready (กัน duplicate API calls) |
 | `useColumnToggle()` | `lib/useColumnToggle.ts` | column visibility toggle (localStorage persist) — ใช้ใน DataTable |
+| `useServerSearch()` | `lib/useServerSearch.ts` | **ช่องค้นหาที่ค้นฝั่ง server** — คืน `{ query, results, loading, search }` ต่อเข้า `onSearchChange` ของ `ProductSearchInput`/`EntitySearchInput` ได้ตรง ๆ · ทำ seq guard (ทิ้งผลของคำค้นเก่าที่มาช้า) · แคชผลต่อคำค้น 30 วิ · กรองต่อในเครื่องด้วย `narrow` เมื่อพิมพ์ต่อจากคำเดิมและชุดนั้น `complete` · พิมพ์ต่ำกว่า `minLength` (default 2) ไม่ยิง — **ห้ามเขียน seq/debounce/cache เองในหน้า** |
 | `useSuperAdminGuard()` | `app/superadmin/hooks/` | guard superadmin pages |
 | `usePromotionForm()` | `app/promotions/components/` | form state management สำหรับ promotion |
 
@@ -429,6 +430,7 @@ const columns: DataTableColumn<Order>[] = [
 | Department Orders | `/api/department-orders` | GET, POST + `[id]` GET, PUT |
 | Replenishments | `/api/replenishments` | GET, POST + `[id]` GET, PUT |
 | Products | `/api/products` | GET, POST, PUT, DELETE |
+| **ค้นสินค้าให้ช่อง dropdown** | `/api/products/search` | GET `?q=&limit=` → `{ items, complete }` — RPC `search_order_products` รอบเดียว คืนแถวแบน ~30KB (`/api/products?search=` ยิง DB 3 รอบ ~220KB เพราะคืนสินค้าทั้งก้อนให้หน้า `/products`) · คู่กับ `useServerSearch` |
 | Customers | `/api/customers` | GET, POST, PUT, DELETE |
 | Inventory | `/api/inventory` | GET, POST |
 | **ร้าน marketplace ที่เชื่อมต่อ (ทุกแพลตฟอร์ม)** | `/api/marketplace/accounts` | GET `?platform=shopee\|tiktok\|lazada\|all` · PUT (คลัง/auto-sync) · PATCH `{id, shop_logo}` ตั้งลิงก์รูปเอง · DELETE · **ย่อย**: `/resync` ดึงชื่อ+โลโก้ใหม่ · `/logo` อัปโหลดไฟล์ — *เดิมอยู่ที่ `/api/shopee/accounts` ย้ายมาชื่อกลาง 2026-08-30* |

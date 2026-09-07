@@ -50,9 +50,12 @@ interface ProductSearchInputProps {
    *
    * เมื่อส่งมา: ข้ามการกรองภายใน (`products` = ผลค้นหาแล้ว) · เรียกหลัง debounce 300ms
    * · เรียกด้วย `''` ทันทีเมื่อช่องถูกล้าง (เลือกสินค้าแล้ว/กด Escape) ให้ parent เคลียร์ผล
+   *
+   * ฝั่ง parent ให้ต่อกับ `useServerSearch` ([lib/useServerSearch.ts](lib/useServerSearch.ts))
+   * เสมอ — มัน guard ลำดับ response · จำผล 30 วิ · กรองต่อในเครื่องเมื่อพิมพ์ต่อจากคำเดิม
    */
   onSearchChange?: (search: string) => void;
-  /** จำนวนตัวอักษรขั้นต่ำก่อนนับว่า "กำลังรอผลค้น" (default 1 — โหมด API เท่านั้น) */
+  /** จำนวนตัวอักษรขั้นต่ำก่อนเริ่มค้น (default 2 — โหมด API เท่านั้น) */
   minSearchLength?: number;
   /** Custom render for each result row (for stock badges, etc.) */
   renderExtra?: (product: ProductSearchItem) => ReactNode;
@@ -81,7 +84,7 @@ export default function ProductSearchInput({
   searchFields = ['sku', 'barcode'],
   loading = false,
   onSearchChange,
-  minSearchLength = 1,
+  minSearchLength = 2,
   renderExtra,
   isAlreadyAdded,
   isDisabled,
@@ -153,6 +156,12 @@ export default function ProductSearchInput({
 
   /** โหมด API นับว่ากำลังโหลดตั้งแต่ผู้ใช้พิมพ์ ไม่ใช่รอ parent ตั้ง loading */
   const effectiveLoading = loading || (pendingSearch && !!onSearchChange);
+
+  /**
+   * โหมด API: พิมพ์มาแล้วแต่ยังไม่ถึงขั้นต่ำ — ต้องบอกว่า "พิมพ์อีกนิด" ไม่ใช่ "ไม่พบสินค้า"
+   * (คำตอบว่าไม่พบทั้งที่ยังไม่ได้ค้น = ผู้ใช้เลิกพิมพ์แล้วไปเปิดหน้าสินค้าแทน)
+   */
+  const belowMinLength = !!onSearchChange && !!search && search.trim().length < minSearchLength;
 
   // Filter products client-side — โหมด API ข้ามขั้นนี้ (products = ผลค้นหาแล้ว)
   const filteredRaw = !search
@@ -270,7 +279,9 @@ export default function ProductSearchInput({
       return;
     }
 
-    if (!showDropdown || displayItems.length === 0) return;
+    // belowMinLength = กล่องกำลังโชว์ "พิมพ์อย่างน้อย N ตัวอักษร" — ปุ่มลูกศร/Enter
+    // ต้องไม่ไปเลือกแถวที่ผู้ใช้มองไม่เห็น (โปรโมชั่นที่ parent merge มาอาจยังค้างใน list)
+    if (!showDropdown || belowMinLength || displayItems.length === 0) return;
 
     if (e.key === 'ArrowDown') {
       e.preventDefault();
@@ -288,7 +299,7 @@ export default function ProductSearchInput({
         }
       }
     }
-  }, [showDropdown, displayItems, highlightIndex, isDisabled, handleSelect, clearSearch]);
+  }, [showDropdown, belowMinLength, displayItems, highlightIndex, isDisabled, handleSelect, clearSearch]);
 
   return (
     <div className="relative" ref={wrapperRef}>
@@ -359,7 +370,11 @@ export default function ProductSearchInput({
               {suggestionsLabel}
             </div>
           )}
-          {effectiveLoading && displayItems.length === 0 ? (
+          {belowMinLength ? (
+            <div className="px-4 py-3 text-sm text-gray-500 dark:text-slate-400">
+              พิมพ์อย่างน้อย {minSearchLength} ตัวอักษร
+            </div>
+          ) : effectiveLoading && displayItems.length === 0 ? (
             <div className="px-4 py-3 flex items-center gap-2 text-sm text-gray-500 dark:text-slate-400">
               <Loader2 className="w-4 h-4 animate-spin" />
               {onSearchChange ? 'กำลังค้นหาสินค้า...' : 'กำลังโหลดสินค้า...'}
