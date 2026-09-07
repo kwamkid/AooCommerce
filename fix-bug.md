@@ -16,6 +16,31 @@
 
 ---
 
+## 2026-09-07 — แชท Lazada: รายชื่อโชว์ HTML ดิบ · auto-reply เป็น JSON `{"th":…}` · การ์ดสินค้า/ออเดอร์ไม่ขึ้น · ข้อความระบบ/คูปอง/เรียกคืนไม่มีตัววาด
+
+**ที่เกิด**: [lib/lazada/chat.ts](lib/lazada/chat.ts) `parseLazadaMessageContent()` · [lib/services/chat/lazada.ts](lib/services/chat/lazada.ts) `saveMessages()` · [lib/chat/message-preview.ts](lib/chat/message-preview.ts) · renderer ใน `app/chat/components/`
+
+**อาการ**: รายชื่อแชทฝั่ง Lazada ขึ้น `<img width="250" alt="" src="https:…` เป็นข้อความล่าสุด (3 ร้านพร้อมกัน) · ฟองอัตโนมัติ "ยินดีต้อนรับ" ของร้านโชว์เป็น `{"th":"…","en":"…"}` ทั้งก้อน · ลูกค้าส่งสินค้า/ออเดอร์มาถามได้แค่บรรทัด "[สินค้า] ชื่อ" / "[คำสั่งซื้อ 111…]" ไม่มีรูป ราคา ปุ่มเปิดในระบบ ทั้งที่ Shopee มีการ์ดครบ
+
+**Root cause**: parser รู้จัก template แค่ผิว ๆ (1/3/10006/10007 อ่านฟิลด์ 2–3 ตัว) ทั้งที่ของจริงจาก API มีมากกว่านั้น (ดึงมาดูทั้ง 5 ร้าน ~500 ข้อความ 7 ก.ย. 2026):
+- **200016** = ประกาศ "Seller Engagement" ที่ Lazada ยิงหาผู้ขาย — `txt` เป็น HTML (`<img>` + `<a>`) และมาใน session ที่ `from_account_type=1` เหมือนลูกค้าทัก · ฟองวาดผ่าน richText ได้อยู่แล้ว แต่ **preview ในรายชื่อ (`buildMessagePreview`) คืน `content` ดิบสำหรับ type text**
+- **10015** = auto-reply ต้อนรับ — `txt` เป็น JSON i18n `{"th","en"}` ซ้อนใน JSON อีกชั้น (parser เดิมเอา `obj.txt` มาทั้งดุ้น) · `ext` ก็เป็น JSON string ซ้อน
+- **type=2 / template 2** = ข้อความจากระบบ (เตือนหลอกลวง · "ทักได้เฉพาะลูกค้าที่สั่งใน 30 วัน") ถูกเก็บเป็น text ธรรมดาเหมือนลูกค้าพิมพ์
+- item/order: Lazada ส่งชื่อ/รูป/ราคา/skuId/voucherPrice/orderType มาในการ์ดครบ แต่ parser ทิ้งเกือบหมด และไม่มีการเติมเนื้อจากระบบเรา (Shopee มี `chat-enrich`) → renderer ที่อ่าน `raw_message.item/order` ตกไปเป็นบรรทัดข้อความ · `order_id` ใน raw_message ของ Lazada เก็บเลขของแพลตฟอร์ม ขณะที่ Shopee ใช้ช่องนี้เก็บ uuid ของเรา (โครงไม่ตรงกัน)
+
+**วิธีแก้**:
+- `parseLazadaMessageContent()` รู้จักทุก template (1/2/3/4/6/10006/10007/10008/10010/10015/200016 + `type=2` + `status=1` เรียกคืน + template ไม่รู้จัก) · แกะ `ext` และ i18n `txt` · `lazada_template_id` ติดไปทุกแถว
+- ใหม่ [lib/lazada/chat-enrich.ts](lib/lazada/chat-enrich.ts) `normalizeLazadaMessage()` เติม `raw_message.item/order` โครงเดียวกับ Shopee ผ่านตัวกลางใหม่ [lib/marketplace/chat-enrich.ts](lib/marketplace/chat-enrich.ts) (`findLinkedProduct` / `findSyncedOrder` — ยกจาก Shopee ให้ใช้ร่วม) · ไม่มี link ก็ใช้ชื่อ/รูป/ราคาที่ Lazada ส่งมา ไม่ยิง API
+- renderer การ์ดรับ `platform` (ป้าย "ดูบน Lazada" · สีแบรนด์ · ราคาหลังคูปอง · ชื่อสินค้าในการ์ดออเดอร์ · ป้าย "คำขอคืนสินค้า") · เพิ่มการ์ดคูปอง / ชิปชวนติดตามร้าน / ข้อความระบบแบบกล่องยาว / ฟอง "ข้อความถูกเรียกคืน" · ป้าย "ประกาศจาก Lazada"
+- `buildMessagePreview()` ถอด HTML (`htmlToPlainText`) และ JSON i18n ก่อนขึ้นรายชื่อ/แจ้งเตือน · push ของ Lazada เปลี่ยนมาใช้ตัวนี้
+- `saveMessages` **ซ่อมแถวเก่าตอน sync** (เทียบ content/type/การ์ดกับผลแปลงใหม่ ต่างกัน = UPDATE) · ข้อมูลที่ค้างอยู่แก้ด้วย SQL ตรง: i18n 43 แถว · การ์ดออเดอร์ 23 แถว · การ์ดสินค้า 7 แถว
+
+**ป้องกัน regression**:
+- **รูปร่างข้อความของ marketplace ต้องดูจาก API จริง ไม่ใช่เอกสาร** — docs ของ Lazada บอก template 1/3/4/6/10006–10010 แต่ของจริงมี 2, 10015, 200016 และ JSON ซ้อน JSON สองชั้น · สคริปต์ดึงตัวอย่าง: ยิง `/im/session/list` → `/im/message/list` แล้ว group ตาม `template_id|type|from_account_type|auto_reply` (ทำใหม่ได้ใน 30 บรรทัด — ดูตารางใน CLAUDE.md §Lazada Chat)
+- **preview ห้ามส่ง `content` ดิบ** — ทุกที่ที่ประกอบข้อความบรรทัดเดียว (รายชื่อ · push · ค้นหา) ต้องผ่าน `buildMessagePreview()`
+- โครง `raw_message.item/order` เป็นของกลางทุก marketplace: `order_sn` = เลขแพลตฟอร์ม · `order_id` = uuid ของเรา · `platform_url` — TikTok ที่จะทำการ์ดต่อไปให้ใช้โครงนี้ + `findLinkedProduct`/`findSyncedOrder` ห้ามประกาศใหม่
+- template ที่ไม่รู้จักต้องไม่หาย: ตกเป็น text พร้อม `lazada_template_id` — เจอเลขใหม่ใน DB ค่อยเพิ่มตัววาด
+
 ## 2026-09-07 — หน้าแชท LINE: ผู้ติดต่อค้างเป็น "Unknown" ไม่มีรูป ทั้งที่ทุกข้อความรู้ชื่อคนส่ง
 
 **ที่เกิด**: [lib/services/chat/line.ts](lib/services/chat/line.ts) `getOrCreateContact()` + `saveIncomingMessage()` · หน้า `/chat` (ABC the Baby)

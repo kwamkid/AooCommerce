@@ -2093,6 +2093,8 @@ function UnifiedChatPageContent() {
                         )}
                         <div className="flex flex-col">
                           {msg.direction === 'incoming' && msg.sender_name && (<span className="text-xs text-gray-500 mb-0.5 ml-1">{msg.sender_name}</span>)}
+                          {/* ประกาศ/โปรโมชันที่ Lazada ยิงหาผู้ขายเอง — ไม่ใช่ลูกค้าทัก อย่าให้พนักงานเสียเวลาตอบ */}
+                          {msg.direction === 'incoming' && msg.raw_message?.broadcast && (<span className="text-xs text-gray-500 mb-0.5 ml-1">ประกาศจาก Lazada</span>)}
                           <div className="flex items-end gap-1.5">
                             {msg.direction === 'outgoing' && (
                               <div className="flex flex-col items-end self-end mb-0.5 text-[10px] text-gray-400 dark:text-slate-500">

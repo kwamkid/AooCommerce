@@ -1,7 +1,6 @@
-import { supabaseAdmin } from '@/lib/supabase-admin';
 import { logIntegrationNow } from '@/lib/integration-logger';
 import { ensureValidToken, shopeeApiRequest, type ShopeeAccountRow, type ShopeeCredentials } from '@/lib/shopee/api';
-import { productDisplayName } from '@/lib/product-display';
+import { findLinkedProduct, findSyncedOrder } from '@/lib/marketplace/chat-enrich';
 
 // เติมเนื้อให้ "การ์ด" ที่ Shopee ส่งมาแต่ id
 //
@@ -90,25 +89,6 @@ async function logEnrichFailure(ctx: ShopeeEnrichContext, apiPath: string, refer
   }
 }
 
-/** รูปของ variation ก่อน ถ้าไม่มีค่อยรูประดับ product (การ์ดนี้อ้างถึง "สินค้า" ทั้งตัวบน Shopee) */
-async function findImageUrl(companyId: string, productId: string | null, variationId: string | null): Promise<string | null> {
-  const filters: string[] = [];
-  if (variationId) filters.push(`variation_id.eq.${variationId}`);
-  if (productId) filters.push(`and(product_id.eq.${productId},variation_id.is.null)`);
-  if (filters.length === 0) return null;
-
-  const { data } = await supabaseAdmin
-    .from('product_images')
-    .select('image_url, variation_id, sort_order')
-    .eq('company_id', companyId)
-    .or(filters.join(','))
-    .order('sort_order', { ascending: true });
-
-  if (!data || data.length === 0) return null;
-  const variationImage = variationId ? data.find(r => r.variation_id === variationId) : null;
-  return (variationImage || data[0]).image_url || null;
-}
-
 /**
  * แปลง item_id ของ Shopee เป็นการ์ดสินค้า
  * ลำดับ: link ที่ผูกไว้ → สินค้าในระบบเรา → (ไม่มี link) ถาม Shopee → การ์ดเปล่า
@@ -135,48 +115,15 @@ export async function resolveShopeeItemCard(
 
   try {
     // 1) link ของบริษัทนี้ — การ์ดบอกแค่ item ไม่บอก model จึงหยิบ link ตัวใดตัวหนึ่งของ item นั้น
-    const { data: link } = await supabaseAdmin
-      .from('marketplace_product_links')
-      .select('product_id, variation_id, platform_product_name, platform_price, platform_primary_image')
-      .eq('company_id', ctx.account.company_id)
-      .eq('platform', 'shopee')
-      .eq('external_item_id', itemId)
-      .limit(1)
-      .maybeSingle();
-
-    if (link?.product_id) {
-      const [{ data: product }, { data: variation }] = await Promise.all([
-        supabaseAdmin.from('products').select('id, name, code').eq('id', link.product_id).maybeSingle(),
-        link.variation_id
-          ? supabaseAdmin
-              .from('product_variations')
-              .select('id, variation_label, sku, attributes, default_price, discount_price')
-              .eq('id', link.variation_id)
-              .maybeSingle()
-          : Promise.resolve({ data: null }),
-      ]);
-
-      const name = product
-        ? productDisplayName({
-            product_name: product.name,
-            product_code: product.code,
-            variation_label: variation?.variation_label ?? null,
-            sku: variation?.sku ?? null,
-            attributes: (variation?.attributes as Record<string, string> | null) ?? null,
-          })
-        : link.platform_product_name || null;
-
-      const ourPrice = variation
-        ? (Number(variation.discount_price) > 0 ? Number(variation.discount_price) : Number(variation.default_price))
-        : null;
-
+    const linked = await findLinkedProduct(ctx.account.company_id, 'shopee', itemId);
+    if (linked) {
       const card: ShopeeItemCard = {
         ...fallback,
-        name: name || link.platform_product_name || null,
-        image_url: (await findImageUrl(ctx.account.company_id, link.product_id, link.variation_id)) || link.platform_primary_image || null,
-        price: ourPrice && ourPrice > 0 ? ourPrice : (Number(link.platform_price) || null),
-        product_id: link.product_id,
-        variation_id: link.variation_id ?? null,
+        name: linked.name,
+        image_url: linked.image_url,
+        price: linked.price,
+        product_id: linked.product_id,
+        variation_id: linked.variation_id,
       };
       ctx.itemCache.set(itemId, card);
       return card;
@@ -228,25 +175,8 @@ export async function resolveShopeeOrderCard(
 
   let card: ShopeeOrderCard = { order_sn: orderSn };
   try {
-    const { data: order } = await supabaseAdmin
-      .from('orders')
-      .select('id, order_number, order_status, payment_status, total_amount')
-      .eq('company_id', ctx.account.company_id)
-      .eq('source', 'shopee')
-      .eq('external_order_sn', orderSn)
-      .limit(1)
-      .maybeSingle();
-
-    if (order) {
-      card = {
-        order_sn: orderSn,
-        order_id: order.id,
-        order_number: order.order_number || undefined,
-        order_status: order.order_status || undefined,
-        payment_status: order.payment_status || undefined,
-        total_amount: order.total_amount != null ? Number(order.total_amount) : undefined,
-      };
-    }
+    const order = await findSyncedOrder(ctx.account.company_id, 'shopee', orderSn);
+    if (order) card = { order_sn: orderSn, ...order };
   } catch (err) {
     await logEnrichFailure(ctx, 'orders', `order:${orderSn}`, err);
   }

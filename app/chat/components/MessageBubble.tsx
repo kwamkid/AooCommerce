@@ -26,6 +26,10 @@ const StoryReplyBubble = dynamic(() => import('./renderers/FbRenderers').then(m 
 const ProductCardBubble = dynamic(() => import('./renderers/ShopeeRenderers').then(m => m.ProductCardBubble), { ssr: false, loading: RENDERER_FALLBACK });
 const OrderCardBubble = dynamic(() => import('./renderers/ShopeeRenderers').then(m => m.OrderCardBubble), { ssr: false, loading: RENDERER_FALLBACK });
 const SystemEventChip = dynamic(() => import('./renderers/ShopeeRenderers').then(m => m.SystemEventChip), { ssr: false, loading: RENDERER_FALLBACK });
+const VoucherCardBubble = dynamic(() => import('./renderers/ShopeeRenderers').then(m => m.VoucherCardBubble), { ssr: false, loading: RENDERER_FALLBACK });
+const FollowInviteChip = dynamic(() => import('./renderers/ShopeeRenderers').then(m => m.FollowInviteChip), { ssr: false, loading: RENDERER_FALLBACK });
+
+const MARKETPLACE_PLATFORMS = ['shopee', 'lazada', 'tiktok'];
 
 interface MessageBubbleProps {
   msg: ChatMessage;
@@ -43,6 +47,14 @@ export default function MessageBubble({
   onImageLoad,
 }: MessageBubbleProps) {
   const props = { msg, direction, onOpenLightbox, onImageLoad };
+  // การ์ดของ marketplace ใช้ renderer ชุดเดียวกันทุกเจ้า — ต้องบอกไปว่าเป็นเจ้าไหน
+  // ไม่งั้นการ์ดของ Lazada จะเขียนว่า "ดูบน Shopee"
+  const cardProps = { msg, direction, platform: MARKETPLACE_PLATFORMS.includes(platform) ? platform as 'shopee' | 'lazada' | 'tiktok' : undefined };
+
+  // ผู้ส่งเรียกข้อความคืนแล้ว — เนื้อความเดิมไม่มีสิทธิ์โผล่ ไม่ว่าจะเป็นชนิดไหน
+  if (msg.raw_message?.recalled) {
+    return <p className="italic opacity-70">ข้อความถูกเรียกคืน</p>;
+  }
 
   switch (msg.message_type) {
     case 'sticker':
@@ -97,14 +109,22 @@ export default function MessageBubble({
     // Shopee: การ์ดสินค้า/ออเดอร์ — ฟองเดิมมีแต่ id ที่พนักงานอ่านไม่ออกว่าคือตัวไหน
     // (renderer จัดการเคส raw_message ยังไม่มีเนื้อเองแล้ว จึงไม่ต้อง fallback ที่นี่)
     case 'item':
-      return <ProductCardBubble {...props} />;
+      return <ProductCardBubble {...cardProps} />;
 
     case 'order':
-      return <OrderCardBubble {...props} />;
+      return <OrderCardBubble {...cardProps} />;
 
-    // ลูกค้ากดปุ่ม "คุยกับเจ้าหน้าที่" — เหตุการณ์ ไม่ใช่ข้อความ (หน้าแชทจัดกลางจอให้)
+    case 'voucher':
+      return <VoucherCardBubble {...cardProps} />;
+
+    case 'follow_invite':
+      return <FollowInviteChip {...cardProps} />;
+
+    // ลูกค้ากดปุ่ม "คุยกับเจ้าหน้าที่" / ประกาศจากระบบของแพลตฟอร์ม — เหตุการณ์ ไม่ใช่
+    // ข้อความของใคร (หน้าแชทจัดกลางจอให้ผ่าน isSystemEventMessage)
     case 'faq_liveagent':
-      return <SystemEventChip {...props} />;
+    case 'system':
+      return <SystemEventChip {...cardProps} />;
   }
 
   // Default: plain text

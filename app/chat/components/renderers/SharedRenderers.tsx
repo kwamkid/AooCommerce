@@ -208,7 +208,8 @@ export function FallbackBubble({ msg }: RendererProps) {
 
 // ─── Text (default) ─────────────────────────────────────────────────────────
 
-function linkify(text: string) {
+/** URL ในข้อความธรรมดา → ลิงก์กดได้ (ใช้ร่วมกับการ์ดของ marketplace ด้วย) */
+export function linkify(text: string) {
   const parts = text.split(/(https?:\/\/[^\s]+)/g);
   if (parts.length === 1) return text;
   return parts.map((part, i) =>

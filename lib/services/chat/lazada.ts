@@ -5,6 +5,8 @@ import {
   getSessionDetail, getSessionList, getMessages as getLazadaMessages,
   sendChatText, sendChatImage, parseLazadaMessageContent, LazadaImMessage, LazadaSession,
 } from '@/lib/lazada/chat';
+import { createLazadaEnrichContext, normalizeLazadaMessage } from '@/lib/lazada/chat-enrich';
+import { buildMessagePreview } from '@/lib/chat/message-preview';
 import { logIntegration } from '@/lib/integration-logger';
 import { isQuotaBlocked } from '@/lib/marketplace/quota';
 import type { SendMessageParams, SendMessageResult, GetMessagesParams } from './types';
@@ -347,19 +349,63 @@ export class LazadaChatService {
     const messageIds = messages.map(m => m.message_id).filter(Boolean);
     const { data: existingRows } = await supabaseAdmin
       .from('lazada_messages')
-      .select('lazada_message_id')
+      .select('id, lazada_message_id, message_type, content, raw_message')
       .eq('lazada_contact_id', contact.id)
       .in('lazada_message_id', messageIds);
 
-    const existingIds = new Set((existingRows || []).map(r => r.lazada_message_id));
-    const fresh = messages.filter(m => m.message_id && !existingIds.has(m.message_id));
+    const existingById = new Map((existingRows || []).map(r => [r.lazada_message_id as string, r]));
+    const fresh = messages.filter(m => m.message_id && !existingById.has(m.message_id));
+
+    const enrich = createLazadaEnrichContext(account);
+    const normalized = new Map<string, { messageContent: string; messageType: string; metadata: Record<string, unknown> }>();
+    const normalize = async (m: LazadaImMessage) => {
+      const cached = normalized.get(m.message_id);
+      if (cached) return cached;
+      const result = await normalizeLazadaMessage(m, enrich);
+      normalized.set(m.message_id, result);
+      return result;
+    };
+
+    // ซ่อมแถวเก่าที่ตัวแปลรุ่นก่อนบันทึกผิด — ข้อความต้อนรับที่เป็น JSON หลายภาษาทั้งก้อน,
+    // ประกาศของ Lazada ที่เก็บ HTML ดิบไว้เป็นพรีวิว, การ์ดสินค้า/ออเดอร์ที่ยังไม่มีเนื้อ
+    // (raw_message ไม่มี item/order) · แตะแค่ 3 คอลัมน์นี้ — เวลาและทิศทางห้ามขยับ
+    // ไม่งั้นลำดับในห้องแชทเพี้ยนและ unread นับใหม่
+    //
+    // ตัดสินด้วย parse ดิบ (ไม่เติมเนื้อ) ก่อนเสมอ เพราะ (1) ไม่ต้องยิง DB หาสินค้า/ออเดอร์
+    // ทุกรอบที่ sync (2) การ์ดที่เติมเนื้อแล้วมี content เป็นชื่อสินค้า**ในระบบเรา** ซึ่ง
+    // ไม่มีทางตรงกับ parse ดิบ — เทียบ content ตรง ๆ จะสั่ง UPDATE ทุกรอบ แล้ว realtime
+    // จะปลุกให้ทุกหน้าแชทดึงรายชื่อใหม่ไม่จบไม่สิ้น
+    for (const m of messages) {
+      const row = m.message_id ? existingById.get(m.message_id) : undefined;
+      if (!row) continue;
+
+      const pure = parseLazadaMessageContent(m);
+      const raw = (row.raw_message as Record<string, unknown> | null) || {};
+      const isCard = pure.messageType === 'item' || pure.messageType === 'order';
+      const healthy = isCard
+        ? row.message_type === pure.messageType && !!raw[pure.messageType]
+        : row.message_type === pure.messageType && row.content === pure.messageContent;
+      if (healthy) continue;
+
+      const parsed = await normalize(m);
+      await supabaseAdmin
+        .from('lazada_messages')
+        .update({
+          message_type: parsed.messageType,
+          content: parsed.messageContent,
+          raw_message: Object.keys(parsed.metadata).length > 0 ? parsed.metadata : null,
+        })
+        .eq('id', row.id);
+    }
+
     if (fresh.length === 0) return;
 
-    const rows = fresh.map(m => {
-      const { messageContent, messageType, metadata } = parseLazadaMessageContent(m);
+    const rows: Record<string, unknown>[] = [];
+    for (const m of fresh) {
+      const { messageContent, messageType, metadata } = await normalize(m);
       const isOutgoing = m.from_account_type === 2; // 2 = seller
       const messageTime = m.send_time ? new Date(m.send_time).toISOString() : new Date().toISOString();
-      return {
+      rows.push({
         company_id: account.company_id,
         lazada_contact_id: contact.id,
         lazada_message_id: m.message_id,
@@ -370,8 +416,8 @@ export class LazadaChatService {
         received_at: isOutgoing ? null : messageTime,
         sent_at: isOutgoing ? messageTime : null,
         created_at: messageTime, // keep thread order = actual send order
-      };
-    });
+      });
+    }
 
     const { error } = await supabaseAdmin.from('lazada_messages').insert(rows);
     if (error) console.error('Failed to save Lazada messages:', error);
@@ -390,12 +436,14 @@ export class LazadaChatService {
       const incoming = fresh.filter(m => m.from_account_type !== 2);
       if (incoming.length > 0) {
         const newestIncoming = incoming.reduce((a, b) => ((a.send_time || 0) >= (b.send_time || 0) ? a : b));
-        const { messageContent } = parseLazadaMessageContent(newestIncoming);
+        const parsed = await normalize(newestIncoming);
+        // พรีวิวใช้ตัวเดียวกับรายชื่อแชท — ไม่งั้นแจ้งเตือนขึ้น HTML ดิบ/JSON หลายภาษา
+        const preview = buildMessagePreview(parsed.messageType, parsed.messageContent);
         const extra = incoming.length > 1 ? ` (+${incoming.length - 1} ข้อความ)` : '';
         await sendChatPush(account.company_id, {
           platform: 'lazada',
           senderName: contact.display_name,
-          preview: `${messageContent}${extra}`,
+          preview: `${preview}${extra}`,
           contactId: contact.id,
           messageTime: newestIncoming.send_time || null,
           accountName: account.shop_name,

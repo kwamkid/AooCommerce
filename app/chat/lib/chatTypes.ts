@@ -134,30 +134,51 @@ export interface ChatMessage {
     // Instagram story
     storyUrl?: string;
 
-    // Shopee / Lazada
+    // Shopee / Lazada / TikTok
     thumbUrl?: string;
     item_id?: number | string;
+    sku_id?: string;
     shop_id?: number;
     itemUrl?: string;
     order_sn?: string;
+    sub_order_id?: string;
+    /** uuid ออเดอร์ในระบบเรา (ไม่ใช่เลขของแพลตฟอร์ม — ตัวนั้นคือ order_sn) */
     order_id?: string;
     shopee_status?: string;
     shopee_source?: string;
     auto_reply?: boolean;
     recalled?: boolean;
+    /** Lazada: template id ดิบ ไว้ไล่ดูตอนเจอชนิดใหม่ที่ยังไม่รองรับ */
+    lazada_template_id?: number;
+    /** Lazada: แชทบอทถามนำ (เลือกออเดอร์/หัวข้อ) */
+    action_type?: number;
+    /** ลิงก์ของการ์ดที่ไม่ใช่สินค้า (ชวนติดตามร้าน ฯลฯ) */
+    link_url?: string;
+    width?: number;
+    height?: number;
+    /** Lazada: ประกาศ/โปรโมชันที่แพลตฟอร์มยิงหาผู้ขาย ไม่ใช่ข้อความของลูกค้า */
+    broadcast?: { topic?: string; summary?: string };
+    /** คูปองที่แนบมากับข้อความ — โครงต่างกันไปตามแพลตฟอร์ม เก็บเท่าที่ส่งมา */
+    voucher?: Record<string, string | number | undefined>;
 
-    // Shopee: การ์ดสินค้า/ออเดอร์ที่เติมเนื้อไว้ตอนบันทึกข้อความ (lib/shopee/chat-enrich.ts)
-    // — push ส่งมาแค่ id เลยต้อง resolve ตั้งแต่ตอนเก็บ ไม่ใช่ให้หน้าจอไปยิงหาเอง
+    // การ์ดสินค้า/ออเดอร์ของ marketplace ที่เติมเนื้อไว้ตอนบันทึกข้อความ
+    // (lib/shopee/chat-enrich.ts · lib/lazada/chat-enrich.ts) — push ส่งมาแค่ id
+    // เลยต้อง resolve ตั้งแต่ตอนเก็บ ไม่ใช่ให้หน้าจอไปยิงหาเอง
     item?: {
       item_id: string;
+      sku_id?: string;
       shop_id?: number | null;
       name?: string | null;
       image_url?: string | null;
       price?: number | null;
+      /** ราคาหลังคูปองของแพลตฟอร์ม (Lazada ส่งมาในการ์ด) */
+      voucher_price?: number | null;
       /** uuid สินค้าในระบบเรา — ไม่มี = ยังไม่ได้ผูก (กด "เปิดในระบบ" ไม่ได้) */
       product_id?: string | null;
       variation_id?: string | null;
-      shopee_url: string;
+      /** ลิงก์ไปหน้าสินค้าบนแพลตฟอร์ม — `shopee_url` เป็นชื่อเดิมของข้อความ Shopee ยุคแรก */
+      platform_url?: string;
+      shopee_url?: string;
     };
     order?: {
       order_sn: string;
@@ -167,6 +188,11 @@ export interface ChatMessage {
       order_status?: string;
       payment_status?: string;
       total_amount?: number;
+      item_name?: string;
+      image_url?: string;
+      /** 'ReturnOrder' = คำขอคืนสินค้า (Lazada) */
+      order_type?: string;
+      platform_url?: string;
     };
     /** เหตุการณ์เชิงระบบ ไม่ใช่คำพูดของใคร (เช่น ลูกค้ากดขอคุยกับเจ้าหน้าที่) */
     system_event?: string;

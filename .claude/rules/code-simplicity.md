@@ -387,6 +387,9 @@ const columns: DataTableColumn<Order>[] = [
 | `getChatService()` | `lib/services/chat/index.ts` | Dispatcher (LINE/Facebook) |
 | `LineChatService` | `lib/services/chat/line.ts` | LINE messaging |
 | `FacebookChatService` | `lib/services/chat/facebook.ts` | Facebook Messenger |
+| `buildMessagePreview()` / `htmlToPlainText()` | `lib/chat/message-preview.ts` | ข้อความตัวอย่างบรรทัดเดียว (รายชื่อแชท · push) — ถอด HTML / JSON i18n ให้ · server+client · **ห้ามส่ง `content` ดิบขึ้นรายชื่อหรือแจ้งเตือน** |
+| `findLinkedProduct()` / `findSyncedOrder()` | `lib/marketplace/chat-enrich.ts` | แปลง item_id / เลขออเดอร์ของ marketplace เป็นสินค้า/ออเดอร์ในระบบเรา (DB อย่างเดียว) — Shopee/Lazada ใช้ร่วม · ห้าม query `marketplace_product_links`/`orders` เองใน `lib/<platform>/chat-enrich.ts` |
+| `normalizeLazadaMessage()` · `normalizeShopeeMessage()` | `lib/lazada/chat-enrich.ts` · `lib/services/chat/shopee.ts` | แปลงข้อความ IM ทุก template + เติมการ์ด (`raw_message.item/order` โครงเดียวกันทุก marketplace — renderer การ์ดใน `app/chat/components/renderers/ShopeeRenderers.tsx` รับ `platform`) |
 
 ### Shopee Integration (`lib/shopee/`)
 | File | ใช้สำหรับ |
