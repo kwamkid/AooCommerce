@@ -25,6 +25,16 @@ interface Props {
   alt?: string;
   /** รูปที่มีอยู่แล้ว (URL) — แสดงเป็นพรีวิวจนกว่าจะเลือกไฟล์ใหม่ */
   initialPreviewUrl?: string | null;
+  /**
+   * เปิดกล้องตรง ๆ บนมือถือแทนการเลือกจากคลังรูป (`environment` = กล้องหลัง)
+   * ใช้กับงานที่ต้อง "ถ่ายตอนนั้น" เช่นรูปตอนรับสินค้า — งานที่รูปมีอยู่แล้ว (สลิป โลโก้) ห้ามใส่
+   */
+  capture?: 'user' | 'environment';
+  /**
+   * บอกผู้เรียกว่ากำลังย่อรูปอยู่ — ฟอร์มที่มีปุ่มบันทึกต้องปิดปุ่มระหว่างนี้
+   * ไม่งั้นกดส่งตอนย่อยังไม่เสร็จ = ได้บิลที่ไม่มีรูปแนบโดยไม่มีใครรู้
+   */
+  onBusyChange?: (busy: boolean) => void;
   /** ด้านยาวสุดหลังย่อ (px) — โลโก้ที่โชว์ 40px ไม่ต้องเก็บ 1920 · ค่าเริ่มต้น 1920 สำหรับสลิป */
   maxWidthOrHeight?: number;
   /** ขนาดไฟล์เป้าหมายหลังย่อ (MB) */
@@ -33,6 +43,8 @@ interface Props {
     root?: string;
     rootDragging?: string;
     preview?: string;
+    /** ตัวรูปพรีวิวเอง — ค่าปกติพอดีกับกล่องเล็ก · หน้าที่อยากได้รูปเต็มกว้างส่งคลาสเข้ามา */
+    previewImg?: string;
     clear?: string;
     error?: string;
     spinner?: string;
@@ -45,6 +57,7 @@ const TW = {
   root: 'w-full flex flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed border-gray-300 dark:border-slate-600 bg-gray-50 dark:bg-slate-800/40 px-4 py-6 text-gray-500 hover:border-primary hover:text-primary transition-colors disabled:opacity-60',
   rootDragging: 'border-primary text-primary bg-primary/5',
   preview: 'relative inline-block',
+  previewImg: 'max-w-full rounded-lg',
   clear: 'absolute -top-2 -right-2 w-6 h-6 rounded-full bg-gray-900/80 text-white flex items-center justify-center hover:bg-gray-900',
   error: 'subtitle-text text-red-600 mt-1',
   spinner: 'w-6 h-6 animate-spin',
@@ -53,11 +66,12 @@ const TW = {
 
 export default function ImageDropzone({
   value, onChange, disabled, label, hint, icon, alt, initialPreviewUrl, classNames,
-  maxWidthOrHeight = 1920, maxSizeMB = 0.5,
+  capture, onBusyChange, maxWidthOrHeight = 1920, maxSizeMB = 0.5,
 }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  useEffect(() => { onBusyChange?.(busy); }, [busy, onBusyChange]);
   const [dragging, setDragging] = useState(false);
   const [warn, setWarn] = useState('');
   // ผู้ใช้กดกากบาททิ้งรูปเดิมแล้วหรือยัง — ถ้าไม่จำ ปุ่มกากบาทจะกดแล้วไม่มีอะไรเกิดขึ้น
@@ -109,7 +123,7 @@ export default function ImageDropzone({
     return (
       <div className={cn.preview}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={shown} alt={alt || 'รูปที่เลือก'} />
+        <img src={shown} alt={alt || 'รูปที่เลือก'} className={cn.previewImg} />
         <button
           type="button"
           className={cn.clear}
@@ -150,6 +164,7 @@ export default function ImageDropzone({
         ref={inputRef}
         type="file"
         accept="image/*"
+        capture={capture}
         hidden
         onChange={e => { accept(e.target.files?.[0]); e.target.value = ''; }}
       />

@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import Image from 'next/image';
-import imageCompression from 'browser-image-compression';
+import ImageDropzone from '@/components/ui/ImageDropzone';
 import { Loader2, Package, Camera, Sun, Moon, CheckCircle2, XCircle, Clock, Truck, AlertTriangle } from 'lucide-react';
 import NumberInput from '@/components/ui/NumberInput';
 import { FullPageLoading } from '@/components/ui/Loading';
@@ -73,11 +73,10 @@ export default function TransferReceiveClient({ token, initialTransfer }: { toke
   const [receiveNotes, setReceiveNotes] = useState('');
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [photo, setPhoto] = useState<File | null>(null);
-  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  /** ImageDropzone บอกมาว่ากำลังย่อรูป — ปิดปุ่มบันทึกไว้ก่อน ไม่งั้นได้ใบที่ไม่มีรูป */
   const [compressing, setCompressing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Init quantities to qty_sent (default: receive all)
   const seedQuantities = (t: TransferData) => {
@@ -115,33 +114,6 @@ export default function TransferReceiveClient({ token, initialTransfer }: { toke
     }
   };
 
-  const handlePhotoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    e.target.value = '';
-    if (photoPreview) URL.revokeObjectURL(photoPreview);
-
-    setCompressing(true);
-    try {
-      const compressed = await imageCompression(file, {
-        maxSizeMB: 0.5,
-        maxWidthOrHeight: 1920,
-        useWebWorker: true,
-      });
-      setPhoto(compressed);
-      setPhotoPreview(URL.createObjectURL(compressed));
-    } catch {
-      if (file.size > 5 * 1024 * 1024) {
-        setError('ไฟล์ใหญ่เกินไป กรุณาเลือกรูปขนาดเล็กกว่า 5MB');
-        setCompressing(false);
-        return;
-      }
-      setPhoto(file);
-      setPhotoPreview(URL.createObjectURL(file));
-    } finally {
-      setCompressing(false);
-    }
-  };
 
   const handleSubmit = async () => {
     if (!transfer) return;
@@ -478,40 +450,24 @@ export default function TransferReceiveClient({ token, initialTransfer }: { toke
             {/* Photo upload */}
             <div className="mb-4">
               <label className={`block text-sm font-medium mb-1 ${dark ? 'text-slate-400' : 'text-gray-600'}`}>รูปถ่ายการรับสินค้า</label>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
+              {/* ถ่ายรูป/เลือกรูป + ย่อรูป + ลากวาง อยู่ใน ImageDropzone ตัวกลาง —
+                  หน้านี้มีสวิตช์มืด/สว่างของตัวเอง (ไม่ได้ใช้ class .dark ของทั้งเว็บ) จึงต้องส่งคลาสเอง */}
+              <ImageDropzone
+                value={photo}
+                onChange={setPhoto}
+                onBusyChange={setCompressing}
                 capture="environment"
-                onChange={handlePhotoSelect}
-                className="hidden"
+                icon={<Camera className="w-8 h-8" />}
+                label="ถ่ายรูป / เลือกรูป"
+                alt="รูปรับสินค้า"
+                classNames={{
+                  root: `w-full flex flex-col items-center justify-center gap-2 border-2 border-dashed rounded-lg py-6 hover:border-amber-400 hover:text-amber-400 transition-colors ${dark ? 'border-slate-600 text-slate-500' : 'border-gray-300 text-gray-400'}`,
+                  rootDragging: 'border-amber-400 text-amber-400',
+                  preview: 'relative block',
+                  previewImg: `w-full max-h-48 object-contain rounded-lg border ${dark ? 'border-slate-600' : 'border-gray-200'}`,
+                  clear: 'absolute top-2 right-2 bg-black/50 text-white rounded-full w-7 h-7 flex items-center justify-center',
+                }}
               />
-              {compressing ? (
-                <div className={`w-full border-2 border-dashed rounded-lg py-8 flex flex-col items-center gap-2 ${dark ? 'border-slate-600 text-slate-500' : 'border-gray-300 text-gray-400'}`}>
-                  <Loader2 className="w-10 h-10 animate-spin" />
-                  <span className="text-sm">กำลังย่อรูป...</span>
-                </div>
-              ) : photoPreview ? (
-                <div className="relative">
-                  <img src={photoPreview} alt="รูปรับสินค้า" className={`w-full max-h-48 object-contain rounded-lg border ${dark ? 'border-slate-600' : 'border-gray-200'}`} />
-                  <button
-                    type="button"
-                    onClick={() => { if (photoPreview) URL.revokeObjectURL(photoPreview); setPhoto(null); setPhotoPreview(null); }}
-                    className="absolute top-2 right-2 bg-black/50 text-white rounded-full w-7 h-7 flex items-center justify-center text-sm"
-                  >
-                    ✕
-                  </button>
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className={`w-full border-2 border-dashed rounded-lg py-6 flex flex-col items-center gap-2 hover:border-amber-400 hover:text-amber-400 transition-colors ${dark ? 'border-slate-600 text-slate-500' : 'border-gray-300 text-gray-400'}`}
-                >
-                  <Camera className="w-8 h-8" />
-                  <span className="text-sm">ถ่ายรูป / เลือกรูป</span>
-                </button>
-              )}
             </div>
 
             {/* Notes */}
