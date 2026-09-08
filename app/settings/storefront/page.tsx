@@ -253,9 +253,16 @@ export default function StorefrontSettingsPage() {
   const { currentCompany } = useCompany();
 
   const [cfg, setCfg] = useState<StorefrontConfig>(DEFAULT_STOREFRONT);
+  /** slug ที่ใช้จริงในลิงก์ตอนนี้ (ตัวที่ตั้งเอง ถ้าไม่มีก็ของบริษัท) */
   const [slug, setSlug] = useState('');
+  /** ค่าที่ผู้ใช้พิมพ์ในช่อง — ว่าง = ยังไม่ตั้งเอง ใช้ของบริษัท */
+  const [storefrontSlug, setStorefrontSlug] = useState('');
+  const [companySlug, setCompanySlug] = useState('');
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [companyName, setCompanyName] = useState('');
+  const [companyPhone, setCompanyPhone] = useState('');
+  const [companyEmail, setCompanyEmail] = useState('');
+  const [companyAddress, setCompanyAddress] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   // แท็บเป็น state ไม่ใช่ route — cfg เป็นก้อนเดียว กดบันทึกครั้งเดียวเซฟทุกแท็บ
@@ -283,8 +290,13 @@ export default function StorefrontSettingsPage() {
         setCfg(data.storefront);
         loadedRef.current = data.storefront;
         setSlug(data.slug || '');
+        setStorefrontSlug(data.storefront_slug || '');
+        setCompanySlug(data.company_slug || '');
         setLogoUrl(data.logo_url || null);
         setCompanyName(data.company_name || '');
+        setCompanyPhone(data.company_phone || '');
+        setCompanyEmail(data.company_email || '');
+        setCompanyAddress(data.company_address || '');
       }
     } finally {
       setLoading(false);
@@ -314,12 +326,14 @@ export default function StorefrontSettingsPage() {
     try {
       const res = await apiFetch('/api/settings/storefront', {
         method: 'PUT',
-        body: JSON.stringify(cfg),
+        body: JSON.stringify({ ...cfg, storefront_slug: storefrontSlug.trim() }),
       });
       const data = await res.json();
       if (!res.ok) { showToast(data.error || 'บันทึกไม่สำเร็จ', 'error'); return; }
       setCfg(data.storefront);
       loadedRef.current = data.storefront;
+      // slug ที่ใช้จริงเปลี่ยนตามที่เพิ่งบันทึก — ลิงก์ตัวอย่างต้องอัปเดตทันที
+      setSlug(data.storefront_slug || companySlug);
       showToast('บันทึกหน้าร้านออนไลน์แล้ว', 'success');
     } finally {
       setSaving(false);
@@ -431,6 +445,53 @@ export default function StorefrontSettingsPage() {
                   value={cfg.announcement}
                   onChange={(e) => patch({ announcement: e.target.value })}
                   placeholder="เช่น สั่งก่อน 13:00 รับของวันนี้ — เว้นว่าง = ไม่แสดง"
+                />
+              </div>
+            </Card>
+
+            <Card padding="md">
+              <p className="heading-4 mb-1">ลิงก์หน้าร้าน</p>
+              <p className="section-desc mb-4">
+                ชื่อที่อยู่ใน URL ที่ลูกค้าเห็น — คนละตัวกับชื่อบริษัท ตั้งเป็นชื่อร้านได้เลย
+              </p>
+              <FormInput
+                label="ชื่อลิงก์"
+                value={storefrontSlug}
+                onChange={(e) => setStorefrontSlug(e.target.value.toLowerCase())}
+                placeholder={companySlug ? `เว้นว่าง = ${companySlug}` : 'เช่น babyshop'}
+                hint="ตัวเล็ก ตัวเลข และขีดกลาง 3–40 ตัว — เปลี่ยนแล้วลิงก์เก่าที่ส่งไปจะเปิดไม่ได้"
+              />
+              <p className="section-desc mt-2 break-all">
+                ลิงก์ที่จะได้: {cfg.public_base_url
+                  ? `${cfg.public_base_url}${cfg.public_base_path}`
+                  : `${origin}/store/${(storefrontSlug.trim() || companySlug) || 'your-shop'}`}
+              </p>
+            </Card>
+
+            <Card padding="md">
+              <p className="heading-4 mb-1">ข้อมูลติดต่อท้ายหน้าร้าน</p>
+              <p className="section-desc mb-4">
+                เว้นว่างไว้ = ใช้ของบริษัท (แก้ข้อมูลบริษัทแล้วหน้าร้านตามให้เอง) —
+                กรอกเมื่อเบอร์หรือที่อยู่ที่ให้ลูกค้าออนไลน์ติดต่อ ไม่ใช่ตัวเดียวกับที่จดทะเบียน
+              </p>
+              <div className="space-y-4">
+                <FormInput
+                  label="เบอร์โทร"
+                  value={cfg.contact_phone}
+                  onChange={(e) => patch({ contact_phone: e.target.value })}
+                  placeholder={companyPhone ? `เว้นว่าง = ${companyPhone}` : 'เว้นว่าง = ใช้ของบริษัท'}
+                />
+                <FormInput
+                  label="อีเมล"
+                  value={cfg.contact_email}
+                  onChange={(e) => patch({ contact_email: e.target.value })}
+                  placeholder={companyEmail ? `เว้นว่าง = ${companyEmail}` : 'เว้นว่าง = ใช้ของบริษัท'}
+                />
+                <FormInput
+                  label="ที่อยู่"
+                  value={cfg.contact_address}
+                  onChange={(e) => patch({ contact_address: e.target.value })}
+                  placeholder={companyAddress ? `เว้นว่าง = ${companyAddress}` : 'เว้นว่าง = ใช้ของบริษัท'}
                 />
               </div>
             </Card>

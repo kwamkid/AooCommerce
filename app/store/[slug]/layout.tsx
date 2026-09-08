@@ -31,6 +31,11 @@ export default async function StoreLayout({
   ]);
   const cfg = company.config;
   const shopName = cfg.display_name || company.name;
+  // ช่องทางติดต่อของหน้าร้าน — ตั้งทับได้ ว่าง = ใช้ของบริษัท (เบอร์ที่ให้ลูกค้าออนไลน์
+  // มักไม่ใช่เบอร์เดียวกับที่จดทะเบียนบนใบกำกับภาษี)
+  const contactPhone = cfg.contact_phone || company.phone;
+  const contactEmail = cfg.contact_email || company.email;
+  const contactAddress = cfg.contact_address || company.address;
 
   // ร้านที่ไม่ได้ตั้งโซนจัดส่งไว้ หน้า /delivery จะไม่มีอะไรให้อ่าน — ซ่อนลิงก์ไปเลย
   // (ร้าน e-commerce ทั่วไปที่ส่งด้วยขนส่งเอกชนไม่ได้ใช้โซน/รอบส่งแบบ delivery)
@@ -82,11 +87,11 @@ export default async function StoreLayout({
             )}
             <div className="sf-footer-title">{shopName}</div>
             {cfg.tagline && <p className="sf-footer-text">{cfg.tagline}</p>}
-            {company.address && <p className="sf-footer-text">{company.address}</p>}
+            {contactAddress && <p className="sf-footer-text">{contactAddress}</p>}
           </div>
           <div className="sf-footer-contact">
-            {company.phone && <p className="sf-footer-text">โทร {company.phone}</p>}
-            {company.email && <p className="sf-footer-text">{company.email}</p>}
+            {contactPhone && <p className="sf-footer-text">โทร {contactPhone}</p>}
+            {contactEmail && <p className="sf-footer-text">{contactEmail}</p>}
             <Link href={storefrontHref(slug, '/delivery')} className="sf-footer-link">
               พื้นที่จัดส่งและรอบส่ง
             </Link>

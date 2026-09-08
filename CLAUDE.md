@@ -797,7 +797,19 @@ PC (พนักงานประจำจุดขายในห้าง) �
 - Config เก็บใน `companies.settings.storefront` (JSONB) — [lib/storefront.ts](lib/storefront.ts) (client-safe: theme token + URL builder) + [lib/storefront-server.ts](lib/storefront-server.ts) (service role — **select เฉพาะ field ที่เปิดเผยได้** ห้ามหลุด cost_price/stock count/supplier) ห่อ `cache()` ให้ generateMetadata + page ใช้ fetch เดียว
 - **สต็อกเปิดเผยเป็น boolean เท่านั้น** (`in_stock`) ห้ามส่งจำนวนจริงออกหน้าร้าน
 - `products.slug` (unique ต่อ company, Thai-safe, backfill จากชื่อ) + `products.storefront_visible` (แยกจาก `is_active`)
-- ⚠️ **URL ของหน้าร้านยังใช้ `companies.slug` ร่วมกับตัวระบุบริษัท — ยังไม่ได้ตัดสินใจว่าจะแยกไหม** (ยกขึ้นมา 8 ก.ย. 2026) · ชื่อร้านแยกได้แล้ว (`storefront.display_name`) แต่ **slug ใน URL ยังเป็นของบริษัท** ทั้งที่ชื่อบริษัทกับชื่อร้านเป็นคนละชื่อได้ (และบริษัทเดียวอาจมีหลายร้านในอนาคต) · ทางเลือกคือเพิ่ม `storefront.slug` แล้วให้ `/store/[slug]` resolve จากตัวนั้นก่อน ตกไป `companies.slug` — **ตัดสินใจตอนคุยเรื่อง storefront รอบหน้า** · `companies.slug` **ไม่มีช่องแก้ใน UI** (สร้างอัตโนมัติจากชื่อบริษัทตอนสมัคร · `/api/companies` PUT รับ `slug` ได้แต่หน้าจอไม่เคยส่งมา) — ที่แก้ไปเป็นการ UPDATE ตรงที่ DB
+- **ชื่อร้านแยกจากชื่อบริษัทได้ทุกชั้นแล้ว (2026-09-08)** — ตั้งเองได้ที่ `/settings/storefront` และ**ทุกช่องเว้นว่างไว้ = ตกไปใช้ของบริษัท ตอนแสดงผล ไม่ copy มาเก็บ** (copy ไว้แล้วแก้ข้อมูลบริษัททีหลัง หน้าร้านจะค้างของเก่าโดยไม่มีใครรู้):
+
+| อยากตั้งทับ | เก็บที่ | ว่างแล้วตกไปใช้ |
+|---|---|---|
+| **URL ของร้าน** | **`companies.storefront_slug`** (คอลัมน์จริง unique — routing key ห้ามอยู่ใน jsonb) | `companies.slug` |
+| ชื่อร้าน | `storefront.display_name` | `companies.name` |
+| โลโก้ | `storefront.logo_url` | `companies.logo_url` |
+| คำโปรย | `storefront.tagline` | `companies.description` |
+| เบอร์ / อีเมล / ที่อยู่ (ท้ายหน้าร้าน) | `storefront.contact_phone/_email/_address` | `companies.phone/email/address` |
+
+- **`/store/[slug]` หา `storefront_slug` ก่อนแล้วค่อยตกไป `slug`** (`findCompanyBySlug()` ใน [lib/storefront-server.ts](lib/storefront-server.ts)) — ลำดับนี้สำคัญ: ถ้าร้าน A ตั้ง `storefront_slug` ตรงกับ `companies.slug` ของ B ต้องให้ A ชนะ ไม่งั้นคนที่ตั้งเองจะเปิดไม่ติด · **API กันไม่ให้ตั้งชนกันตั้งแต่ต้น** (เช็คทั้งสองคอลัมน์ของบริษัทอื่น — DB มี unique เฉพาะในคอลัมน์เดียวกัน กันข้ามคอลัมน์ไม่ได้)
+- **`StorefrontCompany.slug` = slug สาธารณะที่ใช้ประกอบลิงก์ทุกที่** (sitemap · canonical · llms.txt) ไม่ใช่ `companies.slug` ดิบ — ใช้ตัวดิบจะได้ URL ที่พาไปคนละหน้า
+- `companies.slug` **ไม่มีช่องแก้ใน UI** (สร้างอัตโนมัติจากชื่อบริษัทตอนสมัคร) และไม่ต้องแก้แล้ว — อยากได้ URL สวยให้ตั้ง `storefront_slug` แทน · ที่เคยแก้ `ampstark`→`abcthebaby` เป็นการ UPDATE ตรงที่ DB
 
 **ตะกร้า + checkout** (เพิ่ม 2026-08-18)
 - **ตะกร้าอยู่ใน localStorage ของโดเมนที่ผู้ใช้ยืนอยู่** ([lib/storefront-cart.ts](lib/storefront-cart.ts)) — **ห้ามย้ายไป cookie ของโดเมน aoo** เพราะตอนฝังใน WordPress ลูกค้าจะกลายเป็น third-party cookie → Safari ITP บล็อก → ตะกร้าหาย (เหตุผลเดียวกับที่ไม่เลือก iframe) · ยังไม่แตะ DB จนกดยืนยัน

@@ -96,6 +96,19 @@ export interface StorefrontConfig {
   image_ratio: '1:1' | '3:4' | 'auto';
   /** ข้อความประกาศบนหัวร้าน (ว่าง = ไม่แสดง) */
   announcement: string;
+  /**
+   * ข้อมูลติดต่อที่แสดงท้ายหน้าร้าน — **ว่าง = ใช้ของบริษัท**
+   *
+   * แยกจาก `companies.*` เพราะเบอร์/อีเมลที่ให้ลูกค้าออนไลน์ติดต่อ มักไม่ใช่ตัวเดียวกับ
+   * ที่จดทะเบียนไว้บนใบกำกับภาษี (เบอร์ออฟฟิศ vs เบอร์แอดมินเพจ) และที่อยู่หน้าร้าน
+   * อาจเป็นหน้าร้านจริง ไม่ใช่ที่อยู่จดทะเบียน
+   *
+   * ⚠️ เก็บเป็น "ค่าที่ตั้งทับ" ไม่ใช่ copy ตอนเปิดร้าน — ปล่อยว่างไว้แล้วแก้ข้อมูลบริษัท
+   * ทีหลัง หน้าร้านจะตามให้เอง (copy ไว้จะค้างเป็นข้อมูลเก่าโดยไม่มีใครรู้)
+   */
+  contact_phone: string;
+  contact_email: string;
+  contact_address: string;
 }
 
 export const DEFAULT_STOREFRONT: StorefrontConfig = {
@@ -118,6 +131,9 @@ export const DEFAULT_STOREFRONT: StorefrontConfig = {
   layout: 'grid',
   image_ratio: '1:1',
   announcement: '',
+  contact_phone: '',
+  contact_email: '',
+  contact_address: '',
 };
 
 export function parseStorefront(settings: Record<string, unknown> | null | undefined): StorefrontConfig {
@@ -128,6 +144,9 @@ export function parseStorefront(settings: Record<string, unknown> | null | undef
     tagline: stored.tagline ?? DEFAULT_STOREFRONT.tagline,
     logo_url: stored.logo_url ?? DEFAULT_STOREFRONT.logo_url,
     public_base_url: (stored.public_base_url ?? DEFAULT_STOREFRONT.public_base_url).replace(/\/+$/, ''),
+    contact_phone: String(stored.contact_phone ?? DEFAULT_STOREFRONT.contact_phone),
+    contact_email: String(stored.contact_email ?? DEFAULT_STOREFRONT.contact_email),
+    contact_address: String(stored.contact_address ?? DEFAULT_STOREFRONT.contact_address),
     public_base_path: normalizeBasePath(stored.public_base_path ?? DEFAULT_STOREFRONT.public_base_path),
     allow_ai_crawlers: stored.allow_ai_crawlers ?? DEFAULT_STOREFRONT.allow_ai_crawlers,
     line_login: stored.line_login ?? DEFAULT_STOREFRONT.line_login,

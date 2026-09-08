@@ -12,14 +12,21 @@ export async function GET(request: NextRequest) {
 
   const { data } = await supabaseAdmin
     .from('companies')
-    .select('slug, name, logo_url, settings')
+    .select('slug, storefront_slug, name, logo_url, phone, email, address, settings')
     .eq('id', auth.companyId)
     .single();
 
   return NextResponse.json({
-    slug: data?.slug || '',
-    // ใช้ในพรีวิว — โลโก้กับชื่อบริษัทมาจากตั้งค่าข้อมูลร้าน ไม่ได้อยู่ใน storefront config
+    // slug ที่ใช้จริงในลิงก์ — ตั้งเองไว้ก็ใช้ตัวนั้น ไม่งั้นตกไปที่ตัวระบุบริษัท
+    slug: data?.storefront_slug || data?.slug || '',
+    /** ตั้งเองไว้หรือยัง — ว่าง = หน้าจอโชว์ตัวของบริษัทเป็น placeholder */
+    storefront_slug: data?.storefront_slug || '',
+    company_slug: data?.slug || '',
+    // ใช้ในพรีวิว + เป็น placeholder ของช่องที่ปล่อยว่างแล้วตกไปใช้ของบริษัท
     company_name: data?.name || '',
+    company_phone: data?.phone || '',
+    company_email: data?.email || '',
+    company_address: data?.address || '',
     logo_url: data?.logo_url || null,
     storefront: parseStorefront((data?.settings as Record<string, unknown>) || {}),
   });
@@ -35,6 +42,8 @@ const RATIO = new Set(['1:1', '3:4', 'auto']);
 const LOGO = new Set(['logo_name', 'logo_only', 'name_only']);
 const BTN = new Set(['solid', 'outline', 'soft']);
 const HEX = /^#[0-9a-f]{6}$/i;
+/** slug ในลิงก์ที่ลูกค้าเห็น — ตัวเล็ก ตัวเลข ขีดกลาง 3–40 ตัว ห้ามขึ้น/ลงท้ายด้วยขีด */
+const SLUG = /^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$/;
 
 export async function PUT(request: NextRequest) {
   const auth = await checkAuthWithCompany(request);
@@ -45,8 +54,38 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ error: 'ไม่มีสิทธิ์แก้ไขหน้าร้านออนไลน์' }, { status: 403 });
   }
 
-  const body = await request.json().catch(() => null) as Partial<StorefrontConfig> | null;
+  const body = await request.json().catch(() => null) as
+    (Partial<StorefrontConfig> & { storefront_slug?: string }) | null;
   if (!body) return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
+
+  // ── slug ของหน้าร้าน (คนละตัวกับตัวระบุบริษัท) ──────────────────────
+  // ว่าง = ล้างค่า แล้วตกไปใช้ companies.slug ตามเดิม
+  let storefrontSlug: string | null | undefined;
+  if (body.storefront_slug !== undefined) {
+    const raw = (body.storefront_slug || '').trim().toLowerCase();
+    if (!raw) {
+      storefrontSlug = null;
+    } else if (!SLUG.test(raw)) {
+      return NextResponse.json(
+        { error: 'ชื่อลิงก์ใช้ได้เฉพาะ a-z 0-9 และขีดกลาง ยาว 3–40 ตัว และห้ามขึ้นหรือลงท้ายด้วยขีด' },
+        { status: 400 },
+      );
+    } else {
+      // ⚠️ ต้องกันชนกับ **ทั้งสองคอลัมน์ของบริษัทอื่น** — /store/<slug> หาจาก
+      // storefront_slug ก่อนแล้วค่อยตกไป slug ถ้าปล่อยให้ชนกันได้ ร้านที่ชนจะถูก
+      // บังหน้าหายไปเงียบ ๆ (DB มี unique เฉพาะในคอลัมน์เดียวกัน กันข้ามคอลัมน์ไม่ได้)
+      const { data: clash } = await supabaseAdmin
+        .from('companies')
+        .select('id')
+        .or(`slug.eq.${raw},storefront_slug.eq.${raw}`)
+        .neq('id', auth.companyId)
+        .limit(1);
+      if (clash && clash.length > 0) {
+        return NextResponse.json({ error: 'ชื่อลิงก์นี้มีร้านอื่นใช้อยู่แล้ว' }, { status: 400 });
+      }
+      storefrontSlug = raw;
+    }
+  }
 
   // Domain must be a real absolute http(s) origin — a bad value silently
   // breaks every canonical + the sitemap, so reject instead of coercing.
@@ -104,13 +143,20 @@ export async function PUT(request: NextRequest) {
     layout: LAYOUT.has(body.layout as string) ? body.layout! : current.layout,
     image_ratio: RATIO.has(body.image_ratio as string) ? body.image_ratio! : current.image_ratio,
     announcement: (body.announcement ?? current.announcement).trim(),
+    // ว่าง = ใช้ของบริษัท (ตกที่ตอนแสดงผล ไม่ copy มาเก็บ — ไม่งั้นแก้ข้อมูลบริษัทแล้วหน้าร้านค้างของเก่า)
+    contact_phone: (body.contact_phone ?? current.contact_phone).trim(),
+    contact_email: (body.contact_email ?? current.contact_email).trim(),
+    contact_address: (body.contact_address ?? current.contact_address).trim(),
   };
 
   const { error } = await supabaseAdmin
     .from('companies')
-    .update({ settings: { ...currentSettings, storefront: next } })
+    .update({
+      settings: { ...currentSettings, storefront: next },
+      ...(storefrontSlug !== undefined ? { storefront_slug: storefrontSlug } : {}),
+    })
     .eq('id', auth.companyId);
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ success: true, storefront: next });
+  return NextResponse.json({ success: true, storefront: next, storefront_slug: storefrontSlug });
 }

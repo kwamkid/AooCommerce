@@ -54,6 +54,26 @@ export interface ClosedStorefront {
 }
 
 /**
+ * หาบริษัทจาก slug ที่อยู่ใน URL — **`storefront_slug` มาก่อน `companies.slug` เสมอ**
+ *
+ * ชื่อร้านกับตัวระบุบริษัทเป็นคนละตัว: ร้านตั้ง `storefront_slug` เองได้ ยังไม่ตั้งก็ตกไป
+ * ใช้ `companies.slug` (ลิงก์เก่าจึงไม่พัง) · เรียงลำดับสำคัญ — ถ้าร้าน A ตั้ง
+ * storefront_slug ตรงกับ companies.slug ของ B ต้องให้ A ชนะ ไม่งั้นคนที่ตั้งเองจะเปิดไม่ติด
+ * (API กันไม่ให้ตั้งชนกันอยู่แล้ว นี่เป็นตาข่ายชั้นสองสำหรับข้อมูลเก่า)
+ */
+async function findCompanyBySlug<T extends string>(slug: string, columns: T) {
+  const { data } = await supabaseAdmin
+    .from('companies')
+    .select(columns)
+    .or(`storefront_slug.eq.${slug},slug.eq.${slug}`)
+    .limit(2);
+
+  const rows = (data || []) as unknown as (Record<string, unknown>)[];
+  if (rows.length === 0) return null;
+  return rows.find(r => r.storefront_slug === slug) ?? rows[0];
+}
+
+/**
  * ร้านที่ "ปิดหน้าร้านชั่วคราว" — ต่างจากร้านที่ไม่มีอยู่จริง
  *
  * คืนค่าเฉพาะร้านที่ **เคยตั้งค่า storefront ไว้แล้ว** (มี key `storefront`
@@ -63,14 +83,13 @@ export interface ClosedStorefront {
  * ⚠️ คืนแค่ชื่อ/โลโก้/ช่องทางติดต่อ — ห้ามคืนข้อมูลสินค้าเด็ดขาด
  */
 export const getClosedStorefront = cache(async (slug: string): Promise<ClosedStorefront | null> => {
-  const { data } = await supabaseAdmin
-    .from('companies')
-    .select('id, name, logo_url, phone, email, settings, is_active')
-    .eq('slug', slug)
-    .maybeSingle();
+  const data = await findCompanyBySlug(slug, 'id, name, logo_url, phone, email, settings, is_active, storefront_slug') as {
+    id: string; name: string; logo_url: string | null; phone: string | null; email: string | null;
+    settings: Record<string, unknown> | null; is_active: boolean | null;
+  } | null;
 
   if (!data || data.is_active === false) return null;
-  const settings = (data.settings as Record<string, unknown> | null) || {};
+  const settings = data.settings || {};
   if (!settings.storefront) return null;          // ไม่เคยตั้งค่า = ถือว่าไม่มีร้านนี้
 
   const config = parseStorefront(settings);
@@ -115,15 +134,19 @@ async function getCompanyLineOa(companyId: string): Promise<StorefrontLineOa | n
  * disabled shop never leaks product data.
  */
 export const getStorefrontCompany = cache(async (slug: string): Promise<StorefrontCompany | null> => {
-  const { data } = await supabaseAdmin
-    .from('companies')
-    .select('id, slug, name, logo_url, description, phone, email, address, settings, is_active')
-    .eq('slug', slug)
-    .maybeSingle();
+  const data = await findCompanyBySlug(
+    slug,
+    'id, slug, storefront_slug, name, logo_url, description, phone, email, address, settings, is_active',
+  ) as {
+    id: string; slug: string; storefront_slug: string | null; name: string;
+    logo_url: string | null; description: string | null; phone: string | null;
+    email: string | null; address: string | null;
+    settings: Record<string, unknown> | null; is_active: boolean | null;
+  } | null;
 
   if (!data || data.is_active === false) return null;
 
-  const settings = (data.settings as Record<string, unknown> | null) || {};
+  const settings = data.settings || {};
   const config = parseStorefront(settings);
   if (!config.enabled) return null;
 
@@ -134,7 +157,9 @@ export const getStorefrontCompany = cache(async (slug: string): Promise<Storefro
 
   return {
     id: data.id,
-    slug: data.slug,
+    // slug ที่ต้องใช้ประกอบลิงก์ทุกที่ (sitemap / canonical / llms.txt) — ตัวที่ร้านตั้งเอง
+    // ถ้ามี ไม่งั้นตัวระบุบริษัท · ใช้ `data.slug` ตรง ๆ จะได้ URL ที่พาไปคนละหน้า
+    slug: data.storefront_slug || data.slug,
     name: data.name,
     logo_url: data.logo_url,
     description: data.description,
