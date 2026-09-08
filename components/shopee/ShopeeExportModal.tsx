@@ -11,6 +11,7 @@ import ShopeeCategoryPicker from './ShopeeCategoryPicker';
 import { supabase } from '@/lib/supabase';
 import imageCompression from 'browser-image-compression';
 import PostfixInput from '@/components/ui/PostfixInput';
+import { storageSafeName } from '@/lib/storage-key';
 
 interface ShopeeAccount {
   id: string;
@@ -41,7 +42,7 @@ export default function ShopeeExportModal({
     setUploadingCover(true);
     try {
       const compressed = await imageCompression(file, { maxSizeMB: 1, maxWidthOrHeight: 1600, useWebWorker: true });
-      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const safeName = storageSafeName(file.name);
       const path = `marketplace/covers/${productId}/${Date.now()}-${safeName}`;
       const { error } = await supabase.storage.from('product-images')
         .upload(path, compressed, { contentType: compressed.type || 'image/jpeg' });

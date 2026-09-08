@@ -8,6 +8,7 @@ import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { ImagePlus, X, Loader2, GripVertical, ChevronLeft, ChevronRight } from 'lucide-react';
 import imageCompression from 'browser-image-compression';
 import Modal from './Modal';
+import { storageSafeName } from '@/lib/storage-key';
 
 export interface ProductImage {
   id?: string;
@@ -39,7 +40,7 @@ async function uploadFileToStorage(
     fileName: string;
   }
 ): Promise<ProductImage | null> {
-  const safeName = options.fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
+  const safeName = storageSafeName(options.fileName);
   const prefix = options.variationId
     ? `variations/${options.variationId}`
     : `products/${options.productId}`;

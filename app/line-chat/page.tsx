@@ -6,6 +6,7 @@ import Layout from '@/components/layout/Layout';
 import Button from '@/components/ui/Button';
 import SearchInput from '@/components/ui/SearchInput';
 import { useAuth } from '@/lib/auth-context';
+import { storageKeyFor } from '@/lib/storage-key';
 import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
@@ -775,7 +776,9 @@ function LineChatPageContent() {
       if (!session) throw new Error('No session');
 
       // Upload compressed image to Supabase Storage
-      const fileName = `admin-images/${Date.now()}-${file.name.replace(/\.[^.]+$/, '.jpg')}`;
+      // ชื่อไฟล์ต้องผ่าน storageKeyFor — ชื่อไทย/อีโมจิ/# ทำให้ Storage ตอบ 400 InvalidKey
+      // แล้วรูป "ไม่ไปเลย" ตั้งแต่ยังไม่ถึง API (ดู lib/storage-key.ts)
+      const fileName = `admin-images/${storageKeyFor(file.name, 'jpg')}`;
       const { error: uploadError } = await supabase.storage
         .from('chat-media')
         .upload(fileName, compressed, { contentType: 'image/jpeg' });

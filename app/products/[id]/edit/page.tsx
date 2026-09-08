@@ -27,6 +27,7 @@ import ShopeeCategoryPicker from '@/components/shopee/ShopeeCategoryPicker';
 import ProductSyncModal from '@/components/marketplace/ProductSyncModal';
 import PostfixInput from '@/components/ui/PostfixInput';
 import Tabs from '@/components/ui/Tabs';
+import { storageSafeName } from '@/lib/storage-key';
 
 interface MarketplaceLink {
   id: string;
@@ -460,7 +461,7 @@ export default function EditProductPage() {
         useWebWorker: true,
       });
 
-      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const safeName = storageSafeName(file.name);
       const storagePath = `marketplace/${linkId}/${Date.now()}-${safeName}`;
 
       const { error: uploadError } = await supabase.storage

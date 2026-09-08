@@ -262,6 +262,9 @@ export interface ChatMessage {
   /** เหตุผลที่ส่งไม่สำเร็จ (ข้อความจากแพลตฟอร์ม เช่น Shopee 'Invalid to_id') — โชว์ใน tooltip ไม่ใช่แค่ 'ส่งไม่สำเร็จ' */
   _error?: string;
   _tempId?: string;
+  /** ไฟล์ต้นฉบับของฟองรูปที่ยังส่งไม่สำเร็จ — ปุ่ม "ลองใหม่" ต้องอัปโหลดใหม่ทั้งรอบ
+   *  (รอบที่ล้มก่อนอัปโหลดสำเร็จยังไม่มี URL สาธารณะให้ยิงซ้ำ) · client-only ไม่ลง DB */
+  _file?: File;
   line_contact_id?: string;
   fb_contact_id?: string;
   shopee_contact_id?: string;

@@ -12,6 +12,7 @@ import { useToast } from '@/lib/toast-context';
 import { useHeaderSummary } from '@/lib/header-summary-context';
 import { useCompany } from '@/lib/company-context';
 import { buildMessagePreview } from '@/lib/chat/message-preview';
+import { storageKeyFor } from '@/lib/storage-key';
 import { apiFetch, invalidateApiCache } from '@/lib/api-client';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { useStableCallback } from '@/lib/useStableCallback';
@@ -67,7 +68,7 @@ import MessageBubble from './components/MessageBubble';
 // แผง "เปิดบิล" แยกไฟล์เพราะห่อ memo ไว้ (ดูหมายเหตุในไฟล์นั้น) — ตัวห่อเล็กมาก
 // ส่วน OrderForm ที่หนักจริงยังเป็น dynamic อยู่ข้างใน จึงไม่ติดมากับ first-load JS
 import ChatOrderPanel from './components/ChatOrderPanel';
-import { FbIcon, IgIcon, LineIcon, ShopeeIcon, LazadaIcon, TiktokIcon, PlatformIcon, AccountCornerBadge, getAccountPicture, getAvatarUrl, getInitials, formatTime, formatLastMessage, compressImage, officialStickers, isSystemEventMessage } from './lib/chatHelpers';
+import { FbIcon, IgIcon, LineIcon, ShopeeIcon, LazadaIcon, TiktokIcon, PlatformIcon, AccountCornerBadge, getAccountPicture, getAvatarUrl, getInitials, formatTime, formatLastMessage, prepareChatImage, officialStickers, isSystemEventMessage } from './lib/chatHelpers';
 import { FullPageLoading } from '@/components/ui/Loading';
 import { LoadingCard } from '@/components/ui/StateCard';
 import { SkeletonChat } from '@/components/ui/Skeleton';
@@ -957,31 +958,48 @@ function UnifiedChatPageContent() {
     })();
   };
 
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !selectedContact) return;
-    if (!file.type.startsWith('image/')) { showToast('กรุณาเลือกไฟล์รูปภาพ', 'error'); return; }
-    if (file.size > 10 * 1024 * 1024) { showToast('ไฟล์ใหญ่เกินไป (สูงสุด 10MB)', 'error'); return; }
-
-    const compressed = await compressImage(file);
-    const tempId = `temp-${Date.now()}`;
-    const localUrl = URL.createObjectURL(compressed);
-    const optimisticMessage: ChatMessage = {
-      id: tempId, _tempId: tempId, contact_id: selectedContact.id,
-      direction: 'outgoing', message_type: 'image', content: '[รูปภาพ]',
-      raw_message: { imageUrl: localUrl }, created_at: new Date().toISOString(), _status: 'sending'
-    };
-    setMessages(prev => [...prev, optimisticMessage]);
-    setUploadingImage(true);
-    const contactId = selectedContact.id;
+  /**
+   * ส่งรูปหนึ่งใบ — ใช้ทั้งตอนเลือกไฟล์ครั้งแรกและตอนกด "ลองใหม่"
+   * เก็บ `_file` ไว้กับฟองที่ล้ม เพราะรอบที่ล้มก่อนอัปโหลดสำเร็จยังไม่มี URL สาธารณะให้ส่งซ้ำ
+   */
+  const sendImageFile = async (file: File, retryOf?: ChatMessage) => {
+    if (!selectedContact) return;
+    const tempId = retryOf?._tempId || `temp-${Date.now()}`;
+    const contactId = retryOf?.contact_id || selectedContact.id;
     const platform = selectedContact.platform;
+    // preview ของรอบนี้ (ส่งครั้งแรก) หรือของฟองเดิม (กดลองใหม่) — ปล่อยเมื่อ "ไม่ต้องใช้แล้ว" เท่านั้น
+    let localUrl: string | null = retryOf?.raw_message?.imageUrl?.startsWith('blob:')
+      ? retryOf.raw_message.imageUrl
+      : null;
+    const releaseLocalUrl = () => { if (localUrl) { URL.revokeObjectURL(localUrl); localUrl = null; } };
+
+    if (retryOf) {
+      setMessages(prev => prev.map(m => m._tempId === tempId ? { ...m, _status: 'sending' as const, _error: undefined } : m));
+    }
+    setUploadingImage(true);
 
     try {
+      const { blob, ext, contentType } = await prepareChatImage(file);
+
+      if (!retryOf) {
+        localUrl = URL.createObjectURL(blob);
+        const optimisticMessage: ChatMessage = {
+          id: tempId, _tempId: tempId, contact_id: contactId,
+          direction: 'outgoing', message_type: 'image', content: '[รูปภาพ]',
+          raw_message: { imageUrl: localUrl }, created_at: new Date().toISOString(),
+          _status: 'sending', _file: file,
+        };
+        setMessages(prev => [...prev, optimisticMessage]);
+      }
+
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error('No session');
-      const fileName = `admin-images/${Date.now()}-${file.name.replace(/\.[^.]+$/, '.jpg')}`;
-      const { error: uploadError } = await supabase.storage.from('chat-media').upload(fileName, compressed, { contentType: 'image/jpeg' });
-      if (uploadError) throw uploadError;
+      if (!session) throw new Error('เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่');
+
+      // ⚠️ ชื่อไฟล์ต้องผ่าน storageKeyFor — Supabase Storage ตอบ 400 InvalidKey กับชื่อไทย/อีโมจิ/#
+      // แล้วรูปจะ "ไม่ไปเลย" ตั้งแต่ก่อนถึง API แชท (ดู lib/storage-key.ts)
+      const fileName = `admin-images/${storageKeyFor(file.name, ext)}`;
+      const { error: uploadError } = await supabase.storage.from('chat-media').upload(fileName, blob, { contentType });
+      if (uploadError) throw new Error(`อัปโหลดรูปไม่สำเร็จ: ${uploadError.message}`);
       const { data: urlData } = supabase.storage.from('chat-media').getPublicUrl(fileName);
       const imageUrl = urlData.publicUrl;
 
@@ -990,11 +1008,11 @@ function UnifiedChatPageContent() {
         body: JSON.stringify({ contact_id: contactId, platform, type: 'image', imageUrl })
       });
       if (!response.ok) {
-        const errData = await response.json();
+        const errData = await response.json().catch(() => ({}));
         if (errData.errorCode === 'MESSAGING_WINDOW_EXPIRED') {
           setMessages(prev => prev.filter(m => m._tempId !== tempId));
           showToast('ไม่สามารถส่งรูปภาพได้ — ลูกค้าไม่ได้ส่งข้อความมาภายใน 7 วัน (หมดเวลาตอบกลับ)', 'error');
-          URL.revokeObjectURL(localUrl);
+          releaseLocalUrl();
           return;
         }
         throw new Error(errData.error || 'Failed');
@@ -1003,29 +1021,65 @@ function UnifiedChatPageContent() {
       if (result.message) {
         setMessages(prev => prev.map(m => m._tempId === tempId ? { ...result.message, contact_id: contactId, _status: 'sent' as const } : m));
       }
-      URL.revokeObjectURL(localUrl);
+      releaseLocalUrl();
     } catch (error) {
       console.error('Error uploading image:', error);
+      // ⚠️ ห้าม revoke blob URL ตอนล้ม — ฟองที่ค้างอยู่ยังต้องแสดงรูปให้เห็นว่า "ใบไหนที่ส่งไม่ไป"
       const reason = error instanceof Error && error.message !== 'Failed' ? error.message : undefined;
-      setMessages(prev => prev.map(m => m._tempId === tempId ? { ...m, _status: 'failed' as const, _error: reason } : m));
+      setMessages(prev => prev.map(m => m._tempId === tempId ? { ...m, _status: 'failed' as const, _error: reason, _file: file } : m));
       showToast(reason ? `ส่งรูปภาพไม่สำเร็จ: ${reason}` : 'ส่งรูปภาพไม่สำเร็จ', 'error');
     } finally {
       setUploadingImage(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
-  const sendSticker = (packageId: string, stickerId: string) => {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (fileInputRef.current) fileInputRef.current.value = '';
+    if (!file || !selectedContact) return;
+    if (!file.type.startsWith('image/')) { showToast('กรุณาเลือกไฟล์รูปภาพ', 'error'); return; }
+    if (file.size > 10 * 1024 * 1024) { showToast('ไฟล์ใหญ่เกินไป (สูงสุด 10MB)', 'error'); return; }
+    await sendImageFile(file);
+  };
+
+  /**
+   * ปุ่ม "ลองใหม่" ต้องส่งของชนิดเดิม — ของเดิมเรียก sendMessage() ตรง ๆ ทุกชนิด
+   * ฟองรูป/สติกเกอร์จึงถูกส่งซ้ำเป็น **ข้อความว่า "[รูปภาพ]"** ให้ลูกค้าอ่าน (แก้ 8 ก.ย. 2026)
+   */
+  const retrySend = (msg: ChatMessage) => {
+    if (msg.message_type === 'image') {
+      if (!msg._file) {
+        showToast('รูปนี้ลองใหม่ไม่ได้แล้ว (ไฟล์หายไปจากหน้าจอ) — กรุณาเลือกรูปใหม่อีกครั้ง', 'error');
+        return;
+      }
+      void sendImageFile(msg._file, msg);
+      return;
+    }
+    if (msg.message_type === 'sticker') {
+      const { packageId, stickerId } = msg.raw_message || {};
+      if (!packageId || !stickerId) { showToast('สติกเกอร์นี้ลองใหม่ไม่ได้ กรุณาเลือกใหม่', 'error'); return; }
+      sendSticker(packageId, stickerId, msg);
+      return;
+    }
+    sendMessage(msg);
+  };
+
+
+  const sendSticker = (packageId: string, stickerId: string, retryOf?: ChatMessage) => {
     if (!selectedContact) return;
-    const tempId = `temp-${Date.now()}`;
-    const optimisticMessage: ChatMessage = {
-      id: tempId, _tempId: tempId, contact_id: selectedContact.id,
-      direction: 'outgoing', message_type: 'sticker', content: '[สติกเกอร์]',
-      raw_message: { packageId, stickerId }, created_at: new Date().toISOString(), _status: 'sending'
-    };
-    setMessages(prev => [...prev, optimisticMessage]);
+    const tempId = retryOf?._tempId || `temp-${Date.now()}`;
+    if (retryOf) {
+      setMessages(prev => prev.map(m => m._tempId === tempId ? { ...m, _status: 'sending' as const, _error: undefined } : m));
+    } else {
+      const optimisticMessage: ChatMessage = {
+        id: tempId, _tempId: tempId, contact_id: selectedContact.id,
+        direction: 'outgoing', message_type: 'sticker', content: '[สติกเกอร์]',
+        raw_message: { packageId, stickerId }, created_at: new Date().toISOString(), _status: 'sending'
+      };
+      setMessages(prev => [...prev, optimisticMessage]);
+    }
     setShowEmojiPicker(false);
-    const contactId = selectedContact.id;
+    const contactId = retryOf?.contact_id || selectedContact.id;
 
     (async () => {
       try {
@@ -2162,7 +2216,7 @@ function UnifiedChatPageContent() {
                                 {/* ระบบของแพลตฟอร์มตอบเอง (นอกเวลาทำการ/แชทบอท) — ไม่ใช่คนของร้าน อย่าให้เข้าใจผิดว่ามีคนตอบแล้ว */}
                                 {msg.raw_message?.auto_reply && <span>ตอบอัตโนมัติ</span>}
                                 <div className="flex items-center gap-1">
-                                  {msg._status === 'failed' && (<Tooltip text={msg._error ? `ส่งไม่สำเร็จ: ${msg._error} — กดเพื่อลองใหม่` : 'ส่งไม่สำเร็จ กดเพื่อลองใหม่'}><button onClick={() => { sendMessage(msg); }} aria-label="ส่งไม่สำเร็จ กดเพื่อลองใหม่" className="flex items-center gap-0.5 text-red-500 hover:text-red-600"><AlertCircle className="w-3 h-3" /><RotateCcw className="w-2.5 h-2.5" /></button></Tooltip>)}
+                                  {msg._status === 'failed' && (<Tooltip text={msg._error ? `ส่งไม่สำเร็จ: ${msg._error} — กดเพื่อลองใหม่` : 'ส่งไม่สำเร็จ กดเพื่อลองใหม่'}><button onClick={() => { retrySend(msg); }} aria-label="ส่งไม่สำเร็จ กดเพื่อลองใหม่" className="flex items-center gap-0.5 text-red-500 hover:text-red-600"><AlertCircle className="w-3 h-3" /><RotateCcw className="w-2.5 h-2.5" /></button></Tooltip>)}
                                   {msg._status === 'sending' && (<Loader2 className="w-2.5 h-2.5 animate-spin text-gray-400" />)}
                                   {msg._status === 'sent' && (<Check className="w-2.5 h-2.5" style={{ color: platformColor }} />)}
                                   <span>{formatTime(msg.created_at)}</span>

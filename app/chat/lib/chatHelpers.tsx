@@ -152,9 +152,13 @@ export function formatLastMessage(dateString?: string) {
   return date.toLocaleDateString('th-TH', { day: 'numeric', month: 'short' });
 }
 
-export function compressImage(file: File, maxSizeKB = 500): Promise<Blob> {
+/**
+ * ย่อรูปเป็น JPEG ด้วย canvas — คืน null เมื่อเบราว์เซอร์ **ถอดรหัสไฟล์นี้ไม่ได้**
+ * (เช่น HEIC จาก iPhone เปิดบน Chrome) ผู้เรียกต้องตัดสินใจต่อเอง ห้ามเงียบ ๆ
+ * ส่งไฟล์ดิบไปให้ LINE/FB เพราะปลายทางจะได้รูปเสียโดยที่ฝั่งเราขึ้นว่าส่งสำเร็จ
+ */
+function compressToJpeg(file: File, maxSizeKB: number): Promise<Blob | null> {
   return new Promise((resolve) => {
-    if (file.size <= maxSizeKB * 1024) { resolve(file); return; }
     const img = new window.Image();
     const url = URL.createObjectURL(file);
     img.onload = () => {
@@ -167,21 +171,56 @@ export function compressImage(file: File, maxSizeKB = 500): Promise<Blob> {
         else { width = Math.round(width * (maxDim / height)); height = maxDim; }
       }
       canvas.width = width; canvas.height = height;
-      const ctx = canvas.getContext('2d')!;
+      const ctx = canvas.getContext('2d');
+      if (!ctx || !width || !height) { resolve(null); return; }
       ctx.drawImage(img, 0, 0, width, height);
       let quality = 0.8;
       const tryCompress = () => {
         canvas.toBlob((blob) => {
-          if (!blob) { resolve(file); return; }
+          if (!blob) { resolve(null); return; }
           if (blob.size <= maxSizeKB * 1024 || quality <= 0.3) { resolve(blob); }
           else { quality -= 0.1; tryCompress(); }
         }, 'image/jpeg', quality);
       };
       tryCompress();
     };
-    img.onerror = () => { URL.revokeObjectURL(url); resolve(file); };
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(null); };
     img.src = url;
   });
+}
+
+export function compressImage(file: File, maxSizeKB = 500): Promise<Blob> {
+  if (file.size <= maxSizeKB * 1024) return Promise.resolve(file);
+  return compressToJpeg(file, maxSizeKB).then((blob) => blob || file);
+}
+
+/** ชนิดที่ทั้ง LINE และ Facebook แสดงผลได้แน่นอน (LINE รับแค่ JPEG/PNG) */
+const SENDABLE_IMAGE_TYPES = new Set(['image/jpeg', 'image/jpg', 'image/png']);
+
+export interface PreparedChatImage { blob: Blob; ext: string; contentType: string }
+
+/**
+ * เตรียมรูปให้พร้อมส่งเข้าแชท — คืนชนิด/นามสกุล **ตามของจริง** ไม่ใช่ฝัง .jpg ไว้เฉย ๆ
+ * (ของเดิมอัปไฟล์ PNG/WebP/HEIC ด้วยชื่อ .jpg + content-type image/jpeg ปลายทางจึงเห็นรูปเสีย)
+ * โยน error เมื่อเป็นรูปแบบที่แปลงไม่ได้และปลายทางรับไม่ได้ — บอกผู้ใช้ดีกว่าส่งของพัง
+ */
+export async function prepareChatImage(file: File, maxSizeKB = 500): Promise<PreparedChatImage> {
+  const type = (file.type || '').toLowerCase();
+  const isPng = type === 'image/png';
+
+  // เล็กพออยู่แล้วและเป็นชนิดที่ปลายทางรับได้ → ส่งของเดิม คุณภาพไม่ต้องเสียไปกับการแปลง
+  if (file.size <= maxSizeKB * 1024 && SENDABLE_IMAGE_TYPES.has(type)) {
+    return { blob: file, ext: isPng ? 'png' : 'jpg', contentType: isPng ? 'image/png' : 'image/jpeg' };
+  }
+
+  const jpeg = await compressToJpeg(file, maxSizeKB);
+  if (jpeg) return { blob: jpeg, ext: 'jpg', contentType: 'image/jpeg' };
+
+  // แปลงไม่ได้ แต่ชนิดเดิมปลายทางรับได้อยู่แล้ว → ส่งดิบไป (แค่ไฟล์ใหญ่กว่าที่อยากได้)
+  if (SENDABLE_IMAGE_TYPES.has(type)) {
+    return { blob: file, ext: isPng ? 'png' : 'jpg', contentType: isPng ? 'image/png' : 'image/jpeg' };
+  }
+  throw new Error('ไฟล์รูปแบบนี้ส่งไม่ได้ (รองรับ JPG และ PNG) — บันทึกเป็น JPG ก่อนแล้วลองใหม่');
 }
 
 export const officialStickers = [
