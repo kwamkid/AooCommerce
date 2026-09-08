@@ -24,13 +24,21 @@ export { LINE_TEXT_MAX, MULTICAST_BATCH_SIZE };
 
 // ─── Types ────────────────────────────────────────────────────────────
 
-export type BroadcastAudienceType = 'all' | 'contacts' | 'tags' | 'customers' | 'contacts_pick';
+export type BroadcastAudienceType =
+  | 'all' | 'contacts' | 'tags' | 'customers' | 'contacts_pick'
+  // แบ่งตามสถานะการซื้อ — ดู migration broadcasts_audience_purchase_segments
+  | 'not_bought' | 'bought' | 'bought_within' | 'bought_before' | 'bought_once';
+
+/** กลุ่มที่ต้องรู้ประวัติการซื้อของลูกค้าก่อนถึงจะกรองได้ */
+const PURCHASE_AUDIENCES = new Set<string>(['not_bought', 'bought', 'bought_within', 'bought_before', 'bought_once']);
 export type BroadcastStatus = 'pending' | 'sending' | 'sent' | 'partial' | 'failed';
 
 export interface BroadcastAudienceFilter {
   tag_ids?: string[];
   /** ผู้ติดต่อที่เลือกเอง (audience_type='contacts_pick') — ใช้ทดสอบส่ง/ส่งกลุ่มเล็ก */
   contact_ids?: string[];
+  /** จำนวนวันของกลุ่ม `bought_within` / `bought_before` */
+  days?: number;
 }
 
 /** ปุ่มบนการ์ด/ปุ่มตอบเร็ว — uri = เปิดลิงก์ · message = ส่งข้อความกลับเข้าห้องแชท */
@@ -266,7 +274,10 @@ export async function resolveBroadcastRecipients(
     if ((allowedCustomerIds?.size ?? 0) === 0 && allowedContactIds.size === 0) return [];
   }
 
-  const needsCustomer = audienceType === 'customers';
+  // กลุ่ม "เป็นลูกค้าแล้ว" ทุกแบบต้องผูกลูกค้าก่อน — ไม่ผูก = ไม่มีทางรู้ว่าเคยซื้อ
+  const needsCustomer = audienceType === 'customers'
+    || audienceType === 'bought' || audienceType === 'bought_within'
+    || audienceType === 'bought_before' || audienceType === 'bought_once';
 
   // ⚠️ ต้องผ่าน fetchAllRows — Supabase ตัดที่ 1,000 แถวเงียบ ๆ และร้านเดียวมีผู้ติดต่อ
   //    เกินพันคนแล้ว (aDay Fresh 1,409) ถ้าไม่แบ่งหน้า คนท้ายรายชื่อจะไม่ได้รับข้อความ
@@ -286,6 +297,35 @@ export async function resolveBroadcastRecipients(
     },
   );
 
+  // ── ประวัติการซื้อ (เฉพาะกลุ่มที่ต้องใช้) ───────────────────────────
+  //
+  // ⚠️ ผู้ติดต่อที่ **ยังไม่ผูกกับลูกค้า** (`customer_id` null) ระบบไม่มีทางรู้ว่าเคยซื้อไหม
+  // — LINE ไม่ให้เบอร์/อีเมลเลย · ตรงนี้นับเป็น "ยังไม่เคยซื้อ" เพราะไม่มีหลักฐานว่าซื้อ
+  // แต่หน้าจอ **ต้องบอกจำนวนคนที่ยังไม่ได้ผูกข้อมูล** กำกับไว้เสมอ ไม่งั้นผู้ใช้จะเข้าใจว่า
+  // ลูกค้าเก่าของตัวเองไม่มีใครเคยซื้อ (aDay Fresh ผูกไว้ 1.2% ของ 1,432 คน)
+  let orderStats: Map<string, { order_count: number; last_order_date: string | null }> | null = null;
+  if (PURCHASE_AUDIENCES.has(audienceType)) {
+    const customerIds = [...new Set(contacts.map(c => c.customer_id).filter((v): v is string => !!v))];
+    orderStats = new Map();
+    if (customerIds.length > 0) {
+      const { data, error } = await supabaseAdmin.rpc('get_chat_customer_order_stats', {
+        p_company_id: companyId,
+        p_customer_ids: customerIds,
+      });
+      // query พัง = กรองมั่วไม่ได้ ต้องคืนว่าง ดีกว่าส่งผิดกลุ่มไปหาลูกค้าจริง
+      if (error) {
+        console.error('[broadcast] get_chat_customer_order_stats:', error.message);
+        return [];
+      }
+      for (const row of (data || []) as { customer_id: string; order_count: number; last_order_date: string | null }[]) {
+        orderStats.set(row.customer_id, { order_count: Number(row.order_count) || 0, last_order_date: row.last_order_date });
+      }
+    }
+  }
+
+  const days = Math.max(1, Number(filter?.days) || 30);
+  const cutoff = new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
+
   const seen = new Set<string>();
   const out: BroadcastRecipient[] = [];
   for (const c of contacts) {
@@ -294,6 +334,17 @@ export async function resolveBroadcastRecipients(
       const viaCustomer = !!c.customer_id && !!allowedCustomerIds?.has(c.customer_id);
       const viaContact = !!allowedContactIds?.has(c.id);
       if (!viaCustomer && !viaContact) continue;
+    }
+    if (orderStats) {
+      const st = c.customer_id ? orderStats.get(c.customer_id) : undefined;
+      const count = st?.order_count ?? 0;
+      const last = st?.last_order_date ?? null;
+      if (audienceType === 'not_bought' && count > 0) continue;
+      if (audienceType === 'bought' && count === 0) continue;
+      if (audienceType === 'bought_once' && count !== 1) continue;
+      if (audienceType === 'bought_within' && !(count > 0 && last && last >= cutoff)) continue;
+      // "หายไป" = เคยซื้อ แต่ครั้งล่าสุดเก่ากว่ากรอบที่ตั้งไว้
+      if (audienceType === 'bought_before' && !(count > 0 && last && last < cutoff)) continue;
     }
     if (seen.has(c.line_user_id)) continue;   // ผู้ใช้คนเดียวห้ามได้ข้อความซ้ำ
     seen.add(c.line_user_id);

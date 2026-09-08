@@ -19,6 +19,7 @@ import OptionCards from '@/components/ui/OptionCards';
 import ProductSearchInput, { type ProductSearchItem } from '@/components/ui/ProductSearchInput';
 import EntitySearchInput, { type EntitySearchOption } from '@/components/ui/EntitySearchInput';
 import ProductImageThumb from '@/components/ui/ProductImageThumb';
+import NumberInput from '@/components/ui/NumberInput';
 import { LoadingCard, NoPermissionCard } from '@/components/ui/StateCard';
 import { useAuthGuard } from '@/lib/useAuthGuard';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
@@ -78,45 +79,96 @@ interface PreviewInfo {
   quota: QuotaInfo | null;
   follower_stats: FollowerStats | null;
   window_days: number | null;
+  /** ผู้ติดต่อทั้งหมด / ที่ผูกกับข้อมูลลูกค้าแล้ว — ใช้บอกว่าเรารู้ประวัติการซื้อของกี่คน */
+  contact_total?: number;
+  contact_linked?: number;
 }
 
-interface AudienceOption { key: string; label: string; hint?: string }
+interface AudienceOption {
+  key: string;
+  label: string;
+  hint?: string;
+  /** หัวข้อกลุ่มที่ตัวเลือกนี้อยู่ — แบ่งตามเป้าหมายการตลาด ไม่ใช่ตามกลไกของระบบ */
+  group: string;
+  /** ต้องกรอกจำนวนวันต่อ */
+  needsDays?: boolean;
+}
 
 /**
  * กลุ่มผู้รับต่างกันตามช่องทาง เพราะ "ใครที่ทักได้" ต่างกัน —
  * ต้องตรงกับ AUDIENCE_BY_PLATFORM ใน /api/broadcasts (server ปฏิเสธค่าที่ไม่รู้จัก)
  */
+const GROUP_NOT_BOUGHT = 'ยังไม่เคยซื้อ — ชวนให้ซื้อครั้งแรก';
+const GROUP_BOUGHT = 'เป็นลูกค้าแล้ว — ชวนให้ซื้อซ้ำ';
+const GROUP_OTHER = 'อื่น ๆ';
+
 const AUDIENCE_OPTIONS: Partial<Record<BroadcastPlatform, AudienceOption[]>> = {
   line: [
     {
-      key: 'contacts',
-      label: 'คนที่เคยทักเข้ามา',
-      hint: 'ทุกคนที่มีห้องแชทอยู่ในระบบเรา — เคยส่งข้อความหาร้านอย่างน้อยครั้งหนึ่ง',
+      key: 'not_bought',
+      group: GROUP_NOT_BOUGHT,
+      label: 'ยังไม่เคยซื้อ',
+      hint: 'ไม่มีออเดอร์ในระบบ — รวมคนที่ยังไม่ได้ผูกกับข้อมูลลูกค้า',
     },
     {
-      key: 'customers',
-      label: 'คนที่เคยทัก + ผูกกับลูกค้าแล้ว',
-      hint: 'เฉพาะห้องแชทที่จับคู่กับข้อมูลลูกค้าในระบบแล้ว (รู้ชื่อจริง/เบอร์/ประวัติซื้อ)',
+      key: 'bought',
+      group: GROUP_BOUGHT,
+      label: 'ลูกค้าทั้งหมด',
+      hint: 'เคยซื้ออย่างน้อยหนึ่งครั้ง',
+    },
+    {
+      key: 'bought_within',
+      group: GROUP_BOUGHT,
+      label: 'ซื้อล่าสุดภายใน N วัน',
+      hint: 'ลูกค้าที่ยังซื้ออยู่ — เหมาะกับของใหม่ ของเสริม',
+      needsDays: true,
+    },
+    {
+      key: 'bought_before',
+      group: GROUP_BOUGHT,
+      label: 'หายไปเกิน N วัน',
+      hint: 'เคยซื้อแล้วเงียบไป — ชวนกลับมา',
+      needsDays: true,
+    },
+    {
+      key: 'bought_once',
+      group: GROUP_BOUGHT,
+      label: 'ซื้อครั้งเดียว ยังไม่กลับมา',
+      hint: 'กลุ่มที่ดันให้ซื้อครั้งที่สองได้คุ้มที่สุด',
+    },
+    {
+      key: 'contacts',
+      group: GROUP_OTHER,
+      label: 'คนที่เคยทักเข้ามา',
+      hint: 'ทุกคนที่มีห้องแชทอยู่ในระบบ ไม่ว่าจะซื้อหรือยัง',
     },
     {
       key: 'tags',
+      group: GROUP_OTHER,
       label: 'ตามแท็ก',
       hint: 'นับทั้งแท็กที่ติดกับลูกค้า และแท็กที่ติดกับห้องแชทโดยตรง',
     },
     {
       key: 'all',
+      group: GROUP_OTHER,
       label: 'ผู้ติดตามทั้งหมด',
-      hint: 'รวมคนที่แอดเพื่อนไว้แต่ไม่เคยทักมาเลย — LINE ส่งให้ทุกคน แต่เราไม่รู้ว่าเป็นใคร จึงบันทึกลงห้องแชทได้เฉพาะคนที่เคยทัก · กลุ่มนี้ใหญ่ที่สุดและกินโควตามากสุด',
+      hint: 'รวมคนที่แอดเพื่อนไว้แต่ไม่เคยทักมาเลย — กลุ่มใหญ่สุด กินโควตามากสุด',
     },
     {
       key: 'contacts_pick',
+      group: GROUP_OTHER,
       label: 'เลือกรายคน',
-      hint: 'พิมพ์ชื่อแล้วเลือกทีละคน — ใช้ทดสอบส่งหาตัวเองก่อนยิงจริง หรือส่งกลุ่มเล็กเฉพาะกิจ',
+      hint: 'ใช้ทดสอบส่งหาตัวเองก่อนยิงจริง หรือส่งกลุ่มเล็กเฉพาะกิจ',
     },
   ],
   tiktok: [
-    { key: 'buyers_365d', label: 'ลูกค้าที่เคยสั่งซื้อ (365 วัน)', hint: 'TikTok ให้ทักได้เฉพาะกรอบนี้' },
-    { key: 'tags', label: 'ตามแท็กลูกค้า', hint: 'นับเฉพาะคนที่ติดแท็กและมีออเดอร์ใน 365 วัน' },
+    {
+      key: 'buyers_365d',
+      group: GROUP_BOUGHT,
+      label: 'ลูกค้าที่เคยสั่งซื้อ (365 วัน)',
+      hint: 'TikTok ให้ทักได้เฉพาะกรอบนี้',
+    },
+    { key: 'tags', group: GROUP_OTHER, label: 'ตามแท็กลูกค้า', hint: 'นับเฉพาะคนที่ติดแท็กและมีออเดอร์ใน 365 วัน' },
   ],
 };
 
@@ -163,9 +215,10 @@ const KIND_CARDS: Record<BroadcastContentKind, { label: string; description: str
 };
 
 /** ตัวกรองผู้รับตามชนิดกลุ่ม — ที่เดียวเพื่อให้ preview กับตอนส่งใช้ค่าเดียวกันเสมอ */
-function buildAudienceFilter(audience: string, tagIds: string[], contactIds: string[]) {
+function buildAudienceFilter(audience: string, tagIds: string[], contactIds: string[], days: number) {
   if (audience === 'tags') return { tag_ids: tagIds };
   if (audience === 'contacts_pick') return { contact_ids: contactIds };
+  if (audience === 'bought_within' || audience === 'bought_before') return { days };
   return {};
 }
 
@@ -219,6 +272,8 @@ export default function NewBroadcastPage() {
   /** กลุ่มผู้รับเลือกในโมดัล — รายการจะยาวขึ้นเรื่อย ๆ (ไม่ซื้อมา N วัน · ทักแล้วยังไม่ซื้อ ฯลฯ)
    *  เรียงเป็นการ์ดในหน้าจะดันเนื้อหาตกจอ */
   const [audienceModal, setAudienceModal] = useState(false);
+  /** จำนวนวันของกลุ่ม "ซื้อภายใน N วัน" / "หายไปเกิน N วัน" */
+  const [audienceDays, setAudienceDays] = useState(30);
 
   const productSearch = useServerSearch<ProductSearchItem>({ fetch: fetchProductPage });
 
@@ -335,7 +390,7 @@ export default function NewBroadcastPage() {
 
   // ─── ประเมินผู้รับ + โควตา ──────────────────────────────────────────
   const runPreview = useCallback(async (
-    accs: BroadcastAccount[], aud: string, ids: string[], picked: string[],
+    accs: BroadcastAccount[], aud: string, ids: string[], picked: string[], dayCount: number,
   ) => {
     if (accs.length === 0 || !aud) { setPreview(null); setPerAccount([]); return; }
     if (aud === 'contacts_pick' && picked.length === 0) { setPreview(null); setPerAccount([]); return; }
@@ -350,7 +405,7 @@ export default function NewBroadcastPage() {
             platform: a.platform,
             account_id: a.id,
             audience_type: aud,
-            audience_filter: buildAudienceFilter(aud, ids, picked),
+            audience_filter: buildAudienceFilter(aud, ids, picked, dayCount),
           }),
         });
         if (!res.ok) return null;
@@ -372,8 +427,8 @@ export default function NewBroadcastPage() {
 
   useEffect(() => {
     if (!allowed) return;
-    debouncedPreview(selectedAccounts, audience, tagIds, pickedContacts.map(c => c.id));
-  }, [allowed, selectedAccounts, audience, tagIds, pickedContacts, debouncedPreview]);
+    debouncedPreview(selectedAccounts, audience, tagIds, pickedContacts.map(c => c.id), audienceDays);
+  }, [allowed, selectedAccounts, audience, tagIds, pickedContacts, audienceDays, debouncedPreview]);
 
   // ─── สรุปสิ่งที่จะเกิดขึ้น ────────────────────────────────────────────
   const recipientCount = perAccount.reduce((n, r) => n + r.info.recipient_count, 0);
@@ -410,6 +465,10 @@ export default function NewBroadcastPage() {
 
   // โหมด 'all' ของ LINE ยิงผ่าน broadcast API ไม่ต้องมีรายชื่อของเรา
   const selectedAudience = audienceOptions.find(o => o.key === audience) || null;
+  /** ชื่อกลุ่มที่แทน N ด้วยจำนวนวันจริงแล้ว — ป้าย "หายไปเกิน N วัน" ลอย ๆ อ่านแล้วไม่รู้ว่ากี่วัน */
+  const audienceLabel = selectedAudience
+    ? selectedAudience.label.replace('N วัน', `${audienceDays} วัน`)
+    : 'เลือกกลุ่มผู้รับ';
   const pickPending = audience === 'contacts_pick' && pickedContacts.length === 0;
   const noRecipients = audience !== 'all' && !pickPending && !previewLoading
     && platforms.length > 0 && recipientCount === 0;
@@ -471,7 +530,7 @@ export default function NewBroadcastPage() {
               platform: a.platform,
               account_id: a.id,
               audience_type: audience,
-              audience_filter: buildAudienceFilter(audience, tagIds, pickedContacts.map(c => c.id)),
+              audience_filter: buildAudienceFilter(audience, tagIds, pickedContacts.map(c => c.id), audienceDays),
               content: { ...draftContent, image_url: imageUrl },
             }),
           });
@@ -587,7 +646,7 @@ export default function NewBroadcastPage() {
                   >
                     <span className="flex-1 min-w-0">
                       <span className="block body-text text-gray-900 dark:text-white truncate">
-                        {selectedAudience?.label || 'เลือกกลุ่มผู้รับ'}
+                        {audienceLabel}
                       </span>
                       <span className="block helper-text text-gray-500 dark:text-slate-400 truncate">
                         {audienceSummary}
@@ -979,86 +1038,132 @@ export default function NewBroadcastPage() {
             </div>
           }
         >
-          <div className="modal-body px-6 py-5 space-y-2">
-            {audienceOptions.map(opt => {
-              const active = audience === opt.key;
-              return (
-                <div key={opt.key}>
-                  <Radio
-                    checked={active}
-                    onChange={() => setAudience(opt.key)}
-                    className={`!items-start px-3 py-2.5 rounded-lg border transition-colors ${
-                      active
-                        ? 'border-[#F4511E] bg-orange-50/50 dark:bg-orange-950/20'
-                        : 'border-gray-200 dark:border-slate-600 hover:border-gray-300 dark:hover:border-slate-500'
-                    }`}
-                  >
-                    <span className="min-w-0">
-                      <span className="block body-text text-gray-900 dark:text-white">{opt.label}</span>
-                      {opt.hint && (
-                        <span className="block helper-text text-gray-500 dark:text-slate-400 mt-0.5">{opt.hint}</span>
-                      )}
-                    </span>
-                  </Radio>
+          <div className="modal-body px-6 py-5 space-y-5">
+            {/* ระบบรู้ประวัติการซื้อของกี่คน — ต้องบอกก่อนให้เลือกกลุ่มที่แบ่งตามการซื้อ
+                ไม่งั้นผู้ใช้จะอ่านว่า "ลูกค้าเก่าของฉันไม่มีใครเคยซื้อเลย" ทั้งที่ความจริงคือ
+                เรายังไม่ได้ผูกห้องแชทกับข้อมูลลูกค้า (LINE ไม่ให้เบอร์/อีเมล) */}
+            {preview?.contact_total != null && preview.contact_linked != null && preview.contact_linked < preview.contact_total && (
+              <Alert tone="info">
+                ระบบรู้ประวัติการซื้อของ {preview.contact_linked.toLocaleString()} จาก{' '}
+                {preview.contact_total.toLocaleString()} คน — ที่เหลือยังไม่ได้ผูกห้องแชทกับข้อมูลลูกค้า
+                จึงถูกนับเป็น &quot;ยังไม่เคยซื้อ&quot;
+              </Alert>
+            )}
 
-                  {/* ของที่ต้องกรอกต่อของตัวเลือกนั้น — โผล่ใต้ตัวที่เลือกเท่านั้น */}
-                  {active && opt.key === 'tags' && (
-                    <div className="mt-2 ml-3">
-                      <MultiSelectSearch
-                        value={tagIds}
-                        onChange={setTagIds}
-                        options={tags.map(t => ({ id: t.id, label: t.name }))}
-                        emptyLabel="เลือกแท็ก..."
-                        icon={<Tag className="w-4 h-4" />}
-                      />
-                    </div>
-                  )}
+            {[...new Set(audienceOptions.map(o => o.group))].map(group => (
+              <div key={group}>
+                <p className="field-label mb-2">{group}</p>
+                <div className="space-y-2">
+                  {audienceOptions.filter(o => o.group === group).map(opt => {
+                    const active = audience === opt.key;
+                    return (
+                      <div key={opt.key}>
+                        <Radio
+                          checked={active}
+                          onChange={() => setAudience(opt.key)}
+                          className={`!items-start px-3 py-2.5 rounded-lg border transition-colors ${
+                            active
+                              ? 'border-[#F4511E] bg-orange-50/50 dark:bg-orange-950/20'
+                              : 'border-gray-200 dark:border-slate-600 hover:border-gray-300 dark:hover:border-slate-500'
+                          }`}
+                        >
+                          <span className="min-w-0">
+                            <span className="block body-text text-gray-900 dark:text-white">
+                              {opt.label.replace('N วัน', `${audienceDays} วัน`)}
+                            </span>
+                            {opt.hint && (
+                              <span className="block helper-text text-gray-500 dark:text-slate-400 mt-0.5">{opt.hint}</span>
+                            )}
+                          </span>
+                        </Radio>
 
-                  {active && opt.key === 'contacts_pick' && (
-                    <div className="mt-2 ml-3">
-                      <EntitySearchInput
-                        value=""
-                        options={contactSearch.results}
-                        loading={contactSearch.loading}
-                        onSearchChange={contactSearch.search}
-                        minSearchLength={2}
-                        placeholder="พิมพ์ชื่อผู้ติดต่อเพื่อเพิ่ม"
-                        emptyMessage="ไม่พบผู้ติดต่อที่ตรงกับคำค้น"
-                        onChange={(id, o) => {
-                          setPickedContacts(prev =>
-                            prev.some(c => c.id === id) ? prev : [...prev, { id, name: o.label }]);
-                        }}
-                      />
-                      {pickedContacts.length > 0 && (
-                        <ul className="mt-2 flex flex-wrap gap-1.5">
-                          {pickedContacts.map(c => (
-                            <li
-                              key={c.id}
-                              className="flex items-center gap-1.5 pl-2.5 pr-1 py-1 rounded-full border border-gray-200 dark:border-slate-600"
-                            >
-                              <span className="helper-text text-gray-700 dark:text-slate-300">{c.name}</span>
+                        {active && opt.needsDays && (
+                          <div className="mt-2 ml-3 flex items-center gap-2">
+                            <div className="w-28">
+                              <NumberInput
+                                value={audienceDays}
+                                onChange={(v) => setAudienceDays(Math.max(1, Math.min(3650, v || 1)))}
+                              />
+                            </div>
+                            <span className="body-text text-gray-500 dark:text-slate-400">วัน</span>
+                            {/* ทางลัดที่ร้านใช้จริงบ่อยสุด — พิมพ์เองก็ได้ */}
+                            {[30, 60, 90, 180].map(d => (
                               <button
+                                key={d}
                                 type="button"
-                                aria-label={`เอา ${c.name} ออก`}
-                                onClick={() => setPickedContacts(prev => prev.filter(x => x.id !== c.id))}
-                                className="w-4 h-4 flex items-center justify-center rounded-full text-gray-400 hover:text-red-500"
+                                onClick={() => setAudienceDays(d)}
+                                className={`helper-text px-2 py-1 rounded-full border transition-colors ${
+                                  audienceDays === d
+                                    ? 'border-[#F4511E] text-[#F4511E] bg-orange-50/60 dark:bg-orange-950/20'
+                                    : 'border-gray-200 dark:border-slate-600 text-gray-500 dark:text-slate-400 hover:border-gray-300'
+                                }`}
                               >
-                                <Trash2 className="w-3 h-3" />
+                                {d}
                               </button>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                      {accountIds.length > 1 && (
-                        <p className="helper-text text-amber-700 dark:text-amber-500 mt-1.5">
-                          ค้นจากบัญชีแรกที่เลือกเท่านั้น — เลือกรายคนควรติ๊กบัญชีเดียว
-                        </p>
-                      )}
-                    </div>
-                  )}
+                            ))}
+                          </div>
+                        )}
+
+                        {active && opt.key === 'tags' && (
+                          <div className="mt-2 ml-3">
+                            <MultiSelectSearch
+                              value={tagIds}
+                              onChange={setTagIds}
+                              options={tags.map(t => ({ id: t.id, label: t.name }))}
+                              emptyLabel="เลือกแท็ก..."
+                              icon={<Tag className="w-4 h-4" />}
+                            />
+                          </div>
+                        )}
+
+                        {active && opt.key === 'contacts_pick' && (
+                          <div className="mt-2 ml-3">
+                            <EntitySearchInput
+                              value=""
+                              options={contactSearch.results}
+                              loading={contactSearch.loading}
+                              onSearchChange={contactSearch.search}
+                              minSearchLength={2}
+                              placeholder="พิมพ์ชื่อผู้ติดต่อเพื่อเพิ่ม"
+                              emptyMessage="ไม่พบผู้ติดต่อที่ตรงกับคำค้น"
+                              onChange={(id, o) => {
+                                setPickedContacts(prev =>
+                                  prev.some(c => c.id === id) ? prev : [...prev, { id, name: o.label }]);
+                              }}
+                            />
+                            {pickedContacts.length > 0 && (
+                              <ul className="mt-2 flex flex-wrap gap-1.5">
+                                {pickedContacts.map(c => (
+                                  <li
+                                    key={c.id}
+                                    className="flex items-center gap-1.5 pl-2.5 pr-1 py-1 rounded-full border border-gray-200 dark:border-slate-600"
+                                  >
+                                    <span className="helper-text text-gray-700 dark:text-slate-300">{c.name}</span>
+                                    <button
+                                      type="button"
+                                      aria-label={`เอา ${c.name} ออก`}
+                                      onClick={() => setPickedContacts(prev => prev.filter(x => x.id !== c.id))}
+                                      className="w-4 h-4 flex items-center justify-center rounded-full text-gray-400 hover:text-red-500"
+                                    >
+                                      <Trash2 className="w-3 h-3" />
+                                    </button>
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                            {accountIds.length > 1 && (
+                              <p className="helper-text text-amber-700 dark:text-amber-500 mt-1.5">
+                                ค้นจากบัญชีแรกที่เลือกเท่านั้น — เลือกรายคนควรติ๊กบัญชีเดียว
+                              </p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
-              );
-            })}
+              </div>
+            ))}
           </div>
         </Modal>
       </Container>

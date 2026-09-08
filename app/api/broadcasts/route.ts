@@ -29,9 +29,22 @@ export const maxDuration = 300;
 
 /** กลุ่มผู้รับที่แต่ละช่องทางรองรับ — ส่งค่าที่ช่องทางนั้นไม่รู้จักมา = ปฏิเสธ */
 const AUDIENCE_BY_PLATFORM: Record<string, string[]> = {
-  line: ['all', 'contacts', 'tags', 'customers', 'contacts_pick'],
+  line: [
+    'all', 'contacts', 'tags', 'contacts_pick',
+    'not_bought', 'bought', 'bought_within', 'bought_before', 'bought_once',
+  ],
   tiktok: ['buyers_365d', 'tags'],
 };
+
+/** เก็บเฉพาะตัวกรองที่กลุ่มนั้นใช้จริง — เก็บทั้งก้อนแล้วอ่านย้อนหลังจะแยกไม่ออกว่าอันไหนมีผล */
+function buildStoredFilter(audienceType: string, f: BroadcastAudienceFilter) {
+  if (audienceType === 'tags') return { tag_ids: f.tag_ids || [] };
+  if (audienceType === 'contacts_pick') return { contact_ids: f.contact_ids || [] };
+  if (audienceType === 'bought_within' || audienceType === 'bought_before') {
+    return { days: Math.max(1, Number(f.days) || 30) };
+  }
+  return {};
+}
 
 interface BroadcastListRow {
   id: string;
@@ -253,10 +266,7 @@ export async function POST(request: NextRequest) {
         marketplace_account_id: target.marketplaceAccountId,
         created_by: auth.userId || null,
         audience_type: audienceType,
-        audience_filter:
-          audienceType === 'tags' ? { tag_ids: audienceFilter.tag_ids || [] }
-            : audienceType === 'contacts_pick' ? { contact_ids: audienceFilter.contact_ids || [] }
-              : {},
+        audience_filter: buildStoredFilter(audienceType, audienceFilter),
         messages,
         preview,
         recipient_count: recipientCount,
