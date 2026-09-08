@@ -561,8 +561,6 @@ export default function OrderForm({
   const deliveryDateRef = useRef<HTMLDivElement>(null);
   const productsSectionRef = useRef<HTMLDivElement>(null);
   const deliverySectionRef = useRef<HTMLDivElement>(null);
-  const summarySectionRef = useRef<HTMLDivElement>(null);
-  const [summaryWide, setSummaryWide] = useState(false);
 
   // Tailwind sm:/md: breakpoints see the VIEWPORT — inside the chat panel on a
   // notebook the form is ~600px while the viewport is 1280+, so 2-column grids
@@ -594,21 +592,7 @@ export default function OrderForm({
     formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, [step, useWizard]);
 
-  // Watch summary section width for side-by-side vs stacked layout
   const hasProducts = branchOrders.length > 0 && branchOrders[0]?.products.length > 0;
-  useEffect(() => {
-    if (embedded) { setSummaryWide(false); return; }
-    const el = summarySectionRef.current;
-    if (!el) return;
-    const ro = new ResizeObserver(([entry]) => {
-      setSummaryWide(entry.contentRect.width >= 560);
-    });
-    ro.observe(el);
-    return () => ro.disconnect();
-    // useWizard อยู่ใน deps เพราะเปลือก wizard ไม่ได้ render กล่องที่ ref นี้เกาะ —
-    // กลับมาจอกว้างต้อง observe ใหม่ ไม่งั้นค่าค้างจากก่อนหน้า
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasProducts, embedded, useWizard]);
 
   // Initialize default branch (product-first flow for all modes)
   // This allows product section to show immediately without selecting a customer
@@ -3162,10 +3146,9 @@ export default function OrderForm({
     return lines.join('\n');
   })();
 
-  // Order Summary — คอลัมน์ขวาในจอกว้าง (sticky) · เต็มความกว้างเสมอใน wizard
-  // (wizard ไม่ได้ render กล่องที่ summarySectionRef เกาะ ค่า summaryWide จึงเชื่อไม่ได้)
+  // Order Summary — เต็มความกว้างเสมอ อยู่ก่อนหมายเหตุ ตรงกับขั้นที่ 3 ของ wizard
   const summaryFragment = hasProducts && (
-        <div className={useWizard ? 'w-full' : `${summaryWide ? 'w-[340px] flex-shrink-0 sticky top-4' : 'w-full'}`}>
+        <div className="w-full">
           <div className={`bg-white dark:bg-slate-800 rounded-lg ${embedded ? '' : 'border border-gray-200 dark:border-slate-700'} p-4`}>
             <OrderSummaryBox
               title="สรุปคำสั่งซื้อ"
@@ -3352,21 +3335,19 @@ export default function OrderForm({
         </div>
       ) : (
         <>
-          {/* ลำดับต้องตรงกับ wizard: **สินค้า → ลูกค้า/จัดส่ง → ปุ่ม**
-              เดิมจอกว้างขึ้นลูกค้าก่อน ⇒ พนักงานคนเดียวกันเจอลำดับกรอกคนละแบบ
-              แล้วแต่ว่าเปิดหน้าต่างกว้างแค่ไหน (เจ้าของทักมา 8 ก.ย. 2026)
+          {/* **ลำดับเดียวกับ wizard เป๊ะ**: สินค้า → ลูกค้า/จัดส่ง → สรุป → หมายเหตุ → ปุ่ม
+              จอกว้างไม่มีขั้นตอนให้กด แต่ลำดับที่ต้องกรอกต้องเหมือนกัน ไม่งั้นพนักงาน
+              คนเดียวกันเจอลำดับคนละแบบแล้วแต่ความกว้างหน้าต่าง (เจ้าของทักมา 8 ก.ย. 2026)
 
-              สรุปยอดยังเกาะขวาแบบ sticky อยู่ข้างสินค้าเหมือนเดิม — มันเป็นแผงที่ตามไปทั้งหน้า
-              ไม่ใช่ "ขั้นตอน" จึงไม่ต้องไปอยู่ท้ายสุดตาม wizard */}
-          <div ref={summarySectionRef} className="flex flex-wrap gap-4 items-start">
-            <div className="flex-1 basis-[400px] min-w-0 space-y-4">
-              {productsFragment}
-              {notesFragment}
-            </div>
-            {summaryFragment}
-          </div>
+              ⚠️ เดิมสรุปยอดเกาะขวาแบบ sticky อยู่ข้างสินค้า — ถอดออกเพื่อให้ลำดับตรงกับ wizard
+              แลกกับการที่ยอดรวมไม่ลอยตามสายตาแล้ว ต้องเลื่อนลงมาดู */}
+          {productsFragment}
 
           {customerDeliveryFragment}
+
+          {summaryFragment}
+
+          {notesFragment}
 
           {actionsFragment}
         </>
