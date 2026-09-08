@@ -82,10 +82,12 @@ import { can } from '@/lib/permissions';
 import { filterSavedReplies, splitFrequentReplies, type SavedReply } from '@/lib/chat/saved-replies';
 import { applySavedReplyVars } from '@/lib/chat/saved-reply-vars';
 import { resolveContactName } from '@/lib/chat/contact-name';
+// **ไม่ใช้ dynamic()** — ตัวนี้เล็ก (ไม่มี dep หนัก) และถูกกดบ่อยที่สุดในหน้านี้
+// โหลดแยกไฟล์ = กดปุ่มแล้วต้องรอดาวน์โหลด/คอมไพล์ก่อนถึงจะเห็นอะไร ซึ่งคือ "ความหน่วง" ที่เจ้าของเจอ
+import SavedReplyPicker from './components/SavedReplyPicker';
 
 // Dynamic imports for components that are not needed on initial load
 const EmojiStickerPicker = dynamic(() => import('./components/EmojiStickerPicker'), { ssr: false });
-const SavedReplyPicker = dynamic(() => import('./components/SavedReplyPicker'), { ssr: false });
 const SavedReplyModal = dynamic(() => import('@/components/chat/SavedReplyModal'), { ssr: false });
 const LinkCustomerModal = dynamic(() => import('./components/LinkCustomerModal'), { ssr: false });
 const LightboxViewer = dynamic(() => import('./components/LightboxViewer'), { ssr: false });
@@ -1334,6 +1336,9 @@ function UnifiedChatPageContent() {
   }, [currentCompany?.id]);
 
   const openSavedReplyPicker = (mode: 'button' | 'slash') => {
+    // อุ่นไฟล์ของโมดัลแก้ไขไว้ล่วงหน้า — ยังเป็น dynamic อยู่เพราะมันลาก ImageUploader
+    // + browser-image-compression มาด้วย (หนัก) แต่คนที่เปิดรายการมักกดดินสอต่อ
+    void import('@/components/chat/SavedReplyModal');
     setSavedReplyMode(mode);
     setSavedReplyIndex(0);
     if (mode === 'button') setSavedReplySearch('');
