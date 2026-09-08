@@ -7,6 +7,7 @@ import { ToastProvider } from '@/lib/toast-context';
 import { ThemeProvider } from '@/lib/theme-context';
 import ColorLab from '@/components/dev/ColorLab';
 import PwaRegister from '@/components/PwaRegister';
+import NumberWheelGuard from '@/components/NumberWheelGuard';
 import { FeaturesProvider } from '@/lib/features-context';
 import { HeaderSummaryProvider } from '@/lib/header-summary-context';
 import './globals.css';
@@ -81,6 +82,8 @@ export default function RootLayout({
         {/* แผงลองสีสำหรับ dev — ไม่ render ใน production (เช็คใน component) */}
         <ColorLab />
         <PwaRegister />
+        {/* เลื่อนหน้าจอบนช่องตัวเลขที่ focus อยู่ ต้องไม่เปลี่ยนค่าในช่อง */}
+        <NumberWheelGuard />
         <ThemeProvider>
           <AuthProvider>
             <CompanyProvider>

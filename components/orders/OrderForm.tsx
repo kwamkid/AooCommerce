@@ -1020,6 +1020,11 @@ export default function OrderForm({
           }
         }
 
+        // บิลที่เปิดจากแชทตอนยังไม่มีที่อยู่ ไม่มี shipments ให้ค่าส่งเกาะ — ค่าส่งอยู่ที่
+        // `orders.shipping_fee` ตรง ๆ (ดู /api/orders POST) ไม่อ่านต่อจากตรงนี้ = เปิดบิลเก่า
+        // มาแก้แล้วค่าส่งหายเป็น 0 เงียบ ๆ ตอนกดบันทึก
+        if (loadedShippingFee === 0) loadedShippingFee = Number(order.shipping_fee) || 0;
+
         setBranchOrders([{
           shipping_address_id: order.shipping_address_id || '',
           address_name: 'รายการสินค้า',
@@ -1429,6 +1434,9 @@ export default function OrderForm({
           });
         }
       }
+
+      // เหตุผลเดียวกับตอนโหลดบิลมาแก้ — บิลที่ไม่มี shipments เก็บค่าส่งไว้ที่ตัวออเดอร์
+      if (copiedShippingFee === 0) copiedShippingFee = Number(order.shipping_fee) || 0;
 
       if (copiedProducts.length === 0) {
         showToast('ไม่พบข้อมูลสินค้าใน Order เก่า', 'error');

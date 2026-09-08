@@ -18,7 +18,7 @@ interface NumberInputProps
  * snaps back to 0 (and `onChange(0)` is emitted).
  */
 const NumberInput = forwardRef<HTMLInputElement, NumberInputProps>(function NumberInput(
-  { value, onChange, onFocus, onBlur, ...rest },
+  { value, onChange, onFocus, onBlur, onWheel, ...rest },
   ref,
 ) {
   const [display, setDisplay] = useState<string>(() => String(value));
@@ -47,6 +47,15 @@ const NumberInput = forwardRef<HTMLInputElement, NumberInputProps>(function Numb
       onFocus={(e) => {
         focused.current = true;
         onFocus?.(e);
+      }}
+      // ⚠️ ห้ามให้การเลื่อนหน้าจอเปลี่ยนตัวเลข — `<input type="number">` ที่ยัง focus อยู่
+      // จะบวก/ลบค่าทีละ `step` ตามล้อเมาส์/สองนิ้วบนแทร็กแพด ผู้ใช้ที่พิมพ์เสร็จแล้วเลื่อน
+      // หน้าจอต่อจึงได้ค่าเพี้ยนโดยไม่รู้ตัว (step=0.01 เลื่อนผ่าน 4 จังหวะ = เพี้ยน 4 สตางค์
+      // — ค่าส่ง 100 กลายเป็น 99.96 ทั้งบิล ORD-202609-0017 เมื่อ 7 ก.ย. 2026)
+      // blur แทน preventDefault เพื่อให้หน้ายังเลื่อนได้ตามปกติ
+      onWheel={(e) => {
+        e.currentTarget.blur();
+        onWheel?.(e);
       }}
       onBlur={(e) => {
         focused.current = false;
