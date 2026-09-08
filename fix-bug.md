@@ -27,6 +27,18 @@
 
 ---
 
+## 2026-09-08 — RLS: `auth.uid()` ที่ไม่ครอบ `(select …)` ทำให้ฐานข้อมูลแกะ JWT ใหม่ทุกแถว (ช้ากว่า 73 เท่า)
+
+**ที่เกิด**: RLS policy 35 ใบใน schema `public` (migration `20260908_rls_initplan_wrap_auth_calls`)
+**อาการ**: ยังไม่มีอาการให้เห็น — เป็นระเบิดเวลา · Supabase advisor แจ้ง `auth_rls_initplan` 35 รายการ
+**Root cause**: `auth.uid()` เป็นฟังก์ชัน STABLE ที่ไม่รับพารามิเตอร์ Postgres จึง**ยกออกมาคำนวณครั้งเดียวเองไม่ได้เมื่อเงื่อนไขอ้างถึงคอลัมน์ในแถว** ⇒ ทุกแถวที่สแกนจะ `current_setting('request.jwt.claims')` แล้ว parse JSON ใหม่ · วัดบน `products` 5,939 แถว: `id <> auth.uid()` = **131.7ms** (Seq Scan + Filter ต่อแถว) เทียบกับ `id <> (select auth.uid())` = **1.8ms** (InitPlan คำนวณครั้งเดียว)
+**วิธีแก้**: ครอบ `auth.uid()`/`auth.jwt()` ด้วย `(select …)` ทั้ง 34 ใบ + อีก 1 ใบที่ใช้ `current_setting()` ตรง ๆ (`order_parcel_items`) · **สร้างคำสั่งด้วยสคริปต์จาก `qual`/`with_check` เดิมที่อ่านจาก `pg_policies` แล้วตรวจย้อนกลับว่าถอดวงเล็บออกได้ข้อความเดิมเป๊ะทุกใบ** — ห้ามพิมพ์กฎความปลอดภัยใหม่ด้วยมือ · ใช้ `ALTER POLICY` ไม่ใช่ drop+create (ไม่มีช่วงที่ตารางไม่มีกฎคุ้มครอง) · ลบ policy ซ้ำบน `user_profiles` 2 ใบที่เงื่อนไขเหมือน `own_profile` เป๊ะ (permissive หลายใบ = คิดทุกใบแล้ว OR กัน)
+**ทดสอบ**: สวมบทผู้ใช้จริง 8 คนด้วย `set_config('request.jwt.claims', …)` แล้วนับว่าเห็นกี่บริษัท — ตรงกับจำนวนที่เป็นสมาชิกทุกคน รวมคนที่อยู่ 2 บริษัทเห็นครบ 2 · advisor WARN **38 → 0**
+**ป้องกัน regression**: เขียน policy ใหม่ต้องใช้ `(select auth.uid())` เสมอ · ทางที่ดีกว่าคือเรียกผ่าน `is_company_member(company_id)` ซึ่งครอบถูกให้แล้วข้างใน (ตารางหลัก 62 ตัวใช้ตัวนี้อยู่จึงไม่เคยมีปัญหา) · **ตัวเลข 73 เท่าจะโผล่ก็ต่อเมื่อมี query วิ่งผ่าน RLS จริง** — วันนี้ API ทุกเส้นใช้ service role ซึ่งข้าม RLS และเบราว์เซอร์ไม่ได้อ่านตารางตรง มีแต่ realtime ที่ตรวจทีละแถวที่เปลี่ยน จึงยังไม่กระทบ แต่พอเปิดหน้าร้านออนไลน์หรือมีใครเพิ่ม query จากเบราว์เซอร์เมื่อไหร่จะเจอทันทีโดยไม่รู้ว่ามาจากไหน
+**🔴 เจอบั๊กความปลอดภัยระหว่างทาง (ยังไม่แก้)**: policy `return_note_items_via_rn` เขียนว่า `company_id IN (SELECT return_notes.company_id FROM user_profiles WHERE id = auth.uid())` — subquery ชั้นในเลือก `return_notes.company_id` ซึ่งเป็น**คอลัมน์ของตารางชั้นนอก** จาก `user_profiles` ⇒ กลายเป็น `company_id IN (company_id)` ที่**จริงเสมอ**ถ้าผู้ใช้มีแถวใน `user_profiles` = ผู้ใช้ที่ล็อกอินคนไหนก็อ่าน `return_note_items` ของทุกบริษัทได้ · **ตอนนี้ยังไม่มีข้อมูลรั่วเพราะ `return_notes` กับ `return_note_items` มี 0 แถว** และ API ใช้ service role · ต้องแก้เป็น `is_company_member(...)` ตามแบบมาตรฐาน **ก่อนเปิดใช้ฟีเจอร์ใบคืนสินค้า**
+
+---
+
 ## 2026-09-08 — ทุกหน้าโหลดช้า: การเช็ค "ข้อความซ้ำ" ของ Facebook ไล่สแกน 17,307 แถวทุกครั้งที่ลูกค้าทัก (818ms/ข้อความ)
 
 **ที่เกิด**: [lib/services/chat/facebook.ts](lib/services/chat/facebook.ts) dedupe ก่อนบันทึกข้อความ · หน้ารายชื่อลูกค้า · index ของ `fb_messages` / `line_messages` / `customers`

@@ -5,6 +5,7 @@
 ระบบ E-Commerce สำหรับร้านขายของออนไลน์หลายช่องทาง (Shopee, LINE, Facebook, Instagram, เปิดบิลตรง, POS)
 - **Stack**: Next.js 16 (App Router, Turbopack) + Supabase + Tailwind CSS + pdfMake
 - **Multi-tenant**: ทุก query ต้อง filter `company_id` (ชั้น UX) + **RLS บังคับจริงที่ DB แล้ว** (2026-07-24 — policy มาตรฐาน `is_company_member(company_id) or is_super_admin()` ทั้ง 62 ตาราง ตาม `aoo-techstack/multi-tenant/MULTI-TENANT.md`; API routes ใช้ service role จึง bypass — ห้ามลืม filter ใน code)
+- **เขียน RLS policy ใหม่ต้องครอบ `auth.uid()`/`auth.jwt()` ด้วย `(select …)` เสมอ** (2026-09-08) — ไม่ครอบ = ฐานข้อมูลแกะ JWT ใหม่ทุกแถว วัดจริงช้ากว่า **73 เท่า** (131.7ms → 1.8ms บนตาราง 5,939 แถว) · ทางที่ดีกว่าคือเรียกผ่าน `is_company_member(company_id)` ที่ครอบถูกให้แล้ว · แก้ policy เก่าครบ 35 ใบแล้ว (migration `20260908_rls_initplan_wrap_auth_calls`) — **ห้ามพิมพ์กฎใหม่ด้วยมือ** ให้สร้างคำสั่งจาก `pg_policies` แล้วตรวจย้อนกลับว่าเปลี่ยนเฉพาะการครอบ
 - **Language**: UI ภาษาไทย, code/comments ภาษาอังกฤษได้
 - **Files**: `todo.md` = งานที่ยังไม่ได้ทำ
 - **Deploy**: Vercel function region = `sin1` ใน [vercel.json](vercel.json) ให้อยู่ที่เดียวกับ Supabase (`ap-southeast-1`) — **ห้ามลบ** · ไม่ตั้ง = function รันที่ iad1 (อเมริกา) ทุก query เสีย ~220ms (เจอ 2026-09-05 หน้าแชทช้า 1.5–2 วิทั้งที่ query 3–20ms — ดู `aoo-techstack/BUGS.md` §Deploy)
