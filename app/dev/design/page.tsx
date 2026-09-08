@@ -299,7 +299,7 @@ export default function DesignSystemPage() {
         {/* TABS */}
         <Section title="Tabs" desc="<Tabs activeKey tabs={[{key,label,icon?,count?,href?,activeColorClass?}]} onSelect? fill? size? /> — แท็บเนื้อหา (คนละตัวกับ StatusTabs ที่เป็นตัวกรองสถานะของหน้า list)">
           <Card>
-            <Group label="ค่าปกติ — แท็บที่เลือกเป็นแผ่นขาวโค้งมุมบน พื้นเทาไหลต่อไปทางขวา + ขีดหนาใต้ข้อความ">
+            <Group label="ค่าปกติ — แท็บที่เลือกเป็นแผ่นขาวโค้งมุมบน พื้นเทาไหลต่อไปทางขวา">
               <div className="w-full">
                 <Hint>บนพื้นขาวของการ์ด (บริบทเดียวกับหน้าตั้งค่า)</Hint>
                 <Tabs
