@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { Users, X, UserPlus, MapPin, ChevronDown, CheckCircle, Plus, UserCheck, Loader2, Pencil, Gift, Search } from 'lucide-react';
 import EntitySearchInput from '@/components/ui/EntitySearchInput';
@@ -279,6 +279,15 @@ export default function CustomerSelectionCard({
   bare = false,
 }: Props) {
   const [showAddressDropdown, setShowAddressDropdown] = useState(false);
+  /**
+   * เข้าโหมด "ลูกค้าใหม่" = ชื่อถูกเติมจากคำที่ค้นไปแล้ว ⇒ ช่องถัดไปที่ต้องกรอกคือ **เบอร์โทร**
+   * โฟกัสให้เลย พิมพ์ชื่อ → Enter → พิมพ์เบอร์ต่อได้ทันทีโดยไม่ต้องละมือไปกดเมาส์
+   * (เบอร์ยังเป็นตัวที่ใช้เช็คซ้ำด้วย ยิ่งควรให้กรอกต่อทันที)
+   */
+  const newCustomerPhoneRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (newCustomerMode) newCustomerPhoneRef.current?.focus();
+  }, [newCustomerMode]);
   const [showTaxModal, setShowTaxModal] = useState(false);
   const isEditable = !disabled && !readOnly;
   const canChangeCustomer = isEditable && !lockCustomerSelection;
@@ -352,7 +361,6 @@ export default function CustomerSelectionCard({
                 value={newCustomerName}
                 onChange={(e) => onNewCustomerNameChange?.(e.target.value)}
                 placeholder="ชื่อลูกค้าใหม่"
-                autoFocus
                 className="flex-1 min-w-0 px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary"
               />
               {canChangeCustomer && (
@@ -486,7 +494,7 @@ export default function CustomerSelectionCard({
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="field-label">เบอร์โทร</label>
-                <input type="text" inputMode="tel" value={delivery?.deliveryPhone || selectedCustomer?.phone || ''} onChange={(e) => onDeliveryChange?.({ deliveryPhone: e.target.value })} placeholder="0xx-xxx-xxxx" disabled={!isEditable}
+                <input ref={newCustomerPhoneRef} type="text" inputMode="tel" value={delivery?.deliveryPhone || selectedCustomer?.phone || ''} onChange={(e) => onDeliveryChange?.({ deliveryPhone: e.target.value })} placeholder="0xx-xxx-xxxx" disabled={!isEditable}
                   className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-gray-100 dark:disabled:bg-slate-800" />
                 {/* เบอร์คือตัวชี้ขาดว่าเป็นคนเดิมไหม — ชื่อพึ่งไม่ได้ (ชื่อเล่นซ้ำเยอะ
                     บางคนบันทึกชื่อจริง บางคนบันทึกชื่อเล่น) · เตือนอย่างเดียว ไม่บล็อก */}
