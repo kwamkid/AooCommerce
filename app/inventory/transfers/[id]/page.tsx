@@ -12,9 +12,9 @@ import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
 import { generateInventoryPdf } from '@/lib/inventory-pdf';
 import { showPdfPreview } from '@/lib/print-pdf';
-import { getBadgeColor } from '@/lib/status-tab-colors';
+import { statusLabel, statusColorClass } from '@/lib/status-labels';
 import { QRCodeSVG } from 'qrcode.react';
-import { Warehouse, CheckCircle2, Clock, XCircle, AlertTriangle, Truck, User, ArrowLeft, Printer, Link2, Copy, Check } from 'lucide-react';
+import { Warehouse, CheckCircle2, XCircle, Truck, User, ArrowLeft, Printer, Link2, Copy, Check } from 'lucide-react';
 import { flattenVariationItem, productDisplayName, productSubtitle } from '../../components/types';
 import Button from '@/components/ui/Button';
 import SaveButton from '@/components/ui/SaveButton';
@@ -64,12 +64,11 @@ interface Transfer {
 
 // สีจากคลังกลาง lib/status-tab-colors — 'received' ของ transfer = สำเร็จ จึง map ไป 'completed'
 // (key 'received' ในคลังกลางเป็นของ consignment "รอยืนยัน" คนละความหมาย)
-const STATUS_MAP: Record<string, { label: string; color: string; bgColor: string }> = {
-  pending: { label: 'ที่ต้องจัดส่ง - จอง stock แล้ว', color: getBadgeColor('pending').color, bgColor: getBadgeColor('pending').bg },
-  shipping: { label: 'กำลังส่ง - รอรับสินค้า', color: getBadgeColor('shipping').color, bgColor: getBadgeColor('shipping').bg },
-  pending_confirm: { label: 'รอยืนยัน — รับไม่ครบ', color: getBadgeColor('pending_confirm').color, bgColor: getBadgeColor('pending_confirm').bg },
-  received: { label: 'รับสินค้าแล้ว', color: getBadgeColor('completed').color, bgColor: getBadgeColor('completed').bg },
-  cancelled: { label: 'ยกเลิกแล้ว', color: getBadgeColor('cancelled').color, bgColor: getBadgeColor('cancelled').bg },
+// คำขยายเฉพาะหน้านี้ — คำเรียกสถานะหลักมาจากทะเบียนกลาง (domain 'transfer')
+const STATUS_NOTE: Record<string, string> = {
+  pending: 'จอง stock แล้ว',
+  shipping: 'รอรับสินค้า',
+  pending_confirm: 'รับไม่ครบ'
 };
 
 export default function TransferDetailPage() {
@@ -153,7 +152,7 @@ export default function TransferDetailPage() {
       const res = await apiFetch('/api/inventory/transfers', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: transfer.id, notes: notes.trim() }),
+        body: JSON.stringify({ id: transfer.id, notes: notes.trim() })
       });
       if (!res.ok) {
         const result = await res.json();
@@ -177,8 +176,8 @@ export default function TransferDetailPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           transfer_id: transfer.id,
-          action: 'ship',
-        }),
+          action: 'ship'
+        })
       });
 
       const result = await res.json();
@@ -215,8 +214,8 @@ export default function TransferDetailPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           transfer_id: transfer.id,
-          action: 'cancel',
-        }),
+          action: 'cancel'
+        })
       });
 
       const result = await res.json();
@@ -237,7 +236,7 @@ export default function TransferDetailPage() {
       title: 'ยกเลิกใบโอนย้าย',
       description: `ยืนยันยกเลิกใบโอนย้าย ${transfer.transfer_number}? สต็อกจะถูกคืนกลับไปที่คลังต้นทาง`,
       variant: 'danger',
-      confirmLabel: 'ยืนยันยกเลิก',
+      confirmLabel: 'ยืนยันยกเลิก'
     });
     if (!ok) return;
     await handleCancel();
@@ -249,7 +248,7 @@ export default function TransferDetailPage() {
       setConfirming(true);
       const confirmed_items = transfer.items.map(item => ({
         item_id: item.id,
-        confirmed_quantity: confirmedQtys[item.id] ?? item.qty_received ?? item.qty_sent,
+        confirmed_quantity: confirmedQtys[item.id] ?? item.qty_received ?? item.qty_sent
       }));
       const res = await apiFetch('/api/inventory/transfers', {
         method: 'PUT',
@@ -257,8 +256,8 @@ export default function TransferDetailPage() {
         body: JSON.stringify({
           transfer_id: transfer.id,
           action: 'confirm',
-          confirmed_items,
-        }),
+          confirmed_items
+        })
       });
       const result = await res.json();
       if (!res.ok) throw new Error(result.error || 'เกิดข้อผิดพลาด');
@@ -289,9 +288,9 @@ export default function TransferDetailPage() {
           receive_token: transfer.receive_token,
           items: (transfer.items || []).map(item => ({
             ...item,
-            quantity: item.qty_sent,
-          })),
-        },
+            quantity: item.qty_sent
+          }))
+        }
       });
       showPdfPreview(blob, 'ใบโอนย้ายสินค้า');
     } catch {
@@ -308,7 +307,7 @@ export default function TransferDetailPage() {
       month: 'long',
       year: 'numeric',
       hour: '2-digit',
-      minute: '2-digit',
+      minute: '2-digit'
     });
   };
 
@@ -358,7 +357,6 @@ export default function TransferDetailPage() {
     );
   }
 
-  const st = STATUS_MAP[transfer.status] || STATUS_MAP.pending;
 
   return (
     <Layout
@@ -408,13 +406,9 @@ export default function TransferDetailPage() {
         </div>
 
         {/* Status Banner */}
-        <div className={`rounded-lg px-4 py-3 flex items-center gap-2 ${st.bgColor}`}>
-          {transfer.status === 'pending' && <Clock className="w-5 h-5" />}
-          {transfer.status === 'shipping' && <Truck className="w-5 h-5" />}
-          {transfer.status === 'pending_confirm' && <AlertTriangle className="w-5 h-5" />}
-          {transfer.status === 'received' && <CheckCircle2 className="w-5 h-5" />}
-          {transfer.status === 'cancelled' && <XCircle className="w-5 h-5" />}
-          <span className={`text-sm font-medium ${st.color}`}>{st.label}</span>
+        <div className={`rounded-lg px-4 py-3 flex items-center gap-2 ${statusColorClass('transfer', transfer.status)}`}>
+          <span className="text-sm font-medium">{statusLabel('transfer', transfer.status)}</span>
+          {STATUS_NOTE[transfer.status] && <span className="text-sm opacity-80">— {STATUS_NOTE[transfer.status]}</span>}
         </div>
 
         {/* QR Code + Receive Link — for shipping status (above header info) */}

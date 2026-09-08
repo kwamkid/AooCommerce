@@ -4,6 +4,7 @@ import { useState, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
 import { useAuth } from '@/lib/auth-context';
+import { statusLabel, statusColorClass } from '@/lib/status-labels';
 import { useFeatures } from '@/lib/features-context';
 import { useFetchOnce } from '@/lib/use-fetch-once';
 import { useToast } from '@/lib/toast-context';
@@ -12,10 +13,7 @@ import { generateReportPdf } from '@/lib/supplier-pdf';
 import { showPdfPreview } from '@/lib/print-pdf';
 import { thumbUrl } from '@/lib/image-thumb';
 import Button from '@/components/ui/Button';
-import {
-  Loader2, ArrowLeft, Factory, Calendar, Warehouse, Package,
-  CheckCircle2, Clock, Send, BarChart3, ShoppingCart, Printer,
-} from 'lucide-react';
+import { Loader2, ArrowLeft, Factory, Calendar, Warehouse, Package, BarChart3, ShoppingCart, Printer, CheckCircle2, Send } from 'lucide-react';
 
 interface VariationInfo {
   id: string;
@@ -92,17 +90,9 @@ const SOURCE_LABELS: Record<string, string> = {
   lazada: 'Lazada',
   pos: 'POS',
   line: 'Line',
-  facebook: 'Facebook',
+  facebook: 'Facebook'
 };
 
-function statusBadge(status: string) {
-  switch (status) {
-    case 'draft': return { label: 'ร่าง', color: 'bg-gray-100 text-gray-700 dark:bg-slate-700 dark:text-slate-300', icon: <Clock className="w-4 h-4" /> };
-    case 'confirmed': return { label: 'ยืนยัน', color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300', icon: <CheckCircle2 className="w-4 h-4" /> };
-    case 'sent': return { label: 'ส่งแล้ว', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300', icon: <Send className="w-4 h-4" /> };
-    default: return { label: status, color: 'bg-gray-100 text-gray-600', icon: null };
-  }
-}
 
 function getDisplayName(v: VariationInfo | null) {
   if (!v) return '-';
@@ -169,7 +159,7 @@ export default function SnapshotDetailPage() {
       const res = await apiFetch(`/api/reports/supplier/${snapshotId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: newStatus }),
+        body: JSON.stringify({ status: newStatus })
       });
       if (!res.ok) {
         const result = await res.json();
@@ -211,7 +201,6 @@ export default function SnapshotDetailPage() {
 
   if (!data) return null;
 
-  const badge = statusBadge(data.status);
   const isConsignment = data.supplier_type === 'consignment';
   const isCredit = data.supplier_type === 'credit';
 
@@ -291,9 +280,8 @@ export default function SnapshotDetailPage() {
         </div>
 
         {/* Status + Period */}
-        <div className={`rounded-lg px-4 py-3 flex items-center gap-2 ${badge.color}`}>
-          {badge.icon}
-          <span className="text-sm font-medium">{badge.label}</span>
+        <div className={`rounded-lg px-4 py-3 flex items-center gap-2 ${statusColorClass('supplierReport', data.status)}`}>
+          <span className="text-sm font-medium">{statusLabel('supplierReport', data.status)}</span>
           <span className="text-sm ml-2">— {MONTHS[data.period_month - 1]} {data.period_year + 543}</span>
         </div>
 
