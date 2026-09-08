@@ -34,10 +34,24 @@ export type BroadcastPlatformStatus = 'ready' | 'possible';
  */
 export type BroadcastKind = 'broadcast' | 'bulk_dm';
 
+/**
+ * ข้อความที่แต่ละเจ้ารับได้ — **หน้าจอกับ API ตรวจจากตัวเลขชุดนี้ชุดเดียว**
+ * ห้าม hardcode ลิมิตซ้ำในหน้าหรือ route (เคยมี LINE_TEXT_MAX ลอยอยู่ในหน้าแล้ว)
+ */
+export interface BroadcastCompose {
+  /** มีหัวข้อแยกไหม + ยาวได้เท่าไหร่ (TikTok 70 · LINE ไม่มีหัวข้อ) */
+  titleMax?: number;
+  /** ตัวเนื้อความ (LINE 5,000 · TikTok 500) */
+  bodyMax: number;
+  /** แนบรูปได้ไหม (TikTok custom message มีแค่ข้อความล้วน) */
+  image: boolean;
+}
+
 export interface BroadcastPlatformInfo {
   id: BroadcastPlatform;
   label: string;
   kind: BroadcastKind;
+  compose: BroadcastCompose;
   /** ส่งถึงใครได้บ้าง — บรรทัดเดียวบนการ์ดเลือกช่องทาง */
   audience: string;
   status: BroadcastPlatformStatus;
@@ -52,6 +66,7 @@ export const BROADCAST_PLATFORMS: Record<BroadcastPlatform, BroadcastPlatformInf
     id: 'line',
     label: 'LINE OA',
     kind: 'broadcast',
+    compose: { bodyMax: 5000, image: true },
     audience: 'ผู้ติดตามทุกคน แม้ไม่เคยทักมา — หรือเลือกเฉพาะกลุ่ม/แท็ก',
     status: 'ready',
   },
@@ -67,9 +82,11 @@ export const BROADCAST_PLATFORMS: Record<BroadcastPlatform, BroadcastPlatformInf
     id: 'tiktok',
     label: 'TikTok Shop',
     kind: 'broadcast',
+    // custom_message: title [1,70] · body [1,500] · ไม่มีช่องรูป (การ์ดสินค้า/คูปองเป็นของแยก)
+    compose: { titleMax: 70, bodyMax: 500, image: false },
     audience: 'ลูกค้าที่เคยสั่งซื้อภายใน 365 วัน',
     status: 'possible',
-    reason: 'TikTok มี API การตลาดให้ส่งเป็นชุดได้จริง (ข้อความของเราเอง + การ์ดสินค้า + คูปอง + ดูยอดอ่าน/ยอดสั่งกลับ) — เรายังไม่ได้ต่อ และร้านต้องได้รับสิทธิ์ฟีเจอร์นี้จาก TikTok ก่อน',
+    reason: 'โค้ดฝั่งเราพร้อมแล้ว แต่ยังส่งไม่ได้จนกว่า app จะได้ scope Customer Engagement ใน Partner Center แล้ว re-authorize ร้านใหม่ (ยิงจริงตอนนี้ตอบ 105005 access denied) — ตรวจสิทธิ์ด้วย `node scripts/check-tiktok-engagement.mjs`',
   },
 
   // /im/session/open **บังคับ order_id** และตอบ error -22 "order out of day limit: 30"
@@ -78,6 +95,8 @@ export const BROADCAST_PLATFORMS: Record<BroadcastPlatform, BroadcastPlatformInf
     id: 'lazada',
     label: 'Lazada',
     kind: 'bulk_dm',
+    // ตัวเลขนี้ ยังไม่ยืนยันกับของจริง — ยืนยันตอนต่อ API จริง
+    compose: { bodyMax: 4000, image: true },
     audience: 'ลูกค้าที่มีออเดอร์ไม่เกิน 30 วัน หรือห้องที่คุยกันอยู่',
     status: 'possible',
     reason: 'Lazada ไม่มี API บรอดแคสต์ — เปิดห้องได้จากออเดอร์ที่ไม่เกิน 30 วัน แล้วส่งทีละห้อง (เกิน 30 วันเปิดห้องไม่ได้เลย) เรายังไม่ได้ต่อ',
@@ -88,6 +107,8 @@ export const BROADCAST_PLATFORMS: Record<BroadcastPlatform, BroadcastPlatformInf
     id: 'shopee',
     label: 'Shopee',
     kind: 'bulk_dm',
+    // ตัวเลขนี้ ยังไม่ยืนยันกับของจริง — ยืนยันตอนต่อ API จริง
+    compose: { bodyMax: 2000, image: true },
     audience: 'ลูกค้าที่เคยทักเข้ามาในแชทแล้วเท่านั้น',
     status: 'possible',
     reason: 'Shopee ไม่มี API บรอดแคสต์ (Chat Broadcast มีเฉพาะให้กดเองใน Seller Center) — ผ่าน API ส่งได้ทีละห้องเฉพาะห้องที่ลูกค้าทักมาแล้ว เรายังไม่ได้ต่อ',
@@ -99,6 +120,8 @@ export const BROADCAST_PLATFORMS: Record<BroadcastPlatform, BroadcastPlatformInf
     id: 'facebook',
     label: 'Facebook',
     kind: 'bulk_dm',
+    // ตัวเลขนี้ ยังไม่ยืนยันกับของจริง — ยืนยันตอนต่อ API จริง
+    compose: { bodyMax: 2000, image: true },
     audience: 'คนที่ทักมาภายใน 24 ชม. ล่าสุด',
     status: 'possible',
     reason: 'Meta ให้ส่งได้เฉพาะภายใน 24 ชม. นับจากลูกค้าทักล่าสุด — เลยกรอบนั้น API ปฏิเสธเอง (message tag ที่เหลือห้ามเนื้อหาโปรโมชัน) เรายังไม่ได้ต่อ',
@@ -108,6 +131,8 @@ export const BROADCAST_PLATFORMS: Record<BroadcastPlatform, BroadcastPlatformInf
     id: 'instagram',
     label: 'Instagram',
     kind: 'bulk_dm',
+    // ตัวเลขนี้ ยังไม่ยืนยันกับของจริง — ยืนยันตอนต่อ API จริง
+    compose: { bodyMax: 1000, image: true },
     audience: 'คนที่ทักมาภายใน 24 ชม. ล่าสุด',
     status: 'possible',
     reason: 'กติกาเดียวกับ Facebook — นอกกรอบ 24 ชม. เหลือแค่ human agent 7 วัน ซึ่งมีไว้ตอบเรื่องบริการลูกค้า ไม่ใช่ส่งโปรโมชัน เรายังไม่ได้ต่อ',

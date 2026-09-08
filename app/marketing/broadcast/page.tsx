@@ -21,7 +21,9 @@ import { Megaphone, Plus, Send } from 'lucide-react';
 interface BroadcastRow {
   id: string;
   platform: string;
-  chat_account_id: string;
+  /** ต้นทางอยู่คนละตารางตามช่องทาง — chat_accounts (LINE) หรือ marketplace_accounts (ร้าน) */
+  chat_account_id: string | null;
+  marketplace_account_id: string | null;
   account_name: string | null;
   created_by_name: string | null;
   audience_type: string;
@@ -49,6 +51,7 @@ const AUDIENCE_LABEL: Record<string, string> = {
   contacts: 'ผู้ติดต่อทั้งหมด',
   customers: 'ที่ผูกลูกค้าแล้ว',
   tags: 'ตามแท็กลูกค้า',
+  buyers_365d: 'ลูกค้าที่สั่งใน 365 วัน',
 };
 
 /** ส่งค้างเกิน 10 นาทีโดยไม่จบ = ฟังก์ชันน่าจะตายกลางทาง ต้องมีปุ่มให้เดินต่อ */

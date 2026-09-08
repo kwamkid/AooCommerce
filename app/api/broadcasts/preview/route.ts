@@ -1,11 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { checkAuthWithCompany, can } from '@/lib/supabase-admin';
-import { getChatAccount, getLineCredsFromAccount } from '@/lib/chat-config';
-import {
-  BROADCAST_PLATFORMS,
-  canBroadcastVia,
-  isBroadcastPlatform,
-} from '@/lib/broadcast/platforms';
+import { getLineCredsFromAccount } from '@/lib/chat-config';
+import { isBroadcastPlatform, type BroadcastPlatform } from '@/lib/broadcast/platforms';
+import { resolveBroadcastTarget } from '@/lib/broadcast/accounts';
 import {
   getLineFollowerStats,
   getLineQuota,
@@ -13,10 +10,9 @@ import {
   type BroadcastAudienceFilter,
   type BroadcastAudienceType,
 } from '@/lib/line/broadcast';
+import { resolveTikTokRecipients, TIKTOK_BUYER_WINDOW_DAYS } from '@/lib/tiktok/broadcast';
 
-const AUDIENCE_TYPES: BroadcastAudienceType[] = ['all', 'contacts', 'tags', 'customers'];
-
-// POST — นับผู้รับ + โควตาที่เหลือ ก่อนกดส่งจริง
+// POST — นับผู้รับ (+ โควตาถ้าช่องทางนั้นมี) ก่อนกดส่งจริง
 export async function POST(request: NextRequest) {
   try {
     const auth = await checkAuthWithCompany(request);
@@ -25,30 +21,38 @@ export async function POST(request: NextRequest) {
     if (!can(auth, 'chat.broadcast')) return NextResponse.json({ error: 'Admin only' }, { status: 403 });
 
     const body = await request.json();
-    const chatAccountId: string = body.chat_account_id || '';
-    const audienceType: BroadcastAudienceType = body.audience_type;
+    const accountId: string = body.account_id || '';
+    const audienceType: string = body.audience_type;
     const audienceFilter: BroadcastAudienceFilter = body.audience_filter || {};
 
-    if (!chatAccountId) return NextResponse.json({ error: 'กรุณาเลือกช่องทางที่จะใช้ส่ง' }, { status: 400 });
-    if (!AUDIENCE_TYPES.includes(audienceType)) {
-      return NextResponse.json({ error: 'กลุ่มผู้รับไม่ถูกต้อง' }, { status: 400 });
+    if (!isBroadcastPlatform(body.platform)) {
+      return NextResponse.json({ error: 'ช่องทางไม่ถูกต้อง' }, { status: 400 });
+    }
+    const platform: BroadcastPlatform = body.platform;
+    if (!accountId) return NextResponse.json({ error: 'กรุณาเลือกบัญชีที่จะใช้ส่ง' }, { status: 400 });
+
+    const { target, error } = await resolveBroadcastTarget(auth.companyId, platform, accountId);
+    if (!target) return NextResponse.json({ error }, { status: 400 });
+
+    if (platform === 'tiktok') {
+      const recipients = await resolveTikTokRecipients(
+        auth.companyId, target.marketplaceAccountId!, audienceType, audienceFilter,
+      );
+      return NextResponse.json({
+        recipient_count: recipients.length,
+        known_contact_count: recipients.length,
+        quota: null,
+        follower_stats: null,
+        window_days: TIKTOK_BUYER_WINDOW_DAYS,
+      });
     }
 
-    const account = await getChatAccount(chatAccountId);
-    if (!account || account.company_id !== auth.companyId) {
-      return NextResponse.json({ error: 'ไม่พบช่องทางนี้' }, { status: 400 });
-    }
-    if (!isBroadcastPlatform(account.platform) || !canBroadcastVia(account.platform)) {
-      const info = isBroadcastPlatform(account.platform) ? BROADCAST_PLATFORMS[account.platform] : null;
-      return NextResponse.json({ error: info?.reason || 'ช่องทางนี้ยังส่งข้อความเป็นชุดไม่ได้' }, { status: 400 });
-    }
-
-    const creds = getLineCredsFromAccount(account);
+    const creds = getLineCredsFromAccount(target.row);
 
     const recipients = await resolveBroadcastRecipients(
       auth.companyId,
-      chatAccountId,
-      audienceType === 'all' ? 'contacts' : audienceType,
+      accountId,
+      (audienceType === 'all' ? 'contacts' : audienceType) as BroadcastAudienceType,
       audienceFilter,
     );
 
@@ -68,6 +72,7 @@ export async function POST(request: NextRequest) {
       follower_stats: stats
         ? { reachable: stats.reachable, total_adds: stats.totalAdds, blocks: stats.blocks }
         : null,
+      window_days: null,
     });
   } catch (e) {
     console.error('POST broadcast preview error:', e);

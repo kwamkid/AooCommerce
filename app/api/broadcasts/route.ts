@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse, after } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
-import { getChatAccount, getLineCredsFromAccount } from '@/lib/chat-config';
+import { getLineCredsFromAccount } from '@/lib/chat-config';
 import {
   BROADCAST_PLATFORMS,
-  canBroadcastVia,
   isBroadcastPlatform,
   type BroadcastPlatform,
 } from '@/lib/broadcast/platforms';
+import { resolveBroadcastTarget } from '@/lib/broadcast/accounts';
 import { runBroadcast } from '@/lib/broadcast/run';
 import {
   buildLineMessages,
@@ -17,16 +17,22 @@ import {
   type BroadcastAudienceFilter,
   type BroadcastAudienceType,
 } from '@/lib/line/broadcast';
+import { resolveTikTokRecipients } from '@/lib/tiktok/broadcast';
 
 // ส่งจริงเกิดใน after() ของ POST — ต้องให้ฟังก์ชันอยู่ได้นานพอที่จะไล่ล็อตจนจบ
 export const maxDuration = 300;
 
-const AUDIENCE_TYPES: BroadcastAudienceType[] = ['all', 'contacts', 'tags', 'customers'];
+/** กลุ่มผู้รับที่แต่ละช่องทางรองรับ — ส่งค่าที่ช่องทางนั้นไม่รู้จักมา = ปฏิเสธ */
+const AUDIENCE_BY_PLATFORM: Record<string, string[]> = {
+  line: ['all', 'contacts', 'tags', 'customers'],
+  tiktok: ['buyers_365d', 'tags'],
+};
 
 interface BroadcastListRow {
   id: string;
   platform: string;
-  chat_account_id: string;
+  chat_account_id: string | null;
+  marketplace_account_id: string | null;
   created_by: string | null;
   audience_type: string;
   preview: string | null;
@@ -55,7 +61,7 @@ export async function GET(request: NextRequest) {
     const { data, error, count } = await supabaseAdmin
       .from('broadcasts')
       .select(
-        'id, platform, chat_account_id, created_by, audience_type, preview, recipient_count, sent_count, failed_count, status, error, started_at, finished_at, created_at',
+        'id, platform, chat_account_id, marketplace_account_id, created_by, audience_type, preview, recipient_count, sent_count, failed_count, status, error, started_at, finished_at, created_at',
         { count: 'exact' },
       )
       .eq('company_id', auth.companyId)
@@ -65,20 +71,28 @@ export async function GET(request: NextRequest) {
 
     const rows = (data || []) as BroadcastListRow[];
 
-    // ชื่อช่องทาง + ชื่อผู้ส่ง — created_by ไม่มี FK ไป user_profiles จึง embed ไม่ได้ ต้องถามแยก
-    const accountIds = [...new Set(rows.map(r => r.chat_account_id).filter(Boolean))];
+    // ชื่อบัญชี + ชื่อผู้ส่ง — บัญชีอยู่คนละตารางตามช่องทาง และ created_by ไม่มี FK
+    // ไป user_profiles จึง embed ไม่ได้ ต้องถามแยก
+    const chatIds = [...new Set(rows.map(r => r.chat_account_id).filter((v): v is string => !!v))];
+    const shopIds = [...new Set(rows.map(r => r.marketplace_account_id).filter((v): v is string => !!v))];
     const userIds = [...new Set(rows.map(r => r.created_by).filter((v): v is string => !!v))];
 
-    const [accountsRes, usersRes] = await Promise.all([
-      accountIds.length
-        ? supabaseAdmin.from('chat_accounts').select('id, account_name').in('id', accountIds)
+    const [chatRes, shopRes, usersRes] = await Promise.all([
+      chatIds.length
+        ? supabaseAdmin.from('chat_accounts').select('id, account_name').in('id', chatIds)
         : Promise.resolve({ data: [] as { id: string; account_name: string }[] }),
+      shopIds.length
+        ? supabaseAdmin.from('marketplace_accounts').select('id, shop_name').in('id', shopIds)
+        : Promise.resolve({ data: [] as { id: string; shop_name: string }[] }),
       userIds.length
         ? supabaseAdmin.from('user_profiles').select('id, name').in('id', userIds)
         : Promise.resolve({ data: [] as { id: string; name: string }[] }),
     ]);
 
-    const accountName = new Map((accountsRes.data || []).map(a => [a.id, a.account_name]));
+    const accountName = new Map<string, string>([
+      ...(chatRes.data || []).map(a => [a.id, a.account_name] as [string, string]),
+      ...(shopRes.data || []).map(a => [a.id, a.shop_name] as [string, string]),
+    ]);
     const userName = new Map((usersRes.data || []).map(u => [u.id, u.name]));
 
     // มีใบที่ยังส่งไม่จบ = หน้ารายการต้อง poll ต่อ (ไม่มีก็หยุด ไม่ยิงถี่เปล่า ๆ)
@@ -91,7 +105,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       broadcasts: rows.map(r => ({
         ...r,
-        account_name: accountName.get(r.chat_account_id) || null,
+        account_name: accountName.get(r.chat_account_id || r.marketplace_account_id || '') || null,
         created_by_name: r.created_by ? userName.get(r.created_by) || null : null,
       })),
       total: count ?? rows.length,
@@ -112,84 +126,111 @@ export async function POST(request: NextRequest) {
     if (!can(auth, 'chat.broadcast')) return NextResponse.json({ error: 'Admin only' }, { status: 403 });
 
     const body = await request.json();
-    const chatAccountId: string = body.chat_account_id || '';
-    const audienceType: BroadcastAudienceType = body.audience_type;
+    const accountId: string = body.account_id || '';
+    const audienceType: string = body.audience_type;
     const audienceFilter: BroadcastAudienceFilter = body.audience_filter || {};
 
-    if (!chatAccountId) return NextResponse.json({ error: 'กรุณาเลือกช่องทางที่จะใช้ส่ง' }, { status: 400 });
-    if (!AUDIENCE_TYPES.includes(audienceType)) {
-      return NextResponse.json({ error: 'กลุ่มผู้รับไม่ถูกต้อง' }, { status: 400 });
+    if (!isBroadcastPlatform(body.platform)) {
+      return NextResponse.json({ error: 'ช่องทางไม่ถูกต้อง' }, { status: 400 });
+    }
+    const platform: BroadcastPlatform = body.platform;
+    if (!accountId) return NextResponse.json({ error: 'กรุณาเลือกบัญชีที่จะใช้ส่ง' }, { status: 400 });
+    if (!(AUDIENCE_BY_PLATFORM[platform] || []).includes(audienceType)) {
+      return NextResponse.json({ error: 'กลุ่มผู้รับไม่ถูกต้องสำหรับช่องทางนี้' }, { status: 400 });
     }
 
-    const account = await getChatAccount(chatAccountId);
-    if (!account || account.company_id !== auth.companyId || !account.is_active) {
-      return NextResponse.json({ error: 'ไม่พบช่องทางนี้ หรือถูกปิดอยู่' }, { status: 400 });
+    const { target, error: targetError } = await resolveBroadcastTarget(auth.companyId, platform, accountId);
+    if (!target) return NextResponse.json({ error: targetError }, { status: 400 });
+
+    const compose = BROADCAST_PLATFORMS[platform].compose;
+    const title = typeof body.title === 'string' ? body.title.trim() : '';
+    const text = typeof body.text === 'string' ? body.text.trim() : '';
+    if (text.length > compose.bodyMax) {
+      return NextResponse.json({ error: `ข้อความยาวเกิน ${compose.bodyMax.toLocaleString()} ตัวอักษร` }, { status: 400 });
+    }
+    if (compose.titleMax && title.length > compose.titleMax) {
+      return NextResponse.json({ error: `หัวข้อยาวเกิน ${compose.titleMax} ตัวอักษร` }, { status: 400 });
     }
 
-    // ช่องทางที่ยังส่งไม่ได้ต้องบอกเหตุผลเดียวกับที่หน้าจอบอก — ไม่ใช่ "ไม่ถูกต้อง" ลอย ๆ
-    if (!isBroadcastPlatform(account.platform)) {
-      return NextResponse.json({ error: 'ช่องทางนี้ยังส่งข้อความเป็นชุดไม่ได้' }, { status: 400 });
-    }
-    const platform = account.platform as BroadcastPlatform;
-    if (!canBroadcastVia(platform)) {
-      return NextResponse.json({
-        error: BROADCAST_PLATFORMS[platform].reason || `ยังส่งผ่าน ${BROADCAST_PLATFORMS[platform].label} ไม่ได้`,
-      }, { status: 400 });
-    }
-
-    // ─── ตั้งแต่บรรทัดนี้เป็นของ LINE ───────────────────────────────────
-    // เพิ่มช่องทางใหม่ = แตกสาขาตาม platform ตรงนี้ (นับผู้รับ/เช็คโควตา/ประกอบข้อความ
-    // เป็นเรื่องของแต่ละเจ้า) แล้วเพิ่ม case ใน lib/broadcast/run.ts
-    const creds = getLineCredsFromAccount(account);
-    if (!creds) {
-      return NextResponse.json({ error: 'ช่องทางนี้ยังไม่ได้ตั้งค่า token — ตั้งค่าที่ ตั้งค่า > ช่องทาง Chat' }, { status: 400 });
-    }
-
-    let messages;
-    try {
-      messages = buildLineMessages({ text: body.text, imageUrl: body.image_url });
-    } catch (e) {
-      return NextResponse.json({ error: e instanceof Error ? e.message : 'ข้อความไม่ถูกต้อง' }, { status: 400 });
-    }
-
-    // จำนวนผู้รับ — โหมด 'all' ยิงถึงผู้ติดตามทุกคนซึ่งเราไม่มีรายชื่อ ใช้ตัวเลขจาก LINE แทน
-    // (reachable = targetedReaches ไม่ใช่ followers — ดูเหตุผลใน getLineFollowerStats)
+    let messages: unknown;
     let recipientCount: number;
-    if (audienceType === 'all') {
-      const stats = await getLineFollowerStats(creds.channel_access_token);
-      if (stats.reachable !== null) {
-        recipientCount = stats.reachable;
-      } else {
-        const known = await resolveBroadcastRecipients(auth.companyId, chatAccountId, 'contacts', null);
-        recipientCount = known.length;
+    let preview: string;
+
+    // ─── LINE ───────────────────────────────────────────────────────────
+    if (platform === 'line') {
+      const creds = getLineCredsFromAccount(target.row);
+      if (!creds) {
+        return NextResponse.json({ error: 'ช่องทางนี้ยังไม่ได้ตั้งค่า token — ตั้งค่าที่ ตั้งค่า > ช่องทาง Chat' }, { status: 400 });
       }
-    } else {
-      const recipients = await resolveBroadcastRecipients(
-        auth.companyId, chatAccountId, audienceType, audienceFilter,
+      try {
+        messages = buildLineMessages({ text: body.text, imageUrl: body.image_url });
+      } catch (e) {
+        return NextResponse.json({ error: e instanceof Error ? e.message : 'ข้อความไม่ถูกต้อง' }, { status: 400 });
+      }
+
+      // โหมด 'all' ยิงถึงผู้ติดตามทุกคนซึ่งเราไม่มีรายชื่อ ใช้ตัวเลขจาก LINE แทน
+      // (reachable = targetedReaches ไม่ใช่ followers — ดูเหตุผลใน getLineFollowerStats)
+      if (audienceType === 'all') {
+        const stats = await getLineFollowerStats(creds.channel_access_token);
+        if (stats.reachable !== null) {
+          recipientCount = stats.reachable;
+        } else {
+          const known = await resolveBroadcastRecipients(auth.companyId, accountId, 'contacts', null);
+          recipientCount = known.length;
+        }
+      } else {
+        const recipients = await resolveBroadcastRecipients(
+          auth.companyId, accountId, audienceType as BroadcastAudienceType, audienceFilter,
+        );
+        if (recipients.length === 0) {
+          return NextResponse.json({ error: 'ไม่มีผู้รับที่ตรงเงื่อนไข' }, { status: 400 });
+        }
+        recipientCount = recipients.length;
+      }
+
+      // โควตาไม่พอ = ปฏิเสธตั้งแต่ต้น — ยิงไปครึ่งทางแล้วโดนตัดคือของแพงกว่า
+      const quota = await getLineQuota(creds.channel_access_token);
+      if (quotaBlocks(quota, recipientCount)) {
+        return NextResponse.json({
+          error: `โควตาข้อความของ OA เหลือ ${quota.remaining?.toLocaleString()} ข้อความ แต่ต้องใช้ ${recipientCount.toLocaleString()} ข้อความ`,
+        }, { status: 400 });
+      }
+      preview = text ? text.slice(0, 120) : '[รูปภาพ]';
+
+    // ─── TikTok Shop ────────────────────────────────────────────────────
+    } else if (platform === 'tiktok') {
+      if (!title || !text) {
+        return NextResponse.json({ error: 'TikTok ต้องมีทั้งหัวข้อและข้อความ' }, { status: 400 });
+      }
+      const recipients = await resolveTikTokRecipients(
+        auth.companyId, target.marketplaceAccountId!, audienceType, audienceFilter,
       );
       if (recipients.length === 0) {
-        return NextResponse.json({ error: 'ไม่มีผู้รับที่ตรงเงื่อนไข' }, { status: 400 });
+        return NextResponse.json({
+          error: 'ไม่มีผู้รับที่ตรงเงื่อนไข — TikTok ให้ทักได้เฉพาะลูกค้าที่เคยสั่งซื้อภายใน 365 วัน',
+        }, { status: 400 });
       }
       recipientCount = recipients.length;
-    }
+      messages = {
+        title,
+        body: text,
+        ...(Array.isArray(body.product_ids) && body.product_ids.length ? { product_ids: body.product_ids.slice(0, 4) } : {}),
+        ...(Array.isArray(body.coupon_ids) && body.coupon_ids.length ? { coupon_ids: body.coupon_ids.slice(0, 1) } : {}),
+      };
+      preview = `${title} — ${text}`.slice(0, 120);
 
-    // โควตาไม่พอ = ปฏิเสธตั้งแต่ต้น — ยิงไปครึ่งทางแล้วโดนตัดคือของแพงกว่า
-    const quota = await getLineQuota(creds.channel_access_token);
-    if (quotaBlocks(quota, recipientCount)) {
-      return NextResponse.json({
-        error: `โควตาข้อความของ OA เหลือ ${quota.remaining?.toLocaleString()} ข้อความ แต่ต้องใช้ ${recipientCount.toLocaleString()} ข้อความ`,
-      }, { status: 400 });
+    } else {
+      // ช่องทางอื่นถูกกันไปแล้วที่ resolveBroadcastTarget — กันไว้อีกชั้นกัน branch หลุด
+      return NextResponse.json({ error: BROADCAST_PLATFORMS[platform].reason || 'ช่องทางนี้ยังส่งไม่ได้' }, { status: 400 });
     }
-
-    const text = typeof body.text === 'string' ? body.text.trim() : '';
-    const preview = text ? text.slice(0, 120) : '[รูปภาพ]';
 
     const { data: created, error } = await supabaseAdmin
       .from('broadcasts')
       .insert({
         company_id: auth.companyId,
         platform,
-        chat_account_id: chatAccountId,
+        chat_account_id: target.chatAccountId,
+        marketplace_account_id: target.marketplaceAccountId,
         created_by: auth.userId || null,
         audience_type: audienceType,
         audience_filter: audienceType === 'tags' ? { tag_ids: audienceFilter.tag_ids || [] } : {},

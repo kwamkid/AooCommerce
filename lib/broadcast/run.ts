@@ -5,12 +5,17 @@
 // (route ทั้งสามตัวเรียกผ่านฟังก์ชันนี้เสมอ ไม่เรียก runLineBroadcast ตรง ๆ)
 
 import { runLineBroadcast } from '@/lib/line/broadcast';
+import { runTikTokBroadcast } from '@/lib/tiktok/broadcast';
 import { BROADCAST_PLATFORMS, type BroadcastPlatform } from './platforms';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 
 export async function runBroadcast(id: string, platform: BroadcastPlatform): Promise<void> {
   if (platform === 'line') {
     await runLineBroadcast(id);
+    return;
+  }
+  if (platform === 'tiktok') {
+    await runTikTokBroadcast(id);
     return;
   }
 
