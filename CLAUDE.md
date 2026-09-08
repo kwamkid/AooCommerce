@@ -807,7 +807,13 @@ PC (พนักงานประจำจุดขายในห้าง) �
 | คำโปรย | `storefront.tagline` | `companies.description` |
 | เบอร์ / อีเมล / ที่อยู่ (ท้ายหน้าร้าน) | `storefront.contact_phone/_email/_address` | `companies.phone/email/address` |
 
-- **`/store/[slug]` หา `storefront_slug` ก่อนแล้วค่อยตกไป `slug`** (`findCompanyBySlug()` ใน [lib/storefront-server.ts](lib/storefront-server.ts)) — ลำดับนี้สำคัญ: ถ้าร้าน A ตั้ง `storefront_slug` ตรงกับ `companies.slug` ของ B ต้องให้ A ชนะ ไม่งั้นคนที่ตั้งเองจะเปิดไม่ติด · **API กันไม่ให้ตั้งชนกันตั้งแต่ต้น** (เช็คทั้งสองคอลัมน์ของบริษัทอื่น — DB มี unique เฉพาะในคอลัมน์เดียวกัน กันข้ามคอลัมน์ไม่ได้)
+- ⛔ **ค่าซ้ำต้องเกิดขึ้นไม่ได้เลย — กันที่ "ทางเขียน" ทั้งสองทาง ไม่ใช่ไปตัดสินตอนอ่าน** · DB มี unique เฉพาะภายในคอลัมน์เดียวกัน กันข้ามคอลัมน์ไม่ได้ ⇒ ต้องกันเองทั้งคู่:
+  - `/api/settings/storefront` PUT — ตั้ง `storefront_slug` ต้องไม่ซ้ำกับ **`slug` และ `storefront_slug` ของบริษัทอื่น**
+  - `/api/companies` POST — slug ที่สร้างจากชื่อบริษัทตอนสมัคร ต้องไม่ซ้ำกับ **`storefront_slug` ของบริษัทอื่น** ด้วย (รูโหว่เดิม: เช็คแค่ `slug`) · ชื่อไทยล้วนถูก regex กินจนเหลือค่าว่าง จึงตกไปใช้ `shop-xxxxxx`
+  - กรอก `storefront_slug` ตรงกับ `companies.slug` **ของตัวเอง** = เก็บเป็น null (ไม่ใช่ error) — เก็บค่าซ้ำสองที่แล้ววันหลังแก้ทีละที่จะกลายเป็นสองความจริง
+  - `/store/[slug]` ยังหา `storefront_slug` ก่อน (`findCompanyBySlug()` ใน [lib/storefront-server.ts](lib/storefront-server.ts)) เพราะเป็นตัวที่เจาะจงกว่า — **แต่ห้ามพึ่งลำดับนี้แทนการกันตอนเขียน**
+- **ชื่อลิงก์เปลี่ยนได้ครั้งเดียวทุก 30 วัน — แต่นับเฉพาะตอนหน้าร้านเปิดอยู่** (`companies.storefront_slug_changed_at` · `STOREFRONT_SLUG_LOCK_DAYS`) · ยังไม่เปิดร้าน = ยังไม่มีลิงก์ไหนอยู่ข้างนอก ต้องแก้คำที่พิมพ์ผิดได้อิสระ ไม่งั้นพิมพ์ตกตัวเดียวติดคุก 30 วันตั้งแต่ยังไม่เริ่มขาย · กรอกค่าเดิมซ้ำไม่นับว่าเปลี่ยน
+- **ช่องที่ต้องเช็คความซ้ำ ต้องบอกผลตั้งแต่ตอนพิมพ์** — `GET /api/settings/storefront/slug-check?slug=` (debounce 400ms) คืน `available/current/taken/invalid` + วันที่เหลือของล็อก → ไอคอนในช่องกรอก (หมุน/✓/✕) · **ต้องใช้กติกาชุดเดียวกับ PUT เป๊ะ ๆ** ไม่งั้นหน้าจอบอกว่าว่างแล้วบันทึกโดนปฏิเสธ
 - **`StorefrontCompany.slug` = slug สาธารณะที่ใช้ประกอบลิงก์ทุกที่** (sitemap · canonical · llms.txt) ไม่ใช่ `companies.slug` ดิบ — ใช้ตัวดิบจะได้ URL ที่พาไปคนละหน้า
 - `companies.slug` **ไม่มีช่องแก้ใน UI** (สร้างอัตโนมัติจากชื่อบริษัทตอนสมัคร) และไม่ต้องแก้แล้ว — อยากได้ URL สวยให้ตั้ง `storefront_slug` แทน · ที่เคยแก้ `ampstark`→`abcthebaby` เป็นการ UPDATE ตรงที่ DB
 

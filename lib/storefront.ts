@@ -136,6 +136,25 @@ export const DEFAULT_STOREFRONT: StorefrontConfig = {
   contact_address: '',
 };
 
+/**
+ * ชื่อลิงก์ร้านเปลี่ยนได้ครั้งเดียวต่อกี่วัน
+ *
+ * ทำไมต้องล็อก: slug อยู่ใน URL ที่ส่งไปหาลูกค้าแล้ว (บรอดแคสต์ · โพสต์ · บิลออนไลน์)
+ * เปลี่ยนทีนึงลิงก์เก่าตายทั้งชุด — เรายังไม่ได้ทำ redirect ของ slug เก่า
+ *
+ * ⚠️ **นับเฉพาะตอนหน้าร้านเปิดอยู่** — ยังไม่เปิดร้าน = ยังไม่มีลิงก์ไหนอยู่ข้างนอก
+ * ต้องแก้คำที่พิมพ์ผิดได้อิสระ ไม่งั้นพิมพ์ตกตัวเดียวแล้วติดคุก 30 วันตั้งแต่ยังไม่เริ่มขาย
+ */
+export const STOREFRONT_SLUG_LOCK_DAYS = 30;
+
+/** เหลืออีกกี่วันถึงจะเปลี่ยนชื่อลิงก์ได้ (0 = เปลี่ยนได้เลย) */
+export function storefrontSlugLockRemainingDays(changedAt: string | null): number {
+  if (!changedAt) return 0;
+  const elapsedMs = Date.now() - new Date(changedAt).getTime();
+  const leftMs = STOREFRONT_SLUG_LOCK_DAYS * 86_400_000 - elapsedMs;
+  return leftMs <= 0 ? 0 : Math.ceil(leftMs / 86_400_000);
+}
+
 export function parseStorefront(settings: Record<string, unknown> | null | undefined): StorefrontConfig {
   const stored = (settings?.storefront as Partial<StorefrontConfig> | undefined) || {};
   return {

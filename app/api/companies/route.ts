@@ -83,14 +83,20 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Check slug uniqueness
+    // ชื่อไทยล้วนจะถูก regex ข้างบนกินหมดจนเหลือค่าว่าง — ปล่อยไว้จะชนกับบริษัทถัดไป
+    // ที่ตั้งชื่อไทยเหมือนกัน (และได้ URL /store/ ที่เปิดไม่ได้)
+    const baseSlug = companySlug || `shop-${Math.random().toString(36).slice(2, 8)}`;
+
+    // ⛔ ต้องไม่ซ้ำกับ **ทั้ง `slug` และ `storefront_slug`** ของบริษัทอื่น —
+    // /store/<slug> หาจากสองคอลัมน์นี้ ถ้าปล่อยให้ชนกันได้ ร้านหนึ่งจะถูกอีกร้านบังหาย
+    // (DB มี unique เฉพาะภายในคอลัมน์เดียวกัน กันข้ามคอลัมน์ไม่ได้)
     const { data: existing } = await supabaseAdmin
       .from('companies')
       .select('id')
-      .eq('slug', companySlug)
-      .single();
+      .or(`slug.eq.${baseSlug},storefront_slug.eq.${baseSlug}`)
+      .limit(1);
 
-    if (existing) {
+    if (existing && existing.length > 0) {
       return NextResponse.json({ error: 'ชื่อ URL นี้ถูกใช้แล้ว กรุณาเลือกชื่ออื่น' }, { status: 400 });
     }
 
@@ -99,7 +105,7 @@ export async function POST(request: NextRequest) {
       .from('companies')
       .insert({
         name,
-        slug: companySlug,
+        slug: baseSlug,
         description: description || null,
         phone: phone || null,
         email: email || null,

@@ -2,7 +2,11 @@
 // (JSONB, same approach as feature flags — no dedicated table).
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
-import { parseStorefront, type StorefrontConfig } from '@/lib/storefront';
+import {
+  parseStorefront,
+  storefrontSlugLockRemainingDays,
+  type StorefrontConfig,
+} from '@/lib/storefront';
 
 export async function GET(request: NextRequest) {
   const auth = await checkAuthWithCompany(request);
@@ -12,7 +16,7 @@ export async function GET(request: NextRequest) {
 
   const { data } = await supabaseAdmin
     .from('companies')
-    .select('slug, storefront_slug, name, logo_url, phone, email, address, settings')
+    .select('slug, storefront_slug, storefront_slug_changed_at, name, logo_url, phone, email, address, settings')
     .eq('id', auth.companyId)
     .single();
 
@@ -22,6 +26,10 @@ export async function GET(request: NextRequest) {
     /** ตั้งเองไว้หรือยัง — ว่าง = หน้าจอโชว์ตัวของบริษัทเป็น placeholder */
     storefront_slug: data?.storefront_slug || '',
     company_slug: data?.slug || '',
+    // ล็อกนับเฉพาะตอนร้านเปิดอยู่ — ยังไม่เปิด = ยังไม่มีลิงก์ไหนอยู่ข้างนอก แก้ได้อิสระ
+    slug_lock_days_left: parseStorefront((data?.settings as Record<string, unknown>) || {}).enabled
+      ? storefrontSlugLockRemainingDays(data?.storefront_slug_changed_at ?? null)
+      : 0,
     // ใช้ในพรีวิว + เป็น placeholder ของช่องที่ปล่อยว่างแล้วตกไปใช้ของบริษัท
     company_name: data?.name || '',
     company_phone: data?.phone || '',
@@ -59,11 +67,26 @@ export async function PUT(request: NextRequest) {
   if (!body) return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
 
   // ── slug ของหน้าร้าน (คนละตัวกับตัวระบุบริษัท) ──────────────────────
-  // ว่าง = ล้างค่า แล้วตกไปใช้ companies.slug ตามเดิม
+  //
+  // ⛔ **ห้ามให้ค่าซ้ำเกิดขึ้นได้เลย** — ทั้งซ้ำกับ `storefront_slug` และซ้ำกับ
+  // `companies.slug` ของบริษัทอื่น · DB มี unique เฉพาะภายในคอลัมน์เดียวกัน
+  // กันข้ามคอลัมน์ไม่ได้ ด่านนี้จึงเป็นด่านเดียวที่กันได้ (อีกด่านคือตอนสร้างบริษัท
+  // ใน /api/companies ซึ่งเช็คย้อนกลับมาที่ storefront_slug ด้วย)
   let storefrontSlug: string | null | undefined;
+  let slugChangedAt: string | undefined;
   if (body.storefront_slug !== undefined) {
     const raw = (body.storefront_slug || '').trim().toLowerCase();
+    const { data: own } = await supabaseAdmin
+      .from('companies')
+      .select('slug, storefront_slug, storefront_slug_changed_at, settings')
+      .eq('id', auth.companyId)
+      .single();
+
     if (!raw) {
+      storefrontSlug = null;
+    } else if (raw === own?.slug) {
+      // กรอกตรงกับ slug ของบริษัทตัวเอง = ไม่ได้ตั้งอะไรใหม่ — เก็บเป็นค่าว่างไปเลย
+      // (เก็บค่าซ้ำไว้สองที่แล้ววันหลังใครแก้ทีละที่ จะกลายเป็นสองความจริง)
       storefrontSlug = null;
     } else if (!SLUG.test(raw)) {
       return NextResponse.json(
@@ -71,9 +94,6 @@ export async function PUT(request: NextRequest) {
         { status: 400 },
       );
     } else {
-      // ⚠️ ต้องกันชนกับ **ทั้งสองคอลัมน์ของบริษัทอื่น** — /store/<slug> หาจาก
-      // storefront_slug ก่อนแล้วค่อยตกไป slug ถ้าปล่อยให้ชนกันได้ ร้านที่ชนจะถูก
-      // บังหน้าหายไปเงียบ ๆ (DB มี unique เฉพาะในคอลัมน์เดียวกัน กันข้ามคอลัมน์ไม่ได้)
       const { data: clash } = await supabaseAdmin
         .from('companies')
         .select('id')
@@ -84,6 +104,21 @@ export async function PUT(request: NextRequest) {
         return NextResponse.json({ error: 'ชื่อลิงก์นี้มีร้านอื่นใช้อยู่แล้ว' }, { status: 400 });
       }
       storefrontSlug = raw;
+    }
+
+    // เปลี่ยนจริงเมื่อไหร่ถึงติดกติกา — กรอกค่าเดิมซ้ำไม่นับว่าเปลี่ยน
+    const currentSlug = own?.storefront_slug ?? null;
+    if (storefrontSlug !== currentSlug) {
+      const wasEnabled = parseStorefront((own?.settings as Record<string, unknown>) || {}).enabled;
+      const daysLeft = wasEnabled
+        ? storefrontSlugLockRemainingDays(own?.storefront_slug_changed_at ?? null)
+        : 0;
+      if (daysLeft > 0) {
+        return NextResponse.json({
+          error: `เปลี่ยนชื่อลิงก์ได้ครั้งเดียวทุก 30 วัน — เปลี่ยนได้อีกครั้งในอีก ${daysLeft} วัน`,
+        }, { status: 400 });
+      }
+      slugChangedAt = new Date().toISOString();
     }
   }
 
@@ -154,6 +189,7 @@ export async function PUT(request: NextRequest) {
     .update({
       settings: { ...currentSettings, storefront: next },
       ...(storefrontSlug !== undefined ? { storefront_slug: storefrontSlug } : {}),
+      ...(slugChangedAt ? { storefront_slug_changed_at: slugChangedAt } : {}),
     })
     .eq('id', auth.companyId);
 

@@ -16,6 +16,7 @@ import { LoadingCard, NoPermissionCard } from '@/components/ui/StateCard';
 import { useToast } from '@/lib/toast-context';
 import { useAuthGuard } from '@/lib/useAuthGuard';
 import { useFetchOnce } from '@/lib/use-fetch-once';
+import { useDebouncedCallback } from '@/lib/useDebounce';
 import { apiFetch } from '@/lib/api-client';
 import {
   DEFAULT_STOREFRONT, storefrontCssVars, storefrontRootClasses,
@@ -31,6 +32,7 @@ import StickyActionBar from '@/components/ui/StickyActionBar';
 import CopyField from '@/components/ui/CopyField';
 import { useCompany } from '@/lib/company-context';
 import OptionCards from '@/components/ui/OptionCards';
+import { Check, Loader2, X } from 'lucide-react';
 import { ExternalLink, Globe, KeyRound, Palette, Plus, Store } from 'lucide-react';
 import Tabs from '@/components/ui/Tabs';
 
@@ -258,6 +260,11 @@ export default function StorefrontSettingsPage() {
   /** ค่าที่ผู้ใช้พิมพ์ในช่อง — ว่าง = ยังไม่ตั้งเอง ใช้ของบริษัท */
   const [storefrontSlug, setStorefrontSlug] = useState('');
   const [companySlug, setCompanySlug] = useState('');
+  /** ผลเช็คชื่อลิงก์แบบสด — ให้ตัดสินใจได้ก่อนกดบันทึก ไม่ใช่รู้ตอนโดนปฏิเสธ */
+  const [slugStatus, setSlugStatus] = useState<'idle' | 'checking' | 'available' | 'current' | 'taken' | 'invalid'>('idle');
+  const [slugMessage, setSlugMessage] = useState('');
+  /** >0 = เปลี่ยนไม่ได้ ต้องรออีกกี่วัน (ล็อกทำงานเฉพาะตอนร้านเปิดอยู่) */
+  const [slugLockDaysLeft, setSlugLockDaysLeft] = useState(0);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [companyName, setCompanyName] = useState('');
   const [companyPhone, setCompanyPhone] = useState('');
@@ -292,6 +299,7 @@ export default function StorefrontSettingsPage() {
         setSlug(data.slug || '');
         setStorefrontSlug(data.storefront_slug || '');
         setCompanySlug(data.company_slug || '');
+        setSlugLockDaysLeft(data.slug_lock_days_left || 0);
         setLogoUrl(data.logo_url || null);
         setCompanyName(data.company_name || '');
         setCompanyPhone(data.company_phone || '');
@@ -302,6 +310,24 @@ export default function StorefrontSettingsPage() {
       setLoading(false);
     }
   }, []), allowed);
+
+  const checkSlug = useCallback(async (value: string) => {
+    const raw = value.trim().toLowerCase();
+    if (!raw) { setSlugStatus('idle'); setSlugMessage(''); return; }
+    setSlugStatus('checking');
+    try {
+      const res = await apiFetch(`/api/settings/storefront/slug-check?slug=${encodeURIComponent(raw)}`);
+      if (!res.ok) { setSlugStatus('idle'); return; }
+      const d = await res.json();
+      setSlugStatus(d.status);
+      setSlugMessage(d.message || '');
+      setSlugLockDaysLeft(d.lock_days_left || 0);
+    } catch {
+      // เช็คไม่ได้ = ไม่ขวางการกรอก ตอนบันทึกฝั่ง server ตรวจซ้ำอยู่แล้ว
+      setSlugStatus('idle');
+    }
+  }, []);
+  const debouncedCheckSlug = useDebouncedCallback(checkSlug, 400);
 
   const patch = (p: Partial<StorefrontConfig>) => setCfg(prev => ({ ...prev, ...p }));
 
@@ -334,6 +360,12 @@ export default function StorefrontSettingsPage() {
       loadedRef.current = data.storefront;
       // slug ที่ใช้จริงเปลี่ยนตามที่เพิ่งบันทึก — ลิงก์ตัวอย่างต้องอัปเดตทันที
       setSlug(data.storefront_slug || companySlug);
+      setStorefrontSlug(data.storefront_slug || '');
+      // ล็อก 30 วันเริ่มนับตอนนี้ถ้าเพิ่งเปลี่ยนจริง — ถามค่าจริงกลับมาแทนที่จะเดาเอง
+      apiFetch('/api/settings/storefront/slug-check?slug=')
+        .then(r => r.ok ? r.json() : null)
+        .then(d => { if (d) setSlugLockDaysLeft(d.lock_days_left || 0); })
+        .catch(() => { /* รู้สถานะล็อกไม่ได้ ไม่ใช่เรื่องคอขาดบาดตาย */ });
       showToast('บันทึกหน้าร้านออนไลน์แล้ว', 'success');
     } finally {
       setSaving(false);
@@ -457,10 +489,36 @@ export default function StorefrontSettingsPage() {
               <FormInput
                 label="ชื่อลิงก์"
                 value={storefrontSlug}
-                onChange={(e) => setStorefrontSlug(e.target.value.toLowerCase())}
+                disabled={slugLockDaysLeft > 0}
+                onChange={(e) => {
+                  const v = e.target.value.toLowerCase();
+                  setStorefrontSlug(v);
+                  setSlugStatus(v.trim() ? 'checking' : 'idle');
+                  debouncedCheckSlug(v);
+                }}
                 placeholder={companySlug ? `เว้นว่าง = ${companySlug}` : 'เช่น babyshop'}
-                hint="ตัวเล็ก ตัวเลข และขีดกลาง 3–40 ตัว — เปลี่ยนแล้วลิงก์เก่าที่ส่งไปจะเปิดไม่ได้"
+                error={slugStatus === 'taken' ? 'ชื่อนี้มีร้านอื่นใช้อยู่แล้ว' : slugStatus === 'invalid' ? slugMessage : undefined}
+                hint={
+                  slugLockDaysLeft > 0
+                    ? `เปลี่ยนได้อีกครั้งในอีก ${slugLockDaysLeft} วัน`
+                    : slugStatus === 'available'
+                      ? 'ชื่อนี้ว่าง ใช้ได้เลย'
+                      : slugStatus === 'current'
+                        ? 'ชื่อที่ใช้อยู่ตอนนี้'
+                        : 'ตัวเล็ก ตัวเลข และขีดกลาง 3–40 ตัว'
+                }
+                postfix={
+                  slugStatus === 'checking' ? <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
+                    : slugStatus === 'available' || slugStatus === 'current' ? <Check className="w-4 h-4 text-emerald-600" />
+                      : slugStatus === 'taken' || slugStatus === 'invalid' ? <X className="w-4 h-4 text-red-500" />
+                        : undefined
+                }
               />
+              {slugLockDaysLeft === 0 && cfg.enabled && (
+                <p className="helper-text text-amber-700 dark:text-amber-500 mt-1.5">
+                  เปลี่ยนได้ครั้งเดียวทุก 30 วัน — ลิงก์เก่าที่ส่งไปหาลูกค้าแล้วจะเปิดไม่ได้ทันที
+                </p>
+              )}
               <p className="section-desc mt-2 break-all">
                 ลิงก์ที่จะได้: {cfg.public_base_url
                   ? `${cfg.public_base_url}${cfg.public_base_path}`
