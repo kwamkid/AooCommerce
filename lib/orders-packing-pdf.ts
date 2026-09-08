@@ -613,12 +613,14 @@ function compactPackingParts(order: PackingListData, hasLogo: boolean) {
   // (ประเมินต่ำ = บล็อกล้นไปทับออเดอร์ครึ่งล่าง) — เผื่อฝั่งมากไว้ก่อน
   // โครงใหม่: แถวป้าย + แถวค่า + ที่อยู่ + (เส้นคั่น + หมายเหตุ)
   // กำหนดส่งอยู่คอลัมน์ขวาของแถวเดียวกับชื่อ จึง **ไม่บวกความสูงเพิ่ม**
-  const addrLines = deliveryAddress ? Math.max(1, Math.ceil(deliveryAddress.length / 66)) : 0;
+  // โครง: แถวชื่อ + แถวที่อยู่ + แถวหมายเหตุ ทุกแถวขนาดเดียวกัน (ไม่มีกำหนดส่งในบล็อกนี้แล้ว)
+  const addrLines = deliveryAddress ? Math.max(1, Math.ceil(deliveryAddress.length / 80)) : 0;
   const recipientH = dense
-    ? 28 + addrLines * 12 + (noteText ? 20 : 0)
-    : 42 + addrLines * 15 + (noteText ? 26 : 0);
+    ? 18 + addrLines * 12 + (noteText ? 13 : 0)
+    : 28 + addrLines * 14 + (noteText ? 15 : 0);
 
   let overheadH = (hasLogo ? 118 : 74)   // หัวเอกสาร (โลโก้ + ชื่อ/ที่อยู่ร้าน + กล่องเลขที่)
+    + (scheduleText ? 11 : 0)            // กล่องเลขที่มีแถว "กำหนดส่ง" เพิ่ม
     + recipientH
     + 32;                                // หัวตาราง + บรรทัดสรุป
   // ชิป (ห้ามแนบราคา/ขอใบกำกับ) อยู่แถวเดียวกันหมด — คิดความสูงครั้งเดียวไม่ว่าจะมีกี่ชิป
@@ -689,6 +691,11 @@ function buildCompactPackingContent(
       { text: 'วันที่', fontSize: 8, color: THEME.primary, bold: true },
       { text: dateStr, fontSize: 8 },
     ],
+    // กำหนดส่งอยู่คู่กับวันที่ — เจ้าของขอให้เป็นตัวปกติ ไม่ต้องเน้น (9 ก.ย. 2026)
+    ...(scheduleText ? [[
+      { text: 'กำหนดส่ง', fontSize: 8, color: THEME.primary, bold: true },
+      { text: order.delivery_zone_label ? `${scheduleText}  (${order.delivery_zone_label})` : scheduleText, fontSize: 8 },
+    ]] : []),
   ];
 
   content.push({
@@ -710,7 +717,7 @@ function buildCompactPackingContent(
           },
           {
             table: {
-              widths: [30, '*'],
+              widths: [38, '*'],
               body: infoRows,
             },
             layout: {
@@ -733,103 +740,57 @@ function buildCompactPackingContent(
     margin: [0, 0, 0, 4],
   });
 
-  // ── ผู้รับ + ที่อยู่จัดส่ง + กำหนดส่ง (บล็อกเด่น) ──
-  // คนแพ็คใช้ใบนี้เทียบกับใบปะหน้าว่าของตรงกล่องไหน — ที่อยู่ต้องอ่านได้จากระยะแขน
-  //
-  // โครง: **ป้ายอยู่บรรทัดบน ค่าอยู่บรรทัดล่าง** ซ้าย = ผู้รับ · ขวา = กำหนดส่ง
-  // แล้วที่อยู่ไหลเต็มความกว้างข้างล่าง ปิดท้ายด้วยแถบหมายเหตุ
-  //
-  // ⛔ ห้ามกลับไปวางป้ายไว้ "ข้าง ๆ" ค่าในตารางคนละช่อง — pdfMake ชิดขอบบนของแถว
-  // ป้าย 9pt กับชื่อ 13pt จึงลอยคนละระดับ เจ้าของอ่านแล้วบอกว่า "บรรทัดไม่ตรงกัน
-  // ฟอนต์ไม่เท่ากัน ดูยาก" (9 ก.ย. 2026) · ป้ายกับค่าที่ต้องอยู่บรรทัดเดียวกัน
-  // (หมายเหตุ) ให้อยู่ใน `text: [...]` ก้อนเดียว pdfMake จะวางฐานบรรทัดให้ตรงกันเอง
+  // ── ผู้รับ + ที่อยู่จัดส่ง + หมายเหตุ (แบบธรรมดา) ──
+  // เจ้าของขอ "แบบธรรมดา ไม่ต้องเน้นมาก" (9 ก.ย. 2026) หลังจากลองแบบชื่อตัวใหญ่แล้วดูหนักเกิน
+  // ⇒ ทุกบรรทัดขนาดเดียวกัน ตัวปกติ · ป้ายกับค่าอยู่ตารางเดียวกันได้เพราะขนาดเท่ากัน
+  //    จึงวางฐานบรรทัดตรงกันเอง (ขนาดต่างกันเมื่อไหร่ pdfMake จะชิดขอบบนแล้วเหลื่อม)
+  // ⇒ กำหนดส่งย้ายขึ้นไปอยู่กับเลขที่/วันที่ในกล่องมุมขวาบนแล้ว ไม่อยู่ในบล็อกนี้
+  // ⇒ หมายเหตุเป็นสิ่งเดียวที่หนา (รอบเวลาส่ง/คำสั่งพิเศษ) แต่ขนาดเท่าบรรทัดอื่น
   const customerPhone = order.delivery_phone || order.customer?.phone || '';
-  const SCHEDULE_W = dense ? 118 : 138;
-  const hasSchedule = !!scheduleText;
-  const PAD_X = dense ? 0 : 8;
-  const BLOCK_W = 515 - PAD_X * 2;   // ความกว้างเนื้อหา A4 หักขอบซ้ายขวาของบล็อก
+  const LABEL_W = dense ? 46 : 52;
+  const BODY = dense ? 9.5 : 10;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const labelText = (text: string): any =>
-    ({ text, fontSize: dense ? 8 : 8.5, bold: true, color: THEME.primary });
+  const label = (text: string): any => ({ text, fontSize: BODY, color: '#6b7280' });
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const recipientStack: any[] = [
-    {
-      columns: [
-        { width: '*', ...labelText('จัดส่งถึง') },
-        ...(hasSchedule ? [{ width: SCHEDULE_W, ...labelText('กำหนดส่ง') }] : []),
-      ],
-      columnGap: 10,
-    },
-    {
-      columns: [
-        {
-          width: '*',
-          text: [
-            { text: customerName, fontSize: dense ? 11 : 13, bold: true, color: '#111111' },
-            ...(customerPhone
-              ? [{ text: `   โทร ${customerPhone}`, fontSize: dense ? 10 : 12, bold: true, color: '#111111' }]
-              : []),
-          ],
-        },
-        ...(hasSchedule ? [{
-          width: SCHEDULE_W,
-          text: [
-            { text: scheduleText, fontSize: dense ? 10.5 : 12.5, bold: true, color: '#b45309' },
-            ...(order.delivery_zone_label
-              ? [{ text: `  (${order.delivery_zone_label})`, fontSize: 8.5, color: '#666666' }]
-              : []),
-          ],
-        }] : []),
-      ],
-      columnGap: 10,
-      margin: [0, 1, 0, 0],
-    },
+  const recipientRows: any[][] = [
+    [
+      label('จัดส่งถึง'),
+      {
+        text: [
+          { text: customerName, fontSize: BODY, color: '#111111' },
+          ...(customerPhone ? [{ text: `   โทร ${customerPhone}`, fontSize: BODY, color: '#111111' }] : []),
+        ],
+      },
+    ],
   ];
-
   if (deliveryAddress) {
-    recipientStack.push({
-      text: deliveryAddress,
-      fontSize: dense ? 9.5 : 10.5,
-      color: '#1f2937',
-      lineHeight: 1.02,        // ที่อยู่คือข้อความก้อนเดียว บรรทัดต้องเกาะกัน ไม่ใช่ลอยห่างเหมือนคนละเรื่อง
-      margin: [0, 1, 0, 0],
-    });
+    recipientRows.push([
+      { text: '' },
+      { text: deliveryAddress, fontSize: BODY, color: '#111111', lineHeight: 1.02 },
+    ]);
   }
-
-  // หมายเหตุ = รอบเวลาส่ง/คำสั่งพิเศษของบิลนี้ ต้องเด่นรองจากชื่อผู้รับ
-  // (ของเดิม 9pt สีเทา จมหายไปกับพื้น — เจ้าของแจ้งว่า "ที่ควรเด่น กลับไม่เด่น")
   if (noteText) {
-    recipientStack.push({
-      canvas: [{ type: 'line', x1: 0, y1: 0, x2: BLOCK_W, y2: 0, lineWidth: 0.5, lineColor: '#cbd5e1' }],
-      margin: [0, dense ? 3 : 4, 0, dense ? 2 : 3],
-    });
-    recipientStack.push({
-      text: [
-        labelText('หมายเหตุ  '),
-        { text: noteText, fontSize: dense ? 10.5 : 12, bold: true, color: '#111111' },
-      ],
-    });
+    recipientRows.push([
+      label('หมายเหตุ'),
+      { text: noteText, fontSize: BODY, bold: true, color: '#111111' },
+    ]);
   }
 
   content.push({
-    table: {
-      widths: ['*'],
-      body: [[{
-        stack: recipientStack,
-        // พื้นอ่อนล้วน ไม่มีกรอบ — เด่นด้วยขนาดตัวอักษร ไม่ใช่ด้วยเส้น
-        // (บิลรายการเยอะตัดพื้นทิ้ง เอาที่ว่างไปให้แถวสินค้า)
-        ...(dense ? {} : { fillColor: '#f1f5f9' }),
-      }]],
-    },
+    table: { widths: [LABEL_W, '*'], body: recipientRows },
     layout: {
       hLineWidth: () => 0,
       vLineWidth: () => 0,
-      paddingLeft: () => PAD_X,
-      paddingRight: () => PAD_X,
-      paddingTop: () => (dense ? 1 : 5),
-      paddingBottom: () => (dense ? 1 : 6),
+      // พื้นอ่อนล้วน ไม่มีกรอบ (บิลรายการเยอะตัดพื้นทิ้ง เอาที่ว่างไปให้แถวสินค้า)
+      fillColor: () => (dense ? null : '#f1f5f9'),
+      paddingLeft: (i: number) => (i === 0 ? (dense ? 0 : 8) : 0),
+      paddingRight: (i: number, node: { table: { widths: unknown[] } }) =>
+        (i === node.table.widths.length - 1 ? (dense ? 0 : 8) : 0),
+      paddingTop: (i: number) => (i === 0 ? (dense ? 1 : 5) : 1),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      paddingBottom: (i: number, node: any) => (i === node.table.body.length - 1 ? (dense ? 1 : 6) : 1),
     },
     margin: [0, 1, 0, dense ? 3 : 5],
   });
