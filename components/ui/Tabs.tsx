@@ -52,13 +52,14 @@ export default function Tabs({ tabs, activeKey, onSelect, className, fill, size 
   // caller's `className` is merged on top — typically just for spacing overrides
   // like `mb-6` / `mt-0`. Don't use `??` here — that would let a caller passing
   // `className="mb-6"` accidentally drop the flex + พื้นราง and tabs would stack.
-  const baseCls = 'flex gap-1 p-1.5 bg-gray-200/60 dark:bg-slate-800 rounded-2xl mb-6 overflow-x-auto';
+  const baseCls = 'flex gap-1 p-1 bg-gray-200/60 dark:bg-slate-800 rounded-xl mb-6 overflow-x-auto';
   return (
     <div className={className ? `${baseCls} ${className}` : baseCls}>
       {tabs.filter(t => !t.hidden).map(tab => {
         const isActive = tab.key === activeKey;
         const activeColor = tab.activeColorClass ?? 'text-gray-900 dark:text-white';
-        const sizeCls = size === 'sm' ? 'px-3.5 py-2 text-xs gap-1.5 rounded-lg' : 'px-5 py-3 text-base gap-2 rounded-xl';
+        // h-[34px] + p-1 ของราง = 42px เท่าความสูงมาตรฐานของ input/ปุ่มที่วางข้างกัน
+        const sizeCls = size === 'sm' ? 'h-7 px-3 text-xs gap-1.5 rounded-md' : 'h-[34px] px-4 text-base gap-2 rounded-lg';
         const fillCls = fill ? 'flex-1' : '';
         const cls = `flex items-center justify-center ${sizeCls} ${fillCls} font-semibold whitespace-nowrap transition-all ${
           isActive

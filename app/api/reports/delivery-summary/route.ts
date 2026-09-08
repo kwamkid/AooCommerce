@@ -36,6 +36,13 @@ export async function GET(request: NextRequest) {
         total_amount,
         notes,
         internal_notes,
+        delivery_name,
+        delivery_phone,
+        delivery_address,
+        delivery_district,
+        delivery_amphoe,
+        delivery_province,
+        delivery_postal_code,
         customer:customers (
           id,
           customer_code,
@@ -317,6 +324,100 @@ export async function GET(request: NextRequest) {
         });
       }
       productSummaryMap.get(productKey)!.totalQuantity += shipment.quantity;
+    });
+
+    // ── บิลที่ยังไม่มีที่อยู่ (เปิดจากแชทแล้วให้ลูกค้ากรอกทีหลัง) ไม่มีแถวใน `order_shipments` เลย ──
+    // ถ้าไล่จาก shipments อย่างเดียวบิลพวกนี้จะหายทั้งใบ ทั้งจากตัวเลขสรุป ใบหยิบของ และ PDF
+    // (เจอจริง 8 ก.ย. 2026: หน้าจอโชว์ 3 บิล แต่การ์ดบอก "บิลที่ต้องจัด 1")
+    // → นับเป็น 1 จุดส่งต่อบิล ใช้ที่อยู่ที่พิมพ์ไว้บนตัวออเดอร์ (ยังไม่กรอก = ขึ้นว่ายังไม่ระบุ)
+    const orderIdsWithShipment = new Set(
+      (shipments || []).map(sh => orderItemMap.get(sh.order_item_id)?.order_id).filter(Boolean) as string[],
+    );
+    const itemsByOrder = new Map<string, typeof orderItems>();
+    (orderItems || []).forEach(item => {
+      if (orderIdsWithShipment.has(item.order_id)) return;
+      const list = itemsByOrder.get(item.order_id) || [];
+      list.push(item);
+      itemsByOrder.set(item.order_id, list as typeof orderItems);
+    });
+
+    itemsByOrder.forEach((items, orderId) => {
+      const order = orderMap.get(orderId);
+      if (!order || !items?.length) return;
+
+      const deliveryDate = order.delivery_date;
+      if (!byDateMap.has(deliveryDate)) byDateMap.set(deliveryDate, new Map());
+      const dateDeliveries = byDateMap.get(deliveryDate)!;
+      const deliveryKey = `${order.id}__no-address`;
+
+      const cust = order.customer as {
+        id?: string; customer_code?: string; name?: string;
+        contact_person?: string | null; phone?: string | null;
+      } | null;
+      const addressLine = [order.delivery_address, order.delivery_district, order.delivery_amphoe, order.delivery_province]
+        .filter(Boolean).join(' ');
+      dateDeliveries.set(deliveryKey, {
+        orderId: order.id,
+        orderNumber: order.order_number,
+        orderStatus: order.order_status,
+        paymentStatus: order.payment_status || 'pending',
+        paymentMethod: order.payment_method || null,
+        totalAmount: order.total_amount || 0,
+        orderNotes: order.notes || null,
+        internalNotes: order.internal_notes || null,
+        customer: {
+          id: cust?.id,
+          customerCode: cust?.customer_code,
+          name: cust?.name,
+          contactPerson: cust?.contact_person || null,
+          phone: cust?.phone || null,
+        },
+        shippingAddress: {
+          id: null,
+          addressName: order.delivery_name || cust?.name || 'ยังไม่ระบุที่อยู่',
+          contactPerson: order.delivery_name || null,
+          phone: order.delivery_phone || null,
+          addressLine1: addressLine,
+          district: order.delivery_district || null,
+          amphoe: order.delivery_amphoe || null,
+          province: order.delivery_province || '',
+          postalCode: order.delivery_postal_code || null,
+          googleMapsLink: null,
+        },
+        deliveryNotes: null,
+        products: new Map(),
+      });
+
+      const delivery = dateDeliveries.get(deliveryKey)!;
+      items.forEach(orderItem => {
+        const productKey = `${orderItem.product_code}__${orderItem.variation_label || ''}`;
+        const itemImage = (orderItem.variation_id ? variationImageMap.get(orderItem.variation_id) : null)
+          || productImageMap.get(orderItem.product_id) || null;
+        const itemBarcode = (orderItem.variation_id ? variationBarcodeMap.get(orderItem.variation_id) : null) || null;
+        if (!delivery.products.has(productKey)) {
+          delivery.products.set(productKey, {
+            productName: orderItem.product_name,
+            productCode: orderItem.product_code,
+            variationLabel: orderItem.variation_label || null,
+            quantity: 0,
+            image: itemImage,
+            barcode: itemBarcode,
+          });
+        }
+        delivery.products.get(productKey)!.quantity += orderItem.quantity || 0;
+
+        if (!productSummaryMap.has(productKey)) {
+          productSummaryMap.set(productKey, {
+            productName: orderItem.product_name,
+            productCode: orderItem.product_code,
+            variationLabel: orderItem.variation_label || null,
+            totalQuantity: 0,
+            image: itemImage,
+            barcode: itemBarcode,
+          });
+        }
+        productSummaryMap.get(productKey)!.totalQuantity += orderItem.quantity || 0;
+      });
     });
 
     // Convert to response structure
