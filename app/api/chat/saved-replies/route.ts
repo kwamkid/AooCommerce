@@ -13,7 +13,7 @@ import {
   sanitizeSavedReplyTitle, hasDisallowedTitleChars, SAVED_REPLY_TITLE_HINT,
 } from '@/lib/chat/saved-replies';
 
-const SELECT = 'id, title, content, image_urls, sort_order, is_active, created_by, created_at, updated_at';
+const SELECT = 'id, title, content, image_urls, sort_order, is_active, use_count, last_used_at, created_by, created_at, updated_at';
 
 const MAX_CONTENT = 2000;
 /** unique index บน (company_id, ชื่อที่ normalize) — ดู migration saved_replies_multi_image_link_unique_title */

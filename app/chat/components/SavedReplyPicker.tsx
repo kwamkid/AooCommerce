@@ -19,6 +19,12 @@ import { savedReplyPreview, savedReplyThumb, type SavedReply } from '@/lib/chat/
 interface Props {
   replies: SavedReply[];
   loading: boolean;
+  /**
+   * N ใบแรกของ `replies` คือกลุ่ม "ใช้บ่อย" (0 = ไม่แบ่งกลุ่ม)
+   * **ลำดับจริงคุมจากหน้าแชท** เพราะ ↑↓ Enter ในกล่องพิมพ์อ้าง index ของอาร์เรย์เดียวกันนี้ —
+   * ถ้า picker จัดลำดับเองจะกลายเป็นว่าไฮไลต์อยู่ใบหนึ่งแต่ Enter ได้อีกใบ
+   */
+  frequentCount: number;
   /** ตัวที่ไฮไลต์อยู่ (คีย์บอร์ด) — -1 = ยังไม่เลือกอะไร */
   activeIndex: number;
   onActiveIndexChange: (i: number) => void;
@@ -37,8 +43,12 @@ interface Props {
   canManage: boolean;
 }
 
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return <div className="px-3 pt-2 pb-1 helper-text text-gray-400 dark:text-slate-500">{children}</div>;
+}
+
 export default function SavedReplyPicker({
-  replies, loading, activeIndex, onActiveIndexChange, onSelect, onClose,
+  replies, loading, frequentCount, activeIndex, onActiveIndexChange, onSelect, onClose,
   showSearch, search, onSearchChange, onSaveCurrent, onCreate, onEdit, canManage,
 }: Props) {
   const searchRef = useRef<HTMLInputElement>(null);
@@ -54,6 +64,52 @@ export default function SavedReplyPicker({
     listRef.current?.querySelector<HTMLElement>(`[data-idx="${activeIndex}"]`)
       ?.scrollIntoView({ block: 'nearest' });
   }, [activeIndex]);
+
+  /** แถวเดียวในรายการ — ใช้ร่วมทั้งกลุ่ม "ใช้บ่อย" และ "ทั้งหมด" ห้าม copy JSX สองชุด */
+  const row = (r: SavedReply, i: number) => (
+    <div
+      key={r.id}
+      data-idx={i}
+      onMouseEnter={() => onActiveIndexChange(i)}
+      className={`group flex items-start transition-colors ${
+        i === activeIndex ? 'bg-primary/10' : 'hover:bg-gray-50 dark:hover:bg-slate-700/50'
+      }`}
+    >
+      <button
+        onClick={() => onSelect(r)}
+        className="min-w-0 flex-1 flex items-start gap-2.5 pl-3 pr-1 py-2 text-left"
+      >
+        {savedReplyThumb(r) && (
+          <span className="relative flex-shrink-0 mt-0.5">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={savedReplyThumb(r)!} alt="" className="w-9 h-9 rounded object-cover" />
+            {r.image_urls.length > 1 && (
+              <span className="absolute -bottom-0.5 -right-0.5 px-1 rounded bg-black/60 text-white helper-text leading-none py-0.5">
+                {r.image_urls.length}
+              </span>
+            )}
+          </span>
+        )}
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-medium text-gray-900 dark:text-white truncate">{r.title}</span>
+          {/* 2 บรรทัด — บรรทัดเดียวตัดจนแยกไม่ออกว่าใบไหนเป็นใบไหน */}
+          <span className="block helper-text text-gray-500 dark:text-slate-400 line-clamp-2">{savedReplyPreview(r, 160)}</span>
+        </span>
+      </button>
+      {onEdit && (
+        <Tooltip text="แก้ไขข้อความนี้">
+          {/* จอสัมผัสไม่มี hover — โชว์ตลอดบนมือถือ ซ่อนรอ hover เฉพาะจอใหญ่ */}
+          <button
+            onClick={() => onEdit(r)}
+            aria-label={`แก้ไข ${r.title}`}
+            className="flex-shrink-0 mt-1.5 mr-1.5 p-1.5 rounded-md text-gray-400 hover:text-primary hover:bg-white dark:hover:bg-slate-800 md:opacity-0 md:group-hover:opacity-100 md:focus:opacity-100 transition-opacity"
+          >
+            <Pencil className="w-3.5 h-3.5" />
+          </button>
+        </Tooltip>
+      )}
+    </div>
+  );
 
   return (
     <div
@@ -93,48 +149,12 @@ export default function SavedReplyPicker({
             </p>
           </div>
         ) : (
+          // รายการเดียวเรียงตามที่หน้าแชทส่งมา — แค่แทรกหัวข้อกลุ่มคั่นตามตำแหน่ง
           replies.map((r, i) => (
-            <div
-              key={r.id}
-              data-idx={i}
-              onMouseEnter={() => onActiveIndexChange(i)}
-              className={`group flex items-start transition-colors ${
-                i === activeIndex ? 'bg-primary/10' : 'hover:bg-gray-50 dark:hover:bg-slate-700/50'
-              }`}
-            >
-              <button
-                onClick={() => onSelect(r)}
-                className="min-w-0 flex-1 flex items-start gap-2.5 pl-3 pr-1 py-2 text-left"
-              >
-                {savedReplyThumb(r) && (
-                  <span className="relative flex-shrink-0 mt-0.5">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={savedReplyThumb(r)!} alt="" className="w-9 h-9 rounded object-cover" />
-                    {r.image_urls.length > 1 && (
-                      <span className="absolute -bottom-0.5 -right-0.5 px-1 rounded bg-black/60 text-white helper-text leading-none py-0.5">
-                        {r.image_urls.length}
-                      </span>
-                    )}
-                  </span>
-                )}
-                <span className="min-w-0 flex-1">
-                  <span className="block text-sm font-medium text-gray-900 dark:text-white truncate">{r.title}</span>
-                  {/* 2 บรรทัด — บรรทัดเดียวตัดจนแยกไม่ออกว่าใบไหนเป็นใบไหน */}
-                  <span className="block helper-text text-gray-500 dark:text-slate-400 line-clamp-2">{savedReplyPreview(r, 160)}</span>
-                </span>
-              </button>
-              {onEdit && (
-                <Tooltip text="แก้ไขข้อความนี้">
-                  {/* จอสัมผัสไม่มี hover — โชว์ตลอดบนมือถือ ซ่อนรอ hover เฉพาะจอใหญ่ */}
-                  <button
-                    onClick={() => onEdit(r)}
-                    aria-label={`แก้ไข ${r.title}`}
-                    className="flex-shrink-0 mt-1.5 mr-1.5 p-1.5 rounded-md text-gray-400 hover:text-primary hover:bg-white dark:hover:bg-slate-800 md:opacity-0 md:group-hover:opacity-100 md:focus:opacity-100 transition-opacity"
-                  >
-                    <Pencil className="w-3.5 h-3.5" />
-                  </button>
-                </Tooltip>
-              )}
+            <div key={r.id}>
+              {frequentCount > 0 && i === 0 && <SectionLabel>ใช้บ่อย</SectionLabel>}
+              {frequentCount > 0 && i === frequentCount && <SectionLabel>ทั้งหมด</SectionLabel>}
+              {row(r, i)}
             </div>
           ))
         )}

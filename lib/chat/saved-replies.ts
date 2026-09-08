@@ -17,6 +17,9 @@ export interface SavedReply {
   image_urls: string[];
   sort_order: number;
   is_active: boolean;
+  /** จำนวนครั้งที่ถูกหยิบไปใช้ (นับตอนแทรกลงช่องพิมพ์) */
+  use_count?: number;
+  last_used_at?: string | null;
   created_by?: string | null;
   created_at?: string;
   updated_at?: string;
@@ -104,6 +107,35 @@ export function savedReplyPreview(reply: SavedReply, max = 80): string {
   if (body) return body.length > max ? `${body.slice(0, max)}…` : body;
   const n = reply.image_urls?.length || 0;
   return n > 1 ? `[รูปภาพ ${n} ใบ]` : n === 1 ? '[รูปภาพ]' : '';
+}
+
+/**
+ * จำนวนใบขั้นต่ำที่ทำให้กลุ่ม "ใช้บ่อย" มีประโยชน์
+ *
+ * คลังเล็ก ๆ (5-6 ใบ) เห็นครบในจอเดียวอยู่แล้ว การตัดหัวมา 5 ใบทำให้เหลือกลุ่มล่าง
+ * ใบเดียวสองใบ ซึ่งดูเหมือนระบบเสียมากกว่าช่วยอะไร
+ */
+export const SAVED_REPLY_FREQUENT_MIN_TOTAL = 9;
+/** โชว์กี่ใบในกลุ่ม "ใช้บ่อย" */
+export const SAVED_REPLY_FREQUENT_COUNT = 5;
+
+/**
+ * แบ่งรายการเป็น "ใช้บ่อย" กับ "ทั้งหมด" — **ไม่ซ้ำกัน** ใบที่ขึ้นข้างบนถูกตัดออกจากข้างล่าง
+ *
+ * ลำดับที่คนตั้งเองในหน้าจัดการ (`sort_order`) ยังคุมกลุ่มล่างเหมือนเดิม —
+ * "ใช้บ่อย" เป็นทางลัดที่วางทับ ไม่ใช่ตัวแทนของการเรียงลำดับที่ตั้งไว้
+ */
+export function splitFrequentReplies(list: SavedReply[]): { frequent: SavedReply[]; rest: SavedReply[] } {
+  if (list.length < SAVED_REPLY_FREQUENT_MIN_TOTAL) return { frequent: [], rest: list };
+  const used = list.filter(r => (r.use_count || 0) > 0);
+  // ยังไม่มีข้อมูลพอให้เรียง = อย่าเดา แสดงลำดับที่คนตั้งไว้ไปตามเดิม
+  if (used.length < SAVED_REPLY_FREQUENT_COUNT) return { frequent: [], rest: list };
+  const frequent = [...used]
+    .sort((a, b) => (b.use_count || 0) - (a.use_count || 0)
+      || (b.last_used_at || '').localeCompare(a.last_used_at || ''))
+    .slice(0, SAVED_REPLY_FREQUENT_COUNT);
+  const ids = new Set(frequent.map(r => r.id));
+  return { frequent, rest: list.filter(r => !ids.has(r.id)) };
 }
 
 /** รูปแรกไว้โชว์เป็นไอคอนในรายการ */

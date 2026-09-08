@@ -79,7 +79,7 @@ import { InfoChip } from '@/components/ui/StatusBadge';
 import AccountPicker from '@/components/ui/AccountPicker';
 import ChannelBadge from '@/components/ui/ChannelBadge';
 import { can } from '@/lib/permissions';
-import { filterSavedReplies, type SavedReply } from '@/lib/chat/saved-replies';
+import { filterSavedReplies, splitFrequentReplies, type SavedReply } from '@/lib/chat/saved-replies';
 import { applySavedReplyVars } from '@/lib/chat/saved-reply-vars';
 import { resolveContactName } from '@/lib/chat/contact-name';
 
@@ -1321,6 +1321,18 @@ function UnifiedChatPageContent() {
     }
   };
 
+  /**
+   * โหลดคลังข้อความสำเร็จรูปล่วงหน้าหลังหน้าแชทนิ่งแล้ว — ของเดิมเริ่มโหลดตอนกดปุ่ม
+   * เลยเจอ spinner ทุกครั้งที่กดครั้งแรก · รายการเล็กมาก (ไม่กี่สิบแถว) และ apiFetch แคช 60 วิ
+   * หน่วง 800ms เพื่อไม่แย่งคิวกับรายชื่อแชท/ข้อความ ที่ผู้ใช้รอดูจริง ๆ
+   */
+  useEffect(() => {
+    if (!currentCompany?.id) return;
+    const t = setTimeout(() => { void loadSavedReplies(); }, 800);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentCompany?.id]);
+
   const openSavedReplyPicker = (mode: 'button' | 'slash') => {
     setSavedReplyMode(mode);
     setSavedReplyIndex(0);
@@ -1329,7 +1341,13 @@ function UnifiedChatPageContent() {
     void loadSavedReplies();
   };
 
-  const savedReplyResults = savedReplyMode ? filterSavedReplies(savedReplies, savedReplySearch) : [];
+  // ลำดับที่แสดง = ลำดับที่ ↑↓ Enter ใช้ ต้องคิดที่เดียวแล้วส่งให้ picker วาดตาม
+  // (ค้นอยู่ = ไม่แบ่งกลุ่ม คนกำลังหาใบที่รู้ชื่ออยู่แล้ว)
+  const savedReplyFiltered = savedReplyMode ? filterSavedReplies(savedReplies, savedReplySearch) : [];
+  const { frequent: savedReplyFrequent, rest: savedReplyRest } = savedReplySearch.trim()
+    ? { frequent: [] as SavedReply[], rest: savedReplyFiltered }
+    : splitFrequentReplies(savedReplyFiltered);
+  const savedReplyResults = [...savedReplyFrequent, ...savedReplyRest];
 
   /** สิทธิ์แก้คลังข้อความสำเร็จรูป = สิทธิ์ตอบแชท (คลังใช้ร่วมกันทั้งร้าน) */
   const canManageSavedReplies = can(
@@ -1440,6 +1458,13 @@ function UnifiedChatPageContent() {
     setSavedReplyMode(false);
     setSavedReplySearch('');
     setTimeout(() => inputRef.current?.focus(), 0);
+
+    // นับว่าใบนี้ถูกใช้ — ไม่รอผล ไม่ให้พลาดแล้วกระทบการพิมพ์ต่อของพนักงาน
+    // อัปเดตในเครื่องด้วย เพื่อให้กลุ่ม "ใช้บ่อย" ขยับทันทีโดยไม่ต้องโหลดใหม่
+    setSavedReplies(prev => prev.map(r => r.id === reply.id
+      ? { ...r, use_count: (r.use_count || 0) + 1, last_used_at: new Date().toISOString() }
+      : r));
+    void apiFetch(`/api/chat/saved-replies/${reply.id}/use`, { method: 'POST' }).catch(() => {});
   };
 
   /** พิมพ์ในกล่องแชท — ขึ้นต้นด้วย / = เปิดรายการข้อความสำเร็จรูปพร้อมค้นตามที่พิมพ์ */
@@ -2769,6 +2794,7 @@ function UnifiedChatPageContent() {
                       <SavedReplyPicker
                         replies={savedReplyResults}
                         loading={savedReplyLoading}
+                        frequentCount={savedReplyFrequent.length}
                         activeIndex={savedReplyIndex}
                         onActiveIndexChange={setSavedReplyIndex}
                         onSelect={useSavedReply}
