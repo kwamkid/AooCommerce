@@ -24,11 +24,13 @@ export { LINE_TEXT_MAX, MULTICAST_BATCH_SIZE };
 
 // ─── Types ────────────────────────────────────────────────────────────
 
-export type BroadcastAudienceType = 'all' | 'contacts' | 'tags' | 'customers';
+export type BroadcastAudienceType = 'all' | 'contacts' | 'tags' | 'customers' | 'contacts_pick';
 export type BroadcastStatus = 'pending' | 'sending' | 'sent' | 'partial' | 'failed';
 
 export interface BroadcastAudienceFilter {
   tag_ids?: string[];
+  /** ผู้ติดต่อที่เลือกเอง (audience_type='contacts_pick') — ใช้ทดสอบส่ง/ส่งกลุ่มเล็ก */
+  contact_ids?: string[];
 }
 
 /** ปุ่มบนการ์ด/ปุ่มตอบเร็ว — uri = เปิดลิงก์ · message = ส่งข้อความกลับเข้าห้องแชท */
@@ -216,6 +218,9 @@ export async function resolveBroadcastRecipients(
   // เลือก "ตามแท็ก" แต่ไม่ได้ติ๊กแท็กไหนเลย = ไม่มีผู้รับ (ไม่ใช่ทุกคน)
   if (audienceType === 'tags' && tagIds.length === 0) return [];
 
+  const pickedIds = audienceType === 'contacts_pick' ? (filter?.contact_ids || []).filter(Boolean) : [];
+  if (audienceType === 'contacts_pick' && pickedIds.length === 0) return [];
+
   let allowedCustomerIds: Set<string> | null = null;
   if (audienceType === 'tags') {
     // กันแท็กข้ามบริษัท — เอาเฉพาะ tag_id ที่เป็นของบริษัทนี้จริง
@@ -275,6 +280,8 @@ export async function resolveBroadcastRecipients(
         .eq('status', 'active')
         .like('line_user_id', 'U%');
       if (needsCustomer) q = q.not('customer_id', 'is', null);
+      // เลือกเอง — กรองที่ DB เลย ไม่ต้องดึงผู้ติดต่อทั้งร้านมากรองในเครื่อง
+      if (pickedIds.length > 0) q = q.in('id', pickedIds);
       return q.order('created_at', { ascending: true }).range(from, to);
     },
   );

@@ -16,6 +16,7 @@ import ImageDropzone from '@/components/ui/ImageDropzone';
 import PlatformIcon from '@/components/ui/PlatformIcon';
 import OptionCards from '@/components/ui/OptionCards';
 import ProductSearchInput, { type ProductSearchItem } from '@/components/ui/ProductSearchInput';
+import EntitySearchInput, { type EntitySearchOption } from '@/components/ui/EntitySearchInput';
 import ProductImageThumb from '@/components/ui/ProductImageThumb';
 import { LoadingCard, NoPermissionCard } from '@/components/ui/StateCard';
 import { useAuthGuard } from '@/lib/useAuthGuard';
@@ -84,13 +85,30 @@ interface AudienceOption { key: string; label: string; hint?: string }
  */
 const AUDIENCE_OPTIONS: Partial<Record<BroadcastPlatform, AudienceOption[]>> = {
   line: [
-    { key: 'contacts', label: 'ผู้ติดต่อทั้งหมดใน OA นี้' },
-    { key: 'customers', label: 'เฉพาะที่ผูกกับลูกค้าในระบบแล้ว' },
-    { key: 'tags', label: 'ตามแท็กลูกค้า' },
+    {
+      key: 'contacts',
+      label: 'คนที่เคยทักเข้ามา',
+      hint: 'ทุกคนที่มีห้องแชทอยู่ในระบบเรา — เคยส่งข้อความหาร้านอย่างน้อยครั้งหนึ่ง',
+    },
+    {
+      key: 'customers',
+      label: 'คนที่เคยทัก + ผูกกับลูกค้าแล้ว',
+      hint: 'เฉพาะห้องแชทที่จับคู่กับข้อมูลลูกค้าในระบบแล้ว (รู้ชื่อจริง/เบอร์/ประวัติซื้อ)',
+    },
+    {
+      key: 'tags',
+      label: 'ตามแท็ก',
+      hint: 'นับทั้งแท็กที่ติดกับลูกค้า และแท็กที่ติดกับห้องแชทโดยตรง',
+    },
     {
       key: 'all',
-      label: 'ทุกคนที่แอดเพื่อน OA',
-      hint: 'รวมคนที่ยังไม่เคยทักมา — บันทึกลงห้องแชทได้เฉพาะผู้ติดต่อที่มีในระบบ',
+      label: 'ผู้ติดตามทั้งหมด',
+      hint: 'รวมคนที่แอดเพื่อนไว้แต่ไม่เคยทักมาเลย — LINE ส่งให้ทุกคน แต่เราไม่รู้ว่าเป็นใคร จึงบันทึกลงห้องแชทได้เฉพาะคนที่เคยทัก · กลุ่มนี้ใหญ่ที่สุดและกินโควตามากสุด',
+    },
+    {
+      key: 'contacts_pick',
+      label: 'เลือกรายคน',
+      hint: 'พิมพ์ชื่อแล้วเลือกทีละคน — ใช้ทดสอบส่งหาตัวเองก่อนยิงจริง หรือส่งกลุ่มเล็กเฉพาะกิจ',
     },
   ],
   tiktok: [
@@ -141,6 +159,13 @@ const KIND_CARDS: Record<BroadcastContentKind, { label: string; description: str
   },
 };
 
+/** ตัวกรองผู้รับตามชนิดกลุ่ม — ที่เดียวเพื่อให้ preview กับตอนส่งใช้ค่าเดียวกันเสมอ */
+function buildAudienceFilter(audience: string, tagIds: string[], contactIds: string[]) {
+  if (audience === 'tags') return { tag_ids: tagIds };
+  if (audience === 'contacts_pick') return { contact_ids: contactIds };
+  return {};
+}
+
 async function fetchProductPage(q: string): Promise<ServerSearchPage<ProductSearchItem>> {
   const res = await apiFetch(`/api/products/search?q=${encodeURIComponent(q)}&limit=40`);
   if (!res.ok) throw new Error('product search failed');
@@ -170,6 +195,8 @@ export default function NewBroadcastPage() {
   const [accountIds, setAccountIds] = useState<string[]>([]);
   const [audience, setAudience] = useState('');
   const [tagIds, setTagIds] = useState<string[]>([]);
+  /** ผู้ติดต่อที่เลือกเอง (audience 'contacts_pick') — เก็บชื่อไว้ด้วยเพื่อโชว์เป็นรายการ */
+  const [pickedContacts, setPickedContacts] = useState<{ id: string; name: string }[]>([]);
 
   // ── เนื้อหา (ชนิดกลาง) ────────────────────────────────────────────────
   const [kind, setKind] = useState<BroadcastContentKind>('announce');
@@ -188,6 +215,24 @@ export default function NewBroadcastPage() {
   const [sending, setSending] = useState(false);
 
   const productSearch = useServerSearch<ProductSearchItem>({ fetch: fetchProductPage });
+
+  /** ค้นผู้ติดต่อของ OA ที่เลือก — รายชื่อมีเป็นพัน ต้องค้นฝั่ง server (aDay Fresh 1,409 คน) */
+  const contactSearch = useServerSearch<EntitySearchOption>({
+    fetch: useCallback(async (q: string) => {
+      const accId = accountIds[0] || '';
+      const res = await apiFetch(
+        `/api/chat/contacts?platform=line&account_id=${accId}&search=${encodeURIComponent(q)}&limit=20`,
+      );
+      if (!res.ok) throw new Error('contact search failed');
+      const json = await res.json();
+      const rows: EntitySearchOption[] = (json.contacts || []).map((c: Record<string, unknown>) => ({
+        id: String(c.id),
+        label: String(c.display_name || 'ไม่ทราบชื่อ'),
+        subtitle: (c.customer_name as string) || undefined,
+      }));
+      return { rows, complete: rows.length < 20 };
+    }, [accountIds]),
+  });
 
   const selectedAccounts = useMemo(
     () => accounts.filter(a => accountIds.includes(a.id)),
@@ -276,9 +321,10 @@ export default function NewBroadcastPage() {
 
   // ─── ประเมินผู้รับ + โควตา ──────────────────────────────────────────
   const runPreview = useCallback(async (
-    accs: BroadcastAccount[], aud: string, ids: string[],
+    accs: BroadcastAccount[], aud: string, ids: string[], picked: string[],
   ) => {
     if (accs.length === 0 || !aud) { setPreview(null); setPerAccount([]); return; }
+    if (aud === 'contacts_pick' && picked.length === 0) { setPreview(null); setPerAccount([]); return; }
     setPreviewLoading(true);
     try {
       // ถามทีละบัญชีแล้วรวมยอด — โควตาเป็นของแต่ละ OA จึงต้องเช็คแยกใบ
@@ -290,7 +336,7 @@ export default function NewBroadcastPage() {
             platform: a.platform,
             account_id: a.id,
             audience_type: aud,
-            audience_filter: aud === 'tags' ? { tag_ids: ids } : {},
+            audience_filter: buildAudienceFilter(aud, ids, picked),
           }),
         });
         if (!res.ok) return null;
@@ -312,8 +358,8 @@ export default function NewBroadcastPage() {
 
   useEffect(() => {
     if (!allowed) return;
-    debouncedPreview(selectedAccounts, audience, tagIds);
-  }, [allowed, selectedAccounts, audience, tagIds, debouncedPreview]);
+    debouncedPreview(selectedAccounts, audience, tagIds, pickedContacts.map(c => c.id));
+  }, [allowed, selectedAccounts, audience, tagIds, pickedContacts, debouncedPreview]);
 
   // ─── สรุปสิ่งที่จะเกิดขึ้น ────────────────────────────────────────────
   const recipientCount = perAccount.reduce((n, r) => n + r.info.recipient_count, 0);
@@ -349,8 +395,11 @@ export default function NewBroadcastPage() {
     .find(Boolean) ?? null;
 
   // โหมด 'all' ของ LINE ยิงผ่าน broadcast API ไม่ต้องมีรายชื่อของเรา
-  const noRecipients = audience !== 'all' && !previewLoading && platforms.length > 0 && recipientCount === 0;
-  const canSend = accountIds.length > 0 && !!audience && !contentError && !quotaShort && !noRecipients && !sending;
+  const pickPending = audience === 'contacts_pick' && pickedContacts.length === 0;
+  const noRecipients = audience !== 'all' && !pickPending && !previewLoading
+    && platforms.length > 0 && recipientCount === 0;
+  const canSend = accountIds.length > 0 && !!audience && !pickPending
+    && !contentError && !quotaShort && !noRecipients && !sending;
   const hasDraft = !!(text.trim() || title.trim() || imagePreviewUrl || cards.length > 0);
 
   // ─── ส่ง ─────────────────────────────────────────────────────────────
@@ -394,7 +443,7 @@ export default function NewBroadcastPage() {
               platform: a.platform,
               account_id: a.id,
               audience_type: audience,
-              audience_filter: audience === 'tags' ? { tag_ids: tagIds } : {},
+              audience_filter: buildAudienceFilter(audience, tagIds, pickedContacts.map(c => c.id)),
               content: { ...draftContent, image_url: imageUrl },
             }),
           });
@@ -527,26 +576,91 @@ export default function NewBroadcastPage() {
               )}
 
               {platforms.length > 0 && (
-                <div className="mt-4 pt-4 border-t border-gray-100 dark:border-slate-700 space-y-2">
-                  {audienceOptions.map(opt => (
-                    <div key={opt.key}>
-                      <Radio checked={audience === opt.key} onChange={() => setAudience(opt.key)} label={opt.label} />
-                      {opt.hint && audience === opt.key && (
-                        <p className="helper-text text-gray-500 dark:text-slate-400 ml-7">{opt.hint}</p>
+                <div className="mt-4 pt-4 border-t border-gray-100 dark:border-slate-700">
+                  <p className="field-label mb-2">ส่งถึงใคร</p>
+                  {/* การ์ดเลือกได้ทั้งใบ + คำอธิบายโชว์ตลอด ไม่ใช่โชว์เฉพาะตัวที่เลือก —
+                      "คนที่เคยทักเข้ามา" กับ "ผู้ติดตามทั้งหมด" ต่างกันตรงไหน ต้องอ่านเทียบกันได้ */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                    {audienceOptions.map(opt => {
+                      const active = audience === opt.key;
+                      return (
+                        <Radio
+                          key={opt.key}
+                          checked={active}
+                          onChange={() => setAudience(opt.key)}
+                          className={`!items-start px-3 py-2 rounded-lg border transition-colors ${
+                            active
+                              ? 'border-[#F4511E] bg-orange-50/50 dark:bg-orange-950/20'
+                              : 'border-gray-200 dark:border-slate-600 hover:border-gray-300 dark:hover:border-slate-500'
+                          }`}
+                        >
+                          <span className="min-w-0">
+                            <span className="block body-text text-gray-900 dark:text-white">{opt.label}</span>
+                            {opt.hint && (
+                              <span className="block helper-text text-gray-500 dark:text-slate-400 mt-0.5">
+                                {opt.hint}
+                              </span>
+                            )}
+                          </span>
+                        </Radio>
+                      );
+                    })}
+                  </div>
+
+                  {audience === 'tags' && (
+                    <div className="mt-2.5">
+                      <MultiSelectSearch
+                        value={tagIds}
+                        onChange={setTagIds}
+                        options={tags.map(t => ({ id: t.id, label: t.name }))}
+                        emptyLabel="เลือกแท็ก..."
+                        icon={<Tag className="w-4 h-4" />}
+                      />
+                    </div>
+                  )}
+
+                  {audience === 'contacts_pick' && (
+                    <div className="mt-2.5">
+                      <EntitySearchInput
+                        value=""
+                        options={contactSearch.results}
+                        loading={contactSearch.loading}
+                        onSearchChange={contactSearch.search}
+                        minSearchLength={2}
+                        placeholder="พิมพ์ชื่อผู้ติดต่อเพื่อเพิ่ม"
+                        emptyMessage="ไม่พบผู้ติดต่อที่ตรงกับคำค้น"
+                        onChange={(id, opt) => {
+                          setPickedContacts(prev =>
+                            prev.some(c => c.id === id) ? prev : [...prev, { id, name: opt.label }]);
+                        }}
+                      />
+                      {pickedContacts.length > 0 && (
+                        <ul className="mt-2 flex flex-wrap gap-1.5">
+                          {pickedContacts.map(c => (
+                            <li
+                              key={c.id}
+                              className="flex items-center gap-1.5 pl-2.5 pr-1 py-1 rounded-full border border-gray-200 dark:border-slate-600"
+                            >
+                              <span className="helper-text text-gray-700 dark:text-slate-300">{c.name}</span>
+                              <button
+                                type="button"
+                                aria-label={`เอา ${c.name} ออก`}
+                                onClick={() => setPickedContacts(prev => prev.filter(x => x.id !== c.id))}
+                                className="w-4 h-4 flex items-center justify-center rounded-full text-gray-400 hover:text-red-500"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
                       )}
-                      {opt.key === 'tags' && audience === 'tags' && (
-                        <div className="ml-7 mt-2">
-                          <MultiSelectSearch
-                            value={tagIds}
-                            onChange={setTagIds}
-                            options={tags.map(t => ({ id: t.id, label: t.name }))}
-                            emptyLabel="เลือกแท็ก..."
-                            icon={<Tag className="w-4 h-4" />}
-                          />
-                        </div>
+                      {accountIds.length > 1 && (
+                        <p className="helper-text text-amber-700 dark:text-amber-500 mt-1.5">
+                          ค้นจากบัญชีแรกที่เลือกเท่านั้น — เลือกรายคนควรติ๊กบัญชีเดียว
+                        </p>
                       )}
                     </div>
-                  ))}
+                  )}
                 </div>
               )}
             </Card>

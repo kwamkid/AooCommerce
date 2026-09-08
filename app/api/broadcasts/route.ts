@@ -29,7 +29,7 @@ export const maxDuration = 300;
 
 /** กลุ่มผู้รับที่แต่ละช่องทางรองรับ — ส่งค่าที่ช่องทางนั้นไม่รู้จักมา = ปฏิเสธ */
 const AUDIENCE_BY_PLATFORM: Record<string, string[]> = {
-  line: ['all', 'contacts', 'tags', 'customers'],
+  line: ['all', 'contacts', 'tags', 'customers', 'contacts_pick'],
   tiktok: ['buyers_365d', 'tags'],
 };
 
@@ -253,7 +253,10 @@ export async function POST(request: NextRequest) {
         marketplace_account_id: target.marketplaceAccountId,
         created_by: auth.userId || null,
         audience_type: audienceType,
-        audience_filter: audienceType === 'tags' ? { tag_ids: audienceFilter.tag_ids || [] } : {},
+        audience_filter:
+          audienceType === 'tags' ? { tag_ids: audienceFilter.tag_ids || [] }
+            : audienceType === 'contacts_pick' ? { contact_ids: audienceFilter.contact_ids || [] }
+              : {},
         messages,
         preview,
         recipient_count: recipientCount,
