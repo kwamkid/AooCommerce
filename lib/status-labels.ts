@@ -96,9 +96,14 @@ const customerPayment: Domain = {
   cancelled: s('ยกเลิก', 'off'),
 };
 
-/** ใบวางบิล (statements) */
+/**
+ * ใบวางบิล (statements)
+ * ⚠️ ตอนนี้โค้ดเขียนจริงแค่ 'sent' (ตอนออกใบ) กับ 'paid' (ตอนรับเงิน)
+ *    'partially_paid' + 'overdue' **จองไว้สำหรับฟีเจอร์ที่จะทำ** (จ่ายบางส่วน / เกินกำหนด)
+ *    — ห้ามลบทิ้งเพราะเห็นว่ายังไม่มีใครเขียน · 'draft' ถูกถอดออกแล้ว (ใบวางบิลเกิดมาเป็น
+ *    'sent' เลย ไม่มีขั้นร่าง) ดู migration 20260908_statements_drop_dead_draft
+ */
 const statement: Domain = {
-  draft:          s('แบบร่าง', 'new'),
   sent:           s('รอชำระ', 'unpaid'),
   partially_paid: s('ชำระบางส่วน', 'partial'),
   paid:           s('ชำระแล้ว', 'done'),
@@ -123,10 +128,14 @@ const replenishment: Domain = {
 };
 
 
-/** รายงานฝากขาย + รายงานห้าง — ใช้ชุดเดียวกัน (วงจรเอกสารเหมือนกันเป๊ะ) */
+/**
+ * รายงานฝากขาย + รายงานห้าง — ใช้ชุดเดียวกัน (วงจรเอกสารเหมือนกันเป๊ะ)
+ * ⚠️ 'received' ที่นี่ = **ตัวแทนแจ้งยอดขายกลับมาแล้ว** ไม่ใช่ "รับของแล้ว" เหมือนโดเมนอื่น
+ *    (ตั้งค่าตอนตัวแทนกรอกยอดผ่าน portal) — มีเฉพาะรายงานฝากขาย รายงานห้างไม่มีค่านี้
+ */
 const report: Domain = {
   draft:     s('ร่าง', 'new'),
-  received:  s('รับแล้ว', 'new'),
+  received:  s('ตัวแทนแจ้งยอดแล้ว', 'new'),
   invoiced:  s('ออกใบแจ้งหนี้แล้ว', 'invoiced'),
   billed:    s('วางบิลแล้ว', 'billed'),
   paid:      s('ชำระแล้ว', 'done'),
@@ -192,7 +201,7 @@ const stockDoc: Domain = {
 const purchaseOrder: Domain = {
   draft:             s('ร่าง', 'new'),
   sent:              s('แจ้ง Sup แล้ว', 'moving'),
-  partial_received:  s('รับบางส่วน', 'partial'),
+  partial_received:  s('รับไม่ครบ', 'partial'),
   received:          s('รับครบ', 'done'),
   received_mismatch: s('รับไม่ตรง', 'unpaid'),
   closed:            s('ปิด', 'off'),
@@ -206,9 +215,15 @@ const purchaseOrderSupplier: Domain = {
   sent:  s('ส่งแล้ว', 'moving'),
 };
 
+/**
+ * ⚠️ 'pending' กับ 'sending' คนละสถานะจริง ห้ามใช้คำเดียวกัน:
+ *    pending = สร้างใบแล้วแต่ยังไม่เริ่มยิงสักล็อต · sending = กำลังยิงอยู่
+ *    ถ้าฟังก์ชันตายก่อนเริ่ม ใบจะค้างที่ pending — ผู้ใช้ต้องอ่านออกว่า "ยังไม่เริ่ม"
+ *    แล้วกด "ส่งต่อ" ไม่ใช่เห็น "กำลังส่ง" ค้างตลอดกาล
+ */
 const broadcast: Domain = {
   draft:     s('แบบร่าง', 'new'),
-  pending:   s('กำลังส่ง', 'partial'),
+  pending:   s('รอส่ง', 'wait'),
   sending:   s('กำลังส่ง', 'partial'),
   sent:      s('ส่งแล้ว', 'done'),
   partial:   s('ส่งไม่ครบ', 'unpaid'),

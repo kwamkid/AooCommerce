@@ -65,7 +65,7 @@ export async function GET(request: NextRequest) {
       .eq('company_id', companyId);
 
     const statusCounts: Record<string, number> = {
-      draft: 0, sent: 0, partially_paid: 0, paid: 0, overdue: 0,
+      sent: 0, partially_paid: 0, paid: 0, overdue: 0,
     };
     for (const row of statusData || []) {
       if (row.status in statusCounts) statusCounts[row.status]++;

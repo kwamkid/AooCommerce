@@ -22,6 +22,7 @@ import ActionMenu, { type ActionItem } from '@/components/ui/ActionMenu';
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
 import { LoadingCard } from '@/components/ui/StateCard';
 import StatusBadge from '@/components/ui/StatusBadge';
+import { statusLabel } from '@/lib/status-labels';
 import { useDebouncedCallback } from '@/lib/useDebounce';
 import Button from '@/components/ui/Button';
 
@@ -42,12 +43,11 @@ interface Statement {
   customer: { id: string; name: string; customer_code: string | null } | null;
 }
 
+// คำเรียกมาจากทะเบียนกลาง — แท็บกับ badge อยู่หน้าเดียวกัน เรียกคนละคำไม่ได้
 const STATUS_TABS = [
-  { key: 'all',            label: 'ทั้งหมด' },
-  { key: 'sent',           label: 'รอชำระ' },
-  { key: 'partially_paid', label: 'ชำระบางส่วน' },
-  { key: 'paid',           label: 'ชำระแล้ว' },
-  { key: 'overdue',        label: 'เกินกำหนด' },
+  { key: 'all', label: 'ทั้งหมด' },
+  ...(['sent', 'partially_paid', 'paid', 'overdue'] as const)
+    .map(k => ({ key: k, label: statusLabel('statement', k) })),
 ];
 
 const THAI_MONTHS = ['', 'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',

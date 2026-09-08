@@ -107,6 +107,14 @@ export async function createStatementForReport(
  * Attaches to the open statement for that customer+period if it exists
  * (adding this report's amount), otherwise creates a new one.
  */
+/**
+ * ใบวางบิลที่ "ยังเปิดอยู่" = ยังจ่ายไม่ครบ จึงเอายอดใหม่ไปรวมได้
+ * ⚠️ เดิมเขียน ['sent','billed'] — 'billed' ไม่เคยอยู่ใน CHECK ของ statements เลย
+ *    (มันเป็นสถานะของ consignment_reports) เงื่อนไขนั้นจึงตายมาตลอด
+ * partially_paid / overdue ยังไม่มีโค้ดตั้งค่า แต่ใส่ไว้ให้ถูกตั้งแต่ตอนนี้ พอเปิดใช้จะได้ไม่ลืม
+ */
+const OPEN_STATEMENT_STATUSES = ['sent', 'partially_paid', 'overdue'];
+
 export async function createOrAttachStatementForDeptReport(
   reportId: string,
   customerId: string,
@@ -127,7 +135,7 @@ export async function createOrAttachStatementForDeptReport(
       .eq('customer_id', customerId)
       .eq('period_year', periodYear)
       .eq('period_month', periodMonth)
-      .in('status', ['sent', 'billed'])
+      .in('status', OPEN_STATEMENT_STATUSES)
       .is('notes', null)
       .order('created_at', { ascending: true })
       .limit(1)
