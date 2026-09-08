@@ -542,7 +542,7 @@ export default function OrderForm({
   // New customer mode
   const [newCustomerMode, setNewCustomerMode] = useState(false);
   /** ลูกค้าเดิมที่เบอร์ตรงกับที่กำลังกรอกให้ลูกค้าใหม่ — null = ไม่ซ้ำ */
-  const [phoneDuplicate, setPhoneDuplicate] = useState<{ id: string; name: string; hint?: string } | null>(null);
+  const [phoneDuplicate, setPhoneDuplicate] = useState<{ id: string; name: string; hint?: string; editUrl?: string } | null>(null);
   const [newCustomerName, setNewCustomerName] = useState('');
 
   // Delivery info — managed by customerPrefill hook
@@ -1215,7 +1215,9 @@ export default function OrderForm({
     try {
       const { rows } = await fetchCustomerSearchPage(digits);
       const hit = rows.find(c => (c.phone || '').replace(/\D/g, '') === digits);
-      setPhoneDuplicate(hit ? { id: hit.id, name: hit.name, hint: hit.customer_code || undefined } : null);
+      setPhoneDuplicate(hit
+        ? { id: hit.id, name: hit.name, hint: hit.customer_code || undefined, editUrl: `/customers/${hit.id}` }
+        : null);
     } catch {
       setPhoneDuplicate(null);   // ค้นไม่ได้ = ไม่เตือน ดีกว่าเตือนผิด
     }
@@ -2620,6 +2622,10 @@ export default function OrderForm({
           onNewCustomerNameChange={setNewCustomerName}
           searchPlaceholder="ค้นหาชื่อ, เบอร์โทร, อีเมล หรือรหัส..."
           duplicatePhoneMatch={phoneDuplicate}
+          onRecheckDuplicate={() => {
+            const digits = (deliveryPhone || '').replace(/\D/g, '');
+            if (digits.length >= 9) void lookupPhoneDuplicate(digits);
+          }}
           onUseDuplicateCustomer={(id) => {
             setNewCustomerMode(false);
             setNewCustomerName('');

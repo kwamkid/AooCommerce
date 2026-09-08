@@ -108,9 +108,11 @@ interface Props {
    *
    * เตือนอย่างเดียว **ไม่บล็อก** เพราะเบอร์ซ้ำถูกต้องก็มี (เบอร์บ้านเดียวกัน เบอร์ร้าน)
    */
-  duplicatePhoneMatch?: { id: string; name: string; hint?: string } | null;
+  duplicatePhoneMatch?: { id: string; name: string; hint?: string; editUrl?: string } | null;
   /** กด "ใช้ลูกค้ารายนี้" จากแถบเตือนเบอร์ซ้ำ */
   onUseDuplicateCustomer?: (id: string) => void;
+  /** ตรวจเบอร์ซ้ำใหม่ — หลังผู้ใช้ไปแก้เบอร์ของรายเดิมในอีกแท็บแล้วกลับมา */
+  onRecheckDuplicate?: () => void;
   /** สปินเนอร์ระหว่างค้นลูกค้า (คู่กับ onCustomerSearchChange) */
   customersLoading?: boolean;
   /** Badge to show next to customer name */
@@ -245,6 +247,7 @@ export default function CustomerSelectionCard({
   onCustomerSearchChange,
   duplicatePhoneMatch,
   onUseDuplicateCustomer,
+  onRecheckDuplicate,
   customersLoading = false,
   badge,
   disabled = false,
@@ -508,7 +511,10 @@ export default function CustomerSelectionCard({
                         เบอร์นี้เป็นของ <b>{duplicatePhoneMatch.name}</b> อยู่แล้ว
                         {duplicatePhoneMatch.hint && <span className="text-red-700 dark:text-red-400"> ({duplicatePhoneMatch.hint})</span>}
                       </p>
-                      <div className="flex flex-wrap items-center gap-x-3 mt-0.5">
+                      {/* ทางออกทั้งสองทางต้องกดได้จริงจากตรงนี้ — ตอนโดนบล็อกยังไม่ได้เลือกลูกค้า
+                          ปุ่มดินสอบนชิปลูกค้าจึงยังไม่มี ถ้าไม่ใส่ลิงก์นี้ "ไปแก้เบอร์รายเดิม"
+                          จะเป็นทางที่พูดถึงได้แต่เดินไปไม่ถึง */}
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1">
                         {onUseDuplicateCustomer && (
                           <button
                             type="button"
@@ -518,9 +524,25 @@ export default function CustomerSelectionCard({
                             ใช้ลูกค้ารายนี้แทน
                           </button>
                         )}
-                        <span className="helper-text text-red-700 dark:text-red-400">
-                          หรือแก้เบอร์ให้ถูก
-                        </span>
+                        {duplicatePhoneMatch.editUrl && (
+                          <Link
+                            href={duplicatePhoneMatch.editUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="helper-text font-medium text-red-800 dark:text-red-300 underline"
+                          >
+                            แก้เบอร์ของรายเดิม
+                          </Link>
+                        )}
+                        {onRecheckDuplicate && (
+                          <button
+                            type="button"
+                            onClick={onRecheckDuplicate}
+                            className="helper-text text-red-700 dark:text-red-400 underline"
+                          >
+                            ตรวจใหม่
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>
