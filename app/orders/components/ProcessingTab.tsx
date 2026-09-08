@@ -42,6 +42,7 @@ import {
 import { isMarketplaceSource } from '@/lib/marketplace/types';
 import FormSelect from '@/components/ui/FormSelect';
 import { useCarriers } from '@/lib/carrier-lookup';
+import BulkActionBar from '@/components/ui/BulkActionBar';
 
 interface ProcessingTabProps {
   /** Carrier counts from parent's initial fetch: { "SPX Express": 14, "__none__": 3, ... } */
@@ -1152,16 +1153,7 @@ export default function ProcessingTab({
       )}
 
       {/* Floating bulk action bar */}
-      {selectedIds.size > 0 && (
-        <div className="fixed bottom-0 left-0 right-0 z-40 bg-white dark:bg-slate-800 border-t border-gray-200 dark:border-slate-700 shadow-lg px-6 py-3">
-          <div className="max-w-screen-xl mx-auto flex items-center justify-between">
-            <button
-              onClick={() => setSelectedIds(new Set())}
-              className="text-sm text-gray-400 hover:text-gray-600 dark:text-slate-500 dark:hover:text-slate-300 transition-colors"
-            >
-              clear all
-            </button>
-            <div className="flex items-center gap-2">
+      <BulkActionBar count={selectedIds.size} onClear={() => setSelectedIds(new Set())}>
               <Button
                 variant="secondary"
                 onClick={() => handlePrintLabels(Array.from(selectedIds))}
@@ -1193,10 +1185,7 @@ export default function ProcessingTab({
                   <span className="hidden md:inline">จัดส่งแล้ว</span> ({shippableSelectedIds.length})
                 </Button>
               )}
-            </div>
-          </div>
-        </div>
-      )}
+      </BulkActionBar>
 
       {/* Tax Invoice Modal */}
       {taxInvoiceModal && (
