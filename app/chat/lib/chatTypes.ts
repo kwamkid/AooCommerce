@@ -236,7 +236,7 @@ export interface ChatMessage {
     image_set?: { id?: string; index?: number; total?: number };
     /** รูปชุดเดียวกันที่ถูกรวมเป็นฟองเดียวตอนแสดงผล (message_type = 'image_album')
      *  — ประกอบขึ้นในเครื่องด้วย groupImageAlbums() ไม่ได้เก็บใน DB */
-    album?: { url: string; messageId: string }[];
+    album?: { url: string; messageId: string; pending?: boolean }[];
     /** อีโมจิของ LINE — ในข้อความเป็นตัวยึดตำแหน่ง ต้องวาดเป็นรูปทับตามช่วง index */
     emojis?: Array<{ index: number; length: number; productId: string; emojiId: string }>;
     mention?: { mentionees?: Array<Record<string, unknown>> };

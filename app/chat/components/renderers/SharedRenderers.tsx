@@ -108,7 +108,8 @@ export function ImageAlbumBubble({ msg, onOpenLightbox, onImageLoad }: RendererP
           <button
             key={item.messageId}
             type="button"
-            onClick={() => onOpenLightbox?.(isLast ? album[MAX_TILES - 1].url : item.url)}
+            // ยังอัปไม่เสร็จ = ยังเป็น blob ในเครื่อง ไม่ใช่รูปจริงบนเซิร์ฟเวอร์ → ยังเปิดดูเต็มไม่ได้
+            onClick={() => { if (!item.pending) onOpenLightbox?.(isLast ? album[MAX_TILES - 1].url : item.url); }}
             className="relative aspect-square overflow-hidden bg-black/5"
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -117,8 +118,14 @@ export function ImageAlbumBubble({ msg, onOpenLightbox, onImageLoad }: RendererP
               alt=""
               loading="lazy"
               onLoad={onImageLoad}
-              className="w-full h-full object-cover hover:opacity-90 transition-opacity"
+              className={`w-full h-full object-cover transition-opacity ${item.pending ? 'opacity-40' : 'hover:opacity-90'}`}
             />
+            {/* วงหมุนอยู่ในช่องของตัวเอง — เห็นทีละใบว่าใบไหนอัปเสร็จแล้ว */}
+            {item.pending && (
+              <span className="absolute inset-0 flex items-center justify-center">
+                <Loader2 className="w-6 h-6 animate-spin text-gray-600 dark:text-white drop-shadow" />
+              </span>
+            )}
             {isLast && (
               <span className="absolute inset-0 bg-black/55 text-white flex items-center justify-center text-lg font-medium">
                 +{hidden}

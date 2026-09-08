@@ -288,7 +288,9 @@ export const officialStickers = [
  * เกณฑ์: ข้อความติดกัน · ทิศทางเดียวกัน · เป็นรูป · มี `raw_message.image_set.id` ตรงกัน
  * (LINE ใส่ id นี้มาให้เองตอนลูกค้าส่งหลายรูปรวดเดียว ส่วนขาออกของเราใส่เองตอนส่งเป็นชุด)
  *
- * ⚠️ ใบที่ยังส่งอยู่หรือส่งไม่สำเร็จ **ไม่รวม** — ต้องเห็นสถานะและปุ่มลองใหม่รายใบ
+ * ⚠️ **รวมใบที่กำลังส่งด้วย** — เจ้าของขอให้เห็นเป็นอัลบั้มตั้งแต่กดส่ง ไม่ใช่ฟองแยก 3 ใบ
+ *    แล้วค่อยกลายเป็นอัลบั้มตอนเสร็จ (ภาพกระโดด) · ใบที่ยังไม่เสร็จจางพร้อมวงหมุนในช่องของตัวเอง
+ * ⚠️ ใบที่ **ส่งไม่สำเร็จไม่รวม** — ต้องแยกออกมาให้เห็นสถานะและปุ่มลองใหม่รายใบ
  * ⚠️ คืน "ข้อความสังเคราะห์" สำหรับวาดเท่านั้น ห้ามเอาไปเขียน DB หรือใช้แทน messages
  *    (lightbox ยังอ่านจาก messages ตัวจริง รูปทุกใบจึงยังอยู่ในแกลเลอรีครบ)
  */
@@ -300,7 +302,7 @@ export function groupImageAlbums(messages: ChatMessage[]): ChatMessage[] {
     m.message_type === 'image'
     && !!m.raw_message?.imageUrl
     && !!m.raw_message?.image_set?.id
-    && (!m._status || m._status === 'sent');
+    && m._status !== 'failed';
 
   while (i < messages.length) {
     const head = messages[i];
@@ -321,13 +323,19 @@ export function groupImageAlbums(messages: ChatMessage[]): ChatMessage[] {
     const members = messages.slice(i, j).slice().sort(
       (a, b) => (a.raw_message?.image_set?.index ?? 0) - (b.raw_message?.image_set?.index ?? 0)
     );
+    const anyPending = members.some(m => m._status === 'sending');
     out.push({
       ...head,
+      _status: anyPending ? 'sending' : head._status,
       message_type: 'image_album',
       content: `[รูปภาพ ${members.length} รูป]`,
       raw_message: {
         ...head.raw_message,
-        album: members.map(m => ({ url: m.raw_message!.imageUrl!, messageId: m.id })),
+        album: members.map(m => ({
+          url: m.raw_message!.imageUrl!,
+          messageId: m.id,
+          pending: m._status === 'sending',
+        })),
       },
     });
     i = j;
