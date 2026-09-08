@@ -305,7 +305,7 @@ export default function CustomerSelectionCard({
         {/* Section header — Left (toggle moved out, sits inline with the input below) */}
         <div className="flex items-center gap-1.5 pb-1 border-b border-gray-100 dark:border-slate-700">
           <Users className="w-4 h-4 text-gray-500 dark:text-slate-400" />
-          <span className="text-sm font-semibold text-gray-700 dark:text-slate-300">
+          <span className="heading-4">
             {customerLabel}
             {customerRequired && <span className="text-red-500 ml-0.5">*</span>}
           </span>
@@ -316,7 +316,7 @@ export default function CustomerSelectionCard({
         {showDeliveryCol && !onShipToOtherChange ? (
           <div className={`${singleColumn ? 'hidden' : 'hidden sm:flex'} items-center gap-1.5 pb-1 border-b border-gray-100 dark:border-slate-700 sm:border-l sm:border-l-transparent sm:pl-4`}>
             <MapPin className="w-4 h-4 text-gray-500 dark:text-slate-400" />
-            <span className="text-sm font-semibold text-gray-700 dark:text-slate-300">
+            <span className="heading-4">
               ที่อยู่จัดส่ง
             </span>
           </div>

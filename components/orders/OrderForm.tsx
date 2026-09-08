@@ -3267,7 +3267,7 @@ export default function OrderForm({
         {step === 3 ? 'ยอดรวมทั้งสิ้น' : hasProducts ? `สินค้า ${wizardItemCount} รายการ` : 'ยังไม่ได้เลือกสินค้า'}
       </span>
       {(step === 3 || hasProducts) && (
-        <span className="text-base font-semibold text-gray-900 dark:text-slate-100 flex-shrink-0">
+        <span className="heading-4 flex-shrink-0">
           ฿{formatPrice(step === 3 ? total : itemsTotal)}
         </span>
       )}

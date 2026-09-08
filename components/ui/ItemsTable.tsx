@@ -637,7 +637,7 @@ export default function ItemsTable({
                   {hasTotal && (
                     <td className="py-3 text-right">
                       <div className="inline-flex items-center justify-end gap-2">
-                        <span className="text-sm font-semibold text-gray-900 dark:text-white">฿{fmt(lineTotal)}</span>
+                        <span className="heading-4">฿{fmt(lineTotal)}</span>
                         {!readOnly && (
                           <button type="button" onClick={() => onRemove!(idx)}
                             className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors flex-shrink-0"
@@ -912,7 +912,7 @@ export default function ItemsTable({
                   // input baselines).
                   <div className="ml-auto text-right self-stretch flex flex-col justify-between">
                     <label className="helper-text block">รวม</label>
-                    <span className="text-sm font-semibold text-gray-900 dark:text-white">฿{fmt(lineTotal)}</span>
+                    <span className="heading-4">฿{fmt(lineTotal)}</span>
                   </div>
                 )}
               </div>
@@ -1069,7 +1069,7 @@ export default function ItemsTable({
             <span className="text-sm text-gray-500 dark:text-slate-400">
               {items.length} รายการ · {totalQty.toLocaleString()} ชิ้น
             </span>
-            <span className="text-sm font-semibold text-gray-900 dark:text-white">฿{fmt(totalAmount)}</span>
+            <span className="heading-4">฿{fmt(totalAmount)}</span>
           </div>
         )}
         {showSummary && items.length > 0 && !hasTotal && !hasCost && !hasPrice && (
