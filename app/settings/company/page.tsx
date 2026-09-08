@@ -6,12 +6,12 @@ import StickyActionBar from '@/components/ui/StickyActionBar';
 import { useFetchOnce } from '@/lib/use-fetch-once';
 import Layout from '@/components/layout/Layout';
 import { useCompany } from '@/lib/company-context';
-import { useAuth } from '@/lib/auth-context';
 import { can } from '@/lib/permissions';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
-import { Building2, FileText, Phone, Mail, MapPin, Receipt, Upload, X, AlertCircle, User, Briefcase, Landmark, Plus, Edit2, Trash2 } from 'lucide-react';
+import { Building2, FileText, Phone, Mail, MapPin, Receipt, AlertCircle, User, Briefcase, Landmark, Plus, Edit2, Trash2 } from 'lucide-react';
 import Card from '@/components/ui/Card';
+import LogoUploader from '@/components/ui/LogoUploader';
 import Button from '@/components/ui/Button';
 import SaveButton from '@/components/ui/SaveButton';
 import Container from '@/components/ui/Container';
@@ -53,13 +53,11 @@ const validateCompanyPhone = (phone: string): string | null => {
 
 export default function CompanySettingsPage() {
   const { currentCompany, companyRoles, permissions, refreshCompanies } = useCompany();
-  const { session } = useAuth();
   const { showToast } = useToast();
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState('');
   const form = useFormValidation();
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Company form state
   const [formData, setFormData] = useState({
@@ -69,14 +67,12 @@ export default function CompanySettingsPage() {
     vatRegistered: false,
   });
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
-  const [logoFile, setLogoFile] = useState<File | null>(null);
-  const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const initialFormRef = useRef(formData);
   const formRef = useRef<HTMLFormElement>(null);
   // มีอะไรเปลี่ยนรอบันทึกอยู่ไหม — รวมรูปโลโก้ที่เลือกไว้แต่ยังไม่อัปโหลดด้วย
   const isDirty = useMemo(
-    () => !!logoFile || JSON.stringify(formData) !== JSON.stringify(initialFormRef.current),
-    [formData, logoFile],
+    () => JSON.stringify(formData) !== JSON.stringify(initialFormRef.current),
+    [formData],
   );
 
   // ── Tax branches (VAT-registered branches for POS receipt routing) ──
@@ -253,46 +249,8 @@ export default function CompanySettingsPage() {
   }, !!currentCompany?.id);
 
   // --- Logo handlers ---
-  const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setLogoFile(file);
-      const reader = new FileReader();
-      reader.onloadend = () => setLogoPreview(reader.result as string);
-      reader.readAsDataURL(file);
-    }
-  };
 
-  const removeLogo = () => {
-    setLogoFile(null);
-    setLogoPreview(null);
-    if (fileInputRef.current) fileInputRef.current.value = '';
-  };
 
-  const handleUploadLogo = async () => {
-    if (!logoFile || !currentCompany?.id || !session?.access_token) return;
-    try {
-      const logoFormData = new FormData();
-      logoFormData.append('file', logoFile);
-      logoFormData.append('companyId', currentCompany.id);
-      const response = await fetch('/api/companies/logo', {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${session.access_token}` },
-        body: logoFormData,
-      });
-      const result = await response.json();
-      if (response.ok && result.logoUrl) {
-        setLogoUrl(result.logoUrl);
-        setLogoFile(null);
-        setLogoPreview(null);
-        await refreshCompanies();
-      } else {
-        setError(result.error || 'ไม่สามารถอัพโหลดโลโก้ได้');
-      }
-    } catch {
-      setError('เกิดข้อผิดพลาดในการอัพโหลดโลโก้');
-    }
-  };
 
   // --- Submit all (company info + features) ---
   const handleSubmit = async (e: React.FormEvent) => {
@@ -331,7 +289,6 @@ export default function CompanySettingsPage() {
 
       if (!companyRes.ok) throw new Error(companyResult.error || 'ไม่สามารถบันทึกข้อมูลร้านค้าได้');
 
-      if (logoFile) await handleUploadLogo();
 
       showToast('บันทึกสำเร็จ', 'success');
 
@@ -379,31 +336,15 @@ export default function CompanySettingsPage() {
               {/* Logo */}
               <Card padding="md">
                 <h3 className="heading-3 mb-4">โลโก้ร้านค้า</h3>
-                <div className="flex items-center space-x-4">
-                  {logoPreview || logoUrl ? (
-                    <div className="relative">
-                      <img src={logoPreview || logoUrl || ''} alt="โลโก้" className="w-20 h-20 rounded-lg object-cover border-2 border-gray-200 dark:border-slate-600" />
-                      {logoPreview && (
-                        <button type="button" onClick={removeLogo} className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 rounded-full flex items-center justify-center text-white hover:bg-red-600">
-                          <X className="w-4 h-4" />
-                        </button>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="w-20 h-20 rounded-lg border-2 border-dashed border-gray-300 flex flex-col items-center justify-center text-gray-400 dark:text-slate-500">
-                      <Building2 className="w-7 h-7 mb-1" />
-                      <span className="text-[10px]">ไม่มีโลโก้</span>
-                    </div>
-                  )}
-                  <div>
-                    <button type="button" onClick={() => fileInputRef.current?.click()} className="px-3 py-2 bg-white dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-lg text-sm text-gray-700 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-600 transition-colors flex items-center">
-                      <Upload className="w-4 h-4 mr-2" />
-                      เลือกรูป
-                    </button>
-                    <input ref={fileInputRef} type="file" accept="image/*" onChange={handleLogoChange} className="hidden" />
-                    <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">JPG, PNG แนะนำ 200x200px</p>
-                  </div>
-                </div>
+                {/* อัปโหลดทันทีที่เลือกรูป (ไม่ต้องกดบันทึก) — ตัวเดียวกับหน้าตั้งค่าหน้าร้าน */}
+                <LogoUploader
+                  value={logoUrl}
+                  onChange={(url) => { setLogoUrl(url); void refreshCompanies(); }}
+                  companyId={currentCompany?.id || ''}
+                  variant="company"
+                  disabled={!currentCompany?.id}
+                />
+                <p className="helper-text mt-2">JPG, PNG แนะนำ 200x200px — โลโก้นี้ขึ้นบนบิลและเอกสารทุกใบ</p>
               </Card>
 
               {/* General Info */}
@@ -656,10 +597,9 @@ export default function CompanySettingsPage() {
             dirty={isDirty}
             onSave={() => formRef.current?.requestSubmit()}
             onCancel={() => {
+              // โลโก้ไม่อยู่ในปุ่มยกเลิก — LogoUploader บันทึกทันทีที่เลือก (มีปุ่มลบของตัวเอง)
               setFormData(initialFormRef.current);
               form.clearAll();
-              setLogoFile(null);
-              setLogoPreview(null);
               setError('');
             }}
           />

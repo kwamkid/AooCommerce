@@ -1,7 +1,7 @@
 'use client';
 
-import { useRef } from 'react';
-import { Building2, FileText, Upload, X } from 'lucide-react';
+import { Building2, FileText, Upload } from 'lucide-react';
+import ImageDropzone from '@/components/ui/ImageDropzone';
 import WizardShell from '@/components/onboarding/WizardShell';
 import { useWizardState, WIZARD_KEYS } from '@/components/onboarding/wizard-storage';
 
@@ -25,27 +25,26 @@ const INITIAL: CompanyForm = {
 };
 
 export default function OnboardingCompanyPage() {
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const [form, setForm] = useWizardState<CompanyForm>(WIZARD_KEYS.company, INITIAL);
   const patch = (p: Partial<CompanyForm>) => setForm(prev => ({ ...prev, ...p }));
 
-  const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  /**
+   * บริษัทยังไม่ถูกสร้างตอนนี้ จึงยัง**อัปขึ้น storage ไม่ได้** (ไม่มี company_id)
+   * เก็บเป็น data URL ใน wizard state พาข้ามหน้าไปก่อน แล้วอัปตอนสร้างบริษัทจริง
+   * ⇒ ใช้ `LogoUploader` ที่นี่ไม่ได้ (ตัวนั้นอัปทันทีและต้องมี companyId)
+   *
+   * ImageDropzone ย่อรูปให้ก่อน — สำคัญมาก เพราะ data URL ของโลโก้ 2MB
+   * จะกลายเป็นสตริง ~2.7MB ใน storage ของเบราว์เซอร์ ซึ่งชนเพดานได้ง่าย ๆ
+   */
+  const onLogoPick = (file: File | null) => {
+    if (!file) { patch({ logoDataUrl: null, logoFileName: null, logoMimeType: null }); return; }
     const reader = new FileReader();
-    reader.onloadend = () => {
-      patch({
-        logoDataUrl: reader.result as string,
-        logoFileName: file.name,
-        logoMimeType: file.type,
-      });
-    };
+    reader.onloadend = () => patch({
+      logoDataUrl: reader.result as string,
+      logoFileName: file.name,
+      logoMimeType: file.type,
+    });
     reader.readAsDataURL(file);
-  };
-
-  const removeLogo = () => {
-    patch({ logoDataUrl: null, logoFileName: null, logoMimeType: null });
-    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const handleNext = async () => {
@@ -66,38 +65,21 @@ export default function OnboardingCompanyPage() {
             โลโก้บริษัท (ไม่บังคับ)
           </label>
           <div className="flex items-center space-x-4">
-            {form.logoDataUrl ? (
-              <div className="relative">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={form.logoDataUrl}
-                  alt="โลโก้"
-                  className="w-20 h-20 rounded-lg object-cover border-2 border-primary/30"
-                />
-                <button
-                  type="button"
-                  onClick={removeLogo}
-                  className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 rounded-full flex items-center justify-center text-white hover:bg-red-600 transition-colors"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="w-20 h-20 rounded-lg border-2 border-dashed border-gray-300 dark:border-slate-600 flex flex-col items-center justify-center text-gray-500 hover:border-primary/50 hover:text-primary transition-colors"
-              >
-                <Upload className="w-6 h-6 mb-1" />
-                <span className="text-xs">อัพโหลด</span>
-              </button>
-            )}
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              onChange={handleLogoChange}
-              className="hidden"
+            <ImageDropzone
+              value={null}
+              onChange={onLogoPick}
+              initialPreviewUrl={form.logoDataUrl}
+              icon={<Upload className="w-6 h-6" />}
+              label="อัพโหลด"
+              alt="โลโก้"
+              maxWidthOrHeight={300}
+              maxSizeMB={0.3}
+              classNames={{
+                root: 'w-20 h-20 flex flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed border-gray-300 dark:border-slate-600 text-gray-500 hover:border-primary/50 hover:text-primary transition-colors text-xs',
+                preview: 'relative inline-block',
+                previewImg: 'w-20 h-20 rounded-lg object-cover border-2 border-primary/30',
+                clear: 'absolute -top-2 -right-2 w-6 h-6 bg-red-500 rounded-full flex items-center justify-center text-white hover:bg-red-600 transition-colors',
+              }}
             />
             <div className="text-xs text-gray-500 dark:text-slate-400">
               <p>รองรับไฟล์ JPG, PNG</p>
