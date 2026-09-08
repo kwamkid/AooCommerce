@@ -171,12 +171,16 @@ export async function GET(request: NextRequest) {
 
     // Apply filters
     if (search) {
-      // Support searching by UUID (exact match on id) or by name/code/phone
+      // ค้นด้วย UUID (ตรงตัว) หรือ ชื่อ / รหัสลูกค้า / เบอร์โทร / อีเมล
+      // อีเมลอยู่ในนี้ด้วยเพราะแอดมินบางคนจำลูกค้าจากอีเมลที่เคยส่งใบเสร็จให้
+      // (เบอร์โทรยังเป็นตัวชี้ขาดตอนเช็คซ้ำ — อีเมลใช้แค่ค้น ดู CustomerSelectionCard)
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(search);
       if (isUuid) {
         query = query.eq('id', search);
       } else {
-        query = query.or(`name.ilike.%${search}%,customer_code.ilike.%${search}%,phone.ilike.%${search}%`);
+        query = query.or(
+          `name.ilike.%${search}%,customer_code.ilike.%${search}%,phone.ilike.%${search}%,email.ilike.%${search}%`
+        );
       }
     }
 

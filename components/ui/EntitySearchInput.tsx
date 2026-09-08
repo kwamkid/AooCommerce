@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Search, X, Check, Loader2, ChevronDown } from 'lucide-react';
+import { Search, X, Check, Loader2, ChevronDown, Plus } from 'lucide-react';
 
 export interface EntitySearchOption {
   id: string;
@@ -33,6 +33,17 @@ interface EntitySearchInputProps {
   autoFocus?: boolean;
   /** Custom empty state message */
   emptyMessage?: string;
+  /**
+   * เปิดแถว "＋ สร้างใหม่" **ท้ายรายการเสมอ** (ไม่ใช่เฉพาะตอนค้นไม่เจอ) — รับคำที่พิมพ์ไป
+   *
+   * ที่ต้องมีตลอดเพราะเคส "ค้นเจอ แต่ไม่ใช่คนนั้น" มีจริง (ชื่อเล่นซ้ำกันเยอะ)
+   * ถ้าโชว์เฉพาะตอนผลว่าง ผู้ใช้จะติดตันเมื่อเจอคนชื่อเดียวกันแต่คนละคน
+   *
+   * ⚠️ ไม่ส่ง prop นี้ = ไม่มีอะไรเปลี่ยนจากเดิม (ที่เรียกใช้อยู่ 8 จุดไม่กระทบ)
+   */
+  onCreate?: (search: string) => void;
+  /** ป้ายของแถวสร้างใหม่ — รับคำค้นไปประกอบข้อความเอง */
+  createLabel?: (search: string) => string;
 }
 
 export default function EntitySearchInput({
@@ -50,6 +61,8 @@ export default function EntitySearchInput({
   minSearchLength = 0,
   autoFocus,
   emptyMessage,
+  onCreate,
+  createLabel,
 }: EntitySearchInputProps) {
   const [search, setSearch] = useState('');
   const [open, setOpen] = useState(false);
@@ -108,6 +121,12 @@ export default function EntitySearchInput({
           o.subtitle?.toLowerCase().includes(search.toLowerCase())
         )
       : options;
+
+  /** โชว์แถวสร้างใหม่เมื่อพิมพ์ถึงเกณฑ์ค้นแล้วเท่านั้น — ชื่อตัวอักษรเดียวไม่ควรสร้างได้ */
+  const canCreate = !!onCreate && search.trim().length >= Math.max(minSearchLength, 1);
+  /** index ของแถวสร้างใหม่ในลำดับคีย์บอร์ด (ต่อท้ายผลค้นหา) */
+  const createIdx = canCreate ? filtered.length : -1;
+
 
   // Click outside to close (desktop only)
   useEffect(() => {
@@ -225,7 +244,7 @@ export default function EntitySearchInput({
     switch (e.key) {
       case 'ArrowDown':
         e.preventDefault();
-        setHighlightIdx(prev => Math.min(prev + 1, filtered.length - 1));
+        setHighlightIdx(prev => Math.min(prev + 1, (canCreate ? filtered.length : filtered.length - 1)));
         break;
       case 'ArrowUp':
         e.preventDefault();
@@ -233,7 +252,11 @@ export default function EntitySearchInput({
         break;
       case 'Enter':
         e.preventDefault();
-        if (highlightIdx >= 0 && filtered[highlightIdx]) {
+        if (canCreate && highlightIdx === filtered.length) {
+          onCreate!(search.trim());
+          setOpen(false);
+          closeMobileModal();
+        } else if (highlightIdx >= 0 && filtered[highlightIdx]) {
           handleSelect(filtered[highlightIdx]);
         }
         break;
@@ -249,9 +272,26 @@ export default function EntitySearchInput({
         }
         break;
     }
-  }, [open, filtered, highlightIdx, handleSelect, mobileModal, closeMobileModal]);
+  }, [open, filtered, highlightIdx, handleSelect, mobileModal, closeMobileModal, canCreate, onCreate, search]);
 
   // Shared option list renderer
+  const renderCreateRow = () => canCreate && (
+    <button
+      data-option
+      type="button"
+      onClick={() => { onCreate!(search.trim()); setOpen(false); closeMobileModal(); }}
+      onMouseEnter={() => setHighlightIdx(createIdx)}
+      className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-base border-t border-gray-100 dark:border-slate-700 transition-colors ${
+        createIdx === highlightIdx ? 'bg-orange-50 dark:bg-slate-700' : ''
+      } text-primary`}
+    >
+      <Plus className="w-4 h-4 flex-shrink-0" />
+      <span className="flex-1 min-w-0 text-left truncate font-medium">
+        {createLabel ? createLabel(search.trim()) : `สร้างใหม่ "${search.trim()}"`}
+      </span>
+    </button>
+  );
+
   const renderOptions = () => {
     if (isLoading) {
       return (
@@ -262,12 +302,16 @@ export default function EntitySearchInput({
     }
     if (filtered.length === 0) {
       return (
-        <div className="px-3 py-4 text-sm text-gray-400 dark:text-slate-500 text-center">
-          {emptyMessage || 'ไม่พบผลลัพธ์'}
-        </div>
+        <>
+          <div className="px-3 py-4 text-sm text-gray-400 dark:text-slate-500 text-center">
+            {emptyMessage || 'ไม่พบผลลัพธ์'}
+          </div>
+          {renderCreateRow()}
+        </>
       );
     }
-    return filtered.map((o, idx) => (
+    return (<>
+      {filtered.map((o, idx) => (
       <button
         key={o.id}
         data-option
@@ -288,7 +332,9 @@ export default function EntitySearchInput({
           )}
         </div>
       </button>
-    ));
+      ))}
+      {renderCreateRow()}
+    </>);
   };
 
   // Show selected state

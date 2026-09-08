@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { Users, X, UserPlus, MapPin, ChevronDown, CheckCircle, Plus, UserCheck, Loader2, Pencil, Gift } from 'lucide-react';
+import { Users, X, UserPlus, MapPin, ChevronDown, CheckCircle, Plus, UserCheck, Loader2, Pencil, Gift, Search } from 'lucide-react';
 import EntitySearchInput from '@/components/ui/EntitySearchInput';
 import Tabs from '@/components/ui/Tabs';
 import Tooltip from '@/components/ui/Tooltip';
@@ -102,6 +102,15 @@ interface Props {
    * — guard ลำดับ response · จำผล 30 วิ · กรองต่อในเครื่องเมื่อพิมพ์ต่อจากคำเดิม
    */
   onCustomerSearchChange?: (search: string) => void;
+  /**
+   * ลูกค้าเดิมที่ "เบอร์โทรตรงกัน" ตอนกำลังสร้างลูกค้าใหม่ — ฟอร์มแม่เป็นคนหาให้
+   * (การ์ดนี้ไม่ยิง API เอง ตั้งใจให้เป็นตัววาดล้วน) · null/ไม่ส่ง = ไม่เตือน
+   *
+   * เตือนอย่างเดียว **ไม่บล็อก** เพราะเบอร์ซ้ำถูกต้องก็มี (เบอร์บ้านเดียวกัน เบอร์ร้าน)
+   */
+  duplicatePhoneMatch?: { id: string; name: string; hint?: string } | null;
+  /** กด "ใช้ลูกค้ารายนี้" จากแถบเตือนเบอร์ซ้ำ */
+  onUseDuplicateCustomer?: (id: string) => void;
   /** สปินเนอร์ระหว่างค้นลูกค้า (คู่กับ onCustomerSearchChange) */
   customersLoading?: boolean;
   /** Badge to show next to customer name */
@@ -223,7 +232,7 @@ function getSaleTypeBadge(customer: CustomerOption): React.ReactNode {
 
 export default function CustomerSelectionCard({
   customerLabel = 'ลูกค้า',
-  searchPlaceholder = 'ค้นหาชื่อ, รหัส, หรือเบอร์โทร...',
+  searchPlaceholder = 'ค้นหาชื่อ, เบอร์โทร, อีเมล หรือรหัส...',
   createCustomerUrl,
   createButtonLabel = 'เพิ่มลูกค้า',
   customerRequired = true,
@@ -234,6 +243,8 @@ export default function CustomerSelectionCard({
   onCustomerClear,
   loading = false,
   onCustomerSearchChange,
+  duplicatePhoneMatch,
+  onUseDuplicateCustomer,
   customersLoading = false,
   badge,
   disabled = false,
@@ -331,33 +342,31 @@ export default function CustomerSelectionCard({
         {/* Row 1 Left: [toggle] + [search/name input] OR [selected customer card] */}
         <div className="relative flex flex-col">
 
-          {/* Mode: New Customer — toggle + name input side by side */}
+          {/* โหมด "ลูกค้าใหม่" — เข้ามาได้ทางเดียวคือกด "＋ สร้างลูกค้าใหม่" ในผลค้นหา
+              (เลิกใช้ปุ่มสลับ เก่า|ใหม่ แล้ว — ปุ่มนั้นให้กดสร้างใหม่ได้โดยไม่ต้องค้นก่อน
+               ซึ่งเป็นบ่อเกิดของลูกค้าซ้ำ · เจ้าของเลือกไว้ 9 ก.ย. 2026) */}
           {newCustomerMode && !selectedCustomer ? (
             <div className="flex items-stretch gap-2">
-              {allowNewCustomer && canChangeCustomer && (
-                <div className="flex items-center gap-0 bg-gray-100 dark:bg-slate-700 rounded-lg p-0.5 flex-shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => { onNewCustomerModeChange?.(false); onNewCustomerNameChange?.(''); }}
-                    className="px-3 py-1.5 text-sm font-medium rounded-md transition-all text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-300"
-                  >
-                    เก่า
-                  </button>
-                  <button
-                    type="button"
-                    className="px-3 py-1.5 text-sm font-medium rounded-md transition-all bg-white dark:bg-slate-600 text-gray-900 dark:text-white shadow-sm"
-                  >
-                    ใหม่
-                  </button>
-                </div>
-              )}
               <input
                 type="text"
                 value={newCustomerName}
                 onChange={(e) => onNewCustomerNameChange?.(e.target.value)}
                 placeholder="ชื่อลูกค้าใหม่"
+                autoFocus
                 className="flex-1 min-w-0 px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary"
               />
+              {canChangeCustomer && (
+                <Tooltip text="กลับไปค้นลูกค้าเดิม">
+                  <button
+                    type="button"
+                    onClick={() => { onNewCustomerModeChange?.(false); onNewCustomerNameChange?.(''); }}
+                    aria-label="กลับไปค้นลูกค้าเดิม"
+                    className="flex-shrink-0 px-3 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-500 hover:text-primary hover:border-primary transition-colors"
+                  >
+                    <Search className="w-4 h-4" />
+                  </button>
+                </Tooltip>
+              )}
             </div>
           ) : selectedCustomer ? (
             <div className="relative flex-1">
@@ -449,37 +458,24 @@ export default function CustomerSelectionCard({
               )}
             </div>
           ) : (
-            <div className="flex items-stretch gap-2">
-              {allowNewCustomer && canChangeCustomer && (
-                <div className="flex items-center gap-0 bg-gray-100 dark:bg-slate-700 rounded-lg p-0.5 flex-shrink-0">
-                  <button
-                    type="button"
-                    className="px-3 py-1.5 text-sm font-medium rounded-md transition-all bg-white dark:bg-slate-600 text-gray-900 dark:text-white shadow-sm"
-                  >
-                    เก่า
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => { onNewCustomerModeChange?.(true); onCustomerClear(); }}
-                    className="px-3 py-1.5 text-sm font-medium rounded-md transition-all text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-300"
-                  >
-                    ใหม่
-                  </button>
-                </div>
-              )}
-              <div className="flex-1 min-w-0">
-                <EntitySearchInput
-                  value=""
-                  onChange={onCustomerChange}
-                  options={searchOptions}
-                  placeholder={searchPlaceholder}
-                  emptyMessage="ไม่พบลูกค้า"
-                  onSearchChange={onCustomerSearchChange}
-                  loading={onCustomerSearchChange ? customersLoading : undefined}
-                  minSearchLength={onCustomerSearchChange ? 2 : undefined}
-                />
-              </div>
-            </div>
+            <EntitySearchInput
+              value=""
+              onChange={onCustomerChange}
+              options={searchOptions}
+              placeholder={searchPlaceholder}
+              emptyMessage="ไม่พบลูกค้า"
+              onSearchChange={onCustomerSearchChange}
+              loading={onCustomerSearchChange ? customersLoading : undefined}
+              minSearchLength={onCustomerSearchChange ? 2 : undefined}
+              // "＋ สร้างลูกค้าใหม่" อยู่ท้ายผลค้นหาเสมอ ไม่ใช่เฉพาะตอนไม่เจอ —
+              // เคส "เจอชื่อเดียวกันแต่คนละคน" มีจริง (ชื่อเล่นซ้ำกันเยอะ) ถ้าโชว์เฉพาะตอนว่างจะติดตัน
+              onCreate={allowNewCustomer && canChangeCustomer ? (q) => {
+                onNewCustomerModeChange?.(true);
+                onNewCustomerNameChange?.(q);
+                onCustomerClear();
+              } : undefined}
+              createLabel={(q) => `สร้างลูกค้าใหม่ "${q}"`}
+            />
           )}
         </div>
 
@@ -492,6 +488,28 @@ export default function CustomerSelectionCard({
                 <label className="field-label">เบอร์โทร</label>
                 <input type="text" inputMode="tel" value={delivery?.deliveryPhone || selectedCustomer?.phone || ''} onChange={(e) => onDeliveryChange?.({ deliveryPhone: e.target.value })} placeholder="0xx-xxx-xxxx" disabled={!isEditable}
                   className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-gray-100 dark:disabled:bg-slate-800" />
+                {/* เบอร์คือตัวชี้ขาดว่าเป็นคนเดิมไหม — ชื่อพึ่งไม่ได้ (ชื่อเล่นซ้ำเยอะ
+                    บางคนบันทึกชื่อจริง บางคนบันทึกชื่อเล่น) · เตือนอย่างเดียว ไม่บล็อก */}
+                {newCustomerMode && duplicatePhoneMatch && (
+                  <div className="mt-1.5 flex items-start gap-2 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 px-2.5 py-2">
+                    <UserCheck className="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+                    <div className="min-w-0 flex-1">
+                      <p className="subtitle-text text-amber-800 dark:text-amber-300">
+                        เบอร์นี้มีในระบบแล้ว — <b>{duplicatePhoneMatch.name}</b>
+                        {duplicatePhoneMatch.hint && <span className="text-amber-700 dark:text-amber-400"> ({duplicatePhoneMatch.hint})</span>}
+                      </p>
+                      {onUseDuplicateCustomer && (
+                        <button
+                          type="button"
+                          onClick={() => onUseDuplicateCustomer(duplicatePhoneMatch.id)}
+                          className="helper-text font-medium text-amber-800 dark:text-amber-300 underline mt-0.5"
+                        >
+                          ใช้ลูกค้ารายนี้แทน
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
               <div>
                 <label className="field-label">อีเมล</label>

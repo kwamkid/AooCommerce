@@ -541,6 +541,8 @@ export default function OrderForm({
 
   // New customer mode
   const [newCustomerMode, setNewCustomerMode] = useState(false);
+  /** ลูกค้าเดิมที่เบอร์ตรงกับที่กำลังกรอกให้ลูกค้าใหม่ — null = ไม่ซ้ำ */
+  const [phoneDuplicate, setPhoneDuplicate] = useState<{ id: string; name: string; hint?: string } | null>(null);
   const [newCustomerName, setNewCustomerName] = useState('');
 
   // Delivery info — managed by customerPrefill hook
@@ -1198,6 +1200,34 @@ export default function OrderForm({
     setTaxInvoiceRequested(false);
     setCustomerHasTax(false);
   };
+
+  /**
+   * เบอร์ซ้ำกับลูกค้าเดิมไหม — เช็คเฉพาะตอนกำลังสร้างลูกค้าใหม่
+   *
+   * เบอร์คือตัวชี้ขาดว่าเป็นคนเดิม ชื่อพึ่งไม่ได้ (ชื่อเล่นซ้ำเยอะ · บางคนบันทึกชื่อจริง
+   * บางคนบันทึกชื่อเล่น ⇒ คนเดียวกันกลายเป็นสองแถว) · **อีเมลไม่เอามาเช็คซ้ำ**
+   * เพราะหลายบ้านใช้อีเมลเดียวกันจริง (เจ้าของเลือกไว้ 9 ก.ย. 2026)
+   *
+   * ยิงผ่าน `/api/customers?search=` เส้นเดิม (มีแคชของ apiFetch อยู่แล้ว) + debounce
+   * ⇒ แทบไม่เพิ่มภาระ · เตือนอย่างเดียว ไม่บล็อกการบันทึก
+   */
+  const lookupPhoneDuplicate = useDebouncedCallback(async (digits: string) => {
+    try {
+      const { rows } = await fetchCustomerSearchPage(digits);
+      const hit = rows.find(c => (c.phone || '').replace(/\D/g, '') === digits);
+      setPhoneDuplicate(hit ? { id: hit.id, name: hit.name, hint: hit.customer_code || undefined } : null);
+    } catch {
+      setPhoneDuplicate(null);   // ค้นไม่ได้ = ไม่เตือน ดีกว่าเตือนผิด
+    }
+  }, 500);
+
+  useEffect(() => {
+    if (!newCustomerMode || selectedCustomer) { setPhoneDuplicate(null); return; }
+    const digits = (deliveryPhone || '').replace(/\D/g, '');
+    // เบอร์มือถือไทย 10 หลัก · เบอร์บ้าน 9 — สั้นกว่านั้นยังพิมพ์ไม่เสร็จ อย่าเพิ่งยิง
+    if (digits.length < 9) { setPhoneDuplicate(null); return; }
+    void lookupPhoneDuplicate(digits);
+  }, [newCustomerMode, selectedCustomer, deliveryPhone, lookupPhoneDuplicate]);
 
   const handleSelectCustomer = async (customerIdOrCustomer: string | Customer) => {
     // Support both ID (from CustomerSelectionCard) and object (from EntitySearchInput)
@@ -2572,7 +2602,14 @@ export default function OrderForm({
           onNewCustomerModeChange={(isNew) => { setNewCustomerMode(isNew); if (isNew) setNewCustomerName(''); }}
           newCustomerName={newCustomerName}
           onNewCustomerNameChange={setNewCustomerName}
-          searchPlaceholder="ค้นหาชื่อ, รหัส, หรือเบอร์โทร..."
+          searchPlaceholder="ค้นหาชื่อ, เบอร์โทร, อีเมล หรือรหัส..."
+          duplicatePhoneMatch={phoneDuplicate}
+          onUseDuplicateCustomer={(id) => {
+            setNewCustomerMode(false);
+            setNewCustomerName('');
+            setPhoneDuplicate(null);
+            void handleSelectCustomer(id);
+          }}
           createCustomerUrl="/customers/new"
           customers={customers.map(c => ({
             id: c.id, name: c.name, phone: c.phone || null, email: c.email || null,
