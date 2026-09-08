@@ -213,7 +213,7 @@ export default function PaymentFollowupPage() {
 
   const handleContactLine = (lineUserId: string) => {
     // Navigate to LINE chat with this user
-    router.push(`/line-chat?user=${lineUserId}`);
+    router.push(`/chat?line_user=${lineUserId}`);
   };
 
   const handleSort = (field: string) => {

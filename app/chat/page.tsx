@@ -399,19 +399,27 @@ function UnifiedChatPageContent() {
     }
   }, [authLoading, userProfile, debouncedSearch, filterLinked, filterUnread, filterOrderDaysRange, filterAccountId, filterPlatform, filterTag]);
 
-  // Auto-select contact from URL param
+  // เปิดห้องจาก URL — `contact_id` (id ของแถวเรา) หรือ `line_user` (id ฝั่ง LINE)
+  // `line_user` มีไว้ให้หน้าที่รู้จักแต่ id ของ LINE เรียกใช้ (CRM ติดตามลูกค้า/ติดตามหนี้)
+  // ⚠️ หาเจอเฉพาะห้องที่อยู่ในหน้าที่โหลดมาแล้ว — ห้องที่เงียบนานจนตกไปหน้าหลัง ๆ จะไม่ถูกเลือก
+  //    (ข้อจำกัดเดิมของ contact_id เหมือนกัน แก้ได้เมื่อมี endpoint ค้นด้วย platform_user_id)
   useEffect(() => {
     const contactId = searchParams.get('contact_id');
-    if (contactId && contacts.length > 0 && !selectedContact) {
-      const contact = contacts.find(c => c.id === contactId);
-      if (contact) {
-        setSelectedContact(contact);
-        const params = new URLSearchParams(searchParams.toString());
-        params.delete('contact_id');
-        const qs = params.toString();
-        router.replace(qs ? `?${qs}` : '/chat', { scroll: false });
-      }
-    }
+    const lineUser = searchParams.get('line_user');
+    if (!contactId && !lineUser) return;
+    if (contacts.length === 0 || selectedContact) return;
+
+    const contact = contactId
+      ? contacts.find(c => c.id === contactId)
+      : contacts.find(c => c.platform === 'line' && c.platform_user_id === lineUser);
+    if (!contact) return;
+
+    setSelectedContact(contact);
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete('contact_id');
+    params.delete('line_user');
+    const qs = params.toString();
+    router.replace(qs ? `?${qs}` : '/chat', { scroll: false });
   }, [searchParams, contacts, selectedContact, router]);
 
   // Fetch messages when contact selected — ผูกกับ **id** ของห้อง ไม่ใช่ตัว object

@@ -630,7 +630,7 @@ export default function Sidebar() {
                   {section.title}
                 </h3>
                 {section.items.map((item) => {
-                  const isActive = pathname === item.href || (item.href !== '/' && item.href !== '/inventory' && item.href !== '/pos' && pathname?.startsWith(item.href + '/')) || (item.href === '/chat' && (pathname === '/line-chat' || pathname === '/fb-chat'));
+                  const isActive = pathname === item.href || (item.href !== '/' && item.href !== '/inventory' && item.href !== '/pos' && pathname?.startsWith(item.href + '/'));
 
                   // Products item: render as collapsible with submenu
                   if (item.href === '/products') {

@@ -254,7 +254,7 @@ export default function CRMFollowUpPage() {
   };
 
   const handleContactLine = (lineUserId: string) => {
-    router.push(`/line-chat?user=${lineUserId}`);
+    router.push(`/chat?line_user=${lineUserId}`);
   };
 
   const handleShowOrderHistory = async (customer: CRMCustomer) => {
