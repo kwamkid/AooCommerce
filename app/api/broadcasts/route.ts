@@ -38,12 +38,21 @@ const AUDIENCE_BY_PLATFORM: Record<string, string[]> = {
 
 /** เก็บเฉพาะตัวกรองที่กลุ่มนั้นใช้จริง — เก็บทั้งก้อนแล้วอ่านย้อนหลังจะแยกไม่ออกว่าอันไหนมีผล */
 function buildStoredFilter(audienceType: string, f: BroadcastAudienceFilter) {
-  if (audienceType === 'tags') return { tag_ids: f.tag_ids || [] };
+  // ตัวกรองซ้อนใช้ได้กับทุกกลุ่มที่มีรายชื่อจริง — ยกเว้น 'all' (ยิงถึงผู้ติดตามที่เราไม่รู้จัก)
+  // และ 'contacts_pick' (เลือกมาเองแล้ว ไม่ต้องกรองซ้ำ)
+  const refine = (audienceType === 'all' || audienceType === 'contacts_pick')
+    ? {}
+    : {
+        ...(Number(f.min_messages) > 0 ? { min_messages: Math.floor(Number(f.min_messages)) } : {}),
+        ...(Number(f.last_chat_days) > 0 ? { last_chat_days: Math.floor(Number(f.last_chat_days)) } : {}),
+      };
+
+  if (audienceType === 'tags') return { tag_ids: f.tag_ids || [], ...refine };
   if (audienceType === 'contacts_pick') return { contact_ids: f.contact_ids || [] };
   if (audienceType === 'bought_within' || audienceType === 'bought_before') {
-    return { days: Math.max(1, Number(f.days) || 30) };
+    return { days: Math.max(1, Number(f.days) || 30), ...refine };
   }
-  return {};
+  return refine;
 }
 
 interface BroadcastListRow {

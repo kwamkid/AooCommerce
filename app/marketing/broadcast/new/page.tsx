@@ -215,11 +215,19 @@ const KIND_CARDS: Record<BroadcastContentKind, { label: string; description: str
 };
 
 /** ตัวกรองผู้รับตามชนิดกลุ่ม — ที่เดียวเพื่อให้ preview กับตอนส่งใช้ค่าเดียวกันเสมอ */
-function buildAudienceFilter(audience: string, tagIds: string[], contactIds: string[], days: number) {
-  if (audience === 'tags') return { tag_ids: tagIds };
+function buildAudienceFilter(
+  audience: string, tagIds: string[], contactIds: string[], days: number,
+  minMessages: number, lastChatDays: number,
+) {
   if (audience === 'contacts_pick') return { contact_ids: contactIds };
-  if (audience === 'bought_within' || audience === 'bought_before') return { days };
-  return {};
+  // ตัวกรองซ้อนใช้ไม่ได้กับ 'all' — ยิงถึงผู้ติดตามที่เราไม่มีรายชื่อ จึงกรองอะไรไม่ได้
+  const refine = audience === 'all' ? {} : {
+    ...(minMessages > 0 ? { min_messages: minMessages } : {}),
+    ...(lastChatDays > 0 ? { last_chat_days: lastChatDays } : {}),
+  };
+  if (audience === 'tags') return { tag_ids: tagIds, ...refine };
+  if (audience === 'bought_within' || audience === 'bought_before') return { days, ...refine };
+  return refine;
 }
 
 async function fetchProductPage(q: string): Promise<ServerSearchPage<ProductSearchItem>> {
@@ -274,6 +282,9 @@ export default function NewBroadcastPage() {
   const [audienceModal, setAudienceModal] = useState(false);
   /** จำนวนวันของกลุ่ม "ซื้อภายใน N วัน" / "หายไปเกิน N วัน" */
   const [audienceDays, setAudienceDays] = useState(30);
+  /** ── ตัวกรองซ้อน: หั่นกลุ่มที่เลือกให้แคบลง (0 = ไม่กรอง) ── */
+  const [minMessages, setMinMessages] = useState(0);
+  const [lastChatDays, setLastChatDays] = useState(0);
 
   const productSearch = useServerSearch<ProductSearchItem>({ fetch: fetchProductPage });
 
@@ -391,6 +402,7 @@ export default function NewBroadcastPage() {
   // ─── ประเมินผู้รับ + โควตา ──────────────────────────────────────────
   const runPreview = useCallback(async (
     accs: BroadcastAccount[], aud: string, ids: string[], picked: string[], dayCount: number,
+    minMsg: number, chatDays: number,
   ) => {
     if (accs.length === 0 || !aud) { setPreview(null); setPerAccount([]); return; }
     if (aud === 'contacts_pick' && picked.length === 0) { setPreview(null); setPerAccount([]); return; }
@@ -405,7 +417,7 @@ export default function NewBroadcastPage() {
             platform: a.platform,
             account_id: a.id,
             audience_type: aud,
-            audience_filter: buildAudienceFilter(aud, ids, picked, dayCount),
+            audience_filter: buildAudienceFilter(aud, ids, picked, dayCount, minMsg, chatDays),
           }),
         });
         if (!res.ok) return null;
@@ -427,8 +439,12 @@ export default function NewBroadcastPage() {
 
   useEffect(() => {
     if (!allowed) return;
-    debouncedPreview(selectedAccounts, audience, tagIds, pickedContacts.map(c => c.id), audienceDays);
-  }, [allowed, selectedAccounts, audience, tagIds, pickedContacts, audienceDays, debouncedPreview]);
+    debouncedPreview(
+      selectedAccounts, audience, tagIds, pickedContacts.map(c => c.id),
+      audienceDays, minMessages, lastChatDays,
+    );
+  }, [allowed, selectedAccounts, audience, tagIds, pickedContacts, audienceDays,
+      minMessages, lastChatDays, debouncedPreview]);
 
   // ─── สรุปสิ่งที่จะเกิดขึ้น ────────────────────────────────────────────
   const recipientCount = perAccount.reduce((n, r) => n + r.info.recipient_count, 0);
@@ -486,7 +502,11 @@ export default function NewBroadcastPage() {
         : `เลือกไว้ ${pickedContacts.length} คน`;
     }
     if (previewLoading) return 'กำลังนับผู้รับ...';
-    return `${recipientCount.toLocaleString()} คน`;
+    const refine = [
+      minMessages > 0 ? `คุย ≥${minMessages} ข้อความ` : null,
+      lastChatDays > 0 ? `คุยใน ${lastChatDays} วัน` : null,
+    ].filter(Boolean).join(' · ');
+    return `${recipientCount.toLocaleString()} คน${refine ? ` · ${refine}` : ''}`;
   })();
 
   // ─── ส่ง ─────────────────────────────────────────────────────────────
@@ -530,7 +550,9 @@ export default function NewBroadcastPage() {
               platform: a.platform,
               account_id: a.id,
               audience_type: audience,
-              audience_filter: buildAudienceFilter(audience, tagIds, pickedContacts.map(c => c.id), audienceDays),
+              audience_filter: buildAudienceFilter(
+                audience, tagIds, pickedContacts.map(c => c.id), audienceDays, minMessages, lastChatDays,
+              ),
               content: { ...draftContent, image_url: imageUrl },
             }),
           });
@@ -1164,6 +1186,77 @@ export default function NewBroadcastPage() {
                 </div>
               </div>
             ))}
+
+            {/* ── ตัวกรองซ้อน — หั่นกลุ่มที่เลือกให้แคบลง ใช้ได้กับทุกกลุ่มที่มีรายชื่อจริง ──
+                'ผู้ติดตามทั้งหมด' กรองไม่ได้ (เราไม่มีรายชื่อ) · 'เลือกรายคน' ไม่ต้องกรองซ้ำ */}
+            {audience !== 'all' && audience !== 'contacts_pick' && (
+              <div className="border-t border-gray-100 dark:border-slate-700 pt-4">
+                <p className="field-label mb-1">กรองให้แคบลงอีก (ไม่บังคับ)</p>
+                <p className="helper-text text-gray-500 dark:text-slate-400 mb-3">
+                  ตัดคนที่ทักมาคำเดียวแล้วหาย และคนที่เงียบไปนานออก — ยิงไปก็มักไม่ได้อะไรกลับ
+                </p>
+
+                <div className="space-y-3">
+                  <div>
+                    <label className="helper-text text-gray-600 dark:text-slate-300 block mb-1">
+                      คุยกันมาแล้วอย่างน้อย (นับเฉพาะข้อความที่ลูกค้าพิมพ์)
+                    </label>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <div className="w-24">
+                        <NumberInput
+                          value={minMessages}
+                          onChange={(v) => setMinMessages(Math.max(0, Math.min(999, v || 0)))}
+                        />
+                      </div>
+                      <span className="body-text text-gray-500 dark:text-slate-400">ข้อความ</span>
+                      {[0, 3, 5, 10].map(n => (
+                        <button
+                          key={n}
+                          type="button"
+                          onClick={() => setMinMessages(n)}
+                          className={`helper-text px-2 py-1 rounded-full border transition-colors ${
+                            minMessages === n
+                              ? 'border-[#F4511E] text-[#F4511E] bg-orange-50/60 dark:bg-orange-950/20'
+                              : 'border-gray-200 dark:border-slate-600 text-gray-500 dark:text-slate-400 hover:border-gray-300'
+                          }`}
+                        >
+                          {n === 0 ? 'ไม่กรอง' : `≥${n}`}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="helper-text text-gray-600 dark:text-slate-300 block mb-1">
+                      คุยกันล่าสุดภายใน
+                    </label>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <div className="w-24">
+                        <NumberInput
+                          value={lastChatDays}
+                          onChange={(v) => setLastChatDays(Math.max(0, Math.min(3650, v || 0)))}
+                        />
+                      </div>
+                      <span className="body-text text-gray-500 dark:text-slate-400">วัน</span>
+                      {[0, 30, 90, 180].map(n => (
+                        <button
+                          key={n}
+                          type="button"
+                          onClick={() => setLastChatDays(n)}
+                          className={`helper-text px-2 py-1 rounded-full border transition-colors ${
+                            lastChatDays === n
+                              ? 'border-[#F4511E] text-[#F4511E] bg-orange-50/60 dark:bg-orange-950/20'
+                              : 'border-gray-200 dark:border-slate-600 text-gray-500 dark:text-slate-400 hover:border-gray-300'
+                          }`}
+                        >
+                          {n === 0 ? 'ไม่กรอง' : `${n} วัน`}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </Modal>
       </Container>

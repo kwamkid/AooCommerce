@@ -39,6 +39,14 @@ export interface BroadcastAudienceFilter {
   contact_ids?: string[];
   /** จำนวนวันของกลุ่ม `bought_within` / `bought_before` */
   days?: number;
+  /**
+   * ── ตัวกรองซ้อน (ใช้ได้กับทุกกลุ่มที่มีรายชื่อผู้ติดต่อจริง) ──
+   * ไม่ใช่กลุ่มใหม่ แต่เป็นการหั่นกลุ่มที่เลือกให้แคบลง
+   */
+  /** คุยกันมาแล้วอย่างน้อยกี่ข้อความ (นับเฉพาะที่ลูกค้าพิมพ์มา) */
+  min_messages?: number;
+  /** คุยกันล่าสุดภายในกี่วัน — ตัดคนที่เงียบไปนานออก */
+  last_chat_days?: number;
 }
 
 /** ปุ่มบนการ์ด/ปุ่มตอบเร็ว — uri = เปิดลิงก์ · message = ส่งข้อความกลับเข้าห้องแชท */
@@ -281,11 +289,13 @@ export async function resolveBroadcastRecipients(
 
   // ⚠️ ต้องผ่าน fetchAllRows — Supabase ตัดที่ 1,000 แถวเงียบ ๆ และร้านเดียวมีผู้ติดต่อ
   //    เกินพันคนแล้ว (aDay Fresh 1,409) ถ้าไม่แบ่งหน้า คนท้ายรายชื่อจะไม่ได้รับข้อความ
-  const { rows: contacts } = await fetchAllRows<{ id: string; line_user_id: string; customer_id: string | null }>(
+  const { rows: contacts } = await fetchAllRows<{
+    id: string; line_user_id: string; customer_id: string | null; last_message_at: string | null;
+  }>(
     (from, to) => {
       let q = supabaseAdmin
         .from('line_contacts')
-        .select('id, line_user_id, customer_id', { count: 'exact' })
+        .select('id, line_user_id, customer_id, last_message_at', { count: 'exact' })
         .eq('company_id', companyId)
         .eq('chat_account_id', chatAccountId)
         .eq('status', 'active')
@@ -326,6 +336,30 @@ export async function resolveBroadcastRecipients(
   const days = Math.max(1, Number(filter?.days) || 30);
   const cutoff = new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
 
+  // ── ตัวกรองซ้อน: คุยกันกี่ข้อความ / คุยล่าสุดเมื่อไหร่ ────────────────
+  const minMessages = Math.max(0, Number(filter?.min_messages) || 0);
+  const lastChatDays = Math.max(0, Number(filter?.last_chat_days) || 0);
+  const lastChatCutoff = lastChatDays > 0
+    ? new Date(Date.now() - lastChatDays * 86_400_000).toISOString()
+    : null;
+
+  let messageCounts: Map<string, number> | null = null;
+  if (minMessages > 0) {
+    const { data, error } = await supabaseAdmin.rpc('get_line_contact_message_counts', {
+      p_company_id: companyId,
+      p_chat_account_id: chatAccountId,
+    });
+    if (error) {
+      // นับไม่ได้ = กรองมั่วไม่ได้ ต้องคืนว่าง ดีกว่ายิงกว้างเกินที่ผู้ใช้ตั้งใจ
+      console.error('[broadcast] get_line_contact_message_counts:', error.message);
+      return [];
+    }
+    messageCounts = new Map(
+      (data || []).map((r: { contact_id: string; incoming_count: number }) =>
+        [r.contact_id, Number(r.incoming_count) || 0]),
+    );
+  }
+
   const seen = new Set<string>();
   const out: BroadcastRecipient[] = [];
   for (const c of contacts) {
@@ -346,6 +380,9 @@ export async function resolveBroadcastRecipients(
       // "หายไป" = เคยซื้อ แต่ครั้งล่าสุดเก่ากว่ากรอบที่ตั้งไว้
       if (audienceType === 'bought_before' && !(count > 0 && last && last < cutoff)) continue;
     }
+    // ห้องที่ลูกค้ายังไม่เคยพิมพ์อะไรเลยจะไม่มีใน map — นับเป็น 0
+    if (messageCounts && (messageCounts.get(c.id) ?? 0) < minMessages) continue;
+    if (lastChatCutoff && !(c.last_message_at && c.last_message_at >= lastChatCutoff)) continue;
     if (seen.has(c.line_user_id)) continue;   // ผู้ใช้คนเดียวห้ามได้ข้อความซ้ำ
     seen.add(c.line_user_id);
     out.push({ contact_id: c.id, line_user_id: c.line_user_id });
