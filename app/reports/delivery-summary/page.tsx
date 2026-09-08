@@ -734,10 +734,8 @@ export default function DeliverySummaryPage() {
    */
   /** ดึงออเดอร์เต็มของทั้งวัน — ใบจัดของกับใบคำสั่งซื้อใช้ชุดเดียวกัน */
   const loadOrdersOfDay = async () => {
-    // ติ๊กไว้ = พิมพ์เฉพาะที่ติ๊ก · ไม่ติ๊กเลย = ทั้งวัน (เหมือนหน้าคำสั่งซื้อ)
-    const orderIds = selectedIds.size > 0
-      ? orders.filter(o => selectedIds.has(o.id)).map(o => o.id)
-      : (reportData?.byDate || []).flatMap(g => g.deliveries.map(d => d.orderId));
+    // เรียกจากแถบลอยเท่านั้น = มีบิลติ๊กไว้เสมอ (อยากได้ทั้งวันก็กด "เลือกทั้งหมด")
+    const orderIds = orders.filter(o => selectedIds.has(o.id)).map(o => o.id);
     // ยิงขนาน (จำกัดครั้งละ 5 กันถล่ม DB) — ของเดิมวน await ทีละใบ วันที่มี 5 บิล
     // จึงรอ 6 วินาทีก่อน PDF จะเริ่มสร้างด้วยซ้ำ
     const results = await parallelLimit(orderIds, async (id) => {
@@ -752,7 +750,7 @@ export default function DeliverySummaryPage() {
   };
 
   const handleExportPackingPdf = async () => {
-    if ((reportData?.byDate || []).length === 0) return;
+    if (selectedIds.size === 0) return;
 
     setGeneratingPdf(true);
     // เปิดแท็บรอไว้ก่อน — Safari บนมือถือบล็อก window.open ที่ไม่ได้เกิดจากการกดปุ่มโดยตรง
@@ -773,7 +771,7 @@ export default function DeliverySummaryPage() {
 
   /** ใบคำสั่งซื้อของทั้งวัน (มีราคา) — คนละใบกับใบจัดของที่ให้คนแพ็คใช้ */
   const handleExportOrderSlipPdf = async () => {
-    if ((reportData?.byDate || []).length === 0) return;
+    if (selectedIds.size === 0) return;
 
     setGeneratingSlipPdf(true);
     const printWindow = preOpenPrintWindow();
@@ -870,34 +868,9 @@ export default function DeliverySummaryPage() {
               ]}
             />
 
-            {/* Action buttons - contextual per tab */}
-            <div className="w-full sm:w-auto sm:ml-auto flex flex-wrap items-center gap-2">
-              {activeTab === 'packing' ? (
-                <>{selectedIds.size === 0 && (
-                  <>
-                  <Button
-                    variant="secondary"
-                    loading={generatingSlipPdf}
-                    disabled={!reportData || reportData.byDate.length === 0}
-                    icon={<FileText className="w-4 h-4" />}
-                    onClick={handleExportOrderSlipPdf}
-                    aria-label="พิมพ์ใบคำสั่งซื้อของทั้งวัน"
-                  >
-                    <span className="hidden lg:inline">ใบคำสั่งซื้อ</span>
-                  </Button>
-                  <Button
-                    variant="primary"
-                    loading={generatingPdf}
-                    disabled={!reportData || reportData.productSummary.length === 0}
-                    icon={<ClipboardList className="w-4 h-4" />}
-                    onClick={handleExportPackingPdf}
-                    aria-label="พิมพ์ใบจัดของของทั้งวัน"
-                  >
-                    <span className="hidden lg:inline">ใบจัดของ</span>
-                  </Button>
-                  </>
-                )}</>
-              ) : (
+            {/* แท็บ "จัดของ" ไม่มีปุ่มตรงนี้แล้ว — พิมพ์ผ่านแถบลอยตอนติ๊กบิล (เลือกทั้งหมดได้ในคลิกเดียว) */}
+            {activeTab === 'delivery' && (
+              <div className="w-full sm:w-auto sm:ml-auto flex flex-wrap items-center gap-2">
                 <Button
                   variant="secondary"
                   onClick={handleCopyText}
@@ -906,8 +879,8 @@ export default function DeliverySummaryPage() {
                 >
                   <span className="hidden lg:inline">{copySuccess ? 'คัดลอกแล้ว!' : 'สรุปการส่ง'}</span>
                 </Button>
-              )}
-            </div>
+              </div>
+            )}
           </div>
         </div>
 
