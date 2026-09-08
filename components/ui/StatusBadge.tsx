@@ -3,7 +3,7 @@
 import type { HTMLAttributes, ReactNode } from 'react';
 import {
   ShoppingBag, Banknote, FileText, Package, ClipboardList, ReceiptText,
-  Undo2, Tag, Percent, Megaphone, ArrowLeftRight, Boxes, ShoppingCart,
+  Undo2, Tag, Percent, Megaphone, ArrowLeftRight, Boxes, ShoppingCart, Layers,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { statusMeta, type StatusDomain } from '@/lib/status-labels';
@@ -40,10 +40,12 @@ const DOMAIN_ICON: Record<StatusDomain, LucideIcon> = {
   report:                ClipboardList,
   creditNote:            ReceiptText,
   creditNoteType:        Tag,
+  taxDoc:                FileText,
   returnNote:            Undo2,
   promotion:             Percent,
   transfer:              ArrowLeftRight,
   stockDoc:              Boxes,
+  stockLevel:            Layers,
   purchaseOrder:         ShoppingCart,
   purchaseOrderSupplier: ShoppingCart,
   broadcast:             Megaphone,

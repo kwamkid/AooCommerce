@@ -27,6 +27,7 @@ import PageHeader from '@/components/ui/PageHeader';
 import Button from '@/components/ui/Button';
 import { LoadingCard } from '@/components/ui/StateCard';
 import StatusBadge from '@/components/ui/StatusBadge';
+import { statusLabel } from '@/lib/status-labels';
 import { useDebouncedCallback } from '@/lib/useDebounce';
 
 interface ConsignmentReport {
@@ -685,7 +686,7 @@ function ConsignmentReportsContent() {
                 <>
                   <p className={`font-mono text-sm font-bold ${r.status === 'cancelled' ? 'text-red-500 line-through' : 'text-gray-900 dark:text-white'}`}>
                     {r.report_number}
-                    {r.status === 'cancelled' && <span className="ml-1.5 no-underline inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-600 text-white">VOID</span>}
+                    {r.status === 'cancelled' && <span className="ml-1.5 no-underline inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-600 text-white">{statusLabel('report', 'cancelled')}</span>}
                   </p>
                   <p className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">{new Date(r.created_at).toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit' })}</p>
                 </>

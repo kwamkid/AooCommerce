@@ -8,7 +8,7 @@ import { useFeatures } from '@/lib/features-context';
 import { Loader2, Search, Package2, Pencil, Eye, EyeOff, ClipboardList, Warehouse, FilterX, Layers } from 'lucide-react';
 import FormSelect from '@/components/ui/FormSelect';
 import NumberInput from '@/components/ui/NumberInput';
-import Badge from '@/components/ui/Badge';
+import StatusBadge from '@/components/ui/StatusBadge';
 import { LoadingCard } from '@/components/ui/StateCard';
 import ColumnSettingsDropdown from '@/app/components/ColumnSettingsDropdown';
 import Pagination from '@/app/components/Pagination';
@@ -371,20 +371,16 @@ export default function StockTab({ warehouses, onViewHistory }: StockTabProps) {
   const startIdx = hasClientFilter ? 0 : (page - 1) * recordsPerPage;
   const endIdx = hasClientFilter ? displayedItems.length : Math.min(startIdx + displayedItems.length, total);
 
+  function stockLevelOf(item: InventoryItem) {
+    if (item.quantity === 0 && item.reserved_quantity === 0) return 'none';
+    if (item.is_out_of_stock) return 'out';
+    if (item.is_low_stock) return 'low';
+    if (item.min_stock > 0 && item.available <= item.min_stock * 1.5) return 'near_low';
+    return 'ok';
+  }
+
   function getStockBadge(item: InventoryItem) {
-    if (item.quantity === 0 && item.reserved_quantity === 0) {
-      return <Badge tone="gray" size="sm">ยังไม่มี</Badge>;
-    }
-    if (item.is_out_of_stock) {
-      return <Badge tone="red" size="sm">หมด</Badge>;
-    }
-    if (item.is_low_stock) {
-      return <Badge tone="amber" size="sm">ต่ำ</Badge>;
-    }
-    if (item.min_stock > 0 && item.available <= item.min_stock * 1.5) {
-      return <Badge tone="amber" size="sm">ใกล้หมด</Badge>;
-    }
-    return <Badge tone="emerald" size="sm">ปกติ</Badge>;
+    return <StatusBadge domain="stockLevel" status={stockLevelOf(item)} />;
   }
 
   return (

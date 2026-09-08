@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Layout from '@/components/layout/Layout';
+import StatusBadge from '@/components/ui/StatusBadge';
 import { useAuthGuard } from '@/lib/useAuthGuard';
 import { LoadingCard } from '@/components/ui/StateCard';
 import PageHeader from '@/components/ui/PageHeader';
@@ -148,7 +149,7 @@ export default function BillingInvoicesPage() {
                         <td className="px-6 py-4">
                           <span className="font-mono text-sm font-medium text-primary">{row.invoice_number}</span>
                           {row.voided_at && (
-                            <span className="ml-1 inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300">VOID</span>
+                            <StatusBadge domain="taxDoc" status="voided" className="ml-1" />
                           )}
                         </td>
                         <td className="px-6 py-4 text-sm text-gray-600 dark:text-slate-300 whitespace-nowrap">{formatDate(row.invoice_date)}</td>
@@ -189,7 +190,7 @@ export default function BillingInvoicesPage() {
                     <div className="flex items-center gap-2">
                       <span className="font-mono text-sm font-medium text-primary">{row.invoice_number}</span>
                       {row.voided_at && (
-                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300">VOID</span>
+                        <StatusBadge domain="taxDoc" status="voided" />
                       )}
                     </div>
                     <div className="text-sm text-gray-500 dark:text-slate-400 mt-1">{formatDate(row.invoice_date)}</div>

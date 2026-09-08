@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Layout from '@/components/layout/Layout';
+import StatusBadge from '@/components/ui/StatusBadge';
 import { useAuthGuard } from '@/lib/useAuthGuard';
 import { LoadingCard } from '@/components/ui/StateCard';
 import PageHeader from '@/components/ui/PageHeader';
@@ -122,7 +123,7 @@ export default function ReceiptsPage() {
         <>
           <span className="font-mono text-sm font-medium text-primary">{inv.tax_invoice_number}</span>
           {inv.voided_at && (
-            <span className="ml-1 inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300">VOID</span>
+            <StatusBadge domain="taxDoc" status="voided" className="ml-1" />
           )}
         </>
       ),
@@ -246,7 +247,7 @@ export default function ReceiptsPage() {
                   <div className="flex items-center gap-2">
                     <span className="font-mono text-sm font-medium text-primary">{inv.tax_invoice_number}</span>
                     {inv.voided_at && (
-                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300">VOID</span>
+                      <StatusBadge domain="taxDoc" status="voided" />
                     )}
                   </div>
                   <button onClick={() => handlePrint(inv)} className="p-1.5 text-gray-400 hover:text-primary transition-colors" title="พิมพ์">

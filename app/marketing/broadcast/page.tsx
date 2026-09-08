@@ -3,10 +3,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
+import StatusBadge from '@/components/ui/StatusBadge';
 import Container from '@/components/ui/Container';
 import PageHeader from '@/components/ui/PageHeader';
 import Button from '@/components/ui/Button';
-import Badge, { type BadgeTone } from '@/components/ui/Badge';
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
 import ActionMenu from '@/components/ui/ActionMenu';
 import { EmptyCard, LoadingCard, NoPermissionCard } from '@/components/ui/StateCard';
@@ -38,13 +38,6 @@ interface BroadcastRow {
   created_at: string;
 }
 
-const STATUS_BADGE: Record<string, { label: string; tone: BadgeTone }> = {
-  pending: { label: 'กำลังส่ง', tone: 'amber' },
-  sending: { label: 'กำลังส่ง', tone: 'amber' },
-  sent: { label: 'ส่งแล้ว', tone: 'emerald' },
-  partial: { label: 'ส่งไม่ครบ', tone: 'orange' },
-  failed: { label: 'ล้มเหลว', tone: 'red' },
-};
 
 const AUDIENCE_LABEL: Record<string, string> = {
   all: 'ผู้ติดตามทั้งหมด',
@@ -167,10 +160,9 @@ export default function BroadcastListPage() {
     {
       key: 'status', label: 'สถานะ', defaultWidth: 160,
       render: (r) => {
-        const cfg = STATUS_BADGE[r.status] || { label: r.status, tone: 'gray' as BadgeTone };
         return (
           <div>
-            <Badge tone={cfg.tone}>{cfg.label}</Badge>
+            <StatusBadge domain="broadcast" status={r.status} />
             {r.error && (
               <p className="subtitle-text text-red-600 dark:text-red-400 mt-1 line-clamp-2 break-words">{r.error}</p>
             )}

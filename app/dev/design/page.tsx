@@ -815,6 +815,8 @@ const DOMAIN_TITLE: Partial<Record<StatusDomain, string>> = {
   promotion: 'โปรโมชั่น',
   transfer: 'โอนย้ายคลัง',
   stockDoc: 'ใบรับเข้า / ใบเบิกออก',
+  stockLevel: 'ระดับสต็อกในคลัง',
+  taxDoc: 'เอกสารภาษี (ใบกำกับเต็ม/ย่อ · ใบส่งของ · ใบเสร็จ)',
   posOrder: 'ใบเสร็จ POS',
   purchaseOrder: 'ใบสั่งซื้อ (ฝั่งเรา)',
   purchaseOrderSupplier: 'ใบสั่งซื้อ (ซัพพลายเออร์เห็น)',

@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Layout from '@/components/layout/Layout';
+import StatusBadge from '@/components/ui/StatusBadge';
+import { statusLabel } from '@/lib/status-labels';
 import { useAuthGuard } from '@/lib/useAuthGuard';
 import { LoadingCard } from '@/components/ui/StateCard';
 import PageHeader from '@/components/ui/PageHeader';
@@ -118,8 +120,8 @@ export default function AbbreviatedInvoicesPage() {
 
   const statusTabs = [
     { key: 'all', label: 'ทั้งหมด' },
-    { key: 'active', label: 'ปกติ' },
-    { key: 'voided', label: 'ยกเลิก' },
+    { key: 'active', label: statusLabel('taxDoc', 'active') },
+    { key: 'voided', label: statusLabel('taxDoc', 'voided') },
   ] as const;
 
   const columns: DataTableColumn<Invoice>[] = [
@@ -157,15 +159,7 @@ export default function AbbreviatedInvoicesPage() {
       label: 'สถานะ',
       render: (inv) => {
         const isVoided = !!inv.tax_invoice_voided_at;
-        return isVoided ? (
-          <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">
-            ยกเลิก
-          </span>
-        ) : (
-          <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
-            ปกติ
-          </span>
-        );
+        return <StatusBadge domain="taxDoc" status={isVoided ? 'voided' : 'active'} />;
       },
     },
     {
@@ -289,11 +283,7 @@ export default function AbbreviatedInvoicesPage() {
                     <span className={`font-mono text-sm font-medium ${isVoided ? 'text-gray-400 line-through' : 'text-primary'}`}>
                       {inv.tax_invoice_number}
                     </span>
-                    {isVoided ? (
-                      <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">ยกเลิก</span>
-                    ) : (
-                      <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">ปกติ</span>
-                    )}
+                    <StatusBadge domain="taxDoc" status={isVoided ? 'voided' : 'active'} />
                   </div>
                   <div className="flex items-center gap-1">
                     <button onClick={() => handlePrint(inv)} className="p-1.5 text-gray-400 hover:text-primary transition-colors" title="พิมพ์">

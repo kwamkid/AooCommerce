@@ -146,6 +146,16 @@ const creditNoteType: Domain = {
   exchange: s('เปลี่ยนสินค้า', 'new'),
 };
 
+/**
+ * เอกสารภาษี (ใบกำกับเต็ม/ย่อ) — ยกเลิกแล้วเรียก "ยกเลิก" ให้ตรงกับเอกสารอื่น
+ * ⚠️ ใช้สีเทาเหมือนเอกสารที่ยกเลิกทุกชนิด — ถ้าอยากให้ VOID ของงานบัญชีเด่นเป็นแดง
+ *    เปลี่ยน 'off' เป็น 'late' บรรทัดเดียว แล้วเปลี่ยนทั้งระบบพร้อมกัน
+ */
+const taxDoc: Domain = {
+  active: s('ปกติ', 'done'),
+  voided: s('ยกเลิก', 'off'),
+};
+
 const promotion: Domain = {
   active:    s('ใช้งาน', 'done'),
   inactive:  s('ปิดใช้งาน', 'off'),
@@ -160,6 +170,15 @@ const transfer: Domain = {
   pending_confirm: s('รอยืนยัน', 'wait'),
   received:        s('รับสินค้าแล้ว', 'done'),
   cancelled:       s('ยกเลิก', 'off'),
+};
+
+/** ระดับสต็อกของสินค้าในคลัง (ไม่ใช่สถานะของเอกสาร แต่เป็นป้ายบอกสภาพที่ผู้ใช้อ่านทุกวัน) */
+const stockLevel: Domain = {
+  none:     s('ยังไม่มี', 'off'),
+  out:      s('หมด', 'late'),
+  low:      s('ต่ำ', 'partial'),
+  near_low: s('ใกล้หมด', 'partial'),
+  ok:       s('ปกติ', 'done'),
 };
 
 /** ใบรับเข้า / ใบเบิกออก — จบในตัว ไม่มีขั้นกลาง */
@@ -220,8 +239,8 @@ export const STATUS_DOMAINS = {
   order, orderDealer, payment,
   customerOrder, customerPayment,
   statement, replenishment, deptOrder, report,
-  creditNote: issuedDoc, returnNote: issuedDoc, creditNoteType,
-  promotion, transfer, stockDoc, posOrder, supplierReport, supplierType,
+  creditNote: issuedDoc, returnNote: issuedDoc, creditNoteType, taxDoc,
+  promotion, transfer, stockDoc, stockLevel, posOrder, supplierReport, supplierType,
   purchaseOrder, purchaseOrderSupplier, broadcast,
 } satisfies Record<string, Domain>;
 

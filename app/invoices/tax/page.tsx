@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Layout from '@/components/layout/Layout';
+import StatusBadge from '@/components/ui/StatusBadge';
 import { useAuthGuard } from '@/lib/useAuthGuard';
 import { LoadingCard } from '@/components/ui/StateCard';
 import PageHeader from '@/components/ui/PageHeader';
@@ -230,7 +231,7 @@ export default function TaxInvoicesPage() {
             </div>
           )}
           {inv.voided_at && (
-            <span className="ml-1 inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300">VOID</span>
+            <StatusBadge domain="taxDoc" status="voided" className="ml-1" />
           )}
           {!inv.voided_at && inv.document_subtype === 'tax_invoice' && (
             <span className="ml-1 text-xs text-blue-600 dark:text-blue-400">+ใบแจ้งหนี้</span>
@@ -373,7 +374,7 @@ export default function TaxInvoicesPage() {
                       <span className="text-xs text-amber-600 dark:text-amber-400">แทน {inv.tax_invoice_replaced_abbrev_number}</span>
                     )}
                     {inv.voided_at && (
-                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300">VOID</span>
+                      <StatusBadge domain="taxDoc" status="voided" />
                     )}
                     {!inv.voided_at && inv.document_subtype === 'tax_invoice' && (
                       <span className="text-xs text-blue-600 dark:text-blue-400">+ใบแจ้งหนี้</span>

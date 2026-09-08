@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Layout from '@/components/layout/Layout';
+import StatusBadge from '@/components/ui/StatusBadge';
 import PageHeader from '@/components/ui/PageHeader';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -31,10 +32,6 @@ function formatMoney(n: number) {
   return n.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-const STATUS_BADGE: Record<string, { label: string; cls: string }> = {
-  issued: { label: 'ออกแล้ว', cls: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' },
-  cancelled: { label: 'ยกเลิก', cls: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' },
-};
 
 export default function ReturnNotesPage() {
   const router = useRouter();
@@ -146,9 +143,8 @@ export default function ReturnNotesPage() {
             {
               key: 'status', label: 'สถานะ', headerClassName: 'text-center', cellClassName: 'text-center',
               render: (row) => {
-                const badge = STATUS_BADGE[row.status] || STATUS_BADGE.issued;
                 return (
-                  <span className={`px-2 py-0.5 rounded text-xs font-medium ${badge.cls}`}>{badge.label}</span>
+                  <StatusBadge domain="returnNote" status={row.status} />
                 );
               },
             },
@@ -165,7 +161,6 @@ export default function ReturnNotesPage() {
           onRecordsPerPageChange={(v) => { setRecordsPerPage(v); setPage(1); }}
           loadTime={loadTime}
           mobileCardRender={(row) => {
-            const badge = STATUS_BADGE[row.status] || STATUS_BADGE.issued;
             return (
               <Link href={`/return-notes/${row.id}`} className="block">
                 <div className="flex items-center justify-between mb-1">
@@ -173,7 +168,7 @@ export default function ReturnNotesPage() {
                     <span className="font-mono text-sm font-medium text-primary">{row.rn_number}</span>
                     <span className="text-xs text-gray-400 dark:text-slate-500">{formatDate(row.rn_date)}</span>
                   </div>
-                  <span className={`px-2 py-0.5 rounded text-xs font-medium ${badge.cls}`}>{badge.label}</span>
+                  <StatusBadge domain="returnNote" status={row.status} />
                 </div>
                 <div className="text-sm text-gray-900 dark:text-white mb-1">{row.customer?.name || '-'}</div>
                 <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-slate-400 mb-1">
