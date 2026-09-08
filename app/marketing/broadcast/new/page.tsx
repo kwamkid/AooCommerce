@@ -12,6 +12,7 @@ import Radio from '@/components/ui/Radio';
 import AccountPicker from '@/components/ui/AccountPicker';
 import Alert from '@/components/ui/Alert';
 import Modal from '@/components/ui/Modal';
+import Stepper from '@/components/ui/Stepper';
 import MultiSelectSearch from '@/components/ui/MultiSelectSearch';
 import ImageDropzone from '@/components/ui/ImageDropzone';
 import PlatformIcon from '@/components/ui/PlatformIcon';
@@ -280,6 +281,9 @@ export default function NewBroadcastPage() {
   /** กลุ่มผู้รับเลือกในโมดัล — รายการจะยาวขึ้นเรื่อย ๆ (ไม่ซื้อมา N วัน · ทักแล้วยังไม่ซื้อ ฯลฯ)
    *  เรียงเป็นการ์ดในหน้าจะดันเนื้อหาตกจอ */
   const [audienceModal, setAudienceModal] = useState(false);
+  /** โมดัลเดินเป็นขั้น — เลือกกลุ่ม → เลือกตัวเลือก → กรองเพิ่ม (รายการยาวเกินกว่าจะโชว์ทีเดียว) */
+  const [audienceStep, setAudienceStep] = useState(1);
+  const [audienceGroup, setAudienceGroup] = useState<string>('');
   /** จำนวนวันของกลุ่ม "ซื้อภายใน N วัน" / "หายไปเกิน N วัน" */
   const [audienceDays, setAudienceDays] = useState(30);
   /** ── ตัวกรองซ้อน: หั่นกลุ่มที่เลือกให้แคบลง (0 = ไม่กรอง) ── */
@@ -485,6 +489,13 @@ export default function NewBroadcastPage() {
   const audienceLabel = selectedAudience
     ? selectedAudience.label.replace('N วัน', `${audienceDays} วัน`)
     : 'เลือกกลุ่มผู้รับ';
+  /** กลุ่มใหญ่ทั้งหมดของช่องทางที่เลือก (เรียงตามที่ประกาศไว้) */
+  const audienceGroups = useMemo(
+    () => [...new Set(audienceOptions.map(o => o.group))],
+    [audienceOptions],
+  );
+  /** ขั้น "กรองเพิ่ม" มีเฉพาะกลุ่มที่มีรายชื่อจริงให้กรอง */
+  const hasRefineStep = audience !== 'all' && audience !== 'contacts_pick';
   const pickPending = audience === 'contacts_pick' && pickedContacts.length === 0;
   const noRecipients = audience !== 'all' && !pickPending && !previewLoading
     && platforms.length > 0 && recipientCount === 0;
@@ -663,7 +674,12 @@ export default function NewBroadcastPage() {
                   <p className="field-label mb-1.5">กลุ่มผู้รับ</p>
                   <button
                     type="button"
-                    onClick={() => setAudienceModal(true)}
+                    onClick={() => {
+                      // เปิดมาแล้วอยู่ที่ขั้นแรกเสมอ แต่จำกลุ่มที่เลือกไว้ให้
+                      setAudienceGroup(selectedAudience?.group || '');
+                      setAudienceStep(1);
+                      setAudienceModal(true);
+                    }}
                     className="w-full min-h-[42px] flex items-center gap-2 px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 hover:bg-gray-50 dark:hover:bg-slate-600 transition-colors text-left"
                   >
                     <span className="flex-1 min-w-0">
@@ -1055,205 +1071,255 @@ export default function NewBroadcastPage() {
           title="เลือกกลุ่มผู้รับ"
           size="lg"
           footer={
-            <div className="modal-footer px-6 py-4 flex justify-end gap-2">
-              <Button variant="primary" onClick={() => setAudienceModal(false)}>เสร็จสิ้น</Button>
+            <div className="modal-footer px-6 py-4 flex items-center justify-between gap-2">
+              <span className="helper-text text-gray-500 dark:text-slate-400">
+                {audienceStep > 1 ? audienceSummary : ''}
+              </span>
+              <span className="flex gap-2">
+                {audienceStep > 1 && (
+                  <Button variant="secondary" onClick={() => setAudienceStep(audienceStep - 1)}>ย้อนกลับ</Button>
+                )}
+                {audienceStep === 2 && hasRefineStep ? (
+                  <Button variant="primary" onClick={() => setAudienceStep(3)}>ถัดไป</Button>
+                ) : audienceStep > 1 ? (
+                  <Button variant="primary" onClick={() => setAudienceModal(false)}>เสร็จสิ้น</Button>
+                ) : null}
+              </span>
             </div>
           }
         >
-          <div className="modal-body px-6 py-5 space-y-5">
-            {/* ระบบรู้ประวัติการซื้อของกี่คน — ต้องบอกก่อนให้เลือกกลุ่มที่แบ่งตามการซื้อ
-                ไม่งั้นผู้ใช้จะอ่านว่า "ลูกค้าเก่าของฉันไม่มีใครเคยซื้อเลย" ทั้งที่ความจริงคือ
-                เรายังไม่ได้ผูกห้องแชทกับข้อมูลลูกค้า (LINE ไม่ให้เบอร์/อีเมล) */}
-            {preview?.contact_total != null && preview.contact_linked != null && preview.contact_linked < preview.contact_total && (
-              <Alert tone="info">
-                ระบบรู้ประวัติการซื้อของ {preview.contact_linked.toLocaleString()} จาก{' '}
-                {preview.contact_total.toLocaleString()} คน — ที่เหลือยังไม่ได้ผูกห้องแชทกับข้อมูลลูกค้า
-                จึงถูกนับเป็น &quot;ยังไม่เคยซื้อ&quot;
-              </Alert>
+          <div className="modal-body px-6 py-5">
+            <Stepper
+              className="mb-5"
+              ariaLabel="ขั้นตอนเลือกกลุ่มผู้รับ"
+              onSelect={(k) => setAudienceStep(Number(k))}
+              allowJumpAhead
+              steps={[
+                { key: '1', label: 'กลุ่ม', state: audienceStep === 1 ? 'current' : 'done' },
+                { key: '2', label: 'ตัวเลือก', state: audienceStep === 2 ? 'current' : audienceStep > 2 ? 'done' : 'todo' },
+                ...(hasRefineStep
+                  ? [{ key: '3', label: 'กรองเพิ่ม', state: (audienceStep === 3 ? 'current' : 'todo') as 'current' | 'todo' }]
+                  : []),
+              ]}
+            />
+
+            {/* ── ขั้น 1: เลือกกลุ่มใหญ่ ── */}
+            {audienceStep === 1 && (
+              <div className="space-y-2">
+                {audienceGroups.map(g => (
+                  <Radio
+                    key={g}
+                    checked={audienceGroup === g}
+                    onChange={() => {
+                      setAudienceGroup(g);
+                      // กลุ่มเปลี่ยน = ตัวเลือกเดิมอาจไม่อยู่ในกลุ่มใหม่ → เด้งไปตัวแรกของกลุ่ม
+                      const first = audienceOptions.find(o => o.group === g);
+                      if (first && !audienceOptions.some(o => o.group === g && o.key === audience)) {
+                        setAudience(first.key);
+                      }
+                      setAudienceStep(2);
+                    }}
+                    className={`!items-start px-3 py-3 rounded-lg border transition-colors ${
+                      audienceGroup === g
+                        ? 'border-[#F4511E] bg-orange-50/50 dark:bg-orange-950/20'
+                        : 'border-gray-200 dark:border-slate-600 hover:border-gray-300 dark:hover:border-slate-500'
+                    }`}
+                  >
+                    <span className="min-w-0">
+                      <span className="block body-text text-gray-900 dark:text-white">{g}</span>
+                      <span className="block helper-text text-gray-500 dark:text-slate-400 mt-0.5">
+                        {audienceOptions.filter(o => o.group === g).map(o => o.label.replace('N วัน', `${audienceDays} วัน`)).join(' · ')}
+                      </span>
+                    </span>
+                  </Radio>
+                ))}
+
+                {/* บอกเพดานความรู้ของระบบตรงขั้นที่ต้องเลือกว่าจะแบ่งตามการซื้อไหม */}
+                {preview?.contact_total != null && preview.contact_linked != null && preview.contact_linked < preview.contact_total && (
+                  <Alert tone="info">
+                    ระบบรู้ประวัติการซื้อของ {preview.contact_linked.toLocaleString()} จาก{' '}
+                    {preview.contact_total.toLocaleString()} คน — ที่เหลือยังไม่ได้ผูกห้องแชทกับข้อมูลลูกค้า
+                    จึงถูกนับเป็น &quot;ยังไม่เคยซื้อ&quot;
+                  </Alert>
+                )}
+              </div>
             )}
 
-            {[...new Set(audienceOptions.map(o => o.group))].map(group => (
-              <div key={group}>
-                <p className="field-label mb-2">{group}</p>
-                <div className="space-y-2">
-                  {audienceOptions.filter(o => o.group === group).map(opt => {
-                    const active = audience === opt.key;
-                    return (
-                      <div key={opt.key}>
-                        <Radio
-                          checked={active}
-                          onChange={() => setAudience(opt.key)}
-                          className={`!items-start px-3 py-2.5 rounded-lg border transition-colors ${
-                            active
-                              ? 'border-[#F4511E] bg-orange-50/50 dark:bg-orange-950/20'
-                              : 'border-gray-200 dark:border-slate-600 hover:border-gray-300 dark:hover:border-slate-500'
-                          }`}
-                        >
-                          <span className="min-w-0">
-                            <span className="block body-text text-gray-900 dark:text-white">
-                              {opt.label.replace('N วัน', `${audienceDays} วัน`)}
-                            </span>
-                            {opt.hint && (
-                              <span className="block helper-text text-gray-500 dark:text-slate-400 mt-0.5">{opt.hint}</span>
-                            )}
+            {/* ── ขั้น 2: ตัวเลือกในกลุ่ม + ของที่ต้องกรอกต่อ ── */}
+            {audienceStep === 2 && (
+              <div className="space-y-2">
+                {audienceOptions.filter(o => o.group === audienceGroup).map(opt => {
+                  const active = audience === opt.key;
+                  return (
+                    <div key={opt.key}>
+                      <Radio
+                        checked={active}
+                        onChange={() => setAudience(opt.key)}
+                        className={`!items-start px-3 py-2.5 rounded-lg border transition-colors ${
+                          active
+                            ? 'border-[#F4511E] bg-orange-50/50 dark:bg-orange-950/20'
+                            : 'border-gray-200 dark:border-slate-600 hover:border-gray-300 dark:hover:border-slate-500'
+                        }`}
+                      >
+                        <span className="min-w-0">
+                          <span className="block body-text text-gray-900 dark:text-white">
+                            {opt.label.replace('N วัน', `${audienceDays} วัน`)}
                           </span>
-                        </Radio>
+                          {opt.hint && (
+                            <span className="block helper-text text-gray-500 dark:text-slate-400 mt-0.5">{opt.hint}</span>
+                          )}
+                        </span>
+                      </Radio>
 
-                        {active && opt.needsDays && (
-                          <div className="mt-2 ml-3 flex items-center gap-2">
-                            <div className="w-28">
-                              <NumberInput
-                                value={audienceDays}
-                                onChange={(v) => setAudienceDays(Math.max(1, Math.min(3650, v || 1)))}
-                              />
-                            </div>
-                            <span className="body-text text-gray-500 dark:text-slate-400">วัน</span>
-                            {/* ทางลัดที่ร้านใช้จริงบ่อยสุด — พิมพ์เองก็ได้ */}
-                            {[30, 60, 90, 180].map(d => (
-                              <button
-                                key={d}
-                                type="button"
-                                onClick={() => setAudienceDays(d)}
-                                className={`helper-text px-2 py-1 rounded-full border transition-colors ${
-                                  audienceDays === d
-                                    ? 'border-[#F4511E] text-[#F4511E] bg-orange-50/60 dark:bg-orange-950/20'
-                                    : 'border-gray-200 dark:border-slate-600 text-gray-500 dark:text-slate-400 hover:border-gray-300'
-                                }`}
-                              >
-                                {d}
-                              </button>
-                            ))}
-                          </div>
-                        )}
-
-                        {active && opt.key === 'tags' && (
-                          <div className="mt-2 ml-3">
-                            <MultiSelectSearch
-                              value={tagIds}
-                              onChange={setTagIds}
-                              options={tags.map(t => ({ id: t.id, label: t.name }))}
-                              emptyLabel="เลือกแท็ก..."
-                              icon={<Tag className="w-4 h-4" />}
+                      {active && opt.needsDays && (
+                        <div className="mt-2 ml-3 flex items-center gap-2 flex-wrap">
+                          <div className="w-24">
+                            <NumberInput
+                              value={audienceDays}
+                              onChange={(v) => setAudienceDays(Math.max(1, Math.min(3650, v || 1)))}
                             />
                           </div>
-                        )}
+                          <span className="body-text text-gray-500 dark:text-slate-400">วัน</span>
+                          {[30, 60, 90, 180].map(d => (
+                            <button
+                              key={d}
+                              type="button"
+                              onClick={() => setAudienceDays(d)}
+                              className={`helper-text px-2 py-1 rounded-full border transition-colors ${
+                                audienceDays === d
+                                  ? 'border-[#F4511E] text-[#F4511E] bg-orange-50/60 dark:bg-orange-950/20'
+                                  : 'border-gray-200 dark:border-slate-600 text-gray-500 dark:text-slate-400 hover:border-gray-300'
+                              }`}
+                            >
+                              {d}
+                            </button>
+                          ))}
+                        </div>
+                      )}
 
-                        {active && opt.key === 'contacts_pick' && (
-                          <div className="mt-2 ml-3">
-                            <EntitySearchInput
-                              value=""
-                              options={contactSearch.results}
-                              loading={contactSearch.loading}
-                              onSearchChange={contactSearch.search}
-                              minSearchLength={2}
-                              placeholder="พิมพ์ชื่อผู้ติดต่อเพื่อเพิ่ม"
-                              emptyMessage="ไม่พบผู้ติดต่อที่ตรงกับคำค้น"
-                              onChange={(id, o) => {
-                                setPickedContacts(prev =>
-                                  prev.some(c => c.id === id) ? prev : [...prev, { id, name: o.label }]);
-                              }}
-                            />
-                            {pickedContacts.length > 0 && (
-                              <ul className="mt-2 flex flex-wrap gap-1.5">
-                                {pickedContacts.map(c => (
-                                  <li
-                                    key={c.id}
-                                    className="flex items-center gap-1.5 pl-2.5 pr-1 py-1 rounded-full border border-gray-200 dark:border-slate-600"
+                      {active && opt.key === 'tags' && (
+                        <div className="mt-2 ml-3">
+                          <MultiSelectSearch
+                            value={tagIds}
+                            onChange={setTagIds}
+                            options={tags.map(t => ({ id: t.id, label: t.name }))}
+                            emptyLabel="เลือกแท็ก..."
+                            icon={<Tag className="w-4 h-4" />}
+                          />
+                        </div>
+                      )}
+
+                      {active && opt.key === 'contacts_pick' && (
+                        <div className="mt-2 ml-3">
+                          <EntitySearchInput
+                            value=""
+                            options={contactSearch.results}
+                            loading={contactSearch.loading}
+                            onSearchChange={contactSearch.search}
+                            minSearchLength={2}
+                            placeholder="พิมพ์ชื่อผู้ติดต่อเพื่อเพิ่ม"
+                            emptyMessage="ไม่พบผู้ติดต่อที่ตรงกับคำค้น"
+                            onChange={(id, o) => {
+                              setPickedContacts(prev =>
+                                prev.some(c => c.id === id) ? prev : [...prev, { id, name: o.label }]);
+                            }}
+                          />
+                          {pickedContacts.length > 0 && (
+                            <ul className="mt-2 flex flex-wrap gap-1.5">
+                              {pickedContacts.map(c => (
+                                <li
+                                  key={c.id}
+                                  className="flex items-center gap-1.5 pl-2.5 pr-1 py-1 rounded-full border border-gray-200 dark:border-slate-600"
+                                >
+                                  <span className="helper-text text-gray-700 dark:text-slate-300">{c.name}</span>
+                                  <button
+                                    type="button"
+                                    aria-label={`เอา ${c.name} ออก`}
+                                    onClick={() => setPickedContacts(prev => prev.filter(x => x.id !== c.id))}
+                                    className="w-4 h-4 flex items-center justify-center rounded-full text-gray-400 hover:text-red-500"
                                   >
-                                    <span className="helper-text text-gray-700 dark:text-slate-300">{c.name}</span>
-                                    <button
-                                      type="button"
-                                      aria-label={`เอา ${c.name} ออก`}
-                                      onClick={() => setPickedContacts(prev => prev.filter(x => x.id !== c.id))}
-                                      className="w-4 h-4 flex items-center justify-center rounded-full text-gray-400 hover:text-red-500"
-                                    >
-                                      <Trash2 className="w-3 h-3" />
-                                    </button>
-                                  </li>
-                                ))}
-                              </ul>
-                            )}
-                            {accountIds.length > 1 && (
-                              <p className="helper-text text-amber-700 dark:text-amber-500 mt-1.5">
-                                ค้นจากบัญชีแรกที่เลือกเท่านั้น — เลือกรายคนควรติ๊กบัญชีเดียว
-                              </p>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
+                                    <Trash2 className="w-3 h-3" />
+                                  </button>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                          {accountIds.length > 1 && (
+                            <p className="helper-text text-amber-700 dark:text-amber-500 mt-1.5">
+                              ค้นจากบัญชีแรกที่เลือกเท่านั้น — เลือกรายคนควรติ๊กบัญชีเดียว
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
-            ))}
+            )}
 
-            {/* ── ตัวกรองซ้อน — หั่นกลุ่มที่เลือกให้แคบลง ใช้ได้กับทุกกลุ่มที่มีรายชื่อจริง ──
-                'ผู้ติดตามทั้งหมด' กรองไม่ได้ (เราไม่มีรายชื่อ) · 'เลือกรายคน' ไม่ต้องกรองซ้ำ */}
-            {audience !== 'all' && audience !== 'contacts_pick' && (
-              <div className="border-t border-gray-100 dark:border-slate-700 pt-4">
-                <p className="field-label mb-1">กรองให้แคบลงอีก (ไม่บังคับ)</p>
-                <p className="helper-text text-gray-500 dark:text-slate-400 mb-3">
+            {/* ── ขั้น 3: กรองให้แคบลง (ไม่บังคับ) ── */}
+            {audienceStep === 3 && hasRefineStep && (
+              <div className="space-y-4">
+                <p className="helper-text text-gray-500 dark:text-slate-400">
                   ตัดคนที่ทักมาคำเดียวแล้วหาย และคนที่เงียบไปนานออก — ยิงไปก็มักไม่ได้อะไรกลับ ·
                   ทั้งสองข้อ <span className="font-medium">นับเฉพาะข้อความที่ลูกค้าพิมพ์มา</span> ไม่นับที่เราตอบไปหรือบรอดแคสต์
                 </p>
 
-                <div className="space-y-3">
-                  <div>
-                    <label className="helper-text text-gray-600 dark:text-slate-300 block mb-1">
-                      ลูกค้าพิมพ์หาเรามาแล้วอย่างน้อย
-                    </label>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <div className="w-24">
-                        <NumberInput
-                          value={minMessages}
-                          onChange={(v) => setMinMessages(Math.max(0, Math.min(999, v || 0)))}
-                        />
-                      </div>
-                      <span className="body-text text-gray-500 dark:text-slate-400">ข้อความ</span>
-                      {[0, 3, 5, 10].map(n => (
-                        <button
-                          key={n}
-                          type="button"
-                          onClick={() => setMinMessages(n)}
-                          className={`helper-text px-2 py-1 rounded-full border transition-colors ${
-                            minMessages === n
-                              ? 'border-[#F4511E] text-[#F4511E] bg-orange-50/60 dark:bg-orange-950/20'
-                              : 'border-gray-200 dark:border-slate-600 text-gray-500 dark:text-slate-400 hover:border-gray-300'
-                          }`}
-                        >
-                          {n === 0 ? 'ไม่กรอง' : `≥${n}`}
-                        </button>
-                      ))}
+                <div>
+                  <label className="helper-text text-gray-600 dark:text-slate-300 block mb-1">
+                    ลูกค้าพิมพ์หาเรามาแล้วอย่างน้อย
+                  </label>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <div className="w-24">
+                      <NumberInput
+                        value={minMessages}
+                        onChange={(v) => setMinMessages(Math.max(0, Math.min(999, v || 0)))}
+                      />
                     </div>
+                    <span className="body-text text-gray-500 dark:text-slate-400">ข้อความ</span>
+                    {[0, 3, 5, 10].map(n => (
+                      <button
+                        key={n}
+                        type="button"
+                        onClick={() => setMinMessages(n)}
+                        className={`helper-text px-2 py-1 rounded-full border transition-colors ${
+                          minMessages === n
+                            ? 'border-[#F4511E] text-[#F4511E] bg-orange-50/60 dark:bg-orange-950/20'
+                            : 'border-gray-200 dark:border-slate-600 text-gray-500 dark:text-slate-400 hover:border-gray-300'
+                        }`}
+                      >
+                        {n === 0 ? 'ไม่กรอง' : `≥${n}`}
+                      </button>
+                    ))}
                   </div>
+                </div>
 
-                  <div>
-                    <label className="helper-text text-gray-600 dark:text-slate-300 block mb-1">
-                      ลูกค้าพิมพ์หาเราล่าสุดภายใน
-                    </label>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <div className="w-24">
-                        <NumberInput
-                          value={lastChatDays}
-                          onChange={(v) => setLastChatDays(Math.max(0, Math.min(3650, v || 0)))}
-                        />
-                      </div>
-                      <span className="body-text text-gray-500 dark:text-slate-400">วัน</span>
-                      {[0, 30, 90, 180].map(n => (
-                        <button
-                          key={n}
-                          type="button"
-                          onClick={() => setLastChatDays(n)}
-                          className={`helper-text px-2 py-1 rounded-full border transition-colors ${
-                            lastChatDays === n
-                              ? 'border-[#F4511E] text-[#F4511E] bg-orange-50/60 dark:bg-orange-950/20'
-                              : 'border-gray-200 dark:border-slate-600 text-gray-500 dark:text-slate-400 hover:border-gray-300'
-                          }`}
-                        >
-                          {n === 0 ? 'ไม่กรอง' : `${n} วัน`}
-                        </button>
-                      ))}
+                <div>
+                  <label className="helper-text text-gray-600 dark:text-slate-300 block mb-1">
+                    ลูกค้าพิมพ์หาเราล่าสุดภายใน
+                  </label>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <div className="w-24">
+                      <NumberInput
+                        value={lastChatDays}
+                        onChange={(v) => setLastChatDays(Math.max(0, Math.min(3650, v || 0)))}
+                      />
                     </div>
+                    <span className="body-text text-gray-500 dark:text-slate-400">วัน</span>
+                    {[0, 30, 90, 180].map(n => (
+                      <button
+                        key={n}
+                        type="button"
+                        onClick={() => setLastChatDays(n)}
+                        className={`helper-text px-2 py-1 rounded-full border transition-colors ${
+                          lastChatDays === n
+                            ? 'border-[#F4511E] text-[#F4511E] bg-orange-50/60 dark:bg-orange-950/20'
+                            : 'border-gray-200 dark:border-slate-600 text-gray-500 dark:text-slate-400 hover:border-gray-300'
+                        }`}
+                      >
+                        {n === 0 ? 'ไม่กรอง' : `${n} วัน`}
+                      </button>
+                    ))}
                   </div>
                 </div>
               </div>
