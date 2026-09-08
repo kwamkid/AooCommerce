@@ -20,7 +20,7 @@ import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import SaveButton from '@/components/ui/SaveButton';
 import { LoadingCard, NoPermissionCard } from '@/components/ui/StateCard';
-import { NUMERIC_TEXT_INPUT_PROPS, onNumericChange } from '@/lib/numeric-input';
+import PostfixInput from '@/components/ui/PostfixInput';
 
 interface SupplierRef {
   id: string;
@@ -337,16 +337,15 @@ function BrandsPageInner() {
                         {features.consignment && (
                           <div className="flex items-center gap-3 pl-1 flex-wrap">
                             <span className="text-xs text-gray-500 dark:text-slate-400 whitespace-nowrap">GP default:</span>
-                            <div className="flex items-center gap-1">
-                              <input
-                                {...NUMERIC_TEXT_INPUT_PROPS}
-                                value={editingGpRate}
-                                onChange={onNumericChange(setEditingGpRate)}
-                                placeholder="เช่น 30"
-                                className="w-20 px-2 py-1 border border-gray-300 dark:border-slate-600 rounded-lg text-sm text-right bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-primary"
-                              />
-                              <span className="text-xs text-gray-400">%</span>
-                            </div>
+                            <PostfixInput
+                              postfix="%"
+                              value={editingGpRate}
+                              onChange={setEditingGpRate}
+                              placeholder="เช่น 30"
+                              compact
+                              width="w-20"
+                              inputClassName="w-full"
+                            />
                             <span className="text-xs text-gray-500 dark:text-slate-400 whitespace-nowrap">คิดจากราคา:</span>
                             <div className="flex items-center gap-2 text-sm">
                               <label className="flex items-center gap-1 cursor-pointer">

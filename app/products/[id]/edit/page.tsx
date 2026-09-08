@@ -25,7 +25,7 @@ import { ArrowLeft, Loader2, ExternalLink, Unlink2, Package2, Camera, Merge, Sea
 import FormSelect from '@/components/ui/FormSelect';
 import ShopeeCategoryPicker from '@/components/shopee/ShopeeCategoryPicker';
 import ProductSyncModal from '@/components/marketplace/ProductSyncModal';
-import { NUMERIC_TEXT_INPUT_PROPS, onNumericChange } from '@/lib/numeric-input';
+import PostfixInput from '@/components/ui/PostfixInput';
 
 interface MarketplaceLink {
   id: string;
@@ -863,15 +863,18 @@ export default function EditProductPage() {
           )}
           <div>
             <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">
-              ราคา Platform (฿)
+              ราคา Platform
             </label>
             <div className="flex items-center gap-2">
-              <input
-                {...NUMERIC_TEXT_INPUT_PROPS}
+              <PostfixInput
+                postfix="฿"
                 value={priceValues[link.id] || ''}
-                onChange={onNumericChange(v => { setPriceValues(prev => ({ ...prev, [link.id]: v })); markDirty(link.id); })}
+                onChange={v => { setPriceValues(prev => ({ ...prev, [link.id]: v })); markDirty(link.id); }}
                 placeholder="ไม่ได้ตั้ง"
-                className="flex-1 px-3 h-[42px] text-base border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-primary focus:border-primary"
+                className="flex-1"
+                width="w-full"
+                inputClassName="w-full px-3 h-[42px]"
+                classNames={{ text: 'text-base text-gray-900 dark:text-white' }}
               />
               {savingLink[link.id] && <Loader2 className="w-4 h-4 animate-spin text-gray-400" />}
             </div>
@@ -882,14 +885,16 @@ export default function EditProductPage() {
           {link.platform !== 'shopee' && (
             <div>
               <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">
-                ราคาลด (฿)
+                ราคาลด
               </label>
-              <input
-                {...NUMERIC_TEXT_INPUT_PROPS}
+              <PostfixInput
+                postfix="฿"
                 value={discountValues[link.id] || ''}
-                onChange={onNumericChange(v => { setDiscountValues(prev => ({ ...prev, [link.id]: v })); markDirty(link.id); })}
+                onChange={v => { setDiscountValues(prev => ({ ...prev, [link.id]: v })); markDirty(link.id); }}
                 placeholder="0"
-                className="w-full px-3 h-[42px] text-base border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-primary focus:border-primary"
+                width="w-full"
+                inputClassName="w-full px-3 h-[42px]"
+                classNames={{ text: 'text-base text-gray-900 dark:text-white' }}
               />
               <p className="text-[11px] text-blue-500 dark:text-blue-400 mt-1 font-medium">
                 ราคาลดในระบบ: {formatPriceValue(systemDiscountPrice)}
@@ -898,14 +903,16 @@ export default function EditProductPage() {
           )}
           <div>
             <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">
-              น้ำหนัก (kg)
+              น้ำหนัก
             </label>
-            <input
-              {...NUMERIC_TEXT_INPUT_PROPS}
+            <PostfixInput
+              postfix="kg"
               value={weightValues[link.id] || ''}
-              onChange={onNumericChange(v => { setWeightValues(prev => ({ ...prev, [link.id]: v })); markDirty(link.id); })}
+              onChange={v => { setWeightValues(prev => ({ ...prev, [link.id]: v })); markDirty(link.id); }}
               placeholder="0.5"
-              className="w-full px-3 h-[42px] text-base border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-primary focus:border-primary"
+              width="w-full"
+              inputClassName="w-full px-3 h-[42px]"
+              classNames={{ text: 'text-base text-gray-900 dark:text-white' }}
             />
           </div>
         </div>
@@ -1147,12 +1154,15 @@ export default function EditProductPage() {
                       )}
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1.5">
-                          <input
-                            {...NUMERIC_TEXT_INPUT_PROPS}
+                          <PostfixInput
+                            postfix="฿"
                             value={priceValues[link.id] || ''}
-                            onChange={onNumericChange(v => { setPriceValues(prev => ({ ...prev, [link.id]: v })); markDirty(link.id); })}
+                            onChange={v => { setPriceValues(prev => ({ ...prev, [link.id]: v })); markDirty(link.id); }}
                             placeholder="ไม่ได้ตั้ง"
-                            className="w-24 px-2 py-1.5 text-xs border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-primary focus:border-primary"
+                            compact
+                            width="w-24"
+                            inputClassName="w-full"
+                            classNames={{ text: 'text-xs text-right text-gray-900 dark:text-white' }}
                           />
                           {savingLink[link.id] && <Loader2 className="w-3 h-3 animate-spin text-gray-400" />}
                         </div>
@@ -1162,12 +1172,15 @@ export default function EditProductPage() {
                       </td>
                       {firstLink.platform !== 'shopee' && (
                         <td className="px-4 py-3">
-                          <input
-                            {...NUMERIC_TEXT_INPUT_PROPS}
+                          <PostfixInput
+                            postfix="฿"
                             value={discountValues[link.id] || ''}
-                            onChange={onNumericChange(v => { setDiscountValues(prev => ({ ...prev, [link.id]: v })); markDirty(link.id); })}
+                            onChange={v => { setDiscountValues(prev => ({ ...prev, [link.id]: v })); markDirty(link.id); }}
                             placeholder="0"
-                            className="w-24 px-2 py-1.5 text-xs border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-primary focus:border-primary"
+                            compact
+                            width="w-24"
+                            inputClassName="w-full"
+                            classNames={{ text: 'text-xs text-right text-gray-900 dark:text-white' }}
                           />
                           <p className="text-[10px] text-blue-500 dark:text-blue-400 mt-0.5 font-medium">
                             ราคาลดในระบบ: {formatPriceValue(systemDiscountPrice)}

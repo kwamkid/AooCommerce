@@ -11,7 +11,7 @@ import {
 import Modal from '@/components/ui/Modal';
 import Button from '@/components/ui/Button';
 import ShopeeCategoryPicker from './ShopeeCategoryPicker';
-import { NUMERIC_TEXT_INPUT_PROPS, onNumericChange } from '@/lib/numeric-input';
+import PostfixInput from '@/components/ui/PostfixInput';
 
 interface ProductItem {
   product_id: string;
@@ -590,10 +590,10 @@ export default function ShopeeBulkExportModal({
                         </div>
                         <div className="w-24 flex-shrink-0">
                           <label className="block text-xs text-gray-500 dark:text-slate-400 mb-0.5">น้ำหนัก (kg)</label>
-                          <input
-                            {...NUMERIC_TEXT_INPUT_PROPS}
+                          <PostfixInput
+                            postfix="kg"
                             value={cfg.weight}
-                            onChange={onNumericChange(v => {
+                            onChange={v => {
                               setProductConfigs(prev => ({
                                 ...prev,
                                 [product.product_id]: {
@@ -601,10 +601,11 @@ export default function ShopeeBulkExportModal({
                                   weight: v,
                                 },
                               }));
-                            })}
-                            step="0.1"
-                            min="0.01"
-                            className="w-full px-2 py-1.5 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-shopee/50"
+                            }}
+                            compact
+                            width="w-full"
+                            inputClassName="w-full"
+                            classNames={{ frame: 'border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 focus:ring-2 focus:ring-shopee/50' }}
                           />
                         </div>
                       </div>

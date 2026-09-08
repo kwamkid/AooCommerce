@@ -21,7 +21,11 @@ const config: Config = {
           hover: '#E64A19',
         },
         secondary: '#1A1A2E',
+        // สีแบรนด์ของแพลตฟอร์ม — ใช้ token เสมอ ห้ามเขียน hex ดิบในหน้า
         shopee: '#EE4D2D',
+        lazada: '#0F146E',
+        tiktok: '#161823',
+        instagram: '#E4405F',
         line: '#06C755',
         facebook: {
           DEFAULT: '#1877F2',

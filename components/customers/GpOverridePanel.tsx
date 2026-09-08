@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { Award, ChevronDown, ChevronUp } from 'lucide-react';
 import BrandGpCommissions, { GpBaseRadio, type BrandGpRow } from '@/components/customers/BrandGpCommissions';
-import { NUMERIC_TEXT_INPUT_PROPS, onNumericChange } from '@/lib/numeric-input';
+import PostfixInput from '@/components/ui/PostfixInput';
 
 // Re-export for consumers
 export type { BrandGpRow };
@@ -68,23 +68,24 @@ export default function GpOverridePanel(props: Props) {
           onChange={onGpBasePriceChange}
           disabled={!canEdit}
         />
-        <div className="relative w-24 flex-shrink-0">
-          <input
-            {...NUMERIC_TEXT_INPUT_PROPS}
-            value={gpRate ?? ''}
-            onChange={onNumericChange((v) => {
-              if (isGlobal) {
-                (onGpRateChange as (val: number) => void)(parseFloat(v) || 0);
-              } else {
-                (onGpRateChange as (val: number | null) => void)(v === '' ? null : parseFloat(v));
-              }
-            })}
-            className="w-full px-3 py-1.5 pr-7 border border-amber-300 dark:border-amber-700/50 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white text-sm text-right focus:outline-none focus:ring-2 focus:ring-amber-400 disabled:opacity-50"
-            placeholder={isGlobal ? undefined : '—'}
-            disabled={!canEdit}
-          />
-          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400">%</span>
-        </div>
+        <PostfixInput
+          postfix="%"
+          value={gpRate ?? ''}
+          onChange={(v) => {
+            if (isGlobal) {
+              (onGpRateChange as (val: number) => void)(parseFloat(v) || 0);
+            } else {
+              (onGpRateChange as (val: number | null) => void)(v === '' ? null : parseFloat(v));
+            }
+          }}
+          placeholder={isGlobal ? '0' : '—'}
+          disabled={!canEdit}
+          compact
+          className="flex-shrink-0"
+          width="w-24"
+          inputClassName="w-full"
+          classNames={{ frame: 'border border-amber-300 dark:border-amber-700/50 rounded-lg bg-white dark:bg-slate-700 focus:ring-2 focus:ring-amber-400' }}
+        />
       </div>
 
       {/* Expand button: GP% เฉพาะแบรนด์ */}

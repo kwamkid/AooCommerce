@@ -20,6 +20,18 @@ interface PostfixInputProps {
   inputClassName?: string;
   width?: string;
   compact?: boolean;
+  /**
+   * แทนที่สไตล์เป็นชั้น ๆ (ไม่ใช่ต่อท้าย) — ใช้ตอนหน้านั้นมีสีของตัวเอง
+   * เช่นกรอบ amber ของ GP override หรือ focus ring สีแบรนด์ Shopee
+   *
+   *  • `frame` = กรอบ + focus ring + พื้นหลัง + มุมโค้ง
+   *  • `text`  = ขนาดตัวอักษร + การจัดชิด + สีตัวอักษร
+   *
+   * ที่ต้องแยกเป็นชั้นเพราะ Tailwind ตัดสินว่าคลาสไหนชนะจากลำดับใน CSS ไม่ใช่ลำดับ
+   * ในสตริง — `inputClassName` ที่ต่อท้ายเฉย ๆ จึงทับสีของ base ไม่ได้ (เหตุผลที่หลายหน้า
+   * เคยเลี่ยงไปเขียน `<input>` เอง แล้วพลาดเรื่อง `type="number"` ตามมา)
+   */
+  classNames?: { frame?: string; text?: string };
 }
 
 /**
@@ -48,9 +60,12 @@ export default function PostfixInput({
   inputClassName,
   width,
   compact,
+  classNames,
 }: PostfixInputProps) {
   const h = compact ? 'py-1.5' : 'py-2';
-  const fontSize = compact ? 'text-sm' : 'text-sm';
+  const frame = classNames?.frame
+    ?? 'border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 focus:ring-1 focus:ring-primary/50';
+  const text = classNames?.text ?? 'text-sm text-right text-gray-900 dark:text-white';
 
   // Measure the postfix so long labels ("ออเดอร์", "นาที", "ครั้ง") never overlap the value
   const postfixRef = useRef<HTMLSpanElement>(null);
@@ -85,9 +100,9 @@ export default function PostfixInput({
           placeholder={placeholder}
           disabled={disabled}
           style={padRight ? { paddingRight: padRight } : undefined}
-          className={`${h} px-2 pr-6 ${fontSize} text-right border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-primary/50 disabled:opacity-40 disabled:cursor-not-allowed ${inputClassName || (compact ? 'w-full' : 'w-24')}`}
+          className={`${h} px-2 pr-6 ${frame} ${text} focus:outline-none disabled:opacity-40 disabled:cursor-not-allowed ${inputClassName || (compact ? 'w-full' : 'w-24')}`}
         />
-        <span ref={postfixRef} className={`absolute right-2 top-1/2 -translate-y-1/2 ${fontSize} text-gray-400 dark:text-slate-500 pointer-events-none whitespace-nowrap`}>
+        <span ref={postfixRef} className={`absolute right-2 top-1/2 -translate-y-1/2 text-sm text-gray-400 dark:text-slate-500 pointer-events-none whitespace-nowrap`}>
           {postfix}
         </span>
       </div>

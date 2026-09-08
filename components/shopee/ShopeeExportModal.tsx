@@ -10,7 +10,7 @@ import Button from '@/components/ui/Button';
 import ShopeeCategoryPicker from './ShopeeCategoryPicker';
 import { supabase } from '@/lib/supabase';
 import imageCompression from 'browser-image-compression';
-import { NUMERIC_TEXT_INPUT_PROPS, onNumericChange } from '@/lib/numeric-input';
+import PostfixInput from '@/components/ui/PostfixInput';
 
 interface ShopeeAccount {
   id: string;
@@ -321,11 +321,13 @@ export default function ShopeeExportModal({
             <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
               น้ำหนัก (kg)
             </label>
-            <input
-              {...NUMERIC_TEXT_INPUT_PROPS}
+            <PostfixInput
+              postfix="kg"
               value={weight}
-              onChange={onNumericChange(setWeight)}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-shopee/50"
+              onChange={setWeight}
+              width="w-full"
+              inputClassName="w-full px-3"
+              classNames={{ frame: 'border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 focus:ring-2 focus:ring-shopee/50' }}
             />
           </div>
 
