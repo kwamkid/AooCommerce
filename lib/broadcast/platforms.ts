@@ -191,6 +191,30 @@ export const BROADCAST_PLATFORM_LIST: BroadcastPlatformInfo[] = [
   BROADCAST_PLATFORMS.instagram,
 ];
 
+/**
+ * ลิมิตร่วมของหลายช่องทาง — เลือกส่งพร้อมกันหลายบัญชี/หลายเจ้า เนื้อหาชุดเดียวต้องผ่าน
+ * **ทุกเจ้าที่เลือก** จึงเอาค่าที่แคบที่สุดของแต่ละช่อง
+ *
+ * เลือก LINE (5,000 ตัว มีรูปได้) + TikTok (500 ตัว ไม่มีรูป) ⇒ ได้ 500 ตัว ไม่มีรูป
+ * และหัวข้อกลายเป็นบังคับ เพราะ TikTok บังคับ — หน้าจอจะบอกลิมิตที่แคบลงทันทีที่ติ๊กเพิ่ม
+ */
+export function intersectCompose(platforms: BroadcastPlatform[]): BroadcastCompose | null {
+  if (platforms.length === 0) return null;
+  const list = platforms.map(p => BROADCAST_PLATFORMS[p].compose);
+  const titleMaxes = list.map(c => c.titleMax).filter((v): v is number => typeof v === 'number');
+  return {
+    // มีเจ้าไหนบังคับหัวข้อ = ทุกใบต้องมีหัวข้อ · ยาวได้เท่าเจ้าที่ให้สั้นที่สุด
+    titleMax: titleMaxes.length ? Math.min(...titleMaxes) : undefined,
+    bodyMax: Math.min(...list.map(c => c.bodyMax)),
+    image: list.every(c => c.image),
+    kinds: (['announce', 'promo', 'products'] as BroadcastContentKind[])
+      .filter(k => list.every(c => c.kinds.includes(k))),
+    buttonsMax: Math.min(...list.map(c => c.buttonsMax)),
+    productsMax: Math.min(...list.map(c => c.productsMax)),
+    quickReplyMax: Math.min(...list.map(c => c.quickReplyMax)),
+  };
+}
+
 export function isBroadcastPlatform(value: unknown): value is BroadcastPlatform {
   return typeof value === 'string' && value in BROADCAST_PLATFORMS;
 }

@@ -7,9 +7,9 @@ import Container from '@/components/ui/Container';
 import Card from '@/components/ui/Card';
 import PageHeader from '@/components/ui/PageHeader';
 import Button from '@/components/ui/Button';
-import FormSelect from '@/components/ui/FormSelect';
 import FormInput from '@/components/ui/FormInput';
 import Radio from '@/components/ui/Radio';
+import Checkbox from '@/components/ui/Checkbox';
 import Alert from '@/components/ui/Alert';
 import MultiSelectSearch from '@/components/ui/MultiSelectSearch';
 import ImageDropzone from '@/components/ui/ImageDropzone';
@@ -30,6 +30,7 @@ import {
   BROADCAST_PLATFORMS,
   BROADCAST_PLATFORM_LIST,
   canBroadcastVia,
+  intersectCompose,
   isBroadcastPlatform,
   type BroadcastContentKind,
   type BroadcastPlatform,
@@ -41,7 +42,7 @@ import {
   type BroadcastContent,
   type BroadcastProductCard,
 } from '@/lib/broadcast/content';
-import { Megaphone, Plus, Send, Tag, Trash2 } from 'lucide-react';
+import { ChevronRight, Plus, Send, Tag, Trash2 } from 'lucide-react';
 
 /** บัญชีต้นทางหนึ่งใบ — LINE มาจาก chat_accounts ส่วน marketplace มาจากร้าน */
 interface BroadcastAccount {
@@ -88,17 +89,13 @@ const AUDIENCE_OPTIONS: Partial<Record<BroadcastPlatform, AudienceOption[]>> = {
     { key: 'tags', label: 'ตามแท็กลูกค้า' },
     {
       key: 'all',
-      label: 'ทุกคนที่แอดเพื่อน OA (broadcast)',
-      hint: 'รวมคนที่ยังไม่เคยทักมา — ระบบรู้จำนวนผู้ติดตามจาก LINE แต่ไม่รู้ว่าเป็นใคร จึงบันทึกลงห้องแชทได้เฉพาะผู้ติดต่อที่มีในระบบ',
+      label: 'ทุกคนที่แอดเพื่อน OA',
+      hint: 'รวมคนที่ยังไม่เคยทักมา — บันทึกลงห้องแชทได้เฉพาะผู้ติดต่อที่มีในระบบ',
     },
   ],
   tiktok: [
-    {
-      key: 'buyers_365d',
-      label: 'ลูกค้าที่เคยสั่งซื้อ (ภายใน 365 วัน)',
-      hint: 'TikTok ให้ทักได้เฉพาะผู้ซื้อที่มีออเดอร์กับร้านภายใน 365 วันเท่านั้น',
-    },
-    { key: 'tags', label: 'ตามแท็กลูกค้า', hint: 'นับเฉพาะคนที่ติดแท็กและมีออเดอร์ภายใน 365 วัน' },
+    { key: 'buyers_365d', label: 'ลูกค้าที่เคยสั่งซื้อ (365 วัน)', hint: 'TikTok ให้ทักได้เฉพาะกรอบนี้' },
+    { key: 'tags', label: 'ตามแท็กลูกค้า', hint: 'นับเฉพาะคนที่ติดแท็กและมีออเดอร์ใน 365 วัน' },
   ],
 };
 
@@ -111,7 +108,7 @@ const KIND_CARDS: Record<BroadcastContentKind, { label: string; description: str
       <div className="w-full space-y-1">
         <div className="h-1.5 rounded bg-gray-300 dark:bg-slate-500" />
         <div className="h-1.5 w-3/4 rounded bg-gray-300 dark:bg-slate-500" />
-        <div className="h-6 rounded bg-gray-200 dark:bg-slate-600" />
+        <div className="h-5 rounded bg-gray-200 dark:bg-slate-600" />
       </div>
     ),
   },
@@ -120,7 +117,7 @@ const KIND_CARDS: Record<BroadcastContentKind, { label: string; description: str
     description: 'แบนเนอร์ + ปุ่มกด',
     preview: (
       <div className="w-full rounded border border-gray-300 dark:border-slate-500 overflow-hidden">
-        <div className="h-5 bg-gray-200 dark:bg-slate-600" />
+        <div className="h-4 bg-gray-200 dark:bg-slate-600" />
         <div className="p-1 space-y-1">
           <div className="h-1.5 w-2/3 rounded bg-gray-300 dark:bg-slate-500" />
           <div className="h-2.5 rounded bg-[#F4511E]/70" />
@@ -135,7 +132,7 @@ const KIND_CARDS: Record<BroadcastContentKind, { label: string; description: str
       <div className="w-full flex gap-1">
         {[0, 1, 2].map(i => (
           <div key={i} className="flex-1 rounded border border-gray-300 dark:border-slate-500 overflow-hidden">
-            <div className="h-4 bg-gray-200 dark:bg-slate-600" />
+            <div className="h-3.5 bg-gray-200 dark:bg-slate-600" />
             <div className="p-0.5"><div className="h-1.5 rounded bg-gray-300 dark:bg-slate-500" /></div>
           </div>
         ))}
@@ -169,7 +166,8 @@ export default function NewBroadcastPage() {
 
   const [accounts, setAccounts] = useState<BroadcastAccount[]>([]);
   const [tags, setTags] = useState<TagRow[]>([]);
-  const [accountId, setAccountId] = useState('');
+  /** เลือกได้หลายบัญชี — เนื้อหาชุดเดียวยิงได้หลาย OA/หลายร้าน (aDay Fresh มี LINE 2 บัญชี) */
+  const [accountIds, setAccountIds] = useState<string[]>([]);
   const [audience, setAudience] = useState('');
   const [tagIds, setTagIds] = useState<string[]>([]);
 
@@ -183,20 +181,32 @@ export default function NewBroadcastPage() {
   const [cards, setCards] = useState<BroadcastProductCard[]>([]);
   const [quickReplies, setQuickReplies] = useState<string[]>([]);
 
+  /** ผลประเมินของบัญชีเดียว (ใช้โชว์รายละเอียดเมื่อเลือกใบเดียว) */
   const [preview, setPreview] = useState<PreviewInfo | null>(null);
+  const [perAccount, setPerAccount] = useState<{ account: BroadcastAccount; info: PreviewInfo }[]>([]);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [sending, setSending] = useState(false);
 
   const productSearch = useServerSearch<ProductSearchItem>({ fetch: fetchProductPage });
 
-  const selectedAccount = accounts.find(a => a.id === accountId);
-  const platform = selectedAccount?.platform ?? null;
-  const info = platform ? BROADCAST_PLATFORMS[platform] : null;
-  const compose = info?.compose ?? null;
-  const audienceOptions = useMemo(
-    () => (platform ? AUDIENCE_OPTIONS[platform] || [] : []),
-    [platform],
+  const selectedAccounts = useMemo(
+    () => accounts.filter(a => accountIds.includes(a.id)),
+    [accounts, accountIds],
   );
+  const platforms = useMemo(
+    () => [...new Set(selectedAccounts.map(a => a.platform))],
+    [selectedAccounts],
+  );
+  /** ใช้ตัดสินเรื่องที่เป็นของแพลตฟอร์มเดียว (สีฟองตัวอย่าง · ข้อความโควตา) */
+  const singlePlatform = platforms.length === 1 ? platforms[0] : null;
+  const compose = useMemo(() => intersectCompose(platforms), [platforms]);
+
+  // กลุ่มผู้รับที่ **ทุกช่องทางที่เลือกมีเหมือนกัน** — เลือกข้ามเจ้าแล้วเหลือเฉพาะตัวร่วม
+  const audienceOptions = useMemo(() => {
+    if (platforms.length === 0) return [];
+    const lists = platforms.map(p => AUDIENCE_OPTIONS[p] || []);
+    return lists[0].filter(o => lists.every(l => l.some(x => x.key === o.key)));
+  }, [platforms]);
   const pendingPlatforms = BROADCAST_PLATFORM_LIST.filter(p => !canBroadcastVia(p.id));
 
   // object URL ต้องคืนทุกครั้งที่เปลี่ยนรูป — สร้างใน render จะรั่วทุกรอบที่ re-render
@@ -241,7 +251,7 @@ export default function NewBroadcastPage() {
         }
 
         setAccounts(list);
-        if (list.length === 1) setAccountId(list[0].id);
+        if (list.length === 1) setAccountIds([list[0].id]);
 
         if (tagRes?.ok) {
           const data = await tagRes.json();
@@ -266,25 +276,33 @@ export default function NewBroadcastPage() {
 
   // ─── ประเมินผู้รับ + โควตา ──────────────────────────────────────────
   const runPreview = useCallback(async (
-    plat: BroadcastPlatform | null, accId: string, aud: string, ids: string[],
+    accs: BroadcastAccount[], aud: string, ids: string[],
   ) => {
-    if (!plat || !accId || !aud) { setPreview(null); return; }
+    if (accs.length === 0 || !aud) { setPreview(null); setPerAccount([]); return; }
     setPreviewLoading(true);
     try {
-      const res = await apiFetch('/api/broadcasts/preview', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          platform: plat,
-          account_id: accId,
-          audience_type: aud,
-          audience_filter: aud === 'tags' ? { tag_ids: ids } : {},
-        }),
-      });
-      if (!res.ok) { setPreview(null); return; }
-      setPreview(await res.json());
+      // ถามทีละบัญชีแล้วรวมยอด — โควตาเป็นของแต่ละ OA จึงต้องเช็คแยกใบ
+      const results = await Promise.all(accs.map(async (a) => {
+        const res = await apiFetch('/api/broadcasts/preview', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            platform: a.platform,
+            account_id: a.id,
+            audience_type: aud,
+            audience_filter: aud === 'tags' ? { tag_ids: ids } : {},
+          }),
+        });
+        if (!res.ok) return null;
+        return { account: a, info: (await res.json()) as PreviewInfo };
+      }));
+
+      const ok = results.filter((r): r is { account: BroadcastAccount; info: PreviewInfo } => !!r);
+      setPerAccount(ok);
+      setPreview(ok.length === 1 ? ok[0].info : null);
     } catch {
       setPreview(null);
+      setPerAccount([]);
     } finally {
       setPreviewLoading(false);
     }
@@ -294,18 +312,23 @@ export default function NewBroadcastPage() {
 
   useEffect(() => {
     if (!allowed) return;
-    debouncedPreview(platform, accountId, audience, tagIds);
-  }, [allowed, platform, accountId, audience, tagIds, debouncedPreview]);
+    debouncedPreview(selectedAccounts, audience, tagIds);
+  }, [allowed, selectedAccounts, audience, tagIds, debouncedPreview]);
 
   // ─── สรุปสิ่งที่จะเกิดขึ้น ────────────────────────────────────────────
-  const recipientCount = preview?.recipient_count ?? 0;
+  const recipientCount = perAccount.reduce((n, r) => n + r.info.recipient_count, 0);
   const quota = preview?.quota ?? null;
-  const quotaShort = !!quota && quota.type === 'limited' && quota.remaining !== null && quota.remaining < recipientCount;
+  /** บัญชีที่โควตาไม่พอ — ต้องเช็คแยกใบเพราะโควตาเป็นของแต่ละ OA */
+  const shortAccounts = perAccount.filter(r =>
+    r.info.quota?.type === 'limited'
+    && r.info.quota.remaining !== null
+    && r.info.quota.remaining < r.info.recipient_count);
+  const quotaShort = shortAccounts.length > 0;
 
   const quotaText = useMemo(() => {
     if (!quota || quota.type === 'unknown') return null;
-    if (quota.type === 'none') return `โควตาเดือนนี้ ใช้ไป ${quota.used.toLocaleString()} ข้อความ (ไม่จำกัด)`;
-    return `โควตาเดือนนี้ ${quota.used.toLocaleString()}/${(quota.limit ?? 0).toLocaleString()} (เหลือ ${(quota.remaining ?? 0).toLocaleString()})`;
+    if (quota.type === 'none') return `ใช้ไป ${quota.used.toLocaleString()} ข้อความเดือนนี้ (ไม่จำกัด)`;
+    return `โควตาเดือนนี้ ${quota.used.toLocaleString()}/${(quota.limit ?? 0).toLocaleString()}`;
   }, [quota]);
 
   /** เนื้อหาที่จะส่ง — รูปยังไม่ได้อัปโหลด ใช้ค่าแทนไปก่อนเพื่อให้ตรวจได้ */
@@ -320,19 +343,25 @@ export default function NewBroadcastPage() {
   }), [kind, title, text, imageFile, buttons, cards, quickReplies]);
 
   // ตรวจด้วยฟังก์ชันเดียวกับที่ API ใช้ — หน้าจอกับ server จึงพูดตรงกันเสมอ
-  const contentError = platform ? validateBroadcastContent(platform, draftContent) : 'เลือกช่องทางก่อน';
+  // เนื้อหาชุดเดียวต้องผ่าน **ทุกช่องทางที่เลือก** — ตัวไหนไม่ผ่านก็บอกตัวนั้น
+  const contentError = platforms
+    .map(p => validateBroadcastContent(p, draftContent))
+    .find(Boolean) ?? null;
 
   // โหมด 'all' ของ LINE ยิงผ่าน broadcast API ไม่ต้องมีรายชื่อของเรา
-  const noRecipients = audience !== 'all' && !previewLoading && !!platform && recipientCount === 0;
-  const canSend = !!accountId && !!audience && !contentError && !quotaShort && !noRecipients && !sending;
+  const noRecipients = audience !== 'all' && !previewLoading && platforms.length > 0 && recipientCount === 0;
+  const canSend = accountIds.length > 0 && !!audience && !contentError && !quotaShort && !noRecipients && !sending;
+  const hasDraft = !!(text.trim() || title.trim() || imagePreviewUrl || cards.length > 0);
 
   // ─── ส่ง ─────────────────────────────────────────────────────────────
   const handleSend = async () => {
-    if (!canSend || !platform) return;
+    if (!canSend) return;
 
     const ok = await confirm({
       title: 'ส่งบรอดแคสต์',
-      description: `ส่งถึง ${recipientCount.toLocaleString()} คน ผ่าน ${selectedAccount?.name || 'ช่องทางนี้'} (${info?.label})? ข้อความจะถูกส่งทันที`,
+      description: selectedAccounts.length === 1
+        ? `ส่งถึง ${recipientCount.toLocaleString()} คน ผ่าน ${selectedAccounts[0].name}? ข้อความจะถูกส่งทันที`
+        : `ส่งถึง ${recipientCount.toLocaleString()} คน ผ่าน ${selectedAccounts.length} ช่องทาง (${selectedAccounts.map(a => a.name).join(' · ')})? ข้อความจะถูกส่งทันที`,
       confirmLabel: 'ส่งบรอดแคสต์',
       confirmIcon: <Send className="w-4 h-4" />,
     });
@@ -340,6 +369,7 @@ export default function NewBroadcastPage() {
 
     setSending(true);
     try {
+      // อัปโหลดรูปครั้งเดียวแล้วใช้ร่วมทุกช่องทาง — อัปซ้ำต่อช่องทางคือเปลืองเปล่า ๆ
       let imageUrl: string | null = null;
       if (compose?.image && imageFile) {
         const { data: { session } } = await supabase.auth.getSession();
@@ -353,22 +383,41 @@ export default function NewBroadcastPage() {
         imageUrl = supabase.storage.from('chat-media').getPublicUrl(path).data.publicUrl;
       }
 
-      const res = await apiFetch('/api/broadcasts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          platform,
-          account_id: accountId,
-          audience_type: audience,
-          audience_filter: audience === 'tags' ? { tag_ids: tagIds } : {},
-          content: { ...draftContent, image_url: imageUrl },
-        }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || 'ส่งบรอดแคสต์ไม่สำเร็จ');
+      // หนึ่งบัญชี = บรอดแคสต์หนึ่งใบ — แต่ละใบมีสถานะ/ปุ่มส่งต่อของตัวเอง
+      // ใบไหนล้มก็ล้มเฉพาะใบนั้น ไม่ลากใบที่ส่งไปแล้วลงไปด้วย
+      const results = await Promise.all(selectedAccounts.map(async (a) => {
+        try {
+          const res = await apiFetch('/api/broadcasts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              platform: a.platform,
+              account_id: a.id,
+              audience_type: audience,
+              audience_filter: audience === 'tags' ? { tag_ids: tagIds } : {},
+              content: { ...draftContent, image_url: imageUrl },
+            }),
+          });
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            return { name: a.name, error: err.error || 'ส่งไม่สำเร็จ' };
+          }
+          return { name: a.name, error: null };
+        } catch {
+          return { name: a.name, error: 'ส่งไม่สำเร็จ' };
+        }
+      }));
+
+      const failed = results.filter(r => r.error);
+      if (failed.length === results.length) {
+        throw new Error(failed[0].error || 'ส่งบรอดแคสต์ไม่สำเร็จ');
       }
-      showToast('เริ่มส่งบรอดแคสต์แล้ว', 'success');
+      if (failed.length > 0) {
+        // ส่งได้บางช่องทาง — ต้องบอกให้ครบว่าอันไหนไม่ผ่านเพราะอะไร ไม่ใช่แค่ "สำเร็จ"
+        showToast(`ส่งแล้ว ${results.length - failed.length}/${results.length} ช่องทาง · ไม่สำเร็จ: ${failed.map(f => `${f.name} (${f.error})`).join(' · ')}`, 'error');
+      } else {
+        showToast(results.length > 1 ? `เริ่มส่งแล้ว ${results.length} ช่องทาง` : 'เริ่มส่งบรอดแคสต์แล้ว', 'success');
+      }
       router.push('/marketing/broadcast');
     } catch (e) {
       showToast(e instanceof Error ? e.message : 'ส่งบรอดแคสต์ไม่สำเร็จ', 'error');
@@ -397,446 +446,477 @@ export default function NewBroadcastPage() {
   };
 
   if (authLoading) {
-    return <Layout><Container size="2xl"><LoadingCard /></Container></Layout>;
+    return <Layout><Container size="6xl"><LoadingCard /></Container></Layout>;
   }
   if (!allowed) {
-    return <Layout><Container size="2xl"><NoPermissionCard /></Container></Layout>;
+    return <Layout><Container size="6xl"><NoPermissionCard /></Container></Layout>;
   }
+
+  const bubbleClass = singlePlatform === 'line' ? 'bg-[#06C755]' : 'bg-gray-900';
 
   return (
     <Layout>
       {confirmDialog}
-      <Container size="2xl">
+      <Container size="6xl">
         <PageHeader backHref="/marketing/broadcast" title="สร้างบรอดแคสต์" subtitle="ข้อความถูกส่งจากระบบนี้ จึงบันทึกไว้ให้ครบว่าส่งอะไรถึงใครไปแล้วบ้าง" />
 
-        {/* 1. ช่องทาง */}
-        <Card>
-          <h2 className="heading-3">ช่องทาง</h2>
-          <p className="section-desc mb-3">เลือกบัญชีที่จะใช้ส่ง</p>
-          {accounts.length === 0 ? (
-            <Alert tone="warning">
-              ยังไม่มีช่องทางที่ส่งได้ — เพิ่ม LINE OA ที่ ตั้งค่า &gt; ช่องทาง Chat ก่อน
-            </Alert>
-          ) : (
-            <FormSelect
-              value={accountId}
-              onChange={setAccountId}
-              options={accounts.map(a => ({
-                id: a.id,
-                label: a.name,
-                subtitle: BROADCAST_PLATFORMS[a.platform].label,
-                icon: <PlatformIcon id={a.platform} size={18} />,
-              }))}
-              placeholder="-- เลือกช่องทาง --"
-            />
-          )}
+        {/* ฟอร์มซ้าย · สรุป+ตัวอย่างขวาแบบตรึง — จอแคบจะเรียงลงเป็นคอลัมน์เดียวตามลำดับเดิม */}
+        <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_360px] gap-5 items-start">
+          <div className="space-y-5">
 
-          {info && <p className="section-desc mt-2">ส่งถึงได้: {info.audience}</p>}
+            {/* 1. ส่งถึงใคร — ช่องทางกับกลุ่มผู้รับเป็นเรื่องเดียวกัน ไม่ต้องแยกการ์ด */}
+            <Card padding="md">
+              <h2 className="heading-4 mb-3">ส่งถึงใคร</h2>
 
-          {pendingPlatforms.length > 0 && (
-            <div className="mt-5 border-t border-gray-200 dark:border-slate-700 pt-4">
-              <p className="field-label mb-2.5">ช่องทางอื่น — ยังส่งไม่ได้</p>
-              <ul className="space-y-3">
-                {pendingPlatforms.map(p => (
-                  <li key={p.id} className="flex gap-2.5">
-                    <span className="mt-0.5 flex-shrink-0 opacity-45"><PlatformIcon id={p.id} size={18} /></span>
-                    <div className="min-w-0">
-                      <p className="body-text text-gray-700 dark:text-slate-300">
-                        {p.label}
-                        <span className="text-gray-400 dark:text-slate-500"> · ส่งถึงได้แค่{p.audience}</span>
-                      </p>
-                      <p className="helper-text text-gray-500 dark:text-slate-400">{p.reason}</p>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </Card>
-
-        {/* 2. ผู้รับ */}
-        {platform && (
-          <Card>
-            <h2 className="heading-3">ผู้รับ</h2>
-            <p className="section-desc mb-3">ส่งถึงใครบ้าง</p>
-
-            <div className="space-y-3">
-              {audienceOptions.map(opt => (
-                <div key={opt.key}>
-                  <Radio checked={audience === opt.key} onChange={() => setAudience(opt.key)} label={opt.label} />
-                  {opt.hint && audience === opt.key && <p className="section-desc ml-7">{opt.hint}</p>}
-                  {opt.key === 'tags' && audience === 'tags' && (
-                    <div className="ml-7 mt-2">
-                      <MultiSelectSearch
-                        value={tagIds}
-                        onChange={setTagIds}
-                        options={tags.map(t => ({ id: t.id, label: t.name }))}
-                        emptyLabel="เลือกแท็ก..."
-                        icon={<Tag className="w-4 h-4" />}
-                      />
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-
-            <div className="mt-4 space-y-2">
-              <p className="body-text text-gray-700 dark:text-slate-300">
-                {previewLoading
-                  ? 'กำลังนับผู้รับ...'
-                  : `ผู้รับ ${recipientCount.toLocaleString()} คน${quotaText ? ` · ${quotaText}` : ''}`}
-              </p>
-
-              {quotaShort && (
-                <Alert tone="warning" title="โควตาไม่พอ">ลดกลุ่มผู้รับหรือรอรอบเดือนหน้า</Alert>
-              )}
-
-              {noRecipients && (
+              {accounts.length === 0 ? (
                 <Alert tone="warning">
-                  {platform === 'tiktok'
-                    ? 'ไม่มีผู้รับที่ตรงเงื่อนไข — TikTok ให้ทักได้เฉพาะลูกค้าที่เคยสั่งซื้อภายใน 365 วัน'
-                    : 'ไม่มีผู้รับที่ตรงเงื่อนไข — เลือกกลุ่มอื่นหรือเพิ่มแท็กให้ลูกค้าก่อน'}
+                  ยังไม่มีช่องทางที่ส่งได้ — เพิ่ม LINE OA ที่ ตั้งค่า &gt; ช่องทาง Chat ก่อน
                 </Alert>
-              )}
-
-              {audience === 'all' && preview && (
-                <Alert tone="info">
-                  {preview.follower_stats?.reachable != null ? (
-                    <>
-                      LINE รายงานว่าส่งถึงได้ {preview.follower_stats.reachable.toLocaleString()} คน
-                      (ข้อมูลของเมื่อวาน — ตรงกับเลข &quot;เพื่อน&quot; ใน LINE OA Manager) —
-                      บันทึกลงห้องแชทได้ {preview.known_contact_count.toLocaleString()} คนที่มีในระบบ
-                      {preview.follower_stats.total_adds != null && preview.follower_stats.blocks != null && (
-                        <span className="block helper-text text-blue-700/70 dark:text-blue-300/70 mt-1">
-                          เคยกดแอดสะสม {preview.follower_stats.total_adds.toLocaleString()} คน
-                          · บล็อกไปแล้ว {preview.follower_stats.blocks.toLocaleString()} คน จึงไม่นับเป็นผู้รับ
+              ) : (
+                <div className="space-y-1.5">
+                  {accounts.map(a => {
+                    const checked = accountIds.includes(a.id);
+                    return (
+                      // Checkbox เป็น <label> อยู่แล้ว — ห่อด้วย <label> อีกชั้นจะซ้อนกัน
+                      // และคลิกไม่ทะลุ (มันหยุด propagation) จึงส่งทั้งแถวเป็น children
+                      <Checkbox
+                        key={a.id}
+                        checked={checked}
+                        onChange={() => setAccountIds(prev =>
+                          prev.includes(a.id) ? prev.filter(x => x !== a.id) : [...prev, a.id])}
+                        className={`w-full px-3 py-2 rounded-lg border transition-colors ${
+                          checked
+                            ? 'border-[#F4511E] bg-orange-50/50 dark:bg-orange-950/20'
+                            : 'border-gray-200 dark:border-slate-600 hover:border-gray-300 dark:hover:border-slate-500'
+                        }`}
+                      >
+                        <PlatformIcon id={a.platform} size={18} />
+                        <span className="body-text text-gray-900 dark:text-white truncate flex-1">{a.name}</span>
+                        <span className="helper-text text-gray-400 dark:text-slate-500">
+                          {BROADCAST_PLATFORMS[a.platform].label}
                         </span>
-                      )}
-                    </>
-                  ) : (
-                    `LINE ยังไม่สรุปจำนวนผู้ติดตามให้ — บันทึกลงห้องแชทได้ ${preview.known_contact_count.toLocaleString()} คนที่มีในระบบ`
-                  )}
-                </Alert>
-              )}
-            </div>
-          </Card>
-        )}
-
-        {/* 3. เนื้อหา */}
-        {compose && (
-          <Card>
-            <h2 className="heading-3">เนื้อหา</h2>
-            <p className="section-desc mb-3">ลูกค้าจะได้รับอะไร</p>
-
-            {compose.kinds.length > 1 && (
-              <div className="mb-4">
-                <OptionCards<BroadcastContentKind>
-                  value={kind}
-                  onChange={setKind}
-                  disabled={sending}
-                  options={compose.kinds.map(k => ({ id: k, ...KIND_CARDS[k] }))}
-                />
-              </div>
-            )}
-
-            {/* หัวข้อ — TikTok บังคับ · LINE ใช้เป็นหัวการ์ดของโปรโมชัน */}
-            {(compose.titleMax || kind === 'promo') && (
-              <div className="mb-4">
-                <FormInput
-                  label="หัวข้อ"
-                  required={!!compose.titleMax}
-                  value={title}
-                  onChange={e => setTitle(e.target.value)}
-                  maxLength={compose.titleMax ?? 40}
-                  disabled={sending}
-                  placeholder="หัวข้อที่ลูกค้าเห็นก่อน"
-                  hint={`${title.length}/${compose.titleMax ?? 40} ตัวอักษร`}
-                />
-              </div>
-            )}
-
-            <label className="field-label block mb-1">
-              {kind === 'products' ? 'ข้อความเกริ่น (ไม่บังคับ)' : 'ข้อความ'}
-            </label>
-            <textarea
-              value={text}
-              onChange={e => setText(e.target.value)}
-              rows={kind === 'announce' ? 5 : 3}
-              placeholder="พิมพ์ข้อความที่จะส่งถึงลูกค้า"
-              disabled={sending}
-              className="w-full px-4 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary resize-none"
-            />
-            <p className="subtitle-text mt-1 text-right text-gray-500 dark:text-slate-400">
-              {text.length.toLocaleString()}/{(kind === 'promo' ? 60 : compose.bodyMax).toLocaleString()}
-            </p>
-
-            {/* รูป — โปรโมชันใช้เป็นแบนเนอร์บนการ์ด */}
-            {compose.image && kind !== 'products' && (
-              <div className="mt-4">
-                <label className="field-label block mb-1">
-                  {kind === 'promo' ? 'แบนเนอร์ (ไม่บังคับ)' : 'รูปภาพ (ไม่บังคับ)'}
-                </label>
-                <ImageDropzone
-                  value={imageFile}
-                  onChange={setImageFile}
-                  disabled={sending}
-                  label="ลากรูปมาวาง หรือกดเพื่อเลือก"
-                  maxWidthOrHeight={1280}
-                />
-              </div>
-            )}
-            {!compose.image && (
-              <p className="section-desc mt-3">{info?.label} รับเฉพาะข้อความล้วน (แนบรูปไม่ได้)</p>
-            )}
-
-            {/* ปุ่มกด */}
-            {kind === 'promo' && compose.buttonsMax > 0 && (
-              <div className="mt-5">
-                <label className="field-label block mb-1">ปุ่มกด (สูงสุด {compose.buttonsMax})</label>
-                <p className="section-desc mb-2">ใส่ลิงก์ปลายทางเอง เช่น หน้าสินค้า หน้าโปรฯ หรือ LINE MyShop</p>
-                <div className="space-y-2">
-                  {buttons.map((b, i) => (
-                    <div key={i} className="flex gap-2 items-start">
-                      <div className="w-40 flex-shrink-0">
-                        <FormInput
-                          value={b.label}
-                          maxLength={BUTTON_LABEL_MAX}
-                          disabled={sending}
-                          placeholder="สั่งเลย"
-                          onChange={e => setButtons(prev => prev.map((x, j) => j === i ? { ...x, label: e.target.value } : x))}
-                        />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <FormInput
-                          value={b.url}
-                          disabled={sending}
-                          placeholder="https://..."
-                          onChange={e => setButtons(prev => prev.map((x, j) => j === i ? { ...x, url: e.target.value } : x))}
-                        />
-                      </div>
-                      {buttons.length > 1 && (
-                        <Button
-                          variant="ghost"
-                          icon={<Trash2 className="w-4 h-4" />}
-                          aria-label="ลบปุ่ม"
-                          disabled={sending}
-                          onClick={() => setButtons(prev => prev.filter((_, j) => j !== i))}
-                        />
-                      )}
-                    </div>
-                  ))}
+                      </Checkbox>
+                    );
+                  })}
                 </div>
-                {buttons.length < compose.buttonsMax && (
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    icon={<Plus className="w-4 h-4" />}
-                    disabled={sending}
-                    className="mt-2"
-                    onClick={() => setButtons(prev => [...prev, { label: '', url: '' }])}
-                  >
-                    เพิ่มปุ่ม
-                  </Button>
-                )}
-              </div>
-            )}
+              )}
 
-            {/* การ์ดสินค้า */}
-            {kind === 'products' && (
-              <div className="mt-5">
-                <label className="field-label block mb-1">สินค้า (สูงสุด {compose.productsMax} ชิ้น)</label>
-                <p className="section-desc mb-2">
-                  ชื่อ รูป ราคา ดึงจากคลังสินค้าให้อัตโนมัติ · ไม่ใส่ลิงก์ = ปุ่มบนการ์ดเป็น
-                  &quot;สนใจสินค้านี้&quot; ที่ลูกค้ากดแล้วทักเข้าห้องแชท
-                </p>
-                {cards.length >= compose.productsMax ? (
-                  <p className="section-desc">ครบ {compose.productsMax} ชิ้นแล้ว — เอาออกก่อนถ้าจะเปลี่ยน</p>
-                ) : (
-                  <ProductSearchInput
-                    products={productSearch.results}
-                    loading={productSearch.loading}
-                    onSearchChange={productSearch.search}
-                    onSelect={addProductCard}
-                    isDisabled={p => cards.some(c => c.variation_id === p.id)}
-                  />
-                )}
-                {cards.length > 0 && (
-                  <ul className="mt-3 space-y-2">
-                    {cards.map((c, i) => (
-                      <li key={c.variation_id ?? i} className="flex gap-3 items-start rounded-lg border border-gray-200 dark:border-slate-600 px-3 py-2.5">
-                        <ProductImageThumb src={c.image_url} alt={c.name} size="sm" />
-                        <div className="flex-1 min-w-0 space-y-1.5">
-                          <p className="body-text text-gray-900 dark:text-white truncate">{c.name}</p>
-                          <p className="helper-text text-gray-500 dark:text-slate-400">
-                            {c.price != null ? formatPrice(c.price) : 'ไม่มีราคา'}
-                          </p>
-                          <FormInput
-                            value={c.url ?? ''}
-                            disabled={sending}
-                            placeholder="ลิงก์สินค้า (ไม่ใส่ก็ได้)"
-                            onChange={e => setCards(prev => prev.map((x, j) => j === i ? { ...x, url: e.target.value || null } : x))}
-                          />
-                        </div>
-                        <Button
-                          variant="ghost"
-                          icon={<Trash2 className="w-4 h-4" />}
-                          aria-label="เอาออก"
-                          disabled={sending}
-                          onClick={() => setCards(prev => prev.filter((_, j) => j !== i))}
-                        />
+              {/* ช่องทางที่ยังส่งไม่ได้ — ย่อเป็นบรรทัดเดียว กางดูเหตุผลได้
+                  (กางค้างไว้ตั้งแต่ยังไม่เริ่มกรอก = ดันเนื้อหาจริงตกจอไปหมด) */}
+              {pendingPlatforms.length > 0 && (
+                <details className="group mt-2.5">
+                  <summary className="flex items-center gap-1.5 cursor-pointer list-none helper-text text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200">
+                    <ChevronRight className="w-3.5 h-3.5 flex-shrink-0 transition-transform group-open:rotate-90" />
+                    <span className="flex items-center gap-1 opacity-60">
+                      {pendingPlatforms.map(p => <PlatformIcon key={p.id} id={p.id} size={14} />)}
+                    </span>
+                    อีก {pendingPlatforms.length} ช่องทางยังส่งไม่ได้ — ดูเหตุผล
+                  </summary>
+                  <ul className="mt-2.5 space-y-2 pl-5">
+                    {pendingPlatforms.map(p => (
+                      <li key={p.id}>
+                        <p className="helper-text text-gray-700 dark:text-slate-300">
+                          <span className="font-medium">{p.label}</span>
+                          <span className="text-gray-400 dark:text-slate-500"> · ถึงได้แค่{p.audience}</span>
+                        </p>
+                        <p className="helper-text text-gray-500 dark:text-slate-400">{p.reason}</p>
                       </li>
                     ))}
                   </ul>
-                )}
-              </div>
-            )}
+                </details>
+              )}
 
-            {/* ปุ่มตอบเร็ว */}
-            {compose.quickReplyMax > 0 && (
-              <div className="mt-5">
-                <label className="field-label block mb-1">ปุ่มตอบเร็ว (ไม่บังคับ)</label>
-                <p className="section-desc mb-2">
-                  ลูกค้ากดแล้วข้อความนั้นถูกส่งเข้าห้องแชททันที — ได้บทสนทนาให้แอดมินปิดการขายต่อ
-                </p>
-                <div className="space-y-2">
-                  {quickReplies.map((q, i) => (
-                    <div key={i} className="flex gap-2 items-start">
-                      <div className="flex-1 min-w-0">
-                        <FormInput
-                          value={q}
-                          maxLength={BUTTON_LABEL_MAX}
-                          disabled={sending}
-                          placeholder="เช่น สนใจ / ขอรายละเอียด"
-                          onChange={e => setQuickReplies(prev => prev.map((x, j) => j === i ? e.target.value : x))}
-                        />
-                      </div>
-                      <Button
-                        variant="ghost"
-                        icon={<Trash2 className="w-4 h-4" />}
-                        aria-label="ลบปุ่มตอบเร็ว"
-                        disabled={sending}
-                        onClick={() => setQuickReplies(prev => prev.filter((_, j) => j !== i))}
-                      />
+              {platforms.length > 0 && (
+                <div className="mt-4 pt-4 border-t border-gray-100 dark:border-slate-700 space-y-2">
+                  {audienceOptions.map(opt => (
+                    <div key={opt.key}>
+                      <Radio checked={audience === opt.key} onChange={() => setAudience(opt.key)} label={opt.label} />
+                      {opt.hint && audience === opt.key && (
+                        <p className="helper-text text-gray-500 dark:text-slate-400 ml-7">{opt.hint}</p>
+                      )}
+                      {opt.key === 'tags' && audience === 'tags' && (
+                        <div className="ml-7 mt-2">
+                          <MultiSelectSearch
+                            value={tagIds}
+                            onChange={setTagIds}
+                            options={tags.map(t => ({ id: t.id, label: t.name }))}
+                            emptyLabel="เลือกแท็ก..."
+                            icon={<Tag className="w-4 h-4" />}
+                          />
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
-                {quickReplies.length < compose.quickReplyMax && (
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    icon={<Plus className="w-4 h-4" />}
-                    disabled={sending}
-                    className="mt-2"
-                    onClick={() => setQuickReplies(prev => [...prev, ''])}
-                  >
-                    เพิ่มปุ่มตอบเร็ว
-                  </Button>
-                )}
-              </div>
-            )}
+              )}
+            </Card>
 
-            {/* ตัวอย่าง — วาดตามชนิดจริงที่จะส่ง ไม่ใช่ฟองข้อความอย่างเดียว */}
-            {(text.trim() || title.trim() || imagePreviewUrl || cards.length > 0) && (
-              <div className="mt-5">
-                <p className="field-label mb-2">ตัวอย่างที่ลูกค้าจะเห็น</p>
-                <div className="rounded-lg bg-gray-100 dark:bg-slate-800 p-4 flex justify-end">
-                  <div className="max-w-[80%] w-full space-y-2">
-                    {kind === 'products' ? (
-                      <>
-                        {text.trim() && (
-                          <div className={`ml-auto w-fit rounded-2xl px-4 py-2.5 text-white ${platform === 'line' ? 'bg-[#06C755]' : 'bg-gray-900'}`}>
-                            <p className="whitespace-pre-wrap break-words">{text}</p>
+            {/* 2. เนื้อหา */}
+            {compose && (
+              <Card padding="md">
+                <h2 className="heading-4 mb-3">เนื้อหา</h2>
+
+                {compose.kinds.length > 1 && (
+                  <div className="mb-4">
+                    <OptionCards<BroadcastContentKind>
+                      value={kind}
+                      onChange={setKind}
+                      disabled={sending}
+                      options={compose.kinds.map(k => ({ id: k, ...KIND_CARDS[k] }))}
+                    />
+                  </div>
+                )}
+
+                <div className="space-y-4">
+                  {/* หัวข้อ — TikTok บังคับ · LINE ใช้เป็นหัวการ์ดของโปรโมชัน */}
+                  {(compose.titleMax || kind === 'promo') && (
+                    <FormInput
+                      label="หัวข้อ"
+                      required={!!compose.titleMax}
+                      value={title}
+                      onChange={e => setTitle(e.target.value)}
+                      maxLength={compose.titleMax ?? 40}
+                      disabled={sending}
+                      placeholder="หัวข้อที่ลูกค้าเห็นก่อน"
+                      hint={`${title.length}/${compose.titleMax ?? 40}`}
+                    />
+                  )}
+
+                  <div>
+                    <label className="field-label block mb-1">
+                      {kind === 'products' ? 'ข้อความเกริ่น (ไม่บังคับ)' : 'ข้อความ'}
+                    </label>
+                    <textarea
+                      value={text}
+                      onChange={e => setText(e.target.value)}
+                      rows={kind === 'announce' ? 4 : 2}
+                      placeholder="พิมพ์ข้อความที่จะส่งถึงลูกค้า"
+                      disabled={sending}
+                      className="w-full px-4 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary resize-none"
+                    />
+                    <p className="helper-text mt-1 text-right text-gray-500 dark:text-slate-400">
+                      {text.length.toLocaleString()}/{(kind === 'promo' ? 60 : compose.bodyMax).toLocaleString()}
+                    </p>
+                  </div>
+
+                  {/* รูป — โปรโมชันใช้เป็นแบนเนอร์บนการ์ด */}
+                  {compose.image && kind !== 'products' && (
+                    <div>
+                      <label className="field-label block mb-1">
+                        {kind === 'promo' ? 'แบนเนอร์ (ไม่บังคับ)' : 'รูปภาพ (ไม่บังคับ)'}
+                      </label>
+                      <ImageDropzone
+                        value={imageFile}
+                        onChange={setImageFile}
+                        disabled={sending}
+                        label="ลากรูปมาวาง หรือกดเพื่อเลือก"
+                        maxWidthOrHeight={1280}
+                      />
+                    </div>
+                  )}
+                  {!compose.image && (
+                    <p className="helper-text text-gray-500 dark:text-slate-400">
+                      {singlePlatform ? BROADCAST_PLATFORMS[singlePlatform].label : 'ช่องทางที่เลือก'} รับเฉพาะข้อความล้วน (แนบรูปไม่ได้)
+                    </p>
+                  )}
+
+                  {/* ปุ่มกด */}
+                  {kind === 'promo' && compose.buttonsMax > 0 && (
+                    <div>
+                      <label className="field-label block mb-1">ปุ่มกด (สูงสุด {compose.buttonsMax})</label>
+                      <p className="helper-text text-gray-500 dark:text-slate-400 mb-2">
+                        ใส่ลิงก์ปลายทางเอง เช่น หน้าสินค้า หน้าโปรฯ
+                      </p>
+                      <div className="space-y-2">
+                        {buttons.map((b, i) => (
+                          <div key={i} className="flex gap-2 items-start">
+                            <div className="w-36 flex-shrink-0">
+                              <FormInput
+                                value={b.label}
+                                maxLength={BUTTON_LABEL_MAX}
+                                disabled={sending}
+                                placeholder="สั่งเลย"
+                                onChange={e => setButtons(prev => prev.map((x, j) => j === i ? { ...x, label: e.target.value } : x))}
+                              />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <FormInput
+                                value={b.url}
+                                disabled={sending}
+                                placeholder="https://..."
+                                onChange={e => setButtons(prev => prev.map((x, j) => j === i ? { ...x, url: e.target.value } : x))}
+                              />
+                            </div>
+                            {buttons.length > 1 && (
+                              <Button
+                                variant="ghost"
+                                icon={<Trash2 className="w-4 h-4" />}
+                                aria-label="ลบปุ่ม"
+                                disabled={sending}
+                                onClick={() => setButtons(prev => prev.filter((_, j) => j !== i))}
+                              />
+                            )}
                           </div>
-                        )}
-                        <div className="flex gap-2 overflow-x-auto pb-1">
+                        ))}
+                      </div>
+                      {buttons.length < compose.buttonsMax && (
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          icon={<Plus className="w-4 h-4" />}
+                          disabled={sending}
+                          className="mt-2"
+                          onClick={() => setButtons(prev => [...prev, { label: '', url: '' }])}
+                        >
+                          เพิ่มปุ่ม
+                        </Button>
+                      )}
+                    </div>
+                  )}
+
+                  {/* การ์ดสินค้า */}
+                  {kind === 'products' && (
+                    <div>
+                      <label className="field-label block mb-1">สินค้า (สูงสุด {compose.productsMax} ชิ้น)</label>
+                      <p className="helper-text text-gray-500 dark:text-slate-400 mb-2">
+                        ชื่อ รูป ราคา ดึงจากคลังให้เอง · ไม่ใส่ลิงก์ = ปุ่มเป็น &quot;สนใจสินค้านี้&quot; ที่ลูกค้ากดแล้วทักเข้าห้องแชท
+                      </p>
+                      {cards.length >= compose.productsMax ? (
+                        <p className="helper-text text-gray-500 dark:text-slate-400">
+                          ครบ {compose.productsMax} ชิ้นแล้ว — เอาออกก่อนถ้าจะเปลี่ยน
+                        </p>
+                      ) : (
+                        <ProductSearchInput
+                          products={productSearch.results}
+                          loading={productSearch.loading}
+                          onSearchChange={productSearch.search}
+                          onSelect={addProductCard}
+                          isDisabled={p => cards.some(c => c.variation_id === p.id)}
+                        />
+                      )}
+                      {cards.length > 0 && (
+                        <ul className="mt-3 space-y-2">
                           {cards.map((c, i) => (
-                            <div key={c.variation_id ?? i} className="w-32 flex-shrink-0 rounded-xl bg-white dark:bg-slate-700 border border-gray-200 dark:border-slate-600 overflow-hidden">
-                              <div className="h-24 bg-gray-100 dark:bg-slate-600 flex items-center justify-center">
-                                <ProductImageThumb src={c.image_url} alt={c.name} size="lg" />
-                              </div>
-                              <div className="p-2">
-                                <p className="subtitle-text text-gray-900 dark:text-white line-clamp-2">{c.name}</p>
-                                <p className="helper-text text-gray-500 dark:text-slate-400 mt-0.5">
-                                  {c.price != null ? formatPrice(c.price) : ''}
-                                </p>
-                                <p className="helper-text text-center mt-1.5 py-1 rounded bg-gray-100 dark:bg-slate-600 text-gray-700 dark:text-slate-200">
-                                  {c.url ? 'ดูสินค้า' : 'สนใจสินค้านี้'}
+                            <li key={c.variation_id ?? i} className="flex gap-3 items-center rounded-lg border border-gray-200 dark:border-slate-600 px-3 py-2">
+                              <ProductImageThumb src={c.image_url} alt={c.name} size="sm" />
+                              <div className="flex-1 min-w-0">
+                                <p className="body-text text-gray-900 dark:text-white truncate">{c.name}</p>
+                                <p className="helper-text text-gray-500 dark:text-slate-400">
+                                  {c.price != null ? formatPrice(c.price) : 'ไม่มีราคา'}
                                 </p>
                               </div>
+                              <div className="w-52 flex-shrink-0">
+                                <FormInput
+                                  value={c.url ?? ''}
+                                  disabled={sending}
+                                  placeholder="ลิงก์ (ไม่ใส่ก็ได้)"
+                                  onChange={e => setCards(prev => prev.map((x, j) => j === i ? { ...x, url: e.target.value || null } : x))}
+                                />
+                              </div>
+                              <Button
+                                variant="ghost"
+                                icon={<Trash2 className="w-4 h-4" />}
+                                aria-label="เอาออก"
+                                disabled={sending}
+                                onClick={() => setCards(prev => prev.filter((_, j) => j !== i))}
+                              />
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  )}
+
+                  {/* ปุ่มตอบเร็ว */}
+                  {compose.quickReplyMax > 0 && (
+                    <div>
+                      <label className="field-label block mb-1">ปุ่มตอบเร็ว (ไม่บังคับ)</label>
+                      <p className="helper-text text-gray-500 dark:text-slate-400 mb-2">
+                        ลูกค้ากดแล้วข้อความเข้าห้องแชททันที — ได้บทสนทนาให้แอดมินปิดการขายต่อ
+                      </p>
+                      {quickReplies.length > 0 && (
+                        <div className="space-y-2 mb-2">
+                          {quickReplies.map((q, i) => (
+                            <div key={i} className="flex gap-2 items-start">
+                              <div className="flex-1 min-w-0">
+                                <FormInput
+                                  value={q}
+                                  maxLength={BUTTON_LABEL_MAX}
+                                  disabled={sending}
+                                  placeholder="เช่น สนใจ / ขอรายละเอียด"
+                                  onChange={e => setQuickReplies(prev => prev.map((x, j) => j === i ? e.target.value : x))}
+                                />
+                              </div>
+                              <Button
+                                variant="ghost"
+                                icon={<Trash2 className="w-4 h-4" />}
+                                aria-label="ลบปุ่มตอบเร็ว"
+                                disabled={sending}
+                                onClick={() => setQuickReplies(prev => prev.filter((_, j) => j !== i))}
+                              />
                             </div>
                           ))}
                         </div>
-                      </>
-                    ) : kind === 'promo' ? (
-                      <div className="ml-auto w-64 rounded-xl bg-white dark:bg-slate-700 border border-gray-200 dark:border-slate-600 overflow-hidden">
-                        {imagePreviewUrl && (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={imagePreviewUrl} alt="แบนเนอร์" className="w-full h-28 object-cover" />
-                        )}
-                        <div className="p-3">
-                          {title.trim() && <p className="body-text font-semibold text-gray-900 dark:text-white">{title}</p>}
-                          {text.trim() && <p className="subtitle-text text-gray-600 dark:text-slate-300 mt-0.5 whitespace-pre-wrap break-words">{text}</p>}
-                        </div>
-                        {buttons.filter(b => b.label.trim()).map((b, i) => (
-                          <p key={i} className="helper-text text-center py-2 border-t border-gray-200 dark:border-slate-600 text-[#F4511E]">
-                            {b.label}
-                          </p>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className={`ml-auto w-fit rounded-2xl px-4 py-2.5 text-white space-y-2 ${platform === 'line' ? 'bg-[#06C755]' : 'bg-gray-900'}`}>
-                        <p className="text-[11px] opacity-80">📣 บรอดแคสต์</p>
-                        {title.trim() && <p className="font-semibold break-words">{title}</p>}
-                        {text.trim() && <p className="whitespace-pre-wrap break-words">{text}</p>}
-                        {imagePreviewUrl && (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={imagePreviewUrl} alt="ตัวอย่างรูปที่จะส่ง" className="rounded-lg max-h-56 w-auto" />
-                        )}
-                      </div>
-                    )}
-
-                    {quickReplies.filter(q => q.trim()).length > 0 && (
-                      <div className="flex flex-wrap gap-1.5 justify-end">
-                        {quickReplies.filter(q => q.trim()).map((q, i) => (
-                          <span key={i} className="helper-text px-2.5 py-1 rounded-full border border-[#06C755] text-[#06C755] bg-white dark:bg-slate-700">
-                            {q}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+                      )}
+                      {quickReplies.length < compose.quickReplyMax && (
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          icon={<Plus className="w-4 h-4" />}
+                          disabled={sending}
+                          onClick={() => setQuickReplies(prev => [...prev, ''])}
+                        >
+                          เพิ่มปุ่มตอบเร็ว
+                        </Button>
+                      )}
+                    </div>
+                  )}
                 </div>
+              </Card>
+            )}
+          </div>
+
+          {/* ── แผงขวา: สรุป + ตัวอย่าง + ปุ่มส่ง ── */}
+          <div className="xl:sticky xl:top-4 space-y-4">
+            <Card padding="md">
+              {/* จำนวนผู้รับคือตัวเลขที่ต้องเห็นตลอดเวลาที่แก้ข้อความ ไม่ใช่ต้องเลื่อนกลับขึ้นไปดู */}
+              <p className="helper-text text-gray-500 dark:text-slate-400">ผู้รับ</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white tabular-nums">
+                {previewLoading ? '—' : recipientCount.toLocaleString()}
+                <span className="body-text font-normal text-gray-500 dark:text-slate-400"> คน</span>
+              </p>
+              {quotaText && <p className="helper-text text-gray-500 dark:text-slate-400 mt-0.5">{quotaText}</p>}
+
+              {audience === 'all' && preview?.follower_stats?.total_adds != null && preview.follower_stats.blocks != null && (
+                <p className="helper-text text-gray-400 dark:text-slate-500 mt-1.5">
+                  เคยแอดสะสม {preview.follower_stats.total_adds.toLocaleString()} · บล็อกแล้ว {preview.follower_stats.blocks.toLocaleString()} จึงไม่นับ
+                </p>
+              )}
+
+              {perAccount.length > 1 && (
+                <ul className="mt-2 space-y-0.5">
+                  {perAccount.map(r => (
+                    <li key={r.account.id} className="flex items-center gap-1.5 helper-text text-gray-500 dark:text-slate-400">
+                      <PlatformIcon id={r.account.platform} size={12} />
+                      <span className="truncate flex-1">{r.account.name}</span>
+                      <span className="tabular-nums">{r.info.recipient_count.toLocaleString()}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              {quotaShort && (
+                <p className="helper-text text-red-600 dark:text-red-400 mt-2">
+                  โควตาไม่พอ: {shortAccounts.map(r => r.account.name).join(' · ')} — ลดกลุ่มผู้รับหรือรอรอบเดือนหน้า
+                </p>
+              )}
+              {noRecipients && (
+                <p className="helper-text text-amber-700 dark:text-amber-500 mt-2">
+                  {singlePlatform === 'tiktok'
+                    ? 'ไม่มีผู้รับ — TikTok ให้ทักได้เฉพาะลูกค้าที่สั่งใน 365 วัน'
+                    : 'ไม่มีผู้รับที่ตรงเงื่อนไข — เลือกกลุ่มอื่นหรือเพิ่มแท็กก่อน'}
+                </p>
+              )}
+              {contentError && hasDraft && (
+                <p className="helper-text text-red-600 dark:text-red-400 mt-2">{contentError}</p>
+              )}
+
+              <div className="flex gap-2 mt-4">
+                <Button variant="secondary" className="flex-1" onClick={() => router.push('/marketing/broadcast')} disabled={sending}>
+                  ยกเลิก
+                </Button>
+                <Button
+                  variant="primary"
+                  className="flex-1"
+                  icon={<Send className="w-4 h-4" />}
+                  loading={sending}
+                  disabled={!canSend}
+                  onClick={handleSend}
+                >
+                  ส่ง
+                </Button>
               </div>
-            )}
 
-            {contentError && (
-              <p className="subtitle-text text-red-600 dark:text-red-400 mt-4">{contentError}</p>
-            )}
-          </Card>
-        )}
+              {platforms.includes('line') && (
+                <p className="helper-text text-gray-500 dark:text-slate-400 mt-3">
+                  ส่งถึง 500 คน = 500 ข้อความในโควตา · การ์ดที่มีรูป หัวข้อ และปุ่ม ยังนับเป็น 1 ข้อความเท่าข้อความเปล่า
+                </p>
+              )}
+            </Card>
 
-        <div className="flex justify-end gap-3">
-          <Button variant="secondary" onClick={() => router.push('/marketing/broadcast')} disabled={sending}>
-            ยกเลิก
-          </Button>
-          <Button
-            variant="primary"
-            icon={<Send className="w-4 h-4" />}
-            loading={sending}
-            disabled={!canSend}
-            onClick={handleSend}
-          >
-            ส่งบรอดแคสต์
-          </Button>
+            {/* ตัวอย่าง — วาดตามชนิดจริงที่จะส่ง อยู่ข้างฟอร์มให้เห็นระหว่างพิมพ์ */}
+            {hasDraft && (
+              <Card padding="md">
+                <p className="field-label mb-2">ตัวอย่างที่ลูกค้าจะเห็น</p>
+                <div className="rounded-lg bg-gray-100 dark:bg-slate-800 p-3 space-y-2">
+                  {kind === 'products' ? (
+                    <>
+                      {text.trim() && (
+                        <div className={`ml-auto w-fit max-w-full rounded-2xl px-3.5 py-2 text-white ${bubbleClass}`}>
+                          <p className="subtitle-text whitespace-pre-wrap break-words">{text}</p>
+                        </div>
+                      )}
+                      <div className="flex gap-2 overflow-x-auto pb-1">
+                        {cards.map((c, i) => (
+                          <div key={c.variation_id ?? i} className="w-28 flex-shrink-0 rounded-xl bg-white dark:bg-slate-700 border border-gray-200 dark:border-slate-600 overflow-hidden">
+                            <div className="h-20 bg-gray-100 dark:bg-slate-600 flex items-center justify-center">
+                              <ProductImageThumb src={c.image_url} alt={c.name} size="md" />
+                            </div>
+                            <div className="p-1.5">
+                              <p className="helper-text text-gray-900 dark:text-white line-clamp-2">{c.name}</p>
+                              <p className="helper-text text-gray-500 dark:text-slate-400 mt-0.5">
+                                {c.price != null ? formatPrice(c.price) : ''}
+                              </p>
+                              <p className="helper-text text-center mt-1 py-0.5 rounded bg-gray-100 dark:bg-slate-600 text-gray-700 dark:text-slate-200">
+                                {c.url ? 'ดูสินค้า' : 'สนใจสินค้านี้'}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  ) : kind === 'promo' ? (
+                    <div className="ml-auto w-full rounded-xl bg-white dark:bg-slate-700 border border-gray-200 dark:border-slate-600 overflow-hidden">
+                      {imagePreviewUrl && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={imagePreviewUrl} alt="แบนเนอร์" className="w-full h-24 object-cover" />
+                      )}
+                      <div className="p-2.5">
+                        {title.trim() && <p className="body-text font-semibold text-gray-900 dark:text-white">{title}</p>}
+                        {text.trim() && <p className="helper-text text-gray-600 dark:text-slate-300 mt-0.5 whitespace-pre-wrap break-words">{text}</p>}
+                      </div>
+                      {buttons.filter(b => b.label.trim()).map((b, i) => (
+                        <p key={i} className="helper-text text-center py-1.5 border-t border-gray-200 dark:border-slate-600 text-[#F4511E]">
+                          {b.label}
+                        </p>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className={`ml-auto w-fit max-w-full rounded-2xl px-3.5 py-2 text-white space-y-1.5 ${bubbleClass}`}>
+                      <p className="text-[11px] opacity-80">📣 บรอดแคสต์</p>
+                      {title.trim() && <p className="subtitle-text font-semibold break-words">{title}</p>}
+                      {text.trim() && <p className="subtitle-text whitespace-pre-wrap break-words">{text}</p>}
+                      {imagePreviewUrl && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={imagePreviewUrl} alt="ตัวอย่างรูปที่จะส่ง" className="rounded-lg max-h-40 w-auto" />
+                      )}
+                    </div>
+                  )}
+
+                  {quickReplies.filter(q => q.trim()).length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 justify-end">
+                      {quickReplies.filter(q => q.trim()).map((q, i) => (
+                        <span key={i} className="helper-text px-2 py-0.5 rounded-full border border-[#06C755] text-[#06C755] bg-white dark:bg-slate-700">
+                          {q}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </Card>
+            )}
+          </div>
         </div>
-
-        {platform === 'line' && (
-          <p className="section-desc flex items-center gap-1.5">
-            <Megaphone className="w-4 h-4 flex-shrink-0" />
-            ส่งถึง 500 คน = 500 ข้อความในโควตา OA — การ์ดที่มีรูป หัวข้อ และปุ่ม ยังนับเป็น 1 ข้อความเท่าข้อความเปล่า
-          </p>
-        )}
-
       </Container>
     </Layout>
   );
