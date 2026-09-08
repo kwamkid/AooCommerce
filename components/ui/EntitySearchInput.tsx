@@ -234,6 +234,14 @@ export default function EntitySearchInput({
       if (debounceRef.current) clearTimeout(debounceRef.current);
       debounceRef.current = setTimeout(() => {
         onSearchChange(val);
+        // ⚠️ พ่อแม่ตอบ **แบบซิงโครนัส** ได้ (useServerSearch กรองต่อในเครื่อง/อ่านแคช)
+        // กรณีนั้น `loading` ไม่เคยเป็น true ⇒ ตัวเคลียร์ที่รอ true→false ไม่ทำงาน
+        // และถ้าจำนวนผลเท่าเดิม (เช่น 0 → 0 ตอนค้นไม่เจอ) ตัวเคลียร์ที่ดูจำนวนก็ไม่ทำงาน
+        // ⇒ สปินเนอร์ค้างตลอดไป (เจอจริง: พิมพ์ "แอมแปม" ไม่เจอ แล้วพิมพ์ต่อเป็น "แอมแปมนาจา")
+        //
+        // ปล่อย pendingSearch ในรอบถัดไป — ถ้ามีการยิงจริง `loading` จะเป็น true แล้ว
+        // สปินเนอร์จึงไม่ดับก่อนเวลา
+        setTimeout(() => setPendingSearch(false), 0);
       }, 300);
     }
   }, [open, onSearchChange, minSearchLength]);
