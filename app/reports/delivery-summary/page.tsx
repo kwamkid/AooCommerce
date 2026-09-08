@@ -872,8 +872,9 @@ export default function DeliverySummaryPage() {
                     disabled={!reportData || reportData.byDate.length === 0}
                     icon={<FileText className="w-4 h-4" />}
                     onClick={handleExportOrderSlipPdf}
+                    aria-label="พิมพ์ใบคำสั่งซื้อของทั้งวัน"
                   >
-                    ใบคำสั่งซื้อ
+                    <span className="hidden lg:inline">ใบคำสั่งซื้อ</span>
                   </Button>
                   <Button
                     variant="primary"
@@ -881,8 +882,9 @@ export default function DeliverySummaryPage() {
                     disabled={!reportData || reportData.productSummary.length === 0}
                     icon={<ClipboardList className="w-4 h-4" />}
                     onClick={handleExportPackingPdf}
+                    aria-label="พิมพ์ใบจัดของของทั้งวัน"
                   >
-                    ใบจัดของ
+                    <span className="hidden lg:inline">ใบจัดของ</span>
                   </Button>
                 </>
               ) : (
@@ -892,7 +894,7 @@ export default function DeliverySummaryPage() {
                   disabled={!reportData || reportData.byDate.length === 0}
                   icon={copySuccess ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
                 >
-                  {copySuccess ? 'คัดลอกแล้ว!' : 'สรุปการส่ง'}
+                  <span className="hidden lg:inline">{copySuccess ? 'คัดลอกแล้ว!' : 'สรุปการส่ง'}</span>
                 </Button>
               )}
             </div>

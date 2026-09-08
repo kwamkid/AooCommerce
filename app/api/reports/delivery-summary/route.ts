@@ -120,98 +120,77 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Step 2b: Fetch images — variation images from product_images, fallback to product.image
+    // Step 2b–3: รูป · ต้นทางรูปสำรอง · บาร์โค้ด · shipments
+    // ทั้ง 4 ตัวขึ้นกับ orderItems ชุดเดียวกันเท่านั้น จึงยิงพร้อมกันได้ —
+    // ของเดิม await เรียงกันทีละตัว (6 รอบไป-กลับ DB ต่อการเปิดหน้า 1 ครั้ง)
     const productIds = [...new Set(orderItems?.map(i => i.product_id).filter(Boolean))];
     const variationIds = [...new Set(orderItems?.map(i => i.variation_id).filter(Boolean))];
 
-    // Map: variation_id -> image_url (from product_images table)
-    const variationImageMap = new Map<string, string>();
-    // Map: product_id -> image_url (fallback from product_images or products.image)
-    const productImageMap = new Map<string, string>();
-
-    // Fetch from product_images table (both variation-level and product-level)
     const orConditions: string[] = [];
-    if (variationIds.length > 0) {
-      orConditions.push(`variation_id.in.(${variationIds.join(',')})`);
-    }
-    if (productIds.length > 0) {
-      orConditions.push(`product_id.in.(${productIds.join(',')})`);
-    }
+    if (variationIds.length > 0) orConditions.push(`variation_id.in.(${variationIds.join(',')})`);
+    if (productIds.length > 0) orConditions.push(`product_id.in.(${productIds.join(',')})`);
 
-    if (orConditions.length > 0) {
-      const { data: images } = await supabaseAdmin
-        .from('product_images')
-        .select('product_id, variation_id, image_url, sort_order')
-        .or(orConditions.join(','))
-        .eq('company_id', companyId)
-        .order('sort_order', { ascending: true });
-
-      (images || []).forEach(img => {
-        if (img.variation_id && !variationImageMap.has(img.variation_id)) {
-          variationImageMap.set(img.variation_id, img.image_url);
-        }
-        if (img.product_id && !productImageMap.has(img.product_id)) {
-          productImageMap.set(img.product_id, img.image_url);
-        }
-      });
-    }
-
-    // Also fetch products.image as final fallback
-    if (productIds.length > 0) {
-      const { data: productsData } = await supabaseAdmin
-        .from('products')
-        .select('id, image')
-        .in('id', productIds);
-
-      productsData?.forEach(p => {
-        if (p.image && !productImageMap.has(p.id)) {
-          productImageMap.set(p.id, p.image);
-        }
-      });
-    }
-
-    // Step 2c: Fetch barcodes from product_variations
-    const variationBarcodeMap = new Map<string, string>();
-    if (variationIds.length > 0) {
-      const { data: variations } = await supabaseAdmin
-        .from('product_variations')
-        .select('id, barcode')
-        .in('id', variationIds)
-        .eq('company_id', companyId);
-
-      (variations || []).forEach(v => {
-        if (v.barcode) {
-          variationBarcodeMap.set(v.id, v.barcode);
-        }
-      });
-    }
-
-    // Step 3: Fetch shipments with shipping addresses
-    const { data: shipments, error: shipmentsError } = await supabaseAdmin
-      .from('order_shipments')
-      .select(`
-        id,
-        order_item_id,
-        shipping_address_id,
-        quantity,
-        delivery_status,
-        delivery_date,
-        delivery_notes,
-        shipping_address:shipping_addresses (
+    const [imagesRes, productsRes, variationsRes, shipmentsRes] = await Promise.all([
+      orConditions.length > 0
+        ? supabaseAdmin
+            .from('product_images')
+            .select('product_id, variation_id, image_url, sort_order')
+            .or(orConditions.join(','))
+            .eq('company_id', companyId)
+            .order('sort_order', { ascending: true })
+        : Promise.resolve({ data: [] as { product_id: string | null; variation_id: string | null; image_url: string }[] }),
+      productIds.length > 0
+        ? supabaseAdmin.from('products').select('id, image').in('id', productIds)
+        : Promise.resolve({ data: [] as { id: string; image: string | null }[] }),
+      variationIds.length > 0
+        ? supabaseAdmin.from('product_variations').select('id, barcode').in('id', variationIds).eq('company_id', companyId)
+        : Promise.resolve({ data: [] as { id: string; barcode: string | null }[] }),
+      supabaseAdmin
+        .from('order_shipments')
+        .select(`
           id,
-          address_name,
-          contact_person,
-          phone,
-          address_line1,
-          district,
-          amphoe,
-          province,
-          postal_code,
-          google_maps_link
-        )
-      `)
-      .in('order_item_id', orderItemIds)
-      .eq('company_id', companyId);
+          order_item_id,
+          shipping_address_id,
+          quantity,
+          delivery_status,
+          delivery_date,
+          delivery_notes,
+          shipping_address:shipping_addresses (
+            id,
+            address_name,
+            contact_person,
+            phone,
+            address_line1,
+            district,
+            amphoe,
+            province,
+            postal_code,
+            google_maps_link
+          )
+        `)
+        .in('order_item_id', orderItemIds)
+        .eq('company_id', companyId),
+    ]);
+
+    /** variation_id → รูป (จาก product_images) */
+    const variationImageMap = new Map<string, string>();
+    /** product_id → รูป (product_images ระดับสินค้า แล้วค่อยตกไป products.image) */
+    const productImageMap = new Map<string, string>();
+    (imagesRes.data || []).forEach(img => {
+      if (img.variation_id && !variationImageMap.has(img.variation_id)) variationImageMap.set(img.variation_id, img.image_url);
+      if (img.product_id && !productImageMap.has(img.product_id)) productImageMap.set(img.product_id, img.image_url);
+    });
+    (productsRes.data || []).forEach(pr => {
+      if (pr.image && !productImageMap.has(pr.id)) productImageMap.set(pr.id, pr.image);
+    });
+
+    const variationBarcodeMap = new Map<string, string>();
+    (variationsRes.data || []).forEach(v => {
+      if (v.barcode) variationBarcodeMap.set(v.id, v.barcode);
+    });
+
+    const shipments = shipmentsRes.data;
+    const shipmentsError = 'error' in shipmentsRes ? shipmentsRes.error : null;
 
     if (shipmentsError) {
       console.error('Shipments fetch error:', shipmentsError);
