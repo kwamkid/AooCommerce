@@ -93,10 +93,11 @@ function SavedReplyPicker({
           className="min-w-0 flex-1 pl-3 pr-1 py-2 text-left"
         >
           <span className="block text-sm font-medium text-gray-900 dark:text-white truncate">{r.title}</span>
-          {/* ตัดที่ 2 บรรทัดพอดี — **ห้ามใส่ `block` คู่กับ `line-clamp-2`**
+          {/* 14px เท่าชื่อใบ แยกกันด้วยน้ำหนัก/สีแทน — 11px อ่านไม่ออกจริง ๆ (เจ้าของทดสอบ 8 ก.ย. 2026)
+              ตัดที่ 2 บรรทัดพอดี — **ห้ามใส่ `block` คู่กับ `line-clamp-2`**
               สอง class สั่ง `display` คนละค่า (block กับ -webkit-box) ตัวที่ชนะแล้วแต่ลำดับใน CSS
               ถ้า block ชนะ = ไม่ตัดเลย ยาวเท่าไหร่ก็ขึ้นหมด (เคยหลุดเป็น 3 บรรทัด) */}
-          <span className="caption-text line-clamp-2">{savedReplyPreview(r, 120)}</span>
+          <span className="subtitle-text text-gray-500 dark:text-slate-400 line-clamp-2">{savedReplyPreview(r, 120)}</span>
         </button>
 
         {onEdit && (

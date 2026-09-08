@@ -1,10 +1,10 @@
 'use client';
 
 import ProductImageThumb from '@/components/ui/ProductImageThumb';
-import { useState, useEffect, useRef, useMemo, Fragment } from 'react';
+import { useState, useEffect, Fragment } from 'react';
 import { useCopy } from '@/lib/useCopy';
 import Image from 'next/image';
-import imageCompression from 'browser-image-compression';
+import ImageDropzone from '@/components/ui/ImageDropzone';
 import { useToast } from '@/lib/toast-context';
 import { Loader2, Printer, FileText, MapPin, Camera, Upload, Clock, CheckCircle2, CreditCard, Banknote, Globe, Copy, Check, Sun, Moon, QrCode, Download, Pencil, AlertTriangle, ChevronDown } from 'lucide-react';
 import { generateOrderInvoicePdf } from '@/lib/order-invoice-pdf';
@@ -178,14 +178,12 @@ export default function BillClient({ orderId, initialBill }: { orderId: string; 
   const [transferTime, setTransferTime] = useState('');
   const [paymentNotes, setPaymentNotes] = useState('');
   const [slipFile, setSlipFile] = useState<File | null>(null);
-  const [slipPreview, setSlipPreview] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const [gatewayLoading, setGatewayLoading] = useState(false);
   const [copiedAccount, setCopiedAccount] = useState<string | null>(null);
   const [copiedAmount, setCopiedAmount] = useState(false);
   const [compressingSlip, setCompressingSlip] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Print
   const [showPrintMenu, setShowPrintMenu] = useState(false);
@@ -319,38 +317,6 @@ export default function BillClient({ orderId, initialBill }: { orderId: string; 
     }
   };
 
-  const handleSlipSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    // Clear input value so same file can be re-selected
-    e.target.value = '';
-
-    // Revoke old preview URL to prevent memory leak
-    if (slipPreview) URL.revokeObjectURL(slipPreview);
-
-    setCompressingSlip(true);
-    try {
-      const compressed = await imageCompression(file, {
-        maxSizeMB: 0.5,
-        maxWidthOrHeight: 1920,
-        useWebWorker: true,
-      });
-      setSlipFile(compressed);
-      setSlipPreview(URL.createObjectURL(compressed));
-    } catch {
-      // Compression failed — still use original but warn if too large
-      if (file.size > 5 * 1024 * 1024) {
-        showToast('ไฟล์ใหญ่เกินไป กรุณาเลือกรูปขนาดเล็กกว่านี้', 'error');
-        setCompressingSlip(false);
-        return;
-      }
-      setSlipFile(file);
-      setSlipPreview(URL.createObjectURL(file));
-    } finally {
-      setCompressingSlip(false);
-    }
-  };
 
   const handleSubmitPayment = async () => {
     if (!bill) return;
@@ -1084,13 +1050,6 @@ export default function BillClient({ orderId, initialBill }: { orderId: string; 
                 ) : (
                   <div className={`border-2 border-primary rounded-xl p-5 space-y-4`}>
                     {/* Single shared file input — outside conditional sections */}
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept="image/*"
-                      onChange={handleSlipSelect}
-                      className="hidden"
-                    />
                     <h3 className={`font-bold text-lg flex items-center gap-2 ${dark ? 'text-white' : 'text-gray-900'}`}>
                       <Upload className="w-5 h-5 text-primary" />
                       ชำระเงิน
@@ -1214,32 +1173,22 @@ export default function BillClient({ orderId, initialBill }: { orderId: string; 
                         {/* Slip Upload first (for future auto-detect) */}
                         <div>
                           <label className="block text-base font-medium mb-1" style={{ color: dark ? '#94a3b8' : '#4b5563' }}>อัพโหลดสลิป</label>
-                          {compressingSlip ? (
-                            <div className={`w-full border-2 border-dashed rounded-lg py-8 flex flex-col items-center gap-2 ${dark ? 'border-slate-600 text-slate-500' : 'border-gray-300 text-gray-400'}`}>
-                              <Loader2 className="w-10 h-10 animate-spin" />
-                              <span className="text-base">กำลังย่อรูป...</span>
-                            </div>
-                          ) : slipPreview ? (
-                            <div className="relative">
-                              <img src={slipPreview} alt="สลิป" className={`w-full max-h-64 object-contain rounded-lg border ${dark ? 'border-slate-600' : 'border-gray-200'}`} />
-                              <button
-                                type="button"
-                                onClick={() => { if (slipPreview) URL.revokeObjectURL(slipPreview); setSlipFile(null); setSlipPreview(null); }}
-                                className="absolute top-2 right-2 bg-black/50 text-white rounded-full w-7 h-7 flex items-center justify-center text-sm"
-                              >
-                                ✕
-                              </button>
-                            </div>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={() => fileInputRef.current?.click()}
-                              className={`w-full border-2 border-dashed rounded-lg py-8 flex flex-col items-center gap-2 hover:border-primary hover:text-primary transition-colors ${dark ? 'border-slate-600 text-slate-500' : 'border-gray-300 text-gray-400'}`}
-                            >
-                              <Camera className="w-10 h-10" />
-                              <span className="text-base">เลือกรูป / ถ่ายรูปสลิป</span>
-                            </button>
-                          )}
+                          {/* ลากวาง / วางจากคลิปบอร์ด / ถ่ายรูป / ย่อรูป อยู่ใน ImageDropzone ตัวกลาง
+                              หน้านี้มีสวิตช์มืด/สว่างของตัวเอง (ไม่ได้ใช้ class .dark ของทั้งเว็บ) จึงส่งคลาสเอง */}
+                          <ImageDropzone
+                            value={slipFile}
+                            onChange={setSlipFile}
+                            onBusyChange={setCompressingSlip}
+                            icon={<Camera className="w-10 h-10" />}
+                            label="เลือกรูป / ถ่ายรูปสลิป"
+                            alt="สลิป"
+                            classNames={{
+                              root: `w-full flex flex-col items-center justify-center gap-2 border-2 border-dashed rounded-lg py-8 text-base hover:border-primary hover:text-primary transition-colors ${dark ? 'border-slate-600 text-slate-500' : 'border-gray-300 text-gray-400'}`,
+                              preview: 'relative block',
+                              previewImg: `w-full max-h-64 object-contain rounded-lg border ${dark ? 'border-slate-600' : 'border-gray-200'}`,
+                              clear: 'absolute top-2 right-2 bg-black/50 text-white rounded-full w-7 h-7 flex items-center justify-center',
+                            }}
+                          />
                         </div>
 
                         {/* Transfer date/time */}
@@ -1350,32 +1299,22 @@ export default function BillClient({ orderId, initialBill }: { orderId: string; 
                         {/* Slip Upload first (for future auto-detect) */}
                         <div>
                           <label className="block text-base font-medium mb-1" style={{ color: dark ? '#94a3b8' : '#4b5563' }}>อัพโหลดสลิป</label>
-                          {compressingSlip ? (
-                            <div className={`w-full border-2 border-dashed rounded-lg py-8 flex flex-col items-center gap-2 ${dark ? 'border-slate-600 text-slate-500' : 'border-gray-300 text-gray-400'}`}>
-                              <Loader2 className="w-10 h-10 animate-spin" />
-                              <span className="text-base">กำลังย่อรูป...</span>
-                            </div>
-                          ) : slipPreview ? (
-                            <div className="relative">
-                              <img src={slipPreview} alt="สลิป" className={`w-full max-h-64 object-contain rounded-lg border ${dark ? 'border-slate-600' : 'border-gray-200'}`} />
-                              <button
-                                type="button"
-                                onClick={() => { if (slipPreview) URL.revokeObjectURL(slipPreview); setSlipFile(null); setSlipPreview(null); }}
-                                className="absolute top-2 right-2 bg-black/50 text-white rounded-full w-7 h-7 flex items-center justify-center text-sm"
-                              >
-                                ✕
-                              </button>
-                            </div>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={() => fileInputRef.current?.click()}
-                              className={`w-full border-2 border-dashed rounded-lg py-8 flex flex-col items-center gap-2 hover:border-primary hover:text-primary transition-colors ${dark ? 'border-slate-600 text-slate-500' : 'border-gray-300 text-gray-400'}`}
-                            >
-                              <Camera className="w-10 h-10" />
-                              <span className="text-base">เลือกรูป / ถ่ายรูปสลิป</span>
-                            </button>
-                          )}
+                          {/* ลากวาง / วางจากคลิปบอร์ด / ถ่ายรูป / ย่อรูป อยู่ใน ImageDropzone ตัวกลาง
+                              หน้านี้มีสวิตช์มืด/สว่างของตัวเอง (ไม่ได้ใช้ class .dark ของทั้งเว็บ) จึงส่งคลาสเอง */}
+                          <ImageDropzone
+                            value={slipFile}
+                            onChange={setSlipFile}
+                            onBusyChange={setCompressingSlip}
+                            icon={<Camera className="w-10 h-10" />}
+                            label="เลือกรูป / ถ่ายรูปสลิป"
+                            alt="สลิป"
+                            classNames={{
+                              root: `w-full flex flex-col items-center justify-center gap-2 border-2 border-dashed rounded-lg py-8 text-base hover:border-primary hover:text-primary transition-colors ${dark ? 'border-slate-600 text-slate-500' : 'border-gray-300 text-gray-400'}`,
+                              preview: 'relative block',
+                              previewImg: `w-full max-h-64 object-contain rounded-lg border ${dark ? 'border-slate-600' : 'border-gray-200'}`,
+                              clear: 'absolute top-2 right-2 bg-black/50 text-white rounded-full w-7 h-7 flex items-center justify-center',
+                            }}
+                          />
                         </div>
 
                         {/* วันที่โอน + เวลาโอน */}

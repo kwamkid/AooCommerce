@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useRef } from 'react';
-import { Loader2, Camera, X } from 'lucide-react';
+import { useState } from 'react';
+import { Camera } from 'lucide-react';
 import Button from '@/components/ui/Button';
-import imageCompression from 'browser-image-compression';
+import ImageDropzone from '@/components/ui/ImageDropzone';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
 import DateRangePicker, { DateValueType } from '@/components/ui/DateRangePicker';
@@ -40,9 +40,8 @@ export default function PaymentModal({
 
   // Slip upload
   const [slipFile, setSlipFile] = useState<File | null>(null);
-  const [slipPreview, setSlipPreview] = useState<string | null>(null);
+  /** ImageDropzone บอกมาว่ากำลังย่อรูป — ปิดปุ่มบันทึกไว้ ไม่งั้นบันทึกได้ทั้งที่สลิปยังไม่พร้อม */
   const [compressingSlip, setCompressingSlip] = useState(false);
-  const slipFileInputRef = useRef<HTMLInputElement>(null);
 
   // Reset when defaultPaymentMethod changes (modal opens)
   const resetForm = () => {
@@ -52,36 +51,8 @@ export default function PaymentModal({
     setTransferTime('');
     setNotes('');
     setSlipFile(null);
-    if (slipPreview) URL.revokeObjectURL(slipPreview);
-    setSlipPreview(null);
   };
 
-  const handleSlipSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    e.target.value = '';
-    if (slipPreview) URL.revokeObjectURL(slipPreview);
-    setCompressingSlip(true);
-    try {
-      const compressed = await imageCompression(file, {
-        maxSizeMB: 0.5,
-        maxWidthOrHeight: 1920,
-        useWebWorker: true,
-      });
-      setSlipFile(compressed as File);
-      setSlipPreview(URL.createObjectURL(compressed));
-    } catch {
-      if (file.size > 5 * 1024 * 1024) {
-        showToast('ไฟล์ใหญ่เกินไป กรุณาเลือกรูปขนาดเล็กกว่านี้', 'error');
-        setCompressingSlip(false);
-        return;
-      }
-      setSlipFile(file);
-      setSlipPreview(URL.createObjectURL(file));
-    } finally {
-      setCompressingSlip(false);
-    }
-  };
 
   const handleClose = () => {
     if (submitting) return;
@@ -157,7 +128,7 @@ export default function PaymentModal({
           <Button variant="secondary" onClick={handleClose} disabled={submitting}>
             ยกเลิก
           </Button>
-          <Button variant="primary" onClick={handleSubmit} loading={submitting}>
+          <Button variant="primary" onClick={handleSubmit} loading={submitting} disabled={compressingSlip}>
             {submitting ? 'กำลังดำเนินการ...' : 'ยืนยัน'}
           </Button>
         </div>
@@ -226,38 +197,20 @@ export default function PaymentModal({
                 <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
                   อัพโหลดสลิป
                 </label>
-                {compressingSlip ? (
-                  <div className="w-full border-2 border-dashed border-gray-300 dark:border-slate-600 rounded-lg py-6 flex flex-col items-center gap-2 text-gray-400 dark:text-slate-500">
-                    <Loader2 className="w-8 h-8 animate-spin" />
-                    <span className="text-sm">กำลังย่อรูป...</span>
-                  </div>
-                ) : slipPreview ? (
-                  <div className="relative">
-                    <img src={slipPreview} alt="สลิป" className="w-full max-h-48 object-contain rounded-lg border border-gray-200 dark:border-slate-600" />
-                    <button
-                      type="button"
-                      onClick={() => { if (slipPreview) URL.revokeObjectURL(slipPreview); setSlipFile(null); setSlipPreview(null); }}
-                      className="absolute top-2 right-2 bg-black/50 text-white rounded-full w-6 h-6 flex items-center justify-center"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => slipFileInputRef.current?.click()}
-                    className="w-full border-2 border-dashed border-gray-300 dark:border-slate-600 rounded-lg py-6 flex flex-col items-center gap-2 text-gray-400 dark:text-slate-500 hover:border-primary hover:text-primary transition-colors"
-                  >
-                    <Camera className="w-8 h-8" />
-                    <span className="text-sm">เลือกรูป / ถ่ายรูปสลิป</span>
-                  </button>
-                )}
-                <input
-                  ref={slipFileInputRef}
-                  type="file"
-                  accept="image/*"
-                  onChange={handleSlipSelect}
-                  className="hidden"
+                <ImageDropzone
+                  value={slipFile}
+                  onChange={setSlipFile}
+                  onBusyChange={setCompressingSlip}
+                  icon={<Camera className="w-8 h-8" />}
+                  label="เลือกรูป / ถ่ายรูปสลิป"
+                  hint="ลากรูปมาวาง หรือวางจากคลิปบอร์ดก็ได้"
+                  alt="สลิป"
+                  classNames={{
+                    root: 'w-full flex flex-col items-center justify-center gap-2 border-2 border-dashed border-gray-300 dark:border-slate-600 rounded-lg py-6 text-gray-400 dark:text-slate-500 hover:border-primary hover:text-primary transition-colors',
+                    preview: 'relative block',
+                    previewImg: 'w-full max-h-48 object-contain rounded-lg border border-gray-200 dark:border-slate-600',
+                    clear: 'absolute top-2 right-2 bg-black/50 text-white rounded-full w-6 h-6 flex items-center justify-center',
+                  }}
                 />
               </div>
 

@@ -306,6 +306,21 @@ h6:where(.heading-1, .heading-2, .heading-3, .heading-4) {
 :where(.dark .helper-text)   { color: rgb(148 163 184); }
 :where(.dark .caption-text)  { color: rgb(148 163 184); }
 
+/* ⚠️ preflight ของ Tailwind มี `button, input, optgroup, select, textarea { font-size: 100% }`
+ * ซึ่ง specificity = (0,0,1) **ชนะ** `:where(...)` ที่เป็น 0 ทั้งหมด
+ * ⇒ คลาสตัวอักษรข้างบนถูกเมินเงียบ ๆ บนทุกปุ่ม/ช่องกรอกทั้งเว็บ
+ *   (เจอจริง: "+ เพิ่มใหม่" ที่เป็น <button> ใหญ่กว่า "จัดการ" ที่เป็น <a> ทั้งที่ใส่คลาสเดียวกัน)
+ *
+ * เขียนซ้ำด้วย selector ที่มี element เพื่อให้ specificity เท่ากับ preflight (0,0,1)
+ * แล้วอยู่ทีหลังในไฟล์ = ชนะ · `:where()` ยังทำให้ utility ของ Tailwind (0,1,0) ชนะได้ตามเดิม
+ * **เพิ่มคลาสขนาดตัวอักษรใหม่ ต้องมาเพิ่มบรรทัดตรงนี้ด้วยเสมอ** */
+:is(button, input, optgroup, select, textarea):where(.body-text)     { font-size: 1rem; }
+:is(button, input, optgroup, select, textarea):where(.subtitle-text) { font-size: 0.875rem; }
+:is(button, input, optgroup, select, textarea):where(.helper-text)   { font-size: 0.75rem; }
+:is(button, input, optgroup, select, textarea):where(.caption-text)  { font-size: 0.6875rem; line-height: 1.35; }
+:is(button, input, optgroup, select, textarea):where(.section-desc)  { font-size: 0.875rem; }
+:is(button, input, optgroup, select, textarea):where(.heading-1, .heading-2, .heading-3, .heading-4) { font-size: var(--h-size); }
+
 :where(.page-subtitle) { color: rgb(75 85 99); margin-top: 0.25rem; }
 :where(.dark .page-subtitle) { color: rgb(148 163 184); }
 :where(.section-desc)  { font-size: 0.875rem; color: rgb(107 114 128); margin-top: 0.125rem; }
