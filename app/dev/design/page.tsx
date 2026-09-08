@@ -301,7 +301,22 @@ export default function DesignSystemPage() {
           <Card>
             <Group label="variant='card' (ค่าปกติ) — แท็บที่เลือกเป็นแผ่นขาวโค้งมุมบน พื้นเทาไหลต่อไปทางขวา + ขีดหนาใต้ข้อความ">
               <div className="w-full">
+                <Hint>บนพื้นขาวของการ์ด (บริบทเดียวกับหน้าตั้งค่า)</Hint>
                 <Tabs
+                  activeKey={demoTab}
+                  onSelect={(k) => setDemoTab(k as typeof demoTab)}
+                  tabs={[
+                    { key: 'orders', label: 'คำสั่งซื้อ', count: 24 },
+                    { key: 'invoices', label: 'ใบกำกับ', count: 8 },
+                    { key: 'reports', label: 'รายงาน' },
+                  ]}
+                />
+              </div>
+            </Group>
+            <Group label="บนพื้นเทาของหน้า (บริบทเดียวกับหน้า list ที่แท็บวางนอกการ์ด)">
+              <div className="w-full bg-gray-50 dark:bg-slate-950 p-4 rounded-lg">
+                <Tabs
+                  className="mb-0"
                   activeKey={demoTab}
                   onSelect={(k) => setDemoTab(k as typeof demoTab)}
                   tabs={[

@@ -60,7 +60,7 @@ export default function Tabs({ tabs, activeKey, onSelect, className, fill, size 
   // `className="mb-6"` accidentally drop the flex + border-b and tabs would stack.
   const isCard = variant === 'card';
   const baseCls = isCard
-    ? 'flex bg-gray-100 dark:bg-slate-800 rounded-t-xl mb-6 overflow-x-auto'
+    ? 'flex bg-gray-200/70 dark:bg-slate-800 rounded-t-xl mb-6 overflow-x-auto'
     : 'flex border-b border-gray-200 dark:border-slate-700 mb-6 overflow-x-auto';
   return (
     <div className={className ? `${baseCls} ${className}` : baseCls}>
@@ -72,7 +72,7 @@ export default function Tabs({ tabs, activeKey, onSelect, className, fill, size 
           ?? (isCard ? 'text-gray-900 dark:text-white' : 'border-primary text-primary');
         const sizeCls = size === 'sm'
           ? (isCard ? 'px-4 pt-2 pb-3 text-xs gap-1.5' : 'px-3 py-2 text-xs gap-1.5')
-          : (isCard ? 'px-5 pt-2.5 pb-4 text-base gap-2' : 'px-4 py-2.5 text-base gap-2');
+          : (isCard ? 'px-4 pt-2.5 pb-4 text-base gap-2' : 'px-4 py-2.5 text-base gap-2');
         const fillCls = fill ? 'flex-1 justify-center' : '';
         // `activeColorClass` ใช้ได้ทั้งสองแบบ — แบบการ์ดหยิบเฉพาะสีตัวอักษรไปใช้
         // (`border-*` ที่ติดมาไม่มีผลเพราะไม่มีเส้นใต้) และขีดสั้นวาดด้วย `bg-current`
@@ -81,7 +81,7 @@ export default function Tabs({ tabs, activeKey, onSelect, className, fill, size 
           ? `relative flex items-center ${sizeCls} ${fillCls} font-semibold whitespace-nowrap transition-colors ${
               isActive
                 ? `bg-white dark:bg-slate-900 rounded-t-xl ${activeColor}`
-                : 'text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200'
+                : 'text-gray-600/80 dark:text-slate-400 hover:text-gray-900 dark:hover:text-slate-200'
             }`
           : `flex items-center ${sizeCls} ${fillCls} font-medium border-b-2 whitespace-nowrap transition-colors ${
               isActive
