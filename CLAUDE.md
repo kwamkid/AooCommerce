@@ -469,6 +469,7 @@ Shopee ต้องจด app ของตัวเอง** — ออเดอ�
 
 **เพิ่ม marketplace ใหม่ = ต้องตั้ง cron 2 ตัวเสมอ** (sync-all + webhook/retry)
 ทุกตัวยิงด้วย header `x-cron-secret: {CRON_SECRET}`
+- ⚠️ **cron-job.org รอ response ได้สูงสุด 30 วิ** (เพดานที่ตั้งได้จริง — เจ้าของยืนยัน 2026-09-09) ⇒ **ทุก cron route ต้องตอบ 200 ทันทีแล้วทำงานจริงใน `after()`** ตั้ง `maxDuration` ตามงาน · ทำในสายที่ cron รอ = โดนนับว่าล้มทั้งที่งานสำเร็จ แล้ว job ถูกปิดเองเมื่อล้มติดกัน (เคยเกิด ก.ค. 2026) · ผลจริงดูจาก `integration_logs` / heartbeat / สถานะแถว ไม่ใช่จาก response ของ cron · ครบแล้วทุกตัว 2026-09-09 (sync-all ×3 · webhook/retry ×3 · watchdog · settlement สาย cron · broadcasts/run-scheduled) — สายที่ผู้ใช้กดเองจากหน้า (เช่น settlement) ยังรอผลได้ตามเดิม
 
 ### 🔔 Watchdog — ตัวเฝ้าที่ทำให้ "พังเงียบ" เป็นไปไม่ได้ (เพิ่ม 2026-09-02)
 

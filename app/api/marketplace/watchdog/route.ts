@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, after } from 'next/server';
 import { runWatchdog } from '@/lib/marketplace/watchdog';
 import { reconcilePendingBeamPayments } from '@/lib/beam/settle';
 import { pruneOldLogs } from '@/lib/maintenance/log-retention';
@@ -9,6 +9,10 @@ import { pruneOldLogs } from '@/lib/maintenance/log-retention';
 // เปิด "Notify on failure" ของ job นี้ใน cron-job.org ด้วยเสมอ
 // ไม่งั้นเราจะกลับไปอยู่จุดเดิม คือมีตัวเฝ้าที่ตายไปแล้วโดยไม่มีใครรู้
 // (หน้า superadmin แสดง "ตรวจล่าสุดเมื่อ ..." จาก heartbeat ที่ runWatchdog เขียนไว้)
+//
+// **ตอบ 200 ทันทีแล้วทำงานใน after()** — cron-job.org รอได้แค่ 30 วิ แต่รอบหนึ่งรวมกันเกินได้
+// (ตรวจช่องทางแชทจริงงบ 15 วิ + ถาม Beam + ล้าง log วันละครั้ง) ทำในสายที่ cron รอ = โดนนับว่าล้ม
+// แล้ว job ถูกปิดเองเมื่อล้มติดกัน · งานข้างในตายให้ดูจาก heartbeat `watchdog_last_run` ค้าง
 export const maxDuration = 60;
 
 async function handle(request: NextRequest) {
@@ -19,26 +23,27 @@ async function handle(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  try {
+  after(async () => {
     // ตาข่ายของ Beam: ลิงก์จ่ายเงินที่ค้าง pending ให้ไปถาม Beam เองก่อนตรวจสุขภาพ
     // (webhook ไม่เข้า = ลูกค้าจ่ายแล้วแต่ออเดอร์ไม่ขยับ — เกิดจริง ก.ย. 2026) · ล้มแยกจากตัวเฝ้า
     const beam = await reconcilePendingBeamPayments().catch((e) => {
       console.error('[Watchdog] beam reconcile failed:', e instanceof Error ? e.message : e);
       return null;
     });
-    const result = await runWatchdog();
+    const result = await runWatchdog().catch((e) => {
+      console.error('[Watchdog] run failed:', e instanceof Error ? e.message : e);
+      return null;
+    });
     // งานดูแลรายวันเกาะมากับ cron ตัวนี้ (ตัวมันเองคุมให้ทำจริงวันละครั้ง) — จะได้ไม่ต้องตั้ง
     // cron เพิ่มอีกใบ · ล้มไม่กระทบตัวเฝ้า
     const logs = await pruneOldLogs().catch((e) => {
       console.error('[Watchdog] log retention failed:', e instanceof Error ? e.message : e);
       return null;
     });
-    return NextResponse.json({ ok: true, ...result, beam, logs });
-  } catch (e) {
-    const message = e instanceof Error ? e.message : 'Unknown error';
-    console.error('[Watchdog] run failed:', message);
-    return NextResponse.json({ error: message }, { status: 500 });
-  }
+    console.log('[Watchdog] done', JSON.stringify({ beam, result, logs }));
+  });
+
+  return NextResponse.json({ ok: true, started: true });
 }
 
 export async function GET(request: NextRequest) {

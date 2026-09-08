@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, after } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
+import { logIntegrationNow } from '@/lib/integration-logger';
 import { isQuotaBlocked } from '@/lib/marketplace/quota';
 import { computeOrderCogs, saveSettlement } from '@/lib/marketplace/settlement';
 import { ensureValidToken as ensureLazadaToken, getFinanceTransactions, type LazadaAccountRow } from '@/lib/lazada/api';
@@ -18,6 +19,10 @@ import type { ShopeeAccountRow } from '@/lib/shopee/api';
 //
 // POST { platform: 'shopee'|'lazada'|'tiktok'|'all', days?: number }
 // GET  (cron รายวัน) = เท่ากับ POST { platform:'all', days:30 }
+//
+// **สาย cron ตอบ 200 ทันทีแล้วทำงานใน after()** — cron-job.org รอได้แค่ 30 วิ แต่งานนี้ใช้ได้ถึง
+// 240 วิ ถ้าทำในสายที่ cron รอ job จะถูกนับว่าล้มทุกรอบแล้วโดนปิดเอง · ผลของแต่ละร้านลง
+// integration_logs (action `settlement_sync`) ให้ดูย้อนหลังได้ · สายผู้ใช้ (กดจากหน้า) ยังรอผลเหมือนเดิม
 
 export const maxDuration = 300;
 
@@ -46,8 +51,7 @@ export async function POST(request: NextRequest) {
   }
 
   // 'all' = ไล่ทั้ง 3 เจ้าใน call เดียว — cron รายวันจะได้ตั้ง job เดียวพอ
-  const SETTLEMENT_PLATFORMS = ['shopee', 'lazada', 'tiktok'] as const;
-  type SettlementPlatform = typeof SETTLEMENT_PLATFORMS[number];
+  const SETTLEMENT_PLATFORMS: readonly SettlementPlatform[] = ['shopee', 'lazada', 'tiktok'];
   const targets: SettlementPlatform[] = platform === 'all'
     ? [...SETTLEMENT_PLATFORMS]
     : (SETTLEMENT_PLATFORMS as readonly string[]).includes(platform)
@@ -61,8 +65,28 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  const isCron = authorizeCron(request);
+  if (isCron) {
+    after(async () => {
+      const summary = await runSettlementSync(targets, days, companyFilter);
+      console.log('[Settlement Sync] cron done', JSON.stringify(summary));
+    });
+    return NextResponse.json({ started: true, platforms: targets, days });
+  }
+
+  const byPlatform = await runSettlementSync(targets, days, companyFilter);
+  return NextResponse.json({ platforms: targets, days, ...byPlatform });
+}
+
+type SettlementPlatform = 'shopee' | 'lazada' | 'tiktok';
+
+/** ไล่ทุกร้านของทุกเจ้าที่ขอ — หยุดเองก่อนโดนตัด แล้วบอกว่าค้างตรงไหน (pattern เดียวกับงานยาวตัวอื่นในระบบ) */
+async function runSettlementSync(
+  targets: SettlementPlatform[],
+  days: number,
+  companyFilter: string | null,
+): Promise<Record<string, unknown>> {
   const since = new Date(Date.now() - days * 86_400_000);
-  // หยุดเองก่อนโดนตัด แล้วบอกว่าค้างตรงไหน (pattern เดียวกับงานยาวตัวอื่นในระบบ)
   const deadline = Date.now() + 240_000;
   const byPlatform: Record<string, unknown> = {};
 
@@ -97,21 +121,40 @@ export async function POST(request: NextRequest) {
         results.push({ shop: account.shop_name, skipped: true, reason: 'หมดงบเวลา — ยิงรอบใหม่ต่อได้' });
         continue;
       }
+      const startedAt = Date.now();
+      let r: Record<string, unknown>;
       try {
-        const r = target === 'shopee'
+        r = target === 'shopee'
           ? await syncShopeeAccount(account as unknown as ShopeeAccountRow, since, deadline)
           : target === 'lazada'
             ? await syncLazadaAccount(account as unknown as LazadaAccountRow, since)
             : await syncTikTokAccount(account as unknown as TikTokAccountRow, since, deadline);
-        results.push({ shop: account.shop_name, ...r });
       } catch (err) {
-        results.push({ shop: account.shop_name, error: err instanceof Error ? err.message : 'unknown' });
+        r = { error: err instanceof Error ? err.message : 'unknown' };
       }
+      results.push({ shop: account.shop_name, ...r });
+
+      // ผลรายร้านต้องมีที่ให้ดูย้อนหลัง — สาย cron ไม่มีใครเห็น response แล้ว (ทำใน after())
+      // **await** เพราะอยู่ในงานเบื้องหลัง ปล่อยลอยแล้วโดน freeze ทิ้งพร้อมกัน
+      const failed = !!r.error || (Array.isArray(r.errors) && r.errors.length > 0);
+      await logIntegrationNow({
+        company_id: account.company_id,
+        integration: target,
+        account_id: account.id,
+        account_name: account.shop_name,
+        direction: 'outgoing',
+        action: 'settlement_sync',
+        response_body: r,
+        status: failed ? 'error' : 'success',
+        error_message: failed ? String(r.error || (r.errors as string[]).join('; ')) : undefined,
+        reference_label: `ยอดโอน ${days} วัน`,
+        duration_ms: Date.now() - startedAt,
+      });
     }
     byPlatform[target] = { accounts: accounts.length, results };
   }
 
-  return NextResponse.json({ platforms: targets, days, ...byPlatform });
+  return byPlatform;
 }
 
 // cron ยิงเป็น GET ได้ (cron-job.org ตั้ง GET ง่ายกว่า) — ไม่ใส่อะไร = POST { platform:'all', days:30 }
