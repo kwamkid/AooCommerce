@@ -16,6 +16,17 @@
 
 ---
 
+## 2026-09-08 — ทุกหน้าโหลดช้า: การเช็ค "ข้อความซ้ำ" ของ Facebook ไล่สแกน 17,307 แถวทุกครั้งที่ลูกค้าทัก (818ms/ข้อความ)
+
+**ที่เกิด**: [lib/services/chat/facebook.ts](lib/services/chat/facebook.ts) dedupe ก่อนบันทึกข้อความ · หน้ารายชื่อลูกค้า · index ของ `fb_messages` / `line_messages` / `customers`
+**อาการ**: เจ้าของแจ้งว่าทุกหน้าโหลดนาน · `pg_stat_statements` (สะสม 206 วัน) ชี้ว่า query ที่กินเวลา DB สูงสุดคือ `select id from fb_messages where fb_message_id = $1 and company_id = $2` — **24,373 ครั้ง เฉลี่ย 129ms รวม 52 นาที**
+**Root cause**: `fb_messages` ไม่มี index ของ `fb_message_id` เลย (Shopee/Lazada/TikTok มีคู่ `(contact_id, message_id)` อยู่แล้ว ตกแค่ FB กับ LINE) → planner ใช้ `idx_fb_messages_company` แล้วไล่กรองทีละแถว · EXPLAIN จริง: `Rows Removed by Filter: 17,307`, **818ms/ข้อความ** · งานนี้วิ่งทุกข้อความขาเข้า (วันละหลายร้อย) ไปแย่ง CPU กับหน้าเว็บที่คนอื่นเปิดอยู่ · หน้ารายชื่อลูกค้าก็ Seq Scan 2,633 แถวแล้ว sort เพราะไม่มี composite `(company_id, created_at)`
+**วิธีแก้**: migration `20260908_perf_chat_dedupe_and_customer_list_indexes` — เพิ่ม `idx_fb_messages_msgid (company_id, fb_message_id)` · `idx_line_messages_msgid (company_id, line_message_id)` · `idx_customers_company_created (company_id, created_at desc)` แล้วลบ index ที่นิยามซ้ำหรือไม่เคยถูกใช้เลยใน 206 วัน 5 ตัว (index เกิน = insert ช้า + planner คิดนาน · customers วางแผน 9.6ms/query) · วัดหลังแก้: dedupe **818ms → 4.8ms** · รายชื่อลูกค้า **96ms → 3.3ms**
+**ป้องกัน regression**: ตารางข้อความของทุกแพลตฟอร์มต้องมี index ของ "id ที่ใช้เช็คซ้ำ" เสมอ — เพิ่มแพลตฟอร์มใหม่ให้เช็คด้วย · **วัดด้วย `explain (analyze, timing off)`** เพราะ `timing on` เพิ่ม overhead ต่อแถวจนตัวเลขเฟ้อเท่าตัว (products count 119ms → 58ms) · รอบแรกที่วัดได้ค่าสูงผิดปกติให้ยิงซ้ำก่อนสรุป (cache เย็น: orders counts 147ms → 4.5ms รอบสอง)
+**ที่ยังไม่ได้แก้ (วัดไว้แล้ว · warm cache · timing off)**: `get_orders_list` **257ms** และ `get_inventory_filtered` **207ms** — ทั้งคู่ไล่นับทั้งร้านทุกครั้งที่เปิดหน้า (ป้ายจำนวนบนแท็บ + ยอดรวมสำหรับแบ่งหน้า) แตะ 3,400 ออเดอร์ / 6,200 variation ต่อการเปิด 1 ครั้ง · **ตาราง log ไม่เคยมีการลบของเก่าเลย** — `integration_logs` 84MB + `marketplace_sync_log` 13MB + `marketplace_webhook_log` 17MB = **114MB จากฐานข้อมูล 257MB** (เก่ากว่า 30 วัน 193,666 แถว) · 70 index ที่ไม่มีใครใช้ · 35 RLS policy ที่คิด `auth.*()` ใหม่ทุกแถว
+
+---
+
 ## 2026-09-08 — superadmin "App ของบริษัท" บอก "ยังไม่เปิด push แชท · ยังไม่เคยตรวจ" ทั้งที่แชท Shopee ของ ABC วิ่งอยู่
 
 **ที่เกิด**: [app/api/superadmin/marketplace-apps/route.ts](app/api/superadmin/marketplace-apps/route.ts) · [app/superadmin/marketplace-apps/page.tsx](app/superadmin/marketplace-apps/page.tsx)
