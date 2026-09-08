@@ -846,9 +846,10 @@ export default function EditProductPage() {
         </div>
 
         {/* Price + Weight + (Barcode, Discount for non-Shopee) */}
-        <div className={`grid grid-cols-1 gap-4 ${link.platform === 'shopee' ? 'sm:grid-cols-2' : 'sm:grid-cols-3'}`}>
+        {/* ช่องตัวเลขสั้น ๆ ไม่ต้องยืดเต็มการ์ด — มือถือเต็มบรรทัด, จอกว้างกว้างพอดีค่าที่กรอก */}
+        <div className="flex flex-col sm:flex-row sm:flex-wrap gap-4">
           {link.platform !== 'shopee' && (
-            <div>
+            <div className="w-full sm:w-[220px]">
               <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">
                 Barcode
               </label>
@@ -861,7 +862,7 @@ export default function EditProductPage() {
               />
             </div>
           )}
-          <div>
+          <div className="w-full sm:w-[240px]">
             <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">
               ราคา Platform
             </label>
@@ -883,7 +884,7 @@ export default function EditProductPage() {
             </p>
           </div>
           {link.platform !== 'shopee' && (
-            <div>
+            <div className="w-full sm:w-[200px]">
               <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">
                 ราคาลด
               </label>
@@ -901,7 +902,7 @@ export default function EditProductPage() {
               </p>
             </div>
           )}
-          <div>
+          <div className="w-full sm:w-[160px]">
             <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">
               น้ำหนัก
             </label>
@@ -1082,7 +1083,7 @@ export default function EditProductPage() {
           </div>
 
           {/* Weight */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="w-full sm:w-[160px]">
             <FormInput
               label="น้ำหนัก"
               type="number"
