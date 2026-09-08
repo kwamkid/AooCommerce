@@ -377,7 +377,9 @@ export default function NewBroadcastPage() {
   };
 
   const addProductCard = (p: ProductSearchItem) => {
-    if (cards.some(c => c.product_id === p.product_id)) return;
+    // เช็คซ้ำด้วย variation ไม่ใช่ product — สินค้าตัวเดียวมีหลายสี/ขนาดที่ product_id
+    // เดียวกัน (YOYO 0+ มี 5 สี) เช็คด้วย product_id จะเลือกได้แค่สีเดียว
+    if (cards.some(c => c.variation_id === p.id)) return;
     if (compose && cards.length >= compose.productsMax) {
       showToast(`ใส่ได้ไม่เกิน ${compose.productsMax} ชิ้น`, 'error');
       return;
@@ -385,7 +387,9 @@ export default function NewBroadcastPage() {
     const price = p.discount_price && p.discount_price > 0 ? p.discount_price : p.default_price ?? 0;
     setCards(prev => [...prev, {
       product_id: p.product_id,
-      name: p.name,
+      variation_id: p.id,
+      // ชื่อบนการ์ดต้องแยกสีออกจากกัน ไม่งั้นได้การ์ด "YOYO 0+ Newborn Pack" 5 ใบเหมือนกันหมด
+      name: p.variation_label ? `${p.name} - ${p.variation_label}` : p.name,
       image_url: p.image ?? null,
       price,
       url: null,
@@ -653,13 +657,13 @@ export default function NewBroadcastPage() {
                     loading={productSearch.loading}
                     onSearchChange={productSearch.search}
                     onSelect={addProductCard}
-                    isDisabled={p => cards.some(c => c.product_id === p.product_id)}
+                    isDisabled={p => cards.some(c => c.variation_id === p.id)}
                   />
                 )}
                 {cards.length > 0 && (
                   <ul className="mt-3 space-y-2">
                     {cards.map((c, i) => (
-                      <li key={c.product_id ?? i} className="flex gap-3 items-start rounded-lg border border-gray-200 dark:border-slate-600 px-3 py-2.5">
+                      <li key={c.variation_id ?? i} className="flex gap-3 items-start rounded-lg border border-gray-200 dark:border-slate-600 px-3 py-2.5">
                         <ProductImageThumb src={c.image_url} alt={c.name} size="sm" />
                         <div className="flex-1 min-w-0 space-y-1.5">
                           <p className="body-text text-gray-900 dark:text-white truncate">{c.name}</p>
@@ -746,7 +750,7 @@ export default function NewBroadcastPage() {
                         )}
                         <div className="flex gap-2 overflow-x-auto pb-1">
                           {cards.map((c, i) => (
-                            <div key={c.product_id ?? i} className="w-32 flex-shrink-0 rounded-xl bg-white dark:bg-slate-700 border border-gray-200 dark:border-slate-600 overflow-hidden">
+                            <div key={c.variation_id ?? i} className="w-32 flex-shrink-0 rounded-xl bg-white dark:bg-slate-700 border border-gray-200 dark:border-slate-600 overflow-hidden">
                               <div className="h-24 bg-gray-100 dark:bg-slate-600 flex items-center justify-center">
                                 <ProductImageThumb src={c.image_url} alt={c.name} size="lg" />
                               </div>

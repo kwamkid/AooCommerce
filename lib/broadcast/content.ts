@@ -26,6 +26,13 @@ export interface BroadcastButton {
 export interface BroadcastProductCard {
   /** สินค้าในระบบเรา — null = ผู้ใช้กรอกเอง */
   product_id: string | null;
+  /**
+   * ตัวเลือกที่เลือก — **การ์ดเป็นระดับ variation ไม่ใช่ระดับสินค้า**
+   * สินค้าตัวเดียวมีได้หลายสี/หลายขนาดที่ `product_id` เดียวกัน (YOYO 0+ มี 5 สี)
+   * ถ้าเช็คซ้ำด้วย product_id จะเลือกได้แค่สีเดียวแล้วสีอื่นกดไม่ได้ทั้งหมด
+   */
+  variation_id: string | null;
+  /** ชื่อที่ขึ้นบนการ์ด — รวมชื่อตัวเลือกไว้แล้ว เช่น "YOYO 0+ Newborn Pack - Black" */
   name: string;
   image_url: string | null;
   price: number | null;
