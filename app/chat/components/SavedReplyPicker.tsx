@@ -19,6 +19,7 @@ import { memo, useEffect, useRef } from 'react';
 import { Search, Plus, Settings2, MessageSquareText, Loader2, Pencil } from 'lucide-react';
 import Link from 'next/link';
 import Tooltip from '@/components/ui/Tooltip';
+import SavedReplyText from '@/components/chat/SavedReplyText';
 import { savedReplyPreview, savedReplyThumb, type SavedReply } from '@/lib/chat/saved-replies';
 
 interface Props {
@@ -97,7 +98,7 @@ function SavedReplyPicker({
               ตัดที่ 2 บรรทัดพอดี — **ห้ามใส่ `block` คู่กับ `line-clamp-2`**
               สอง class สั่ง `display` คนละค่า (block กับ -webkit-box) ตัวที่ชนะแล้วแต่ลำดับใน CSS
               ถ้า block ชนะ = ไม่ตัดเลย ยาวเท่าไหร่ก็ขึ้นหมด (เคยหลุดเป็น 3 บรรทัด) */}
-          <span className="subtitle-text text-gray-500 dark:text-slate-400 line-clamp-2">{savedReplyPreview(r, 120)}</span>
+          <span className="subtitle-text text-gray-500 dark:text-slate-400 line-clamp-2"><SavedReplyText text={savedReplyPreview(r, 120)} /></span>
         </button>
 
         {onEdit && (

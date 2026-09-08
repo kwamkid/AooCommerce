@@ -15,6 +15,7 @@ import Toggle from '@/components/ui/Toggle';
 import SearchInput from '@/components/ui/SearchInput';
 import { LoadingCard, EmptyCard, NoPermissionCard } from '@/components/ui/StateCard';
 import SavedReplyModal from '@/components/chat/SavedReplyModal';
+import SavedReplyText from '@/components/chat/SavedReplyText';
 import { useAuthGuard } from '@/lib/useAuthGuard';
 import { useFetchOnce } from '@/lib/use-fetch-once';
 import { useToast } from '@/lib/toast-context';
@@ -180,7 +181,7 @@ export default function SavedRepliesSettingsPage() {
                         )}
                       </span>
                     }
-                    subtitle={savedReplyPreview(r, 110)}
+                    subtitle={<SavedReplyText text={savedReplyPreview(r, 110)} />}
                     actions={
                       <div className="flex items-center gap-1">
                         <Tooltip text={r.is_active ? 'ปิดไม่ให้ขึ้นในหน้าแชท' : 'เปิดให้ใช้ในหน้าแชท'} box="inline-flex">
