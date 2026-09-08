@@ -217,7 +217,7 @@ export default function FormSelect({
         {/* ห่อไอคอนให้เป็นกล่อง flex — `<img>/<svg>` เป็น inline มีช่องว่างใต้ตัว ทำให้ดูไม่ตรงกลางกับข้อความ */}
         {icon && <span className="flex-shrink-0 flex items-center leading-none [&>img]:block [&>svg]:block text-gray-400 dark:text-slate-400">{icon}</span>}
         {selected?.icon && <span className="flex-shrink-0 flex items-center leading-none [&>img]:block [&>svg]:block">{selected.icon}</span>}
-        <span className={`flex-1 truncate ${
+        <span className={`flex-1 truncate text-icon-align ${
           selected ? 'text-gray-900 dark:text-white' : 'text-gray-400 dark:text-slate-400'
         }`}>
           {selected?.triggerLabel || selected?.label || (clearLabel && value === clearValue ? clearLabel : placeholder)}
@@ -288,7 +288,7 @@ export default function FormSelect({
                       Was previously `min-w-0 truncate` — that forced labels like
                       "7 วันล่าสุด" to render as "7 วันล่า…" even with extra space. */}
                   <div className="flex-1 text-left">
-                    <div className="whitespace-nowrap">{o.label}</div>
+                    <div className="whitespace-nowrap text-icon-align">{o.label}</div>
                     {o.subtitle && (
                       <div className="text-xs text-gray-500 dark:text-slate-400 whitespace-nowrap">{o.subtitle}</div>
                     )}

@@ -693,6 +693,16 @@ table.items-table td {
   animation: fadeIn 0.15s ease-out;
 }
 
+/* ── ตัวอักษรไทยกับไอคอนให้อยู่กึ่งกลางบรรทัดเดียวกันจริง ──
+   วัดจาก metrics ของ IBM Plex Sans Thai (fontkit): ascent 1.116em · descent 0.534em ·
+   capHeight 0.698em ⇒ กล่องข้อความสูง 1.65em (เผื่อสระบน-ล่าง) แต่ตัวอักษรจริงอยู่
+   **สูงกว่ากึ่งกลางกล่อง 0.058em** — พอวางคู่ไอคอนใน flex items-center ไอคอนจะกลางจริง
+   ส่วนตัวอักษรลอยขึ้น (เห็นชัดในแท็บ/ดรอปดาวน์ที่มีไอคอนนำหน้า)
+   คลาสนี้ดันข้อความลงเท่าส่วนต่างนั้น · หน่วย em จึงถูกต้องทุกขนาดฟอนต์ · transform ไม่กินพื้นที่ layout */
+.text-icon-align {
+  transform: translateY(0.058em);
+}
+
 /* Remove spinner from number inputs */
 input[type="number"]::-webkit-inner-spin-button,
 input[type="number"]::-webkit-outer-spin-button {

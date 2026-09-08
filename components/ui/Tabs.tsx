@@ -102,7 +102,7 @@ export default function Tabs({ tabs, activeKey, onSelect, className, fill, size 
         // h-[34px] + p-1 ของราง = 42px เท่าความสูงมาตรฐานของ input/ปุ่มที่วางข้างกัน
         const stacked = iconPosition === 'top';
         const sizeCls = stacked
-          ? (size === 'sm' ? 'px-3 py-1.5 text-xs gap-0.5 rounded-md' : 'px-4 py-2 text-sm gap-1 rounded-lg')
+          ? (size === 'sm' ? 'px-3 py-2 text-xs gap-1.5 rounded-md' : 'px-4 py-2.5 text-sm gap-2 rounded-lg')
           : (size === 'sm' ? 'h-7 px-3 text-xs gap-1.5 rounded-md' : 'h-[34px] px-4 text-base gap-2 rounded-lg');
         const fillCls = fill ? 'flex-1' : '';
         // แท็บที่เลือกหนากว่านิดเดียวพอให้แยกออก — semibold ทั้งแถบอ่านแล้วหนักตา
@@ -117,7 +117,7 @@ export default function Tabs({ tabs, activeKey, onSelect, className, fill, size 
             {tab.icon && (
               <span className="flex-shrink-0 flex items-center leading-none [&>img]:block [&>svg]:block">{tab.icon}</span>
             )}
-            <span className="leading-none">{tab.label}</span>
+            <span className="text-icon-align">{tab.label}</span>
             {typeof tab.count === 'number' && (
               <span className={`text-xs px-1.5 py-0.5 rounded-full ${
                 isActive
