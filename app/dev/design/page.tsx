@@ -24,9 +24,12 @@ import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
 import { Stat, ProgressBar, BarChart, Sparkline } from '@/components/ui/Chart';
 import Tabs from '@/components/ui/Tabs';
 import PlatformIcon from '@/components/ui/PlatformIcon';
+import StatusBadge, { InfoChip } from '@/components/ui/StatusBadge';
+import { OrderStatusBadge, PaymentStatusBadge } from '@/components/ui/OrderStatusBadge';
+import { STATUS_DOMAINS, STATUS_COLORS, type StatusDomain } from '@/lib/status-labels';
 import {
   Plus, Save, Trash2, Check, AlertCircle, AlertTriangle, Pencil, Settings, Download, Upload, ArrowRight,
-  ShoppingCart, Package, Banknote, Users,
+  ShoppingCart, Package, Banknote, Users, ChevronRight, Truck, Clock,
 } from 'lucide-react';
 
 interface DemoRow {
@@ -276,6 +279,95 @@ export default function DesignSystemPage() {
               <Badge size="sm" shape="square">square / sm</Badge>
               <Badge size="md" shape="square">square / md</Badge>
             </Group>
+          </Card>
+        </Section>
+
+        {/* STATUS BADGE */}
+        <Section
+          title="StatusBadge"
+          desc={'<StatusBadge domain="statement" status={x} /> — badge สถานะตัวเดียวของทั้งระบบ ส่ง 2 ค่าแล้วได้คำเรียก + สี + ไอคอนประจำโดเมนครบ'}
+        >
+          <Card>
+            <Group label="สีทั้งหมด (ชื่อเป็นความหมาย ไม่ใช่ชื่อเฉด)">
+              {STATUS_COLORS.map(c => (
+                <span key={c} className={`badge badge-sm badge-pill badge-st-${c}`}>{c}</span>
+              ))}
+            </Group>
+            <Hint>
+              ค่าสีจริงอยู่ที่ตัวแปร <code>--st-*</code> + คลาส <code>.badge-st-*</code> ใน{' '}
+              <code>globals.css</code> — เปลี่ยนโทนทั้งระบบแก้ที่นั่นที่เดียว
+            </Hint>
+
+            <Group label="ขนาด + ตัวเลือก">
+              <StatusBadge domain="order" status="processing" />
+              <StatusBadge domain="order" status="processing" size="md" />
+              <StatusBadge domain="order" status="processing" hideIcon />
+              <StatusBadge domain="order" status="processing" trailing={<ChevronRight className="w-3 h-3" />} />
+            </Group>
+            <Hint>
+              <code>size</code> sm (ค่าปกติ) / md · <code>hideIcon</code> เฉพาะที่แคบจริง ๆ ·{' '}
+              <code>trailing</code> ต่อท้ายข้อความ เช่น chevron ของป้ายที่กดเปลี่ยนสถานะได้
+            </Hint>
+
+            <Group label="ทางลัดของคู่ที่ใช้บ่อยสุด">
+              <OrderStatusBadge status="ready_to_ship" />
+              <OrderStatusBadge status="ready_to_ship" dealer />
+              <OrderStatusBadge status="ready_to_ship" audience="customer" />
+              <OrderStatusBadge status="cancelled" expired />
+              <PaymentStatusBadge status="verifying" />
+              <PaymentStatusBadge status="verifying" audience="customer" />
+            </Group>
+            <Hint>
+              <code>&lt;OrderStatusBadge&gt;</code> / <code>&lt;PaymentStatusBadge&gt;</code> —{' '}
+              <code>dealer</code> ออเดอร์ตัวแทน/ห้าง · <code>audience=&quot;customer&quot;</code> หน้าที่ลูกค้าเปิดเอง ·{' '}
+              <code>expired</code> บิลหมดอายุ (แดง ไม่ใช่เทา)
+            </Hint>
+
+            <Group label="ป้ายที่ไม่ใช่สถานะ — InfoChip">
+              <InfoChip colors="bg-sky-50 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300" icon={<Truck className="w-3 h-3" />}>Flash Express</InfoChip>
+              <InfoChip colors="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300" icon={<Clock className="w-3 h-3" />}>ส่งพรุ่งนี้</InfoChip>
+              <InfoChip colors="bg-gray-100 text-gray-600 dark:bg-slate-700 dark:text-slate-300">READY_TO_SHIP</InfoChip>
+            </Group>
+            <Hint>
+              ทรงเดียวกับ badge แต่ส่งสีเองได้ — สำหรับกำหนดส่ง · ชื่อขนส่ง · บทบาทผู้ใช้ ·
+              สถานะดิบจากฝั่ง marketplace ที่ไม่ได้อยู่ในวงจรสถานะของเรา
+            </Hint>
+          </Card>
+
+          <Card>
+            <h4 className="heading-4 mb-1">ทุกโดเมนในทะเบียน</h4>
+            <p className="section-desc mb-4">
+              รายการนี้อ่านจาก <code>STATUS_DOMAINS</code> ใน <code>lib/status-labels.ts</code> โดยตรง —
+              เพิ่มโดเมน/สถานะที่นั่นแล้วโผล่ที่นี่เอง
+            </p>
+            <div className="space-y-4">
+              {(Object.keys(STATUS_DOMAINS) as StatusDomain[]).map(domain => (
+                <div key={domain} className="border-b border-gray-100 dark:border-slate-700 pb-4 last:border-0 last:pb-0">
+                  <div className="flex items-baseline gap-2 mb-2">
+                    <code className="text-sm font-semibold text-gray-900 dark:text-white">{domain}</code>
+                    <span className="helper-text">{DOMAIN_TITLE[domain] || ''}</span>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {Object.keys(STATUS_DOMAINS[domain]).map(status => (
+                      <StatusBadge key={status} domain={domain} status={status} />
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Card>
+
+          <Card>
+            <h4 className="heading-4 mb-1">ธีมมืดของหน้าที่คุมธีมเอง</h4>
+            <p className="section-desc mb-3">
+              บิลออนไลน์มีสวิตช์ธีมของตัวเอง ไม่ได้ใช้คลาส <code>.dark</code> ของ Tailwind —
+              ครอบด้วย <code>.st-dark</code> แล้ว badge สลับชุดสีให้เอง
+            </p>
+            <div className="st-dark bg-slate-900 rounded-lg p-4 flex flex-wrap gap-2">
+              <OrderStatusBadge status="processing" audience="customer" />
+              <PaymentStatusBadge status="paid" audience="customer" />
+              <OrderStatusBadge status="cancelled" audience="customer" expired />
+            </div>
           </Card>
         </Section>
 
@@ -705,6 +797,31 @@ export default function DesignSystemPage() {
 }
 
 /* ---------- Local helpers for the showcase only ---------- */
+
+/** ชื่ออ่านออกของโดเมน — มีไว้ให้หน้านี้เท่านั้น ไม่มีชื่อก็โชว์ key เฉย ๆ */
+const DOMAIN_TITLE: Partial<Record<StatusDomain, string>> = {
+  order: 'ออเดอร์ (พนักงาน)',
+  orderDealer: 'ออเดอร์ตัวแทน/ห้าง',
+  payment: 'การชำระเงิน (พนักงาน)',
+  customerOrder: 'ออเดอร์ (ลูกค้าเห็น)',
+  customerPayment: 'การชำระเงิน (ลูกค้าเห็น)',
+  statement: 'ใบวางบิล',
+  replenishment: 'ใบเติมของตัวแทน',
+  deptOrder: 'ออเดอร์ห้าง',
+  report: 'รายงานฝากขาย / รายงานห้าง',
+  creditNote: 'ใบลดหนี้',
+  creditNoteType: 'ประเภทใบลดหนี้',
+  returnNote: 'ใบรับคืน',
+  promotion: 'โปรโมชั่น',
+  transfer: 'โอนย้ายคลัง',
+  stockDoc: 'ใบรับเข้า / ใบเบิกออก',
+  posOrder: 'ใบเสร็จ POS',
+  purchaseOrder: 'ใบสั่งซื้อ (ฝั่งเรา)',
+  purchaseOrderSupplier: 'ใบสั่งซื้อ (ซัพพลายเออร์เห็น)',
+  supplierReport: 'รายงานซัพพลายเออร์',
+  supplierType: 'ประเภทซัพพลายเออร์',
+  broadcast: 'บรอดแคสต์',
+};
 
 function Section({ title, desc, children }: { title: string; desc?: string; children: React.ReactNode }) {
   return (

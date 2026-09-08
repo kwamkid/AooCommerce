@@ -30,6 +30,12 @@ export type StatusColor =
   | 'unpaid'    // ส้ม — ยังไม่ได้เงิน (คนละสีกับ progress โดยตั้งใจ)
   | 'verify';   // ม่วง — รอตรวจสอบ
 
+/** ทุกสีที่มี — เรียงตามลำดับที่เล่าเรื่องได้ (เข้ามา → กำลังทำ → จบ → มีปัญหา) */
+export const STATUS_COLORS: StatusColor[] = [
+  'new', 'wait', 'progress', 'moving', 'done',
+  'invoiced', 'billed', 'partial', 'unpaid', 'verify', 'late', 'off',
+];
+
 export interface StatusMeta { label: string; color: StatusColor }
 type Domain = Record<string, StatusMeta>;
 
