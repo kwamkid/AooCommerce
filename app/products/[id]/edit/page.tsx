@@ -735,10 +735,40 @@ export default function EditProductPage() {
       <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-5 space-y-5">
         {/* Product info */}
         <div className="space-y-3">
-          {/* Image + action buttons */}
-          <div className="flex items-start gap-4">
+          {/* รูป | ชื่อ+Item ID | ปุ่ม — โครงเดียวกับแท็บ "ข้อมูลสินค้า" (flex-col บนมือถือ) */}
+          <div className="flex flex-col md:flex-row items-start gap-6">
             {renderPrimaryImage(link)}
-            <div className="flex-1" />
+            <div className="flex-1 min-w-0 w-full">
+              <div className="relative">
+                <textarea
+                  value={platformNameValues[link.id] || ''}
+                  onChange={e => { if (e.target.value.length <= 120) { setPlatformNameValues(prev => ({ ...prev, [link.id]: e.target.value })); markDirty(link.id); } }}
+                  maxLength={120}
+                  rows={2}
+                  className={`w-full px-2 py-1.5 text-base border rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-primary focus:border-primary resize-none ${
+                    (platformNameValues[link.id] || '').length > 0 && (platformNameValues[link.id] || '').length < 20
+                      ? 'border-red-400 dark:border-red-500'
+                      : 'border-gray-300 dark:border-slate-600'
+                  }`}
+                />
+                <span className={`absolute right-2 bottom-2.5 text-[11px] pointer-events-none ${
+                  (platformNameValues[link.id] || '').length < 20 ? 'text-red-500' : 'text-gray-400 dark:text-slate-500'
+                }`}>
+                  {(platformNameValues[link.id] || '').length}/120
+                </span>
+              </div>
+              {(platformNameValues[link.id] || '').length > 0 && (platformNameValues[link.id] || '').length < 20 && (
+                <p className="text-[11px] text-red-500 mt-0.5">ชื่อสินค้าต้องมีอย่างน้อย 20 ตัวอักษร</p>
+              )}
+              <p className="text-sm text-gray-500 dark:text-slate-400 mt-1 font-mono break-all">
+                Item ID: {link.external_item_id}
+              </p>
+              {link.external_sku && (
+                <p className="text-sm text-gray-500 dark:text-slate-400 font-mono break-all">
+                  SKU: {link.external_sku}
+                </p>
+              )}
+            </div>
             <div className="flex items-center gap-1 flex-shrink-0">
               {shopId && (
                 <a
@@ -767,39 +797,6 @@ export default function EditProductPage() {
               </button>
             </div>
           </div>
-          {/* Product name — full width */}
-          <div>
-            <div className="relative">
-              <textarea
-                value={platformNameValues[link.id] || ''}
-                onChange={e => { if (e.target.value.length <= 120) { setPlatformNameValues(prev => ({ ...prev, [link.id]: e.target.value })); markDirty(link.id); } }}
-                maxLength={120}
-                rows={2}
-                className={`w-full px-2 py-1.5 text-base border rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-primary focus:border-primary resize-none ${
-                  (platformNameValues[link.id] || '').length > 0 && (platformNameValues[link.id] || '').length < 20
-                    ? 'border-red-400 dark:border-red-500'
-                    : 'border-gray-300 dark:border-slate-600'
-                }`}
-              />
-              <span className={`absolute right-2 bottom-2.5 text-[11px] pointer-events-none ${
-                (platformNameValues[link.id] || '').length < 20 ? 'text-red-500' : 'text-gray-400 dark:text-slate-500'
-              }`}>
-                {(platformNameValues[link.id] || '').length}/120
-              </span>
-            </div>
-            {(platformNameValues[link.id] || '').length > 0 && (platformNameValues[link.id] || '').length < 20 && (
-              <p className="text-[11px] text-red-500 mt-0.5">ชื่อสินค้าต้องมีอย่างน้อย 20 ตัวอักษร</p>
-            )}
-            <p className="text-sm text-gray-500 dark:text-slate-400 mt-1 font-mono break-all">
-              Item ID: {link.external_item_id}
-            </p>
-            {link.external_sku && (
-              <p className="text-sm text-gray-500 dark:text-slate-400 font-mono break-all">
-                SKU: {link.external_sku}
-              </p>
-            )}
-          </div>
-
           {/* Platform description — full width textarea */}
           <div>
             <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">
@@ -828,8 +825,9 @@ export default function EditProductPage() {
           </div>
         </div>
 
-        {/* Category — full width */}
-        <div>
+        {/* หมวดหมู่ (ยาวตามชื่อหมวด) คู่กับช่องตัวเลขสั้น ๆ ในแถวเดียว — มือถือเรียงลงมา */}
+        <div className="flex flex-col sm:flex-row sm:flex-wrap gap-4">
+        <div className="flex-1 min-w-[260px]">
           <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">
             หมวดหมู่ Shopee
           </label>
@@ -846,8 +844,6 @@ export default function EditProductPage() {
         </div>
 
         {/* Price + Weight + (Barcode, Discount for non-Shopee) */}
-        {/* ช่องตัวเลขสั้น ๆ ไม่ต้องยืดเต็มการ์ด — มือถือเต็มบรรทัด, จอกว้างกว้างพอดีค่าที่กรอก */}
-        <div className="flex flex-col sm:flex-row sm:flex-wrap gap-4">
           {link.platform !== 'shopee' && (
             <div className="w-full sm:w-[220px]">
               <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">
@@ -968,10 +964,45 @@ export default function EditProductPage() {
         {/* Product header with image */}
         <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-5 space-y-5">
           <div className="space-y-3">
-            {/* Image + action buttons */}
-            <div className="flex items-start gap-4">
+            {/* รูป | ชื่อ+Item ID | ปุ่ม — โครงเดียวกับแท็บ "ข้อมูลสินค้า" (flex-col บนมือถือ) */}
+            <div className="flex flex-col md:flex-row items-start gap-6">
               {renderPrimaryImage(firstLink)}
-              <div className="flex-1" />
+              <div className="flex-1 min-w-0 w-full">
+                <div className="relative">
+                  <textarea
+                    value={platformNameValues[firstLink.id] || ''}
+                    onChange={e => {
+                      const val = e.target.value;
+                      if (val.length <= 120) {
+                        setPlatformNameValues(prev => {
+                          const next = { ...prev };
+                          links.forEach(l => { next[l.id] = val; });
+                          return next;
+                        });
+                        links.forEach(l => markDirty(l.id));
+                      }
+                    }}
+                    maxLength={120}
+                    rows={2}
+                    className={`w-full px-2 py-1.5 text-base border rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-primary focus:border-primary resize-none ${
+                      (platformNameValues[firstLink.id] || '').length > 0 && (platformNameValues[firstLink.id] || '').length < 20
+                        ? 'border-red-400 dark:border-red-500'
+                        : 'border-gray-300 dark:border-slate-600'
+                    }`}
+                  />
+                  <span className={`absolute right-2 bottom-2.5 text-[11px] pointer-events-none ${
+                    (platformNameValues[firstLink.id] || '').length < 20 ? 'text-red-500' : 'text-gray-400 dark:text-slate-500'
+                  }`}>
+                    {(platformNameValues[firstLink.id] || '').length}/120
+                  </span>
+                </div>
+                {(platformNameValues[firstLink.id] || '').length > 0 && (platformNameValues[firstLink.id] || '').length < 20 && (
+                  <p className="text-[11px] text-red-500 mt-0.5">ชื่อสินค้าต้องมีอย่างน้อย 20 ตัวอักษร</p>
+                )}
+                <p className="text-sm text-gray-500 dark:text-slate-400 mt-1 font-mono break-all">
+                  Item ID: {firstLink.external_item_id}
+                </p>
+              </div>
               <div className="flex items-center gap-1 flex-shrink-0">
                 {shopId && (
                   <a
@@ -993,44 +1024,6 @@ export default function EditProductPage() {
                 </button>
               </div>
             </div>
-            {/* Product name — full width */}
-            <div>
-              <div className="relative">
-                <textarea
-                  value={platformNameValues[firstLink.id] || ''}
-                  onChange={e => {
-                    const val = e.target.value;
-                    if (val.length <= 120) {
-                      setPlatformNameValues(prev => {
-                        const next = { ...prev };
-                        links.forEach(l => { next[l.id] = val; });
-                        return next;
-                      });
-                      links.forEach(l => markDirty(l.id));
-                    }
-                  }}
-                  maxLength={120}
-                  rows={2}
-                  className={`w-full px-2 py-1.5 text-base border rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-primary focus:border-primary resize-none ${
-                    (platformNameValues[firstLink.id] || '').length > 0 && (platformNameValues[firstLink.id] || '').length < 20
-                      ? 'border-red-400 dark:border-red-500'
-                      : 'border-gray-300 dark:border-slate-600'
-                  }`}
-                />
-                <span className={`absolute right-2 bottom-2.5 text-[11px] pointer-events-none ${
-                  (platformNameValues[firstLink.id] || '').length < 20 ? 'text-red-500' : 'text-gray-400 dark:text-slate-500'
-                }`}>
-                  {(platformNameValues[firstLink.id] || '').length}/120
-                </span>
-              </div>
-              {(platformNameValues[firstLink.id] || '').length > 0 && (platformNameValues[firstLink.id] || '').length < 20 && (
-                <p className="text-[11px] text-red-500 mt-0.5">ชื่อสินค้าต้องมีอย่างน้อย 20 ตัวอักษร</p>
-              )}
-              <p className="text-sm text-gray-500 dark:text-slate-400 mt-1 font-mono break-all">
-                Item ID: {firstLink.external_item_id}
-              </p>
-            </div>
-
             {/* Platform description — shared across all variations of this item */}
             <div>
               <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">
@@ -1067,8 +1060,9 @@ export default function EditProductPage() {
             </div>
           </div>
 
-          {/* Category — full width */}
-          <div>
+          {/* หมวดหมู่ (ยาวตามชื่อหมวด) คู่กับน้ำหนัก (สั้น) ในแถวเดียว */}
+          <div className="flex flex-col sm:flex-row gap-4">
+          <div className="flex-1 min-w-0">
             <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">หมวดหมู่ Shopee</label>
             <ShopeeCategoryPicker
               accountId={firstLink.account_id}
@@ -1082,8 +1076,7 @@ export default function EditProductPage() {
             />
           </div>
 
-          {/* Weight */}
-          <div className="w-full sm:w-[160px]">
+          <div className="w-full sm:w-[160px] flex-shrink-0">
             <FormInput
               label="น้ำหนัก"
               type="number"
@@ -1094,6 +1087,7 @@ export default function EditProductPage() {
               placeholder="0.5"
               postfix="kg"
             />
+          </div>
           </div>
 
         </div>
