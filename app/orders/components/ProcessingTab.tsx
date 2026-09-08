@@ -1168,13 +1168,13 @@ export default function ProcessingTab({
               >
                 <span className="hidden md:inline">ใบจัดของ</span> ({selectedIds.size})
               </Button>
-              <button
+              <Button
+                variant="success"
                 onClick={() => handleBulkPrintInvoices(Array.from(selectedIds))}
-                className="btn-focus-action green"
+                icon={<Banknote className="w-4 h-4" />}
               >
-                <Banknote className="w-4 h-4" />
                 <span className="hidden md:inline">ใบกำกับ/ใบเสร็จ</span> ({selectedIds.size})
-              </button>
+              </Button>
               {shippableSelectedIds.length > 0 && (
                 <Button
                   variant="primary"

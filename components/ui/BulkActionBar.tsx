@@ -18,13 +18,15 @@ interface BulkActionBarProps {
  * เดิมโครงนี้ถูก copy ไว้ในแต่ละแท็บ — แก้ระยะ/สี/z-index ทีต้องไล่แก้ทุกที่
  *
  * ⚠️ `z-40` ต่ำกว่า Modal/ActionMenu โดยตั้งใจ — แถบนี้ต้องไม่บังโมดัลที่เปิดทับ
+ * · เป็นแถบ "ลอย" (เว้นขอบรอบ + มุมมน) ไม่ใช่แถบเต็มความกว้างติดขอบจอ
+ * · ปุ่มข้างในควรใช้ `<Button>` ให้หมดเพื่อให้ความสูงเท่ากัน — `btn-focus-action` เตี้ยกว่า 6px
  */
 export default function BulkActionBar({ count, onClear, children }: BulkActionBarProps) {
   if (count <= 0) return null;
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-40 bg-white dark:bg-slate-800 border-t border-gray-200 dark:border-slate-700 shadow-lg px-6 py-3 pb-safe">
-      <div className="max-w-screen-xl mx-auto flex items-center justify-between gap-3">
+    <div className="fixed bottom-4 left-4 right-4 z-40 pb-safe">
+      <div className="max-w-screen-xl mx-auto flex items-center justify-between gap-3 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-lg px-4 py-3">
         <button
           onClick={onClear}
           className="text-sm text-gray-400 hover:text-gray-600 dark:text-slate-500 dark:hover:text-slate-300 transition-colors flex-shrink-0"
