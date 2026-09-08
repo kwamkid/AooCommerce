@@ -3,6 +3,7 @@
 import Image from 'next/image';
 import { useState } from 'react';
 import type { ChatAccountInfo, UnifiedContact, ChatMessage } from './chatTypes';
+import { roomMosaicPictures } from '@/lib/chat/line-room-identity';
 
 export function FbIcon({ size = 16 }: { size?: number }) {
   return <Image src="/social/facebook.svg" alt="Facebook" width={size} height={size} className="flex-shrink-0" />;
@@ -111,6 +112,58 @@ export function getAvatarUrl(contact: UnifiedContact): string | null {
     return `https://graph.facebook.com/${contact.platform_user_id}/picture?type=large`;
   }
   return null;
+}
+
+/**
+ * อวาตาร์ของผู้ติดต่อ — ใช้ทุกที่ที่ต้องวาดรูปคน/ห้อง (รายชื่อ · หัวห้อง)
+ *
+ * 3 กรณีเรียงตามลำดับ:
+ *   1. มีรูปของตัวเอง       → รูปเดียวเต็มวง
+ *   2. ห้อง LINE ที่ไม่มีรูป → **โมเสกจากรูปสมาชิก** แบบเดียวกับแอป LINE
+ *      (LINE ไม่มี API บอกชื่อ/รูปของ room — ดู lib/chat/line-room-identity.ts)
+ *   3. ไม่มีอะไรเลย         → วงกลมสีช่องทาง + ตัวอักษรย่อ
+ */
+export function ContactAvatar({ contact, sizeClass, color }: {
+  contact: UnifiedContact;
+  /** เช่น 'w-12 h-12' — ผู้เรียกคุมขนาดเอง */
+  sizeClass: string;
+  /** สีพื้นตอนไม่มีรูป (สีประจำช่องทาง) */
+  color: string;
+}) {
+  const single = getAvatarUrl(contact);
+  if (single) {
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img src={single} alt={contact.display_name} loading="lazy" className={`${sizeClass} rounded-full object-cover`} />;
+  }
+
+  const mosaic = roomMosaicPictures(contact.member_profiles);
+  if (mosaic.length > 0) {
+    return (
+      <div className={`${sizeClass} rounded-full overflow-hidden grid grid-cols-2 grid-rows-2 bg-gray-100 dark:bg-slate-700`}>
+        {mosaic.map((url, i) => (
+          // 1 รูป = เต็มวง · 2 รูป = ผ่าครึ่งซ้ายขวา · 3 รูป = ซ้ายเต็มสูง + ขวาซ้อนสองช่อง · 4 รูป = 2x2
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            key={url}
+            src={url}
+            alt=""
+            loading="lazy"
+            className={`w-full h-full object-cover ${
+              mosaic.length === 1 ? 'col-span-2 row-span-2'
+                : mosaic.length === 2 ? 'row-span-2'
+                : mosaic.length === 3 && i === 0 ? 'row-span-2' : ''
+            }`}
+          />
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div className={`${sizeClass} rounded-full flex items-center justify-center text-white font-semibold`} style={{ backgroundColor: color }}>
+      {getInitials(contact.nickname || contact.display_name)}
+    </div>
+  );
 }
 
 export function getInitials(name: string): string {

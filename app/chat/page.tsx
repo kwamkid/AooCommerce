@@ -70,7 +70,7 @@ import MessageBubble from './components/MessageBubble';
 // แผง "เปิดบิล" แยกไฟล์เพราะห่อ memo ไว้ (ดูหมายเหตุในไฟล์นั้น) — ตัวห่อเล็กมาก
 // ส่วน OrderForm ที่หนักจริงยังเป็น dynamic อยู่ข้างใน จึงไม่ติดมากับ first-load JS
 import ChatOrderPanel from './components/ChatOrderPanel';
-import { FbIcon, IgIcon, LineIcon, ShopeeIcon, LazadaIcon, TiktokIcon, PlatformIcon, AccountCornerBadge, getAccountPicture, getAvatarUrl, getInitials, formatTime, formatLastMessage, groupImageAlbums, prepareChatImage, looksLikeImageFile, officialStickers, isSystemEventMessage } from './lib/chatHelpers';
+import { FbIcon, IgIcon, LineIcon, ShopeeIcon, LazadaIcon, TiktokIcon, PlatformIcon, AccountCornerBadge, getAccountPicture, getAvatarUrl, getInitials, ContactAvatar, formatTime, formatLastMessage, groupImageAlbums, prepareChatImage, looksLikeImageFile, officialStickers, isSystemEventMessage } from './lib/chatHelpers';
 import { FullPageLoading } from '@/components/ui/Loading';
 import { LoadingCard } from '@/components/ui/StateCard';
 import { SkeletonChat } from '@/components/ui/Skeleton';
@@ -265,6 +265,12 @@ function UnifiedChatPageContent() {
   const hasActiveFilter = filterLinked !== 'all' || filterOrderDaysRange !== null || filterTag !== '' || filterUnread || filterAccountId !== '' || sortMode !== 'time';
 
   // Platform color
+  /** สีประจำช่องทางของผู้ติดต่อรายใด ๆ — เดิมมีแต่ของห้องที่เปิดอยู่ ใช้กับรายชื่อไม่ได้ */
+  const contactPlatformColor = (c: { source?: string; platform: string }) =>
+    c.source === 'instagram' ? '#E4405F' : c.platform === 'line' ? '#06C755'
+      : c.platform === 'shopee' ? '#EE4D2D' : c.platform === 'lazada' ? '#0F146E'
+      : c.platform === 'tiktok' ? '#161823' : '#1877F2';
+
   const platformColor = selectedContact?.source === 'instagram' ? '#E4405F' : selectedContact?.platform === 'line' ? '#06C755' : selectedContact?.platform === 'shopee' ? '#EE4D2D' : selectedContact?.platform === 'lazada' ? '#0F146E' : selectedContact?.platform === 'tiktok' ? '#161823' : '#1877F2';
 
   // Check if FB/IG messaging window expired (7 days since last incoming message)
@@ -2494,13 +2500,7 @@ function UnifiedChatPageContent() {
                     className={`w-full px-3 py-4 flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors border-b border-gray-100 dark:border-slate-700 ${selectedContact?.id === contact.id ? (contact.platform === 'line' ? 'bg-line/10' : contact.platform === 'shopee' ? 'bg-[#EE4D2D]/10' : contact.platform === 'lazada' ? 'bg-[#0F146E]/10' : contact.platform === 'tiktok' ? 'bg-[#161823]/10' : 'bg-facebook/10') : ''}`}>
                     {/* Avatar with channel profile badge */}
                     <div className="relative flex-shrink-0">
-                      {getAvatarUrl(contact) ? (
-                        <img src={getAvatarUrl(contact)!} alt={contact.display_name} loading="lazy" className="w-12 h-12 rounded-full object-cover" />
-                      ) : (
-                        <div className="w-12 h-12 rounded-full flex items-center justify-center text-white font-semibold text-sm" style={{ backgroundColor: contact.source === 'instagram' ? '#E4405F' : contact.platform === 'line' ? '#06C755' : contact.platform === 'shopee' ? '#EE4D2D' : contact.platform === 'lazada' ? '#0F146E' : contact.platform === 'tiktok' ? '#161823' : '#1877F2' }}>
-                          {getInitials(contact.display_name)}
-                        </div>
-                      )}
+                      <ContactAvatar contact={contact} sizeClass="w-12 h-12" color={contactPlatformColor(contact)} />
                       {/* Channel profile pic badge (bottom-left) */}
                       <AccountCornerBadge contact={contact} sizeClass="w-5 h-5" />
                       {/* Linked customer indicator */}
@@ -2580,14 +2580,11 @@ function UnifiedChatPageContent() {
               <div className="px-2 py-2 md:p-4 border-b border-gray-200 dark:border-slate-700 flex items-center gap-2 md:gap-3">
                 <button onClick={handleBackTap} aria-label="กลับไปรายชื่อแชท" className="md:hidden p-1 text-gray-500 hover:text-gray-700 flex-shrink-0"><ChevronLeft className="w-5 h-5" /></button>
                   {(() => {
-                    const avatar = getAvatarUrl(selectedContact);
                     // รูปลูกค้า + **โลโก้ช่องทางที่คุยอยู่** ซ้อนมุมล่างซ้าย — ชุดเดียวกับในรายชื่อแชท
                     // (เดิมหัวแชทบอกที่มาด้วยตัวหนังสือจาง ๆ บรรทัดเดียว ซึ่งมองข้ามง่ายมาก
                     //  ทั้งที่คนคุยหลายเพจ/หลายร้านต้องรู้ตลอดว่ากำลังตอบในนามใคร)
-                    const avatarInner = avatar ? (
-                      <Image src={avatar} alt={selectedContact.display_name} width={36} height={36} className="w-9 h-9 md:w-10 md:h-10 rounded-full object-cover" unoptimized />
-                    ) : (
-                      <div className="w-9 h-9 md:w-10 md:h-10 rounded-full flex items-center justify-center text-white font-semibold text-sm" style={{ backgroundColor: platformColor }}>{getInitials(selectedContact.display_name)}</div>
+                    const avatarInner = (
+                      <ContactAvatar contact={selectedContact} sizeClass="w-9 h-9 md:w-10 md:h-10 text-sm" color={platformColor} />
                     );
                     const avatarEl = (
                       <div className="relative flex-shrink-0">

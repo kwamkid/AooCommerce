@@ -6,6 +6,8 @@ export interface UnifiedContact {
   display_name: string;
   /** ชื่อเล่นที่ร้านตั้งให้ห้องนี้ — ใช้ก่อนทุกชื่อตอนแทน {{ชื่อลูกค้า}} */
   nickname?: string | null;
+  /** LINE room — โปรไฟล์สมาชิกที่เคยพูด (LINE ไม่มี API บอกชื่อ/รูปของ room) */
+  member_profiles?: { user_id: string; name: string; picture_url: string | null }[];
   picture_url?: string;
   status: string;
   customer_id?: string;

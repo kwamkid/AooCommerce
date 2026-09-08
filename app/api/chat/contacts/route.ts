@@ -50,6 +50,8 @@ type UnifiedContact = {
   display_name: string;
   /** ชื่อเล่นที่ร้านตั้งเอง — ใช้ก่อน display_name ตอนทักด้วย {{ชื่อลูกค้า}} */
   nickname?: string | null;
+  /** LINE room เท่านั้น — โปรไฟล์สมาชิกที่เคยพูด ไว้ประกอบอวาตาร์โมเสก */
+  member_profiles?: unknown[];
   picture_url?: string;
   status: string;
   customer_id?: string;
@@ -287,6 +289,8 @@ export async function GET(request: NextRequest) {
         platform: 'line',
         platform_user_id: c.line_user_id,
         picture_url: c.picture_url,
+        // ห้อง LINE ที่ไม่มีรูปของตัวเอง — หน้าแชทเอาไปวาดโมเสกจากรูปสมาชิก
+        member_profiles: (c.member_profiles as unknown[]) || [],
       });
     }
 

@@ -3,6 +3,7 @@ import { sendChatPush } from '@/lib/push/send';
 import { logIntegrationNow } from '@/lib/integration-logger';
 import { getChatAccount, getDefaultChatAccount, getLineCredsFromAccount } from '@/lib/chat-config';
 import { buildMessagePreview } from '@/lib/chat/message-preview';
+import { mergeMemberProfile, composeRoomName, isFallbackRoomName, type MemberProfile } from '@/lib/chat/line-room-identity';
 import crypto from 'crypto';
 import type { SendMessageParams, SendMessageResult, ResolvedCredentials, PlatformProfile, GetMessagesParams } from './types';
 
@@ -332,7 +333,7 @@ export class LineChatService {
   // ─── Webhook: Save Incoming Message ─────────────────────────────────
 
   async saveIncomingMessage(
-    contact: { id: string; unread_count: number; display_name?: string | null; picture_url?: string | null; profile_synced_at?: string | null },
+    contact: { id: string; unread_count: number; display_name?: string | null; picture_url?: string | null; profile_synced_at?: string | null; member_profiles?: MemberProfile[] | null },
     message: Record<string, unknown>,
     event: { timestamp: number; source: { type: string; userId?: string; groupId?: string } },
     accessToken: string,
@@ -378,6 +379,25 @@ export class LineChatService {
         const memberProfile = await this.getGroupMemberProfile(contactId, senderUserId, event.source.type === 'group', accessToken);
         senderName = memberProfile?.displayName || null;
         senderPictureUrl = memberProfile?.pictureUrl || null;
+
+        // ห้องที่ไม่มีรูปของตัวเอง (room ทุกห้อง + กลุ่มที่ไม่ได้ตั้งรูป) — สะสมโปรไฟล์คนที่พูด
+        // ไว้ประกอบเป็นอวาตาร์โมเสกกับชื่อห้อง แบบเดียวกับที่แอป LINE ทำ
+        // ทำจากข้อมูลที่ดึงมาอยู่แล้วในบรรทัดบน จึงไม่มีการยิง API เพิ่มแม้แต่ครั้งเดียว
+        if (!contact.picture_url && memberProfile?.displayName) {
+          const merged = mergeMemberProfile(contact.member_profiles, {
+            user_id: senderUserId,
+            name: memberProfile.displayName,
+            picture_url: memberProfile.pictureUrl || null,
+          });
+          if (merged) {
+            contactPatch.member_profiles = merged;
+            // ชื่อสำรอง ("กลุ่มลูกค้า") อ่านแล้วแยกห้องไม่ออก — ใช้ชื่อสมาชิกแทนเหมือน LINE
+            const composed = composeRoomName(merged);
+            if (composed && composed !== contact.display_name && isFallbackRoomName(contact.display_name)) {
+              contactPatch.display_name = composed;
+            }
+          }
+        }
       } else {
         const profile = await this.fetchProfile(senderUserId, accessToken);
         senderName = profile?.displayName || null;
