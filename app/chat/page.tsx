@@ -188,6 +188,11 @@ function UnifiedChatPageContent() {
   const [savedReplyModalOpen, setSavedReplyModalOpen] = useState(false);
   /** รูปของข้อความสำเร็จรูปที่รอส่งพร้อมข้อความ (ส่งตามหลังข้อความเมื่อกดส่ง) */
   const [pendingImage, setPendingImage] = useState<{ url: string; title: string } | null>(null);
+
+  // ── ลากรูปมาวางในหน้าแชท ──
+  const [dragActive, setDragActive] = useState(false);
+  /** นับ enter/leave — ลากผ่านลูก ๆ ข้างในทำให้ dragleave ยิงรัว ถ้าไม่นับจะกะพริบ */
+  const dragDepthRef = useRef(0);
   const [emojiSearch, setEmojiSearch] = useState('');
 
   // Scroll to bottom button
@@ -1093,6 +1098,11 @@ function UnifiedChatPageContent() {
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const picked = Array.from(e.target.files || []);
     if (fileInputRef.current) fileInputRef.current.value = '';
+    await sendImageFiles(picked);
+  };
+
+  /** ส่งรูปเป็นชุด — ใช้ร่วมกันระหว่างปุ่มเลือกไฟล์กับการลากรูปมาวางในหน้าแชท */
+  const sendImageFiles = async (picked: File[]) => {
     if (picked.length === 0 || !selectedContact) return;
 
     // คัดของที่ส่งไม่ได้ออกก่อนแล้วบอกทีเดียว — เตือนทีละใบตอนเลือกมา 10 ใบคือการรังควาน
@@ -1128,6 +1138,39 @@ function UnifiedChatPageContent() {
       if (failed === 0) showToast(`ส่ง ${sent} รูปแล้ว`);
       else showToast(`ส่งสำเร็จ ${sent} จาก ${batch.length} รูป — กดลองใหม่ที่ฟองสีแดงได้`, 'error');
     }
+  };
+
+  /** ลากไฟล์เข้ามาในหน้าแชท — สนใจเฉพาะ "ไฟล์" ไม่ใช่ลากข้อความ/ลิงก์ */
+  const dragHasFiles = (e: React.DragEvent) =>
+    Array.from(e.dataTransfer?.types || []).includes('Files');
+
+  const handleDragEnter = (e: React.DragEvent) => {
+    if (!selectedContact || !dragHasFiles(e)) return;
+    e.preventDefault();
+    dragDepthRef.current += 1;
+    setDragActive(true);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    if (!selectedContact || !dragHasFiles(e)) return;
+    // ต้อง preventDefault ทุกครั้ง ไม่งั้นเบราว์เซอร์ไม่ยอมให้ drop (และจะเปิดไฟล์ทับหน้าเว็บแทน)
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    if (!dragHasFiles(e)) return;
+    e.preventDefault();
+    dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
+    if (dragDepthRef.current === 0) setDragActive(false);
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    if (!selectedContact || !dragHasFiles(e)) return;
+    e.preventDefault();
+    dragDepthRef.current = 0;
+    setDragActive(false);
+    await sendImageFiles(Array.from(e.dataTransfer.files || []));
   };
 
   /**
@@ -2394,7 +2437,25 @@ function UnifiedChatPageContent() {
               {/* overscroll-contain — ลากเลยสุดรายการแล้วห้ามส่งต่อให้ main เลื่อน/เด้ง */}
               {/* data-ptr-ignore — รายการข้อความเลื่อนขึ้นไปดูของเก่าบ่อย ถึงยอดแล้วลากต่อ
                   ไม่ควรรีเฟรชทั้งแอปทิ้งที่อ่านอยู่ — รูดรีเฟรชได้จากรายชื่อแชท/หัวแชทแทน */}
-              <div ref={messagesContainerRef} onScroll={handleScroll} data-ptr-ignore className="flex-1 overflow-y-auto overscroll-contain p-4 space-y-4 bg-gray-50 dark:bg-slate-900 relative font-sarabun">
+              <div
+                ref={messagesContainerRef}
+                onScroll={handleScroll}
+                data-ptr-ignore
+                onDragEnter={handleDragEnter}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                className="flex-1 overflow-y-auto overscroll-contain p-4 space-y-4 bg-gray-50 dark:bg-slate-900 relative font-sarabun"
+              >
+                {/* ลากรูปมาวางแล้วส่งเลย — overlay ต้อง pointer-events-none ไม่งั้นมันกินอีเวนต์
+                    ของกล่องข้างล่างแล้ว dragleave จะยิงทันทีที่ overlay โผล่ (กะพริบไม่หยุด) */}
+                {dragActive && (
+                  <div className="absolute inset-2 z-20 pointer-events-none rounded-xl border-2 border-dashed border-primary bg-primary/10 backdrop-blur-[1px] flex flex-col items-center justify-center gap-2">
+                    <ImagePlus className="w-10 h-10 text-primary" />
+                    <p className="text-base font-medium text-primary">วางรูปเพื่อส่งเลย</p>
+                    <p className="helper-text text-primary/80">ส่งได้ครั้งละ {MAX_IMAGES_PER_PICK} รูป</p>
+                  </div>
+                )}
                 {loadingMessages ? (
                   <SkeletonChat />
                 ) : messages.length === 0 ? (
@@ -2477,7 +2538,14 @@ function UnifiedChatPageContent() {
               // (ห้ามไปเผื่อที่ตัวครอบทั้งหน้า — จะกลายเป็นแถบว่างค้างท้ายจอแทน)
               // บนมือถือใช้ pb-safe-min-2 = เท่ากับ inset ของ home indicator พอดี ไม่บวกเพิ่ม
               // (ผู้ใช้ขอให้ชิดล่างสุด) — ห้ามลดต่ำกว่า inset ไม่งั้นช่องพิมพ์ไปอยู่ใต้แถบ gesture ของ iOS
-              <div className="p-2 md:p-4 pb-safe-min-2 md:pb-safe-4 border-t border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+              <div
+                // รับ drop ตรงนี้ด้วย — ไม่งั้นวางพลาดลงกล่องพิมพ์ เบราว์เซอร์จะเปิดไฟล์ทับหน้าเว็บทิ้งงานที่ค้างอยู่
+                onDragEnter={handleDragEnter}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                className="p-2 md:p-4 pb-safe-min-2 md:pb-safe-4 border-t border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800"
+              >
                 {pendingImage && (
                   <div className="flex items-center gap-2 mb-2 px-2 py-1.5 bg-gray-50 dark:bg-slate-700/50 border border-gray-200 dark:border-slate-600 rounded-lg">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
