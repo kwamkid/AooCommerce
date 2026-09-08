@@ -81,7 +81,7 @@ export interface CreatedByOption {
   name: string;
 }
 
-// Status config
+// สีแถบหัวการ์ดตามสถานะ — badge ใช้ <OrderStatusBadge>/<PaymentStatusBadge> จาก components/ui/OrderStatusBadge.tsx
 export const ORDER_STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; headerBg: string; headerText: string }> = {
   new: { label: ORDER_STATUS_LABEL.new, color: getBadgeColor('new').color, bg: getBadgeColor('new').bg, headerBg: 'bg-blue-50 dark:bg-blue-950/40', headerText: 'text-blue-800 dark:text-blue-200' },
   ready_to_ship: { label: ORDER_STATUS_LABEL.ready_to_ship, color: getBadgeColor('ready_to_ship').color, bg: getBadgeColor('ready_to_ship').bg, headerBg: 'bg-orange-50 dark:bg-orange-950/40', headerText: 'text-orange-800 dark:text-orange-200' },
@@ -91,18 +91,12 @@ export const ORDER_STATUS_CONFIG: Record<string, { label: string; color: string;
   cancelled: { label: ORDER_STATUS_LABEL.cancelled, color: getBadgeColor('cancelled').color, bg: getBadgeColor('cancelled').bg, headerBg: 'bg-gray-50 dark:bg-gray-800/40', headerText: 'text-gray-600 dark:text-gray-300' },
 };
 
-export const PAYMENT_STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
-  pending: { label: PAYMENT_STATUS_LABEL.pending, color: getPaymentBadgeColor('pending').color, bg: getPaymentBadgeColor('pending').bg },
-  verifying: { label: PAYMENT_STATUS_LABEL.verifying, color: getPaymentBadgeColor('verifying').color, bg: getPaymentBadgeColor('verifying').bg },
-  paid: { label: PAYMENT_STATUS_LABEL.paid, color: getPaymentBadgeColor('paid').color, bg: getPaymentBadgeColor('paid').bg },
-  cancelled: { label: PAYMENT_STATUS_LABEL.cancelled, color: getPaymentBadgeColor('cancelled').color, bg: getPaymentBadgeColor('cancelled').bg },
-};
 
 // Carrier list now lives in the carriers table per company.
 // Components: use `useCarriers()` for dropdowns; use the helpers below for tracking URLs / labels.
 import { getTrackingUrlSync, getCarrierLabelSync } from '@/lib/carrier-lookup';
-import { ORDER_STATUS_LABEL, PAYMENT_STATUS_LABEL } from '@/lib/order-status';
-import { getBadgeColor, getPaymentBadgeColor } from '@/lib/status-tab-colors';
+import { ORDER_STATUS_LABEL } from '@/lib/order-status';
+import { getBadgeColor } from '@/lib/status-tab-colors';
 
 /** Get tracking URL for a stored carrier code + tracking number. Returns null if not available. */
 export function getTrackingUrl(carrier: string | null | undefined, trackingNumber: string | null | undefined): string | null {

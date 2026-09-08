@@ -28,16 +28,8 @@ import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
 import FormSelect from '@/components/ui/FormSelect';
 import { LoadingCard } from '@/components/ui/StateCard';
 import StatusBadge from '@/components/ui/StatusBadge';
+import { OrderStatusBadge } from '@/components/ui/OrderStatusBadge';
 import Badge from '@/components/ui/Badge';
-import { getBadgeColor } from '@/lib/status-tab-colors';
-
-// Order status labels for the history modal (colors come from getBadgeColor)
-const ORDER_STATUS_LABELS: Record<string, string> = {
-  new: 'ใหม่',
-  shipping: 'กำลังส่ง',
-  completed: 'สำเร็จ',
-};
-
 interface CRMCustomer {
   id: string;
   customer_code: string;
@@ -651,8 +643,6 @@ export default function CRMFollowUpPage() {
                       gap = Math.round((d1 - d2) / (1000 * 60 * 60 * 24));
                     }
 
-                    const statusBadge = getBadgeColor(order.order_status);
-                    const statusLabel = ORDER_STATUS_LABELS[order.order_status] || order.order_status;
 
                     return (
                       <div key={idx}>
@@ -662,7 +652,7 @@ export default function CRMFollowUpPage() {
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2">
                               <span className="text-sm font-medium text-gray-900 dark:text-white">{order.order_number}</span>
-                              <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${statusBadge.bg} ${statusBadge.color}`}>{statusLabel}</span>
+                              <OrderStatusBadge status={order.order_status} />
                             </div>
                             <div className="text-xs text-gray-500 dark:text-slate-400">
                               {new Date(order.order_date).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' })}

@@ -37,10 +37,10 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { ORDER_STATUS_LABEL, getNextOrderStatus } from '@/lib/order-status';
+import { orderStatusLabel, paymentStatusLabel, getNextOrderStatus } from '@/lib/order-status';
 import { LoadingCard, EmptyCard } from '@/components/ui/StateCard';
 import ProductImageThumb from '@/components/ui/ProductImageThumb';
-import StatusBadge from '@/components/ui/StatusBadge';
+import { OrderStatusBadge as BaseOrderStatusBadge, PaymentStatusBadge as BasePaymentStatusBadge } from '@/components/ui/OrderStatusBadge';
 import { showPdfPreview, preOpenPrintWindow } from '@/lib/print-pdf';
 import {
   Truck,
@@ -140,35 +140,29 @@ interface ReportData {
   };
 }
 
-// Status badge components
+/*
+ * badge สองใบนี้ห่อของกลางไว้ชั้นเดียว เพื่อคงพฤติกรรม "กดที่ป้ายเพื่อเปลี่ยนสถานะ"
+ * ของหน้านี้ — คำเรียก/สี/ไอคอน มาจาก components/ui/OrderStatusBadge.tsx ทั้งหมด
+ */
+const CLICKABLE_CLS = 'cursor-pointer transition-opacity hover:opacity-75';
+
 function OrderStatusBadge({ status, clickable = false }: { status: string; clickable?: boolean }) {
-  const statusConfig: Record<string, { label: string; color: string; hoverColor: string }> = {
-    new: { label: 'ใหม่', color: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400', hoverColor: 'hover:bg-blue-200 dark:hover:bg-blue-900/50' },
-    shipping: { label: 'กำลังส่ง', color: 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400', hoverColor: 'hover:bg-yellow-200 dark:hover:bg-yellow-900/50' },
-    completed: { label: 'สำเร็จ', color: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400', hoverColor: '' },
-    cancelled: { label: 'ยกเลิก', color: 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400', hoverColor: '' },
-  };
-  const config = statusConfig[status] || statusConfig.new;
   return (
-    <StatusBadge status="delivery" colors={config.color} className={clickable ? `${config.hoverColor} cursor-pointer transition-colors` : ''}>
-      {config.label}
-      {clickable && <ChevronRight className="w-3 h-3" />}
-    </StatusBadge>
+    <BaseOrderStatusBadge
+      status={status}
+      className={clickable ? CLICKABLE_CLS : ''}
+      trailing={clickable ? <ChevronRight className="w-3 h-3" /> : undefined}
+    />
   );
 }
 
 function PaymentStatusBadge({ status, clickable = false }: { status: string; clickable?: boolean }) {
-  const statusConfig: Record<string, { label: string; color: string; hoverColor: string }> = {
-    pending: { label: 'รอชำระ', color: 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400', hoverColor: 'hover:bg-orange-200 dark:hover:bg-orange-900/50' },
-    verifying: { label: 'รอตรวจสอบ', color: 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400', hoverColor: '' },
-    paid: { label: 'ชำระแล้ว', color: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400', hoverColor: '' },
-  };
-  const config = statusConfig[status] || statusConfig.pending;
   return (
-    <StatusBadge status="delivery" colors={config.color} className={clickable ? `${config.hoverColor} cursor-pointer transition-colors` : ''}>
-      {config.label}
-      {clickable && <ChevronRight className="w-3 h-3" />}
-    </StatusBadge>
+    <BasePaymentStatusBadge
+      status={status}
+      className={clickable ? CLICKABLE_CLS : ''}
+      trailing={clickable ? <ChevronRight className="w-3 h-3" /> : undefined}
+    />
   );
 }
 
@@ -569,15 +563,8 @@ export default function DeliverySummaryPage() {
     return status === 'pending' ? 'paid' : null;
   };
 
-  const getOrderStatusLabel = (status: string): string => {
-    const labels = ORDER_STATUS_LABEL;
-    return labels[status] || status;
-  };
-
-  const getPaymentStatusLabel = (status: string): string => {
-    const labels: Record<string, string> = { pending: 'รอชำระ', paid: 'ชำระแล้ว' };
-    return labels[status] || status;
-  };
+  const getOrderStatusLabel = orderStatusLabel;
+  const getPaymentStatusLabel = paymentStatusLabel;
 
   // Handle status clicks
   const handleOrderStatusClick = (delivery: Delivery) => {

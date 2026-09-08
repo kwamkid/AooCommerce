@@ -39,6 +39,7 @@ import { useCustomerPrefill } from '@/lib/useCustomerPrefill';
 import { fetchCustomerOrderContext } from '@/lib/gp-resolver';
 import { isMarketplaceSource } from '@/lib/marketplace/types';
 import { computeOrderTotals } from '@/lib/order-totals';
+import { orderStatusLabel, paymentStatusLabel } from '@/lib/order-status';
 import { thumbUrl } from '@/lib/image-thumb';
 import StickyActionBar from '@/components/ui/StickyActionBar';
 import Stepper, { type StepItem } from '@/components/ui/Stepper';
@@ -2274,11 +2275,9 @@ export default function OrderForm({
     if (!isReadOnly) return null;
     // Shopee banner is shown in the order detail page header instead
     if (editOrderSource === 'shopee') return null;
-    const statusLabels: Record<string, string> = { new: 'ใหม่', shipping: 'กำลังส่ง', completed: 'สำเร็จ', cancelled: 'ยกเลิก' };
-    const paymentLabels: Record<string, string> = { pending: 'รอชำระ', verifying: 'รอตรวจสอบ', paid: 'ชำระแล้ว', cancelled: 'ยกเลิก' };
     const reasonMessage = editOrderStatus !== 'new'
-      ? `สถานะออเดอร์ "${statusLabels[editOrderStatus] || editOrderStatus}"`
-      : `สถานะชำระเงิน "${paymentLabels[editPaymentStatus] || editPaymentStatus}"`;
+      ? `สถานะออเดอร์ "${orderStatusLabel(editOrderStatus)}"`
+      : `สถานะชำระเงิน "${paymentStatusLabel(editPaymentStatus)}"`;
     return (
       <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800/40 text-yellow-800 dark:text-yellow-300 px-4 py-3 rounded-lg text-sm">
         คำสั่งซื้อ {editOrderNumber} ({reasonMessage}) — ไม่สามารถแก้ไขได้

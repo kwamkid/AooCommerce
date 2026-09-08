@@ -13,7 +13,7 @@ import { PageSkeleton } from '@/components/ui/Skeleton';
 import { ExportButton } from '@/components/ui/ExportImportButton';
 import DateRangePicker, { DateValueType } from '@/components/ui/DateRangePicker';
 import { LoadingCard } from '@/components/ui/StateCard';
-import StatusBadge from '@/components/ui/StatusBadge';
+import { PaymentStatusBadge } from '@/components/ui/OrderStatusBadge';
 import Badge from '@/components/ui/Badge';
 import { downloadBlob } from '@/lib/utils/download';
 import {
@@ -461,13 +461,7 @@ export default function SalesReportPage() {
                         <td className="px-6 py-3 text-center text-sm text-gray-600 dark:text-slate-400">{order.customerName}</td>
                         <td className="px-6 py-3 text-right text-sm text-gray-900 dark:text-white">{formatPrice(order.totalAmount)}</td>
                         <td className="px-6 py-3 text-right" colSpan={2}>
-                          <StatusBadge status={order.paymentStatus} colors={
-                            order.paymentStatus === 'paid'
-                              ? 'bg-green-100 text-green-700'
-                              : 'bg-orange-100 text-orange-700'
-                          }>
-                            {order.paymentStatus === 'paid' ? 'ชำระแล้ว' : 'รอชำระ'}
-                          </StatusBadge>
+                          <PaymentStatusBadge status={order.paymentStatus} />
                         </td>
                         <td></td>
                       </tr>
@@ -507,13 +501,7 @@ export default function SalesReportPage() {
                         <td className="px-6 py-3 text-center text-sm text-gray-600 dark:text-slate-400">{formatDate(order.orderDate)}</td>
                         <td className="px-6 py-3 text-right text-sm text-gray-900 dark:text-white">{formatPrice(order.totalAmount)}</td>
                         <td className="px-6 py-3 text-right" colSpan={2}>
-                          <StatusBadge status={order.paymentStatus} colors={
-                            order.paymentStatus === 'paid'
-                              ? 'bg-green-100 text-green-700'
-                              : 'bg-orange-100 text-orange-700'
-                          }>
-                            {order.paymentStatus === 'paid' ? 'ชำระแล้ว' : 'รอชำระ'}
-                          </StatusBadge>
+                          <PaymentStatusBadge status={order.paymentStatus} />
                         </td>
                         <td></td>
                       </tr>

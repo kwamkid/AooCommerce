@@ -6,18 +6,7 @@ import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { useRouter } from 'next/navigation';
-import { DEALER_ORDER_STATUS_LABEL } from '@/lib/order-status';
-import { getBadgeColor } from '@/lib/status-tab-colors';
-import StatusBadge from '@/components/ui/StatusBadge';
-
-const STATUS_LABELS: Record<string, { label: string; cls: string }> = {
-  new: { label: DEALER_ORDER_STATUS_LABEL.new, cls: `${getBadgeColor('new').bg} ${getBadgeColor('new').color}` },
-  ready_to_ship: { label: DEALER_ORDER_STATUS_LABEL.ready_to_ship, cls: `${getBadgeColor('ready_to_ship').bg} ${getBadgeColor('ready_to_ship').color}` },
-  processing: { label: DEALER_ORDER_STATUS_LABEL.processing, cls: `${getBadgeColor('processing').bg} ${getBadgeColor('processing').color}` },
-  shipping: { label: DEALER_ORDER_STATUS_LABEL.shipping, cls: `${getBadgeColor('shipping').bg} ${getBadgeColor('shipping').color}` },
-  completed: { label: DEALER_ORDER_STATUS_LABEL.completed, cls: `${getBadgeColor('completed').bg} ${getBadgeColor('completed').color}` },
-  cancelled: { label: DEALER_ORDER_STATUS_LABEL.cancelled, cls: `${getBadgeColor('cancelled').bg} ${getBadgeColor('cancelled').color}` },
-};
+import { OrderStatusBadge, PaymentStatusBadge } from '@/components/ui/OrderStatusBadge';
 
 interface Props {
   orderId: string;
@@ -63,15 +52,8 @@ export default function OrderStatusBar({ orderId, orderNumber, orderStatus, paym
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div className="flex items-center gap-3">
         <span className="font-mono text-lg font-bold text-primary">{orderNumber}</span>
-        <StatusBadge status={orderStatus} colors={STATUS_LABELS[orderStatus]?.cls || ''}>
-          {STATUS_LABELS[orderStatus]?.label || orderStatus}
-        </StatusBadge>
-        {paymentStatus === 'paid' && (
-          <StatusBadge status="paid" payment>ชำระแล้ว</StatusBadge>
-        )}
-        {paymentStatus === 'pending' && (
-          <StatusBadge status="pending" colors="bg-gray-100 text-gray-500 dark:bg-slate-700 dark:text-slate-400">รอชำระ</StatusBadge>
-        )}
+        <OrderStatusBadge status={orderStatus} dealer />
+        <PaymentStatusBadge status={paymentStatus} />
       </div>
       <div className="flex flex-wrap gap-2">
         {(orderStatus === 'new' || orderStatus === 'processing') && (

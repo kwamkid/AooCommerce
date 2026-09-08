@@ -63,40 +63,11 @@ import { PLATFORM_ICONS, getTrackingUrl, getCarrierLabel } from '../components/t
 import { useCarriers } from '@/lib/carrier-lookup';
 import FormSelect from '@/components/ui/FormSelect';
 import StatusBadge from '@/components/ui/StatusBadge';
+import { OrderStatusBadge, PaymentStatusBadge } from '@/components/ui/OrderStatusBadge';
 import Badge from '@/components/ui/Badge';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
-import { ORDER_STATUS_LABEL, orderStatusLabel, getNextOrderStatus } from '@/lib/order-status';
-import { getBadgeColor } from '@/lib/status-tab-colors';
+import { orderStatusLabel, paymentStatusLabel, getNextOrderStatus } from '@/lib/order-status';
 import { thumbUrl } from '@/lib/image-thumb';
-
-// Status badge components
-function OrderStatusBadge({ status }: { status: string }) {
-  const statusConfig: Record<string, { label: string; color: string }> = {
-    new: { label: ORDER_STATUS_LABEL.new, color: `${getBadgeColor('new').bg} ${getBadgeColor('new').color}` },
-    ready_to_ship: { label: ORDER_STATUS_LABEL.ready_to_ship, color: `${getBadgeColor('ready_to_ship').bg} ${getBadgeColor('ready_to_ship').color}` },
-    processing: { label: ORDER_STATUS_LABEL.processing, color: `${getBadgeColor('processing').bg} ${getBadgeColor('processing').color}` },
-    shipping: { label: ORDER_STATUS_LABEL.shipping, color: `${getBadgeColor('shipping').bg} ${getBadgeColor('shipping').color}` },
-    completed: { label: ORDER_STATUS_LABEL.completed, color: `${getBadgeColor('completed').bg} ${getBadgeColor('completed').color}` },
-    cancelled: { label: ORDER_STATUS_LABEL.cancelled, color: `${getBadgeColor('cancelled').bg} ${getBadgeColor('cancelled').color}` }
-  };
-  const config = statusConfig[status] || statusConfig.new;
-  return (
-    <StatusBadge status={status} colors={config.color} size="md">{config.label}</StatusBadge>
-  );
-}
-
-function PaymentStatusBadge({ status }: { status: string }) {
-  const statusConfig: Record<string, { label: string; color: string }> = {
-    pending: { label: 'รอชำระ', color: 'bg-orange-100 text-orange-700 dark:bg-orange-500/30 dark:text-orange-100' },
-    verifying: { label: 'รอตรวจสอบ', color: 'bg-purple-100 text-purple-700 dark:bg-purple-500/30 dark:text-purple-100' },
-    paid: { label: 'ชำระแล้ว', color: 'bg-green-100 text-green-700 dark:bg-green-500/30 dark:text-green-100' },
-    cancelled: { label: 'ยกเลิก', color: 'bg-red-100 text-red-700 dark:bg-red-500/30 dark:text-red-100' }
-  };
-  const config = statusConfig[status] || statusConfig.pending;
-  return (
-    <StatusBadge status={status} colors={config.color} size="md">{config.label}</StatusBadge>
-  );
-}
 
 function ShopeeExternalStatusBadge({ status }: { status: string }) {
   const statusConfig: Record<string, { label: string; color: string }> = {
@@ -413,16 +384,8 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
 
   // Status flow: getNextOrderStatus จาก lib/order-status.ts (single source of truth)
 
-  const getOrderStatusLabel = (status: string): string => {
-    if (status === 'cancelled' && fullOrderData?.cancellation_reason === 'expired') return 'หมดอายุ';
-    const labels = ORDER_STATUS_LABEL;
-    return labels[status] || status;
-  };
-
-  const getPaymentStatusLabel = (status: string): string => {
-    const labels: Record<string, string> = { pending: 'รอชำระ', verifying: 'รอตรวจสอบ', paid: 'ชำระแล้ว', cancelled: 'ยกเลิก' };
-    return labels[status] || status;
-  };
+  const isExpired = fullOrderData?.cancellation_reason === 'expired';
+  const getOrderStatusLabel = (status: string): string => orderStatusLabel(status, { expired: isExpired });
 
   // Accept order directly (no confirm modal)
   const handleOrderStatusClick = async () => {
@@ -944,8 +907,8 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
                 {/* Status badges inline next to order number — replaces removed Status card */}
                 {orderStatus !== 'cancelled' && (
                   <>
-                    <OrderStatusBadge status={orderStatus} />
-                    <PaymentStatusBadge status={paymentStatus} />
+                    <OrderStatusBadge status={orderStatus} expired={isExpired} size="md" />
+                    <PaymentStatusBadge status={paymentStatus} size="md" />
                   </>
                 )}
                 {orderStatus === 'cancelled' && (
@@ -1244,10 +1207,9 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
           const isManualReadOnly = orderStatus !== 'new' || paymentStatus !== 'pending';
           if (!isManualReadOnly) return null;
           const statusLabel = (st: string) => orderStatusLabel(st, { expired: fullOrderData?.cancellation_reason === 'expired' });
-          const paymentLabels: Record<string, string> = { pending: 'รอชำระ', verifying: 'รอตรวจสอบ', paid: 'ชำระแล้ว', cancelled: 'ยกเลิก' };
           const reasonMessage = orderStatus !== 'new'
             ? `สถานะออเดอร์ "${statusLabel(orderStatus) || orderStatus}"`
-            : `สถานะชำระเงิน "${paymentLabels[paymentStatus] || paymentStatus}"`;
+            : `สถานะชำระเงิน "${paymentStatusLabel(paymentStatus)}"`;
           return (
             <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800/40 text-yellow-800 dark:text-yellow-300 px-4 py-3 rounded-lg text-sm print:hidden">
               คำสั่งซื้อ {orderNumber} ({reasonMessage}) — ไม่สามารถแก้ไขได้
@@ -1626,8 +1588,8 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
               <div>
                 <div className="text-base font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wide mb-2">สถานะ</div>
                 <div className="flex items-center gap-2 flex-wrap">
-                  <OrderStatusBadge status={orderStatus} />
-                  <PaymentStatusBadge status={paymentStatus} />
+                  <OrderStatusBadge status={orderStatus} expired={isExpired} size="md" />
+                  <PaymentStatusBadge status={paymentStatus} size="md" />
                   <Badge tone="orange" size="sm" icon={<img src="/marketplace/shopee.svg" alt="Shopee" className="w-3.5 h-3.5" />}>Shopee</Badge>
                 </div>
               </div>
@@ -1790,8 +1752,8 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
           <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-5">
             <div className="text-base font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wide mb-2">สถานะ</div>
             <div className="flex items-center gap-2 flex-wrap">
-              <OrderStatusBadge status={orderStatus} />
-              <PaymentStatusBadge status={paymentStatus} />
+              <OrderStatusBadge status={orderStatus} expired={isExpired} size="md" />
+              <PaymentStatusBadge status={paymentStatus} size="md" />
               <span className="inline-flex items-center gap-1 text-xs text-green-600 dark:text-green-400">
                 POS — ชำระเงินแล้ว
               </span>

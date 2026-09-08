@@ -17,7 +17,7 @@ import { apiFetch, invalidateApiCache } from '@/lib/api-client';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { useStableCallback } from '@/lib/useStableCallback';
 import { formatPrice, formatNumber } from '@/lib/utils/format';
-import { getBadgeColor, getPaymentBadgeColor } from '@/lib/status-tab-colors';
+import { OrderStatusBadge, PaymentStatusBadge } from '@/components/ui/OrderStatusBadge';
 import { isConsignmentFlow, isDepartmentFlow } from '@/lib/flow-types';
 import { supabase } from '@/lib/supabase';
 import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
@@ -1902,12 +1902,8 @@ function UnifiedChatPageContent() {
             {order.order_date && (<p className="text-xs text-gray-400 mt-0.5">เปิดบิล {new Date(order.created_at || order.order_date + 'T00:00:00').toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' })} {order.created_at && new Date(order.created_at).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}</p>)}
           </div>
           <div className="flex items-center gap-1">
-            <StatusBadge status={orderStatus}>
-              {orderStatus === 'completed' ? 'สำเร็จ' : orderStatus === 'new' ? 'ใหม่' : orderStatus === 'ready_to_ship' ? 'รอกดรับ' : orderStatus === 'processing' ? 'ที่ต้องจัดส่ง' : orderStatus === 'shipping' ? 'กำลังส่ง' : orderStatus === 'cancelled' ? 'ยกเลิก' : orderStatus}
-            </StatusBadge>
-            <StatusBadge status={order.payment_status} payment>
-              {order.payment_status === 'paid' ? 'ชำระแล้ว' : order.payment_status === 'verifying' ? 'รอตรวจสอบ' : order.payment_status === 'cancelled' ? 'ยกเลิก' : 'รอชำระ'}
-            </StatusBadge>
+            <OrderStatusBadge status={orderStatus} />
+            <PaymentStatusBadge status={order.payment_status || 'pending'} />
           </div>
         </div>
         {(() => {
@@ -2866,7 +2862,7 @@ function UnifiedChatPageContent() {
         {mobileView === 'order-detail' && selectedOrderId && (
           <div className="flex md:hidden w-full flex-col bg-gray-50 dark:bg-slate-900">
             <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800">
-              <div className="flex items-center gap-3"><button onClick={() => setMobileView('history')} className="p-1 -ml-1 text-gray-500 hover:text-gray-700"><ChevronLeft className="w-6 h-6" /></button><FileText className="w-5 h-5 text-blue-500" /><div><div className="flex items-center gap-1.5 flex-wrap"><h2 className="text-lg font-semibold text-gray-900 dark:text-white">{orderHistory.find(o => o.id === selectedOrderId)?.order_number || 'รายละเอียดออเดอร์'}</h2>{(() => { const o = orderHistory.find(o => o.id === selectedOrderId); if (!o) return null; const s = o.order_status || o.status; const p = o.payment_status; return (<><span className={`px-2 py-0.5 text-xs font-medium rounded-full ${getBadgeColor(s).bg} ${getBadgeColor(s).color}`}>{s === 'completed' ? 'สำเร็จ' : s === 'new' ? 'ใหม่' : s === 'shipping' ? 'กำลังส่ง' : s === 'cancelled' ? 'ยกเลิก' : s}</span><span className={`px-2 py-0.5 text-xs font-medium rounded-full ${getPaymentBadgeColor(p).bg} ${getPaymentBadgeColor(p).color}`}>{p === 'paid' ? 'ชำระแล้ว' : p === 'verifying' ? 'รอตรวจสอบ' : p === 'cancelled' ? 'ยกเลิก' : 'รอชำระ'}</span></>); })()}</div>{selectedContact?.customer && <p className="text-xs text-gray-500 dark:text-slate-400">{selectedContact.customer.name}</p>}</div></div>
+              <div className="flex items-center gap-3"><button onClick={() => setMobileView('history')} className="p-1 -ml-1 text-gray-500 hover:text-gray-700"><ChevronLeft className="w-6 h-6" /></button><FileText className="w-5 h-5 text-blue-500" /><div><div className="flex items-center gap-1.5 flex-wrap"><h2 className="text-lg font-semibold text-gray-900 dark:text-white">{orderHistory.find(o => o.id === selectedOrderId)?.order_number || 'รายละเอียดออเดอร์'}</h2>{(() => { const o = orderHistory.find(o => o.id === selectedOrderId); if (!o) return null; return (<><OrderStatusBadge status={o.order_status || o.status} /><PaymentStatusBadge status={o.payment_status || 'pending'} /></>); })()}</div>{selectedContact?.customer && <p className="text-xs text-gray-500 dark:text-slate-400">{selectedContact.customer.name}</p>}</div></div>
               <div className="flex items-center gap-2">
                 <div ref={headerActionsRef} className="flex items-center gap-2" />
                 <div ref={warehousePortalRef} />
@@ -2955,7 +2951,7 @@ function UnifiedChatPageContent() {
         {rightPanel === 'order-detail' && selectedOrderId && (
           <div className="flex w-full md:w-auto md:flex-1 flex-col border-l border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900 absolute inset-0 md:static md:inset-auto z-10">
             <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 min-h-[81px]">
-              <div className="flex items-center gap-3"><button onClick={() => setRightPanel('history')} className="p-1 -ml-1 text-gray-500 hover:text-gray-700"><ChevronLeft className="w-5 h-5" /></button><FileText className="w-5 h-5 text-blue-500" /><div><div className="flex items-center gap-1.5 flex-wrap"><h2 className="text-lg font-semibold text-gray-900 dark:text-white">{orderHistory.find(o => o.id === selectedOrderId)?.order_number || 'รายละเอียดออเดอร์'}</h2>{(() => { const o = orderHistory.find(o => o.id === selectedOrderId); if (!o) return null; const s = o.order_status || o.status; const p = o.payment_status; return (<><span className={`px-2 py-0.5 text-xs font-medium rounded-full ${getBadgeColor(s).bg} ${getBadgeColor(s).color}`}>{s === 'completed' ? 'สำเร็จ' : s === 'new' ? 'ใหม่' : s === 'shipping' ? 'กำลังส่ง' : s === 'cancelled' ? 'ยกเลิก' : s}</span><span className={`px-2 py-0.5 text-xs font-medium rounded-full ${getPaymentBadgeColor(p).bg} ${getPaymentBadgeColor(p).color}`}>{p === 'paid' ? 'ชำระแล้ว' : p === 'verifying' ? 'รอตรวจสอบ' : p === 'cancelled' ? 'ยกเลิก' : 'รอชำระ'}</span></>); })()}</div>{selectedContact?.customer && <p className="text-xs text-gray-500 dark:text-slate-400">{selectedContact.customer.name}</p>}</div></div>
+              <div className="flex items-center gap-3"><button onClick={() => setRightPanel('history')} className="p-1 -ml-1 text-gray-500 hover:text-gray-700"><ChevronLeft className="w-5 h-5" /></button><FileText className="w-5 h-5 text-blue-500" /><div><div className="flex items-center gap-1.5 flex-wrap"><h2 className="text-lg font-semibold text-gray-900 dark:text-white">{orderHistory.find(o => o.id === selectedOrderId)?.order_number || 'รายละเอียดออเดอร์'}</h2>{(() => { const o = orderHistory.find(o => o.id === selectedOrderId); if (!o) return null; return (<><OrderStatusBadge status={o.order_status || o.status} /><PaymentStatusBadge status={o.payment_status || 'pending'} /></>); })()}</div>{selectedContact?.customer && <p className="text-xs text-gray-500 dark:text-slate-400">{selectedContact.customer.name}</p>}</div></div>
               <div className="flex items-center gap-2">
                 <div ref={headerActionsRef} className="flex items-center gap-2" />
                 <div ref={warehousePortalRef} />

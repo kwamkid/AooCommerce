@@ -14,13 +14,13 @@ import {
 import {
   Order,
   ORDER_STATUS_CONFIG,
-  PAYMENT_STATUS_CONFIG,
   relativeTime,
   getDeadlineInfo,
   getCarrierLabel,
 } from './types';
 import PrintStatusDots from './PrintStatusDots';
 import StatusBadge from '@/components/ui/StatusBadge';
+import { OrderStatusBadge, PaymentStatusBadge } from '@/components/ui/OrderStatusBadge';
 import Badge from '@/components/ui/Badge';
 import ChannelBadge from '@/components/ui/ChannelBadge';
 
@@ -54,8 +54,7 @@ export default function OrderCard({
   const deadline = getDeadlineInfo(order.delivery_date);
   const customerName = order.customer_name || order.delivery_name || 'ลูกค้าทั่วไป';
   const customerPhone = order.customer_phone || order.delivery_phone;
-  const orderStatusCfg = ORDER_STATUS_CONFIG[order.order_status] || ORDER_STATUS_CONFIG.new;
-  const paymentStatusCfg = PAYMENT_STATUS_CONFIG[order.payment_status] || PAYMENT_STATUS_CONFIG.pending;
+  const orderStatusCfg = ORDER_STATUS_CONFIG[order.order_status] || ORDER_STATUS_CONFIG.new; // ใช้แค่สีแถบหัวการ์ด — badge ใช้ OrderStatusBadge
 
   // On hold indicator
   const isOnHold = order.fulfillment_status === 'on_hold';
@@ -140,16 +139,10 @@ export default function OrderCard({
               <StatusBadge status="IN_CANCEL" colors="bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400" className="flex-shrink-0" icon={<RotateCcw className="w-3 h-3" />}>ขอยกเลิก</StatusBadge>
             )}
             {shouldShowStatus && (
-              <StatusBadge status={order.order_status} colors={
-                order.cancellation_reason === 'expired'
-                  ? 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400'
-                  : orderStatusCfg
-              }>
-                {order.cancellation_reason === 'expired' ? 'หมดอายุ' : orderStatusCfg.label}
-              </StatusBadge>
+              <OrderStatusBadge status={order.order_status} expired={order.cancellation_reason === 'expired'} />
             )}
             {showPaymentStatus && order.order_status !== 'cancelled' && (
-              <StatusBadge status={order.payment_status} colors={paymentStatusCfg}>{paymentStatusCfg.label}</StatusBadge>
+              <PaymentStatusBadge status={order.payment_status} />
             )}
             {showPaymentStatus && order.payment_status === 'verifying' && order.last_transfer_date && (
               <Badge tone="gray" size="sm">

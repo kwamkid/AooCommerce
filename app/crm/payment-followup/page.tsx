@@ -26,8 +26,8 @@ import {
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
 import { LoadingCard } from '@/components/ui/StateCard';
 import StatusBadge from '@/components/ui/StatusBadge';
+import { OrderStatusBadge, PaymentStatusBadge } from '@/components/ui/OrderStatusBadge';
 import Badge from '@/components/ui/Badge';
-import { getBadgeColor, getPaymentBadgeColor } from '@/lib/status-tab-colors';
 
 interface PendingOrder {
   id: string;
@@ -108,34 +108,6 @@ function AgingBadge({ days }: { days: number }) {
 }
 
 // Order status badge
-const ORDER_STATUS_LABELS: Record<string, string> = {
-  new: 'ใหม่',
-  shipping: 'กำลังส่ง',
-  completed: 'ส่งแล้ว',
-};
-
-function OrderStatusBadge({ status }: { status: string }) {
-  const badge = getBadgeColor(status);
-
-  return (
-    <StatusBadge status={status} colors={badge}>{ORDER_STATUS_LABELS[status] || status}</StatusBadge>
-  );
-}
-
-// Payment status badge
-const PAYMENT_STATUS_LABELS: Record<string, string> = {
-  pending: 'รอชำระ',
-  verifying: 'รอตรวจสอบ',
-};
-
-function PaymentStatusBadge({ status }: { status: string }) {
-  const badge = getPaymentBadgeColor(status);
-
-  return (
-    <StatusBadge status={status} payment colors={badge}>{PAYMENT_STATUS_LABELS[status] || status}</StatusBadge>
-  );
-}
-
 export default function PaymentFollowupPage() {
   const router = useRouter();
   const { userProfile, loading: authLoading } = useAuth();

@@ -397,6 +397,17 @@ h6:where(.heading-1, .heading-2, .heading-3, .heading-4) {
 .badge-orange  { background-color: rgb(255 247 237); color: rgb(194 65 12); }
 .dark .badge-orange  { background-color: rgb(124 45 18 / 0.3); color: rgb(251 146 60); }
 
+/*
+ * ไอคอนนำหน้าข้อความใน badge — ใช้โดย OrderStatusBadge/PaymentStatusBadge
+ * (components/ui/OrderStatusBadge.tsx) ที่ตราตระกูลไว้ว่าใบไหนพูดเรื่องงาน ใบไหนพูดเรื่องเงิน
+ *
+ * ขนาดคุมจากที่นี่ที่เดียว ไม่ส่ง w-3/h-3 มาจากหน้าเรียก — จะได้ไม่มีใบไหนไอคอนโตกว่าเพื่อน
+ * ไม่แตะไอคอนที่ badge อื่นส่งเข้ามาเอง (เจาะเฉพาะคลาสนี้)
+ */
+.badge-lead-icon { flex-shrink: 0; opacity: 0.85; }
+.badge-sm > .badge-lead-icon { width: 0.75rem;  height: 0.75rem; }
+.badge-md > .badge-lead-icon { width: 0.875rem; height: 0.875rem; }
+
 /* Filter bar icon button — same height as input/select (42px) */
 @layer components {
   .btn-filter-icon {

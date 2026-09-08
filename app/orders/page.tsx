@@ -54,7 +54,6 @@ import {
   Order,
   ChannelOption,
   CreatedByOption,
-  ORDER_STATUS_CONFIG,
   PLATFORM_ICONS,
 } from './components/types';
 import { useCarriers } from '@/lib/carrier-lookup';
@@ -74,8 +73,8 @@ import { useCompany } from '@/lib/company-context';
 import LoadingOverlay from '@/components/ui/LoadingOverlay';
 import FormSelect from '@/components/ui/FormSelect';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
-import { getStatusBadgeTone } from '@/lib/status-tab-colors';
-import { ORDER_STATUS_FLOW } from '@/lib/order-status';
+import { OrderStatusBadge } from '@/components/ui/OrderStatusBadge';
+import { ORDER_STATUS_FLOW, ORDER_STATUS_LABEL } from '@/lib/order-status';
 import { isMarketplacePlatform } from '@/lib/marketplace-platforms';
 import PageHeader from '@/components/ui/PageHeader';
 
@@ -771,12 +770,8 @@ function OrdersPageContent() {
           onSelect={(k) => setParams({ status: k })}
           tabs={[
             { key: 'all', label: 'ทั้งหมด', count: statusCounts.all || 0 },
-            { key: 'new', label: 'ใหม่', count: statusCounts.new || 0 },
-            { key: 'ready_to_ship', label: 'รอกดรับ', count: statusCounts.ready_to_ship || 0 },
-            { key: 'processing', label: 'ที่ต้องจัดส่ง', count: statusCounts.processing || 0 },
-            { key: 'shipping', label: 'กำลังส่ง', count: statusCounts.shipping || 0 },
-            { key: 'completed', label: 'สำเร็จ', count: statusCounts.completed || 0 },
-            { key: 'cancelled', label: 'ยกเลิก', count: statusCounts.cancelled || 0 },
+            ...(['new', 'ready_to_ship', 'processing', 'shipping', 'completed', 'cancelled'] as const)
+              .map(k => ({ key: k, label: ORDER_STATUS_LABEL[k], count: statusCounts[k] || 0 })),
           ]}
         />
 
@@ -1066,13 +1061,9 @@ function OrdersPageContent() {
             </p>
             <div className="flex items-center gap-2">
               <span className="subtitle-text">เปลี่ยนจาก:</span>
-              <Badge tone={getStatusBadgeTone(statusUpdateModal.order?.order_status || '')} size="sm">
-                {ORDER_STATUS_CONFIG[statusUpdateModal.order?.order_status || '']?.label || ''}
-              </Badge>
+              <OrderStatusBadge status={statusUpdateModal.order?.order_status || ''} />
               <ChevronRight className="w-4 h-4 text-gray-400" />
-              <Badge tone={getStatusBadgeTone(statusUpdateModal.nextStatus)} size="sm">
-                {ORDER_STATUS_CONFIG[statusUpdateModal.nextStatus]?.label || ''}
-              </Badge>
+              <OrderStatusBadge status={statusUpdateModal.nextStatus} />
             </div>
 
             {/* Shipping Details Form (processing -> shipping) */}

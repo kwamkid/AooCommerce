@@ -19,14 +19,13 @@ import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
 import Container from '@/components/ui/Container';
 import PageHeader from '@/components/ui/PageHeader';
 import Button, { type ButtonVariant } from '@/components/ui/Button';
-import { getBadgeColor } from '@/lib/status-tab-colors';
 import StatusTabs from '@/components/ui/StatusTabs';
 import PaymentModal from '@/app/orders/components/PaymentModal';
 import ShipModal, { type ShipResult } from '@/components/ui/ShipModal';
 import { printOrder, type PrintType } from '@/components/ui/OrderPrintButtons';
-import StatusBadge from '@/components/ui/StatusBadge';
-import { preOpenPrintWindow } from '@/lib/print-pdf';
+import { OrderStatusBadge, PaymentStatusBadge } from '@/components/ui/OrderStatusBadge';
 import { DEALER_ORDER_STATUS_LABEL } from '@/lib/order-status';
+import { preOpenPrintWindow } from '@/lib/print-pdf';
 
 interface WholesaleOrder {
   id: string;
@@ -49,21 +48,13 @@ function formatMoney(n: number) {
   return n.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+// คำเรียกมาจากแหล่งเดียวกับ badge — เปลี่ยนคำที่ lib/order-status.ts แล้วแท็บเปลี่ยนตาม
 const STATUS_TABS = [
   { key: 'all', label: 'ทั้งหมด' },
-  { key: 'new', label: 'ใหม่' },
-  { key: 'ready_to_ship', label: 'รอคอนเฟิร์ม' },
-  { key: 'processing', label: 'ที่ต้องจัดส่ง' },
-  { key: 'completed', label: 'สำเร็จ' },
-  { key: 'cancelled', label: 'ยกเลิก' },
+  ...(['new', 'ready_to_ship', 'processing', 'completed', 'cancelled'] as const)
+    .map(k => ({ key: k, label: DEALER_ORDER_STATUS_LABEL[k] })),
 ];
 
-const ORDER_STATUS_LABELS = DEALER_ORDER_STATUS_LABEL;
-
-const PAYMENT_BADGE: Record<string, { label: string; cls: string }> = {
-  pending: { label: 'รอชำระ', cls: 'text-orange-600 dark:text-orange-400' },
-  paid: { label: 'ชำระแล้ว', cls: 'text-green-600 dark:text-green-400' },
-};
 
 const FLOW_TYPE_OPTIONS = [
   { id: '', label: 'ทั้งหมด' },
@@ -357,24 +348,11 @@ export default function DealerOrdersPage() {
             },
             ...(showStatusCol ? [{
               key: 'status', label: 'สถานะ',
-              render: (order: WholesaleOrder) => {
-                const statusLabel = ORDER_STATUS_LABELS[order.order_status] || order.order_status;
-                return (
-                  <StatusBadge status={order.order_status}>{statusLabel}</StatusBadge>
-                );
-              },
+              render: (order: WholesaleOrder) => <OrderStatusBadge status={order.order_status} dealer />,
             }] as DataTableColumn<WholesaleOrder>[] : []),
             {
               key: 'payment', label: 'ชำระ',
-              render: (order) => {
-                const pBadge = PAYMENT_BADGE[order.payment_status] || PAYMENT_BADGE.pending;
-                return (
-                  <span className={`text-xs font-medium ${pBadge.cls}`}>
-                    {order.payment_status === 'paid' && <CreditCard className="w-3 h-3 inline mr-1" />}
-                    {pBadge.label}
-                  </span>
-                );
-              },
+              render: (order) => <PaymentStatusBadge status={order.payment_status} />,
             },
             {
               key: 'actions', label: 'จัดการ', alwaysVisible: true, headerClassName: 'text-right', cellClassName: 'text-right', stopPropagation: true,
@@ -415,9 +393,6 @@ export default function DealerOrdersPage() {
           onRecordsPerPageChange={(v) => { setRecordsPerPage(v); setPage(1); }}
           loadTime={loadTime}
           mobileCardRender={(order) => {
-            const bc = getBadgeColor(order.order_status);
-            const statusLabel = ORDER_STATUS_LABELS[order.order_status] || order.order_status;
-            const pBadge = PAYMENT_BADGE[order.payment_status] || PAYMENT_BADGE.pending;
             const focus = getFocusAction(order);
             const isActioning = actionLoading === order.id;
             const canCancel = ['new', 'ready_to_ship', 'processing'].includes(order.order_status);
@@ -429,7 +404,7 @@ export default function DealerOrdersPage() {
                     <p className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">{formatDateTime(order.created_at)}</p>
                   </div>
                   <div className="flex items-center gap-1 flex-shrink-0" onClick={e => e.stopPropagation()}>
-                    <StatusBadge status={order.order_status}>{statusLabel}</StatusBadge>
+                    <OrderStatusBadge status={order.order_status} dealer />
                     {canCancel && (
                       <ActionMenu items={[
                         { key: 'cancel', label: 'ยกเลิกออเดอร์', icon: <Trash2 className="w-4 h-4" />, danger: true, onClick: (e) => { e.stopPropagation(); handleAction(order, 'cancel'); } },
@@ -443,10 +418,7 @@ export default function DealerOrdersPage() {
                     <span className="text-sm text-gray-900 dark:text-white font-semibold">฿{formatMoney(order.total_amount)}</span>
                   </div>
                   <div className="flex items-center gap-2 text-xs text-gray-400 dark:text-slate-500">
-                    <span className={`font-medium ${pBadge.cls}`}>
-                      {order.payment_status === 'paid' && <CreditCard className="w-3 h-3 inline mr-1" />}
-                      {pBadge.label}
-                    </span>
+                    <PaymentStatusBadge status={order.payment_status} />
                     <span>{order.flow_type === 'w_credit' ? 'เครดิต' : 'เงินสด'}</span>
                   </div>
                 </div>
