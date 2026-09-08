@@ -45,36 +45,43 @@ interface TabsProps {
   /** 'sm' = แท็บย่อยในการ์ด (โปรโมชั่นรายแพลตฟอร์ม) · 'md' = ค่าปกติของหน้า */
   size?: 'sm' | 'md';
   /**
-   * `card` (ค่าปกติ) = แท็บที่ active ยกขึ้นเป็นการ์ดขาวบนรางสีเทา + ขีดสั้นสีของแท็บ
-   * `underline` = แบบเดิม เส้นใต้เต็มความกว้างแท็บ ใช้เมื่อแท็บอยู่บนพื้นที่ไม่มีรางให้วาง
+   * `card` (ค่าปกติ) = แท็บที่เลือกเป็น "แผ่นขาวโค้งมุมบน" ชิดขอบ พื้นเทาไหลต่อไปทางขวา
+   *   + ขีดหนาใต้ข้อความ · วางคู่กับกล่องเนื้อหาพื้นขาว (ส่ง `className="mb-0"`) จะได้แผ่นเดียวต่อเนื่อง
+   * `underline` = เส้นใต้เต็มความกว้างแท็บ — ใช้กับแถบที่กินเต็มความกว้างติดขอบจอ
+   *   (แถบมือถือ POS · หน้า PC) หรือแถบเล็กใน popover ที่ไม่มีที่ให้วางแผ่นขาว
    */
   variant?: 'card' | 'underline';
 }
 
 export default function Tabs({ tabs, activeKey, onSelect, className, fill, size = 'md', variant = 'card' }: TabsProps) {
-  // Base layout (flex + bottom border + scroll on overflow) is always applied;
+  // Base layout (flex + พื้นราง/เส้นใต้ + scroll on overflow) is always applied;
   // caller's `className` is merged on top — typically just for spacing overrides
   // like `mb-6` / `mt-0`. Don't use `??` here — that would let a caller passing
   // `className="mb-6"` accidentally drop the flex + border-b and tabs would stack.
   const isCard = variant === 'card';
   const baseCls = isCard
-    ? 'flex gap-1 p-1 bg-gray-100 dark:bg-slate-800/80 rounded-xl mb-6 overflow-x-auto'
+    ? 'flex bg-gray-100 dark:bg-slate-800 rounded-t-xl mb-6 overflow-x-auto'
     : 'flex border-b border-gray-200 dark:border-slate-700 mb-6 overflow-x-auto';
   return (
     <div className={className ? `${baseCls} ${className}` : baseCls}>
       {tabs.filter(t => !t.hidden).map(tab => {
         const isActive = tab.key === activeKey;
-        const activeColor = tab.activeColorClass ?? 'border-primary text-primary';
-        const sizeCls = size === 'sm' ? 'px-3 py-2 text-xs gap-1.5' : 'px-4 py-2.5 text-base gap-2';
+        // แบบการ์ด: ตัวอักษรเข้มเป็นค่าปกติ (ขีดใต้ใช้ bg-current จึงได้สีเดียวกันเสมอ)
+        // แบบเส้นใต้: สีแบรนด์เหมือนเดิม · ทั้งคู่ override ได้ด้วย activeColorClass
+        const activeColor = tab.activeColorClass
+          ?? (isCard ? 'text-gray-900 dark:text-white' : 'border-primary text-primary');
+        const sizeCls = size === 'sm'
+          ? (isCard ? 'px-4 pt-2 pb-3 text-xs gap-1.5' : 'px-3 py-2 text-xs gap-1.5')
+          : (isCard ? 'px-5 pt-2.5 pb-4 text-base gap-2' : 'px-4 py-2.5 text-base gap-2');
         const fillCls = fill ? 'flex-1 justify-center' : '';
         // `activeColorClass` ใช้ได้ทั้งสองแบบ — แบบการ์ดหยิบเฉพาะสีตัวอักษรไปใช้
         // (`border-*` ที่ติดมาไม่มีผลเพราะไม่มีเส้นใต้) และขีดสั้นวาดด้วย `bg-current`
         // จึงได้สีเดียวกับตัวอักษรเสมอ ไม่ต้องส่งสีซ้ำสองที่
         const cls = isCard
-          ? `relative flex items-center ${sizeCls} ${fillCls} font-medium rounded-lg whitespace-nowrap transition-all ${
+          ? `relative flex items-center ${sizeCls} ${fillCls} font-semibold whitespace-nowrap transition-colors ${
               isActive
-                ? `bg-white dark:bg-slate-700 shadow-sm ${activeColor}`
-                : 'text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200 hover:bg-white/60 dark:hover:bg-slate-700/40'
+                ? `bg-white dark:bg-slate-900 rounded-t-xl ${activeColor}`
+                : 'text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200'
             }`
           : `flex items-center ${sizeCls} ${fillCls} font-medium border-b-2 whitespace-nowrap transition-colors ${
               isActive
@@ -89,7 +96,7 @@ export default function Tabs({ tabs, activeKey, onSelect, className, fill, size 
             {isCard && isActive && (
               <span
                 aria-hidden
-                className={`absolute left-1/2 -translate-x-1/2 rounded-full bg-current ${size === 'sm' ? 'bottom-1 h-0.5 w-5' : 'bottom-1.5 h-0.5 w-6'}`}
+                className={`absolute left-1/2 -translate-x-1/2 rounded-full bg-current ${size === 'sm' ? 'bottom-1 h-[2px] w-6' : 'bottom-1.5 h-[3px] w-8'}`}
               />
             )}
             {typeof tab.count === 'number' && (
