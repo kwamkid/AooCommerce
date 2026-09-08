@@ -464,7 +464,7 @@ Shopee ต้องจด app ของตัวเอง** — ออเดอ�
 | Lazada Sync All | `GET /api/lazada/sync-all` | `*/15 * * * *` |
 | Lazada Webhook Retry | `GET /api/lazada/webhook/retry` | `*/5 * * * *` |
 | **Watchdog (เฝ้าสุขภาพทุกเจ้า)** | `GET /api/marketplace/watchdog` | `*/15 * * * *` |
-| **บรอดแคสต์ตามเวลา** (2026-09-09) | `GET /api/broadcasts/run-scheduled` — หยิบใบ `status='scheduled'` ที่ถึงเวลาไปส่ง (จองใบด้วย UPDATE แบบมีเงื่อนไขก่อนยิง กัน cron ซ้อนส่งซ้ำ) · **เปิด Notify on failure** · ตัวเฝ้าจับใบที่ค้างเกิน 20 นาทีให้อีกชั้น (`broadcast_scheduled_overdue`) | `*/5 * * * *` |
+| **บรอดแคสต์ตามเวลา** (2026-09-09) | `GET /api/broadcasts/run-scheduled` — หยิบใบ `status='scheduled'` ที่ถึงเวลาไปส่ง (จองใบด้วย UPDATE แบบมีเงื่อนไขก่อนยิง กัน cron ซ้อนส่งซ้ำ) · **ตอบ 200 ทันทีแล้วส่งใน `after()`** เพราะ cron-job.org รอได้แค่ 30 วิ แต่ตัวส่งใช้ได้ถึง 240 วิ (ส่งในสายที่ cron รอ = โดนนับว่าล้มแล้ว job ถูกปิด) · **เปิด Notify on failure** · ตัวเฝ้าจับใบที่ค้างเกิน 20 นาทีให้อีกชั้น (`broadcast_scheduled_overdue`) | `*/5 * * * *` |
 | **Settlement รายวัน** | `GET /api/marketplace/settlements/sync` (ไม่ใส่อะไร = ทั้ง 3 เจ้าเรียงคิวในงบ 300 วิเดียว) · **แนะนำแยก job ต่อเจ้า** `?platform=shopee` / `lazada` / `tiktok` (2026-09-08 — เจ้าแรกกินเวลาหมด เจ้าท้ายไม่โดนข้าม) | `0 4 * * *` |
 
 **เพิ่ม marketplace ใหม่ = ต้องตั้ง cron 2 ตัวเสมอ** (sync-all + webhook/retry)

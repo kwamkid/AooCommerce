@@ -23,6 +23,16 @@ export interface ScheduledRunResult {
   ids: string[];
 }
 
+/** จำนวนใบที่ถึงเวลาแล้วแต่ยังไม่มีใครหยิบ — route ใช้ตัดสินว่าต้องปลุกตัวส่งไหม */
+export async function countDueScheduledBroadcasts(): Promise<number> {
+  const { count } = await supabaseAdmin
+    .from('broadcasts')
+    .select('id', { count: 'exact', head: true })
+    .eq('status', 'scheduled')
+    .lte('scheduled_at', new Date().toISOString());
+  return count ?? 0;
+}
+
 export async function runScheduledBroadcasts(
   opts: { timeBudgetMs?: number } = {},
 ): Promise<ScheduledRunResult> {
@@ -80,11 +90,5 @@ export async function runScheduledBroadcasts(
     }
   }
 
-  const { count } = await supabaseAdmin
-    .from('broadcasts')
-    .select('id', { count: 'exact', head: true })
-    .eq('status', 'scheduled')
-    .lte('scheduled_at', new Date().toISOString());
-
-  return { ran: ids.length, remaining: count ?? 0, ids };
+  return { ran: ids.length, remaining: await countDueScheduledBroadcasts(), ids };
 }
