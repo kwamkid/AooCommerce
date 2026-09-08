@@ -12,6 +12,8 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
+    /** 'paid' | 'unpaid' — ไม่ส่ง = ทุกสถานะ */
+    const paymentStatus = searchParams.get('payment_status');
     const startDate = searchParams.get('start_date');
     const endDate = searchParams.get('end_date');
 
@@ -23,7 +25,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Step 1: Fetch orders in date range (exclude cancelled)
-    const { data: orders, error: ordersError } = await supabaseAdmin
+    let ordersQuery = supabaseAdmin
       .from('orders')
       .select(`
         id,
@@ -54,7 +56,13 @@ export async function GET(request: NextRequest) {
       .eq('company_id', companyId)
       .gte('delivery_date', startDate)
       .lte('delivery_date', endDate)
-      .neq('order_status', 'cancelled')
+      .neq('order_status', 'cancelled');
+
+    // ตัวกรองสถานะชำระ — ไม่ส่งมา = เอาทุกสถานะ (ของยังไม่ชำระก็ต้องเตรียมจัดเหมือนกัน)
+    if (paymentStatus === 'paid') ordersQuery = ordersQuery.eq('payment_status', 'paid');
+    else if (paymentStatus === 'unpaid') ordersQuery = ordersQuery.neq('payment_status', 'paid');
+
+    const { data: orders, error: ordersError } = await ordersQuery
       .order('delivery_date', { ascending: true });
 
     if (ordersError) {

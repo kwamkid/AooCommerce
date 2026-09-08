@@ -60,7 +60,9 @@ import {
   ClipboardList,
   Printer,
   Loader2,
+  Wallet,
 } from 'lucide-react';
+import FormSelect from '@/components/ui/FormSelect';
 
 // Interfaces
 interface DeliveryProduct {
@@ -372,6 +374,8 @@ export default function DeliverySummaryPage() {
   const [error, setError] = useState('');
   const [reportData, setReportData] = useState<ReportData | null>(null);
   const [generatingSlipPdf, setGeneratingSlipPdf] = useState(false);
+  /** ตัวกรองสถานะชำระ — ค่าปกติ 'all' เพราะบิลที่ยังไม่ชำระก็ต้องเตรียมของและพิมพ์ใบคำสั่งซื้อเหมือนกัน */
+  const [paymentFilter, setPaymentFilter] = useState<'all' | 'paid' | 'unpaid'>('all');
   const [copySuccess, setCopySuccess] = useState(false);
   const [showProductSummary, setShowProductSummary] = useState(false);
   // แท็บ "จัดของ" แสดงรายบิลเหมือนหน้าคำสั่งซื้อ → ดึงจาก /api/orders ชุดเดียวกัน
@@ -450,6 +454,7 @@ export default function DeliverySummaryPage() {
     setError('');
     try {
       const params = new URLSearchParams({ start_date: deliveryDate, end_date: deliveryDate });
+      if (paymentFilter !== 'all') params.set('payment_status', paymentFilter);
       const response = await apiFetch(`/api/reports/delivery-summary?${params}`);
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || 'ไม่สามารถโหลดข้อมูลได้');
@@ -476,6 +481,9 @@ export default function DeliverySummaryPage() {
         sort_by: 'created_at',
         sort_dir: 'asc',
       });
+      // 'unpaid' = ทุกสถานะที่ยังไม่จ่ายครบ (pending/verifying/partial) จึงใช้ exclude แทน eq
+      if (paymentFilter === 'paid') params.set('payment_status', 'paid');
+      else if (paymentFilter === 'unpaid') params.set('exclude_payment_status', 'paid');
       const res = await apiFetch(`/api/orders?${params.toString()}`);
       if (!res.ok) throw new Error('Failed to fetch orders');
       const result = await res.json();
@@ -485,7 +493,7 @@ export default function DeliverySummaryPage() {
     } finally {
       setOrdersLoading(false);
     }
-  }, [session?.access_token, deliveryDate]);
+  }, [session?.access_token, deliveryDate, paymentFilter]);
 
   /** พิมพ์เอกสารของบิลเดียว — ใช้ตัวกลางเดียวกับหน้าคำสั่งซื้อ (เด้ง print dialog + จดว่าพิมพ์แล้ว) */
   const printOne = async (orderId: string, type: 'packing' | 'label') => {
@@ -507,7 +515,7 @@ export default function DeliverySummaryPage() {
     if (!isAuthReady || !deliveryDate) return;
     fetchReport();
     fetchOrders();
-  }, [isAuthReady, deliveryDate]);
+  }, [isAuthReady, deliveryDate, paymentFilter]);
 
   // Initialize delivery order when reportData changes
   useEffect(() => {
@@ -815,9 +823,9 @@ export default function DeliverySummaryPage() {
 
         {/* Date Picker + Tab Switcher + Action Buttons */}
         <div className="data-filter-card">
-          <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+          <div className="flex flex-wrap items-center gap-3">
             {/* Date Picker - first priority */}
-            <div className="max-w-xs">
+            <div className="w-full sm:w-[190px] flex-shrink-0">
               <DateRangePicker
                 value={selectedDate}
                 onChange={(val) => setSelectedDate(val)}
@@ -826,6 +834,20 @@ export default function DeliverySummaryPage() {
                 showShortcuts={false}
                 showFooter={false}
                 placeholder="เลือกวันที่ส่ง"
+              />
+            </div>
+
+            {/* สถานะชำระ — ของที่ยังไม่ชำระก็ต้องเตรียมจัด ค่าปกติจึงเป็น "ทุกสถานะ" */}
+            <div className="w-full sm:w-40 flex-shrink-0">
+              <FormSelect
+                value={paymentFilter}
+                onChange={(v) => setPaymentFilter(v as typeof paymentFilter)}
+                icon={<Wallet className="w-4 h-4" />}
+                options={[
+                  { id: 'all', label: 'ทุกสถานะชำระ' },
+                  { id: 'paid', label: 'ชำระแล้ว' },
+                  { id: 'unpaid', label: 'ยังไม่ชำระ' },
+                ]}
               />
             </div>
 
@@ -841,7 +863,7 @@ export default function DeliverySummaryPage() {
             />
 
             {/* Action buttons - contextual per tab */}
-            <div className="sm:ml-auto flex flex-wrap items-center gap-2">
+            <div className="w-full sm:w-auto sm:ml-auto flex flex-wrap items-center gap-2">
               {activeTab === 'packing' ? (
                 <>
                   <Button
