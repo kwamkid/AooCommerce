@@ -14,7 +14,9 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import type { ReactNode } from 'react';
+import FormSelect from '@/components/ui/FormSelect';
 
 export interface TabItem {
   /** Tab identifier — matched against `activeKey` to determine selection. */
@@ -45,19 +47,55 @@ interface TabsProps {
   fill?: boolean;
   /** 'sm' = แท็บย่อยในการ์ด (โปรโมชั่นรายแพลตฟอร์ม) · 'md' = ค่าปกติของหน้า */
   size?: 'sm' | 'md';
+  /**
+   * จอแคบ + แท็บเกินจำนวนนี้ = วาดเป็น dropdown แทน (เลื่อนหาแท็บบนมือถือลำบาก —
+   * หน้าสินค้าของร้านที่ผูก Shopee 7 ร้านมีถึง 8 แท็บ) · ค่าปกติ 3 · ใส่ 0 = ไม่เปลี่ยนเลย
+   */
+  mobileDropdownFrom?: number;
 }
 
-export default function Tabs({ tabs, activeKey, onSelect, className, fill, size = 'md' }: TabsProps) {
+export default function Tabs({ tabs, activeKey, onSelect, className, fill, size = 'md', mobileDropdownFrom = 3 }: TabsProps) {
+  const router = useRouter();
   // Base layout (flex + พื้นราง + scroll on overflow) is always applied;
   // caller's `className` is merged on top — typically just for spacing overrides
   // like `mb-6` / `mt-0`. Don't use `??` here — that would let a caller passing
   // `className="mb-6"` accidentally drop the flex + พื้นราง and tabs would stack.
   // รางกว้างพอดีแท็บเสมอ (ไม่ยืดเต็มพ่อจนเหลือพื้นเทาโล่ง ๆ) ยกเว้นโหมด fill ที่ตั้งใจให้เต็มแถว
   // `max-w-full` + `overflow-x-auto` = จอแคบเลื่อนดูแท็บที่เกินได้แทนที่จะดันหน้าจนล้น
-  const baseCls = `flex gap-1 p-1 bg-gray-200/60 dark:bg-slate-800 rounded-xl mb-6 overflow-x-auto ${fill ? 'w-full' : 'w-fit max-w-full'}`;
+  const baseCls = (display: string) =>
+    `${display} gap-1 p-1 bg-gray-200/60 dark:bg-slate-800 rounded-xl mb-6 overflow-x-auto ${fill ? 'w-full' : 'w-fit max-w-full'}`;
+  const visible = tabs.filter(t => !t.hidden);
+  // จอแคบที่แท็บเยอะ → dropdown · ใช้ CSS สลับ (ไม่ใช่วัดขนาดจอด้วย JS) จะได้ไม่มี hydration mismatch
+  const asDropdown = mobileDropdownFrom > 0 && visible.length > mobileDropdownFrom;
+  const activeTab = visible.find(t => t.key === activeKey);
+
   return (
-    <div className={className ? `${baseCls} ${className}` : baseCls}>
-      {tabs.filter(t => !t.hidden).map(tab => {
+    <>
+    {asDropdown && (
+      <div className={`sm:hidden ${className?.includes('mb-0') ? '' : 'mb-4'} ${className || ''}`}>
+        <FormSelect
+          value={activeKey}
+          icon={activeTab?.icon}
+          onChange={(key) => {
+            onSelect?.(key);
+            const target = visible.find(t => t.key === key);
+            if (target?.href) router.push(target.href);
+          }}
+          options={visible.map(t => ({
+            id: t.key,
+            // label ของแท็บเป็น ReactNode ได้ แต่ dropdown ต้องการข้อความ — ตัวที่ไม่ใช่สตริงใช้ key แทน
+            label: typeof t.label === 'string' ? t.label : String(t.key),
+            icon: t.icon,
+            subtitle: typeof t.count === 'number' ? `${t.count} รายการ` : undefined,
+          }))}
+        />
+      </div>
+    )}
+    <div className={(() => {
+      const cls = baseCls(asDropdown ? 'hidden sm:flex' : 'flex');
+      return className ? `${cls} ${className}` : cls;
+    })()}>
+      {visible.map(tab => {
         const isActive = tab.key === activeKey;
         const activeColor = tab.activeColorClass ?? 'text-gray-900 dark:text-white';
         // h-[34px] + p-1 ของราง = 42px เท่าความสูงมาตรฐานของ input/ปุ่มที่วางข้างกัน
@@ -99,5 +137,6 @@ export default function Tabs({ tabs, activeKey, onSelect, className, fill, size 
         );
       })}
     </div>
+    </>
   );
 }

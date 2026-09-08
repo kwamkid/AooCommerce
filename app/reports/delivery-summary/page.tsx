@@ -846,7 +846,6 @@ export default function DeliverySummaryPage() {
                 <>
                   <Button
                     variant="secondary"
-                    size="sm"
                     loading={generatingSlipPdf}
                     disabled={!reportData || reportData.byDate.length === 0}
                     icon={<FileText className="w-4 h-4" />}
@@ -856,7 +855,6 @@ export default function DeliverySummaryPage() {
                   </Button>
                   <Button
                     variant="primary"
-                    size="sm"
                     loading={generatingPdf}
                     disabled={!reportData || reportData.productSummary.length === 0}
                     icon={<ClipboardList className="w-4 h-4" />}
@@ -868,7 +866,6 @@ export default function DeliverySummaryPage() {
               ) : (
                 <Button
                   variant="secondary"
-                  size="sm"
                   onClick={handleCopyText}
                   disabled={!reportData || reportData.byDate.length === 0}
                   icon={copySuccess ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
