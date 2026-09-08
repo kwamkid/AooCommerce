@@ -50,7 +50,7 @@ interface Props {
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <div className="px-3 pt-2 pb-1 helper-text text-gray-400 dark:text-slate-500 sticky top-0 bg-white dark:bg-slate-800">
+    <div className="px-3 pt-2 pb-1 caption-text text-gray-400 dark:text-slate-500 sticky top-0 bg-white dark:bg-slate-800">
       {children}
     </div>
   );
@@ -96,7 +96,7 @@ function SavedReplyPicker({
           {/* ตัดที่ 2 บรรทัดพอดี — **ห้ามใส่ `block` คู่กับ `line-clamp-2`**
               สอง class สั่ง `display` คนละค่า (block กับ -webkit-box) ตัวที่ชนะแล้วแต่ลำดับใน CSS
               ถ้า block ชนะ = ไม่ตัดเลย ยาวเท่าไหร่ก็ขึ้นหมด (เคยหลุดเป็น 3 บรรทัด) */}
-          <span className="text-[11px] leading-snug text-gray-500 dark:text-slate-400 line-clamp-2">{savedReplyPreview(r, 120)}</span>
+          <span className="caption-text line-clamp-2">{savedReplyPreview(r, 120)}</span>
         </button>
 
         {onEdit && (
@@ -186,25 +186,25 @@ function SavedReplyPicker({
         {onSaveCurrent ? (
           <button
             onClick={onSaveCurrent}
-            className="flex items-center gap-1 text-[11px] text-primary hover:underline px-1 py-0.5"
+            className="flex items-center gap-1 helper-text text-primary hover:underline px-1 py-0.5"
           >
-            <Plus className="w-3 h-3" />บันทึกข้อความที่พิมพ์อยู่
+            <Plus className="w-3.5 h-3.5" />บันทึกข้อความที่พิมพ์อยู่
           </button>
         ) : onCreate ? (
           <button
             onClick={onCreate}
-            className="flex items-center gap-1 text-[11px] text-primary hover:underline px-1 py-0.5"
+            className="flex items-center gap-1 helper-text text-primary hover:underline px-1 py-0.5"
           >
-            <Plus className="w-3 h-3" />เพิ่มใหม่
+            <Plus className="w-3.5 h-3.5" />เพิ่มใหม่
           </button>
-        ) : <span className="text-[11px] text-gray-400 px-1">พิมพ์ / ในช่องแชทเพื่อค้นได้เลย</span>}
+        ) : <span className="helper-text text-gray-400 px-1">พิมพ์ / ในช่องแชทเพื่อค้นได้เลย</span>}
 
         {canManage && (
           <Link
             href="/settings/saved-replies"
-            className="flex items-center gap-1 text-[11px] text-gray-500 hover:text-primary px-1 py-0.5"
+            className="flex items-center gap-1 helper-text text-gray-500 hover:text-primary px-1 py-0.5"
           >
-            <Settings2 className="w-3 h-3" />จัดการ
+            <Settings2 className="w-3.5 h-3.5" />จัดการ
           </Link>
         )}
       </div>

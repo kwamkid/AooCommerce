@@ -298,9 +298,13 @@ h6:where(.heading-1, .heading-2, .heading-3, .heading-4) {
 :where(.body-text)      { font-size: 1rem;     color: rgb(17 24 39); }
 :where(.subtitle-text)  { font-size: 0.875rem; color: rgb(55 65 81); }
 :where(.helper-text)    { font-size: 0.75rem;  color: rgb(107 114 128); }
+/* เล็กสุดของสเกล — ข้อความประกอบที่อ่านผ่าน ๆ (พรีวิวในรายการ, คำกำกับใต้รูป)
+   ห้ามใช้กับอะไรที่ผู้ใช้ต้องอ่านจริงจังหรือกดได้ ตัวนั้นอย่างน้อยต้อง .helper-text */
+:where(.caption-text)   { font-size: 0.6875rem; line-height: 1.35; color: rgb(107 114 128); }
 :where(.dark .body-text)     { color: #fff; }
 :where(.dark .subtitle-text) { color: rgb(203 213 225); }
 :where(.dark .helper-text)   { color: rgb(148 163 184); }
+:where(.dark .caption-text)  { color: rgb(148 163 184); }
 
 :where(.page-subtitle) { color: rgb(75 85 99); margin-top: 0.25rem; }
 :where(.dark .page-subtitle) { color: rgb(148 163 184); }

@@ -332,7 +332,7 @@ export class LineChatService {
   // ─── Webhook: Save Incoming Message ─────────────────────────────────
 
   async saveIncomingMessage(
-    contact: { id: string; unread_count: number; display_name?: string | null; picture_url?: string | null },
+    contact: { id: string; unread_count: number; display_name?: string | null; picture_url?: string | null; profile_synced_at?: string | null },
     message: Record<string, unknown>,
     event: { timestamp: number; source: { type: string; userId?: string; groupId?: string } },
     accessToken: string,
@@ -352,6 +352,26 @@ export class LineChatService {
     // (เคสจริง ABC the Baby 7 ก.ย. 2026: ทุกข้อความมีชื่อ Nokzi3659 แต่หัวแชทเป็น Unknown)
     // และคนที่เปลี่ยนชื่อ/รูปใน LINE ก็ได้ของใหม่ตาม · แพตช์รวมไป UPDATE เดิมข้างล่าง ไม่ยิงเพิ่ม
     const contactPatch: Record<string, unknown> = {};
+
+    // ─── ซ่อมชื่อ/รูปของ "กลุ่ม" ───
+    // getOrCreateContact ถาม LINE ครั้งเดียวตอนสร้างแถว ⇒ กลุ่มที่ตอนนั้นถามไม่สำเร็จ
+    // (token ยังใช้ไม่ได้ / บอทเพิ่งถูกเชิญเข้า) จะค้างเป็นชื่อสำรองไม่มีรูปตลอดไป
+    //
+    // ⚠️ **ห้องแบบ room (id ขึ้นต้นด้วย R) ไม่มีทางได้ชื่อ/รูปเลย** — LINE มีแต่
+    // `/v2/bot/group/{id}/summary` ไม่มี endpoint ของ room (room = แชทหลายคนแบบเฉพาะกิจ
+    // ที่ LINE ตั้งใจไม่เปิดเผยชื่อ/รูป) จึงต้องข้ามไปเลย ไม่ใช่ยิงแล้วรอ 404
+    if (isGroup && contactId && event.source.type === 'group' && !contact.picture_url) {
+      const lastSync = contact.profile_synced_at ? new Date(contact.profile_synced_at).getTime() : 0;
+      // กลุ่มที่ไม่ได้ตั้งรูปจริง ๆ จะถามไม่เจอตลอดไป — จำกัดวันละครั้งพอ
+      if (Date.now() - lastSync > 24 * 60 * 60 * 1000) {
+        const groupInfo = await this.getGroupInfo(contactId, true, accessToken);
+        contactPatch.profile_synced_at = new Date().toISOString();
+        if (groupInfo?.pictureUrl) contactPatch.picture_url = groupInfo.pictureUrl;
+        if (groupInfo?.groupName && groupInfo.groupName !== contact.display_name) {
+          contactPatch.display_name = groupInfo.groupName;
+        }
+      }
+    }
 
     if (senderUserId) {
       if (isGroup && contactId) {
