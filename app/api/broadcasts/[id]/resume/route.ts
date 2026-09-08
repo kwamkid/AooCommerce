@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse, after } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
-import { runLineBroadcast } from '@/lib/line/broadcast';
+import { isBroadcastPlatform } from '@/lib/broadcast/platforms';
+import { runBroadcast } from '@/lib/broadcast/run';
 
 export const maxDuration = 300;
 
@@ -19,8 +20,8 @@ export async function POST(
     const { id } = await context.params;
 
     const { data: row } = await supabaseAdmin
-      .from('line_broadcasts')
-      .select('id, status')
+      .from('broadcasts')
+      .select('id, status, platform')
       .eq('id', id)
       .eq('company_id', auth.companyId)
       .maybeSingle();
@@ -29,12 +30,15 @@ export async function POST(
     if (!['pending', 'sending', 'partial'].includes(row.status)) {
       return NextResponse.json({ error: 'บรอดแคสต์นี้จบแล้ว ส่งต่อไม่ได้' }, { status: 400 });
     }
+    if (!isBroadcastPlatform(row.platform)) {
+      return NextResponse.json({ error: 'ช่องทางของบรอดแคสต์นี้ส่งต่อไม่ได้' }, { status: 400 });
+    }
 
-    after(() => runLineBroadcast(id));
+    after(() => runBroadcast(id, row.platform));
 
     return NextResponse.json({ ok: true });
   } catch (e) {
-    console.error('POST line broadcast resume error:', e);
+    console.error('POST broadcast resume error:', e);
     return NextResponse.json({ error: 'ส่งต่อไม่สำเร็จ' }, { status: 500 });
   }
 }

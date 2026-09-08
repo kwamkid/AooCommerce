@@ -2,12 +2,18 @@ import { NextRequest, NextResponse, after } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
 import { getChatAccount, getLineCredsFromAccount } from '@/lib/chat-config';
 import {
+  BROADCAST_PLATFORMS,
+  canBroadcastVia,
+  isBroadcastPlatform,
+  type BroadcastPlatform,
+} from '@/lib/broadcast/platforms';
+import { runBroadcast } from '@/lib/broadcast/run';
+import {
   buildLineMessages,
-  getLineFollowersCount,
+  getLineFollowerStats,
   getLineQuota,
   quotaBlocks,
   resolveBroadcastRecipients,
-  runLineBroadcast,
   type BroadcastAudienceFilter,
   type BroadcastAudienceType,
 } from '@/lib/line/broadcast';
@@ -19,6 +25,7 @@ const AUDIENCE_TYPES: BroadcastAudienceType[] = ['all', 'contacts', 'tags', 'cus
 
 interface BroadcastListRow {
   id: string;
+  platform: string;
   chat_account_id: string;
   created_by: string | null;
   audience_type: string;
@@ -46,9 +53,9 @@ export async function GET(request: NextRequest) {
     const offset = Math.max(Number(searchParams.get('offset')) || 0, 0);
 
     const { data, error, count } = await supabaseAdmin
-      .from('line_broadcasts')
+      .from('broadcasts')
       .select(
-        'id, chat_account_id, created_by, audience_type, preview, recipient_count, sent_count, failed_count, status, error, started_at, finished_at, created_at',
+        'id, platform, chat_account_id, created_by, audience_type, preview, recipient_count, sent_count, failed_count, status, error, started_at, finished_at, created_at',
         { count: 'exact' },
       )
       .eq('company_id', auth.companyId)
@@ -58,7 +65,7 @@ export async function GET(request: NextRequest) {
 
     const rows = (data || []) as BroadcastListRow[];
 
-    // ชื่อ OA + ชื่อผู้ส่ง — created_by ไม่มี FK ไป user_profiles จึง embed ไม่ได้ ต้องถามแยก
+    // ชื่อช่องทาง + ชื่อผู้ส่ง — created_by ไม่มี FK ไป user_profiles จึง embed ไม่ได้ ต้องถามแยก
     const accountIds = [...new Set(rows.map(r => r.chat_account_id).filter(Boolean))];
     const userIds = [...new Set(rows.map(r => r.created_by).filter((v): v is string => !!v))];
 
@@ -76,7 +83,7 @@ export async function GET(request: NextRequest) {
 
     // มีใบที่ยังส่งไม่จบ = หน้ารายการต้อง poll ต่อ (ไม่มีก็หยุด ไม่ยิงถี่เปล่า ๆ)
     const { count: activeCount } = await supabaseAdmin
-      .from('line_broadcasts')
+      .from('broadcasts')
       .select('id', { count: 'exact', head: true })
       .eq('company_id', auth.companyId)
       .in('status', ['pending', 'sending']);
@@ -91,7 +98,7 @@ export async function GET(request: NextRequest) {
       sending: (activeCount ?? 0) > 0,
     });
   } catch (e) {
-    console.error('GET line broadcasts error:', e);
+    console.error('GET broadcasts error:', e);
     return NextResponse.json({ error: 'Failed to fetch broadcasts' }, { status: 500 });
   }
 }
@@ -109,15 +116,30 @@ export async function POST(request: NextRequest) {
     const audienceType: BroadcastAudienceType = body.audience_type;
     const audienceFilter: BroadcastAudienceFilter = body.audience_filter || {};
 
-    if (!chatAccountId) return NextResponse.json({ error: 'กรุณาเลือกช่องทาง LINE OA' }, { status: 400 });
+    if (!chatAccountId) return NextResponse.json({ error: 'กรุณาเลือกช่องทางที่จะใช้ส่ง' }, { status: 400 });
     if (!AUDIENCE_TYPES.includes(audienceType)) {
       return NextResponse.json({ error: 'กลุ่มผู้รับไม่ถูกต้อง' }, { status: 400 });
     }
 
     const account = await getChatAccount(chatAccountId);
-    if (!account || account.company_id !== auth.companyId || account.platform !== 'line' || !account.is_active) {
-      return NextResponse.json({ error: 'ไม่พบช่องทาง LINE OA นี้ หรือถูกปิดอยู่' }, { status: 400 });
+    if (!account || account.company_id !== auth.companyId || !account.is_active) {
+      return NextResponse.json({ error: 'ไม่พบช่องทางนี้ หรือถูกปิดอยู่' }, { status: 400 });
     }
+
+    // ช่องทางที่ยังส่งไม่ได้ต้องบอกเหตุผลเดียวกับที่หน้าจอบอก — ไม่ใช่ "ไม่ถูกต้อง" ลอย ๆ
+    if (!isBroadcastPlatform(account.platform)) {
+      return NextResponse.json({ error: 'ช่องทางนี้ยังส่งข้อความเป็นชุดไม่ได้' }, { status: 400 });
+    }
+    const platform = account.platform as BroadcastPlatform;
+    if (!canBroadcastVia(platform)) {
+      return NextResponse.json({
+        error: BROADCAST_PLATFORMS[platform].reason || `ยังส่งผ่าน ${BROADCAST_PLATFORMS[platform].label} ไม่ได้`,
+      }, { status: 400 });
+    }
+
+    // ─── ตั้งแต่บรรทัดนี้เป็นของ LINE ───────────────────────────────────
+    // เพิ่มช่องทางใหม่ = แตกสาขาตาม platform ตรงนี้ (นับผู้รับ/เช็คโควตา/ประกอบข้อความ
+    // เป็นเรื่องของแต่ละเจ้า) แล้วเพิ่ม case ใน lib/broadcast/run.ts
     const creds = getLineCredsFromAccount(account);
     if (!creds) {
       return NextResponse.json({ error: 'ช่องทางนี้ยังไม่ได้ตั้งค่า token — ตั้งค่าที่ ตั้งค่า > ช่องทาง Chat' }, { status: 400 });
@@ -131,11 +153,16 @@ export async function POST(request: NextRequest) {
     }
 
     // จำนวนผู้รับ — โหมด 'all' ยิงถึงผู้ติดตามทุกคนซึ่งเราไม่มีรายชื่อ ใช้ตัวเลขจาก LINE แทน
+    // (reachable = targetedReaches ไม่ใช่ followers — ดูเหตุผลใน getLineFollowerStats)
     let recipientCount: number;
     if (audienceType === 'all') {
-      const followers = await getLineFollowersCount(creds.channel_access_token);
-      const known = await resolveBroadcastRecipients(auth.companyId, chatAccountId, 'contacts', null);
-      recipientCount = followers ?? known.length;
+      const stats = await getLineFollowerStats(creds.channel_access_token);
+      if (stats.reachable !== null) {
+        recipientCount = stats.reachable;
+      } else {
+        const known = await resolveBroadcastRecipients(auth.companyId, chatAccountId, 'contacts', null);
+        recipientCount = known.length;
+      }
     } else {
       const recipients = await resolveBroadcastRecipients(
         auth.companyId, chatAccountId, audienceType, audienceFilter,
@@ -158,9 +185,10 @@ export async function POST(request: NextRequest) {
     const preview = text ? text.slice(0, 120) : '[รูปภาพ]';
 
     const { data: created, error } = await supabaseAdmin
-      .from('line_broadcasts')
+      .from('broadcasts')
       .insert({
         company_id: auth.companyId,
+        platform,
         chat_account_id: chatAccountId,
         created_by: auth.userId || null,
         audience_type: audienceType,
@@ -175,11 +203,11 @@ export async function POST(request: NextRequest) {
     if (error) throw error;
 
     // งานส่งอยู่หลัง response — ต้องผ่าน after() ไม่งั้น Vercel freeze ฟังก์ชันทิ้งกลางทาง
-    after(() => runLineBroadcast(created.id));
+    after(() => runBroadcast(created.id, platform));
 
     return NextResponse.json({ id: created.id });
   } catch (e) {
-    console.error('POST line broadcast error:', e);
+    console.error('POST broadcast error:', e);
     return NextResponse.json({ error: 'สร้างบรอดแคสต์ไม่สำเร็จ' }, { status: 500 });
   }
 }

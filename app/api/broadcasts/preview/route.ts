@@ -2,7 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { checkAuthWithCompany, can } from '@/lib/supabase-admin';
 import { getChatAccount, getLineCredsFromAccount } from '@/lib/chat-config';
 import {
-  getLineFollowersCount,
+  BROADCAST_PLATFORMS,
+  canBroadcastVia,
+  isBroadcastPlatform,
+} from '@/lib/broadcast/platforms';
+import {
+  getLineFollowerStats,
   getLineQuota,
   resolveBroadcastRecipients,
   type BroadcastAudienceFilter,
@@ -24,15 +29,20 @@ export async function POST(request: NextRequest) {
     const audienceType: BroadcastAudienceType = body.audience_type;
     const audienceFilter: BroadcastAudienceFilter = body.audience_filter || {};
 
-    if (!chatAccountId) return NextResponse.json({ error: 'กรุณาเลือกช่องทาง LINE OA' }, { status: 400 });
+    if (!chatAccountId) return NextResponse.json({ error: 'กรุณาเลือกช่องทางที่จะใช้ส่ง' }, { status: 400 });
     if (!AUDIENCE_TYPES.includes(audienceType)) {
       return NextResponse.json({ error: 'กลุ่มผู้รับไม่ถูกต้อง' }, { status: 400 });
     }
 
     const account = await getChatAccount(chatAccountId);
-    if (!account || account.company_id !== auth.companyId || account.platform !== 'line') {
-      return NextResponse.json({ error: 'ไม่พบช่องทาง LINE OA นี้' }, { status: 400 });
+    if (!account || account.company_id !== auth.companyId) {
+      return NextResponse.json({ error: 'ไม่พบช่องทางนี้' }, { status: 400 });
     }
+    if (!isBroadcastPlatform(account.platform) || !canBroadcastVia(account.platform)) {
+      const info = isBroadcastPlatform(account.platform) ? BROADCAST_PLATFORMS[account.platform] : null;
+      return NextResponse.json({ error: info?.reason || 'ช่องทางนี้ยังส่งข้อความเป็นชุดไม่ได้' }, { status: 400 });
+    }
+
     const creds = getLineCredsFromAccount(account);
 
     const recipients = await resolveBroadcastRecipients(
@@ -43,20 +53,24 @@ export async function POST(request: NextRequest) {
     );
 
     // ผู้ติดตามมีความหมายเฉพาะโหมด 'all' — โหมดอื่นจำนวนผู้รับมาจากรายชื่อของเราเอง
-    const [quota, followers] = await Promise.all([
+    const [quota, stats] = await Promise.all([
       creds ? getLineQuota(creds.channel_access_token) : Promise.resolve(null),
-      creds && audienceType === 'all' ? getLineFollowersCount(creds.channel_access_token) : Promise.resolve(null),
+      creds && audienceType === 'all'
+        ? getLineFollowerStats(creds.channel_access_token)
+        : Promise.resolve(null),
     ]);
 
     return NextResponse.json({
       // โหมด 'all' ส่งถึงผู้ติดตามทุกคน — รายชื่อที่เรามีเป็นแค่ส่วนที่บันทึกลงห้องแชทได้
-      recipient_count: audienceType === 'all' ? (followers ?? recipients.length) : recipients.length,
+      recipient_count: audienceType === 'all' ? (stats?.reachable ?? recipients.length) : recipients.length,
       known_contact_count: recipients.length,
       quota,
-      followers,
+      follower_stats: stats
+        ? { reachable: stats.reachable, total_adds: stats.totalAdds, blocks: stats.blocks }
+        : null,
     });
   } catch (e) {
-    console.error('POST line broadcast preview error:', e);
+    console.error('POST broadcast preview error:', e);
     return NextResponse.json({ error: 'ประเมินผู้รับไม่สำเร็จ' }, { status: 500 });
   }
 }

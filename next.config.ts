@@ -1,6 +1,14 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // บรอดแคสต์ย้ายจากใต้ Chat ไปกลุ่ม "การตลาด" — คงลิงก์เก่าไว้กันบุ๊กมาร์กพัง
+  // (permanent: false เพราะเบราว์เซอร์จำ 308 ไว้ถาวร ย้ายกลับ/ย้ายอีกรอบจะแก้ไม่ได้)
+  async redirects() {
+    return [
+      { source: '/chat/broadcast', destination: '/marketing/broadcast', permanent: false },
+      { source: '/chat/broadcast/new', destination: '/marketing/broadcast/new', permanent: false },
+    ];
+  },
   // apple-app-site-association ไม่มีนามสกุล — Apple ต้องการ application/json ไม่งั้น Universal Link ไม่ทำงาน
   async headers() {
     return [

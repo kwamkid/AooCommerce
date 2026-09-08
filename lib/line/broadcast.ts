@@ -71,7 +71,7 @@ interface BroadcastRow {
   failed_count: number;
   status: BroadcastStatus;
   batches: BroadcastBatch[] | null;
-  line_request_ids: string[] | null;
+  platform_request_ids: string[] | null;
   started_at: string | null;
 }
 
@@ -120,21 +120,52 @@ function jstDateString(daysAgo: number): string {
   return `${y}${m}${day}`;
 }
 
+export interface LineFollowerStats {
+  /** คนที่ยิงข้อความถึงได้จริงตอนนี้ — ตรงกับเลข "เพื่อน" ที่ LINE OA Manager โชว์ */
+  reachable: number | null;
+  /** ยอดสะสมที่เคยกดแอดมาทั้งหมด (ไม่ลดเมื่อบล็อก/ลบบัญชี) — ไว้อธิบายส่วนต่างเท่านั้น */
+  totalAdds: number | null;
+  /** จำนวนที่บล็อก OA อยู่ */
+  blocks: number | null;
+}
+
 /**
- * จำนวนคนที่แอดเพื่อน OA — LINE สรุปเป็นรายวันและพร้อมช้ากว่าเวลาจริง จึงถามของ "เมื่อวาน"
- * ยังไม่พร้อม (`unready`) หรือถามไม่ได้ = null (ห้ามเดาเป็น 0)
+ * จำนวนผู้ติดตาม OA จาก `/insight/followers` — LINE สรุปเป็นรายวันและพร้อมช้ากว่าเวลาจริง
+ * จึงถามของ "เมื่อวาน" · ยังไม่พร้อม (`unready`) หรือถามไม่ได้ = null ทุกช่อง (ห้ามเดาเป็น 0)
+ *
+ * ⚠️ **`followers` ของ LINE ไม่ใช่จำนวนเพื่อนปัจจุบัน** — เอกสารระบุว่ามันคือยอดสะสมของการ
+ * กดแอด และ **ไม่ลดลงเมื่อผู้ใช้บล็อกหรือลบบัญชีตัวเอง** · ของจริงที่วัดได้ 8 ก.ย. 2026:
+ * aDay Fresh followers=41,490 แต่ OA Manager โชว์เพื่อน 15,751 = `targetedReaches` (15,752)
+ * ไม่ใช่ followers และไม่ใช่ followers−blocks (23,837) เพราะยังมีบัญชีที่ถูกลบทิ้งปนอยู่
+ * ⇒ **จำนวนผู้รับต้องใช้ `targetedReaches` เสมอ** (ตกไป followers−blocks เฉพาะตอน LINE
+ * ส่ง 0 มา ซึ่งเกิดเมื่อกลุ่มเป้าหมายน้อยกว่า 20 คน)
  */
-export async function getLineFollowersCount(accessToken: string): Promise<number | null> {
+export async function getLineFollowerStats(accessToken: string): Promise<LineFollowerStats> {
+  const empty: LineFollowerStats = { reachable: null, totalAdds: null, blocks: null };
   try {
     const res = await fetch(`${LINE_API}/insight/followers?date=${jstDateString(1)}`, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
-    if (!res.ok) return null;
-    const data = (await res.json()) as { status?: string; followers?: number };
-    if (data.status !== 'ready') return null;
-    return typeof data.followers === 'number' ? data.followers : null;
+    if (!res.ok) return empty;
+    const data = (await res.json()) as {
+      status?: string; followers?: number; targetedReaches?: number; blocks?: number;
+    };
+    if (data.status !== 'ready') return empty;
+
+    const totalAdds = typeof data.followers === 'number' ? data.followers : null;
+    const blocks = typeof data.blocks === 'number' ? data.blocks : null;
+    const targeted = typeof data.targetedReaches === 'number' ? data.targetedReaches : null;
+
+    // targetedReaches = 0 แปลว่า "น้อยกว่า 20 คน" ไม่ใช่ "ไม่มีใครเลย" — ตกไปใช้ยอดหักบล็อก
+    const reachable = targeted && targeted > 0
+      ? targeted
+      : totalAdds !== null && blocks !== null
+        ? Math.max(totalAdds - blocks, 0)
+        : totalAdds;
+
+    return { reachable, totalAdds, blocks };
   } catch {
-    return null;
+    return empty;
   }
 }
 
@@ -391,10 +422,10 @@ export async function runLineBroadcast(
   const timeBudgetMs = opts.timeBudgetMs ?? 240_000;
 
   const patch = (values: Record<string, unknown>) =>
-    supabaseAdmin.from('line_broadcasts').update(values).eq('id', broadcastId);
+    supabaseAdmin.from('broadcasts').update(values).eq('id', broadcastId);
 
   try {
-    const { data } = await supabaseAdmin.from('line_broadcasts').select('*').eq('id', broadcastId).single();
+    const { data } = await supabaseAdmin.from('broadcasts').select('*').eq('id', broadcastId).single();
     const row = (data as BroadcastRow | null) ?? null;
     if (!row) return;
     if (row.status === 'sent' || row.status === 'failed') return;
@@ -416,7 +447,7 @@ export async function runLineBroadcast(
     const messages = Array.isArray(row.messages) ? row.messages : [];
     const shape = threadRowShape(messages);
     const sentBy = await resolveSentBy(row.created_by);
-    const requestIds = Array.isArray(row.line_request_ids) ? [...row.line_request_ids] : [];
+    const requestIds = Array.isArray(row.platform_request_ids) ? [...row.platform_request_ids] : [];
 
     // ─ โหมด "ทุกคนที่แอดเพื่อน" — ยิง broadcast ใบเดียว ─────────────────
     if (row.audience_type === 'all') {
@@ -458,7 +489,7 @@ export async function runLineBroadcast(
         }
         batch.status = 'sent';
         if (res.requestId) requestIds.push(res.requestId);
-        await patch({ batches, line_request_ids: requestIds });
+        await patch({ batches, platform_request_ids: requestIds });
       }
 
       // ข้อความไปถึงผู้ติดตามทุกคนแล้ว — เขียนสำเนาลงห้องแชทของคนที่เรารู้จัก
@@ -539,7 +570,7 @@ export async function runLineBroadcast(
         await insertThreadRows(row, batch.contact_ids, shape, sentBy);
         sentCount = tally('sent');
         failedCount = tally('failed');   // ล็อตนี้อาจเคยอยู่ใน failed มาก่อน
-        await patch({ batches, sent_count: sentCount, failed_count: failedCount, line_request_ids: requestIds });
+        await patch({ batches, sent_count: sentCount, failed_count: failedCount, platform_request_ids: requestIds });
       } else if (res.httpStatus === 429) {
         // โดนจำกัดอัตรา — ล็อตนี้ยัง pending (retry key เดิม) หยุดไว้ก่อน
         batch.status = 'pending';
@@ -599,7 +630,7 @@ export async function runLineBroadcast(
       batches,
       sent_count: sentCount,
       failed_count: failedCount,
-      line_request_ids: requestIds,
+      platform_request_ids: requestIds,
       status: finalStatus,
       finished_at: new Date().toISOString(),
     });

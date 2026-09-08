@@ -14,10 +14,13 @@ import { useAuthGuard } from '@/lib/useAuthGuard';
 import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
 import { formatThaiDateTime } from '@/lib/utils/format';
+import PlatformIcon from '@/components/ui/PlatformIcon';
+import { BROADCAST_PLATFORMS, isBroadcastPlatform } from '@/lib/broadcast/platforms';
 import { Megaphone, Plus, Send } from 'lucide-react';
 
 interface BroadcastRow {
   id: string;
+  platform: string;
   chat_account_id: string;
   account_name: string | null;
   created_by_name: string | null;
@@ -55,7 +58,7 @@ function isStale(row: BroadcastRow): boolean {
   return Date.now() - started > 10 * 60 * 1000;
 }
 
-export default function LineBroadcastListPage() {
+export default function BroadcastListPage() {
   const router = useRouter();
   const { showToast } = useToast();
   const { allowed, loading: authLoading } = useAuthGuard('chat.broadcast', { noRedirect: true });
@@ -78,7 +81,7 @@ export default function LineBroadcastListPage() {
     if (!silent) setLoading(true);
     try {
       const offset = (pageRef.current - 1) * perPageRef.current;
-      const res = await apiFetch(`/api/line/broadcasts?limit=${perPageRef.current}&offset=${offset}`);
+      const res = await apiFetch(`/api/broadcasts?limit=${perPageRef.current}&offset=${offset}`);
       if (!res.ok) throw new Error('failed');
       const data = await res.json();
       setRows(data.broadcasts || []);
@@ -106,7 +109,7 @@ export default function LineBroadcastListPage() {
   const handleResume = async (row: BroadcastRow) => {
     setResumingId(row.id);
     try {
-      const res = await apiFetch(`/api/line/broadcasts/${row.id}/resume`, { method: 'POST' });
+      const res = await apiFetch(`/api/broadcasts/${row.id}/resume`, { method: 'POST' });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.error || 'failed');
@@ -132,8 +135,15 @@ export default function LineBroadcastListPage() {
       ),
     },
     {
-      key: 'account', label: 'OA', defaultWidth: 150,
-      render: (r) => <span className="data-text text-gray-700 dark:text-slate-300">{r.account_name || '-'}</span>,
+      key: 'account', label: 'ช่องทาง', defaultWidth: 170,
+      render: (r) => (
+        <span className="flex items-center gap-2">
+          <PlatformIcon id={r.platform} size={16} />
+          <span className="data-text text-gray-700 dark:text-slate-300">
+            {r.account_name || (isBroadcastPlatform(r.platform) ? BROADCAST_PLATFORMS[r.platform].label : '-')}
+          </span>
+        </span>
+      ),
     },
     {
       key: 'preview', label: 'ข้อความ', defaultWidth: 300,
@@ -200,10 +210,10 @@ export default function LineBroadcastListPage() {
       <Container size="full">
         <PageHeader
           icon={<Megaphone />}
-          title="บรอดแคสต์ LINE"
-          subtitle="ส่งข้อความหาลูกค้าหลายคนพร้อมกันผ่าน LINE OA — ทุกใบถูกบันทึกไว้ในห้องแชทของลูกค้าด้วย"
+          title="บรอดแคสต์"
+          subtitle="ส่งข้อความหาลูกค้าหลายคนพร้อมกัน — ทุกใบถูกบันทึกไว้ในห้องแชทของลูกค้าด้วย"
           actions={
-            <Button variant="primary" icon={<Plus className="w-4 h-4" />} onClick={() => router.push('/chat/broadcast/new')}>
+            <Button variant="primary" icon={<Plus className="w-4 h-4" />} onClick={() => router.push('/marketing/broadcast/new')}>
               สร้างบรอดแคสต์
             </Button>
           }
@@ -215,14 +225,14 @@ export default function LineBroadcastListPage() {
             title="ยังไม่เคยส่งบรอดแคสต์"
             subtitle="ส่งข้อความหาลูกค้าที่แอดเพื่อน LINE OA ของร้านได้จากที่นี่"
             actions={
-              <Button variant="primary" icon={<Plus className="w-4 h-4" />} onClick={() => router.push('/chat/broadcast/new')}>
+              <Button variant="primary" icon={<Plus className="w-4 h-4" />} onClick={() => router.push('/marketing/broadcast/new')}>
                 สร้างบรอดแคสต์
               </Button>
             }
           />
         ) : (
         <DataTable<BroadcastRow>
-          storageKey="line-broadcasts"
+          storageKey="broadcasts"
           columns={columns}
           data={rows}
           loading={loading}

@@ -19,7 +19,14 @@ import { useDebouncedCallback } from '@/lib/useDebounce';
 import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
 import { supabase } from '@/lib/supabase';
+import PlatformIcon from '@/components/ui/PlatformIcon';
 import { LINE_TEXT_MAX } from '@/lib/line/constants';
+import {
+  BROADCAST_PLATFORMS,
+  BROADCAST_PLATFORM_LIST,
+  canBroadcastVia,
+  isBroadcastPlatform,
+} from '@/lib/broadcast/platforms';
 import { Megaphone, Send, Tag } from 'lucide-react';
 
 type AudienceType = 'contacts' | 'customers' | 'tags' | 'all';
@@ -40,11 +47,19 @@ interface QuotaInfo {
   remaining: number | null;
 }
 
+interface FollowerStats {
+  /** คนที่ยิงถึงได้จริง — ตรงกับเลข "เพื่อน" ใน LINE OA Manager */
+  reachable: number | null;
+  /** ยอดสะสมที่เคยกดแอด (ไม่ลดเมื่อบล็อก) */
+  total_adds: number | null;
+  blocks: number | null;
+}
+
 interface PreviewInfo {
   recipient_count: number;
   known_contact_count: number;
   quota: QuotaInfo | null;
-  followers: number | null;
+  follower_stats: FollowerStats | null;
 }
 
 const AUDIENCE_OPTIONS: { key: AudienceType; label: string; hint?: string }[] = [
@@ -58,7 +73,7 @@ const AUDIENCE_OPTIONS: { key: AudienceType; label: string; hint?: string }[] = 
   },
 ];
 
-export default function NewLineBroadcastPage() {
+export default function NewBroadcastPage() {
   const router = useRouter();
   const { showToast } = useToast();
   const { confirmDialog, confirm } = useConfirmDialog();
@@ -91,13 +106,14 @@ export default function NewLineBroadcastPage() {
     (async () => {
       try {
         const [accRes, tagRes] = await Promise.all([
-          apiFetch('/api/chat-accounts?platform=line'),
+          apiFetch('/api/chat-accounts'),
           apiFetch('/api/customers/tags'),
         ]);
         if (accRes.ok) {
           const data = await accRes.json();
+          // ช่องทางที่ "ส่งได้จริงตอนนี้" อ่านจากทะเบียนที่เดียวกับที่ API ใช้ปฏิเสธ
           const list: ChatAccountRow[] = (data.accounts || []).filter(
-            (a: ChatAccountRow) => a.platform === 'line' && a.is_active,
+            (a: ChatAccountRow) => a.is_active && isBroadcastPlatform(a.platform) && canBroadcastVia(a.platform),
           );
           setAccounts(list);
           if (list.length === 1) setAccountId(list[0].id);
@@ -117,7 +133,7 @@ export default function NewLineBroadcastPage() {
     if (!accId) { setPreview(null); return; }
     setPreviewLoading(true);
     try {
-      const res = await apiFetch('/api/line/broadcasts/preview', {
+      const res = await apiFetch('/api/broadcasts/preview', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -147,6 +163,7 @@ export default function NewLineBroadcastPage() {
   const quota = preview?.quota ?? null;
   const quotaShort = !!quota && quota.type === 'limited' && quota.remaining !== null && quota.remaining < recipientCount;
   const selectedAccount = accounts.find(a => a.id === accountId);
+  const pendingPlatforms = BROADCAST_PLATFORM_LIST.filter(info => !canBroadcastVia(info.id));
 
   const quotaText = useMemo(() => {
     if (!quota || quota.type === 'unknown') return null;
@@ -166,7 +183,7 @@ export default function NewLineBroadcastPage() {
 
     const ok = await confirm({
       title: 'ส่งบรอดแคสต์',
-      description: `ส่งถึง ${recipientCount.toLocaleString()} คน ผ่าน ${selectedAccount?.account_name || 'LINE OA'}? ข้อความจะถูกส่งทันทีและกินโควตา ${recipientCount.toLocaleString()} ข้อความ`,
+      description: `ส่งถึง ${recipientCount.toLocaleString()} คน ผ่าน ${selectedAccount?.account_name || 'ช่องทางนี้'}? ข้อความจะถูกส่งทันทีและกินโควตา ${recipientCount.toLocaleString()} ข้อความ`,
       confirmLabel: 'ส่งบรอดแคสต์',
       confirmIcon: <Send className="w-4 h-4" />,
     });
@@ -187,7 +204,7 @@ export default function NewLineBroadcastPage() {
         imageUrl = supabase.storage.from('chat-media').getPublicUrl(path).data.publicUrl;
       }
 
-      const res = await apiFetch('/api/line/broadcasts', {
+      const res = await apiFetch('/api/broadcasts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -203,7 +220,7 @@ export default function NewLineBroadcastPage() {
         throw new Error(err.error || 'ส่งบรอดแคสต์ไม่สำเร็จ');
       }
       showToast('เริ่มส่งบรอดแคสต์แล้ว', 'success');
-      router.push('/chat/broadcast');
+      router.push('/marketing/broadcast');
     } catch (e) {
       showToast(e instanceof Error ? e.message : 'ส่งบรอดแคสต์ไม่สำเร็จ', 'error');
       setSending(false);
@@ -221,23 +238,52 @@ export default function NewLineBroadcastPage() {
     <Layout>
       {confirmDialog}
       <Container size="2xl">
-        <PageHeader backHref="/chat/broadcast" title="สร้างบรอดแคสต์" subtitle="ข้อความจะถูกส่งจากระบบนี้ จึงบันทึกลงห้องแชทของลูกค้าให้ด้วย" />
+        <PageHeader backHref="/marketing/broadcast" title="สร้างบรอดแคสต์" subtitle="ข้อความจะถูกส่งจากระบบนี้ จึงบันทึกลงห้องแชทของลูกค้าให้ด้วย" />
 
         {/* 1. ช่องทาง */}
         <Card>
           <h2 className="heading-3">ช่องทาง</h2>
-          <p className="section-desc mb-3">เลือก LINE OA ที่จะใช้ส่ง</p>
+          <p className="section-desc mb-3">เลือกบัญชีที่จะใช้ส่ง</p>
           {accounts.length === 0 ? (
             <Alert tone="warning">
-              ยังไม่มี LINE OA ที่เปิดใช้งาน — เพิ่มช่องทางที่ ตั้งค่า &gt; ช่องทาง Chat ก่อน
+              ยังไม่มีช่องทางที่ส่งได้ — เพิ่ม LINE OA ที่ ตั้งค่า &gt; ช่องทาง Chat ก่อน
             </Alert>
           ) : (
             <FormSelect
               value={accountId}
               onChange={setAccountId}
-              options={accounts.map(a => ({ id: a.id, label: a.account_name }))}
-              placeholder="-- เลือก LINE OA --"
+              options={accounts.map(a => ({
+                id: a.id,
+                label: a.account_name,
+                subtitle: isBroadcastPlatform(a.platform) ? BROADCAST_PLATFORMS[a.platform].label : a.platform,
+                icon: <PlatformIcon id={a.platform} size={18} />,
+              }))}
+              placeholder="-- เลือกช่องทาง --"
             />
+          )}
+
+          {/* ช่องทางที่ยังส่งไม่ได้ — บอกเหตุผลไว้ตรงนี้ ผู้ใช้จะได้ไม่ต้องเดาว่าทำไมไม่มีให้เลือก
+              (ข้อความอ่านจากทะเบียนเดียวกับที่ API ใช้ปฏิเสธ จึงตรงกันเสมอ) */}
+          {pendingPlatforms.length > 0 && (
+            <div className="mt-5 border-t border-gray-200 dark:border-slate-700 pt-4">
+              <p className="field-label mb-2.5">ช่องทางอื่น — ยังส่งไม่ได้</p>
+              <ul className="space-y-3">
+                {pendingPlatforms.map(info => (
+                  <li key={info.id} className="flex gap-2.5">
+                    <span className="mt-0.5 flex-shrink-0 opacity-45">
+                      <PlatformIcon id={info.id} size={18} />
+                    </span>
+                    <div className="min-w-0">
+                      <p className="body-text text-gray-700 dark:text-slate-300">
+                        {info.label}
+                        <span className="text-gray-400 dark:text-slate-500"> · ส่งถึงได้แค่{info.audience}</span>
+                      </p>
+                      <p className="helper-text text-gray-500 dark:text-slate-400">{info.reason}</p>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
           )}
         </Card>
 
@@ -291,9 +337,21 @@ export default function NewLineBroadcastPage() {
 
             {audience === 'all' && preview && (
               <Alert tone="info">
-                {preview.followers !== null
-                  ? `LINE รายงานผู้ติดตาม ${preview.followers.toLocaleString()} คน (ข้อมูลของเมื่อวาน) — บันทึกลงห้องแชทได้ ${preview.known_contact_count.toLocaleString()} คนที่มีในระบบ`
-                  : `LINE ยังไม่สรุปจำนวนผู้ติดตามให้ — บันทึกลงห้องแชทได้ ${preview.known_contact_count.toLocaleString()} คนที่มีในระบบ`}
+                {preview.follower_stats?.reachable != null ? (
+                  <>
+                    LINE รายงานว่าส่งถึงได้ {preview.follower_stats.reachable.toLocaleString()} คน
+                    (ข้อมูลของเมื่อวาน — ตรงกับเลข &quot;เพื่อน&quot; ใน LINE OA Manager) —
+                    บันทึกลงห้องแชทได้ {preview.known_contact_count.toLocaleString()} คนที่มีในระบบ
+                    {preview.follower_stats.total_adds != null && preview.follower_stats.blocks != null && (
+                      <span className="block helper-text text-blue-700/70 dark:text-blue-300/70 mt-1">
+                        เคยกดแอดสะสม {preview.follower_stats.total_adds.toLocaleString()} คน
+                        · บล็อกไปแล้ว {preview.follower_stats.blocks.toLocaleString()} คน จึงไม่นับเป็นผู้รับ
+                      </span>
+                    )}
+                  </>
+                ) : (
+                  `LINE ยังไม่สรุปจำนวนผู้ติดตามให้ — บันทึกลงห้องแชทได้ ${preview.known_contact_count.toLocaleString()} คนที่มีในระบบ`
+                )}
               </Alert>
             )}
           </div>
@@ -350,7 +408,7 @@ export default function NewLineBroadcastPage() {
         </Card>
 
         <div className="flex justify-end gap-3">
-          <Button variant="secondary" onClick={() => router.push('/chat/broadcast')} disabled={sending}>
+          <Button variant="secondary" onClick={() => router.push('/marketing/broadcast')} disabled={sending}>
             ยกเลิก
           </Button>
           <Button
