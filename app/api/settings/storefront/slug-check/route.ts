@@ -1,8 +1,8 @@
 // เช็คว่าชื่อลิงก์ร้านว่างไหม — ให้หน้าจอบอกได้ตั้งแต่ตอนพิมพ์ ไม่ใช่รู้ตอนกดบันทึกแล้วเด้ง error
 //
-// ⚠️ ต้องใช้กติกาชุดเดียวกับ PUT ของ /api/settings/storefront เป๊ะ ๆ (รูปแบบ · ชนกับ
-// ทั้งสองคอลัมน์ของบริษัทอื่น · ตรงกับ slug ของตัวเอง = ถือว่าใช้ได้) ไม่งั้นหน้าจอ
-// จะบอกว่าว่างแล้วตอนบันทึกโดนปฏิเสธ
+// ⚠️ ต้องใช้กติกาชุดเดียวกับ PUT ของ /api/settings/storefront เป๊ะ ๆ ไม่งั้นหน้าจอ
+// จะบอกว่าว่างแล้วตอนบันทึกโดนปฏิเสธ · เช็คเฉพาะ `storefront_slug` —
+// `companies.slug` ไม่เกี่ยวกับ URL หน้าร้านแล้ว
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
 import { parseStorefront } from '@/lib/storefront';
@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
 
   const { data: own } = await supabaseAdmin
     .from('companies')
-    .select('slug, storefront_slug, storefront_slug_changed_at, settings')
+    .select('storefront_slug, storefront_slug_changed_at, settings')
     .eq('id', auth.companyId)
     .single();
 
@@ -29,9 +29,9 @@ export async function GET(request: NextRequest) {
     ? storefrontSlugLockRemainingDays(own?.storefront_slug_changed_at ?? null)
     : 0;
 
-  // ว่างไว้ = ใช้ slug ของบริษัท ซึ่งใช้ได้เสมอ
-  if (!raw || raw === own?.slug) {
-    return NextResponse.json({ status: 'available', lock_days_left: lockDaysLeft, lock_days: STOREFRONT_SLUG_LOCK_DAYS });
+  // ยังไม่พิมพ์อะไร = ยังไม่มีอะไรให้ตัดสิน
+  if (!raw) {
+    return NextResponse.json({ status: 'idle', lock_days_left: lockDaysLeft, lock_days: STOREFRONT_SLUG_LOCK_DAYS });
   }
   // ค่าเดิมของตัวเอง = ไม่ได้เปลี่ยนอะไร
   if (raw === own?.storefront_slug) {
@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
   const { data: clash } = await supabaseAdmin
     .from('companies')
     .select('id')
-    .or(`slug.eq.${raw},storefront_slug.eq.${raw}`)
+    .eq('storefront_slug', raw)
     .neq('id', auth.companyId)
     .limit(1);
 

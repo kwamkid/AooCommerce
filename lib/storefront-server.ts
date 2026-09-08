@@ -54,23 +54,21 @@ export interface ClosedStorefront {
 }
 
 /**
- * หาบริษัทจาก slug ที่อยู่ใน URL — **`storefront_slug` มาก่อน `companies.slug` เสมอ**
+ * หาบริษัทจาก slug ที่อยู่ใน URL — **อ่านจาก `storefront_slug` อย่างเดียว**
  *
- * ชื่อร้านกับตัวระบุบริษัทเป็นคนละตัว: ร้านตั้ง `storefront_slug` เองได้ ยังไม่ตั้งก็ตกไป
- * ใช้ `companies.slug` (ลิงก์เก่าจึงไม่พัง) · เรียงลำดับสำคัญ — ถ้าร้าน A ตั้ง
- * storefront_slug ตรงกับ companies.slug ของ B ต้องให้ A ชนะ ไม่งั้นคนที่ตั้งเองจะเปิดไม่ติด
- * (API กันไม่ให้ตั้งชนกันอยู่แล้ว นี่เป็นตาข่ายชั้นสองสำหรับข้อมูลเก่า)
+ * `companies.slug` เป็นตัวระบุภายใน ลูกค้าไม่เคยเห็นและไม่ควรมามีผลกับ URL หน้าร้าน
+ * (เคยตกไปหามันเป็นทางถอย แล้วกลายเป็นสอง namespace ปนกัน ต้องคอยกันชนข้ามคอลัมน์
+ * ทุกที่ที่เขียน — ตัดออกแล้วเหลือความจริงเดียว และ unique index ของ DB กันซ้ำให้พอ)
+ *
+ * ⇒ ร้านที่ยังไม่ตั้ง `storefront_slug` **เปิดหน้าร้านไม่ได้** (API กันตอนกดเปิดอยู่แล้ว)
  */
 async function findCompanyBySlug<T extends string>(slug: string, columns: T) {
   const { data } = await supabaseAdmin
     .from('companies')
     .select(columns)
-    .or(`storefront_slug.eq.${slug},slug.eq.${slug}`)
-    .limit(2);
-
-  const rows = (data || []) as unknown as (Record<string, unknown>)[];
-  if (rows.length === 0) return null;
-  return rows.find(r => r.storefront_slug === slug) ?? rows[0];
+    .eq('storefront_slug', slug)
+    .maybeSingle();
+  return (data as unknown as Record<string, unknown> | null) ?? null;
 }
 
 /**
@@ -157,9 +155,8 @@ export const getStorefrontCompany = cache(async (slug: string): Promise<Storefro
 
   return {
     id: data.id,
-    // slug ที่ต้องใช้ประกอบลิงก์ทุกที่ (sitemap / canonical / llms.txt) — ตัวที่ร้านตั้งเอง
-    // ถ้ามี ไม่งั้นตัวระบุบริษัท · ใช้ `data.slug` ตรง ๆ จะได้ URL ที่พาไปคนละหน้า
-    slug: data.storefront_slug || data.slug,
+    // slug สาธารณะที่ใช้ประกอบลิงก์ทุกที่ (sitemap / canonical / llms.txt)
+    slug: data.storefront_slug!,
     name: data.name,
     logo_url: data.logo_url,
     description: data.description,

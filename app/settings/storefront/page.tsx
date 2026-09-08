@@ -259,7 +259,8 @@ export default function StorefrontSettingsPage() {
   const [slug, setSlug] = useState('');
   /** ค่าที่ผู้ใช้พิมพ์ในช่อง — ว่าง = ยังไม่ตั้งเอง ใช้ของบริษัท */
   const [storefrontSlug, setStorefrontSlug] = useState('');
-  const [companySlug, setCompanySlug] = useState('');
+  /** ค่าที่แนะนำตอนยังไม่เคยตั้ง (มาจากชื่อบริษัท) — ไม่ใช่ทางถอยของ URL */
+  const [suggestedSlug, setSuggestedSlug] = useState('');
   /** ผลเช็คชื่อลิงก์แบบสด — ให้ตัดสินใจได้ก่อนกดบันทึก ไม่ใช่รู้ตอนโดนปฏิเสธ */
   const [slugStatus, setSlugStatus] = useState<'idle' | 'checking' | 'available' | 'current' | 'taken' | 'invalid'>('idle');
   const [slugMessage, setSlugMessage] = useState('');
@@ -298,7 +299,9 @@ export default function StorefrontSettingsPage() {
         loadedRef.current = data.storefront;
         setSlug(data.slug || '');
         setStorefrontSlug(data.storefront_slug || '');
-        setCompanySlug(data.company_slug || '');
+        setSuggestedSlug(data.suggested_slug || '');
+        // ยังไม่เคยตั้ง = เติมค่าที่แนะนำไว้ให้ก่อน ผู้ใช้แก้ได้ก่อนกดบันทึก
+        if (!data.storefront_slug && data.suggested_slug) setStorefrontSlug(data.suggested_slug);
         setSlugLockDaysLeft(data.slug_lock_days_left || 0);
         setLogoUrl(data.logo_url || null);
         setCompanyName(data.company_name || '');
@@ -359,7 +362,7 @@ export default function StorefrontSettingsPage() {
       setCfg(data.storefront);
       loadedRef.current = data.storefront;
       // slug ที่ใช้จริงเปลี่ยนตามที่เพิ่งบันทึก — ลิงก์ตัวอย่างต้องอัปเดตทันที
-      setSlug(data.storefront_slug || companySlug);
+      setSlug(data.storefront_slug || '');
       setStorefrontSlug(data.storefront_slug || '');
       // ล็อก 30 วันเริ่มนับตอนนี้ถ้าเพิ่งเปลี่ยนจริง — ถามค่าจริงกลับมาแทนที่จะเดาเอง
       apiFetch('/api/settings/storefront/slug-check?slug=')
@@ -451,7 +454,19 @@ export default function StorefrontSettingsPage() {
                     </p>
                   </div>
                 </div>
-                <Toggle checked={cfg.enabled} onChange={(v) => patch({ enabled: v })} aria-label="เปิดหน้าร้าน" />
+                <Toggle
+                  checked={cfg.enabled}
+                  // เปิดร้านโดยไม่มีชื่อลิงก์ = ร้านที่ไม่มีใครเข้าถึงได้ (API ก็ปฏิเสธ) —
+                  // บอกตั้งแต่ตรงนี้ดีกว่าให้กดแล้วไปเจอ error ตอนบันทึก
+                  onChange={(v) => {
+                    if (v && !storefrontSlug.trim()) {
+                      showToast('ตั้งชื่อลิงก์ของร้านก่อนถึงจะเปิดหน้าร้านได้', 'error');
+                      return;
+                    }
+                    patch({ enabled: v });
+                  }}
+                  aria-label="เปิดหน้าร้าน"
+                />
               </div>
             </Card>
 
@@ -484,7 +499,8 @@ export default function StorefrontSettingsPage() {
             <Card padding="md">
               <p className="heading-4 mb-1">ลิงก์หน้าร้าน</p>
               <p className="section-desc mb-4">
-                ชื่อที่อยู่ใน URL ที่ลูกค้าเห็น — คนละตัวกับชื่อบริษัท ตั้งเป็นชื่อร้านได้เลย
+                ชื่อที่อยู่ใน URL ที่ลูกค้าเห็น — ตั้งเป็นชื่อร้านได้เลย ไม่เกี่ยวกับชื่อบริษัท
+                <br />ต้องตั้งก่อนถึงจะเปิดหน้าร้านได้
               </p>
               <FormInput
                 label="ชื่อลิงก์"
@@ -496,7 +512,8 @@ export default function StorefrontSettingsPage() {
                   setSlugStatus(v.trim() ? 'checking' : 'idle');
                   debouncedCheckSlug(v);
                 }}
-                placeholder={companySlug ? `เว้นว่าง = ${companySlug}` : 'เช่น babyshop'}
+                placeholder="เช่น babyshop"
+                required
                 error={slugStatus === 'taken' ? 'ชื่อนี้มีร้านอื่นใช้อยู่แล้ว' : slugStatus === 'invalid' ? slugMessage : undefined}
                 hint={
                   slugLockDaysLeft > 0
@@ -505,7 +522,9 @@ export default function StorefrontSettingsPage() {
                       ? 'ชื่อนี้ว่าง ใช้ได้เลย'
                       : slugStatus === 'current'
                         ? 'ชื่อที่ใช้อยู่ตอนนี้'
-                        : 'ตัวเล็ก ตัวเลข และขีดกลาง 3–40 ตัว'
+                        : suggestedSlug && storefrontSlug === suggestedSlug
+                      ? 'ค่าที่แนะนำจากชื่อบริษัท — แก้เป็นชื่อร้านได้เลย'
+                      : 'ตัวเล็ก ตัวเลข และขีดกลาง 3–40 ตัว'
                 }
                 postfix={
                   slugStatus === 'checking' ? <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
@@ -522,7 +541,7 @@ export default function StorefrontSettingsPage() {
               <p className="section-desc mt-2 break-all">
                 ลิงก์ที่จะได้: {cfg.public_base_url
                   ? `${cfg.public_base_url}${cfg.public_base_path}`
-                  : `${origin}/store/${(storefrontSlug.trim() || companySlug) || 'your-shop'}`}
+                  : `${origin}/store/${storefrontSlug.trim() || 'ชื่อลิงก์ของคุณ'}`}
               </p>
             </Card>
 

@@ -87,13 +87,12 @@ export async function POST(request: NextRequest) {
     // ที่ตั้งชื่อไทยเหมือนกัน (และได้ URL /store/ ที่เปิดไม่ได้)
     const baseSlug = companySlug || `shop-${Math.random().toString(36).slice(2, 8)}`;
 
-    // ⛔ ต้องไม่ซ้ำกับ **ทั้ง `slug` และ `storefront_slug`** ของบริษัทอื่น —
-    // /store/<slug> หาจากสองคอลัมน์นี้ ถ้าปล่อยให้ชนกันได้ ร้านหนึ่งจะถูกอีกร้านบังหาย
-    // (DB มี unique เฉพาะภายในคอลัมน์เดียวกัน กันข้ามคอลัมน์ไม่ได้)
+    // ตัวระบุภายในของบริษัท — ลูกค้าไม่เคยเห็น และ **ไม่เกี่ยวกับ URL หน้าร้าน**
+    // (URL หน้าร้านอ่านจาก companies.storefront_slug อย่างเดียว คนละ namespace)
     const { data: existing } = await supabaseAdmin
       .from('companies')
       .select('id')
-      .or(`slug.eq.${baseSlug},storefront_slug.eq.${baseSlug}`)
+      .eq('slug', baseSlug)
       .limit(1);
 
     if (existing && existing.length > 0) {

@@ -21,11 +21,11 @@ export async function GET(request: NextRequest) {
     .single();
 
   return NextResponse.json({
-    // slug ที่ใช้จริงในลิงก์ — ตั้งเองไว้ก็ใช้ตัวนั้น ไม่งั้นตกไปที่ตัวระบุบริษัท
-    slug: data?.storefront_slug || data?.slug || '',
-    /** ตั้งเองไว้หรือยัง — ว่าง = หน้าจอโชว์ตัวของบริษัทเป็น placeholder */
+    // slug สาธารณะของร้าน — ว่าง = ยังตั้งไม่ได้เปิดร้าน
+    slug: data?.storefront_slug || '',
     storefront_slug: data?.storefront_slug || '',
-    company_slug: data?.slug || '',
+    /** ใช้เป็น "ค่าที่แนะนำ" ตอนยังไม่เคยตั้งเท่านั้น — ไม่ได้เป็นทางถอยของ URL แล้ว */
+    suggested_slug: data?.slug || '',
     // ล็อกนับเฉพาะตอนร้านเปิดอยู่ — ยังไม่เปิด = ยังไม่มีลิงก์ไหนอยู่ข้างนอก แก้ได้อิสระ
     slug_lock_days_left: parseStorefront((data?.settings as Record<string, unknown>) || {}).enabled
       ? storefrontSlugLockRemainingDays(data?.storefront_slug_changed_at ?? null)
@@ -66,27 +66,25 @@ export async function PUT(request: NextRequest) {
     (Partial<StorefrontConfig> & { storefront_slug?: string }) | null;
   if (!body) return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
 
-  // ── slug ของหน้าร้าน (คนละตัวกับตัวระบุบริษัท) ──────────────────────
+  // ── ชื่อลิงก์ของหน้าร้าน ─────────────────────────────────────────────
   //
-  // ⛔ **ห้ามให้ค่าซ้ำเกิดขึ้นได้เลย** — ทั้งซ้ำกับ `storefront_slug` และซ้ำกับ
-  // `companies.slug` ของบริษัทอื่น · DB มี unique เฉพาะภายในคอลัมน์เดียวกัน
-  // กันข้ามคอลัมน์ไม่ได้ ด่านนี้จึงเป็นด่านเดียวที่กันได้ (อีกด่านคือตอนสร้างบริษัท
-  // ใน /api/companies ซึ่งเช็คย้อนกลับมาที่ storefront_slug ด้วย)
+  // **`/store/<slug>` อ่านจากคอลัมน์นี้อย่างเดียว** — `companies.slug` เป็นตัวระบุภายใน
+  // ลูกค้าไม่เคยเห็น จึงไม่เกี่ยวกันแล้ว (unique index ของ DB กันซ้ำให้ในตัว
+  // ด่านนี้มีไว้ตอบด้วยข้อความที่คนอ่านรู้เรื่องแทน error ของ Postgres)
+  const { data: own } = await supabaseAdmin
+    .from('companies')
+    .select('storefront_slug, storefront_slug_changed_at, settings')
+    .eq('id', auth.companyId)
+    .single();
+
+  const wasEnabled = parseStorefront((own?.settings as Record<string, unknown>) || {}).enabled;
+
   let storefrontSlug: string | null | undefined;
   let slugChangedAt: string | undefined;
   if (body.storefront_slug !== undefined) {
     const raw = (body.storefront_slug || '').trim().toLowerCase();
-    const { data: own } = await supabaseAdmin
-      .from('companies')
-      .select('slug, storefront_slug, storefront_slug_changed_at, settings')
-      .eq('id', auth.companyId)
-      .single();
 
     if (!raw) {
-      storefrontSlug = null;
-    } else if (raw === own?.slug) {
-      // กรอกตรงกับ slug ของบริษัทตัวเอง = ไม่ได้ตั้งอะไรใหม่ — เก็บเป็นค่าว่างไปเลย
-      // (เก็บค่าซ้ำไว้สองที่แล้ววันหลังใครแก้ทีละที่ จะกลายเป็นสองความจริง)
       storefrontSlug = null;
     } else if (!SLUG.test(raw)) {
       return NextResponse.json(
@@ -97,7 +95,7 @@ export async function PUT(request: NextRequest) {
       const { data: clash } = await supabaseAdmin
         .from('companies')
         .select('id')
-        .or(`slug.eq.${raw},storefront_slug.eq.${raw}`)
+        .eq('storefront_slug', raw)
         .neq('id', auth.companyId)
         .limit(1);
       if (clash && clash.length > 0) {
@@ -106,13 +104,11 @@ export async function PUT(request: NextRequest) {
       storefrontSlug = raw;
     }
 
-    // เปลี่ยนจริงเมื่อไหร่ถึงติดกติกา — กรอกค่าเดิมซ้ำไม่นับว่าเปลี่ยน
-    const currentSlug = own?.storefront_slug ?? null;
-    if (storefrontSlug !== currentSlug) {
-      const wasEnabled = parseStorefront((own?.settings as Record<string, unknown>) || {}).enabled;
-      const daysLeft = wasEnabled
-        ? storefrontSlugLockRemainingDays(own?.storefront_slug_changed_at ?? null)
-        : 0;
+    // กติกา 30 วัน — **นับเฉพาะการเปลี่ยนที่เกิดตอนร้านเปิดอยู่**
+    // ปิดร้านอยู่ = ยังไม่มีลิงก์ไหนอยู่ข้างนอก แก้คำที่พิมพ์ผิดได้อิสระและไม่ stamp เวลา
+    // (stamp ตอนปิดร้านด้วย จะกลายเป็นเปิดร้านปุ๊บติดล็อกทันทีทั้งที่ยังไม่เคยส่งลิงก์ให้ใคร)
+    if (storefrontSlug !== (own?.storefront_slug ?? null) && wasEnabled) {
+      const daysLeft = storefrontSlugLockRemainingDays(own?.storefront_slug_changed_at ?? null);
       if (daysLeft > 0) {
         return NextResponse.json({
           error: `เปลี่ยนชื่อลิงก์ได้ครั้งเดียวทุก 30 วัน — เปลี่ยนได้อีกครั้งในอีก ${daysLeft} วัน`,
@@ -120,6 +116,12 @@ export async function PUT(request: NextRequest) {
       }
       slugChangedAt = new Date().toISOString();
     }
+  }
+
+  // เปิดร้านโดยไม่มีชื่อลิงก์ = ร้านที่เปิดแล้วแต่ไม่มีใครเข้าถึงได้ — กันไว้ตั้งแต่ต้น
+  const effectiveSlug = storefrontSlug !== undefined ? storefrontSlug : (own?.storefront_slug ?? null);
+  if ((body.enabled ?? wasEnabled) && !effectiveSlug) {
+    return NextResponse.json({ error: 'ตั้งชื่อลิงก์ของร้านก่อนถึงจะเปิดหน้าร้านได้' }, { status: 400 });
   }
 
   // Domain must be a real absolute http(s) origin — a bad value silently
@@ -148,13 +150,7 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ error: 'สีปุ่มไม่ถูกต้อง — ใช้รูปแบบ #RRGGBB' }, { status: 400 });
   }
 
-  const { data: company } = await supabaseAdmin
-    .from('companies')
-    .select('settings')
-    .eq('id', auth.companyId)
-    .single();
-
-  const currentSettings = (company?.settings as Record<string, unknown>) || {};
+  const currentSettings = (own?.settings as Record<string, unknown>) || {};
   const current = parseStorefront(currentSettings);
 
   const next: StorefrontConfig = {
