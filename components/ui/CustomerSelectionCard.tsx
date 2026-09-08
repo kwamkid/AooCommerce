@@ -497,24 +497,31 @@ export default function CustomerSelectionCard({
                 <input ref={newCustomerPhoneRef} type="text" inputMode="tel" value={delivery?.deliveryPhone || selectedCustomer?.phone || ''} onChange={(e) => onDeliveryChange?.({ deliveryPhone: e.target.value })} placeholder="0xx-xxx-xxxx" disabled={!isEditable}
                   className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-gray-100 dark:disabled:bg-slate-800" />
                 {/* เบอร์คือตัวชี้ขาดว่าเป็นคนเดิมไหม — ชื่อพึ่งไม่ได้ (ชื่อเล่นซ้ำเยอะ
-                    บางคนบันทึกชื่อจริง บางคนบันทึกชื่อเล่น) · เตือนอย่างเดียว ไม่บล็อก */}
+                    บางคนบันทึกชื่อจริง บางคนบันทึกชื่อเล่น)
+                    **บันทึกไม่ได้จนกว่าจะเลือกรายเดิมหรือแก้เบอร์** — สีแดงเพราะเป็นตัวขวาง
+                    ไม่ใช่คำเตือนที่กดผ่านได้ (ดูเหตุผลที่ validate() ใน OrderForm) */}
                 {newCustomerMode && duplicatePhoneMatch && (
-                  <div className="mt-1.5 flex items-start gap-2 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 px-2.5 py-2">
-                    <UserCheck className="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+                  <div className="mt-1.5 flex items-start gap-2 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 px-2.5 py-2">
+                    <UserCheck className="w-4 h-4 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
                     <div className="min-w-0 flex-1">
-                      <p className="subtitle-text text-amber-800 dark:text-amber-300">
-                        เบอร์นี้มีในระบบแล้ว — <b>{duplicatePhoneMatch.name}</b>
-                        {duplicatePhoneMatch.hint && <span className="text-amber-700 dark:text-amber-400"> ({duplicatePhoneMatch.hint})</span>}
+                      <p className="subtitle-text text-red-800 dark:text-red-300">
+                        เบอร์นี้เป็นของ <b>{duplicatePhoneMatch.name}</b> อยู่แล้ว
+                        {duplicatePhoneMatch.hint && <span className="text-red-700 dark:text-red-400"> ({duplicatePhoneMatch.hint})</span>}
                       </p>
-                      {onUseDuplicateCustomer && (
-                        <button
-                          type="button"
-                          onClick={() => onUseDuplicateCustomer(duplicatePhoneMatch.id)}
-                          className="helper-text font-medium text-amber-800 dark:text-amber-300 underline mt-0.5"
-                        >
-                          ใช้ลูกค้ารายนี้แทน
-                        </button>
-                      )}
+                      <div className="flex flex-wrap items-center gap-x-3 mt-0.5">
+                        {onUseDuplicateCustomer && (
+                          <button
+                            type="button"
+                            onClick={() => onUseDuplicateCustomer(duplicatePhoneMatch.id)}
+                            className="helper-text font-medium text-red-800 dark:text-red-300 underline"
+                          >
+                            ใช้ลูกค้ารายนี้แทน
+                          </button>
+                        )}
+                        <span className="helper-text text-red-700 dark:text-red-400">
+                          หรือแก้เบอร์ให้ถูก
+                        </span>
+                      </div>
                     </div>
                   </div>
                 )}
