@@ -4,6 +4,10 @@
 // และปุ่มดินสอ/เพิ่มใหม่ในหน้าแชท** เพื่อไม่ให้กติกา (ชื่อบังคับ · ห้ามอักขระพิเศษ ·
 // ห้ามซ้ำ · ต้องมีข้อความหรือรูป · ชิปตัวแปร) หลุดกันสองที่
 //
+// รูปแนบใช้ `ImageUploader` **โหมด staged** (ไม่ส่ง productId/variationId) ตัวเดียวกับหน้าสินค้า
+// — โหมดนั้นย่อรูป/ลากเรียง/ลบ อยู่ในหน่วยความจำล้วน ไม่แตะ storage ไม่ยิง API ของสินค้าเลย
+// เราจึงเอา `_stagedFile` ไปอัปขึ้น bucket `chat-media` เองตอนกดบันทึก
+//
 // **ไม่มีช่อง "ลิงก์" แยก** — ลิงก์พิมพ์ลงช่องข้อความได้เลยและไปเป็นข้อความเดียวกัน
 // ช่องแยกทำให้เข้าใจผิดว่าระบบส่งลิงก์เป็นอีกข้อความหนึ่ง (เจ้าของทักมา 8 ก.ย. 2026)
 //
@@ -12,12 +16,12 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { MessageSquareText, X, ImagePlus, ChevronLeft, ChevronRight } from 'lucide-react';
+import { MessageSquareText } from 'lucide-react';
 import Modal from '@/components/ui/Modal';
 import Button from '@/components/ui/Button';
 import SaveButton from '@/components/ui/SaveButton';
 import FormInput from '@/components/ui/FormInput';
-import ImageDropzone from '@/components/ui/ImageDropzone';
+import ImageUploader, { type ProductImage } from '@/components/ui/ImageUploader';
 import { useToast } from '@/lib/toast-context';
 import { apiFetch, invalidateApiCache } from '@/lib/api-client';
 import { supabase } from '@/lib/supabase';
@@ -39,32 +43,22 @@ interface Props {
   onSaved: (reply: SavedReply) => void;
 }
 
-/** รูปหนึ่งใบในฟอร์ม — ของเดิมมีแต่ `url` · ของที่เพิ่งเลือกมีแต่ `file` (ยังไม่อัป) */
-interface DraftImage {
-  key: string;
-  url?: string;
-  file?: File;
-  preview: string;
-}
-
 export default function SavedReplyModal({ open, onClose, reply, initialContent, onSaved }: Props) {
   const { showToast } = useToast();
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
-  const [images, setImages] = useState<DraftImage[]>([]);
+  const [images, setImages] = useState<ProductImage[]>([]);
   const [saving, setSaving] = useState(false);
   const [charWarning, setCharWarning] = useState(false);
   /** รายชื่อทั้งหมดของบริษัท ไว้บอก "ชื่อนี้มีแล้ว" ตั้งแต่ตอนพิมพ์ (เซิร์ฟเวอร์ยังกันซ้ำอีกชั้น) */
   const [allReplies, setAllReplies] = useState<SavedReply[]>([]);
   const contentRef = useRef<HTMLTextAreaElement>(null);
-  /** objectURL ที่สร้างเองต้องคืนเอง ไม่งั้นรั่วทุกครั้งที่เปิดโมดัล */
-  const objectUrls = useRef<string[]>([]);
 
   useEffect(() => {
     if (!open) return;
     setTitle(reply?.title || '');
     setContent(reply?.content ?? initialContent ?? '');
-    setImages((reply?.image_urls || []).map((url, i) => ({ key: `u${i}-${url}`, url, preview: url })));
+    setImages((reply?.image_urls || []).map((url, i) => ({ image_url: url, sort_order: i })));
     setCharWarning(false);
     // อ่านทั้งคลัง (ไม่ใช่แค่ที่เปิดใช้) — ชื่อชนกับใบที่ปิดอยู่ก็ยังชน · apiFetch แคช 60 วิ
     apiFetch('/api/chat/saved-replies')
@@ -72,11 +66,6 @@ export default function SavedReplyModal({ open, onClose, reply, initialContent, 
       .then(d => { if (d?.replies) setAllReplies(d.replies as SavedReply[]); })
       .catch(() => {});
   }, [open, reply, initialContent]);
-
-  useEffect(() => () => {
-    objectUrls.current.forEach(URL.revokeObjectURL);
-    objectUrls.current = [];
-  }, []);
 
   /** กันอักขระต้องห้าม **ตั้งแต่ตอนพิมพ์** — ตัวที่พิมพ์ไม่ขึ้นต้องมีคำอธิบายเสมอ ไม่ใช่เงียบ */
   const onTitleChange = (raw: string) => {
@@ -89,25 +78,6 @@ export default function SavedReplyModal({ open, onClose, reply, initialContent, 
     () => findDuplicateTitle(allReplies, title, reply?.id),
     [allReplies, title, reply?.id],
   );
-
-  const addImage = (file: File | null) => {
-    if (!file) return;
-    const preview = URL.createObjectURL(file);
-    objectUrls.current.push(preview);
-    setImages(prev => prev.length >= MAX_SAVED_REPLY_IMAGES ? prev
-      : [...prev, { key: `f-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, file, preview }]);
-  };
-
-  /** สลับรูปกับใบข้าง ๆ — ปุ่มแทนการลาก เพราะแอดมินใช้มือถือเยอะ ลากสลับบนจอสัมผัสใช้ยาก */
-  const moveImage = (index: number, dir: -1 | 1) => {
-    const target = index + dir;
-    setImages(prev => {
-      if (target < 0 || target >= prev.length) return prev;
-      const next = [...prev];
-      [next[index], next[target]] = [next[target], next[index]];
-      return next;
-    });
-  };
 
   /** แทรกโทเคนตรงตำแหน่งเคอร์เซอร์ ไม่ใช่ต่อท้าย — คนเขียนอยู่กลางประโยคจะได้ไม่ต้องย้ายเอง */
   const insertVar = (token: string) => {
@@ -134,16 +104,17 @@ export default function SavedReplyModal({ open, onClose, reply, initialContent, 
 
     setSaving(true);
     try {
-      // อัปเฉพาะใบที่เพิ่งเลือก — ใบเก่าคง URL เดิม และ **ลำดับต้องไม่สลับ** (ส่งตามลำดับนี้)
+      // อัปเฉพาะใบที่เพิ่งเลือก (มี _stagedFile) — ใบเก่าคง URL เดิม
+      // **วนตามลำดับใน images** เพราะลำดับที่ลากไว้คือลำดับที่จะส่งจริง
       const urls: string[] = [];
       for (const img of images) {
-        if (img.url) { urls.push(img.url); continue; }
-        if (!img.file) continue;
+        const file = img._stagedFile;
+        if (!file) { urls.push(img.image_url); continue; }
         // ชื่อไฟล์ต้องผ่าน storageKeyFor — ชื่อไทย/อีโมจิ/# ทำให้ Storage ตอบ 400 InvalidKey
-        const path = `saved-replies/${storageKeyFor(img.file.name, 'jpg')}`;
+        const path = `saved-replies/${storageKeyFor(img._originalName || file.name, 'jpg')}`;
         const { error: uploadError } = await supabase.storage
           .from('chat-media')
-          .upload(path, img.file, { contentType: img.file.type || 'image/jpeg' });
+          .upload(path, file, { contentType: file.type || 'image/jpeg' });
         if (uploadError) throw new Error(`อัปโหลดรูปไม่สำเร็จ: ${uploadError.message}`);
         urls.push(supabase.storage.from('chat-media').getPublicUrl(path).data.publicUrl);
       }
@@ -226,61 +197,16 @@ export default function SavedReplyModal({ open, onClose, reply, initialContent, 
 
         <div>
           <label className="field-label block mb-1">รูปแนบ (ไม่เกิน {MAX_SAVED_REPLY_IMAGES} รูป)</label>
-          {images.length > 0 && (
-            <div className="flex flex-wrap gap-2 mb-2">
-              {images.map((img, i) => (
-                <div key={img.key} className="relative w-24 h-24 rounded-lg overflow-hidden border border-gray-200 dark:border-slate-600">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={img.preview} alt="" className="w-full h-full object-cover" />
-                  <span className="absolute top-1 left-1 w-5 h-5 flex items-center justify-center rounded-full bg-black/60 text-white helper-text">{i + 1}</span>
-                  <button
-                    type="button"
-                    disabled={saving}
-                    onClick={() => setImages(prev => prev.filter(x => x.key !== img.key))}
-                    aria-label="เอารูปนี้ออก"
-                    className="absolute top-1 right-1 p-0.5 rounded-full bg-black/50 text-white hover:bg-black/70"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                  {/* เลื่อนลำดับด้วยปุ่ม — ใบเดียวไม่ต้องมี */}
-                  {images.length > 1 && (
-                    <div className="absolute inset-x-0 bottom-0 flex bg-black/45">
-                      <button
-                        type="button"
-                        disabled={saving || i === 0}
-                        onClick={() => moveImage(i, -1)}
-                        aria-label="เลื่อนไปก่อนหน้า"
-                        className="flex-1 flex items-center justify-center py-1 text-white disabled:opacity-30 hover:bg-black/30"
-                      >
-                        <ChevronLeft className="w-4 h-4" />
-                      </button>
-                      <button
-                        type="button"
-                        disabled={saving || i === images.length - 1}
-                        onClick={() => moveImage(i, 1)}
-                        aria-label="เลื่อนไปถัดไป"
-                        className="flex-1 flex items-center justify-center py-1 text-white disabled:opacity-30 hover:bg-black/30"
-                      >
-                        <ChevronRight className="w-4 h-4" />
-                      </button>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-          {images.length < MAX_SAVED_REPLY_IMAGES && (
-            <ImageDropzone
-              value={null}
-              onChange={addImage}
-              icon={<ImagePlus className="w-6 h-6" />}
-              label={images.length === 0 ? 'ลากรูปมาวาง หรือกดเพื่อเลือก' : 'เพิ่มอีกรูป'}
-              hint="เช่น รูปโปรโมชั่น · QR พร้อมเพย์ · แผนที่ร้าน"
-              disabled={saving}
-            />
-          )}
+          {/* staged mode — ลากเรียงลำดับ/ลบ/ย่อรูป ได้จากตัวกลางเลย ไม่แตะ storage จนกดบันทึก */}
+          <ImageUploader
+            images={images}
+            onImagesChange={setImages}
+            maxImages={MAX_SAVED_REPLY_IMAGES}
+            disabled={saving}
+          />
           <p className="helper-text text-gray-500 mt-1">
-            ส่งตามหลังข้อความตามลำดับที่เรียงไว้ · <b>รูป 1 ใบ = 1 ข้อความ</b> ของ LINE (แนบ {MAX_SAVED_REPLY_IMAGES} รูป = กินโควตา {MAX_SAVED_REPLY_IMAGES} ใบต่อลูกค้า 1 คน)
+            ส่งตามหลังข้อความตามลำดับที่เรียงไว้ (ลากสลับได้) · <b>รูป 1 ใบ = 1 ข้อความ</b> ของ LINE
+            (แนบ {MAX_SAVED_REPLY_IMAGES} รูป = กินโควตา {MAX_SAVED_REPLY_IMAGES} ใบต่อลูกค้า 1 คน)
           </p>
         </div>
       </div>
