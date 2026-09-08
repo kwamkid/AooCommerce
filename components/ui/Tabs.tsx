@@ -52,7 +52,9 @@ export default function Tabs({ tabs, activeKey, onSelect, className, fill, size 
   // caller's `className` is merged on top — typically just for spacing overrides
   // like `mb-6` / `mt-0`. Don't use `??` here — that would let a caller passing
   // `className="mb-6"` accidentally drop the flex + พื้นราง and tabs would stack.
-  const baseCls = 'flex gap-1 p-1 bg-gray-200/60 dark:bg-slate-800 rounded-xl mb-6 overflow-x-auto';
+  // รางกว้างพอดีแท็บเสมอ (ไม่ยืดเต็มพ่อจนเหลือพื้นเทาโล่ง ๆ) ยกเว้นโหมด fill ที่ตั้งใจให้เต็มแถว
+  // `max-w-full` + `overflow-x-auto` = จอแคบเลื่อนดูแท็บที่เกินได้แทนที่จะดันหน้าจนล้น
+  const baseCls = `flex gap-1 p-1 bg-gray-200/60 dark:bg-slate-800 rounded-xl mb-6 overflow-x-auto ${fill ? 'w-full' : 'w-fit max-w-full'}`;
   return (
     <div className={className ? `${baseCls} ${className}` : baseCls}>
       {tabs.filter(t => !t.hidden).map(tab => {

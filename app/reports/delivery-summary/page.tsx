@@ -371,6 +371,7 @@ export default function DeliverySummaryPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [reportData, setReportData] = useState<ReportData | null>(null);
+  const [generatingSlipPdf, setGeneratingSlipPdf] = useState(false);
   const [copySuccess, setCopySuccess] = useState(false);
   const [showProductSummary, setShowProductSummary] = useState(false);
   // แท็บ "จัดของ" แสดงรายบิลเหมือนหน้าคำสั่งซื้อ → ดึงจาก /api/orders ชุดเดียวกัน
@@ -720,23 +721,28 @@ export default function DeliverySummaryPage() {
    *  2 ใบต่อหน้า) เดิมหน้านี้ประกอบ pdfMake เองอีกชุด ทำให้ต้องแก้สองที่ทุกครั้ง
    *  และรูปสินค้าไม่ขึ้นเพราะ fetch ตรงโดน CORS (ตัวกลางมี /api/image-proxy ให้แล้ว)
    */
-  const handleExportPackingPdf = async () => {
+  /** ดึงออเดอร์เต็มของทั้งวัน — ใบจัดของกับใบคำสั่งซื้อใช้ชุดเดียวกัน */
+  const loadOrdersOfDay = async () => {
     const orderIds = (reportData?.byDate || []).flatMap(g => g.deliveries.map(d => d.orderId));
-    if (orderIds.length === 0) return;
+    const loaded = [];
+    for (const id of orderIds) {
+      const res = await apiFetch(`/api/orders/${id}`);
+      if (!res.ok) continue;
+      const data = await res.json();
+      if (data.order) loaded.push(data.order);
+    }
+    if (loaded.length === 0) throw new Error('ไม่พบข้อมูลออเดอร์');
+    return loaded;
+  };
+
+  const handleExportPackingPdf = async () => {
+    if ((reportData?.byDate || []).length === 0) return;
 
     setGeneratingPdf(true);
     // เปิดแท็บรอไว้ก่อน — Safari บนมือถือบล็อก window.open ที่ไม่ได้เกิดจากการกดปุ่มโดยตรง
     const printWindow = preOpenPrintWindow();
     try {
-      const orders = [];
-      for (const id of orderIds) {
-        const res = await apiFetch(`/api/orders/${id}`);
-        if (!res.ok) continue;
-        const data = await res.json();
-        if (data.order) orders.push(data.order);
-      }
-      if (orders.length === 0) throw new Error('ไม่พบข้อมูลออเดอร์');
-
+      const orders = await loadOrdersOfDay();
       const { generatePackingPdf } = await import('@/lib/orders-packing-pdf');
       const blob = await generatePackingPdf(orders);
       showPdfPreview(blob, `ใบจัดของ ${deliveryDate}`, printWindow);
@@ -746,6 +752,26 @@ export default function DeliverySummaryPage() {
       showToast(err instanceof Error ? err.message : 'ไม่สามารถสร้าง PDF ได้', 'error');
     } finally {
       setGeneratingPdf(false);
+    }
+  };
+
+  /** ใบคำสั่งซื้อของทั้งวัน (มีราคา) — คนละใบกับใบจัดของที่ให้คนแพ็คใช้ */
+  const handleExportOrderSlipPdf = async () => {
+    if ((reportData?.byDate || []).length === 0) return;
+
+    setGeneratingSlipPdf(true);
+    const printWindow = preOpenPrintWindow();
+    try {
+      const orders = await loadOrdersOfDay();
+      const { generateOrderSlipPdf } = await import('@/lib/order-slip-pdf');
+      const blob = await generateOrderSlipPdf(orders);
+      showPdfPreview(blob, `ใบคำสั่งซื้อ ${deliveryDate}`, printWindow);
+    } catch (err) {
+      console.error('Error generating PDF:', err);
+      printWindow?.close();
+      showToast(err instanceof Error ? err.message : 'ไม่สามารถสร้าง PDF ได้', 'error');
+    } finally {
+      setGeneratingSlipPdf(false);
     }
   };
 
@@ -805,7 +831,7 @@ export default function DeliverySummaryPage() {
 
             {/* Tabs — ใช้ <Tabs> ตัวกลาง (เดิมประกอบ pill switcher เอง) */}
             <Tabs
-              className="border-b-0 flex-1"
+              className="mb-0"
               activeKey={activeTab}
               onSelect={(key) => setActiveTab(key as 'packing' | 'delivery')}
               tabs={[
@@ -815,18 +841,30 @@ export default function DeliverySummaryPage() {
             />
 
             {/* Action buttons - contextual per tab */}
-            <div className="sm:ml-auto flex items-center gap-2">
+            <div className="sm:ml-auto flex flex-wrap items-center gap-2">
               {activeTab === 'packing' ? (
-                <Button
-                  variant="primary"
-                  size="sm"
-                  loading={generatingPdf}
-                  disabled={!reportData || reportData.productSummary.length === 0}
-                  icon={<FileText className="w-4 h-4" />}
-                  onClick={handleExportPackingPdf}
-                >
-                  {generatingPdf ? 'กำลังสร้าง PDF...' : 'Export PDF'}
-                </Button>
+                <>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    loading={generatingSlipPdf}
+                    disabled={!reportData || reportData.byDate.length === 0}
+                    icon={<FileText className="w-4 h-4" />}
+                    onClick={handleExportOrderSlipPdf}
+                  >
+                    ใบคำสั่งซื้อ
+                  </Button>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    loading={generatingPdf}
+                    disabled={!reportData || reportData.productSummary.length === 0}
+                    icon={<ClipboardList className="w-4 h-4" />}
+                    onClick={handleExportPackingPdf}
+                  >
+                    ใบจัดของ
+                  </Button>
+                </>
               ) : (
                 <Button
                   variant="secondary"
