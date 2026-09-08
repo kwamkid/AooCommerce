@@ -52,9 +52,11 @@ interface TabsProps {
    * หน้าสินค้าของร้านที่ผูก Shopee 7 ร้านมีถึง 8 แท็บ) · ค่าปกติ 3 · ใส่ 0 = ไม่เปลี่ยนเลย
    */
   mobileDropdownFrom?: number;
+  /** `left` (ค่าปกติ) = ไอคอนหน้าข้อความ · `top` = ไอคอนอยู่บน ข้อความอยู่ล่าง (แท็บเตี้ยกว่าแต่สูงขึ้น) */
+  iconPosition?: 'left' | 'top';
 }
 
-export default function Tabs({ tabs, activeKey, onSelect, className, fill, size = 'md', mobileDropdownFrom = 3 }: TabsProps) {
+export default function Tabs({ tabs, activeKey, onSelect, className, fill, size = 'md', mobileDropdownFrom = 3, iconPosition = 'left' }: TabsProps) {
   const router = useRouter();
   // Base layout (flex + พื้นราง + scroll on overflow) is always applied;
   // caller's `className` is merged on top — typically just for spacing overrides
@@ -98,18 +100,24 @@ export default function Tabs({ tabs, activeKey, onSelect, className, fill, size 
         const isActive = tab.key === activeKey;
         const activeColor = tab.activeColorClass ?? 'text-gray-900 dark:text-white';
         // h-[34px] + p-1 ของราง = 42px เท่าความสูงมาตรฐานของ input/ปุ่มที่วางข้างกัน
-        const sizeCls = size === 'sm' ? 'h-7 px-3 text-xs gap-1.5 rounded-md' : 'h-[34px] px-4 text-base gap-2 rounded-lg';
+        const stacked = iconPosition === 'top';
+        const sizeCls = stacked
+          ? (size === 'sm' ? 'px-3 py-1.5 text-xs gap-0.5 rounded-md' : 'px-4 py-2 text-sm gap-1 rounded-lg')
+          : (size === 'sm' ? 'h-7 px-3 text-xs gap-1.5 rounded-md' : 'h-[34px] px-4 text-base gap-2 rounded-lg');
         const fillCls = fill ? 'flex-1' : '';
-        const cls = `flex items-center justify-center ${sizeCls} ${fillCls} font-semibold whitespace-nowrap transition-all ${
+        // แท็บที่เลือกหนากว่านิดเดียวพอให้แยกออก — semibold ทั้งแถบอ่านแล้วหนักตา
+        const cls = `flex ${stacked ? 'flex-col' : ''} items-center justify-center ${sizeCls} ${fillCls} whitespace-nowrap transition-all ${
           isActive
-            ? `bg-white dark:bg-slate-700 shadow-[0_1px_4px_rgba(15,23,42,0.12)] ${activeColor}`
-            : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+            ? `bg-white dark:bg-slate-700 shadow-[0_1px_4px_rgba(15,23,42,0.12)] font-medium ${activeColor}`
+            : 'font-normal text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
         }`;
 
         const inner = (
           <>
-            {tab.icon}
-            <span>{tab.label}</span>
+            {tab.icon && (
+              <span className="flex-shrink-0 flex items-center leading-none [&>img]:block [&>svg]:block">{tab.icon}</span>
+            )}
+            <span className="leading-none">{tab.label}</span>
             {typeof tab.count === 'number' && (
               <span className={`text-xs px-1.5 py-0.5 rounded-full ${
                 isActive

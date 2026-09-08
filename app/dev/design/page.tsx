@@ -327,6 +327,36 @@ export default function DesignSystemPage() {
                 />
               </div>
             </Group>
+            <Group label="iconPosition='top' — ไอคอนอยู่บน ข้อความอยู่ล่าง">
+              <div className="w-full">
+                <Tabs
+                  iconPosition="top"
+                  activeKey={demoTab}
+                  onSelect={(k) => setDemoTab(k as typeof demoTab)}
+                  tabs={[
+                    { key: 'orders', label: 'FB / IG', icon: <PlatformIcon id="facebook" size={18} />, count: 24 },
+                    { key: 'invoices', label: 'LINE', icon: <PlatformIcon id="line" size={18} />, count: 8 },
+                    { key: 'reports', label: 'Shopee', icon: <PlatformIcon id="shopee" size={18} /> },
+                  ]}
+                />
+              </div>
+            </Group>
+            <Group label="iconPosition='top' + fill — แบบแถบสลับมุมมองบนมือถือ">
+              <div className="w-full max-w-sm">
+                <Tabs
+                  iconPosition="top"
+                  fill
+                  size="sm"
+                  activeKey={demoTab}
+                  onSelect={(k) => setDemoTab(k as typeof demoTab)}
+                  tabs={[
+                    { key: 'orders', label: 'ขาย', icon: <PlatformIcon id="shopee" size={16} /> },
+                    { key: 'invoices', label: 'วันนี้', icon: <PlatformIcon id="line" size={16} />, count: 3 },
+                    { key: 'reports', label: 'สต็อก', icon: <PlatformIcon id="facebook" size={16} /> },
+                  ]}
+                />
+              </div>
+            </Group>
             <Group label="fill — แบ่งความกว้างเท่ากันเต็มแถว (หน้า PC · แถบมือถือ POS)">
               <div className="w-full max-w-sm">
                 <Tabs
