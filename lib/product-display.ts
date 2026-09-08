@@ -18,8 +18,11 @@ export function cleanVariationLabel(f: ProductDisplayFields): string {
     Object.values(f.attributes).forEach(v => { if (v?.trim()) attrParts.push(v.trim()); });
     if (attrParts.length > 0) return attrParts.join(' / ');
   }
-  const raw = f.variation_label || '';
-  if (!raw || raw === f.product_code || raw === f.barcode || raw === f.sku || /^\d+$/.test(raw)) return '';
+  const raw = (f.variation_label || '').trim();
+  // ขีดกลาง/ยัติภังค์ล้วน = ค่าที่พนักงานพิมพ์แทน "ไม่มีตัวเลือก" ไม่ใช่ชื่อตัวเลือกจริง
+  // (ปล่อยไว้จะได้ "การ์ด - AF-029 | -" บนใบจัดของ และบรรทัด "-" เปล่าบนใบคำสั่งซื้อ)
+  if (/^[-–—\s]*$/.test(raw)) return '';
+  if (raw === f.product_code || raw === f.barcode || raw === f.sku || /^\d+$/.test(raw)) return '';
   return raw;
 }
 

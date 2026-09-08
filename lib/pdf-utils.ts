@@ -322,9 +322,17 @@ export function buildSignatureFooter(companyName: string, leftLabel: string, rig
   };
 }
 
-/** Format number with 2 decimal places and commas */
-export function formatPdfPrice(amount: number): string {
-  return amount.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+/**
+ * Format number with 2 decimal places and commas
+ *
+ * ⚠️ รับสตริงด้วย — ค่าเงินที่มาจาก API เป็น **สตริง** (Postgres numeric → Supabase คืน
+ * `"1090.00"`) และ `String.prototype.toLocaleString()` **ไม่รู้จัก options** จึงคืนค่าเดิม
+ * ทำให้ใบเดียวมีทั้ง "1090.00" กับ "1,090.00" ปนกัน (เจอในใบคำสั่งซื้อ 9 ก.ย. 2026)
+ */
+export function formatPdfPrice(amount: number | string | null | undefined): string {
+  const n = typeof amount === 'number' ? amount : Number(amount);
+  return (Number.isFinite(n) ? n : 0)
+    .toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 /**

@@ -13,6 +13,7 @@ import {
   buildCompanyStack, formatPdfPrice, formatPdfDate, formatDeliverySchedule,
   buildCornerTriangle,
 } from './pdf-utils';
+import { cleanVariationLabel } from './product-display';
 
 const THEME = '#F4511E';
 
@@ -27,6 +28,8 @@ export interface OrderSlipItem {
   discount_type?: string | null;
   total?: number;
   image?: string | null;
+  /** หมายเหตุรายสินค้า (order_items.notes) — เช่น "1 เซต ปักป้าย HBD" */
+  notes?: string | null;
 }
 
 export interface OrderSlipData {
@@ -89,7 +92,11 @@ function buildOrderContent(order: OrderSlipData, company: any, logo: string | nu
       {
         stack: [
           { text: item.product_name, fontSize: 10, bold: true, color: '#333333' },
-          ...(item.variation_label ? [{ text: item.variation_label, fontSize: 9, color: '#6b7280' }] : []),
+          // ป้ายตัวเลือกที่เป็นขีดกลาง/รหัสซ้ำ ไม่ใช่ตัวเลือกจริง — ตัดทิ้ง ไม่งั้นได้บรรทัด "-" เปล่า
+          ...(cleanVariationLabel(item) ? [{ text: cleanVariationLabel(item), fontSize: 9, color: '#6b7280' }] : []),
+          ...(item.notes && item.notes.trim()
+            ? [{ text: `• ${item.notes.trim()}`, fontSize: 9.5, bold: true, color: '#111111' }]
+            : []),
           ...(item.product_code ? [{ text: item.product_code, fontSize: 8, color: '#9ca3af' }] : []),
         ],
         margin: [0, 6, 0, 0],
@@ -113,7 +120,6 @@ function buildOrderContent(order: OrderSlipData, company: any, logo: string | nu
   }
 
   return [
-    buildCornerTriangle(THEME),
     {
       columns: [
         { width: '*', stack: buildCompanyStack(company, logo) },
@@ -221,19 +227,28 @@ export async function generateOrderSlipPdf(orders: OrderSlipData[]): Promise<Blo
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const content: any[] = [];
   orders.forEach((order, i) => {
-    if (i > 0) content.push({ text: '', pageBreak: 'before' });
-    content.push(...buildOrderContent(order, company, logo, images));
+    // ติด pageBreak กับบล็อกของออเดอร์เอง ไม่ใช่ node ข้อความเปล่า
+    // (node เปล่ากินความสูง 1 บรรทัดที่หัวหน้าถัดไป — บทเรียนเดียวกับใบจัดของ)
+    content.push({
+      ...(i > 0 ? { pageBreak: 'before' as const } : {}),
+      stack: buildOrderContent(order, company, logo, images),
+    });
   });
 
   const doc = {
     pageSize: 'A4',
     pageMargins: [40, 40, 40, 40] as [number, number, number, number],
     defaultStyle: { font: 'IBMPlexSansThai', fontSize: 10 },
+    // สามเหลี่ยมมุมขวาบนเป็น "พื้นหลังของหน้า" — วางเป็น content จะกินความสูง 58pt
+    // ดันทุกอย่างลงมา (หัวเอกสารเคยลอยกลางหน้า)
+    background: () => buildCornerTriangle(THEME),
     content,
   };
 
-  return new Promise<Blob>((resolve) => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (pdfMake as any).createPdf(doc).getBlob((blob: Blob) => resolve(blob));
-  });
+  // ⚠️ pdfmake 0.3 `getBlob()` คืน **Promise** และไม่รับ callback อีกแล้ว
+  // ของเดิมส่ง callback เข้าไป → ไม่มีใครเรียก resolve → promise ค้างตลอดกาล
+  // → ปุ่มหมุนไม่หยุด ไม่มี error ให้เห็น (ดู fix-bug.md 2026-09-09)
+  // ห้ามเขียนกลับเป็นแบบ callback — ทุกไฟล์ PDF ในโปรเจกต์ใช้ `return pdfDoc.getBlob()`
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (pdfMake as any).createPdf(doc).getBlob();
 }

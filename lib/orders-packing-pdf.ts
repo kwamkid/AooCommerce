@@ -26,6 +26,7 @@ import {
   buildCompanyStack,
   buildProductNameStack,
 } from './pdf-utils';
+import { cleanVariationLabel } from './product-display';
 
 // ─── Interfaces ──────────────────────────────────────────
 
@@ -146,6 +147,16 @@ function buildChip(icon: string, label: string, color: string, bg: string) {
 }
 
 // ─── Helpers ─────────────────────────────────────────────
+
+/**
+ * ค่าที่เอาไปทำบาร์โค้ดได้ — **เฉพาะบาร์โค้ดจริงของสินค้าเท่านั้น**
+ *
+ * ⛔ ห้ามตกกลับไปใช้ SKU / รหัสสินค้าอีก — ร้านที่ไม่ได้ติดบาร์โค้ดสินค้า (aDay Fresh)
+ * จะได้แถบดำเต็มใบที่สแกนแล้วไม่ตรงกับอะไรเลย เจ้าของแจ้งว่า "ไม่ต้องขึ้นถ้าไม่มี"
+ * (9 ก.ย. 2026) · รหัสสินค้ายังพิมพ์เป็นตัวอักษรในคอลัมน์รายละเอียดอยู่แล้ว
+ * คอลัมน์ Barcode จะหายไปทั้งคอลัมน์เมื่อไม่มีรายการไหนมีบาร์โค้ดจริง
+ */
+const barcodeOf = (item: { barcode?: string | null }): string => (item.barcode || '').trim();
 
 function generateBarcodeDataUrl(value: string): string | null {
   if (!value) return null;
@@ -272,7 +283,7 @@ async function buildPickListContent(
   // Pre-generate barcodes
   const barcodeMap = new Map<string, string>();
   for (const item of items) {
-    const barcodeValue = item.barcode || item.sku || item.product_code || '';
+    const barcodeValue = barcodeOf(item);
     if (barcodeValue && !barcodeMap.has(barcodeValue)) {
       const dataUrl = generateBarcodeDataUrl(barcodeValue);
       if (dataUrl) barcodeMap.set(barcodeValue, dataUrl);
@@ -395,14 +406,10 @@ async function buildPickListContent(
   widths.push(30);
 
   const tableBody = items.map((item, idx) => {
-    const barcodeSource =
-      item.barcode || item.sku || item.product_code || '';
-    const showCodeInSubtitle =
-      !hasBarcode ||
-      (item.product_code && item.product_code !== barcodeSource);
+    // รหัสสินค้าพิมพ์เป็นตัวอักษรเสมอ (บาร์โค้ดเป็นคนละเรื่องกันแล้ว)
     const subtitle = [
-      showCodeInSubtitle ? item.product_code : null,
-      item.variation_label,
+      item.product_code,
+      cleanVariationLabel(item),
     ].filter(Boolean).join(' | ');
 
     const productStack = buildProductNameStack(item.product_name, subtitle);
@@ -444,8 +451,7 @@ async function buildPickListContent(
 
     // Barcode column
     if (hasBarcode) {
-      const barcodeValue =
-        item.barcode || item.sku || item.product_code || '';
+      const barcodeValue = barcodeOf(item);
       const barcodeDataUrl = barcodeValue
         ? barcodeMap.get(barcodeValue)
         : null;
@@ -603,11 +609,14 @@ function compactPackingParts(order: PackingListData, hasLogo: boolean) {
   // บิลรายการเยอะ → บล็อกผู้รับตัดกรอบทิ้ง เอาที่ว่างไปให้แถวสินค้า
   const dense = rowCount >= 7;
 
+  // ⚠️ ตัวเลขชุดนี้ต้องขยับตามหน้าตาจริงของบล็อกผู้รับใน buildCompactPackingContent เสมอ
+  // (ประเมินต่ำ = บล็อกล้นไปทับออเดอร์ครึ่งล่าง) — เผื่อฝั่งมากไว้ก่อน
+  // โครงใหม่: แถวป้าย + แถวค่า + ที่อยู่ + (เส้นคั่น + หมายเหตุ)
+  // กำหนดส่งอยู่คอลัมน์ขวาของแถวเดียวกับชื่อ จึง **ไม่บวกความสูงเพิ่ม**
   const addrLines = deliveryAddress ? Math.max(1, Math.ceil(deliveryAddress.length / 66)) : 0;
-  const recipientH = (dense
-    ? 16 + addrLines * 14 + (noteText ? 12 : 0)
-    : 30 + addrLines * 18 + (noteText ? 15 : 0))
-    + (scheduleText ? (dense ? 14 : 17) : 0);
+  const recipientH = dense
+    ? 28 + addrLines * 12 + (noteText ? 20 : 0)
+    : 42 + addrLines * 15 + (noteText ? 26 : 0);
 
   let overheadH = (hasLogo ? 118 : 74)   // หัวเอกสาร (โลโก้ + ชื่อ/ที่อยู่ร้าน + กล่องเลขที่)
     + recipientH
@@ -726,94 +735,101 @@ function buildCompactPackingContent(
 
   // ── ผู้รับ + ที่อยู่จัดส่ง + กำหนดส่ง (บล็อกเด่น) ──
   // คนแพ็คใช้ใบนี้เทียบกับใบปะหน้าว่าของตรงกล่องไหน — ที่อยู่ต้องอ่านได้จากระยะแขน
-  // วางเป็นตารางเดียว: [ป้าย | ค่า] ซ้าย = ผู้รับ+ที่อยู่ · ขวา = กำหนดส่ง · ล่าง = หมายเหตุ
-  // (ไม่ไล่เป็นบรรทัด ๆ ลงมา — กำหนดส่งอยู่ข้างผู้รับ ประหยัดความสูงและกวาดตาครั้งเดียวจบ)
+  //
+  // โครง: **ป้ายอยู่บรรทัดบน ค่าอยู่บรรทัดล่าง** ซ้าย = ผู้รับ · ขวา = กำหนดส่ง
+  // แล้วที่อยู่ไหลเต็มความกว้างข้างล่าง ปิดท้ายด้วยแถบหมายเหตุ
+  //
+  // ⛔ ห้ามกลับไปวางป้ายไว้ "ข้าง ๆ" ค่าในตารางคนละช่อง — pdfMake ชิดขอบบนของแถว
+  // ป้าย 9pt กับชื่อ 13pt จึงลอยคนละระดับ เจ้าของอ่านแล้วบอกว่า "บรรทัดไม่ตรงกัน
+  // ฟอนต์ไม่เท่ากัน ดูยาก" (9 ก.ย. 2026) · ป้ายกับค่าที่ต้องอยู่บรรทัดเดียวกัน
+  // (หมายเหตุ) ให้อยู่ใน `text: [...]` ก้อนเดียว pdfMake จะวางฐานบรรทัดให้ตรงกันเอง
   const customerPhone = order.delivery_phone || order.customer?.phone || '';
-  const LABEL_W = dense ? 46 : 52;
-  const SCHEDULE_W = dense ? 120 : 140;
+  const SCHEDULE_W = dense ? 118 : 138;
   const hasSchedule = !!scheduleText;
+  const PAD_X = dense ? 0 : 8;
+  const BLOCK_W = 515 - PAD_X * 2;   // ความกว้างเนื้อหา A4 หักขอบซ้ายขวาของบล็อก
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const label = (text: string): any =>
-    ({ text, fontSize: 9, bold: true, color: THEME.primary, margin: [0, 2, 0, 0] });
+  const labelText = (text: string): any =>
+    ({ text, fontSize: dense ? 8 : 8.5, bold: true, color: THEME.primary });
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const scheduleCell: any = {
-    text: [
-      { text: scheduleText, fontSize: dense ? 10 : 11.5, bold: true, color: '#b45309' },
-      ...(order.delivery_zone_label
-        ? [{ text: `  (${order.delivery_zone_label})`, fontSize: 9, color: '#666666' }]
-        : []),
-    ],
-    margin: [0, 2, 0, 0],
-  };
+  const recipientStack: any[] = [
+    {
+      columns: [
+        { width: '*', ...labelText('จัดส่งถึง') },
+        ...(hasSchedule ? [{ width: SCHEDULE_W, ...labelText('กำหนดส่ง') }] : []),
+      ],
+      columnGap: 10,
+    },
+    {
+      columns: [
+        {
+          width: '*',
+          text: [
+            { text: customerName, fontSize: dense ? 11 : 13, bold: true, color: '#111111' },
+            ...(customerPhone
+              ? [{ text: `   โทร ${customerPhone}`, fontSize: dense ? 10 : 12, bold: true, color: '#111111' }]
+              : []),
+          ],
+        },
+        ...(hasSchedule ? [{
+          width: SCHEDULE_W,
+          text: [
+            { text: scheduleText, fontSize: dense ? 10.5 : 12.5, bold: true, color: '#b45309' },
+            ...(order.delivery_zone_label
+              ? [{ text: `  (${order.delivery_zone_label})`, fontSize: 8.5, color: '#666666' }]
+              : []),
+          ],
+        }] : []),
+      ],
+      columnGap: 10,
+      margin: [0, 1, 0, 0],
+    },
+  ];
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const recipientRows: any[][] = [];
-  const nameCell = {
-    text: [
-      { text: customerName, fontSize: dense ? 11 : 13, bold: true, color: '#111111' },
-      ...(customerPhone
-        ? [{ text: `   โทร ${customerPhone}`, fontSize: dense ? 10 : 12, bold: true, color: '#111111' }]
-        : []),
-    ],
-  };
-
-  const addressCell = deliveryAddress
-    ? {
-        text: deliveryAddress,
-        fontSize: dense ? 9.5 : 11,
-        color: '#1f2937',
-        lineHeight: 1.15,
-        margin: [0, 2, 0, 0],
-      }
-    : null;
-
-  // ช่องกำหนดส่งกินสูงคร่อมทั้งชื่อและที่อยู่ (rowSpan) — ไม่งั้นถ้าฝั่งขวาสูง 2 บรรทัด
-  // ที่อยู่ฝั่งซ้ายจะถูกดันลงกลายเป็นช่องว่างใต้ชื่อ
-  const scheduleSpan = hasSchedule && addressCell ? 2 : 1;
-  recipientRows.push(hasSchedule
-    ? [
-        label('จัดส่งถึง'),
-        nameCell,
-        { ...label('กำหนดส่ง'), rowSpan: scheduleSpan },
-        { ...scheduleCell, rowSpan: scheduleSpan },
-      ]
-    : [label('จัดส่งถึง'), nameCell]);
-
-  if (addressCell) {
-    recipientRows.push(hasSchedule
-      ? [{ text: '' }, addressCell, {}, {}]
-      : [{ text: '' }, addressCell]);
+  if (deliveryAddress) {
+    recipientStack.push({
+      text: deliveryAddress,
+      fontSize: dense ? 9.5 : 10.5,
+      color: '#1f2937',
+      lineHeight: 1.02,        // ที่อยู่คือข้อความก้อนเดียว บรรทัดต้องเกาะกัน ไม่ใช่ลอยห่างเหมือนคนละเรื่อง
+      margin: [0, 1, 0, 0],
+    });
   }
 
+  // หมายเหตุ = รอบเวลาส่ง/คำสั่งพิเศษของบิลนี้ ต้องเด่นรองจากชื่อผู้รับ
+  // (ของเดิม 9pt สีเทา จมหายไปกับพื้น — เจ้าของแจ้งว่า "ที่ควรเด่น กลับไม่เด่น")
   if (noteText) {
-    const noteCell = {
-      text: noteText, fontSize: 9, color: '#555555', margin: [0, 2, 0, 0],
-      colSpan: hasSchedule ? 3 : 1,
-    };
-    recipientRows.push(hasSchedule
-      ? [label('หมายเหตุ'), noteCell, {}, {}]
-      : [label('หมายเหตุ'), noteCell]);
+    recipientStack.push({
+      canvas: [{ type: 'line', x1: 0, y1: 0, x2: BLOCK_W, y2: 0, lineWidth: 0.5, lineColor: '#cbd5e1' }],
+      margin: [0, dense ? 3 : 4, 0, dense ? 2 : 3],
+    });
+    recipientStack.push({
+      text: [
+        labelText('หมายเหตุ  '),
+        { text: noteText, fontSize: dense ? 10.5 : 12, bold: true, color: '#111111' },
+      ],
+    });
   }
 
   content.push({
     table: {
-      widths: hasSchedule ? [LABEL_W, '*', LABEL_W, SCHEDULE_W] : [LABEL_W, '*'],
-      body: recipientRows,
+      widths: ['*'],
+      body: [[{
+        stack: recipientStack,
+        // พื้นอ่อนล้วน ไม่มีกรอบ — เด่นด้วยขนาดตัวอักษร ไม่ใช่ด้วยเส้น
+        // (บิลรายการเยอะตัดพื้นทิ้ง เอาที่ว่างไปให้แถวสินค้า)
+        ...(dense ? {} : { fillColor: '#f1f5f9' }),
+      }]],
     },
     layout: {
       hLineWidth: () => 0,
       vLineWidth: () => 0,
-      // พื้นอ่อนล้วน ไม่มีกรอบ — เด่นด้วยขนาดตัวอักษร ไม่ใช่ด้วยเส้น
-      // (บิลรายการเยอะตัดพื้นทิ้ง เอาที่ว่างไปให้แถวสินค้า)
-      fillColor: () => (dense ? null : '#f1f5f9'),
-      paddingLeft: (i: number) => (i === 0 ? (dense ? 0 : 8) : 0),
-      paddingRight: (i: number, node: { table: { widths: unknown[] } }) =>
-        (i === node.table.widths.length - 1 ? (dense ? 0 : 8) : 0),
-      paddingTop: (i: number) => (i === 0 ? (dense ? 1 : 5) : 0),
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      paddingBottom: (i: number, node: any) => (i === node.table.body.length - 1 ? (dense ? 1 : 6) : 0),
+      paddingLeft: () => PAD_X,
+      paddingRight: () => PAD_X,
+      paddingTop: () => (dense ? 1 : 5),
+      paddingBottom: () => (dense ? 1 : 6),
     },
     margin: [0, 1, 0, dense ? 3 : 5],
   });
@@ -906,9 +922,8 @@ function buildCompactPackingContent(
 
   // ── Compact item table ──
   const allComponents = order.items.flatMap(i => i.promotion_components || []);
-  const hasBarcode = order.items.some(
-    (item) => item.barcode || item.sku || item.product_code
-  ) || allComponents.some(c => c.barcode || c.sku || c.product_code);
+  const hasBarcode = order.items.some(item => barcodeOf(item))
+    || allComponents.some(c => barcodeOf(c));
   // นับเฉพาะรูปที่โหลดสำเร็จจริง — รูปที่โหลดไม่ได้ไม่ควรทิ้งคอลัมน์ "รูป" ที่มีแต่ "-"
   const hasImage = order.items.some((item) => item.image && imageMap.has(item.image))
     || allComponents.some(c => c.image && imageMap.has(c.image));
@@ -1000,7 +1015,7 @@ function buildCompactPackingContent(
 
       // Component rows
       for (const comp of item.promotion_components!) {
-        const compBarcodeSource = comp.barcode || comp.sku || comp.product_code || '';
+        const compBarcodeSource = barcodeOf(comp);
         const compSubtitle = [comp.sku, comp.role === 'gift' ? '[แถมฟรี]' : null].filter(Boolean).join(' ');
         const compProductStack = buildProductNameStack(comp.product_name, compSubtitle);
         // Indent the product name
@@ -1061,12 +1076,9 @@ function buildCompactPackingContent(
       }
     } else {
       // Normal item row
-      const barcodeSource = item.barcode || item.sku || item.product_code || '';
-      const showCodeInSubtitle =
-        !hasBarcode || (item.product_code && item.product_code !== barcodeSource);
       const subtitle = [
-        showCodeInSubtitle ? item.product_code : null,
-        item.variation_label,
+        item.product_code,
+        cleanVariationLabel(item),
       ].filter(Boolean).join(' | ');
 
       const productStack = buildProductNameStack(item.product_name, subtitle, null, item.notes);
@@ -1098,7 +1110,7 @@ function buildCompactPackingContent(
       row.push({ stack: productStack, margin: [0, 1, 0, 1] });
 
       if (hasBarcode) {
-        const barcodeValue = item.barcode || item.sku || item.product_code || '';
+        const barcodeValue = barcodeOf(item);
         const barcodeDataUrl = barcodeValue
           ? barcodeMap.get(barcodeValue)
           : null;
@@ -1216,7 +1228,7 @@ export async function generatePackingPdf(
       }
     }
     for (const item of allItems) {
-      const barcodeValue = item.barcode || item.sku || item.product_code || '';
+      const barcodeValue = barcodeOf(item);
       if (barcodeValue && !allBarcodeMap.has(barcodeValue)) {
         const dataUrl = generateBarcodeDataUrl(barcodeValue);
         if (dataUrl) allBarcodeMap.set(barcodeValue, dataUrl);
