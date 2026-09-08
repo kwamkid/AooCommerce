@@ -119,3 +119,24 @@ export function normalizePhoneQuery(q: string): string {
   const t = q.trim();
   return /^[\d\s\-().+]+$/.test(t) && /\d/.test(t) ? normalizePhone(t) : t;
 }
+
+/**
+ * รูปแบบมาตรฐานเบอร์ไทยสำหรับ **เก็บ/เทียบ** — ยกมาจาก CustomerForm ที่เคยเขียนไว้เอง
+ *   "+66 81 555 4544" / "66815554544" → "0815554544"   (รหัสประเทศ → 0)
+ *   "815554544" (9 หลัก ไม่มี 0 นำ)      → "0815554544"   (ลูกค้าที่พิมพ์ตกเลข 0)
+ * ⚠️ ไม่ใช้ตอน "พิมพ์" (sanitizePhoneInput) — แปลง 66→0 กลางคันจะทำให้ตัวอักษรเด้งใต้นิ้ว
+ *    ใช้ตอนบันทึก/เช็คซ้ำ/จับคู่ออเดอร์เท่านั้น
+ */
+export function toThaiPhone(raw: string | null | undefined): string {
+  let d = normalizePhone(raw).replace(/^\+/, '');
+  if (d.startsWith('66') && d.length >= 11) d = '0' + d.slice(2);
+  if (d.length === 9 && !d.startsWith('0')) d = '0' + d;
+  return d;
+}
+
+/** เบอร์ไทยที่ใช้ได้: 9–10 หลัก ขึ้นต้นด้วย 0 (บ้าน 9 · มือถือ 10) — ว่างถือว่าผ่าน ให้ `required` ตัดสินเอง */
+export function isValidThaiPhone(raw: string | null | undefined): boolean {
+  const d = toThaiPhone(raw);
+  if (!d) return true;
+  return (d.length === 9 || d.length === 10) && d.startsWith('0');
+}

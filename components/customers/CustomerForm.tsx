@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { PHONE_INPUT_PROPS, onPhoneChange } from '@/lib/numeric-input';
+import { PHONE_INPUT_PROPS, isValidThaiPhone, onPhoneChange, toThaiPhone } from '@/lib/numeric-input';
 import dynamic from 'next/dynamic';
 import {
   Check,
@@ -79,23 +79,9 @@ interface CustomerFormProps {
   onNavigateToChat?: (contactId: string, platform: string) => void;
 }
 
-// Phone number formatting utilities
-const formatPhoneDisplay = (phone: string): string => {
-  const cleaned = phone.replace(/\D/g, '');
-  if (cleaned.length === 10 && cleaned.startsWith('0')) return `${cleaned.slice(0, 3)}-${cleaned.slice(3, 6)}-${cleaned.slice(6)}`;
-  if (cleaned.length === 9 && cleaned.startsWith('0')) return `${cleaned.slice(0, 2)}-${cleaned.slice(2, 5)}-${cleaned.slice(5)}`;
-  return phone;
-};
-const normalizePhone = (phone: string): string => {
-  let cleaned = phone.replace(/\D/g, '');
-  if (cleaned.startsWith('66')) cleaned = '0' + cleaned.slice(2);
-  if (cleaned.length === 9 && !cleaned.startsWith('0')) cleaned = '0' + cleaned;
-  return cleaned;
-};
-const validatePhone = (phone: string): boolean => {
-  const cleaned = phone.replace(/\D/g, '');
-  return (cleaned.length === 10 || cleaned.length === 9) && cleaned.startsWith('0');
-};
+// กติกาเบอร์โทรอยู่ที่ lib/numeric-input.ts ที่เดียว (toThaiPhone / isValidThaiPhone) —
+// เดิมไฟล์นี้เขียน normalize/validate/format เอง และโชว์เบอร์แบบมีขีดคนละ format กับที่อื่นทั้งระบบ
+// ตอนนี้ทุกช่องโชว์และเก็บเป็นตัวเลขล้วนเหมือนกันหมด (เจ้าของกำหนด 9 ก.ย. 2026)
 
 // Customer types
 const ALL_CUSTOMER_TYPE_OPTIONS = [
@@ -212,13 +198,13 @@ export default function CustomerForm({
   }, [isEditing, customerId]);
 
   useEffect(() => {
-    if (formData.phone) setPhoneDisplay(formatPhoneDisplay(formData.phone));
+    if (formData.phone) setPhoneDisplay(toThaiPhone(formData.phone));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handlePhoneChange = (value: string) => {
-    const normalized = normalizePhone(value);
-    setPhoneDisplay(formatPhoneDisplay(normalized));
+    const normalized = toThaiPhone(value);
+    setPhoneDisplay(toThaiPhone(normalized));
     setFormData(prev => ({ ...prev, phone: normalized }));
   };
 
@@ -258,7 +244,7 @@ export default function CustomerForm({
       return;
     }
     setFieldErrors({});
-    if (formData.phone && !validatePhone(formData.phone)) { showToast('รูปแบบเบอร์โทรไม่ถูกต้อง (ต้องเป็นเบอร์ไทย 9-10 หลัก)', 'error'); return; }
+    if (formData.phone && !isValidThaiPhone(formData.phone)) { showToast('รูปแบบเบอร์โทรไม่ถูกต้อง (ต้องเป็นเบอร์ไทย 9-10 หลัก)', 'error'); return; }
     try {
       const dbCustomerType = resolveDbCustomerType(formData.customer_type, formData.sale_type);
       await onSubmit({ ...formData, customer_type: dbCustomerType }, resolvedCustomerId, brandGpRows);
@@ -395,7 +381,7 @@ export default function CustomerForm({
           <input {...PHONE_INPUT_PROPS} value={phoneDisplay} onChange={onPhoneChange(handlePhoneChange)}
             onBlur={() => setShowPhoneError(true)} onFocus={() => setShowPhoneError(false)}
             className={inputCompact} placeholder="0xx-xxx-xxxx" />
-          {showPhoneError && formData.phone && !validatePhone(formData.phone) && (
+          {showPhoneError && formData.phone && !isValidThaiPhone(formData.phone) && (
             <p className="text-xs text-red-500 mt-1">รูปแบบเบอร์โทรไม่ถูกต้อง</p>
           )}
         </div>
@@ -505,7 +491,7 @@ export default function CustomerForm({
                   <input {...PHONE_INPUT_PROPS} value={phoneDisplay} onChange={onPhoneChange(handlePhoneChange)}
                     onBlur={() => setShowPhoneError(true)} onFocus={() => setShowPhoneError(false)}
                     className={inputFull} placeholder="0xx-xxx-xxxx" />
-                  {showPhoneError && formData.phone && !validatePhone(formData.phone) && <p className="text-xs text-red-500 mt-1">เบอร์ไทย 9-10 หลัก</p>}
+                  {showPhoneError && formData.phone && !isValidThaiPhone(formData.phone) && <p className="text-xs text-red-500 mt-1">เบอร์ไทย 9-10 หลัก</p>}
                 </div>
                 <div>
                   <label className={labelFull}>อีเมล</label>

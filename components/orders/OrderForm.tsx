@@ -67,6 +67,7 @@ import { Trash2,
 import Link from 'next/link';
 
 import { isValidEmail, EMAIL_INVALID_MESSAGE } from '@/lib/email';
+import { normalizePhone } from '@/lib/numeric-input';
 // ข้อความเดียวกันทั้ง validate ตอนบันทึก และตอนกด "ถัดไป" ในเปลือก wizard
 // (เขียนคนละที่แล้วดริฟต์กันคือวิธีที่ผู้ใช้เจอสองข้อความสำหรับเรื่องเดียวกัน)
 const NO_ITEMS_ERROR = 'กรุณาเพิ่มสินค้าอย่างน้อย 1 รายการ';
@@ -1215,7 +1216,7 @@ export default function OrderForm({
   const lookupPhoneDuplicate = useDebouncedCallback(async (digits: string) => {
     try {
       const { rows } = await fetchCustomerSearchPage(digits);
-      const hit = rows.find(c => (c.phone || '').replace(/\D/g, '') === digits);
+      const hit = rows.find(c => normalizePhone(c.phone) === digits);
       setPhoneDuplicate(hit
         ? { id: hit.id, name: hit.name, hint: hit.customer_code || undefined, editUrl: `/customers/${hit.id}` }
         : null);
@@ -1226,7 +1227,7 @@ export default function OrderForm({
 
   useEffect(() => {
     if (!newCustomerMode || selectedCustomer) { setPhoneDuplicate(null); return; }
-    const digits = (deliveryPhone || '').replace(/\D/g, '');
+    const digits = normalizePhone(deliveryPhone);
     // เบอร์มือถือไทย 10 หลัก · เบอร์บ้าน 9 — สั้นกว่านั้นยังพิมพ์ไม่เสร็จ อย่าเพิ่งยิง
     if (digits.length < 9) { setPhoneDuplicate(null); return; }
     void lookupPhoneDuplicate(digits);
@@ -2622,7 +2623,7 @@ export default function OrderForm({
           searchPlaceholder="ค้นหาชื่อ, เบอร์โทร, อีเมล หรือรหัส..."
           duplicatePhoneMatch={phoneDuplicate}
           onRecheckDuplicate={() => {
-            const digits = (deliveryPhone || '').replace(/\D/g, '');
+            const digits = normalizePhone(deliveryPhone);
             if (digits.length >= 9) void lookupPhoneDuplicate(digits);
           }}
           onUseDuplicateCustomer={(id) => {
