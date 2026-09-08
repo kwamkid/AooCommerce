@@ -186,13 +186,18 @@ export default function EntitySearchInput({
 
   // ผลลัพธ์ชุดใหม่ (หรือเพิ่งเปิด dropdown) → highlight แถวแรกให้เลย
   // จะได้กด Enter เลือกได้ทันที ไม่ต้องกดลูกศรลงหนึ่งทีก่อน + กัน index ค้างเกินลิสต์
+  //
+  // **ค้นไม่เจอเลย → เล็งไปที่แถว "สร้างใหม่"** เพราะตอนนั้นมันคือทางเดียวที่เหลือ
+  // (พิมพ์ชื่อลูกค้าใหม่แล้วกด Enter รวดเดียวจบ ไม่ต้องละมือไปกดเมาส์)
+  // แต่ถ้ามีผลค้นหา ต้องเล็งแถวแรกเสมอ — ไม่งั้น Enter จะไปสร้างซ้ำทั้งที่มีคนนั้นอยู่แล้ว
   useEffect(() => {
     if (!open) return;
-    setHighlightIdx(filtered.length > 0 ? 0 : -1);
+    if (filtered.length > 0) setHighlightIdx(0);
+    else setHighlightIdx(canCreate ? createIdx : -1);
     // ตั้งใจ track แค่ตอน "ชุดผลลัพธ์เปลี่ยน" — ใช้ id แถวแรก+จำนวน ไม่ใช่ตัว array
     // (array ถูกสร้างใหม่ทุก render ถ้าใส่ตรงๆ effect จะยิงรัวจน highlight ที่ผู้ใช้เลื่อนไว้เด้งกลับ)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, filtered.length, filtered[0]?.id]);
+  }, [open, filtered.length, filtered[0]?.id, canCreate, createIdx]);
 
   // Scroll highlighted into view
   useEffect(() => {
