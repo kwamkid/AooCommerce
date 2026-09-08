@@ -95,6 +95,14 @@ const CustomerForm = dynamic(() => import('@/components/customers/CustomerForm')
  * ชนิดข้อความที่ "วาดกล่องของตัวเอง" — ฟองรอบนอกต้องโปร่งใส ไม่งั้นจะได้กล่องซ้อนกล่อง
  * (การ์ดสินค้า/ออเดอร์ของ Shopee มีพื้นขาว+ขอบของตัวเองเหมือนการ์ด template ของ FB)
  */
+/** ไฟล์แนบที่รอส่งในกล่องพิมพ์ — ไฟล์จากเครื่อง (ต้องอัปก่อน) หรือรูปที่อยู่บน storage แล้ว */
+type ChatAttachment =
+  | { id: string; kind: 'file'; file: File; previewUrl: string }
+  | { id: string; kind: 'url'; url: string; title: string };
+
+/** เพดานต่อการส่งหนึ่งครั้ง — กันเผลอลากทั้งอัลบั้มเข้าห้องแชทลูกค้า */
+const MAX_ATTACHMENTS = 10;
+
 const BARE_BUBBLE_TYPES = ['sticker', 'image', 'image_album', 'video', 'flex', 'template', 'imagemap', 'story_mention', 'item', 'order'];
 
 function UnifiedChatPageContent() {
@@ -186,8 +194,13 @@ function UnifiedChatPageContent() {
   const [savedReplySearch, setSavedReplySearch] = useState('');
   const [savedReplyIndex, setSavedReplyIndex] = useState(0);
   const [savedReplyModalOpen, setSavedReplyModalOpen] = useState(false);
-  /** รูปของข้อความสำเร็จรูปที่รอส่งพร้อมข้อความ (ส่งตามหลังข้อความเมื่อกดส่ง) */
-  const [pendingImage, setPendingImage] = useState<{ url: string; title: string } | null>(null);
+  /**
+   * ไฟล์แนบที่ "รอส่ง" — ลากวาง / กดเลือกไฟล์ / รูปของข้อความสำเร็จรูป มากองรวมกันที่นี่
+   * แล้วส่งตอนกด Enter หรือปุ่มส่ง · เจ้าของขอให้ได้เห็นก่อน (ลากผิด ลากเกิน อยากลบบางรูป)
+   */
+  const [attachments, setAttachments] = useState<ChatAttachment[]>([]);
+  /** ความคืบหน้าตอนกำลังส่งชุดรูป — แสดงเป็นแถบในกล่องพิมพ์ */
+  const [uploadProgress, setUploadProgress] = useState<{ done: number; total: number } | null>(null);
 
   // ── ลากรูปมาวางในหน้าแชท ──
   const [dragActive, setDragActive] = useState(false);
@@ -941,16 +954,16 @@ function UnifiedChatPageContent() {
 
   const sendMessage = (retryMessage?: ChatMessage) => {
     const messageText = retryMessage?.content || newMessage.trim();
-    // รูปของข้อความสำเร็จรูปที่รออยู่ — ส่ง "ตามหลัง" ข้อความ (ข้อความคือสิ่งที่ผู้ใช้เห็นแล้วกดส่ง)
-    const attachment = retryMessage ? null : pendingImage;
+    // ไฟล์แนบที่รออยู่ — ส่ง "ตามหลัง" ข้อความ (ข้อความคือสิ่งที่ผู้ใช้เห็นแล้วกดส่ง)
+    const queued = retryMessage ? [] : attachments;
     if (!selectedContact) return;
-    if (!messageText && !attachment) return;
-    if (!retryMessage) setPendingImage(null);
+    if (!messageText && queued.length === 0) return;
+    if (!retryMessage) setAttachments([]);
 
     // มีแต่รูป ไม่มีข้อความ → ส่งรูปอย่างเดียว
-    if (!messageText && attachment) {
+    if (!messageText) {
       setNewMessage('');
-      void sendImageUrl(attachment.url);
+      void deliverAttachments(queued);
       return;
     }
     const tempId = retryMessage?._tempId || `temp-${Date.now()}`;
@@ -989,7 +1002,7 @@ function UnifiedChatPageContent() {
         if (result.message) {
           setMessages(prev => prev.map(m => m._tempId === tempId ? { ...result.message, contact_id: contactId, _status: 'sent' as const } : m));
         }
-        if (attachment) await sendImageUrl(attachment.url);
+        await deliverAttachments(queued);
       } catch (error) {
         console.error('Error sending message:', error);
         // เก็บเหตุผลจากแพลตฟอร์มไว้ที่ข้อความ — คนกดลองใหม่ต้องรู้ว่าล้มเพราะอะไร ไม่ใช่ลองซ้ำเปล่า ๆ
@@ -1095,17 +1108,20 @@ function UnifiedChatPageContent() {
   /** เพดานต่อครั้ง — กันเผลอเลือกทั้งอัลบั้มแล้วยิงเข้าห้องแชทลูกค้าเป็นร้อยใบ */
   const MAX_IMAGES_PER_PICK = 10;
 
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const picked = Array.from(e.target.files || []);
     if (fileInputRef.current) fileInputRef.current.value = '';
-    await sendImageFiles(picked);
+    addAttachmentFiles(picked);
   };
 
-  /** ส่งรูปเป็นชุด — ใช้ร่วมกันระหว่างปุ่มเลือกไฟล์กับการลากรูปมาวางในหน้าแชท */
-  const sendImageFiles = async (picked: File[]) => {
+  /**
+   * เอาไฟล์เข้าคิวรอส่ง — **ไม่ส่งทันที** ทั้งลากวางและกดเลือกไฟล์เดินทางนี้เหมือนกัน
+   * (สองทางทำคนละอย่างคือกับดัก ผู้ใช้จำไม่ได้ว่าทางไหนส่งเลยทางไหนรอ)
+   */
+  const addAttachmentFiles = (picked: File[]) => {
     if (picked.length === 0 || !selectedContact) return;
 
-    // คัดของที่ส่งไม่ได้ออกก่อนแล้วบอกทีเดียว — เตือนทีละใบตอนเลือกมา 10 ใบคือการรังควาน
+    // คัดของที่ส่งไม่ได้ออกก่อนแล้วบอกทีเดียว — เตือนทีละใบตอนลากมา 10 ใบคือการรังควาน
     // ห้ามเช็คด้วย file.type อย่างเดียว — Chrome บน Windows ให้ type ว่างกับ .heic
     const notImage = picked.filter(f => !looksLikeImageFile(f));
     const tooBig = picked.filter(f => looksLikeImageFile(f) && f.size > 10 * 1024 * 1024);
@@ -1114,31 +1130,96 @@ function UnifiedChatPageContent() {
     if (tooBig.length) showToast(`ข้ามไฟล์ที่ใหญ่เกิน 10MB ${tooBig.length} ไฟล์`, 'error');
     if (files.length === 0) return;
 
-    const batch = files.slice(0, MAX_IMAGES_PER_PICK);
-    if (files.length > batch.length) {
-      showToast(`ส่งได้ครั้งละ ${MAX_IMAGES_PER_PICK} รูป — ส่ง ${batch.length} รูปแรกก่อน`, 'error');
+    const room = MAX_ATTACHMENTS - attachments.length;
+    if (room <= 0) { showToast(`แนบได้สูงสุด ${MAX_ATTACHMENTS} รูปต่อครั้ง`, 'error'); return; }
+    const take = files.slice(0, room);
+    if (files.length > take.length) {
+      showToast(`แนบได้สูงสุด ${MAX_ATTACHMENTS} รูปต่อครั้ง — เพิ่มให้ ${take.length} รูปแรก`, 'error');
     }
 
-    // ส่ง **ทีละใบตามลำดับที่เลือก** ไม่ยิงขนาน — ลูกค้าต้องเห็นรูปเรียงตามที่เราส่ง
-    // และแพลตฟอร์มไม่รับประกันลำดับถ้ายิงพร้อมกัน (Lazada มีระยะห่างขั้นต่ำต่อ call ด้วย)
-    const many = batch.length > 1;
+    setAttachments(prev => [...prev, ...take.map(file => ({
+      id: `att-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      kind: 'file' as const,
+      file,
+      previewUrl: URL.createObjectURL(file),
+    }))]);
+    inputRef.current?.focus();
+  };
+
+  /** เอาไฟล์แนบออกทีละใบ — ต้องคืน blob URL ด้วย ไม่งั้นรั่วสะสมทั้งวัน */
+  const removeAttachment = (id: string) => {
+    setAttachments(prev => {
+      const target = prev.find(a => a.id === id);
+      if (target?.kind === 'file') URL.revokeObjectURL(target.previewUrl);
+      return prev.filter(a => a.id !== id);
+    });
+  };
+
+  const clearAttachments = () => {
+    setAttachments(prev => {
+      prev.forEach(a => { if (a.kind === 'file') URL.revokeObjectURL(a.previewUrl); });
+      return [];
+    });
+  };
+
+  /**
+   * ส่งไฟล์แนบทั้งคิว — **ทีละใบตามลำดับ ไม่ยิงขนาน** ลูกค้าต้องเห็นรูปเรียงตามที่เราวางไว้
+   * (และแพลตฟอร์มไม่รับประกันลำดับถ้ายิงพร้อมกัน · Lazada มีระยะห่างขั้นต่ำต่อ call ด้วย)
+   */
+  const deliverAttachments = async (list: ChatAttachment[]) => {
+    if (list.length === 0) return;
+    const many = list.length > 1;
     // รหัสชุด — โครงเดียวกับ imageSet ที่ LINE ส่งมาตอนลูกค้าส่งหลายรูป
-    // ทำให้หน้าแชทของเรายุบรูปชุดนี้เป็นฟองอัลบั้มใบเดียวเหมือนที่ลูกค้าเห็นในแอป LINE
+    // ทำให้หน้าแชทของเรายุบรูปชุดนี้เป็นฟองอัลบั้มใบเดียว
     const setId = many ? `out-${Date.now()}-${Math.random().toString(36).slice(2, 8)}` : null;
+
+    setUploadProgress({ done: 0, total: list.length });
     let failed = 0;
-    for (let i = 0; i < batch.length; i++) {
-      const ok = await sendImageFile(batch[i], undefined, {
-        quiet: many,
-        imageSet: setId ? { id: setId, index: i + 1, total: batch.length } : undefined,
-      });
+    for (let i = 0; i < list.length; i++) {
+      const a = list[i];
+      const imageSet = setId ? { id: setId, index: i + 1, total: list.length } : undefined;
+      const ok = a.kind === 'file'
+        ? await sendImageFile(a.file, undefined, { quiet: many, imageSet })
+        : await sendImageUrl(a.url, undefined, { imageSet });
       if (!ok) failed += 1;
+      if (a.kind === 'file') URL.revokeObjectURL(a.previewUrl);
+      setUploadProgress({ done: i + 1, total: list.length });
     }
+    setUploadProgress(null);
+
     if (many) {
-      const sent = batch.length - failed;
+      const sent = list.length - failed;
       if (failed === 0) showToast(`ส่ง ${sent} รูปแล้ว`);
-      else showToast(`ส่งสำเร็จ ${sent} จาก ${batch.length} รูป — กดลองใหม่ที่ฟองสีแดงได้`, 'error');
+      else showToast(`ส่งสำเร็จ ${sent} จาก ${list.length} รูป — กดลองใหม่ที่ฟองสีแดงได้`, 'error');
     }
   };
+
+  /**
+   * วางรูปจากคลิปบอร์ด (Ctrl+V / Cmd+V) — สกรีนช็อตเข้าคิวไฟล์แนบเหมือนลากวาง
+   * ⚠️ ต้อง preventDefault เฉพาะตอนเจอ "รูป" จริง ๆ ไม่งั้นวางข้อความธรรมดาไม่ลงช่องพิมพ์
+   */
+  const handleComposerPaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+    if (!selectedContact) return;
+    const files = Array.from(e.clipboardData?.items || [])
+      .filter(it => it.kind === 'file' && it.type.startsWith('image/'))
+      .map(it => it.getAsFile())
+      .filter((f): f is File => !!f);
+    if (files.length === 0) return;
+    e.preventDefault();
+    addAttachmentFiles(files);
+  };
+
+  /**
+   * เปลี่ยนห้องแชท = ล้างไฟล์แนบที่ค้าง
+   * ⚠️ ห้ามให้รูปที่เตรียมไว้ให้ลูกค้าคนหนึ่งตามไปค้างในห้องของอีกคน — กด Enter ทีเดียว
+   * รูปไปผิดคนแล้วเรียกคืนไม่ได้
+   */
+  useEffect(() => {
+    setAttachments(prev => {
+      prev.forEach(a => { if (a.kind === 'file') URL.revokeObjectURL(a.previewUrl); });
+      return prev.length === 0 ? prev : [];
+    });
+  }, [selectedContact?.id]);
 
   /** ลากไฟล์เข้ามาในหน้าแชท — สนใจเฉพาะ "ไฟล์" ไม่ใช่ลากข้อความ/ลิงก์ */
   const dragHasFiles = (e: React.DragEvent) =>
@@ -1165,12 +1246,12 @@ function UnifiedChatPageContent() {
     if (dragDepthRef.current === 0) setDragActive(false);
   };
 
-  const handleDrop = async (e: React.DragEvent) => {
+  const handleDrop = (e: React.DragEvent) => {
     if (!selectedContact || !dragHasFiles(e)) return;
     e.preventDefault();
     dragDepthRef.current = 0;
     setDragActive(false);
-    await sendImageFiles(Array.from(e.dataTransfer.files || []));
+    addAttachmentFiles(Array.from(e.dataTransfer.files || []));
   };
 
   /**
@@ -1228,11 +1309,18 @@ function UnifiedChatPageContent() {
    * ส่งรูปที่มี URL สาธารณะอยู่แล้ว (รูปของข้อความสำเร็จรูป) — ไม่ต้องอัปโหลดซ้ำ
    * ใช้ตอนกดส่งพร้อมข้อความ และตอนกด "ลองใหม่" ของฟองที่ล้ม
    */
-  const sendImageUrl = async (imageUrl: string, retryOf?: ChatMessage) => {
-    if (!selectedContact) return;
+  const sendImageUrl = async (
+    imageUrl: string,
+    retryOf?: ChatMessage,
+    opts?: { imageSet?: { id: string; index: number; total: number } },
+  ): Promise<boolean> => {
+    if (!selectedContact) return false;
     const tempId = retryOf?._tempId || `temp-${Date.now()}-qr`;
     const contactId = retryOf?.contact_id || selectedContact.id;
     const platform = selectedContact.platform;
+
+    const imageSet = opts?.imageSet || retryOf?.raw_message?.image_set as
+      { id: string; index: number; total: number } | undefined;
 
     if (retryOf) {
       setMessages(prev => prev.map(m => m._tempId === tempId ? { ...m, _status: 'sending' as const, _error: undefined } : m));
@@ -1240,21 +1328,22 @@ function UnifiedChatPageContent() {
       setMessages(prev => [...prev, {
         id: tempId, _tempId: tempId, contact_id: contactId,
         direction: 'outgoing', message_type: 'image', content: '[รูปภาพ]',
-        raw_message: { imageUrl }, created_at: new Date().toISOString(), _status: 'sending',
+        raw_message: { imageUrl, ...(imageSet ? { image_set: imageSet } : {}) },
+        created_at: new Date().toISOString(), _status: 'sending',
       }]);
     }
 
     try {
       const response = await apiFetch('/api/chat/messages', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contact_id: contactId, platform, type: 'image', imageUrl })
+        body: JSON.stringify({ contact_id: contactId, platform, type: 'image', imageUrl, imageSet })
       });
       if (!response.ok) {
         const errData = await response.json().catch(() => ({}));
         if (errData.errorCode === 'MESSAGING_WINDOW_EXPIRED') {
           setMessages(prev => prev.filter(m => m._tempId !== tempId));
           showToast('ไม่สามารถส่งรูปภาพได้ — ลูกค้าไม่ได้ส่งข้อความมาภายใน 7 วัน (หมดเวลาตอบกลับ)', 'error');
-          return;
+          return false;
         }
         throw new Error(errData.error || 'Failed');
       }
@@ -1262,10 +1351,12 @@ function UnifiedChatPageContent() {
       if (result.message) {
         setMessages(prev => prev.map(m => m._tempId === tempId ? { ...result.message, contact_id: contactId, _status: 'sent' as const } : m));
       }
+      return true;
     } catch (error) {
       const reason = error instanceof Error && error.message !== 'Failed' ? error.message : undefined;
       setMessages(prev => prev.map(m => m._tempId === tempId ? { ...m, _status: 'failed' as const, _error: reason } : m));
       showToast(reason ? `ส่งรูปภาพไม่สำเร็จ: ${reason}` : 'ส่งรูปภาพไม่สำเร็จ', 'error');
+      return false;
     }
   };
 
@@ -1287,7 +1378,12 @@ function UnifiedChatPageContent() {
       const base = prev.trim();
       return base && text ? `${base} ${text}` : (text || base);
     });
-    if (reply.image_url) setPendingImage({ url: reply.image_url, title: reply.title });
+    if (reply.image_url) {
+      setAttachments(prev => prev.length >= MAX_ATTACHMENTS ? prev : [...prev, {
+        id: `att-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        kind: 'url' as const, url: reply.image_url!, title: reply.title,
+      }]);
+    }
 
     setSavedReplyMode(false);
     setSavedReplySearch('');
@@ -2347,7 +2443,25 @@ function UnifiedChatPageContent() {
         </div>
 
         {/* Chat Area */}
-        <div className={`flex-col relative ${mobileView === 'chat' ? 'flex' : 'hidden md:flex'} ${rightPanel ? 'w-full md:w-[340px] xl:w-[420px]' : 'flex-1'}`}>
+        {/* ลากรูปมาวางได้ "ทั้งแผง" — ผูกที่รากแล้วอาศัย bubbling จากลูกทุกตัว
+            ถ้าผูกเฉพาะกล่องข้อความ วางพลาดที่หัวแชท/กล่องพิมพ์ เบราว์เซอร์จะเปิดไฟล์
+            ทับหน้าเว็บทิ้งงานที่ค้างอยู่ */}
+        <div
+          onDragEnter={handleDragEnter}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+          className={`flex-col relative ${mobileView === 'chat' ? 'flex' : 'hidden md:flex'} ${rightPanel ? 'w-full md:w-[340px] xl:w-[420px]' : 'flex-1'}`}
+        >
+          {/* overlay ต้อง pointer-events-none ไม่งั้นมันกินอีเวนต์ของแผงข้างล่าง
+              แล้ว dragleave จะยิงทันทีที่ overlay โผล่ = กะพริบไม่หยุด */}
+          {dragActive && (
+            <div className="absolute inset-2 z-30 pointer-events-none rounded-xl border-2 border-dashed border-primary bg-primary/10 backdrop-blur-[1px] flex flex-col items-center justify-center gap-2">
+              <ImagePlus className="w-10 h-10 text-primary" />
+              <p className="text-base font-medium text-primary">วางรูปที่นี่</p>
+              <p className="helper-text text-primary/80">รูปจะไปรออยู่ในช่องพิมพ์ กด Enter เพื่อส่ง</p>
+            </div>
+          )}
           {selectedContact ? (
             <>
               {/* Chat Header */}
@@ -2437,25 +2551,8 @@ function UnifiedChatPageContent() {
               {/* overscroll-contain — ลากเลยสุดรายการแล้วห้ามส่งต่อให้ main เลื่อน/เด้ง */}
               {/* data-ptr-ignore — รายการข้อความเลื่อนขึ้นไปดูของเก่าบ่อย ถึงยอดแล้วลากต่อ
                   ไม่ควรรีเฟรชทั้งแอปทิ้งที่อ่านอยู่ — รูดรีเฟรชได้จากรายชื่อแชท/หัวแชทแทน */}
-              <div
-                ref={messagesContainerRef}
-                onScroll={handleScroll}
-                data-ptr-ignore
-                onDragEnter={handleDragEnter}
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
-                onDrop={handleDrop}
-                className="flex-1 overflow-y-auto overscroll-contain p-4 space-y-4 bg-gray-50 dark:bg-slate-900 relative font-sarabun"
-              >
-                {/* ลากรูปมาวางแล้วส่งเลย — overlay ต้อง pointer-events-none ไม่งั้นมันกินอีเวนต์
-                    ของกล่องข้างล่างแล้ว dragleave จะยิงทันทีที่ overlay โผล่ (กะพริบไม่หยุด) */}
-                {dragActive && (
-                  <div className="absolute inset-2 z-20 pointer-events-none rounded-xl border-2 border-dashed border-primary bg-primary/10 backdrop-blur-[1px] flex flex-col items-center justify-center gap-2">
-                    <ImagePlus className="w-10 h-10 text-primary" />
-                    <p className="text-base font-medium text-primary">วางรูปเพื่อส่งเลย</p>
-                    <p className="helper-text text-primary/80">ส่งได้ครั้งละ {MAX_IMAGES_PER_PICK} รูป</p>
-                  </div>
-                )}
+              <div ref={messagesContainerRef} onScroll={handleScroll} data-ptr-ignore className="flex-1 overflow-y-auto overscroll-contain p-4 space-y-4 bg-gray-50 dark:bg-slate-900 relative font-sarabun">
+
                 {loadingMessages ? (
                   <SkeletonChat />
                 ) : messages.length === 0 ? (
@@ -2538,27 +2635,56 @@ function UnifiedChatPageContent() {
               // (ห้ามไปเผื่อที่ตัวครอบทั้งหน้า — จะกลายเป็นแถบว่างค้างท้ายจอแทน)
               // บนมือถือใช้ pb-safe-min-2 = เท่ากับ inset ของ home indicator พอดี ไม่บวกเพิ่ม
               // (ผู้ใช้ขอให้ชิดล่างสุด) — ห้ามลดต่ำกว่า inset ไม่งั้นช่องพิมพ์ไปอยู่ใต้แถบ gesture ของ iOS
-              <div
-                // รับ drop ตรงนี้ด้วย — ไม่งั้นวางพลาดลงกล่องพิมพ์ เบราว์เซอร์จะเปิดไฟล์ทับหน้าเว็บทิ้งงานที่ค้างอยู่
-                onDragEnter={handleDragEnter}
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
-                onDrop={handleDrop}
-                className="p-2 md:p-4 pb-safe-min-2 md:pb-safe-4 border-t border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800"
-              >
-                {pendingImage && (
-                  <div className="flex items-center gap-2 mb-2 px-2 py-1.5 bg-gray-50 dark:bg-slate-700/50 border border-gray-200 dark:border-slate-600 rounded-lg">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={pendingImage.url} alt="" className="w-9 h-9 rounded object-cover flex-shrink-0" />
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm text-gray-700 dark:text-slate-200 truncate">{pendingImage.title}</p>
-                      <p className="helper-text text-gray-500">รูปจะถูกส่งตามหลังข้อความ</p>
-                    </div>
-                    <Tooltip text="เอารูปออก">
-                      <button onClick={() => setPendingImage(null)} aria-label="เอารูปออก" className="p-1 text-gray-400 hover:text-red-500 rounded-full">
-                        <X className="w-4 h-4" />
+              <div className="p-2 md:p-4 pb-safe-min-2 md:pb-safe-4 border-t border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+                {/* ไฟล์แนบที่รอส่ง — เห็นก่อน ลบรายรูปได้ แล้วค่อยกด Enter ส่ง */}
+                {attachments.length > 0 && (
+                  <div className="mb-2">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="helper-text text-gray-500">
+                        แนบ {attachments.length} รูป · จะส่งตามหลังข้อความ
+                      </span>
+                      <button onClick={clearAttachments} className="helper-text text-gray-500 hover:text-red-600">
+                        ล้างทั้งหมด
                       </button>
-                    </Tooltip>
+                    </div>
+                    <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                      {attachments.map(a => (
+                        <div key={a.id} className="relative flex-shrink-0">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={a.kind === 'file' ? a.previewUrl : a.url}
+                            alt=""
+                            className="w-16 h-16 rounded-lg object-cover border border-gray-200 dark:border-slate-600"
+                          />
+                          <button
+                            onClick={() => removeAttachment(a.id)}
+                            aria-label="เอารูปนี้ออก"
+                            className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-gray-900/80 text-white flex items-center justify-center hover:bg-red-500 transition-colors"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* กำลังอัปโหลด/ส่งชุดรูป — บอกว่าถึงใบไหนแล้ว ไม่ใช่หมุนเฉย ๆ */}
+                {uploadProgress && (
+                  <div className="mb-2">
+                    <div className="flex items-center justify-between helper-text text-gray-500 mb-1">
+                      <span>กำลังส่งรูป {uploadProgress.done}/{uploadProgress.total}</span>
+                      <span>{Math.round((uploadProgress.done / uploadProgress.total) * 100)}%</span>
+                    </div>
+                    <div className="h-1.5 rounded-full bg-gray-200 dark:bg-slate-700 overflow-hidden">
+                      <div
+                        className="h-full rounded-full transition-all duration-300"
+                        style={{
+                          width: `${(uploadProgress.done / uploadProgress.total) * 100}%`,
+                          backgroundColor: platformColor,
+                        }}
+                      />
+                    </div>
                   </div>
                 )}
                 <div className="flex items-center gap-1 md:gap-2">
@@ -2610,9 +2736,10 @@ function UnifiedChatPageContent() {
                   </div>
                   <input ref={inputRef} type="text" value={newMessage} onChange={(e) => handleComposerChange(e.target.value)}
                     onKeyDown={(e) => { if (handleComposerSavedReplyKey(e)) return; if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
+                    onPaste={handleComposerPaste}
                     placeholder="พิมพ์ข้อความ..." autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck={false} enterKeyHint="send"
                     className="flex-1 min-w-0 h-10 px-3 md:px-4 py-2 mr-2 text-sm md:text-base border border-gray-300 rounded-[15px] focus:outline-none focus:ring-2" style={{ '--tw-ring-color': platformColor } as any} />
-                  <button onClick={() => { sendMessage(); }} disabled={!newMessage.trim() && !pendingImage} className="p-2 text-white rounded-full disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex-shrink-0" style={{ backgroundColor: platformColor }}><Send className="w-5 h-5" /></button>
+                  <button onClick={() => { sendMessage(); }} disabled={(!newMessage.trim() && attachments.length === 0) || !!uploadProgress} className="p-2 text-white rounded-full disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex-shrink-0" style={{ backgroundColor: platformColor }}><Send className="w-5 h-5" /></button>
                 </div>
               </div>
               )}
