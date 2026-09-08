@@ -15,8 +15,6 @@ export interface SavedReply {
   content: string;
   /** รูปแนบตามลำดับที่จะส่ง (ไม่เกิน MAX_SAVED_REPLY_IMAGES ใบ) */
   image_urls: string[];
-  /** ลิงก์แนบ (คลิปยูทูป · หน้าสินค้า) — ต่อท้ายข้อความตอนแทรกลงช่องพิมพ์ */
-  link_url: string | null;
   sort_order: number;
   is_active: boolean;
   created_by?: string | null;
@@ -104,7 +102,6 @@ export function filterSavedReplies(list: SavedReply[], query: string): SavedRepl
 export function savedReplyPreview(reply: SavedReply, max = 80): string {
   const body = reply.content.replace(/\s+/g, ' ').trim();
   if (body) return body.length > max ? `${body.slice(0, max)}…` : body;
-  if (reply.link_url) return reply.link_url;
   const n = reply.image_urls?.length || 0;
   return n > 1 ? `[รูปภาพ ${n} ใบ]` : n === 1 ? '[รูปภาพ]' : '';
 }

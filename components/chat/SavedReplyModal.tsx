@@ -2,14 +2,17 @@
 //
 // สร้าง/แก้ข้อความสำเร็จรูป — **ตัวเดียวใช้ทั้งหน้าจัดการ (`/settings/saved-replies`)
 // และปุ่มดินสอ/เพิ่มใหม่ในหน้าแชท** เพื่อไม่ให้กติกา (ชื่อบังคับ · ห้ามอักขระพิเศษ ·
-// ห้ามซ้ำ · ต้องมีข้อความหรือรูปหรือลิงก์ · ชิปตัวแปร) หลุดกันสองที่
+// ห้ามซ้ำ · ต้องมีข้อความหรือรูป · ชิปตัวแปร) หลุดกันสองที่
+//
+// **ไม่มีช่อง "ลิงก์" แยก** — ลิงก์พิมพ์ลงช่องข้อความได้เลยและไปเป็นข้อความเดียวกัน
+// ช่องแยกทำให้เข้าใจผิดว่าระบบส่งลิงก์เป็นอีกข้อความหนึ่ง (เจ้าของทักมา 8 ก.ย. 2026)
 //
 // กติกาของชื่ออยู่ที่ [lib/chat/saved-replies.ts](../../lib/chat/saved-replies.ts) ตัวเดียว
 // ที่ API ใช้ด้วย — หน้าจอจึงไม่มีทางบอกว่า "ใช้ได้" แล้วเซิร์ฟเวอร์ปฏิเสธ
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { MessageSquareText, X, Link2, ImagePlus } from 'lucide-react';
+import { MessageSquareText, X, ImagePlus, ChevronLeft, ChevronRight } from 'lucide-react';
 import Modal from '@/components/ui/Modal';
 import Button from '@/components/ui/Button';
 import SaveButton from '@/components/ui/SaveButton';
@@ -48,7 +51,6 @@ export default function SavedReplyModal({ open, onClose, reply, initialContent, 
   const { showToast } = useToast();
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
-  const [linkUrl, setLinkUrl] = useState('');
   const [images, setImages] = useState<DraftImage[]>([]);
   const [saving, setSaving] = useState(false);
   const [charWarning, setCharWarning] = useState(false);
@@ -62,7 +64,6 @@ export default function SavedReplyModal({ open, onClose, reply, initialContent, 
     if (!open) return;
     setTitle(reply?.title || '');
     setContent(reply?.content ?? initialContent ?? '');
-    setLinkUrl(reply?.link_url || '');
     setImages((reply?.image_urls || []).map((url, i) => ({ key: `u${i}-${url}`, url, preview: url })));
     setCharWarning(false);
     // อ่านทั้งคลัง (ไม่ใช่แค่ที่เปิดใช้) — ชื่อชนกับใบที่ปิดอยู่ก็ยังชน · apiFetch แคช 60 วิ
@@ -97,6 +98,17 @@ export default function SavedReplyModal({ open, onClose, reply, initialContent, 
       : [...prev, { key: `f-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, file, preview }]);
   };
 
+  /** สลับรูปกับใบข้าง ๆ — ปุ่มแทนการลาก เพราะแอดมินใช้มือถือเยอะ ลากสลับบนจอสัมผัสใช้ยาก */
+  const moveImage = (index: number, dir: -1 | 1) => {
+    const target = index + dir;
+    setImages(prev => {
+      if (target < 0 || target >= prev.length) return prev;
+      const next = [...prev];
+      [next[index], next[target]] = [next[target], next[index]];
+      return next;
+    });
+  };
+
   /** แทรกโทเคนตรงตำแหน่งเคอร์เซอร์ ไม่ใช่ต่อท้าย — คนเขียนอยู่กลางประโยคจะได้ไม่ต้องย้ายเอง */
   const insertVar = (token: string) => {
     const el = contentRef.current;
@@ -113,14 +125,12 @@ export default function SavedReplyModal({ open, onClose, reply, initialContent, 
   const save = async () => {
     const t = title.trim();
     const c = content.trim();
-    const link = linkUrl.trim();
     if (!t) { showToast('กรุณาตั้งชื่อข้อความสำเร็จรูป', 'error'); return; }
     if (duplicate) { showToast(`มีข้อความสำเร็จรูปชื่อ "${duplicate.title}" อยู่แล้ว`, 'error'); return; }
-    if (!c && images.length === 0 && !link) {
-      showToast('ต้องมีข้อความ รูป หรือลิงก์ อย่างน้อยอย่างใดอย่างหนึ่ง', 'error');
+    if (!c && images.length === 0) {
+      showToast('ต้องมีข้อความหรือรูปอย่างน้อยอย่างใดอย่างหนึ่ง', 'error');
       return;
     }
-    if (link && !/^https:\/\//.test(link)) { showToast('ลิงก์ต้องขึ้นต้นด้วย https://', 'error'); return; }
 
     setSaving(true);
     try {
@@ -141,7 +151,7 @@ export default function SavedReplyModal({ open, onClose, reply, initialContent, 
       const res = await apiFetch('/api/chat/saved-replies', {
         method: reply ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: reply?.id, title: t, content: c, image_urls: urls, link_url: link || null }),
+        body: JSON.stringify({ id: reply?.id, title: t, content: c, image_urls: urls }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || 'บันทึกไม่สำเร็จ');
@@ -209,20 +219,9 @@ export default function SavedReplyModal({ open, onClose, reply, initialContent, 
             ))}
           </div>
           <p className="helper-text text-gray-500 mt-1">
-            ระบบเติมค่าให้ตอนแทรกลงช่องพิมพ์ — ดูข้อความจริงก่อนกดส่งได้เสมอ
+            ระบบเติมค่าให้ตอนแทรกลงช่องพิมพ์ — ดูข้อความจริงก่อนกดส่งได้เสมอ<br />
+            แปะลิงก์ (คลิปยูทูป · หน้าสินค้า) ในข้อความนี้ได้เลย ไปเป็นข้อความเดียวกัน ไม่กินโควตาเพิ่ม
           </p>
-        </div>
-
-        {/* ลิงก์: คลิปยูทูปส่งเป็นลิงก์ในข้อความ ใช้ได้ครบทุกช่องทาง (ส่งไฟล์วิดีโอจริงยังไม่รองรับ) */}
-        <div>
-          <FormInput
-            label="ลิงก์แนบ (ถ้ามี)"
-            value={linkUrl}
-            onChange={e => setLinkUrl(e.target.value)}
-            placeholder="https://youtu.be/..."
-            icon={<Link2 className="w-4 h-4" />}
-            hint="เช่น คลิปวิธีใช้ · หน้าสินค้า · แผนที่ — ต่อท้ายข้อความให้อัตโนมัติตอนแทรก"
-          />
         </div>
 
         <div>
@@ -233,7 +232,7 @@ export default function SavedReplyModal({ open, onClose, reply, initialContent, 
                 <div key={img.key} className="relative w-24 h-24 rounded-lg overflow-hidden border border-gray-200 dark:border-slate-600">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={img.preview} alt="" className="w-full h-full object-cover" />
-                  <span className="absolute bottom-0 left-0 px-1.5 helper-text bg-black/50 text-white rounded-tr">{i + 1}</span>
+                  <span className="absolute top-1 left-1 w-5 h-5 flex items-center justify-center rounded-full bg-black/60 text-white helper-text">{i + 1}</span>
                   <button
                     type="button"
                     disabled={saving}
@@ -243,6 +242,29 @@ export default function SavedReplyModal({ open, onClose, reply, initialContent, 
                   >
                     <X className="w-3.5 h-3.5" />
                   </button>
+                  {/* เลื่อนลำดับด้วยปุ่ม — ใบเดียวไม่ต้องมี */}
+                  {images.length > 1 && (
+                    <div className="absolute inset-x-0 bottom-0 flex bg-black/45">
+                      <button
+                        type="button"
+                        disabled={saving || i === 0}
+                        onClick={() => moveImage(i, -1)}
+                        aria-label="เลื่อนไปก่อนหน้า"
+                        className="flex-1 flex items-center justify-center py-1 text-white disabled:opacity-30 hover:bg-black/30"
+                      >
+                        <ChevronLeft className="w-4 h-4" />
+                      </button>
+                      <button
+                        type="button"
+                        disabled={saving || i === images.length - 1}
+                        onClick={() => moveImage(i, 1)}
+                        aria-label="เลื่อนไปถัดไป"
+                        className="flex-1 flex items-center justify-center py-1 text-white disabled:opacity-30 hover:bg-black/30"
+                      >
+                        <ChevronRight className="w-4 h-4" />
+                      </button>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

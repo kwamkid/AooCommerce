@@ -1423,14 +1423,11 @@ function UnifiedChatPageContent() {
       agentName: userProfile?.name,
     });
 
-    // ลิงก์แนบต่อท้ายข้อความคนละบรรทัด — ไปเป็นข้อความเดียวกัน ไม่กินโควตาเพิ่ม
-    const body = [text, reply.link_url].filter(Boolean).join('\n');
-
     setNewMessage(prev => {
       // โหมด / : สิ่งที่พิมพ์อยู่คือคำค้น ต้องแทนที่ทั้งหมด
-      if (savedReplyMode === 'slash') return body;
+      if (savedReplyMode === 'slash') return text;
       const base = prev.trim();
-      return base && body ? `${base} ${body}` : (body || base);
+      return base && text ? `${base} ${text}` : (text || base);
     });
     // รูปทุกใบเข้าคิวรอส่งตามลำดับที่ตั้งไว้ — เกินเพดานของช่องพิมพ์แล้วก็หยุดเติม
     for (const url of reply.image_urls || []) {

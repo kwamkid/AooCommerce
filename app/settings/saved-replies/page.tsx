@@ -21,7 +21,7 @@ import { useToast } from '@/lib/toast-context';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { apiFetch, invalidateApiCache } from '@/lib/api-client';
 import { filterSavedReplies, savedReplyPreview, savedReplyThumb, type SavedReply } from '@/lib/chat/saved-replies';
-import { MessageSquareText, Plus, Edit2, Trash2, Image as ImageIcon, Link2 } from 'lucide-react';
+import { MessageSquareText, Plus, Edit2, Trash2, Image as ImageIcon } from 'lucide-react';
 
 export default function SavedRepliesSettingsPage() {
   const { allowed, loading: authLoading } = useAuthGuard('chat.reply', { noRedirect: true });
@@ -176,11 +176,6 @@ export default function SavedRepliesSettingsPage() {
                         {r.image_urls.length > 0 && (
                           <Tooltip text={r.image_urls.length > 1 ? `มีรูปแนบ ${r.image_urls.length} ใบ` : 'มีรูปแนบ'}>
                             <ImageIcon className="w-3.5 h-3.5 text-gray-400" />
-                          </Tooltip>
-                        )}
-                        {r.link_url && (
-                          <Tooltip text={r.link_url}>
-                            <Link2 className="w-3.5 h-3.5 text-gray-400" />
                           </Tooltip>
                         )}
                       </span>

@@ -13,7 +13,7 @@ import {
   sanitizeSavedReplyTitle, hasDisallowedTitleChars, SAVED_REPLY_TITLE_HINT,
 } from '@/lib/chat/saved-replies';
 
-const SELECT = 'id, title, content, image_urls, link_url, sort_order, is_active, created_by, created_at, updated_at';
+const SELECT = 'id, title, content, image_urls, sort_order, is_active, created_by, created_at, updated_at';
 
 const MAX_CONTENT = 2000;
 /** unique index บน (company_id, ชื่อที่ normalize) — ดู migration saved_replies_multi_image_link_unique_title */
@@ -24,7 +24,6 @@ interface Body {
   title?: string;
   content?: string;
   image_urls?: unknown;
-  link_url?: string | null;
   is_active?: boolean;
   sort_order?: number;
   /** สลับลำดับหลายใบในคำขอเดียว — หน้าจัดการกดลูกศรขึ้น/ลงแล้วส่งคู่ที่สลับกันมา */
@@ -54,13 +53,9 @@ function cleanImageUrls(raw: unknown): { urls: string[]; error?: string } {
 }
 
 /** คืน error ภาษาไทยเมื่อไม่ผ่าน — ใช้ร่วมทั้ง POST และ PUT ให้กติกาตรงกันเป๊ะ */
-function validateBody(title: string | undefined, content: string | undefined, linkUrl: string | null | undefined): string | null {
+function validateBody(title: string | undefined, content: string | undefined): string | null {
   if (title !== undefined && title.length > MAX_SAVED_REPLY_TITLE) return `ชื่อยาวเกิน ${MAX_SAVED_REPLY_TITLE} ตัวอักษร`;
   if (content !== undefined && content.length > MAX_CONTENT) return `ข้อความยาวเกิน ${MAX_CONTENT} ตัวอักษร`;
-  if (linkUrl) {
-    if (!/^https:\/\//.test(linkUrl)) return 'ลิงก์ต้องขึ้นต้นด้วย https://';
-    try { new URL(linkUrl); } catch { return 'ลิงก์ไม่ถูกต้อง'; }
-  }
   return null;
 }
 
@@ -100,12 +95,11 @@ export async function POST(request: NextRequest) {
   const content = (body.content || '').trim();
   const { urls: imageUrls, error: imageError } = cleanImageUrls(body.image_urls);
   if (imageError) return NextResponse.json({ error: imageError }, { status: 400 });
-  const linkUrl = (body.link_url || '').trim() || null;
 
-  if (!content && imageUrls.length === 0 && !linkUrl) {
-    return NextResponse.json({ error: 'ต้องมีข้อความ รูป หรือลิงก์ อย่างน้อยอย่างใดอย่างหนึ่ง' }, { status: 400 });
+  if (!content && imageUrls.length === 0) {
+    return NextResponse.json({ error: 'ต้องมีข้อความหรือรูปอย่างน้อยอย่างใดอย่างหนึ่ง' }, { status: 400 });
   }
-  const invalid = validateBody(title, content, linkUrl);
+  const invalid = validateBody(title, content);
   if (invalid) return NextResponse.json({ error: invalid }, { status: 400 });
 
   const { data: last } = await supabaseAdmin
@@ -123,7 +117,6 @@ export async function POST(request: NextRequest) {
       title,
       content,
       image_urls: imageUrls,
-      link_url: linkUrl,
       sort_order: (last?.sort_order ?? -1) + 1,
       created_by: auth.userId || null,
     })
@@ -175,14 +168,12 @@ export async function PUT(request: NextRequest) {
     if (imageError) return NextResponse.json({ error: imageError }, { status: 400 });
     update.image_urls = urls;
   }
-  if (body.link_url !== undefined) update.link_url = (body.link_url || '').trim() || null;
   if (body.is_active !== undefined) update.is_active = body.is_active !== false;
   if (body.sort_order !== undefined) update.sort_order = Math.round(Number(body.sort_order) || 0);
 
   const invalid = validateBody(
     update.title as string | undefined,
     update.content as string | undefined,
-    update.link_url as string | null | undefined,
   );
   if (invalid) return NextResponse.json({ error: invalid }, { status: 400 });
 
@@ -192,7 +183,7 @@ export async function PUT(request: NextRequest) {
   // (DB มี CHECK กันอยู่แล้ว แต่ error ของ Postgres อ่านไม่รู้เรื่องสำหรับผู้ใช้)
   const { data: current } = await supabaseAdmin
     .from('chat_saved_replies')
-    .select('content, image_urls, link_url')
+    .select('content, image_urls')
     .eq('id', body.id)
     .eq('company_id', auth.companyId)
     .maybeSingle();
@@ -200,9 +191,8 @@ export async function PUT(request: NextRequest) {
 
   const finalContent = (update.content as string | undefined) ?? current.content;
   const finalImages = (update.image_urls as string[] | undefined) ?? (current.image_urls as string[] | null) ?? [];
-  const finalLink = update.link_url !== undefined ? (update.link_url as string | null) : current.link_url;
-  if (!finalContent && finalImages.length === 0 && !finalLink) {
-    return NextResponse.json({ error: 'ต้องมีข้อความ รูป หรือลิงก์ อย่างน้อยอย่างใดอย่างหนึ่ง' }, { status: 400 });
+  if (!finalContent && finalImages.length === 0) {
+    return NextResponse.json({ error: 'ต้องมีข้อความหรือรูปอย่างน้อยอย่างใดอย่างหนึ่ง' }, { status: 400 });
   }
 
   const { data: saved, error } = await supabaseAdmin
