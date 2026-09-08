@@ -45,6 +45,7 @@ import PermissionEditor, {
 } from '@/components/members/PermissionEditor';
 import { AreaBadges, AreaCell, AreaLegend, RoleBadge } from '@/components/members/AreaSummary';
 
+import { PHONE_INPUT_PROPS, onPhoneChange } from '@/lib/numeric-input';
 interface Member {
   id: string;
   /** ตำแหน่งหลักค่าเดียว — API แปลงมาให้แล้วแม้แถวนั้นยังเก็บค่าเก่าหลายตัว */
@@ -860,9 +861,9 @@ export default function MembersPage() {
                     เบอร์โทร
                   </label>
                   <input
-                    type="tel"
+                    {...PHONE_INPUT_PROPS}
                     value={editingMember.phone}
-                    onChange={(e) => setEditingMember({ ...editingMember, phone: e.target.value })}
+                    onChange={onPhoneChange(v => setEditingMember({ ...editingMember, phone: v }))}
                     className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-slate-700"
                     placeholder="0812345678"
                   />

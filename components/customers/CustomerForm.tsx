@@ -46,6 +46,7 @@ import StickyActionBar from '@/components/ui/StickyActionBar';
 // ที่ต้องการแค่สองตัวนี้ import ได้โดยไม่ลาก component ทั้งก้อนเข้า bundle —
 // re-export ต่อไว้ให้ call site เดิมใช้เหมือนเดิม
 import { type CustomerFormData } from './customer-payload';
+import { isValidEmail, EMAIL_INVALID_MESSAGE } from '@/lib/email';
 export type { CustomerFormData } from './customer-payload';
 export { buildCustomerPayload } from './customer-payload';
 
@@ -191,6 +192,7 @@ export default function CustomerForm({
   });
   const [phoneDisplay, setPhoneDisplay] = useState('');
   const [showPhoneError, setShowPhoneError] = useState(false);
+  const [showEmailError, setShowEmailError] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [showMapSection, setShowMapSection] = useState(false);
   const [showExtraSection, setShowExtraSection] = useState(false);
@@ -507,7 +509,8 @@ export default function CustomerForm({
                 </div>
                 <div>
                   <label className={labelFull}>อีเมล</label>
-                  <input type="email" value={formData.email} onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))} className={inputFull} />
+                  <input type="email" inputMode="email" autoComplete="email" value={formData.email} onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))} onBlur={() => setShowEmailError(true)} className={inputFull} />
+                  {showEmailError && !isValidEmail(formData.email) && <p className="text-xs text-red-500 mt-1">{EMAIL_INVALID_MESSAGE}</p>}
                 </div>
               </div>
             </div>

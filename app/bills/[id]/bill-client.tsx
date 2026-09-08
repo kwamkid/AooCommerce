@@ -27,6 +27,7 @@ import { OrderStatusBadge, PaymentStatusBadge } from '@/components/ui/OrderStatu
 import { FullPageLoading } from '@/components/ui/Loading';
 import { thumbUrl } from '@/lib/image-thumb';
 
+import { isValidEmail, EMAIL_INVALID_MESSAGE } from '@/lib/email';
 interface PromotionComponent {
   variation_id: string;
   product_name: string;
@@ -729,7 +730,8 @@ export default function BillClient({ orderId, initialBill }: { orderId: string; 
                 </div>
                 <div>
                   <label className="block text-sm mb-1" style={{ color: dark ? '#cbd5e1' : '#4b5563' }}>อีเมล</label>
-                  <input type="email" value={deliveryEmail} onChange={(e) => { setDeliveryEmail(e.target.value); setDeliveryErrors(prev => { const { email, ...rest } = prev; return rest; }); }}
+                  <input type="email" inputMode="email" autoComplete="email" value={deliveryEmail} onChange={(e) => { setDeliveryEmail(e.target.value); setDeliveryErrors(prev => { const { email, ...rest } = prev; return rest; }); }}
+                    onBlur={() => { if (!isValidEmail(deliveryEmail)) setDeliveryErrors(prev => ({ ...prev, email: EMAIL_INVALID_MESSAGE })); }}
                     placeholder="email@example.com"
                     style={dark ? { backgroundColor: '#1e293b', borderColor: deliveryErrors.email ? '#ef4444' : '#475569', color: '#fff' } : { backgroundColor: '#fff', borderColor: deliveryErrors.email ? '#ef4444' : '#d1d5db', color: '#111827' }}
                     className="w-full px-3 py-2.5 border rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-orange-400" />
@@ -781,8 +783,8 @@ export default function BillClient({ orderId, initialBill }: { orderId: string; 
                     } else if (!/^0\d{9}$/.test(cleanPhone)) {
                       errors.phone = 'เบอร์โทรต้องเป็นตัวเลข 10 หลัก เริ่มด้วย 0';
                     }
-                    if (deliveryEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(deliveryEmail)) {
-                      errors.email = 'รูปแบบอีเมลไม่ถูกต้อง';
+                    if (!isValidEmail(deliveryEmail)) {
+                      errors.email = EMAIL_INVALID_MESSAGE;
                     }
                     if (!deliveryAddress.trim()) errors.address = 'กรุณากรอกที่อยู่จัดส่ง';
                     if (!deliveryProvince.trim()) errors.province = 'กรุณากรอกจังหวัด';

@@ -109,3 +109,13 @@ export function onPhoneChange(handler: (value: string) => void) {
     if (next !== null) handler(next);
   };
 }
+
+/**
+ * คำค้นที่ "ดูเหมือนเบอร์" → ตัดตัวคั่นทิ้งก่อนไปเทียบกับ DB ที่เก็บตัวเลขล้วน
+ * ("081-555" ต้องเจอ "0815554544") · คำที่มีตัวอักษรคืนเดิม ไม่ยุ่ง (ค้นชื่อ/อีเมลตามปกติ)
+ * ใช้ที่ API ค้นลูกค้าทุกตัว — ห้ามให้แต่ละหน้า strip เอง
+ */
+export function normalizePhoneQuery(q: string): string {
+  const t = q.trim();
+  return /^[\d\s\-().+]+$/.test(t) && /\d/.test(t) ? normalizePhone(t) : t;
+}

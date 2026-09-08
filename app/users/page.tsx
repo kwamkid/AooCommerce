@@ -33,6 +33,8 @@ import FormSelect from '@/components/ui/FormSelect';
 import UserAvatar from '@/components/ui/UserAvatar';
 import { InfoChip } from '@/components/ui/StatusBadge';
 
+import { isValidEmail, EMAIL_INVALID_MESSAGE } from '@/lib/email';
+import { PHONE_INPUT_PROPS, onPhoneChange } from '@/lib/numeric-input';
 // User interface
 interface User {
   id: string;
@@ -122,6 +124,7 @@ export default function UsersPage() {
   const [rowsPerPage, setRowsPerPage] = useState(20);
 
   // Form state with proper typing
+  const [emailTouched, setEmailTouched] = useState(false);
   const [formData, setFormData] = useState<UserFormData>({
     email: '',
     name: '',
@@ -674,13 +677,17 @@ export default function UsersPage() {
                     </label>
                     <input
                       type="email"
+                      inputMode="email"
+                      autoComplete="email"
                       value={formData.email}
                       onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                      onBlur={() => setEmailTouched(true)}
                       className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
                       required
                       disabled={!!editingUser}
                       placeholder="user@company.com"
                     />
+                    {emailTouched && !isValidEmail(formData.email) && <p className="text-red-500 text-sm mt-1">{EMAIL_INVALID_MESSAGE}</p>}
                   </div>
 
                   <div>
@@ -740,9 +747,9 @@ export default function UsersPage() {
                       เบอร์โทร
                     </label>
                     <input
-                      type="tel"
+                      {...PHONE_INPUT_PROPS}
                       value={formData.phone}
-                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                      onChange={onPhoneChange(v => setFormData({ ...formData, phone: v }))}
                       className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
                       placeholder="0812345678"
                     />

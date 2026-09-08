@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { newCustomerCode } from '@/lib/customer-code';
 import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
 
-import { normalizePhone } from '@/lib/numeric-input';
+import { normalizePhone, normalizePhoneQuery } from '@/lib/numeric-input';
 // Type definitions
 interface CustomerData {
   name: string;
@@ -181,8 +181,10 @@ export async function GET(request: NextRequest) {
       if (isUuid) {
         query = query.eq('id', search);
       } else {
+        // คำค้นที่ดูเหมือนเบอร์ถูกตัดตัวคั่นทิ้งก่อน — DB เก็บตัวเลขล้วน "081-555" ต้องเจอ "0815554544"
+        const q = normalizePhoneQuery(search);
         query = query.or(
-          `name.ilike.%${search}%,customer_code.ilike.%${search}%,phone.ilike.%${search}%,email.ilike.%${search}%`
+          `name.ilike.%${q}%,customer_code.ilike.%${q}%,phone.ilike.%${q}%,email.ilike.%${q}%`
         );
       }
     }

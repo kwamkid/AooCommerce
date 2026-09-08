@@ -561,6 +561,7 @@ export default function StorefrontSettingsPage() {
                 />
                 <FormInput
                   label="อีเมล"
+                  type="email"
                   value={cfg.contact_email}
                   onChange={(e) => patch({ contact_email: e.target.value })}
                   placeholder={companyEmail ? `เว้นว่าง = ${companyEmail}` : 'เว้นว่าง = ใช้ของบริษัท'}

@@ -6,6 +6,7 @@ import { deductStock } from '@/lib/stock-service';
 import { fetchCostMap } from '@/lib/cost-utils';
 import { computeOrderTotals } from '@/lib/order-totals';
 
+import { normalizePhoneQuery } from '@/lib/numeric-input';
 interface PosItemInput {
   variation_id: string;
   product_id: string;
@@ -100,7 +101,7 @@ export async function GET(request: NextRequest) {
         .from('customers')
         .select('id')
         .eq('company_id', auth.companyId)
-        .or(`name.ilike.%${search}%,phone.ilike.%${search}%`);
+        .or(`name.ilike.%${normalizePhoneQuery(search)}%,phone.ilike.%${normalizePhoneQuery(search)}%`);
 
       const customerIds = matchedCustomers?.map(c => c.id) || [];
       if (customerIds.length > 0) {

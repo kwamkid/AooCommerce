@@ -17,6 +17,7 @@ import FormSelect from '@/components/ui/FormSelect';
 import { searchAddress } from '@/lib/thai-address-data';
 import { parseThaiAddress } from '@/lib/address-parser';
 
+import { isValidEmail, EMAIL_INVALID_MESSAGE } from '@/lib/email';
 interface SlotOption {
   id: string;
   name: string;
@@ -79,6 +80,7 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
+  const [emailTouched, setEmailTouched] = useState(false);
   const [address, setAddress] = useState('');
   const [district, setDistrict] = useState('');
   const [amphoe, setAmphoe] = useState('');
@@ -444,7 +446,8 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
                 <input ref={phoneRef} className="sf-input" value={phone} onChange={onPhoneChange(setPhone)} {...PHONE_INPUT_PROPS} placeholder="08xxxxxxxx" />
               </label>
               <label className="sf-label">อีเมล
-                <input className="sf-input" value={email} onChange={e => setEmail(e.target.value)} inputMode="email" placeholder="ไม่บังคับ" />
+                <input className="sf-input" type="email" inputMode="email" autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} onBlur={() => setEmailTouched(true)} placeholder="ไม่บังคับ" />
+                {emailTouched && !isValidEmail(email) && <span className="sf-hint sf-error">{EMAIL_INVALID_MESSAGE}</span>}
               </label>
             </div>
           </section>
