@@ -93,7 +93,10 @@ export class LazadaChatService {
     }
 
     const messageContent = type === 'text' ? text! : '[รูปภาพ]';
-    const rawMessage = type === 'image' ? { imageUrl } : null;
+    // image_set = รูปชุดเดียวกัน หน้าแชทใช้ยุบเป็นฟองอัลบั้ม (ดู groupImageAlbums)
+    const rawMessage = type === 'image'
+      ? { imageUrl, ...(params.imageSet ? { image_set: params.imageSet } : {}) }
+      : null;
 
     const { data: savedMessage } = await supabaseAdmin
       .from('lazada_messages')

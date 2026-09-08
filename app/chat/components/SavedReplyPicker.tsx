@@ -1,4 +1,4 @@
-// Path: app/chat/components/QuickReplyPicker.tsx
+// Path: app/chat/components/SavedReplyPicker.tsx
 //
 // รายการข้อความสำเร็จรูปที่ลอยเหนือกล่องพิมพ์ — **เป็นตัววาดอย่างเดียว**
 // คำค้นกับตัวที่กำลังเลือกอยู่ (activeIndex) ถือไว้ที่หน้าแชท เพราะเปิดได้ 2 ทาง:
@@ -10,15 +10,15 @@
 import { useEffect, useRef } from 'react';
 import { Search, Plus, Settings2, MessageSquareText, Loader2 } from 'lucide-react';
 import Link from 'next/link';
-import { quickReplyPreview, type QuickReply } from '@/lib/chat/quick-replies';
+import { savedReplyPreview, type SavedReply } from '@/lib/chat/saved-replies';
 
 interface Props {
-  replies: QuickReply[];
+  replies: SavedReply[];
   loading: boolean;
   /** ตัวที่ไฮไลต์อยู่ (คีย์บอร์ด) — -1 = ยังไม่เลือกอะไร */
   activeIndex: number;
   onActiveIndexChange: (i: number) => void;
-  onSelect: (reply: QuickReply) => void;
+  onSelect: (reply: SavedReply) => void;
   onClose: () => void;
   /** โหมดปุ่ม: โชว์ช่องค้นในตัว · โหมด `/`: คำค้นอยู่ในกล่องพิมพ์ ไม่ต้องมีช่องซ้ำ */
   showSearch: boolean;
@@ -29,7 +29,7 @@ interface Props {
   canManage: boolean;
 }
 
-export default function QuickReplyPicker({
+export default function SavedReplyPicker({
   replies, loading, activeIndex, onActiveIndexChange, onSelect, onClose,
   showSearch, search, onSearchChange, onSaveCurrent, canManage,
 }: Props) {
@@ -49,7 +49,7 @@ export default function QuickReplyPicker({
 
   return (
     <div
-      data-quick-reply-picker
+      data-saved-reply-picker
       className="fixed inset-x-2 bottom-16 md:absolute md:inset-x-auto md:bottom-full md:left-0 md:w-[380px] bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg z-30 md:mb-2 flex flex-col"
       style={{ maxHeight: '340px' }}
     >
@@ -101,7 +101,7 @@ export default function QuickReplyPicker({
               )}
               <span className="min-w-0 flex-1">
                 <span className="block text-sm font-medium text-gray-900 dark:text-white truncate">{r.title}</span>
-                <span className="block helper-text text-gray-500 dark:text-slate-400 truncate">{quickReplyPreview(r)}</span>
+                <span className="block helper-text text-gray-500 dark:text-slate-400 truncate">{savedReplyPreview(r)}</span>
               </span>
             </button>
           ))
@@ -120,7 +120,7 @@ export default function QuickReplyPicker({
 
         {canManage && (
           <Link
-            href="/settings/quick-replies"
+            href="/settings/saved-replies"
             className="flex items-center gap-1 helper-text text-gray-500 hover:text-primary px-1 py-0.5"
           >
             <Settings2 className="w-3.5 h-3.5" />จัดการ

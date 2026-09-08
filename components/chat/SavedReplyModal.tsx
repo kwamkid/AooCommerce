@@ -1,6 +1,6 @@
-// Path: components/chat/QuickReplyModal.tsx
+// Path: components/chat/SavedReplyModal.tsx
 //
-// สร้าง/แก้ข้อความสำเร็จรูป — **ตัวเดียวใช้ทั้งหน้าจัดการ (`/settings/quick-replies`)
+// สร้าง/แก้ข้อความสำเร็จรูป — **ตัวเดียวใช้ทั้งหน้าจัดการ (`/settings/saved-replies`)
 // และปุ่ม "บันทึกข้อความนี้" ในหน้าแชท** เพื่อไม่ให้กติกา (ชื่อบังคับ · ต้องมีข้อความหรือรูป ·
 // ชิปตัวแปร) หลุดกันสองที่
 'use client';
@@ -16,20 +16,20 @@ import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
 import { supabase } from '@/lib/supabase';
 import { storageKeyFor } from '@/lib/storage-key';
-import { QUICK_REPLY_VARS } from '@/lib/chat/quick-reply-vars';
-import type { QuickReply } from '@/lib/chat/quick-replies';
+import { SAVED_REPLY_VARS } from '@/lib/chat/saved-reply-vars';
+import type { SavedReply } from '@/lib/chat/saved-replies';
 
 interface Props {
   open: boolean;
   onClose: () => void;
   /** ส่งมา = โหมดแก้ไข */
-  reply?: QuickReply | null;
+  reply?: SavedReply | null;
   /** ข้อความตั้งต้นตอนสร้างใหม่ (เช่นสิ่งที่พิมพ์ค้างไว้ในช่องแชท) */
   initialContent?: string;
-  onSaved: (reply: QuickReply) => void;
+  onSaved: (reply: SavedReply) => void;
 }
 
-export default function QuickReplyModal({ open, onClose, reply, initialContent, onSaved }: Props) {
+export default function SavedReplyModal({ open, onClose, reply, initialContent, onSaved }: Props) {
   const { showToast } = useToast();
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
@@ -75,7 +75,7 @@ export default function QuickReplyModal({ open, onClose, reply, initialContent, 
 
       if (imageFile) {
         // ชื่อไฟล์ต้องผ่าน storageKeyFor — ชื่อไทย/อีโมจิ/# ทำให้ Storage ตอบ 400 InvalidKey
-        const path = `quick-replies/${storageKeyFor(imageFile.name, 'jpg')}`;
+        const path = `saved-replies/${storageKeyFor(imageFile.name, 'jpg')}`;
         const { error: uploadError } = await supabase.storage
           .from('chat-media')
           .upload(path, imageFile, { contentType: imageFile.type || 'image/jpeg' });
@@ -83,7 +83,7 @@ export default function QuickReplyModal({ open, onClose, reply, initialContent, 
         imageUrl = supabase.storage.from('chat-media').getPublicUrl(path).data.publicUrl;
       }
 
-      const res = await apiFetch('/api/chat/quick-replies', {
+      const res = await apiFetch('/api/chat/saved-replies', {
         method: reply ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: reply?.id, title: t, content: c, image_url: imageUrl }),
@@ -92,7 +92,7 @@ export default function QuickReplyModal({ open, onClose, reply, initialContent, 
       if (!res.ok) throw new Error(data.error || 'บันทึกไม่สำเร็จ');
 
       showToast(reply ? 'แก้ไขข้อความสำเร็จรูปแล้ว' : 'บันทึกข้อความสำเร็จรูปแล้ว');
-      onSaved(data.reply as QuickReply);
+      onSaved(data.reply as SavedReply);
       onClose();
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'บันทึกไม่สำเร็จ', 'error');
@@ -139,7 +139,7 @@ export default function QuickReplyModal({ open, onClose, reply, initialContent, 
           />
           <div className="flex flex-wrap items-center gap-1.5 mt-2">
             <span className="helper-text text-gray-500">แทรกตัวแปร:</span>
-            {QUICK_REPLY_VARS.map(v => (
+            {SAVED_REPLY_VARS.map(v => (
               <button
                 key={v.token}
                 type="button"

@@ -1,4 +1,4 @@
-// Path: lib/chat/quick-reply-vars.ts
+// Path: lib/chat/saved-reply-vars.ts
 //
 // ตัวแปรในข้อความสำเร็จรูปของแชท — **ทะเบียนเดียว** ที่ทั้งหน้าจัดการ (ชิปให้กด)
 // และหน้าแชท (ตอนแทนค่า) อ่านร่วมกัน · เพิ่มตัวแปรใหม่ = เพิ่ม 1 บรรทัดที่นี่ที่เดียว
@@ -9,7 +9,7 @@
 // ⚠️ ตัวแปรที่หาค่าไม่ได้ **คงโทเคนไว้ตามเดิม ห้ามแทนด้วยค่าว่าง** — "สวัสดีค่ะ คุณ"
 // ที่ห้อยอยู่ลอย ๆ ผู้ใช้มองผ่านได้ง่ายกว่า `{{ชื่อลูกค้า}}` ที่เตะตาให้แก้ก่อนส่ง
 
-export interface QuickReplyVarContext {
+export interface SavedReplyVarContext {
   /** ชื่อผู้ติดต่อในแชท (ผูกลูกค้าแล้วใช้ชื่อลูกค้า) */
   customerName?: string | null;
   /** ชื่อร้าน/บริษัทที่กำลังใช้งานอยู่ */
@@ -18,14 +18,14 @@ export interface QuickReplyVarContext {
   agentName?: string | null;
 }
 
-export interface QuickReplyVar {
+export interface SavedReplyVar {
   token: string;
   label: string;
   hint: string;
-  resolve: (ctx: QuickReplyVarContext) => string | null | undefined;
+  resolve: (ctx: SavedReplyVarContext) => string | null | undefined;
 }
 
-export const QUICK_REPLY_VARS: QuickReplyVar[] = [
+export const SAVED_REPLY_VARS: SavedReplyVar[] = [
   {
     token: '{{ชื่อลูกค้า}}',
     label: 'ชื่อลูกค้า',
@@ -47,9 +47,9 @@ export const QUICK_REPLY_VARS: QuickReplyVar[] = [
 ];
 
 /** แทนค่าตัวแปรทุกตัวที่หาค่าได้ · ตัวที่หาไม่ได้คงโทเคนไว้ให้ผู้ใช้เห็นและแก้เอง */
-export function applyQuickReplyVars(text: string, ctx: QuickReplyVarContext): string {
+export function applySavedReplyVars(text: string, ctx: SavedReplyVarContext): string {
   let out = text;
-  for (const v of QUICK_REPLY_VARS) {
+  for (const v of SAVED_REPLY_VARS) {
     const value = (v.resolve(ctx) || '').trim();
     if (!value) continue;
     out = out.split(v.token).join(value);
@@ -58,6 +58,6 @@ export function applyQuickReplyVars(text: string, ctx: QuickReplyVarContext): st
 }
 
 /** โทเคนที่ยังแทนค่าไม่ได้ในข้อความนี้ — หน้าแชทใช้เตือนก่อนส่ง */
-export function unresolvedQuickReplyVars(text: string): string[] {
-  return QUICK_REPLY_VARS.filter(v => text.includes(v.token)).map(v => v.token);
+export function unresolvedSavedReplyVars(text: string): string[] {
+  return SAVED_REPLY_VARS.filter(v => text.includes(v.token)).map(v => v.token);
 }

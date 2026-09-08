@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
     if (!companyId) return NextResponse.json({ error: 'No company context' }, { status: 403 });
 
     const body = await request.json();
-    const { contact_id, platform, message, type = 'text', imageUrl, packageId, stickerId } = body;
+    const { contact_id, platform, message, type = 'text', imageUrl, packageId, stickerId, imageSet } = body;
 
     if (!contact_id || !platform) {
       return NextResponse.json({ error: 'contact_id and platform are required' }, { status: 400 });
@@ -61,6 +61,7 @@ export async function POST(request: NextRequest) {
       imageUrl,
       packageId,
       stickerId,
+      imageSet,
     });
 
     if (!result.success) {

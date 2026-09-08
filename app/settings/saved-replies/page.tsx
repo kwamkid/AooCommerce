@@ -1,4 +1,4 @@
-// Path: app/settings/quick-replies/page.tsx
+// Path: app/settings/saved-replies/page.tsx
 //
 // จัดการข้อความสำเร็จรูปของแชท — คลังกลางต่อบริษัท ใช้ร่วมกันทั้งร้าน
 // ลำดับในหน้านี้ = ลำดับที่เห็นในรายการตอนกดปุ่มในหน้าแชท (เอาที่ใช้บ่อยไว้บนสุด)
@@ -14,34 +14,34 @@ import Tooltip from '@/components/ui/Tooltip';
 import Toggle from '@/components/ui/Toggle';
 import SearchInput from '@/components/ui/SearchInput';
 import { LoadingCard, EmptyCard, NoPermissionCard } from '@/components/ui/StateCard';
-import QuickReplyModal from '@/components/chat/QuickReplyModal';
+import SavedReplyModal from '@/components/chat/SavedReplyModal';
 import { useAuthGuard } from '@/lib/useAuthGuard';
 import { useFetchOnce } from '@/lib/use-fetch-once';
 import { useToast } from '@/lib/toast-context';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { apiFetch, invalidateApiCache } from '@/lib/api-client';
-import { filterQuickReplies, quickReplyPreview, type QuickReply } from '@/lib/chat/quick-replies';
+import { filterSavedReplies, savedReplyPreview, type SavedReply } from '@/lib/chat/saved-replies';
 import { MessageSquareText, Plus, Edit2, Trash2, Image as ImageIcon } from 'lucide-react';
 
-export default function QuickRepliesSettingsPage() {
+export default function SavedRepliesSettingsPage() {
   const { allowed, loading: authLoading } = useAuthGuard('chat.reply', { noRedirect: true });
   const { showToast } = useToast();
   const { confirm, confirmDialog } = useConfirmDialog();
 
-  const [replies, setReplies] = useState<QuickReply[]>([]);
+  const [replies, setReplies] = useState<SavedReply[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [reordering, setReordering] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
-  const [editing, setEditing] = useState<QuickReply | null>(null);
+  const [editing, setEditing] = useState<SavedReply | null>(null);
 
   const load = async () => {
     setLoading(true);
     try {
-      const res = await apiFetch('/api/chat/quick-replies');
+      const res = await apiFetch('/api/chat/saved-replies');
       if (!res.ok) throw new Error('load failed');
       const data = await res.json();
-      setReplies((data.replies || []) as QuickReply[]);
+      setReplies((data.replies || []) as SavedReply[]);
     } catch {
       showToast('โหลดข้อความสำเร็จรูปไม่สำเร็จ', 'error');
     } finally {
@@ -51,7 +51,7 @@ export default function QuickRepliesSettingsPage() {
   useFetchOnce(load, !authLoading && allowed);
 
   /** หน้าแชทแคชรายการไว้ 60 วิ — แก้ที่นี่แล้วต้องล้าง ไม่งั้นของใหม่ไม่โผล่ */
-  const invalidate = () => invalidateApiCache('/api/chat/quick-replies');
+  const invalidate = () => invalidateApiCache('/api/chat/saved-replies');
 
   const move = async (index: number, dir: 'up' | 'down') => {
     const target = dir === 'up' ? index - 1 : index + 1;
@@ -61,7 +61,7 @@ export default function QuickRepliesSettingsPage() {
     setReplies(next);
     setReordering(true);
     try {
-      const res = await apiFetch('/api/chat/quick-replies', {
+      const res = await apiFetch('/api/chat/saved-replies', {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ reorder: next.map((r, i) => ({ id: r.id, sort_order: i })) }),
       });
@@ -75,10 +75,10 @@ export default function QuickRepliesSettingsPage() {
     }
   };
 
-  const toggleActive = async (reply: QuickReply) => {
+  const toggleActive = async (reply: SavedReply) => {
     const nextActive = !reply.is_active;
     setReplies(prev => prev.map(r => r.id === reply.id ? { ...r, is_active: nextActive } : r));
-    const res = await apiFetch('/api/chat/quick-replies', {
+    const res = await apiFetch('/api/chat/saved-replies', {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: reply.id, is_active: nextActive }),
     });
@@ -90,7 +90,7 @@ export default function QuickRepliesSettingsPage() {
     invalidate();
   };
 
-  const remove = async (reply: QuickReply) => {
+  const remove = async (reply: SavedReply) => {
     const ok = await confirm({
       title: 'ลบข้อความสำเร็จรูป',
       description: `ลบ "${reply.title}" ออกจากคลังของร้าน? ข้อความที่ส่งไปหาลูกค้าแล้วจะไม่ถูกแตะต้อง`,
@@ -98,21 +98,21 @@ export default function QuickRepliesSettingsPage() {
       variant: 'danger',
     });
     if (!ok) return;
-    const res = await apiFetch(`/api/chat/quick-replies?id=${reply.id}`, { method: 'DELETE' });
+    const res = await apiFetch(`/api/chat/saved-replies?id=${reply.id}`, { method: 'DELETE' });
     if (!res.ok) { showToast('ลบไม่สำเร็จ', 'error'); return; }
     setReplies(prev => prev.filter(r => r.id !== reply.id));
     invalidate();
     showToast('ลบแล้ว');
   };
 
-  const onSaved = (saved: QuickReply) => {
+  const onSaved = (saved: SavedReply) => {
     setReplies(prev => prev.some(r => r.id === saved.id)
       ? prev.map(r => r.id === saved.id ? saved : r)
       : [...prev, saved]);
     invalidate();
   };
 
-  const shown = filterQuickReplies(replies, search);
+  const shown = filterSavedReplies(replies, search);
 
   return (
     <Layout>
@@ -180,7 +180,7 @@ export default function QuickRepliesSettingsPage() {
                         )}
                       </span>
                     }
-                    subtitle={quickReplyPreview(r, 110)}
+                    subtitle={savedReplyPreview(r, 110)}
                     actions={
                       <div className="flex items-center gap-1">
                         <Tooltip text={r.is_active ? 'ปิดไม่ให้ขึ้นในหน้าแชท' : 'เปิดให้ใช้ในหน้าแชท'} box="inline-flex">
@@ -209,7 +209,7 @@ export default function QuickRepliesSettingsPage() {
         )}
       </Container>
 
-      <QuickReplyModal
+      <SavedReplyModal
         open={modalOpen}
         onClose={() => { setModalOpen(false); setEditing(null); }}
         reply={editing}

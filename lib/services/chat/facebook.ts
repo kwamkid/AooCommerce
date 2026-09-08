@@ -271,6 +271,8 @@ export class FacebookChatService {
 
     // Save to DB
     const { messageContent, rawMessage } = this.buildMessageContent(type, text, imageUrl);
+    // รูปชุดเดียวกัน — หน้าแชทใช้ยุบเป็นฟองอัลบั้ม (ดู groupImageAlbums)
+    if (params.imageSet) rawMessage.image_set = params.imageSet;
 
     const { data: savedMessage } = await supabaseAdmin
       .from('fb_messages')

@@ -144,6 +144,8 @@ export class LineChatService {
 
     // Save to DB
     const { messageContent, rawMessage } = this.buildMessageContent(type, text, imageUrl, packageId, stickerId);
+    // รูปชุดเดียวกัน — หน้าแชทใช้ยุบเป็นฟองอัลบั้ม (ดู groupImageAlbums)
+    if (params.imageSet) rawMessage.image_set = params.imageSet;
     if (sentVia === 'reply') rawMessage.sent_via = 'reply';
 
     const { data: savedMessage } = await supabaseAdmin

@@ -74,6 +74,52 @@ export function ImageBubble({ msg, onOpenLightbox, onImageLoad }: RendererProps)
   );
 }
 
+// ─── Image album (หลายรูปในฟองเดียว) ────────────────────────────────────────
+
+/**
+ * รูปชุดเดียวกันวางติดกันเป็นตาราง — 2 รูปเรียงคู่ · 3 รูปขึ้นไปเป็นกริด 3 คอลัมน์
+ * เกิน 6 รูปซ่อนที่เหลือไว้ใต้ป้าย "+N" (กดแล้วเปิด lightbox ที่ใบแรกที่ถูกซ่อน)
+ */
+export function ImageAlbumBubble({ msg, onOpenLightbox, onImageLoad }: RendererProps) {
+  const album = msg.raw_message?.album || [];
+  if (album.length === 0) return <p className="whitespace-pre-wrap break-words">{msg.content}</p>;
+
+  const MAX_TILES = 6;
+  const tiles = album.slice(0, MAX_TILES);
+  const hidden = album.length - tiles.length;
+  const cols = album.length === 2 ? 'grid-cols-2' : album.length === 4 ? 'grid-cols-2' : 'grid-cols-3';
+
+  return (
+    <div className={`grid ${cols} gap-0.5 rounded-lg overflow-hidden w-[min(66vw,300px)]`}>
+      {tiles.map((item, i) => {
+        const isLast = i === tiles.length - 1 && hidden > 0;
+        return (
+          <button
+            key={item.messageId}
+            type="button"
+            onClick={() => onOpenLightbox?.(isLast ? album[MAX_TILES - 1].url : item.url)}
+            className="relative aspect-square overflow-hidden bg-black/5"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={item.url}
+              alt=""
+              loading="lazy"
+              onLoad={onImageLoad}
+              className="w-full h-full object-cover hover:opacity-90 transition-opacity"
+            />
+            {isLast && (
+              <span className="absolute inset-0 bg-black/55 text-white flex items-center justify-center text-lg font-medium">
+                +{hidden}
+              </span>
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 // ─── Video ──────────────────────────────────────────────────────────────────
 
 export function VideoBubble({ msg, onOpenLightbox, onImageLoad }: RendererProps) {

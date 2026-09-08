@@ -5,6 +5,7 @@ import { ChatMessage } from '@/app/chat/lib/chatTypes';
 import {
   StickerBubble,
   ImageBubble,
+  ImageAlbumBubble,
   VideoBubble,
   LocationBubble,
   AudioBubble,
@@ -105,6 +106,10 @@ function renderBody({
     case 'image':
       if (msg.raw_message?.imageUrl) return <ImageBubble {...props} />;
       break;
+
+    // รูปชุดเดียวกันที่ groupImageAlbums() รวมมาให้ — ไม่มีชนิดนี้ใน DB
+    case 'image_album':
+      return <ImageAlbumBubble {...props} />;
 
     case 'video':
       if (msg.raw_message?.videoUrl) return <VideoBubble {...props} />;

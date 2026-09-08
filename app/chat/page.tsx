@@ -69,7 +69,7 @@ import MessageBubble from './components/MessageBubble';
 // แผง "เปิดบิล" แยกไฟล์เพราะห่อ memo ไว้ (ดูหมายเหตุในไฟล์นั้น) — ตัวห่อเล็กมาก
 // ส่วน OrderForm ที่หนักจริงยังเป็น dynamic อยู่ข้างใน จึงไม่ติดมากับ first-load JS
 import ChatOrderPanel from './components/ChatOrderPanel';
-import { FbIcon, IgIcon, LineIcon, ShopeeIcon, LazadaIcon, TiktokIcon, PlatformIcon, AccountCornerBadge, getAccountPicture, getAvatarUrl, getInitials, formatTime, formatLastMessage, prepareChatImage, looksLikeImageFile, officialStickers, isSystemEventMessage } from './lib/chatHelpers';
+import { FbIcon, IgIcon, LineIcon, ShopeeIcon, LazadaIcon, TiktokIcon, PlatformIcon, AccountCornerBadge, getAccountPicture, getAvatarUrl, getInitials, formatTime, formatLastMessage, groupImageAlbums, prepareChatImage, looksLikeImageFile, officialStickers, isSystemEventMessage } from './lib/chatHelpers';
 import { FullPageLoading } from '@/components/ui/Loading';
 import { LoadingCard } from '@/components/ui/StateCard';
 import { SkeletonChat } from '@/components/ui/Skeleton';
@@ -77,13 +77,13 @@ import LoadingOverlay from '@/components/ui/LoadingOverlay';
 import StatusBadge from '@/components/ui/StatusBadge';
 import ChannelBadge from '@/components/ui/ChannelBadge';
 import { can } from '@/lib/permissions';
-import { filterQuickReplies, type QuickReply } from '@/lib/chat/quick-replies';
-import { applyQuickReplyVars } from '@/lib/chat/quick-reply-vars';
+import { filterSavedReplies, type SavedReply } from '@/lib/chat/saved-replies';
+import { applySavedReplyVars } from '@/lib/chat/saved-reply-vars';
 
 // Dynamic imports for components that are not needed on initial load
 const EmojiStickerPicker = dynamic(() => import('./components/EmojiStickerPicker'), { ssr: false });
-const QuickReplyPicker = dynamic(() => import('./components/QuickReplyPicker'), { ssr: false });
-const QuickReplyModal = dynamic(() => import('@/components/chat/QuickReplyModal'), { ssr: false });
+const SavedReplyPicker = dynamic(() => import('./components/SavedReplyPicker'), { ssr: false });
+const SavedReplyModal = dynamic(() => import('@/components/chat/SavedReplyModal'), { ssr: false });
 const LinkCustomerModal = dynamic(() => import('./components/LinkCustomerModal'), { ssr: false });
 const LightboxViewer = dynamic(() => import('./components/LightboxViewer'), { ssr: false });
 // ฟอร์มสองตัวนี้ใหญ่มาก (OrderForm ~3,300 บรรทัด · CustomerForm ~700) แต่ใช้แค่ตอนเปิด
@@ -95,7 +95,7 @@ const CustomerForm = dynamic(() => import('@/components/customers/CustomerForm')
  * ชนิดข้อความที่ "วาดกล่องของตัวเอง" — ฟองรอบนอกต้องโปร่งใส ไม่งั้นจะได้กล่องซ้อนกล่อง
  * (การ์ดสินค้า/ออเดอร์ของ Shopee มีพื้นขาว+ขอบของตัวเองเหมือนการ์ด template ของ FB)
  */
-const BARE_BUBBLE_TYPES = ['sticker', 'image', 'video', 'flex', 'template', 'imagemap', 'story_mention', 'item', 'order'];
+const BARE_BUBBLE_TYPES = ['sticker', 'image', 'image_album', 'video', 'flex', 'template', 'imagemap', 'story_mention', 'item', 'order'];
 
 function UnifiedChatPageContent() {
   const router = useRouter();
@@ -178,14 +178,14 @@ function UnifiedChatPageContent() {
   // Sticker picker
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   // ── ข้อความสำเร็จรูป ──
-  const [quickReplies, setQuickReplies] = useState<QuickReply[]>([]);
-  const [quickLoading, setQuickLoading] = useState(false);
-  const quickLoadedRef = useRef(false);
+  const [savedReplies, setSavedReplies] = useState<SavedReply[]>([]);
+  const [savedReplyLoading, setSavedReplyLoading] = useState(false);
+  const savedRepliesLoadedRef = useRef(false);
   /** false = ปิด · 'button' = เปิดจากปุ่ม (ค้นในตัว) · 'slash' = พิมพ์ / ในกล่องพิมพ์ */
-  const [quickMode, setQuickMode] = useState<false | 'button' | 'slash'>(false);
-  const [quickSearch, setQuickSearch] = useState('');
-  const [quickIndex, setQuickIndex] = useState(0);
-  const [quickModalOpen, setQuickModalOpen] = useState(false);
+  const [savedReplyMode, setSavedReplyMode] = useState<false | 'button' | 'slash'>(false);
+  const [savedReplySearch, setSavedReplySearch] = useState('');
+  const [savedReplyIndex, setSavedReplyIndex] = useState(0);
+  const [savedReplyModalOpen, setSavedReplyModalOpen] = useState(false);
   /** รูปของข้อความสำเร็จรูปที่รอส่งพร้อมข้อความ (ส่งตามหลังข้อความเมื่อกดส่ง) */
   const [pendingImage, setPendingImage] = useState<{ url: string; title: string } | null>(null);
   const [emojiSearch, setEmojiSearch] = useState('');
@@ -252,6 +252,10 @@ function UnifiedChatPageContent() {
   }, [selectedContact, messages]);
 
   // Build media list from messages for lightbox navigation
+  /** รายการที่ "เอาไปวาด" — รูปชุดเดียวกันถูกยุบเป็นฟองอัลบั้มใบเดียว
+   *  ห้ามใช้แทน `messages` ที่อื่น (lightbox/realtime ยังต้องเห็นข้อความรายใบ) */
+  const displayMessages = useMemo(() => groupImageAlbums(messages), [messages]);
+
   const mediaList = useMemo(() => {
     return messages
       .filter(m =>
@@ -488,13 +492,13 @@ function UnifiedChatPageContent() {
         setEmojiSearch('');
       }
       // โหมด 'slash' ไม่ปิดตอนคลิกนอก — คำค้นอยู่ในกล่องพิมพ์ คลิกกลับไปแก้คำค้นได้
-      if (quickMode === 'button' && !target.closest('[data-quick-reply]')) {
-        setQuickMode(false);
+      if (savedReplyMode === 'button' && !target.closest('[data-saved-reply]')) {
+        setSavedReplyMode(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [showFilterPopover, showAccountPicker, showEmojiPicker, quickMode]);
+  }, [showFilterPopover, showAccountPicker, showEmojiPicker, savedReplyMode]);
 
   // Close emoji picker on Escape key
   useEffect(() => {
@@ -998,8 +1002,12 @@ function UnifiedChatPageContent() {
   const sendImageFile = async (
     file: File,
     retryOf?: ChatMessage,
-    /** quiet = ส่งเป็นชุด ผู้เรียกจะสรุปผลรวมเอง ไม่ต้องเด้ง toast ต่อใบ */
-    opts?: { quiet?: boolean },
+    opts?: {
+      /** quiet = ส่งเป็นชุด ผู้เรียกจะสรุปผลรวมเอง ไม่ต้องเด้ง toast ต่อใบ */
+      quiet?: boolean;
+      /** รูปชุดเดียวกัน — หน้าแชทยุบเป็นฟองอัลบั้มใบเดียวหลังส่งสำเร็จ */
+      imageSet?: { id: string; index: number; total: number };
+    },
   ): Promise<boolean> => {
     if (!selectedContact) return false;
     const tempId = retryOf?._tempId || `temp-${Date.now()}`;
@@ -1010,6 +1018,10 @@ function UnifiedChatPageContent() {
       ? retryOf.raw_message.imageUrl
       : null;
     const releaseLocalUrl = () => { if (localUrl) { URL.revokeObjectURL(localUrl); localUrl = null; } };
+
+    // ลองใหม่ต้องอยู่อัลบั้มเดิม — หยิบจากฟองที่ค้างอยู่ ไม่ใช่สร้างชุดใหม่
+    const imageSet = opts?.imageSet || retryOf?.raw_message?.image_set as
+      { id: string; index: number; total: number } | undefined;
 
     if (retryOf) {
       setMessages(prev => prev.map(m => m._tempId === tempId ? { ...m, _status: 'sending' as const, _error: undefined } : m));
@@ -1026,8 +1038,8 @@ function UnifiedChatPageContent() {
         const optimisticMessage: ChatMessage = {
           id: tempId, _tempId: tempId, contact_id: contactId,
           direction: 'outgoing', message_type: 'image', content: '[รูปภาพ]',
-          raw_message: { imageUrl: localUrl }, created_at: new Date().toISOString(),
-          _status: 'sending', _file: file,
+          raw_message: { imageUrl: localUrl, ...(imageSet ? { image_set: imageSet } : {}) },
+          created_at: new Date().toISOString(), _status: 'sending', _file: file,
         };
         setMessages(prev => [...prev, optimisticMessage]);
       }
@@ -1045,7 +1057,7 @@ function UnifiedChatPageContent() {
 
       const response = await apiFetch('/api/chat/messages', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contact_id: contactId, platform, type: 'image', imageUrl })
+        body: JSON.stringify({ contact_id: contactId, platform, type: 'image', imageUrl, imageSet })
       });
       if (!response.ok) {
         const errData = await response.json().catch(() => ({}));
@@ -1100,9 +1112,15 @@ function UnifiedChatPageContent() {
     // ส่ง **ทีละใบตามลำดับที่เลือก** ไม่ยิงขนาน — ลูกค้าต้องเห็นรูปเรียงตามที่เราส่ง
     // และแพลตฟอร์มไม่รับประกันลำดับถ้ายิงพร้อมกัน (Lazada มีระยะห่างขั้นต่ำต่อ call ด้วย)
     const many = batch.length > 1;
+    // รหัสชุด — โครงเดียวกับ imageSet ที่ LINE ส่งมาตอนลูกค้าส่งหลายรูป
+    // ทำให้หน้าแชทของเรายุบรูปชุดนี้เป็นฟองอัลบั้มใบเดียวเหมือนที่ลูกค้าเห็นในแอป LINE
+    const setId = many ? `out-${Date.now()}-${Math.random().toString(36).slice(2, 8)}` : null;
     let failed = 0;
-    for (const file of batch) {
-      const ok = await sendImageFile(file, undefined, { quiet: many });
+    for (let i = 0; i < batch.length; i++) {
+      const ok = await sendImageFile(batch[i], undefined, {
+        quiet: many,
+        imageSet: setId ? { id: setId, index: i + 1, total: batch.length } : undefined,
+      });
       if (!ok) failed += 1;
     }
     if (many) {
@@ -1137,31 +1155,31 @@ function UnifiedChatPageContent() {
   // ─────────── ข้อความสำเร็จรูป ───────────
 
   /** โหลดครั้งแรกที่เปิด — คลังนี้เปลี่ยนไม่บ่อย apiFetch แคช 60 วิให้อีกชั้น */
-  const loadQuickReplies = async () => {
-    if (quickLoadedRef.current) return;
-    quickLoadedRef.current = true;
-    setQuickLoading(true);
+  const loadSavedReplies = async () => {
+    if (savedRepliesLoadedRef.current) return;
+    savedRepliesLoadedRef.current = true;
+    setSavedReplyLoading(true);
     try {
-      const res = await apiFetch('/api/chat/quick-replies?active=true');
+      const res = await apiFetch('/api/chat/saved-replies?active=true');
       if (!res.ok) throw new Error('load failed');
       const data = await res.json();
-      setQuickReplies((data.replies || []) as QuickReply[]);
+      setSavedReplies((data.replies || []) as SavedReply[]);
     } catch {
-      quickLoadedRef.current = false;   // ให้ลองใหม่ได้ตอนเปิดครั้งหน้า
+      savedRepliesLoadedRef.current = false;   // ให้ลองใหม่ได้ตอนเปิดครั้งหน้า
     } finally {
-      setQuickLoading(false);
+      setSavedReplyLoading(false);
     }
   };
 
-  const openQuickPicker = (mode: 'button' | 'slash') => {
-    setQuickMode(mode);
-    setQuickIndex(0);
-    if (mode === 'button') setQuickSearch('');
+  const openSavedReplyPicker = (mode: 'button' | 'slash') => {
+    setSavedReplyMode(mode);
+    setSavedReplyIndex(0);
+    if (mode === 'button') setSavedReplySearch('');
     setShowEmojiPicker(false);
-    void loadQuickReplies();
+    void loadSavedReplies();
   };
 
-  const quickResults = quickMode ? filterQuickReplies(quickReplies, quickSearch) : [];
+  const savedReplyResults = savedReplyMode ? filterSavedReplies(savedReplies, savedReplySearch) : [];
 
   /**
    * ส่งรูปที่มี URL สาธารณะอยู่แล้ว (รูปของข้อความสำเร็จรูป) — ไม่ต้องอัปโหลดซ้ำ
@@ -1213,8 +1231,8 @@ function UnifiedChatPageContent() {
    * ให้เห็นข้อความจริง (ตัวแปรถูกแทนค่าแล้ว) และแก้ก่อนกดส่งได้เสมอ · รูปที่แนบมา
    * จะรอเป็นชิปเหนือช่องพิมพ์แล้วส่งตามหลังข้อความตอนกดส่ง
    */
-  const useQuickReply = (reply: QuickReply) => {
-    const text = applyQuickReplyVars(reply.content, {
+  const useSavedReply = (reply: SavedReply) => {
+    const text = applySavedReplyVars(reply.content, {
       customerName: selectedContact?.customer?.name || selectedContact?.display_name,
       shopName: currentCompany?.name,
       agentName: userProfile?.name,
@@ -1222,14 +1240,14 @@ function UnifiedChatPageContent() {
 
     setNewMessage(prev => {
       // โหมด / : สิ่งที่พิมพ์อยู่คือคำค้น ต้องแทนที่ทั้งหมด
-      if (quickMode === 'slash') return text;
+      if (savedReplyMode === 'slash') return text;
       const base = prev.trim();
       return base && text ? `${base} ${text}` : (text || base);
     });
     if (reply.image_url) setPendingImage({ url: reply.image_url, title: reply.title });
 
-    setQuickMode(false);
-    setQuickSearch('');
+    setSavedReplyMode(false);
+    setSavedReplySearch('');
     setTimeout(() => inputRef.current?.focus(), 0);
   };
 
@@ -1237,21 +1255,21 @@ function UnifiedChatPageContent() {
   const handleComposerChange = (value: string) => {
     setNewMessage(value);
     if (value.startsWith('/')) {
-      if (quickMode !== 'slash') openQuickPicker('slash');
-      setQuickSearch(value.slice(1));
-      setQuickIndex(0);
-    } else if (quickMode === 'slash') {
-      setQuickMode(false);
+      if (savedReplyMode !== 'slash') openSavedReplyPicker('slash');
+      setSavedReplySearch(value.slice(1));
+      setSavedReplyIndex(0);
+    } else if (savedReplyMode === 'slash') {
+      setSavedReplyMode(false);
     }
   };
 
   /** ↑↓ Enter Esc ตอนรายการเปิดจากการพิมพ์ / — คืน true = จัดการแล้ว อย่าส่งข้อความ */
-  const handleComposerQuickKey = (e: React.KeyboardEvent<HTMLInputElement>): boolean => {
-    if (quickMode !== 'slash') return false;
-    if (e.key === 'Escape') { e.preventDefault(); setQuickMode(false); return true; }
-    if (e.key === 'ArrowDown') { e.preventDefault(); setQuickIndex(i => Math.min(i + 1, quickResults.length - 1)); return true; }
-    if (e.key === 'ArrowUp') { e.preventDefault(); setQuickIndex(i => Math.max(i - 1, 0)); return true; }
-    if (e.key === 'Enter' && quickResults[quickIndex]) { e.preventDefault(); useQuickReply(quickResults[quickIndex]); return true; }
+  const handleComposerSavedReplyKey = (e: React.KeyboardEvent<HTMLInputElement>): boolean => {
+    if (savedReplyMode !== 'slash') return false;
+    if (e.key === 'Escape') { e.preventDefault(); setSavedReplyMode(false); return true; }
+    if (e.key === 'ArrowDown') { e.preventDefault(); setSavedReplyIndex(i => Math.min(i + 1, savedReplyResults.length - 1)); return true; }
+    if (e.key === 'ArrowUp') { e.preventDefault(); setSavedReplyIndex(i => Math.max(i - 1, 0)); return true; }
+    if (e.key === 'Enter' && savedReplyResults[savedReplyIndex]) { e.preventDefault(); useSavedReply(savedReplyResults[savedReplyIndex]); return true; }
     return false;
   };
 
@@ -2384,7 +2402,7 @@ function UnifiedChatPageContent() {
                 ) : (
                   <>
                     <div ref={messagesTopRef} className="py-1">{loadingMore && (<div className="flex items-center justify-center py-2"><Loader2 className="w-4 h-4 text-gray-400 animate-spin" /></div>)}</div>
-                    {messages.map((msg) => isSystemEventMessage(msg) ? (
+                    {displayMessages.map((msg) => isSystemEventMessage(msg) ? (
                       // เหตุการณ์ของระบบ (ลูกค้ากดขอคุยกับเจ้าหน้าที่) — ชิปกลางจอ ไม่ใช่ฟองคำพูด
                       <div key={msg.id} className="flex justify-center">
                         <MessageBubble msg={msg} platform={selectedContact?.platform || 'line'} direction={msg.direction} />
@@ -2500,30 +2518,30 @@ function UnifiedChatPageContent() {
                   )}
                   </div>
                   {/* ข้อความสำเร็จรูป — เปิดจากปุ่มนี้ หรือพิมพ์ / ในช่องข้อความ */}
-                  <div className="relative" data-quick-reply>
+                  <div className="relative" data-saved-reply>
                     <Tooltip text="ข้อความสำเร็จรูป (หรือพิมพ์ /)">
-                      <button onClick={() => quickMode ? setQuickMode(false) : openQuickPicker('button')} aria-label="ข้อความสำเร็จรูป" className={`p-2 rounded-full transition-colors ${quickMode ? 'text-primary bg-primary/10' : 'text-gray-500 hover:text-primary hover:bg-gray-100 dark:hover:bg-slate-700'}`}>
+                      <button onClick={() => savedReplyMode ? setSavedReplyMode(false) : openSavedReplyPicker('button')} aria-label="ข้อความสำเร็จรูป" className={`p-2 rounded-full transition-colors ${savedReplyMode ? 'text-primary bg-primary/10' : 'text-gray-500 hover:text-primary hover:bg-gray-100 dark:hover:bg-slate-700'}`}>
                         <MessageSquareText className="w-5 h-5" />
                       </button>
                     </Tooltip>
-                    {quickMode && (
-                      <QuickReplyPicker
-                        replies={quickResults}
-                        loading={quickLoading}
-                        activeIndex={quickIndex}
-                        onActiveIndexChange={setQuickIndex}
-                        onSelect={useQuickReply}
-                        onClose={() => { setQuickMode(false); inputRef.current?.focus(); }}
-                        showSearch={quickMode === 'button'}
-                        search={quickSearch}
-                        onSearchChange={setQuickSearch}
-                        onSaveCurrent={newMessage.trim() && !newMessage.startsWith('/') ? () => { setQuickMode(false); setQuickModalOpen(true); } : undefined}
+                    {savedReplyMode && (
+                      <SavedReplyPicker
+                        replies={savedReplyResults}
+                        loading={savedReplyLoading}
+                        activeIndex={savedReplyIndex}
+                        onActiveIndexChange={setSavedReplyIndex}
+                        onSelect={useSavedReply}
+                        onClose={() => { setSavedReplyMode(false); inputRef.current?.focus(); }}
+                        showSearch={savedReplyMode === 'button'}
+                        search={savedReplySearch}
+                        onSearchChange={setSavedReplySearch}
+                        onSaveCurrent={newMessage.trim() && !newMessage.startsWith('/') ? () => { setSavedReplyMode(false); setSavedReplyModalOpen(true); } : undefined}
                         canManage={can(companyRoles.length > 0 ? { roles: companyRoles, permissions } : userProfile, 'chat.reply')}
                       />
                     )}
                   </div>
                   <input ref={inputRef} type="text" value={newMessage} onChange={(e) => handleComposerChange(e.target.value)}
-                    onKeyDown={(e) => { if (handleComposerQuickKey(e)) return; if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
+                    onKeyDown={(e) => { if (handleComposerSavedReplyKey(e)) return; if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
                     placeholder="พิมพ์ข้อความ..." autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck={false} enterKeyHint="send"
                     className="flex-1 min-w-0 h-10 px-3 md:px-4 py-2 mr-2 text-sm md:text-base border border-gray-300 rounded-[15px] focus:outline-none focus:ring-2" style={{ '--tw-ring-color': platformColor } as any} />
                   <button onClick={() => { sendMessage(); }} disabled={!newMessage.trim() && !pendingImage} className="p-2 text-white rounded-full disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex-shrink-0" style={{ backgroundColor: platformColor }}><Send className="w-5 h-5" /></button>
@@ -2718,12 +2736,12 @@ function UnifiedChatPageContent() {
         />
       )}
       {/* บันทึกข้อความที่พิมพ์อยู่เป็นข้อความสำเร็จรูป (ตัวเดียวกับที่หน้าจัดการใช้) */}
-      {quickModalOpen && (
-        <QuickReplyModal
-          open={quickModalOpen}
-          onClose={() => setQuickModalOpen(false)}
+      {savedReplyModalOpen && (
+        <SavedReplyModal
+          open={savedReplyModalOpen}
+          onClose={() => setSavedReplyModalOpen(false)}
           initialContent={newMessage.trim()}
-          onSaved={(saved) => setQuickReplies(prev => [...prev, saved])}
+          onSaved={(saved) => setSavedReplies(prev => [...prev, saved])}
         />
       )}
 

@@ -1,4 +1,4 @@
-// Path: app/api/chat/quick-replies/route.ts
+// Path: app/api/chat/saved-replies/route.ts
 //
 // ข้อความสำเร็จรูปของแชท (saved replies) — คลังกลาง **ต่อบริษัท ใช้ร่วมกันทั้งร้าน**
 // เจ้าของเลือกไว้ชัดว่าไม่แยกเป็นของส่วนตัว: แอดมินทุกคนต้องตอบลูกค้าเหมือนกัน
@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
   const activeOnly = new URL(request.url).searchParams.get('active') === 'true';
 
   let query = supabaseAdmin
-    .from('chat_quick_replies')
+    .from('chat_saved_replies')
     .select(SELECT)
     .eq('company_id', auth.companyId)
     .order('sort_order', { ascending: true })
@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
   if (invalid) return NextResponse.json({ error: invalid }, { status: 400 });
 
   const { data: last } = await supabaseAdmin
-    .from('chat_quick_replies')
+    .from('chat_saved_replies')
     .select('sort_order')
     .eq('company_id', auth.companyId)
     .order('sort_order', { ascending: false })
@@ -81,7 +81,7 @@ export async function POST(request: NextRequest) {
     .maybeSingle();
 
   const { data: created, error } = await supabaseAdmin
-    .from('chat_quick_replies')
+    .from('chat_saved_replies')
     .insert({
       company_id: auth.companyId,
       title,
@@ -112,7 +112,7 @@ export async function PUT(request: NextRequest) {
       if (!row?.id) continue;
       // .eq('company_id') ทุกใบ — id เดาได้ ห้ามให้บริษัทอื่นสั่งเรียงของเรา
       await supabaseAdmin
-        .from('chat_quick_replies')
+        .from('chat_saved_replies')
         .update({ sort_order: Math.round(Number(row.sort_order) || 0) })
         .eq('id', row.id)
         .eq('company_id', auth.companyId);
@@ -145,7 +145,7 @@ export async function PUT(request: NextRequest) {
   // ต้องรู้ค่าสุดท้ายก่อนบันทึก — แก้เฉพาะข้อความให้ว่างทั้งที่ไม่มีรูป = ใบเปล่า
   // (DB มี CHECK กันอยู่แล้ว แต่ error ของ Postgres อ่านไม่รู้เรื่องสำหรับผู้ใช้)
   const { data: current } = await supabaseAdmin
-    .from('chat_quick_replies')
+    .from('chat_saved_replies')
     .select('content, image_url')
     .eq('id', body.id)
     .eq('company_id', auth.companyId)
@@ -159,7 +159,7 @@ export async function PUT(request: NextRequest) {
   }
 
   const { data: saved, error } = await supabaseAdmin
-    .from('chat_quick_replies')
+    .from('chat_saved_replies')
     .update(update)
     .eq('id', body.id)
     .eq('company_id', auth.companyId)
@@ -180,7 +180,7 @@ export async function DELETE(request: NextRequest) {
   if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 });
 
   const { error } = await supabaseAdmin
-    .from('chat_quick_replies')
+    .from('chat_saved_replies')
     .delete()
     .eq('id', id)
     .eq('company_id', auth.companyId);

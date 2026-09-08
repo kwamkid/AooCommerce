@@ -2,7 +2,7 @@
 
 import Image from 'next/image';
 import { useState } from 'react';
-import type { ChatAccountInfo, UnifiedContact } from './chatTypes';
+import type { ChatAccountInfo, UnifiedContact, ChatMessage } from './chatTypes';
 
 export function FbIcon({ size = 16 }: { size?: number }) {
   return <Image src="/social/facebook.svg" alt="Facebook" width={size} height={size} className="flex-shrink-0" />;
@@ -280,3 +280,57 @@ export const officialStickers = [
   { packageId: '2', stickers: ['18','19','20','21','22','23','24','25','26','27','28','29','30','31','32'] },
   { packageId: '3', stickers: ['180','181','182','183','184','185','186','187','188','189','190','191','192','193','194','195'] },
 ];
+
+
+/**
+ * รวมรูปชุดเดียวกันให้เป็น "อัลบั้ม" ฟองเดียว — แบบเดียวกับที่แอป LINE แสดง
+ *
+ * เกณฑ์: ข้อความติดกัน · ทิศทางเดียวกัน · เป็นรูป · มี `raw_message.image_set.id` ตรงกัน
+ * (LINE ใส่ id นี้มาให้เองตอนลูกค้าส่งหลายรูปรวดเดียว ส่วนขาออกของเราใส่เองตอนส่งเป็นชุด)
+ *
+ * ⚠️ ใบที่ยังส่งอยู่หรือส่งไม่สำเร็จ **ไม่รวม** — ต้องเห็นสถานะและปุ่มลองใหม่รายใบ
+ * ⚠️ คืน "ข้อความสังเคราะห์" สำหรับวาดเท่านั้น ห้ามเอาไปเขียน DB หรือใช้แทน messages
+ *    (lightbox ยังอ่านจาก messages ตัวจริง รูปทุกใบจึงยังอยู่ในแกลเลอรีครบ)
+ */
+export function groupImageAlbums(messages: ChatMessage[]): ChatMessage[] {
+  const out: ChatMessage[] = [];
+  let i = 0;
+
+  const groupable = (m: ChatMessage) =>
+    m.message_type === 'image'
+    && !!m.raw_message?.imageUrl
+    && !!m.raw_message?.image_set?.id
+    && (!m._status || m._status === 'sent');
+
+  while (i < messages.length) {
+    const head = messages[i];
+    if (!groupable(head)) { out.push(head); i += 1; continue; }
+
+    const setId = head.raw_message!.image_set!.id;
+    let j = i + 1;
+    while (
+      j < messages.length
+      && groupable(messages[j])
+      && messages[j].raw_message!.image_set!.id === setId
+      && messages[j].direction === head.direction
+    ) j += 1;
+
+    if (j - i < 2) { out.push(head); i += 1; continue; }
+
+    // เรียงตามลำดับที่ผู้ส่งตั้งใจ — LINE ยิงรูปแต่ละใบเป็นคนละ event มาถึงสลับกันได้
+    const members = messages.slice(i, j).slice().sort(
+      (a, b) => (a.raw_message?.image_set?.index ?? 0) - (b.raw_message?.image_set?.index ?? 0)
+    );
+    out.push({
+      ...head,
+      message_type: 'image_album',
+      content: `[รูปภาพ ${members.length} รูป]`,
+      raw_message: {
+        ...head.raw_message,
+        album: members.map(m => ({ url: m.raw_message!.imageUrl!, messageId: m.id })),
+      },
+    });
+    i = j;
+  }
+  return out;
+}

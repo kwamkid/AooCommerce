@@ -10,6 +10,12 @@ export interface SendMessageParams {
   previewUrl?: string;
   packageId?: string;
   stickerId?: string;
+  /**
+   * รูปชุดเดียวกันที่ส่งรวดเดียว — เก็บลง `raw_message.image_set` โครงเดียวกับที่ LINE
+   * ส่งมาให้ตอนลูกค้าส่งหลายรูป เพื่อให้หน้าแชทของเรายุบเป็นฟองอัลบั้มใบเดียวได้
+   * ⚠️ เป็นเรื่องของ "การแสดงผลฝั่งเรา" เท่านั้น — ไม่มีแพลตฟอร์มไหนรับ field นี้ตอนส่ง
+   */
+  imageSet?: { id: string; index: number; total: number };
 }
 
 export interface SendMessageResult {
