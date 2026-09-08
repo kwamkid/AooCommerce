@@ -93,59 +93,6 @@ export interface PackingListData {
 
 const THEME = { primary: '#6366f1' };
 
-// ─── ไอคอนของชิปตัวเลือกพิเศษ ───────────────────────────
-// SVG เท่านั้น — ฟอนต์ IBMPlexSansThai ไม่มี glyph ของ emoji (พิมพ์ออกมาเป็นกล่องเปล่า)
-// สีถูกฝังในตัว path (pdfMake วาด SVG ผ่าน svg-to-pdfkit ไม่รู้จัก currentColor)
-
-const svgIcon = (paths: string, color: string) =>
-  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`;
-
-/** ของขวัญ (lucide: gift) */
-const ICON_GIFT = svgIcon(
-  '<rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13"/>'
-  + '<path d="M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7"/>'
-  + '<path d="M7.5 8a2.5 2.5 0 0 1 0-5A4.8 8 0 0 1 12 8a4.8 8 0 0 1 4.5-5 2.5 2.5 0 0 1 0 5"/>',
-  '#be185d',
-);
-
-/** ห้าม (lucide: ban) — ใช้กับ "ห้ามแนบใบเสร็จ/ราคา" */
-const ICON_NO_RECEIPT = svgIcon(
-  '<circle cx="12" cy="12" r="10"/><path d="m4.9 4.9 14.2 14.2"/>',
-  '#dc2626',
-);
-
-/** เอกสาร (lucide: file-text) — ใช้กับ "ขอใบกำกับภาษี" */
-const ICON_TAX = svgIcon(
-  '<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/>'
-  + '<path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/>',
-  '#b45309',
-);
-
-/** ชิปตัวเลือกพิเศษ: ไอคอน + ข้อความ บนพื้นสีอ่อน ไม่มีกรอบ */
-function buildChip(icon: string, label: string, color: string, bg: string) {
-  return {
-    width: 'auto' as const,
-    table: {
-      body: [[{
-        columns: [
-          { svg: icon, width: 11, height: 11, margin: [0, 1, 0, 0] },
-          { text: label, fontSize: 10, bold: true, color, width: 'auto', margin: [4, 0, 0, 0] },
-        ],
-        columnGap: 0,
-      }]],
-    },
-    layout: {
-      hLineWidth: () => 0,
-      vLineWidth: () => 0,
-      fillColor: () => bg,
-      paddingLeft: () => 6,
-      paddingRight: () => 7,
-      paddingTop: () => 3,
-      paddingBottom: () => 3,
-    },
-  };
-}
-
 // ─── Helpers ─────────────────────────────────────────────
 
 /**
@@ -613,25 +560,26 @@ function compactPackingParts(order: PackingListData, hasLogo: boolean) {
   // (ประเมินต่ำ = บล็อกล้นไปทับออเดอร์ครึ่งล่าง) — เผื่อฝั่งมากไว้ก่อน
   // โครงใหม่: แถวป้าย + แถวค่า + ที่อยู่ + (เส้นคั่น + หมายเหตุ)
   // กำหนดส่งอยู่คอลัมน์ขวาของแถวเดียวกับชื่อ จึง **ไม่บวกความสูงเพิ่ม**
-  // โครง: แถวชื่อ + แถวที่อยู่ + แถวหมายเหตุ ทุกแถวขนาดเดียวกัน (ไม่มีกำหนดส่งในบล็อกนี้แล้ว)
-  const addrLines = deliveryAddress ? Math.max(1, Math.ceil(deliveryAddress.length / 80)) : 0;
-  const recipientH = dense
-    ? 18 + addrLines * 12 + (noteText ? 13 : 0)
-    : 28 + addrLines * 14 + (noteText ? 15 : 0);
+  // โครง 2 คอลัมน์: ซ้าย = ชื่อ + ที่อยู่ (กว้าง ~245pt ≈ 45 ตัวอักษร/บรรทัด)
+  //                 ขวา = หมายเหตุ + รายการคำสั่งพิเศษ (+ รายละเอียดการ์ด) (กว้าง ~190pt ≈ 36 ตัวอักษร)
+  // ความสูงของบล็อก = คอลัมน์ที่สูงกว่า · ชิป/กล่องการ์ดไม่ใช่บล็อกแยกอีกแล้ว
+  const addrLines = deliveryAddress ? Math.max(1, Math.ceil(deliveryAddress.length / 45)) : 0;
+  const leftLines = 1 + addrLines;
+  const rightLines = (noteText ? Math.max(1, Math.ceil((noteText.length + 9) / 36)) : 0)
+    + (order.gift_hide_price ? 1 : 0)
+    + (order.tax_invoice_requested ? 1 : 0)
+    + (order.gift_card_requested
+      ? 1
+        + (order.gift_message ? Math.max(1, Math.ceil((order.gift_message.length + 8) / 34)) : 0)
+        + (order.gift_to || order.gift_from ? 1 : 0)
+        + (!order.gift_message && !order.gift_to && !order.gift_from ? 1 : 0)
+      : 0);
+  const recipientH = (dense ? 6 : 16) + Math.max(leftLines, rightLines) * (dense ? 12.5 : 14);
 
   let overheadH = (hasLogo ? 118 : 74)   // หัวเอกสาร (โลโก้ + ชื่อ/ที่อยู่ร้าน + กล่องเลขที่)
     + (scheduleText ? 11 : 0)            // กล่องเลขที่มีแถว "กำหนดส่ง" เพิ่ม
     + recipientH
     + 32;                                // หัวตาราง + บรรทัดสรุป
-  // ชิป (ห้ามแนบราคา/ขอใบกำกับ) อยู่แถวเดียวกันหมด — คิดความสูงครั้งเดียวไม่ว่าจะมีกี่ชิป
-  if (order.gift_hide_price || order.tax_invoice_requested) overheadH += 24;
-  // การ์ดอวยพรเป็นการ์ดใบเดียว (หัวข้อ + ข้อความ + ถึง/จาก) และซ้อนแถวเดียวกับชิปฝั่งขวา
-  if (order.gift_card_requested) {
-    overheadH += 34
-      + (order.gift_message ? 16 : 0)
-      + (order.gift_to || order.gift_from ? 16 : 0)
-      - (order.gift_hide_price || order.tax_invoice_requested ? 24 : 0);
-  }
   overheadH += 10;   // เผื่อความคลาดเคลื่อนของการประมาณ — ล้นแล้วทับอีกออเดอร์
 
   return { deliveryAddress, noteText, scheduleText, rowCount, dense, overheadH };
@@ -740,146 +688,107 @@ function buildCompactPackingContent(
     margin: [0, 0, 0, 4],
   });
 
-  // ── ผู้รับ + ที่อยู่จัดส่ง + หมายเหตุ (แบบธรรมดา) ──
-  // เจ้าของขอ "แบบธรรมดา ไม่ต้องเน้นมาก" (9 ก.ย. 2026) หลังจากลองแบบชื่อตัวใหญ่แล้วดูหนักเกิน
-  // ⇒ ทุกบรรทัดขนาดเดียวกัน ตัวปกติ · ป้ายกับค่าอยู่ตารางเดียวกันได้เพราะขนาดเท่ากัน
-  //    จึงวางฐานบรรทัดตรงกันเอง (ขนาดต่างกันเมื่อไหร่ pdfMake จะชิดขอบบนแล้วเหลื่อม)
-  // ⇒ กำหนดส่งย้ายขึ้นไปอยู่กับเลขที่/วันที่ในกล่องมุมขวาบนแล้ว ไม่อยู่ในบล็อกนี้
-  // ⇒ หมายเหตุเป็นสิ่งเดียวที่หนา (รอบเวลาส่ง/คำสั่งพิเศษ) แต่ขนาดเท่าบรรทัดอื่น
+  // ── ผู้รับ (ซ้าย) + หมายเหตุ/คำสั่งพิเศษ (ขวา) — แบบธรรมดา 2 คอลัมน์ ──
+  // เจ้าของขอ (9 ก.ย. 2026): "แบบธรรมดา ไม่ต้องเน้น" · "หมายเหตุกับห้ามแนบใบเสร็จ/พิมพ์การ์ด
+  // ให้ไปอยู่คอลัมน์ขวาของกล่องจัดส่งถึง เป็นรายการ 1. 2." · "เว้นบรรทัดเยอะไป"
+  // ⇒ ซ้าย: จัดส่งถึง + ชื่อ/โทร + ที่อยู่ · ขวา: หมายเหตุ + รายการคำสั่งพิเศษ (ตัวเลข)
+  // ⇒ ทุกบรรทัดขนาดเดียวกัน ตัวปกติ · หมายเหตุหนาอย่างเดียว · ไม่มีชิปสี/กล่องการ์ดสีชมพูอีก
+  //    (รายละเอียดการ์ดยังอยู่ — ใบนี้เป็นที่เดียวที่พิมพ์ข้อความการ์ด ไม่มี PDF การ์ดแยก)
+  // ⚠️ ห้ามใส่เซลล์ `{ text: '' }` เปล่าเป็นป้ายของแถวที่อยู่ — เซลล์ว่างขนาดตัวอักษรปกติ
+  //    ดันแถวสูงเกินไปหนึ่งบรรทัด (ที่มาของ "เว้นบรรทัดเยอะไป") ⇒ ชื่อกับที่อยู่อยู่ใน stack เดียว
   const customerPhone = order.delivery_phone || order.customer?.phone || '';
   const LABEL_W = dense ? 46 : 52;
+  const RIGHT_W = dense ? 170 : 190;
   const BODY = dense ? 9.5 : 10;
+  const PAD_X = dense ? 0 : 8;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const label = (text: string): any => ({ text, fontSize: BODY, color: '#6b7280' });
 
+  // ซ้าย — ผู้รับ
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const recipientRows: any[][] = [
-    [
-      label('จัดส่งถึง'),
+  const leftCol: any = {
+    width: '*',
+    columns: [
+      { width: LABEL_W, ...label('จัดส่งถึง') },
       {
-        text: [
-          { text: customerName, fontSize: BODY, color: '#111111' },
-          ...(customerPhone ? [{ text: `   โทร ${customerPhone}`, fontSize: BODY, color: '#111111' }] : []),
+        width: '*',
+        stack: [
+          {
+            text: [
+              { text: customerName, fontSize: BODY, color: '#111111' },
+              ...(customerPhone ? [{ text: `   โทร ${customerPhone}`, fontSize: BODY, color: '#111111' }] : []),
+            ],
+          },
+          ...(deliveryAddress
+            ? [{ text: deliveryAddress, fontSize: BODY, color: '#111111', lineHeight: 1.02, margin: [0, 1, 0, 0] }]
+            : []),
         ],
       },
     ],
-  ];
-  if (deliveryAddress) {
-    recipientRows.push([
-      { text: '' },
-      { text: deliveryAddress, fontSize: BODY, color: '#111111', lineHeight: 1.02 },
-    ]);
-  }
+    columnGap: 0,
+  };
+
+  // ขวา — หมายเหตุ + คำสั่งพิเศษเป็นรายการตัวเลข (ตามที่เจ้าของเขียนมา: 1. ห้ามแนบใบเสร็จ 2. พิมพ์การ์ด)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const rightStack: any[] = [];
   if (noteText) {
-    recipientRows.push([
-      label('หมายเหตุ'),
-      { text: noteText, fontSize: BODY, bold: true, color: '#111111' },
-    ]);
+    rightStack.push({
+      text: [label('หมายเหตุ  '), { text: noteText, fontSize: BODY, bold: true, color: '#111111' }],
+    });
   }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const flags: { label: string; details: any[] }[] = [];
+  if (order.gift_hide_price) flags.push({ label: 'ห้ามแนบใบเสร็จ / ราคา', details: [] });
+  if (order.gift_card_requested) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const details: any[] = [];
+    if (order.gift_message) {
+      details.push({ text: [label('ข้อความ  '), { text: order.gift_message, fontSize: BODY - 0.5, color: '#111111' }], lineHeight: 1.02 });
+    }
+    const toFrom = [
+      order.gift_to ? `ถึง ${order.gift_to}` : '',
+      order.gift_from ? `จาก ${order.gift_from}` : '',
+    ].filter(Boolean).join('   ');
+    if (toFrom) details.push({ text: toFrom, fontSize: BODY - 0.5, color: '#111111' });
+    // ลูกค้าขอการ์ดแต่ไม่ฝากอะไรมาเลย — บอกให้ชัด คนแพ็คจะได้ไม่นั่งหา
+    if (details.length === 0) details.push({ text: 'ลูกค้าไม่ได้ฝากข้อความ — แนบการ์ดเปล่า', fontSize: BODY - 0.5, color: '#6b7280' });
+    flags.push({ label: 'พิมพ์การ์ด', details });
+  }
+  if (order.tax_invoice_requested) flags.push({ label: 'ขอใบกำกับภาษี', details: [] });
+
+  flags.forEach((flag, i) => {
+    rightStack.push({
+      text: `${i + 1}. ${flag.label}`,
+      fontSize: BODY,
+      color: '#111111',
+      margin: [0, i === 0 && noteText ? 2 : 0, 0, 0],
+    });
+    for (const d of flag.details) rightStack.push({ ...d, margin: [12, 0, 0, 0] });
+  });
 
   content.push({
-    table: { widths: [LABEL_W, '*'], body: recipientRows },
+    table: {
+      widths: ['*'],
+      body: [[{
+        columns: rightStack.length > 0
+          ? [leftCol, { width: RIGHT_W, stack: rightStack }]
+          : [leftCol],
+        columnGap: 12,
+        // พื้นอ่อนล้วน ไม่มีกรอบ (บิลรายการเยอะตัดพื้นทิ้ง เอาที่ว่างไปให้แถวสินค้า)
+        ...(dense ? {} : { fillColor: '#f1f5f9' }),
+      }]],
+    },
     layout: {
       hLineWidth: () => 0,
       vLineWidth: () => 0,
-      // พื้นอ่อนล้วน ไม่มีกรอบ (บิลรายการเยอะตัดพื้นทิ้ง เอาที่ว่างไปให้แถวสินค้า)
-      fillColor: () => (dense ? null : '#f1f5f9'),
-      paddingLeft: (i: number) => (i === 0 ? (dense ? 0 : 8) : 0),
-      paddingRight: (i: number, node: { table: { widths: unknown[] } }) =>
-        (i === node.table.widths.length - 1 ? (dense ? 0 : 8) : 0),
-      paddingTop: (i: number) => (i === 0 ? (dense ? 1 : 5) : 1),
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      paddingBottom: (i: number, node: any) => (i === node.table.body.length - 1 ? (dense ? 1 : 6) : 1),
+      paddingLeft: () => PAD_X,
+      paddingRight: () => PAD_X,
+      paddingTop: () => (dense ? 1 : 5),
+      paddingBottom: () => (dense ? 1 : 6),
     },
     margin: [0, 1, 0, dense ? 3 : 5],
   });
-
-  // ── ตัวเลือกพิเศษของบิล ──
-  // การ์ดอวยพร = การ์ดใบเดียวจบ (หัวข้อ + ข้อความ + ถึง/จาก) เพราะคนแพ็คต้องคัดลอกลงการ์ดจริง
-  // ที่เหลือเป็นชิปสั้น ๆ วางข้างกัน — เดิมเป็นกล่องเต็มความกว้างกล่องละ option กินที่ ~120pt
-  // ⚠️ ไอคอนต้องเป็น SVG เท่านั้น — emoji ไม่มี glyph ใน IBMPlexSansThai (พิมพ์เป็นกล่องเปล่า)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const sideChips: any[] = [];
-  if (order.gift_hide_price) {
-    sideChips.push(buildChip(ICON_NO_RECEIPT, 'ห้ามแนบใบเสร็จ / ราคา', '#dc2626', '#fee2e2'));
-  }
-  if (order.tax_invoice_requested) {
-    sideChips.push(buildChip(ICON_TAX, 'ขอใบกำกับภาษี', '#b45309', '#fef3c7'));
-  }
-
-  if (order.gift_card_requested) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const cardLines: any[] = [{
-      columns: [
-        { svg: ICON_GIFT, width: 12, height: 12, margin: [0, 1, 0, 0] },
-        { text: 'แนบการ์ดอวยพร', fontSize: 10.5, bold: true, color: '#be185d', width: 'auto', margin: [5, 0, 0, 0] },
-      ],
-      columnGap: 0,
-      margin: [0, 0, 0, 3],
-    }];
-
-    if (order.gift_message) {
-      cardLines.push({
-        columns: [
-          { width: 36, text: 'ข้อความ', fontSize: 9, bold: true, color: '#be185d', margin: [0, 1, 0, 0] },
-          { width: '*', text: order.gift_message, fontSize: 10.5, color: '#111111', lineHeight: 1.15 },
-        ],
-        columnGap: 4,
-      });
-    }
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const toFromCols: any[] = [];
-    if (order.gift_to) {
-      toFromCols.push({
-        width: 'auto',
-        text: [
-          { text: 'ถึง  ', fontSize: 9, bold: true, color: '#be185d' },
-          { text: order.gift_to, fontSize: 10.5, bold: true, color: '#111111' },
-        ],
-      });
-    }
-    if (order.gift_from) {
-      toFromCols.push({
-        width: 'auto',
-        text: [
-          { text: 'จาก  ', fontSize: 9, bold: true, color: '#be185d' },
-          { text: order.gift_from, fontSize: 10.5, bold: true, color: '#111111' },
-        ],
-      });
-    }
-    if (toFromCols.length > 0) {
-      cardLines.push({ columns: [...toFromCols, { width: '*', text: '' }], columnGap: 16, margin: [0, 3, 0, 0] });
-    }
-    // ลูกค้าขอการ์ดแต่ไม่ฝากอะไรมาเลย — บอกให้ชัด คนแพ็คจะได้ไม่นั่งหา
-    if (!order.gift_message && toFromCols.length === 0) {
-      cardLines.push({ text: 'ลูกค้าไม่ได้ฝากข้อความ — แนบการ์ดเปล่า', fontSize: 9.5, color: '#9f1239' });
-    }
-
-    const giftCard = {
-      width: '*' as const,
-      table: { widths: ['*'], body: [[{ stack: cardLines, margin: [8, 5, 8, 6], fillColor: '#fdf2f8' }]] },
-      layout: {
-        hLineWidth: () => 1, vLineWidth: () => 1,
-        hLineColor: () => '#f9a8d4', vLineColor: () => '#f9a8d4',
-      },
-    };
-
-    content.push({
-      columns: sideChips.length > 0
-        ? [giftCard, { width: 'auto', stack: sideChips }]
-        : [giftCard],
-      columnGap: 6,
-      margin: [0, 0, 0, 5],
-    });
-  } else if (sideChips.length > 0) {
-    content.push({
-      columns: [...sideChips, { width: '*', text: '' }],
-      columnGap: 6,
-      margin: [0, 0, 0, 5],
-    });
-  }
 
   // ── Compact item table ──
   const allComponents = order.items.flatMap(i => i.promotion_components || []);
