@@ -48,6 +48,8 @@ type UnifiedContact = {
   source?: 'line' | 'facebook' | 'instagram' | 'shopee' | 'lazada' | 'tiktok';
   platform_user_id: string;
   display_name: string;
+  /** ชื่อเล่นที่ร้านตั้งเอง — ใช้ก่อน display_name ตอนทักด้วย {{ชื่อลูกค้า}} */
+  nickname?: string | null;
   picture_url?: string;
   status: string;
   customer_id?: string;
@@ -267,6 +269,7 @@ export async function GET(request: NextRequest) {
       return {
         id: c.id as string,
         display_name: c.display_name as string,
+        nickname: (c.nickname as string | null) ?? null,
         status: c.status as string,
         customer_id: c.customer_id as string | undefined,
         customer: c.customer as Record<string, unknown> | undefined,

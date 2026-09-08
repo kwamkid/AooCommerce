@@ -4,6 +4,8 @@ export interface UnifiedContact {
   source?: 'line' | 'facebook' | 'instagram' | 'shopee' | 'lazada' | 'tiktok';
   platform_user_id: string;
   display_name: string;
+  /** ชื่อเล่นที่ร้านตั้งให้ห้องนี้ — ใช้ก่อนทุกชื่อตอนแทน {{ชื่อลูกค้า}} */
+  nickname?: string | null;
   picture_url?: string;
   status: string;
   customer_id?: string;

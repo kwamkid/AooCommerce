@@ -56,6 +56,7 @@ import {
   MapPin,
   FilterX,
   MessageSquareText,
+  Pencil,
 } from 'lucide-react';
 import Image from 'next/image';
 import type { CustomerFormData } from '@/components/customers/customer-payload';
@@ -80,6 +81,7 @@ import ChannelBadge from '@/components/ui/ChannelBadge';
 import { can } from '@/lib/permissions';
 import { filterSavedReplies, type SavedReply } from '@/lib/chat/saved-replies';
 import { applySavedReplyVars } from '@/lib/chat/saved-reply-vars';
+import { resolveContactName } from '@/lib/chat/contact-name';
 
 // Dynamic imports for components that are not needed on initial load
 const EmojiStickerPicker = dynamic(() => import('./components/EmojiStickerPicker'), { ssr: false });
@@ -197,6 +199,10 @@ function UnifiedChatPageContent() {
   const [savedReplyModalOpen, setSavedReplyModalOpen] = useState(false);
   /** ใบที่กำลังแก้อยู่ในโมดัล — null = สร้างใหม่ (แก้ได้จากหน้าแชทเลย ไม่ต้องไป settings) */
   const [savedReplyEditing, setSavedReplyEditing] = useState<SavedReply | null>(null);
+  // ── ชื่อเล่นที่ร้านตั้งให้ห้องนี้ (ใช้ทักก่อนชื่ออื่น — lib/chat/contact-name.ts) ──
+  const [nicknameEditing, setNicknameEditing] = useState(false);
+  const [nicknameDraft, setNicknameDraft] = useState('');
+  const [nicknameSaving, setNicknameSaving] = useState(false);
   /**
    * ไฟล์แนบที่ "รอส่ง" — ลากวาง / กดเลือกไฟล์ / รูปของข้อความสำเร็จรูป มากองรวมกันที่นี่
    * แล้วส่งตอนกด Enter หรือปุ่มส่ง · เจ้าของขอให้ได้เห็นก่อน (ลากผิด ลากเกิน อยากลบบางรูป)
@@ -1412,7 +1418,7 @@ function UnifiedChatPageContent() {
    */
   const useSavedReply = (reply: SavedReply) => {
     const text = applySavedReplyVars(reply.content, {
-      customerName: selectedContact?.customer?.name || selectedContact?.display_name,
+      customerName: resolveContactName(selectedContact),
       shopName: currentCompany?.name,
       agentName: userProfile?.name,
     });
@@ -1958,6 +1964,30 @@ function UnifiedChatPageContent() {
     }
   };
 
+  /** บันทึกชื่อเล่นของห้องที่เปิดอยู่ — อัปเดตทั้งห้องที่เลือกและแถวในรายชื่อ */
+  const saveNickname = async () => {
+    if (!selectedContact) return;
+    const next = nicknameDraft.trim().replace(/\s+/g, ' ');
+    if (next === (selectedContact.nickname || '')) { setNicknameEditing(false); return; }
+    setNicknameSaving(true);
+    try {
+      const res = await apiFetch(`/api/chat/contacts/${selectedContact.id}/nickname`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ platform: selectedContact.platform, nickname: next }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'บันทึกชื่อเล่นไม่สำเร็จ');
+      const saved = (data.nickname as string | null) ?? null;
+      setSelectedContact(prev => prev && prev.id === selectedContact.id ? { ...prev, nickname: saved } : prev);
+      setContacts(prev => prev.map(ct => ct.id === selectedContact.id ? { ...ct, nickname: saved } : ct));
+      setNicknameEditing(false);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'บันทึกชื่อเล่นไม่สำเร็จ', 'error');
+    } finally {
+      setNicknameSaving(false);
+    }
+  };
+
   // Helper to render customer profile content
   const renderCustomerProfile = () => {
     if (!selectedContact) return null;
@@ -1977,6 +2007,42 @@ function UnifiedChatPageContent() {
             </StatusBadge>
           )}
           {!c && <p className="text-sm text-gray-400 mt-1">ยังไม่ได้เชื่อมกับลูกค้า</p>}
+        </div>
+
+        {/* ชื่อเล่น — ชื่อที่ระบบใช้ทักลูกค้าก่อนชื่ออื่นทั้งหมด */}
+        <div className="pb-3 border-b border-gray-100 dark:border-slate-700">
+          <label className="text-base font-medium text-gray-700 dark:text-slate-300 mb-1.5 block">ชื่อเล่น</label>
+          {nicknameEditing ? (
+            <div className="flex items-center gap-2">
+              <input
+                autoFocus
+                value={nicknameDraft}
+                maxLength={40}
+                onChange={e => setNicknameDraft(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') { e.preventDefault(); void saveNickname(); }
+                  if (e.key === 'Escape') { e.preventDefault(); setNicknameEditing(false); }
+                }}
+                placeholder="เช่น เจ๊แดง, คุณเมย์"
+                className="flex-1 min-w-0 h-9 px-2.5 text-sm border border-gray-300 dark:border-slate-600 dark:bg-slate-900 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+              />
+              <Button size="sm" variant="primary" loading={nicknameSaving} onClick={saveNickname}>บันทึก</Button>
+              <Button size="sm" variant="secondary" disabled={nicknameSaving} onClick={() => setNicknameEditing(false)}>ยกเลิก</Button>
+            </div>
+          ) : (
+            <button
+              onClick={() => { setNicknameDraft(selectedContact.nickname || ''); setNicknameEditing(true); }}
+              className="group flex items-center gap-1.5 text-sm text-left rounded-md px-1 -mx-1 py-0.5 hover:bg-gray-50 dark:hover:bg-slate-700/50"
+            >
+              {selectedContact.nickname
+                ? <span className="text-gray-900 dark:text-white">{selectedContact.nickname}</span>
+                : <span className="text-gray-400">ยังไม่ได้ตั้ง — กดเพื่อตั้ง</span>}
+              <Pencil className="w-3.5 h-3.5 text-gray-400 group-hover:text-primary" />
+            </button>
+          )}
+          <p className="helper-text text-gray-500 mt-1">
+            ข้อความสำเร็จรูปจะใช้ชื่อนี้ทักก่อนชื่ออื่นทั้งหมด
+          </p>
         </div>
 
         {/* Tags */}
@@ -2394,7 +2460,7 @@ function UnifiedChatPageContent() {
                     {/* Info */}
                     <div className="flex-1 min-w-0 text-left">
                       <div className="flex items-center justify-between">
-                        <span className="font-medium text-gray-900 dark:text-white truncate">{contact.display_name}</span>
+                        <span className="font-medium text-gray-900 dark:text-white truncate">{contact.nickname || contact.display_name}</span>
                         <div className="flex items-center gap-1.5 flex-shrink-0">
                           <span className="text-xs text-gray-400 dark:text-slate-500">{formatLastMessage(contact.last_message_at)}</span>
                           {contact.unread_count > 0 && (<span className="bg-red-500 text-white text-[10px] font-bold min-w-[18px] h-[18px] px-1 rounded-full flex items-center justify-center">{contact.unread_count > 99 ? '99+' : contact.unread_count}</span>)}
@@ -2485,9 +2551,14 @@ function UnifiedChatPageContent() {
                       <div className="min-w-0 flex-1 overflow-hidden" style={{ maxWidth: 'calc(100vw - 220px)' }}>
                         <h3 className="font-medium text-gray-900 dark:text-white flex items-center gap-1.5 min-w-0">
                           <span className="flex-shrink-0"><PlatformIcon contact={selectedContact} size={16} /></span>
-                          <span className="truncate">{selectedContact.display_name}</span>
+                          <span className="truncate">{selectedContact.nickname || selectedContact.display_name}</span>
                         </h3>
-                    {selectedContact.account_name && (<p className="text-xs text-gray-500 dark:text-slate-400 truncate">{selectedContact.account_name}</p>)}
+                    {/* ตั้งชื่อเล่นแล้วต้องยังเห็นชื่อจริงบนแพลตฟอร์มด้วย — ไม่งั้นเทียบกับหน้าจอ LINE/FB ไม่ได้ */}
+                    {(selectedContact.nickname || selectedContact.account_name) && (
+                      <p className="text-xs text-gray-500 dark:text-slate-400 truncate">
+                        {[selectedContact.nickname ? selectedContact.display_name : null, selectedContact.account_name].filter(Boolean).join(' · ')}
+                      </p>
+                    )}
                     {selectedContact.referral_ad_title && (() => {
                       const adData = selectedContact.referral_data?.ads_context_data;
                       const postId = adData?.post_id;
