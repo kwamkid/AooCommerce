@@ -3161,11 +3161,24 @@ export default function OrderForm({
     return lines.join('\n');
   })();
 
-  // Order Summary — คอลัมน์ขวาแบบ sticky เมื่อกล่องกว้างพอ · เต็มความกว้างใน wizard/แผงแคบ
-  // (wizard ไม่ได้ render กล่องที่ summarySectionRef เกาะ ค่า summaryWide จึงเชื่อไม่ได้)
-  const summaryFragment = hasProducts && (
+  /**
+   * คอลัมน์สรุปยอด — sticky ขวาเมื่อกล่องกว้างพอ · เต็มความกว้างใน wizard/แผงแคบ
+   * (wizard ไม่ได้ render กล่องที่ summarySectionRef เกาะ ค่า summaryWide จึงเชื่อไม่ได้)
+   *
+   * **โหมดคอลัมน์ขวาจองที่ไว้ตั้งแต่บิลยังว่าง** — ไม่งั้นพอเพิ่มสินค้าชิ้นแรก คอลัมน์
+   * โผล่มากิน 340px แล้วทั้งหน้ากระโดดจัดใหม่ · ตอนว่างแสดงข้อความบอกแทนตาราง ฿0
+   * ซึ่งอ่านแล้วเข้าใจผิดว่าเป็นยอดจริง (เจ้าของเลือกไว้ 9 ก.ย. 2026)
+   */
+  const summaryIsSideColumn = !useWizard && summaryWide;
+  const summaryFragment = (hasProducts || summaryIsSideColumn) && (
         <div className={useWizard ? 'w-full' : `${summaryWide ? 'w-[340px] flex-shrink-0 sticky top-4' : 'w-full'}`}>
           <div className={`bg-white dark:bg-slate-800 rounded-lg ${embedded ? '' : 'border border-gray-200 dark:border-slate-700'} p-4`}>
+          {!hasProducts ? (
+            <div className="text-center py-6">
+              <p className="heading-4 mb-1">สรุปคำสั่งซื้อ</p>
+              <p className="subtitle-text text-gray-500 dark:text-slate-400">เพิ่มสินค้าเพื่อดูยอดรวม</p>
+            </div>
+          ) : (<>
             <OrderSummaryBox
               title="สรุปคำสั่งซื้อ"
               subtotalAmount={itemsTotal}
@@ -3202,6 +3215,7 @@ export default function OrderForm({
                 );
               })()}
             </OrderSummaryBox>
+          </>)}
           </div>
         </div>
   );
