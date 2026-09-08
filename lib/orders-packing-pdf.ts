@@ -93,6 +93,30 @@ export interface PackingListData {
 
 const THEME = { primary: '#6366f1' };
 
+// ─── ไอคอนของการ์ดคำสั่งพิเศษ ─────────────────────────────
+// SVG เท่านั้น — ฟอนต์ IBMPlexSansThai ไม่มี glyph ของ emoji (พิมพ์ออกมาเป็นกล่องเปล่า)
+// สีถูกฝังในตัว path (pdfMake วาด SVG ผ่าน svg-to-pdfkit ไม่รู้จัก currentColor)
+const ALERT = '#dc2626';   // การ์ดคำสั่งพิเศษทั้งใบเป็นสีแดง — เจ้าของขอ "ตัวแดง มีไอคอน ให้สังเกตง่าย"
+
+const svgIcon = (paths: string, color: string) =>
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`;
+
+/** ห้าม (lucide: ban) — "ห้ามแนบใบเสร็จ / ราคา" */
+const ICON_NO_RECEIPT = svgIcon('<circle cx="12" cy="12" r="10"/><path d="m4.9 4.9 14.2 14.2"/>', ALERT);
+/** ของขวัญ (lucide: gift) — "พิมพ์การ์ด" */
+const ICON_GIFT = svgIcon(
+  '<rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13"/>'
+  + '<path d="M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7"/>'
+  + '<path d="M7.5 8a2.5 2.5 0 0 1 0-5A4.8 8 0 0 1 12 8a4.8 8 0 0 1 4.5-5 2.5 2.5 0 0 1 0 5"/>',
+  ALERT,
+);
+/** เอกสาร (lucide: file-text) — "ขอใบกำกับภาษี" */
+const ICON_TAX = svgIcon(
+  '<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/>'
+  + '<path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/>',
+  ALERT,
+);
+
 // ─── Helpers ─────────────────────────────────────────────
 
 /**
@@ -565,16 +589,18 @@ function compactPackingParts(order: PackingListData, hasLogo: boolean) {
   // ความสูงของบล็อก = คอลัมน์ที่สูงกว่า · ชิป/กล่องการ์ดไม่ใช่บล็อกแยกอีกแล้ว
   const addrLines = deliveryAddress ? Math.max(1, Math.ceil(deliveryAddress.length / 45)) : 0;
   const leftLines = 1 + addrLines;
-  const rightLines = (noteText ? Math.max(1, Math.ceil((noteText.length + 9) / 36)) : 0)
-    + (order.gift_hide_price ? 1 : 0)
+  const flagLines = (order.gift_hide_price ? 1 : 0)
     + (order.tax_invoice_requested ? 1 : 0)
     + (order.gift_card_requested
       ? 1
-        + (order.gift_message ? Math.max(1, Math.ceil((order.gift_message.length + 8) / 34)) : 0)
+        + (order.gift_message ? Math.max(1, Math.ceil((order.gift_message.length + 8) / 32)) : 0)
         + (order.gift_to || order.gift_from ? 1 : 0)
         + (!order.gift_message && !order.gift_to && !order.gift_from ? 1 : 0)
       : 0);
-  const recipientH = (dense ? 6 : 16) + Math.max(leftLines, rightLines) * (dense ? 12.5 : 14);
+  const rightLines = (noteText ? Math.max(1, Math.ceil((noteText.length + 9) / 36)) : 0) + flagLines;
+  const recipientH = (dense ? 6 : 16)
+    + Math.max(leftLines, rightLines) * (dense ? 12.5 : 14)
+    + (flagLines > 0 ? 16 : 0);   // การ์ดคำสั่งพิเศษมีกรอบ + ระยะขอบ + ช่องห่างจากหมายเหตุ
 
   let overheadH = (hasLogo ? 118 : 74)   // หัวเอกสาร (โลโก้ + ชื่อ/ที่อยู่ร้าน + กล่องเลขที่)
     + (scheduleText ? 11 : 0)            // กล่องเลขที่มีแถว "กำหนดส่ง" เพิ่ม
@@ -737,9 +763,10 @@ function buildCompactPackingContent(
       text: [label('หมายเหตุ  '), { text: noteText, fontSize: BODY, bold: true, color: '#111111' }],
     });
   }
+  // คำสั่งพิเศษ = การ์ดแยก กรอบแดง ตัวแดง มีไอคอน (เจ้าของขอให้สังเกตง่าย 9 ก.ย. 2026)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const flags: { label: string; details: any[] }[] = [];
-  if (order.gift_hide_price) flags.push({ label: 'ห้ามแนบใบเสร็จ / ราคา', details: [] });
+  const flags: { icon: string; label: string; details: any[] }[] = [];
+  if (order.gift_hide_price) flags.push({ icon: ICON_NO_RECEIPT, label: 'ห้ามแนบใบเสร็จ / ราคา', details: [] });
   if (order.gift_card_requested) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const details: any[] = [];
@@ -753,19 +780,35 @@ function buildCompactPackingContent(
     if (toFrom) details.push({ text: toFrom, fontSize: BODY - 0.5, color: '#111111' });
     // ลูกค้าขอการ์ดแต่ไม่ฝากอะไรมาเลย — บอกให้ชัด คนแพ็คจะได้ไม่นั่งหา
     if (details.length === 0) details.push({ text: 'ลูกค้าไม่ได้ฝากข้อความ — แนบการ์ดเปล่า', fontSize: BODY - 0.5, color: '#6b7280' });
-    flags.push({ label: 'พิมพ์การ์ด', details });
+    flags.push({ icon: ICON_GIFT, label: 'พิมพ์การ์ด', details });
   }
-  if (order.tax_invoice_requested) flags.push({ label: 'ขอใบกำกับภาษี', details: [] });
+  if (order.tax_invoice_requested) flags.push({ icon: ICON_TAX, label: 'ขอใบกำกับภาษี', details: [] });
 
-  flags.forEach((flag, i) => {
-    rightStack.push({
-      text: `${i + 1}. ${flag.label}`,
-      fontSize: BODY,
-      color: '#111111',
-      margin: [0, i === 0 && noteText ? 2 : 0, 0, 0],
+  if (flags.length > 0) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const cardLines: any[] = [];
+    flags.forEach((flag, i) => {
+      cardLines.push({
+        columns: [
+          { svg: flag.icon, width: 11, height: 11, margin: [0, 1.5, 0, 0] },
+          { text: flag.label, fontSize: BODY, bold: true, color: ALERT, width: '*', margin: [5, 0, 0, 0] },
+        ],
+        columnGap: 0,
+        margin: [0, i === 0 ? 0 : 2, 0, 0],
+      });
+      // รายละเอียดการ์ด (ข้อความ/ถึง/จาก) เป็นสีเข้มปกติ — ต้องอ่านรู้เรื่อง ไม่ใช่สัญญาณเตือน
+      for (const d of flag.details) cardLines.push({ ...d, margin: [16, 0, 0, 0] });
     });
-    for (const d of flag.details) rightStack.push({ ...d, margin: [12, 0, 0, 0] });
-  });
+    rightStack.push({
+      table: { widths: ['*'], body: [[{ stack: cardLines, margin: [6, 4, 6, 5], fillColor: '#fef2f2' }]] },
+      layout: {
+        hLineWidth: () => 0.75, vLineWidth: () => 0.75,
+        hLineColor: () => '#fca5a5', vLineColor: () => '#fca5a5',
+        paddingLeft: () => 0, paddingRight: () => 0, paddingTop: () => 0, paddingBottom: () => 0,
+      },
+      margin: [0, noteText ? 4 : 0, 0, 0],
+    });
+  }
 
   content.push({
     table: {
