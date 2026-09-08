@@ -299,7 +299,7 @@ export default function DesignSystemPage() {
         {/* TABS */}
         <Section title="Tabs" desc="<Tabs activeKey tabs={[{key,label,icon?,count?,href?,activeColorClass?}]} onSelect? fill? size? /> — แท็บเนื้อหา (คนละตัวกับ StatusTabs ที่เป็นตัวกรองสถานะของหน้า list)">
           <Card>
-            <Group label="ค่าปกติ — แท็บที่เลือกเป็นแผ่นขาวโค้งมุมบน พื้นเทาไหลต่อไปทางขวา">
+            <Group label="ค่าปกติ — รางพื้นเทามุมมน แท็บที่เลือกเป็นการ์ดขาวมีเงาลอยอยู่ข้างใน">
               <div className="w-full">
                 <Hint>บนพื้นขาวของการ์ด (บริบทเดียวกับหน้าตั้งค่า)</Hint>
                 <Tabs
@@ -325,24 +325,6 @@ export default function DesignSystemPage() {
                     { key: 'reports', label: 'รายงาน' },
                   ]}
                 />
-              </div>
-            </Group>
-            <Group label="ต่อกับการ์ดเนื้อหา (className='mb-0') — ทรงเดียวกับดีไซน์อ้างอิง แผ่นขาวไหลลงเป็นเนื้อหาต่อเนื่อง">
-              <div className="w-full">
-                <Tabs
-                  className="mb-0"
-                  activeKey={demoTab}
-                  onSelect={(k) => setDemoTab(k as typeof demoTab)}
-                  tabs={[
-                    { key: 'orders', label: 'คำสั่งซื้อ', count: 24 },
-                    { key: 'invoices', label: 'ใบกำกับ', count: 8 },
-                    { key: 'reports', label: 'รายงาน' },
-                  ]}
-                />
-                <div className="bg-white dark:bg-slate-900 rounded-b-xl rounded-tr-xl p-5 body-text text-gray-600 dark:text-slate-300">
-                  เนื้อหาของแท็บ <span className="font-mono">{demoTab}</span> — พื้นขาวต่อเนื่องจากแท็บที่เลือก
-                </div>
-                <Hint>แท็บที่เลือกกับกล่องเนื้อหาเป็นแผ่นขาวเดียวกัน (ไม่ต้องมีเส้นคั่น)</Hint>
               </div>
             </Group>
             <Group label="fill — แบ่งความกว้างเท่ากันเต็มแถว (หน้า PC · แถบมือถือ POS)">
