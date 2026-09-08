@@ -65,3 +65,38 @@ export function onNumericInput(opts: { allowNegative?: boolean } = {}) {
     el.value = next ?? el.value.replace(opts.allowNegative ? /[^\d.-]/g : /[^\d.]/g, '');
   };
 }
+
+// ─────────────────────────── เบอร์โทร ───────────────────────────
+//
+// ช่องเบอร์โทรทั่วระบบเคยเป็น <input> ดิบต่างคนต่างเขียน (~30 จุด 19 ไฟล์) ไม่มีตัวไหนกรอง
+// อักขระเลย พิมพ์ "จฟหกด" ลงช่องเบอร์ได้ (เจ้าของทัก 9 ก.ย. 2026) — ยุบมาที่นี่ที่เดียว
+// ตามแบบเดียวกับตัวเลขข้างบน: props ชุดเดียว + ตัวกรอง + ตัวห่อ handler
+//
+// ยอมรับ: ตัวเลข · ขีด · เว้นวรรค · + (เบอร์ต่างประเทศ) · วงเล็บ (รหัสพื้นที่)
+// เพราะคนวางเบอร์จากที่อื่นมาทั้ง "081-555-4544" "+66 81 555 4544" "(02) 123 4567"
+// — validation ว่าเป็นเบอร์ที่ใช้ได้จริงไหมอยู่ที่ฟอร์มปลายทาง ตรงนี้กันแค่อักขระที่ไม่มีทางถูก
+
+/** props ที่ต้องใส่ให้ช่องเบอร์โทร — `tel` ให้มือถือขึ้นแป้นตัวเลข */
+export const PHONE_INPUT_PROPS = { type: 'text' as const, inputMode: 'tel' as const, autoComplete: 'tel' as const };
+
+/**
+ * กรองสิ่งที่ผู้ใช้พิมพ์/วางลงช่องเบอร์โทร
+ * - คืน string เดิมเมื่อทุกตัวอักษรใช้ได้
+ * - คืน `null` เมื่อมีอักขระที่ไม่ใช่เบอร์ = **ไม่ต้องอัปเดต state** (ปฏิเสธการพิมพ์ตัวนั้น)
+ */
+export function sanitizePhoneInput(raw: string): string | null {
+  return /^[\d\s\-+()]*$/.test(raw) ? raw : null;
+}
+
+/**
+ * ห่อ handler ของช่องเบอร์โทรดิบ — อักขระที่ไม่ใช่เบอร์จะไม่ถูกส่งต่อเลย
+ *
+ * @example
+ *   <input {...PHONE_INPUT_PROPS} value={phone} onChange={onPhoneChange(setPhone)} />
+ */
+export function onPhoneChange(handler: (value: string) => void) {
+  return (e: { target: { value: string } }) => {
+    const next = sanitizePhoneInput(e.target.value);
+    if (next !== null) handler(next);
+  };
+}

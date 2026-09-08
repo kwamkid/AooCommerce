@@ -1,6 +1,7 @@
 'use client';
 
 import ProductImageThumb from '@/components/ui/ProductImageThumb';
+import { PHONE_INPUT_PROPS, onPhoneChange } from '@/lib/numeric-input';
 import { useState, useEffect, Fragment } from 'react';
 import { useCopy } from '@/lib/useCopy';
 import Image from 'next/image';
@@ -720,7 +721,7 @@ export default function BillClient({ orderId, initialBill }: { orderId: string; 
                 </div>
                 <div>
                   <label className="block text-sm mb-1" style={{ color: dark ? '#cbd5e1' : '#4b5563' }}>เบอร์โทรศัพท์ *</label>
-                  <input type="tel" value={deliveryPhone} onChange={(e) => { setDeliveryPhone(e.target.value); setDeliveryErrors(prev => { const { phone, ...rest } = prev; return rest; }); }}
+                  <input {...PHONE_INPUT_PROPS} value={deliveryPhone} onChange={onPhoneChange(v => { setDeliveryPhone(v); setDeliveryErrors(prev => { const { phone, ...rest } = prev; return rest; }); })}
                     placeholder="0xx-xxx-xxxx"
                     style={dark ? { backgroundColor: '#1e293b', borderColor: deliveryErrors.phone ? '#ef4444' : '#475569', color: '#fff' } : { backgroundColor: '#fff', borderColor: deliveryErrors.phone ? '#ef4444' : '#d1d5db', color: '#111827' }}
                     className="w-full px-3 py-2.5 border rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-orange-400" />

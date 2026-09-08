@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { PHONE_INPUT_PROPS, onPhoneChange } from '@/lib/numeric-input';
 import Link from 'next/link';
 import { Users, X, UserPlus, MapPin, ChevronDown, CheckCircle, Plus, UserCheck, Loader2, Pencil, Gift, Search } from 'lucide-react';
 import EntitySearchInput from '@/components/ui/EntitySearchInput';
@@ -497,7 +498,7 @@ export default function CustomerSelectionCard({
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="field-label">เบอร์โทร</label>
-                <input ref={newCustomerPhoneRef} type="text" inputMode="tel" value={delivery?.deliveryPhone || selectedCustomer?.phone || ''} onChange={(e) => onDeliveryChange?.({ deliveryPhone: e.target.value })} placeholder="0xx-xxx-xxxx" disabled={!isEditable}
+                <input ref={newCustomerPhoneRef} {...PHONE_INPUT_PROPS} value={delivery?.deliveryPhone || selectedCustomer?.phone || ''} onChange={onPhoneChange(v => onDeliveryChange?.({ deliveryPhone: v }))} placeholder="0xx-xxx-xxxx" disabled={!isEditable}
                   className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-gray-100 dark:disabled:bg-slate-800" />
                 {/* เบอร์คือตัวชี้ขาดว่าเป็นคนเดิมไหม — ชื่อพึ่งไม่ได้ (ชื่อเล่นซ้ำเยอะ
                     บางคนบันทึกชื่อจริง บางคนบันทึกชื่อเล่น)
@@ -728,10 +729,9 @@ export default function CustomerSelectionCard({
                   <div>
                     <label className="field-label">เบอร์ผู้รับ</label>
                     <input
-                      type="text"
-                      inputMode="tel"
+                      {...PHONE_INPUT_PROPS}
                       value={delivery?.deliveryPhone || ''}
-                      onChange={(e) => onDeliveryChange?.({ deliveryPhone: e.target.value })}
+                      onChange={onPhoneChange(v => onDeliveryChange?.({ deliveryPhone: v }))}
                       disabled={!isEditable}
                       placeholder="ให้คนส่งของโทรหาได้"
                       className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-gray-100 dark:disabled:bg-slate-800"

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { PHONE_INPUT_PROPS, onPhoneChange } from '@/lib/numeric-input';
 import { Copy } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -440,7 +441,7 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
             </label>
             <div className="sf-field-row">
               <label className="sf-label">เบอร์โทร *
-                <input ref={phoneRef} className="sf-input" value={phone} onChange={e => setPhone(e.target.value)} inputMode="tel" placeholder="08xxxxxxxx" />
+                <input ref={phoneRef} className="sf-input" value={phone} onChange={onPhoneChange(setPhone)} {...PHONE_INPUT_PROPS} placeholder="08xxxxxxxx" />
               </label>
               <label className="sf-label">อีเมล
                 <input className="sf-input" value={email} onChange={e => setEmail(e.target.value)} inputMode="email" placeholder="ไม่บังคับ" />
@@ -481,7 +482,7 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
                     <input ref={rcpNameRef} className="sf-input" value={rcpName} onChange={e => setRcpName(e.target.value)} placeholder="ชื่อคนที่จะได้รับของ" />
                   </label>
                   <label className="sf-label">เบอร์ผู้รับ *
-                    <input className="sf-input" value={rcpPhone} onChange={e => setRcpPhone(e.target.value)} inputMode="tel" placeholder="ให้คนส่งของโทรหาได้" />
+                    <input className="sf-input" value={rcpPhone} onChange={onPhoneChange(setRcpPhone)} {...PHONE_INPUT_PROPS} placeholder="ให้คนส่งของโทรหาได้" />
                   </label>
                 </div>
                 <p className="sf-hint" style={{ marginTop: -6, marginBottom: 12 }}>

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { PHONE_INPUT_PROPS, onPhoneChange } from '@/lib/numeric-input';
 import dynamic from 'next/dynamic';
 import {
   Check,
@@ -389,7 +390,7 @@ export default function CustomerForm({
         </div>
         <div>
           <label className={labelCompact}>เบอร์โทร</label>
-          <input type="tel" value={phoneDisplay} onChange={(e) => handlePhoneChange(e.target.value)}
+          <input {...PHONE_INPUT_PROPS} value={phoneDisplay} onChange={onPhoneChange(handlePhoneChange)}
             onBlur={() => setShowPhoneError(true)} onFocus={() => setShowPhoneError(false)}
             className={inputCompact} placeholder="0xx-xxx-xxxx" />
           {showPhoneError && formData.phone && !validatePhone(formData.phone) && (
@@ -499,7 +500,7 @@ export default function CustomerForm({
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className={labelFull}>เบอร์โทร</label>
-                  <input type="tel" value={phoneDisplay} onChange={(e) => handlePhoneChange(e.target.value)}
+                  <input {...PHONE_INPUT_PROPS} value={phoneDisplay} onChange={onPhoneChange(handlePhoneChange)}
                     onBlur={() => setShowPhoneError(true)} onFocus={() => setShowPhoneError(false)}
                     className={inputFull} placeholder="0xx-xxx-xxxx" />
                   {showPhoneError && formData.phone && !validatePhone(formData.phone) && <p className="text-xs text-red-500 mt-1">เบอร์ไทย 9-10 หลัก</p>}

@@ -554,6 +554,7 @@ export default function StorefrontSettingsPage() {
               <div className="space-y-4">
                 <FormInput
                   label="เบอร์โทร"
+                  type="tel"
                   value={cfg.contact_phone}
                   onChange={(e) => patch({ contact_phone: e.target.value })}
                   placeholder={companyPhone ? `เว้นว่าง = ${companyPhone}` : 'เว้นว่าง = ใช้ของบริษัท'}

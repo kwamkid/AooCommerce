@@ -1920,7 +1920,7 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
               <FormInput
                 label="เบอร์โทร"
                 required
-                inputMode="tel"
+                type="tel"
                 value={deliveryForm.delivery_phone}
                 onChange={(e) => { setDeliveryForm(f => ({ ...f, delivery_phone: e.target.value })); setDeliveryErrors(prev => { const { phone, ...rest } = prev; return rest; }); }}
                 error={deliveryErrors.phone}

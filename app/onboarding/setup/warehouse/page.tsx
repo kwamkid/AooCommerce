@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
+import { PHONE_INPUT_PROPS, onPhoneChange } from '@/lib/numeric-input';
 import { useRouter } from 'next/navigation';
 import { Warehouse, Check, Loader2 } from 'lucide-react';
 import WizardShell from '@/components/onboarding/WizardShell';
@@ -152,12 +153,11 @@ export default function OnboardingWarehousePage() {
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">เบอร์โทร (ไม่บังคับ)</label>
             <input
-              type="text"
-              inputMode="tel"
+              {...PHONE_INPUT_PROPS}
               name="wizard_warehouse_phone"
               autoComplete="off"
               value={phone}
-              onChange={e => patch({ phone: e.target.value })}
+              onChange={onPhoneChange(v => patch({ phone: v }))}
               placeholder="0XX-XXX-XXXX"
               className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
             />
