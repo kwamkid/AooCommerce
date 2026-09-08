@@ -200,8 +200,6 @@ function UnifiedChatPageContent() {
    * แล้วส่งตอนกด Enter หรือปุ่มส่ง · เจ้าของขอให้ได้เห็นก่อน (ลากผิด ลากเกิน อยากลบบางรูป)
    */
   const [attachments, setAttachments] = useState<ChatAttachment[]>([]);
-  /** ความคืบหน้าตอนกำลังส่งชุดรูป — แสดงเป็นแถบในกล่องพิมพ์ */
-  const [uploadProgress, setUploadProgress] = useState<{ done: number; total: number } | null>(null);
 
   // ── ลากรูปมาวางในหน้าแชท ──
   const [dragActive, setDragActive] = useState(false);
@@ -1168,25 +1166,44 @@ function UnifiedChatPageContent() {
    * (และแพลตฟอร์มไม่รับประกันลำดับถ้ายิงพร้อมกัน · Lazada มีระยะห่างขั้นต่ำต่อ call ด้วย)
    */
   const deliverAttachments = async (list: ChatAttachment[]) => {
-    if (list.length === 0) return;
+    if (list.length === 0 || !selectedContact) return;
     const many = list.length > 1;
+    const contactId = selectedContact.id;
     // รหัสชุด — โครงเดียวกับ imageSet ที่ LINE ส่งมาตอนลูกค้าส่งหลายรูป
-    // ทำให้หน้าแชทของเรายุบรูปชุดนี้เป็นฟองอัลบั้มใบเดียว
+    // ทำให้หน้าแชทของเรายุบรูปชุดนี้เป็นฟองอัลบั้มใบเดียวหลังส่งครบ
     const setId = many ? `out-${Date.now()}-${Math.random().toString(36).slice(2, 8)}` : null;
+    const stamp = Date.now();
 
-    setUploadProgress({ done: 0, total: list.length });
+    const jobs = list.map((att, i) => ({
+      att,
+      tempId: `temp-${stamp}-${i}`,
+      previewUrl: att.kind === 'file' ? att.previewUrl : att.url,
+      imageSet: setId ? { id: setId, index: i + 1, total: list.length } : undefined,
+    }));
+
+    // วางฟองครบทุกใบ "ตั้งแต่วินาทีที่กดส่ง" แล้วค่อยอัปโหลดทีละใบ — ใบที่ยังไม่ถึงคิว
+    // จะจางพร้อมวงหมุนอยู่บนรูป (ดู ImageBubble) · ของเดิมฟองโผล่ทีละใบตามคิวอัปโหลด
+    // ทำให้ดูเหมือนระบบค้างทั้งที่กำลังทำงานอยู่
+    setMessages(prev => [...prev, ...jobs.map(j => ({
+      id: j.tempId, _tempId: j.tempId, contact_id: contactId,
+      direction: 'outgoing' as const, message_type: 'image', content: '[รูปภาพ]',
+      raw_message: { imageUrl: j.previewUrl, ...(j.imageSet ? { image_set: j.imageSet } : {}) },
+      created_at: new Date().toISOString(), _status: 'sending' as const,
+      ...(j.att.kind === 'file' ? { _file: j.att.file } : {}),
+    }))]);
+
+    // ส่งทีละใบตามลำดับ ไม่ยิงขนาน — ลูกค้าต้องเห็นรูปเรียงตามที่เราวางไว้
+    // (และแพลตฟอร์มไม่รับประกันลำดับถ้ายิงพร้อมกัน · Lazada มีระยะห่างขั้นต่ำต่อ call ด้วย)
     let failed = 0;
-    for (let i = 0; i < list.length; i++) {
-      const a = list[i];
-      const imageSet = setId ? { id: setId, index: i + 1, total: list.length } : undefined;
-      const ok = a.kind === 'file'
-        ? await sendImageFile(a.file, undefined, { quiet: many, imageSet })
-        : await sendImageUrl(a.url, undefined, { imageSet });
+    for (const j of jobs) {
+      const ok = j.att.kind === 'file'
+        ? await sendImageFile(j.att.file, undefined, { quiet: many, imageSet: j.imageSet, tempId: j.tempId })
+        : await sendImageUrl(j.att.url, undefined, { imageSet: j.imageSet, tempId: j.tempId });
       if (!ok) failed += 1;
-      if (a.kind === 'file') URL.revokeObjectURL(a.previewUrl);
-      setUploadProgress({ done: i + 1, total: list.length });
+      // สำเร็จแล้วฟองถูกแทนด้วยข้อความจากเซิร์ฟเวอร์ (URL จริง) → คืน blob ได้
+      // ⚠️ ล้มเหลวห้ามคืน — ฟองที่ค้างยังต้องโชว์รูปให้เห็นว่าใบไหนที่ส่งไม่ไป
+      if (ok && j.att.kind === 'file') URL.revokeObjectURL(j.att.previewUrl);
     }
-    setUploadProgress(null);
 
     if (many) {
       const sent = list.length - failed;
@@ -2626,24 +2643,6 @@ function UnifiedChatPageContent() {
                   </div>
                 )}
 
-                {/* กำลังอัปโหลด/ส่งชุดรูป — บอกว่าถึงใบไหนแล้ว ไม่ใช่หมุนเฉย ๆ */}
-                {uploadProgress && (
-                  <div className="mb-2">
-                    <div className="flex items-center justify-between helper-text text-gray-500 mb-1">
-                      <span>กำลังส่งรูป {uploadProgress.done}/{uploadProgress.total}</span>
-                      <span>{Math.round((uploadProgress.done / uploadProgress.total) * 100)}%</span>
-                    </div>
-                    <div className="h-1.5 rounded-full bg-gray-200 dark:bg-slate-700 overflow-hidden">
-                      <div
-                        className="h-full rounded-full transition-all duration-300"
-                        style={{
-                          width: `${(uploadProgress.done / uploadProgress.total) * 100}%`,
-                          backgroundColor: platformColor,
-                        }}
-                      />
-                    </div>
-                  </div>
-                )}
                 <div className="flex items-center gap-1 md:gap-2">
                   <input ref={fileInputRef} type="file" accept="image/*" multiple onChange={handleImageUpload} className="hidden" />
                   {/* box="inline-flex" — ปุ่มนี้ disabled ตอนอัปโหลด ซึ่งไม่ยิง pointer event ต้องมีกล่องครอบถึงจะ hover ติด */}
@@ -2696,7 +2695,7 @@ function UnifiedChatPageContent() {
                     onPaste={handleComposerPaste}
                     placeholder="พิมพ์ข้อความ..." autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck={false} enterKeyHint="send"
                     className="flex-1 min-w-0 h-10 px-3 md:px-4 py-2 mr-2 text-sm md:text-base border border-gray-300 rounded-[15px] focus:outline-none focus:ring-2" style={{ '--tw-ring-color': platformColor } as any} />
-                  <button onClick={() => { sendMessage(); }} disabled={(!newMessage.trim() && attachments.length === 0) || !!uploadProgress} className="p-2 text-white rounded-full disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex-shrink-0" style={{ backgroundColor: platformColor }}><Send className="w-5 h-5" /></button>
+                  <button onClick={() => { sendMessage(); }} disabled={!newMessage.trim() && attachments.length === 0} className="p-2 text-white rounded-full disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex-shrink-0" style={{ backgroundColor: platformColor }}><Send className="w-5 h-5" /></button>
                 </div>
               </div>
               )}

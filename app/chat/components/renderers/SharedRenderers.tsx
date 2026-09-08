@@ -1,6 +1,6 @@
 'use client';
 
-import { Play, FileText, Download, Music } from 'lucide-react';
+import { Play, FileText, Download, Music, Loader2 } from 'lucide-react';
 import { ChatMessage } from '@/app/chat/lib/chatTypes';
 import { hasHtmlMarkup, parseRichText } from '@/app/chat/lib/richText';
 
@@ -52,14 +52,25 @@ export function ImageBubble({ msg, onOpenLightbox, onImageLoad }: RendererProps)
   const set = msg.raw_message?.image_set;
   const total = set?.total ?? 0;
 
+  // ยังส่งไม่เสร็จ = รูปจาง + วงหมุนทับบนรูป · บอกได้ทีละใบว่าใบไหนถึงคิวแล้ว
+  // (ดีกว่าแถบรวมในกล่องพิมพ์ที่บอกแค่ตัวเลข ไม่รู้ว่าเป็นรูปไหน)
+  const sending = msg._status === 'sending';
+
   const img = (
-    <img
-      src={imageUrl}
-      alt="image"
-      className="max-w-full max-h-64 rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
-      onClick={() => onOpenLightbox?.(imageUrl)}
-      onLoad={onImageLoad}
-    />
+    <div className="relative inline-block">
+      <img
+        src={imageUrl}
+        alt="image"
+        className={`max-w-full max-h-64 rounded-lg transition-opacity ${sending ? 'opacity-40' : 'cursor-pointer hover:opacity-90'}`}
+        onClick={() => { if (!sending) onOpenLightbox?.(imageUrl); }}
+        onLoad={onImageLoad}
+      />
+      {sending && (
+        <span className="absolute inset-0 flex items-center justify-center">
+          <Loader2 className="w-7 h-7 animate-spin text-gray-600 dark:text-white drop-shadow" />
+        </span>
+      )}
+    </div>
   );
 
   if (total <= 1) return img;
