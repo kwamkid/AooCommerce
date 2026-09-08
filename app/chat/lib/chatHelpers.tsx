@@ -157,7 +157,7 @@ export function formatLastMessage(dateString?: string) {
  * (เช่น HEIC จาก iPhone เปิดบน Chrome) ผู้เรียกต้องตัดสินใจต่อเอง ห้ามเงียบ ๆ
  * ส่งไฟล์ดิบไปให้ LINE/FB เพราะปลายทางจะได้รูปเสียโดยที่ฝั่งเราขึ้นว่าส่งสำเร็จ
  */
-function compressToJpeg(file: File, maxSizeKB: number): Promise<Blob | null> {
+function compressToJpeg(file: Blob, maxSizeKB: number): Promise<Blob | null> {
   return new Promise((resolve) => {
     const img = new window.Image();
     const url = URL.createObjectURL(file);
@@ -197,29 +197,81 @@ export function compressImage(file: File, maxSizeKB = 500): Promise<Blob> {
 /** ชนิดที่ทั้ง LINE และ Facebook แสดงผลได้แน่นอน (LINE รับแค่ JPEG/PNG) */
 const SENDABLE_IMAGE_TYPES = new Set(['image/jpeg', 'image/jpg', 'image/png']);
 
+/**
+ * ไฟล์นี้เป็น HEIC/HEIF ไหม — **ต้องดูนามสกุลด้วย ไม่ใช่ดูแค่ `file.type`**
+ * Chrome บน Windows ให้ `type` เป็นสตริงว่างกับ .heic บ่อย ๆ (ระบบไม่รู้จักชนิดนี้)
+ */
+function looksLikeHeic(file: File): boolean {
+  const type = (file.type || '').toLowerCase();
+  if (type === 'image/heic' || type === 'image/heif' || type.startsWith('image/heic') || type.startsWith('image/heif')) return true;
+  return /\.(heic|heif)$/i.test(file.name || '');
+}
+
+/** ไฟล์นี้พอจะเป็นรูปไหม — ใช้แทน `file.type.startsWith('image/')` ที่ตกไฟล์ type ว่าง */
+export function looksLikeImageFile(file: File): boolean {
+  if ((file.type || '').toLowerCase().startsWith('image/')) return true;
+  return /\.(jpe?g|png|gif|webp|bmp|heic|heif|avif|tiff?)$/i.test(file.name || '');
+}
+
+/**
+ * แปลง HEIC/HEIF → JPEG ในเครื่องผู้ใช้ ด้วย libheif (wasm) ของ heic2any
+ * โหลดแบบ dynamic **เฉพาะตอนเจอไฟล์ HEIC จริง ๆ** — ก้อนนี้ 1.3MB คนที่ส่ง JPG/PNG
+ * ตามปกติจะไม่โดนดาวน์โหลดเลย · คืน null เมื่อแปลงไม่สำเร็จ
+ */
+async function heicToJpeg(file: File): Promise<Blob | null> {
+  try {
+    const heic2any = (await import('heic2any')).default;
+    const out = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.9 });
+    // HEIC หนึ่งไฟล์เก็บได้หลายภาพ (Live Photo / burst) — เอาภาพแรกพอ
+    const blob = Array.isArray(out) ? out[0] : out;
+    return blob instanceof Blob ? blob : null;
+  } catch (err) {
+    console.error('HEIC → JPEG conversion failed:', err);
+    return null;
+  }
+}
+
 export interface PreparedChatImage { blob: Blob; ext: string; contentType: string }
 
 /**
  * เตรียมรูปให้พร้อมส่งเข้าแชท — คืนชนิด/นามสกุล **ตามของจริง** ไม่ใช่ฝัง .jpg ไว้เฉย ๆ
  * (ของเดิมอัปไฟล์ PNG/WebP/HEIC ด้วยชื่อ .jpg + content-type image/jpeg ปลายทางจึงเห็นรูปเสีย)
- * โยน error เมื่อเป็นรูปแบบที่แปลงไม่ได้และปลายทางรับไม่ได้ — บอกผู้ใช้ดีกว่าส่งของพัง
+ *
+ * ลำดับ: ชนิดที่ส่งได้อยู่แล้วและเล็กพอ → ให้ canvas ย่อ (Safari/iOS ถอดรหัส HEIC เองได้ตรงนี้)
+ * → ถ้าเป็น HEIC ที่เบราว์เซอร์ถอดไม่ได้ (Chrome/Edge/Firefox บนคอม) ค่อยลาก libheif มาแปลง
  */
-export async function prepareChatImage(file: File, maxSizeKB = 500): Promise<PreparedChatImage> {
+export async function prepareChatImage(
+  file: File,
+  maxSizeKB = 500,
+  /** เรียกเมื่อ **ต้องลาก libheif มาแปลงจริง ๆ** เท่านั้น (Safari ถอด HEIC เองได้ จะไม่เรียก)
+   *  ใช้บอกผู้ใช้ว่ากำลังแปลงอยู่ — รูป 12MP ใช้เวลาไม่กี่วินาทีแต่ก็นานพอให้คนสงสัยว่าค้าง */
+  onHeicConvert?: () => void,
+): Promise<PreparedChatImage> {
   const type = (file.type || '').toLowerCase();
   const isPng = type === 'image/png';
+  const asIs = (): PreparedChatImage => ({
+    blob: file,
+    ext: isPng ? 'png' : 'jpg',
+    contentType: isPng ? 'image/png' : 'image/jpeg',
+  });
+  const jpeg = (blob: Blob): PreparedChatImage => ({ blob, ext: 'jpg', contentType: 'image/jpeg' });
 
   // เล็กพออยู่แล้วและเป็นชนิดที่ปลายทางรับได้ → ส่งของเดิม คุณภาพไม่ต้องเสียไปกับการแปลง
-  if (file.size <= maxSizeKB * 1024 && SENDABLE_IMAGE_TYPES.has(type)) {
-    return { blob: file, ext: isPng ? 'png' : 'jpg', contentType: isPng ? 'image/png' : 'image/jpeg' };
-  }
+  if (file.size <= maxSizeKB * 1024 && SENDABLE_IMAGE_TYPES.has(type)) return asIs();
 
-  const jpeg = await compressToJpeg(file, maxSizeKB);
-  if (jpeg) return { blob: jpeg, ext: 'jpg', contentType: 'image/jpeg' };
+  const compressed = await compressToJpeg(file, maxSizeKB);
+  if (compressed) return jpeg(compressed);
+
+  // เบราว์เซอร์ถอดรหัสไฟล์นี้ไม่ได้ — ถ้าเป็น HEIC จาก iPhone ให้ libheif แปลงให้ แล้วย่อซ้ำ
+  if (looksLikeHeic(file)) {
+    onHeicConvert?.();
+    const converted = await heicToJpeg(file);
+    if (converted) return jpeg((await compressToJpeg(converted, maxSizeKB)) || converted);
+    throw new Error('แปลงไฟล์ HEIC ไม่สำเร็จ — ลองบันทึกรูปเป็น JPG แล้วส่งใหม่');
+  }
 
   // แปลงไม่ได้ แต่ชนิดเดิมปลายทางรับได้อยู่แล้ว → ส่งดิบไป (แค่ไฟล์ใหญ่กว่าที่อยากได้)
-  if (SENDABLE_IMAGE_TYPES.has(type)) {
-    return { blob: file, ext: isPng ? 'png' : 'jpg', contentType: isPng ? 'image/png' : 'image/jpeg' };
-  }
+  if (SENDABLE_IMAGE_TYPES.has(type)) return asIs();
   throw new Error('ไฟล์รูปแบบนี้ส่งไม่ได้ (รองรับ JPG และ PNG) — บันทึกเป็น JPG ก่อนแล้วลองใหม่');
 }
 

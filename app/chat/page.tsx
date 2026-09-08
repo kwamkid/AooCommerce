@@ -68,7 +68,7 @@ import MessageBubble from './components/MessageBubble';
 // แผง "เปิดบิล" แยกไฟล์เพราะห่อ memo ไว้ (ดูหมายเหตุในไฟล์นั้น) — ตัวห่อเล็กมาก
 // ส่วน OrderForm ที่หนักจริงยังเป็น dynamic อยู่ข้างใน จึงไม่ติดมากับ first-load JS
 import ChatOrderPanel from './components/ChatOrderPanel';
-import { FbIcon, IgIcon, LineIcon, ShopeeIcon, LazadaIcon, TiktokIcon, PlatformIcon, AccountCornerBadge, getAccountPicture, getAvatarUrl, getInitials, formatTime, formatLastMessage, prepareChatImage, officialStickers, isSystemEventMessage } from './lib/chatHelpers';
+import { FbIcon, IgIcon, LineIcon, ShopeeIcon, LazadaIcon, TiktokIcon, PlatformIcon, AccountCornerBadge, getAccountPicture, getAvatarUrl, getInitials, formatTime, formatLastMessage, prepareChatImage, looksLikeImageFile, officialStickers, isSystemEventMessage } from './lib/chatHelpers';
 import { FullPageLoading } from '@/components/ui/Loading';
 import { LoadingCard } from '@/components/ui/StateCard';
 import { SkeletonChat } from '@/components/ui/Skeleton';
@@ -979,7 +979,9 @@ function UnifiedChatPageContent() {
     setUploadingImage(true);
 
     try {
-      const { blob, ext, contentType } = await prepareChatImage(file);
+      const { blob, ext, contentType } = await prepareChatImage(file, 500, () => {
+        showToast('กำลังแปลงรูปจาก iPhone (HEIC) เป็น JPG…');
+      });
 
       if (!retryOf) {
         localUrl = URL.createObjectURL(blob);
@@ -1037,7 +1039,8 @@ function UnifiedChatPageContent() {
     const file = e.target.files?.[0];
     if (fileInputRef.current) fileInputRef.current.value = '';
     if (!file || !selectedContact) return;
-    if (!file.type.startsWith('image/')) { showToast('กรุณาเลือกไฟล์รูปภาพ', 'error'); return; }
+    // ห้ามเช็คด้วย file.type อย่างเดียว — Chrome บน Windows ให้ type ว่างกับ .heic
+    if (!looksLikeImageFile(file)) { showToast('กรุณาเลือกไฟล์รูปภาพ', 'error'); return; }
     if (file.size > 10 * 1024 * 1024) { showToast('ไฟล์ใหญ่เกินไป (สูงสุด 10MB)', 'error'); return; }
     await sendImageFile(file);
   };
