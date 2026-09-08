@@ -149,7 +149,12 @@ export async function GET(request: NextRequest) {
     return new NextResponse(imageBuffer, {
       headers: {
         'Content-Type': contentType,
-        'Cache-Control': 'public, max-age=86400',
+        // ⚠️ ต้องมี `s-maxage` ไม่งั้น Vercel ไม่แคชที่ edge เลย — `max-age` อย่างเดียวคือแคช
+        // ในเบราว์เซอร์ของแต่ละคน ทุกครั้งที่สร้าง PDF จากเครื่องใหม่จึงวิ่งไปดึงรูปจาก origin
+        // ของลูกค้าใหม่หมด (วัดจริง: รูปจาก WordPress ของร้าน 4 วิ/รูป ทำให้ปุ่มพิมพ์รอนาน)
+        // key ของ edge คือ URL ซึ่งมี ?url= อยู่แล้ว จึงใช้ร่วมกันได้ทุกคนในร้าน
+        // (บทเรียนเดียวกับ /api/chat/profile-picture — ดู CLAUDE.md หัวข้อหน้าแชท)
+        'Cache-Control': 'public, max-age=86400, s-maxage=86400, stale-while-revalidate=604800',
       },
     });
   } catch (error) {

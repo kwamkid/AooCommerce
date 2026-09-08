@@ -63,6 +63,7 @@ import {
   Wallet,
 } from 'lucide-react';
 import FormSelect from '@/components/ui/FormSelect';
+import { parallelLimit } from '@/lib/parallel';
 
 // Interfaces
 interface DeliveryProduct {
@@ -732,13 +733,15 @@ export default function DeliverySummaryPage() {
   /** ดึงออเดอร์เต็มของทั้งวัน — ใบจัดของกับใบคำสั่งซื้อใช้ชุดเดียวกัน */
   const loadOrdersOfDay = async () => {
     const orderIds = (reportData?.byDate || []).flatMap(g => g.deliveries.map(d => d.orderId));
-    const loaded = [];
-    for (const id of orderIds) {
+    // ยิงขนาน (จำกัดครั้งละ 5 กันถล่ม DB) — ของเดิมวน await ทีละใบ วันที่มี 5 บิล
+    // จึงรอ 6 วินาทีก่อน PDF จะเริ่มสร้างด้วยซ้ำ
+    const results = await parallelLimit(orderIds, async (id) => {
       const res = await apiFetch(`/api/orders/${id}`);
-      if (!res.ok) continue;
+      if (!res.ok) return null;
       const data = await res.json();
-      if (data.order) loaded.push(data.order);
-    }
+      return data.order || null;
+    }, 5);
+    const loaded = results.filter(Boolean);
     if (loaded.length === 0) throw new Error('ไม่พบข้อมูลออเดอร์');
     return loaded;
   };
