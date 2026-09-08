@@ -45,7 +45,7 @@ export interface BroadcastAudienceFilter {
    */
   /** คุยกันมาแล้วอย่างน้อยกี่ข้อความ (นับเฉพาะที่ลูกค้าพิมพ์มา) */
   min_messages?: number;
-  /** คุยกันล่าสุดภายในกี่วัน — ตัดคนที่เงียบไปนานออก */
+  /** **ลูกค้าพิมพ์หาเรา** ล่าสุดภายในกี่วัน — ตัดคนที่เงียบไปนานออก */
   last_chat_days?: number;
 }
 
@@ -289,13 +289,11 @@ export async function resolveBroadcastRecipients(
 
   // ⚠️ ต้องผ่าน fetchAllRows — Supabase ตัดที่ 1,000 แถวเงียบ ๆ และร้านเดียวมีผู้ติดต่อ
   //    เกินพันคนแล้ว (aDay Fresh 1,409) ถ้าไม่แบ่งหน้า คนท้ายรายชื่อจะไม่ได้รับข้อความ
-  const { rows: contacts } = await fetchAllRows<{
-    id: string; line_user_id: string; customer_id: string | null; last_message_at: string | null;
-  }>(
+  const { rows: contacts } = await fetchAllRows<{ id: string; line_user_id: string; customer_id: string | null }>(
     (from, to) => {
       let q = supabaseAdmin
         .from('line_contacts')
-        .select('id, line_user_id, customer_id, last_message_at', { count: 'exact' })
+        .select('id, line_user_id, customer_id', { count: 'exact' })
         .eq('company_id', companyId)
         .eq('chat_account_id', chatAccountId)
         .eq('status', 'active')
@@ -343,8 +341,13 @@ export async function resolveBroadcastRecipients(
     ? new Date(Date.now() - lastChatDays * 86_400_000).toISOString()
     : null;
 
-  let messageCounts: Map<string, number> | null = null;
-  if (minMessages > 0) {
+  // ทั้งสองเกณฑ์อ่านจาก RPC ตัวเดียวกัน (นับรอบเดียวต่อ OA)
+  //
+  // ⚠️ **ห้ามใช้ `line_contacts.last_message_at` เป็น "คุยล่าสุด"** — ค่านั้นขยับตอน
+  // **แอดมินตอบ** ด้วย ⇒ ห้องที่ลูกค้าเงียบมาครึ่งปีแต่แอดมินเพิ่งไปตอบเมื่อวาน จะหลุด
+  // เข้ามาในกลุ่ม "คุยกันล่าสุด 30 วัน" ทั้งที่ลูกค้าไม่ได้พูดอะไรเลย
+  let engagement: Map<string, { count: number; lastIncomingAt: string | null }> | null = null;
+  if (minMessages > 0 || lastChatDays > 0) {
     const { data, error } = await supabaseAdmin.rpc('get_line_contact_message_counts', {
       p_company_id: companyId,
       p_chat_account_id: chatAccountId,
@@ -354,9 +357,9 @@ export async function resolveBroadcastRecipients(
       console.error('[broadcast] get_line_contact_message_counts:', error.message);
       return [];
     }
-    messageCounts = new Map(
-      (data || []).map((r: { contact_id: string; incoming_count: number }) =>
-        [r.contact_id, Number(r.incoming_count) || 0]),
+    engagement = new Map(
+      (data || []).map((r: { contact_id: string; incoming_count: number; last_incoming_at: string | null }) =>
+        [r.contact_id, { count: Number(r.incoming_count) || 0, lastIncomingAt: r.last_incoming_at }]),
     );
   }
 
@@ -380,9 +383,12 @@ export async function resolveBroadcastRecipients(
       // "หายไป" = เคยซื้อ แต่ครั้งล่าสุดเก่ากว่ากรอบที่ตั้งไว้
       if (audienceType === 'bought_before' && !(count > 0 && last && last < cutoff)) continue;
     }
-    // ห้องที่ลูกค้ายังไม่เคยพิมพ์อะไรเลยจะไม่มีใน map — นับเป็น 0
-    if (messageCounts && (messageCounts.get(c.id) ?? 0) < minMessages) continue;
-    if (lastChatCutoff && !(c.last_message_at && c.last_message_at >= lastChatCutoff)) continue;
+    if (engagement) {
+      // ห้องที่ลูกค้ายังไม่เคยพิมพ์อะไรเลยจะไม่มีใน map — นับเป็น 0 / ไม่เคยคุย
+      const e = engagement.get(c.id);
+      if (minMessages > 0 && (e?.count ?? 0) < minMessages) continue;
+      if (lastChatCutoff && !(e?.lastIncomingAt && e.lastIncomingAt >= lastChatCutoff)) continue;
+    }
     if (seen.has(c.line_user_id)) continue;   // ผู้ใช้คนเดียวห้ามได้ข้อความซ้ำ
     seen.add(c.line_user_id);
     out.push({ contact_id: c.id, line_user_id: c.line_user_id });

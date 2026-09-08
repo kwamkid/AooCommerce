@@ -503,8 +503,8 @@ export default function NewBroadcastPage() {
     }
     if (previewLoading) return 'กำลังนับผู้รับ...';
     const refine = [
-      minMessages > 0 ? `คุย ≥${minMessages} ข้อความ` : null,
-      lastChatDays > 0 ? `คุยใน ${lastChatDays} วัน` : null,
+      minMessages > 0 ? `ลูกค้าพิมพ์ ≥${minMessages} ข้อความ` : null,
+      lastChatDays > 0 ? `ลูกค้าพิมพ์ใน ${lastChatDays} วัน` : null,
     ].filter(Boolean).join(' · ');
     return `${recipientCount.toLocaleString()} คน${refine ? ` · ${refine}` : ''}`;
   })();
@@ -1193,13 +1193,14 @@ export default function NewBroadcastPage() {
               <div className="border-t border-gray-100 dark:border-slate-700 pt-4">
                 <p className="field-label mb-1">กรองให้แคบลงอีก (ไม่บังคับ)</p>
                 <p className="helper-text text-gray-500 dark:text-slate-400 mb-3">
-                  ตัดคนที่ทักมาคำเดียวแล้วหาย และคนที่เงียบไปนานออก — ยิงไปก็มักไม่ได้อะไรกลับ
+                  ตัดคนที่ทักมาคำเดียวแล้วหาย และคนที่เงียบไปนานออก — ยิงไปก็มักไม่ได้อะไรกลับ ·
+                  ทั้งสองข้อ <span className="font-medium">นับเฉพาะข้อความที่ลูกค้าพิมพ์มา</span> ไม่นับที่เราตอบไปหรือบรอดแคสต์
                 </p>
 
                 <div className="space-y-3">
                   <div>
                     <label className="helper-text text-gray-600 dark:text-slate-300 block mb-1">
-                      คุยกันมาแล้วอย่างน้อย (นับเฉพาะข้อความที่ลูกค้าพิมพ์)
+                      ลูกค้าพิมพ์หาเรามาแล้วอย่างน้อย
                     </label>
                     <div className="flex items-center gap-2 flex-wrap">
                       <div className="w-24">
@@ -1228,7 +1229,7 @@ export default function NewBroadcastPage() {
 
                   <div>
                     <label className="helper-text text-gray-600 dark:text-slate-300 block mb-1">
-                      คุยกันล่าสุดภายใน
+                      ลูกค้าพิมพ์หาเราล่าสุดภายใน
                     </label>
                     <div className="flex items-center gap-2 flex-wrap">
                       <div className="w-24">
