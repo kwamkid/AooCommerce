@@ -17,7 +17,6 @@ import OrderCard from '@/app/orders/components/OrderCard';
 import ActionMenu from '@/components/ui/ActionMenu';
 import Tabs from '@/components/ui/Tabs';
 import Tooltip from '@/components/ui/Tooltip';
-import Badge from '@/components/ui/Badge';
 import { printAndTrack } from '@/components/ui/OrderPrintButtons';
 import type { Order } from '@/app/orders/components/types';
 import { getImageUrl } from '@/lib/utils/image';
@@ -40,7 +39,6 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { ORDER_STATUS_LABEL, getNextOrderStatus } from '@/lib/order-status';
 import { LoadingCard, EmptyCard } from '@/components/ui/StateCard';
-import { Stat } from '@/components/ui/Chart';
 import ProductImageThumb from '@/components/ui/ProductImageThumb';
 import StatusBadge from '@/components/ui/StatusBadge';
 import { showPdfPreview, preOpenPrintWindow } from '@/lib/print-pdf';
@@ -63,6 +61,7 @@ import {
   Wallet,
 } from 'lucide-react';
 import FormSelect from '@/components/ui/FormSelect';
+import BulkActionBar from '@/components/ui/BulkActionBar';
 import { parallelLimit } from '@/lib/parallel';
 
 // Interfaces
@@ -379,6 +378,8 @@ export default function DeliverySummaryPage() {
   const [paymentFilter, setPaymentFilter] = useState<'all' | 'paid' | 'unpaid'>('all');
   const [copySuccess, setCopySuccess] = useState(false);
   const [showProductSummary, setShowProductSummary] = useState(false);
+  /** บิลที่ติ๊กไว้ — ปุ่มพิมพ์ทำงานกับชุดนี้ (ไม่ติ๊กเลย = ทั้งวัน) */
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   // แท็บ "จัดของ" แสดงรายบิลเหมือนหน้าคำสั่งซื้อ → ดึงจาก /api/orders ชุดเดียวกัน
   // (RPC เดียวกัน = การ์ด/แบดจ์/ปุ่มพิมพ์เหมือนกันหมด ไม่ต้องแปลงข้อมูลเอง)
   const [orders, setOrders] = useState<Order[]>([]);
@@ -514,6 +515,7 @@ export default function DeliverySummaryPage() {
   const isAuthReady = !authLoading && !!session?.access_token;
   useEffect(() => {
     if (!isAuthReady || !deliveryDate) return;
+    setSelectedIds(new Set());
     fetchReport();
     fetchOrders();
   }, [isAuthReady, deliveryDate, paymentFilter]);
@@ -732,7 +734,10 @@ export default function DeliverySummaryPage() {
    */
   /** ดึงออเดอร์เต็มของทั้งวัน — ใบจัดของกับใบคำสั่งซื้อใช้ชุดเดียวกัน */
   const loadOrdersOfDay = async () => {
-    const orderIds = (reportData?.byDate || []).flatMap(g => g.deliveries.map(d => d.orderId));
+    // ติ๊กไว้ = พิมพ์เฉพาะที่ติ๊ก · ไม่ติ๊กเลย = ทั้งวัน (เหมือนหน้าคำสั่งซื้อ)
+    const orderIds = selectedIds.size > 0
+      ? orders.filter(o => selectedIds.has(o.id)).map(o => o.id)
+      : (reportData?.byDate || []).flatMap(g => g.deliveries.map(d => d.orderId));
     // ยิงขนาน (จำกัดครั้งละ 5 กันถล่ม DB) — ของเดิมวน await ทีละใบ วันที่มี 5 บิล
     // จึงรอ 6 วินาทีก่อน PDF จะเริ่มสร้างด้วยซ้ำ
     const results = await parallelLimit(orderIds, async (id) => {
@@ -868,7 +873,8 @@ export default function DeliverySummaryPage() {
             {/* Action buttons - contextual per tab */}
             <div className="w-full sm:w-auto sm:ml-auto flex flex-wrap items-center gap-2">
               {activeTab === 'packing' ? (
-                <>
+                <>{selectedIds.size === 0 && (
+                  <>
                   <Button
                     variant="secondary"
                     loading={generatingSlipPdf}
@@ -889,7 +895,8 @@ export default function DeliverySummaryPage() {
                   >
                     <span className="hidden lg:inline">ใบจัดของ</span>
                   </Button>
-                </>
+                  </>
+                )}</>
               ) : (
                 <Button
                   variant="secondary"
@@ -915,56 +922,6 @@ export default function DeliverySummaryPage() {
         {/* ===== TAB 1: จัดของ (Packing) ===== */}
         {!loading && reportData && activeTab === 'packing' && (
           <>
-            {/* Summary Cards */}
-            {reportData.totals.totalDeliveries > 0 && (
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <Stat label="บิลที่ต้องจัด" value={reportData.totals.totalDeliveries} icon={<ClipboardList className="w-5 h-5" />} />
-                <Stat label="ชนิดสินค้า" value={reportData.productSummary.length} icon={<Package className="w-5 h-5" />} />
-                <Stat label="จำนวนรวม" value={`${reportData.totals.totalBottles.toLocaleString()} ชิ้น`} icon={<Truck className="w-5 h-5" />} />
-              </div>
-            )}
-
-            {/* สรุปสินค้ารวมทั้งวัน (ใบหยิบของบนจอ) — พับเก็บได้ ของหลักคือรายบิลด้านล่าง */}
-            {reportData.productSummary.length > 0 && (
-              <Card padding="none">
-                <button
-                  onClick={() => setShowProductSummary(!showProductSummary)}
-                  className="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-slate-700/50 transition-colors rounded-lg"
-                >
-                  <div className="flex items-center gap-2">
-                    <Package className="w-5 h-5 text-primary" />
-                    <span className="font-medium text-gray-900 dark:text-white">สรุปสินค้าที่ต้องหยิบทั้งวัน</span>
-                    <span className="text-sm text-gray-500 dark:text-slate-400">
-                      ({reportData.productSummary.length} รายการ / {reportData.totals.totalBottles.toLocaleString()} ชิ้น)
-                    </span>
-                  </div>
-                  {showProductSummary ? <ChevronDown className="w-5 h-5 text-gray-400" /> : <ChevronRight className="w-5 h-5 text-gray-400" />}
-                </button>
-                {showProductSummary && (
-                  <div className="px-4 pb-4 border-t border-gray-100 dark:border-slate-700">
-                    <div className="space-y-2 mt-3">
-                      {reportData.productSummary.map((product, index) => (
-                        <div key={index} className="flex items-center gap-3">
-                          <ProductImageThumb
-                            src={product.image ? getImageUrl(product.image) : null}
-                            alt={product.productName}
-                            size="sm"
-                          />
-                          <div className="flex-1 min-w-0">
-                            <div className="text-gray-900 dark:text-white truncate">
-                              {product.productName}{product.variationLabel ? ` - ${product.variationLabel}` : ''}
-                            </div>
-                            <div className="helper-text text-gray-400 font-mono">{product.productCode}</div>
-                          </div>
-                          <Badge tone="orange" size="md">{product.totalQuantity} ชิ้น</Badge>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </Card>
-            )}
-
             {/* รายบิล — การ์ดเดียวกับหน้าคำสั่งซื้อ แท็บ "ที่ต้องจัดส่ง" */}
             {ordersLoading ? (
               <LoadingCard />
@@ -975,11 +932,28 @@ export default function DeliverySummaryPage() {
               />
             ) : (
               <div className="space-y-3">
+                {/* เลือกทั้งหมด — แบบเดียวกับหน้าคำสั่งซื้อ */}
+                <label className="flex items-center gap-2 px-1 text-sm text-gray-600 dark:text-slate-400 cursor-pointer w-fit">
+                  <input
+                    type="checkbox"
+                    className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
+                    checked={orders.length > 0 && orders.every(o => selectedIds.has(o.id))}
+                    onChange={(e) => setSelectedIds(e.target.checked ? new Set(orders.map(o => o.id)) : new Set())}
+                  />
+                  เลือกทั้งหมด ({orders.length})
+                </label>
                 {orders.map((order) => (
                   <OrderCard
                     key={order.id}
                     order={order}
                     statusFilter="processing"
+                    showCheckbox
+                    selected={selectedIds.has(order.id)}
+                    onToggleSelect={(id) => setSelectedIds(prev => {
+                      const next = new Set(prev);
+                      if (next.has(id)) next.delete(id); else next.add(id);
+                      return next;
+                    })}
                     showOrderStatus
                     showPaymentStatus
                     actions={
@@ -1019,13 +993,7 @@ export default function DeliverySummaryPage() {
         {!loading && reportData && activeTab === 'delivery' && (
           <>
             {/* Summary Cards */}
-            {reportData.totals.totalDeliveries > 0 && (
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <Stat label="จุดส่ง" value={reportData.totals.totalDeliveries} icon={<MapPin className="w-5 h-5" />} />
-                <Stat label="จำนวนรวม" value={`${reportData.totals.totalBottles.toLocaleString()} ชิ้น`} icon={<ClipboardList className="w-5 h-5" />} />
-                <Stat label="ชนิดสินค้า" value={reportData.productSummary.length} icon={<Package className="w-5 h-5" />} />
-              </div>
-            )}
+            
 
             {/* Delivery List by Date */}
             {reportData.byDate.length === 0 ? (
@@ -1199,6 +1167,26 @@ export default function DeliverySummaryPage() {
           </div>
         )}
       </div>
+
+      {/* แถบลอยตอนติ๊กบิล — ตัวเดียวกับหน้าคำสั่งซื้อ */}
+      <BulkActionBar count={selectedIds.size} onClear={() => setSelectedIds(new Set())}>
+        <Button
+          variant="secondary"
+          loading={generatingSlipPdf}
+          icon={<FileText className="w-4 h-4" />}
+          onClick={handleExportOrderSlipPdf}
+        >
+          <span className="hidden md:inline">ใบคำสั่งซื้อ</span> ({selectedIds.size})
+        </Button>
+        <Button
+          variant="primary"
+          loading={generatingPdf}
+          icon={<ClipboardList className="w-4 h-4" />}
+          onClick={handleExportPackingPdf}
+        >
+          <span className="hidden md:inline">ใบจัดของ</span> ({selectedIds.size})
+        </Button>
+      </BulkActionBar>
     </Layout>
   );
 }
