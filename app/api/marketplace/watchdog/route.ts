@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { runWatchdog } from '@/lib/marketplace/watchdog';
 import { reconcilePendingBeamPayments } from '@/lib/beam/settle';
+import { pruneOldLogs } from '@/lib/maintenance/log-retention';
 
 // ตัวเฝ้าสุขภาพ integration — cron ทุก 15 นาที (cron-job.org, header x-cron-secret)
 //
@@ -26,7 +27,13 @@ async function handle(request: NextRequest) {
       return null;
     });
     const result = await runWatchdog();
-    return NextResponse.json({ ok: true, ...result, beam });
+    // งานดูแลรายวันเกาะมากับ cron ตัวนี้ (ตัวมันเองคุมให้ทำจริงวันละครั้ง) — จะได้ไม่ต้องตั้ง
+    // cron เพิ่มอีกใบ · ล้มไม่กระทบตัวเฝ้า
+    const logs = await pruneOldLogs().catch((e) => {
+      console.error('[Watchdog] log retention failed:', e instanceof Error ? e.message : e);
+      return null;
+    });
+    return NextResponse.json({ ok: true, ...result, beam, logs });
   } catch (e) {
     const message = e instanceof Error ? e.message : 'Unknown error';
     console.error('[Watchdog] run failed:', message);
