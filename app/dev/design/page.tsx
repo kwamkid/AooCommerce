@@ -297,9 +297,9 @@ export default function DesignSystemPage() {
         </Section>
 
         {/* TABS */}
-        <Section title="Tabs" desc="<Tabs activeKey tabs={[{key,label,icon?,count?,href?,activeColorClass?}]} onSelect? variant? fill? size? /> — แท็บเนื้อหา (คนละตัวกับ StatusTabs ที่เป็นตัวกรองสถานะของหน้า list)">
+        <Section title="Tabs" desc="<Tabs activeKey tabs={[{key,label,icon?,count?,href?,activeColorClass?}]} onSelect? fill? size? /> — แท็บเนื้อหา (คนละตัวกับ StatusTabs ที่เป็นตัวกรองสถานะของหน้า list)">
           <Card>
-            <Group label="variant='card' (ค่าปกติ) — แท็บที่เลือกเป็นแผ่นขาวโค้งมุมบน พื้นเทาไหลต่อไปทางขวา + ขีดหนาใต้ข้อความ">
+            <Group label="ค่าปกติ — แท็บที่เลือกเป็นแผ่นขาวโค้งมุมบน พื้นเทาไหลต่อไปทางขวา + ขีดหนาใต้ข้อความ">
               <div className="w-full">
                 <Hint>บนพื้นขาวของการ์ด (บริบทเดียวกับหน้าตั้งค่า)</Hint>
                 <Tabs
@@ -343,20 +343,6 @@ export default function DesignSystemPage() {
                   เนื้อหาของแท็บ <span className="font-mono">{demoTab}</span> — พื้นขาวต่อเนื่องจากแท็บที่เลือก
                 </div>
                 <Hint>แท็บที่เลือกกับกล่องเนื้อหาเป็นแผ่นขาวเดียวกัน (ไม่ต้องมีเส้นคั่น)</Hint>
-              </div>
-            </Group>
-            <Group label="variant='underline' — แบบเดิม ใช้เมื่อไม่อยากมีรางสีเทา">
-              <div className="w-full">
-                <Tabs
-                  variant="underline"
-                  activeKey={demoTab}
-                  onSelect={(k) => setDemoTab(k as typeof demoTab)}
-                  tabs={[
-                    { key: 'orders', label: 'คำสั่งซื้อ', count: 24 },
-                    { key: 'invoices', label: 'ใบกำกับ', count: 8 },
-                    { key: 'reports', label: 'รายงาน' },
-                  ]}
-                />
               </div>
             </Group>
             <Group label="fill — แบ่งความกว้างเท่ากันเต็มแถว (หน้า PC · แถบมือถือ POS)">
