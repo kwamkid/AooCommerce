@@ -74,15 +74,19 @@ ready_to_ship → processing → completed → (บันทึกชำระ)
 
 ### d_consign (ห้างฝากขาย)
 ```
-[Dept Order]    draft → confirmed → shipped → invoiced → paid
+[Dept Order]    pending → shipped → received / partial_received / pending_confirm
 [DSR Report]    invoiced → billed → paid
 ```
-**Department Order (ส่งของห้าง):**
-- สร้าง → draft
-- ยืนยัน → confirmed
+**Department Order (ส่งของห้าง)** — ชุดสถานะเดียวกับใบเติมของ (`replenishments`) เป๊ะ
+เพราะเป็นงานเดียวกัน: ส่งของไปให้ปลายทาง แล้วปลายทางกดรับ:
+- สร้าง → **pending** (= "ที่ต้องจัดส่ง" — ไม่มีขั้นยืนยัน สร้างเสร็จรอส่งเลย)
 - จัดส่ง → shipped + auto **TAX** (`tax_only`) + **DN** (มีราคา)
-- ออก invoice → invoiced
-- ชำระ → paid
+- ห้างกดรับผ่านลิงก์ → received (ครบ) / pending_confirm (รอแอดมินยืนยัน)
+- แอดมินยืนยันยอดที่รับไม่ครบ → partial_received
+- ยกเลิก (ได้เฉพาะตอน pending) → cancelled
+
+⚠️ เดิมสถานะแรกชื่อ `draft` และ CHECK มี `confirmed/invoiced/paid` ซึ่ง**ไม่มีโค้ดไหนเขียนลงเลย**
+— ตกค้างจากดีไซน์เก่า ล้างทิ้งแล้ว 2026-09-08 (migration `20260908_dept_orders_draft_to_pending`)
 
 **Department Store Report (ห้างแจ้งยอด):**
 - สร้าง → invoiced + auto **INV** + **ST**

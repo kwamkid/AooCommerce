@@ -244,8 +244,8 @@ export default function DeptOrderReceivePage() {
             </div>
           </div>
 
-          {/* === STATUS: DRAFT (ยังไม่จัดส่ง) === */}
-          {data.status === 'draft' && (
+          {/* === STATUS: PENDING (ยังไม่จัดส่ง) === */}
+          {data.status === 'pending' && (
             <div className={`border-2 rounded-xl p-5 text-center ${dark ? 'bg-yellow-900/20 border-yellow-800' : 'bg-yellow-50 border-yellow-200'}`}>
               <Clock className={`w-10 h-10 mx-auto mb-2 ${dark ? 'text-yellow-400' : 'text-yellow-500'}`} />
               <div className={`font-bold text-lg ${dark ? 'text-yellow-400' : 'text-yellow-700'}`}>ใบส่งห้างนี้ยังไม่ได้จัดส่ง</div>

@@ -305,7 +305,7 @@ export default function DepartmentOrderDetailPage() {
   if (!orderInfo) return null;
 
   const status = orderInfo.status;
-  const isViewOnly = status !== 'draft';
+  const isViewOnly = status !== 'pending';
 
   return (
     <Layout>
@@ -322,7 +322,7 @@ export default function DepartmentOrderDetailPage() {
                 {isViewOnly ? 'ใบส่งห้าง' : 'แก้ไขใบส่งห้าง'}
               </h1>
               <span className="id-text text-primary">{orderInfo.department_order_number}</span>
-              <StatusBadge domain="deptOrder" status={status} />
+              <StatusBadge domain="replenishment" status={status} />
             </div>
           </div>
 
@@ -340,13 +340,13 @@ export default function DepartmentOrderDetailPage() {
               </button>
             )}
 
-            {status === 'draft' && (
+            {status === 'pending' && (
               <button onClick={() => setShowShipModal(true)} className="btn-primary">
                 <Send className="w-4 h-4" /> จัดส่ง
               </button>
             )}
 
-            {status === 'draft' && (
+            {status === 'pending' && (
               <button onClick={() => setShowCancelConfirm(true)} className="btn-danger flex items-center gap-2">
                 <Trash2 className="w-4 h-4" /> ยกเลิก
               </button>

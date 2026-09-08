@@ -36,7 +36,6 @@ const DOMAIN_ICON: Record<StatusDomain, LucideIcon> = {
   customerPayment:       Banknote,
   statement:             FileText,
   replenishment:         Package,
-  deptOrder:             Package,
   report:                ClipboardList,
   creditNote:            ReceiptText,
   creditNoteType:        Tag,

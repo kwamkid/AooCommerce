@@ -106,7 +106,13 @@ const statement: Domain = {
   cancelled:      s('ยกเลิก', 'off'),
 };
 
-/** ใบเติมของตัวแทน (replenishments) */
+/**
+ * ใบเติมของตัวแทน (replenishments) **และออเดอร์ห้าง (department_orders)**
+ * — สองตารางนี้เป็นงานเดียวกัน (ส่งของไปให้ปลายทาง แล้วปลายทางกดรับ) จึงใช้ชุดสถานะเดียวกัน
+ * เดิมออเดอร์ห้างเรียกสถานะแรกว่า 'draft' ทั้งที่ไม่มีขั้นยืนยัน = "รอจัดส่ง" อยู่แล้ว
+ * (ค่าตกค้างจากดีไซน์เก่า draft→confirmed→shipped→invoiced→paid ที่เลิกใช้) — ย้ายเป็น
+ * 'pending' ให้ตรงกันทั้งคู่แล้ว ดู fix-bug.md 2026-09-08
+ */
 const replenishment: Domain = {
   pending:          s('ที่ต้องจัดส่ง', 'progress'),
   shipped:          s('กำลังส่ง', 'moving'),
@@ -116,11 +122,6 @@ const replenishment: Domain = {
   cancelled:        s('ยกเลิก', 'off'),
 };
 
-/** ออเดอร์ห้าง (department orders) — key เริ่มที่ draft แต่หมายถึง "ที่ต้องจัดส่ง" */
-const deptOrder: Domain = {
-  ...replenishment,
-  draft: s('ที่ต้องจัดส่ง', 'progress'),
-};
 
 /** รายงานฝากขาย + รายงานห้าง — ใช้ชุดเดียวกัน (วงจรเอกสารเหมือนกันเป๊ะ) */
 const report: Domain = {
@@ -238,7 +239,7 @@ const supplierType: Domain = {
 export const STATUS_DOMAINS = {
   order, orderDealer, payment,
   customerOrder, customerPayment,
-  statement, replenishment, deptOrder, report,
+  statement, replenishment, report,
   creditNote: issuedDoc, returnNote: issuedDoc, creditNoteType, taxDoc,
   promotion, transfer, stockDoc, stockLevel, posOrder, supplierReport, supplierType,
   purchaseOrder, purchaseOrderSupplier, broadcast,

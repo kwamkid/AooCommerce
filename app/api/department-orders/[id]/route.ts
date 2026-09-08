@@ -136,7 +136,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     // === ACTION: SHIP ===
     if (action === 'ship') {
-      if (existing.status !== 'draft') {
+      if (existing.status !== 'pending') {
         return NextResponse.json({ error: 'สามารถจัดส่งได้เฉพาะสถานะ "ที่ต้องจัดส่ง" เท่านั้น' }, { status: 400 });
       }
       const { shipping_method, shipping_carrier, tracking_number, notes } = body;
@@ -435,7 +435,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     // === ACTION: CANCEL ===
     if (action === 'cancel') {
-      if (!['draft'].includes(existing.status)) {
+      if (!['pending'].includes(existing.status)) {
         return NextResponse.json({ error: 'ยกเลิกได้เฉพาะสถานะ "ที่ต้องจัดส่ง" เท่านั้น' }, { status: 400 });
       }
 
@@ -532,10 +532,10 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         .eq('source_type', 'department_order').eq('source_id', id)
         .is('voided_at', null);
 
-      // 4. Reset order → draft
+      // 4. Reset order → pending (กลับไปรอจัดส่ง)
       await supabaseAdmin.from('department_orders')
         .update({
-          status: 'draft',
+          status: 'pending',
           shipping_method: null,
           shipping_carrier: null,
           tracking_number: null,
@@ -549,7 +549,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         })
         .eq('id', id);
 
-      return NextResponse.json({ success: true, status: 'draft' });
+      return NextResponse.json({ success: true, status: 'pending' });
     }
 
     // === ACTION: MARK_PRINTED ===

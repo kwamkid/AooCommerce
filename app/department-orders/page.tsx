@@ -28,6 +28,7 @@ import DataTable from '@/components/ui/DataTable';
 import { showPdfPreview, mergePdfBlobs } from '@/lib/print-pdf';
 import { LoadingCard } from '@/components/ui/StateCard';
 import StatusBadge from '@/components/ui/StatusBadge';
+import { statusLabel } from '@/lib/status-labels';
 import { useDebouncedCallback } from '@/lib/useDebounce';
 import { splitVatInclusive } from '@/lib/order-totals';
 
@@ -56,13 +57,14 @@ interface DeptOrder {
   items?: { id: string }[];
 }
 
+// คำเรียกมาจากทะเบียนกลาง — ออเดอร์ห้างใช้ชุดสถานะเดียวกับใบเติมของ (domain 'replenishment')
 const STATUS_TABS = [
   { key: 'all',             label: 'ทั้งหมด' },
-  { key: 'draft',           label: 'ที่ต้องจัดส่ง', colorKey: 'pending' },
-  { key: 'shipped',         label: 'กำลังส่ง' },
-  { key: 'pending_confirm', label: 'รอยืนยัน', tooltip: 'ผู้รับแจ้งรับของแล้ว — รอ admin ยืนยัน' },
+  { key: 'pending',         label: statusLabel('replenishment', 'pending') },
+  { key: 'shipped',         label: statusLabel('replenishment', 'shipped') },
+  { key: 'pending_confirm', label: statusLabel('replenishment', 'pending_confirm'), tooltip: 'ผู้รับแจ้งรับของแล้ว — รอ admin ยืนยัน' },
   { key: 'received',        label: 'รับแล้ว', colorKey: 'completed' },
-  { key: 'cancelled',       label: 'ยกเลิก' },
+  { key: 'cancelled',       label: statusLabel('replenishment', 'cancelled') },
 ];
 
 function formatDate(dateStr: string): string {
@@ -142,7 +144,7 @@ function DepartmentOrdersContent() {
   // Bulk selection
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkOverlay, setBulkOverlay] = useState<{ show: boolean; message: string; progress: number }>({ show: false, message: '', progress: 0 });
-  const isDraftTab = activeStatus === 'draft';
+  const isPendingTab = activeStatus === 'pending';
 
   // Clear selection on tab change
   useEffect(() => { setSelectedIds(new Set()); }, [activeStatus]);
@@ -827,7 +829,7 @@ function DepartmentOrdersContent() {
 
     const items: ActionItem[] = [];
 
-    if (r.status === 'draft') {
+    if (r.status === 'pending') {
       items.push(
         {
           key: 'packing',
@@ -1024,7 +1026,7 @@ function DepartmentOrdersContent() {
               render: (r) => {
                 return (
                   <>
-                    <StatusBadge domain="deptOrder" status={r.status} />
+                    <StatusBadge domain="replenishment" status={r.status} />
                     {r.shipping_carrier && (
                       <div className="flex items-center gap-1 mt-1">
                         <Truck className="w-3 h-3 text-gray-400 flex-shrink-0" />
@@ -1078,7 +1080,7 @@ function DepartmentOrdersContent() {
               key: 'actions', label: 'จัดการ', alwaysVisible: true, headerClassName: 'text-right', stopPropagation: true, hideMobile: true,
               render: (r) => (
                 <div className="flex items-center justify-end gap-1">
-                  {r.status === 'draft' && (
+                  {r.status === 'pending' && (
                     <Button variant="amber" icon={<Send className="w-4 h-4" />} onClick={() => setShipModalId(r.id)}>
                       <span className="hidden md:inline">จัดส่ง</span>
                     </Button>
@@ -1110,7 +1112,7 @@ function DepartmentOrdersContent() {
           loading={isLoading}
           getRowId={(r) => r.id}
           onRowClick={(r) => router.push(`/department-orders/${r.id}`)}
-          {...(isDraftTab ? { selectedIds, onSelectionChange: setSelectedIds } : {})}
+          {...(isPendingTab ? { selectedIds, onSelectionChange: setSelectedIds } : {})}
           rowClassName={(r) => r.status === 'cancelled' ? 'opacity-50' : ''}
           emptyMessage="ไม่มีรายการ"
           currentPage={currentPage}
@@ -1131,7 +1133,7 @@ function DepartmentOrdersContent() {
                     <p className="data-timestamp text-gray-400 dark:text-slate-500">{formatDate(r.created_at)}</p>
                   </div>
                   <div className="flex items-center gap-1 flex-shrink-0">
-                    <StatusBadge domain="deptOrder" status={r.status} />
+                    <StatusBadge domain="replenishment" status={r.status} />
                     <ActionMenu items={getMenuItems(r)} />
                   </div>
                 </div>
@@ -1158,7 +1160,7 @@ function DepartmentOrdersContent() {
                 </div>
                 {/* Mobile focus action */}
                 <div className="flex items-center gap-2 mt-2 pt-2 border-t border-gray-100 dark:border-slate-700" onClick={e => e.stopPropagation()}>
-                  {r.status === 'draft' && (
+                  {r.status === 'pending' && (
                     <Button variant="amber" icon={<Send className="w-4 h-4" />} className="flex-1" onClick={() => setShipModalId(r.id)}>
                       จัดส่ง
                     </Button>
