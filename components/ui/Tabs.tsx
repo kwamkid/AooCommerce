@@ -37,9 +37,16 @@ interface TabsProps {
   /** Fires before navigation (if `href` set). Useful for resetting form state. */
   onSelect?: (key: string) => void;
   className?: string;
+  /**
+   * แท็บแบ่งความกว้างเท่า ๆ กันเต็มแถว (แทนที่จะชิดซ้ายตามความยาวคำ)
+   * ใช้กับแถบสลับมุมมองบนมือถือ — หน้า PC, จอขาย POS, ตัวเลือกอิโมจิ/สติกเกอร์
+   */
+  fill?: boolean;
+  /** 'sm' = แท็บย่อยในการ์ด (โปรโมชั่นรายแพลตฟอร์ม) · 'md' = ค่าปกติของหน้า */
+  size?: 'sm' | 'md';
 }
 
-export default function Tabs({ tabs, activeKey, onSelect, className }: TabsProps) {
+export default function Tabs({ tabs, activeKey, onSelect, className, fill, size = 'md' }: TabsProps) {
   // Base layout (flex + bottom border + scroll on overflow) is always applied;
   // caller's `className` is merged on top — typically just for spacing overrides
   // like `mb-6` / `mt-0`. Don't use `??` here — that would let a caller passing
@@ -50,7 +57,9 @@ export default function Tabs({ tabs, activeKey, onSelect, className }: TabsProps
       {tabs.filter(t => !t.hidden).map(tab => {
         const isActive = tab.key === activeKey;
         const activeColor = tab.activeColorClass ?? 'border-primary text-primary';
-        const cls = `flex items-center gap-2 px-4 py-2.5 text-base font-medium border-b-2 whitespace-nowrap transition-colors ${
+        const sizeCls = size === 'sm' ? 'px-3 py-2 text-xs gap-1.5' : 'px-4 py-2.5 text-base gap-2';
+        const fillCls = fill ? 'flex-1 justify-center' : '';
+        const cls = `flex items-center ${sizeCls} ${fillCls} font-medium border-b-2 whitespace-nowrap transition-colors ${
           isActive
             ? activeColor
             : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200'

@@ -21,6 +21,7 @@ import {
 } from './types';
 import type { UsePromotionFormReturn } from './usePromotionForm';
 import { NUMERIC_TEXT_INPUT_PROPS, onNumericChange, onNumericInput } from '@/lib/numeric-input';
+import Tabs from '@/components/ui/Tabs';
 
 interface Props {
   hook: UsePromotionFormReturn;
@@ -304,31 +305,23 @@ function MarketplacePanel({ hook }: Props) {
 
       {/* Platform tabs */}
       {platforms.length > 1 && (
-        <div className="flex items-center gap-0.5 mb-3 border-b border-gray-200 dark:border-slate-700">
-          {platforms.map(p => {
+        <Tabs
+          className="mb-3"
+          size="sm"
+          activeKey={currentTab}
+          onSelect={k => setActivePlatformTab(k as typeof currentTab)}
+          tabs={platforms.map(p => {
             const meta = PLATFORM_META[p] || { label: p, icon: '' };
-            const isActive = currentTab === p;
             const enabledCount = marketplaceAccounts.filter(a => a.platform === p).filter(a => platformPrices.find(pp => pp.account_id === a.id)?.is_enabled).length;
-            return (
-              <button
-                key={p}
-                type="button"
-                onClick={() => setActivePlatformTab(p)}
-                className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium border-b-2 transition-colors -mb-px ${
-                  isActive
-                    ? 'border-primary text-primary'
-                    : 'border-transparent text-gray-400 dark:text-slate-500 hover:text-gray-600 dark:hover:text-slate-300'
-                }`}
-              >
-                {meta.icon && <img src={meta.icon} alt="" className="w-4 h-4" />}
-                <span>{meta.label}</span>
-                {enabledCount > 0 && (
-                  <span className="ml-0.5 px-1.5 py-0.5 rounded-full bg-primary text-white text-[10px] font-bold leading-none">{enabledCount}</span>
-                )}
-              </button>
-            );
+            return {
+              key: p,
+              label: meta.label,
+              // eslint-disable-next-line @next/next/no-img-element
+              icon: meta.icon ? <img src={meta.icon} alt="" className="w-4 h-4" /> : undefined,
+              count: enabledCount > 0 ? enabledCount : undefined,
+            };
           })}
-        </div>
+        />
       )}
 
       {/* Single platform header */}

@@ -18,6 +18,7 @@ import { WarehouseItem, TabKey } from './components/types';
 import StockTab from './components/StockTab';
 import HistoryTab from './components/HistoryTab';
 import MonitorTab from './components/MonitorTab';
+import Tabs from '@/components/ui/Tabs';
 
 export default function InventoryPage() {
   // ด่านสิทธิ์ระดับหน้า — เมนูใน Sidebar ซ่อนให้แล้ว แต่ URL ตรงยังเข้าได้
@@ -48,13 +49,6 @@ export default function InventoryPage() {
       }
     } catch { /* silent */ }
   }, true);
-
-  const tabClass = (tab: TabKey) =>
-    `flex items-center gap-2 px-4 py-2.5 text-base font-medium border-b-2 transition-colors ${
-      activeTab === tab
-        ? 'border-primary text-primary'
-        : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-300'
-    }`;
 
   if (permLoading) return <Layout><LoadingCard /></Layout>;
   if (!allowed) return null;   // กำลังเด้งไป /dashboard
@@ -108,18 +102,16 @@ export default function InventoryPage() {
           }
         />
 
-        {/* Tabs */}
-        <div className="flex border-b border-gray-200 dark:border-slate-700">
-          <button onClick={() => setActiveTab('stock')} className={tabClass('stock')}>
-            <Warehouse className="w-4 h-4" /> สินค้าคงคลัง
-          </button>
-          <button onClick={() => setActiveTab('history')} className={tabClass('history')}>
-            <ClipboardList className="w-4 h-4" /> ประวัติ
-          </button>
-          <button onClick={() => setActiveTab('monitor')} className={tabClass('monitor')}>
-            <Activity className="w-4 h-4" /> Monitor
-          </button>
-        </div>
+        <Tabs
+          className="mb-0"
+          activeKey={activeTab}
+          onSelect={k => setActiveTab(k as TabKey)}
+          tabs={[
+            { key: 'stock', label: 'สินค้าคงคลัง', icon: <Warehouse className="w-4 h-4" /> },
+            { key: 'history', label: 'ประวัติ', icon: <ClipboardList className="w-4 h-4" /> },
+            { key: 'monitor', label: 'Monitor', icon: <Activity className="w-4 h-4" /> },
+          ]}
+        />
 
         {/* Tab Content */}
         {activeTab === 'stock' && (

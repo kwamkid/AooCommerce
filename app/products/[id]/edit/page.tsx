@@ -26,6 +26,7 @@ import FormSelect from '@/components/ui/FormSelect';
 import ShopeeCategoryPicker from '@/components/shopee/ShopeeCategoryPicker';
 import ProductSyncModal from '@/components/marketplace/ProductSyncModal';
 import PostfixInput from '@/components/ui/PostfixInput';
+import Tabs from '@/components/ui/Tabs';
 
 interface MarketplaceLink {
   id: string;
@@ -1313,37 +1314,20 @@ export default function EditProductPage() {
 
         {/* Tab Bar — only show if product has marketplace links */}
         {hasTabs && (
-          <div className="border-b border-gray-200 dark:border-slate-700">
-            <nav className="flex gap-0 -mb-px">
-              {/* Info tab */}
-              <button
-                onClick={() => setActiveTab('info')}
-                className={`px-4 py-2.5 text-base font-medium border-b-2 transition-colors whitespace-nowrap ${
-                  activeTab === 'info'
-                    ? 'border-primary text-primary'
-                    : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-300'
-                }`}
-              >
-                ข้อมูลสินค้า
-              </button>
-
-              {/* Shop tabs — one per linked account */}
-              {shopAccounts.map(([accountId, account]) => (
-                <button
-                  key={accountId}
-                  onClick={() => setActiveTab(accountId)}
-                  className={`flex items-center gap-1.5 px-4 py-2.5 text-base font-medium border-b-2 transition-colors whitespace-nowrap ${
-                    activeTab === accountId
-                      ? 'border-primary text-primary'
-                      : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-300'
-                  }`}
-                >
-                  <img src="/marketplace/shopee.svg" alt="" className="w-4 h-4" />
-                  {account.name}
-                </button>
-              ))}
-            </nav>
-          </div>
+          <Tabs
+            className="mb-0"
+            activeKey={activeTab}
+            onSelect={setActiveTab}
+            tabs={[
+              { key: 'info', label: 'ข้อมูลสินค้า' },
+              ...shopAccounts.map(([accountId, account]) => ({
+                key: accountId,
+                label: account.name,
+                // eslint-disable-next-line @next/next/no-img-element
+                icon: <img src="/marketplace/shopee.svg" alt="" className="w-4 h-4" />,
+              })),
+            ]}
+          />
         )}
 
         {/* Tab Content */}

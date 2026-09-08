@@ -24,6 +24,7 @@ import Button from '@/components/ui/Button';
 import FormSelect from '@/components/ui/FormSelect';
 import { LoadingCard, EmptyCard } from '@/components/ui/StateCard';
 import { FullPageLoading } from '@/components/ui/Loading';
+import Tabs from '@/components/ui/Tabs';
 
 interface Counter {
   id: string;
@@ -281,25 +282,15 @@ export default function PcPage() {
           />
         </div>
       )}
-      {/* View tabs */}
-      <div className="flex">
-        {VIEW_TABS.map(t => {
-          const Icon = t.icon;
-          const active = view === t.key;
-          return (
-            <button
-              key={t.key}
-              onClick={() => setView(t.key)}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-sm font-medium transition-colors border-b-2 ${
-                active ? 'text-primary border-primary' : 'text-gray-500 dark:text-gray-400 border-transparent'
-              }`}
-            >
-              <Icon className="w-4 h-4" />
-              {t.label}
-            </button>
-          );
-        })}
-      </div>
+      {/* View tabs — แบ่งความกว้างเท่ากันเต็มแถว (fill) */}
+      <Tabs
+        className="mb-0 border-b-0"
+        fill
+        size="sm"
+        activeKey={view}
+        onSelect={k => setView(k as PcView)}
+        tabs={VIEW_TABS.map(t => ({ key: t.key, label: t.label, icon: <t.icon className="w-4 h-4" /> }))}
+      />
     </div>
   );
 

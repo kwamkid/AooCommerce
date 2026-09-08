@@ -13,6 +13,7 @@ import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
 import ActionMenu from '@/components/ui/ActionMenu';
 import TaxInvoiceModal from '@/app/orders/components/TaxInvoiceModal';
 import { formatThaiDate as formatDate, formatPrice as formatMoney } from '@/lib/utils/format';
+import Tabs from '@/components/ui/Tabs';
 
 interface Invoice {
   id: string; // order_id (for backward compat)
@@ -233,22 +234,12 @@ export default function AbbreviatedInvoicesPage() {
           subtitle="ABB-YYYYMM-NNNN — ออกอัตโนมัติสำหรับออเดอร์ปลีก"
         />
 
-        {/* Status tabs */}
-        <div className="flex border-b border-gray-200 dark:border-slate-700">
-          {statusTabs.map(tab => (
-            <button
-              key={tab.key}
-              onClick={() => { setVoidedFilter(tab.key); setPage(1); }}
-              className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
-                voidedFilter === tab.key
-                  ? 'border-primary text-primary'
-                  : 'border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-300'
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
+        <Tabs
+          className="mb-0"
+          activeKey={voidedFilter}
+          onSelect={k => { setVoidedFilter(k as typeof voidedFilter); setPage(1); }}
+          tabs={statusTabs.map(tab => ({ key: tab.key, label: tab.label }))}
+        />
 
         <div className="data-filter-card">
           <div className="flex items-center gap-2 flex-wrap">
