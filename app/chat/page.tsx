@@ -195,6 +195,8 @@ function UnifiedChatPageContent() {
   const [savedReplySearch, setSavedReplySearch] = useState('');
   const [savedReplyIndex, setSavedReplyIndex] = useState(0);
   const [savedReplyModalOpen, setSavedReplyModalOpen] = useState(false);
+  /** ใบที่กำลังแก้อยู่ในโมดัล — null = สร้างใหม่ (แก้ได้จากหน้าแชทเลย ไม่ต้องไป settings) */
+  const [savedReplyEditing, setSavedReplyEditing] = useState<SavedReply | null>(null);
   /**
    * ไฟล์แนบที่ "รอส่ง" — ลากวาง / กดเลือกไฟล์ / รูปของข้อความสำเร็จรูป มากองรวมกันที่นี่
    * แล้วส่งตอนกด Enter หรือปุ่มส่ง · เจ้าของขอให้ได้เห็นก่อน (ลากผิด ลากเกิน อยากลบบางรูป)
@@ -1322,6 +1324,27 @@ function UnifiedChatPageContent() {
   };
 
   const savedReplyResults = savedReplyMode ? filterSavedReplies(savedReplies, savedReplySearch) : [];
+
+  /** สิทธิ์แก้คลังข้อความสำเร็จรูป = สิทธิ์ตอบแชท (คลังใช้ร่วมกันทั้งร้าน) */
+  const canManageSavedReplies = can(
+    companyRoles.length > 0 ? { roles: companyRoles, permissions } : userProfile,
+    'chat.reply',
+  );
+
+  /** เปิดโมดัลสร้าง/แก้ข้อความสำเร็จรูป — ปิดรายการก่อนเสมอ ไม่งั้นซ้อนกันสองชั้น */
+  const openSavedReplyEditor = (reply: SavedReply | null) => {
+    setSavedReplyMode(false);
+    setSavedReplyEditing(reply);
+    setSavedReplyModalOpen(true);
+  };
+
+  /** บันทึกจากโมดัลแล้ว — ทับใบเดิมถ้ามี ไม่งั้นต่อท้าย · ล้างแคชให้หน้าจัดการเห็นของใหม่ด้วย */
+  const onSavedReplySaved = (saved: SavedReply) => {
+    setSavedReplies(prev => prev.some(r => r.id === saved.id)
+      ? prev.map(r => r.id === saved.id ? saved : r)
+      : [...prev, saved]);
+    invalidateApiCache('/api/chat/saved-replies');
+  };
 
   /**
    * ส่งรูปที่มี URL สาธารณะอยู่แล้ว (รูปของข้อความสำเร็จรูป) — ไม่ต้องอัปโหลดซ้ำ
@@ -2685,8 +2708,10 @@ function UnifiedChatPageContent() {
                         showSearch={savedReplyMode === 'button'}
                         search={savedReplySearch}
                         onSearchChange={setSavedReplySearch}
-                        onSaveCurrent={newMessage.trim() && !newMessage.startsWith('/') ? () => { setSavedReplyMode(false); setSavedReplyModalOpen(true); } : undefined}
-                        canManage={can(companyRoles.length > 0 ? { roles: companyRoles, permissions } : userProfile, 'chat.reply')}
+                        onSaveCurrent={newMessage.trim() && !newMessage.startsWith('/') ? () => openSavedReplyEditor(null) : undefined}
+                        onCreate={canManageSavedReplies ? () => openSavedReplyEditor(null) : undefined}
+                        onEdit={canManageSavedReplies ? openSavedReplyEditor : undefined}
+                        canManage={canManageSavedReplies}
                       />
                     )}
                   </div>
@@ -2890,9 +2915,10 @@ function UnifiedChatPageContent() {
       {savedReplyModalOpen && (
         <SavedReplyModal
           open={savedReplyModalOpen}
-          onClose={() => setSavedReplyModalOpen(false)}
-          initialContent={newMessage.trim()}
-          onSaved={(saved) => setSavedReplies(prev => [...prev, saved])}
+          onClose={() => { setSavedReplyModalOpen(false); setSavedReplyEditing(null); }}
+          reply={savedReplyEditing}
+          initialContent={savedReplyEditing ? undefined : newMessage.trim()}
+          onSaved={onSavedReplySaved}
         />
       )}
 
