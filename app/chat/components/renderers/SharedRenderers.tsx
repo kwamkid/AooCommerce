@@ -3,6 +3,7 @@
 import { Play, FileText, Download, Music, Loader2 } from 'lucide-react';
 import { ChatMessage } from '@/app/chat/lib/chatTypes';
 import { hasHtmlMarkup, parseRichText } from '@/app/chat/lib/richText';
+import { lineStickerUrl, lineSticonUrl } from '@/lib/chat/line-sticker';
 
 interface RendererProps {
   msg: ChatMessage;
@@ -14,21 +15,15 @@ interface RendererProps {
 // ─── Sticker ────────────────────────────────────────────────────────────────
 
 export function StickerBubble({ msg }: RendererProps) {
-  // LINE sticker: use stickerId to build CDN URL
+  // LINE sticker: ประกอบที่อยู่รูปจาก stickerId (ผ่าน origin ของเรา ไม่ใช่ CDN ของ LINE)
   const lineStickerId = msg.raw_message?.stickerId;
   if (lineStickerId) {
+    // ไล่หา iPhone@2x → iPhone → android ย้ายไปทำฝั่งเซิร์ฟเวอร์แล้ว (คำขอเดียวจบ)
     return (
       <img
-        src={`https://stickershop.line-scdn.net/stickershop/v1/sticker/${lineStickerId}/iPhone/sticker@2x.png`}
+        src={lineStickerUrl(lineStickerId)}
         alt="sticker"
         className="w-24 h-24 object-contain"
-        onError={(e) => {
-          const img = e.target as HTMLImageElement;
-          if (img.src.includes('sticker@2x.png'))
-            img.src = `https://stickershop.line-scdn.net/stickershop/v1/sticker/${lineStickerId}/iPhone/sticker.png`;
-          else if (img.src.includes('iPhone/sticker.png'))
-            img.src = `https://stickershop.line-scdn.net/stickershop/v1/sticker/${lineStickerId}/android/sticker.png`;
-        }}
       />
     );
   }
@@ -323,7 +318,7 @@ function renderLineEmojis(
     nodes.push(
       <img
         key={`e${i}`}
-        src={`https://stickershop.line-scdn.net/sticonshop/v1/sticon/${emoji.productId}/android/${emoji.emojiId}.png`}
+        src={lineSticonUrl(emoji.productId, emoji.emojiId)}
         alt=""
         className="inline-block h-5 w-5 align-text-bottom"
       />

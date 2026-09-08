@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Search, X } from 'lucide-react';
 import { officialStickers } from '../lib/chatHelpers';
+import { lineStickerUrl } from '@/lib/chat/line-sticker';
 import Tabs from '@/components/ui/Tabs';
 
 interface EmojiStickerPickerProps {
@@ -129,8 +130,7 @@ export default function EmojiStickerPicker({ platform, onEmojiSelect, onStickerS
               <div className="grid grid-cols-4 gap-2">
                 {pack.stickers.map((stickerId) => (
                   <button key={stickerId} onClick={() => { onStickerSelect(pack.packageId, stickerId); onClose(); }} className="p-2 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors">
-                    <img src={`https://stickershop.line-scdn.net/stickershop/v1/sticker/${stickerId}/iPhone/sticker@2x.png`} alt="sticker" className="w-14 h-14 md:w-16 md:h-16 object-contain mx-auto"
-                      onError={(e) => { const img = e.target as HTMLImageElement; if (img.src.includes('@2x')) img.src = `https://stickershop.line-scdn.net/stickershop/v1/sticker/${stickerId}/iPhone/sticker.png`; }} />
+                    <img src={lineStickerUrl(stickerId)} alt="sticker" loading="lazy" className="w-14 h-14 md:w-16 md:h-16 object-contain mx-auto" />
                   </button>
                 ))}
               </div>
