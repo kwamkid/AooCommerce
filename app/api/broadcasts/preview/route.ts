@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
+import { checkAuthWithCompany, can } from '@/lib/supabase-admin';
 import { getLineCredsFromAccount } from '@/lib/chat-config';
 import { isBroadcastPlatform, type BroadcastPlatform } from '@/lib/broadcast/platforms';
 import { resolveBroadcastTarget } from '@/lib/broadcast/accounts';
 import {
+  getLineContactCounts,
   getLineFollowerStats,
   getLineQuota,
   resolveBroadcastRecipients,
@@ -58,18 +59,8 @@ export async function POST(request: NextRequest) {
 
     // ระบบรู้ประวัติการซื้อของใครบ้าง — ผู้ติดต่อที่ยังไม่ผูกกับลูกค้า เราไม่มีทางรู้ว่าเคยซื้อไหม
     // (LINE ไม่ให้เบอร์/อีเมล) หน้าจอต้องบอกตัวเลขนี้กำกับกลุ่มที่แบ่งตามการซื้อเสมอ
-    const contactBase = () => supabaseAdmin
-      .from('line_contacts')
-      .select('id', { count: 'exact', head: true })
-      .eq('company_id', auth.companyId!)
-      .eq('chat_account_id', accountId)
-      .eq('status', 'active')
-      .like('line_user_id', 'U%');
-
-    const [totalRes, linkedRes] = await Promise.all([
-      contactBase(),
-      contactBase().not('customer_id', 'is', null),
-    ]);
+    // — นับด้วยตัวเดียวกับ /api/broadcasts/audience-counts เงื่อนไขจึงตรงกันเสมอ
+    const contactCounts = await getLineContactCounts(auth.companyId, accountId);
 
     // ผู้ติดตามมีความหมายเฉพาะโหมด 'all' — โหมดอื่นจำนวนผู้รับมาจากรายชื่อของเราเอง
     const [quota, stats] = await Promise.all([
@@ -88,8 +79,8 @@ export async function POST(request: NextRequest) {
         ? { reachable: stats.reachable, total_adds: stats.totalAdds, blocks: stats.blocks }
         : null,
       window_days: null,
-      contact_total: totalRes.count ?? 0,
-      contact_linked: linkedRes.count ?? 0,
+      contact_total: contactCounts.total,
+      contact_linked: contactCounts.linked,
     });
   } catch (e) {
     console.error('POST broadcast preview error:', e);

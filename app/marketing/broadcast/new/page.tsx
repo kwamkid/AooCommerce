@@ -1,27 +1,26 @@
+// Path: app/marketing/broadcast/new/page.tsx
+//
+// สร้างบรอดแคสต์ — เดินสองขั้น: **ส่งถึงใคร** แล้ว **ส่งอะไร เมื่อไหร่**
+//
+// หน้าเป็นเจ้าของ state ทั้งหมด การ์ดใน ./components รับค่าเข้ามาแล้วคืนกลับ —
+// จำนวนผู้รับ โควตา และตัวอย่างข้อความอยู่ในแผงขวาที่ตรึงไว้ เพราะเป็นสองสิ่งที่ต้องเห็น
+// ตลอดเวลาที่แก้เนื้อหา ไม่ใช่ต้องเลื่อนกลับขึ้นไปดู
+//
+// ⛔ ไม่มีขั้นไหน "ยุบเป็นบรรทัดสรุป" — เจ้าของทดลองแล้วไม่เอา (ต้องกดกางเพื่อดูว่าตัวเอง
+//    ตั้งอะไรไว้ = แย่กว่าเลื่อนดู) · กดหัวขั้นเพื่อสลับได้ทันที validation อยู่ที่ตอนกดส่ง
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
 import Container from '@/components/ui/Container';
 import Card from '@/components/ui/Card';
 import PageHeader from '@/components/ui/PageHeader';
-import Button from '@/components/ui/Button';
-import FormInput from '@/components/ui/FormInput';
-import Radio from '@/components/ui/Radio';
-import AccountPicker from '@/components/ui/AccountPicker';
-import Alert from '@/components/ui/Alert';
-import Modal from '@/components/ui/Modal';
 import Stepper from '@/components/ui/Stepper';
-import MultiSelectSearch from '@/components/ui/MultiSelectSearch';
-import ImageDropzone from '@/components/ui/ImageDropzone';
-import PlatformIcon from '@/components/ui/PlatformIcon';
-import OptionCards from '@/components/ui/OptionCards';
-import ProductSearchInput, { type ProductSearchItem } from '@/components/ui/ProductSearchInput';
-import EntitySearchInput, { type EntitySearchOption } from '@/components/ui/EntitySearchInput';
-import ProductImageThumb from '@/components/ui/ProductImageThumb';
-import NumberInput from '@/components/ui/NumberInput';
 import { LoadingCard, NoPermissionCard } from '@/components/ui/StateCard';
+import type { DateValueType } from '@/components/ui/DateRangePicker';
+import type { ProductSearchItem } from '@/components/ui/ProductSearchInput';
+import type { EntitySearchOption } from '@/components/ui/EntitySearchInput';
 import { useAuthGuard } from '@/lib/useAuthGuard';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { useDebouncedCallback } from '@/lib/useDebounce';
@@ -29,7 +28,7 @@ import { useServerSearch, type ServerSearchPage } from '@/lib/useServerSearch';
 import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
 import { supabase } from '@/lib/supabase';
-import { formatPrice } from '@/lib/utils/format';
+import { formatThaiDateTime } from '@/lib/utils/format';
 import {
   BROADCAST_PLATFORMS,
   BROADCAST_PLATFORM_LIST,
@@ -37,199 +36,38 @@ import {
   intersectCompose,
   isBroadcastPlatform,
   type BroadcastContentKind,
-  type BroadcastPlatform,
 } from '@/lib/broadcast/platforms';
 import {
-  BUTTON_LABEL_MAX,
+  audienceLabel,
+  buildAudienceFilter,
+  commonAudienceOptions,
+  describeAudienceRefine,
+  type StoredAudienceFilter,
+} from '@/lib/broadcast/audience';
+import {
   validateBroadcastContent,
   type BroadcastButton,
   type BroadcastContent,
   type BroadcastProductCard,
 } from '@/lib/broadcast/content';
-import { ChevronDown, Plus, Send, Tag, Trash2 } from 'lucide-react';
+import { Send } from 'lucide-react';
+import ChannelStep from './components/ChannelStep';
+import AudienceStep from './components/AudienceStep';
+import ContentStep, { KIND_LABELS } from './components/ContentStep';
+import ScheduleStep, { type SendMode } from './components/ScheduleStep';
+import SummaryRail from './components/SummaryRail';
+import type {
+  AudienceCounts,
+  BroadcastAccount,
+  PerAccountPreview,
+  PickedContact,
+  PreviewInfo,
+  TagRow,
+} from './components/types';
 
-/** บัญชีต้นทางหนึ่งใบ — LINE มาจาก chat_accounts ส่วน marketplace มาจากร้าน */
-interface BroadcastAccount {
-  id: string;
-  platform: BroadcastPlatform;
-  name: string;
-  /** รูปโปรไฟล์ของช่องทาง (รูป OA / รูปเพจ / โลโก้ร้าน) — ไม่มีก็ตกไปใช้ไอคอนแพลตฟอร์ม */
-  picture_url: string | null;
-}
-
-interface TagRow { id: string; name: string; color: string }
-
-interface QuotaInfo {
-  type: 'none' | 'limited' | 'unknown';
-  limit: number | null;
-  used: number;
-  remaining: number | null;
-}
-
-interface FollowerStats {
-  /** คนที่ยิงถึงได้จริง — ตรงกับเลข "เพื่อน" ใน LINE OA Manager */
-  reachable: number | null;
-  /** ยอดสะสมที่เคยกดแอด (ไม่ลดเมื่อบล็อก) */
-  total_adds: number | null;
-  blocks: number | null;
-}
-
-interface PreviewInfo {
-  recipient_count: number;
-  known_contact_count: number;
-  quota: QuotaInfo | null;
-  follower_stats: FollowerStats | null;
-  window_days: number | null;
-  /** ผู้ติดต่อทั้งหมด / ที่ผูกกับข้อมูลลูกค้าแล้ว — ใช้บอกว่าเรารู้ประวัติการซื้อของกี่คน */
-  contact_total?: number;
-  contact_linked?: number;
-}
-
-interface AudienceOption {
-  key: string;
-  label: string;
-  hint?: string;
-  /** หัวข้อกลุ่มที่ตัวเลือกนี้อยู่ — แบ่งตามเป้าหมายการตลาด ไม่ใช่ตามกลไกของระบบ */
-  group: string;
-  /** ต้องกรอกจำนวนวันต่อ */
-  needsDays?: boolean;
-}
-
-/**
- * กลุ่มผู้รับต่างกันตามช่องทาง เพราะ "ใครที่ทักได้" ต่างกัน —
- * ต้องตรงกับ AUDIENCE_BY_PLATFORM ใน /api/broadcasts (server ปฏิเสธค่าที่ไม่รู้จัก)
- */
-const GROUP_NOT_BOUGHT = 'ยังไม่เคยซื้อ — ชวนให้ซื้อครั้งแรก';
-const GROUP_BOUGHT = 'เป็นลูกค้าแล้ว — ชวนให้ซื้อซ้ำ';
-const GROUP_OTHER = 'อื่น ๆ';
-
-const AUDIENCE_OPTIONS: Partial<Record<BroadcastPlatform, AudienceOption[]>> = {
-  line: [
-    {
-      key: 'not_bought',
-      group: GROUP_NOT_BOUGHT,
-      label: 'ยังไม่เคยซื้อ',
-      hint: 'ไม่มีออเดอร์ในระบบ — รวมคนที่ยังไม่ได้ผูกกับข้อมูลลูกค้า',
-    },
-    {
-      key: 'bought',
-      group: GROUP_BOUGHT,
-      label: 'ลูกค้าทั้งหมด',
-      hint: 'เคยซื้ออย่างน้อยหนึ่งครั้ง',
-    },
-    {
-      key: 'bought_within',
-      group: GROUP_BOUGHT,
-      label: 'ซื้อล่าสุดภายใน N วัน',
-      hint: 'ลูกค้าที่ยังซื้ออยู่ — เหมาะกับของใหม่ ของเสริม',
-      needsDays: true,
-    },
-    {
-      key: 'bought_before',
-      group: GROUP_BOUGHT,
-      label: 'หายไปเกิน N วัน',
-      hint: 'เคยซื้อแล้วเงียบไป — ชวนกลับมา',
-      needsDays: true,
-    },
-    {
-      key: 'bought_once',
-      group: GROUP_BOUGHT,
-      label: 'ซื้อครั้งเดียว ยังไม่กลับมา',
-      hint: 'กลุ่มที่ดันให้ซื้อครั้งที่สองได้คุ้มที่สุด',
-    },
-    {
-      key: 'contacts',
-      group: GROUP_OTHER,
-      label: 'คนที่เคยทักเข้ามา',
-      hint: 'ทุกคนที่มีห้องแชทอยู่ในระบบ ไม่ว่าจะซื้อหรือยัง',
-    },
-    {
-      key: 'tags',
-      group: GROUP_OTHER,
-      label: 'ตามแท็ก',
-      hint: 'นับทั้งแท็กที่ติดกับลูกค้า และแท็กที่ติดกับห้องแชทโดยตรง',
-    },
-    {
-      key: 'all',
-      group: GROUP_OTHER,
-      label: 'ผู้ติดตามทั้งหมด',
-      hint: 'รวมคนที่แอดเพื่อนไว้แต่ไม่เคยทักมาเลย — กลุ่มใหญ่สุด กินโควตามากสุด',
-    },
-    {
-      key: 'contacts_pick',
-      group: GROUP_OTHER,
-      label: 'เลือกรายคน',
-      hint: 'ใช้ทดสอบส่งหาตัวเองก่อนยิงจริง หรือส่งกลุ่มเล็กเฉพาะกิจ',
-    },
-  ],
-  tiktok: [
-    {
-      key: 'buyers_365d',
-      group: GROUP_BOUGHT,
-      label: 'ลูกค้าที่เคยสั่งซื้อ (365 วัน)',
-      hint: 'TikTok ให้ทักได้เฉพาะกรอบนี้',
-    },
-    { key: 'tags', group: GROUP_OTHER, label: 'ตามแท็กลูกค้า', hint: 'นับเฉพาะคนที่ติดแท็กและมีออเดอร์ใน 365 วัน' },
-  ],
-};
-
-/** การ์ดเลือกชนิดเนื้อหา — preview วาดรูปทรงจริงให้เห็นว่าลูกค้าจะได้อะไร */
-const KIND_CARDS: Record<BroadcastContentKind, { label: string; description: string; preview: React.ReactNode }> = {
-  announce: {
-    label: 'ประกาศ',
-    description: 'ข้อความ + รูป',
-    preview: (
-      <div className="w-full space-y-1">
-        <div className="h-1.5 rounded bg-gray-300 dark:bg-slate-500" />
-        <div className="h-1.5 w-3/4 rounded bg-gray-300 dark:bg-slate-500" />
-        <div className="h-5 rounded bg-gray-200 dark:bg-slate-600" />
-      </div>
-    ),
-  },
-  promo: {
-    label: 'โปรโมชัน',
-    description: 'แบนเนอร์ + ปุ่มกด',
-    preview: (
-      <div className="w-full rounded border border-gray-300 dark:border-slate-500 overflow-hidden">
-        <div className="h-4 bg-gray-200 dark:bg-slate-600" />
-        <div className="p-1 space-y-1">
-          <div className="h-1.5 w-2/3 rounded bg-gray-300 dark:bg-slate-500" />
-          <div className="h-2.5 rounded bg-[#F4511E]/70" />
-        </div>
-      </div>
-    ),
-  },
-  products: {
-    label: 'การ์ดสินค้า',
-    description: 'เลื่อนดูได้ กดสั่งเลย',
-    preview: (
-      <div className="w-full flex gap-1">
-        {[0, 1, 2].map(i => (
-          <div key={i} className="flex-1 rounded border border-gray-300 dark:border-slate-500 overflow-hidden">
-            <div className="h-3.5 bg-gray-200 dark:bg-slate-600" />
-            <div className="p-0.5"><div className="h-1.5 rounded bg-gray-300 dark:bg-slate-500" /></div>
-          </div>
-        ))}
-      </div>
-    ),
-  },
-};
-
-/** ตัวกรองผู้รับตามชนิดกลุ่ม — ที่เดียวเพื่อให้ preview กับตอนส่งใช้ค่าเดียวกันเสมอ */
-function buildAudienceFilter(
-  audience: string, tagIds: string[], contactIds: string[], days: number,
-  minMessages: number, lastChatDays: number,
-) {
-  if (audience === 'contacts_pick') return { contact_ids: contactIds };
-  // ตัวกรองซ้อนใช้ไม่ได้กับ 'all' — ยิงถึงผู้ติดตามที่เราไม่มีรายชื่อ จึงกรองอะไรไม่ได้
-  const refine = audience === 'all' ? {} : {
-    ...(minMessages > 0 ? { min_messages: minMessages } : {}),
-    ...(lastChatDays > 0 ? { last_chat_days: lastChatDays } : {}),
-  };
-  if (audience === 'tags') return { tag_ids: tagIds, ...refine };
-  if (audience === 'bought_within' || audience === 'bought_before') return { days, ...refine };
-  return refine;
-}
+/** ตั้งเวลาต้องล่วงหน้าพอให้ผู้ใช้ยกเลิกทัน และไม่ไกลจนลืมว่าตั้งไว้ */
+const MIN_SCHEDULE_LEAD_MS = 2 * 60 * 1000;
+const MAX_SCHEDULE_AHEAD_MS = 90 * 24 * 60 * 60 * 1000;
 
 async function fetchProductPage(q: string): Promise<ServerSearchPage<ProductSearchItem>> {
   const res = await apiFetch(`/api/products/search?q=${encodeURIComponent(q)}&limit=40`);
@@ -248,20 +86,34 @@ async function fetchProductPage(q: string): Promise<ServerSearchPage<ProductSear
   return { rows, complete: json.complete !== false };
 }
 
+/** ชั่วโมงถัดไปเต็มชั่วโมง — ค่าตั้งต้นของ "ตั้งเวลา" ที่ผ่านเกณฑ์ล่วงหน้าเสมอ */
+function nextFullHour(): Date {
+  const d = new Date();
+  d.setMinutes(0, 0, 0);
+  d.setHours(d.getHours() + 1);
+  return d;
+}
+
 export default function NewBroadcastPage() {
   const router = useRouter();
   const { showToast } = useToast();
   const { confirmDialog, confirm } = useConfirmDialog();
   const { allowed, loading: authLoading } = useAuthGuard('chat.broadcast', { noRedirect: true });
 
+  const [step, setStep] = useState<1 | 2>(1);
   const [accounts, setAccounts] = useState<BroadcastAccount[]>([]);
   const [tags, setTags] = useState<TagRow[]>([]);
   /** เลือกได้หลายบัญชี — เนื้อหาชุดเดียวยิงได้หลาย OA/หลายร้าน (aDay Fresh มี LINE 2 บัญชี) */
   const [accountIds, setAccountIds] = useState<string[]>([]);
   const [audience, setAudience] = useState('');
   const [tagIds, setTagIds] = useState<string[]>([]);
-  /** ผู้ติดต่อที่เลือกเอง (audience 'contacts_pick') — เก็บชื่อไว้ด้วยเพื่อโชว์เป็นรายการ */
-  const [pickedContacts, setPickedContacts] = useState<{ id: string; name: string }[]>([]);
+  /** ผู้ติดต่อที่เลือกเอง — เก็บชื่อไว้ด้วยเพื่อโชว์เป็นชิป (คัดลอกใบเก่ามาจะรู้แค่ id) */
+  const [pickedContacts, setPickedContacts] = useState<PickedContact[]>([]);
+  /** จำนวนวันของกลุ่ม "ซื้อภายใน N วัน" / "หายไปเกิน N วัน" */
+  const [audienceDays, setAudienceDays] = useState(30);
+  /** ── ตัวกรองซ้อน: หั่นกลุ่มที่เลือกให้แคบลง (0 = ไม่กรอง) ── */
+  const [minMessages, setMinMessages] = useState(0);
+  const [lastChatDays, setLastChatDays] = useState(0);
 
   // ── เนื้อหา (ชนิดกลาง) ────────────────────────────────────────────────
   const [kind, setKind] = useState<BroadcastContentKind>('announce');
@@ -269,26 +121,32 @@ export default function NewBroadcastPage() {
   const [text, setText] = useState('');
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
+  /** รูปของใบที่คัดลอกมา — ใช้ต่อได้เลยเมื่อผู้ใช้ไม่ได้เลือกไฟล์ใหม่ */
+  const [existingImageUrl, setExistingImageUrl] = useState<string | null>(null);
   const [buttons, setButtons] = useState<BroadcastButton[]>([{ label: '', url: '' }]);
   const [cards, setCards] = useState<BroadcastProductCard[]>([]);
   const [quickReplies, setQuickReplies] = useState<string[]>([]);
 
+  // ── เวลาส่ง ───────────────────────────────────────────────────────────
+  const [sendMode, setSendMode] = useState<SendMode>('now');
+  const [scheduleDate, setScheduleDate] = useState<DateValueType>(() => {
+    const d = nextFullHour();
+    return { startDate: d, endDate: d };
+  });
+  const [scheduleTime, setScheduleTime] = useState(
+    () => `${String(nextFullHour().getHours()).padStart(2, '0')}:00`,
+  );
+
   /** ผลประเมินของบัญชีเดียว (ใช้โชว์รายละเอียดเมื่อเลือกใบเดียว) */
   const [preview, setPreview] = useState<PreviewInfo | null>(null);
-  const [perAccount, setPerAccount] = useState<{ account: BroadcastAccount; info: PreviewInfo }[]>([]);
+  const [perAccount, setPerAccount] = useState<PerAccountPreview[]>([]);
   const [previewLoading, setPreviewLoading] = useState(false);
+  const [counts, setCounts] = useState<AudienceCounts | null>(null);
+  const [countsLoading, setCountsLoading] = useState(false);
   const [sending, setSending] = useState(false);
-  /** กลุ่มผู้รับเลือกในโมดัล — รายการจะยาวขึ้นเรื่อย ๆ (ไม่ซื้อมา N วัน · ทักแล้วยังไม่ซื้อ ฯลฯ)
-   *  เรียงเป็นการ์ดในหน้าจะดันเนื้อหาตกจอ */
-  const [audienceModal, setAudienceModal] = useState(false);
-  /** โมดัลเดินเป็นขั้น — เลือกกลุ่ม → เลือกตัวเลือก → กรองเพิ่ม (รายการยาวเกินกว่าจะโชว์ทีเดียว) */
-  const [audienceStep, setAudienceStep] = useState(1);
-  const [audienceGroup, setAudienceGroup] = useState<string>('');
-  /** จำนวนวันของกลุ่ม "ซื้อภายใน N วัน" / "หายไปเกิน N วัน" */
-  const [audienceDays, setAudienceDays] = useState(30);
-  /** ── ตัวกรองซ้อน: หั่นกลุ่มที่เลือกให้แคบลง (0 = ไม่กรอง) ── */
-  const [minMessages, setMinMessages] = useState(0);
-  const [lastChatDays, setLastChatDays] = useState(0);
+
+  /** มาจาก ?from=<id> — ห้ามให้การเลือกบัญชีอัตโนมัติทับของที่คัดลอกมา */
+  const prefillRef = useRef(false);
 
   const productSearch = useServerSearch<ProductSearchItem>({ fetch: fetchProductPage });
 
@@ -321,14 +179,7 @@ export default function NewBroadcastPage() {
   /** ใช้ตัดสินเรื่องที่เป็นของแพลตฟอร์มเดียว (สีฟองตัวอย่าง · ข้อความโควตา) */
   const singlePlatform = platforms.length === 1 ? platforms[0] : null;
   const compose = useMemo(() => intersectCompose(platforms), [platforms]);
-
-  // กลุ่มผู้รับที่ **ทุกช่องทางที่เลือกมีเหมือนกัน** — เลือกข้ามเจ้าแล้วเหลือเฉพาะตัวร่วม
-  const audienceOptions = useMemo(() => {
-    if (platforms.length === 0) return [];
-    const lists = platforms.map(p => AUDIENCE_OPTIONS[p] || []);
-    return lists[0].filter(o => lists.every(l => l.some(x => x.key === o.key)));
-  }, [platforms]);
-  const pendingPlatforms = BROADCAST_PLATFORM_LIST.filter(p => !canBroadcastVia(p.id));
+  const audienceOptions = useMemo(() => commonAudienceOptions(platforms), [platforms]);
 
   // object URL ต้องคืนทุกครั้งที่เปลี่ยนรูป — สร้างใน render จะรั่วทุกรอบที่ re-render
   useEffect(() => {
@@ -380,7 +231,7 @@ export default function NewBroadcastPage() {
         }
 
         setAccounts(list);
-        if (list.length === 1) setAccountIds([list[0].id]);
+        if (list.length === 1 && !prefillRef.current) setAccountIds([list[0].id]);
 
         if (tagRes?.ok) {
           const data = await tagRes.json();
@@ -392,9 +243,54 @@ export default function NewBroadcastPage() {
     })();
   }, [allowed, showToast]);
 
-  // เปลี่ยนช่องทาง = กลุ่มผู้รับ/ชนิดเนื้อหาชุดเดิมอาจใช้ไม่ได้ → กลับไปตัวแรกที่รองรับ
+  // ─── คัดลอกจากใบเก่า (?from=) ────────────────────────────────────────
+  // อ่าน query จาก window แทน useSearchParams เพื่อไม่ต้องมี Suspense ครอบทั้งหน้า
   useEffect(() => {
-    if (audienceOptions.length === 0) { setAudience(''); return; }
+    if (!allowed) return;
+    const fromId = new URLSearchParams(window.location.search).get('from');
+    if (!fromId) return;
+    prefillRef.current = true;
+    (async () => {
+      try {
+        const res = await apiFetch(`/api/broadcasts/${fromId}`);
+        if (!res.ok) return;
+        const b = (await res.json())?.broadcast;
+        if (!b) return;
+
+        const accId = b.chat_account_id || b.marketplace_account_id;
+        if (accId) setAccountIds([accId]);
+        if (b.audience_type) setAudience(b.audience_type);
+
+        const f: StoredAudienceFilter = b.audience_filter || {};
+        if (Number(f.days) > 0) setAudienceDays(Number(f.days));
+        if (Number(f.min_messages) > 0) setMinMessages(Number(f.min_messages));
+        if (Number(f.last_chat_days) > 0) setLastChatDays(Number(f.last_chat_days));
+        if (Array.isArray(f.tag_ids)) setTagIds(f.tag_ids);
+        // รู้แค่ id — ชื่อจะขึ้นเป็นชิป "เลือกไว้ N คน" แทนรหัสยาว ๆ ที่อ่านไม่ออก
+        if (Array.isArray(f.contact_ids)) {
+          setPickedContacts(f.contact_ids.map((id: string) => ({ id, name: '' })));
+        }
+
+        const c: BroadcastContent | undefined = b.content;
+        if (c) {
+          if (c.kind) setKind(c.kind);
+          setTitle(c.title || '');
+          setText(c.text || '');
+          setExistingImageUrl(c.image_url || null);
+          if (Array.isArray(c.buttons) && c.buttons.length > 0) setButtons(c.buttons);
+          if (Array.isArray(c.products)) setCards(c.products);
+          if (Array.isArray(c.quick_replies)) setQuickReplies(c.quick_replies);
+        }
+      } catch {
+        // คัดลอกไม่ได้ก็เริ่มใบเปล่า — ไม่ต้องรบกวนผู้ใช้ด้วย error ที่ทำอะไรต่อไม่ได้
+      }
+    })();
+  }, [allowed]);
+
+  // เปลี่ยนช่องทาง = กลุ่มผู้รับ/ชนิดเนื้อหาชุดเดิมอาจใช้ไม่ได้ → กลับไปตัวแรกที่รองรับ
+  // ยังไม่รู้ช่องทาง (ตัวเลือกว่าง) ให้ปล่อยค่าไว้เฉย ๆ ไม่งั้นค่าที่คัดลอกมาจะถูกล้างทิ้ง
+  useEffect(() => {
+    if (audienceOptions.length === 0) return;
     if (!audienceOptions.some(o => o.key === audience)) setAudience(audienceOptions[0].key);
   }, [audienceOptions, audience]);
 
@@ -403,13 +299,23 @@ export default function NewBroadcastPage() {
     if (!compose.kinds.includes(kind)) setKind(compose.kinds[0]);
   }, [compose, kind]);
 
+  // ─── ตัวกรองผู้รับ — preview กับตอนส่งใช้ค่าเดียวกันเสมอ ───────────────
+  const audienceFilter = useMemo(() => buildAudienceFilter(audience, {
+    tagIds,
+    contactIds: pickedContacts.map(c => c.id),
+    days: audienceDays,
+    minMessages,
+    lastChatDays,
+  }), [audience, tagIds, pickedContacts, audienceDays, minMessages, lastChatDays]);
+
   // ─── ประเมินผู้รับ + โควตา ──────────────────────────────────────────
   const runPreview = useCallback(async (
-    accs: BroadcastAccount[], aud: string, ids: string[], picked: string[], dayCount: number,
-    minMsg: number, chatDays: number,
+    accs: BroadcastAccount[], aud: string, filter: StoredAudienceFilter,
   ) => {
     if (accs.length === 0 || !aud) { setPreview(null); setPerAccount([]); return; }
-    if (aud === 'contacts_pick' && picked.length === 0) { setPreview(null); setPerAccount([]); return; }
+    if (aud === 'contacts_pick' && (filter.contact_ids?.length ?? 0) === 0) {
+      setPreview(null); setPerAccount([]); return;
+    }
     setPreviewLoading(true);
     try {
       // ถามทีละบัญชีแล้วรวมยอด — โควตาเป็นของแต่ละ OA จึงต้องเช็คแยกใบ
@@ -421,14 +327,14 @@ export default function NewBroadcastPage() {
             platform: a.platform,
             account_id: a.id,
             audience_type: aud,
-            audience_filter: buildAudienceFilter(aud, ids, picked, dayCount, minMsg, chatDays),
+            audience_filter: filter,
           }),
         });
         if (!res.ok) return null;
         return { account: a, info: (await res.json()) as PreviewInfo };
       }));
 
-      const ok = results.filter((r): r is { account: BroadcastAccount; info: PreviewInfo } => !!r);
+      const ok = results.filter((r): r is PerAccountPreview => !!r);
       setPerAccount(ok);
       setPreview(ok.length === 1 ? ok[0].info : null);
     } catch {
@@ -443,12 +349,34 @@ export default function NewBroadcastPage() {
 
   useEffect(() => {
     if (!allowed) return;
-    debouncedPreview(
-      selectedAccounts, audience, tagIds, pickedContacts.map(c => c.id),
-      audienceDays, minMessages, lastChatDays,
-    );
-  }, [allowed, selectedAccounts, audience, tagIds, pickedContacts, audienceDays,
-      minMessages, lastChatDays, debouncedPreview]);
+    debouncedPreview(selectedAccounts, audience, audienceFilter);
+  }, [allowed, selectedAccounts, audience, audienceFilter, debouncedPreview]);
+
+  // ─── จำนวนคนของทุกกลุ่ม (โชว์คู่รายการตัวเลือก) ──────────────────────
+  const loadCounts = useCallback(async (accs: BroadcastAccount[], dayCount: number) => {
+    // นับแยกกลุ่มได้เฉพาะตอนเลือกบัญชีเดียว — หลายบัญชีรายชื่อคนละชุด รวมยอดแล้วอ่านผิด
+    if (accs.length !== 1) { setCounts(null); return; }
+    const a = accs[0];
+    setCountsLoading(true);
+    try {
+      const res = await apiFetch(
+        `/api/broadcasts/audience-counts?platform=${a.platform}&account_id=${a.id}&days=${dayCount}`,
+      );
+      // ปลายทางยังไม่พร้อม/ตอบไม่ได้ = โชว์ '—' ห้ามทำให้ทั้งหน้าพัง
+      setCounts(res.ok ? await res.json() : null);
+    } catch {
+      setCounts(null);
+    } finally {
+      setCountsLoading(false);
+    }
+  }, []);
+
+  const debouncedCounts = useDebouncedCallback(loadCounts, 400);
+
+  useEffect(() => {
+    if (!allowed) return;
+    debouncedCounts(selectedAccounts, audienceDays);
+  }, [allowed, selectedAccounts, audienceDays, debouncedCounts]);
 
   // ─── สรุปสิ่งที่จะเกิดขึ้น ────────────────────────────────────────────
   const recipientCount = perAccount.reduce((n, r) => n + r.info.recipient_count, 0);
@@ -471,11 +399,11 @@ export default function NewBroadcastPage() {
     kind,
     title: title.trim(),
     text: text.trim(),
-    image_url: imageFile ? 'https://pending.upload' : null,
+    image_url: imageFile ? 'https://pending.upload' : existingImageUrl,
     buttons: buttons.filter(b => b.label.trim() || b.url.trim()),
     products: cards,
     quick_replies: quickReplies,
-  }), [kind, title, text, imageFile, buttons, cards, quickReplies]);
+  }), [kind, title, text, imageFile, existingImageUrl, buttons, cards, quickReplies]);
 
   // ตรวจด้วยฟังก์ชันเดียวกับที่ API ใช้ — หน้าจอกับ server จึงพูดตรงกันเสมอ
   // เนื้อหาชุดเดียวต้องผ่าน **ทุกช่องทางที่เลือก** — ตัวไหนไม่ผ่านก็บอกตัวนั้น
@@ -483,53 +411,63 @@ export default function NewBroadcastPage() {
     .map(p => validateBroadcastContent(p, draftContent))
     .find(Boolean) ?? null;
 
+  // ─── เวลาส่ง ─────────────────────────────────────────────────────────
+  const scheduledAt = useMemo(() => {
+    if (sendMode !== 'schedule') return null;
+    const raw = scheduleDate?.startDate;
+    if (!raw) return null;
+    const base = raw instanceof Date ? new Date(raw) : new Date(raw);
+    if (isNaN(base.getTime())) return null;
+    const [h, m] = (scheduleTime || '00:00').split(':').map(Number);
+    base.setHours(h || 0, m || 0, 0, 0);
+    return base;
+  }, [sendMode, scheduleDate, scheduleTime]);
+
+  const scheduleError = useMemo(() => {
+    if (sendMode !== 'schedule') return null;
+    if (!scheduledAt) return 'เลือกวันและเวลาที่จะส่งก่อน';
+    const now = Date.now();
+    if (scheduledAt.getTime() < now + MIN_SCHEDULE_LEAD_MS) return 'ตั้งเวลาล่วงหน้าอย่างน้อย 2 นาที';
+    if (scheduledAt.getTime() > now + MAX_SCHEDULE_AHEAD_MS) return 'ตั้งเวลาล่วงหน้าได้ไม่เกิน 90 วัน';
+    return null;
+  }, [sendMode, scheduledAt]);
+
   // โหมด 'all' ของ LINE ยิงผ่าน broadcast API ไม่ต้องมีรายชื่อของเรา
-  const selectedAudience = audienceOptions.find(o => o.key === audience) || null;
-  /** ชื่อกลุ่มที่แทน N ด้วยจำนวนวันจริงแล้ว — ป้าย "หายไปเกิน N วัน" ลอย ๆ อ่านแล้วไม่รู้ว่ากี่วัน */
-  const audienceLabel = selectedAudience
-    ? selectedAudience.label.replace('N วัน', `${audienceDays} วัน`)
-    : 'เลือกกลุ่มผู้รับ';
-  /** กลุ่มใหญ่ทั้งหมดของช่องทางที่เลือก (เรียงตามที่ประกาศไว้) */
-  const audienceGroups = useMemo(
-    () => [...new Set(audienceOptions.map(o => o.group))],
-    [audienceOptions],
-  );
-  /** ขั้น "กรองเพิ่ม" มีเฉพาะกลุ่มที่มีรายชื่อจริงให้กรอง */
-  const hasRefineStep = audience !== 'all' && audience !== 'contacts_pick';
   const pickPending = audience === 'contacts_pick' && pickedContacts.length === 0;
   const noRecipients = audience !== 'all' && !pickPending && !previewLoading
     && platforms.length > 0 && recipientCount === 0;
-  const canSend = accountIds.length > 0 && !!audience && !pickPending
-    && !contentError && !quotaShort && !noRecipients && !sending;
-  const hasDraft = !!(text.trim() || title.trim() || imagePreviewUrl || cards.length > 0);
+  const hasDraft = !!(text.trim() || title.trim() || imagePreviewUrl || existingImageUrl || cards.length > 0);
+  const canNext = accountIds.length > 0 && !!audience && !pickPending;
+  const canSend = canNext && !contentError && !quotaShort && !noRecipients && !scheduleError && !sending;
 
-  /** บรรทัดสรุปใต้ชื่อกลุ่ม — บอกจำนวน หรือบอกว่ายังต้องเลือกอะไรต่อ */
-  const audienceSummary = (() => {
-    if (!selectedAudience) return 'ยังไม่ได้เลือก';
-    if (audience === 'tags' && tagIds.length === 0) return 'ยังไม่ได้เลือกแท็ก';
-    if (audience === 'contacts_pick') {
-      return pickedContacts.length === 0
-        ? 'ยังไม่ได้เลือกผู้รับ'
-        : `เลือกไว้ ${pickedContacts.length} คน`;
+  const contactTotal = counts?.contact_total ?? preview?.contact_total ?? null;
+  const contactLinked = counts?.contact_linked ?? preview?.contact_linked ?? null;
+
+  /** ป้ายสรุปในแผงขวา — ค่าว่างจะขึ้นเป็น "ยังไม่ได้เลือก" แบบจาง */
+  const contentSummary = useMemo(() => {
+    if (!hasDraft) return '';
+    const base = KIND_LABELS[kind];
+    if (kind === 'promo') {
+      const n = buttons.filter(b => b.label.trim()).length;
+      return n > 0 ? `${base} · ${n} ปุ่ม` : base;
     }
-    if (previewLoading) return 'กำลังนับผู้รับ...';
-    const refine = [
-      minMessages > 0 ? `ลูกค้าพิมพ์ ≥${minMessages} ข้อความ` : null,
-      lastChatDays > 0 ? `ลูกค้าพิมพ์ใน ${lastChatDays} วัน` : null,
-    ].filter(Boolean).join(' · ');
-    return `${recipientCount.toLocaleString()} คน${refine ? ` · ${refine}` : ''}`;
-  })();
+    if (kind === 'products') return cards.length > 0 ? `${base} · ${cards.length} ชิ้น` : base;
+    return base;
+  }, [hasDraft, kind, buttons, cards]);
 
   // ─── ส่ง ─────────────────────────────────────────────────────────────
   const handleSend = async () => {
     if (!canSend) return;
+    const via = selectedAccounts.length === 1
+      ? selectedAccounts[0].name
+      : `${selectedAccounts.length} ช่องทาง (${selectedAccounts.map(a => a.name).join(' · ')})`;
 
     const ok = await confirm({
-      title: 'ส่งบรอดแคสต์',
-      description: selectedAccounts.length === 1
-        ? `ส่งถึง ${recipientCount.toLocaleString()} คน ผ่าน ${selectedAccounts[0].name}? ข้อความจะถูกส่งทันที`
-        : `ส่งถึง ${recipientCount.toLocaleString()} คน ผ่าน ${selectedAccounts.length} ช่องทาง (${selectedAccounts.map(a => a.name).join(' · ')})? ข้อความจะถูกส่งทันที`,
-      confirmLabel: 'ส่งบรอดแคสต์',
+      title: scheduledAt ? 'ตั้งเวลาส่งบรอดแคสต์' : 'ส่งบรอดแคสต์',
+      description: scheduledAt
+        ? `ตั้งเวลาส่งถึง ${recipientCount.toLocaleString()} คน ผ่าน ${via} เวลา ${formatThaiDateTime(scheduledAt)}?`
+        : `ส่งถึง ${recipientCount.toLocaleString()} คน ผ่าน ${via}? ข้อความจะถูกส่งทันที`,
+      confirmLabel: scheduledAt ? 'ตั้งเวลาส่ง' : 'ส่งบรอดแคสต์',
       confirmIcon: <Send className="w-4 h-4" />,
     });
     if (!ok) return;
@@ -537,7 +475,7 @@ export default function NewBroadcastPage() {
     setSending(true);
     try {
       // อัปโหลดรูปครั้งเดียวแล้วใช้ร่วมทุกช่องทาง — อัปซ้ำต่อช่องทางคือเปลืองเปล่า ๆ
-      let imageUrl: string | null = null;
+      let imageUrl: string | null = existingImageUrl;
       if (compose?.image && imageFile) {
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) throw new Error('เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่');
@@ -561,10 +499,9 @@ export default function NewBroadcastPage() {
               platform: a.platform,
               account_id: a.id,
               audience_type: audience,
-              audience_filter: buildAudienceFilter(
-                audience, tagIds, pickedContacts.map(c => c.id), audienceDays, minMessages, lastChatDays,
-              ),
+              audience_filter: audienceFilter,
               content: { ...draftContent, image_url: imageUrl },
+              ...(scheduledAt ? { scheduled_at: scheduledAt.toISOString() } : {}),
             }),
           });
           if (!res.ok) {
@@ -584,6 +521,14 @@ export default function NewBroadcastPage() {
       if (failed.length > 0) {
         // ส่งได้บางช่องทาง — ต้องบอกให้ครบว่าอันไหนไม่ผ่านเพราะอะไร ไม่ใช่แค่ "สำเร็จ"
         showToast(`ส่งแล้ว ${results.length - failed.length}/${results.length} ช่องทาง · ไม่สำเร็จ: ${failed.map(f => `${f.name} (${f.error})`).join(' · ')}`, 'error');
+      } else if (scheduledAt) {
+        const when = formatThaiDateTime(scheduledAt);
+        showToast(
+          results.length > 1
+            ? `ตั้งเวลาส่งแล้ว ${when} · ${results.length} ช่องทาง`
+            : `ตั้งเวลาส่งแล้ว ${when}`,
+          'success',
+        );
       } else {
         showToast(results.length > 1 ? `เริ่มส่งแล้ว ${results.length} ช่องทาง` : 'เริ่มส่งบรอดแคสต์แล้ว', 'success');
       }
@@ -621,711 +566,165 @@ export default function NewBroadcastPage() {
     return <Layout><Container size="6xl"><NoPermissionCard /></Container></Layout>;
   }
 
-  const bubbleClass = singlePlatform === 'line' ? 'bg-[#06C755]' : 'bg-gray-900';
-
   return (
     <Layout>
       {confirmDialog}
       <Container size="6xl">
-        <PageHeader backHref="/marketing/broadcast" title="สร้างบรอดแคสต์" subtitle="ข้อความถูกส่งจากระบบนี้ จึงบันทึกไว้ให้ครบว่าส่งอะไรถึงใครไปแล้วบ้าง" />
+        <PageHeader
+          backHref="/marketing/broadcast"
+          title="สร้างบรอดแคสต์"
+          subtitle="ส่งจากระบบนี้ จึงเก็บไว้ครบว่าส่งอะไรถึงใคร และใครตอบกลับ"
+        />
 
-        {/* ฟอร์มซ้าย · สรุป+ตัวอย่างขวาแบบตรึง — จอแคบจะเรียงลงเป็นคอลัมน์เดียวตามลำดับเดิม */}
-        <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_360px] gap-5 items-start">
-          <div className="space-y-5">
-
-            {/* 1. ส่งถึงใคร — ช่องทางกับกลุ่มผู้รับเป็นเรื่องเดียวกัน ไม่ต้องแยกการ์ด */}
+        {/* ฟอร์มซ้าย · สรุป+ตัวอย่างขวาแบบตรึง — จอแคบเรียงลงเป็นคอลัมน์เดียวตามลำดับเดิม */}
+        <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_372px] gap-4 items-start">
+          <div className="space-y-4">
             <Card padding="md">
-              <h2 className="heading-4 mb-3">ช่องทาง</h2>
+              <Stepper
+                ariaLabel="ขั้นตอนสร้างบรอดแคสต์"
+                onSelect={k => setStep(Number(k) as 1 | 2)}
+                allowJumpAhead
+                steps={[
+                  {
+                    key: '1',
+                    label: 'ส่งถึงใคร',
+                    note: 'ช่องทาง + กลุ่มเป้าหมาย',
+                    state: step === 1 ? 'current' : 'done',
+                  },
+                  {
+                    key: '2',
+                    label: 'ส่งอะไร เมื่อไหร่',
+                    note: 'เนื้อหา + เวลาส่ง',
+                    state: step === 2 ? 'current' : 'todo',
+                  },
+                ]}
+              />
+            </Card>
 
-              {accounts.length === 0 ? (
-                <Alert tone="warning">
-                  ยังไม่มีช่องทางที่ส่งได้ — เพิ่ม LINE OA ที่ ตั้งค่า &gt; ช่องทาง Chat ก่อน
-                </Alert>
-              ) : (
-                <AccountPicker
-                  accounts={[
-                    ...accounts.map(a => ({
-                      id: a.id,
-                      platform: a.platform,
-                      name: a.name,
-                      picture_url: a.picture_url,
-                      badge: BROADCAST_PLATFORMS[a.platform].label,
-                    })),
-                    // ช่องทางที่ยังส่งไม่ได้ — โชว์เป็นแถวกดไม่ได้พร้อมเหตุผล **หนึ่งแถวต่อ
-                    // แพลตฟอร์ม** ไม่ใช่ต่อบัญชี เพราะเลือกไม่ได้อยู่แล้วจึงไม่ต้องยิง API
-                    // ไปโหลดรายชื่อร้าน/เพจของเจ้าที่ยังใช้ไม่ได้มาให้เปลืองเปล่า ๆ
-                    ...pendingPlatforms.map(p => ({
-                      id: `platform:${p.id}`,
-                      platform: p.id,
-                      name: p.label,
-                      picture_url: null,
-                      disabled: true,
-                      disabledReason: p.reason,
-                    })),
-                  ]}
+            {step === 1 ? (
+              <>
+                <ChannelStep
+                  accounts={accounts}
                   value={accountIds}
                   onChange={setAccountIds}
-                  placeholder="เลือกช่องทางที่จะใช้ส่ง (เลือกได้หลายอัน)"
+                  disabled={sending}
                 />
-              )}
-
-              {platforms.length > 0 && (
-                <div className="mt-4 pt-4 border-t border-gray-100 dark:border-slate-700">
-                  <p className="field-label mb-1.5">กลุ่มผู้รับ</p>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      // เปิดมาแล้วอยู่ที่ขั้นแรกเสมอ แต่จำกลุ่มที่เลือกไว้ให้
-                      setAudienceGroup(selectedAudience?.group || '');
-                      setAudienceStep(1);
-                      setAudienceModal(true);
-                    }}
-                    className="w-full min-h-[42px] flex items-center gap-2 px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 hover:bg-gray-50 dark:hover:bg-slate-600 transition-colors text-left"
-                  >
-                    <span className="flex-1 min-w-0">
-                      <span className="block body-text text-gray-900 dark:text-white truncate">
-                        {audienceLabel}
-                      </span>
-                      <span className="block helper-text text-gray-500 dark:text-slate-400 truncate">
-                        {audienceSummary}
-                      </span>
-                    </span>
-                    <ChevronDown className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                  </button>
-                </div>
-              )}
-            </Card>
-
-            {/* 2. เนื้อหา */}
-            {compose && (
-              <Card padding="md">
-                <h2 className="heading-4 mb-3">เนื้อหา</h2>
-
-                {compose.kinds.length > 1 && (
-                  <div className="mb-4">
-                    <OptionCards<BroadcastContentKind>
-                      value={kind}
-                      onChange={setKind}
-                      disabled={sending}
-                      options={compose.kinds.map(k => ({ id: k, ...KIND_CARDS[k] }))}
-                    />
-                  </div>
+                {platforms.length > 0 && (
+                  <AudienceStep
+                    options={audienceOptions}
+                    audience={audience}
+                    onAudienceChange={setAudience}
+                    counts={counts}
+                    countsLoading={countsLoading}
+                    countsUnavailable={selectedAccounts.length !== 1}
+                    contactTotal={contactTotal}
+                    contactLinked={contactLinked}
+                    days={audienceDays}
+                    onDaysChange={setAudienceDays}
+                    tags={tags}
+                    tagIds={tagIds}
+                    onTagIdsChange={setTagIds}
+                    contactResults={contactSearch.results}
+                    contactLoading={contactSearch.loading}
+                    onContactSearch={contactSearch.search}
+                    pickedContacts={pickedContacts}
+                    onPickedContactsChange={setPickedContacts}
+                    multiAccount={accountIds.length > 1}
+                    minMessages={minMessages}
+                    onMinMessagesChange={setMinMessages}
+                    lastChatDays={lastChatDays}
+                    onLastChatDaysChange={setLastChatDays}
+                    disabled={sending}
+                  />
                 )}
-
-                <div className="space-y-4">
-                  {/* หัวข้อ — TikTok บังคับ · LINE ใช้เป็นหัวการ์ดของโปรโมชัน */}
-                  {(compose.titleMax || kind === 'promo') && (
-                    <FormInput
-                      label="หัวข้อ"
-                      required={!!compose.titleMax}
-                      value={title}
-                      onChange={e => setTitle(e.target.value)}
-                      maxLength={compose.titleMax ?? 40}
-                      disabled={sending}
-                      placeholder="หัวข้อที่ลูกค้าเห็นก่อน"
-                      hint={`${title.length}/${compose.titleMax ?? 40}`}
-                    />
-                  )}
-
-                  <div>
-                    <label className="field-label block mb-1">
-                      {kind === 'products' ? 'ข้อความเกริ่น (ไม่บังคับ)' : 'ข้อความ'}
-                    </label>
-                    <textarea
-                      value={text}
-                      onChange={e => setText(e.target.value)}
-                      rows={kind === 'announce' ? 4 : 2}
-                      placeholder="พิมพ์ข้อความที่จะส่งถึงลูกค้า"
-                      disabled={sending}
-                      className="w-full px-4 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary resize-none"
-                    />
-                    <p className="helper-text mt-1 text-right text-gray-500 dark:text-slate-400">
-                      {text.length.toLocaleString()}/{(kind === 'promo' ? 60 : compose.bodyMax).toLocaleString()}
-                    </p>
-                  </div>
-
-                  {/* รูป — โปรโมชันใช้เป็นแบนเนอร์บนการ์ด */}
-                  {compose.image && kind !== 'products' && (
-                    <div>
-                      <label className="field-label block mb-1">
-                        {kind === 'promo' ? 'แบนเนอร์ (ไม่บังคับ)' : 'รูปภาพ (ไม่บังคับ)'}
-                      </label>
-                      <ImageDropzone
-                        value={imageFile}
-                        onChange={setImageFile}
-                        disabled={sending}
-                        label="ลากรูปมาวาง หรือกดเพื่อเลือก"
-                        maxWidthOrHeight={1280}
-                      />
-                    </div>
-                  )}
-                  {!compose.image && (
-                    <p className="helper-text text-gray-500 dark:text-slate-400">
-                      {singlePlatform ? BROADCAST_PLATFORMS[singlePlatform].label : 'ช่องทางที่เลือก'} รับเฉพาะข้อความล้วน (แนบรูปไม่ได้)
-                    </p>
-                  )}
-
-                  {/* ปุ่มกด */}
-                  {kind === 'promo' && compose.buttonsMax > 0 && (
-                    <div>
-                      <label className="field-label block mb-1">ปุ่มกด (สูงสุด {compose.buttonsMax})</label>
-                      <p className="helper-text text-gray-500 dark:text-slate-400 mb-2">
-                        ใส่ลิงก์ปลายทางเอง เช่น หน้าสินค้า หน้าโปรฯ
-                      </p>
-                      <div className="space-y-2">
-                        {buttons.map((b, i) => (
-                          <div key={i} className="flex gap-2 items-start">
-                            <div className="w-36 flex-shrink-0">
-                              <FormInput
-                                value={b.label}
-                                maxLength={BUTTON_LABEL_MAX}
-                                disabled={sending}
-                                placeholder="สั่งเลย"
-                                onChange={e => setButtons(prev => prev.map((x, j) => j === i ? { ...x, label: e.target.value } : x))}
-                              />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <FormInput
-                                value={b.url}
-                                disabled={sending}
-                                placeholder="https://..."
-                                onChange={e => setButtons(prev => prev.map((x, j) => j === i ? { ...x, url: e.target.value } : x))}
-                              />
-                            </div>
-                            {buttons.length > 1 && (
-                              <Button
-                                variant="ghost"
-                                icon={<Trash2 className="w-4 h-4" />}
-                                aria-label="ลบปุ่ม"
-                                disabled={sending}
-                                onClick={() => setButtons(prev => prev.filter((_, j) => j !== i))}
-                              />
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                      {buttons.length < compose.buttonsMax && (
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          icon={<Plus className="w-4 h-4" />}
-                          disabled={sending}
-                          className="mt-2"
-                          onClick={() => setButtons(prev => [...prev, { label: '', url: '' }])}
-                        >
-                          เพิ่มปุ่ม
-                        </Button>
-                      )}
-                    </div>
-                  )}
-
-                  {/* การ์ดสินค้า */}
-                  {kind === 'products' && (
-                    <div>
-                      <label className="field-label block mb-1">สินค้า (สูงสุด {compose.productsMax} ชิ้น)</label>
-                      <p className="helper-text text-gray-500 dark:text-slate-400 mb-2">
-                        ชื่อ รูป ราคา ดึงจากคลังให้เอง · ไม่ใส่ลิงก์ = ปุ่มเป็น &quot;สนใจสินค้านี้&quot; ที่ลูกค้ากดแล้วทักเข้าห้องแชท
-                      </p>
-                      {cards.length >= compose.productsMax ? (
-                        <p className="helper-text text-gray-500 dark:text-slate-400">
-                          ครบ {compose.productsMax} ชิ้นแล้ว — เอาออกก่อนถ้าจะเปลี่ยน
-                        </p>
-                      ) : (
-                        <ProductSearchInput
-                          products={productSearch.results}
-                          loading={productSearch.loading}
-                          onSearchChange={productSearch.search}
-                          onSelect={addProductCard}
-                          isDisabled={p => cards.some(c => c.variation_id === p.id)}
-                        />
-                      )}
-                      {cards.length > 0 && (
-                        <ul className="mt-3 space-y-2">
-                          {cards.map((c, i) => (
-                            <li key={c.variation_id ?? i} className="flex gap-3 items-center rounded-lg border border-gray-200 dark:border-slate-600 px-3 py-2">
-                              <ProductImageThumb src={c.image_url} alt={c.name} size="sm" />
-                              <div className="flex-1 min-w-0">
-                                <p className="body-text text-gray-900 dark:text-white truncate">{c.name}</p>
-                                <p className="helper-text text-gray-500 dark:text-slate-400">
-                                  {c.price != null ? formatPrice(c.price) : 'ไม่มีราคา'}
-                                </p>
-                              </div>
-                              <div className="w-52 flex-shrink-0">
-                                <FormInput
-                                  value={c.url ?? ''}
-                                  disabled={sending}
-                                  placeholder="ลิงก์ (ไม่ใส่ก็ได้)"
-                                  onChange={e => setCards(prev => prev.map((x, j) => j === i ? { ...x, url: e.target.value || null } : x))}
-                                />
-                              </div>
-                              <Button
-                                variant="ghost"
-                                icon={<Trash2 className="w-4 h-4" />}
-                                aria-label="เอาออก"
-                                disabled={sending}
-                                onClick={() => setCards(prev => prev.filter((_, j) => j !== i))}
-                              />
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
-                  )}
-
-                  {/* ปุ่มตอบเร็ว */}
-                  {compose.quickReplyMax > 0 && (
-                    <div>
-                      <label className="field-label block mb-1">ปุ่มตอบเร็ว (ไม่บังคับ)</label>
-                      <p className="helper-text text-gray-500 dark:text-slate-400 mb-2">
-                        ลูกค้ากดแล้วข้อความเข้าห้องแชททันที — ได้บทสนทนาให้แอดมินปิดการขายต่อ
-                      </p>
-                      {quickReplies.length > 0 && (
-                        <div className="space-y-2 mb-2">
-                          {quickReplies.map((q, i) => (
-                            <div key={i} className="flex gap-2 items-start">
-                              <div className="flex-1 min-w-0">
-                                <FormInput
-                                  value={q}
-                                  maxLength={BUTTON_LABEL_MAX}
-                                  disabled={sending}
-                                  placeholder="เช่น สนใจ / ขอรายละเอียด"
-                                  onChange={e => setQuickReplies(prev => prev.map((x, j) => j === i ? e.target.value : x))}
-                                />
-                              </div>
-                              <Button
-                                variant="ghost"
-                                icon={<Trash2 className="w-4 h-4" />}
-                                aria-label="ลบปุ่มตอบเร็ว"
-                                disabled={sending}
-                                onClick={() => setQuickReplies(prev => prev.filter((_, j) => j !== i))}
-                              />
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                      {quickReplies.length < compose.quickReplyMax && (
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          icon={<Plus className="w-4 h-4" />}
-                          disabled={sending}
-                          onClick={() => setQuickReplies(prev => [...prev, ''])}
-                        >
-                          เพิ่มปุ่มตอบเร็ว
-                        </Button>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </Card>
+              </>
+            ) : (
+              <>
+                {compose && (
+                  <ContentStep
+                    compose={compose}
+                    platformLabel={singlePlatform ? BROADCAST_PLATFORMS[singlePlatform].label : 'ช่องทางที่เลือก'}
+                    showCreditNote={platforms.includes('line')}
+                    kind={kind}
+                    onKindChange={setKind}
+                    title={title}
+                    onTitleChange={setTitle}
+                    text={text}
+                    onTextChange={setText}
+                    imageFile={imageFile}
+                    onImageFileChange={(f) => {
+                      setImageFile(f);
+                      // กดเอารูปออก = เอารูปของใบที่คัดลอกมาออกด้วย ไม่งั้นมันจะกลับมาเงียบ ๆ ตอนส่ง
+                      if (!f) setExistingImageUrl(null);
+                    }}
+                    existingImageUrl={existingImageUrl}
+                    buttons={buttons}
+                    onButtonsChange={setButtons}
+                    cards={cards}
+                    onCardsChange={setCards}
+                    quickReplies={quickReplies}
+                    onQuickRepliesChange={setQuickReplies}
+                    productResults={productSearch.results}
+                    productLoading={productSearch.loading}
+                    onProductSearch={productSearch.search}
+                    onAddProduct={addProductCard}
+                    disabled={sending}
+                  />
+                )}
+                <ScheduleStep
+                  mode={sendMode}
+                  onModeChange={setSendMode}
+                  date={scheduleDate}
+                  onDateChange={setScheduleDate}
+                  time={scheduleTime}
+                  onTimeChange={setScheduleTime}
+                  scheduledAt={scheduledAt}
+                  error={scheduleError}
+                  disabled={sending}
+                />
+              </>
             )}
           </div>
 
-          {/* ── แผงขวา: สรุป + ตัวอย่าง + ปุ่มส่ง ── */}
-          <div className="xl:sticky xl:top-4 space-y-4">
-            <Card padding="md">
-              {/* จำนวนผู้รับคือตัวเลขที่ต้องเห็นตลอดเวลาที่แก้ข้อความ ไม่ใช่ต้องเลื่อนกลับขึ้นไปดู */}
-              <p className="helper-text text-gray-500 dark:text-slate-400">ผู้รับ</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white tabular-nums">
-                {previewLoading ? '—' : recipientCount.toLocaleString()}
-                <span className="body-text font-normal text-gray-500 dark:text-slate-400"> คน</span>
-              </p>
-              {quotaText && <p className="helper-text text-gray-500 dark:text-slate-400 mt-0.5">{quotaText}</p>}
-
-              {audience === 'all' && preview?.follower_stats?.total_adds != null && preview.follower_stats.blocks != null && (
-                <p className="helper-text text-gray-400 dark:text-slate-500 mt-1.5">
-                  เคยแอดสะสม {preview.follower_stats.total_adds.toLocaleString()} · บล็อกแล้ว {preview.follower_stats.blocks.toLocaleString()} จึงไม่นับ
-                </p>
-              )}
-
-              {perAccount.length > 1 && (
-                <ul className="mt-2 space-y-0.5">
-                  {perAccount.map(r => (
-                    <li key={r.account.id} className="flex items-center gap-1.5 helper-text text-gray-500 dark:text-slate-400">
-                      <PlatformIcon id={r.account.platform} size={12} />
-                      <span className="truncate flex-1">{r.account.name}</span>
-                      <span className="tabular-nums">{r.info.recipient_count.toLocaleString()}</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-
-              {quotaShort && (
-                <p className="helper-text text-red-600 dark:text-red-400 mt-2">
-                  โควตาไม่พอ: {shortAccounts.map(r => r.account.name).join(' · ')} — ลดกลุ่มผู้รับหรือรอรอบเดือนหน้า
-                </p>
-              )}
-              {noRecipients && (
-                <p className="helper-text text-amber-700 dark:text-amber-500 mt-2">
-                  {singlePlatform === 'tiktok'
-                    ? 'ไม่มีผู้รับ — TikTok ให้ทักได้เฉพาะลูกค้าที่สั่งใน 365 วัน'
-                    : 'ไม่มีผู้รับที่ตรงเงื่อนไข — เลือกกลุ่มอื่นหรือเพิ่มแท็กก่อน'}
-                </p>
-              )}
-              {contentError && hasDraft && (
-                <p className="helper-text text-red-600 dark:text-red-400 mt-2">{contentError}</p>
-              )}
-
-              <div className="flex gap-2 mt-4">
-                <Button variant="secondary" className="flex-1" onClick={() => router.push('/marketing/broadcast')} disabled={sending}>
-                  ยกเลิก
-                </Button>
-                <Button
-                  variant="primary"
-                  className="flex-1"
-                  icon={<Send className="w-4 h-4" />}
-                  loading={sending}
-                  disabled={!canSend}
-                  onClick={handleSend}
-                >
-                  ส่ง
-                </Button>
-              </div>
-
-              {platforms.includes('line') && (
-                <p className="helper-text text-gray-500 dark:text-slate-400 mt-3">
-                  ส่งถึง 500 คน = 500 ข้อความในโควตา · การ์ดที่มีรูป หัวข้อ และปุ่ม ยังนับเป็น 1 ข้อความเท่าข้อความเปล่า
-                </p>
-              )}
-            </Card>
-
-            {/* ตัวอย่าง — วาดตามชนิดจริงที่จะส่ง อยู่ข้างฟอร์มให้เห็นระหว่างพิมพ์ */}
-            {hasDraft && (
-              <Card padding="md">
-                <p className="field-label mb-2">ตัวอย่างที่ลูกค้าจะเห็น</p>
-                <div className="rounded-lg bg-gray-100 dark:bg-slate-800 p-3 space-y-2">
-                  {kind === 'products' ? (
-                    <>
-                      {text.trim() && (
-                        <div className={`ml-auto w-fit max-w-full rounded-2xl px-3.5 py-2 text-white ${bubbleClass}`}>
-                          <p className="subtitle-text whitespace-pre-wrap break-words">{text}</p>
-                        </div>
-                      )}
-                      <div className="flex gap-2 overflow-x-auto pb-1">
-                        {cards.map((c, i) => (
-                          <div key={c.variation_id ?? i} className="w-28 flex-shrink-0 rounded-xl bg-white dark:bg-slate-700 border border-gray-200 dark:border-slate-600 overflow-hidden">
-                            <div className="h-20 bg-gray-100 dark:bg-slate-600 flex items-center justify-center">
-                              <ProductImageThumb src={c.image_url} alt={c.name} size="md" />
-                            </div>
-                            <div className="p-1.5">
-                              <p className="helper-text text-gray-900 dark:text-white line-clamp-2">{c.name}</p>
-                              <p className="helper-text text-gray-500 dark:text-slate-400 mt-0.5">
-                                {c.price != null ? formatPrice(c.price) : ''}
-                              </p>
-                              <p className="helper-text text-center mt-1 py-0.5 rounded bg-gray-100 dark:bg-slate-600 text-gray-700 dark:text-slate-200">
-                                {c.url ? 'ดูสินค้า' : 'สนใจสินค้านี้'}
-                              </p>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </>
-                  ) : kind === 'promo' ? (
-                    <div className="ml-auto w-full rounded-xl bg-white dark:bg-slate-700 border border-gray-200 dark:border-slate-600 overflow-hidden">
-                      {imagePreviewUrl && (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={imagePreviewUrl} alt="แบนเนอร์" className="w-full h-24 object-cover" />
-                      )}
-                      <div className="p-2.5">
-                        {title.trim() && <p className="body-text font-semibold text-gray-900 dark:text-white">{title}</p>}
-                        {text.trim() && <p className="helper-text text-gray-600 dark:text-slate-300 mt-0.5 whitespace-pre-wrap break-words">{text}</p>}
-                      </div>
-                      {buttons.filter(b => b.label.trim()).map((b, i) => (
-                        <p key={i} className="helper-text text-center py-1.5 border-t border-gray-200 dark:border-slate-600 text-[#F4511E]">
-                          {b.label}
-                        </p>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className={`ml-auto w-fit max-w-full rounded-2xl px-3.5 py-2 text-white space-y-1.5 ${bubbleClass}`}>
-                      <p className="text-[11px] opacity-80">📣 บรอดแคสต์</p>
-                      {title.trim() && <p className="subtitle-text font-semibold break-words">{title}</p>}
-                      {text.trim() && <p className="subtitle-text whitespace-pre-wrap break-words">{text}</p>}
-                      {imagePreviewUrl && (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={imagePreviewUrl} alt="ตัวอย่างรูปที่จะส่ง" className="rounded-lg max-h-40 w-auto" />
-                      )}
-                    </div>
-                  )}
-
-                  {quickReplies.filter(q => q.trim()).length > 0 && (
-                    <div className="flex flex-wrap gap-1.5 justify-end">
-                      {quickReplies.filter(q => q.trim()).map((q, i) => (
-                        <span key={i} className="helper-text px-2 py-0.5 rounded-full border border-[#06C755] text-[#06C755] bg-white dark:bg-slate-700">
-                          {q}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </Card>
-            )}
-          </div>
+          <SummaryRail
+            step={step}
+            recipientCount={recipientCount}
+            previewLoading={previewLoading}
+            contactTotal={contactTotal}
+            hideProgress={audience === 'all'}
+            quotaText={quotaText}
+            followerStats={preview?.follower_stats ?? null}
+            showFollowerStats={audience === 'all'}
+            perAccount={perAccount}
+            shortAccounts={shortAccounts}
+            noRecipientsMessage={noRecipients
+              ? (singlePlatform === 'tiktok'
+                ? 'ไม่มีผู้รับ — TikTok ให้ทักได้เฉพาะลูกค้าที่สั่งใน 365 วัน'
+                : 'ไม่มีผู้รับที่ตรงเงื่อนไข — เลือกกลุ่มอื่นหรือเพิ่มแท็กก่อน')
+              : null}
+            contentError={contentError}
+            hasDraft={hasDraft}
+            showLineCreditNote={platforms.includes('line')}
+            channelSummary={selectedAccounts.map(a => a.name).join(' · ')}
+            audienceSummary={platforms.length > 0 && audience ? audienceLabel(audience, audienceFilter) : ''}
+            refineSummary={describeAudienceRefine(audienceFilter)}
+            contentSummary={contentSummary}
+            scheduleSummary={sendMode === 'now'
+              ? 'ทันที'
+              : (scheduledAt && !scheduleError ? formatThaiDateTime(scheduledAt) : '')}
+            content={draftContent}
+            previewPlatform={singlePlatform}
+            imagePreviewUrl={imagePreviewUrl ?? existingImageUrl}
+            scheduled={sendMode === 'schedule'}
+            sending={sending}
+            canNext={canNext}
+            canSend={canSend}
+            onCancel={() => router.push('/marketing/broadcast')}
+            onNext={() => setStep(2)}
+            onBack={() => setStep(1)}
+            onSend={handleSend}
+          />
         </div>
-
-        {/* โมดัลเลือกกลุ่มผู้รับ — แยกออกจากหน้าเพราะรายการจะยาวขึ้นเรื่อย ๆ และบางตัวเลือก
-            มีของให้กรอกต่อ (แท็ก · รายชื่อ · จำนวนวัน) ซึ่งใส่ใน dropdown แล้วอึดอัด */}
-        <Modal
-          open={audienceModal}
-          onClose={() => setAudienceModal(false)}
-          title="เลือกกลุ่มผู้รับ"
-          size="lg"
-          footer={
-            <div className="modal-footer px-6 py-4 flex items-center justify-between gap-2">
-              <span className="helper-text text-gray-500 dark:text-slate-400">
-                {audienceStep > 1 ? audienceSummary : ''}
-              </span>
-              <span className="flex gap-2">
-                {audienceStep > 1 && (
-                  <Button variant="secondary" onClick={() => setAudienceStep(audienceStep - 1)}>ย้อนกลับ</Button>
-                )}
-                {audienceStep === 2 && hasRefineStep ? (
-                  <Button variant="primary" onClick={() => setAudienceStep(3)}>ถัดไป</Button>
-                ) : audienceStep > 1 ? (
-                  <Button variant="primary" onClick={() => setAudienceModal(false)}>เสร็จสิ้น</Button>
-                ) : null}
-              </span>
-            </div>
-          }
-        >
-          <div className="modal-body px-6 py-5">
-            <Stepper
-              className="mb-5"
-              ariaLabel="ขั้นตอนเลือกกลุ่มผู้รับ"
-              onSelect={(k) => setAudienceStep(Number(k))}
-              allowJumpAhead
-              steps={[
-                { key: '1', label: 'กลุ่ม', state: audienceStep === 1 ? 'current' : 'done' },
-                { key: '2', label: 'ตัวเลือก', state: audienceStep === 2 ? 'current' : audienceStep > 2 ? 'done' : 'todo' },
-                ...(hasRefineStep
-                  ? [{ key: '3', label: 'กรองเพิ่ม', state: (audienceStep === 3 ? 'current' : 'todo') as 'current' | 'todo' }]
-                  : []),
-              ]}
-            />
-
-            {/* ── ขั้น 1: เลือกกลุ่มใหญ่ ── */}
-            {audienceStep === 1 && (
-              <div className="space-y-2">
-                {audienceGroups.map(g => (
-                  <Radio
-                    key={g}
-                    checked={audienceGroup === g}
-                    onChange={() => {
-                      setAudienceGroup(g);
-                      // กลุ่มเปลี่ยน = ตัวเลือกเดิมอาจไม่อยู่ในกลุ่มใหม่ → เด้งไปตัวแรกของกลุ่ม
-                      const first = audienceOptions.find(o => o.group === g);
-                      if (first && !audienceOptions.some(o => o.group === g && o.key === audience)) {
-                        setAudience(first.key);
-                      }
-                      setAudienceStep(2);
-                    }}
-                    className={`!items-start px-3 py-3 rounded-lg border transition-colors ${
-                      audienceGroup === g
-                        ? 'border-[#F4511E] bg-orange-50/50 dark:bg-orange-950/20'
-                        : 'border-gray-200 dark:border-slate-600 hover:border-gray-300 dark:hover:border-slate-500'
-                    }`}
-                  >
-                    <span className="min-w-0">
-                      <span className="block body-text text-gray-900 dark:text-white">{g}</span>
-                      <span className="block helper-text text-gray-500 dark:text-slate-400 mt-0.5">
-                        {audienceOptions.filter(o => o.group === g).map(o => o.label.replace('N วัน', `${audienceDays} วัน`)).join(' · ')}
-                      </span>
-                    </span>
-                  </Radio>
-                ))}
-
-                {/* บอกเพดานความรู้ของระบบตรงขั้นที่ต้องเลือกว่าจะแบ่งตามการซื้อไหม */}
-                {preview?.contact_total != null && preview.contact_linked != null && preview.contact_linked < preview.contact_total && (
-                  <Alert tone="info">
-                    ระบบรู้ประวัติการซื้อของ {preview.contact_linked.toLocaleString()} จาก{' '}
-                    {preview.contact_total.toLocaleString()} คน — ที่เหลือยังไม่ได้ผูกห้องแชทกับข้อมูลลูกค้า
-                    จึงถูกนับเป็น &quot;ยังไม่เคยซื้อ&quot;
-                  </Alert>
-                )}
-              </div>
-            )}
-
-            {/* ── ขั้น 2: ตัวเลือกในกลุ่ม + ของที่ต้องกรอกต่อ ── */}
-            {audienceStep === 2 && (
-              <div className="space-y-2">
-                {audienceOptions.filter(o => o.group === audienceGroup).map(opt => {
-                  const active = audience === opt.key;
-                  return (
-                    <div key={opt.key}>
-                      <Radio
-                        checked={active}
-                        onChange={() => setAudience(opt.key)}
-                        className={`!items-start px-3 py-2.5 rounded-lg border transition-colors ${
-                          active
-                            ? 'border-[#F4511E] bg-orange-50/50 dark:bg-orange-950/20'
-                            : 'border-gray-200 dark:border-slate-600 hover:border-gray-300 dark:hover:border-slate-500'
-                        }`}
-                      >
-                        <span className="min-w-0">
-                          <span className="block body-text text-gray-900 dark:text-white">
-                            {opt.label.replace('N วัน', `${audienceDays} วัน`)}
-                          </span>
-                          {opt.hint && (
-                            <span className="block helper-text text-gray-500 dark:text-slate-400 mt-0.5">{opt.hint}</span>
-                          )}
-                        </span>
-                      </Radio>
-
-                      {active && opt.needsDays && (
-                        <div className="mt-2 ml-3 flex items-center gap-2 flex-wrap">
-                          <div className="w-24">
-                            <NumberInput
-                              value={audienceDays}
-                              onChange={(v) => setAudienceDays(Math.max(1, Math.min(3650, v || 1)))}
-                            />
-                          </div>
-                          <span className="body-text text-gray-500 dark:text-slate-400">วัน</span>
-                          {[30, 60, 90, 180].map(d => (
-                            <button
-                              key={d}
-                              type="button"
-                              onClick={() => setAudienceDays(d)}
-                              className={`helper-text px-2 py-1 rounded-full border transition-colors ${
-                                audienceDays === d
-                                  ? 'border-[#F4511E] text-[#F4511E] bg-orange-50/60 dark:bg-orange-950/20'
-                                  : 'border-gray-200 dark:border-slate-600 text-gray-500 dark:text-slate-400 hover:border-gray-300'
-                              }`}
-                            >
-                              {d}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-
-                      {active && opt.key === 'tags' && (
-                        <div className="mt-2 ml-3">
-                          <MultiSelectSearch
-                            value={tagIds}
-                            onChange={setTagIds}
-                            options={tags.map(t => ({ id: t.id, label: t.name }))}
-                            emptyLabel="เลือกแท็ก..."
-                            icon={<Tag className="w-4 h-4" />}
-                          />
-                        </div>
-                      )}
-
-                      {active && opt.key === 'contacts_pick' && (
-                        <div className="mt-2 ml-3">
-                          <EntitySearchInput
-                            value=""
-                            options={contactSearch.results}
-                            loading={contactSearch.loading}
-                            onSearchChange={contactSearch.search}
-                            minSearchLength={2}
-                            placeholder="พิมพ์ชื่อผู้ติดต่อเพื่อเพิ่ม"
-                            emptyMessage="ไม่พบผู้ติดต่อที่ตรงกับคำค้น"
-                            onChange={(id, o) => {
-                              setPickedContacts(prev =>
-                                prev.some(c => c.id === id) ? prev : [...prev, { id, name: o.label }]);
-                            }}
-                          />
-                          {pickedContacts.length > 0 && (
-                            <ul className="mt-2 flex flex-wrap gap-1.5">
-                              {pickedContacts.map(c => (
-                                <li
-                                  key={c.id}
-                                  className="flex items-center gap-1.5 pl-2.5 pr-1 py-1 rounded-full border border-gray-200 dark:border-slate-600"
-                                >
-                                  <span className="helper-text text-gray-700 dark:text-slate-300">{c.name}</span>
-                                  <button
-                                    type="button"
-                                    aria-label={`เอา ${c.name} ออก`}
-                                    onClick={() => setPickedContacts(prev => prev.filter(x => x.id !== c.id))}
-                                    className="w-4 h-4 flex items-center justify-center rounded-full text-gray-400 hover:text-red-500"
-                                  >
-                                    <Trash2 className="w-3 h-3" />
-                                  </button>
-                                </li>
-                              ))}
-                            </ul>
-                          )}
-                          {accountIds.length > 1 && (
-                            <p className="helper-text text-amber-700 dark:text-amber-500 mt-1.5">
-                              ค้นจากบัญชีแรกที่เลือกเท่านั้น — เลือกรายคนควรติ๊กบัญชีเดียว
-                            </p>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
-            {/* ── ขั้น 3: กรองให้แคบลง (ไม่บังคับ) ── */}
-            {audienceStep === 3 && hasRefineStep && (
-              <div className="space-y-4">
-                <p className="helper-text text-gray-500 dark:text-slate-400">
-                  ตัดคนที่ทักมาคำเดียวแล้วหาย และคนที่เงียบไปนานออก — ยิงไปก็มักไม่ได้อะไรกลับ ·
-                  ทั้งสองข้อ <span className="font-medium">นับเฉพาะข้อความที่ลูกค้าพิมพ์มา</span> ไม่นับที่เราตอบไปหรือบรอดแคสต์
-                </p>
-
-                <div>
-                  <label className="helper-text text-gray-600 dark:text-slate-300 block mb-1">
-                    ลูกค้าพิมพ์หาเรามาแล้วอย่างน้อย
-                  </label>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <div className="w-24">
-                      <NumberInput
-                        value={minMessages}
-                        onChange={(v) => setMinMessages(Math.max(0, Math.min(999, v || 0)))}
-                      />
-                    </div>
-                    <span className="body-text text-gray-500 dark:text-slate-400">ข้อความ</span>
-                    {[0, 3, 5, 10].map(n => (
-                      <button
-                        key={n}
-                        type="button"
-                        onClick={() => setMinMessages(n)}
-                        className={`helper-text px-2 py-1 rounded-full border transition-colors ${
-                          minMessages === n
-                            ? 'border-[#F4511E] text-[#F4511E] bg-orange-50/60 dark:bg-orange-950/20'
-                            : 'border-gray-200 dark:border-slate-600 text-gray-500 dark:text-slate-400 hover:border-gray-300'
-                        }`}
-                      >
-                        {n === 0 ? 'ไม่กรอง' : `≥${n}`}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div>
-                  <label className="helper-text text-gray-600 dark:text-slate-300 block mb-1">
-                    ลูกค้าพิมพ์หาเราล่าสุดภายใน
-                  </label>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <div className="w-24">
-                      <NumberInput
-                        value={lastChatDays}
-                        onChange={(v) => setLastChatDays(Math.max(0, Math.min(3650, v || 0)))}
-                      />
-                    </div>
-                    <span className="body-text text-gray-500 dark:text-slate-400">วัน</span>
-                    {[0, 30, 90, 180].map(n => (
-                      <button
-                        key={n}
-                        type="button"
-                        onClick={() => setLastChatDays(n)}
-                        className={`helper-text px-2 py-1 rounded-full border transition-colors ${
-                          lastChatDays === n
-                            ? 'border-[#F4511E] text-[#F4511E] bg-orange-50/60 dark:bg-orange-950/20'
-                            : 'border-gray-200 dark:border-slate-600 text-gray-500 dark:text-slate-400 hover:border-gray-300'
-                        }`}
-                      >
-                        {n === 0 ? 'ไม่กรอง' : `${n} วัน`}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        </Modal>
       </Container>
     </Layout>
   );

@@ -7,6 +7,7 @@ import {
   type BroadcastPlatform,
 } from '@/lib/broadcast/platforms';
 import { resolveBroadcastTarget } from '@/lib/broadcast/accounts';
+import type { StoredAudienceFilter } from '@/lib/broadcast/audience';
 import { runBroadcast } from '@/lib/broadcast/run';
 import {
   buildLineMessagesFromContent,
@@ -20,6 +21,7 @@ import {
 import { resolveTikTokRecipients } from '@/lib/tiktok/broadcast';
 import {
   broadcastContentPreview,
+  resolveBroadcastContentKind,
   validateBroadcastContent,
   type BroadcastContent,
 } from '@/lib/broadcast/content';
@@ -62,16 +64,44 @@ interface BroadcastListRow {
   marketplace_account_id: string | null;
   created_by: string | null;
   audience_type: string;
+  audience_filter: StoredAudienceFilter | null;
   preview: string | null;
   recipient_count: number;
   sent_count: number;
   failed_count: number;
   status: string;
   error: string | null;
+  scheduled_at: string | null;
+  cancelled_at: string | null;
   started_at: string | null;
   finished_at: string | null;
   created_at: string;
+  /** ใช้แค่หา content_kind — ไม่ส่งกลับไปทั้งก้อน (หน้ารายการไม่ต้องใช้ และมันใหญ่) */
+  content: BroadcastContent | null;
+  messages: unknown;
 }
+
+interface ReplyStatsRow {
+  broadcast_id: string;
+  recipient_count: number;
+  replied_count: number;
+  awaiting_count: number;
+  ordered_count: number;
+  /** numeric ของ Postgres มาเป็นสตริง */
+  ordered_amount: string | number;
+}
+
+/** ใบที่เริ่มส่งแล้ว = มีผลลัพธ์ให้วัด (ตั้งเวลา/ยกเลิก/ล้ม ยังไม่มีอะไรให้นับ) */
+const MEASURABLE_STATUSES = ['sending', 'sent', 'partial'];
+/** ช่วงของ KPI บนหัวหน้ารายการ */
+const SUMMARY_DAYS = 30;
+/** เพดานใบที่เอามาสรุป — ร้านที่ยิงถี่มากไม่ควรทำให้หน้ารายการช้า */
+const SUMMARY_MAX_ROWS = 200;
+
+/** ตั้งเวลาต้องเผื่อให้ cron (ทุก 5 นาที) หยิบทัน และไม่ให้ตั้งไกลจนลืมว่าตั้งไว้ */
+const SCHEDULE_MIN_MS = 2 * 60_000;
+const SCHEDULE_MAX_MS = 90 * 86_400_000;
+const SCHEDULE_ERROR = 'เวลาที่ตั้งต้องอยู่หลังจากนี้อย่างน้อย 2 นาที และไม่เกิน 90 วัน';
 
 // GET — รายการบรอดแคสต์ของบริษัท (ใหม่สุดก่อน)
 export async function GET(request: NextRequest) {
@@ -87,16 +117,13 @@ export async function GET(request: NextRequest) {
 
     const { data, error, count } = await supabaseAdmin
       .from('broadcasts')
-      .select(
-        'id, platform, chat_account_id, marketplace_account_id, created_by, audience_type, preview, recipient_count, sent_count, failed_count, status, error, started_at, finished_at, created_at',
-        { count: 'exact' },
-      )
+      .select('id, platform, chat_account_id, marketplace_account_id, created_by, audience_type, audience_filter, preview, recipient_count, sent_count, failed_count, status, error, scheduled_at, cancelled_at, started_at, finished_at, created_at, content, messages', { count: 'exact' })
       .eq('company_id', auth.companyId)
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
     if (error) throw error;
 
-    const rows = (data || []) as BroadcastListRow[];
+    const rows = (data || []) as unknown as BroadcastListRow[];
 
     // ชื่อบัญชี + ชื่อผู้ส่ง — บัญชีอยู่คนละตารางตามช่องทาง และ created_by ไม่มี FK
     // ไป user_profiles จึง embed ไม่ได้ ต้องถามแยก
@@ -123,20 +150,90 @@ export async function GET(request: NextRequest) {
     const userName = new Map((usersRes.data || []).map(u => [u.id, u.name]));
 
     // มีใบที่ยังส่งไม่จบ = หน้ารายการต้อง poll ต่อ (ไม่มีก็หยุด ไม่ยิงถี่เปล่า ๆ)
-    const { count: activeCount } = await supabaseAdmin
-      .from('broadcasts')
-      .select('id', { count: 'exact', head: true })
-      .eq('company_id', auth.companyId)
-      .in('status', ['pending', 'sending']);
+    // ใบที่ "ตั้งเวลาไว้" ไม่ต้อง poll — cron เป็นคนหยิบไปส่ง อีกนานกว่าจะขยับ
+    const [{ count: activeCount }, { count: scheduledCount }, { data: recentRaw }] = await Promise.all([
+      supabaseAdmin
+        .from('broadcasts')
+        .select('id', { count: 'exact', head: true })
+        .eq('company_id', auth.companyId)
+        .in('status', ['pending', 'sending']),
+      supabaseAdmin
+        .from('broadcasts')
+        .select('id', { count: 'exact', head: true })
+        .eq('company_id', auth.companyId)
+        .eq('status', 'scheduled'),
+      // KPI 30 วันบนหัวหน้ารายการ — นับเฉพาะใบที่ส่งจริงแล้ว
+      supabaseAdmin
+        .from('broadcasts')
+        .select('id, chat_account_id, sent_count')
+        .eq('company_id', auth.companyId)
+        .gte('created_at', new Date(Date.now() - SUMMARY_DAYS * 86_400_000).toISOString())
+        .in('status', MEASURABLE_STATUSES)
+        .order('created_at', { ascending: false })
+        .limit(SUMMARY_MAX_ROWS),
+    ]);
+
+    const recent = (recentRaw || []) as { id: string; chat_account_id: string | null; sent_count: number }[];
+
+    // ผลลัพธ์ (ตอบกลับ/สั่งซื้อ) ตามได้เฉพาะช่องทางที่มีห้องแชทของเราเอง —
+    // ยิง RPC ครั้งเดียวครอบทั้งใบในหน้านี้และใบที่ใช้สรุป 30 วัน (id ซ้ำตัดทิ้ง)
+    const pageStatIds = rows
+      .filter(r => r.chat_account_id && MEASURABLE_STATUSES.includes(r.status))
+      .map(r => r.id);
+    const summaryStatIds = recent.filter(r => r.chat_account_id).map(r => r.id);
+    const statIds = [...new Set([...pageStatIds, ...summaryStatIds])];
+
+    const statsById = new Map<string, ReplyStatsRow>();
+    if (statIds.length > 0) {
+      const { data: statsData, error: statsError } = await supabaseAdmin.rpc('get_broadcast_reply_stats', {
+        p_company_id: auth.companyId,
+        p_broadcast_ids: statIds,
+      });
+      // ตัวเลขวัดผลอ่านไม่ได้ต้องไม่ทำให้หน้ารายการพัง — ปล่อยเป็น null แล้วรายการยังใช้ได้
+      if (statsError) console.error('[broadcast] get_broadcast_reply_stats:', statsError.message);
+      for (const row of (statsData || []) as ReplyStatsRow[]) statsById.set(row.broadcast_id, row);
+    }
+
+    const summary = {
+      days: SUMMARY_DAYS,
+      broadcasts: recent.length,
+      sent_messages: recent.reduce((sum, r) => sum + (Number(r.sent_count) || 0), 0),
+      replied: 0,
+      awaiting: 0,
+      ordered: 0,
+      ordered_amount: 0,
+    };
+    for (const r of summaryStatIds) {
+      const st = statsById.get(r);
+      if (!st) continue;
+      summary.replied += Number(st.replied_count) || 0;
+      summary.awaiting += Number(st.awaiting_count) || 0;
+      summary.ordered += Number(st.ordered_count) || 0;
+      summary.ordered_amount += Number(st.ordered_amount) || 0;
+    }
 
     return NextResponse.json({
-      broadcasts: rows.map(r => ({
-        ...r,
-        account_name: accountName.get(r.chat_account_id || r.marketplace_account_id || '') || null,
-        created_by_name: r.created_by ? userName.get(r.created_by) || null : null,
-      })),
+      broadcasts: rows.map(({ content, messages, ...r }) => {
+        const st = statsById.get(r.id);
+        return {
+          ...r,
+          content_kind: resolveBroadcastContentKind(content, messages),
+          account_name: accountName.get(r.chat_account_id || r.marketplace_account_id || '') || null,
+          created_by_name: r.created_by ? userName.get(r.created_by) || null : null,
+          stats: st
+            ? {
+                replied_count: Number(st.replied_count) || 0,
+                awaiting_count: Number(st.awaiting_count) || 0,
+                ordered_count: Number(st.ordered_count) || 0,
+                ordered_amount: Number(st.ordered_amount) || 0,
+              }
+            : null,
+        };
+      }),
       total: count ?? rows.length,
       sending: (activeCount ?? 0) > 0,
+      scheduled: scheduledCount ?? 0,
+      summary,
     });
   } catch (e) {
     console.error('GET broadcasts error:', e);
@@ -164,6 +261,18 @@ export async function POST(request: NextRequest) {
     if (!accountId) return NextResponse.json({ error: 'กรุณาเลือกบัญชีที่จะใช้ส่ง' }, { status: 400 });
     if (!(AUDIENCE_BY_PLATFORM[platform] || []).includes(audienceType)) {
       return NextResponse.json({ error: 'กลุ่มผู้รับไม่ถูกต้องสำหรับช่องทางนี้' }, { status: 400 });
+    }
+
+    // ตั้งเวลาส่ง (ไม่ส่งมา = ส่งทันทีเหมือนเดิม)
+    let scheduledAt: string | null = null;
+    if (body.scheduled_at) {
+      const at = new Date(body.scheduled_at).getTime();
+      if (isNaN(at)) return NextResponse.json({ error: SCHEDULE_ERROR }, { status: 400 });
+      const delta = at - Date.now();
+      if (delta < SCHEDULE_MIN_MS || delta > SCHEDULE_MAX_MS) {
+        return NextResponse.json({ error: SCHEDULE_ERROR }, { status: 400 });
+      }
+      scheduledAt = new Date(at).toISOString();
     }
 
     const { target, error: targetError } = await resolveBroadcastTarget(auth.companyId, platform, accountId);
@@ -266,6 +375,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: BROADCAST_PLATFORMS[platform].reason || 'ช่องทางนี้ยังส่งไม่ได้' }, { status: 400 });
     }
 
+    // ⚠️ จำนวนผู้รับ/โควตาที่นับข้างบนเป็น **ภาพตอนกดสร้าง** — ใบที่ตั้งเวลาไว้จะได้
+    // รายชื่อจริงตอนถึงเวลาส่ง เพราะตัวส่งวางแผนล็อตเองเมื่อ `batches` ยังว่าง
+    // (คนที่แอดเพื่อนเพิ่ม/ซื้อของระหว่างรอ จึงได้รับด้วย)
     const { data: created, error } = await supabaseAdmin
       .from('broadcasts')
       .insert({
@@ -276,14 +388,21 @@ export async function POST(request: NextRequest) {
         created_by: auth.userId || null,
         audience_type: audienceType,
         audience_filter: buildStoredFilter(audienceType, audienceFilter),
+        // เก็บเนื้อหาชนิดกลางไว้ด้วย — `messages` เป็นของแพลตฟอร์มไปแล้ว
+        // แปลงกลับมาแก้/ส่งซ้ำ/แสดงบนหน้ารายงานไม่ได้
+        content,
         messages,
         preview,
         recipient_count: recipientCount,
-        status: 'pending',
+        scheduled_at: scheduledAt,
+        status: scheduledAt ? 'scheduled' : 'pending',
       })
       .select('id')
       .single();
     if (error) throw error;
+
+    // ตั้งเวลาไว้ = ไม่ส่งตอนนี้ · cron /api/broadcasts/run-scheduled หยิบไปเมื่อถึงเวลา
+    if (scheduledAt) return NextResponse.json({ id: created.id, scheduled_at: scheduledAt });
 
     // งานส่งอยู่หลัง response — ต้องผ่าน after() ไม่งั้น Vercel freeze ฟังก์ชันทิ้งกลางทาง
     after(() => runBroadcast(created.id, platform));

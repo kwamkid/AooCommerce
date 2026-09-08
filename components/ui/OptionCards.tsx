@@ -50,21 +50,20 @@ export default function OptionCards<T extends string>({
               aria-checked={active}
               disabled={disabled}
               onClick={() => onChange(opt.id)}
-              className={`relative flex flex-col items-center gap-1.5 px-2 py-2.5 rounded-lg border transition-colors text-center disabled:opacity-50 disabled:cursor-not-allowed ${
-                active
-                  ? 'border-[#F4511E] ring-1 ring-[#F4511E] bg-orange-50/50 dark:bg-orange-950/20'
-                  : 'border-gray-200 dark:border-slate-600 hover:border-gray-300 dark:hover:border-slate-500'
+              // สีการเลือกอยู่ที่ .choice-card / .choice-card-active ใน globals.css (ชุดเดียวกับการ์ด Radio/Checkbox)
+              className={`choice-card relative flex flex-col items-center gap-1.5 px-2 py-2.5 text-center disabled:opacity-50 disabled:cursor-not-allowed ${
+                active ? 'choice-card-active ring-1 ring-primary' : ''
               }`}
             >
               {active && (
-                <span className="absolute top-1 right-1 w-3.5 h-3.5 rounded-full bg-[#F4511E] text-white flex items-center justify-center">
+                <span className="absolute top-1 right-1 w-3.5 h-3.5 rounded-full bg-primary text-white flex items-center justify-center">
                   <Check className="w-2.5 h-2.5" strokeWidth={3.5} />
                 </span>
               )}
               {opt.preview && (
                 <span className="flex items-center justify-center h-12 w-full">{opt.preview}</span>
               )}
-              <span className={`subtitle-text font-medium leading-tight ${active ? 'text-[#C2410C]' : 'text-gray-700 dark:text-slate-300'}`}>
+              <span className={`subtitle-text font-medium leading-tight ${active ? 'text-orange-700' : 'text-gray-700 dark:text-slate-300'}`}>
                 {opt.label}
               </span>
               {opt.description && (

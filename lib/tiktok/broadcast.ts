@@ -191,7 +191,8 @@ export async function runTikTokBroadcast(
     console.error('[TikTokBroadcast] not found:', broadcastId);
     return;
   }
-  if (row.status === 'sent') return;
+  // ยังไม่ถึงเวลา (scheduled) หรือถูกยกเลิกแล้ว = ห้ามส่ง
+  if (['sent', 'cancelled', 'scheduled'].includes(row.status)) return;
 
   const fail = async (message: string) => {
     await patch({ status: 'failed', error: message, finished_at: new Date().toISOString() });

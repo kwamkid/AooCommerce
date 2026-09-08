@@ -10,6 +10,9 @@ import type { ReactNode } from 'react';
 // ⚠️ อย่าสับสนกับ `StatusTabs` — ตัวนั้นสำหรับกรองสถานะในหน้า list (ตัวเลขใหญ่ pill ทึบ)
 //    ตัวนี้คือชิปกรองแบบเบา ๆ ที่มีสีประจำแพลตฟอร์มของตัวเอง
 
+/** คลาสตอนถูกเลือกของชิปที่ไม่ผูกกับแพลตฟอร์ม (สีแบรนด์) — ใช้ตัวนี้แทนพิมพ์ hex เองในหน้า */
+export const FILTER_CHIP_PRIMARY_ACTIVE = 'border-primary text-primary bg-orange-50/60 dark:bg-orange-950/20';
+
 export interface FilterChip<T extends string> {
   id: T;
   label: string;

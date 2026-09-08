@@ -223,6 +223,7 @@ const purchaseOrderSupplier: Domain = {
  */
 const broadcast: Domain = {
   draft:     s('แบบร่าง', 'new'),
+  scheduled: s('ตั้งเวลาไว้', 'new'),
   pending:   s('รอส่ง', 'wait'),
   sending:   s('กำลังส่ง', 'partial'),
   sent:      s('ส่งแล้ว', 'done'),

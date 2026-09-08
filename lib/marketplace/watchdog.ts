@@ -50,6 +50,8 @@ const TOKEN_EXPIRY_WARN_DAYS = 3;
 const RENOTIFY_HOURS = 6;
 /** บริษัทเงียบเกินเท่านี้ = น่าจะเลิกใช้ · ปิดครบเท่านี้ = ลบถาวรได้ (ตรงกับกติกาใน /api/superadmin/companies) */
 const COMPANY_QUIET_DAYS = 30;
+/** ตั้งเวลาส่งไว้แล้วเลยมาเกินเท่านี้ = cron ที่หยิบใบไปส่งไม่ทำงาน (cron ทุก 5 นาที — เผื่อพลาดได้หลายรอบ) */
+const BROADCAST_OVERDUE_MINUTES = 20;
 
 const WATCHDOG_STATE_KEY = 'watchdog_state';
 const WATCHDOG_HEARTBEAT_KEY = 'watchdog_last_run';
@@ -457,6 +459,45 @@ export async function collectWatchdogIssues(
         url: '/settings/payment-channels',
       });
     }
+  }
+
+  // ── บรอดแคสต์ที่ตั้งเวลาไว้แต่ไม่มีใครมาส่ง ──
+  //
+  // ใบที่ตั้งเวลาไม่ถูกส่งจาก after() ของ POST — ต้องรอ cron /api/broadcasts/run-scheduled
+  // มาหยิบ ⇒ **cron ตายเมื่อไหร่ ใบจะค้างเงียบโดยไม่มีใครรู้** (ผู้ใช้เข้าใจว่าส่งไปแล้ว)
+  // เตือนทั้งผู้ดูแลระบบ (ต้องไปตั้ง cron) และร้าน (กด "ส่งต่อ" เองได้ระหว่างนี้)
+  try {
+    let q = supabaseAdmin
+      .from('broadcasts')
+      .select('id, company_id, scheduled_at, preview')
+      .eq('status', 'scheduled')
+      .lt('scheduled_at', new Date(now - BROADCAST_OVERDUE_MINUTES * 60_000).toISOString())
+      .order('scheduled_at', { ascending: true })
+      .limit(20);
+    if (opts.companyId) q = q.eq('company_id', opts.companyId);
+    const { data: overdue, error: overdueErr } = await q;
+    if (overdueErr) throw overdueErr;
+
+    for (const b of overdue || []) {
+      const at = new Date(b.scheduled_at as string).toLocaleString('th-TH', { timeZone: 'Asia/Bangkok' });
+      issues.push({
+        code: `broadcast_scheduled_overdue:${b.id}`,
+        groupKey: 'broadcast_scheduler',
+        scope: 'system',
+        companyId: b.company_id as string,
+        companyName: companyName.get(b.company_id) || null,
+        channel: null,
+        severity: 'warning',
+        title: 'บรอดแคสต์ที่ตั้งเวลาไว้ยังไม่ถูกส่ง',
+        detail: `ถึงเวลาส่งเมื่อ ${at} แต่ยังค้างสถานะ "ตั้งเวลาไว้" — ตัวส่งตามเวลา (cron) ไม่ได้ทำงาน`,
+        fix: 'ตั้ง cron ที่ cron-job.org ให้เรียก GET /api/broadcasts/run-scheduled ทุก 5 นาที พร้อม header x-cron-secret แล้วเปิด Notify on failure · ระหว่างนี้กด "ส่งต่อ" ในหน้ารายการเพื่อส่งเองได้',
+        actionLabel: 'เปิดรายการบรอดแคสต์',
+        url: '/marketing/broadcast',
+      });
+    }
+  } catch (err) {
+    // เรื่องนี้ล้มต้องไม่ทำให้ check อื่นทั้งหมดหายไป
+    console.error('[watchdog] scheduled broadcast check failed:', err instanceof Error ? err.message : err);
   }
 
   return issues;

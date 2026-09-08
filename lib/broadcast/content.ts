@@ -150,3 +150,30 @@ export function broadcastContentPreview(content: BroadcastContent): string {
   const body = [title, text].filter(Boolean).join(' — ');
   return (body || '[รูปภาพ]').slice(0, 120);
 }
+
+/**
+ * ชนิดเนื้อหาของบรอดแคสต์ใบหนึ่ง — ใบใหม่อ่านจากคอลัมน์ `content` ตรง ๆ
+ *
+ * ใบเก่า (ก่อนมีคอลัมน์นั้น) เก็บแค่ `messages` ที่แปลงเป็นของแพลตฟอร์มไปแล้ว
+ * จึงต้องเดาย้อนกลับ: LINE template `buttons` = การ์ดโปรโมชัน · `carousel` = การ์ดสินค้า ·
+ * TikTok มี `product_ids` = การ์ดสินค้า — เดาไม่ได้ก็ตกเป็น 'announce' (ข้อความล้วน)
+ */
+export function resolveBroadcastContentKind(
+  content: BroadcastContent | null | undefined,
+  messages: unknown,
+): BroadcastContentKind {
+  if (content?.kind && ['announce', 'promo', 'products'].includes(content.kind)) return content.kind;
+
+  if (Array.isArray(messages)) {
+    for (const m of messages) {
+      const tpl = (m as { template?: { type?: string } } | null)?.template;
+      if (tpl?.type === 'carousel') return 'products';
+      if (tpl?.type === 'buttons') return 'promo';
+    }
+    return 'announce';
+  }
+
+  const ids = (messages as { product_ids?: unknown } | null)?.product_ids;
+  if (Array.isArray(ids) && ids.length > 0) return 'products';
+  return 'announce';
+}

@@ -36,6 +36,8 @@ const CACHED_GET_PATHS: { match: (url: string) => boolean; ttlMs: number }[] = [
   // ข้อความในห้องแชท — หน้าแชท prefetch (peek) ตอนเมาส์ชี้รายชื่อ แล้วคลิกใช้ผลเดิมทันที
   // ข้อความใหม่ที่เข้าระหว่างนั้น realtime patch เอง และหน้าแชทล้าง cache ของห้องนั้นทุก event
   { match: u => u.startsWith('/api/chat/messages?'), ttlMs: 20_000 },
+  // จำนวนผู้รับของทุกกลุ่มในโมดัลเลือกกลุ่ม — ผู้ใช้เปิด/ปิดโมดัลกลับไปมาระหว่างแต่งข้อความ
+  { match: u => u.startsWith('/api/broadcasts/audience-counts?'), ttlMs: 60_000 },
   // Superadmin permission probe — สิทธิ์ superadmin แทบไม่เปลี่ยน เดินข้ามหน้าไม่ต้อง probe ใหม่
   { match: u => u === '/api/superadmin/me', ttlMs: 60_000 },
   // Composite: categories + brands (+supplier names) + variation_types — invalidated via CACHE_DEPENDENCIES

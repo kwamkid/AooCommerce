@@ -31,7 +31,10 @@ export type BroadcastAudienceType =
 
 /** กลุ่มที่ต้องรู้ประวัติการซื้อของลูกค้าก่อนถึงจะกรองได้ */
 const PURCHASE_AUDIENCES = new Set<string>(['not_bought', 'bought', 'bought_within', 'bought_before', 'bought_once']);
-export type BroadcastStatus = 'pending' | 'sending' | 'sent' | 'partial' | 'failed';
+// 'scheduled' = ตั้งเวลาไว้ รอ cron หยิบ · 'cancelled' = ผู้ใช้ยกเลิกก่อนถึงเวลา
+// (ตัวส่งต้องข้ามสองสถานะนี้เสมอ — ใบที่ยังไม่ถึงเวลา/ถูกยกเลิกแล้วห้ามหลุดไปถึงลูกค้า)
+export type BroadcastStatus =
+  | 'scheduled' | 'pending' | 'sending' | 'sent' | 'partial' | 'failed' | 'cancelled';
 
 export interface BroadcastAudienceFilter {
   tag_ids?: string[];
@@ -396,6 +399,34 @@ export async function resolveBroadcastRecipients(
   return out;
 }
 
+/**
+ * ระบบรู้ประวัติการซื้อของผู้ติดต่อกี่คน — `total` = ผู้ติดต่อที่ยิงถึงได้ทั้งหมดของ OA นี้
+ * `linked` = ส่วนที่ผูกกับข้อมูลลูกค้าแล้ว (มีทางรู้ว่าเคยซื้อไหม)
+ *
+ * ⚠️ ต้องโชว์คู่กันเสมอบนหน้าจอที่แบ่งกลุ่มตามการซื้อ — LINE ไม่ให้เบอร์/อีเมล
+ * คนที่ยังไม่ผูกจะถูกนับเป็น "ยังไม่เคยซื้อ" ทั้งหมด ผู้ใช้ต้องรู้ว่านั่นแปลว่า
+ * "ไม่มีหลักฐานว่าซื้อ" ไม่ใช่ "ยืนยันแล้วว่าไม่เคยซื้อ"
+ * (เงื่อนไขต้องตรงกับ resolveBroadcastRecipients เป๊ะ — active + line_user_id ขึ้นต้น U)
+ */
+export async function getLineContactCounts(
+  companyId: string,
+  chatAccountId: string,
+): Promise<{ total: number; linked: number }> {
+  const base = () => supabaseAdmin
+    .from('line_contacts')
+    .select('id', { count: 'exact', head: true })
+    .eq('company_id', companyId)
+    .eq('chat_account_id', chatAccountId)
+    .eq('status', 'active')
+    .like('line_user_id', 'U%');
+
+  const [totalRes, linkedRes] = await Promise.all([
+    base(),
+    base().not('customer_id', 'is', null),
+  ]);
+  return { total: totalRes.count ?? 0, linked: linkedRes.count ?? 0 };
+}
+
 // ─── ข้อความ ──────────────────────────────────────────────────────────
 
 /** แปลงข้อความที่ผู้ใช้กรอกเป็น message object ของ LINE (ข้อความก่อน แล้วรูป) */
@@ -642,7 +673,7 @@ export async function runLineBroadcast(
     const { data } = await supabaseAdmin.from('broadcasts').select('*').eq('id', broadcastId).single();
     const row = (data as BroadcastRow | null) ?? null;
     if (!row) return;
-    if (row.status === 'sent' || row.status === 'failed') return;
+    if (['sent', 'failed', 'cancelled', 'scheduled'].includes(row.status)) return;
 
     await patch({ status: 'sending', started_at: row.started_at || new Date().toISOString() });
 
