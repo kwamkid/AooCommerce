@@ -467,6 +467,7 @@ const PosSaleScreen = forwardRef<PosSaleScreenHandle, PosSaleScreenProps>(functi
       {/* Mobile tab bar — จำนวนในตะกร้าใช้ count ของ Tabs (เดิมเป็นวงกลมลอยทับตัวอักษร) */}
       <Tabs
         className="md:hidden mb-0 flex-shrink-0 bg-white dark:bg-transparent"
+        variant="underline"
         fill
         size="sm"
         activeKey={mobileTab}

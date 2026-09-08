@@ -79,6 +79,7 @@ export default function EmojiStickerPicker({ platform, onEmojiSelect, onStickerS
         {/* เส้นใต้อยู่ที่กรอบด้านนอกแล้ว (แถวนี้มีปุ่มปิดต่อท้ายด้วย) จึงปิด border ของ Tabs */}
         <Tabs
           className="flex-1 mb-0 border-b-0"
+          variant="underline"
           fill
           size="sm"
           activeKey={emojiTab}

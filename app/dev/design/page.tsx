@@ -297,9 +297,9 @@ export default function DesignSystemPage() {
         </Section>
 
         {/* TABS */}
-        <Section title="Tabs" desc="<Tabs activeKey tabs={[{key,label,icon?,count?,href?,activeColorClass?}]} onSelect? /> — underlined content tabs">
+        <Section title="Tabs" desc="<Tabs activeKey tabs={[{key,label,icon?,count?,href?,activeColorClass?}]} onSelect? variant? fill? size? /> — แท็บเนื้อหา (คนละตัวกับ StatusTabs ที่เป็นตัวกรองสถานะของหน้า list)">
           <Card>
-            <Group label="State-based (onSelect)">
+            <Group label="variant='card' (ค่าปกติ) — active ยกเป็นการ์ดขาวบนรางเทา + ขีดสั้นสีของแท็บ">
               <div className="w-full">
                 <Tabs
                   activeKey={demoTab}
@@ -308,6 +308,50 @@ export default function DesignSystemPage() {
                     { key: 'orders', label: 'คำสั่งซื้อ', count: 24 },
                     { key: 'invoices', label: 'ใบกำกับ', count: 8 },
                     { key: 'reports', label: 'รายงาน' },
+                  ]}
+                />
+                <Hint>วางบนพื้นขาวของการ์ดได้เลย รางสีเทาแยกตัวเองออกจากพื้นหลัง</Hint>
+              </div>
+            </Group>
+            <Group label="variant='underline' — แบบเดิม ใช้เมื่อไม่อยากมีรางสีเทา">
+              <div className="w-full">
+                <Tabs
+                  variant="underline"
+                  activeKey={demoTab}
+                  onSelect={(k) => setDemoTab(k as typeof demoTab)}
+                  tabs={[
+                    { key: 'orders', label: 'คำสั่งซื้อ', count: 24 },
+                    { key: 'invoices', label: 'ใบกำกับ', count: 8 },
+                    { key: 'reports', label: 'รายงาน' },
+                  ]}
+                />
+              </div>
+            </Group>
+            <Group label="fill — แบ่งความกว้างเท่ากันเต็มแถว (หน้า PC · แถบมือถือ POS)">
+              <div className="w-full max-w-sm">
+                <Tabs
+                  fill
+                  size="sm"
+                  activeKey={demoTab}
+                  onSelect={(k) => setDemoTab(k as typeof demoTab)}
+                  tabs={[
+                    { key: 'orders', label: 'ขาย' },
+                    { key: 'invoices', label: 'วันนี้', count: 3 },
+                    { key: 'reports', label: 'สต็อก' },
+                  ]}
+                />
+              </div>
+            </Group>
+            <Group label="size='sm' — แท็บย่อยในการ์ด (โปรโมชั่นรายแพลตฟอร์ม)">
+              <div className="w-full">
+                <Tabs
+                  size="sm"
+                  activeKey={demoTab}
+                  onSelect={(k) => setDemoTab(k as typeof demoTab)}
+                  tabs={[
+                    { key: 'orders', label: 'Shopee', count: 2 },
+                    { key: 'invoices', label: 'Lazada' },
+                    { key: 'reports', label: 'TikTok' },
                   ]}
                 />
                 <div className="subtitle-text text-gray-600 dark:text-slate-400">

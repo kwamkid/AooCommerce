@@ -285,6 +285,7 @@ export default function PcPage() {
       {/* View tabs — แบ่งความกว้างเท่ากันเต็มแถว (fill) */}
       <Tabs
         className="mb-0 border-b-0"
+        variant="underline"
         fill
         size="sm"
         activeKey={view}
