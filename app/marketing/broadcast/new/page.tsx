@@ -9,7 +9,7 @@ import PageHeader from '@/components/ui/PageHeader';
 import Button from '@/components/ui/Button';
 import FormInput from '@/components/ui/FormInput';
 import Radio from '@/components/ui/Radio';
-import Checkbox from '@/components/ui/Checkbox';
+import AccountPicker from '@/components/ui/AccountPicker';
 import Alert from '@/components/ui/Alert';
 import MultiSelectSearch from '@/components/ui/MultiSelectSearch';
 import ImageDropzone from '@/components/ui/ImageDropzone';
@@ -50,6 +50,8 @@ interface BroadcastAccount {
   id: string;
   platform: BroadcastPlatform;
   name: string;
+  /** รูปโปรไฟล์ของช่องทาง (รูป OA / รูปเพจ / โลโก้ร้าน) — ไม่มีก็ตกไปใช้ไอคอนแพลตฟอร์ม */
+  picture_url: string | null;
 }
 
 interface TagRow { id: string; name: string; color: string }
@@ -282,7 +284,8 @@ export default function NewBroadcastPage() {
           const data = await chatRes.json();
           for (const a of data.accounts || []) {
             if (a.is_active && isBroadcastPlatform(a.platform) && canBroadcastVia(a.platform)) {
-              list.push({ id: a.id, platform: a.platform, name: a.account_name });
+              // API คืน picture_url ที่ผ่าน resolveAccountPicture() มาแล้ว (รูป OA/เพจ/ร้าน)
+              list.push({ id: a.id, platform: a.platform, name: a.account_name, picture_url: a.picture_url ?? null });
             }
           }
         }
@@ -291,7 +294,14 @@ export default function NewBroadcastPage() {
           if (!res?.ok) continue;
           const shops = await res.json();
           for (const s of Array.isArray(shops) ? shops : []) {
-            if (s.is_active) list.push({ id: s.id, platform: marketplacePlatforms[i], name: s.shop_name || 'ร้าน' });
+            if (s.is_active) {
+              list.push({
+                id: s.id,
+                platform: marketplacePlatforms[i],
+                name: s.shop_name || 'ร้าน',
+                picture_url: (s.metadata?.shop_logo as string) || null,
+              });
+            }
           }
         }
 
@@ -515,39 +525,25 @@ export default function NewBroadcastPage() {
 
             {/* 1. ส่งถึงใคร — ช่องทางกับกลุ่มผู้รับเป็นเรื่องเดียวกัน ไม่ต้องแยกการ์ด */}
             <Card padding="md">
-              <h2 className="heading-4 mb-3">ส่งถึงใคร</h2>
+              <h2 className="heading-4 mb-3">ช่องทาง</h2>
 
               {accounts.length === 0 ? (
                 <Alert tone="warning">
                   ยังไม่มีช่องทางที่ส่งได้ — เพิ่ม LINE OA ที่ ตั้งค่า &gt; ช่องทาง Chat ก่อน
                 </Alert>
               ) : (
-                <div className="space-y-1.5">
-                  {accounts.map(a => {
-                    const checked = accountIds.includes(a.id);
-                    return (
-                      // Checkbox เป็น <label> อยู่แล้ว — ห่อด้วย <label> อีกชั้นจะซ้อนกัน
-                      // และคลิกไม่ทะลุ (มันหยุด propagation) จึงส่งทั้งแถวเป็น children
-                      <Checkbox
-                        key={a.id}
-                        checked={checked}
-                        onChange={() => setAccountIds(prev =>
-                          prev.includes(a.id) ? prev.filter(x => x !== a.id) : [...prev, a.id])}
-                        className={`w-full px-3 py-2 rounded-lg border transition-colors ${
-                          checked
-                            ? 'border-[#F4511E] bg-orange-50/50 dark:bg-orange-950/20'
-                            : 'border-gray-200 dark:border-slate-600 hover:border-gray-300 dark:hover:border-slate-500'
-                        }`}
-                      >
-                        <PlatformIcon id={a.platform} size={18} />
-                        <span className="body-text text-gray-900 dark:text-white truncate flex-1">{a.name}</span>
-                        <span className="helper-text text-gray-400 dark:text-slate-500">
-                          {BROADCAST_PLATFORMS[a.platform].label}
-                        </span>
-                      </Checkbox>
-                    );
-                  })}
-                </div>
+                <AccountPicker
+                  accounts={accounts.map(a => ({
+                    id: a.id,
+                    platform: a.platform,
+                    name: a.name,
+                    picture_url: a.picture_url,
+                    badge: BROADCAST_PLATFORMS[a.platform].label,
+                  }))}
+                  value={accountIds}
+                  onChange={setAccountIds}
+                  placeholder="เลือกช่องทางที่จะใช้ส่ง (เลือกได้หลายอัน)"
+                />
               )}
 
               {/* ช่องทางที่ยังส่งไม่ได้ — ย่อเป็นบรรทัดเดียว กางดูเหตุผลได้
@@ -577,7 +573,7 @@ export default function NewBroadcastPage() {
 
               {platforms.length > 0 && (
                 <div className="mt-4 pt-4 border-t border-gray-100 dark:border-slate-700">
-                  <p className="field-label mb-2">ส่งถึงใคร</p>
+                  <p className="field-label mb-2">กลุ่มผู้รับ</p>
                   {/* การ์ดเลือกได้ทั้งใบ + คำอธิบายโชว์ตลอด ไม่ใช่โชว์เฉพาะตัวที่เลือก —
                       "คนที่เคยทักเข้ามา" กับ "ผู้ติดตามทั้งหมด" ต่างกันตรงไหน ต้องอ่านเทียบกันได้ */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
