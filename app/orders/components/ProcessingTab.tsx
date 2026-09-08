@@ -895,28 +895,25 @@ export default function ProcessingTab({
 
     if (!isMarketplace && !isOnHold && order.payment_status === 'pending') {
       primaryActions.push(
-        <button key="pay" onClick={(e) => { e.stopPropagation(); onPaymentClick?.(order); }}
-          className="btn-focus-action green" title="บันทึกชำระ">
-          <CreditCard className="w-3.5 h-3.5" /> <span className="hidden md:inline">บันทึกชำระ</span>
-        </button>
+        <Button variant="success" icon={<CreditCard className="w-3.5 h-3.5" />} key="pay" onClick={(e) => { e.stopPropagation(); onPaymentClick?.(order); }} title="บันทึกชำระ">
+          <span className="hidden md:inline">บันทึกชำระ</span>
+        </Button>
       );
     }
 
     if (!isMarketplace && !isOnHold) {
       primaryActions.push(
-        <button key="ship" onClick={(e) => { e.stopPropagation(); setShipModal({ order }); }}
-          className="btn-focus-action amber" title="จัดส่งแล้ว">
-          <Package className="w-4 h-4" /> <span className="hidden md:inline">จัดส่งแล้ว</span>
-        </button>
+        <Button variant="amber" icon={<Package className="w-4 h-4" />} key="ship" onClick={(e) => { e.stopPropagation(); setShipModal({ order }); }} title="จัดส่งแล้ว">
+          <span className="hidden md:inline">จัดส่งแล้ว</span>
+        </Button>
       );
     }
 
     if (isOnHold) {
       primaryActions.push(
-        <button key="unhold" onClick={(e) => { e.stopPropagation(); handleUnhold(order.id); }} disabled={actionLoading}
-          className="btn-focus-action green" title="กลับมา">
-          <Play className="w-4 h-4" /> <span className="hidden md:inline">กลับมา</span>
-        </button>
+        <Button variant="success" icon={<Play className="w-4 h-4" />} key="unhold" onClick={(e) => { e.stopPropagation(); handleUnhold(order.id); }} disabled={actionLoading} title="กลับมา">
+          <span className="hidden md:inline">กลับมา</span>
+        </Button>
       );
     }
 

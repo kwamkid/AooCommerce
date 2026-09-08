@@ -931,16 +931,12 @@ export default function DeliverySummaryPage() {
                     showPaymentStatus
                     actions={
                       <>
-                        <button
-                          onClick={() => printOne(order.id, 'packing')}
-                          disabled={printingOrderId === order.id}
-                          className="btn-focus-action indigo"
-                        >
+                        <Button variant="indigo" onClick={() => printOne(order.id, 'packing')} disabled={printingOrderId === order.id}>
                           {printingOrderId === order.id
-                            ? <Loader2 className="w-4 h-4 animate-spin" />
-                            : <ClipboardList className="w-4 h-4" />}
+                          ? <Loader2 className="w-4 h-4 animate-spin" />
+                          : <ClipboardList className="w-4 h-4" />}
                           ใบจัดของ
-                        </button>
+                        </Button>
                         <ActionMenu
                           items={[
                             {

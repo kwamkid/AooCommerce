@@ -24,6 +24,7 @@ import CustomerSelectionCard from '@/components/ui/CustomerSelectionCard';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import StatusBadge from '@/components/ui/StatusBadge';
 import { useCustomerPrefill } from '@/lib/useCustomerPrefill';
+import Button from '@/components/ui/Button';
 
 // ─── Types ──────────────────────────────────────────────
 
@@ -716,14 +717,10 @@ function EditReportContent() {
 
             {/* Focus button: พร้อมวางบิล — deduct stock + auto-issue TAX + ST + print */}
             {['draft', 'received'].includes(report.status) && (
-              <button
-                onClick={() => setBillConfirmOpen(true)}
-                disabled={actionLoading === 'confirm' || items.length === 0 || hasOverDestStock}
-                className="btn-focus-action green"
-              >
+              <Button variant="success" onClick={() => setBillConfirmOpen(true)} disabled={actionLoading === 'confirm' || items.length === 0 || hasOverDestStock}>
                 {actionLoading === 'confirm' ? <Loader2 className="w-4 h-4 animate-spin" /> : <BadgeCheck className="w-4 h-4" />}
                 พร้อมวางบิล
-              </button>
+              </Button>
             )}
 
             {isEditable && (

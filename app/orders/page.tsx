@@ -457,45 +457,27 @@ function OrdersPageContent() {
     const isCreditFlowOrder = ['w_credit', 'c_consign', 'd_statement'].includes(order.flow_type || '');
     if (statusFilter === 'new' && !isMarketplace && order.payment_status === 'pending' && !isCreditFlowOrder) {
       primaryActions.push(
-        <button
-          key="pay"
-          onClick={(e) => { e.stopPropagation(); handlePaymentStatusClick(order); }}
-          className="btn-focus-action green"
-          aria-label="บันทึกชำระ"
-        >
-          <CreditCard className="w-4 h-4" />
+        <Button variant="success" icon={<CreditCard className="w-4 h-4" />} key="pay" onClick={(e) => { e.stopPropagation(); handlePaymentStatusClick(order); }} aria-label="บันทึกชำระ">
           <span className="hidden md:inline">บันทึกชำระ</span>
-        </button>
+        </Button>
       );
     }
 
     // Primary: Accept order (manual, new tab, credit flow — ship first pay later)
     if (statusFilter === 'new' && !isMarketplace && isCreditFlowOrder) {
       primaryActions.push(
-        <button
-          key="accept"
-          onClick={(e) => { e.stopPropagation(); handleOrderStatusClick(order); }}
-          className="btn-focus-action indigo"
-          aria-label="รับออเดอร์"
-        >
-          <Package className="w-4 h-4" />
+        <Button variant="indigo" icon={<Package className="w-4 h-4" />} key="accept" onClick={(e) => { e.stopPropagation(); handleOrderStatusClick(order); }} aria-label="รับออเดอร์">
           <span className="hidden md:inline">รับออเดอร์</span>
-        </button>
+        </Button>
       );
     }
 
     // Primary: Complete action (shipping tab)
     if (statusFilter === 'shipping' && !isMarketplace) {
       primaryActions.push(
-        <button
-          key="complete"
-          onClick={(e) => { e.stopPropagation(); handleOrderStatusClick(order); }}
-          className="btn-focus-action green"
-          aria-label="สำเร็จ"
-        >
-          <Package className="w-4 h-4" />
+        <Button variant="success" icon={<Package className="w-4 h-4" />} key="complete" onClick={(e) => { e.stopPropagation(); handleOrderStatusClick(order); }} aria-label="สำเร็จ">
           <span className="hidden md:inline">สำเร็จ</span>
-        </button>
+        </Button>
       );
     }
 

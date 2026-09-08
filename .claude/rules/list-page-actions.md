@@ -238,11 +238,21 @@
 - **เน้นตามสถานะ ไม่ใช่ตามชนิดเอกสาร** — ใบเดียวกันเป็น primary ในแท็บหนึ่งและเป็นปกติในอีกแท็บได้
   (ใบจัดของเด่นตอน "ที่ต้องจัดส่ง" แต่พอ "กำลังส่ง/สำเร็จ" ก็แค่พิมพ์ซ้ำ)
 
-## Focus Action Button Colors (btn-focus-action)
+## Focus Action Button — ใช้ `<Button variant>` (ยุบคลาส `btn-focus-action` ทิ้งแล้ว 2026-09-08)
 
-| Class | สี | ใช้สำหรับ |
+ปุ่มหลักในแถว list page **ใช้ `<Button>` ตัวเดียวกับทั้งระบบ** — ความสูง/ระยะ/ฟอนต์จึงตรงกันเสมอ
+(ของเดิมเป็นคลาสแยกที่เตี้ยกว่าปุ่มปกติ 6px พอวางในแถบเดียวกันแล้วเห็นเป็นขั้นบันได)
+
+| variant | สี | ใช้สำหรับ |
 |-------|-----|----------|
-| `btn-focus-action` (default) | orange | รับออเดอร์, default action |
-| `btn-focus-action.green` | green | ยืนยันชำระ, สำเร็จ, ยืนยันสลิป, พร้อมวางบิล |
-| `btn-focus-action.indigo` | indigo | รับออเดอร์ (credit), ลูกค้าชำระแล้ว |
-| `btn-focus-action.amber` | amber | จัดส่ง |
+| `primary` (ค่าปกติ) | orange | รับออเดอร์, default action |
+| `success` | green | ยืนยันชำระ, สำเร็จ, ยืนยันสลิป, พร้อมวางบิล |
+| `indigo` | indigo | รับออเดอร์ (credit), ลูกค้าชำระแล้ว |
+| `amber` | amber | จัดส่ง |
+
+```tsx
+<Button variant="indigo" icon={<Banknote className="w-4 h-4" />} onClick={...}>
+  <span className="hidden lg:inline">ลูกค้าชำระแล้ว</span>
+</Button>
+```
+บนการ์ดมือถือที่ปุ่มต้องเต็มความกว้างใช้ `fullWidth` (เดิมใส่ `flex-1 justify-center` เอง)

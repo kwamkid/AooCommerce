@@ -19,7 +19,7 @@ interface BulkActionBarProps {
  *
  * ⚠️ `z-40` ต่ำกว่า Modal/ActionMenu โดยตั้งใจ — แถบนี้ต้องไม่บังโมดัลที่เปิดทับ
  * · เป็นแถบ "ลอย" (เว้นขอบรอบ + มุมมน) ไม่ใช่แถบเต็มความกว้างติดขอบจอ
- * · ปุ่มข้างในควรใช้ `<Button>` ให้หมดเพื่อให้ความสูงเท่ากัน — `btn-focus-action` เตี้ยกว่า 6px
+ * · ปุ่มข้างในใช้ `<Button>` ให้หมดเพื่อให้ความสูงเท่ากันทั้งแถบ
  */
 export default function BulkActionBar({ count, onClear, children }: BulkActionBarProps) {
   if (count <= 0) return null;

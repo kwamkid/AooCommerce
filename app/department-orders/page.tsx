@@ -1090,13 +1090,9 @@ function DepartmentOrdersContent() {
               render: (r) => (
                 <div className="flex items-center justify-end gap-1">
                   {r.status === 'draft' && (
-                    <button
-                      onClick={() => setShipModalId(r.id)}
-                      className="btn-focus-action amber"
-                    >
-                      <Send className="w-4 h-4" />
+                    <Button variant="amber" icon={<Send className="w-4 h-4" />} onClick={() => setShipModalId(r.id)}>
                       <span className="hidden md:inline">จัดส่ง</span>
-                    </button>
+                    </Button>
                   )}
                   {r.status === 'pending_confirm' && (
                     <button
@@ -1175,9 +1171,9 @@ function DepartmentOrdersContent() {
                 {/* Mobile focus action */}
                 <div className="flex items-center gap-2 mt-2 pt-2 border-t border-gray-100 dark:border-slate-700" onClick={e => e.stopPropagation()}>
                   {r.status === 'draft' && (
-                    <button onClick={() => setShipModalId(r.id)} className="btn-focus-action amber flex-1">
-                      <Send className="w-4 h-4" /> จัดส่ง
-                    </button>
+                    <Button variant="amber" icon={<Send className="w-4 h-4" />} className="flex-1" onClick={() => setShipModalId(r.id)}>
+                      จัดส่ง
+                    </Button>
                   )}
                   {r.status === 'pending_confirm' && (
                     <button onClick={() => router.push(`/department-orders/${r.id}`)} className="flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors flex-1">

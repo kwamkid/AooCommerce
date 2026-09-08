@@ -239,6 +239,22 @@ html, body {
 }
 .btn-success:hover { background-color: rgb(4 120 87); }
 
+/* indigo / amber — สีของปุ่มหลักในแถวตาราง (ลูกค้าชำระแล้ว · รับออเดอร์เครดิต = indigo ·
+   จัดส่ง = amber) เดิมอยู่ในคลาส .btn-focus-action ที่ถูกยุบเข้ามาเป็น variant แล้ว */
+.btn-indigo {
+  background-color: rgb(79 70 229);
+  color: #fff;
+  font-weight: 600;
+}
+.btn-indigo:hover { background-color: rgb(67 56 202); }
+
+.btn-amber {
+  background-color: rgb(245 158 11);
+  color: #fff;
+  font-weight: 600;
+}
+.btn-amber:hover { background-color: rgb(217 119 6); }
+
 /* ── Global Typography — outside @layer for guaranteed purge survival ──
  *
  * ทุกกฎห่อด้วย :where() เพื่อให้ specificity เป็น 0
@@ -436,20 +452,6 @@ h6:where(.heading-1, .heading-2, .heading-3, .heading-4) {
   }
   .data-pagination {
     @apply px-4 py-3 border-t border-gray-200 dark:border-slate-700 flex flex-col sm:flex-row items-center justify-between gap-3;
-  }
-
-  /* ─── Focus Action Button (inline in table/card rows) ─── */
-  .btn-focus-action {
-    @apply inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-white rounded-lg transition-colors disabled:opacity-50 whitespace-nowrap bg-primary hover:bg-primary-hover;
-  }
-  .btn-focus-action.green {
-    @apply bg-green-600 hover:bg-green-700;
-  }
-  .btn-focus-action.indigo {
-    @apply bg-indigo-600 hover:bg-indigo-700;
-  }
-  .btn-focus-action.amber {
-    @apply bg-amber-500 hover:bg-amber-600;
   }
 
   /* ─── Action menu item (แถวใน ActionMenu dropdown) ─── */

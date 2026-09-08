@@ -774,14 +774,14 @@ function ConsignmentReportsContent() {
               render: (r) => (
                 <div className="flex items-center justify-end gap-1">
                   {['draft', 'received'].includes(r.status) && (
-                    <button onClick={() => setBillConfirm(r)} className="btn-focus-action green">
-                      <BadgeCheck className="w-4 h-4" /><span className="hidden lg:inline">พร้อมวางบิล</span>
-                    </button>
+                    <Button variant="success" icon={<BadgeCheck className="w-4 h-4" />} onClick={() => setBillConfirm(r)}>
+                      <span className="hidden lg:inline">พร้อมวางบิล</span>
+                    </Button>
                   )}
                   {['billed', 'overdue'].includes(r.status) && r.statement_id && (
-                    <button onClick={() => setPaymentConfirm(r)} className="btn-focus-action indigo">
-                      <Banknote className="w-4 h-4" /><span className="hidden xl:inline">ลูกค้าชำระแล้ว</span>
-                    </button>
+                    <Button variant="indigo" icon={<Banknote className="w-4 h-4" />} onClick={() => setPaymentConfirm(r)}>
+                      <span className="hidden xl:inline">ลูกค้าชำระแล้ว</span>
+                    </Button>
                   )}
                   {r.status === 'paid' && <CheckCircle2 className="w-5 h-5 text-green-500" />}
                   <ActionMenu items={buildMenuItems(r)} />
@@ -822,10 +822,14 @@ function ConsignmentReportsContent() {
                 </div>
                 <div className="mt-3 flex items-center gap-2" onClick={e => e.stopPropagation()}>
                   {['draft', 'received'].includes(report.status) && (
-                    <button onClick={() => setBillConfirm(report)} className="btn-focus-action green flex-1 justify-center"><BadgeCheck className="w-4 h-4" /> พร้อมวางบิล</button>
+                    <Button variant="success" icon={<BadgeCheck className="w-4 h-4" />} className="flex-1 justify-center" onClick={() => setBillConfirm(report)}>
+                      พร้อมวางบิล
+                    </Button>
                   )}
                   {['billed', 'overdue'].includes(report.status) && report.statement_id && (
-                    <button onClick={() => setPaymentConfirm(report)} className="btn-focus-action indigo flex-1 justify-center"><Banknote className="w-4 h-4" /> ลูกค้าชำระแล้ว</button>
+                    <Button variant="indigo" icon={<Banknote className="w-4 h-4" />} className="flex-1 justify-center" onClick={() => setPaymentConfirm(report)}>
+                      ลูกค้าชำระแล้ว
+                    </Button>
                   )}
                   {report.status === 'paid' && <span className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium text-green-600"><CheckCircle2 className="w-4 h-4" /> ชำระแล้ว</span>}
                   {['invoiced', 'billed', 'paid'].includes(report.status) && (

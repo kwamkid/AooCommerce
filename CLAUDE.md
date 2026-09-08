@@ -183,10 +183,11 @@ Pagination: Pagination component
 .data-tr             /* hover:bg-gray-50 transition */
 
 /* Focus Action Button (inline in table rows) */
-.btn-focus-action              /* สีส้ม default — px-3 py-2 text-sm font-medium rounded-lg */
-.btn-focus-action.green        /* ยืนยันชำระ, สำเร็จ, ยืนยันสลิป */
-.btn-focus-action.indigo       /* รับออเดอร์, ลูกค้าชำระแล้ว */
-.btn-focus-action.amber        /* จัดส่ง */
+/* ปุ่มหลักในแถว list page ใช้ <Button variant> ไม่ใช่คลาสเฉพาะแล้ว (ยุบ 2026-09-08) */
+.btn-primary                   /* รับออเดอร์ / ยืนยัน (สีแบรนด์) */
+.btn-success                   /* ยืนยันชำระ, สำเร็จ, ยืนยันสลิป */
+.btn-indigo                    /* รับออเดอร์เครดิต, ลูกค้าชำระแล้ว */
+.btn-amber                     /* จัดส่ง */
 ```
 
 ### Tab Filter Colors (`lib/status-tab-colors.ts`)

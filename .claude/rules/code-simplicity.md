@@ -76,7 +76,7 @@
 | Modal | `.modal-root`, `.modal-backdrop`, `.modal-panel`, `.modal-header`, `.modal-body`, `.modal-footer`, `.modal-title`, `.modal-close-btn` | `<Modal>` component |
 | Table | `.data-table-wrap`, `.data-thead`, `.data-th`, `.data-tbody`, `.data-tr`, `.data-td`, `.data-pagination` | `<DataTable>` + list pages |
 | Filter card | `.data-filter-card` | list page filter section |
-| Focus action button | `.btn-focus-action` + `.green/.indigo/.amber` | list page row action |
+| Focus action button (ปุ่มหลักในแถว list page) | `<Button variant="primary\|success\|indigo\|amber">` — **คลาส `.btn-focus-action` ถูกยุบทิ้งแล้ว 2026-09-08** เพราะเตี้ยกว่า `<Button>` 6px พอวางในแถบเดียวกันเห็นเป็นขั้นบันได · ปุ่มเต็มความกว้างบนการ์ดมือถือใช้ `fullWidth` |
 
 **Typography mapping**:
 - `.heading-1` = `text-3xl font-bold` — list page title

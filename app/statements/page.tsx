@@ -24,6 +24,7 @@ import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
 import { LoadingCard } from '@/components/ui/StateCard';
 import StatusBadge from '@/components/ui/StatusBadge';
 import { useDebouncedCallback } from '@/lib/useDebounce';
+import Button from '@/components/ui/Button';
 
 interface Statement {
   id: string;
@@ -282,7 +283,7 @@ function StatementsContent() {
       },
     ];
 
-    // Payment action removed — already shown as focus button (btn-focus-action indigo)
+    // Payment action removed — already shown as focus button (<Button variant="indigo">)
 
     // Reverse payment action (undo)
     if (st.status === 'paid') {
@@ -419,13 +420,9 @@ function StatementsContent() {
       render: (st) => (
         <div className="flex items-center justify-end gap-1">
           {['sent', 'partially_paid', 'overdue'].includes(st.status) && (
-            <button
-              onClick={() => setPaymentConfirm(st)}
-              className="btn-focus-action indigo"
-            >
-              <Banknote className="w-4 h-4" />
+            <Button variant="indigo" icon={<Banknote className="w-4 h-4" />} onClick={() => setPaymentConfirm(st)}>
               <span className="hidden lg:inline">ลูกค้าชำระแล้ว</span>
-            </button>
+            </Button>
           )}
           {st.status === 'paid' && (
             <CheckCircle2 className="w-5 h-5 text-green-500" />
@@ -507,12 +504,9 @@ function StatementsContent() {
                 {/* Action buttons */}
                 <div className="mt-3 flex items-center gap-2" onClick={e => e.stopPropagation()}>
                   {['sent', 'partially_paid', 'overdue'].includes(st.status) && (
-                    <button
-                      onClick={() => setPaymentConfirm(st)}
-                      className="btn-focus-action indigo flex-1 justify-center"
-                    >
-                      <Banknote className="w-4 h-4" /> ลูกค้าชำระแล้ว
-                    </button>
+                    <Button variant="indigo" icon={<Banknote className="w-4 h-4" />} className="flex-1 justify-center" onClick={() => setPaymentConfirm(st)}>
+                      ลูกค้าชำระแล้ว
+                    </Button>
                   )}
                   {st.status === 'paid' && (
                     <span className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium text-green-600">

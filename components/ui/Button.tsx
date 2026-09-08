@@ -3,7 +3,10 @@
 import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from 'react';
 import { Loader2 } from 'lucide-react';
 
-export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'success';
+// `indigo` / `amber` ยกมาจากคลาส `.btn-focus-action` เดิมที่ใช้กับปุ่มหลักในแถวตาราง
+// (ลูกค้าชำระแล้ว/รับออเดอร์เครดิต = indigo · จัดส่ง = amber) — เป็นภาษาสีของสถานะที่ระบบใช้อยู่แล้ว
+// (ดู lib/status-tab-colors.ts) จึงยกเข้ามาเป็น variant แทนที่จะให้แต่ละหน้าเขียนสีเอง
+export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'success' | 'indigo' | 'amber';
 export type ButtonSize = 'sm' | 'md' | 'lg';
 
 interface ButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'type'> {

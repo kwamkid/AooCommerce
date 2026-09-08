@@ -837,13 +837,9 @@ function ReplenishmentsPageContent() {
               render: (r) => (
                 <div className="flex items-center justify-end gap-1">
                   {r.status === 'pending' && (
-                    <button
-                      onClick={() => setShipModalId(r.id)}
-                      className="btn-focus-action amber"
-                    >
-                      <Send className="w-4 h-4" />
+                    <Button variant="amber" icon={<Send className="w-4 h-4" />} onClick={() => setShipModalId(r.id)}>
                       <span className="hidden md:inline">จัดส่ง</span>
-                    </button>
+                    </Button>
                   )}
                   {r.status === 'pending_confirm' && (
                     <button
@@ -930,9 +926,9 @@ function ReplenishmentsPageContent() {
                 {(r.status === 'pending' || r.status === 'pending_confirm' || (r.status === 'shipped' && r.receive_token)) && (
                   <div className="mt-3 flex gap-2" onClick={e => e.stopPropagation()}>
                     {r.status === 'pending' && (
-                      <button onClick={() => setShipModalId(r.id)} className="btn-focus-action amber flex-1 justify-center">
-                        <Send className="w-4 h-4" /> จัดส่ง
-                      </button>
+                      <Button variant="amber" icon={<Send className="w-4 h-4" />} className="flex-1 justify-center" onClick={() => setShipModalId(r.id)}>
+                        จัดส่ง
+                      </Button>
                     )}
                     {r.status === 'pending_confirm' && (
                       <button onClick={() => router.push(`/replenishments/new?id=${r.id}`)} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors">

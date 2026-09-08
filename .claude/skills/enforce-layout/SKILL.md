@@ -135,10 +135,11 @@
 - [ ] ห้าม hardcode สี status เอง
 
 ### Focus Action Button Colors
-- [ ] Default (รับออเดอร์): `btn-focus-action` (orange)
-- [ ] Green (ยืนยัน/สำเร็จ): `btn-focus-action green`
-- [ ] Indigo (ชำระแล้ว): `btn-focus-action indigo`
-- [ ] Amber (จัดส่ง): `btn-focus-action amber`
+- [ ] Default (รับออเดอร์): `<Button variant="primary">` (orange)
+- [ ] Green (ยืนยัน/สำเร็จ): `<Button variant="success">`
+- [ ] Indigo (ชำระแล้ว): `<Button variant="indigo">`
+- [ ] Amber (จัดส่ง): `<Button variant="amber">`
+- [ ] ❌ ห้ามใช้คลาส `btn-focus-action` — ยุบเข้า `<Button>` แล้ว (2026-09-08)
 
 ---
 

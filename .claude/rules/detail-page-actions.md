@@ -155,7 +155,7 @@
 ### Focus Action (prominent)
 | Button | Class | Condition | Action |
 |--------|-------|-----------|--------|
-| พร้อมวางบิล | `btn-focus-action green` | status in [draft, received] + มีสินค้า | deduct stock + auto TAX + ST + auto print |
+| พร้อมวางบิล | `<Button variant="success">` | status in [draft, received] + มีสินค้า | deduct stock + auto TAX + ST + auto print |
 | บันทึกแก้ไข | `btn-primary` | isEditable (draft/received) + มีสินค้า | save changes |
 
 ### Editable States

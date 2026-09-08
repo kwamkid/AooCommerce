@@ -18,7 +18,7 @@ import ActionMenu, { type ActionItem } from '@/components/ui/ActionMenu';
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
 import Container from '@/components/ui/Container';
 import PageHeader from '@/components/ui/PageHeader';
-import Button from '@/components/ui/Button';
+import Button, { type ButtonVariant } from '@/components/ui/Button';
 import { getBadgeColor } from '@/lib/status-tab-colors';
 import StatusTabs from '@/components/ui/StatusTabs';
 import PaymentModal from '@/app/orders/components/PaymentModal';
@@ -71,23 +71,23 @@ const FLOW_TYPE_OPTIONS = [
   { id: 'w_credit', label: 'เครดิต' },
 ];
 
-function getFocusAction(order: WholesaleOrder): { label: string; icon: React.ReactNode; action: string; color: string } | null {
+function getFocusAction(order: WholesaleOrder): { label: string; icon: React.ReactNode; action: string; variant: ButtonVariant } | null {
   const { order_status, payment_status, flow_type } = order;
   // ใหม่ + รอชำระ (เงินสดเท่านั้น) → ยืนยันชำระ
   if (order_status === 'new' && payment_status === 'pending') {
-    return { label: 'ยืนยันชำระ', icon: <Banknote className="w-3.5 h-3.5" />, action: 'confirm_payment', color: 'green' };
+    return { label: 'ยืนยันชำระ', icon: <Banknote className="w-3.5 h-3.5" />, action: 'confirm_payment', variant: 'success' };
   }
   // รอคอนเฟิร์ม → คอนเฟิร์มออเดอร์
   if (order_status === 'ready_to_ship') {
-    return { label: 'คอนเฟิร์มออเดอร์', icon: <Package className="w-3.5 h-3.5" />, action: 'accept', color: 'indigo' };
+    return { label: 'คอนเฟิร์มออเดอร์', icon: <Package className="w-3.5 h-3.5" />, action: 'accept', variant: 'indigo' };
   }
   // ที่ต้องจัดส่ง → จัดส่งแล้ว (ไปสำเร็จเลย)
   if (order_status === 'processing') {
-    return { label: 'จัดส่ง', icon: <Send className="w-3.5 h-3.5" />, action: 'ship_complete', color: 'amber' };
+    return { label: 'จัดส่ง', icon: <Send className="w-3.5 h-3.5" />, action: 'ship_complete', variant: 'amber' };
   }
   // สำเร็จ + เครดิต + ยังไม่ชำระ → บันทึกชำระ
   if (order_status === 'completed' && flow_type === 'w_credit' && payment_status === 'pending') {
-    return { label: 'บันทึกชำระ', icon: <Banknote className="w-3.5 h-3.5" />, action: 'confirm_payment', color: 'green' };
+    return { label: 'บันทึกชำระ', icon: <Banknote className="w-3.5 h-3.5" />, action: 'confirm_payment', variant: 'success' };
   }
   return null;
 }
@@ -384,11 +384,14 @@ export default function DealerOrdersPage() {
                 return (
                   <div className="flex items-center justify-end gap-1.5">
                     {focus && (
-                      <button onClick={(e) => { e.stopPropagation(); handleAction(order, focus.action); }}
-                        disabled={isActioning} className={`btn-focus-action ${focus.color}`}>
-                        {isActioning ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : focus.icon}
+                      <Button
+                        variant={focus.variant}
+                        loading={isActioning}
+                        icon={focus.icon}
+                        onClick={(e) => { e.stopPropagation(); handleAction(order, focus.action); }}
+                      >
                         {focus.label}
-                      </button>
+                      </Button>
                     )}
                     <ActionMenu items={getMenuItems(order)} />
                   </div>
@@ -449,11 +452,15 @@ export default function DealerOrdersPage() {
                 </div>
                 {focus && (
                   <div className="mt-3 flex gap-2" onClick={e => e.stopPropagation()}>
-                    <button onClick={() => handleAction(order, focus.action)}
-                      disabled={isActioning} className={`btn-focus-action ${focus.color} flex-1 justify-center`}>
-                      {isActioning ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : focus.icon}
+                    <Button
+                      variant={focus.variant}
+                      loading={isActioning}
+                      icon={focus.icon}
+                      fullWidth
+                      onClick={() => handleAction(order, focus.action)}
+                    >
                       {focus.label}
-                    </button>
+                    </Button>
                   </div>
                 )}
               </>

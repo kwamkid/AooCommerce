@@ -1028,16 +1028,9 @@ export default function ReadyToShipTab({
     // Primary: Unhold for on_hold orders
     if (isOnHold) {
       primaryActions.push(
-        <button
-          key="unhold"
-          onClick={(e) => { e.stopPropagation(); handleUnhold(order.id); }}
-          disabled={actionLoading}
-          className="btn-focus-action green"
-          title="กลับมา"
-        >
-          <Play className="w-4 h-4" />
+        <Button variant="success" icon={<Play className="w-4 h-4" />} key="unhold" onClick={(e) => { e.stopPropagation(); handleUnhold(order.id); }} disabled={actionLoading} title="กลับมา">
           <span className="hidden md:inline">กลับมา</span>
-        </button>
+        </Button>
       );
     } else if (isVerifyingTab && order.payment_status === 'verifying') {
       // Verifying tab: Approve + Reject slip
@@ -1055,16 +1048,9 @@ export default function ReadyToShipTab({
         </Button>
       );
       primaryActions.push(
-        <button
-          key="approve-slip"
-          onClick={(e) => { e.stopPropagation(); handleApproveSlip(order.id); }}
-          disabled={actionLoading}
-          className="btn-focus-action green"
-          title="ยืนยันสลิป"
-        >
-          <CheckCircle className="w-4 h-4" />
+        <Button variant="success" icon={<CheckCircle className="w-4 h-4" />} key="approve-slip" onClick={(e) => { e.stopPropagation(); handleApproveSlip(order.id); }} disabled={actionLoading} title="ยืนยันสลิป">
           <span className="hidden md:inline">ยืนยัน</span>
-        </button>
+        </Button>
       );
     } else {
       // Normal tab: Split + Accept
