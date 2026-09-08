@@ -93,8 +93,10 @@ function SavedReplyPicker({
           className="min-w-0 flex-1 pl-3 pr-1 py-2 text-left"
         >
           <span className="block text-sm font-medium text-gray-900 dark:text-white truncate">{r.title}</span>
-          {/* 2 บรรทัด — บรรทัดเดียวตัดจนแยกไม่ออกว่าใบไหนเป็นใบไหน */}
-          <span className="block helper-text text-gray-500 dark:text-slate-400 line-clamp-2">{savedReplyPreview(r, 160)}</span>
+          {/* ตัดที่ 2 บรรทัดพอดี — **ห้ามใส่ `block` คู่กับ `line-clamp-2`**
+              สอง class สั่ง `display` คนละค่า (block กับ -webkit-box) ตัวที่ชนะแล้วแต่ลำดับใน CSS
+              ถ้า block ชนะ = ไม่ตัดเลย ยาวเท่าไหร่ก็ขึ้นหมด (เคยหลุดเป็น 3 บรรทัด) */}
+          <span className="text-[11px] leading-snug text-gray-500 dark:text-slate-400 line-clamp-2">{savedReplyPreview(r, 120)}</span>
         </button>
 
         {onEdit && (
@@ -184,25 +186,25 @@ function SavedReplyPicker({
         {onSaveCurrent ? (
           <button
             onClick={onSaveCurrent}
-            className="flex items-center gap-1 helper-text text-primary hover:underline px-1 py-0.5"
+            className="flex items-center gap-1 text-[11px] text-primary hover:underline px-1 py-0.5"
           >
-            <Plus className="w-3.5 h-3.5" />บันทึกข้อความที่พิมพ์อยู่
+            <Plus className="w-3 h-3" />บันทึกข้อความที่พิมพ์อยู่
           </button>
         ) : onCreate ? (
           <button
             onClick={onCreate}
-            className="flex items-center gap-1 helper-text text-primary hover:underline px-1 py-0.5"
+            className="flex items-center gap-1 text-[11px] text-primary hover:underline px-1 py-0.5"
           >
-            <Plus className="w-3.5 h-3.5" />เพิ่มใหม่
+            <Plus className="w-3 h-3" />เพิ่มใหม่
           </button>
-        ) : <span className="helper-text text-gray-400 px-1">พิมพ์ / ในช่องแชทเพื่อค้นได้เลย</span>}
+        ) : <span className="text-[11px] text-gray-400 px-1">พิมพ์ / ในช่องแชทเพื่อค้นได้เลย</span>}
 
         {canManage && (
           <Link
             href="/settings/saved-replies"
-            className="flex items-center gap-1 helper-text text-gray-500 hover:text-primary px-1 py-0.5"
+            className="flex items-center gap-1 text-[11px] text-gray-500 hover:text-primary px-1 py-0.5"
           >
-            <Settings2 className="w-3.5 h-3.5" />จัดการ
+            <Settings2 className="w-3 h-3" />จัดการ
           </Link>
         )}
       </div>
