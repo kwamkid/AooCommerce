@@ -67,15 +67,14 @@ export default function Tabs({ tabs, activeKey, onSelect, className, fill, size 
   const visible = tabs.filter(t => !t.hidden);
   // จอแคบที่แท็บเยอะ → dropdown · ใช้ CSS สลับ (ไม่ใช่วัดขนาดจอด้วย JS) จะได้ไม่มี hydration mismatch
   const asDropdown = mobileDropdownFrom > 0 && visible.length > mobileDropdownFrom;
-  const activeTab = visible.find(t => t.key === activeKey);
 
   return (
     <>
     {asDropdown && (
       <div className={`sm:hidden ${className?.includes('mb-0') ? '' : 'mb-4'} ${className || ''}`}>
+        {/* ไม่ส่ง `icon` — FormSelect วาดไอคอนของตัวเลือกที่เลือกอยู่ให้เองแล้ว ส่งไปอีกจะได้สองอัน */}
         <FormSelect
           value={activeKey}
-          icon={activeTab?.icon}
           onChange={(key) => {
             onSelect?.(key);
             const target = visible.find(t => t.key === key);
