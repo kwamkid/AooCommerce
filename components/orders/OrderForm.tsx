@@ -3352,9 +3352,12 @@ export default function OrderForm({
         </div>
       ) : (
         <>
-          {customerDeliveryFragment}
+          {/* ลำดับต้องตรงกับ wizard: **สินค้า → ลูกค้า/จัดส่ง → ปุ่ม**
+              เดิมจอกว้างขึ้นลูกค้าก่อน ⇒ พนักงานคนเดียวกันเจอลำดับกรอกคนละแบบ
+              แล้วแต่ว่าเปิดหน้าต่างกว้างแค่ไหน (เจ้าของทักมา 8 ก.ย. 2026)
 
-          {/* 2-column layout: Products+Notes (left) + Summary (right) on wide screens */}
+              สรุปยอดยังเกาะขวาแบบ sticky อยู่ข้างสินค้าเหมือนเดิม — มันเป็นแผงที่ตามไปทั้งหน้า
+              ไม่ใช่ "ขั้นตอน" จึงไม่ต้องไปอยู่ท้ายสุดตาม wizard */}
           <div ref={summarySectionRef} className="flex flex-wrap gap-4 items-start">
             <div className="flex-1 basis-[400px] min-w-0 space-y-4">
               {productsFragment}
@@ -3362,6 +3365,8 @@ export default function OrderForm({
             </div>
             {summaryFragment}
           </div>
+
+          {customerDeliveryFragment}
 
           {actionsFragment}
         </>
