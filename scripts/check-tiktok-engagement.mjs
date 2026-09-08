@@ -6,8 +6,9 @@
 // อ่านอย่างเดียว ไม่ส่งข้อความและไม่แก้อะไรใน DB
 //
 // มี 2 ด่านที่ต้องผ่าน และสคริปต์นี้บอกว่าติดด่านไหน:
-//   1. **app** ต้องมี scope Customer Engagement ใน Partner Center แล้ว re-authorize ร้าน
-//      → ไม่มี = ทุก endpoint ตอบ 105005 "access scope"
+//   1. **app** ต้องมีสิทธิ์เรียก API กลุ่มนี้ → ไม่มี = ทุก endpoint ตอบ 105005 "access scope"
+//      ⚠️ 8 ก.ย. 2026: Partner Center **ไม่มี scope ชื่อ Customer Engagement ให้ขอ**
+//      ทั้ง app หมวด Order Management และ Customer Support — ยังหาที่มาไม่ได้
 //   2. **ร้าน** ต้องได้สิทธิ์ฟีเจอร์จาก TikTok: FUNDAMENTAL (ตั้งต้น) + CUSTOM_MSG (เขียนเอง)
 //
 // ผ่านครบทั้งสองด่านแล้วค่อยเปลี่ยน status ของ tiktok ใน lib/broadcast/platforms.ts
@@ -77,9 +78,10 @@ for (const a of accounts) {
 
   if (r.json?.code === 105005 || /access scope/i.test(r.json?.message || '')) {
     allReady = false;
-    console.log('❌ ด่าน 1 (app): ยังไม่มี scope Customer Engagement');
-    console.log('   → Partner Center > App > API scope เพิ่มกลุ่ม Customer Engagement');
-    console.log('   → แล้ว **re-authorize ร้านใหม่** (token เดิมไม่พก scope ใหม่มาให้)');
+    console.log('❌ ด่าน 1 (app): token ที่ใช้ยิงยังไม่มีสิทธิ์ Customer Engagement');
+    console.log('   หมายเหตุ (สำรวจจริง 8 ก.ย. 2026): Partner Center **ไม่มี scope ชื่อ Customer');
+    console.log('   Engagement ให้ขอ** ทั้ง app หมวด Order Management และ Customer Support');
+    console.log('   → ยังไม่รู้ว่ามันอยู่ใน scope/หมวดไหน ดูรายละเอียดใน CLAUDE.md หัวข้อบรอดแคสต์');
     continue;
   }
   if (r.json?.code !== 0) {

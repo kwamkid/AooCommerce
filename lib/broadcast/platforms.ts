@@ -86,7 +86,7 @@ export const BROADCAST_PLATFORMS: Record<BroadcastPlatform, BroadcastPlatformInf
     compose: { titleMax: 70, bodyMax: 500, image: false },
     audience: 'ลูกค้าที่เคยสั่งซื้อภายใน 365 วัน',
     status: 'possible',
-    reason: 'โค้ดฝั่งเราพร้อมแล้ว แต่ยังส่งไม่ได้จนกว่า app จะได้ scope Customer Engagement ใน Partner Center แล้ว re-authorize ร้านใหม่ (ยิงจริงตอนนี้ตอบ 105005 access denied) — ตรวจสิทธิ์ด้วย `node scripts/check-tiktok-engagement.mjs`',
+    reason: 'โค้ดฝั่งเราพร้อมแล้ว แต่ยังส่งไม่ได้ — **Partner Center ไม่มี scope ของ Customer Engagement ให้ขอ** ทั้ง app หมวด Order Management และ Customer Support (ยิงจริงตอบ 105005) ต้องรู้ก่อนว่ามันอยู่ใน scope/หมวดไหน · ตรวจซ้ำด้วย `node scripts/check-tiktok-engagement.mjs`',
   },
 
   // /im/session/open **บังคับ order_id** และตอบ error -22 "order out of day limit: 30"
