@@ -1423,16 +1423,20 @@ function UnifiedChatPageContent() {
       agentName: userProfile?.name,
     });
 
+    // ลิงก์แนบต่อท้ายข้อความคนละบรรทัด — ไปเป็นข้อความเดียวกัน ไม่กินโควตาเพิ่ม
+    const body = [text, reply.link_url].filter(Boolean).join('\n');
+
     setNewMessage(prev => {
       // โหมด / : สิ่งที่พิมพ์อยู่คือคำค้น ต้องแทนที่ทั้งหมด
-      if (savedReplyMode === 'slash') return text;
+      if (savedReplyMode === 'slash') return body;
       const base = prev.trim();
-      return base && text ? `${base} ${text}` : (text || base);
+      return base && body ? `${base} ${body}` : (body || base);
     });
-    if (reply.image_url) {
+    // รูปทุกใบเข้าคิวรอส่งตามลำดับที่ตั้งไว้ — เกินเพดานของช่องพิมพ์แล้วก็หยุดเติม
+    for (const url of reply.image_urls || []) {
       setAttachments(prev => prev.length >= MAX_ATTACHMENTS ? prev : [...prev, {
         id: `att-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-        kind: 'url' as const, url: reply.image_url!, title: reply.title,
+        kind: 'url' as const, url, title: reply.title,
       }]);
     }
 

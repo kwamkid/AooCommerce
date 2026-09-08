@@ -8,28 +8,59 @@
 // (ถ้าต้องขออนุญาตแอดมินก่อนบันทึกข้อความที่เพิ่งพิมพ์ ปุ่ม "บันทึกข้อความนี้" ก็ไร้ความหมาย)
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
+import {
+  MAX_SAVED_REPLY_IMAGES, MAX_SAVED_REPLY_TITLE,
+  sanitizeSavedReplyTitle, hasDisallowedTitleChars, SAVED_REPLY_TITLE_HINT,
+} from '@/lib/chat/saved-replies';
 
-const SELECT = 'id, title, content, image_url, sort_order, is_active, created_by, created_at, updated_at';
+const SELECT = 'id, title, content, image_urls, link_url, sort_order, is_active, created_by, created_at, updated_at';
 
-const MAX_TITLE = 60;
 const MAX_CONTENT = 2000;
+/** unique index บน (company_id, ชื่อที่ normalize) — ดู migration saved_replies_multi_image_link_unique_title */
+const DUPLICATE_TITLE_CODE = '23505';
 
 interface Body {
   id?: string;
   title?: string;
   content?: string;
-  image_url?: string | null;
+  image_urls?: unknown;
+  link_url?: string | null;
   is_active?: boolean;
   sort_order?: number;
   /** สลับลำดับหลายใบในคำขอเดียว — หน้าจัดการกดลูกศรขึ้น/ลงแล้วส่งคู่ที่สลับกันมา */
   reorder?: { id: string; sort_order: number }[];
 }
 
+/**
+ * ชื่อเรียกที่บันทึกได้ — ตัดอักขระพิเศษออกเหมือนที่หน้าจอทำระหว่างพิมพ์
+ * ถ้าส่งมาแล้วเหลือแต่อักขระต้องห้ามล้วน ๆ (เช่น "###") ต้องบอกเหตุผล ไม่ใช่เงียบ ๆ เซฟชื่อว่าง
+ */
+function cleanTitle(raw: string): { title: string; error?: string } {
+  const title = sanitizeSavedReplyTitle(raw).trim().replace(/\s+/g, ' ');
+  if (!title) {
+    return { title, error: hasDisallowedTitleChars(raw) ? `ชื่อเรียกใช้อักขระพิเศษไม่ได้ — ${SAVED_REPLY_TITLE_HINT}` : 'กรุณาตั้งชื่อข้อความสำเร็จรูป' };
+  }
+  return { title };
+}
+
+/** รูปแนบ: ต้องเป็นอาร์เรย์ของ https และไม่เกินเพดาน — ค่าที่ไม่ใช่ลิงก์ถูกตัดทิ้งเงียบ ๆ ไม่ได้ */
+function cleanImageUrls(raw: unknown): { urls: string[]; error?: string } {
+  if (raw === undefined) return { urls: [] };
+  if (!Array.isArray(raw)) return { urls: [], error: 'รูปแนบต้องเป็นรายการลิงก์' };
+  const urls = raw.map(v => String(v || '').trim()).filter(Boolean);
+  if (urls.some(u => !/^https:\/\//.test(u))) return { urls: [], error: 'ลิงก์รูปต้องเป็น https' };
+  if (urls.length > MAX_SAVED_REPLY_IMAGES) return { urls: [], error: `แนบรูปได้ไม่เกิน ${MAX_SAVED_REPLY_IMAGES} ใบ` };
+  return { urls };
+}
+
 /** คืน error ภาษาไทยเมื่อไม่ผ่าน — ใช้ร่วมทั้ง POST และ PUT ให้กติกาตรงกันเป๊ะ */
-function validateBody(title: string | undefined, content: string | undefined, imageUrl: string | null | undefined): string | null {
-  if (title !== undefined && title.length > MAX_TITLE) return `ชื่อยาวเกิน ${MAX_TITLE} ตัวอักษร`;
+function validateBody(title: string | undefined, content: string | undefined, linkUrl: string | null | undefined): string | null {
+  if (title !== undefined && title.length > MAX_SAVED_REPLY_TITLE) return `ชื่อยาวเกิน ${MAX_SAVED_REPLY_TITLE} ตัวอักษร`;
   if (content !== undefined && content.length > MAX_CONTENT) return `ข้อความยาวเกิน ${MAX_CONTENT} ตัวอักษร`;
-  if (imageUrl != null && imageUrl !== '' && !/^https:\/\//.test(imageUrl)) return 'ลิงก์รูปต้องเป็น https';
+  if (linkUrl) {
+    if (!/^https:\/\//.test(linkUrl)) return 'ลิงก์ต้องขึ้นต้นด้วย https://';
+    try { new URL(linkUrl); } catch { return 'ลิงก์ไม่ถูกต้อง'; }
+  }
   return null;
 }
 
@@ -63,13 +94,18 @@ export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => null) as Body | null;
   if (!body) return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
 
-  const title = (body.title || '').trim();
-  const content = (body.content || '').trim();
-  const imageUrl = (body.image_url || '').trim() || null;
+  const { title, error: titleError } = cleanTitle(body.title || '');
+  if (titleError) return NextResponse.json({ error: titleError }, { status: 400 });
 
-  if (!title) return NextResponse.json({ error: 'กรุณาตั้งชื่อข้อความสำเร็จรูป' }, { status: 400 });
-  if (!content && !imageUrl) return NextResponse.json({ error: 'ต้องมีข้อความหรือรูปอย่างน้อยอย่างใดอย่างหนึ่ง' }, { status: 400 });
-  const invalid = validateBody(title, content, imageUrl);
+  const content = (body.content || '').trim();
+  const { urls: imageUrls, error: imageError } = cleanImageUrls(body.image_urls);
+  if (imageError) return NextResponse.json({ error: imageError }, { status: 400 });
+  const linkUrl = (body.link_url || '').trim() || null;
+
+  if (!content && imageUrls.length === 0 && !linkUrl) {
+    return NextResponse.json({ error: 'ต้องมีข้อความ รูป หรือลิงก์ อย่างน้อยอย่างใดอย่างหนึ่ง' }, { status: 400 });
+  }
+  const invalid = validateBody(title, content, linkUrl);
   if (invalid) return NextResponse.json({ error: invalid }, { status: 400 });
 
   const { data: last } = await supabaseAdmin
@@ -86,13 +122,18 @@ export async function POST(request: NextRequest) {
       company_id: auth.companyId,
       title,
       content,
-      image_url: imageUrl,
+      image_urls: imageUrls,
+      link_url: linkUrl,
       sort_order: (last?.sort_order ?? -1) + 1,
       created_by: auth.userId || null,
     })
     .select(SELECT)
     .single();
 
+  // ชนกับ unique index = ชื่อซ้ำ — ต้องบอกให้ตรงเหตุ ไม่ใช่โยน error ดิบของ Postgres ให้ผู้ใช้อ่าน
+  if (error?.code === DUPLICATE_TITLE_CODE) {
+    return NextResponse.json({ error: `มีข้อความสำเร็จรูปชื่อ "${title}" อยู่แล้ว`, code: 'duplicate_title' }, { status: 409 });
+  }
   if (error || !created) return NextResponse.json({ error: error?.message || 'บันทึกไม่สำเร็จ' }, { status: 500 });
   return NextResponse.json({ reply: created });
 }
@@ -124,19 +165,24 @@ export async function PUT(request: NextRequest) {
 
   const update: Record<string, unknown> = {};
   if (body.title !== undefined) {
-    const title = body.title.trim();
-    if (!title) return NextResponse.json({ error: 'กรุณาตั้งชื่อข้อความสำเร็จรูป' }, { status: 400 });
+    const { title, error: titleError } = cleanTitle(body.title);
+    if (titleError) return NextResponse.json({ error: titleError }, { status: 400 });
     update.title = title;
   }
   if (body.content !== undefined) update.content = body.content.trim();
-  if (body.image_url !== undefined) update.image_url = (body.image_url || '').trim() || null;
+  if (body.image_urls !== undefined) {
+    const { urls, error: imageError } = cleanImageUrls(body.image_urls);
+    if (imageError) return NextResponse.json({ error: imageError }, { status: 400 });
+    update.image_urls = urls;
+  }
+  if (body.link_url !== undefined) update.link_url = (body.link_url || '').trim() || null;
   if (body.is_active !== undefined) update.is_active = body.is_active !== false;
   if (body.sort_order !== undefined) update.sort_order = Math.round(Number(body.sort_order) || 0);
 
   const invalid = validateBody(
     update.title as string | undefined,
     update.content as string | undefined,
-    update.image_url as string | null | undefined,
+    update.link_url as string | null | undefined,
   );
   if (invalid) return NextResponse.json({ error: invalid }, { status: 400 });
 
@@ -146,16 +192,17 @@ export async function PUT(request: NextRequest) {
   // (DB มี CHECK กันอยู่แล้ว แต่ error ของ Postgres อ่านไม่รู้เรื่องสำหรับผู้ใช้)
   const { data: current } = await supabaseAdmin
     .from('chat_saved_replies')
-    .select('content, image_url')
+    .select('content, image_urls, link_url')
     .eq('id', body.id)
     .eq('company_id', auth.companyId)
     .maybeSingle();
   if (!current) return NextResponse.json({ error: 'ไม่พบข้อความสำเร็จรูปนี้' }, { status: 404 });
 
   const finalContent = (update.content as string | undefined) ?? current.content;
-  const finalImage = update.image_url !== undefined ? (update.image_url as string | null) : current.image_url;
-  if (!finalContent && !finalImage) {
-    return NextResponse.json({ error: 'ต้องมีข้อความหรือรูปอย่างน้อยอย่างใดอย่างหนึ่ง' }, { status: 400 });
+  const finalImages = (update.image_urls as string[] | undefined) ?? (current.image_urls as string[] | null) ?? [];
+  const finalLink = update.link_url !== undefined ? (update.link_url as string | null) : current.link_url;
+  if (!finalContent && finalImages.length === 0 && !finalLink) {
+    return NextResponse.json({ error: 'ต้องมีข้อความ รูป หรือลิงก์ อย่างน้อยอย่างใดอย่างหนึ่ง' }, { status: 400 });
   }
 
   const { data: saved, error } = await supabaseAdmin
@@ -166,6 +213,9 @@ export async function PUT(request: NextRequest) {
     .select(SELECT)
     .single();
 
+  if (error?.code === DUPLICATE_TITLE_CODE) {
+    return NextResponse.json({ error: `มีข้อความสำเร็จรูปชื่อ "${update.title}" อยู่แล้ว`, code: 'duplicate_title' }, { status: 409 });
+  }
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ reply: saved });
 }

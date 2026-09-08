@@ -14,7 +14,7 @@ import { useEffect, useRef } from 'react';
 import { Search, Plus, Settings2, MessageSquareText, Loader2, Pencil } from 'lucide-react';
 import Link from 'next/link';
 import Tooltip from '@/components/ui/Tooltip';
-import { savedReplyPreview, type SavedReply } from '@/lib/chat/saved-replies';
+import { savedReplyPreview, savedReplyThumb, type SavedReply } from '@/lib/chat/saved-replies';
 
 interface Props {
   replies: SavedReply[];
@@ -106,9 +106,16 @@ export default function SavedReplyPicker({
                 onClick={() => onSelect(r)}
                 className="min-w-0 flex-1 flex items-start gap-2.5 pl-3 pr-1 py-2 text-left"
               >
-                {r.image_url && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={r.image_url} alt="" className="w-9 h-9 rounded object-cover flex-shrink-0 mt-0.5" />
+                {savedReplyThumb(r) && (
+                  <span className="relative flex-shrink-0 mt-0.5">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={savedReplyThumb(r)!} alt="" className="w-9 h-9 rounded object-cover" />
+                    {r.image_urls.length > 1 && (
+                      <span className="absolute -bottom-0.5 -right-0.5 px-1 rounded bg-black/60 text-white helper-text leading-none py-0.5">
+                        {r.image_urls.length}
+                      </span>
+                    )}
+                  </span>
                 )}
                 <span className="min-w-0 flex-1">
                   <span className="block text-sm font-medium text-gray-900 dark:text-white truncate">{r.title}</span>

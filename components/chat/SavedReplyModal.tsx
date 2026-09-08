@@ -1,23 +1,30 @@
 // Path: components/chat/SavedReplyModal.tsx
 //
 // สร้าง/แก้ข้อความสำเร็จรูป — **ตัวเดียวใช้ทั้งหน้าจัดการ (`/settings/saved-replies`)
-// และปุ่ม "บันทึกข้อความนี้" ในหน้าแชท** เพื่อไม่ให้กติกา (ชื่อบังคับ · ต้องมีข้อความหรือรูป ·
-// ชิปตัวแปร) หลุดกันสองที่
+// และปุ่มดินสอ/เพิ่มใหม่ในหน้าแชท** เพื่อไม่ให้กติกา (ชื่อบังคับ · ห้ามอักขระพิเศษ ·
+// ห้ามซ้ำ · ต้องมีข้อความหรือรูปหรือลิงก์ · ชิปตัวแปร) หลุดกันสองที่
+//
+// กติกาของชื่ออยู่ที่ [lib/chat/saved-replies.ts](../../lib/chat/saved-replies.ts) ตัวเดียว
+// ที่ API ใช้ด้วย — หน้าจอจึงไม่มีทางบอกว่า "ใช้ได้" แล้วเซิร์ฟเวอร์ปฏิเสธ
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
-import { MessageSquareText } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { MessageSquareText, X, Link2, ImagePlus } from 'lucide-react';
 import Modal from '@/components/ui/Modal';
 import Button from '@/components/ui/Button';
 import SaveButton from '@/components/ui/SaveButton';
 import FormInput from '@/components/ui/FormInput';
 import ImageDropzone from '@/components/ui/ImageDropzone';
 import { useToast } from '@/lib/toast-context';
-import { apiFetch } from '@/lib/api-client';
+import { apiFetch, invalidateApiCache } from '@/lib/api-client';
 import { supabase } from '@/lib/supabase';
 import { storageKeyFor } from '@/lib/storage-key';
 import { SAVED_REPLY_VARS } from '@/lib/chat/saved-reply-vars';
-import type { SavedReply } from '@/lib/chat/saved-replies';
+import {
+  MAX_SAVED_REPLY_IMAGES, MAX_SAVED_REPLY_TITLE, SAVED_REPLY_TITLE_HINT,
+  sanitizeSavedReplyTitle, hasDisallowedTitleChars, findDuplicateTitle,
+  type SavedReply,
+} from '@/lib/chat/saved-replies';
 
 interface Props {
   open: boolean;
@@ -29,22 +36,66 @@ interface Props {
   onSaved: (reply: SavedReply) => void;
 }
 
+/** รูปหนึ่งใบในฟอร์ม — ของเดิมมีแต่ `url` · ของที่เพิ่งเลือกมีแต่ `file` (ยังไม่อัป) */
+interface DraftImage {
+  key: string;
+  url?: string;
+  file?: File;
+  preview: string;
+}
+
 export default function SavedReplyModal({ open, onClose, reply, initialContent, onSaved }: Props) {
   const { showToast } = useToast();
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
-  const [imageFile, setImageFile] = useState<File | null>(null);
-  const [existingImage, setExistingImage] = useState<string | null>(null);
+  const [linkUrl, setLinkUrl] = useState('');
+  const [images, setImages] = useState<DraftImage[]>([]);
   const [saving, setSaving] = useState(false);
+  const [charWarning, setCharWarning] = useState(false);
+  /** รายชื่อทั้งหมดของบริษัท ไว้บอก "ชื่อนี้มีแล้ว" ตั้งแต่ตอนพิมพ์ (เซิร์ฟเวอร์ยังกันซ้ำอีกชั้น) */
+  const [allReplies, setAllReplies] = useState<SavedReply[]>([]);
   const contentRef = useRef<HTMLTextAreaElement>(null);
+  /** objectURL ที่สร้างเองต้องคืนเอง ไม่งั้นรั่วทุกครั้งที่เปิดโมดัล */
+  const objectUrls = useRef<string[]>([]);
 
   useEffect(() => {
     if (!open) return;
     setTitle(reply?.title || '');
     setContent(reply?.content ?? initialContent ?? '');
-    setExistingImage(reply?.image_url || null);
-    setImageFile(null);
+    setLinkUrl(reply?.link_url || '');
+    setImages((reply?.image_urls || []).map((url, i) => ({ key: `u${i}-${url}`, url, preview: url })));
+    setCharWarning(false);
+    // อ่านทั้งคลัง (ไม่ใช่แค่ที่เปิดใช้) — ชื่อชนกับใบที่ปิดอยู่ก็ยังชน · apiFetch แคช 60 วิ
+    apiFetch('/api/chat/saved-replies')
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d?.replies) setAllReplies(d.replies as SavedReply[]); })
+      .catch(() => {});
   }, [open, reply, initialContent]);
+
+  useEffect(() => () => {
+    objectUrls.current.forEach(URL.revokeObjectURL);
+    objectUrls.current = [];
+  }, []);
+
+  /** กันอักขระต้องห้าม **ตั้งแต่ตอนพิมพ์** — ตัวที่พิมพ์ไม่ขึ้นต้องมีคำอธิบายเสมอ ไม่ใช่เงียบ */
+  const onTitleChange = (raw: string) => {
+    const clean = sanitizeSavedReplyTitle(raw);
+    setCharWarning(hasDisallowedTitleChars(raw));
+    setTitle(clean);
+  };
+
+  const duplicate = useMemo(
+    () => findDuplicateTitle(allReplies, title, reply?.id),
+    [allReplies, title, reply?.id],
+  );
+
+  const addImage = (file: File | null) => {
+    if (!file) return;
+    const preview = URL.createObjectURL(file);
+    objectUrls.current.push(preview);
+    setImages(prev => prev.length >= MAX_SAVED_REPLY_IMAGES ? prev
+      : [...prev, { key: `f-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, file, preview }]);
+  };
 
   /** แทรกโทเคนตรงตำแหน่งเคอร์เซอร์ ไม่ใช่ต่อท้าย — คนเขียนอยู่กลางประโยคจะได้ไม่ต้องย้ายเอง */
   const insertVar = (token: string) => {
@@ -52,8 +103,7 @@ export default function SavedReplyModal({ open, onClose, reply, initialContent, 
     if (!el) { setContent(prev => prev + token); return; }
     const start = el.selectionStart ?? content.length;
     const end = el.selectionEnd ?? start;
-    const next = content.slice(0, start) + token + content.slice(end);
-    setContent(next);
+    setContent(content.slice(0, start) + token + content.slice(end));
     requestAnimationFrame(() => {
       el.focus();
       el.setSelectionRange(start + token.length, start + token.length);
@@ -63,34 +113,40 @@ export default function SavedReplyModal({ open, onClose, reply, initialContent, 
   const save = async () => {
     const t = title.trim();
     const c = content.trim();
+    const link = linkUrl.trim();
     if (!t) { showToast('กรุณาตั้งชื่อข้อความสำเร็จรูป', 'error'); return; }
-    if (!c && !imageFile && !existingImage) {
-      showToast('ต้องมีข้อความหรือรูปอย่างน้อยอย่างใดอย่างหนึ่ง', 'error');
+    if (duplicate) { showToast(`มีข้อความสำเร็จรูปชื่อ "${duplicate.title}" อยู่แล้ว`, 'error'); return; }
+    if (!c && images.length === 0 && !link) {
+      showToast('ต้องมีข้อความ รูป หรือลิงก์ อย่างน้อยอย่างใดอย่างหนึ่ง', 'error');
       return;
     }
+    if (link && !/^https:\/\//.test(link)) { showToast('ลิงก์ต้องขึ้นต้นด้วย https://', 'error'); return; }
 
     setSaving(true);
     try {
-      let imageUrl = existingImage;
-
-      if (imageFile) {
+      // อัปเฉพาะใบที่เพิ่งเลือก — ใบเก่าคง URL เดิม และ **ลำดับต้องไม่สลับ** (ส่งตามลำดับนี้)
+      const urls: string[] = [];
+      for (const img of images) {
+        if (img.url) { urls.push(img.url); continue; }
+        if (!img.file) continue;
         // ชื่อไฟล์ต้องผ่าน storageKeyFor — ชื่อไทย/อีโมจิ/# ทำให้ Storage ตอบ 400 InvalidKey
-        const path = `saved-replies/${storageKeyFor(imageFile.name, 'jpg')}`;
+        const path = `saved-replies/${storageKeyFor(img.file.name, 'jpg')}`;
         const { error: uploadError } = await supabase.storage
           .from('chat-media')
-          .upload(path, imageFile, { contentType: imageFile.type || 'image/jpeg' });
+          .upload(path, img.file, { contentType: img.file.type || 'image/jpeg' });
         if (uploadError) throw new Error(`อัปโหลดรูปไม่สำเร็จ: ${uploadError.message}`);
-        imageUrl = supabase.storage.from('chat-media').getPublicUrl(path).data.publicUrl;
+        urls.push(supabase.storage.from('chat-media').getPublicUrl(path).data.publicUrl);
       }
 
       const res = await apiFetch('/api/chat/saved-replies', {
         method: reply ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: reply?.id, title: t, content: c, image_url: imageUrl }),
+        body: JSON.stringify({ id: reply?.id, title: t, content: c, image_urls: urls, link_url: link || null }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || 'บันทึกไม่สำเร็จ');
 
+      invalidateApiCache('/api/chat/saved-replies');
       showToast(reply ? 'แก้ไขข้อความสำเร็จรูปแล้ว' : 'บันทึกข้อความสำเร็จรูปแล้ว');
       onSaved(data.reply as SavedReply);
       onClose();
@@ -111,7 +167,7 @@ export default function SavedReplyModal({ open, onClose, reply, initialContent, 
       footer={
         <div className="flex justify-end gap-2 px-6 py-4">
           <Button variant="secondary" onClick={onClose} disabled={saving}>ยกเลิก</Button>
-          <SaveButton onClick={save} loading={saving} />
+          <SaveButton onClick={save} loading={saving} disabled={!!duplicate} />
         </div>
       }
     >
@@ -120,10 +176,11 @@ export default function SavedReplyModal({ open, onClose, reply, initialContent, 
           label="ชื่อเรียก"
           required
           value={title}
-          onChange={e => setTitle(e.target.value)}
-          placeholder="เช่น ค่าส่ง, เลขบัญชี, ขอบคุณที่สั่งซื้อ"
-          hint="ใช้ค้นหาตอนพิมพ์ / ในช่องแชท"
-          maxLength={60}
+          onChange={e => onTitleChange(e.target.value)}
+          placeholder="เช่น ค่าส่ง เลขบัญชี ขอบคุณ"
+          error={duplicate ? `มีชื่อนี้อยู่แล้ว (${duplicate.title}) — ตั้งชื่ออื่นที่ไม่ซ้ำ` : undefined}
+          hint={charWarning ? SAVED_REPLY_TITLE_HINT : 'พิมพ์ต่อจาก / ในช่องแชทเพื่อเรียกใช้ — ห้ามซ้ำกับใบอื่น'}
+          maxLength={MAX_SAVED_REPLY_TITLE}
         />
 
         <div>
@@ -156,27 +213,52 @@ export default function SavedReplyModal({ open, onClose, reply, initialContent, 
           </p>
         </div>
 
+        {/* ลิงก์: คลิปยูทูปส่งเป็นลิงก์ในข้อความ ใช้ได้ครบทุกช่องทาง (ส่งไฟล์วิดีโอจริงยังไม่รองรับ) */}
         <div>
-          <label className="field-label block mb-1">รูปแนบ (ถ้ามี)</label>
-          <ImageDropzone
-            value={imageFile}
-            onChange={setImageFile}
-            initialPreviewUrl={existingImage}
-            label="ลากรูปมาวาง หรือกดเพื่อเลือก"
-            hint="เช่น รูปโปรโมชั่น · QR พร้อมเพย์ · แผนที่ร้าน"
-            disabled={saving}
+          <FormInput
+            label="ลิงก์แนบ (ถ้ามี)"
+            value={linkUrl}
+            onChange={e => setLinkUrl(e.target.value)}
+            placeholder="https://youtu.be/..."
+            icon={<Link2 className="w-4 h-4" />}
+            hint="เช่น คลิปวิธีใช้ · หน้าสินค้า · แผนที่ — ต่อท้ายข้อความให้อัตโนมัติตอนแทรก"
           />
-          {existingImage && !imageFile && (
-            <button
-              type="button"
-              onClick={() => setExistingImage(null)}
-              className="helper-text text-red-600 hover:underline mt-1"
-            >
-              เอารูปออก
-            </button>
+        </div>
+
+        <div>
+          <label className="field-label block mb-1">รูปแนบ (ไม่เกิน {MAX_SAVED_REPLY_IMAGES} รูป)</label>
+          {images.length > 0 && (
+            <div className="flex flex-wrap gap-2 mb-2">
+              {images.map((img, i) => (
+                <div key={img.key} className="relative w-24 h-24 rounded-lg overflow-hidden border border-gray-200 dark:border-slate-600">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={img.preview} alt="" className="w-full h-full object-cover" />
+                  <span className="absolute bottom-0 left-0 px-1.5 helper-text bg-black/50 text-white rounded-tr">{i + 1}</span>
+                  <button
+                    type="button"
+                    disabled={saving}
+                    onClick={() => setImages(prev => prev.filter(x => x.key !== img.key))}
+                    aria-label="เอารูปนี้ออก"
+                    className="absolute top-1 right-1 p-0.5 rounded-full bg-black/50 text-white hover:bg-black/70"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          {images.length < MAX_SAVED_REPLY_IMAGES && (
+            <ImageDropzone
+              value={null}
+              onChange={addImage}
+              icon={<ImagePlus className="w-6 h-6" />}
+              label={images.length === 0 ? 'ลากรูปมาวาง หรือกดเพื่อเลือก' : 'เพิ่มอีกรูป'}
+              hint="เช่น รูปโปรโมชั่น · QR พร้อมเพย์ · แผนที่ร้าน"
+              disabled={saving}
+            />
           )}
           <p className="helper-text text-gray-500 mt-1">
-            รูปจะถูกส่งตามหลังข้อความเมื่อกดส่งในหน้าแชท
+            ส่งตามหลังข้อความตามลำดับที่เรียงไว้ · <b>รูป 1 ใบ = 1 ข้อความ</b> ของ LINE (แนบ {MAX_SAVED_REPLY_IMAGES} รูป = กินโควตา {MAX_SAVED_REPLY_IMAGES} ใบต่อลูกค้า 1 คน)
           </p>
         </div>
       </div>
