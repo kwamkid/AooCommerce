@@ -214,8 +214,9 @@ export default function FormSelect({
               : 'border-gray-300 dark:border-slate-500 bg-white dark:bg-slate-800 hover:border-gray-400 dark:hover:border-slate-400'
         } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
       >
-        {icon && <span className="flex-shrink-0 text-gray-400 dark:text-slate-400">{icon}</span>}
-        {selected?.icon && <span className="flex-shrink-0">{selected.icon}</span>}
+        {/* ห่อไอคอนให้เป็นกล่อง flex — `<img>/<svg>` เป็น inline มีช่องว่างใต้ตัว ทำให้ดูไม่ตรงกลางกับข้อความ */}
+        {icon && <span className="flex-shrink-0 flex items-center leading-none [&>img]:block [&>svg]:block text-gray-400 dark:text-slate-400">{icon}</span>}
+        {selected?.icon && <span className="flex-shrink-0 flex items-center leading-none [&>img]:block [&>svg]:block">{selected.icon}</span>}
         <span className={`flex-1 truncate ${
           selected ? 'text-gray-900 dark:text-white' : 'text-gray-400 dark:text-slate-400'
         }`}>
@@ -281,7 +282,7 @@ export default function FormSelect({
                   {level > 0 && (
                     <span className="text-gray-300 dark:text-slate-600 flex-shrink-0 select-none">└</span>
                   )}
-                  {o.icon && <span className="flex-shrink-0">{o.icon}</span>}
+                  {o.icon && <span className="flex-shrink-0 flex items-center leading-none [&>img]:block [&>svg]:block">{o.icon}</span>}
                   {/* `whitespace-nowrap` keeps the label intact so the dropdown
                       grows to fit it (capped by maxWidth on the dropdown root).
                       Was previously `min-w-0 truncate` — that forced labels like

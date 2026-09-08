@@ -1317,10 +1317,12 @@ export default function EditProductPage() {
         {hasTabs && (
           <Tabs
             className="mb-0"
+            iconPosition="top"
             activeKey={activeTab}
             onSelect={setActiveTab}
             tabs={[
-              { key: 'info', label: 'ข้อมูลสินค้า' },
+              // ทุกแท็บต้องมีไอคอน ไม่งั้นแบบไอคอนอยู่บนจะสูงไม่เท่ากัน
+              { key: 'info', label: 'ข้อมูลสินค้า', icon: <Package2 className="w-4 h-4" /> },
               ...shopAccounts.map(([accountId, account]) => ({
                 key: accountId,
                 label: account.name,
