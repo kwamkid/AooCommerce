@@ -9,7 +9,7 @@ import {
 import { resolveBroadcastTarget } from '@/lib/broadcast/accounts';
 import { runBroadcast } from '@/lib/broadcast/run';
 import {
-  buildLineMessages,
+  buildLineMessagesFromContent,
   getLineFollowerStats,
   getLineQuota,
   quotaBlocks,
@@ -18,6 +18,11 @@ import {
   type BroadcastAudienceType,
 } from '@/lib/line/broadcast';
 import { resolveTikTokRecipients } from '@/lib/tiktok/broadcast';
+import {
+  broadcastContentPreview,
+  validateBroadcastContent,
+  type BroadcastContent,
+} from '@/lib/broadcast/content';
 
 // ส่งจริงเกิดใน after() ของ POST — ต้องให้ฟังก์ชันอยู่ได้นานพอที่จะไล่ล็อตจนจบ
 export const maxDuration = 300;
@@ -142,19 +147,23 @@ export async function POST(request: NextRequest) {
     const { target, error: targetError } = await resolveBroadcastTarget(auth.companyId, platform, accountId);
     if (!target) return NextResponse.json({ error: targetError }, { status: 400 });
 
-    const compose = BROADCAST_PLATFORMS[platform].compose;
-    const title = typeof body.title === 'string' ? body.title.trim() : '';
-    const text = typeof body.text === 'string' ? body.text.trim() : '';
-    if (text.length > compose.bodyMax) {
-      return NextResponse.json({ error: `ข้อความยาวเกิน ${compose.bodyMax.toLocaleString()} ตัวอักษร` }, { status: 400 });
-    }
-    if (compose.titleMax && title.length > compose.titleMax) {
-      return NextResponse.json({ error: `หัวข้อยาวเกิน ${compose.titleMax} ตัวอักษร` }, { status: 400 });
-    }
+    // เนื้อหาเป็น "ชนิดกลาง" — ตรวจด้วยฟังก์ชันเดียวกับที่หน้าจอใช้ ผู้ใช้จึงไม่มีทาง
+    // เจอกรณีที่หน้าจอบอกว่าได้แล้ว API ปฏิเสธ
+    const content: BroadcastContent = {
+      kind: body.content?.kind || 'announce',
+      title: body.content?.title || '',
+      text: body.content?.text || '',
+      image_url: body.content?.image_url || null,
+      buttons: body.content?.buttons || [],
+      products: body.content?.products || [],
+      quick_replies: body.content?.quick_replies || [],
+    };
+    const contentError = validateBroadcastContent(platform, content);
+    if (contentError) return NextResponse.json({ error: contentError }, { status: 400 });
 
     let messages: unknown;
     let recipientCount: number;
-    let preview: string;
+    const preview = broadcastContentPreview(content);
 
     // ─── LINE ───────────────────────────────────────────────────────────
     if (platform === 'line') {
@@ -163,7 +172,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'ช่องทางนี้ยังไม่ได้ตั้งค่า token — ตั้งค่าที่ ตั้งค่า > ช่องทาง Chat' }, { status: 400 });
       }
       try {
-        messages = buildLineMessages({ text: body.text, imageUrl: body.image_url });
+        messages = buildLineMessagesFromContent(content);
       } catch (e) {
         return NextResponse.json({ error: e instanceof Error ? e.message : 'ข้อความไม่ถูกต้อง' }, { status: 400 });
       }
@@ -195,13 +204,9 @@ export async function POST(request: NextRequest) {
           error: `โควตาข้อความของ OA เหลือ ${quota.remaining?.toLocaleString()} ข้อความ แต่ต้องใช้ ${recipientCount.toLocaleString()} ข้อความ`,
         }, { status: 400 });
       }
-      preview = text ? text.slice(0, 120) : '[รูปภาพ]';
 
     // ─── TikTok Shop ────────────────────────────────────────────────────
     } else if (platform === 'tiktok') {
-      if (!title || !text) {
-        return NextResponse.json({ error: 'TikTok ต้องมีทั้งหัวข้อและข้อความ' }, { status: 400 });
-      }
       const recipients = await resolveTikTokRecipients(
         auth.companyId, target.marketplaceAccountId!, audienceType, audienceFilter,
       );
@@ -211,13 +216,28 @@ export async function POST(request: NextRequest) {
         }, { status: 400 });
       }
       recipientCount = recipients.length;
+
+      // การ์ดสินค้าของ TikTok อ้าง id ฝั่งเขา ไม่ใช่ uuid ของเรา — แปลงผ่าน link ที่ผูกไว้
+      // สินค้าที่ยังไม่เคยผูกกับร้านนี้ก็ตกไปเฉย ๆ (ข้อความยังส่งได้ ไม่ล้มทั้งใบ)
+      let tiktokProductIds: string[] = [];
+      const ourIds = (content.products || []).map(p => p.product_id).filter((v): v is string => !!v);
+      if (ourIds.length) {
+        const { data: links } = await supabaseAdmin
+          .from('marketplace_product_links')
+          .select('product_id, external_item_id')
+          .eq('company_id', auth.companyId)
+          .eq('account_id', target.marketplaceAccountId!)
+          .in('product_id', ourIds);
+        tiktokProductIds = [...new Set((links || [])
+          .map(l => l.external_item_id as string)
+          .filter(Boolean))].slice(0, 4);
+      }
+
       messages = {
-        title,
-        body: text,
-        ...(Array.isArray(body.product_ids) && body.product_ids.length ? { product_ids: body.product_ids.slice(0, 4) } : {}),
-        ...(Array.isArray(body.coupon_ids) && body.coupon_ids.length ? { coupon_ids: body.coupon_ids.slice(0, 1) } : {}),
+        title: (content.title || '').trim(),
+        body: (content.text || '').trim(),
+        ...(tiktokProductIds.length ? { product_ids: tiktokProductIds } : {}),
       };
-      preview = `${title} — ${text}`.slice(0, 120);
 
     } else {
       // ช่องทางอื่นถูกกันไปแล้วที่ resolveBroadcastTarget — กันไว้อีกชั้นกัน branch หลุด

@@ -35,16 +35,35 @@ export type BroadcastPlatformStatus = 'ready' | 'possible';
 export type BroadcastKind = 'broadcast' | 'bulk_dm';
 
 /**
+ * ชนิดเนื้อหาของบรอดแคสต์ — **เป็นชนิดกลาง ไม่ผูกกับแพลตฟอร์มไหน**
+ * แต่ละเจ้าแปลงเป็นของตัวเอง (LINE → template/carousel · TikTok → title+body+product_ids)
+ * ⛔ ห้ามให้ผู้ใช้เลือกเป็นศัพท์ของ LINE ('flex'/'carousel') — พอไปเจ้าอื่นจะแปลไม่ได้
+ *
+ *  announce = ข้อความ (+รูป) เฉย ๆ
+ *  promo    = แบนเนอร์ + หัวข้อ + ข้อความ + ปุ่มกด
+ *  products = การ์ดสินค้าเลื่อนได้ เลือกจากคลังสินค้าของเรา
+ */
+export type BroadcastContentKind = 'announce' | 'promo' | 'products';
+
+/**
  * ข้อความที่แต่ละเจ้ารับได้ — **หน้าจอกับ API ตรวจจากตัวเลขชุดนี้ชุดเดียว**
  * ห้าม hardcode ลิมิตซ้ำในหน้าหรือ route (เคยมี LINE_TEXT_MAX ลอยอยู่ในหน้าแล้ว)
  */
 export interface BroadcastCompose {
-  /** มีหัวข้อแยกไหม + ยาวได้เท่าไหร่ (TikTok 70 · LINE ไม่มีหัวข้อ) */
+  /** มีหัวข้อแยกไหม + ยาวได้เท่าไหร่ (TikTok 70 · LINE ไม่มีหัวข้อในโหมด announce) */
   titleMax?: number;
   /** ตัวเนื้อความ (LINE 5,000 · TikTok 500) */
   bodyMax: number;
   /** แนบรูปได้ไหม (TikTok custom message มีแค่ข้อความล้วน) */
   image: boolean;
+  /** ชนิดเนื้อหาที่ช่องทางนี้ทำได้จริง */
+  kinds: BroadcastContentKind[];
+  /** ปุ่มลิงก์ต่อข้อความ (0 = ช่องทางนี้ไม่มีปุ่ม ต้องเอาลิงก์ไปแปะท้ายข้อความแทน) */
+  buttonsMax: number;
+  /** การ์ดสินค้าต่อข้อความ */
+  productsMax: number;
+  /** ปุ่มตอบเร็ว (0 = ไม่มี) */
+  quickReplyMax: number;
 }
 
 export interface BroadcastPlatformInfo {
@@ -66,7 +85,13 @@ export const BROADCAST_PLATFORMS: Record<BroadcastPlatform, BroadcastPlatformInf
     id: 'line',
     label: 'LINE OA',
     kind: 'broadcast',
-    compose: { bodyMax: 5000, image: true },
+    // LINE นับโควตาต่อ "การส่ง 1 ครั้ง" (สูงสุด 3 bubble = ยัง 1 credit) — การ์ดที่มีรูป
+    // + หัวข้อ + ปุ่ม เป็น message object เดียว จึงไม่แพงกว่าส่งข้อความเปล่าเลย
+    compose: {
+      bodyMax: 5000, image: true,
+      kinds: ['announce', 'promo', 'products'],
+      buttonsMax: 4, productsMax: 10, quickReplyMax: 13,
+    },
     audience: 'ผู้ติดตามทุกคน แม้ไม่เคยทักมา — หรือเลือกเฉพาะกลุ่ม/แท็ก',
     status: 'ready',
   },
@@ -83,7 +108,12 @@ export const BROADCAST_PLATFORMS: Record<BroadcastPlatform, BroadcastPlatformInf
     label: 'TikTok Shop',
     kind: 'broadcast',
     // custom_message: title [1,70] · body [1,500] · ไม่มีช่องรูป (การ์ดสินค้า/คูปองเป็นของแยก)
-    compose: { titleMax: 70, bodyMax: 500, image: false },
+    compose: {
+      titleMax: 70, bodyMax: 500, image: false,
+      // ไม่มีปุ่มลิงก์อิสระ — การ์ดสินค้าเป็นของ TikTok เอง (product_ids)
+      kinds: ['announce', 'products'],
+      buttonsMax: 0, productsMax: 4, quickReplyMax: 0,
+    },
     audience: 'ลูกค้าที่เคยสั่งซื้อภายใน 365 วัน',
     status: 'possible',
     reason: 'โค้ดฝั่งเราพร้อมแล้ว แต่ยังส่งไม่ได้ — **Partner Center ไม่มี scope ของ Customer Engagement ให้ขอ** ทั้ง app หมวด Order Management และ Customer Support (ยิงจริงตอบ 105005) ต้องรู้ก่อนว่ามันอยู่ใน scope/หมวดไหน · ตรวจซ้ำด้วย `node scripts/check-tiktok-engagement.mjs`',
@@ -96,7 +126,10 @@ export const BROADCAST_PLATFORMS: Record<BroadcastPlatform, BroadcastPlatformInf
     label: 'Lazada',
     kind: 'bulk_dm',
     // ตัวเลขนี้ ยังไม่ยืนยันกับของจริง — ยืนยันตอนต่อ API จริง
-    compose: { bodyMax: 4000, image: true },
+    compose: {
+      bodyMax: 4000, image: true,
+      kinds: ['announce'], buttonsMax: 0, productsMax: 0, quickReplyMax: 0,
+    },
     audience: 'ลูกค้าที่มีออเดอร์ไม่เกิน 30 วัน หรือห้องที่คุยกันอยู่',
     status: 'possible',
     reason: 'Lazada ไม่มี API บรอดแคสต์ — เปิดห้องได้จากออเดอร์ที่ไม่เกิน 30 วัน แล้วส่งทีละห้อง (เกิน 30 วันเปิดห้องไม่ได้เลย) เรายังไม่ได้ต่อ',
@@ -108,7 +141,10 @@ export const BROADCAST_PLATFORMS: Record<BroadcastPlatform, BroadcastPlatformInf
     label: 'Shopee',
     kind: 'bulk_dm',
     // ตัวเลขนี้ ยังไม่ยืนยันกับของจริง — ยืนยันตอนต่อ API จริง
-    compose: { bodyMax: 2000, image: true },
+    compose: {
+      bodyMax: 2000, image: true,
+      kinds: ['announce'], buttonsMax: 0, productsMax: 0, quickReplyMax: 0,
+    },
     audience: 'ลูกค้าที่เคยทักเข้ามาในแชทแล้วเท่านั้น',
     status: 'possible',
     reason: 'Shopee ไม่มี API บรอดแคสต์ (Chat Broadcast มีเฉพาะให้กดเองใน Seller Center) — ผ่าน API ส่งได้ทีละห้องเฉพาะห้องที่ลูกค้าทักมาแล้ว เรายังไม่ได้ต่อ',
@@ -121,7 +157,10 @@ export const BROADCAST_PLATFORMS: Record<BroadcastPlatform, BroadcastPlatformInf
     label: 'Facebook',
     kind: 'bulk_dm',
     // ตัวเลขนี้ ยังไม่ยืนยันกับของจริง — ยืนยันตอนต่อ API จริง
-    compose: { bodyMax: 2000, image: true },
+    compose: {
+      bodyMax: 2000, image: true,
+      kinds: ['announce'], buttonsMax: 0, productsMax: 0, quickReplyMax: 0,
+    },
     audience: 'คนที่ทักมาภายใน 24 ชม. ล่าสุด',
     status: 'possible',
     reason: 'Meta ให้ส่งได้เฉพาะภายใน 24 ชม. นับจากลูกค้าทักล่าสุด — เลยกรอบนั้น API ปฏิเสธเอง (message tag ที่เหลือห้ามเนื้อหาโปรโมชัน) เรายังไม่ได้ต่อ',
@@ -132,7 +171,10 @@ export const BROADCAST_PLATFORMS: Record<BroadcastPlatform, BroadcastPlatformInf
     label: 'Instagram',
     kind: 'bulk_dm',
     // ตัวเลขนี้ ยังไม่ยืนยันกับของจริง — ยืนยันตอนต่อ API จริง
-    compose: { bodyMax: 1000, image: true },
+    compose: {
+      bodyMax: 1000, image: true,
+      kinds: ['announce'], buttonsMax: 0, productsMax: 0, quickReplyMax: 0,
+    },
     audience: 'คนที่ทักมาภายใน 24 ชม. ล่าสุด',
     status: 'possible',
     reason: 'กติกาเดียวกับ Facebook — นอกกรอบ 24 ชม. เหลือแค่ human agent 7 วัน ซึ่งมีไว้ตอบเรื่องบริการลูกค้า ไม่ใช่ส่งโปรโมชัน เรายังไม่ได้ต่อ',

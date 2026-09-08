@@ -16,6 +16,7 @@ import { getChatAccount, getLineCredsFromAccount } from '@/lib/chat-config';
 import { logIntegrationNow } from '@/lib/integration-logger';
 import { fetchAllRows } from '@/lib/supabase-paging';
 import { LINE_TEXT_MAX, MULTICAST_BATCH_SIZE } from '@/lib/line/constants';
+import type { BroadcastContent, BroadcastProductCard } from '@/lib/broadcast/content';
 
 const LINE_API = 'https://api.line.me/v2/bot';
 
@@ -30,9 +31,33 @@ export interface BroadcastAudienceFilter {
   tag_ids?: string[];
 }
 
+/** ปุ่มบนการ์ด/ปุ่มตอบเร็ว — uri = เปิดลิงก์ · message = ส่งข้อความกลับเข้าห้องแชท */
+export type LineAction =
+  | { type: 'uri'; label: string; uri: string }
+  | { type: 'message'; label: string; text: string };
+
+export interface LineQuickReply {
+  items: { type: 'action'; action: LineAction }[];
+}
+
+export interface LineCarouselColumn {
+  thumbnailImageUrl?: string;
+  title?: string;
+  text: string;
+  actions: LineAction[];
+}
+
 export type LineMessageObject =
-  | { type: 'text'; text: string }
-  | { type: 'image'; originalContentUrl: string; previewImageUrl: string };
+  | { type: 'text'; text: string; quickReply?: LineQuickReply }
+  | { type: 'image'; originalContentUrl: string; previewImageUrl: string; quickReply?: LineQuickReply }
+  | {
+      type: 'template';
+      altText: string;
+      quickReply?: LineQuickReply;
+      template:
+        | { type: 'buttons'; thumbnailImageUrl?: string; title?: string; text: string; actions: LineAction[] }
+        | { type: 'carousel'; columns: LineCarouselColumn[] };
+    };
 
 export interface LineQuota {
   /** 'none' = ไม่จำกัด · 'limited' = มีเพดานรายเดือน · 'unknown' = ถาม LINE ไม่สำเร็จ */
@@ -273,30 +298,96 @@ export async function resolveBroadcastRecipients(
 // ─── ข้อความ ──────────────────────────────────────────────────────────
 
 /** แปลงข้อความที่ผู้ใช้กรอกเป็น message object ของ LINE (ข้อความก่อน แล้วรูป) */
-export function buildLineMessages(input: { text?: string | null; imageUrl?: string | null }): LineMessageObject[] {
-  const text = (input.text || '').trim();
-  const imageUrl = (input.imageUrl || '').trim();
-  const messages: LineMessageObject[] = [];
+/**
+ * แปลงเนื้อหาชนิดกลางเป็น message object ของ LINE
+ *
+ * ⚠️ **LINE นับโควตาต่อ "การส่ง 1 ครั้ง" (สูงสุด 3 bubble ยังนับเป็น 1)** — การ์ดที่มี
+ * รูป + หัวข้อ + ข้อความ + ปุ่ม เป็น object เดียว จึงไม่แพงกว่าส่งข้อความเปล่าเลย
+ * แต่เกิน 3 object เมื่อไหร่กลายเป็น 2 credit ต่อคน จึงกันเพดานไว้ที่นี่
+ */
+export const LINE_MAX_BUBBLES = 3;
 
-  if (text) {
-    if (text.length > LINE_TEXT_MAX) {
-      throw new Error(`ข้อความยาวเกิน ${LINE_TEXT_MAX.toLocaleString()} ตัวอักษร`);
-    }
-    messages.push({ type: 'text', text });
-  }
+/** ปุ่มตอบเร็ว — แนบไปกับ object สุดท้าย ไม่นับเป็น bubble เพิ่ม */
+function buildQuickReply(labels: string[] | undefined): LineQuickReply | undefined {
+  const items = (labels || []).map(l => l.trim()).filter(Boolean);
+  if (items.length === 0) return undefined;
+  return {
+    items: items.map(label => ({
+      type: 'action' as const,
+      // message action = ลูกค้ากดแล้วข้อความนั้นถูกส่งเข้าห้องแชทเหมือนพิมพ์เอง
+      // ⇒ ได้บทสนทนาให้แอดมินปิดการขายต่อ (และเปิดหน้าต่างตอบกลับของแพลตฟอร์มอื่นด้วย)
+      action: { type: 'message' as const, label, text: label },
+    })),
+  };
+}
 
-  if (imageUrl) {
-    if (!/^https:\/\//i.test(imageUrl)) {
-      throw new Error('ลิงก์รูปต้องเป็น https');
+/** ปุ่มของการ์ดสินค้า — ไม่มีลิงก์ก็ยังต้องมีปุ่ม (LINE บังคับ ≥1 action ต่อคอลัมน์) */
+function productAction(p: BroadcastProductCard): LineAction {
+  if (p.url) return { type: 'uri', label: 'ดูสินค้า', uri: p.url };
+  return { type: 'message', label: 'สนใจสินค้านี้', text: `สนใจ ${p.name}`.slice(0, 300) };
+}
+
+export function buildLineMessagesFromContent(content: BroadcastContent): LineMessageObject[] {
+  const title = (content.title || '').trim();
+  const text = (content.text || '').trim();
+  const imageUrl = (content.image_url || '').trim();
+  const quickReply = buildQuickReply(content.quick_replies);
+  let messages: LineMessageObject[] = [];
+
+  if (content.kind === 'promo') {
+    // การ์ดเดียวจบ: รูปอยู่ในตัวการ์ด (thumbnailImageUrl) ไม่ต้องส่งรูปแยก
+    messages = [{
+      type: 'template',
+      altText: (title || text).slice(0, 400),
+      template: {
+        type: 'buttons',
+        ...(imageUrl ? { thumbnailImageUrl: imageUrl } : {}),
+        ...(title ? { title } : {}),
+        text,
+        actions: (content.buttons || []).map(b => ({
+          type: 'uri' as const, label: b.label.trim(), uri: b.url.trim(),
+        })),
+      },
+    }];
+
+  } else if (content.kind === 'products') {
+    const products = content.products || [];
+    const columns: LineCarouselColumn[] = products.map(p => ({
+      ...(p.image_url ? { thumbnailImageUrl: p.image_url } : {}),
+      title: p.name.slice(0, 40),
+      // LINE บังคับให้คอลัมน์มีข้อความ — ไม่มีราคาก็ต้องมีอะไรสักอย่าง
+      text: (p.price != null ? `฿${p.price.toLocaleString()}` : 'ดูรายละเอียด').slice(0, 60),
+      actions: [productAction(p)],
+    }));
+
+    // ข้อความเกริ่นเป็น bubble แรก (ถ้ามี) แล้วตามด้วยการ์ด — รวมยังไม่เกิน 3
+    if (text) messages.push({ type: 'text', text });
+    messages.push({ type: 'template', altText: (text || title || 'สินค้าแนะนำ').slice(0, 400), template: { type: 'carousel', columns } });
+
+  } else {
+    if (text) {
+      if (text.length > LINE_TEXT_MAX) {
+        throw new Error(`ข้อความยาวเกิน ${LINE_TEXT_MAX.toLocaleString()} ตัวอักษร`);
+      }
+      messages.push({ type: 'text', text });
     }
-    messages.push({ type: 'image', originalContentUrl: imageUrl, previewImageUrl: imageUrl });
+    if (imageUrl) {
+      if (!/^https:\/\//i.test(imageUrl)) throw new Error('ลิงก์รูปต้องเป็น https');
+      messages.push({ type: 'image', originalContentUrl: imageUrl, previewImageUrl: imageUrl });
+    }
   }
 
   if (messages.length === 0) throw new Error('ต้องมีข้อความหรือรูปอย่างน้อยหนึ่งอย่าง');
+  if (messages.length > LINE_MAX_BUBBLES) {
+    throw new Error(`ส่งได้ไม่เกิน ${LINE_MAX_BUBBLES} ส่วนต่อหนึ่งข้อความ`);
+  }
+
+  // ปุ่มตอบเร็วเกาะไปกับ object สุดท้ายเสมอ (LINE แสดงของ object ท้ายสุดเท่านั้น)
+  if (quickReply) messages[messages.length - 1] = { ...messages[messages.length - 1], quickReply };
+
   return messages;
 }
 
-/** ตัดรายชื่อผู้รับเป็นล็อตละ 500 พร้อม retry key ประจำล็อต */
 export function planBroadcastBatches(recipients: BroadcastRecipient[]): BroadcastBatch[] {
   const batches: BroadcastBatch[] = [];
   for (let i = 0; i < recipients.length; i += MULTICAST_BATCH_SIZE) {
@@ -358,6 +449,28 @@ function threadRowShape(messages: LineMessageObject[]): {
 } {
   const text = messages.find((m): m is Extract<LineMessageObject, { type: 'text' }> => m.type === 'text');
   const image = messages.find((m): m is Extract<LineMessageObject, { type: 'image' }> => m.type === 'image');
+  const template = messages.find((m): m is Extract<LineMessageObject, { type: 'template' }> => m.type === 'template');
+
+  // สำเนาในห้องแชทเป็นข้อความธรรมดา — หน้าแชทยังไม่มีตัววาดการ์ดของ LINE
+  // จึงถอดการ์ดเป็นบรรทัดที่อ่านรู้เรื่องแทน (ดีกว่าโชว์ "[เทมเพลต]" เปล่า ๆ)
+  if (template) {
+    const t = template.template;
+    if (t.type === 'buttons') {
+      return {
+        message_type: 'text',
+        content: [t.title, t.text].filter(Boolean).join('\n') || template.altText,
+        imageUrl: t.thumbnailImageUrl || null,
+      };
+    }
+    const names = t.columns.map(c => c.title).filter(Boolean);
+    const intro = text ? `${text.text}\n` : '';
+    return {
+      message_type: 'text',
+      content: `${intro}${names.map(n => `• ${n}`).join('\n')}`.trim() || template.altText,
+      imageUrl: t.columns.find(c => c.thumbnailImageUrl)?.thumbnailImageUrl || null,
+    };
+  }
+
   return {
     message_type: text ? 'text' : 'image',
     content: text ? text.text : '[รูปภาพ]',
