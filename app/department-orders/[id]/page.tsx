@@ -8,7 +8,6 @@ import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
 import ShipModal from '@/components/ui/ShipModal';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
-import { getBadgeColor } from '@/lib/status-tab-colors';
 import { showPdfPreview } from '@/lib/print-pdf';
 import DealerOrderForm from '@/components/dealer/DealerOrderForm';
 import ReplenishmentForm from '@/components/replenishments/ReplenishmentForm';
@@ -20,15 +19,6 @@ import Link from 'next/link';
 import { LoadingCard } from '@/components/ui/StateCard';
 import StatusBadge from '@/components/ui/StatusBadge';
 import { splitVatInclusive } from '@/lib/order-totals';
-
-const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
-  draft: { label: 'ที่ต้องจัดส่ง', ...getBadgeColor('draft') },
-  shipped: { label: 'กำลังส่ง', ...getBadgeColor('shipped') },
-  pending_confirm: { label: 'รอยืนยัน', ...getBadgeColor('pending_confirm') },
-  received: { label: 'รับครบแล้ว', ...getBadgeColor('completed') },
-  partial_received: { label: 'รับไม่ครบ', ...getBadgeColor('partial_received') },
-  cancelled: { label: 'ยกเลิก', ...getBadgeColor('cancelled') },
-};
 
 export default function DepartmentOrderDetailPage() {
   const params = useParams();
@@ -315,7 +305,6 @@ export default function DepartmentOrderDetailPage() {
   if (!orderInfo) return null;
 
   const status = orderInfo.status;
-  const statusCfg = STATUS_CONFIG[status] || STATUS_CONFIG.draft;
   const isViewOnly = status !== 'draft';
 
   return (
@@ -333,7 +322,7 @@ export default function DepartmentOrderDetailPage() {
                 {isViewOnly ? 'ใบส่งห้าง' : 'แก้ไขใบส่งห้าง'}
               </h1>
               <span className="id-text text-primary">{orderInfo.department_order_number}</span>
-              <StatusBadge status={status} colors={statusCfg}>{statusCfg.label}</StatusBadge>
+              <StatusBadge domain="deptOrder" status={status} />
             </div>
           </div>
 

@@ -62,29 +62,12 @@ import { isMarketplaceSource } from '@/lib/marketplace/types';
 import { PLATFORM_ICONS, getTrackingUrl, getCarrierLabel } from '../components/types';
 import { useCarriers } from '@/lib/carrier-lookup';
 import FormSelect from '@/components/ui/FormSelect';
-import StatusBadge from '@/components/ui/StatusBadge';
+import StatusBadge, { InfoChip } from '@/components/ui/StatusBadge';
 import { OrderStatusBadge, PaymentStatusBadge } from '@/components/ui/OrderStatusBadge';
 import Badge from '@/components/ui/Badge';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
-import { orderStatusLabel, paymentStatusLabel, getNextOrderStatus } from '@/lib/order-status';
+import { orderStatusLabel, paymentStatusLabel, getNextOrderStatus } from '@/lib/status-labels';
 import { thumbUrl } from '@/lib/image-thumb';
-
-function ShopeeExternalStatusBadge({ status }: { status: string }) {
-  const statusConfig: Record<string, { label: string; color: string }> = {
-    UNPAID: { label: 'ยังไม่ชำระ', color: 'bg-gray-100 text-gray-600 dark:bg-gray-500/30 dark:text-gray-100' },
-    READY_TO_SHIP: { label: 'รอกดรับออเดอร์', color: 'bg-blue-100 text-blue-700 dark:bg-blue-500/30 dark:text-blue-100' },
-    PROCESSED: { label: 'พร้อมส่ง', color: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-500/30 dark:text-indigo-100' },
-    SHIPPED: { label: 'กำลังจัดส่ง', color: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-500/30 dark:text-yellow-100' },
-    TO_CONFIRM_RECEIVE: { label: 'รอยืนยันรับ', color: 'bg-purple-100 text-purple-700 dark:bg-purple-500/30 dark:text-purple-100' },
-    COMPLETED: { label: 'สำเร็จ', color: 'bg-green-100 text-green-700 dark:bg-green-500/30 dark:text-green-100' },
-    CANCELLED: { label: 'ยกเลิก', color: 'bg-red-100 text-red-700 dark:bg-red-500/30 dark:text-red-100' },
-    IN_CANCEL: { label: 'กำลังยกเลิก', color: 'bg-red-50 text-red-600 dark:bg-red-500/30 dark:text-red-100' },
-  };
-  const config = statusConfig[status] || { label: status, color: 'bg-gray-100 text-gray-600 dark:bg-gray-500/30 dark:text-gray-100' };
-  return (
-    <StatusBadge status={status} colors={config.color}>{config.label}</StatusBadge>
-  );
-}
 
 interface PaymentRecord {
   id: string;
@@ -912,9 +895,7 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
                   </>
                 )}
                 {orderStatus === 'cancelled' && (
-                  <StatusBadge status="cancelled" colors="bg-red-100 text-red-700 dark:bg-red-500/30 dark:text-red-100" size="md" icon={<XCircle className="w-3.5 h-3.5" />}>
-                    {fullOrderData?.cancellation_reason === 'expired' ? 'หมดอายุ' : 'ยกเลิก'}
-                  </StatusBadge>
+                  <OrderStatusBadge status="cancelled" expired={isExpired} size="md" />
                 )}
               </div>
               {features.delivery_date.enabled && orderDate && (
@@ -1446,13 +1427,13 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
                           กล่องที่ {parcel.parcel_number}/{fullOrderData.parcels.length}
                         </span>
                         {parcel.status && (
-                          <StatusBadge status={parcel.status} colors={
+                          <InfoChip colors={
                             parcel.status === 'shipped' || parcel.status === 'delivered'
                               ? 'bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-300'
                               : 'bg-gray-100 text-gray-500 dark:bg-gray-600 dark:text-gray-300'
                           }>
                             {parcel.status === 'pending' ? 'รอจัดส่ง' : parcel.status === 'shipped' ? 'จัดส่งแล้ว' : parcel.status === 'delivered' ? 'ส่งถึงแล้ว' : parcel.status}
-                          </StatusBadge>
+                          </InfoChip>
                         )}
                       </div>
                       {(parcel.tracking_number || parcel.shipping_carrier) && (
@@ -2013,15 +1994,7 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
                 className="w-full flex items-center justify-between p-3 rounded-lg bg-gray-50 dark:bg-slate-700/50 border border-gray-100 dark:border-slate-600 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors text-left"
               >
                 <div className="flex items-center gap-3">
-                  <StatusBadge status={cn.type} colors={
-                    cn.type === 'void'
-                      ? 'bg-red-100 text-red-700 dark:bg-red-500/30 dark:text-red-200'
-                      : cn.type === 'refund'
-                        ? 'bg-orange-100 text-orange-700 dark:bg-orange-500/30 dark:text-orange-200'
-                        : 'bg-blue-100 text-blue-700 dark:bg-blue-500/30 dark:text-blue-200'
-                  }>
-                    {cn.type === 'void' ? 'ยกเลิกบิล' : cn.type === 'refund' ? 'คืนสินค้า' : 'เปลี่ยนสินค้า'}
-                  </StatusBadge>
+                  <StatusBadge domain="creditNoteType" status={cn.type} />
                   <span className="id-text text-gray-900 dark:text-white">{cn.cn_number}</span>
                   <span className="data-timestamp text-gray-400 dark:text-slate-500">
                     {new Date(cn.issued_at).toLocaleDateString('th-TH')}

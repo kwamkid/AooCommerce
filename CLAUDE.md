@@ -190,6 +190,16 @@ Pagination: Pagination component
 .btn-amber                     /* จัดส่ง */
 ```
 
+### สถานะ (คำเรียก + สี + ไอคอน) — ทะเบียนกลาง [lib/status-labels.ts](lib/status-labels.ts)
+ทุก badge สถานะทั้งระบบใช้ `<StatusBadge domain="…" status={…} />` ตัวเดียว — ส่ง 2 ค่าแล้วได้คำเรียก+สี+ไอคอนครบ
+- **คำเรียก + ชื่อสีเชิงความหมาย** → `lib/status-labels.ts` (21 โดเมน · client-safe · PDF เรียกได้)
+- **ค่าสีจริง** → ตัวแปร `--st-*` + คลาส `.badge-st-*` ใน [globals.css](app/globals.css) (`.st-dark` = สลับชุดมืดให้หน้าที่มีสวิตช์ธีมเอง เช่นบิลออนไลน์)
+- **ไอคอนประจำโดเมน** → `DOMAIN_ICON` ใน [components/ui/StatusBadge.tsx](components/ui/StatusBadge.tsx)
+- **ป้ายที่ไม่ใช่สถานะ** (กำหนดส่ง/ขนส่ง/บทบาท/สถานะดิบของ marketplace) → `InfoChip` จากไฟล์เดียวกัน
+- ⛔ **ห้ามทำ map สถานะแบนใบเดียวทั้งระบบ** — key ชนกันข้ามตาราง: `draft` = "แบบร่าง" (ใบวางบิล) แต่ = "ที่ต้องจัดส่ง" (ออเดอร์ห้าง) · `pending` = "ที่ต้องจัดส่ง" (ใบเติมของ) แต่ = "รอชำระ" (การชำระเงิน) · `sent` = "รอชำระ" (ใบวางบิล) แต่ = "แจ้ง Sup แล้ว" (ใบสั่งซื้อ)
+- ⛔ **ห้ามประกาศ `STATUS_CONFIG`/`STATUS_LABELS`/`statusBadge()` ในหน้าใด ๆ อีก** — เพิ่มโดเมนในทะเบียนแทน
+- **หน้าที่ลูกค้าเปิดเองใช้คนละชุดคำ** (`customerOrder`/`customerPayment`) — "รอกดรับ" ของพนักงาน = "รับคำสั่งซื้อแล้ว" ของลูกค้า ห้ามสลับกัน
+
 ### Tab Filter Colors (`lib/status-tab-colors.ts`)
 ```typescript
 import { getTabColor, getBadgeColor } from '@/lib/status-tab-colors';

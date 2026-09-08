@@ -36,16 +36,7 @@ interface CreditNote {
   creator?: { email: string } | null;
 }
 
-const TYPE_LABELS: Record<string, { label: string; color: string }> = {
-  void: { label: 'ยกเลิกบิล', color: 'bg-red-100 text-red-700 dark:bg-red-500/30 dark:text-red-200' },
-  refund: { label: 'คืนสินค้า', color: 'bg-orange-100 text-orange-700 dark:bg-orange-500/30 dark:text-orange-200' },
-  exchange: { label: 'เปลี่ยนสินค้า', color: 'bg-blue-100 text-blue-700 dark:bg-blue-500/30 dark:text-blue-200' },
-};
 
-const STATUS_LABELS: Record<string, { label: string; color: string }> = {
-  issued: { label: 'ออกแล้ว', color: 'bg-green-100 text-green-700 dark:bg-green-500/30 dark:text-green-200' },
-  cancelled: { label: 'ยกเลิก', color: 'bg-gray-100 text-gray-500 dark:bg-gray-500/30 dark:text-gray-300' },
-};
 
 export default function CreditNotesPage() {
   // ด่านสิทธิ์ระดับหน้า — เมนูใน Sidebar ซ่อนให้แล้ว แต่ URL ตรงยังเข้าได้
@@ -176,9 +167,8 @@ export default function CreditNotesPage() {
             {
               key: 'type', label: 'ประเภท', headerClassName: 'w-[120px]',
               render: (cn) => {
-                const typeConfig = TYPE_LABELS[cn.type] || TYPE_LABELS.void;
                 return (
-                  <StatusBadge status={cn.type} colors={typeConfig.color}>{typeConfig.label}</StatusBadge>
+                  <StatusBadge domain="creditNoteType" status={cn.type} />
                 );
               },
             },
@@ -191,9 +181,8 @@ export default function CreditNotesPage() {
             {
               key: 'status', label: 'สถานะ', headerClassName: 'w-[100px]',
               render: (cn) => {
-                const statusConfig = STATUS_LABELS[cn.status] || STATUS_LABELS.issued;
                 return (
-                  <StatusBadge status={cn.status} colors={statusConfig.color}>{statusConfig.label}</StatusBadge>
+                  <StatusBadge domain="creditNote" status={cn.status} />
                 );
               },
             },
@@ -211,13 +200,12 @@ export default function CreditNotesPage() {
           onPageChange={setPage}
           onRecordsPerPageChange={setRowsPerPage}
           mobileCardRender={(cn) => {
-            const typeConfig = TYPE_LABELS[cn.type] || TYPE_LABELS.void;
             return (
               <div className="flex items-center justify-between">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 mb-0.5">
                     <span className="text-sm font-medium text-gray-900 dark:text-white">{cn.cn_number}</span>
-                    <StatusBadge status={cn.type} colors={typeConfig.color}>{typeConfig.label}</StatusBadge>
+                    <StatusBadge domain="creditNoteType" status={cn.type} />
                   </div>
                   <div className="text-xs text-gray-400 dark:text-slate-500">
                     {cn.source_type === 'replenishment' ? cn.replenishment?.replenishment_number : cn.order?.order_number || '-'} · {new Date(cn.issued_at).toLocaleDateString('th-TH')}

@@ -81,18 +81,6 @@ const formatNumber = (n: number) =>
 const formatDate = (dateStr: string) =>
   new Date(dateStr).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' });
 
-function getStatusLabel(status: string): { label: string; color: string } {
-  switch (status) {
-    case 'draft': return { label: 'รอกรอก', color: 'bg-amber-500/20 text-amber-400 border border-amber-500/30' };
-    case 'received': return { label: 'ได้รับแล้ว', color: 'bg-blue-500/20 text-blue-400 border border-blue-500/30' };
-    case 'invoiced': return { label: 'ออกบิลแล้ว', color: 'bg-purple-500/20 text-purple-400 border border-purple-500/30' };
-    case 'billed': return { label: 'วางบิลแล้ว', color: 'bg-indigo-500/20 text-indigo-400 border border-indigo-500/30' };
-    case 'paid': return { label: 'ชำระแล้ว', color: 'bg-green-500/20 text-green-400 border border-green-500/30' };
-    case 'overdue': return { label: 'เกินกำหนด', color: 'bg-red-500/20 text-red-400 border border-red-500/30' };
-    case 'cancelled': return { label: 'ยกเลิก', color: 'bg-slate-500/20 text-slate-400 border border-slate-500/30' };
-    default: return { label: status, color: 'bg-slate-500/20 text-slate-400 border border-slate-500/30' };
-  }
-}
 
 export default function ConsignmentPortalPage() {
   const params = useParams();
@@ -522,7 +510,6 @@ export default function ConsignmentPortalPage() {
               </div>
             ) : (
               data.reports.map((report) => {
-                const statusInfo = getStatusLabel(report.status);
                 const isDraftWithToken = report.status === 'draft' && report.report_token;
                 return (
                   <div key={report.id} className="bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 p-4">
@@ -532,7 +519,7 @@ export default function ConsignmentPortalPage() {
                           <span className="font-semibold text-sm text-gray-900 dark:text-white">
                             {THAI_MONTHS[report.period_month]} {report.period_year + 543}
                           </span>
-                          <StatusBadge status="report" colors={statusInfo.color}>{statusInfo.label}</StatusBadge>
+                          <StatusBadge domain="report" status={report.status} />
                         </div>
                         <div className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">{report.report_number}</div>
                         <div className="flex items-center gap-3 mt-1.5">

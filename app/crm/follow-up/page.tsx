@@ -27,7 +27,7 @@ import {
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
 import FormSelect from '@/components/ui/FormSelect';
 import { LoadingCard } from '@/components/ui/StateCard';
-import StatusBadge from '@/components/ui/StatusBadge';
+import { InfoChip } from '@/components/ui/StatusBadge';
 import { OrderStatusBadge } from '@/components/ui/OrderStatusBadge';
 import Badge from '@/components/ui/Badge';
 interface CRMCustomer {
@@ -85,7 +85,7 @@ function CustomerTypeBadge({ type }: { type: string }) {
   };
 
   return (
-    <StatusBadge status={type} colors={colors[type] || 'bg-gray-100 dark:bg-slate-700 text-gray-800 dark:text-slate-300'}>{labels[type] || type}</StatusBadge>
+    <InfoChip colors={colors[type] || 'bg-gray-100 dark:bg-slate-700 text-gray-800 dark:text-slate-300'}>{labels[type] || type}</InfoChip>
   );
 }
 
@@ -123,9 +123,9 @@ function DaysBadge({ days, avgFrequency }: { days: number | null; avgFrequency: 
   }
 
   return (
-    <StatusBadge status="days" colors={colorClass}>
+    <InfoChip colors={colorClass}>
       {days} วัน {isOverdue && avgFrequency && <span className="opacity-75">(เกิน)</span>}
-    </StatusBadge>
+    </InfoChip>
   );
 }
 

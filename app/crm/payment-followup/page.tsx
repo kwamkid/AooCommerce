@@ -25,7 +25,7 @@ import {
 } from 'lucide-react';
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
 import { LoadingCard } from '@/components/ui/StateCard';
-import StatusBadge from '@/components/ui/StatusBadge';
+import { InfoChip } from '@/components/ui/StatusBadge';
 import { OrderStatusBadge, PaymentStatusBadge } from '@/components/ui/OrderStatusBadge';
 import Badge from '@/components/ui/Badge';
 
@@ -103,7 +103,7 @@ function AgingBadge({ days }: { days: number }) {
   }
 
   return (
-    <StatusBadge status="aging" colors={colorClass} icon={icon}>{days} วัน</StatusBadge>
+    <InfoChip colors={colorClass} icon={icon}>{days} วัน</InfoChip>
   );
 }
 

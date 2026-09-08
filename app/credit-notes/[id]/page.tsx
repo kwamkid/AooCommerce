@@ -58,16 +58,7 @@ interface CreditNoteDetail {
   }[];
 }
 
-const TYPE_LABELS: Record<string, { label: string; color: string }> = {
-  void: { label: 'ยกเลิกบิล', color: 'bg-red-100 text-red-700 dark:bg-red-500/30 dark:text-red-200' },
-  refund: { label: 'คืนสินค้า', color: 'bg-orange-100 text-orange-700 dark:bg-orange-500/30 dark:text-orange-200' },
-  exchange: { label: 'เปลี่ยนสินค้า', color: 'bg-blue-100 text-blue-700 dark:bg-blue-500/30 dark:text-blue-200' },
-};
 
-const STATUS_LABELS: Record<string, { label: string; color: string }> = {
-  issued: { label: 'ออกแล้ว', color: 'bg-green-100 text-green-700 dark:bg-green-500/30 dark:text-green-200' },
-  cancelled: { label: 'ยกเลิก', color: 'bg-gray-100 text-gray-500 dark:bg-gray-500/30 dark:text-gray-300' },
-};
 
 export default function CreditNoteDetailPage() {
   const router = useRouter();
@@ -136,8 +127,6 @@ export default function CreditNoteDetailPage() {
     );
   }
 
-  const typeConfig = TYPE_LABELS[cn.type] || TYPE_LABELS.void;
-  const statusConfig = STATUS_LABELS[cn.status] || STATUS_LABELS.issued;
 
   return (
     <Layout>
@@ -155,8 +144,8 @@ export default function CreditNoteDetailPage() {
               <div className="flex items-center gap-2">
                 <ReceiptText className="w-5 h-5 text-red-500" />
                 <h1 className="text-xl font-bold text-gray-900 dark:text-white">{cn.cn_number}</h1>
-                <StatusBadge status="cn" colors={typeConfig.color}>{typeConfig.label}</StatusBadge>
-                <StatusBadge status="cn" colors={statusConfig.color}>{statusConfig.label}</StatusBadge>
+                <StatusBadge domain="creditNoteType" status={cn.type} />
+                <StatusBadge domain="creditNote" status={cn.status} />
               </div>
               <p className="text-sm text-gray-500 dark:text-slate-400 mt-0.5">
                 วันที่ออก {new Date(cn.issued_at).toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' })}
@@ -187,7 +176,7 @@ export default function CreditNoteDetailPage() {
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-500 dark:text-slate-400">ประเภท</span>
-                <StatusBadge status="cn" colors={typeConfig.color}>{typeConfig.label}</StatusBadge>
+                <StatusBadge domain="creditNoteType" status={cn.type} />
               </div>
               {cn.reason && (
                 <div className="flex justify-between">

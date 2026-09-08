@@ -19,7 +19,7 @@ import { LoadingCard } from '@/components/ui/StateCard';
 import StatusBadge from '@/components/ui/StatusBadge';
 import {
   Loader2, ArrowUpFromLine, Plus, Warehouse, Eye, Search,
-  CheckCircle2, XCircle, Printer, User,
+  Printer, User
 } from 'lucide-react';
 
 interface Issue {
@@ -92,7 +92,7 @@ export default function IssueListPage() {
       if (!detail) { showToast('ไม่พบรายการ', 'error'); return; }
       const blob = await generateInventoryPdf({
         type: 'issue',
-        data: { ...detail, doc_number: detail.issue_number },
+        data: { ...detail, doc_number: detail.issue_number }
       });
       showPdfPreview(blob, 'ใบเบิกออกสินค้า');
     } catch {
@@ -195,7 +195,7 @@ export default function IssueListPage() {
                   <Tooltip text="คัดลอก"><p className="id-text-clickable text-gray-900 dark:text-white" onClick={(e) => { e.stopPropagation(); copy(r.issue_number, 'เลขที่ใบเบิก'); }}>{r.issue_number}</p></Tooltip>
                   <p className="data-timestamp text-gray-400 dark:text-slate-500 mt-0.5">{formatDate(r.created_at)}</p>
                 </>
-              ),
+              )
             },
             {
               key: 'warehouse', label: 'คลัง',
@@ -204,30 +204,25 @@ export default function IssueListPage() {
                   <Warehouse className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
                   <span className="data-text text-gray-700 dark:text-slate-300">{r.warehouse?.name || '-'}</span>
                 </div>
-              ),
+              )
             },
             {
               key: 'itemCount', label: 'รายการ', headerClassName: 'text-center', cellClassName: 'text-center',
-              render: (r) => <span className="data-text text-gray-700 dark:text-slate-300">{r.items?.length || 0}</span>,
+              render: (r) => <span className="data-text text-gray-700 dark:text-slate-300">{r.items?.length || 0}</span>
             },
             {
               key: 'status', label: 'สถานะ', headerClassName: 'text-center', cellClassName: 'text-center',
               render: (r) => (
-                <StatusBadge status={r.status} colors={r.status === 'completed'
-                    ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                    : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'}>
-                  {r.status === 'completed' ? <CheckCircle2 className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
-                  {r.status === 'completed' ? 'สำเร็จ' : 'ยกเลิก'}
-                </StatusBadge>
-              ),
+                <StatusBadge domain="stockDoc" status={r.status} />
+              )
             },
             {
               key: 'notes', label: 'หมายเหตุ', cellClassName: 'max-w-[200px] truncate',
-              render: (r) => <span className="data-secondary text-gray-500 dark:text-slate-400">{r.notes || '-'}</span>,
+              render: (r) => <span className="data-secondary text-gray-500 dark:text-slate-400">{r.notes || '-'}</span>
             },
             {
               key: 'createdBy', label: 'ผู้ทำรายการ',
-              render: (r) => <span className="data-text text-gray-700 dark:text-slate-300">{r.created_by_user?.name || '-'}</span>,
+              render: (r) => <span className="data-text text-gray-700 dark:text-slate-300">{r.created_by_user?.name || '-'}</span>
             },
             {
               key: 'actions', label: 'จัดการ', alwaysVisible: true, headerClassName: 'text-center', stopPropagation: true, hideMobile: true,
@@ -238,18 +233,18 @@ export default function IssueListPage() {
                       key: 'view',
                       label: 'ดูรายละเอียด',
                       icon: <Eye className="w-4 h-4" />,
-                      onClick: () => router.push(`/inventory/issues/${r.id}`),
+                      onClick: () => router.push(`/inventory/issues/${r.id}`)
                     },
                     {
                       key: 'print',
                       label: 'พิมพ์',
                       icon: printingId === r.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />,
                       onClick: () => handlePrint(r.id),
-                      disabled: printingId === r.id,
+                      disabled: printingId === r.id
                     },
                   ]} />
                 </div>
-              ),
+              )
             },
           ]}
           data={paginated}
@@ -272,11 +267,7 @@ export default function IssueListPage() {
                   <p className="data-timestamp text-gray-400 dark:text-slate-500 mt-0.5">{formatDate(r.created_at)}</p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <StatusBadge status={r.status} colors={r.status === 'completed'
-                      ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                      : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'}>
-                    {r.status === 'completed' ? 'สำเร็จ' : 'ยกเลิก'}
-                  </StatusBadge>
+                  <StatusBadge domain="stockDoc" status={r.status} />
                   <ActionMenu items={[
                     { key: 'view', label: 'ดูรายละเอียด', icon: <Eye className="w-4 h-4" />, onClick: () => router.push(`/inventory/issues/${r.id}`) },
                     { key: 'print', label: 'พิมพ์', icon: <Printer className="w-4 h-4" />, onClick: () => handlePrint(r.id) },

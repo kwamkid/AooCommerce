@@ -10,6 +10,7 @@ import type { Metadata } from 'next';
 import { NextRequest } from 'next/server';
 import { GET as billsGET } from '@/app/api/bills/route';
 import BillClient, { type BillData } from './bill-client';
+import { orderStatusLabel, paymentStatusLabel } from '@/lib/status-labels';
 
 export const dynamic = 'force-dynamic';
 
@@ -47,13 +48,9 @@ export async function generateMetadata(
   }
 
   const shop = bill.company_name || 'บิลออนไลน์';
-  const status = bill.is_cancelled
-    ? 'ยกเลิกแล้ว'
-    : bill.is_expired
-      ? 'บิลหมดอายุ'
-      : bill.payment_status === 'paid'
-        ? 'ชำระแล้ว'
-        : 'รอชำระ';
+  const status = bill.is_cancelled || bill.is_expired
+    ? orderStatusLabel('cancelled', { audience: 'customer', expired: !!bill.is_expired })
+    : paymentStatusLabel(bill.payment_status, { audience: 'customer' });
   const title = `บิล ${bill.order_number} — ${shop}`;
   const description = `ยอดชำระ ${formatBaht(bill.total_amount)} · ${status}`;
 

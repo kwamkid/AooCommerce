@@ -31,7 +31,7 @@ import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
 import Checkbox from '@/components/ui/Checkbox';
 import FormSelect from '@/components/ui/FormSelect';
 import UserAvatar from '@/components/ui/UserAvatar';
-import UiStatusBadge from '@/components/ui/StatusBadge';
+import { InfoChip } from '@/components/ui/StatusBadge';
 
 // User interface
 interface User {
@@ -70,7 +70,7 @@ function RoleBadges({ roles }: { roles: string[] }) {
       {roles.map(role => {
         const config = roleConfigs[role] || { color: 'bg-gray-100 text-gray-800', label: role };
         return (
-          <UiStatusBadge key={role} status={role} colors={config.color}>{config.label}</UiStatusBadge>
+          <InfoChip key={role} colors={config.color}>{config.label}</InfoChip>
         );
       })}
     </div>

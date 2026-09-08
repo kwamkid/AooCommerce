@@ -81,22 +81,21 @@ export interface CreatedByOption {
   name: string;
 }
 
-// สีแถบหัวการ์ดตามสถานะ — badge ใช้ <OrderStatusBadge>/<PaymentStatusBadge> จาก components/ui/OrderStatusBadge.tsx
-export const ORDER_STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; headerBg: string; headerText: string }> = {
-  new: { label: ORDER_STATUS_LABEL.new, color: getBadgeColor('new').color, bg: getBadgeColor('new').bg, headerBg: 'bg-blue-50 dark:bg-blue-950/40', headerText: 'text-blue-800 dark:text-blue-200' },
-  ready_to_ship: { label: ORDER_STATUS_LABEL.ready_to_ship, color: getBadgeColor('ready_to_ship').color, bg: getBadgeColor('ready_to_ship').bg, headerBg: 'bg-orange-50 dark:bg-orange-950/40', headerText: 'text-orange-800 dark:text-orange-200' },
-  processing: { label: ORDER_STATUS_LABEL.processing, color: getBadgeColor('processing').color, bg: getBadgeColor('processing').bg, headerBg: 'bg-indigo-50 dark:bg-indigo-950/40', headerText: 'text-indigo-800 dark:text-indigo-200' },
-  shipping: { label: ORDER_STATUS_LABEL.shipping, color: getBadgeColor('shipping').color, bg: getBadgeColor('shipping').bg, headerBg: 'bg-amber-50 dark:bg-amber-950/40', headerText: 'text-amber-800 dark:text-amber-200' },
-  completed: { label: ORDER_STATUS_LABEL.completed, color: getBadgeColor('completed').color, bg: getBadgeColor('completed').bg, headerBg: 'bg-green-50 dark:bg-green-950/40', headerText: 'text-green-800 dark:text-green-200' },
-  cancelled: { label: ORDER_STATUS_LABEL.cancelled, color: getBadgeColor('cancelled').color, bg: getBadgeColor('cancelled').bg, headerBg: 'bg-gray-50 dark:bg-gray-800/40', headerText: 'text-gray-600 dark:text-gray-300' },
+// สีแถบหัวการ์ดออเดอร์ (มือถือ) — จางกว่า badge หนึ่งขั้น
+// ⚠️ badge ใช้ <OrderStatusBadge>/<PaymentStatusBadge> ห้ามเอา label/สี badge กลับมาไว้ที่นี่
+export const ORDER_STATUS_CONFIG: Record<string, { headerBg: string; headerText: string }> = {
+  new:           { headerBg: 'bg-blue-50 dark:bg-blue-950/40',     headerText: 'text-blue-800 dark:text-blue-200' },
+  ready_to_ship: { headerBg: 'bg-orange-50 dark:bg-orange-950/40', headerText: 'text-orange-800 dark:text-orange-200' },
+  processing:    { headerBg: 'bg-indigo-50 dark:bg-indigo-950/40', headerText: 'text-indigo-800 dark:text-indigo-200' },
+  shipping:      { headerBg: 'bg-amber-50 dark:bg-amber-950/40',   headerText: 'text-amber-800 dark:text-amber-200' },
+  completed:     { headerBg: 'bg-green-50 dark:bg-green-950/40',   headerText: 'text-green-800 dark:text-green-200' },
+  cancelled:     { headerBg: 'bg-gray-50 dark:bg-gray-800/40',     headerText: 'text-gray-600 dark:text-gray-300' },
 };
 
 
 // Carrier list now lives in the carriers table per company.
 // Components: use `useCarriers()` for dropdowns; use the helpers below for tracking URLs / labels.
 import { getTrackingUrlSync, getCarrierLabelSync } from '@/lib/carrier-lookup';
-import { ORDER_STATUS_LABEL } from '@/lib/order-status';
-import { getBadgeColor } from '@/lib/status-tab-colors';
 
 /** Get tracking URL for a stored carrier code + tracking number. Returns null if not available. */
 export function getTrackingUrl(carrier: string | null | undefined, trackingNumber: string | null | undefined): string | null {

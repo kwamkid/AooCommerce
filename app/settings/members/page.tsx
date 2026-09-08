@@ -39,7 +39,7 @@ import Badge from '@/components/ui/Badge';
 import Tabs from '@/components/ui/Tabs';
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
 import { LoadingCard } from '@/components/ui/StateCard';
-import StatusBadge from '@/components/ui/StatusBadge';
+import { InfoChip } from '@/components/ui/StatusBadge';
 import PermissionEditor, {
   DEFAULT_STAFF_PERMISSIONS, type MemberPermissionValue,
 } from '@/components/members/PermissionEditor';
@@ -679,7 +679,7 @@ export default function MembersPage() {
                           {/* Role badges on mobile */}
                           <div className="mt-1.5 sm:hidden flex flex-wrap items-center gap-1">
                             <PermissionBadges role={invitation.role} perms={invitation.permissions} canViewCost={invitation.can_view_cost} />
-                            <StatusBadge status="pending" size="md" className="border" colors="bg-yellow-100 text-yellow-800 border-yellow-200">รอตอบรับ</StatusBadge>
+                            <InfoChip size="md" className="border" colors="bg-yellow-100 text-yellow-800 border-yellow-200">รอตอบรับ</InfoChip>
                           </div>
                         </div>
                       </div>
@@ -687,7 +687,7 @@ export default function MembersPage() {
                         {/* Role badges + status on desktop */}
                         <div className="hidden sm:flex items-center gap-2 max-w-md">
                           <PermissionBadges role={invitation.role} perms={invitation.permissions} canViewCost={invitation.can_view_cost} />
-                          <StatusBadge status="pending" size="md" className="border" colors="bg-yellow-100 text-yellow-800 border-yellow-200">รอตอบรับ</StatusBadge>
+                          <InfoChip size="md" className="border" colors="bg-yellow-100 text-yellow-800 border-yellow-200">รอตอบรับ</InfoChip>
                         </div>
                         {isOwnerOrAdmin && (canGrantAdmin || (invitation.role !== 'admin' && invitation.role !== 'owner')) && (
                           <div className="flex items-center space-x-1">

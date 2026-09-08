@@ -19,7 +19,7 @@ import {
   getCarrierLabel,
 } from './types';
 import PrintStatusDots from './PrintStatusDots';
-import StatusBadge from '@/components/ui/StatusBadge';
+import { InfoChip } from '@/components/ui/StatusBadge';
 import { OrderStatusBadge, PaymentStatusBadge } from '@/components/ui/OrderStatusBadge';
 import Badge from '@/components/ui/Badge';
 import ChannelBadge from '@/components/ui/ChannelBadge';
@@ -128,15 +128,15 @@ export default function OrderCard({
               {relativeTime(order.created_at)}
             </span>
             {deadline && ['ready_to_ship', 'processing'].includes(order.order_status) && (
-              <StatusBadge status="deadline" colors={deadline.color} className="flex-shrink-0" icon={<Clock className="w-3 h-3" />}>{deadline.label}</StatusBadge>
+              <InfoChip colors={deadline.color} className="flex-shrink-0" icon={<Clock className="w-3 h-3" />}>{deadline.label}</InfoChip>
             )}
             {/* คำขอคืน/ยกเลิกจาก marketplace — สถานะชั่วคราวที่ต้องรีบตอบใน Seller Center
                 (ไม่ใช่ order_status ของเรา: คำขออาจถูกปฏิเสธแล้ว order จบปกติ) */}
             {order.external_status === 'TO_RETURN' && (
-              <StatusBadge status="TO_RETURN" colors="bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400" className="flex-shrink-0" icon={<RotateCcw className="w-3 h-3" />}>คืนสินค้า</StatusBadge>
+              <InfoChip colors="bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400" className="flex-shrink-0" icon={<RotateCcw className="w-3 h-3" />}>คืนสินค้า</InfoChip>
             )}
             {order.external_status === 'IN_CANCEL' && (
-              <StatusBadge status="IN_CANCEL" colors="bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400" className="flex-shrink-0" icon={<RotateCcw className="w-3 h-3" />}>ขอยกเลิก</StatusBadge>
+              <InfoChip colors="bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400" className="flex-shrink-0" icon={<RotateCcw className="w-3 h-3" />}>ขอยกเลิก</InfoChip>
             )}
             {shouldShowStatus && (
               <OrderStatusBadge status={order.order_status} expired={order.cancellation_reason === 'expired'} />
@@ -166,7 +166,7 @@ export default function OrderCard({
             />
           )}
           {order.shipping_carrier && (
-            <StatusBadge status="carrier" colors="bg-sky-50 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300" icon={<Truck className="w-3 h-3" />}>{getCarrierLabel(order.shipping_carrier)}</StatusBadge>
+            <InfoChip colors="bg-sky-50 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300" icon={<Truck className="w-3 h-3" />}>{getCarrierLabel(order.shipping_carrier)}</InfoChip>
           )}
         </div>
       </div>

@@ -12,7 +12,6 @@ import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
 import { generateInventoryPdf } from '@/lib/inventory-pdf';
 import { showPdfPreview } from '@/lib/print-pdf';
-import { getBadgeColor } from '@/lib/status-tab-colors';
 import DataTable from '@/components/ui/DataTable';
 import FormSelect from '@/components/ui/FormSelect';
 import ActionMenu from '@/components/ui/ActionMenu';
@@ -23,7 +22,7 @@ import { LoadingCard } from '@/components/ui/StateCard';
 import StatusBadge from '@/components/ui/StatusBadge';
 import {
   Loader2, ArrowRightLeft, Plus, Warehouse, Eye, Printer, User,
-  CheckCircle2, Clock, XCircle, AlertTriangle, Truck, Search, Ban,
+  Search, Ban
 } from 'lucide-react';
 
 interface Transfer {
@@ -44,13 +43,6 @@ interface Transfer {
 
 // สีจากคลังกลาง lib/status-tab-colors — 'received' ของ transfer = สำเร็จ จึง map ไป 'completed'
 // (key 'received' ในคลังกลางเป็นของ consignment "รอยืนยัน" คนละความหมาย)
-const STATUS_MAP: Record<string, { label: string; color: string; icon: React.ComponentType<any> }> = {
-  pending: { label: 'ที่ต้องจัดส่ง', color: `${getBadgeColor('pending').bg} ${getBadgeColor('pending').color}`, icon: Clock },
-  shipping: { label: 'กำลังส่ง', color: `${getBadgeColor('shipping').bg} ${getBadgeColor('shipping').color}`, icon: Truck },
-  pending_confirm: { label: 'รอยืนยัน', color: `${getBadgeColor('pending_confirm').bg} ${getBadgeColor('pending_confirm').color}`, icon: AlertTriangle },
-  received: { label: 'รับสินค้าแล้ว', color: `${getBadgeColor('completed').bg} ${getBadgeColor('completed').color}`, icon: CheckCircle2 },
-  cancelled: { label: 'ยกเลิก', color: `${getBadgeColor('cancelled').bg} ${getBadgeColor('cancelled').color}`, icon: XCircle },
-};
 
 
 export default function TransferListPage() {
@@ -133,9 +125,9 @@ export default function TransferListPage() {
           receive_token: detail.receive_token,
           items: (detail.items || []).map((item: any) => ({
             ...item,
-            quantity: item.qty_sent,
-          })),
-        },
+            quantity: item.qty_sent
+          }))
+        }
       });
       showPdfPreview(blob, 'ใบโอนย้ายสินค้า');
     } catch {
@@ -151,7 +143,7 @@ export default function TransferListPage() {
       const res = await apiFetch(`/api/inventory/transfers`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: transfer.id, action: 'cancel' }),
+        body: JSON.stringify({ id: transfer.id, action: 'cancel' })
       });
       if (!res.ok) {
         const data = await res.json();
@@ -207,7 +199,7 @@ export default function TransferListPage() {
       month: 'short',
       year: '2-digit',
       hour: '2-digit',
-      minute: '2-digit',
+      minute: '2-digit'
     });
   };
 
@@ -297,7 +289,7 @@ export default function TransferListPage() {
                   <Tooltip text="คัดลอก"><p className="id-text-clickable text-gray-900 dark:text-white" onClick={(e) => { e.stopPropagation(); copy(t.transfer_number, 'เลขที่ใบโอน'); }}>{t.transfer_number}</p></Tooltip>
                   <p className="data-timestamp text-gray-400 dark:text-slate-500 mt-0.5">{formatDate(t.created_at)}</p>
                 </>
-              ),
+              )
             },
             {
               key: 'fromWarehouse', label: 'คลังต้นทาง',
@@ -306,7 +298,7 @@ export default function TransferListPage() {
                   <Warehouse className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
                   <span className="data-text text-gray-700 dark:text-slate-300">{t.from_warehouse?.name || '-'}</span>
                 </div>
-              ),
+              )
             },
             {
               key: 'toWarehouse', label: 'คลังปลายทาง',
@@ -315,25 +307,19 @@ export default function TransferListPage() {
                   <Warehouse className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
                   <span className="data-text text-gray-700 dark:text-slate-300">{t.to_warehouse?.name || '-'}</span>
                 </div>
-              ),
+              )
             },
             {
               key: 'itemCount', label: 'รายการ', headerClassName: 'text-center', cellClassName: 'text-center',
-              render: (t) => <span className="data-text text-gray-700 dark:text-slate-300">{t.items?.length || 0}</span>,
+              render: (t) => <span className="data-text text-gray-700 dark:text-slate-300">{t.items?.length || 0}</span>
             },
             {
               key: 'status', label: 'สถานะ', headerClassName: 'text-center', cellClassName: 'text-center',
-              render: (t) => {
-                const st = STATUS_MAP[t.status] || STATUS_MAP.pending;
-                const StIcon = st.icon;
-                return (
-                  <StatusBadge status={t.status} colors={st.color} icon={<StIcon className="w-3 h-3" />}>{st.label}</StatusBadge>
-                );
-              },
+              render: (t) => <StatusBadge domain="transfer" status={t.status} />
             },
             {
               key: 'createdBy', label: 'ผู้ทำรายการ',
-              render: (t) => <span className="data-text text-gray-700 dark:text-slate-300">{t.created_by_user?.name || '-'}</span>,
+              render: (t) => <span className="data-text text-gray-700 dark:text-slate-300">{t.created_by_user?.name || '-'}</span>
             },
             {
               key: 'receiver', label: 'ผู้รับ', stopPropagation: true,
@@ -346,7 +332,7 @@ export default function TransferListPage() {
                 </div>
               ) : (
                 <span className="data-muted text-gray-400 dark:text-slate-500">-</span>
-              ),
+              )
             },
             {
               key: 'actions', label: 'จัดการ', alwaysVisible: true, headerClassName: 'text-center', stopPropagation: true, hideMobile: true,
@@ -357,14 +343,14 @@ export default function TransferListPage() {
                       key: 'view',
                       label: 'ดูรายละเอียด',
                       icon: <Eye className="w-4 h-4" />,
-                      onClick: () => router.push(`/inventory/transfers/${t.id}`),
+                      onClick: () => router.push(`/inventory/transfers/${t.id}`)
                     },
                     {
                       key: 'print',
                       label: 'พิมพ์',
                       icon: printingId === t.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />,
                       onClick: () => handlePrint(t.id),
-                      disabled: printingId === t.id,
+                      disabled: printingId === t.id
                     },
                     ...((t.status === 'pending' || t.status === 'shipping') ? [{
                       key: 'cancel',
@@ -372,11 +358,11 @@ export default function TransferListPage() {
                       icon: <Ban className="w-4 h-4" />,
                       danger: true,
                       dividerBefore: true,
-                      onClick: () => setConfirmCancel(t),
+                      onClick: () => setConfirmCancel(t)
                     }] : []),
                   ]} />
                 </div>
-              ),
+              )
             },
           ]}
           data={paginatedTransfers}
@@ -392,8 +378,6 @@ export default function TransferListPage() {
           onPageChange={setPage}
           onRecordsPerPageChange={setRecordsPerPage}
           mobileCardRender={(t) => {
-            const st = STATUS_MAP[t.status] || STATUS_MAP.pending;
-            const StIcon = st.icon;
             return (
               <>
                 <div className="flex items-center justify-between mb-2">
@@ -404,20 +388,20 @@ export default function TransferListPage() {
                     <p className="data-timestamp text-gray-400 dark:text-slate-500 mt-0.5">{formatDate(t.created_at)}</p>
                   </div>
                   <div className="flex items-center gap-1">
-                    <StatusBadge status={t.status} colors={st.color} icon={<StIcon className="w-3 h-3" />}>{st.label}</StatusBadge>
+                    <StatusBadge domain="transfer" status={t.status} />
                     <ActionMenu items={[
                       {
                         key: 'view',
                         label: 'ดูรายละเอียด',
                         icon: <Eye className="w-4 h-4" />,
-                        onClick: () => router.push(`/inventory/transfers/${t.id}`),
+                        onClick: () => router.push(`/inventory/transfers/${t.id}`)
                       },
                       {
                         key: 'print',
                         label: 'พิมพ์',
                         icon: printingId === t.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />,
                         onClick: () => handlePrint(t.id),
-                        disabled: printingId === t.id,
+                        disabled: printingId === t.id
                       },
                       ...((t.status === 'pending' || t.status === 'shipping') ? [{
                         key: 'cancel',
@@ -425,7 +409,7 @@ export default function TransferListPage() {
                         icon: <Ban className="w-4 h-4" />,
                         danger: true,
                         dividerBefore: true,
-                        onClick: () => setConfirmCancel(t),
+                        onClick: () => setConfirmCancel(t)
                       }] : []),
                     ]} />
                   </div>

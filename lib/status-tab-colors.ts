@@ -79,8 +79,12 @@ export function getTabColor(key: string): StatusTabColor {
 }
 
 /**
- * Badge colors — ล้อตาม tab สีเดียวกัน
- * Returns: { color: 'text-xxx', bg: 'bg-xxx' }
+ * ⚠️ Badge ของ "สถานะ" ไม่ได้ใช้ตรงนี้แล้ว — ย้ายไปเป็นคลาส `.badge-st-*` ใน globals.css
+ *    (ทะเบียนอยู่ที่ lib/status-labels.ts · ตัววาดคือ components/ui/StatusBadge.tsx)
+ *
+ * ที่เหลือไว้เพราะยังมีป้ายที่ **ไม่ใช่สถานะของเรา** ต้องการคลาส Tailwind เป็นสตริง:
+ * ชิปอายุหนี้ (reports/pending) · สถานะดิบจากฝั่ง Shopee (logs) · แบนเนอร์สถานะโอนย้าย
+ * ⛔ ห้ามใช้ตัวนี้ทำ badge สถานะใหม่ — ให้เพิ่มโดเมนในทะเบียนแล้วใช้ <StatusBadge>
  */
 const STATUS_BADGE_COLORS: Record<string, { color: string; bg: string }> = {
   new:              { color: 'text-blue-700 dark:text-blue-300',    bg: 'bg-blue-100 dark:bg-blue-900/40' },

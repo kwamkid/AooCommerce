@@ -39,7 +39,7 @@ import { useCustomerPrefill } from '@/lib/useCustomerPrefill';
 import { fetchCustomerOrderContext } from '@/lib/gp-resolver';
 import { isMarketplaceSource } from '@/lib/marketplace/types';
 import { computeOrderTotals } from '@/lib/order-totals';
-import { orderStatusLabel, paymentStatusLabel } from '@/lib/order-status';
+import { orderStatusLabel, paymentStatusLabel } from '@/lib/status-labels';
 import { thumbUrl } from '@/lib/image-thumb';
 import StickyActionBar from '@/components/ui/StickyActionBar';
 import Stepper, { type StepItem } from '@/components/ui/Stepper';

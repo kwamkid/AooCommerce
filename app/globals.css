@@ -397,6 +397,57 @@ h6:where(.heading-1, .heading-2, .heading-3, .heading-4) {
 .badge-orange  { background-color: rgb(255 247 237); color: rgb(194 65 12); }
 .dark .badge-orange  { background-color: rgb(124 45 18 / 0.3); color: rgb(251 146 60); }
 
+/* ─────────────────────────────────────────────────────────────────────────
+ * สีของ "สถานะ" ทั้งระบบ — บ้านหลังเดียวของค่าสีจริง
+ *
+ * ชื่อสีเป็นความหมาย ไม่ใช่ชื่อเฉดสี (StatusColor ใน lib/status-labels.ts)
+ * แต่ละโดเมนบอกว่าสถานะไหนใช้สีความหมายไหน ⇒ อยากเปลี่ยนโทนทั้งระบบแก้ที่นี่ที่เดียว
+ *
+ * .st-dark = สลับเป็นชุดมืดโดยไม่ต้องพึ่งคลาส .dark ของ Tailwind
+ *            สำหรับหน้าที่มีสวิตช์ธีมของตัวเอง (บิลออนไลน์ที่ลูกค้าเปิด)
+ * ───────────────────────────────────────────────────────────────────────── */
+:root {
+  --st-new-bg: #dbeafe;      --st-new-fg: #1d4ed8;
+  --st-wait-bg: #fbe3db;     --st-wait-fg: #a64b2a;
+  --st-progress-bg: #ede9fe; --st-progress-fg: #6d28d9;
+  --st-moving-bg: #cffafe;   --st-moving-fg: #155e75;
+  --st-done-bg: #d1fae5;     --st-done-fg: #047857;
+  --st-invoiced-bg: #f3e8ff; --st-invoiced-fg: #7e22ce;
+  --st-billed-bg: #e0e7ff;   --st-billed-fg: #4338ca;
+  --st-partial-bg: #fef3c7;  --st-partial-fg: #b45309;
+  --st-late-bg: #fee2e2;     --st-late-fg: #b91c1c;
+  --st-off-bg: #f3f4f6;      --st-off-fg: #4b5563;
+  --st-unpaid-bg: #ffedd5;   --st-unpaid-fg: #c2410c;
+  --st-verify-bg: #f3e8ff;   --st-verify-fg: #7e22ce;
+}
+.dark, .st-dark {
+  --st-new-bg: rgb(30 58 138 / 0.4);      --st-new-fg: #93c5fd;
+  --st-wait-bg: #3a1d14;                  --st-wait-fg: #e2907a;
+  --st-progress-bg: rgb(76 29 149 / 0.4); --st-progress-fg: #c4b5fd;
+  --st-moving-bg: rgb(22 78 99 / 0.4);    --st-moving-fg: #67e8f9;
+  --st-done-bg: rgb(6 78 59 / 0.4);       --st-done-fg: #6ee7b7;
+  --st-invoiced-bg: rgb(88 28 135 / 0.4); --st-invoiced-fg: #d8b4fe;
+  --st-billed-bg: rgb(49 46 129 / 0.4);   --st-billed-fg: #a5b4fc;
+  --st-partial-bg: rgb(120 53 15 / 0.4);  --st-partial-fg: #fcd34d;
+  --st-late-bg: rgb(127 29 29 / 0.4);     --st-late-fg: #fca5a5;
+  --st-off-bg: rgb(55 65 81 / 0.4);       --st-off-fg: #9ca3af;
+  --st-unpaid-bg: rgb(124 45 18 / 0.4);   --st-unpaid-fg: #fdba74;
+  --st-verify-bg: rgb(88 28 135 / 0.4);   --st-verify-fg: #d8b4fe;
+}
+
+.badge-st-new      { background-color: var(--st-new-bg);      color: var(--st-new-fg); }
+.badge-st-wait     { background-color: var(--st-wait-bg);     color: var(--st-wait-fg); }
+.badge-st-progress { background-color: var(--st-progress-bg); color: var(--st-progress-fg); }
+.badge-st-moving   { background-color: var(--st-moving-bg);   color: var(--st-moving-fg); }
+.badge-st-done     { background-color: var(--st-done-bg);     color: var(--st-done-fg); }
+.badge-st-invoiced { background-color: var(--st-invoiced-bg); color: var(--st-invoiced-fg); }
+.badge-st-billed   { background-color: var(--st-billed-bg);   color: var(--st-billed-fg); }
+.badge-st-partial  { background-color: var(--st-partial-bg);  color: var(--st-partial-fg); }
+.badge-st-late     { background-color: var(--st-late-bg);     color: var(--st-late-fg); }
+.badge-st-off      { background-color: var(--st-off-bg);      color: var(--st-off-fg); }
+.badge-st-unpaid   { background-color: var(--st-unpaid-bg);   color: var(--st-unpaid-fg); }
+.badge-st-verify   { background-color: var(--st-verify-bg);   color: var(--st-verify-fg); }
+
 /*
  * ไอคอนนำหน้าข้อความใน badge — ใช้โดย OrderStatusBadge/PaymentStatusBadge
  * (components/ui/OrderStatusBadge.tsx) ที่ตราตระกูลไว้ว่าใบไหนพูดเรื่องงาน ใบไหนพูดเรื่องเงิน

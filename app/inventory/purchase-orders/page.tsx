@@ -20,8 +20,7 @@ import { LoadingCard } from '@/components/ui/StateCard';
 import StatusBadge from '@/components/ui/StatusBadge';
 import {
   Plus, Search, ClipboardList, Factory, Warehouse,
-  CheckCircle2, Clock, Package, XCircle, Send, Pencil, Printer, Link2, Ban, Lock, AlertTriangle,
-} from 'lucide-react';
+  Pencil, Printer, Link2, Ban, Lock } from 'lucide-react';
 
 interface PurchaseOrder {
   id: string;
@@ -49,31 +48,7 @@ const STATUS_OPTIONS = [
   { id: 'cancelled', label: 'ยกเลิก' },
 ];
 
-function statusBadge(status: string) {
-  switch (status) {
-    case 'draft': return { label: 'ร่าง', color: 'bg-gray-100 text-gray-700 dark:bg-slate-700 dark:text-slate-300' };
-    case 'sent': return { label: 'แจ้ง Sup แล้ว', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' };
-    case 'partial_received': return { label: 'รับบางส่วน', color: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300' };
-    case 'received': return { label: 'รับครบ', color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' };
-    case 'received_mismatch': return { label: 'รับไม่ตรง', color: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300' };
-    case 'closed': return { label: 'ปิด', color: 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-400' };
-    case 'cancelled': return { label: 'ยกเลิก', color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300' };
-    default: return { label: status, color: 'bg-gray-100 text-gray-600' };
-  }
-}
 
-function statusIcon(status: string) {
-  switch (status) {
-    case 'draft': return <ClipboardList className="w-3 h-3" />;
-    case 'sent': return <Send className="w-3 h-3" />;
-    case 'partial_received': return <Clock className="w-3 h-3" />;
-    case 'received': return <CheckCircle2 className="w-3 h-3" />;
-    case 'received_mismatch': return <AlertTriangle className="w-3 h-3" />;
-    case 'closed': return <Package className="w-3 h-3" />;
-    case 'cancelled': return <XCircle className="w-3 h-3" />;
-    default: return null;
-  }
-}
 
 export default function PurchaseOrdersPage() {
   const router = useRouter();
@@ -124,7 +99,7 @@ export default function PurchaseOrdersPage() {
     try {
       const res = await apiFetch(`/api/inventory/purchase-orders/${poId}`, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'sent' }),
+        body: JSON.stringify({ status: 'sent' })
       });
       if (res.ok) {
         const d = await res.json();
@@ -169,7 +144,7 @@ export default function PurchaseOrdersPage() {
       }
       const res = await apiFetch(`/api/inventory/purchase-orders/${poId}`, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ generate_token: true }),
+        body: JSON.stringify({ generate_token: true })
       });
       if (res.ok) {
         const d = await res.json();
@@ -188,7 +163,7 @@ export default function PurchaseOrdersPage() {
     try {
       const res = await apiFetch(`/api/inventory/purchase-orders/${poId}`, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'cancelled' }),
+        body: JSON.stringify({ status: 'cancelled' })
       });
       if (res.ok) { showToast('ยกเลิก PO สำเร็จ'); fetchData(); }
       else { const d = await res.json(); showToast(d.error || 'ไม่สำเร็จ', 'error'); }
@@ -203,7 +178,7 @@ export default function PurchaseOrdersPage() {
     try {
       const res = await apiFetch(`/api/inventory/purchase-orders/${poId}`, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'closed' }),
+        body: JSON.stringify({ status: 'closed' })
       });
       if (res.ok) { showToast('ปิด PO สำเร็จ'); fetchData(); }
       else { const d = await res.json(); showToast(d.error || 'ไม่สำเร็จ', 'error'); }
@@ -351,7 +326,7 @@ export default function PurchaseOrdersPage() {
                   >{po.po_number}</p>
                   <p className="data-timestamp text-gray-400 dark:text-slate-500 mt-0.5">{formatDate(po.created_at)}</p>
                 </>
-              ),
+              )
             },
             {
               key: 'supplier', label: 'Supplier',
@@ -360,7 +335,7 @@ export default function PurchaseOrdersPage() {
                   <Factory className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
                   <span className="data-primary text-gray-900 dark:text-slate-100">{po.supplier?.name || '-'}</span>
                 </div>
-              ),
+              )
             },
             {
               key: 'warehouse', label: 'คลัง',
@@ -369,7 +344,7 @@ export default function PurchaseOrdersPage() {
                   <Warehouse className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
                   <span className="data-text text-gray-700 dark:text-slate-300">{po.warehouse?.name || '-'}</span>
                 </div>
-              ),
+              )
             },
             {
               key: 'itemCount', label: 'รายการ', headerClassName: 'text-center', cellClassName: 'text-center',
@@ -384,24 +359,23 @@ export default function PurchaseOrdersPage() {
                     )}
                   </>
                 );
-              },
+              }
             },
             {
               key: 'amount', label: 'มูลค่า', headerClassName: 'text-right', cellClassName: 'text-right',
-              render: (po) => <span className="data-number text-gray-900 dark:text-white">฿{formatCurrency(po.total_amount)}</span>,
+              render: (po) => <span className="data-number text-gray-900 dark:text-white">฿{formatCurrency(po.total_amount)}</span>
             },
             {
               key: 'status', label: 'สถานะ', headerClassName: 'text-center', cellClassName: 'text-center',
               render: (po) => {
-                const badge = statusBadge(po.status);
                 return (
-                  <StatusBadge status={po.status} colors={badge.color} icon={statusIcon(po.status)}>{badge.label}</StatusBadge>
+                  <StatusBadge domain="purchaseOrder" status={po.status} />
                 );
-              },
+              }
             },
             {
               key: 'createdBy', label: 'ผู้สร้าง',
-              render: (po) => <span className="data-text text-gray-700 dark:text-slate-300">{po.created_by_name || '-'}</span>,
+              render: (po) => <span className="data-text text-gray-700 dark:text-slate-300">{po.created_by_name || '-'}</span>
             },
             {
               key: 'actions', label: 'จัดการ', alwaysVisible: true, headerClassName: 'text-center', stopPropagation: true, hideMobile: true,
@@ -409,7 +383,7 @@ export default function PurchaseOrdersPage() {
                 <div className="flex items-center justify-center">
                   <ActionMenu items={getMenuItems(po)} />
                 </div>
-              ),
+              )
             },
           ]}
           data={paged}
@@ -425,7 +399,6 @@ export default function PurchaseOrdersPage() {
           onPageChange={setPage}
           onRecordsPerPageChange={setRecordsPerPage}
           mobileCardRender={(po) => {
-            const badge = statusBadge(po.status);
             return (
               <>
                 <div className="flex items-center justify-between mb-1.5">
@@ -437,7 +410,7 @@ export default function PurchaseOrdersPage() {
                     >{po.po_number}</span>
                     <p className="data-timestamp text-gray-400 dark:text-slate-500 mt-0.5">{formatDate(po.created_at)}</p>
                   </div>
-                  <StatusBadge status={po.status} colors={badge.color} icon={statusIcon(po.status)}>{badge.label}</StatusBadge>
+                  <StatusBadge domain="purchaseOrder" status={po.status} />
                 </div>
                 <div className="flex items-center gap-2 mb-1">
                   <Factory className="w-3.5 h-3.5 text-gray-400" />

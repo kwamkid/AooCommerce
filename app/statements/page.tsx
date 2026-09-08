@@ -9,7 +9,6 @@ import SearchInput from '@/components/ui/SearchInput';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
 import StatusTabs from '@/components/ui/StatusTabs';
-import { getBadgeColor } from '@/lib/status-tab-colors';
 import {
   FileText, Loader2, RefreshCw, CheckCircle2,
   AlertCircle, Clock, Package, Eye, Receipt,
@@ -42,14 +41,6 @@ interface Statement {
   printed_statement_at?: string | null;
   customer: { id: string; name: string; customer_code: string | null } | null;
 }
-
-const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
-  draft:          { label: 'แบบร่าง',      ...getBadgeColor('draft') },
-  sent:           { label: 'รอชำระ',       ...getBadgeColor('sent') },
-  partially_paid: { label: 'ชำระบางส่วน',  ...getBadgeColor('partially_paid') },
-  paid:           { label: 'ชำระแล้ว',     ...getBadgeColor('paid') },
-  overdue:        { label: 'เกินกำหนด',    ...getBadgeColor('overdue') },
-};
 
 const STATUS_TABS = [
   { key: 'all',            label: 'ทั้งหมด' },
@@ -356,13 +347,7 @@ function StatementsContent() {
       key: 'status',
       label: 'สถานะ',
       render: (st) => {
-        const cfg = STATUS_CONFIG[st.status] || STATUS_CONFIG.draft;
-        return (
-          <StatusBadge status={st.status} colors={cfg}>
-            {st.status === 'paid' && <CheckCircle2 className="w-3 h-3" />}
-            {cfg.label}
-          </StatusBadge>
-        );
+        return <StatusBadge domain="statement" status={st.status} />;
       },
     },
     {
@@ -483,7 +468,6 @@ function StatementsContent() {
           onPageChange={v => setParams({ page: String(v) })}
           onRecordsPerPageChange={v => setParams({ limit: String(v) })}
           mobileCardRender={(st) => {
-            const cfg = STATUS_CONFIG[st.status] || STATUS_CONFIG.draft;
             return (
               <>
                 <div className="flex items-start justify-between gap-2 mb-2">
@@ -491,7 +475,7 @@ function StatementsContent() {
                     <p className="id-text-clickable text-gray-900 dark:text-white">{st.statement_number}</p>
                     <p className="data-timestamp text-gray-400 dark:text-slate-500">{formatDate(st.statement_date)}</p>
                   </div>
-                  <StatusBadge status={st.status} colors={cfg}>{cfg.label}</StatusBadge>
+                  <StatusBadge domain="statement" status={st.status} />
                 </div>
                 <div className="flex items-center justify-between mb-1">
                   <span className="data-text text-gray-700 dark:text-slate-300 font-medium">{st.customer?.name || '-'}</span>

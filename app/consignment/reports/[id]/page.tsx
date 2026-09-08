@@ -102,15 +102,6 @@ interface ReportItem {
   gp_level: number;
 }
 
-const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
-  draft:     { label: 'ร่าง',          color: 'text-blue-700 dark:text-blue-300', bg: 'bg-blue-100 dark:bg-blue-900/40' },
-  received:  { label: 'รับแล้ว',     color: 'text-blue-700 dark:text-blue-300',     bg: 'bg-blue-100 dark:bg-blue-900/40' },
-  invoiced:  { label: 'ออก invoice', color: 'text-purple-700 dark:text-purple-300', bg: 'bg-purple-100 dark:bg-purple-900/40' },
-  billed:    { label: 'วางบิลแล้ว',  color: 'text-indigo-700 dark:text-indigo-300', bg: 'bg-indigo-100 dark:bg-indigo-900/40' },
-  paid:      { label: 'ชำระแล้ว',    color: 'text-green-700 dark:text-green-300',   bg: 'bg-green-100 dark:bg-green-900/40' },
-  overdue:   { label: 'เกินกำหนด',   color: 'text-red-700 dark:text-red-300',       bg: 'bg-red-100 dark:bg-red-900/40' },
-  cancelled: { label: 'ยกเลิก',      color: 'text-gray-500 dark:text-gray-400',     bg: 'bg-gray-100 dark:bg-gray-800' },
-};
 
 const THAI_MONTHS = ['', 'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
   'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
@@ -645,7 +636,6 @@ function EditReportContent() {
     );
   }
 
-  const cfg = STATUS_CONFIG[report.status] || STATUS_CONFIG.draft;
   const customer = report.customer;
 
   return (
@@ -664,7 +654,7 @@ function EditReportContent() {
               <div className="flex items-center gap-2">
                 <ClipboardList className="w-5 h-5 text-primary" />
                 <h1 className="text-xl font-bold text-gray-900 dark:text-white">{report.report_number}</h1>
-                <StatusBadge status={report.status} colors={cfg}>{cfg.label}</StatusBadge>
+                <StatusBadge domain="report" status={report.status} />
               </div>
               <p className="text-sm text-gray-500 dark:text-slate-400 mt-0.5">
                 งวด {formatPeriod(report.period_year, report.period_month)} · สร้างเมื่อ {formatDate(report.created_at)}

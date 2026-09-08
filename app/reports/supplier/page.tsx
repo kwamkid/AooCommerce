@@ -11,12 +11,12 @@ import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { apiFetch } from '@/lib/api-client';
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
 import {
-  Loader2, FileText, Factory, Calendar, CheckCircle2, Clock, Send,
-  Plus, Trash2, Filter,
+  Loader2, FileText, Factory, Calendar, Plus, Trash2, Filter
 } from 'lucide-react';
 import FormSelect from '@/components/ui/FormSelect';
 import Button from '@/components/ui/Button';
 import StatusBadge from '@/components/ui/StatusBadge';
+import { statusLabel } from '@/lib/status-labels';
 
 interface Supplier {
   id: string;
@@ -48,23 +48,7 @@ const MONTHS = [
   'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม',
 ];
 
-function statusBadge(status: string) {
-  switch (status) {
-    case 'draft': return { label: 'ร่าง', color: 'bg-gray-100 text-gray-700 dark:bg-slate-700 dark:text-slate-300', icon: <Clock className="w-3.5 h-3.5" /> };
-    case 'confirmed': return { label: 'ยืนยัน', color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300', icon: <CheckCircle2 className="w-3.5 h-3.5" /> };
-    case 'sent': return { label: 'ส่งแล้ว', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300', icon: <Send className="w-3.5 h-3.5" /> };
-    default: return { label: status, color: 'bg-gray-100 text-gray-600', icon: null };
-  }
-}
 
-function supplierTypeBadge(type: string) {
-  switch (type) {
-    case 'cash': return { label: 'เงินสด', color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' };
-    case 'credit': return { label: 'เครดิต', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' };
-    case 'consignment': return { label: 'ฝากขาย', color: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300' };
-    default: return { label: type, color: 'bg-gray-100 text-gray-600' };
-  }
-}
 
 export default function SupplierReportsPage() {
   const router = useRouter();
@@ -140,8 +124,8 @@ export default function SupplierReportsPage() {
         body: JSON.stringify({
           supplier_id: createSupplierId,
           year: createYear,
-          month: createMonth,
-        }),
+          month: createMonth
+        })
       });
 
       const result = await res.json();
@@ -254,7 +238,7 @@ export default function SupplierReportsPage() {
                 <FormSelect
                   value={createSupplierId}
                   onChange={value => setCreateSupplierId(value)}
-                  options={suppliers.map(s => ({ id: s.id, label: s.name, subtitle: supplierTypeBadge(s.supplier_type).label }))}
+                  options={suppliers.map(s => ({ id: s.id, label: s.name, subtitle: statusLabel('supplierType', s.supplier_type) }))}
                   placeholder="เลือก..."
                   icon={<Factory className="w-4 h-4" />}
                 />
@@ -307,17 +291,16 @@ export default function SupplierReportsPage() {
                   <Factory className="w-4 h-4 text-gray-400 flex-shrink-0" />
                   <span className="text-sm font-medium text-gray-900 dark:text-white">{s.supplier?.name || '-'}</span>
                 </div>
-              ),
+              )
             },
             {
               key: 'type',
               label: 'ประเภท',
               render: (s) => {
-                const typeBadge = supplierTypeBadge(s.supplier_type);
                 return (
-                  <StatusBadge status="type" colors={typeBadge.color}>{typeBadge.label}</StatusBadge>
+                  <StatusBadge domain="supplierType" status={s.supplier_type} />
                 );
-              },
+              }
             },
             {
               key: 'period',
@@ -329,7 +312,7 @@ export default function SupplierReportsPage() {
                     {MONTHS[s.period_month - 1]} {s.period_year + 543}
                   </span>
                 </div>
-              ),
+              )
             },
             {
               key: 'amount',
@@ -343,17 +326,16 @@ export default function SupplierReportsPage() {
                     ฿{formatCurrency(amount)}
                   </span>
                 );
-              },
+              }
             },
             {
               key: 'status',
               label: 'สถานะ',
               render: (s) => {
-                const badge = statusBadge(s.status);
                 return (
-                  <StatusBadge status="status" colors={badge.color} icon={badge.icon}>{badge.label}</StatusBadge>
+                  <StatusBadge domain="supplierReport" status={s.status} />
                 );
-              },
+              }
             },
             {
               key: 'actions',
@@ -368,7 +350,7 @@ export default function SupplierReportsPage() {
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
-                ) : null,
+                ) : null
             },
           ];
 
@@ -389,18 +371,16 @@ export default function SupplierReportsPage() {
               onPageChange={setPage}
               onRecordsPerPageChange={v => { setRecordsPerPage(v); setPage(1); }}
               mobileCardRender={(s) => {
-                const badge = statusBadge(s.status);
-                const typeBadge = supplierTypeBadge(s.supplier_type);
                 const amount = s.supplier_type === 'consignment' ? s.total_sold_amount : s.total_received_amount;
                 return (
                   <>
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-sm font-medium text-gray-900 dark:text-white">{s.supplier?.name || '-'}</span>
-                      <StatusBadge status="status" colors={badge.color} icon={badge.icon}>{badge.label}</StatusBadge>
+                      <StatusBadge domain="supplierReport" status={s.status} />
                     </div>
                     <div className="text-sm text-gray-600 dark:text-slate-400 space-y-1">
                       <div className="flex items-center justify-between">
-                        <StatusBadge status="type" colors={typeBadge.color}>{typeBadge.label}</StatusBadge>
+                        <StatusBadge domain="supplierType" status={s.supplier_type} />
                         <span className="font-medium text-gray-900 dark:text-white">฿{formatCurrency(amount)}</span>
                       </div>
                       <div className="text-xs">{MONTHS[s.period_month - 1]} {s.period_year + 543}</div>

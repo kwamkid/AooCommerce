@@ -9,7 +9,7 @@ import { formatPrice } from '@/lib/utils/format';
 import Layout from '@/components/layout/Layout';
 import PageHeader from '@/components/ui/PageHeader';
 import { LoadingCard } from '@/components/ui/StateCard';
-import StatusBadge from '@/components/ui/StatusBadge';
+import StatusBadge, { InfoChip } from '@/components/ui/StatusBadge';
 import Badge from '@/components/ui/Badge';
 import { getBadgeColor } from '@/lib/status-tab-colors';
 
@@ -150,17 +150,7 @@ export default function PendingReportPage() {
   };
 
   // Get order status badge
-  const getOrderStatusBadge = (status: string) => {
-    const labels: { [key: string]: string } = {
-      new: 'ใหม่',
-      shipping: 'กำลังส่ง',
-      completed: 'ส่งแล้ว',
-    };
-    const badge = getBadgeColor(status);
-    return (
-      <StatusBadge status={status} colors={badge}>{labels[status] || status}</StatusBadge>
-    );
-  };
+  const getOrderStatusBadge = (status: string) => <StatusBadge domain="order" status={status} />;
 
   // Get aging badge — สีตามความรุนแรง ใช้ status family กลาง (น้ำเงิน → เขียว → อำพัน → แดง)
   const getAgingBadge = (days: number | null) => {
@@ -168,7 +158,7 @@ export default function PendingReportPage() {
     const colorKey = days < 0 ? 'new' : days <= 7 ? 'paid' : days <= 30 ? 'partially_paid' : 'overdue';
     const badge = getBadgeColor(colorKey);
     return (
-      <StatusBadge status="days" colors={badge}>{days < 0 ? 'ยังไม่ถึงกำหนด' : `${days} วัน`}</StatusBadge>
+      <InfoChip colors={`${badge.bg} ${badge.color}`}>{days < 0 ? 'ยังไม่ถึงกำหนด' : `${days} วัน`}</InfoChip>
     );
   };
 

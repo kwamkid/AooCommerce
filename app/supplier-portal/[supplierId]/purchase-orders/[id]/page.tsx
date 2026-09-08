@@ -35,16 +35,6 @@ interface POData {
   receives: { id: string; receive_number: string; status: string; created_at: string }[];
 }
 
-function poStatusBadge(status: string) {
-  switch (status) {
-    case 'sent': return { label: 'แจ้ง Sup แล้ว', color: 'bg-blue-100 text-blue-700' };
-    case 'partial_received': return { label: 'รับบางส่วน', color: 'bg-amber-100 text-amber-700' };
-    case 'received': return { label: 'รับครบ', color: 'bg-green-100 text-green-700' };
-    case 'closed': return { label: 'ปิด', color: 'bg-slate-100 text-slate-600' };
-    case 'cancelled': return { label: 'ยกเลิก', color: 'bg-red-100 text-red-700' };
-    default: return { label: status, color: 'bg-gray-100 text-gray-600' };
-  }
-}
 
 function getDisplayName(v: POItem['variation']) {
   if (!v) return '-';
@@ -110,7 +100,6 @@ export default function PortalPODetailPage() {
     );
   }
 
-  const badge = poStatusBadge(data.status);
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-6 space-y-4">
@@ -120,7 +109,7 @@ export default function PortalPODetailPage() {
 
       <div className="flex items-center justify-between">
         <h1 className="text-lg font-bold text-gray-900 dark:text-white">{data.po_number}</h1>
-        <StatusBadge status="po" colors={badge.color}>{badge.label}</StatusBadge>
+        <StatusBadge domain="purchaseOrderSupplier" status={data.status} />
       </div>
 
       {/* Info */}
@@ -228,9 +217,7 @@ export default function PortalPODetailPage() {
                   <span className="text-sm text-gray-900 dark:text-white">{rec.receive_number}</span>
                   <span className="text-xs text-gray-500 ml-2">{formatDate(rec.created_at)}</span>
                 </div>
-                <StatusBadge status={rec.status} colors={rec.status === 'completed' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}>
-                  {rec.status === 'completed' ? 'สำเร็จ' : 'ยกเลิก'}
-                </StatusBadge>
+                <StatusBadge domain="stockDoc" status={rec.status} />
               </div>
             ))}
           </div>

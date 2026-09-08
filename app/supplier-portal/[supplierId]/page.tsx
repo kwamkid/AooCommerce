@@ -75,16 +75,6 @@ const SOURCE_LABELS: Record<string, string> = {
   pos: 'POS', line: 'Line', facebook: 'Facebook',
 };
 
-function poStatusBadge(status: string) {
-  switch (status) {
-    case 'sent': return { label: 'ส่งแล้ว', color: 'bg-blue-100 text-blue-700' };
-    case 'partial_received': return { label: 'รับบางส่วน', color: 'bg-amber-100 text-amber-700' };
-    case 'received': return { label: 'รับครบ', color: 'bg-green-100 text-green-700' };
-    case 'closed': return { label: 'ปิด', color: 'bg-slate-100 text-slate-600' };
-    case 'cancelled': return { label: 'ยกเลิก', color: 'bg-red-100 text-red-700' };
-    default: return { label: status, color: 'bg-gray-100 text-gray-600' };
-  }
-}
 
 function getDisplayName(v: VariationInfo | null) {
   if (!v) return '-';
@@ -594,7 +584,6 @@ export default function SupplierPortalPage() {
             </div>
           ) : (
             pos.map(po => {
-              const badge = poStatusBadge(po.status);
               const totalQty = po.items.reduce((s, i) => s + i.quantity, 0);
               const totalRec = po.items.reduce((s, i) => s + i.received_quantity, 0);
               return (
@@ -605,7 +594,7 @@ export default function SupplierPortalPage() {
                 >
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-sm font-medium text-gray-900 dark:text-white">{po.po_number}</span>
-                    <StatusBadge status="po" colors={badge.color}>{badge.label}</StatusBadge>
+                    <StatusBadge domain="purchaseOrderSupplier" status={po.status} />
                   </div>
                   <div className="flex items-center justify-between text-sm text-gray-600 dark:text-slate-400">
                     <span>{po.items.length} รายการ ({totalRec}/{totalQty})</span>
@@ -640,9 +629,7 @@ export default function SupplierPortalPage() {
                     <span className="text-sm font-medium text-gray-900 dark:text-white">
                       {MONTHS_FULL[snap.period_month - 1]} {snap.period_year + 543}
                     </span>
-                    <StatusBadge status={snap.status} colors={snap.status === 'sent' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}>
-                      {snap.status === 'sent' ? 'ส่งแล้ว' : 'ยืนยัน'}
-                    </StatusBadge>
+                    <StatusBadge domain="supplierReport" status={snap.status} />
                   </div>
                   <div className="text-sm text-gray-600 dark:text-slate-400">
                     ยอดรวม: <span className="font-medium text-gray-900 dark:text-white">฿{formatCurrency(amount)}</span>

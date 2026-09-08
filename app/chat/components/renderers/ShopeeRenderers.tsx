@@ -8,7 +8,7 @@ import Badge from '@/components/ui/Badge';
 import ProductImageThumb from '@/components/ui/ProductImageThumb';
 import StatusBadge from '@/components/ui/StatusBadge';
 import { formatPrice } from '@/lib/utils/format';
-import { orderStatusLabel, paymentStatusLabel } from '@/lib/order-status';
+import { } from '@/lib/status-labels';
 
 // การ์ดของ marketplace ทุกเจ้าในหน้าแชท (Shopee · Lazada · TikTok)
 //
@@ -30,7 +30,7 @@ const PLATFORM_META: Record<CardPlatform, { label: string; color: string }> = {
   tiktok: { label: 'TikTok', color: '#161823' },
   facebook: { label: 'Facebook', color: '#1877F2' },
   instagram: { label: 'Instagram', color: '#E4405F' },
-  line: { label: 'LINE', color: '#06C755' },
+  line: { label: 'LINE', color: '#06C755' }
 };
 
 interface RendererProps {
@@ -48,7 +48,7 @@ const CARD_CLASS =
   'bg-white dark:bg-slate-800 shadow-sm overflow-hidden';
 
 function CardLink({
-  href, external, color, children,
+  href, external, color, children
 }: { href: string; external?: boolean; color: string; children: React.ReactNode }) {
   const cls = 'inline-flex items-center gap-1 text-xs font-medium hover:underline';
   if (external) {
@@ -165,10 +165,10 @@ export function OrderCardBubble({ msg, platform }: RendererProps) {
         <div className="flex flex-wrap items-center gap-1.5 mt-2">
           {order?.order_type === 'ReturnOrder' && <Badge tone="amber" size="sm">คำขอคืนสินค้า</Badge>}
           {order?.order_status && (
-            <StatusBadge status={order.order_status}>{orderStatusLabel(order.order_status)}</StatusBadge>
+            <StatusBadge domain="order" status={order.order_status} />
           )}
           {order?.payment_status && (
-            <StatusBadge status={order.payment_status} payment>{paymentStatusLabel(order.payment_status)}</StatusBadge>
+            <StatusBadge domain="payment" status={order.payment_status} />
           )}
         </div>
       )}
@@ -259,7 +259,7 @@ const CHIP_MAX_CHARS = 60;
 const SYSTEM_EVENT_ICONS: Record<string, typeof Info> = {
   faq_liveagent: Headset,
   member_joined: UserPlus,
-  member_left: UserMinus,
+  member_left: UserMinus
 };
 
 export function SystemEventChip({ msg }: RendererProps) {

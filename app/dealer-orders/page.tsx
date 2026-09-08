@@ -24,7 +24,7 @@ import PaymentModal from '@/app/orders/components/PaymentModal';
 import ShipModal, { type ShipResult } from '@/components/ui/ShipModal';
 import { printOrder, type PrintType } from '@/components/ui/OrderPrintButtons';
 import { OrderStatusBadge, PaymentStatusBadge } from '@/components/ui/OrderStatusBadge';
-import { DEALER_ORDER_STATUS_LABEL } from '@/lib/order-status';
+import { orderStatusLabel } from '@/lib/status-labels';
 import { preOpenPrintWindow } from '@/lib/print-pdf';
 
 interface WholesaleOrder {
@@ -52,7 +52,7 @@ function formatMoney(n: number) {
 const STATUS_TABS = [
   { key: 'all', label: 'ทั้งหมด' },
   ...(['new', 'ready_to_ship', 'processing', 'completed', 'cancelled'] as const)
-    .map(k => ({ key: k, label: DEALER_ORDER_STATUS_LABEL[k] })),
+    .map(k => ({ key: k, label: orderStatusLabel(k, { dealer: true }) })),
 ];
 
 

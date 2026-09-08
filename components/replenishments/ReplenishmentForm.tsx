@@ -23,7 +23,7 @@ import { generateReplenishmentPdf, type ReplenishmentPdfData } from '@/lib/reple
 import { showPdfPreview } from '@/lib/print-pdf';
 import StickyActionBar from '@/components/ui/StickyActionBar';
 import { LoadingCard } from '@/components/ui/StateCard';
-import UiStatusBadge from '@/components/ui/StatusBadge';
+import UiStatusBadge, { InfoChip } from '@/components/ui/StatusBadge';
 import { splitVatInclusive } from '@/lib/order-totals';
 
 interface Customer {
@@ -1082,13 +1082,13 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
                 {/* Difference badge */}
                 <div className={`mt-2 flex items-center justify-end gap-1.5 text-sm font-medium ${confirmedTotalWithVAT < totalWithVAT ? 'text-red-500' : 'text-blue-500'}`}>
                   <span>{confirmedTotalWithVAT < totalWithVAT ? 'ลดลง' : 'เพิ่มขึ้น'}</span>
-                  <UiStatusBadge status="diff" className="font-bold" colors={
+                  <InfoChip className="font-bold" colors={
                     confirmedTotalWithVAT < totalWithVAT
                       ? 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400'
                       : 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
                   }>
                     {confirmedTotalWithVAT < totalWithVAT ? '-' : '+'}฿{formatNumber(Math.abs(totalWithVAT - confirmedTotalWithVAT))}
-                  </UiStatusBadge>
+                  </InfoChip>
                 </div>
               </div>
             ) : (
@@ -1134,18 +1134,8 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
   );
 }
 
-// Status badge component
 function StatusBadge({ status }: { status: string }) {
-  const config: Record<string, { label: string; color: string; bg: string }> = {
-    pending: { label: 'ที่ต้องจัดส่ง', color: 'text-orange-700 dark:text-orange-300', bg: 'bg-orange-100 dark:bg-orange-900/40' },
-    shipped: { label: 'กำลังส่ง', color: 'text-amber-700 dark:text-amber-300', bg: 'bg-amber-100 dark:bg-amber-900/40' },
-    pending_confirm: { label: 'รอยืนยัน', color: 'text-blue-700 dark:text-blue-300', bg: 'bg-blue-100 dark:bg-blue-900/40' },
-    received: { label: 'รับครบแล้ว', color: 'text-green-700 dark:text-green-300', bg: 'bg-green-100 dark:bg-green-900/40' },
-    partial_received: { label: 'รับไม่ครบ', color: 'text-green-700 dark:text-green-300', bg: 'bg-green-100 dark:bg-green-900/40' },
-    cancelled: { label: 'ยกเลิก', color: 'text-gray-500 dark:text-gray-400', bg: 'bg-gray-100 dark:bg-gray-700/40' },
-  };
-  const c = config[status] || config.pending;
-  return <UiStatusBadge status={status} colors={c}>{c.label}</UiStatusBadge>;
+  return <UiStatusBadge domain="replenishment" status={status} />;
 }
 
 // QR Code component (lazy-loaded to avoid SSR issues)

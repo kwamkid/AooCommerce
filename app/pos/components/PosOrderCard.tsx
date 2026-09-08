@@ -4,15 +4,16 @@
 import { formatPrice } from '@/lib/utils/format';
 import { useCopy } from '@/lib/useCopy';
 import { useToast } from '@/lib/toast-context';
-import { getBadgeColor, getStatusHeaderTint } from '@/lib/status-tab-colors';
+import { getStatusHeaderTint } from '@/lib/status-tab-colors';
 import { Eye, Printer, Ban, Loader2, Package, Store, Tag } from 'lucide-react';
 import StatusBadge from '@/components/ui/StatusBadge';
 import Badge from '@/components/ui/Badge';
 import { thumbUrl } from '@/lib/image-thumb';
 
-const ORDER_STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; headerBg: string; headerText: string }> = {
-  completed: { label: 'สำเร็จ', ...getBadgeColor('completed'), headerBg: getStatusHeaderTint('completed').bg, headerText: getStatusHeaderTint('completed').text },
-  cancelled: { label: 'Void', ...getBadgeColor('cancelled'), headerBg: getStatusHeaderTint('cancelled').bg, headerText: getStatusHeaderTint('cancelled').text },
+// สีแถบหัวการ์ดใบเสร็จ — คำเรียก/สี badge อยู่ที่ทะเบียนกลาง (domain 'posOrder')
+const ORDER_STATUS_CONFIG: Record<string, { headerBg: string; headerText: string }> = {
+  completed: { headerBg: getStatusHeaderTint('completed').bg, headerText: getStatusHeaderTint('completed').text },
+  cancelled: { headerBg: getStatusHeaderTint('cancelled').bg, headerText: getStatusHeaderTint('cancelled').text },
 };
 
 export const PAYMENT_LABELS: Record<string, string> = {
@@ -102,7 +103,7 @@ export default function PosOrderCard({ order, onViewReceipt, onVoid, voidingId, 
           >
             {order.receipt_number}
           </span>
-          <StatusBadge status={order.order_status} colors={statusCfg}>{statusCfg.label}</StatusBadge>
+          <StatusBadge domain="posOrder" status={order.order_status} />
           <Badge tone="blue" size="sm">{PAYMENT_LABELS[order.payment_method] || order.payment_method || 'เงินสด'}</Badge>
           {hasDiscount && (
             <Badge tone="red" size="sm" icon={<Tag className="w-3 h-3" />}>-฿{formatPrice(order.discount_amount!)}</Badge>

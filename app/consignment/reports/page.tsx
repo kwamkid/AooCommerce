@@ -20,7 +20,6 @@ import Pagination from '@/app/components/Pagination';
 import Tooltip from '@/components/ui/Tooltip';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import ActionMenu, { type ActionItem } from '@/components/ui/ActionMenu';
-import { getBadgeColor } from '@/lib/status-tab-colors';
 import StatusTabs from '@/components/ui/StatusTabs';
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
 import Container from '@/components/ui/Container';
@@ -50,16 +49,6 @@ interface ConsignmentReport {
   statement_number?: string | null;
 }
 
-
-const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
-  draft:    { label: 'ร่าง',       color: 'text-blue-700 dark:text-blue-300',     bg: 'bg-blue-100 dark:bg-blue-900/40' },
-  received: { label: 'รับแล้ว',    color: 'text-blue-700 dark:text-blue-300',     bg: 'bg-blue-100 dark:bg-blue-900/40' },
-  invoiced: { label: 'ออก invoice', color: 'text-purple-700 dark:text-purple-300', bg: 'bg-purple-100 dark:bg-purple-900/40' },
-  billed:   { label: 'วางบิลแล้ว', color: 'text-indigo-700 dark:text-indigo-300', bg: 'bg-indigo-100 dark:bg-indigo-900/40' },
-  paid:      { label: 'ชำระแล้ว',   color: 'text-green-700 dark:text-green-300',   bg: 'bg-green-100 dark:bg-green-900/40' },
-  overdue:   { label: 'เกินกำหนด',  color: 'text-red-700 dark:text-red-300',       bg: 'bg-red-100 dark:bg-red-900/40' },
-  cancelled: { label: 'ยกเลิก',     color: 'text-red-700 dark:text-red-300',       bg: 'bg-red-100/50 dark:bg-red-900/20' },
-};
 
 const STATUS_TABS: { key: string; label: string; colorKey?: string; hideIfZero?: boolean; tooltip?: string }[] = [
   { key: 'all',      label: 'ทั้งหมด' },
@@ -722,13 +711,7 @@ function ConsignmentReportsContent() {
             {
               key: 'status', label: 'สถานะ',
               render: (r) => {
-                const c = STATUS_CONFIG[r.status] || STATUS_CONFIG.draft;
-                return (
-                  <StatusBadge status={r.status} colors={c}>
-                    {r.status === 'paid' && <CheckCircle2 className="w-3 h-3" />}
-                    {c.label}
-                  </StatusBadge>
-                );
+                return <StatusBadge domain="report" status={r.status} />;
               },
             },
             {
@@ -802,7 +785,6 @@ function ConsignmentReportsContent() {
           onPageChange={(v) => setParams({ page: String(v) })}
           onRecordsPerPageChange={(v) => setParams({ limit: String(v) })}
           mobileCardRender={(report) => {
-            const cfg = STATUS_CONFIG[report.status] || STATUS_CONFIG.draft;
             return (
               <>
                 <div className="flex items-start justify-between gap-2 mb-2">
@@ -810,7 +792,7 @@ function ConsignmentReportsContent() {
                     <p className="id-text-clickable text-gray-900 dark:text-white">{report.report_number}</p>
                     <p className="data-timestamp text-gray-400 dark:text-slate-500">{formatDate(report.created_at)}</p>
                   </div>
-                  <StatusBadge status={report.status} colors={cfg}>{cfg.label}</StatusBadge>
+                  <StatusBadge domain="report" status={report.status} />
                 </div>
                 <div className="flex items-center justify-between mb-1">
                   <span className="data-text text-gray-700 dark:text-slate-300 font-medium">{report.customer?.name || '-'}</span>

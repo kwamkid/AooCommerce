@@ -74,7 +74,7 @@ import LoadingOverlay from '@/components/ui/LoadingOverlay';
 import FormSelect from '@/components/ui/FormSelect';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { OrderStatusBadge } from '@/components/ui/OrderStatusBadge';
-import { ORDER_STATUS_FLOW, ORDER_STATUS_LABEL } from '@/lib/order-status';
+import { ORDER_STATUS_FLOW, orderStatusLabel } from '@/lib/status-labels';
 import { isMarketplacePlatform } from '@/lib/marketplace-platforms';
 import PageHeader from '@/components/ui/PageHeader';
 
@@ -771,7 +771,7 @@ function OrdersPageContent() {
           tabs={[
             { key: 'all', label: 'ทั้งหมด', count: statusCounts.all || 0 },
             ...(['new', 'ready_to_ship', 'processing', 'shipping', 'completed', 'cancelled'] as const)
-              .map(k => ({ key: k, label: ORDER_STATUS_LABEL[k], count: statusCounts[k] || 0 })),
+              .map(k => ({ key: k, label: orderStatusLabel(k), count: statusCounts[k] || 0 })),
           ]}
         />
 

@@ -14,7 +14,6 @@ import { showPdfPreview } from '@/lib/print-pdf';
 import { generateStatementPdf } from '@/lib/statement-pdf';
 import { LoadingCard } from '@/components/ui/StateCard';
 import StatusBadge from '@/components/ui/StatusBadge';
-import { getBadgeColor } from '@/lib/status-tab-colors';
 import { NUMERIC_TEXT_INPUT_PROPS, onNumericChange } from '@/lib/numeric-input';
 
 interface StatementDetail {
@@ -71,14 +70,6 @@ interface Payment {
   reference: string | null;
   notes: string | null;
 }
-
-const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
-  draft:          { label: 'แบบร่าง',     ...getBadgeColor('draft') },
-  sent:           { label: 'รอชำระ',      ...getBadgeColor('sent') },
-  partially_paid: { label: 'ชำระบางส่วน', ...getBadgeColor('partially_paid') },
-  paid:           { label: 'ชำระแล้ว',    ...getBadgeColor('paid') },
-  overdue:        { label: 'เกินกำหนด',   ...getBadgeColor('overdue') },
-};
 
 const THAI_MONTHS = ['', 'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
   'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
@@ -256,7 +247,6 @@ export default function StatementDetailPage() {
     );
   }
 
-  const cfg = STATUS_CONFIG[statement.status] || STATUS_CONFIG.draft;
   const canRecordPayment = ['sent', 'partially_paid', 'overdue'].includes(statement.status);
   const canIssueInvoices = statement.status === 'paid' && !statement.tax_invoice_number && !statement.receipt_number;
 
@@ -276,7 +266,7 @@ export default function StatementDetailPage() {
               <div className="flex items-center gap-2">
                 <FileText className="w-5 h-5 text-indigo-500" />
                 <h1 className="text-xl font-bold text-gray-900 dark:text-white">{statement.statement_number}</h1>
-                <StatusBadge status={statement.status} colors={cfg}>{cfg.label}</StatusBadge>
+                <StatusBadge domain="statement" status={statement.status} />
               </div>
               <p className="text-sm text-gray-500 dark:text-slate-400 mt-0.5">
                 งวด {formatPeriod(statement.period_year, statement.period_month)} · ออกเมื่อ {formatDate(statement.statement_date)}

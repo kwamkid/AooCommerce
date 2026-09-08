@@ -21,22 +21,12 @@ import StatusBadge from '@/components/ui/StatusBadge';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
 import { showPdfPreview } from '@/lib/print-pdf';
-import { getBadgeColor } from '@/lib/status-tab-colors';
 
 interface WarehouseItem {
   id: string;
   name: string;
   is_default: boolean;
 }
-
-const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
-  pending: { label: 'ที่ต้องจัดส่ง', ...getBadgeColor('pending') },
-  shipped: { label: 'กำลังส่ง', ...getBadgeColor('shipped') },
-  pending_confirm: { label: 'รอยืนยัน', ...getBadgeColor('pending_confirm') },
-  received: { label: 'รับครบแล้ว', ...getBadgeColor('completed') },
-  partial_received: { label: 'รับไม่ครบ', ...getBadgeColor('partial_received') },
-  cancelled: { label: 'ยกเลิก', ...getBadgeColor('cancelled') },
-};
 
 const SHIPPING_METHODS = [
   { id: 'own_vehicle', label: 'รถเราเอง' },
@@ -237,7 +227,6 @@ function NewReplenishmentPageContent() {
     }
   }, [isEdit, formState?.warehouseId, selectedWarehouseId]);
 
-  const statusCfg = STATUS_CONFIG[status];
 
   return (
     <Layout>
@@ -254,8 +243,8 @@ function NewReplenishmentPageContent() {
                   {formState.replenishmentNumber}
                 </span>
               )}
-              {isEdit && statusCfg && (
-                <StatusBadge status={status} colors={statusCfg}>{statusCfg.label}</StatusBadge>
+              {isEdit && status && (
+                <StatusBadge domain="replenishment" status={status} />
               )}
             </span>
           }

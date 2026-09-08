@@ -27,7 +27,7 @@ import {
 import FormSelect from '@/components/ui/FormSelect';
 import { useMarketplaceGuard } from '@/lib/useMarketplaceGuard';
 import { LoadingCard } from '@/components/ui/StateCard';
-import StatusBadge from '@/components/ui/StatusBadge';
+import { InfoChip } from '@/components/ui/StatusBadge';
 import Badge from '@/components/ui/Badge';
 import { getBadgeColor } from '@/lib/status-tab-colors';
 
@@ -544,7 +544,7 @@ function LogRow({
         </td>
         <td className="px-6 py-4">
           {statusInfo ? (
-            <StatusBadge status="log" colors={statusInfo.color}>{statusInfo.label}</StatusBadge>
+            <InfoChip colors={statusInfo.color}>{statusInfo.label}</InfoChip>
           ) : (
             <span className="text-gray-400">-</span>
           )}
@@ -628,7 +628,7 @@ function MobileLogCard({
               <span className="text-xs text-gray-500 dark:text-slate-400">{log.reference_label}</span>
             ) : null}
             {statusInfo && (
-              <StatusBadge status="log" colors={statusInfo.color}>{statusInfo.label}</StatusBadge>
+              <InfoChip colors={statusInfo.color}>{statusInfo.label}</InfoChip>
             )}
           </div>
           {log.error_message && (

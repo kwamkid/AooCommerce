@@ -10,7 +10,6 @@ import Button from '@/components/ui/Button';
 import SearchInput from '@/components/ui/SearchInput';
 import FormSelect from '@/components/ui/FormSelect';
 import ActionMenu, { ActionItem } from '@/components/ui/ActionMenu';
-import { getBadgeColor } from '@/lib/status-tab-colors';
 import StatusTabs from '@/components/ui/StatusTabs';
 import ShipModal, { type ShipResult } from '@/components/ui/ShipModal';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
@@ -56,15 +55,6 @@ interface DeptOrder {
   created_by_profile?: { id: string; name: string } | null;
   items?: { id: string }[];
 }
-
-const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
-  draft: { label: 'ที่ต้องจัดส่ง', ...getBadgeColor('draft') },
-  shipped: { label: 'กำลังส่ง', ...getBadgeColor('shipped') },
-  pending_confirm: { label: 'รอยืนยัน', ...getBadgeColor('pending_confirm') },
-  received: { label: 'รับครบแล้ว', ...getBadgeColor('completed') },
-  partial_received: { label: 'รับไม่ครบ', ...getBadgeColor('partial_received') },
-  cancelled: { label: 'ยกเลิก', ...getBadgeColor('cancelled') },
-};
 
 const STATUS_TABS = [
   { key: 'all',             label: 'ทั้งหมด' },
@@ -1032,10 +1022,9 @@ function DepartmentOrdersContent() {
             {
               key: 'status', label: 'สถานะ / วิธีส่ง',
               render: (r) => {
-                const statusCfg = STATUS_CONFIG[r.status] || STATUS_CONFIG.draft;
                 return (
                   <>
-                    <StatusBadge status={r.status} colors={statusCfg}>{statusCfg.label}</StatusBadge>
+                    <StatusBadge domain="deptOrder" status={r.status} />
                     {r.shipping_carrier && (
                       <div className="flex items-center gap-1 mt-1">
                         <Truck className="w-3 h-3 text-gray-400 flex-shrink-0" />
@@ -1131,7 +1120,6 @@ function DepartmentOrdersContent() {
           onPageChange={(v) => setParams({ page: String(v) })}
           onRecordsPerPageChange={(v) => setParams({ limit: String(v) })}
           mobileCardRender={(r) => {
-            const statusCfg = STATUS_CONFIG[r.status] || STATUS_CONFIG.draft;
             const isPrinting = printingId === r.id;
             return (
               <>
@@ -1143,7 +1131,7 @@ function DepartmentOrdersContent() {
                     <p className="data-timestamp text-gray-400 dark:text-slate-500">{formatDate(r.created_at)}</p>
                   </div>
                   <div className="flex items-center gap-1 flex-shrink-0">
-                    <StatusBadge status={r.status} colors={statusCfg}>{statusCfg.label}</StatusBadge>
+                    <StatusBadge domain="deptOrder" status={r.status} />
                     <ActionMenu items={getMenuItems(r)} />
                   </div>
                 </div>

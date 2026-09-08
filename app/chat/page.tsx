@@ -75,7 +75,7 @@ import { FullPageLoading } from '@/components/ui/Loading';
 import { LoadingCard } from '@/components/ui/StateCard';
 import { SkeletonChat } from '@/components/ui/Skeleton';
 import LoadingOverlay from '@/components/ui/LoadingOverlay';
-import StatusBadge from '@/components/ui/StatusBadge';
+import { InfoChip } from '@/components/ui/StatusBadge';
 import AccountPicker from '@/components/ui/AccountPicker';
 import ChannelBadge from '@/components/ui/ChannelBadge';
 import { can } from '@/lib/permissions';
@@ -1999,9 +1999,9 @@ function UnifiedChatPageContent() {
         <div className="pb-3 border-b border-gray-100 dark:border-slate-700">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{displayName}</h3>
           {customerType && (
-            <StatusBadge status={customerType} className="mt-1.5" colors={customerType === 'retail' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-400' : customerType === 'wholesale' ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-400' : 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400'}>
+            <InfoChip className="mt-1.5" colors={customerType === 'retail' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-400' : customerType === 'wholesale' ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-400' : 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400'}>
               {customerType === 'retail' ? 'ลูกค้าปลีก' : customerType === 'wholesale' ? 'ลูกค้าส่ง' : 'ตัวแทนจำหน่าย'}
-            </StatusBadge>
+            </InfoChip>
           )}
           {!c && <p className="text-sm text-gray-400 mt-1">ยังไม่ได้เชื่อมกับลูกค้า</p>}
         </div>

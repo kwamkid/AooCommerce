@@ -15,7 +15,7 @@ import PageHeader from '@/components/ui/PageHeader';
 import Button from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
 import { LoadingCard, EmptyCard } from '@/components/ui/StateCard';
-import UiStatusBadge from '@/components/ui/StatusBadge';
+import UiStatusBadge, { InfoChip } from '@/components/ui/StatusBadge';
 import Badge from '@/components/ui/Badge';
 import {
   Plus,
@@ -35,7 +35,7 @@ import {
 import PushDealModal from './components/PushDealModal';
 import { useFeatures } from '@/lib/features-context';
 import { useToast } from '@/lib/toast-context';
-import { getBadgeColor, getStatusHeaderTint } from '@/lib/status-tab-colors';
+import { getStatusHeaderTint } from '@/lib/status-tab-colors';
 import { thumbUrl } from '@/lib/image-thumb';
 
 // ─── Types ──────────────────────────────────────────────
@@ -112,15 +112,9 @@ const TYPE_COLORS: Record<string, { bg: string; text: string; icon: string }> = 
   qty_discount: { bg: 'bg-purple-100 dark:bg-purple-900/30', text: 'text-purple-700 dark:text-purple-400', icon: 'text-purple-500' },
 };
 
-// สีสถานะ (active/inactive/scheduled/expired) มาจาก getBadgeColor/getStatusHeaderTint
-// ผ่าน STATUS_KEY_ALIASES ใน lib/status-tab-colors.ts — ห้ามเขียนสีเองที่นี่
+// คำเรียก+สีสถานะโปรโมชั่นอยู่ที่ทะเบียนกลาง (domain 'promotion' ใน lib/status-labels.ts)
+// ส่วนสีแถบหัวการ์ดยังมาจาก getStatusHeaderTint — ห้ามเขียนสีเองที่นี่
 
-const STATUS_LABELS: Record<string, string> = {
-  active: 'ใช้งาน',
-  inactive: 'ปิดใช้งาน',
-  scheduled: 'รอเริ่ม',
-  expired: 'หมดอายุ',
-};
 
 // ─── Helper Components ──────────────────────────────────
 
@@ -131,9 +125,8 @@ function TypeBadge({ type }: { type: string }) {
 }
 
 function StatusBadge({ status }: { status: string }) {
-  const cfg = getBadgeColor(status);
   return (
-    <UiStatusBadge status={status} colors={cfg}>{STATUS_LABELS[status] || status}</UiStatusBadge>
+    <UiStatusBadge domain="promotion" status={status} />
   );
 }
 
@@ -233,7 +226,7 @@ function PromotionCard({
           {(() => {
             const tc = TYPE_COLORS[promo.promotion_type] || TYPE_COLORS.bundle_set;
             return (
-              <UiStatusBadge status={promo.promotion_type} colors={`${tc.bg} ${tc.text}`} className="flex-shrink-0" icon={TYPE_ICONS[promo.promotion_type]}>{TYPE_LABELS[promo.promotion_type] || promo.promotion_type}</UiStatusBadge>
+              <InfoChip colors={`${tc.bg} ${tc.text}`} className="flex-shrink-0" icon={TYPE_ICONS[promo.promotion_type]}>{TYPE_LABELS[promo.promotion_type] || promo.promotion_type}</InfoChip>
             );
           })()}
           <span className={`font-semibold text-base truncate ${headerTint.text}`}>

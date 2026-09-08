@@ -22,10 +22,8 @@ import { saveQrImage } from '@/lib/utils/save-qr-image';
 import generatePayload from 'promptpay-qr';
 import { QRCodeSVG } from 'qrcode.react';
 import OrderProgress from '@/components/ui/OrderProgress';
-import { ORDER_STATUS_LABEL, PAYMENT_STATUS_LABEL } from '@/lib/order-status';
-import { getBadgeColorPair, getPaymentBadgeColorPair } from '@/lib/status-tab-colors';
+import { OrderStatusBadge, PaymentStatusBadge } from '@/components/ui/OrderStatusBadge';
 import { FullPageLoading } from '@/components/ui/Loading';
-import StatusBadge from '@/components/ui/StatusBadge';
 import { thumbUrl } from '@/lib/image-thumb';
 
 interface PromotionComponent {
@@ -145,13 +143,6 @@ export interface BillData {
   is_cancelled?: boolean;
   items: BillItem[];
   branches: BillBranch[];
-}
-
-// Status pill component
-function StatusPill({ label, color }: { label: string; color: string }) {
-  return (
-    <StatusBadge status="bill" colors={color} className="print:border print:border-gray-400 print:bg-transparent print:text-black">{label}</StatusBadge>
-  );
 }
 
 export default function BillClient({ orderId, initialBill }: { orderId: string; initialBill: BillData | null }) {
@@ -448,19 +439,6 @@ export default function BillClient({ orderId, initialBill }: { orderId: string; 
   const isExpired = bill.is_expired === true;
   const isCancelled = bill.is_cancelled === true;
 
-  const orderStatusConfig: Record<string, { label: string; color: string; darkColor: string }> = {
-    new: { label: ORDER_STATUS_LABEL.new, color: getBadgeColorPair('new').light, darkColor: getBadgeColorPair('new').dark },
-    shipping: { label: ORDER_STATUS_LABEL.shipping, color: getBadgeColorPair('shipping').light, darkColor: getBadgeColorPair('shipping').dark },
-    completed: { label: ORDER_STATUS_LABEL.completed, color: getBadgeColorPair('completed').light, darkColor: getBadgeColorPair('completed').dark },
-    cancelled: { label: ORDER_STATUS_LABEL.cancelled, color: getBadgeColorPair('cancelled').light, darkColor: getBadgeColorPair('cancelled').dark },
-  };
-
-  const paymentStatusConfig: Record<string, { label: string; color: string; darkColor: string }> = {
-    pending: { label: PAYMENT_STATUS_LABEL.pending, color: getPaymentBadgeColorPair('pending').light, darkColor: getPaymentBadgeColorPair('pending').dark },
-    verifying: { label: PAYMENT_STATUS_LABEL.verifying, color: getPaymentBadgeColorPair('verifying').light, darkColor: getPaymentBadgeColorPair('verifying').dark },
-    paid: { label: PAYMENT_STATUS_LABEL.paid, color: getPaymentBadgeColorPair('paid').light, darkColor: getPaymentBadgeColorPair('paid').dark },
-  };
-
   const formatDate = (dateStr: string) => {
     return new Date(dateStr + (dateStr.includes('T') ? '' : 'T00:00:00')).toLocaleDateString('th-TH', {
       year: 'numeric',
@@ -472,8 +450,6 @@ export default function BillClient({ orderId, initialBill }: { orderId: string; 
 
   const hasMultipleBranches = bill.branches && bill.branches.length > 1;
 
-  const orderStatusInfo = orderStatusConfig[bill.order_status];
-  const paymentStatusInfo = paymentStatusConfig[bill.payment_status];
 
   // Render items — mobile card layout + desktop table (screen only)
   const renderItems = (items: BillItem[], startIndex: number = 0) => (
@@ -715,19 +691,15 @@ export default function BillClient({ orderId, initialBill }: { orderId: string; 
             <div className="text-right space-y-0.5">
               <div className={`font-bold font-mono text-base ${dark ? 'text-white' : 'text-gray-900'} cursor-pointer hover:text-primary transition-colors print:cursor-default print:hover:text-inherit`} onClick={() => copy(bill.order_number, 'เลขคำสั่งซื้อ')} title="คัดลอก">{bill.order_number}</div>
               <div className={`text-sm ${dark ? 'text-slate-400' : 'text-gray-600'}`} suppressHydrationWarning>{formatDate(bill.order_date)}</div>
-              <div className="flex items-center justify-end gap-1.5 mt-1 print:hidden">
-                {isExpired ? (
-                  <StatusPill label="หมดอายุ" color={dark ? 'bg-red-900/40 text-red-400' : 'bg-red-100 text-red-700'} />
-                ) : isCancelled ? (
-                  <StatusPill label="ยกเลิกแล้ว" color={dark ? 'bg-gray-700/60 text-gray-400' : 'bg-gray-200 text-gray-600'} />
+              {/* หน้านี้มีสวิตช์ธีมของตัวเอง ไม่ได้ใช้คลาส .dark ของ Tailwind — `st-dark`
+                  สลับชุดสีของ badge ให้ (ดูตัวแปร --st-* ใน globals.css) */}
+              <div className={`flex items-center justify-end gap-1.5 mt-1 print:hidden ${dark ? 'st-dark' : ''}`}>
+                {isExpired || isCancelled ? (
+                  <OrderStatusBadge audience="customer" status="cancelled" expired={isExpired} />
                 ) : (
                   <>
-                    {orderStatusInfo && (
-                      <StatusPill label={orderStatusInfo.label} color={dark ? orderStatusInfo.darkColor : orderStatusInfo.color} />
-                    )}
-                    {paymentStatusInfo && (
-                      <StatusPill label={paymentStatusInfo.label} color={dark ? paymentStatusInfo.darkColor : paymentStatusInfo.color} />
-                    )}
+                    <OrderStatusBadge audience="customer" status={bill.order_status} />
+                    <PaymentStatusBadge audience="customer" status={bill.payment_status} />
                   </>
                 )}
               </div>

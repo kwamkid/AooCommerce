@@ -37,7 +37,7 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { orderStatusLabel, paymentStatusLabel, getNextOrderStatus } from '@/lib/order-status';
+import { orderStatusLabel, paymentStatusLabel, getNextOrderStatus } from '@/lib/status-labels';
 import { LoadingCard, EmptyCard } from '@/components/ui/StateCard';
 import ProductImageThumb from '@/components/ui/ProductImageThumb';
 import { OrderStatusBadge as BaseOrderStatusBadge, PaymentStatusBadge as BasePaymentStatusBadge } from '@/components/ui/OrderStatusBadge';

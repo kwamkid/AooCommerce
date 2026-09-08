@@ -8,7 +8,6 @@ import { useAuthGuard } from '@/lib/useAuthGuard';
 import SearchInput from '@/components/ui/SearchInput';
 import FormSelect from '@/components/ui/FormSelect';
 import ActionMenu, { ActionItem } from '@/components/ui/ActionMenu';
-import { getBadgeColor } from '@/lib/status-tab-colors';
 import ShipModal, { type ShipResult } from '@/components/ui/ShipModal';
 import ProductImageThumb from '@/components/ui/ProductImageThumb';
 import { apiFetch } from '@/lib/api-client';
@@ -58,15 +57,6 @@ interface Replenishment {
   created_by_profile?: { id: string; name: string } | null;
   replenishment_items?: { id: string }[];
 }
-
-const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
-  pending: { label: 'ที่ต้องจัดส่ง', ...getBadgeColor('pending') },
-  shipped: { label: 'กำลังส่ง', ...getBadgeColor('shipped') },
-  pending_confirm: { label: 'รอยืนยัน', ...getBadgeColor('pending_confirm') },
-  received: { label: 'รับครบแล้ว', ...getBadgeColor('completed') },
-  partial_received: { label: 'รับไม่ครบ', ...getBadgeColor('partial_received') },
-  cancelled: { label: 'ยกเลิก', ...getBadgeColor('cancelled') },
-};
 
 const STATUS_TABS = [
   { key: 'all',             label: 'ทั้งหมด' },
@@ -785,10 +775,9 @@ function ReplenishmentsPageContent() {
             {
               key: 'status', label: 'สถานะ / วิธีส่ง',
               render: (r) => {
-                const statusCfg = STATUS_CONFIG[r.status] || STATUS_CONFIG.pending;
                 return (
                   <>
-                    <StatusBadge status={r.status} colors={statusCfg}>{statusCfg.label}</StatusBadge>
+                    <StatusBadge domain="replenishment" status={r.status} />
                     {r.shipping_carrier && (
                       <div className="flex items-center gap-1 mt-1">
                         <Truck className="w-3 h-3 text-gray-400 flex-shrink-0" />
@@ -877,7 +866,6 @@ function ReplenishmentsPageContent() {
           onPageChange={(v) => setParams({ page: String(v) })}
           onRecordsPerPageChange={(v) => setParams({ limit: String(v) })}
           mobileCardRender={(r) => {
-            const statusCfg = STATUS_CONFIG[r.status] || STATUS_CONFIG.pending;
             const isPrinting = printingId === r.id;
             return (
               <>
@@ -889,7 +877,7 @@ function ReplenishmentsPageContent() {
                     <p className="data-timestamp text-gray-400 dark:text-slate-500">{formatDate(r.created_at)}</p>
                   </div>
                   <div className="flex items-center gap-1 flex-shrink-0">
-                    <StatusBadge status={r.status} colors={statusCfg}>{statusCfg.label}</StatusBadge>
+                    <StatusBadge domain="replenishment" status={r.status} />
                     <ActionMenu items={getMenuItems(r)} />
                   </div>
                 </div>
