@@ -7,6 +7,7 @@ import FormSelect from '@/components/ui/FormSelect';
 import Modal from '@/components/ui/Modal';
 import { apiFetch } from '@/lib/api-client';
 import { formatPrice } from '@/lib/utils/format';
+import { NUMERIC_TEXT_INPUT_PROPS, onNumericChange } from '@/lib/numeric-input';
 
 interface TerminalOption {
   id: string;
@@ -294,9 +295,9 @@ export default function SessionModal({
                     เงินเปิดลิ้นชัก (฿)
                   </label>
                   <input
-                    type="number"
+                    {...NUMERIC_TEXT_INPUT_PROPS}
                     value={openingFloat}
-                    onChange={(e) => setOpeningFloat(e.target.value)}
+                    onChange={onNumericChange(setOpeningFloat)}
                     placeholder="0"
                     className="w-full px-4 py-3 bg-white dark:bg-white/10 border border-gray-300 dark:border-gray-600 rounded-xl text-gray-900 dark:text-white text-lg text-center focus:outline-none focus:ring-2 focus:ring-primary"
                   />
@@ -366,9 +367,9 @@ export default function SessionModal({
                 <div>
                   <label className="text-gray-500 dark:text-gray-400 text-sm mb-2 block">นับเงินสดในลิ้นชัก (฿)</label>
                   <input
-                    type="number"
+                    {...NUMERIC_TEXT_INPUT_PROPS}
                     value={closingCash}
-                    onChange={(e) => setClosingCash(e.target.value)}
+                    onChange={onNumericChange(setClosingCash)}
                     placeholder="0"
                     className="w-full px-4 py-3 bg-white dark:bg-white/10 border border-gray-300 dark:border-gray-600 rounded-xl text-gray-900 dark:text-white text-lg text-center focus:outline-none focus:ring-2 focus:ring-primary"
                     autoFocus

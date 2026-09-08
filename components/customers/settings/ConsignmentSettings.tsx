@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import GpOverridePanel, { type BrandGpRow } from '@/components/customers/GpOverridePanel';
 import { apiFetch } from '@/lib/api-client';
+import { NUMERIC_TEXT_INPUT_PROPS, onNumericChange } from '@/lib/numeric-input';
 
 export { type BrandGpRow };
 
@@ -162,11 +163,10 @@ export default function ConsignmentSettings({ data, onChange, inputClassName, la
               <label className={labelClassName}>ส่งยอดภายใน</label>
               <div className="relative">
                 <input
-                  type="number"
+                  {...NUMERIC_TEXT_INPUT_PROPS}
                   value={data.consignment_report_due_days ?? ''}
-                  onChange={(e) => onChange({ consignment_report_due_days: e.target.value === '' ? '' : parseInt(e.target.value) })}
+                  onChange={onNumericChange(v => onChange({ consignment_report_due_days: v === '' ? '' : parseInt(v) }))}
                   className={inputClassName}
-                  min="1" max="90"
                   placeholder={defaults ? String(defaults.default_report_due_days) : '15'}
                 />
                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">วัน</span>
@@ -177,11 +177,10 @@ export default function ConsignmentSettings({ data, onChange, inputClassName, la
               <label className={labelClassName}>ชำระภายใน</label>
               <div className="relative">
                 <input
-                  type="number"
+                  {...NUMERIC_TEXT_INPUT_PROPS}
                   value={data.consignment_payment_terms ?? ''}
-                  onChange={(e) => onChange({ consignment_payment_terms: e.target.value === '' ? '' : parseInt(e.target.value) })}
+                  onChange={onNumericChange(v => onChange({ consignment_payment_terms: v === '' ? '' : parseInt(v) }))}
                   className={inputClassName}
-                  min="0" max="180"
                   placeholder={defaults ? String(defaults.default_payment_terms) : '30'}
                 />
                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">วัน</span>

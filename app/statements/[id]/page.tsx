@@ -15,6 +15,7 @@ import { generateStatementPdf } from '@/lib/statement-pdf';
 import { LoadingCard } from '@/components/ui/StateCard';
 import StatusBadge from '@/components/ui/StatusBadge';
 import { getBadgeColor } from '@/lib/status-tab-colors';
+import { NUMERIC_TEXT_INPUT_PROPS, onNumericChange } from '@/lib/numeric-input';
 
 interface StatementDetail {
   id: string;
@@ -486,12 +487,11 @@ export default function StatementDetailPage() {
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">จำนวนเงิน (บาท) *</label>
                 <input
-                  type="number"
+                  {...NUMERIC_TEXT_INPUT_PROPS}
                   value={payAmount}
-                  onChange={e => setPayAmount(e.target.value)}
+                  onChange={onNumericChange(setPayAmount)}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-green-500/50"
                   placeholder="0.00"
-                  step="0.01"
                 />
               </div>
               <div>

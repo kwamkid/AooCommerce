@@ -7,6 +7,7 @@ import { useToast } from '@/lib/toast-context';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { Languages, Plus, Edit2, Trash2, Loader2, X, Download, Search, ToggleLeft, ToggleRight } from 'lucide-react';
 import { LoadingCard } from '@/components/ui/StateCard';
+import { NUMERIC_TEXT_INPUT_PROPS, onNumericChange } from '@/lib/numeric-input';
 
 // ─── Types ──────────────────────────────────────────────
 
@@ -484,9 +485,9 @@ export default function SuperAdminErrorTranslations() {
                 <div>
                   <label className="block text-sm font-medium text-slate-300 mb-1">ลำดับ</label>
                   <input
-                    type="number"
+                    {...NUMERIC_TEXT_INPUT_PROPS}
                     value={form.sort_order}
-                    onChange={e => setForm(prev => ({ ...prev, sort_order: e.target.value }))}
+                    onChange={onNumericChange(v => setForm(prev => ({ ...prev, sort_order: v })))}
                     className="w-full px-3 py-2 bg-slate-900 border border-slate-600 rounded-lg text-sm text-white focus:ring-2 focus:ring-violet-500 focus:border-transparent"
                   />
                 </div>

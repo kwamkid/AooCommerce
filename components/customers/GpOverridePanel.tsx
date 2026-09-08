@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Award, ChevronDown, ChevronUp } from 'lucide-react';
 import BrandGpCommissions, { GpBaseRadio, type BrandGpRow } from '@/components/customers/BrandGpCommissions';
+import { NUMERIC_TEXT_INPUT_PROPS, onNumericChange } from '@/lib/numeric-input';
 
 // Re-export for consumers
 export type { BrandGpRow };
@@ -69,17 +70,16 @@ export default function GpOverridePanel(props: Props) {
         />
         <div className="relative w-24 flex-shrink-0">
           <input
-            type="number"
+            {...NUMERIC_TEXT_INPUT_PROPS}
             value={gpRate ?? ''}
-            onChange={(e) => {
+            onChange={onNumericChange((v) => {
               if (isGlobal) {
-                (onGpRateChange as (v: number) => void)(parseFloat(e.target.value) || 0);
+                (onGpRateChange as (val: number) => void)(parseFloat(v) || 0);
               } else {
-                (onGpRateChange as (v: number | null) => void)(e.target.value === '' ? null : parseFloat(e.target.value));
+                (onGpRateChange as (val: number | null) => void)(v === '' ? null : parseFloat(v));
               }
-            }}
+            })}
             className="w-full px-3 py-1.5 pr-7 border border-amber-300 dark:border-amber-700/50 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white text-sm text-right focus:outline-none focus:ring-2 focus:ring-amber-400 disabled:opacity-50"
-            min="0" max="100" step="0.5"
             placeholder={isGlobal ? undefined : '—'}
             disabled={!canEdit}
           />

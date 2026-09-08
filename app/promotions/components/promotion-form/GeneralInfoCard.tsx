@@ -20,6 +20,7 @@ import {
   TYPE_OPTIONS,
 } from './types';
 import type { UsePromotionFormReturn } from './usePromotionForm';
+import { NUMERIC_TEXT_INPUT_PROPS, onNumericChange, onNumericInput } from '@/lib/numeric-input';
 
 interface Props {
   hook: UsePromotionFormReturn;
@@ -443,7 +444,8 @@ function MarketplacePanel({ hook }: Props) {
                             <div className="relative flex-1">
                               <input
                                 ref={togglePriceRef}
-                                type="number"
+                                {...NUMERIC_TEXT_INPUT_PROPS}
+                                onInput={onNumericInput()}
                                 defaultValue={currentPrice}
                                 placeholder="เว้นว่างใช้ค่าหลัก"
                                 className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-transparent"
@@ -572,13 +574,13 @@ function MarketplacePanel({ hook }: Props) {
                 {(showBundlePrice || showBundleDiscount) && (
                   <>
                     <input
-                      type="number"
+                      {...NUMERIC_TEXT_INPUT_PROPS}
                       value={pp?.bundle_price ?? ''}
-                      onChange={e => {
+                      onChange={onNumericChange(v => {
                         setPlatformPrices(prev => prev.map(p =>
-                          p.account_id === account.id ? { ...p, bundle_price: e.target.value } : p
+                          p.account_id === account.id ? { ...p, bundle_price: v } : p
                         ));
-                      }}
+                      })}
                       disabled={!isEnabled || isOngoing}
                       placeholder={
                         isBundleFixPrice

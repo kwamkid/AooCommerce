@@ -1,5 +1,7 @@
 'use client';
 
+import { NUMERIC_TEXT_INPUT_PROPS, sanitizeNumericInput } from '@/lib/numeric-input';
+
 export type DiscountType = 'percent' | 'fixed_discount';
 
 interface DiscountInputProps {
@@ -49,14 +51,14 @@ export default function DiscountInput({
     <div className={className}>
       <div className={`flex items-stretch ${width || ''}`}>
         <input
-          type="number"
+          {...NUMERIC_TEXT_INPUT_PROPS}
           value={value}
-          onChange={e => onValueChange(e.target.value)}
+          onChange={e => {
+            const next = sanitizeNumericInput(e.target.value);
+            if (next !== null) onValueChange(next);
+          }}
           onBlur={onBlur}
           placeholder={placeholder}
-          min={0}
-          max={discountType === 'percent' ? 100 : undefined}
-          step={discountType === 'percent' ? '0.1' : '0.01'}
           disabled={disabled}
           className={`${width ? 'w-full' : compact ? 'w-full' : 'w-24'} ${h} ${fontSize} text-center px-2 border border-gray-300 dark:border-slate-600 rounded-l-lg rounded-r-none border-r-0 bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-primary/50 disabled:opacity-40 disabled:cursor-not-allowed`}
         />

@@ -6,6 +6,8 @@ import {
 } from 'react';
 import { AlertCircle } from 'lucide-react';
 
+import { NUMERIC_TEXT_INPUT_PROPS, allowsNegative, sanitizeNumericInput } from '@/lib/numeric-input';
+
 export type FormInputSize = 'sm' | 'md' | 'lg';
 
 /**
@@ -190,6 +192,12 @@ const FormInput = forwardRef<FormInputHandle, FormInputProps>(function FormInput
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    // ช่องตัวเลขวาดเป็น `type="text"` (ดูตอน render) จึงต้องกรองอักขระเองแทนเบราว์เซอร์
+    if (type === 'number') {
+      const next = sanitizeNumericInput(e.target.value, { allowNegative: allowsNegative(min) });
+      if (next === null) return;                       // ไม่ใช่ตัวเลข = ปฏิเสธการพิมพ์
+      if (next !== e.target.value) e.target.value = next;  // ตัดคอมมาที่วางมา ("1,290")
+    }
     // Re-validate on change ONLY if user has already triggered validation
     // (so errors clear live as the user fixes them, but we don't nag before first blur).
     if (touched) {
@@ -234,7 +242,10 @@ const FormInput = forwardRef<FormInputHandle, FormInputProps>(function FormInput
           min={min}
           max={max}
           pattern={pattern}
-          type={type}
+          // ⚠️ ห้ามใช้ `type="number"` จริง — เลื่อนหน้าจอบนช่องที่ focus อยู่แล้วค่าเปลี่ยน
+          // เองทีละ `step` (ดู lib/numeric-input.ts) · validation ของ FormInput ทำเองอยู่แล้ว
+          // ไม่ได้พึ่ง native จึงไม่เสียอะไรจากการวาดเป็น text
+          {...(type === 'number' ? NUMERIC_TEXT_INPUT_PROPS : { type })}
           value={value}
           onChange={handleChange}
           onBlur={handleBlur}

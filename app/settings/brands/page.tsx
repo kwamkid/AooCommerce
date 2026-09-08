@@ -20,6 +20,7 @@ import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import SaveButton from '@/components/ui/SaveButton';
 import { LoadingCard, NoPermissionCard } from '@/components/ui/StateCard';
+import { NUMERIC_TEXT_INPUT_PROPS, onNumericChange } from '@/lib/numeric-input';
 
 interface SupplierRef {
   id: string;
@@ -338,9 +339,9 @@ function BrandsPageInner() {
                             <span className="text-xs text-gray-500 dark:text-slate-400 whitespace-nowrap">GP default:</span>
                             <div className="flex items-center gap-1">
                               <input
-                                type="number" min={0} max={100} step={0.1}
+                                {...NUMERIC_TEXT_INPUT_PROPS}
                                 value={editingGpRate}
-                                onChange={e => setEditingGpRate(e.target.value)}
+                                onChange={onNumericChange(setEditingGpRate)}
                                 placeholder="เช่น 30"
                                 className="w-20 px-2 py-1 border border-gray-300 dark:border-slate-600 rounded-lg text-sm text-right bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-primary"
                               />

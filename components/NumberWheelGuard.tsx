@@ -10,9 +10,11 @@ import { useEffect } from 'react';
  * อะไรเตือน — ค่าส่ง 100 กลายเป็น 99.96 (step 0.01 × 4 จังหวะ) ทั้งบิลจริง
  * ORD-202609-0017 เมื่อ 7 ก.ย. 2026 → ยอดเก็บเงินลูกค้าผิดตามไปด้วย
  *
- * `NumberInput` กันในตัวเองอยู่แล้ว ตัวนี้ครอบช่อง `type="number"` ดิบ ๆ ที่ยัง
- * เหลืออยู่อีก 40+ จุด (ราคาสินค้า ต้นทุน ส่วนลด สต็อก ฯลฯ) — blur ไม่ใช่
- * preventDefault เพื่อให้หน้ายังเลื่อนได้ตามปกติ
+ * ตอนนี้ทั้งเว็บไม่มี `type="number"` เหลือแล้ว (ทุกช่องวาดเป็น `type="text"` +
+ * `inputMode="decimal"` ผ่าน NumberInput / FormInput / PostfixInput / DiscountInput /
+ * PriceDiscountCombo — ดู lib/numeric-input.ts) ตัวนี้จึงเป็น **ตาข่ายชั้นสุดท้าย**
+ * เผื่อโค้ดใหม่เผลอเขียน `type="number"` เข้ามาอีก — ใช้ blur ไม่ใช่ preventDefault
+ * เพื่อให้หน้ายังเลื่อนได้ตามปกติ
  */
 export default function NumberWheelGuard() {
   useEffect(() => {

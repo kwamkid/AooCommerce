@@ -9,6 +9,7 @@ import { Trash2, ChevronDown, ChevronRight } from 'lucide-react';
 import { productDisplayName, productSubtitle } from '@/lib/product-display';
 import type { PromotionItemForm } from './types';
 import type { UsePromotionFormReturn } from './usePromotionForm';
+import { NUMERIC_TEXT_INPUT_PROPS, onNumericChange } from '@/lib/numeric-input';
 
 interface Props {
   hook: UsePromotionFormReturn;
@@ -92,14 +93,13 @@ export default function BuyGetSection({ hook }: Props) {
         />
       )}
       <input
-        type="number"
+        {...NUMERIC_TEXT_INPUT_PROPS}
         value={item.sub_item_limit ?? ''}
-        onChange={e => {
-          const val = e.target.value === '' ? null : Math.max(0, parseInt(e.target.value) || 0);
+        onChange={onNumericChange(v => {
+          const val = v === '' ? null : Math.max(0, parseInt(v) || 0);
           handleUpdateItem(item.key, 'sub_item_limit', val);
-        }}
+        })}
         placeholder="ไม่จำกัด"
-        min={0}
         className="w-20 h-[42px] px-2 text-right border border-gray-300 dark:border-slate-500 rounded-lg bg-transparent text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary text-sm placeholder:text-gray-300 dark:placeholder:text-slate-600"
       />
     </>

@@ -10,6 +10,7 @@ import Button from '@/components/ui/Button';
 import ShopeeCategoryPicker from './ShopeeCategoryPicker';
 import { supabase } from '@/lib/supabase';
 import imageCompression from 'browser-image-compression';
+import { NUMERIC_TEXT_INPUT_PROPS, onNumericChange } from '@/lib/numeric-input';
 
 interface ShopeeAccount {
   id: string;
@@ -321,11 +322,9 @@ export default function ShopeeExportModal({
               น้ำหนัก (kg)
             </label>
             <input
-              type="number"
+              {...NUMERIC_TEXT_INPUT_PROPS}
               value={weight}
-              onChange={e => setWeight(e.target.value)}
-              step="0.1"
-              min="0.01"
+              onChange={onNumericChange(setWeight)}
               className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-shopee/50"
             />
           </div>

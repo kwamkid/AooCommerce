@@ -1,6 +1,7 @@
 'use client';
 
 import { useLayoutEffect, useRef, useState } from 'react';
+import { NUMERIC_TEXT_INPUT_PROPS, allowsNegative, sanitizeNumericInput } from '@/lib/numeric-input';
 
 interface PostfixInputProps {
   value: string | number;
@@ -24,6 +25,10 @@ interface PostfixInputProps {
 /**
  * Input with a postfix label inside the border (no bg on postfix).
  * Style: [ 269 ฿ ] — postfix is just text inside the input area.
+ *
+ * `type="number"` (ค่า default) วาดออกมาเป็น `type="text" inputMode="decimal"` ที่กรอง
+ * อักขระเอง — ห้ามใช้ `type="number"` จริง เพราะเลื่อนหน้าจอบนช่องแล้วค่าเปลี่ยนเองทีละ
+ * `step` (ดู [lib/numeric-input.ts](../../lib/numeric-input.ts))
  */
 export default function PostfixInput({
   value,
@@ -33,8 +38,9 @@ export default function PostfixInput({
   type = 'number',
   placeholder = '0',
   min,
-  max,
-  step,
+  // `max`/`step` ยังรับไว้ใน props (call site เดิมส่งมา) แต่ไม่ได้ใช้แล้ว — มันเคยเป็น
+  // attribute ของ `type="number"` ล้วน ๆ ซึ่งไม่เคยบังคับอะไรจริงเพราะเราไม่ได้ใช้ native
+  // form validation · การจำกัดค่ายังเป็นหน้าที่ของ parent เหมือนเดิม
   disabled,
   error,
   helperText,
@@ -68,14 +74,15 @@ export default function PostfixInput({
     <div className={className} data-error={error ? 'true' : undefined}>
       <div className={`relative ${width || 'w-fit'}`}>
         <input
-          type={type}
+          {...(type === 'number' ? NUMERIC_TEXT_INPUT_PROPS : { type })}
           value={value}
-          onChange={e => onChange(e.target.value)}
+          onChange={e => {
+            if (type !== 'number') return onChange(e.target.value);
+            const next = sanitizeNumericInput(e.target.value, { allowNegative: allowsNegative(min) });
+            if (next !== null) onChange(next);
+          }}
           onBlur={onBlur}
           placeholder={placeholder}
-          min={min}
-          max={max}
-          step={step}
           disabled={disabled}
           style={padRight ? { paddingRight: padRight } : undefined}
           className={`${h} px-2 pr-6 ${fontSize} text-right border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-primary/50 disabled:opacity-40 disabled:cursor-not-allowed ${inputClassName || (compact ? 'w-full' : 'w-24')}`}

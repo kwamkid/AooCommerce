@@ -12,6 +12,7 @@ import { formatPrice } from '@/lib/utils/format';
 import { saveQrImage } from '@/lib/utils/save-qr-image';
 import { CASH_DENOMINATIONS } from '@/lib/pos-utils';
 import { apiFetch } from '@/lib/api-client';
+import { NUMERIC_TEXT_INPUT_PROPS, onNumericChange } from '@/lib/numeric-input';
 
 // Map POS channel type → orders.payment_method (must match DB constraint)
 function channelTypeToPaymentMethod(type: string): string {
@@ -221,9 +222,9 @@ export default function PaymentModal({ totalAmount, onConfirm, onClose, loading,
                 <div>
                   <label className="text-gray-500 dark:text-gray-400 text-sm mb-1 block">รับมา (฿)</label>
                   <input
-                    type="number"
+                    {...NUMERIC_TEXT_INPUT_PROPS}
                     value={cashInput}
-                    onChange={(e) => setCashInput(e.target.value)}
+                    onChange={onNumericChange(setCashInput)}
                     placeholder={formatPrice(totalAmount)}
                     className="w-full px-4 py-3 bg-gray-50 dark:bg-white/10 border border-gray-300 dark:border-gray-600 rounded-xl text-gray-900 dark:text-white text-xl text-center font-bold focus:outline-none focus:ring-2 focus:ring-primary"
                     autoFocus

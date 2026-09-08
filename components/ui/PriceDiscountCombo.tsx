@@ -1,5 +1,6 @@
 'use client';
 
+import { NUMERIC_TEXT_INPUT_PROPS, sanitizeNumericInput } from '@/lib/numeric-input';
 import { Percent, Tag } from 'lucide-react';
 import Tooltip from '@/components/ui/Tooltip';
 
@@ -99,11 +100,13 @@ export default function PriceDiscountCombo({
         /* ราคาพิเศษ — static ฿ postfix */
         <div className={`flex rounded-lg border overflow-hidden ${h} flex-shrink-0 ${error ? 'border-red-400 ring-1 ring-red-400' : 'border-gray-300 dark:border-slate-500'}`}>
           <input
-            type="number"
+            {...NUMERIC_TEXT_INPUT_PROPS}
             value={value}
-            onChange={e => onValueChange(e.target.value)}
+            onChange={e => {
+              const next = sanitizeNumericInput(e.target.value);
+              if (next !== null) onValueChange(next);
+            }}
             placeholder={placeholder}
-            min={0}
             disabled={disabled}
             className={`${inputW} ${h} ${px} ${fontSize} text-right text-gray-900 dark:text-white bg-white dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-primary border-none disabled:opacity-40 disabled:cursor-not-allowed`}
           />
@@ -115,12 +118,13 @@ export default function PriceDiscountCombo({
         /* ส่วนลด — clickable %/฿ toggle */
         <div className={`flex rounded-lg border overflow-hidden ${h} flex-shrink-0 ${error ? 'border-red-400 ring-1 ring-red-400' : 'border-gray-300 dark:border-slate-500'}`}>
           <input
-            type="number"
+            {...NUMERIC_TEXT_INPUT_PROPS}
             value={value}
-            onChange={e => onValueChange(e.target.value)}
+            onChange={e => {
+              const next = sanitizeNumericInput(e.target.value);
+              if (next !== null) onValueChange(next);
+            }}
             placeholder={placeholder}
-            min={0}
-            max={mode === 'percent' ? 100 : undefined}
             disabled={disabled}
             className={`${inputW} ${h} ${px} ${fontSize} text-right text-gray-900 dark:text-white bg-white dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-primary border-none disabled:opacity-40 disabled:cursor-not-allowed`}
           />

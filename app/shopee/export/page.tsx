@@ -17,6 +17,7 @@ import {
 import FormSelect from '@/components/ui/FormSelect';
 import Button from '@/components/ui/Button';
 import { useMarketplaceGuard } from '@/lib/useMarketplaceGuard';
+import { NUMERIC_TEXT_INPUT_PROPS, onNumericChange } from '@/lib/numeric-input';
 
 interface ProductItem {
   product_id: string;
@@ -825,12 +826,10 @@ function ShopeeExportContent() {
                 <div className="w-28 flex-shrink-0">
                   <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">น้ำหนัก (kg)</label>
                   <input
-                    type="number"
+                    {...NUMERIC_TEXT_INPUT_PROPS}
                     value={bulkWeight}
-                    onChange={e => setBulkWeight(e.target.value)}
+                    onChange={onNumericChange(setBulkWeight)}
                     placeholder="0.5"
-                    step="0.1"
-                    min="0.01"
                     className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-shopee/50"
                   />
                 </div>
@@ -917,17 +916,17 @@ function ShopeeExportContent() {
 
                     {/* Weight */}
                     <input
-                      type="number"
+                      {...NUMERIC_TEXT_INPUT_PROPS}
                       value={cfg.weight}
-                      onChange={e => {
+                      onChange={onNumericChange(v => {
                         setProductConfigs(prev => ({
                           ...prev,
                           [product.product_id]: {
                             ...prev[product.product_id] || { categoryId: null, categoryName: '', weight: '0.5' },
-                            weight: e.target.value,
+                            weight: v,
                           },
                         }));
-                      }}
+                      })}
                       step="0.1"
                       min="0.01"
                       className="w-full px-2 py-1.5 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-shopee/50"

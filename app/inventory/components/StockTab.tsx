@@ -15,6 +15,7 @@ import Pagination from '@/app/components/Pagination';
 import AdjustStockModal from './AdjustStockModal';
 import SaveButton from '@/components/ui/SaveButton';
 import ProductImageThumb from '@/components/ui/ProductImageThumb';
+import { NUMERIC_TEXT_INPUT_PROPS, onNumericChange } from '@/lib/numeric-input';
 import {
   InventoryItem, WarehouseItem, StockColumnKey,
   STOCK_COLUMN_CONFIGS, STOCK_COLUMNS_STORAGE_KEY,
@@ -517,10 +518,9 @@ export default function StockTab({ warehouses, onViewHistory }: StockTabProps) {
           <div className="flex items-center gap-2 flex-1 min-w-[250px]">
             <span className="text-sm font-medium text-amber-800 dark:text-amber-300 whitespace-nowrap">ตั้ง min stock ทุกรายการเป็น:</span>
             <input
-              type="number"
-              min="0"
+              {...NUMERIC_TEXT_INPUT_PROPS}
               value={bulkMinValue}
-              onChange={e => setBulkMinValue(e.target.value)}
+              onChange={onNumericChange(setBulkMinValue)}
               onKeyDown={e => e.key === 'Enter' && applyBulkMinStock()}
               className="w-24 h-9 px-3 border border-amber-300 dark:border-amber-700 rounded-lg text-sm text-right bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-amber-400"
               placeholder="0"

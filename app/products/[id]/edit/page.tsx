@@ -25,6 +25,7 @@ import { ArrowLeft, Loader2, ExternalLink, Unlink2, Package2, Camera, Merge, Sea
 import FormSelect from '@/components/ui/FormSelect';
 import ShopeeCategoryPicker from '@/components/shopee/ShopeeCategoryPicker';
 import ProductSyncModal from '@/components/marketplace/ProductSyncModal';
+import { NUMERIC_TEXT_INPUT_PROPS, onNumericChange } from '@/lib/numeric-input';
 
 interface MarketplaceLink {
   id: string;
@@ -866,11 +867,9 @@ export default function EditProductPage() {
             </label>
             <div className="flex items-center gap-2">
               <input
-                type="number"
+                {...NUMERIC_TEXT_INPUT_PROPS}
                 value={priceValues[link.id] || ''}
-                onChange={e => { setPriceValues(prev => ({ ...prev, [link.id]: e.target.value })); markDirty(link.id); }}
-                min="0"
-                step="0.01"
+                onChange={onNumericChange(v => { setPriceValues(prev => ({ ...prev, [link.id]: v })); markDirty(link.id); })}
                 placeholder="ไม่ได้ตั้ง"
                 className="flex-1 px-3 h-[42px] text-base border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-primary focus:border-primary"
               />
@@ -886,11 +885,9 @@ export default function EditProductPage() {
                 ราคาลด (฿)
               </label>
               <input
-                type="number"
+                {...NUMERIC_TEXT_INPUT_PROPS}
                 value={discountValues[link.id] || ''}
-                onChange={e => { setDiscountValues(prev => ({ ...prev, [link.id]: e.target.value })); markDirty(link.id); }}
-                min="0"
-                step="0.01"
+                onChange={onNumericChange(v => { setDiscountValues(prev => ({ ...prev, [link.id]: v })); markDirty(link.id); })}
                 placeholder="0"
                 className="w-full px-3 h-[42px] text-base border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-primary focus:border-primary"
               />
@@ -904,11 +901,9 @@ export default function EditProductPage() {
               น้ำหนัก (kg)
             </label>
             <input
-              type="number"
+              {...NUMERIC_TEXT_INPUT_PROPS}
               value={weightValues[link.id] || ''}
-              onChange={e => { setWeightValues(prev => ({ ...prev, [link.id]: e.target.value })); markDirty(link.id); }}
-              step="0.1"
-              min="0"
+              onChange={onNumericChange(v => { setWeightValues(prev => ({ ...prev, [link.id]: v })); markDirty(link.id); })}
               placeholder="0.5"
               className="w-full px-3 h-[42px] text-base border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-primary focus:border-primary"
             />
@@ -1153,11 +1148,9 @@ export default function EditProductPage() {
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1.5">
                           <input
-                            type="number"
+                            {...NUMERIC_TEXT_INPUT_PROPS}
                             value={priceValues[link.id] || ''}
-                            onChange={e => { setPriceValues(prev => ({ ...prev, [link.id]: e.target.value })); markDirty(link.id); }}
-                            min="0"
-                            step="0.01"
+                            onChange={onNumericChange(v => { setPriceValues(prev => ({ ...prev, [link.id]: v })); markDirty(link.id); })}
                             placeholder="ไม่ได้ตั้ง"
                             className="w-24 px-2 py-1.5 text-xs border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-primary focus:border-primary"
                           />
@@ -1170,11 +1163,9 @@ export default function EditProductPage() {
                       {firstLink.platform !== 'shopee' && (
                         <td className="px-4 py-3">
                           <input
-                            type="number"
+                            {...NUMERIC_TEXT_INPUT_PROPS}
                             value={discountValues[link.id] || ''}
-                            onChange={e => { setDiscountValues(prev => ({ ...prev, [link.id]: e.target.value })); markDirty(link.id); }}
-                            min="0"
-                            step="0.01"
+                            onChange={onNumericChange(v => { setDiscountValues(prev => ({ ...prev, [link.id]: v })); markDirty(link.id); })}
                             placeholder="0"
                             className="w-24 px-2 py-1.5 text-xs border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-primary focus:border-primary"
                           />

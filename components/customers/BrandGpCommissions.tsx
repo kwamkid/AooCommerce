@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { apiFetch } from '@/lib/api-client';
 import FormSelect from '@/components/ui/FormSelect';
 import { Award, Plus, Trash2, Loader2 } from 'lucide-react';
+import { NUMERIC_TEXT_INPUT_PROPS, onNumericChange } from '@/lib/numeric-input';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -101,9 +102,9 @@ export default function BrandGpCommissions({ rows, onRowsChange, canEdit = false
             {/* GP% input */}
             <div className="relative flex-shrink-0 w-20">
               <input
-                type="number" min={0} max={100} step={0.1}
+                {...NUMERIC_TEXT_INPUT_PROPS}
                 value={row.gp_rate}
-                onChange={e => updateRow(idx, { gp_rate: e.target.value })}
+                onChange={onNumericChange(v => updateRow(idx, { gp_rate: v }))}
                 placeholder="GP%"
                 disabled={!canEdit}
                 className="w-full px-2 py-2 pr-6 border border-gray-300 dark:border-slate-600 rounded-lg text-sm text-right bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50"

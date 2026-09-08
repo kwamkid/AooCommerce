@@ -11,6 +11,7 @@ import {
 import Modal from '@/components/ui/Modal';
 import Button from '@/components/ui/Button';
 import ShopeeCategoryPicker from './ShopeeCategoryPicker';
+import { NUMERIC_TEXT_INPUT_PROPS, onNumericChange } from '@/lib/numeric-input';
 
 interface ProductItem {
   product_id: string;
@@ -590,17 +591,17 @@ export default function ShopeeBulkExportModal({
                         <div className="w-24 flex-shrink-0">
                           <label className="block text-xs text-gray-500 dark:text-slate-400 mb-0.5">น้ำหนัก (kg)</label>
                           <input
-                            type="number"
+                            {...NUMERIC_TEXT_INPUT_PROPS}
                             value={cfg.weight}
-                            onChange={e => {
+                            onChange={onNumericChange(v => {
                               setProductConfigs(prev => ({
                                 ...prev,
                                 [product.product_id]: {
                                   ...prev[product.product_id] || { categoryId: null, categoryName: '', weight: '0.5' },
-                                  weight: e.target.value,
+                                  weight: v,
                                 },
                               }));
-                            }}
+                            })}
                             step="0.1"
                             min="0.01"
                             className="w-full px-2 py-1.5 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-shopee/50"
