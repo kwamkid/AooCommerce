@@ -133,8 +133,8 @@ export async function DELETE(
     await purge('suppliers', companyId);
 
     // --- Chat ---
+    await purge('chat_quick_replies', companyId);
     await purge('line_message_logs', companyId);
-    await purge('line_message_templates', companyId);
     await purge('line_messages', companyId);
     await purge('line_groups', companyId);
     await purge('line_users', companyId);

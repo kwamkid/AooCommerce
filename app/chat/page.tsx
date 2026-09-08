@@ -54,7 +54,8 @@ import {
   ExternalLink,
   UserPlus,
   MapPin,
-  FilterX
+  FilterX,
+  MessageSquareText,
 } from 'lucide-react';
 import Image from 'next/image';
 import type { CustomerFormData } from '@/components/customers/customer-payload';
@@ -75,9 +76,14 @@ import { SkeletonChat } from '@/components/ui/Skeleton';
 import LoadingOverlay from '@/components/ui/LoadingOverlay';
 import StatusBadge from '@/components/ui/StatusBadge';
 import ChannelBadge from '@/components/ui/ChannelBadge';
+import { can } from '@/lib/permissions';
+import { filterQuickReplies, type QuickReply } from '@/lib/chat/quick-replies';
+import { applyQuickReplyVars } from '@/lib/chat/quick-reply-vars';
 
 // Dynamic imports for components that are not needed on initial load
 const EmojiStickerPicker = dynamic(() => import('./components/EmojiStickerPicker'), { ssr: false });
+const QuickReplyPicker = dynamic(() => import('./components/QuickReplyPicker'), { ssr: false });
+const QuickReplyModal = dynamic(() => import('@/components/chat/QuickReplyModal'), { ssr: false });
 const LinkCustomerModal = dynamic(() => import('./components/LinkCustomerModal'), { ssr: false });
 const LightboxViewer = dynamic(() => import('./components/LightboxViewer'), { ssr: false });
 // ฟอร์มสองตัวนี้ใหญ่มาก (OrderForm ~3,300 บรรทัด · CustomerForm ~700) แต่ใช้แค่ตอนเปิด
@@ -99,7 +105,7 @@ function UnifiedChatPageContent() {
   // ตัวเลขแชทที่ sidebar/กระดิ่ง — ต้องสั่งรีเฟรชเองหลังงานที่แก้หลายพันแถวทีเดียว (ดู markAllRead)
   const { refresh: refreshHeaderSummary } = useHeaderSummary();
   // realtime ต้องกรองตามบริษัท — ไม่กรอง = ทุกแท็บรับ event ของทุกบริษัทในระบบ
-  const { currentCompany } = useCompany();
+  const { currentCompany, companyRoles, permissions } = useCompany();
   const companyId = currentCompany?.id;
   const { confirmDialog, confirm } = useConfirmDialog();
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -171,6 +177,17 @@ function UnifiedChatPageContent() {
 
   // Sticker picker
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  // ── ข้อความสำเร็จรูป ──
+  const [quickReplies, setQuickReplies] = useState<QuickReply[]>([]);
+  const [quickLoading, setQuickLoading] = useState(false);
+  const quickLoadedRef = useRef(false);
+  /** false = ปิด · 'button' = เปิดจากปุ่ม (ค้นในตัว) · 'slash' = พิมพ์ / ในกล่องพิมพ์ */
+  const [quickMode, setQuickMode] = useState<false | 'button' | 'slash'>(false);
+  const [quickSearch, setQuickSearch] = useState('');
+  const [quickIndex, setQuickIndex] = useState(0);
+  const [quickModalOpen, setQuickModalOpen] = useState(false);
+  /** รูปของข้อความสำเร็จรูปที่รอส่งพร้อมข้อความ (ส่งตามหลังข้อความเมื่อกดส่ง) */
+  const [pendingImage, setPendingImage] = useState<{ url: string; title: string } | null>(null);
   const [emojiSearch, setEmojiSearch] = useState('');
 
   // Scroll to bottom button
@@ -470,10 +487,14 @@ function UnifiedChatPageContent() {
         setShowEmojiPicker(false);
         setEmojiSearch('');
       }
+      // โหมด 'slash' ไม่ปิดตอนคลิกนอก — คำค้นอยู่ในกล่องพิมพ์ คลิกกลับไปแก้คำค้นได้
+      if (quickMode === 'button' && !target.closest('[data-quick-reply]')) {
+        setQuickMode(false);
+      }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [showFilterPopover, showAccountPicker, showEmojiPicker]);
+  }, [showFilterPopover, showAccountPicker, showEmojiPicker, quickMode]);
 
   // Close emoji picker on Escape key
   useEffect(() => {
@@ -911,7 +932,18 @@ function UnifiedChatPageContent() {
 
   const sendMessage = (retryMessage?: ChatMessage) => {
     const messageText = retryMessage?.content || newMessage.trim();
-    if (!messageText || !selectedContact) return;
+    // รูปของข้อความสำเร็จรูปที่รออยู่ — ส่ง "ตามหลัง" ข้อความ (ข้อความคือสิ่งที่ผู้ใช้เห็นแล้วกดส่ง)
+    const attachment = retryMessage ? null : pendingImage;
+    if (!selectedContact) return;
+    if (!messageText && !attachment) return;
+    if (!retryMessage) setPendingImage(null);
+
+    // มีแต่รูป ไม่มีข้อความ → ส่งรูปอย่างเดียว
+    if (!messageText && attachment) {
+      setNewMessage('');
+      void sendImageUrl(attachment.url);
+      return;
+    }
     const tempId = retryMessage?._tempId || `temp-${Date.now()}`;
 
     if (!retryMessage) {
@@ -948,6 +980,7 @@ function UnifiedChatPageContent() {
         if (result.message) {
           setMessages(prev => prev.map(m => m._tempId === tempId ? { ...result.message, contact_id: contactId, _status: 'sent' as const } : m));
         }
+        if (attachment) await sendImageUrl(attachment.url);
       } catch (error) {
         console.error('Error sending message:', error);
         // เก็บเหตุผลจากแพลตฟอร์มไว้ที่ข้อความ — คนกดลองใหม่ต้องรู้ว่าล้มเพราะอะไร ไม่ใช่ลองซ้ำเปล่า ๆ
@@ -962,8 +995,13 @@ function UnifiedChatPageContent() {
    * ส่งรูปหนึ่งใบ — ใช้ทั้งตอนเลือกไฟล์ครั้งแรกและตอนกด "ลองใหม่"
    * เก็บ `_file` ไว้กับฟองที่ล้ม เพราะรอบที่ล้มก่อนอัปโหลดสำเร็จยังไม่มี URL สาธารณะให้ส่งซ้ำ
    */
-  const sendImageFile = async (file: File, retryOf?: ChatMessage) => {
-    if (!selectedContact) return;
+  const sendImageFile = async (
+    file: File,
+    retryOf?: ChatMessage,
+    /** quiet = ส่งเป็นชุด ผู้เรียกจะสรุปผลรวมเอง ไม่ต้องเด้ง toast ต่อใบ */
+    opts?: { quiet?: boolean },
+  ): Promise<boolean> => {
+    if (!selectedContact) return false;
     const tempId = retryOf?._tempId || `temp-${Date.now()}`;
     const contactId = retryOf?.contact_id || selectedContact.id;
     const platform = selectedContact.platform;
@@ -1015,7 +1053,7 @@ function UnifiedChatPageContent() {
           setMessages(prev => prev.filter(m => m._tempId !== tempId));
           showToast('ไม่สามารถส่งรูปภาพได้ — ลูกค้าไม่ได้ส่งข้อความมาภายใน 7 วัน (หมดเวลาตอบกลับ)', 'error');
           releaseLocalUrl();
-          return;
+          return false;
         }
         throw new Error(errData.error || 'Failed');
       }
@@ -1024,25 +1062,54 @@ function UnifiedChatPageContent() {
         setMessages(prev => prev.map(m => m._tempId === tempId ? { ...result.message, contact_id: contactId, _status: 'sent' as const } : m));
       }
       releaseLocalUrl();
+      return true;
     } catch (error) {
       console.error('Error uploading image:', error);
       // ⚠️ ห้าม revoke blob URL ตอนล้ม — ฟองที่ค้างอยู่ยังต้องแสดงรูปให้เห็นว่า "ใบไหนที่ส่งไม่ไป"
       const reason = error instanceof Error && error.message !== 'Failed' ? error.message : undefined;
       setMessages(prev => prev.map(m => m._tempId === tempId ? { ...m, _status: 'failed' as const, _error: reason, _file: file } : m));
-      showToast(reason ? `ส่งรูปภาพไม่สำเร็จ: ${reason}` : 'ส่งรูปภาพไม่สำเร็จ', 'error');
+      if (!opts?.quiet) showToast(reason ? `ส่งรูปภาพไม่สำเร็จ: ${reason}` : 'ส่งรูปภาพไม่สำเร็จ', 'error');
+      return false;
     } finally {
       setUploadingImage(false);
     }
   };
 
+  /** เพดานต่อครั้ง — กันเผลอเลือกทั้งอัลบั้มแล้วยิงเข้าห้องแชทลูกค้าเป็นร้อยใบ */
+  const MAX_IMAGES_PER_PICK = 10;
+
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+    const picked = Array.from(e.target.files || []);
     if (fileInputRef.current) fileInputRef.current.value = '';
-    if (!file || !selectedContact) return;
+    if (picked.length === 0 || !selectedContact) return;
+
+    // คัดของที่ส่งไม่ได้ออกก่อนแล้วบอกทีเดียว — เตือนทีละใบตอนเลือกมา 10 ใบคือการรังควาน
     // ห้ามเช็คด้วย file.type อย่างเดียว — Chrome บน Windows ให้ type ว่างกับ .heic
-    if (!looksLikeImageFile(file)) { showToast('กรุณาเลือกไฟล์รูปภาพ', 'error'); return; }
-    if (file.size > 10 * 1024 * 1024) { showToast('ไฟล์ใหญ่เกินไป (สูงสุด 10MB)', 'error'); return; }
-    await sendImageFile(file);
+    const notImage = picked.filter(f => !looksLikeImageFile(f));
+    const tooBig = picked.filter(f => looksLikeImageFile(f) && f.size > 10 * 1024 * 1024);
+    const files = picked.filter(f => looksLikeImageFile(f) && f.size <= 10 * 1024 * 1024);
+    if (notImage.length) showToast(`ข้ามไฟล์ที่ไม่ใช่รูปภาพ ${notImage.length} ไฟล์`, 'error');
+    if (tooBig.length) showToast(`ข้ามไฟล์ที่ใหญ่เกิน 10MB ${tooBig.length} ไฟล์`, 'error');
+    if (files.length === 0) return;
+
+    const batch = files.slice(0, MAX_IMAGES_PER_PICK);
+    if (files.length > batch.length) {
+      showToast(`ส่งได้ครั้งละ ${MAX_IMAGES_PER_PICK} รูป — ส่ง ${batch.length} รูปแรกก่อน`, 'error');
+    }
+
+    // ส่ง **ทีละใบตามลำดับที่เลือก** ไม่ยิงขนาน — ลูกค้าต้องเห็นรูปเรียงตามที่เราส่ง
+    // และแพลตฟอร์มไม่รับประกันลำดับถ้ายิงพร้อมกัน (Lazada มีระยะห่างขั้นต่ำต่อ call ด้วย)
+    const many = batch.length > 1;
+    let failed = 0;
+    for (const file of batch) {
+      const ok = await sendImageFile(file, undefined, { quiet: many });
+      if (!ok) failed += 1;
+    }
+    if (many) {
+      const sent = batch.length - failed;
+      if (failed === 0) showToast(`ส่ง ${sent} รูปแล้ว`);
+      else showToast(`ส่งสำเร็จ ${sent} จาก ${batch.length} รูป — กดลองใหม่ที่ฟองสีแดงได้`, 'error');
+    }
   };
 
   /**
@@ -1051,11 +1118,11 @@ function UnifiedChatPageContent() {
    */
   const retrySend = (msg: ChatMessage) => {
     if (msg.message_type === 'image') {
-      if (!msg._file) {
-        showToast('รูปนี้ลองใหม่ไม่ได้แล้ว (ไฟล์หายไปจากหน้าจอ) — กรุณาเลือกรูปใหม่อีกครั้ง', 'error');
-        return;
-      }
-      void sendImageFile(msg._file, msg);
+      if (msg._file) { void sendImageFile(msg._file, msg); return; }
+      // รูปที่อัปขึ้น storage สำเร็จแล้ว (หรือรูปของข้อความสำเร็จรูป) — ยิงซ้ำด้วย URL เดิมได้เลย
+      const url = msg.raw_message?.imageUrl;
+      if (url && /^https?:\/\//.test(url)) { void sendImageUrl(url, msg); return; }
+      showToast('รูปนี้ลองใหม่ไม่ได้แล้ว (ไฟล์หายไปจากหน้าจอ) — กรุณาเลือกรูปใหม่อีกครั้ง', 'error');
       return;
     }
     if (msg.message_type === 'sticker') {
@@ -1065,6 +1132,127 @@ function UnifiedChatPageContent() {
       return;
     }
     sendMessage(msg);
+  };
+
+  // ─────────── ข้อความสำเร็จรูป ───────────
+
+  /** โหลดครั้งแรกที่เปิด — คลังนี้เปลี่ยนไม่บ่อย apiFetch แคช 60 วิให้อีกชั้น */
+  const loadQuickReplies = async () => {
+    if (quickLoadedRef.current) return;
+    quickLoadedRef.current = true;
+    setQuickLoading(true);
+    try {
+      const res = await apiFetch('/api/chat/quick-replies?active=true');
+      if (!res.ok) throw new Error('load failed');
+      const data = await res.json();
+      setQuickReplies((data.replies || []) as QuickReply[]);
+    } catch {
+      quickLoadedRef.current = false;   // ให้ลองใหม่ได้ตอนเปิดครั้งหน้า
+    } finally {
+      setQuickLoading(false);
+    }
+  };
+
+  const openQuickPicker = (mode: 'button' | 'slash') => {
+    setQuickMode(mode);
+    setQuickIndex(0);
+    if (mode === 'button') setQuickSearch('');
+    setShowEmojiPicker(false);
+    void loadQuickReplies();
+  };
+
+  const quickResults = quickMode ? filterQuickReplies(quickReplies, quickSearch) : [];
+
+  /**
+   * ส่งรูปที่มี URL สาธารณะอยู่แล้ว (รูปของข้อความสำเร็จรูป) — ไม่ต้องอัปโหลดซ้ำ
+   * ใช้ตอนกดส่งพร้อมข้อความ และตอนกด "ลองใหม่" ของฟองที่ล้ม
+   */
+  const sendImageUrl = async (imageUrl: string, retryOf?: ChatMessage) => {
+    if (!selectedContact) return;
+    const tempId = retryOf?._tempId || `temp-${Date.now()}-qr`;
+    const contactId = retryOf?.contact_id || selectedContact.id;
+    const platform = selectedContact.platform;
+
+    if (retryOf) {
+      setMessages(prev => prev.map(m => m._tempId === tempId ? { ...m, _status: 'sending' as const, _error: undefined } : m));
+    } else {
+      setMessages(prev => [...prev, {
+        id: tempId, _tempId: tempId, contact_id: contactId,
+        direction: 'outgoing', message_type: 'image', content: '[รูปภาพ]',
+        raw_message: { imageUrl }, created_at: new Date().toISOString(), _status: 'sending',
+      }]);
+    }
+
+    try {
+      const response = await apiFetch('/api/chat/messages', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contact_id: contactId, platform, type: 'image', imageUrl })
+      });
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        if (errData.errorCode === 'MESSAGING_WINDOW_EXPIRED') {
+          setMessages(prev => prev.filter(m => m._tempId !== tempId));
+          showToast('ไม่สามารถส่งรูปภาพได้ — ลูกค้าไม่ได้ส่งข้อความมาภายใน 7 วัน (หมดเวลาตอบกลับ)', 'error');
+          return;
+        }
+        throw new Error(errData.error || 'Failed');
+      }
+      const result = await response.json();
+      if (result.message) {
+        setMessages(prev => prev.map(m => m._tempId === tempId ? { ...result.message, contact_id: contactId, _status: 'sent' as const } : m));
+      }
+    } catch (error) {
+      const reason = error instanceof Error && error.message !== 'Failed' ? error.message : undefined;
+      setMessages(prev => prev.map(m => m._tempId === tempId ? { ...m, _status: 'failed' as const, _error: reason } : m));
+      showToast(reason ? `ส่งรูปภาพไม่สำเร็จ: ${reason}` : 'ส่งรูปภาพไม่สำเร็จ', 'error');
+    }
+  };
+
+  /**
+   * เลือกข้อความสำเร็จรูป — **ใส่ในช่องพิมพ์ ไม่ส่งทันที**
+   * ให้เห็นข้อความจริง (ตัวแปรถูกแทนค่าแล้ว) และแก้ก่อนกดส่งได้เสมอ · รูปที่แนบมา
+   * จะรอเป็นชิปเหนือช่องพิมพ์แล้วส่งตามหลังข้อความตอนกดส่ง
+   */
+  const useQuickReply = (reply: QuickReply) => {
+    const text = applyQuickReplyVars(reply.content, {
+      customerName: selectedContact?.customer?.name || selectedContact?.display_name,
+      shopName: currentCompany?.name,
+      agentName: userProfile?.name,
+    });
+
+    setNewMessage(prev => {
+      // โหมด / : สิ่งที่พิมพ์อยู่คือคำค้น ต้องแทนที่ทั้งหมด
+      if (quickMode === 'slash') return text;
+      const base = prev.trim();
+      return base && text ? `${base} ${text}` : (text || base);
+    });
+    if (reply.image_url) setPendingImage({ url: reply.image_url, title: reply.title });
+
+    setQuickMode(false);
+    setQuickSearch('');
+    setTimeout(() => inputRef.current?.focus(), 0);
+  };
+
+  /** พิมพ์ในกล่องแชท — ขึ้นต้นด้วย / = เปิดรายการข้อความสำเร็จรูปพร้อมค้นตามที่พิมพ์ */
+  const handleComposerChange = (value: string) => {
+    setNewMessage(value);
+    if (value.startsWith('/')) {
+      if (quickMode !== 'slash') openQuickPicker('slash');
+      setQuickSearch(value.slice(1));
+      setQuickIndex(0);
+    } else if (quickMode === 'slash') {
+      setQuickMode(false);
+    }
+  };
+
+  /** ↑↓ Enter Esc ตอนรายการเปิดจากการพิมพ์ / — คืน true = จัดการแล้ว อย่าส่งข้อความ */
+  const handleComposerQuickKey = (e: React.KeyboardEvent<HTMLInputElement>): boolean => {
+    if (quickMode !== 'slash') return false;
+    if (e.key === 'Escape') { e.preventDefault(); setQuickMode(false); return true; }
+    if (e.key === 'ArrowDown') { e.preventDefault(); setQuickIndex(i => Math.min(i + 1, quickResults.length - 1)); return true; }
+    if (e.key === 'ArrowUp') { e.preventDefault(); setQuickIndex(i => Math.max(i - 1, 0)); return true; }
+    if (e.key === 'Enter' && quickResults[quickIndex]) { e.preventDefault(); useQuickReply(quickResults[quickIndex]); return true; }
+    return false;
   };
 
 
@@ -2272,8 +2460,23 @@ function UnifiedChatPageContent() {
               // บนมือถือใช้ pb-safe-min-2 = เท่ากับ inset ของ home indicator พอดี ไม่บวกเพิ่ม
               // (ผู้ใช้ขอให้ชิดล่างสุด) — ห้ามลดต่ำกว่า inset ไม่งั้นช่องพิมพ์ไปอยู่ใต้แถบ gesture ของ iOS
               <div className="p-2 md:p-4 pb-safe-min-2 md:pb-safe-4 border-t border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+                {pendingImage && (
+                  <div className="flex items-center gap-2 mb-2 px-2 py-1.5 bg-gray-50 dark:bg-slate-700/50 border border-gray-200 dark:border-slate-600 rounded-lg">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={pendingImage.url} alt="" className="w-9 h-9 rounded object-cover flex-shrink-0" />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm text-gray-700 dark:text-slate-200 truncate">{pendingImage.title}</p>
+                      <p className="helper-text text-gray-500">รูปจะถูกส่งตามหลังข้อความ</p>
+                    </div>
+                    <Tooltip text="เอารูปออก">
+                      <button onClick={() => setPendingImage(null)} aria-label="เอารูปออก" className="p-1 text-gray-400 hover:text-red-500 rounded-full">
+                        <X className="w-4 h-4" />
+                      </button>
+                    </Tooltip>
+                  </div>
+                )}
                 <div className="flex items-center gap-1 md:gap-2">
-                  <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
+                  <input ref={fileInputRef} type="file" accept="image/*" multiple onChange={handleImageUpload} className="hidden" />
                   {/* box="inline-flex" — ปุ่มนี้ disabled ตอนอัปโหลด ซึ่งไม่ยิง pointer event ต้องมีกล่องครอบถึงจะ hover ติด */}
                   <Tooltip text="ส่งรูปภาพ" box="inline-flex">
                     <button onClick={() => fileInputRef.current?.click()} disabled={uploadingImage} aria-label="ส่งรูปภาพ" className="p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-full transition-colors disabled:opacity-50">
@@ -2296,11 +2499,34 @@ function UnifiedChatPageContent() {
                     />
                   )}
                   </div>
-                  <input ref={inputRef} type="text" value={newMessage} onChange={(e) => setNewMessage(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
+                  {/* ข้อความสำเร็จรูป — เปิดจากปุ่มนี้ หรือพิมพ์ / ในช่องข้อความ */}
+                  <div className="relative" data-quick-reply>
+                    <Tooltip text="ข้อความสำเร็จรูป (หรือพิมพ์ /)">
+                      <button onClick={() => quickMode ? setQuickMode(false) : openQuickPicker('button')} aria-label="ข้อความสำเร็จรูป" className={`p-2 rounded-full transition-colors ${quickMode ? 'text-primary bg-primary/10' : 'text-gray-500 hover:text-primary hover:bg-gray-100 dark:hover:bg-slate-700'}`}>
+                        <MessageSquareText className="w-5 h-5" />
+                      </button>
+                    </Tooltip>
+                    {quickMode && (
+                      <QuickReplyPicker
+                        replies={quickResults}
+                        loading={quickLoading}
+                        activeIndex={quickIndex}
+                        onActiveIndexChange={setQuickIndex}
+                        onSelect={useQuickReply}
+                        onClose={() => { setQuickMode(false); inputRef.current?.focus(); }}
+                        showSearch={quickMode === 'button'}
+                        search={quickSearch}
+                        onSearchChange={setQuickSearch}
+                        onSaveCurrent={newMessage.trim() && !newMessage.startsWith('/') ? () => { setQuickMode(false); setQuickModalOpen(true); } : undefined}
+                        canManage={can(companyRoles.length > 0 ? { roles: companyRoles, permissions } : userProfile, 'chat.reply')}
+                      />
+                    )}
+                  </div>
+                  <input ref={inputRef} type="text" value={newMessage} onChange={(e) => handleComposerChange(e.target.value)}
+                    onKeyDown={(e) => { if (handleComposerQuickKey(e)) return; if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
                     placeholder="พิมพ์ข้อความ..." autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck={false} enterKeyHint="send"
                     className="flex-1 min-w-0 h-10 px-3 md:px-4 py-2 mr-2 text-sm md:text-base border border-gray-300 rounded-[15px] focus:outline-none focus:ring-2" style={{ '--tw-ring-color': platformColor } as any} />
-                  <button onClick={() => { sendMessage(); }} disabled={!newMessage.trim()} className="p-2 text-white rounded-full disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex-shrink-0" style={{ backgroundColor: platformColor }}><Send className="w-5 h-5" /></button>
+                  <button onClick={() => { sendMessage(); }} disabled={!newMessage.trim() && !pendingImage} className="p-2 text-white rounded-full disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex-shrink-0" style={{ backgroundColor: platformColor }}><Send className="w-5 h-5" /></button>
                 </div>
               </div>
               )}
@@ -2491,6 +2717,16 @@ function UnifiedChatPageContent() {
           onChangeIndex={(idx) => setLightboxIndex(idx)}
         />
       )}
+      {/* บันทึกข้อความที่พิมพ์อยู่เป็นข้อความสำเร็จรูป (ตัวเดียวกับที่หน้าจัดการใช้) */}
+      {quickModalOpen && (
+        <QuickReplyModal
+          open={quickModalOpen}
+          onClose={() => setQuickModalOpen(false)}
+          initialContent={newMessage.trim()}
+          onSaved={(saved) => setQuickReplies(prev => [...prev, saved])}
+        />
+      )}
+
       {confirmDialog}
       {/* ล้างยังไม่อ่านเป็นงานเขียนข้อมูลเป็นชุด (หลายพันแถว) — บังจอกันกดซ้ำจนกว่าจะเสร็จ */}
       <LoadingOverlay isOpen={markingAllRead} title="กำลังล้างยังไม่อ่าน..." message="ข้อความยังอยู่ครบ แค่เลิกนับว่ายังไม่ได้อ่าน" />

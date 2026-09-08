@@ -31,6 +31,8 @@ const CACHED_GET_PATHS: { match: (url: string) => boolean; ttlMs: number }[] = [
   // เขียนผ่าน POST/PUT/DELETE ปลายทางเดียวกันจึงถูก invalidate เองอยู่แล้ว
   { match: u => u === '/api/chat-accounts' || u.startsWith('/api/chat-accounts?'), ttlMs: 60_000 },
   { match: u => u === '/api/settings/crm', ttlMs: 60_000 },
+  // ข้อความสำเร็จรูปของแชท — คลังกลางที่แทบไม่เปลี่ยนระหว่างวัน แต่หน้าแชทเปิดรายการบ่อย
+  { match: u => u === '/api/chat/quick-replies' || u.startsWith('/api/chat/quick-replies?'), ttlMs: 60_000 },
   // ข้อความในห้องแชท — หน้าแชท prefetch (peek) ตอนเมาส์ชี้รายชื่อ แล้วคลิกใช้ผลเดิมทันที
   // ข้อความใหม่ที่เข้าระหว่างนั้น realtime patch เอง และหน้าแชทล้าง cache ของห้องนั้นทุก event
   { match: u => u.startsWith('/api/chat/messages?'), ttlMs: 20_000 },
