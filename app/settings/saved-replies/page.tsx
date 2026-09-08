@@ -43,7 +43,7 @@ export default function SavedRepliesSettingsPage() {
       const data = await res.json();
       setReplies((data.replies || []) as SavedReply[]);
     } catch {
-      showToast('โหลดข้อความสำเร็จรูปไม่สำเร็จ', 'error');
+      showToast('โหลด Saved Reply ไม่สำเร็จ', 'error');
     } finally {
       setLoading(false);
     }
@@ -92,7 +92,7 @@ export default function SavedRepliesSettingsPage() {
 
   const remove = async (reply: SavedReply) => {
     const ok = await confirm({
-      title: 'ลบข้อความสำเร็จรูป',
+      title: 'ลบ Saved Reply',
       description: `ลบ "${reply.title}" ออกจากคลังของร้าน? ข้อความที่ส่งไปหาลูกค้าแล้วจะไม่ถูกแตะต้อง`,
       confirmLabel: 'ลบ',
       variant: 'danger',
@@ -119,8 +119,8 @@ export default function SavedRepliesSettingsPage() {
       <Container size="4xl">
         <PageHeader
           icon={<MessageSquareText />}
-          title="ข้อความสำเร็จรูป"
-          subtitle="ข้อความที่ใช้ตอบลูกค้าบ่อย ๆ — ทุกคนในร้านใช้ชุดเดียวกัน เรียกใช้ในหน้าแชทด้วยปุ่มข้างช่องพิมพ์ หรือพิมพ์ /"
+          title="Saved Reply"
+          subtitle="ข้อความสำเร็จรูปที่ใช้ตอบลูกค้าบ่อย ๆ — ทุกคนในร้านใช้ชุดเดียวกัน เรียกใช้ในหน้าแชทด้วยปุ่มข้างช่องพิมพ์ หรือพิมพ์ /"
           actions={
             <Button variant="primary" icon={<Plus className="w-4 h-4" />} onClick={() => { setEditing(null); setModalOpen(true); }}>
               เพิ่มข้อความ
@@ -135,7 +135,7 @@ export default function SavedRepliesSettingsPage() {
         ) : replies.length === 0 ? (
           <EmptyCard
             icon={<MessageSquareText className="w-10 h-10" />}
-            title="ยังไม่มีข้อความสำเร็จรูป"
+            title="ยังไม่มี Saved Reply"
             subtitle="เพิ่มข้อความที่ตอบลูกค้าบ่อย ๆ เช่น ค่าส่ง เลขบัญชี วิธีสั่งซื้อ แล้วเรียกใช้ได้ทันทีในหน้าแชท"
           />
         ) : (

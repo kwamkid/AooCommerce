@@ -109,31 +109,35 @@ export function savedReplyPreview(reply: SavedReply, max = 80): string {
   return n > 1 ? `[รูปภาพ ${n} ใบ]` : n === 1 ? '[รูปภาพ]' : '';
 }
 
-/**
- * จำนวนใบขั้นต่ำที่ทำให้กลุ่ม "ใช้บ่อย" มีประโยชน์
- *
- * คลังเล็ก ๆ (5-6 ใบ) เห็นครบในจอเดียวอยู่แล้ว การตัดหัวมา 5 ใบทำให้เหลือกลุ่มล่าง
- * ใบเดียวสองใบ ซึ่งดูเหมือนระบบเสียมากกว่าช่วยอะไร
- */
-export const SAVED_REPLY_FREQUENT_MIN_TOTAL = 9;
-/** โชว์กี่ใบในกลุ่ม "ใช้บ่อย" */
+/** โชว์กี่ใบในกลุ่ม "ใช้บ่อย" (อย่างมาก) */
 export const SAVED_REPLY_FREQUENT_COUNT = 5;
+/** กลุ่มล่างต้องเหลืออย่างน้อยเท่านี้ ไม่งั้นการแบ่งกลุ่มไม่ได้ช่วยอะไร */
+const MIN_REST = 2;
+/** ต้องมีใบที่เคยถูกใช้อย่างน้อยเท่านี้ ถึงจะเรียก "ใช้บ่อย" ได้อย่างมีความหมาย */
+const MIN_USED = 2;
 
 /**
  * แบ่งรายการเป็น "ใช้บ่อย" กับ "ทั้งหมด" — **ไม่ซ้ำกัน** ใบที่ขึ้นข้างบนถูกตัดออกจากข้างล่าง
+ *
+ * เกณฑ์ตั้งจาก "แบ่งแล้วยังอ่านเป็นสองกลุ่มได้ไหม" ไม่ใช่จำนวนใบทั้งหมด:
+ * ต้องมีใบที่เคยใช้ ≥2 ใบ และกลุ่มล่างต้องเหลือ ≥2 ใบ — คลัง 6 ใบที่ใช้ไปแล้ว 3 ใบ
+ * จึงได้ "ใช้บ่อย 3 · ทั้งหมด 3" ซึ่งใช้งานได้จริง (เกณฑ์เดิมตั้งไว้ที่ 9 ใบ ซึ่งสูงเกินไป
+ * จนร้านที่มี 6 ใบไม่เคยเห็นกลุ่มนี้เลย — เจ้าของทักมา 8 ก.ย. 2026)
  *
  * ลำดับที่คนตั้งเองในหน้าจัดการ (`sort_order`) ยังคุมกลุ่มล่างเหมือนเดิม —
  * "ใช้บ่อย" เป็นทางลัดที่วางทับ ไม่ใช่ตัวแทนของการเรียงลำดับที่ตั้งไว้
  */
 export function splitFrequentReplies(list: SavedReply[]): { frequent: SavedReply[]; rest: SavedReply[] } {
-  if (list.length < SAVED_REPLY_FREQUENT_MIN_TOTAL) return { frequent: [], rest: list };
   const used = list.filter(r => (r.use_count || 0) > 0);
-  // ยังไม่มีข้อมูลพอให้เรียง = อย่าเดา แสดงลำดับที่คนตั้งไว้ไปตามเดิม
-  if (used.length < SAVED_REPLY_FREQUENT_COUNT) return { frequent: [], rest: list };
+  if (used.length < MIN_USED || list.length < MIN_USED + MIN_REST) return { frequent: [], rest: list };
+
+  const take = Math.min(SAVED_REPLY_FREQUENT_COUNT, used.length, list.length - MIN_REST);
+  if (take < MIN_USED) return { frequent: [], rest: list };
+
   const frequent = [...used]
     .sort((a, b) => (b.use_count || 0) - (a.use_count || 0)
       || (b.last_used_at || '').localeCompare(a.last_used_at || ''))
-    .slice(0, SAVED_REPLY_FREQUENT_COUNT);
+    .slice(0, take);
   const ids = new Set(frequent.map(r => r.id));
   return { frequent, rest: list.filter(r => !ids.has(r.id)) };
 }

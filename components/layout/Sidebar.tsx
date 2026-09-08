@@ -292,7 +292,7 @@ export default function Sidebar() {
     ...(can(subject, 'members.view') ? [{ href: '/settings/members', label: 'จัดการสมาชิก', icon: <UserCog className="w-[18px] h-[18px] flex-shrink-0" />, isActive: pathname === '/settings/members' }] : []),
     { href: '/settings/payment-channels', label: 'ช่องทางชำระเงิน', icon: <CreditCard className="w-[18px] h-[18px] flex-shrink-0" />, isActive: pathname === '/settings/payment-channels' },
     { href: '/settings/chat-channels', label: 'ช่องทาง Chat', icon: <MessageCircle className="w-[18px] h-[18px] flex-shrink-0" />, isActive: pathname === '/settings/chat-channels' },
-    ...(can(subject, 'chat.reply') ? [{ href: '/settings/saved-replies', label: 'ข้อความสำเร็จรูป', icon: <MessageSquareText className="w-[18px] h-[18px] flex-shrink-0" />, isActive: pathname === '/settings/saved-replies' }] : []),
+    ...(can(subject, 'chat.reply') ? [{ href: '/settings/saved-replies', label: 'Saved Reply', icon: <MessageSquareText className="w-[18px] h-[18px] flex-shrink-0" />, isActive: pathname === '/settings/saved-replies' }] : []),
     { href: '/settings/sales-channels', label: 'ช่องทางการขาย', icon: <Store className="w-[18px] h-[18px] flex-shrink-0" />, isActive: pathname === '/settings/sales-channels' },
     ...(features.stock ? [{ href: '/settings/warehouses', label: 'คลังสินค้า', icon: <Warehouse className="w-[18px] h-[18px] flex-shrink-0" />, isActive: pathname === '/settings/warehouses' }] : []),
     { href: '/settings/carriers', label: 'ขนส่ง', icon: <Truck className="w-[18px] h-[18px] flex-shrink-0" />, isActive: pathname === '/settings/carriers' },

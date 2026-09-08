@@ -95,8 +95,8 @@ export default function SavedReplyModal({ open, onClose, reply, initialContent, 
   const save = async () => {
     const t = title.trim();
     const c = content.trim();
-    if (!t) { showToast('กรุณาตั้งชื่อข้อความสำเร็จรูป', 'error'); return; }
-    if (duplicate) { showToast(`มีข้อความสำเร็จรูปชื่อ "${duplicate.title}" อยู่แล้ว`, 'error'); return; }
+    if (!t) { showToast('กรุณาตั้งชื่อ Saved Reply', 'error'); return; }
+    if (duplicate) { showToast(`มี Saved Reply ชื่อ "${duplicate.title}" อยู่แล้ว`, 'error'); return; }
     if (!c && images.length === 0) {
       showToast('ต้องมีข้อความหรือรูปอย่างน้อยอย่างใดอย่างหนึ่ง', 'error');
       return;
@@ -128,7 +128,7 @@ export default function SavedReplyModal({ open, onClose, reply, initialContent, 
       if (!res.ok) throw new Error(data.error || 'บันทึกไม่สำเร็จ');
 
       invalidateApiCache('/api/chat/saved-replies');
-      showToast(reply ? 'แก้ไขข้อความสำเร็จรูปแล้ว' : 'บันทึกข้อความสำเร็จรูปแล้ว');
+      showToast(reply ? 'แก้ไข Saved Reply แล้ว' : 'บันทึก Saved Reply แล้ว');
       onSaved(data.reply as SavedReply);
       onClose();
     } catch (err) {
@@ -143,7 +143,7 @@ export default function SavedReplyModal({ open, onClose, reply, initialContent, 
       open={open}
       onClose={onClose}
       icon={<MessageSquareText className="w-5 h-5" />}
-      title={reply ? 'แก้ไขข้อความสำเร็จรูป' : 'บันทึกข้อความสำเร็จรูป'}
+      title={reply ? 'แก้ไข Saved Reply' : 'บันทึก Saved Reply'}
       size="lg"
       footer={
         <div className="flex justify-end gap-2 px-6 py-4">

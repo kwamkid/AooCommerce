@@ -1,6 +1,6 @@
 // Path: app/chat/components/SavedReplyPicker.tsx
 //
-// รายการข้อความสำเร็จรูปที่ลอยเหนือกล่องพิมพ์ — **เป็นตัววาดอย่างเดียว**
+// รายการ Saved Reply ที่ลอยเหนือกล่องพิมพ์ — **เป็นตัววาดอย่างเดียว**
 // คำค้นกับตัวที่กำลังเลือกอยู่ (activeIndex) ถือไว้ที่หน้าแชท เพราะเปิดได้ 2 ทาง:
 //   1. กดปุ่มข้างกล่องพิมพ์ → ค้นในช่องของ picker เอง
 //   2. พิมพ์ `/` ในกล่องพิมพ์ → ค้นจากสิ่งที่พิมพ์ต่อท้าย `/` และกด ↑↓ Enter จากกล่องพิมพ์
@@ -8,9 +8,14 @@
 //
 // **แก้ไข/เพิ่มได้จากที่นี่เลย ไม่ต้องเด้งไปหน้า settings** — ดินสอท้ายแถวกับปุ่มท้ายกล่อง
 // ส่งงานต่อให้ `SavedReplyModal` ตัวเดียวกับที่หน้าจัดการใช้ กติกาจึงไม่หลุดกันสองที่
+//
+// ⚡ **ห้ามยิง state ของหน้าแชทจาก event ที่เกิดถี่ ๆ (mousemove/hover)**
+// หน้าแชทเป็น component 3,000 บรรทัด — เดิม `onMouseEnter` ของทุกแถวสั่ง setState ที่นั่น
+// ⇒ เลื่อนเมาส์ผ่านรายการทีเดียว render ใหม่ทั้งหน้าหลายรอบ นั่นคือ "ความหน่วง" ที่เจ้าของเจอ
+// ตอนนี้ไฮไลต์ตอนชี้เป็น CSS `:hover` ล้วน · `activeIndex` เหลือไว้ให้คีย์บอร์ดอย่างเดียว
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { memo, useEffect, useRef } from 'react';
 import { Search, Plus, Settings2, MessageSquareText, Loader2, Pencil } from 'lucide-react';
 import Link from 'next/link';
 import Tooltip from '@/components/ui/Tooltip';
@@ -44,10 +49,14 @@ interface Props {
 }
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
-  return <div className="px-3 pt-2 pb-1 helper-text text-gray-400 dark:text-slate-500">{children}</div>;
+  return (
+    <div className="px-3 pt-2 pb-1 helper-text text-gray-400 dark:text-slate-500 sticky top-0 bg-white dark:bg-slate-800">
+      {children}
+    </div>
+  );
 }
 
-export default function SavedReplyPicker({
+function SavedReplyPicker({
   replies, loading, frequentCount, activeIndex, onActiveIndexChange, onSelect, onClose,
   showSearch, search, onSearchChange, onSaveCurrent, onCreate, onEdit, canManage,
 }: Props) {
@@ -65,51 +74,61 @@ export default function SavedReplyPicker({
       ?.scrollIntoView({ block: 'nearest' });
   }, [activeIndex]);
 
-  /** แถวเดียวในรายการ — ใช้ร่วมทั้งกลุ่ม "ใช้บ่อย" และ "ทั้งหมด" ห้าม copy JSX สองชุด */
-  const row = (r: SavedReply, i: number) => (
-    <div
-      key={r.id}
-      data-idx={i}
-      onMouseEnter={() => onActiveIndexChange(i)}
-      className={`group flex items-start transition-colors ${
-        i === activeIndex ? 'bg-primary/10' : 'hover:bg-gray-50 dark:hover:bg-slate-700/50'
-      }`}
-    >
-      <button
-        onClick={() => onSelect(r)}
-        className="min-w-0 flex-1 flex items-start gap-2.5 pl-3 pr-1 py-2 text-left"
+  /**
+   * แถวเดียวในรายการ — ซ้ายเป็นข้อความ ขวาสุดเป็นรูป
+   * ดินสอแก้ไขอยู่ในช่องกว้างคงที่คั่นกลาง (จองที่ไว้ตลอด ไม่งั้นพอ hover แล้วแถวขยับ)
+   */
+  const row = (r: SavedReply, i: number) => {
+    const thumb = savedReplyThumb(r);
+    return (
+      <div
+        key={r.id}
+        data-idx={i}
+        className={`group flex items-stretch transition-colors ${
+          i === activeIndex ? 'bg-primary/10' : 'hover:bg-gray-50 dark:hover:bg-slate-700/50'
+        }`}
       >
-        {savedReplyThumb(r) && (
-          <span className="relative flex-shrink-0 mt-0.5">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={savedReplyThumb(r)!} alt="" className="w-9 h-9 rounded object-cover" />
-            {r.image_urls.length > 1 && (
-              <span className="absolute -bottom-0.5 -right-0.5 px-1 rounded bg-black/60 text-white helper-text leading-none py-0.5">
-                {r.image_urls.length}
-              </span>
-            )}
-          </span>
-        )}
-        <span className="min-w-0 flex-1">
+        <button
+          onClick={() => onSelect(r)}
+          className="min-w-0 flex-1 pl-3 pr-1 py-2 text-left"
+        >
           <span className="block text-sm font-medium text-gray-900 dark:text-white truncate">{r.title}</span>
           {/* 2 บรรทัด — บรรทัดเดียวตัดจนแยกไม่ออกว่าใบไหนเป็นใบไหน */}
           <span className="block helper-text text-gray-500 dark:text-slate-400 line-clamp-2">{savedReplyPreview(r, 160)}</span>
-        </span>
-      </button>
-      {onEdit && (
-        <Tooltip text="แก้ไขข้อความนี้">
-          {/* จอสัมผัสไม่มี hover — โชว์ตลอดบนมือถือ ซ่อนรอ hover เฉพาะจอใหญ่ */}
+        </button>
+
+        {onEdit && (
+          <Tooltip text="แก้ไขข้อความนี้">
+            {/* จอสัมผัสไม่มี hover — โชว์ตลอดบนมือถือ ซ่อนรอ hover เฉพาะจอใหญ่ */}
+            <button
+              onClick={() => onEdit(r)}
+              aria-label={`แก้ไข ${r.title}`}
+              className="flex-shrink-0 w-8 flex items-start justify-center pt-2.5 text-gray-400 hover:text-primary md:opacity-0 md:group-hover:opacity-100 md:focus:opacity-100 transition-opacity"
+            >
+              <Pencil className="w-3.5 h-3.5" />
+            </button>
+          </Tooltip>
+        )}
+
+        {/* รูปชิดขวาสุด — ใบที่ไม่มีรูปไม่จองที่ ข้อความจะได้ยาวเต็ม */}
+        {thumb && (
           <button
-            onClick={() => onEdit(r)}
-            aria-label={`แก้ไข ${r.title}`}
-            className="flex-shrink-0 mt-1.5 mr-1.5 p-1.5 rounded-md text-gray-400 hover:text-primary hover:bg-white dark:hover:bg-slate-800 md:opacity-0 md:group-hover:opacity-100 md:focus:opacity-100 transition-opacity"
+            onClick={() => onSelect(r)}
+            aria-label={`ใช้ ${r.title}`}
+            className="flex-shrink-0 relative my-2 mr-2.5 w-11 h-11 rounded-md overflow-hidden border border-gray-200 dark:border-slate-600"
           >
-            <Pencil className="w-3.5 h-3.5" />
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={thumb} alt="" className="w-full h-full object-cover" />
+            {r.image_urls.length > 1 && (
+              <span className="absolute bottom-0 right-0 px-1 rounded-tl bg-black/60 text-white helper-text leading-tight">
+                {r.image_urls.length}
+              </span>
+            )}
           </button>
-        </Tooltip>
-      )}
-    </div>
-  );
+        )}
+      </div>
+    );
+  };
 
   return (
     <div
@@ -145,7 +164,7 @@ export default function SavedReplyPicker({
           <div className="px-4 py-8 text-center">
             <MessageSquareText className="w-8 h-8 mx-auto mb-2 text-gray-300" />
             <p className="subtitle-text text-gray-500">
-              {search ? 'ไม่พบข้อความที่ค้น' : 'ยังไม่มีข้อความสำเร็จรูป'}
+              {search ? 'ไม่พบข้อความที่ค้น' : 'ยังไม่มี Saved Reply'}
             </p>
           </div>
         ) : (
@@ -190,3 +209,7 @@ export default function SavedReplyPicker({
     </div>
   );
 }
+
+// หน้าแชทเป็น component ใหญ่ที่ render ใหม่บ่อย (ข้อความเข้า/พิมพ์/สลับห้อง)
+// memo กันไม่ให้รายการนี้ถูกวาดใหม่ตาม — ต้องคู่กับ callback ที่ identity คงที่ฝั่งหน้าแชท
+export default memo(SavedReplyPicker);

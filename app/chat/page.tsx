@@ -1330,15 +1330,17 @@ function UnifiedChatPageContent() {
    */
   useEffect(() => {
     if (!currentCompany?.id) return;
-    const t = setTimeout(() => { void loadSavedReplies(); }, 800);
+    const t = setTimeout(() => {
+      void loadSavedReplies();
+      // อุ่นไฟล์โมดัลแก้ไขไว้ด้วย — ยังเป็น dynamic เพราะลาก browser-image-compression มา (หนัก)
+      // แต่ต้องอุ่นตอนนี้ ไม่ใช่ตอนคลิก ไม่งั้นไปเบียดงานที่เกิดพร้อมการเปิดรายการพอดี
+      void import('@/components/chat/SavedReplyModal');
+    }, 800);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentCompany?.id]);
 
   const openSavedReplyPicker = (mode: 'button' | 'slash') => {
-    // อุ่นไฟล์ของโมดัลแก้ไขไว้ล่วงหน้า — ยังเป็น dynamic อยู่เพราะมันลาก ImageUploader
-    // + browser-image-compression มาด้วย (หนัก) แต่คนที่เปิดรายการมักกดดินสอต่อ
-    void import('@/components/chat/SavedReplyModal');
     setSavedReplyMode(mode);
     setSavedReplyIndex(0);
     if (mode === 'button') setSavedReplySearch('');
@@ -1348,11 +1350,15 @@ function UnifiedChatPageContent() {
 
   // ลำดับที่แสดง = ลำดับที่ ↑↓ Enter ใช้ ต้องคิดที่เดียวแล้วส่งให้ picker วาดตาม
   // (ค้นอยู่ = ไม่แบ่งกลุ่ม คนกำลังหาใบที่รู้ชื่ออยู่แล้ว)
-  const savedReplyFiltered = savedReplyMode ? filterSavedReplies(savedReplies, savedReplySearch) : [];
-  const { frequent: savedReplyFrequent, rest: savedReplyRest } = savedReplySearch.trim()
-    ? { frequent: [] as SavedReply[], rest: savedReplyFiltered }
-    : splitFrequentReplies(savedReplyFiltered);
-  const savedReplyResults = [...savedReplyFrequent, ...savedReplyRest];
+  // useMemo เพราะอาร์เรย์ใหม่ทุก render = `memo` ของ picker ไร้ผลทันที
+  const { savedReplyResults, savedReplyFrequentCount } = useMemo(() => {
+    if (!savedReplyMode) return { savedReplyResults: [] as SavedReply[], savedReplyFrequentCount: 0 };
+    const filtered = filterSavedReplies(savedReplies, savedReplySearch);
+    const { frequent, rest } = savedReplySearch.trim()
+      ? { frequent: [] as SavedReply[], rest: filtered }
+      : splitFrequentReplies(filtered);
+    return { savedReplyResults: [...frequent, ...rest], savedReplyFrequentCount: frequent.length };
+  }, [savedReplyMode, savedReplies, savedReplySearch]);
 
   /** สิทธิ์แก้คลังข้อความสำเร็จรูป = สิทธิ์ตอบแชท (คลังใช้ร่วมกันทั้งร้าน) */
   const canManageSavedReplies = can(
@@ -1360,12 +1366,28 @@ function UnifiedChatPageContent() {
     'chat.reply',
   );
 
-  /** เปิดโมดัลสร้าง/แก้ข้อความสำเร็จรูป — ปิดรายการก่อนเสมอ ไม่งั้นซ้อนกันสองชั้น */
-  const openSavedReplyEditor = (reply: SavedReply | null) => {
+  /** เปิดโมดัลสร้าง/แก้ Saved Reply — ปิดรายการก่อนเสมอ ไม่งั้นซ้อนกันสองชั้น */
+  const openSavedReplyEditor = useStableCallback((reply: SavedReply | null) => {
     setSavedReplyMode(false);
     setSavedReplyEditing(reply);
     setSavedReplyModalOpen(true);
-  };
+  });
+
+  const closeSavedReplyPicker = useStableCallback(() => {
+    setSavedReplyMode(false);
+    inputRef.current?.focus();
+  });
+  const openSavedReplyCreate = useStableCallback(() => openSavedReplyEditor(null));
+  // ค่าที่ส่งเป็น prop ต้องคงที่ด้วย ไม่ใช่แค่ตัวฟังก์ชัน — เปลี่ยนเฉพาะตอนเงื่อนไขพลิกจริง
+  const hasComposerDraft = !!newMessage.trim() && !newMessage.startsWith('/');
+  const savedReplySaveCurrent = useMemo(
+    () => hasComposerDraft ? openSavedReplyCreate : undefined,
+    [hasComposerDraft, openSavedReplyCreate],
+  );
+  const savedReplyCreate = useMemo(
+    () => canManageSavedReplies ? openSavedReplyCreate : undefined,
+    [canManageSavedReplies, openSavedReplyCreate],
+  );
 
   /** บันทึกจากโมดัลแล้ว — ทับใบเดิมถ้ามี ไม่งั้นต่อท้าย · ล้างแคชให้หน้าจัดการเห็นของใหม่ด้วย */
   const onSavedReplySaved = (saved: SavedReply) => {
@@ -1439,7 +1461,7 @@ function UnifiedChatPageContent() {
    * ให้เห็นข้อความจริง (ตัวแปรถูกแทนค่าแล้ว) และแก้ก่อนกดส่งได้เสมอ · รูปที่แนบมา
    * จะรอเป็นชิปเหนือช่องพิมพ์แล้วส่งตามหลังข้อความตอนกดส่ง
    */
-  const useSavedReply = (reply: SavedReply) => {
+  const insertSavedReply = useStableCallback((reply: SavedReply) => {
     const text = applySavedReplyVars(reply.content, {
       customerName: resolveContactName(selectedContact),
       shopName: currentCompany?.name,
@@ -1470,7 +1492,7 @@ function UnifiedChatPageContent() {
       ? { ...r, use_count: (r.use_count || 0) + 1, last_used_at: new Date().toISOString() }
       : r));
     void apiFetch(`/api/chat/saved-replies/${reply.id}/use`, { method: 'POST' }).catch(() => {});
-  };
+  });
 
   /** พิมพ์ในกล่องแชท — ขึ้นต้นด้วย / = เปิดรายการข้อความสำเร็จรูปพร้อมค้นตามที่พิมพ์ */
   const handleComposerChange = (value: string) => {
@@ -1490,7 +1512,7 @@ function UnifiedChatPageContent() {
     if (e.key === 'Escape') { e.preventDefault(); setSavedReplyMode(false); return true; }
     if (e.key === 'ArrowDown') { e.preventDefault(); setSavedReplyIndex(i => Math.min(i + 1, savedReplyResults.length - 1)); return true; }
     if (e.key === 'ArrowUp') { e.preventDefault(); setSavedReplyIndex(i => Math.max(i - 1, 0)); return true; }
-    if (e.key === 'Enter' && savedReplyResults[savedReplyIndex]) { e.preventDefault(); useSavedReply(savedReplyResults[savedReplyIndex]); return true; }
+    if (e.key === 'Enter' && savedReplyResults[savedReplyIndex]) { e.preventDefault(); insertSavedReply(savedReplyResults[savedReplyIndex]); return true; }
     return false;
   };
 
@@ -2068,7 +2090,7 @@ function UnifiedChatPageContent() {
             </button>
           )}
           <p className="helper-text text-gray-500 mt-1">
-            ข้อความสำเร็จรูปจะใช้ชื่อนี้ทักก่อนชื่ออื่นทั้งหมด
+            Saved Reply จะใช้ชื่อนี้ทักก่อนชื่ออื่นทั้งหมด
           </p>
         </div>
 
@@ -2790,8 +2812,8 @@ function UnifiedChatPageContent() {
                   </div>
                   {/* ข้อความสำเร็จรูป — เปิดจากปุ่มนี้ หรือพิมพ์ / ในช่องข้อความ */}
                   <div className="relative" data-saved-reply>
-                    <Tooltip text="ข้อความสำเร็จรูป (หรือพิมพ์ /)">
-                      <button onClick={() => savedReplyMode ? setSavedReplyMode(false) : openSavedReplyPicker('button')} aria-label="ข้อความสำเร็จรูป" className={`p-2 rounded-full transition-colors ${savedReplyMode ? 'text-primary bg-primary/10' : 'text-gray-500 hover:text-primary hover:bg-gray-100 dark:hover:bg-slate-700'}`}>
+                    <Tooltip text="Saved Reply (หรือพิมพ์ /)">
+                      <button onClick={() => savedReplyMode ? setSavedReplyMode(false) : openSavedReplyPicker('button')} aria-label="Saved Reply" className={`p-2 rounded-full transition-colors ${savedReplyMode ? 'text-primary bg-primary/10' : 'text-gray-500 hover:text-primary hover:bg-gray-100 dark:hover:bg-slate-700'}`}>
                         <MessageSquareText className="w-5 h-5" />
                       </button>
                     </Tooltip>
@@ -2799,16 +2821,16 @@ function UnifiedChatPageContent() {
                       <SavedReplyPicker
                         replies={savedReplyResults}
                         loading={savedReplyLoading}
-                        frequentCount={savedReplyFrequent.length}
+                        frequentCount={savedReplyFrequentCount}
                         activeIndex={savedReplyIndex}
                         onActiveIndexChange={setSavedReplyIndex}
-                        onSelect={useSavedReply}
-                        onClose={() => { setSavedReplyMode(false); inputRef.current?.focus(); }}
+                        onSelect={insertSavedReply}
+                        onClose={closeSavedReplyPicker}
                         showSearch={savedReplyMode === 'button'}
                         search={savedReplySearch}
                         onSearchChange={setSavedReplySearch}
-                        onSaveCurrent={newMessage.trim() && !newMessage.startsWith('/') ? () => openSavedReplyEditor(null) : undefined}
-                        onCreate={canManageSavedReplies ? () => openSavedReplyEditor(null) : undefined}
+                        onSaveCurrent={savedReplySaveCurrent}
+                        onCreate={savedReplyCreate}
                         onEdit={canManageSavedReplies ? openSavedReplyEditor : undefined}
                         canManage={canManageSavedReplies}
                       />
