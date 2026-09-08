@@ -969,24 +969,23 @@ export default function ItemsTable({
 
   // ── Render ────────────────────────────────────────────────────────────
 
-  // When the form has no items yet, the dashed-green ProductSearchInput is
-  // the entire empty state — render it WITHOUT the outer card border + the
-  // redundant "ยังไม่มีสินค้า" hint. The search input itself reads
-  // "+ เพิ่มสินค้าหรือโปรโมชั่น — พิมพ์ชื่อหรือรหัส..." which already
-  // explains what to do.
+  // บิลที่ยังไม่มีสินค้าโชว์แค่ช่องค้นหาเส้นประ (ไม่ต้องมีข้อความ "ยังไม่มีสินค้า" ซ้ำ —
+  // ตัวช่องเขียนว่า "+ เพิ่มสินค้าหรือโปรโมชั่น…" อยู่แล้ว)
+  //
+  // **แต่การ์ดต้องครอบตั้งแต่ตอนยังว่าง** — เดิมตอนว่างไม่มีการ์ด ช่องค้นหาเลยกว้างเต็มพื้นที่
+  // พอเพิ่มสินค้าชิ้นแรกมันถูกยัดเข้าการ์ดที่มี padding แล้วดูเหมือนหดลง (เจ้าของทัก 9 ก.ย. 2026)
   const isEmptyEditable = items.length === 0 && !readOnly && onAdd;
 
   return (
     <>
       <div
         ref={containerRef}
-        className={isEmptyEditable
-          ? ''
-          : 'bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700'}
+        className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700"
       >
         {isEmptyEditable && (
-          searchDisabledMessage
-            ? <p className="text-sm text-gray-400 dark:text-slate-500 px-1 py-2">{searchDisabledMessage}</p>
+          <div className="px-4 py-3">
+          {searchDisabledMessage
+            ? <p className="text-sm text-gray-400 dark:text-slate-500">{searchDisabledMessage}</p>
             : <ProductSearchInput
                 products={products}
                 onSelect={onAdd}
@@ -1013,6 +1012,8 @@ export default function ItemsTable({
                   );
                 } : undefined}
               />
+          }
+          </div>
         )}
 
         {items.length === 0 && readOnly && (

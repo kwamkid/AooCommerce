@@ -742,6 +742,12 @@ table.items-table td {
   padding-right: 0.5rem;
 }
 
+/* หัวตารางมีพื้นทึบ (.data-thead) ทับมุมโค้งของการ์ดจนดูเหมือนมุมโดนตัด
+   ครอบ overflow-hidden ไม่ได้เพราะจะกินป๊อปอัปที่ต้องล้นออกนอกการ์ด (ค้นสินค้า/หมายเหตุ)
+   จึงโค้งที่หัวตารางเองให้ตรงกับ rounded-xl (0.75rem) ของการ์ด */
+table.items-table thead tr:first-child th:first-child { border-top-left-radius: 0.75rem; }
+table.items-table thead tr:first-child th:last-child  { border-top-right-radius: 0.75rem; }
+
 /* Filter card inputs — consistent 16px (prevent iOS zoom) */
 .data-filter-card input,
 .data-filter-card select {

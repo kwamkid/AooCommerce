@@ -2642,7 +2642,7 @@ export default function OrderForm({
             → ไม่ต้องกินพื้นที่ทั้งการ์ด · ยกเว้นล็อกแล้วแต่ยังจับคู่ช่องทางไม่ได้ (ค่าว่าง)
             อันนั้นต้องให้เห็น ไม่งั้นบิลบันทึกโดยไม่มีช่องทางแบบเงียบ ๆ */}
         {salesChannels.length > 0 && !salesChannelPortalRef && !(salesChannelLocked && selectedSalesChannelId) && (
-          <div className={`bg-white dark:bg-slate-800 rounded-lg ${embedded ? '' : 'border border-gray-200 dark:border-slate-700'} p-4`}>
+          <div className={`bg-white dark:bg-slate-800 rounded-xl ${embedded ? '' : 'border border-gray-200 dark:border-slate-700'} p-4`}>
             <label className="field-label">
               ช่องทางการขาย
               {salesChannelLocked && (
@@ -2667,7 +2667,7 @@ export default function OrderForm({
             ทั้งสามเรื่องคือ "ของชิ้นนี้ไปถึงเมื่อไหร่ ค่าเท่าไหร่" เหมือนกัน
             แยกเป็นสามการ์ดเตี้ย ๆ ทำให้จอ desktop เหลือที่ว่างเปล่า ๆ */}
         {(features.delivery_date.enabled || features.delivery_zone) && (
-        <div ref={deliveryDateRef} className={`bg-white dark:bg-slate-800 rounded-lg ${embedded ? '' : 'border border-gray-200 dark:border-slate-700'} p-4`}>
+        <div ref={deliveryDateRef} className={`bg-white dark:bg-slate-800 rounded-xl ${embedded ? '' : 'border border-gray-200 dark:border-slate-700'} p-4`}>
           <div className="space-y-4">
           {features.delivery_date.enabled && (
           <div className={features.delivery_slot ? 'grid grid-cols-2 gap-3 items-start' : ''}>
@@ -2806,7 +2806,7 @@ export default function OrderForm({
             พนักงานมักตั้งค่าของขวัญตามที่ลูกค้าบอกก่อน แล้วค่อยไล่ใส่สินค้า
             ไม่ผูกกับฟีเจอร์ delivery — ร้านส่งพัสดุก็ส่งของขวัญได้ */}
         {shipToOther && (
-        <div className={`bg-white dark:bg-slate-800 rounded-lg ${embedded ? '' : 'border border-gray-200 dark:border-slate-700'} p-4`}>
+        <div className={`bg-white dark:bg-slate-800 rounded-xl ${embedded ? '' : 'border border-gray-200 dark:border-slate-700'} p-4`}>
           <label className="field-label">ของขวัญ</label>
 
           {/* กติกาของการ์ดนี้: **ช่องกรอกอยู่ใต้ติ๊กของตัวเองเสมอ** (เยื้องเข้าให้เห็นว่าเป็นลูกของติ๊กไหน)
@@ -2967,8 +2967,10 @@ export default function OrderForm({
   // Products Section
   // ไม่ส่ง forceCompact เข้า ItemsTable แล้ว — ตารางวัดความกว้างของตัวเองและเลือก
   // เลย์เอาต์เอง ("อยู่ในแชท" ไม่ได้แปลว่าแคบ · panel กว้าง ~690px = ตารางเต็มความกว้าง)
+  // ไม่วาดการ์ดที่นี่ — ItemsTable วาดการ์ดของตัวเองอยู่แล้ว ซ้อนสองชั้นคนละรัศมี
+  // (rounded-lg ทับ rounded-xl) ทำให้มุมดูเหมือนโดนตัด (เจ้าของทัก 9 ก.ย. 2026)
   const productsFragment = branchOrders.length > 0 && (
-        <div ref={productsSectionRef} className={`bg-white dark:bg-slate-800 rounded-lg ${embedded ? '' : 'border border-gray-200 dark:border-slate-700'} overflow-visible`}>
+        <div ref={productsSectionRef} className="overflow-visible">
           <ItemsTable
             items={(branchOrders[0]?.products || []).map((p): OrderTableItem => ({
               variation_id: p.variation_id,
@@ -3016,7 +3018,7 @@ export default function OrderForm({
 
   // Notes + Settings — คอลัมน์ซ้ายในจอกว้าง / อยู่ขั้นสรุปใน wizard
   const notesFragment = hasProducts && (
-        <div className={`bg-white dark:bg-slate-800 rounded-lg ${embedded ? '' : 'border border-gray-200 dark:border-slate-700'} p-4`}>
+        <div className={`bg-white dark:bg-slate-800 rounded-xl ${embedded ? '' : 'border border-gray-200 dark:border-slate-700'} p-4`}>
           <div className="space-y-3">
               {/* Notes side-by-side on desktop, stacked on mobile.
                   Both textareas use rows=3 so they line up visually. */}
@@ -3172,7 +3174,7 @@ export default function OrderForm({
   const summaryIsSideColumn = !useWizard && summaryWide;
   const summaryFragment = (hasProducts || summaryIsSideColumn) && (
         <div className={useWizard ? 'w-full' : `${summaryWide ? 'w-[340px] flex-shrink-0 sticky top-4' : 'w-full'}`}>
-          <div className={`bg-white dark:bg-slate-800 rounded-lg ${embedded ? '' : 'border border-gray-200 dark:border-slate-700'} p-4`}>
+          <div className={`bg-white dark:bg-slate-800 rounded-xl ${embedded ? '' : 'border border-gray-200 dark:border-slate-700'} p-4`}>
           {!hasProducts ? (
             <div className="text-center py-6">
               <p className="heading-4 mb-1">สรุปคำสั่งซื้อ</p>
