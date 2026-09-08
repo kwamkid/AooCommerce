@@ -64,8 +64,13 @@ export default function Tabs({ tabs, activeKey, onSelect, className, fill, size 
   // `className="mb-6"` accidentally drop the flex + พื้นราง and tabs would stack.
   // รางกว้างพอดีแท็บเสมอ (ไม่ยืดเต็มพ่อจนเหลือพื้นเทาโล่ง ๆ) ยกเว้นโหมด fill ที่ตั้งใจให้เต็มแถว
   // `max-w-full` + `overflow-x-auto` = จอแคบเลื่อนดูแท็บที่เกินได้แทนที่จะดันหน้าจนล้น
+  // ระยะห่างด้านล่าง: ใส่ให้เป็นค่าปกติ แต่ **ต้องถอยให้ผู้เรียกที่กำหนดเอง** —
+  // Tailwind ตัดสินคลาสที่ชนกันจากลำดับใน CSS ไม่ใช่ลำดับในสตริง `mb-0` ที่ส่งมาทีหลัง
+  // จึงแพ้ `mb-6` ที่ baked ไว้ ⇒ แท็บมี margin-bottom ค้าง 24px แล้วถูกดันขึ้นเมื่ออยู่ใน
+  // แถว items-center ร่วมกับช่องวันที่/ปุ่ม (เห็นเป็นบรรทัดไม่ตรงกันในหน้าจัดของ&ส่ง)
+  const hasOwnMargin = /(^|\s)!?m[byt]?-/.test(className || '');
   const baseCls = (display: string) =>
-    `${display} gap-1 p-1 bg-gray-200/60 dark:bg-slate-800 rounded-xl mb-6 overflow-x-auto ${fill ? 'w-full' : 'w-fit max-w-full'}`;
+    `${display} gap-1 p-1 bg-gray-200/60 dark:bg-slate-800 rounded-xl ${hasOwnMargin ? '' : 'mb-6'} overflow-x-auto ${fill ? 'w-full' : 'w-fit max-w-full'}`;
   const visible = tabs.filter(t => !t.hidden);
   // จอแคบที่แท็บเยอะ → dropdown · ใช้ CSS สลับ (ไม่ใช่วัดขนาดจอด้วย JS) จะได้ไม่มี hydration mismatch
   const asDropdown = mobileDropdownFrom > 0 && visible.length > mobileDropdownFrom;
@@ -73,7 +78,7 @@ export default function Tabs({ tabs, activeKey, onSelect, className, fill, size 
   return (
     <>
     {asDropdown && (
-      <div className={`sm:hidden ${className?.includes('mb-0') ? '' : 'mb-4'} ${className || ''}`}>
+      <div className={`sm:hidden ${hasOwnMargin ? '' : 'mb-4'} ${className || ''}`}>
         {/* ไม่ส่ง `icon` — FormSelect วาดไอคอนของตัวเลือกที่เลือกอยู่ให้เองแล้ว ส่งไปอีกจะได้สองอัน */}
         <FormSelect
           value={activeKey}
