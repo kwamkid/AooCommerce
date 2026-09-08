@@ -66,6 +66,7 @@ import { Trash2,
 } from 'lucide-react';
 import Link from 'next/link';
 
+import { isValidEmail, EMAIL_INVALID_MESSAGE } from '@/lib/email';
 // ข้อความเดียวกันทั้ง validate ตอนบันทึก และตอนกด "ถัดไป" ในเปลือก wizard
 // (เขียนคนละที่แล้วดริฟต์กันคือวิธีที่ผู้ใช้เจอสองข้อความสำหรับเรื่องเดียวกัน)
 const NO_ITEMS_ERROR = 'กรุณาเพิ่มสินค้าอย่างน้อย 1 รายการ';
@@ -1957,10 +1958,8 @@ export default function OrderForm({
       errors.deliveryPhone = `เบอร์นี้เป็นของ "${phoneDuplicate.name}" อยู่แล้ว — เลือกลูกค้ารายนั้น หรือแก้เบอร์`;
     }
     // "-" คือธรรมเนียมกรอกแทน "ไม่มี" — ถือว่าว่าง อย่า block การบันทึก
-    const emailTrimmed = deliveryEmail.trim() === '-' ? '' : deliveryEmail.trim();
-    if (emailTrimmed && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailTrimmed)) {
-      errors.deliveryEmail = 'อีเมลไม่ถูกต้อง';
-    }
+    // กติกาอีเมลอยู่ที่ lib/email.ts ที่เดียว ("-" = ว่าง ถูกจัดการในนั้นแล้ว)
+    if (!isValidEmail(deliveryEmail)) errors.deliveryEmail = EMAIL_INVALID_MESSAGE;
     // Check that at least one product exists
     if (branchOrders.length === 0 || !branchOrders[0]?.products.length) {
       errors.branches = NO_ITEMS_ERROR;
@@ -2657,6 +2656,7 @@ export default function OrderForm({
           shipToOther={shipToOther}
           onShipToOtherChange={isReadOnly ? undefined : setShipToOther}
           recipientNameError={fieldErrors.recipientName}
+          emailError={fieldErrors.deliveryEmail}
           shippingAddresses={shippingAddresses as CSCShippingAddress[]}
           selectedAddressId={selectedAddressId}
           onAddressSelect={(id, addr) => customerPrefill.handleAddressSelect(id, addr, selectedCustomer)}

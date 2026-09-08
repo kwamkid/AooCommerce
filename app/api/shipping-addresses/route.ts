@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
 
+import { normalizePhone } from '@/lib/numeric-input';
 // Type definitions
 interface ShippingAddressData {
   customer_id: string;
@@ -84,6 +85,8 @@ export async function POST(request: NextRequest) {
     }
 
     const addressData: ShippingAddressData = await request.json();
+    // เบอร์โทรเก็บเป็นตัวเลขล้วนทั้งระบบ — normalize ที่ทางเข้าจุดเดียว ทุก insert/update ข้างล่างสะอาดเอง
+    if (addressData.phone != null) addressData.phone = normalizePhone(addressData.phone);
 
     // Validate required fields
     if (!addressData.customer_id || !addressData.address_name || !addressData.province) {
@@ -157,6 +160,8 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
+    // เบอร์โทรเก็บเป็นตัวเลขล้วนทั้งระบบ — normalize ที่ทางเข้าจุดเดียว ทุก insert/update ข้างล่างสะอาดเอง
+    if (body.phone != null) body.phone = normalizePhone(body.phone);
     const { id, ...updateData } = body;
 
     if (!id) {

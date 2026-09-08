@@ -8,6 +8,7 @@ import { AlertCircle } from 'lucide-react';
 
 import { NUMERIC_TEXT_INPUT_PROPS, PHONE_INPUT_PROPS, allowsNegative, sanitizeNumericInput, sanitizePhoneInput } from '@/lib/numeric-input';
 
+import { isValidEmail, EMAIL_INVALID_MESSAGE } from '@/lib/email';
 export type FormInputSize = 'sm' | 'md' | 'lg';
 
 /**
@@ -153,6 +154,8 @@ const FormInput = forwardRef<FormInputHandle, FormInputProps>(function FormInput
       if (min != null && num < Number(min)) return `ต้องไม่ต่ำกว่า ${min}`;
       if (max != null && num > Number(max)) return `ต้องไม่เกิน ${max}`;
     }
+    // ช่องอีเมลตรวจให้เองด้วยกติกากลาง (lib/email.ts) — ผู้เรียกที่ส่ง `pattern` มาเองยังชนะ
+    if (type === 'email' && !pattern && !isValidEmail(val)) return patternMessage ?? EMAIL_INVALID_MESSAGE;
     if (pattern) {
       try {
         const re = new RegExp(pattern);

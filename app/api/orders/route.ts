@@ -10,6 +10,7 @@ import { fetchCostMap } from '@/lib/cost-utils';
 import { resolveDeliverySnapshot } from '@/lib/delivery-server';
 import { computeOrderTotals, splitVatInclusive } from '@/lib/order-totals';
 
+import { normalizePhone } from '@/lib/numeric-input';
 // Type definitions
 interface OrderItemInput {
   variation_id: string; // product_variations.id
@@ -147,7 +148,7 @@ async function rememberRecipientAddress(
   if (!d.address || !d.province) return null;
   const addressName = (d.name || '').trim() || 'ที่อยู่ผู้รับ';
   const contactPerson = (d.name || '').trim() || null;
-  const phone = (d.phone || '').trim() || null;
+  const phone = normalizePhone(d.phone) || null;
 
   const { data: existing, error: findError } = await supabaseAdmin
     .from('shipping_addresses')
@@ -236,6 +237,8 @@ export async function POST(request: NextRequest) {
     }
 
     const orderData: OrderData = await request.json();
+    // เบอร์โทรเก็บเป็นตัวเลขล้วนทั้งระบบ — normalize ที่ทางเข้าจุดเดียว ทุก insert/update ข้างล่างสะอาดเอง
+    if (orderData.delivery_phone != null) orderData.delivery_phone = normalizePhone(orderData.delivery_phone);
 
     // Validate required fields
     if (!orderData.items || orderData.items.length === 0) {
@@ -1433,6 +1436,8 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
+    // เบอร์โทรเก็บเป็นตัวเลขล้วนทั้งระบบ — normalize ที่ทางเข้าจุดเดียว ทุก insert/update ข้างล่างสะอาดเอง
+    if (body.delivery_phone != null) body.delivery_phone = normalizePhone(body.delivery_phone);
 
     // --- Bulk actions (accept/cancel/hold/unhold/ship) ---
     const bulkIds = body.ids || (body.items ? body.items.map((i: any) => i.id) : null);
@@ -2532,7 +2537,7 @@ export async function PUT(request: NextRequest) {
       // ข้ามเมื่อเป็นออเดอร์ "ส่งให้คนอื่น" — ข้อมูลนี้เป็นของผู้รับ ห้ามทับ contact/ที่อยู่หลักของผู้สั่ง
       if (body.delivery_name && existingOrder.customer_id && !body.ship_to_other) {
         try {
-          const cleanPhone = (body.delivery_phone || '').replace(/[-\s]/g, '');
+          const cleanPhone = normalizePhone(body.delivery_phone);
 
           // Sync contact info (not address) to customer
           await supabaseAdmin

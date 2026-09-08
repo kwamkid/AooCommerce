@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { newCustomerCode } from '@/lib/customer-code';
 import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
 
+import { normalizePhone } from '@/lib/numeric-input';
 // Type definitions
 interface CustomerData {
   name: string;
@@ -48,6 +49,8 @@ export async function POST(request: NextRequest) {
     }
 
     const customerData: CustomerData = await request.json();
+    // เบอร์โทรเก็บเป็นตัวเลขล้วนทั้งระบบ — normalize ที่ทางเข้าจุดเดียว ทุก insert/update ข้างล่างสะอาดเอง
+    if (customerData.phone != null) customerData.phone = normalizePhone(customerData.phone);
 
     // Validate required fields
     if (!customerData.name || !customerData.customer_type) {
@@ -428,6 +431,8 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
+    // เบอร์โทรเก็บเป็นตัวเลขล้วนทั้งระบบ — normalize ที่ทางเข้าจุดเดียว ทุก insert/update ข้างล่างสะอาดเอง
+    if (body.phone != null) body.phone = normalizePhone(body.phone);
     const { id, customer_type, address, district, amphoe, province, postal_code, ...updateData } = body;
 
     if (!id) {

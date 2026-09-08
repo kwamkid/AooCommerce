@@ -15,6 +15,7 @@ import FormSelect from '@/components/ui/FormSelect';
 import ThaiAddressInput from '@/components/ui/ThaiAddressInput';
 import { parseThaiAddress } from '@/lib/address-parser';
 
+import { isValidEmail, EMAIL_INVALID_MESSAGE } from '@/lib/email';
 // ── Types ──────────────────────────────────────────────────
 
 export interface CustomerOption {
@@ -149,6 +150,8 @@ interface Props {
   shipToOther?: boolean;
   onShipToOtherChange?: (v: boolean) => void;
   recipientNameError?: string;
+  /** error อีเมลจากตอนกดบันทึก (ฟอร์มแม่ตรวจด้วย isValidEmail ตัวเดียวกัน) */
+  emailError?: string;
 
   // ── Shipping addresses (address dropdown) ──
   shippingAddresses?: ShippingAddress[];
@@ -257,6 +260,7 @@ export default function CustomerSelectionCard({
   shipToOther = false,
   onShipToOtherChange,
   recipientNameError,
+  emailError,
   shippingAddresses = [],
   selectedAddressId,
   onAddressSelect,
@@ -289,6 +293,10 @@ export default function CustomerSelectionCard({
    * (เบอร์ยังเป็นตัวที่ใช้เช็คซ้ำด้วย ยิ่งควรให้กรอกต่อทันที)
    */
   const newCustomerPhoneRef = useRef<HTMLInputElement>(null);
+  /** อีเมลเตือนตอน "ออกจากช่อง" ไม่ใช่ตอนพิมพ์ — "dv12" คือสถานะกลางทางของ "dv12@gmail.com" */
+  const [emailTouched, setEmailTouched] = useState(false);
+  const emailValue = delivery?.deliveryEmail || selectedCustomer?.email || '';
+  const emailShownError = emailError || (emailTouched && !isValidEmail(emailValue) ? EMAIL_INVALID_MESSAGE : undefined);
   useEffect(() => {
     if (newCustomerMode) newCustomerPhoneRef.current?.focus();
   }, [newCustomerMode]);
@@ -551,8 +559,9 @@ export default function CustomerSelectionCard({
               </div>
               <div>
                 <label className="field-label">อีเมล</label>
-                <input type="text" inputMode="email" value={delivery?.deliveryEmail || selectedCustomer?.email || ''} onChange={(e) => onDeliveryChange?.({ deliveryEmail: e.target.value })} placeholder="email@example.com" disabled={!isEditable}
-                  className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-gray-100 dark:disabled:bg-slate-800" />
+                <input type="email" inputMode="email" autoComplete="email" value={emailValue} onChange={(e) => onDeliveryChange?.({ deliveryEmail: e.target.value })} onBlur={() => setEmailTouched(true)} placeholder="email@example.com" disabled={!isEditable}
+                  className={`w-full px-3 py-2.5 border rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-gray-100 dark:disabled:bg-slate-800 ${emailShownError ? 'border-red-400' : 'border-gray-300 dark:border-slate-600'}`} />
+                {emailShownError && <p className="text-red-500 text-sm mt-1">{emailShownError}</p>}
               </div>
             </div>
 
