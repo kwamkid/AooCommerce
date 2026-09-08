@@ -11,6 +11,7 @@ import FormInput from '@/components/ui/FormInput';
 import Radio from '@/components/ui/Radio';
 import AccountPicker from '@/components/ui/AccountPicker';
 import Alert from '@/components/ui/Alert';
+import Modal from '@/components/ui/Modal';
 import MultiSelectSearch from '@/components/ui/MultiSelectSearch';
 import ImageDropzone from '@/components/ui/ImageDropzone';
 import PlatformIcon from '@/components/ui/PlatformIcon';
@@ -43,7 +44,7 @@ import {
   type BroadcastContent,
   type BroadcastProductCard,
 } from '@/lib/broadcast/content';
-import { ChevronRight, Plus, Send, Tag, Trash2 } from 'lucide-react';
+import { ChevronDown, Plus, Send, Tag, Trash2 } from 'lucide-react';
 
 /** บัญชีต้นทางหนึ่งใบ — LINE มาจาก chat_accounts ส่วน marketplace มาจากร้าน */
 interface BroadcastAccount {
@@ -215,6 +216,9 @@ export default function NewBroadcastPage() {
   const [perAccount, setPerAccount] = useState<{ account: BroadcastAccount; info: PreviewInfo }[]>([]);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [sending, setSending] = useState(false);
+  /** กลุ่มผู้รับเลือกในโมดัล — รายการจะยาวขึ้นเรื่อย ๆ (ไม่ซื้อมา N วัน · ทักแล้วยังไม่ซื้อ ฯลฯ)
+   *  เรียงเป็นการ์ดในหน้าจะดันเนื้อหาตกจอ */
+  const [audienceModal, setAudienceModal] = useState(false);
 
   const productSearch = useServerSearch<ProductSearchItem>({ fetch: fetchProductPage });
 
@@ -405,12 +409,26 @@ export default function NewBroadcastPage() {
     .find(Boolean) ?? null;
 
   // โหมด 'all' ของ LINE ยิงผ่าน broadcast API ไม่ต้องมีรายชื่อของเรา
+  const selectedAudience = audienceOptions.find(o => o.key === audience) || null;
   const pickPending = audience === 'contacts_pick' && pickedContacts.length === 0;
   const noRecipients = audience !== 'all' && !pickPending && !previewLoading
     && platforms.length > 0 && recipientCount === 0;
   const canSend = accountIds.length > 0 && !!audience && !pickPending
     && !contentError && !quotaShort && !noRecipients && !sending;
   const hasDraft = !!(text.trim() || title.trim() || imagePreviewUrl || cards.length > 0);
+
+  /** บรรทัดสรุปใต้ชื่อกลุ่ม — บอกจำนวน หรือบอกว่ายังต้องเลือกอะไรต่อ */
+  const audienceSummary = (() => {
+    if (!selectedAudience) return 'ยังไม่ได้เลือก';
+    if (audience === 'tags' && tagIds.length === 0) return 'ยังไม่ได้เลือกแท็ก';
+    if (audience === 'contacts_pick') {
+      return pickedContacts.length === 0
+        ? 'ยังไม่ได้เลือกผู้รับ'
+        : `เลือกไว้ ${pickedContacts.length} คน`;
+    }
+    if (previewLoading) return 'กำลังนับผู้รับ...';
+    return `${recipientCount.toLocaleString()} คน`;
+  })();
 
   // ─── ส่ง ─────────────────────────────────────────────────────────────
   const handleSend = async () => {
@@ -533,130 +551,50 @@ export default function NewBroadcastPage() {
                 </Alert>
               ) : (
                 <AccountPicker
-                  accounts={accounts.map(a => ({
-                    id: a.id,
-                    platform: a.platform,
-                    name: a.name,
-                    picture_url: a.picture_url,
-                    badge: BROADCAST_PLATFORMS[a.platform].label,
-                  }))}
+                  accounts={[
+                    ...accounts.map(a => ({
+                      id: a.id,
+                      platform: a.platform,
+                      name: a.name,
+                      picture_url: a.picture_url,
+                      badge: BROADCAST_PLATFORMS[a.platform].label,
+                    })),
+                    // ช่องทางที่ยังส่งไม่ได้ — โชว์เป็นแถวกดไม่ได้พร้อมเหตุผล **หนึ่งแถวต่อ
+                    // แพลตฟอร์ม** ไม่ใช่ต่อบัญชี เพราะเลือกไม่ได้อยู่แล้วจึงไม่ต้องยิง API
+                    // ไปโหลดรายชื่อร้าน/เพจของเจ้าที่ยังใช้ไม่ได้มาให้เปลืองเปล่า ๆ
+                    ...pendingPlatforms.map(p => ({
+                      id: `platform:${p.id}`,
+                      platform: p.id,
+                      name: p.label,
+                      picture_url: null,
+                      disabled: true,
+                      disabledReason: p.reason,
+                    })),
+                  ]}
                   value={accountIds}
                   onChange={setAccountIds}
                   placeholder="เลือกช่องทางที่จะใช้ส่ง (เลือกได้หลายอัน)"
                 />
               )}
 
-              {/* ช่องทางที่ยังส่งไม่ได้ — ย่อเป็นบรรทัดเดียว กางดูเหตุผลได้
-                  (กางค้างไว้ตั้งแต่ยังไม่เริ่มกรอก = ดันเนื้อหาจริงตกจอไปหมด) */}
-              {pendingPlatforms.length > 0 && (
-                <details className="group mt-2.5">
-                  <summary className="flex items-center gap-1.5 cursor-pointer list-none helper-text text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200">
-                    <ChevronRight className="w-3.5 h-3.5 flex-shrink-0 transition-transform group-open:rotate-90" />
-                    <span className="flex items-center gap-1 opacity-60">
-                      {pendingPlatforms.map(p => <PlatformIcon key={p.id} id={p.id} size={14} />)}
-                    </span>
-                    อีก {pendingPlatforms.length} ช่องทางยังส่งไม่ได้ — ดูเหตุผล
-                  </summary>
-                  <ul className="mt-2.5 space-y-2 pl-5">
-                    {pendingPlatforms.map(p => (
-                      <li key={p.id}>
-                        <p className="helper-text text-gray-700 dark:text-slate-300">
-                          <span className="font-medium">{p.label}</span>
-                          <span className="text-gray-400 dark:text-slate-500"> · ถึงได้แค่{p.audience}</span>
-                        </p>
-                        <p className="helper-text text-gray-500 dark:text-slate-400">{p.reason}</p>
-                      </li>
-                    ))}
-                  </ul>
-                </details>
-              )}
-
               {platforms.length > 0 && (
                 <div className="mt-4 pt-4 border-t border-gray-100 dark:border-slate-700">
-                  <p className="field-label mb-2">กลุ่มผู้รับ</p>
-                  {/* การ์ดเลือกได้ทั้งใบ + คำอธิบายโชว์ตลอด ไม่ใช่โชว์เฉพาะตัวที่เลือก —
-                      "คนที่เคยทักเข้ามา" กับ "ผู้ติดตามทั้งหมด" ต่างกันตรงไหน ต้องอ่านเทียบกันได้ */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-                    {audienceOptions.map(opt => {
-                      const active = audience === opt.key;
-                      return (
-                        <Radio
-                          key={opt.key}
-                          checked={active}
-                          onChange={() => setAudience(opt.key)}
-                          className={`!items-start px-3 py-2 rounded-lg border transition-colors ${
-                            active
-                              ? 'border-[#F4511E] bg-orange-50/50 dark:bg-orange-950/20'
-                              : 'border-gray-200 dark:border-slate-600 hover:border-gray-300 dark:hover:border-slate-500'
-                          }`}
-                        >
-                          <span className="min-w-0">
-                            <span className="block body-text text-gray-900 dark:text-white">{opt.label}</span>
-                            {opt.hint && (
-                              <span className="block helper-text text-gray-500 dark:text-slate-400 mt-0.5">
-                                {opt.hint}
-                              </span>
-                            )}
-                          </span>
-                        </Radio>
-                      );
-                    })}
-                  </div>
-
-                  {audience === 'tags' && (
-                    <div className="mt-2.5">
-                      <MultiSelectSearch
-                        value={tagIds}
-                        onChange={setTagIds}
-                        options={tags.map(t => ({ id: t.id, label: t.name }))}
-                        emptyLabel="เลือกแท็ก..."
-                        icon={<Tag className="w-4 h-4" />}
-                      />
-                    </div>
-                  )}
-
-                  {audience === 'contacts_pick' && (
-                    <div className="mt-2.5">
-                      <EntitySearchInput
-                        value=""
-                        options={contactSearch.results}
-                        loading={contactSearch.loading}
-                        onSearchChange={contactSearch.search}
-                        minSearchLength={2}
-                        placeholder="พิมพ์ชื่อผู้ติดต่อเพื่อเพิ่ม"
-                        emptyMessage="ไม่พบผู้ติดต่อที่ตรงกับคำค้น"
-                        onChange={(id, opt) => {
-                          setPickedContacts(prev =>
-                            prev.some(c => c.id === id) ? prev : [...prev, { id, name: opt.label }]);
-                        }}
-                      />
-                      {pickedContacts.length > 0 && (
-                        <ul className="mt-2 flex flex-wrap gap-1.5">
-                          {pickedContacts.map(c => (
-                            <li
-                              key={c.id}
-                              className="flex items-center gap-1.5 pl-2.5 pr-1 py-1 rounded-full border border-gray-200 dark:border-slate-600"
-                            >
-                              <span className="helper-text text-gray-700 dark:text-slate-300">{c.name}</span>
-                              <button
-                                type="button"
-                                aria-label={`เอา ${c.name} ออก`}
-                                onClick={() => setPickedContacts(prev => prev.filter(x => x.id !== c.id))}
-                                className="w-4 h-4 flex items-center justify-center rounded-full text-gray-400 hover:text-red-500"
-                              >
-                                <Trash2 className="w-3 h-3" />
-                              </button>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                      {accountIds.length > 1 && (
-                        <p className="helper-text text-amber-700 dark:text-amber-500 mt-1.5">
-                          ค้นจากบัญชีแรกที่เลือกเท่านั้น — เลือกรายคนควรติ๊กบัญชีเดียว
-                        </p>
-                      )}
-                    </div>
-                  )}
+                  <p className="field-label mb-1.5">กลุ่มผู้รับ</p>
+                  <button
+                    type="button"
+                    onClick={() => setAudienceModal(true)}
+                    className="w-full min-h-[42px] flex items-center gap-2 px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 hover:bg-gray-50 dark:hover:bg-slate-600 transition-colors text-left"
+                  >
+                    <span className="flex-1 min-w-0">
+                      <span className="block body-text text-gray-900 dark:text-white truncate">
+                        {selectedAudience?.label || 'เลือกกลุ่มผู้รับ'}
+                      </span>
+                      <span className="block helper-text text-gray-500 dark:text-slate-400 truncate">
+                        {audienceSummary}
+                      </span>
+                    </span>
+                    <ChevronDown className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                  </button>
                 </div>
               )}
             </Card>
@@ -1027,6 +965,102 @@ export default function NewBroadcastPage() {
             )}
           </div>
         </div>
+
+        {/* โมดัลเลือกกลุ่มผู้รับ — แยกออกจากหน้าเพราะรายการจะยาวขึ้นเรื่อย ๆ และบางตัวเลือก
+            มีของให้กรอกต่อ (แท็ก · รายชื่อ · จำนวนวัน) ซึ่งใส่ใน dropdown แล้วอึดอัด */}
+        <Modal
+          open={audienceModal}
+          onClose={() => setAudienceModal(false)}
+          title="เลือกกลุ่มผู้รับ"
+          size="lg"
+          footer={
+            <div className="modal-footer px-6 py-4 flex justify-end gap-2">
+              <Button variant="primary" onClick={() => setAudienceModal(false)}>เสร็จสิ้น</Button>
+            </div>
+          }
+        >
+          <div className="modal-body px-6 py-5 space-y-2">
+            {audienceOptions.map(opt => {
+              const active = audience === opt.key;
+              return (
+                <div key={opt.key}>
+                  <Radio
+                    checked={active}
+                    onChange={() => setAudience(opt.key)}
+                    className={`!items-start px-3 py-2.5 rounded-lg border transition-colors ${
+                      active
+                        ? 'border-[#F4511E] bg-orange-50/50 dark:bg-orange-950/20'
+                        : 'border-gray-200 dark:border-slate-600 hover:border-gray-300 dark:hover:border-slate-500'
+                    }`}
+                  >
+                    <span className="min-w-0">
+                      <span className="block body-text text-gray-900 dark:text-white">{opt.label}</span>
+                      {opt.hint && (
+                        <span className="block helper-text text-gray-500 dark:text-slate-400 mt-0.5">{opt.hint}</span>
+                      )}
+                    </span>
+                  </Radio>
+
+                  {/* ของที่ต้องกรอกต่อของตัวเลือกนั้น — โผล่ใต้ตัวที่เลือกเท่านั้น */}
+                  {active && opt.key === 'tags' && (
+                    <div className="mt-2 ml-3">
+                      <MultiSelectSearch
+                        value={tagIds}
+                        onChange={setTagIds}
+                        options={tags.map(t => ({ id: t.id, label: t.name }))}
+                        emptyLabel="เลือกแท็ก..."
+                        icon={<Tag className="w-4 h-4" />}
+                      />
+                    </div>
+                  )}
+
+                  {active && opt.key === 'contacts_pick' && (
+                    <div className="mt-2 ml-3">
+                      <EntitySearchInput
+                        value=""
+                        options={contactSearch.results}
+                        loading={contactSearch.loading}
+                        onSearchChange={contactSearch.search}
+                        minSearchLength={2}
+                        placeholder="พิมพ์ชื่อผู้ติดต่อเพื่อเพิ่ม"
+                        emptyMessage="ไม่พบผู้ติดต่อที่ตรงกับคำค้น"
+                        onChange={(id, o) => {
+                          setPickedContacts(prev =>
+                            prev.some(c => c.id === id) ? prev : [...prev, { id, name: o.label }]);
+                        }}
+                      />
+                      {pickedContacts.length > 0 && (
+                        <ul className="mt-2 flex flex-wrap gap-1.5">
+                          {pickedContacts.map(c => (
+                            <li
+                              key={c.id}
+                              className="flex items-center gap-1.5 pl-2.5 pr-1 py-1 rounded-full border border-gray-200 dark:border-slate-600"
+                            >
+                              <span className="helper-text text-gray-700 dark:text-slate-300">{c.name}</span>
+                              <button
+                                type="button"
+                                aria-label={`เอา ${c.name} ออก`}
+                                onClick={() => setPickedContacts(prev => prev.filter(x => x.id !== c.id))}
+                                className="w-4 h-4 flex items-center justify-center rounded-full text-gray-400 hover:text-red-500"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                      {accountIds.length > 1 && (
+                        <p className="helper-text text-amber-700 dark:text-amber-500 mt-1.5">
+                          ค้นจากบัญชีแรกที่เลือกเท่านั้น — เลือกรายคนควรติ๊กบัญชีเดียว
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </Modal>
       </Container>
     </Layout>
   );

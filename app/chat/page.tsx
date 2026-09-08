@@ -75,6 +75,7 @@ import { LoadingCard } from '@/components/ui/StateCard';
 import { SkeletonChat } from '@/components/ui/Skeleton';
 import LoadingOverlay from '@/components/ui/LoadingOverlay';
 import StatusBadge from '@/components/ui/StatusBadge';
+import AccountPicker from '@/components/ui/AccountPicker';
 import ChannelBadge from '@/components/ui/ChannelBadge';
 import { can } from '@/lib/permissions';
 import { filterSavedReplies, type SavedReply } from '@/lib/chat/saved-replies';
@@ -239,8 +240,6 @@ function UnifiedChatPageContent() {
   // Advanced filters
   const [showFilterPopover, setShowFilterPopover] = useState(false);
   const [filterOrderDaysRange, setFilterOrderDaysRange] = useState<{ min: number; max: number | null } | null>(null);
-  const [showAccountPicker, setShowAccountPicker] = useState(false);
-  const [accountSearch, setAccountSearch] = useState('');
 
   // Day ranges from CRM settings
   const [dayRanges, setDayRanges] = useState<DayRange[]>([]);
@@ -501,10 +500,6 @@ function UnifiedChatPageContent() {
       if (showFilterPopover && !target.closest('[data-filter-popover]')) {
         setShowFilterPopover(false);
       }
-      if (showAccountPicker && !target.closest('[data-account-picker]')) {
-        setShowAccountPicker(false);
-        setAccountSearch('');
-      }
       if (showEmojiPicker && !target.closest('[data-emoji-picker]')) {
         setShowEmojiPicker(false);
         setEmojiSearch('');
@@ -516,7 +511,7 @@ function UnifiedChatPageContent() {
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [showFilterPopover, showAccountPicker, showEmojiPicker, savedReplyMode]);
+  }, [showFilterPopover, showEmojiPicker, savedReplyMode]);
 
   // Close emoji picker on Escape key
   useEffect(() => {
@@ -1025,10 +1020,15 @@ function UnifiedChatPageContent() {
       quiet?: boolean;
       /** รูปชุดเดียวกัน — หน้าแชทยุบเป็นฟองอัลบั้มใบเดียวหลังส่งสำเร็จ */
       imageSet?: { id: string; index: number; total: number };
+      /**
+       * ฟองที่ผู้เรียก "สร้างรอไว้แล้ว" — ส่งหลายรูปต้องเห็นครบทุกใบตั้งแต่วินาทีที่กดส่ง
+       * ไม่ใช่โผล่ทีละใบตามคิวอัปโหลด (เจ้าของสั่ง 8 ก.ย. 2026)
+       */
+      tempId?: string;
     },
   ): Promise<boolean> => {
     if (!selectedContact) return false;
-    const tempId = retryOf?._tempId || `temp-${Date.now()}`;
+    const tempId = retryOf?._tempId || opts?.tempId || `temp-${Date.now()}`;
     const contactId = retryOf?.contact_id || selectedContact.id;
     const platform = selectedContact.platform;
     // preview ของรอบนี้ (ส่งครั้งแรก) หรือของฟองเดิม (กดลองใหม่) — ปล่อยเมื่อ "ไม่ต้องใช้แล้ว" เท่านั้น
@@ -1051,7 +1051,8 @@ function UnifiedChatPageContent() {
         showToast('กำลังแปลงรูปจาก iPhone (HEIC) เป็น JPG…');
       });
 
-      if (!retryOf) {
+      // ฟองถูกสร้างรอไว้แล้ว (ส่งเป็นชุด) → ไม่ต้องสร้างซ้ำ แค่เดินหน้าอัปโหลดต่อ
+      if (!retryOf && !opts?.tempId) {
         localUrl = URL.createObjectURL(blob);
         const optimisticMessage: ChatMessage = {
           id: tempId, _tempId: tempId, contact_id: contactId,
@@ -1312,10 +1313,14 @@ function UnifiedChatPageContent() {
   const sendImageUrl = async (
     imageUrl: string,
     retryOf?: ChatMessage,
-    opts?: { imageSet?: { id: string; index: number; total: number } },
+    opts?: {
+      imageSet?: { id: string; index: number; total: number };
+      /** ฟองที่ผู้เรียกสร้างรอไว้แล้ว (ส่งเป็นชุด) */
+      tempId?: string;
+    },
   ): Promise<boolean> => {
     if (!selectedContact) return false;
-    const tempId = retryOf?._tempId || `temp-${Date.now()}-qr`;
+    const tempId = retryOf?._tempId || opts?.tempId || `temp-${Date.now()}-qr`;
     const contactId = retryOf?.contact_id || selectedContact.id;
     const platform = selectedContact.platform;
 
@@ -1324,7 +1329,7 @@ function UnifiedChatPageContent() {
 
     if (retryOf) {
       setMessages(prev => prev.map(m => m._tempId === tempId ? { ...m, _status: 'sending' as const, _error: undefined } : m));
-    } else {
+    } else if (!opts?.tempId) {
       setMessages(prev => [...prev, {
         id: tempId, _tempId: tempId, contact_id: contactId,
         direction: 'outgoing', message_type: 'image', content: '[รูปภาพ]',
@@ -2248,74 +2253,26 @@ function UnifiedChatPageContent() {
             </div>
             {/* Row 2: ช่องทาง | ค้นหา — อยู่แถวเดียวกันตามที่ผู้ใช้ขอ (ประหยัดที่แนวตั้งบนมือถือ) */}
             <div className="flex gap-2">
-              <div className="relative flex-1 min-w-0" data-account-picker>
-                {(() => {
-                  const selectedAccount = filterAccountId ? chatAccounts.find(a => a.id === filterAccountId) : null;
-                  const selectedPic = selectedAccount ? getAccountPicture(selectedAccount) : null;
-                  const filteredAccounts = accountSearch ? chatAccounts.filter(a => a.account_name.toLowerCase().includes(accountSearch.toLowerCase())) : chatAccounts;
-
-                  return (
-                    <>
-                      <button onClick={() => { setShowAccountPicker(!showAccountPicker); if (showAccountPicker) setAccountSearch(''); }}
-                        className="w-full h-[42px] flex items-center gap-2 px-2.5 border border-gray-300 dark:border-slate-500 rounded-lg text-sm bg-white dark:bg-slate-800 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors">
-                        {selectedAccount ? (
-                          <>
-                            <ChannelBadge channel={{ platform: selectedAccount.platform, picture_url: selectedPic }} />
-                            <span className="flex-1 text-left text-gray-900 dark:text-white truncate text-sm">{selectedAccount.account_name}</span>
-                          </>
-                        ) : (
-                          <span className="flex-1 text-left text-gray-700 dark:text-slate-300 text-sm">ทุกช่องทาง</span>
-                        )}
-                        {loadingContacts ? (
-                          <Loader2 className="w-3.5 h-3.5 text-gray-400 animate-spin flex-shrink-0" />
-                        ) : (
-                          <ChevronDown className={`w-3.5 h-3.5 text-gray-400 transition-transform flex-shrink-0 ${showAccountPicker ? 'rotate-180' : ''}`} />
-                        )}
-                      </button>
-                      {showAccountPicker && (
-                        // ปุ่มอยู่ริมซ้ายของแถวแล้ว (ครึ่งซ้าย) — ป๊อปอัปจึงกางได้เต็มความกว้างแถบ
-                        // 288px = ความกว้างในของ sidebar บนเดสก์ท็อป · มือถือเผื่อขอบจอ 1.5rem
-                        <div className="absolute top-full mt-1 left-0 right-0 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg z-50 max-h-60 overflow-hidden flex flex-col" style={{ width: 'min(calc(100vw - 1.5rem), 288px)' }}>
-                          <div className="p-2 border-b border-gray-100 dark:border-slate-700">
-                            <input type="text" value={accountSearch} onChange={e => setAccountSearch(e.target.value)} placeholder="ค้นหาบัญชี..." autoFocus
-                              className="w-full px-2.5 py-1.5 text-sm border border-gray-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-primary" />
-                          </div>
-                          <div className="overflow-y-auto py-1">
-                            {!accountSearch && (
-                              <button onClick={() => { setFilterParams({ platform: 'all', account: '' }); setShowAccountPicker(false); setAccountSearch(''); }}
-                                className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors ${!filterAccountId && filterPlatform === 'all' ? 'bg-gray-50 dark:bg-slate-700' : ''}`}>
-                                <MessageCircle className="w-5 h-5 text-gray-400" />
-                                <span className="text-gray-900 dark:text-white">ทุกช่องทาง</span>
-                                {!filterAccountId && filterPlatform === 'all' && <Check className="w-4 h-4 text-primary ml-auto" />}
-                              </button>
-                            )}
-                            {filteredAccounts.map(acc => {
-                              const pic = getAccountPicture(acc);
-                              const isActive = filterAccountId === acc.id;
-                              return (
-                                <button key={acc.id} onClick={() => { setFilterParams({ account: acc.id, platform: '' }); setShowAccountPicker(false); setAccountSearch(''); }}
-                                  className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors ${isActive ? 'bg-gray-50 dark:bg-slate-700' : ''}`}>
-                                  <ChannelBadge channel={{ platform: acc.platform, picture_url: pic }} />
-                                  <span className="text-gray-900 dark:text-white truncate flex-1 text-left">{acc.account_name}</span>
-                                  {acc.platform === 'line' ? <LineIcon size={16} /> : acc.platform === 'shopee' ? <ShopeeIcon size={16} /> : acc.platform === 'lazada' ? <LazadaIcon size={16} /> : acc.platform === 'tiktok' ? <TiktokIcon size={16} /> : acc.credentials?.ig_account_id ? (
-                                    <span className="relative inline-flex w-6 h-[18px] flex-shrink-0">
-                                      <span className="absolute left-[10px] top-0 z-0 rounded-full bg-white dark:bg-slate-800 p-[1px]"><IgIcon size={14} /></span>
-                                      <span className="absolute left-0 top-0 z-10 rounded-full bg-white dark:bg-slate-800 p-[1px]"><FbIcon size={14} /></span>
-                                    </span>
-                                  ) : <FbIcon size={16} />}
-                                  {isActive && <Check className="w-4 h-4 text-primary flex-shrink-0" />}
-                                </button>
-                              );
-                            })}
-                            {filteredAccounts.length === 0 && (
-                              <div className="px-3 py-2 text-sm text-gray-400 dark:text-slate-500 text-center">ไม่พบบัญชี</div>
-                            )}
-                          </div>
-                        </div>
-                      )}
-                    </>
-                  );
-                })()}
+              {/* ตัวเลือกช่องทาง — ใช้ AccountPicker ตัวเดียวกับหน้าสร้างบรอดแคสต์
+                  (โหมดเลือกอันเดียว + แถว "ทุกช่องทาง") · รูปแพลตฟอร์มอยู่มุมล่างของ
+                  avatar ใน ChannelBadge อยู่แล้ว จึงไม่ต้องมีไอคอนซ้ำท้ายแถวเหมือนเดิม */}
+              <div className="flex-1 min-w-0">
+                <AccountPicker
+                  accounts={chatAccounts.map(acc => ({
+                    id: acc.id,
+                    platform: acc.platform,
+                    name: acc.account_name,
+                    picture_url: getAccountPicture(acc),
+                  }))}
+                  value={filterAccountId ? [filterAccountId] : []}
+                  onChange={(ids) => setFilterParams(
+                    ids.length > 0 ? { account: ids[0], platform: '' } : { platform: 'all', account: '' },
+                  )}
+                  multiple={false}
+                  allOption="ทุกช่องทาง"
+                  placeholder="ทุกช่องทาง"
+                  triggerClassName="!min-h-0 h-[42px] text-sm"
+                />
               </div>
               <div className="relative flex-1 min-w-0">
                 {/* ⚠️ ห้ามส่ง h-[..] มา override — SearchInput สูง 42px อยู่แล้ว และการส่ง
