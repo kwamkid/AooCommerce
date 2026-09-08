@@ -561,6 +561,8 @@ export default function OrderForm({
   const deliveryDateRef = useRef<HTMLDivElement>(null);
   const productsSectionRef = useRef<HTMLDivElement>(null);
   const deliverySectionRef = useRef<HTMLDivElement>(null);
+  const summarySectionRef = useRef<HTMLDivElement>(null);
+  const [summaryWide, setSummaryWide] = useState(false);
 
   // Tailwind sm:/md: breakpoints see the VIEWPORT — inside the chat panel on a
   // notebook the form is ~600px while the viewport is 1280+, so 2-column grids
@@ -593,6 +595,19 @@ export default function OrderForm({
   }, [step, useWizard]);
 
   const hasProducts = branchOrders.length > 0 && branchOrders[0]?.products.length > 0;
+
+  // คอลัมน์สรุปยอดเกาะขวาเมื่อกล่องกว้างพอ — ไม่งั้นจอกว้างคอลัมน์เดียวจะยืดจนอ่านยาก
+  useEffect(() => {
+    if (embedded) { setSummaryWide(false); return; }
+    const el = summarySectionRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([entry]) => setSummaryWide(entry.contentRect.width >= 560));
+    ro.observe(el);
+    return () => ro.disconnect();
+    // useWizard อยู่ใน deps เพราะเปลือก wizard ไม่ได้ render กล่องที่ ref นี้เกาะ —
+    // กลับมาจอกว้างต้อง observe ใหม่ ไม่งั้นค่าค้างจากก่อนหน้า
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasProducts, embedded, useWizard]);
 
   // Initialize default branch (product-first flow for all modes)
   // This allows product section to show immediately without selecting a customer
@@ -2628,7 +2643,7 @@ export default function OrderForm({
             อันนั้นต้องให้เห็น ไม่งั้นบิลบันทึกโดยไม่มีช่องทางแบบเงียบ ๆ */}
         {salesChannels.length > 0 && !salesChannelPortalRef && !(salesChannelLocked && selectedSalesChannelId) && (
           <div className={`bg-white dark:bg-slate-800 rounded-lg ${embedded ? '' : 'border border-gray-200 dark:border-slate-700'} p-4`}>
-            <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">
+            <label className="field-label">
               ช่องทางการขาย
               {salesChannelLocked && (
                 <span className="ml-2 text-xs text-amber-600 dark:text-amber-400">(ยังจับคู่ช่องทางจากแชทไม่ได้)</span>
@@ -2657,7 +2672,7 @@ export default function OrderForm({
           {features.delivery_date.enabled && (
           <div className={features.delivery_slot ? 'grid grid-cols-2 gap-3 items-start' : ''}>
           <div>
-          <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">
+          <label className="field-label">
             วันที่ส่งของ {features.delivery_date.required && <span className="text-red-500">*</span>}
           </label>
           <div className={fieldErrors.deliveryDate ? 'ring-2 ring-red-400 rounded-lg' : ''}>
@@ -2670,7 +2685,7 @@ export default function OrderForm({
               ช่วงที่เลือกไม่ได้แสดงจาง + บอกเหตุผล (ห้ามซ่อน) */}
           {features.delivery_slot && (
             <div>
-              <label className="block text-sm font-medium text-gray-600 dark:text-slate-400 mb-1.5">ช่วงเวลาส่ง</label>
+              <label className="field-label">ช่วงเวลาส่ง</label>
               {!deliveryDate ? (
                 <p className="text-sm text-gray-400 dark:text-slate-500">เลือกวันที่ส่งก่อน แล้วเลือกรอบเวลา</p>
               ) : deliverySlots.length === 0 ? (
@@ -2734,7 +2749,7 @@ export default function OrderForm({
           {features.delivery_zone && (
           <div>
           <div className="flex items-center justify-between mb-1">
-            <label className="block text-base font-medium text-gray-700 dark:text-slate-300">จุดส่ง / ค่าส่ง</label>
+            <label className="field-label">จุดส่ง / ค่าส่ง</label>
             {zoneOverrideId && !isReadOnly && (
               <button type="button" onClick={() => setZoneOverrideId('')} className="text-sm text-[#F4511E] hover:underline">
                 จับคู่อัตโนมัติตามที่อยู่
@@ -2792,7 +2807,7 @@ export default function OrderForm({
             ไม่ผูกกับฟีเจอร์ delivery — ร้านส่งพัสดุก็ส่งของขวัญได้ */}
         {shipToOther && (
         <div className={`bg-white dark:bg-slate-800 rounded-lg ${embedded ? '' : 'border border-gray-200 dark:border-slate-700'} p-4`}>
-          <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-2">ของขวัญ</label>
+          <label className="field-label">ของขวัญ</label>
 
           {/* กติกาของการ์ดนี้: **ช่องกรอกอยู่ใต้ติ๊กของตัวเองเสมอ** (เยื้องเข้าให้เห็นว่าเป็นลูกของติ๊กไหน)
               ห้ามยกไปกองรวมท้ายการ์ด — ผู้ใช้ติ๊กแล้วต้องเห็นทันทีว่าต้องกรอกอะไรต่อ */}
@@ -3007,7 +3022,7 @@ export default function OrderForm({
                   Both textareas use rows=3 so they line up visually. */}
               <div className={`grid grid-cols-1 ${narrowForm ? '' : 'md:grid-cols-2'} gap-3`}>
                 <div>
-                  <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">
+                  <label className="field-label">
                     หมายเหตุ <span className="text-gray-400 dark:text-slate-500 font-normal">(แสดงในบิล / การจัดส่ง)</span>
                   </label>
                   <textarea
@@ -3020,7 +3035,7 @@ export default function OrderForm({
                   />
                 </div>
                 <div>
-                  <label className="block text-base font-medium text-orange-700 dark:text-orange-400 mb-1">
+                  <label className="field-label text-orange-700 dark:text-orange-400">
                     หมายเหตุภายใน <span className="text-orange-400 dark:text-orange-500 font-normal">(ไม่แสดงในบิล)</span>
                   </label>
                   <textarea
@@ -3146,9 +3161,10 @@ export default function OrderForm({
     return lines.join('\n');
   })();
 
-  // Order Summary — เต็มความกว้างเสมอ อยู่ก่อนหมายเหตุ ตรงกับขั้นที่ 3 ของ wizard
+  // Order Summary — คอลัมน์ขวาแบบ sticky เมื่อกล่องกว้างพอ · เต็มความกว้างใน wizard/แผงแคบ
+  // (wizard ไม่ได้ render กล่องที่ summarySectionRef เกาะ ค่า summaryWide จึงเชื่อไม่ได้)
   const summaryFragment = hasProducts && (
-        <div className="w-full">
+        <div className={useWizard ? 'w-full' : `${summaryWide ? 'w-[340px] flex-shrink-0 sticky top-4' : 'w-full'}`}>
           <div className={`bg-white dark:bg-slate-800 rounded-lg ${embedded ? '' : 'border border-gray-200 dark:border-slate-700'} p-4`}>
             <OrderSummaryBox
               title="สรุปคำสั่งซื้อ"
@@ -3335,19 +3351,20 @@ export default function OrderForm({
         </div>
       ) : (
         <>
-          {/* **ลำดับเดียวกับ wizard เป๊ะ**: สินค้า → ลูกค้า/จัดส่ง → สรุป → หมายเหตุ → ปุ่ม
-              จอกว้างไม่มีขั้นตอนให้กด แต่ลำดับที่ต้องกรอกต้องเหมือนกัน ไม่งั้นพนักงาน
-              คนเดียวกันเจอลำดับคนละแบบแล้วแต่ความกว้างหน้าต่าง (เจ้าของทักมา 8 ก.ย. 2026)
+          {/* **ลำดับที่กรอกต้องตรงกับ wizard**: สินค้า → ลูกค้า/จัดส่ง → หมายเหตุ
+              ไม่งั้นพนักงานคนเดียวกันเจอลำดับคนละแบบแล้วแต่ความกว้างหน้าต่าง
+              (เจ้าของทักมา 8 ก.ย. 2026)
 
-              ⚠️ เดิมสรุปยอดเกาะขวาแบบ sticky อยู่ข้างสินค้า — ถอดออกเพื่อให้ลำดับตรงกับ wizard
-              แลกกับการที่ยอดรวมไม่ลอยตามสายตาแล้ว ต้องเลื่อนลงมาดู */}
-          {productsFragment}
-
-          {customerDeliveryFragment}
-
-          {summaryFragment}
-
-          {notesFragment}
+              สรุปยอดเป็น**คอลัมน์ขวาแบบ sticky** ไม่ใช่ขั้นตอนที่ 3 — บนจอกว้างมันคือแผง
+              ที่ตามสายตาไปตลอด ทำให้เห็นยอดขณะเพิ่มสินค้า และกันไม่ให้คอลัมน์ซ้ายยืดจนอ่านยาก */}
+          <div ref={summarySectionRef} className="flex flex-wrap gap-4 items-start">
+            <div className="flex-1 basis-[400px] min-w-0 space-y-4">
+              {productsFragment}
+              {customerDeliveryFragment}
+              {notesFragment}
+            </div>
+            {summaryFragment}
+          </div>
 
           {actionsFragment}
         </>
@@ -3412,7 +3429,7 @@ export default function OrderForm({
               <div className="space-y-3">
                 {/* Bill Online Link with copy */}
                 <div>
-                  <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1 text-left">บิลออนไลน์</label>
+                  <label className="helper-text block mb-1 text-left">บิลออนไลน์</label>
                   <div className="flex items-center gap-2">
                     <input
                       type="text"

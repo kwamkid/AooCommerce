@@ -778,7 +778,7 @@ export default function ItemsTable({
               <div className="mt-2.5 flex flex-wrap items-end gap-2">
                 {hasRole && (
                   <div className="min-w-[120px]">
-                    <label className="text-xs text-gray-500 dark:text-slate-400 mb-0.5 block">บทบาท</label>
+                    <label className="helper-text block mb-0.5">บทบาท</label>
                     {readOnly
                       ? <span className="text-sm text-gray-600 dark:text-slate-400">{roleOptions.find(r => r.id === item.role)?.label ?? item.role ?? '-'}</span>
                       : <FormSelect
@@ -793,7 +793,7 @@ export default function ItemsTable({
                 )}
                 {hasPoQty && item.po_quantity != null && (
                   <div>
-                    <label className="text-xs text-gray-500 dark:text-slate-400 mb-0.5 block">จำนวน PO</label>
+                    <label className="helper-text block mb-0.5">จำนวน PO</label>
                     <div className="h-8 flex items-center justify-center border border-gray-200 dark:border-slate-600 rounded-lg text-sm bg-gray-50 dark:bg-slate-700/50 text-gray-500 dark:text-slate-400 font-medium px-3">
                       {item.po_quantity.toLocaleString()}
                     </div>
@@ -801,12 +801,12 @@ export default function ItemsTable({
                 )}
                 <div className="w-20">
                   {/* ไม่คุมความกว้าง = input จะกางเท่า default ของ <input> (~200px) ในโหมด card */}
-                  <label className="text-xs text-gray-500 dark:text-slate-400 mb-0.5 block">จำนวน</label>
+                  <label className="helper-text block mb-0.5">จำนวน</label>
                   {QtyCell({ item, idx })}
                 </div>
                 {hasQtyReceived && item.qty_received != null && (
                   <div>
-                    <label className="text-xs text-gray-500 dark:text-slate-400 mb-0.5 block">รับแล้ว</label>
+                    <label className="helper-text block mb-0.5">รับแล้ว</label>
                     <span className={`text-sm font-medium ${item.qty_received < item.quantity ? 'text-amber-600' : 'text-green-600'}`}>
                       {item.qty_received}
                     </span>
@@ -814,13 +814,13 @@ export default function ItemsTable({
                 )}
                 {hasStockDest && (
                   <div>
-                    <label className="text-xs text-gray-500 dark:text-slate-400 mb-0.5 block">สต๊อกที่ร้าน</label>
+                    <label className="helper-text block mb-0.5">สต๊อกที่ร้าน</label>
                     <StockBadge qty={item.stock_dest} destStyle />
                   </div>
                 )}
                 {hasPrice && (
                   <div>
-                    <label className="text-xs text-gray-500 dark:text-slate-400 mb-0.5 block">ราคา/ชิ้น</label>
+                    <label className="helper-text block mb-0.5">ราคา/ชิ้น</label>
                     {(readOnly || priceReadOnly)
                       ? <span className="text-sm text-gray-900 dark:text-white">
                           {item.max_price && item.max_price > (item.unit_price ?? 0)
@@ -840,7 +840,7 @@ export default function ItemsTable({
                 )}
                 {hasCost && (
                   <div>
-                    <label className="text-xs text-gray-500 dark:text-slate-400 mb-0.5 block">ต้นทุน</label>
+                    <label className="helper-text block mb-0.5">ต้นทุน</label>
                     {readOnly
                       ? <span className="text-sm text-gray-900 dark:text-white">฿{fmt(item.unit_cost ?? 0)}</span>
                       : <div className="relative">
@@ -855,7 +855,7 @@ export default function ItemsTable({
                 )}
                 {hasSpecialPrice && item.role === 'discounted' && (
                   <div>
-                    <label className="text-xs text-gray-500 dark:text-slate-400 mb-0.5 block">ราคาพิเศษ</label>
+                    <label className="helper-text block mb-0.5">ราคาพิเศษ</label>
                     {readOnly
                       ? <span className="text-sm text-gray-900 dark:text-white">฿{fmt(item.special_price ?? 0)}</span>
                       : <div className="relative">
@@ -870,7 +870,7 @@ export default function ItemsTable({
                 )}
                 {hasDiscount && (
                   <div>
-                    <label className="text-xs text-gray-500 dark:text-slate-400 mb-0.5 block">ส่วนลด</label>
+                    <label className="helper-text block mb-0.5">ส่วนลด</label>
                     <div className="flex items-stretch">
                       <NumberInput min="0" step="0.01"
                         max={item.discount_type === 'percent' ? 100 : undefined}
@@ -890,7 +890,7 @@ export default function ItemsTable({
                 )}
                 {hasReason && (
                   <div className="flex-1 min-w-[140px]">
-                    <label className="text-xs text-gray-500 dark:text-slate-400 mb-0.5 block">เหตุผล</label>
+                    <label className="helper-text block mb-0.5">เหตุผล</label>
                     {readOnly
                       ? <span className="text-sm text-gray-600 dark:text-slate-400">{item.reason || '-'}</span>
                       : <FormSelect
@@ -911,7 +911,7 @@ export default function ItemsTable({
                   // labels) and the amount to the bottom (aligned with the
                   // input baselines).
                   <div className="ml-auto text-right self-stretch flex flex-col justify-between">
-                    <label className="text-xs text-gray-500 dark:text-slate-400 block">รวม</label>
+                    <label className="helper-text block">รวม</label>
                     <span className="text-sm font-semibold text-gray-900 dark:text-white">฿{fmt(lineTotal)}</span>
                   </div>
                 )}

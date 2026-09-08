@@ -489,12 +489,12 @@ export default function CustomerSelectionCard({
           <div className="space-y-2">
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-sm text-gray-600 dark:text-slate-400 mb-1">เบอร์โทร</label>
+                <label className="field-label">เบอร์โทร</label>
                 <input type="text" inputMode="tel" value={delivery?.deliveryPhone || selectedCustomer?.phone || ''} onChange={(e) => onDeliveryChange?.({ deliveryPhone: e.target.value })} placeholder="0xx-xxx-xxxx" disabled={!isEditable}
                   className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-gray-100 dark:disabled:bg-slate-800" />
               </div>
               <div>
-                <label className="block text-sm text-gray-600 dark:text-slate-400 mb-1">อีเมล</label>
+                <label className="field-label">อีเมล</label>
                 <input type="text" inputMode="email" value={delivery?.deliveryEmail || selectedCustomer?.email || ''} onChange={(e) => onDeliveryChange?.({ deliveryEmail: e.target.value })} placeholder="email@example.com" disabled={!isEditable}
                   className="w-full px-3 py-2.5 border border-gray-300 dark:border-slate-600 rounded-lg text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-gray-100 dark:disabled:bg-slate-800" />
               </div>
@@ -618,7 +618,7 @@ export default function CustomerSelectionCard({
                   (dropdown ในชิปลูกค้าหาไม่เจอเวลาอยู่โหมดนี้ เพราะสายตาอยู่คอลัมน์ขวา) */}
               {shipToOther && isEditable && onAddressSelect && recipientAddresses.length > 0 && (
                 <div className="mt-2">
-                  <label className="block text-sm text-gray-600 dark:text-slate-400 mb-1">ที่อยู่ที่บันทึกไว้</label>
+                  <label className="field-label">ที่อยู่ที่บันทึกไว้</label>
                   <FormSelect
                     /* แสดงว่า "เลือกอยู่" เฉพาะเมื่อช่องด้านล่างยังตรงกับที่อยู่นั้นจริง ๆ
                        (พิมพ์แก้เองแล้ว = ที่อยู่ใหม่ ไม่ใช่ของเดิม) */
@@ -655,7 +655,7 @@ export default function CustomerSelectionCard({
               {shipToOther && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
                   <div>
-                    <label className="block text-sm text-gray-600 dark:text-slate-400 mb-1">
+                    <label className="field-label">
                       ชื่อผู้รับ <span className="text-red-500">*</span>
                     </label>
                     <input
@@ -671,7 +671,7 @@ export default function CustomerSelectionCard({
                     {recipientNameError && <p className="text-red-500 text-sm mt-1">{recipientNameError}</p>}
                   </div>
                   <div>
-                    <label className="block text-sm text-gray-600 dark:text-slate-400 mb-1">เบอร์ผู้รับ</label>
+                    <label className="field-label">เบอร์ผู้รับ</label>
                     <input
                       type="text"
                       inputMode="tel"
