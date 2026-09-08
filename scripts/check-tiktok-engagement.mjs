@@ -25,26 +25,33 @@ const env = Object.fromEntries(
 );
 
 const HOST = 'https://open-api.tiktokglobalshop.com';
-const APP_KEY = env.TIKTOK_SHOP_APP_KEY;
-const APP_SECRET = env.TIKTOK_SHOP_APP_SECRET;
-if (!APP_KEY || !APP_SECRET) {
+
+// ลองทั้งสอง app เพราะยังไม่รู้ว่า Customer Engagement อยู่กับใคร — Partner Center
+// ไม่มี scope ชื่อนี้ให้ขอ และหมวด app มีแค่ 4 หมวดที่ไม่มีหมวดการตลาด (8 ก.ย. 2026)
+// ⇒ ถ้ามันแฝงอยู่ใน seller.customer_service คำตอบจะโผล่ที่ app Chat
+const APPS = [
+  { name: 'app ออเดอร์ (Order Management)', key: env.TIKTOK_SHOP_APP_KEY, secret: env.TIKTOK_SHOP_APP_SECRET, tokenField: 'access_token' },
+  { name: 'app แชท (Customer Support)', key: env.TIKTOK_CHAT_APP_KEY, secret: env.TIKTOK_CHAT_APP_SECRET, tokenField: 'chat_access_token' },
+].filter(a => a.key && a.secret);
+
+if (APPS.length === 0) {
   console.error('ไม่พบ TIKTOK_SHOP_APP_KEY / TIKTOK_SHOP_APP_SECRET ใน .env.local');
   process.exit(1);
 }
 
 const sb = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SECRET_KEY);
 
-function sign(path, params) {
+function sign(app, path, params) {
   const p = { ...params };
   delete p.sign; delete p.access_token;
   const s = path + Object.keys(p).sort().map(k => `${k}${p[k]}`).join('');
-  return crypto.createHmac('sha256', APP_SECRET).update(APP_SECRET + s + APP_SECRET).digest('hex');
+  return crypto.createHmac('sha256', app.secret).update(app.secret + s + app.secret).digest('hex');
 }
 
-async function get(creds, path) {
-  const params = { app_key: APP_KEY, timestamp: String(Math.floor(Date.now() / 1000)) };
+async function get(app, creds, path) {
+  const params = { app_key: app.key, timestamp: String(Math.floor(Date.now() / 1000)) };
   if (creds.shop_cipher) params.shop_cipher = creds.shop_cipher;
-  params.sign = sign(path, params);
+  params.sign = sign(app, path, params);
   const res = await fetch(`${HOST}${path}?${new URLSearchParams(params)}`, {
     headers: { 'Content-Type': 'application/json', 'x-tts-access-token': creds.access_token },
   });
@@ -53,7 +60,7 @@ async function get(creds, path) {
 
 const { data: accounts, error } = await sb
   .from('marketplace_accounts')
-  .select('id, company_id, shop_name, access_token, metadata')
+  .select('id, company_id, shop_name, access_token, chat_access_token, metadata')
   .eq('platform', 'tiktok')
   .eq('is_active', true);
 if (error) { console.error('อ่าน marketplace_accounts ไม่ได้:', error.message); process.exit(1); }
@@ -73,25 +80,32 @@ for (const a of accounts) {
     .not('external_data->>buyer_email', 'is', null);
   console.log(`ออเดอร์ที่ทักได้ (365 วัน): ${buyers ?? 0} ใบ`);
 
-  const r = await get({ access_token: a.access_token, shop_cipher: a.metadata?.shop_cipher || '' },
-    '/customer_engagement/202502/permissions');
-
-  if (r.json?.code === 105005 || /access scope/i.test(r.json?.message || '')) {
-    allReady = false;
-    console.log('❌ ด่าน 1 (app): token ที่ใช้ยิงยังไม่มีสิทธิ์ Customer Engagement');
-    console.log('   หมายเหตุ (สำรวจจริง 8 ก.ย. 2026): Partner Center **ไม่มี scope ชื่อ Customer');
-    console.log('   Engagement ให้ขอ** ทั้ง app หมวด Order Management และ Customer Support');
-    console.log('   → ยังไม่รู้ว่ามันอยู่ใน scope/หมวดไหน ดูรายละเอียดใน CLAUDE.md หัวข้อบรอดแคสต์');
-    continue;
-  }
-  if (r.json?.code !== 0) {
-    allReady = false;
-    console.log(`❌ ถามสิทธิ์ไม่สำเร็จ: http=${r.http} code=${r.json?.code} ${r.json?.message || ''}`);
-    continue;
+  // ลองทีละ app จนกว่าจะมีตัวไหนตอบสำเร็จ
+  let ok = null;
+  for (const app of APPS) {
+    const token = a[app.tokenField];
+    if (!token) { console.log(`— ${app.name}: ร้านนี้ยังไม่มี token ของ app นี้`); continue; }
+    const r = await get(app, { access_token: token, shop_cipher: a.metadata?.shop_cipher || '' },
+      '/customer_engagement/202502/permissions');
+    if (r.json?.code === 0) { console.log(`✅ ด่าน 1 — ${app.name}: เรียกได้!`); ok = r; break; }
+    if (r.json?.code === 105005 || /access scope/i.test(r.json?.message || '')) {
+      console.log(`❌ ด่าน 1 — ${app.name}: ไม่มีสิทธิ์ (105005)`);
+    } else {
+      console.log(`❌ ด่าน 1 — ${app.name}: http=${r.http} code=${r.json?.code} ${(r.json?.message || '').slice(0, 120)}`);
+    }
   }
 
-  console.log('✅ ด่าน 1 (app): มี scope แล้ว');
-  const features = r.json.data?.features || [];
+  if (!ok) {
+    allReady = false;
+    console.log('   หมายเหตุ (สำรวจ Partner Center จริง 8 ก.ย. 2026): **ไม่มี scope ชื่อ Customer');
+    console.log('   Engagement ให้ขอ** และหมวดของ app มีแค่ 4 หมวด (Customer Service ·');
+    console.log('   eCommerce Management · Finance · Shipping & Fulfillment) ไม่มีหมวดการตลาด');
+    console.log('   → ความเป็นไปได้เดียวที่เหลือ: แฝงอยู่ใน seller.customer_service ของ app แชท');
+    console.log('     ซึ่งยัง Under review — ผ่านแล้วต้องต่อ chat token ของร้านก่อนแล้วรันสคริปต์นี้ใหม่');
+    continue;
+  }
+
+  const features = ok.json.data?.features || [];
   const on = n => features.some(f => f.name === n && f.is_authorized);
   const fundamental = on('FUNDAMENTAL');
   const customMsg = on('CUSTOM_MSG');

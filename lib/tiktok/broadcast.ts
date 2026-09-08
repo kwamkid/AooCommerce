@@ -16,7 +16,7 @@ import crypto from 'crypto';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { logIntegrationNow } from '@/lib/integration-logger';
 import { fetchAllRows } from '@/lib/supabase-paging';
-import { ensureValidToken, type TikTokAccountRow, type TikTokCredentials } from './api';
+import { ensureValidToken, isChatAppConfigured, type TikTokAccountRow, type TikTokCredentials } from './api';
 import { createCustomEngagementTask, sendEngagementMessages } from './engagement';
 import type { BroadcastAudienceFilter, BroadcastStatus } from '@/lib/line/broadcast';
 
@@ -153,14 +153,20 @@ interface TikTokBroadcastRow {
 }
 
 /**
- * creds ของ Customer Engagement — วันนี้ใช้ token ของ app ออเดอร์ (app เดียวกัน แค่ต้องเพิ่ม scope)
+ * creds ของ Customer Engagement — **มี token ของ app Chat ก็ใช้ตัวนั้นก่อน**
  *
- * ถ้าวันหนึ่ง TikTok บังคับให้ API กลุ่มนี้อยู่ app หมวดแยกเหมือนที่ทำกับ Customer Support
- * (`seller.customer_service` ขอใน app ออเดอร์ไม่ได้ตลอดกาล) **ให้เปลี่ยนที่ฟังก์ชันนี้ที่เดียว**
- * เป็น `ensureValidToken(account, 'engagement')` + คอลัมน์ token ชุดใหม่ ตัวเรียกไม่ต้องแก้
+ * ทำไมถึงเลือกแบบนี้ (สำรวจ Partner Center จริง 8 ก.ย. 2026): **ไม่มี scope ชื่อ Customer
+ * Engagement ให้ขอเลย** และหมวดของ app มีแค่ 4 หมวด (Customer Service · eCommerce
+ * Management · Finance · Shipping & Fulfillment) ไม่มีหมวดการตลาด ⇒ ความเป็นไปได้เดียว
+ * ที่เหลือคือ API กลุ่มนี้แฝงอยู่ใน `seller.customer_service` ซึ่งเป็นของ **app หมวด
+ * Customer Support** (ของเรา = AooCommerce-Chat) จึงลอง token ของ app นั้นก่อน
+ *
+ * ไม่มี token ของ app Chat ก็ตกไปใช้ app ออเดอร์ตามเดิม — ทั้งสองทางยังตอบ 105005 อยู่
+ * จนกว่าจะรู้คำตอบจริง (`node scripts/check-tiktok-engagement.mjs` ลองให้ทั้งคู่)
  */
 export function getEngagementCreds(account: TikTokAccountRow): Promise<TikTokCredentials> {
-  return ensureValidToken(account, 'order');
+  const useChatApp = !!account.chat_access_token && isChatAppConfigured();
+  return ensureValidToken(account, useChatApp ? 'chat' : 'order');
 }
 
 /**
