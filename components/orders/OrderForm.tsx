@@ -2786,8 +2786,11 @@ export default function OrderForm({
 
           {features.delivery_zone && (
           <div>
-          <div className="flex items-center justify-between mb-1">
-            <label className="field-label">จุดส่ง / ค่าส่ง</label>
+          {/* ระยะ label→ช่อง ต้องเท่าสองคอลัมน์ข้าง ๆ (6px จาก .field-label) — ตัวห่อ flex นี้ถือ margin แทน
+              และล้าง margin ของ label ข้างใน ไม่งั้นได้ 6px + margin ตัวห่อ ซ้อนกัน (margin ใน flex ไม่ยุบ)
+              ทำให้กล่องจุดส่งตกลงไปต่ำกว่ากล่องวันที่/ช่วงเวลา (เจ้าของทัก 9 ก.ย. 2026) */}
+          <div className="flex items-center justify-between mb-1.5">
+            <label className="field-label mb-0">จุดส่ง / ค่าส่ง</label>
             {zoneOverrideId && !isReadOnly && (
               <button type="button" onClick={() => setZoneOverrideId('')} className="text-sm text-[#F4511E] hover:underline">
                 จับคู่อัตโนมัติตามที่อยู่
