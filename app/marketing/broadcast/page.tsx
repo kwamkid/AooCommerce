@@ -215,7 +215,7 @@ export default function BroadcastListPage() {
                 </span>
               </span>
               {r.error && (
-                <p className="helper-text text-red-600 dark:text-red-400 mt-1 line-clamp-2 break-words">{r.error}</p>
+                <p className="data-muted text-red-600 dark:text-red-400 mt-1 line-clamp-2 break-words">{r.error}</p>
               )}
             </div>
           </div>

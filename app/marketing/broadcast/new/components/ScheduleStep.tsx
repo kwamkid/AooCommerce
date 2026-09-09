@@ -42,8 +42,8 @@ export default function ScheduleStep({
       className={`choice-card flex-1 !items-start px-3 py-2.5 ${mode === value ? 'choice-card-active' : ''}`}
     >
       <span className="min-w-0">
-        <span className="block body-text text-gray-900 dark:text-white">{label}</span>
-        <span className="block helper-text text-gray-500 dark:text-slate-400 mt-0.5">{hint}</span>
+        <span className="block body-text">{label}</span>
+        <span className="block subtitle-text mt-0.5">{hint}</span>
       </span>
     </Radio>
   );
@@ -79,9 +79,9 @@ export default function ScheduleStep({
           </div>
 
           {error ? (
-            <p className="helper-text text-red-600 dark:text-red-400 mt-2">{error}</p>
+            <p className="subtitle-text text-red-600 dark:text-red-400 mt-2">{error}</p>
           ) : (
-            <p className="helper-text text-gray-500 dark:text-slate-400 mt-2">
+            <p className="subtitle-text mt-2">
               ระบบจะเริ่มส่ง {formatThaiDateTime(scheduledAt)} น. · ยกเลิกได้จนถึงก่อนเวลาส่ง
             </p>
           )}

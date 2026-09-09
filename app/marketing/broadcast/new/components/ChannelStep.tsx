@@ -43,7 +43,7 @@ export default function ChannelStep({ accounts, value, onChange, disabled }: Pro
     <Card padding="md">
       <div className="flex items-baseline justify-between gap-3 mb-3">
         <h2 className="heading-4">ช่องทาง</h2>
-        <span className="helper-text text-gray-500 dark:text-slate-400 text-right">
+        <span className="section-desc text-right">
           เลือกได้หลายบัญชี · เนื้อหาชุดเดียวยิงได้ทุกใบ
         </span>
       </div>
@@ -67,8 +67,8 @@ export default function ChannelStep({ accounts, value, onChange, disabled }: Pro
                 <div className="flex items-center gap-2.5 min-w-0 flex-1">
                   <ChannelBadge channel={{ platform: a.platform, picture_url: a.picture_url }} size="md" />
                   <div className="min-w-0">
-                    <p className="body-text text-gray-900 dark:text-white truncate">{a.name}</p>
-                    <p className="helper-text text-gray-500 dark:text-slate-400">
+                    <p className="body-text truncate">{a.name}</p>
+                    <p className="subtitle-text">
                       {BROADCAST_PLATFORMS[a.platform].label}
                     </p>
                   </div>
@@ -101,7 +101,7 @@ export default function ChannelStep({ accounts, value, onChange, disabled }: Pro
             <span className="flex items-center gap-1">
               {pending.map(p => <PlatformIcon key={p.id} id={p.id} size={14} title={p.label} />)}
             </span>
-            <span className="helper-text text-gray-500 dark:text-slate-400">
+            <span className="subtitle-text">
               {pending.map(p => p.label).join(' · ')} — ยังส่งไม่ได้
             </span>
             <Button variant="ghost" size="sm" onClick={() => setShowReasons(v => !v)}>
@@ -111,8 +111,8 @@ export default function ChannelStep({ accounts, value, onChange, disabled }: Pro
           {showReasons && (
             <ul className="mt-2 space-y-1.5">
               {pending.map(p => (
-                <li key={p.id} className="helper-text text-gray-500 dark:text-slate-400">
-                  <span className="font-medium text-gray-700 dark:text-slate-300">{p.label}</span> — {p.reason}
+                <li key={p.id} className="subtitle-text">
+                  <span className="font-medium">{p.label}</span> — {p.reason}
                 </li>
               ))}
             </ul>

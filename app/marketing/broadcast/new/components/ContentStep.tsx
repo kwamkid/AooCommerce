@@ -144,7 +144,7 @@ export default function ContentStep({
         maxSizeMB={0.3}
       />
       {kind === 'promo' && (
-        <p className="helper-text text-gray-500 dark:text-slate-400 mt-1">
+        <p className="subtitle-text mt-1">
           ส่งเป็นสัดส่วนตามรูปจริง (แนวตั้งได้ สูงสุด 3 เท่าของความกว้าง)
         </p>
       )}
@@ -156,7 +156,7 @@ export default function ContentStep({
       <div className="flex items-baseline justify-between gap-3 mb-3">
         <h2 className="heading-4">สิ่งที่จะส่ง</h2>
         {showCreditNote && (
-          <span className="helper-text text-gray-500 dark:text-slate-400 text-right">
+          <span className="section-desc text-right">
             การ์ดที่มีรูป หัวข้อ และปุ่ม นับเป็น 1 ข้อความเท่าข้อความเปล่า
           </span>
         )}
@@ -202,7 +202,7 @@ export default function ContentStep({
         )}
 
         {!compose.image && (
-          <p className="helper-text text-gray-500 dark:text-slate-400">
+          <p className="subtitle-text">
             {platformLabel} รับเฉพาะข้อความล้วน (แนบรูปไม่ได้)
           </p>
         )}
@@ -211,7 +211,7 @@ export default function ContentStep({
         {kind === 'promo' && compose.buttonsMax > 0 && (
           <div>
             <p className="field-label mb-1">ปุ่มกด (สูงสุด {compose.buttonsMax})</p>
-            <p className="helper-text text-gray-500 dark:text-slate-400 mb-2">
+            <p className="subtitle-text mb-2">
               ใส่ลิงก์ปลายทางเอง เช่น หน้าสินค้า หน้าโปรฯ
             </p>
             <div className="space-y-2">
@@ -265,11 +265,11 @@ export default function ContentStep({
         {kind === 'products' && (
           <div>
             <p className="field-label mb-1">สินค้า (สูงสุด {compose.productsMax} ชิ้น)</p>
-            <p className="helper-text text-gray-500 dark:text-slate-400 mb-2">
+            <p className="subtitle-text mb-2">
               ชื่อ รูป ราคา ดึงจากคลังให้เอง · ไม่ใส่ลิงก์ = ปุ่มเป็น &quot;สนใจสินค้านี้&quot; ที่ลูกค้ากดแล้วทักเข้าห้องแชท
             </p>
             {cards.length >= compose.productsMax ? (
-              <p className="helper-text text-gray-500 dark:text-slate-400">
+              <p className="subtitle-text">
                 ครบ {compose.productsMax} ชิ้นแล้ว — เอาออกก่อนถ้าจะเปลี่ยน
               </p>
             ) : (
@@ -290,8 +290,8 @@ export default function ContentStep({
                   >
                     <ProductImageThumb src={c.image_url} alt={c.name} size="sm" />
                     <div className="flex-1 min-w-0">
-                      <p className="body-text text-gray-900 dark:text-white truncate">{c.name}</p>
-                      <p className="helper-text text-gray-500 dark:text-slate-400">
+                      <p className="body-text truncate">{c.name}</p>
+                      <p className="subtitle-text">
                         {c.price != null ? formatPrice(c.price) : 'ไม่มีราคา'}
                       </p>
                     </div>
@@ -321,7 +321,7 @@ export default function ContentStep({
         {compose.quickReplyMax > 0 && (
           <div>
             <p className="field-label mb-1">ปุ่มตอบเร็ว (ไม่บังคับ)</p>
-            <p className="helper-text text-gray-500 dark:text-slate-400 mb-2">
+            <p className="subtitle-text mb-2">
               ลูกค้ากดแล้วข้อความเข้าห้องแชททันที — ได้บทสนทนาให้แอดมินปิดการขายต่อ
             </p>
             {quickReplies.length > 0 && (

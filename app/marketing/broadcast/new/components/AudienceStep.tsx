@@ -90,7 +90,7 @@ export default function AudienceStep({
         <h2 className="heading-4">กลุ่มเป้าหมาย</h2>
         {/* เพดานความรู้ของระบบ — ไม่บอกไว้ ผู้ใช้จะอ่านว่าลูกค้าเก่าตัวเองไม่มีใครเคยซื้อ */}
         {contactTotal != null && contactLinked != null && (
-          <span className="helper-text text-gray-500 dark:text-slate-400 text-right">
+          <span className="section-desc text-right">
             รู้ประวัติการซื้อของ {contactLinked.toLocaleString()} จาก {contactTotal.toLocaleString()} คนที่เคยทักมา
           </span>
         )}
@@ -104,7 +104,7 @@ export default function AudienceStep({
             if (inGroup.length === 0) return null;
             return (
               <div key={g.key}>
-                <p className="helper-text font-medium text-gray-500 dark:text-slate-400 mb-1">{g.label}</p>
+                <p className="field-label">{g.label}</p>
                 <div className="space-y-1">
                   {inGroup.map(opt => {
                     const active = opt.key === audience;
@@ -117,10 +117,10 @@ export default function AudienceStep({
                         className={`choice-card px-2.5 py-2 ${active ? 'choice-card-active' : ''}`}
                       >
                         <span className="flex-1 min-w-0 flex items-baseline gap-2">
-                          <span className="subtitle-text text-gray-900 dark:text-white">
+                          <span className="body-text">
                             {opt.label.replace('N วัน', `${days} วัน`)}
                           </span>
-                          <span className="ml-auto helper-text text-gray-500 dark:text-slate-400 tabular-nums">
+                          <span className="ml-auto subtitle-text tabular-nums">
                             {countOf(opt.key)}
                           </span>
                         </span>
@@ -136,15 +136,15 @@ export default function AudienceStep({
         {/* ── ขวา: รายละเอียดของตัวเลือกที่เลือก ── */}
         <div className="md:border-l md:border-gray-100 md:dark:border-slate-700 md:pl-4">
           {!selected ? (
-            <p className="helper-text text-gray-500 dark:text-slate-400">เลือกกลุ่มทางซ้ายก่อน</p>
+            <p className="subtitle-text">เลือกกลุ่มทางซ้ายก่อน</p>
           ) : (
             <div className="space-y-4">
               <div>
-                <p className="body-text font-medium text-gray-900 dark:text-white">
+                <p className="body-text font-medium">
                   {selected.label.replace('N วัน', `${days} วัน`)}
                 </p>
                 {selected.hint && (
-                  <p className="helper-text text-gray-500 dark:text-slate-400 mt-0.5">{selected.hint}</p>
+                  <p className="subtitle-text mt-0.5">{selected.hint}</p>
                 )}
               </div>
 
@@ -218,7 +218,7 @@ export default function AudienceStep({
                     </ul>
                   )}
                   {multiAccount && (
-                    <p className="helper-text text-amber-700 dark:text-amber-500 mt-1.5">
+                    <p className="subtitle-text text-amber-700 dark:text-amber-500 mt-1.5">
                       ค้นจากบัญชีแรกที่เลือกเท่านั้น — เลือกรายคนควรติ๊กบัญชีเดียว
                     </p>
                   )}
@@ -236,8 +236,8 @@ export default function AudienceStep({
               {hasAudienceRefine(audience) && (
                 <div className="pt-4 border-t border-gray-100 dark:border-slate-700 space-y-3">
                   <div>
-                    <p className="body-text font-medium text-gray-900 dark:text-white">กรองให้แคบลงอีก</p>
-                    <p className="helper-text text-gray-500 dark:text-slate-400 mt-0.5">
+                    <p className="body-text font-medium">กรองให้แคบลงอีก</p>
+                    <p className="section-desc">
                       ตัดคนที่ทักมาคำเดียวแล้วหาย และคนที่เงียบไปนานออก · นับเฉพาะข้อความที่ลูกค้าพิมพ์มา
                       ไม่นับที่แอดมินตอบหรือบรอดแคสต์ที่เราส่งไป
                     </p>

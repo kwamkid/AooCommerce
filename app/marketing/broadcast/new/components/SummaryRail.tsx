@@ -60,7 +60,7 @@ export default function SummaryRail(p: Props) {
   return (
     <div className="xl:sticky xl:top-4 space-y-4">
       <Card padding="md">
-        <p className="helper-text text-gray-500 dark:text-slate-400">ผู้รับ</p>
+        <p className="subtitle-text">ผู้รับ</p>
         <p className="heading-2 tabular-nums">
           {p.previewLoading ? '—' : p.recipientCount.toLocaleString()}
           <span className="body-text font-normal text-gray-500 dark:text-slate-400"> คน</span>
@@ -72,10 +72,10 @@ export default function SummaryRail(p: Props) {
           </div>
         )}
 
-        {p.quotaText && <p className="helper-text text-gray-500 dark:text-slate-400 mt-1.5">{p.quotaText}</p>}
+        {p.quotaText && <p className="subtitle-text mt-1.5">{p.quotaText}</p>}
 
         {p.showFollowerStats && p.followerStats?.total_adds != null && p.followerStats.blocks != null && (
-          <p className="helper-text text-gray-400 dark:text-slate-500 mt-1">
+          <p className="subtitle-text mt-1">
             เคยแอดสะสม {p.followerStats.total_adds.toLocaleString()} · บล็อกแล้ว{' '}
             {p.followerStats.blocks.toLocaleString()} จึงไม่นับ
           </p>
@@ -86,7 +86,7 @@ export default function SummaryRail(p: Props) {
             {p.perAccount.map(r => (
               <li
                 key={r.account.id}
-                className="flex items-center gap-1.5 helper-text text-gray-500 dark:text-slate-400"
+                className="flex items-center gap-1.5 subtitle-text"
               >
                 <PlatformIcon id={r.account.platform} size={12} />
                 <span className="truncate flex-1">{r.account.name}</span>
@@ -97,15 +97,15 @@ export default function SummaryRail(p: Props) {
         )}
 
         {p.shortAccounts.length > 0 && (
-          <p className="helper-text text-red-600 dark:text-red-400 mt-2">
+          <p className="subtitle-text text-red-600 dark:text-red-400 mt-2">
             โควตาไม่พอ: {p.shortAccounts.map(r => r.account.name).join(' · ')} — ลดกลุ่มผู้รับหรือรอรอบเดือนหน้า
           </p>
         )}
         {p.noRecipientsMessage && (
-          <p className="helper-text text-amber-700 dark:text-amber-500 mt-2">{p.noRecipientsMessage}</p>
+          <p className="subtitle-text text-amber-700 dark:text-amber-500 mt-2">{p.noRecipientsMessage}</p>
         )}
         {p.contentError && p.hasDraft && (
-          <p className="helper-text text-red-600 dark:text-red-400 mt-2">{p.contentError}</p>
+          <p className="subtitle-text text-red-600 dark:text-red-400 mt-2">{p.contentError}</p>
         )}
 
         <div className="mt-3 pt-3 border-t border-gray-100 dark:border-slate-700 space-y-1">
@@ -152,7 +152,7 @@ export default function SummaryRail(p: Props) {
         </div>
 
         {p.showLineCreditNote && (
-          <p className="helper-text text-gray-500 dark:text-slate-400 mt-3">
+          <p className="subtitle-text mt-3">
             ส่งถึง 500 คน = 500 ข้อความในโควตา · การ์ดที่มีรูป หัวข้อ และปุ่ม ยังนับเป็น 1 ข้อความเท่าข้อความเปล่า
           </p>
         )}
@@ -167,7 +167,7 @@ export default function SummaryRail(p: Props) {
             imagePreviewUrl={p.imagePreviewUrl}
           />
         ) : (
-          <p className="helper-text text-gray-400 dark:text-slate-500">
+          <p className="subtitle-text text-gray-400 dark:text-slate-500">
             {p.step === 1 ? 'ตัวอย่างจะขึ้นเมื่อพิมพ์เนื้อหาในขั้นถัดไป' : 'ตัวอย่างจะขึ้นเมื่อพิมพ์เนื้อหา'}
           </p>
         )}
@@ -179,9 +179,9 @@ export default function SummaryRail(p: Props) {
 function SummaryRow({ label, value }: { label: string; value: string }) {
   const empty = !value;
   return (
-    <div className="flex justify-between gap-3 helper-text">
-      <span className="text-gray-500 dark:text-slate-400 flex-shrink-0">{label}</span>
-      <span className={`text-right min-w-0 truncate ${empty ? 'text-gray-400 dark:text-slate-500' : 'text-gray-700 dark:text-slate-200'}`}>
+    <div className="flex justify-between gap-3">
+      <span className="subtitle-text flex-shrink-0">{label}</span>
+      <span className={`subtitle-text text-right min-w-0 truncate ${empty ? 'text-gray-400 dark:text-slate-500' : ''}`}>
         {value || 'ยังไม่ได้เลือก'}
       </span>
     </div>

@@ -369,7 +369,7 @@ export default function BroadcastReportPage() {
             </div>
             {/* ตามผลได้ไม่ครบต้องบอกตรง ๆ — ไม่งั้นเปอร์เซ็นต์ตอบกลับจะถูกอ่านว่าคนไม่สนใจ */}
             {stats.tracked_count < stats.sent_count && (
-              <p className="helper-text text-gray-500 dark:text-slate-400 mt-2">
+              <p className="subtitle-text mt-2">
                 วัดผลได้ {formatNumber(stats.tracked_count)} จาก {formatNumber(stats.sent_count)} คน — ผู้ติดตามที่ไม่เคยทักมาไม่มีห้องแชทให้ตาม
               </p>
             )}
@@ -433,7 +433,7 @@ export default function BroadcastReportPage() {
                 />
               </div>
               {b.platform === 'line' && (
-                <p className="helper-text text-gray-500 dark:text-slate-400 mt-2">
+                <p className="subtitle-text mt-2">
                   ใช้โควตา {formatNumber(b.sent_count)} ข้อความ · การ์ดนับเท่าข้อความเปล่า
                 </p>
               )}
