@@ -12,7 +12,7 @@ import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
 import {
   type FeatureFlags, PRESET_DEFAULTS, PRESET_LABELS, PRESET_DESCRIPTIONS, detectPreset, type BusinessPreset,
-  type DeliveryFieldMode, DELIVERY_FIELD_MODE_LABELS, deliveryFieldMode, deliveryFieldFromMode,
+  type DeliveryFieldMode, DELIVERY_FIELD_MODE_LABELS, DELIVERY_FIELD_MODE_HINTS, deliveryFieldMode, deliveryFieldFromMode,
 } from '@/lib/features';
 import { CalendarDays, ShoppingCart, Monitor, Handshake, Tag, Factory, PackageCheck, ChevronDown, ChevronUp, Loader2, CreditCard, Truck, Store, Layers, Users, Warehouse, Building, Lock, MapPin, Clock } from 'lucide-react';
 import { featureLockReason, type PackageGates } from '@/lib/package-features';
@@ -546,11 +546,23 @@ function ConsignmentSettingsPanel({
 // ⛔ ห้ามซ่อนแถวที่ยังเลือกไม่ได้ — แถวช่วงเวลาส่งต้องเห็นเสมอ แค่กดไม่ได้
 //    พร้อมบอกเหตุผล ("ต้องเปิดวันที่ส่งของก่อน")
 
-const modeChips = (ids: readonly DeliveryFieldMode[]): FilterChip<DeliveryFieldMode>[] =>
-  ids.map(id => ({ id, label: DELIVERY_FIELD_MODE_LABELS[id], activeClass: FILTER_CHIP_PRIMARY_ACTIVE }));
+const modeChips = (
+  ids: readonly DeliveryFieldMode[],
+  hints: Partial<Record<DeliveryFieldMode, string>> = {},
+): FilterChip<DeliveryFieldMode>[] =>
+  ids.map(id => ({
+    id,
+    label: DELIVERY_FIELD_MODE_LABELS[id],
+    activeClass: FILTER_CHIP_PRIMARY_ACTIVE,
+    tooltip: hints[id] ?? DELIVERY_FIELD_MODE_HINTS[id],
+  }));
 
 const DATE_SLOT_CHIPS = modeChips(['off', 'optional', 'required']);
-const ZONE_CHIPS = modeChips(['off', 'optional']);
+// พื้นที่จัดส่งไม่มี "บังคับ" — ระบบเติมให้เองจากที่อยู่ ไม่ใช่ช่องที่พนักงานต้องกรอก
+const ZONE_CHIPS = modeChips(['off', 'optional'], {
+  off: 'ไม่มีช่องนี้ในฟอร์ม\nค่าส่งกรอกเองทุกบิล',
+  optional: 'มีช่องนี้ในฟอร์ม\nระบบจับคู่พื้นที่จากที่อยู่แล้วเติมค่าส่งให้ แก้เองได้',
+});
 
 function DeliveryFieldRow({
   icon, title, description, chips, mode, onMode, disabled, locked,
@@ -565,7 +577,7 @@ function DeliveryFieldRow({
   locked: boolean;
 }) {
   return (
-    <div className="bg-gray-50 dark:bg-slate-700/50 rounded-lg px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3">
+    <div className="bg-gray-100 dark:bg-slate-700/60 border border-gray-200 dark:border-slate-600 rounded-lg px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3">
       <div className="flex items-start gap-3 min-w-0">
         {icon}
         <div className="min-w-0">
@@ -639,7 +651,9 @@ function DeliveryFieldsCard({
         </div>
       </div>
 
-      <div className="mt-4 pt-4 border-t border-gray-100 dark:border-slate-700 space-y-2">
+      {/* แถวย่อยเยื้องเข้ามาใต้หัวข้อ + เส้นแนวตั้งใต้ไอคอนรถ — ให้เห็นว่าเป็นลูกของการ์ดนี้
+          (เดิมพื้นเทาอ่อนบนการ์ดขาว กลืนจนดูเป็นการ์ดเดี่ยว ๆ — เจ้าของทัก 10 ก.ย. 2026) */}
+      <div className="mt-3 ml-[9px] pl-6 border-l-2 border-gray-200 dark:border-slate-600 space-y-2">
         <DeliveryFieldRow
           icon={<CalendarDays className={iconClass(flags.delivery_date.enabled, 'text-blue-600')} />}
           title="วันที่ส่งของ"

@@ -253,6 +253,13 @@ export const DELIVERY_FIELD_MODE_LABELS: Record<DeliveryFieldMode, string> = {
   required: 'บังคับกรอก',
 };
 
+/** tooltip ของชิปแต่ละโหมด — ป้ายสั้นจนต้องขยายความว่ามีผลกับฟอร์มเปิดบิลยังไง */
+export const DELIVERY_FIELD_MODE_HINTS: Record<DeliveryFieldMode, string> = {
+  off: 'ไม่มีช่องนี้ในฟอร์มเปิดบิล',
+  optional: 'มีช่องนี้ในฟอร์ม\nกรอกหรือเว้นว่างก็บันทึกบิลได้',
+  required: 'มีช่องนี้ในฟอร์ม\nต้องกรอกก่อนถึงจะบันทึกบิลได้',
+};
+
 export function deliveryFieldMode(f: { enabled: boolean; required: boolean }): DeliveryFieldMode {
   if (!f.enabled) return 'off';
   return f.required ? 'required' : 'optional';

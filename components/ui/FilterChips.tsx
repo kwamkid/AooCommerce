@@ -1,6 +1,7 @@
 'use client';
 
 import type { ReactNode } from 'react';
+import Tooltip from './Tooltip';
 
 // แถบชิปกรอง (pill + ไอคอน + จำนวน) — ใช้ร่วมทุกที่ที่กรองด้วยแพลตฟอร์ม/หมวด
 //
@@ -20,6 +21,8 @@ export interface FilterChip<T extends string> {
   count?: number;
   /** คลาสตอนถูกเลือก — ใส่สีประจำแพลตฟอร์ม เช่น 'border-shopee text-shopee bg-shopee/10' */
   activeClass: string;
+  /** คำอธิบายสั้น ๆ ตอน hover/แตะค้าง (ผ่าน `Tooltip` กลาง) — ใช้เมื่อป้ายชิปสั้นจนต้องขยายความ เช่น ไม่แสดง/แสดง/บังคับกรอก */
+  tooltip?: string;
 }
 
 export default function FilterChips<T extends string>({
@@ -34,25 +37,31 @@ export default function FilterChips<T extends string>({
 }) {
   return (
     <div className={`flex flex-wrap items-center gap-2 ${className || ''}`}>
-      {chips.map(chip => (
-        <button
-          key={chip.id}
-          type="button"
-          onClick={() => onChange(chip.id)}
-          disabled={disabled}
-          className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-            value === chip.id
-              ? chip.activeClass
-              : 'border-gray-200 dark:border-slate-600 text-gray-600 dark:text-slate-300 enabled:hover:bg-gray-50 dark:enabled:hover:bg-slate-700'
-          }`}
-        >
-          {chip.icon}
-          {chip.label}
-          {!!chip.count && (
-            <span className="text-xs px-1.5 py-0.5 rounded-full bg-black/5 dark:bg-white/10">{chip.count}</span>
-          )}
-        </button>
-      ))}
+      {chips.map(chip => {
+        const button = (
+          <button
+            key={chip.id}
+            type="button"
+            onClick={() => onChange(chip.id)}
+            disabled={disabled}
+            className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+              value === chip.id
+                ? chip.activeClass
+                : 'border-gray-200 dark:border-slate-600 text-gray-600 dark:text-slate-300 enabled:hover:bg-gray-50 dark:enabled:hover:bg-slate-700'
+            }`}
+          >
+            {chip.icon}
+            {chip.label}
+            {!!chip.count && (
+              <span className="text-xs px-1.5 py-0.5 rounded-full bg-black/5 dark:bg-white/10">{chip.count}</span>
+            )}
+          </button>
+        );
+        // ชิปที่ disabled ได้ต้องมีกล่องครอบ (`box="inline-flex"`) ไม่งั้น hover ไม่ติด
+        return chip.tooltip
+          ? <Tooltip key={chip.id} text={chip.tooltip} box="inline-flex">{button}</Tooltip>
+          : button;
+      })}
     </div>
   );
 }

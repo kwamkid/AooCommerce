@@ -202,7 +202,7 @@
 | ชิปกรองที่ไม่ผูกกับแพลตฟอร์ม (ค่าที่ใช้บ่อย 30/60/90 · ไม่กรอง/≥3/≥5) | `FilterChips` + `activeClass={FILTER_CHIP_PRIMARY_ACTIVE}` (export จากไฟล์เดียวกัน — สีแบรนด์ผ่าน token `primary`) | ประกาศ `CHIP_ACTIVE = 'border-[#F4511E] …'` ประจำไฟล์ |
 | Upload รูป (drag-drop, reorder, compress) | `ImageUploader` | สร้าง uploader เอง |
 | เลือกรูป **1 ใบ** (ลากวาง / วางจากคลิปบอร์ด / ถ่ายรูป / ย่อรูปให้) | **`ImageDropzone`** — คืน `File` ให้ผู้เรียกอัปเอง ไม่รู้จัก storage · ปรับหน้าตาผ่าน `classNames` (หน้าร้านส่ง `sf-*` ของธีมตัวเองเข้ามา) · `maxWidthOrHeight`/`maxSizeMB` ตั้งได้ (โลโก้ร้าน 300px · สลิป 1920px) | สร้าง dropzone ตัวที่สอง · `<input type="file">` ดิบ ๆ · ลืมย่อรูป |
-| ชิปกรอง (pill + ไอคอน + จำนวน) เช่นกรองตามแพลตฟอร์ม | **`FilterChips`** (`chips` + `value` + `onChange` · `activeClass` ใส่สีประจำแพลตฟอร์ม) | เขียน `rounded-full border px-3 py-1.5` เองในแต่ละหน้า (เคย copy 2 ที่ในหน้าเดียวแล้วสไตล์หลุดกัน) — **อย่าสับสนกับ `StatusTabs`** ที่เป็น filter สถานะของหน้า list |
+| ชิปกรอง (pill + ไอคอน + จำนวน) เช่นกรองตามแพลตฟอร์ม | **`FilterChips`** (`chips` + `value` + `onChange` · `activeClass` ใส่สีประจำแพลตฟอร์ม · `tooltip` ต่อชิปเมื่อป้ายสั้นจนต้องขยายความ เช่น ไม่แสดง/แสดง/บังคับกรอก — ผ่าน `Tooltip` กลางให้เอง) | เขียน `rounded-full border px-3 py-1.5` เองในแต่ละหน้า (เคย copy 2 ที่ในหน้าเดียวแล้วสไตล์หลุดกัน) — **อย่าสับสนกับ `StatusTabs`** ที่เป็น filter สถานะของหน้า list |
 | เลือกสี (ชุดสีสำเร็จรูป + จานสี + กรอกรหัสเอง) | `ColorPicker` — เปิด Modal จานสี · presets จาก `lib/color-presets.ts` | วาง `<input type="color">` ดิบ ๆ ในหน้า |
 | ตัวเลือกที่ **อธิบายด้วยภาพได้ดีกว่าคำ** (สัดส่วนรูป, เลย์เอาต์, สไตล์แถบ) | `OptionCards` — การ์ดพร้อม `preview` ที่วาดรูปทรงจริง | ใช้ `FormSelect` แล้วให้ผู้ใช้เดาเองว่าหน้าตาเป็นยังไง |
 
