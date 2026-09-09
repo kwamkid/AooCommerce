@@ -215,7 +215,9 @@ function UnifiedChatPageContent() {
   const [dragActive, setDragActive] = useState(false);
   /** นับ enter/leave — ลากผ่านลูก ๆ ข้างในทำให้ dragleave ยิงรัว ถ้าไม่นับจะกะพริบ */
   const dragDepthRef = useRef(0);
-  const [emojiSearch, setEmojiSearch] = useState('');
+  // ตัวเลือกอีโมจิ/สติกเกอร์ค้าง DOM ไว้หลังเปิดครั้งแรก (ซ่อนด้วย hidden) — เปิดครั้งถัดไปทันที
+  // ไม่ต้องสร้างปุ่มอีโมจิ ~250 ใบใหม่ทุกครั้ง
+  const [pickerMounted, setPickerMounted] = useState(false);
 
   // Scroll to bottom button
   const [showScrollButton, setShowScrollButton] = useState(false);
@@ -524,7 +526,6 @@ function UnifiedChatPageContent() {
       }
       if (showEmojiPicker && !target.closest('[data-emoji-picker]')) {
         setShowEmojiPicker(false);
-        setEmojiSearch('');
       }
       // โหมด 'slash' ไม่ปิดตอนคลิกนอก — คำค้นอยู่ในกล่องพิมพ์ คลิกกลับไปแก้คำค้นได้
       if (savedReplyMode === 'button' && !target.closest('[data-saved-reply]')) {
@@ -535,13 +536,25 @@ function UnifiedChatPageContent() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showFilterPopover, showEmojiPicker, savedReplyMode]);
 
+  // โหลด chunk ของตัวเลือกอีโมจิ/สติกเกอร์ไว้ล่วงหน้าตอนเบราว์เซอร์ว่าง — เป็น dynamic import
+  // การกดครั้งแรกเคยต้องรอดาวน์โหลด+parse โมดูล (ตารางอีโมจิ ~250 รายการ) ก่อนถึงจะโผล่
+  useEffect(() => {
+    const load = () => { void import('./components/EmojiStickerPicker'); };
+    const w = window as Window & { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number; cancelIdleCallback?: (id: number) => void };
+    if (w.requestIdleCallback) {
+      const id = w.requestIdleCallback(load, { timeout: 3000 });
+      return () => w.cancelIdleCallback?.(id);
+    }
+    const t = setTimeout(load, 1500);   // Safari ไม่มี requestIdleCallback
+    return () => clearTimeout(t);
+  }, []);
+
   // Close emoji picker on Escape key
   useEffect(() => {
     if (!showEmojiPicker) return;
     const handleEsc = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         setShowEmojiPicker(false);
-        setEmojiSearch('');
         inputRef.current?.focus();
       }
     };
@@ -1353,6 +1366,17 @@ function UnifiedChatPageContent() {
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentCompany?.id]);
+
+  // ส่งเข้า EmojiStickerPicker ที่ memo ไว้ — identity ต้องคงที่ ไม่งั้นหน้าแชท render ทีตัวเลือก
+  // reconcile ปุ่ม 250 ใบตามทุกข้อความเข้า
+  const handleEmojiSelect = useStableCallback((emoji: string) => {
+    setNewMessage(prev => prev + emoji);
+    inputRef.current?.focus();
+  });
+  const handleStickerSelect = useStableCallback((packageId: string, stickerId: string) => {
+    sendSticker(packageId, stickerId);
+  });
+  const handleEmojiPickerClose = useStableCallback(() => setShowEmojiPicker(false));
 
   const openSavedReplyPicker = (mode: 'button' | 'slash') => {
     setSavedReplyMode(mode);
@@ -2802,18 +2826,19 @@ function UnifiedChatPageContent() {
                   {/* Emoji & Sticker wrapper */}
                   <div className="relative" data-emoji-picker>
                     <Tooltip text="อีโมจิ & สติกเกอร์">
-                      <button onClick={() => { setShowEmojiPicker(!showEmojiPicker); setEmojiSearch(''); }} aria-label="อีโมจิ และ สติกเกอร์" className={`p-2 rounded-full transition-colors ${showEmojiPicker ? 'text-amber-500 bg-amber-50 dark:bg-amber-500/10' : 'text-gray-500 hover:text-amber-500 hover:bg-gray-100 dark:hover:bg-slate-700'}`}>
+                      <button onClick={() => { if (!showEmojiPicker) setPickerMounted(true); setShowEmojiPicker(!showEmojiPicker); }} aria-label="อีโมจิ และ สติกเกอร์" className={`p-2 rounded-full transition-colors ${showEmojiPicker ? 'text-amber-500 bg-amber-50 dark:bg-amber-500/10' : 'text-gray-500 hover:text-amber-500 hover:bg-gray-100 dark:hover:bg-slate-700'}`}>
                         <Smile className="w-5 h-5" />
                       </button>
                     </Tooltip>
-                {showEmojiPicker && (
-                    <EmojiStickerPicker
-                      platform={selectedContact?.platform || 'line'}
-                      onEmojiSelect={(emoji) => { setNewMessage(prev => prev + emoji); inputRef.current?.focus(); }}
-                      onStickerSelect={(packageId, stickerId) => sendSticker(packageId, stickerId)}
-                      onClose={() => { setShowEmojiPicker(false); setEmojiSearch(''); }}
-                    />
-                  )}
+                    {pickerMounted && (
+                      <EmojiStickerPicker
+                        platform={selectedContact?.platform || 'line'}
+                        open={showEmojiPicker}
+                        onEmojiSelect={handleEmojiSelect}
+                        onStickerSelect={handleStickerSelect}
+                        onClose={handleEmojiPickerClose}
+                      />
+                    )}
                   </div>
                   {/* ข้อความสำเร็จรูป — เปิดจากปุ่มนี้ หรือพิมพ์ / ในช่องข้อความ */}
                   <div className="relative" data-saved-reply>
