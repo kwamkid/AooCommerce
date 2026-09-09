@@ -1166,7 +1166,9 @@ function UnifiedChatPageContent() {
     const files = picked.filter((f, i) => verdict[i] && f.size <= 10 * 1024 * 1024);
     // บอกชื่อไฟล์ที่ข้าม — "ข้าม 1 ไฟล์" เฉย ๆ ผู้ใช้ไม่รู้ว่าไฟล์ไหน/ทำไม แจ้งกลับมาก็ไล่ไม่ได้
     const names = (fs: File[]) => fs.slice(0, 3).map(f => f.name || '(ไม่มีชื่อ)').join(', ') + (fs.length > 3 ? ` และอีก ${fs.length - 3}` : '');
-    if (notImage.length) showToast(`ข้ามไฟล์ที่ไม่ใช่รูปภาพ ${notImage.length} ไฟล์: ${names(notImage)}`, 'error');
+    // แชทส่งได้เฉพาะรูป — LINE Messaging API ไม่มีชนิดข้อความสำหรับไฟล์เอกสาร (PDF/Word ส่งไม่ได้ทุกทาง)
+    // เคสจริง 9 ก.ย. 2026: แอดมินเลือก PDF แล้วเห็นแค่ "ข้ามไฟล์ที่ไม่ใช่รูปภาพ 1 ไฟล์" เจ้าของนึกว่าส่งรูปพัง
+    if (notImage.length) showToast(`ส่งได้เฉพาะรูปภาพ — ข้าม ${notImage.length} ไฟล์: ${names(notImage)} (ไฟล์เอกสารเช่น PDF ส่งทางแชทไม่ได้)`, 'error');
     if (tooBig.length) showToast(`ข้ามไฟล์ที่ใหญ่เกิน 10MB ${tooBig.length} ไฟล์: ${names(tooBig)}`, 'error');
     if (files.length === 0) return;
 
