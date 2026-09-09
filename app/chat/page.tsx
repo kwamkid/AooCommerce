@@ -292,6 +292,54 @@ function UnifiedChatPageContent() {
    *  ห้ามใช้แทน `messages` ที่อื่น (lightbox/realtime ยังต้องเห็นข้อความรายใบ) */
   const displayMessages = useMemo(() => groupImageAlbums(messages), [messages]);
 
+  // การ์ด "ทักมาจากโฆษณา" บนสุดของสายสนทนา — แบบเดียวกับที่ Page Inbox โชว์โฆษณาที่ลูกค้ากดมา
+  // (referral มาจาก webhook `messaging_referrals` เก็บบน fb_contacts — ต่อผู้ติดต่อ ไม่ใช่ต่อข้อความ
+  //  จึงวางไว้หัวสายสนทนา · เจ้าของขอ 9 ก.ย. 2026 "ให้ขึ้นข้อความนั้นก่อน เหมือนใน fb chat")
+  const referralCard = (() => {
+    const c = selectedContact;
+    if (!c?.referral_source && !c?.referral_ad_title) return null;
+    const ad = c.referral_data?.ads_context_data;
+    const ref = c.referral_data?.ref;
+    const photo = ad?.photo_url;
+    const postUrl = ad?.post_id ? `https://www.facebook.com/${ad.post_id}` : null;
+    const source = c.referral_source;
+    const heading = source === 'ADS' ? 'ลูกค้าทักมาจากโฆษณา'
+      : source === 'SHORTLINK' ? 'ลูกค้าทักมาจากลิงก์ m.me'
+      : source === 'CUSTOMER_CHAT_PLUGIN' ? 'ลูกค้าทักมาจากปุ่มแชทบนเว็บไซต์'
+      : `ลูกค้าทักมาจาก ${source || 'ลิงก์'}`;
+    if (!c.referral_ad_title && !photo && !ref && !postUrl) return null;
+    return (
+      <div className="flex justify-center">
+        <div className="w-full max-w-[440px] bg-white dark:bg-slate-800 border border-blue-200 dark:border-blue-900/60 rounded-xl shadow-sm overflow-hidden">
+          <div className="flex items-stretch gap-3 p-2.5">
+            {photo ? (
+              <Image src={photo} alt="โฆษณา" width={64} height={64} className="w-16 h-16 rounded-lg object-cover flex-shrink-0" unoptimized />
+            ) : (
+              <div className="w-16 h-16 rounded-lg bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center flex-shrink-0 text-2xl">📣</div>
+            )}
+            <div className="min-w-0 flex-1 flex flex-col justify-center">
+              <div className="text-xs font-medium text-blue-600 dark:text-blue-400">{heading}</div>
+              {c.referral_ad_title && <div className="text-sm text-gray-900 dark:text-slate-100 leading-snug line-clamp-2">{c.referral_ad_title}</div>}
+              {ref && <div className="text-xs text-gray-500 truncate">ref: {ref}</div>}
+              <div className="flex items-center gap-3 mt-0.5">
+                {postUrl && (
+                  <a href={postUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-500 hover:underline inline-flex items-center gap-0.5">
+                    ดูโพสต์โฆษณา <ExternalLink className="w-3 h-3" />
+                  </a>
+                )}
+                {ad?.video_url && (
+                  <a href={ad.video_url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-500 hover:underline inline-flex items-center gap-0.5">
+                    ดูวิดีโอ <ExternalLink className="w-3 h-3" />
+                  </a>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  })();
+
   const mediaList = useMemo(() => {
     return messages
       .filter(m =>
@@ -2823,10 +2871,14 @@ function UnifiedChatPageContent() {
                 {loadingMessages ? (
                   <SkeletonChat />
                 ) : messages.length === 0 ? (
+                  <>
+                  {referralCard}
                   <div className="text-center py-8 text-gray-500 dark:text-slate-400"><MessageCircle className="w-12 h-12 mx-auto mb-2 text-gray-300" /><p>ยังไม่มีข้อความ</p></div>
+                  </>
                 ) : (
                   <>
                     <div ref={messagesTopRef} className="py-1">{loadingMore && (<div className="flex items-center justify-center py-2"><Loader2 className="w-4 h-4 text-gray-400 animate-spin" /></div>)}</div>
+                    {!hasMoreMessages && referralCard}
                     {displayMessages.map((msg) => isSystemEventMessage(msg) ? (
                       // เหตุการณ์ของระบบ (ลูกค้ากดขอคุยกับเจ้าหน้าที่) — ชิปกลางจอ ไม่ใช่ฟองคำพูด
                       <div key={msg.id} className="flex justify-center">

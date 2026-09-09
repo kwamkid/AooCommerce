@@ -52,6 +52,8 @@ export interface UnifiedContact {
   referral_ad_title?: string;
   referral_data?: {
     source?: string;
+    type?: string;        // 'OPEN_THREAD'
+    ref?: string;         // ค่า ref ของลิงก์ m.me?ref= / โฆษณาที่ตั้ง ref ไว้
     ad_id?: string;
     ads_context_data?: {
       ad_title?: string;
