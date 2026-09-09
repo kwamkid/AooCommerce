@@ -71,7 +71,7 @@ import MessageBubble from './components/MessageBubble';
 // แผง "เปิดบิล" แยกไฟล์เพราะห่อ memo ไว้ (ดูหมายเหตุในไฟล์นั้น) — ตัวห่อเล็กมาก
 // ส่วน OrderForm ที่หนักจริงยังเป็น dynamic อยู่ข้างใน จึงไม่ติดมากับ first-load JS
 import ChatOrderPanel from './components/ChatOrderPanel';
-import { FbIcon, IgIcon, LineIcon, ShopeeIcon, LazadaIcon, TiktokIcon, PlatformIcon, AccountCornerBadge, getAccountPicture, getAvatarUrl, getInitials, ContactAvatar, formatTime, formatLastMessage, groupImageAlbums, prepareChatImage, isImageFile, isPdfFile, pdfToImageFiles, officialStickers, isSystemEventMessage } from './lib/chatHelpers';
+import { FbIcon, IgIcon, LineIcon, ShopeeIcon, LazadaIcon, TiktokIcon, PlatformIcon, AccountCornerBadge, getAccountPicture, getAvatarUrl, getInitials, ContactAvatar, formatTime, formatLastMessage, groupImageAlbums, prepareChatImage, isImageFile, documentKind, formatFileSize, DOC_ACCEPT, DOC_KIND_LABELS, DOC_MAX_BYTES, officialStickers, isSystemEventMessage } from './lib/chatHelpers';
 import { FullPageLoading } from '@/components/ui/Loading';
 import { LoadingCard } from '@/components/ui/StateCard';
 import { SkeletonChat } from '@/components/ui/Skeleton';
@@ -104,6 +104,8 @@ const CustomerForm = dynamic(() => import('@/components/customers/CustomerForm')
 /** ไฟล์แนบที่รอส่งในกล่องพิมพ์ — ไฟล์จากเครื่อง (ต้องอัปก่อน) หรือรูปที่อยู่บน storage แล้ว */
 type ChatAttachment =
   | { id: string; kind: 'file'; file: File; previewUrl: string }
+  /** ไฟล์เอกสาร (PDF/Word/Excel…) — อัปขึ้น storage แล้วส่ง "ลิงก์" ให้ลูกค้าโหลด (แชทส่งไฟล์แนบตรง ๆ ไม่ได้) */
+  | { id: string; kind: 'doc'; file: File }
   | { id: string; kind: 'url'; url: string; title: string };
 
 /** เพดานต่อการส่งหนึ่งครั้ง — กันเผลอลากทั้งอัลบั้มเข้าห้องแชทลูกค้า */
@@ -1144,6 +1146,80 @@ function UnifiedChatPageContent() {
     }
   };
 
+  /**
+   * ส่งไฟล์เอกสารหนึ่งไฟล์ — อัปขึ้น storage (สาธารณะ) แล้วส่งเป็น **ข้อความที่มีลิงก์** ให้ลูกค้ากดโหลด
+   * ใช้ทั้งส่งครั้งแรกและกด "ลองใหม่" (เก็บ `_file` ไว้บนฟองที่ล้ม เหมือนรูป)
+   *
+   * ทำไมเป็นลิงก์: LINE Messaging API ไม่มีชนิดข้อความสำหรับไฟล์ · Shopee/Lazada/TikTok รับแค่รูป
+   * ข้อความจึงเป็น text ธรรมดาที่ทุกแพลตฟอร์มส่งได้ และฟองในระบบเราคือข้อความนั้นตามที่ลูกค้าเห็นจริง
+   * (ลิงก์เป็นสาธารณะแบบเดียวกับรูปที่ส่งในแชท — key มี timestamp เดาไม่ได้ แต่ใครมีลิงก์ก็เปิดได้)
+   */
+  const sendDocumentFile = async (
+    file: File,
+    retryOf?: ChatMessage,
+    opts?: { quiet?: boolean; tempId?: string },
+  ): Promise<{ ok: boolean; error?: string }> => {
+    if (!selectedContact) return { ok: false, error: 'ยังไม่ได้เลือกห้องแชท' };
+    const kind = documentKind(file);
+    if (!kind) return { ok: false, error: `ไฟล์ชนิดนี้ส่งไม่ได้ (รับ ${DOC_KIND_LABELS})` };
+    const tempId = retryOf?._tempId || opts?.tempId || `temp-${Date.now()}`;
+    const contactId = retryOf?.contact_id || selectedContact.id;
+    const platform = selectedContact.platform;
+    const label = `📎 ${file.name} (${formatFileSize(file.size)})`;
+
+    if (retryOf) {
+      setMessages(prev => prev.map(m => m._tempId === tempId ? { ...m, _status: 'sending' as const, _error: undefined } : m));
+    } else if (!opts?.tempId) {
+      setMessages(prev => [...prev, {
+        id: tempId, _tempId: tempId, contact_id: contactId,
+        direction: 'outgoing' as const, message_type: 'file', content: label,
+        raw_message: { fileName: file.name, fileSize: file.size },
+        created_at: new Date().toISOString(), _status: 'sending' as const, _file: file,
+      }]);
+    }
+    setUploadingImage(true);
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่');
+
+      // ชื่อไฟล์ผ่าน storageKeyFor เสมอ — Storage ตีตกชื่อไทย/อีโมจิ/# ด้วย 400 InvalidKey (ดู lib/storage-key.ts)
+      const ext = (file.name.match(/\.([a-z0-9]+)$/i)?.[1] || 'bin').toLowerCase();
+      const key = `admin-files/${storageKeyFor(file.name, ext)}`;
+      const { error: uploadError } = await supabase.storage.from('chat-media').upload(key, file, { contentType: kind.mime });
+      if (uploadError) throw new Error(describeUploadError(uploadError.message));
+      const { data: urlData } = supabase.storage.from('chat-media').getPublicUrl(key);
+
+      const response = await apiFetch('/api/chat/messages', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contact_id: contactId, platform, message: `${label}\n${urlData.publicUrl}` }),
+      });
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        if (errData.errorCode === 'MESSAGING_WINDOW_EXPIRED') {
+          const reason = 'ลูกค้าไม่ได้ส่งข้อความมาภายใน 7 วัน (หมดเวลาตอบกลับ)';
+          setMessages(prev => prev.filter(m => m._tempId !== tempId));
+          if (!opts?.quiet) showToast(`ส่งไฟล์ "${file.name}" ไม่ได้ — ${reason}`, 'error');
+          return { ok: false, error: reason };
+        }
+        throw new Error(describeSendError(errData.error, response.status));
+      }
+      const result = await response.json();
+      if (result.message) {
+        setMessages(prev => prev.map(m => m._tempId === tempId ? { ...result.message, contact_id: contactId, _status: 'sent' as const } : m));
+      }
+      return { ok: true };
+    } catch (error) {
+      console.error('Error sending document:', error);
+      const reason = describeSendError(error instanceof Error ? error.message : String(error));
+      setMessages(prev => prev.map(m => m._tempId === tempId ? { ...m, _status: 'failed' as const, _error: reason, _file: file } : m));
+      if (!opts?.quiet) showToast(`ส่งไฟล์ "${file.name}" ไม่สำเร็จ — ${reason}`, 'error');
+      return { ok: false, error: reason };
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
   /** เพดานต่อครั้ง — กันเผลอเลือกทั้งอัลบั้มแล้วยิงเข้าห้องแชทลูกค้าเป็นร้อยใบ */
   const MAX_IMAGES_PER_PICK = 10;
 
@@ -1157,55 +1233,45 @@ function UnifiedChatPageContent() {
    * เอาไฟล์เข้าคิวรอส่ง — **ไม่ส่งทันที** ทั้งลากวางและกดเลือกไฟล์เดินทางนี้เหมือนกัน
    * (สองทางทำคนละอย่างคือกับดัก ผู้ใช้จำไม่ได้ว่าทางไหนส่งเลยทางไหนรอ)
    */
-  const addAttachmentFiles = async (pickedRaw: File[]) => {
-    if (pickedRaw.length === 0 || !selectedContact) return;
+  const addAttachmentFiles = async (picked: File[]) => {
+    if (picked.length === 0 || !selectedContact) return;
     // บอกชื่อไฟล์ที่ข้าม — "ข้าม 1 ไฟล์" เฉย ๆ ผู้ใช้ไม่รู้ว่าไฟล์ไหน/ทำไม แจ้งกลับมาก็ไล่ไม่ได้
     const names = (fs: File[]) => fs.slice(0, 3).map(f => f.name || '(ไม่มีชื่อ)').join(', ') + (fs.length > 3 ? ` และอีก ${fs.length - 3}` : '');
 
-    // PDF → แปลงเป็นรูปทีละหน้าแล้วเข้าคิวเหมือนรูปปกติ — แชทส่งไฟล์เอกสารตรง ๆ ไม่ได้
-    // (LINE Messaging API ไม่มีชนิดข้อความสำหรับไฟล์ · Shopee/Lazada/TikTok รับแค่รูป)
-    // เจ้าของเลือกทางนี้เอง 9 ก.ย. 2026 หลังพบว่าแอดมินเลือก PDF แล้วโดนข้ามเงียบ ๆ
-    const picked: File[] = [];
-    for (const f of pickedRaw) {
-      if (!(await isPdfFile(f))) { picked.push(f); continue; }
-      if (f.size > 25 * 1024 * 1024) { showToast(`PDF "${f.name}" ใหญ่เกิน 25MB — ย่อไฟล์ก่อนแล้วลองใหม่`, 'error'); continue; }
-      try {
-        showToast(`กำลังแปลง PDF "${f.name}" เป็นรูป…`);
-        const { files, totalPages, truncated } = await pdfToImageFiles(f, { maxPages: MAX_ATTACHMENTS });
-        picked.push(...files);
-        if (truncated) showToast(`PDF "${f.name}" มี ${totalPages} หน้า แปลงให้ ${files.length} หน้าแรก — แนบได้สูงสุด ${MAX_ATTACHMENTS} รูปต่อครั้ง ที่เหลือส่งรอบถัดไป`, 'error');
-        else showToast(`แปลง PDF "${f.name}" เป็นรูป ${files.length} หน้าแล้ว — กดส่งได้เลย`);
-      } catch (e) {
-        console.error('PDF → image failed:', e);
-        showToast(`แปลง PDF "${f.name}" เป็นรูปไม่สำเร็จ — ${e instanceof Error ? e.message : 'ไฟล์อาจเสียหรือถูกล็อกด้วยรหัสผ่าน'}`, 'error');
-      }
-    }
-    if (picked.length === 0) return;
-
-    // คัดของที่ส่งไม่ได้ออกก่อนแล้วบอกทีเดียว — เตือนทีละใบตอนลากมา 10 ใบคือการรังควาน
-    // ห้ามตัดสินจาก file.type/ชื่อไฟล์อย่างเดียว — Chrome บน Windows ให้ type ว่าง และรูปจาก
-    // LINE/เว็บมาชื่อแปลกหรือไม่มีนามสกุลได้ → isImageFile อ่านไบต์แรกของไฟล์เมื่อชื่อบอกไม่ได้
+    // แยกชนิดตามลำดับที่เลือกมา: รูป → ส่งเป็นรูป · เอกสารในรายการที่รู้จัก → อัปขึ้น storage แล้วส่งลิงก์
+    // (แชททุกแพลตฟอร์มส่งไฟล์แนบตรง ๆ ไม่ได้ · เคยแปลง PDF เป็นรูปแล้วเจ้าของบอกไม่ชัด 9 ก.ย. 2026)
+    // ห้ามตัดสินรูปจาก file.type/ชื่ออย่างเดียว — Chrome บน Windows ให้ type ว่าง → isImageFile อ่านไบต์แรก
     const verdict = await Promise.all(picked.map(f => isImageFile(f)));
-    const notImage = picked.filter((_, i) => !verdict[i]);
-    const tooBig = picked.filter((f, i) => verdict[i] && f.size > 10 * 1024 * 1024);
-    const files = picked.filter((f, i) => verdict[i] && f.size <= 10 * 1024 * 1024);
-    if (notImage.length) showToast(`ส่งได้เฉพาะรูปภาพหรือ PDF — ข้าม ${notImage.length} ไฟล์: ${names(notImage)} (ไฟล์เอกสารชนิดอื่นส่งทางแชทไม่ได้)`, 'error');
-    if (tooBig.length) showToast(`ข้าม ${tooBig.length} ไฟล์ที่ใหญ่เกิน 10MB: ${names(tooBig)} — ย่อรูปให้เล็กลงแล้วเลือกใหม่`, 'error');
-    if (files.length === 0) return;
+    const accepted: ChatAttachment[] = [];
+    const other: File[] = [];
+    const tooBig: File[] = [];
+    const newId = () => `att-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    picked.forEach((file, i) => {
+      if (verdict[i]) {
+        if (file.size > 10 * 1024 * 1024) tooBig.push(file);
+        else accepted.push({ id: newId(), kind: 'file', file, previewUrl: URL.createObjectURL(file) });
+        return;
+      }
+      if (documentKind(file)) {
+        if (file.size > DOC_MAX_BYTES) tooBig.push(file);
+        else accepted.push({ id: newId(), kind: 'doc', file });
+        return;
+      }
+      other.push(file);
+    });
+    if (other.length) showToast(`ส่งได้เฉพาะรูปภาพ และไฟล์ ${DOC_KIND_LABELS} — ข้าม ${other.length} ไฟล์: ${names(other)}`, 'error');
+    if (tooBig.length) showToast(`ข้าม ${tooBig.length} ไฟล์ที่ใหญ่เกินกำหนด (รูป 10MB · ไฟล์ 25MB): ${names(tooBig)} — ย่อไฟล์แล้วเลือกใหม่`, 'error');
+    if (accepted.length === 0) return;
 
+    const releasePreviews = (list: ChatAttachment[]) => list.forEach(a => { if (a.kind === 'file') URL.revokeObjectURL(a.previewUrl); });
     const room = MAX_ATTACHMENTS - attachments.length;
-    if (room <= 0) { showToast(`แนบได้สูงสุด ${MAX_ATTACHMENTS} รูปต่อครั้ง`, 'error'); return; }
-    const take = files.slice(0, room);
-    if (files.length > take.length) {
-      showToast(`แนบได้สูงสุด ${MAX_ATTACHMENTS} รูปต่อครั้ง — เพิ่มให้ ${take.length} รูปแรก`, 'error');
+    if (room <= 0) { showToast(`แนบได้สูงสุด ${MAX_ATTACHMENTS} ไฟล์ต่อครั้ง`, 'error'); releasePreviews(accepted); return; }
+    const take = accepted.slice(0, room);
+    if (accepted.length > take.length) {
+      showToast(`แนบได้สูงสุด ${MAX_ATTACHMENTS} ไฟล์ต่อครั้ง — เพิ่มให้ ${take.length} ไฟล์แรก`, 'error');
+      releasePreviews(accepted.slice(room));
     }
-
-    setAttachments(prev => [...prev, ...take.map(file => ({
-      id: `att-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      kind: 'file' as const,
-      file,
-      previewUrl: URL.createObjectURL(file),
-    }))]);
+    setAttachments(prev => [...prev, ...take]);
     inputRef.current?.focus();
   };
 
@@ -1234,34 +1300,51 @@ function UnifiedChatPageContent() {
     const many = list.length > 1;
     const contactId = selectedContact.id;
     // รหัสชุด — โครงเดียวกับ imageSet ที่ LINE ส่งมาตอนลูกค้าส่งหลายรูป
-    // ทำให้หน้าแชทของเรายุบรูปชุดนี้เป็นฟองอัลบั้มใบเดียวหลังส่งครบ
-    const setId = many ? `out-${Date.now()}-${Math.random().toString(36).slice(2, 8)}` : null;
+    // ทำให้หน้าแชทของเรายุบรูปชุดนี้เป็นฟองอัลบั้มใบเดียวหลังส่งเสร็จ (เฉพาะรูป — เอกสารเป็นฟองของตัวเอง)
+    const imageCount = list.filter(a => a.kind !== 'doc').length;
+    const setId = imageCount > 1 ? `out-${Date.now()}-${Math.random().toString(36).slice(2, 8)}` : null;
     const stamp = Date.now();
 
-    const jobs = list.map((att, i) => ({
-      att,
-      tempId: `temp-${stamp}-${i}`,
-      previewUrl: att.kind === 'file' ? att.previewUrl : att.url,
-      imageSet: setId ? { id: setId, index: i + 1, total: list.length } : undefined,
-    }));
+    let imageIndex = 0;
+    const jobs = list.map((att, i) => {
+      const isImage = att.kind !== 'doc';
+      const index = isImage ? ++imageIndex : 0;
+      return {
+        att,
+        tempId: `temp-${stamp}-${i}`,
+        previewUrl: att.kind === 'file' ? att.previewUrl : att.kind === 'url' ? att.url : '',
+        imageSet: isImage && setId ? { id: setId, index, total: imageCount } : undefined,
+      };
+    });
 
     // วางฟองครบทุกใบ "ตั้งแต่วินาทีที่กดส่ง" แล้วค่อยอัปโหลดทีละใบ — ใบที่ยังไม่ถึงคิว
     // จะจางพร้อมวงหมุนอยู่บนรูป (ดู ImageBubble) · ของเดิมฟองโผล่ทีละใบตามคิวอัปโหลด
     // ทำให้ดูเหมือนระบบค้างทั้งที่กำลังทำงานอยู่
-    setMessages(prev => [...prev, ...jobs.map(j => ({
-      id: j.tempId, _tempId: j.tempId, contact_id: contactId,
-      direction: 'outgoing' as const, message_type: 'image', content: '[รูปภาพ]',
-      raw_message: { imageUrl: j.previewUrl, ...(j.imageSet ? { image_set: j.imageSet } : {}) },
-      created_at: new Date().toISOString(), _status: 'sending' as const,
-      ...(j.att.kind === 'file' ? { _file: j.att.file } : {}),
-    }))]);
+    setMessages(prev => [...prev, ...jobs.map(j => j.att.kind === 'doc'
+      ? ({
+          id: j.tempId, _tempId: j.tempId, contact_id: contactId,
+          direction: 'outgoing' as const, message_type: 'file', content: `📎 ${j.att.file.name} (${formatFileSize(j.att.file.size)})`,
+          raw_message: { fileName: j.att.file.name, fileSize: j.att.file.size },
+          created_at: new Date().toISOString(), _status: 'sending' as const, _file: j.att.file,
+        })
+      : ({
+          id: j.tempId, _tempId: j.tempId, contact_id: contactId,
+          direction: 'outgoing' as const, message_type: 'image', content: '[รูปภาพ]',
+          raw_message: { imageUrl: j.previewUrl, ...(j.imageSet ? { image_set: j.imageSet } : {}) },
+          created_at: new Date().toISOString(), _status: 'sending' as const,
+          ...(j.att.kind === 'file' ? { _file: j.att.file } : {}),
+        }))]);
 
     // ส่งทีละใบตามลำดับ ไม่ยิงขนาน — ลูกค้าต้องเห็นรูปเรียงตามที่เราวางไว้
     // (และแพลตฟอร์มไม่รับประกันลำดับถ้ายิงพร้อมกัน · Lazada มีระยะห่างขั้นต่ำต่อ call ด้วย)
     const failures: { name: string; reason: string }[] = [];
     for (const j of jobs) {
       let ok: boolean;
-      if (j.att.kind === 'file') {
+      if (j.att.kind === 'doc') {
+        const r = await sendDocumentFile(j.att.file, undefined, { quiet: many, tempId: j.tempId });
+        ok = r.ok;
+        if (!ok) failures.push({ name: j.att.file.name || '(ไม่มีชื่อ)', reason: r.error || 'ไม่ทราบสาเหตุ' });
+      } else if (j.att.kind === 'file') {
         const r = await sendImageFile(j.att.file, undefined, { quiet: many, imageSet: j.imageSet, tempId: j.tempId });
         ok = r.ok;
         if (!ok) failures.push({ name: j.att.file.name || '(ไม่มีชื่อ)', reason: r.error || 'ไม่ทราบสาเหตุ' });
@@ -1276,12 +1359,12 @@ function UnifiedChatPageContent() {
 
     if (many) {
       const sent = list.length - failures.length;
-      if (failures.length === 0) showToast(`ส่ง ${sent} รูปแล้ว`);
+      if (failures.length === 0) showToast(`ส่ง ${sent} ไฟล์แล้ว`);
       else {
         // บอกชื่อไฟล์ + เหตุผลของใบที่ล้ม (สูงสุด 3 ใบ) — "ส่งสำเร็จ 2 จาก 3" เฉย ๆ ไม่มีใครรู้ว่าต้องทำอะไร
         const detail = failures.slice(0, 3).map(f => `${f.name}: ${f.reason}`).join(' · ')
           + (failures.length > 3 ? ` และอีก ${failures.length - 3} ใบ` : '');
-        showToast(`ส่งไม่สำเร็จ ${failures.length} จาก ${list.length} รูป — ${detail} — กดลองใหม่ที่ฟองสีแดงได้`, 'error');
+        showToast(`ส่งไม่สำเร็จ ${failures.length} จาก ${list.length} ไฟล์ — ${detail} — กดลองใหม่ที่ฟองสีแดงได้`, 'error');
       }
     }
   };
@@ -1351,6 +1434,7 @@ function UnifiedChatPageContent() {
    * ฟองรูป/สติกเกอร์จึงถูกส่งซ้ำเป็น **ข้อความว่า "[รูปภาพ]"** ให้ลูกค้าอ่าน (แก้ 8 ก.ย. 2026)
    */
   const retrySend = (msg: ChatMessage) => {
+    if (msg.message_type === 'file' && msg._file) { void sendDocumentFile(msg._file, msg); return; }
     if (msg.message_type === 'image') {
       if (msg._file) { void sendImageFile(msg._file, msg); return; }
       // รูปที่อัปขึ้น storage สำเร็จแล้ว (หรือรูปของข้อความสำเร็จรูป) — ยิงซ้ำด้วย URL เดิมได้เลย
@@ -2837,15 +2921,25 @@ function UnifiedChatPageContent() {
                     <div className="flex items-center gap-2 overflow-x-auto pb-1">
                       {attachments.map(a => (
                         <div key={a.id} className="relative flex-shrink-0">
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
-                            src={a.kind === 'file' ? a.previewUrl : a.url}
-                            alt=""
-                            className="w-16 h-16 rounded-lg object-cover border border-gray-200 dark:border-slate-600"
-                          />
+                          {a.kind === 'doc' ? (
+                            <div className="h-16 max-w-[190px] px-2.5 rounded-lg border border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-700 flex items-center gap-2">
+                              <FileText className="w-5 h-5 text-gray-500 shrink-0" />
+                              <div className="min-w-0 leading-tight">
+                                <div className="text-xs font-medium text-gray-800 dark:text-slate-100 truncate">{a.file.name}</div>
+                                <div className="text-[10px] text-gray-500">{formatFileSize(a.file.size)} · ส่งเป็นลิงก์</div>
+                              </div>
+                            </div>
+                          ) : (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={a.kind === 'file' ? a.previewUrl : a.url}
+                              alt=""
+                              className="w-16 h-16 rounded-lg object-cover border border-gray-200 dark:border-slate-600"
+                            />
+                          )}
                           <button
                             onClick={() => removeAttachment(a.id)}
-                            aria-label="เอารูปนี้ออก"
+                            aria-label="เอาไฟล์นี้ออก"
                             className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-gray-900/80 text-white flex items-center justify-center hover:bg-red-500 transition-colors"
                           >
                             <X className="w-3 h-3" />
@@ -2857,10 +2951,10 @@ function UnifiedChatPageContent() {
                 )}
 
                 <div className="flex items-center gap-1 md:gap-2">
-                  <input ref={fileInputRef} type="file" accept="image/*" multiple onChange={handleImageUpload} className="hidden" />
+                  <input ref={fileInputRef} type="file" accept={`image/*,${DOC_ACCEPT}`} multiple onChange={handleImageUpload} className="hidden" />
                   {/* box="inline-flex" — ปุ่มนี้ disabled ตอนอัปโหลด ซึ่งไม่ยิง pointer event ต้องมีกล่องครอบถึงจะ hover ติด */}
-                  <Tooltip text="ส่งรูปภาพ" box="inline-flex">
-                    <button onClick={() => fileInputRef.current?.click()} disabled={uploadingImage} aria-label="ส่งรูปภาพ" className="p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-full transition-colors disabled:opacity-50">
+                  <Tooltip text="ส่งรูปภาพ / ไฟล์ (PDF, Word, Excel…)" box="inline-flex">
+                    <button onClick={() => fileInputRef.current?.click()} disabled={uploadingImage} aria-label="ส่งรูปภาพหรือไฟล์" className="p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-full transition-colors disabled:opacity-50">
                       {uploadingImage ? <Loader2 className="w-5 h-5 animate-spin" /> : <ImagePlus className="w-5 h-5" />}
                     </button>
                   </Tooltip>
