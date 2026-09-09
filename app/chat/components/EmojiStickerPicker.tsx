@@ -1,9 +1,10 @@
 'use client';
 
-import { memo, useDeferredValue, useMemo, useState } from 'react';
+import { memo, startTransition, useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { Search, X } from 'lucide-react';
 import { officialStickers } from '../lib/chatHelpers';
 import { lineStickerUrl } from '@/lib/chat/line-sticker';
+import { bumpRecent, readRecent } from '@/lib/chat/recent-picks';
 import Tabs from '@/components/ui/Tabs';
 
 interface EmojiStickerPickerProps {
@@ -18,7 +19,9 @@ interface EmojiStickerPickerProps {
 type EmojiItem = { e: string; k: string };
 
 // ตารางอีโมจิสร้างครั้งเดียวตอนโหลดโมดูล — เดิมประกาศในตัว component จึงสร้าง array ~250 รายการใหม่ทุก render
-const EMOJI_GROUPS: { label: string; key: string; items: EmojiItem[] }[] = [
+type EmojiGroup = { label: string; key: string; items: EmojiItem[] };
+
+const EMOJI_GROUPS: EmojiGroup[] = [
   { label: '\u0e22\u0e34\u0e49\u0e21 & \u0e04\u0e19', key: 'smile', items: [
     { e: '\u{1f600}', k: 'smile \u0e22\u0e34\u0e49\u0e21 grin' }, { e: '\u{1f603}', k: 'smile \u0e22\u0e34\u0e49\u0e21 happy \u0e2a\u0e38\u0e02' }, { e: '\u{1f604}', k: 'smile \u0e22\u0e34\u0e49\u0e21 happy \u0e2a\u0e38\u0e02' }, { e: '\u{1f601}', k: 'grin \u0e22\u0e34\u0e49\u0e21\u0e01\u0e27\u0e49\u0e32\u0e07' }, { e: '\u{1f606}', k: 'laugh \u0e2b\u0e31\u0e27\u0e40\u0e23\u0e32\u0e30' }, { e: '\u{1f605}', k: 'sweat \u0e40\u0e2b\u0e07\u0e37\u0e48\u0e2d \u0e2b\u0e31\u0e27\u0e40\u0e23\u0e32\u0e30' }, { e: '\u{1f923}', k: 'rofl \u0e2b\u0e31\u0e27\u0e40\u0e23\u0e32\u0e30 \u0e2e\u0e32' }, { e: '\u{1f602}', k: 'joy \u0e2b\u0e31\u0e27\u0e40\u0e23\u0e32\u0e30 \u0e23\u0e49\u0e2d\u0e07\u0e44\u0e2b\u0e49 \u0e14\u0e35\u0e43\u0e08' }, { e: '\u{1f642}', k: 'smile \u0e22\u0e34\u0e49\u0e21' }, { e: '\u{1f60a}', k: 'blush \u0e22\u0e34\u0e49\u0e21 \u0e2d\u0e32\u0e22 \u0e19\u0e48\u0e32\u0e23\u0e31\u0e01' }, { e: '\u{1f607}', k: 'angel \u0e40\u0e17\u0e27\u0e14\u0e32 \u0e14\u0e35' }, { e: '\u{1f609}', k: 'wink \u0e02\u0e22\u0e34\u0e1a\u0e15\u0e32' },
     { e: '\u{1f60d}', k: 'heart eyes love \u0e23\u0e31\u0e01 \u0e2b\u0e31\u0e27\u0e43\u0e08 \u0e15\u0e32\u0e2b\u0e31\u0e27\u0e43\u0e08' }, { e: '\u{1f970}', k: 'love \u0e23\u0e31\u0e01 \u0e2b\u0e31\u0e27\u0e43\u0e08 hearts' }, { e: '\u{1f618}', k: 'kiss \u0e08\u0e39\u0e1a \u0e23\u0e31\u0e01 love' }, { e: '\u{1f617}', k: 'kiss \u0e08\u0e39\u0e1a' }, { e: '\u{1f61a}', k: 'kiss \u0e08\u0e39\u0e1a \u0e2d\u0e32\u0e22' }, { e: '\u{1f60b}', k: 'yummy \u0e2d\u0e23\u0e48\u0e2d\u0e22 \u0e25\u0e34\u0e49\u0e19' }, { e: '\u{1f61b}', k: 'tongue \u0e25\u0e34\u0e49\u0e19' }, { e: '\u{1f61c}', k: 'wink tongue \u0e25\u0e34\u0e49\u0e19 \u0e02\u0e22\u0e34\u0e1a' }, { e: '\u{1f92a}', k: 'crazy \u0e1a\u0e49\u0e32 \u0e25\u0e34\u0e49\u0e19' }, { e: '\u{1f61d}', k: 'tongue \u0e25\u0e34\u0e49\u0e19' },
@@ -65,6 +68,12 @@ const EMOJI_GROUPS: { label: string; key: string; items: EmojiItem[] }[] = [
 ];
 
 
+const EMOJI_BY_CHAR = new Map<string, EmojiItem>(EMOJI_GROUPS.flatMap(g => g.items).map(i => [i.e, i]));
+
+// "ใช้บ่อย" — อีโมจิ 2 แถว (7 ต่อแถว) · สติกเกอร์ 2 แถว (4 ต่อแถว)
+const RECENT_EMOJI_LIMIT = 14;
+const RECENT_STICKER_LIMIT = 8;
+
 function EmojiStickerPicker({ platform, open, onEmojiSelect, onStickerSelect, onClose }: EmojiStickerPickerProps) {
   const [emojiTab, setEmojiTab] = useState<'emoji' | 'sticker'>('emoji');
   const [emojiSearch, setEmojiSearch] = useState('');
@@ -80,13 +89,50 @@ function EmojiStickerPicker({ platform, open, onEmojiSelect, onStickerSelect, on
     if (!open) setEmojiSearch('');
   }
 
-  const filteredGroups = useMemo(() => {
+  // "ใช้บ่อย" อ่านจากเครื่องตอน mount (component นี้ ssr:false จึงแตะ localStorage ได้ตั้งแต่ render แรก)
+  const [recentEmoji, setRecentEmoji] = useState<string[]>(() => readRecent('emoji', RECENT_EMOJI_LIMIT));
+  const [recentStickers, setRecentStickers] = useState<string[]>(() => readRecent('sticker', RECENT_STICKER_LIMIT));
+
+  // lazy render: เปิดครั้งแรกวาดแค่ "ใช้บ่อย" + กลุ่มแรกให้โผล่ทันที ที่เหลือ (~200 ปุ่ม) ตามมา
+  // ใน transition รอบถัดไป — ผู้ใช้ไม่รู้สึกเพราะกดของที่ใช้บ่อยจากส่วนบนอยู่แล้ว
+  const [renderAll, setRenderAll] = useState(false);
+  useEffect(() => {
+    if (!open || renderAll) return;
+    const id = requestAnimationFrame(() => startTransition(() => setRenderAll(true)));
+    return () => cancelAnimationFrame(id);
+  }, [open, renderAll]);
+
+  const pickEmoji = (emoji: string) => {
+    setRecentEmoji(bumpRecent('emoji', emoji, RECENT_EMOJI_LIMIT));
+    onEmojiSelect(emoji);
+    onClose();
+  };
+  const pickSticker = (packageId: string, stickerId: string) => {
+    setRecentStickers(bumpRecent('sticker', `${packageId}:${stickerId}`, RECENT_STICKER_LIMIT));
+    onStickerSelect(packageId, stickerId);
+    onClose();
+  };
+
+  const filteredGroups = useMemo<EmojiGroup[]>(() => {
     const q = deferredSearch.trim().toLowerCase();
-    if (!q) return EMOJI_GROUPS;
-    return EMOJI_GROUPS
-      .map(g => ({ ...g, items: g.items.filter(item => item.k.includes(q)) }))
-      .filter(g => g.items.length > 0);
-  }, [deferredSearch]);
+    if (q) {
+      return EMOJI_GROUPS
+        .map(g => ({ ...g, items: g.items.filter(item => item.k.includes(q)) }))
+        .filter(g => g.items.length > 0);
+    }
+    const groups: EmojiGroup[] = recentEmoji.length > 0
+      ? [{ key: 'recent', label: 'ใช้บ่อย', items: recentEmoji.map(e => EMOJI_BY_CHAR.get(e) ?? { e, k: '' }) }, ...EMOJI_GROUPS]
+      : EMOJI_GROUPS;
+    // ยังไม่ครบรอบ lazy: "ใช้บ่อย" + กลุ่มแรก (ค้นหาอยู่ = ต้องเห็นทั้งหมดอยู่แล้ว)
+    return renderAll ? groups : groups.slice(0, recentEmoji.length > 0 ? 2 : 1);
+  }, [deferredSearch, recentEmoji, renderAll]);
+
+  const recentStickerPairs = useMemo(
+    () => recentStickers.map(id => { const [packageId, stickerId] = id.split(':'); return { packageId, stickerId }; })
+      .filter(p => p.packageId && p.stickerId),
+    [recentStickers],
+  );
+  const stickerPacks = renderAll ? officialStickers : officialStickers.slice(0, 1);
 
   return (
     <div className={`${open ? 'flex' : 'hidden'} fixed inset-x-2 bottom-16 md:absolute md:inset-x-auto md:bottom-full md:left-0 md:w-[360px] flex-col bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl shadow-lg z-30 md:mb-2`} style={{ height: '320px' }}>
@@ -127,7 +173,7 @@ function EmojiStickerPicker({ platform, open, onEmojiSelect, onStickerSelect, on
                 <div className="text-xs text-gray-400 dark:text-slate-500 mb-1.5 font-medium">{group.label}</div>
                 <div className="flex flex-wrap gap-0.5">
                   {group.items.map((item) => (
-                    <button key={item.e} onClick={() => { onEmojiSelect(item.e); onClose(); }} className="w-10 h-10 md:w-11 md:h-11 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg text-2xl md:text-[28px] transition-colors" title={item.k}>
+                    <button key={`${group.key}-${item.e}`} onClick={() => pickEmoji(item.e)} className="w-10 h-10 md:w-11 md:h-11 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg text-2xl md:text-[28px] transition-colors" title={item.k}>
                       {item.e}
                     </button>
                   ))}
@@ -141,11 +187,23 @@ function EmojiStickerPicker({ platform, open, onEmojiSelect, onStickerSelect, on
       {/* Sticker Tab - LINE only */}
       {emojiTab === 'sticker' && platform === 'line' && (
         <div className="flex-1 min-h-0 overflow-y-auto p-3">
-          {officialStickers.map((pack) => (
-            <div key={pack.packageId} className="mb-4">
+          {recentStickerPairs.length > 0 && (
+            <div className="mb-4">
+              <div className="text-xs text-gray-400 dark:text-slate-500 mb-1.5 font-medium">ใช้บ่อย</div>
+              <div className="grid grid-cols-4 gap-2">
+                {recentStickerPairs.map(({ packageId, stickerId }) => (
+                  <button key={`recent-${packageId}-${stickerId}`} onClick={() => pickSticker(packageId, stickerId)} className="p-2 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors">
+                    <img src={lineStickerUrl(stickerId)} alt="sticker" className="w-14 h-14 md:w-16 md:h-16 object-contain mx-auto" />
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          {stickerPacks.map((pack) => (
+            <div key={pack.packageId} className="mb-4 [content-visibility:auto] [contain-intrinsic-size:auto_240px]">
               <div className="grid grid-cols-4 gap-2">
                 {pack.stickers.map((stickerId) => (
-                  <button key={stickerId} onClick={() => { onStickerSelect(pack.packageId, stickerId); onClose(); }} className="p-2 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors">
+                  <button key={stickerId} onClick={() => pickSticker(pack.packageId, stickerId)} className="p-2 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors">
                     <img src={lineStickerUrl(stickerId)} alt="sticker" loading="lazy" className="w-14 h-14 md:w-16 md:h-16 object-contain mx-auto" />
                   </button>
                 ))}
