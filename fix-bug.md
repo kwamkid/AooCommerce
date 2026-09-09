@@ -16,6 +16,90 @@
 
 ---
 
+## 2026-09-09 — หน้า Feature เสริม ขึ้น "มีการแก้ไขยังไม่ได้บันทึก" ค้างทันทีหลังกดบันทึก ทั้งที่ไม่ได้แตะอะไร
+
+**ที่เกิด**: [app/settings/features/page.tsx](app/settings/features/page.tsx) — `handleSave()` หลังบันทึกสำเร็จ และ `isDirty`
+**อาการ**: กดบันทึก → toast "บันทึก Feature เสริมสำเร็จ" → แถบ StickyActionBar ยังบอกว่ามีการแก้ไขยังไม่ได้บันทึก (เจ้าของทัก 9 ก.ย. 2026 หลังลองการ์ด "การจัดส่งของร้าน" ใหม่)
+**Root cause**: `isDirty` เทียบ `JSON.stringify(consignmentSettings)` กับ `savedRef.current.consignmentSettings` · ตอนโหลด snapshot ถูกประกอบเป็น `{...ค่าตั้งต้น 5 ช่อง, ...cs}` แต่หลังบันทึก `savedRef.current.consignmentSettings = cs` ดิบ ๆ (= `{}` เมื่อปิดฝากขาย เพราะ PUT ส่ง `consignment_settings: null`) ขณะที่ state ในหน้ายังถือค่าตั้งต้น 5 ช่อง → ไม่เท่ากันตลอด · บั๊กเดิมที่มีก่อน 9 ก.ย. — โผล่ทุกครั้งที่บันทึกในบริษัทที่ปิดฝากขาย · ซ้ำอีกชั้น: `featureFlags` ในหน้าไม่ถูกแทนด้วยค่าที่เซิร์ฟเวอร์คืนหลังบันทึก ถ้า API clamp อะไร (`clampDeliveryFlags` / package gates) หน้าก็ค้าง dirty เหมือนกัน
+**วิธีแก้**: ยก `CONSIGNMENT_DEFAULTS` + `snapshotFromApi(data, fallbackFlags)` เป็นตัวเดียว ใช้ทั้งตอนโหลดและหลังบันทึก → ได้ `{flags, cs, bgr, saved}` ชุดเดียวกัน แล้ว set ทั้ง state และ `savedRef` จากชุดนั้น · ปุ่มยกเลิกย้อนกลับไป `savedRef` ทั้งชุด (flags + ฝากขาย + GP รายแบรนด์) ไม่ใช่แค่ flags จาก context
+**ป้องกัน regression**: หน้าไหนมีแถบ "ยังไม่ได้บันทึก" ที่เทียบ JSON — snapshot ตอนโหลดกับหลังบันทึกต้องมาจากฟังก์ชันเดียวกันเสมอ ห้ามประกอบสองที่
+
+## 2026-09-09 — คลาสตัวอักษร (`.helper-text` ฯลฯ) ถูกเมินเงียบ ๆ บนทุก `<button>`/`<input>` ทั้งเว็บ
+
+**ที่เกิด**: [app/globals.css](app/globals.css) — กติกา typography (`.helper-text` / `.subtitle-text` ฯลฯ) เจอตอนงาน Saved Reply / ฟอร์มเปิดบิล
+**อาการ**: ปุ่ม "+ เพิ่มใหม่" (`<button className="helper-text">`) ตัวอักษรใหญ่กว่า "จัดการ" (`<a className="helper-text">`) ทั้งที่ใช้คลาสเดียวกัน
+**Root cause**: กติกา typography ห่อด้วย `:where()` (specificity 0) เพื่อให้ utility class ของหน้าทับได้ตามปกติ — แต่ preflight ของ Tailwind `button,input,optgroup,select,textarea{font-size:100%}` มี specificity (0,0,1) ⇒ ชนะ `:where(.helper-text)` เสมอบน element กลุ่มนี้ ค่า font-size จึงตกไปใช้ของ preflight แทน
+**วิธีแก้**: เขียนกติกาซ้ำเฉพาะกลุ่ม element นี้ด้วย `:is(button,input,optgroup,select,textarea):where(.helper-text){…}` — specificity เท่ากับ preflight แต่มาทีหลังใน stylesheet จึงชนะ (ดู [app/globals.css](app/globals.css) บรรทัดราว 319)
+**ป้องกัน regression**: เพิ่มคลาสขนาดตัวอักษรใหม่ที่ห่อด้วย `:where()` ต้องเพิ่มกติกา `:is(button,input,optgroup,select,textarea):where(...)` คู่กันเสมอ (มีคอมเมนต์กำกับไว้ใน globals.css แล้ว) — ไม่งั้นคลาสนั้นใช้ไม่ได้ผลบน form control ทุกตัวแบบเงียบ ๆ
+
+## 2026-09-09 — `EntitySearchInput` สปินเนอร์หมุนค้างถาวรเมื่อพิมพ์ต่อจากคำที่ค้นไม่เจอ
+
+**ที่เกิด**: [components/ui/EntitySearchInput.tsx](components/ui/EntitySearchInput.tsx) + [lib/useServerSearch.ts](lib/useServerSearch.ts)
+**อาการ**: พิมพ์ "แอมแปม" (ไม่เจอผล) แล้วพิมพ์ต่อเป็น "แอมแปมนาจา" → สปินเนอร์หมุนไม่หยุด
+**Root cause**: ธง `pendingSearch` เคลียร์ได้ 2 ทางเท่านั้น — `loading` เปลี่ยนจาก true→false หรือจำนวนผล (`options.length`) เปลี่ยน — แต่ `useServerSearch` ทาง prefix-narrow (พิมพ์ต่อจากคำเดิมที่ผลชุดก่อนหน้า `complete` แล้ว) กรองในเครื่องแล้วตอบทันทีโดยไม่ตั้ง `loading` เลย และผลก็ยังเป็น 0→0 (จำนวนไม่เปลี่ยน) ⇒ ไม่มีทางไหนเคลียร์ธงได้
+**วิธีแก้**: `setTimeout(() => setPendingSearch(false), 0)` ต่อท้ายการเรียก `onSearchChange` — ถ้าเป็นการยิงค้นจริง `loading` จะเป็น true อยู่แล้วตอนนั้น สปินเนอร์จึงไม่ดับก่อนเวลา · `ProductSearchInput` ไม่เจอบั๊กนี้เพราะเทียบ reference ของ array ไม่ใช่จำนวน
+**ป้องกัน regression**: component ที่แสดง loading จาก "จำนวนผลเปลี่ยน" ต้องคิดเผื่อเคส "ตอบเร็วโดยไม่ตั้ง loading และจำนวนผลเท่าเดิม" (เช่น prefix-narrow ของ `useServerSearch`) เสมอ — เคลียร์ธงด้วย timeout กันไว้ชั้นสุดท้าย
+
+## 2026-09-09 — `SavedReplyPicker` หน่วงทั้งหน้าแชท: hover ทุกแถวสั่ง re-render หน้า 3,000 บรรทัด
+
+**ที่เกิด**: [app/chat/components/SavedReplyPicker.tsx](app/chat/components/SavedReplyPicker.tsx) เรียกจาก [app/chat/page.tsx](app/chat/page.tsx)
+**อาการ**: เปิดตัวเลือกข้อความสำเร็จรูปแล้วเลื่อนเมาส์ผ่านรายการ — หน้าแชทหน่วงชัดเจน (เดาสาเหตุผิด 2 รอบก่อนหน้า — คิดว่าเป็นเรื่องโหลดข้อมูล / dynamic import)
+**Root cause**: `onMouseEnter={() => onActiveIndexChange(i)}` ของแต่ละแถวยิง `setState` ของหน้าแชท (3,000 บรรทัด) ทุกครั้งที่เมาส์เข้าแถวใหม่ ⇒ ทั้งหน้า render ใหม่ทุกครั้งที่เมาส์ขยับข้ามแถว
+**วิธีแก้**: แก้ครบ 3 ชั้นตามที่เคยเจอมาแล้วในหน้าแชท (ขาดชั้นใดชั้นหนึ่งอีกสองชั้นไร้ผล) — ไฮไลต์ตอนชี้เปลี่ยนเป็น CSS `:hover` (ไม่ยิง state) · ห่อ `SavedReplyPicker` ด้วย `memo()` · props ที่ส่งเข้าไปทุกตัวต้อง identity คงที่ (`useStableCallback` สำหรับ callback + `useMemo` สำหรับ array)
+**ป้องกัน regression**: หน่วง "ตอนใช้งาน" (hover/scroll ในตัว component) กับหน่วง "ตอนเปิด" (initial mount) เป็นคนละสาเหตุ — ถามผู้ใช้ว่าหน่วงจังหวะไหนก่อนไล่แก้ · component ย่อยที่วางอยู่ในหน้าที่ render หนักต้องเช็คให้ `memo()` + callback คงที่ครบตามรูปแบบเดียวกับ `ChatOrderPanel`/`MessageBubble`
+
+## 2026-09-09 — 3 จุดเล็ก ๆ ที่กัดจริงระหว่างงาน Saved Reply / ฟอร์มเปิดบิล
+
+**ที่เกิด**: หลายจุดในหน้าแชท/ฟอร์มเปิดบิล (คลาส Tailwind ในหน้าต่าง ๆ + [components/ui/ItemsTable.tsx](components/ui/ItemsTable.tsx)) — เจอระหว่างงาน commit `db92443`
+**อาการ**:
+- `block` คู่กับ `line-clamp-2` ในคลาสเดียวกัน = ไม่ตัดบรรทัดตามที่ตั้งใจ
+- การ์ดซ้อนสองชั้นคนละรัศมี (`rounded-lg` ใน `rounded-xl`) ทำให้มุมดูเหมือนโดนตัด
+- `ItemsTable` ตอนว่าง render อยู่นอกกรอบการ์ด พอมีสินค้าเข้ามาโดนยัดเข้าไปในการ์ด — หน้าตา "หด" เมื่อเทียบกับตอนว่าง
+**Root cause**: `line-clamp-N` ต้องพึ่ง `display: -webkit-box` แต่ `block` มาประกาศ `display` คนละค่าในคลาสเดียวกัน — Tailwind ตัดสินจากลำดับประกาศใน stylesheet ไม่ใช่ลำดับใน className string จึงมีโอกาสให้ `block` ชนะ · ปัญหาการ์ดซ้อน/ItemsTable เป็นเรื่อง layout ที่ไม่ได้เผื่อ state ว่าง/มีข้อมูลให้ใช้กรอบเดียวกัน
+**วิธีแก้**: เอา `block` ออกเมื่อใช้คู่กับ `line-clamp-N` (ให้ `line-clamp` คุม `display` เอง) · ปรับรัศมีมุมของการ์ดซ้อนให้สอดคล้องกัน · ให้ `ItemsTable` วาดอยู่ในกรอบการ์ดเดียวกันทั้งตอนว่างและตอนมีข้อมูล
+**ป้องกัน regression**: ห้ามใส่ `block` คู่กับ `line-clamp-N` ในคลาสเดียวกัน (ชนกันเรื่อง `display`) · การ์ดซ้อนกันสองชั้นให้ตรวจว่ารัศมีมุมเข้าคู่กันเสมอ (ชั้นในเล็กกว่าหรือเท่ากับชั้นนอก) · component ที่มี empty state ต้องอยู่ในกรอบเดียวกับ state ที่มีข้อมูลเสมอ
+
+## 2026-09-08 — หน้าจัดของ&ส่ง นับบิลขาดและพิมพ์ไม่ครบ
+
+**ที่เกิด**: [app/api/reports/delivery-summary/route.ts](app/api/reports/delivery-summary/route.ts)
+**อาการ**: หน้าจอโชว์ 3 บิล แต่การ์ดสรุปบอก "บิลที่ต้องจัด 1" และ Export PDF ได้ใบเดียว (aDay Fresh · 8 ก.ย. 2026)
+**Root cause**: หน้านี้ดึงข้อมูล 2 ทาง — รายการด้านล่างมาจาก `/api/orders` (ครบ) ส่วนการ์ดสรุป+PDF มาจาก API รายงานที่ไล่สร้างรายการจาก `order_shipments` เป็นหลัก · บิลที่เปิดจากแชทตอนยังไม่มีที่อยู่ไม่มีแถวใน `order_shipments` เลย (ตั้งใจตามที่ CLAUDE.md เขียนไว้ว่า chat-order flow ยอม `shipments = []`) จึงหายทั้งใบ — ยืนยันจาก DB: ORD-0018/0019 มี 0 แถว
+**วิธีแก้**: ออเดอร์ที่ไม่มี shipment เลย นับเป็น 1 จุดส่งต่อบิล ใช้ที่อยู่ที่พิมพ์บนตัวออเดอร์ (ยังไม่กรอก = "ยังไม่ระบุที่อยู่")
+**ป้องกัน regression**: ที่ไหนก็ตามที่ไล่ข้อมูลจาก `order_shipments` ต้องถามก่อนว่า "บิลที่ยังไม่มีที่อยู่จะหายไหม" — ค่าส่งก็เคยหายด้วยเหตุเดียวกัน (ดู entry ค่าส่ง 99.96 ด้านล่าง) · ระวังหน้าที่มี 2 แหล่งข้อมูลแล้วนับคนละเกณฑ์
+
+## 2026-09-08 — คลาสที่ baked ไว้ใน shared component ทับด้วย `className` จากหน้าไม่ได้
+
+**ที่เกิด**: [components/ui/Tabs.tsx](components/ui/Tabs.tsx) (และเคยเจอกับ `PostfixInput` · `StickyActionBar` มาแล้ว)
+**อาการ**: แท็บไม่อยู่แนวเดียวกับช่องวันที่/ปุ่มในแถบเดียวกัน ทั้งที่ container เป็น `items-center`
+**Root cause**: `Tabs` ฝัง `mb-6` ไว้ใน base class · หน้าส่ง `className="mb-0"` มาทับ แต่ Tailwind ตัดสินคลาสที่ชนกันจากลำดับใน CSS ไม่ใช่ลำดับในสตริง ⇒ `mb-6` ชนะเสมอ ⇒ กล่องแท็บมี margin-bottom ค้าง 24px แล้วถูกดันขึ้นในแถว flex
+**วิธีแก้**: component เช็คเองว่าผู้เรียกส่ง margin มาไหม (regex `/(^|\s)!?m[byt]?-/`) ถ้ามีก็ไม่ใส่ค่าตัวเอง — override ได้จริงโดยไม่ต้องใช้ `!important`
+**ป้องกัน regression**: shared component ห้าม baked spacing แบบทับไม่ได้ · ถ้าจำเป็นต้องมีค่าปกติ ให้ตรวจ `className` ของผู้เรียกก่อน หรือรับเป็น prop — เดิมทางแก้ที่เคยจดไว้คือ "ใช้ `!mb-3`" ซึ่งแก้แค่ปลายเหตุ
+
+## 2026-09-08 — ยอดในบิลผิดทีละสตางค์: ล้อเมาส์บนช่อง `<input type="number">` ที่ focus อยู่ ปรับค่าให้เองทีละ `step`
+
+**ที่เกิด**: [components/ui/NumberInput.tsx](components/ui/NumberInput.tsx) + ช่อง `type="number"` ดิบอีก 40+ จุด (ราคา/ต้นทุน/ส่วนลด/สต็อก) · โผล่ครั้งแรกที่ช่องค่าจัดส่งใน [components/ui/OrderSummaryBox.tsx](components/ui/OrderSummaryBox.tsx) (`step={0.01}`)
+**อาการ**: เจ้าของแจ้งว่าแอดมินกรอกค่าส่ง **100** แต่บิลออนไลน์ขึ้น **99.96** และยอดรวม 1,589.96 แทน 1,590 (ORD-202609-0017 · aDay Fresh · 7 ก.ย. 2026) — เข้าใจกันตอนแรกว่า "หน้าบิลถอด VAT ออกจากค่าส่ง"
+**Root cause**: ไม่ใช่เรื่อง VAT เลย (100 ถอด VAT = 93.46 ไม่ใช่ 99.96 · สูตรในบิลถูกหมด: 1,589.96 = 1,485.94 + 104.02) — ค่าใน DB คือ `orders.shipping_fee = 99.96` ตั้งแต่ตอนบันทึก หน้าบิลแค่แสดงตามที่เก็บ · เบราว์เซอร์ถือว่าการเลื่อนล้อเมาส์/สองนิ้วบนแทร็กแพดขณะที่ `<input type="number">` ยัง focus อยู่ = การปรับค่าทีละ `step` → step 0.01 เลื่อนผ่าน 4 จังหวะ = ลบ 4 สตางค์พอดี · ไม่มีอะไรเตือน ผู้ใช้เห็นเลข "เกือบถูก" แล้วกดบันทึก · ลิงก์ Beam ถูกสร้างด้วยยอดผิดนั้น (`netAmount: 158996`) ลูกค้าจึงจ่าย 1,589.96 จริง
+**วิธีแก้ (2 รอบ)**: รอบแรกกันด้วย blur-on-wheel (`NumberInput` + [components/NumberWheelGuard.tsx](components/NumberWheelGuard.tsx) mount ใน [app/layout.tsx](app/layout.tsx)) · รอบสองถอน `type="number"` ออกจากทั้งเว็บตามที่เจ้าของสั่ง ("มันไม่จำเป็นเลย") — ทุกช่องวาดเป็น `type="text" inputMode="decimal"` แล้วกรองอักขระเองผ่าน [lib/numeric-input.ts](lib/numeric-input.ts) (`NUMERIC_TEXT_INPUT_PROPS` · `sanitizeNumericInput` · `onNumericChange` · `onNumericInput` สำหรับช่อง uncontrolled) · แก้ที่ component กลาง 5 ตัว (`NumberInput` `FormInput` `PostfixInput` `DiscountInput` `PriceDiscountCombo`) ครอบ call site ทั้งหมดฟรี + ไล่ `<input>` ดิบอีก 20 จุดใน 14 ไฟล์ · guard เหลือเป็นตาข่ายชั้นสุดท้ายเผื่อโค้ดใหม่เผลอเขียน `type="number"` อีก
+**ผลพลอยได้**: ลูกศรขึ้น-ลงไม่เปลี่ยนค่าแล้ว · วางค่าที่มีคอมมาได้ ("1,290" → 1290 ซึ่ง `type="number"` เดิมปฏิเสธทั้งก้อน) · ไม่มี spinner ให้ซ่อนด้วย CSS อีก
+**ป้องกัน regression**: CSS แก้เรื่องนี้ไม่ได้ — `globals.css` ซ่อนได้แค่ปุ่มลูกศร (`::-webkit-*-spin-button`) การเลื่อนแล้วค่าเปลี่ยนเป็นพฤติกรรมของเบราว์เซอร์ ไม่ใช่สไตล์ · ไล่ทั้ง DB แล้วมีบิลเดียวที่ค่าส่งมีเศษสตางค์ ที่เหลือเป็นส่วนลด % ของ POS ซึ่งมีเศษตามธรรมชาติ · กติกาอยู่ในตาราง Form Inputs ของ [.claude/rules/code-simplicity.md](.claude/rules/code-simplicity.md) แล้ว — ห้ามเขียน `<input type="number">` ใหม่ · ถ้าจะกันด้วย wheel handler ห้ามใช้ `preventDefault` (หน้าจะเลื่อนไม่ได้ตอนเคอร์เซอร์อยู่บนช่อง) ให้ blur แทน
+
+## 2026-09-08 — ค่าจัดส่งหายเป็น 0 ตอนเปิดบิลจากแชทมาแก้/สั่งซ้ำ
+
+**ที่เกิด**: [components/orders/OrderForm.tsx](components/orders/OrderForm.tsx) (โหลดบิลมาแก้ ~บรรทัด 1020 · สั่งซ้ำ ~บรรทัด 1435)
+**อาการ**: บิลที่เปิดจากแชทตอนยังไม่มีที่อยู่ (ไม่มีแถวใน `order_shipments`) เปิดมาแก้แล้วกดบันทึก → ค่าส่งกลายเป็น 0 เงียบ ๆ ยอดรวมลดลงตาม (เจอตอนไล่บั๊กค่าส่ง 99.96 ยังไม่มีเคสจริงที่เสียหาย)
+**Root cause**: ฟอร์มอ่านค่าส่งจาก `item.shipments[0].shipping_fee` อย่างเดียว แต่ `/api/orders` POST ตั้งใจรองรับบิลไม่มีที่อยู่ด้วยการเก็บค่าส่งไว้ที่ `orders.shipping_fee` ตรง ๆ — ขาฝั่งโหลดกลับไม่ได้ตามไปด้วย
+**วิธีแก้**: ทั้งสองจุด fallback `Number(order.shipping_fee) || 0` เมื่อไม่มี shipments
+**ป้องกัน regression**: ค่าส่งมี 2 ที่เก็บ (ต่อ shipment เมื่อมีที่อยู่ · ที่ตัวออเดอร์เมื่อยังไม่มี) — เพิ่มทางอ่าน/เขียนค่าส่งใหม่ต้องรองรับทั้งสองเสมอ
+
+## 2026-09-08 — Console error ทุกครั้งที่กางผลค้นหาสินค้า: `<button>` ซ้อน `<button>`
+
+**ที่เกิด**: [components/ui/ProductImageThumb.tsx](components/ui/ProductImageThumb.tsx) (โผล่ผ่าน [components/ui/ProductSearchInput.tsx](components/ui/ProductSearchInput.tsx))
+**อาการ**: เปิดฟอร์มเปิดบิลแล้วพิมพ์ค้นสินค้า → console เด้ง "In HTML, `<button>` cannot be a descendant of `<button>`. This will cause a hydration error." ทุกครั้งที่กางผลลัพธ์ (ผู้ใช้ทักว่า error บ่อย)
+**Root cause**: `ProductImageThumb` วาดกรอบรูปเป็น `<button>` เสมอ แล้วใช้ `disabled` เป็นทางปิดการกดเมื่อถูกวางในปุ่มของคนอื่น — แต่ `<button disabled>` ก็ยังเป็น `<button>` ในต้นไม้ DOM · แถวผลค้นหาของ `ProductSearchInput` เป็น `<button>` อยู่แล้ว จึงซ้อนกัน · โครงนี้มีมาก่อน แต่เพิ่งฟ้องชัดเพราะ React 19 ตรวจเข้มขึ้น + รูปย่อ (`thumbUrl`) ทำให้ `ProductImageThumb` ถูกใช้ในผลค้นหาบ่อยขึ้น
+**วิธีแก้**: ตอน `disabled` คืน `<div role="img" aria-label>` ที่ใช้ `frameClass` เดียวกันแทน — `<button>` เหลือเฉพาะกรณีกดขยายได้จริง (commit `e72e561`)
+**ป้องกัน regression**: component ที่ออกแบบให้ "วางในปุ่ม/ลิงก์ของคนอื่นได้" ห้ามใช้ `<button disabled>` เป็นทางปิดการกด ต้องเปลี่ยน element เลย · เจอ error ชนิดนี้ให้ไล่จากตัวที่ถูกใส่ไว้ข้างใน ไม่ใช่ตัวนอก
+
 ## 2026-09-09 — คอลัมน์ใหม่ใน DataTable ซ่อนเงียบ ๆ สำหรับคนที่เคยกดเปิด/ปิดคอลัมน์บนหน้านั้น
 
 **ที่เกิด**: [lib/useColumnToggle.ts](lib/useColumnToggle.ts) (ใช้ผ่าน `DataTable` ทุกหน้า list) — เจอตอนเพิ่มคอลัมน์ "สำเร็จ / ตอบกลับ" ในหน้าบรอดแคสต์ (`storageKey="broadcasts"`)
