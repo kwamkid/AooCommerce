@@ -16,6 +16,7 @@ import { storageKeyFor } from '@/lib/storage-key';
 import { apiFetch, invalidateApiCache } from '@/lib/api-client';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { useStableCallback } from '@/lib/useStableCallback';
+import { describeSendError, describeUploadError } from '@/lib/chat/send-errors';
 import { formatPrice, formatNumber } from '@/lib/utils/format';
 import { OrderStatusBadge, PaymentStatusBadge } from '@/components/ui/OrderStatusBadge';
 import { isConsignmentFlow, isDepartmentFlow } from '@/lib/flow-types';
@@ -70,7 +71,7 @@ import MessageBubble from './components/MessageBubble';
 // แผง "เปิดบิล" แยกไฟล์เพราะห่อ memo ไว้ (ดูหมายเหตุในไฟล์นั้น) — ตัวห่อเล็กมาก
 // ส่วน OrderForm ที่หนักจริงยังเป็น dynamic อยู่ข้างใน จึงไม่ติดมากับ first-load JS
 import ChatOrderPanel from './components/ChatOrderPanel';
-import { FbIcon, IgIcon, LineIcon, ShopeeIcon, LazadaIcon, TiktokIcon, PlatformIcon, AccountCornerBadge, getAccountPicture, getAvatarUrl, getInitials, ContactAvatar, formatTime, formatLastMessage, groupImageAlbums, prepareChatImage, isImageFile, officialStickers, isSystemEventMessage } from './lib/chatHelpers';
+import { FbIcon, IgIcon, LineIcon, ShopeeIcon, LazadaIcon, TiktokIcon, PlatformIcon, AccountCornerBadge, getAccountPicture, getAvatarUrl, getInitials, ContactAvatar, formatTime, formatLastMessage, groupImageAlbums, prepareChatImage, isImageFile, isPdfFile, pdfToImageFiles, officialStickers, isSystemEventMessage } from './lib/chatHelpers';
 import { FullPageLoading } from '@/components/ui/Loading';
 import { LoadingCard } from '@/components/ui/StateCard';
 import { SkeletonChat } from '@/components/ui/Skeleton';
@@ -969,16 +970,16 @@ function UnifiedChatPageContent() {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ contact_id: contactId, platform, message: messageText })
       });
-      if (!response.ok) { const errData = await response.json().catch(() => ({})); throw new Error(errData.error || 'Failed'); }
+      if (!response.ok) { const errData = await response.json().catch(() => ({})); throw new Error(describeSendError(errData.error, response.status)); }
       const result = await response.json();
       if (result.message) {
         setMessages(prev => prev.map(m => m._tempId === tempId ? { ...result.message, contact_id: contactId, _status: 'sent' as const } : m));
       }
       showToast('ส่งบิลให้ลูกค้าสำเร็จ!');
     } catch (error) {
-      const reason = error instanceof Error && error.message !== 'Failed' ? error.message : undefined;
+      const reason = describeSendError(error instanceof Error ? error.message : String(error));
       setMessages(prev => prev.map(m => m._tempId === tempId ? { ...m, _status: 'failed' as const, _error: reason } : m));
-      showToast(reason ? `ส่งบิลไม่สำเร็จ: ${reason}` : 'ส่งบิลไม่สำเร็จ', 'error');
+      showToast(`ส่งบิลไม่สำเร็จ — ${reason}`, 'error');
     }
   };
 
@@ -1026,7 +1027,7 @@ function UnifiedChatPageContent() {
             showToast('ไม่สามารถส่งข้อความได้ — ลูกค้าไม่ได้ส่งข้อความมาภายใน 7 วัน (หมดเวลาตอบกลับ)', 'error');
             return;
           }
-          throw new Error(errData.error || 'Failed');
+          throw new Error(describeSendError(errData.error, response.status));
         }
         const result = await response.json();
         if (result.message) {
@@ -1036,9 +1037,9 @@ function UnifiedChatPageContent() {
       } catch (error) {
         console.error('Error sending message:', error);
         // เก็บเหตุผลจากแพลตฟอร์มไว้ที่ข้อความ — คนกดลองใหม่ต้องรู้ว่าล้มเพราะอะไร ไม่ใช่ลองซ้ำเปล่า ๆ
-        const reason = error instanceof Error && error.message !== 'Failed' ? error.message : undefined;
+        const reason = describeSendError(error instanceof Error ? error.message : String(error));
         setMessages(prev => prev.map(m => m._tempId === tempId ? { ...m, _status: 'failed' as const, _error: reason } : m));
-        showToast(reason ? `ส่งข้อความไม่สำเร็จ: ${reason}` : 'ส่งข้อความไม่สำเร็จ', 'error');
+        showToast(`ส่งข้อความไม่สำเร็จ — ${reason}`, 'error');
       }
     })();
   };
@@ -1061,8 +1062,8 @@ function UnifiedChatPageContent() {
        */
       tempId?: string;
     },
-  ): Promise<boolean> => {
-    if (!selectedContact) return false;
+  ): Promise<{ ok: boolean; error?: string }> => {
+    if (!selectedContact) return { ok: false, error: 'ยังไม่ได้เลือกห้องแชท' };
     const tempId = retryOf?._tempId || opts?.tempId || `temp-${Date.now()}`;
     const contactId = retryOf?.contact_id || selectedContact.id;
     const platform = selectedContact.platform;
@@ -1105,7 +1106,7 @@ function UnifiedChatPageContent() {
       // แล้วรูปจะ "ไม่ไปเลย" ตั้งแต่ก่อนถึง API แชท (ดู lib/storage-key.ts)
       const fileName = `admin-images/${storageKeyFor(file.name, ext)}`;
       const { error: uploadError } = await supabase.storage.from('chat-media').upload(fileName, blob, { contentType });
-      if (uploadError) throw new Error(`อัปโหลดรูปไม่สำเร็จ: ${uploadError.message}`);
+      if (uploadError) throw new Error(describeUploadError(uploadError.message));
       const { data: urlData } = supabase.storage.from('chat-media').getPublicUrl(fileName);
       const imageUrl = urlData.publicUrl;
 
@@ -1116,26 +1117,28 @@ function UnifiedChatPageContent() {
       if (!response.ok) {
         const errData = await response.json().catch(() => ({}));
         if (errData.errorCode === 'MESSAGING_WINDOW_EXPIRED') {
+          const reason = 'ลูกค้าไม่ได้ส่งข้อความมาภายใน 7 วัน (หมดเวลาตอบกลับ)';
           setMessages(prev => prev.filter(m => m._tempId !== tempId));
-          showToast('ไม่สามารถส่งรูปภาพได้ — ลูกค้าไม่ได้ส่งข้อความมาภายใน 7 วัน (หมดเวลาตอบกลับ)', 'error');
+          if (!opts?.quiet) showToast(`ส่งรูป "${file.name}" ไม่ได้ — ${reason}`, 'error');
           releaseLocalUrl();
-          return false;
+          return { ok: false, error: reason };
         }
-        throw new Error(errData.error || 'Failed');
+        throw new Error(describeSendError(errData.error, response.status));
       }
       const result = await response.json();
       if (result.message) {
         setMessages(prev => prev.map(m => m._tempId === tempId ? { ...result.message, contact_id: contactId, _status: 'sent' as const } : m));
       }
       releaseLocalUrl();
-      return true;
+      return { ok: true };
     } catch (error) {
       console.error('Error uploading image:', error);
       // ⚠️ ห้าม revoke blob URL ตอนล้ม — ฟองที่ค้างอยู่ยังต้องแสดงรูปให้เห็นว่า "ใบไหนที่ส่งไม่ไป"
-      const reason = error instanceof Error && error.message !== 'Failed' ? error.message : undefined;
+      // เหตุผลต้องมีเสมอและอ่านรู้เรื่อง — error ของเราเป็นไทยอยู่แล้ว ของเครือข่าย/แพลตฟอร์มให้ตัวแปลจัดการ
+      const reason = describeSendError(error instanceof Error ? error.message : String(error));
       setMessages(prev => prev.map(m => m._tempId === tempId ? { ...m, _status: 'failed' as const, _error: reason, _file: file } : m));
-      if (!opts?.quiet) showToast(reason ? `ส่งรูปภาพไม่สำเร็จ: ${reason}` : 'ส่งรูปภาพไม่สำเร็จ', 'error');
-      return false;
+      if (!opts?.quiet) showToast(`ส่งรูป "${file.name}" ไม่สำเร็จ — ${reason}`, 'error');
+      return { ok: false, error: reason };
     } finally {
       setUploadingImage(false);
     }
@@ -1154,8 +1157,30 @@ function UnifiedChatPageContent() {
    * เอาไฟล์เข้าคิวรอส่ง — **ไม่ส่งทันที** ทั้งลากวางและกดเลือกไฟล์เดินทางนี้เหมือนกัน
    * (สองทางทำคนละอย่างคือกับดัก ผู้ใช้จำไม่ได้ว่าทางไหนส่งเลยทางไหนรอ)
    */
-  const addAttachmentFiles = async (picked: File[]) => {
-    if (picked.length === 0 || !selectedContact) return;
+  const addAttachmentFiles = async (pickedRaw: File[]) => {
+    if (pickedRaw.length === 0 || !selectedContact) return;
+    // บอกชื่อไฟล์ที่ข้าม — "ข้าม 1 ไฟล์" เฉย ๆ ผู้ใช้ไม่รู้ว่าไฟล์ไหน/ทำไม แจ้งกลับมาก็ไล่ไม่ได้
+    const names = (fs: File[]) => fs.slice(0, 3).map(f => f.name || '(ไม่มีชื่อ)').join(', ') + (fs.length > 3 ? ` และอีก ${fs.length - 3}` : '');
+
+    // PDF → แปลงเป็นรูปทีละหน้าแล้วเข้าคิวเหมือนรูปปกติ — แชทส่งไฟล์เอกสารตรง ๆ ไม่ได้
+    // (LINE Messaging API ไม่มีชนิดข้อความสำหรับไฟล์ · Shopee/Lazada/TikTok รับแค่รูป)
+    // เจ้าของเลือกทางนี้เอง 9 ก.ย. 2026 หลังพบว่าแอดมินเลือก PDF แล้วโดนข้ามเงียบ ๆ
+    const picked: File[] = [];
+    for (const f of pickedRaw) {
+      if (!(await isPdfFile(f))) { picked.push(f); continue; }
+      if (f.size > 25 * 1024 * 1024) { showToast(`PDF "${f.name}" ใหญ่เกิน 25MB — ย่อไฟล์ก่อนแล้วลองใหม่`, 'error'); continue; }
+      try {
+        showToast(`กำลังแปลง PDF "${f.name}" เป็นรูป…`);
+        const { files, totalPages, truncated } = await pdfToImageFiles(f, { maxPages: MAX_ATTACHMENTS });
+        picked.push(...files);
+        if (truncated) showToast(`PDF "${f.name}" มี ${totalPages} หน้า แปลงให้ ${files.length} หน้าแรก — แนบได้สูงสุด ${MAX_ATTACHMENTS} รูปต่อครั้ง ที่เหลือส่งรอบถัดไป`, 'error');
+        else showToast(`แปลง PDF "${f.name}" เป็นรูป ${files.length} หน้าแล้ว — กดส่งได้เลย`);
+      } catch (e) {
+        console.error('PDF → image failed:', e);
+        showToast(`แปลง PDF "${f.name}" เป็นรูปไม่สำเร็จ — ${e instanceof Error ? e.message : 'ไฟล์อาจเสียหรือถูกล็อกด้วยรหัสผ่าน'}`, 'error');
+      }
+    }
+    if (picked.length === 0) return;
 
     // คัดของที่ส่งไม่ได้ออกก่อนแล้วบอกทีเดียว — เตือนทีละใบตอนลากมา 10 ใบคือการรังควาน
     // ห้ามตัดสินจาก file.type/ชื่อไฟล์อย่างเดียว — Chrome บน Windows ให้ type ว่าง และรูปจาก
@@ -1164,12 +1189,8 @@ function UnifiedChatPageContent() {
     const notImage = picked.filter((_, i) => !verdict[i]);
     const tooBig = picked.filter((f, i) => verdict[i] && f.size > 10 * 1024 * 1024);
     const files = picked.filter((f, i) => verdict[i] && f.size <= 10 * 1024 * 1024);
-    // บอกชื่อไฟล์ที่ข้าม — "ข้าม 1 ไฟล์" เฉย ๆ ผู้ใช้ไม่รู้ว่าไฟล์ไหน/ทำไม แจ้งกลับมาก็ไล่ไม่ได้
-    const names = (fs: File[]) => fs.slice(0, 3).map(f => f.name || '(ไม่มีชื่อ)').join(', ') + (fs.length > 3 ? ` และอีก ${fs.length - 3}` : '');
-    // แชทส่งได้เฉพาะรูป — LINE Messaging API ไม่มีชนิดข้อความสำหรับไฟล์เอกสาร (PDF/Word ส่งไม่ได้ทุกทาง)
-    // เคสจริง 9 ก.ย. 2026: แอดมินเลือก PDF แล้วเห็นแค่ "ข้ามไฟล์ที่ไม่ใช่รูปภาพ 1 ไฟล์" เจ้าของนึกว่าส่งรูปพัง
-    if (notImage.length) showToast(`ส่งได้เฉพาะรูปภาพ — ข้าม ${notImage.length} ไฟล์: ${names(notImage)} (ไฟล์เอกสารเช่น PDF ส่งทางแชทไม่ได้)`, 'error');
-    if (tooBig.length) showToast(`ข้ามไฟล์ที่ใหญ่เกิน 10MB ${tooBig.length} ไฟล์: ${names(tooBig)}`, 'error');
+    if (notImage.length) showToast(`ส่งได้เฉพาะรูปภาพหรือ PDF — ข้าม ${notImage.length} ไฟล์: ${names(notImage)} (ไฟล์เอกสารชนิดอื่นส่งทางแชทไม่ได้)`, 'error');
+    if (tooBig.length) showToast(`ข้าม ${tooBig.length} ไฟล์ที่ใหญ่เกิน 10MB: ${names(tooBig)} — ย่อรูปให้เล็กลงแล้วเลือกใหม่`, 'error');
     if (files.length === 0) return;
 
     const room = MAX_ATTACHMENTS - attachments.length;
@@ -1237,21 +1258,31 @@ function UnifiedChatPageContent() {
 
     // ส่งทีละใบตามลำดับ ไม่ยิงขนาน — ลูกค้าต้องเห็นรูปเรียงตามที่เราวางไว้
     // (และแพลตฟอร์มไม่รับประกันลำดับถ้ายิงพร้อมกัน · Lazada มีระยะห่างขั้นต่ำต่อ call ด้วย)
-    let failed = 0;
+    const failures: { name: string; reason: string }[] = [];
     for (const j of jobs) {
-      const ok = j.att.kind === 'file'
-        ? await sendImageFile(j.att.file, undefined, { quiet: many, imageSet: j.imageSet, tempId: j.tempId })
-        : await sendImageUrl(j.att.url, undefined, { imageSet: j.imageSet, tempId: j.tempId });
-      if (!ok) failed += 1;
+      let ok: boolean;
+      if (j.att.kind === 'file') {
+        const r = await sendImageFile(j.att.file, undefined, { quiet: many, imageSet: j.imageSet, tempId: j.tempId });
+        ok = r.ok;
+        if (!ok) failures.push({ name: j.att.file.name || '(ไม่มีชื่อ)', reason: r.error || 'ไม่ทราบสาเหตุ' });
+      } else {
+        ok = await sendImageUrl(j.att.url, undefined, { imageSet: j.imageSet, tempId: j.tempId });
+        if (!ok) failures.push({ name: 'รูปจากลิงก์', reason: 'ดูเหตุผลที่ฟองสีแดง' });
+      }
       // สำเร็จแล้วฟองถูกแทนด้วยข้อความจากเซิร์ฟเวอร์ (URL จริง) → คืน blob ได้
       // ⚠️ ล้มเหลวห้ามคืน — ฟองที่ค้างยังต้องโชว์รูปให้เห็นว่าใบไหนที่ส่งไม่ไป
       if (ok && j.att.kind === 'file') URL.revokeObjectURL(j.att.previewUrl);
     }
 
     if (many) {
-      const sent = list.length - failed;
-      if (failed === 0) showToast(`ส่ง ${sent} รูปแล้ว`);
-      else showToast(`ส่งสำเร็จ ${sent} จาก ${list.length} รูป — กดลองใหม่ที่ฟองสีแดงได้`, 'error');
+      const sent = list.length - failures.length;
+      if (failures.length === 0) showToast(`ส่ง ${sent} รูปแล้ว`);
+      else {
+        // บอกชื่อไฟล์ + เหตุผลของใบที่ล้ม (สูงสุด 3 ใบ) — "ส่งสำเร็จ 2 จาก 3" เฉย ๆ ไม่มีใครรู้ว่าต้องทำอะไร
+        const detail = failures.slice(0, 3).map(f => `${f.name}: ${f.reason}`).join(' · ')
+          + (failures.length > 3 ? ` และอีก ${failures.length - 3} ใบ` : '');
+        showToast(`ส่งไม่สำเร็จ ${failures.length} จาก ${list.length} รูป — ${detail} — กดลองใหม่ที่ฟองสีแดงได้`, 'error');
+      }
     }
   };
 
@@ -1485,7 +1516,7 @@ function UnifiedChatPageContent() {
           showToast('ไม่สามารถส่งรูปภาพได้ — ลูกค้าไม่ได้ส่งข้อความมาภายใน 7 วัน (หมดเวลาตอบกลับ)', 'error');
           return false;
         }
-        throw new Error(errData.error || 'Failed');
+        throw new Error(describeSendError(errData.error, response.status));
       }
       const result = await response.json();
       if (result.message) {
@@ -1493,9 +1524,9 @@ function UnifiedChatPageContent() {
       }
       return true;
     } catch (error) {
-      const reason = error instanceof Error && error.message !== 'Failed' ? error.message : undefined;
+      const reason = describeSendError(error instanceof Error ? error.message : String(error));
       setMessages(prev => prev.map(m => m._tempId === tempId ? { ...m, _status: 'failed' as const, _error: reason } : m));
-      showToast(reason ? `ส่งรูปภาพไม่สำเร็จ: ${reason}` : 'ส่งรูปภาพไม่สำเร็จ', 'error');
+      showToast(`ส่งรูปภาพไม่สำเร็จ — ${reason}`, 'error');
       return false;
     }
   };
@@ -1583,7 +1614,7 @@ function UnifiedChatPageContent() {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ contact_id: contactId, platform: 'line', type: 'sticker', packageId, stickerId })
         });
-        if (!response.ok) { const error = await response.json(); throw new Error(error.error || 'Failed'); }
+        if (!response.ok) { const error = await response.json().catch(() => ({})); throw new Error(describeSendError(error.error, response.status)); }
         const result = await response.json();
         if (result.message) {
           setMessages(prev => prev.map(m => m._tempId === tempId ? { ...result.message, contact_id: contactId, _status: 'sent' as const } : m));
@@ -1591,9 +1622,9 @@ function UnifiedChatPageContent() {
       } catch (error) {
         console.error('Error sending sticker:', error);
         // เก็บเหตุผลจากแพลตฟอร์มไว้ที่ข้อความ — คนกดลองใหม่ต้องรู้ว่าล้มเพราะอะไร ไม่ใช่ลองซ้ำเปล่า ๆ
-        const reason = error instanceof Error && error.message !== 'Failed' ? error.message : undefined;
+        const reason = describeSendError(error instanceof Error ? error.message : String(error));
         setMessages(prev => prev.map(m => m._tempId === tempId ? { ...m, _status: 'failed' as const, _error: reason } : m));
-        showToast(reason ? `ส่งสติกเกอร์ไม่สำเร็จ: ${reason}` : 'ส่งสติกเกอร์ไม่สำเร็จ', 'error');
+        showToast(`ส่งสติกเกอร์ไม่สำเร็จ — ${reason}`, 'error');
       }
     })();
   };
@@ -2734,6 +2765,10 @@ function UnifiedChatPageContent() {
                                 {msg.sent_by_user && <span>{msg.sent_by_user.name}</span>}
                                 {/* ระบบของแพลตฟอร์มตอบเอง (นอกเวลาทำการ/แชทบอท) — ไม่ใช่คนของร้าน อย่าให้เข้าใจผิดว่ามีคนตอบแล้ว */}
                                 {msg.raw_message?.auto_reply && <span>ตอบอัตโนมัติ</span>}
+                                {/* เหตุผลที่ส่งไม่ไปต้องเห็นเลยโดยไม่ต้อง hover — มือถือไม่มี hover และ toast หายไปแล้ว */}
+                                {msg._status === 'failed' && msg._error && (
+                                  <span className="max-w-[220px] text-right leading-tight text-red-500">{msg._error}</span>
+                                )}
                                 <div className="flex items-center gap-1">
                                   {msg._status === 'failed' && (<Tooltip text={msg._error ? `ส่งไม่สำเร็จ: ${msg._error} — กดเพื่อลองใหม่` : 'ส่งไม่สำเร็จ กดเพื่อลองใหม่'}><button onClick={() => { retrySend(msg); }} aria-label="ส่งไม่สำเร็จ กดเพื่อลองใหม่" className="flex items-center gap-0.5 text-red-500 hover:text-red-600"><AlertCircle className="w-3 h-3" /><RotateCcw className="w-2.5 h-2.5" /></button></Tooltip>)}
                                   {msg._status === 'sending' && (<Loader2 className="w-2.5 h-2.5 animate-spin text-gray-400" />)}

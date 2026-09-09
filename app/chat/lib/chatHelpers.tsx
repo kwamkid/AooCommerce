@@ -295,6 +295,74 @@ export async function sniffImageMime(file: File): Promise<string | null> {
   return null;
 }
 
+/** ไฟล์นี้เป็น PDF ไหม — ดู type/นามสกุลก่อน ไม่ชัวร์ค่อยอ่านไบต์แรก (`%PDF`) */
+export async function isPdfFile(file: File): Promise<boolean> {
+  if ((file.type || '').toLowerCase() === 'application/pdf' || /\.pdf$/i.test(file.name || '')) return true;
+  try {
+    const b = new Uint8Array(await file.slice(0, 5).arrayBuffer());
+    return String.fromCharCode(...b) === '%PDF-';
+  } catch {
+    return false;
+  }
+}
+
+/** เพดานหน้าที่แปลงต่อไฟล์ — สอดคล้องกับจำนวนรูปที่แนบได้ต่อครั้ง */
+export const PDF_MAX_PAGES = 10;
+
+/**
+ * แปลง PDF เป็นรูป JPEG ทีละหน้า **ในเครื่องผู้ใช้** ด้วย pdf.js (โหลดเฉพาะตอนเจอ PDF จริง ๆ)
+ *
+ * ทำไมต้องแปลง: แชทของเราส่งผ่าน LINE Messaging API ซึ่งมีชนิดข้อความแค่ text/sticker/image/
+ * video/audio/location/imagemap/template/flex — **ไม่มีชนิด "ไฟล์"** (ที่ส่ง PDF ได้คือหน้าแชทของ
+ * LINE OA Manager ซึ่งเป็นระบบภายในของ LINE ไม่ใช่ API) · Shopee/Lazada/TikTok chat ก็รับแค่รูป
+ * เจ้าของเลือกทางนี้เอง 9 ก.ย. 2026: "ถ้าสุดท้ายแล้วไม่ได้จริง ๆ ก็ให้แปลงเป็นรูป"
+ *
+ * worker ของ pdf.js เสิร์ฟจาก `public/pdf.worker.min.mjs` (คัดลอกจาก node_modules ตอนอัปเกรด
+ * pdfjs-dist ต้องคัดลอกใหม่ให้เวอร์ชันตรงกัน ไม่งั้น pdf.js ปฏิเสธ worker คนละเวอร์ชัน)
+ * คืนไฟล์ชื่อ `<ชื่อเดิม>-p<เลขหน้า>.jpg` · `truncated` = ไฟล์มีหน้ามากกว่าที่แปลง
+ */
+export async function pdfToImageFiles(
+  file: File,
+  opts: { maxPages?: number; maxWidth?: number; quality?: number; onProgress?: (page: number, total: number) => void } = {},
+): Promise<{ files: File[]; totalPages: number; truncated: boolean }> {
+  const maxPages = opts.maxPages ?? PDF_MAX_PAGES;
+  const maxWidth = opts.maxWidth ?? 1400;
+  const quality = opts.quality ?? 0.85;
+
+  const pdfjs = await import('pdfjs-dist');
+  pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
+  const task = pdfjs.getDocument({ data: await file.arrayBuffer() });
+  const doc = await task.promise;
+  const totalPages = doc.numPages;
+  const take = Math.min(totalPages, maxPages);
+  const base = (file.name || 'document').replace(/\.pdf$/i, '');
+  const files: File[] = [];
+
+  for (let n = 1; n <= take; n++) {
+    opts.onProgress?.(n, take);
+    const page = await doc.getPage(n);
+    const raw = page.getViewport({ scale: 1 });
+    // สเกลให้กว้างพอดี maxWidth (ข้อความในเอกสารต้องอ่านออกบนมือถือ) แต่ไม่ขยายเกินจริง
+    const scale = Math.min(3, Math.max(1, maxWidth / raw.width));
+    const viewport = page.getViewport({ scale });
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.ceil(viewport.width);
+    canvas.height = Math.ceil(viewport.height);
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('เบราว์เซอร์นี้วาดรูปจาก PDF ไม่ได้');
+    // PDF พื้นโปร่งต้องรองพื้นขาว ไม่งั้น JPEG ออกมาดำ
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    await page.render({ canvas, canvasContext: ctx, viewport }).promise;
+    const blob = await new Promise<Blob | null>(res => canvas.toBlob(res, 'image/jpeg', quality));
+    page.cleanup();
+    if (!blob) throw new Error(`แปลงหน้า ${n} ของ PDF เป็นรูปไม่สำเร็จ`);
+    files.push(new File([blob], `${base}-p${n}.jpg`, { type: 'image/jpeg' }));
+  }
+  await task.destroy();
+  return { files, totalPages, truncated: totalPages > take };
+}
+
 /** เป็นรูปไหม — เช็คชื่อ/`type` ก่อน (เร็ว) ไม่ผ่านค่อยอ่านไบต์แรกของไฟล์ */
 export async function isImageFile(file: File): Promise<boolean> {
   if (looksLikeImageFile(file)) return true;
