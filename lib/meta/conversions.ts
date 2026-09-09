@@ -132,19 +132,83 @@ async function logError(
   }
 }
 
+/** ไม่มี token/page_id ให้ยิงเลย — เกิดได้เมื่อแถวถูกสร้างแบบกรอกมือแล้วกรอกไม่ครบ */
+const MISSING_TOKEN_MESSAGE =
+  'เพจนี้ไม่มี Page ID หรือ Page Access Token ในระบบ — กด "เชื่อมต่อใหม่ (ขอสิทธิ์ใหม่)" ที่เมนูของการ์ดเพจ';
+
+/**
+ * merge ค่าลง `chat_accounts.credentials` ของบัญชีหนึ่ง
+ *
+ * **อ่านค่าล่าสุดจาก DB ก่อน merge เสมอ** — ก้อน credentials ที่ผู้เรียกถืออยู่อาจเก่าไปแล้ว
+ * (route ทดสอบเชื่อมต่อเพิ่งเขียนชื่อ/รูปเพจทับไปเมื่อครู่) เขียนจากก้อนเก่า = ลบของคนอื่นทิ้ง
+ *
+ * ส่งค่าเป็น `undefined` = ลบคีย์นั้นออก
+ */
+async function mergeCredentials(accountId: string, patch: Record<string, unknown>): Promise<void> {
+  try {
+    const { data } = await supabaseAdmin
+      .from('chat_accounts')
+      .select('credentials')
+      .eq('id', accountId)
+      .single<{ credentials: Record<string, unknown> | null }>();
+
+    const next: Record<string, unknown> = { ...((data?.credentials || {}) as Record<string, unknown>) };
+    for (const [key, value] of Object.entries(patch)) {
+      if (value === undefined) delete next[key];
+      else next[key] = value;
+    }
+
+    await supabaseAdmin
+      .from('chat_accounts')
+      .update({ credentials: next, updated_at: new Date().toISOString() })
+      .eq('id', accountId);
+  } catch {
+    // จดไม่ได้ก็แค่ป้ายบนการ์ดไม่อัปเดต — ห้ามให้การจดบันทึกทำให้สายหลักพัง
+  }
+}
+
+/** จดว่าเพจนี้ยิง CAPI ได้จริง — ลบเหตุผลที่เคยล้มทิ้ง ไม่งั้นป้ายจะค้างสีเหลืองตลอด */
+async function markCapiOk(accountId: string, datasetId?: string | null): Promise<void> {
+  await mergeCredentials(accountId, {
+    ...(datasetId ? { meta_dataset_id: datasetId } : {}),
+    meta_capi_checked_at: new Date().toISOString(),
+    meta_capi_error: undefined,
+  });
+}
+
+/**
+ * จดเหตุผลที่ยิงไม่ได้ไว้บนบัญชี — หน้า ตั้งค่า › ช่องทางแชท อ่านค่านี้ไปขึ้นป้าย
+ * **ไม่แตะ `meta_dataset_id`** เพราะ dataset ยังอยู่ ปัญหาอยู่ที่ token
+ */
+async function markCapiError(accountId: string, message: string): Promise<void> {
+  await mergeCredentials(accountId, {
+    meta_capi_error: message,
+    meta_capi_checked_at: new Date().toISOString(),
+  });
+}
+
 /**
  * หา dataset ของเพจ (Meta เรียก "dataset ที่เชื่อมกับเพจ")
  * — อ่านจาก credentials.meta_dataset_id ก่อน ไม่มีค่อยถาม Graph API แล้วจำไว้
+ *
+ * @param opts.force ข้ามค่าที่จำไว้ แล้วถาม Meta ใหม่เสมอ — ใช้ตอนผู้ใช้กด "ทดสอบเชื่อมต่อ"
+ *   (คำตอบต้องมาจากของจริง ไม่ใช่ค่าที่จำไว้ตั้งแต่ก่อน token จะหมดสิทธิ์)
  * @returns dataset id หรือ null เมื่อหา/สร้างไม่ได้
  */
-export async function getOrCreateDatasetId(account: PageAccount): Promise<string | null> {
+export async function getOrCreateDatasetId(
+  account: PageAccount,
+  opts: { force?: boolean } = {},
+): Promise<string | null> {
   const creds = (account.credentials || {}) as Record<string, unknown>;
   const cached = credString(creds, 'meta_dataset_id');
-  if (cached) return cached;
+  if (cached && !opts.force) return cached;
 
   const pageId = credString(creds, 'page_id');
   const token = credString(creds, 'page_access_token');
-  if (!pageId || !token) return null;
+  if (!pageId || !token) {
+    await markCapiError(account.id, MISSING_TOKEN_MESSAGE);
+    return null;
+  }
 
   const path = `/${pageId}/dataset`;
   let datasetId: string | null = null;
@@ -164,6 +228,7 @@ export async function getOrCreateDatasetId(account: PageAccount): Promise<string
           http_status: getRes.status,
           response_body: getBody,
         });
+        await markCapiError(account.id, PAGE_EVENTS_FIX_MESSAGE);
         return null;
       }
       // GET ล้มด้วยเหตุอื่นไม่ใช่จุดจบ — ลอง POST สร้าง (Meta คืน id เดิมถ้ามีอยู่แล้ว)
@@ -189,27 +254,62 @@ export async function getOrCreateDatasetId(account: PageAccount): Promise<string
           http_status: postRes.status,
           response_body: postBody,
         });
+        await markCapiError(account.id, why);
         return null;
       }
     }
   } catch (err) {
-    await logError(account, account.company_id, `เรียก Graph API หา dataset ไม่ได้: ${errText(err)}`, {
+    const why = `เรียก Graph API หา dataset ไม่ได้: ${errText(err)}`;
+    await logError(account, account.company_id, why, {
       api_path: path,
     });
+    await markCapiError(account.id, why);
     return null;
   }
 
   // จำไว้ใน credentials — merge เท่านั้น ห้ามเขียนทับทั้งก้อน (page_access_token อยู่ในนั้น)
-  try {
-    await supabaseAdmin
-      .from('chat_accounts')
-      .update({ credentials: { ...creds, meta_dataset_id: datasetId }, updated_at: new Date().toISOString() })
-      .eq('id', account.id);
-  } catch {
-    // จำไม่ได้ก็แค่ถาม Meta ใหม่รอบหน้า ไม่ใช่ error ที่ต้องหยุดงาน
-  }
+  await markCapiOk(account.id, datasetId);
 
   return datasetId;
+}
+
+/**
+ * ตรวจว่าเพจนี้ยิง Conversions API ได้จริงไหม **ตอนนี้** แล้วจดผลไว้บนบัญชี
+ * (ถาม Meta ใหม่เสมอ — ไม่เชื่อค่าที่จำไว้ เพราะ token เปลี่ยนได้ทุกเมื่อ)
+ *
+ * ใช้จากปุ่ม "ทดสอบเชื่อมต่อ" และหลังเชื่อม/อัปเดตสิทธิ์เพจ — **ห้าม throw**
+ */
+export async function probeCapiReadiness(
+  accountId: string,
+  companyId: string,
+): Promise<{ ready: boolean; dataset_id: string | null; error: string | null }> {
+  try {
+    const { data: account } = await supabaseAdmin
+      .from('chat_accounts')
+      .select('id, company_id, account_name, credentials')
+      .eq('id', accountId)
+      .eq('company_id', companyId)
+      .eq('platform', 'facebook')
+      .single<PageAccount>();
+
+    if (!account) return { ready: false, dataset_id: null, error: 'ไม่พบเพจนี้ในระบบ' };
+
+    await getOrCreateDatasetId(account, { force: true });
+
+    // อ่านผลจากแถวจริง — getOrCreateDatasetId จดทั้งขาสำเร็จและขาล้มไว้แล้ว
+    const { data: fresh } = await supabaseAdmin
+      .from('chat_accounts')
+      .select('credentials')
+      .eq('id', accountId)
+      .single<{ credentials: Record<string, unknown> | null }>();
+
+    const creds = (fresh?.credentials || {}) as Record<string, unknown>;
+    const datasetId = credString(creds, 'meta_dataset_id');
+    const error = credString(creds, 'meta_capi_error');
+    return { ready: !error && !!datasetId, dataset_id: datasetId, error };
+  } catch (err) {
+    return { ready: false, dataset_id: null, error: `ตรวจ CAPI ไม่สำเร็จ: ${errText(err)}` };
+  }
 }
 
 function errText(err: unknown): string {
@@ -337,9 +437,12 @@ export async function sendPurchaseEventForOrder(orderId: string): Promise<void> 
       if (!res.ok) {
         // คืนสิทธิ์เสมอ → ออเดอร์ใบถัดไปที่ชำระจะได้ลองใหม่ (1 call + 1 log ต่อครั้ง ไม่วนซ้ำในรอบเดียว)
         await releaseOrder(order.id);
-        const why = isPageEventsPermissionError(responseBody)
+        const permissionDenied = isPageEventsPermissionError(responseBody);
+        const why = permissionDenied
           ? PAGE_EVENTS_FIX_MESSAGE
           : `ส่ง Purchase event ไม่สำเร็จ (HTTP ${res.status})`;
+        // สิทธิ์ไม่ถึง = เรื่องของ token ไม่ใช่ของออเดอร์ใบนี้ → ขึ้นป้ายบนการ์ดเพจให้เจ้าของเห็น
+        if (permissionDenied) await markCapiError(account.id, why);
         await logError(account, order.company_id, why, {
           api_path: apiPath,
           http_status: httpStatus,
@@ -360,6 +463,9 @@ export async function sendPurchaseEventForOrder(orderId: string): Promise<void> 
       });
       return;
     }
+
+    // ยิงผ่านจริง = ป้ายบนการ์ดต้องเขียว (ล้างเหตุผลเก่าที่แก้ไปแล้วทิ้ง)
+    await markCapiOk(account.id);
 
     await logIntegrationNow({
       company_id: order.company_id,

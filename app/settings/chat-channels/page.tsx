@@ -11,7 +11,8 @@ import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { useBfcacheReset } from '@/lib/useBfcacheReset';
 import { useFeatures } from '@/lib/features-context';
 import { apiFetch } from '@/lib/api-client';
-import { Loader2, Eye, EyeOff, ExternalLink, Check, X, ChevronDown, ChevronUp, CheckCircle2, XCircle, Zap, Plus, Trash2, Edit2, Search, Facebook as FacebookSolidIcon } from 'lucide-react';
+import { Loader2, Eye, EyeOff, ExternalLink, Check, X, ChevronDown, ChevronUp, CheckCircle2, XCircle, Zap, Plus, Trash2, Edit2, Search, RefreshCw, Facebook as FacebookSolidIcon } from 'lucide-react';
+import { formatThaiDateTime } from '@/lib/utils/format';
 import dynamic from 'next/dynamic';
 import ActionMenu from '@/components/ui/ActionMenu';
 import Button from '@/components/ui/Button';
@@ -21,6 +22,7 @@ import PageHeader from '@/components/ui/PageHeader';
 import PlatformIcon from '@/components/ui/PlatformIcon';
 import ChannelBadge from '@/components/ui/ChannelBadge';
 import Badge from '@/components/ui/Badge';
+import Alert from '@/components/ui/Alert';
 import Tooltip from '@/components/ui/Tooltip';
 import SearchInput from '@/components/ui/SearchInput';
 import Tabs from '@/components/ui/Tabs';
@@ -118,6 +120,8 @@ interface TestInfo {
   /** premium ID ที่ตั้งเอง (@abcthebaby) — โชว์ก่อน basic_id */
   premium_id?: string;
   page_id?: string;
+  /** FB เท่านั้น: token ใบนี้ยิง Conversions API ได้ไหม (ตรวจจริงตอนกดทดสอบ) */
+  capi?: { ready: boolean; error: string | null };
 }
 
 const PLATFORM_CONFIG = {
@@ -287,6 +291,9 @@ export default function ChatChannelsPage() {
   const [fbSavingPage, setFbSavingPage] = useState(false);
   const [fbSearch, setFbSearch] = useState('');
   const fbSdkLoaded = useRef(false);
+  // page_id ของเพจที่กด "เชื่อมต่อใหม่" — พอ Facebook คืนรายชื่อเพจมาแล้วจะติ๊กเพจนี้ให้เลย
+  // (ล้างค่าทุกครั้งที่ exchangeFbToken เริ่มทำงาน — รอบถัดไปต้องไม่ติ๊กค้าง)
+  const reconnectPageIdRef = useRef<string | null>(null);
 
   useFetchOnce(() => {
     fetchAccounts();
@@ -444,6 +451,8 @@ export default function ChatChannelsPage() {
   // FB Login
   const handleFbLogin = useCallback(() => {
     if (!fbSdkReady || !window.FB) {
+      // ล้างเพจที่จองไว้ด้วย ไม่งั้นรอบหน้าที่กด "เชื่อมเพจ" ปกติจะมีเพจติ๊กค้างมาจากรอบที่ล้ม
+      reconnectPageIdRef.current = null;
       showToast('Facebook SDK ยังไม่พร้อม กรุณารอสักครู่', 'error');
       return;
     }
@@ -451,6 +460,7 @@ export default function ChatChannelsPage() {
     const doLogin = () => {
       window.FB.login((response) => {
         if (response.status !== 'connected' || !response.authResponse) {
+          reconnectPageIdRef.current = null;
           showToast('ไม่ได้รับสิทธิ์จาก Facebook', 'error');
           return;
         }
@@ -478,6 +488,9 @@ export default function ChatChannelsPage() {
     setFbLoading(true);
     setFbPages([]);
     setSelectedPageIds(new Set());
+    // อ่านแล้วล้างทันที — ไม่ว่ารอบนี้จะจบทางไหน ค่าต้องไม่ค้างไปรอบหน้า
+    const reconnectPageId = reconnectPageIdRef.current;
+    reconnectPageIdRef.current = null;
 
     try {
       const res = await apiFetch('/api/fb/oauth/exchange-token', {
@@ -489,7 +502,17 @@ export default function ChatChannelsPage() {
       if (!res.ok) throw new Error(data.error || 'Token exchange failed');
 
       if (data.pages && data.pages.length > 0) {
-        setFbPages(data.pages);
+        const pages: FbPage[] = data.pages;
+        setFbPages(pages);
+        if (reconnectPageId) {
+          // Facebook ให้สิทธิ์เฉพาะเพจที่ผู้ใช้ติ๊กในหน้าต่างของมัน — เพจที่ไม่ได้ติ๊กจะไม่อยู่ในลิสต์
+          if (pages.some(p => p.id === reconnectPageId)) {
+            setSelectedPageIds(new Set([reconnectPageId]));
+          } else {
+            const name = accounts.find(a => a.platform === 'facebook' && a.credentials.page_id === reconnectPageId)?.account_name || reconnectPageId;
+            showToast(`Facebook ไม่ได้ให้สิทธิ์เพจ "${name}" ในรอบนี้ — กดเชื่อมต่อใหม่แล้วเลือกเพจนี้ในหน้าต่างของ Facebook`, 'error');
+          }
+        }
       } else {
         showToast('ไม่พบ Page ที่จัดการได้ กรุณาตรวจสอบสิทธิ์', 'error');
       }
@@ -502,36 +525,61 @@ export default function ChatChannelsPage() {
   };
 
   // Save selected FB pages as chat accounts
+  // เพจที่เชื่อมอยู่แล้ว = **อัปเดต token ใบเดิม** (PUT merge) ห้ามลบแล้วเพิ่มใหม่ —
+  // ลบทิ้งจะทำให้ห้องแชทเก่าหลุดจากบัญชี (fb_contacts.chat_account_id = NULL) และ sales_channels ซ้ำ
   const handleSaveFbPages = async (pages: FbPage[]) => {
     setFbSavingPage(true);
-    let successCount = 0;
+    let createdCount = 0;
+    let updatedCount = 0;
     let failCount = 0;
+    const capiNotReady: string[] = [];
+
+    const buildCreds = (page: FbPage) => ({
+      page_access_token: page.access_token,
+      page_id: page.id,
+      page_name: page.name,
+      ...(page.username ? { page_username: page.username } : {}),
+      ...(page.picture_url ? { page_picture_url: page.picture_url } : {}),
+      ...(page.instagram ? {
+        ig_account_id: page.instagram.id,
+        ig_username: page.instagram.name,
+        ig_profile_picture_url: page.instagram.profile_picture_url,
+      } : {}),
+    });
 
     for (const page of pages) {
       try {
-        const response = await apiFetch('/api/chat-accounts', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            platform: 'facebook',
-            account_name: page.name,
-            credentials: {
-              page_access_token: page.access_token,
-              page_id: page.id,
-              page_name: page.name,
-              ...(page.username ? { page_username: page.username } : {}),
-              ...(page.picture_url ? { page_picture_url: page.picture_url } : {}),
-              ...(page.instagram ? {
-                ig_account_id: page.instagram.id,
-                ig_username: page.instagram.name,
-                ig_profile_picture_url: page.instagram.profile_picture_url,
-              } : {}),
-            },
-          }),
-        });
-        if (!response.ok) {
-          failCount++;
-          continue;
+        const existing = accounts.find(a => a.platform === 'facebook' && a.credentials.page_id === page.id);
+        let accountId: string | null = existing?.id ?? null;
+
+        if (existing) {
+          const response = await apiFetch('/api/chat-accounts', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: existing.id, credentials: buildCreds(page) }),
+          });
+          if (!response.ok) {
+            failCount++;
+            continue;
+          }
+          updatedCount++;
+        } else {
+          const response = await apiFetch('/api/chat-accounts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              platform: 'facebook',
+              account_name: page.name,
+              credentials: buildCreds(page),
+            }),
+          });
+          const data = await response.json().catch(() => ({}));
+          if (!response.ok) {
+            failCount++;
+            continue;
+          }
+          accountId = data?.account?.id || null;
+          createdCount++;
         }
 
         // Auto-subscribe webhook for this page
@@ -548,20 +596,34 @@ export default function ChatChannelsPage() {
           console.warn(`Auto webhook subscribe failed for ${page.name}`);
         }
 
-        successCount++;
+        // ตรวจสิทธิ์ Conversions API ของ token ใบใหม่ทันที — ผลไปขึ้นเป็นป้ายบนการ์ดเพจ
+        if (accountId) {
+          try {
+            const testRes = await apiFetch(`/api/chat-accounts/${accountId}/test`, { method: 'POST' });
+            const testData = await testRes.json().catch(() => ({}));
+            if (testData?.info?.capi && testData.info.capi.ready === false) capiNotReady.push(page.name);
+          } catch { /* ตรวจไม่ได้ก็ไม่ใช่เหตุให้การเชื่อมต่อล้ม */ }
+        }
       } catch {
         failCount++;
       }
     }
 
-    if (successCount > 0) {
-      showToast(`เชื่อมต่อสำเร็จ ${successCount} Page${failCount > 0 ? `, ไม่สำเร็จ ${failCount}` : ''}`);
+    const parts: string[] = [];
+    if (updatedCount > 0) parts.push(`อัปเดตสิทธิ์ ${updatedCount} เพจ`);
+    if (createdCount > 0) parts.push(`เชื่อมต่อใหม่ ${createdCount} เพจ`);
+    if (parts.length > 0) {
+      showToast(parts.join(' · ') + (failCount > 0 ? ` · ไม่สำเร็จ ${failCount} เพจ` : ''));
     } else {
       showToast('เชื่อมต่อไม่สำเร็จ', 'error');
+    }
+    if (capiNotReady.length > 0) {
+      showToast(`CAPI ยังไม่พร้อม: ${capiNotReady.join(', ')} — ดูเหตุผลบนการ์ด`, 'error');
     }
 
     setFbPages([]);
     setSelectedPageIds(new Set());
+    setFbSearch('');
     await fetchAccounts();
     setFbSavingPage(false);
   };
@@ -789,7 +851,10 @@ export default function ChatChannelsPage() {
       const data = await response.json();
       if (data.success) {
         setTestInfo(prev => ({ ...prev, [account.id]: data.info }));
-        showToast('เชื่อมต่อสำเร็จ');
+        const capi = data.info?.capi as { ready: boolean; error: string | null } | undefined;
+        showToast(capi?.ready ? 'เชื่อมต่อสำเร็จ · CAPI พร้อม' : 'เชื่อมต่อสำเร็จ');
+        // แยกใบ — การเชื่อมต่อผ่าน แต่สิทธิ์ CAPI ไม่ผ่าน เป็นคนละเรื่องกัน
+        if (capi && !capi.ready) showToast(`CAPI ยังไม่พร้อม: ${capi.error || 'ตรวจไม่ผ่าน'}`, 'error');
         await fetchAccounts();
       } else {
         setTestErrors(prev => ({ ...prev, [account.id]: data.error || 'เชื่อมต่อไม่สำเร็จ' }));
@@ -808,6 +873,25 @@ export default function ChatChannelsPage() {
   const tiktokAccounts = accounts.filter(a => a.platform === 'tiktok');
   const tabAccounts = activeTab === 'line' ? lineAccounts : activeTab === 'shopee' ? shopeeAccounts : activeTab === 'lazada' ? lazadaAccounts : activeTab === 'tiktok' ? tiktokAccounts : fbAccounts;
   const tabConfig = PLATFORM_CONFIG[activeTab];
+
+  // เพจใน picker เชื่อมอยู่กับใคร — 'current' = บริษัทนี้เชื่อมไว้แล้ว (เลือกซ้ำได้เพื่ออัปเดตสิทธิ์)
+  // · 'other' = บริษัทอื่นถือไว้ (เลือกไม่ได้ 1 เพจ = 1 บัญชี)
+  const fbConnectedPageIds = new Set(
+    fbAccounts.map(a => a.credentials.page_id as string).filter(Boolean)
+  );
+  const pageConnectedBy = (page: FbPage): 'current' | 'other' | null =>
+    page.connected_by ?? (fbConnectedPageIds.has(page.id) ? 'current' : null);
+
+  const fbSelectedPages = fbPages.filter(p => selectedPageIds.has(p.id));
+  const fbSelectedCurrent = fbSelectedPages.filter(p => pageConnectedBy(p) === 'current').length;
+  // ป้ายปุ่มต้องบอกตรงกับสิ่งที่จะเกิดจริง — อัปเดตสิทธิ์ของเดิม / เชื่อมของใหม่ / ทั้งสองอย่าง
+  const fbSubmitLabel = fbSelectedPages.length === 0
+    ? 'เชื่อมต่อ Page'
+    : fbSelectedCurrent === fbSelectedPages.length
+      ? `อัปเดตสิทธิ์ ${fbSelectedPages.length} Page`
+      : fbSelectedCurrent === 0
+        ? `เชื่อมต่อ ${fbSelectedPages.length} Page`
+        : `เชื่อมต่อ/อัปเดต ${fbSelectedPages.length} Page`;
 
   // Admin guard
   if (userProfile && !can(userProfile, 'masterdata.chat_channels')) {
@@ -840,6 +924,10 @@ export default function ChatChannelsPage() {
           )}
           {fbLoading ? 'กำลังดึงข้อมูล...' : 'เพิ่ม Facebook / IG Account'}
         </button>
+        {/* Facebook ให้สิทธิ์เฉพาะเพจที่ติ๊กในหน้าต่างของมัน — เพจที่ไม่ได้ติ๊กจะเสียสิทธิ์ที่เคยให้ไว้ */}
+        <p className="subtitle-text text-gray-500 dark:text-slate-400 text-center">
+          ในหน้าต่างของ Facebook ให้เลือก &ldquo;เพจทั้งหมด&rdquo; หรือติ๊กทุกเพจที่เชื่อมอยู่ — เพจที่ไม่ได้ติ๊กจะเสียสิทธิ์เดิม
+        </p>
         <div className="flex items-center justify-center">
           <button
             onClick={() => { setFbMode('manual'); setShowForm(true); }}
@@ -1338,20 +1426,25 @@ export default function ChatChannelsPage() {
             </Button>
             <Button
               onClick={() => {
-                const pages = fbPages.filter(p => selectedPageIds.has(p.id));
-                if (pages.length > 0) handleSaveFbPages(pages);
+                if (fbSelectedPages.length > 0) handleSaveFbPages(fbSelectedPages);
               }}
-              disabled={selectedPageIds.size === 0 || fbSavingPage}
+              disabled={fbSelectedPages.length === 0 || fbSavingPage}
               loading={fbSavingPage}
               icon={!fbSavingPage ? <Check className="w-4 h-4" /> : undefined}
               className="!bg-facebook hover:!bg-facebook-hover"
             >
-              {fbSavingPage ? 'กำลังเชื่อมต่อ...' : `เชื่อมต่อ ${selectedPageIds.size > 0 ? selectedPageIds.size + ' ' : ''}Page`}
+              {fbSavingPage ? 'กำลังเชื่อมต่อ...' : fbSubmitLabel}
             </Button>
           </div>
         }
       >
         <div className="p-4 space-y-3">
+          <Alert tone="info">
+            <span className="subtitle-text">
+              เพจที่เชื่อมอยู่แล้วเลือกได้เพื่ออัปเดตสิทธิ์ — ใช้เมื่อ Facebook ขอสิทธิ์เพิ่ม เช่น Conversions API · ข้อมูลแชทและการตั้งค่าเดิมไม่หาย
+            </span>
+          </Alert>
+
           {/* Search box */}
           {fbPages.length > 5 && (
             <SearchInput
@@ -1365,19 +1458,13 @@ export default function ChatChannelsPage() {
           {/* Page list — capped height so modal stays compact */}
           <div className="max-h-[55vh] overflow-y-auto space-y-1 -mx-1 px-1">
             {(() => {
-              const localConnectedIds = new Set(
-                fbAccounts.map(a => a.credentials.page_id as string).filter(Boolean)
-              );
               return fbPages
                 .filter(p => !fbSearch || p.name.toLowerCase().includes(fbSearch.toLowerCase()) || p.id.includes(fbSearch))
                 .map(page => {
-                  const connectedBy = page.connected_by ?? (localConnectedIds.has(page.id) ? 'current' : null);
-                  const isConnected = connectedBy !== null;
-                  const remark = connectedBy === 'current'
-                    ? 'เชื่อมต่อแล้ว'
-                    : connectedBy === 'other'
-                      ? 'มีบัญชีอื่นเชื่อมต่อไปแล้ว'
-                      : null;
+                  const connectedBy = pageConnectedBy(page);
+                  // เชื่อมอยู่กับบริษัทนี้ = เลือกได้ตามปกติ (ทับ token ใบเดิม) — ที่กดไม่ได้มีแค่เพจของบริษัทอื่น
+                  const isConnected = connectedBy === 'other';
+                  const remark = connectedBy === 'other' ? 'มีบัญชีอื่นเชื่อมต่อไปแล้ว' : null;
                   return (
                     <button
                       key={page.id}
@@ -1426,13 +1513,15 @@ export default function ChatChannelsPage() {
                         </div>
                       </div>
                       {remark ? (
-                        <span className={`subtitle-text flex-shrink-0 whitespace-nowrap ${connectedBy === 'other' ? 'text-amber-600 dark:text-amber-400' : 'text-gray-400 dark:text-slate-500'}`}>
+                        <span className="subtitle-text flex-shrink-0 whitespace-nowrap text-amber-600 dark:text-amber-400">
                           {remark}
                         </span>
                       ) : selectedPageIds.has(page.id) ? (
                         <div className="w-6 h-6 rounded-full bg-primary flex items-center justify-center flex-shrink-0">
                           <Check className="w-4 h-4 text-white" />
                         </div>
+                      ) : connectedBy === 'current' ? (
+                        <Badge tone="blue" size="sm" className="flex-shrink-0">อัปเดตสิทธิ์</Badge>
                       ) : (
                         <div className="w-6 h-6 rounded-full border-2 border-gray-300 dark:border-slate-600 flex-shrink-0" />
                       )}
@@ -1649,10 +1738,37 @@ export default function ChatChannelsPage() {
                 <span className="text-xs text-gray-400 dark:text-slate-500 truncate">({botName})</span>
               ) : null}
               {health ? (
-                <Tooltip text={`${account.health_detail || health.label}${account.health_checked_at ? `\nตรวจเมื่อ ${new Date(account.health_checked_at).toLocaleString('th-TH')}` : ''}`}>
+                <Tooltip text={`${account.health_detail || health.label}${account.health_checked_at ? `\nตรวจเมื่อ ${formatThaiDateTime(account.health_checked_at)}` : ''}`}>
                   <Badge tone={health.tone} size="sm">{health.label}</Badge>
                 </Tooltip>
               ) : null}
+              {/* Conversions API — token ที่ออกก่อนมี scope `page_events` ผ่านทุกอย่างยกเว้นอันนี้
+                  ⇒ ต้องบอกบนการ์ด ไม่งั้นโฆษณา Click-to-Messenger จะ optimize ไม่ได้แบบเงียบ ๆ */}
+              {account.platform === 'facebook' ? (() => {
+                const checkedAt = account.credentials.meta_capi_checked_at as string | undefined;
+                const when = checkedAt ? `\nตรวจเมื่อ ${formatThaiDateTime(checkedAt)}` : '';
+                const capiError = account.credentials.meta_capi_error as string | undefined;
+                const datasetId = account.credentials.meta_dataset_id as string | undefined;
+                if (capiError) {
+                  return (
+                    <Tooltip text={`${capiError}${when}\nแก้: เมนู › เชื่อมต่อใหม่ (ขอสิทธิ์ใหม่)`}>
+                      <Badge tone="amber" size="sm">CAPI ยังไม่พร้อม</Badge>
+                    </Tooltip>
+                  );
+                }
+                if (datasetId) {
+                  return (
+                    <Tooltip text={`Conversions API ส่ง Purchase ให้เพจนี้ได้${when}`}>
+                      <Badge tone="emerald" size="sm">CAPI พร้อม</Badge>
+                    </Tooltip>
+                  );
+                }
+                return (
+                  <Tooltip text="กดรูปโปรไฟล์เพื่อทดสอบการเชื่อมต่อ — ระบบจะตรวจสิทธิ์ Conversions API ให้ด้วย">
+                    <Badge tone="gray" size="sm">ยังไม่ตรวจ CAPI</Badge>
+                  </Tooltip>
+                );
+              })() : null}
             </div>
             <div className="flex items-center gap-2 subtitle-text text-gray-500 dark:text-slate-400">
               {account.platform === 'line' ? (
@@ -1707,6 +1823,17 @@ export default function ChatChannelsPage() {
                   onClick: () => handleTest(account),
                   disabled: isTesting,
                 },
+                // ขอ token ใบใหม่ให้เพจนี้ — ใช้เมื่อ Facebook เพิ่ม scope (เช่น page_events ของ CAPI)
+                // ที่ token ใบเดิมไม่มี · จบแล้ว PUT ทับใบเดิม ข้อมูลแชทไม่หาย
+                ...(account.platform === 'facebook' && FB_APP_ID ? [{
+                  key: 'reconnect',
+                  label: 'เชื่อมต่อใหม่ (ขอสิทธิ์ใหม่)',
+                  icon: <RefreshCw className="w-4 h-4" />,
+                  onClick: () => {
+                    reconnectPageIdRef.current = (account.credentials.page_id as string) || null;
+                    handleFbLogin();
+                  },
+                }] : []),
                 {
                   key: 'delete',
                   label: 'ลบ',

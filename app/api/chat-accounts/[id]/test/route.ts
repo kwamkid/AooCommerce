@@ -1,4 +1,5 @@
 import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
+import { probeCapiReadiness } from '@/lib/meta/conversions';
 import { NextRequest, NextResponse } from 'next/server';
 
 // POST - Test chat account connection
@@ -144,6 +145,18 @@ async function testFbConnection(creds: Record<string, unknown>, accountId: strin
     .eq('id', accountId)
     .eq('company_id', companyId);
 
+  // ตรวจสิทธิ์ Conversions API ของ token ใบนี้ด้วย — token ที่ออกก่อนมี scope `page_events`
+  // จะผ่านการทดสอบเชื่อมต่อปกติทุกอย่างแต่ยิง Purchase event ไม่ได้เลย
+  // ⚠️ ต้องทำ **หลัง** UPDATE ข้างบน เพราะ probe อ่านแถวใหม่แล้ว merge ทับ
+  let capi: { ready: boolean; error: string | null } = { ready: false, error: 'ตรวจ CAPI ไม่สำเร็จ' };
+  try {
+    const probe = await probeCapiReadiness(accountId, companyId);
+    capi = { ready: probe.ready, error: probe.error };
+  } catch {
+    // ตรวจ CAPI ล้มต้องไม่ทำให้ "ทดสอบเชื่อมต่อ" ล้มตาม
+    capi = { ready: false, error: 'ตรวจ CAPI ไม่สำเร็จ' };
+  }
+
   return NextResponse.json({
     success: true,
     info: {
@@ -151,6 +164,7 @@ async function testFbConnection(creds: Record<string, unknown>, accountId: strin
       page_id: pageInfo.id,
       picture_url: pictureUrl,
       ig_picture_url: igPictureUrl,
+      capi,
     },
   });
 }
