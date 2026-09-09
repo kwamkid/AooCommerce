@@ -17,6 +17,9 @@ export interface FormSelectOption {
   /** Override label in the trigger only (list still shows `label`).
    *  Use for breadcrumb display, e.g. `"เสื้อผ้า > เสื้อยืด"`. */
   triggerLabel?: string;
+  /** เห็นแต่กดไม่ได้ (โชว์จาง) — ใช้กับตัวเลือกที่ "มีอยู่แต่ตอนนี้ใช้ไม่ได้" เช่นรอบส่งที่ส่งไม่ทัน
+   *  ใส่เหตุผลไว้ใน `subtitle` — ห้ามซ่อนตัวเลือกทิ้ง ผู้ใช้ต้องรู้ว่ามีและทำไมเลือกไม่ได้ */
+  disabled?: boolean;
 }
 
 export type FormSelectSize = 'sm' | 'md' | 'lg';
@@ -83,7 +86,7 @@ export default function FormSelect({
     : options;
 
   // Build full list: clearLabel option + filtered options
-  const allItems: { id: string; label: string; isClear?: boolean; icon?: React.ReactNode; subtitle?: string; level?: number }[] = [];
+  const allItems: { id: string; label: string; isClear?: boolean; icon?: React.ReactNode; subtitle?: string; level?: number; disabled?: boolean }[] = [];
   if (clearLabel && !search) {
     allItems.push({ id: clearValue, label: clearLabel, isClear: true });
   }
@@ -179,7 +182,7 @@ export default function FormSelect({
         break;
       case 'Enter':
         e.preventDefault();
-        if (highlightIdx >= 0 && allItems[highlightIdx]) {
+        if (highlightIdx >= 0 && allItems[highlightIdx] && !allItems[highlightIdx].disabled) {
           handleSelect(allItems[highlightIdx].id);
         }
         break;
@@ -264,7 +267,9 @@ export default function FormSelect({
                   key={o.isClear ? '__clear__' : o.id}
                   data-option
                   type="button"
-                  onClick={() => handleSelect(o.id)}
+                  onClick={() => { if (!o.disabled) handleSelect(o.id); }}
+                  disabled={o.disabled}
+                  aria-disabled={o.disabled || undefined}
                   style={level > 0 ? { paddingLeft: `${16 + level * 20}px` } : undefined}
                   // Mouse-hover highlight is CSS-only (no setState on every
                   // mouseenter) — avoids re-rendering the whole list on hover.
@@ -274,9 +279,11 @@ export default function FormSelect({
                       ? 'bg-gray-50 dark:bg-slate-700'
                       : ''
                   } ${
-                    o.id === value
-                      ? 'text-primary font-medium'
-                      : 'text-gray-900 dark:text-slate-100'
+                    o.disabled
+                      ? 'text-gray-300 dark:text-slate-600 cursor-not-allowed hover:bg-transparent dark:hover:bg-transparent'
+                      : o.id === value
+                        ? 'text-primary font-medium'
+                        : 'text-gray-900 dark:text-slate-100'
                   }`}
                 >
                   {level > 0 && (

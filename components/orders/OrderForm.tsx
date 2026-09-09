@@ -2724,13 +2724,17 @@ export default function OrderForm({
         )}
 
         {/* การจัดส่ง — วันที่ + ช่วงเวลา + โซน/ค่าส่ง รวมการ์ดเดียว
-            ทั้งสามเรื่องคือ "ของชิ้นนี้ไปถึงเมื่อไหร่ ค่าเท่าไหร่" เหมือนกัน
-            แยกเป็นสามการ์ดเตี้ย ๆ ทำให้จอ desktop เหลือที่ว่างเปล่า ๆ */}
+            ทั้งสามเรื่องคือ "ของชิ้นนี้ไปถึงเมื่อไหร่ ค่าเท่าไหร่"
+            **จอกว้าง = แถวเดียว 3 ช่อง** (เจ้าของขอ 9 ก.ย. 2026) · แผงแคบ/wizard ซ้อนลงมา */}
         {(features.delivery_date.enabled || features.delivery_zone) && (
         <div ref={deliveryDateRef} className={`bg-white dark:bg-slate-800 rounded-xl ${embedded ? '' : 'border border-gray-200 dark:border-slate-700'} p-4`}>
-          <div className="space-y-4">
+          <div className={
+            narrowForm ? 'space-y-4'
+              : (features.delivery_date.enabled && features.delivery_slot && features.delivery_zone) ? 'grid grid-cols-3 gap-3 items-start'
+              : (features.delivery_date.enabled && (features.delivery_slot || features.delivery_zone)) ? 'grid grid-cols-2 gap-3 items-start'
+              : 'space-y-4'
+          }>
           {features.delivery_date.enabled && (
-          <div className={features.delivery_slot ? 'grid grid-cols-2 gap-3 items-start' : ''}>
           <div>
           <label className="field-label">
             วันที่ส่งของ {features.delivery_date.required && <span className="text-red-500">*</span>}
@@ -2740,71 +2744,45 @@ export default function OrderForm({
           </div>
           {fieldErrors.deliveryDate && <p className="text-red-500 text-xs mt-1">{fieldErrors.deliveryDate}</p>}
           </div>
+          )}
 
-          {/* ช่วงเวลาส่ง — อยู่บรรทัดเดียวกับวันที่ (ผู้ใช้ขอ 2026-08-29)
-              ช่วงที่เลือกไม่ได้แสดงจาง + บอกเหตุผล (ห้ามซ่อน) */}
           {features.delivery_slot && (
             <div>
               <label className="field-label">ช่วงเวลาส่ง</label>
-              {!deliveryDate ? (
-                <p className="text-sm text-gray-400 dark:text-slate-500">เลือกวันที่ส่งก่อน แล้วเลือกรอบเวลา</p>
-              ) : deliverySlots.length === 0 ? (
+              {/* dropdown ตัวเดียวกับช่องข้าง ๆ (สูง h-10 เท่า DateRangePicker) — เดิมเป็นข้อความลอย
+                  ก่อนเลือกวัน และเป็นชิปปุ่มหลังเลือกวัน ทั้งสองแบบไม่เรียงแนวกับกล่องวันที่
+                  (เจ้าของทัก 9 ก.ย. 2026) · ปิดไว้จนกว่าจะเลือกวัน · รอบที่ส่งไม่ทัน**เห็นแต่กดไม่ได้**
+                  พร้อมเหตุผลใน subtitle — ห้ามซ่อน · "ทั้งวัน" = ค่าว่าง */}
+              <FormSelect
+                value={selectedSlotId}
+                onChange={(v) => setSelectedSlotId(v)}
+                clearLabel="ทั้งวัน"
+                clearValue=""
+                placeholder={!deliveryDate ? 'เลือกวันที่ส่งก่อน' : 'ทั้งวัน'}
+                disabled={isReadOnly || !deliveryDate || deliverySlots.length === 0}
+                options={!deliveryDate ? [] : deliverySlots.map((slot) => {
+                  const avail = getSlotAvailability(slot, deliveryDate, activeZone);
+                  const isSelected = selectedSlotId === slot.id;
+                  // แสดงช่วงที่ส่งได้จริง (หักเวลาที่ผ่านไปแล้ว) ไม่ใช่ช่วงเต็มของรอบ
+                  const win = avail.available ? getSlotWindow(slot, deliveryDate, activeZone) : null;
+                  const range = win ? buildWindowLabel(win).replace(' น.', '') : `${formatSlotTime(slot.start_time)}-${formatSlotTime(slot.end_time)}`;
+                  const why = !avail.available && avail.reason ? ` · ${slotUnavailableLabel(avail.reason, activeZone)}` : '';
+                  return { id: slot.id, label: slot.name, subtitle: range + why, disabled: !avail.available && !isSelected };
+                })}
+              />
+              {deliveryDate && deliverySlots.length === 0 && (
                 /* ยังไม่ได้ตั้งรอบ = พาไปตั้งเลย ไม่ใช่บอกทางแล้วให้ไปหาเอง */
                 <Link
                   href="/settings/delivery?tab=slots"
                   target="_blank"
-                  className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
+                  className="mt-1 inline-flex items-center gap-1 text-sm text-primary hover:underline"
                 >
                   ยังไม่ได้ตั้งค่ารอบส่ง — ตั้งค่าเลย
                   <ExternalLink className="w-3.5 h-3.5" />
                 </Link>
-              ) : (
-                <div className="flex flex-wrap gap-2">
-                  {/* ไม่ใช่ทุกร้าน/ทุกออเดอร์ต้องระบุรอบ — ให้ "ทั้งวัน" เป็นตัวเลือกที่เห็นได้
-                      (ค่าว่าง = ทั้งวันอยู่แล้ว แต่ถ้าไม่มีปุ่มนี้ผู้ใช้จะไม่รู้ว่าไม่เลือกก็ได้) */}
-                  <button
-                    type="button"
-                    disabled={isReadOnly}
-                    onClick={() => setSelectedSlotId('')}
-                    className={`px-3 py-2 rounded-lg border text-sm transition-colors ${
-                      !selectedSlotId
-                        ? 'border-[#F4511E] bg-orange-50 dark:bg-orange-950/30 text-[#C2410C] font-medium'
-                        : 'border-gray-200 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:border-gray-300'
-                    }`}
-                  >
-                    ทั้งวัน
-                  </button>
-                  {deliverySlots.map((slot) => {
-                    const avail = getSlotAvailability(slot, deliveryDate, activeZone);
-                    const isSelected = selectedSlotId === slot.id;
-                    // แสดงช่วงที่ส่งได้จริง (หักเวลาที่ผ่านไปแล้ว) ไม่ใช่ช่วงเต็มของรอบ
-                    const win = avail.available ? getSlotWindow(slot, deliveryDate, activeZone) : null;
-                    return (
-                      <button
-                        type="button"
-                        key={slot.id}
-                        disabled={isReadOnly || (!avail.available && !isSelected)}
-                        onClick={() => setSelectedSlotId(isSelected ? '' : slot.id)}
-                        className={`px-3 py-2 rounded-lg border text-sm transition-colors ${
-                          isSelected
-                            ? 'border-[#F4511E] bg-orange-50 dark:bg-orange-950/30 text-[#C2410C] font-medium'
-                            : avail.available
-                              ? 'border-gray-200 dark:border-slate-600 text-gray-700 dark:text-slate-300 hover:border-gray-300'
-                              : 'border-gray-100 dark:border-slate-700 text-gray-300 dark:text-slate-600 cursor-not-allowed'
-                        }`}
-                      >
-                        {slot.name} · {win ? buildWindowLabel(win).replace(' น.', '') : `${formatSlotTime(slot.start_time)}-${formatSlotTime(slot.end_time)}`}
-                        {!avail.available && avail.reason && (
-                          <span className="ml-1.5 text-xs">({slotUnavailableLabel(avail.reason, activeZone)})</span>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
               )}
             </div>
           )}
-          </div>)}
 
           {features.delivery_zone && (
           <div>
