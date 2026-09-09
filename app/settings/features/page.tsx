@@ -576,8 +576,10 @@ function DeliveryFieldRow({
   disabled: boolean;
   locked: boolean;
 }) {
+  // พื้นขาว+ขอบ ไม่ใช่พื้นเทา — เทาในระบบนี้อ่านว่า "กดไม่ได้" (เจ้าของทัก 10 ก.ย. 2026)
+  // ลำดับชั้นมาจากการเยื้อง + เส้นแนวตั้งของตัวห่อ ไม่ใช่จากสีพื้น
   return (
-    <div className="bg-gray-100 dark:bg-slate-700/60 border border-gray-200 dark:border-slate-600 rounded-lg px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3">
+    <div className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded-lg px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3">
       <div className="flex items-start gap-3 min-w-0">
         {icon}
         <div className="min-w-0">
