@@ -50,6 +50,7 @@ import {
   Repeat,
   Copy,
   Mail,
+  Megaphone
 } from 'lucide-react';
 import PaymentModal from '../components/PaymentModal';
 import ShopeeShipModal from '../components/ShopeeShipModal';
@@ -1355,6 +1356,17 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
                   }
                   return rows;
                 })}
+              </div>
+            )}
+
+            {/* Meta Conversions API — ออเดอร์นี้ถูกส่งเป็น Purchase event ให้ Meta แล้ว
+                (โฆษณา Click-to-Messenger เรียนรู้จากตรงนี้ว่าบทสนทนาไหนจบด้วยการซื้อ · ส่งครั้งเดียวต่อออเดอร์) */}
+            {fullOrderData?.meta_purchase_sent_at && (
+              <div className="mt-3 pt-3 border-t border-gray-200 dark:border-slate-600 flex items-center gap-2 flex-wrap text-sm">
+                <Megaphone className="w-4 h-4 text-blue-500 dark:text-blue-400" />
+                <span className="text-blue-700 dark:text-blue-400">ส่ง Purchase ให้ Meta แล้ว</span>
+                <span className="text-gray-400 dark:text-slate-500">{formatThaiDateTime(fullOrderData.meta_purchase_sent_at)}</span>
+                <span className="text-gray-500 dark:text-slate-400">โฆษณา Click-to-Messenger ใช้เรียนรู้หาคนที่ซื้อจริง</span>
               </div>
             )}
 
