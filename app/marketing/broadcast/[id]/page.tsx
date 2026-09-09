@@ -430,6 +430,8 @@ export default function BroadcastReportPage() {
                 <BroadcastPreview
                   content={previewContent}
                   platform={isBroadcastPlatform(b.platform) ? b.platform : null}
+                  accountName={b.account_name}
+                  accountPictureUrl={b.account_picture_url}
                 />
               </div>
               {b.platform === 'line' && (

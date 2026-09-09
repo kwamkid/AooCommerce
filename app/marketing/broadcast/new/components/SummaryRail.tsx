@@ -45,6 +45,9 @@ interface Props {
   content: BroadcastContent;
   previewPlatform: BroadcastPlatform | null;
   imagePreviewUrl: string | null;
+  /** ช่องทางแรกที่เลือก — ตัวอย่างต้องมีรูปโปรไฟล์+ชื่อร้าน ไม่งั้นไม่เหมือนแชทจริง */
+  accountName: string | null;
+  accountPictureUrl: string | null;
 
   scheduled: boolean;
   sending: boolean;
@@ -159,12 +162,14 @@ export default function SummaryRail(p: Props) {
       </Card>
 
       <Card padding="md">
-        <p className="field-label mb-2">ตัวอย่างที่ลูกค้าจะเห็น</p>
+        <p className="field-label mb-2">ตัวอย่างในแชทของลูกค้า</p>
         {p.hasDraft ? (
           <BroadcastPreview
             content={p.content}
             platform={p.previewPlatform}
             imagePreviewUrl={p.imagePreviewUrl}
+            accountName={p.accountName}
+            accountPictureUrl={p.accountPictureUrl}
           />
         ) : (
           <p className="subtitle-text text-gray-400 dark:text-slate-500">

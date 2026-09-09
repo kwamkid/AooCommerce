@@ -10,7 +10,7 @@ import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
 import FormInput from '@/components/ui/FormInput';
 import FormTextarea from '@/components/ui/FormTextarea';
-import OptionCards from '@/components/ui/OptionCards';
+import OptionCards, { type OptionCardItem } from '@/components/ui/OptionCards';
 import ImageDropzone from '@/components/ui/ImageDropzone';
 import ProductImageThumb from '@/components/ui/ProductImageThumb';
 import ProductSearchInput, { type ProductSearchItem } from '@/components/ui/ProductSearchInput';
@@ -33,39 +33,64 @@ export const KIND_LABELS: Record<BroadcastContentKind, string> = {
   products: 'การ์ดสินค้า',
 };
 
-/** การ์ดเลือกชนิดเนื้อหา — preview วาดรูปทรงจริงให้เห็นว่าลูกค้าจะได้อะไร */
+/**
+ * รูปตัวอย่างในการ์ดตัวเลือก = **รูปของร่างที่ผู้ใช้กำลังทำอยู่จริง** ไม่ใช่รูปตัวอย่างสำเร็จรูป
+ * (ใส่รูปแล้วเห็นรูปตัวเองในทั้งสองแบบเลย จึงตัดสินใจได้โดยไม่ต้องกดลองแล้วกดกลับ)
+ * ยังไม่มีรูป = บล็อกเทาทรงเดียวกัน — ทรงคือสิ่งที่ต้องเทียบ ไม่ใช่ตัวรูป
+ */
+function MockImage({ src, className }: { src: string | null; className: string }) {
+  if (!src) return <div className={`${className} bg-gray-200 dark:bg-slate-600`} />;
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img src={src} alt="" className={`${className} object-cover`} />;
+}
+
+/** จุดกลมแทนรูปโปรไฟล์ร้าน — บอกว่าของชิ้นนี้มาถึงลูกค้าในห้องแชท ไม่ได้ลอยอยู่เฉย ๆ */
+function MockAvatar({ size }: { size: 'sm' | 'md' }) {
+  return (
+    <div
+      className={`${size === 'sm' ? 'w-3 h-3' : 'w-4 h-4'} rounded-full bg-gray-300 dark:bg-slate-500 flex-shrink-0`}
+    />
+  );
+}
+
+/** แถบตัวหนังสือจำลองบนการ์ด */
+function MockLine({ className }: { className?: string }) {
+  return <div className={`h-1 rounded bg-gray-300 dark:bg-slate-500 ${className || ''}`} />;
+}
+
+/**
+ * การ์ดเลือกชนิดเนื้อหา — วาดทรงเดียวกับตัวอย่างจริงในแชท (avatar+ฟอง · รูปเต็ม ·
+ * แบนเนอร์+ปุ่ม · การ์ดสินค้าสองใบ) · **ปุ่มบนมอคเป็นเขียว LINE ไม่ใช่สีส้มของเรา**
+ * เพราะของจริงที่ลูกค้าเห็นเป็นเขียว
+ */
 const KIND_CARDS: Record<BroadcastContentKind, { label: string; description: string; preview: React.ReactNode }> = {
   announce: {
     label: KIND_LABELS.announce,
     description: 'ข้อความ + รูป',
     preview: (
-      <div className="w-full space-y-1">
-        <div className="h-1.5 rounded bg-gray-300 dark:bg-slate-500" />
-        <div className="h-1.5 w-3/4 rounded bg-gray-300 dark:bg-slate-500" />
-        <div className="h-5 rounded bg-gray-200 dark:bg-slate-600" />
+      <div className="w-full flex items-start gap-1">
+        <MockAvatar size="sm" />
+        <div className="flex-1 min-w-0 rounded-md rounded-tl-sm bg-white dark:bg-slate-800 p-1 space-y-1">
+          <MockLine />
+          <MockLine className="w-2/3" />
+        </div>
       </div>
     ),
   },
   poster: {
     label: KIND_LABELS.poster,
     description: 'รูปเต็มจอ กดไปลิงก์',
-    preview: (
-      // รูปเต็มกรอบ + หัวลูกศรมุมขวาล่าง = แตะแล้วออกไปที่ลิงก์
-      <div className="w-full relative rounded border border-gray-300 dark:border-slate-500 overflow-hidden">
-        <div className="h-10 bg-gray-200 dark:bg-slate-600" />
-        <span className="absolute bottom-1.5 right-1.5 w-2 h-2 border-t-2 border-r-2 border-primary rotate-45" />
-      </div>
-    ),
+    preview: <div className="w-full h-10 rounded-md bg-gray-200 dark:bg-slate-600" />,
   },
   promo: {
     label: KIND_LABELS.promo,
     description: 'หัวข้อ + ข้อความ + ปุ่ม',
     preview: (
-      <div className="w-full rounded border border-gray-300 dark:border-slate-500 overflow-hidden">
+      <div className="w-full rounded-md bg-white dark:bg-slate-800 overflow-hidden">
         <div className="h-4 bg-gray-200 dark:bg-slate-600" />
         <div className="p-1 space-y-1">
-          <div className="h-1.5 w-2/3 rounded bg-gray-300 dark:bg-slate-500" />
-          <div className="h-2.5 rounded bg-primary/70" />
+          <MockLine className="w-2/3" />
+          <div className="h-1.5 rounded bg-line" />
         </div>
       </div>
     ),
@@ -74,73 +99,86 @@ const KIND_CARDS: Record<BroadcastContentKind, { label: string; description: str
     label: KIND_LABELS.products,
     description: 'เลื่อนดู กดสั่งเลย',
     preview: (
-      <div className="w-full flex gap-1">
-        {[0, 1, 2].map(i => (
-          <div key={i} className="flex-1 rounded border border-gray-300 dark:border-slate-500 overflow-hidden">
-            <div className="h-3.5 bg-gray-200 dark:bg-slate-600" />
-            <div className="p-0.5"><div className="h-1.5 rounded bg-gray-300 dark:bg-slate-500" /></div>
-          </div>
+      <div className="w-full flex justify-center gap-1">
+        {[0, 1].map(i => (
+          <div key={i} className="w-8 h-8 rounded-md bg-gray-200 dark:bg-slate-600" />
         ))}
       </div>
     ),
   },
 };
 
-/** รูปของ "ประกาศ" แสดงยังไง — วาดฟองแชทจริงให้เทียบ ไม่ใช่บรรยายเป็นคำ */
-const IMAGE_STYLE_CARDS: { id: 'bubble' | 'rich'; label: string; description: string; preview: React.ReactNode }[] = [
-  {
-    id: 'bubble',
-    label: 'รูปธรรมดา',
-    description: 'ฟองรูปเหมือนส่งในแชท',
-    preview: (
-      <div className="w-full flex justify-end">
-        <div className="rounded-lg bg-gray-300 dark:bg-slate-500 p-1">
-          <div className="w-6 h-5 rounded bg-gray-100 dark:bg-slate-700" />
-        </div>
-      </div>
-    ),
-  },
-  {
-    id: 'rich',
-    label: 'rich message',
-    description: 'รูปเต็มจอ กดไปลิงก์ได้',
-    preview: <div className="w-full h-10 rounded bg-gray-200 dark:bg-slate-600" />,
-  },
-];
-
-/** การ์ดสินค้าแสดงยังไง */
-const CARD_STYLE_CARDS: { id: 'image' | 'detail'; label: string; description: string; preview: React.ReactNode }[] = [
-  {
-    id: 'image',
-    label: 'รูปเต็ม',
-    description: 'รูป + ราคาลอย กดไปลิงก์',
-    preview: (
-      <div className="w-full flex justify-center">
-        <div className="w-9 relative rounded border border-gray-300 dark:border-slate-500 overflow-hidden">
-          <div className="w-9 h-9 bg-gray-200 dark:bg-slate-600" />
-          <div className="absolute bottom-1 left-1 right-1 h-1.5 rounded-full bg-gray-500 dark:bg-slate-300" />
-        </div>
-      </div>
-    ),
-  },
-  {
-    id: 'detail',
-    label: 'มีชื่อ + ปุ่ม',
-    description: 'รูป + ชื่อ + ราคา + ปุ่มสั่งเลย',
-    preview: (
-      <div className="w-full flex justify-center">
-        <div className="w-9 rounded border border-gray-300 dark:border-slate-500 overflow-hidden">
-          <div className="h-5 bg-gray-200 dark:bg-slate-600" />
-          <div className="p-0.5 space-y-0.5">
-            <div className="h-1 rounded bg-gray-300 dark:bg-slate-500" />
-            <div className="h-1 w-2/3 rounded bg-gray-300 dark:bg-slate-500" />
-            <div className="h-1.5 rounded bg-primary/70" />
+/**
+ * รูปของ "ประกาศ" แสดงยังไง — ฟองรูปเล็กในห้องแชท vs รูปใหญ่เต็มความกว้าง
+ * รับรูปของร่างเข้ามาวาดจริง ไม่ใช่บล็อกเทาเสมอไป
+ */
+function imageStyleCards(sampleImageUrl: string | null): OptionCardItem<'bubble' | 'rich'>[] {
+  return [
+    {
+      id: 'bubble',
+      label: 'รูปธรรมดา',
+      description: 'ฟองรูปเหมือนแอดมินส่งรูปในแชท',
+      preview: (
+        <div className="w-full h-full p-2 flex items-start gap-1.5">
+          <MockAvatar size="md" />
+          <div className="flex-1 min-w-0">
+            <div className="w-fit rounded-lg rounded-tl-sm bg-white dark:bg-slate-800 p-1">
+              <MockImage src={sampleImageUrl} className="w-16 h-12 rounded" />
+            </div>
           </div>
         </div>
-      </div>
-    ),
-  },
-];
+      ),
+    },
+    {
+      id: 'rich',
+      label: 'rich message',
+      description: 'รูปใหญ่เต็มความกว้าง กดไปลิงก์ได้',
+      preview: (
+        <div className="w-full h-full p-2 flex items-center">
+          <MockImage src={sampleImageUrl} className="w-full h-16 rounded-lg" />
+        </div>
+      ),
+    },
+  ];
+}
+
+/** การ์ดสินค้าแสดงยังไง — เลื่อนดูได้ทั้งคู่ ต่างกันที่ "มีตัวหนังสือใต้รูปไหม" */
+function cardStyleCards(sampleImageUrl: string | null): OptionCardItem<'image' | 'detail'>[] {
+  return [
+    {
+      id: 'image',
+      label: 'รูปเต็ม',
+      description: 'รูป + ราคาลอยบนรูป กดไปลิงก์',
+      preview: (
+        // ใบที่สองโผล่มาครึ่งเดียว = เลื่อนดูต่อได้ (กรอบพรีวิวครอบส่วนเกินให้เอง)
+        <div className="w-full h-full p-2 flex items-center gap-1">
+          <div className="relative flex-shrink-0">
+            <MockImage src={sampleImageUrl} className="w-14 h-14 rounded-lg" />
+            <div className="absolute bottom-1 left-3 right-3 h-1.5 rounded-full bg-black/60" />
+          </div>
+          <MockImage src={sampleImageUrl} className="w-14 h-14 rounded-lg flex-shrink-0" />
+        </div>
+      ),
+    },
+    {
+      id: 'detail',
+      label: 'มีชื่อ + ปุ่ม',
+      description: 'รูป + ชื่อ + ราคา + ปุ่มสั่งเลย',
+      preview: (
+        <div className="w-full h-full p-2 flex items-center justify-center">
+          <div className="w-12 rounded-lg bg-white dark:bg-slate-800 overflow-hidden">
+            <MockImage src={sampleImageUrl} className="w-12 h-12" />
+            <div className="p-1 space-y-1">
+              <MockLine />
+              <MockLine className="w-2/3" />
+              <div className="h-1.5 rounded bg-line" />
+            </div>
+          </div>
+        </div>
+      ),
+    },
+  ];
+}
 
 interface Props {
   compose: BroadcastCompose;
@@ -160,6 +198,8 @@ interface Props {
   onImageFileChange: (f: File | null) => void;
   /** รูปของใบที่คัดลอกมา — โชว์เป็นพรีวิวจนกว่าจะเลือกไฟล์ใหม่ */
   existingImageUrl: string | null;
+  /** รูปที่เห็นอยู่ตอนนี้ (blob ของไฟล์ที่เพิ่งเลือก หรือรูปเดิม) — เอาไปวาดในการ์ดตัวเลือกด้วย */
+  imagePreviewUrl: string | null;
   /** ประกาศ: รูปเป็นฟองรูปธรรมดา หรือรูปเต็มความกว้างห้องแชทที่กดได้ */
   imageStyle: 'bubble' | 'rich';
   onImageStyleChange: (v: 'bubble' | 'rich') => void;
@@ -188,7 +228,7 @@ interface Props {
 export default function ContentStep({
   compose, platformLabel, showCreditNote,
   kind, onKindChange, title, onTitleChange, text, onTextChange,
-  imageFile, onImageFileChange, existingImageUrl,
+  imageFile, onImageFileChange, existingImageUrl, imagePreviewUrl,
   imageStyle, onImageStyleChange, linkUrl, onLinkUrlChange, cardStyle, onCardStyleChange,
   buttons, onButtonsChange, cards, onCardsChange, quickReplies, onQuickRepliesChange,
   productResults, productLoading, onProductSearch, onAddProduct,
@@ -312,7 +352,9 @@ export default function ContentStep({
                   value={imageStyle}
                   onChange={onImageStyleChange}
                   disabled={disabled}
-                  options={IMAGE_STYLE_CARDS}
+                  layout="horizontal"
+                  columns={2}
+                  options={imageStyleCards(imagePreviewUrl || existingImageUrl)}
                 />
                 {imageStyle === 'rich' && linkField}
               </>
@@ -389,7 +431,9 @@ export default function ContentStep({
                 value={cardStyle}
                 onChange={onCardStyleChange}
                 disabled={disabled}
-                options={CARD_STYLE_CARDS}
+                layout="horizontal"
+                columns={2}
+                options={cardStyleCards(cards[0]?.image_url ?? null)}
               />
             </div>
             <p className="field-label mb-1">สินค้า (สูงสุด {compose.productsMax} ชิ้น)</p>

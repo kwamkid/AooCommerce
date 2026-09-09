@@ -27,6 +27,8 @@ const config: Config = {
         tiktok: '#161823',
         instagram: '#E4405F',
         line: '#06C755',
+        // พื้นหลังห้องแชท LINE ค่าเริ่มต้น — ใช้เฉพาะกล่องตัวอย่างบรอดแคสต์
+        linechat: '#8CABD9',
         facebook: {
           DEFAULT: '#1877F2',
           hover: '#1565C0',

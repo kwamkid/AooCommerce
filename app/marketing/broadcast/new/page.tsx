@@ -744,6 +744,7 @@ export default function NewBroadcastPage() {
                       if (!f) setExistingImageUrl(null);
                     }}
                     existingImageUrl={existingImageUrl}
+                    imagePreviewUrl={imagePreviewUrl ?? existingImageUrl}
                     imageStyle={imageStyle}
                     onImageStyleChange={setImageStyle}
                     linkUrl={linkUrl}
@@ -807,6 +808,8 @@ export default function NewBroadcastPage() {
             content={draftContent}
             previewPlatform={singlePlatform}
             imagePreviewUrl={imagePreviewUrl ?? existingImageUrl}
+            accountName={selectedAccounts[0]?.name ?? null}
+            accountPictureUrl={selectedAccounts[0]?.picture_url ?? null}
             scheduled={sendMode === 'schedule'}
             sending={sending}
             canNext={canNext}

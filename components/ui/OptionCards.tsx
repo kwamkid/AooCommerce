@@ -9,39 +9,111 @@ import type { ReactNode } from 'react';
 import { Check } from 'lucide-react';
 
 export interface OptionCardItem<T extends string = string> {
+  /**
+   * ภาพตัวอย่างของตัวเลือกนี้ — วาดด้วย div/svg ตามจริง ไม่ใช่ไอคอนสื่อความ
+   *
+   * ส่งรูปตัวอย่างจริง (screenshot) เป็น `<img className="w-full h-full object-cover">` ได้
+   * — layout `horizontal` มีกรอบ overflow-hidden ครอบให้อยู่แล้ว รูปจึงเต็มกรอบพอดีโดยไม่ล้น
+   */
   id: T;
   label: string;
   description?: string;
-  /** ภาพตัวอย่างของตัวเลือกนี้ — วาดด้วย div/svg ตามจริง ไม่ใช่ไอคอนสื่อความ */
   preview?: ReactNode;
 }
+
+/**
+ * stacked    = พรีวิวอยู่บน ตัวหนังสืออยู่ล่าง (ค่าเดิม — ตัวเลือกสั้น ๆ หลายอันเรียงกัน)
+ * horizontal = พรีวิวอยู่ซ้าย ตัวหนังสืออยู่ขวา — ใช้เมื่อพรีวิวต้องใหญ่พอจะ "ดูออก"
+ *              ว่าต่างกันตรงไหน (เช่นรูปแบบข้อความที่ลูกค้าจะเห็นในแชท)
+ */
+export type OptionCardsLayout = 'stacked' | 'horizontal';
 
 interface OptionCardsProps<T extends string> {
   value: T;
   onChange: (id: T) => void;
   options: OptionCardItem<T>[];
   label?: string;
-  /** จำนวนคอลัมน์บนจอกว้าง (ค่าเริ่มต้น = จำนวนตัวเลือก) */
+  /** จำนวนคอลัมน์บนจอกว้าง (ค่าเริ่มต้น: stacked = จำนวนตัวเลือก · horizontal = 1 แถวต่อบรรทัด) */
   columns?: number;
+  layout?: OptionCardsLayout;
   disabled?: boolean;
 }
 
+/** คลาสคอลัมน์แบบคงที่ — Tailwind ต้องเห็นชื่อคลาสในซอร์ส (ประกอบสตริงตอนรันไม่ได้) */
+const STACKED_COLS: Record<number, string> = {
+  1: 'grid-cols-1',
+  2: 'grid-cols-2',
+  3: 'grid-cols-3',
+  4: 'grid-cols-4',
+};
+
+/** แนวนอนกินความกว้างมาก — จอแคบเรียงลงมาทีละแถวเสมอ แล้วค่อยแตกคอลัมน์บนจอกว้าง */
+const HORIZONTAL_COLS: Record<number, string> = {
+  1: 'grid-cols-1',
+  2: 'grid-cols-1 md:grid-cols-2',
+  3: 'grid-cols-1 md:grid-cols-3',
+  4: 'grid-cols-1 md:grid-cols-4',
+};
+
 export default function OptionCards<T extends string>({
-  value, onChange, options, label, columns, disabled,
+  value, onChange, options, label, columns, layout = 'stacked', disabled,
 }: OptionCardsProps<T>) {
-  const cols = columns ?? options.length;
+  const horizontal = layout === 'horizontal';
+  const cols = Math.min(columns ?? (horizontal ? 1 : options.length), 4);
+  const colClass = (horizontal ? HORIZONTAL_COLS : STACKED_COLS)[cols] || 'grid-cols-1';
 
   return (
     <div>
       {label && <label className="field-label">{label}</label>}
       <div
-        className="grid gap-1.5"
-        style={{ gridTemplateColumns: `repeat(${Math.min(cols, 4)}, minmax(0, 1fr))` }}
+        className={`grid gap-1.5 ${colClass}`}
         role="radiogroup"
         aria-label={label}
       >
         {options.map(opt => {
           const active = opt.id === value;
+          // สีการเลือกอยู่ที่ .choice-card / .choice-card-active ใน globals.css (ชุดเดียวกับการ์ด Radio/Checkbox)
+          const base = `choice-card relative disabled:opacity-50 disabled:cursor-not-allowed ${
+            active ? 'choice-card-active ring-1 ring-primary' : ''
+          }`;
+          const check = active && (
+            <span className="absolute top-1 right-1 w-3.5 h-3.5 rounded-full bg-primary text-white flex items-center justify-center">
+              <Check className="w-2.5 h-2.5" strokeWidth={3.5} />
+            </span>
+          );
+          const labelClass = active ? 'text-orange-700' : 'text-gray-700 dark:text-slate-300';
+
+          if (horizontal) {
+            return (
+              <button
+                key={opt.id}
+                type="button"
+                role="radio"
+                aria-checked={active}
+                disabled={disabled}
+                onClick={() => onChange(opt.id)}
+                className={`${base} flex items-center gap-3 p-2 pr-5 text-left`}
+              >
+                {check}
+                {opt.preview && (
+                  <span className="w-32 h-24 flex-shrink-0 rounded-md overflow-hidden bg-gray-100 dark:bg-slate-700 flex items-center justify-center">
+                    {opt.preview}
+                  </span>
+                )}
+                <span className="flex-1 min-w-0">
+                  <span className={`block body-text font-medium leading-tight ${labelClass}`}>
+                    {opt.label}
+                  </span>
+                  {opt.description && (
+                    <span className="block subtitle-text text-gray-500 dark:text-slate-400 leading-tight mt-1">
+                      {opt.description}
+                    </span>
+                  )}
+                </span>
+              </button>
+            );
+          }
+
           return (
             <button
               key={opt.id}
@@ -50,24 +122,17 @@ export default function OptionCards<T extends string>({
               aria-checked={active}
               disabled={disabled}
               onClick={() => onChange(opt.id)}
-              // สีการเลือกอยู่ที่ .choice-card / .choice-card-active ใน globals.css (ชุดเดียวกับการ์ด Radio/Checkbox)
-              className={`choice-card relative flex flex-col items-center gap-1.5 px-2 py-2.5 text-center disabled:opacity-50 disabled:cursor-not-allowed ${
-                active ? 'choice-card-active ring-1 ring-primary' : ''
-              }`}
+              className={`${base} flex flex-col items-center gap-1.5 px-2 py-2.5 text-center`}
             >
-              {active && (
-                <span className="absolute top-1 right-1 w-3.5 h-3.5 rounded-full bg-primary text-white flex items-center justify-center">
-                  <Check className="w-2.5 h-2.5" strokeWidth={3.5} />
-                </span>
-              )}
+              {check}
               {opt.preview && (
                 <span className="flex items-center justify-center h-12 w-full">{opt.preview}</span>
               )}
-              <span className={`subtitle-text font-medium leading-tight ${active ? 'text-orange-700' : 'text-gray-700 dark:text-slate-300'}`}>
+              <span className={`subtitle-text font-medium leading-tight ${labelClass}`}>
                 {opt.label}
               </span>
               {opt.description && (
-                <span className="text-gray-400 leading-tight" style={{ fontSize: 11 }}>{opt.description}</span>
+                <span className="helper-text text-gray-400 leading-tight">{opt.description}</span>
               )}
             </button>
           );

@@ -5,28 +5,51 @@
 //
 // อยู่ใน components/ ไม่ใช่ในโฟลเดอร์หน้าสร้าง เพราะหน้ารายงานต้องเรียกตัวเดียวกัน —
 // ก๊อปไปวาดเองแล้วสองหน้าจะแสดงคนละอย่างทั้งที่เป็นข้อความใบเดียวกัน
+//
+// ⚠️ วาดเป็น "ห้องแชทของลูกค้า" ไม่ใช่กล่องข้อความลอย ๆ — ของที่เราส่งไปเป็น
+// **ข้อความขาเข้า**ของลูกค้า จึงชิดซ้าย มีรูปโปรไฟล์ร้านนำหน้า และฟองเป็นสีขาว
+// (เคยวาดชิดขวาเป็นฟองสีแบรนด์ = ฝั่งที่ลูกค้าพิมพ์เอง ผู้ใช้อ่านแล้วไม่เชื่อว่าเป็นของจริง)
+//
+// ⚠️ **ปุ่มบนการ์ดเป็นสีเขียว LINE ไม่ใช่สีส้มของแบรนด์เรา** — เทียบกับรูปแคปจริงแล้ว
+// LINE วาดปุ่ม Flex `primary` เป็นเขียวตัวหนังสือขาว และ `secondary` เป็นเทาอ่อนตัวหนังสือเข้ม
+// ตัวอย่างที่ใช้สีเราจะสวยกว่าของจริง = ผู้ใช้ตั้งความคาดหวังผิดตั้งแต่ยังไม่ส่ง
+//
+// พื้นหลังห้องแชทตรึงเป็นสีเดียวทั้งธีมสว่าง/มืด ของข้างในจึงไม่ต้องมี dark: อีก
 'use client';
 
-import Badge from '@/components/ui/Badge';
 import ProductImageThumb from '@/components/ui/ProductImageThumb';
-import { formatPrice } from '@/lib/utils/format';
+import UserAvatar from '@/components/ui/UserAvatar';
 import { thumbUrl } from '@/lib/image-thumb';
 import { discountPercent, type BroadcastContent } from '@/lib/broadcast/content';
-import type { BroadcastPlatform } from '@/lib/broadcast/platforms';
+import { BROADCAST_PLATFORMS, type BroadcastPlatform } from '@/lib/broadcast/platforms';
 
 export interface BroadcastPreviewProps {
   content: BroadcastContent;
-  /** สีฟองข้อความตามแบรนด์ของช่องทาง — null (หลายช่องทาง/ยังไม่เลือก) = เทาเข้ม */
+  /** ช่องทางที่จะส่ง — null (หลายช่องทาง/ยังไม่เลือก) = ไม่มีชื่อสำรองให้หัวข้อความ */
   platform: BroadcastPlatform | null;
   /** blob/object URL ของรูปที่ยังไม่ได้อัปโหลด — ไม่มีก็ตกไปใช้ content.image_url */
   imagePreviewUrl?: string | null;
+  /** ชื่อร้าน/OA/เพจที่ลูกค้าเห็นเหนือฟองแรก */
+  accountName?: string | null;
+  /** รูปโปรไฟล์ของช่องทาง — ไม่มีก็ตกไปเป็นตัวอักษรแรกของชื่อ */
+  accountPictureUrl?: string | null;
   className?: string;
 }
 
+/** ฟองข้อความขาเข้า — ขาว มุมบนซ้ายตัดสั้นเหมือนหางฟองของ LINE */
+const BUBBLE = 'w-fit max-w-full rounded-2xl rounded-tl-md px-3.5 py-2 bg-white text-gray-900';
+/** ปุ่มใบแรกของการ์ด = สิ่งที่อยากให้กดที่สุด — LINE วาดเป็นเขียวทึบ */
+const BTN_PRIMARY = 'block bg-line text-white rounded-lg py-2 text-center subtitle-text font-medium';
+const BTN_SECONDARY = 'block bg-gray-200 text-gray-800 rounded-lg py-2 text-center subtitle-text';
+
+/** ราคาแบบที่ร้านเขียนบนการ์ดจริง — "1,990.-" */
+function priceLabel(value: number): string {
+  return `${value.toLocaleString('th-TH')}.-`;
+}
+
 export default function BroadcastPreview({
-  content, platform, imagePreviewUrl, className,
+  content, platform, imagePreviewUrl, accountName, accountPictureUrl, className,
 }: BroadcastPreviewProps) {
-  const bubbleClass = platform === 'line' ? 'bg-line' : 'bg-gray-900';
   const imageUrl = imagePreviewUrl || content.image_url || null;
   const title = (content.title || '').trim();
   const text = (content.text || '').trim();
@@ -35,146 +58,162 @@ export default function BroadcastPreview({
   const quickReplies = (content.quick_replies || []).filter(q => q.trim());
   const imageStyle = content.image_style === 'rich' ? 'rich' : 'bubble';
   const cardStyle = content.card_style === 'image' ? 'image' : 'detail';
+  // ไม่รู้ชื่อร้านก็ยังต้องมีอะไรสักอย่างเหนือฟอง — ตกไปใช้ชื่อช่องทาง
+  const senderName = (accountName || '').trim() || (platform ? BROADCAST_PLATFORMS[platform].label : '');
 
   return (
-    <div className={`rounded-lg bg-gray-100 dark:bg-slate-800 p-3 space-y-2 ${className || ''}`}>
-      {content.kind === 'poster' ? (
-        // โปสเตอร์ = รูปเต็มความกว้างห้องแชท ไม่มีอะไรอยู่ข้างนอกรูปเลย
-        imageUrl && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={imageUrl} alt="โปสเตอร์" className="w-full h-auto rounded-xl overflow-hidden" />
-        )
-      ) : content.kind === 'products' ? (
-        <>
-          {text && (
-            <div className={`ml-auto w-fit max-w-full rounded-2xl px-3.5 py-2 text-white ${bubbleClass}`}>
-              <p className="subtitle-text whitespace-pre-wrap break-words">{text}</p>
-            </div>
-          )}
-          <div className="flex gap-2 overflow-x-auto pb-1">
-            {cards.map((c, i) => {
-              const off = discountPercent(c);
-              // แบบรูปเต็ม: รูปจัตุรัส + ป้ายลดมุมซ้ายบน + ราคาลอยกลางล่าง ไม่มีตัวหนังสือใต้รูป
-              if (cardStyle === 'image') {
-                return (
-                  <div
-                    key={c.variation_id ?? i}
-                    className="w-32 flex-shrink-0 relative rounded-xl overflow-hidden bg-gray-100 dark:bg-slate-600"
-                  >
-                    {c.image_url ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={thumbUrl(c.image_url, 320)}
-                        alt={c.name}
-                        className="w-full aspect-square object-cover"
-                      />
-                    ) : (
-                      <div className="w-full aspect-square flex items-center justify-center">
-                        <ProductImageThumb src={null} alt={c.name} size="md" />
-                      </div>
-                    )}
-                    {off !== null && (
-                      <Badge tone="orange" size="sm" className="absolute top-1 left-1">ลด {off}%</Badge>
-                    )}
-                    {c.price != null && (
-                      <span className="absolute bottom-2 left-0 right-0 flex justify-center">
-                        <span className="bg-black/60 text-white rounded-full px-2 py-0.5 subtitle-text font-semibold">
-                          {formatPrice(c.price)}
-                        </span>
-                      </span>
-                    )}
-                  </div>
-                );
-              }
-              return (
-                <div
-                  key={c.variation_id ?? i}
-                  className="w-28 flex-shrink-0 rounded-xl bg-white dark:bg-slate-700 border border-gray-200 dark:border-slate-600 overflow-hidden"
-                >
-                  <div className="relative h-20 bg-gray-100 dark:bg-slate-600 flex items-center justify-center">
-                    <ProductImageThumb src={c.image_url} alt={c.name} size="md" />
-                    {off !== null && (
-                      <Badge tone="orange" size="sm" className="absolute top-1 left-1">ลด {off}%</Badge>
-                    )}
-                  </div>
-                  <div className="p-1.5">
-                    <p className="helper-text text-gray-900 dark:text-white line-clamp-2">{c.name}</p>
-                    <p className="helper-text text-gray-500 dark:text-slate-400 mt-0.5">
-                      {c.price != null ? formatPrice(c.price) : ''}
-                    </p>
-                    {/* ปุ่มทึบเหมือน footer ของ Flex — สิ่งที่อยากให้ลูกค้ากดที่สุดในการ์ด */}
-                    <p className="helper-text text-center mt-1 py-0.5 rounded bg-primary text-white">
-                      {c.url ? 'สั่งเลย' : 'สนใจสินค้านี้'}
-                    </p>
-                  </div>
+    <div className={`rounded-lg overflow-hidden bg-linechat p-3 ${className || ''}`}>
+      <div className="flex gap-2 items-start">
+        <UserAvatar name={senderName || null} src={accountPictureUrl} size="sm" />
+
+        <div className="flex-1 min-w-0 space-y-1.5">
+          {senderName && <p className="helper-text text-white/90 truncate">{senderName}</p>}
+
+          {content.kind === 'poster' ? (
+            // โปสเตอร์ = รูปเต็มความกว้างห้องแชท ไม่มีอะไรอยู่ข้างนอกรูปเลย
+            imageUrl && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={imageUrl} alt="โปสเตอร์" className="w-full h-auto rounded-xl" />
+            )
+          ) : content.kind === 'products' ? (
+            <>
+              {text && (
+                <div className={BUBBLE}>
+                  <p className="subtitle-text whitespace-pre-wrap break-words">{text}</p>
                 </div>
-              );
-            })}
-          </div>
-        </>
-      ) : content.kind === 'promo' ? (
-        <div className="ml-auto w-full rounded-xl bg-white dark:bg-slate-700 border border-gray-200 dark:border-slate-600 overflow-hidden">
-          {imageUrl && (
-            // สูงตามรูปจริง ไม่ครอบ — การ์ด Flex ที่ส่งออกไปใช้สัดส่วนของรูปเหมือนกัน
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={imageUrl} alt="แบนเนอร์" className="w-full h-auto" />
+              )}
+              {/* การ์ดกว้าง 80% ของห้อง — ใบถัดไปโผล่มาให้เห็นว่าเลื่อนดูต่อได้ */}
+              <div className="flex gap-2 overflow-x-auto pb-1">
+                {cards.map((c, i) => {
+                  const off = discountPercent(c);
+                  const badge = off !== null && (
+                    <span className="absolute top-2 left-2 bg-primary text-white rounded-full px-3 py-0.5 subtitle-text font-semibold">
+                      ลด {off}%
+                    </span>
+                  );
+                  const square = c.image_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={thumbUrl(c.image_url, 320)}
+                      alt={c.name}
+                      className="w-full aspect-square object-cover"
+                    />
+                  ) : (
+                    <div className="w-full aspect-square bg-gray-100 flex items-center justify-center">
+                      <ProductImageThumb src={null} alt={c.name} size="md" />
+                    </div>
+                  );
+
+                  // แบบรูปเต็ม: รูปจัตุรัส + ป้ายลดมุมซ้ายบน + ราคาลอยกลางล่าง ไม่มีตัวหนังสือใต้รูป
+                  if (cardStyle === 'image') {
+                    return (
+                      <div
+                        key={c.variation_id ?? i}
+                        className="w-4/5 flex-shrink-0 relative rounded-xl overflow-hidden bg-white"
+                      >
+                        {square}
+                        {badge}
+                        {c.price != null && (
+                          <span className="absolute bottom-3 left-0 right-0 flex justify-center">
+                            <span className="bg-black/60 text-white rounded-full px-4 py-1 body-text font-bold">
+                              {priceLabel(c.price)}
+                            </span>
+                          </span>
+                        )}
+                      </div>
+                    );
+                  }
+                  return (
+                    <div
+                      key={c.variation_id ?? i}
+                      className="w-4/5 flex-shrink-0 rounded-xl bg-white border border-gray-200 overflow-hidden"
+                    >
+                      <div className="relative">
+                        {square}
+                        {badge}
+                      </div>
+                      <div className="p-3">
+                        <p className="body-text font-semibold text-gray-900 line-clamp-2">{c.name}</p>
+                        <span className="flex items-baseline gap-2 mt-0.5">
+                          {c.price != null && (
+                            <span className="subtitle-text text-gray-900">{priceLabel(c.price)}</span>
+                          )}
+                          {/* ราคาก่อนลดขีดฆ่า — โชว์เฉพาะตอนลดจริง ไม่งั้นเป็นการอวดส่วนลดที่ไม่มี */}
+                          {off !== null && c.compare_at_price != null && (
+                            <span className="subtitle-text line-through text-gray-400">
+                              {priceLabel(c.compare_at_price)}
+                            </span>
+                          )}
+                        </span>
+                        <p className={`${BTN_PRIMARY} mt-3`}>
+                          {c.url ? 'สั่งเลย' : 'สนใจสินค้านี้'}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          ) : content.kind === 'promo' ? (
+            <div className="w-full rounded-xl bg-white border border-gray-200 overflow-hidden">
+              {imageUrl && (
+                // สูงตามรูปจริง ไม่ครอบ — การ์ด Flex ที่ส่งออกไปใช้สัดส่วนของรูปเหมือนกัน
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={imageUrl} alt="แบนเนอร์" className="w-full h-auto" />
+              )}
+              <div className="p-3">
+                {title && <p className="body-text font-semibold text-gray-900">{title}</p>}
+                {text && (
+                  <p className="subtitle-text text-gray-600 mt-1 whitespace-pre-wrap break-words">
+                    {text}
+                  </p>
+                )}
+                {/* เรียงเหมือน footer ของ Flex — ใบแรกเขียวทึบ ที่เหลือเทาอ่อน */}
+                {buttons.length > 0 && (
+                  <div className="space-y-2 mt-3">
+                    {buttons.map((b, i) => (
+                      <p key={i} className={i === 0 ? BTN_PRIMARY : BTN_SECONDARY}>{b.label}</p>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : (
+            <>
+              {(title || text) && (
+                <div className={`${BUBBLE} space-y-1.5`}>
+                  {title && <p className="subtitle-text font-semibold break-words">{title}</p>}
+                  {text && <p className="subtitle-text whitespace-pre-wrap break-words">{text}</p>}
+                </div>
+              )}
+              {/* รูปธรรมดา = ฟองรูปแยกใบ ไม่เต็มความกว้างห้อง เหมือนแอดมินส่งรูปในแชท */}
+              {imageUrl && imageStyle !== 'rich' && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={imageUrl} alt="ตัวอย่างรูปที่จะส่ง" className="w-8/12 h-auto rounded-2xl" />
+              )}
+              {/* รูปเต็มจอ = กว้างเต็มห้องแชท */}
+              {imageUrl && imageStyle === 'rich' && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={imageUrl} alt="ตัวอย่างรูปที่จะส่ง" className="w-full h-auto rounded-xl" />
+              )}
+            </>
           )}
-          <div className="p-2.5">
-            {title && <p className="body-text font-semibold text-gray-900 dark:text-white">{title}</p>}
-            {text && (
-              <p className="helper-text text-gray-600 dark:text-slate-300 mt-0.5 whitespace-pre-wrap break-words">
-                {text}
-              </p>
-            )}
-          </div>
-          {/* เรียงเหมือน footer ของ Flex — ปุ่มแรกทึบ (สิ่งที่อยากให้กดที่สุด) ที่เหลือเป็นปุ่มรอง */}
-          {buttons.length > 0 && (
-            <div className="p-2.5 space-y-1.5">
-              {buttons.map((b, i) => (
-                <p
+
+          {/* ปุ่มตอบเร็วอยู่ท้ายสุดของห้อง ชิดขวาเหมือนที่ LINE วางให้ลูกค้ากด */}
+          {quickReplies.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 justify-end pt-0.5">
+              {quickReplies.map((q, i) => (
+                <span
                   key={i}
-                  className={i === 0
-                    ? 'subtitle-text font-medium text-center py-1.5 rounded-md bg-primary text-white'
-                    : 'subtitle-text text-center py-1.5 rounded-md border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-200'}
+                  className="helper-text px-2 py-0.5 rounded-full bg-white border border-gray-300 text-gray-800"
                 >
-                  {b.label}
-                </p>
+                  {q}
+                </span>
               ))}
             </div>
           )}
         </div>
-      ) : (
-        <>
-          <div className={`ml-auto w-fit max-w-full rounded-2xl px-3.5 py-2 text-white space-y-1.5 ${bubbleClass}`}>
-            <p className="helper-text text-white/80">📣 บรอดแคสต์</p>
-            {title && <p className="subtitle-text font-semibold break-words">{title}</p>}
-            {text && <p className="subtitle-text whitespace-pre-wrap break-words">{text}</p>}
-            {/* รูปธรรมดาอยู่ในฟองเหมือนที่แอดมินส่งรูปในแชท */}
-            {imageUrl && imageStyle !== 'rich' && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={imageUrl} alt="ตัวอย่างรูปที่จะส่ง" className="rounded-lg max-h-40 w-auto" />
-            )}
-          </div>
-          {/* รูปเต็มจอเป็นข้อความแยกใบใต้ฟอง — กว้างเต็มห้องแชท ไม่ได้อยู่ในฟอง */}
-          {imageUrl && imageStyle === 'rich' && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={imageUrl} alt="ตัวอย่างรูปที่จะส่ง" className="w-full h-auto rounded-xl overflow-hidden" />
-          )}
-        </>
-      )}
-
-      {quickReplies.length > 0 && (
-        <div className="flex flex-wrap gap-1.5 justify-end">
-          {quickReplies.map((q, i) => (
-            <span
-              key={i}
-              className="helper-text px-2 py-0.5 rounded-full border border-line text-line bg-white dark:bg-slate-700"
-            >
-              {q}
-            </span>
-          ))}
-        </div>
-      )}
+      </div>
     </div>
   );
 }
