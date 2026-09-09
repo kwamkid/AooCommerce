@@ -2819,16 +2819,19 @@ function UnifiedChatPageContent() {
                     </div>
                     {/* Info */}
                     <div className="flex-1 min-w-0 text-left">
-                      <div className="flex items-center justify-between">
+                      <div className="flex items-start justify-between">
                         <span className="font-medium text-gray-900 dark:text-white truncate">{contact.nickname || contact.display_name}</span>
-                        <div className="flex items-center gap-1.5 flex-shrink-0">
+                        {/* คอลัมน์ขวา: บรรทัดบน เวลา + ยังไม่อ่าน · บรรทัดล่าง ป้าย Ads (เจ้าของขอให้อยู่ใต้เวลา 10 ก.ย. 2026) */}
+                        <div className="flex flex-col items-end gap-0.5 flex-shrink-0">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs text-gray-400 dark:text-slate-500">{formatLastMessage(contact.last_message_at)}</span>
+                            {contact.unread_count > 0 && (<span className="bg-red-500 text-white text-[10px] font-bold min-w-[18px] h-[18px] px-1 rounded-full flex items-center justify-center">{contact.unread_count > 99 ? '99+' : contact.unread_count}</span>)}
+                          </div>
                           {/* มาจากโฆษณา — เห็นตั้งแต่รายชื่อว่าห้องไหนมาจากเงินที่จ่ายไป
                               (InfoChip ไม่ใช่ Badge เพราะแถวนี้เตี้ย ต้องไม่ดันความสูง) */}
                           {contact.referral_source === 'ADS' && (
                             <InfoChip size="sm" colors="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300" icon={<Megaphone className="w-3 h-3" />}>Ads</InfoChip>
                           )}
-                          <span className="text-xs text-gray-400 dark:text-slate-500">{formatLastMessage(contact.last_message_at)}</span>
-                          {contact.unread_count > 0 && (<span className="bg-red-500 text-white text-[10px] font-bold min-w-[18px] h-[18px] px-1 rounded-full flex items-center justify-center">{contact.unread_count > 99 ? '99+' : contact.unread_count}</span>)}
                         </div>
                       </div>
                       <div className="flex items-center gap-1 mt-0.5">
