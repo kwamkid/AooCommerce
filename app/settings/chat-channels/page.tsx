@@ -23,6 +23,8 @@ import PlatformIcon from '@/components/ui/PlatformIcon';
 import ChannelBadge from '@/components/ui/ChannelBadge';
 import Badge from '@/components/ui/Badge';
 import Alert from '@/components/ui/Alert';
+import LoadingOverlay from '@/components/ui/LoadingOverlay';
+import { parallelLimit } from '@/lib/parallel';
 import Tooltip from '@/components/ui/Tooltip';
 import SearchInput from '@/components/ui/SearchInput';
 import Tabs from '@/components/ui/Tabs';
@@ -289,6 +291,9 @@ export default function ChatChannelsPage() {
   const [fbLoading, setFbLoading] = useState(false);
   const [fbSdkReady, setFbSdkReady] = useState(false);
   const [fbSavingPage, setFbSavingPage] = useState(false);
+  // ความคืบหน้าตอนเชื่อม/อัปเดตสิทธิ์หลายเพจ — แต่ละเพจต้องคุยกับ Meta หลายรอบ (token · webhook · ทดสอบ · CAPI)
+  // ทำทีละเพจเรียงกันเคยช้าจนเจ้าของทัก (10 ก.ย. 2026) จึงทำ 3 เพจพร้อมกันและบอกว่าถึงไหนแล้ว
+  const [fbSaveProgress, setFbSaveProgress] = useState<{ done: number; total: number; active: string[] } | null>(null);
   const [fbSearch, setFbSearch] = useState('');
   const fbSdkLoaded = useRef(false);
   // page_id ของเพจที่กด "เชื่อมต่อใหม่" — พอ Facebook คืนรายชื่อเพจมาแล้วจะติ๊กเพจนี้ให้เลย
@@ -547,7 +552,16 @@ export default function ChatChannelsPage() {
       } : {}),
     });
 
-    for (const page of pages) {
+    const total = pages.length;
+    let done = 0;
+    const active = new Set<string>();
+    const report = () => setFbSaveProgress({ done, total, active: [...active] });
+    report();
+
+    // 3 เพจพร้อมกัน — Meta/Vercel รับได้สบาย และเวลารวมลดจาก "จำนวนเพจ × หลายวิ" เหลือราวหนึ่งในสาม
+    await parallelLimit(pages, async (page) => {
+      active.add(page.name);
+      report();
       try {
         const existing = accounts.find(a => a.platform === 'facebook' && a.credentials.page_id === page.id);
         let accountId: string | null = existing?.id ?? null;
@@ -560,7 +574,7 @@ export default function ChatChannelsPage() {
           });
           if (!response.ok) {
             failCount++;
-            continue;
+            return;
           }
           updatedCount++;
         } else {
@@ -576,7 +590,7 @@ export default function ChatChannelsPage() {
           const data = await response.json().catch(() => ({}));
           if (!response.ok) {
             failCount++;
-            continue;
+            return;
           }
           accountId = data?.account?.id || null;
           createdCount++;
@@ -606,8 +620,13 @@ export default function ChatChannelsPage() {
         }
       } catch {
         failCount++;
+      } finally {
+        active.delete(page.name);
+        done++;
+        report();
       }
-    }
+    }, 3);
+    setFbSaveProgress(null);
 
     const parts: string[] = [];
     if (updatedCount > 0) parts.push(`อัปเดตสิทธิ์ ${updatedCount} เพจ`);
@@ -1532,6 +1551,15 @@ export default function ChatChannelsPage() {
           </div>
         </div>
       </Modal>
+
+      {/* ความคืบหน้าตอนเชื่อม/อัปเดตสิทธิ์หลายเพจ — บังจอกันกดซ้ำ + บอกว่าถึงเพจไหนแล้ว */}
+      <LoadingOverlay
+        isOpen={!!fbSaveProgress}
+        title={fbSaveProgress ? `กำลังเชื่อมต่อ/อัปเดตสิทธิ์ ${fbSaveProgress.done}/${fbSaveProgress.total} เพจ` : ''}
+        message={fbSaveProgress && fbSaveProgress.active.length > 0 ? `กำลังทำ: ${fbSaveProgress.active.join(' · ')}` : undefined}
+        progress={fbSaveProgress ? Math.round((fbSaveProgress.done / Math.max(fbSaveProgress.total, 1)) * 100) : undefined}
+        showWarning={false}
+      />
 
       {/* Test-connection loading modal — visible while the test API is running */}
       <Modal
