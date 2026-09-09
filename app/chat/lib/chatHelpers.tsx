@@ -260,10 +260,45 @@ function looksLikeHeic(file: File): boolean {
   return /\.(heic|heif)$/i.test(file.name || '');
 }
 
-/** ไฟล์นี้พอจะเป็นรูปไหม — ใช้แทน `file.type.startsWith('image/')` ที่ตกไฟล์ type ว่าง */
+/** ไฟล์นี้พอจะเป็นรูปไหม (เช็คเร็ว ไม่อ่านไฟล์) — ใช้แทน `file.type.startsWith('image/')` ที่ตกไฟล์ type ว่าง */
 export function looksLikeImageFile(file: File): boolean {
   if ((file.type || '').toLowerCase().startsWith('image/')) return true;
-  return /\.(jpe?g|png|gif|webp|bmp|heic|heif|avif|tiff?)$/i.test(file.name || '');
+  return /\.(jpe?g|jfif|jpe|pjpe?g|png|gif|webp|bmp|dib|heic|heif|avif|tiff?)$/i.test(file.name || '');
+}
+
+/**
+ * อ่านไบต์แรกของไฟล์แล้วบอกว่าเป็นรูปชนิดไหน — **ความจริงอยู่ในไฟล์ ไม่ใช่ในชื่อหรือ `type`**
+ * Chrome บน Windows ให้ `type` ว่างกับไฟล์ที่ระบบไม่รู้จักนามสกุล และรูปที่เซฟจาก LINE/เว็บ
+ * มาชื่อแปลก ๆ หรือไม่มีนามสกุลได้ (เจ้าของแจ้ง "ส่งรูปไม่ได้ — ข้ามไฟล์ที่ไม่ใช่รูปภาพ" 9 ก.ย. 2026)
+ * คืน null เมื่อไม่ใช่รูปที่รู้จัก หรืออ่านไฟล์ไม่ได้
+ */
+export async function sniffImageMime(file: File): Promise<string | null> {
+  let b: Uint8Array;
+  try {
+    b = new Uint8Array(await file.slice(0, 16).arrayBuffer());
+  } catch {
+    return null;
+  }
+  if (b.length < 4) return null;
+  const ascii = (from: number, to: number) => String.fromCharCode(...b.slice(from, to));
+  if (b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return 'image/jpeg';
+  if (b[0] === 0x89 && ascii(1, 4) === 'PNG') return 'image/png';
+  if (ascii(0, 3) === 'GIF') return 'image/gif';
+  if (ascii(0, 4) === 'RIFF' && ascii(8, 12) === 'WEBP') return 'image/webp';
+  if (b[0] === 0x42 && b[1] === 0x4d) return 'image/bmp';
+  if ((b[0] === 0x49 && b[1] === 0x49 && b[2] === 0x2a && b[3] === 0x00) || (b[0] === 0x4d && b[1] === 0x4d && b[2] === 0x00 && b[3] === 0x2a)) return 'image/tiff';
+  if (ascii(4, 8) === 'ftyp') {
+    const brand = ascii(8, 12).toLowerCase();
+    if (['heic', 'heix', 'hevc', 'hevx', 'mif1', 'msf1'].includes(brand)) return 'image/heic';
+    if (brand === 'avif' || brand === 'avis') return 'image/avif';
+  }
+  return null;
+}
+
+/** เป็นรูปไหม — เช็คชื่อ/`type` ก่อน (เร็ว) ไม่ผ่านค่อยอ่านไบต์แรกของไฟล์ */
+export async function isImageFile(file: File): Promise<boolean> {
+  if (looksLikeImageFile(file)) return true;
+  return (await sniffImageMime(file)) !== null;
 }
 
 /**

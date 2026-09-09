@@ -70,7 +70,7 @@ import MessageBubble from './components/MessageBubble';
 // แผง "เปิดบิล" แยกไฟล์เพราะห่อ memo ไว้ (ดูหมายเหตุในไฟล์นั้น) — ตัวห่อเล็กมาก
 // ส่วน OrderForm ที่หนักจริงยังเป็น dynamic อยู่ข้างใน จึงไม่ติดมากับ first-load JS
 import ChatOrderPanel from './components/ChatOrderPanel';
-import { FbIcon, IgIcon, LineIcon, ShopeeIcon, LazadaIcon, TiktokIcon, PlatformIcon, AccountCornerBadge, getAccountPicture, getAvatarUrl, getInitials, ContactAvatar, formatTime, formatLastMessage, groupImageAlbums, prepareChatImage, looksLikeImageFile, officialStickers, isSystemEventMessage } from './lib/chatHelpers';
+import { FbIcon, IgIcon, LineIcon, ShopeeIcon, LazadaIcon, TiktokIcon, PlatformIcon, AccountCornerBadge, getAccountPicture, getAvatarUrl, getInitials, ContactAvatar, formatTime, formatLastMessage, groupImageAlbums, prepareChatImage, isImageFile, officialStickers, isSystemEventMessage } from './lib/chatHelpers';
 import { FullPageLoading } from '@/components/ui/Loading';
 import { LoadingCard } from '@/components/ui/StateCard';
 import { SkeletonChat } from '@/components/ui/Skeleton';
@@ -1147,23 +1147,27 @@ function UnifiedChatPageContent() {
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const picked = Array.from(e.target.files || []);
     if (fileInputRef.current) fileInputRef.current.value = '';
-    addAttachmentFiles(picked);
+    void addAttachmentFiles(picked);
   };
 
   /**
    * เอาไฟล์เข้าคิวรอส่ง — **ไม่ส่งทันที** ทั้งลากวางและกดเลือกไฟล์เดินทางนี้เหมือนกัน
    * (สองทางทำคนละอย่างคือกับดัก ผู้ใช้จำไม่ได้ว่าทางไหนส่งเลยทางไหนรอ)
    */
-  const addAttachmentFiles = (picked: File[]) => {
+  const addAttachmentFiles = async (picked: File[]) => {
     if (picked.length === 0 || !selectedContact) return;
 
     // คัดของที่ส่งไม่ได้ออกก่อนแล้วบอกทีเดียว — เตือนทีละใบตอนลากมา 10 ใบคือการรังควาน
-    // ห้ามเช็คด้วย file.type อย่างเดียว — Chrome บน Windows ให้ type ว่างกับ .heic
-    const notImage = picked.filter(f => !looksLikeImageFile(f));
-    const tooBig = picked.filter(f => looksLikeImageFile(f) && f.size > 10 * 1024 * 1024);
-    const files = picked.filter(f => looksLikeImageFile(f) && f.size <= 10 * 1024 * 1024);
-    if (notImage.length) showToast(`ข้ามไฟล์ที่ไม่ใช่รูปภาพ ${notImage.length} ไฟล์`, 'error');
-    if (tooBig.length) showToast(`ข้ามไฟล์ที่ใหญ่เกิน 10MB ${tooBig.length} ไฟล์`, 'error');
+    // ห้ามตัดสินจาก file.type/ชื่อไฟล์อย่างเดียว — Chrome บน Windows ให้ type ว่าง และรูปจาก
+    // LINE/เว็บมาชื่อแปลกหรือไม่มีนามสกุลได้ → isImageFile อ่านไบต์แรกของไฟล์เมื่อชื่อบอกไม่ได้
+    const verdict = await Promise.all(picked.map(f => isImageFile(f)));
+    const notImage = picked.filter((_, i) => !verdict[i]);
+    const tooBig = picked.filter((f, i) => verdict[i] && f.size > 10 * 1024 * 1024);
+    const files = picked.filter((f, i) => verdict[i] && f.size <= 10 * 1024 * 1024);
+    // บอกชื่อไฟล์ที่ข้าม — "ข้าม 1 ไฟล์" เฉย ๆ ผู้ใช้ไม่รู้ว่าไฟล์ไหน/ทำไม แจ้งกลับมาก็ไล่ไม่ได้
+    const names = (fs: File[]) => fs.slice(0, 3).map(f => f.name || '(ไม่มีชื่อ)').join(', ') + (fs.length > 3 ? ` และอีก ${fs.length - 3}` : '');
+    if (notImage.length) showToast(`ข้ามไฟล์ที่ไม่ใช่รูปภาพ ${notImage.length} ไฟล์: ${names(notImage)}`, 'error');
+    if (tooBig.length) showToast(`ข้ามไฟล์ที่ใหญ่เกิน 10MB ${tooBig.length} ไฟล์: ${names(tooBig)}`, 'error');
     if (files.length === 0) return;
 
     const room = MAX_ATTACHMENTS - attachments.length;
@@ -1261,7 +1265,7 @@ function UnifiedChatPageContent() {
       .filter((f): f is File => !!f);
     if (files.length === 0) return;
     e.preventDefault();
-    addAttachmentFiles(files);
+    void addAttachmentFiles(files);
   };
 
   /**
@@ -1306,7 +1310,7 @@ function UnifiedChatPageContent() {
     e.preventDefault();
     dragDepthRef.current = 0;
     setDragActive(false);
-    addAttachmentFiles(Array.from(e.dataTransfer.files || []));
+    void addAttachmentFiles(Array.from(e.dataTransfer.files || []));
   };
 
   /**
