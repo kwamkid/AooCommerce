@@ -396,6 +396,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: orderError.message }, { status: 400 });
     }
 
+    // POS = จ่ายจบหน้าร้านทันที → ถ้าลูกค้าคนนี้เคยคุยผ่าน Messenger ให้บอก Meta ว่าปิดการขายได้
+    after(() => import('@/lib/meta/conversions').then(m => m.sendPurchaseEventForOrder(order.id)).catch(() => null));
+
     // Fetch WAC cost map for cost snapshot
     const posCostMap = await fetchCostMap(
       supabaseAdmin,

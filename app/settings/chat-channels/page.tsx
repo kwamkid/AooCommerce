@@ -456,7 +456,9 @@ export default function ChatChannelsPage() {
         }
         exchangeFbToken(response.authResponse.accessToken);
       }, {
-        scope: 'pages_show_list,pages_messaging,pages_read_engagement,instagram_manage_messages',
+        // `page_events` = สิทธิ์ที่ Conversions API ต้องใช้ (หา/สร้าง dataset ของเพจ + ยิง event Purchase)
+        // — token ที่ออกก่อน 9 ก.ย. 2026 ไม่มีสิทธิ์นี้ ต้องกด "เชื่อมต่อ Facebook" ใหม่ถึงจะได้ token ที่ครบ
+        scope: 'pages_show_list,pages_messaging,pages_read_engagement,instagram_manage_messages,page_events',
         auth_type: 'reauthorize',
       });
     };

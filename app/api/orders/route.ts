@@ -909,6 +909,11 @@ export async function POST(request: NextRequest) {
               .from('orders')
               .update(updateFields)
               .eq('id', order.id);
+
+            // เครดิตเปลี่ยนสินค้าคลุมทั้งบิล → ออเดอร์เป็น paid ตั้งแต่ตอนสร้าง ต้องยิง Meta ด้วย
+            if (updateFields.payment_status === 'paid') {
+              after(() => import('@/lib/meta/conversions').then(m => m.sendPurchaseEventForOrder(order.id)).catch(() => null));
+            }
           }
         }
       } catch (cnErr) {
@@ -1494,6 +1499,11 @@ export async function PUT(request: NextRequest) {
             .select('id');
           if (error) errors.push(error.message);
           else updatedCount += (updated || []).length;
+
+          // สลิปผ่าน = ออเดอร์ชำระแล้ว → ยิง Purchase ให้ Meta ทีละใบ (ใบที่ไม่มีห้องแชทผูกอยู่จะเงียบไปเอง)
+          for (const row of updated || []) {
+            after(() => import('@/lib/meta/conversions').then(m => m.sendPurchaseEventForOrder(row.id)).catch(() => null));
+          }
 
           // Also mark payment records as verified
           if (!error) {
@@ -2531,6 +2541,12 @@ export async function PUT(request: NextRequest) {
       if (body.payment_status === 'paid' || body.order_status === 'cancelled') {
         const reason = body.order_status === 'cancelled' ? 'cancelled' : 'paid_elsewhere';
         after(() => import('@/lib/beam/settle').then(m => m.closeBeamLinksForOrder(id, reason)).catch(() => null));
+      }
+
+      // ชำระแล้ว → บอก Meta ว่าบทสนทนา Messenger นี้จบด้วยการซื้อ (โฆษณา Click-to-Messenger จะได้ optimize ถูก)
+      // ยิงครั้งเดียวต่อออเดอร์ (กันซ้ำที่ orders.meta_purchase_sent_at) และล้มเงียบเสมอ
+      if (body.payment_status === 'paid') {
+        after(() => import('@/lib/meta/conversions').then(m => m.sendPurchaseEventForOrder(id)).catch(() => null));
       }
 
       // Auto-sync delivery info to shipping_addresses if customer exists
