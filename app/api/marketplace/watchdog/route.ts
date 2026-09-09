@@ -2,6 +2,7 @@ import { NextRequest, NextResponse, after } from 'next/server';
 import { runWatchdog } from '@/lib/marketplace/watchdog';
 import { reconcilePendingBeamPayments } from '@/lib/beam/settle';
 import { pruneOldLogs } from '@/lib/maintenance/log-retention';
+import { sweepUnsentPurchaseEvents } from '@/lib/meta/conversions';
 
 // ตัวเฝ้าสุขภาพ integration — cron ทุก 15 นาที (cron-job.org, header x-cron-secret)
 //
@@ -30,6 +31,13 @@ async function handle(request: NextRequest) {
       console.error('[Watchdog] beam reconcile failed:', e instanceof Error ? e.message : e);
       return null;
     });
+    // ตาข่ายของ Meta CAPI: ออเดอร์ที่ชำระแล้วแต่ Purchase event ไม่เคยไปถึง Meta
+    // (ตอนนั้นเพจยังไม่มีสิทธิ์ page_events / Meta ล่ม / token หมดอายุอยู่พอดี)
+    // Meta รับย้อนหลังได้ 7 วัน — พลาดในกรอบนี้จึงเยียวยาตัวเองได้ทุก 15 นาที
+    const capi = await sweepUnsentPurchaseEvents({ deadlineAt: Date.now() + 20_000 }).catch((e) => {
+      console.error('[Watchdog] meta capi sweep failed:', e instanceof Error ? e.message : e);
+      return null;
+    });
     const result = await runWatchdog().catch((e) => {
       console.error('[Watchdog] run failed:', e instanceof Error ? e.message : e);
       return null;
@@ -40,7 +48,7 @@ async function handle(request: NextRequest) {
       console.error('[Watchdog] log retention failed:', e instanceof Error ? e.message : e);
       return null;
     });
-    console.log('[Watchdog] done', JSON.stringify({ beam, result, logs }));
+    console.log('[Watchdog] done', JSON.stringify({ beam, capi, result, logs }));
   });
 
   return NextResponse.json({ ok: true, started: true });

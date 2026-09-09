@@ -14,6 +14,7 @@
  */
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { logIntegrationNow } from '@/lib/integration-logger';
+import { fetchAllRows } from '@/lib/supabase-paging';
 
 const GRAPH_BASE = 'https://graph.facebook.com/v21.0';
 const INTEGRATION = 'meta_capi';
@@ -89,7 +90,7 @@ function credString(creds: Record<string, unknown>, key: string): string | null 
  * ลองต่อไม่มีประโยชน์ — ต้องให้เจ้าของกดเชื่อมต่อเพจใหม่เพื่อออก token ใบใหม่
  */
 const PAGE_EVENTS_FIX_MESSAGE =
-  'เพจนี้ยังไม่ได้ให้สิทธิ์ page_events — ไปที่ ตั้งค่า › ช่องทางแชท แล้วกด "เชื่อมต่อ Facebook" ใหม่ให้เพจนี้ (token เดิมขอ scope ไม่ครบ)';
+  'เพจนี้ยังไม่ได้ให้สิทธิ์ page_events — ไปที่ ตั้งค่า › ช่องทางแชท กดเมนูบนการ์ดเพจ › "เชื่อมต่อใหม่ (ขอสิทธิ์ใหม่)" แล้วอนุญาตทุกเพจในหน้าต่างของ Facebook';
 
 function isPageEventsPermissionError(body: unknown): boolean {
   const err = (body as { error?: { code?: number; message?: string } } | null)?.error;
@@ -345,77 +346,123 @@ async function releaseOrder(orderId: string): Promise<void> {
 }
 
 /**
- * ส่ง Purchase event ของออเดอร์ที่เพิ่งชำระเงิน — เรียกได้จากทุกจุดที่ทำให้ออเดอร์เป็น paid
+ * ผลของการยิงหนึ่งใบ — ตัวกวาดย้อนหลังนับสามกองนี้
+ * (ผู้เรียกเดิมไม่สนค่าที่คืน `await`/`.catch()` เหมือนเดิมได้)
+ */
+export type PurchaseSendResult = 'sent' | 'skipped' | 'failed';
+
+/**
+ * Meta รับ `event_time` ย้อนหลังได้ 7 วัน — เกินนี้ **ทั้ง request** ถูกปฏิเสธ
+ * (เผื่อ 1 ชม.กันชนเส้นตายระหว่างที่รอบกวาดกำลังทำงาน)
+ */
+const MAX_EVENT_AGE_SEC = 7 * 86400 - 3600;
+/** ล้ำหน้าเกินนี้ = นาฬิกาเพี้ยน ไม่ใช่เวลาจริงของการจ่ายเงิน */
+const MAX_EVENT_FUTURE_SEC = 300;
+
+/**
+ * หาห้อง Messenger ที่ผูกกับลูกค้าของออเดอร์ + เพจที่ยังเปิดใช้อยู่
+ *
+ * แยกออกมาเพราะทั้งสายยิงทันทีและสายกวาดย้อนหลังต้องใช้ตรรกะเดียวกันเป๊ะ
+ * — เขียนสองที่เมื่อไหร่ ตัวกวาดจะเลือกเพจคนละใบกับตอนยิงจริงโดยไม่มีใครรู้
+ */
+async function resolveMessengerTarget(
+  order: Pick<OrderRow, 'company_id' | 'customer_id'>,
+): Promise<{ account: PageAccount; psid: string } | null> {
+  if (!order.customer_id) return null;
+
+  // ลูกค้าคนนี้ผูกกับห้องแชท Messenger ไหน — เอาห้องที่คุยล่าสุด (IG ยังไม่รองรับ)
+  const { data: contacts } = await supabaseAdmin
+    .from('fb_contacts')
+    .select('fb_psid, fb_page_id, chat_account_id, last_message_at')
+    .eq('customer_id', order.customer_id)
+    .eq('company_id', order.company_id)
+    .eq('source', 'facebook')
+    .order('last_message_at', { ascending: false, nullsFirst: false })
+    .limit(5);
+
+  const candidates = (contacts || []).filter((c) => c.fb_psid && c.chat_account_id);
+  if (candidates.length === 0) return null;
+
+  // หาเพจที่ยังเปิดใช้อยู่ + page_id ตรงกับที่ผู้ติดต่อคุยด้วย
+  for (const contact of candidates) {
+    const { data: acc } = await supabaseAdmin
+      .from('chat_accounts')
+      .select('id, company_id, account_name, credentials')
+      .eq('id', contact.chat_account_id)
+      .eq('company_id', order.company_id)
+      .eq('platform', 'facebook')
+      .eq('is_active', true)
+      .single<PageAccount>();
+    if (!acc) continue;
+
+    const pageId = credString((acc.credentials || {}) as Record<string, unknown>, 'page_id');
+    // ผู้ติดต่อบางแถวไม่มี fb_page_id — ถือว่าใช้เพจของ chat_account นั้นได้
+    if (!pageId) continue;
+    if (contact.fb_page_id && String(contact.fb_page_id) !== pageId) continue;
+
+    return { account: acc, psid: String(contact.fb_psid) };
+  }
+
+  return null;
+}
+
+/**
+ * ส่ง Purchase event ของออเดอร์ที่ชำระเงินแล้ว — เรียกได้จากทุกจุดที่ทำให้ออเดอร์เป็น paid
  *
  * เงียบ (ไม่ทำอะไร ไม่ log) เมื่อ: ออเดอร์ยังไม่ paid · ยิงไปแล้ว · ไม่มีลูกค้า ·
  * ลูกค้าไม่ได้ผูกกับผู้ติดต่อ Messenger · เพจไม่ได้เปิดใช้อยู่
+ *
+ * @param opts.eventTime เวลาที่เงินเข้าจริง (unix seconds) — ใส่เมื่อยิงย้อนหลัง
+ *   ไม่ใส่ = ตอนนี้ · เกิน 7 วันไปแล้ว = ข้าม (ห้ามปลอมเวลาให้ใหม่ขึ้นเพื่อให้ Meta รับ)
+ * @param opts.skipIfPageNotReady เพจที่ยังมี `meta_capi_error` ค้างอยู่ให้ข้ามไปเลย
+ *   ไม่ต้องยิง Graph — ตัวกวาดใช้ค่านี้ จะได้ไม่ไปรบกวน Meta ทุก 15 นาทีกับเพจที่เจ้าของยังไม่แก้
  */
-export async function sendPurchaseEventForOrder(orderId: string): Promise<void> {
+export async function sendPurchaseEventForOrder(
+  orderId: string,
+  opts: { eventTime?: number; skipIfPageNotReady?: boolean } = {},
+): Promise<PurchaseSendResult> {
   try {
+    // เช็คอายุ event **ก่อนแตะอะไรทั้งนั้น** — โดยเฉพาะก่อนจองสิทธิ์
+    // (จองแล้วพบว่าเวลาเกิน = ออเดอร์ถูกปิดตายทั้งที่ไม่เคยยิงสำเร็จ)
+    if (opts.eventTime != null) {
+      const nowSec = Math.floor(Date.now() / 1000);
+      if (nowSec - opts.eventTime > MAX_EVENT_AGE_SEC) return 'skipped';
+      if (opts.eventTime - nowSec > MAX_EVENT_FUTURE_SEC) return 'skipped';
+    }
+
     const { data: order } = await supabaseAdmin
       .from('orders')
       .select('id, company_id, order_number, customer_id, total_amount, payment_status, meta_purchase_sent_at')
       .eq('id', orderId)
       .single<OrderRow>();
 
-    if (!order) return;
-    if (order.payment_status !== 'paid') return;
-    if (order.meta_purchase_sent_at) return;
-    if (!order.customer_id) return;
+    if (!order) return 'skipped';
+    if (order.payment_status !== 'paid') return 'skipped';
+    if (order.meta_purchase_sent_at) return 'skipped';
+    if (!order.customer_id) return 'skipped';
 
-    // ลูกค้าคนนี้ผูกกับห้องแชท Messenger ไหน — เอาห้องที่คุยล่าสุด (IG ยังไม่รองรับ)
-    const { data: contacts } = await supabaseAdmin
-      .from('fb_contacts')
-      .select('fb_psid, fb_page_id, chat_account_id, last_message_at')
-      .eq('customer_id', order.customer_id)
-      .eq('company_id', order.company_id)
-      .eq('source', 'facebook')
-      .order('last_message_at', { ascending: false, nullsFirst: false })
-      .limit(5);
-
-    const candidates = (contacts || []).filter((c) => c.fb_psid && c.chat_account_id);
-    if (candidates.length === 0) return;
-
-    // หาเพจที่ยังเปิดใช้อยู่ + page_id ตรงกับที่ผู้ติดต่อคุยด้วย
-    let account: PageAccount | null = null;
-    let psid: string | null = null;
-
-    for (const contact of candidates) {
-      const { data: acc } = await supabaseAdmin
-        .from('chat_accounts')
-        .select('id, company_id, account_name, credentials')
-        .eq('id', contact.chat_account_id)
-        .eq('company_id', order.company_id)
-        .eq('platform', 'facebook')
-        .eq('is_active', true)
-        .single<PageAccount>();
-      if (!acc) continue;
-
-      const pageId = credString((acc.credentials || {}) as Record<string, unknown>, 'page_id');
-      // ผู้ติดต่อบางแถวไม่มี fb_page_id — ถือว่าใช้เพจของ chat_account นั้นได้
-      if (!pageId) continue;
-      if (contact.fb_page_id && String(contact.fb_page_id) !== pageId) continue;
-
-      account = acc;
-      psid = String(contact.fb_psid);
-      break;
-    }
-
-    if (!account || !psid) return;
+    const target = await resolveMessengerTarget(order);
+    if (!target) return 'skipped';
+    const { account, psid } = target;
 
     const creds = (account.credentials || {}) as Record<string, unknown>;
+
+    // เพจที่รู้อยู่แล้วว่ายิงไม่ได้ (สิทธิ์ไม่ถึง/token พัง) — ตัวกวาดข้ามเงียบ ๆ
+    // เจ้าของแก้เมื่อไหร่ ป้ายบนการ์ดจะถูกล้าง แล้วรอบถัดไปก็กวาดต่อได้เอง
+    if (opts.skipIfPageNotReady && credString(creds, 'meta_capi_error')) return 'skipped';
+
     const pageId = credString(creds, 'page_id');
     const token = credString(creds, 'page_access_token');
-    if (!pageId || !token) return;
+    if (!pageId || !token) return 'skipped';
 
     const datasetId = await getOrCreateDatasetId(account);
-    if (!datasetId) return; // getOrCreateDatasetId log ให้แล้วเมื่อเป็น error จริง
+    if (!datasetId) return 'skipped'; // getOrCreateDatasetId log ให้แล้วเมื่อเป็น error จริง
 
     const value = Number(order.total_amount) || 0;
 
     // จองสิทธิ์ "ก่อน" ยิง — สองสายที่ทำให้ paid พร้อมกันจะมีแค่สายเดียวที่ผ่านตรงนี้
     const claimed = await claimOrder(order.id);
-    if (!claimed) return;
+    if (!claimed) return 'skipped';
 
     const body = buildPurchaseEventBody({
       pageId,
@@ -423,6 +470,7 @@ export async function sendPurchaseEventForOrder(orderId: string): Promise<void> 
       eventId: order.id,
       value,
       orderNumber: order.order_number,
+      eventTime: opts.eventTime,
     });
     const apiPath = `/${datasetId}/events`;
     const startedAt = Date.now();
@@ -455,7 +503,7 @@ export async function sendPurchaseEventForOrder(orderId: string): Promise<void> 
           reference_id: order.id,
           reference_label: order.order_number,
         });
-        return;
+        return 'failed';
       }
     } catch (err) {
       await releaseOrder(order.id);
@@ -465,7 +513,7 @@ export async function sendPurchaseEventForOrder(orderId: string): Promise<void> 
         reference_id: order.id,
         reference_label: order.order_number,
       });
-      return;
+      return 'failed';
     }
 
     // ยิงผ่านจริง = ป้ายบนการ์ดต้องเขียว (ล้างเหตุผลเก่าที่แก้ไปแล้วทิ้ง)
@@ -489,8 +537,206 @@ export async function sendPurchaseEventForOrder(orderId: string): Promise<void> 
       reference_label: order.order_number || undefined,
       duration_ms: Date.now() - startedAt,
     }).catch(() => null);
+
+    return 'sent';
   } catch (err) {
     // กันเหนียวชั้นนอกสุด — ฟังก์ชันนี้ห้าม throw ไม่ว่าเกิดอะไร
     console.error('[MetaCAPI] sendPurchaseEventForOrder failed:', errText(err));
+    return 'failed';
+  }
+}
+
+/** จำนวนลูกค้าต่อ 1 query `orders` — กัน URL ของ PostgREST ยาวเกิน */
+const ORDER_LOOKUP_CHUNK = 200;
+/** เพดานรายชื่อลูกค้าที่ผูกห้องแชท — มากกว่านี้แปลว่าต้องคิดใหม่ ไม่ใช่ดึงเพิ่ม */
+const LINKED_CUSTOMER_CAP = 2000;
+
+interface SweepCounts {
+  scanned: number;
+  sent: number;
+  skipped: number;
+  failed: number;
+}
+
+/**
+ * กวาดออเดอร์ที่ชำระแล้วแต่ **ไม่เคยยิง Purchase event** ให้ครบย้อนหลัง
+ *
+ * ทำไมต้องมี: `sendPurchaseEventForOrder()` ยิงครั้งเดียวตอนออเดอร์กลายเป็น paid
+ * ถ้ารอบนั้นล้มก็คืนสิทธิ์ทิ้งไว้เฉย ๆ **ไม่มีใครกลับมาลองใหม่** — ของจริงล้มได้ 3 แบบ:
+ *   1. token ของเพจยังไม่มีสิทธิ์ `page_events` (ทุกเพจเป็นแบบนี้จนถึง 9 ก.ย. 2026)
+ *   2. Meta ล่ม / เน็ตสะดุดตอนนั้นพอดี
+ *   3. token หมดอายุอยู่ ณ ตอนที่ออเดอร์ชำระ แล้วเจ้าของมาเชื่อมใหม่ทีหลัง
+ * ทั้งสามแบบ "หายเงียบ" เหมือนกันหมด — โฆษณาจะ optimize ผิดโดยไม่มีใครรู้
+ *
+ * ⏳ **Meta รับย้อนหลังได้แค่ 7 วัน** — พลาดในกรอบนี้เยียวยาได้เอง เกินกว่านั้นคือหายจริง
+ * (จึงต้องเกาะไปกับ cron ตัวเฝ้าที่วิ่งทุก 15 นาที ไม่ใช่ปุ่มให้คนมากดเอง)
+ *
+ * เริ่มจาก **ลูกค้าที่ผูกห้องแชท Messenger อยู่แล้ว** ไม่ใช่จากออเดอร์ที่ paid ทั้งหมด —
+ * ร้านหนึ่งมีออเดอร์ marketplace พันกว่าใบต่อเดือนที่ไม่มีทางผูกกับ Messenger ได้เลย
+ * กวาดจากฝั่งนั้นหน้าละ 100 ใบจะเต็มไปด้วยของที่ยังไงก็ข้าม แล้วใบที่ควรยิงไม่เคยถึงคิว
+ *
+ * **ห้าม throw** — ล้มตรงไหนก็คืนยอดเท่าที่ทำได้ (ผู้เรียกคือ cron ที่มีงานอื่นต่อ)
+ */
+export async function sweepUnsentPurchaseEvents(
+  opts: {
+    /** ย้อนหลังกี่วัน (บีบไว้ที่ 1..7 ตามเพดานของ Meta) */
+    days?: number;
+    /** ยิงได้มากสุดกี่ใบในรอบนี้ */
+    limit?: number;
+    /** epoch ms — เลยเวลานี้แล้วหยุด (ปล่อยที่เหลือไว้รอบหน้า) */
+    deadlineAt?: number;
+    /** จำกัดบริษัทเดียว (สายที่ผู้ใช้กดเอง) */
+    companyId?: string;
+  } = {},
+): Promise<SweepCounts> {
+  const counts: SweepCounts = { scanned: 0, sent: 0, skipped: 0, failed: 0 };
+  const days = Math.min(7, Math.max(1, Math.floor(opts.days ?? 7)));
+  const limit = Math.max(1, Math.floor(opts.limit ?? 100));
+  const deadlineAt = opts.deadlineAt ?? Date.now() + 20_000;
+
+  // สรุปรายบริษัท — log แยกใบต่อบริษัท เจ้าของร้านจะได้เห็นเฉพาะของตัวเอง
+  const perCompany = new Map<string, { sent: number; failed: number; scanned: number; skipped: number }>();
+  const bump = (companyId: string, key: 'sent' | 'failed' | 'scanned' | 'skipped') => {
+    const row = perCompany.get(companyId) || { sent: 0, failed: 0, scanned: 0, skipped: 0 };
+    row[key] += 1;
+    perCompany.set(companyId, row);
+  };
+
+  try {
+    // 1) บริษัทที่มีเพจ Facebook เปิดใช้อยู่ — ที่เหลือไม่มีทางยิง CAPI ได้อยู่แล้ว
+    let accountQuery = supabaseAdmin
+      .from('chat_accounts')
+      .select('company_id')
+      .eq('platform', 'facebook')
+      .eq('is_active', true);
+    if (opts.companyId) accountQuery = accountQuery.eq('company_id', opts.companyId);
+
+    const { data: accountRows } = await accountQuery;
+    const companyIds = [
+      ...new Set(((accountRows || []) as Array<{ company_id: string | null }>)
+        .map((a) => a.company_id)
+        .filter((id): id is string => !!id)),
+    ];
+    if (companyIds.length === 0) return counts;
+
+    // 2) ลูกค้าที่ผูกกับห้องแชท Messenger จริง ๆ — จุดตั้งต้นของการกวาด
+    const { rows: contactRows } = await fetchAllRows<{ customer_id: string | null }>(
+      (from, to) =>
+        supabaseAdmin
+          .from('fb_contacts')
+          .select('customer_id', { count: 'exact' })
+          .in('company_id', companyIds)
+          .eq('source', 'facebook')
+          .not('chat_account_id', 'is', null)
+          .not('customer_id', 'is', null)
+          .range(from, to),
+      { to: LINKED_CUSTOMER_CAP - 1 },
+    );
+
+    const customerIds = [
+      ...new Set(contactRows.map((c) => c.customer_id).filter((id): id is string => !!id)),
+    ];
+    if (customerIds.length === 0) return counts;
+
+    // 3) ออเดอร์ที่ชำระแล้วแต่ยังไม่เคยยิง — `updated_at` เป็นตะแกรงหยาบ ๆ พอ
+    //    (เวลาจ่ายเงินจริงมาจาก payment_records ในขั้นถัดไป)
+    const since = new Date(Date.now() - days * 86400_000).toISOString();
+    type CandidateRow = {
+      id: string;
+      company_id: string;
+      customer_id: string | null;
+      order_number: string | null;
+      updated_at: string | null;
+    };
+    let candidates: CandidateRow[] = [];
+
+    for (let i = 0; i < customerIds.length; i += ORDER_LOOKUP_CHUNK) {
+      const chunk = customerIds.slice(i, i + ORDER_LOOKUP_CHUNK);
+      const { data: orders } = await supabaseAdmin
+        .from('orders')
+        .select('id, company_id, customer_id, order_number, updated_at')
+        .in('customer_id', chunk)
+        .eq('payment_status', 'paid')
+        .neq('order_status', 'cancelled')
+        .is('meta_purchase_sent_at', null)
+        .gte('updated_at', since)
+        .order('updated_at', { ascending: false })
+        .limit(limit);
+      if (orders?.length) candidates = candidates.concat(orders as CandidateRow[]);
+    }
+
+    // เรียงรวมอีกรอบแล้วค่อยตัด — ใบใหม่สุดของทั้งร้านต้องได้คิวก่อน ไม่ใช่ใบใหม่สุดของ chunk แรก
+    candidates.sort((a, b) => (b.updated_at || '').localeCompare(a.updated_at || ''));
+    candidates = candidates.slice(0, limit);
+    counts.scanned = candidates.length;
+    if (candidates.length === 0) return counts;
+    for (const order of candidates) bump(order.company_id, 'scanned');
+
+    // 4) เวลาที่เงินเข้าจริง — `orders` ไม่มีคอลัมน์นี้ ต้องอ่านจาก payment_records
+    //    (ยิงด้วยเวลา "ตอนนี้" ของออเดอร์เมื่อ 5 วันก่อน = สถิติของ Meta เพี้ยนทั้งแคมเปญ)
+    const paidAtByOrder = new Map<string, number>();
+    const candidateIds = candidates.map((o) => o.id);
+    const { rows: paymentRows } = await fetchAllRows<{
+      order_id: string | null;
+      payment_date: string | null;
+      status: string | null;
+    }>(
+      (from, to) =>
+        supabaseAdmin
+          .from('payment_records')
+          .select('order_id, payment_date, status', { count: 'exact' })
+          .in('order_id', candidateIds)
+          .range(from, to),
+    );
+
+    // กรองสถานะฝั่งเราเอง ไม่ใช่ `.not(...in...)` — แถวที่ status เป็น NULL จะหลุดตะแกรงของ SQL
+    // (NOT IN กับ NULL ได้ NULL = ไม่ผ่าน) ทั้งที่มันคือใบที่ควรนับ
+    const DEAD_STATUSES = new Set(['cancelled', 'rejected', 'failed']);
+    for (const row of paymentRows) {
+      if (!row.order_id || !row.payment_date) continue;
+      if (row.status && DEAD_STATUSES.has(row.status)) continue;
+      const ts = Date.parse(row.payment_date);
+      if (!Number.isFinite(ts)) continue;
+      const prev = paidAtByOrder.get(row.order_id);
+      if (prev == null || ts > prev) paidAtByOrder.set(row.order_id, ts);
+    }
+
+    // 5) ยิงทีละใบ — หมดงบเวลาก็หยุด ที่เหลือรออีก 15 นาที (ยังอยู่ในกรอบ 7 วัน)
+    for (const order of candidates) {
+      if (Date.now() > deadlineAt) break;
+
+      const paidAtMs = paidAtByOrder.get(order.id) ?? (order.updated_at ? Date.parse(order.updated_at) : NaN);
+      const eventTime = Number.isFinite(paidAtMs) ? Math.floor(paidAtMs / 1000) : undefined;
+
+      const result = await sendPurchaseEventForOrder(order.id, {
+        eventTime,
+        skipIfPageNotReady: true,
+      });
+      counts[result === 'sent' ? 'sent' : result === 'failed' ? 'failed' : 'skipped'] += 1;
+      bump(order.company_id, result === 'sent' ? 'sent' : result === 'failed' ? 'failed' : 'skipped');
+    }
+
+    // 6) จดสรุป **เฉพาะรอบที่มีอะไรเกิดขึ้นจริง** — ไม่งั้นได้ log เปล่าทุก 15 นาทีตลอดปี
+    if (counts.sent > 0 || counts.failed > 0) {
+      for (const [companyId, row] of perCompany) {
+        if (row.sent === 0 && row.failed === 0) continue;
+        const status: 'success' | 'error' = row.failed > 0 && row.sent === 0 ? 'error' : 'success';
+        await logIntegrationNow({
+          company_id: companyId,
+          integration: INTEGRATION,
+          direction: 'outgoing',
+          action: 'sweep',
+          method: 'JOB',
+          status,
+          response_body: row,
+          error_message: status === 'error' ? 'กวาดส่ง Purchase event ย้อนหลังไม่สำเร็จทุกใบในรอบนี้' : undefined,
+        }).catch(() => null);
+      }
+    }
+
+    return counts;
+  } catch (err) {
+    console.error('[MetaCAPI] sweepUnsentPurchaseEvents failed:', errText(err));
+    return counts;
   }
 }
