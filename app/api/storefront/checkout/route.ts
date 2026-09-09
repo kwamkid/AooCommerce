@@ -181,9 +181,22 @@ export async function POST(request: NextRequest) {
   }
 
   // ── slot ──
+  // ⚠️ public write path — บังคับกรอกต้องเช็คที่นี่ด้วย ห้ามเชื่อว่า client เช็คแล้ว
+  // (บังคับช่วงเวลา ⇒ ต้องมีวันเสมอ เลือกช่วงโดยไม่มีวันไม่ได้)
+  if (
+    company.features.delivery_date.enabled
+    && (company.features.delivery_date.required || company.features.delivery_slot.required)
+    && !body.delivery_date
+  ) {
+    return NextResponse.json({ error: 'กรุณาเลือกวันที่จัดส่ง' }, { status: 400 });
+  }
+  if (company.features.delivery_slot.enabled && company.features.delivery_slot.required && !body.delivery_slot_id) {
+    return NextResponse.json({ error: 'กรุณาเลือกช่วงเวลาจัดส่ง' }, { status: 400 });
+  }
+
   let slot: DeliverySlot | null = null;
   let slotWindow: ReturnType<typeof getSlotWindow> | null = null;
-  if (company.features.delivery_slot && body.delivery_slot_id) {
+  if (company.features.delivery_slot.enabled && body.delivery_slot_id) {
     if (!body.delivery_date) {
       return NextResponse.json({ error: 'กรุณาเลือกวันที่จัดส่ง' }, { status: 400 });
     }

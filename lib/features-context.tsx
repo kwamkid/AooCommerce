@@ -4,7 +4,7 @@ import { createContext, useContext, useState, useEffect, useCallback, useMemo } 
 import { apiFetch } from '@/lib/api-client';
 import { useAuth } from '@/lib/auth-context';
 import { useCompany } from '@/lib/company-context';
-import { DEFAULT_FEATURES, DEFAULT_PRESET, type FeatureFlags, type BusinessPreset } from '@/lib/features';
+import { DEFAULT_FEATURES, DEFAULT_PRESET, parseFeatures, type FeatureFlags, type BusinessPreset } from '@/lib/features';
 import { PERMISSIVE_GATES, type PackageGates } from '@/lib/package-features';
 import { DEFAULT_GIFT_CARD, type GiftCardSettings } from '@/lib/gift-card';
 
@@ -39,7 +39,11 @@ function readCachedFeatures(companyId: string | undefined): CachedFeaturesBundle
   if (!companyId || typeof window === 'undefined') return null;
   try {
     const raw = localStorage.getItem(cacheKey(companyId));
-    return raw ? (JSON.parse(raw) as CachedFeaturesBundle) : null;
+    if (!raw) return null;
+    const cached = JSON.parse(raw) as CachedFeaturesBundle;
+    // cache ที่เขียนไว้ก่อนหน้าอาจเก็บ delivery_slot เป็น boolean — normalize ให้เป็น
+    // โครงปัจจุบันก่อน ไม่งั้นโค้ดที่อ่าน `.enabled` พังตั้งแต่ render แรก
+    return { ...cached, features: parseFeatures({ features: cached.features }).features };
   } catch {
     return null;
   }

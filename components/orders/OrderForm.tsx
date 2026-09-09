@@ -81,6 +81,7 @@ const WIZARD_STEP_BY_ERROR: Record<string, number> = {
   deliveryPhone: 2,
   deliveryEmail: 2,
   deliveryDate: 2,
+  deliverySlot: 2,
 };
 const wizardStepForError = (key?: string) => (key && WIZARD_STEP_BY_ERROR[key]) || 3;
 
@@ -512,7 +513,7 @@ export default function OrderForm({
   const [deliveryZones, setDeliveryZones] = useState<DeliveryZone[]>([]);
   const [deliverySlots, setDeliverySlots] = useState<DeliverySlot[]>([]);
   const [selectedSlotId, setSelectedSlotId] = useState<string>('');
-  // '' = จับคู่โซนอัตโนมัติจากที่อยู่ · id = staff เลือกโซนเอง (หรือมาจากออเดอร์เดิม)
+  // '' = จับคู่พื้นที่จัดส่งอัตโนมัติจากที่อยู่ · id = staff เลือกพื้นที่เอง (หรือมาจากออเดอร์เดิม)
   const [zoneOverrideId, setZoneOverrideId] = useState<string>('');
   // ค่าส่งล่าสุดที่ระบบ auto-fill — ใช้เช็คว่า staff แก้เองหรือยัง (แก้เองแล้วไม่ทับ)
   const lastAppliedZoneFeeRef = useRef<number | null>(null);
@@ -917,7 +918,7 @@ export default function OrderForm({
         }
 
         // Zone/slot จากออเดอร์เดิม — lock override เป็นค่าที่บันทึกไว้ กันระบบ
-        // จับคู่โซนใหม่เองตอนแก้ไข (ที่อยู่เดิมอาจ match โซนอื่นหลังแก้ผังโซน)
+        // จับคู่พื้นที่ใหม่เองตอนแก้ไข (ที่อยู่เดิมอาจ match พื้นที่อื่นหลังแก้ผังพื้นที่จัดส่ง)
         if (order.delivery_zone_id) setZoneOverrideId(order.delivery_zone_id);
         if (order.delivery_slot_id) setSelectedSlotId(order.delivery_slot_id);
 
@@ -1823,7 +1824,7 @@ export default function OrderForm({
   };
 
   // ── Delivery zones + slots ─────────────────────────────────────────
-  const deliveryZoneSlotOn = features.delivery_zone || features.delivery_slot;
+  const deliveryZoneSlotOn = features.delivery_zone || features.delivery_slot.enabled;
   useEffect(() => {
     if (!deliveryZoneSlotOn) return;
     let cancelled = false;
@@ -1831,7 +1832,7 @@ export default function OrderForm({
       try {
         const [zRes, sRes] = await Promise.all([
           features.delivery_zone ? apiFetch('/api/delivery-zones?active=true') : null,
-          features.delivery_slot ? apiFetch('/api/delivery-slots?active=true') : null,
+          features.delivery_slot.enabled ? apiFetch('/api/delivery-slots?active=true') : null,
         ]);
         if (cancelled) return;
         if (zRes?.ok) setDeliveryZones((await zRes.json()).zones || []);
@@ -1840,11 +1841,11 @@ export default function OrderForm({
     })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [deliveryZoneSlotOn, features.delivery_zone, features.delivery_slot]);
+  }, [deliveryZoneSlotOn, features.delivery_zone, features.delivery_slot.enabled]);
 
   // เปลี่ยนวันส่ง → ดึง booked_count ของวันนั้น (เช็ค capacity)
   useEffect(() => {
-    if (!features.delivery_slot || !deliveryDate) return;
+    if (!features.delivery_slot.enabled || !deliveryDate) return;
     let cancelled = false;
     (async () => {
       try {
@@ -1854,9 +1855,9 @@ export default function OrderForm({
     })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [features.delivery_slot, deliveryDate]);
+  }, [features.delivery_slot.enabled, deliveryDate]);
 
-  // โซนที่ใช้จริง: staff เลือกเอง > จับคู่อัตโนมัติจากที่อยู่จัดส่ง
+  // พื้นที่จัดส่งที่ใช้จริง: staff เลือกเอง > จับคู่อัตโนมัติจากที่อยู่จัดส่ง
   const autoZone = useMemo(
     () => resolveZone(
       { province: deliveryProvince, amphoe: deliveryAmphoe, postal_code: deliveryPostalCode },
@@ -1892,7 +1893,7 @@ export default function OrderForm({
   const giftCardEnabled = giftCard.enabled;
   const giftCardFee = giftCardEnabled && shipToOther && giftCardOn ? (giftCard.fee || 0) : 0;
 
-  // Auto-fill ค่าส่งจากโซน (เฉพาะ fixed) — ไม่ทับค่าที่ staff แก้เอง:
+  // Auto-fill ค่าส่งจากพื้นที่จัดส่ง (เฉพาะ fixed) — ไม่ทับค่าที่ staff แก้เอง:
   // ทับได้เฉพาะเมื่อค่าปัจจุบัน = ค่าที่ระบบเคย fill (หรือยังเป็น 0)
   const zoneFeeResult = features.delivery_zone && activeZone
     ? resolveDeliveryFee(activeZone, itemsTotal)
@@ -1932,6 +1933,12 @@ export default function OrderForm({
     // Customer is optional for all modes
     if (features.delivery_date.enabled && features.delivery_date.required && !deliveryDate) {
       errors.deliveryDate = 'กรุณาเลือกวันที่ส่งของ';
+    }
+    // ช่วงเวลาส่งบังคับได้เฉพาะเมื่อเลือกวันแล้ว (ช่องถูกล็อกไว้ก่อนหน้านั้นอยู่แล้ว)
+    // — ไม่มีวันก็ไม่ต้องบ่นซ้ำ errors.deliveryDate พาไปที่เดียวกัน
+    // ร้านยังไม่ได้ตั้งรอบเลย = ไม่มีอะไรให้เลือก ไม่บล็อกบันทึก (ลิงก์ใต้ช่องพาไปตั้งอยู่แล้ว)
+    if (features.delivery_slot.enabled && features.delivery_slot.required && deliveryDate && deliverySlots.length > 0 && !selectedSlotId) {
+      errors.deliverySlot = 'กรุณาเลือกช่วงเวลาส่ง';
     }
     // ส่งให้คนอื่นแล้วไม่กรอกชื่อ = ระบบเอาชื่อลูกค้าผู้สั่งไปจ่าหน้ากล่องแทน
     if (shipToOther && !deliveryName.trim()) {
@@ -1976,7 +1983,8 @@ export default function OrderForm({
         if (errors.customer || errors.recipientName || errors.deliveryPhone || errors.deliveryEmail) {
           // customerSectionRef ไม่เคยถูก attach — fallback ไปการ์ดลูกค้า/จัดส่งจริง
           (customerSectionRef.current || deliverySectionRef.current)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        } else if (errors.deliveryDate) {
+        } else if (errors.deliveryDate || errors.deliverySlot) {
+          // วันที่กับช่วงเวลาอยู่การ์ดเดียวกัน — ref ตัวเดียวพาไปถึงทั้งคู่
           deliveryDateRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
         } else if (errors.branches) {
           productsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -2187,7 +2195,7 @@ export default function OrderForm({
         ...(finalAddressId ? { shipping_address_id: finalAddressId } : {}),
         delivery_date: deliveryDate || undefined,
         ...(features.delivery_zone ? { delivery_zone_id: activeZone?.id || null } : {}),
-        ...(features.delivery_slot ? { delivery_slot_id: selectedSlotId || null } : {}),
+        ...(features.delivery_slot.enabled ? { delivery_slot_id: selectedSlotId || null } : {}),
         discount_amount: calculateOrderDiscount(),
         order_discount_type: orderDiscountType,
         notes: notes || undefined,
@@ -2723,15 +2731,15 @@ export default function OrderForm({
           </div>
         )}
 
-        {/* การจัดส่ง — วันที่ + ช่วงเวลา + โซน/ค่าส่ง รวมการ์ดเดียว
+        {/* การจัดส่ง — วันที่ + ช่วงเวลา + พื้นที่จัดส่ง/ค่าส่ง รวมการ์ดเดียว
             ทั้งสามเรื่องคือ "ของชิ้นนี้ไปถึงเมื่อไหร่ ค่าเท่าไหร่"
             **จอกว้าง = แถวเดียว 3 ช่อง** (เจ้าของขอ 9 ก.ย. 2026) · แผงแคบ/wizard ซ้อนลงมา */}
         {(features.delivery_date.enabled || features.delivery_zone) && (
         <div ref={deliveryDateRef} className={`bg-white dark:bg-slate-800 rounded-xl ${embedded ? '' : 'border border-gray-200 dark:border-slate-700'} p-4`}>
           <div className={
             narrowForm ? 'space-y-4'
-              : (features.delivery_date.enabled && features.delivery_slot && features.delivery_zone) ? 'grid grid-cols-3 gap-3 items-start'
-              : (features.delivery_date.enabled && (features.delivery_slot || features.delivery_zone)) ? 'grid grid-cols-2 gap-3 items-start'
+              : (features.delivery_date.enabled && features.delivery_slot.enabled && features.delivery_zone) ? 'grid grid-cols-3 gap-3 items-start'
+              : (features.delivery_date.enabled && (features.delivery_slot.enabled || features.delivery_zone)) ? 'grid grid-cols-2 gap-3 items-start'
               : 'space-y-4'
           }>
           {features.delivery_date.enabled && (
@@ -2746,30 +2754,35 @@ export default function OrderForm({
           </div>
           )}
 
-          {features.delivery_slot && (
+          {features.delivery_slot.enabled && (
             <div>
-              <label className="field-label">ช่วงเวลาส่ง</label>
+              <label className="field-label">
+                ช่วงเวลาส่ง {features.delivery_slot.required && <span className="text-red-500">*</span>}
+              </label>
               {/* dropdown ตัวเดียวกับช่องข้าง ๆ (สูง h-10 เท่า DateRangePicker) — เดิมเป็นข้อความลอย
                   ก่อนเลือกวัน และเป็นชิปปุ่มหลังเลือกวัน ทั้งสองแบบไม่เรียงแนวกับกล่องวันที่
                   (เจ้าของทัก 9 ก.ย. 2026) · ปิดไว้จนกว่าจะเลือกวัน · รอบที่ส่งไม่ทัน**เห็นแต่กดไม่ได้**
-                  พร้อมเหตุผลใน subtitle — ห้ามซ่อน · "ทั้งวัน" = ค่าว่าง */}
-              <FormSelect
-                value={selectedSlotId}
-                onChange={(v) => setSelectedSlotId(v)}
-                clearLabel="ทั้งวัน"
-                clearValue=""
-                placeholder={!deliveryDate ? 'เลือกวันที่ส่งก่อน' : 'ทั้งวัน'}
-                disabled={isReadOnly || !deliveryDate || deliverySlots.length === 0}
-                options={!deliveryDate ? [] : deliverySlots.map((slot) => {
-                  const avail = getSlotAvailability(slot, deliveryDate, activeZone);
-                  const isSelected = selectedSlotId === slot.id;
-                  // แสดงช่วงที่ส่งได้จริง (หักเวลาที่ผ่านไปแล้ว) ไม่ใช่ช่วงเต็มของรอบ
-                  const win = avail.available ? getSlotWindow(slot, deliveryDate, activeZone) : null;
-                  const range = win ? buildWindowLabel(win).replace(' น.', '') : `${formatSlotTime(slot.start_time)}-${formatSlotTime(slot.end_time)}`;
-                  const why = !avail.available && avail.reason ? ` · ${slotUnavailableLabel(avail.reason, activeZone)}` : '';
-                  return { id: slot.id, label: slot.name, subtitle: range + why, disabled: !avail.available && !isSelected };
-                })}
-              />
+                  พร้อมเหตุผลใน subtitle — ห้ามซ่อน · "ทั้งวัน" = ค่าว่าง (ตัดทิ้งเมื่อร้าน
+                  ตั้งช่วงเวลาเป็น "บังคับกรอก" — ไม่งั้นเลือกทั้งวันแล้วผ่าน validate ไม่ได้) */}
+              <div className={fieldErrors.deliverySlot ? 'ring-2 ring-red-400 rounded-lg' : ''}>
+                <FormSelect
+                  value={selectedSlotId}
+                  onChange={(v) => { setSelectedSlotId(v); setFieldErrors(prev => { const { deliverySlot, ...rest } = prev; return rest; }); }}
+                  {...(features.delivery_slot.required ? {} : { clearLabel: 'ทั้งวัน', clearValue: '' })}
+                  placeholder={!deliveryDate ? 'เลือกวันที่ส่งก่อน' : (features.delivery_slot.required ? 'เลือกช่วงเวลา' : 'ทั้งวัน')}
+                  disabled={isReadOnly || !deliveryDate || deliverySlots.length === 0}
+                  options={!deliveryDate ? [] : deliverySlots.map((slot) => {
+                    const avail = getSlotAvailability(slot, deliveryDate, activeZone);
+                    const isSelected = selectedSlotId === slot.id;
+                    // แสดงช่วงที่ส่งได้จริง (หักเวลาที่ผ่านไปแล้ว) ไม่ใช่ช่วงเต็มของรอบ
+                    const win = avail.available ? getSlotWindow(slot, deliveryDate, activeZone) : null;
+                    const range = win ? buildWindowLabel(win).replace(' น.', '') : `${formatSlotTime(slot.start_time)}-${formatSlotTime(slot.end_time)}`;
+                    const why = !avail.available && avail.reason ? ` · ${slotUnavailableLabel(avail.reason, activeZone)}` : '';
+                    return { id: slot.id, label: slot.name, subtitle: range + why, disabled: !avail.available && !isSelected };
+                  })}
+                />
+              </div>
+              {fieldErrors.deliverySlot && <p className="text-red-500 text-xs mt-1">{fieldErrors.deliverySlot}</p>}
               {deliveryDate && deliverySlots.length === 0 && (
                 /* ยังไม่ได้ตั้งรอบ = พาไปตั้งเลย ไม่ใช่บอกทางแล้วให้ไปหาเอง */
                 <Link
@@ -2788,9 +2801,9 @@ export default function OrderForm({
           <div>
           {/* ระยะ label→ช่อง ต้องเท่าสองคอลัมน์ข้าง ๆ (6px จาก .field-label) — ตัวห่อ flex นี้ถือ margin แทน
               และล้าง margin ของ label ข้างใน ไม่งั้นได้ 6px + margin ตัวห่อ ซ้อนกัน (margin ใน flex ไม่ยุบ)
-              ทำให้กล่องจุดส่งตกลงไปต่ำกว่ากล่องวันที่/ช่วงเวลา (เจ้าของทัก 9 ก.ย. 2026) */}
+              ทำให้กล่องพื้นที่จัดส่งตกลงไปต่ำกว่ากล่องวันที่/ช่วงเวลา (เจ้าของทัก 9 ก.ย. 2026) */}
           <div className="flex items-center justify-between mb-1.5">
-            <label className="field-label mb-0">จุดส่ง / ค่าส่ง</label>
+            <label className="field-label mb-0">พื้นที่จัดส่ง</label>
             {zoneOverrideId && !isReadOnly && (
               <button type="button" onClick={() => setZoneOverrideId('')} className="text-sm text-[#F4511E] hover:underline">
                 จับคู่อัตโนมัติตามที่อยู่
@@ -2798,7 +2811,15 @@ export default function OrderForm({
             )}
           </div>
           {deliveryZones.length === 0 ? (
-            <p className="text-sm text-gray-400 dark:text-slate-500">ยังไม่ได้ตั้งค่าจุดส่ง — ตั้งได้ที่ ตั้งค่า → การจัดส่ง</p>
+            /* ยังไม่ได้ตั้งพื้นที่ = พาไปตั้งเลย (แบบเดียวกับรอบส่ง) ไม่ใช่บอกทางแล้วให้ไปหาเอง */
+            <Link
+              href="/settings/delivery?tab=zones"
+              target="_blank"
+              className="mt-1 inline-flex items-center gap-1 text-sm text-primary hover:underline"
+            >
+              ยังไม่ได้ตั้งพื้นที่จัดส่ง — ตั้งค่าเลย
+              <ExternalLink className="w-3.5 h-3.5" />
+            </Link>
           ) : (
             <>
               <FormSelect
@@ -2811,27 +2832,27 @@ export default function OrderForm({
                     ? 'ค่าส่งตาม Lalamove'
                     : `ค่าส่ง ฿${z.fee.toLocaleString()}${z.free_over != null ? ` · ครบ ฿${z.free_over.toLocaleString()} ส่งฟรี` : ''}`,
                 }))}
-                placeholder="เลือกจุดส่ง"
+                placeholder="เลือกพื้นที่จัดส่ง"
                 disabled={isReadOnly}
               />
               <div className="mt-2">
                 {activeZone ? (
                   zoneFeeResult?.needsQuote ? (
                     <p className="text-sm text-amber-600 dark:text-amber-400">
-                      โซนนี้คิดค่าส่งตาม Lalamove — เช็คราคาแล้วกรอกในช่องค่าส่งของสรุปยอด
+                      พื้นที่นี้คิดค่าส่งตาม Lalamove — เช็คราคาแล้วกรอกในช่องค่าส่งของสรุปยอด
                     </p>
                   ) : zoneFeeResult?.freeApplied ? (
-                    <p className="text-sm text-emerald-600 dark:text-emerald-400">ส่งฟรี — ยอดสั่งซื้อถึงขั้นต่ำของโซนนี้แล้ว</p>
+                    <p className="text-sm text-emerald-600 dark:text-emerald-400">ส่งฟรี — ยอดสั่งซื้อถึงขั้นต่ำของพื้นที่นี้แล้ว</p>
                   ) : (
                     <p className="text-sm text-gray-500 dark:text-slate-400">
-                      ค่าส่งโซนนี้ ฿{(zoneFeeResult?.fee ?? 0).toLocaleString()}
-                      {!zoneOverrideId && ' (จับคู่จากที่อยู่จัดส่งอัตโนมัติ)'}
+                      ค่าส่ง ฿{(zoneFeeResult?.fee ?? 0).toLocaleString()}
+                      {zoneOverrideId ? ' · เลือกพื้นที่เอง' : ' · จับคู่จากที่อยู่ให้อัตโนมัติ'}
                     </p>
                   )
                 ) : (deliveryProvince || deliveryPostalCode) ? (
-                  <p className="text-sm text-red-500">ที่อยู่นี้อยู่นอกพื้นที่จัดส่งทุกโซน — เลือกโซนเอง หรือแจ้งลูกค้าว่าไม่รับส่ง</p>
+                  <p className="text-sm text-red-500">ที่อยู่นี้อยู่นอกพื้นที่จัดส่งของร้าน — เลือกพื้นที่เอง หรือแจ้งลูกค้าว่าไม่รับส่ง</p>
                 ) : (
-                  <p className="text-sm text-gray-400 dark:text-slate-500">กรอกที่อยู่จัดส่ง ระบบจะจับคู่โซนและค่าส่งให้อัตโนมัติ</p>
+                  <p className="text-sm text-gray-400 dark:text-slate-500">กรอกที่อยู่จัดส่ง ระบบจะจับคู่พื้นที่และค่าส่งให้อัตโนมัติ</p>
                 )}
               </div>
             </>
@@ -3157,13 +3178,13 @@ export default function OrderForm({
   // (ที่มาของตัวเลขคือ resolveDeliveryFee ใน lib/delivery.ts ที่รันไปแล้วข้างบน)
   //
   // เขียนเฉพาะเคสที่ "เกิดจริง" กับบิลใบนี้ — ไม่ไล่อธิบายกฎทั้งหมดของระบบ
-  // ไม่เปิดฟีเจอร์โซน / ยังไม่ได้ตั้งจุดส่ง = ไม่มีอะไรจะอธิบาย → ไม่ต้องมีไอคอน
+  // ไม่เปิดฟีเจอร์พื้นที่จัดส่ง / ยังไม่ได้ตั้งพื้นที่ = ไม่มีอะไรจะอธิบาย → ไม่ต้องมีไอคอน
   const currentShippingFee = branchOrders[0]?.shipping_fee || 0;
   const shippingFeeHint = (() => {
-    // ร้านที่ไม่ได้เปิดฟีเจอร์โซน = ค่าส่งกรอกมือล้วน ไม่มีที่มาให้เล่า → ไม่มีไอคอน
+    // ร้านที่ไม่ได้เปิดฟีเจอร์พื้นที่จัดส่ง = ค่าส่งกรอกมือล้วน ไม่มีที่มาให้เล่า → ไม่มีไอคอน
     if (!features.delivery_zone) return '';
     if (isMarketplaceSource(editOrderSource) || isMarketplaceSource(source)) {
-      return 'ค่าจัดส่งมาจากแพลตฟอร์ม\nไม่ได้คิดจากโซนจัดส่งของร้าน';
+      return 'ค่าจัดส่งมาจากแพลตฟอร์ม\nไม่ได้คิดจากพื้นที่จัดส่งของร้าน';
     }
     if (deliveryZones.length === 0) return '';
 
@@ -3171,28 +3192,28 @@ export default function OrderForm({
     if (!activeZone) {
       lines.push(
         deliveryProvince || deliveryPostalCode
-          ? 'ที่อยู่นี้ไม่ตรงกับโซนจัดส่งไหนเลย'
+          ? 'ที่อยู่นี้ไม่ตรงกับพื้นที่จัดส่งไหนเลย'
           : 'ยังไม่ได้ระบุที่อยู่จัดส่ง',
         'ค่าจัดส่งจึงต้องกรอกเอง',
       );
       return lines.join('\n');
     }
 
-    // ค่าในบิลไม่ตรงกับที่โซนคิด = staff พิมพ์ทับเอง (ระบบไม่ทับค่าที่แก้เองอยู่แล้ว)
+    // ค่าในบิลไม่ตรงกับที่พื้นที่คิด = staff พิมพ์ทับเอง (ระบบไม่ทับค่าที่แก้เองอยู่แล้ว)
     const zoneFee = zoneFeeResult?.fee ?? null;
     if (zoneFee != null && currentShippingFee !== zoneFee) {
-      lines.push('ค่าจัดส่งนี้แก้เอง ไม่ได้คิดจากโซน');
+      lines.push('ค่าจัดส่งนี้แก้เอง ไม่ได้คิดจากพื้นที่');
     }
 
-    lines.push(`โซนจัดส่ง: ${activeZone.name}`);
+    lines.push(`พื้นที่จัดส่ง: ${activeZone.name}`);
     if (zoneFeeResult?.needsQuote) {
-      lines.push('โซนนี้คิดค่าส่งตาม Lalamove', 'เช็คราคาแล้วกรอกค่าจัดส่งเอง');
+      lines.push('พื้นที่นี้คิดค่าส่งตาม Lalamove', 'เช็คราคาแล้วกรอกค่าจัดส่งเอง');
     } else if (zoneFeeResult?.freeApplied) {
       lines.push(
         `ยอดสินค้า ฿${formatNumber(itemsTotal)} ถึงเกณฑ์ส่งฟรี ฿${formatNumber(activeZone.free_over ?? 0)}`,
       );
     } else {
-      lines.push(`ค่าส่งของโซนนี้ ฿${formatNumber(zoneFee ?? 0)}`);
+      lines.push(`ค่าส่งของพื้นที่นี้ ฿${formatNumber(zoneFee ?? 0)}`);
       if (activeZone.free_over != null && itemsTotal < activeZone.free_over) {
         // ปัดขึ้น — บอกยอดที่ "สั่งเพิ่มแล้วฟรีแน่" ห้ามปัดลงจนยังขาดอีกไม่กี่สตางค์
         lines.push(
@@ -3200,7 +3221,7 @@ export default function OrderForm({
         );
       }
     }
-    lines.push(zoneOverrideId ? '(เลือกโซนเอง)' : '(จับคู่จากที่อยู่จัดส่งอัตโนมัติ)');
+    lines.push(zoneOverrideId ? '(เลือกพื้นที่เอง)' : '(จับคู่จากที่อยู่จัดส่งอัตโนมัติ)');
     return lines.join('\n');
   })();
 

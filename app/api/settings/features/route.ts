@@ -1,7 +1,7 @@
 // Path: app/api/settings/features/route.ts
 import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
 import { NextRequest, NextResponse } from 'next/server';
-import { parseFeatures, DEFAULT_PRESET, DEFAULT_FEATURES, type FeatureFlags } from '@/lib/features';
+import { parseFeatures, clampDeliveryFlags, DEFAULT_PRESET, DEFAULT_FEATURES, type FeatureFlags } from '@/lib/features';
 import { gatesFromPackageFeatures, applyPackageGates, PERMISSIVE_GATES } from '@/lib/package-features';
 import { parseGiftCard } from '@/lib/gift-card';
 
@@ -106,17 +106,20 @@ export async function PUT(request: NextRequest) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const pkgFeatures = (subRes.data?.package as any)?.features || null;
     const gates = subRes.data ? gatesFromPackageFeatures(pkgFeatures) : PERMISSIVE_GATES;
+    // normalize ก่อนเสมอ — client เก่าอาจส่ง delivery_slot มาเป็น boolean
+    const incoming = parseFeatures({ features }).features;
     // Enforce package gates server-side — silently clamp instead of erroring so
     // legacy clients that haven't been updated yet still get a sensible save.
-    const clampedFeatures = applyPackageGates(features, gates);
-    // ช่วงเวลาส่งเป็นตัวเลือกย่อยของวันส่ง — ปิด parent แล้วต้องปิดตาม (UI ล็อก
-    // อยู่แล้ว แต่กัน client เก่า/ยิง API ตรง). จุดส่ง/โซนค่าส่งเป็นอิสระ — ร้าน
-    // e-commerce ที่เปิดบิลเองก็ใช้คิดค่าส่งตามพื้นที่ได้โดยไม่ต้องมีวันส่ง
-    if (!clampedFeatures.delivery_date.enabled) clampedFeatures.delivery_slot = false;
+    const clampedFeatures = applyPackageGates(incoming, gates);
+    // ช่วงเวลาส่งเป็นตัวเลือกย่อยของวันส่ง — ปิด parent แล้วต้องปิดตาม / บังคับ
+    // ช่วงเวลาแล้ววันส่งต้องบังคับตาม (UI ล็อกอยู่แล้ว แต่กัน client เก่า/ยิง API
+    // ตรง). พื้นที่จัดส่งเป็นอิสระ — ร้าน e-commerce ที่เปิดบิลเองก็ใช้คิดค่าส่ง
+    // ตามพื้นที่ได้โดยไม่ต้องมีวันส่ง
+    const finalFeatures = clampDeliveryFlags(clampedFeatures);
 
     const newSettings: Record<string, unknown> = {
       ...currentSettings,
-      features: clampedFeatures,
+      features: finalFeatures,
     };
     if (consignment_settings !== undefined) {
       newSettings.consignment = consignment_settings;

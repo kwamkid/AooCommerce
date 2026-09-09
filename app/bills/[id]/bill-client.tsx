@@ -101,7 +101,7 @@ export interface BillData {
   order_number: string;
   order_date: string;
   delivery_date?: string;
-  /** รอบเวลาส่ง + โซน — snapshot ตอนกดสั่ง (ฟีเจอร์ delivery_slot / delivery_zone) */
+  /** รอบเวลาส่ง + พื้นที่จัดส่ง — snapshot ตอนกดสั่ง (ฟีเจอร์ delivery_slot.enabled / delivery_zone) */
   delivery_slot_label?: string | null;
   delivery_zone_label?: string | null;
   subtotal: number;

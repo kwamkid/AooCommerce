@@ -3,11 +3,13 @@
 
 export interface FeatureFlags {
   delivery_date: { enabled: boolean; required: boolean };
-  // จุดส่ง/โซนค่าส่ง (delivery_zones table) — resolve ค่าส่งจากที่อยู่ลูกค้า
+  // พื้นที่จัดส่ง + ค่าส่ง (delivery_zones table) — resolve ค่าส่งจากที่อยู่ลูกค้า
   delivery_zone: boolean;
   // ช่วงเวลาส่ง (delivery_slots table) — ต้องเปิด delivery_date ก่อนถึงมีความหมาย
   // (เลือกช่วงเวลาโดยไม่มีวันที่ไม่ได้) — UI ล็อกปิดเมื่อ delivery_date ปิด
-  delivery_slot: boolean;
+  // required = "บังคับกรอก" บนหน้า Feature เสริม · ค่าเก่าที่เก็บเป็น boolean
+  // ยังอ่านได้ (parseFeatures แปลงให้เป็น { enabled, required:false })
+  delivery_slot: { enabled: boolean; required: boolean };
   billing_cycle: boolean;
   marketplace_sync: boolean;
   pos: boolean;
@@ -47,7 +49,7 @@ export const PRESET_DEFAULTS: Record<BusinessPreset, FeatureFlags> = {
   delivery: {
     delivery_date: { enabled: true, required: true },
     delivery_zone: true,
-    delivery_slot: true,
+    delivery_slot: { enabled: true, required: false },
     billing_cycle: true,
     marketplace_sync: false,
     pos: false,
@@ -61,7 +63,7 @@ export const PRESET_DEFAULTS: Record<BusinessPreset, FeatureFlags> = {
   ecommerce: {
     delivery_date: { enabled: false, required: false },
     delivery_zone: false,
-    delivery_slot: false,
+    delivery_slot: { enabled: false, required: false },
     billing_cycle: false,
     marketplace_sync: true,
     pos: false,
@@ -75,7 +77,7 @@ export const PRESET_DEFAULTS: Record<BusinessPreset, FeatureFlags> = {
   ecommerce_brand: {
     delivery_date: { enabled: false, required: false },
     delivery_zone: false,
-    delivery_slot: false,
+    delivery_slot: { enabled: false, required: false },
     billing_cycle: false,
     marketplace_sync: true,
     pos: false,
@@ -89,7 +91,7 @@ export const PRESET_DEFAULTS: Record<BusinessPreset, FeatureFlags> = {
   omnichannel: {
     delivery_date: { enabled: false, required: false },
     delivery_zone: false,
-    delivery_slot: false,
+    delivery_slot: { enabled: false, required: false },
     billing_cycle: false,
     marketplace_sync: true,
     pos: true,
@@ -103,7 +105,7 @@ export const PRESET_DEFAULTS: Record<BusinessPreset, FeatureFlags> = {
   omnichannel_brand: {
     delivery_date: { enabled: false, required: false },
     delivery_zone: false,
-    delivery_slot: false,
+    delivery_slot: { enabled: false, required: false },
     billing_cycle: true,
     marketplace_sync: true,
     pos: true,
@@ -117,7 +119,7 @@ export const PRESET_DEFAULTS: Record<BusinessPreset, FeatureFlags> = {
   wholesale: {
     delivery_date: { enabled: false, required: false },
     delivery_zone: false,
-    delivery_slot: false,
+    delivery_slot: { enabled: false, required: false },
     billing_cycle: true,
     marketplace_sync: false,
     pos: false,
@@ -131,7 +133,7 @@ export const PRESET_DEFAULTS: Record<BusinessPreset, FeatureFlags> = {
   distribution: {
     delivery_date: { enabled: false, required: false },
     delivery_zone: false,
-    delivery_slot: false,
+    delivery_slot: { enabled: false, required: false },
     billing_cycle: true,
     marketplace_sync: false,
     pos: false,
@@ -153,7 +155,7 @@ export const PRESET_DEFAULTS: Record<BusinessPreset, FeatureFlags> = {
 export const DEFAULT_FEATURES: FeatureFlags = {
   delivery_date: { enabled: false, required: false },
   delivery_zone: false,
-  delivery_slot: false,
+  delivery_slot: { enabled: false, required: false },
   billing_cycle: false,
   marketplace_sync: false,
   pos: false,
@@ -173,7 +175,8 @@ export function detectPreset(f: FeatureFlags): BusinessPreset | null {
       f.delivery_date.enabled === defaults.delivery_date.enabled &&
       f.delivery_date.required === defaults.delivery_date.required &&
       f.delivery_zone === defaults.delivery_zone &&
-      f.delivery_slot === defaults.delivery_slot &&
+      f.delivery_slot.enabled === defaults.delivery_slot.enabled &&
+      f.delivery_slot.required === defaults.delivery_slot.required &&
       f.billing_cycle === defaults.billing_cycle &&
       f.marketplace_sync === defaults.marketplace_sync &&
       f.pos === defaults.pos &&
@@ -203,6 +206,10 @@ export function parseFeatures(settings: Record<string, unknown> | null | undefin
     return { preset: DEFAULT_PRESET, features: DEFAULT_FEATURES };
   }
 
+  // ค่าเก่าของ delivery_slot เก็บเป็น boolean (ก่อนมีชิป "บังคับกรอก") — ต้องอ่านได้
+  // ทั้งจาก companies.settings และจาก cache ใน localStorage ไม่มี migration ที่ DB
+  const rawSlot = stored.delivery_slot as unknown;
+
   // Merge with defaults to fill any missing fields
   const features: FeatureFlags = {
     delivery_date: {
@@ -210,7 +217,12 @@ export function parseFeatures(settings: Record<string, unknown> | null | undefin
       required: (stored.delivery_date as { required?: boolean })?.required ?? DEFAULT_FEATURES.delivery_date.required,
     },
     delivery_zone: stored.delivery_zone ?? DEFAULT_FEATURES.delivery_zone,
-    delivery_slot: stored.delivery_slot ?? DEFAULT_FEATURES.delivery_slot,
+    delivery_slot: typeof rawSlot === 'boolean'
+      ? { enabled: rawSlot, required: false }
+      : {
+          enabled: (rawSlot as { enabled?: boolean } | undefined)?.enabled ?? DEFAULT_FEATURES.delivery_slot.enabled,
+          required: (rawSlot as { required?: boolean } | undefined)?.required ?? DEFAULT_FEATURES.delivery_slot.required,
+        },
     billing_cycle: stored.billing_cycle ?? DEFAULT_FEATURES.billing_cycle,
     marketplace_sync: stored.marketplace_sync ?? DEFAULT_FEATURES.marketplace_sync,
     pos: stored.pos ?? DEFAULT_FEATURES.pos,
@@ -226,4 +238,44 @@ export function parseFeatures(settings: Record<string, unknown> | null | undefin
   const preset = detectPreset(features) ?? DEFAULT_PRESET;
 
   return { preset, features };
+}
+
+// ── ช่องในการ์ด "จัดส่ง" ของฟอร์มเปิดบิล ──────────────────────────────────
+// วันที่ส่งของ / ช่วงเวลาส่ง เก็บเป็น { enabled, required } เหมือนกัน หน้าตั้งค่า
+// จึงคุมทั้งคู่ด้วยชิปชุดเดียว — พื้นที่จัดส่งมีแค่ ไม่แสดง/แสดง (ไม่มี required)
+
+/** โหมดของช่องในการ์ดจัดส่ง — ตรงกับชิป ไม่แสดง / แสดง / บังคับกรอก ในหน้า Feature เสริม */
+export type DeliveryFieldMode = 'off' | 'optional' | 'required';
+
+export const DELIVERY_FIELD_MODE_LABELS: Record<DeliveryFieldMode, string> = {
+  off: 'ไม่แสดง',
+  optional: 'แสดง',
+  required: 'บังคับกรอก',
+};
+
+export function deliveryFieldMode(f: { enabled: boolean; required: boolean }): DeliveryFieldMode {
+  if (!f.enabled) return 'off';
+  return f.required ? 'required' : 'optional';
+}
+
+export function deliveryFieldFromMode(mode: DeliveryFieldMode): { enabled: boolean; required: boolean } {
+  return {
+    enabled: mode !== 'off',
+    required: mode === 'required',
+  };
+}
+
+/**
+ * กติกาความสอดคล้องของช่องจัดส่ง — ใช้ทั้งหน้าตั้งค่าและ API PUT (server clamp):
+ * ปิดวันส่ง ⇒ ช่วงเวลาปิดตาม · ช่วงเวลาบังคับ ⇒ วันส่งบังคับ
+ * (เลือกช่วงเวลาโดยไม่มีวันที่ไม่ได้ · บังคับช่วงเวลาแต่วันที่กรอกก็ได้ = ขัดกันเอง)
+ */
+export function clampDeliveryFlags(f: FeatureFlags): FeatureFlags {
+  if (!f.delivery_date.enabled) {
+    return { ...f, delivery_slot: { enabled: false, required: false } };
+  }
+  if (f.delivery_slot.required && !f.delivery_date.required) {
+    return { ...f, delivery_date: { ...f.delivery_date, required: true } };
+  }
+  return { ...f };
 }

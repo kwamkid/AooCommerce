@@ -10,9 +10,13 @@ import { can } from '@/lib/permissions';
 import { useFeatures } from '@/lib/features-context';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
-import { type FeatureFlags, PRESET_DEFAULTS, PRESET_LABELS, PRESET_DESCRIPTIONS, detectPreset, type BusinessPreset } from '@/lib/features';
+import {
+  type FeatureFlags, PRESET_DEFAULTS, PRESET_LABELS, PRESET_DESCRIPTIONS, detectPreset, type BusinessPreset,
+  type DeliveryFieldMode, DELIVERY_FIELD_MODE_LABELS, deliveryFieldMode, deliveryFieldFromMode,
+} from '@/lib/features';
 import { CalendarDays, ShoppingCart, Monitor, Handshake, Tag, Factory, PackageCheck, ChevronDown, ChevronUp, Loader2, CreditCard, Truck, Store, Layers, Users, Warehouse, Building, Lock, MapPin, Clock } from 'lucide-react';
-import { featureLockReason } from '@/lib/package-features';
+import { featureLockReason, type PackageGates } from '@/lib/package-features';
+import FilterChips, { FILTER_CHIP_PRIMARY_ACTIVE, type FilterChip } from '@/components/ui/FilterChips';
 import { type BrandGpRow } from '@/components/customers/BrandGpCommissions';
 import GpOverridePanel from '@/components/customers/GpOverridePanel';
 import Toggle from '@/components/ui/Toggle';
@@ -37,7 +41,7 @@ const FEATURE_ICONS: Partial<Record<keyof FeatureFlags, React.ReactNode>> = {
 
 const FEATURE_SHORT: Partial<Record<keyof FeatureFlags, string>> = {
   delivery_date: 'วันส่ง',
-  delivery_zone: 'จุดส่ง',
+  delivery_zone: 'พื้นที่ส่ง',
   delivery_slot: 'รอบส่ง',
   billing_cycle: 'วางบิล',
   marketplace_sync: 'Marketplace',
@@ -67,7 +71,6 @@ interface FeatureSection {
   icon: React.ReactNode;
   color: string; // tailwind text color when active
   comingSoon?: boolean;
-  hasRequired?: boolean; // for delivery_date sub-toggle
   settings?: React.ReactNode; // rendered when feature is enabled
 }
 
@@ -118,36 +121,24 @@ export default function FeaturesPage() {
     }
   }, [featuresFetched, currentFeatures, featuresLoaded]);
 
+  // ช่องจัดส่งทั้งสามตัวอยู่ในการ์ดของตัวเอง (DeliveryFieldsCard) ไม่ผ่านทางนี้
   const getFeatureValue = (key: keyof FeatureFlags): boolean => {
-    if (key === 'delivery_date') return featureFlags.delivery_date.enabled;
-    return featureFlags[key] as boolean;
+    const v = featureFlags[key];
+    return typeof v === 'object' && v !== null ? (v as { enabled: boolean }).enabled : Boolean(v);
   };
 
   const toggleFeature = (key: keyof FeatureFlags) => {
     // Package-gated features can't be turned on
     if (featureLockReason(key, gates)) return;
     setFeatureFlags(prev => {
-      if (key === 'delivery_date') {
-        const dd = prev.delivery_date;
-        const enabling = !dd.enabled;
-        if (enabling) setOpenSection(key);
-        else setOpenSection(s => s === key ? null : s);
-        return {
-          ...prev,
-          delivery_date: { enabled: enabling, required: enabling ? dd.required : false },
-          // ปิดวันส่ง → ช่วงเวลาส่งไม่มีความหมาย ปิดตาม (จุดส่งไม่เกี่ยว — ใช้ได้เอง)
-          ...(enabling ? {} : { delivery_slot: false }),
-        };
-      }
-      // ช่วงเวลาส่งเปิดได้เฉพาะเมื่อเปิดวันส่งอยู่ (เลือกช่วงโดยไม่มีวันไม่ได้)
-      if (key === 'delivery_slot' && !prev.delivery_date.enabled && !prev.delivery_slot) return prev;
-      const newValue = !prev[key as keyof Omit<FeatureFlags, 'delivery_date'>];
+      // อ่านจาก prev ไม่ใช่ state ที่ปิดไว้ในฟังก์ชัน — ตัว updater ต้องพึ่งค่าล่าสุดเสมอ
+      const cur = prev[key];
+      const newValue = !(typeof cur === 'object' && cur !== null ? (cur as { enabled: boolean }).enabled : Boolean(cur));
       const next = { ...prev, [key]: newValue };
       if (key === 'consignment' && newValue) next.supplier = true;
       if (key === 'supplier' && !newValue) next.consignment = false;
-      // Auto-expand when enabling a feature that has expandable settings.
-      // ตัวเลือกย่อยของเดลิเวอรี่ไม่มี section ของตัวเอง — คง section เดิมไว้
-      if (newValue && key !== 'delivery_slot') setOpenSection(key);
+      // Auto-expand when enabling a feature that has expandable settings
+      if (newValue) setOpenSection(key);
       else setOpenSection(s => s === key ? null : s);
       return next;
     });
@@ -261,21 +252,6 @@ export default function FeaturesPage() {
       icon: <CreditCard className="w-5 h-5" />,
       color: 'text-violet-600',
     },
-    {
-      key: 'delivery_date',
-      label: 'ธุรกิจเดลิเวอรี่',
-      description: 'กำหนดวันส่งของ และเมนูจัดของเตรียมส่ง & คิวคนขับรถ',
-      icon: <CalendarDays className="w-5 h-5" />,
-      color: 'text-blue-600',
-      hasRequired: true,
-    },
-    {
-      key: 'delivery_zone',
-      label: 'จุดส่ง / โซนค่าส่ง',
-      description: 'คิดค่าส่งตามพื้นที่ตอนเปิดบิลเอง (คงที่ หรือคำนวณจาก Lalamove) — ไม่กระทบออเดอร์จาก Shopee/Lazada/TikTok ที่มีค่าส่งมาแล้ว',
-      icon: <MapPin className="w-5 h-5" />,
-      color: 'text-emerald-600',
-    },
   ];
 
   if (!isOwnerOrAdmin && featuresLoaded) {
@@ -309,8 +285,7 @@ export default function FeaturesPage() {
 
               // Consignment settings inline
               const hasInlineSettings = feat.key === 'consignment' && isEnabled;
-              const hasDeliveryRequired = feat.key === 'delivery_date' && isEnabled;
-              const hasExpandable = hasInlineSettings || hasDeliveryRequired;
+              const hasExpandable = hasInlineSettings;
 
               return (
                 <div
@@ -357,42 +332,6 @@ export default function FeaturesPage() {
                     </span>
                   </div>
 
-                  {/* Expandable: ตัวเลือกย่อยของเดลิเวอรี่ — วันส่ง / จุดส่ง / ช่วงเวลา */}
-                  {hasDeliveryRequired && isOpen && (
-                    <div className="mt-4 pt-4 border-t border-gray-100 dark:border-slate-700 space-y-2">
-                      <div className="flex items-center justify-between bg-gray-50 dark:bg-slate-700/50 rounded-lg px-4 py-3">
-                        <div>
-                          <p className="text-base font-medium text-gray-900 dark:text-white">บังคับกรอกวันส่ง</p>
-                          <p className="text-sm text-gray-500 dark:text-slate-400 mt-0.5">ถ้าปิด — กรอกหรือไม่กรอกก็ได้</p>
-                        </div>
-                        <Toggle
-                          checked={featureFlags.delivery_date.required}
-                          onChange={() => setFeatureFlags(prev => ({
-                            ...prev,
-                            delivery_date: { ...prev.delivery_date, required: !prev.delivery_date.required },
-                          }))}
-                        />
-                      </div>
-
-                      <div className="flex items-center justify-between bg-gray-50 dark:bg-slate-700/50 rounded-lg px-4 py-3">
-                        <div className="flex items-start gap-3 min-w-0">
-                          <Clock className={`w-5 h-5 flex-shrink-0 mt-0.5 ${featureFlags.delivery_slot ? 'text-indigo-600' : 'text-gray-400 dark:text-slate-500'}`} />
-                          <div className="min-w-0">
-                            <p className="text-base font-medium text-gray-900 dark:text-white">ช่วงเวลาส่ง</p>
-                            <p className="text-sm text-gray-500 dark:text-slate-400 mt-0.5">
-                              ให้เลือกรอบส่งเป็นช่วงเวลา 2-3 ชม. ต่อวัน เช่น 09:00-12:00
-                            </p>
-                          </div>
-                        </div>
-                        <Toggle
-                          checked={featureFlags.delivery_slot}
-                          onChange={() => toggleFeature('delivery_slot')}
-                          disabled={!isOwnerOrAdmin}
-                        />
-                      </div>
-                    </div>
-                  )}
-
                   {/* Expandable: consignment settings */}
                   {hasInlineSettings && isOpen && (
                     <ConsignmentSettingsPanel
@@ -406,6 +345,15 @@ export default function FeaturesPage() {
                 </div>
               );
             })}
+
+            {/* ช่องในการ์ด "จัดส่ง" ของฟอร์มเปิดบิล — สามแถว สามชิป ไม่มีพับเก็บ
+                (เดิมเป็นสองการ์ด + ตัวเลือกย่อยที่ซ่อนอยู่ในปุ่มกาง ผู้ใช้หาไม่เจอ) */}
+            <DeliveryFieldsCard
+              flags={featureFlags}
+              onChange={setFeatureFlags}
+              gates={gates}
+              canEdit={isOwnerOrAdmin}
+            />
               </div>{/* end feature list */}
 
               {/* RIGHT: Preset selector — 40% */}
@@ -418,7 +366,7 @@ export default function FeaturesPage() {
                       const isSelected = detectPreset(featureFlags) === key;
                       // features that are ON in this preset
                       const presetFeatures = Object.entries(PRESET_DEFAULTS[key])
-                        .filter(([k, v]) => k !== 'delivery_date' ? v === true : (v as { enabled: boolean }).enabled === true)
+                        .filter(([, v]) => typeof v === 'object' && v !== null ? (v as { enabled: boolean }).enabled === true : v === true)
                         .map(([k]) => k as keyof FeatureFlags);
                       return (
                         <button
@@ -562,6 +510,150 @@ function ConsignmentSettingsPanel({
         />
       </div>
 
+    </div>
+  );
+}
+
+// ── การจัดส่งของร้าน ──────────────────────────────────────────────────────
+// สามแถว = สามช่องจริงในการ์ด "จัดส่ง" ของฟอร์มเปิดบิล แต่ละแถวเลือกได้ว่า
+// ไม่แสดง / แสดง / บังคับกรอก — ไม่มีพับเก็บ เพราะของเดิมซ่อนตัวเลือกย่อยไว้ใน
+// ปุ่มกางแล้วผู้ใช้หาไม่เจอ
+//
+// ⛔ ห้ามซ่อนแถวที่ยังเลือกไม่ได้ — แถวช่วงเวลาส่งต้องเห็นเสมอ แค่กดไม่ได้
+//    พร้อมบอกเหตุผล ("ต้องเปิดวันที่ส่งของก่อน")
+
+const modeChips = (ids: readonly DeliveryFieldMode[]): FilterChip<DeliveryFieldMode>[] =>
+  ids.map(id => ({ id, label: DELIVERY_FIELD_MODE_LABELS[id], activeClass: FILTER_CHIP_PRIMARY_ACTIVE }));
+
+const DATE_SLOT_CHIPS = modeChips(['off', 'optional', 'required']);
+const ZONE_CHIPS = modeChips(['off', 'optional']);
+
+function DeliveryFieldRow({
+  icon, title, description, chips, mode, onMode, disabled, locked,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+  chips: FilterChip<DeliveryFieldMode>[];
+  mode: DeliveryFieldMode;
+  onMode: (mode: DeliveryFieldMode) => void;
+  disabled: boolean;
+  locked: boolean;
+}) {
+  return (
+    <div className="bg-gray-50 dark:bg-slate-700/50 rounded-lg px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3">
+      <div className="flex items-start gap-3 min-w-0">
+        {icon}
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <p className="font-medium text-gray-900 dark:text-white">{title}</p>
+            {locked && (
+              <InfoChip className="border" colors="bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 border-amber-200 dark:border-amber-900/50" icon={<Lock className="w-3 h-3" />}>ต้องอัปเกรด</InfoChip>
+            )}
+          </div>
+          <p className="subtitle-text text-gray-500 dark:text-slate-400 mt-0.5">{description}</p>
+        </div>
+      </div>
+      <div className="sm:ml-auto flex-shrink-0">
+        <FilterChips chips={chips} value={mode} onChange={onMode} disabled={disabled} />
+      </div>
+    </div>
+  );
+}
+
+function DeliveryFieldsCard({
+  flags, onChange, gates, canEdit,
+}: {
+  flags: FeatureFlags;
+  onChange: (next: FeatureFlags) => void;
+  gates: PackageGates;
+  canEdit: boolean;
+}) {
+  const dateLock = featureLockReason('delivery_date', gates);
+  const slotLock = featureLockReason('delivery_slot', gates);
+  const zoneLock = featureLockReason('delivery_zone', gates);
+
+  const dateMode = deliveryFieldMode(flags.delivery_date);
+  const slotMode = deliveryFieldMode(flags.delivery_slot);
+  const zoneMode: DeliveryFieldMode = flags.delivery_zone ? 'optional' : 'off';
+  const anyOn = flags.delivery_date.enabled || flags.delivery_slot.enabled || flags.delivery_zone;
+
+  const iconClass = (on: boolean, color: string) =>
+    `w-5 h-5 flex-shrink-0 mt-0.5 ${on ? color : 'text-gray-400 dark:text-slate-500'}`;
+
+  // ปิดวันส่ง → ช่วงเวลาปิดตาม · ลดวันส่งเหลือ "แสดง" → ช่วงเวลาบังคับไม่ได้แล้ว
+  const setDate = (mode: DeliveryFieldMode) => {
+    const date = deliveryFieldFromMode(mode);
+    let slot = flags.delivery_slot;
+    if (!date.enabled) slot = { enabled: false, required: false };
+    else if (!date.required && slot.required) slot = { ...slot, required: false };
+    onChange({ ...flags, delivery_date: date, delivery_slot: slot });
+  };
+
+  // บังคับช่วงเวลา → วันส่งต้องบังคับตาม (เลือกช่วงโดยไม่มีวันไม่ได้)
+  const setSlot = (mode: DeliveryFieldMode) => {
+    const slot = deliveryFieldFromMode(mode);
+    const date = slot.required ? { enabled: true, required: true } : flags.delivery_date;
+    onChange({ ...flags, delivery_slot: slot, delivery_date: date });
+  };
+
+  const setZone = (mode: DeliveryFieldMode) => {
+    onChange({ ...flags, delivery_zone: mode === 'optional' });
+  };
+
+  return (
+    <div className={`card transition-all ${anyOn ? 'ring-1 ring-primary/20' : ''}`}>
+      <div className="flex items-center gap-4">
+        <div className={`flex-shrink-0 ${anyOn ? 'text-blue-600' : 'text-gray-400 dark:text-slate-500'}`}>
+          <Truck className="w-5 h-5" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-base font-medium text-gray-900 dark:text-white">การจัดส่งของร้าน</p>
+          <p className="subtitle-text text-gray-500 dark:text-slate-400">
+            ช่องที่โผล่ในการ์ด &quot;จัดส่ง&quot; ตอนเปิดบิลเอง — ไม่กระทบออเดอร์จาก Shopee/Lazada/TikTok ที่มีค่าส่งมาแล้ว
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-4 pt-4 border-t border-gray-100 dark:border-slate-700 space-y-2">
+        <DeliveryFieldRow
+          icon={<CalendarDays className={iconClass(flags.delivery_date.enabled, 'text-blue-600')} />}
+          title="วันที่ส่งของ"
+          description={dateLock ?? 'เปิดแล้วได้เมนู "จัดของเตรียมส่ง" และรายงานคิวส่งของรายวันด้วย'}
+          chips={DATE_SLOT_CHIPS}
+          mode={dateMode}
+          onMode={setDate}
+          disabled={!canEdit || !!dateLock}
+          locked={!!dateLock}
+        />
+
+        <DeliveryFieldRow
+          icon={<Clock className={iconClass(flags.delivery_slot.enabled, 'text-indigo-600')} />}
+          title="ช่วงเวลาส่ง"
+          description={
+            slotLock
+              ?? (!flags.delivery_date.enabled
+                ? 'ต้องเปิดวันที่ส่งของก่อน'
+                : 'รอบส่งเป็นช่วง 2-3 ชม. เช่น 09:00-12:00 · ตั้งรอบได้ที่ ตั้งค่า → การจัดส่ง')
+          }
+          chips={DATE_SLOT_CHIPS}
+          mode={slotMode}
+          onMode={setSlot}
+          disabled={!canEdit || !!slotLock || !flags.delivery_date.enabled}
+          locked={!!slotLock}
+        />
+
+        <DeliveryFieldRow
+          icon={<MapPin className={iconClass(flags.delivery_zone, 'text-emerald-600')} />}
+          title="พื้นที่จัดส่ง + ค่าส่ง"
+          description={zoneLock ?? 'ระบบดูที่อยู่ลูกค้าแล้วเติมค่าส่งให้เองตามพื้นที่ที่ตั้งไว้ (เช่น กทม.ชั้นใน ฿100) · นอกทุกพื้นที่ = ไม่รับส่ง · ตั้งพื้นที่ได้ที่ ตั้งค่า → การจัดส่ง'}
+          chips={ZONE_CHIPS}
+          mode={zoneMode}
+          onMode={setZone}
+          disabled={!canEdit || !!zoneLock}
+          locked={!!zoneLock}
+        />
+      </div>
     </div>
   );
 }

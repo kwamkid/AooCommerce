@@ -1,4 +1,4 @@
-// Delivery zones (จุดส่ง/โซนค่าส่ง) — CRUD for /settings/delivery
+// Delivery zones (พื้นที่จัดส่ง + ค่าส่ง) — CRUD for /settings/delivery
 // Zone matching/fee logic lives in lib/delivery.ts (shared with order forms).
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
@@ -103,14 +103,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
   if (!can(auth, 'masterdata.delivery')) {
-    return NextResponse.json({ error: 'ไม่มีสิทธิ์จัดการจุดส่ง' }, { status: 403 });
+    return NextResponse.json({ error: 'ไม่มีสิทธิ์จัดการพื้นที่จัดส่ง' }, { status: 403 });
   }
 
   const body = await request.json().catch(() => null) as ZoneBody | null;
   if (!body) return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
 
   const payload = zonePayload(body);
-  if (!payload.name) return NextResponse.json({ error: 'กรุณาระบุชื่อจุดส่ง' }, { status: 400 });
+  if (!payload.name) return NextResponse.json({ error: 'กรุณาระบุชื่อพื้นที่จัดส่ง' }, { status: 400 });
   if (payload.provinces.length + payload.districts.length + payload.postcodes.length === 0) {
     return NextResponse.json({ error: 'กรุณาระบุพื้นที่อย่างน้อย 1 รายการ (จังหวัด เขต/อำเภอ หรือรหัสไปรษณีย์)' }, { status: 400 });
   }
@@ -144,7 +144,7 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
   if (!can(auth, 'masterdata.delivery')) {
-    return NextResponse.json({ error: 'ไม่มีสิทธิ์จัดการจุดส่ง' }, { status: 403 });
+    return NextResponse.json({ error: 'ไม่มีสิทธิ์จัดการพื้นที่จัดส่ง' }, { status: 403 });
   }
 
   const body = await request.json().catch(() => null) as ZoneBody | null;
@@ -153,7 +153,7 @@ export async function PUT(request: NextRequest) {
   const update: Record<string, unknown> = {};
   if (body.name !== undefined) {
     const name = body.name.trim();
-    if (!name) return NextResponse.json({ error: 'กรุณาระบุชื่อจุดส่ง' }, { status: 400 });
+    if (!name) return NextResponse.json({ error: 'กรุณาระบุชื่อพื้นที่จัดส่ง' }, { status: 400 });
     update.name = name;
   }
   if (body.provinces !== undefined) update.provinces = sanitizeList(body.provinces);
@@ -186,7 +186,7 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
   if (!can(auth, 'masterdata.delivery')) {
-    return NextResponse.json({ error: 'ไม่มีสิทธิ์จัดการจุดส่ง' }, { status: 403 });
+    return NextResponse.json({ error: 'ไม่มีสิทธิ์จัดการพื้นที่จัดส่ง' }, { status: 403 });
   }
 
   const id = new URL(request.url).searchParams.get('id');

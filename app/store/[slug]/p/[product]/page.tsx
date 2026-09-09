@@ -91,7 +91,7 @@ export default async function StorefrontProductPage({ params }: PageProps) {
   const cfg = company.config;
   const shopName = cfg.display_name || company.name;
   const hasRange = product.price_max > product.price_min;
-  const { zones, slots } = company.features.delivery_zone || company.features.delivery_slot
+  const { zones, slots } = company.features.delivery_zone || company.features.delivery_slot.enabled
     ? await getStorefrontDelivery(company.id)
     : { zones: [], slots: [] };
 

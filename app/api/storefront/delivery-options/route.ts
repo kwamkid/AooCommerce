@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
   if (!company) return NextResponse.json({ error: 'ไม่พบหน้าร้าน' }, { status: 404 });
 
   const wantZone = company.features.delivery_zone;
-  const wantSlot = company.features.delivery_slot;
+  const wantSlot = company.features.delivery_slot.enabled;
 
   const [zonesRes, slotsRes, linkRes] = await Promise.all([
     wantZone
@@ -98,7 +98,7 @@ export async function GET(request: NextRequest) {
 
   return NextResponse.json({
     zone_required: wantZone,
-    slot_required: wantSlot,
+    slot_required: company.features.delivery_slot.required,
     zone: zone
       ? {
           id: zone.id,

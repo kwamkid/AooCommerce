@@ -23,8 +23,11 @@ export default async function CheckoutPage({ params }: { params: Promise<{ slug:
       lineLogin={company.config.line_login && !!company.line_login_channel_id}
       lineChannelId={company.line_login_channel_id}
       zoneEnabled={company.features.delivery_zone}
-      slotEnabled={company.features.delivery_slot}
+      slotEnabled={company.features.delivery_slot.enabled}
       dateEnabled={company.features.delivery_date.enabled}
+      // บังคับช่วงเวลา ⇒ ต้องมีวันด้วยเสมอ (เลือกช่วงโดยไม่มีวันไม่ได้)
+      dateRequired={company.features.delivery_date.required || company.features.delivery_slot.required}
+      slotRequired={company.features.delivery_slot.required}
     />
   );
 }

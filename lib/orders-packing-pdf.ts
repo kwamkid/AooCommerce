@@ -74,7 +74,7 @@ export interface PackingListData {
   delivery_amphoe?: string;
   delivery_province?: string;
   delivery_postal_code?: string;
-  /** กำหนดส่ง — snapshot ตอนกดสั่ง (ฟีเจอร์ delivery_date / delivery_slot) */
+  /** กำหนดส่ง — snapshot ตอนกดสั่ง (ฟีเจอร์ delivery_date / delivery_slot.enabled) */
   delivery_date?: string | null;
   delivery_slot_label?: string | null;
   delivery_zone_label?: string | null;

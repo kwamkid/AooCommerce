@@ -1247,7 +1247,7 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
                     {[fullOrderData.delivery_address, fullOrderData.delivery_district, fullOrderData.delivery_amphoe, fullOrderData.delivery_province, fullOrderData.delivery_postal_code].filter(Boolean).join(' ')}
                   </div>
                 )}
-                {/* จุดส่ง + วันส่ง + ช่วงเวลา (snapshot จากตอนสร้างออเดอร์) */}
+                {/* พื้นที่จัดส่ง + วันส่ง + ช่วงเวลา (snapshot จากตอนสร้างออเดอร์) */}
                 {(fullOrderData.delivery_zone_label || fullOrderData.delivery_date || fullOrderData.delivery_slot_label) && (
                   <div className="text-gray-600 dark:text-slate-400 flex items-center gap-1.5 flex-wrap">
                     {fullOrderData.delivery_zone_label && (

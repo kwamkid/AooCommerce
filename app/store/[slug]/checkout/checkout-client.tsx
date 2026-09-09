@@ -49,6 +49,9 @@ interface Props {
   zoneEnabled: boolean;
   slotEnabled: boolean;
   dateEnabled: boolean;
+  /** บังคับกรอกวันที่ / ช่วงเวลา — มาจากชิปในหน้า Feature เสริม (delivery_date/slot.required) */
+  dateRequired: boolean;
+  slotRequired: boolean;
   giftCard: boolean;
   giftCardFee: number;
   lineLogin: boolean;
@@ -73,7 +76,7 @@ function toISO(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEnabled, giftCard, giftCardFee, lineLogin, lineChannelId }: Props) {
+export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEnabled, dateRequired, slotRequired, giftCard, giftCardFee, lineLogin, lineChannelId }: Props) {
   const router = useRouter();
   const { lines, subtotal, hydrated } = useCart(shop);
 
@@ -89,6 +92,8 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
   const [addressQuery, setAddressQuery] = useState('');
   const [deliveryDate, setDeliveryDate] = useState('');
   const [slotId, setSlotId] = useState('');
+  // ลูกค้ากด "ไม่ระบุช่วงเวลา" เอง — effect ที่เลือกรอบแรกให้อัตโนมัติต้องไม่ยัดกลับ (รีเซ็ตเมื่อเปลี่ยนวัน)
+  const slotClearedRef = useRef(false);
   const [note, setNote] = useState('');
   // ส่งให้คนอื่น — ผู้รับคนละคนกับผู้สั่ง
   const [shipToOther, setShipToOther] = useState(false);
@@ -301,7 +306,7 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
     const open = options.slots.filter(s => s.available);
     if (open.length > 0) {
       // ลิสต์เรียงตาม sort_order ของร้าน ไม่ใช่ตามเวลา — ต้องหาเองว่ารอบไหนเริ่มก่อน
-      if (!slotId) {
+      if (!slotId && !slotClearedRef.current) {
         const earliest = [...open].sort((a, b) => a.start_time.localeCompare(b.start_time))[0];
         setSlotId(earliest.id);
       }
@@ -335,7 +340,8 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
     if (taxInvoice && !taxName.trim()) { setError('กรุณากรอกชื่อผู้เสียภาษี'); return; }
     if (taxInvoice && taxId.replace(/\D/g, '').length !== 13) { setError('เลขประจำตัวผู้เสียภาษีต้องมี 13 หลัก'); return; }
     if (outOfArea) { setError('ที่อยู่นี้อยู่นอกพื้นที่จัดส่งของร้าน'); return; }
-    if (slotEnabled && dateEnabled && !deliveryDate) { setError('กรุณาเลือกวันที่จัดส่ง'); return; }
+    if (dateEnabled && dateRequired && !deliveryDate) { setError('กรุณาเลือกวันที่จัดส่ง'); return; }
+    if (slotEnabled && slotRequired && !slotId) { setError('กรุณาเลือกช่วงเวลาจัดส่ง'); return; }
 
     setSubmitting(true);
     try {
@@ -568,7 +574,7 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
               <div className="sf-field-row">
                 {dateEnabled && (
                   <div className="sf-label">
-                    วันที่จัดส่ง{slotEnabled ? ' *' : ''}
+                    วันที่จัดส่ง{dateRequired ? ' *' : ''}
                     <div style={{ marginTop: 5 }}>
                       {/* ปิดวันที่ร้านไม่มีรอบส่งไปเลย ดีกว่าให้กดได้แล้วเจอ "ไม่มีรอบจัดส่ง" ทีหลัง */}
                       <DateRangePicker
@@ -577,6 +583,7 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
                         value={deliveryDate ? { startDate: deliveryDate, endDate: deliveryDate } : { startDate: null, endDate: null }}
                         onChange={(v) => {
                           dateAutoRef.current = false;
+                          slotClearedRef.current = false;
                           const d = v?.startDate;
                           setDeliveryDate(d ? (typeof d === 'string' ? d.slice(0, 10) : toISO(d)) : '');
                         }}
@@ -590,14 +597,15 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
 
                 {slotEnabled && (
                   <div className="sf-label">
-                    ช่วงเวลาจัดส่ง{dateEnabled ? ' *' : ''}
+                    ช่วงเวลาจัดส่ง{slotRequired ? ' *' : ''}
                     <div style={{ marginTop: 5 }}>
                       <FormSelect
                         value={slotId}
-                        onChange={setSlotId}
+                        onChange={(v) => { slotClearedRef.current = v === ''; setSlotId(v); }}
                         disabled={slotChoices.length === 0}
                         placeholder={slotPlaceholder}
                         options={slotChoices}
+                        {...(slotRequired ? {} : { clearLabel: 'ไม่ระบุช่วงเวลา', clearValue: '' })}
                         portal
                       />
                     </div>

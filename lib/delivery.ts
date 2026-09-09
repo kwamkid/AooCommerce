@@ -1,7 +1,7 @@
 // Delivery zones + slots — shared pure logic (client-safe, no supabase import)
 // Used by: backend OrderForm, /settings/delivery, and (later) storefront checkout.
 //
-// Zone = จุดส่ง/โซนค่าส่ง: answers "ส่งถึงไหม + ค่าส่งเท่าไร + ต้องสั่งล่วงหน้าแค่ไหน"
+// Zone = พื้นที่จัดส่ง + ค่าส่ง: answers "ส่งถึงไหม + ค่าส่งเท่าไร + ต้องสั่งล่วงหน้าแค่ไหน"
 //   fee_type 'fixed'    → fee comes from the zone row (free when subtotal >= free_over)
 //   fee_type 'lalamove' → fee is quoted from Lalamove at order time (zone.fee unused);
 //                         resolveDeliveryFee returns needsQuote=true and the caller

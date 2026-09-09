@@ -1,5 +1,5 @@
 // Path: app/settings/delivery/page.tsx
-// ตั้งค่าการจัดส่ง — จุดส่ง (delivery_zones) + ช่วงเวลาส่ง (delivery_slots)
+// ตั้งค่าการจัดส่ง — พื้นที่จัดส่ง (delivery_zones) + ช่วงเวลาส่ง (delivery_slots)
 // Zone = พื้นที่รับส่ง + ค่าส่ง (fixed / Lalamove quote) + ต้องสั่งล่วงหน้า
 // Slot = รอบเวลา 2-3 ชม. (ห้ามเป็นเวลาเป๊ะ) + วัน + capacity + cutoff
 'use client';
@@ -79,7 +79,7 @@ function PresetChips({
   );
 }
 
-/** 1 preset ที่จะถูก POST — ใช้ร่วมทั้งแท็บโซนและแท็บรอบส่ง */
+/** 1 preset ที่จะถูก POST — ใช้ร่วมทั้งแท็บพื้นที่จัดส่งและแท็บรอบส่ง */
 interface PresetJob { label: string; endpoint: string; body: Record<string, unknown> }
 
 const EMPTY_ZONE_FORM = {
@@ -98,7 +98,7 @@ export default function DeliverySettingsPage() {
   // ตั้งค่าส่วนที่ปิดอยู่ได้ แล้วงงว่าทำไมไม่มีผลตอนเปิดบิล
   const { features } = useFeatures();
   const zonesOn = features.delivery_zone;
-  const slotsOn = features.delivery_slot;
+  const slotsOn = features.delivery_slot.enabled;
   const { showToast } = useToast();
   const { confirm, confirmDialog } = useConfirmDialog();
 
@@ -214,7 +214,7 @@ export default function DeliverySettingsPage() {
       });
       const data = await res.json();
       if (!res.ok) { showToast(data.error || 'บันทึกไม่สำเร็จ', 'error'); return; }
-      showToast('บันทึกจุดส่งแล้ว', 'success');
+      showToast('บันทึกพื้นที่จัดส่งแล้ว', 'success');
       setZoneModal(false);
       await fetchAll();
     } finally {
@@ -224,15 +224,15 @@ export default function DeliverySettingsPage() {
 
   const deleteZone = async (z: DeliveryZone) => {
     const ok = await confirm({
-      title: 'ลบจุดส่ง',
-      description: `ต้องการลบ "${z.name}" หรือไม่? ออเดอร์เก่าที่เคยใช้จุดส่งนี้จะยังแสดงข้อมูลเดิม`,
+      title: 'ลบพื้นที่จัดส่ง',
+      description: `ต้องการลบ "${z.name}" หรือไม่? ออเดอร์เก่าที่เคยใช้พื้นที่นี้จะยังแสดงข้อมูลเดิม`,
       confirmLabel: 'ลบ', variant: 'danger',
     });
     if (!ok) return;
     const res = await apiFetch(`/api/delivery-zones?id=${z.id}`, { method: 'DELETE' });
     const data = await res.json();
     if (!res.ok) { showToast(data.error || 'ลบไม่สำเร็จ', 'error'); return; }
-    showToast(data.soft ? 'มีออเดอร์ใช้จุดส่งนี้อยู่ — ปิดการใช้งานแทน' : 'ลบจุดส่งแล้ว', 'success');
+    showToast(data.soft ? 'มีออเดอร์ใช้พื้นที่นี้อยู่ — ปิดการใช้งานแทน' : 'ลบพื้นที่จัดส่งแล้ว', 'success');
     await fetchAll();
   };
 
@@ -247,7 +247,7 @@ export default function DeliverySettingsPage() {
     }
   };
 
-  // ลำดับ = ลำดับการจับคู่โซน (ตัวแรกที่ match ชนะ) — โซนแคบต้องอยู่บนโซนกว้าง
+  // ลำดับ = ลำดับการจับคู่พื้นที่ (ตัวแรกที่ match ชนะ) — พื้นที่แคบต้องอยู่บนพื้นที่กว้าง
   const moveZone = async (index: number, dir: -1 | 1) => {
     const target = index + dir;
     if (target < 0 || target >= zones.length) return;
@@ -414,18 +414,18 @@ export default function DeliverySettingsPage() {
     if (!canApplyPresetSet || applyingPreset) return;
     const isZones = showZones;
     const jobs = presetJobs;
-    const unit = isZones ? 'โซน' : 'รอบ';
+    const unit = isZones ? 'พื้นที่' : 'รอบ';
 
     const ok = await confirm({
-      title: isZones ? 'ใช้ชุดจุดส่งมาตรฐาน' : 'ใช้ชุดรอบส่งมาตรฐาน',
+      title: isZones ? 'ใช้ชุดพื้นที่จัดส่งมาตรฐาน' : 'ใช้ชุดรอบส่งมาตรฐาน',
       icon: isZones ? <MapPin className="w-6 h-6 text-primary" /> : <Clock className="w-6 h-6 text-primary" />,
       description: [
         isZones
-          ? `จะเพิ่ม ${jobs.length} ${unit} ตามลำดับนี้ (โซนแคบอยู่เหนือโซนกว้าง):`
+          ? `จะเพิ่ม ${jobs.length} ${unit} ตามลำดับนี้ (พื้นที่แคบอยู่เหนือพื้นที่กว้าง):`
           : `จะเพิ่ม ${jobs.length} ${unit}:`,
         jobs.map(j => `• ${j.label}`).join('\n'),
         isZones
-          ? 'พื้นที่ ค่าส่ง และเวลาสั่งล่วงหน้าแก้ทีหลังได้ทุกโซน · จุดส่งที่มีอยู่แล้วจะไม่ถูกแก้ไข'
+          ? 'พื้นที่ ค่าส่ง และเวลาสั่งล่วงหน้าแก้ทีหลังได้ทุกพื้นที่ · พื้นที่ที่มีอยู่แล้วจะไม่ถูกแก้ไข'
           : 'เวลา วัน และจำนวนที่รับได้แก้ทีหลังได้ทุกรอบ · รอบส่งที่มีอยู่แล้วจะไม่ถูกแก้ไข',
       ].join('\n\n'),
       confirmLabel: 'เพิ่มทั้งหมด',
@@ -438,7 +438,7 @@ export default function DeliverySettingsPage() {
     let failedReason = '';
     try {
       // ⚠️ ต้องสร้าง "ทีละตัวเรียงกัน" ห้ามยิงขนาน — POST ให้ sort_order = ตัวท้ายสุด + 1
-      // ยิงพร้อมกันแล้วลำดับจะสลับ ทำให้โซนกว้างขึ้นมาอยู่เหนือโซนแคบ = จับคู่โซนผิด
+      // ยิงพร้อมกันแล้วลำดับจะสลับ ทำให้พื้นที่กว้างขึ้นมาอยู่เหนือพื้นที่แคบ = จับคู่พื้นที่ผิด
       for (const job of jobs) {
         try {
           const res = await apiFetch(job.endpoint, { method: 'POST', body: JSON.stringify(job.body) });
@@ -469,7 +469,7 @@ export default function DeliverySettingsPage() {
         'error',
       );
     } else {
-      showToast(`เพิ่ม${isZones ? 'จุดส่ง' : 'รอบส่ง'}มาตรฐานแล้ว ${created} รายการ`, 'success');
+      showToast(`เพิ่ม${isZones ? 'พื้นที่จัดส่ง' : 'รอบส่ง'}มาตรฐานแล้ว ${created} รายการ`, 'success');
     }
   };
 
@@ -502,13 +502,13 @@ export default function DeliverySettingsPage() {
       <Container size="2xl">
         <PageHeader
           title="การจัดส่ง"
-          subtitle={zonesOn && slotsOn ? 'จุดส่ง โซนค่าส่ง และช่วงเวลาส่งของร้าน'
-            : zonesOn ? 'พื้นที่ที่ร้านรับส่ง และค่าส่งของแต่ละโซน'
+          subtitle={zonesOn && slotsOn ? 'พื้นที่จัดส่ง ค่าส่ง และช่วงเวลาส่งของร้าน'
+            : zonesOn ? 'พื้นที่ที่ร้านรับส่ง และค่าส่งของแต่ละพื้นที่'
             : 'รอบเวลาจัดส่งในแต่ละวัน'}
           backHref="/settings/company"
           actions={
             showZones
-              ? <>{canApplyPresetSet && presetSetButton('secondary')}<Button variant="primary" onClick={openZoneCreate}>+ เพิ่มจุดส่ง</Button></>
+              ? <>{canApplyPresetSet && presetSetButton('secondary')}<Button variant="primary" onClick={openZoneCreate}>+ เพิ่มพื้นที่จัดส่ง</Button></>
               : showSlots
                 ? <>{canApplyPresetSet && presetSetButton('secondary')}<Button variant="primary" onClick={openSlotCreate}>+ เพิ่มรอบส่ง</Button></>
                 : undefined
@@ -519,7 +519,7 @@ export default function DeliverySettingsPage() {
         {zonesOn && slotsOn && (
           <Tabs
             tabs={[
-              { key: 'zones', label: 'จุดส่ง / โซนค่าส่ง', icon: <MapPin className="w-4 h-4" /> },
+              { key: 'zones', label: 'พื้นที่จัดส่ง / ค่าส่ง', icon: <MapPin className="w-4 h-4" /> },
               { key: 'slots', label: 'ช่วงเวลาส่ง', icon: <Clock className="w-4 h-4" /> },
             ]}
             activeKey={tab}
@@ -530,7 +530,7 @@ export default function DeliverySettingsPage() {
         {!zonesOn && !slotsOn ? (
           <EmptyCard
             title="ยังไม่ได้เปิดใช้งาน"
-            subtitle='เปิด "จุดส่ง / โซนค่าส่ง" หรือ "ช่วงเวลาส่ง" ที่ ตั้งค่า → Feature เสริม ก่อน'
+            subtitle='เปิด "พื้นที่จัดส่ง" หรือ "ช่วงเวลาส่ง" ที่ ตั้งค่า → Feature เสริม ก่อน'
             icon={<MapPin className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
           />
         ) : loading ? (
@@ -538,15 +538,15 @@ export default function DeliverySettingsPage() {
         ) : showZones ? (
           zones.length === 0 ? (
             <EmptyCard
-              title="ยังไม่มีจุดส่ง"
-              subtitle="เพิ่มโซนพื้นที่ที่ร้านรับส่ง พร้อมค่าส่งของแต่ละโซน — ที่อยู่นอกโซนทั้งหมด = ไม่รับส่ง"
+              title="ยังไม่มีพื้นที่จัดส่ง"
+              subtitle="เพิ่มพื้นที่ที่ร้านรับส่ง พร้อมค่าส่งของแต่ละพื้นที่ — ที่อยู่นอกทุกพื้นที่ = ไม่รับส่ง"
               icon={<MapPin className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
               actions={canApplyPresetSet ? presetSetButton('primary') : undefined}
             />
           ) : (
             <div className="space-y-2">
               <p className="subtitle-text text-gray-500">
-                ระบบจับคู่โซนจากบนลงล่าง — โซนพื้นที่แคบ (รหัสไปรษณีย์) ควรอยู่เหนือโซนกว้าง (จังหวัด)
+                ระบบจับคู่พื้นที่จากบนลงล่าง — พื้นที่แคบ (รหัสไปรษณีย์) ควรอยู่เหนือพื้นที่กว้าง (จังหวัด)
               </p>
               {zones.map((z, i) => (
                 <ListRow
@@ -592,7 +592,7 @@ export default function DeliverySettingsPage() {
               {zonesOn && (
                 <p className="subtitle-text text-gray-500">
                   ลูกค้าจะเลือกรอบได้ก็ต่อเมื่อ <strong>ส่งทันภายในรอบนั้น</strong> —
-                  ระบบคิดจาก &quot;เวลาเตรียม + จัดส่ง&quot; ของโซนปลายทาง (ตั้งที่แท็บจุดส่ง)
+                  ระบบคิดจาก &quot;เวลาเตรียม + จัดส่ง&quot; ของพื้นที่ปลายทาง (ตั้งที่แท็บพื้นที่จัดส่ง)
                   ตรงนี้จึงกำหนดแค่ช่วงเวลา วัน และจำนวนที่รับได้
                 </p>
               )}
@@ -631,7 +631,7 @@ export default function DeliverySettingsPage() {
         <Modal
           open={zoneModal}
           onClose={() => setZoneModal(false)}
-          title={zoneForm.id ? 'แก้ไขจุดส่ง' : 'เพิ่มจุดส่ง'}
+          title={zoneForm.id ? 'แก้ไขพื้นที่จัดส่ง' : 'เพิ่มพื้นที่จัดส่ง'}
           size="lg"
           footer={
             <div className="px-6 py-4 flex justify-end gap-2">
@@ -641,21 +641,21 @@ export default function DeliverySettingsPage() {
           }
         >
           <div className="px-6 py-5 space-y-4">
-            {/* Preset — create mode เท่านั้น (โซนที่สร้างแล้วถูกกรองออก) */}
+            {/* Preset — create mode เท่านั้น (พื้นที่ที่สร้างแล้วถูกกรองออก) */}
             {!zoneForm.id && (
               <PresetChips
                 items={availableZonePresets.map(p => ({ key: p.key, label: zonePresetLabel(p) }))}
                 selectedKey={zonePresetKey}
                 onPick={applyZonePreset}
-                hint="เลือกโซนสำเร็จรูป (กดเพื่อกรอกฟอร์มอัตโนมัติ แก้ต่อได้) หรือกรอกเองด้านล่าง — แนะนำเพิ่มเรียงซ้าย→ขวา เพราะโซนแคบต้องอยู่เหนือโซนกว้าง"
+                hint="เลือกพื้นที่สำเร็จรูป (กดเพื่อกรอกฟอร์มอัตโนมัติ แก้ต่อได้) หรือกรอกเองด้านล่าง — แนะนำเพิ่มเรียงซ้าย→ขวา เพราะพื้นที่แคบต้องอยู่เหนือพื้นที่กว้าง"
               />
             )}
 
             <FormInput
               ref={form.register('zone_name')}
-              label="ชื่อจุดส่ง"
+              label="ชื่อพื้นที่"
               required
-              requiredMessage="กรุณาระบุชื่อจุดส่ง"
+              requiredMessage="กรุณาระบุชื่อพื้นที่"
               value={zoneForm.name}
               onChange={(e) => { const v = e.target.value; setZoneForm(f => ({ ...f, name: v })); }}
               placeholder="เช่น กรุงเทพชั้นใน"
@@ -677,7 +677,7 @@ export default function DeliverySettingsPage() {
               value={zoneForm.districts}
               onChange={(e) => { const v = e.target.value; setZoneForm(f => ({ ...f, districts: v })); }}
               placeholder="เช่น วัฒนา, คลองเตย — คั่นด้วยจุลภาค"
-              hint="เว้นว่างได้ ถ้าโซนนี้ครอบคลุมทั้งจังหวัด"
+              hint="เว้นว่างได้ ถ้าพื้นที่นี้ครอบคลุมทั้งจังหวัด"
             />
             <FormInput
               label="รหัสไปรษณีย์ (เจาะจงที่สุด)"
@@ -741,7 +741,7 @@ export default function DeliverySettingsPage() {
 
             {slots.length > 0 && (
               <div>
-                <label className="field-label">รอบส่งที่ใช้ได้ในโซนนี้</label>
+                <label className="field-label">รอบส่งที่ใช้ได้ในพื้นที่นี้</label>
                 <MultiSelectSearch
                   value={zoneForm.slot_ids}
                   onChange={(ids) => setZoneForm(f => ({ ...f, slot_ids: ids }))}
@@ -752,7 +752,7 @@ export default function DeliverySettingsPage() {
                   placeholder="เลือกรอบส่ง"
                   emptyLabel="ไม่เลือก = ใช้ได้ทุกรอบ"
                 />
-                <p className="helper-text text-gray-400 mt-1">ไม่เลือกเลย = โซนนี้ใช้ได้ทุกรอบส่ง</p>
+                <p className="helper-text text-gray-400 mt-1">ไม่เลือกเลย = พื้นที่นี้ใช้ได้ทุกรอบส่ง</p>
               </div>
             )}
           </div>
@@ -823,7 +823,7 @@ export default function DeliverySettingsPage() {
               </div>
             </div>
 
-            {/* เวลาปิดรับคุมที่ "เวลาเตรียม + จัดส่ง" ของโซนที่เดียว —
+            {/* เวลาปิดรับคุมที่ "เวลาเตรียม + จัดส่ง" ของพื้นที่จัดส่งที่เดียว —
                 รอบส่งกำหนดแค่ช่วงเวลา วัน และจำนวนที่รับไหว */}
             <div>
               <label className="field-label">รับได้ต่อวัน</label>
