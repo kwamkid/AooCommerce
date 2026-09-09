@@ -17,7 +17,7 @@ import { apiFetch, invalidateApiCache } from '@/lib/api-client';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { useStableCallback } from '@/lib/useStableCallback';
 import { describeSendError, describeUploadError } from '@/lib/chat/send-errors';
-import { formatPrice, formatNumber } from '@/lib/utils/format';
+import { formatPrice, formatNumber, formatThaiDateTime } from '@/lib/utils/format';
 import { OrderStatusBadge, PaymentStatusBadge } from '@/components/ui/OrderStatusBadge';
 import { isConsignmentFlow, isDepartmentFlow } from '@/lib/flow-types';
 import { supabase } from '@/lib/supabase';
@@ -58,6 +58,7 @@ import {
   FilterX,
   MessageSquareText,
   Pencil,
+  Megaphone,
 } from 'lucide-react';
 import Image from 'next/image';
 import type { CustomerFormData } from '@/components/customers/customer-payload';
@@ -66,12 +67,13 @@ import TagBadge, { Tag } from '@/components/ui/TagBadge';
 import TagInput from '@/components/ui/TagInput';
 import { diffTagIds, patchCustomerTags, patchContactTags } from '@/lib/tag-links';
 import Tooltip from '@/components/ui/Tooltip';
-import type { UnifiedContact, ChatMessage, Customer, DayRange, ChatAccountInfo, LinkedContact } from './lib/chatTypes';
+import type { UnifiedContact, ChatMessage, Customer, DayRange, ChatAccountInfo, LinkedContact, ContactReferral } from './lib/chatTypes';
 import MessageBubble from './components/MessageBubble';
 // แผง "เปิดบิล" แยกไฟล์เพราะห่อ memo ไว้ (ดูหมายเหตุในไฟล์นั้น) — ตัวห่อเล็กมาก
 // ส่วน OrderForm ที่หนักจริงยังเป็น dynamic อยู่ข้างใน จึงไม่ติดมากับ first-load JS
 import ChatOrderPanel from './components/ChatOrderPanel';
-import { FbIcon, IgIcon, LineIcon, ShopeeIcon, LazadaIcon, TiktokIcon, PlatformIcon, AccountCornerBadge, getAccountPicture, getAvatarUrl, getInitials, ContactAvatar, formatTime, formatLastMessage, groupImageAlbums, prepareChatImage, isImageFile, documentKind, formatFileSize, DOC_ACCEPT, DOC_KIND_LABELS, DOC_MAX_BYTES, officialStickers, isSystemEventMessage } from './lib/chatHelpers';
+import AdMediaThumb from './components/AdMediaThumb';
+import { FbIcon, IgIcon, LineIcon, ShopeeIcon, LazadaIcon, TiktokIcon, PlatformIcon, AccountCornerBadge, getAccountPicture, getAvatarUrl, getInitials, ContactAvatar, formatTime, formatLastMessage, groupImageAlbums, prepareChatImage, isImageFile, documentKind, formatFileSize, DOC_ACCEPT, DOC_KIND_LABELS, DOC_MAX_BYTES, officialStickers, isSystemEventMessage, referralSourceLabel, referralPostUrl } from './lib/chatHelpers';
 import { FullPageLoading } from '@/components/ui/Loading';
 import { LoadingCard } from '@/components/ui/StateCard';
 import { SkeletonChat } from '@/components/ui/Skeleton';
@@ -250,6 +252,12 @@ function UnifiedChatPageContent() {
   const [orderHistory, setOrderHistory] = useState<any[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
 
+  // ประวัติ "ทักมาจากโฆษณา" ของห้องที่เปิดอยู่ — โหลดเฉพาะตอนเปิดแผงโปรไฟล์
+  const [referralHistory, setReferralHistory] = useState<ContactReferral[] | null>(null);
+  const [referralHistoryLoading, setReferralHistoryLoading] = useState(false);
+  /** ลำดับคำขอ — ผลของห้องเก่าที่มาช้าต้องถูกทิ้ง ห้ามเอามาทับห้องที่เปิดอยู่ */
+  const referralHistorySeq = useRef(0);
+
   // Advanced filters
   const [showFilterPopover, setShowFilterPopover] = useState(false);
   const [filterOrderDaysRange, setFilterOrderDaysRange] = useState<{ min: number; max: number | null } | null>(null);
@@ -300,38 +308,33 @@ function UnifiedChatPageContent() {
     if (!c?.referral_source && !c?.referral_ad_title) return null;
     const ad = c.referral_data?.ads_context_data;
     const ref = c.referral_data?.ref;
-    const photo = ad?.photo_url;
-    const postUrl = ad?.post_id ? `https://www.facebook.com/${ad.post_id}` : null;
-    const source = c.referral_source;
-    const heading = source === 'ADS' ? 'ลูกค้าทักมาจากโฆษณา'
-      : source === 'SHORTLINK' ? 'ลูกค้าทักมาจากลิงก์ m.me'
-      : source === 'CUSTOMER_CHAT_PLUGIN' ? 'ลูกค้าทักมาจากปุ่มแชทบนเว็บไซต์'
-      : `ลูกค้าทักมาจาก ${source || 'ลิงก์'}`;
-    if (!c.referral_ad_title && !photo && !ref && !postUrl) return null;
+    const postUrl = referralPostUrl(ad?.post_id);
+    const sourceLabel = referralSourceLabel(c.referral_source);
+    // ป้ายที่แปลเป็นไทยแล้วต่อท้ายได้เลย · ที่มาแปลก ๆ ยังเป็นตัวโรมัน เว้นวรรคให้อ่านออก
+    const heading = `ลูกค้าทักมาจาก${/^[\u0E00-\u0E7F]/.test(sourceLabel) ? '' : ' '}${sourceLabel}`;
+    // มีที่มาก็พอแล้ว — ไม่มีรูป/ไม่มีชื่อโฆษณาก็ยังต้องบอกว่าลูกค้ามาจากไหน
+    const mediaUrl = c.referral_media_url ?? ad?.photo_url ?? ad?.video_url ?? null;
+    const mediaKind = c.referral_media_kind ?? (ad?.photo_url ? 'photo' : ad?.video_url ? 'video' : null);
     return (
       <div className="flex justify-center">
         <div className="w-full max-w-[440px] bg-white dark:bg-slate-800 border border-blue-200 dark:border-blue-900/60 rounded-xl shadow-sm overflow-hidden">
           <div className="flex items-stretch gap-3 p-2.5">
-            {photo ? (
-              <Image src={photo} alt="โฆษณา" width={64} height={64} className="w-16 h-16 rounded-lg object-cover flex-shrink-0" unoptimized />
-            ) : (
-              <div className="w-16 h-16 rounded-lg bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center flex-shrink-0 text-2xl">📣</div>
-            )}
+            <AdMediaThumb url={mediaUrl} kind={mediaKind} sizeClass="w-16 h-16" href={postUrl} />
             <div className="min-w-0 flex-1 flex flex-col justify-center">
               <div className="text-xs font-medium text-blue-600 dark:text-blue-400">{heading}</div>
               {c.referral_ad_title && <div className="text-sm text-gray-900 dark:text-slate-100 leading-snug line-clamp-2">{c.referral_ad_title}</div>}
               {ref && <div className="text-xs text-gray-500 truncate">ref: {ref}</div>}
+              {c.referral_at && <div className="text-xs text-gray-500">กดมาเมื่อ {formatThaiDateTime(c.referral_at)}</div>}
               <div className="flex items-center gap-3 mt-0.5">
                 {postUrl && (
                   <a href={postUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-500 hover:underline inline-flex items-center gap-0.5">
                     ดูโพสต์โฆษณา <ExternalLink className="w-3 h-3" />
                   </a>
                 )}
-                {ad?.video_url && (
-                  <a href={ad.video_url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-500 hover:underline inline-flex items-center gap-0.5">
-                    ดูวิดีโอ <ExternalLink className="w-3 h-3" />
-                  </a>
-                )}
+                {/* ห่อ lambda — การ์ดนี้ถูกประกอบก่อนบรรทัดที่ประกาศ handleOpenProfile (TDZ) */}
+                <button type="button" onClick={() => handleOpenProfile()} className="text-xs text-blue-500 hover:underline inline-flex items-center gap-0.5">
+                  ดูประวัติโฆษณา
+                </button>
               </div>
             </div>
           </div>
@@ -567,6 +570,41 @@ function UnifiedChatPageContent() {
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, [rightPanel]);
+
+  // ── ประวัติ "ทักมาจากโฆษณา" ──
+  // เปลี่ยนห้อง = ทิ้งของเดิมทันที (และเพิ่ม seq เพื่อทิ้งผลของห้องเก่าที่ยังค้างสายอยู่)
+  useEffect(() => {
+    referralHistorySeq.current++;
+    setReferralHistory(null);
+    setReferralHistoryLoading(false);
+  }, [selectedContact?.id]);
+
+  // โหลดเมื่อ "เปิดแผงโปรไฟล์" เท่านั้น — เป็นข้อมูลที่ไม่มีใครดูจนกว่าจะกดเปิด
+  // (FB/IG เท่านั้น เพราะประวัตินี้อยู่บน fb_contact_referrals)
+  useEffect(() => {
+    const contactId = selectedContact?.id;
+    const panelOpen = rightPanel === 'profile' || mobileView === 'profile';
+    if (!panelOpen || !contactId) return;
+    if (selectedContact?.platform !== 'facebook' || !selectedContact?.referral_source) return;
+
+    const seq = ++referralHistorySeq.current;
+    setReferralHistoryLoading(true);
+    (async () => {
+      try {
+        const res = await apiFetch(`/api/chat/contacts/${contactId}/referrals`);
+        const data = await res.json().catch(() => ({}));
+        // สลับห้อง/ปิดแผงไปแล้วระหว่างรอ = ทิ้งผลนี้ ห้ามเอาประวัติของห้องก่อนหน้ามาทับ
+        if (seq !== referralHistorySeq.current) return;
+        if (!res.ok) throw new Error(data?.error || 'โหลดประวัติโฆษณาไม่สำเร็จ');
+        setReferralHistory((data.referrals || []) as ContactReferral[]);
+      } catch {
+        if (seq !== referralHistorySeq.current) return;
+        setReferralHistory([]); // โหลดไม่ได้ = ไม่แสดงบล็อก ดีกว่าค้างเป็นโครงโหลดตลอด
+      } finally {
+        if (seq === referralHistorySeq.current) setReferralHistoryLoading(false);
+      }
+    })();
+  }, [selectedContact?.id, selectedContact?.platform, selectedContact?.referral_source, rightPanel, mobileView]);
 
   // Close filter popover when clicking outside
   useEffect(() => {
@@ -831,6 +869,12 @@ function UnifiedChatPageContent() {
           display_name: (row?.display_name as string | undefined) ?? c.display_name,
           status: status ?? c.status,
           chat_account_id: (row?.chat_account_id as string | undefined) ?? c.chat_account_id,
+          // ลูกค้าทักมาจากโฆษณา = UPDATE บนแถวนี้ ป้าย Ads/การ์ดหัวสายต้องขึ้นทันที
+          referral_source: (row?.referral_source as string | undefined) ?? c.referral_source,
+          referral_ad_title: (row?.referral_ad_title as string | undefined) ?? c.referral_ad_title,
+          referral_media_url: (row?.referral_media_url as string | undefined) ?? c.referral_media_url,
+          referral_media_kind: (row?.referral_media_kind as 'photo' | 'video' | undefined) ?? c.referral_media_kind,
+          referral_at: (row?.referral_at as string | undefined) ?? c.referral_at,
           // FB: picture_url ที่ API ประกอบให้เป็น URL ผ่าน proxy ของเรา ส่วนใน DB เป็น CDN ที่หมดอายุ
           // → ทับไม่ได้ ไม่งั้นรูปโปรไฟล์เฟซจะกลายเป็นรูปเสียหลังลูกค้าทักครั้งแรก
           ...(c.platform !== 'facebook' && row?.picture_url ? { picture_url: row.picture_url as string } : {}),
@@ -850,8 +894,18 @@ function UnifiedChatPageContent() {
           if (!prev || prev.id !== id) return prev;
           const nextName = (row?.display_name as string | undefined) ?? prev.display_name;
           const nextStatus = status ?? prev.status;
-          if (prev.display_name === nextName && prev.status === nextStatus) return prev;
-          return { ...prev, display_name: nextName, status: nextStatus };
+          const nextReferralAt = (row?.referral_at as string | undefined) ?? prev.referral_at;
+          if (prev.display_name === nextName && prev.status === nextStatus && prev.referral_at === nextReferralAt) return prev;
+          return {
+            ...prev,
+            display_name: nextName,
+            status: nextStatus,
+            referral_at: nextReferralAt,
+            referral_source: (row?.referral_source as string | undefined) ?? prev.referral_source,
+            referral_ad_title: (row?.referral_ad_title as string | undefined) ?? prev.referral_ad_title,
+            referral_media_url: (row?.referral_media_url as string | undefined) ?? prev.referral_media_url,
+            referral_media_kind: (row?.referral_media_kind as 'photo' | 'video' | undefined) ?? prev.referral_media_kind,
+          };
         });
       }
     };
@@ -2432,6 +2486,43 @@ function UnifiedChatPageContent() {
             <p className="text-sm text-gray-600 dark:text-slate-400 whitespace-pre-wrap">{c.notes}</p>
           </div>
         )}
+
+        {/* ประวัติจากโฆษณา — ลูกค้าคนเดียวทักมาจากโฆษณาคนละตัวได้หลายครั้ง
+            (ไม่มีประวัติ/ไม่ใช่ FB-IG = ไม่ต้องมีบล็อกนี้เลย ห้ามโชว์หัวข้อว่างเปล่า) */}
+        {selectedContact.platform === 'facebook' && !!selectedContact.referral_source && (referralHistoryLoading || (referralHistory && referralHistory.length > 0)) && (
+          <div className="pt-3 border-t border-gray-100 dark:border-slate-700">
+            <label className="text-base font-medium text-gray-700 dark:text-slate-300 mb-1.5 block">
+              ประวัติจากโฆษณา{referralHistory && referralHistory.length > 0 ? ` (${referralHistory.length})` : ''}
+            </label>
+            {referralHistoryLoading && !referralHistory ? (
+              <LoadingCard compact />
+            ) : (
+              <div className="divide-y divide-gray-100 dark:divide-slate-700">
+                {(referralHistory || []).map(r => {
+                  const postUrl = referralPostUrl(r.post_id);
+                  return (
+                    <div key={r.id} className="flex items-center gap-2 py-2">
+                      <AdMediaThumb url={r.media_url} kind={r.media_kind} sizeClass="w-10 h-10" href={postUrl} />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-gray-900 dark:text-white line-clamp-2">{r.ad_title || referralSourceLabel(r.source)}</p>
+                        <p className="text-xs text-gray-500 dark:text-slate-400 truncate">
+                          {referralSourceLabel(r.source)} · {formatThaiDateTime(r.received_at)}
+                        </p>
+                      </div>
+                      {postUrl && (
+                        <Tooltip text="เปิดโพสต์โฆษณา" box="inline-flex">
+                          <a href={postUrl} target="_blank" rel="noopener noreferrer" aria-label="เปิดโพสต์" className="p-1.5 rounded-md text-gray-400 hover:text-blue-500 hover:bg-gray-50 dark:hover:bg-slate-700/50 flex-shrink-0">
+                            <ExternalLink className="w-4 h-4" />
+                          </a>
+                        </Tooltip>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     );
   };
@@ -2731,6 +2822,11 @@ function UnifiedChatPageContent() {
                       <div className="flex items-center justify-between">
                         <span className="font-medium text-gray-900 dark:text-white truncate">{contact.nickname || contact.display_name}</span>
                         <div className="flex items-center gap-1.5 flex-shrink-0">
+                          {/* มาจากโฆษณา — เห็นตั้งแต่รายชื่อว่าห้องไหนมาจากเงินที่จ่ายไป
+                              (InfoChip ไม่ใช่ Badge เพราะแถวนี้เตี้ย ต้องไม่ดันความสูง) */}
+                          {contact.referral_source === 'ADS' && (
+                            <InfoChip size="sm" colors="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300" icon={<Megaphone className="w-3 h-3" />}>Ads</InfoChip>
+                          )}
                           <span className="text-xs text-gray-400 dark:text-slate-500">{formatLastMessage(contact.last_message_at)}</span>
                           {contact.unread_count > 0 && (<span className="bg-red-500 text-white text-[10px] font-bold min-w-[18px] h-[18px] px-1 rounded-full flex items-center justify-center">{contact.unread_count > 99 ? '99+' : contact.unread_count}</span>)}
                         </div>
@@ -2827,26 +2923,21 @@ function UnifiedChatPageContent() {
                     )}
                     {selectedContact.referral_ad_title && (() => {
                       const adData = selectedContact.referral_data?.ads_context_data;
-                      const postId = adData?.post_id;
-                      const adPhotoUrl = adData?.photo_url;
-                      const adUrl = postId ? `https://www.facebook.com/${postId}` : null;
-                      const sourceLabel = selectedContact.referral_source === 'ADS' ? 'Ads'
-                        : selectedContact.referral_source === 'SHORTLINK' ? 'Shortlink'
-                        : selectedContact.referral_source === 'CUSTOMER_CHAT_PLUGIN' ? 'Chat Plugin'
-                        : selectedContact.referral_source || 'Referral';
+                      const adUrl = referralPostUrl(adData?.post_id);
+                      const mediaUrl = selectedContact.referral_media_url ?? adData?.photo_url ?? adData?.video_url ?? null;
+                      const mediaKind = selectedContact.referral_media_kind ?? (adData?.photo_url ? 'photo' : adData?.video_url ? 'video' : null);
+                      const sourceLabel = referralSourceLabel(selectedContact.referral_source);
                       return (
                         <div className="flex items-center gap-1.5 mt-0.5">
-                          {adPhotoUrl && (
-                            <Image src={adPhotoUrl} alt="ad" width={28} height={28} className="w-7 h-7 rounded object-cover flex-shrink-0" unoptimized />
-                          )}
+                          <AdMediaThumb url={mediaUrl} kind={mediaKind} sizeClass="w-7 h-7" />
                           {adUrl ? (
                             <a href={adUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-500 dark:text-blue-400 hover:underline truncate max-w-[220px] flex items-center gap-0.5">
-                              📣 {sourceLabel}: {selectedContact.referral_ad_title}
+                              {sourceLabel}: {selectedContact.referral_ad_title}
                               <ExternalLink className="w-2.5 h-2.5 flex-shrink-0" />
                             </a>
                           ) : (
                             <p className="text-xs text-blue-500 dark:text-blue-400 truncate max-w-[220px]">
-                              📣 {sourceLabel}: {selectedContact.referral_ad_title}
+                              {sourceLabel}: {selectedContact.referral_ad_title}
                             </p>
                           )}
                         </div>

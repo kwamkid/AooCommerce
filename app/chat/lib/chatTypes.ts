@@ -63,6 +63,26 @@ export interface UnifiedContact {
       product_id?: string;
     };
   };
+  /** รูปของโฆษณาใบล่าสุด — `video_url` ของ Meta ก็เป็น .jpg (รูปปกวิดีโอ) ไม่ใช่ไฟล์วิดีโอ */
+  referral_media_url?: string | null;
+  referral_media_kind?: 'photo' | 'video' | null;
+  /** เวลาที่ลูกค้ากดเข้ามาครั้งล่าสุด (ไม่ขยับเมื่อ Meta ส่ง event ซ้ำของการกดครั้งเดิม) */
+  referral_at?: string | null;
+}
+
+/** หนึ่งครั้งที่ลูกค้ากดจากโฆษณา/ลิงก์เข้ามาทัก — แถวใน fb_contact_referrals */
+export interface ContactReferral {
+  id: string;
+  source: string;
+  type?: string | null;
+  ref?: string | null;
+  ad_id?: string | null;
+  ad_title?: string | null;
+  post_id?: string | null;
+  product_id?: string | null;
+  media_kind?: 'photo' | 'video' | null;
+  media_url?: string | null;
+  received_at: string;
 }
 
 export interface ChatMessage {

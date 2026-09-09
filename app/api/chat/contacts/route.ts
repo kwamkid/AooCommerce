@@ -72,6 +72,9 @@ type UnifiedContact = {
   referral_ad_id?: string;
   referral_ad_title?: string;
   referral_data?: Record<string, unknown>;
+  referral_media_url?: string;
+  referral_media_kind?: string;
+  referral_at?: string;
   tags?: { id: string; name: string; color: string }[];
 };
 
@@ -309,6 +312,9 @@ export async function GET(request: NextRequest) {
         referral_ad_id: c.referral_ad_id,
         referral_ad_title: c.referral_ad_title,
         referral_data: c.referral_data,
+        referral_media_url: c.referral_media_url,
+        referral_media_kind: c.referral_media_kind,
+        referral_at: c.referral_at,
       });
     }
 

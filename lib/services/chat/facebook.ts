@@ -591,24 +591,93 @@ export class FacebookChatService {
 
   // ─── Webhook: Save Referral Data (from ads, shops, etc.) ───────────
 
-  async saveReferralData(contactId: string, referral: NonNullable<FbMessagingEvent['referral']>) {
+  /**
+   * บันทึก referral (ลูกค้าทักมาจากโฆษณา / ลิงก์ m.me / ปุ่มแชทบนเว็บ)
+   *
+   * เก็บ 2 ที่: แถวประวัติใน `fb_contact_referrals` (ทักซ้ำจากโฆษณาคนละตัวต้องไม่หายไป
+   * ทับกัน — ของเดิมเขียนทับคอลัมน์บน fb_contacts อย่างเดียว) + คอลัมน์ "ล่าสุด" บน
+   * `fb_contacts` ที่หน้าแชทอ่านโดยตรง
+   *
+   * ⚠️ **การกดครั้งเดียวของลูกค้า Meta ส่งมา 2 ใบ** — ใบแรกเป็น referral เปล่า
+   * (OPEN_THREAD) แล้วอีกใบติดมากับข้อความแรก · ถือเป็นการทักครั้งเดียวกัน จึงไม่ลง
+   * แถวใหม่ถ้าใบล่าสุดของห้องนี้เป็นที่มาเดียวกันภายใน 30 นาที
+   *
+   * ⚠️ `ads_context_data.video_url` **ไม่ใช่วิดีโอ** — เป็นรูปปกของวิดีโอโฆษณา (.jpg)
+   * ตามสเปกของ Meta · ตัวสื่อจริงอยู่ที่โพสต์ `https://www.facebook.com/{post_id}`
+   * และ URL ของ fbcdn มี `oe=` หมดอายุราว 4 วัน — ฝั่งหน้าจอต้องซ่อนรูปที่โหลดไม่ขึ้นเอง
+   */
+  async saveReferralData(
+    contact: { id: string; company_id: string; chat_account_id?: string | null },
+    referral: NonNullable<FbMessagingEvent['referral']>
+  ) {
+    const source = referral.source || 'unknown';
+    const ads = referral.ads_context_data;
+    const mediaKind: 'photo' | 'video' | null = ads?.photo_url ? 'photo' : ads?.video_url ? 'video' : null;
+    const mediaUrl = ads?.photo_url ?? ads?.video_url ?? null;
+    const adId = referral.ad_id ?? null;
+    const ref = referral.ref ?? null;
+
+    let inserted = false;
+    try {
+      const { data: latest, error: latestErr } = await supabaseAdmin
+        .from('fb_contact_referrals')
+        .select('source, ad_id, ref, received_at')
+        .eq('contact_id', contact.id)
+        .order('received_at', { ascending: false })
+        .limit(1);
+      if (latestErr) throw latestErr;
+
+      const prev = latest?.[0];
+      const sameIdentity =
+        !!prev &&
+        prev.source === source &&
+        ((prev.ad_id ?? prev.ref ?? '') === (adId ?? ref ?? ''));
+      const withinWindow =
+        !!prev && Date.now() - new Date(prev.received_at as string).getTime() < 30 * 60 * 1000;
+
+      if (!sameIdentity || !withinWindow) {
+        const { error: insErr } = await supabaseAdmin.from('fb_contact_referrals').insert({
+          company_id: contact.company_id,
+          contact_id: contact.id,
+          chat_account_id: contact.chat_account_id ?? null,
+          source,
+          type: referral.type ?? null,
+          ref,
+          ad_id: adId,
+          ad_title: ads?.ad_title ?? null,
+          post_id: ads?.post_id ?? null,
+          product_id: ads?.product_id ?? null,
+          media_kind: mediaKind,
+          media_url: mediaUrl,
+          raw: referral,
+        });
+        if (insErr) throw insErr;
+        inserted = true;
+      }
+    } catch (err) {
+      // ประวัติลงไม่ได้ต้องไม่ทำให้คอลัมน์ "ล่าสุด" ไม่ถูกอัปเดต — webhook ห้าม throw
+      console.error('Failed to save referral history:', err);
+    }
+
     const updateData: Record<string, unknown> = {
-      referral_source: referral.source || 'unknown',
+      referral_source: source,
       referral_data: referral,
+      referral_media_url: mediaUrl,
+      referral_media_kind: mediaKind,
       updated_at: new Date().toISOString(),
     };
+    // ใบที่โดน dedupe = การทักครั้งเดิม ห้ามขยับ referral_at
+    if (inserted) updateData.referral_at = new Date().toISOString();
 
-    if (referral.ad_id) {
-      updateData.referral_ad_id = referral.ad_id;
-    }
-    if (referral.ads_context_data?.ad_title) {
-      updateData.referral_ad_title = referral.ads_context_data.ad_title;
-    }
+    // เขียนทับเสมอแม้เป็น null — คอลัมน์ชุดนี้แปลว่า "การทักครั้งล่าสุด" ทั้งก้อน
+    // ปล่อยของเก่าค้างไว้ = ที่มาบอก "ลิงก์ m.me" แต่ชื่อโฆษณายังเป็นของครั้งก่อน
+    updateData.referral_ad_id = adId;
+    updateData.referral_ad_title = ads?.ad_title ?? null;
 
     const { error } = await supabaseAdmin
       .from('fb_contacts')
       .update(updateData)
-      .eq('id', contactId);
+      .eq('id', contact.id);
 
     if (error) console.error('Failed to save referral data:', error);
   }

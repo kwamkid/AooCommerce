@@ -115,7 +115,7 @@ export async function POST(request: NextRequest) {
 
           const contact = await fbService.getOrCreateContact(senderId, pageId, pageAccessToken, companyId, chatAccountId, isInstagram);
           if (contact) {
-            await fbService.saveReferralData(contact.id, event.referral);
+            await fbService.saveReferralData({ id: contact.id, company_id: companyId, chat_account_id: chatAccountId }, event.referral);
           }
           continue;
         }
@@ -129,7 +129,7 @@ export async function POST(request: NextRequest) {
 
           const contact = await fbService.getOrCreateContact(senderId, pageId, pageAccessToken, companyId, chatAccountId, isInstagram);
           if (!contact) continue;
-          if (event.referral) await fbService.saveReferralData(contact.id, event.referral);
+          if (event.referral) await fbService.saveReferralData({ id: contact.id, company_id: companyId, chat_account_id: chatAccountId }, event.referral);
           await fbService.savePostbackMessage(contact, event, companyId, chatAccountId, account.account_name);
           continue;
         }
@@ -164,7 +164,7 @@ export async function POST(request: NextRequest) {
 
           // Save referral data if present alongside the first message
           if (event.referral) {
-            await fbService.saveReferralData(contact.id, event.referral);
+            await fbService.saveReferralData({ id: contact.id, company_id: companyId, chat_account_id: chatAccountId }, event.referral);
           }
 
           await fbService.saveIncomingMessage(contact, event, companyId, chatAccountId, account.account_name);

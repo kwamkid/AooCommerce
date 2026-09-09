@@ -40,6 +40,22 @@ export function PlatformIcon({ contact, size = 16 }: { contact: { platform: stri
 }
 
 /** สีประจำแพลตฟอร์ม — ที่เดียวของทั้งหน้าแชท (เดิม copy เป็น ternary ยาวสองที่) */
+/**
+ * ที่มาของ referral เป็นคำไทย — ใช้ทั้งการ์ดหัวสายสนทนา หัวหน้าคุย และประวัติในแผงโปรไฟล์
+ * (ค่าที่แปลไม่ได้คืนของเดิมไป ดีกว่าเดาแล้วบอกผิด)
+ */
+export function referralSourceLabel(source?: string | null): string {
+  if (source === 'ADS') return 'โฆษณา';
+  if (source === 'SHORTLINK') return 'ลิงก์ m.me';
+  if (source === 'CUSTOMER_CHAT_PLUGIN') return 'ปุ่มแชทบนเว็บไซต์';
+  return source || 'ลิงก์';
+}
+
+/** โพสต์ต้นทางของโฆษณา — สื่อจริง (รูป/วิดีโอ) อยู่ที่โพสต์ ไม่ใช่ที่ URL ใน referral */
+export function referralPostUrl(postId?: string | null): string | null {
+  return postId ? `https://www.facebook.com/${postId}` : null;
+}
+
 export function getPlatformColor(contact: { platform: string; source?: string }): string {
   if (contact.source === 'instagram') return '#E4405F';
   if (contact.platform === 'line') return '#06C755';
