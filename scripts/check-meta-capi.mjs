@@ -78,12 +78,16 @@ for (const acc of accounts || []) {
   }
 
   // (2) call จริงที่ CAPI ใช้
+  // รูปคำตอบจริง: มี dataset = {"data":[{"id":"…"}]} · ยังไม่มี = {"data":[]} (200 ทั้งคู่) · ไม่มีสิทธิ์ = 403 code 200
   const ds = await graph(`/${pageId}/dataset?access_token=${encodeURIComponent(token)}`);
-  if (ds.status === 200 && ds.body?.id) row.dataset = `id ${ds.body.id}`;
+  const dsId = ds.body?.id ?? ds.body?.data?.[0]?.id ?? null;
+  if (ds.status === 200 && dsId) row.dataset = `id ${dsId}`;
+  else if (ds.status === 200 && Array.isArray(ds.body?.data)) row.dataset = 'สิทธิ์ผ่าน ยังไม่มี dataset (ระบบสร้างให้ตอนทดสอบ/ยิงครั้งแรก)';
   else row.dataset = `HTTP ${ds.status} · code ${ds.body?.error?.code ?? '?'}${ds.body?.error?.error_subcode ? `/${ds.body.error.error_subcode}` : ''} · ${(ds.body?.error?.message || '').slice(0, 90)}`;
   rows.push(row);
 }
 
 console.table(rows);
 const ready = rows.filter(r => r.dataset.startsWith('id ')).length;
-console.log(`\nพร้อมยิง CAPI: ${ready}/${rows.length} เพจ`);
+const permitted = rows.filter(r => r.page_events === 'yes').length;
+console.log(`\nมีสิทธิ์ page_events: ${permitted}/${rows.length} เพจ · มี dataset พร้อมยิง CAPI: ${ready}/${rows.length} เพจ`);

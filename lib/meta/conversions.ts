@@ -215,10 +215,14 @@ export async function getOrCreateDatasetId(
 
   try {
     // 1) มี dataset ผูกกับเพจอยู่แล้วไหม
+    // รูปคำตอบจริง (ตรวจ 10 ก.ย. 2026): มี = `{"data":[{"id":"…"}]}` · ยังไม่มี = `{"data":[]}` (200 ทั้งคู่)
+    // ไม่ใช่ `{"id":…}` อย่างที่เขียนไว้ตอนแรก — อ่านผิดรูปแล้วจะตกไป POST ทุกครั้งโดยไม่รู้ตัว
     const getRes = await fetch(`${GRAPH_BASE}${path}?access_token=${encodeURIComponent(token)}`);
-    const getBody = (await getRes.json().catch(() => null)) as { id?: string; error?: unknown } | null;
-    if (getRes.ok && getBody?.id) {
-      datasetId = String(getBody.id);
+    const getBody = (await getRes.json().catch(() => null)) as
+      { id?: string; data?: Array<{ id?: string }>; error?: unknown } | null;
+    const existingId = getBody?.id ?? getBody?.data?.[0]?.id ?? null;
+    if (getRes.ok && existingId) {
+      datasetId = String(existingId);
     } else if (!getRes.ok) {
       if (isPageEventsPermissionError(getBody)) {
         // สิทธิ์ไม่ถึง — POST สร้าง dataset ก็จะล้มด้วยเหตุเดียวกัน อย่ายิงเพิ่มให้เปลือง
