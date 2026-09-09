@@ -576,10 +576,12 @@ function DeliveryFieldRow({
   disabled: boolean;
   locked: boolean;
 }) {
-  // พื้นขาว+ขอบ ไม่ใช่พื้นเทา — เทาในระบบนี้อ่านว่า "กดไม่ได้" (เจ้าของทัก 10 ก.ย. 2026)
-  // ลำดับชั้นมาจากการเยื้อง + เส้นแนวตั้งของตัวห่อ ไม่ใช่จากสีพื้น
+  // แถวที่เปิดใช้ = `.choice-card-active` (ขอบส้ม + พื้นส้มอ่อน โทน "ถูกเลือก" ของทั้งระบบ)
+  // แถวที่ไม่แสดง = พื้นขาวขอบเทา — ห้ามพื้นเทา เพราะเทาในระบบนี้อ่านว่า "กดไม่ได้"
+  // (เจ้าของทัก 10 ก.ย. 2026 สองรอบ: เทาอ่อนกลืน · เทาเข้มเหมือน disabled)
+  const active = mode !== 'off';
   return (
-    <div className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded-lg px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3">
+    <div className={`choice-card ${active ? 'choice-card-active' : 'bg-white dark:bg-slate-800'} px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3`}>
       <div className="flex items-start gap-3 min-w-0">
         {icon}
         <div className="min-w-0">
