@@ -241,6 +241,12 @@ export async function GET(request: NextRequest) {
   }
 }
 
+/** ขนาดรูปจาก client — ค่าที่ไม่ใช่จำนวนเต็มบวกถือว่า "ไม่รู้ขนาด" */
+function toDim(value: unknown): number | null {
+  const n = Math.round(Number(value));
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
 // POST — สร้างบรอดแคสต์แล้วเริ่มส่งทันที
 export async function POST(request: NextRequest) {
   try {
@@ -285,6 +291,9 @@ export async function POST(request: NextRequest) {
       title: body.content?.title || '',
       text: body.content?.text || '',
       image_url: body.content?.image_url || null,
+      // ขนาดรูปที่หน้าจอวัดมา — ใช้บอกสัดส่วนการ์ด Flex ของ LINE (ไม่ส่งมา = ทรงเดิม)
+      image_width: toDim(body.content?.image_width),
+      image_height: toDim(body.content?.image_height),
       buttons: body.content?.buttons || [],
       products: body.content?.products || [],
       quick_replies: body.content?.quick_replies || [],

@@ -16,6 +16,7 @@ import { getChatAccount, getLineCredsFromAccount } from '@/lib/chat-config';
 import { logIntegrationNow } from '@/lib/integration-logger';
 import { fetchAllRows } from '@/lib/supabase-paging';
 import { LINE_TEXT_MAX, MULTICAST_BATCH_SIZE } from '@/lib/line/constants';
+import { imageAspectRatio } from '@/lib/broadcast/content';
 import type { BroadcastContent, BroadcastProductCard } from '@/lib/broadcast/content';
 
 const LINE_API = 'https://api.line.me/v2/bot';
@@ -68,9 +69,21 @@ export interface LineCarouselColumn {
   actions: LineAction[];
 }
 
+/**
+ * โครง Flex แบบหลวม ๆ — พอให้ประกอบการ์ดโปรโมชันได้โดยไม่ต้องพิมพ์สเปคทั้งชุดของ LINE
+ * (ที่ต้องแน่คือ hero/body/footer มีอะไรบ้าง ส่วนข้างในเป็น JSON ที่ LINE ตรวจเอง)
+ */
+export interface LineFlexBubble {
+  type: 'bubble';
+  hero?: Record<string, unknown>;
+  body?: Record<string, unknown>;
+  footer?: Record<string, unknown>;
+}
+
 export type LineMessageObject =
   | { type: 'text'; text: string; quickReply?: LineQuickReply }
   | { type: 'image'; originalContentUrl: string; previewImageUrl: string; quickReply?: LineQuickReply }
+  | { type: 'flex'; altText: string; contents: LineFlexBubble; quickReply?: LineQuickReply }
   | {
       type: 'template';
       altText: string;
@@ -111,6 +124,8 @@ interface BroadcastRow {
   created_by: string | null;
   audience_type: BroadcastAudienceType;
   audience_filter: BroadcastAudienceFilter | null;
+  /** เนื้อหาชนิดกลาง — ใบเก่าก่อนมีคอลัมน์นี้เป็น null (ต้องแกะย้อนจาก messages) */
+  content: BroadcastContent | null;
   messages: LineMessageObject[];
   recipient_count: number;
   sent_count: number;
@@ -467,18 +482,55 @@ export function buildLineMessagesFromContent(content: BroadcastContent): LineMes
   let messages: LineMessageObject[] = [];
 
   if (content.kind === 'promo') {
-    // การ์ดเดียวจบ: รูปอยู่ในตัวการ์ด (thumbnailImageUrl) ไม่ต้องส่งรูปแยก
+    // การ์ดเดียวจบ: รูปอยู่ในตัวการ์ด ไม่ต้องส่งรูปแยก
+    //
+    // ทำไมเป็น Flex ไม่ใช่ template buttons: template บีบรูปเป็น 1.51:1 (หรือ 1:1) เสมอ
+    // ⇒ โปสเตอร์แนวตั้งโดนครอบหัวท้ายทิ้ง · Flex บอกสัดส่วนเองได้ตามรูปจริง
+    // และยังเป็น message object เดียวเท่าเดิม (โควตา 1 ข้อความเท่าข้อความเปล่า)
+    const buttons = (content.buttons || []).filter(b => b.label.trim() && b.url.trim());
+    const firstButton = buttons[0];
     messages = [{
-      type: 'template',
+      type: 'flex',
       altText: (title || text).slice(0, 400),
-      template: {
-        type: 'buttons',
-        ...(imageUrl ? { thumbnailImageUrl: imageUrl } : {}),
-        ...(title ? { title } : {}),
-        text,
-        actions: (content.buttons || []).map(b => ({
-          type: 'uri' as const, label: b.label.trim(), uri: b.url.trim(),
-        })),
+      contents: {
+        type: 'bubble',
+        ...(imageUrl ? {
+          hero: {
+            type: 'image',
+            url: imageUrl,
+            size: 'full',
+            aspectRatio: imageAspectRatio(content),
+            aspectMode: 'cover',
+            // แตะรูปแล้วเปิดลิงก์ของปุ่มแรก — โปสเตอร์คือสิ่งที่คนแตะก่อนปุ่ม
+            ...(firstButton
+              ? { action: { type: 'uri', label: firstButton.label.trim(), uri: firstButton.url.trim() } }
+              : {}),
+          },
+        } : {}),
+        body: {
+          type: 'box',
+          layout: 'vertical',
+          spacing: 'sm',
+          contents: [
+            ...(title ? [{ type: 'text', text: title, weight: 'bold', size: 'lg', wrap: true }] : []),
+            // สีเป็นเลขฐานสิบหกได้ — นี่คือ JSON ของ LINE ไม่ใช่หน้าจอของเรา
+            { type: 'text', text, size: 'sm', color: '#666666', wrap: true },
+          ],
+        },
+        ...(buttons.length ? {
+          footer: {
+            type: 'box',
+            layout: 'vertical',
+            spacing: 'sm',
+            contents: buttons.map((b, i) => ({
+              type: 'button',
+              height: 'sm',
+              // ปุ่มแรก = สิ่งที่อยากให้กดที่สุด จึงเป็นปุ่มทึบ ที่เหลือเป็นปุ่มรอง
+              style: i === 0 ? 'primary' : 'secondary',
+              action: { type: 'uri', label: b.label.trim(), uri: b.url.trim() },
+            })),
+          },
+        } : {}),
       },
     }];
 
@@ -573,15 +625,44 @@ function normalizeBatches(value: unknown): BroadcastBatch[] {
   return Array.isArray(value) ? (value as BroadcastBatch[]) : [];
 }
 
-/** ข้อความที่จะไปโผล่ในห้องแชท — ชนิด/เนื้อความอ่านจาก message object ที่ส่งไปจริง */
-function threadRowShape(messages: LineMessageObject[]): {
+/**
+ * ข้อความที่จะไปโผล่ในห้องแชท
+ *
+ * ใบใหม่รู้เนื้อหาชนิดกลางอยู่แล้ว (`content`) จึงอ่านจากตรงนั้นตรง ๆ — ใบเก่าที่ยังไม่มี
+ * คอลัมน์นั้นค่อยแกะย้อนจาก message object ที่ส่งไปจริง
+ */
+function threadRowShape(messages: LineMessageObject[], content?: BroadcastContent | null): {
   message_type: string;
   content: string;
   imageUrl: string | null;
 } {
+  if (content?.kind === 'promo') {
+    const body = [(content.title || '').trim(), (content.text || '').trim()].filter(Boolean).join('\n');
+    return {
+      message_type: 'text',
+      content: body || '[โปรโมชัน]',
+      imageUrl: (content.image_url || '').trim() || null,
+    };
+  }
+
   const text = messages.find((m): m is Extract<LineMessageObject, { type: 'text' }> => m.type === 'text');
   const image = messages.find((m): m is Extract<LineMessageObject, { type: 'image' }> => m.type === 'image');
+  const flex = messages.find((m): m is Extract<LineMessageObject, { type: 'flex' }> => m.type === 'flex');
   const template = messages.find((m): m is Extract<LineMessageObject, { type: 'template' }> => m.type === 'template');
+
+  // หน้าแชทยังไม่มีตัววาด Flex — ถอดเป็นบรรทัดที่อ่านรู้เรื่องเหมือนที่ทำกับ template
+  if (flex) {
+    const hero = flex.contents.hero as { url?: unknown } | undefined;
+    const body = flex.contents.body as { contents?: { text?: unknown }[] } | undefined;
+    const lines = (body?.contents || [])
+      .map(c => (typeof c?.text === 'string' ? c.text : ''))
+      .filter(Boolean);
+    return {
+      message_type: 'text',
+      content: lines.join('\n') || flex.altText,
+      imageUrl: typeof hero?.url === 'string' ? hero.url : null,
+    };
+  }
 
   // สำเนาในห้องแชทเป็นข้อความธรรมดา — หน้าแชทยังไม่มีตัววาดการ์ดของ LINE
   // จึงถอดการ์ดเป็นบรรทัดที่อ่านรู้เรื่องแทน (ดีกว่าโชว์ "[เทมเพลต]" เปล่า ๆ)
@@ -690,7 +771,7 @@ export async function runLineBroadcast(
 
     const token = creds.channel_access_token;
     const messages = Array.isArray(row.messages) ? row.messages : [];
-    const shape = threadRowShape(messages);
+    const shape = threadRowShape(messages, row.content);
     const sentBy = await resolveSentBy(row.created_by);
     const requestIds = Array.isArray(row.platform_request_ids) ? [...row.platform_request_ids] : [];
 

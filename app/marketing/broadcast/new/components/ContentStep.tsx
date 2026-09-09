@@ -139,8 +139,15 @@ export default function ContentStep({
         initialPreviewUrl={existingImageUrl}
         disabled={disabled}
         label="ลากรูปมาวาง หรือกดเพื่อเลือก"
-        maxWidthOrHeight={1280}
+        // ย่อทั้งพิกเซลและขนาดไฟล์ก่อนอัป — รูปใหญ่กว่านี้ LINE ไม่รับ และเปลืองที่เก็บ
+        maxWidthOrHeight={1024}
+        maxSizeMB={0.3}
       />
+      {kind === 'promo' && (
+        <p className="helper-text text-gray-500 dark:text-slate-400 mt-1">
+          ส่งเป็นสัดส่วนตามรูปจริง (แนวตั้งได้ สูงสุด 3 เท่าของความกว้าง)
+        </p>
+      )}
     </div>
   );
 

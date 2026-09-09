@@ -66,8 +66,9 @@ export default function BroadcastPreview({
       ) : content.kind === 'promo' ? (
         <div className="ml-auto w-full rounded-xl bg-white dark:bg-slate-700 border border-gray-200 dark:border-slate-600 overflow-hidden">
           {imageUrl && (
+            // สูงตามรูปจริง ไม่ครอบ — การ์ด Flex ที่ส่งออกไปใช้สัดส่วนของรูปเหมือนกัน
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={imageUrl} alt="แบนเนอร์" className="w-full h-24 object-cover" />
+            <img src={imageUrl} alt="แบนเนอร์" className="w-full h-auto" />
           )}
           <div className="p-2.5">
             {title && <p className="body-text font-semibold text-gray-900 dark:text-white">{title}</p>}
@@ -77,14 +78,21 @@ export default function BroadcastPreview({
               </p>
             )}
           </div>
-          {buttons.map((b, i) => (
-            <p
-              key={i}
-              className="helper-text text-center py-1.5 border-t border-gray-200 dark:border-slate-600 text-primary"
-            >
-              {b.label}
-            </p>
-          ))}
+          {/* เรียงเหมือน footer ของ Flex — ปุ่มแรกทึบ (สิ่งที่อยากให้กดที่สุด) ที่เหลือเป็นปุ่มรอง */}
+          {buttons.length > 0 && (
+            <div className="p-2.5 space-y-1.5">
+              {buttons.map((b, i) => (
+                <p
+                  key={i}
+                  className={i === 0
+                    ? 'subtitle-text font-medium text-center py-1.5 rounded-md bg-primary text-white'
+                    : 'subtitle-text text-center py-1.5 rounded-md border border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-200'}
+                >
+                  {b.label}
+                </p>
+              ))}
+            </div>
+          )}
         </div>
       ) : (
         <div className={`ml-auto w-fit max-w-full rounded-2xl px-3.5 py-2 text-white space-y-1.5 ${bubbleClass}`}>

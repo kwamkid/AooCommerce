@@ -1,7 +1,7 @@
 // Path: lib/broadcast/content.ts
 //
 // เนื้อหาของบรอดแคสต์ในรูป **ชนิดกลาง** — ตัวเดียวกันนี้ถูกแปลงเป็นข้อความของแต่ละ
-// แพลตฟอร์มตอนส่ง (LINE → template/carousel · TikTok → title+body+product_ids)
+// แพลตฟอร์มตอนส่ง (LINE → Flex/carousel · TikTok → title+body+product_ids)
 //
 // ทำไมไม่ให้ผู้ใช้เลือกเป็นศัพท์ของ LINE ตรง ๆ: 'flex'/'carousel' แปลไปเจ้าอื่นไม่ได้
 // และร้านค้าไม่ควรต้องรู้ว่า LINE เรียกอะไร · หลักเดียวกับช่องค่าธรรมเนียม settlement
@@ -50,9 +50,50 @@ export interface BroadcastContent {
   title?: string;
   text: string;
   image_url?: string | null;
+  /**
+   * ขนาดจริงของรูปที่อัปโหลด (พิกเซล) — วัดตอนผู้ใช้เลือกไฟล์
+   * ใช้บอกสัดส่วนให้ Flex ของ LINE วาดรูปเต็มใบโดยไม่ครอบ (ดู imageAspectRatio)
+   */
+  image_width?: number | null;
+  image_height?: number | null;
   buttons?: BroadcastButton[];
   products?: BroadcastProductCard[];
   quick_replies?: string[];
+}
+
+/** สัดส่วนตั้งต้นเมื่อไม่รู้ขนาดรูป = ทรงเดิมของ template buttons (ใบเก่าจึงหน้าตาไม่เปลี่ยน) */
+const DEFAULT_ASPECT_RATIO = '151:100';
+/** LINE รับตัวเลขในสัดส่วนได้ 1–100000 และ **สูงได้ไม่เกิน 3 เท่าของความกว้าง** */
+const ASPECT_MAX = 100_000;
+const ASPECT_MAX_TALL = 3;
+
+function gcd(a: number, b: number): number {
+  return b === 0 ? a : gcd(b, a % b);
+}
+
+/**
+ * สัดส่วนรูปในรูปแบบ "w:h" ที่ Flex ของ LINE รับได้
+ *
+ * ไม่รู้ขนาด = คืนทรงเดิมของ template buttons — ใบเก่าที่กด "ส่งซ้ำ" จึงไม่เปลี่ยนหน้าตา
+ * · รูปที่สูงเกิน 3 เท่าของความกว้างถูกบีบเป็น 1:3 (เพดานของ LINE — ส่งเกินไปจะโดนปฏิเสธ)
+ */
+export function imageAspectRatio(
+  content: Pick<BroadcastContent, 'image_width' | 'image_height'>,
+): string {
+  const w = Math.round(Number(content.image_width) || 0);
+  const h = Math.round(Number(content.image_height) || 0);
+  if (!(w > 0 && h > 0) || !Number.isFinite(w) || !Number.isFinite(h)) return DEFAULT_ASPECT_RATIO;
+  if (h > w * ASPECT_MAX_TALL) return `1:${ASPECT_MAX_TALL}`;
+
+  const g = gcd(w, h) || 1;
+  let rw = w / g;
+  let rh = h / g;
+  if (rw > ASPECT_MAX || rh > ASPECT_MAX) {
+    const scale = ASPECT_MAX / Math.max(rw, rh);
+    rw = Math.max(1, Math.round(rw * scale));
+    rh = Math.max(1, Math.round(rh * scale));
+  }
+  return `${rw}:${rh}`;
 }
 
 export function isHttpsUrl(value: string): boolean {
@@ -166,6 +207,8 @@ export function resolveBroadcastContentKind(
 
   if (Array.isArray(messages)) {
     for (const m of messages) {
+      // ใบที่ส่งหลัง 9 ก.ย. 2026 การ์ดโปรโมชันเป็น Flex ไม่ใช่ template buttons แล้ว
+      if ((m as { type?: string } | null)?.type === 'flex') return 'promo';
       const tpl = (m as { template?: { type?: string } } | null)?.template;
       if (tpl?.type === 'carousel') return 'products';
       if (tpl?.type === 'buttons') return 'promo';

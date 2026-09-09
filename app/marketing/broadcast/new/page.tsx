@@ -86,6 +86,40 @@ async function fetchProductPage(q: string): Promise<ServerSearchPage<ProductSear
   return { rows, complete: json.complete !== false };
 }
 
+/** ขนาดจริงของแบนเนอร์ (พิกเซล) */
+interface ImageDims { width: number; height: number }
+
+/**
+ * วัดขนาดรูป — จากไฟล์ที่เพิ่งเลือก หรือจาก URL ของใบที่คัดลอกมา
+ *
+ * ต้องรู้ขนาดตั้งแต่ตอนกรอก เพราะ Flex ของ LINE วาดรูปตามสัดส่วนที่เราบอกเท่านั้น
+ * (ไม่บอก = 1:1 โปสเตอร์แนวตั้งจะโดนครอบ) · วัดไม่ได้ = null แล้วตกไปใช้ทรงเดิม
+ */
+async function measureImageDims(source: File | string): Promise<ImageDims | null> {
+  if (typeof source !== 'string' && typeof createImageBitmap === 'function') {
+    try {
+      const bitmap = await createImageBitmap(source);
+      const dims = { width: bitmap.width, height: bitmap.height };
+      bitmap.close();
+      return dims;
+    } catch {
+      // เบราว์เซอร์เก่าไม่มี createImageBitmap — ตกไปวิธีสำรองข้างล่าง
+    }
+  }
+  return new Promise<ImageDims | null>(resolve => {
+    const src = typeof source === 'string' ? source : URL.createObjectURL(source);
+    const objectUrl = typeof source === 'string' ? null : src;
+    const img = new window.Image();
+    const done = (dims: ImageDims | null) => {
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      resolve(dims);
+    };
+    img.onload = () => done({ width: img.naturalWidth, height: img.naturalHeight });
+    img.onerror = () => done(null);
+    img.src = src;
+  });
+}
+
 /** ชั่วโมงถัดไปเต็มชั่วโมง — ค่าตั้งต้นของ "ตั้งเวลา" ที่ผ่านเกณฑ์ล่วงหน้าเสมอ */
 function nextFullHour(): Date {
   const d = new Date();
@@ -121,6 +155,8 @@ export default function NewBroadcastPage() {
   const [text, setText] = useState('');
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
+  /** ขนาดรูปที่วัดได้ — ส่งไปกับเนื้อหาเพื่อให้การ์ดของ LINE ได้สัดส่วนตามรูปจริง */
+  const [imageDims, setImageDims] = useState<ImageDims | null>(null);
   /** รูปของใบที่คัดลอกมา — ใช้ต่อได้เลยเมื่อผู้ใช้ไม่ได้เลือกไฟล์ใหม่ */
   const [existingImageUrl, setExistingImageUrl] = useState<string | null>(null);
   const [buttons, setButtons] = useState<BroadcastButton[]>([{ label: '', url: '' }]);
@@ -187,6 +223,14 @@ export default function NewBroadcastPage() {
     const url = URL.createObjectURL(imageFile);
     setImagePreviewUrl(url);
     return () => URL.revokeObjectURL(url);
+  }, [imageFile]);
+
+  // วัดสัดส่วนของไฟล์ที่เลือก — เอาไฟล์ออกก็ล้างค่าทิ้ง (สัดส่วนของรูปเก่าใช้กับรูปใหม่ไม่ได้)
+  useEffect(() => {
+    if (!imageFile) { setImageDims(null); return; }
+    let cancelled = false;
+    measureImageDims(imageFile).then(dims => { if (!cancelled) setImageDims(dims); });
+    return () => { cancelled = true; };
   }, [imageFile]);
 
   // ─── โหลดบัญชีของทุกช่องทางที่ส่งได้ + แท็ก ─────────────────────────
@@ -280,6 +324,13 @@ export default function NewBroadcastPage() {
           if (Array.isArray(c.buttons) && c.buttons.length > 0) setButtons(c.buttons);
           if (Array.isArray(c.products)) setCards(c.products);
           if (Array.isArray(c.quick_replies)) setQuickReplies(c.quick_replies);
+          // ใบเก่ายังไม่ได้เก็บขนาดรูป — วัดจากรูปเดิม ไม่งั้นการ์ดจะตกไปใช้ทรงเริ่มต้น
+          if (c.image_width && c.image_height) {
+            setImageDims({ width: Number(c.image_width), height: Number(c.image_height) });
+          } else if (c.image_url) {
+            const dims = await measureImageDims(c.image_url);
+            if (dims) setImageDims(dims);
+          }
         }
       } catch {
         // คัดลอกไม่ได้ก็เริ่มใบเปล่า — ไม่ต้องรบกวนผู้ใช้ด้วย error ที่ทำอะไรต่อไม่ได้
@@ -400,10 +451,12 @@ export default function NewBroadcastPage() {
     title: title.trim(),
     text: text.trim(),
     image_url: imageFile ? 'https://pending.upload' : existingImageUrl,
+    image_width: imageDims?.width ?? null,
+    image_height: imageDims?.height ?? null,
     buttons: buttons.filter(b => b.label.trim() || b.url.trim()),
     products: cards,
     quick_replies: quickReplies,
-  }), [kind, title, text, imageFile, existingImageUrl, buttons, cards, quickReplies]);
+  }), [kind, title, text, imageFile, imageDims, existingImageUrl, buttons, cards, quickReplies]);
 
   // ตรวจด้วยฟังก์ชันเดียวกับที่ API ใช้ — หน้าจอกับ server จึงพูดตรงกันเสมอ
   // เนื้อหาชุดเดียวต้องผ่าน **ทุกช่องทางที่เลือก** — ตัวไหนไม่ผ่านก็บอกตัวนั้น
