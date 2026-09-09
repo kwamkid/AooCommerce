@@ -30,10 +30,15 @@ function candidatesFor(params: URLSearchParams): string[] | null {
   const id = params.get('id');
   if (id) {
     if (!/^\d{1,20}$/.test(id)) return null;
+    // ⚠️ ไฟล์ใต้ `iPhone/` เป็น PNG แบบ Apple (chunk แรกคือ `CgBI` ไม่ใช่ `IHDR`) ซึ่ง
+    // **Chrome / Edge / Firefox / Android ถอดรหัสไม่ได้** (ได้ 200 image/png แต่รูปเป็น 0×0)
+    // มีแค่ Safari/iOS ที่อ่านออก — นี่คือเหตุผลที่ "เจ้าของเห็นสติกเกอร์ แอดมินไม่เห็น"
+    // ตั้งแต่แรก (Safari vs Chrome) ไม่ใช่เน็ต · ตรวจจริง 9 ก.ย. 2026 ด้วย xxd + Chromium
+    // ⇒ ใช้ `android/` (PNG มาตรฐาน ~170px พอสำหรับ 96pt) ก่อนเสมอ iPhone เป็นทางถอยสุดท้าย
     return [
+      `${CDN}/stickershop/v1/sticker/${id}/android/sticker.png`,
       `${CDN}/stickershop/v1/sticker/${id}/iPhone/sticker@2x.png`,
       `${CDN}/stickershop/v1/sticker/${id}/iPhone/sticker.png`,
-      `${CDN}/stickershop/v1/sticker/${id}/android/sticker.png`,
     ];
   }
 

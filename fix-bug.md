@@ -62,16 +62,20 @@
 - **มี harness รัน PDF ใน node แล้ว** (transpile ไฟล์ + สตับ `setupPdfMake`/`loadImageDataUrl`/`document.createElement('canvas')` + `pdfmake/js/Printer.js`) — แก้เลย์เอาต์เอกสารครั้งหน้าให้ render ออกมาดูก่อน ไม่ต้องเปิดเบราว์เซอร์
 
 
-## 2026-09-09 — สติกเกอร์ LINE เป็นรูปแตกเฉพาะบางเครื่อง (เจ้าของเปิดได้ แอดมินเปิดไม่ได้)
+## 2026-09-09 — สติกเกอร์ LINE เป็นรูปแตกเฉพาะบางเครื่อง (จริง ๆ คือ "เฉพาะ Chrome" — ไฟล์ iPhone/ เป็น PNG แบบ Apple)
 
-**ที่เกิด**: ตัวเลือกสติกเกอร์ [app/chat/components/EmojiStickerPicker.tsx](app/chat/components/EmojiStickerPicker.tsx) · ฟองสติกเกอร์ + อีโมจิ LINE ใน [app/chat/components/renderers/SharedRenderers.tsx](app/chat/components/renderers/SharedRenderers.tsx)
-**อาการ**: เจ้าของเปิดแท็บ Sticker แล้วเห็นรูปครบ แต่**เครื่องของแอดมินเห็นเป็นรูปแตกทั้งกริด** (alt "sticker") — โค้ดชุดเดียวกัน บัญชีต่างกันเท่านั้น
-**Root cause**: `<img>` ชี้ `https://stickershop.line-scdn.net/...` **ตรง ๆ** ⇒ รูปจะขึ้นหรือไม่ ขึ้นกับ **เน็ตของเครื่องที่เปิดหน้าจอ** ล้วน ๆ ไม่เกี่ยวกับระบบเราเลย · ตรวจแล้ว CDN ตอบ 200 ปกติทุก URL ที่โค้ดใช้ (`iPhone/sticker@2x.png` · `iPhone/sticker.png` · `android/sticker.png`) และไม่มี CSP/สิทธิ์/ข้อมูลผู้ใช้เข้ามาเกี่ยวเลย ⇒ ตัวแปรเดียวที่เหลือคือเส้นทางจากเครื่องนั้นไปหาโฮสต์ภายนอก (DNS ของ ISP · ตัวบล็อกโฆษณา — บัญชีดำบางชุดมี `line-scdn.net` · ไฟร์วอลล์ที่ทำงาน) · `onError` ที่ไล่ 3 URL ก็ช่วยไม่ได้เพราะทั้งสามอยู่โฮสต์เดียวกัน
-**วิธีแก้**: ย้ายมาเสิร์ฟผ่าน origin ของเราเอง — route ใหม่ [app/api/chat/line-sticker/route.ts](app/api/chat/line-sticker/route.ts) (ไล่ `@2x → iPhone → android` ให้ฝั่งเซิร์ฟเวอร์จบในคำขอเดียว · แคช edge `s-maxage=31536000, immutable` เพราะรูปสติกเกอร์ไม่เคยเปลี่ยน · ปลายทางไม่พบ = 404 + แคชสั้นกัน id ที่ไม่มีจริงปลุกฟังก์ชันซ้ำ) · URL ประกอบที่ [lib/chat/line-sticker.ts](lib/chat/line-sticker.ts) ที่เดียว ใช้ทั้ง 3 จุด (ตัวเลือกสติกเกอร์ · ฟองสติกเกอร์ · อีโมจิ sticon ในข้อความ) · ตัวเลือกสติกเกอร์ใส่ `loading="lazy"` ด้วย (48 ใบยิงพร้อมกันไม่จำเป็น)
-**ไม่ใช่ open proxy**: รับแค่ `id` (ตัวเลขล้วน) หรือ `product`+`emoji` (ตัวอักษร/ตัวเลข) แล้ว**ประกอบ URL เองบนโฮสต์ที่ hardcode ไว้** ผู้เรียกกำหนดปลายทางไม่ได้ — ต่างจาก `/api/image-proxy` ที่รับ URL เต็มจึงต้องมีด่าน SSRF ครบชุด · ไม่ต้องล็อกอินเพราะ id สติกเกอร์เป็นค่าสาธารณะ ไม่มีข้อมูลร้าน/ลูกค้าเลย (แบบเดียวกับ `/api/chat/profile-picture`)
-**ทดสอบ**: transpile route แล้วรันจริงใน node — id ที่มีจริงได้ PNG (24KB / 53KB) · sticon ได้ PNG 2.5KB · id ที่ไม่มีจริง 404 · `abc` / `1/../../etc` / `product=..` โดนตีตก 400 ทั้งหมด
-**ป้องกัน regression**: ⛔ **ห้ามใส่ URL ของโฮสต์ภายนอกใน `<img src>` สำหรับของที่ "ต้องขึ้นเสมอ" อีก** — มันแปลว่าเรายกความรับผิดชอบไปให้เน็ตของผู้ใช้ แล้วอาการจะออกมาเป็น "บางคนเห็น บางคนไม่เห็น" ซึ่งหาสาเหตุยากมากเพราะฝั่งเราไม่มี log อะไรเลย · เจอเคสแบบนี้ให้ถามก่อนว่า **"รูปนี้มาจากโดเมนไหน"** ก่อนไปไล่เรื่องสิทธิ์/บัญชี · ของที่ผ่าน origin เราแล้วยังได้แคชร่วมกันทั้งร้านเป็นของแถม
-
+**ที่เกิด**: ตัวเลือกสติกเกอร์ [app/chat/components/EmojiStickerPicker.tsx](app/chat/components/EmojiStickerPicker.tsx) · ฟองสติกเกอร์ + อีโมจิ LINE ใน [app/chat/components/renderers/SharedRenderers.tsx](app/chat/components/renderers/SharedRenderers.tsx) · route [app/api/chat/line-sticker/route.ts](app/api/chat/line-sticker/route.ts)
+**อาการ**: เจ้าของเปิดแท็บ Sticker เห็นรูปครบ แต่**เครื่องของแอดมินเห็นรูปแตกทั้งกริด** · ต่อมาเจ้าของเปิด URL รูปตรง ๆ ใน Chrome ก็แตกทั้งสองลิงก์ (CDN ของ LINE และ route ของเรา) ทั้งที่ curl/fetch ได้ไฟล์ PNG 200 ครบไบต์
+**🔴 Root cause จริง**: **ไฟล์สติกเกอร์ใต้ path `iPhone/` ของ LINE เป็น PNG แบบ Apple** — chunk แรกหลัง signature คือ `CgBI` (premultiplied alpha แบบ pngcrush ของ Xcode) ไม่ใช่ `IHDR` ⇒ **Chrome / Edge / Firefox / Android ถอดรหัสไม่ได้** (โหลดได้ 200 image/png แต่ `naturalWidth` = 0 = รูปแตก) มีแค่ **Safari/iOS** ที่ ImageIO ของ Apple อ่านออก · เจ้าของใช้ Safari แอดมินใช้ Chrome จึง "คนหนึ่งเห็น อีกคนไม่เห็น" · path `android/` เป็น PNG มาตรฐาน (`IHDR`) ถอดได้ทุกเบราว์เซอร์ · โค้ดเดิม fallback ผ่าน `onError` ไปถึง `android/` เฉพาะฟองแชท ส่วนตัวเลือกสติกเกอร์หยุดที่ `iPhone/sticker.png` (CgBI เหมือนกัน) จึงแตกใน Chrome มาตลอด
+**❌ รอบแรกวินิจฉัยผิด**: ผมสรุปว่าเป็น "เน็ตของเครื่องแอดมินบล็อก line-scdn.net" เพราะ curl จากเครื่องผมได้ 200 และโค้ดไม่มีเงื่อนไขตามผู้ใช้ — **ลืมถามว่าใช้เบราว์เซอร์อะไร** และไม่ได้ตรวจว่า "ได้ไฟล์" กับ "ถอดรหัสได้" เป็นคนละเรื่อง · route proxy ที่ทำในรอบแรกไม่ผิด (ได้แคช edge + ตัดปัญหาเน็ตจริง ๆ ไปด้วย) แต่มันเสิร์ฟ `iPhone/sticker@2x.png` ก่อน จึงยัง CgBI ⇒ **ทำให้ฟองแชทที่เคย fallback ไป android ได้ กลายเป็นแตกใน Chrome ไปด้วย** (เลวลงชั่วคราวระหว่าง 2 commit)
+**วิธีพิสูจน์**: `curl … | xxd -s 12 -l 4` → `iPhone/sticker@2x.png` = `CgBI` · `iPhone/sticker.png` = `CgBI` · `android/sticker.png` = `IHDR` · แล้วโหลดทั้งสามใน Chromium จริง (playwright-core + Google Chrome for Testing บนเครื่องเจ้าของ): iPhone ทั้งคู่ 0×0 · android 171×162 · sticon `android/001.png` 126×126
+**วิธีแก้**: route เสิร์ฟ `android/sticker.png` ก่อนเสมอ (iPhone เป็นทางถอยสุดท้าย) + `lineStickerUrl()` ติด `&v=2` เพราะ edge แคชไบต์ CgBI ไว้ 1 ปี (`immutable`) URL เดิมจะได้ของเก่าต่อ · URL ยังประกอบที่ [lib/chat/line-sticker.ts](lib/chat/line-sticker.ts) ที่เดียว
+**ป้องกัน regression**:
+- ⛔ **ห้ามใช้ไฟล์ใต้ `iPhone/` ของ LINE เป็นรูปหลักอีก** — ทุกอย่างที่ต้องขึ้นในเบราว์เซอร์ทั่วไปใช้ `android/`
+- **"โหลดได้ 200" ≠ "แสดงได้"** — รูปแตกทั้งที่ network ได้ 200 image/png ให้เช็ค `naturalWidth` และ chunk แรกของไฟล์ (`xxd -s 12 -l 4`) ก่อนไปโทษเน็ต
+- **อาการ "บางคนเห็น บางคนไม่เห็น" ให้ถามเบราว์เซอร์ก่อนถามเน็ต** — Safari กับ Chrome ต่างกันที่ตัวถอดรหัสรูปได้
+- **route ที่แคช `immutable` ต้องมีเวอร์ชันใน URL** ไม่งั้นแก้เนื้อหาแล้วผู้ใช้ยังได้ของเก่าอีกเป็นปี
+- ชุดทดสอบ `<img>` ใน Chromium ต้องใช้ `page.setContent()` (หน้าเปล่า) — ฉีดลงหน้า Next ที่ React hydrate จะถูกล้างทิ้ง กลายเป็น error ทุกรูปรวม control จนหลงทางไปรอบหนึ่ง
 
 ## 2026-09-08 — ไล่ตรวจ key ที่ชนกันข้ามโดเมนที่เหลือ: 3 คำเพี้ยน + ค่าตายอีกชุด
 
