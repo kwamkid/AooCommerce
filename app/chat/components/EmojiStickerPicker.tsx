@@ -74,9 +74,9 @@ export default function EmojiStickerPicker({ platform, onEmojiSelect, onStickerS
     : emojiGroups;
 
   return (
-    <div className="fixed inset-x-2 bottom-16 md:absolute md:inset-x-auto md:bottom-full md:left-0 md:w-[360px] bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg z-30 md:mb-2" style={{ height: '320px' }}>
-      {/* Header: Tabs + Close */}
-      <div className="flex items-center border-b border-gray-100 dark:border-slate-700 sticky top-0 bg-white dark:bg-slate-800 rounded-t-lg">
+    <div className="fixed inset-x-2 bottom-16 md:absolute md:inset-x-auto md:bottom-full md:left-0 md:w-[360px] flex flex-col bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-xl shadow-lg z-30 md:mb-2" style={{ height: '320px' }}>
+      {/* Header: Tabs + Close — รางแท็บต้องมีระยะขอบจากกรอบ popup ไม่งั้นมุมมนของสองชั้นชนกัน */}
+      <div className="shrink-0 flex items-center gap-1 px-2 pt-2 pb-1.5 border-b border-gray-100 dark:border-slate-700">
         {/* เส้นใต้อยู่ที่กรอบด้านนอกแล้ว (แถวนี้มีปุ่มปิดต่อท้ายด้วย) จึงปิด border ของ Tabs */}
         <Tabs
           className="flex-1 mb-0"
@@ -89,12 +89,12 @@ export default function EmojiStickerPicker({ platform, onEmojiSelect, onStickerS
             { key: 'sticker', label: '🎭 Sticker', activeColorClass: 'border-line text-line', hidden: platform !== 'line' },
           ]}
         />
-        <button onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600 mr-1"><X className="w-4 h-4" /></button>
+        <button onClick={onClose} aria-label="ปิด" className="shrink-0 p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-slate-700"><X className="w-4 h-4" /></button>
       </div>
 
       {/* Emoji Tab */}
       {emojiTab === 'emoji' && (
-        <div className="flex flex-col" style={{ height: 'calc(320px - 42px)' }}>
+        <div className="flex-1 min-h-0 flex flex-col">
           {/* Search */}
           <div className="px-3 py-2 border-b border-gray-50 dark:border-slate-700/50">
             <div className="relative">
@@ -124,7 +124,7 @@ export default function EmojiStickerPicker({ platform, onEmojiSelect, onStickerS
 
       {/* Sticker Tab - LINE only */}
       {emojiTab === 'sticker' && platform === 'line' && (
-        <div className="overflow-y-auto p-3" style={{ height: 'calc(320px - 42px)' }}>
+        <div className="flex-1 min-h-0 overflow-y-auto p-3">
           {officialStickers.map((pack) => (
             <div key={pack.packageId} className="mb-4">
               <div className="grid grid-cols-4 gap-2">

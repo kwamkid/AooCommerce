@@ -25,6 +25,7 @@ import {
   formatDeliverySchedule,
   buildCompanyStack,
   buildProductNameStack,
+  preparePdfText,
 } from './pdf-utils';
 import { cleanVariationLabel } from './product-display';
 
@@ -559,17 +560,17 @@ async function buildPickListContent(
  * ตัวเลขความสูงได้จากการวัดหน้าจริง เผื่อฝั่งมากไว้ก่อน (ล้น = ไปทับออเดอร์ครึ่งล่าง)
  */
 function compactPackingParts(order: PackingListData, hasLogo: boolean) {
-  const deliveryAddress = [
+  const deliveryAddress = preparePdfText([
     order.delivery_address,
     order.delivery_district,
     order.delivery_amphoe,
     order.delivery_province,
     order.delivery_postal_code,
-  ].filter(Boolean).join(' ');
+  ].filter(Boolean).join(' '));
 
   const noteSource = order.source === 'shopee' && !(order.notes || '').includes(order.order_number)
     ? `Shopee: ${order.order_number}` : '';
-  const noteText = [order.notes, noteSource].filter(Boolean).join(' | ');
+  const noteText = preparePdfText([order.notes, noteSource].filter(Boolean).join(' | '));
 
   const scheduleText = formatDeliverySchedule(order);
 
@@ -716,25 +717,30 @@ function buildCompactPackingContent(
 
   // ── ผู้รับ (ซ้าย) + หมายเหตุ/คำสั่งพิเศษ (ขวา) — แบบธรรมดา 2 คอลัมน์ ──
   // เจ้าของขอ (9 ก.ย. 2026): "แบบธรรมดา ไม่ต้องเน้น" · "หมายเหตุกับห้ามแนบใบเสร็จ/พิมพ์การ์ด
-  // ให้ไปอยู่คอลัมน์ขวาของกล่องจัดส่งถึง เป็นรายการ 1. 2." · "เว้นบรรทัดเยอะไป"
-  // ⇒ ซ้าย: จัดส่งถึง + ชื่อ/โทร + ที่อยู่ · ขวา: หมายเหตุ + รายการคำสั่งพิเศษ (ตัวเลข)
-  // ⇒ ทุกบรรทัดขนาดเดียวกัน ตัวปกติ · หมายเหตุหนาอย่างเดียว · ไม่มีชิปสี/กล่องการ์ดสีชมพูอีก
-  //    (รายละเอียดการ์ดยังอยู่ — ใบนี้เป็นที่เดียวที่พิมพ์ข้อความการ์ด ไม่มี PDF การ์ดแยก)
+  // ให้ไปอยู่คอลัมน์ขวาของกล่องจัดส่งถึง" · "ซ้ายก็คือซ้าย ขวาก็ขวา ให้อิสระต่อกัน"
+  //
+  // ⇒ ซ้ายกับขวาเป็น **เซลล์ตารางคนละช่อง** (ไม่ใช่ `columns`) — pdfMake วางเซลล์แต่ละช่อง
+  //    แยกกันจริง บรรทัดของฝั่งหนึ่งไม่ดึงอีกฝั่งลงมา และความกว้างช่องขวาเป็นตัวเลขคงที่
+  // ⇒ การ์ดคำสั่งพิเศษต้องมี **ความกว้างคงที่** ห้ามใช้ `widths: ['*']` — ตารางที่คอลัมน์เป็น `*`
+  //    จะขยายตัวให้กว้างเท่า "คำ" ที่ยาวที่สุด และข้อความไทยที่ไม่มีช่องว่างคือคำเดียวยาว ๆ
+  //    ⇒ การ์ดเคยกว้างเป็น 2 เท่าจนล้นขอบกระดาษ (ข้อความการ์ด "ขอขอบคุณอาจารย์…")
+  // ⇒ ข้อความอิสระทุกช่องผ่าน `preparePdfText()` (ตัดบรรทัดไทย + ล้างอีโมจิ + ล้าง "\n" หัวท้าย)
   // ⚠️ ห้ามใส่เซลล์ `{ text: '' }` เปล่าเป็นป้ายของแถวที่อยู่ — เซลล์ว่างขนาดตัวอักษรปกติ
   //    ดันแถวสูงเกินไปหนึ่งบรรทัด (ที่มาของ "เว้นบรรทัดเยอะไป") ⇒ ชื่อกับที่อยู่อยู่ใน stack เดียว
-  const customerPhone = order.delivery_phone || order.customer?.phone || '';
+  const customerPhone = preparePdfText(order.delivery_phone || order.customer?.phone || '');
   const LABEL_W = dense ? 46 : 52;
-  const RIGHT_W = dense ? 170 : 190;
+  const RIGHT_W = dense ? 176 : 196;
   const BODY = dense ? 9.5 : 10;
   const PAD_X = dense ? 0 : 8;
+  const GAP = 10;                       // ช่องว่างระหว่างสองคอลัมน์
+  const CARD_W = RIGHT_W - 2;           // การ์ดต้องแคบกว่าช่องนิดหนึ่งให้เส้นกรอบไม่โดนตัด
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const label = (text: string): any => ({ text, fontSize: BODY, color: '#6b7280' });
 
-  // ซ้าย — ผู้รับ
+  // ซ้าย — ผู้รับ (ป้าย | ชื่อ+โทร แล้วที่อยู่ต่อใต้ชื่อใน stack เดียว)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const leftCol: any = {
-    width: '*',
+  const leftCell: any = {
     columns: [
       { width: LABEL_W, ...label('จัดส่งถึง') },
       {
@@ -742,7 +748,7 @@ function buildCompactPackingContent(
         stack: [
           {
             text: [
-              { text: customerName, fontSize: BODY, color: '#111111' },
+              { text: preparePdfText(customerName), fontSize: BODY, color: '#111111' },
               ...(customerPhone ? [{ text: `   โทร ${customerPhone}`, fontSize: BODY, color: '#111111' }] : []),
             ],
           },
@@ -755,7 +761,7 @@ function buildCompactPackingContent(
     columnGap: 0,
   };
 
-  // ขวา — หมายเหตุ + คำสั่งพิเศษเป็นรายการตัวเลข (ตามที่เจ้าของเขียนมา: 1. ห้ามแนบใบเสร็จ 2. พิมพ์การ์ด)
+  // ขวา — หมายเหตุ + การ์ดคำสั่งพิเศษ (กรอบแดง ตัวแดง มีไอคอน — เจ้าของขอให้สังเกตง่าย)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const rightStack: any[] = [];
   if (noteText) {
@@ -763,19 +769,19 @@ function buildCompactPackingContent(
       text: [label('หมายเหตุ  '), { text: noteText, fontSize: BODY, bold: true, color: '#111111' }],
     });
   }
-  // คำสั่งพิเศษ = การ์ดแยก กรอบแดง ตัวแดง มีไอคอน (เจ้าของขอให้สังเกตง่าย 9 ก.ย. 2026)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const flags: { icon: string; label: string; details: any[] }[] = [];
   if (order.gift_hide_price) flags.push({ icon: ICON_NO_RECEIPT, label: 'ห้ามแนบใบเสร็จ / ราคา', details: [] });
   if (order.gift_card_requested) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const details: any[] = [];
-    if (order.gift_message) {
-      details.push({ text: [label('ข้อความ  '), { text: order.gift_message, fontSize: BODY - 0.5, color: '#111111' }], lineHeight: 1.02 });
+    const giftMessage = preparePdfText(order.gift_message);
+    if (giftMessage) {
+      details.push({ text: [label('ข้อความ  '), { text: giftMessage, fontSize: BODY - 0.5, color: '#111111' }], lineHeight: 1.02 });
     }
     const toFrom = [
-      order.gift_to ? `ถึง ${order.gift_to}` : '',
-      order.gift_from ? `จาก ${order.gift_from}` : '',
+      order.gift_to ? `ถึง ${preparePdfText(order.gift_to)}` : '',
+      order.gift_from ? `จาก ${preparePdfText(order.gift_from)}` : '',
     ].filter(Boolean).join('   ');
     if (toFrom) details.push({ text: toFrom, fontSize: BODY - 0.5, color: '#111111' });
     // ลูกค้าขอการ์ดแต่ไม่ฝากอะไรมาเลย — บอกให้ชัด คนแพ็คจะได้ไม่นั่งหา
@@ -790,8 +796,8 @@ function buildCompactPackingContent(
     flags.forEach((flag, i) => {
       cardLines.push({
         columns: [
-          { svg: flag.icon, width: 11, height: 11, margin: [0, 1.5, 0, 0] },
-          { text: flag.label, fontSize: BODY, bold: true, color: ALERT, width: '*', margin: [5, 0, 0, 0] },
+          { width: 11, svg: flag.icon, height: 11, margin: [0, 1.5, 0, 0] },
+          { width: '*', text: flag.label, fontSize: BODY, bold: true, color: ALERT, margin: [5, 0, 0, 0] },
         ],
         columnGap: 0,
         margin: [0, i === 0 ? 0 : 2, 0, 0],
@@ -800,7 +806,7 @@ function buildCompactPackingContent(
       for (const d of flag.details) cardLines.push({ ...d, margin: [16, 0, 0, 0] });
     });
     rightStack.push({
-      table: { widths: ['*'], body: [[{ stack: cardLines, margin: [6, 4, 6, 5], fillColor: '#fef2f2' }]] },
+      table: { widths: [CARD_W], body: [[{ stack: cardLines, margin: [6, 4, 6, 5], fillColor: '#fef2f2' }]] },
       layout: {
         hLineWidth: () => 0.75, vLineWidth: () => 0.75,
         hLineColor: () => '#fca5a5', vLineColor: () => '#fca5a5',
@@ -810,23 +816,22 @@ function buildCompactPackingContent(
     });
   }
 
+  const hasRight = rightStack.length > 0;
   content.push({
     table: {
-      widths: ['*'],
-      body: [[{
-        columns: rightStack.length > 0
-          ? [leftCol, { width: RIGHT_W, stack: rightStack }]
-          : [leftCol],
-        columnGap: 12,
-        // พื้นอ่อนล้วน ไม่มีกรอบ (บิลรายการเยอะตัดพื้นทิ้ง เอาที่ว่างไปให้แถวสินค้า)
-        ...(dense ? {} : { fillColor: '#f1f5f9' }),
-      }]],
+      widths: hasRight ? ['*', GAP, RIGHT_W] : ['*'],
+      body: [hasRight
+        ? [leftCell, { text: '', fontSize: 1 }, { stack: rightStack }]
+        : [leftCell]],
     },
     layout: {
       hLineWidth: () => 0,
       vLineWidth: () => 0,
-      paddingLeft: () => PAD_X,
-      paddingRight: () => PAD_X,
+      // พื้นอ่อนล้วน ไม่มีกรอบ (บิลรายการเยอะตัดพื้นทิ้ง เอาที่ว่างไปให้แถวสินค้า)
+      fillColor: () => (dense ? null : '#f1f5f9'),
+      paddingLeft: (i: number) => (i === 0 ? PAD_X : 0),
+      paddingRight: (i: number, node: { table: { widths: unknown[] } }) =>
+        (i === node.table.widths.length - 1 ? PAD_X : 0),
       paddingTop: () => (dense ? 1 : 5),
       paddingBottom: () => (dense ? 1 : 6),
     },

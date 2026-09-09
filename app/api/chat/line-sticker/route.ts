@@ -52,14 +52,18 @@ export async function GET(request: NextRequest) {
   const candidates = candidatesFor(request.nextUrl.searchParams);
   if (!candidates) return fail(400);
 
+  // เครื่องที่รัน dev server อยู่หลังเน็ตที่บล็อก line-scdn.net จะพังตรงนี้ (ตัว proxy ช่วยได้เฉพาะบน
+  // Vercel ที่เน็ตไม่ถูกบล็อก) — ต้องเห็นเหตุผลใน log ไม่ใช่รูปแตกเงียบ ๆ
+  let lastError = '';
   for (const url of candidates) {
     let res: Response;
     try {
       res = await fetch(url);
-    } catch {
+    } catch (e) {
+      lastError = e instanceof Error ? e.message : String(e);
       continue;
     }
-    if (!res.ok) continue;
+    if (!res.ok) { lastError = `HTTP ${res.status}`; continue; }
 
     const contentType = res.headers.get('content-type') || '';
     if (!contentType.startsWith('image/')) continue;
@@ -72,5 +76,6 @@ export async function GET(request: NextRequest) {
     });
   }
 
+  console.warn(`[line-sticker] upstream unreachable (${lastError || 'no image'}) for ${candidates[0]}`);
   return fail(404);
 }

@@ -149,6 +149,42 @@ export async function loadImageDataUrl(url: string, timeoutMs = 8000): Promise<s
   return attempt(`/api/image-proxy?url=${encodeURIComponent(url)}`);
 }
 
+/**
+ * เตรียมข้อความอิสระ (หมายเหตุ · ข้อความการ์ด · ที่อยู่) ก่อนส่งให้ pdfMake
+ *
+ * 1. **ตัดบรรทัดภาษาไทย** — pdfMake ตัดบรรทัดที่ช่องว่างเท่านั้น (linebreak แบบ UAX#14 ไม่รู้จัก
+ *    คำไทย) ข้อความไทยยาว ๆ ที่ไม่มีช่องว่างจึงเป็น "คำเดียว" · ใน `table` ที่คอลัมน์เป็น `'*'`
+ *    pdfMake จะ**ขยายตารางให้กว้างเท่าคำที่ยาวที่สุด**แทนที่จะตัด ⇒ การ์ดล้นออกนอกขอบกระดาษ
+ *    (ใบจัดของ 9 ก.ย. 2026 ข้อความการ์ด "ขอขอบคุณอาจารย์…" ดันการ์ดกว้างเป็น 2 เท่า)
+ *    → แทรก U+200B (zero-width space) ตามขอบคำจาก `Intl.Segmenter('th')` — ฟอนต์วาดเป็นความว่าง
+ *    ไม่ใช่กล่อง (ทดสอบแล้วกับ IBMPlexSansThai) และ pdfMake ถือเป็นจุดตัดบรรทัดได้
+ * 2. **ล้างอีโมจิ/สัญลักษณ์ที่ฟอนต์ไม่มี** — ลูกค้าพิมพ์อีโมจิมากับข้อความการ์ด พิมพ์ออกมาเป็นกล่องเปล่า
+ *    (ฟอนต์ที่ฝังมีแค่ IBMPlexSansThai ไม่มี fallback) → ตัดทิ้ง
+ * 3. ตัดช่องว่าง/ขึ้นบรรทัดหัวท้าย และยุบบรรทัดว่างซ้อนกัน (ค่าจากฟอร์มมี "\n" ติดมาได้)
+ *
+ * เบราว์เซอร์ที่ไม่มี `Intl.Segmenter` (เก่ากว่า Safari 14.1 / Chrome 87) ได้ข้อความเดิม
+ * ซึ่ง pdfMake ยังตัดกลางคำให้เมื่อคอลัมน์เป็นความกว้างคงที่ — ไม่ล้ม แค่ตัดไม่สวย
+ */
+export function preparePdfText(text: string | null | undefined): string {
+  if (!text) return '';
+  let t = String(text)
+    // อีโมจิ · สัญลักษณ์รูปภาพ · ตัวเชื่อม/ตัวเลือกรูปแบบของอีโมจิ · สีผิว
+    .replace(/[\p{Extended_Pictographic}\u200D\uFE0E\uFE0F\u{1F3FB}-\u{1F3FF}\u20E3]/gu, '')
+    .replace(/\r\n?/g, '\n')
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+  const Seg = (Intl as unknown as { Segmenter?: new (locale: string, opts: { granularity: string }) => { segment(s: string): Iterable<{ segment: string }> } }).Segmenter;
+  if (!Seg) return t;
+  try {
+    const seg = new Seg('th', { granularity: 'word' });
+    t = Array.from(seg.segment(t), x => x.segment).join('\u200B')
+      // ไม่ต้องมี ZWSP ติดกับช่องว่าง/ขึ้นบรรทัดอยู่แล้ว
+      .replace(/\u200B(?=[\s\u200B])|(?<=\s)\u200B/g, '');
+  } catch { /* ใช้ข้อความเดิม */ }
+  return t;
+}
+
 /** Fetch logo image and convert to data URL */
 export async function loadLogoDataUrl(logoUrl: string): Promise<string | null> {
   return loadImageDataUrl(logoUrl);
