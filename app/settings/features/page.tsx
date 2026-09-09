@@ -74,6 +74,35 @@ interface FeatureSection {
   settings?: React.ReactNode; // rendered when feature is enabled
 }
 
+// ค่าตั้งต้นของฝากขาย — ตอนโหลดและตอนบันทึกต้องประกอบ snapshot ด้วยสูตรเดียวกัน
+// ไม่งั้นตัวเทียบ dirty เห็นว่าต่างกันทั้งที่ผู้ใช้ไม่ได้แตะอะไร
+const CONSIGNMENT_DEFAULTS: ConsignmentSettingsData = {
+  default_gp_rate: 30,
+  default_gp_base_price: 'retail',
+  default_report_due_days: 15,
+  default_payment_terms: 30,
+  vat_included: true,
+};
+
+/** แปลง response ของ /api/settings/features เป็น state ของหน้า + snapshot สำหรับเช็ค dirty (ที่เดียว) */
+function snapshotFromApi(
+  data: {
+    features?: FeatureFlags;
+    consignment_settings?: Partial<ConsignmentSettingsData> | null;
+    brand_gp_overrides?: { brand_id: string; gp_rate: number; gp_base_price: string }[] | null;
+  },
+  fallbackFlags: FeatureFlags,
+) {
+  const flags = data.features ?? fallbackFlags;
+  const cs: ConsignmentSettingsData = { ...CONSIGNMENT_DEFAULTS, ...(data.consignment_settings || {}) };
+  const bgr: BrandGpRow[] = (data.brand_gp_overrides || []).map(r => ({
+    brand_id: r.brand_id,
+    gp_rate: String(r.gp_rate),
+    gp_base_price: (r.gp_base_price || 'retail') as 'retail' | 'discounted',
+  }));
+  return { flags, cs, bgr, saved: { featureFlags: flags, consignmentSettings: cs, brandGpRows: JSON.stringify(bgr) } };
+}
+
 export default function FeaturesPage() {
   const { currentCompany, companyRoles, permissions } = useCompany();
   const { features: currentFeatures, gates, fetched: featuresFetched, refreshFeatures } = useFeatures();
@@ -85,17 +114,11 @@ export default function FeaturesPage() {
   const [openSection, setOpenSection] = useState<string | null>(null);
 
   // Consignment settings
-  const [consignmentSettings, setConsignmentSettings] = useState({
-    default_gp_rate: 30,
-    default_gp_base_price: 'retail' as 'retail' | 'discounted',
-    default_report_due_days: 15,
-    default_payment_terms: 30,
-    vat_included: true,
-  });
+  const [consignmentSettings, setConsignmentSettings] = useState<ConsignmentSettingsData>(CONSIGNMENT_DEFAULTS);
   const [brandGpRows, setBrandGpRows] = useState<BrandGpRow[]>([]);
 
   // Track saved state to detect changes — null until first API load completes
-  const savedRef = useRef<{ featureFlags: FeatureFlags; consignmentSettings: Record<string, unknown>; brandGpRows: string } | null>(null);
+  const savedRef = useRef<{ featureFlags: FeatureFlags; consignmentSettings: ConsignmentSettingsData; brandGpRows: string } | null>(null);
 
   // Sync from context
   useEffect(() => {
@@ -103,20 +126,11 @@ export default function FeaturesPage() {
       setFeatureFlags(currentFeatures);
       setFeaturesLoaded(true);
       apiFetch('/api/settings/features').then(r => r.json()).then(data => {
-        const cs = data.consignment_settings || {};
-        const bgr: BrandGpRow[] = (data.brand_gp_overrides || []).map((r: { brand_id: string; gp_rate: number; gp_base_price: string }) => ({
-          brand_id: r.brand_id,
-          gp_rate: String(r.gp_rate),
-          gp_base_price: (r.gp_base_price || 'retail') as 'retail' | 'discounted',
-        }));
-        const loadedFlags = (data.features ?? currentFeatures) as FeatureFlags;
-        setFeatureFlags(loadedFlags);
-        if (data.consignment_settings) setConsignmentSettings(prev => ({ ...prev, ...cs }));
-        setBrandGpRows(bgr);
-        const snapshotCs = data.consignment_settings
-          ? { ...{ default_gp_rate: 30, default_gp_base_price: 'retail', default_report_due_days: 15, default_payment_terms: 30, vat_included: true }, ...cs }
-          : { default_gp_rate: 30, default_gp_base_price: 'retail', default_report_due_days: 15, default_payment_terms: 30, vat_included: true };
-        savedRef.current = { featureFlags: loadedFlags, consignmentSettings: snapshotCs, brandGpRows: JSON.stringify(bgr) };
+        const snap = snapshotFromApi(data, currentFeatures);
+        setFeatureFlags(snap.flags);
+        setConsignmentSettings(snap.cs);
+        setBrandGpRows(snap.bgr);
+        savedRef.current = snap.saved;
       }).catch(() => {});
     }
   }, [featuresFetched, currentFeatures, featuresLoaded]);
@@ -169,15 +183,14 @@ export default function FeaturesPage() {
       await refreshFeatures();
       const fresh = await apiFetch('/api/settings/features').then(r => r.json()).catch(() => null);
       if (fresh) {
-        const cs = fresh.consignment_settings || {};
-        const bgr: BrandGpRow[] = (fresh.brand_gp_overrides || []).map((r: { brand_id: string; gp_rate: number; gp_base_price: string }) => ({
-          brand_id: r.brand_id,
-          gp_rate: String(r.gp_rate),
-          gp_base_price: (r.gp_base_price || 'retail') as 'retail' | 'discounted',
-        }));
-        if (fresh.consignment_settings) setConsignmentSettings(prev => ({ ...prev, ...cs }));
-        setBrandGpRows(bgr);
-        savedRef.current = { featureFlags: (fresh.features ?? featureFlags) as FeatureFlags, consignmentSettings: cs, brandGpRows: JSON.stringify(bgr) };
+        // state ของหน้า = ความจริงจากเซิร์ฟเวอร์หลังบันทึก (รวมที่ API clamp ให้) และ snapshot ต้อง
+        // ประกอบด้วยสูตรเดียวกับตอนโหลด — เดิมเก็บ consignment ดิบ ({} เมื่อปิดฝากขาย) ทั้งที่ state
+        // ถือค่าตั้งต้น 5 ช่องอยู่ แถบ "ยังไม่ได้บันทึก" จึงค้างทันทีหลังกดบันทึก (เจ้าของทัก 9 ก.ย. 2026)
+        const snap = snapshotFromApi(fresh, featureFlags);
+        setFeatureFlags(snap.flags);
+        setConsignmentSettings(snap.cs);
+        setBrandGpRows(snap.bgr);
+        savedRef.current = snap.saved;
       }
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด', 'error');
@@ -420,7 +433,18 @@ export default function FeaturesPage() {
                 saving={isSaving}
                 dirty={isDirty}
                 onSave={handleSave}
-                onCancel={() => { setFeatureFlags(currentFeatures); setOpenSection(null); }}
+                onCancel={() => {
+                  // ย้อนกลับไปค่าที่บันทึกล่าสุดทั้งชุด (flags + ฝากขาย) ไม่ใช่แค่ flags จาก context
+                  const saved = savedRef.current;
+                  if (saved) {
+                    setFeatureFlags(saved.featureFlags);
+                    setConsignmentSettings(saved.consignmentSettings);
+                    setBrandGpRows(JSON.parse(saved.brandGpRows) as BrandGpRow[]);
+                  } else {
+                    setFeatureFlags(currentFeatures);
+                  }
+                  setOpenSection(null);
+                }}
               />
             )}
           </>
