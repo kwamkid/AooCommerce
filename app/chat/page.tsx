@@ -1238,9 +1238,28 @@ function UnifiedChatPageContent() {
       if (uploadError) throw new Error(describeUploadError(uploadError.message));
       const { data: urlData } = supabase.storage.from('chat-media').getPublicUrl(key);
 
+      // ลิงก์สั้นบนโดเมนเรา (/f/<code>) แทน URL ดิบของ Supabase Storage —
+      // ลูกค้าไม่รู้จักโดเมนนั้น อ่านแล้วดูเหมือนลิงก์หลอกลวงจนไม่กล้ากด
+      // ⚠️ ตัวย่อลิงก์ล้มต้องไม่ทำให้ส่งไฟล์ไม่ได้ — ตกกลับไปใช้ URL ดิบแล้วส่งต่อ
+      let fileUrl = urlData.publicUrl;
+      try {
+        const linkRes = await apiFetch('/api/chat/file-links', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            storage_path: key, file_name: file.name, mime: kind.mime, size_bytes: file.size,
+            contact_platform: platform, contact_id: contactId,
+          }),
+        });
+        if (!linkRes.ok) throw new Error(`HTTP ${linkRes.status}`);
+        const { code } = await linkRes.json();
+        if (code) fileUrl = `${window.location.origin}/f/${code}`;
+      } catch (linkError) {
+        console.warn('สร้างลิงก์สั้นไม่สำเร็จ — ใช้ URL ของ storage แทน:', linkError);
+      }
+
       const response = await apiFetch('/api/chat/messages', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contact_id: contactId, platform, message: `${label}\n${urlData.publicUrl}` }),
+        body: JSON.stringify({ contact_id: contactId, platform, message: `${label}\n${fileUrl}` }),
       });
       if (!response.ok) {
         const errData = await response.json().catch(() => ({}));

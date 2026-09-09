@@ -41,6 +41,8 @@ const PUBLIC_PREFIXES = [
   '/legal',
   // หน้าสอนติดตั้งแอป — เจ้าของร้านส่งลิงก์ให้พนักงานเปิดก่อน login ได้
   '/install',
+  // ลิงก์สั้นของไฟล์ที่ส่งในแชท — ลูกค้าไม่มีบัญชีในระบบ เด้งไป /login = ไฟล์ไม่ถึงมือ
+  '/f/',
 ];
 
 function isPublicPath(pathname: string): boolean {
