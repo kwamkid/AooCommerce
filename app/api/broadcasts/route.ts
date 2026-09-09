@@ -24,7 +24,9 @@ import {
   resolveBroadcastContentKind,
   validateBroadcastContent,
   type BroadcastContent,
+  type BroadcastProductCard,
 } from '@/lib/broadcast/content';
+import { fillStorefrontProductLinks } from '@/lib/broadcast/product-links';
 
 // ส่งจริงเกิดใน after() ของ POST — ต้องให้ฟังก์ชันอยู่ได้นานพอที่จะไล่ล็อตจนจบ
 export const maxDuration = 300;
@@ -247,6 +249,34 @@ function toDim(value: unknown): number | null {
   return Number.isFinite(n) && n > 0 ? n : null;
 }
 
+/** จำนวนเงินจาก client — ค่าที่อ่านไม่ออกถือว่า "ไม่รู้ราคา" (ห้ามเดาเป็น 0) */
+function toMoney(value: unknown, min: number): number | null {
+  const n = Number(value);
+  return Number.isFinite(n) && n >= min ? n : null;
+}
+
+/** ลิงก์จาก client — รับเฉพาะสตริงที่มีเนื้อ (ตรวจ https ต่อที่ validateBroadcastContent) */
+function toUrl(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
+/**
+ * การ์ดสินค้าจาก client — **รับเฉพาะช่องที่เรารู้จัก**
+ * body มาจากเบราว์เซอร์ เก็บทั้งก้อนลง DB แล้วจะมีอะไรก็ไม่รู้ติดไปกับข้อความที่ส่งลูกค้า
+ */
+function toProductCard(raw: unknown): BroadcastProductCard {
+  const r = (raw || {}) as Record<string, unknown>;
+  return {
+    product_id: typeof r.product_id === 'string' ? r.product_id : null,
+    variation_id: typeof r.variation_id === 'string' ? r.variation_id : null,
+    name: String(r.name ?? '').slice(0, 200),
+    image_url: typeof r.image_url === 'string' ? r.image_url : null,
+    price: toMoney(r.price, 0),
+    compare_at_price: toMoney(r.compare_at_price, 1),
+    url: toUrl(r.url),
+  };
+}
+
 // POST — สร้างบรอดแคสต์แล้วเริ่มส่งทันที
 export async function POST(request: NextRequest) {
   try {
@@ -294,12 +324,23 @@ export async function POST(request: NextRequest) {
       // ขนาดรูปที่หน้าจอวัดมา — ใช้บอกสัดส่วนการ์ด Flex ของ LINE (ไม่ส่งมา = ทรงเดิม)
       image_width: toDim(body.content?.image_width),
       image_height: toDim(body.content?.image_height),
+      // รูปของ announce เป็นฟองรูปธรรมดาหรือรูปเต็มจอ · ค่าที่ไม่รู้จักตกเป็นแบบเดิม
+      image_style: body.content?.image_style === 'rich' ? 'rich' : 'bubble',
+      link_url: toUrl(body.content?.link_url),
+      card_style: body.content?.card_style === 'image' ? 'image' : 'detail',
       buttons: body.content?.buttons || [],
-      products: body.content?.products || [],
+      products: (Array.isArray(body.content?.products) ? body.content.products : []).map(toProductCard),
       quick_replies: body.content?.quick_replies || [],
     };
     const contentError = validateBroadcastContent(platform, content);
     if (contentError) return NextResponse.json({ error: contentError }, { status: 400 });
+
+    // ลิงก์การ์ดสินค้าเติมให้เองจากหน้าร้านออนไลน์ — **ลิงก์เปลี่ยนเองเมื่อร้านเปิด
+    // storefront ไม่ต้องแก้ใบ** · ทำก่อนแปลงเป็นข้อความของแพลตฟอร์ม ไม่งั้นการ์ดที่ส่ง
+    // ออกไปจะยังเป็นปุ่ม "สนใจสินค้านี้" ทั้งที่มีหน้าสินค้าให้ลิงก์แล้ว
+    if ((content.products || []).length > 0) {
+      content.products = await fillStorefrontProductLinks(auth.companyId, content.products || []);
+    }
 
     let messages: unknown;
     let recipientCount: number;

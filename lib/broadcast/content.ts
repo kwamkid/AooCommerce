@@ -37,6 +37,11 @@ export interface BroadcastProductCard {
   image_url: string | null;
   price: number | null;
   /**
+   * ราคาปกติก่อนลด — มีค่าเมื่อสินค้ากำลังลดราคาอยู่ (`price` คือราคาที่ลูกค้าจ่ายจริง)
+   * ใช้คิดป้าย "ลด N%" บนการ์ดและขีดฆ่าราคาเดิม — ไม่ลดราคา = null
+   */
+  compare_at_price?: number | null;
+  /**
    * ลิงก์ปลายทางของการ์ด — **ไม่มีก็ได้**
    * ไม่มีลิงก์ = ปุ่มกลายเป็น "สนใจสินค้านี้" ที่ส่งข้อความกลับเข้าห้องแชท
    * (ใช้ได้เลยโดยไม่ต้องเปิดหน้าร้านออนไลน์ และยังได้บทสนทนาให้แอดมินปิดการขายต่อ)
@@ -50,6 +55,23 @@ export interface BroadcastContent {
   title?: string;
   text: string;
   image_url?: string | null;
+  /**
+   * รูปของ `announce` แสดงยังไง (ค่าเริ่มต้น 'bubble' — ใบเก่าจึงหน้าตาไม่เปลี่ยน)
+   *  bubble = ฟองรูปเหมือนที่แอดมินส่งรูปในแชท
+   *  rich   = รูปเต็มความกว้างห้องแชท (Flex giga) กดแล้วไปที่ `link_url` ได้
+   */
+  image_style?: 'bubble' | 'rich';
+  /**
+   * ลิงก์ที่เปิดเมื่อลูกค้าแตะรูป — **โปสเตอร์บังคับ** · announce แบบ rich ใส่หรือไม่ใส่ก็ได้
+   * (โปสเตอร์ที่กดแล้วไม่ไปไหน = ลูกค้าเห็นของแล้วซื้อต่อไม่ได้)
+   */
+  link_url?: string | null;
+  /**
+   * การ์ดสินค้าแสดงยังไง (ค่าเริ่มต้น 'detail' — ใบเก่าจึงหน้าตาไม่เปลี่ยน)
+   *  image  = รูปจัตุรัสเต็มการ์ด + ป้ายลดและราคาลอยบนรูป กดทั้งใบ
+   *  detail = รูป + ชื่อ + ราคา + ปุ่มสั่งเลย
+   */
+  card_style?: 'image' | 'detail';
   /**
    * ขนาดจริงของรูปที่อัปโหลด (พิกเซล) — วัดตอนผู้ใช้เลือกไฟล์
    * ใช้บอกสัดส่วนให้ Flex ของ LINE วาดรูปเต็มใบโดยไม่ครอบ (ดู imageAspectRatio)
@@ -96,6 +118,20 @@ export function imageAspectRatio(
   return `${rw}:${rh}`;
 }
 
+/**
+ * ส่วนลดเป็นเปอร์เซ็นต์ของการ์ดสินค้าใบหนึ่ง — ไม่ได้ลดราคา = null (**ห้ามคืน 0**
+ * ไม่งั้นการ์ดจะขึ้นป้าย "ลด 0%" ให้สินค้าราคาปกติ)
+ */
+export function discountPercent(
+  card: Pick<BroadcastProductCard, 'price' | 'compare_at_price'>,
+): number | null {
+  const price = Number(card.price) || 0;
+  const compare = Number(card.compare_at_price) || 0;
+  if (!(compare > price && price > 0)) return null;
+  const pct = Math.round((1 - price / compare) * 100);
+  return pct > 0 ? pct : null;
+}
+
 export function isHttpsUrl(value: string): boolean {
   return /^https:\/\/[^\s]+$/i.test(value.trim());
 }
@@ -136,6 +172,18 @@ export function validateBroadcastContent(
     return 'ลิงก์รูปต้องเป็น https';
   }
 
+  if (content.kind === 'poster') {
+    // โปสเตอร์คือ "รูปทั้งใบ" — ข้อความ ราคา ปุ่ม ต้องอยู่ในรูปเอง ระบบจึงไม่มีช่องให้พิมพ์
+    if (!content.image_url) return 'โปสเตอร์ต้องมีรูป';
+    const link = (content.link_url || '').trim();
+    // กดโปสเตอร์แล้วไม่ไปไหน = ลูกค้าสนใจแล้วซื้อต่อไม่ได้ จึงบังคับลิงก์
+    if (!link) return 'โปสเตอร์ต้องมีลิงก์ปลายทาง — กดรูปแล้วไปที่ไหน';
+    if (!isHttpsUrl(link)) return 'ลิงก์ปลายทางต้องเป็น https';
+    if (title || text || (content.buttons || []).length > 0 || (content.products || []).length > 0) {
+      return 'โปสเตอร์มีแค่รูปกับลิงก์';
+    }
+  }
+
   if (content.kind === 'promo') {
     const buttons = content.buttons || [];
     if (buttons.length === 0) return 'ต้องมีปุ่มอย่างน้อย 1 ปุ่ม';
@@ -160,10 +208,18 @@ export function validateBroadcastContent(
       if (!p.name.trim()) return 'สินค้าต้องมีชื่อ';
       if (p.url && !isHttpsUrl(p.url)) return 'ลิงก์ของสินค้าต้องเป็น https';
     }
+    if (content.card_style && content.card_style !== 'image' && content.card_style !== 'detail') {
+      return 'รูปแบบการ์ดสินค้าไม่ถูกต้อง';
+    }
   }
 
-  if (content.kind === 'announce' && !text && !content.image_url) {
-    return 'ต้องมีข้อความหรือรูปอย่างน้อยหนึ่งอย่าง';
+  if (content.kind === 'announce') {
+    // รูปเต็มจอกดได้ = ต้องรู้ว่ากดแล้วไปไหน (ไม่ใส่ลิงก์ก็ได้ แค่กลายเป็นรูปที่กดไม่ได้)
+    const link = (content.link_url || '').trim();
+    if (content.image_style === 'rich' && link && !isHttpsUrl(link)) {
+      return 'ลิงก์ที่กดจากรูปต้องเป็น https';
+    }
+    if (!text && !content.image_url) return 'ต้องมีข้อความหรือรูปอย่างน้อยหนึ่งอย่าง';
   }
 
   const quick = (content.quick_replies || []).map(q => q.trim()).filter(Boolean);
@@ -183,6 +239,17 @@ export function validateBroadcastContent(
 export function broadcastContentPreview(content: BroadcastContent): string {
   const title = (content.title || '').trim();
   const text = (content.text || '').trim();
+  if (content.kind === 'poster') {
+    // โปสเตอร์ไม่มีข้อความให้ยกมาโชว์ — บอกปลายทางแทน จะได้แยกใบออกจากกันในรายการ
+    let host = '';
+    try {
+      const link = (content.link_url || '').trim();
+      if (link) host = new URL(link).hostname;
+    } catch {
+      host = '';
+    }
+    return `[โปสเตอร์] ${host}`.trim();
+  }
   if (content.kind === 'products') {
     const names = (content.products || []).map(p => p.name).filter(Boolean);
     const head = text || title || 'การ์ดสินค้า';
@@ -196,19 +263,26 @@ export function broadcastContentPreview(content: BroadcastContent): string {
  * ชนิดเนื้อหาของบรอดแคสต์ใบหนึ่ง — ใบใหม่อ่านจากคอลัมน์ `content` ตรง ๆ
  *
  * ใบเก่า (ก่อนมีคอลัมน์นั้น) เก็บแค่ `messages` ที่แปลงเป็นของแพลตฟอร์มไปแล้ว
- * จึงต้องเดาย้อนกลับ: LINE template `buttons` = การ์ดโปรโมชัน · `carousel` = การ์ดสินค้า ·
+ * จึงต้องเดาย้อนกลับจากรูปทรงของ Flex: แถวเลื่อนได้ = การ์ดสินค้า · มีแต่รูปไม่มีเนื้อ/ปุ่ม
+ * = โปสเตอร์ · มีเนื้อ = โปรโมชัน · template รุ่นเก่า `buttons`/`carousel` ก็ยังอ่านได้ ·
  * TikTok มี `product_ids` = การ์ดสินค้า — เดาไม่ได้ก็ตกเป็น 'announce' (ข้อความล้วน)
  */
 export function resolveBroadcastContentKind(
   content: BroadcastContent | null | undefined,
   messages: unknown,
 ): BroadcastContentKind {
-  if (content?.kind && ['announce', 'promo', 'products'].includes(content.kind)) return content.kind;
+  if (content?.kind && ['announce', 'poster', 'promo', 'products'].includes(content.kind)) return content.kind;
 
   if (Array.isArray(messages)) {
     for (const m of messages) {
-      // ใบที่ส่งหลัง 9 ก.ย. 2026 การ์ดโปรโมชันเป็น Flex ไม่ใช่ template buttons แล้ว
-      if ((m as { type?: string } | null)?.type === 'flex') return 'promo';
+      // ใบที่ส่งหลัง 9 ก.ย. 2026 การ์ดทุกแบบเป็น Flex ไม่ใช่ template แล้ว
+      const msg = m as { type?: string; contents?: { type?: string; hero?: unknown; body?: unknown; footer?: unknown } } | null;
+      if (msg?.type === 'flex') {
+        const c = msg.contents;
+        if (c?.type === 'carousel') return 'products';
+        if (c?.hero && !c.body && !c.footer) return 'poster';
+        return 'promo';
+      }
       const tpl = (m as { template?: { type?: string } } | null)?.template;
       if (tpl?.type === 'carousel') return 'products';
       if (tpl?.type === 'buttons') return 'promo';

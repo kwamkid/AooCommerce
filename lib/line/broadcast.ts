@@ -16,7 +16,7 @@ import { getChatAccount, getLineCredsFromAccount } from '@/lib/chat-config';
 import { logIntegrationNow } from '@/lib/integration-logger';
 import { fetchAllRows } from '@/lib/supabase-paging';
 import { LINE_TEXT_MAX, MULTICAST_BATCH_SIZE } from '@/lib/line/constants';
-import { imageAspectRatio } from '@/lib/broadcast/content';
+import { discountPercent, imageAspectRatio } from '@/lib/broadcast/content';
 import type { BroadcastContent, BroadcastProductCard } from '@/lib/broadcast/content';
 
 const LINE_API = 'https://api.line.me/v2/bot';
@@ -70,20 +70,32 @@ export interface LineCarouselColumn {
 }
 
 /**
- * โครง Flex แบบหลวม ๆ — พอให้ประกอบการ์ดโปรโมชันได้โดยไม่ต้องพิมพ์สเปคทั้งชุดของ LINE
+ * โครง Flex แบบหลวม ๆ — พอให้ประกอบการ์ดได้โดยไม่ต้องพิมพ์สเปคทั้งชุดของ LINE
  * (ที่ต้องแน่คือ hero/body/footer มีอะไรบ้าง ส่วนข้างในเป็น JSON ที่ LINE ตรวจเอง)
  */
 export interface LineFlexBubble {
   type: 'bubble';
+  /** 'giga' ≈ เต็มความกว้างห้องแชท · 'mega' = การ์ดในแถวเลื่อน (ไม่ใส่ = ขนาดมาตรฐาน) */
+  size?: 'nano' | 'micro' | 'kilo' | 'mega' | 'giga';
+  /** แตะที่ไหนของการ์ดก็ได้ — ใช้กับการ์ดที่ไม่มีปุ่ม (แบบรูปเต็ม) */
+  action?: LineAction;
   hero?: Record<string, unknown>;
   body?: Record<string, unknown>;
   footer?: Record<string, unknown>;
 }
 
+/** แถวการ์ดเลื่อนได้ — การ์ดสินค้าใช้ตัวนี้แทน template carousel รุ่นเก่า */
+export interface LineFlexCarousel {
+  type: 'carousel';
+  contents: LineFlexBubble[];
+}
+
+export type LineFlexContainer = LineFlexBubble | LineFlexCarousel;
+
 export type LineMessageObject =
   | { type: 'text'; text: string; quickReply?: LineQuickReply }
   | { type: 'image'; originalContentUrl: string; previewImageUrl: string; quickReply?: LineQuickReply }
-  | { type: 'flex'; altText: string; contents: LineFlexBubble; quickReply?: LineQuickReply }
+  | { type: 'flex'; altText: string; contents: LineFlexContainer; quickReply?: LineQuickReply }
   | {
       type: 'template';
       altText: string;
@@ -468,20 +480,188 @@ function buildQuickReply(labels: string[] | undefined): LineQuickReply | undefin
   };
 }
 
-/** ปุ่มของการ์ดสินค้า — ไม่มีลิงก์ก็ยังต้องมีปุ่ม (LINE บังคับ ≥1 action ต่อคอลัมน์) */
+/** ปุ่ม/การกดของการ์ดสินค้า — ไม่มีลิงก์ก็ยังต้องกดได้ (LINE บังคับ ≥1 action ต่อการ์ด) */
 function productAction(p: BroadcastProductCard): LineAction {
-  if (p.url) return { type: 'uri', label: 'ดูสินค้า', uri: p.url };
+  if (p.url) return { type: 'uri', label: 'สั่งเลย', uri: p.url };
+  // ไม่มีหน้าร้านออนไลน์ก็ยังขายได้ — กดแล้วข้อความเข้าห้องแชทให้แอดมินปิดการขายต่อ
   return { type: 'message', label: 'สนใจสินค้านี้', text: `สนใจ ${p.name}`.slice(0, 300) };
+}
+
+/**
+ * ราคาบนป้ายลอยของการ์ดแบบรูปเต็ม — สั้นที่สุดที่ยังอ่านออก
+ * (ป้ายลอยทับรูปอยู่ ยาวกว่านี้จะบังของที่ลูกค้าอยากดู)
+ */
+function moneyText(n: number): string {
+  return `${n.toLocaleString('th-TH')}.-`;
+}
+
+/** สีในก้อนนี้เป็นเลขฐานสิบหกได้ — เป็น JSON ของ LINE ไม่ใช่คลาสบนหน้าจอเรา */
+const FLEX_BRAND = '#F4511E';
+const FLEX_WHITE = '#FFFFFF';
+/** ป้ายราคาบนรูป — ดำโปร่ง (ตัวอักษรขาวอ่านออกไม่ว่ารูปข้างล่างจะสีอะไร) */
+const FLEX_PILL_BG = '#00000099';
+const FLEX_TEXT = '#333333';
+const FLEX_MUTED = '#999999';
+
+/**
+ * การ์ดที่มีแต่รูปเต็มความกว้างห้องแชท (Flex giga)
+ *
+ * ใช้กับ **โปสเตอร์** (ลิงก์บังคับ) และ **ประกาศแบบรูปเต็มจอ** (ลิงก์ใส่หรือไม่ใส่ก็ได้) —
+ * ต่างจากฟองรูปธรรมดาตรงที่กว้างเต็มจอและกดได้ · สัดส่วนตามรูปจริง ไม่ครอบหัวท้ายทิ้ง
+ */
+function fullWidthImageBubble(
+  imageUrl: string,
+  aspectRatio: string,
+  linkUrl: string | null,
+): LineFlexBubble {
+  return {
+    type: 'bubble',
+    size: 'giga',
+    hero: {
+      type: 'image',
+      url: imageUrl,
+      size: 'full',
+      aspectRatio,
+      aspectMode: 'cover',
+      ...(linkUrl ? { action: { type: 'uri', label: 'เปิด', uri: linkUrl } } : {}),
+    },
+  };
+}
+
+/**
+ * ส่วนรูปของการ์ดสินค้า — รูปจัตุรัส + ป้าย "ลด N%" มุมซ้ายบน (+ ป้ายราคากลางล่างเมื่อ
+ * เป็นการ์ดแบบรูปเต็มซึ่งไม่มีเนื้อข้างล่างให้ใส่ราคา)
+ *
+ * ป้ายวางแบบ absolute ทับบนรูปในกล่องเดียวกัน — ยืนยันกับตัวตรวจของ LINE แล้วว่าใช้ได้
+ */
+function productHeroBox(p: BroadcastProductCard, withPriceOverlay: boolean): Record<string, unknown> {
+  const off = discountPercent(p);
+  const contents: Record<string, unknown>[] = [{
+    type: 'image',
+    url: p.image_url,
+    size: 'full',
+    aspectRatio: '1:1',
+    aspectMode: 'cover',
+    action: productAction(p),
+  }];
+
+  if (off !== null) {
+    contents.push({
+      type: 'box',
+      layout: 'vertical',
+      position: 'absolute',
+      offsetTop: '12px',
+      offsetStart: '12px',
+      backgroundColor: FLEX_BRAND,
+      cornerRadius: '999px',
+      paddingTop: '4px',
+      paddingBottom: '4px',
+      paddingStart: '12px',
+      paddingEnd: '12px',
+      contents: [{ type: 'text', text: `ลด ${off}%`, color: FLEX_WHITE, size: 'sm', weight: 'bold' }],
+    });
+  }
+
+  if (withPriceOverlay && p.price != null) {
+    contents.push({
+      type: 'box',
+      layout: 'vertical',
+      position: 'absolute',
+      offsetBottom: '12px',
+      offsetStart: '0px',
+      offsetEnd: '0px',
+      alignItems: 'center',
+      contents: [{
+        type: 'box',
+        layout: 'vertical',
+        backgroundColor: FLEX_PILL_BG,
+        cornerRadius: '999px',
+        paddingTop: '6px',
+        paddingBottom: '6px',
+        paddingStart: '18px',
+        paddingEnd: '18px',
+        contents: [{
+          type: 'text',
+          text: moneyText(p.price),
+          color: FLEX_WHITE,
+          size: 'xl',
+          weight: 'bold',
+          align: 'center',
+        }],
+      }],
+    });
+  }
+
+  return { type: 'box', layout: 'vertical', paddingAll: '0px', contents };
+}
+
+/** การ์ดสินค้าหนึ่งใบในแถวเลื่อน */
+function productBubble(p: BroadcastProductCard, cardStyle: 'image' | 'detail'): LineFlexBubble {
+  const hasImage = !!p.image_url && /^https:\/\//i.test(p.image_url);
+  // แบบรูปเต็มที่ไม่มีรูป = การ์ดว่างเปล่า — ตกไปใช้แบบมีชื่อ+ปุ่มให้ใบนั้นแทน
+  // (ทิ้งทั้งใบไม่ได้ ผู้ใช้เลือกสินค้านั้นมาเอง)
+  const style = cardStyle === 'image' && hasImage ? 'image' : 'detail';
+  const off = discountPercent(p);
+
+  if (style === 'image') {
+    return {
+      type: 'bubble',
+      size: 'mega',
+      hero: productHeroBox(p, true),
+      // ไม่มีปุ่ม จึงต้องกดได้ทั้งใบ
+      action: productAction(p),
+    };
+  }
+
+  const bodyContents: Record<string, unknown>[] = [
+    { type: 'text', text: p.name, weight: 'bold', size: 'md', wrap: true, maxLines: 2 },
+  ];
+  if (p.price != null) {
+    bodyContents.push({ type: 'text', text: moneyText(p.price), size: 'sm', color: FLEX_TEXT });
+    if (off !== null && p.compare_at_price != null) {
+      bodyContents.push({
+        type: 'text',
+        text: moneyText(p.compare_at_price),
+        size: 'sm',
+        color: FLEX_MUTED,
+        decoration: 'line-through',
+      });
+    }
+  }
+
+  return {
+    type: 'bubble',
+    size: 'mega',
+    ...(hasImage ? { hero: productHeroBox(p, false) } : {}),
+    body: { type: 'box', layout: 'vertical', spacing: 'sm', contents: bodyContents },
+    footer: {
+      type: 'box',
+      layout: 'vertical',
+      contents: [{ type: 'button', height: 'sm', style: 'primary', action: productAction(p) }],
+    },
+  };
 }
 
 export function buildLineMessagesFromContent(content: BroadcastContent): LineMessageObject[] {
   const title = (content.title || '').trim();
   const text = (content.text || '').trim();
   const imageUrl = (content.image_url || '').trim();
+  const linkUrl = (content.link_url || '').trim();
   const quickReply = buildQuickReply(content.quick_replies);
   let messages: LineMessageObject[] = [];
 
-  if (content.kind === 'promo') {
+  if (content.kind === 'poster') {
+    // รูปทั้งใบคือเนื้อหา — ข้อความ ราคา ปุ่ม อยู่ในรูปที่ร้านออกแบบมาเอง
+    if (!imageUrl) throw new Error('โปสเตอร์ต้องมีรูป');
+    if (!/^https:\/\//i.test(imageUrl)) throw new Error('ลิงก์รูปต้องเป็น https');
+    if (!/^https:\/\//i.test(linkUrl)) throw new Error('โปสเตอร์ต้องมีลิงก์ปลายทางแบบ https');
+    messages = [{
+      type: 'flex',
+      altText: 'โปสเตอร์',
+      contents: fullWidthImageBubble(imageUrl, imageAspectRatio(content), linkUrl),
+    }];
+
+  } else if (content.kind === 'promo') {
     // การ์ดเดียวจบ: รูปอยู่ในตัวการ์ด ไม่ต้องส่งรูปแยก
     //
     // ทำไมเป็น Flex ไม่ใช่ template buttons: template บีบรูปเป็น 1.51:1 (หรือ 1:1) เสมอ
@@ -494,6 +674,8 @@ export function buildLineMessagesFromContent(content: BroadcastContent): LineMes
       altText: (title || text).slice(0, 400),
       contents: {
         type: 'bubble',
+        // เต็มความกว้างห้องแชท — การ์ดขนาดมาตรฐานเหลือขอบว่างสองข้างจนแบนเนอร์ดูจิ๋ว
+        size: 'giga',
         ...(imageUrl ? {
           hero: {
             type: 'image',
@@ -513,7 +695,6 @@ export function buildLineMessagesFromContent(content: BroadcastContent): LineMes
           spacing: 'sm',
           contents: [
             ...(title ? [{ type: 'text', text: title, weight: 'bold', size: 'lg', wrap: true }] : []),
-            // สีเป็นเลขฐานสิบหกได้ — นี่คือ JSON ของ LINE ไม่ใช่หน้าจอของเรา
             { type: 'text', text, size: 'sm', color: '#666666', wrap: true },
           ],
         },
@@ -536,17 +717,16 @@ export function buildLineMessagesFromContent(content: BroadcastContent): LineMes
 
   } else if (content.kind === 'products') {
     const products = content.products || [];
-    const columns: LineCarouselColumn[] = products.map(p => ({
-      ...(p.image_url ? { thumbnailImageUrl: p.image_url } : {}),
-      title: p.name.slice(0, 40),
-      // LINE บังคับให้คอลัมน์มีข้อความ — ไม่มีราคาก็ต้องมีอะไรสักอย่าง
-      text: (p.price != null ? `฿${p.price.toLocaleString()}` : 'ดูรายละเอียด').slice(0, 60),
-      actions: [productAction(p)],
-    }));
+    const cardStyle = content.card_style === 'image' ? 'image' : 'detail';
+    const bubbles = products.map(p => productBubble(p, cardStyle));
 
-    // ข้อความเกริ่นเป็น bubble แรก (ถ้ามี) แล้วตามด้วยการ์ด — รวมยังไม่เกิน 3
+    // ข้อความเกริ่นเป็น bubble แรก (ถ้ามี) แล้วตามด้วยแถวการ์ด — รวมยังไม่เกิน 3
     if (text) messages.push({ type: 'text', text });
-    messages.push({ type: 'template', altText: (text || title || 'สินค้าแนะนำ').slice(0, 400), template: { type: 'carousel', columns } });
+    messages.push({
+      type: 'flex',
+      altText: (text || title || 'สินค้าแนะนำ').slice(0, 400),
+      contents: { type: 'carousel', contents: bubbles },
+    });
 
   } else {
     if (text) {
@@ -557,7 +737,16 @@ export function buildLineMessagesFromContent(content: BroadcastContent): LineMes
     }
     if (imageUrl) {
       if (!/^https:\/\//i.test(imageUrl)) throw new Error('ลิงก์รูปต้องเป็น https');
-      messages.push({ type: 'image', originalContentUrl: imageUrl, previewImageUrl: imageUrl });
+      if (content.image_style === 'rich') {
+        // รูปเต็มความกว้างห้องแชท + กดได้ — ฟองรูปธรรมดาโดนย่อจนโปสเตอร์อ่านไม่ออก
+        messages.push({
+          type: 'flex',
+          altText: 'รูปภาพ',
+          contents: fullWidthImageBubble(imageUrl, imageAspectRatio(content), linkUrl || null),
+        });
+      } else {
+        messages.push({ type: 'image', originalContentUrl: imageUrl, previewImageUrl: imageUrl });
+      }
     }
   }
 
@@ -625,70 +814,92 @@ function normalizeBatches(value: unknown): BroadcastBatch[] {
   return Array.isArray(value) ? (value as BroadcastBatch[]) : [];
 }
 
-/**
- * ข้อความที่จะไปโผล่ในห้องแชท
- *
- * ใบใหม่รู้เนื้อหาชนิดกลางอยู่แล้ว (`content`) จึงอ่านจากตรงนั้นตรง ๆ — ใบเก่าที่ยังไม่มี
- * คอลัมน์นั้นค่อยแกะย้อนจาก message object ที่ส่งไปจริง
- */
-function threadRowShape(messages: LineMessageObject[], content?: BroadcastContent | null): {
+/** สำเนาหนึ่งแถวที่จะไปโผล่ในห้องแชท — หนึ่ง message object = หนึ่งแถว */
+export interface BroadcastThreadRow {
   message_type: string;
   content: string;
-  imageUrl: string | null;
-} {
-  if (content?.kind === 'promo') {
-    const body = [(content.title || '').trim(), (content.text || '').trim()].filter(Boolean).join('\n');
-    return {
-      message_type: 'text',
-      content: body || '[โปรโมชัน]',
-      imageUrl: (content.image_url || '').trim() || null,
-    };
+  raw: Record<string, unknown>;
+}
+
+/** ข้อความ + รูปแรกที่เจอในโครง Flex — ใช้ทำบรรทัดอ่านง่ายและรูปประกอบของแถวสำเนา */
+function collectFlex(node: unknown, out: { texts: string[]; imageUrl: string | null }): void {
+  if (!node || typeof node !== 'object') return;
+  const n = node as Record<string, unknown>;
+  if (n.type === 'image' && typeof n.url === 'string' && !out.imageUrl) out.imageUrl = n.url;
+  if (n.type === 'text' && typeof n.text === 'string') out.texts.push(n.text);
+  for (const key of ['contents', 'hero', 'header', 'body', 'footer']) {
+    const child = n[key];
+    if (Array.isArray(child)) for (const c of child) collectFlex(c, out);
+    else if (child) collectFlex(child, out);
   }
+}
 
-  const text = messages.find((m): m is Extract<LineMessageObject, { type: 'text' }> => m.type === 'text');
-  const image = messages.find((m): m is Extract<LineMessageObject, { type: 'image' }> => m.type === 'image');
-  const flex = messages.find((m): m is Extract<LineMessageObject, { type: 'flex' }> => m.type === 'flex');
-  const template = messages.find((m): m is Extract<LineMessageObject, { type: 'template' }> => m.type === 'template');
+/**
+ * สำเนาในห้องแชท — **หนึ่งแถวต่อ message object** ที่หน้าแชทวาดได้เองจริง ๆ
+ *
+ * แถวชนิด 'flex' พก `raw_message.flexContents` ไปด้วย หน้าแชทจึงวาดการ์ดผ่าน
+ * `LineFlexRenderer` ได้เหมือนข้อความ Flex ทั่วไป (ของเดิมถอดการ์ดเป็นข้อความก้อนเดียว
+ * แอดมินจึงเห็นคนละอย่างกับที่ลูกค้าได้รับ) · `content` ยังต้องอ่านรู้เรื่อง เพราะ
+ * รายชื่อแชทกับแจ้งเตือนใช้บรรทัดนั้น
+ */
+function threadRows(
+  messages: LineMessageObject[],
+  content?: BroadcastContent | null,
+): BroadcastThreadRow[] {
+  const rows: BroadcastThreadRow[] = [];
 
-  // หน้าแชทยังไม่มีตัววาด Flex — ถอดเป็นบรรทัดที่อ่านรู้เรื่องเหมือนที่ทำกับ template
-  if (flex) {
-    const hero = flex.contents.hero as { url?: unknown } | undefined;
-    const body = flex.contents.body as { contents?: { text?: unknown }[] } | undefined;
-    const lines = (body?.contents || [])
-      .map(c => (typeof c?.text === 'string' ? c.text : ''))
-      .filter(Boolean);
-    return {
-      message_type: 'text',
-      content: lines.join('\n') || flex.altText,
-      imageUrl: typeof hero?.url === 'string' ? hero.url : null,
-    };
-  }
-
-  // สำเนาในห้องแชทเป็นข้อความธรรมดา — หน้าแชทยังไม่มีตัววาดการ์ดของ LINE
-  // จึงถอดการ์ดเป็นบรรทัดที่อ่านรู้เรื่องแทน (ดีกว่าโชว์ "[เทมเพลต]" เปล่า ๆ)
-  if (template) {
-    const t = template.template;
-    if (t.type === 'buttons') {
-      return {
-        message_type: 'text',
-        content: [t.title, t.text].filter(Boolean).join('\n') || template.altText,
-        imageUrl: t.thumbnailImageUrl || null,
-      };
+  for (const m of messages) {
+    if (m.type === 'text') {
+      rows.push({ message_type: 'text', content: m.text, raw: {} });
+      continue;
     }
-    const names = t.columns.map(c => c.title).filter(Boolean);
-    const intro = text ? `${text.text}\n` : '';
-    return {
-      message_type: 'text',
-      content: `${intro}${names.map(n => `• ${n}`).join('\n')}`.trim() || template.altText,
-      imageUrl: t.columns.find(c => c.thumbnailImageUrl)?.thumbnailImageUrl || null,
-    };
+    if (m.type === 'image') {
+      rows.push({ message_type: 'image', content: '[รูปภาพ]', raw: { imageUrl: m.originalContentUrl } });
+      continue;
+    }
+    if (m.type === 'flex') {
+      const found = { texts: [] as string[], imageUrl: null as string | null };
+      collectFlex(m.contents, found);
+
+      let line: string;
+      if (content?.kind === 'products') {
+        // ชื่อสินค้าอ่านรู้เรื่องกว่าข้อความบนการ์ด (แบบรูปเต็มมีแค่ป้ายลดกับราคา)
+        const names = (content.products || []).map(p => p.name).filter(Boolean);
+        line = names.length ? names.map(n => `• ${n}`).join('\n') : m.altText;
+      } else if (content?.kind === 'poster' || (found.texts.length === 0 && found.imageUrl)) {
+        line = '[โปสเตอร์]';
+      } else {
+        line = found.texts.slice(0, 4).join('\n') || m.altText;
+      }
+
+      rows.push({
+        message_type: 'flex',
+        content: line,
+        raw: { flexContents: m.contents, ...(found.imageUrl ? { imageUrl: found.imageUrl } : {}) },
+      });
+      continue;
+    }
+
+    // ใบเก่าที่ส่งด้วย template — หน้าแชทมีตัววาดของมันอยู่แล้ว (LineTemplateRenderer)
+    const t = m.template;
+    if (t.type === 'buttons') {
+      rows.push({
+        message_type: 'template',
+        content: [t.title, t.text].filter(Boolean).join('\n') || m.altText,
+        raw: { template: t, ...(t.thumbnailImageUrl ? { imageUrl: t.thumbnailImageUrl } : {}) },
+      });
+    } else {
+      const names = t.columns.map(c => c.title).filter(Boolean);
+      const thumb = t.columns.find(c => c.thumbnailImageUrl)?.thumbnailImageUrl;
+      rows.push({
+        message_type: 'template',
+        content: names.map(n => `• ${n}`).join('\n') || m.altText,
+        raw: { template: t, ...(thumb ? { imageUrl: thumb } : {}) },
+      });
+    }
   }
 
-  return {
-    message_type: text ? 'text' : 'image',
-    content: text ? text.text : '[รูปภาพ]',
-    imageUrl: image ? image.originalContentUrl : null,
-  };
+  return rows;
 }
 
 /**
@@ -700,29 +911,35 @@ function threadRowShape(messages: LineMessageObject[], content?: BroadcastConten
 async function insertThreadRows(
   row: BroadcastRow,
   contactIds: string[],
-  shape: ReturnType<typeof threadRowShape>,
+  rows: BroadcastThreadRow[],
   sentBy: string | null,
 ): Promise<void> {
-  const now = new Date().toISOString();
-  const raw: Record<string, unknown> = { broadcast_id: row.id };
-  if (shape.imageUrl) raw.imageUrl = shape.imageUrl;
+  if (contactIds.length === 0 || rows.length === 0) return;
+  const baseMs = Date.now();
 
-  for (let i = 0; i < contactIds.length; i += 200) {
-    const chunk = contactIds.slice(i, i + 200).map(contactId => ({
-      company_id: row.company_id,
-      line_contact_id: contactId,
-      direction: 'outgoing',
-      message_type: shape.message_type,
-      content: shape.content,
-      raw_message: raw,
-      sent_by: sentBy,
-      sent_at: now,
-      created_at: now,
-    }));
-    const { error } = await supabaseAdmin.from('line_messages').insert(chunk);
-    if (error) {
-      // ข้อความออกไปหาลูกค้าแล้ว — เขียนสำเนาลงห้องแชทไม่ได้ก็ห้ามล้มทั้งงาน
-      console.error('[LineBroadcast] insert thread rows failed:', error.message);
+  for (let r = 0; r < rows.length; r++) {
+    const shape = rows[r];
+    // ห่างกันมิลลิวินาทีละใบ — เวลาเท่ากันเป๊ะแล้วหน้าแชทเรียงสลับกันได้
+    const at = new Date(baseMs + r).toISOString();
+    const raw: Record<string, unknown> = { ...shape.raw, broadcast_id: row.id };
+
+    for (let i = 0; i < contactIds.length; i += 200) {
+      const chunk = contactIds.slice(i, i + 200).map(contactId => ({
+        company_id: row.company_id,
+        line_contact_id: contactId,
+        direction: 'outgoing',
+        message_type: shape.message_type,
+        content: shape.content,
+        raw_message: raw,
+        sent_by: sentBy,
+        sent_at: at,
+        created_at: at,
+      }));
+      const { error } = await supabaseAdmin.from('line_messages').insert(chunk);
+      if (error) {
+        // ข้อความออกไปหาลูกค้าแล้ว — เขียนสำเนาลงห้องแชทไม่ได้ก็ห้ามล้มทั้งงาน
+        console.error('[LineBroadcast] insert thread rows failed:', error.message);
+      }
     }
   }
 }
@@ -771,7 +988,7 @@ export async function runLineBroadcast(
 
     const token = creds.channel_access_token;
     const messages = Array.isArray(row.messages) ? row.messages : [];
-    const shape = threadRowShape(messages, row.content);
+    const rows = threadRows(messages, row.content);
     const sentBy = await resolveSentBy(row.created_by);
     const requestIds = Array.isArray(row.platform_request_ids) ? [...row.platform_request_ids] : [];
 
@@ -820,7 +1037,7 @@ export async function runLineBroadcast(
 
       // ข้อความไปถึงผู้ติดตามทุกคนแล้ว — เขียนสำเนาลงห้องแชทของคนที่เรารู้จัก
       const recipients = await resolveBroadcastRecipients(row.company_id, row.chat_account_id, 'contacts', null);
-      await insertThreadRows(row, recipients.map(r => r.contact_id), shape, sentBy);
+      await insertThreadRows(row, recipients.map(r => r.contact_id), rows, sentBy);
 
       // recipient_count ของโหมดนี้ = จำนวนผู้ติดตามที่ LINE รายงานตอนสร้าง (โควตาที่ถูกใช้จริง)
       // ห้ามทับด้วยจำนวนผู้ติดต่อที่เรารู้จัก ไม่งั้นหน้ารายการจะโชว์ 1,400/1,400 ทั้งที่ยิงไป 5,000
@@ -893,7 +1110,7 @@ export async function runLineBroadcast(
         batch.status = 'sent';
         batch.error = null;
         if (res.requestId) requestIds.push(res.requestId);
-        await insertThreadRows(row, batch.contact_ids, shape, sentBy);
+        await insertThreadRows(row, batch.contact_ids, rows, sentBy);
         sentCount = tally('sent');
         failedCount = tally('failed');   // ล็อตนี้อาจเคยอยู่ใน failed มาก่อน
         await patch({ batches, sent_count: sentCount, failed_count: failedCount, platform_request_ids: requestIds });

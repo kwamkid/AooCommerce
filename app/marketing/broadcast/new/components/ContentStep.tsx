@@ -7,6 +7,7 @@
 
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
+import Badge from '@/components/ui/Badge';
 import FormInput from '@/components/ui/FormInput';
 import FormTextarea from '@/components/ui/FormTextarea';
 import OptionCards from '@/components/ui/OptionCards';
@@ -17,6 +18,7 @@ import { formatPrice } from '@/lib/utils/format';
 import {
   BUTTON_LABEL_MAX,
   CARD_TEXT_MAX,
+  discountPercent,
   type BroadcastButton,
   type BroadcastProductCard,
 } from '@/lib/broadcast/content';
@@ -26,6 +28,7 @@ import { Plus, Trash2 } from 'lucide-react';
 /** ชื่อชนิดเนื้อหา — หน้าสร้างเอาไปสรุปในแผงขวาด้วย จึง export ออกไป */
 export const KIND_LABELS: Record<BroadcastContentKind, string> = {
   announce: 'ประกาศ',
+  poster: 'โปสเตอร์',
   promo: 'โปรโมชัน',
   products: 'การ์ดสินค้า',
 };
@@ -43,9 +46,20 @@ const KIND_CARDS: Record<BroadcastContentKind, { label: string; description: str
       </div>
     ),
   },
+  poster: {
+    label: KIND_LABELS.poster,
+    description: 'รูปเต็มจอ กดไปลิงก์',
+    preview: (
+      // รูปเต็มกรอบ + หัวลูกศรมุมขวาล่าง = แตะแล้วออกไปที่ลิงก์
+      <div className="w-full relative rounded border border-gray-300 dark:border-slate-500 overflow-hidden">
+        <div className="h-10 bg-gray-200 dark:bg-slate-600" />
+        <span className="absolute bottom-1.5 right-1.5 w-2 h-2 border-t-2 border-r-2 border-primary rotate-45" />
+      </div>
+    ),
+  },
   promo: {
     label: KIND_LABELS.promo,
-    description: 'แบนเนอร์ + ปุ่มกด',
+    description: 'หัวข้อ + ข้อความ + ปุ่ม',
     preview: (
       <div className="w-full rounded border border-gray-300 dark:border-slate-500 overflow-hidden">
         <div className="h-4 bg-gray-200 dark:bg-slate-600" />
@@ -58,7 +72,7 @@ const KIND_CARDS: Record<BroadcastContentKind, { label: string; description: str
   },
   products: {
     label: KIND_LABELS.products,
-    description: 'เลื่อนดูได้ กดสั่งเลย',
+    description: 'เลื่อนดู กดสั่งเลย',
     preview: (
       <div className="w-full flex gap-1">
         {[0, 1, 2].map(i => (
@@ -71,6 +85,62 @@ const KIND_CARDS: Record<BroadcastContentKind, { label: string; description: str
     ),
   },
 };
+
+/** รูปของ "ประกาศ" แสดงยังไง — วาดฟองแชทจริงให้เทียบ ไม่ใช่บรรยายเป็นคำ */
+const IMAGE_STYLE_CARDS: { id: 'bubble' | 'rich'; label: string; description: string; preview: React.ReactNode }[] = [
+  {
+    id: 'bubble',
+    label: 'รูปธรรมดา',
+    description: 'ฟองรูปเหมือนส่งในแชท',
+    preview: (
+      <div className="w-full flex justify-end">
+        <div className="rounded-lg bg-gray-300 dark:bg-slate-500 p-1">
+          <div className="w-6 h-5 rounded bg-gray-100 dark:bg-slate-700" />
+        </div>
+      </div>
+    ),
+  },
+  {
+    id: 'rich',
+    label: 'rich message',
+    description: 'รูปเต็มจอ กดไปลิงก์ได้',
+    preview: <div className="w-full h-10 rounded bg-gray-200 dark:bg-slate-600" />,
+  },
+];
+
+/** การ์ดสินค้าแสดงยังไง */
+const CARD_STYLE_CARDS: { id: 'image' | 'detail'; label: string; description: string; preview: React.ReactNode }[] = [
+  {
+    id: 'image',
+    label: 'รูปเต็ม',
+    description: 'รูป + ราคาลอย กดไปลิงก์',
+    preview: (
+      <div className="w-full flex justify-center">
+        <div className="w-9 relative rounded border border-gray-300 dark:border-slate-500 overflow-hidden">
+          <div className="w-9 h-9 bg-gray-200 dark:bg-slate-600" />
+          <div className="absolute bottom-1 left-1 right-1 h-1.5 rounded-full bg-gray-500 dark:bg-slate-300" />
+        </div>
+      </div>
+    ),
+  },
+  {
+    id: 'detail',
+    label: 'มีชื่อ + ปุ่ม',
+    description: 'รูป + ชื่อ + ราคา + ปุ่มสั่งเลย',
+    preview: (
+      <div className="w-full flex justify-center">
+        <div className="w-9 rounded border border-gray-300 dark:border-slate-500 overflow-hidden">
+          <div className="h-5 bg-gray-200 dark:bg-slate-600" />
+          <div className="p-0.5 space-y-0.5">
+            <div className="h-1 rounded bg-gray-300 dark:bg-slate-500" />
+            <div className="h-1 w-2/3 rounded bg-gray-300 dark:bg-slate-500" />
+            <div className="h-1.5 rounded bg-primary/70" />
+          </div>
+        </div>
+      </div>
+    ),
+  },
+];
 
 interface Props {
   compose: BroadcastCompose;
@@ -90,6 +160,15 @@ interface Props {
   onImageFileChange: (f: File | null) => void;
   /** รูปของใบที่คัดลอกมา — โชว์เป็นพรีวิวจนกว่าจะเลือกไฟล์ใหม่ */
   existingImageUrl: string | null;
+  /** ประกาศ: รูปเป็นฟองรูปธรรมดา หรือรูปเต็มความกว้างห้องแชทที่กดได้ */
+  imageStyle: 'bubble' | 'rich';
+  onImageStyleChange: (v: 'bubble' | 'rich') => void;
+  /** ปลายทางเมื่อลูกค้าแตะรูป — โปสเตอร์บังคับ · ประกาศแบบรูปเต็มจอไม่บังคับ */
+  linkUrl: string;
+  onLinkUrlChange: (v: string) => void;
+  /** การ์ดสินค้า: รูปเต็ม หรือมีชื่อ+ปุ่ม */
+  cardStyle: 'image' | 'detail';
+  onCardStyleChange: (v: 'image' | 'detail') => void;
 
   buttons: BroadcastButton[];
   onButtonsChange: (b: BroadcastButton[]) => void;
@@ -110,6 +189,7 @@ export default function ContentStep({
   compose, platformLabel, showCreditNote,
   kind, onKindChange, title, onTitleChange, text, onTextChange,
   imageFile, onImageFileChange, existingImageUrl,
+  imageStyle, onImageStyleChange, linkUrl, onLinkUrlChange, cardStyle, onCardStyleChange,
   buttons, onButtonsChange, cards, onCardsChange, quickReplies, onQuickRepliesChange,
   productResults, productLoading, onProductSearch, onAddProduct,
   disabled,
@@ -128,11 +208,16 @@ export default function ContentStep({
     />
   );
 
+  /** มีรูปให้ตัดสินใจแล้วหรือยัง — ยังไม่มีรูปก็ยังไม่ต้องถามว่าจะแสดงแบบไหน */
+  const hasImage = !!imageFile || !!existingImageUrl;
+
+  const imageLabel = kind === 'poster'
+    ? 'รูปโปสเตอร์'
+    : kind === 'promo' ? 'แบนเนอร์ (ไม่บังคับ)' : 'รูปภาพ (ไม่บังคับ)';
+
   const imageField = compose.image && kind !== 'products' && (
     <div>
-      <p className="field-label mb-1">
-        {kind === 'promo' ? 'แบนเนอร์ (ไม่บังคับ)' : 'รูปภาพ (ไม่บังคับ)'}
-      </p>
+      <p className="field-label mb-1">{imageLabel}</p>
       <ImageDropzone
         value={imageFile}
         onChange={onImageFileChange}
@@ -143,12 +228,24 @@ export default function ContentStep({
         maxWidthOrHeight={1024}
         maxSizeMB={0.3}
       />
-      {kind === 'promo' && (
+      {(kind === 'promo' || kind === 'poster') && (
         <p className="subtitle-text mt-1">
           ส่งเป็นสัดส่วนตามรูปจริง (แนวตั้งได้ สูงสุด 3 เท่าของความกว้าง)
         </p>
       )}
     </div>
+  );
+
+  /** ปลายทางเมื่อลูกค้าแตะรูป — โปสเตอร์บังคับ (กดแล้วไม่ไปไหน = ซื้อต่อไม่ได้) */
+  const linkField = (
+    <FormInput
+      label={kind === 'poster' ? 'กดรูปแล้วไปที่' : 'กดรูปแล้วไปที่ (ไม่บังคับ)'}
+      required={kind === 'poster'}
+      value={linkUrl}
+      onChange={e => onLinkUrlChange(e.target.value)}
+      disabled={disabled}
+      placeholder="https://…"
+    />
   );
 
   return (
@@ -174,8 +271,8 @@ export default function ContentStep({
       )}
 
       <div className="space-y-4">
-        {/* หัวข้อ — TikTok บังคับ · LINE ใช้เป็นหัวการ์ดของโปรโมชัน */}
-        {(compose.titleMax || kind === 'promo') && (
+        {/* หัวข้อ — TikTok บังคับ · LINE ใช้เป็นหัวการ์ดของโปรโมชัน (โปสเตอร์ไม่มีหัวข้อ) */}
+        {kind !== 'poster' && (compose.titleMax || kind === 'promo') && (
           <FormInput
             label="หัวข้อ"
             required={!!compose.titleMax}
@@ -194,10 +291,32 @@ export default function ContentStep({
             {textField}
             {imageField}
           </div>
+        ) : kind === 'poster' ? (
+          // โปสเตอร์ = รูปกับลิงก์เท่านั้น — ไม่มีช่องข้อความให้กรอกโดยตั้งใจ
+          <>
+            {imageField}
+            <p className="section-desc">
+              รูปทั้งใบเป็นโปสเตอร์ — ข้อความ ราคา ปุ่ม ต้องอยู่ในรูป · ส่งเต็มจอตามสัดส่วนรูป
+            </p>
+            {linkField}
+          </>
         ) : (
           <>
             {textField}
             {imageField}
+            {/* มีรูปแล้วค่อยถามว่าจะแสดงแบบไหน — ยังไม่มีรูปก็ไม่มีอะไรให้ตัดสินใจ */}
+            {kind === 'announce' && compose.image && hasImage && (
+              <>
+                <OptionCards<'bubble' | 'rich'>
+                  label="แสดงรูปแบบไหน"
+                  value={imageStyle}
+                  onChange={onImageStyleChange}
+                  disabled={disabled}
+                  options={IMAGE_STYLE_CARDS}
+                />
+                {imageStyle === 'rich' && linkField}
+              </>
+            )}
           </>
         )}
 
@@ -264,9 +383,20 @@ export default function ContentStep({
         {/* การ์ดสินค้า */}
         {kind === 'products' && (
           <div>
+            <div className="mb-3">
+              <OptionCards<'image' | 'detail'>
+                label="รูปแบบการ์ด"
+                value={cardStyle}
+                onChange={onCardStyleChange}
+                disabled={disabled}
+                options={CARD_STYLE_CARDS}
+              />
+            </div>
             <p className="field-label mb-1">สินค้า (สูงสุด {compose.productsMax} ชิ้น)</p>
             <p className="subtitle-text mb-2">
-              ชื่อ รูป ราคา ดึงจากคลังให้เอง · ไม่ใส่ลิงก์ = ปุ่มเป็น &quot;สนใจสินค้านี้&quot; ที่ลูกค้ากดแล้วทักเข้าห้องแชท
+              ชื่อ รูป ราคา ดึงจากคลังให้เอง · ปุ่ม &quot;สั่งเลย&quot; ไปหน้าสินค้าใน storefront
+              ให้เองเมื่อร้านเปิดหน้าร้านออนไลน์ · ยังไม่เปิด = &quot;สนใจสินค้านี้&quot;
+              ส่งข้อความเข้าแชท · ใส่ลิงก์เองได้ที่ช่องท้ายรายการ
             </p>
             {cards.length >= compose.productsMax ? (
               <p className="subtitle-text">
@@ -291,9 +421,15 @@ export default function ContentStep({
                     <ProductImageThumb src={c.image_url} alt={c.name} size="sm" />
                     <div className="flex-1 min-w-0">
                       <p className="body-text truncate">{c.name}</p>
-                      <p className="subtitle-text">
-                        {c.price != null ? formatPrice(c.price) : 'ไม่มีราคา'}
-                      </p>
+                      <span className="flex items-center gap-1.5">
+                        <span className="subtitle-text">
+                          {c.price != null ? formatPrice(c.price) : 'ไม่มีราคา'}
+                        </span>
+                        {/* ป้ายนี้จะไปโผล่บนการ์ดที่ลูกค้าเห็นด้วย — โชว์ตรงนี้ให้รู้ตั้งแต่ตอนเลือก */}
+                        {discountPercent(c) !== null && (
+                          <Badge tone="orange" size="sm">ลด {discountPercent(c)}%</Badge>
+                        )}
+                      </span>
                     </div>
                     <div className="w-52 flex-shrink-0">
                       <FormInput

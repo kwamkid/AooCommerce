@@ -33,7 +33,7 @@ import {
   type StoredAudienceFilter,
 } from '@/lib/broadcast/audience';
 import {
-  BarChart3, LayoutGrid, Megaphone, MessageSquare, Plus, Send, Tag, XCircle,
+  BarChart3, Image as ImageIcon, LayoutGrid, Megaphone, MessageSquare, Plus, Send, Tag, XCircle,
 } from 'lucide-react';
 
 interface BroadcastStats {
@@ -81,6 +81,7 @@ interface BroadcastSummary {
 /** ไอคอนบอกชนิดเนื้อหา — อ่านจากหัวแถวได้ว่าใบนี้เป็นข้อความ โปรโมชัน หรือการ์ดสินค้า */
 const KIND_ICON: Record<BroadcastContentKind, typeof MessageSquare> = {
   announce: MessageSquare,
+  poster: ImageIcon,
   promo: Tag,
   products: LayoutGrid,
 };

@@ -39,11 +39,12 @@ export type BroadcastKind = 'broadcast' | 'bulk_dm';
  * แต่ละเจ้าแปลงเป็นของตัวเอง (LINE → template/carousel · TikTok → title+body+product_ids)
  * ⛔ ห้ามให้ผู้ใช้เลือกเป็นศัพท์ของ LINE ('flex'/'carousel') — พอไปเจ้าอื่นจะแปลไม่ได้
  *
- *  announce = ข้อความ (+รูป) เฉย ๆ
+ *  announce = ข้อความ (+รูป) เฉย ๆ — รูปเลือกได้ว่าเป็นฟองรูปธรรมดา หรือรูปเต็มจอที่กดได้
+ *  poster   = รูปทั้งใบเป็นโปสเตอร์ + ลิงก์ปลายทาง (ข้อความ/ราคา/ปุ่ม อยู่ในรูปเอง)
  *  promo    = แบนเนอร์ + หัวข้อ + ข้อความ + ปุ่มกด
  *  products = การ์ดสินค้าเลื่อนได้ เลือกจากคลังสินค้าของเรา
  */
-export type BroadcastContentKind = 'announce' | 'promo' | 'products';
+export type BroadcastContentKind = 'announce' | 'poster' | 'promo' | 'products';
 
 /**
  * ข้อความที่แต่ละเจ้ารับได้ — **หน้าจอกับ API ตรวจจากตัวเลขชุดนี้ชุดเดียว**
@@ -89,7 +90,7 @@ export const BROADCAST_PLATFORMS: Record<BroadcastPlatform, BroadcastPlatformInf
     // + หัวข้อ + ปุ่ม เป็น message object เดียว จึงไม่แพงกว่าส่งข้อความเปล่าเลย
     compose: {
       bodyMax: 5000, image: true,
-      kinds: ['announce', 'promo', 'products'],
+      kinds: ['announce', 'poster', 'promo', 'products'],
       buttonsMax: 4, productsMax: 10, quickReplyMax: 13,
     },
     audience: 'ผู้ติดตามทุกคน แม้ไม่เคยทักมา — หรือเลือกเฉพาะกลุ่ม/แท็ก',
@@ -207,7 +208,7 @@ export function intersectCompose(platforms: BroadcastPlatform[]): BroadcastCompo
     titleMax: titleMaxes.length ? Math.min(...titleMaxes) : undefined,
     bodyMax: Math.min(...list.map(c => c.bodyMax)),
     image: list.every(c => c.image),
-    kinds: (['announce', 'promo', 'products'] as BroadcastContentKind[])
+    kinds: (['announce', 'poster', 'promo', 'products'] as BroadcastContentKind[])
       .filter(k => list.every(c => c.kinds.includes(k))),
     buttonsMax: Math.min(...list.map(c => c.buttonsMax)),
     productsMax: Math.min(...list.map(c => c.productsMax)),

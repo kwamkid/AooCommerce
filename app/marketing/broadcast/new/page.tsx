@@ -159,6 +159,12 @@ export default function NewBroadcastPage() {
   const [imageDims, setImageDims] = useState<ImageDims | null>(null);
   /** รูปของใบที่คัดลอกมา — ใช้ต่อได้เลยเมื่อผู้ใช้ไม่ได้เลือกไฟล์ใหม่ */
   const [existingImageUrl, setExistingImageUrl] = useState<string | null>(null);
+  /** ประกาศ: ฟองรูปธรรมดา หรือรูปเต็มความกว้างห้องแชทที่กดได้ */
+  const [imageStyle, setImageStyle] = useState<'bubble' | 'rich'>('bubble');
+  /** ปลายทางเมื่อลูกค้าแตะรูป — โปสเตอร์บังคับ · ประกาศแบบรูปเต็มจอไม่บังคับ */
+  const [linkUrl, setLinkUrl] = useState('');
+  /** การ์ดสินค้า: รูปเต็ม หรือมีชื่อ+ปุ่ม */
+  const [cardStyle, setCardStyle] = useState<'image' | 'detail'>('detail');
   const [buttons, setButtons] = useState<BroadcastButton[]>([{ label: '', url: '' }]);
   const [cards, setCards] = useState<BroadcastProductCard[]>([]);
   const [quickReplies, setQuickReplies] = useState<string[]>([]);
@@ -321,6 +327,9 @@ export default function NewBroadcastPage() {
           setTitle(c.title || '');
           setText(c.text || '');
           setExistingImageUrl(c.image_url || null);
+          if (c.image_style === 'rich') setImageStyle('rich');
+          if (c.link_url) setLinkUrl(c.link_url);
+          if (c.card_style === 'image') setCardStyle('image');
           if (Array.isArray(c.buttons) && c.buttons.length > 0) setButtons(c.buttons);
           if (Array.isArray(c.products)) setCards(c.products);
           if (Array.isArray(c.quick_replies)) setQuickReplies(c.quick_replies);
@@ -446,17 +455,28 @@ export default function NewBroadcastPage() {
   }, [quota]);
 
   /** เนื้อหาที่จะส่ง — รูปยังไม่ได้อัปโหลด ใช้ค่าแทนไปก่อนเพื่อให้ตรวจได้ */
-  const draftContent: BroadcastContent = useMemo(() => ({
-    kind,
-    title: title.trim(),
-    text: text.trim(),
-    image_url: imageFile ? 'https://pending.upload' : existingImageUrl,
-    image_width: imageDims?.width ?? null,
-    image_height: imageDims?.height ?? null,
-    buttons: buttons.filter(b => b.label.trim() || b.url.trim()),
-    products: cards,
-    quick_replies: quickReplies,
-  }), [kind, title, text, imageFile, imageDims, existingImageUrl, buttons, cards, quickReplies]);
+  const draftContent: BroadcastContent = useMemo(() => {
+    // โปสเตอร์มีแค่รูปกับลิงก์ — ข้อความ/ปุ่ม/สินค้าที่กรอกไว้ตอนเป็นชนิดอื่นต้องไม่ติดไปด้วย
+    // (ค่าที่ค้างอยู่จะทำให้ validate ตีตกทั้งที่หน้าจอไม่มีช่องนั้นให้ลบ)
+    const isPoster = kind === 'poster';
+    // ลิงก์มีความหมายเฉพาะโปสเตอร์กับประกาศแบบรูปเต็มจอ — ชนิดอื่นเก็บไว้ก็ไม่มีใครใช้
+    const usesLink = isPoster || (kind === 'announce' && imageStyle === 'rich');
+    return {
+      kind,
+      title: isPoster ? '' : title.trim(),
+      text: isPoster ? '' : text.trim(),
+      image_url: imageFile ? 'https://pending.upload' : existingImageUrl,
+      image_width: imageDims?.width ?? null,
+      image_height: imageDims?.height ?? null,
+      image_style: imageStyle,
+      link_url: usesLink ? linkUrl.trim() || null : null,
+      card_style: cardStyle,
+      buttons: isPoster ? [] : buttons.filter(b => b.label.trim() || b.url.trim()),
+      products: isPoster ? [] : cards,
+      quick_replies: quickReplies,
+    };
+  }, [kind, title, text, imageFile, imageDims, existingImageUrl, imageStyle, linkUrl, cardStyle,
+    buttons, cards, quickReplies]);
 
   // ตรวจด้วยฟังก์ชันเดียวกับที่ API ใช้ — หน้าจอกับ server จึงพูดตรงกันเสมอ
   // เนื้อหาชุดเดียวต้องผ่าน **ทุกช่องทางที่เลือก** — ตัวไหนไม่ผ่านก็บอกตัวนั้น
@@ -489,7 +509,11 @@ export default function NewBroadcastPage() {
   const pickPending = audience === 'contacts_pick' && pickedContacts.length === 0;
   const noRecipients = audience !== 'all' && !pickPending && !previewLoading
     && platforms.length > 0 && recipientCount === 0;
-  const hasDraft = !!(text.trim() || title.trim() || imagePreviewUrl || existingImageUrl || cards.length > 0);
+  // โปสเตอร์ไม่มีข้อความเลย — นับรูปกับลิงก์เป็น "เริ่มกรอกแล้ว" ไม่งั้นตัวอย่างจะไม่ขึ้น
+  const hasDraft = !!(
+    text.trim() || title.trim() || imagePreviewUrl || existingImageUrl || cards.length > 0
+    || (kind === 'poster' && linkUrl.trim())
+  );
   const canNext = accountIds.length > 0 && !!audience && !pickPending;
   const canSend = canNext && !contentError && !quotaShort && !noRecipients && !scheduleError && !sending;
 
@@ -500,13 +524,19 @@ export default function NewBroadcastPage() {
   const contentSummary = useMemo(() => {
     if (!hasDraft) return '';
     const base = KIND_LABELS[kind];
+    if (kind === 'poster') return base;
     if (kind === 'promo') {
       const n = buttons.filter(b => b.label.trim()).length;
       return n > 0 ? `${base} · ${n} ปุ่ม` : base;
     }
-    if (kind === 'products') return cards.length > 0 ? `${base} · ${cards.length} ชิ้น` : base;
+    if (kind === 'products') {
+      const style = cardStyle === 'image' ? 'รูปเต็ม' : 'มีชื่อ+ปุ่ม';
+      return cards.length > 0 ? `${base} · ${cards.length} ชิ้น · ${style}` : base;
+    }
+    // รูปเต็มจอต่างจากฟองรูปธรรมดามากพอที่ต้องเห็นในบรรทัดสรุป
+    if (imageStyle === 'rich' && (imagePreviewUrl || existingImageUrl)) return `${base} · รูปเต็มจอ`;
     return base;
-  }, [hasDraft, kind, buttons, cards]);
+  }, [hasDraft, kind, buttons, cards, cardStyle, imageStyle, imagePreviewUrl, existingImageUrl]);
 
   // ─── ส่ง ─────────────────────────────────────────────────────────────
   const handleSend = async () => {
@@ -600,7 +630,8 @@ export default function NewBroadcastPage() {
       showToast(`ใส่ได้ไม่เกิน ${compose.productsMax} ชิ้น`, 'error');
       return;
     }
-    const price = p.discount_price && p.discount_price > 0 ? p.discount_price : p.default_price ?? 0;
+    const discounted = !!p.discount_price && p.discount_price > 0;
+    const price = discounted ? (p.discount_price as number) : p.default_price ?? 0;
     setCards(prev => [...prev, {
       product_id: p.product_id,
       variation_id: p.id,
@@ -608,6 +639,8 @@ export default function NewBroadcastPage() {
       name: p.variation_label ? `${p.name} - ${p.variation_label}` : p.name,
       image_url: p.image ?? null,
       price,
+      // ราคาปกติเก็บไว้เฉพาะตอนลดจริง — การ์ดถึงจะขึ้นป้าย "ลด N%" กับราคาขีดฆ่าได้
+      compare_at_price: discounted ? p.default_price ?? null : null,
       url: null,
     }]);
   };
@@ -711,6 +744,12 @@ export default function NewBroadcastPage() {
                       if (!f) setExistingImageUrl(null);
                     }}
                     existingImageUrl={existingImageUrl}
+                    imageStyle={imageStyle}
+                    onImageStyleChange={setImageStyle}
+                    linkUrl={linkUrl}
+                    onLinkUrlChange={setLinkUrl}
+                    cardStyle={cardStyle}
+                    onCardStyleChange={setCardStyle}
                     buttons={buttons}
                     onButtonsChange={setButtons}
                     cards={cards}
