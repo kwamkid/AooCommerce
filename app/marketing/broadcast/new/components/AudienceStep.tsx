@@ -96,7 +96,7 @@ export default function AudienceStep({
         )}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-[200px_minmax(0,1fr)] gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-[220px_minmax(0,1fr)] gap-4">
         {/* ── ซ้าย: ตัวเลือกทั้งหมด แบ่งตามเป้าหมายการตลาด ── */}
         <div className="space-y-3">
           {AUDIENCE_GROUPS.map(g => {
@@ -117,7 +117,7 @@ export default function AudienceStep({
                         className={`choice-card px-2.5 py-2 ${active ? 'choice-card-active' : ''}`}
                       >
                         <span className="flex-1 min-w-0 flex items-baseline gap-2">
-                          <span className="subtitle-text text-gray-900 dark:text-white truncate">
+                          <span className="subtitle-text text-gray-900 dark:text-white">
                             {opt.label.replace('N วัน', `${days} วัน`)}
                           </span>
                           <span className="ml-auto helper-text text-gray-500 dark:text-slate-400 tabular-nums">
@@ -149,22 +149,17 @@ export default function AudienceStep({
               </div>
 
               {selected.needsDays && (
-                <div className="flex items-center gap-2 flex-wrap">
-                  <div className="w-24">
-                    <NumberInput
-                      value={days}
-                      disabled={disabled}
-                      onChange={v => onDaysChange(Math.max(1, Math.min(3650, v || 1)))}
-                    />
-                  </div>
-                  <span className="body-text text-gray-500 dark:text-slate-400">วัน</span>
-                  <FilterChips
-                    value={String(days)}
-                    onChange={v => onDaysChange(Number(v))}
-                    disabled={disabled}
-                    chips={DAY_PRESETS.map(d => ({ id: String(d), label: String(d), activeClass: FILTER_CHIP_PRIMARY_ACTIVE }))}
-                  />
-                </div>
+                <RefineRow
+                  label="นับย้อนหลัง"
+                  unit="วัน"
+                  presets={DAY_PRESETS}
+                  presetLabel={n => `${n} วัน`}
+                  min={1}
+                  max={3650}
+                  value={days}
+                  onChange={onDaysChange}
+                  disabled={disabled}
+                />
               )}
 
               {selected.needsTags && (
@@ -280,12 +275,14 @@ export default function AudienceStep({
 
 /** แถวกรองหนึ่งเกณฑ์ — ชิปค่าที่ใช้บ่อย + "ระบุเอง" ที่กางช่องกรอกตัวเลขออกมา */
 function RefineRow({
-  label, unit, presets, presetLabel, max, value, onChange, disabled,
+  label, unit, presets, presetLabel, min = 0, max, value, onChange, disabled,
 }: {
   label: string;
   unit: string;
   presets: number[];
   presetLabel: (n: number) => string;
+  /** ค่าต่ำสุดที่กรอกได้ — ตัวกรอง 0 = ไม่กรอง · จำนวนวันต้อง ≥1 */
+  min?: number;
   max: number;
   value: number;
   onChange: (n: number) => void;
@@ -319,7 +316,7 @@ function RefineRow({
               <NumberInput
                 value={value}
                 disabled={disabled}
-                onChange={v => onChange(Math.max(0, Math.min(max, v || 0)))}
+                onChange={v => onChange(Math.max(min, Math.min(max, v || min)))}
               />
             </div>
             <span className="body-text text-gray-500 dark:text-slate-400">{unit}</span>

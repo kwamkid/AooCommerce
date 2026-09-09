@@ -1,6 +1,6 @@
 'use client';
 
-import { forwardRef, useState, useEffect, useRef } from 'react';
+import { forwardRef, useState } from 'react';
 import { NUMERIC_TEXT_INPUT_PROPS, allowsNegative, sanitizeNumericInput } from '@/lib/numeric-input';
 
 interface NumberInputProps
@@ -27,20 +27,28 @@ interface NumberInputProps
  * ถูกปฏิเสธตั้งแต่พิมพ์ · คอมมาจากการวางค่าถูกตัดให้ ("1,290" → 1290 ซึ่ง `type="number"`
  * เดิมปฏิเสธทั้งก้อน) · ตอน blur ค่าว่าง/ไม่ใช่ตัวเลข = 0 แล้ว clamp เข้ากรอบ `min`/`max`
  */
+/** หน้าตาเริ่มต้น — ชุดเดียวกับ input ของ FormInput (ขอบ · โฟกัส · dark) */
+const DEFAULT_CLASS = 'w-full px-3 bg-white dark:bg-slate-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-slate-500 rounded-lg border border-gray-300 dark:border-slate-600 focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-colors';
+
 const NumberInput = forwardRef<HTMLInputElement, NumberInputProps>(function NumberInput(
   // `step` ไม่ถูกส่งต่อลง DOM แล้ว (มันคือขนาดก้าวของ spinner ที่เราตัดทิ้งไปทั้งอัน)
   // แต่ยังรับไว้จาก props เพื่อไม่ต้องไล่แก้ call site เดิมทั้งหมด
-  { value, onChange, onFocus, onBlur, min, max, ...rest },
+  { value, onChange, onFocus, onBlur, min, max, className, ...rest },
   ref,
 ) {
   const [display, setDisplay] = useState<string>(() => String(value));
-  const focused = useRef(false);
+  // เป็น state ไม่ใช่ ref เพราะต้องอ่านระหว่าง render (ข้างล่าง) — กฎ react-hooks/refs ห้ามอ่าน ref ตอน render
+  const [focused, setFocused] = useState(false);
 
   // Sync from external value, but only when NOT focused — don't overwrite
   // the user's in-progress typing (e.g. empty string while deleting 0).
-  useEffect(() => {
-    if (!focused.current) setDisplay(String(value));
-  }, [value]);
+  // ปรับ state ตาม prop ระหว่าง render (แบบที่ React แนะนำ) แทน useEffect —
+  // กฎ react-hooks/set-state-in-effect ของโปรเจกต์ห้าม setState ใน effect
+  const [prevValue, setPrevValue] = useState(value);
+  if (value !== prevValue) {
+    setPrevValue(value);
+    if (!focused) setDisplay(String(value));
+  }
 
   const minNum = min === undefined || min === '' ? undefined : Number(min);
   const maxNum = max === undefined || max === '' ? undefined : Number(max);
@@ -56,6 +64,9 @@ const NumberInput = forwardRef<HTMLInputElement, NumberInputProps>(function Numb
   return (
     <input
       {...rest}
+      // ไม่ส่ง className มา = หน้าตาเดียวกับช่อง FormInput (เดิมไม่มีขอบเลย กล่องกลืนกับพื้นหลัง)
+      // ส่งมา = ใช้ของผู้เรียกทั้งก้อน (ช่องในตาราง/แถวสินค้าแต่งเองอยู่แล้ว)
+      className={className ?? DEFAULT_CLASS}
       step={undefined}
       ref={ref}
       {...NUMERIC_TEXT_INPUT_PROPS}
@@ -70,11 +81,11 @@ const NumberInput = forwardRef<HTMLInputElement, NumberInputProps>(function Numb
         onChange(isNaN(n) ? 0 : n);
       }}
       onFocus={(e) => {
-        focused.current = true;
+        setFocused(true);
         onFocus?.(e);
       }}
       onBlur={(e) => {
-        focused.current = false;
+        setFocused(false);
         const parsed = parseFloat(display);
         const settled = clamp(isNaN(parsed) ? 0 : parsed);
         if (String(settled) !== display) setDisplay(String(settled));
