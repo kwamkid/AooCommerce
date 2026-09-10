@@ -68,7 +68,9 @@ export default function FilterChips<T extends string>({
             type="button"
             onClick={() => onChange(chip.id)}
             disabled={disabled || chip.disabled}
-            className={`inline-flex items-center gap-1.5 font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${sizeClass} ${
+            // ป้ายห้ามแตกบรรทัด — ชิป md สูงคงที่ 42px ป้ายสองบรรทัดจะล้นขอบบนล่าง (เจ้าของท้วง 11 ก.ย. 2026)
+            // ที่แคบให้ผู้เรียกส่งป้ายสั้นมาแทน ไม่ใช่ปล่อยให้ชิปหดจนตัวหนังสือพับ
+            className={`inline-flex items-center gap-1.5 font-medium whitespace-nowrap flex-shrink-0 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${sizeClass} ${
               value === chip.id
                 ? chip.activeClass
                 : `text-gray-600 dark:text-slate-300 enabled:hover:bg-gray-50 dark:enabled:hover:bg-slate-700${

@@ -8,6 +8,8 @@
 //   ข้อความ · รูป · รูปเต็มจอ (กดได้) · การ์ด (ใบเดียว = การ์ดใหญ่ · หลายใบ = แถวเลื่อน · ดึงจากสินค้าได้)
 // ลากเรียงลำดับบล็อกได้ · การ์ดเป็นแถบแนวนอน กดทีละใบเพื่อแก้ (แบบแท็บของ LINE) และลากเรียงได้เหมือนกัน
 // ปุ่มตอบเร็วอยู่ล่างสุด · ทุกจุดที่กดได้ใช้ ActionPicker ตัวเดียวกับหน้าจริง
+// การ์ด: แท็บ "สินค้าในร้าน" (รูป/ชื่อ/ราคาจากสินค้า ไม่มีช่องอัปรูป) / "ทำการ์ดเอง" — แต่ละแท็บเก็บเนื้อหาของตัวเอง
+//   สัดส่วนรูป 1:1 หรือ 3:4 (แบบ Shopee) ใช้ทั้งแถว · ช่องป้ายปุ่มวาดสีเดียวกับของจริง (ปุ่มแรกเขียว ที่เหลือเทา)
 //
 // ⚠️ เมื่อเคาะแล้วให้ย้ายไปแทนหน้าสร้างจริง (ContentStep) พร้อมเปลี่ยน content จาก `kind` เป็น `blocks[]`
 'use client';
@@ -25,6 +27,7 @@ import Container from '@/components/ui/Container';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import PageHeader from '@/components/ui/PageHeader';
+import Tabs from '@/components/ui/Tabs';
 import FormInput from '@/components/ui/FormInput';
 import FormTextarea from '@/components/ui/FormTextarea';
 import FilterChips, { FILTER_CHIP_PRIMARY_ACTIVE } from '@/components/ui/FilterChips';
@@ -40,12 +43,14 @@ import { KIND_MOCKS, MockChat, MockLine, MockPhoto } from '@/app/marketing/broad
 import { apiFetch } from '@/lib/api-client';
 import { useServerSearch, type ServerSearchPage } from '@/lib/useServerSearch';
 import { formatPrice } from '@/lib/utils/format';
+import { thumbUrl } from '@/lib/image-thumb';
 import {
   ACTION_MESSAGE_MAX, BUTTON_LABEL_MAX, CARD_TEXT_MAX, CARD_TITLE_MAX, EMPTY_ACTION,
   type BroadcastAction, type BroadcastProductCard,
 } from '@/lib/broadcast/content';
 import {
-  GalleryHorizontalEnd, GripVertical, Image as ImageIcon, MessageSquareText, Plus, RectangleVertical, Trash2,
+  GalleryHorizontalEnd, GripVertical, Image as ImageIcon, MessageSquareText, Package, PenLine, Plus,
+  RectangleVertical, Square, Trash2,
 } from 'lucide-react';
 
 // ── โมเดลของต้นแบบ (ทรงเดียวกับที่จะเก็บลง content.blocks ในอนาคต) ────────────────
@@ -54,25 +59,43 @@ type BlockType = 'text' | 'image' | 'rich' | 'cards';
 
 interface CardButton { id: string; label: string; action: BroadcastAction }
 
-interface CardDraft {
-  id: string;
-  source: 'custom' | 'product';
-  product: BroadcastProductCard | null;
-  file: File | null;
-  previewUrl: string | null;
+/** เนื้อหาบนการ์ด 1 ชุด — แต่ละแท็บ (สินค้าในร้าน / ทำการ์ดเอง) มีชุดของตัวเอง สลับแท็บแล้วของเดิมไม่หาย */
+interface CardFace {
   title: string;
   text: string;
-  /** ปุ่มล่างการ์ด (ไม่บังคับ) — แต่ละปุ่มมี action ของตัวเอง */
+  /** ปุ่มล่างการ์ด (ไม่บังคับ) — แต่ละปุ่มมี action ของตัวเอง · ปุ่มแรก = ปุ่มหลักสีเขียว */
   buttons: CardButton[];
   /** กดที่ตัวการ์ด (รูป/ข้อความ) — ส่งเป็น action ของ hero/body ใน Flex · มีปุ่มแล้วก็ยังใช้อยู่ */
   tapAction: BroadcastAction;
 }
 
+interface CardDraft {
+  id: string;
+  /**
+   * การ์ดใบนี้มาจากไหน = แท็บที่เลือก (เดิมเป็นชิป "เขียนเอง / จากสินค้า" ที่เจ้าของอ่านแล้วงง 11 ก.ย. 2026)
+   *  product = รูป ชื่อ ราคา มาจากสินค้าในร้าน — ไม่มีช่องอัปรูป
+   *  custom  = อัปรูปและพิมพ์ข้อความเอง
+   */
+  source: 'product' | 'custom';
+  product: BroadcastProductCard | null;
+  productFace: CardFace;
+  file: File | null;
+  previewUrl: string | null;
+  customFace: CardFace;
+}
+
+/**
+ * สัดส่วนรูปของการ์ด — ชุดเดียวทั้งแถว (การ์ดในแถวเลื่อนสูงเท่ากันทุกใบ)
+ * 3:4 = รูปสินค้าแนวตั้งแบบ Shopee (เจ้าของขอ 11 ก.ย. 2026) · LINE รับใน Flex ได้ (สูงไม่เกิน 3 เท่าของกว้าง)
+ */
+type CardRatio = '1:1' | '3:4';
+const CARD_RATIO_CLASS: Record<CardRatio, string> = { '1:1': 'aspect-square', '3:4': 'aspect-[3/4]' };
+
 type Block =
   | { id: string; type: 'text'; text: string }
   | { id: string; type: 'image'; file: File | null; previewUrl: string | null }
   | { id: string; type: 'rich'; file: File | null; previewUrl: string | null; action: BroadcastAction }
-  | { id: string; type: 'cards'; cards: CardDraft[]; selectedId: string };
+  | { id: string; type: 'cards'; cards: CardDraft[]; selectedId: string; ratio: CardRatio };
 
 /** LINE: 1 push ≤ 5 object แต่ ≤3 ยังนับ 1 ข้อความในโควตา (= จำนวนบล็อกของ OA Manager) */
 const MAX_BLOCKS = 3;
@@ -81,11 +104,20 @@ const MAX_CARD_BUTTONS = 3;
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 
+function emptyFace(): CardFace {
+  return { title: '', text: '', buttons: [], tapAction: EMPTY_ACTION };
+}
+
 function newCard(): CardDraft {
   return {
-    id: uid(), source: 'custom', product: null, file: null, previewUrl: null,
-    title: '', text: '', buttons: [], tapAction: EMPTY_ACTION,
+    id: uid(), source: 'product', product: null, productFace: emptyFace(),
+    file: null, previewUrl: null, customFace: emptyFace(),
   };
+}
+
+/** เนื้อหาของแท็บที่เลือกอยู่ — ตัวอย่างแชทกับตัวแก้ไขอ่านจากนี่ที่เดียว */
+function faceOf(c: CardDraft): CardFace {
+  return c.source === 'product' ? c.productFace : c.customFace;
 }
 
 function newBlock(type: BlockType): Block {
@@ -94,7 +126,7 @@ function newBlock(type: BlockType): Block {
   if (type === 'image') return { id, type, file: null, previewUrl: null };
   if (type === 'rich') return { id, type, file: null, previewUrl: null, action: EMPTY_ACTION };
   const card = newCard();
-  return { id, type: 'cards', cards: [card], selectedId: card.id };
+  return { id, type: 'cards', cards: [card], selectedId: card.id, ratio: '1:1' };
 }
 
 const BLOCK_LABELS: Record<BlockType, string> = {
@@ -178,29 +210,33 @@ const BTN_PRIMARY = 'block bg-line text-white rounded-lg py-2 text-center subtit
 const BTN_SECONDARY = 'block bg-gray-200 text-gray-800 rounded-lg py-2 text-center subtitle-text';
 
 function cardImage(c: CardDraft): string | null {
-  return c.previewUrl || c.product?.image_url || null;
+  // แต่ละแท็บใช้รูปของตัวเอง — สลับไป "ทำการ์ดเอง" แล้วรูปสินค้าไม่ติดตามมา
+  if (c.source === 'product') return c.product?.image_url ? thumbUrl(c.product.image_url, 320) || null : null;
+  return c.previewUrl;
 }
 
-function PreviewCard({ c, wide }: { c: CardDraft; wide: boolean }) {
+function PreviewCard({ c, wide, ratio }: { c: CardDraft; wide: boolean; ratio: CardRatio }) {
   const img = cardImage(c);
-  const hasBody = !!(c.title.trim() || c.text.trim() || c.buttons.length);
+  const face = faceOf(c);
+  const hasBody = !!(face.title.trim() || face.text.trim() || face.buttons.length);
+  const aspect = CARD_RATIO_CLASS[ratio];
   return (
     <div className={`${wide ? 'w-full' : 'w-4/5'} flex-shrink-0 rounded-xl bg-white overflow-hidden shadow-sm ${hasBody ? 'border border-gray-200' : ''}`}>
       {img ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={img} alt="" className="w-full aspect-square object-cover" />
+        <img src={img} alt="" className={`w-full ${aspect} object-cover`} />
       ) : (
-        <div className="w-full aspect-square bg-gray-100 flex items-center justify-center text-gray-400">
+        <div className={`w-full ${aspect} bg-gray-100 flex items-center justify-center text-gray-400`}>
           <ImageIcon className="w-8 h-8" />
         </div>
       )}
       {hasBody && (
         <div className="p-3">
-          {c.title.trim() && <p className="body-text font-semibold text-gray-900 line-clamp-2">{c.title}</p>}
-          {c.text.trim() && <p className="subtitle-text text-gray-600 mt-0.5 whitespace-pre-wrap">{c.text}</p>}
-          {c.buttons.length > 0 && (
+          {face.title.trim() && <p className="body-text font-semibold text-gray-900 line-clamp-2">{face.title}</p>}
+          {face.text.trim() && <p className="subtitle-text text-gray-600 mt-0.5 whitespace-pre-wrap">{face.text}</p>}
+          {face.buttons.length > 0 && (
             <div className="space-y-2 mt-3">
-              {c.buttons.map((b, i) => (
+              {face.buttons.map((b, i) => (
                 <p key={b.id} className={i === 0 ? BTN_PRIMARY : BTN_SECONDARY}>{b.label.trim() || 'ปุ่ม'}</p>
               ))}
             </div>
@@ -262,7 +298,7 @@ function BlocksPreview({ blocks, quickReplies, account }: {
       wide: true,
       node: (
         <div className="phone-mock-hscroll flex gap-2">
-          {b.cards.map(c => <PreviewCard key={c.id} c={c} wide={b.cards.length === 1} />)}
+          {b.cards.map(c => <PreviewCard key={c.id} c={c} wide={b.cards.length === 1} ratio={b.ratio} />)}
         </div>
       ),
     };
@@ -301,7 +337,7 @@ function SortableCardTile({ c, index, selected, onSelect }: { c: CardDraft; inde
           <ImageIcon className="w-5 h-5" />
         </div>
       )}
-      <p className="helper-text mt-1 truncate text-center">{c.title.trim() || c.product?.name || `การ์ด ${index + 1}`}</p>
+      <p className="helper-text mt-1 truncate text-center">{faceOf(c).title.trim() || c.product?.name || `การ์ด ${index + 1}`}</p>
     </button>
   );
 }
@@ -334,6 +370,11 @@ function CardsEditor({ block, onChange, picker }: {
     if (from < 0 || to < 0) return;
     onChange({ ...block, cards: arrayMove(block.cards, from, to) });
   };
+  /** แก้เนื้อหาของแท็บที่การ์ดใบนั้นเลือกอยู่ — อีกแท็บไม่โดนแตะ */
+  const patchFace = (c: CardDraft, patch: Partial<CardFace>) =>
+    patchCard(c.id, c.source === 'product'
+      ? { productFace: { ...c.productFace, ...patch } }
+      : { customFace: { ...c.customFace, ...patch } });
   const pickProduct = (c: CardDraft, p: ProductSearchItem) => {
     const product = picker.productToCard(p);
     // ร้านเปิดหน้าร้านออนไลน์ = ปุ่มพาไปหน้าสินค้า · ยังไม่เปิด = ส่ง "สนใจ …" เข้าห้องแชท
@@ -342,19 +383,35 @@ function CardsEditor({ block, onChange, picker }: {
       ? { id: uid(), label: 'สั่งเลย', action: { type: 'product', product } }
       : { id: uid(), label: 'สนใจสินค้านี้', action: { type: 'message', text: `สนใจ ${product.name}`.slice(0, ACTION_MESSAGE_MAX) } };
     patchCard(c.id, {
-      source: 'product', product, title: product.name,
-      text: product.price != null ? formatPrice(product.price) : '',
-      buttons: [button],
-      // กดที่ตัวการ์ด = ทำเหมือนปุ่มแรก — ลูกค้าส่วนใหญ่แตะที่รูปสินค้า ไม่ใช่ที่ปุ่ม
-      tapAction: button.action,
+      product,
+      productFace: {
+        title: product.name,
+        text: product.price != null ? formatPrice(product.price) : '',
+        buttons: [button],
+        // กดที่ตัวการ์ด = ทำเหมือนปุ่มแรก — ลูกค้าส่วนใหญ่แตะที่รูปสินค้า ไม่ใช่ที่ปุ่ม
+        tapAction: button.action,
+      },
     });
   };
+  const face = selected ? faceOf(selected) : null;
 
   return (
     <div className="space-y-3">
-      <p className="subtitle-text">
-        {block.cards.length === 1 ? 'ใบเดียว = การ์ดใหญ่เต็มจอ' : `${block.cards.length} ใบ = แถวเลื่อนดู`} · กดการ์ดเพื่อแก้ · ลากเพื่อสลับลำดับ
-      </p>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="subtitle-text">
+          {block.cards.length === 1 ? 'ใบเดียว = การ์ดใหญ่เต็มจอ' : `${block.cards.length} ใบ = แถวเลื่อนดู`} · กดการ์ดเพื่อแก้ · ลากเพื่อสลับลำดับ
+        </p>
+        {/* สัดส่วนรูปใช้ชุดเดียวทั้งแถว — การ์ดในแถวเลื่อนสูงเท่ากันทุกใบ */}
+        <FilterChips<CardRatio>
+          variant="segmented"
+          value={block.ratio}
+          onChange={ratio => onChange({ ...block, ratio })}
+          chips={[
+            { id: '1:1', label: 'จัตุรัส 1:1', icon: <Square className="w-4 h-4" />, activeClass: FILTER_CHIP_PRIMARY_ACTIVE, tooltip: 'รูปทุกใบในแถวเป็นจัตุรัส' },
+            { id: '3:4', label: 'แนวตั้ง 3:4', icon: <RectangleVertical className="w-4 h-4" />, activeClass: FILTER_CHIP_PRIMARY_ACTIVE, tooltip: 'รูปแนวตั้งแบบรูปสินค้าบน Shopee — ใช้กับทุกใบในแถว' },
+          ]}
+        />
+      </div>
       {/* แถบการ์ดแนวนอน — ลากเรียงได้ */}
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
         <SortableContext items={block.cards.map(c => c.id)} strategy={horizontalListSortingStrategy}>
@@ -382,19 +439,11 @@ function CardsEditor({ block, onChange, picker }: {
         </SortableContext>
       </DndContext>
 
-      {selected && (
+      {selected && face && (
         // การ์ดที่กำลังแก้ = การ์ดกลาง (.card — ขาว ขอบ เงา) บนพื้นจมของกล่องบล็อก ไม่ใช่กรอบที่พิมพ์สีเอง
         <Card padding="sm" className="space-y-3">
           <div className="flex items-center gap-2">
             <p className="field-label">การ์ดที่ {selectedIndex + 1}</p>
-            <FilterChips<'custom' | 'product'>
-              value={selected.source}
-              onChange={source => patchCard(selected.id, { source })}
-              chips={[
-                { id: 'custom', label: 'เขียนเอง', activeClass: FILTER_CHIP_PRIMARY_ACTIVE },
-                { id: 'product', label: 'จากสินค้า', activeClass: FILTER_CHIP_PRIMARY_ACTIVE, tooltip: 'ดึงรูป ชื่อ ราคา และปุ่มสั่งซื้อจากคลังให้' },
-              ]}
-            />
             {block.cards.length > 1 && (
               <Button
                 variant="ghost"
@@ -406,79 +455,125 @@ function CardsEditor({ block, onChange, picker }: {
             )}
           </div>
 
-          {selected.source === 'product' && !selected.product && (
+          {/* การ์ดมาจากไหน = แท็บ — แต่ละแท็บเก็บรูป/ข้อความ/ปุ่มของตัวเอง สลับไปมาแล้วของเดิมไม่หาย
+              (เดิมเป็นชิป "เขียนเอง / จากสินค้า" ที่ช่องอัปรูปยังโผล่ในโหมดสินค้า — เจ้าของงง 11 ก.ย. 2026) */}
+          <Tabs
+            size="sm"
+            activeKey={selected.source}
+            onSelect={key => patchCard(selected.id, { source: key === 'custom' ? 'custom' : 'product' })}
+            tabs={[
+              { key: 'product', label: 'สินค้าในร้าน', icon: <Package className="w-4 h-4" /> },
+              { key: 'custom', label: 'ทำการ์ดเอง', icon: <PenLine className="w-4 h-4" /> },
+            ]}
+          />
+          <p className="subtitle-text">
+            {selected.source === 'product'
+              ? 'รูป ชื่อ ราคา และปุ่มสั่งซื้อ ดึงจากสินค้าให้ — แก้ข้อความบนการ์ดได้'
+              : 'อัปรูปและพิมพ์ข้อความเอง — ใช้กับโปรโมชัน ประกาศ หรือเรื่องที่ไม่ใช่สินค้าชิ้นเดียว'}
+          </p>
+
+          {selected.source === 'product' && !selected.product ? (
             <ProductSearchInput
               products={picker.productResults}
               loading={picker.productLoading}
               onSearchChange={picker.onProductSearch}
               onSelect={p => pickProduct(selected, p)}
             />
+          ) : (
+            <div className="grid md:grid-cols-[180px_minmax(0,1fr)] gap-4">
+              <div>
+                <p className="field-label mb-1">รูป</p>
+                {selected.source === 'product' && selected.product ? (
+                  <>
+                    {/* รูปตามสินค้าเสมอ ไม่มีช่องอัป — ครอปตามสัดส่วนที่เลือกของแถว */}
+                    <div className={`w-full ${CARD_RATIO_CLASS[block.ratio]} rounded-lg overflow-hidden bg-gray-100 dark:bg-slate-700 flex items-center justify-center text-gray-400`}>
+                      {selected.product.image_url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={thumbUrl(selected.product.image_url, 320)} alt={selected.product.name} className="w-full h-full object-cover" />
+                      ) : (
+                        <ImageIcon className="w-8 h-8" />
+                      )}
+                    </div>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      fullWidth
+                      className="mt-2"
+                      onClick={() => patchCard(selected.id, { product: null })}
+                    >
+                      เปลี่ยนสินค้า
+                    </Button>
+                  </>
+                ) : (
+                  <ImageDropzone
+                    // สลับการ์ด/สลับแท็บกลับมา = ช่องเกิดใหม่ของการ์ดใบนั้น — รูปที่อัปไว้แล้วส่งให้โชว์ต่อ
+                    key={selected.id}
+                    value={selected.file}
+                    onChange={f => patchCard(selected.id, { file: f, previewUrl: f ? URL.createObjectURL(f) : null })}
+                    initialPreviewUrl={selected.previewUrl}
+                    label="เลือกรูป"
+                    hint={block.ratio === '3:4' ? 'รูปแนวตั้ง 3:4' : 'รูปจัตุรัส 1:1'}
+                    aspect={block.ratio}
+                    changeOnClick
+                    // 1024 = เพดานรูปใน Flex (การ์ด) ของ LINE · 1040 ที่เห็นใน OA Manager เป็นของ Rich message
+                    // (imagemap) ซึ่งเป็น message คนละชนิด — เราส่งการ์ดเป็น Flex จึงยึด 1024
+                    maxWidthOrHeight={1024}
+                    maxSizeMB={0.3}
+                  />
+                )}
+              </div>
+              <div className="space-y-3">
+                <FormInput
+                  label="หัวข้อ (ไม่บังคับ)"
+                  value={face.title}
+                  maxLength={CARD_TITLE_MAX}
+                  onChange={e => patchFace(selected, { title: e.target.value })}
+                  placeholder="ไม่ใส่ = การ์ดรูปล้วน"
+                  hint={`${face.title.length}/${CARD_TITLE_MAX}`}
+                />
+                <FormTextarea
+                  label="ข้อความ (ไม่บังคับ)"
+                  value={face.text}
+                  maxLength={CARD_TEXT_MAX}
+                  rows={2}
+                  onChange={e => patchFace(selected, { text: e.target.value })}
+                />
+              </div>
+            </div>
           )}
-
-          <div className="grid md:grid-cols-[180px_minmax(0,1fr)] gap-4">
-            <div>
-              <p className="field-label mb-1">รูป</p>
-              <ImageDropzone
-                value={selected.file}
-                onChange={f => patchCard(selected.id, { file: f, previewUrl: f ? URL.createObjectURL(f) : null })}
-                initialPreviewUrl={selected.product?.image_url ?? null}
-                label="เลือกรูป"
-                hint="รูปจัตุรัส 1:1"
-                square
-                changeOnClick
-                // 1024 = เพดานรูปใน Flex (การ์ด) ของ LINE · 1040 ที่เห็นใน OA Manager เป็นของ Rich message
-                // (imagemap) ซึ่งเป็น message คนละชนิด — เราส่งการ์ดเป็น Flex จึงยึด 1024
-                maxWidthOrHeight={1024}
-                maxSizeMB={0.3}
-              />
-            </div>
-            <div className="space-y-3">
-              <FormInput
-                label="หัวข้อ (ไม่บังคับ)"
-                value={selected.title}
-                maxLength={CARD_TITLE_MAX}
-                onChange={e => patchCard(selected.id, { title: e.target.value })}
-                placeholder="ไม่ใส่ = การ์ดรูปล้วน"
-                hint={`${selected.title.length}/${CARD_TITLE_MAX}`}
-              />
-              <FormTextarea
-                label="ข้อความ (ไม่บังคับ)"
-                value={selected.text}
-                maxLength={CARD_TEXT_MAX}
-                rows={2}
-                onChange={e => patchCard(selected.id, { text: e.target.value })}
-              />
-            </div>
-          </div>
 
           {/* กดที่ตัวการ์ดแล้วเกิดอะไร — อยู่ก่อนปุ่ม เพราะเป็นพฤติกรรมพื้นฐานของการ์ด ปุ่มเป็นของเสริมทีหลัง
               (เจ้าของขอ 11 ก.ย. 2026) · Flex ให้ตัวการ์ด (hero/body) กับปุ่มมี action ของตัวเองพร้อมกันได้ */}
           <ActionPicker
             label="กดการ์ดแล้ว"
-            value={selected.tapAction}
-            onChange={tapAction => patchCard(selected.id, { tapAction })}
+            value={face.tapAction}
+            onChange={tapAction => patchFace(selected, { tapAction })}
             {...picker}
           />
 
           <div>
-            <p className="field-label mb-1">ปุ่ม (ไม่บังคับ · สูงสุด {MAX_CARD_BUTTONS})</p>
-            {/* ปุ่มละแถวเดียว: ป้าย + กลุ่มปุ่ม action + ช่องกรอกของ action + ถังขยะ */}
+            <p className="field-label">ปุ่ม (ไม่บังคับ · สูงสุด {MAX_CARD_BUTTONS})</p>
+            <p className="subtitle-text mb-2">ปุ่มแรกเป็นปุ่มหลักสีเขียว ปุ่มถัดไปสีเทา — ตามที่ลูกค้าเห็นจริง</p>
+            {/* ปุ่มละแถว: ป้าย (สีเดียวกับปุ่มจริง) + ชนิด action แบบป้ายสั้น + ช่องกรอกของ action + ถังขยะ
+                ป้ายชนิดแบบเต็มพับสองบรรทัดจนล้นขอบเมื่อจอแคบ (เจ้าของท้วง 11 ก.ย. 2026) */}
             <div className="divide-y divide-gray-200 dark:divide-slate-600">
-              {selected.buttons.map((b, i) => (
+              {face.buttons.map((b, i) => (
                 <div key={b.id} className="flex flex-wrap gap-2 items-start py-2 first:pt-0 last:pb-0">
-                  <div className="w-40 flex-shrink-0">
+                  <div className="w-44 flex-shrink-0">
                     <FormInput
                       value={b.label}
                       maxLength={BUTTON_LABEL_MAX}
                       placeholder={i === 0 ? 'เช่น สั่งเลย' : 'เช่น ดูรายละเอียด'}
                       aria-label={`ข้อความบนปุ่มที่ ${i + 1}`}
-                      onChange={e => patchCard(selected.id, { buttons: selected.buttons.map(x => (x.id === b.id ? { ...x, label: e.target.value } : x)) })}
+                      className={i === 0 ? 'line-btn-field' : 'line-btn-field-secondary'}
+                      onChange={e => patchFace(selected, { buttons: face.buttons.map(x => (x.id === b.id ? { ...x, label: e.target.value } : x)) })}
                     />
                   </div>
-                  <div className="flex-1 min-w-72">
+                  <div className="flex-1 min-w-64">
                     <ActionPicker
+                      compact
                       value={b.action}
-                      onChange={action => patchCard(selected.id, { buttons: selected.buttons.map(x => (x.id === b.id ? { ...x, action } : x)) })}
+                      onChange={action => patchFace(selected, { buttons: face.buttons.map(x => (x.id === b.id ? { ...x, action } : x)) })}
                       {...picker}
                     />
                   </div>
@@ -486,18 +581,18 @@ function CardsEditor({ block, onChange, picker }: {
                     variant="ghost"
                     icon={<Trash2 className="w-4 h-4" />}
                     aria-label="ลบปุ่ม"
-                    onClick={() => patchCard(selected.id, { buttons: selected.buttons.filter(x => x.id !== b.id) })}
+                    onClick={() => patchFace(selected, { buttons: face.buttons.filter(x => x.id !== b.id) })}
                   />
                 </div>
               ))}
             </div>
-            {selected.buttons.length < MAX_CARD_BUTTONS && (
+            {face.buttons.length < MAX_CARD_BUTTONS && (
               <Button
                 variant="secondary"
                 size="sm"
                 icon={<Plus className="w-4 h-4" />}
                 className="mt-2"
-                onClick={() => patchCard(selected.id, { buttons: [...selected.buttons, { id: uid(), label: '', action: EMPTY_ACTION }] })}
+                onClick={() => patchFace(selected, { buttons: [...face.buttons, { id: uid(), label: '', action: EMPTY_ACTION }] })}
               >
                 เพิ่มปุ่ม
               </Button>

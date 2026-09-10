@@ -19,6 +19,7 @@ import type { ReactNode } from 'react';
 import {
   ACTION_LABELS,
   ACTION_MESSAGE_MAX,
+  ACTION_SHORT_LABELS,
   ACTION_TYPES,
   emptyAction,
   type BroadcastAction,
@@ -48,6 +49,8 @@ interface Props {
   onProductSearch: (q: string) => void;
   productToCard: (p: ProductSearchItem) => BroadcastProductCard;
   disabled?: boolean;
+  /** ป้ายสั้น (ลิงก์ · สินค้า · ข้อความ) — ตรงที่แคบ เช่นแถวปุ่มบนการ์ด · ความหมายเต็มขึ้นใน tooltip */
+  compact?: boolean;
 }
 
 /** คำอธิบายบนชิป — ถ้าสินค้าใช้ไม่ได้เพราะร้านยังไม่เปิดหน้าร้าน บอกตรงนั้นเลย */
@@ -62,7 +65,7 @@ function tooltipFor(type: BroadcastActionType, storefrontOpen: boolean): string 
 }
 
 export default function ActionPicker({
-  value, onChange, label, storefrontOpen, productResults, productLoading, onProductSearch, productToCard, disabled,
+  value, onChange, label, storefrontOpen, productResults, productLoading, onProductSearch, productToCard, disabled, compact,
 }: Props) {
   return (
     <div>
@@ -78,11 +81,13 @@ export default function ActionPicker({
           disabled={disabled}
           chips={ACTION_TYPES.map(type => ({
             id: type,
-            label: ACTION_LABELS[type],
+            label: compact ? ACTION_SHORT_LABELS[type] : ACTION_LABELS[type],
             icon: ACTION_ICONS[type],
             activeClass: FILTER_CHIP_PRIMARY_ACTIVE,
             disabled: type === 'product' && !storefrontOpen,
-            tooltip: tooltipFor(type, storefrontOpen),
+            tooltip: compact
+              ? `${ACTION_LABELS[type]} — ${tooltipFor(type, storefrontOpen)}`
+              : tooltipFor(type, storefrontOpen),
           }))}
         />
         <div className="flex-1 min-w-64">

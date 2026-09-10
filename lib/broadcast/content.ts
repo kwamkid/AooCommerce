@@ -69,6 +69,15 @@ export const ACTION_LABELS: Record<BroadcastActionType, string> = {
   product: 'ไปที่สินค้า',
   message: 'ส่งข้อความกลับ',
 };
+/**
+ * ป้ายสั้นของชนิด action — ใช้ตรงที่แคบ (แถวปุ่มบนการ์ด: ช่องป้าย + ชนิด + ช่องกรอก อยู่แถวเดียวกัน)
+ * ป้ายเต็มพับเป็นสองบรรทัดในปุ่มจนล้นขอบบนล่างเมื่อจอแคบ (เจ้าของท้วง 11 ก.ย. 2026) · ความหมายเต็มอยู่ใน tooltip
+ */
+export const ACTION_SHORT_LABELS: Record<BroadcastActionType, string> = {
+  url: 'ลิงก์',
+  product: 'สินค้า',
+  message: 'ข้อความ',
+};
 
 /** action เปล่าของแต่ละชนิด — หน้าจอเริ่มจากตัวนี้แล้วให้ผู้ใช้กรอก */
 export function emptyAction(type: BroadcastActionType = 'url'): BroadcastAction {

@@ -46,6 +46,11 @@ interface Props {
    */
   square?: boolean;
   /**
+   * สัดส่วนกรอบจริง (ทั้งตอนว่างและตอนมีรูป) — '1:1' เท่ากับ `square` · '3:4' = แนวตั้งแบบรูปสินค้า Shopee
+   * (การ์ดบรอดแคสต์เลือกได้ทั้งแถว — เจ้าของขอ 11 ก.ย. 2026) · ส่งตัวนี้แล้วไม่ต้องส่ง `square`
+   */
+  aspect?: '1:1' | '3:4';
+  /**
    * กดที่รูปพรีวิวแล้วเปิดเลือกรูปใหม่ได้เลย + ทาบไอคอน "เปลี่ยนรูป" ตอน hover (ทรงเดียวกับแว่นขยาย
    * บนรูปสินค้า) — ไม่ต้องกดกากบาทแล้วเลือกใหม่สองจังหวะ (เจ้าของขอ 10 ก.ย. 2026)
    */
@@ -75,6 +80,9 @@ const TW = {
   clearIcon: 'w-3.5 h-3.5',
 };
 
+/** คลาสสัดส่วนของ `aspect` — เขียนเต็มชื่อให้ Tailwind หาเจอ */
+const ASPECT_CLASS = { '1:1': 'aspect-square', '3:4': 'aspect-[3/4]' } as const;
+
 /**
  * ให้ผู้เรียกป้อนไฟล์เข้ามาจากข้างนอกได้ — กล่องพิมพ์ที่รับลาก/วางทั้งกล่อง (MessageComposer)
  * ส่งไฟล์ที่ตกลงมานอกปุ่มเล็ก ๆ นี้เข้ามาผ่าน `accept()` แล้วได้การย่อรูป/พรีวิว/กากบาทชุดเดียวกัน
@@ -87,7 +95,7 @@ export interface ImageDropzoneHandle {
 
 const ImageDropzone = forwardRef<ImageDropzoneHandle, Props>(function ImageDropzone({
   value, onChange, disabled, label, hint, icon, alt, initialPreviewUrl, classNames,
-  capture, onBusyChange, maxWidthOrHeight = 1920, maxSizeMB = 0.5, changeOnClick, square,
+  capture, onBusyChange, maxWidthOrHeight = 1920, maxSizeMB = 0.5, changeOnClick, square, aspect,
 }, ref) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [preview, setPreview] = useState<string | null>(null);
@@ -98,12 +106,13 @@ const ImageDropzone = forwardRef<ImageDropzoneHandle, Props>(function ImageDropz
   // ผู้ใช้กดกากบาททิ้งรูปเดิมแล้วหรือยัง — ถ้าไม่จำ ปุ่มกากบาทจะกดแล้วไม่มีอะไรเกิดขึ้น
   // เพราะ initialPreviewUrl ยังค้างอยู่ทำให้พรีวิวไม่หายไปไหน (บั๊กจริง 2026-08-30)
   const [dismissedInitial, setDismissedInitial] = useState(false);
+  const aspectClass = aspect ? ASPECT_CLASS[aspect] : square ? ASPECT_CLASS['1:1'] : '';
   const cn = {
     ...TW,
-    ...(square ? { previewImg: 'w-full aspect-square object-cover rounded-lg' } : {}),
+    ...(aspectClass ? { previewImg: `w-full ${aspectClass} object-cover rounded-lg` } : {}),
     ...(classNames || {}),
   };
-  const rootClass = `${cn.root}${square ? ' aspect-square' : ''}`;
+  const rootClass = `${cn.root}${aspectClass ? ` ${aspectClass}` : ''}`;
 
   // ผู้เรียกเปลี่ยนรูปตั้งต้น (เช่นเพิ่งดึงจากแพลตฟอร์มมาใหม่) → กลับมาแสดงอีกครั้ง
   useEffect(() => { setDismissedInitial(false); }, [initialPreviewUrl]);
