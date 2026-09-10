@@ -17,6 +17,7 @@
 // พื้นหลังห้องแชทตรึงเป็นสีเดียวทั้งธีมสว่าง/มืด ของข้างในจึงไม่ต้องมี dark: อีก
 'use client';
 
+import { Image as ImageIcon, Mic, Plus } from 'lucide-react';
 import ProductImageThumb from '@/components/ui/ProductImageThumb';
 import UserAvatar from '@/components/ui/UserAvatar';
 import { thumbUrl } from '@/lib/image-thumb';
@@ -202,11 +203,11 @@ export default function BroadcastPreview({
         </div>
       </div>
 
-      {/* รูปเต็มจอ — ชนขอบซ้ายขวาของห้อง (หักขอบ p-3 ของกล่องออก) ไม่ใช่กว้างแค่คอลัมน์ข้างรูปโปรไฟล์ */}
+      {/* รูปเต็มจอ — กว้างเกือบชนขอบห้อง เหลือขอบซ้ายขวานิดเดียว (ตามรูปแคปจริง) ไม่ใช่กว้างแค่คอลัมน์ข้างรูปโปรไฟล์ */}
       {fullWidthImage && (
-        <div className="-mx-3 mt-1.5">
+        <div className="-mx-1.5 mt-1.5">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={fullWidthImage} alt={content.kind === 'poster' ? 'โปสเตอร์' : 'ตัวอย่างรูปที่จะส่ง'} className="block w-full h-auto" />
+          <img src={fullWidthImage} alt={content.kind === 'poster' ? 'โปสเตอร์' : 'ตัวอย่างรูปที่จะส่ง'} className="block w-full h-auto rounded-lg" />
         </div>
       )}
 
@@ -221,6 +222,15 @@ export default function BroadcastPreview({
           ))}
         </div>
       )}
+
+      {/* แถบพิมพ์ข้อความของลูกค้า — ให้เห็นว่าทั้งหมดอยู่ในห้องแชทจริง และปุ่มตอบเร็วอยู่เหนือแถบนี้พอดี
+          (เจ้าของขอ 10 ก.ย. 2026) · ของตกแต่ง ไม่ใช่ช่องกรอก */}
+      <div className="-mx-3 -mb-3 mt-2 flex items-center gap-2 bg-white px-2 py-1.5 text-gray-400" aria-hidden="true">
+        <Plus className="w-5 h-5" />
+        <ImageIcon className="w-5 h-5" />
+        <span className="flex-1 h-8 rounded-full bg-gray-100 px-3 flex items-center subtitle-text">Aa</span>
+        <Mic className="w-5 h-5" />
+      </div>
     </div>
   );
 }

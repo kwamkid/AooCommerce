@@ -101,7 +101,13 @@ export function MockChat({ children, after }: { children?: ReactNode; after?: Re
           {children}
         </div>
       </div>
-      {after && <div className="flex-1 min-h-0 -mx-2 flex">{after}</div>}
+      {/* รูปเต็มจอ — เหลือขอบซ้ายขวานิดเดียวเหมือนของจริง */}
+      {after && <div className="flex-1 min-h-0 -mx-1 flex">{after}</div>}
+      {/* แถบพิมพ์ข้อความของลูกค้าท้ายห้อง — บอกว่านี่คือหน้าจอแชทจริง (เจ้าของขอ 10 ก.ย.) */}
+      <div className="-mx-2 -mb-2 mt-auto h-4 bg-white flex items-center gap-1 px-1.5">
+        <div className="w-2 h-2 rounded-full bg-gray-300" />
+        <div className="flex-1 h-2.5 rounded-full bg-gray-200" />
+      </div>
     </div>
   );
 }
@@ -141,7 +147,7 @@ export const KIND_MOCKS: Record<BroadcastContentKind, ReactNode> = {
     </MockChat>
   ),
   poster: (
-    <MockChat after={<MockPhoto className="w-full" />}>
+    <MockChat after={<MockPhoto className="w-full rounded" />}>
       <div className="rounded-xl rounded-tl-sm bg-white p-1.5">
         <MockLine className="w-2/3" />
       </div>
