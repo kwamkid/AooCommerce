@@ -280,7 +280,7 @@ export default function ContentStep({
             />
             <MessageComposer
               label="2. โปสเตอร์ (รูปเต็มจอ)"
-              emptyHint="แนะนำแนวตั้ง 4:5 เช่น 1080×1350 px (ระบบย่อเหลือ 819×1024 ตามเพดานของ LINE) · สูงได้ไม่เกิน 3 เท่าของความกว้าง"
+              emptyHint="แนะนำแนวตั้ง 4:5 · สูงสุด 1:3 (สูงได้ 3 เท่าของความกว้าง)"
               disabled={disabled}
               image={composerImage}
             />

@@ -24,7 +24,6 @@ import Layout from '@/components/layout/Layout';
 import Container from '@/components/ui/Container';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
-import Badge from '@/components/ui/Badge';
 import PageHeader from '@/components/ui/PageHeader';
 import FormInput from '@/components/ui/FormInput';
 import FormTextarea from '@/components/ui/FormTextarea';
@@ -45,7 +44,9 @@ import {
   ACTION_MESSAGE_MAX, BUTTON_LABEL_MAX, CARD_TEXT_MAX, CARD_TITLE_MAX, EMPTY_ACTION,
   type BroadcastAction, type BroadcastProductCard,
 } from '@/lib/broadcast/content';
-import { GripVertical, Image as ImageIcon, Plus, Trash2 } from 'lucide-react';
+import {
+  GalleryHorizontalEnd, GripVertical, Image as ImageIcon, MessageSquareText, Plus, RectangleVertical, Trash2,
+} from 'lucide-react';
 
 // ── โมเดลของต้นแบบ (ทรงเดียวกับที่จะเก็บลง content.blocks ในอนาคต) ────────────────
 
@@ -61,8 +62,9 @@ interface CardDraft {
   previewUrl: string | null;
   title: string;
   text: string;
-  /** ปุ่มล่างการ์ด — ไม่มีปุ่ม = กดทั้งใบตาม tapAction */
+  /** ปุ่มล่างการ์ด (ไม่บังคับ) — แต่ละปุ่มมี action ของตัวเอง */
   buttons: CardButton[];
+  /** กดที่ตัวการ์ด (รูป/ข้อความ) — ส่งเป็น action ของ hero/body ใน Flex · มีปุ่มแล้วก็ยังใช้อยู่ */
   tapAction: BroadcastAction;
 }
 
@@ -97,6 +99,14 @@ function newBlock(type: BlockType): Block {
 
 const BLOCK_LABELS: Record<BlockType, string> = {
   text: 'ข้อความ', image: 'รูป', rich: 'รูปเต็มจอ', cards: 'การ์ด',
+};
+
+/** ไอคอนประจำชนิดบล็อก — คู่กับชื่อบนหัวแถบของบล็อก (รูปเต็มจอ = กรอบแนวตั้ง · การ์ด = แถวเลื่อนแนวนอน) */
+const BLOCK_ICONS: Record<BlockType, ReactNode> = {
+  text: <MessageSquareText className="w-4 h-4" />,
+  image: <ImageIcon className="w-4 h-4" />,
+  rich: <RectangleVertical className="w-4 h-4" />,
+  cards: <GalleryHorizontalEnd className="w-4 h-4" />,
 };
 
 /** ตัวเลือกชนิดบล็อก — มอคห้องแชทชุดเดียวกับการ์ดเลือกชนิดของหน้าจริง */
@@ -335,6 +345,8 @@ function CardsEditor({ block, onChange, picker }: {
       source: 'product', product, title: product.name,
       text: product.price != null ? formatPrice(product.price) : '',
       buttons: [button],
+      // กดที่ตัวการ์ด = ทำเหมือนปุ่มแรก — ลูกค้าส่วนใหญ่แตะที่รูปสินค้า ไม่ใช่ที่ปุ่ม
+      tapAction: button.action,
     });
   };
 
@@ -411,7 +423,7 @@ function CardsEditor({ block, onChange, picker }: {
                 onChange={f => patchCard(selected.id, { file: f, previewUrl: f ? URL.createObjectURL(f) : null })}
                 initialPreviewUrl={selected.product?.image_url ?? null}
                 label="เลือกรูป"
-                hint="1:1 · 1024×1024 px"
+                hint="รูปจัตุรัส 1:1"
                 square
                 changeOnClick
                 // 1024 = เพดานรูปใน Flex (การ์ด) ของ LINE · 1040 ที่เห็นใน OA Manager เป็นของ Rich message
@@ -419,7 +431,6 @@ function CardsEditor({ block, onChange, picker }: {
                 maxWidthOrHeight={1024}
                 maxSizeMB={0.3}
               />
-              <p className="subtitle-text mt-1">LINE รับรูปในการ์ดได้ใหญ่สุด 1024×1024 px — รูปใหญ่กว่านี้ระบบย่อให้เอง</p>
             </div>
             <div className="space-y-3">
               <FormInput
@@ -440,8 +451,17 @@ function CardsEditor({ block, onChange, picker }: {
             </div>
           </div>
 
+          {/* กดที่ตัวการ์ดแล้วเกิดอะไร — อยู่ก่อนปุ่ม เพราะเป็นพฤติกรรมพื้นฐานของการ์ด ปุ่มเป็นของเสริมทีหลัง
+              (เจ้าของขอ 11 ก.ย. 2026) · Flex ให้ตัวการ์ด (hero/body) กับปุ่มมี action ของตัวเองพร้อมกันได้ */}
+          <ActionPicker
+            label="กดการ์ดแล้ว"
+            value={selected.tapAction}
+            onChange={tapAction => patchCard(selected.id, { tapAction })}
+            {...picker}
+          />
+
           <div>
-            <p className="field-label mb-1">ปุ่ม (สูงสุด {MAX_CARD_BUTTONS}) — ไม่มีปุ่ม = กดทั้งใบ</p>
+            <p className="field-label mb-1">ปุ่ม (ไม่บังคับ · สูงสุด {MAX_CARD_BUTTONS})</p>
             {/* ปุ่มละแถวเดียว: ป้าย + กลุ่มปุ่ม action + ช่องกรอกของ action + ถังขยะ */}
             <div className="divide-y divide-gray-200 dark:divide-slate-600">
               {selected.buttons.map((b, i) => (
@@ -482,16 +502,6 @@ function CardsEditor({ block, onChange, picker }: {
                 เพิ่มปุ่ม
               </Button>
             )}
-            {selected.buttons.length === 0 && (
-              <div className="mt-3">
-                <ActionPicker
-                  label="กดการ์ดแล้ว"
-                  value={selected.tapAction}
-                  onChange={tapAction => patchCard(selected.id, { tapAction })}
-                  {...picker}
-                />
-              </div>
-            )}
           </div>
         </Card>
       )}
@@ -521,7 +531,7 @@ function SortableBlock({ block, index, onChange, onRemove, picker }: {
     editor = (
       <div className="space-y-3">
         <MessageComposer
-          emptyHint="แนวตั้ง 4:5 กำลังดี · ด้านยาวสุด 1024 px (ใหญ่กว่านี้ระบบย่อให้) · สูงได้ไม่เกิน 3 เท่าของความกว้าง"
+          emptyHint="แนะนำแนวตั้ง 4:5 · สูงสุด 1:3 (สูงได้ 3 เท่าของความกว้าง)"
           image={{ file: block.file, onChange: f => onChange({ ...block, file: f, previewUrl: f ? URL.createObjectURL(f) : null }), previewUrl: block.previewUrl, maxWidthOrHeight: 1024, maxSizeMB: 0.3 }}
         />
         <ActionPicker label="กดรูปแล้ว" value={block.action} onChange={action => onChange({ ...block, action })} {...picker} />
@@ -549,13 +559,16 @@ function SortableBlock({ block, index, onChange, onRemove, picker }: {
           <GripVertical className="w-4 h-4" />
         </button>
         <span className="subtitle-text">บล็อก {index + 1}</span>
-        {/* ขนาดตัวหนังสือเท่า "บล็อก N" — ป้าย sm (12px) ลอยสูงกว่าข้อความข้าง ๆ ราว 1px จนเห็นว่าไม่อยู่แนวเดียวกัน */}
-        <Badge tone="indigo">{BLOCK_LABELS[block.type]}</Badge>
+        {/* ชนิดของบล็อก = ไอคอน + ชื่อ ชิดขวาข้างถังขยะ (เจ้าของขอ 11 ก.ย. 2026 แทนป้าย pill)
+            ตัวหนังสือขนาดเดียวกับ "บล็อก N" จึงอยู่แนวเดียวกัน */}
+        <span className="ml-auto inline-flex items-center gap-1.5 subtitle-text font-medium text-gray-700 dark:text-slate-200">
+          {BLOCK_ICONS[block.type]}
+          {BLOCK_LABELS[block.type]}
+        </span>
         <Button
           variant="ghost"
           icon={<Trash2 className="w-4 h-4" />}
           aria-label="เอาบล็อกนี้ออก"
-          className="ml-auto"
           onClick={onRemove}
         />
       </div>
