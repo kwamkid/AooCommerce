@@ -21,7 +21,9 @@ import Tooltip from '@/components/ui/Tooltip';
 import PlatformIcon from '@/components/ui/PlatformIcon';
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
 import ActionMenu, { type ActionItem } from '@/components/ui/ActionMenu';
-import { EmptyCard, LoadingCard, NoPermissionCard } from '@/components/ui/StateCard';
+import { LoadingCard, NoPermissionCard } from '@/components/ui/StateCard';
+import TemplatePicker, { TemplatePickerModal } from './components/TemplatePicker';
+import { loadChatSourceAccounts } from './components/sources';
 import { useAuthGuard } from '@/lib/useAuthGuard';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { useToast } from '@/lib/toast-context';
@@ -30,8 +32,9 @@ import { can } from '@/lib/permissions';
 import { apiFetch, invalidateApiCache } from '@/lib/api-client';
 import { formatNumber, formatThaiDateTime } from '@/lib/utils/format';
 import { audienceLabel, describeAudienceRefine } from '@/lib/broadcast/audience';
-import { Edit2, Loader2, Plus, RefreshCw, Send, Target, Trash2, Users } from 'lucide-react';
-import type { AudienceSyncView, AudienceView } from './components/types';
+import type { AudienceTemplateKey } from '@/lib/audiences/templates';
+import { Edit2, LayoutTemplate, Loader2, Plus, RefreshCw, Send, Target, Trash2, Users } from 'lucide-react';
+import type { AudienceSyncView, AudienceView, ChatSourceAccount } from './components/types';
 
 /** ถี่พอให้เห็นว่ากำลังเดิน แต่หยุดเองเมื่อไม่มีใบไหน sync อยู่ (เท่ากับหน้ารายการบรอดแคสต์) */
 const POLL_MS = 4000;
@@ -79,6 +82,13 @@ export default function AudiencesPage() {
   const [recordsPerPage, setRecordsPerPage] = useState(20);
   /** null = ยังไม่รู้ (กำลังโหลด / ไม่มีสิทธิ์ดู) — ห้ามขึ้น Alert ก่อนรู้จริง */
   const [adAccountCount, setAdAccountCount] = useState<number | null>(null);
+  /** ช่องทางที่เชื่อมไว้ — ใช้บอกว่าแม่แบบไหนยังใช้ไม่ได้ (ไม่มีเพจ Facebook) */
+  const [chatAccounts, setChatAccounts] = useState<ChatSourceAccount[]>([]);
+  const [templateOpen, setTemplateOpen] = useState(false);
+
+  const pickTemplate = useCallback((key: AudienceTemplateKey) => {
+    router.push(`/marketing/audiences/new?template=${key}`);
+  }, [router]);
 
   const canManageAdAccounts = can(userProfile, 'masterdata.ad_accounts');
 
@@ -113,6 +123,11 @@ export default function AudiencesPage() {
         // เงียบไว้ — บล็อกนี้เป็นแค่คำแนะนำ ไม่ใช่เนื้อหาหลักของหน้า
       }
     })();
+  }, [allowed]);
+
+  useEffect(() => {
+    if (!allowed) return;
+    loadChatSourceAccounts().then(setChatAccounts);
   }, [allowed]);
 
   // มีใบที่กำลัง sync เท่านั้นถึง poll — จบแล้วหยุดเอง ไม่ยิงถี่ทิ้งไว้ทั้งวัน
@@ -319,10 +334,26 @@ export default function AudiencesPage() {
           title="กลุ่มเป้าหมาย"
           subtitle="บันทึกกลุ่มลูกค้าไว้ใช้ซ้ำ — ส่งบรอดแคสต์ หรือ sync ไป Meta เพื่อยิงโฆษณา"
           actions={
-            <Button variant="primary" icon={<Plus className="w-4 h-4" />} onClick={() => router.push('/marketing/audiences/new')}>
-              สร้างกลุ่ม
-            </Button>
+            <>
+              <Button
+                variant="secondary"
+                icon={<LayoutTemplate className="w-4 h-4" />}
+                onClick={() => setTemplateOpen(true)}
+              >
+                สร้างจากแม่แบบ
+              </Button>
+              <Button variant="primary" icon={<Plus className="w-4 h-4" />} onClick={() => router.push('/marketing/audiences/new')}>
+                สร้างกลุ่ม
+              </Button>
+            </>
           }
+        />
+
+        <TemplatePickerModal
+          open={templateOpen}
+          onClose={() => setTemplateOpen(false)}
+          accounts={chatAccounts}
+          onPick={pickTemplate}
         />
 
         {adAccountCount === 0 && (
@@ -338,16 +369,28 @@ export default function AudiencesPage() {
         )}
 
         {!loading && rows.length === 0 ? (
-          <EmptyCard
-            icon={<Target className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
-            title="ยังไม่มีกลุ่มเป้าหมาย"
-            subtitle="สร้างกลุ่มจากประวัติซื้อ แท็ก หรือคนที่ทักมาจากโฆษณา แล้วใช้ซ้ำได้ทั้งบรอดแคสต์และโฆษณา Meta"
-            actions={
-              <Button variant="primary" icon={<Plus className="w-4 h-4" />} onClick={() => router.push('/marketing/audiences/new')}>
-                สร้างกลุ่ม
+          // ยังไม่มีกลุ่มสักกลุ่ม = ช่วงที่ผู้ใช้ไม่รู้ว่า "ควรมีกลุ่มอะไรบ้าง" — เสนอแม่แบบ
+          // ไปเลย ดีกว่าปุ่ม "สร้างกลุ่ม" เปล่า ๆ ที่พาไปฟอร์มว่างซึ่งต้องเดาเองทั้งหมด
+          <div className="space-y-3">
+            <div>
+              <h2 className="heading-3">เริ่มจากแม่แบบ</h2>
+              <p className="section-desc">
+                กลุ่มที่ร้านค้าส่วนใหญ่ต้องมี — กดแล้วไปหน้าสร้างที่กรอกเงื่อนไขให้แล้ว แก้ได้ก่อนบันทึก
+              </p>
+            </div>
+            <TemplatePicker accounts={chatAccounts} onPick={pickTemplate} />
+            <div className="flex items-center gap-3 flex-wrap pt-1">
+              <span className="subtitle-text">อยากได้เงื่อนไขแบบอื่น?</span>
+              <Button
+                variant="secondary"
+                size="sm"
+                icon={<Plus className="w-4 h-4" />}
+                onClick={() => router.push('/marketing/audiences/new')}
+              >
+                สร้างเองตั้งแต่ต้น
               </Button>
-            }
-          />
+            </div>
+          </div>
         ) : (
           <DataTable<AudienceView>
             storageKey="audiences"

@@ -302,6 +302,13 @@ export default function MetaSyncRows({
               </li>
             );
           })}
+          {/* ขึ้นไปแล้วต้องบอกด้วยว่าไปหยิบใช้ตรงไหน — ไม่งั้น sync สำเร็จแล้วจบตรงนั้น */}
+          {syncs.some(s => s.status === 'synced') && (
+            <li className="section-desc pt-1">
+              กลุ่มนี้อยู่ใน Ads Manager › Audiences ชื่อเดียวกับกลุ่ม — เลือกเป็นกลุ่มเป้าหมาย
+              กันออก หรือทำ Lookalike ได้ตอนตั้งค่า Ad set
+            </li>
+          )}
         </ul>
       )}
     </Card>

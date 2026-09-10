@@ -16,7 +16,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Card from '@/components/ui/Card';
+import Alert from '@/components/ui/Alert';
 import Button from '@/components/ui/Button';
+import Checkbox from '@/components/ui/Checkbox';
+import HelpHint from '@/components/ui/HelpHint';
 import SaveButton from '@/components/ui/SaveButton';
 import FormInput from '@/components/ui/FormInput';
 import FormTextarea from '@/components/ui/FormTextarea';
@@ -37,12 +40,13 @@ import {
   type TagRow,
 } from '@/lib/broadcast/audience';
 import type { AdAccountView } from '@/lib/ads/meta-ui';
+import { findAudienceTemplate, templateUnavailableReason, type AudienceTemplate } from '@/lib/audiences/templates';
 import AudienceStep from '@/app/marketing/broadcast/new/components/AudienceStep';
 import SourceStep from './SourceStep';
 import AudienceRail from './AudienceRail';
 import MetaSyncRows from './MetaSyncRows';
+import { toChatSourceAccounts } from './sources';
 import type {
-  AudienceChatPlatform,
   AudienceDefinition,
   AudiencePreview,
   AudienceSource,
@@ -57,15 +61,22 @@ const ALL_DISABLED_REASON =
 /** ตัวเลือกที่แหล่ง "ลูกค้าในระบบ" ตอบได้ — ตรงกับ CUSTOMER_AUDIENCE_KEYS ฝั่งเซิร์ฟเวอร์ */
 const CUSTOMER_ONLY_EXCLUDE = new Set(['all', 'contacts', 'contacts_pick']);
 
+/** บัญชีโฆษณาที่ผูกกลุ่มได้จริงตอนนี้ — เกณฑ์เดียวกับ notReadyReason() ใน MetaSyncRows */
+function isAdAccountReady(a: AdAccountView): boolean {
+  return a.status === 'active' && !!a.audiences_ok_at && !a.metadata?.tos_required;
+}
+
 interface Props {
   mode: 'create' | 'edit';
   /** โหมดแก้ไข — ค่าตั้งต้นจาก GET /api/audiences/[id] */
   initial?: AudienceView | null;
+  /** มาจากแม่แบบ (?template=) — โหมดสร้างเท่านั้น กรอกค่าให้ครั้งเดียวแล้วผู้ใช้แก้ต่อได้ */
+  templateKey?: string | null;
   /** แจ้งหน้าแม่เมื่อข้อมูลเปลี่ยน (ชื่อบนหัวเรื่อง · สถานะ sync) */
   onAudienceChange?: (a: AudienceView) => void;
 }
 
-export default function AudienceForm({ mode, initial, onAudienceChange }: Props) {
+export default function AudienceForm({ mode, initial, templateKey, onAudienceChange }: Props) {
   const router = useRouter();
   const { showToast } = useToast();
   const form = useFormValidation();
@@ -108,6 +119,13 @@ export default function AudienceForm({ mode, initial, onAudienceChange }: Props)
   const [countsLoading, setCountsLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  // ── แม่แบบ + sync หลังบันทึก (โหมดสร้างเท่านั้น) ──────────────────────
+  /** แม่แบบที่กรอกให้แล้ว — โชว์เป็น Alert เพื่ออธิบายว่าทำไมช่องถึงมีค่าอยู่แล้ว */
+  const [appliedTemplate, setAppliedTemplate] = useState<AudienceTemplate | null>(null);
+  const [templateNoticeOpen, setTemplateNoticeOpen] = useState(true);
+  const templateAppliedRef = useRef(false);
+  const [syncAfterSave, setSyncAfterSave] = useState(true);
+
   /** โหมดสร้างยังไม่มีใบให้ผูกกับบัญชีโฆษณา — บล็อก Meta จึงบอกให้บันทึกก่อน */
   const audienceId = mode === 'edit' ? (current?.id ?? null) : null;
 
@@ -126,22 +144,8 @@ export default function AudienceForm({ mode, initial, onAudienceChange }: Props)
           apiFetch('/api/ads/accounts'),
         ]);
 
-        if (chatRes.ok) {
-          const data = await chatRes.json();
-          const list: ChatSourceAccount[] = [];
-          for (const a of data.accounts || []) {
-            // ดึงผู้ติดต่อได้เฉพาะ LINE/Facebook (ตรงกับ validateAudienceDefinition)
-            if (!a.is_active) continue;
-            if (a.platform !== 'line' && a.platform !== 'facebook') continue;
-            list.push({
-              id: a.id,
-              platform: a.platform as AudienceChatPlatform,
-              name: a.account_name || 'ช่องทางแชท',
-              picture_url: a.picture_url ?? null,
-            });
-          }
-          setChatAccounts(list);
-        }
+        // ดึงผู้ติดต่อได้เฉพาะ LINE/Facebook — เกณฑ์อยู่ที่ toChatSourceAccounts ที่เดียว
+        if (chatRes.ok) setChatAccounts(toChatSourceAccounts((await chatRes.json()).accounts));
 
         if (tagRes.ok) setTags((await tagRes.json()).tags || []);
 
@@ -158,6 +162,42 @@ export default function AudienceForm({ mode, initial, onAudienceChange }: Props)
       }
     })();
   }, [showToast]);
+
+  // ── กรอกค่าจากแม่แบบ (?template=) ────────────────────────────────────
+  //
+  // **ต้องรอรายชื่อช่องทางโหลดเสร็จก่อน** เพราะแม่แบบติ๊กแหล่งที่มาให้ด้วย — กรอกก่อน
+  // แล้วเอฟเฟกต์ที่เคลียร์ตัวเลือกซึ่งไม่อยู่ในรายการ (ด้านล่าง) จะล้างกลุ่มที่เพิ่งตั้งทิ้ง
+  //
+  // กรอกครั้งเดียวตลอดอายุฟอร์ม (ref guard) และเฉพาะตอนผู้ใช้ยังไม่ได้กรอกอะไรเลย —
+  // ไม่งั้นค่าที่พิมพ์ไปแล้วจะถูกทับ
+  useEffect(() => {
+    if (mode !== 'create' || !templateKey || chatLoading) return;
+    if (templateAppliedRef.current) return;
+    templateAppliedRef.current = true;
+
+    const t = findAudienceTemplate(templateKey);
+    if (!t) return;
+
+    const reason = templateUnavailableReason(t, chatAccounts);
+    if (reason) { showToast(reason, 'error'); return; }
+
+    // ผู้ใช้เริ่มกรอกเองแล้ว = ไม่แตะ (เช่นเปิดค้างไว้นานแล้วเน็ตเพิ่งตอบ)
+    if (name || audience || chatIds.length > 0 || includeCustomers) return;
+
+    const picked = t.sources === 'facebook_only'
+      ? chatAccounts.filter(a => a.platform === 'facebook')
+      : chatAccounts;
+
+    setName(t.name);
+    setDescription(t.description);
+    setChatIds(picked.map(a => a.id));
+    setIncludeCustomers(t.sources === 'chat_and_customers');
+    setAudience(t.audience_type);
+    if (t.days) setAudienceDays(t.days);
+    setAppliedTemplate(t);
+    // ตั้งใจอ่านค่าที่กรอกไว้เป็น "สภาพตอนนั้น" — ไม่ต้องรันซ้ำเมื่อผู้ใช้พิมพ์
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, templateKey, chatLoading, chatAccounts, showToast]);
 
   // ── แหล่งที่มา + ตัวเลือกกลุ่ม ────────────────────────────────────────
   const selectedChat = useMemo(
@@ -310,6 +350,30 @@ export default function AudienceForm({ mode, initial, onAudienceChange }: Props)
   });
 
   // ── บันทึก ───────────────────────────────────────────────────────────
+  /** บัญชีโฆษณาที่ผูกได้จริงตอนนี้ — ไม่มีสักใบ = ไม่ต้องโชว์ตัวเลือก sync ให้รก */
+  const readyAdAccounts = useMemo(() => adAccounts.filter(isAdAccountReady), [adAccounts]);
+
+  /** ผูกกลุ่มที่เพิ่งสร้างกับทุกบัญชีที่พร้อม แล้วให้เซิร์ฟเวอร์เริ่ม sync (202) */
+  const startSyncs = async (id: string): Promise<{ ok: number; error: string | null }> => {
+    let ok = 0;
+    let error: string | null = null;
+    for (const acc of readyAdAccounts) {
+      try {
+        const res = await apiFetch(`/api/audiences/${id}/syncs`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ad_account_id: acc.id, auto_sync: true }),
+        });
+        if (res.ok) { ok += 1; continue; }
+        const err = await res.json().catch(() => ({}));
+        error = error || err.error || 'เริ่ม sync ไป Meta ไม่สำเร็จ';
+      } catch {
+        error = error || 'เริ่ม sync ไป Meta ไม่สำเร็จ';
+      }
+    }
+    return { ok, error };
+  };
+
   const handleSave = async () => {
     if (!form.validateAll()) return;
     if (sources.length === 0) { showToast('เลือกแหล่งที่มาอย่างน้อยหนึ่งแหล่ง', 'error'); return; }
@@ -342,7 +406,14 @@ export default function AudienceForm({ mode, initial, onAudienceChange }: Props)
         if (saved) applyAudience(saved);
         showToast('บันทึกแล้ว', 'success');
       } else {
-        showToast('บันทึกกลุ่มแล้ว', 'success');
+        // ผูกกับบัญชีโฆษณาที่พร้อมแล้วเริ่ม sync รอบแรกให้เลย — ไม่งั้นผู้ใช้ต้องไปกดเองอีก
+        // หน้าหนึ่ง แล้วกลุ่มที่สร้างไว้ก็ยังยิงโฆษณาไม่ได้จริงโดยที่ไม่มีอะไรบอก
+        // (ล้มเหลวไม่กลืน — บอกเป็น toast แล้วยังพาไปหน้ากลุ่มซึ่งกด sync ซ้ำได้)
+        const synced = saved && syncAfterSave ? await startSyncs(saved.id) : null;
+        if (synced?.error) showToast(synced.error, 'error');
+        else if (synced) showToast(`บันทึกแล้ว · เริ่ม sync ไป Meta ${synced.ok} บัญชี`, 'success');
+        else showToast('บันทึกกลุ่มแล้ว', 'success');
+
         if (saved) router.push(`/marketing/audiences/${saved.id}`);
         else router.push('/marketing/audiences');
       }
@@ -356,6 +427,13 @@ export default function AudienceForm({ mode, initial, onAudienceChange }: Props)
   return (
     <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_340px] gap-4 items-start">
       <div className="space-y-4">
+        {/* บอกว่าทำไมช่องถึงมีค่าอยู่แล้ว — ไม่บอก ผู้ใช้จะไม่รู้ว่าแก้ได้ */}
+        {appliedTemplate && templateNoticeOpen && (
+          <Alert tone="info" onClose={() => setTemplateNoticeOpen(false)}>
+            ใช้แม่แบบ &ldquo;{appliedTemplate.name}&rdquo; — {appliedTemplate.use}
+          </Alert>
+        )}
+
         <Card padding="md">
           <h2 className="heading-4 mb-3">ชื่อกลุ่ม</h2>
           <div className="space-y-3">
@@ -421,6 +499,24 @@ export default function AudienceForm({ mode, initial, onAudienceChange }: Props)
             onLastChatDaysChange={setLastChatDays}
             disabled={saving}
           />
+        )}
+
+        {/* โหมดสร้างเท่านั้น — โหมดแก้ไขมีแถว sync รายบัญชีอยู่ในแผงขวาแล้ว */}
+        {mode === 'create' && readyAdAccounts.length > 0 && (
+          <div className="flex justify-end">
+            <span className="flex items-center">
+              <Checkbox
+                checked={syncAfterSave}
+                onChange={setSyncAfterSave}
+                disabled={saving}
+                label="sync ไป Meta ทันทีหลังบันทึก"
+              />
+              <HelpHint align="right">
+                ผูกกลุ่มนี้กับทุกบัญชีโฆษณาที่พร้อม แล้วเริ่มอัปรายชื่อรอบแรกทันที ·
+                ปิดไว้ = บันทึกอย่างเดียว ค่อยกด sync ในหน้ากลุ่ม
+              </HelpHint>
+            </span>
+          </div>
         )}
 
         <div className="flex justify-end gap-3">
