@@ -391,15 +391,22 @@ h6:where(.heading-1, .heading-2, .heading-3, .heading-4) {
    ต่างกัน 2% เงา shadow-sm จึงแทบมองไม่เห็นขอบการ์ด (เจ้าของท้วงว่า "การ์ดกลืนกับพื้น")
    ⚠️ สีขอบใช้ token `--card-border` ที่ประกาศไว้ตั้งแต่แรกแต่ไม่เคยมีใครต่อเข้ากับ `.card`
    (= `border-gray-200` / dark `slate-700` ซึ่งเป็นสีขอบที่หัวตาราง หัวโมดัล ใช้อยู่แล้ว)
-   ⚠️ `.card` มีสองที่ในไฟล์นี้ (อีกที่อยู่ใน @layer ท้ายไฟล์) — ใส่ขอบไว้ทั้งคู่
-   เพราะกฎไหนชนะขึ้นกับลำดับที่ Tailwind ประกอบ ไม่ใช่สิ่งที่อ่านจากไฟล์แล้วรู้ */
+   ⚠️ เคยมีนิยาม `.card` **สองที่** ในไฟล์นี้ (อีกใบอยู่ใน `@layer components` ท้ายไฟล์)
+   ยุบเหลือใบนี้ใบเดียวแล้ว 10 ก.ย. 2026 — ของเดิมอ่านจากไฟล์แล้วเดาไม่ได้ว่ากฎไหนชนะ
+   ต้อง build ออกมาดูถึงรู้ (ใบใน @layer ไปอยู่บรรทัด 1587 ใบนี้อยู่ 7895 → **ใบนี้ชนะ**
+   เพราะ specificity เท่ากันแล้วตัวหลังชนะ) · ค่าที่เห็นด้านล่างคือผลลัพธ์จริงของทั้งสองใบรวมกัน
+   **ห้ามเพิ่มนิยาม `.card` ที่อื่นอีก** — แก้ที่นี่ที่เดียว */
 .card {
   background-color: #fff;
   border: 1px solid var(--card-border);
   border-radius: 0.5rem;
   box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
 }
-.dark .card { background-color: rgb(30 41 59); }
+.dark .card {
+  background-color: rgb(30 41 59);
+  /* เงาชุดมืดต้องเข้มกว่าชุดสว่าง ไม่งั้นการ์ดจมหายไปกับพื้น slate-950 */
+  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.3), 0 1px 2px -1px rgb(0 0 0 / 0.3);
+}
 .card-flat { box-shadow: none; }
 .card-p-sm { padding: 1rem; }
 .card-p-md { padding: 1.25rem; }
@@ -772,20 +779,11 @@ h6:where(.heading-1, .heading-2, .heading-3, .heading-4) {
   }
 }
 
-/* ⚠️ นิยาม `.card` ใบที่สอง — ใบแรกอยู่หัวข้อ "Global Card System" ด้านบน
-   ทั้งคู่ต้องมีขอบเหมือนกัน (ดูเหตุผลที่ใบแรก) */
-@layer components {
-  .card {
-    background-color: var(--card);
-    border: 1px solid var(--card-border);
-    border-radius: 0.75rem;
-    box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.06), 0 1px 2px -1px rgb(0 0 0 / 0.06);
-    padding: 1.5rem;
-  }
-  .dark .card {
-    box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.3), 0 1px 2px -1px rgb(0 0 0 / 0.3);
-  }
-}
+/* นิยาม `.card` ใบที่สองเคยอยู่ตรงนี้ — ยุบไปรวมกับใบเดียวที่หัวข้อ "Global Card System"
+   ด้านบนแล้ว 10 ก.ย. 2026 (ค่าที่มีผลจริงถูกยกไปครบ: เงาชุดมืด + ขอบ)
+   ⚠️ ใบนี้เคยตั้ง `padding: 1.5rem` ไว้ด้วย ซึ่งทำให้ `<Card padding="none">` **ได้ padding
+   24px ทั้งที่สั่งว่าไม่เอา** (16 จุดในระบบ ส่วนใหญ่เป็นการ์ดที่ครอบรายการ/ตารางแบบชนขอบ
+   จึงใส่ `overflow-hidden` กันมุมโค้ง — ซึ่งไม่มีความหมายเลยถ้ามี padding) เอาออกแล้ว */
 
 /* Table body default font size 14px — individual cells can override with text-xs/text-base etc. */
 .data-tbody td {
