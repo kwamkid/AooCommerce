@@ -199,21 +199,20 @@ export default function BroadcastPreview({
             </>
           )}
 
-          {/* ปุ่มตอบเร็วอยู่ท้ายสุดของห้อง ชิดขวาเหมือนที่ LINE วางให้ลูกค้ากด */}
-          {quickReplies.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 justify-end pt-0.5">
-              {quickReplies.map((q, i) => (
-                <span
-                  key={i}
-                  className="helper-text px-2 py-0.5 rounded-full bg-white border border-gray-300 text-gray-800"
-                >
-                  {q}
-                </span>
-              ))}
-            </div>
-          )}
         </div>
       </div>
+
+      {/* ปุ่มตอบเร็ว — LINE วางไว้ท้ายห้องเต็มความกว้าง (ไม่ได้อยู่ในคอลัมน์ข้างรูปโปรไฟล์) เรียงกึ่งกลาง
+          เป็นเม็ดสีเข้มตัวหนังสือขาว — เทียบกับรูปแคปจริงของเจ้าของ 10 ก.ย. 2026 (เดิมวาดชิดขวาเม็ดขาว) */}
+      {quickReplies.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 justify-center pt-2">
+          {quickReplies.map((q, i) => (
+            <span key={i} className="subtitle-text px-3 py-1 rounded-full bg-gray-900/70 text-white">
+              {q}
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
