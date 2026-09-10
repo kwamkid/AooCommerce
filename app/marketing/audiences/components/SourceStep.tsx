@@ -16,6 +16,7 @@ import Alert from '@/components/ui/Alert';
 import Checkbox from '@/components/ui/Checkbox';
 import ChannelBadge from '@/components/ui/ChannelBadge';
 import AccountPicker from '@/components/ui/AccountPicker';
+import HelpHint from '@/components/ui/HelpHint';
 import { BROADCAST_PLATFORMS } from '@/lib/broadcast/platforms';
 import { Users } from 'lucide-react';
 import type { ChatSourceAccount } from './types';
@@ -62,7 +63,17 @@ export default function SourceStep({
   return (
     <Card padding="md">
       <div className="flex items-baseline justify-between gap-3 mb-3">
-        <h2 className="heading-4">แหล่งที่มา</h2>
+        {/* เพดานความรู้ของระบบ — ไม่บอกไว้ ผู้ใช้จะงงว่าทำไมกลุ่ม 1,400 คนส่งขึ้น Meta ได้ 20 คน
+            เดิมเป็นบรรทัดถาวรใต้การ์ด ("นับได้แต่ sync ไม่ได้") ซึ่งเจ้าของอ่านแล้วไม่เข้าใจ
+            (11 ก.ย. 2026) — ย้ายมาเป็น HelpHint พร้อมเขียนใหม่ไม่ใช้คำว่า sync */}
+        <h2 className="heading-4">
+          แหล่งที่มา
+          <HelpHint>
+            คนจาก LINE นับรวมในกลุ่มได้ (ส่งบรอดแคสต์ LINE ถึง) แต่ส่งขึ้น Meta ไปยิงโฆษณาไม่ได้
+            เพราะ LINE ไม่ให้เบอร์โทรหรืออีเมล ซึ่ง Meta ต้องใช้หาตัวคน · ส่งได้เมื่อห้องแชทนั้น
+            ผูกกับข้อมูลลูกค้าที่มีเบอร์แล้ว เช่นตอนเปิดบิลจากแชท
+          </HelpHint>
+        </h2>
         <span className="section-desc text-right">
           เลือกได้หลายแหล่ง · คนเดียวกันที่อยู่หลายแหล่งนับครั้งเดียว
         </span>
@@ -121,10 +132,6 @@ export default function SourceStep({
         </div>
       )}
 
-      {/* เพดานความรู้ของระบบ — ไม่บอกไว้ ผู้ใช้จะงงว่าทำไมกลุ่ม 1,400 คน sync ขึ้น Meta ได้ 20 คน */}
-      <p className="section-desc mt-3">
-        LINE ไม่ให้เบอร์/อีเมล — คนที่ยังไม่ผูกลูกค้าจะนับได้แต่ sync ไม่ได้
-      </p>
     </Card>
   );
 }

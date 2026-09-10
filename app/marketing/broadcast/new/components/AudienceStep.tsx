@@ -15,6 +15,7 @@ import Badge from '@/components/ui/Badge';
 import FilterChips, { FILTER_CHIP_PRIMARY_ACTIVE } from '@/components/ui/FilterChips';
 import MultiSelectSearch from '@/components/ui/MultiSelectSearch';
 import Tooltip from '@/components/ui/Tooltip';
+import HelpHint from '@/components/ui/HelpHint';
 import EntitySearchInput, { type EntitySearchOption } from '@/components/ui/EntitySearchInput';
 import {
   AUDIENCE_GROUPS,
@@ -256,13 +257,15 @@ export default function AudienceStep({
               {/* ── กรองให้แคบลงอีก — มีเฉพาะกลุ่มที่มีรายชื่อจริงให้กรอง ── */}
               {hasAudienceRefine(audience) && (
                 <div className="pt-4 border-t border-gray-100 dark:border-slate-700 space-y-3">
-                  <div>
-                    <p className="body-text font-medium">กรองให้แคบลงอีก</p>
-                    <p className="section-desc">
-                      ตัดคนที่ทักมาคำเดียวแล้วหาย และคนที่เงียบไปนานออก · นับเฉพาะข้อความที่ลูกค้าพิมพ์มา
-                      ไม่นับที่แอดมินตอบหรือบรอดแคสต์ที่เราส่งไป
-                    </p>
-                  </div>
+                  {/* คำอธิบายอยู่ใน HelpHint — เดิมเป็นย่อหน้าสองบรรทัดใต้หัวข้อ
+                      เจ้าของบอกว่าข้อความเยอะจนงง (11 ก.ย. 2026) */}
+                  <p className="field-label">
+                    กรองให้แคบลงอีก
+                    <HelpHint>
+                      ตัดคนที่ทักมาคำเดียวแล้วหาย หรือเงียบไปนานออกจากกลุ่ม · นับเฉพาะข้อความที่ลูกค้าพิมพ์มาเอง
+                      ไม่นับข้อความที่แอดมินตอบหรือบรอดแคสต์ที่เราส่ง
+                    </HelpHint>
+                  </p>
 
                   {/* สองเกณฑ์นี้เลือกจากชิปอย่างเดียว ไม่มี "ระบุเอง" · ค่า 0 เรียกว่า "ตลอด"
                       (เจ้าของกำหนด 11 ก.ย. 2026) — ใช้ร่วมทั้งหน้าบรอดแคสต์และกลุ่มเป้าหมาย */}
