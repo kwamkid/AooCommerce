@@ -40,6 +40,7 @@
 - เหตุผล: user ต้องการ review/ทดสอบ local ก่อนขึ้น production
 - เวลาแจ้งงานเสร็จ บอกแค่ "commit แล้ว" หรือระบุ hash — อย่าเสนอ push เอง
 - **commit ต้องต่อท้าย typecheck ด้วย `&&` เท่านั้น** — `node node_modules/typescript/bin/tsc --noEmit && git commit …` · chain ด้วย `;` เคยปล่อยโค้ด type พังขึ้น main (`e3eb052`, 7 ก.ย. 2026)
+- **บรรทัดแรกของ commit ≤ 72 ตัวอักษร** (ไทยได้) — รายละเอียดใส่ย่อหน้าถัดไป · บรรทัดแรกของ 5 commit ล่าสุดถูกโหลดเข้า**ทุก session** (เคยยาว 200–1,700 ตัวอักษร)
 
 ### กับดักของเครื่องนี้ (เจอซ้ำจนเสียเวลา — รายละเอียดใน `memo/bugs.md`)
 - `npx tsc` / `npx eslint` พัง → `node node_modules/typescript/bin/tsc --noEmit` · `node node_modules/eslint/bin/eslint.js`
