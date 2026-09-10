@@ -5,6 +5,7 @@
 // ห้าม hardcode ซ้ำที่นี่
 'use client';
 
+import { useState } from 'react';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
@@ -173,6 +174,16 @@ export default function ContentStep({
 }: Props) {
   const textMax = kind === 'promo' ? CARD_TEXT_MAX : compose.bodyMax;
 
+  /** ข้อความปุ่มตอบเร็วที่กำลังพิมพ์ — เข้า `quickReplies` เมื่อกดเพิ่ม/Enter เท่านั้น */
+  const [quickReplyDraft, setQuickReplyDraft] = useState('');
+  const addQuickReply = () => {
+    const label = quickReplyDraft.trim();
+    if (!label || quickReplies.length >= compose.quickReplyMax) return;
+    // ซ้ำกับที่มีอยู่ = ไม่เพิ่ม (LINE แสดงปุ่มซ้ำสองอันซึ่งไม่มีประโยชน์) แต่ล้างช่องให้เหมือนสำเร็จ
+    if (!quickReplies.includes(label)) onQuickRepliesChange([...quickReplies, label]);
+    setQuickReplyDraft('');
+  };
+
   const textField = (
     <FormTextarea
       label={kind === 'products' ? 'ข้อความเกริ่น (ไม่บังคับ)' : kind === 'promo' ? 'ข้อความบนการ์ด' : 'ข้อความ'}
@@ -280,25 +291,35 @@ export default function ContentStep({
             </p>
             {linkField}
           </>
+        ) : kind === 'announce' && compose.image ? (
+          // ประกาศ = ข้อความซ้าย รูปขวาในแถวเดียวกัน — บรอดแคสต์ถูกอ่านบนมือถือ ช่องข้อความจึงไม่ต้อง
+          // กว้างเต็มการ์ด และรูปเป็นกล่องเล็กขนาดใกล้ฟองรูปในตัวอย่างแชท ไม่ยืดเต็มความกว้าง (เจ้าของขอ 10 ก.ย.)
+          <div className="grid md:grid-cols-[minmax(0,1fr)_280px] gap-4 items-start">
+            {textField}
+            <div className="space-y-3">
+              {imageField}
+              {/* มีรูปแล้วค่อยถามว่าจะแสดงแบบไหน — ยังไม่มีรูปก็ไม่มีอะไรให้ตัดสินใจ · เรียงลงมาใต้รูปให้พอดีคอลัมน์แคบ */}
+              {hasImage && (
+                <>
+                  <OptionCards<'bubble' | 'rich'>
+                    label="แสดงรูปแบบไหน"
+                    value={imageStyle}
+                    onChange={onImageStyleChange}
+                    disabled={disabled}
+                    layout="horizontal"
+                    columns={1}
+                    options={imageStyleCards(imagePreviewUrl || existingImageUrl)}
+                  />
+                  {imageStyle === 'rich' && linkField}
+                </>
+              )}
+            </div>
+          </div>
         ) : (
+          // ช่องทางที่แนบรูปไม่ได้ (TikTok) และการ์ดสินค้า (ไม่มีช่องรูป) — เหลือแค่ข้อความ
           <>
             {textField}
             {imageField}
-            {/* มีรูปแล้วค่อยถามว่าจะแสดงแบบไหน — ยังไม่มีรูปก็ไม่มีอะไรให้ตัดสินใจ */}
-            {kind === 'announce' && compose.image && hasImage && (
-              <>
-                <OptionCards<'bubble' | 'rich'>
-                  label="แสดงรูปแบบไหน"
-                  value={imageStyle}
-                  onChange={onImageStyleChange}
-                  disabled={disabled}
-                  layout="horizontal"
-                  columns={2}
-                  options={imageStyleCards(imagePreviewUrl || existingImageUrl)}
-                />
-                {imageStyle === 'rich' && linkField}
-              </>
-            )}
           </>
         )}
 
@@ -437,47 +458,55 @@ export default function ContentStep({
           </div>
         )}
 
-        {/* ปุ่มตอบเร็ว */}
+        {/* ปุ่มตอบเร็ว — พิมพ์ในช่องเดียวแล้วกดเพิ่ม/Enter · ที่เพิ่มแล้วขึ้นเป็นเม็ดยาเรียงแถวเหมือนที่
+            ลูกค้าเห็นท้ายห้องแชท (ของเดิมเป็นช่องกรอกเต็มแถวใบละอัน ดูไม่ออกว่าของจริงเป็นปุ่มเล็ก ๆ — เจ้าของขอ 10 ก.ย.) */}
         {compose.quickReplyMax > 0 && (
           <div>
             <p className="field-label mb-1">ปุ่มตอบเร็ว (ไม่บังคับ)</p>
             <p className="subtitle-text mb-2">
               ลูกค้ากดแล้วข้อความเข้าห้องแชททันที — ได้บทสนทนาให้แอดมินปิดการขายต่อ
             </p>
+            {quickReplies.length < compose.quickReplyMax ? (
+              <div className="flex gap-2 items-start max-w-md">
+                <div className="flex-1 min-w-0">
+                  <FormInput
+                    value={quickReplyDraft}
+                    maxLength={BUTTON_LABEL_MAX}
+                    disabled={disabled}
+                    placeholder="เช่น สนใจ / ขอรายละเอียด"
+                    onChange={e => setQuickReplyDraft(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') { e.preventDefault(); addQuickReply(); }
+                    }}
+                  />
+                </div>
+                <Button
+                  variant="secondary"
+                  icon={<Plus className="w-4 h-4" />}
+                  disabled={disabled || !quickReplyDraft.trim()}
+                  onClick={addQuickReply}
+                >
+                  เพิ่ม
+                </Button>
+              </div>
+            ) : (
+              <p className="subtitle-text">ครบ {compose.quickReplyMax} ปุ่มแล้ว — เอาออกก่อนถ้าจะเปลี่ยน</p>
+            )}
             {quickReplies.length > 0 && (
-              <div className="space-y-2 mb-2">
+              <div className="flex flex-wrap gap-2 mt-3">
                 {quickReplies.map((q, i) => (
-                  <div key={i} className="flex gap-2 items-start">
-                    <div className="flex-1 min-w-0">
-                      <FormInput
-                        value={q}
-                        maxLength={BUTTON_LABEL_MAX}
-                        disabled={disabled}
-                        placeholder="เช่น สนใจ / ขอรายละเอียด"
-                        onChange={e => onQuickRepliesChange(quickReplies.map((x, j) => j === i ? e.target.value : x))}
-                      />
-                    </div>
-                    <Button
-                      variant="ghost"
-                      icon={<Trash2 className="w-4 h-4" />}
-                      aria-label="ลบปุ่มตอบเร็ว"
-                      disabled={disabled}
-                      onClick={() => onQuickRepliesChange(quickReplies.filter((_, j) => j !== i))}
-                    />
-                  </div>
+                  <Badge
+                    key={`${q}-${i}`}
+                    tone="gray"
+                    shape="pill"
+                    size="md"
+                    onRemove={() => onQuickRepliesChange(quickReplies.filter((_, j) => j !== i))}
+                    removeLabel={`เอาปุ่ม ${q} ออก`}
+                  >
+                    {q}
+                  </Badge>
                 ))}
               </div>
-            )}
-            {quickReplies.length < compose.quickReplyMax && (
-              <Button
-                variant="secondary"
-                size="sm"
-                icon={<Plus className="w-4 h-4" />}
-                disabled={disabled}
-                onClick={() => onQuickRepliesChange([...quickReplies, ''])}
-              >
-                เพิ่มปุ่มตอบเร็ว
-              </Button>
             )}
           </div>
         )}
