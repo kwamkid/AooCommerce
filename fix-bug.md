@@ -16,6 +16,14 @@
 
 ---
 
+## 2026-09-10 — ผลค้นหาสินค้าจมใต้กรอบการ์ด / ถูกตัดที่ขอบกล่อง (ProductSearchInput)
+
+**ที่เกิด**: [components/ui/ProductSearchInput.tsx](components/ui/ProductSearchInput.tsx) — เห็นในต้นแบบตัวแก้ไขบรอดแคสต์ `/dev/design/broadcast-editor` (ช่อง "ไปที่สินค้า" ในบล็อก) · เจ้าของบอกว่า "เป็นแบบนี้บ่อย ๆ"
+**อาการ**: พิมพ์ค้นสินค้าแล้วรายการผลค้นหาถูกตัดที่ขอบล่างของกล่อง บล็อกถัดไปโผล่ทับ เลือกสินค้าตัวล่าง ๆ ไม่ได้
+**Root cause**: กล่องผลลัพธ์เป็น `absolute z-50` ใต้ช่องกรอก จึงอยู่ใต้กฎของกล่องที่ครอบทุกชั้น — `.inner-panel` ตั้ง `overflow: hidden` (ใส่ไว้แค่ให้หัวแถบมีมุมมนตามกรอบ) ตัดทุกอย่างที่ล้นกรอบทิ้ง · ที่อื่นก็เจอแบบเดียวกันเมื่อช่องค้นหาอยู่ในการ์ด/โมดัล/กล่องเลื่อนที่มี overflow หรือ transform
+**วิธีแก้**: (1) ผลค้นหาวางแบบ **portal ที่ `document.body` เป็น `fixed z-[9999]`** (เท่า FormSelect/ActionMenu) พิกัดจาก `useDropUp` ชุดเดิม (`rect` + `height`) — [ProductSearchInput.tsx](components/ui/ProductSearchInput.tsx) (2) `useDropUp` รับ `recalcOnScroll` วัดตำแหน่งใหม่เฟรมละครั้งเมื่อหน้าหรือกล่องที่ครอบเลื่อน (capture listener) ไม่งั้นกล่อง fixed ลอยค้างที่เดิม — [lib/useDropUp.ts](lib/useDropUp.ts) (3) `.inner-panel` เลิก `overflow:hidden` แล้วใส่ radius ให้ `.inner-panel-head` เอง — [globals.css](app/globals.css)
+**ป้องกัน regression**: dropdown/popover ใหม่ทุกตัว**วางแบบ portal เสมอ** (ไม่มีทางรู้ว่าวันหน้าจะถูกวางในกล่องแบบไหน) · กล่องตกแต่งห้ามใช้ `overflow:hidden` เพื่อทำมุมมนให้ลูก — ใส่ radius ที่ลูกเองแทน
+
 ## 2026-09-10 — กดรับออเดอร์ Shopee ส่งรถไปรับที่ "ที่อยู่แรกในรายการ" เสมอ — ไม่มีที่ให้เลือกที่อยู่รับพัสดุ (เจอกับออเดอร์ส่งด่วน)
 
 **ที่เกิด**: [app/api/shopee/orders/bulk-ship/route.ts](app/api/shopee/orders/bulk-ship/route.ts) (หน้ารายการ) · `app/api/shopee/orders/ship/route.ts` + `app/orders/components/ShopeeShipModal.tsx` (หน้า detail — ลบทิ้งแล้ว)

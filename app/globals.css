@@ -436,12 +436,13 @@ h6:where(.heading-1, .heading-2, .heading-3, .heading-4) {
 /* ── Inner panel — กล่องที่ซ้อนอยู่บนการ์ดขาว ──
    ของข้างในเป็นกล่องขาวอยู่แล้ว (ช่องกรอก/กล่องพิมพ์) พื้นของกล่องนอกจึงต้องจมลงหนึ่งขั้น
    ไม่งั้นขาวบนขาว แยกไม่ออกว่าก้อนไหนเป็นก้อนไหน (เจ้าของท้วงจากต้นแบบบล็อกบรอดแคสต์ 10 ก.ย. 2026)
-   ใช้กับรายการก้อนย่อยที่แต่ละก้อนมีหัวแถบของตัวเอง — บล็อกของบรอดแคสต์ · แถวที่กางแก้ได้ */
+   ใช้กับรายการก้อนย่อยที่แต่ละก้อนมีหัวแถบของตัวเอง — บล็อกของบรอดแคสต์ · แถวที่กางแก้ได้
+   ⚠️ **ห้ามใส่ overflow:hidden** — เคยใส่ไว้ให้หัวแถบมีมุมมนตามกรอบ แล้วผลค้นหา/dropdown ของช่องกรอก
+   ในบล็อกถูกตัดทิ้งที่ขอบล่างของกล่อง (เจ้าของท้วง 10 ก.ย. 2026) → มุมของหัวแถบใส่ radius เองแทน */
 .inner-panel {
   border: 1px solid rgb(229 231 235);
   border-radius: 0.5rem;
   background-color: rgb(249 250 251);
-  overflow: hidden;
 }
 .dark .inner-panel { border-color: rgb(71 85 105); background-color: rgb(15 23 42 / 0.4); }
 .inner-panel-head {
@@ -451,9 +452,84 @@ h6:where(.heading-1, .heading-2, .heading-3, .heading-4) {
   padding: 0.5rem 0.75rem;
   background-color: rgb(243 244 246);
   border-bottom: 1px solid rgb(229 231 235);
+  /* มุมบนตามกรอบนอก (หักขอบ 1px) — แทน overflow:hidden ของ .inner-panel */
+  border-top-left-radius: calc(0.5rem - 1px);
+  border-top-right-radius: calc(0.5rem - 1px);
 }
 .dark .inner-panel-head { background-color: rgb(30 41 59); border-bottom-color: rgb(71 85 105); }
 .inner-panel-body { padding: 0.75rem; }
+
+/* ── Phone mock — กรอบมือถือของ "ตัวอย่างในแชทของลูกค้า" (components/broadcast/LinePhonePreview.tsx) ──
+   จอสูงคงที่ ยาวเกินก็เลื่อนดูในจอพร้อมแถบเลื่อนบาง ๆ เหมือนมือถือจริง (เจ้าของขอ 10 ก.ย. 2026)
+   ของในจอตรึงสีเดียวทั้งสองธีม — สิ่งที่ลูกค้าเห็นไม่ขึ้นกับธีมของแอดมิน จึงไม่มี .dark ในหมวดนี้ */
+.phone-mock {
+  width: 100%;
+  max-width: 20rem;
+  margin-inline: auto;
+  padding: 0.5rem;
+  border-radius: 2.5rem;
+  background-color: rgb(17 24 39);
+  box-shadow: 0 12px 28px -8px rgb(0 0 0 / 0.35), inset 0 0 0 1px rgb(255 255 255 / 0.08);
+}
+.phone-mock-screen {
+  display: flex;
+  flex-direction: column;
+  height: 38rem;
+  border-radius: 2rem;
+  overflow: hidden;
+  background-color: #8CABD9; /* = linechat — พื้นห้องแชทค่าเริ่มต้นของ LINE ธีมสว่าง */
+  color: rgb(17 24 39);
+}
+/* แผงสรุปของหน้าสร้างมีการ์ดอื่นอยู่เหนือตัวอย่าง — จอเตี้ยลงให้ทั้งแผงยังอยู่ในจอเดียว */
+.phone-mock-screen-md { height: 32rem; }
+.phone-mock-status {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  padding: 0.5rem 1.25rem 0.25rem;
+  background-color: #fff;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+.phone-mock-status > :last-child { justify-self: end; }
+.phone-mock-island { width: 4.5rem; height: 1.25rem; border-radius: 9999px; background-color: rgb(17 24 39); }
+.phone-mock-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0.75rem 0.5rem;
+  background-color: #fff;
+  border-bottom: 1px solid rgb(229 231 235);
+}
+.phone-mock-body {
+  flex: 1 1 0%;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgb(0 0 0 / 0.3) transparent;
+}
+.phone-mock-body::-webkit-scrollbar { width: 4px; }
+.phone-mock-body::-webkit-scrollbar-thumb { background-color: rgb(0 0 0 / 0.3); border-radius: 9999px; }
+/* แถวการ์ด/รูปที่เลื่อนแนวนอน — มือถือไม่โชว์แถบเลื่อนแนวนอน ใบถัดไปที่โผล่คือสัญญาณว่าเลื่อนได้ */
+.phone-mock-hscroll { overflow-x: auto; scrollbar-width: none; }
+.phone-mock-hscroll::-webkit-scrollbar { display: none; }
+/* ปุ่มตอบเร็ว — ลอยเหนือแถบพิมพ์ ไม่เลื่อนไปกับข้อความ */
+.phone-mock-replies {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.375rem;
+  padding: 0.25rem 0.5rem 0.5rem;
+}
+.phone-mock-input {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.375rem 0.625rem 0.875rem;
+  background-color: #fff;
+  color: rgb(156 163 175);
+}
 
 /* ── Global Badge System — outside @layer ── */
 .badge {

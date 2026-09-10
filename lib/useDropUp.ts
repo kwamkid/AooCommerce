@@ -55,6 +55,12 @@ export interface UseDropUpOptions extends DropUpCriteria {
   /** คำนวณใหม่ตอน window resize (default: true) */
   recalcOnResize?: boolean;
   /**
+   * คำนวณใหม่ตอน**มีอะไรเลื่อน** — ทั้งหน้าและกล่องที่ครอบ (default: false)
+   * ใช้กับ dropdown ที่วางแบบ portal (`position: fixed`) ซึ่งไม่ได้เลื่อนตามช่องกรอกเอง
+   * ไม่เปิด = เลื่อนหน้าแล้ว dropdown ลอยค้างที่เดิม แยกออกจากช่องกรอก
+   */
+  recalcOnScroll?: boolean;
+  /**
    * true = วัดด้วย `useLayoutEffect` (ได้ตำแหน่งก่อน paint → ไม่เห็น dropdown
    * แวบอยู่ข้างล่างหนึ่งเฟรมก่อนพลิกขึ้น) · default false = `useEffect` แบบเดิม
    * **ต้องเป็นค่าคงที่ต่อ call site** (เลือก hook ตามค่านี้ตอน render)
@@ -94,6 +100,7 @@ export function useDropUp(
     margin,
     requireMoreSpaceAbove,
     recalcOnResize = true,
+    recalcOnScroll = false,
     layout = false,
     deps = [],
   }: UseDropUpOptions,
@@ -126,9 +133,22 @@ export function useDropUp(
       return;
     }
     measure();
-    if (!recalcOnResize) return;
-    window.addEventListener('resize', measure);
-    return () => window.removeEventListener('resize', measure);
+    if (recalcOnResize) window.addEventListener('resize', measure);
+    // capture = ได้ยินการเลื่อนของทุกกล่องในหน้า (event scroll ไม่ bubble) · วัดเฟรมละครั้งพอ
+    let frame = 0;
+    const onScroll = () => {
+      if (frame) return;
+      frame = requestAnimationFrame(() => {
+        frame = 0;
+        measure();
+      });
+    };
+    if (recalcOnScroll) window.addEventListener('scroll', onScroll, true);
+    return () => {
+      window.removeEventListener('resize', measure);
+      window.removeEventListener('scroll', onScroll, true);
+      if (frame) cancelAnimationFrame(frame);
+    };
   };
 
   // `layout` คงที่ต่อ call site (และ typeof window คงที่ต่อ environment) →
@@ -137,7 +157,7 @@ export function useDropUp(
     layout && typeof window !== 'undefined' ? useLayoutEffect : useEffect;
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffectImpl(run, [open, measure, recalcOnResize, estimatedHeight, ...deps]);
+  useEffectImpl(run, [open, measure, recalcOnResize, recalcOnScroll, estimatedHeight, ...deps]);
 
   return state;
 }

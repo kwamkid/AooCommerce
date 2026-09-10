@@ -8,6 +8,9 @@
 // มอคจึงวาดทรงเดียวกับ BroadcastPreview (พื้นฟ้า linechat · จุดโปรไฟล์ร้าน · กล่อง/การ์ดขาว ·
 // ปุ่มเขียว LINE · ป้ายลดสีแบรนด์) ด้วยเนื้อหา placeholder คงที่ — ไม่ดึงรูปของร่างที่ผู้ใช้กำลังทำ
 //
+// ⚠️ การ์ด · รูปเต็มจอ · แถวรูป **ตกบรรทัดลงมาใต้รูปโปรไฟล์** ไม่ได้อยู่ข้างรูปโปรไฟล์ และรูปเต็มจอ
+// ไม่มีข้อความอยู่บนตัวมันเอง — เทียบกับรูปแคปจากมือถือจริงของเจ้าของ (10 ก.ย. 2026) กติกาเดียวกับ
+// LinePhonePreview ที่วาดตัวอย่างเต็ม
 // ⚠️ ข้างในห้องแชทไม่มี `dark:` โดยตั้งใจ — พื้นห้องแชทตรึงสีเดียวทั้งสองธีมเหมือน BroadcastPreview
 // กล่องขาวบนพื้นฟ้าคือสิ่งที่ลูกค้าเห็นจริง ไม่ว่าแอดมินจะเปิดธีมไหน
 // ⚠️ ปุ่มเป็นเขียว LINE (`bg-line`) ไม่ใช่ส้มแบรนด์ — ของจริงที่ลูกค้าเห็นเป็นเขียว
@@ -88,20 +91,24 @@ function MockLogoAvatar() {
 
 /**
  * เปลือกห้องแชท: พื้นฟ้า + โปรไฟล์ร้าน แล้วตามด้วยของที่ส่ง (ไม่มีเส้นชื่อร้าน — เจ้าของขอเอาออก)
- * คอลัมน์เนื้อหาเป็น flex-col เพื่อให้แบนเนอร์โปรโมชันยืดเต็มความสูงที่เหลือได้ (`flex-1`)
- * `after` = ของที่วาด**เต็มความกว้างชนขอบ**ใต้แถว avatar (รูปเต็มจอของโปสเตอร์ — LINE ไม่เว้นขอบซ้าย
- * ข้างรูปโปรไฟล์ให้รูปแบบนี้ เจ้าของท้วงจากรูปแคปจริง 10 ก.ย. 2026)
+ *  children = ของที่อยู่**ข้างรูปโปรไฟล์** (ข้อความ · รูปธรรมดา) — คอลัมน์เป็น flex-col ให้ยืดได้
+ *  after    = ของที่**ตกบรรทัดลงมา**ใต้รูปโปรไฟล์ กว้างเกือบชนขอบ (การ์ด · รูปเต็มจอ · แถวรูป)
+ * ไม่ส่ง children = รูปโปรไฟล์อยู่บรรทัดของมันเองเหนือของที่ส่ง — ตรงกับรูปแคปจริง
  */
 export function MockChat({ children, after }: { children?: ReactNode; after?: ReactNode }) {
   return (
     <div className="w-full h-full bg-linechat p-2 flex flex-col gap-1">
-      <div className={`flex items-stretch gap-1.5 ${after ? '' : 'flex-1 min-h-0'}`}>
-        <MockLogoAvatar />
-        <div className="flex-1 min-w-0 flex flex-col gap-1">
-          {children}
+      {children ? (
+        <div className={`flex items-stretch gap-1.5 ${after ? '' : 'flex-1 min-h-0'}`}>
+          <MockLogoAvatar />
+          <div className="flex-1 min-w-0 flex flex-col gap-1">
+            {children}
+          </div>
         </div>
-      </div>
-      {/* รูปเต็มจอ — เหลือขอบซ้ายขวานิดเดียวเหมือนของจริง */}
+      ) : (
+        <MockLogoAvatar />
+      )}
+      {/* การ์ด/รูปเต็มจอ — เหลือขอบซ้ายขวานิดเดียวเหมือนของจริง */}
       {after && <div className="flex-1 min-h-0 -mx-1 flex">{after}</div>}
       {/* แถบพิมพ์ข้อความของลูกค้าท้ายห้อง — บอกว่านี่คือหน้าจอแชทจริง (เจ้าของขอ 10 ก.ย.) */}
       <div className="-mx-2 -mb-2 mt-auto h-4 bg-white flex items-center gap-1 px-1.5">
@@ -112,17 +119,16 @@ export function MockChat({ children, after }: { children?: ReactNode; after?: Re
   );
 }
 
-/** การ์ดสินค้าหนึ่งใบ (แบบมีชื่อ+ปุ่ม) — ป้ายลดมุมซ้ายบนเป็นสีแบรนด์เหมือนของจริง */
+/** การ์ดสินค้าหนึ่งใบ (รูป + ชื่อ + ปุ่ม) — ย่อให้พอดีแถวที่ตกบรรทัด · ป้ายลดมุมซ้ายบนเป็นสีแบรนด์ */
 function MockProductCard() {
   return (
     <div className="w-7/12 flex-shrink-0 rounded-lg bg-white overflow-hidden">
       <div className="relative">
-        <MockPhoto className="h-12" />
+        <MockPhoto className="h-8" />
         <div className="absolute top-1 left-1 h-2 w-6 rounded-full bg-primary" />
       </div>
       <div className="p-1.5 space-y-1">
         <MockLine />
-        <MockLine className="w-1/2" />
         <MockButton />
       </div>
     </div>
@@ -132,10 +138,10 @@ function MockProductCard() {
 // ── มอคอัปต่อชนิด ─────────────────────────────────────────────────────────────
 
 /**
- * ประกาศ = ข้อความ + รูปแยกใบ · โปสเตอร์ = ข้อความสั้น + รูปใบเดียวเต็มความกว้าง ·
- * รูปหลายใบ = รูปล้วนเรียงแนวนอน ใบถัดไปโผล่ครึ่งใบ · โปรโมชัน (ถอดจากตัวเลือกแล้ว) = การ์ดแบนเนอร์ใหญ่
- * หัวข้อ ข้อความ ปุ่ม · การ์ดสินค้า = การ์ดเรียงแนวนอน ใบถัดไปโผล่ครึ่งใบ
- * (บอกว่าเลื่อนดูต่อได้) — ทั้งหมดอยู่ในงบความสูง 112px ของกรอบพรีวิว `lg`
+ * ประกาศ = ข้อความ + รูปแยกใบ ข้างรูปโปรไฟล์ · โปสเตอร์ = รูปใบเดียวเต็มความกว้าง ไม่มีข้อความบนรูป ·
+ * รูปหลายใบ = รูปล้วนเรียงแนวนอน ใบถัดไปโผล่ครึ่งใบ · โปรโมชัน (ถอดจากตัวเลือกแล้ว) = การ์ดแบนเนอร์ใหญ่ ·
+ * การ์ดสินค้า = การ์ดเรียงแนวนอน ใบถัดไปโผล่ครึ่งใบ (บอกว่าเลื่อนดูต่อได้)
+ * — ทุกชนิดยกเว้นประกาศตกบรรทัดใต้รูปโปรไฟล์ · ทั้งหมดอยู่ในกรอบพรีวิว `lg` สูง 128px
  */
 export const KIND_MOCKS: Record<BroadcastContentKind, ReactNode> = {
   announce: (
@@ -147,40 +153,39 @@ export const KIND_MOCKS: Record<BroadcastContentKind, ReactNode> = {
       <MockPhoto className="w-7/12 h-12 rounded-xl" />
     </MockChat>
   ),
-  poster: (
-    <MockChat after={<MockPhoto className="w-full rounded" />}>
-      <div className="rounded-xl rounded-tl-sm bg-white p-1.5">
-        <MockLine className="w-2/3" />
-      </div>
-    </MockChat>
-  ),
+  poster: <MockChat after={<MockPhoto className="w-full rounded" />} />,
   gallery: (
-    <MockChat>
-      <div className="flex gap-1 overflow-hidden">
-        <MockPhoto className="w-7/12 h-16 flex-shrink-0 rounded-lg" />
-        <MockPhoto className="w-7/12 h-16 flex-shrink-0 rounded-lg" />
-      </div>
-    </MockChat>
+    <MockChat
+      after={
+        <div className="flex gap-1 w-full overflow-hidden">
+          <MockPhoto className="w-7/12 flex-shrink-0 rounded-lg" />
+          <MockPhoto className="w-7/12 flex-shrink-0 rounded-lg" />
+        </div>
+      }
+    />
   ),
   promo: (
-    <MockChat>
-      {/* แบนเนอร์ยืดเต็มที่เหลือ (flex-1) — เจ้าของขอให้สูงใกล้ของจริง ไม่ใช่แถบบาง ๆ บนหัวการ์ด */}
-      <div className="flex-1 flex flex-col rounded-xl bg-white overflow-hidden">
-        <MockPhoto className="flex-1 min-h-0" />
-        <div className="p-1.5 space-y-1">
-          <MockLine tone="strong" className="w-3/4" />
-          <MockLine />
-          <MockButton />
+    <MockChat
+      after={
+        // แบนเนอร์ยืดเต็มที่เหลือ (flex-1) — เจ้าของขอให้สูงใกล้ของจริง ไม่ใช่แถบบาง ๆ บนหัวการ์ด
+        <div className="flex-1 flex flex-col rounded-xl bg-white overflow-hidden">
+          <MockPhoto className="flex-1 min-h-0" />
+          <div className="p-1.5 space-y-1">
+            <MockLine tone="strong" className="w-3/4" />
+            <MockButton />
+          </div>
         </div>
-      </div>
-    </MockChat>
+      }
+    />
   ),
   products: (
-    <MockChat>
-      <div className="flex gap-1 overflow-hidden">
-        <MockProductCard />
-        <MockProductCard />
-      </div>
-    </MockChat>
+    <MockChat
+      after={
+        <div className="flex gap-1 w-full overflow-hidden items-start">
+          <MockProductCard />
+          <MockProductCard />
+        </div>
+      }
+    />
   ),
 };

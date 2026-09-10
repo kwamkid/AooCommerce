@@ -34,7 +34,8 @@ import ChipsInput from '@/components/ui/ChipsInput';
 import MessageComposer from '@/components/ui/MessageComposer';
 import ImageDropzone from '@/components/ui/ImageDropzone';
 import ProductSearchInput, { type ProductSearchItem } from '@/components/ui/ProductSearchInput';
-import UserAvatar from '@/components/ui/UserAvatar';
+import AccountPicker, { type PickerAccount } from '@/components/ui/AccountPicker';
+import LinePhonePreview, { type PhoneChatMessage } from '@/components/broadcast/LinePhonePreview';
 import ActionPicker from '@/app/marketing/broadcast/new/components/ActionPicker';
 import { KIND_MOCKS, MockChat, MockLine, MockPhoto } from '@/app/marketing/broadcast/new/components/KindMockups';
 import { apiFetch } from '@/lib/api-client';
@@ -44,7 +45,7 @@ import {
   ACTION_MESSAGE_MAX, BUTTON_LABEL_MAX, CARD_TEXT_MAX, CARD_TITLE_MAX, EMPTY_ACTION,
   type BroadcastAction, type BroadcastProductCard,
 } from '@/lib/broadcast/content';
-import { GripVertical, Image as ImageIcon, Mic, Plus, Trash2 } from 'lucide-react';
+import { GripVertical, Image as ImageIcon, Plus, Trash2 } from 'lucide-react';
 
 // ── โมเดลของต้นแบบ (ทรงเดียวกับที่จะเก็บลง content.blocks ในอนาคต) ────────────────
 
@@ -200,70 +201,70 @@ function PreviewCard({ c, wide }: { c: CardDraft; wide: boolean }) {
   );
 }
 
-function BlocksPreview({ blocks, quickReplies }: { blocks: Block[]; quickReplies: string[] }) {
-  const senderName = 'aDay Fresh';
-  return (
-    <div className="rounded-lg overflow-hidden bg-linechat p-3">
-      {blocks.map((b, idx) => {
-        // รูปเต็มจอออกนอกคอลัมน์ข้าง avatar — LINE วาดเต็มความกว้างเหลือขอบนิดเดียว
-        if (b.type === 'rich') {
-          return (
-            <div key={b.id} className={`-mx-1.5 ${idx === 0 ? '' : 'mt-2.5'}`}>
-              {b.previewUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={b.previewUrl} alt="" className="block w-full h-auto rounded-lg" />
-              ) : (
-                <div className="w-full h-40 rounded-lg bg-gray-200 flex items-center justify-center text-gray-400">
-                  <ImageIcon className="w-8 h-8" />
-                </div>
-              )}
-            </div>
-          );
-        }
-        return (
-          <div key={b.id} className={`flex gap-2 items-start ${idx === 0 ? '' : 'mt-2.5'}`}>
-            {idx === 0 ? <UserAvatar name={senderName} size="sm" /> : <span className="w-8 flex-shrink-0" />}
-            <div className="flex-1 min-w-0 space-y-1.5">
-              {idx === 0 && <p className="helper-text text-white/90 truncate">{senderName}</p>}
-              {b.type === 'text' && (
-                <div className={BUBBLE}>
-                  <p className="subtitle-text whitespace-pre-wrap break-words">{b.text.trim() || 'ข้อความ'}</p>
-                </div>
-              )}
-              {b.type === 'image' && (
-                b.previewUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={b.previewUrl} alt="" className="w-8/12 h-auto rounded-2xl shadow-sm" />
-                ) : (
-                  <div className="w-8/12 h-28 rounded-2xl bg-gray-200 flex items-center justify-center text-gray-400">
-                    <ImageIcon className="w-6 h-6" />
-                  </div>
-                )
-              )}
-              {b.type === 'cards' && (
-                <div className="flex gap-2 overflow-x-auto pb-1">
-                  {b.cards.map(c => <PreviewCard key={c.id} c={c} wide={b.cards.length === 1} />)}
-                </div>
-              )}
-            </div>
+/**
+ * 1 บล็อก = 1 message object ที่ LINE ส่ง → 1 ก้อนในจอมือถือ
+ * การ์ดกับรูปเต็มจอเป็นแบบกว้าง (ตกบรรทัดใต้รูปโปรไฟล์) · หัวห้องแชทใช้บัญชีแรกที่เลือก
+ */
+function BlocksPreview({ blocks, quickReplies, account }: {
+  blocks: Block[]; quickReplies: string[]; account: PickerAccount | null;
+}) {
+  const messages: PhoneChatMessage[] = blocks.map(b => {
+    if (b.type === 'text') {
+      return {
+        key: b.id,
+        node: (
+          <div className={BUBBLE}>
+            <p className="subtitle-text whitespace-pre-wrap break-words">{b.text.trim() || 'ข้อความ'}</p>
           </div>
-        );
-      })}
-
-      {quickReplies.length > 0 && (
-        <div className="flex flex-wrap gap-1.5 justify-center pt-2">
-          {quickReplies.map((q, i) => (
-            <span key={i} className="subtitle-text px-3 py-1 rounded-full bg-gray-900/70 text-white">{q}</span>
-          ))}
+        ),
+      };
+    }
+    if (b.type === 'image') {
+      return {
+        key: b.id,
+        node: b.previewUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={b.previewUrl} alt="" className="w-8/12 h-auto rounded-2xl shadow-sm" />
+        ) : (
+          <div className="w-8/12 h-28 rounded-2xl bg-gray-200 flex items-center justify-center text-gray-400">
+            <ImageIcon className="w-6 h-6" />
+          </div>
+        ),
+      };
+    }
+    if (b.type === 'rich') {
+      // รูปเต็มจอไม่มีข้อความบนตัวมันเอง — อยากมีข้อความให้เพิ่มบล็อกข้อความแยก
+      return {
+        key: b.id,
+        wide: true,
+        node: b.previewUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={b.previewUrl} alt="" className="block w-full h-auto rounded-lg" />
+        ) : (
+          <div className="w-full h-40 rounded-lg bg-gray-200 flex items-center justify-center text-gray-400">
+            <ImageIcon className="w-8 h-8" />
+          </div>
+        ),
+      };
+    }
+    return {
+      key: b.id,
+      wide: true,
+      node: (
+        <div className="phone-mock-hscroll flex gap-2">
+          {b.cards.map(c => <PreviewCard key={c.id} c={c} wide={b.cards.length === 1} />)}
         </div>
-      )}
-      <div className="-mx-3 -mb-3 mt-2 flex items-center gap-2 bg-white px-2 py-1.5 text-gray-400" aria-hidden="true">
-        <Plus className="w-5 h-5" />
-        <ImageIcon className="w-5 h-5" />
-        <span className="flex-1 h-8 rounded-full bg-gray-100 px-3 flex items-center subtitle-text">Aa</span>
-        <Mic className="w-5 h-5" />
-      </div>
-    </div>
+      ),
+    };
+  });
+
+  return (
+    <LinePhonePreview
+      accountName={account?.name ?? null}
+      accountPictureUrl={account?.picture_url ?? null}
+      messages={messages}
+      quickReplies={quickReplies}
+    />
   );
 }
 
@@ -370,7 +371,8 @@ function CardsEditor({ block, onChange, picker }: {
       </DndContext>
 
       {selected && (
-        <div className="rounded-lg border border-gray-200 dark:border-slate-600 p-3 space-y-3">
+        // การ์ดที่กำลังแก้ = การ์ดกลาง (.card — ขาว ขอบ เงา) บนพื้นจมของกล่องบล็อก ไม่ใช่กรอบที่พิมพ์สีเอง
+        <Card padding="sm" className="space-y-3">
           <div className="flex items-center gap-2">
             <p className="field-label">การ์ดที่ {selectedIndex + 1}</p>
             <FilterChips<'custom' | 'product'>
@@ -409,13 +411,15 @@ function CardsEditor({ block, onChange, picker }: {
                 onChange={f => patchCard(selected.id, { file: f, previewUrl: f ? URL.createObjectURL(f) : null })}
                 initialPreviewUrl={selected.product?.image_url ?? null}
                 label="เลือกรูป"
-                hint="1:1 · 1080×1080"
+                hint="1:1 · 1024×1024 px"
                 square
                 changeOnClick
+                // 1024 = เพดานรูปใน Flex (การ์ด) ของ LINE · 1040 ที่เห็นใน OA Manager เป็นของ Rich message
+                // (imagemap) ซึ่งเป็น message คนละชนิด — เราส่งการ์ดเป็น Flex จึงยึด 1024
                 maxWidthOrHeight={1024}
                 maxSizeMB={0.3}
               />
-              <p className="subtitle-text mt-1">รูปจัตุรัส — ระบบย่อเหลือด้านยาวสุด 1,024 px ตามเพดานของ LINE</p>
+              <p className="subtitle-text mt-1">LINE รับรูปในการ์ดได้ใหญ่สุด 1024×1024 px — รูปใหญ่กว่านี้ระบบย่อให้เอง</p>
             </div>
             <div className="space-y-3">
               <FormInput
@@ -489,7 +493,7 @@ function CardsEditor({ block, onChange, picker }: {
               </div>
             )}
           </div>
-        </div>
+        </Card>
       )}
     </div>
   );
@@ -517,7 +521,7 @@ function SortableBlock({ block, index, onChange, onRemove, picker }: {
     editor = (
       <div className="space-y-3">
         <MessageComposer
-          emptyHint="แนะนำแนวตั้ง 4:5 เช่น 1080×1350 px · สูงได้ไม่เกิน 3 เท่าของความกว้าง"
+          emptyHint="แนวตั้ง 4:5 กำลังดี · ด้านยาวสุด 1024 px (ใหญ่กว่านี้ระบบย่อให้) · สูงได้ไม่เกิน 3 เท่าของความกว้าง"
           image={{ file: block.file, onChange: f => onChange({ ...block, file: f, previewUrl: f ? URL.createObjectURL(f) : null }), previewUrl: block.previewUrl, maxWidthOrHeight: 1024, maxSizeMB: 0.3 }}
         />
         <ActionPicker label="กดรูปแล้ว" value={block.action} onChange={action => onChange({ ...block, action })} {...picker} />
@@ -545,7 +549,8 @@ function SortableBlock({ block, index, onChange, onRemove, picker }: {
           <GripVertical className="w-4 h-4" />
         </button>
         <span className="subtitle-text">บล็อก {index + 1}</span>
-        <Badge tone="indigo" size="sm">{BLOCK_LABELS[block.type]}</Badge>
+        {/* ขนาดตัวหนังสือเท่า "บล็อก N" — ป้าย sm (12px) ลอยสูงกว่าข้อความข้าง ๆ ราว 1px จนเห็นว่าไม่อยู่แนวเดียวกัน */}
+        <Badge tone="indigo">{BLOCK_LABELS[block.type]}</Badge>
         <Button
           variant="ghost"
           icon={<Trash2 className="w-4 h-4" />}
@@ -568,20 +573,42 @@ export default function BroadcastEditorPrototypePage() {
   const productSearch = useServerSearch<ProductSearchItem>({ fetch: fetchProductPage });
   /** ร้านเปิดหน้าร้านออนไลน์แล้วไหม — ชิป "ไปที่สินค้า" ใช้ได้เฉพาะตอนเปิดแล้ว */
   const [storefrontOpen, setStorefrontOpen] = useState(false);
+  /**
+   * บัญชี LINE ของบริษัทที่ล็อกอินอยู่ — ตัวอย่างใช้ชื่อ+รูปของบัญชีแรกที่เลือก
+   * (เดิมพิมพ์ชื่อร้านไว้ตายตัวและไม่มีรูป ตัวอย่างจึงขึ้นตัวอักษร "A" แทนโลโก้ — เจ้าของท้วง 10 ก.ย. 2026)
+   */
+  const [accounts, setAccounts] = useState<PickerAccount[]>([]);
+  const [accountIds, setAccountIds] = useState<string[]>([]);
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      try {
-        const res = await apiFetch('/api/settings/storefront');
-        if (!res.ok) return;
-        const j = await res.json();
-        if (!cancelled) setStorefrontOpen(!!j?.storefront?.enabled && !!j?.slug);
-      } catch {
-        // ถามไม่ได้ = ถือว่ายังไม่เปิด (ชิปจะปิดพร้อมบอกเหตุผล)
+      const [storefront, chat] = await Promise.allSettled([
+        apiFetch('/api/settings/storefront').then(r => (r.ok ? r.json() : null)),
+        apiFetch('/api/chat-accounts').then(r => (r.ok ? r.json() : null)),
+      ]);
+      if (cancelled) return;
+      // ถามไม่ได้ = ถือว่ายังไม่เปิด (ชิปจะปิดพร้อมบอกเหตุผล)
+      if (storefront.status === 'fulfilled') {
+        setStorefrontOpen(!!storefront.value?.storefront?.enabled && !!storefront.value?.slug);
+      }
+      if (chat.status === 'fulfilled') {
+        // API คืน picture_url ที่ผ่าน resolveAccountPicture() มาแล้ว (รูป OA) — ตัวเดียวกับหน้าสร้างจริง
+        const list: PickerAccount[] = (chat.value?.accounts || [])
+          .filter((a: { is_active?: boolean; platform?: string }) => a.is_active && a.platform === 'line')
+          .map((a: { id: string; account_name?: string; picture_url?: string | null }) => ({
+            id: a.id,
+            platform: 'line',
+            name: a.account_name || 'LINE OA',
+            picture_url: a.picture_url ?? null,
+          }));
+        setAccounts(list);
+        setAccountIds(list[0] ? [list[0].id] : []);
       }
     })();
     return () => { cancelled = true; };
   }, []);
+  // เลือกหลายบัญชี = ตัวอย่างใช้บัญชีแรกตามลำดับรายการ (กติกาเดียวกับ selectedAccounts[0] ของหน้าสร้างจริง)
+  const previewAccount = accounts.find(a => accountIds.includes(a.id)) ?? null;
   const picker: PickerProps = {
     storefrontOpen,
     productResults: productSearch.results,
@@ -678,8 +705,19 @@ export default function BroadcastEditorPrototypePage() {
 
           <div className="xl:sticky xl:top-4">
             <Card padding="md">
-              <p className="field-label mb-2">ตัวอย่างในแชทของลูกค้า</p>
-              <BlocksPreview blocks={blocks} quickReplies={quickReplies} />
+              <p className="field-label mb-1">ส่งจากบัญชี</p>
+              <AccountPicker
+                accounts={accounts}
+                value={accountIds}
+                onChange={setAccountIds}
+                placeholder="เลือกบัญชี LINE"
+                emptyMessage="ยังไม่มีบัญชี LINE ที่เชื่อมต่อ"
+              />
+              {accountIds.length > 1 && previewAccount && (
+                <p className="subtitle-text mt-1">เลือกหลายบัญชี — ตัวอย่างใช้ชื่อและรูปของ {previewAccount.name}</p>
+              )}
+              <p className="field-label mt-4 mb-2">ตัวอย่างในแชทของลูกค้า</p>
+              <BlocksPreview blocks={blocks} quickReplies={quickReplies} account={previewAccount} />
             </Card>
           </div>
         </div>

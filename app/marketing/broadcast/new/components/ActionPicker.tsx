@@ -9,6 +9,7 @@
 'use client';
 
 import Button from '@/components/ui/Button';
+import Card from '@/components/ui/Card';
 import FormInput from '@/components/ui/FormInput';
 import FilterChips, { FILTER_CHIP_PRIMARY_ACTIVE } from '@/components/ui/FilterChips';
 import ProductImageThumb from '@/components/ui/ProductImageThumb';
@@ -95,7 +96,8 @@ export default function ActionPicker({
             />
           )}
           {value.type === 'product' && (value.product ? (
-            <div className="flex gap-3 items-center rounded-lg border border-gray-200 dark:border-slate-600 px-3 py-2">
+            // กล่องสินค้าที่เลือกแล้ว = การ์ดกลาง (.card) ไม่ใช่กรอบที่พิมพ์สีเอง
+            <Card padding="none" className="flex gap-3 items-center px-3 py-2">
               <ProductImageThumb src={value.product.image_url} alt={value.product.name} size="sm" />
               <div className="flex-1 min-w-0">
                 <p className="body-text truncate">{value.product.name}</p>
@@ -110,7 +112,7 @@ export default function ActionPicker({
                 disabled={disabled}
                 onClick={() => onChange({ type: 'product', product: null })}
               />
-            </div>
+            </Card>
           ) : (
             <ProductSearchInput
               products={productResults}

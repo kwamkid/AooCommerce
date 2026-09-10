@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback, ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import ProductImageThumb from '@/components/ui/ProductImageThumb';
 import { Plus, Package, Loader2, Flame } from 'lucide-react';
 import { formatNumber } from '@/lib/utils/format';
@@ -227,12 +228,17 @@ export default function ProductSearchInput({
   // รายการสินค้าในบิลยาว ๆ ดันช่องค้นหาลงไปติดขอบจอล่าง — ผลค้นหาจะทะลุออกนอกจอ
   // จนมองไม่เห็น ถ้าข้างล่างไม่พอ (และข้างบนเหลือมากกว่า) ให้กางขึ้นแทน
   // วัดความสูงจริงของกล่องผลลัพธ์ (ไม่ใช่เดา 288 เสมอ) → รายการ 2-3 ตัวจะไม่พลิกโดยไม่จำเป็น
-  const { dropUp } = useDropUp(wrapperRef, {
+  //
+  // กล่องผลลัพธ์วางแบบ portal (fixed ที่ body) ไม่ใช่ absolute ใต้ช่อง — กล่องที่ครอบบางตัวตั้ง
+  // overflow:hidden (กล่องบล็อก · การ์ด · โมดัล) หรือมีบล็อกถัดไปวางทับ ผลค้นหาจึงเคยจมหาย/ถูกตัด
+  // ใต้กรอบ (เจ้าของท้วง 10 ก.ย. 2026 ว่า "เป็นบ่อย") · recalcOnScroll = เลื่อนหน้าแล้วกล่องตามช่องไปด้วย
+  const { dropUp, rect: anchorRect, height: dropdownH } = useDropUp(wrapperRef, {
     open: dropdownOpen,
     estimatedHeight: DROPDOWN_MAX_H,
     dropdownRef,
     margin: 8,
     requireMoreSpaceAbove: true,
+    recalcOnScroll: true,
     layout: true,
     deps: [displayItems.length, isSuggestionMode, effectiveLoading],
   });
@@ -356,12 +362,18 @@ export default function ProductSearchInput({
         )}
       </div>
 
-      {/* Dropdown results */}
-      {dropdownOpen && (
+      {/* Dropdown results — portal: ลอยเหนือทุกกรอบเสมอ (z เดียวกับ FormSelect/ActionMenu) */}
+      {dropdownOpen && typeof document !== 'undefined' && createPortal(
         <div
           ref={dropdownRef}
-          className={`absolute z-50 w-full bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg max-h-72 overflow-auto ${
-            dropUp ? 'bottom-full mb-1' : 'mt-1'
+          // ตำแหน่งคำนวณจากช่องกรอกทุกครั้งที่วัด (เปิด/พิมพ์/เลื่อนหน้า) — เป็นพิกัดจึงต้องเป็น style
+          style={anchorRect ? {
+            top: dropUp ? anchorRect.top - dropdownH - 4 : anchorRect.bottom + 4,
+            left: anchorRect.left,
+            width: anchorRect.width,
+          } : undefined}
+          className={`fixed z-[9999] bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg max-h-72 overflow-auto ${
+            anchorRect ? '' : 'invisible'
           }`}
         >
           {isSuggestionMode && (
@@ -458,7 +470,8 @@ export default function ProductSearchInput({
               );
             })
           )}
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );

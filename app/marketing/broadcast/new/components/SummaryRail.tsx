@@ -165,6 +165,7 @@ export default function SummaryRail(p: Props) {
         <p className="field-label mb-2">ตัวอย่างในแชทของลูกค้า</p>
         {p.hasDraft ? (
           <BroadcastPreview
+            size="md"
             content={p.content}
             platform={p.previewPlatform}
             imagePreviewUrl={p.imagePreviewUrl}
