@@ -59,9 +59,12 @@ interface FormInputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'si
   containerClassName?: string;
 }
 
+// md = 42px เท่า .form-control-md / .btn-md / FilterChips size="md" — เดิม h-10 (40px) วางแถวเดียวกับ
+// ปุ่มหรือชิปแล้วเห็นเป็นขั้นบันได 2px (เจ้าของสั่งแก้ 11 ก.ย. 2026) · เขียนเป็น utility ไม่ใช้คลาส
+// .form-control-md ตรง ๆ เพื่อให้ className ที่ผู้เรียกส่งมาทับได้เหมือนเดิม (คลาสนั้นอยู่นอก layer จะชนะ utility)
 const SIZE_CLASSES: Record<FormInputSize, string> = {
   sm: 'h-8 text-sm',
-  md: 'h-10 text-base',
+  md: 'h-[42px] text-base',
   lg: 'h-11 text-base',
 };
 

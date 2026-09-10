@@ -73,7 +73,7 @@ paths:
 
 **Control heights — ต้องตรงกันทุก variant (global standard):**
 - sm = `h-8` (32px)
-- md = **42px** ← **default for Button + FormSelect** (`.btn-md` / `.form-control-md` = 42px เท่า `<input>` · แก้ 2026-09-08 เดิม 40px)
+- md = **42px** ← **default for Button + FormSelect + FormInput** (FormInput md เคยเป็น 40px — แก้ 11 ก.ย. 2026) (`.btn-md` / `.form-control-md` = 42px เท่า `<input>` · แก้ 2026-09-08 เดิม 40px)
 - lg = `h-11` (44px)
 - → ถ้าวาง Button + FormSelect ข้างกัน ใช้ size เดียวกัน → height ตรงกันอัตโนมัติ
 
