@@ -20,6 +20,8 @@ import { useFeatures } from '@/lib/features-context';
 import { apiFetch } from '@/lib/api-client';
 import { formatPrice, formatThaiDateTime } from '@/lib/utils/format';
 import { summarizeBeamRaw } from '@/lib/beam/labels';
+import Tooltip from '@/components/ui/Tooltip';
+import type { AdEventRow } from '@/lib/ads/meta-ui';
 import { useCompany } from '@/lib/company-context';
 import { getInvoiceMenuLabel } from '@/lib/invoice-utils';
 import {
@@ -127,6 +129,8 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
   // จอ "ให้ขนส่งมารับที่ไหน เมื่อไหร่" — เปิดเฉพาะเมื่อ Shopee มีที่อยู่/รอบให้เลือกมากกว่าหนึ่ง
   const [handoverOrders, setHandoverOrders] = useState<HandoverOrder[]>([]);
   const [fullOrderData, setFullOrderData] = useState<any>(null);
+  // ออเดอร์นี้ถูกบอกไปที่ไหนบ้าง (dataset ของเพจ / บัญชีโฆษณา) — null = ยังไม่ได้ถาม
+  const [adEvents, setAdEvents] = useState<AdEventRow[] | null>(null);
   const isShopeeOrder = orderSource === 'shopee';
   const isMarketplaceOrder = isMarketplaceSource(orderSource);
   const isPosOrder = orderSource === 'pos';
@@ -730,6 +734,25 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
       fetchCreditNotes();
     }
   }, [orderId, authLoading, userProfile]);
+
+  // ประวัติการบอก Meta ของออเดอร์ใบนี้ — ถามครั้งเดียวตอนรู้ id แล้ว
+  // ล้มก็ปล่อยเป็นรายการว่าง: หน้าออเดอร์ต้องเปิดได้เสมอ ต่อให้สายโฆษณาพัง
+  useEffect(() => {
+    const id = fullOrderData?.id;
+    if (!id) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await apiFetch(`/api/ads/events?order_id=${encodeURIComponent(id)}`);
+        const data = await res.json().catch(() => ({}));
+        if (cancelled) return;
+        setAdEvents(res.ok && Array.isArray(data.events) ? data.events : []);
+      } catch {
+        if (!cancelled) setAdEvents([]);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [fullOrderData?.id]);
 
   const handleVoid = async () => {
     const isPaid = paymentStatus === 'paid';
@@ -1389,9 +1412,47 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
               </div>
             )}
 
-            {/* Meta Conversions API — ออเดอร์นี้ถูกส่งเป็น Purchase event ให้ Meta แล้ว
-                (โฆษณา Click-to-Messenger เรียนรู้จากตรงนี้ว่าบทสนทนาไหนจบด้วยการซื้อ · ส่งครั้งเดียวต่อออเดอร์) */}
-            {fullOrderData?.meta_purchase_sent_at && (
+            {/* Meta Conversions API — ออเดอร์นี้ถูกบอกไปที่ไหนบ้าง
+                (โฆษณา Click-to-Messenger เรียนรู้จากตรงนี้ว่าบทสนทนาไหนจบด้วยการซื้อ)
+                ปลายทางมีได้มากกว่าหนึ่ง: dataset ของเพจ + dataset ของบัญชีโฆษณาแต่ละใบ
+                — Meta ตัด event ซ้ำด้วย event_id ให้เอง จึงส่งได้ทั้งสองทางโดยยอดไม่เบิ้ล */}
+            {adEvents && adEvents.length > 0 && (
+              <div className="mt-3 pt-3 border-t border-gray-200 dark:border-slate-600 space-y-1.5">
+                {adEvents.map((e, i) => (
+                  <div key={e.id} className="flex items-center gap-2 flex-wrap text-sm">
+                    <Megaphone className="w-4 h-4 text-blue-500 dark:text-blue-400" />
+                    <span className="text-gray-700 dark:text-slate-300">
+                      {e.event_name} → {e.destination_name || (e.destination === 'page_dataset' ? 'dataset ของเพจ' : 'dataset บัญชีโฆษณา')}
+                    </span>
+                    {e.status === 'sent' && (
+                      <>
+                        <span className="text-blue-700 dark:text-blue-400">ส่งแล้ว</span>
+                        {e.sent_at && <span className="text-gray-400 dark:text-slate-500">{formatThaiDateTime(e.sent_at)}</span>}
+                      </>
+                    )}
+                    {e.status === 'failed' && (
+                      <>
+                        <span className="text-red-600 dark:text-red-400">ส่งไม่สำเร็จ</span>
+                        {e.error && (
+                          <Tooltip text={e.error} box="inline-flex">
+                            <XCircle className="w-4 h-4 text-red-500 dark:text-red-400" aria-label={e.error} />
+                          </Tooltip>
+                        )}
+                      </>
+                    )}
+                    {e.status === 'pending' && <span className="text-gray-500 dark:text-slate-400">รอส่ง</span>}
+                    {e.status === 'skipped' && <span className="text-gray-500 dark:text-slate-400">ข้าม</span>}
+                    {i === 0 && (
+                      <span className="text-gray-500 dark:text-slate-400">โฆษณา Click-to-Messenger ใช้เรียนรู้หาคนที่ซื้อจริง</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* สมุดบันทึกยังว่าง แต่ออเดอร์เก่ามีร่องรอยว่าเคยส่ง — แสดงบรรทัดเดิมไว้
+                (สายเดิมจดที่ orders.meta_purchase_sent_at ก่อนจะมีตาราง ad_events) */}
+            {adEvents?.length === 0 && fullOrderData?.meta_purchase_sent_at && (
               <div className="mt-3 pt-3 border-t border-gray-200 dark:border-slate-600 flex items-center gap-2 flex-wrap text-sm">
                 <Megaphone className="w-4 h-4 text-blue-500 dark:text-blue-400" />
                 <span className="text-blue-700 dark:text-blue-400">ส่ง Purchase ให้ Meta แล้ว</span>

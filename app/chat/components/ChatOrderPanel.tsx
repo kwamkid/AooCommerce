@@ -20,6 +20,9 @@ interface ChatOrderPanelProps {
   source?: string;
   sourceName?: string;
   chatAccountId?: string;
+  /** ห้องแชทที่บิลใบนี้เกิดจาก — ติดไปกับออเดอร์เพื่อบอก Meta ว่าโฆษณาตัวไหนพาลูกค้ามา */
+  chatContactId?: string;
+  chatPlatform?: string;
   /** key ของร่างบิลใน localStorage — 1 ห้องแชท 1 ร่าง (ดู lib/order-draft.ts) */
   draftKey?: string;
   warehousePortalRef: RefObject<HTMLDivElement | null>;
@@ -51,6 +54,8 @@ function ChatOrderPanel({
   source,
   sourceName,
   chatAccountId,
+  chatContactId,
+  chatPlatform,
   draftKey,
   warehousePortalRef,
   headerActionsRef,
@@ -88,6 +93,8 @@ function ChatOrderPanel({
           source={source}
           sourceName={sourceName}
           chatAccountId={chatAccountId}
+          chatContactId={chatContactId}
+          chatPlatform={chatPlatform}
           draftKey={draftKey}
           onSuccess={onSuccess}
           onSendBillToChat={onSendBillToChat}

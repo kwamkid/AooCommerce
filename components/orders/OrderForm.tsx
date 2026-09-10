@@ -298,6 +298,10 @@ interface OrderFormProps {
   // Originating chat account — when present, lock the sales channel selector to that
   // chat-linked sales_channels row so e.g. "LINE - ABC" orders can't be miscategorized.
   chatAccountId?: string;
+  /** ห้องแชทที่บิลนี้เกิดจาก — ติดไปกับออเดอร์ตอนสร้าง เพื่อให้สายโฆษณารู้ว่าจะบอก Meta
+   *  ว่าใครเป็นคนซื้อ (โฆษณา Click-to-Messenger เรียนรู้จากตรงนี้) · ส่งเฉพาะตอนเปิดบิลใหม่ */
+  chatContactId?: string | null;
+  chatPlatform?: string | null;
   /** เปิดโหมด "จำร่างบิล" — ไม่ส่ง = ไม่มีเรื่องร่างเลย (ทุกหน้าเดิมทำงานเหมือนเดิมเป๊ะ)
    *  ค่าที่ส่งคือ key ของ localStorage เช่น `chat-order-draft:<company>:<contact>`
    *  ⚠️ **บิลใหม่เท่านั้น** — โหมดแก้ไข (`editOrderId`) ฟอร์มไม่แตะร่างไม่ว่าจะส่ง key มาหรือไม่ */
@@ -334,6 +338,8 @@ export default function OrderForm({
   source,
   sourceName,
   chatAccountId,
+  chatContactId,
+  chatPlatform,
   draftKey,
   onDiscardDraft,
   onEditCustomer,
@@ -2253,6 +2259,15 @@ export default function OrderForm({
         ...(addressAction !== 'auto' ? { address_action: addressAction } : {}),
         // Source channel info (from chat)
         ...(source ? { source, source_name: sourceName || undefined } : {}),
+        // ห้องแชทต้นทาง — **บิลใหม่เท่านั้น** (บิลเก่าเปลี่ยนที่มาไม่ได้ และการแก้บิล
+        // ไม่ควรไปสร้างเหตุการณ์ conversion ใหม่ให้ Meta)
+        ...(!isEditMode && chatContactId
+          ? {
+              chat_contact_id: chatContactId,
+              chat_platform: chatPlatform || undefined,
+              chat_account_id: chatAccountId || undefined,
+            }
+          : {}),
         // Sales channel — manual order origin (NULL if list hadn't loaded yet)
         sales_channel_id: selectedSalesChannelId || null,
         // Bill expiry: compute expires_at based on mode

@@ -3266,6 +3266,8 @@ function UnifiedChatPageContent() {
             source={selectedContact.source || selectedContact.platform}
             sourceName={selectedContact.account_name}
             chatAccountId={selectedContact.chat_account_id}
+            chatContactId={selectedContact.id}
+            chatPlatform={selectedContact.source === 'instagram' ? 'instagram' : selectedContact.platform}
             draftKey={companyId ? `chat-order-draft:${companyId}:${selectedContact.id}` : undefined}
             warehousePortalRef={warehousePortalRef}
             headerActionsRef={headerActionsRef}
