@@ -386,9 +386,16 @@ h6:where(.heading-1, .heading-2, .heading-3, .heading-4) {
   }
 }
 
-/* ── Global Card System — outside @layer so size variants aren't purged ── */
+/* ── Global Card System — outside @layer so size variants aren't purged ──
+   การ์ดมี **ขอบ 1px** ตั้งแต่ 10 ก.ย. 2026 — พื้นหน้าเป็น gray-50 การ์ดเป็นขาว
+   ต่างกัน 2% เงา shadow-sm จึงแทบมองไม่เห็นขอบการ์ด (เจ้าของท้วงว่า "การ์ดกลืนกับพื้น")
+   ⚠️ สีขอบใช้ token `--card-border` ที่ประกาศไว้ตั้งแต่แรกแต่ไม่เคยมีใครต่อเข้ากับ `.card`
+   (= `border-gray-200` / dark `slate-700` ซึ่งเป็นสีขอบที่หัวตาราง หัวโมดัล ใช้อยู่แล้ว)
+   ⚠️ `.card` มีสองที่ในไฟล์นี้ (อีกที่อยู่ใน @layer ท้ายไฟล์) — ใส่ขอบไว้ทั้งคู่
+   เพราะกฎไหนชนะขึ้นกับลำดับที่ Tailwind ประกอบ ไม่ใช่สิ่งที่อ่านจากไฟล์แล้วรู้ */
 .card {
   background-color: #fff;
+  border: 1px solid var(--card-border);
   border-radius: 0.5rem;
   box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
 }
@@ -557,8 +564,10 @@ h6:where(.heading-1, .heading-2, .heading-3, .heading-4) {
   }
 
   /* Table wrappers */
+  /* ขอบ 1px เท่ากับ `.card` — ตารางกับการ์ดวางอยู่บนพื้นเดียวกัน ถ้าใส่ขอบให้อย่างเดียว
+     หน้า list จะเห็นเป็นสองมาตรฐานทันที */
   .data-table-wrap {
-    @apply bg-white dark:bg-slate-800 rounded-lg shadow-sm;
+    @apply bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-gray-200 dark:border-slate-700;
   }
   .data-table-wrap-shadow {
     @apply bg-white dark:bg-slate-800 rounded-lg shadow;
@@ -763,10 +772,12 @@ h6:where(.heading-1, .heading-2, .heading-3, .heading-4) {
   }
 }
 
-/* Cards: no border, use subtle shadow instead */
+/* ⚠️ นิยาม `.card` ใบที่สอง — ใบแรกอยู่หัวข้อ "Global Card System" ด้านบน
+   ทั้งคู่ต้องมีขอบเหมือนกัน (ดูเหตุผลที่ใบแรก) */
 @layer components {
   .card {
     background-color: var(--card);
+    border: 1px solid var(--card-border);
     border-radius: 0.75rem;
     box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.06), 0 1px 2px -1px rgb(0 0 0 / 0.06);
     padding: 1.5rem;
