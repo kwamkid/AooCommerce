@@ -13,7 +13,7 @@
 //    เป็นลูกค้าได้ทางเดียวคือห้องแชทถูกผูกกับ customers · หน้าจอต้องบอกเสมอว่า
 //    รู้ประวัติของกี่คน (contact_linked / contact_total จาก /api/broadcasts/preview)
 
-import { BROADCAST_PLATFORMS, type BroadcastPlatform } from './platforms';
+import type { BroadcastPlatform } from './platforms';
 
 /** หน้าต่างวัดผลหลังส่ง (ตอบกลับ / สั่งซื้อ) — ตรงกับ interval '7 days' ใน RPC get_broadcast_reply_stats */
 export const BROADCAST_ATTRIBUTION_DAYS = 7;
@@ -261,45 +261,61 @@ export const CUSTOMER_SOURCE_AUDIENCE_KEYS: ReadonlySet<string> = new Set([
   'not_bought', 'bought', 'bought_before', 'bought_within', 'bought_once', 'tags',
 ]);
 
-/** ชื่อแหล่งในข้อความเหตุผล — ตรงกับป้ายบนการ์ดแหล่งที่มา */
-const CUSTOMER_SOURCE_LABEL = 'ลูกค้าในระบบ';
+/** ชนิดแหล่งของกลุ่มเป้าหมาย — ไม่สนว่าบัญชีไหน (เพจ Facebook ทุกเพจตอบได้เหมือนกัน) */
+export type AudienceSourceKind = 'line' | 'facebook' | 'customers';
 
 /**
- * ตัวเลือกกลุ่มของ **กลุ่มเป้าหมาย** ตามแหล่งที่เลือก — ใช้ได้เฉพาะตัวที่ **ทุกแหล่ง** ตอบได้
- *
- * เคยให้ใช้ได้ถ้ามีแหล่งเดียวตอบได้ (แหล่งที่ตอบไม่ได้ส่งคนมา 0 คน) แต่เจ้าของเลือกแบบเข้ม
- * 11 ก.ย. 2026 เพราะกลุ่มจะโชว์แหล่งที่ไม่ได้ส่งใครมาเลย แล้วผู้ใช้เข้าใจผิดว่ามีคนจากแหล่งนั้น
- * (เช่น "ทักจากโฆษณา" ที่ติ๊ก LINE ไว้ ปุ่มส่งบรอดแคสต์ LINE เปิดให้กดทั้งที่ไม่มีใครให้ส่ง)
- * · หลังบ้าน `validateAudienceDefinition` ใช้กฎเดียวกันนี้ — แก้ที่หนึ่งต้องแก้อีกที่
- *
- * ⛔ **ห้ามซ่อนตัวที่ใช้ไม่ได้** — คืนมาใน `disabled` พร้อมเหตุผลว่าต้องเอาแหล่งไหนออก
+ * แหล่งชนิดนี้ตอบกลุ่มนี้ได้ไหม — **กฎเดียวกับหลังบ้าน** (`keysForSource` ใน lib/audiences/resolve.ts
+ * ซึ่งบังคับว่าทุกแหล่งที่เลือกต้องตอบกลุ่มได้ — เจ้าของเลือกแบบเข้ม 11 ก.ย. 2026) แก้ที่หนึ่งต้องแก้อีกที่
  */
-export function audienceOptionsForSources(
-  platforms: BroadcastPlatform[],
-  includeCustomers: boolean,
-): { options: AudienceOption[]; disabled: Record<string, string> } {
+export function audienceSourceSupports(kind: AudienceSourceKind, audienceType: string): boolean {
+  if (!audienceType) return false;
+  if (kind === 'customers') return CUSTOMER_SOURCE_AUDIENCE_KEYS.has(audienceType);
+  return (AUDIENCE_OPTIONS[kind] || []).some(o => o.key === audienceType);
+}
+
+/** เหตุผลสั้น ๆ ที่แหล่งนี้ตอบกลุ่มไม่ได้ — วางใต้ชื่อแหล่งที่ขึ้นจาง · `null` = ตอบได้ */
+export function audienceSourceUnsupportedReason(kind: AudienceSourceKind, audienceType: string): string | null {
+  if (!audienceType || audienceSourceSupports(kind, audienceType)) return null;
+  if (audienceType === 'ads_not_bought') {
+    return kind === 'line' ? 'LINE ไม่บอกว่าใครกดมาจากโฆษณา' : 'ไม่ได้บันทึกว่าใครมาจากโฆษณา';
+  }
+  if (kind === 'customers') return 'ไม่มีข้อมูลการทักแชท';
+  return 'ไม่มีข้อมูลของกลุ่มนี้';
+}
+
+/**
+ * ตัวเลือกพฤติกรรมของ **หน้ากลุ่มเป้าหมาย** — เลือก **ก่อน** แหล่งที่มา (เจ้าของสลับลำดับ 11 ก.ย. 2026:
+ * คนคิดจาก "อยากได้ใคร" ก่อน "ข้อมูลอยู่ไหน" และพฤติกรรมเป็นตัวกำหนดว่าแหล่งไหนใช้ได้ ไม่ใช่กลับกัน)
+ *
+ * คืนทุกพฤติกรรมที่ระบบรู้จัก · ตัวที่ยังไม่มีแหล่งไหนของบริษัทตอบได้ขึ้นจางพร้อมเหตุผล
+ * ⛔ **ห้ามซ่อน** — ผู้ใช้จะถามซ้ำว่า "ทักจากโฆษณา" หายไปไหน
+ *
+ * หน้าบรอดแคสต์ยังเลือกช่องทางก่อนเหมือนเดิม (ที่นั่นช่องทางคือตัวส่งข้อความ) — ใช้ `commonAudienceOptions`
+ *
+ * @param available ชนิดแหล่งที่บริษัทมีจริง — `'customers'` มีเสมอ
+ */
+export function audienceBehaviorOptions(available: AudienceSourceKind[]): {
+  options: AudienceOption[];
+  disabled: Record<string, string>;
+} {
   const options: AudienceOption[] = [];
   const seen = new Set<string>();
-  const add = (o: AudienceOption) => {
-    if (seen.has(o.key)) return;
-    seen.add(o.key);
-    options.push(o);
-  };
-  for (const p of platforms) (AUDIENCE_OPTIONS[p] || []).forEach(add);
-  // ลูกค้าในระบบอย่างเดียว — ป้ายชื่อกลุ่มยืมจากชุดของ LINE (กลุ่มที่คิดจากการซื้อมีครบ)
-  if (includeCustomers) {
-    (AUDIENCE_OPTIONS.line || []).filter(o => CUSTOMER_SOURCE_AUDIENCE_KEYS.has(o.key)).forEach(add);
+  // facebook ก่อน — "ทักมาจากโฆษณา" จะอยู่ถัดจาก "ยังไม่เคยซื้อ" ในหมวดเดียวกัน
+  for (const p of ['facebook', 'line'] as const) {
+    for (const o of AUDIENCE_OPTIONS[p] || []) {
+      if (seen.has(o.key)) continue;
+      seen.add(o.key);
+      options.push(o);
+    }
   }
 
   const disabled: Record<string, string> = {};
   for (const o of options) {
-    const missing = platforms
-      .filter(p => !(AUDIENCE_OPTIONS[p] || []).some(x => x.key === o.key))
-      .map(p => BROADCAST_PLATFORMS[p].label);
-    if (includeCustomers && !CUSTOMER_SOURCE_AUDIENCE_KEYS.has(o.key)) missing.push(CUSTOMER_SOURCE_LABEL);
-    if (missing.length > 0) {
-      disabled[o.key] = `${missing.join(' และ ')} ไม่มีข้อมูลกลุ่มนี้ — เอาออกจากแหล่งที่มาก่อน`;
-    }
+    if (available.some(k => audienceSourceSupports(k, o.key))) continue;
+    disabled[o.key] = o.key === 'ads_not_bought'
+      ? 'ต้องเชื่อมเพจ Facebook ก่อน — ข้อมูลว่าใครกดมาจากโฆษณามีแค่ในเพจ'
+      : 'ยังไม่มีช่องทางแชทที่มีข้อมูลนี้ — เชื่อมที่ ตั้งค่า › ช่องทาง Chat';
   }
   return { options, disabled };
 }

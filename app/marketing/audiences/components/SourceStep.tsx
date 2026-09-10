@@ -2,6 +2,10 @@
 //
 // การ์ด "แหล่งที่มา" — เลือกว่าจะหยิบคนจากที่ไหนมารวมเป็นกลุ่มเดียว
 //
+// **มาหลังการ์ดกลุ่มเป้าหมาย** (เจ้าของสลับลำดับ 11 ก.ย. 2026) — พฤติกรรมที่เลือกเป็นตัวกำหนดว่า
+// แหล่งไหนใช้ได้: ระบบติ๊กให้เองตอนเลือกพฤติกรรม (`defaultSourcesFor` ใน ./sources.ts) และแหล่งที่
+// ตอบพฤติกรรมนั้นไม่ได้ขึ้นจาง กดไม่ได้ พร้อมเหตุผล — **ห้ามซ่อน**
+//
 // ต่างจากช่องทางของบรอดแคสต์ตรงที่ **ไม่ได้เลือกว่าจะส่งเข้าห้องไหน** แต่เลือกว่าจะเอา
 // รายชื่อจากที่ไหน — ห้องแชท LINE/Facebook และ "ลูกค้าในระบบ" (ออเดอร์ / POS / หน้าร้าน)
 // จึงติ๊กพร้อมกันได้ แล้วระบบตัดคนซ้ำให้ตอนรวม
@@ -18,11 +22,18 @@ import ChannelBadge from '@/components/ui/ChannelBadge';
 import AccountPicker from '@/components/ui/AccountPicker';
 import HelpHint from '@/components/ui/HelpHint';
 import { BROADCAST_PLATFORMS } from '@/lib/broadcast/platforms';
+import { audienceSourceUnsupportedReason } from '@/lib/broadcast/audience';
 import { Users } from 'lucide-react';
 import type { ChatSourceAccount } from './types';
 
 /** เกินเท่านี้แล้วการ์ดจะยาวจนดันเนื้อหาที่เหลือตกจอ → เปลี่ยนไปใช้ป๊อปอัปแทน */
 const INLINE_MAX = 8;
+
+/**
+ * บรรทัดรองของการ์ด LINE ที่ติ๊กได้ — ระบบไม่ติ๊ก LINE ให้เอง (ขึ้น Meta ได้น้อยมาก)
+ * บรรทัดนี้บอกว่าจะติ๊กเมื่อไหร่ถึงคุ้ม
+ */
+const LINE_NOTE = 'เหมาะกับบรอดแคสต์ LINE';
 
 interface Props {
   accounts: ChatSourceAccount[];
@@ -30,23 +41,28 @@ interface Props {
   onChatIdsChange: (ids: string[]) => void;
   includeCustomers: boolean;
   onIncludeCustomersChange: (v: boolean) => void;
+  /** พฤติกรรมที่เลือกไว้ — ว่าง = ยังไม่เลือก การ์ดนี้บอกให้เลือกพฤติกรรมก่อน */
+  audienceType: string;
   loading?: boolean;
   disabled?: boolean;
 }
 
 export default function SourceStep({
-  accounts, chatIds, onChatIdsChange, includeCustomers, onIncludeCustomersChange, loading, disabled,
+  accounts, chatIds, onChatIdsChange, includeCustomers, onIncludeCustomersChange,
+  audienceType, loading, disabled,
 }: Props) {
   const toggle = (id: string) => {
     onChatIdsChange(chatIds.includes(id) ? chatIds.filter(x => x !== id) : [...chatIds, id]);
   };
 
+  const customersReason = audienceSourceUnsupportedReason('customers', audienceType);
+  const customersActive = includeCustomers && !customersReason;
   const customersCard = (
     <Checkbox
-      checked={includeCustomers}
+      checked={customersActive}
       onChange={() => onIncludeCustomersChange(!includeCustomers)}
-      disabled={disabled}
-      className={`choice-card px-3 py-2.5 ${includeCustomers ? 'choice-card-active' : ''}`}
+      disabled={disabled || !!customersReason}
+      className={`choice-card px-3 py-2.5 ${customersActive ? 'choice-card-active' : ''} ${customersReason ? 'opacity-60' : ''}`}
     >
       <div className="flex items-center gap-2.5 min-w-0 flex-1">
         <span className="w-10 h-10 rounded-full bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-slate-300 flex items-center justify-center flex-shrink-0">
@@ -54,7 +70,7 @@ export default function SourceStep({
         </span>
         <div className="min-w-0">
           <p className="body-text truncate">ลูกค้าในระบบ</p>
-          <p className="subtitle-text">ออเดอร์ / POS / หน้าร้าน</p>
+          <p className="subtitle-text">{customersReason || 'ออเดอร์ / POS / หน้าร้าน'}</p>
         </div>
       </div>
     </Checkbox>
@@ -75,12 +91,14 @@ export default function SourceStep({
           </HelpHint>
         </h2>
         <span className="section-desc text-right">
-          เลือกได้หลายแหล่ง · คนเดียวกันที่อยู่หลายแหล่งนับครั้งเดียว
+          ติ๊กให้ตามกลุ่มเป้าหมาย แก้ได้ · คนซ้ำนับครั้งเดียว
         </span>
       </div>
 
       {loading ? (
         <p className="subtitle-text">กำลังโหลดช่องทาง...</p>
+      ) : !audienceType ? (
+        <p className="subtitle-text">เลือกกลุ่มเป้าหมายด้านบนก่อน ระบบจะติ๊กแหล่งที่มีข้อมูลนั้นให้</p>
       ) : accounts.length === 0 ? (
         <div className="space-y-2">
           <Alert tone="info">
@@ -92,20 +110,25 @@ export default function SourceStep({
       ) : accounts.length <= INLINE_MAX ? (
         <div className="grid sm:grid-cols-2 gap-2">
           {accounts.map(a => {
-            const active = chatIds.includes(a.id);
+            const reason = audienceSourceUnsupportedReason(a.platform, audienceType);
+            const active = chatIds.includes(a.id) && !reason;
+            const note = reason
+              || (a.platform === 'line'
+                ? `${BROADCAST_PLATFORMS.line.label} · ${LINE_NOTE}`
+                : BROADCAST_PLATFORMS[a.platform].label);
             return (
               <Checkbox
                 key={a.id}
                 checked={active}
                 onChange={() => toggle(a.id)}
-                disabled={disabled}
-                className={`choice-card px-3 py-2.5 ${active ? 'choice-card-active' : ''}`}
+                disabled={disabled || !!reason}
+                className={`choice-card px-3 py-2.5 ${active ? 'choice-card-active' : ''} ${reason ? 'opacity-60' : ''}`}
               >
                 <div className="flex items-center gap-2.5 min-w-0 flex-1">
                   <ChannelBadge channel={{ platform: a.platform, picture_url: a.picture_url }} size="md" />
                   <div className="min-w-0">
                     <p className="body-text truncate">{a.name}</p>
-                    <p className="subtitle-text">{BROADCAST_PLATFORMS[a.platform].label}</p>
+                    <p className="subtitle-text">{note}</p>
                   </div>
                 </div>
               </Checkbox>
@@ -116,13 +139,18 @@ export default function SourceStep({
       ) : (
         <div className="space-y-2">
           <AccountPicker
-            accounts={accounts.map(a => ({
-              id: a.id,
-              platform: a.platform,
-              name: a.name,
-              picture_url: a.picture_url,
-              badge: BROADCAST_PLATFORMS[a.platform].label,
-            }))}
+            accounts={accounts.map(a => {
+              const reason = audienceSourceUnsupportedReason(a.platform, audienceType);
+              return {
+                id: a.id,
+                platform: a.platform,
+                name: a.name,
+                picture_url: a.picture_url,
+                badge: BROADCAST_PLATFORMS[a.platform].label,
+                disabled: !!reason,
+                disabledReason: reason || undefined,
+              };
+            })}
             value={chatIds}
             onChange={onChatIdsChange}
             disabled={disabled}
@@ -131,7 +159,6 @@ export default function SourceStep({
           {customersCard}
         </div>
       )}
-
     </Card>
   );
 }

@@ -1,16 +1,18 @@
 // Path: app/marketing/audiences/components/AudienceForm.tsx
 //
 // ฟอร์มสร้าง/แก้ไขกลุ่มเป้าหมาย — **หน้าฟอร์มเป็นเจ้าของ state ทั้งหมด** การ์ดย่อย
-// (SourceStep · AudienceStep · AudienceRail · MetaSyncRows) รับค่าเข้ามาแล้วคืนกลับ
+// (AudienceStep · SourceStep · AudienceRail · MetaSyncRows) รับค่าเข้ามาแล้วคืนกลับ
 // (แบบเดียวกับหน้าสร้างบรอดแคสต์ — ตัวเลือกกลุ่มผู้รับจึงใช้การ์ดตัวเดียวกันได้เลย)
 //
 // กติกาสำคัญ:
-// - กลุ่มเป้าหมายโฆษณา **หยิบคนจากหลายแหล่งมารวมเป็นกลุ่มเดียว** แต่กลุ่มที่เลือกต้องให้
-//   **ทุกแหล่ง** ตอบได้ (`audienceOptionsForSources` — กฎเดียวกับหลังบ้าน) ตัวที่บางแหล่งตอบไม่ได้
-//   ขึ้นจางพร้อมเหตุผลว่าต้องเอาแหล่งไหนออก — **ห้ามซ่อน**
+// - **เลือกพฤติกรรมก่อน แหล่งที่มาทีหลัง** (เจ้าของสลับลำดับ 11 ก.ย. 2026) · หน้าบรอดแคสต์ยังเลือก
+//   ช่องทางก่อน เพราะที่นั่นช่องทางคือตัวส่งข้อความ ส่วนหน้านี้ส่งไป Meta แหล่งเป็นแค่ที่เก็บข้อมูล
+//   · เลือกพฤติกรรมแล้วระบบติ๊กแหล่งที่ตอบได้ให้เอง (`defaultSourcesFor` — ไม่ติ๊ก LINE ให้)
+//   · แหล่งที่ตอบพฤติกรรมไม่ได้ขึ้นจางพร้อมเหตุผล · ทุกแหล่งที่เลือกต้องตอบได้ (กฎเดียวกับหลังบ้าน)
+// - ชื่อกลุ่มตั้งให้จากพฤติกรรมจนกว่าผู้ใช้จะพิมพ์เอง (`nameTouched`)
 // - `all` (ผู้ติดตามทั้งหมดของ LINE) ปิดตายทุกกรณี — เราไม่มีรายชื่อคนพวกนั้น จึงไม่มี
 //   เบอร์/อีเมลจะส่งให้ Meta (เซิร์ฟเวอร์ก็ปฏิเสธ ดู validateAudienceDefinition)
-// - จำนวนคนระหว่างโหลดโชว์ '—' **ห้ามโชว์ 0**
+// - จำนวนคนระหว่างโหลดเป็น skeleton **ห้ามโชว์ 0**
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -23,6 +25,7 @@ import HelpHint from '@/components/ui/HelpHint';
 import SaveButton from '@/components/ui/SaveButton';
 import FormInput from '@/components/ui/FormInput';
 import FormTextarea from '@/components/ui/FormTextarea';
+import { LoadingCard } from '@/components/ui/StateCard';
 import type { EntitySearchOption } from '@/components/ui/EntitySearchInput';
 import { useFormValidation } from '@/lib/useFormValidation';
 import { useDebouncedCallback } from '@/lib/useDebounce';
@@ -30,9 +33,11 @@ import { useServerSearch } from '@/lib/useServerSearch';
 import { useToast } from '@/lib/toast-context';
 import { apiFetch, invalidateApiCache } from '@/lib/api-client';
 import {
-  audienceOptionsForSources,
+  audienceBehaviorOptions,
+  audienceLabel,
   buildAudienceFilter,
   type AudienceCounts,
+  type AudienceSourceKind,
   type PickedContact,
   type StoredAudienceFilter,
   type TagRow,
@@ -43,7 +48,7 @@ import AudienceStep from '@/app/marketing/broadcast/new/components/AudienceStep'
 import SourceStep from './SourceStep';
 import AudienceRail from './AudienceRail';
 import MetaSyncRows from './MetaSyncRows';
-import { toChatSourceAccounts } from './sources';
+import { defaultSourcesFor, toChatSourceAccounts } from './sources';
 import type {
   AudienceDefinition,
   AudiencePreview,
@@ -88,6 +93,8 @@ export default function AudienceForm({ mode, initial, templateKey, onAudienceCha
 
   // ── ค่าที่ผู้ใช้กรอก ─────────────────────────────────────────────────
   const [name, setName] = useState(initial?.name || '');
+  /** ผู้ใช้พิมพ์ชื่อเองแล้วหรือยัง — ยัง = ใช้ชื่อตามพฤติกรรมที่เลือก (โหมดแก้ไขถือว่าตั้งไว้แล้ว) */
+  const [nameTouched, setNameTouched] = useState(mode === 'edit' || !!initial?.name);
   const [description, setDescription] = useState(initial?.description || '');
   const [chatIds, setChatIds] = useState<string[]>(
     () => (initial?.definition?.sources || [])
@@ -177,16 +184,15 @@ export default function AudienceForm({ mode, initial, templateKey, onAudienceCha
     if (reason) { showToast(reason, 'error'); return; }
 
     // ผู้ใช้เริ่มกรอกเองแล้ว = ไม่แตะ (เช่นเปิดค้างไว้นานแล้วเน็ตเพิ่งตอบ)
-    if (name || audience || chatIds.length > 0 || includeCustomers) return;
+    if (nameTouched || audience || chatIds.length > 0 || includeCustomers) return;
 
-    const picked = t.sources === 'facebook_only'
-      ? chatAccounts.filter(a => a.platform === 'facebook')
-      : chatAccounts;
-
+    // แหล่งที่มาใช้เกณฑ์เดียวกับตอนผู้ใช้เลือกพฤติกรรมเอง — แม่แบบกับการเลือกเองต้องได้ผลเหมือนกัน
+    const src = defaultSourcesFor(t.audience_type, chatAccounts);
     setName(t.name);
+    setNameTouched(true);
     setDescription(t.description);
-    setChatIds(picked.map(a => a.id));
-    setIncludeCustomers(t.sources === 'chat_and_customers');
+    setChatIds(src.chatIds);
+    setIncludeCustomers(src.includeCustomers);
     setAudience(t.audience_type);
     if (t.days) setAudienceDays(t.days);
     setAppliedTemplate(t);
@@ -194,7 +200,43 @@ export default function AudienceForm({ mode, initial, templateKey, onAudienceCha
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, templateKey, chatLoading, chatAccounts, showToast]);
 
-  // ── แหล่งที่มา + ตัวเลือกกลุ่ม ────────────────────────────────────────
+  // ── พฤติกรรม (เลือกก่อน) ─────────────────────────────────────────────
+  /** ชนิดแหล่งที่บริษัทมีจริง — ลูกค้าในระบบมีเสมอ */
+  const availableKinds = useMemo<AudienceSourceKind[]>(
+    () => ['customers', ...new Set(chatAccounts.map(a => a.platform))],
+    [chatAccounts],
+  );
+
+  /** ทุกพฤติกรรม — ตัวที่ยังไม่มีแหล่งไหนของบริษัทตอบได้ขึ้นจางพร้อมเหตุผล (ไม่ขึ้นกับแหล่งที่ติ๊ก) */
+  const { options, disabledOptions } = useMemo(() => {
+    const r = audienceBehaviorOptions(availableKinds);
+    const disabled: Record<string, string> = { ...r.disabled, all: ALL_DISABLED_REASON };
+    return { options: r.options, disabledOptions: disabled };
+  }, [availableKinds]);
+
+  // ตัวเลือกที่เลือกไว้ใช้ไม่ได้กับบริษัทนี้ (เช่นเลิกเชื่อมเพจ Facebook) = ต้องเคลียร์
+  // ไม่งั้นบันทึกไม่ผ่านแล้วผู้ใช้ไม่เห็นว่ากลุ่มไหนถูกเลือกอยู่
+  //
+  // ⚠️ ต้องรอรายชื่อช่องทางโหลดเสร็จก่อน — ไม่งั้นตอนเปิดหน้าแก้ไข (ยังไม่รู้จักบัญชีแชท
+  // → "ทักจากโฆษณา" ขึ้นว่าไม่มีเพจ) กลุ่มที่บันทึกไว้จะถูกล้างทิ้งทันทีก่อนผู้ใช้เห็นด้วยซ้ำ
+  useEffect(() => {
+    if (chatLoading || !audience || options.length === 0) return;
+    if (options.some(o => o.key === audience) && !disabledOptions[audience]) return;
+    setAudience('');
+  }, [chatLoading, audience, options, disabledOptions]);
+
+  /**
+   * เลือกพฤติกรรม = ติ๊กแหล่งที่ตอบได้ให้ใหม่ทุกครั้ง — ไม่เก็บแหล่งที่ติ๊กไว้กับพฤติกรรมเดิม เพราะ
+   * แหล่งเดิมอาจตอบพฤติกรรมใหม่ไม่ได้แล้วบันทึกไม่ผ่านโดยไม่รู้ตัว · ผู้ใช้แก้ต่อได้ในการ์ดแหล่งที่มา
+   */
+  const handleAudienceChange = (key: string) => {
+    setAudience(key);
+    const src = defaultSourcesFor(key, chatAccounts);
+    setChatIds(src.chatIds);
+    setIncludeCustomers(src.includeCustomers);
+  };
+
+  // ── แหล่งที่มา (เลือกทีหลัง) ─────────────────────────────────────────
   const selectedChat = useMemo(
     () => chatAccounts.filter(a => chatIds.includes(a.id)),
     [chatAccounts, chatIds],
@@ -207,29 +249,6 @@ export default function AudienceForm({ mode, initial, templateKey, onAudienceCha
     if (includeCustomers) list.push({ kind: 'customers' });
     return list;
   }, [selectedChat, includeCustomers]);
-
-  const platforms = useMemo(
-    () => [...new Set(selectedChat.map(a => a.platform))],
-    [selectedChat],
-  );
-
-  /** ตัวเลือกทั้งหมดของแหล่งที่เลือก + เหตุผลของตัวที่บางแหล่งตอบไม่ได้ (ต้องครบทุกแหล่ง) */
-  const { options, disabledOptions } = useMemo(() => {
-    const r = audienceOptionsForSources(platforms, includeCustomers);
-    const disabled: Record<string, string> = { ...r.disabled, all: ALL_DISABLED_REASON };
-    return { options: r.options, disabledOptions: disabled };
-  }, [platforms, includeCustomers]);
-
-  // ตัวเลือกที่เลือกไว้หลุดออกจากรายการ (เปลี่ยนแหล่งที่มา) = ต้องเคลียร์ ไม่งั้นบันทึกไม่ผ่าน
-  // แล้วผู้ใช้ไม่เห็นว่ากลุ่มไหนถูกเลือกอยู่
-  //
-  // ⚠️ ต้องรอรายชื่อช่องทางโหลดเสร็จก่อน และรายการตัวเลือกต้องไม่ว่าง — ไม่งั้นตอนเปิดหน้าแก้ไข
-  // (ยังไม่รู้จักบัญชีแชท → options ว่าง) กลุ่มที่บันทึกไว้จะถูกล้างทิ้งทันทีก่อนผู้ใช้เห็นด้วยซ้ำ
-  useEffect(() => {
-    if (chatLoading || !audience || options.length === 0) return;
-    if (options.some(o => o.key === audience) && !disabledOptions[audience]) return;
-    setAudience('');
-  }, [chatLoading, audience, options, disabledOptions]);
 
   const selectedOption = options.find(o => o.key === audience) || null;
 
@@ -246,10 +265,13 @@ export default function AudienceForm({ mode, initial, templateKey, onAudienceCha
     [audience, audienceFilter, sources],
   );
 
+  /** ชื่อที่จะบันทึก — ยังไม่พิมพ์เอง = ชื่อของพฤติกรรม ("ซื้อล่าสุดภายใน 90 วัน") */
+  const effectiveName = nameTouched ? name : (audience ? audienceLabel(audience, audienceFilter) : '');
+
   /** ยังกรอกไม่ครบจนนับไม่ได้ — บอกว่าขาดอะไร ไม่ใช่ปล่อยแผงขวาว่าง */
   const hint = useMemo(() => {
-    if (sources.length === 0) return 'เลือกแหล่งที่มาก่อน';
     if (!audience) return 'เลือกกลุ่มเป้าหมายก่อน';
+    if (sources.length === 0) return 'เลือกแหล่งที่มาอย่างน้อยหนึ่งแหล่ง';
     if (selectedOption?.needsTags && tagIds.length === 0) return 'เลือกแท็กก่อน';
     if (selectedOption?.needsPick && pickedContacts.length === 0) return 'เลือกผู้ติดต่อก่อน';
     return null;
@@ -301,7 +323,7 @@ export default function AudienceForm({ mode, initial, templateKey, onAudienceCha
       const res = await apiFetch(
         `/api/broadcasts/audience-counts?platform=${a.platform}&account_id=${a.id}&days=${dayCount}`,
       );
-      // ปลายทางยังนับไม่ได้ (Facebook) = โชว์ '—' ห้ามทำให้ทั้งหน้าพัง
+      // ปลายทางยังนับไม่ได้ (Facebook) = ไม่แสดงตัวเลข ห้ามทำให้ทั้งหน้าพัง
       setCounts(res.ok ? await res.json() : null);
     } catch {
       setCounts(null);
@@ -360,16 +382,17 @@ export default function AudienceForm({ mode, initial, templateKey, onAudienceCha
   };
 
   const handleSave = async () => {
-    if (!form.validateAll()) return;
-    if (sources.length === 0) { showToast('เลือกแหล่งที่มาอย่างน้อยหนึ่งแหล่ง', 'error'); return; }
+    // ลำดับเดียวกับหน้าจอ — พฤติกรรม → แหล่ง → ชื่อ (ชื่อว่างเพราะยังไม่เลือกพฤติกรรม ต้องบอกเรื่องพฤติกรรม)
     if (!audience) { showToast('เลือกกลุ่มเป้าหมายก่อน', 'error'); return; }
+    if (sources.length === 0) { showToast('เลือกแหล่งที่มาอย่างน้อยหนึ่งแหล่ง', 'error'); return; }
+    if (!form.validateAll()) return;
     if (selectedOption?.needsTags && tagIds.length === 0) { showToast('เลือกแท็กอย่างน้อยหนึ่งอัน', 'error'); return; }
     if (selectedOption?.needsPick && pickedContacts.length === 0) { showToast('เลือกผู้ติดต่ออย่างน้อยหนึ่งคน', 'error'); return; }
 
     setSaving(true);
     setPreviewError(null);
     try {
-      const body = JSON.stringify({ name: name.trim(), description: description.trim(), definition });
+      const body = JSON.stringify({ name: effectiveName.trim(), description: description.trim(), definition });
       const res = audienceId
         ? await apiFetch(`/api/audiences/${audienceId}`, {
             method: 'PUT', headers: { 'Content-Type': 'application/json' }, body,
@@ -419,49 +442,15 @@ export default function AudienceForm({ mode, initial, templateKey, onAudienceCha
           </Alert>
         )}
 
-        <Card padding="md">
-          <h2 className="heading-4 mb-3">ชื่อกลุ่ม</h2>
-          <div className="space-y-3">
-            <FormInput
-              ref={form.register('name')}
-              label="ชื่อกลุ่ม"
-              required
-              maxLength={120}
-              value={name}
-              onChange={e => setName(e.target.value)}
-              placeholder="เช่น ลูกค้าเก่าหายไปเกิน 90 วัน"
-              hint="ชื่อนี้โผล่ในหน้า Ads Manager ของ Meta ด้วย"
-              disabled={saving}
-            />
-            <FormTextarea
-              label="คำอธิบาย"
-              rows={2}
-              maxLength={500}
-              showCount
-              value={description}
-              onChange={e => setDescription(e.target.value)}
-              placeholder="ใช้กลุ่มนี้ทำอะไร (ไม่กรอกก็ได้)"
-              disabled={saving}
-            />
-          </div>
-        </Card>
-
-        <SourceStep
-          accounts={chatAccounts}
-          chatIds={chatIds}
-          onChatIdsChange={setChatIds}
-          includeCustomers={includeCustomers}
-          onIncludeCustomersChange={setIncludeCustomers}
-          loading={chatLoading}
-          disabled={saving}
-        />
-
-        {options.length > 0 && (
+        {/* 1. พฤติกรรม — รอรายชื่อช่องทางก่อน ไม่งั้น "ทักจากโฆษณา" จะขึ้นว่าไม่มีเพจแวบหนึ่ง */}
+        {chatLoading ? (
+          <LoadingCard />
+        ) : (
           <AudienceStep
             options={options}
             disabledOptions={disabledOptions}
             audience={audience}
-            onAudienceChange={setAudience}
+            onAudienceChange={handleAudienceChange}
             counts={counts}
             countsLoading={countsLoading}
             countsUnavailable={selectedChat.length !== 1}
@@ -485,6 +474,46 @@ export default function AudienceForm({ mode, initial, templateKey, onAudienceCha
             disabled={saving}
           />
         )}
+
+        {/* 2. แหล่งที่มา — ติ๊กให้ตามพฤติกรรม แหล่งที่ตอบไม่ได้ขึ้นจาง */}
+        <SourceStep
+          accounts={chatAccounts}
+          chatIds={chatIds}
+          onChatIdsChange={setChatIds}
+          includeCustomers={includeCustomers}
+          onIncludeCustomersChange={setIncludeCustomers}
+          audienceType={audience}
+          loading={chatLoading}
+          disabled={saving}
+        />
+
+        {/* 3. ชื่อกลุ่ม — ตั้งให้จากพฤติกรรม ผู้ใช้แก้ได้ */}
+        <Card padding="md">
+          <h2 className="heading-4 mb-3">ชื่อกลุ่ม</h2>
+          <div className="space-y-3">
+            <FormInput
+              ref={form.register('name')}
+              label="ชื่อกลุ่ม"
+              required
+              maxLength={120}
+              value={effectiveName}
+              onChange={e => { setName(e.target.value); setNameTouched(true); }}
+              placeholder="ตั้งให้เองเมื่อเลือกกลุ่มเป้าหมาย"
+              hint="ตั้งให้ตามกลุ่มเป้าหมายที่เลือก แก้ได้ · ชื่อนี้โผล่ในหน้า Ads Manager ของ Meta ด้วย"
+              disabled={saving}
+            />
+            <FormTextarea
+              label="คำอธิบาย"
+              rows={2}
+              maxLength={500}
+              showCount
+              value={description}
+              onChange={e => setDescription(e.target.value)}
+              placeholder="ใช้กลุ่มนี้ทำอะไร (ไม่กรอกก็ได้)"
+              disabled={saving}
+            />
+          </div>
+        </Card>
 
         {/* โหมดสร้างเท่านั้น — โหมดแก้ไขมีแถว sync รายบัญชีอยู่ในแผงขวาแล้ว */}
         {mode === 'create' && readyAdAccounts.length > 0 && (

@@ -7,6 +7,7 @@
 // การ copy เงื่อนไขไปอีกที่แปลว่าวันหนึ่งสองหน้าจะไม่ตรงกันเงียบ ๆ
 
 import { apiFetch } from '@/lib/api-client';
+import { audienceSourceSupports } from '@/lib/broadcast/audience';
 import type { AudienceChatPlatform, ChatSourceAccount } from './types';
 
 /** แปลงแถวจาก /api/chat-accounts เป็นแหล่งที่มา — ตัวที่ดึงผู้ติดต่อไม่ได้ถูกคัดออกที่นี่ */
@@ -35,4 +36,25 @@ export async function loadChatSourceAccounts(): Promise<ChatSourceAccount[]> {
   } catch {
     return [];
   }
+}
+
+/**
+ * แหล่งที่ติ๊กให้เองเมื่อผู้ใช้เลือกพฤติกรรม (หน้ากลุ่มเป้าหมายเลือกพฤติกรรมก่อน แหล่งทีหลัง)
+ *
+ * = ทุกแหล่งที่ตอบพฤติกรรมนั้นได้ **ยกเว้น LINE** — LINE ไม่ให้เบอร์/อีเมล คนจาก LINE จึงแทบ
+ * ขึ้น Meta ไม่ได้ ติ๊กให้แล้วมีแต่พองยอด "ยัง sync ไม่ได้" ทั้งที่หน้านี้ใช้ทำโฆษณา Meta เป็นหลัก
+ * (ผู้ใช้ยังติ๊กเองได้ ถ้าจะเอากลุ่มไปส่งบรอดแคสต์ LINE) · ถ้าไม่เหลือแหล่งอื่นเลยค่อยติ๊ก LINE
+ * ให้ ไม่งั้นได้กลุ่มว่าง (ร้านที่มีแต่ LINE เลือก "คนที่เคยทักเข้ามา")
+ */
+export function defaultSourcesFor(
+  audienceType: string,
+  accounts: ChatSourceAccount[],
+): { chatIds: string[]; includeCustomers: boolean } {
+  const facebook = accounts.filter(a => a.platform === 'facebook' && audienceSourceSupports('facebook', audienceType));
+  const includeCustomers = audienceSourceSupports('customers', audienceType);
+  if (facebook.length > 0 || includeCustomers) {
+    return { chatIds: facebook.map(a => a.id), includeCustomers };
+  }
+  const line = accounts.filter(a => a.platform === 'line' && audienceSourceSupports('line', audienceType));
+  return { chatIds: line.map(a => a.id), includeCustomers: false };
 }

@@ -129,7 +129,7 @@ export function validateAudienceDefinition(
 
   // **ทุกแหล่ง** ที่เลือกต้องตอบกลุ่มนี้ได้ (เจ้าของเลือกแบบเข้ม 11 ก.ย. 2026) — แหล่งที่ตอบไม่ได้
   // ส่งคนมา 0 คนแต่ยังโผล่ในรายชื่อแหล่งของกลุ่ม ผู้ใช้จะเข้าใจผิดว่ามีคนจากแหล่งนั้นอยู่ด้วย
-  // · หน้าจอใช้กฎเดียวกันผ่าน audienceOptionsForSources() — แก้ที่หนึ่งต้องแก้อีกที่
+  // · หน้าจอใช้กฎเดียวกันผ่าน audienceSourceSupports() ใน lib/broadcast/audience.ts — แก้ที่หนึ่งต้องแก้อีกที่
   const unsupported = sources.filter(s => !keysForSource(s).has(audienceType));
   if (unsupported.length > 0) {
     const labels = [...new Set(unsupported.map(audienceSourceLabel))].join(' และ ');

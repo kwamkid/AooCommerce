@@ -86,8 +86,8 @@ export interface AudiencePreview {
   capped: boolean;
   by_source?: {
     kind: 'chat' | 'customers';
+    /** จัดกลุ่มต่อแพลตฟอร์ม (เพจ Facebook 3 เพจ = แถวเดียว) — ไม่มีเมื่อ kind = customers */
     platform?: string;
-    chat_account_id?: string;
     label: string;
     total: number;
     syncable: number;

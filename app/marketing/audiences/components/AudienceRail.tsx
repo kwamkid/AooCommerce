@@ -88,8 +88,8 @@ export default function AudienceRail({ preview, loading, error, hint }: Props) {
           {!!preview.by_source?.length && (
             <div className="mt-3 pt-3 border-t border-gray-100 dark:border-slate-700 space-y-1">
               <p className="field-label">มาจากแหล่งไหนบ้าง</p>
-              {preview.by_source.map((s, i) => (
-                <p key={`${s.kind}-${s.chat_account_id || i}`} className="subtitle-text">
+              {preview.by_source.map(s => (
+                <p key={`${s.kind}-${s.platform ?? ''}`} className="subtitle-text">
                   {s.label} · {formatNumber(s.total)} คน (sync ได้ {formatNumber(s.syncable)})
                 </p>
               ))}
