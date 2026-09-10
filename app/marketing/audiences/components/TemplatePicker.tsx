@@ -43,26 +43,41 @@ export default function TemplatePicker({ accounts, onPick, disabled }: Props) {
       {AUDIENCE_TEMPLATES.map(t => {
         const Icon = ICONS[t.icon];
         const reason = templateUnavailableReason(t, accounts);
+        const locked = disabled || !!reason;
         const button = (
           <Button
             variant="primary"
-            disabled={disabled || !!reason}
-            onClick={() => onPick(t.key)}
+            disabled={locked}
+            // การ์ดทั้งใบกดได้ด้วย — ไม่หยุดที่ปุ่ม จะยิง onPick สองรอบ
+            onClick={(e) => { e.stopPropagation(); onPick(t.key); }}
           >
             ใช้แม่แบบนี้
           </Button>
         );
 
         return (
-          <Card key={t.key} padding="md" className={`flex flex-col gap-2 ${reason ? 'opacity-60' : ''}`}>
+          <Card
+            key={t.key}
+            padding="md"
+            // `choice-card` = คลาสกลางของ "การ์ดตัวเลือกที่กดได้ทั้งใบ" (ขอบ + hover)
+            // ใช้ตัวนี้แทนการแต่งสีเอง การ์ดจึงเห็นขอบชัดบนพื้นเทาของหน้า โดยไม่ไปแตะ `.card`
+            // ซึ่งใช้ร่วมกันทั้งเว็บ
+            className={`choice-card flex flex-col gap-2 ${reason ? 'opacity-60' : 'cursor-pointer'}`}
+            onClick={locked ? undefined : () => onPick(t.key)}
+          >
             <div className="flex items-start gap-2.5 min-w-0">
-              <span className="w-9 h-9 rounded-lg bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-slate-300 flex items-center justify-center flex-shrink-0">
+              <span className="w-9 h-9 rounded-lg bg-orange-50 dark:bg-orange-950/20 text-primary flex items-center justify-center flex-shrink-0">
                 <Icon className="w-5 h-5" />
               </span>
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <h3 className="heading-4">{t.name}</h3>
                 <p className="subtitle-text mt-0.5">{t.description}</p>
               </div>
+              {/* ปุ่มอยู่บนขวาคู่กับชื่อ — ตำแหน่งเดียวกันทุกใบ ไม่ต้องกวาดตาหาที่ท้ายการ์ด
+                  ซึ่งอยู่คนละระดับกันเพราะคำอธิบายแต่ละใบยาวไม่เท่ากัน */}
+              <span className="flex-shrink-0">
+                {reason ? <Tooltip text={reason} box="inline-flex">{button}</Tooltip> : button}
+              </span>
             </div>
 
             <p className="helper-text">
@@ -71,10 +86,6 @@ export default function TemplatePicker({ accounts, onPick, disabled }: Props) {
             </p>
 
             {reason && <p className="helper-text">{reason}</p>}
-
-            <div className="flex justify-end mt-auto pt-1">
-              {reason ? <Tooltip text={reason} box="inline-flex">{button}</Tooltip> : button}
-            </div>
           </Card>
         );
       })}
