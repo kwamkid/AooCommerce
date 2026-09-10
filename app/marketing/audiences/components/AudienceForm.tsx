@@ -523,7 +523,10 @@ export default function AudienceForm({ mode, initial, templateKey, onAudienceCha
           <Button variant="secondary" onClick={() => router.push('/marketing/audiences')} disabled={saving}>
             ยกเลิก
           </Button>
-          <SaveButton onClick={handleSave} loading={saving} />
+          {/* สร้าง = บอกผลของการกดให้ชัด · แก้ไข = "บันทึก" ตามมาตรฐานของ SaveButton */}
+          <SaveButton onClick={handleSave} loading={saving}>
+            {mode === 'create' ? 'สร้างกลุ่มเป้าหมาย' : undefined}
+          </SaveButton>
         </div>
       </div>
 
