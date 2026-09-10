@@ -10,6 +10,7 @@
  */
 
 import { useState } from 'react';
+import Link from 'next/link';
 import Layout from '@/components/layout/Layout';
 import Container from '@/components/ui/Container';
 import Card from '@/components/ui/Card';
@@ -143,6 +144,19 @@ export default function DesignSystemPage() {
         </div>
 
         {/* TYPOGRAPHY */}
+        {/* ต้นแบบที่ทำบนระบบจริงเพื่อให้กดลองก่อนเคาะ (เจ้าของขอ 10 ก.ย. 2026) */}
+        <Section title="ต้นแบบ (prototype)" desc="หน้าที่ประกอบจาก component จริงเพื่อให้กดลองก่อนเคาะดีไซน์">
+          <Card>
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="body-text font-medium">ตัวแก้ไขบรอดแคสต์แบบบล็อก</p>
+                <p className="subtitle-text">เพิ่มบล็อกทีละชนิด ลากเรียงได้ · การ์ดแบบแท็บของ LINE · ตัวอย่างแชทขวา</p>
+              </div>
+              <Link href="/dev/design/broadcast-editor" className="btn btn-md btn-primary">เปิดต้นแบบ</Link>
+            </div>
+          </Card>
+        </Section>
+
         <Section title="Typography" desc="Global classes — ใช้แทน inline `text-Nxl font-bold text-gray-900` chain">
           <Card>
             <div className="space-y-3">
