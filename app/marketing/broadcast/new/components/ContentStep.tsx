@@ -251,16 +251,21 @@ export default function ContentStep({
             {linkField}
           </>
         ) : kind === 'announce' && compose.image ? (
-          // ประกาศ = ข้อความ + รูปใบเดียว → กล่องเดียวแบบช่องพิมพ์ในแชท (เจ้าของเลือก 10 ก.ย.)
-          // เลือกได้ตั้งแต่ยังไม่แนบรูปว่ารูปจะแสดงแบบไหน — ผลดูที่ตัวอย่างในแชทฝั่งขวา
-          <>
+          // ประกาศส่งถึงลูกค้าเป็น 2 ฟองแยกกัน (ข้อความ แล้วตามด้วยรูป) → ฟอร์มก็เป็น 2 กล่องแยกกัน
+          // ในลำดับเดียวกัน — เคยรวมเป็นกล่องเดียวแล้วเจ้าของบอกคนจะเข้าใจผิดว่าเป็นฟองเดียว (10 ก.ย.)
+          <div className="space-y-3">
             <MessageComposer
-              label="ข้อความ + รูป"
+              label="ฟองที่ 1 · ข้อความ"
               value={text}
               onChange={onTextChange}
               maxLength={textMax}
-              rows={5}
+              rows={4}
               placeholder="พิมพ์ข้อความที่จะส่งถึงลูกค้า"
+              disabled={disabled}
+            />
+            <MessageComposer
+              label="ฟองที่ 2 · รูป (ไม่บังคับ)"
+              emptyHint="ยังไม่มีรูป — กดแนบรูป หรือลากรูปมาวางที่นี่ · ไม่แนบ = ส่งแค่ฟองข้อความ"
               disabled={disabled}
               image={{
                 file: imageFile,
@@ -286,7 +291,7 @@ export default function ContentStep({
               }
             />
             {imageStyle === 'rich' && linkField}
-          </>
+          </div>
         ) : (
           // ช่องทางที่แนบรูปไม่ได้ (TikTok) และการ์ดสินค้า (ไม่มีช่องรูป) — เหลือแค่ข้อความ
           <>

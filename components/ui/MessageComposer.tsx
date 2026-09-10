@@ -1,11 +1,12 @@
 // Path: components/ui/MessageComposer.tsx
 //
-// กล่องพิมพ์ "ข้อความ 1 ใบ" แบบเดียวกับช่องพิมพ์ในแชท — ข้อความกับรูปที่แนบอยู่ในกรอบเดียว
-// (= สิ่งเดียวที่จะส่ง) · แถบล่างมีปุ่มแนบรูป · ของเพิ่มที่ผู้เรียกส่งมา (เช่นชิปเลือกแบบรูป) ·
-// ตัวนับอักขระ · ลาก/วางรูปลงกล่องได้ทั้งใบ · วางรูปจากคลิปบอร์ดตอนพิมพ์ได้
+// กล่องพิมพ์ "ฟองข้อความ 1 ฟอง" แบบเดียวกับช่องพิมพ์ในแชท — 1 กล่อง = 1 ฟองที่ลูกค้าจะได้รับ
+// ใช้ได้ 3 ท่า: ข้อความล้วน · ข้อความ + รูปในฟองเดียว · **รูปอย่างเดียว** (ไม่ส่ง value/onChange)
+// แถบล่างมีปุ่มแนบรูป · ของเพิ่มที่ผู้เรียกส่งมา (เช่นชิปเลือกแบบรูป) · ตัวนับอักขระ ·
+// ลาก/วางรูปลงกล่องได้ทั้งใบ · วางรูปจากคลิปบอร์ดตอนพิมพ์ได้
 //
-// ทำไมไม่ใช่ textarea + dropzone แยกสองกล่อง: บรอดแคสต์ "ประกาศ" คือข้อความ + รูปใบเดียว
-// แยกกล่องแล้วช่องข้อความใหญ่โล่ง กล่องรูปยืดเต็มกว้าง ดูเป็นคนละเรื่องกัน (เจ้าของ 10 ก.ย. 2026)
+// ⚠️ ของที่ส่งออกไปเป็น**หลายฟอง**ต้องวางเป็นหลายกล่อง — บรอดแคสต์ "ประกาศ" ส่งข้อความกับรูปเป็น
+// 2 ฟองแยกกัน เคยรวมในกล่องเดียวแล้วเจ้าของบอก "สวยแต่ไม่ดี คนจะเข้าใจผิดว่าเป็นฟองเดียว" (10 ก.ย. 2026)
 //
 // รูปใช้ `ImageDropzone` ตัวเดิม (ย่อรูป/พรีวิว/กากบาท/เตือนไฟล์ผิดชนิด) — ซ่อนกล่องเส้นประของมัน
 // แล้วให้ปุ่ม "แนบรูป" ในแถบล่างกับการลาก/วางบนกล่องนี้ป้อนไฟล์เข้าไปผ่าน ref แทน
@@ -29,9 +30,12 @@ interface ComposerImage {
 }
 
 interface MessageComposerProps {
-  value: string;
-  onChange: (value: string) => void;
+  /** ไม่ส่ง value/onChange = กล่องรูปอย่างเดียว (ไม่มีช่องพิมพ์) */
+  value?: string;
+  onChange?: (value: string) => void;
   label?: string;
+  /** ข้อความในกล่องรูปอย่างเดียวตอนยังไม่แนบ — กดแล้วเปิดเลือกรูป */
+  emptyHint?: string;
   placeholder?: string;
   rows?: number;
   maxLength?: number;
@@ -55,8 +59,9 @@ const ATTACH_CLASSES = {
 };
 
 export default function MessageComposer({
-  value, onChange, label, placeholder, rows = 5, maxLength, disabled, image, toolbar, error,
+  value, onChange, label, emptyHint, placeholder, rows = 5, maxLength, disabled, image, toolbar, error,
 }: MessageComposerProps) {
+  const hasText = onChange != null;
   const id = useId();
   const dropRef = useRef<ImageDropzoneHandle>(null);
   const [dragging, setDragging] = useState(false);
@@ -85,29 +90,47 @@ export default function MessageComposer({
 
   return (
     <div>
-      {label && <label htmlFor={id} className="field-label">{label}</label>}
+      {label && (
+        hasText
+          ? <label htmlFor={id} className="field-label">{label}</label>
+          : <p className="field-label">{label}</p>
+      )}
       <div
         className={`rounded-lg border bg-white dark:bg-slate-700 transition-colors focus-within:ring-2 ${frame} ${disabled ? 'opacity-60' : ''}`}
         onDragOver={image ? (e => { e.preventDefault(); setDragging(true); }) : undefined}
         onDragLeave={image ? (() => setDragging(false)) : undefined}
         onDrop={image ? onDrop : undefined}
       >
-        <textarea
-          id={id}
-          value={value}
-          rows={rows}
-          maxLength={maxLength}
-          disabled={disabled}
-          placeholder={placeholder}
-          onChange={e => onChange(e.target.value)}
-          onPaste={onPaste}
-          aria-invalid={!!error || undefined}
-          className="block w-full px-3 pt-2.5 pb-1 bg-transparent text-base text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-slate-500 resize-none focus:outline-none"
-        />
+        {hasText && (
+          <textarea
+            id={id}
+            value={value ?? ''}
+            rows={rows}
+            maxLength={maxLength}
+            disabled={disabled}
+            placeholder={placeholder}
+            onChange={e => onChange(e.target.value)}
+            onPaste={onPaste}
+            aria-invalid={!!error || undefined}
+            className="block w-full px-3 pt-2.5 pb-1 bg-transparent text-base text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-slate-500 resize-none focus:outline-none"
+          />
+        )}
+
+        {/* กล่องรูปอย่างเดียวตอนยังไม่แนบ — บอกให้รู้ว่ากล่องนี้รอรูป และกดตรงไหนก็เปิดเลือกรูป */}
+        {image && !hasText && !hasImage && (
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={() => dropRef.current?.open()}
+            className="block w-full text-left px-3 py-3 subtitle-text text-gray-500 dark:text-slate-400 hover:text-primary transition-colors"
+          >
+            {emptyHint || 'ยังไม่มีรูป — กดแนบรูป หรือลากรูปมาวางที่นี่'}
+          </button>
+        )}
 
         {/* รูปที่แนบ — โผล่ใต้ข้อความในกรอบเดียวกันเหมือนไฟล์แนบในแชท (ยังไม่แนบ = แถวนี้ว่าง) */}
         {image && (
-          <div className={hasImage ? 'px-3 pb-2' : 'px-3'}>
+          <div className={hasImage ? `px-3 pb-2${hasText ? '' : ' pt-3'}` : 'px-3'}>
             <ImageDropzone
               ref={dropRef}
               value={image.file}
@@ -136,9 +159,9 @@ export default function MessageComposer({
             </Button>
           )}
           {toolbar}
-          {maxLength != null && (
-            <span className={`ml-auto helper-text tabular-nums flex-shrink-0 ${value.length > maxLength ? 'text-red-600 dark:text-red-400' : ''}`}>
-              {value.length.toLocaleString()}/{maxLength.toLocaleString()}
+          {hasText && maxLength != null && (
+            <span className={`ml-auto helper-text tabular-nums flex-shrink-0 ${(value ?? '').length > maxLength ? 'text-red-600 dark:text-red-400' : ''}`}>
+              {(value ?? '').length.toLocaleString()}/{maxLength.toLocaleString()}
             </span>
           )}
         </div>
