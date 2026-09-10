@@ -43,12 +43,10 @@ export function MockAvatar({ size }: { size: 'sm' | 'md' }) {
  * แถบตัวหนังสือจำลอง
  *  muted  = ข้อความทั่วไป (ค่าเริ่มต้น)
  *  strong = หัวข้อ — เข้มกว่าเพื่อให้เห็นว่าเป็นคนละบรรทัดกับข้อความ
- *  light  = ตัวหนังสือบนพื้นฟ้าของห้องแชท (ชื่อร้านเหนือฟองแรก)
  */
 const LINE_TONE = {
   muted: 'bg-gray-300 dark:bg-slate-500',
   strong: 'bg-gray-500 dark:bg-slate-400',
-  light: 'bg-white/70',
 } as const;
 
 export function MockLine({ className, tone = 'muted' }: { className?: string; tone?: keyof typeof LINE_TONE }) {
@@ -73,18 +71,25 @@ function MockButton() {
   );
 }
 
+/** รูปโปรไฟล์ร้านในห้องแชทจำลอง = โลโก้ AOO ในวงกลมขาว (SVG จาก public — ไม่ต้องผ่าน next/image) */
+function MockLogoAvatar() {
+  return (
+    <div className="w-5 h-5 rounded-full bg-white p-0.5 flex-shrink-0 self-start">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src="/logo.svg" alt="" className="w-full h-full" />
+    </div>
+  );
+}
+
 /**
- * เปลือกห้องแชท: พื้นฟ้า + โปรไฟล์ร้าน + เส้นชื่อร้าน แล้วตามด้วยของที่ส่ง
- * คอลัมน์เนื้อหาเป็น flex-col เพื่อให้โปสเตอร์ยืดเต็มความสูงที่เหลือได้ (`flex-1`)
+ * เปลือกห้องแชท: พื้นฟ้า + โปรไฟล์ร้าน แล้วตามด้วยของที่ส่ง (ไม่มีเส้นชื่อร้าน — เจ้าของขอเอาออก)
+ * คอลัมน์เนื้อหาเป็น flex-col เพื่อให้โปสเตอร์/แบนเนอร์โปรโมชันยืดเต็มความสูงที่เหลือได้ (`flex-1`)
  */
 function MockChat({ children }: { children: ReactNode }) {
   return (
     <div className="w-full h-full bg-linechat p-2 flex items-stretch gap-1.5">
-      <div className="self-start">
-        <MockAvatar size="sm" />
-      </div>
+      <MockLogoAvatar />
       <div className="flex-1 min-w-0 flex flex-col gap-1">
-        <MockLine tone="light" className="w-8" />
         {children}
       </div>
     </div>
@@ -96,7 +101,7 @@ function MockProductCard() {
   return (
     <div className="w-7/12 flex-shrink-0 rounded-lg bg-white overflow-hidden">
       <div className="relative">
-        <MockPhoto className="h-10" />
+        <MockPhoto className="h-12" />
         <div className="absolute top-1 left-1 h-2 w-6 rounded-full bg-primary" />
       </div>
       <div className="p-1.5 space-y-1">
@@ -112,7 +117,7 @@ function MockProductCard() {
 
 /**
  * ประกาศ = ฟองข้อความ + ฟองรูปแยกใบ · โปสเตอร์ = รูปใบเดียวเต็มความกว้าง ไม่มีอะไรนอกรูป ·
- * โปรโมชัน = การ์ดรูปบน หัวข้อ ข้อความ ปุ่ม · การ์ดสินค้า = การ์ดเรียงแนวนอน ใบถัดไปโผล่ครึ่งใบ
+ * โปรโมชัน = การ์ดแบนเนอร์ใหญ่ หัวข้อ ข้อความ ปุ่ม · การ์ดสินค้า = การ์ดเรียงแนวนอน ใบถัดไปโผล่ครึ่งใบ
  * (บอกว่าเลื่อนดูต่อได้) — ทั้งหมดอยู่ในงบความสูง 112px ของกรอบพรีวิว `lg`
  */
 export const KIND_MOCKS: Record<BroadcastContentKind, ReactNode> = {
@@ -122,7 +127,7 @@ export const KIND_MOCKS: Record<BroadcastContentKind, ReactNode> = {
         <MockLine />
         <MockLine className="w-2/3" />
       </div>
-      <MockPhoto className="w-7/12 h-10 rounded-xl" />
+      <MockPhoto className="w-7/12 h-12 rounded-xl" />
     </MockChat>
   ),
   poster: (
@@ -132,8 +137,9 @@ export const KIND_MOCKS: Record<BroadcastContentKind, ReactNode> = {
   ),
   promo: (
     <MockChat>
-      <div className="rounded-xl bg-white overflow-hidden">
-        <MockPhoto className="h-9" />
+      {/* แบนเนอร์ยืดเต็มที่เหลือ (flex-1) — เจ้าของขอให้สูงใกล้ของจริง ไม่ใช่แถบบาง ๆ บนหัวการ์ด */}
+      <div className="flex-1 flex flex-col rounded-xl bg-white overflow-hidden">
+        <MockPhoto className="flex-1 min-h-0" />
         <div className="p-1.5 space-y-1">
           <MockLine tone="strong" className="w-3/4" />
           <MockLine />
