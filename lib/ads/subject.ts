@@ -9,6 +9,7 @@
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { fetchAllRows } from '@/lib/supabase-paging';
 import { actionSourceForOrder, isMarketplaceOrder } from '@/lib/meta/capi';
+import { QUALIFIED_LEAD_EVENT_NAME } from './qualified-lead';
 import type { ConversionSubject, OrderForConversion } from './types';
 
 // ─────────────────────── ส่วน pure (ทดสอบได้โดยไม่ต้องมี DB) ───────────────────────
@@ -31,15 +32,16 @@ export interface EligibilityResult {
 }
 
 /**
- * ใบนี้ส่งเป็น Purchase ได้ไหม — **เช็คก่อนจองสิทธิ์เสมอ**
- * (จองแล้วค่อยพบว่าไม่ควรส่ง = ใบนั้นถูกปิดตายทั้งที่ไม่เคยยิง)
+ * กติกาที่**ไม่เกี่ยวกับการชำระเงิน** — บิลใบนี้เป็นของลูกค้าปลายทางที่โฆษณาเราพามาไหม
+ *
+ * แยกออกมาเพราะ InitiateCheckout (เปิดบิลให้ ยังไม่จ่าย) ต้องใช้กติกาชุดเดียวกันเป๊ะ
+ * ยกเว้นข้อ "จ่ายแล้ว" — copy ไปอีกชุดเมื่อไหร่ กติกาสองชุดจะเดินหนีกันโดยไม่มีใครรู้
  */
-export function isPurchaseEligible(
+export function isConversionEligible(
   order: OrderForConversion | null,
   account?: { metadata?: Record<string, unknown> | null } | null,
 ): EligibilityResult {
   if (!order) return { ok: false, reason: 'order_not_found' };
-  if (order.payment_status !== 'paid') return { ok: false, reason: 'not_paid' };
   if (order.order_status === 'cancelled') return { ok: false, reason: 'cancelled' };
   // ออเดอร์ที่เกิดในแอปของแพลตฟอร์มอื่น — เราไม่ได้เป็นคนพาลูกค้ามา เคลมไม่ได้
   if (isMarketplaceOrder(order)) return { ok: false, reason: 'marketplace_order' };
@@ -57,11 +59,25 @@ export function isPurchaseEligible(
   return { ok: true };
 }
 
+/**
+ * ใบนี้ส่งเป็น Purchase ได้ไหม — **เช็คก่อนจองสิทธิ์เสมอ**
+ * (จองแล้วค่อยพบว่าไม่ควรส่ง = ใบนั้นถูกปิดตายทั้งที่ไม่เคยยิง)
+ */
+export function isPurchaseEligible(
+  order: OrderForConversion | null,
+  account?: { metadata?: Record<string, unknown> | null } | null,
+): EligibilityResult {
+  if (!order) return { ok: false, reason: 'order_not_found' };
+  if (order.payment_status !== 'paid') return { ok: false, reason: 'not_paid' };
+  return isConversionEligible(order, account);
+}
+
 // ─────────────────────── ส่วนที่คุยกับฐานข้อมูล ───────────────────────
 
 const ORDER_COLUMNS =
   'id, company_id, order_number, customer_id, total_amount, payment_status, order_status, ' +
-  'source, marketplace_account_id, flow_type, chat_platform, chat_contact_id, chat_account_id, updated_at';
+  'source, marketplace_account_id, flow_type, chat_platform, chat_contact_id, chat_account_id, ' +
+  'created_at, updated_at';
 
 export async function loadOrderForConversion(orderId: string): Promise<OrderForConversion | null> {
   try {
@@ -167,5 +183,108 @@ export async function buildPurchaseSubject(
       order_id: order.order_number ?? order.id,
       content_type: 'product',
     },
+  };
+}
+
+/**
+ * ประกอบ subject ของ **InitiateCheckout** — "พนักงานเปิดบิลให้จากห้องแชทแล้ว"
+ *
+ * ⚠️ **ไม่มีเงื่อนไขว่าจ่ายแล้ว** (นั่นคือทั้งประเด็นของ event นี้) แต่ยังต้องผ่านกติกาอื่น
+ * ครบชุดผ่าน `isConversionEligible` ตอน dispatch — และต้องมีห้องแชทผูกอยู่จริง
+ * ไม่งั้นเราไม่มีทางบอก Meta ได้ว่าบทสนทนาไหนพาไปถึงตะกร้าใบนี้
+ *
+ * event_time = **เวลาที่เปิดบิล** ไม่ใช่ "ตอนนี้" (ยิงย้อนหลังด้วยเวลาปัจจุบัน = สถิติเพี้ยน)
+ */
+export async function buildInitiateCheckoutSubject(
+  orderId: string,
+): Promise<ConversionSubject | { skip: string }> {
+  const order = await loadOrderForConversion(orderId);
+  if (!order) return { skip: 'order_not_found' };
+  if (order.order_status === 'cancelled') return { skip: 'cancelled' };
+  // ออเดอร์ที่เกิดในแอปของแพลตฟอร์มอื่น — เราไม่ได้เป็นคนพาลูกค้ามา เคลมไม่ได้
+  if (isMarketplaceOrder(order)) return { skip: 'marketplace_order' };
+  if (!order.chat_contact_id) return { skip: 'no_chat_contact' };
+
+  const customer = order.customer_id ? await loadCustomerIdentity(order.customer_id) : null;
+  const createdMs = order.created_at ? Date.parse(order.created_at) : NaN;
+  const eventTime = Number.isFinite(createdMs)
+    ? Math.floor(createdMs / 1000)
+    : Math.floor(Date.now() / 1000);
+
+  return {
+    companyId: order.company_id,
+    eventName: 'InitiateCheckout',
+    // คนละ prefix กับ Purchase (ซึ่งใช้ order id ล้วน) — event สองชนิดของบิลเดียวกัน
+    // ต้องมี id คนละใบ ไม่งั้น Meta ตัดทิ้งเป็นใบซ้ำ
+    eventId: `ic:${order.id}`,
+    eventTime,
+    actionSource: 'chat',
+    order,
+    customer,
+    contact: null,
+    customData: {
+      currency: 'THB',
+      value: Number(order.total_amount) || 0,
+      order_id: order.order_number ?? order.id,
+    },
+  };
+}
+
+/** ผู้ติดต่อ Messenger เท่าที่ subject ของ QualifiedLead ต้องใช้ */
+interface FbContactForSubject {
+  id: string;
+  company_id: string;
+  fb_psid: string | null;
+  fb_page_id: string | null;
+  chat_account_id: string | null;
+  customer_id: string | null;
+  source: string | null;
+}
+
+/**
+ * ประกอบ subject ของ **QualifiedLead** — "ห้องนี้คุยจนรู้แล้วว่าเป็นลูกค้าจริง"
+ *
+ * ไม่ผูกกับบิล (`order: null`) — จุดประสงค์คือบอก Meta ว่า *คนแบบไหน* คุยแล้วไปต่อ
+ * เพื่อให้โฆษณาไปหาคนแบบนั้นเพิ่ม · เบอร์/อีเมลมีก็ต่อเมื่อห้องนี้ผูกกับลูกค้าในระบบแล้ว
+ * (ไม่มีก็ยังยิงเข้า dataset ของเพจได้ เพราะสายนั้นจับคู่ด้วย PSID)
+ */
+export async function buildQualifiedLeadSubject(input: {
+  companyId: string;
+  contactId: string;
+}): Promise<ConversionSubject | { skip: string }> {
+  const { companyId, contactId } = input;
+
+  const { data: contact } = await supabaseAdmin
+    .from('fb_contacts')
+    .select('id, company_id, fb_psid, fb_page_id, chat_account_id, customer_id, source')
+    .eq('id', contactId)
+    .eq('company_id', companyId)
+    .maybeSingle<FbContactForSubject>();
+
+  if (!contact) return { skip: 'contact_not_found' };
+  // IG ยังไม่รองรับ (dataset ของเพจต้องใช้ ig user id + messaging_channel instagram)
+  if (contact.source !== 'facebook') return { skip: 'not_facebook' };
+
+  const customer = contact.customer_id ? await loadCustomerIdentity(contact.customer_id) : null;
+
+  return {
+    companyId,
+    eventName: QUALIFIED_LEAD_EVENT_NAME,
+    eventId: `ql:${contactId}`,
+    eventTime: Math.floor(Date.now() / 1000),
+    actionSource: 'chat',
+    order: null,
+    customer,
+    contact:
+      contact.fb_psid && contact.fb_page_id && contact.chat_account_id
+        ? {
+            platform: 'facebook',
+            contactId: contact.id,
+            psid: String(contact.fb_psid),
+            pageId: String(contact.fb_page_id),
+            chatAccountId: contact.chat_account_id,
+          }
+        : null,
+    customData: {},
   };
 }

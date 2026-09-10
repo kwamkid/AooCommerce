@@ -10,8 +10,14 @@
 
 import type { CapiActionSource } from '@/lib/meta/capi';
 
-/** event ที่ระบบนี้รู้จัก — Purchase ใช้จริงแล้ว อีกสองตัวเป็นของ Phase 3 */
-export type ConversionEventName = 'Purchase' | 'InitiateCheckout' | 'QualifiedLead';
+/**
+ * event ที่ระบบนี้รู้จัก
+ *
+ * `'Lead'` มีไว้เป็น**ทางสำรองของชื่อเดียวกัน**: ถ้า Meta ไม่รับชื่อ `QualifiedLead`
+ * บน business_messaging ให้สลับที่ `QUALIFIED_LEAD_EVENT_NAME` ใน lib/ads/qualified-lead.ts
+ * ที่เดียวแล้วจบ — ไม่มีโค้ดไหนแตกสาขาตามชื่อนี้ ทั้งระบบส่งต่อเป็นสตริงเฉย ๆ
+ */
+export type ConversionEventName = 'Purchase' | 'InitiateCheckout' | 'QualifiedLead' | 'Lead';
 
 /** แถวใน `ad_accounts` — token อยู่ในนี้ **ห้ามส่งออกทาง API ตรง ๆ** (ใช้ toAdAccountView) */
 export interface AdAccountRow {
@@ -54,6 +60,8 @@ export interface OrderForConversion {
   chat_platform: string | null;
   chat_contact_id: string | null;
   chat_account_id: string | null;
+  /** เวลาที่เปิดบิล — InitiateCheckout ใช้เป็น event_time (ไม่ใช่ "ตอนนี้") */
+  created_at: string | null;
   updated_at: string | null;
 }
 

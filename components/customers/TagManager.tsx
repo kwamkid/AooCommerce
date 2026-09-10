@@ -14,6 +14,9 @@ import Button from '@/components/ui/Button';
 import SaveButton from '@/components/ui/SaveButton';
 import FormInput from '@/components/ui/FormInput';
 import ListRow from '@/components/ui/ListRow';
+import Badge from '@/components/ui/Badge';
+import Checkbox from '@/components/ui/Checkbox';
+import HelpHint from '@/components/ui/HelpHint';
 import { LoadingCard, EmptyCard } from '@/components/ui/StateCard';
 import { Tag as TagType, TAG_COLORS } from '@/components/ui/TagBadge';
 import { useToast } from '@/lib/toast-context';
@@ -37,6 +40,8 @@ export default function TagManager({ onChanged }: TagManagerProps) {
   const [editing, setEditing] = useState<TagType | null>(null);
   const [name, setName] = useState('');
   const [color, setColor] = useState<string>(TAG_COLORS[0]);
+  // สัญญาณ QualifiedLead — บริษัทละ 1 แท็ก (ติ๊กใบใหม่ = ย้ายมาจากใบเดิม API จัดการให้)
+  const [qualifiedLead, setQualifiedLead] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
@@ -68,13 +73,22 @@ export default function TagManager({ onChanged }: TagManagerProps) {
     setEditing(null);
     setName('');
     setColor(TAG_COLORS[0]);
+    setQualifiedLead(false);
   };
 
   const startEdit = (tag: TagType) => {
     setEditing(tag);
     setName(tag.name);
     setColor(tag.color);
+    setQualifiedLead(!!tag.triggers_qualified_lead);
   };
+
+  /** แท็กที่ถือธงอยู่ตอนนี้ (ถ้าไม่ใช่ใบที่กำลังแก้) — ไว้บอกว่ากดแล้วจะย้ายมาจากใบไหน */
+  const qualifiedLeadHolder = tags.find(t => t.triggers_qualified_lead && t.id !== editing?.id) || null;
+
+  /** ธงมีได้ใบเดียว — ใบที่เพิ่งบันทึกได้ธง ใบอื่นต้องถูกปลดในจอด้วย ไม่ใช่รอโหลดใหม่ */
+  const withSingleQualifiedLead = (list: TagType[], winnerId: string, on: boolean): TagType[] =>
+    on ? list.map(t => ({ ...t, triggers_qualified_lead: t.id === winnerId })) : list;
 
   const handleSave = async () => {
     if (!name.trim() || saving) return;
@@ -84,25 +98,33 @@ export default function TagManager({ onChanged }: TagManagerProps) {
         const res = await apiFetch('/api/customers/tags', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id: editing.id, name: name.trim(), color }),
+          body: JSON.stringify({ id: editing.id, name: name.trim(), color, triggers_qualified_lead: qualifiedLead }),
         });
         if (!res.ok) { const r = await res.json().catch(() => ({})); throw new Error(r.error || 'แก้ไขแท็กไม่สำเร็จ'); }
         const { tag } = await res.json();
         // คงตัวนับเดิมไว้ — API ขาแก้ไขไม่ได้คืน count กลับมา
-        applyTags(tags.map(t => (t.id === tag.id
-          ? { ...tag, count: t.count, contact_count: t.contact_count }
-          : t)));
+        applyTags(withSingleQualifiedLead(
+          tags.map(t => (t.id === tag.id
+            ? { ...tag, count: t.count, contact_count: t.contact_count }
+            : t)),
+          tag.id,
+          qualifiedLead,
+        ));
         showToast('แก้ไขแท็กสำเร็จ');
       } else {
         const res = await apiFetch('/api/customers/tags', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: name.trim(), color }),
+          body: JSON.stringify({ name: name.trim(), color, triggers_qualified_lead: qualifiedLead }),
         });
         if (!res.ok) { const r = await res.json().catch(() => ({})); throw new Error(r.error || 'สร้างแท็กไม่สำเร็จ'); }
         const { tag } = await res.json();
-        applyTags([...tags, { ...tag, count: 0, contact_count: 0 }]
-          .sort((a, b) => a.name.localeCompare(b.name, 'th')));
+        applyTags(withSingleQualifiedLead(
+          [...tags, { ...tag, count: 0, contact_count: 0 }]
+            .sort((a, b) => a.name.localeCompare(b.name, 'th')),
+          tag.id,
+          qualifiedLead,
+        ));
         showToast('สร้างแท็กสำเร็จ');
       }
       resetForm();
@@ -202,6 +224,23 @@ export default function TagManager({ onChanged }: TagManagerProps) {
             </div>
           </div>
 
+          <div>
+            <Checkbox
+              checked={qualifiedLead}
+              onChange={setQualifiedLead}
+              label="ใช้เป็นสัญญาณ Qualified Lead ให้ Meta"
+            />
+            <HelpHint>
+              ติดแท็กนี้ให้ผู้ติดต่อ Facebook (หรือลูกค้าที่ผูกห้อง Messenger) = ส่ง QualifiedLead
+              ให้ Meta ทันที เพื่อให้โฆษณาเรียนรู้ว่าคนแบบไหนคือลูกค้าคุณภาพ · เลือกได้แท็กเดียวต่อบริษัท
+            </HelpHint>
+            {qualifiedLead && qualifiedLeadHolder && (
+              <p className="helper-text text-gray-500 mt-1 ml-7">
+                (ย้ายมาจาก &ldquo;{qualifiedLeadHolder.name}&rdquo;)
+              </p>
+            )}
+          </div>
+
           <div className="flex justify-end gap-3">
             {editing && (
               <Button variant="secondary" disabled={saving} onClick={resetForm}>
@@ -246,7 +285,14 @@ export default function TagManager({ onChanged }: TagManagerProps) {
                   <span className="w-3.5 h-3.5 rounded-full" style={{ backgroundColor: tag.color }} />
                 </span>
               }
-              title={tag.name}
+              title={
+                <span className="inline-flex items-center gap-2">
+                  {tag.name}
+                  {tag.triggers_qualified_lead && (
+                    <Badge tone="blue" size="sm">Qualified Lead → Meta</Badge>
+                  )}
+                </span>
+              }
               subtitle={`ลูกค้า ${tag.count ?? 0} คน · แชท ${tag.contact_count ?? 0} รายการ`}
               actions={
                 <>

@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, after } from 'next/server';
 import { logIntegrationNow } from '@/lib/integration-logger';
 import { FacebookChatService } from '@/lib/services/chat';
 import { getFbCredsFromAccount } from '@/lib/chat-config';
@@ -168,6 +168,18 @@ export async function POST(request: NextRequest) {
           }
 
           await fbService.saveIncomingMessage(contact, event, companyId, chatAccountId, account.account_name);
+
+          // ห้องนี้คุยจนได้คุณภาพหรือยัง — ตัวประเมินตัดจบเองเมื่อยังไม่ถึงเกณฑ์/เคยส่งไปแล้ว
+          // (IG ยิงเข้า dataset ของเพจไม่ได้ จึงไม่ต้องเสียงานประเมิน)
+          // ⚠️ ต้องอยู่ใน after() — ปล่อยลอยแล้ว Vercel freeze ทิ้งทันทีที่ตอบ Facebook ไป
+          if (!isInstagram) {
+            const contactIdForLead = contact.id as string;
+            after(() =>
+              import('@/lib/ads/qualified-lead')
+                .then(m => m.evaluateQualifiedLead({ companyId, contactId: contactIdForLead, trigger: 'messages' }))
+                .catch(() => null),
+            );
+          }
         }
       }
     }

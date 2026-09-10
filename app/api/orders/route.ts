@@ -999,6 +999,13 @@ export async function POST(request: NextRequest) {
     // rpc returns an array — use first element, fall back to the inserted order
     const orderResult = Array.isArray(completeOrder) ? completeOrder[0] : completeOrder;
 
+    // บิลที่เปิดจากห้องแชท = "ลูกค้าคุยแล้วได้ตะกร้า" — บอก Meta ตั้งแต่ตอนนี้ ไม่ต้องรอจ่าย
+    // (โฆษณาที่รู้แค่ตอนจ่ายจริงจะเรียนรู้ช้ากว่ามาก เพราะบิลส่วนใหญ่จ่ายทีหลังเป็นวัน)
+    // ⚠️ ต้องอยู่ใน after() — ปล่อยลอยแล้ว Vercel freeze ทิ้งทันทีที่ response ออก
+    if ('chat_contact_id' in chatContext && chatContext.chat_contact_id) {
+      after(() => import('@/lib/ads/dispatch').then(m => m.dispatchConversion({ event: 'InitiateCheckout', orderId: order.id })).catch(() => null));
+    }
+
     return NextResponse.json({
       success: true,
       order: orderResult || order,

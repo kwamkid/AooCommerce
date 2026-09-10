@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, after } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
 // แปลง platform → ตารางผู้ติดต่อ + เช็คว่าเป็นของบริษัทนี้จริง (กันแก้แท็กข้ามบริษัท
 // เพราะ service role ข้าม RLS) — ทะเบียนอยู่ที่ lib/chat/contact-tables.ts ที่เดียว
@@ -79,16 +79,20 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const addIds: string[] = Array.isArray(add) ? add.filter((v: unknown) => typeof v === 'string') : [];
     const removeIds: string[] = Array.isArray(remove) ? remove.filter((v: unknown) => typeof v === 'string') : [];
 
+    // ติดแท็กที่ตั้งเป็นสัญญาณ = คนยืนยันว่าห้องนี้เป็นลูกค้าคุณภาพ ต้องบอก Meta
+    let taggedQualifiedLead = false;
+
     if (addIds.length > 0) {
       // รับเฉพาะแท็กของบริษัทนี้ — id แปลกปลอมถูกตัดทิ้งเงียบ ๆ (ไม่ใช่ error)
       const { data: ownTags, error: ownErr } = await supabaseAdmin
         .from('customer_tags')
-        .select('id')
+        .select('id, triggers_qualified_lead')
         .eq('company_id', companyId)
         .in('id', addIds);
       if (ownErr) throw ownErr;
 
       const validAddIds = (ownTags || []).map(t => t.id);
+      taggedQualifiedLead = (ownTags || []).some(t => t.triggers_qualified_lead);
       if (validAddIds.length > 0) {
         // ⚠️ onConflict ต้องตรงกับ primary key เป๊ะ ๆ (contact_id, platform, tag_id)
         // ไม่ตรง = ล้มด้วย 42P10 ทุกแถวทั้งที่ flow ดูสำเร็จ (aoo-techstack/BUGS.md)
@@ -131,6 +135,17 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       if (tagErr) throw tagErr;
       tags = (tagData || []) as TagRow[];
     }
+
+    // ⚠️ ต้องอยู่ใน after() — ปล่อยลอยแล้ว Vercel freeze ทิ้งทันทีที่ response ออก
+    // (Facebook เท่านั้น — ช่องทางอื่นไม่มี dataset ของเพจให้ยิงเข้า)
+    if (taggedQualifiedLead && platform === 'facebook') {
+      after(() =>
+        import('@/lib/ads/qualified-lead')
+          .then(m => m.evaluateQualifiedLead({ companyId, contactId, trigger: 'tag' }))
+          .catch(() => null),
+      );
+    }
+
     return NextResponse.json({ tags });
   } catch (error) {
     console.error('Contact tags PATCH error:', error);

@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, after } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
 
 // Confirm the customer belongs to the caller's company. Returns true only when
@@ -69,16 +69,20 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const addIds: string[] = Array.isArray(add) ? add.filter((v: unknown) => typeof v === 'string') : [];
     const removeIds: string[] = Array.isArray(remove) ? remove.filter((v: unknown) => typeof v === 'string') : [];
 
+    // ติดแท็กที่ตั้งเป็นสัญญาณ = คนยืนยันว่าลูกค้ารายนี้มีคุณภาพ ต้องบอก Meta
+    let taggedQualifiedLead = false;
+
     if (addIds.length > 0) {
       // รับเฉพาะแท็กของบริษัทนี้ — id แปลกปลอมถูกตัดทิ้งเงียบ ๆ (ไม่ใช่ error)
       const { data: ownTags, error: ownErr } = await supabaseAdmin
         .from('customer_tags')
-        .select('id')
+        .select('id, triggers_qualified_lead')
         .eq('company_id', companyId)
         .in('id', addIds);
       if (ownErr) throw ownErr;
 
       const validAddIds = (ownTags || []).map(t => t.id);
+      taggedQualifiedLead = (ownTags || []).some(t => t.triggers_qualified_lead);
       if (validAddIds.length > 0) {
         // ⚠️ onConflict ต้องตรงกับ primary key เป๊ะ ๆ (customer_id, tag_id)
         // ไม่ตรง = ล้มด้วย 42P10 ทุกแถวทั้งที่ flow ดูสำเร็จ (aoo-techstack/BUGS.md)
@@ -109,6 +113,31 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (error) throw error;
 
     const tags = (data || []).map((d: any) => d.tag).filter(Boolean);
+
+    // ลูกค้าคนเดียวผูกได้หลายห้อง Messenger (ทักมาหลายเพจ) — ยิงให้ทุกห้องที่ผูกไว้
+    // เพดาน 3 ห้องพอ: มากกว่านั้นแปลว่าข้อมูลผูกกันมั่ว ไม่ใช่เคสที่ต้องรองรับ
+    // ⚠️ ต้องอยู่ใน after() — ปล่อยลอยแล้ว Vercel freeze ทิ้งทันทีที่ response ออก
+    if (taggedQualifiedLead) {
+      after(async () => {
+        try {
+          const { data: contacts } = await supabaseAdmin
+            .from('fb_contacts')
+            .select('id')
+            .eq('company_id', companyId)
+            .eq('customer_id', customerId)
+            .eq('source', 'facebook')
+            .limit(3);
+          if (!contacts?.length) return;
+          const { evaluateQualifiedLead } = await import('@/lib/ads/qualified-lead');
+          for (const contact of contacts as { id: string }[]) {
+            await evaluateQualifiedLead({ companyId, contactId: contact.id, trigger: 'tag' });
+          }
+        } catch (err) {
+          console.error('[customer tags] QualifiedLead failed:', err);
+        }
+      });
+    }
+
     return NextResponse.json({ tags });
   } catch (error) {
     console.error('Customer tags PATCH error:', error);

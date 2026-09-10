@@ -29,8 +29,10 @@ export async function GET(request: NextRequest) {
     const statusParam = (searchParams.get('status')?.trim() || '') as AdEventStatus;
     const limit = Math.max(1, Math.min(200, Number(searchParams.get('limit')) || 50));
 
-    // หน้าออเดอร์เข้าทางนี้ — สิทธิ์ระดับ "เห็นออเดอร์" พอ ไม่ต้องเป็นผู้ดูแล
-    if (!can(auth, orderId ? 'order.view' : 'masterdata.ad_accounts')) {
+    // หน้าออเดอร์/หน้าแชทเข้าทางนี้ — สิทธิ์ระดับ "เห็นของที่ถามถึง" พอ ไม่ต้องเป็นผู้ดูแล
+    // (ทั้งสองทางถูกจำกัดด้วย company_id อยู่แล้ว และตอบแค่ว่า "บอก Meta แล้วหรือยัง")
+    const capability = orderId ? 'order.view' : contactId ? 'chat.view' : 'masterdata.ad_accounts';
+    if (!can(auth, capability)) {
       return NextResponse.json({ error: 'ไม่มีสิทธิ์เข้าถึง' }, { status: 403 });
     }
 

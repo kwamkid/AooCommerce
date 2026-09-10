@@ -10,6 +10,8 @@ export interface Tag {
   count?: number;
   /** จำนวนผู้ติดต่อในแชทที่ติดแท็กนี้ — แท็กชุดเดียวกันใช้ทั้ง 2 ฝั่ง */
   contact_count?: number;
+  /** ติดแท็กนี้ = ส่ง QualifiedLead ให้ Meta (บริษัทละ 1 แท็ก — DB บังคับด้วย unique index) */
+  triggers_qualified_lead?: boolean;
 }
 
 // Preset 8 colors

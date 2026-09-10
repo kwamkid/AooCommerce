@@ -67,6 +67,8 @@ import TagBadge, { Tag } from '@/components/ui/TagBadge';
 import TagInput from '@/components/ui/TagInput';
 import { diffTagIds, patchCustomerTags, patchContactTags } from '@/lib/tag-links';
 import Tooltip from '@/components/ui/Tooltip';
+import Badge from '@/components/ui/Badge';
+import type { AdEventRow } from '@/lib/ads/meta-ui';
 import type { UnifiedContact, ChatMessage, Customer, DayRange, ChatAccountInfo, LinkedContact, ContactReferral } from './lib/chatTypes';
 import MessageBubble from './components/MessageBubble';
 // แผง "เปิดบิล" แยกไฟล์เพราะห่อ memo ไว้ (ดูหมายเหตุในไฟล์นั้น) — ตัวห่อเล็กมาก
@@ -255,8 +257,11 @@ function UnifiedChatPageContent() {
   // ประวัติ "ทักมาจากโฆษณา" ของห้องที่เปิดอยู่ — โหลดเฉพาะตอนเปิดแผงโปรไฟล์
   const [referralHistory, setReferralHistory] = useState<ContactReferral[] | null>(null);
   const [referralHistoryLoading, setReferralHistoryLoading] = useState(false);
+  // event ที่ส่งขึ้น Meta ของห้องนี้ (null = ยังไม่ได้โหลด/โหลดไม่ได้ → ไม่แสดงบล็อก)
+  const [metaEvents, setMetaEvents] = useState<AdEventRow[] | null>(null);
   /** ลำดับคำขอ — ผลของห้องเก่าที่มาช้าต้องถูกทิ้ง ห้ามเอามาทับห้องที่เปิดอยู่ */
   const referralHistorySeq = useRef(0);
+  const metaEventsSeq = useRef(0);
 
   // Advanced filters
   const [showFilterPopover, setShowFilterPopover] = useState(false);
@@ -605,6 +610,34 @@ function UnifiedChatPageContent() {
       }
     })();
   }, [selectedContact?.id, selectedContact?.platform, selectedContact?.referral_source, rightPanel, mobileView]);
+
+  // ── event ที่บอก Meta ไปแล้ว (Facebook เท่านั้น — ช่องทางอื่นไม่มี dataset ของเพจ) ──
+  useEffect(() => {
+    metaEventsSeq.current++;
+    setMetaEvents(null);
+  }, [selectedContact?.id]);
+
+  // โหลดเมื่อ "เปิดแผงโปรไฟล์" เท่านั้น — เหมือนประวัติโฆษณา ไม่มีใครดูจนกว่าจะกดเปิด
+  useEffect(() => {
+    const contactId = selectedContact?.id;
+    const panelOpen = rightPanel === 'profile' || mobileView === 'profile';
+    if (!panelOpen || !contactId || selectedContact?.platform !== 'facebook') return;
+
+    const seq = ++metaEventsSeq.current;
+    (async () => {
+      try {
+        const res = await apiFetch(`/api/ads/events?contact_id=${contactId}&limit=20`);
+        const data = await res.json().catch(() => ({}));
+        // สลับห้อง/ปิดแผงไปแล้วระหว่างรอ = ทิ้งผลนี้ ห้ามเอาของห้องก่อนหน้ามาทับ
+        if (seq !== metaEventsSeq.current) return;
+        if (!res.ok) throw new Error(data?.error || 'โหลดประวัติ Meta ไม่สำเร็จ');
+        setMetaEvents((data.events || []) as AdEventRow[]);
+      } catch {
+        // โหลดไม่ได้ (ไม่มีสิทธิ์/เน็ตสะดุด) = ไม่แสดงบล็อก ดีกว่าขึ้นข้อความผิด
+        if (seq === metaEventsSeq.current) setMetaEvents([]);
+      }
+    })();
+  }, [selectedContact?.id, selectedContact?.platform, rightPanel, mobileView]);
 
   // Close filter popover when clicking outside
   useEffect(() => {
@@ -2385,6 +2418,57 @@ function UnifiedChatPageContent() {
             size="sm"
           />
         </div>
+
+        {/* Meta — event ที่บอกแพลตฟอร์มโฆษณาไปแล้วสำหรับห้องนี้
+            (ไม่มี event สักใบ = ไม่ต้องมีบล็อกนี้เลย ห้ามโชว์หัวข้อว่างเปล่า) */}
+        {selectedContact.platform === 'facebook' && !!metaEvents?.length && (() => {
+          // event ชนิดเดียวกันมีได้หลายใบ (dataset เพจ + dataset บัญชีโฆษณา) —
+          // คนอ่านสนแค่ว่า "ชนิดนี้บอก Meta ไปแล้วหรือยัง" จึงยุบเหลือชนิดละบรรทัด
+          const sent = new Map<string, AdEventRow>();
+          const failed = new Map<string, AdEventRow>();
+          for (const ev of metaEvents) {
+            if (ev.status === 'sent') {
+              const prev = sent.get(ev.event_name);
+              if (!prev || (ev.sent_at || '') > (prev.sent_at || '')) sent.set(ev.event_name, ev);
+            } else if (ev.status === 'failed' && !failed.has(ev.event_name)) {
+              failed.set(ev.event_name, ev);
+            }
+          }
+          // ชื่อ event ของ QualifiedLead สลับเป็น 'Lead' ได้ (ดู lib/ads/qualified-lead.ts) — รับทั้งคู่
+          const hasQualifiedLead = sent.has('QualifiedLead') || sent.has('Lead');
+
+          return (
+            <div className="pt-3 border-t border-gray-100 dark:border-slate-700">
+              <label className="text-base font-medium text-gray-700 dark:text-slate-300 mb-1.5 block">Meta</label>
+              <div className="space-y-1.5">
+                {[...sent.values()].map(ev => (
+                  <div key={ev.id} className="flex items-center gap-2 flex-wrap">
+                    <Badge tone="emerald" size="sm">{ev.event_name}</Badge>
+                    <span className="text-sm text-gray-700 dark:text-slate-300">ส่งให้ Meta แล้ว</span>
+                    {ev.sent_at && (
+                      <span className="text-xs text-gray-500 dark:text-slate-400">· {formatThaiDateTime(ev.sent_at)}</span>
+                    )}
+                  </div>
+                ))}
+                {[...failed.values()].filter(ev => !sent.has(ev.event_name)).map(ev => (
+                  <div key={ev.id} className="flex items-center gap-2 flex-wrap">
+                    <Tooltip text={ev.error || 'ส่งไม่สำเร็จ'} box="inline-flex">
+                      <Badge tone="red" size="sm">{ev.event_name}</Badge>
+                    </Tooltip>
+                    <span className="text-sm text-gray-700 dark:text-slate-300">ส่งไม่สำเร็จ — ระบบจะลองใหม่</span>
+                  </div>
+                ))}
+                {!hasQualifiedLead && (
+                  <Tooltip text={'QualifiedLead บอก Meta ว่าห้องนี้คุยแล้วมีคุณภาพจริง\nโฆษณาจะได้เอาไปหาคนแบบเดียวกันเพิ่ม แทนที่จะหาคนที่ชอบกดทักเฉย ๆ'}>
+                    <p className="text-xs text-gray-500 dark:text-slate-400 cursor-help">
+                      ยังไม่ได้ส่ง QualifiedLead — ส่งเมื่อลูกค้าพิมพ์มา ≥3 ข้อความ หรือติดแท็กที่ตั้งเป็นสัญญาณ
+                    </p>
+                  </Tooltip>
+                )}
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Shipping addresses */}
         {c && profileAddresses.length > 0 && (

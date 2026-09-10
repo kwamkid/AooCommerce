@@ -21,6 +21,7 @@ export async function GET(request: NextRequest) {
       id: t.id,
       name: t.name,
       color: t.color,
+      triggers_qualified_lead: !!t.triggers_qualified_lead,
       count: t.customer_tag_links?.[0]?.count ?? 0,
       contact_count: t.contact_tag_links?.[0]?.count ?? 0,
     }));
@@ -31,6 +32,22 @@ export async function GET(request: NextRequest) {
   }
 }
 
+/**
+ * ย้ายธง "แท็กสัญญาณ QualifiedLead" มาที่แท็กใบนี้ — **ปลดของเดิมก่อนเสมอ**
+ *
+ * DB มี partial unique index (บริษัทละ 1 ใบ) ⇒ ติ๊กใบใหม่โดยไม่ปลดใบเก่า = 23505
+ * ผู้ใช้จะเห็นแค่ "บันทึกไม่สำเร็จ" ทั้งที่เจตนาคือ "ย้ายมาอันนี้" ซึ่งชัดเจนอยู่แล้ว
+ */
+async function clearOtherQualifiedLeadTags(companyId: string, keepId?: string): Promise<void> {
+  let q = supabaseAdmin
+    .from('customer_tags')
+    .update({ triggers_qualified_lead: false })
+    .eq('company_id', companyId)
+    .eq('triggers_qualified_lead', true);
+  if (keepId) q = q.neq('id', keepId);
+  await q;
+}
+
 // POST — create new tag
 export async function POST(request: NextRequest) {
   try {
@@ -38,14 +55,22 @@ export async function POST(request: NextRequest) {
     if (!isAuth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     if (!companyId) return NextResponse.json({ error: 'No company context' }, { status: 403 });
 
-    const { name, color } = await request.json();
+    const { name, color, triggers_qualified_lead } = await request.json();
     if (!name?.trim()) {
       return NextResponse.json({ error: 'Tag name is required' }, { status: 400 });
     }
 
+    const qualifiedLead = triggers_qualified_lead === true;
+    if (qualifiedLead) await clearOtherQualifiedLeadTags(companyId);
+
     const { data, error } = await supabaseAdmin
       .from('customer_tags')
-      .insert({ company_id: companyId, name: name.trim(), color: color || '#6B7280' })
+      .insert({
+        company_id: companyId,
+        name: name.trim(),
+        color: color || '#6B7280',
+        triggers_qualified_lead: qualifiedLead,
+      })
       .select()
       .single();
 
@@ -75,12 +100,16 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'ไม่มีสิทธิ์แก้ไขแท็ก' }, { status: 403 });
     }
 
-    const { id, name, color } = await request.json();
+    const { id, name, color, triggers_qualified_lead } = await request.json();
     if (!id) return NextResponse.json({ error: 'Tag id is required' }, { status: 400 });
 
-    const updates: Record<string, string> = {};
+    const updates: Record<string, string | boolean> = {};
     if (name?.trim()) updates.name = name.trim();
     if (color) updates.color = color;
+    if (typeof triggers_qualified_lead === 'boolean') {
+      updates.triggers_qualified_lead = triggers_qualified_lead;
+      if (triggers_qualified_lead) await clearOtherQualifiedLeadTags(companyId, id);
+    }
 
     const { data, error } = await supabaseAdmin
       .from('customer_tags')

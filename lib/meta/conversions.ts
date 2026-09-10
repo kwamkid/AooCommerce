@@ -19,11 +19,13 @@ import { GRAPH_BASE } from './graph';
 import {
   buildCapiEvent,
   buildCapiRequest,
+  isEventTimeAcceptable,
   MAX_EVENT_AGE_SEC,
   MAX_EVENT_FUTURE_SEC,
 } from './capi';
-import { recordPageDatasetMirror } from '@/lib/ads/ledger';
+import { claimAdEvent, finishAdEvent, recordPageDatasetMirror } from '@/lib/ads/ledger';
 import { resolvePaidAt } from '@/lib/ads/subject';
+import type { ConversionEventName } from '@/lib/ads/types';
 
 const INTEGRATION = 'meta_capi';
 const ACTION = 'purchase_event';
@@ -118,6 +120,10 @@ async function logError(
     request_body?: unknown;
     response_body?: unknown;
     reference_id?: string;
+    /** ไม่ส่ง = 'purchase_event' (ค่าเดิม) — event ชนิดอื่นส่งชื่อของตัวเองมา */
+    action?: string;
+    /** ไม่ส่ง = 'order' (ค่าเดิม) — QualifiedLead ผูกกับห้องแชท ไม่ใช่บิล */
+    reference_type?: string;
     reference_label?: string | null;
   } = {},
 ): Promise<void> {
@@ -604,6 +610,183 @@ export async function sendPurchaseEventForOrder(
   } catch (err) {
     // กันเหนียวชั้นนอกสุด — ฟังก์ชันนี้ห้าม throw ไม่ว่าเกิดอะไร
     console.error('[MetaCAPI] sendPurchaseEventForOrder failed:', errText(err));
+    return 'failed';
+  }
+}
+
+/** ผู้ติดต่อ Messenger เท่าที่สาย "ยิง event ของห้องแชท" ต้องใช้ */
+interface FbContactForEvent {
+  id: string;
+  company_id: string;
+  fb_psid: string | null;
+  fb_page_id: string | null;
+  chat_account_id: string | null;
+  customer_id: string | null;
+  source: string | null;
+}
+
+/**
+ * ส่ง event ของ **ห้องแชท Messenger หนึ่งห้อง** เข้า dataset ของเพจ
+ * (InitiateCheckout = เปิดบิลให้จากห้องนี้ · QualifiedLead = คุยจนได้คุณภาพ · Purchase ก็ส่งได้)
+ *
+ * ต่างจาก `sendPurchaseEventForOrder` ตรงตัวกันซ้ำ: ตัวนั้นจองที่ `orders.meta_purchase_sent_at`
+ * (มีปลายทางเดียวต่อออเดอร์) ส่วนตัวนี้จองที่สมุด `ad_events` เพราะห้องเดียวส่งได้หลาย event
+ * ⇒ **ห้ามเอาการจองสิทธิ์ของสองสายมารวมกัน** ตัวเลข event คนละชนิดกันไม่ได้ด้วยธงใบเดียว
+ *
+ * เงียบ (คืน 'skipped' ไม่ log) เมื่อ: ไม่ใช่ห้อง Facebook (IG ยังไม่รองรับ) · ไม่มี PSID ·
+ * เพจปิดใช้อยู่ · หา dataset ไม่ได้ · มีใบนี้ในสมุดแล้ว · เวลาเกินกรอบที่ Meta รับ
+ *
+ * **ห้าม throw** — ผู้เรียกทุกรายอยู่ใน after() หลังบันทึกของจริงสำเร็จแล้ว
+ */
+export async function sendMessagingEventForContact(input: {
+  companyId: string;
+  /** `fb_contacts.id` — ต้องเป็นแถว source 'facebook' เท่านั้น */
+  contactId: string;
+  eventName: ConversionEventName;
+  /** Meta dedupe ด้วยค่านี้ — 'ic:{order}' / 'ql:{contact}' / order id ของ Purchase */
+  eventId: string;
+  /** unix **วินาที** — ไม่ใส่ = ตอนนี้ */
+  eventTime?: number;
+  customData?: Record<string, unknown>;
+  orderId?: string | null;
+  customerId?: string | null;
+  /** เพจที่ยังมี `meta_capi_error` ค้างอยู่ให้ข้ามไปเลย (ใช้ตอนกวาด) */
+  skipIfPageNotReady?: boolean;
+}): Promise<PurchaseSendResult> {
+  const { companyId, contactId, eventName, eventId } = input;
+  try {
+    const eventTime = input.eventTime ?? Math.floor(Date.now() / 1000);
+    // เช็คอายุ **ก่อนจองสิทธิ์** — จองแล้วพบว่าเวลาเกิน = ใบนั้นถูกปิดตายทั้งที่ไม่เคยยิง
+    if (!isEventTimeAcceptable(eventTime, 'business_messaging')) return 'skipped';
+
+    const { data: contact } = await supabaseAdmin
+      .from('fb_contacts')
+      .select('id, company_id, fb_psid, fb_page_id, chat_account_id, customer_id, source')
+      .eq('id', contactId)
+      .eq('company_id', companyId)
+      .maybeSingle<FbContactForEvent>();
+
+    // IG ยิงเข้า dataset ของเพจแบบนี้ไม่ได้ (ต้องใช้ ig user id + messaging_channel instagram)
+    if (!contact || contact.source !== 'facebook') return 'skipped';
+    if (!contact.fb_psid || !contact.chat_account_id) return 'skipped';
+
+    const account = await usablePageAccount(companyId, contact.chat_account_id, contact.fb_page_id);
+    if (!account) return 'skipped';
+
+    const creds = (account.credentials || {}) as Record<string, unknown>;
+    if (input.skipIfPageNotReady && credString(creds, 'meta_capi_error')) return 'skipped';
+
+    const pageId = credString(creds, 'page_id');
+    const token = credString(creds, 'page_access_token');
+    if (!pageId || !token) return 'skipped';
+
+    const datasetId = await getOrCreateDatasetId(account);
+    if (!datasetId) return 'skipped'; // getOrCreateDatasetId log ให้แล้วเมื่อเป็น error จริง
+
+    // จองสิทธิ์ "ก่อน" ยิง — สองสายที่ทริกเกอร์พร้อมกัน (ลูกค้าพิมพ์ครบ 3 ใบ + แอดมินติดแท็ก)
+    // จะมีแค่สายเดียวที่ผ่านตรงนี้
+    const claim = await claimAdEvent({
+      company_id: companyId,
+      platform: 'meta',
+      destination: 'page_dataset',
+      destination_id: datasetId,
+      event_name: eventName,
+      event_id: eventId,
+      order_id: input.orderId ?? null,
+      customer_id: input.customerId ?? contact.customer_id ?? null,
+      contact_platform: 'facebook',
+      contact_id: contact.id,
+      action_source: 'business_messaging',
+      event_time: new Date(eventTime * 1000).toISOString(),
+    });
+    if (!claim) return 'skipped';
+
+    const body = buildCapiRequest([
+      buildCapiEvent({
+        eventName,
+        eventId,
+        eventTime,
+        actionSource: 'business_messaging',
+        messagingChannel: 'messenger',
+        userData: { page_id: pageId, page_scoped_user_id: String(contact.fb_psid) },
+        ...(input.customData ? { customData: input.customData } : {}),
+      }),
+    ]);
+
+    const apiPath = `/${datasetId}/events`;
+    const action = `${eventName.toLowerCase()}_event`;
+    const reference = input.orderId
+      ? { reference_type: 'order', reference_id: input.orderId }
+      : { reference_type: 'chat_contact', reference_id: contact.id };
+    const startedAt = Date.now();
+
+    let httpStatus = 0;
+    let responseBody: unknown = null;
+    try {
+      const res = await fetch(`${GRAPH_BASE}${apiPath}?access_token=${encodeURIComponent(token)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      httpStatus = res.status;
+      responseBody = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        const permissionDenied = isPageEventsPermissionError(responseBody);
+        const why = permissionDenied
+          ? PAGE_EVENTS_FIX_MESSAGE
+          : `ส่ง ${eventName} event ไม่สำเร็จ (HTTP ${res.status})`;
+        // สิทธิ์ไม่ถึง = เรื่องของ token ไม่ใช่ของ event ใบนี้ → ขึ้นป้ายบนการ์ดเพจให้เจ้าของเห็น
+        if (permissionDenied) await markCapiError(account.id, why);
+        // ปิดใบเป็น failed — รอบกวาด/ทริกเกอร์ครั้งหน้ายึดคืนมาลองใหม่ได้ (ดู claimAdEvent)
+        await finishAdEvent(claim.id, {
+          status: 'failed',
+          httpStatus,
+          error: why,
+          response: responseBody,
+        });
+        await logError(account, companyId, why, {
+          api_path: apiPath,
+          http_status: httpStatus,
+          request_body: body,
+          response_body: responseBody,
+          action,
+          ...reference,
+        });
+        return 'failed';
+      }
+    } catch (err) {
+      const why = `ยิง ${eventName} event ไม่ถึง Meta: ${errText(err)}`;
+      await finishAdEvent(claim.id, { status: 'failed', error: why });
+      await logError(account, companyId, why, { api_path: apiPath, request_body: body, action, ...reference });
+      return 'failed';
+    }
+
+    // ยิงผ่านจริง = ป้ายบนการ์ดต้องเขียว (ล้างเหตุผลเก่าที่แก้ไปแล้วทิ้ง)
+    await markCapiOk(account.id);
+    await finishAdEvent(claim.id, { status: 'sent', httpStatus, response: responseBody });
+
+    await logIntegrationNow({
+      company_id: companyId,
+      integration: INTEGRATION,
+      account_id: account.id,
+      account_name: account.account_name,
+      direction: 'outgoing',
+      action,
+      method: 'POST',
+      api_path: apiPath,
+      request_body: body,
+      response_body: responseBody,
+      http_status: httpStatus,
+      status: 'success',
+      ...reference,
+      duration_ms: Date.now() - startedAt,
+    }).catch(() => null);
+
+    return 'sent';
+  } catch (err) {
+    // กันเหนียวชั้นนอกสุด — ฟังก์ชันนี้ห้าม throw ไม่ว่าเกิดอะไร
+    console.error('[MetaCAPI] sendMessagingEventForContact failed:', errText(err));
     return 'failed';
   }
 }

@@ -70,6 +70,11 @@ export interface FbMessagingEvent {
     sticker_id?: number;
     // Instagram story reply context + quote reply (ตอบกลับข้อความเดิม)
     reply_to?: { mid?: string; story?: { url?: string; id?: string } };
+    /**
+     * ลูกค้าแตะปุ่มตอบเร็วที่เรายื่นให้ — Facebook ส่งมาเป็นข้อความ text ปกติ
+     * แยกไม่ออกจากคำที่ลูกค้าพิมพ์เองถ้าไม่ดูคีย์นี้ (เกณฑ์ QualifiedLead ต้องไม่นับ)
+     */
+    quick_reply?: { payload?: string };
   };
   postback?: {
     mid?: string;
@@ -1042,6 +1047,9 @@ export class FacebookChatService {
       metadata.raw_keys = Object.keys(message);
       metadata.raw_event = message;
     }
+
+    // แตะปุ่มตอบเร็ว — เก็บไว้ว่าเป็นการ "กด" ไม่ใช่การ "พิมพ์" (ชนิดข้อความยังเป็น text ตามเดิม)
+    if (message.quick_reply) metadata.quick_reply = message.quick_reply.payload ?? true;
 
     // ตอบกลับข้อความเดิม (quote reply) — snapshot ไว้ในข้อความนี้เลย ไม่ต้อง join ตอนแสดง
     const replyToMid = message.reply_to?.mid;
