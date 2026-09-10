@@ -6,7 +6,7 @@
 ## เป้าหมาย
 ปิด session ปัจจุบันโดยเขียน **section ใหม่** ไว้ด้านบนสุดของ [tbc.md](../../../tbc.md) เพื่อให้ Claude ใน session ถัดไป (เรียก `/tbc-continue`) ทำต่อจากตรงนี้ได้ทันทีโดยไม่ต้องเดา
 
-> ต่างจาก `/memo` ตรงที่ `/memo` เขียนลง `CLAUDE.md` + `todo.md` (project knowledge persist ยาว) ส่วน `/tbc-memo` เขียนลง `tbc.md` (working-state per-session, throwaway)
+> ต่างจาก `/memo` ตรงที่ `/memo` เขียนลงไฟล์ใน `.claude/rules/` + `todo.md` (project knowledge persist ยาว) ส่วน `/tbc-memo` เขียนลง `tbc.md` (working-state per-session, throwaway)
 
 ## Steps
 

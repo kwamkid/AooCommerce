@@ -1,3 +1,34 @@
+---
+paths:
+  - "app/orders/**/*"
+  - "app/dealer-orders/**/*"
+  - "app/dept-wholesale-orders/**/*"
+  - "app/department-orders/**/*"
+  - "app/replenishments/**/*"
+  - "app/consignment/**/*"
+  - "app/department-store/**/*"
+  - "app/statements/**/*"
+  - "app/credit-notes/**/*"
+  - "app/invoices/**/*"
+  - "app/api/orders/**/*"
+  - "app/api/department-orders/**/*"
+  - "app/api/replenishments/**/*"
+  - "app/api/consignment/**/*"
+  - "app/api/department-store/**/*"
+  - "app/api/statements/**/*"
+  - "app/api/credit-notes/**/*"
+  - "app/api/invoices/**/*"
+  - "app/api/payment-records/**/*"
+  - "lib/invoice-service.ts"
+  - "lib/statement-service.ts"
+  - "lib/flow-types.ts"
+  - "lib/stock-service.ts"
+  - "lib/credit-notes/**/*"
+  - "components/orders/**/*"
+  - "components/dealer/**/*"
+  - "components/replenishments/**/*"
+  - "components/wholesale/**/*"
+---
 # Order Flows — Customer Type × Sale Type × Status
 
 ## Customer Types → Flow Types

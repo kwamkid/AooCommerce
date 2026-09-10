@@ -1,3 +1,15 @@
+---
+paths:
+  - "app/orders/**/*"
+  - "app/dealer-orders/**/*"
+  - "app/dept-wholesale-orders/**/*"
+  - "app/department-orders/**/*"
+  - "app/replenishments/**/*"
+  - "app/consignment/**/*"
+  - "app/department-store/**/*"
+  - "components/ui/ActionMenu.tsx"
+  - "components/ui/DataTable.tsx"
+---
 # List Page Actions — Focus Action + ActionMenu per Status
 
 ทุกหน้า list ใช้ pattern เดียวกัน:

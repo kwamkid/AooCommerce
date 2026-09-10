@@ -1,3 +1,16 @@
+---
+paths:
+  - "app/orders/**/*"
+  - "app/dealer-orders/**/*"
+  - "app/dept-wholesale-orders/**/*"
+  - "app/department-orders/**/*"
+  - "app/replenishments/**/*"
+  - "app/consignment/**/*"
+  - "app/department-store/**/*"
+  - "components/orders/**/*"
+  - "components/dealer/**/*"
+  - "components/replenishments/**/*"
+---
 # Detail/Edit Page Actions — Action Buttons per Status
 
 ---

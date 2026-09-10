@@ -12,13 +12,13 @@
 - แก้ไขอะไรบ้าง (files, features, bugs)
 - commit อะไรไปแล้ว
 
-### 2. บันทึกลง CLAUDE.md
-เปิดไฟล์ `CLAUDE.md` (root) → เพิ่ม/อัพเดทหัวข้อที่เกี่ยวข้อง:
-- ถ้าเป็น feature ใหม่ → เพิ่มใน section ที่เหมาะสม (เช่น File References, API Routes)
-- ถ้าเป็น bug fix → อัพเดท section ที่เกี่ยวข้อง
-- ถ้าเป็น rule ใหม่ → เพิ่มใน rules section
-- **ห้ามลบ content เดิม** — เพิ่มเติมเท่านั้น
-- เขียนสั้นกระชับ ไม่เกิน 2-3 บรรทัดต่อรายการ
+### 2. บันทึกความรู้ลงไฟล์ rule ที่ตรงเรื่อง (ไม่ใช่ CLAUDE.md)
+> CLAUDE.md โหลดเข้า**ทุก** session + ทุก subagent — ต่อท้ายไปเรื่อย ๆ = token บวม (เคยโตถึง 274KB) · เปิดสารบัญ **📚 Rules** ใน CLAUDE.md เพื่อเลือกไฟล์
+- ความรู้เฉพาะเรื่อง (feature · integration · กติกาของโดเมน) → `.claude/rules/domains/<เรื่อง>.md` (ไม่มีไฟล์ที่ตรง = สร้างใหม่พร้อม `paths:` + เพิ่มแถวในสารบัญ)
+- component / hook ใหม่ → `.claude/rules/code-simplicity.md` · service / utility / API route ใหม่ → `.claude/rules/lib-services.md`
+- แก้ CLAUDE.md **เฉพาะ** กติกาแกนกลางที่ใช้ทุกงาน (git · business rule ข้ามโดเมน) — ห้ามเอารายละเอียดโดเมนกลับไปใส่
+- ข้อมูลเดิมผิด/ล้าสมัย → **แก้ทับที่เดิม** ไม่ต่อท้ายซ้ำ · ห้ามลบของที่ยังถูกต้อง
+- เขียนสั้นกระชับ ไม่เกิน 2-3 บรรทัดต่อรายการ · ประวัติการแก้ยาว ๆ ไปอยู่ `fix-bug.md` / commit message ไม่ใช่ไฟล์ rule
 
 ### 3. บันทึกแผนงานลง todo.md
 เปิดไฟล์ `todo.md` (root) → เพิ่มงานที่ยังค้างอยู่:
@@ -30,9 +30,9 @@
 ### 4. แจ้ง user
 แสดงสรุปสั้นๆ ว่าบันทึกอะไรไปบ้าง (ไม่เกิน 5 บรรทัด)
 
-## Format ใน CLAUDE.md
+## Format ในไฟล์ rule (เช่น `.claude/rules/domains/products.md`)
 
-เพิ่มใต้ section ที่เหมาะสม เช่น:
+เพิ่มใต้หัวข้อที่เหมาะสม เช่น:
 
 ```markdown
 ### Product Import/Export (เพิ่มเมื่อ 2026-04-12)
