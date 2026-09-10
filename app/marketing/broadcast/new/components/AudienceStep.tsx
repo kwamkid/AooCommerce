@@ -82,13 +82,19 @@ export default function AudienceStep({
   const namedContacts = pickedContacts.filter(c => c.name);
   const unnamedCount = pickedContacts.length - namedContacts.length;
 
-  /** จำนวนคนของกลุ่มหนึ่ง — ตอบไม่ได้ต้องขึ้น '—' ห้ามเดาเป็น 0 */
-  const countOf = (key: string) => {
-    if (disabledOptions?.[key]) return '—';
-    if (countsUnavailable) return '—';
-    if (countsLoading && !counts) return '—';
+  /**
+   * จำนวนคนของกลุ่มหนึ่ง — ตอบไม่ได้ = `null` (ไม่แสดงอะไรเลย) **ห้ามเดาเป็น 0**
+   *
+   * เดิมตอบไม่ได้ขึ้น '—' ทุกแถว แต่ในหน้ากลุ่มเป้าหมายแทบทุกครั้งเลือกหลายแหล่ง (นับรายกลุ่ม
+   * ไม่ได้) จึงเห็นขีดเรียงทั้งคอลัมน์โดยไม่รู้ว่าคืออะไร ทั้งที่แผงขวามีตัวเลขจริงอยู่แล้ว
+   * (เจ้าของท้วง 11 ก.ย. 2026) · ตัวเลขยังขึ้นตามเดิมเมื่อนับได้ (เลือกช่องทางเดียว)
+   */
+  const countOf = (key: string): string | null => {
+    if (disabledOptions?.[key]) return null;
+    if (countsUnavailable) return null;
+    if (countsLoading && !counts) return null;
     const n = counts?.counts?.[key];
-    return typeof n === 'number' ? n.toLocaleString() : '—';
+    return typeof n === 'number' ? n.toLocaleString() : null;
   };
 
   return (
@@ -130,9 +136,11 @@ export default function AudienceStep({
                           <span className="body-text">
                             {opt.label.replace('N วัน', `${days} วัน`)}
                           </span>
-                          <span className="ml-auto subtitle-text tabular-nums">
-                            {countOf(opt.key)}
-                          </span>
+                          {countOf(opt.key) != null && (
+                            <span className="ml-auto subtitle-text tabular-nums">
+                              {countOf(opt.key)}
+                            </span>
+                          )}
                         </span>
                       </Radio>
                     );
