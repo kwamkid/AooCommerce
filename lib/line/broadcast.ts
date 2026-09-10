@@ -22,8 +22,12 @@ import {
   buttonAction,
   discountPercent,
   imageAspectRatio,
+  isActionEmpty,
   posterAction,
   type BroadcastAction,
+  type BroadcastBlock,
+  type BroadcastCard,
+  type BroadcastCardRatio,
 } from '@/lib/broadcast/content';
 import type { BroadcastContent, BroadcastProductCard } from '@/lib/broadcast/content';
 
@@ -504,6 +508,88 @@ function productBubble(
   };
 }
 
+/**
+ * การ์ดหนึ่งใบของบล็อกการ์ด (kind 'blocks') — รูปตามสัดส่วนที่เลือกของแถว + หัวข้อ/ข้อความ + ปุ่ม
+ *
+ * กดที่ตัวการ์ด = `action` ของ bubble (ครอบทั้งรูปและข้อความ) · ปุ่มมี action ของตัวเองซ้อนได้
+ * ปุ่มแรก = primary (เขียว LINE) ที่เหลือ secondary (เทา) — ตัวอย่างในหน้าสร้างวาดตามนี้
+ * ไม่มีหัวข้อและข้อความ = ไม่วาด body (ไม่งั้นมีแถบขาวว่างใต้รูป)
+ */
+function blockCardBubble(card: BroadcastCard, ratio: BroadcastCardRatio, size: 'mega' | 'giga'): LineFlexBubble {
+  const imageUrl = (card.image_url || '').trim();
+  if (imageUrl && !/^https:\/\//i.test(imageUrl)) throw new Error('ลิงก์รูปการ์ดต้องเป็น https');
+  const title = card.title.trim();
+  const text = card.text.trim();
+  const tap = isActionEmpty(card.tap_action) ? null : lineActionFor(card.tap_action, 'เปิด');
+  const buttons = card.buttons.filter(b => b.label.trim());
+  const bodyContents: Record<string, unknown>[] = [
+    ...(title ? [{ type: 'text', text: title, weight: 'bold', size: 'md', wrap: true, maxLines: 2 }] : []),
+    ...(text ? [{ type: 'text', text, size: 'sm', color: FLEX_TEXT, wrap: true }] : []),
+  ];
+
+  return {
+    type: 'bubble',
+    size,
+    ...(imageUrl ? {
+      hero: { type: 'image', url: imageUrl, size: 'full', aspectRatio: ratio, aspectMode: 'cover' },
+    } : {}),
+    ...(bodyContents.length ? {
+      body: { type: 'box', layout: 'vertical', spacing: 'sm', contents: bodyContents },
+    } : {}),
+    ...(buttons.length ? {
+      footer: {
+        type: 'box',
+        layout: 'vertical',
+        spacing: 'sm',
+        contents: buttons.map((b, i) => ({
+          type: 'button',
+          height: 'sm',
+          style: i === 0 ? 'primary' : 'secondary',
+          action: lineActionFor(b.action, b.label),
+        })),
+      },
+    } : {}),
+    ...(tap ? { action: tap } : {}),
+  };
+}
+
+/**
+ * เนื้อหาแบบบล็อก — **1 บล็อก = 1 message object** ตามลำดับที่ผู้ใช้เรียง
+ *  ข้อความ → text · รูป → image · รูปเต็มจอ → Flex giga รูปล้วน (สัดส่วนตามรูปจริง) กดได้
+ *  การ์ด → ใบเดียว = bubble giga (การ์ดใหญ่เต็มจอ) · หลายใบ = carousel ของ mega
+ */
+function buildLineMessagesFromBlocks(blocks: BroadcastBlock[]): LineMessageObject[] {
+  return blocks.map((b, i): LineMessageObject => {
+    const at = `บล็อก ${i + 1}`;
+    if (b.type === 'text') {
+      const text = b.text.trim();
+      if (!text) throw new Error(`${at}: ยังไม่มีข้อความ`);
+      if (text.length > LINE_TEXT_MAX) throw new Error(`${at}: ข้อความยาวเกิน ${LINE_TEXT_MAX.toLocaleString()} ตัวอักษร`);
+      return { type: 'text', text };
+    }
+    if (b.type === 'image' || b.type === 'rich') {
+      const url = (b.image_url || '').trim();
+      if (!/^https:\/\//i.test(url)) throw new Error(`${at}: ลิงก์รูปต้องเป็น https`);
+      if (b.type === 'image') return { type: 'image', originalContentUrl: url, previewImageUrl: url };
+      return {
+        type: 'flex',
+        altText: 'รูปภาพ',
+        contents: fullWidthImageBubble(url, imageAspectRatio(b), lineActionFor(b.action, 'เปิด')),
+      };
+    }
+    if (b.cards.length === 0) throw new Error(`${at}: ยังไม่มีการ์ด`);
+    const single = b.cards.length === 1;
+    const bubbles = b.cards.map(c => blockCardBubble(c, b.ratio, single ? 'giga' : 'mega'));
+    const titles = b.cards.map(c => c.title.trim()).filter(Boolean);
+    return {
+      type: 'flex',
+      // ข้อความบนแจ้งเตือน/รายชื่อแชทของลูกค้า — หัวข้อการ์ดอ่านรู้เรื่องที่สุด
+      altText: (titles.join(' · ') || `การ์ด ${b.cards.length} ใบ`).slice(0, 400),
+      contents: single ? bubbles[0] : { type: 'carousel', contents: bubbles },
+    };
+  });
+}
+
 export function buildLineMessagesFromContent(content: BroadcastContent): LineMessageObject[] {
   const title = (content.title || '').trim();
   const text = (content.text || '').trim();
@@ -512,7 +598,11 @@ export function buildLineMessagesFromContent(content: BroadcastContent): LineMes
   const quickReply = buildQuickReply(content.quick_replies);
   let messages: LineMessageObject[] = [];
 
-  if (content.kind === 'poster') {
+  if (content.kind === 'blocks') {
+    // ใบใหม่ทั้งหมด (ตั้งแต่ 11 ก.ย. 2026) — ชนิดข้างล่างเหลือไว้ให้ใบเก่าที่ส่งต่อ/ตั้งเวลาไว้
+    messages = buildLineMessagesFromBlocks(content.blocks || []);
+
+  } else if (content.kind === 'poster') {
     // รูปทั้งใบคือเนื้อหา — ข้อความ ราคา ปุ่ม อยู่ในรูปที่ร้านออกแบบมาเอง
     if (!imageUrl) throw new Error('โปสเตอร์ต้องมีรูป');
     if (!/^https:\/\//i.test(imageUrl)) throw new Error('ลิงก์รูปต้องเป็น https');
@@ -762,6 +852,9 @@ function threadRows(
         // ชื่อสินค้าอ่านรู้เรื่องกว่าข้อความบนการ์ด (แบบรูปเต็มมีแค่ป้ายลดกับราคา)
         const names = (content.products || []).map(p => p.name).filter(Boolean);
         line = names.length ? names.map(n => `• ${n}`).join('\n') : m.altText;
+      } else if (content?.kind === 'blocks') {
+        // การ์ด = หัวข้อ/ข้อความบนการ์ด · รูปเต็มจอหรือการ์ดรูปล้วน = altText ("รูปภาพ" / "การ์ด 3 ใบ")
+        line = found.texts.slice(0, 4).join('\n') || `[${m.altText}]`;
       } else if (content?.kind === 'poster' || (found.texts.length === 0 && found.imageUrl)) {
         line = '[โปสเตอร์]';
       } else {

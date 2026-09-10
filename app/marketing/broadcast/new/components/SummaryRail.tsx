@@ -42,9 +42,9 @@ interface Props {
   contentSummary: string;
   scheduleSummary: string;
 
+  /** เนื้อหาที่ใช้วาดตัวอย่าง — รูปที่ยังไม่อัปเป็น object URL อยู่ในนี้แล้ว */
   content: BroadcastContent;
   previewPlatform: BroadcastPlatform | null;
-  imagePreviewUrl: string | null;
   /** ช่องทางแรกที่เลือก — ตัวอย่างต้องมีรูปโปรไฟล์+ชื่อร้าน ไม่งั้นไม่เหมือนแชทจริง */
   accountName: string | null;
   accountPictureUrl: string | null;
@@ -168,7 +168,6 @@ export default function SummaryRail(p: Props) {
             size="md"
             content={p.content}
             platform={p.previewPlatform}
-            imagePreviewUrl={p.imagePreviewUrl}
             accountName={p.accountName}
             accountPictureUrl={p.accountPictureUrl}
           />

@@ -5,29 +5,6 @@
 // (ยกเว้นเรื่องที่เป็นแค่การแสดงผล เช่นกางเหตุผลของช่องทางที่ยังส่งไม่ได้)
 
 import type { BroadcastPlatform } from '@/lib/broadcast/platforms';
-import type { BroadcastAction } from '@/lib/broadcast/content';
-
-/**
- * รูปหนึ่งใบของชนิด "รูปหลายใบ" ระหว่างกรอก — ไฟล์ที่เพิ่งเลือก (ยังไม่อัป) หรือรูปเดิมของใบที่คัดลอกมา
- * `previewUrl` = object URL ของไฟล์ (หน้าเป็นคนสร้าง/คืน) · `width/height` วัดตอนเลือกไฟล์
- */
-export interface GalleryDraft {
-  id: string;
-  file: File | null;
-  existingUrl: string | null;
-  previewUrl: string | null;
-  width: number | null;
-  height: number | null;
-  action: BroadcastAction;
-}
-
-/** ช่องรูปเปล่าหนึ่งช่อง — id ไว้เป็น key/จับคู่ตอนแก้ทีละใบ */
-export function newGalleryDraft(): GalleryDraft {
-  const id = typeof crypto !== 'undefined' && 'randomUUID' in crypto
-    ? crypto.randomUUID()
-    : `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  return { id, file: null, existingUrl: null, previewUrl: null, width: null, height: null, action: { type: 'url', url: '' } };
-}
 
 // ย้ายไปอยู่ที่ทะเบียนกลุ่มผู้รับกลาง — หน้ากลุ่มเป้าหมายโฆษณาใช้ชุดเดียวกัน จึงต้องไม่ผูก
 // อยู่กับโฟลเดอร์ของหน้าสร้างบรอดแคสต์ (re-export ไว้ให้การ์ดย่อยที่ import จากที่นี่ใช้ได้เหมือนเดิม)

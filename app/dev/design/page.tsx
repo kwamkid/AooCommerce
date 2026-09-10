@@ -150,9 +150,9 @@ export default function DesignSystemPage() {
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="body-text font-medium">ตัวแก้ไขบรอดแคสต์แบบบล็อก</p>
-                <p className="subtitle-text">เพิ่มบล็อกทีละชนิด ลากเรียงได้ · การ์ดแบบแท็บของ LINE · ตัวอย่างแชทขวา</p>
+                <p className="subtitle-text">ใช้จริงแล้วในหน้าสร้างบรอดแคสต์ — หน้านี้ลองได้โดยไม่ส่ง ไม่อัปรูป</p>
               </div>
-              <Link href="/dev/design/broadcast-editor" className="btn btn-md btn-primary">เปิดต้นแบบ</Link>
+              <Link href="/dev/design/broadcast-editor" className="btn btn-md btn-primary">เปิดหน้าลอง</Link>
             </div>
           </Card>
         </Section>

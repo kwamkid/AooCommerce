@@ -6,6 +6,9 @@
 // จำนวนผู้รับ โควตา และตัวอย่างข้อความอยู่ในแผงขวาที่ตรึงไว้ เพราะเป็นสองสิ่งที่ต้องเห็น
 // ตลอดเวลาที่แก้เนื้อหา ไม่ใช่ต้องเลื่อนกลับขึ้นไปดู
 //
+// เนื้อหาเป็น **บล็อก** (BlocksEditor · kind 'blocks' ตั้งแต่ 11 ก.ย. 2026) — รูปขึ้น storage ตอนกดส่งเท่านั้น
+// ใบเก่าที่กด "ส่งซ้ำ" (?from=) แปลงเป็นบล็อกให้ด้วย contentToEditor()
+//
 // ⛔ ไม่มีขั้นไหน "ยุบเป็นบรรทัดสรุป" — เจ้าของทดลองแล้วไม่เอา (ต้องกดกางเพื่อดูว่าตัวเอง
 //    ตั้งอะไรไว้ = แย่กว่าเลื่อนดู) · กดหัวขั้นเพื่อสลับได้ทันที validation อยู่ที่ตอนกดส่ง
 'use client';
@@ -24,19 +27,16 @@ import type { EntitySearchOption } from '@/components/ui/EntitySearchInput';
 import { useAuthGuard } from '@/lib/useAuthGuard';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { useDebouncedCallback } from '@/lib/useDebounce';
-import { useServerSearch, type ServerSearchPage } from '@/lib/useServerSearch';
-import { useStableCallback } from '@/lib/useStableCallback';
+import { useServerSearch } from '@/lib/useServerSearch';
 import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
 import { supabase } from '@/lib/supabase';
 import { formatThaiDateTime } from '@/lib/utils/format';
 import {
-  BROADCAST_PLATFORMS,
   BROADCAST_PLATFORM_LIST,
   canBroadcastVia,
   intersectCompose,
   isBroadcastPlatform,
-  type BroadcastContentKind,
 } from '@/lib/broadcast/platforms';
 import {
   audienceLabel,
@@ -45,25 +45,18 @@ import {
   describeAudienceRefine,
   type StoredAudienceFilter,
 } from '@/lib/broadcast/audience';
-import {
-  validateBroadcastContent,
-  type BroadcastButton,
-  type BroadcastContent,
-  type BroadcastProductCard,
-  ACTION_LABELS,
-  EMPTY_ACTION,
-  actionSummary,
-  buttonAction,
-  isActionEmpty,
-  posterAction,
-  type BroadcastAction,
-} from '@/lib/broadcast/content';
+import { blocksSummary, validateBroadcastContent, type BroadcastContent } from '@/lib/broadcast/content';
 import { Send } from 'lucide-react';
 import ChannelStep from './components/ChannelStep';
 import AudienceStep from './components/AudienceStep';
-import ContentStep, { KIND_LABELS } from './components/ContentStep';
+import BlocksEditor from './components/BlocksEditor';
 import ScheduleStep, { type SendMode } from './components/ScheduleStep';
 import SummaryRail from './components/SummaryRail';
+import {
+  contentToEditor, draftImage, editorBlocksError, editorFiles, editorToContent, hasEditorContent,
+  measureImageDims, newBlock, previewImage, uploadedImage, type EditorBlock,
+} from './components/blocks-model';
+import { fetchProductPage, productSearchItemToCard } from './components/product-search';
 import type {
   AudienceCounts,
   BroadcastAccount,
@@ -72,87 +65,10 @@ import type {
   PreviewInfo,
   TagRow,
 } from './components/types';
-import { newGalleryDraft, type GalleryDraft } from './components/types';
 
 /** ตั้งเวลาต้องล่วงหน้าพอให้ผู้ใช้ยกเลิกทัน และไม่ไกลจนลืมว่าตั้งไว้ */
 const MIN_SCHEDULE_LEAD_MS = 2 * 60 * 1000;
 const MAX_SCHEDULE_AHEAD_MS = 90 * 24 * 60 * 60 * 1000;
-
-async function fetchProductPage(q: string): Promise<ServerSearchPage<ProductSearchItem>> {
-  const res = await apiFetch(`/api/products/search?q=${encodeURIComponent(q)}&limit=40`);
-  if (!res.ok) throw new Error('product search failed');
-  const json = await res.json();
-  const rows: ProductSearchItem[] = (json.items || []).map((r: Record<string, unknown>) => ({
-    id: String(r.variation_id),
-    product_id: String(r.product_id),
-    code: String(r.code ?? ''),
-    name: String(r.name ?? ''),
-    image: (r.image_url as string) ?? null,
-    variation_label: (r.variation_label as string) ?? undefined,
-    default_price: Number(r.default_price) || 0,
-    discount_price: Number(r.discount_price) || 0,
-  }));
-  return { rows, complete: json.complete !== false };
-}
-
-/** ขนาดจริงของแบนเนอร์ (พิกเซล) */
-interface ImageDims { width: number; height: number }
-
-/**
- * เนื้อหาที่กรอกไว้ของ **ชนิดหนึ่ง** — แต่ละชนิด (ประกาศ/โปสเตอร์/โปรโมชัน/การ์ดสินค้า) เก็บของตัวเอง
- * แยกกันเหมือนแท็บ: สลับไปโปสเตอร์แล้วรูปที่ใส่ไว้ในประกาศต้องไม่โผล่ตาม (เจ้าของท้วง 10 ก.ย. 2026
- * ว่ากดโปสเตอร์แล้วตัวอย่างในแชทยังเป็นรูปของประกาศ) และสลับกลับมาของเดิมต้องยังอยู่
- */
-interface KindDraft {
-  title: string;
-  text: string;
-  imageFile: File | null;
-  existingImageUrl: string | null;
-  imageDims: ImageDims | null;
-  tapAction: BroadcastAction;
-  gallery: GalleryDraft[];
-  cardStyle: 'image' | 'detail';
-  buttons: BroadcastButton[];
-  cards: BroadcastProductCard[];
-  quickReplies: string[];
-}
-
-const EMPTY_DRAFT: KindDraft = {
-  title: '', text: '', imageFile: null, existingImageUrl: null, imageDims: null,
-  tapAction: EMPTY_ACTION, gallery: [], cardStyle: 'detail',
-  buttons: [{ label: '', action: EMPTY_ACTION }], cards: [], quickReplies: [],
-};
-
-/**
- * วัดขนาดรูป — จากไฟล์ที่เพิ่งเลือก หรือจาก URL ของใบที่คัดลอกมา
- *
- * ต้องรู้ขนาดตั้งแต่ตอนกรอก เพราะ Flex ของ LINE วาดรูปตามสัดส่วนที่เราบอกเท่านั้น
- * (ไม่บอก = 1:1 โปสเตอร์แนวตั้งจะโดนครอบ) · วัดไม่ได้ = null แล้วตกไปใช้ทรงเดิม
- */
-async function measureImageDims(source: File | string): Promise<ImageDims | null> {
-  if (typeof source !== 'string' && typeof createImageBitmap === 'function') {
-    try {
-      const bitmap = await createImageBitmap(source);
-      const dims = { width: bitmap.width, height: bitmap.height };
-      bitmap.close();
-      return dims;
-    } catch {
-      // เบราว์เซอร์เก่าไม่มี createImageBitmap — ตกไปวิธีสำรองข้างล่าง
-    }
-  }
-  return new Promise<ImageDims | null>(resolve => {
-    const src = typeof source === 'string' ? source : URL.createObjectURL(source);
-    const objectUrl = typeof source === 'string' ? null : src;
-    const img = new window.Image();
-    const done = (dims: ImageDims | null) => {
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
-      resolve(dims);
-    };
-    img.onload = () => done({ width: img.naturalWidth, height: img.naturalHeight });
-    img.onerror = () => done(null);
-    img.src = src;
-  });
-}
 
 /** ชั่วโมงถัดไปเต็มชั่วโมง — ค่าตั้งต้นของ "ตั้งเวลา" ที่ผ่านเกณฑ์ล่วงหน้าเสมอ */
 function nextFullHour(): Date {
@@ -210,54 +126,10 @@ export default function NewBroadcastPage() {
   const [minMessages, setMinMessages] = useState(0);
   const [lastChatDays, setLastChatDays] = useState(0);
 
-  // ── เนื้อหา (ชนิดกลาง) ────────────────────────────────────────────────
-  const [kind, setKind] = useState<BroadcastContentKind>('announce');
-  const [title, setTitle] = useState('');
-  const [text, setText] = useState('');
-  const [imageFile, setImageFile] = useState<File | null>(null);
-  const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
-  /** ขนาดรูปที่วัดได้ — ส่งไปกับเนื้อหาเพื่อให้การ์ดของ LINE ได้สัดส่วนตามรูปจริง */
-  const [imageDims, setImageDims] = useState<ImageDims | null>(null);
-  /** รูปของใบที่คัดลอกมา — ใช้ต่อได้เลยเมื่อผู้ใช้ไม่ได้เลือกไฟล์ใหม่ */
-  const [existingImageUrl, setExistingImageUrl] = useState<string | null>(null);
-  /** โปสเตอร์: กดรูปแล้วเกิดอะไร (ทะเบียนกลาง BroadcastAction — ปุ่มโปรโมชันใช้ชุดเดียวกัน) */
-  const [tapAction, setTapAction] = useState<BroadcastAction>(EMPTY_ACTION);
-  /** การ์ดสินค้า: รูปเต็ม หรือมีชื่อ+ปุ่ม */
-  const [cardStyle, setCardStyle] = useState<'image' | 'detail'>('detail');
-  const [buttons, setButtons] = useState<BroadcastButton[]>([{ label: '', action: EMPTY_ACTION }]);
-  const [cards, setCards] = useState<BroadcastProductCard[]>([]);
-  /** รูปหลายใบ — object URL/ขนาดของแต่ละใบดูแลที่ `updateGallery` */
-  const [gallery, setGallery] = useState<GalleryDraft[]>([]);
+  // ── เนื้อหา (บล็อก) ─────────────────────────────────────────────────
+  // ของที่ยังไม่ได้บันทึก (ไฟล์ที่ยังไม่อัป · object URL) อยู่ในตัวแก้ไข — แปลงเป็น content ตอนตรวจ/ส่ง
+  const [blocks, setBlocks] = useState<EditorBlock[]>(() => [newBlock('text')]);
   const [quickReplies, setQuickReplies] = useState<string[]>([]);
-
-  /** ของที่กรอกค้างไว้ของชนิดที่ไม่ได้เปิดอยู่ — state ข้างบนคือชนิดที่เปิดอยู่เท่านั้น */
-  const kindDraftsRef = useRef<Partial<Record<BroadcastContentKind, KindDraft>>>({});
-
-  /**
-   * สลับชนิดเนื้อหา = เก็บของชนิดเดิมไว้ก่อน แล้วหยิบของชนิดใหม่ขึ้นมา (ไม่เคยกรอก = เปล่า)
-   * ทุกทางที่เปลี่ยน kind ต้องผ่านตัวนี้ ยกเว้นตอนคัดลอกจากใบเก่าที่ตั้งค่าทุกช่องเองอยู่แล้ว
-   */
-  const switchKind = useStableCallback((next: BroadcastContentKind) => {
-    if (next === kind) return;
-    kindDraftsRef.current[kind] = {
-      title, text, imageFile, existingImageUrl, imageDims, tapAction, gallery,
-      cardStyle, buttons, cards, quickReplies,
-    };
-    const d = kindDraftsRef.current[next] ?? EMPTY_DRAFT;
-    setTitle(d.title);
-    setText(d.text);
-    setImageFile(d.imageFile);
-    setExistingImageUrl(d.existingImageUrl);
-    setImageDims(d.imageDims);
-    setTapAction(d.tapAction);
-    // รูปหลายใบเริ่มด้วยช่องเปล่า 1 ช่อง — ไม่งั้นเปิดมาเจอแค่ปุ่ม "เพิ่มรูป"
-    setGallery(next === 'gallery' && d.gallery.length === 0 ? [newGalleryDraft()] : d.gallery);
-    setCardStyle(d.cardStyle);
-    setButtons(d.buttons);
-    setCards(d.cards);
-    setQuickReplies(d.quickReplies);
-    setKind(next);
-  });
 
   // ── เวลาส่ง ───────────────────────────────────────────────────────────
   const [sendMode, setSendMode] = useState<SendMode>('now');
@@ -282,7 +154,7 @@ export default function NewBroadcastPage() {
   /** บัญชีที่นับทุกกลุ่มไม่สำเร็จ — ตกไปใช้ /preview ตามเดิม */
   const [countsErrorFor, setCountsErrorFor] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
-  /** ร้านเปิดหน้าร้านออนไลน์แล้วไหม — โปสเตอร์แบบ "ไปที่สินค้า" ใช้ได้เฉพาะตอนเปิดแล้ว */
+  /** ร้านเปิดหน้าร้านออนไลน์แล้วไหม — "ไปที่สินค้า" ใช้ได้เฉพาะตอนเปิดแล้ว · การ์ดจากสินค้าตั้งปุ่มตามนี้ */
   const [storefrontOpen, setStorefrontOpen] = useState(false);
 
   /** มาจาก ?from=<id> — ห้ามให้การเลือกบัญชีอัตโนมัติทับของที่คัดลอกมา */
@@ -321,15 +193,7 @@ export default function NewBroadcastPage() {
   const compose = useMemo(() => intersectCompose(platforms), [platforms]);
   const audienceOptions = useMemo(() => commonAudienceOptions(platforms), [platforms]);
 
-  // object URL ต้องคืนทุกครั้งที่เปลี่ยนรูป — สร้างใน render จะรั่วทุกรอบที่ re-render
-  useEffect(() => {
-    if (!imageFile) { setImagePreviewUrl(null); return; }
-    const url = URL.createObjectURL(imageFile);
-    setImagePreviewUrl(url);
-    return () => URL.revokeObjectURL(url);
-  }, [imageFile]);
-
-  // ร้านเปิดหน้าร้านออนไลน์หรือยัง — ชิป "ไปที่สินค้า" ของโปสเตอร์ปิดไว้พร้อมบอกเหตุผลถ้ายังไม่เปิด
+  // ร้านเปิดหน้าร้านออนไลน์หรือยัง — ชิป "ไปที่สินค้า" ปิดไว้พร้อมบอกเหตุผลถ้ายังไม่เปิด
   useEffect(() => {
     if (!allowed) return;
     let cancelled = false;
@@ -345,14 +209,6 @@ export default function NewBroadcastPage() {
     })();
     return () => { cancelled = true; };
   }, [allowed]);
-
-  // วัดสัดส่วนของไฟล์ที่เลือก — เอาไฟล์ออกก็ล้างค่าทิ้ง (สัดส่วนของรูปเก่าใช้กับรูปใหม่ไม่ได้)
-  useEffect(() => {
-    if (!imageFile) { setImageDims(null); return; }
-    let cancelled = false;
-    measureImageDims(imageFile).then(dims => { if (!cancelled) setImageDims(dims); });
-    return () => { cancelled = true; };
-  }, [imageFile]);
 
   // ─── โหลดบัญชีของทุกช่องทางที่ส่งได้ + แท็ก ─────────────────────────
   useEffect(() => {
@@ -440,35 +296,20 @@ export default function NewBroadcastPage() {
 
         const c: BroadcastContent | undefined = b.content;
         if (c) {
-          if (c.kind) setKind(c.kind);
-          setTitle(c.title || '');
-          setText(c.text || '');
-          setExistingImageUrl(c.image_url || null);
-          // image_style 'rich' ของใบเก่าไม่กู้คืน — หน้าจอไม่มีตัวเลือกนี้แล้ว (รูปเต็มจอ = โปสเตอร์)
-          // ใบเก่าที่มีแค่ link_url ก็อ่านเป็น action เปิดลิงก์ให้
-          const tapFromOld = posterAction(c);
-          if (tapFromOld) setTapAction(tapFromOld);
-          if (c.card_style === 'image') setCardStyle('image');
-          if (Array.isArray(c.buttons) && c.buttons.length > 0) {
-            setButtons(c.buttons.map(b => ({ label: b.label || '', action: buttonAction(b) ?? EMPTY_ACTION })));
-          }
-          if (Array.isArray(c.products)) setCards(c.products);
-          if (Array.isArray(c.images) && c.images.length > 0) {
-            setGallery(c.images.map(img => ({
-              ...newGalleryDraft(),
-              existingUrl: img.image_url,
-              width: img.image_width ?? null,
-              height: img.image_height ?? null,
-              action: img.action ?? EMPTY_ACTION,
-            })));
-          }
-          if (Array.isArray(c.quick_replies)) setQuickReplies(c.quick_replies);
-          // ใบเก่ายังไม่ได้เก็บขนาดรูป — วัดจากรูปเดิม ไม่งั้นการ์ดจะตกไปใช้ทรงเริ่มต้น
-          if (c.image_width && c.image_height) {
-            setImageDims({ width: Number(c.image_width), height: Number(c.image_height) });
-          } else if (c.image_url) {
-            const dims = await measureImageDims(c.image_url);
-            if (dims) setImageDims(dims);
+          // ใบเก่าทุกชนิดแปลงเป็นบล็อก (ประกาศ → ข้อความ + รูป · โปสเตอร์ → ข้อความ + รูปเต็มจอ · …)
+          const editor = contentToEditor(c);
+          setBlocks(editor.blocks.length > 0 ? editor.blocks : [newBlock('text')]);
+          setQuickReplies(editor.quickReplies);
+          // รูปเต็มจอของใบเก่าที่ยังไม่ได้เก็บขนาด — วัดจากรูปเดิม ไม่งั้นตกไปใช้ทรงเริ่มต้น
+          for (const eb of editor.blocks) {
+            if (eb.type !== 'rich' || !eb.existingUrl || (eb.width && eb.height)) continue;
+            const url = eb.existingUrl;
+            measureImageDims(url).then(dims => {
+              if (!dims) return;
+              setBlocks(prev => prev.map(x => (
+                x.id === eb.id && x.type === 'rich' && x.existingUrl === url ? { ...x, ...dims } : x
+              )));
+            });
           }
         }
       } catch {
@@ -477,18 +318,12 @@ export default function NewBroadcastPage() {
     })();
   }, [allowed]);
 
-  // เปลี่ยนช่องทาง = กลุ่มผู้รับ/ชนิดเนื้อหาชุดเดิมอาจใช้ไม่ได้ → กลับไปตัวแรกที่รองรับ
+  // เปลี่ยนช่องทาง = กลุ่มผู้รับชุดเดิมอาจใช้ไม่ได้ → กลับไปตัวแรกที่รองรับ
   // ยังไม่รู้ช่องทาง (ตัวเลือกว่าง) ให้ปล่อยค่าไว้เฉย ๆ ไม่งั้นค่าที่คัดลอกมาจะถูกล้างทิ้ง
   useEffect(() => {
     if (audienceOptions.length === 0) return;
     if (!audienceOptions.some(o => o.key === audience)) setAudience(audienceOptions[0].key);
   }, [audienceOptions, audience]);
-
-  useEffect(() => {
-    if (!compose) return;
-    // ผ่าน switchKind เพื่อให้ของชนิดที่ใช้ไม่ได้ถูกเก็บไว้ ไม่ใช่หลุดไปโผล่ในชนิดแรก
-    if (!compose.kinds.includes(kind)) switchKind(compose.kinds[0]);
-  }, [compose, kind, switchKind]);
 
   // ─── ตัวกรองผู้รับ — preview กับตอนส่งใช้ค่าเดียวกันเสมอ ───────────────
   const audienceFilter = useMemo(() => buildAudienceFilter(audience, {
@@ -640,58 +475,17 @@ export default function NewBroadcastPage() {
     return `โควตาเดือนนี้ ${quota.used.toLocaleString()}/${(quota.limit ?? 0).toLocaleString()}`;
   }, [quota]);
 
-  /** เนื้อหาที่จะส่ง — รูปยังไม่ได้อัปโหลด ใช้ค่าแทนไปก่อนเพื่อให้ตรวจได้ */
-  const draftContent: BroadcastContent = useMemo(() => {
-    // โปสเตอร์มีแค่รูปกับลิงก์ — ข้อความ/ปุ่ม/สินค้าที่กรอกไว้ตอนเป็นชนิดอื่นต้องไม่ติดไปด้วย
-    // (ค่าที่ค้างอยู่จะทำให้ validate ตีตกทั้งที่หน้าจอไม่มีช่องนั้นให้ลบ)
-    const isPoster = kind === 'poster';
-    // ลิงก์/สินค้า/ข้อความที่กดรูปแล้วเกิด มีความหมายเฉพาะโปสเตอร์ตามแบบที่เลือก — ชนิดอื่นไม่ส่ง
-    return {
-      kind,
-      title: isPoster ? '' : title.trim(),
-      text: text.trim(),
-      // รูปหลายใบใช้ `images` — ช่องรูปเดี่ยวไม่ใช้
-      image_url: kind === 'gallery' ? null : (imageFile ? 'https://pending.upload' : existingImageUrl),
-      image_width: imageDims?.width ?? null,
-      image_height: imageDims?.height ?? null,
-      // รูปของประกาศเป็นรูปธรรมดาเสมอ — รูปเต็มจอย้ายไปเป็นโปสเตอร์ตั้งแต่ 10 ก.ย. 2026
-      image_style: 'bubble',
-      link_url: null,
-      tap_action: isPoster ? tapAction : null,
-      card_style: cardStyle,
-      // ปุ่มที่ยังไม่ได้แตะเลย (ป้ายว่าง + ยังไม่กรอก action) ไม่ส่ง — ไม่งั้น validate จะตีตกปุ่มเปล่าที่ระบบใส่มาให้เอง
-      buttons: isPoster ? [] : buttons.filter(b => b.label.trim() || !isActionEmpty(b.action)),
-      products: isPoster ? [] : cards,
-      images: kind === 'gallery'
-        ? gallery.map(g => ({
-          image_url: g.existingUrl || (g.file ? 'https://pending.upload' : ''),
-          image_width: g.width,
-          image_height: g.height,
-          action: g.action,
-        }))
-        : [],
-      quick_replies: quickReplies,
-    };
-  }, [kind, title, text, imageFile, imageDims, existingImageUrl, tapAction, gallery,
-    cardStyle, buttons, cards, quickReplies]);
-
-  /** ตัวอย่างในแชทต้องเห็นรูปที่ยังไม่ได้อัป — แทน URL ชั่วคราวด้วย object URL ของไฟล์ */
-  const previewContent: BroadcastContent = useMemo(() => (
-    kind === 'gallery'
-      ? { ...draftContent, images: gallery.map(g => ({
-        image_url: g.previewUrl || g.existingUrl || '',
-        image_width: g.width,
-        image_height: g.height,
-        action: g.action,
-      })) }
-      : draftContent
-  ), [kind, draftContent, gallery]);
+  /** เนื้อหาที่จะตรวจ — รูปที่ยังไม่อัปใช้ค่าแทน https ไปก่อน (อัปจริงตอนกดส่งเท่านั้น) */
+  const draftContent = useMemo(() => editorToContent(blocks, quickReplies, draftImage), [blocks, quickReplies]);
+  /** ตัวอย่างในแชทต้องเห็นรูปที่ยังไม่ได้อัป — ใช้ object URL ของไฟล์แทน */
+  const previewContent = useMemo(() => editorToContent(blocks, quickReplies, previewImage), [blocks, quickReplies]);
 
   // ตรวจด้วยฟังก์ชันเดียวกับที่ API ใช้ — หน้าจอกับ server จึงพูดตรงกันเสมอ
   // เนื้อหาชุดเดียวต้องผ่าน **ทุกช่องทางที่เลือก** — ตัวไหนไม่ผ่านก็บอกตัวนั้น
-  const contentError = platforms
-    .map(p => validateBroadcastContent(p, draftContent))
-    .find(Boolean) ?? null;
+  // (การ์ดแท็บ "สินค้าในร้าน" ที่ยังไม่เลือกสินค้าบอกตรง ๆ ก่อน — ตัวตรวจกลางเห็นแค่การ์ดเปล่า)
+  const contentError = editorBlocksError(blocks)
+    ?? platforms.map(p => validateBroadcastContent(p, draftContent)).find(Boolean)
+    ?? null;
 
   // ─── เวลาส่ง ─────────────────────────────────────────────────────────
   const scheduledAt = useMemo(() => {
@@ -718,61 +512,15 @@ export default function NewBroadcastPage() {
   const pickPending = audience === 'contacts_pick' && pickedContacts.length === 0;
   const noRecipients = audience !== 'all' && !pickPending && !effPreviewLoading
     && platforms.length > 0 && recipientCount === 0;
-  // โปสเตอร์ไม่มีข้อความเลย — นับรูปกับลิงก์เป็น "เริ่มกรอกแล้ว" ไม่งั้นตัวอย่างจะไม่ขึ้น
-  const hasDraft = !!(
-    text.trim() || title.trim() || imagePreviewUrl || existingImageUrl || cards.length > 0
-    || (kind === 'poster' && !isActionEmpty(tapAction))
-    || (kind === 'gallery' && gallery.some(g => g.file || g.existingUrl))
-  );
+  const hasDraft = hasEditorContent(blocks);
   const canNext = accountIds.length > 0 && !!audience && !pickPending;
   const canSend = canNext && !contentError && !quotaShort && !noRecipients && !scheduleError && !sending;
 
   const contactTotal = countsForAccount?.contact_total ?? preview?.contact_total ?? null;
   const contactLinked = countsForAccount?.contact_linked ?? preview?.contact_linked ?? null;
 
-  /** ป้ายสรุปในแผงขวา — ค่าว่างจะขึ้นเป็น "ยังไม่ได้เลือก" แบบจาง */
-  const contentSummary = useMemo(() => {
-    if (!hasDraft) return '';
-    const base = KIND_LABELS[kind];
-    if (kind === 'poster') {
-      const target = actionSummary(tapAction);
-      return `${base} · ${ACTION_LABELS[tapAction.type]}${target ? ` ${target}` : ''}`;
-    }
-    if (kind === 'gallery') return `${base} · ${gallery.filter(g => g.file || g.existingUrl).length} ใบ`;
-    if (kind === 'promo') {
-      const n = buttons.filter(b => b.label.trim()).length;
-      return n > 0 ? `${base} · ${n} ปุ่ม` : base;
-    }
-    if (kind === 'products') {
-      const style = cardStyle === 'image' ? 'รูปเต็ม' : 'มีชื่อ+ปุ่ม';
-      return cards.length > 0 ? `${base} · ${cards.length} ชิ้น · ${style}` : base;
-    }
-    return base;
-  }, [hasDraft, kind, buttons, cards, cardStyle, tapAction, gallery]);
-
-  /**
-   * แก้รายการรูปหลายใบ — หน้าเป็นเจ้าของ object URL: ไฟล์เปลี่ยน = คืน URL เดิม สร้างใหม่ วัดขนาดใหม่
-   * ใบที่ถูกลบก็คืน URL (สร้างใน render จะรั่วทุกรอบ)
-   */
-  const updateGallery = (next: GalleryDraft[]) => {
-    const prevById = new Map(gallery.map(g => [g.id, g]));
-    const resolved = next.map(g => {
-      const prev = prevById.get(g.id);
-      if (prev && prev.file === g.file) return g;
-      if (prev?.previewUrl) URL.revokeObjectURL(prev.previewUrl);
-      if (!g.file) return { ...g, previewUrl: null, width: null, height: null };
-      const file = g.file;
-      measureImageDims(file).then(dims => {
-        if (!dims) return;
-        setGallery(cur => cur.map(x => (x.id === g.id && x.file === file ? { ...x, width: dims.width, height: dims.height } : x)));
-      });
-      return { ...g, previewUrl: URL.createObjectURL(file), existingUrl: null, width: null, height: null };
-    });
-    for (const p of gallery) {
-      if (p.previewUrl && !next.some(g => g.id === p.id)) URL.revokeObjectURL(p.previewUrl);
-    }
-    setGallery(resolved);
-  };
+  /** ป้ายสรุปในแผงขวา — "ข้อความ + รูปเต็มจอ + การ์ด 3 ใบ" · ค่าว่างขึ้นเป็น "ยังไม่ได้เลือก" แบบจาง */
+  const contentSummary = hasDraft ? blocksSummary(draftContent.blocks || []) : '';
 
   // ─── ส่ง ─────────────────────────────────────────────────────────────
   const handleSend = async () => {
@@ -805,17 +553,10 @@ export default function NewBroadcastPage() {
         if (uploadError) throw new Error('อัปโหลดรูปไม่สำเร็จ');
         return supabase.storage.from('chat-media').getPublicUrl(path).data.publicUrl;
       };
-      let imageUrl: string | null = existingImageUrl;
-      if (compose?.image && imageFile && kind !== 'gallery') imageUrl = await uploadImage(imageFile);
-      // รูปหลายใบ — อัปทีละใบ (ใบที่คัดลอกมาใช้ URL เดิม) · ช่องที่ยังไม่มีรูปถูกตัดตอน validate แล้ว
-      const images = kind === 'gallery'
-        ? await Promise.all(gallery.map(async g => ({
-          image_url: g.existingUrl || (g.file ? await uploadImage(g.file) : ''),
-          image_width: g.width,
-          image_height: g.height,
-          action: g.action,
-        })))
-        : [];
+      // ขึ้น storage ตอนนี้เท่านั้น — ก่อนกดส่งรูปแค่ย่ออยู่ในเครื่อง · ไฟล์เดียวกันอัปครั้งเดียว
+      const urls = new Map<File, string>();
+      await Promise.all([...new Set(editorFiles(blocks))].map(async f => { urls.set(f, await uploadImage(f)); }));
+      const content = editorToContent(blocks, quickReplies, uploadedImage(urls));
 
       // หนึ่งบัญชี = บรอดแคสต์หนึ่งใบ — แต่ละใบมีสถานะ/ปุ่มส่งต่อของตัวเอง
       // ใบไหนล้มก็ล้มเฉพาะใบนั้น ไม่ลากใบที่ส่งไปแล้วลงไปด้วย
@@ -829,7 +570,7 @@ export default function NewBroadcastPage() {
               account_id: a.id,
               audience_type: audience,
               audience_filter: audienceFilter,
-              content: { ...draftContent, image_url: imageUrl, images },
+              content,
               ...(scheduledAt ? { scheduled_at: scheduledAt.toISOString() } : {}),
             }),
           });
@@ -866,34 +607,6 @@ export default function NewBroadcastPage() {
       showToast(e instanceof Error ? e.message : 'ส่งบรอดแคสต์ไม่สำเร็จ', 'error');
       setSending(false);
     }
-  };
-
-  /** การ์ดสินค้าจากผลค้นหา — ใช้ทั้งการ์ดสินค้าและสินค้าปลายทางของโปสเตอร์ */
-  const cardFromSearchItem = (p: ProductSearchItem): BroadcastProductCard => {
-    const discounted = !!p.discount_price && p.discount_price > 0;
-    const price = discounted ? (p.discount_price as number) : p.default_price ?? 0;
-    return {
-      product_id: p.product_id,
-      variation_id: p.id,
-      // ชื่อบนการ์ดต้องแยกสีออกจากกัน ไม่งั้นได้การ์ด "YOYO 0+ Newborn Pack" 5 ใบเหมือนกันหมด
-      name: p.variation_label ? `${p.name} - ${p.variation_label}` : p.name,
-      image_url: p.image ?? null,
-      price,
-      // ราคาปกติเก็บไว้เฉพาะตอนลดจริง — การ์ดถึงจะขึ้นป้าย "ลด N%" กับราคาขีดฆ่าได้
-      compare_at_price: discounted ? p.default_price ?? null : null,
-      url: null,
-    };
-  };
-
-  const addProductCard = (p: ProductSearchItem) => {
-    // เช็คซ้ำด้วย variation ไม่ใช่ product — สินค้าตัวเดียวมีหลายสี/ขนาดที่ product_id
-    // เดียวกัน (YOYO 0+ มี 5 สี) เช็คด้วย product_id จะเลือกได้แค่สีเดียว
-    if (cards.some(c => c.variation_id === p.id)) return;
-    if (compose && cards.length >= compose.productsMax) {
-      showToast(`ใส่ได้ไม่เกิน ${compose.productsMax} ชิ้น`, 'error');
-      return;
-    }
-    setCards(prev => [...prev, cardFromSearchItem(p)]);
   };
 
   if (authLoading) {
@@ -981,42 +694,20 @@ export default function NewBroadcastPage() {
             ) : (
               <>
                 {compose && (
-                  <ContentStep
-                    compose={compose}
-                    platformLabel={singlePlatform ? BROADCAST_PLATFORMS[singlePlatform].label : 'ช่องทางที่เลือก'}
-                    showCreditNote={platforms.includes('line')}
-                    kind={kind}
-                    onKindChange={switchKind}
-                    title={title}
-                    onTitleChange={setTitle}
-                    text={text}
-                    onTextChange={setText}
-                    imageFile={imageFile}
-                    onImageFileChange={(f) => {
-                      setImageFile(f);
-                      // กดเอารูปออก = เอารูปของใบที่คัดลอกมาออกด้วย ไม่งั้นมันจะกลับมาเงียบ ๆ ตอนส่ง
-                      if (!f) setExistingImageUrl(null);
-                    }}
-                    existingImageUrl={existingImageUrl}
-                    imagePreviewUrl={imagePreviewUrl ?? existingImageUrl}
-                    tapAction={tapAction}
-                    onTapActionChange={setTapAction}
-                    gallery={gallery}
-                    onGalleryChange={updateGallery}
-                    productToCard={cardFromSearchItem}
-                    storefrontOpen={storefrontOpen}
-                    cardStyle={cardStyle}
-                    onCardStyleChange={setCardStyle}
-                    buttons={buttons}
-                    onButtonsChange={setButtons}
-                    cards={cards}
-                    onCardsChange={setCards}
+                  <BlocksEditor
+                    blocks={blocks}
+                    onBlocksChange={setBlocks}
                     quickReplies={quickReplies}
                     onQuickRepliesChange={setQuickReplies}
-                    productResults={productSearch.results}
-                    productLoading={productSearch.loading}
-                    onProductSearch={productSearch.search}
-                    onAddProduct={addProductCard}
+                    quickReplyMax={compose.quickReplyMax}
+                    showCreditNote={platforms.includes('line')}
+                    picker={{
+                      storefrontOpen,
+                      productResults: productSearch.results,
+                      productLoading: productSearch.loading,
+                      onProductSearch: productSearch.search,
+                      productToCard: productSearchItemToCard,
+                    }}
                     disabled={sending}
                   />
                 )}
@@ -1063,7 +754,6 @@ export default function NewBroadcastPage() {
               : (scheduledAt && !scheduleError ? formatThaiDateTime(scheduledAt) : '')}
             content={previewContent}
             previewPlatform={singlePlatform}
-            imagePreviewUrl={imagePreviewUrl ?? existingImageUrl}
             accountName={selectedAccounts[0]?.name ?? null}
             accountPictureUrl={selectedAccounts[0]?.picture_url ?? null}
             scheduled={sendMode === 'schedule'}

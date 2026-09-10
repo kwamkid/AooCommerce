@@ -47,8 +47,10 @@ export type BroadcastKind = 'broadcast' | 'bulk_dm';
  *             ออนไลน์ (ยังไม่เปิด = ส่งข้อความ "สนใจ" กลับ)
  *  promo    = การ์ดหัวข้อ + ข้อความ + ปุ่มหลายปุ่ม — **ถอดออกจากตัวเลือกแล้ว** (เจ้าของให้ออกแบบ
  *             ลงในรูปแทน) ยังอยู่ในชนิดเพื่อให้ใบเก่าเปิดดู/ส่งซ้ำได้
+ *  blocks   = **ใบใหม่ทั้งหมดตั้งแต่ 11 ก.ย. 2026** — ประกอบจากบล็อก ข้อความ/รูป/รูปเต็มจอ/การ์ด ≤3 บล็อก
+ *             (ตัวแก้ไขแบบ LINE OA Manager) · 5 ชนิดข้างบนเหลือไว้ให้ใบเก่าเปิดดู/แปลงเป็นบล็อกตอนส่งซ้ำ
  */
-export type BroadcastContentKind = 'announce' | 'poster' | 'gallery' | 'promo' | 'products';
+export type BroadcastContentKind = 'announce' | 'poster' | 'gallery' | 'promo' | 'products' | 'blocks';
 
 /**
  * ข้อความที่แต่ละเจ้ารับได้ — **หน้าจอกับ API ตรวจจากตัวเลขชุดนี้ชุดเดียว**
@@ -96,7 +98,7 @@ export const BROADCAST_PLATFORMS: Record<BroadcastPlatform, BroadcastPlatformInf
     // + หัวข้อ + ปุ่ม เป็น message object เดียว จึงไม่แพงกว่าส่งข้อความเปล่าเลย
     compose: {
       bodyMax: 5000, image: true,
-      kinds: ['announce', 'poster', 'gallery', 'products'],
+      kinds: ['blocks', 'announce', 'poster', 'gallery', 'products'],
       buttonsMax: 4, productsMax: 10, quickReplyMax: 13, imagesMax: 10,
     },
     audience: 'ผู้ติดตามทุกคน แม้ไม่เคยทักมา — หรือเลือกเฉพาะกลุ่ม/แท็ก',
@@ -214,7 +216,7 @@ export function intersectCompose(platforms: BroadcastPlatform[]): BroadcastCompo
     titleMax: titleMaxes.length ? Math.min(...titleMaxes) : undefined,
     bodyMax: Math.min(...list.map(c => c.bodyMax)),
     image: list.every(c => c.image),
-    kinds: (['announce', 'poster', 'gallery', 'promo', 'products'] as BroadcastContentKind[])
+    kinds: (['blocks', 'announce', 'poster', 'gallery', 'promo', 'products'] as BroadcastContentKind[])
       .filter(k => list.every(c => c.kinds.includes(k))),
     buttonsMax: Math.min(...list.map(c => c.buttonsMax)),
     productsMax: Math.min(...list.map(c => c.productsMax)),

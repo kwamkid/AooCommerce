@@ -20,12 +20,15 @@ import {
 } from '@/lib/line/broadcast';
 import { resolveTikTokRecipients } from '@/lib/tiktok/broadcast';
 import {
+  blockProductActions,
   broadcastContentPreview,
   resolveBroadcastContentKind,
   validateBroadcastContent,
   normalizeAction,
   type BroadcastAction,
+  type BroadcastBlock,
   type BroadcastButton,
+  type BroadcastCard,
   type BroadcastContent,
   type BroadcastProductCard,
   type BroadcastGalleryImage,
@@ -302,6 +305,42 @@ function toGalleryImage(raw: unknown): BroadcastGalleryImage {
   };
 }
 
+/** การ์ดหนึ่งใบของบล็อกการ์ด — รับเฉพาะช่องที่รู้จัก (ความยาว/จำนวนจริงตรวจที่ validateBroadcastContent) */
+function toCard(raw: unknown): BroadcastCard {
+  const r = (raw || {}) as Record<string, unknown>;
+  return {
+    product: r.product ? toProductCard(r.product) : null,
+    image_url: toUrl(r.image_url),
+    title: String(r.title ?? '').slice(0, 500),
+    text: String(r.text ?? '').slice(0, 1000),
+    buttons: (Array.isArray(r.buttons) ? r.buttons : []).map(b => {
+      const br = (b || {}) as Record<string, unknown>;
+      return { label: String(br.label ?? '').slice(0, 50), action: normalizeAction(br.action, toProductCard) };
+    }),
+    tap_action: normalizeAction(r.tap_action, toProductCard),
+  };
+}
+
+/** บล็อกหนึ่งอันจาก client — ชนิดที่ไม่รู้จัก = null (POST ปฏิเสธทั้งใบ ไม่ตัดทิ้งเงียบ ๆ) */
+function toBlock(raw: unknown): BroadcastBlock | null {
+  const r = (raw || {}) as Record<string, unknown>;
+  if (r.type === 'text') return { type: 'text', text: typeof r.text === 'string' ? r.text : '' };
+  if (r.type === 'image' || r.type === 'rich') {
+    const image = { image_url: toUrl(r.image_url) || '', image_width: toDim(r.image_width), image_height: toDim(r.image_height) };
+    return r.type === 'image'
+      ? { type: 'image', ...image }
+      : { type: 'rich', ...image, action: normalizeAction(r.action, toProductCard) };
+  }
+  if (r.type === 'cards') {
+    return {
+      type: 'cards',
+      ratio: r.ratio === '3:4' ? '3:4' : '1:1',
+      cards: (Array.isArray(r.cards) ? r.cards : []).map(toCard),
+    };
+  }
+  return null;
+}
+
 // POST — สร้างบรอดแคสต์แล้วเริ่มส่งทันที
 export async function POST(request: NextRequest) {
   try {
@@ -341,7 +380,18 @@ export async function POST(request: NextRequest) {
 
     // เนื้อหาเป็น "ชนิดกลาง" — ตรวจด้วยฟังก์ชันเดียวกับที่หน้าจอใช้ ผู้ใช้จึงไม่มีทาง
     // เจอกรณีที่หน้าจอบอกว่าได้แล้ว API ปฏิเสธ
-    const content: BroadcastContent = {
+    // แบบบล็อก (ใบใหม่ทั้งหมด) เก็บทุกอย่างใน blocks — ช่องของชนิดเดิมไม่รับ (client แนบมาก็ไม่เก็บ)
+    const isBlocks = body.content?.kind === 'blocks';
+    const blocks: (BroadcastBlock | null)[] = isBlocks && Array.isArray(body.content?.blocks)
+      ? body.content.blocks.map(toBlock)
+      : [];
+    if (blocks.some(b => !b)) return NextResponse.json({ error: 'บล็อกไม่ถูกต้อง' }, { status: 400 });
+    const content: BroadcastContent = isBlocks ? {
+      kind: 'blocks',
+      text: '',
+      blocks: blocks as BroadcastBlock[],
+      quick_replies: body.content?.quick_replies || [],
+    } : {
       kind: body.content?.kind || 'announce',
       title: body.content?.title || '',
       text: body.content?.text || '',
@@ -380,6 +430,8 @@ export async function POST(request: NextRequest) {
     for (const img of content.images || []) {
       if (img.action?.type === 'product' && img.action.product) productActions.push(img.action);
     }
+    // บล็อก: กดรูปเต็มจอ · กดตัวการ์ด · ปุ่มบนการ์ด
+    if (content.kind === 'blocks') productActions.push(...blockProductActions(content.blocks || []));
     if (productActions.length > 0) {
       const filled = await fillStorefrontProductLinks(
         auth.companyId,

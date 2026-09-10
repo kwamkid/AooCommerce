@@ -1,46 +1,23 @@
 // Path: app/marketing/broadcast/new/components/KindMockups.tsx
 //
-// มอคอัป "ห้องแชท LINE จำลอง" ของแต่ละชนิดเนื้อหาบรอดแคสต์ + ชิ้นส่วนวาดมอคที่ตัวเลือกย่อย
-// (แสดงรูปแบบไหน / รูปแบบการ์ด) ใน ContentStep ใช้ร่วมกัน
+// มอคอัป "ห้องแชท LINE จำลอง" ของแต่ละชนิดบล็อก — การ์ด "+ เพิ่มบล็อก" ของตัวแก้ไข (BlocksEditor) ใช้
 //
 // ทำไมต้องเป็นห้องแชททั้งใบ ไม่ใช่แท่งเทา 2 แท่ง: เจ้าของดูการ์ดเลือกชนิดแล้วบอกว่า
 // "ไม่รู้ว่าประกาศหน้าตาเป็นไง โปสเตอร์เป็นไง … มันต้องเห็นรูปตรงนี้ก่อนเลย" (10 ก.ย. 2026)
 // มอคจึงวาดทรงเดียวกับ BroadcastPreview (พื้นฟ้า linechat · จุดโปรไฟล์ร้าน · กล่อง/การ์ดขาว ·
-// ปุ่มเขียว LINE · ป้ายลดสีแบรนด์) ด้วยเนื้อหา placeholder คงที่ — ไม่ดึงรูปของร่างที่ผู้ใช้กำลังทำ
+// ปุ่มเขียว LINE · ป้ายลดสีแบรนด์) ด้วยเนื้อหา placeholder คงที่
 //
-// ⚠️ การ์ด · รูปเต็มจอ · แถวรูป **ตกบรรทัดลงมาใต้รูปโปรไฟล์** ไม่ได้อยู่ข้างรูปโปรไฟล์ และรูปเต็มจอ
-// ไม่มีข้อความอยู่บนตัวมันเอง — เทียบกับรูปแคปจากมือถือจริงของเจ้าของ (10 ก.ย. 2026) กติกาเดียวกับ
-// LinePhonePreview ที่วาดตัวอย่างเต็ม
+// ⚠️ การ์ด · รูปเต็มจอ **ตกบรรทัดลงมาใต้รูปโปรไฟล์** ไม่ได้อยู่ข้างรูปโปรไฟล์ และรูปเต็มจอไม่มีข้อความ
+// อยู่บนตัวมันเอง — เทียบกับรูปแคปจากมือถือจริงของเจ้าของ (10 ก.ย. 2026) กติกาเดียวกับ LinePhonePreview
 // ⚠️ ข้างในห้องแชทไม่มี `dark:` โดยตั้งใจ — พื้นห้องแชทตรึงสีเดียวทั้งสองธีมเหมือน BroadcastPreview
-// กล่องขาวบนพื้นฟ้าคือสิ่งที่ลูกค้าเห็นจริง ไม่ว่าแอดมินจะเปิดธีมไหน
 // ⚠️ ปุ่มเป็นเขียว LINE (`bg-line`) ไม่ใช่ส้มแบรนด์ — ของจริงที่ลูกค้าเห็นเป็นเขียว
 'use client';
 
 import type { ReactNode } from 'react';
 import { Image as ImageIcon } from 'lucide-react';
-import type { BroadcastContentKind } from '@/lib/broadcast/platforms';
+import type { BroadcastBlockType } from '@/lib/broadcast/content';
 
 // ── ชิ้นส่วนกลาง ──────────────────────────────────────────────────────────────
-
-/**
- * รูปตัวอย่างในการ์ดตัวเลือกย่อย = **รูปของร่างที่ผู้ใช้กำลังทำอยู่จริง** ไม่ใช่รูปตัวอย่างสำเร็จรูป
- * (ใส่รูปแล้วเห็นรูปตัวเองในทั้งสองแบบเลย จึงตัดสินใจได้โดยไม่ต้องกดลองแล้วกดกลับ)
- * ยังไม่มีรูป = บล็อกเทาทรงเดียวกัน — ทรงคือสิ่งที่ต้องเทียบ ไม่ใช่ตัวรูป
- */
-export function MockImage({ src, className }: { src: string | null; className: string }) {
-  if (!src) return <div className={`${className} bg-gray-200 dark:bg-slate-600`} />;
-  // eslint-disable-next-line @next/next/no-img-element
-  return <img src={src} alt="" className={`${className} object-cover`} />;
-}
-
-/** จุดกลมแทนรูปโปรไฟล์ร้าน — บอกว่าของชิ้นนี้มาถึงลูกค้าในห้องแชท ไม่ได้ลอยอยู่เฉย ๆ */
-export function MockAvatar({ size }: { size: 'sm' | 'md' }) {
-  return (
-    <div
-      className={`${size === 'sm' ? 'w-3 h-3' : 'w-4 h-4'} rounded-full bg-gray-300 dark:bg-slate-500 flex-shrink-0`}
-    />
-  );
-}
 
 /**
  * แถบตัวหนังสือจำลอง
@@ -56,13 +33,8 @@ export function MockLine({ className, tone = 'muted' }: { className?: string; to
   return <div className={`h-1 rounded ${LINE_TONE[tone]} ${className || ''}`} />;
 }
 
-/**
- * บล็อกรูป — ส่ง `src` มา = วาดรูปจริง (ตัวเลือก "แสดงรูปแบบไหน" ใช้รูปที่ผู้ใช้เพิ่งอัป)
- * ไม่ส่ง = placeholder เทาพร้อมไอคอนรูปตัวเดียวกับที่หน้ารายการใช้แทนโปสเตอร์
- */
-export function MockPhoto({ src, className }: { src?: string | null; className: string }) {
-  // eslint-disable-next-line @next/next/no-img-element
-  if (src) return <img src={src} alt="" className={`${className} object-cover`} />;
+/** บล็อกรูป placeholder เทาพร้อมไอคอนรูป — ทรงคือสิ่งที่ต้องเทียบ ไม่ใช่ตัวรูป */
+export function MockPhoto({ className }: { className: string }) {
   return (
     <div className={`${className} bg-gray-200 text-gray-400 flex items-center justify-center`}>
       <ImageIcon className="w-4 h-4" />
@@ -70,7 +42,7 @@ export function MockPhoto({ src, className }: { src?: string | null; className: 
   );
 }
 
-/** ปุ่มบนการ์ด — ปุ่มคือจุดต่างสำคัญของโปรโมชัน/การ์ดสินค้า จึงใส่คำจริงให้เห็นว่ากดได้ */
+/** ปุ่มบนการ์ด — ใส่คำจริงให้เห็นว่ากดได้ */
 function MockButton() {
   return (
     <div className="h-4 rounded bg-line text-white helper-text leading-none flex items-center justify-center">
@@ -92,7 +64,7 @@ function MockLogoAvatar() {
 /**
  * เปลือกห้องแชท: พื้นฟ้า + โปรไฟล์ร้าน แล้วตามด้วยของที่ส่ง (ไม่มีเส้นชื่อร้าน — เจ้าของขอเอาออก)
  *  children = ของที่อยู่**ข้างรูปโปรไฟล์** (ข้อความ · รูปธรรมดา) — คอลัมน์เป็น flex-col ให้ยืดได้
- *  after    = ของที่**ตกบรรทัดลงมา**ใต้รูปโปรไฟล์ กว้างเกือบชนขอบ (การ์ด · รูปเต็มจอ · แถวรูป)
+ *  after    = ของที่**ตกบรรทัดลงมา**ใต้รูปโปรไฟล์ กว้างเกือบชนขอบ (การ์ด · รูปเต็มจอ)
  * ไม่ส่ง children = รูปโปรไฟล์อยู่บรรทัดของมันเองเหนือของที่ส่ง — ตรงกับรูปแคปจริง
  */
 export function MockChat({ children, after }: { children?: ReactNode; after?: ReactNode }) {
@@ -119,7 +91,7 @@ export function MockChat({ children, after }: { children?: ReactNode; after?: Re
   );
 }
 
-/** การ์ดสินค้าหนึ่งใบ (รูป + ชื่อ + ปุ่ม) — ย่อให้พอดีแถวที่ตกบรรทัด · ป้ายลดมุมซ้ายบนเป็นสีแบรนด์ */
+/** การ์ดหนึ่งใบ (รูป + ชื่อ + ปุ่ม) — ย่อให้พอดีแถวที่ตกบรรทัด · ป้ายลดมุมซ้ายบนเป็นสีแบรนด์ */
 function MockProductCard() {
   return (
     <div className="w-7/12 flex-shrink-0 rounded-lg bg-white overflow-hidden">
@@ -135,50 +107,25 @@ function MockProductCard() {
   );
 }
 
-// ── มอคอัปต่อชนิด ─────────────────────────────────────────────────────────────
+// ── มอคอัปต่อชนิดบล็อก ────────────────────────────────────────────────────────
 
 /**
- * ประกาศ = ข้อความ + รูปแยกใบ ข้างรูปโปรไฟล์ · โปสเตอร์ = รูปใบเดียวเต็มความกว้าง ไม่มีข้อความบนรูป ·
- * รูปหลายใบ = รูปล้วนเรียงแนวนอน ใบถัดไปโผล่ครึ่งใบ · โปรโมชัน (ถอดจากตัวเลือกแล้ว) = การ์ดแบนเนอร์ใหญ่ ·
- * การ์ดสินค้า = การ์ดเรียงแนวนอน ใบถัดไปโผล่ครึ่งใบ (บอกว่าเลื่อนดูต่อได้)
- * — ทุกชนิดยกเว้นประกาศตกบรรทัดใต้รูปโปรไฟล์ · ทั้งหมดอยู่ในกรอบพรีวิว `lg` สูง 128px
+ * ข้อความ / รูป = อยู่ข้างรูปโปรไฟล์เหมือนแอดมินพิมพ์/ส่งรูปในแชท · รูปเต็มจอ = รูปใบเดียวเต็มความกว้าง
+ * ไม่มีข้อความบนรูป · การ์ด = การ์ดเรียงแนวนอน ใบถัดไปโผล่ครึ่งใบ (บอกว่าเลื่อนดูต่อได้)
+ * — ทั้งหมดอยู่ในกรอบพรีวิว `lg` สูง 128px ของ OptionCards
  */
-export const KIND_MOCKS: Record<BroadcastContentKind, ReactNode> = {
-  announce: (
+export const BLOCK_MOCKS: Record<BroadcastBlockType, ReactNode> = {
+  text: (
     <MockChat>
       <div className="rounded-xl rounded-tl-sm bg-white p-1.5 space-y-1">
         <MockLine />
         <MockLine className="w-2/3" />
       </div>
-      <MockPhoto className="w-7/12 h-12 rounded-xl" />
     </MockChat>
   ),
-  poster: <MockChat after={<MockPhoto className="w-full rounded" />} />,
-  gallery: (
-    <MockChat
-      after={
-        <div className="flex gap-1 w-full overflow-hidden">
-          <MockPhoto className="w-7/12 flex-shrink-0 rounded-lg" />
-          <MockPhoto className="w-7/12 flex-shrink-0 rounded-lg" />
-        </div>
-      }
-    />
-  ),
-  promo: (
-    <MockChat
-      after={
-        // แบนเนอร์ยืดเต็มที่เหลือ (flex-1) — เจ้าของขอให้สูงใกล้ของจริง ไม่ใช่แถบบาง ๆ บนหัวการ์ด
-        <div className="flex-1 flex flex-col rounded-xl bg-white overflow-hidden">
-          <MockPhoto className="flex-1 min-h-0" />
-          <div className="p-1.5 space-y-1">
-            <MockLine tone="strong" className="w-3/4" />
-            <MockButton />
-          </div>
-        </div>
-      }
-    />
-  ),
-  products: (
+  image: <MockChat><MockPhoto className="w-7/12 h-14 rounded-xl" /></MockChat>,
+  rich: <MockChat after={<MockPhoto className="w-full rounded" />} />,
+  cards: (
     <MockChat
       after={
         <div className="flex gap-1 w-full overflow-hidden items-start">

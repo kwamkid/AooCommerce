@@ -96,7 +96,7 @@ desktop table + mobile cards (auto / `mobileCardRender`) + pagination (20/50/100
 | อัปรูปหลายใบ (ลาก · เรียง · บีบ) | `ImageUploader` | uploader เอง |
 | เลือกรูป 1 ใบ (ลากวาง · paste · ถ่าย · ย่อ) | **`ImageDropzone`** — คืน `File` ให้อัปเอง (ไม่รู้จัก storage) · ref `accept(file)`/`open()` · **`aspect="1:1"\|"3:4"`** (กรอบตามสัดส่วนจริง · `square` = 1:1) · `changeOnClick` · `classNames` (หน้าร้านส่ง `sf-*`) · `maxWidthOrHeight`/`maxSizeMB` | dropzone ตัวที่สอง · `<input type="file">` ดิบ · ลืมย่อรูป |
 | เลือกสี | `ColorPicker` (Modal + presets `lib/color-presets.ts`) | `<input type="color">` ดิบ |
-| ตัวเลือกที่อธิบายด้วยภาพดีกว่าคำ | `OptionCards` (`preview` วาดรูปทรงจริง · `layout="horizontal"` · **`previewSize="lg"`** มอคอัปทั้งใบ 128px — การ์ดชนิดเนื้อหาบรอดแคสต์ใช้ `app/marketing/broadcast/new/components/KindMockups.tsx`) | `FormSelect` ให้เดาเอง · พรีวิวที่ดูไม่ออก |
+| ตัวเลือกที่อธิบายด้วยภาพดีกว่าคำ | `OptionCards` (`preview` วาดรูปทรงจริง · `layout="horizontal"` · **`previewSize="lg"`** มอคอัปทั้งใบ 128px — การ์ด "+ เพิ่มบล็อก" ของบรอดแคสต์ใช้ `BLOCK_MOCKS` จาก `app/marketing/broadcast/new/components/KindMockups.tsx`) | `FormSelect` ให้เดาเอง · พรีวิวที่ดูไม่ออก |
 | ตัวอย่าง "ลูกค้าเห็นอะไรในแชท" | **`LinePhonePreview`** ([LinePhonePreview.tsx](../../components/broadcast/LinePhonePreview.tsx)) — กรอบมือถือจอสูงคงที่ เลื่อนในจอ ติดท้ายห้อง · `messages=[{key, wide?, node}]` (1 ก้อน = 1 message object) · `wide` = การ์ด/รูปเต็มจอตกบรรทัดใต้รูปโปรไฟล์ · หัวห้อง = บัญชีแรกที่เลือก · `size="md"` · สไตล์ `.phone-mock*` · แถวเลื่อนแนวนอน `.phone-mock-hscroll` · เนื้อหาผ่าน `BroadcastPreview` | ห้องแชทจำลองเอง · การ์ดข้างรูปโปรไฟล์ · ชื่อร้านเหนือข้อความ (แชท 1:1 ไม่มี) |
 
 ### Display

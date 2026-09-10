@@ -167,6 +167,90 @@ export interface BroadcastGalleryImage {
   action: BroadcastAction | null;
 }
 
+// ─── เนื้อหาแบบบล็อก (kind 'blocks' — ตัวแก้ไขแบบ LINE OA Manager) ──────────────
+
+/** บล็อกต่อใบ — 1 บล็อก = 1 message object · LINE นับ ≤3 object เป็น 1 ข้อความในโควตา */
+export const BLOCKS_MAX = 3;
+/** การ์ดต่อบล็อก (แถวเลื่อน) — LINE รับ carousel ได้ 12 ใบ เผื่อไว้ที่ 10 */
+export const BLOCK_CARDS_MAX = 10;
+/** ปุ่มต่อการ์ด */
+export const CARD_BUTTONS_MAX = 3;
+/**
+ * หัวข้อ/ข้อความบนการ์ดของบล็อก — การ์ดเป็น Flex ไม่มีเพดานแข็งแบบ template เดิม (40/60)
+ * แต่ยาวมากการ์ดจะสูงเกินจอ · หัวข้อแสดงไม่เกิน 2 บรรทัด (ชื่อสินค้าไทยยาวเกิน 40 บ่อย)
+ */
+export const BLOCK_CARD_TITLE_MAX = 80;
+export const BLOCK_CARD_TEXT_MAX = 160;
+
+export type BroadcastBlockType = 'text' | 'image' | 'rich' | 'cards';
+/** สัดส่วนรูปของการ์ด — ชุดเดียวทั้งแถว (การ์ดสูงเท่ากันทุกใบ) · 3:4 = รูปสินค้าแนวตั้งแบบ Shopee */
+export type BroadcastCardRatio = '1:1' | '3:4';
+
+export interface BroadcastCardButton {
+  label: string;
+  action: BroadcastAction | null;
+}
+
+/** การ์ดหนึ่งใบในบล็อกการ์ด */
+export interface BroadcastCard {
+  /** สินค้าที่ดึงมา (แท็บ "สินค้าในร้าน") — null = ทำการ์ดเอง */
+  product: BroadcastProductCard | null;
+  image_url: string | null;
+  title: string;
+  text: string;
+  /** ปุ่มล่างการ์ด (ไม่บังคับ) — ปุ่มแรก = ปุ่มหลักสีเขียว ที่เหลือเทา */
+  buttons: BroadcastCardButton[];
+  /** กดที่ตัวการ์ด (รูป/ข้อความ) — null = ตัวการ์ดกดไม่ได้ (ปุ่มยังกดได้ตามปกติ) */
+  tap_action: BroadcastAction | null;
+}
+
+export type BroadcastBlock =
+  | { type: 'text'; text: string }
+  | { type: 'image'; image_url: string; image_width?: number | null; image_height?: number | null }
+  | {
+      type: 'rich';
+      image_url: string;
+      image_width?: number | null;
+      image_height?: number | null;
+      /** กดรูปแล้วเกิดอะไร — บังคับ (รูปเต็มจอที่กดแล้วไปต่อไม่ได้ = ลูกค้าสนใจแล้วไปต่อไม่ได้) */
+      action: BroadcastAction | null;
+    }
+  | { type: 'cards'; ratio: BroadcastCardRatio; cards: BroadcastCard[] };
+
+export const BLOCK_TYPE_LABELS: Record<BroadcastBlockType, string> = {
+  text: 'ข้อความ',
+  image: 'รูป',
+  rich: 'รูปเต็มจอ',
+  cards: 'การ์ด',
+};
+
+/** ทุก "ไปที่สินค้า" ในบล็อก (รูปเต็มจอ · กดการ์ด · ปุ่มบนการ์ด) — API เติมลิงก์หน้าร้านให้ก่อนส่ง */
+export function blockProductActions(
+  blocks: BroadcastBlock[],
+): Extract<BroadcastAction, { type: 'product' }>[] {
+  const out: Extract<BroadcastAction, { type: 'product' }>[] = [];
+  const take = (a: BroadcastAction | null | undefined) => {
+    if (a && a.type === 'product' && a.product) out.push(a);
+  };
+  for (const b of blocks) {
+    if (b.type === 'rich') take(b.action);
+    if (b.type === 'cards') {
+      for (const c of b.cards) {
+        take(c.tap_action);
+        for (const btn of c.buttons) take(btn.action);
+      }
+    }
+  }
+  return out;
+}
+
+/** สรุปบล็อกบรรทัดเดียว — "ข้อความ + รูปเต็มจอ + การ์ด 3 ใบ" (แผงสรุป · รายการ) */
+export function blocksSummary(blocks: BroadcastBlock[]): string {
+  return blocks
+    .map(b => (b.type === 'cards' ? `${BLOCK_TYPE_LABELS.cards} ${b.cards.length} ใบ` : BLOCK_TYPE_LABELS[b.type]))
+    .join(' + ');
+}
+
 export interface BroadcastContent {
   kind: BroadcastContentKind;
   /** หัวข้อ — promo ใช้เป็นหัวการ์ด · TikTok ใช้เป็นหัวข้อข้อความ */
@@ -202,6 +286,11 @@ export interface BroadcastContent {
   products?: BroadcastProductCard[];
   /** gallery: รูปหลายใบเลื่อนดู (image_url ของใบไม่ใช้) */
   images?: BroadcastGalleryImage[];
+  /**
+   * kind 'blocks' (ใบใหม่ตั้งแต่ 11 ก.ย. 2026): บล็อกเรียงตามลำดับที่ส่ง — ใช้แทน text/image/products
+   * ทั้งหมด · 1 บล็อก = 1 message object · สูงสุด `BLOCKS_MAX` · `text` ของใบเป็นค่าว่าง
+   */
+  blocks?: BroadcastBlock[];
   quick_replies?: string[];
 }
 
@@ -281,6 +370,7 @@ export function validateBroadcastContent(
   if (!c.kinds.includes(content.kind)) {
     return `${label} ยังส่งเนื้อหาแบบนี้ไม่ได้`;
   }
+  if (content.kind === 'blocks') return validateBlocks(platform, content);
 
   const text = (content.text || '').trim();
   const title = (content.title || '').trim();
@@ -367,7 +457,14 @@ export function validateBroadcastContent(
     if (!text && !content.image_url) return 'ต้องมีข้อความหรือรูปอย่างน้อยหนึ่งอย่าง';
   }
 
-  const quick = (content.quick_replies || []).map(q => q.trim()).filter(Boolean);
+  return validateQuickReplies(platform, content.quick_replies);
+}
+
+/** ปุ่มตอบเร็ว — ใช้ทั้งเนื้อหาชนิดเดิมและแบบบล็อก */
+function validateQuickReplies(platform: BroadcastPlatform, labels: string[] | undefined): string | null {
+  const c = BROADCAST_PLATFORMS[platform].compose;
+  const label = BROADCAST_PLATFORMS[platform].label;
+  const quick = (labels || []).map(q => q.trim()).filter(Boolean);
   if (quick.length > c.quickReplyMax) {
     return c.quickReplyMax === 0
       ? `${label} ไม่มีปุ่มตอบเร็ว`
@@ -376,14 +473,85 @@ export function validateBroadcastContent(
   if (quick.some(q => q.length > BUTTON_LABEL_MAX)) {
     return `ข้อความบนปุ่มตอบเร็วยาวเกิน ${BUTTON_LABEL_MAX} ตัวอักษร`;
   }
-
   return null;
+}
+
+/**
+ * ตรวจเนื้อหาแบบบล็อก — บอกให้ชัดว่าผิดที่ "บล็อกไหน การ์ดใบไหน" (ใบหนึ่งมีได้ 3 บล็อก × 10 การ์ด
+ * ข้อความลอย ๆ ว่า "ปุ่มต้องมีข้อความ" ผู้ใช้หาไม่เจอว่าปุ่มไหน)
+ */
+function validateBlocks(platform: BroadcastPlatform, content: BroadcastContent): string | null {
+  const c = BROADCAST_PLATFORMS[platform].compose;
+  const label = BROADCAST_PLATFORMS[platform].label;
+  const blocks = content.blocks || [];
+  if (blocks.length === 0) return 'เพิ่มบล็อกอย่างน้อย 1 บล็อก';
+  if (blocks.length > BLOCKS_MAX) return `ใส่ได้ไม่เกิน ${BLOCKS_MAX} บล็อกต่อหนึ่งข้อความ`;
+
+  for (let i = 0; i < blocks.length; i++) {
+    const b = blocks[i];
+    const at = `บล็อก ${i + 1}`;
+    if (b.type === 'text') {
+      const t = (b.text || '').trim();
+      if (!t) return `${at}: ใส่ข้อความ`;
+      if (t.length > c.bodyMax) return `${at}: ข้อความยาวเกิน ${c.bodyMax.toLocaleString()} ตัวอักษร`;
+      continue;
+    }
+    if (!c.image) return `${label} แนบรูปไม่ได้`;
+    if (b.type === 'image' || b.type === 'rich') {
+      if (!b.image_url) return `${at}: เลือกรูป`;
+      if (!isHttpsUrl(b.image_url)) return `${at}: ลิงก์รูปต้องเป็น https`;
+      if (b.type === 'rich') {
+        const err = validateAction(b.action, 'กดรูป');
+        if (err) return `${at}: ${err}`;
+      }
+      continue;
+    }
+    const cards = b.cards || [];
+    const cardsMax = Math.min(BLOCK_CARDS_MAX, c.productsMax);
+    if (b.ratio !== '1:1' && b.ratio !== '3:4') return `${at}: สัดส่วนรูปการ์ดไม่ถูกต้อง`;
+    if (cards.length === 0) return `${at}: เพิ่มการ์ดอย่างน้อย 1 ใบ`;
+    if (cards.length > cardsMax) return `${at}: การ์ดได้ไม่เกิน ${cardsMax} ใบ`;
+    for (let j = 0; j < cards.length; j++) {
+      const card = cards[j];
+      const cat = `${at} การ์ดที่ ${j + 1}`;
+      const title = (card.title || '').trim();
+      const text = (card.text || '').trim();
+      if (card.image_url && !isHttpsUrl(card.image_url)) return `${cat}: ลิงก์รูปต้องเป็น https`;
+      if (!card.image_url && !title && !text) return `${cat}: ใส่รูปหรือข้อความอย่างน้อยหนึ่งอย่าง`;
+      if (title.length > BLOCK_CARD_TITLE_MAX) return `${cat}: หัวข้อยาวเกิน ${BLOCK_CARD_TITLE_MAX} ตัวอักษร`;
+      if (text.length > BLOCK_CARD_TEXT_MAX) return `${cat}: ข้อความยาวเกิน ${BLOCK_CARD_TEXT_MAX} ตัวอักษร`;
+      const buttons = card.buttons || [];
+      if (buttons.length > CARD_BUTTONS_MAX) return `${cat}: ปุ่มได้ไม่เกิน ${CARD_BUTTONS_MAX} ปุ่ม`;
+      for (const btn of buttons) {
+        const l = (btn.label || '').trim();
+        if (!l) return `${cat}: ปุ่มต้องมีข้อความบนปุ่ม`;
+        if (l.length > BUTTON_LABEL_MAX) return `${cat}: ข้อความบนปุ่มยาวเกิน ${BUTTON_LABEL_MAX} ตัวอักษร`;
+        const err = validateAction(btn.action, `กดปุ่ม "${l}"`);
+        if (err) return `${cat}: ${err}`;
+      }
+      // กดตัวการ์ดไม่บังคับ — ไม่ได้ตั้ง = ตัวการ์ดกดไม่ได้ (ปุ่มยังกดได้) · ตั้งแล้วต้องครบ
+      if (!isActionEmpty(card.tap_action)) {
+        const err = validateAction(card.tap_action, 'กดการ์ด');
+        if (err) return `${cat}: ${err}`;
+      }
+    }
+  }
+
+  return validateQuickReplies(platform, content.quick_replies);
 }
 
 /** ข้อความตัวอย่างบรรทัดเดียวสำหรับหน้ารายการ */
 export function broadcastContentPreview(content: BroadcastContent): string {
   const title = (content.title || '').trim();
   const text = (content.text || '').trim();
+  if (content.kind === 'blocks') {
+    // ข้อความของบล็อกแรกอ่านรู้เรื่องที่สุด · ที่เหลือบอกเป็นชนิด (รูปเต็มจอ · การ์ด 3 ใบ)
+    const blocks = content.blocks || [];
+    const firstText = blocks.find((b): b is Extract<BroadcastBlock, { type: 'text' }> => b.type === 'text')?.text.trim();
+    const others = blocksSummary(blocks.filter(b => b.type !== 'text'));
+    const line = firstText ? `${firstText}${others ? ` · [${others}]` : ''}` : `[${blocksSummary(blocks)}]`;
+    return line.slice(0, 120);
+  }
   if (content.kind === 'poster') {
     // โปสเตอร์ไม่มีข้อความให้ยกมาโชว์ — บอกว่ากดแล้วไปไหนแทน จะได้แยกใบออกจากกันในรายการ
     const target = actionSummary(posterAction(content));
@@ -413,7 +581,7 @@ export function resolveBroadcastContentKind(
   content: BroadcastContent | null | undefined,
   messages: unknown,
 ): BroadcastContentKind {
-  if (content?.kind && ['announce', 'poster', 'gallery', 'promo', 'products'].includes(content.kind)) return content.kind;
+  if (content?.kind && ['blocks', 'announce', 'poster', 'gallery', 'promo', 'products'].includes(content.kind)) return content.kind;
 
   if (Array.isArray(messages)) {
     for (const m of messages) {

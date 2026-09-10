@@ -20,8 +20,14 @@
 import ProductImageThumb from '@/components/ui/ProductImageThumb';
 import LinePhonePreview, { type PhoneChatMessage } from '@/components/broadcast/LinePhonePreview';
 import { thumbUrl } from '@/lib/image-thumb';
-import { discountPercent, type BroadcastContent } from '@/lib/broadcast/content';
+import {
+  discountPercent,
+  type BroadcastCard,
+  type BroadcastCardRatio,
+  type BroadcastContent,
+} from '@/lib/broadcast/content';
 import { BROADCAST_PLATFORMS, type BroadcastPlatform } from '@/lib/broadcast/platforms';
+import { Image as ImageIcon } from 'lucide-react';
 
 export interface BroadcastPreviewProps {
   content: BroadcastContent;
@@ -39,14 +45,68 @@ export interface BroadcastPreviewProps {
 }
 
 /** กล่องข้อความขาเข้า — ขาว มุมบนซ้ายตัดสั้นเหมือนหางข้อความของ LINE */
-const BUBBLE = 'w-fit max-w-full rounded-2xl rounded-tl-md px-3.5 py-2 bg-white text-gray-900';
+const BUBBLE = 'w-fit max-w-full rounded-2xl rounded-tl-md px-3.5 py-2 bg-white text-gray-900 shadow-sm';
 /** ปุ่มใบแรกของการ์ด = สิ่งที่อยากให้กดที่สุด — LINE วาดเป็นเขียวทึบ */
 const BTN_PRIMARY = 'block bg-line text-white rounded-lg py-2 text-center subtitle-text font-medium';
 const BTN_SECONDARY = 'block bg-gray-200 text-gray-800 rounded-lg py-2 text-center subtitle-text';
 
+/**
+ * สัดส่วนรูปของบล็อกการ์ด = aspectRatio ที่ส่งให้ Flex ('1:1' · '3:4') — ตัวแก้ไขใช้ชุดนี้วาดกรอบรูปด้วย
+ * (สตริงคลาสเต็มอยู่ในไฟล์นี้ Tailwind จึงสร้าง `aspect-[3/4]` ให้)
+ */
+export const CARD_RATIO_CLASS: Record<BroadcastCardRatio, string> = { '1:1': 'aspect-square', '3:4': 'aspect-[3/4]' };
+
 /** ราคาแบบที่ร้านเขียนบนการ์ดจริง — "1,990.-" */
 function priceLabel(value: number): string {
   return `${value.toLocaleString('th-TH')}.-`;
+}
+
+/** ช่องเทาแทนรูปที่ยังไม่ได้เลือก — ตัวอย่างระหว่างแก้ (ใบที่ส่งแล้วมีรูปครบเสมอ) */
+function ImageSlot({ className }: { className: string }) {
+  return (
+    <div className={`${className} bg-gray-200 flex items-center justify-center text-gray-400`}>
+      <ImageIcon className="w-6 h-6" />
+    </div>
+  );
+}
+
+/**
+ * การ์ดหนึ่งใบของบล็อกการ์ด — วาดตาม blockCardBubble ของตัวส่ง: รูปตามสัดส่วนของแถว · หัวข้อ/ข้อความ ·
+ * ปุ่ม (ใบแรกเขียว) · ไม่มีหัวข้อ ข้อความ และปุ่ม = การ์ดรูปล้วน (ไม่มีแถบขาวใต้รูป)
+ */
+function BlockCardPreview({ card, wide, ratio }: { card: BroadcastCard; wide: boolean; ratio: BroadcastCardRatio }) {
+  const title = card.title.trim();
+  const text = card.text.trim();
+  const hasBody = !!(title || text || card.buttons.length);
+  const aspect = CARD_RATIO_CLASS[ratio];
+  // รูปสินค้าย่อผ่าน thumbUrl · รูปที่อัปเอง (หรือ blob ที่ยังไม่อัป) ใช้ตามเดิม
+  const src = card.image_url
+    ? (card.product ? thumbUrl(card.image_url, 320) || card.image_url : card.image_url)
+    : null;
+  return (
+    <div className={`${wide ? 'w-full' : 'w-4/5'} flex-shrink-0 rounded-xl bg-white overflow-hidden shadow-sm ${hasBody ? 'border border-gray-200' : ''}`}>
+      {src ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={src} alt="" className={`w-full ${aspect} object-cover`} />
+      ) : (
+        // ไม่มีรูปแต่มีข้อความ = การ์ดตัวหนังสือล้วนแบบที่ลูกค้าเห็นจริง · ไม่มีอะไรเลย = ที่ว่างรอรูป
+        !hasBody && <ImageSlot className={`w-full ${aspect}`} />
+      )}
+      {hasBody && (
+        <div className="p-3">
+          {title && <p className="body-text font-semibold text-gray-900 line-clamp-2 break-words">{title}</p>}
+          {text && <p className="subtitle-text text-gray-600 mt-0.5 whitespace-pre-wrap break-words">{text}</p>}
+          {card.buttons.length > 0 && (
+            <div className="space-y-2 mt-3">
+              {card.buttons.map((b, i) => (
+                <p key={i} className={i === 0 ? BTN_PRIMARY : BTN_SECONDARY}>{b.label.trim() || 'ปุ่ม'}</p>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function BroadcastPreview({
@@ -80,7 +140,53 @@ export default function BroadcastPreview({
     });
   };
 
-  if (content.kind === 'poster') {
+  if (content.kind === 'blocks') {
+    // 1 บล็อก = 1 ก้อนตามลำดับที่ส่ง · ของที่ยังไม่ได้กรอกวาดเป็นที่ว่างเทา (ตัวอย่างระหว่างแก้)
+    (content.blocks || []).forEach((b, i) => {
+      const key = `block-${i}`;
+      if (b.type === 'text') {
+        const t = b.text.trim();
+        messages.push({
+          key,
+          node: (
+            <div className={BUBBLE}>
+              <p className={`subtitle-text whitespace-pre-wrap break-words ${t ? '' : 'text-gray-400'}`}>{t || 'ข้อความ'}</p>
+            </div>
+          ),
+        });
+      } else if (b.type === 'image') {
+        messages.push({
+          key,
+          node: b.image_url
+            // eslint-disable-next-line @next/next/no-img-element
+            ? <img src={b.image_url} alt="" className="w-8/12 h-auto rounded-2xl shadow-sm" />
+            : <ImageSlot className="w-8/12 h-28 rounded-2xl" />,
+        });
+      } else if (b.type === 'rich') {
+        // รูปเต็มจอไม่มีข้อความบนตัวมันเอง — อยากมีข้อความให้เพิ่มบล็อกข้อความแยก
+        messages.push({
+          key,
+          wide: true,
+          node: b.image_url
+            // eslint-disable-next-line @next/next/no-img-element
+            ? <img src={b.image_url} alt="" className="block w-full h-auto rounded-lg" />
+            : <ImageSlot className="w-full h-40 rounded-lg" />,
+        });
+      } else {
+        messages.push({
+          key,
+          wide: true,
+          node: (
+            <div className="phone-mock-hscroll flex gap-2">
+              {b.cards.map((c, j) => (
+                <BlockCardPreview key={j} card={c} wide={b.cards.length === 1} ratio={b.ratio} />
+              ))}
+            </div>
+          ),
+        });
+      }
+    });
+  } else if (content.kind === 'poster') {
     pushLeadText();
     if (imageUrl) {
       messages.push({
