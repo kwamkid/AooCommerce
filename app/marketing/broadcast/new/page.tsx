@@ -25,6 +25,7 @@ import { useAuthGuard } from '@/lib/useAuthGuard';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { useDebouncedCallback } from '@/lib/useDebounce';
 import { useServerSearch, type ServerSearchPage } from '@/lib/useServerSearch';
+import { useStableCallback } from '@/lib/useStableCallback';
 import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
 import { supabase } from '@/lib/supabase';
@@ -88,6 +89,31 @@ async function fetchProductPage(q: string): Promise<ServerSearchPage<ProductSear
 
 /** ขนาดจริงของแบนเนอร์ (พิกเซล) */
 interface ImageDims { width: number; height: number }
+
+/**
+ * เนื้อหาที่กรอกไว้ของ **ชนิดหนึ่ง** — แต่ละชนิด (ประกาศ/โปสเตอร์/โปรโมชัน/การ์ดสินค้า) เก็บของตัวเอง
+ * แยกกันเหมือนแท็บ: สลับไปโปสเตอร์แล้วรูปที่ใส่ไว้ในประกาศต้องไม่โผล่ตาม (เจ้าของท้วง 10 ก.ย. 2026
+ * ว่ากดโปสเตอร์แล้วตัวอย่างในแชทยังเป็นรูปของประกาศ) และสลับกลับมาของเดิมต้องยังอยู่
+ */
+interface KindDraft {
+  title: string;
+  text: string;
+  imageFile: File | null;
+  existingImageUrl: string | null;
+  imageDims: ImageDims | null;
+  imageStyle: 'bubble' | 'rich';
+  linkUrl: string;
+  cardStyle: 'image' | 'detail';
+  buttons: BroadcastButton[];
+  cards: BroadcastProductCard[];
+  quickReplies: string[];
+}
+
+const EMPTY_DRAFT: KindDraft = {
+  title: '', text: '', imageFile: null, existingImageUrl: null, imageDims: null,
+  imageStyle: 'bubble', linkUrl: '', cardStyle: 'detail',
+  buttons: [{ label: '', url: '' }], cards: [], quickReplies: [],
+};
 
 /**
  * วัดขนาดรูป — จากไฟล์ที่เพิ่งเลือก หรือจาก URL ของใบที่คัดลอกมา
@@ -168,6 +194,34 @@ export default function NewBroadcastPage() {
   const [buttons, setButtons] = useState<BroadcastButton[]>([{ label: '', url: '' }]);
   const [cards, setCards] = useState<BroadcastProductCard[]>([]);
   const [quickReplies, setQuickReplies] = useState<string[]>([]);
+
+  /** ของที่กรอกค้างไว้ของชนิดที่ไม่ได้เปิดอยู่ — state ข้างบนคือชนิดที่เปิดอยู่เท่านั้น */
+  const kindDraftsRef = useRef<Partial<Record<BroadcastContentKind, KindDraft>>>({});
+
+  /**
+   * สลับชนิดเนื้อหา = เก็บของชนิดเดิมไว้ก่อน แล้วหยิบของชนิดใหม่ขึ้นมา (ไม่เคยกรอก = เปล่า)
+   * ทุกทางที่เปลี่ยน kind ต้องผ่านตัวนี้ ยกเว้นตอนคัดลอกจากใบเก่าที่ตั้งค่าทุกช่องเองอยู่แล้ว
+   */
+  const switchKind = useStableCallback((next: BroadcastContentKind) => {
+    if (next === kind) return;
+    kindDraftsRef.current[kind] = {
+      title, text, imageFile, existingImageUrl, imageDims, imageStyle, linkUrl, cardStyle,
+      buttons, cards, quickReplies,
+    };
+    const d = kindDraftsRef.current[next] ?? EMPTY_DRAFT;
+    setTitle(d.title);
+    setText(d.text);
+    setImageFile(d.imageFile);
+    setExistingImageUrl(d.existingImageUrl);
+    setImageDims(d.imageDims);
+    setImageStyle(d.imageStyle);
+    setLinkUrl(d.linkUrl);
+    setCardStyle(d.cardStyle);
+    setButtons(d.buttons);
+    setCards(d.cards);
+    setQuickReplies(d.quickReplies);
+    setKind(next);
+  });
 
   // ── เวลาส่ง ───────────────────────────────────────────────────────────
   const [sendMode, setSendMode] = useState<SendMode>('now');
@@ -356,8 +410,9 @@ export default function NewBroadcastPage() {
 
   useEffect(() => {
     if (!compose) return;
-    if (!compose.kinds.includes(kind)) setKind(compose.kinds[0]);
-  }, [compose, kind]);
+    // ผ่าน switchKind เพื่อให้ของชนิดที่ใช้ไม่ได้ถูกเก็บไว้ ไม่ใช่หลุดไปโผล่ในชนิดแรก
+    if (!compose.kinds.includes(kind)) switchKind(compose.kinds[0]);
+  }, [compose, kind, switchKind]);
 
   // ─── ตัวกรองผู้รับ — preview กับตอนส่งใช้ค่าเดียวกันเสมอ ───────────────
   const audienceFilter = useMemo(() => buildAudienceFilter(audience, {
@@ -732,7 +787,7 @@ export default function NewBroadcastPage() {
                     platformLabel={singlePlatform ? BROADCAST_PLATFORMS[singlePlatform].label : 'ช่องทางที่เลือก'}
                     showCreditNote={platforms.includes('line')}
                     kind={kind}
-                    onKindChange={setKind}
+                    onKindChange={switchKind}
                     title={title}
                     onTitleChange={setTitle}
                     text={text}
