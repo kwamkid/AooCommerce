@@ -141,7 +141,7 @@ const PICKER = {
 
 // ── ตัวอย่างในแชท (วาดจากบล็อก) ────────────────────────────────────────────
 
-const BUBBLE = 'w-fit max-w-full rounded-2xl rounded-tl-md px-3.5 py-2 bg-white text-gray-900';
+const BUBBLE = 'w-fit max-w-full rounded-2xl rounded-tl-md px-3.5 py-2 bg-white text-gray-900 shadow-sm';
 const BTN_PRIMARY = 'block bg-line text-white rounded-lg py-2 text-center subtitle-text font-medium';
 const BTN_SECONDARY = 'block bg-gray-200 text-gray-800 rounded-lg py-2 text-center subtitle-text';
 
@@ -153,7 +153,7 @@ function PreviewCard({ c, wide }: { c: CardDraft; wide: boolean }) {
   const img = cardImage(c);
   const hasBody = !!(c.title.trim() || c.text.trim() || c.buttons.length);
   return (
-    <div className={`${wide ? 'w-full' : 'w-4/5'} flex-shrink-0 rounded-xl bg-white overflow-hidden ${hasBody ? 'border border-gray-200' : ''}`}>
+    <div className={`${wide ? 'w-full' : 'w-4/5'} flex-shrink-0 rounded-xl bg-white overflow-hidden shadow-sm ${hasBody ? 'border border-gray-200' : ''}`}>
       {img ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={img} alt="" className="w-full aspect-square object-cover" />
@@ -187,7 +187,7 @@ function BlocksPreview({ blocks, quickReplies }: { blocks: Block[]; quickReplies
         // รูปเต็มจอออกนอกคอลัมน์ข้าง avatar — LINE วาดเต็มความกว้างเหลือขอบนิดเดียว
         if (b.type === 'rich') {
           return (
-            <div key={b.id} className={`-mx-1.5 ${idx === 0 ? '' : 'mt-1.5'}`}>
+            <div key={b.id} className={`-mx-1.5 ${idx === 0 ? '' : 'mt-2.5'}`}>
               {b.previewUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={b.previewUrl} alt="" className="block w-full h-auto rounded-lg" />
@@ -200,7 +200,7 @@ function BlocksPreview({ blocks, quickReplies }: { blocks: Block[]; quickReplies
           );
         }
         return (
-          <div key={b.id} className={`flex gap-2 items-start ${idx === 0 ? '' : 'mt-1.5'}`}>
+          <div key={b.id} className={`flex gap-2 items-start ${idx === 0 ? '' : 'mt-2.5'}`}>
             {idx === 0 ? <UserAvatar name={senderName} size="sm" /> : <span className="w-8 flex-shrink-0" />}
             <div className="flex-1 min-w-0 space-y-1.5">
               {idx === 0 && <p className="helper-text text-white/90 truncate">{senderName}</p>}
@@ -212,7 +212,7 @@ function BlocksPreview({ blocks, quickReplies }: { blocks: Block[]; quickReplies
               {b.type === 'image' && (
                 b.previewUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={b.previewUrl} alt="" className="w-8/12 h-auto rounded-2xl" />
+                  <img src={b.previewUrl} alt="" className="w-8/12 h-auto rounded-2xl shadow-sm" />
                 ) : (
                   <div className="w-8/12 h-28 rounded-2xl bg-gray-200 flex items-center justify-center text-gray-400">
                     <ImageIcon className="w-6 h-6" />
@@ -402,31 +402,31 @@ function CardsEditor({ block, onChange }: { block: Extract<Block, { type: 'cards
 
           <div>
             <p className="field-label mb-1">ปุ่ม (สูงสุด {MAX_CARD_BUTTONS}) — ไม่มีปุ่ม = กดทั้งใบ</p>
-            <div className="space-y-2">
+            {/* ปุ่มละแถวเดียว: ป้าย + กลุ่มปุ่ม action + ช่องกรอกของ action + ถังขยะ */}
+            <div className="divide-y divide-gray-200 dark:divide-slate-600">
               {selected.buttons.map((b, i) => (
-                <div key={b.id} className="rounded-lg border border-gray-200 dark:border-slate-600 p-3 space-y-3">
-                  <div className="flex gap-2 items-start">
-                    <div className="w-56 flex-shrink-0">
-                      <FormInput
-                        value={b.label}
-                        maxLength={BUTTON_LABEL_MAX}
-                        placeholder={i === 0 ? 'เช่น สั่งเลย' : 'เช่น ดูรายละเอียด'}
-                        aria-label={`ข้อความบนปุ่มที่ ${i + 1}`}
-                        onChange={e => patchCard(selected.id, { buttons: selected.buttons.map(x => (x.id === b.id ? { ...x, label: e.target.value } : x)) })}
-                      />
-                    </div>
-                    <Button
-                      variant="ghost"
-                      icon={<Trash2 className="w-4 h-4" />}
-                      aria-label="ลบปุ่ม"
-                      className="ml-auto"
-                      onClick={() => patchCard(selected.id, { buttons: selected.buttons.filter(x => x.id !== b.id) })}
+                <div key={b.id} className="flex flex-wrap gap-2 items-start py-2 first:pt-0 last:pb-0">
+                  <div className="w-40 flex-shrink-0">
+                    <FormInput
+                      value={b.label}
+                      maxLength={BUTTON_LABEL_MAX}
+                      placeholder={i === 0 ? 'เช่น สั่งเลย' : 'เช่น ดูรายละเอียด'}
+                      aria-label={`ข้อความบนปุ่มที่ ${i + 1}`}
+                      onChange={e => patchCard(selected.id, { buttons: selected.buttons.map(x => (x.id === b.id ? { ...x, label: e.target.value } : x)) })}
                     />
                   </div>
-                  <ActionPicker
-                    value={b.action}
-                    onChange={action => patchCard(selected.id, { buttons: selected.buttons.map(x => (x.id === b.id ? { ...x, action } : x)) })}
-                    {...PICKER}
+                  <div className="flex-1 min-w-72">
+                    <ActionPicker
+                      value={b.action}
+                      onChange={action => patchCard(selected.id, { buttons: selected.buttons.map(x => (x.id === b.id ? { ...x, action } : x)) })}
+                      {...PICKER}
+                    />
+                  </div>
+                  <Button
+                    variant="ghost"
+                    icon={<Trash2 className="w-4 h-4" />}
+                    aria-label="ลบปุ่ม"
+                    onClick={() => patchCard(selected.id, { buttons: selected.buttons.filter(x => x.id !== b.id) })}
                   />
                 </div>
               ))}
@@ -495,9 +495,10 @@ function SortableBlock({ block, index, onChange, onRemove }: {
     <div
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : undefined }}
-      className="rounded-lg border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-800"
+      // พื้นจม + หัวแถบเข้ม — ของข้างในเป็นกล่องขาว จึงเห็นขอบเขตของแต่ละบล็อกชัด
+      className="rounded-lg border border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-900/40 overflow-hidden"
     >
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-200 dark:border-slate-600">
+      <div className="flex items-center gap-2 px-3 py-2 bg-gray-100 dark:bg-slate-800 border-b border-gray-200 dark:border-slate-600">
         <button
           type="button"
           className="p-1 rounded text-gray-400 hover:text-gray-600 dark:hover:text-slate-200 cursor-grab touch-none"

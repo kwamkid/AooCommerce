@@ -14,6 +14,7 @@ import FilterChips, { FILTER_CHIP_PRIMARY_ACTIVE } from '@/components/ui/FilterC
 import ProductImageThumb from '@/components/ui/ProductImageThumb';
 import ProductSearchInput, { type ProductSearchItem } from '@/components/ui/ProductSearchInput';
 import { formatPrice } from '@/lib/utils/format';
+import type { ReactNode } from 'react';
 import {
   ACTION_LABELS,
   ACTION_MESSAGE_MAX,
@@ -23,7 +24,17 @@ import {
   type BroadcastActionType,
   type BroadcastProductCard,
 } from '@/lib/broadcast/content';
-import { Trash2 } from 'lucide-react';
+import { Link2, MessageSquare, Package, Trash2 } from 'lucide-react';
+
+/**
+ * ไอคอนประจำชนิด action — อยู่ที่ component ไม่ใช่ทะเบียนกลาง (lib ไม่ import lucide)
+ * ชุดเดียวกับที่อื่นในระบบ: ลิงก์ = Link2 · สินค้า = Package · ข้อความ = MessageSquare
+ */
+const ACTION_ICONS: Record<BroadcastActionType, ReactNode> = {
+  url: <Link2 className="w-4 h-4" />,
+  product: <Package className="w-4 h-4" />,
+  message: <MessageSquare className="w-4 h-4" />,
+};
 
 interface Props {
   value: BroadcastAction;
@@ -56,14 +67,17 @@ export default function ActionPicker({
     <div>
       {label && <p className="field-label mb-1">{label}</p>}
       <div className="flex flex-wrap items-start gap-3">
+        {/* กลุ่มปุ่มติดกัน (ไม่ใช่ชิปกลม) — แยกสายตาออกจากชิป pill ที่อยู่ระดับบนของการ์ด */}
         <FilterChips<BroadcastActionType>
           value={value.type}
+          variant="segmented"
           // เปลี่ยนชนิด = เริ่มกรอกใหม่ของชนิดนั้น (ลิงก์กับสินค้าเอามาแทนกันไม่ได้)
           onChange={type => onChange(emptyAction(type))}
           disabled={disabled}
           chips={ACTION_TYPES.map(type => ({
             id: type,
             label: ACTION_LABELS[type],
+            icon: ACTION_ICONS[type],
             activeClass: FILTER_CHIP_PRIMARY_ACTIVE,
             disabled: type === 'product' && !storefrontOpen,
             tooltip: tooltipFor(type, storefrontOpen),

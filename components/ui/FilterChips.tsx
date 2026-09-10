@@ -27,18 +27,31 @@ export interface FilterChip<T extends string> {
   disabled?: boolean;
 }
 
+/**
+ * pill      = ชิปกลม ๆ แยกเม็ด (ค่าเดิม) — ตัวกรอง/โหมดระดับบล็อก
+ * segmented = ปุ่มติดกันเป็นกลุ่มเดียว มุมมนน้อย — ใช้กับ "ตัวเลือกย่อยภายในช่องกรอก" เพื่อไม่ให้
+ *             ปนกับชิป pill ที่อยู่ใกล้กัน (เจ้าของ: pill สองชุดในการ์ดเดียวกันดูงง 10 ก.ย. 2026)
+ */
+export type FilterChipsVariant = 'pill' | 'segmented';
+
 export default function FilterChips<T extends string>({
-  chips, value, onChange, className, disabled,
+  chips, value, onChange, className, variant = 'pill', disabled,
 }: {
   chips: FilterChip<T>[];
   value: T;
   onChange: (id: T) => void;
   className?: string;
+  variant?: FilterChipsVariant;
   /** อ่านอย่างเดียว — ใช้ตอนฟอร์มกำลังบันทึก หรือแถวที่แก้ไม่ได้ */
   disabled?: boolean;
 }) {
+  const segmented = variant === 'segmented';
+  const wrapClass = segmented
+    ? `inline-flex items-stretch rounded-lg border border-gray-200 dark:border-slate-600 divide-x divide-gray-200 dark:divide-slate-600 overflow-hidden ${className || ''}`
+    : `flex flex-wrap items-center gap-2 ${className || ''}`;
+
   return (
-    <div className={`flex flex-wrap items-center gap-2 ${className || ''}`}>
+    <div className={wrapClass}>
       {chips.map(chip => {
         const button = (
           <button
@@ -46,10 +59,14 @@ export default function FilterChips<T extends string>({
             type="button"
             onClick={() => onChange(chip.id)}
             disabled={disabled || chip.disabled}
-            className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+            className={`inline-flex items-center gap-1.5 text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+              segmented ? 'px-3 py-1.5' : 'rounded-full border px-3 py-1.5'
+            } ${
               value === chip.id
                 ? chip.activeClass
-                : 'border-gray-200 dark:border-slate-600 text-gray-600 dark:text-slate-300 enabled:hover:bg-gray-50 dark:enabled:hover:bg-slate-700'
+                : `text-gray-600 dark:text-slate-300 enabled:hover:bg-gray-50 dark:enabled:hover:bg-slate-700${
+                  segmented ? '' : ' border-gray-200 dark:border-slate-600'
+                }`
             }`}
           >
             {chip.icon}
