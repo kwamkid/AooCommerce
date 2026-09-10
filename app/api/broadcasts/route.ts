@@ -28,6 +28,7 @@ import {
   type BroadcastButton,
   type BroadcastContent,
   type BroadcastProductCard,
+  type BroadcastGalleryImage,
 } from '@/lib/broadcast/content';
 import { fillStorefrontProductLinks } from '@/lib/broadcast/product-links';
 
@@ -290,6 +291,17 @@ function toButton(raw: unknown): BroadcastButton {
   };
 }
 
+/** รูปหนึ่งใบของ gallery จาก client — URL + ขนาด + "กดแล้วเกิดอะไร" */
+function toGalleryImage(raw: unknown): BroadcastGalleryImage {
+  const r = (raw || {}) as Record<string, unknown>;
+  return {
+    image_url: toUrl(r.image_url) || '',
+    image_width: toDim(r.image_width),
+    image_height: toDim(r.image_height),
+    action: normalizeAction(r.action, toProductCard),
+  };
+}
+
 // POST — สร้างบรอดแคสต์แล้วเริ่มส่งทันที
 export async function POST(request: NextRequest) {
   try {
@@ -345,6 +357,7 @@ export async function POST(request: NextRequest) {
         ?? (toUrl(body.content?.link_url) ? { type: 'url', url: toUrl(body.content?.link_url) as string } : null),
       card_style: body.content?.card_style === 'image' ? 'image' : 'detail',
       buttons: (Array.isArray(body.content?.buttons) ? body.content.buttons : []).map(toButton),
+      images: (Array.isArray(body.content?.images) ? body.content.images : []).map(toGalleryImage),
       products: (Array.isArray(body.content?.products) ? body.content.products : []).map(toProductCard),
       quick_replies: body.content?.quick_replies || [],
     };
@@ -363,6 +376,9 @@ export async function POST(request: NextRequest) {
     }
     for (const b of content.buttons || []) {
       if (b.action?.type === 'product' && b.action.product) productActions.push(b.action);
+    }
+    for (const img of content.images || []) {
+      if (img.action?.type === 'product' && img.action.product) productActions.push(img.action);
     }
     if (productActions.length > 0) {
       const filled = await fillStorefrontProductLinks(

@@ -133,7 +133,8 @@ function MockProductCard() {
 
 /**
  * ประกาศ = ฟองข้อความ + ฟองรูปแยกใบ · โปสเตอร์ = ฟองข้อความสั้น + รูปใบเดียวเต็มความกว้าง ·
- * โปรโมชัน = การ์ดแบนเนอร์ใหญ่ หัวข้อ ข้อความ ปุ่ม · การ์ดสินค้า = การ์ดเรียงแนวนอน ใบถัดไปโผล่ครึ่งใบ
+ * รูปหลายใบ = รูปล้วนเรียงแนวนอน ใบถัดไปโผล่ครึ่งใบ · โปรโมชัน (ถอดจากตัวเลือกแล้ว) = การ์ดแบนเนอร์ใหญ่
+ * หัวข้อ ข้อความ ปุ่ม · การ์ดสินค้า = การ์ดเรียงแนวนอน ใบถัดไปโผล่ครึ่งใบ
  * (บอกว่าเลื่อนดูต่อได้) — ทั้งหมดอยู่ในงบความสูง 112px ของกรอบพรีวิว `lg`
  */
 export const KIND_MOCKS: Record<BroadcastContentKind, ReactNode> = {
@@ -150,6 +151,14 @@ export const KIND_MOCKS: Record<BroadcastContentKind, ReactNode> = {
     <MockChat after={<MockPhoto className="w-full rounded" />}>
       <div className="rounded-xl rounded-tl-sm bg-white p-1.5">
         <MockLine className="w-2/3" />
+      </div>
+    </MockChat>
+  ),
+  gallery: (
+    <MockChat>
+      <div className="flex gap-1 overflow-hidden">
+        <MockPhoto className="w-7/12 h-16 flex-shrink-0 rounded-lg" />
+        <MockPhoto className="w-7/12 h-16 flex-shrink-0 rounded-lg" />
       </div>
     </MockChat>
   ),

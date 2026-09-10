@@ -33,7 +33,7 @@ import {
   type StoredAudienceFilter,
 } from '@/lib/broadcast/audience';
 import {
-  BarChart3, Image as ImageIcon, LayoutGrid, Megaphone, MessageSquare, Plus, Send, Tag, XCircle,
+  BarChart3, Image as ImageIcon, Images, LayoutGrid, Megaphone, MessageSquare, Plus, Send, Tag, XCircle,
 } from 'lucide-react';
 
 interface BroadcastStats {
@@ -82,6 +82,7 @@ interface BroadcastSummary {
 const KIND_ICON: Record<BroadcastContentKind, typeof MessageSquare> = {
   announce: MessageSquare,
   poster: ImageIcon,
+  gallery: Images,
   promo: Tag,
   products: LayoutGrid,
 };

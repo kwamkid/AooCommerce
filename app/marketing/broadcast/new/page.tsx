@@ -72,6 +72,7 @@ import type {
   PreviewInfo,
   TagRow,
 } from './components/types';
+import { newGalleryDraft, type GalleryDraft } from './components/types';
 
 /** ตั้งเวลาต้องล่วงหน้าพอให้ผู้ใช้ยกเลิกทัน และไม่ไกลจนลืมว่าตั้งไว้ */
 const MIN_SCHEDULE_LEAD_MS = 2 * 60 * 1000;
@@ -109,6 +110,7 @@ interface KindDraft {
   existingImageUrl: string | null;
   imageDims: ImageDims | null;
   tapAction: BroadcastAction;
+  gallery: GalleryDraft[];
   cardStyle: 'image' | 'detail';
   buttons: BroadcastButton[];
   cards: BroadcastProductCard[];
@@ -117,7 +119,7 @@ interface KindDraft {
 
 const EMPTY_DRAFT: KindDraft = {
   title: '', text: '', imageFile: null, existingImageUrl: null, imageDims: null,
-  tapAction: EMPTY_ACTION, cardStyle: 'detail',
+  tapAction: EMPTY_ACTION, gallery: [], cardStyle: 'detail',
   buttons: [{ label: '', action: EMPTY_ACTION }], cards: [], quickReplies: [],
 };
 
@@ -197,6 +199,8 @@ export default function NewBroadcastPage() {
   const [cardStyle, setCardStyle] = useState<'image' | 'detail'>('detail');
   const [buttons, setButtons] = useState<BroadcastButton[]>([{ label: '', action: EMPTY_ACTION }]);
   const [cards, setCards] = useState<BroadcastProductCard[]>([]);
+  /** รูปหลายใบ — object URL/ขนาดของแต่ละใบดูแลที่ `updateGallery` */
+  const [gallery, setGallery] = useState<GalleryDraft[]>([]);
   const [quickReplies, setQuickReplies] = useState<string[]>([]);
 
   /** ของที่กรอกค้างไว้ของชนิดที่ไม่ได้เปิดอยู่ — state ข้างบนคือชนิดที่เปิดอยู่เท่านั้น */
@@ -209,7 +213,7 @@ export default function NewBroadcastPage() {
   const switchKind = useStableCallback((next: BroadcastContentKind) => {
     if (next === kind) return;
     kindDraftsRef.current[kind] = {
-      title, text, imageFile, existingImageUrl, imageDims, tapAction,
+      title, text, imageFile, existingImageUrl, imageDims, tapAction, gallery,
       cardStyle, buttons, cards, quickReplies,
     };
     const d = kindDraftsRef.current[next] ?? EMPTY_DRAFT;
@@ -219,6 +223,8 @@ export default function NewBroadcastPage() {
     setExistingImageUrl(d.existingImageUrl);
     setImageDims(d.imageDims);
     setTapAction(d.tapAction);
+    // รูปหลายใบเริ่มด้วยช่องเปล่า 1 ช่อง — ไม่งั้นเปิดมาเจอแค่ปุ่ม "เพิ่มรูป"
+    setGallery(next === 'gallery' && d.gallery.length === 0 ? [newGalleryDraft()] : d.gallery);
     setCardStyle(d.cardStyle);
     setButtons(d.buttons);
     setCards(d.cards);
@@ -412,6 +418,15 @@ export default function NewBroadcastPage() {
             setButtons(c.buttons.map(b => ({ label: b.label || '', action: buttonAction(b) ?? EMPTY_ACTION })));
           }
           if (Array.isArray(c.products)) setCards(c.products);
+          if (Array.isArray(c.images) && c.images.length > 0) {
+            setGallery(c.images.map(img => ({
+              ...newGalleryDraft(),
+              existingUrl: img.image_url,
+              width: img.image_width ?? null,
+              height: img.image_height ?? null,
+              action: img.action ?? EMPTY_ACTION,
+            })));
+          }
           if (Array.isArray(c.quick_replies)) setQuickReplies(c.quick_replies);
           // ใบเก่ายังไม่ได้เก็บขนาดรูป — วัดจากรูปเดิม ไม่งั้นการ์ดจะตกไปใช้ทรงเริ่มต้น
           if (c.image_width && c.image_height) {
@@ -545,7 +560,8 @@ export default function NewBroadcastPage() {
       kind,
       title: isPoster ? '' : title.trim(),
       text: text.trim(),
-      image_url: imageFile ? 'https://pending.upload' : existingImageUrl,
+      // รูปหลายใบใช้ `images` — ช่องรูปเดี่ยวไม่ใช้
+      image_url: kind === 'gallery' ? null : (imageFile ? 'https://pending.upload' : existingImageUrl),
       image_width: imageDims?.width ?? null,
       image_height: imageDims?.height ?? null,
       // รูปของประกาศเป็นฟองรูปธรรมดาเสมอ — รูปเต็มจอย้ายไปเป็นโปสเตอร์ตั้งแต่ 10 ก.ย. 2026
@@ -556,10 +572,30 @@ export default function NewBroadcastPage() {
       // ปุ่มที่ยังไม่ได้แตะเลย (ป้ายว่าง + ยังไม่กรอก action) ไม่ส่ง — ไม่งั้น validate จะตีตกปุ่มเปล่าที่ระบบใส่มาให้เอง
       buttons: isPoster ? [] : buttons.filter(b => b.label.trim() || !isActionEmpty(b.action)),
       products: isPoster ? [] : cards,
+      images: kind === 'gallery'
+        ? gallery.map(g => ({
+          image_url: g.existingUrl || (g.file ? 'https://pending.upload' : ''),
+          image_width: g.width,
+          image_height: g.height,
+          action: g.action,
+        }))
+        : [],
       quick_replies: quickReplies,
     };
-  }, [kind, title, text, imageFile, imageDims, existingImageUrl, tapAction,
+  }, [kind, title, text, imageFile, imageDims, existingImageUrl, tapAction, gallery,
     cardStyle, buttons, cards, quickReplies]);
+
+  /** ตัวอย่างในแชทต้องเห็นรูปที่ยังไม่ได้อัป — แทน URL ชั่วคราวด้วย object URL ของไฟล์ */
+  const previewContent: BroadcastContent = useMemo(() => (
+    kind === 'gallery'
+      ? { ...draftContent, images: gallery.map(g => ({
+        image_url: g.previewUrl || g.existingUrl || '',
+        image_width: g.width,
+        image_height: g.height,
+        action: g.action,
+      })) }
+      : draftContent
+  ), [kind, draftContent, gallery]);
 
   // ตรวจด้วยฟังก์ชันเดียวกับที่ API ใช้ — หน้าจอกับ server จึงพูดตรงกันเสมอ
   // เนื้อหาชุดเดียวต้องผ่าน **ทุกช่องทางที่เลือก** — ตัวไหนไม่ผ่านก็บอกตัวนั้น
@@ -596,6 +632,7 @@ export default function NewBroadcastPage() {
   const hasDraft = !!(
     text.trim() || title.trim() || imagePreviewUrl || existingImageUrl || cards.length > 0
     || (kind === 'poster' && !isActionEmpty(tapAction))
+    || (kind === 'gallery' && gallery.some(g => g.file || g.existingUrl))
   );
   const canNext = accountIds.length > 0 && !!audience && !pickPending;
   const canSend = canNext && !contentError && !quotaShort && !noRecipients && !scheduleError && !sending;
@@ -611,6 +648,7 @@ export default function NewBroadcastPage() {
       const target = actionSummary(tapAction);
       return `${base} · ${ACTION_LABELS[tapAction.type]}${target ? ` ${target}` : ''}`;
     }
+    if (kind === 'gallery') return `${base} · ${gallery.filter(g => g.file || g.existingUrl).length} ใบ`;
     if (kind === 'promo') {
       const n = buttons.filter(b => b.label.trim()).length;
       return n > 0 ? `${base} · ${n} ปุ่ม` : base;
@@ -620,7 +658,31 @@ export default function NewBroadcastPage() {
       return cards.length > 0 ? `${base} · ${cards.length} ชิ้น · ${style}` : base;
     }
     return base;
-  }, [hasDraft, kind, buttons, cards, cardStyle, tapAction]);
+  }, [hasDraft, kind, buttons, cards, cardStyle, tapAction, gallery]);
+
+  /**
+   * แก้รายการรูปหลายใบ — หน้าเป็นเจ้าของ object URL: ไฟล์เปลี่ยน = คืน URL เดิม สร้างใหม่ วัดขนาดใหม่
+   * ใบที่ถูกลบก็คืน URL (สร้างใน render จะรั่วทุกรอบ)
+   */
+  const updateGallery = (next: GalleryDraft[]) => {
+    const prevById = new Map(gallery.map(g => [g.id, g]));
+    const resolved = next.map(g => {
+      const prev = prevById.get(g.id);
+      if (prev && prev.file === g.file) return g;
+      if (prev?.previewUrl) URL.revokeObjectURL(prev.previewUrl);
+      if (!g.file) return { ...g, previewUrl: null, width: null, height: null };
+      const file = g.file;
+      measureImageDims(file).then(dims => {
+        if (!dims) return;
+        setGallery(cur => cur.map(x => (x.id === g.id && x.file === file ? { ...x, width: dims.width, height: dims.height } : x)));
+      });
+      return { ...g, previewUrl: URL.createObjectURL(file), existingUrl: null, width: null, height: null };
+    });
+    for (const p of gallery) {
+      if (p.previewUrl && !next.some(g => g.id === p.id)) URL.revokeObjectURL(p.previewUrl);
+    }
+    setGallery(resolved);
+  };
 
   // ─── ส่ง ─────────────────────────────────────────────────────────────
   const handleSend = async () => {
@@ -642,18 +704,28 @@ export default function NewBroadcastPage() {
     setSending(true);
     try {
       // อัปโหลดรูปครั้งเดียวแล้วใช้ร่วมทุกช่องทาง — อัปซ้ำต่อช่องทางคือเปลืองเปล่า ๆ
-      let imageUrl: string | null = existingImageUrl;
-      if (compose?.image && imageFile) {
+      const uploadImage = async (file: File): Promise<string> => {
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) throw new Error('เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่');
-        const ext = (imageFile.type.split('/')[1] || 'jpg').replace('jpeg', 'jpg');
+        const ext = (file.type.split('/')[1] || 'jpg').replace('jpeg', 'jpg');
         const path = `broadcast-images/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
         const { error: uploadError } = await supabase.storage
           .from('chat-media')
-          .upload(path, imageFile, { contentType: imageFile.type || 'image/jpeg' });
+          .upload(path, file, { contentType: file.type || 'image/jpeg' });
         if (uploadError) throw new Error('อัปโหลดรูปไม่สำเร็จ');
-        imageUrl = supabase.storage.from('chat-media').getPublicUrl(path).data.publicUrl;
-      }
+        return supabase.storage.from('chat-media').getPublicUrl(path).data.publicUrl;
+      };
+      let imageUrl: string | null = existingImageUrl;
+      if (compose?.image && imageFile && kind !== 'gallery') imageUrl = await uploadImage(imageFile);
+      // รูปหลายใบ — อัปทีละใบ (ใบที่คัดลอกมาใช้ URL เดิม) · ช่องที่ยังไม่มีรูปถูกตัดตอน validate แล้ว
+      const images = kind === 'gallery'
+        ? await Promise.all(gallery.map(async g => ({
+          image_url: g.existingUrl || (g.file ? await uploadImage(g.file) : ''),
+          image_width: g.width,
+          image_height: g.height,
+          action: g.action,
+        })))
+        : [];
 
       // หนึ่งบัญชี = บรอดแคสต์หนึ่งใบ — แต่ละใบมีสถานะ/ปุ่มส่งต่อของตัวเอง
       // ใบไหนล้มก็ล้มเฉพาะใบนั้น ไม่ลากใบที่ส่งไปแล้วลงไปด้วย
@@ -667,7 +739,7 @@ export default function NewBroadcastPage() {
               account_id: a.id,
               audience_type: audience,
               audience_filter: audienceFilter,
-              content: { ...draftContent, image_url: imageUrl },
+              content: { ...draftContent, image_url: imageUrl, images },
               ...(scheduledAt ? { scheduled_at: scheduledAt.toISOString() } : {}),
             }),
           });
@@ -836,6 +908,8 @@ export default function NewBroadcastPage() {
                     imagePreviewUrl={imagePreviewUrl ?? existingImageUrl}
                     tapAction={tapAction}
                     onTapActionChange={setTapAction}
+                    gallery={gallery}
+                    onGalleryChange={updateGallery}
                     productToCard={cardFromSearchItem}
                     storefrontOpen={storefrontOpen}
                     cardStyle={cardStyle}
@@ -894,7 +968,7 @@ export default function NewBroadcastPage() {
             scheduleSummary={sendMode === 'now'
               ? 'ทันที'
               : (scheduledAt && !scheduleError ? formatThaiDateTime(scheduledAt) : '')}
-            content={draftContent}
+            content={previewContent}
             previewPlatform={singlePlatform}
             imagePreviewUrl={imagePreviewUrl ?? existingImageUrl}
             accountName={selectedAccounts[0]?.name ?? null}

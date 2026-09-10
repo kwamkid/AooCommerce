@@ -450,8 +450,15 @@ function productHeroBox(p: BroadcastProductCard, withPriceOverlay: boolean): Rec
   return { type: 'box', layout: 'vertical', paddingAll: '0px', contents };
 }
 
-/** การ์ดสินค้าหนึ่งใบในแถวเลื่อน */
-function productBubble(p: BroadcastProductCard, cardStyle: 'image' | 'detail'): LineFlexBubble {
+/**
+ * การ์ดสินค้าหนึ่งใบ — `size` mega ในแถวเลื่อน · giga เมื่อส่งสินค้าใบเดียว (การ์ดใหญ่เต็มจอ
+ * เหมือนโปสเตอร์ของสินค้าตัวนั้น — เจ้าของกำหนด 10 ก.ย. 2026)
+ */
+function productBubble(
+  p: BroadcastProductCard,
+  cardStyle: 'image' | 'detail',
+  size: 'mega' | 'giga' = 'mega',
+): LineFlexBubble {
   const hasImage = !!p.image_url && /^https:\/\//i.test(p.image_url);
   // แบบรูปเต็มที่ไม่มีรูป = การ์ดว่างเปล่า — ตกไปใช้แบบมีชื่อ+ปุ่มให้ใบนั้นแทน
   // (ทิ้งทั้งใบไม่ได้ ผู้ใช้เลือกสินค้านั้นมาเอง)
@@ -461,7 +468,7 @@ function productBubble(p: BroadcastProductCard, cardStyle: 'image' | 'detail'): 
   if (style === 'image') {
     return {
       type: 'bubble',
-      size: 'mega',
+      size,
       hero: productHeroBox(p, true),
       // ไม่มีปุ่ม จึงต้องกดได้ทั้งใบ
       action: productAction(p),
@@ -486,7 +493,7 @@ function productBubble(p: BroadcastProductCard, cardStyle: 'image' | 'detail'): 
 
   return {
     type: 'bubble',
-    size: 'mega',
+    size,
     ...(hasImage ? { hero: productHeroBox(p, false) } : {}),
     body: { type: 'box', layout: 'vertical', spacing: 'sm', contents: bodyContents },
     footer: {
@@ -573,17 +580,44 @@ export function buildLineMessagesFromContent(content: BroadcastContent): LineMes
       },
     }];
 
+  } else if (content.kind === 'gallery') {
+    // รูปหลายใบเลื่อนดู — แต่ละใบเป็น bubble รูปล้วน (mega) กดแล้วเกิด action ของตัวเอง
+    const images = (content.images || []).filter(i => /^https:\/\//i.test((i.image_url || '').trim()));
+    if (images.length === 0) throw new Error('รูปหลายใบต้องมีรูปอย่างน้อย 1 ใบ');
+    if (text) messages.push({ type: 'text', text });
+    messages.push({
+      type: 'flex',
+      altText: (text || 'รูปภาพ').slice(0, 400),
+      contents: {
+        type: 'carousel',
+        contents: images.map((img, i) => ({
+          type: 'bubble',
+          size: 'mega',
+          hero: {
+            type: 'image',
+            url: img.image_url.trim(),
+            size: 'full',
+            aspectRatio: imageAspectRatio(img),
+            aspectMode: 'cover',
+            action: lineActionFor(img.action ?? null, `รูปที่ ${i + 1}`),
+          },
+        })),
+      },
+    });
+
   } else if (content.kind === 'products') {
     const products = content.products || [];
     const cardStyle = content.card_style === 'image' ? 'image' : 'detail';
-    const bubbles = products.map(p => productBubble(p, cardStyle));
+    // ใบเดียว = การ์ดใหญ่เต็มจอ (ไม่ใช่แถวเลื่อนที่มีใบเดียว) · หลายใบ = แถวเลื่อน mega
+    const single = products.length === 1;
+    const bubbles = products.map(p => productBubble(p, cardStyle, single ? 'giga' : 'mega'));
 
-    // ข้อความเกริ่นเป็น bubble แรก (ถ้ามี) แล้วตามด้วยแถวการ์ด — รวมยังไม่เกิน 3
+    // ข้อความเกริ่นเป็น bubble แรก (ถ้ามี) แล้วตามด้วยการ์ด — รวมยังไม่เกิน 3
     if (text) messages.push({ type: 'text', text });
     messages.push({
       type: 'flex',
       altText: (text || title || 'สินค้าแนะนำ').slice(0, 400),
-      contents: { type: 'carousel', contents: bubbles },
+      contents: single ? bubbles[0] : { type: 'carousel', contents: bubbles },
     });
 
   } else {

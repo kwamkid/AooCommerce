@@ -55,6 +55,9 @@ export default function BroadcastPreview({
   const title = (content.title || '').trim();
   const text = (content.text || '').trim();
   const cards = content.products || [];
+  const galleryImages = (content.images || []).filter(i => !!i.image_url);
+  // สินค้าใบเดียว = การ์ดใหญ่เต็มคอลัมน์ (LINE ส่งเป็น giga) · หลายใบ = 80% ให้ใบถัดไปโผล่
+  const cardWidth = cards.length === 1 ? 'w-full' : 'w-4/5';
   const buttons = (content.buttons || []).filter(b => b.label.trim());
   const quickReplies = (content.quick_replies || []).filter(q => q.trim());
   const imageStyle = content.image_style === 'rich' ? 'rich' : 'bubble';
@@ -81,6 +84,21 @@ export default function BroadcastPreview({
                 <p className="subtitle-text whitespace-pre-wrap break-words">{text}</p>
               </div>
             )
+          ) : content.kind === 'gallery' ? (
+            <>
+              {text && (
+                <div className={BUBBLE}>
+                  <p className="subtitle-text whitespace-pre-wrap break-words">{text}</p>
+                </div>
+              )}
+              {/* รูปหลายใบ — ใบละ 80% ของห้อง ใบถัดไปโผล่มาให้เห็นว่าเลื่อนดูต่อได้ */}
+              <div className="flex gap-2 overflow-x-auto pb-1">
+                {galleryImages.map((img, i) => (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img key={i} src={img.image_url} alt={`รูปที่ ${i + 1}`} className="w-4/5 flex-shrink-0 h-auto rounded-xl object-cover" />
+                ))}
+              </div>
+            </>
           ) : content.kind === 'products' ? (
             <>
               {text && (
@@ -115,7 +133,7 @@ export default function BroadcastPreview({
                     return (
                       <div
                         key={c.variation_id ?? i}
-                        className="w-4/5 flex-shrink-0 relative rounded-xl overflow-hidden bg-white"
+                        className={`${cardWidth} flex-shrink-0 relative rounded-xl overflow-hidden bg-white`}
                       >
                         {square}
                         {badge}
@@ -132,7 +150,7 @@ export default function BroadcastPreview({
                   return (
                     <div
                       key={c.variation_id ?? i}
-                      className="w-4/5 flex-shrink-0 rounded-xl bg-white border border-gray-200 overflow-hidden"
+                      className={`${cardWidth} flex-shrink-0 rounded-xl bg-white border border-gray-200 overflow-hidden`}
                     >
                       <div className="relative">
                         {square}

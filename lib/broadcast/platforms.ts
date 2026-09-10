@@ -39,12 +39,16 @@ export type BroadcastKind = 'broadcast' | 'bulk_dm';
  * แต่ละเจ้าแปลงเป็นของตัวเอง (LINE → template/carousel · TikTok → title+body+product_ids)
  * ⛔ ห้ามให้ผู้ใช้เลือกเป็นศัพท์ของ LINE ('flex'/'carousel') — พอไปเจ้าอื่นจะแปลไม่ได้
  *
- *  announce = ข้อความ (+รูป) เฉย ๆ — รูปเลือกได้ว่าเป็นฟองรูปธรรมดา หรือรูปเต็มจอที่กดได้
- *  poster   = รูปทั้งใบเป็นโปสเตอร์ + ลิงก์ปลายทาง (ข้อความ/ราคา/ปุ่ม อยู่ในรูปเอง)
- *  promo    = แบนเนอร์ + หัวข้อ + ข้อความ + ปุ่มกด
- *  products = การ์ดสินค้าเลื่อนได้ เลือกจากคลังสินค้าของเรา
+ * แบ่งตาม "ลูกค้าเห็นอะไร" (เจ้าของกำหนด 10 ก.ย. 2026) — ทุกชนิดมีข้อความนำหน้าได้ (ไม่บังคับ):
+ *  announce = รูปธรรมดาในฟองแชท
+ *  poster   = รูปเต็มความกว้างห้อง กดแล้วเกิด action (ข้อความ/ราคา/ปุ่ม อยู่ในรูปเอง)
+ *  gallery  = รูปหลายใบเลื่อนดู แต่ละใบกดแล้วเกิด action ของตัวเอง
+ *  products = สินค้าจากคลัง — ใบเดียว = การ์ดใหญ่เต็มจอ · หลายใบ = เลื่อนดู · ปุ่มสั่งซื้อไปหน้าร้าน
+ *             ออนไลน์ (ยังไม่เปิด = ส่งข้อความ "สนใจ" กลับ)
+ *  promo    = การ์ดหัวข้อ + ข้อความ + ปุ่มหลายปุ่ม — **ถอดออกจากตัวเลือกแล้ว** (เจ้าของให้ออกแบบ
+ *             ลงในรูปแทน) ยังอยู่ในชนิดเพื่อให้ใบเก่าเปิดดู/ส่งซ้ำได้
  */
-export type BroadcastContentKind = 'announce' | 'poster' | 'promo' | 'products';
+export type BroadcastContentKind = 'announce' | 'poster' | 'gallery' | 'promo' | 'products';
 
 /**
  * ข้อความที่แต่ละเจ้ารับได้ — **หน้าจอกับ API ตรวจจากตัวเลขชุดนี้ชุดเดียว**
@@ -65,6 +69,8 @@ export interface BroadcastCompose {
   productsMax: number;
   /** ปุ่มตอบเร็ว (0 = ไม่มี) */
   quickReplyMax: number;
+  /** รูปหลายใบเลื่อนดู (gallery) ใส่ได้กี่ใบ (0 = ช่องทางนี้ไม่มี) */
+  imagesMax: number;
 }
 
 export interface BroadcastPlatformInfo {
@@ -90,8 +96,8 @@ export const BROADCAST_PLATFORMS: Record<BroadcastPlatform, BroadcastPlatformInf
     // + หัวข้อ + ปุ่ม เป็น message object เดียว จึงไม่แพงกว่าส่งข้อความเปล่าเลย
     compose: {
       bodyMax: 5000, image: true,
-      kinds: ['announce', 'poster', 'promo', 'products'],
-      buttonsMax: 4, productsMax: 10, quickReplyMax: 13,
+      kinds: ['announce', 'poster', 'gallery', 'products'],
+      buttonsMax: 4, productsMax: 10, quickReplyMax: 13, imagesMax: 10,
     },
     audience: 'ผู้ติดตามทุกคน แม้ไม่เคยทักมา — หรือเลือกเฉพาะกลุ่ม/แท็ก',
     status: 'ready',
@@ -113,7 +119,7 @@ export const BROADCAST_PLATFORMS: Record<BroadcastPlatform, BroadcastPlatformInf
       titleMax: 70, bodyMax: 500, image: false,
       // ไม่มีปุ่มลิงก์อิสระ — การ์ดสินค้าเป็นของ TikTok เอง (product_ids)
       kinds: ['announce', 'products'],
-      buttonsMax: 0, productsMax: 4, quickReplyMax: 0,
+      buttonsMax: 0, productsMax: 4, quickReplyMax: 0, imagesMax: 0,
     },
     audience: 'ลูกค้าที่เคยสั่งซื้อภายใน 365 วัน',
     status: 'possible',
@@ -129,7 +135,7 @@ export const BROADCAST_PLATFORMS: Record<BroadcastPlatform, BroadcastPlatformInf
     // ตัวเลขนี้ ยังไม่ยืนยันกับของจริง — ยืนยันตอนต่อ API จริง
     compose: {
       bodyMax: 4000, image: true,
-      kinds: ['announce'], buttonsMax: 0, productsMax: 0, quickReplyMax: 0,
+      kinds: ['announce'], buttonsMax: 0, productsMax: 0, quickReplyMax: 0, imagesMax: 0,
     },
     audience: 'ลูกค้าที่มีออเดอร์ไม่เกิน 30 วัน หรือห้องที่คุยกันอยู่',
     status: 'possible',
@@ -144,7 +150,7 @@ export const BROADCAST_PLATFORMS: Record<BroadcastPlatform, BroadcastPlatformInf
     // ตัวเลขนี้ ยังไม่ยืนยันกับของจริง — ยืนยันตอนต่อ API จริง
     compose: {
       bodyMax: 2000, image: true,
-      kinds: ['announce'], buttonsMax: 0, productsMax: 0, quickReplyMax: 0,
+      kinds: ['announce'], buttonsMax: 0, productsMax: 0, quickReplyMax: 0, imagesMax: 0,
     },
     audience: 'ลูกค้าที่เคยทักเข้ามาในแชทแล้วเท่านั้น',
     status: 'possible',
@@ -160,7 +166,7 @@ export const BROADCAST_PLATFORMS: Record<BroadcastPlatform, BroadcastPlatformInf
     // ตัวเลขนี้ ยังไม่ยืนยันกับของจริง — ยืนยันตอนต่อ API จริง
     compose: {
       bodyMax: 2000, image: true,
-      kinds: ['announce'], buttonsMax: 0, productsMax: 0, quickReplyMax: 0,
+      kinds: ['announce'], buttonsMax: 0, productsMax: 0, quickReplyMax: 0, imagesMax: 0,
     },
     audience: 'คนที่ทักมาภายใน 24 ชม. ล่าสุด',
     status: 'possible',
@@ -174,7 +180,7 @@ export const BROADCAST_PLATFORMS: Record<BroadcastPlatform, BroadcastPlatformInf
     // ตัวเลขนี้ ยังไม่ยืนยันกับของจริง — ยืนยันตอนต่อ API จริง
     compose: {
       bodyMax: 1000, image: true,
-      kinds: ['announce'], buttonsMax: 0, productsMax: 0, quickReplyMax: 0,
+      kinds: ['announce'], buttonsMax: 0, productsMax: 0, quickReplyMax: 0, imagesMax: 0,
     },
     audience: 'คนที่ทักมาภายใน 24 ชม. ล่าสุด',
     status: 'possible',
@@ -208,11 +214,12 @@ export function intersectCompose(platforms: BroadcastPlatform[]): BroadcastCompo
     titleMax: titleMaxes.length ? Math.min(...titleMaxes) : undefined,
     bodyMax: Math.min(...list.map(c => c.bodyMax)),
     image: list.every(c => c.image),
-    kinds: (['announce', 'poster', 'promo', 'products'] as BroadcastContentKind[])
+    kinds: (['announce', 'poster', 'gallery', 'promo', 'products'] as BroadcastContentKind[])
       .filter(k => list.every(c => c.kinds.includes(k))),
     buttonsMax: Math.min(...list.map(c => c.buttonsMax)),
     productsMax: Math.min(...list.map(c => c.productsMax)),
     quickReplyMax: Math.min(...list.map(c => c.quickReplyMax)),
+    imagesMax: Math.min(...list.map(c => c.imagesMax)),
   };
 }
 

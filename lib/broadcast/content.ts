@@ -150,6 +150,14 @@ export function buttonAction(b: BroadcastButton): BroadcastAction | null {
   return url ? { type: 'url', url } : null;
 }
 
+/** รูปหนึ่งใบในชนิด gallery — กดแล้วเกิด action ของตัวเอง · ขนาดจริงไว้บอกสัดส่วนให้ Flex */
+export interface BroadcastGalleryImage {
+  image_url: string;
+  image_width?: number | null;
+  image_height?: number | null;
+  action: BroadcastAction | null;
+}
+
 export interface BroadcastContent {
   kind: BroadcastContentKind;
   /** หัวข้อ — promo ใช้เป็นหัวการ์ด · TikTok ใช้เป็นหัวข้อข้อความ */
@@ -183,6 +191,8 @@ export interface BroadcastContent {
   image_height?: number | null;
   buttons?: BroadcastButton[];
   products?: BroadcastProductCard[];
+  /** gallery: รูปหลายใบเลื่อนดู (image_url ของใบไม่ใช้) */
+  images?: BroadcastGalleryImage[];
   quick_replies?: string[];
 }
 
@@ -311,6 +321,21 @@ export function validateBroadcastContent(
     if (text.length > CARD_TEXT_MAX) return `ข้อความบนการ์ดยาวเกิน ${CARD_TEXT_MAX} ตัวอักษร`;
   }
 
+  if (content.kind === 'gallery') {
+    const images = content.images || [];
+    if (!c.image || c.imagesMax === 0) return `${label} ส่งรูปหลายใบไม่ได้`;
+    if (images.length === 0) return 'ใส่รูปอย่างน้อย 1 ใบ';
+    if (images.length > c.imagesMax) return `${label} ใส่รูปได้ไม่เกิน ${c.imagesMax} ใบ`;
+    for (let i = 0; i < images.length; i++) {
+      if (!isHttpsUrl(images[i].image_url || '')) return `รูปที่ ${i + 1} ยังไม่มีรูป`;
+      const actionError = validateAction(images[i].action, `กดรูปที่ ${i + 1}`);
+      if (actionError) return actionError;
+    }
+    if (title || (content.buttons || []).length > 0 || (content.products || []).length > 0) {
+      return 'รูปหลายใบมีแค่ข้อความกับรูป';
+    }
+  }
+
   if (content.kind === 'products') {
     const products = content.products || [];
     if (products.length === 0) return 'ต้องเลือกสินค้าอย่างน้อย 1 ชิ้น';
@@ -355,6 +380,9 @@ export function broadcastContentPreview(content: BroadcastContent): string {
     const target = actionSummary(posterAction(content));
     return `[โปสเตอร์] ${target ? `→ ${target}` : ''}${text ? ` — ${text}` : ''}`.trim().slice(0, 120);
   }
+  if (content.kind === 'gallery') {
+    return `[รูป ${(content.images || []).length} ใบ]${text ? ` — ${text}` : ''}`.slice(0, 120);
+  }
   if (content.kind === 'products') {
     const names = (content.products || []).map(p => p.name).filter(Boolean);
     const head = text || title || 'การ์ดสินค้า';
@@ -376,7 +404,7 @@ export function resolveBroadcastContentKind(
   content: BroadcastContent | null | undefined,
   messages: unknown,
 ): BroadcastContentKind {
-  if (content?.kind && ['announce', 'poster', 'promo', 'products'].includes(content.kind)) return content.kind;
+  if (content?.kind && ['announce', 'poster', 'gallery', 'promo', 'products'].includes(content.kind)) return content.kind;
 
   if (Array.isArray(messages)) {
     for (const m of messages) {

@@ -30,13 +30,16 @@ import type { BroadcastCompose, BroadcastContentKind } from '@/lib/broadcast/pla
 import { Plus, Trash2 } from 'lucide-react';
 import { KIND_MOCKS, MockImage, MockLine } from './KindMockups';
 import ActionPicker from './ActionPicker';
+import { newGalleryDraft, type GalleryDraft } from './types';
 
 /** ชื่อชนิดเนื้อหา — หน้าสร้างเอาไปสรุปในแผงขวาด้วย จึง export ออกไป */
 export const KIND_LABELS: Record<BroadcastContentKind, string> = {
-  announce: 'ประกาศ',
-  poster: 'โปสเตอร์',
+  announce: 'รูปธรรมดา',
+  poster: 'รูปเต็มจอ',
+  gallery: 'รูปหลายใบ',
+  // ถอดจากตัวเลือกแล้ว (10 ก.ย. 2026) — เหลือชื่อไว้ให้ใบเก่าในรายการ/รายงาน
   promo: 'โปรโมชัน',
-  products: 'การ์ดสินค้า',
+  products: 'สินค้า',
 };
 
 /**
@@ -44,10 +47,11 @@ export const KIND_LABELS: Record<BroadcastContentKind, string> = {
  * ไม่ใช่รูปของร่าง) เพราะตรงนี้ผู้ใช้ยังไม่ได้กรอกอะไร ต้องเห็นก่อนว่าแต่ละแบบหน้าตาเป็นยังไง
  */
 const KIND_CARDS: Record<BroadcastContentKind, { label: string; description: string; preview: React.ReactNode }> = {
-  announce: { label: KIND_LABELS.announce, description: 'ข้อความ + รูป', preview: KIND_MOCKS.announce },
-  poster: { label: KIND_LABELS.poster, description: 'ข้อความ + รูปเต็มจอ กดแล้วไปต่อได้', preview: KIND_MOCKS.poster },
+  announce: { label: KIND_LABELS.announce, description: 'รูปในฟองแชท (+ ข้อความ)', preview: KIND_MOCKS.announce },
+  poster: { label: KIND_LABELS.poster, description: 'รูปเต็มความกว้าง กดแล้วไปต่อได้', preview: KIND_MOCKS.poster },
+  gallery: { label: KIND_LABELS.gallery, description: 'เลื่อนดู แต่ละใบกดแล้วไปต่อได้', preview: KIND_MOCKS.gallery },
   promo: { label: KIND_LABELS.promo, description: 'หัวข้อ + ข้อความ + ปุ่ม', preview: KIND_MOCKS.promo },
-  products: { label: KIND_LABELS.products, description: 'เลื่อนดู กดสั่งเลย', preview: KIND_MOCKS.products },
+  products: { label: KIND_LABELS.products, description: 'ดึงจากคลัง มีปุ่มสั่งซื้อ', preview: KIND_MOCKS.products },
 };
 
 /** การ์ดสินค้าแสดงยังไง — เลื่อนดูได้ทั้งคู่ ต่างกันที่ "มีตัวหนังสือใต้รูปไหม" */
@@ -111,6 +115,9 @@ interface Props {
   /** โปสเตอร์: กดรูปแล้วเกิดอะไร (ทะเบียนกลาง BroadcastAction) */
   tapAction: BroadcastAction;
   onTapActionChange: (a: BroadcastAction) => void;
+  /** รูปหลายใบ — หน้าเป็นเจ้าของ (สร้าง/คืน object URL + วัดขนาดเอง) */
+  gallery: GalleryDraft[];
+  onGalleryChange: (items: GalleryDraft[]) => void;
   /** แปลงผลค้นหาเป็นการ์ดสินค้า (ตัวเดียวกับที่การ์ดสินค้าใช้) */
   productToCard: (p: ProductSearchItem) => BroadcastProductCard;
   /** ร้านเปิดหน้าร้านออนไลน์แล้วไหม — "ไปที่สินค้า" ของโปสเตอร์ใช้ได้เฉพาะตอนเปิดแล้ว */
@@ -138,7 +145,7 @@ export default function ContentStep({
   compose, platformLabel, showCreditNote,
   kind, onKindChange, title, onTitleChange, text, onTextChange,
   imageFile, onImageFileChange, existingImageUrl, imagePreviewUrl,
-  tapAction, onTapActionChange, productToCard, storefrontOpen, cardStyle, onCardStyleChange,
+  tapAction, onTapActionChange, gallery, onGalleryChange, productToCard, storefrontOpen, cardStyle, onCardStyleChange,
   buttons, onButtonsChange, cards, onCardsChange, quickReplies, onQuickRepliesChange,
   productResults, productLoading, onProductSearch, onAddProduct,
   disabled,
@@ -301,8 +308,85 @@ export default function ContentStep({
               image={composerImage}
             />
           </div>
+        ) : kind === 'gallery' && compose.image ? (
+          // รูปหลายใบเลื่อนดู — ข้อความนำหน้า แล้วรูปทุกใบอยู่ในแถวเดียว แต่ละใบมี "กดแล้วเกิดอะไร" ของตัวเอง
+          <div className="space-y-3">
+            <p className="subtitle-text">
+              ส่งถึงลูกค้าเป็นข้อความแยกกัน เรียงตามลำดับนี้ · รูปทุกใบอยู่ในแถวเดียวเลื่อนดูได้ — แนะนำสัดส่วนเดียวกันทุกใบ (แนวตั้ง 4:5)
+            </p>
+            <MessageComposer
+              label="1. ข้อความ (ไม่บังคับ)"
+              value={text}
+              onChange={onTextChange}
+              maxLength={textMax}
+              rows={3}
+              placeholder="พิมพ์ข้อความที่จะส่งก่อนรูป"
+              disabled={disabled}
+            />
+            <div>
+              <p className="field-label mb-1">2. รูป (สูงสุด {compose.imagesMax} ใบ) — แต่ละใบกดแล้วไปต่อได้</p>
+              <div className="space-y-2">
+                {gallery.map((g, i) => (
+                  <div key={g.id} className="rounded-lg border border-gray-200 dark:border-slate-600 p-3 flex gap-3 items-start">
+                    <div className="w-40 flex-shrink-0">
+                      <ImageDropzone
+                        value={g.file}
+                        onChange={f => onGalleryChange(gallery.map(x => x.id === g.id ? { ...x, file: f, ...(f ? {} : { existingUrl: null }) } : x))}
+                        initialPreviewUrl={g.existingUrl}
+                        disabled={disabled}
+                        label="เลือกรูป"
+                        hint="แนะนำ 4:5"
+                        changeOnClick
+                        maxWidthOrHeight={1024}
+                        maxSizeMB={0.3}
+                        classNames={{ previewImg: 'w-full h-auto rounded-lg object-cover' }}
+                      />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <ActionPicker
+                        label={`กดรูปที่ ${i + 1} แล้ว`}
+                        value={g.action}
+                        onChange={action => onGalleryChange(gallery.map(x => x.id === g.id ? { ...x, action } : x))}
+                        {...pickerProps}
+                      />
+                    </div>
+                    <Button
+                      variant="ghost"
+                      icon={<Trash2 className="w-4 h-4" />}
+                      aria-label={`เอารูปที่ ${i + 1} ออก`}
+                      disabled={disabled}
+                      onClick={() => onGalleryChange(gallery.filter(x => x.id !== g.id))}
+                    />
+                  </div>
+                ))}
+              </div>
+              {gallery.length < compose.imagesMax && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  icon={<Plus className="w-4 h-4" />}
+                  disabled={disabled}
+                  className="mt-2"
+                  onClick={() => onGalleryChange([...gallery, newGalleryDraft()])}
+                >
+                  เพิ่มรูป
+                </Button>
+              )}
+            </div>
+          </div>
+        ) : kind === 'products' ? (
+          // สินค้า — ข้อความนำหน้า (ไม่บังคับ) แล้วการ์ดสินค้าอยู่บล็อกถัดไป
+          <MessageComposer
+            label="1. ข้อความ (ไม่บังคับ)"
+            value={text}
+            onChange={onTextChange}
+            maxLength={textMax}
+            rows={3}
+            placeholder="พิมพ์ข้อความที่จะส่งก่อนการ์ดสินค้า"
+            disabled={disabled}
+          />
         ) : (
-          // ช่องทางที่แนบรูปไม่ได้ (TikTok) และการ์ดสินค้า (ไม่มีช่องรูป) — เหลือแค่ข้อความ
+          // ช่องทางที่แนบรูปไม่ได้ (TikTok) — เหลือแค่ข้อความ
           <>
             {textField}
             {imageField}
@@ -384,10 +468,10 @@ export default function ContentStep({
                 options={cardStyleCards(cards[0]?.image_url ?? null)}
               />
             </div>
-            <p className="field-label mb-1">สินค้า (สูงสุด {compose.productsMax} ชิ้น)</p>
+            <p className="field-label mb-1">2. สินค้า (สูงสุด {compose.productsMax} ชิ้น)</p>
             <p className="subtitle-text mb-2">
-              ชื่อ รูป ราคา ดึงจากคลังให้เอง · ปุ่ม &quot;สั่งเลย&quot; ไปหน้าสินค้าใน storefront
-              ให้เองเมื่อร้านเปิดหน้าร้านออนไลน์ · ยังไม่เปิด = &quot;สนใจสินค้านี้&quot;
+              ชื่อ รูป ราคา ดึงจากคลังให้เอง · ใบเดียวส่งเป็นการ์ดใหญ่เต็มจอ หลายใบเป็นแถวเลื่อนดู ·
+              ปุ่ม &quot;สั่งเลย&quot; ไปหน้าสินค้าเมื่อร้านเปิดหน้าร้านออนไลน์ · ยังไม่เปิด = &quot;สนใจสินค้านี้&quot;
               ส่งข้อความเข้าแชท · ใส่ลิงก์เองได้ที่ช่องท้ายรายการ
             </p>
             {cards.length >= compose.productsMax ? (
