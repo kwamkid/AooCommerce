@@ -24,6 +24,7 @@ import {
 } from '@/lib/broadcast/content';
 import type { BroadcastCompose, BroadcastContentKind } from '@/lib/broadcast/platforms';
 import { Plus, Trash2 } from 'lucide-react';
+import { KIND_MOCKS, MockAvatar, MockImage, MockLine } from './KindMockups';
 
 /** ชื่อชนิดเนื้อหา — หน้าสร้างเอาไปสรุปในแผงขวาด้วย จึง export ออกไป */
 export const KIND_LABELS: Record<BroadcastContentKind, string> = {
@@ -34,78 +35,14 @@ export const KIND_LABELS: Record<BroadcastContentKind, string> = {
 };
 
 /**
- * รูปตัวอย่างในการ์ดตัวเลือก = **รูปของร่างที่ผู้ใช้กำลังทำอยู่จริง** ไม่ใช่รูปตัวอย่างสำเร็จรูป
- * (ใส่รูปแล้วเห็นรูปตัวเองในทั้งสองแบบเลย จึงตัดสินใจได้โดยไม่ต้องกดลองแล้วกดกลับ)
- * ยังไม่มีรูป = บล็อกเทาทรงเดียวกัน — ทรงคือสิ่งที่ต้องเทียบ ไม่ใช่ตัวรูป
- */
-function MockImage({ src, className }: { src: string | null; className: string }) {
-  if (!src) return <div className={`${className} bg-gray-200 dark:bg-slate-600`} />;
-  // eslint-disable-next-line @next/next/no-img-element
-  return <img src={src} alt="" className={`${className} object-cover`} />;
-}
-
-/** จุดกลมแทนรูปโปรไฟล์ร้าน — บอกว่าของชิ้นนี้มาถึงลูกค้าในห้องแชท ไม่ได้ลอยอยู่เฉย ๆ */
-function MockAvatar({ size }: { size: 'sm' | 'md' }) {
-  return (
-    <div
-      className={`${size === 'sm' ? 'w-3 h-3' : 'w-4 h-4'} rounded-full bg-gray-300 dark:bg-slate-500 flex-shrink-0`}
-    />
-  );
-}
-
-/** แถบตัวหนังสือจำลองบนการ์ด */
-function MockLine({ className }: { className?: string }) {
-  return <div className={`h-1 rounded bg-gray-300 dark:bg-slate-500 ${className || ''}`} />;
-}
-
-/**
- * การ์ดเลือกชนิดเนื้อหา — วาดทรงเดียวกับตัวอย่างจริงในแชท (avatar+ฟอง · รูปเต็ม ·
- * แบนเนอร์+ปุ่ม · การ์ดสินค้าสองใบ) · **ปุ่มบนมอคเป็นเขียว LINE ไม่ใช่สีส้มของเรา**
- * เพราะของจริงที่ลูกค้าเห็นเป็นเขียว
+ * การ์ดเลือกชนิดเนื้อหา — พรีวิวเป็นห้องแชทจำลองทั้งใบจาก KindMockups (placeholder คงที่
+ * ไม่ใช่รูปของร่าง) เพราะตรงนี้ผู้ใช้ยังไม่ได้กรอกอะไร ต้องเห็นก่อนว่าแต่ละแบบหน้าตาเป็นยังไง
  */
 const KIND_CARDS: Record<BroadcastContentKind, { label: string; description: string; preview: React.ReactNode }> = {
-  announce: {
-    label: KIND_LABELS.announce,
-    description: 'ข้อความ + รูป',
-    preview: (
-      <div className="w-full flex items-start gap-1">
-        <MockAvatar size="sm" />
-        <div className="flex-1 min-w-0 rounded-md rounded-tl-sm bg-white dark:bg-slate-800 p-1 space-y-1">
-          <MockLine />
-          <MockLine className="w-2/3" />
-        </div>
-      </div>
-    ),
-  },
-  poster: {
-    label: KIND_LABELS.poster,
-    description: 'รูปเต็มจอ กดไปลิงก์',
-    preview: <div className="w-full h-10 rounded-md bg-gray-200 dark:bg-slate-600" />,
-  },
-  promo: {
-    label: KIND_LABELS.promo,
-    description: 'หัวข้อ + ข้อความ + ปุ่ม',
-    preview: (
-      <div className="w-full rounded-md bg-white dark:bg-slate-800 overflow-hidden">
-        <div className="h-4 bg-gray-200 dark:bg-slate-600" />
-        <div className="p-1 space-y-1">
-          <MockLine className="w-2/3" />
-          <div className="h-1.5 rounded bg-line" />
-        </div>
-      </div>
-    ),
-  },
-  products: {
-    label: KIND_LABELS.products,
-    description: 'เลื่อนดู กดสั่งเลย',
-    preview: (
-      <div className="w-full flex justify-center gap-1">
-        {[0, 1].map(i => (
-          <div key={i} className="w-8 h-8 rounded-md bg-gray-200 dark:bg-slate-600" />
-        ))}
-      </div>
-    ),
-  },
+  announce: { label: KIND_LABELS.announce, description: 'ข้อความ + รูป', preview: KIND_MOCKS.announce },
+  poster: { label: KIND_LABELS.poster, description: 'รูปเต็มจอ กดไปลิงก์', preview: KIND_MOCKS.poster },
+  promo: { label: KIND_LABELS.promo, description: 'หัวข้อ + ข้อความ + ปุ่ม', preview: KIND_MOCKS.promo },
+  products: { label: KIND_LABELS.products, description: 'เลื่อนดู กดสั่งเลย', preview: KIND_MOCKS.products },
 };
 
 /**
@@ -301,10 +238,13 @@ export default function ContentStep({
 
       {compose.kinds.length > 1 && (
         <div className="mb-4">
+          {/* พรีวิวใหญ่ = ห้องแชทจำลองทั้งใบ · คอลัมน์ = จำนวนชนิดที่ช่องทางนี้ส่งได้ (LINE 4 · TikTok 2) */}
           <OptionCards<BroadcastContentKind>
             value={kind}
             onChange={onKindChange}
             disabled={disabled}
+            previewSize="lg"
+            columns={compose.kinds.length}
             options={compose.kinds.map(k => ({ id: k, ...KIND_CARDS[k] }))}
           />
         </div>

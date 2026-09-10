@@ -3,6 +3,9 @@
 //
 // dropdown บังคับให้ผู้ใช้จินตนาการเอาเองว่า "แนวตั้ง 4:5" หน้าตาเป็นยังไง
 // การ์ดที่วาดรูปทรงจริงให้ดูตัดสินใจได้ทันทีโดยไม่ต้องกดลองแล้วกดกลับ
+//
+// ขนาดพรีวิวมี 2 ขั้น: `sm` = รูปทรงเล็ก ๆ พอบอกความต่าง (ค่าเริ่มต้น) · `lg` = มอคอัปทั้งใบ
+// ที่ต้อง "ดูออก" โดยไม่ต้องอ่าน (เช่นห้องแชทจำลองของแต่ละชนิดข้อความบรอดแคสต์)
 'use client';
 
 import type { ReactNode } from 'react';
@@ -28,6 +31,13 @@ export interface OptionCardItem<T extends string = string> {
  */
 export type OptionCardsLayout = 'stacked' | 'horizontal';
 
+/**
+ * sm = รูปทรงเล็กพอบอกความต่าง (stacked สูง 48px · horizontal 128×96)
+ * lg = มอคอัปทั้งใบในกรอบเต็มความกว้าง (stacked สูง 128px · horizontal 192×144)
+ *      — stacked แตกคอลัมน์ตามจอให้เอง เพราะพรีวิวสูงขนาดนี้วาง 4 ใบบนจอแคบไม่ไหว
+ */
+export type OptionCardsPreviewSize = 'sm' | 'lg';
+
 interface OptionCardsProps<T extends string> {
   value: T;
   onChange: (id: T) => void;
@@ -36,6 +46,7 @@ interface OptionCardsProps<T extends string> {
   /** จำนวนคอลัมน์บนจอกว้าง (ค่าเริ่มต้น: stacked = จำนวนตัวเลือก · horizontal = 1 แถวต่อบรรทัด) */
   columns?: number;
   layout?: OptionCardsLayout;
+  previewSize?: OptionCardsPreviewSize;
   disabled?: boolean;
 }
 
@@ -47,6 +58,14 @@ const STACKED_COLS: Record<number, string> = {
   4: 'grid-cols-4',
 };
 
+/** stacked + พรีวิวใหญ่ — จอแคบพับเป็น 2 คอลัมน์ก่อน ค่อยกางครบบนจอกว้าง */
+const STACKED_COLS_LG: Record<number, string> = {
+  1: 'grid-cols-1',
+  2: 'grid-cols-2',
+  3: 'grid-cols-1 sm:grid-cols-3',
+  4: 'grid-cols-2 xl:grid-cols-4',
+};
+
 /** แนวนอนกินความกว้างมาก — จอแคบเรียงลงมาทีละแถวเสมอ แล้วค่อยแตกคอลัมน์บนจอกว้าง */
 const HORIZONTAL_COLS: Record<number, string> = {
   1: 'grid-cols-1',
@@ -55,12 +74,20 @@ const HORIZONTAL_COLS: Record<number, string> = {
   4: 'grid-cols-1 md:grid-cols-4',
 };
 
+/** กรอบพรีวิวของ layout horizontal ต่อขนาด */
+const HORIZONTAL_PREVIEW: Record<OptionCardsPreviewSize, string> = {
+  sm: 'w-32 h-24',
+  lg: 'w-48 h-36',
+};
+
 export default function OptionCards<T extends string>({
-  value, onChange, options, label, columns, layout = 'stacked', disabled,
+  value, onChange, options, label, columns, layout = 'stacked', previewSize = 'sm', disabled,
 }: OptionCardsProps<T>) {
   const horizontal = layout === 'horizontal';
+  const large = previewSize === 'lg';
   const cols = Math.min(columns ?? (horizontal ? 1 : options.length), 4);
-  const colClass = (horizontal ? HORIZONTAL_COLS : STACKED_COLS)[cols] || 'grid-cols-1';
+  const colMap = horizontal ? HORIZONTAL_COLS : large ? STACKED_COLS_LG : STACKED_COLS;
+  const colClass = colMap[cols] || 'grid-cols-1';
 
   return (
     <div>
@@ -76,8 +103,9 @@ export default function OptionCards<T extends string>({
           const base = `choice-card relative disabled:opacity-50 disabled:cursor-not-allowed ${
             active ? 'choice-card-active ring-1 ring-primary' : ''
           }`;
+          // z-10 เพราะพรีวิวขนาด lg เป็นกรอบมีพื้นสีเต็มความกว้าง ติ๊กต้องลอยอยู่บนมัน
           const check = active && (
-            <span className="absolute top-1 right-1 w-3.5 h-3.5 rounded-full bg-primary text-white flex items-center justify-center">
+            <span className="absolute top-1 right-1 z-10 w-3.5 h-3.5 rounded-full bg-primary text-white flex items-center justify-center">
               <Check className="w-2.5 h-2.5" strokeWidth={3.5} />
             </span>
           );
@@ -96,7 +124,7 @@ export default function OptionCards<T extends string>({
               >
                 {check}
                 {opt.preview && (
-                  <span className="w-32 h-24 flex-shrink-0 rounded-md overflow-hidden bg-gray-100 dark:bg-slate-700 flex items-center justify-center">
+                  <span className={`${HORIZONTAL_PREVIEW[previewSize]} flex-shrink-0 rounded-md overflow-hidden bg-gray-100 dark:bg-slate-700 flex items-center justify-center`}>
                     {opt.preview}
                   </span>
                 )}
@@ -110,6 +138,36 @@ export default function OptionCards<T extends string>({
                     </span>
                   )}
                 </span>
+              </button>
+            );
+          }
+
+          if (large) {
+            // มอคอัปเต็มกรอบ — ไม่ center เพราะมอคเติมกรอบเองทั้งใบ · ตัวหนังสือขึ้นสเกลอ่านได้ (≥14)
+            return (
+              <button
+                key={opt.id}
+                type="button"
+                role="radio"
+                aria-checked={active}
+                disabled={disabled}
+                onClick={() => onChange(opt.id)}
+                className={`${base} flex flex-col items-center gap-2 p-2 pb-2.5 text-center`}
+              >
+                {check}
+                {opt.preview && (
+                  <span className="block w-full h-32 rounded-md overflow-hidden bg-gray-100 dark:bg-slate-700">
+                    {opt.preview}
+                  </span>
+                )}
+                <span className={`body-text font-medium leading-tight ${labelClass}`}>
+                  {opt.label}
+                </span>
+                {opt.description && (
+                  <span className="subtitle-text text-gray-500 dark:text-slate-400 leading-tight">
+                    {opt.description}
+                  </span>
+                )}
               </button>
             );
           }

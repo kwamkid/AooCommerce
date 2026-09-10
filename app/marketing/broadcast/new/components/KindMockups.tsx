@@ -1,0 +1,153 @@
+// Path: app/marketing/broadcast/new/components/KindMockups.tsx
+//
+// มอคอัป "ห้องแชท LINE จำลอง" ของแต่ละชนิดเนื้อหาบรอดแคสต์ + ชิ้นส่วนวาดมอคที่ตัวเลือกย่อย
+// (แสดงรูปแบบไหน / รูปแบบการ์ด) ใน ContentStep ใช้ร่วมกัน
+//
+// ทำไมต้องเป็นห้องแชททั้งใบ ไม่ใช่แท่งเทา 2 แท่ง: เจ้าของดูการ์ดเลือกชนิดแล้วบอกว่า
+// "ไม่รู้ว่าประกาศหน้าตาเป็นไง โปสเตอร์เป็นไง … มันต้องเห็นรูปตรงนี้ก่อนเลย" (10 ก.ย. 2026)
+// มอคจึงวาดทรงเดียวกับ BroadcastPreview (พื้นฟ้า linechat · จุดโปรไฟล์ร้าน · ฟอง/การ์ดขาว ·
+// ปุ่มเขียว LINE · ป้ายลดสีแบรนด์) ด้วยเนื้อหา placeholder คงที่ — ไม่ดึงรูปของร่างที่ผู้ใช้กำลังทำ
+//
+// ⚠️ ข้างในห้องแชทไม่มี `dark:` โดยตั้งใจ — พื้นห้องแชทตรึงสีเดียวทั้งสองธีมเหมือน BroadcastPreview
+// ฟองขาวบนพื้นฟ้าคือสิ่งที่ลูกค้าเห็นจริง ไม่ว่าแอดมินจะเปิดธีมไหน
+// ⚠️ ปุ่มเป็นเขียว LINE (`bg-line`) ไม่ใช่ส้มแบรนด์ — ของจริงที่ลูกค้าเห็นเป็นเขียว
+'use client';
+
+import type { ReactNode } from 'react';
+import { Image as ImageIcon } from 'lucide-react';
+import type { BroadcastContentKind } from '@/lib/broadcast/platforms';
+
+// ── ชิ้นส่วนกลาง ──────────────────────────────────────────────────────────────
+
+/**
+ * รูปตัวอย่างในการ์ดตัวเลือกย่อย = **รูปของร่างที่ผู้ใช้กำลังทำอยู่จริง** ไม่ใช่รูปตัวอย่างสำเร็จรูป
+ * (ใส่รูปแล้วเห็นรูปตัวเองในทั้งสองแบบเลย จึงตัดสินใจได้โดยไม่ต้องกดลองแล้วกดกลับ)
+ * ยังไม่มีรูป = บล็อกเทาทรงเดียวกัน — ทรงคือสิ่งที่ต้องเทียบ ไม่ใช่ตัวรูป
+ */
+export function MockImage({ src, className }: { src: string | null; className: string }) {
+  if (!src) return <div className={`${className} bg-gray-200 dark:bg-slate-600`} />;
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img src={src} alt="" className={`${className} object-cover`} />;
+}
+
+/** จุดกลมแทนรูปโปรไฟล์ร้าน — บอกว่าของชิ้นนี้มาถึงลูกค้าในห้องแชท ไม่ได้ลอยอยู่เฉย ๆ */
+export function MockAvatar({ size }: { size: 'sm' | 'md' }) {
+  return (
+    <div
+      className={`${size === 'sm' ? 'w-3 h-3' : 'w-4 h-4'} rounded-full bg-gray-300 dark:bg-slate-500 flex-shrink-0`}
+    />
+  );
+}
+
+/**
+ * แถบตัวหนังสือจำลอง
+ *  muted  = ข้อความทั่วไป (ค่าเริ่มต้น)
+ *  strong = หัวข้อ — เข้มกว่าเพื่อให้เห็นว่าเป็นคนละบรรทัดกับข้อความ
+ *  light  = ตัวหนังสือบนพื้นฟ้าของห้องแชท (ชื่อร้านเหนือฟองแรก)
+ */
+const LINE_TONE = {
+  muted: 'bg-gray-300 dark:bg-slate-500',
+  strong: 'bg-gray-500 dark:bg-slate-400',
+  light: 'bg-white/70',
+} as const;
+
+export function MockLine({ className, tone = 'muted' }: { className?: string; tone?: keyof typeof LINE_TONE }) {
+  return <div className={`h-1 rounded ${LINE_TONE[tone]} ${className || ''}`} />;
+}
+
+/** บล็อกรูป placeholder — ไอคอนรูปตัวเดียวกับที่หน้ารายการใช้แทนโปสเตอร์ */
+function MockPhoto({ className }: { className: string }) {
+  return (
+    <div className={`${className} bg-gray-200 text-gray-400 flex items-center justify-center`}>
+      <ImageIcon className="w-4 h-4" />
+    </div>
+  );
+}
+
+/** ปุ่มบนการ์ด — ปุ่มคือจุดต่างสำคัญของโปรโมชัน/การ์ดสินค้า จึงใส่คำจริงให้เห็นว่ากดได้ */
+function MockButton() {
+  return (
+    <div className="h-4 rounded bg-line text-white helper-text leading-none flex items-center justify-center">
+      สั่งเลย
+    </div>
+  );
+}
+
+/**
+ * เปลือกห้องแชท: พื้นฟ้า + โปรไฟล์ร้าน + เส้นชื่อร้าน แล้วตามด้วยของที่ส่ง
+ * คอลัมน์เนื้อหาเป็น flex-col เพื่อให้โปสเตอร์ยืดเต็มความสูงที่เหลือได้ (`flex-1`)
+ */
+function MockChat({ children }: { children: ReactNode }) {
+  return (
+    <div className="w-full h-full bg-linechat p-2 flex items-stretch gap-1.5">
+      <div className="self-start">
+        <MockAvatar size="sm" />
+      </div>
+      <div className="flex-1 min-w-0 flex flex-col gap-1">
+        <MockLine tone="light" className="w-8" />
+        {children}
+      </div>
+    </div>
+  );
+}
+
+/** การ์ดสินค้าหนึ่งใบ (แบบมีชื่อ+ปุ่ม) — ป้ายลดมุมซ้ายบนเป็นสีแบรนด์เหมือนของจริง */
+function MockProductCard() {
+  return (
+    <div className="w-7/12 flex-shrink-0 rounded-lg bg-white overflow-hidden">
+      <div className="relative">
+        <MockPhoto className="h-10" />
+        <div className="absolute top-1 left-1 h-2 w-6 rounded-full bg-primary" />
+      </div>
+      <div className="p-1.5 space-y-1">
+        <MockLine />
+        <MockLine className="w-1/2" />
+        <MockButton />
+      </div>
+    </div>
+  );
+}
+
+// ── มอคอัปต่อชนิด ─────────────────────────────────────────────────────────────
+
+/**
+ * ประกาศ = ฟองข้อความ + ฟองรูปแยกใบ · โปสเตอร์ = รูปใบเดียวเต็มความกว้าง ไม่มีอะไรนอกรูป ·
+ * โปรโมชัน = การ์ดรูปบน หัวข้อ ข้อความ ปุ่ม · การ์ดสินค้า = การ์ดเรียงแนวนอน ใบถัดไปโผล่ครึ่งใบ
+ * (บอกว่าเลื่อนดูต่อได้) — ทั้งหมดอยู่ในงบความสูง 112px ของกรอบพรีวิว `lg`
+ */
+export const KIND_MOCKS: Record<BroadcastContentKind, ReactNode> = {
+  announce: (
+    <MockChat>
+      <div className="rounded-xl rounded-tl-sm bg-white p-1.5 space-y-1">
+        <MockLine />
+        <MockLine className="w-2/3" />
+      </div>
+      <MockPhoto className="w-7/12 h-10 rounded-xl" />
+    </MockChat>
+  ),
+  poster: (
+    <MockChat>
+      <MockPhoto className="flex-1 w-full rounded-xl" />
+    </MockChat>
+  ),
+  promo: (
+    <MockChat>
+      <div className="rounded-xl bg-white overflow-hidden">
+        <MockPhoto className="h-9" />
+        <div className="p-1.5 space-y-1">
+          <MockLine tone="strong" className="w-3/4" />
+          <MockLine />
+          <MockButton />
+        </div>
+      </div>
+    </MockChat>
+  ),
+  products: (
+    <MockChat>
+      <div className="flex gap-1 overflow-hidden">
+        <MockProductCard />
+        <MockProductCard />
+      </div>
+    </MockChat>
+  ),
+};
