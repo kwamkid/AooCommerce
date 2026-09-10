@@ -6,6 +6,10 @@
 
 import type { BroadcastPlatform } from '@/lib/broadcast/platforms';
 
+// ย้ายไปอยู่ที่ทะเบียนกลุ่มผู้รับกลาง — หน้ากลุ่มเป้าหมายโฆษณาใช้ชุดเดียวกัน จึงต้องไม่ผูก
+// อยู่กับโฟลเดอร์ของหน้าสร้างบรอดแคสต์ (re-export ไว้ให้การ์ดย่อยที่ import จากที่นี่ใช้ได้เหมือนเดิม)
+export type { TagRow, PickedContact, AudienceCounts } from '@/lib/broadcast/audience';
+
 /** บัญชีต้นทางหนึ่งใบ — LINE/FB/IG มาจาก chat_accounts ส่วน marketplace มาจากร้าน */
 export interface BroadcastAccount {
   id: string;
@@ -14,11 +18,6 @@ export interface BroadcastAccount {
   /** รูปโปรไฟล์ของช่องทาง (รูป OA / รูปเพจ / โลโก้ร้าน) — ไม่มีก็ตกไปใช้ไอคอนแพลตฟอร์ม */
   picture_url: string | null;
 }
-
-export interface TagRow { id: string; name: string; color: string }
-
-/** ผู้ติดต่อที่เลือกเอง — `name` ว่างได้เมื่อคัดลอกใบเก่ามา (รู้แค่ id) */
-export interface PickedContact { id: string; name: string }
 
 export interface QuotaInfo {
   type: 'none' | 'limited' | 'unknown';
@@ -49,13 +48,4 @@ export interface PreviewInfo {
 export interface PerAccountPreview {
   account: BroadcastAccount;
   info: PreviewInfo;
-}
-
-/** จำนวนคนของแต่ละกลุ่มผู้รับ — ค่า null = ตอบไม่ได้ (โชว์ '—' ห้ามเดาเป็น 0) */
-export interface AudienceCounts {
-  counts: Record<string, number | null>;
-  /** null = ช่องทางนี้ไม่มีแนวคิด "ผู้ติดต่อ" (marketplace) — ตกไปใช้ค่าจาก /preview แทน */
-  contact_total?: number | null;
-  contact_linked?: number | null;
-  days?: number;
 }

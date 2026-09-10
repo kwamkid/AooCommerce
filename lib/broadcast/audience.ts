@@ -13,7 +13,7 @@
 //    เป็นลูกค้าได้ทางเดียวคือห้องแชทถูกผูกกับ customers · หน้าจอต้องบอกเสมอว่า
 //    รู้ประวัติของกี่คน (contact_linked / contact_total จาก /api/broadcasts/preview)
 
-import type { BroadcastPlatform } from './platforms';
+import { BROADCAST_PLATFORMS, type BroadcastPlatform } from './platforms';
 
 /** หน้าต่างวัดผลหลังส่ง (ตอบกลับ / สั่งซื้อ) — ตรงกับ interval '7 days' ใน RPC get_broadcast_reply_stats */
 export const BROADCAST_ATTRIBUTION_DAYS = 7;
@@ -89,6 +89,60 @@ export const AUDIENCE_OPTIONS: Partial<Record<BroadcastPlatform, AudienceOption[
       key: 'all', group: 'other',
       label: 'ผู้ติดตามทั้งหมด',
       hint: 'รวมคนที่แอดเพื่อนไว้แต่ไม่เคยทักมาเลย — กลุ่มใหญ่สุด กินโควตามากสุด',
+    },
+    {
+      key: 'tags', group: 'other',
+      label: 'ตามแท็ก',
+      hint: 'นับทั้งแท็กที่ติดกับลูกค้า และแท็กที่ติดกับห้องแชทโดยตรง',
+      needsTags: true,
+    },
+    {
+      key: 'contacts_pick', group: 'other',
+      label: 'เลือกรายคน',
+      hint: 'ใช้ทดสอบส่งหาตัวเองก่อนยิงจริง หรือส่งกลุ่มเล็กเฉพาะกิจ',
+      needsPick: true,
+    },
+  ],
+  // Facebook Messenger — ผู้ติดต่อมาจาก fb_contacts (source='facebook')
+  // ไม่มี 'all': Meta ไม่มีแนวคิด "ผู้ติดตามที่ยิงข้อความถึงได้" แบบ LINE — ทักได้เฉพาะ
+  // คนที่เคยเปิดห้องกับเรา (กลุ่มพวกนี้จึงใช้เป็น "กลุ่มเป้าหมายโฆษณา" ได้ดีกว่าใช้ยิงแชท)
+  facebook: [
+    {
+      key: 'not_bought', group: 'not_bought',
+      label: 'ยังไม่เคยซื้อ',
+      hint: 'ไม่มีออเดอร์ในระบบ — รวมคนที่ยังไม่ได้ผูกกับข้อมูลลูกค้า',
+    },
+    {
+      key: 'ads_not_bought', group: 'not_bought',
+      label: 'ทักมาจากโฆษณาแต่ยังไม่ซื้อ',
+      hint: 'ทักผ่านโฆษณา Click-to-Messenger แล้วยังไม่มีออเดอร์ — กลุ่มที่ควรตามปิดการขาย',
+    },
+    {
+      key: 'bought', group: 'bought',
+      label: 'ลูกค้าทั้งหมด',
+      hint: 'เคยซื้ออย่างน้อยหนึ่งครั้ง',
+    },
+    {
+      key: 'bought_before', group: 'bought',
+      label: 'หายไปเกิน N วัน',
+      hint: 'เคยซื้อแล้วเงียบไป — ชวนกลับมา',
+      needsDays: true,
+    },
+    {
+      key: 'bought_within', group: 'bought',
+      label: 'ซื้อล่าสุดภายใน N วัน',
+      hint: 'ลูกค้าที่ยังซื้ออยู่ — เหมาะกับของใหม่ ของเสริม',
+      needsDays: true,
+    },
+    {
+      key: 'bought_once', group: 'bought',
+      label: 'ซื้อครั้งเดียว ยังไม่กลับมา',
+      hint: 'กลุ่มที่ดันให้ซื้อครั้งที่สองได้คุ้มที่สุด',
+    },
+    {
+      key: 'contacts', group: 'other',
+      label: 'คนที่เคยทักเข้ามา',
+      hint: 'ทุกคนที่มีห้องแชทอยู่ในระบบ ไม่ว่าจะซื้อหรือยัง',
     },
     {
       key: 'tags', group: 'other',
@@ -196,4 +250,60 @@ export function commonAudienceOptions(platforms: BroadcastPlatform[]): AudienceO
   if (platforms.length === 0) return [];
   const lists = platforms.map(p => AUDIENCE_OPTIONS[p] || []);
   return lists[0].filter(o => lists.every(l => l.some(x => x.key === o.key)));
+}
+
+/**
+ * ตัวเลือก **ทุกตัว** ของช่องทางที่เลือก (ไม่ใช่เฉพาะตัวร่วม) พร้อมเหตุผลของตัวที่ใช้ไม่ครบทุกเจ้า
+ *
+ * ต่างจาก `commonAudienceOptions` ตรงที่กลุ่มเป้าหมายของโฆษณา **หยิบคนจากหลายแหล่งมารวมกัน
+ * เป็นกลุ่มเดียว** ⇒ ตัวเลือกที่มีแค่บางแหล่งก็ยังใช้ได้ (แค่ได้คนจากแหล่งนั้นแหล่งเดียว) —
+ * ตัดทิ้งเหมือนสายบรอดแคสต์จะเสียกลุ่มอย่าง "ทักมาจากโฆษณาแต่ยังไม่ซื้อ" ไปเปล่า ๆ
+ *
+ * ⛔ **ห้ามซ่อนตัวที่ใช้ได้ไม่ครบ** — โชว์พร้อมเหตุผลเสมอ ไม่งั้นผู้ใช้จะถามซ้ำว่าหายไปไหน
+ */
+export function unionAudienceOptions(platforms: BroadcastPlatform[]): {
+  options: AudienceOption[];
+  /** key → เหตุผลว่าใช้ได้กับช่องทางไหนบ้าง (มีเฉพาะ key ที่ไม่ครบทุกช่องทางที่เลือก) */
+  unsupported: Record<string, string>;
+} {
+  if (platforms.length === 0) return { options: [], unsupported: {} };
+
+  const options: AudienceOption[] = [];
+  const seen = new Set<string>();
+  for (const p of platforms) {
+    for (const o of AUDIENCE_OPTIONS[p] || []) {
+      if (seen.has(o.key)) continue;
+      seen.add(o.key);
+      options.push(o);
+    }
+  }
+
+  const unsupported: Record<string, string> = {};
+  for (const o of options) {
+    const supported = platforms.filter(p => (AUDIENCE_OPTIONS[p] || []).some(x => x.key === o.key));
+    if (supported.length === platforms.length) continue;
+    const labels = supported.map(p => BROADCAST_PLATFORMS[p].label).join(' · ');
+    unsupported[o.key] = `ใช้ได้เฉพาะ ${labels}`;
+  }
+
+  return { options, unsupported };
+}
+
+// ─── ชนิดข้อมูลที่หน้าจอฝั่งกลุ่มผู้รับใช้ร่วมกัน ────────────────────────
+//
+// อยู่ที่นี่ (ไม่ใช่ในโฟลเดอร์ของหน้าสร้างบรอดแคสต์) เพราะหน้ากลุ่มเป้าหมายโฆษณาใช้ชุดเดียวกัน
+// — วางไว้ใต้หน้าใดหน้าหนึ่งแล้วอีกหน้าต้อง import ข้ามโฟลเดอร์ของกันและกัน
+
+export interface TagRow { id: string; name: string; color: string }
+
+/** ผู้ติดต่อที่เลือกเอง — `name` ว่างได้เมื่อคัดลอกใบเก่ามา (รู้แค่ id) */
+export interface PickedContact { id: string; name: string }
+
+/** จำนวนคนของแต่ละกลุ่มผู้รับ — ค่า null = ตอบไม่ได้ (โชว์ '—' ห้ามเดาเป็น 0) */
+export interface AudienceCounts {
+  counts: Record<string, number | null>;
+  /** null = ช่องทางนี้ไม่มีแนวคิด "ผู้ติดต่อ" (marketplace) — ตกไปใช้ค่าจาก /preview แทน */
+  contact_total?: number | null;
+  contact_linked?: number | null;
+  days?: number;
 }

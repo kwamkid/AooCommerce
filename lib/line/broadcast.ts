@@ -14,9 +14,10 @@ import crypto from 'crypto';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { getChatAccount, getLineCredsFromAccount } from '@/lib/chat-config';
 import { logIntegrationNow } from '@/lib/integration-logger';
-import { fetchAllRows } from '@/lib/supabase-paging';
+import { resolveChatRecipients } from '@/lib/broadcast/recipients';
+import type { BroadcastAudienceFilter, BroadcastAudienceType } from '@/lib/broadcast/recipients';
 import { LINE_TEXT_MAX, MULTICAST_BATCH_SIZE } from '@/lib/line/constants';
-import { discountPercent, imageAspectRatio } from '@/lib/broadcast/content';
+import { discountPercent, imageAspectRatio, posterTap, TAP_MESSAGE_MAX } from '@/lib/broadcast/content';
 import type { BroadcastContent, BroadcastProductCard } from '@/lib/broadcast/content';
 
 const LINE_API = 'https://api.line.me/v2/bot';
@@ -25,33 +26,14 @@ export { LINE_TEXT_MAX, MULTICAST_BATCH_SIZE };
 
 // ─── Types ────────────────────────────────────────────────────────────
 
-export type BroadcastAudienceType =
-  | 'all' | 'contacts' | 'tags' | 'customers' | 'contacts_pick'
-  // แบ่งตามสถานะการซื้อ — ดู migration broadcasts_audience_purchase_segments
-  | 'not_bought' | 'bought' | 'bought_within' | 'bought_before' | 'bought_once';
+// ชนิดของกลุ่มผู้รับ + ตัวกรอง ย้ายไปอยู่ที่ตัวหาผู้รับกลาง (ใช้ร่วมกับสายกลุ่มเป้าหมายโฆษณา)
+// — re-export ไว้ให้ที่ที่ import จากไฟล์นี้อยู่เดิมใช้ได้เหมือนเดิม
+export type { BroadcastAudienceType, BroadcastAudienceFilter } from '@/lib/broadcast/recipients';
 
-/** กลุ่มที่ต้องรู้ประวัติการซื้อของลูกค้าก่อนถึงจะกรองได้ */
-const PURCHASE_AUDIENCES = new Set<string>(['not_bought', 'bought', 'bought_within', 'bought_before', 'bought_once']);
 // 'scheduled' = ตั้งเวลาไว้ รอ cron หยิบ · 'cancelled' = ผู้ใช้ยกเลิกก่อนถึงเวลา
 // (ตัวส่งต้องข้ามสองสถานะนี้เสมอ — ใบที่ยังไม่ถึงเวลา/ถูกยกเลิกแล้วห้ามหลุดไปถึงลูกค้า)
 export type BroadcastStatus =
   | 'scheduled' | 'pending' | 'sending' | 'sent' | 'partial' | 'failed' | 'cancelled';
-
-export interface BroadcastAudienceFilter {
-  tag_ids?: string[];
-  /** ผู้ติดต่อที่เลือกเอง (audience_type='contacts_pick') — ใช้ทดสอบส่ง/ส่งกลุ่มเล็ก */
-  contact_ids?: string[];
-  /** จำนวนวันของกลุ่ม `bought_within` / `bought_before` */
-  days?: number;
-  /**
-   * ── ตัวกรองซ้อน (ใช้ได้กับทุกกลุ่มที่มีรายชื่อผู้ติดต่อจริง) ──
-   * ไม่ใช่กลุ่มใหม่ แต่เป็นการหั่นกลุ่มที่เลือกให้แคบลง
-   */
-  /** คุยกันมาแล้วอย่างน้อยกี่ข้อความ (นับเฉพาะที่ลูกค้าพิมพ์มา) */
-  min_messages?: number;
-  /** **ลูกค้าพิมพ์หาเรา** ล่าสุดภายในกี่วัน — ตัดคนที่เงียบไปนานออก */
-  last_chat_days?: number;
-}
 
 /** ปุ่มบนการ์ด/ปุ่มตอบเร็ว — uri = เปิดลิงก์ · message = ส่งข้อความกลับเข้าห้องแชท */
 export type LineAction =
@@ -245,7 +227,11 @@ export async function getLineFollowerStats(accessToken: string): Promise<LineFol
 // ─── ผู้รับ ────────────────────────────────────────────────────────────
 
 /**
- * รายชื่อผู้รับของบรอดแคสต์ใบหนึ่ง
+ * รายชื่อผู้รับของบรอดแคสต์ใบหนึ่ง — **ตัวห่อบาง ๆ ของ `resolveChatRecipients`**
+ *
+ * ตรรกะทั้งหมด (แท็ก · ประวัติการซื้อ · ตัวกรองซ้อน · ตัดคนซ้ำ) อยู่ที่
+ * [lib/broadcast/recipients.ts](../broadcast/recipients.ts) ซึ่งสายกลุ่มเป้าหมายโฆษณาใช้
+ * ตัวเดียวกัน — ที่นี่แค่แปลงผลกลับเป็นรูปที่ตัวส่ง LINE ใช้อยู่เดิม
  *
  * นับเฉพาะผู้ติดต่อที่ยัง active และเป็น **บุคคล** (`line_user_id` ขึ้นต้นด้วย U —
  * ห้อง group/room ขึ้นต้นด้วย C/R ยิง multicast ไม่ได้)
@@ -260,170 +246,8 @@ export async function resolveBroadcastRecipients(
   audienceType: BroadcastAudienceType,
   filter?: BroadcastAudienceFilter | null,
 ): Promise<BroadcastRecipient[]> {
-  const tagIds = audienceType === 'tags' ? (filter?.tag_ids || []).filter(Boolean) : [];
-  // เลือก "ตามแท็ก" แต่ไม่ได้ติ๊กแท็กไหนเลย = ไม่มีผู้รับ (ไม่ใช่ทุกคน)
-  if (audienceType === 'tags' && tagIds.length === 0) return [];
-
-  const pickedIds = audienceType === 'contacts_pick' ? (filter?.contact_ids || []).filter(Boolean) : [];
-  if (audienceType === 'contacts_pick' && pickedIds.length === 0) return [];
-
-  let allowedCustomerIds: Set<string> | null = null;
-  if (audienceType === 'tags') {
-    // กันแท็กข้ามบริษัท — เอาเฉพาะ tag_id ที่เป็นของบริษัทนี้จริง
-    const { data: ownTags } = await supabaseAdmin
-      .from('customer_tags')
-      .select('id')
-      .eq('company_id', companyId)
-      .in('id', tagIds);
-    const ownTagIds = (ownTags || []).map(t => t.id as string);
-    if (ownTagIds.length === 0) return [];
-
-    const { rows: links } = await fetchAllRows<{ customer_id: string }>((from, to) =>
-      supabaseAdmin
-        .from('customer_tag_links')
-        .select('customer_id', { count: 'exact' })
-        .in('tag_id', ownTagIds)
-        .range(from, to),
-    );
-    allowedCustomerIds = new Set(links.map(l => l.customer_id));
-  }
-
-  // แท็กติดกับ "ผู้ติดต่อในแชท" โดยตรงได้ด้วย (contact_tag_links — ยังไม่ผูกลูกค้าก็ติดได้)
-  // ต้องนับทั้งสองทาง ไม่งั้นคนที่ติดแท็กจากหน้าแชทจะไม่ได้รับ
-  let allowedContactIds: Set<string> | null = null;
-  if (audienceType === 'tags') {
-    const { data: ownTags } = await supabaseAdmin
-      .from('customer_tags')
-      .select('id')
-      .eq('company_id', companyId)
-      .in('id', tagIds);
-    const ownTagIds = (ownTags || []).map(t => t.id as string);
-    const { rows: contactLinks } = ownTagIds.length
-      ? await fetchAllRows<{ contact_id: string }>((from, to) =>
-          supabaseAdmin
-            .from('contact_tag_links')
-            .select('contact_id', { count: 'exact' })
-            .eq('platform', 'line')
-            .in('tag_id', ownTagIds)
-            .range(from, to),
-        )
-      : { rows: [] as { contact_id: string }[] };
-    allowedContactIds = new Set(contactLinks.map(l => l.contact_id));
-    if ((allowedCustomerIds?.size ?? 0) === 0 && allowedContactIds.size === 0) return [];
-  }
-
-  // กลุ่ม "เป็นลูกค้าแล้ว" ทุกแบบต้องผูกลูกค้าก่อน — ไม่ผูก = ไม่มีทางรู้ว่าเคยซื้อ
-  const needsCustomer = audienceType === 'customers'
-    || audienceType === 'bought' || audienceType === 'bought_within'
-    || audienceType === 'bought_before' || audienceType === 'bought_once';
-
-  // ⚠️ ต้องผ่าน fetchAllRows — Supabase ตัดที่ 1,000 แถวเงียบ ๆ และร้านเดียวมีผู้ติดต่อ
-  //    เกินพันคนแล้ว (aDay Fresh 1,409) ถ้าไม่แบ่งหน้า คนท้ายรายชื่อจะไม่ได้รับข้อความ
-  const { rows: contacts } = await fetchAllRows<{ id: string; line_user_id: string; customer_id: string | null }>(
-    (from, to) => {
-      let q = supabaseAdmin
-        .from('line_contacts')
-        .select('id, line_user_id, customer_id', { count: 'exact' })
-        .eq('company_id', companyId)
-        .eq('chat_account_id', chatAccountId)
-        .eq('status', 'active')
-        .like('line_user_id', 'U%');
-      if (needsCustomer) q = q.not('customer_id', 'is', null);
-      // เลือกเอง — กรองที่ DB เลย ไม่ต้องดึงผู้ติดต่อทั้งร้านมากรองในเครื่อง
-      if (pickedIds.length > 0) q = q.in('id', pickedIds);
-      return q.order('created_at', { ascending: true }).range(from, to);
-    },
-  );
-
-  // ── ประวัติการซื้อ (เฉพาะกลุ่มที่ต้องใช้) ───────────────────────────
-  //
-  // ⚠️ ผู้ติดต่อที่ **ยังไม่ผูกกับลูกค้า** (`customer_id` null) ระบบไม่มีทางรู้ว่าเคยซื้อไหม
-  // — LINE ไม่ให้เบอร์/อีเมลเลย · ตรงนี้นับเป็น "ยังไม่เคยซื้อ" เพราะไม่มีหลักฐานว่าซื้อ
-  // แต่หน้าจอ **ต้องบอกจำนวนคนที่ยังไม่ได้ผูกข้อมูล** กำกับไว้เสมอ ไม่งั้นผู้ใช้จะเข้าใจว่า
-  // ลูกค้าเก่าของตัวเองไม่มีใครเคยซื้อ (aDay Fresh ผูกไว้ 1.2% ของ 1,432 คน)
-  let orderStats: Map<string, { order_count: number; last_order_date: string | null }> | null = null;
-  if (PURCHASE_AUDIENCES.has(audienceType)) {
-    const customerIds = [...new Set(contacts.map(c => c.customer_id).filter((v): v is string => !!v))];
-    orderStats = new Map();
-    if (customerIds.length > 0) {
-      const { data, error } = await supabaseAdmin.rpc('get_chat_customer_order_stats', {
-        p_company_id: companyId,
-        p_customer_ids: customerIds,
-      });
-      // query พัง = กรองมั่วไม่ได้ ต้องคืนว่าง ดีกว่าส่งผิดกลุ่มไปหาลูกค้าจริง
-      if (error) {
-        console.error('[broadcast] get_chat_customer_order_stats:', error.message);
-        return [];
-      }
-      for (const row of (data || []) as { customer_id: string; order_count: number; last_order_date: string | null }[]) {
-        orderStats.set(row.customer_id, { order_count: Number(row.order_count) || 0, last_order_date: row.last_order_date });
-      }
-    }
-  }
-
-  const days = Math.max(1, Number(filter?.days) || 30);
-  const cutoff = new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
-
-  // ── ตัวกรองซ้อน: คุยกันกี่ข้อความ / คุยล่าสุดเมื่อไหร่ ────────────────
-  const minMessages = Math.max(0, Number(filter?.min_messages) || 0);
-  const lastChatDays = Math.max(0, Number(filter?.last_chat_days) || 0);
-  const lastChatCutoff = lastChatDays > 0
-    ? new Date(Date.now() - lastChatDays * 86_400_000).toISOString()
-    : null;
-
-  // ทั้งสองเกณฑ์อ่านจาก RPC ตัวเดียวกัน (นับรอบเดียวต่อ OA)
-  //
-  // ⚠️ **ห้ามใช้ `line_contacts.last_message_at` เป็น "คุยล่าสุด"** — ค่านั้นขยับตอน
-  // **แอดมินตอบ** ด้วย ⇒ ห้องที่ลูกค้าเงียบมาครึ่งปีแต่แอดมินเพิ่งไปตอบเมื่อวาน จะหลุด
-  // เข้ามาในกลุ่ม "คุยกันล่าสุด 30 วัน" ทั้งที่ลูกค้าไม่ได้พูดอะไรเลย
-  let engagement: Map<string, { count: number; lastIncomingAt: string | null }> | null = null;
-  if (minMessages > 0 || lastChatDays > 0) {
-    const { data, error } = await supabaseAdmin.rpc('get_line_contact_message_counts', {
-      p_company_id: companyId,
-      p_chat_account_id: chatAccountId,
-    });
-    if (error) {
-      // นับไม่ได้ = กรองมั่วไม่ได้ ต้องคืนว่าง ดีกว่ายิงกว้างเกินที่ผู้ใช้ตั้งใจ
-      console.error('[broadcast] get_line_contact_message_counts:', error.message);
-      return [];
-    }
-    engagement = new Map(
-      (data || []).map((r: { contact_id: string; incoming_count: number; last_incoming_at: string | null }) =>
-        [r.contact_id, { count: Number(r.incoming_count) || 0, lastIncomingAt: r.last_incoming_at }]),
-    );
-  }
-
-  const seen = new Set<string>();
-  const out: BroadcastRecipient[] = [];
-  for (const c of contacts) {
-    if (!c.line_user_id) continue;
-    if (audienceType === 'tags') {
-      const viaCustomer = !!c.customer_id && !!allowedCustomerIds?.has(c.customer_id);
-      const viaContact = !!allowedContactIds?.has(c.id);
-      if (!viaCustomer && !viaContact) continue;
-    }
-    if (orderStats) {
-      const st = c.customer_id ? orderStats.get(c.customer_id) : undefined;
-      const count = st?.order_count ?? 0;
-      const last = st?.last_order_date ?? null;
-      if (audienceType === 'not_bought' && count > 0) continue;
-      if (audienceType === 'bought' && count === 0) continue;
-      if (audienceType === 'bought_once' && count !== 1) continue;
-      if (audienceType === 'bought_within' && !(count > 0 && last && last >= cutoff)) continue;
-      // "หายไป" = เคยซื้อ แต่ครั้งล่าสุดเก่ากว่ากรอบที่ตั้งไว้
-      if (audienceType === 'bought_before' && !(count > 0 && last && last < cutoff)) continue;
-    }
-    if (engagement) {
-      // ห้องที่ลูกค้ายังไม่เคยพิมพ์อะไรเลยจะไม่มีใน map — นับเป็น 0 / ไม่เคยคุย
-      const e = engagement.get(c.id);
-      if (minMessages > 0 && (e?.count ?? 0) < minMessages) continue;
-      if (lastChatCutoff && !(e?.lastIncomingAt && e.lastIncomingAt >= lastChatCutoff)) continue;
-    }
-    if (seen.has(c.line_user_id)) continue;   // ผู้ใช้คนเดียวห้ามได้ข้อความซ้ำ
-    seen.add(c.line_user_id);
-    out.push({ contact_id: c.id, line_user_id: c.line_user_id });
-  }
-  return out;
+  const rows = await resolveChatRecipients(companyId, 'line', chatAccountId, audienceType, filter);
+  return rows.map(r => ({ contact_id: r.contact_id, line_user_id: r.platform_user_id }));
 }
 
 /**
