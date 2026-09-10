@@ -14,6 +14,7 @@ import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
 import FilterChips, { FILTER_CHIP_PRIMARY_ACTIVE } from '@/components/ui/FilterChips';
 import MultiSelectSearch from '@/components/ui/MultiSelectSearch';
+import Tooltip from '@/components/ui/Tooltip';
 import EntitySearchInput, { type EntitySearchOption } from '@/components/ui/EntitySearchInput';
 import {
   AUDIENCE_GROUPS,
@@ -29,6 +30,11 @@ const LAST_CHAT_PRESETS = [0, 30, 90, 180];
 
 interface Props {
   options: AudienceOption[];
+  /**
+   * ตัวเลือกที่เลือกไม่ได้ในบริบทนี้ → key → เหตุผล (โชว์เป็น tooltip บนแถวที่จาง)
+   * ⛔ **ห้ามซ่อนตัวที่เลือกไม่ได้** — ผู้ใช้จะถามซ้ำว่ากลุ่มนั้นหายไปไหน
+   */
+  disabledOptions?: Record<string, string>;
   audience: string;
   onAudienceChange: (key: string) => void;
 
@@ -64,7 +70,7 @@ interface Props {
 }
 
 export default function AudienceStep({
-  options, audience, onAudienceChange,
+  options, disabledOptions, audience, onAudienceChange,
   counts, countsLoading, countsUnavailable, contactTotal, contactLinked,
   days, onDaysChange,
   tags, tagIds, onTagIdsChange,
@@ -78,6 +84,7 @@ export default function AudienceStep({
 
   /** จำนวนคนของกลุ่มหนึ่ง — ตอบไม่ได้ต้องขึ้น '—' ห้ามเดาเป็น 0 */
   const countOf = (key: string) => {
+    if (disabledOptions?.[key]) return '—';
     if (countsUnavailable) return '—';
     if (countsLoading && !counts) return '—';
     const n = counts?.counts?.[key];
@@ -105,15 +112,18 @@ export default function AudienceStep({
             return (
               <div key={g.key}>
                 <p className="field-label">{g.label}</p>
-                <div className="space-y-1">
+                {/* flex+gap (ไม่ใช่ space-y) เพราะแถวที่มีเหตุผลถูกห่อด้วย Tooltip ซึ่งเป็น
+                    display:contents — margin ของ space-y จะไม่มีผลกับมัน แล้วระยะจะหลุดเฉพาะแถวนั้น */}
+                <div className="flex flex-col gap-1">
                   {inGroup.map(opt => {
                     const active = opt.key === audience;
-                    return (
+                    const reason = disabledOptions?.[opt.key];
+                    const row = (
                       <Radio
                         key={opt.key}
                         checked={active}
                         onChange={() => onAudienceChange(opt.key)}
-                        disabled={disabled}
+                        disabled={disabled || !!reason}
                         className={`choice-card px-2.5 py-2 ${active ? 'choice-card-active' : ''}`}
                       >
                         <span className="flex-1 min-w-0 flex items-baseline gap-2">
@@ -126,6 +136,9 @@ export default function AudienceStep({
                         </span>
                       </Radio>
                     );
+                    return reason
+                      ? <Tooltip key={opt.key} text={reason}>{row}</Tooltip>
+                      : row;
                   })}
                 </div>
               </div>

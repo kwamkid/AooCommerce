@@ -1,0 +1,36 @@
+// Path: app/marketing/audiences/new/page.tsx
+//
+// สร้างกลุ่มเป้าหมาย — หน้าบาง ๆ ที่ห่อ `AudienceForm` ไว้เท่านั้น
+// (ตัวฟอร์มใช้ร่วมกับหน้าแก้ไข จึงไม่มีอะไรเป็นของหน้านี้นอกจากหัวเรื่อง)
+'use client';
+
+import Layout from '@/components/layout/Layout';
+import Container from '@/components/ui/Container';
+import PageHeader from '@/components/ui/PageHeader';
+import { LoadingCard, NoPermissionCard } from '@/components/ui/StateCard';
+import { useAuthGuard } from '@/lib/useAuthGuard';
+import AudienceForm from '../components/AudienceForm';
+
+export default function NewAudiencePage() {
+  const { allowed, loading } = useAuthGuard('marketing.audiences', { noRedirect: true });
+
+  if (loading) {
+    return <Layout><Container size="full"><LoadingCard /></Container></Layout>;
+  }
+  if (!allowed) {
+    return <Layout><Container size="full"><NoPermissionCard /></Container></Layout>;
+  }
+
+  return (
+    <Layout>
+      <Container size="full">
+        <PageHeader
+          backHref="/marketing/audiences"
+          title="สร้างกลุ่มเป้าหมาย"
+          subtitle="เลือกว่าจะหยิบคนจากไหน แล้วแคบลงด้วยเงื่อนไข — ใช้ซ้ำได้ทั้งบรอดแคสต์และโฆษณา Meta"
+        />
+        <AudienceForm mode="create" />
+      </Container>
+    </Layout>
+  );
+}
