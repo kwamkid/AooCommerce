@@ -134,6 +134,23 @@ export function toThaiPhone(raw: string | null | undefined): string {
   return d;
 }
 
+/**
+ * เบอร์ไทยรูปที่เก็บใน DB ('0…') → ตัวเลข E.164 **ไม่มีเครื่องหมาย +** สำหรับส่งออกนอกระบบ
+ *   '081-234-5678' / '+66 81 234 5678' / '66812345678' → '66812345678'
+ *   '021234567' (เบอร์บ้าน 9 หลัก)                      → '6621234567'
+ *   แปลงไม่ได้ (ตัวอักษร/สั้นเกิน/ยาวเกิน)               → null
+ *
+ * ใช้ตอน **hash ส่ง Meta** (กติกาของ Meta: ตัวเลขล้วน มีรหัสประเทศ ไม่มี 0 นำ ไม่มี +)
+ * — คนละตัวกับ `toThaiPhone()` ที่ใช้เก็บ/เทียบภายในระบบ ห้ามสลับกัน
+ */
+export function toE164Digits(raw: string | null | undefined, countryCode = '66'): string | null {
+  if (!raw) return null;
+  const d = toThaiPhone(raw); // ตัดช่องว่าง/ขีด/วงเล็บ + แปลง 66→0 ให้แล้ว
+  if (/^0\d{8,9}$/.test(d)) return countryCode + d.slice(1);
+  if (/^66\d{8,9}$/.test(d)) return d;
+  return null;
+}
+
 /** เบอร์ไทยที่ใช้ได้: 9–10 หลัก ขึ้นต้นด้วย 0 (บ้าน 9 · มือถือ 10) — ว่างถือว่าผ่าน ให้ `required` ตัดสินเอง */
 export function isValidThaiPhone(raw: string | null | undefined): boolean {
   const d = toThaiPhone(raw);

@@ -1,19 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
+// แปลง platform → ตารางผู้ติดต่อ + เช็คว่าเป็นของบริษัทนี้จริง (กันแก้แท็กข้ามบริษัท
+// เพราะ service role ข้าม RLS) — ทะเบียนอยู่ที่ lib/chat/contact-tables.ts ที่เดียว
+import { contactBelongsToCompany } from '@/lib/chat/contact-tables';
 
-// Confirm the chat contact belongs to the caller's company. line → line_contacts,
-// facebook → fb_contacts (both carry company_id). Blocks cross-tenant tag edits
-// since the service-role client bypasses RLS.
-async function contactInCompany(contactId: string, platform: string, companyId: string): Promise<boolean> {
-  const table = platform === 'facebook' ? 'fb_contacts' : platform === 'shopee' ? 'shopee_contacts' : platform === 'lazada' ? 'lazada_contacts' : platform === 'tiktok' ? 'tiktok_contacts' : 'line_contacts';
-  const { data } = await supabaseAdmin
-    .from(table)
-    .select('id')
-    .eq('id', contactId)
-    .eq('company_id', companyId)
-    .single();
-  return !!data;
-}
+/** แท็กเท่าที่ route นี้คืนให้ผู้เรียก */
+type TagRow = { id: string; name: string; color: string | null };
 
 // GET — list tags for a specific contact
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -25,7 +17,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const { id: contactId } = await params;
     const { searchParams } = new URL(request.url);
     const platform = searchParams.get('platform') || 'line';
-    if (!(await contactInCompany(contactId, platform, companyId))) {
+    if (!(await contactBelongsToCompany(contactId, platform, companyId))) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
 
@@ -39,15 +31,15 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     if (error) throw error;
 
-    const tagIds = (links || []).map((l: any) => l.tag_id);
-    let tags: any[] = [];
+    const tagIds = (links || []).map((l: { tag_id: string }) => l.tag_id);
+    let tags: TagRow[] = [];
     if (tagIds.length > 0) {
       const { data: tagData } = await supabaseAdmin
         .from('customer_tags')
         .select('id, name, color')
         .eq('company_id', companyId)
         .in('id', tagIds);
-      tags = tagData || [];
+      tags = (tagData || []) as TagRow[];
     }
     return NextResponse.json({ tags });
   } catch (error) {
@@ -80,7 +72,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (remove !== undefined && !Array.isArray(remove)) {
       return NextResponse.json({ error: 'remove must be an array' }, { status: 400 });
     }
-    if (!(await contactInCompany(contactId, platform, companyId))) {
+    if (!(await contactBelongsToCompany(contactId, platform, companyId))) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
 
@@ -128,8 +120,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       .eq('platform', platform);
     if (linkErr) throw linkErr;
 
-    const updatedTagIds = (updatedLinks || []).map((l: any) => l.tag_id);
-    let tags: any[] = [];
+    const updatedTagIds = (updatedLinks || []).map((l: { tag_id: string }) => l.tag_id);
+    let tags: TagRow[] = [];
     if (updatedTagIds.length > 0) {
       const { data: tagData, error: tagErr } = await supabaseAdmin
         .from('customer_tags')
@@ -137,7 +129,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         .eq('company_id', companyId)
         .in('id', updatedTagIds);
       if (tagErr) throw tagErr;
-      tags = tagData || [];
+      tags = (tagData || []) as TagRow[];
     }
     return NextResponse.json({ tags });
   } catch (error) {
@@ -165,7 +157,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     if (!platform || !['line', 'facebook', 'shopee', 'lazada', 'tiktok'].includes(platform)) {
       return NextResponse.json({ error: 'Invalid platform' }, { status: 400 });
     }
-    if (!(await contactInCompany(contactId, platform, companyId))) {
+    if (!(await contactBelongsToCompany(contactId, platform, companyId))) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
 
@@ -212,15 +204,15 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       .eq('contact_id', contactId)
       .eq('platform', platform);
 
-    const updatedTagIds = (updatedLinks || []).map((l: any) => l.tag_id);
-    let tags: any[] = [];
+    const updatedTagIds = (updatedLinks || []).map((l: { tag_id: string }) => l.tag_id);
+    let tags: TagRow[] = [];
     if (updatedTagIds.length > 0) {
       const { data: tagData } = await supabaseAdmin
         .from('customer_tags')
         .select('id, name, color')
         .eq('company_id', companyId)
         .in('id', updatedTagIds);
-      tags = tagData || [];
+      tags = (tagData || []) as TagRow[];
     }
     return NextResponse.json({ tags });
   } catch (error) {
