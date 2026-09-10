@@ -12,6 +12,16 @@ export async function GET(request: NextRequest) {
     }
 
     const params = request.nextUrl.searchParams;
+    // ระบบมี integration มากกว่า shopee มานานแล้ว (Beam · Meta · web push ฯลฯ) แต่หน้านี้
+    // ล็อกไว้ที่ shopee ⇒ log ของสายอื่นไม่มีทางเปิดดูได้เลย · whitelist ไว้กัน SQL injection
+    // ทางค่าที่ผู้ใช้ส่งมา (ค่านี้ไปเป็นเงื่อนไข .eq ตรง ๆ)
+    const ALLOWED_INTEGRATIONS = new Set([
+      'shopee', 'lazada', 'tiktok', 'line', 'facebook', 'beam', 'meta_capi', 'meta_ads', 'webpush',
+    ]);
+    const integration = params.get('integration') || 'shopee';
+    if (!ALLOWED_INTEGRATIONS.has(integration)) {
+      return NextResponse.json({ error: `ไม่รู้จัก integration "${integration}"` }, { status: 400 });
+    }
     const page = parseInt(params.get('page') || '1', 10);
     const limit = parseInt(params.get('limit') || '50', 10);
     const offset = (page - 1) * limit;
@@ -25,7 +35,7 @@ export async function GET(request: NextRequest) {
     let query = supabaseAdmin
       .from('integration_logs')
       .select('*', { count: 'exact' })
-      .eq('integration', 'shopee')
+      .eq('integration', integration)
       .order('created_at', { ascending: false });
 
     if (statusFilter && statusFilter !== 'all') {
@@ -62,7 +72,7 @@ export async function GET(request: NextRequest) {
       let q = supabaseAdmin
         .from('integration_logs')
         .select('*', { count: 'exact', head: true })
-        .eq('integration', 'shopee');
+        .eq('integration', integration);
       if (status) q = q.eq('status', status);
       if (dateFrom) q = q.gte('created_at', `${dateFrom}T00:00:00`);
       if (dateTo) q = q.lte('created_at', `${dateTo}T23:59:59`);

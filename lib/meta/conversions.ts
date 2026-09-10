@@ -15,8 +15,16 @@
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { logIntegrationNow } from '@/lib/integration-logger';
 import { fetchAllRows } from '@/lib/supabase-paging';
+import { GRAPH_BASE } from './graph';
+import {
+  buildCapiEvent,
+  buildCapiRequest,
+  MAX_EVENT_AGE_SEC,
+  MAX_EVENT_FUTURE_SEC,
+} from './capi';
+import { recordPageDatasetMirror } from '@/lib/ads/ledger';
+import { resolvePaidAt } from '@/lib/ads/subject';
 
-const GRAPH_BASE = 'https://graph.facebook.com/v21.0';
 const INTEGRATION = 'meta_capi';
 const ACTION = 'purchase_event';
 
@@ -36,6 +44,9 @@ interface OrderRow {
   total_amount: number | string | null;
   payment_status: string | null;
   meta_purchase_sent_at: string | null;
+  /** ห้องแชทที่บิลใบนี้ถูกเปิดจากมันจริง ๆ (บิลที่เปิดจากหน้าแชท) */
+  chat_platform: string | null;
+  chat_contact_id: string | null;
 }
 
 /** เนื้อ body ที่ยิงเข้า /{dataset}/events — แยกออกมาเพื่อทดสอบรูปร่างได้โดยไม่ต้องยิงจริง */
@@ -55,27 +66,24 @@ export interface PurchaseEventInput {
  * (แยกเป็น pure function เพื่อ unit test — ห้ามใส่ side effect)
  */
 export function buildPurchaseEventBody(input: PurchaseEventInput): Record<string, unknown> {
-  return {
-    data: [
-      {
-        event_name: 'Purchase',
-        event_time: input.eventTime ?? Math.floor(Date.now() / 1000),
-        event_id: input.eventId,
-        action_source: 'business_messaging',
-        messaging_channel: 'messenger',
-        user_data: {
-          page_id: input.pageId,
-          page_scoped_user_id: input.psid,
-        },
-        custom_data: {
-          currency: 'THB',
-          value: input.value,
-          order_id: input.orderNumber ?? input.eventId,
-        },
+  return buildCapiRequest([
+    buildCapiEvent({
+      eventName: 'Purchase',
+      eventId: input.eventId,
+      eventTime: input.eventTime ?? Math.floor(Date.now() / 1000),
+      actionSource: 'business_messaging',
+      messagingChannel: 'messenger',
+      userData: {
+        page_id: input.pageId,
+        page_scoped_user_id: input.psid,
       },
-    ],
-    partner_agent: 'aoocommerce',
-  };
+      customData: {
+        currency: 'THB',
+        value: input.value,
+        order_id: input.orderNumber ?? input.eventId,
+      },
+    }),
+  ]) as unknown as Record<string, unknown>;
 }
 
 function credString(creds: Record<string, unknown>, key: string): string | null {
@@ -351,56 +359,82 @@ async function releaseOrder(orderId: string): Promise<void> {
  */
 export type PurchaseSendResult = 'sent' | 'skipped' | 'failed';
 
-/**
- * Meta รับ `event_time` ย้อนหลังได้ 7 วัน — เกินนี้ **ทั้ง request** ถูกปฏิเสธ
- * (เผื่อ 1 ชม.กันชนเส้นตายระหว่างที่รอบกวาดกำลังทำงาน)
- */
-const MAX_EVENT_AGE_SEC = 7 * 86400 - 3600;
-/** ล้ำหน้าเกินนี้ = นาฬิกาเพี้ยน ไม่ใช่เวลาจริงของการจ่ายเงิน */
-const MAX_EVENT_FUTURE_SEC = 300;
+interface FbContactRow {
+  id: string;
+  fb_psid: string | null;
+  fb_page_id: string | null;
+  chat_account_id: string | null;
+}
+
+/** เพจของผู้ติดต่อรายนี้ที่ยังเปิดใช้อยู่ และ page_id ตรงกับที่คุยกันจริง */
+async function usablePageAccount(
+  companyId: string,
+  chatAccountId: string,
+  contactPageId: string | null,
+): Promise<PageAccount | null> {
+  const { data: acc } = await supabaseAdmin
+    .from('chat_accounts')
+    .select('id, company_id, account_name, credentials')
+    .eq('id', chatAccountId)
+    .eq('company_id', companyId)
+    .eq('platform', 'facebook')
+    .eq('is_active', true)
+    .maybeSingle<PageAccount>();
+  if (!acc) return null;
+
+  const pageId = credString((acc.credentials || {}) as Record<string, unknown>, 'page_id');
+  // ไม่มี page_id = ยิงไม่ได้อยู่ดี (user_data ของ business_messaging บังคับใช้)
+  if (!pageId) return null;
+  if (contactPageId && String(contactPageId) !== pageId) return null;
+  return acc;
+}
 
 /**
- * หาห้อง Messenger ที่ผูกกับลูกค้าของออเดอร์ + เพจที่ยังเปิดใช้อยู่
+ * หาห้อง Messenger ของออเดอร์ + เพจที่ยังเปิดใช้อยู่
  *
  * แยกออกมาเพราะทั้งสายยิงทันทีและสายกวาดย้อนหลังต้องใช้ตรรกะเดียวกันเป๊ะ
  * — เขียนสองที่เมื่อไหร่ ตัวกวาดจะเลือกเพจคนละใบกับตอนยิงจริงโดยไม่มีใครรู้
  */
 async function resolveMessengerTarget(
-  order: Pick<OrderRow, 'company_id' | 'customer_id'>,
-): Promise<{ account: PageAccount; psid: string } | null> {
+  order: Pick<OrderRow, 'company_id' | 'customer_id' | 'chat_platform' | 'chat_contact_id'>,
+): Promise<{ account: PageAccount; psid: string; contactId: string | null } | null> {
+  // 1) ห้องที่บิลใบนี้ถูกเปิดจากมันจริง ๆ — แม่นกว่าการเดาจากลูกค้าเสมอ
+  //    (ลูกค้าคนเดียวทักมาหลายเพจได้ · ลูกค้าที่ยังไม่ผูก customer_id ก็ยังยิงได้)
+  if (order.chat_platform === 'facebook' && order.chat_contact_id) {
+    const { data: pinned } = await supabaseAdmin
+      .from('fb_contacts')
+      .select('id, fb_psid, fb_page_id, chat_account_id')
+      .eq('id', order.chat_contact_id)
+      .eq('company_id', order.company_id)
+      .eq('source', 'facebook')
+      .maybeSingle<FbContactRow>();
+
+    if (pinned?.fb_psid && pinned.chat_account_id) {
+      const acc = await usablePageAccount(order.company_id, pinned.chat_account_id, pinned.fb_page_id);
+      if (acc) return { account: acc, psid: String(pinned.fb_psid), contactId: pinned.id };
+    }
+  }
+
   if (!order.customer_id) return null;
 
-  // ลูกค้าคนนี้ผูกกับห้องแชท Messenger ไหน — เอาห้องที่คุยล่าสุด (IG ยังไม่รองรับ)
+  // 2) ทางถอย: ลูกค้าคนนี้ผูกกับห้องแชท Messenger ไหน — เอาห้องที่คุยล่าสุด (IG ยังไม่รองรับ)
   const { data: contacts } = await supabaseAdmin
     .from('fb_contacts')
-    .select('fb_psid, fb_page_id, chat_account_id, last_message_at')
+    .select('id, fb_psid, fb_page_id, chat_account_id, last_message_at')
     .eq('customer_id', order.customer_id)
     .eq('company_id', order.company_id)
     .eq('source', 'facebook')
     .order('last_message_at', { ascending: false, nullsFirst: false })
     .limit(5);
 
-  const candidates = (contacts || []).filter((c) => c.fb_psid && c.chat_account_id);
+  const candidates = ((contacts || []) as FbContactRow[]).filter((c) => c.fb_psid && c.chat_account_id);
   if (candidates.length === 0) return null;
 
   // หาเพจที่ยังเปิดใช้อยู่ + page_id ตรงกับที่ผู้ติดต่อคุยด้วย
   for (const contact of candidates) {
-    const { data: acc } = await supabaseAdmin
-      .from('chat_accounts')
-      .select('id, company_id, account_name, credentials')
-      .eq('id', contact.chat_account_id)
-      .eq('company_id', order.company_id)
-      .eq('platform', 'facebook')
-      .eq('is_active', true)
-      .single<PageAccount>();
+    const acc = await usablePageAccount(order.company_id, contact.chat_account_id as string, contact.fb_page_id);
     if (!acc) continue;
-
-    const pageId = credString((acc.credentials || {}) as Record<string, unknown>, 'page_id');
-    // ผู้ติดต่อบางแถวไม่มี fb_page_id — ถือว่าใช้เพจของ chat_account นั้นได้
-    if (!pageId) continue;
-    if (contact.fb_page_id && String(contact.fb_page_id) !== pageId) continue;
-
-    return { account: acc, psid: String(contact.fb_psid) };
+    return { account: acc, psid: String(contact.fb_psid), contactId: contact.id };
   }
 
   return null;
@@ -432,18 +466,19 @@ export async function sendPurchaseEventForOrder(
 
     const { data: order } = await supabaseAdmin
       .from('orders')
-      .select('id, company_id, order_number, customer_id, total_amount, payment_status, meta_purchase_sent_at')
+      .select('id, company_id, order_number, customer_id, total_amount, payment_status, meta_purchase_sent_at, chat_platform, chat_contact_id')
       .eq('id', orderId)
       .single<OrderRow>();
 
     if (!order) return 'skipped';
     if (order.payment_status !== 'paid') return 'skipped';
     if (order.meta_purchase_sent_at) return 'skipped';
-    if (!order.customer_id) return 'skipped';
+    // ไม่มีทั้งลูกค้าและห้องแชทที่ผูกไว้ = ไม่มีทางหาเพจ/PSID ได้ ไม่ต้องเสียเวลา query
+    if (!order.customer_id && !order.chat_contact_id) return 'skipped';
 
     const target = await resolveMessengerTarget(order);
     if (!target) return 'skipped';
-    const { account, psid } = target;
+    const { account, psid, contactId } = target;
 
     const creds = (account.credentials || {}) as Record<string, unknown>;
 
@@ -475,6 +510,30 @@ export async function sendPurchaseEventForOrder(
     const apiPath = `/${datasetId}/events`;
     const startedAt = Date.now();
 
+    // จดลงสมุดกลาง (`ad_events`) ด้วย — หน้าจอจะได้เห็นสองปลายทาง (dataset เพจ / dataset บัญชีโฆษณา)
+    // ในเล่มเดียวกัน · **ไม่ใช่การจองสิทธิ์** สายนี้จองด้วย orders.meta_purchase_sent_at ไปแล้ว
+    const eventTimeIso = new Date((opts.eventTime ?? Math.floor(Date.now() / 1000)) * 1000).toISOString();
+    const mirror = (
+      status: 'sent' | 'failed',
+      extra: { http_status?: number | null; error?: string | null; response?: unknown } = {},
+    ) =>
+      recordPageDatasetMirror({
+        company_id: order.company_id,
+        platform: 'meta',
+        destination: 'page_dataset',
+        destination_id: datasetId,
+        event_name: 'Purchase',
+        event_id: order.id,
+        order_id: order.id,
+        customer_id: order.customer_id,
+        contact_platform: 'facebook',
+        contact_id: contactId,
+        action_source: 'business_messaging',
+        event_time: eventTimeIso,
+        status,
+        ...extra,
+      });
+
     let httpStatus = 0;
     let responseBody: unknown = null;
     try {
@@ -495,6 +554,7 @@ export async function sendPurchaseEventForOrder(
           : `ส่ง Purchase event ไม่สำเร็จ (HTTP ${res.status})`;
         // สิทธิ์ไม่ถึง = เรื่องของ token ไม่ใช่ของออเดอร์ใบนี้ → ขึ้นป้ายบนการ์ดเพจให้เจ้าของเห็น
         if (permissionDenied) await markCapiError(account.id, why);
+        await mirror('failed', { http_status: httpStatus, error: why, response: responseBody });
         await logError(account, order.company_id, why, {
           api_path: apiPath,
           http_status: httpStatus,
@@ -507,6 +567,7 @@ export async function sendPurchaseEventForOrder(
       }
     } catch (err) {
       await releaseOrder(order.id);
+      await mirror('failed', { error: `ยิง Purchase event ไม่ถึง Meta: ${errText(err)}` });
       await logError(account, order.company_id, `ยิง Purchase event ไม่ถึง Meta: ${errText(err)}`, {
         api_path: apiPath,
         request_body: body,
@@ -518,6 +579,7 @@ export async function sendPurchaseEventForOrder(
 
     // ยิงผ่านจริง = ป้ายบนการ์ดต้องเขียว (ล้างเหตุผลเก่าที่แก้ไปแล้วทิ้ง)
     await markCapiOk(account.id);
+    await mirror('sent', { http_status: httpStatus, response: responseBody });
 
     await logIntegrationNow({
       company_id: order.company_id,
@@ -674,32 +736,9 @@ export async function sweepUnsentPurchaseEvents(
 
     // 4) เวลาที่เงินเข้าจริง — `orders` ไม่มีคอลัมน์นี้ ต้องอ่านจาก payment_records
     //    (ยิงด้วยเวลา "ตอนนี้" ของออเดอร์เมื่อ 5 วันก่อน = สถิติของ Meta เพี้ยนทั้งแคมเปญ)
-    const paidAtByOrder = new Map<string, number>();
+    //    สูตรเดียวกับที่ตัวกวาดของบัญชีโฆษณาใช้ → [lib/ads/subject.ts](../ads/subject.ts)
     const candidateIds = candidates.map((o) => o.id);
-    const { rows: paymentRows } = await fetchAllRows<{
-      order_id: string | null;
-      payment_date: string | null;
-      status: string | null;
-    }>(
-      (from, to) =>
-        supabaseAdmin
-          .from('payment_records')
-          .select('order_id, payment_date, status', { count: 'exact' })
-          .in('order_id', candidateIds)
-          .range(from, to),
-    );
-
-    // กรองสถานะฝั่งเราเอง ไม่ใช่ `.not(...in...)` — แถวที่ status เป็น NULL จะหลุดตะแกรงของ SQL
-    // (NOT IN กับ NULL ได้ NULL = ไม่ผ่าน) ทั้งที่มันคือใบที่ควรนับ
-    const DEAD_STATUSES = new Set(['cancelled', 'rejected', 'failed']);
-    for (const row of paymentRows) {
-      if (!row.order_id || !row.payment_date) continue;
-      if (row.status && DEAD_STATUSES.has(row.status)) continue;
-      const ts = Date.parse(row.payment_date);
-      if (!Number.isFinite(ts)) continue;
-      const prev = paidAtByOrder.get(row.order_id);
-      if (prev == null || ts > prev) paidAtByOrder.set(row.order_id, ts);
-    }
+    const paidAtByOrder = await resolvePaidAt(candidateIds);
 
     // 5) ยิงทีละใบ — หมดงบเวลาก็หยุด ที่เหลือรออีก 15 นาที (ยังอยู่ในกรอบ 7 วัน)
     for (const order of candidates) {

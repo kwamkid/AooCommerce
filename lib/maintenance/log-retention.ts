@@ -24,6 +24,9 @@ const RETENTION: { table: string; days: number }[] = [
   { table: 'integration_logs', days: 60 },
   { table: 'marketplace_sync_log', days: 30 },
   { table: 'marketplace_webhook_log', days: 30 },
+  // ad_events 90 วัน: ตัวกวาดมองย้อนแค่ 7 วัน (เพดานของ Meta) ที่เหลือเก็บไว้ตอบคำถามว่า
+  // "ออเดอร์ใบนี้ถูกส่งเข้า Meta หรือยัง" ย้อนได้ประมาณหนึ่งไตรมาส
+  { table: 'ad_events', days: 90 },
 ];
 
 export interface LogRetentionResult {

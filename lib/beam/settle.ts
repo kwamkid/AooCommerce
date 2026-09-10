@@ -64,8 +64,8 @@ export async function settleGatewayPayment(opts: {
     // เพิ่งเปลี่ยนเป็นชำระแล้วรอบนี้ → บอก Meta ว่าบทสนทนา Messenger จบด้วยการซื้อ
     // (order_already_paid = สายอื่นทำให้ paid ไปแล้วและยิงของมันเอง · settled_partial = ยังไม่ถือว่าชำระ)
     // ตัวมันเองไม่ throw และกันยิงซ้ำที่ orders.meta_purchase_sent_at — เรียก await ได้ทั้งจาก webhook และ cron
-    const { sendPurchaseEventForOrder } = await import('@/lib/meta/conversions');
-    await sendPurchaseEventForOrder(opts.record.order_id).catch(() => null);
+    const { dispatchConversion } = await import('@/lib/ads/dispatch');
+    await dispatchConversion({ event: 'Purchase', orderId: opts.record.order_id }).catch(() => null);
   }
   return result;
 }

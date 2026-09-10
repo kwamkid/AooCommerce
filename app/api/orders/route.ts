@@ -9,6 +9,7 @@ import { getPromotionComponents } from '@/lib/promotion-service';
 import { fetchCostMap } from '@/lib/cost-utils';
 import { resolveDeliverySnapshot } from '@/lib/delivery-server';
 import { computeOrderTotals, splitVatInclusive } from '@/lib/order-totals';
+import { contactBelongsToCompany } from '@/lib/chat/contact-tables';
 
 import { normalizePhone } from '@/lib/numeric-input';
 // Type definitions
@@ -79,6 +80,10 @@ interface OrderData {
   source?: string;
   source_name?: string;
   sales_channel_id?: string | null;
+  /** ห้องแชทที่บิลใบนี้ถูกเปิดจากมัน (เปิดบิลจากหน้าแชท) — ใช้เลือกเพจ/PSID ตอนบอก Meta ว่าปิดการขายได้ */
+  chat_platform?: string | null;
+  chat_contact_id?: string | null;
+  chat_account_id?: string | null;
   expires_at?: string | null;
   items: OrderItemInput[];
   exchange?: {
@@ -88,6 +93,40 @@ interface OrderData {
   };
 }
 
+
+/** แพลตฟอร์มแชทที่คอลัมน์ orders.chat_platform รับได้ (ตรงกับ CHECK ของตาราง) */
+const CHAT_CONTEXT_PLATFORMS = new Set(['line', 'facebook', 'instagram', 'shopee', 'lazada', 'tiktok']);
+
+/**
+ * ที่มาของบิล: เปิดจากห้องแชทไหน — **ไม่เชื่อค่าจาก client**
+ *
+ * ผู้ติดต่อต้องเป็นของบริษัทนี้จริง (supabaseAdmin ข้าม RLS ⇒ route ต้องเช็คเอง)
+ * ไม่ผ่าน = **ทิ้งทั้งสามช่องแล้วบันทึกบิลต่อ** ไม่ใช่ปฏิเสธทั้งใบ — บิลถูกต้องทุกอย่าง
+ * เสียแค่ "ที่มา" ซึ่งเป็นข้อมูลประกอบ ปฏิเสธไปแล้วพนักงานเสียงานที่พิมพ์มาทั้งบิล
+ */
+async function resolveChatContext(
+  companyId: string,
+  src: { chat_platform?: string | null; chat_contact_id?: string | null; chat_account_id?: string | null },
+): Promise<{ chat_platform: string; chat_contact_id: string; chat_account_id: string | null } | Record<string, never>> {
+  const contactId = (src.chat_contact_id || '').trim();
+  // ไม่มีห้อง = ไม่ต้องจำอะไร (chat_account_id เดี่ยว ๆ บอกไม่ได้ว่าคุยกับใคร)
+  if (!contactId) return {};
+
+  const platform = (src.chat_platform || '').trim().toLowerCase();
+  if (!CHAT_CONTEXT_PLATFORMS.has(platform)) {
+    console.warn('[orders] chat_contact_id มาโดยไม่มี chat_platform ที่รู้จัก — ทิ้งที่มาของบิล');
+    return {};
+  }
+  if (!(await contactBelongsToCompany(contactId, platform, companyId))) {
+    console.warn('[orders] chat_contact_id ไม่ใช่ของบริษัทนี้ — ทิ้งที่มาของบิล');
+    return {};
+  }
+  return {
+    chat_platform: platform,
+    chat_contact_id: contactId,
+    chat_account_id: (src.chat_account_id || '').trim() || null,
+  };
+}
 
 /**
  * เอกสารส่งทางไปรษณีย์ — whitelist ทีละ field แบบ "ส่งมาเมื่อไหร่ค่อยเขียน"
@@ -435,6 +474,9 @@ export async function POST(request: NextRequest) {
       auth.companyId, orderData.delivery_zone_id, orderData.delivery_slot_id
     );
 
+    // บิลที่เปิดจากห้องแชท — จำห้องไว้บนออเดอร์ (ตรวจว่าเป็นผู้ติดต่อของบริษัทนี้จริงก่อน)
+    const chatContext = await resolveChatContext(auth.companyId, orderData);
+
     // Create order
     const { data: order, error: orderError } = await supabaseAdmin
       .from('orders')
@@ -480,6 +522,7 @@ export async function POST(request: NextRequest) {
         source: orderData.source || 'manual',
         source_name: orderData.source_name || null,
         sales_channel_id: orderData.sales_channel_id || null,
+        ...chatContext,
         flow_type: flowType,
         expires_at: expiresAt,
         created_by: auth.userId,
@@ -910,9 +953,9 @@ export async function POST(request: NextRequest) {
               .update(updateFields)
               .eq('id', order.id);
 
-            // เครดิตเปลี่ยนสินค้าคลุมทั้งบิล → ออเดอร์เป็น paid ตั้งแต่ตอนสร้าง ต้องยิง Meta ด้วย
+            // เครดิตเปลี่ยนสินค้าคลุมทั้งบิล → ออเดอร์เป็น paid ตั้งแต่ตอนสร้าง ต้องบอก Meta ด้วย
             if (updateFields.payment_status === 'paid') {
-              after(() => import('@/lib/meta/conversions').then(m => m.sendPurchaseEventForOrder(order.id)).catch(() => null));
+              after(() => import('@/lib/ads/dispatch').then(m => m.dispatchConversion({ event: 'Purchase', orderId: order.id })).catch(() => null));
             }
           }
         }
@@ -1500,9 +1543,9 @@ export async function PUT(request: NextRequest) {
           if (error) errors.push(error.message);
           else updatedCount += (updated || []).length;
 
-          // สลิปผ่าน = ออเดอร์ชำระแล้ว → ยิง Purchase ให้ Meta ทีละใบ (ใบที่ไม่มีห้องแชทผูกอยู่จะเงียบไปเอง)
+          // สลิปผ่าน = ออเดอร์ชำระแล้ว → บอก Meta ทีละใบ (ทั้ง dataset ของเพจและของบัญชีโฆษณา)
           for (const row of updated || []) {
-            after(() => import('@/lib/meta/conversions').then(m => m.sendPurchaseEventForOrder(row.id)).catch(() => null));
+            after(() => import('@/lib/ads/dispatch').then(m => m.dispatchConversion({ event: 'Purchase', orderId: row.id })).catch(() => null));
           }
 
           // Also mark payment records as verified
@@ -2543,10 +2586,11 @@ export async function PUT(request: NextRequest) {
         after(() => import('@/lib/beam/settle').then(m => m.closeBeamLinksForOrder(id, reason)).catch(() => null));
       }
 
-      // ชำระแล้ว → บอก Meta ว่าบทสนทนา Messenger นี้จบด้วยการซื้อ (โฆษณา Click-to-Messenger จะได้ optimize ถูก)
-      // ยิงครั้งเดียวต่อออเดอร์ (กันซ้ำที่ orders.meta_purchase_sent_at) และล้มเงียบเสมอ
+      // ชำระแล้ว → บอก Meta ว่าบิลใบนี้ปิดการขายได้ (โฆษณาจะได้ optimize ถูก)
+      // ไปสองปลายทาง: dataset ของเพจ (บิลที่มาจากห้อง Messenger) + dataset ของบัญชีโฆษณา
+      // (จับคู่ด้วยเบอร์/อีเมล ⇒ บิล POS/หน้าร้าน/LINE ก็นับ) · กันยิงซ้ำและล้มเงียบเสมอ
       if (body.payment_status === 'paid') {
-        after(() => import('@/lib/meta/conversions').then(m => m.sendPurchaseEventForOrder(id)).catch(() => null));
+        after(() => import('@/lib/ads/dispatch').then(m => m.dispatchConversion({ event: 'Purchase', orderId: id })).catch(() => null));
       }
 
       // Auto-sync delivery info to shipping_addresses if customer exists

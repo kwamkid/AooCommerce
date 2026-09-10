@@ -15,6 +15,7 @@ import { MARKETPLACE_PLATFORMS, type QuotaPlatform } from '@/lib/marketplace/pla
 import { BEAM_RECONCILE_NOTE } from '@/lib/beam/settle';
 // ตรวจสุขภาพช่องทางแชทแบบถามแพลตฟอร์มจริง — แทนการเดาจาก "ความเงียบ" ที่เตือนผิดตลอด
 import { runChatChannelHealthChecks, chatHealthFix } from '@/lib/chat/channel-health';
+import { AD_ACCOUNT_FIX } from '@/lib/ads/accounts';
 
 export type WatchdogSeverity = 'critical' | 'warning';
 
@@ -52,6 +53,10 @@ const RENOTIFY_HOURS = 6;
 const COMPANY_QUIET_DAYS = 30;
 /** ตั้งเวลาส่งไว้แล้วเลยมาเกินเท่านี้ = cron ที่หยิบใบไปส่งไม่ทำงาน (cron ทุก 5 นาที — เผื่อพลาดได้หลายรอบ) */
 const BROADCAST_OVERDUE_MINUTES = 20;
+/** cron ของสายโฆษณาเงียบเกินเท่านี้ = ตาย (ตั้งไว้ทุก 15 นาที — เผื่อพลาดได้ 3 รอบก่อนกวน) */
+const ADS_JOBS_STALE_MINUTES = 60;
+
+const ADS_JOBS_HEARTBEAT_KEY = 'ads_jobs_last_run';
 
 const WATCHDOG_STATE_KEY = 'watchdog_state';
 const WATCHDOG_HEARTBEAT_KEY = 'watchdog_last_run';
@@ -288,6 +293,102 @@ export async function collectWatchdogIssues(
       actionLabel: 'ไปตรวจช่องทางแชท',
       url: chatSettingsUrl(platform),
     });
+  }
+
+  // ── บัญชีโฆษณา Meta: token ตาย/ใกล้ตาย หรือตรวจแล้วไม่ผ่าน ──
+  //
+  // token ของบัญชีโฆษณามาจาก Login Facebook (อายุ ~60 วัน) — **หมดอายุแล้วเงียบสนิท**
+  // ไม่มีอาการอะไรให้เห็นเลย นอกจาก "ยอดขายที่รายงานให้ Meta หายไปเฉย ๆ" แล้วโฆษณา
+  // ก็ค่อย ๆ optimize ผิดทางโดยที่เจ้าของร้านนึกว่าโฆษณาเริ่มไม่เวิร์ก
+  // (ตัวตรวจจริงอยู่ใน cron /api/ads/run-jobs — ที่นี่อ่านผลที่มันจดไว้บน ad_accounts)
+  try {
+    let adQuery = supabaseAdmin
+      .from('ad_accounts')
+      .select('id, company_id, name, external_id, status, last_error, token_expires_at')
+      .eq('is_active', true);
+    if (opts.companyId) adQuery = adQuery.eq('company_id', opts.companyId);
+    const { data: adAccounts, error: adErr } = await adQuery;
+    if (adErr) throw adErr;
+
+    for (const acc of adAccounts || []) {
+      const shopName = (acc.name as string | null) || `บัญชีโฆษณา ${acc.external_id}`;
+      const base = {
+        companyId: acc.company_id as string,
+        companyName: companyName.get(acc.company_id) || null,
+        channel: { platform: 'facebook', picture_url: null, shopName },
+        scope: 'company' as const,
+        actionLabel: 'ไปเชื่อมต่อใหม่',
+        url: '/settings/ad-accounts',
+      };
+      const leftH = acc.token_expires_at
+        ? (new Date(acc.token_expires_at as string).getTime() - now) / 3_600_000
+        : null;
+
+      if (acc.status === 'token_expired' || (leftH !== null && leftH <= 0)) {
+        issues.push({
+          ...base,
+          code: `ad_token_expired:${acc.id}`,
+          groupKey: 'ad_token_expired',
+          severity: 'critical',
+          title: `บัญชีโฆษณา "${shopName}" หมดอายุการเชื่อมต่อ`,
+          detail: `ยอดขายจะไม่ถูกส่งเข้า Meta อีก — โฆษณาจะหาลูกค้าที่ซื้อจริงไม่เจอ (${acc.last_error || 'token ใช้ไม่ได้แล้ว'})`,
+          fix: AD_ACCOUNT_FIX.token_expired,
+        });
+      } else if (leftH !== null && leftH < TOKEN_EXPIRY_WARN_DAYS * 24) {
+        issues.push({
+          ...base,
+          code: `ad_token_expiring:${acc.id}`,
+          groupKey: 'ad_token_expiring',
+          severity: 'warning',
+          title: `บัญชีโฆษณา "${shopName}" ใกล้หมดอายุ`,
+          detail: `เหลืออีก ${roundHours(leftH)} ก่อนหยุดส่งยอดขายเข้า Meta`,
+          fix: AD_ACCOUNT_FIX.token_expired,
+          actionLabel: 'ไปต่ออายุการเชื่อมต่อ',
+        });
+      } else if (acc.status === 'error') {
+        issues.push({
+          ...base,
+          code: `ad_account_error:${acc.id}`,
+          groupKey: 'ad_account_error',
+          severity: 'warning',
+          title: `บัญชีโฆษณา "${shopName}" ตรวจแล้วไม่ผ่าน`,
+          detail: (acc.last_error as string | null) || 'ตรวจการเชื่อมต่อไม่ผ่าน',
+          // last_error เก็บวิธีแก้ที่ตรงอาการไว้แล้ว (ตัวตรวจเขียนจากผลจริง) — ไม่มีค่อยตกมาที่ตัวกลาง
+          fix: (acc.last_error as string | null) || AD_ACCOUNT_FIX.dataset,
+          actionLabel: 'ไปตรวจบัญชีโฆษณา',
+        });
+      }
+    }
+
+    // cron ของสายโฆษณาตาย — **เตือนเฉพาะเมื่อมีบัญชีให้ทำงานด้วยจริง**
+    // (ไม่มีบัญชีสักใบ = ไม่ต้องตั้ง cron แล้วมาเตือนก็กวนเปล่า)
+    if (!scoped && (adAccounts || []).length > 0) {
+      const { data: flag } = await supabaseAdmin
+        .from('app_flags').select('value').eq('key', ADS_JOBS_HEARTBEAT_KEY).maybeSingle();
+      const at = (flag?.value as { at?: string } | null)?.at;
+      const quietMin = at ? (now - new Date(at).getTime()) / 60_000 : null;
+      if (quietMin === null || quietMin > ADS_JOBS_STALE_MINUTES) {
+        issues.push({
+          code: 'ad_jobs_stale',
+          groupKey: 'ad_jobs_stale',
+          scope: 'system',
+          companyId: null,
+          companyName: null,
+          channel: null,
+          severity: 'warning',
+          title: 'งานเบื้องหลังของสายโฆษณาไม่ทำงาน',
+          detail: at
+            ? `ทำงานรอบล่าสุดเมื่อ ${roundHours(quietMin! / 60)}ที่แล้ว (ปกติทุก 15 นาที) — ออเดอร์ที่ยิงพลาดจะไม่มีใครกวาดตาม และ Meta รับย้อนหลังได้แค่ 7 วัน`
+            : 'ยังไม่เคยทำงานเลย — ออเดอร์ที่ยิงพลาดจะไม่มีใครกวาดตาม และ Meta รับย้อนหลังได้แค่ 7 วัน',
+          fix: 'ตั้ง cron-job.org ยิง GET /api/ads/run-jobs ทุก 15 นาที (header x-cron-secret) และเปิด Notify on failure',
+          actionLabel: 'เปิด API Monitor',
+          url: '/superadmin/api-monitor',
+        });
+      }
+    }
+  } catch (err) {
+    // เรื่องนี้ล้มต้องไม่ทำให้ check อื่นทั้งหมดหายไป
+    console.error('[watchdog] ad accounts check failed:', err instanceof Error ? err.message : err);
   }
 
   // เรื่องระดับระบบที่ไม่ผูกบริษัท — หน้า dashboard ของร้านไม่ต้องเห็น
