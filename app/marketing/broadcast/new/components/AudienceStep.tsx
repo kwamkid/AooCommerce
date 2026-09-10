@@ -264,12 +264,15 @@ export default function AudienceStep({
                     </p>
                   </div>
 
+                  {/* สองเกณฑ์นี้เลือกจากชิปอย่างเดียว ไม่มี "ระบุเอง" · ค่า 0 เรียกว่า "ตลอด"
+                      (เจ้าของกำหนด 11 ก.ย. 2026) — ใช้ร่วมทั้งหน้าบรอดแคสต์และกลุ่มเป้าหมาย */}
                   <RefineRow
-                    label="ลูกค้าพิมพ์หาเรามาแล้วอย่างน้อย"
+                    label="ลูกค้าพิมพ์ข้อความหาเรา"
                     unit="ข้อความ"
                     presets={MIN_MESSAGE_PRESETS}
-                    presetLabel={n => (n === 0 ? 'ไม่กรอง' : `≥${n}`)}
+                    presetLabel={n => (n === 0 ? 'ตลอด' : `≥${n}`)}
                     max={999}
+                    allowCustom={false}
                     value={minMessages}
                     onChange={onMinMessagesChange}
                     disabled={disabled}
@@ -278,8 +281,9 @@ export default function AudienceStep({
                     label="ลูกค้าพิมพ์หาเราล่าสุดภายใน"
                     unit="วัน"
                     presets={LAST_CHAT_PRESETS}
-                    presetLabel={n => (n === 0 ? 'ไม่กรอง' : `${n} วัน`)}
+                    presetLabel={n => (n === 0 ? 'ตลอด' : `${n} วัน`)}
                     max={3650}
+                    allowCustom={false}
                     value={lastChatDays}
                     onChange={onLastChatDaysChange}
                     disabled={disabled}
@@ -294,9 +298,9 @@ export default function AudienceStep({
   );
 }
 
-/** แถวกรองหนึ่งเกณฑ์ — ชิปค่าที่ใช้บ่อย + "ระบุเอง" ที่กางช่องกรอกตัวเลขออกมา */
+/** แถวกรองหนึ่งเกณฑ์ — ชิปค่าที่ใช้บ่อย + (เมื่อ `allowCustom`) "ระบุเอง" ที่กางช่องกรอกตัวเลขออกมา */
 function RefineRow({
-  label, unit, presets, presetLabel, min = 0, max, value, onChange, disabled,
+  label, unit, presets, presetLabel, min = 0, max, value, onChange, disabled, allowCustom = true,
 }: {
   label: string;
   unit: string;
@@ -308,11 +312,17 @@ function RefineRow({
   value: number;
   onChange: (n: number) => void;
   disabled?: boolean;
+  /** มีชิป "ระบุเอง" ไหม — `false` = เลือกจากชิปอย่างเดียว */
+  allowCustom?: boolean;
 }) {
   // กางช่องกรอกเมื่อผู้ใช้กด "ระบุเอง" (ค้างไว้แม้ค่าจะบังเอิญตรงชิปพอดี) หรือเมื่อค่าที่มา
   // จากภายนอก (คัดลอกใบเก่ามา) ไม่ตรงชิปไหนเลย — ไม่งั้นจะไม่มีที่ให้เห็นว่าตั้งไว้เท่าไหร่
   const [customChosen, setCustomChosen] = useState(false);
-  const custom = customChosen || !presets.includes(value);
+  const inPresets = presets.includes(value);
+  const custom = allowCustom && (customChosen || !inPresets);
+  // ไม่มี "ระบุเอง" แต่ค่าที่ติดมากับใบเก่าไม่ตรงชิปไหน (เช่นเคยตั้ง ≥7 ไว้) — เติมเป็นชิปของมันเอง
+  // ให้เห็นว่าตั้งไว้เท่าไหร่ · **ห้ามปัดไปชิปใกล้สุดเงียบ ๆ** ไม่งั้นได้กลุ่มคนละขนาดโดยไม่รู้ตัว
+  const chipValues = allowCustom || inPresets ? presets : [...presets, value].sort((a, b) => a - b);
 
   return (
     <div>
@@ -327,8 +337,8 @@ function RefineRow({
           }}
           disabled={disabled}
           chips={[
-            ...presets.map(n => ({ id: String(n), label: presetLabel(n), activeClass: FILTER_CHIP_PRIMARY_ACTIVE })),
-            { id: 'custom', label: 'ระบุเอง', activeClass: FILTER_CHIP_PRIMARY_ACTIVE },
+            ...chipValues.map(n => ({ id: String(n), label: presetLabel(n), activeClass: FILTER_CHIP_PRIMARY_ACTIVE })),
+            ...(allowCustom ? [{ id: 'custom', label: 'ระบุเอง', activeClass: FILTER_CHIP_PRIMARY_ACTIVE }] : []),
           ]}
         />
         {custom && (
