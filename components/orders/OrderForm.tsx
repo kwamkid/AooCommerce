@@ -2369,6 +2369,27 @@ export default function OrderForm({
         </div>
       )}
 
+      {/* คำสั่งพิเศษของบิล — ชุดเดียวกับการ์ดแดงในใบจัดของ/ใบคำสั่งซื้อ (lib/pdf-utils.ts)
+          เงื่อนไขต้องตรงกับที่ส่งขึ้น API (doSave) ไม่งั้นพิมพ์ออกมาไม่ตรงกับบิลจริง */}
+      {printMode === 'order' && (() => {
+        const lines: string[] = [];
+        if (shipToOther && giftHidePrice) lines.push('ห้ามแนบใบเสร็จ / ราคา');
+        if (shipToOther && documentByPost) lines.push('ส่งเอกสารทางไปรษณีย์');
+        if (giftCardEnabled && shipToOther && giftCardOn) {
+          const message = giftMessage.trim();
+          const toFrom = [giftTo.trim() ? `ถึง ${giftTo.trim()}` : '', giftFrom.trim() ? `จาก ${giftFrom.trim()}` : '']
+            .filter(Boolean).join('  ');
+          lines.push(`แนบการ์ดอวยพร${message ? ` — "${message}"` : ''}${toFrom ? ` ${toFrom}` : ''}`);
+        }
+        if (taxInvoiceRequested) lines.push('ขอใบกำกับภาษี');
+        if (lines.length === 0) return null;
+        return (
+          <div className="mb-4 text-sm text-red-600 font-medium">
+            {lines.map((line, i) => <div key={i}>{line}</div>)}
+          </div>
+        );
+      })()}
+
       {/* Products per branch */}
       {branchOrders.map((branch, branchIndex) => (
         <div key={branchIndex} className="mb-4">

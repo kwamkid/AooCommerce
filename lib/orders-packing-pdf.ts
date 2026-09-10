@@ -26,6 +26,8 @@ import {
   buildCompanyStack,
   buildProductNameStack,
   preparePdfText,
+  countOrderSpecialFlagLines,
+  buildOrderSpecialFlagsCard,
 } from './pdf-utils';
 import { cleanVariationLabel } from './product-display';
 
@@ -66,6 +68,8 @@ export interface PackingListData {
   gift_to?: string;
   gift_from?: string;
   gift_hide_price?: boolean;
+  /** ส่งเอกสาร (ใบเสร็จ/ใบกำกับ) ทางไปรษณีย์ — งานต่อเนื่องของ gift_hide_price */
+  document_by_post?: boolean;
   customer?: { name?: string; phone?: string } | null;
   delivery_name?: string;
   delivery_phone?: string;
@@ -93,30 +97,6 @@ export interface PackingListData {
 // ─── Theme ───────────────────────────────────────────────
 
 const THEME = { primary: '#6366f1' };
-
-// ─── ไอคอนของการ์ดคำสั่งพิเศษ ─────────────────────────────
-// SVG เท่านั้น — ฟอนต์ IBMPlexSansThai ไม่มี glyph ของ emoji (พิมพ์ออกมาเป็นกล่องเปล่า)
-// สีถูกฝังในตัว path (pdfMake วาด SVG ผ่าน svg-to-pdfkit ไม่รู้จัก currentColor)
-const ALERT = '#dc2626';   // การ์ดคำสั่งพิเศษทั้งใบเป็นสีแดง — เจ้าของขอ "ตัวแดง มีไอคอน ให้สังเกตง่าย"
-
-const svgIcon = (paths: string, color: string) =>
-  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`;
-
-/** ห้าม (lucide: ban) — "ห้ามแนบใบเสร็จ / ราคา" */
-const ICON_NO_RECEIPT = svgIcon('<circle cx="12" cy="12" r="10"/><path d="m4.9 4.9 14.2 14.2"/>', ALERT);
-/** ของขวัญ (lucide: gift) — "พิมพ์การ์ด" */
-const ICON_GIFT = svgIcon(
-  '<rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13"/>'
-  + '<path d="M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7"/>'
-  + '<path d="M7.5 8a2.5 2.5 0 0 1 0-5A4.8 8 0 0 1 12 8a4.8 8 0 0 1 4.5-5 2.5 2.5 0 0 1 0 5"/>',
-  ALERT,
-);
-/** เอกสาร (lucide: file-text) — "ขอใบกำกับภาษี" */
-const ICON_TAX = svgIcon(
-  '<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/>'
-  + '<path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/>',
-  ALERT,
-);
 
 // ─── Helpers ─────────────────────────────────────────────
 
@@ -590,14 +570,8 @@ function compactPackingParts(order: PackingListData, hasLogo: boolean) {
   // ความสูงของบล็อก = คอลัมน์ที่สูงกว่า · ชิป/กล่องการ์ดไม่ใช่บล็อกแยกอีกแล้ว
   const addrLines = deliveryAddress ? Math.max(1, Math.ceil(deliveryAddress.length / 45)) : 0;
   const leftLines = 1 + addrLines;
-  const flagLines = (order.gift_hide_price ? 1 : 0)
-    + (order.tax_invoice_requested ? 1 : 0)
-    + (order.gift_card_requested
-      ? 1
-        + (order.gift_message ? Math.max(1, Math.ceil((order.gift_message.length + 8) / 32)) : 0)
-        + (order.gift_to || order.gift_from ? 1 : 0)
-        + (!order.gift_message && !order.gift_to && !order.gift_from ? 1 : 0)
-      : 0);
+  // ⚠️ สูตรอยู่ที่ `countOrderSpecialFlagLines` ใน pdf-utils — เพิ่มบรรทัดในการ์ดต้องไปบวกที่นั่น
+  const flagLines = countOrderSpecialFlagLines(order);
   const rightLines = (noteText ? Math.max(1, Math.ceil((noteText.length + 9) / 36)) : 0) + flagLines;
   const recipientH = (dense ? 6 : 16)
     + Math.max(leftLines, rightLines) * (dense ? 12.5 : 14)
@@ -769,51 +743,11 @@ function buildCompactPackingContent(
       text: [label('หมายเหตุ  '), { text: noteText, fontSize: BODY, bold: true, color: '#111111' }],
     });
   }
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const flags: { icon: string; label: string; details: any[] }[] = [];
-  if (order.gift_hide_price) flags.push({ icon: ICON_NO_RECEIPT, label: 'ห้ามแนบใบเสร็จ / ราคา', details: [] });
-  if (order.gift_card_requested) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const details: any[] = [];
-    const giftMessage = preparePdfText(order.gift_message);
-    if (giftMessage) {
-      details.push({ text: [label('ข้อความ  '), { text: giftMessage, fontSize: BODY - 0.5, color: '#111111' }], lineHeight: 1.02 });
-    }
-    const toFrom = [
-      order.gift_to ? `ถึง ${preparePdfText(order.gift_to)}` : '',
-      order.gift_from ? `จาก ${preparePdfText(order.gift_from)}` : '',
-    ].filter(Boolean).join('   ');
-    if (toFrom) details.push({ text: toFrom, fontSize: BODY - 0.5, color: '#111111' });
-    // ลูกค้าขอการ์ดแต่ไม่ฝากอะไรมาเลย — บอกให้ชัด คนแพ็คจะได้ไม่นั่งหา
-    if (details.length === 0) details.push({ text: 'ลูกค้าไม่ได้ฝากข้อความ — แนบการ์ดเปล่า', fontSize: BODY - 0.5, color: '#6b7280' });
-    flags.push({ icon: ICON_GIFT, label: 'พิมพ์การ์ด', details });
-  }
-  if (order.tax_invoice_requested) flags.push({ icon: ICON_TAX, label: 'ขอใบกำกับภาษี', details: [] });
-
-  if (flags.length > 0) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const cardLines: any[] = [];
-    flags.forEach((flag, i) => {
-      cardLines.push({
-        columns: [
-          { width: 11, svg: flag.icon, height: 11, margin: [0, 1.5, 0, 0] },
-          { width: '*', text: flag.label, fontSize: BODY, bold: true, color: ALERT, margin: [5, 0, 0, 0] },
-        ],
-        columnGap: 0,
-        margin: [0, i === 0 ? 0 : 2, 0, 0],
-      });
-      // รายละเอียดการ์ด (ข้อความ/ถึง/จาก) เป็นสีเข้มปกติ — ต้องอ่านรู้เรื่อง ไม่ใช่สัญญาณเตือน
-      for (const d of flag.details) cardLines.push({ ...d, margin: [16, 0, 0, 0] });
-    });
-    rightStack.push({
-      table: { widths: [CARD_W], body: [[{ stack: cardLines, margin: [6, 4, 6, 5], fillColor: '#fef2f2' }]] },
-      layout: {
-        hLineWidth: () => 0.75, vLineWidth: () => 0.75,
-        hLineColor: () => '#fca5a5', vLineColor: () => '#fca5a5',
-        paddingLeft: () => 0, paddingRight: () => 0, paddingTop: () => 0, paddingBottom: () => 0,
-      },
-      margin: [0, noteText ? 4 : 0, 0, 0],
-    });
+  // การ์ดคำสั่งพิเศษ — สร้างที่ pdf-utils ตัวเดียว (ใบคำสั่งซื้อใช้ใบเดียวกัน)
+  // ⚠️ `width` ต้องเป็นตัวเลขคงที่ (CARD_W) ห้ามปล่อยเป็น '*' — ตาราง `*` ขยายตามคำไทยยาว ๆ จนล้นขอบ
+  const flagsCard = buildOrderSpecialFlagsCard(order, { fontSize: BODY, width: CARD_W });
+  if (flagsCard) {
+    rightStack.push({ ...flagsCard, margin: [0, noteText ? 4 : 0, 0, 0] });
   }
 
   const hasRight = rightStack.length > 0;

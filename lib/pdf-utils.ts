@@ -474,3 +474,132 @@ export function withOriginalAndCopy(pageContent: any[]): any[] {
     ...clone,
   ];
 }
+
+// ─── การ์ด "คำสั่งพิเศษ" ของบิล (ห้ามแนบใบเสร็จ · ส่งเอกสารทางไปรษณีย์ · การ์ดอวยพร · ขอใบกำกับ) ───
+//
+// ใช้ร่วม **ใบจัดของ** ([orders-packing-pdf.ts](orders-packing-pdf.ts)) กับ **ใบคำสั่งซื้อ**
+// ([order-slip-pdf.ts](order-slip-pdf.ts)) — คนแพ็คกับคนทวนบิลต้องเห็นคำสั่งชุดเดียวกัน
+// ⛔ ไอคอนเป็น SVG เท่านั้น (ฟอนต์ IBMPlexSansThai ไม่มี glyph ของ emoji → กล่องเปล่า)
+//    และต้องฝังสีในตัว path เพราะ svg-to-pdfkit ของ pdfMake ไม่รู้จัก `currentColor`
+
+/** การ์ดคำสั่งพิเศษทั้งใบเป็นสีแดง — เจ้าของขอ "ตัวแดง มีไอคอน ให้สังเกตง่าย" */
+const FLAG_ALERT = '#dc2626';
+
+const flagSvgIcon = (paths: string, color: string) =>
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`;
+
+/** ห้าม (lucide: ban) — "ห้ามแนบใบเสร็จ / ราคา" */
+const ICON_NO_RECEIPT = flagSvgIcon('<circle cx="12" cy="12" r="10"/><path d="m4.9 4.9 14.2 14.2"/>', FLAG_ALERT);
+/** จดหมาย (lucide: mail) — "ส่งเอกสารทางไปรษณีย์" (งานต่อเนื่องของห้ามแนบใบเสร็จ) */
+const ICON_MAIL = flagSvgIcon(
+  '<rect x="2" y="4" width="20" height="16" rx="2"/>'
+  + '<path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>',
+  FLAG_ALERT,
+);
+/** ของขวัญ (lucide: gift) — "พิมพ์การ์ด" */
+const ICON_GIFT = flagSvgIcon(
+  '<rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13"/>'
+  + '<path d="M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7"/>'
+  + '<path d="M7.5 8a2.5 2.5 0 0 1 0-5A4.8 8 0 0 1 12 8a4.8 8 0 0 1 4.5-5 2.5 2.5 0 0 1 0 5"/>',
+  FLAG_ALERT,
+);
+/** เอกสาร (lucide: file-text) — "ขอใบกำกับภาษี" */
+const ICON_TAX = flagSvgIcon(
+  '<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/>'
+  + '<path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/>',
+  FLAG_ALERT,
+);
+
+export interface OrderSpecialFlags {
+  gift_hide_price?: boolean;
+  document_by_post?: boolean;
+  gift_card_requested?: boolean;
+  gift_message?: string | null;
+  gift_to?: string | null;
+  gift_from?: string | null;
+  tax_invoice_requested?: boolean;
+}
+
+/**
+ * จำนวนบรรทัดที่การ์ดจะกิน (ใช้คำนวณความสูงในใบจัดของ)
+ *
+ * ⚠️ สูตรนี้ต้องเดินคู่กับ `buildOrderSpecialFlagsCard` เสมอ — เพิ่มบรรทัดในการ์ด
+ * แล้วไม่บวกที่นี่ = การ์ดล้นไปทับออเดอร์ครึ่งล่างของใบจัดของ
+ */
+export function countOrderSpecialFlagLines(order: OrderSpecialFlags): number {
+  return (order.gift_hide_price ? 1 : 0)
+    + (order.document_by_post ? 1 : 0)
+    + (order.tax_invoice_requested ? 1 : 0)
+    + (order.gift_card_requested
+      ? 1
+        + (order.gift_message ? Math.max(1, Math.ceil((order.gift_message.length + 8) / 32)) : 0)
+        + (order.gift_to || order.gift_from ? 1 : 0)
+        + (!order.gift_message && !order.gift_to && !order.gift_from ? 1 : 0)
+      : 0);
+}
+
+/**
+ * การ์ดคำสั่งพิเศษ (กรอบแดง ไอคอน SVG) — คืน null เมื่อไม่มีตัวเลือกใด
+ *
+ * `width` ต้องเป็น **ตัวเลขคงที่เสมอ** ห้ามปล่อยเป็น `'*'` — ตารางที่คอลัมน์เป็น `*`
+ * จะขยายกว้างเท่า "คำ" ที่ยาวที่สุด และข้อความไทยที่ไม่มีช่องว่างคือคำเดียวยาว ๆ
+ * ⇒ การ์ดเคยกว้างเป็น 2 เท่าจนล้นขอบกระดาษ (ดู fix-bug.md 2026-09-09)
+ */
+export function buildOrderSpecialFlagsCard(
+  order: OrderSpecialFlags,
+  opts?: { fontSize?: number; width?: number },
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+): any | null {
+  const fontSize = opts?.fontSize ?? 10;
+  const width = opts?.width ?? 280;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const label = (text: string): any => ({ text, fontSize, color: '#6b7280' });
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const flags: { icon: string; label: string; details: any[] }[] = [];
+  if (order.gift_hide_price) flags.push({ icon: ICON_NO_RECEIPT, label: 'ห้ามแนบใบเสร็จ / ราคา', details: [] });
+  if (order.document_by_post) flags.push({ icon: ICON_MAIL, label: 'ส่งเอกสารทางไปรษณีย์', details: [] });
+  if (order.gift_card_requested) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const details: any[] = [];
+    const giftMessage = preparePdfText(order.gift_message);
+    if (giftMessage) {
+      details.push({ text: [label('ข้อความ  '), { text: giftMessage, fontSize: fontSize - 0.5, color: '#111111' }], lineHeight: 1.02 });
+    }
+    const toFrom = [
+      order.gift_to ? `ถึง ${preparePdfText(order.gift_to)}` : '',
+      order.gift_from ? `จาก ${preparePdfText(order.gift_from)}` : '',
+    ].filter(Boolean).join('   ');
+    if (toFrom) details.push({ text: toFrom, fontSize: fontSize - 0.5, color: '#111111' });
+    // ลูกค้าขอการ์ดแต่ไม่ฝากอะไรมาเลย — บอกให้ชัด คนแพ็คจะได้ไม่นั่งหา
+    if (details.length === 0) details.push({ text: 'ลูกค้าไม่ได้ฝากข้อความ — แนบการ์ดเปล่า', fontSize: fontSize - 0.5, color: '#6b7280' });
+    flags.push({ icon: ICON_GIFT, label: 'พิมพ์การ์ด', details });
+  }
+  if (order.tax_invoice_requested) flags.push({ icon: ICON_TAX, label: 'ขอใบกำกับภาษี', details: [] });
+
+  if (flags.length === 0) return null;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const cardLines: any[] = [];
+  flags.forEach((flag, i) => {
+    cardLines.push({
+      columns: [
+        { width: 11, svg: flag.icon, height: 11, margin: [0, 1.5, 0, 0] },
+        { width: '*', text: flag.label, fontSize, bold: true, color: FLAG_ALERT, margin: [5, 0, 0, 0] },
+      ],
+      columnGap: 0,
+      margin: [0, i === 0 ? 0 : 2, 0, 0],
+    });
+    // รายละเอียดการ์ด (ข้อความ/ถึง/จาก) เป็นสีเข้มปกติ — ต้องอ่านรู้เรื่อง ไม่ใช่สัญญาณเตือน
+    for (const d of flag.details) cardLines.push({ ...d, margin: [16, 0, 0, 0] });
+  });
+
+  return {
+    table: { widths: [width], body: [[{ stack: cardLines, margin: [6, 4, 6, 5], fillColor: '#fef2f2' }]] },
+    layout: {
+      hLineWidth: () => 0.75, vLineWidth: () => 0.75,
+      hLineColor: () => '#fca5a5', vLineColor: () => '#fca5a5',
+      paddingLeft: () => 0, paddingRight: () => 0, paddingTop: () => 0, paddingBottom: () => 0,
+    },
+  };
+}

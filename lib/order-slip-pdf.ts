@@ -11,7 +11,8 @@
 import {
   fetchCompanyInfo, setupPdfMake, loadLogoDataUrl, loadImageDataUrl,
   buildCompanyStack, formatPdfPrice, formatPdfDate, formatDeliverySchedule,
-  buildCornerTriangle,
+  buildCornerTriangle, buildOrderSpecialFlagsCard,
+  type OrderSpecialFlags,
 } from './pdf-utils';
 import { cleanVariationLabel } from './product-display';
 
@@ -32,7 +33,9 @@ export interface OrderSlipItem {
   notes?: string | null;
 }
 
-export interface OrderSlipData {
+// คำสั่งพิเศษของบิล (ห้ามแนบใบเสร็จ · ส่งเอกสารทางไปรษณีย์ · การ์ดอวยพร · ขอใบกำกับ)
+// เป็นชุดเดียวกับใบจัดของ — ผู้เรียกส่ง order ทั้งก้อนจาก /api/orders/[id] อยู่แล้ว
+export interface OrderSlipData extends OrderSpecialFlags {
   order_number: string;
   created_at?: string;
   order_date?: string;
@@ -109,6 +112,8 @@ function buildOrderContent(order: OrderSlipData, company: any, logo: string | nu
   });
 
   const itemsTotal = order.items.reduce((sum, item) => sum + lineTotal(item), 0);
+  // ⚠️ ความกว้างคงที่เสมอ — คอลัมน์ซ้ายกว้าง ~295pt (A4 หักขอบ 80 หักตารางสรุป 220)
+  const flagsCard = buildOrderSpecialFlagsCard(order, { fontSize: 9, width: 280 });
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const summaryRows: any[] = [['ยอดรวมสินค้า', formatPdfPrice(itemsTotal)]];
   if ((order.discount_amount || 0) > 0) summaryRows.push(['ส่วนลดท้ายบิล', `-${formatPdfPrice(order.discount_amount || 0)}`]);
@@ -181,7 +186,15 @@ function buildOrderContent(order: OrderSlipData, company: any, logo: string | nu
     },
     {
       columns: [
-        { width: '*', text: order.notes ? `หมายเหตุ: ${order.notes}` : '', fontSize: 9, color: '#6b7280', margin: [0, 10, 8, 0] },
+        {
+          width: '*',
+          margin: [0, 10, 8, 0],
+          stack: [
+            ...(order.notes ? [{ text: `หมายเหตุ: ${order.notes}`, fontSize: 9, color: '#6b7280' }] : []),
+            // การ์ดคำสั่งพิเศษ — ตัวเดียวกับใบจัดของ (pdf-utils) · 1 ออเดอร์/หน้า จึงไม่ต้องคุมความสูง
+            ...(flagsCard ? [{ ...flagsCard, margin: [0, order.notes ? 6 : 0, 0, 0] }] : []),
+          ],
+        },
         {
           width: 220,
           margin: [0, 10, 0, 0],
