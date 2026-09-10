@@ -6,13 +6,16 @@
 // อัปขึ้น Meta แล้วได้กลุ่มเล็กจนยิงโฆษณาไม่ได้ (Meta ต้องการราว 100 คนที่จับคู่ติด) —
 // ต้องเห็นตั้งแต่ก่อนกดบันทึก ไม่ใช่ไปเจอตอน sync เสร็จ
 //
-// กำลังโหลด = '—' เสมอ **ห้ามโชว์ 0** (อ่านว่า "กลุ่มนี้ไม่มีใครเลย" ซึ่งคนละความหมาย)
+// ยังไม่เคยนับได้ = skeleton **ห้ามโชว์ 0** (อ่านว่า "กลุ่มนี้ไม่มีใครเลย" ซึ่งคนละความหมาย)
+// · นับรอบใหม่ระหว่างที่มีตัวเลขเดิมอยู่แล้ว = ตัวเลขเดิมจางลง ไม่กระพริบกลับเป็น skeleton
+//   ทุกครั้งที่ติ๊กอะไร (เจ้าของขอ skeleton 11 ก.ย. 2026)
 'use client';
 
 import Card from '@/components/ui/Card';
 import Alert from '@/components/ui/Alert';
 import HelpHint from '@/components/ui/HelpHint';
 import { ProgressBar } from '@/components/ui/Chart';
+import { Skeleton, SkeletonText } from '@/components/ui/Skeleton';
 import { formatNumber } from '@/lib/utils/format';
 import type { AudiencePreview } from './types';
 
@@ -32,62 +35,68 @@ interface Props {
 }
 
 export default function AudienceRail({ preview, loading, error, hint }: Props) {
-  const show = !loading && !!preview;
-  const total = show ? preview!.total : null;
-  const reach = show ? preview!.reachable : null;
+  // ยังไม่เคยได้ตัวเลขเลย — ครอบทั้งตอนโหลดครั้งแรกและช่วงหน่วง 400ms ก่อนยิงคำขอ
+  // (เช็คแค่ `loading` จะเห็นขีดโผล่แวบหนึ่งก่อน skeleton)
+  const pending = !preview && !error;
 
   return (
     <Card padding="md">
-      <h2 className="heading-4 mb-3">สมาชิก</h2>
+      {/* "ขนาดกลุ่ม" ไม่ใช่ "กลุ่มเป้าหมาย" — หัวหน้ากับการ์ดเลือกกลุ่มทางซ้ายใช้คำนั้นอยู่แล้ว
+          ชื่อซ้ำสามที่แยกไม่ออกว่าการ์ดไหนทำอะไร (เดิม "สมาชิก" เจ้าของบอกไม่สื่อ 11 ก.ย. 2026) */}
+      <h2 className="heading-4 mb-3">ขนาดกลุ่ม</h2>
 
       {hint ? (
         <p className="subtitle-text">{hint}</p>
-      ) : (
-        <>
+      ) : pending ? (
+        <div className="space-y-3" aria-busy="true">
+          <Skeleton className="h-9 w-28" />
+          <Skeleton className="h-2 w-full" />
+          <SkeletonText lines={3} />
+        </div>
+      ) : preview ? (
+        <div className={`transition-opacity ${loading ? 'opacity-50' : ''}`} aria-busy={loading || undefined}>
           <div className="flex items-baseline gap-2">
-            <span className="text-3xl font-bold text-gray-900 dark:text-white tabular-nums">
-              {total == null ? '—' : formatNumber(total)}
-            </span>
+            <span className="heading-1 tabular-nums">{formatNumber(preview.total)}</span>
             <span className="subtitle-text">คน</span>
           </div>
 
-          {reach && total != null && (
-            <div className="mt-3 space-y-2">
-              <ProgressBar value={reach.any} max={total} size="sm" toneClass="bg-emerald-500" />
-              <div className="flex items-start justify-between gap-2">
-                <p className="subtitle-text">
-                  sync ไป Meta ได้ {formatNumber(reach.any)} จาก {formatNumber(total)} คน
-                </p>
-                <HelpHint align="right">{REACH_HELP}</HelpHint>
-              </div>
-              {/* คนเดียวมีได้ทั้งเบอร์ อีเมล และ Messenger — สามบรรทัดนี้รวมกันเกิน "sync ได้" ได้ ไม่ใช่บั๊ก */}
-              <ul className="space-y-0.5">
-                <li className="subtitle-text">· มีเบอร์ {formatNumber(reach.phone)} · มีอีเมล {formatNumber(reach.email)}</li>
-                <li className="subtitle-text">· มี Messenger {formatNumber(reach.psid)}</li>
-                <li className="subtitle-text">· ยัง sync ไม่ได้ {formatNumber(preview!.not_syncable)}</li>
-              </ul>
+          <div className="mt-3 space-y-2">
+            <ProgressBar value={preview.reachable.any} max={preview.total} size="sm" toneClass="bg-emerald-500" />
+            <div className="flex items-start justify-between gap-2">
+              <p className="subtitle-text">
+                sync ไป Meta ได้ {formatNumber(preview.reachable.any)} จาก {formatNumber(preview.total)} คน
+              </p>
+              <HelpHint align="right">{REACH_HELP}</HelpHint>
             </div>
-          )}
+            {/* คนเดียวมีได้ทั้งเบอร์ อีเมล และ Messenger — สามบรรทัดนี้รวมกันเกิน "sync ได้" ได้ ไม่ใช่บั๊ก */}
+            <ul className="space-y-0.5">
+              <li className="subtitle-text">
+                · มีเบอร์ {formatNumber(preview.reachable.phone)} · มีอีเมล {formatNumber(preview.reachable.email)}
+              </li>
+              <li className="subtitle-text">· มี Messenger {formatNumber(preview.reachable.psid)}</li>
+              <li className="subtitle-text">· ยัง sync ไม่ได้ {formatNumber(preview.not_syncable)}</li>
+            </ul>
+          </div>
 
-          {show && preview!.capped && (
+          {preview.capped && (
             <Alert tone="warning" className="mt-3">
               กลุ่มใหญ่เกิน 50,000 คน — ทำให้แคบลงก่อน
             </Alert>
           )}
 
           {/* คนส่วนใหญ่มาจากไหน — ผลรวมของแต่ละแถวอาจมากกว่ายอดรวม เพราะคนเดียวกันอยู่ได้หลายแหล่ง */}
-          {show && !!preview!.by_source?.length && (
+          {!!preview.by_source?.length && (
             <div className="mt-3 pt-3 border-t border-gray-100 dark:border-slate-700 space-y-1">
               <p className="field-label">มาจากแหล่งไหนบ้าง</p>
-              {preview!.by_source!.map((s, i) => (
+              {preview.by_source.map((s, i) => (
                 <p key={`${s.kind}-${s.chat_account_id || i}`} className="subtitle-text">
                   {s.label} · {formatNumber(s.total)} คน (sync ได้ {formatNumber(s.syncable)})
                 </p>
               ))}
             </div>
           )}
-        </>
-      )}
+        </div>
+      ) : null}
 
       {error && <Alert tone="danger" className="mt-3">{error}</Alert>}
     </Card>
