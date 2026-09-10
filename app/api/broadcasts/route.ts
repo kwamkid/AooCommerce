@@ -23,6 +23,7 @@ import {
   broadcastContentPreview,
   resolveBroadcastContentKind,
   validateBroadcastContent,
+  TAP_MESSAGE_MAX,
   type BroadcastContent,
   type BroadcastProductCard,
 } from '@/lib/broadcast/content';
@@ -327,6 +328,11 @@ export async function POST(request: NextRequest) {
       // รูปของ announce เป็นฟองรูปธรรมดาหรือรูปเต็มจอ · ค่าที่ไม่รู้จักตกเป็นแบบเดิม
       image_style: body.content?.image_style === 'rich' ? 'rich' : 'bubble',
       link_url: toUrl(body.content?.link_url),
+      // โปสเตอร์: กดรูปแล้วเกิดอะไร — ค่าที่ไม่รู้จักตกเป็น url (ใบเก่า)
+      tap: body.content?.tap === 'product' || body.content?.tap === 'message' ? body.content.tap : 'url',
+      tap_product: body.content?.tap_product ? toProductCard(body.content.tap_product) : null,
+      tap_message: typeof body.content?.tap_message === 'string'
+        ? body.content.tap_message.trim().slice(0, TAP_MESSAGE_MAX) : null,
       card_style: body.content?.card_style === 'image' ? 'image' : 'detail',
       buttons: body.content?.buttons || [],
       products: (Array.isArray(body.content?.products) ? body.content.products : []).map(toProductCard),
@@ -338,6 +344,17 @@ export async function POST(request: NextRequest) {
     // ลิงก์การ์ดสินค้าเติมให้เองจากหน้าร้านออนไลน์ — **ลิงก์เปลี่ยนเองเมื่อร้านเปิด
     // storefront ไม่ต้องแก้ใบ** · ทำก่อนแปลงเป็นข้อความของแพลตฟอร์ม ไม่งั้นการ์ดที่ส่ง
     // ออกไปจะยังเป็นปุ่ม "สนใจสินค้านี้" ทั้งที่มีหน้าสินค้าให้ลิงก์แล้ว
+    // สินค้าปลายทางของโปสเตอร์ใช้กติกาเดียวกับการ์ดสินค้า — เติมลิงก์หน้าสินค้าเมื่อร้านเปิดหน้าร้าน
+    if (content.kind === 'poster' && content.tap === 'product' && content.tap_product) {
+      [content.tap_product] = await fillStorefrontProductLinks(auth.companyId, [content.tap_product]);
+      // ตัวเลือกนี้ผูกกับหน้าร้านโดยตรง — เติมลิงก์ไม่ได้ (ร้านยังไม่เปิด / สินค้าไม่แสดงบนหน้าร้าน) = ปฏิเสธ
+      // ไม่ตกไปเป็นข้อความเงียบ ๆ เหมือนการ์ดสินค้า
+      if (!content.tap_product.url) {
+        return NextResponse.json({
+          error: 'ไปที่สินค้าได้เมื่อร้านเปิดหน้าร้านออนไลน์และสินค้าแสดงบนหน้าร้าน — เลือกเปิดลิงก์หรือส่งข้อความกลับแทน',
+        }, { status: 400 });
+      }
+    }
     if ((content.products || []).length > 0) {
       content.products = await fillStorefrontProductLinks(auth.companyId, content.products || []);
     }

@@ -151,7 +151,9 @@ export default function MessageComposer({
           </div>
         )}
 
-        {/* แถบล่าง — มีเส้นคั่นเฉพาะตอนมีปุ่ม/ชิป · เหลือแค่ตัวนับไม่ต้องขีดคั่น (เจ้าของขอ 10 ก.ย.) */}
+        {/* แถบล่าง — มีเส้นคั่นเฉพาะตอนมีปุ่ม/ชิป · เหลือแค่ตัวนับไม่ต้องขีดคั่น (เจ้าของขอ 10 ก.ย.) ·
+            ไม่มีอะไรเลย (กล่องรูปล้วนไม่มีชิป) = ไม่วาดแถว */}
+        {(showAttachButton || toolbar || (hasText && maxLength != null)) && (
         <div className={`flex flex-wrap items-center gap-2 px-2 ${
           showAttachButton || toolbar ? 'py-1.5 border-t border-gray-200 dark:border-slate-600' : 'pb-1.5'
         }`}>
@@ -174,6 +176,7 @@ export default function MessageComposer({
             </span>
           )}
         </div>
+        )}
       </div>
       {error && <p className="helper-text text-red-600 dark:text-red-400 mt-1">{error}</p>}
     </div>

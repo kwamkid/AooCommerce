@@ -13,6 +13,24 @@ import { BROADCAST_PLATFORMS, type BroadcastContentKind, type BroadcastPlatform 
 
 /** ปุ่มบนการ์ด — LINE label ยาวได้ 20 ตัวอักษร */
 export const BUTTON_LABEL_MAX = 20;
+/** ข้อความที่ message action ส่งกลับเข้าห้องแชท — เพดานของ LINE */
+export const TAP_MESSAGE_MAX = 300;
+
+/**
+ * โปสเตอร์: กดรูปแล้วเกิดอะไร
+ *  url     = เปิด `link_url`
+ *  product = เปิดหน้าสินค้า `tap_product` ในหน้าร้านออนไลน์ — **ต้องเปิด storefront และสินค้าแสดงบน
+ *            หน้าร้าน** (API เติมลิงก์ให้ตอนสร้างใบ · เติมไม่ได้ = ปฏิเสธ ไม่ตกไปเป็นข้อความเหมือนการ์ดสินค้า
+ *            เพราะเจ้าของกำหนดให้ตัวเลือกนี้ผูกกับหน้าร้านโดยตรง 10 ก.ย. 2026)
+ *  message = ส่ง `tap_message` เข้าห้องแชทเหมือนลูกค้าพิมพ์เอง (แบบเดียวกับปุ่มตอบเร็ว)
+ * ใบเก่าไม่มี `tap` = url (ตอนนั้นมีแค่ link_url) — อ่านผ่าน `posterTap()` เสมอ
+ */
+export type PosterTap = 'url' | 'product' | 'message';
+export const POSTER_TAP_LABELS: Record<PosterTap, string> = {
+  url: 'เปิดลิงก์',
+  product: 'ไปที่สินค้า',
+  message: 'ส่งข้อความกลับ',
+};
 /** หัวข้อ/เนื้อความบนการ์ดของ LINE (buttons + carousel) */
 export const CARD_TITLE_MAX = 40;
 export const CARD_TEXT_MAX = 60;
@@ -66,6 +84,12 @@ export interface BroadcastContent {
    * (โปสเตอร์ที่กดแล้วไม่ไปไหน = ลูกค้าเห็นของแล้วซื้อต่อไม่ได้)
    */
   link_url?: string | null;
+  /** โปสเตอร์: กดรูปแล้วเกิดอะไร — ดู `PosterTap` · ไม่ส่งมา = 'url' */
+  tap?: PosterTap;
+  /** สินค้าปลายทางเมื่อ `tap = 'product'` — โครงเดียวกับการ์ดสินค้า (`url` เติมจาก storefront ตอนสร้างใบ) */
+  tap_product?: BroadcastProductCard | null;
+  /** ข้อความที่ส่งกลับเมื่อ `tap = 'message'` */
+  tap_message?: string | null;
   /**
    * การ์ดสินค้าแสดงยังไง (ค่าเริ่มต้น 'detail' — ใบเก่าจึงหน้าตาไม่เปลี่ยน)
    *  image  = รูปจัตุรัสเต็มการ์ด + ป้ายลดและราคาลอยบนรูป กดทั้งใบ
@@ -132,6 +156,10 @@ export function discountPercent(
   return pct > 0 ? pct : null;
 }
 
+export function posterTap(content: Pick<BroadcastContent, 'tap'>): PosterTap {
+  return content.tap === 'product' || content.tap === 'message' ? content.tap : 'url';
+}
+
 export function isHttpsUrl(value: string): boolean {
   return /^https:\/\/[^\s]+$/i.test(value.trim());
 }
@@ -175,12 +203,24 @@ export function validateBroadcastContent(
   if (content.kind === 'poster') {
     // โปสเตอร์คือ "รูปทั้งใบ" — ข้อความ ราคา ปุ่ม ต้องอยู่ในรูปเอง ระบบจึงไม่มีช่องให้พิมพ์
     if (!content.image_url) return 'โปสเตอร์ต้องมีรูป';
-    const link = (content.link_url || '').trim();
-    // กดโปสเตอร์แล้วไม่ไปไหน = ลูกค้าสนใจแล้วซื้อต่อไม่ได้ จึงบังคับลิงก์
-    if (!link) return 'โปสเตอร์ต้องมีลิงก์ปลายทาง — กดรูปแล้วไปที่ไหน';
-    if (!isHttpsUrl(link)) return 'ลิงก์ปลายทางต้องเป็น https';
-    if (title || text || (content.buttons || []).length > 0 || (content.products || []).length > 0) {
-      return 'โปสเตอร์มีแค่รูปกับลิงก์';
+    // กดโปสเตอร์แล้วไม่เกิดอะไร = ลูกค้าสนใจแล้วไปต่อไม่ได้ จึงบังคับให้เลือกว่ากดแล้วเกิดอะไร
+    const tap = posterTap(content);
+    if (tap === 'url') {
+      const link = (content.link_url || '').trim();
+      if (!link) return 'ใส่ลิงก์ที่จะเปิดเมื่อลูกค้ากดรูป';
+      if (!isHttpsUrl(link)) return 'ลิงก์ปลายทางต้องเป็น https';
+    } else if (tap === 'product') {
+      const p = content.tap_product;
+      if (!p || !p.name.trim()) return 'เลือกสินค้าที่จะไปเมื่อลูกค้ากดรูป';
+      if (p.url && !isHttpsUrl(p.url)) return 'ลิงก์ของสินค้าต้องเป็น https';
+    } else {
+      const msg = (content.tap_message || '').trim();
+      if (!msg) return 'ใส่ข้อความที่จะส่งกลับเมื่อลูกค้ากดรูป';
+      if (msg.length > TAP_MESSAGE_MAX) return `ข้อความที่ส่งกลับยาวเกิน ${TAP_MESSAGE_MAX} ตัวอักษร`;
+    }
+    // ข้อความใส่ได้ (ส่งเป็นอีกข้อความก่อนรูป — เลย์เอาต์เดียวกับประกาศ) แต่หัวข้อ/ปุ่ม/การ์ดไม่มี
+    if (title || (content.buttons || []).length > 0 || (content.products || []).length > 0) {
+      return 'โปสเตอร์มีแค่ข้อความ รูป และสิ่งที่เกิดเมื่อกดรูป';
     }
   }
 
@@ -240,15 +280,20 @@ export function broadcastContentPreview(content: BroadcastContent): string {
   const title = (content.title || '').trim();
   const text = (content.text || '').trim();
   if (content.kind === 'poster') {
-    // โปสเตอร์ไม่มีข้อความให้ยกมาโชว์ — บอกปลายทางแทน จะได้แยกใบออกจากกันในรายการ
-    let host = '';
-    try {
-      const link = (content.link_url || '').trim();
-      if (link) host = new URL(link).hostname;
-    } catch {
-      host = '';
+    // โปสเตอร์ไม่มีข้อความให้ยกมาโชว์ — บอกว่ากดแล้วไปไหนแทน จะได้แยกใบออกจากกันในรายการ
+    const tap = posterTap(content);
+    let target = '';
+    if (tap === 'product') target = `→ ${content.tap_product?.name || ''}`;
+    else if (tap === 'message') target = `→ ส่ง "${(content.tap_message || '').trim()}"`;
+    else {
+      try {
+        const link = (content.link_url || '').trim();
+        if (link) target = new URL(link).hostname;
+      } catch {
+        target = '';
+      }
     }
-    return `[โปสเตอร์] ${host}`.trim();
+    return `[โปสเตอร์] ${target}${text ? ` — ${text}` : ''}`.trim().slice(0, 120);
   }
   if (content.kind === 'products') {
     const names = (content.products || []).map(p => p.name).filter(Boolean);

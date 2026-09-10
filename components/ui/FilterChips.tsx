@@ -23,6 +23,8 @@ export interface FilterChip<T extends string> {
   activeClass: string;
   /** คำอธิบายสั้น ๆ ตอน hover/แตะค้าง (ผ่าน `Tooltip` กลาง) — ใช้เมื่อป้ายชิปสั้นจนต้องขยายความ เช่น ไม่แสดง/แสดง/บังคับกรอก */
   tooltip?: string;
+  /** ชิปนี้กดไม่ได้ (ตัวเลือกที่ยังใช้ไม่ได้ในสภาพตอนนี้) — ใส่ `tooltip` บอกเหตุผลคู่กันเสมอ */
+  disabled?: boolean;
 }
 
 export default function FilterChips<T extends string>({
@@ -43,7 +45,7 @@ export default function FilterChips<T extends string>({
             key={chip.id}
             type="button"
             onClick={() => onChange(chip.id)}
-            disabled={disabled}
+            disabled={disabled || chip.disabled}
             className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
               value === chip.id
                 ? chip.activeClass

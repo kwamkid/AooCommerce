@@ -50,6 +50,8 @@ import {
   type BroadcastButton,
   type BroadcastContent,
   type BroadcastProductCard,
+  POSTER_TAP_LABELS,
+  type PosterTap,
 } from '@/lib/broadcast/content';
 import { Send } from 'lucide-react';
 import ChannelStep from './components/ChannelStep';
@@ -101,8 +103,10 @@ interface KindDraft {
   imageFile: File | null;
   existingImageUrl: string | null;
   imageDims: ImageDims | null;
-  imageStyle: 'bubble' | 'rich';
   linkUrl: string;
+  tap: PosterTap;
+  tapProduct: BroadcastProductCard | null;
+  tapMessage: string;
   cardStyle: 'image' | 'detail';
   buttons: BroadcastButton[];
   cards: BroadcastProductCard[];
@@ -111,7 +115,7 @@ interface KindDraft {
 
 const EMPTY_DRAFT: KindDraft = {
   title: '', text: '', imageFile: null, existingImageUrl: null, imageDims: null,
-  imageStyle: 'bubble', linkUrl: '', cardStyle: 'detail',
+  linkUrl: '', tap: 'url', tapProduct: null, tapMessage: '', cardStyle: 'detail',
   buttons: [{ label: '', url: '' }], cards: [], quickReplies: [],
 };
 
@@ -185,10 +189,11 @@ export default function NewBroadcastPage() {
   const [imageDims, setImageDims] = useState<ImageDims | null>(null);
   /** รูปของใบที่คัดลอกมา — ใช้ต่อได้เลยเมื่อผู้ใช้ไม่ได้เลือกไฟล์ใหม่ */
   const [existingImageUrl, setExistingImageUrl] = useState<string | null>(null);
-  /** ประกาศ: ฟองรูปธรรมดา หรือรูปเต็มความกว้างห้องแชทที่กดได้ */
-  const [imageStyle, setImageStyle] = useState<'bubble' | 'rich'>('bubble');
-  /** ปลายทางเมื่อลูกค้าแตะรูป — โปสเตอร์บังคับ · ประกาศแบบรูปเต็มจอไม่บังคับ */
+  /** โปสเตอร์: กดรูปแล้วเกิดอะไร + ของที่แต่ละแบบต้องกรอก (ลิงก์ / สินค้า / ข้อความที่ส่งกลับ) */
+  const [tap, setTap] = useState<PosterTap>('url');
   const [linkUrl, setLinkUrl] = useState('');
+  const [tapProduct, setTapProduct] = useState<BroadcastProductCard | null>(null);
+  const [tapMessage, setTapMessage] = useState('');
   /** การ์ดสินค้า: รูปเต็ม หรือมีชื่อ+ปุ่ม */
   const [cardStyle, setCardStyle] = useState<'image' | 'detail'>('detail');
   const [buttons, setButtons] = useState<BroadcastButton[]>([{ label: '', url: '' }]);
@@ -205,8 +210,8 @@ export default function NewBroadcastPage() {
   const switchKind = useStableCallback((next: BroadcastContentKind) => {
     if (next === kind) return;
     kindDraftsRef.current[kind] = {
-      title, text, imageFile, existingImageUrl, imageDims, imageStyle, linkUrl, cardStyle,
-      buttons, cards, quickReplies,
+      title, text, imageFile, existingImageUrl, imageDims, linkUrl, tap, tapProduct, tapMessage,
+      cardStyle, buttons, cards, quickReplies,
     };
     const d = kindDraftsRef.current[next] ?? EMPTY_DRAFT;
     setTitle(d.title);
@@ -214,8 +219,10 @@ export default function NewBroadcastPage() {
     setImageFile(d.imageFile);
     setExistingImageUrl(d.existingImageUrl);
     setImageDims(d.imageDims);
-    setImageStyle(d.imageStyle);
     setLinkUrl(d.linkUrl);
+    setTap(d.tap);
+    setTapProduct(d.tapProduct);
+    setTapMessage(d.tapMessage);
     setCardStyle(d.cardStyle);
     setButtons(d.buttons);
     setCards(d.cards);
@@ -240,6 +247,8 @@ export default function NewBroadcastPage() {
   const [counts, setCounts] = useState<AudienceCounts | null>(null);
   const [countsLoading, setCountsLoading] = useState(false);
   const [sending, setSending] = useState(false);
+  /** ร้านเปิดหน้าร้านออนไลน์แล้วไหม — โปสเตอร์แบบ "ไปที่สินค้า" ใช้ได้เฉพาะตอนเปิดแล้ว */
+  const [storefrontOpen, setStorefrontOpen] = useState(false);
 
   /** มาจาก ?from=<id> — ห้ามให้การเลือกบัญชีอัตโนมัติทับของที่คัดลอกมา */
   const prefillRef = useRef(false);
@@ -284,6 +293,23 @@ export default function NewBroadcastPage() {
     setImagePreviewUrl(url);
     return () => URL.revokeObjectURL(url);
   }, [imageFile]);
+
+  // ร้านเปิดหน้าร้านออนไลน์หรือยัง — ชิป "ไปที่สินค้า" ของโปสเตอร์ปิดไว้พร้อมบอกเหตุผลถ้ายังไม่เปิด
+  useEffect(() => {
+    if (!allowed) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await apiFetch('/api/settings/storefront');
+        if (!res.ok) return;
+        const j = await res.json();
+        if (!cancelled) setStorefrontOpen(!!j?.storefront?.enabled && !!j?.slug);
+      } catch {
+        // ถามไม่ได้ = ถือว่ายังไม่เปิด — API ยังกันซ้ำตอนสร้างใบอยู่ดี
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [allowed]);
 
   // วัดสัดส่วนของไฟล์ที่เลือก — เอาไฟล์ออกก็ล้างค่าทิ้ง (สัดส่วนของรูปเก่าใช้กับรูปใหม่ไม่ได้)
   useEffect(() => {
@@ -381,8 +407,11 @@ export default function NewBroadcastPage() {
           setTitle(c.title || '');
           setText(c.text || '');
           setExistingImageUrl(c.image_url || null);
-          if (c.image_style === 'rich') setImageStyle('rich');
+          // image_style 'rich' ของใบเก่าไม่กู้คืน — หน้าจอไม่มีตัวเลือกนี้แล้ว (รูปเต็มจอ = โปสเตอร์)
           if (c.link_url) setLinkUrl(c.link_url);
+          if (c.tap === 'product' || c.tap === 'message') setTap(c.tap);
+          if (c.tap_product) setTapProduct(c.tap_product);
+          if (c.tap_message) setTapMessage(c.tap_message);
           if (c.card_style === 'image') setCardStyle('image');
           if (Array.isArray(c.buttons) && c.buttons.length > 0) setButtons(c.buttons);
           if (Array.isArray(c.products)) setCards(c.products);
@@ -514,24 +543,27 @@ export default function NewBroadcastPage() {
     // โปสเตอร์มีแค่รูปกับลิงก์ — ข้อความ/ปุ่ม/สินค้าที่กรอกไว้ตอนเป็นชนิดอื่นต้องไม่ติดไปด้วย
     // (ค่าที่ค้างอยู่จะทำให้ validate ตีตกทั้งที่หน้าจอไม่มีช่องนั้นให้ลบ)
     const isPoster = kind === 'poster';
-    // ลิงก์มีความหมายเฉพาะโปสเตอร์กับประกาศแบบรูปเต็มจอ — ชนิดอื่นเก็บไว้ก็ไม่มีใครใช้
-    const usesLink = isPoster || (kind === 'announce' && imageStyle === 'rich');
+    // ลิงก์/สินค้า/ข้อความที่กดรูปแล้วเกิด มีความหมายเฉพาะโปสเตอร์ตามแบบที่เลือก — ชนิดอื่นไม่ส่ง
     return {
       kind,
       title: isPoster ? '' : title.trim(),
-      text: isPoster ? '' : text.trim(),
+      text: text.trim(),
       image_url: imageFile ? 'https://pending.upload' : existingImageUrl,
       image_width: imageDims?.width ?? null,
       image_height: imageDims?.height ?? null,
-      image_style: imageStyle,
-      link_url: usesLink ? linkUrl.trim() || null : null,
+      // รูปของประกาศเป็นฟองรูปธรรมดาเสมอ — รูปเต็มจอย้ายไปเป็นโปสเตอร์ตั้งแต่ 10 ก.ย. 2026
+      image_style: 'bubble',
+      link_url: isPoster && tap === 'url' ? linkUrl.trim() || null : null,
+      tap: isPoster ? tap : undefined,
+      tap_product: isPoster && tap === 'product' ? tapProduct : null,
+      tap_message: isPoster && tap === 'message' ? tapMessage.trim() || null : null,
       card_style: cardStyle,
       buttons: isPoster ? [] : buttons.filter(b => b.label.trim() || b.url.trim()),
       products: isPoster ? [] : cards,
       quick_replies: quickReplies,
     };
-  }, [kind, title, text, imageFile, imageDims, existingImageUrl, imageStyle, linkUrl, cardStyle,
-    buttons, cards, quickReplies]);
+  }, [kind, title, text, imageFile, imageDims, existingImageUrl, linkUrl, tap, tapProduct, tapMessage,
+    cardStyle, buttons, cards, quickReplies]);
 
   // ตรวจด้วยฟังก์ชันเดียวกับที่ API ใช้ — หน้าจอกับ server จึงพูดตรงกันเสมอ
   // เนื้อหาชุดเดียวต้องผ่าน **ทุกช่องทางที่เลือก** — ตัวไหนไม่ผ่านก็บอกตัวนั้น
@@ -567,7 +599,7 @@ export default function NewBroadcastPage() {
   // โปสเตอร์ไม่มีข้อความเลย — นับรูปกับลิงก์เป็น "เริ่มกรอกแล้ว" ไม่งั้นตัวอย่างจะไม่ขึ้น
   const hasDraft = !!(
     text.trim() || title.trim() || imagePreviewUrl || existingImageUrl || cards.length > 0
-    || (kind === 'poster' && linkUrl.trim())
+    || (kind === 'poster' && (linkUrl.trim() || tapProduct || tapMessage.trim()))
   );
   const canNext = accountIds.length > 0 && !!audience && !pickPending;
   const canSend = canNext && !contentError && !quotaShort && !noRecipients && !scheduleError && !sending;
@@ -579,7 +611,10 @@ export default function NewBroadcastPage() {
   const contentSummary = useMemo(() => {
     if (!hasDraft) return '';
     const base = KIND_LABELS[kind];
-    if (kind === 'poster') return base;
+    if (kind === 'poster') {
+      const target = tap === 'product' ? (tapProduct?.name || '') : tap === 'message' ? tapMessage.trim() : '';
+      return `${base} · ${POSTER_TAP_LABELS[tap]}${target ? ` ${target}` : ''}`;
+    }
     if (kind === 'promo') {
       const n = buttons.filter(b => b.label.trim()).length;
       return n > 0 ? `${base} · ${n} ปุ่ม` : base;
@@ -588,10 +623,8 @@ export default function NewBroadcastPage() {
       const style = cardStyle === 'image' ? 'รูปเต็ม' : 'มีชื่อ+ปุ่ม';
       return cards.length > 0 ? `${base} · ${cards.length} ชิ้น · ${style}` : base;
     }
-    // รูปเต็มจอต่างจากฟองรูปธรรมดามากพอที่ต้องเห็นในบรรทัดสรุป
-    if (imageStyle === 'rich' && (imagePreviewUrl || existingImageUrl)) return `${base} · รูปแบบเต็มจอ`;
     return base;
-  }, [hasDraft, kind, buttons, cards, cardStyle, imageStyle, imagePreviewUrl, existingImageUrl]);
+  }, [hasDraft, kind, buttons, cards, cardStyle, tap, tapProduct, tapMessage]);
 
   // ─── ส่ง ─────────────────────────────────────────────────────────────
   const handleSend = async () => {
@@ -677,17 +710,11 @@ export default function NewBroadcastPage() {
     }
   };
 
-  const addProductCard = (p: ProductSearchItem) => {
-    // เช็คซ้ำด้วย variation ไม่ใช่ product — สินค้าตัวเดียวมีหลายสี/ขนาดที่ product_id
-    // เดียวกัน (YOYO 0+ มี 5 สี) เช็คด้วย product_id จะเลือกได้แค่สีเดียว
-    if (cards.some(c => c.variation_id === p.id)) return;
-    if (compose && cards.length >= compose.productsMax) {
-      showToast(`ใส่ได้ไม่เกิน ${compose.productsMax} ชิ้น`, 'error');
-      return;
-    }
+  /** การ์ดสินค้าจากผลค้นหา — ใช้ทั้งการ์ดสินค้าและสินค้าปลายทางของโปสเตอร์ */
+  const cardFromSearchItem = (p: ProductSearchItem): BroadcastProductCard => {
     const discounted = !!p.discount_price && p.discount_price > 0;
     const price = discounted ? (p.discount_price as number) : p.default_price ?? 0;
-    setCards(prev => [...prev, {
+    return {
       product_id: p.product_id,
       variation_id: p.id,
       // ชื่อบนการ์ดต้องแยกสีออกจากกัน ไม่งั้นได้การ์ด "YOYO 0+ Newborn Pack" 5 ใบเหมือนกันหมด
@@ -697,7 +724,18 @@ export default function NewBroadcastPage() {
       // ราคาปกติเก็บไว้เฉพาะตอนลดจริง — การ์ดถึงจะขึ้นป้าย "ลด N%" กับราคาขีดฆ่าได้
       compare_at_price: discounted ? p.default_price ?? null : null,
       url: null,
-    }]);
+    };
+  };
+
+  const addProductCard = (p: ProductSearchItem) => {
+    // เช็คซ้ำด้วย variation ไม่ใช่ product — สินค้าตัวเดียวมีหลายสี/ขนาดที่ product_id
+    // เดียวกัน (YOYO 0+ มี 5 สี) เช็คด้วย product_id จะเลือกได้แค่สีเดียว
+    if (cards.some(c => c.variation_id === p.id)) return;
+    if (compose && cards.length >= compose.productsMax) {
+      showToast(`ใส่ได้ไม่เกิน ${compose.productsMax} ชิ้น`, 'error');
+      return;
+    }
+    setCards(prev => [...prev, cardFromSearchItem(p)]);
   };
 
   if (authLoading) {
@@ -800,10 +838,16 @@ export default function NewBroadcastPage() {
                     }}
                     existingImageUrl={existingImageUrl}
                     imagePreviewUrl={imagePreviewUrl ?? existingImageUrl}
-                    imageStyle={imageStyle}
-                    onImageStyleChange={setImageStyle}
                     linkUrl={linkUrl}
                     onLinkUrlChange={setLinkUrl}
+                    tap={tap}
+                    onTapChange={setTap}
+                    tapProduct={tapProduct}
+                    onTapProductChange={setTapProduct}
+                    tapMessage={tapMessage}
+                    onTapMessageChange={setTapMessage}
+                    productToCard={cardFromSearchItem}
+                    storefrontOpen={storefrontOpen}
                     cardStyle={cardStyle}
                     onCardStyleChange={setCardStyle}
                     buttons={buttons}

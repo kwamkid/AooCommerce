@@ -330,13 +330,14 @@ const FLEX_MUTED = '#999999';
 /**
  * การ์ดที่มีแต่รูปเต็มความกว้างห้องแชท (Flex giga)
  *
- * ใช้กับ **โปสเตอร์** (ลิงก์บังคับ) และ **ประกาศแบบรูปเต็มจอ** (ลิงก์ใส่หรือไม่ใส่ก็ได้) —
- * ต่างจากฟองรูปธรรมดาตรงที่กว้างเต็มจอและกดได้ · สัดส่วนตามรูปจริง ไม่ครอบหัวท้ายทิ้ง
+ * ใช้กับ **โปสเตอร์** (กดแล้วเกิด `action` ตามที่ผู้ใช้เลือก — เปิดลิงก์/ไปสินค้า/ส่งข้อความกลับ)
+ * และ **ประกาศแบบรูปเต็มจอของใบเก่า** (หน้าจอไม่ให้เลือกแล้วตั้งแต่ 2026-09-10 — ย้ายไปเป็นโปสเตอร์
+ * เพราะสองอย่างซ้อนกัน แต่ใบเก่ายังส่งซ้ำได้) · สัดส่วนตามรูปจริง ไม่ครอบหัวท้ายทิ้ง
  */
 function fullWidthImageBubble(
   imageUrl: string,
   aspectRatio: string,
-  linkUrl: string | null,
+  action: LineAction | null,
 ): LineFlexBubble {
   return {
     type: 'bubble',
@@ -347,9 +348,26 @@ function fullWidthImageBubble(
       size: 'full',
       aspectRatio,
       aspectMode: 'cover',
-      ...(linkUrl ? { action: { type: 'uri', label: 'เปิด', uri: linkUrl } } : {}),
+      ...(action ? { action } : {}),
     },
   };
+}
+
+/** โปสเตอร์กดแล้วเกิดอะไร — แปลง `tap` ของเนื้อหากลางเป็น action ของ LINE */
+function posterAction(content: BroadcastContent, linkUrl: string): LineAction {
+  const tap = posterTap(content);
+  if (tap === 'product') {
+    if (!content.tap_product) throw new Error('โปสเตอร์แบบไปที่สินค้าต้องมีสินค้า');
+    // กติกาเดียวกับปุ่มของการ์ดสินค้า: มีลิงก์หน้าสินค้า = เปิด · ไม่มี = ส่ง "สนใจ <สินค้า>" กลับ
+    return productAction(content.tap_product);
+  }
+  if (tap === 'message') {
+    const text = (content.tap_message || '').trim().slice(0, TAP_MESSAGE_MAX);
+    if (!text) throw new Error('โปสเตอร์แบบส่งข้อความกลับต้องมีข้อความ');
+    return { type: 'message', label: text.slice(0, 20), text };
+  }
+  if (!/^https:\/\//i.test(linkUrl)) throw new Error('โปสเตอร์ต้องมีลิงก์ปลายทางแบบ https');
+  return { type: 'uri', label: 'เปิด', uri: linkUrl };
 }
 
 /**
@@ -478,12 +496,15 @@ export function buildLineMessagesFromContent(content: BroadcastContent): LineMes
     // รูปทั้งใบคือเนื้อหา — ข้อความ ราคา ปุ่ม อยู่ในรูปที่ร้านออกแบบมาเอง
     if (!imageUrl) throw new Error('โปสเตอร์ต้องมีรูป');
     if (!/^https:\/\//i.test(imageUrl)) throw new Error('ลิงก์รูปต้องเป็น https');
-    if (!/^https:\/\//i.test(linkUrl)) throw new Error('โปสเตอร์ต้องมีลิงก์ปลายทางแบบ https');
-    messages = [{
-      type: 'flex',
-      altText: 'โปสเตอร์',
-      contents: fullWidthImageBubble(imageUrl, imageAspectRatio(content), linkUrl),
-    }];
+    // ข้อความ (ถ้ามี) เป็นข้อความแรก แล้วตามด้วยโปสเตอร์ — ลำดับเดียวกับประกาศ
+    messages = [
+      ...(text ? [{ type: 'text' as const, text }] : []),
+      {
+        type: 'flex',
+        altText: (text || 'โปสเตอร์').slice(0, 400),
+        contents: fullWidthImageBubble(imageUrl, imageAspectRatio(content), posterAction(content, linkUrl)),
+      },
+    ];
 
   } else if (content.kind === 'promo') {
     // การ์ดเดียวจบ: รูปอยู่ในตัวการ์ด ไม่ต้องส่งรูปแยก
@@ -566,7 +587,11 @@ export function buildLineMessagesFromContent(content: BroadcastContent): LineMes
         messages.push({
           type: 'flex',
           altText: 'รูปภาพ',
-          contents: fullWidthImageBubble(imageUrl, imageAspectRatio(content), linkUrl || null),
+          contents: fullWidthImageBubble(
+            imageUrl,
+            imageAspectRatio(content),
+            linkUrl ? { type: 'uri', label: 'เปิด', uri: linkUrl } : null,
+          ),
         });
       } else {
         messages.push({ type: 'image', originalContentUrl: imageUrl, previewImageUrl: imageUrl });

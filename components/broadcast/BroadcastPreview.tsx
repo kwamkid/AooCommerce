@@ -70,11 +70,18 @@ export default function BroadcastPreview({
           {senderName && <p className="helper-text text-white/90 truncate">{senderName}</p>}
 
           {content.kind === 'poster' ? (
-            // โปสเตอร์ = รูปเต็มความกว้างห้องแชท ไม่มีอะไรอยู่ข้างนอกรูปเลย
-            imageUrl && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={imageUrl} alt="โปสเตอร์" className="w-full h-auto rounded-xl" />
-            )
+            // โปสเตอร์ = (ฟองข้อความ ถ้ามี) แล้วรูปเต็มความกว้างห้องแชท — ข้อความ ราคา ปุ่ม อยู่ในรูป
+            <>
+              {text && (
+                <div className={BUBBLE}>
+                  <p className="subtitle-text whitespace-pre-wrap break-words">{text}</p>
+                </div>
+              )}
+              {imageUrl && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={imageUrl} alt="โปสเตอร์" className="w-full h-auto rounded-xl" />
+              )}
+            </>
           ) : content.kind === 'products' ? (
             <>
               {text && (

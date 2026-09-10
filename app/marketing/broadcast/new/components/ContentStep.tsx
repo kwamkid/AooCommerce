@@ -21,9 +21,12 @@ import { formatPrice } from '@/lib/utils/format';
 import {
   BUTTON_LABEL_MAX,
   CARD_TEXT_MAX,
+  POSTER_TAP_LABELS,
+  TAP_MESSAGE_MAX,
   discountPercent,
   type BroadcastButton,
   type BroadcastProductCard,
+  type PosterTap,
 } from '@/lib/broadcast/content';
 import type { BroadcastCompose, BroadcastContentKind } from '@/lib/broadcast/platforms';
 import { Plus, Trash2 } from 'lucide-react';
@@ -43,7 +46,7 @@ export const KIND_LABELS: Record<BroadcastContentKind, string> = {
  */
 const KIND_CARDS: Record<BroadcastContentKind, { label: string; description: string; preview: React.ReactNode }> = {
   announce: { label: KIND_LABELS.announce, description: 'ข้อความ + รูป', preview: KIND_MOCKS.announce },
-  poster: { label: KIND_LABELS.poster, description: 'รูปเต็มจอ กดไปลิงก์', preview: KIND_MOCKS.poster },
+  poster: { label: KIND_LABELS.poster, description: 'ข้อความ + รูปเต็มจอ กดแล้วไปต่อได้', preview: KIND_MOCKS.poster },
   promo: { label: KIND_LABELS.promo, description: 'หัวข้อ + ข้อความ + ปุ่ม', preview: KIND_MOCKS.promo },
   products: { label: KIND_LABELS.products, description: 'เลื่อนดู กดสั่งเลย', preview: KIND_MOCKS.products },
 };
@@ -106,12 +109,19 @@ interface Props {
   existingImageUrl: string | null;
   /** รูปที่เห็นอยู่ตอนนี้ (blob ของไฟล์ที่เพิ่งเลือก หรือรูปเดิม) — เอาไปวาดในการ์ดตัวเลือกด้วย */
   imagePreviewUrl: string | null;
-  /** ประกาศ: รูปเป็นฟองรูปธรรมดา หรือรูปเต็มความกว้างห้องแชทที่กดได้ */
-  imageStyle: 'bubble' | 'rich';
-  onImageStyleChange: (v: 'bubble' | 'rich') => void;
-  /** ปลายทางเมื่อลูกค้าแตะรูป — โปสเตอร์บังคับ · ประกาศแบบรูปเต็มจอไม่บังคับ */
+  /** โปสเตอร์: กดรูปแล้วเกิดอะไร + ของที่แต่ละแบบต้องกรอก */
+  tap: PosterTap;
+  onTapChange: (v: PosterTap) => void;
   linkUrl: string;
   onLinkUrlChange: (v: string) => void;
+  tapProduct: BroadcastProductCard | null;
+  onTapProductChange: (p: BroadcastProductCard | null) => void;
+  tapMessage: string;
+  onTapMessageChange: (v: string) => void;
+  /** แปลงผลค้นหาเป็นการ์ดสินค้า (ตัวเดียวกับที่การ์ดสินค้าใช้) */
+  productToCard: (p: ProductSearchItem) => BroadcastProductCard;
+  /** ร้านเปิดหน้าร้านออนไลน์แล้วไหม — "ไปที่สินค้า" ของโปสเตอร์ใช้ได้เฉพาะตอนเปิดแล้ว */
+  storefrontOpen: boolean;
   /** การ์ดสินค้า: รูปเต็ม หรือมีชื่อ+ปุ่ม */
   cardStyle: 'image' | 'detail';
   onCardStyleChange: (v: 'image' | 'detail') => void;
@@ -135,7 +145,8 @@ export default function ContentStep({
   compose, platformLabel, showCreditNote,
   kind, onKindChange, title, onTitleChange, text, onTextChange,
   imageFile, onImageFileChange, existingImageUrl, imagePreviewUrl,
-  imageStyle, onImageStyleChange, linkUrl, onLinkUrlChange, cardStyle, onCardStyleChange,
+  tap, onTapChange, linkUrl, onLinkUrlChange, tapProduct, onTapProductChange, tapMessage, onTapMessageChange,
+  productToCard, storefrontOpen, cardStyle, onCardStyleChange,
   buttons, onButtonsChange, cards, onCardsChange, quickReplies, onQuickRepliesChange,
   productResults, productLoading, onProductSearch, onAddProduct,
   disabled,
@@ -154,9 +165,7 @@ export default function ContentStep({
     />
   );
 
-  const imageLabel = kind === 'poster'
-    ? 'รูปโปสเตอร์'
-    : kind === 'promo' ? 'แบนเนอร์ (ไม่บังคับ)' : 'รูปภาพ (ไม่บังคับ)';
+  const imageLabel = kind === 'promo' ? 'แบนเนอร์ (ไม่บังคับ)' : 'รูปภาพ (ไม่บังคับ)';
 
   const dropzone = (
     <ImageDropzone
@@ -175,7 +184,7 @@ export default function ContentStep({
     <div>
       <p className="field-label mb-1">{imageLabel}</p>
       {dropzone}
-      {(kind === 'promo' || kind === 'poster') && (
+      {kind === 'promo' && (
         <p className="subtitle-text mt-1">
           ส่งเป็นสัดส่วนตามรูปจริง (แนวตั้งได้ สูงสุด 3 เท่าของความกว้าง)
         </p>
@@ -183,17 +192,99 @@ export default function ContentStep({
     </div>
   );
 
-  /** ปลายทางเมื่อลูกค้าแตะรูป — โปสเตอร์บังคับ (กดแล้วไม่ไปไหน = ซื้อต่อไม่ได้) */
-  const linkField = (
-    <FormInput
-      label={kind === 'poster' ? 'กดรูปแล้วไปที่' : 'กดรูปแล้วไปที่ (ไม่บังคับ)'}
-      required={kind === 'poster'}
-      value={linkUrl}
-      onChange={e => onLinkUrlChange(e.target.value)}
-      disabled={disabled}
-      placeholder="https://…"
-    />
+  /**
+   * โปสเตอร์: กดรูปแล้วเกิดอะไร — บังคับเลือก (กดแล้วไม่เกิดอะไร = ลูกค้าสนใจแล้วไปต่อไม่ได้)
+   * ชิปอยู่ในแถบล่างของกล่องรูป (ชิดขวา) · ช่องที่แต่ละแบบต้องกรอกอยู่ใต้กล่อง
+   * "ไปที่สินค้า" ผูกกับหน้าร้านออนไลน์โดยตรง — ยังไม่เปิดร้าน = ชิปกดไม่ได้พร้อมบอกเหตุผล (ไม่ตกไปเป็นข้อความเงียบ ๆ)
+   */
+  const tapChips = (
+    <div className="ml-auto flex items-center gap-2">
+      <span className="subtitle-text">กดรูปแล้ว</span>
+      <FilterChips<PosterTap>
+        value={tap}
+        onChange={onTapChange}
+        disabled={disabled}
+        chips={[
+          { id: 'url', label: POSTER_TAP_LABELS.url, activeClass: FILTER_CHIP_PRIMARY_ACTIVE, tooltip: 'เปิดเว็บ/หน้าโปรฯ ตามลิงก์ที่ใส่' },
+          {
+            id: 'product', label: POSTER_TAP_LABELS.product, activeClass: FILTER_CHIP_PRIMARY_ACTIVE,
+            disabled: !storefrontOpen,
+            tooltip: storefrontOpen
+              ? 'เปิดหน้าสินค้าในหน้าร้านออนไลน์ของร้าน — ค้นจากคลัง'
+              : 'ต้องเปิดหน้าร้านออนไลน์ก่อน (ตั้งค่า › หน้าร้านออนไลน์)',
+          },
+          { id: 'message', label: POSTER_TAP_LABELS.message, activeClass: FILTER_CHIP_PRIMARY_ACTIVE, tooltip: 'ข้อความถูกส่งเข้าห้องแชทเหมือนลูกค้าพิมพ์เอง — แบบเดียวกับปุ่มตอบเร็ว' },
+        ]}
+      />
+    </div>
   );
+
+  const tapField = (
+    <>
+      {tap === 'url' && (
+        <FormInput
+          label="ลิงก์ที่จะเปิด"
+          required
+          value={linkUrl}
+          onChange={e => onLinkUrlChange(e.target.value)}
+          disabled={disabled}
+          placeholder="https://…"
+        />
+      )}
+      {tap === 'product' && (
+        <div>
+          <p className="field-label mb-1">สินค้าที่จะเปิด</p>
+          {tapProduct ? (
+            <div className="flex gap-3 items-center rounded-lg border border-gray-200 dark:border-slate-600 px-3 py-2">
+              <ProductImageThumb src={tapProduct.image_url} alt={tapProduct.name} size="sm" />
+              <div className="flex-1 min-w-0">
+                <p className="body-text truncate">{tapProduct.name}</p>
+                <p className="subtitle-text">
+                  {tapProduct.price != null ? formatPrice(tapProduct.price) : 'ไม่มีราคา'} · กดรูปแล้วเปิดหน้าสินค้านี้ในหน้าร้านออนไลน์
+                </p>
+              </div>
+              <Button
+                variant="ghost"
+                icon={<Trash2 className="w-4 h-4" />}
+                aria-label="เอาสินค้าออก"
+                disabled={disabled}
+                onClick={() => onTapProductChange(null)}
+              />
+            </div>
+          ) : (
+            <ProductSearchInput
+              products={productResults}
+              loading={productLoading}
+              onSearchChange={onProductSearch}
+              onSelect={p => onTapProductChange(productToCard(p))}
+            />
+          )}
+        </div>
+      )}
+      {tap === 'message' && (
+        <FormInput
+          label="ข้อความที่จะส่งกลับ"
+          required
+          value={tapMessage}
+          maxLength={TAP_MESSAGE_MAX}
+          onChange={e => onTapMessageChange(e.target.value)}
+          disabled={disabled}
+          placeholder="เช่น สนใจโปรนี้"
+          hint="ลูกค้ากดรูปแล้วข้อความนี้เข้าห้องแชททันที เหมือนปุ่มตอบเร็ว"
+        />
+      )}
+    </>
+  );
+
+  /** รูปแนบของกล่องรูป — ประกาศกับโปสเตอร์ใช้ชุดเดียวกัน ต่างกันแค่ป้ายและแถบล่าง */
+  const composerImage = compose.image ? {
+    file: imageFile,
+    onChange: onImageFileChange,
+    previewUrl: imagePreviewUrl || existingImageUrl,
+    // ย่อทั้งพิกเซลและขนาดไฟล์ก่อนอัป — รูปใหญ่กว่านี้ LINE ไม่รับ และเปลืองที่เก็บ
+    maxWidthOrHeight: 1024,
+    maxSizeMB: 0.3,
+  } : undefined;
 
   return (
     <Card padding="md">
@@ -242,14 +333,30 @@ export default function ContentStep({
             {imageField}
           </div>
         ) : kind === 'poster' ? (
-          // โปสเตอร์ = รูปกับลิงก์เท่านั้น — ไม่มีช่องข้อความให้กรอกโดยตั้งใจ
-          <>
-            {imageField}
-            <p className="section-desc">
-              รูปทั้งใบเป็นโปสเตอร์ — ข้อความ ราคา ปุ่ม ต้องอยู่ในรูป · ส่งเต็มจอตามสัดส่วนรูป
+          // โปสเตอร์ = เลย์เอาต์เดียวกับประกาศ (ข้อความ แล้วตามด้วยรูป) ต่างตรงรูปกว้างเต็มจอและกดแล้วไปต่อได้
+          // (ชิปในแถบล่างของกล่องรูป) — เจ้าของกำหนด 10 ก.ย. 2026
+          <div className="space-y-3">
+            <p className="subtitle-text">
+              ส่งถึงลูกค้าเป็นข้อความแยกกัน เรียงตามลำดับนี้ · โปสเตอร์กว้างเต็มห้องแชทตามสัดส่วนรูป — ข้อความ ราคา ปุ่ม ที่อยากให้เห็นบนรูปต้องอยู่ในรูป
             </p>
-            {linkField}
-          </>
+            <MessageComposer
+              label="1. ข้อความ (ไม่บังคับ)"
+              value={text}
+              onChange={onTextChange}
+              maxLength={textMax}
+              rows={3}
+              placeholder="พิมพ์ข้อความที่จะส่งก่อนโปสเตอร์"
+              disabled={disabled}
+            />
+            <MessageComposer
+              label="2. โปสเตอร์ (รูปเต็มจอ)"
+              emptyHint="ส่งเต็มจอตามสัดส่วนรูป แนวตั้งได้ สูงสุด 3 เท่าของความกว้าง"
+              disabled={disabled}
+              image={composerImage}
+              toolbar={tapChips}
+            />
+            {tapField}
+          </div>
         ) : kind === 'announce' && compose.image ? (
           // ประกาศส่งถึงลูกค้าเป็น 2 ฟองแยกกัน (ข้อความ แล้วตามด้วยรูป) → ฟอร์มก็เป็น 2 กล่องแยกกัน
           // ในลำดับเดียวกัน — เคยรวมเป็นกล่องเดียวแล้วเจ้าของบอกคนจะเข้าใจผิดว่าเป็นฟองเดียว (10 ก.ย.)
@@ -269,31 +376,8 @@ export default function ContentStep({
               label="2. รูป (ไม่บังคับ)"
               emptyHint="ไม่แนบ = ส่งเฉพาะข้อ 1"
               disabled={disabled}
-              image={{
-                file: imageFile,
-                onChange: onImageFileChange,
-                previewUrl: imagePreviewUrl || existingImageUrl,
-                // ย่อทั้งพิกเซลและขนาดไฟล์ก่อนอัป — รูปใหญ่กว่านี้ LINE ไม่รับ และเปลืองที่เก็บ
-                maxWidthOrHeight: 1024,
-                maxSizeMB: 0.3,
-              }}
-              toolbar={
-                // ชิดขวาของกล่อง · คำเรียกไม่ใช้ "ฟอง" (เจ้าของขอ 10 ก.ย.): แสดงเป็น รูป / รูปแบบเต็มจอ
-                <div className="ml-auto flex items-center gap-2">
-                  <span className="subtitle-text">แสดงเป็น</span>
-                  <FilterChips<'bubble' | 'rich'>
-                    value={imageStyle}
-                    onChange={onImageStyleChange}
-                    disabled={disabled}
-                    chips={[
-                      { id: 'bubble', label: 'รูป', activeClass: FILTER_CHIP_PRIMARY_ACTIVE, tooltip: 'รูปธรรมดาเหมือนแอดมินส่งรูปในแชท' },
-                      { id: 'rich', label: 'รูปแบบเต็มจอ', activeClass: FILTER_CHIP_PRIMARY_ACTIVE, tooltip: 'กว้างเต็มห้องแชท กดไปลิงก์ได้' },
-                    ]}
-                  />
-                </div>
-              }
+              image={composerImage}
             />
-            {imageStyle === 'rich' && linkField}
           </div>
         ) : (
           // ช่องทางที่แนบรูปไม่ได้ (TikTok) และการ์ดสินค้า (ไม่มีช่องรูป) — เหลือแค่ข้อความ
