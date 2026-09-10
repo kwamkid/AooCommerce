@@ -1,7 +1,8 @@
 // Path: app/dev/design/broadcast-editor/page.tsx
 //
 // ต้นแบบ (prototype) ตัวแก้ไขบรอดแคสต์แบบ "บล็อก" — เจ้าของขอให้ทำบนระบบจริงแทนวาดภาพ
-// (10 ก.ย. 2026) จะได้กดลองแล้วเคาะได้ทันที · ยังไม่ต่อ API ไม่บันทึกอะไร ใช้สินค้าจำลอง
+// (10 ก.ย. 2026) จะได้กดลองแล้วเคาะได้ทันที · **ค้นสินค้าและอ่านสถานะหน้าร้านจาก API จริงของบริษัท
+// ที่ล็อกอินอยู่** (เคยใช้สินค้าจำลองแล้วเจ้าของเห็นสินค้าของร้านอื่นโผล่มา) · แต่ยังไม่บันทึก/ไม่ส่ง
 //
 // แนวคิด (= โมเดลของ LINE OA Manager): 1 ใบ = บล็อกได้สูงสุด 3 บล็อก เลือกชนิดต่อบล็อก
 //   ข้อความ · รูป · รูปเต็มจอ (กดได้) · การ์ด (ใบเดียว = การ์ดใหญ่ · หลายใบ = แถวเลื่อน · ดึงจากสินค้าได้)
@@ -11,7 +12,7 @@
 // ⚠️ เมื่อเคาะแล้วให้ย้ายไปแทนหน้าสร้างจริง (ContentStep) พร้อมเปลี่ยน content จาก `kind` เป็น `blocks[]`
 'use client';
 
-import { useState, useSyncExternalStore, type ReactNode } from 'react';
+import { useEffect, useState, useSyncExternalStore, type ReactNode } from 'react';
 import {
   DndContext, PointerSensor, useSensor, useSensors, closestCenter, type DragEndEvent,
 } from '@dnd-kit/core';
@@ -36,6 +37,8 @@ import ProductSearchInput, { type ProductSearchItem } from '@/components/ui/Prod
 import UserAvatar from '@/components/ui/UserAvatar';
 import ActionPicker from '@/app/marketing/broadcast/new/components/ActionPicker';
 import { KIND_MOCKS, MockChat, MockLine, MockPhoto } from '@/app/marketing/broadcast/new/components/KindMockups';
+import { apiFetch } from '@/lib/api-client';
+import { useServerSearch, type ServerSearchPage } from '@/lib/useServerSearch';
 import { formatPrice } from '@/lib/utils/format';
 import {
   BUTTON_LABEL_MAX, CARD_TEXT_MAX, CARD_TITLE_MAX, EMPTY_ACTION,
@@ -115,29 +118,47 @@ const BLOCK_OPTIONS = [
   { id: 'cards' as const, label: BLOCK_LABELS.cards, description: 'ใบเดียว/หลายใบ ดึงจากสินค้าได้', preview: KIND_MOCKS.products },
 ];
 
-// ── สินค้าจำลอง (ต้นแบบไม่ต่อ API) ───────────────────────────────────────────
+// ── สินค้า — ค้นของจริงของบริษัทที่ล็อกอินอยู่ (ต้นแบบเคยใช้สินค้าจำลองแล้วขึ้นผิดร้าน 10 ก.ย. 2026) ──
 
-const DUMMY_PRODUCTS: ProductSearchItem[] = [
-  { id: 'v1', product_id: 'p1', code: 'OJ-1L', name: 'น้ำส้มคั้นสด 1 ลิตร', image: '/logo.svg', default_price: 150, discount_price: 120 },
-  { id: 'v2', product_id: 'p2', code: 'CC-500', name: 'น้ำมะพร้าว 500 มล.', image: '/logo.svg', default_price: 65, discount_price: 0 },
-  { id: 'v3', product_id: 'p3', code: 'MX-SET', name: 'เซ็ตน้ำผลไม้ 6 ขวด', image: null, default_price: 690, discount_price: 590 },
-];
+async function fetchProductPage(q: string): Promise<ServerSearchPage<ProductSearchItem>> {
+  const res = await apiFetch(`/api/products/search?q=${encodeURIComponent(q)}&limit=40`);
+  if (!res.ok) throw new Error('product search failed');
+  const json = await res.json();
+  const rows: ProductSearchItem[] = (json.items || []).map((r: Record<string, unknown>) => ({
+    id: String(r.variation_id),
+    product_id: String(r.product_id),
+    code: String(r.code ?? ''),
+    name: String(r.name ?? ''),
+    image: (r.image_url as string) ?? null,
+    variation_label: (r.variation_label as string) ?? undefined,
+    default_price: Number(r.default_price) || 0,
+    discount_price: Number(r.discount_price) || 0,
+  }));
+  return { rows, complete: json.complete !== false };
+}
 
 function productToCard(p: ProductSearchItem): BroadcastProductCard {
   const discounted = !!p.discount_price && p.discount_price > 0;
   return {
-    product_id: p.product_id, variation_id: p.id, name: p.name, image_url: p.image ?? null,
+    product_id: p.product_id,
+    variation_id: p.id,
+    // ชื่อบนการ์ดต้องแยกตัวเลือกออกจากกัน ไม่งั้นได้การ์ดชื่อเดียวกันหลายใบ
+    name: p.variation_label ? `${p.name} - ${p.variation_label}` : p.name,
+    image_url: p.image ?? null,
     price: discounted ? (p.discount_price as number) : p.default_price ?? 0,
     compare_at_price: discounted ? p.default_price ?? null : null,
     url: null,
   };
 }
 
-/** props ที่ ActionPicker ทุกตัวในต้นแบบใช้ร่วมกัน — หน้าร้านสมมติว่าเปิดแล้ว จะได้ลองครบ 3 แบบ */
-const PICKER = {
-  storefrontOpen: true, productResults: DUMMY_PRODUCTS, productLoading: false,
-  onProductSearch: () => {}, productToCard,
-};
+/** ของที่ ActionPicker/ช่องค้นสินค้าทุกตัวในหน้านี้ใช้ร่วมกัน — หน้าเป็นคนถือผลค้นหา */
+interface PickerProps {
+  storefrontOpen: boolean;
+  productResults: ProductSearchItem[];
+  productLoading: boolean;
+  onProductSearch: (q: string) => void;
+  productToCard: (p: ProductSearchItem) => BroadcastProductCard;
+}
 
 // ── ตัวอย่างในแชท (วาดจากบล็อก) ────────────────────────────────────────────
 
@@ -274,7 +295,11 @@ function SortableCardTile({ c, index, selected, onSelect }: { c: CardDraft; inde
   );
 }
 
-function CardsEditor({ block, onChange }: { block: Extract<Block, { type: 'cards' }>; onChange: (b: Extract<Block, { type: 'cards' }>) => void }) {
+function CardsEditor({ block, onChange, picker }: {
+  block: Extract<Block, { type: 'cards' }>;
+  onChange: (b: Extract<Block, { type: 'cards' }>) => void;
+  picker: PickerProps;
+}) {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
   const selected = block.cards.find(c => c.id === block.selectedId) ?? block.cards[0];
   const selectedIndex = block.cards.findIndex(c => c.id === selected?.id);
@@ -299,7 +324,7 @@ function CardsEditor({ block, onChange }: { block: Extract<Block, { type: 'cards
     onChange({ ...block, cards: arrayMove(block.cards, from, to) });
   };
   const pickProduct = (c: CardDraft, p: ProductSearchItem) => {
-    const product = productToCard(p);
+    const product = picker.productToCard(p);
     patchCard(c.id, {
       source: 'product', product, title: product.name,
       text: product.price != null ? formatPrice(product.price) : '',
@@ -363,7 +388,12 @@ function CardsEditor({ block, onChange }: { block: Extract<Block, { type: 'cards
           </div>
 
           {selected.source === 'product' && !selected.product && (
-            <ProductSearchInput products={DUMMY_PRODUCTS} onSelect={p => pickProduct(selected, p)} />
+            <ProductSearchInput
+              products={picker.productResults}
+              loading={picker.productLoading}
+              onSearchChange={picker.onProductSearch}
+              onSelect={p => pickProduct(selected, p)}
+            />
           )}
 
           <div className="grid md:grid-cols-[160px_minmax(0,1fr)] gap-4">
@@ -419,7 +449,7 @@ function CardsEditor({ block, onChange }: { block: Extract<Block, { type: 'cards
                     <ActionPicker
                       value={b.action}
                       onChange={action => patchCard(selected.id, { buttons: selected.buttons.map(x => (x.id === b.id ? { ...x, action } : x)) })}
-                      {...PICKER}
+                      {...picker}
                     />
                   </div>
                   <Button
@@ -448,7 +478,7 @@ function CardsEditor({ block, onChange }: { block: Extract<Block, { type: 'cards
                   label="กดการ์ดแล้ว"
                   value={selected.tapAction}
                   onChange={tapAction => patchCard(selected.id, { tapAction })}
-                  {...PICKER}
+                  {...picker}
                 />
               </div>
             )}
@@ -461,8 +491,8 @@ function CardsEditor({ block, onChange }: { block: Extract<Block, { type: 'cards
 
 // ── บล็อกหนึ่งอันในรายการ (ลากเรียงได้) ─────────────────────────────────────────
 
-function SortableBlock({ block, index, onChange, onRemove }: {
-  block: Block; index: number; onChange: (b: Block) => void; onRemove: () => void;
+function SortableBlock({ block, index, onChange, onRemove, picker }: {
+  block: Block; index: number; onChange: (b: Block) => void; onRemove: () => void; picker: PickerProps;
 }) {
   const { setNodeRef, attributes, listeners, transform, transition, isDragging } = useSortable({ id: block.id });
   let editor: ReactNode;
@@ -484,21 +514,21 @@ function SortableBlock({ block, index, onChange, onRemove }: {
           emptyHint="แนะนำแนวตั้ง 4:5 เช่น 1080×1350 px · สูงได้ไม่เกิน 3 เท่าของความกว้าง"
           image={{ file: block.file, onChange: f => onChange({ ...block, file: f, previewUrl: f ? URL.createObjectURL(f) : null }), previewUrl: block.previewUrl, maxWidthOrHeight: 1024, maxSizeMB: 0.3 }}
         />
-        <ActionPicker label="กดรูปแล้ว" value={block.action} onChange={action => onChange({ ...block, action })} {...PICKER} />
+        <ActionPicker label="กดรูปแล้ว" value={block.action} onChange={action => onChange({ ...block, action })} {...picker} />
       </div>
     );
   } else {
-    editor = <CardsEditor block={block} onChange={onChange} />;
+    editor = <CardsEditor block={block} onChange={onChange} picker={picker} />;
   }
 
   return (
     <div
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : undefined }}
-      // พื้นจม + หัวแถบเข้ม — ของข้างในเป็นกล่องขาว จึงเห็นขอบเขตของแต่ละบล็อกชัด
-      className="rounded-lg border border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-900/40 overflow-hidden"
+      // `.inner-panel` = กล่องซ้อนบนการ์ดขาว (สีอยู่ใน globals.css ที่เดียว)
+      className="inner-panel"
     >
-      <div className="flex items-center gap-2 px-3 py-2 bg-gray-100 dark:bg-slate-800 border-b border-gray-200 dark:border-slate-600">
+      <div className="inner-panel-head">
         <button
           type="button"
           className="p-1 rounded text-gray-400 hover:text-gray-600 dark:hover:text-slate-200 cursor-grab touch-none"
@@ -518,7 +548,7 @@ function SortableBlock({ block, index, onChange, onRemove }: {
           onClick={onRemove}
         />
       </div>
-      <div className="p-3">{editor}</div>
+      <div className="inner-panel-body">{editor}</div>
     </div>
   );
 }
@@ -528,6 +558,31 @@ function SortableBlock({ block, index, onChange, onRemove }: {
 export default function BroadcastEditorPrototypePage() {
   const [blocks, setBlocks] = useState<Block[]>([newBlock('text')]);
   const [quickReplies, setQuickReplies] = useState<string[]>([]);
+  /** ค้นสินค้าฝั่ง server ของบริษัทที่ล็อกอินอยู่ — ตัวเดียวกับที่หน้าสร้างจริงใช้ */
+  const productSearch = useServerSearch<ProductSearchItem>({ fetch: fetchProductPage });
+  /** ร้านเปิดหน้าร้านออนไลน์แล้วไหม — ชิป "ไปที่สินค้า" ใช้ได้เฉพาะตอนเปิดแล้ว */
+  const [storefrontOpen, setStorefrontOpen] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await apiFetch('/api/settings/storefront');
+        if (!res.ok) return;
+        const j = await res.json();
+        if (!cancelled) setStorefrontOpen(!!j?.storefront?.enabled && !!j?.slug);
+      } catch {
+        // ถามไม่ได้ = ถือว่ายังไม่เปิด (ชิปจะปิดพร้อมบอกเหตุผล)
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+  const picker: PickerProps = {
+    storefrontOpen,
+    productResults: productSearch.results,
+    productLoading: productSearch.loading,
+    onProductSearch: productSearch.search,
+    productToCard,
+  };
   // @dnd-kit สร้าง id ภายในต่างกันระหว่าง SSR/CSR — วาง DndContext หลัง mount เท่านั้น (เหตุผลเดียวกับ DataTable)
   // ใช้ useSyncExternalStore แทน setState ใน effect: server snapshot = false · client = true
   const mounted = useSyncExternalStore(() => () => {}, () => true, () => false);
@@ -553,6 +608,7 @@ export default function BroadcastEditorPrototypePage() {
           index={i}
           onChange={replaceBlock}
           onRemove={() => setBlocks(prev => prev.filter(x => x.id !== b.id))}
+          picker={picker}
         />
       ))}
     </div>
@@ -564,7 +620,7 @@ export default function BroadcastEditorPrototypePage() {
         <PageHeader
           backHref="/dev/design"
           title="ต้นแบบ: ตัวแก้ไขบรอดแคสต์แบบบล็อก"
-          subtitle="เพิ่มบล็อกทีละชนิด ลากสลับลำดับได้ · การ์ดเป็นแถบแนวนอน กดทีละใบเพื่อแก้ · ยังไม่บันทึกอะไร ใช้สินค้าจำลอง"
+          subtitle="เพิ่มบล็อกทีละชนิด ลากสลับลำดับได้ · การ์ดเป็นแถบแนวนอน กดทีละใบเพื่อแก้ · ค้นสินค้าจริงของร้านที่เปิดอยู่ · ยังไม่บันทึกอะไร"
         />
         <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_372px] gap-4 items-start">
           <div className="space-y-4">

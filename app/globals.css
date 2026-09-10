@@ -419,6 +419,28 @@ h6:where(.heading-1, .heading-2, .heading-3, .heading-4) {
 .dark .choice-card-active,
 .dark .choice-card-active:hover { background-color: rgb(67 20 7 / 0.2); }
 
+/* ── Inner panel — กล่องที่ซ้อนอยู่บนการ์ดขาว ──
+   ของข้างในเป็นกล่องขาวอยู่แล้ว (ช่องกรอก/กล่องพิมพ์) พื้นของกล่องนอกจึงต้องจมลงหนึ่งขั้น
+   ไม่งั้นขาวบนขาว แยกไม่ออกว่าก้อนไหนเป็นก้อนไหน (เจ้าของท้วงจากต้นแบบบล็อกบรอดแคสต์ 10 ก.ย. 2026)
+   ใช้กับรายการก้อนย่อยที่แต่ละก้อนมีหัวแถบของตัวเอง — บล็อกของบรอดแคสต์ · แถวที่กางแก้ได้ */
+.inner-panel {
+  border: 1px solid rgb(229 231 235);
+  border-radius: 0.5rem;
+  background-color: rgb(249 250 251);
+  overflow: hidden;
+}
+.dark .inner-panel { border-color: rgb(71 85 105); background-color: rgb(15 23 42 / 0.4); }
+.inner-panel-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background-color: rgb(243 244 246);
+  border-bottom: 1px solid rgb(229 231 235);
+}
+.dark .inner-panel-head { background-color: rgb(30 41 59); border-bottom-color: rgb(71 85 105); }
+.inner-panel-body { padding: 0.75rem; }
+
 /* ── Global Badge System — outside @layer ── */
 .badge {
   display: inline-flex;
