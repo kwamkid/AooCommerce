@@ -265,7 +265,7 @@ export default function ContentStep({
             />
             <MessageComposer
               label="ฟองที่ 2 · รูป (ไม่บังคับ)"
-              emptyHint="ยังไม่มีรูป — กดแนบรูป หรือลากรูปมาวางที่นี่ · ไม่แนบ = ส่งแค่ฟองข้อความ"
+              emptyHint="ไม่แนบ = ส่งแค่ฟองข้อความ"
               disabled={disabled}
               image={{
                 file: imageFile,

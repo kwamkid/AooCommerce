@@ -34,7 +34,7 @@ interface MessageComposerProps {
   value?: string;
   onChange?: (value: string) => void;
   label?: string;
-  /** ข้อความในกล่องรูปอย่างเดียวตอนยังไม่แนบ — กดแล้วเปิดเลือกรูป */
+  /** บรรทัดเล็กใน dropzone ของกล่องรูปอย่างเดียว (เช่น "ไม่แนบ = ส่งแค่ฟองข้อความ") */
   emptyHint?: string;
   placeholder?: string;
   rows?: number;
@@ -48,8 +48,8 @@ interface MessageComposerProps {
 }
 
 /**
- * ImageDropzone ในกล่องนี้: กล่องเส้นประถูกซ่อน (ปุ่มแนบอยู่แถบล่างแทน) · พรีวิวเป็นรูปจิ๋วสูง 80px
- * ใต้ข้อความเหมือนไฟล์แนบในแชท · คำเตือนไฟล์ผิดชนิดยังขึ้นตรงแถวรูป
+ * ImageDropzone ในกล่องที่มีช่องพิมพ์: กล่องเส้นประถูกซ่อน (ปุ่มแนบอยู่แถบล่างแทน) · พรีวิวเป็น
+ * รูปจิ๋วสูง 80px ใต้ข้อความเหมือนไฟล์แนบในแชท · คำเตือนไฟล์ผิดชนิดยังขึ้นตรงแถวรูป
  */
 const ATTACH_CLASSES = {
   root: 'hidden',
@@ -58,10 +58,21 @@ const ATTACH_CLASSES = {
   error: 'subtitle-text text-red-600 pb-2',
 };
 
+/**
+ * กล่องรูปอย่างเดียว: ยังไม่แนบ = กล่องเส้นประของ ImageDropzone ตามปกติ (เห็นชัดว่าเพิ่มรูปได้
+ * — เจ้าของขอ 10 ก.ย. 2026 หลังลองเป็นบรรทัดข้อความบาง ๆ แล้วดูไม่ออก) · แนบแล้ว = รูปจิ๋วสูง 96px
+ */
+const IMAGE_ONLY_CLASSES = {
+  preview: 'relative inline-block',
+  previewImg: 'h-24 w-auto max-w-full rounded-lg object-cover',
+};
+
 export default function MessageComposer({
   value, onChange, label, emptyHint, placeholder, rows = 5, maxLength, disabled, image, toolbar, error,
 }: MessageComposerProps) {
   const hasText = onChange != null;
+  // กล่องรูปอย่างเดียวที่ยังไม่แนบมี dropzone ใหญ่อยู่แล้ว ปุ่มแนบในแถบล่างจะซ้ำ — โผล่เมื่อมีรูปให้เปลี่ยน
+  const showAttachButton = !!image && (hasText || (!!image.file || !!image.previewUrl));
   const id = useId();
   const dropRef = useRef<ImageDropzoneHandle>(null);
   const [dragging, setDragging] = useState(false);
@@ -70,6 +81,8 @@ export default function MessageComposer({
 
   // ลาก/วางลงตรงไหนของกล่องก็ได้ — ส่งต่อให้ ImageDropzone ย่อรูป/ทำพรีวิวเหมือนกดปุ่มเลือกเอง
   const onDrop = (e: DragEvent) => {
+    // ตกลงบนกล่องเส้นประของ ImageDropzone เอง = มันรับไปแล้ว ไม่รับซ้ำ
+    if (e.isDefaultPrevented()) return;
     e.preventDefault();
     setDragging(false);
     dropRef.current?.accept(e.dataTransfer.files?.[0]);
@@ -116,21 +129,10 @@ export default function MessageComposer({
           />
         )}
 
-        {/* กล่องรูปอย่างเดียวตอนยังไม่แนบ — บอกให้รู้ว่ากล่องนี้รอรูป และกดตรงไหนก็เปิดเลือกรูป */}
-        {image && !hasText && !hasImage && (
-          <button
-            type="button"
-            disabled={disabled}
-            onClick={() => dropRef.current?.open()}
-            className="block w-full text-left px-3 py-3 subtitle-text text-gray-500 dark:text-slate-400 hover:text-primary transition-colors"
-          >
-            {emptyHint || 'ยังไม่มีรูป — กดแนบรูป หรือลากรูปมาวางที่นี่'}
-          </button>
-        )}
-
-        {/* รูปที่แนบ — โผล่ใต้ข้อความในกรอบเดียวกันเหมือนไฟล์แนบในแชท (ยังไม่แนบ = แถวนี้ว่าง) */}
+        {/* รูป — มีช่องพิมพ์: รูปจิ๋วโผล่ใต้ข้อความเหมือนไฟล์แนบในแชท (ยังไม่แนบ = แถวว่าง) ·
+            รูปอย่างเดียว: กล่องเส้นประเต็มกล่องจนกว่าจะแนบ */}
         {image && (
-          <div className={hasImage ? `px-3 pb-2${hasText ? '' : ' pt-3'}` : 'px-3'}>
+          <div className={hasText ? (hasImage ? 'px-3 pb-2' : 'px-3') : 'p-3'}>
             <ImageDropzone
               ref={dropRef}
               value={image.file}
@@ -138,15 +140,20 @@ export default function MessageComposer({
               initialPreviewUrl={image.previewUrl}
               disabled={disabled}
               onBusyChange={setBusy}
+              label="ลากรูปมาวาง หรือกดเพื่อเลือก"
+              hint={emptyHint}
               maxWidthOrHeight={image.maxWidthOrHeight}
               maxSizeMB={image.maxSizeMB}
-              classNames={ATTACH_CLASSES}
+              classNames={hasText ? ATTACH_CLASSES : IMAGE_ONLY_CLASSES}
             />
           </div>
         )}
 
-        <div className="flex flex-wrap items-center gap-2 px-2 py-1.5 border-t border-gray-200 dark:border-slate-600">
-          {image && (
+        {/* แถบล่าง — มีเส้นคั่นเฉพาะตอนมีปุ่ม/ชิป · เหลือแค่ตัวนับไม่ต้องขีดคั่น (เจ้าของขอ 10 ก.ย.) */}
+        <div className={`flex flex-wrap items-center gap-2 px-2 ${
+          showAttachButton || toolbar ? 'py-1.5 border-t border-gray-200 dark:border-slate-600' : 'pb-1.5'
+        }`}>
+          {showAttachButton && image && (
             <Button
               variant="ghost"
               size="sm"
