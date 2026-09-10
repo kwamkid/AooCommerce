@@ -10,14 +10,21 @@ import {
   massShipOrder,
   getAllPackageNumbersBatch,
 } from '@/lib/shopee/api';
+import {
+  type ShopeeRawAddress,
+  type ShopeeShippingParams,
+  type PickupAddressRow,
+  resolvePickupChoice,
+  toPickupAddressRows,
+} from '@/lib/shopee/pickup';
 import { logIntegration } from '@/lib/integration-logger';
 import { resolveCarrierFromOrder } from '@/lib/shopee/sync';
 
-interface TimeSlot {
-  pickup_time_id: string;
-  date: number;
-  display: string;
-  recommended: boolean;
+/** คำตอบ "ให้มารับที่ไหน เมื่อไหร่" ที่ผู้ใช้เลือกมาจากจอ HandoverPickerPanel */
+interface PickupSelectionInput {
+  order_id: string;
+  address_id?: number;
+  pickup_time_id?: string;
 }
 
 interface BulkShipResult {
@@ -25,8 +32,10 @@ interface BulkShipResult {
   order_sn: string;
   success: boolean;
   error?: string;
-  needs_time_slot?: boolean;
-  time_slots?: TimeSlot[];
+  /** ต้องให้คนเลือก "ที่อยู่ + รอบเวลา" ก่อน — ยังไม่ได้ยิงอะไรไปที่ Shopee */
+  needs_pickup_choice?: boolean;
+  pickup_addresses?: PickupAddressRow[];
+  shop_name?: string;
   /** true = ไม่ได้ยิงซ้ำ แค่ซ่อมสถานะที่ค้างให้ตรงกับแพลตฟอร์ม */
   repaired?: boolean;
 }
@@ -49,31 +58,13 @@ const ALREADY_ACCEPTED = new Set(['PROCESSED']);
 /** ล้ำไปกว่ารับออเดอร์แล้ว — ไม่ต้องยิงซ้ำ และ **ห้ามแตะสถานะ** ปล่อยให้ sync จัดการ */
 const BEYOND_ACCEPTED = new Set(['SHIPPED', 'TO_CONFIRM_RECEIVE', 'COMPLETED', 'TO_RETURN', 'CANCELLED']);
 
-function formatTimeSlot(slot: { pickup_time_id: string; date: number; time_text?: string; flags?: string[] }): TimeSlot {
-  const date = new Date(slot.date * 1000);
-  const now = new Date();
-  const isToday = date.toDateString() === now.toDateString();
-  const tomorrow = new Date(now);
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  const isTomorrow = date.toDateString() === tomorrow.toDateString();
-
-  const dayLabel = isToday ? 'วันนี้' : isTomorrow ? 'พรุ่งนี้' : date.toLocaleDateString('th-TH', { day: 'numeric', month: 'short' });
-
-  // Use time_text from Shopee API (e.g. "08:30 - 12:30") instead of parsing from date timestamp
-  const display = slot.time_text ? `${dayLabel} ${slot.time_text}` : dayLabel;
-
-  return {
-    pickup_time_id: slot.pickup_time_id,
-    date: slot.date,
-    display,
-    recommended: slot.flags?.includes('recommended') || false,
-  };
-}
-
 /**
  * POST - Bulk accept/ship Shopee orders.
  * Uses mass_ship_order API (max 50 packages/call) for optimized batch shipping.
- * Falls back to individual ship_order for orders needing time slot selection.
+ * Falls back to individual ship_order when mass_ship_order rejects the batch.
+ *
+ * ⚠️ `mass_ship_order` ส่ง `pickup` เป็นพารามิเตอร์ระดับบนสุด = **ใช้กับทุกพัสดุในสายนั้น**
+ * ⇒ ออเดอร์ที่ที่อยู่/รอบเวลาไม่เหมือนกัน ต้องแยกเป็นคนละ call (ดู `groupKey` ด้านล่าง)
  */
 export async function POST(request: NextRequest) {
   try {
@@ -84,7 +75,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { order_ids, pickup_time_id } = body;
+    const { order_ids, selections } = body as { order_ids?: unknown; selections?: unknown };
 
     if (!order_ids || !Array.isArray(order_ids) || order_ids.length === 0) {
       return NextResponse.json({ error: 'Missing order_ids array' }, { status: 400 });
@@ -92,6 +83,27 @@ export async function POST(request: NextRequest) {
 
     if (order_ids.length > 50) {
       return NextResponse.json({ error: 'Maximum 50 orders per batch' }, { status: 400 });
+    }
+
+    // คำตอบที่ผู้ใช้เลือกมา (ถ้ามี) — ต้องเป็นรูปที่ถูกจริง ๆ ก่อนเอาไปยิงต่อ
+    const selectionsByOrderId = new Map<string, PickupSelectionInput>();
+    if (selections !== undefined) {
+      if (!Array.isArray(selections)) {
+        return NextResponse.json({ error: 'selections must be an array' }, { status: 400 });
+      }
+      for (const raw of selections) {
+        const s = raw as PickupSelectionInput;
+        if (!s || typeof s.order_id !== 'string' || !s.order_id) {
+          return NextResponse.json({ error: 'selections[].order_id is required' }, { status: 400 });
+        }
+        if (s.address_id !== undefined && !Number.isFinite(s.address_id)) {
+          return NextResponse.json({ error: 'selections[].address_id must be a number' }, { status: 400 });
+        }
+        if (s.pickup_time_id !== undefined && typeof s.pickup_time_id !== 'string') {
+          return NextResponse.json({ error: 'selections[].pickup_time_id must be a string' }, { status: 400 });
+        }
+        selectionsByOrderId.set(s.order_id, s);
+      }
     }
 
     // Fetch all orders (include is_split)
@@ -108,8 +120,10 @@ export async function POST(request: NextRequest) {
     // Create lookup map
     const orderMap = new Map((orders || []).map(o => [o.id, o]));
 
-    // Cache credentials per marketplace_account_id to avoid re-fetching
-    const credsCache = new Map<string, Awaited<ReturnType<typeof ensureValidToken>>>();
+    // Cache credentials + ตัวร้าน per marketplace_account_id
+    // (ต้องเก็บตัว account ด้วย เพราะ `metadata.pickup_address_id` = ที่อยู่ที่ร้านนี้เพิ่งใช้)
+    type AccountEntry = { creds: Awaited<ReturnType<typeof ensureValidToken>>; account: ShopeeAccountRow };
+    const accountCache = new Map<string, AccountEntry>();
 
     // Pre-validate orders and prepare work items
     const validOrders: typeof orders = [];
@@ -144,7 +158,7 @@ export async function POST(request: NextRequest) {
     // Pre-fetch all credentials (deduplicated by account)
     const uniqueAccountIds = [...new Set(validOrders.map(o => o.marketplace_account_id).filter(Boolean))];
     for (const accountId of uniqueAccountIds) {
-      if (!credsCache.has(accountId)) {
+      if (!accountCache.has(accountId)) {
         const { data: account } = await supabaseAdmin
           .from('marketplace_accounts')
           .select('*')
@@ -153,7 +167,10 @@ export async function POST(request: NextRequest) {
           .eq('is_active', true)
           .single();
         if (account) {
-          credsCache.set(accountId, await ensureValidToken(account as ShopeeAccountRow));
+          accountCache.set(accountId, {
+            creds: await ensureValidToken(account as ShopeeAccountRow),
+            account: account as ShopeeAccountRow,
+          });
         }
       }
     }
@@ -180,13 +197,20 @@ export async function POST(request: NextRequest) {
         notProcessed.push(...accountOrders.map(o => o.id));
         continue;
       }
-      const creds = credsCache.get(accountId);
-      if (!creds) {
+      const entry = accountCache.get(accountId);
+      if (!entry) {
         for (const order of accountOrders) {
           parallelResults.push({ order_id: order.id, order_sn: order.external_order_sn || '', success: false, error: 'Shopee account not found' });
         }
         continue;
       }
+      const { creds, account } = entry;
+      const shopName = account.shop_name || '';
+      // ที่อยู่ที่ร้านนี้เลือกไว้ครั้งล่าสุด — เอามาเป็นตัวตั้งต้น/ติดป้าย "ใช้ล่าสุด"
+      const rememberedRaw = (account.metadata as Record<string, unknown> | null)?.pickup_address_id;
+      const rememberedAddressId = Number.isFinite(Number(rememberedRaw)) && rememberedRaw != null
+        ? Number(rememberedRaw)
+        : null;
 
       const orderSns = accountOrders.map(o => o.external_order_sn!);
 
@@ -214,9 +238,9 @@ export async function POST(request: NextRequest) {
         isDropoff: boolean;
         isNonIntegrated: boolean;
         nonIntegratedNeedsTracking: boolean;
-        pickupAddress?: { address_id: number; time_slot_list?: Array<{ pickup_time_id: string; date: number; time_text?: string; flags?: string[] }> };
+        /** ที่อยู่รับพัสดุ **ทั้งหมด** ของร้าน — ห้ามหยิบตัวแรกมาใช้ตายตัว */
+        addressList: ShopeeRawAddress[];
         dropoffBranchId?: number;
-        timeSlots: Array<{ pickup_time_id: string; date: number; time_text?: string; flags?: string[] }>;
       };
       const orderShippingParams = new Map<string, ShippingParamResult>();
 
@@ -250,22 +274,16 @@ export async function POST(request: NextRequest) {
           }
           continue;
         }
-        const p = sp as {
-          info_needed?: { pickup?: string[]; dropoff?: string[]; non_integrated?: string[] };
-          pickup?: { address_list?: Array<{ address_id: number; address_flag?: string[]; time_slot_list?: Array<{ pickup_time_id: string; date: number; time_text?: string; flags?: string[] }> }> };
-          dropoff?: { branch_list?: Array<{ branch_id: number }> };
-        };
+        const p = sp as ShopeeShippingParams;
         const isDropoff = !!(p.info_needed?.dropoff && p.info_needed.dropoff.length > 0);
         const isNonIntegrated = !!(p.info_needed?.non_integrated);
         const nonIntegratedNeedsTracking = !!(p.info_needed?.non_integrated?.includes('tracking_no'));
-        const pickupAddr = p.pickup?.address_list?.[0];
         channelShippingParams.set(chId, {
           isDropoff,
           isNonIntegrated,
           nonIntegratedNeedsTracking,
-          pickupAddress: pickupAddr ? { address_id: pickupAddr.address_id, time_slot_list: pickupAddr.time_slot_list } : undefined,
+          addressList: p.pickup?.address_list || [],
           dropoffBranchId: p.dropoff?.branch_list?.[0]?.branch_id,
-          timeSlots: pickupAddr?.time_slot_list || [],
         });
       }
 
@@ -276,46 +294,66 @@ export async function POST(request: NextRequest) {
         if (sp) orderShippingParams.set(order.external_order_sn!, sp);
       }
 
-      // Separate orders: ones that need time slot vs ones that can ship immediately
-      const ordersNeedingTimeSlot: typeof accountOrders = [];
+      // ตัดสินทีละใบว่า "ให้มารับที่ไหน เมื่อไหร่" ตอบได้แล้วหรือยัง
       const ordersReadyToShip: typeof accountOrders = [];
+      // order.id → pickup ที่จะยิงจริง (เฉพาะช่องทางแบบให้มารับ)
+      const pickupByOrder = new Map<string, { address_id: number; pickup_time_id: string }>();
+      // order.id → ที่อยู่ที่ "ผู้ใช้เลือกมาเอง" (ใช้จำไว้ให้ครั้งหน้า — ค่าที่ระบบเดาให้ไม่นับ)
+      const explicitAddressByOrder = new Map<string, number>();
 
       for (const order of accountOrders) {
         const sn = order.external_order_sn!;
         const sp = orderShippingParams.get(sn);
         if (!sp) continue; // already handled as error above
 
-        if (!sp.isDropoff && !sp.isNonIntegrated && !pickup_time_id && sp.timeSlots.length > 1) {
-          ordersNeedingTimeSlot.push(order);
+        if (sp.isDropoff || sp.isNonIntegrated) {
+          ordersReadyToShip.push(order);
+          continue;
+        }
+
+        const selection = selectionsByOrderId.get(order.id) || null;
+        const choice = resolvePickupChoice(sp.addressList, { selection, rememberedAddressId });
+
+        if (choice.kind === 'needs_choice') {
+          parallelResults.push({
+            order_id: order.id,
+            order_sn: sn,
+            success: false,
+            needs_pickup_choice: true,
+            pickup_addresses: toPickupAddressRows(sp.addressList, rememberedAddressId),
+            shop_name: shopName,
+          });
+        } else if (choice.kind === 'invalid') {
+          parallelResults.push({ order_id: order.id, order_sn: sn, success: false, error: choice.error });
         } else {
+          pickupByOrder.set(order.id, { address_id: choice.address_id, pickup_time_id: choice.pickup_time_id });
+          if (typeof selection?.address_id === 'number') {
+            explicitAddressByOrder.set(order.id, selection.address_id);
+          }
           ordersReadyToShip.push(order);
         }
-      }
-
-      // Return needs_time_slot for orders that need it (with their own time slots)
-      for (const order of ordersNeedingTimeSlot) {
-        const sp = orderShippingParams.get(order.external_order_sn!)!;
-        parallelResults.push({
-          order_id: order.id,
-          order_sn: order.external_order_sn || '',
-          success: false,
-          needs_time_slot: true,
-          time_slots: sp.timeSlots.map(formatTimeSlot),
-        });
       }
 
       // Skip to next account if no orders are ready to ship
       if (ordersReadyToShip.length === 0) continue;
 
       // Step 3: Build package list for mass_ship_order (only for ready-to-ship orders)
-      // Group by logistics_channel_id (mass_ship_order requires same channel per batch)
-      const channelGroups = new Map<number, { pkg: MassShipPackage; order: typeof accountOrders[0]; sp: ShippingParamResult }[]>();
+      // ⚠️ จัดกลุ่มด้วย channel **บวกที่อยู่+รอบเวลา** — `pickup` ของ mass_ship_order
+      // เป็นค่าเดียวใช้กับทุกพัสดุใน call นั้น ปนกันเมื่อไหร่ = รถไปผิดที่ทั้งกอง
+      type ChannelGroup = {
+        channelId: number;
+        sp: ShippingParamResult;
+        pickup?: { address_id: number; pickup_time_id: string };
+        items: { pkg: MassShipPackage; order: typeof accountOrders[0] }[];
+      };
+      const channelGroups = new Map<string, ChannelGroup>();
       const fallbackOrders: typeof accountOrders[0][] = []; // orders without package info at all
 
       for (const order of ordersReadyToShip) {
         const sn = order.external_order_sn!;
         const pkgInfos = packageMap.get(sn);
         const sp = orderShippingParams.get(sn)!;
+        const pickup = pickupByOrder.get(order.id);
 
         if (!pkgInfos || pkgInfos.length === 0) {
           fallbackOrders.push(order);
@@ -324,25 +362,30 @@ export async function POST(request: NextRequest) {
 
         for (const pkgInfo of pkgInfos) {
           const channelId = pkgInfo.logistics_channel_id || 0;
+          const groupKey = pickup
+            ? `${channelId}|${pickup.address_id}|${pickup.pickup_time_id}`
+            : `${channelId}`;
           // Always include package_number — Shopee returns it in success_list/fail_list
           // and we need it to match results back to orders.
           const massShipPkg: MassShipPackage = { package_number: pkgInfo.package_number };
 
-          if (!channelGroups.has(channelId)) channelGroups.set(channelId, []);
-          channelGroups.get(channelId)!.push({ pkg: massShipPkg, order, sp });
+          let group = channelGroups.get(groupKey);
+          if (!group) {
+            group = { channelId, sp, pickup, items: [] };
+            channelGroups.set(groupKey, group);
+          }
+          group.items.push({ pkg: massShipPkg, order });
         }
       }
 
-      console.log(`[Shopee Bulk Ship] ${accountOrders.length} orders → ${[...channelGroups.entries()].map(([ch, items]) => `channel=${ch}:${items.length}pkg`).join(', ')}${fallbackOrders.length > 0 ? ` + ${fallbackOrders.length} fallback` : ''}`);
+      console.log(`[Shopee Bulk Ship] ${accountOrders.length} orders → ${[...channelGroups.entries()].map(([key, g]) => `${key}:${g.items.length}pkg`).join(', ')}${fallbackOrders.length > 0 ? ` + ${fallbackOrders.length} fallback` : ''}`);
 
-      // Step 4: Mass ship per channel group
-      // Build pickup/dropoff PER CHANNEL from its shipping params
+      // Step 4: Mass ship per group (channel + pickup ที่เหมือนกันทั้งกอง)
       const orderSuccessSet = new Set<string>(); // order IDs that succeeded
       const orderErrorMap = new Map<string, string>(); // order ID → error
 
-      for (const [channelId, items] of channelGroups) {
-        // Use shipping params from the first order in this channel group
-        const sp = items[0].sp;
+      for (const [groupKey, group] of channelGroups) {
+        const { sp, channelId, items } = group;
         let chPickupInfo: { address_id: number; pickup_time_id: string } | undefined;
         let chDropoffInfo: { branch_id?: number } | undefined;
 
@@ -352,13 +395,8 @@ export async function POST(request: NextRequest) {
           chNonIntegrated = {};
         } else if (sp.isDropoff) {
           if (sp.dropoffBranchId) chDropoffInfo = { branch_id: sp.dropoffBranchId };
-        } else if (sp.pickupAddress) {
-          const ts = sp.timeSlots;
-          const selectedTimeSlotId = pickup_time_id
-            || ts.find(s => s.flags?.includes('recommended'))?.pickup_time_id
-            || ts[0]?.pickup_time_id
-            || '';
-          chPickupInfo = { address_id: sp.pickupAddress.address_id, pickup_time_id: selectedTimeSlotId };
+        } else if (group.pickup) {
+          chPickupInfo = group.pickup;
         }
 
         const packages = items.map(i => i.pkg);
@@ -372,10 +410,10 @@ export async function POST(request: NextRequest) {
         );
 
         if (massError) {
-          console.error(`[Shopee Bulk Ship] mass_ship_order error for channel ${channelId}:`, massError);
+          console.error(`[Shopee Bulk Ship] mass_ship_order error for group ${groupKey}:`, massError);
           // Fall back to individual ship_order
           for (const item of items) {
-            const result = await individualShipOrder(creds, item.order, chPickupInfo, chDropoffInfo, item.pkg.package_number);
+            const result = await individualShipOrder(creds, item.order, chPickupInfo, chDropoffInfo, item.pkg.package_number, chNonIntegrated);
             if (result.success) {
               orderSuccessSet.add(item.order.id);
             } else {
@@ -390,7 +428,7 @@ export async function POST(request: NextRequest) {
         const failPnMap = new Map(failList.map(f => [f.package_number, f.fail_reason]));
 
         // Log full response for debugging
-        console.log(`[Shopee Bulk Ship] Channel ${channelId}: sent ${items.length} pkgs, successList=${JSON.stringify(successList)}, failList=${JSON.stringify(failList)}`);
+        console.log(`[Shopee Bulk Ship] Group ${groupKey}: sent ${items.length} pkgs, successList=${JSON.stringify(successList)}, failList=${JSON.stringify(failList)}`);
 
         for (const item of items) {
           const pn = item.pkg.package_number;
@@ -413,7 +451,8 @@ export async function POST(request: NextRequest) {
       // Step 5: Fallback — individual ship_order for orders without package_number
       for (const order of fallbackOrders) {
         const sp = orderShippingParams.get(order.external_order_sn!);
-        if (!sp || (!sp.pickupAddress && !sp.isDropoff && !sp.isNonIntegrated)) {
+        const pickup = pickupByOrder.get(order.id);
+        if (!sp || (!pickup && !sp.isDropoff && !sp.isNonIntegrated)) {
           orderErrorMap.set(order.id, 'ไม่พบที่อยู่รับพัสดุ');
           continue;
         }
@@ -424,10 +463,8 @@ export async function POST(request: NextRequest) {
           fbNonIntegrated = {};
         } else if (sp.isDropoff) {
           if (sp.dropoffBranchId) fbDropoff = { branch_id: sp.dropoffBranchId };
-        } else if (sp.pickupAddress) {
-          const ts = sp.timeSlots;
-          const slotId = pickup_time_id || ts.find(s => s.flags?.includes('recommended'))?.pickup_time_id || ts[0]?.pickup_time_id || '';
-          fbPickup = { address_id: sp.pickupAddress.address_id, pickup_time_id: slotId };
+        } else if (pickup) {
+          fbPickup = pickup;
         }
         const result = await individualShipOrder(creds, order, fbPickup, fbDropoff, undefined, fbNonIntegrated);
         if (result.success) {
@@ -476,26 +513,37 @@ export async function POST(request: NextRequest) {
         } else if (orderErrorMap.has(order.id)) {
           parallelResults.push({ order_id: order.id, order_sn: order.external_order_sn || '', success: false, error: orderErrorMap.get(order.id) });
         }
-        // Note: needs_time_slot orders were already handled above
+        // Note: needs_pickup_choice orders were already handled above
+      }
+
+      // Step 7: จำที่อยู่ที่ผู้ใช้ "เลือกเอง" ไว้ให้ครั้งหน้าเป็นตัวตั้งต้น
+      // (ค่าที่ระบบเดาให้ไม่นับ ไม่งั้นจะกลายเป็นการยืนยันตัวเองไปเรื่อย ๆ)
+      let addressToRemember: number | null = null;
+      for (const order of accountOrders) {
+        if (!orderSuccessSet.has(order.id)) continue;
+        const chosen = explicitAddressByOrder.get(order.id);
+        if (chosen != null) addressToRemember = chosen;
+      }
+      if (addressToRemember != null && addressToRemember !== rememberedAddressId) {
+        // ⚠️ merge metadata เสมอ — ก้อนนี้เก็บโลโก้ร้าน/ธง app อยู่ด้วย เขียนทับ = หายหมด
+        await supabaseAdmin.from('marketplace_accounts').update({
+          metadata: { ...(account.metadata || {}), pickup_address_id: addressToRemember },
+        }).eq('id', accountId).eq('company_id', companyId);
       }
     }
 
     const results = [...quickResults, ...parallelResults];
 
     const successCount = results.filter(r => r.success).length;
-    const needsTimeSlotCount = results.filter(r => r.needs_time_slot).length;
-    const errorCount = results.filter(r => !r.success && !r.needs_time_slot).length;
+    const needsPickupChoiceCount = results.filter(r => r.needs_pickup_choice).length;
+    const errorCount = results.filter(r => !r.success && !r.needs_pickup_choice).length;
 
     // Log each processed order to integration_logs with full detail
     for (const r of results) {
-      if (r.needs_time_slot) continue;
+      if (r.needs_pickup_choice) continue;
       const order = orderMap.get(r.order_id);
       const accountId = order?.marketplace_account_id;
-      let shopName = '';
-      if (accountId) {
-        const cached = credsCache.get(accountId);
-        shopName = (cached as any)?.shop_name || '';
-      }
+      const shopName = accountId ? (accountCache.get(accountId)?.account.shop_name || '') : '';
       logIntegration({
         company_id: companyId,
         integration: 'shopee',
@@ -533,7 +581,7 @@ export async function POST(request: NextRequest) {
       summary: {
         total: order_ids.length,
         success: successCount,
-        needs_time_slot: needsTimeSlotCount,
+        needs_pickup_choice: needsPickupChoiceCount,
         error: errorCount,
         repaired: repairIds.length,
       },

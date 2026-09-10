@@ -270,8 +270,7 @@ const columns: DataTableColumn<Order>[] = [
 | `ActionMenu` | Portal dropdown menu (z-9999) — ใช้ทุกหน้า list |
 | `PaymentModal` | บันทึกชำระเงิน+แนบ slip |
 | `SplitParcelModal` | แบ่งกล่อง (Shopee + manual) |
-| `ShopeeShipModal` | Shopee ship (เลือก pickup address + time slot) |
-| `TimeSlotPickerPanel` | Shopee time slot picker |
+| `HandoverPickerPanel` | จอเดียวสำหรับ "ให้ขนส่งมารับที่ไหน เมื่อไหร่" ของทุก marketplace (Shopee เลือกที่อยู่+รอบ · TikTok เลือกรอบ) — ห้ามสร้าง modal รับออเดอร์แยกต่อแพลตฟอร์ม |
 | `TaxInvoiceModal` | ออกใบกำกับภาษี (personal/corporate) |
 | `PrintStatusDots` | จุดแสดงสถานะพิมพ์ (label, packing, invoice) |
 | `OrderCard` | Mobile card view |
@@ -484,7 +483,6 @@ const columns: DataTableColumn<Order>[] = [
 |-------|----------|
 | `/api/shopee/sync` | Manual sync by order_sn |
 | `/api/shopee/sync-order` | Sync single order |
-| `/api/shopee/orders/ship` | Ship Shopee order |
 | `/api/shopee/orders/shipping-document` | Get shipping label |
 | `/api/shopee/products/export` | Export product to Shopee |
 | `/api/shopee/products/import` | Import from Shopee |

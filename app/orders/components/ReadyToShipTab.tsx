@@ -41,9 +41,18 @@ import Button from '@/components/ui/Button';
 import { Order } from './types';
 import { isMarketplaceSource } from '@/lib/marketplace/types';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
-import TimeSlotPickerPanel, { type TimeSlotOrder } from './TimeSlotPickerPanel';
-import { toHandoverSlots, decodeTikTokSlotId } from '@/lib/marketplace/handover';
+import HandoverPickerPanel from './HandoverPickerPanel';
+import {
+  toHandoverSlots,
+  decodeTikTokSlotId,
+  shopeeResultToHandoverOrder,
+  type HandoverOrder,
+  type HandoverSelection,
+} from '@/lib/marketplace/handover';
 import BulkActionBar from '@/components/ui/BulkActionBar';
+
+/** เพดานของ `/api/shopee/orders/bulk-ship` ต่อหนึ่ง request */
+const SHOPEE_BULK_SHIP_MAX = 50;
 
 const ON_HOLD_KEY = '__on_hold__';
 const ACTIVE_KEY = '__active__';
@@ -121,10 +130,10 @@ export default function ReadyToShipTab({
   const [holdModal, setHoldModal] = useState<{ orderId: string; orderNumber: string } | null>(null);
   const [holdReason, setHoldReason] = useState('');
   const [toast, setToast] = useState('');
-  // Timeslot picker panel — replaces old one-by-one modal queue
-  const [timeSlotOrders, setTimeSlotOrders] = useState<TimeSlotOrder[]>([]);
-  const [timeSlotPanelOpen, setTimeSlotPanelOpen] = useState(false);
-  const [timeSlotLoading, setTimeSlotLoading] = useState(false);
+  // จอ "ให้ขนส่งมารับที่ไหน เมื่อไหร่" — ใช้ร่วม Shopee + TikTok
+  const [handoverOrders, setHandoverOrders] = useState<HandoverOrder[]>([]);
+  const [handoverPanelOpen, setHandoverPanelOpen] = useState(false);
+  const [handoverLoading, setHandoverLoading] = useState(false);
   const [splitModal, setSplitModal] = useState<{
     orderId: string;
     orderNumber: string;
@@ -408,7 +417,7 @@ export default function ReadyToShipTab({
       const successIds: string[] = [];
       let processedCount = 0;
       const total = ids.length;
-      const timeSlotQueue: TimeSlotOrder[] = [];
+      const handoverQueue: HandoverOrder[] = [];
       const errors: string[] = [];
 
       // Process manual orders
@@ -450,14 +459,9 @@ export default function ReadyToShipTab({
             setOverlayMessage(`${processedCount} / ${total}`);
             if (r.success) {
               successIds.push(r.order_id);
-            } else if (r.needs_time_slot && r.time_slots?.length > 0) {
+            } else if (r.needs_pickup_choice && r.pickup_addresses?.length > 0) {
               const order = orders.find(o => o.id === r.order_id);
-              timeSlotQueue.push({
-                orderId: r.order_id,
-                orderSn: r.order_sn,
-                orderNumber: order?.order_number || r.order_sn,
-                timeSlots: r.time_slots,
-              });
+              handoverQueue.push(shopeeResultToHandoverOrder(r, order?.order_number || r.order_sn));
             } else if (r.error) {
               errors.push(`${r.order_sn}: ${r.error}`);
             }
@@ -482,7 +486,7 @@ export default function ReadyToShipTab({
           const data = await res.json().catch(() => ({}));
           if (res.ok && data.needs_pickup_slot && data.pickup_slots?.length > 0) {
             const o = orders.find(x => x.id === id);
-            timeSlotQueue.push({
+            handoverQueue.push({
               orderId: id,
               orderSn: o?.external_order_sn || '',
               orderNumber: o?.order_number || id,
@@ -579,9 +583,9 @@ export default function ReadyToShipTab({
       handleRefresh();
 
       // If any orders need timeslot selection, show the picker panel
-      if (timeSlotQueue.length > 0) {
-        setTimeSlotOrders(timeSlotQueue);
-        setTimeSlotPanelOpen(true);
+      if (handoverQueue.length > 0) {
+        setHandoverOrders(handoverQueue);
+        setHandoverPanelOpen(true);
       }
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด', 'error');
@@ -814,20 +818,17 @@ export default function ReadyToShipTab({
     }
   };
 
-  const handleSingleAcceptShopee = async (orderId: string, pickupTimeId?: string) => {
+  const handleSingleAcceptShopee = async (orderId: string) => {
     setActionLoading(true);
     setOverlayOpen(true);
     setOverlayTitle('กำลังรับออเดอร์...');
     setOverlayProgress(undefined);
     setOverlayMessage(undefined);
     try {
-      const payload: Record<string, unknown> = { order_ids: [orderId] };
-      if (pickupTimeId) payload.pickup_time_id = pickupTimeId;
-
       const res = await apiFetch('/api/shopee/orders/bulk-ship', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({ order_ids: [orderId] }),
       });
       if (!res.ok) throw new Error('Failed');
       const data = await res.json();
@@ -836,16 +837,11 @@ export default function ReadyToShipTab({
       if (r?.success) {
         showToast('รับออเดอร์ Shopee สำเร็จ');
         handleRefresh();
-      } else if (r?.needs_time_slot && r.time_slots?.length > 0) {
-        // Show timeslot picker panel for this single order
+      } else if (r?.needs_pickup_choice && r.pickup_addresses?.length > 0) {
+        // ต้องให้คนเลือกที่อยู่/รอบก่อน — เปิดจอเดียวกับตอนกดรับเป็นชุด
         const order = orders.find(o => o.id === orderId);
-        setTimeSlotOrders([{
-          orderId,
-          orderSn: r.order_sn || '',
-          orderNumber: order?.order_number || r.order_sn || '',
-          timeSlots: r.time_slots,
-        }]);
-        setTimeSlotPanelOpen(true);
+        setHandoverOrders([shopeeResultToHandoverOrder(r, order?.order_number || r.order_sn || '')]);
+        setHandoverPanelOpen(true);
       } else {
         showToast(r?.error || 'รับออเดอร์ไม่สำเร็จ', 'error');
       }
@@ -859,9 +855,9 @@ export default function ReadyToShipTab({
     }
   };
 
-  /** Bulk confirm timeslot orders — ship each with its selected pickup_time_id */
-  const handleTimeSlotConfirm = async (selections: Map<string, string>) => {
-    setTimeSlotLoading(true);
+  /** ยืนยันคำตอบ "ให้มารับที่ไหน เมื่อไหร่" แล้วรับออเดอร์จริง */
+  const handleHandoverConfirm = async (selections: Map<string, HandoverSelection>) => {
+    setHandoverLoading(true);
     setOverlayOpen(true);
     setOverlayTitle('กำลังรับออเดอร์...');
     setOverlayProgress(0);
@@ -871,12 +867,15 @@ export default function ReadyToShipTab({
     const successIds: string[] = [];
     const errors: string[] = [];
 
-    for (const [orderId, pickupTimeId] of selections) {
-      try {
-        // จอเดียวกันแต่ปลายทางคนละที่ — แปลงตามที่มาของออเดอร์
-        const queued = timeSlotOrders.find(o => o.orderId === orderId);
-        if (queued?.source === 'tiktok') {
-          const slot = decodeTikTokSlotId(pickupTimeId);
+    // จอเดียวกันแต่ปลายทางคนละที่ — แยกตามที่มาของออเดอร์
+    // Shopee รวมยิงครั้งเดียว (route จัดกลุ่ม channel+ที่อยู่+รอบให้เอง) · TikTok ยิงทีละใบ
+    const shopeeEntries: Array<{ order_id: string; address_id?: number; pickup_time_id: string }> = [];
+
+    for (const [orderId, sel] of selections) {
+      const queued = handoverOrders.find(o => o.orderId === orderId);
+      if (queued?.source === 'tiktok') {
+        try {
+          const slot = decodeTikTokSlotId(sel.pickup_time_id);
           const res = await apiFetch('/api/tiktok/orders/ship', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -885,39 +884,59 @@ export default function ReadyToShipTab({
           const data = await res.json().catch(() => ({}));
           if (res.ok && (data.success || data.repaired)) successIds.push(orderId);
           else errors.push(`${queued.orderNumber}: ${data.error || 'ไม่สำเร็จ'}`);
-          processed++;
-          setOverlayProgress(Math.round((processed / total) * 100));
-          continue;
+        } catch {
+          errors.push(`${queued.orderNumber || orderId}: เกิดข้อผิดพลาด`);
         }
+        processed++;
+        setOverlayProgress(Math.round((processed / total) * 100));
+        setOverlayMessage(`${processed} / ${total}`);
+        continue;
+      }
+      shopeeEntries.push({
+        order_id: orderId,
+        ...(sel.address_id != null ? { address_id: sel.address_id } : {}),
+        pickup_time_id: sel.pickup_time_id,
+      });
+    }
 
+    const labelOf = (id: string) => handoverOrders.find(o => o.orderId === id)?.orderNumber || id;
+    // bulk-ship รับได้ 50 ใบต่อครั้ง — เกินแล้วโดนปฏิเสธทั้งกอง จึงหั่นก่อนยิง
+    for (let i = 0; i < shopeeEntries.length; i += SHOPEE_BULK_SHIP_MAX) {
+      const chunk = shopeeEntries.slice(i, i + SHOPEE_BULK_SHIP_MAX);
+      setOverlayMessage(`${processed} / ${total} — กำลังส่งไป Shopee...`);
+      try {
         const res = await apiFetch('/api/shopee/orders/bulk-ship', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ order_ids: [orderId], pickup_time_id: pickupTimeId }),
+          body: JSON.stringify({
+            order_ids: chunk.map(e => e.order_id),
+            selections: chunk,
+          }),
         });
         if (res.ok) {
           const data = await res.json();
-          const r = data.results?.[0];
-          if (r?.success) {
-            successIds.push(orderId);
-          } else {
-            const tsOrder = timeSlotOrders.find(o => o.orderId === orderId);
-            errors.push(`${tsOrder?.orderNumber || orderId}: ${r?.error || 'ไม่สำเร็จ'}`);
+          const byId = new Map<string, { success?: boolean; repaired?: boolean; error?: string }>(
+            (data.results || []).map((r: { order_id: string }) => [r.order_id, r])
+          );
+          for (const entry of chunk) {
+            const r = byId.get(entry.order_id);
+            if (r?.success || r?.repaired) successIds.push(entry.order_id);
+            else errors.push(`${labelOf(entry.order_id)}: ${r?.error || 'ไม่สำเร็จ'}`);
           }
         } else {
-          errors.push(`${orderId}: API error`);
+          for (const entry of chunk) errors.push(`${labelOf(entry.order_id)}: API error`);
         }
       } catch {
-        errors.push(`${orderId}: เกิดข้อผิดพลาด`);
+        for (const entry of chunk) errors.push(`${labelOf(entry.order_id)}: เกิดข้อผิดพลาด`);
       }
-      processed++;
+      processed += chunk.length;
       setOverlayProgress(Math.round((processed / total) * 100));
       setOverlayMessage(`${processed} / ${total}`);
     }
 
-    setTimeSlotPanelOpen(false);
-    setTimeSlotOrders([]);
-    setTimeSlotLoading(false);
+    setHandoverPanelOpen(false);
+    setHandoverOrders([]);
+    setHandoverLoading(false);
     setOverlayOpen(false);
     setOverlayProgress(undefined);
     setOverlayMessage(undefined);
@@ -1407,22 +1426,22 @@ export default function ReadyToShipTab({
         </div>
       )}
 
-      {/* TimeSlot Picker Panel */}
-      {timeSlotPanelOpen && timeSlotOrders.length > 0 && (
-        <TimeSlotPickerPanel
-          orders={timeSlotOrders}
-          loading={timeSlotLoading}
-          onConfirm={handleTimeSlotConfirm}
+      {/* จอเลือก "ให้ขนส่งมารับที่ไหน เมื่อไหร่" */}
+      {handoverPanelOpen && handoverOrders.length > 0 && (
+        <HandoverPickerPanel
+          orders={handoverOrders}
+          loading={handoverLoading}
+          onConfirm={handleHandoverConfirm}
           onSkip={() => {
-            setTimeSlotPanelOpen(false);
-            setTimeSlotOrders([]);
+            setHandoverPanelOpen(false);
+            setHandoverOrders([]);
             handleRefresh();
           }}
         />
       )}
 
-      {/* PDF loading toast — only show when NOT in timeslot panel */}
-      {actionLoading && !timeSlotPanelOpen && (
+      {/* PDF loading toast — only show when NOT in handover panel */}
+      {actionLoading && !handoverPanelOpen && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-gray-900 text-white px-5 py-3 rounded-lg shadow-lg flex items-center gap-2 text-sm">
           <Loader2 className="w-4 h-4 animate-spin text-primary" />
           กำลังดำเนินการ...

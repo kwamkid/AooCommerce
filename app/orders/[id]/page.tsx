@@ -53,7 +53,8 @@ import {
   Megaphone
 } from 'lucide-react';
 import PaymentModal from '../components/PaymentModal';
-import ShopeeShipModal from '../components/ShopeeShipModal';
+import HandoverPickerPanel from '../components/HandoverPickerPanel';
+import { shopeeResultToHandoverOrder, type HandoverOrder, type HandoverSelection } from '@/lib/marketplace/handover';
 import ThaiAddressInput from '@/components/ui/ThaiAddressInput';
 import { generateOrderInvoicePdf } from '@/lib/order-invoice-pdf';
 import { generatePackingPdf } from '@/lib/orders-packing-pdf';
@@ -123,7 +124,8 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
   const [externalStatus, setExternalStatus] = useState('');
   const [externalOrderSn, setExternalOrderSn] = useState('');
   const [shopeeActionLoading, setShopeeActionLoading] = useState(false);
-  const [showShopeeShipModal, setShowShopeeShipModal] = useState(false);
+  // จอ "ให้ขนส่งมารับที่ไหน เมื่อไหร่" — เปิดเฉพาะเมื่อ Shopee มีที่อยู่/รอบให้เลือกมากกว่าหนึ่ง
+  const [handoverOrders, setHandoverOrders] = useState<HandoverOrder[]>([]);
   const [fullOrderData, setFullOrderData] = useState<any>(null);
   const isShopeeOrder = orderSource === 'shopee';
   const isMarketplaceOrder = isMarketplaceSource(orderSource);
@@ -503,15 +505,43 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
   };
 
   // Shopee action handlers
-  const handleAcceptShopeeOrder = () => {
-    setShowShopeeShipModal(true);
+  /**
+   * รับออเดอร์ Shopee — ยิง bulk-ship ใบเดียว
+   * ร้านที่มีที่อยู่รับพัสดุหลายที่ (หรือหลายรอบ) จะได้ `needs_pickup_choice` กลับมา
+   * → เปิดจอเดียวกับหน้ารายการให้เลือก **ที่ไหน + เมื่อไหร่** แล้วยิงซ้ำพร้อมคำตอบ
+   */
+  const acceptShopeeOrder = async (selection?: HandoverSelection) => {
+    setShopeeActionLoading(true);
+    try {
+      const res = await apiFetch('/api/shopee/orders/bulk-ship', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          order_ids: [orderId],
+          ...(selection ? { selections: [{ order_id: orderId, ...selection }] } : {}),
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      const r = data.results?.[0];
+
+      if (r?.success || r?.repaired) {
+        showToast('รับออเดอร์ Shopee สำเร็จ');
+        setHandoverOrders([]);
+        setExternalStatus('PROCESSED');
+        setOrderStatus('processing');
+      } else if (r?.needs_pickup_choice && r.pickup_addresses?.length > 0) {
+        setHandoverOrders([shopeeResultToHandoverOrder(r, orderNumber)]);
+      } else {
+        showToast(r?.error || data.error || 'รับออเดอร์ไม่สำเร็จ', 'error');
+      }
+    } catch {
+      showToast('เกิดข้อผิดพลาด', 'error');
+    } finally {
+      setShopeeActionLoading(false);
+    }
   };
 
-  const handleShopeeShipSuccess = () => {
-    setShowShopeeShipModal(false);
-    setExternalStatus('PROCESSED');
-    setOrderStatus('processing');
-  };
+  const handleAcceptShopeeOrder = () => { void acceptShopeeOrder(); };
 
   // Key to force OrderForm remount after re-sync
   const [orderFormKey, setOrderFormKey] = useState(0);
@@ -1811,15 +1841,16 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
           salesChannelPortalRef={salesChannelRef}
         />
 
-        {/* Shopee Ship Modal */}
-        {showShopeeShipModal && (
-          <ShopeeShipModal
-            orderId={orderId}
-            orderSn={externalOrderSn || ''}
-            onClose={() => setShowShopeeShipModal(false)}
-            onSuccess={handleShopeeShipSuccess}
-            apiFetch={apiFetch}
-            showToast={showToast}
+        {/* จอเลือก "ให้ขนส่งมารับที่ไหน เมื่อไหร่" (Shopee) */}
+        {handoverOrders.length > 0 && (
+          <HandoverPickerPanel
+            orders={handoverOrders}
+            loading={shopeeActionLoading}
+            onConfirm={(selections) => {
+              const selection = selections.get(orderId);
+              if (selection) void acceptShopeeOrder(selection);
+            }}
+            onSkip={() => setHandoverOrders([])}
           />
         )}
 

@@ -9,7 +9,7 @@
 |--------|------|-----------|--------|
 | Bill Online Link | Link2 | เสมอ | copy bill URL |
 | Shopee Sync | RefreshCw | Shopee order | sync from Shopee API |
-| Shopee รับออเดอร์ | PackageCheck | Shopee + `externalStatus === 'READY_TO_SHIP'` | เปิด ShopeeShipModal |
+| Shopee รับออเดอร์ | PackageCheck | Shopee + `externalStatus === 'READY_TO_SHIP'` | ยิง bulk-ship (1 ใบ) → ถ้าต้องเลือกที่อยู่/รอบ เปิด HandoverPickerPanel |
 
 ### จัดการ Menu (Pencil + ChevronDown)
 | Label | Condition | Action |
