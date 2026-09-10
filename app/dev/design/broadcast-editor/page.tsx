@@ -571,7 +571,6 @@ function CardsEditor({ block, onChange, picker }: {
                   </div>
                   <div className="flex-1 min-w-64">
                     <ActionPicker
-                      compact
                       value={b.action}
                       onChange={action => patchFace(selected, { buttons: face.buttons.map(x => (x.id === b.id ? { ...x, action } : x)) })}
                       {...picker}
@@ -624,7 +623,9 @@ function SortableBlock({ block, index, onChange, onRemove, picker }: {
     );
   } else if (block.type === 'rich') {
     editor = (
-      <div className="space-y-3">
+      // สองคอลัมน์: รูปซ้าย · "กดรูปแล้ว" ขวา — แถวเดียวเต็มกว้างเหลือที่ว่างเยอะ (เจ้าของขอ 11 ก.ย. 2026)
+      // จอแคบซ้อนลงมาเป็นแถวเดียวเหมือนเดิม
+      <div className="grid md:grid-cols-2 gap-4 items-start">
         <MessageComposer
           emptyHint="แนะนำแนวตั้ง 4:5 · สูงสุด 1:3 (สูงได้ 3 เท่าของความกว้าง)"
           image={{ file: block.file, onChange: f => onChange({ ...block, file: f, previewUrl: f ? URL.createObjectURL(f) : null }), previewUrl: block.previewUrl, maxWidthOrHeight: 1024, maxSizeMB: 0.3 }}
