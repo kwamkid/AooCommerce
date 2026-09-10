@@ -25,7 +25,7 @@ import {
 } from '@/lib/broadcast/content';
 import type { BroadcastCompose, BroadcastContentKind } from '@/lib/broadcast/platforms';
 import { Plus, Trash2 } from 'lucide-react';
-import { KIND_MOCKS, MockAvatar, MockImage, MockLine } from './KindMockups';
+import { KIND_MOCKS, MockChat, MockImage, MockLine, MockPhoto } from './KindMockups';
 
 /** ชื่อชนิดเนื้อหา — หน้าสร้างเอาไปสรุปในแผงขวาด้วย จึง export ออกไป */
 export const KIND_LABELS: Record<BroadcastContentKind, string> = {
@@ -48,33 +48,30 @@ const KIND_CARDS: Record<BroadcastContentKind, { label: string; description: str
 
 /**
  * รูปของ "ประกาศ" แสดงยังไง — ฟองรูปเล็กในห้องแชท vs รูปใหญ่เต็มความกว้าง
- * รับรูปของร่างเข้ามาวาดจริง ไม่ใช่บล็อกเทาเสมอไป
+ * วาดเป็นห้องแชทจำลองชุดเดียวกับการ์ดเลือกชนิด · **เลือกได้ตั้งแต่ยังไม่มีรูป** (ทรงเทา) แล้วพอ
+ * อัปรูปแล้วรูปจริงของผู้ใช้จะเข้าไปแทนที่ทั้งสองแบบ จึงตัดสินใจได้โดยไม่ต้องกดลองแล้วกดกลับ
+ * ⛔ ป้ายไม่ใช้ศัพท์ของ LINE ("rich message") — ร้านค้าไม่ควรต้องรู้ว่า LINE เรียกอะไร
  */
 function imageStyleCards(sampleImageUrl: string | null): OptionCardItem<'bubble' | 'rich'>[] {
   return [
     {
       id: 'bubble',
-      label: 'รูปธรรมดา',
-      description: 'ฟองรูปเหมือนแอดมินส่งรูปในแชท',
+      label: 'ฟองรูป',
+      description: 'เหมือนแอดมินส่งรูปในแชท',
       preview: (
-        <div className="w-full h-full p-2 flex items-start gap-1.5">
-          <MockAvatar size="md" />
-          <div className="flex-1 min-w-0">
-            <div className="w-fit rounded-lg rounded-tl-sm bg-white dark:bg-slate-800 p-1">
-              <MockImage src={sampleImageUrl} className="w-16 h-12 rounded" />
-            </div>
-          </div>
-        </div>
+        <MockChat>
+          <MockPhoto src={sampleImageUrl} className="w-8/12 h-14 rounded-xl" />
+        </MockChat>
       ),
     },
     {
       id: 'rich',
-      label: 'rich message',
-      description: 'รูปใหญ่เต็มความกว้าง กดไปลิงก์ได้',
+      label: 'รูปเต็มจอ',
+      description: 'กว้างเต็มห้องแชท กดไปลิงก์ได้',
       preview: (
-        <div className="w-full h-full p-2 flex items-center">
-          <MockImage src={sampleImageUrl} className="w-full h-16 rounded-lg" />
-        </div>
+        <MockChat>
+          <MockPhoto src={sampleImageUrl} className="flex-1 min-h-0 w-full rounded-xl" />
+        </MockChat>
       ),
     },
   ];
@@ -184,6 +181,7 @@ export default function ContentStep({
     setQuickReplyDraft('');
   };
 
+  // ยืดเต็มความสูงของแถวเมื่ออยู่คู่กับคอลัมน์รูป (กรอบสองฝั่งจึงจบบรรทัดเดียวกัน) — นอก grid h-full ไม่มีผล
   const textField = (
     <FormTextarea
       label={kind === 'products' ? 'ข้อความเกริ่น (ไม่บังคับ)' : kind === 'promo' ? 'ข้อความบนการ์ด' : 'ข้อความ'}
@@ -193,29 +191,32 @@ export default function ContentStep({
       rows={kind === 'announce' ? 5 : 3}
       placeholder="พิมพ์ข้อความที่จะส่งถึงลูกค้า"
       disabled={disabled}
+      containerClassName="h-full flex flex-col"
+      className="flex-1"
     />
   );
-
-  /** มีรูปให้ตัดสินใจแล้วหรือยัง — ยังไม่มีรูปก็ยังไม่ต้องถามว่าจะแสดงแบบไหน */
-  const hasImage = !!imageFile || !!existingImageUrl;
 
   const imageLabel = kind === 'poster'
     ? 'รูปโปสเตอร์'
     : kind === 'promo' ? 'แบนเนอร์ (ไม่บังคับ)' : 'รูปภาพ (ไม่บังคับ)';
 
+  const dropzone = (
+    <ImageDropzone
+      value={imageFile}
+      onChange={onImageFileChange}
+      initialPreviewUrl={existingImageUrl}
+      disabled={disabled}
+      label="ลากรูปมาวาง หรือกดเพื่อเลือก"
+      // ย่อทั้งพิกเซลและขนาดไฟล์ก่อนอัป — รูปใหญ่กว่านี้ LINE ไม่รับ และเปลืองที่เก็บ
+      maxWidthOrHeight={1024}
+      maxSizeMB={0.3}
+    />
+  );
+
   const imageField = compose.image && kind !== 'products' && (
     <div>
       <p className="field-label mb-1">{imageLabel}</p>
-      <ImageDropzone
-        value={imageFile}
-        onChange={onImageFileChange}
-        initialPreviewUrl={existingImageUrl}
-        disabled={disabled}
-        label="ลากรูปมาวาง หรือกดเพื่อเลือก"
-        // ย่อทั้งพิกเซลและขนาดไฟล์ก่อนอัป — รูปใหญ่กว่านี้ LINE ไม่รับ และเปลืองที่เก็บ
-        maxWidthOrHeight={1024}
-        maxSizeMB={0.3}
-      />
+      {dropzone}
       {(kind === 'promo' || kind === 'poster') && (
         <p className="subtitle-text mt-1">
           ส่งเป็นสัดส่วนตามรูปจริง (แนวตั้งได้ สูงสุด 3 เท่าของความกว้าง)
@@ -294,25 +295,22 @@ export default function ContentStep({
         ) : kind === 'announce' && compose.image ? (
           // ประกาศ = ข้อความซ้าย รูปขวาในแถวเดียวกัน — บรอดแคสต์ถูกอ่านบนมือถือ ช่องข้อความจึงไม่ต้อง
           // กว้างเต็มการ์ด และรูปเป็นกล่องเล็กขนาดใกล้ฟองรูปในตัวอย่างแชท ไม่ยืดเต็มความกว้าง (เจ้าของขอ 10 ก.ย.)
-          <div className="grid md:grid-cols-[minmax(0,1fr)_280px] gap-4 items-start">
+          // ช่องข้อความยืดเท่าคอลัมน์รูป (grid ยืดแถวให้ · textField มี h-full) กรอบสองฝั่งจึงจบบรรทัดเดียวกัน
+          <div className="grid md:grid-cols-[minmax(0,1fr)_320px] gap-4">
             {textField}
-            <div className="space-y-3">
-              {imageField}
-              {/* มีรูปแล้วค่อยถามว่าจะแสดงแบบไหน — ยังไม่มีรูปก็ไม่มีอะไรให้ตัดสินใจ · เรียงลงมาใต้รูปให้พอดีคอลัมน์แคบ */}
-              {hasImage && (
-                <>
-                  <OptionCards<'bubble' | 'rich'>
-                    label="แสดงรูปแบบไหน"
-                    value={imageStyle}
-                    onChange={onImageStyleChange}
-                    disabled={disabled}
-                    layout="horizontal"
-                    columns={1}
-                    options={imageStyleCards(imagePreviewUrl || existingImageUrl)}
-                  />
-                  {imageStyle === 'rich' && linkField}
-                </>
-              )}
+            <div>
+              <p className="field-label mb-1">{imageLabel}</p>
+              {/* ตัวเลือกแสดงรูปอยู่ก่อนกล่องอัป — เลือกได้ตั้งแต่ยังไม่มีรูป (เจ้าของขอ 10 ก.ย.) พอมีรูปแล้วรูปจริงเข้าไปแทนที่ */}
+              <OptionCards<'bubble' | 'rich'>
+                value={imageStyle}
+                onChange={onImageStyleChange}
+                disabled={disabled}
+                previewSize="lg"
+                columns={2}
+                options={imageStyleCards(imagePreviewUrl || existingImageUrl)}
+              />
+              <div className="mt-2">{dropzone}</div>
+              {imageStyle === 'rich' && <div className="mt-3">{linkField}</div>}
             </div>
           </div>
         ) : (

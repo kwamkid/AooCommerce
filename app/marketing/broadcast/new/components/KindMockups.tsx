@@ -53,8 +53,13 @@ export function MockLine({ className, tone = 'muted' }: { className?: string; to
   return <div className={`h-1 rounded ${LINE_TONE[tone]} ${className || ''}`} />;
 }
 
-/** บล็อกรูป placeholder — ไอคอนรูปตัวเดียวกับที่หน้ารายการใช้แทนโปสเตอร์ */
-function MockPhoto({ className }: { className: string }) {
+/**
+ * บล็อกรูป — ส่ง `src` มา = วาดรูปจริง (ตัวเลือก "แสดงรูปแบบไหน" ใช้รูปที่ผู้ใช้เพิ่งอัป)
+ * ไม่ส่ง = placeholder เทาพร้อมไอคอนรูปตัวเดียวกับที่หน้ารายการใช้แทนโปสเตอร์
+ */
+export function MockPhoto({ src, className }: { src?: string | null; className: string }) {
+  // eslint-disable-next-line @next/next/no-img-element
+  if (src) return <img src={src} alt="" className={`${className} object-cover`} />;
   return (
     <div className={`${className} bg-gray-200 text-gray-400 flex items-center justify-center`}>
       <ImageIcon className="w-4 h-4" />
@@ -85,7 +90,7 @@ function MockLogoAvatar() {
  * เปลือกห้องแชท: พื้นฟ้า + โปรไฟล์ร้าน แล้วตามด้วยของที่ส่ง (ไม่มีเส้นชื่อร้าน — เจ้าของขอเอาออก)
  * คอลัมน์เนื้อหาเป็น flex-col เพื่อให้โปสเตอร์/แบนเนอร์โปรโมชันยืดเต็มความสูงที่เหลือได้ (`flex-1`)
  */
-function MockChat({ children }: { children: ReactNode }) {
+export function MockChat({ children }: { children: ReactNode }) {
   return (
     <div className="w-full h-full bg-linechat p-2 flex items-stretch gap-1.5">
       <MockLogoAvatar />
