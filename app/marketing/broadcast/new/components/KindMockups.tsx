@@ -88,15 +88,20 @@ function MockLogoAvatar() {
 
 /**
  * เปลือกห้องแชท: พื้นฟ้า + โปรไฟล์ร้าน แล้วตามด้วยของที่ส่ง (ไม่มีเส้นชื่อร้าน — เจ้าของขอเอาออก)
- * คอลัมน์เนื้อหาเป็น flex-col เพื่อให้โปสเตอร์/แบนเนอร์โปรโมชันยืดเต็มความสูงที่เหลือได้ (`flex-1`)
+ * คอลัมน์เนื้อหาเป็น flex-col เพื่อให้แบนเนอร์โปรโมชันยืดเต็มความสูงที่เหลือได้ (`flex-1`)
+ * `after` = ของที่วาด**เต็มความกว้างชนขอบ**ใต้แถว avatar (รูปเต็มจอของโปสเตอร์ — LINE ไม่เว้นขอบซ้าย
+ * ข้างรูปโปรไฟล์ให้รูปแบบนี้ เจ้าของท้วงจากรูปแคปจริง 10 ก.ย. 2026)
  */
-export function MockChat({ children }: { children: ReactNode }) {
+export function MockChat({ children, after }: { children?: ReactNode; after?: ReactNode }) {
   return (
-    <div className="w-full h-full bg-linechat p-2 flex items-stretch gap-1.5">
-      <MockLogoAvatar />
-      <div className="flex-1 min-w-0 flex flex-col gap-1">
-        {children}
+    <div className="w-full h-full bg-linechat p-2 flex flex-col gap-1">
+      <div className={`flex items-stretch gap-1.5 ${after ? '' : 'flex-1 min-h-0'}`}>
+        <MockLogoAvatar />
+        <div className="flex-1 min-w-0 flex flex-col gap-1">
+          {children}
+        </div>
       </div>
+      {after && <div className="flex-1 min-h-0 -mx-2 flex">{after}</div>}
     </div>
   );
 }
@@ -136,11 +141,10 @@ export const KIND_MOCKS: Record<BroadcastContentKind, ReactNode> = {
     </MockChat>
   ),
   poster: (
-    <MockChat>
+    <MockChat after={<MockPhoto className="w-full" />}>
       <div className="rounded-xl rounded-tl-sm bg-white p-1.5">
         <MockLine className="w-2/3" />
       </div>
-      <MockPhoto className="flex-1 w-full rounded-xl" />
     </MockChat>
   ),
   promo: (

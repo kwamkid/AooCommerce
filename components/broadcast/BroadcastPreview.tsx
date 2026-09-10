@@ -60,6 +60,10 @@ export default function BroadcastPreview({
   const cardStyle = content.card_style === 'image' ? 'image' : 'detail';
   // ไม่รู้ชื่อร้านก็ยังต้องมีอะไรสักอย่างเหนือฟอง — ตกไปใช้ชื่อช่องทาง
   const senderName = (accountName || '').trim() || (platform ? BROADCAST_PLATFORMS[platform].label : '');
+  // รูปเต็มจอ (โปสเตอร์ · ประกาศแบบ rich ของใบเก่า) LINE วาดเต็มความกว้างห้องแชทชนขอบ ไม่เว้นขอบซ้าย
+  // ข้างรูปโปรไฟล์ — จึงวาดนอกคอลัมน์ข้าง avatar (เจ้าของท้วงจากรูปแคปจริง 10 ก.ย. 2026)
+  const fullWidthImage = imageUrl && (content.kind === 'poster' || (content.kind === 'announce' && imageStyle === 'rich'))
+    ? imageUrl : null;
 
   return (
     <div className={`rounded-lg overflow-hidden bg-linechat p-3 ${className || ''}`}>
@@ -70,18 +74,12 @@ export default function BroadcastPreview({
           {senderName && <p className="helper-text text-white/90 truncate">{senderName}</p>}
 
           {content.kind === 'poster' ? (
-            // โปสเตอร์ = (ฟองข้อความ ถ้ามี) แล้วรูปเต็มความกว้างห้องแชท — ข้อความ ราคา ปุ่ม อยู่ในรูป
-            <>
-              {text && (
-                <div className={BUBBLE}>
-                  <p className="subtitle-text whitespace-pre-wrap break-words">{text}</p>
-                </div>
-              )}
-              {imageUrl && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={imageUrl} alt="โปสเตอร์" className="w-full h-auto rounded-xl" />
-              )}
-            </>
+            // โปสเตอร์ = ฟองข้อความ (ถ้ามี) ในคอลัมน์นี้ · ตัวรูปวาดเต็มความกว้างข้างล่างนอกคอลัมน์
+            text && (
+              <div className={BUBBLE}>
+                <p className="subtitle-text whitespace-pre-wrap break-words">{text}</p>
+              </div>
+            )
           ) : content.kind === 'products' ? (
             <>
               {text && (
@@ -198,16 +196,19 @@ export default function BroadcastPreview({
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={imageUrl} alt="ตัวอย่างรูปที่จะส่ง" className="w-8/12 h-auto rounded-2xl" />
               )}
-              {/* รูปเต็มจอ = กว้างเต็มห้องแชท */}
-              {imageUrl && imageStyle === 'rich' && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={imageUrl} alt="ตัวอย่างรูปที่จะส่ง" className="w-full h-auto rounded-xl" />
-              )}
             </>
           )}
 
         </div>
       </div>
+
+      {/* รูปเต็มจอ — ชนขอบซ้ายขวาของห้อง (หักขอบ p-3 ของกล่องออก) ไม่ใช่กว้างแค่คอลัมน์ข้างรูปโปรไฟล์ */}
+      {fullWidthImage && (
+        <div className="-mx-3 mt-1.5">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={fullWidthImage} alt={content.kind === 'poster' ? 'โปสเตอร์' : 'ตัวอย่างรูปที่จะส่ง'} className="block w-full h-auto" />
+        </div>
+      )}
 
       {/* ปุ่มตอบเร็ว — LINE วางไว้ท้ายห้องเต็มความกว้าง (ไม่ได้อยู่ในคอลัมน์ข้างรูปโปรไฟล์) เรียงกึ่งกลาง
           เป็นเม็ดสีเข้มตัวหนังสือขาว — เทียบกับรูปแคปจริงของเจ้าของ 10 ก.ย. 2026 (เดิมวาดชิดขวาเม็ดขาว) */}
