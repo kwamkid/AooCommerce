@@ -23,7 +23,9 @@ import {
   broadcastContentPreview,
   resolveBroadcastContentKind,
   validateBroadcastContent,
-  TAP_MESSAGE_MAX,
+  normalizeAction,
+  type BroadcastAction,
+  type BroadcastButton,
   type BroadcastContent,
   type BroadcastProductCard,
 } from '@/lib/broadcast/content';
@@ -278,6 +280,16 @@ function toProductCard(raw: unknown): BroadcastProductCard {
   };
 }
 
+/** ปุ่มบนการ์ดจาก client — ป้าย + "กดแล้วเกิดอะไร" (รับ `url` เปล่า ๆ ของใบเก่าด้วย) */
+function toButton(raw: unknown): BroadcastButton {
+  const r = (raw || {}) as Record<string, unknown>;
+  const legacyUrl = toUrl(r.url);
+  return {
+    label: String(r.label ?? '').slice(0, 50),
+    action: normalizeAction(r.action, toProductCard) ?? (legacyUrl ? { type: 'url', url: legacyUrl } : null),
+  };
+}
+
 // POST — สร้างบรอดแคสต์แล้วเริ่มส่งทันที
 export async function POST(request: NextRequest) {
   try {
@@ -328,13 +340,11 @@ export async function POST(request: NextRequest) {
       // รูปของ announce เป็นฟองรูปธรรมดาหรือรูปเต็มจอ · ค่าที่ไม่รู้จักตกเป็นแบบเดิม
       image_style: body.content?.image_style === 'rich' ? 'rich' : 'bubble',
       link_url: toUrl(body.content?.link_url),
-      // โปสเตอร์: กดรูปแล้วเกิดอะไร — ค่าที่ไม่รู้จักตกเป็น url (ใบเก่า)
-      tap: body.content?.tap === 'product' || body.content?.tap === 'message' ? body.content.tap : 'url',
-      tap_product: body.content?.tap_product ? toProductCard(body.content.tap_product) : null,
-      tap_message: typeof body.content?.tap_message === 'string'
-        ? body.content.tap_message.trim().slice(0, TAP_MESSAGE_MAX) : null,
+      // โปสเตอร์: กดรูปแล้วเกิดอะไร (ทะเบียนกลาง) — ส่ง link_url เปล่า ๆ แบบใบเก่ามาก็ยังอ่านออก
+      tap_action: normalizeAction(body.content?.tap_action, toProductCard)
+        ?? (toUrl(body.content?.link_url) ? { type: 'url', url: toUrl(body.content?.link_url) as string } : null),
       card_style: body.content?.card_style === 'image' ? 'image' : 'detail',
-      buttons: body.content?.buttons || [],
+      buttons: (Array.isArray(body.content?.buttons) ? body.content.buttons : []).map(toButton),
       products: (Array.isArray(body.content?.products) ? body.content.products : []).map(toProductCard),
       quick_replies: body.content?.quick_replies || [],
     };
@@ -344,12 +354,23 @@ export async function POST(request: NextRequest) {
     // ลิงก์การ์ดสินค้าเติมให้เองจากหน้าร้านออนไลน์ — **ลิงก์เปลี่ยนเองเมื่อร้านเปิด
     // storefront ไม่ต้องแก้ใบ** · ทำก่อนแปลงเป็นข้อความของแพลตฟอร์ม ไม่งั้นการ์ดที่ส่ง
     // ออกไปจะยังเป็นปุ่ม "สนใจสินค้านี้" ทั้งที่มีหน้าสินค้าให้ลิงก์แล้ว
-    // สินค้าปลายทางของโปสเตอร์ใช้กติกาเดียวกับการ์ดสินค้า — เติมลิงก์หน้าสินค้าเมื่อร้านเปิดหน้าร้าน
-    if (content.kind === 'poster' && content.tap === 'product' && content.tap_product) {
-      [content.tap_product] = await fillStorefrontProductLinks(auth.companyId, [content.tap_product]);
-      // ตัวเลือกนี้ผูกกับหน้าร้านโดยตรง — เติมลิงก์ไม่ได้ (ร้านยังไม่เปิด / สินค้าไม่แสดงบนหน้าร้าน) = ปฏิเสธ
-      // ไม่ตกไปเป็นข้อความเงียบ ๆ เหมือนการ์ดสินค้า
-      if (!content.tap_product.url) {
+    // "ไปที่สินค้า" ทุกจุด (รูปโปสเตอร์ · ปุ่มโปรโมชัน) — เติมลิงก์หน้าสินค้าในหน้าร้านออนไลน์ให้
+    // ตัวเลือกนี้ผูกกับหน้าร้านโดยตรง: เติมไม่ได้ (ร้านยังไม่เปิด / สินค้าไม่แสดงบนหน้าร้าน) = ปฏิเสธ
+    // ไม่ตกไปเป็นข้อความเงียบ ๆ เหมือนปุ่มการ์ดสินค้า
+    const productActions: Extract<BroadcastAction, { type: 'product' }>[] = [];
+    if (content.kind === 'poster' && content.tap_action?.type === 'product' && content.tap_action.product) {
+      productActions.push(content.tap_action);
+    }
+    for (const b of content.buttons || []) {
+      if (b.action?.type === 'product' && b.action.product) productActions.push(b.action);
+    }
+    if (productActions.length > 0) {
+      const filled = await fillStorefrontProductLinks(
+        auth.companyId,
+        productActions.map(a => a.product as BroadcastProductCard),
+      );
+      productActions.forEach((a, i) => { a.product = filled[i]; });
+      if (filled.some(p => !p.url)) {
         return NextResponse.json({
           error: 'ไปที่สินค้าได้เมื่อร้านเปิดหน้าร้านออนไลน์และสินค้าแสดงบนหน้าร้าน — เลือกเปิดลิงก์หรือส่งข้อความกลับแทน',
         }, { status: 400 });

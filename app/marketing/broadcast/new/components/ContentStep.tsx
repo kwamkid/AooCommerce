@@ -14,23 +14,22 @@ import OptionCards, { type OptionCardItem } from '@/components/ui/OptionCards';
 import ImageDropzone from '@/components/ui/ImageDropzone';
 import MessageComposer from '@/components/ui/MessageComposer';
 import ChipsInput from '@/components/ui/ChipsInput';
-import FilterChips, { FILTER_CHIP_PRIMARY_ACTIVE } from '@/components/ui/FilterChips';
 import ProductImageThumb from '@/components/ui/ProductImageThumb';
 import ProductSearchInput, { type ProductSearchItem } from '@/components/ui/ProductSearchInput';
 import { formatPrice } from '@/lib/utils/format';
 import {
   BUTTON_LABEL_MAX,
   CARD_TEXT_MAX,
-  POSTER_TAP_LABELS,
-  TAP_MESSAGE_MAX,
+  EMPTY_ACTION,
   discountPercent,
+  type BroadcastAction,
   type BroadcastButton,
   type BroadcastProductCard,
-  type PosterTap,
 } from '@/lib/broadcast/content';
 import type { BroadcastCompose, BroadcastContentKind } from '@/lib/broadcast/platforms';
 import { Plus, Trash2 } from 'lucide-react';
 import { KIND_MOCKS, MockImage, MockLine } from './KindMockups';
+import ActionPicker from './ActionPicker';
 
 /** ชื่อชนิดเนื้อหา — หน้าสร้างเอาไปสรุปในแผงขวาด้วย จึง export ออกไป */
 export const KIND_LABELS: Record<BroadcastContentKind, string> = {
@@ -109,15 +108,9 @@ interface Props {
   existingImageUrl: string | null;
   /** รูปที่เห็นอยู่ตอนนี้ (blob ของไฟล์ที่เพิ่งเลือก หรือรูปเดิม) — เอาไปวาดในการ์ดตัวเลือกด้วย */
   imagePreviewUrl: string | null;
-  /** โปสเตอร์: กดรูปแล้วเกิดอะไร + ของที่แต่ละแบบต้องกรอก */
-  tap: PosterTap;
-  onTapChange: (v: PosterTap) => void;
-  linkUrl: string;
-  onLinkUrlChange: (v: string) => void;
-  tapProduct: BroadcastProductCard | null;
-  onTapProductChange: (p: BroadcastProductCard | null) => void;
-  tapMessage: string;
-  onTapMessageChange: (v: string) => void;
+  /** โปสเตอร์: กดรูปแล้วเกิดอะไร (ทะเบียนกลาง BroadcastAction) */
+  tapAction: BroadcastAction;
+  onTapActionChange: (a: BroadcastAction) => void;
   /** แปลงผลค้นหาเป็นการ์ดสินค้า (ตัวเดียวกับที่การ์ดสินค้าใช้) */
   productToCard: (p: ProductSearchItem) => BroadcastProductCard;
   /** ร้านเปิดหน้าร้านออนไลน์แล้วไหม — "ไปที่สินค้า" ของโปสเตอร์ใช้ได้เฉพาะตอนเปิดแล้ว */
@@ -145,8 +138,7 @@ export default function ContentStep({
   compose, platformLabel, showCreditNote,
   kind, onKindChange, title, onTitleChange, text, onTextChange,
   imageFile, onImageFileChange, existingImageUrl, imagePreviewUrl,
-  tap, onTapChange, linkUrl, onLinkUrlChange, tapProduct, onTapProductChange, tapMessage, onTapMessageChange,
-  productToCard, storefrontOpen, cardStyle, onCardStyleChange,
+  tapAction, onTapActionChange, productToCard, storefrontOpen, cardStyle, onCardStyleChange,
   buttons, onButtonsChange, cards, onCardsChange, quickReplies, onQuickRepliesChange,
   productResults, productLoading, onProductSearch, onAddProduct,
   disabled,
@@ -192,89 +184,8 @@ export default function ContentStep({
     </div>
   );
 
-  /**
-   * โปสเตอร์: กดรูปแล้วเกิดอะไร — บังคับเลือก (กดแล้วไม่เกิดอะไร = ลูกค้าสนใจแล้วไปต่อไม่ได้)
-   * ชิปอยู่ในแถบล่างของกล่องรูป (ชิดขวา) · ช่องที่แต่ละแบบต้องกรอกอยู่ใต้กล่อง
-   * "ไปที่สินค้า" ผูกกับหน้าร้านออนไลน์โดยตรง — ยังไม่เปิดร้าน = ชิปกดไม่ได้พร้อมบอกเหตุผล (ไม่ตกไปเป็นข้อความเงียบ ๆ)
-   */
-  const tapChips = (
-    <div className="ml-auto flex items-center gap-2">
-      <span className="subtitle-text">กดรูปแล้ว</span>
-      <FilterChips<PosterTap>
-        value={tap}
-        onChange={onTapChange}
-        disabled={disabled}
-        chips={[
-          { id: 'url', label: POSTER_TAP_LABELS.url, activeClass: FILTER_CHIP_PRIMARY_ACTIVE, tooltip: 'เปิดเว็บ/หน้าโปรฯ ตามลิงก์ที่ใส่' },
-          {
-            id: 'product', label: POSTER_TAP_LABELS.product, activeClass: FILTER_CHIP_PRIMARY_ACTIVE,
-            disabled: !storefrontOpen,
-            tooltip: storefrontOpen
-              ? 'เปิดหน้าสินค้าในหน้าร้านออนไลน์ของร้าน — ค้นจากคลัง'
-              : 'ต้องเปิดหน้าร้านออนไลน์ก่อน (ตั้งค่า › หน้าร้านออนไลน์)',
-          },
-          { id: 'message', label: POSTER_TAP_LABELS.message, activeClass: FILTER_CHIP_PRIMARY_ACTIVE, tooltip: 'ข้อความถูกส่งเข้าห้องแชทเหมือนลูกค้าพิมพ์เอง — แบบเดียวกับปุ่มตอบเร็ว' },
-        ]}
-      />
-    </div>
-  );
-
-  const tapField = (
-    <>
-      {tap === 'url' && (
-        <FormInput
-          label="ลิงก์ที่จะเปิด"
-          required
-          value={linkUrl}
-          onChange={e => onLinkUrlChange(e.target.value)}
-          disabled={disabled}
-          placeholder="https://…"
-        />
-      )}
-      {tap === 'product' && (
-        <div>
-          <p className="field-label mb-1">สินค้าที่จะเปิด</p>
-          {tapProduct ? (
-            <div className="flex gap-3 items-center rounded-lg border border-gray-200 dark:border-slate-600 px-3 py-2">
-              <ProductImageThumb src={tapProduct.image_url} alt={tapProduct.name} size="sm" />
-              <div className="flex-1 min-w-0">
-                <p className="body-text truncate">{tapProduct.name}</p>
-                <p className="subtitle-text">
-                  {tapProduct.price != null ? formatPrice(tapProduct.price) : 'ไม่มีราคา'} · กดรูปแล้วเปิดหน้าสินค้านี้ในหน้าร้านออนไลน์
-                </p>
-              </div>
-              <Button
-                variant="ghost"
-                icon={<Trash2 className="w-4 h-4" />}
-                aria-label="เอาสินค้าออก"
-                disabled={disabled}
-                onClick={() => onTapProductChange(null)}
-              />
-            </div>
-          ) : (
-            <ProductSearchInput
-              products={productResults}
-              loading={productLoading}
-              onSearchChange={onProductSearch}
-              onSelect={p => onTapProductChange(productToCard(p))}
-            />
-          )}
-        </div>
-      )}
-      {tap === 'message' && (
-        <FormInput
-          label="ข้อความที่จะส่งกลับ"
-          required
-          value={tapMessage}
-          maxLength={TAP_MESSAGE_MAX}
-          onChange={e => onTapMessageChange(e.target.value)}
-          disabled={disabled}
-          placeholder="เช่น สนใจโปรนี้"
-          hint="ลูกค้ากดรูปแล้วข้อความนี้เข้าห้องแชททันที เหมือนปุ่มตอบเร็ว"
-        />
-      )}
-    </>
-  );
+  /** ของที่ ActionPicker ทุกตัวต้องใช้เหมือนกัน (ค้นสินค้า · สถานะหน้าร้าน) */
+  const pickerProps = { storefrontOpen, productResults, productLoading, onProductSearch, productToCard, disabled };
 
   /** รูปแนบของกล่องรูป — ประกาศกับโปสเตอร์ใช้ชุดเดียวกัน ต่างกันแค่ป้ายและแถบล่าง */
   const composerImage = compose.image ? {
@@ -312,25 +223,37 @@ export default function ContentStep({
       )}
 
       <div className="space-y-4">
-        {/* หัวข้อ — TikTok บังคับ · LINE ใช้เป็นหัวการ์ดของโปรโมชัน (โปสเตอร์ไม่มีหัวข้อ) */}
-        {kind !== 'poster' && (compose.titleMax || kind === 'promo') && (
+        {/* หัวข้อ — TikTok บังคับ (โปรโมชันวาดหัวข้อในเลย์เอาต์ของตัวเอง · โปสเตอร์ไม่มีหัวข้อ) */}
+        {kind !== 'poster' && kind !== 'promo' && compose.titleMax && (
           <FormInput
             label="หัวข้อ"
-            required={!!compose.titleMax}
+            required
             value={title}
             onChange={e => onTitleChange(e.target.value)}
-            maxLength={compose.titleMax ?? 40}
+            maxLength={compose.titleMax}
             disabled={disabled}
             placeholder="หัวข้อที่ลูกค้าเห็นก่อน"
-            hint={`${title.length}/${compose.titleMax ?? 40}`}
+            hint={`${title.length}/${compose.titleMax}`}
           />
         )}
 
-        {/* โปรโมชันมีทั้งข้อความสั้นและแบนเนอร์ — วางคู่กันจะเห็นการ์ดทั้งใบในสายตาเดียว */}
+        {/* โปรโมชัน = การ์ดใบเดียว: แบนเนอร์ซ้าย หัวข้อ+ข้อความขวา (เจ้าของกำหนด 10 ก.ย. 2026) */}
         {kind === 'promo' ? (
-          <div className="grid md:grid-cols-[minmax(0,1fr)_240px] gap-4">
-            {textField}
+          <div className="grid md:grid-cols-[260px_minmax(0,1fr)] gap-4">
             {imageField}
+            <div className="space-y-3">
+              <FormInput
+                label="หัวข้อ"
+                required={!!compose.titleMax}
+                value={title}
+                onChange={e => onTitleChange(e.target.value)}
+                maxLength={compose.titleMax ?? 40}
+                disabled={disabled}
+                placeholder="หัวข้อบนการ์ด"
+                hint={`${title.length}/${compose.titleMax ?? 40}`}
+              />
+              {textField}
+            </div>
           </div>
         ) : kind === 'poster' ? (
           // โปสเตอร์ = เลย์เอาต์เดียวกับประกาศ (ข้อความ แล้วตามด้วยรูป) ต่างตรงรูปกว้างเต็มจอและกดแล้วไปต่อได้
@@ -353,9 +276,8 @@ export default function ContentStep({
               emptyHint="แนะนำแนวตั้ง 4:5 เช่น 1080×1350 px (ระบบย่อเหลือ 819×1024 ตามเพดานของ LINE) · สูงได้ไม่เกิน 3 เท่าของความกว้าง"
               disabled={disabled}
               image={composerImage}
-              toolbar={tapChips}
             />
-            {tapField}
+            <ActionPicker label="กดรูปแล้ว" value={tapAction} onChange={onTapActionChange} {...pickerProps} />
           </div>
         ) : kind === 'announce' && compose.image ? (
           // ประกาศส่งถึงลูกค้าเป็น 2 ฟองแยกกัน (ข้อความ แล้วตามด้วยรูป) → ฟอร์มก็เป็น 2 กล่องแยกกัน
@@ -393,42 +315,43 @@ export default function ContentStep({
           </p>
         )}
 
-        {/* ปุ่มกด */}
+        {/* ปุ่มกด — แต่ละปุ่ม: ป้าย + "กดแล้วเกิดอะไร" ชุดเดียวกับรูปโปสเตอร์ (ActionPicker) */}
         {kind === 'promo' && compose.buttonsMax > 0 && (
           <div>
             <p className="field-label mb-1">ปุ่มกด (สูงสุด {compose.buttonsMax})</p>
             <p className="subtitle-text mb-2">
-              ใส่ลิงก์ปลายทางเอง เช่น หน้าสินค้า หน้าโปรฯ
+              ปุ่มแรกคือปุ่มหลัก (สีทึบ) และรูปหัวการ์ดกดแล้วทำเหมือนปุ่มแรก
             </p>
             <div className="space-y-2">
               {buttons.map((b, i) => (
-                <div key={i} className="flex gap-2 items-start">
-                  <div className="w-36 flex-shrink-0">
-                    <FormInput
-                      value={b.label}
-                      maxLength={BUTTON_LABEL_MAX}
-                      disabled={disabled}
-                      placeholder="สั่งเลย"
-                      onChange={e => onButtonsChange(buttons.map((x, j) => j === i ? { ...x, label: e.target.value } : x))}
-                    />
+                <div key={i} className="rounded-lg border border-gray-200 dark:border-slate-600 p-3 space-y-3">
+                  <div className="flex gap-2 items-start">
+                    <div className="w-56 flex-shrink-0">
+                      <FormInput
+                        value={b.label}
+                        maxLength={BUTTON_LABEL_MAX}
+                        disabled={disabled}
+                        placeholder={i === 0 ? 'เช่น สั่งเลย' : 'เช่น ดูรายละเอียด'}
+                        aria-label={`ข้อความบนปุ่มที่ ${i + 1}`}
+                        onChange={e => onButtonsChange(buttons.map((x, j) => j === i ? { ...x, label: e.target.value } : x))}
+                      />
+                    </div>
+                    {buttons.length > 1 && (
+                      <Button
+                        variant="ghost"
+                        icon={<Trash2 className="w-4 h-4" />}
+                        aria-label="ลบปุ่ม"
+                        disabled={disabled}
+                        className="ml-auto"
+                        onClick={() => onButtonsChange(buttons.filter((_, j) => j !== i))}
+                      />
+                    )}
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <FormInput
-                      value={b.url}
-                      disabled={disabled}
-                      placeholder="https://..."
-                      onChange={e => onButtonsChange(buttons.map((x, j) => j === i ? { ...x, url: e.target.value } : x))}
-                    />
-                  </div>
-                  {buttons.length > 1 && (
-                    <Button
-                      variant="ghost"
-                      icon={<Trash2 className="w-4 h-4" />}
-                      aria-label="ลบปุ่ม"
-                      disabled={disabled}
-                      onClick={() => onButtonsChange(buttons.filter((_, j) => j !== i))}
-                    />
-                  )}
+                  <ActionPicker
+                    value={b.action ?? EMPTY_ACTION}
+                    onChange={action => onButtonsChange(buttons.map((x, j) => j === i ? { ...x, action } : x))}
+                    {...pickerProps}
+                  />
                 </div>
               ))}
             </div>
@@ -439,7 +362,7 @@ export default function ContentStep({
                 icon={<Plus className="w-4 h-4" />}
                 disabled={disabled}
                 className="mt-2"
-                onClick={() => onButtonsChange([...buttons, { label: '', url: '' }])}
+                onClick={() => onButtonsChange([...buttons, { label: '', action: EMPTY_ACTION }])}
               >
                 เพิ่มปุ่ม
               </Button>

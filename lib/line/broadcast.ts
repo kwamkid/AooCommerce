@@ -17,7 +17,14 @@ import { logIntegrationNow } from '@/lib/integration-logger';
 import { resolveChatRecipients } from '@/lib/broadcast/recipients';
 import type { BroadcastAudienceFilter, BroadcastAudienceType } from '@/lib/broadcast/recipients';
 import { LINE_TEXT_MAX, MULTICAST_BATCH_SIZE } from '@/lib/line/constants';
-import { discountPercent, imageAspectRatio, posterTap, TAP_MESSAGE_MAX } from '@/lib/broadcast/content';
+import {
+  ACTION_MESSAGE_MAX,
+  buttonAction,
+  discountPercent,
+  imageAspectRatio,
+  posterAction,
+  type BroadcastAction,
+} from '@/lib/broadcast/content';
 import type { BroadcastContent, BroadcastProductCard } from '@/lib/broadcast/content';
 
 const LINE_API = 'https://api.line.me/v2/bot';
@@ -353,21 +360,27 @@ function fullWidthImageBubble(
   };
 }
 
-/** โปสเตอร์กดแล้วเกิดอะไร — แปลง `tap` ของเนื้อหากลางเป็น action ของ LINE */
-function posterAction(content: BroadcastContent, linkUrl: string): LineAction {
-  const tap = posterTap(content);
-  if (tap === 'product') {
-    if (!content.tap_product) throw new Error('โปสเตอร์แบบไปที่สินค้าต้องมีสินค้า');
-    // กติกาเดียวกับปุ่มของการ์ดสินค้า: มีลิงก์หน้าสินค้า = เปิด · ไม่มี = ส่ง "สนใจ <สินค้า>" กลับ
-    return productAction(content.tap_product);
+/**
+ * แปลง "กดแล้วเกิดอะไร" ของเนื้อหากลาง (`BroadcastAction`) เป็น action ของ LINE — **ที่เดียว**
+ * ใช้ทั้งรูปโปสเตอร์ ปุ่มบนการ์ดโปรโมชัน (และรูปหัวการ์ดที่กดตามปุ่มแรก) · เพิ่มชนิดใหม่ = เพิ่ม case ที่นี่
+ * `label` ยาวได้ 20 ตัวอักษรตามเพดานของ LINE
+ */
+function lineActionFor(action: BroadcastAction | null, label: string): LineAction {
+  const lbl = (label.trim() || 'เปิด').slice(0, 20);
+  if (!action) throw new Error('ยังไม่ได้เลือกว่ากดแล้วเกิดอะไร');
+  if (action.type === 'product') {
+    if (!action.product) throw new Error('ยังไม่ได้เลือกสินค้าที่จะไป');
+    // มีลิงก์หน้าสินค้า = เปิด (API บังคับให้มีตอนสร้างใบ) · กันเหนียว: ไม่มีก็ยังกดได้เป็นข้อความ "สนใจ"
+    return { ...productAction(action.product), label: lbl };
   }
-  if (tap === 'message') {
-    const text = (content.tap_message || '').trim().slice(0, TAP_MESSAGE_MAX);
-    if (!text) throw new Error('โปสเตอร์แบบส่งข้อความกลับต้องมีข้อความ');
-    return { type: 'message', label: text.slice(0, 20), text };
+  if (action.type === 'message') {
+    const text = action.text.trim().slice(0, ACTION_MESSAGE_MAX);
+    if (!text) throw new Error('ยังไม่ได้ใส่ข้อความที่จะส่งกลับ');
+    return { type: 'message', label: lbl, text };
   }
-  if (!/^https:\/\//i.test(linkUrl)) throw new Error('โปสเตอร์ต้องมีลิงก์ปลายทางแบบ https');
-  return { type: 'uri', label: 'เปิด', uri: linkUrl };
+  const url = action.url.trim();
+  if (!/^https:\/\//i.test(url)) throw new Error('ลิงก์ต้องเป็น https');
+  return { type: 'uri', label: lbl, uri: url };
 }
 
 /**
@@ -502,7 +515,7 @@ export function buildLineMessagesFromContent(content: BroadcastContent): LineMes
       {
         type: 'flex',
         altText: (text || 'โปสเตอร์').slice(0, 400),
-        contents: fullWidthImageBubble(imageUrl, imageAspectRatio(content), posterAction(content, linkUrl)),
+        contents: fullWidthImageBubble(imageUrl, imageAspectRatio(content), lineActionFor(posterAction(content), 'เปิด')),
       },
     ];
 
@@ -512,7 +525,9 @@ export function buildLineMessagesFromContent(content: BroadcastContent): LineMes
     // ทำไมเป็น Flex ไม่ใช่ template buttons: template บีบรูปเป็น 1.51:1 (หรือ 1:1) เสมอ
     // ⇒ โปสเตอร์แนวตั้งโดนครอบหัวท้ายทิ้ง · Flex บอกสัดส่วนเองได้ตามรูปจริง
     // และยังเป็น message object เดียวเท่าเดิม (โควตา 1 ข้อความเท่าข้อความเปล่า)
-    const buttons = (content.buttons || []).filter(b => b.label.trim() && b.url.trim());
+    const buttons = (content.buttons || [])
+      .map(b => ({ label: b.label.trim(), action: buttonAction(b) }))
+      .filter(b => b.label && b.action);
     const firstButton = buttons[0];
     messages = [{
       type: 'flex',
@@ -529,9 +544,7 @@ export function buildLineMessagesFromContent(content: BroadcastContent): LineMes
             aspectRatio: imageAspectRatio(content),
             aspectMode: 'cover',
             // แตะรูปแล้วเปิดลิงก์ของปุ่มแรก — โปสเตอร์คือสิ่งที่คนแตะก่อนปุ่ม
-            ...(firstButton
-              ? { action: { type: 'uri', label: firstButton.label.trim(), uri: firstButton.url.trim() } }
-              : {}),
+            ...(firstButton ? { action: lineActionFor(firstButton.action, firstButton.label) } : {}),
           },
         } : {}),
         body: {
@@ -553,7 +566,7 @@ export function buildLineMessagesFromContent(content: BroadcastContent): LineMes
               height: 'sm',
               // ปุ่มแรก = สิ่งที่อยากให้กดที่สุด จึงเป็นปุ่มทึบ ที่เหลือเป็นปุ่มรอง
               style: i === 0 ? 'primary' : 'secondary',
-              action: { type: 'uri', label: b.label.trim(), uri: b.url.trim() },
+              action: lineActionFor(b.action, b.label),
             })),
           },
         } : {}),

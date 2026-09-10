@@ -50,8 +50,13 @@ import {
   type BroadcastButton,
   type BroadcastContent,
   type BroadcastProductCard,
-  POSTER_TAP_LABELS,
-  type PosterTap,
+  ACTION_LABELS,
+  EMPTY_ACTION,
+  actionSummary,
+  buttonAction,
+  isActionEmpty,
+  posterAction,
+  type BroadcastAction,
 } from '@/lib/broadcast/content';
 import { Send } from 'lucide-react';
 import ChannelStep from './components/ChannelStep';
@@ -103,10 +108,7 @@ interface KindDraft {
   imageFile: File | null;
   existingImageUrl: string | null;
   imageDims: ImageDims | null;
-  linkUrl: string;
-  tap: PosterTap;
-  tapProduct: BroadcastProductCard | null;
-  tapMessage: string;
+  tapAction: BroadcastAction;
   cardStyle: 'image' | 'detail';
   buttons: BroadcastButton[];
   cards: BroadcastProductCard[];
@@ -115,8 +117,8 @@ interface KindDraft {
 
 const EMPTY_DRAFT: KindDraft = {
   title: '', text: '', imageFile: null, existingImageUrl: null, imageDims: null,
-  linkUrl: '', tap: 'url', tapProduct: null, tapMessage: '', cardStyle: 'detail',
-  buttons: [{ label: '', url: '' }], cards: [], quickReplies: [],
+  tapAction: EMPTY_ACTION, cardStyle: 'detail',
+  buttons: [{ label: '', action: EMPTY_ACTION }], cards: [], quickReplies: [],
 };
 
 /**
@@ -189,14 +191,11 @@ export default function NewBroadcastPage() {
   const [imageDims, setImageDims] = useState<ImageDims | null>(null);
   /** รูปของใบที่คัดลอกมา — ใช้ต่อได้เลยเมื่อผู้ใช้ไม่ได้เลือกไฟล์ใหม่ */
   const [existingImageUrl, setExistingImageUrl] = useState<string | null>(null);
-  /** โปสเตอร์: กดรูปแล้วเกิดอะไร + ของที่แต่ละแบบต้องกรอก (ลิงก์ / สินค้า / ข้อความที่ส่งกลับ) */
-  const [tap, setTap] = useState<PosterTap>('url');
-  const [linkUrl, setLinkUrl] = useState('');
-  const [tapProduct, setTapProduct] = useState<BroadcastProductCard | null>(null);
-  const [tapMessage, setTapMessage] = useState('');
+  /** โปสเตอร์: กดรูปแล้วเกิดอะไร (ทะเบียนกลาง BroadcastAction — ปุ่มโปรโมชันใช้ชุดเดียวกัน) */
+  const [tapAction, setTapAction] = useState<BroadcastAction>(EMPTY_ACTION);
   /** การ์ดสินค้า: รูปเต็ม หรือมีชื่อ+ปุ่ม */
   const [cardStyle, setCardStyle] = useState<'image' | 'detail'>('detail');
-  const [buttons, setButtons] = useState<BroadcastButton[]>([{ label: '', url: '' }]);
+  const [buttons, setButtons] = useState<BroadcastButton[]>([{ label: '', action: EMPTY_ACTION }]);
   const [cards, setCards] = useState<BroadcastProductCard[]>([]);
   const [quickReplies, setQuickReplies] = useState<string[]>([]);
 
@@ -210,7 +209,7 @@ export default function NewBroadcastPage() {
   const switchKind = useStableCallback((next: BroadcastContentKind) => {
     if (next === kind) return;
     kindDraftsRef.current[kind] = {
-      title, text, imageFile, existingImageUrl, imageDims, linkUrl, tap, tapProduct, tapMessage,
+      title, text, imageFile, existingImageUrl, imageDims, tapAction,
       cardStyle, buttons, cards, quickReplies,
     };
     const d = kindDraftsRef.current[next] ?? EMPTY_DRAFT;
@@ -219,10 +218,7 @@ export default function NewBroadcastPage() {
     setImageFile(d.imageFile);
     setExistingImageUrl(d.existingImageUrl);
     setImageDims(d.imageDims);
-    setLinkUrl(d.linkUrl);
-    setTap(d.tap);
-    setTapProduct(d.tapProduct);
-    setTapMessage(d.tapMessage);
+    setTapAction(d.tapAction);
     setCardStyle(d.cardStyle);
     setButtons(d.buttons);
     setCards(d.cards);
@@ -408,12 +404,13 @@ export default function NewBroadcastPage() {
           setText(c.text || '');
           setExistingImageUrl(c.image_url || null);
           // image_style 'rich' ของใบเก่าไม่กู้คืน — หน้าจอไม่มีตัวเลือกนี้แล้ว (รูปเต็มจอ = โปสเตอร์)
-          if (c.link_url) setLinkUrl(c.link_url);
-          if (c.tap === 'product' || c.tap === 'message') setTap(c.tap);
-          if (c.tap_product) setTapProduct(c.tap_product);
-          if (c.tap_message) setTapMessage(c.tap_message);
+          // ใบเก่าที่มีแค่ link_url ก็อ่านเป็น action เปิดลิงก์ให้
+          const tapFromOld = posterAction(c);
+          if (tapFromOld) setTapAction(tapFromOld);
           if (c.card_style === 'image') setCardStyle('image');
-          if (Array.isArray(c.buttons) && c.buttons.length > 0) setButtons(c.buttons);
+          if (Array.isArray(c.buttons) && c.buttons.length > 0) {
+            setButtons(c.buttons.map(b => ({ label: b.label || '', action: buttonAction(b) ?? EMPTY_ACTION })));
+          }
           if (Array.isArray(c.products)) setCards(c.products);
           if (Array.isArray(c.quick_replies)) setQuickReplies(c.quick_replies);
           // ใบเก่ายังไม่ได้เก็บขนาดรูป — วัดจากรูปเดิม ไม่งั้นการ์ดจะตกไปใช้ทรงเริ่มต้น
@@ -553,16 +550,15 @@ export default function NewBroadcastPage() {
       image_height: imageDims?.height ?? null,
       // รูปของประกาศเป็นฟองรูปธรรมดาเสมอ — รูปเต็มจอย้ายไปเป็นโปสเตอร์ตั้งแต่ 10 ก.ย. 2026
       image_style: 'bubble',
-      link_url: isPoster && tap === 'url' ? linkUrl.trim() || null : null,
-      tap: isPoster ? tap : undefined,
-      tap_product: isPoster && tap === 'product' ? tapProduct : null,
-      tap_message: isPoster && tap === 'message' ? tapMessage.trim() || null : null,
+      link_url: null,
+      tap_action: isPoster ? tapAction : null,
       card_style: cardStyle,
-      buttons: isPoster ? [] : buttons.filter(b => b.label.trim() || b.url.trim()),
+      // ปุ่มที่ยังไม่ได้แตะเลย (ป้ายว่าง + ยังไม่กรอก action) ไม่ส่ง — ไม่งั้น validate จะตีตกปุ่มเปล่าที่ระบบใส่มาให้เอง
+      buttons: isPoster ? [] : buttons.filter(b => b.label.trim() || !isActionEmpty(b.action)),
       products: isPoster ? [] : cards,
       quick_replies: quickReplies,
     };
-  }, [kind, title, text, imageFile, imageDims, existingImageUrl, linkUrl, tap, tapProduct, tapMessage,
+  }, [kind, title, text, imageFile, imageDims, existingImageUrl, tapAction,
     cardStyle, buttons, cards, quickReplies]);
 
   // ตรวจด้วยฟังก์ชันเดียวกับที่ API ใช้ — หน้าจอกับ server จึงพูดตรงกันเสมอ
@@ -599,7 +595,7 @@ export default function NewBroadcastPage() {
   // โปสเตอร์ไม่มีข้อความเลย — นับรูปกับลิงก์เป็น "เริ่มกรอกแล้ว" ไม่งั้นตัวอย่างจะไม่ขึ้น
   const hasDraft = !!(
     text.trim() || title.trim() || imagePreviewUrl || existingImageUrl || cards.length > 0
-    || (kind === 'poster' && (linkUrl.trim() || tapProduct || tapMessage.trim()))
+    || (kind === 'poster' && !isActionEmpty(tapAction))
   );
   const canNext = accountIds.length > 0 && !!audience && !pickPending;
   const canSend = canNext && !contentError && !quotaShort && !noRecipients && !scheduleError && !sending;
@@ -612,8 +608,8 @@ export default function NewBroadcastPage() {
     if (!hasDraft) return '';
     const base = KIND_LABELS[kind];
     if (kind === 'poster') {
-      const target = tap === 'product' ? (tapProduct?.name || '') : tap === 'message' ? tapMessage.trim() : '';
-      return `${base} · ${POSTER_TAP_LABELS[tap]}${target ? ` ${target}` : ''}`;
+      const target = actionSummary(tapAction);
+      return `${base} · ${ACTION_LABELS[tapAction.type]}${target ? ` ${target}` : ''}`;
     }
     if (kind === 'promo') {
       const n = buttons.filter(b => b.label.trim()).length;
@@ -624,7 +620,7 @@ export default function NewBroadcastPage() {
       return cards.length > 0 ? `${base} · ${cards.length} ชิ้น · ${style}` : base;
     }
     return base;
-  }, [hasDraft, kind, buttons, cards, cardStyle, tap, tapProduct, tapMessage]);
+  }, [hasDraft, kind, buttons, cards, cardStyle, tapAction]);
 
   // ─── ส่ง ─────────────────────────────────────────────────────────────
   const handleSend = async () => {
@@ -838,14 +834,8 @@ export default function NewBroadcastPage() {
                     }}
                     existingImageUrl={existingImageUrl}
                     imagePreviewUrl={imagePreviewUrl ?? existingImageUrl}
-                    linkUrl={linkUrl}
-                    onLinkUrlChange={setLinkUrl}
-                    tap={tap}
-                    onTapChange={setTap}
-                    tapProduct={tapProduct}
-                    onTapProductChange={setTapProduct}
-                    tapMessage={tapMessage}
-                    onTapMessageChange={setTapMessage}
+                    tapAction={tapAction}
+                    onTapActionChange={setTapAction}
                     productToCard={cardFromSearchItem}
                     storefrontOpen={storefrontOpen}
                     cardStyle={cardStyle}

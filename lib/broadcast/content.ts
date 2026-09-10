@@ -13,33 +13,9 @@ import { BROADCAST_PLATFORMS, type BroadcastContentKind, type BroadcastPlatform 
 
 /** ปุ่มบนการ์ด — LINE label ยาวได้ 20 ตัวอักษร */
 export const BUTTON_LABEL_MAX = 20;
-/** ข้อความที่ message action ส่งกลับเข้าห้องแชท — เพดานของ LINE */
-export const TAP_MESSAGE_MAX = 300;
-
-/**
- * โปสเตอร์: กดรูปแล้วเกิดอะไร
- *  url     = เปิด `link_url`
- *  product = เปิดหน้าสินค้า `tap_product` ในหน้าร้านออนไลน์ — **ต้องเปิด storefront และสินค้าแสดงบน
- *            หน้าร้าน** (API เติมลิงก์ให้ตอนสร้างใบ · เติมไม่ได้ = ปฏิเสธ ไม่ตกไปเป็นข้อความเหมือนการ์ดสินค้า
- *            เพราะเจ้าของกำหนดให้ตัวเลือกนี้ผูกกับหน้าร้านโดยตรง 10 ก.ย. 2026)
- *  message = ส่ง `tap_message` เข้าห้องแชทเหมือนลูกค้าพิมพ์เอง (แบบเดียวกับปุ่มตอบเร็ว)
- * ใบเก่าไม่มี `tap` = url (ตอนนั้นมีแค่ link_url) — อ่านผ่าน `posterTap()` เสมอ
- */
-export type PosterTap = 'url' | 'product' | 'message';
-export const POSTER_TAP_LABELS: Record<PosterTap, string> = {
-  url: 'เปิดลิงก์',
-  product: 'ไปที่สินค้า',
-  message: 'ส่งข้อความกลับ',
-};
 /** หัวข้อ/เนื้อความบนการ์ดของ LINE (buttons + carousel) */
 export const CARD_TITLE_MAX = 40;
 export const CARD_TEXT_MAX = 60;
-
-export interface BroadcastButton {
-  label: string;
-  /** https เท่านั้น */
-  url: string;
-}
 
 export interface BroadcastProductCard {
   /** สินค้าในระบบเรา — null = ผู้ใช้กรอกเอง */
@@ -67,6 +43,113 @@ export interface BroadcastProductCard {
   url: string | null;
 }
 
+/** ข้อความที่ message action ส่งกลับเข้าห้องแชท — เพดานของ LINE */
+export const ACTION_MESSAGE_MAX = 300;
+
+/**
+ * "กดแล้วเกิดอะไร" — **ทะเบียนกลางของทุกจุดที่ลูกค้ากดได้** (รูปโปสเตอร์ · ปุ่มบนการ์ดโปรโมชัน)
+ * ทุกจุดมีให้เลือกชุดเดียวกัน หน้าจอใช้ `ActionPicker` ตัวเดียว ตัวส่ง LINE แปลงผ่าน `lineActionFor()` ตัวเดียว
+ *  url     = เปิดลิงก์ (https)
+ *  product = เปิดหน้าสินค้าในหน้าร้านออนไลน์ — **ต้องเปิด storefront และสินค้าแสดงบนหน้าร้าน**
+ *            (API เติมลิงก์ให้ตอนสร้างใบ · เติมไม่ได้ = ปฏิเสธ ไม่ตกไปเป็นข้อความเงียบ ๆ เหมือนปุ่มการ์ดสินค้า
+ *            เพราะเจ้าของกำหนดให้ตัวเลือกนี้ผูกกับหน้าร้านโดยตรง 10 ก.ย. 2026)
+ *  message = ส่งข้อความเข้าห้องแชทเหมือนลูกค้าพิมพ์เอง (แบบเดียวกับปุ่มตอบเร็ว)
+ * เพิ่มแบบใหม่ (เช่น คัดลอกโค้ดคูปอง = clipboard action ของ LINE · โทร = uri tel:) = เพิ่ม 1 ชนิดที่นี่
+ * + 1 case ใน `lineActionFor()` + 1 ช่องกรอกใน ActionPicker — ทุกจุดที่กดได้ได้ตัวเลือกใหม่พร้อมกัน
+ */
+export type BroadcastActionType = 'url' | 'product' | 'message';
+export type BroadcastAction =
+  | { type: 'url'; url: string }
+  | { type: 'product'; product: BroadcastProductCard | null }
+  | { type: 'message'; text: string };
+
+export const ACTION_TYPES: BroadcastActionType[] = ['url', 'product', 'message'];
+export const ACTION_LABELS: Record<BroadcastActionType, string> = {
+  url: 'เปิดลิงก์',
+  product: 'ไปที่สินค้า',
+  message: 'ส่งข้อความกลับ',
+};
+
+/** action เปล่าของแต่ละชนิด — หน้าจอเริ่มจากตัวนี้แล้วให้ผู้ใช้กรอก */
+export function emptyAction(type: BroadcastActionType = 'url'): BroadcastAction {
+  if (type === 'product') return { type, product: null };
+  if (type === 'message') return { type, text: '' };
+  return { type: 'url', url: '' };
+}
+export const EMPTY_ACTION: BroadcastAction = emptyAction('url');
+
+/** ยังไม่ได้กรอกอะไรเลย (ใช้ตัดปุ่มเปล่า/รู้ว่าเริ่มกรอกหรือยัง) */
+export function isActionEmpty(action: BroadcastAction | null | undefined): boolean {
+  if (!action) return true;
+  if (action.type === 'product') return !action.product;
+  if (action.type === 'message') return !action.text.trim();
+  return !action.url.trim();
+}
+
+/**
+ * อ่าน action จากของที่ไม่รู้ที่มา (body จาก client · content ใบเก่า) — รับเฉพาะรูปทรงที่รู้จัก
+ * `productMapper` ส่งมาถ้าต้องกรองช่องของสินค้า (API ใช้ toProductCard) · ไม่ส่ง = เอาก้อนเดิม
+ */
+export function normalizeAction(
+  raw: unknown,
+  productMapper: (raw: unknown) => BroadcastProductCard = r => r as BroadcastProductCard,
+): BroadcastAction | null {
+  const r = raw as { type?: unknown; url?: unknown; product?: unknown; text?: unknown } | null | undefined;
+  if (!r || typeof r !== 'object') return null;
+  if (r.type === 'url') return { type: 'url', url: typeof r.url === 'string' ? r.url.trim() : '' };
+  if (r.type === 'product') return { type: 'product', product: r.product ? productMapper(r.product) : null };
+  if (r.type === 'message') {
+    return { type: 'message', text: typeof r.text === 'string' ? r.text.trim().slice(0, ACTION_MESSAGE_MAX) : '' };
+  }
+  return null;
+}
+
+/** ตรวจว่ากรอกครบและถูกต้อง — `subject` = "กดรูป" / "กดปุ่ม" ใช้ประกอบข้อความบอกเหตุ */
+export function validateAction(action: BroadcastAction | null | undefined, subject: string): string | null {
+  if (!action) return `เลือกว่า${subject}แล้วเกิดอะไร`;
+  if (action.type === 'url') {
+    if (!action.url.trim()) return `ใส่ลิงก์ที่จะเปิดเมื่อ${subject}`;
+    if (!isHttpsUrl(action.url)) return 'ลิงก์ต้องเป็น https';
+    return null;
+  }
+  if (action.type === 'product') {
+    if (!action.product || !action.product.name.trim()) return `เลือกสินค้าที่จะไปเมื่อ${subject}`;
+    if (action.product.url && !isHttpsUrl(action.product.url)) return 'ลิงก์ของสินค้าต้องเป็น https';
+    return null;
+  }
+  const text = action.text.trim();
+  if (!text) return `ใส่ข้อความที่จะส่งกลับเมื่อ${subject}`;
+  if (text.length > ACTION_MESSAGE_MAX) return `ข้อความที่ส่งกลับยาวเกิน ${ACTION_MESSAGE_MAX} ตัวอักษร`;
+  return null;
+}
+
+/** สรุปสั้น ๆ ว่ากดแล้วไปไหน — ใช้ในบรรทัดสรุป/รายการ */
+export function actionSummary(action: BroadcastAction | null | undefined): string {
+  if (!action || isActionEmpty(action)) return '';
+  if (action.type === 'product') return action.product?.name || '';
+  if (action.type === 'message') return `ส่ง "${action.text.trim()}"`;
+  try {
+    return new URL(action.url.trim()).hostname;
+  } catch {
+    return action.url.trim();
+  }
+}
+
+export interface BroadcastButton {
+  label: string;
+  /** กดปุ่มแล้วเกิดอะไร — ใบใหม่ทุกใบมี */
+  action?: BroadcastAction | null;
+  /** ใบเก่า (ก่อน 10 ก.ย. 2026) เก็บแค่ลิงก์ — อ่านผ่าน `buttonAction()` เสมอ */
+  url?: string;
+}
+
+/** action ของปุ่ม รวมใบเก่าที่มีแค่ url */
+export function buttonAction(b: BroadcastButton): BroadcastAction | null {
+  if (b.action) return b.action;
+  const url = (b.url || '').trim();
+  return url ? { type: 'url', url } : null;
+}
+
 export interface BroadcastContent {
   kind: BroadcastContentKind;
   /** หัวข้อ — promo ใช้เป็นหัวการ์ด · TikTok ใช้เป็นหัวข้อข้อความ */
@@ -80,16 +163,12 @@ export interface BroadcastContent {
    */
   image_style?: 'bubble' | 'rich';
   /**
-   * ลิงก์ที่เปิดเมื่อลูกค้าแตะรูป — **โปสเตอร์บังคับ** · announce แบบ rich ใส่หรือไม่ใส่ก็ได้
-   * (โปสเตอร์ที่กดแล้วไม่ไปไหน = ลูกค้าเห็นของแล้วซื้อต่อไม่ได้)
+   * ใบเก่า (ก่อน 10 ก.ย. 2026): ลิงก์ที่เปิดเมื่อแตะรูปโปสเตอร์ / ประกาศแบบ rich — ใบใหม่ใช้ `tap_action`
+   * อ่านของโปสเตอร์ผ่าน `posterAction()` เสมอ
    */
   link_url?: string | null;
-  /** โปสเตอร์: กดรูปแล้วเกิดอะไร — ดู `PosterTap` · ไม่ส่งมา = 'url' */
-  tap?: PosterTap;
-  /** สินค้าปลายทางเมื่อ `tap = 'product'` — โครงเดียวกับการ์ดสินค้า (`url` เติมจาก storefront ตอนสร้างใบ) */
-  tap_product?: BroadcastProductCard | null;
-  /** ข้อความที่ส่งกลับเมื่อ `tap = 'message'` */
-  tap_message?: string | null;
+  /** โปสเตอร์: กดรูปแล้วเกิดอะไร (ทะเบียนกลาง `BroadcastAction`) */
+  tap_action?: BroadcastAction | null;
   /**
    * การ์ดสินค้าแสดงยังไง (ค่าเริ่มต้น 'detail' — ใบเก่าจึงหน้าตาไม่เปลี่ยน)
    *  image  = รูปจัตุรัสเต็มการ์ด + ป้ายลดและราคาลอยบนรูป กดทั้งใบ
@@ -156,8 +235,11 @@ export function discountPercent(
   return pct > 0 ? pct : null;
 }
 
-export function posterTap(content: Pick<BroadcastContent, 'tap'>): PosterTap {
-  return content.tap === 'product' || content.tap === 'message' ? content.tap : 'url';
+/** action ของรูปโปสเตอร์ รวมใบเก่าที่มีแค่ link_url */
+export function posterAction(content: Pick<BroadcastContent, 'tap_action' | 'link_url'>): BroadcastAction | null {
+  if (content.tap_action) return content.tap_action;
+  const url = (content.link_url || '').trim();
+  return url ? { type: 'url', url } : null;
 }
 
 export function isHttpsUrl(value: string): boolean {
@@ -204,20 +286,8 @@ export function validateBroadcastContent(
     // โปสเตอร์คือ "รูปทั้งใบ" — ข้อความ ราคา ปุ่ม ต้องอยู่ในรูปเอง ระบบจึงไม่มีช่องให้พิมพ์
     if (!content.image_url) return 'โปสเตอร์ต้องมีรูป';
     // กดโปสเตอร์แล้วไม่เกิดอะไร = ลูกค้าสนใจแล้วไปต่อไม่ได้ จึงบังคับให้เลือกว่ากดแล้วเกิดอะไร
-    const tap = posterTap(content);
-    if (tap === 'url') {
-      const link = (content.link_url || '').trim();
-      if (!link) return 'ใส่ลิงก์ที่จะเปิดเมื่อลูกค้ากดรูป';
-      if (!isHttpsUrl(link)) return 'ลิงก์ปลายทางต้องเป็น https';
-    } else if (tap === 'product') {
-      const p = content.tap_product;
-      if (!p || !p.name.trim()) return 'เลือกสินค้าที่จะไปเมื่อลูกค้ากดรูป';
-      if (p.url && !isHttpsUrl(p.url)) return 'ลิงก์ของสินค้าต้องเป็น https';
-    } else {
-      const msg = (content.tap_message || '').trim();
-      if (!msg) return 'ใส่ข้อความที่จะส่งกลับเมื่อลูกค้ากดรูป';
-      if (msg.length > TAP_MESSAGE_MAX) return `ข้อความที่ส่งกลับยาวเกิน ${TAP_MESSAGE_MAX} ตัวอักษร`;
-    }
+    const tapError = validateAction(posterAction(content), 'กดรูป');
+    if (tapError) return tapError;
     // ข้อความใส่ได้ (ส่งเป็นอีกข้อความก่อนรูป — เลย์เอาต์เดียวกับประกาศ) แต่หัวข้อ/ปุ่ม/การ์ดไม่มี
     if (title || (content.buttons || []).length > 0 || (content.products || []).length > 0) {
       return 'โปสเตอร์มีแค่ข้อความ รูป และสิ่งที่เกิดเมื่อกดรูป';
@@ -231,7 +301,8 @@ export function validateBroadcastContent(
     for (const b of buttons) {
       if (!b.label.trim()) return 'ปุ่มต้องมีข้อความบนปุ่ม';
       if (b.label.trim().length > BUTTON_LABEL_MAX) return `ข้อความบนปุ่มยาวเกิน ${BUTTON_LABEL_MAX} ตัวอักษร`;
-      if (!isHttpsUrl(b.url)) return 'ลิงก์ของปุ่มต้องเป็น https';
+      const actionError = validateAction(buttonAction(b), `กดปุ่ม "${b.label.trim()}"`);
+      if (actionError) return actionError;
     }
     // การ์ดของ LINE ตัดข้อความทิ้งเมื่อยาวเกิน — บอกก่อนดีกว่าให้ลูกค้าเห็นข้อความขาด
     if (title.length > CARD_TITLE_MAX) return `หัวข้อบนการ์ดยาวเกิน ${CARD_TITLE_MAX} ตัวอักษร`;
@@ -281,19 +352,8 @@ export function broadcastContentPreview(content: BroadcastContent): string {
   const text = (content.text || '').trim();
   if (content.kind === 'poster') {
     // โปสเตอร์ไม่มีข้อความให้ยกมาโชว์ — บอกว่ากดแล้วไปไหนแทน จะได้แยกใบออกจากกันในรายการ
-    const tap = posterTap(content);
-    let target = '';
-    if (tap === 'product') target = `→ ${content.tap_product?.name || ''}`;
-    else if (tap === 'message') target = `→ ส่ง "${(content.tap_message || '').trim()}"`;
-    else {
-      try {
-        const link = (content.link_url || '').trim();
-        if (link) target = new URL(link).hostname;
-      } catch {
-        target = '';
-      }
-    }
-    return `[โปสเตอร์] ${target}${text ? ` — ${text}` : ''}`.trim().slice(0, 120);
+    const target = actionSummary(posterAction(content));
+    return `[โปสเตอร์] ${target ? `→ ${target}` : ''}${text ? ` — ${text}` : ''}`.trim().slice(0, 120);
   }
   if (content.kind === 'products') {
     const names = (content.products || []).map(p => p.name).filter(Boolean);
