@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import CopyField from '@/components/ui/CopyField';
 import Layout from '@/components/layout/Layout';
 import { useAuth } from '@/lib/auth-context';
@@ -33,6 +34,8 @@ import Toggle from '@/components/ui/Toggle';
 import Card from '@/components/ui/Card';
 import FormInput from '@/components/ui/FormInput';
 import FormSelect from '@/components/ui/FormSelect';
+import StepNumber from '@/components/ui/StepNumber';
+import { useFacebookSdk } from '@/lib/useFacebookSdk';
 
 // Lazy-load modals — only needed on edit / after FB OAuth returns pages.
 const Modal = dynamic(() => import('@/components/ui/Modal'), { ssr: false });
@@ -50,14 +53,12 @@ interface FbPage {
 }
 
 
-// Step number circle
-function StepNumber({ number }: { number: number }) {
-  return (
-    <div className="w-7 h-7 rounded-full bg-primary flex items-center justify-center flex-shrink-0">
-      <span className="text-white text-sm font-bold">{number}</span>
-    </div>
-  );
-}
+/**
+ * สิทธิ์ที่ขอตอนเชื่อมเพจ — `page_events` = สิทธิ์ที่ Conversions API ต้องใช้
+ * (หา/สร้าง dataset ของเพจ + ยิง event Purchase) · token ที่ออกก่อน 9 ก.ย. 2026
+ * ไม่มีสิทธิ์นี้ ต้องกด "เชื่อมต่อ Facebook" ใหม่ถึงจะได้ token ที่ครบ
+ */
+const FB_PAGE_SCOPE = 'pages_show_list,pages_messaging,pages_read_engagement,instagram_manage_messages,page_events';
 
 interface ChatAccount {
   id: string;
@@ -165,6 +166,9 @@ const MARKETPLACE_CHAT_PLATFORMS: MarketplaceChatPlatform[] = ['shopee', 'lazada
 
 export default function ChatChannelsPage() {
   const { userProfile } = useAuth();
+  const router = useRouter();
+  /** เพิ่งเชื่อมเพจสำเร็จ และบริษัทนี้ยังไม่มีบัญชีโฆษณาสักใบ — ชวนต่อให้จบในทางเดียว */
+  const [showAdsNudge, setShowAdsNudge] = useState(false);
   const { showToast } = useToast();
   const { confirmDialog, confirm } = useConfirmDialog();
   const { features, fetched: featuresFetched } = useFeatures();
@@ -289,13 +293,15 @@ export default function ChatChannelsPage() {
   const [fbPages, setFbPages] = useState<FbPage[]>([]);
   const [selectedPageIds, setSelectedPageIds] = useState<Set<string>>(new Set());
   const [fbLoading, setFbLoading] = useState(false);
-  const [fbSdkReady, setFbSdkReady] = useState(false);
+  // SDK โหลดเฉพาะตอนอยู่แท็บ Facebook เหมือนเดิม — ตัวโหลดอยู่ที่ lib/useFacebookSdk.ts
+  // (ใช้ร่วมกับหน้าบัญชีโฆษณา ซึ่งขอสิทธิ์คนละชุดแต่ต้องใช้ SDK ตัวเดียวกัน)
+  const fb = useFacebookSdk(activeTab === 'facebook');
+  const fbSdkReady = fb.ready;
   const [fbSavingPage, setFbSavingPage] = useState(false);
   // ความคืบหน้าตอนเชื่อม/อัปเดตสิทธิ์หลายเพจ — แต่ละเพจต้องคุยกับ Meta หลายรอบ (token · webhook · ทดสอบ · CAPI)
   // ทำทีละเพจเรียงกันเคยช้าจนเจ้าของทัก (10 ก.ย. 2026) จึงทำ 3 เพจพร้อมกันและบอกว่าถึงไหนแล้ว
   const [fbSaveProgress, setFbSaveProgress] = useState<{ done: number; total: number; active: string[] } | null>(null);
   const [fbSearch, setFbSearch] = useState('');
-  const fbSdkLoaded = useRef(false);
   // page_id ของเพจที่กด "เชื่อมต่อใหม่" — พอ Facebook คืนรายชื่อเพจมาแล้วจะติ๊กเพจนี้ให้เลย
   // (ล้างค่าทุกครั้งที่ exchangeFbToken เริ่มทำงาน — รอบถัดไปต้องไม่ติ๊กค้าง)
   const reconnectPageIdRef = useRef<string | null>(null);
@@ -385,39 +391,6 @@ export default function ChatChannelsPage() {
     setShopeeAppPushing(false);
   };
 
-  // Load FB SDK when Facebook tab is active
-  useEffect(() => {
-    if (activeTab !== 'facebook' || !FB_APP_ID) return;
-
-    // SDK already initialized
-    if (window.FB) {
-      if (!fbSdkReady) setFbSdkReady(true);
-      return;
-    }
-
-    // Already loading script, just wait
-    if (fbSdkLoaded.current) return;
-
-    window.fbAsyncInit = () => {
-      window.FB.init({
-        appId: FB_APP_ID,
-        cookie: true,
-        xfbml: false,
-        version: 'v21.0',
-      });
-      setFbSdkReady(true);
-    };
-
-    // Load SDK script
-    const script = document.createElement('script');
-    script.src = 'https://connect.facebook.net/en_US/sdk.js';
-    script.async = true;
-    script.defer = true;
-    document.body.appendChild(script);
-    fbSdkLoaded.current = true;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, showForm]);
-
   const fetchAccounts = async (): Promise<ChatAccount[]> => {
     try {
       const response = await apiFetch('/api/chat-accounts');
@@ -453,40 +426,23 @@ export default function ChatChannelsPage() {
     }
   };
 
-  // FB Login
+  // FB Login — ท่าล็อกอิน (getLoginStatus → logout → login) อยู่ใน useFacebookSdk แล้ว
   const handleFbLogin = useCallback(() => {
-    if (!fbSdkReady || !window.FB) {
+    // .then(ok, err) สองอาร์กิวเมนต์ — ตัวจับ error คุมเฉพาะขาล็อกอิน ไม่กิน error
+    // ของ exchangeFbToken (ซึ่งมี try/catch + toast ของตัวเองอยู่แล้ว)
+    fb.login(FB_PAGE_SCOPE).then(exchangeFbToken, (err: unknown) => {
       // ล้างเพจที่จองไว้ด้วย ไม่งั้นรอบหน้าที่กด "เชื่อมเพจ" ปกติจะมีเพจติ๊กค้างมาจากรอบที่ล้ม
       reconnectPageIdRef.current = null;
-      showToast('Facebook SDK ยังไม่พร้อม กรุณารอสักครู่', 'error');
-      return;
-    }
-
-    const doLogin = () => {
-      window.FB.login((response) => {
-        if (response.status !== 'connected' || !response.authResponse) {
-          reconnectPageIdRef.current = null;
-          showToast('ไม่ได้รับสิทธิ์จาก Facebook', 'error');
-          return;
-        }
-        exchangeFbToken(response.authResponse.accessToken);
-      }, {
-        // `page_events` = สิทธิ์ที่ Conversions API ต้องใช้ (หา/สร้าง dataset ของเพจ + ยิง event Purchase)
-        // — token ที่ออกก่อน 9 ก.ย. 2026 ไม่มีสิทธิ์นี้ ต้องกด "เชื่อมต่อ Facebook" ใหม่ถึงจะได้ token ที่ครบ
-        scope: 'pages_show_list,pages_messaging,pages_read_engagement,instagram_manage_messages,page_events',
-        auth_type: 'reauthorize',
-      });
-    };
-
-    // Logout first to avoid "overriding current access token" warning
-    window.FB.getLoginStatus((statusResponse) => {
-      if (statusResponse.status === 'connected') {
-        window.FB.logout(() => doLogin());
-      } else {
-        doLogin();
-      }
+      const message = err instanceof Error ? err.message : '';
+      showToast(
+        message === 'not_ready'
+          ? 'Facebook SDK ยังไม่พร้อม กรุณารอสักครู่'
+          : 'ไม่ได้รับสิทธิ์จาก Facebook',
+        'error',
+      );
     });
-  }, [fbSdkReady, showToast]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fb.login, showToast]);
 
   // Exchange FB token and fetch pages
   const exchangeFbToken = async (accessToken: string) => {
@@ -645,6 +601,16 @@ export default function ChatChannelsPage() {
     setFbSearch('');
     await fetchAccounts();
     setFbSavingPage(false);
+
+    // เชื่อมเพจได้แล้ว = จังหวะเดียวที่ผู้ใช้กำลังคิดเรื่องนี้อยู่ — ถ้ายังไม่มีบัญชีโฆษณา
+    // สักใบค่อยชวน (มีอยู่แล้วไม่ต้องกวน) · ถามไม่ได้ก็เงียบ ไม่ใช่เรื่องคอขาดบาดตาย
+    if (createdCount + updatedCount > 0 && can(userProfile, 'masterdata.ad_accounts')) {
+      try {
+        const res = await apiFetch('/api/ads/accounts');
+        const data = await res.json().catch(() => ({}));
+        if (res.ok && Array.isArray(data.accounts) && data.accounts.length === 0) setShowAdsNudge(true);
+      } catch { /* ไม่ต้องบอกอะไรผู้ใช้ — การชวนต่อล้มไม่ใช่ปัญหาของเขา */ }
+    }
   };
 
   // Reset form
@@ -1373,6 +1339,20 @@ export default function ChatChannelsPage() {
           );
         })() : (
           <div className="space-y-4">
+            {showAdsNudge && activeTab === 'facebook' && (
+              <Alert tone="success" onClose={() => setShowAdsNudge(false)}>
+                <div className="space-y-3">
+                  <p>เชื่อมเพจแล้ว — จะเชื่อมบัญชีโฆษณา Meta ต่อเลยไหม? ระบบจะส่ง Purchase ให้โฆษณา Click-to-Messenger เรียนรู้ และ sync กลุ่มเป้าหมายได้</p>
+                  <div className="flex items-center gap-2">
+                    <Button variant="primary" size="sm" onClick={() => router.push('/settings/ad-accounts?connect=1')}>
+                      เชื่อมบัญชีโฆษณา
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => setShowAdsNudge(false)}>ไว้ทีหลัง</Button>
+                  </div>
+                </div>
+              </Alert>
+            )}
+
             {/* Account Cards */}
             {tabAccounts.map(account => {
               const card = renderAccountCard(account);

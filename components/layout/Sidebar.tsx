@@ -53,6 +53,7 @@ import {
   RotateCcw,
   Pencil,
   MapPin,
+  Target,
 } from 'lucide-react';
 
 interface MenuItem {
@@ -101,6 +102,7 @@ const menuSections: MenuSection[] = [
     title: 'การตลาด',
     items: [
       { label: 'บรอดแคสต์', href: '/marketing/broadcast', icon: <Megaphone className="w-[18px] h-[18px] flex-shrink-0" />, caps: ['chat.broadcast'] },
+      { label: 'กลุ่มเป้าหมาย', href: '/marketing/audiences', icon: <Target className="w-[18px] h-[18px] flex-shrink-0" />, caps: ['marketing.audiences'] },
       { label: 'โปรโมชั่น', href: '/promotions', icon: <Tag className="w-[18px] h-[18px] flex-shrink-0" />, caps: ['product.manage'] },
     ]
   },
@@ -292,6 +294,7 @@ export default function Sidebar() {
     ...(can(subject, 'members.view') ? [{ href: '/settings/members', label: 'จัดการสมาชิก', icon: <UserCog className="w-[18px] h-[18px] flex-shrink-0" />, isActive: pathname === '/settings/members' }] : []),
     { href: '/settings/payment-channels', label: 'ช่องทางชำระเงิน', icon: <CreditCard className="w-[18px] h-[18px] flex-shrink-0" />, isActive: pathname === '/settings/payment-channels' },
     { href: '/settings/chat-channels', label: 'ช่องทาง Chat', icon: <MessageCircle className="w-[18px] h-[18px] flex-shrink-0" />, isActive: pathname === '/settings/chat-channels' },
+    ...(can(subject, 'masterdata.ad_accounts') ? [{ href: '/settings/ad-accounts', label: 'บัญชีโฆษณา', icon: <Megaphone className="w-[18px] h-[18px] flex-shrink-0" />, isActive: pathname === '/settings/ad-accounts' }] : []),
     ...(can(subject, 'chat.reply') ? [{ href: '/settings/saved-replies', label: 'Saved Reply', icon: <MessageSquareText className="w-[18px] h-[18px] flex-shrink-0" />, isActive: pathname === '/settings/saved-replies' }] : []),
     { href: '/settings/sales-channels', label: 'ช่องทางการขาย', icon: <Store className="w-[18px] h-[18px] flex-shrink-0" />, isActive: pathname === '/settings/sales-channels' },
     ...(features.stock ? [{ href: '/settings/warehouses', label: 'คลังสินค้า', icon: <Warehouse className="w-[18px] h-[18px] flex-shrink-0" />, isActive: pathname === '/settings/warehouses' }] : []),

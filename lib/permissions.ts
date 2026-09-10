@@ -120,11 +120,15 @@ export const CAPABILITIES = {
   'masterdata.variation_types':  ADMIN_TIER,
   'masterdata.delivery':         ADMIN_TIER,    // delivery zones + time slots
   'masterdata.tags':             ADMIN_TIER,    // แท็กลูกค้า/แชท — แก้ชื่อ/สี + ลบ (สร้างใหม่เปิดให้ทุกคนผ่าน quick-add)
+  'masterdata.ad_accounts':      ADMIN_TIER,    // บัญชีโฆษณา Meta — ถือ token ยิงโฆษณา/ยิง event การซื้อ จึงให้เฉพาะชั้นผู้บริหาร
 
   // Chat (กล่องแชทรวมทุกช่องทาง)
   'chat.view':                   [...ADMIN_TIER, 'chat:view'],
   'chat.reply':                  [...ADMIN_TIER, 'chat:manage'],   // ส่งข้อความออก + ผูกลูกค้า
   'chat.broadcast':              ADMIN_TIER,    // ส่งข้อความหาลูกค้าหลายคนพร้อมกัน — กินโควตา OA จึงให้เฉพาะระดับผู้บริหาร
+
+  // Marketing
+  'marketing.audiences':         ADMIN_TIER,    // กลุ่มเป้าหมายที่ sync ขึ้น Meta — ส่งข้อมูลลูกค้าออกนอกระบบ จึงเป็นชั้นผู้บริหาร
 
   // Inventory
   'inventory.view':              [...ADMIN_TIER, 'inventory:view'],
