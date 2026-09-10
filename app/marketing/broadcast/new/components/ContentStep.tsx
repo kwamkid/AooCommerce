@@ -47,7 +47,7 @@ export const KIND_LABELS: Record<BroadcastContentKind, string> = {
  * ไม่ใช่รูปของร่าง) เพราะตรงนี้ผู้ใช้ยังไม่ได้กรอกอะไร ต้องเห็นก่อนว่าแต่ละแบบหน้าตาเป็นยังไง
  */
 const KIND_CARDS: Record<BroadcastContentKind, { label: string; description: string; preview: React.ReactNode }> = {
-  announce: { label: KIND_LABELS.announce, description: 'รูปในฟองแชท (+ ข้อความ)', preview: KIND_MOCKS.announce },
+  announce: { label: KIND_LABELS.announce, description: 'รูปในแชทตามปกติ (+ ข้อความ)', preview: KIND_MOCKS.announce },
   poster: { label: KIND_LABELS.poster, description: 'รูปเต็มความกว้าง กดแล้วไปต่อได้', preview: KIND_MOCKS.poster },
   gallery: { label: KIND_LABELS.gallery, description: 'เลื่อนดู แต่ละใบกดแล้วไปต่อได้', preview: KIND_MOCKS.gallery },
   promo: { label: KIND_LABELS.promo, description: 'หัวข้อ + ข้อความ + ปุ่ม', preview: KIND_MOCKS.promo },
@@ -287,8 +287,8 @@ export default function ContentStep({
             <ActionPicker label="กดรูปแล้ว" value={tapAction} onChange={onTapActionChange} {...pickerProps} />
           </div>
         ) : kind === 'announce' && compose.image ? (
-          // ประกาศส่งถึงลูกค้าเป็น 2 ฟองแยกกัน (ข้อความ แล้วตามด้วยรูป) → ฟอร์มก็เป็น 2 กล่องแยกกัน
-          // ในลำดับเดียวกัน — เคยรวมเป็นกล่องเดียวแล้วเจ้าของบอกคนจะเข้าใจผิดว่าเป็นฟองเดียว (10 ก.ย.)
+          // ประกาศส่งถึงลูกค้าเป็น 2 ข้อความแยกกัน (ข้อความ แล้วตามด้วยรูป) → ฟอร์มก็เป็น 2 กล่องแยกกัน
+          // ในลำดับเดียวกัน — เคยรวมเป็นกล่องเดียวแล้วเจ้าของบอกคนจะเข้าใจผิดว่าเป็นข้อความเดียว (10 ก.ย.)
           <div className="space-y-3">
             {/* บอกครั้งเดียวว่าเป็นคนละข้อความ — หัวกล่องเหลือแค่เลขลำดับ (เจ้าของเลือกจาก 4 แบบ 10 ก.ย.) */}
             <p className="subtitle-text">ส่งถึงลูกค้าเป็นข้อความแยกกัน เรียงตามลำดับนี้</p>

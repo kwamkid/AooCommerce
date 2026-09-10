@@ -71,6 +71,7 @@ export default function ActionPicker({
         <FilterChips<BroadcastActionType>
           value={value.type}
           variant="segmented"
+          size="md"
           // เปลี่ยนชนิด = เริ่มกรอกใหม่ของชนิดนั้น (ลิงก์กับสินค้าเอามาแทนกันไม่ได้)
           onChange={type => onChange(emptyAction(type))}
           disabled={disabled}

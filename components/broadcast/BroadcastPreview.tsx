@@ -7,8 +7,8 @@
 // ก๊อปไปวาดเองแล้วสองหน้าจะแสดงคนละอย่างทั้งที่เป็นข้อความใบเดียวกัน
 //
 // ⚠️ วาดเป็น "ห้องแชทของลูกค้า" ไม่ใช่กล่องข้อความลอย ๆ — ของที่เราส่งไปเป็น
-// **ข้อความขาเข้า**ของลูกค้า จึงชิดซ้าย มีรูปโปรไฟล์ร้านนำหน้า และฟองเป็นสีขาว
-// (เคยวาดชิดขวาเป็นฟองสีแบรนด์ = ฝั่งที่ลูกค้าพิมพ์เอง ผู้ใช้อ่านแล้วไม่เชื่อว่าเป็นของจริง)
+// **ข้อความขาเข้า**ของลูกค้า จึงชิดซ้าย มีรูปโปรไฟล์ร้านนำหน้า และกล่องข้อความเป็นสีขาว
+// (เคยวาดชิดขวาเป็นสีแบรนด์ = ฝั่งที่ลูกค้าพิมพ์เอง ผู้ใช้อ่านแล้วไม่เชื่อว่าเป็นของจริง)
 //
 // ⚠️ **ปุ่มบนการ์ดเป็นสีเขียว LINE ไม่ใช่สีส้มของแบรนด์เรา** — เทียบกับรูปแคปจริงแล้ว
 // LINE วาดปุ่ม Flex `primary` เป็นเขียวตัวหนังสือขาว และ `secondary` เป็นเทาอ่อนตัวหนังสือเข้ม
@@ -30,14 +30,14 @@ export interface BroadcastPreviewProps {
   platform: BroadcastPlatform | null;
   /** blob/object URL ของรูปที่ยังไม่ได้อัปโหลด — ไม่มีก็ตกไปใช้ content.image_url */
   imagePreviewUrl?: string | null;
-  /** ชื่อร้าน/OA/เพจที่ลูกค้าเห็นเหนือฟองแรก */
+  /** ชื่อร้าน/OA/เพจที่ลูกค้าเห็นเหนือข้อความแรก */
   accountName?: string | null;
   /** รูปโปรไฟล์ของช่องทาง — ไม่มีก็ตกไปเป็นตัวอักษรแรกของชื่อ */
   accountPictureUrl?: string | null;
   className?: string;
 }
 
-/** ฟองข้อความขาเข้า — ขาว มุมบนซ้ายตัดสั้นเหมือนหางฟองของ LINE */
+/** กล่องข้อความขาเข้า — ขาว มุมบนซ้ายตัดสั้นเหมือนหางข้อความของ LINE */
 const BUBBLE = 'w-fit max-w-full rounded-2xl rounded-tl-md px-3.5 py-2 bg-white text-gray-900';
 /** ปุ่มใบแรกของการ์ด = สิ่งที่อยากให้กดที่สุด — LINE วาดเป็นเขียวทึบ */
 const BTN_PRIMARY = 'block bg-line text-white rounded-lg py-2 text-center subtitle-text font-medium';
@@ -62,7 +62,7 @@ export default function BroadcastPreview({
   const quickReplies = (content.quick_replies || []).filter(q => q.trim());
   const imageStyle = content.image_style === 'rich' ? 'rich' : 'bubble';
   const cardStyle = content.card_style === 'image' ? 'image' : 'detail';
-  // ไม่รู้ชื่อร้านก็ยังต้องมีอะไรสักอย่างเหนือฟอง — ตกไปใช้ชื่อช่องทาง
+  // ไม่รู้ชื่อร้านก็ยังต้องมีอะไรสักอย่างเหนือข้อความ — ตกไปใช้ชื่อช่องทาง
   const senderName = (accountName || '').trim() || (platform ? BROADCAST_PLATFORMS[platform].label : '');
   // รูปเต็มจอ (โปสเตอร์ · ประกาศแบบ rich ของใบเก่า) LINE วาดเต็มความกว้างห้องแชทชนขอบ ไม่เว้นขอบซ้าย
   // ข้างรูปโปรไฟล์ — จึงวาดนอกคอลัมน์ข้าง avatar (เจ้าของท้วงจากรูปแคปจริง 10 ก.ย. 2026)
@@ -78,7 +78,7 @@ export default function BroadcastPreview({
           {senderName && <p className="helper-text text-white/90 truncate">{senderName}</p>}
 
           {content.kind === 'poster' ? (
-            // โปสเตอร์ = ฟองข้อความ (ถ้ามี) ในคอลัมน์นี้ · ตัวรูปวาดเต็มความกว้างข้างล่างนอกคอลัมน์
+            // โปสเตอร์ = ข้อความ (ถ้ามี) ในคอลัมน์นี้ · ตัวรูปวาดเต็มความกว้างข้างล่างนอกคอลัมน์
             text && (
               <div className={BUBBLE}>
                 <p className="subtitle-text whitespace-pre-wrap break-words">{text}</p>
@@ -210,7 +210,7 @@ export default function BroadcastPreview({
                   {text && <p className="subtitle-text whitespace-pre-wrap break-words">{text}</p>}
                 </div>
               )}
-              {/* รูปธรรมดา = ฟองรูปแยกใบ ไม่เต็มความกว้างห้อง เหมือนแอดมินส่งรูปในแชท */}
+              {/* รูปธรรมดา = รูปแยกใบ ไม่เต็มความกว้างห้อง เหมือนแอดมินส่งรูปในแชท */}
               {imageUrl && imageStyle !== 'rich' && (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={imageUrl} alt="ตัวอย่างรูปที่จะส่ง" className="w-8/12 h-auto rounded-2xl" />

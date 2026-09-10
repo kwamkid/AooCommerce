@@ -612,7 +612,7 @@ export function buildLineMessagesFromContent(content: BroadcastContent): LineMes
     const single = products.length === 1;
     const bubbles = products.map(p => productBubble(p, cardStyle, single ? 'giga' : 'mega'));
 
-    // ข้อความเกริ่นเป็น bubble แรก (ถ้ามี) แล้วตามด้วยการ์ด — รวมยังไม่เกิน 3
+    // ข้อความเกริ่นเป็นข้อความแรก (ถ้ามี) แล้วตามด้วยการ์ด — รวมยังไม่เกิน 3
     if (text) messages.push({ type: 'text', text });
     messages.push({
       type: 'flex',
@@ -630,7 +630,7 @@ export function buildLineMessagesFromContent(content: BroadcastContent): LineMes
     if (imageUrl) {
       if (!/^https:\/\//i.test(imageUrl)) throw new Error('ลิงก์รูปต้องเป็น https');
       if (content.image_style === 'rich') {
-        // รูปเต็มความกว้างห้องแชท + กดได้ — ฟองรูปธรรมดาโดนย่อจนโปสเตอร์อ่านไม่ออก
+        // รูปเต็มความกว้างห้องแชท + กดได้ — รูปธรรมดาโดนย่อจนโปสเตอร์อ่านไม่ออก
         messages.push({
           type: 'flex',
           altText: 'รูปภาพ',

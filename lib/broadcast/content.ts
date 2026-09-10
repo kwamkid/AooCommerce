@@ -166,7 +166,7 @@ export interface BroadcastContent {
   image_url?: string | null;
   /**
    * รูปของ `announce` แสดงยังไง (ค่าเริ่มต้น 'bubble' — ใบเก่าจึงหน้าตาไม่เปลี่ยน)
-   *  bubble = ฟองรูปเหมือนที่แอดมินส่งรูปในแชท
+   *  bubble = รูปธรรมดาเหมือนที่แอดมินส่งรูปในแชท
    *  rich   = รูปเต็มความกว้างห้องแชท (Flex giga) กดแล้วไปที่ `link_url` ได้
    */
   image_style?: 'bubble' | 'rich';

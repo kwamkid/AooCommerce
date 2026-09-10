@@ -35,17 +35,26 @@ export interface FilterChip<T extends string> {
 export type FilterChipsVariant = 'pill' | 'segmented';
 
 export default function FilterChips<T extends string>({
-  chips, value, onChange, className, variant = 'pill', disabled,
+  chips, value, onChange, className, variant = 'pill', size = 'sm', disabled,
 }: {
   chips: FilterChip<T>[];
   value: T;
   onChange: (id: T) => void;
   className?: string;
   variant?: FilterChipsVariant;
+  /**
+   * sm = ชิปเตี้ยตามปกติ · md = สูง 42px เท่า `<input>`/`<Button>` — ใช้เมื่อวางอยู่**แถวเดียวกับช่องกรอก**
+   * ไม่งั้นเห็นเป็นขั้นบันได (กติกาความสูง 42px เดียวกับ .form-control-md/.btn-md)
+   */
+  size?: 'sm' | 'md';
   /** อ่านอย่างเดียว — ใช้ตอนฟอร์มกำลังบันทึก หรือแถวที่แก้ไม่ได้ */
   disabled?: boolean;
 }) {
   const segmented = variant === 'segmented';
+  // md ให้ .form-control-md เป็นคนคุมความสูง/ขนาดตัวอักษร (จึงไม่ใส่ text-sm ทับ)
+  const sizeClass = segmented
+    ? (size === 'md' ? 'px-3 form-control-md' : 'px-3 py-1.5 text-sm')
+    : 'rounded-full border px-3 py-1.5 text-sm';
   const wrapClass = segmented
     ? `inline-flex items-stretch rounded-lg border border-gray-200 dark:border-slate-600 divide-x divide-gray-200 dark:divide-slate-600 overflow-hidden ${className || ''}`
     : `flex flex-wrap items-center gap-2 ${className || ''}`;
@@ -59,9 +68,7 @@ export default function FilterChips<T extends string>({
             type="button"
             onClick={() => onChange(chip.id)}
             disabled={disabled || chip.disabled}
-            className={`inline-flex items-center gap-1.5 text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-              segmented ? 'px-3 py-1.5' : 'rounded-full border px-3 py-1.5'
-            } ${
+            className={`inline-flex items-center gap-1.5 font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${sizeClass} ${
               value === chip.id
                 ? chip.activeClass
                 : `text-gray-600 dark:text-slate-300 enabled:hover:bg-gray-50 dark:enabled:hover:bg-slate-700${

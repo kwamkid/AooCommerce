@@ -41,7 +41,7 @@ import { apiFetch } from '@/lib/api-client';
 import { useServerSearch, type ServerSearchPage } from '@/lib/useServerSearch';
 import { formatPrice } from '@/lib/utils/format';
 import {
-  BUTTON_LABEL_MAX, CARD_TEXT_MAX, CARD_TITLE_MAX, EMPTY_ACTION,
+  ACTION_MESSAGE_MAX, BUTTON_LABEL_MAX, CARD_TEXT_MAX, CARD_TITLE_MAX, EMPTY_ACTION,
   type BroadcastAction, type BroadcastProductCard,
 } from '@/lib/broadcast/content';
 import { GripVertical, Image as ImageIcon, Mic, Plus, Trash2 } from 'lucide-react';
@@ -101,7 +101,7 @@ const BLOCK_LABELS: Record<BlockType, string> = {
 /** ตัวเลือกชนิดบล็อก — มอคห้องแชทชุดเดียวกับการ์ดเลือกชนิดของหน้าจริง */
 const BLOCK_OPTIONS = [
   {
-    id: 'text' as const, label: BLOCK_LABELS.text, description: 'ฟองข้อความ',
+    id: 'text' as const, label: BLOCK_LABELS.text, description: 'ข้อความในแชท',
     preview: (
       <MockChat>
         <div className="rounded-xl rounded-tl-sm bg-white p-1.5 space-y-1">
@@ -111,7 +111,7 @@ const BLOCK_OPTIONS = [
     ),
   },
   {
-    id: 'image' as const, label: BLOCK_LABELS.image, description: 'รูปในฟองแชท',
+    id: 'image' as const, label: BLOCK_LABELS.image, description: 'รูปในแชทตามปกติ',
     preview: <MockChat><MockPhoto className="w-7/12 h-14 rounded-xl" /></MockChat>,
   },
   { id: 'rich' as const, label: BLOCK_LABELS.rich, description: 'เต็มความกว้าง กดแล้วไปต่อได้', preview: KIND_MOCKS.poster },
@@ -290,7 +290,7 @@ function SortableCardTile({ c, index, selected, onSelect }: { c: CardDraft; inde
           <ImageIcon className="w-5 h-5" />
         </div>
       )}
-      <p className="helper-text mt-1 truncate">{c.title.trim() || c.product?.name || `การ์ด ${index + 1}`}</p>
+      <p className="helper-text mt-1 truncate text-center">{c.title.trim() || c.product?.name || `การ์ด ${index + 1}`}</p>
     </button>
   );
 }
@@ -325,10 +325,15 @@ function CardsEditor({ block, onChange, picker }: {
   };
   const pickProduct = (c: CardDraft, p: ProductSearchItem) => {
     const product = picker.productToCard(p);
+    // ร้านเปิดหน้าร้านออนไลน์ = ปุ่มพาไปหน้าสินค้า · ยังไม่เปิด = ส่ง "สนใจ …" เข้าห้องแชท
+    // (กติกาเดิมของการ์ดสินค้า — ตั้งปุ่มไปที่สินค้าไว้ตายตัวจะได้ปุ่มที่ส่งจริงไม่ได้)
+    const button: CardButton = picker.storefrontOpen
+      ? { id: uid(), label: 'สั่งเลย', action: { type: 'product', product } }
+      : { id: uid(), label: 'สนใจสินค้านี้', action: { type: 'message', text: `สนใจ ${product.name}`.slice(0, ACTION_MESSAGE_MAX) } };
     patchCard(c.id, {
       source: 'product', product, title: product.name,
       text: product.price != null ? formatPrice(product.price) : '',
-      buttons: [{ id: uid(), label: 'สั่งเลย', action: { type: 'product', product } }],
+      buttons: [button],
     });
   };
 
@@ -396,7 +401,7 @@ function CardsEditor({ block, onChange, picker }: {
             />
           )}
 
-          <div className="grid md:grid-cols-[160px_minmax(0,1fr)] gap-4">
+          <div className="grid md:grid-cols-[180px_minmax(0,1fr)] gap-4">
             <div>
               <p className="field-label mb-1">รูป</p>
               <ImageDropzone
@@ -404,12 +409,13 @@ function CardsEditor({ block, onChange, picker }: {
                 onChange={f => patchCard(selected.id, { file: f, previewUrl: f ? URL.createObjectURL(f) : null })}
                 initialPreviewUrl={selected.product?.image_url ?? null}
                 label="เลือกรูป"
-                hint="จัตุรัส 1:1"
+                hint="1:1 · 1080×1080"
+                square
                 changeOnClick
                 maxWidthOrHeight={1024}
                 maxSizeMB={0.3}
-                classNames={{ previewImg: 'w-full h-auto rounded-lg object-cover' }}
               />
+              <p className="subtitle-text mt-1">รูปจัตุรัส — ระบบย่อเหลือด้านยาวสุด 1,024 px ตามเพดานของ LINE</p>
             </div>
             <div className="space-y-3">
               <FormInput
@@ -503,7 +509,7 @@ function SortableBlock({ block, index, onChange, onRemove, picker }: {
   } else if (block.type === 'image') {
     editor = (
       <MessageComposer
-        emptyHint="รูปในฟองแชท"
+        emptyHint="รูปในแชทตามปกติ"
         image={{ file: block.file, onChange: f => onChange({ ...block, file: f, previewUrl: f ? URL.createObjectURL(f) : null }), previewUrl: block.previewUrl, maxWidthOrHeight: 1024, maxSizeMB: 0.3 }}
       />
     );

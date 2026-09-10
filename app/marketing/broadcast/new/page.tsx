@@ -283,7 +283,7 @@ export default function NewBroadcastPage() {
     () => [...new Set(selectedAccounts.map(a => a.platform))],
     [selectedAccounts],
   );
-  /** ใช้ตัดสินเรื่องที่เป็นของแพลตฟอร์มเดียว (สีฟองตัวอย่าง · ข้อความโควตา) */
+  /** ใช้ตัดสินเรื่องที่เป็นของแพลตฟอร์มเดียว (สีในตัวอย่างแชท · ข้อความโควตา) */
   const singlePlatform = platforms.length === 1 ? platforms[0] : null;
   const compose = useMemo(() => intersectCompose(platforms), [platforms]);
   const audienceOptions = useMemo(() => commonAudienceOptions(platforms), [platforms]);
@@ -564,7 +564,7 @@ export default function NewBroadcastPage() {
       image_url: kind === 'gallery' ? null : (imageFile ? 'https://pending.upload' : existingImageUrl),
       image_width: imageDims?.width ?? null,
       image_height: imageDims?.height ?? null,
-      // รูปของประกาศเป็นฟองรูปธรรมดาเสมอ — รูปเต็มจอย้ายไปเป็นโปสเตอร์ตั้งแต่ 10 ก.ย. 2026
+      // รูปของประกาศเป็นรูปธรรมดาเสมอ — รูปเต็มจอย้ายไปเป็นโปสเตอร์ตั้งแต่ 10 ก.ย. 2026
       image_style: 'bubble',
       link_url: null,
       tap_action: isPoster ? tapAction : null,

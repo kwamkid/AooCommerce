@@ -40,6 +40,12 @@ interface Props {
   /** ขนาดไฟล์เป้าหมายหลังย่อ (MB) */
   maxSizeMB?: number;
   /**
+   * กรอบเป็นจัตุรัสจริง (ทั้งตอนว่างและตอนมีรูป — รูปถูกครอบด้วย object-cover)
+   * ใช้กับที่ที่ปลายทางเป็นรูป 1:1 เช่นการ์ดสินค้า · บอกว่า 1:1 แต่กรอบเป็นสี่เหลี่ยมผืนผ้า
+   * ผู้ใช้จะเข้าใจสัดส่วนผิดตั้งแต่ตอนเลือกรูป (เจ้าของท้วง 10 ก.ย. 2026)
+   */
+  square?: boolean;
+  /**
    * กดที่รูปพรีวิวแล้วเปิดเลือกรูปใหม่ได้เลย + ทาบไอคอน "เปลี่ยนรูป" ตอน hover (ทรงเดียวกับแว่นขยาย
    * บนรูปสินค้า) — ไม่ต้องกดกากบาทแล้วเลือกใหม่สองจังหวะ (เจ้าของขอ 10 ก.ย. 2026)
    */
@@ -81,7 +87,7 @@ export interface ImageDropzoneHandle {
 
 const ImageDropzone = forwardRef<ImageDropzoneHandle, Props>(function ImageDropzone({
   value, onChange, disabled, label, hint, icon, alt, initialPreviewUrl, classNames,
-  capture, onBusyChange, maxWidthOrHeight = 1920, maxSizeMB = 0.5, changeOnClick,
+  capture, onBusyChange, maxWidthOrHeight = 1920, maxSizeMB = 0.5, changeOnClick, square,
 }, ref) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [preview, setPreview] = useState<string | null>(null);
@@ -92,7 +98,12 @@ const ImageDropzone = forwardRef<ImageDropzoneHandle, Props>(function ImageDropz
   // ผู้ใช้กดกากบาททิ้งรูปเดิมแล้วหรือยัง — ถ้าไม่จำ ปุ่มกากบาทจะกดแล้วไม่มีอะไรเกิดขึ้น
   // เพราะ initialPreviewUrl ยังค้างอยู่ทำให้พรีวิวไม่หายไปไหน (บั๊กจริง 2026-08-30)
   const [dismissedInitial, setDismissedInitial] = useState(false);
-  const cn = { ...TW, ...(classNames || {}) };
+  const cn = {
+    ...TW,
+    ...(square ? { previewImg: 'w-full aspect-square object-cover rounded-lg' } : {}),
+    ...(classNames || {}),
+  };
+  const rootClass = `${cn.root}${square ? ' aspect-square' : ''}`;
 
   // ผู้เรียกเปลี่ยนรูปตั้งต้น (เช่นเพิ่งดึงจากแพลตฟอร์มมาใหม่) → กลับมาแสดงอีกครั้ง
   useEffect(() => { setDismissedInitial(false); }, [initialPreviewUrl]);
@@ -188,7 +199,7 @@ const ImageDropzone = forwardRef<ImageDropzoneHandle, Props>(function ImageDropz
     <>
       <button
         type="button"
-        className={`${cn.root}${dragging ? ` ${cn.rootDragging}` : ''}`}
+        className={`${rootClass}${dragging ? ` ${cn.rootDragging}` : ''}`}
         onClick={() => inputRef.current?.click()}
         disabled={disabled || busy}
         // วางจากคลิปบอร์ดได้ด้วย — บนคอมคนแคปหน้าจอมาวางเลยเร็วกว่าเซฟไฟล์ก่อน
