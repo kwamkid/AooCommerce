@@ -6,9 +6,9 @@
 // อัปขึ้น Meta แล้วได้กลุ่มเล็กจนยิงโฆษณาไม่ได้ (Meta ต้องการราว 100 คนที่จับคู่ติด) —
 // ต้องเห็นตั้งแต่ก่อนกดบันทึก ไม่ใช่ไปเจอตอน sync เสร็จ
 //
-// ยังไม่เคยนับได้ = skeleton **ห้ามโชว์ 0** (อ่านว่า "กลุ่มนี้ไม่มีใครเลย" ซึ่งคนละความหมาย)
-// · นับรอบใหม่ระหว่างที่มีตัวเลขเดิมอยู่แล้ว = ตัวเลขเดิมจางลง ไม่กระพริบกลับเป็น skeleton
-//   ทุกครั้งที่ติ๊กอะไร (เจ้าของขอ skeleton 11 ก.ย. 2026)
+// กำลังนับ = skeleton ทุกครั้ง รวมตอนเปลี่ยนกลุ่ม/แหล่ง (เจ้าของขอ 11 ก.ย. 2026 · เดิมตัวเลขเก่า
+// จางลงแทน ซึ่งยังอ่านเป็นตัวเลขของเงื่อนไขใหม่ได้) · **ห้ามโชว์ 0** ระหว่างรอ (อ่านว่า "ไม่มีใครเลย")
+// · `loading` ต้องจริงตั้งแต่เงื่อนไขเปลี่ยน ไม่ใช่รอให้คำขอออก — ผู้เรียกเทียบ key ของเงื่อนไขให้
 'use client';
 
 import Card from '@/components/ui/Card';
@@ -35,9 +35,8 @@ interface Props {
 }
 
 export default function AudienceRail({ preview, loading, error, hint }: Props) {
-  // ยังไม่เคยได้ตัวเลขเลย — ครอบทั้งตอนโหลดครั้งแรกและช่วงหน่วง 400ms ก่อนยิงคำขอ
-  // (เช็คแค่ `loading` จะเห็นขีดโผล่แวบหนึ่งก่อน skeleton)
-  const pending = !preview && !error;
+  // กำลังนับ หรือยังไม่เคยได้ผลเลย (ช่วงหน่วงก่อนยิงคำขอครั้งแรก)
+  const pending = loading || (!preview && !error);
 
   return (
     <Card padding="md">
@@ -54,7 +53,7 @@ export default function AudienceRail({ preview, loading, error, hint }: Props) {
           <SkeletonText lines={3} />
         </div>
       ) : preview ? (
-        <div className={`transition-opacity ${loading ? 'opacity-50' : ''}`} aria-busy={loading || undefined}>
+        <div>
           <div className="flex items-baseline gap-2">
             <span className="heading-1 tabular-nums">{formatNumber(preview.total)}</span>
             <span className="subtitle-text">คน</span>
@@ -98,7 +97,7 @@ export default function AudienceRail({ preview, loading, error, hint }: Props) {
         </div>
       ) : null}
 
-      {error && <Alert tone="danger" className="mt-3">{error}</Alert>}
+      {error && !loading && <Alert tone="danger" className="mt-3">{error}</Alert>}
     </Card>
   );
 }

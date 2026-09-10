@@ -5,6 +5,9 @@
 // หนึ่งแถว = หนึ่งบัญชีโฆษณาที่เชื่อมไว้ (ไม่ใช่หนึ่ง sync) — บัญชีที่ยังไม่เคยผูกกับกลุ่มนี้
 // ก็ต้องเห็น พร้อมปุ่มที่กดแล้วผูกให้เลย ไม่ต้องไปหาเมนู "เพิ่ม" ที่อื่น
 //
+// โหมดสร้าง (ยังไม่มีกลุ่ม) = บอกว่ากลุ่มจะขึ้นบัญชีไหนทันทีที่สร้าง — ฟอร์มผูก+sync ให้ทุกบัญชีที่พร้อม
+// เสมอ ไม่มีตัวเลือกปิด (เจ้าของ 11 ก.ย. 2026 · เดิมขึ้น "บันทึกกลุ่มก่อน แล้วเปิด sync ได้ที่นี่" ซึ่งอ่านไม่รู้เรื่อง)
+//
 // ⚠️ **token ที่ยิง Purchase ได้ ไม่ได้แปลว่าจัดการกลุ่มเป้าหมายได้** — บัญชีที่ยังไม่มี
 // `audiences_ok_at` ต้องขึ้นเป็นแถวที่กดไม่ได้พร้อมบอกว่าต้องทำอะไร ไม่ใช่ปล่อยให้กดแล้ว
 // ไปเจอ error ดิบของ Meta
@@ -83,7 +86,10 @@ export default function MetaSyncRows({
   const { showToast } = useToast();
   const [busyId, setBusyId] = useState<string | null>(null);
   /** เฝ้าผลอยู่ไหม — ตั้งหลังสั่ง sync แล้วปิดเองเมื่อทุกใบนิ่ง (ไม่ poll ทิ้งไว้ตลอด) */
-  const [watching, setWatching] = useState(false);
+  // เปิดหน้ามาตอนยังวิ่งอยู่ (เพิ่งสร้างกลุ่ม) = เฝ้าต่อเลย ไม่งั้นป้าย "กำลัง sync…" ค้างจนกดรีเฟรช
+  const [watching, setWatching] = useState(
+    () => syncs.some(s => s.status === 'syncing' || s.status === 'pending'),
+  );
 
   const reload = useCallback(async (): Promise<AudienceView | null> => {
     if (!audienceId) return null;
@@ -196,15 +202,15 @@ export default function MetaSyncRows({
         <EmptyCard
           icon={<Megaphone className="w-8 h-8 text-gray-300 dark:text-slate-600" />}
           title="ยังไม่ได้เชื่อมบัญชีโฆษณา"
-          subtitle="สร้างกลุ่มและส่งบรอดแคสต์ได้ตามปกติ — sync ไป Meta ต้องเชื่อมบัญชีก่อน"
+          subtitle={audienceId
+            ? 'กลุ่มเป้าหมายใช้ยิงโฆษณาผ่าน Meta · เชื่อมบัญชีโฆษณาแล้วกด sync ที่นี่'
+            : 'กลุ่มเป้าหมายใช้ยิงโฆษณาผ่าน Meta · เชื่อมบัญชีก่อน แล้วกลุ่มจะขึ้น Meta ทันทีที่สร้าง'}
           actions={canManageAdAccounts ? (
             <Link href="/settings/ad-accounts">
               <Button variant="secondary" size="sm">เชื่อมบัญชีโฆษณา</Button>
             </Link>
           ) : undefined}
         />
-      ) : !audienceId ? (
-        <p className="subtitle-text">บันทึกกลุ่มก่อน แล้วเปิด sync ได้ที่นี่</p>
       ) : (
         <ul className="space-y-3">
           {adAccounts.map(account => {
@@ -268,6 +274,8 @@ export default function MetaSyncRows({
                       </Link>
                     ) : null}
                   </div>
+                ) : !audienceId ? (
+                  <p className="subtitle-text">sync ทันทีที่สร้างกลุ่ม แล้วอัปเดตให้เองทุกวัน</p>
                 ) : (
                   <div className="flex items-center justify-between gap-2 flex-wrap">
                     {sync ? (

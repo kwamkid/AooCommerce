@@ -5,14 +5,18 @@
 // (แบบเดียวกับหน้าสร้างบรอดแคสต์ — ตัวเลือกกลุ่มผู้รับจึงใช้การ์ดตัวเดียวกันได้เลย)
 //
 // กติกาสำคัญ:
-// - **เลือกพฤติกรรมก่อน แหล่งที่มาทีหลัง** (เจ้าของสลับลำดับ 11 ก.ย. 2026) · หน้าบรอดแคสต์ยังเลือก
+// - ลำดับบนจอ: ชื่อกลุ่ม → กลุ่มเป้าหมาย (พฤติกรรม) → แหล่งที่มา (เจ้าของกำหนด 11 ก.ย. 2026)
+// - **เลือกพฤติกรรมก่อน แหล่งที่มาทีหลัง** · หน้าบรอดแคสต์ยังเลือก
 //   ช่องทางก่อน เพราะที่นั่นช่องทางคือตัวส่งข้อความ ส่วนหน้านี้ส่งไป Meta แหล่งเป็นแค่ที่เก็บข้อมูล
 //   · เลือกพฤติกรรมแล้วระบบติ๊กแหล่งที่ตอบได้ให้เอง (`defaultSourcesFor` — ไม่ติ๊ก LINE ให้)
 //   · แหล่งที่ตอบพฤติกรรมไม่ได้ขึ้นจางพร้อมเหตุผล · ทุกแหล่งที่เลือกต้องตอบได้ (กฎเดียวกับหลังบ้าน)
 // - ชื่อกลุ่มตั้งให้จากพฤติกรรมจนกว่าผู้ใช้จะพิมพ์เอง (`nameTouched`)
+// - **สร้างกลุ่ม = sync ไปทุกบัญชีโฆษณาที่พร้อมทันที ไม่มีตัวเลือกปิด** — กลุ่มมีไว้ยิงโฆษณา
+//   สร้างแล้วไม่ขึ้น Meta ก็ไม่มีประโยชน์ (เจ้าของ 11 ก.ย. 2026 · เดิมมี checkbox ให้ปิด)
 // - `all` (ผู้ติดตามทั้งหมดของ LINE) ปิดตายทุกกรณี — เราไม่มีรายชื่อคนพวกนั้น จึงไม่มี
 //   เบอร์/อีเมลจะส่งให้ Meta (เซิร์ฟเวอร์ก็ปฏิเสธ ดู validateAudienceDefinition)
-// - จำนวนคนระหว่างโหลดเป็น skeleton **ห้ามโชว์ 0**
+// - จำนวนคนเป็น skeleton ทุกครั้งที่นับใหม่ รวมตอนเปลี่ยนกลุ่ม (`resolvedKey` ≠ เงื่อนไขปัจจุบัน)
+//   **ห้ามโชว์ 0** และห้ามค้างตัวเลขของเงื่อนไขเก่าไว้ให้อ่านผิด
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -20,8 +24,6 @@ import { useRouter } from 'next/navigation';
 import Card from '@/components/ui/Card';
 import Alert from '@/components/ui/Alert';
 import Button from '@/components/ui/Button';
-import Checkbox from '@/components/ui/Checkbox';
-import HelpHint from '@/components/ui/HelpHint';
 import SaveButton from '@/components/ui/SaveButton';
 import FormInput from '@/components/ui/FormInput';
 import FormTextarea from '@/components/ui/FormTextarea';
@@ -117,16 +119,17 @@ export default function AudienceForm({ mode, initial, templateKey, onAudienceCha
   const [preview, setPreview] = useState<AudiencePreview | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
+  /** เงื่อนไข (JSON) ที่ตัวเลข/error ในแผงขวาตอบอยู่ — ไม่ตรงกับเงื่อนไขปัจจุบัน = กำลังนับใหม่ → skeleton */
+  const [resolvedKey, setResolvedKey] = useState<string | null>(null);
   const [counts, setCounts] = useState<AudienceCounts | null>(null);
   const [countsLoading, setCountsLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  // ── แม่แบบ + sync หลังบันทึก (โหมดสร้างเท่านั้น) ──────────────────────
+  // ── แม่แบบ (โหมดสร้างเท่านั้น) ──────────────────────
   /** แม่แบบที่กรอกให้แล้ว — โชว์เป็น Alert เพื่ออธิบายว่าทำไมช่องถึงมีค่าอยู่แล้ว */
   const [appliedTemplate, setAppliedTemplate] = useState<AudienceTemplate | null>(null);
   const [templateNoticeOpen, setTemplateNoticeOpen] = useState(true);
   const templateAppliedRef = useRef(false);
-  const [syncAfterSave, setSyncAfterSave] = useState(true);
 
   /** โหมดสร้างยังไม่มีใบให้ผูกกับบัญชีโฆษณา — บล็อก Meta จึงบอกให้บันทึกก่อน */
   const audienceId = mode === 'edit' ? (current?.id ?? null) : null;
@@ -264,6 +267,8 @@ export default function AudienceForm({ mode, initial, templateKey, onAudienceCha
     () => ({ audience_type: audience, audience_filter: audienceFilter, sources }),
     [audience, audienceFilter, sources],
   );
+  /** เทียบกับ resolvedKey — แผงขวาขึ้น skeleton ทันทีที่เงื่อนไขเปลี่ยน ไม่ต้องรอช่วงหน่วงก่อนยิงคำขอ */
+  const definitionKey = useMemo(() => JSON.stringify(definition), [definition]);
 
   /** ชื่อที่จะบันทึก — ยังไม่พิมพ์เอง = ชื่อของพฤติกรรม ("ซื้อล่าสุดภายใน 90 วัน") */
   const effectiveName = nameTouched ? name : (audience ? audienceLabel(audience, audienceFilter) : '');
@@ -282,6 +287,7 @@ export default function AudienceForm({ mode, initial, templateKey, onAudienceCha
   const runPreview = useCallback(async (def: AudienceDefinition, skip: boolean) => {
     if (skip) { setPreview(null); setPreviewError(null); setPreviewLoading(false); return; }
     const seq = ++previewSeq.current;
+    const key = JSON.stringify(def);
     setPreviewLoading(true);
     try {
       const res = await apiFetch('/api/audiences/preview-count', {
@@ -293,16 +299,22 @@ export default function AudienceForm({ mode, initial, templateKey, onAudienceCha
       if (seq !== previewSeq.current) return;
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
+        if (seq !== previewSeq.current) return;
         setPreview(null);
         setPreviewError(err.error || 'นับจำนวนคนในกลุ่มไม่สำเร็จ');
+        setResolvedKey(key);
         return;
       }
-      setPreview(await res.json());
+      const json = await res.json();
+      if (seq !== previewSeq.current) return;
+      setPreview(json);
       setPreviewError(null);
+      setResolvedKey(key);
     } catch {
       if (seq !== previewSeq.current) return;
       setPreview(null);
       setPreviewError('นับจำนวนคนในกลุ่มไม่สำเร็จ');
+      setResolvedKey(key);
     } finally {
       if (seq === previewSeq.current) setPreviewLoading(false);
     }
@@ -382,10 +394,10 @@ export default function AudienceForm({ mode, initial, templateKey, onAudienceCha
   };
 
   const handleSave = async () => {
-    // ลำดับเดียวกับหน้าจอ — พฤติกรรม → แหล่ง → ชื่อ (ชื่อว่างเพราะยังไม่เลือกพฤติกรรม ต้องบอกเรื่องพฤติกรรม)
+    // พฤติกรรมก่อนชื่อ ทั้งที่ชื่ออยู่บนสุด — ชื่อว่างเพราะยังไม่เลือกพฤติกรรม ต้องบอกเรื่องพฤติกรรม
     if (!audience) { showToast('เลือกกลุ่มเป้าหมายก่อน', 'error'); return; }
-    if (sources.length === 0) { showToast('เลือกแหล่งที่มาอย่างน้อยหนึ่งแหล่ง', 'error'); return; }
     if (!form.validateAll()) return;
+    if (sources.length === 0) { showToast('เลือกแหล่งที่มาอย่างน้อยหนึ่งแหล่ง', 'error'); return; }
     if (selectedOption?.needsTags && tagIds.length === 0) { showToast('เลือกแท็กอย่างน้อยหนึ่งอัน', 'error'); return; }
     if (selectedOption?.needsPick && pickedContacts.length === 0) { showToast('เลือกผู้ติดต่ออย่างน้อยหนึ่งคน', 'error'); return; }
 
@@ -414,13 +426,12 @@ export default function AudienceForm({ mode, initial, templateKey, onAudienceCha
         if (saved) applyAudience(saved);
         showToast('บันทึกแล้ว', 'success');
       } else {
-        // ผูกกับบัญชีโฆษณาที่พร้อมแล้วเริ่ม sync รอบแรกให้เลย — ไม่งั้นผู้ใช้ต้องไปกดเองอีก
-        // หน้าหนึ่ง แล้วกลุ่มที่สร้างไว้ก็ยังยิงโฆษณาไม่ได้จริงโดยที่ไม่มีอะไรบอก
+        // ผูกกับทุกบัญชีโฆษณาที่พร้อมแล้วเริ่ม sync รอบแรกเสมอ — กลุ่มมีไว้ยิงโฆษณา ไม่มีตัวเลือกปิด
         // (ล้มเหลวไม่กลืน — บอกเป็น toast แล้วยังพาไปหน้ากลุ่มซึ่งกด sync ซ้ำได้)
-        const synced = saved && syncAfterSave ? await startSyncs(saved.id) : null;
+        const synced = saved && readyAdAccounts.length > 0 ? await startSyncs(saved.id) : null;
         if (synced?.error) showToast(synced.error, 'error');
-        else if (synced) showToast(`บันทึกแล้ว · เริ่ม sync ไป Meta ${synced.ok} บัญชี`, 'success');
-        else showToast('บันทึกกลุ่มแล้ว', 'success');
+        else if (synced) showToast(`สร้างกลุ่มแล้ว · กำลัง sync ไป Meta ${synced.ok} บัญชี`, 'success');
+        else showToast('สร้างกลุ่มแล้ว', 'success');
 
         if (saved) router.push(`/marketing/audiences/${saved.id}`);
         else router.push('/marketing/audiences');
@@ -442,7 +453,35 @@ export default function AudienceForm({ mode, initial, templateKey, onAudienceCha
           </Alert>
         )}
 
-        {/* 1. พฤติกรรม — รอรายชื่อช่องทางก่อน ไม่งั้น "ทักจากโฆษณา" จะขึ้นว่าไม่มีเพจแวบหนึ่ง */}
+        {/* 1. ชื่อกลุ่ม — บนสุด (เจ้าของขอ) · ตั้งให้จากพฤติกรรมด้านล่าง ผู้ใช้แก้ได้ */}
+        <Card padding="md">
+          <h2 className="heading-4 mb-3">ชื่อกลุ่ม</h2>
+          <div className="space-y-3">
+            <FormInput
+              ref={form.register('name')}
+              label="ชื่อกลุ่ม"
+              required
+              maxLength={120}
+              value={effectiveName}
+              onChange={e => { setName(e.target.value); setNameTouched(true); }}
+              placeholder="ตั้งให้เองเมื่อเลือกกลุ่มเป้าหมายด้านล่าง"
+              hint="ตั้งให้ตามกลุ่มเป้าหมายที่เลือก แก้ได้ · ชื่อนี้โผล่ในหน้า Ads Manager ของ Meta ด้วย"
+              disabled={saving}
+            />
+            <FormTextarea
+              label="คำอธิบาย"
+              rows={2}
+              maxLength={500}
+              showCount
+              value={description}
+              onChange={e => setDescription(e.target.value)}
+              placeholder="ใช้กลุ่มนี้ทำอะไร (ไม่กรอกก็ได้)"
+              disabled={saving}
+            />
+          </div>
+        </Card>
+
+        {/* 2. พฤติกรรม — รอรายชื่อช่องทางก่อน ไม่งั้น "ทักจากโฆษณา" จะขึ้นว่าไม่มีเพจแวบหนึ่ง */}
         {chatLoading ? (
           <LoadingCard />
         ) : (
@@ -475,7 +514,7 @@ export default function AudienceForm({ mode, initial, templateKey, onAudienceCha
           />
         )}
 
-        {/* 2. แหล่งที่มา — ติ๊กให้ตามพฤติกรรม แหล่งที่ตอบไม่ได้ขึ้นจาง */}
+        {/* 3. แหล่งที่มา — ติ๊กให้ตามพฤติกรรม แหล่งที่ตอบไม่ได้ขึ้นจาง */}
         <SourceStep
           accounts={chatAccounts}
           chatIds={chatIds}
@@ -486,52 +525,6 @@ export default function AudienceForm({ mode, initial, templateKey, onAudienceCha
           loading={chatLoading}
           disabled={saving}
         />
-
-        {/* 3. ชื่อกลุ่ม — ตั้งให้จากพฤติกรรม ผู้ใช้แก้ได้ */}
-        <Card padding="md">
-          <h2 className="heading-4 mb-3">ชื่อกลุ่ม</h2>
-          <div className="space-y-3">
-            <FormInput
-              ref={form.register('name')}
-              label="ชื่อกลุ่ม"
-              required
-              maxLength={120}
-              value={effectiveName}
-              onChange={e => { setName(e.target.value); setNameTouched(true); }}
-              placeholder="ตั้งให้เองเมื่อเลือกกลุ่มเป้าหมาย"
-              hint="ตั้งให้ตามกลุ่มเป้าหมายที่เลือก แก้ได้ · ชื่อนี้โผล่ในหน้า Ads Manager ของ Meta ด้วย"
-              disabled={saving}
-            />
-            <FormTextarea
-              label="คำอธิบาย"
-              rows={2}
-              maxLength={500}
-              showCount
-              value={description}
-              onChange={e => setDescription(e.target.value)}
-              placeholder="ใช้กลุ่มนี้ทำอะไร (ไม่กรอกก็ได้)"
-              disabled={saving}
-            />
-          </div>
-        </Card>
-
-        {/* โหมดสร้างเท่านั้น — โหมดแก้ไขมีแถว sync รายบัญชีอยู่ในแผงขวาแล้ว */}
-        {mode === 'create' && readyAdAccounts.length > 0 && (
-          <div className="flex justify-end">
-            <span className="flex items-center">
-              <Checkbox
-                checked={syncAfterSave}
-                onChange={setSyncAfterSave}
-                disabled={saving}
-                label="sync ไป Meta ทันทีหลังบันทึก"
-              />
-              <HelpHint align="right">
-                ผูกกลุ่มนี้กับทุกบัญชีโฆษณาที่พร้อม แล้วเริ่มอัปรายชื่อรอบแรกทันที ·
-                ปิดไว้ = บันทึกอย่างเดียว ค่อยกด sync ในหน้ากลุ่ม
-              </HelpHint>
-            </span>
-          </div>
-        )}
 
         <div className="flex justify-end gap-3">
           <Button variant="secondary" onClick={() => router.push('/marketing/audiences')} disabled={saving}>
@@ -547,7 +540,7 @@ export default function AudienceForm({ mode, initial, templateKey, onAudienceCha
       <div className="xl:sticky xl:top-4 space-y-4">
         <AudienceRail
           preview={preview}
-          loading={previewLoading}
+          loading={previewLoading || resolvedKey !== definitionKey}
           error={previewError}
           hint={hint}
         />
