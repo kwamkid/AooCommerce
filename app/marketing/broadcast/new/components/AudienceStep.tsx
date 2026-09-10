@@ -110,7 +110,9 @@ export default function AudienceStep({
         )}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-[220px_minmax(0,1fr)] gap-4">
+      {/* คอลัมน์ซ้าย 280px — ชื่อกลุ่มยาวสุด "ทักมาจากโฆษณาแต่ยังไม่ซื้อ" + ตัวเลขท้ายแถว
+          ต้องอยู่บรรทัดเดียว (220px เดิมตัดขึ้นบรรทัดใหม่ — เจ้าของท้วง 11 ก.ย. 2026) */}
+      <div className="grid grid-cols-1 md:grid-cols-[280px_minmax(0,1fr)] gap-4">
         {/* ── ซ้าย: ตัวเลือกทั้งหมด แบ่งตามเป้าหมายการตลาด ── */}
         <div className="space-y-3">
           {AUDIENCE_GROUPS.map(g => {
