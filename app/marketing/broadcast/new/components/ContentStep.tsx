@@ -254,8 +254,10 @@ export default function ContentStep({
           // ประกาศส่งถึงลูกค้าเป็น 2 ฟองแยกกัน (ข้อความ แล้วตามด้วยรูป) → ฟอร์มก็เป็น 2 กล่องแยกกัน
           // ในลำดับเดียวกัน — เคยรวมเป็นกล่องเดียวแล้วเจ้าของบอกคนจะเข้าใจผิดว่าเป็นฟองเดียว (10 ก.ย.)
           <div className="space-y-3">
+            {/* บอกครั้งเดียวว่าเป็นคนละข้อความ — หัวกล่องเหลือแค่เลขลำดับ (เจ้าของเลือกจาก 4 แบบ 10 ก.ย.) */}
+            <p className="subtitle-text">ส่งถึงลูกค้าเป็นข้อความแยกกัน เรียงตามลำดับนี้</p>
             <MessageComposer
-              label="ฟองที่ 1 · ข้อความ"
+              label="1. ข้อความ"
               value={text}
               onChange={onTextChange}
               maxLength={textMax}
@@ -264,8 +266,8 @@ export default function ContentStep({
               disabled={disabled}
             />
             <MessageComposer
-              label="ฟองที่ 2 · รูป (ไม่บังคับ)"
-              emptyHint="ไม่แนบ = ส่งแค่ฟองข้อความ"
+              label="2. รูป (ไม่บังคับ)"
+              emptyHint="ไม่แนบ = ส่งเฉพาะข้อ 1"
               disabled={disabled}
               image={{
                 file: imageFile,
