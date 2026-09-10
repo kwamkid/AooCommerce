@@ -253,40 +253,55 @@ export function commonAudienceOptions(platforms: BroadcastPlatform[]): AudienceO
 }
 
 /**
- * ตัวเลือก **ทุกตัว** ของช่องทางที่เลือก (ไม่ใช่เฉพาะตัวร่วม) พร้อมเหตุผลของตัวที่ใช้ไม่ครบทุกเจ้า
- *
- * ต่างจาก `commonAudienceOptions` ตรงที่กลุ่มเป้าหมายของโฆษณา **หยิบคนจากหลายแหล่งมารวมกัน
- * เป็นกลุ่มเดียว** ⇒ ตัวเลือกที่มีแค่บางแหล่งก็ยังใช้ได้ (แค่ได้คนจากแหล่งนั้นแหล่งเดียว) —
- * ตัดทิ้งเหมือนสายบรอดแคสต์จะเสียกลุ่มอย่าง "ทักมาจากโฆษณาแต่ยังไม่ซื้อ" ไปเปล่า ๆ
- *
- * ⛔ **ห้ามซ่อนตัวที่ใช้ได้ไม่ครบ** — โชว์พร้อมเหตุผลเสมอ ไม่งั้นผู้ใช้จะถามซ้ำว่าหายไปไหน
+ * กลุ่มที่แหล่ง "ลูกค้าในระบบ" ตอบได้เอง (ไม่ต้องมีห้องแชท) — **ที่เดียวทั้งหน้าจอและหลังบ้าน**
+ * (lib/audiences/resolve.ts import ตัวนี้ไปตรวจ definition) · ที่ไม่มีคือกลุ่มที่ต้องรู้ว่า
+ * "ใครทักมา" (`contacts` `contacts_pick` `ads_not_bought`) และ `all` ของ LINE
  */
-export function unionAudienceOptions(platforms: BroadcastPlatform[]): {
-  options: AudienceOption[];
-  /** key → เหตุผลว่าใช้ได้กับช่องทางไหนบ้าง (มีเฉพาะ key ที่ไม่ครบทุกช่องทางที่เลือก) */
-  unsupported: Record<string, string>;
-} {
-  if (platforms.length === 0) return { options: [], unsupported: {} };
+export const CUSTOMER_SOURCE_AUDIENCE_KEYS: ReadonlySet<string> = new Set([
+  'not_bought', 'bought', 'bought_before', 'bought_within', 'bought_once', 'tags',
+]);
 
+/** ชื่อแหล่งในข้อความเหตุผล — ตรงกับป้ายบนการ์ดแหล่งที่มา */
+const CUSTOMER_SOURCE_LABEL = 'ลูกค้าในระบบ';
+
+/**
+ * ตัวเลือกกลุ่มของ **กลุ่มเป้าหมาย** ตามแหล่งที่เลือก — ใช้ได้เฉพาะตัวที่ **ทุกแหล่ง** ตอบได้
+ *
+ * เคยให้ใช้ได้ถ้ามีแหล่งเดียวตอบได้ (แหล่งที่ตอบไม่ได้ส่งคนมา 0 คน) แต่เจ้าของเลือกแบบเข้ม
+ * 11 ก.ย. 2026 เพราะกลุ่มจะโชว์แหล่งที่ไม่ได้ส่งใครมาเลย แล้วผู้ใช้เข้าใจผิดว่ามีคนจากแหล่งนั้น
+ * (เช่น "ทักจากโฆษณา" ที่ติ๊ก LINE ไว้ ปุ่มส่งบรอดแคสต์ LINE เปิดให้กดทั้งที่ไม่มีใครให้ส่ง)
+ * · หลังบ้าน `validateAudienceDefinition` ใช้กฎเดียวกันนี้ — แก้ที่หนึ่งต้องแก้อีกที่
+ *
+ * ⛔ **ห้ามซ่อนตัวที่ใช้ไม่ได้** — คืนมาใน `disabled` พร้อมเหตุผลว่าต้องเอาแหล่งไหนออก
+ */
+export function audienceOptionsForSources(
+  platforms: BroadcastPlatform[],
+  includeCustomers: boolean,
+): { options: AudienceOption[]; disabled: Record<string, string> } {
   const options: AudienceOption[] = [];
   const seen = new Set<string>();
-  for (const p of platforms) {
-    for (const o of AUDIENCE_OPTIONS[p] || []) {
-      if (seen.has(o.key)) continue;
-      seen.add(o.key);
-      options.push(o);
+  const add = (o: AudienceOption) => {
+    if (seen.has(o.key)) return;
+    seen.add(o.key);
+    options.push(o);
+  };
+  for (const p of platforms) (AUDIENCE_OPTIONS[p] || []).forEach(add);
+  // ลูกค้าในระบบอย่างเดียว — ป้ายชื่อกลุ่มยืมจากชุดของ LINE (กลุ่มที่คิดจากการซื้อมีครบ)
+  if (includeCustomers) {
+    (AUDIENCE_OPTIONS.line || []).filter(o => CUSTOMER_SOURCE_AUDIENCE_KEYS.has(o.key)).forEach(add);
+  }
+
+  const disabled: Record<string, string> = {};
+  for (const o of options) {
+    const missing = platforms
+      .filter(p => !(AUDIENCE_OPTIONS[p] || []).some(x => x.key === o.key))
+      .map(p => BROADCAST_PLATFORMS[p].label);
+    if (includeCustomers && !CUSTOMER_SOURCE_AUDIENCE_KEYS.has(o.key)) missing.push(CUSTOMER_SOURCE_LABEL);
+    if (missing.length > 0) {
+      disabled[o.key] = `${missing.join(' และ ')} ไม่มีข้อมูลกลุ่มนี้ — เอาออกจากแหล่งที่มาก่อน`;
     }
   }
-
-  const unsupported: Record<string, string> = {};
-  for (const o of options) {
-    const supported = platforms.filter(p => (AUDIENCE_OPTIONS[p] || []).some(x => x.key === o.key));
-    if (supported.length === platforms.length) continue;
-    const labels = supported.map(p => BROADCAST_PLATFORMS[p].label).join(' · ');
-    unsupported[o.key] = `ใช้ได้เฉพาะ ${labels}`;
-  }
-
-  return { options, unsupported };
+  return { options, disabled };
 }
 
 // ─── ชนิดข้อมูลที่หน้าจอฝั่งกลุ่มผู้รับใช้ร่วมกัน ────────────────────────

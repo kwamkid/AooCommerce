@@ -5,9 +5,9 @@
 // (แบบเดียวกับหน้าสร้างบรอดแคสต์ — ตัวเลือกกลุ่มผู้รับจึงใช้การ์ดตัวเดียวกันได้เลย)
 //
 // กติกาสำคัญ:
-// - กลุ่มเป้าหมายโฆษณา **หยิบคนจากหลายแหล่งมารวมเป็นกลุ่มเดียว** ⇒ ใช้ `unionAudienceOptions`
-//   ไม่ใช่ `commonAudienceOptions` ของบรอดแคสต์ · ตัวที่มีแค่บางแหล่งยังใช้ได้ (ได้คนจาก
-//   แหล่งนั้นแหล่งเดียว) — **ห้ามซ่อน** โชว์พร้อมเหตุผลเสมอ
+// - กลุ่มเป้าหมายโฆษณา **หยิบคนจากหลายแหล่งมารวมเป็นกลุ่มเดียว** แต่กลุ่มที่เลือกต้องให้
+//   **ทุกแหล่ง** ตอบได้ (`audienceOptionsForSources` — กฎเดียวกับหลังบ้าน) ตัวที่บางแหล่งตอบไม่ได้
+//   ขึ้นจางพร้อมเหตุผลว่าต้องเอาแหล่งไหนออก — **ห้ามซ่อน**
 // - `all` (ผู้ติดตามทั้งหมดของ LINE) ปิดตายทุกกรณี — เราไม่มีรายชื่อคนพวกนั้น จึงไม่มี
 //   เบอร์/อีเมลจะส่งให้ Meta (เซิร์ฟเวอร์ก็ปฏิเสธ ดู validateAudienceDefinition)
 // - จำนวนคนระหว่างโหลดโชว์ '—' **ห้ามโชว์ 0**
@@ -30,11 +30,9 @@ import { useServerSearch } from '@/lib/useServerSearch';
 import { useToast } from '@/lib/toast-context';
 import { apiFetch, invalidateApiCache } from '@/lib/api-client';
 import {
-  AUDIENCE_OPTIONS,
+  audienceOptionsForSources,
   buildAudienceFilter,
-  unionAudienceOptions,
   type AudienceCounts,
-  type AudienceOption,
   type PickedContact,
   type StoredAudienceFilter,
   type TagRow,
@@ -57,9 +55,6 @@ import type {
 /** ทำไม 'ผู้ติดตามทั้งหมด' ใช้ทำกลุ่มโฆษณาไม่ได้ — บอกทางออกไว้ในประโยคเดียวกัน */
 const ALL_DISABLED_REASON =
   'ไม่มีรายชื่อผู้ติดตาม จึงนับและ sync ไม่ได้ — ใช้ "คนที่เคยทักเข้ามา" แทน';
-
-/** ตัวเลือกที่แหล่ง "ลูกค้าในระบบ" ตอบได้ — ตรงกับ CUSTOMER_AUDIENCE_KEYS ฝั่งเซิร์ฟเวอร์ */
-const CUSTOMER_ONLY_EXCLUDE = new Set(['all', 'contacts', 'contacts_pick']);
 
 /** บัญชีโฆษณาที่ผูกกลุ่มได้จริงตอนนี้ — เกณฑ์เดียวกับ notReadyReason() ใน MetaSyncRows */
 function isAdAccountReady(a: AdAccountView): boolean {
@@ -218,21 +213,11 @@ export default function AudienceForm({ mode, initial, templateKey, onAudienceCha
     [selectedChat],
   );
 
-  /** ตัวเลือกทั้งหมดของแหล่งที่เลือก + เหตุผลของตัวที่ใช้ได้ไม่ครบทุกแหล่ง */
+  /** ตัวเลือกทั้งหมดของแหล่งที่เลือก + เหตุผลของตัวที่บางแหล่งตอบไม่ได้ (ต้องครบทุกแหล่ง) */
   const { options, disabledOptions } = useMemo(() => {
-    if (platforms.length > 0) {
-      const union = unionAudienceOptions(platforms);
-      return {
-        options: union.options,
-        disabledOptions: { ...union.unsupported, all: ALL_DISABLED_REASON },
-      };
-    }
-    if (includeCustomers) {
-      // ไม่มีห้องแชทเลย = ตอบได้เฉพาะกลุ่มที่คิดจากประวัติการซื้อ
-      const list = (AUDIENCE_OPTIONS.line || []).filter(o => !CUSTOMER_ONLY_EXCLUDE.has(o.key));
-      return { options: list as AudienceOption[], disabledOptions: {} as Record<string, string> };
-    }
-    return { options: [] as AudienceOption[], disabledOptions: {} as Record<string, string> };
+    const r = audienceOptionsForSources(platforms, includeCustomers);
+    const disabled: Record<string, string> = { ...r.disabled, all: ALL_DISABLED_REASON };
+    return { options: r.options, disabledOptions: disabled };
   }, [platforms, includeCustomers]);
 
   // ตัวเลือกที่เลือกไว้หลุดออกจากรายการ (เปลี่ยนแหล่งที่มา) = ต้องเคลียร์ ไม่งั้นบันทึกไม่ผ่าน

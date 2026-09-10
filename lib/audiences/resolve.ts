@@ -19,7 +19,7 @@ import { supabaseAdmin } from '@/lib/supabase-admin';
 import { fetchAllRows } from '@/lib/supabase-paging';
 import { identityKeys } from '@/lib/meta/hashing';
 import { resolveAccountPicture } from '@/lib/chat/account-picture';
-import { AUDIENCE_OPTIONS, type StoredAudienceFilter } from '@/lib/broadcast/audience';
+import { AUDIENCE_OPTIONS, CUSTOMER_SOURCE_AUDIENCE_KEYS, type StoredAudienceFilter } from '@/lib/broadcast/audience';
 import {
   PURCHASE_AUDIENCES,
   fetchPurchaseStats,
@@ -70,10 +70,8 @@ export interface AudienceStats {
  */
 export const AUDIENCE_MEMBER_CAP = 50_000;
 
-/** ตัวเลือกที่ตารางลูกค้าตอบได้เอง (ไม่ต้องมีห้องแชท) */
-const CUSTOMER_AUDIENCE_KEYS = new Set<string>([
-  'not_bought', 'bought', 'bought_before', 'bought_within', 'bought_once', 'tags',
-]);
+/** ตัวเลือกที่ตารางลูกค้าตอบได้เอง — ทะเบียนอยู่ lib/broadcast/audience.ts ที่เดียว (หน้าจอใช้ตัวเดียวกัน) */
+const CUSTOMER_AUDIENCE_KEYS = CUSTOMER_SOURCE_AUDIENCE_KEYS;
 
 /** จำนวนแหล่งต่อหนึ่งกลุ่ม — มากกว่านี้คือกรอกผิด ไม่ใช่ความตั้งใจ */
 const MAX_SOURCES = 20;
@@ -89,7 +87,7 @@ export function audienceSourceLabel(s: AudienceSource): string {
 }
 
 /** คีย์กลุ่มที่แหล่งนี้ตอบได้ */
-function keysForSource(s: AudienceSource): Set<string> {
+function keysForSource(s: AudienceSource): ReadonlySet<string> {
   if (s.kind === 'customers') return CUSTOMER_AUDIENCE_KEYS;
   return new Set((AUDIENCE_OPTIONS[s.platform] || []).map(o => o.key));
 }
@@ -129,10 +127,13 @@ export function validateAudienceDefinition(
     if (!seen.has(sourceKey(parsed))) { seen.add(sourceKey(parsed)); sources.push(parsed); }
   }
 
-  // อย่างน้อยหนึ่งแหล่งต้องตอบกลุ่มนี้ได้ ไม่งั้นได้กลุ่มว่างเปล่าโดยที่ผู้ใช้ไม่รู้ตัว
-  const supported = sources.filter(s => keysForSource(s).has(audienceType));
-  if (supported.length === 0) {
-    return { ok: false, error: 'กลุ่มผู้รับนี้ใช้กับแหล่งข้อมูลที่เลือกไม่ได้' };
+  // **ทุกแหล่ง** ที่เลือกต้องตอบกลุ่มนี้ได้ (เจ้าของเลือกแบบเข้ม 11 ก.ย. 2026) — แหล่งที่ตอบไม่ได้
+  // ส่งคนมา 0 คนแต่ยังโผล่ในรายชื่อแหล่งของกลุ่ม ผู้ใช้จะเข้าใจผิดว่ามีคนจากแหล่งนั้นอยู่ด้วย
+  // · หน้าจอใช้กฎเดียวกันผ่าน audienceOptionsForSources() — แก้ที่หนึ่งต้องแก้อีกที่
+  const unsupported = sources.filter(s => !keysForSource(s).has(audienceType));
+  if (unsupported.length > 0) {
+    const labels = [...new Set(unsupported.map(audienceSourceLabel))].join(' และ ');
+    return { ok: false, error: `${labels} ไม่มีข้อมูลของกลุ่มนี้ — เอาออกจากแหล่งที่มาก่อน` };
   }
 
   const rawFilter = (raw.audience_filter || {}) as Record<string, unknown>;
