@@ -68,25 +68,27 @@ export default function ActionPicker({
   return (
     <div>
       {label && <p className="field-label mb-1">{label}</p>}
-      <div className="flex flex-wrap items-start gap-3">
-        {/* กลุ่มปุ่มติดกัน (ไม่ใช่ชิปกลม) — แยกสายตาออกจากชิป pill ที่อยู่ระดับบนของการ์ด */}
-        <FilterChips<BroadcastActionType>
-          value={value.type}
-          variant="segmented"
-          size="md"
-          // เปลี่ยนชนิด = เริ่มกรอกใหม่ของชนิดนั้น (ลิงก์กับสินค้าเอามาแทนกันไม่ได้)
-          onChange={type => onChange(emptyAction(type))}
-          disabled={disabled}
-          chips={ACTION_TYPES.map(type => ({
-            id: type,
-            // ป้ายสั้นทุกที่ (เจ้าของขอ 11 ก.ย. 2026) — ป้ายเต็มพับบรรทัดเมื่อจอแคบ · ความหมายเต็มอยู่ใน tooltip
-            label: ACTION_SHORT_LABELS[type],
-            icon: ACTION_ICONS[type],
-            activeClass: FILTER_CHIP_PRIMARY_ACTIVE,
-            disabled: type === 'product' && !storefrontOpen,
-            tooltip: `${ACTION_LABELS[type]} — ${tooltipFor(type, storefrontOpen)}`,
-          }))}
-        />
+      <div className="flex flex-wrap items-start gap-x-3 gap-y-2">
+        {/* กลุ่มปุ่มติดกัน (ไม่ใช่ชิปกลม) ขนาดเล็กเท่าตัวเลือกสัดส่วนรูปของการ์ด (เจ้าของขอ 11 ก.ย. 2026)
+            วางกลางบรรทัดที่สูงเท่าช่องกรอก (form-control-md) — ช่อง URL ข้าง ๆ หรือช่องป้ายปุ่มจึงไม่เป็นขั้นบันได */}
+        <div className="form-control-md flex items-center">
+          <FilterChips<BroadcastActionType>
+            value={value.type}
+            variant="segmented"
+            // เปลี่ยนชนิด = เริ่มกรอกใหม่ของชนิดนั้น (ลิงก์กับสินค้าเอามาแทนกันไม่ได้)
+            onChange={type => onChange(emptyAction(type))}
+            disabled={disabled}
+            chips={ACTION_TYPES.map(type => ({
+              id: type,
+              // ป้ายสั้นทุกที่ (เจ้าของขอ 11 ก.ย. 2026) — ป้ายเต็มพับบรรทัดเมื่อจอแคบ · ความหมายเต็มอยู่ใน tooltip
+              label: ACTION_SHORT_LABELS[type],
+              icon: ACTION_ICONS[type],
+              activeClass: FILTER_CHIP_PRIMARY_ACTIVE,
+              disabled: type === 'product' && !storefrontOpen,
+              tooltip: `${ACTION_LABELS[type]} — ${tooltipFor(type, storefrontOpen)}`,
+            }))}
+          />
+        </div>
         <div className="flex-1 min-w-64">
           {value.type === 'url' && (
             <FormInput
