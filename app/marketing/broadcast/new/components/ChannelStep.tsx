@@ -14,6 +14,7 @@ import Checkbox from '@/components/ui/Checkbox';
 import ChannelBadge from '@/components/ui/ChannelBadge';
 import AccountPicker from '@/components/ui/AccountPicker';
 import PlatformIcon from '@/components/ui/PlatformIcon';
+import { Skeleton } from '@/components/ui/Skeleton';
 import {
   BROADCAST_PLATFORMS,
   BROADCAST_PLATFORM_LIST,
@@ -26,12 +27,14 @@ const INLINE_MAX = 8;
 
 interface Props {
   accounts: BroadcastAccount[];
+  /** ยังโหลดรายชื่อบัญชีไม่เสร็จ — วาดโครงแทน ไม่ใช่ข้อความ "ยังไม่มีช่องทาง" */
+  loading?: boolean;
   value: string[];
   onChange: (ids: string[]) => void;
   disabled?: boolean;
 }
 
-export default function ChannelStep({ accounts, value, onChange, disabled }: Props) {
+export default function ChannelStep({ accounts, loading, value, onChange, disabled }: Props) {
   const [showReasons, setShowReasons] = useState(false);
   const pending = BROADCAST_PLATFORM_LIST.filter(p => !canBroadcastVia(p.id));
 
@@ -48,7 +51,13 @@ export default function ChannelStep({ accounts, value, onChange, disabled }: Pro
         </span>
       </div>
 
-      {accounts.length === 0 ? (
+      {loading ? (
+        // ระหว่างโหลดรายชื่อบัญชี — ห้ามขึ้น "ยังไม่มีช่องทาง" (เจ้าของเห็นแวบแล้วนึกว่ายังไม่ได้เพิ่ม OA)
+        <div className="grid sm:grid-cols-2 gap-2" aria-busy="true" aria-label="กำลังโหลดช่องทาง">
+          <Skeleton className="h-[62px] rounded-lg" />
+          <Skeleton className="h-[62px] rounded-lg" />
+        </div>
+      ) : accounts.length === 0 ? (
         <Alert tone="warning">
           ยังไม่มีช่องทางที่ส่งได้ — เพิ่ม LINE OA ที่ ตั้งค่า &gt; ช่องทาง Chat ก่อน
         </Alert>

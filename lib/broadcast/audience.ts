@@ -337,4 +337,10 @@ export interface AudienceCounts {
   contact_total?: number | null;
   contact_linked?: number | null;
   days?: number;
+  /**
+   * โควตาเดือนนี้ + ผู้ติดตามของ OA (LINE) — มากับชุดนับทุกกลุ่ม หน้าสร้างจึงแสดงผู้รับ/โควตาของ
+   * กลุ่มพื้นฐานได้โดยไม่ต้องยิง /preview อีกรอบ · null = ถามไม่ได้/ช่องทางไม่มี
+   */
+  quota?: { type: 'none' | 'limited' | 'unknown'; limit: number | null; used: number; remaining: number | null } | null;
+  follower_stats?: { reachable: number | null; total_adds: number | null; blocks: number | null } | null;
 }

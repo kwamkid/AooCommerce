@@ -50,21 +50,19 @@ export async function POST(request: NextRequest) {
 
     const creds = getLineCredsFromAccount(target.row);
 
-    const recipients = await resolveBroadcastRecipients(
-      auth.companyId,
-      accountId,
-      (audienceType === 'all' ? 'contacts' : audienceType) as BroadcastAudienceType,
-      audienceFilter,
-    );
-
-    // ระบบรู้ประวัติการซื้อของใครบ้าง — ผู้ติดต่อที่ยังไม่ผูกกับลูกค้า เราไม่มีทางรู้ว่าเคยซื้อไหม
-    // (LINE ไม่ให้เบอร์/อีเมล) หน้าจอต้องบอกตัวเลขนี้กำกับกลุ่มที่แบ่งตามการซื้อเสมอ
-    // — นับด้วยตัวเดียวกับ /api/broadcasts/audience-counts เงื่อนไขจึงตรงกันเสมอ
-    const contactCounts = await getLineContactCounts(auth.companyId, accountId);
-
-    // ผู้ติดตามมีความหมายเฉพาะโหมด 'all' — โหมดอื่นจำนวนผู้รับมาจากรายชื่อของเราเอง
-    const [quota, stats] = await Promise.all([
+    // สี่อย่างนี้ไม่ขึ้นต่อกัน — ถามพร้อมกันทั้งหมด (เดิมรอเป็นทอด: ผู้รับ → ยอดผู้ติดต่อ → LINE API)
+    const [recipients, contactCounts, quota, stats] = await Promise.all([
+      resolveBroadcastRecipients(
+        auth.companyId,
+        accountId,
+        (audienceType === 'all' ? 'contacts' : audienceType) as BroadcastAudienceType,
+        audienceFilter,
+      ),
+      // ระบบรู้ประวัติการซื้อของใครบ้าง — ผู้ติดต่อที่ยังไม่ผูกกับลูกค้า เราไม่มีทางรู้ว่าเคยซื้อไหม
+      // (LINE ไม่ให้เบอร์/อีเมล) หน้าจอต้องบอกตัวเลขนี้กำกับกลุ่มที่แบ่งตามการซื้อเสมอ
+      getLineContactCounts(auth.companyId, accountId),
       creds ? getLineQuota(creds.channel_access_token) : Promise.resolve(null),
+      // ผู้ติดตามมีความหมายเฉพาะโหมด 'all' — โหมดอื่นจำนวนผู้รับมาจากรายชื่อของเราเอง
       creds && audienceType === 'all'
         ? getLineFollowerStats(creds.channel_access_token)
         : Promise.resolve(null),

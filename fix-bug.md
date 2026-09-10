@@ -16,6 +16,14 @@
 
 ---
 
+## 2026-09-11 — หน้าสร้างบรอดแคสต์ขึ้น "ยังไม่มีช่องทาง — เพิ่ม LINE OA" แวบหนึ่ง แล้วตัวเลขทยอยขึ้นทีละก้อน
+
+**ที่เกิด**: [app/marketing/broadcast/new/page.tsx](app/marketing/broadcast/new/page.tsx) · [ChannelStep](app/marketing/broadcast/new/components/ChannelStep.tsx) · `/api/broadcasts/audience-counts` · `/api/broadcasts/preview`
+**อาการ**: เปิดหน้าสร้างแล้วเห็นคำเตือนว่ายังไม่ได้เพิ่ม LINE OA ทั้งที่มีอยู่ แล้วการ์ด/จำนวนผู้รับ/โควตาค่อย ๆ โผล่ตามกันมา (เจ้าของสงสัยว่าการติ๊กกลุ่มให้ตั้งแต่แรกทำให้ต้องคำนวณหนัก)
+**Root cause**: (1) ไม่มีสถานะ "กำลังโหลดบัญชี" — รายชื่อบัญชียังว่างระหว่างรอ API จึงเข้าเงื่อนไข "ไม่มีช่องทาง" (2) โหลดเป็นทอด: บัญชี → **debounce 400ms** → ยิง `/audience-counts` + `/preview` · ตัวนับทุกกลุ่มเรียกหาผู้รับกลุ่มละรอบ = **ดึงรายชื่อชุดเดียวกัน 6 ครั้ง** + ถาม LINE · `/preview` รอเป็นลำดับ (ผู้รับ → ยอดผู้ติดต่อ → LINE API) และนับกลุ่มเดียวกันซ้ำกับชุดนับ · **ฐานข้อมูลไม่ได้ช้า** (รายชื่อ 1,455 คน 2ms · RPC ประวัติการซื้อ 4ms) — ช้าที่การรอกันเป็นทอดและรอบเดินทาง
+**วิธีแก้**: สถานะ `accountsLoading` → การ์ดช่องทางวาดโครง + จองที่การ์ดกลุ่มเป้าหมายด้วย `LoadingCard` · [lib/broadcast/recipients.ts](lib/broadcast/recipients.ts) แยกกติกาตัดสินเป็น `selectRecipients` (pure) ใช้ทั้ง `resolveChatRecipients` และ `countChatAudiences` ใหม่ (โหลดรายชื่อ + ประวัติการซื้อครั้งเดียว นับทุกกลุ่ม) · `/audience-counts` คืน `quota`/`follower_stats` ด้วย แล้วหน้าจอใช้ตัวเลขชุดนี้แทน `/preview` สำหรับกลุ่มพื้นฐานของบัญชี LINE เดียว (`previewFromCounts`) · `/preview` ถามทุกอย่างพร้อมกัน · เลือกบัญชี/กลุ่มยิงทันที (`useDebouncedCallback().now()`) พิมพ์จำนวนวัน/ตัวกรองค่อย debounce · ตัวกันผลเก่า (seq) ทั้งสองสาย
+**ป้องกัน regression**: หน้าไหนมี empty state ต้องมีสถานะ loading แยกเสมอ (ว่างเพราะยังไม่มา ≠ ว่างจริง) · นับหลายกลุ่มพร้อมกันใช้ `countChatAudiences` ห้ามวน `resolveChatRecipients` ทีละกลุ่ม · อย่าเดาว่าช้าเพราะ DB — วัด EXPLAIN ก่อน
+
 ## 2026-09-10 — ผลค้นหาสินค้าจมใต้กรอบการ์ด / ถูกตัดที่ขอบกล่อง (ProductSearchInput)
 
 **ที่เกิด**: [components/ui/ProductSearchInput.tsx](components/ui/ProductSearchInput.tsx) — เห็นในต้นแบบตัวแก้ไขบรอดแคสต์ `/dev/design/broadcast-editor` (ช่อง "ไปที่สินค้า" ในบล็อก) · เจ้าของบอกว่า "เป็นแบบนี้บ่อย ๆ"

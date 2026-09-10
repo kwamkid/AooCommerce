@@ -162,6 +162,31 @@ function nextFullHour(): Date {
   return d;
 }
 
+/** กลุ่มที่ /audience-counts นับไว้แล้ว — เลือกกลุ่มพวกนี้ (ไม่มีตัวกรองซ้อน) ไม่ต้องยิง /preview */
+const COUNTED_AUDIENCES = new Set([
+  'not_bought', 'bought', 'bought_before', 'bought_within', 'bought_once', 'contacts', 'all',
+]);
+/** กลุ่มที่ตัวเลขขึ้นกับจำนวนวัน — ต้องรอชุดนับของจำนวนวันปัจจุบัน */
+const DAY_AUDIENCES = new Set(['bought_before', 'bought_within']);
+
+/**
+ * ผลประเมินผู้รับจากชุดนับทุกกลุ่ม — ค่าเดียวกับที่ /preview คืน (นับด้วยกติกาตัวเดียวกัน)
+ * 'all' ยิงถึงผู้ติดตามทุกคน: ผู้รับ = ยิงถึงได้จริงของ LINE · รายชื่อที่เรารู้ = ผู้ติดต่อทั้งหมด
+ */
+function previewFromCounts(c: AudienceCounts, audience: string): PreviewInfo | null {
+  const known = audience === 'all' ? c.counts.contacts : c.counts[audience];
+  if (typeof known !== 'number') return null;
+  return {
+    recipient_count: audience === 'all' ? (c.follower_stats?.reachable ?? known) : known,
+    known_contact_count: known,
+    quota: c.quota ?? null,
+    follower_stats: audience === 'all' ? (c.follower_stats ?? null) : null,
+    window_days: null,
+    contact_total: c.contact_total ?? undefined,
+    contact_linked: c.contact_linked ?? undefined,
+  };
+}
+
 export default function NewBroadcastPage() {
   const router = useRouter();
   const { showToast } = useToast();
@@ -170,6 +195,8 @@ export default function NewBroadcastPage() {
 
   const [step, setStep] = useState<1 | 2>(1);
   const [accounts, setAccounts] = useState<BroadcastAccount[]>([]);
+  /** ยังโหลดรายชื่อบัญชีไม่เสร็จ — การ์ดช่องทางวาดโครงแทนข้อความ "ยังไม่มีช่องทาง" */
+  const [accountsLoading, setAccountsLoading] = useState(true);
   const [tags, setTags] = useState<TagRow[]>([]);
   /** เลือกได้หลายบัญชี — เนื้อหาชุดเดียวยิงได้หลาย OA/หลายร้าน (aDay Fresh มี LINE 2 บัญชี) */
   const [accountIds, setAccountIds] = useState<string[]>([]);
@@ -246,8 +273,14 @@ export default function NewBroadcastPage() {
   const [preview, setPreview] = useState<PreviewInfo | null>(null);
   const [perAccount, setPerAccount] = useState<PerAccountPreview[]>([]);
   const [previewLoading, setPreviewLoading] = useState(false);
-  const [counts, setCounts] = useState<AudienceCounts | null>(null);
+  /**
+   * จำนวนคนต่อกลุ่ม (+ โควตา/ผู้ติดตาม) — จดว่าเป็นของบัญชีไหน กี่วัน จะได้ไม่เอาชุดของบัญชีเก่า
+   * มาแสดงระหว่างรอชุดใหม่ · กลุ่มพื้นฐานใช้ชุดนี้แทน /preview ได้เลย
+   */
+  const [countsState, setCountsState] = useState<{ accountId: string; days: number; data: AudienceCounts } | null>(null);
   const [countsLoading, setCountsLoading] = useState(false);
+  /** บัญชีที่นับทุกกลุ่มไม่สำเร็จ — ตกไปใช้ /preview ตามเดิม */
+  const [countsErrorFor, setCountsErrorFor] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   /** ร้านเปิดหน้าร้านออนไลน์แล้วไหม — โปสเตอร์แบบ "ไปที่สินค้า" ใช้ได้เฉพาะตอนเปิดแล้ว */
   const [storefrontOpen, setStorefrontOpen] = useState(false);
@@ -371,6 +404,8 @@ export default function NewBroadcastPage() {
         }
       } catch {
         showToast('โหลดข้อมูลช่องทางไม่สำเร็จ', 'error');
+      } finally {
+        setAccountsLoading(false);
       }
     })();
   }, [allowed, showToast]);
@@ -465,12 +500,17 @@ export default function NewBroadcastPage() {
   }), [audience, tagIds, pickedContacts, audienceDays, minMessages, lastChatDays]);
 
   // ─── ประเมินผู้รับ + โควตา ──────────────────────────────────────────
+  const previewSeqRef = useRef(0);
   const runPreview = useCallback(async (
     accs: BroadcastAccount[], aud: string, filter: StoredAudienceFilter,
   ) => {
-    if (accs.length === 0 || !aud) { setPreview(null); setPerAccount([]); return; }
-    if (aud === 'contacts_pick' && (filter.contact_ids?.length ?? 0) === 0) {
-      setPreview(null); setPerAccount([]); return;
+    // ผลของรอบเก่าที่กลับมาช้ากว่ารอบใหม่ต้องถูกทิ้ง — ไม่งั้นตัวเลขกระโดดกลับไปเป็นของกลุ่มก่อนหน้า
+    const seq = ++previewSeqRef.current;
+    if (accs.length === 0 || !aud || (aud === 'contacts_pick' && (filter.contact_ids?.length ?? 0) === 0)) {
+      setPreview(null);
+      setPerAccount([]);
+      setPreviewLoading(false);
+      return;
     }
     setPreviewLoading(true);
     try {
@@ -490,55 +530,105 @@ export default function NewBroadcastPage() {
         return { account: a, info: (await res.json()) as PreviewInfo };
       }));
 
+      if (seq !== previewSeqRef.current) return;
       const ok = results.filter((r): r is PerAccountPreview => !!r);
       setPerAccount(ok);
       setPreview(ok.length === 1 ? ok[0].info : null);
     } catch {
+      if (seq !== previewSeqRef.current) return;
       setPreview(null);
       setPerAccount([]);
     } finally {
-      setPreviewLoading(false);
+      if (seq === previewSeqRef.current) setPreviewLoading(false);
     }
   }, []);
 
   const debouncedPreview = useDebouncedCallback(runPreview, 400);
 
+  /**
+   * กลุ่มพื้นฐานของบัญชี LINE เดียวที่ไม่มีตัวกรองซ้อน = รู้ผู้รับ/โควตาจากชุดนับทุกกลุ่มแล้ว
+   * ไม่ต้องยิง /preview (เดิมยิงทุกครั้งที่เปิดหน้าและทุกครั้งที่กดเปลี่ยนกลุ่ม ซ้ำกับชุดนับ)
+   * ชุดนับของบัญชีนี้ล้ม → ตกไปใช้ /preview ตามเดิม
+   */
+  const singleAccount = selectedAccounts.length === 1 ? selectedAccounts[0] : null;
+  const refineActive = (audienceFilter.min_messages ?? 0) > 0 || (audienceFilter.last_chat_days ?? 0) > 0;
+  const countsFromTable = !!singleAccount && singleAccount.platform === 'line'
+    && COUNTED_AUDIENCES.has(audience) && !refineActive
+    && countsErrorFor !== singleAccount.id;
+  const countsForAccount = singleAccount && countsState?.accountId === singleAccount.id ? countsState.data : null;
+  const countsDays = countsState?.days ?? null;
+  const derivedPreview = useMemo<PreviewInfo | null>(() => {
+    if (!countsFromTable || !countsForAccount) return null;
+    // กลุ่มที่นับตามจำนวนวันต้องรอชุดของจำนวนวันปัจจุบัน
+    if (DAY_AUDIENCES.has(audience) && countsDays !== audienceDays) return null;
+    return previewFromCounts(countsForAccount, audience);
+  }, [countsFromTable, countsForAccount, countsDays, audience, audienceDays]);
+
+  // เลือกบัญชี/กลุ่ม = ถามทันที · พิมพ์จำนวนวัน/ตัวกรอง = รอผู้ใช้หยุดก่อน (debounce)
+  const previewKeyRef = useRef('');
   useEffect(() => {
     if (!allowed) return;
-    debouncedPreview(selectedAccounts, audience, audienceFilter);
-  }, [allowed, selectedAccounts, audience, audienceFilter, debouncedPreview]);
+    if (countsFromTable) { debouncedPreview.cancel(); return; }
+    const key = `${selectedAccounts.map(a => a.id).join(',')}|${audience}`;
+    if (key !== previewKeyRef.current) {
+      previewKeyRef.current = key;
+      debouncedPreview.now(selectedAccounts, audience, audienceFilter);
+    } else {
+      debouncedPreview(selectedAccounts, audience, audienceFilter);
+    }
+  }, [allowed, countsFromTable, selectedAccounts, audience, audienceFilter, debouncedPreview]);
 
   // ─── จำนวนคนของทุกกลุ่ม (โชว์คู่รายการตัวเลือก) ──────────────────────
+  const countsSeqRef = useRef(0);
   const loadCounts = useCallback(async (accs: BroadcastAccount[], dayCount: number) => {
+    const seq = ++countsSeqRef.current;
     // นับแยกกลุ่มได้เฉพาะตอนเลือกบัญชีเดียว — หลายบัญชีรายชื่อคนละชุด รวมยอดแล้วอ่านผิด
-    if (accs.length !== 1) { setCounts(null); return; }
+    if (accs.length !== 1) { setCountsState(null); setCountsLoading(false); return; }
     const a = accs[0];
     setCountsLoading(true);
     try {
       const res = await apiFetch(
         `/api/broadcasts/audience-counts?platform=${a.platform}&account_id=${a.id}&days=${dayCount}`,
       );
-      // ปลายทางยังไม่พร้อม/ตอบไม่ได้ = โชว์ '—' ห้ามทำให้ทั้งหน้าพัง
-      setCounts(res.ok ? await res.json() : null);
+      const data = res.ok ? ((await res.json()) as AudienceCounts) : null;
+      if (seq !== countsSeqRef.current) return;
+      // ตอบไม่ได้ = ไม่มีตัวเลขต่อกลุ่ม (ห้ามเดา 0) และแผงสรุปตกไปใช้ /preview แทน
+      setCountsState(data ? { accountId: a.id, days: dayCount, data } : null);
+      setCountsErrorFor(data ? null : a.id);
     } catch {
-      setCounts(null);
+      if (seq !== countsSeqRef.current) return;
+      setCountsState(null);
+      setCountsErrorFor(a.id);
     } finally {
-      setCountsLoading(false);
+      if (seq === countsSeqRef.current) setCountsLoading(false);
     }
   }, []);
 
   const debouncedCounts = useDebouncedCallback(loadCounts, 400);
 
+  // เปลี่ยนบัญชี = นับทันที · เปลี่ยนจำนวนวัน (พิมพ์/กดชิป) = รอผู้ใช้หยุดก่อน
+  const countsKeyRef = useRef('');
   useEffect(() => {
     if (!allowed) return;
-    debouncedCounts(selectedAccounts, audienceDays);
+    const key = selectedAccounts.map(a => a.id).join(',');
+    if (key !== countsKeyRef.current) {
+      countsKeyRef.current = key;
+      debouncedCounts.now(selectedAccounts, audienceDays);
+    } else {
+      debouncedCounts(selectedAccounts, audienceDays);
+    }
   }, [allowed, selectedAccounts, audienceDays, debouncedCounts]);
 
-  // ─── สรุปสิ่งที่จะเกิดขึ้น ────────────────────────────────────────────
-  const recipientCount = perAccount.reduce((n, r) => n + r.info.recipient_count, 0);
-  const quota = preview?.quota ?? null;
+  // ─── สรุปสิ่งที่จะเกิดขึ้น — มาจากชุดนับทุกกลุ่ม (กลุ่มพื้นฐาน) หรือจาก /preview (กรณีอื่น) ───
+  const effPerAccount: PerAccountPreview[] = countsFromTable
+    ? (derivedPreview && singleAccount ? [{ account: singleAccount, info: derivedPreview }] : [])
+    : perAccount;
+  const effPreview = countsFromTable ? derivedPreview : preview;
+  const effPreviewLoading = countsFromTable ? !derivedPreview : previewLoading;
+  const recipientCount = effPerAccount.reduce((n, r) => n + r.info.recipient_count, 0);
+  const quota = effPreview?.quota ?? null;
   /** บัญชีที่โควตาไม่พอ — ต้องเช็คแยกใบเพราะโควตาเป็นของแต่ละ OA */
-  const shortAccounts = perAccount.filter(r =>
+  const shortAccounts = effPerAccount.filter(r =>
     r.info.quota?.type === 'limited'
     && r.info.quota.remaining !== null
     && r.info.quota.remaining < r.info.recipient_count);
@@ -626,7 +716,7 @@ export default function NewBroadcastPage() {
 
   // โหมด 'all' ของ LINE ยิงผ่าน broadcast API ไม่ต้องมีรายชื่อของเรา
   const pickPending = audience === 'contacts_pick' && pickedContacts.length === 0;
-  const noRecipients = audience !== 'all' && !pickPending && !previewLoading
+  const noRecipients = audience !== 'all' && !pickPending && !effPreviewLoading
     && platforms.length > 0 && recipientCount === 0;
   // โปสเตอร์ไม่มีข้อความเลย — นับรูปกับลิงก์เป็น "เริ่มกรอกแล้ว" ไม่งั้นตัวอย่างจะไม่ขึ้น
   const hasDraft = !!(
@@ -637,8 +727,8 @@ export default function NewBroadcastPage() {
   const canNext = accountIds.length > 0 && !!audience && !pickPending;
   const canSend = canNext && !contentError && !quotaShort && !noRecipients && !scheduleError && !sending;
 
-  const contactTotal = counts?.contact_total ?? preview?.contact_total ?? null;
-  const contactLinked = counts?.contact_linked ?? preview?.contact_linked ?? null;
+  const contactTotal = countsForAccount?.contact_total ?? preview?.contact_total ?? null;
+  const contactLinked = countsForAccount?.contact_linked ?? preview?.contact_linked ?? null;
 
   /** ป้ายสรุปในแผงขวา — ค่าว่างจะขึ้นเป็น "ยังไม่ได้เลือก" แบบจาง */
   const contentSummary = useMemo(() => {
@@ -852,16 +942,19 @@ export default function NewBroadcastPage() {
               <>
                 <ChannelStep
                   accounts={accounts}
+                  loading={accountsLoading}
                   value={accountIds}
                   onChange={setAccountIds}
                   disabled={sending}
                 />
-                {platforms.length > 0 && (
+                {/* ระหว่างโหลดบัญชีจองที่ของการ์ดกลุ่มเป้าหมายไว้ — หน้าไม่เด้งตอนข้อมูลมาถึง */}
+                {accountsLoading && <LoadingCard />}
+                {!accountsLoading && platforms.length > 0 && (
                   <AudienceStep
                     options={audienceOptions}
                     audience={audience}
                     onAudienceChange={setAudience}
-                    counts={counts}
+                    counts={countsForAccount}
                     countsLoading={countsLoading}
                     countsUnavailable={selectedAccounts.length !== 1}
                     contactTotal={contactTotal}
@@ -945,13 +1038,13 @@ export default function NewBroadcastPage() {
           <SummaryRail
             step={step}
             recipientCount={recipientCount}
-            previewLoading={previewLoading}
+            previewLoading={effPreviewLoading}
             contactTotal={contactTotal}
             hideProgress={audience === 'all'}
             quotaText={quotaText}
-            followerStats={preview?.follower_stats ?? null}
+            followerStats={effPreview?.follower_stats ?? null}
             showFollowerStats={audience === 'all'}
-            perAccount={perAccount}
+            perAccount={effPerAccount}
             shortAccounts={shortAccounts}
             noRecipientsMessage={noRecipients
               ? (singlePlatform === 'tiktok'

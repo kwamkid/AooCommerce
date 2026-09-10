@@ -8,6 +8,10 @@
 // แทนการ copy ไปเขียนใหม่ต่อแพลตฟอร์ม (ก็อปเมื่อไหร่ = จำนวนที่ preview บอกกับจำนวนที่
 // ส่งจริงจะเริ่มไม่ตรงกันทีละนิดโดยไม่มีใครรู้)
 //
+// โครง: โหลดข้อมูล (`loadContacts` · ประวัติการซื้อ · จำนวนข้อความ) แยกจากกติกาตัดสิน
+// (`selectRecipients` — pure) · การส่งจริง/preview (`resolveChatRecipients`) กับการนับหลายกลุ่ม
+// พร้อมกัน (`countChatAudiences`) ใช้กติกาตัวเดียวกัน ตัวเลขทุกจุดจึงตรงกันเสมอ
+//
 // ⚠️ **พฤติกรรมของ LINE ต้องเหมือนเดิมเป๊ะ** — lib/line/broadcast.ts เหลือเป็นตัวห่อบาง ๆ
 // ที่แปลงผลลัพธ์กลับเป็นรูปเดิม ({contact_id, line_user_id}) เท่านั้น
 //
@@ -135,6 +139,8 @@ interface PlatformConfig {
   idCol: 'line_user_id' | 'fb_psid';
   /** คอลัมน์เพจ (Facebook) — ไม่มี = null */
   pageCol: 'fb_page_id' | null;
+  /** คอลัมน์ที่มาของห้อง (ทักมาจากโฆษณา) — มีเฉพาะ Meta · กลุ่ม `ads_not_bought` อ่านจากตัวนี้ */
+  referralCol: 'referral_source' | null;
   /**
    * ตัวกรอง "เป็นคน" ของแพลตฟอร์มนั้น
    * LINE: user id ขึ้นต้น U (group/room ขึ้น C/R ยิง multicast ไม่ได้)
@@ -149,6 +155,7 @@ const PLATFORMS: Record<ChatRecipientPlatform, PlatformConfig> = {
     table: 'line_contacts',
     idCol: 'line_user_id',
     pageCol: null,
+    referralCol: null,
     personFilter: { col: 'line_user_id', op: 'like', value: 'U%' },
     countsRpc: 'get_line_contact_message_counts',
   },
@@ -156,6 +163,7 @@ const PLATFORMS: Record<ChatRecipientPlatform, PlatformConfig> = {
     table: 'fb_contacts',
     idCol: 'fb_psid',
     pageCol: 'fb_page_id',
+    referralCol: 'referral_source',
     personFilter: { col: 'source', op: 'eq', value: 'facebook' },
     countsRpc: 'get_fb_contact_message_counts',
   },
@@ -165,6 +173,152 @@ interface ContactRow {
   id: string;
   customer_id: string | null;
   [key: string]: unknown;
+}
+
+/** จำนวนข้อความที่ลูกค้าพิมพ์มา + เวลาล่าสุด ต่อห้อง */
+type Engagement = Map<string, { count: number; lastIncomingAt: string | null }>;
+
+/** มีตัวกรองซ้อน (จำนวนข้อความ / คุยล่าสุด) ไหม — มีแล้วต้องอ่านจำนวนข้อความของทุกห้องก่อน */
+function hasRefine(filter?: BroadcastAudienceFilter | null): boolean {
+  return (Number(filter?.min_messages) || 0) > 0 || (Number(filter?.last_chat_days) || 0) > 0;
+}
+
+/**
+ * ผู้ติดต่อที่ยิงถึงได้ของบัญชีหนึ่ง (active + เป็น **บุคคล** ตามกติกาของแพลตฟอร์มนั้น)
+ * ตัวเลือก `opts` แค่ลดจำนวนแถวที่ DB — คำตัดสินสุดท้ายว่าใครอยู่กลุ่มไหนอยู่ที่ `selectRecipients` เสมอ
+ */
+async function loadContacts(
+  companyId: string,
+  cfg: PlatformConfig,
+  chatAccountId: string,
+  opts: { needsCustomer?: boolean; adsOnly?: boolean; pickedIds?: string[] } = {},
+): Promise<ContactRow[]> {
+  const columns = [
+    'id', cfg.idCol, 'customer_id',
+    ...(cfg.pageCol ? [cfg.pageCol] : []),
+    ...(cfg.referralCol ? [cfg.referralCol] : []),
+  ].join(', ');
+
+  // ⚠️ ต้องผ่าน fetchAllRows — Supabase ตัดที่ 1,000 แถวเงียบ ๆ และร้านเดียวมีผู้ติดต่อ
+  //    เกินพันคนแล้ว (aDay Fresh 1,455) ถ้าไม่แบ่งหน้า คนท้ายรายชื่อจะไม่ได้รับข้อความ
+  const { rows } = await fetchAllRows<ContactRow>((from, to) => {
+    let q = supabaseAdmin
+      .from(cfg.table)
+      .select(columns, { count: 'exact' })
+      .eq('company_id', companyId)
+      .eq('chat_account_id', chatAccountId)
+      .eq('status', 'active');
+    q = cfg.personFilter.op === 'like'
+      ? q.like(cfg.personFilter.col, cfg.personFilter.value)
+      : q.eq(cfg.personFilter.col, cfg.personFilter.value);
+    // ทักมาจากโฆษณา Click-to-Messenger (webhook จด referral มาให้ตอนเปิดห้อง)
+    if (opts.adsOnly && cfg.referralCol) q = q.eq(cfg.referralCol, 'ADS');
+    if (opts.needsCustomer) q = q.not('customer_id', 'is', null);
+    // เลือกเอง — กรองที่ DB เลย ไม่ต้องดึงผู้ติดต่อทั้งร้านมากรองในเครื่อง
+    if (opts.pickedIds && opts.pickedIds.length > 0) q = q.in('id', opts.pickedIds);
+    return q.order('created_at', { ascending: true }).range(from, to) as unknown as
+      PromiseLike<{ data: ContactRow[] | null; error: { message: string } | null; count?: number | null }>;
+  });
+  return rows;
+}
+
+/**
+ * จำนวนข้อความที่ลูกค้าพิมพ์มา + เวลาล่าสุดของทุกห้องในบัญชี (RPC ตัวเดียว นับรอบเดียวต่อบัญชี)
+ * null = นับไม่ได้ → ผู้เรียกต้องไม่กรองต่อ (คืนว่าง ดีกว่ายิงกว้างเกินที่ผู้ใช้ตั้งใจ)
+ */
+async function loadEngagement(
+  companyId: string,
+  cfg: PlatformConfig,
+  chatAccountId: string,
+): Promise<Engagement | null> {
+  const { data, error } = await supabaseAdmin.rpc(cfg.countsRpc, {
+    p_company_id: companyId,
+    p_chat_account_id: chatAccountId,
+  });
+  if (error) {
+    console.error(`[broadcast] ${cfg.countsRpc}:`, error.message);
+    return null;
+  }
+  return new Map(
+    (data || []).map((r: { contact_id: string; incoming_count: number; last_incoming_at: string | null }) =>
+      [r.contact_id, { count: Number(r.incoming_count) || 0, lastIncomingAt: r.last_incoming_at }]),
+  );
+}
+
+/** ของประกอบการตัดสินที่โหลดมาแล้ว — ไม่ส่ง = ไม่ใช้เกณฑ์นั้น */
+interface SelectContext {
+  allowedCustomerIds?: Set<string> | null;
+  allowedContactIds?: Set<string> | null;
+  orderStats?: Map<string, PurchaseStat> | null;
+  engagement?: Engagement | null;
+}
+
+/**
+ * กติกา "ผู้ติดต่อคนนี้อยู่ในกลุ่มไหม" — **ตัวเดียว** ของทั้งการส่งจริง/preview และการนับทุกกลุ่ม
+ *
+ * pure: รับรายชื่อที่โหลดมาแล้ว · เงื่อนไขที่ `resolveChatRecipients` กรองที่ DB ไปก่อนแล้ว
+ * (ต้องผูกลูกค้า · ทักจากโฆษณา · เลือกรายคน) เช็คซ้ำตรงนี้ด้วย — รายชื่อชุดใหญ่ที่
+ * `countChatAudiences` โหลดครั้งเดียวจึงได้ผลเท่ากับการโหลดแยกกลุ่มเป๊ะ
+ */
+function selectRecipients(
+  contacts: ContactRow[],
+  platform: ChatRecipientPlatform,
+  audienceType: string,
+  filter: BroadcastAudienceFilter | null | undefined,
+  ctx: SelectContext,
+): ChatRecipient[] {
+  const cfg = PLATFORMS[platform];
+  const needsCustomer = NEEDS_CUSTOMER.has(audienceType);
+  const picked = audienceType === 'contacts_pick'
+    ? new Set((filter?.contact_ids || []).filter(Boolean))
+    : null;
+  const cutoff = purchaseCutoff(filter);
+
+  // ── ตัวกรองซ้อน: คุยกันกี่ข้อความ / คุยล่าสุดเมื่อไหร่ ────────────────
+  //
+  // ⚠️ **ห้ามใช้ `*_contacts.last_message_at` เป็น "คุยล่าสุด"** — ค่านั้นขยับตอน
+  // **แอดมินตอบ** ด้วย ⇒ ห้องที่ลูกค้าเงียบมาครึ่งปีแต่แอดมินเพิ่งไปตอบเมื่อวาน จะหลุด
+  // เข้ามาในกลุ่ม "คุยกันล่าสุด 30 วัน" ทั้งที่ลูกค้าไม่ได้พูดอะไรเลย
+  const minMessages = Math.max(0, Number(filter?.min_messages) || 0);
+  const lastChatDays = Math.max(0, Number(filter?.last_chat_days) || 0);
+  const lastChatCutoff = lastChatDays > 0
+    ? new Date(Date.now() - lastChatDays * 86_400_000).toISOString()
+    : null;
+
+  const seen = new Set<string>();
+  const out: ChatRecipient[] = [];
+  for (const c of contacts) {
+    const userId = typeof c[cfg.idCol] === 'string' ? (c[cfg.idCol] as string) : '';
+    if (!userId) continue;
+    if (needsCustomer && !c.customer_id) continue;
+    if (audienceType === 'ads_not_bought' && (!cfg.referralCol || c[cfg.referralCol] !== 'ADS')) continue;
+    if (picked && !picked.has(c.id)) continue;
+    if (audienceType === 'tags') {
+      const viaCustomer = !!c.customer_id && !!ctx.allowedCustomerIds?.has(c.customer_id);
+      const viaContact = !!ctx.allowedContactIds?.has(c.id);
+      if (!viaCustomer && !viaContact) continue;
+    }
+    if (ctx.orderStats) {
+      const st = c.customer_id ? ctx.orderStats.get(c.customer_id) : undefined;
+      if (!matchesPurchaseBucket(audienceType, st, cutoff)) continue;
+    }
+    if (ctx.engagement) {
+      // ห้องที่ลูกค้ายังไม่เคยพิมพ์อะไรเลยจะไม่มีใน map — นับเป็น 0 / ไม่เคยคุย
+      const e = ctx.engagement.get(c.id);
+      if (minMessages > 0 && (e?.count ?? 0) < minMessages) continue;
+      if (lastChatCutoff && !(e?.lastIncomingAt && e.lastIncomingAt >= lastChatCutoff)) continue;
+    }
+    if (seen.has(userId)) continue;   // ผู้ใช้คนเดียวห้ามได้ข้อความซ้ำ
+    seen.add(userId);
+    out.push({
+      contact_id: c.id,
+      platform,
+      platform_user_id: userId,
+      customer_id: c.customer_id,
+      page_id: cfg.pageCol && typeof c[cfg.pageCol] === 'string' ? (c[cfg.pageCol] as string) : null,
+    });
+  }
+  return out;
 }
 
 /**
@@ -231,29 +385,18 @@ export async function resolveChatRecipients(
     if (allowedCustomerIds.size === 0 && allowedContactIds.size === 0) return [];
   }
 
-  const needsCustomer = NEEDS_CUSTOMER.has(audienceType);
-  const columns = ['id', cfg.idCol, 'customer_id', ...(cfg.pageCol ? [cfg.pageCol] : [])].join(', ');
-
-  // ⚠️ ต้องผ่าน fetchAllRows — Supabase ตัดที่ 1,000 แถวเงียบ ๆ และร้านเดียวมีผู้ติดต่อ
-  //    เกินพันคนแล้ว (aDay Fresh 1,409) ถ้าไม่แบ่งหน้า คนท้ายรายชื่อจะไม่ได้รับข้อความ
-  const { rows: contacts } = await fetchAllRows<ContactRow>((from, to) => {
-    let q = supabaseAdmin
-      .from(cfg.table)
-      .select(columns, { count: 'exact' })
-      .eq('company_id', companyId)
-      .eq('chat_account_id', chatAccountId)
-      .eq('status', 'active');
-    q = cfg.personFilter.op === 'like'
-      ? q.like(cfg.personFilter.col, cfg.personFilter.value)
-      : q.eq(cfg.personFilter.col, cfg.personFilter.value);
-    // ทักมาจากโฆษณา Click-to-Messenger (webhook จด referral มาให้ตอนเปิดห้อง)
-    if (audienceType === 'ads_not_bought') q = q.eq('referral_source', 'ADS');
-    if (needsCustomer) q = q.not('customer_id', 'is', null);
-    // เลือกเอง — กรองที่ DB เลย ไม่ต้องดึงผู้ติดต่อทั้งร้านมากรองในเครื่อง
-    if (pickedIds.length > 0) q = q.in('id', pickedIds);
-    return q.order('created_at', { ascending: true }).range(from, to) as unknown as
-      PromiseLike<{ data: ContactRow[] | null; error: { message: string } | null; count?: number | null }>;
-  });
+  // รายชื่อ กับ จำนวนข้อความต่อห้อง (เฉพาะเมื่อมีตัวกรองซ้อน) ไม่ขึ้นต่อกัน — อ่านพร้อมกัน
+  const refine = hasRefine(filter);
+  const [contacts, engagement] = await Promise.all([
+    loadContacts(companyId, cfg, chatAccountId, {
+      needsCustomer: NEEDS_CUSTOMER.has(audienceType),
+      adsOnly: audienceType === 'ads_not_bought',
+      pickedIds,
+    }),
+    refine ? loadEngagement(companyId, cfg, chatAccountId) : Promise.resolve(null),
+  ]);
+  // นับข้อความไม่ได้ = กรองมั่วไม่ได้ ต้องคืนว่าง ดีกว่ายิงกว้างเกินที่ผู้ใช้ตั้งใจ
+  if (refine && !engagement) return [];
 
   // ── ประวัติการซื้อ (เฉพาะกลุ่มที่ต้องใช้) ───────────────────────────
   //
@@ -267,66 +410,65 @@ export async function resolveChatRecipients(
     if (!orderStats) return [];
   }
 
-  const cutoff = purchaseCutoff(filter);
+  return selectRecipients(contacts, platform, audienceType, filter, {
+    allowedCustomerIds, allowedContactIds, orderStats, engagement,
+  });
+}
 
-  // ── ตัวกรองซ้อน: คุยกันกี่ข้อความ / คุยล่าสุดเมื่อไหร่ ────────────────
-  const minMessages = Math.max(0, Number(filter?.min_messages) || 0);
-  const lastChatDays = Math.max(0, Number(filter?.last_chat_days) || 0);
-  const lastChatCutoff = lastChatDays > 0
-    ? new Date(Date.now() - lastChatDays * 86_400_000).toISOString()
-    : null;
+/** กลุ่มหนึ่งที่อยากรู้จำนวน — `key` คือชื่อที่อยากได้คืน */
+export interface AudienceCountSpec {
+  key: string;
+  type: string;
+  filter?: BroadcastAudienceFilter | null;
+}
 
-  // ทั้งสองเกณฑ์อ่านจาก RPC ตัวเดียวกัน (นับรอบเดียวต่อบัญชี)
-  //
-  // ⚠️ **ห้ามใช้ `*_contacts.last_message_at` เป็น "คุยล่าสุด"** — ค่านั้นขยับตอน
-  // **แอดมินตอบ** ด้วย ⇒ ห้องที่ลูกค้าเงียบมาครึ่งปีแต่แอดมินเพิ่งไปตอบเมื่อวาน จะหลุด
-  // เข้ามาในกลุ่ม "คุยกันล่าสุด 30 วัน" ทั้งที่ลูกค้าไม่ได้พูดอะไรเลย
-  let engagement: Map<string, { count: number; lastIncomingAt: string | null }> | null = null;
-  if (minMessages > 0 || lastChatDays > 0) {
-    const { data, error } = await supabaseAdmin.rpc(cfg.countsRpc, {
-      p_company_id: companyId,
-      p_chat_account_id: chatAccountId,
-    });
-    if (error) {
-      // นับไม่ได้ = กรองมั่วไม่ได้ ต้องคืนว่าง ดีกว่ายิงกว้างเกินที่ผู้ใช้ตั้งใจ
-      console.error(`[broadcast] ${cfg.countsRpc}:`, error.message);
-      return [];
-    }
-    engagement = new Map(
-      (data || []).map((r: { contact_id: string; incoming_count: number; last_incoming_at: string | null }) =>
-        [r.contact_id, { count: Number(r.incoming_count) || 0, lastIncomingAt: r.last_incoming_at }]),
-    );
+/**
+ * จำนวนผู้รับของ **หลายกลุ่ม** ในบัญชีเดียว — โหลดรายชื่อ + ประวัติการซื้อ (+ จำนวนข้อความถ้ามี
+ * ตัวกรองซ้อน) **ครั้งเดียว** แล้วนับทุกกลุ่มด้วย `selectRecipients` ตัวเดียวกับการส่งจริง
+ *
+ * เดิมหน้าสร้างบรอดแคสต์เรียก `resolveChatRecipients` กลุ่มละรอบ = ดึงรายชื่อชุดเดียวกัน 6 ครั้ง
+ * ทุกครั้งที่เปิดหน้า · `total`/`linked` นับจากแถวชุดเดียวกัน (เงื่อนไขเดียวกับ getLineContactCounts)
+ *
+ * คืน null เมื่ออ่านประวัติการซื้อ/จำนวนข้อความไม่ได้ — **ห้ามเดาเป็น 0**
+ */
+export async function countChatAudiences(
+  companyId: string,
+  platform: ChatRecipientPlatform,
+  chatAccountId: string,
+  groups: AudienceCountSpec[],
+): Promise<{ counts: Record<string, number>; total: number; linked: number } | null> {
+  const cfg = PLATFORMS[platform];
+  if (!cfg) return null;
+
+  const needsEngagement = groups.some(g => hasRefine(g.filter));
+  const [contacts, engagement] = await Promise.all([
+    loadContacts(companyId, cfg, chatAccountId),
+    needsEngagement ? loadEngagement(companyId, cfg, chatAccountId) : Promise.resolve(null),
+  ]);
+  if (needsEngagement && !engagement) return null;
+
+  let orderStats: Map<string, PurchaseStat> | null = null;
+  if (groups.some(g => PURCHASE_AUDIENCES.has(g.type))) {
+    const customerIds = [...new Set(contacts.map(c => c.customer_id).filter((v): v is string => !!v))];
+    orderStats = await fetchPurchaseStats(companyId, customerIds);
+    if (!orderStats) return null;
   }
 
-  const seen = new Set<string>();
-  const out: ChatRecipient[] = [];
-  for (const c of contacts) {
-    const userId = typeof c[cfg.idCol] === 'string' ? (c[cfg.idCol] as string) : '';
-    if (!userId) continue;
-    if (audienceType === 'tags') {
-      const viaCustomer = !!c.customer_id && !!allowedCustomerIds?.has(c.customer_id);
-      const viaContact = !!allowedContactIds?.has(c.id);
-      if (!viaCustomer && !viaContact) continue;
+  const counts: Record<string, number> = {};
+  for (const g of groups) {
+    // ทักมาจากโฆษณามีเฉพาะ Meta — ช่องทางอื่นเป็น 0 เหมือน resolveChatRecipients
+    if (g.type === 'ads_not_bought' && platform !== 'facebook') { counts[g.key] = 0; continue; }
+    // แท็กต้องโหลดลิงก์แท็กของกลุ่มนั้นก่อน — ส่งต่อให้ตัวเต็ม (ยังไม่มีผู้เรียกที่นับแท็กแบบนี้)
+    if (g.type === 'tags') {
+      counts[g.key] = (await resolveChatRecipients(companyId, platform, chatAccountId, g.type, g.filter)).length;
+      continue;
     }
-    if (orderStats) {
-      const st = c.customer_id ? orderStats.get(c.customer_id) : undefined;
-      if (!matchesPurchaseBucket(audienceType, st, cutoff)) continue;
-    }
-    if (engagement) {
-      // ห้องที่ลูกค้ายังไม่เคยพิมพ์อะไรเลยจะไม่มีใน map — นับเป็น 0 / ไม่เคยคุย
-      const e = engagement.get(c.id);
-      if (minMessages > 0 && (e?.count ?? 0) < minMessages) continue;
-      if (lastChatCutoff && !(e?.lastIncomingAt && e.lastIncomingAt >= lastChatCutoff)) continue;
-    }
-    if (seen.has(userId)) continue;   // ผู้ใช้คนเดียวห้ามได้ข้อความซ้ำ
-    seen.add(userId);
-    out.push({
-      contact_id: c.id,
-      platform,
-      platform_user_id: userId,
-      customer_id: c.customer_id,
-      page_id: cfg.pageCol && typeof c[cfg.pageCol] === 'string' ? (c[cfg.pageCol] as string) : null,
-    });
+    counts[g.key] = selectRecipients(contacts, platform, g.type, g.filter, { orderStats, engagement }).length;
   }
-  return out;
+
+  return {
+    counts,
+    total: contacts.length,
+    linked: contacts.filter(c => !!c.customer_id).length,
+  };
 }
