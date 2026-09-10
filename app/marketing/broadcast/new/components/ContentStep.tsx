@@ -5,7 +5,6 @@
 // ห้าม hardcode ซ้ำที่นี่
 'use client';
 
-import { useState } from 'react';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
@@ -13,6 +12,9 @@ import FormInput from '@/components/ui/FormInput';
 import FormTextarea from '@/components/ui/FormTextarea';
 import OptionCards, { type OptionCardItem } from '@/components/ui/OptionCards';
 import ImageDropzone from '@/components/ui/ImageDropzone';
+import MessageComposer from '@/components/ui/MessageComposer';
+import ChipsInput from '@/components/ui/ChipsInput';
+import FilterChips, { FILTER_CHIP_PRIMARY_ACTIVE } from '@/components/ui/FilterChips';
 import ProductImageThumb from '@/components/ui/ProductImageThumb';
 import ProductSearchInput, { type ProductSearchItem } from '@/components/ui/ProductSearchInput';
 import { formatPrice } from '@/lib/utils/format';
@@ -25,7 +27,7 @@ import {
 } from '@/lib/broadcast/content';
 import type { BroadcastCompose, BroadcastContentKind } from '@/lib/broadcast/platforms';
 import { Plus, Trash2 } from 'lucide-react';
-import { KIND_MOCKS, MockChat, MockImage, MockLine, MockPhoto } from './KindMockups';
+import { KIND_MOCKS, MockImage, MockLine } from './KindMockups';
 
 /** ชื่อชนิดเนื้อหา — หน้าสร้างเอาไปสรุปในแผงขวาด้วย จึง export ออกไป */
 export const KIND_LABELS: Record<BroadcastContentKind, string> = {
@@ -45,37 +47,6 @@ const KIND_CARDS: Record<BroadcastContentKind, { label: string; description: str
   promo: { label: KIND_LABELS.promo, description: 'หัวข้อ + ข้อความ + ปุ่ม', preview: KIND_MOCKS.promo },
   products: { label: KIND_LABELS.products, description: 'เลื่อนดู กดสั่งเลย', preview: KIND_MOCKS.products },
 };
-
-/**
- * รูปของ "ประกาศ" แสดงยังไง — ฟองรูปเล็กในห้องแชท vs รูปใหญ่เต็มความกว้าง
- * วาดเป็นห้องแชทจำลองชุดเดียวกับการ์ดเลือกชนิด · **เลือกได้ตั้งแต่ยังไม่มีรูป** (ทรงเทา) แล้วพอ
- * อัปรูปแล้วรูปจริงของผู้ใช้จะเข้าไปแทนที่ทั้งสองแบบ จึงตัดสินใจได้โดยไม่ต้องกดลองแล้วกดกลับ
- * ⛔ ป้ายไม่ใช้ศัพท์ของ LINE ("rich message") — ร้านค้าไม่ควรต้องรู้ว่า LINE เรียกอะไร
- */
-function imageStyleCards(sampleImageUrl: string | null): OptionCardItem<'bubble' | 'rich'>[] {
-  return [
-    {
-      id: 'bubble',
-      label: 'ฟองรูป',
-      description: 'เหมือนแอดมินส่งรูปในแชท',
-      preview: (
-        <MockChat>
-          <MockPhoto src={sampleImageUrl} className="w-8/12 h-14 rounded-xl" />
-        </MockChat>
-      ),
-    },
-    {
-      id: 'rich',
-      label: 'รูปเต็มจอ',
-      description: 'กว้างเต็มห้องแชท กดไปลิงก์ได้',
-      preview: (
-        <MockChat>
-          <MockPhoto src={sampleImageUrl} className="flex-1 min-h-0 w-full rounded-xl" />
-        </MockChat>
-      ),
-    },
-  ];
-}
 
 /** การ์ดสินค้าแสดงยังไง — เลื่อนดูได้ทั้งคู่ ต่างกันที่ "มีตัวหนังสือใต้รูปไหม" */
 function cardStyleCards(sampleImageUrl: string | null): OptionCardItem<'image' | 'detail'>[] {
@@ -171,17 +142,6 @@ export default function ContentStep({
 }: Props) {
   const textMax = kind === 'promo' ? CARD_TEXT_MAX : compose.bodyMax;
 
-  /** ข้อความปุ่มตอบเร็วที่กำลังพิมพ์ — เข้า `quickReplies` เมื่อกดเพิ่ม/Enter เท่านั้น */
-  const [quickReplyDraft, setQuickReplyDraft] = useState('');
-  const addQuickReply = () => {
-    const label = quickReplyDraft.trim();
-    if (!label || quickReplies.length >= compose.quickReplyMax) return;
-    // ซ้ำกับที่มีอยู่ = ไม่เพิ่ม (LINE แสดงปุ่มซ้ำสองอันซึ่งไม่มีประโยชน์) แต่ล้างช่องให้เหมือนสำเร็จ
-    if (!quickReplies.includes(label)) onQuickRepliesChange([...quickReplies, label]);
-    setQuickReplyDraft('');
-  };
-
-  // ยืดเต็มความสูงของแถวเมื่ออยู่คู่กับคอลัมน์รูป (กรอบสองฝั่งจึงจบบรรทัดเดียวกัน) — นอก grid h-full ไม่มีผล
   const textField = (
     <FormTextarea
       label={kind === 'products' ? 'ข้อความเกริ่น (ไม่บังคับ)' : kind === 'promo' ? 'ข้อความบนการ์ด' : 'ข้อความ'}
@@ -191,8 +151,6 @@ export default function ContentStep({
       rows={kind === 'announce' ? 5 : 3}
       placeholder="พิมพ์ข้อความที่จะส่งถึงลูกค้า"
       disabled={disabled}
-      containerClassName="h-full flex flex-col"
-      className="flex-1"
     />
   );
 
@@ -293,26 +251,42 @@ export default function ContentStep({
             {linkField}
           </>
         ) : kind === 'announce' && compose.image ? (
-          // ประกาศ = ข้อความซ้าย รูปขวาในแถวเดียวกัน — บรอดแคสต์ถูกอ่านบนมือถือ ช่องข้อความจึงไม่ต้อง
-          // กว้างเต็มการ์ด และรูปเป็นกล่องเล็กขนาดใกล้ฟองรูปในตัวอย่างแชท ไม่ยืดเต็มความกว้าง (เจ้าของขอ 10 ก.ย.)
-          // ช่องข้อความยืดเท่าคอลัมน์รูป (grid ยืดแถวให้ · textField มี h-full) กรอบสองฝั่งจึงจบบรรทัดเดียวกัน
-          <div className="grid md:grid-cols-[minmax(0,1fr)_320px] gap-4">
-            {textField}
-            <div>
-              <p className="field-label mb-1">{imageLabel}</p>
-              {/* ตัวเลือกแสดงรูปอยู่ก่อนกล่องอัป — เลือกได้ตั้งแต่ยังไม่มีรูป (เจ้าของขอ 10 ก.ย.) พอมีรูปแล้วรูปจริงเข้าไปแทนที่ */}
-              <OptionCards<'bubble' | 'rich'>
-                value={imageStyle}
-                onChange={onImageStyleChange}
-                disabled={disabled}
-                previewSize="lg"
-                columns={2}
-                options={imageStyleCards(imagePreviewUrl || existingImageUrl)}
-              />
-              <div className="mt-2">{dropzone}</div>
-              {imageStyle === 'rich' && <div className="mt-3">{linkField}</div>}
-            </div>
-          </div>
+          // ประกาศ = ข้อความ + รูปใบเดียว → กล่องเดียวแบบช่องพิมพ์ในแชท (เจ้าของเลือก 10 ก.ย.)
+          // เลือกได้ตั้งแต่ยังไม่แนบรูปว่ารูปจะแสดงแบบไหน — ผลดูที่ตัวอย่างในแชทฝั่งขวา
+          <>
+            <MessageComposer
+              label="ข้อความ + รูป"
+              value={text}
+              onChange={onTextChange}
+              maxLength={textMax}
+              rows={5}
+              placeholder="พิมพ์ข้อความที่จะส่งถึงลูกค้า"
+              disabled={disabled}
+              image={{
+                file: imageFile,
+                onChange: onImageFileChange,
+                previewUrl: imagePreviewUrl || existingImageUrl,
+                // ย่อทั้งพิกเซลและขนาดไฟล์ก่อนอัป — รูปใหญ่กว่านี้ LINE ไม่รับ และเปลืองที่เก็บ
+                maxWidthOrHeight: 1024,
+                maxSizeMB: 0.3,
+              }}
+              toolbar={
+                <div className="flex items-center gap-2">
+                  <span className="subtitle-text">แสดงรูปเป็น</span>
+                  <FilterChips<'bubble' | 'rich'>
+                    value={imageStyle}
+                    onChange={onImageStyleChange}
+                    disabled={disabled}
+                    chips={[
+                      { id: 'bubble', label: 'ฟองรูป', activeClass: FILTER_CHIP_PRIMARY_ACTIVE, tooltip: 'เหมือนแอดมินส่งรูปในแชท' },
+                      { id: 'rich', label: 'รูปเต็มจอ', activeClass: FILTER_CHIP_PRIMARY_ACTIVE, tooltip: 'กว้างเต็มห้องแชท กดไปลิงก์ได้' },
+                    ]}
+                  />
+                </div>
+              }
+            />
+            {imageStyle === 'rich' && linkField}
+          </>
         ) : (
           // ช่องทางที่แนบรูปไม่ได้ (TikTok) และการ์ดสินค้า (ไม่มีช่องรูป) — เหลือแค่ข้อความ
           <>
@@ -456,57 +430,19 @@ export default function ContentStep({
           </div>
         )}
 
-        {/* ปุ่มตอบเร็ว — พิมพ์ในช่องเดียวแล้วกดเพิ่ม/Enter · ที่เพิ่มแล้วขึ้นเป็นเม็ดยาเรียงแถวเหมือนที่
-            ลูกค้าเห็นท้ายห้องแชท (ของเดิมเป็นช่องกรอกเต็มแถวใบละอัน ดูไม่ออกว่าของจริงเป็นปุ่มเล็ก ๆ — เจ้าของขอ 10 ก.ย.) */}
+        {/* ปุ่มตอบเร็ว — ช่องเดียวแบบพิมพ์แท็ก: Enter แล้วเป็นเม็ดยาในกล่องเดียวกัน เหมือนที่ลูกค้าเห็นท้ายห้องแชท */}
         {compose.quickReplyMax > 0 && (
-          <div>
-            <p className="field-label mb-1">ปุ่มตอบเร็ว (ไม่บังคับ)</p>
-            <p className="subtitle-text mb-2">
-              ลูกค้ากดแล้วข้อความเข้าห้องแชททันที — ได้บทสนทนาให้แอดมินปิดการขายต่อ
-            </p>
-            {quickReplies.length < compose.quickReplyMax ? (
-              <div className="flex gap-2 items-start max-w-md">
-                <div className="flex-1 min-w-0">
-                  <FormInput
-                    value={quickReplyDraft}
-                    maxLength={BUTTON_LABEL_MAX}
-                    disabled={disabled}
-                    placeholder="เช่น สนใจ / ขอรายละเอียด"
-                    onChange={e => setQuickReplyDraft(e.target.value)}
-                    onKeyDown={e => {
-                      if (e.key === 'Enter') { e.preventDefault(); addQuickReply(); }
-                    }}
-                  />
-                </div>
-                <Button
-                  variant="secondary"
-                  icon={<Plus className="w-4 h-4" />}
-                  disabled={disabled || !quickReplyDraft.trim()}
-                  onClick={addQuickReply}
-                >
-                  เพิ่ม
-                </Button>
-              </div>
-            ) : (
-              <p className="subtitle-text">ครบ {compose.quickReplyMax} ปุ่มแล้ว — เอาออกก่อนถ้าจะเปลี่ยน</p>
-            )}
-            {quickReplies.length > 0 && (
-              <div className="flex flex-wrap gap-2 mt-3">
-                {quickReplies.map((q, i) => (
-                  <Badge
-                    key={`${q}-${i}`}
-                    tone="gray"
-                    shape="pill"
-                    size="md"
-                    onRemove={() => onQuickRepliesChange(quickReplies.filter((_, j) => j !== i))}
-                    removeLabel={`เอาปุ่ม ${q} ออก`}
-                  >
-                    {q}
-                  </Badge>
-                ))}
-              </div>
-            )}
-          </div>
+          <ChipsInput
+            label="ปุ่มตอบเร็ว (ไม่บังคับ)"
+            description="ลูกค้ากดแล้วข้อความเข้าห้องแชททันที — ได้บทสนทนาให้แอดมินปิดการขายต่อ"
+            value={quickReplies}
+            onChange={onQuickRepliesChange}
+            max={compose.quickReplyMax}
+            maxLength={BUTTON_LABEL_MAX}
+            placeholder="เช่น สนใจ / ขอรายละเอียด"
+            disabled={disabled}
+            removeLabel={q => `เอาปุ่ม ${q} ออก`}
+          />
         )}
       </div>
     </Card>

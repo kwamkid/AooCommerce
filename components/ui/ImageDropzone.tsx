@@ -7,7 +7,7 @@
 // ปล่อยว่างแล้วได้สไตล์ Tailwind มาตรฐาน · **ห้ามสร้าง dropzone ตัวที่สอง**
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import imageCompression from 'browser-image-compression';
 import { ImagePlus, X, Loader2 } from 'lucide-react';
 import type { ReactNode } from 'react';
@@ -64,10 +64,20 @@ const TW = {
   clearIcon: 'w-3.5 h-3.5',
 };
 
-export default function ImageDropzone({
+/**
+ * ให้ผู้เรียกป้อนไฟล์เข้ามาจากข้างนอกได้ — กล่องพิมพ์ที่รับลาก/วางทั้งกล่อง (MessageComposer)
+ * ส่งไฟล์ที่ตกลงมานอกปุ่มเล็ก ๆ นี้เข้ามาผ่าน `accept()` แล้วได้การย่อรูป/พรีวิว/กากบาทชุดเดียวกัน
+ * โดยไม่ต้องมี dropzone ตัวที่สอง
+ */
+export interface ImageDropzoneHandle {
+  accept: (file: File | null | undefined) => void;
+  open: () => void;
+}
+
+const ImageDropzone = forwardRef<ImageDropzoneHandle, Props>(function ImageDropzone({
   value, onChange, disabled, label, hint, icon, alt, initialPreviewUrl, classNames,
   capture, onBusyChange, maxWidthOrHeight = 1920, maxSizeMB = 0.5,
-}: Props) {
+}, ref) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -109,6 +119,8 @@ export default function ImageDropzone({
       setBusy(false);
     }
   }, [disabled, onChange, maxSizeMB, maxWidthOrHeight]);
+
+  useImperativeHandle(ref, () => ({ accept, open: () => inputRef.current?.click() }), [accept]);
 
   const clear = () => {
     setPreview(prev => { if (prev) URL.revokeObjectURL(prev); return null; });
@@ -171,4 +183,6 @@ export default function ImageDropzone({
       {warn && <p className={cn.error}>{warn}</p>}
     </>
   );
-}
+});
+
+export default ImageDropzone;
