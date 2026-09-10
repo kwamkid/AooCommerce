@@ -46,7 +46,6 @@ export default function TemplatePicker({ accounts, onPick, disabled }: Props) {
         const button = (
           <Button
             variant="primary"
-            size="sm"
             disabled={disabled || !!reason}
             onClick={() => onPick(t.key)}
           >
