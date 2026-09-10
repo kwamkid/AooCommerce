@@ -71,8 +71,9 @@ export default function MessageComposer({
   value, onChange, label, emptyHint, placeholder, rows = 5, maxLength, disabled, image, toolbar, error,
 }: MessageComposerProps) {
   const hasText = onChange != null;
-  // กล่องรูปอย่างเดียวที่ยังไม่แนบมี dropzone ใหญ่อยู่แล้ว ปุ่มแนบในแถบล่างจะซ้ำ — โผล่เมื่อมีรูปให้เปลี่ยน
-  const showAttachButton = !!image && (hasText || (!!image.file || !!image.previewUrl));
+  // ปุ่มแนบในแถบล่างมีเฉพาะกล่องที่มีช่องพิมพ์และยังไม่มีรูป — กล่องรูปอย่างเดียวมี dropzone ใหญ่อยู่แล้ว
+  // และพอมีรูปแล้ว "เปลี่ยนรูป" คือกดที่รูปนั้นเอง (changeOnClick) ไม่ต้องมีปุ่มซ้ำ
+  const showAttachButton = !!image && hasText && !(image.file || image.previewUrl);
   const id = useId();
   const dropRef = useRef<ImageDropzoneHandle>(null);
   const [dragging, setDragging] = useState(false);
@@ -144,6 +145,7 @@ export default function MessageComposer({
               hint={emptyHint}
               maxWidthOrHeight={image.maxWidthOrHeight}
               maxSizeMB={image.maxSizeMB}
+              changeOnClick
               classNames={hasText ? ATTACH_CLASSES : IMAGE_ONLY_CLASSES}
             />
           </div>
@@ -162,7 +164,7 @@ export default function MessageComposer({
               disabled={disabled}
               onClick={() => dropRef.current?.open()}
             >
-              {hasImage ? 'เปลี่ยนรูป' : (image.attachLabel || 'แนบรูป')}
+              {image.attachLabel || 'แนบรูป'}
             </Button>
           )}
           {toolbar}

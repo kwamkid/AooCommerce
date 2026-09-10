@@ -589,7 +589,7 @@ export default function NewBroadcastPage() {
       return cards.length > 0 ? `${base} · ${cards.length} ชิ้น · ${style}` : base;
     }
     // รูปเต็มจอต่างจากฟองรูปธรรมดามากพอที่ต้องเห็นในบรรทัดสรุป
-    if (imageStyle === 'rich' && (imagePreviewUrl || existingImageUrl)) return `${base} · รูปเต็มจอ`;
+    if (imageStyle === 'rich' && (imagePreviewUrl || existingImageUrl)) return `${base} · รูปแบบเต็มจอ`;
     return base;
   }, [hasDraft, kind, buttons, cards, cardStyle, imageStyle, imagePreviewUrl, existingImageUrl]);
 

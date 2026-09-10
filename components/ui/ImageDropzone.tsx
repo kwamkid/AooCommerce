@@ -39,6 +39,11 @@ interface Props {
   maxWidthOrHeight?: number;
   /** ขนาดไฟล์เป้าหมายหลังย่อ (MB) */
   maxSizeMB?: number;
+  /**
+   * กดที่รูปพรีวิวแล้วเปิดเลือกรูปใหม่ได้เลย + ทาบไอคอน "เปลี่ยนรูป" ตอน hover (ทรงเดียวกับแว่นขยาย
+   * บนรูปสินค้า) — ไม่ต้องกดกากบาทแล้วเลือกใหม่สองจังหวะ (เจ้าของขอ 10 ก.ย. 2026)
+   */
+  changeOnClick?: boolean;
   classNames?: {
     root?: string;
     rootDragging?: string;
@@ -76,7 +81,7 @@ export interface ImageDropzoneHandle {
 
 const ImageDropzone = forwardRef<ImageDropzoneHandle, Props>(function ImageDropzone({
   value, onChange, disabled, label, hint, icon, alt, initialPreviewUrl, classNames,
-  capture, onBusyChange, maxWidthOrHeight = 1920, maxSizeMB = 0.5,
+  capture, onBusyChange, maxWidthOrHeight = 1920, maxSizeMB = 0.5, changeOnClick,
 }, ref) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [preview, setPreview] = useState<string | null>(null);
@@ -130,12 +135,41 @@ const ImageDropzone = forwardRef<ImageDropzoneHandle, Props>(function ImageDropz
     if (inputRef.current) inputRef.current.value = '';
   };
 
+  // input ซ่อนต้องอยู่ทั้งสองสถานะ — ตอนมีรูปแล้ว `open()`/กดที่รูปก็ต้องเปิดเลือกรูปใหม่ได้
+  const fileInput = (
+    <input
+      ref={inputRef}
+      type="file"
+      accept="image/*"
+      capture={capture}
+      hidden
+      onChange={e => { accept(e.target.files?.[0]); e.target.value = ''; }}
+    />
+  );
+
   const shown = preview || (dismissedInitial ? null : initialPreviewUrl);
   if (shown) {
+    // eslint-disable-next-line @next/next/no-img-element
+    const img = <img src={shown} alt={alt || 'รูปที่เลือก'} className={cn.previewImg} />;
     return (
       <div className={cn.preview}>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={shown} alt={alt || 'รูปที่เลือก'} className={cn.previewImg} />
+        {changeOnClick ? (
+          <button
+            type="button"
+            className="group relative block"
+            onClick={() => inputRef.current?.click()}
+            disabled={disabled || busy}
+            aria-label="เปลี่ยนรูป"
+          >
+            {img}
+            <span className="absolute inset-0 rounded-lg bg-black/40 text-white opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity flex flex-col items-center justify-center gap-0.5 pointer-events-none">
+              {busy
+                ? <Loader2 className="w-5 h-5 animate-spin" aria-hidden="true" />
+                : <ImagePlus className="w-5 h-5" strokeWidth={1.75} aria-hidden="true" />}
+              <span className="helper-text text-white">เปลี่ยนรูป</span>
+            </span>
+          </button>
+        ) : img}
         <button
           type="button"
           className={cn.clear}
@@ -145,6 +179,7 @@ const ImageDropzone = forwardRef<ImageDropzoneHandle, Props>(function ImageDropz
         >
           <X className={cn.clearIcon} strokeWidth={2} aria-hidden="true" />
         </button>
+        {fileInput}
       </div>
     );
   }
@@ -172,14 +207,7 @@ const ImageDropzone = forwardRef<ImageDropzoneHandle, Props>(function ImageDropz
           </>
         )}
       </button>
-      <input
-        ref={inputRef}
-        type="file"
-        accept="image/*"
-        capture={capture}
-        hidden
-        onChange={e => { accept(e.target.files?.[0]); e.target.value = ''; }}
-      />
+      {fileInput}
       {warn && <p className={cn.error}>{warn}</p>}
     </>
   );

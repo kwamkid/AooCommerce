@@ -278,15 +278,16 @@ export default function ContentStep({
                 maxSizeMB: 0.3,
               }}
               toolbar={
-                <div className="flex items-center gap-2">
-                  <span className="subtitle-text">แสดงรูปเป็น</span>
+                // ชิดขวาของกล่อง · คำเรียกไม่ใช้ "ฟอง" (เจ้าของขอ 10 ก.ย.): แสดงเป็น รูป / รูปแบบเต็มจอ
+                <div className="ml-auto flex items-center gap-2">
+                  <span className="subtitle-text">แสดงเป็น</span>
                   <FilterChips<'bubble' | 'rich'>
                     value={imageStyle}
                     onChange={onImageStyleChange}
                     disabled={disabled}
                     chips={[
-                      { id: 'bubble', label: 'ฟองรูป', activeClass: FILTER_CHIP_PRIMARY_ACTIVE, tooltip: 'เหมือนแอดมินส่งรูปในแชท' },
-                      { id: 'rich', label: 'รูปเต็มจอ', activeClass: FILTER_CHIP_PRIMARY_ACTIVE, tooltip: 'กว้างเต็มห้องแชท กดไปลิงก์ได้' },
+                      { id: 'bubble', label: 'รูป', activeClass: FILTER_CHIP_PRIMARY_ACTIVE, tooltip: 'รูปธรรมดาเหมือนแอดมินส่งรูปในแชท' },
+                      { id: 'rich', label: 'รูปแบบเต็มจอ', activeClass: FILTER_CHIP_PRIMARY_ACTIVE, tooltip: 'กว้างเต็มห้องแชท กดไปลิงก์ได้' },
                     ]}
                   />
                 </div>
