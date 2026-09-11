@@ -47,10 +47,15 @@ const POLL_MAX = 75;
 /** แหล่งที่มาที่โชว์ในแถว — เกินนี้โชว์ 2 แล้วย่อที่เหลือเป็น +N รายชื่ออยู่ใน tooltip */
 const SOURCES_SHOWN = 3;
 
-/** บรรทัดรองใต้ชื่อบัญชีโฆษณา — sync ล่าสุดเมื่อไหร่ (เจ้าของขอแทน "อัตโนมัติทุกวัน" 11 ก.ย. 2026) */
+/**
+ * ข้อความต่อท้ายป้ายสถานะ — "ล่าสุด <วันเวลา>" · ป้ายทำหน้าที่คำว่า "sync" แทน จึงไม่เขียนซ้ำ
+ * (เจ้าของขอให้ย่อ 11 ก.ย. 2026) · ยังไม่เคย sync = ว่าง (ป้าย "รอ sync" บอกอยู่แล้ว)
+ */
 function syncWhen(sync: AudienceSyncView): string {
-  const when = sync.last_sync_at ? `sync ล่าสุด ${formatThaiDateTime(sync.last_sync_at)}` : 'ยังไม่เคย sync';
-  return sync.auto_sync ? when : `${when} · ปิด sync อัตโนมัติ`;
+  const parts: string[] = [];
+  if (sync.last_sync_at) parts.push(`ล่าสุด ${formatThaiDateTime(sync.last_sync_at)}`);
+  if (!sync.auto_sync) parts.push('ปิด sync อัตโนมัติ');
+  return parts.join(' · ');
 }
 
 export default function AudiencesPage() {
@@ -274,19 +279,19 @@ export default function AudiencesPage() {
                   {look.label}
                 </Badge>
               );
+              const when = syncWhen(s);
               return (
                 <div key={s.id} className="min-w-0">
-                  <span className="flex items-center gap-1.5 min-w-0">
+                  <p className="data-text text-gray-700 dark:text-slate-300 truncate">
+                    {s.ad_account_name || '-'}
+                  </p>
+                  {/* "[sync แล้ว] ล่าสุด 11 ก.ย. 08:51" — ป้ายแทนคำว่า sync ในบรรทัดเวลา */}
+                  <span className="flex items-center gap-1.5 flex-wrap mt-0.5">
                     {s.status === 'error' && s.error
                       ? <Tooltip text={s.error}>{badge}</Tooltip>
                       : badge}
-                    <span className="data-text text-gray-700 dark:text-slate-300 truncate">
-                      {s.ad_account_name || '-'}
-                    </span>
+                    {when && <span className="data-muted text-gray-400 dark:text-slate-500">{when}</span>}
                   </span>
-                  <p className="data-muted text-gray-400 dark:text-slate-500 mt-0.5 break-words">
-                    {syncWhen(s)}
-                  </p>
                 </div>
               );
             })}
