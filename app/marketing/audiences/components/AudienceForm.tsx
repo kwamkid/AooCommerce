@@ -420,11 +420,26 @@ export default function AudienceForm({ mode, initial, templateKey, onAudienceCha
         return;
       }
 
-      const saved = (await res.json())?.audience as AudienceView | undefined;
+      const json = await res.json().catch(() => ({}));
+      const saved = json?.audience as AudienceView | undefined;
       invalidateApiCache('/api/audiences');
       if (audienceId) {
-        if (saved) applyAudience(saved);
-        showToast('บันทึกแล้ว', 'success');
+        // เงื่อนไขเปลี่ยน = sync ใหม่ทันที ไม่รอรอบ cron — กลับหน้ารายการแล้วเห็นตัวเลขใหม่เดินขึ้นมาเอง
+        // (แก้แค่ชื่อ/คำอธิบาย = บันทึกเฉย ๆ · สั่งไม่ติด cron ยังหยิบให้เพราะหลังบ้านตั้ง next_sync_at ไว้แล้ว)
+        let resyncError: string | null = null;
+        const resync = !!json?.definition_changed && (saved?.syncs.length ?? 0) > 0;
+        if (resync) {
+          const r = await apiFetch(`/api/audiences/${audienceId}/sync`, { method: 'POST' }).catch(() => null);
+          if (r && !r.ok) {
+            const err = await r.json().catch(() => ({}));
+            if (err.code !== 'already_syncing') resyncError = err.error || 'เริ่ม sync ใหม่ไม่สำเร็จ';
+          }
+        }
+        if (resyncError) showToast(resyncError, 'error');
+        else showToast(resync ? 'บันทึกแล้ว · กำลัง sync ไป Meta ใหม่' : 'บันทึกแล้ว', 'success');
+        // กลับหน้ารายการเหมือนตอนสร้าง (เจ้าของขอ 11 ก.ย. 2026)
+        invalidateApiCache('/api/audiences');
+        router.push('/marketing/audiences');
       } else {
         // ผูกกับทุกบัญชีโฆษณาที่พร้อมแล้วเริ่ม sync รอบแรกเสมอ — กลุ่มมีไว้ยิงโฆษณา ไม่มีตัวเลือกปิด
         // (ล้มเหลวไม่กลืน — บอกเป็น toast แล้วยังพาไปหน้ากลุ่มซึ่งกด sync ซ้ำได้)

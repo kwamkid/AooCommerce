@@ -101,7 +101,8 @@ export async function PUT(request: NextRequest, context: { params: Promise<{ id:
       throw error;
     }
 
-    // เงื่อนไขเปลี่ยน = ทุกบัญชีโฆษณาต้องคำนวณส่วนต่างใหม่ในรอบ cron ถัดไป
+    // เงื่อนไขเปลี่ยน = ทุกบัญชีโฆษณาต้องคำนวณส่วนต่างใหม่ — ฟอร์มสั่ง sync ทันทีต่อจากนี้ผ่าน /sync
+    // (ดู definition_changed ใน response) · next_sync_at = now คือทางถอยให้ cron หยิบถ้าสั่งไม่ติด
     if (definitionChanged) {
       await supabaseAdmin
         .from('audience_syncs')
@@ -111,7 +112,7 @@ export async function PUT(request: NextRequest, context: { params: Promise<{ id:
     }
 
     const [audience] = await loadAudienceViews(auth.companyId, { id, activeOnly: false });
-    return NextResponse.json({ audience });
+    return NextResponse.json({ audience, definition_changed: definitionChanged });
   } catch (e) {
     console.error('PUT audience error:', e);
     return NextResponse.json({ error: 'บันทึกกลุ่มเป้าหมายไม่สำเร็จ' }, { status: 500 });

@@ -119,7 +119,7 @@ export default function EditAudiencePage({ params }: { params: Promise<{ id: str
         <PageHeader
           backHref="/marketing/audiences"
           title={audience.name}
-          subtitle={audience.description || 'แก้เงื่อนไขแล้วบันทึก — ทุกบัญชีโฆษณาที่ผูกไว้จะคำนวณส่วนต่างใหม่ในรอบถัดไป'}
+          subtitle={audience.description || 'แก้เงื่อนไขแล้วบันทึก — ระบบ sync ส่วนที่เปลี่ยนไป Meta ให้ทันที'}
           actions={
             <ActionMenu items={menu} />
           }
