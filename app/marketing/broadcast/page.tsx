@@ -21,7 +21,7 @@ import Button from '@/components/ui/Button';
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
 import DateRangePicker, { type DateValueType } from '@/components/ui/DateRangePicker';
 import ActionMenu, { type ActionItem } from '@/components/ui/ActionMenu';
-import PlatformIcon from '@/components/ui/PlatformIcon';
+import ChannelBadge from '@/components/ui/ChannelBadge';
 import { ProgressBar } from '@/components/ui/Chart';
 import { EmptyCard, LoadingCard, NoPermissionCard } from '@/components/ui/StateCard';
 import { useAuthGuard } from '@/lib/useAuthGuard';
@@ -55,6 +55,8 @@ interface BroadcastRow {
   chat_account_id: string | null;
   marketplace_account_id: string | null;
   account_name: string | null;
+  /** รูปบัญชี (รูป OA · รูปเพจ · โลโก้ร้าน) — null = ChannelBadge วาดไอคอนแพลตฟอร์มแทน */
+  account_picture_url: string | null;
   created_by_name: string | null;
   audience_type: string;
   audience_filter: StoredAudienceFilter | null;
@@ -172,20 +174,20 @@ function MessagePreview({ row }: { row: BroadcastRow }) {
   );
 }
 
-/** ช่องทาง/บัญชีที่ส่ง + กลุ่มผู้รับ */
+/** ช่องทาง/บัญชีที่ส่ง (รูปบัญชี + ไอคอนแพลตฟอร์มห้อยมุม แบบคอลัมน์แหล่งที่มาของกลุ่มเป้าหมาย) + กลุ่มผู้รับ */
 function AudienceCell({ row }: { row: BroadcastRow }) {
   const refine = describeAudienceRefine(row.audience_filter);
   return (
-    <div className="min-w-0">
-      <span className="flex items-center gap-2">
-        <PlatformIcon id={row.platform} size={16} />
-        <span className="data-text text-gray-700 dark:text-slate-300 truncate">
+    <div className="flex items-center gap-2.5 min-w-0">
+      <ChannelBadge channel={{ platform: row.platform, picture_url: row.account_picture_url }} size="sm" />
+      <div className="min-w-0">
+        <p className="data-text text-gray-700 dark:text-slate-300 truncate">
           {row.account_name || (isBroadcastPlatform(row.platform) ? BROADCAST_PLATFORMS[row.platform].label : '-')}
-        </span>
-      </span>
-      <p className="data-muted text-gray-400 dark:text-slate-500 mt-0.5 break-words">
-        {audienceLabel(row.audience_type, row.audience_filter)}{refine ? ` · ${refine}` : ''}
-      </p>
+        </p>
+        <p className="data-muted text-gray-400 dark:text-slate-500 mt-0.5 break-words">
+          {audienceLabel(row.audience_type, row.audience_filter)}{refine ? ` · ${refine}` : ''}
+        </p>
+      </div>
     </div>
   );
 }

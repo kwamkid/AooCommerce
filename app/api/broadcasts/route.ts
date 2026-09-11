@@ -34,6 +34,7 @@ import {
   type BroadcastGalleryImage,
 } from '@/lib/broadcast/content';
 import { fillStorefrontProductLinks } from '@/lib/broadcast/product-links';
+import { resolveAccountPicture } from '@/lib/chat/account-picture';
 
 // ส่งจริงเกิดใน after() ของ POST — ต้องให้ฟังก์ชันอยู่ได้นานพอที่จะไล่ล็อตจนจบ
 export const maxDuration = 300;
@@ -181,11 +182,11 @@ export async function GET(request: NextRequest) {
 
     const [chatRes, shopRes, usersRes, statsRes, anyRes] = await Promise.all([
       chatIds.length
-        ? supabaseAdmin.from('chat_accounts').select('id, account_name').in('id', chatIds)
-        : Promise.resolve({ data: [] as { id: string; account_name: string }[] }),
+        ? supabaseAdmin.from('chat_accounts').select('id, account_name, platform, credentials').in('id', chatIds)
+        : Promise.resolve({ data: [] as { id: string; account_name: string; platform: string; credentials: unknown }[] }),
       shopIds.length
-        ? supabaseAdmin.from('marketplace_accounts').select('id, shop_name').in('id', shopIds)
-        : Promise.resolve({ data: [] as { id: string; shop_name: string }[] }),
+        ? supabaseAdmin.from('marketplace_accounts').select('id, shop_name, metadata').in('id', shopIds)
+        : Promise.resolve({ data: [] as { id: string; shop_name: string; metadata: unknown }[] }),
       userIds.length
         ? supabaseAdmin.from('user_profiles').select('id, name').in('id', userIds)
         : Promise.resolve({ data: [] as { id: string; name: string }[] }),
@@ -201,19 +202,29 @@ export async function GET(request: NextRequest) {
     if (statsRes.error) console.error('[broadcast] get_broadcast_reply_stats:', statsRes.error.message);
     const statsById = new Map(((statsRes.data || []) as ReplyStatsRow[]).map(s => [s.broadcast_id, s]));
 
-    const accountName = new Map<string, string>([
-      ...(chatRes.data || []).map(a => [a.id, a.account_name] as [string, string]),
-      ...(shopRes.data || []).map(a => [a.id, a.shop_name] as [string, string]),
-    ]);
+    // ชื่อ + รูปบัญชี (กฎหารูปชุดเดียวกับหน้าแชท/กลุ่มเป้าหมาย) — credentials อ่านที่ server เพื่อหารูปเท่านั้น ห้ามส่งออก
+    const accounts = new Map<string, { name: string | null; picture: string | null }>();
+    for (const a of chatRes.data || []) {
+      accounts.set(a.id, {
+        name: a.account_name || null,
+        picture: resolveAccountPicture(a.platform, (a.credentials as Record<string, unknown> | null) ?? null, {}),
+      });
+    }
+    for (const a of shopRes.data || []) {
+      const logo = (a.metadata as Record<string, unknown> | null)?.shop_logo;
+      accounts.set(a.id, { name: a.shop_name || null, picture: typeof logo === 'string' && logo ? logo : null });
+    }
     const userName = new Map((usersRes.data || []).map(u => [u.id, u.name]));
 
     return NextResponse.json({
       broadcasts: rows.map(({ content, messages, ...r }) => {
         const st = statsById.get(r.id);
+        const account = accounts.get(r.chat_account_id || r.marketplace_account_id || '');
         return {
           ...r,
           preview_image: broadcastPreviewImage(content, messages),
-          account_name: accountName.get(r.chat_account_id || r.marketplace_account_id || '') || null,
+          account_name: account?.name ?? null,
+          account_picture_url: account?.picture ?? null,
           created_by_name: r.created_by ? userName.get(r.created_by) || null : null,
           stats: st
             ? {
