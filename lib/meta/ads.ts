@@ -133,6 +133,25 @@ export async function exchangeLongLivedUserToken(
 }
 
 /**
+ * Facebook Login for Business แบบ `response_type: 'code'` → แลก code เป็น token แบบ System-business
+ * (ผูกกับ business ของร้าน ไม่ใช่คน · config ตั้งให้ไม่หมดอายุได้) — ยืนยันตัวด้วย client_id+client_secret
+ */
+export async function exchangeLoginCode(
+  code: string,
+): Promise<GraphResult<{ access_token: string; token_type?: string; expires_in?: number }>> {
+  const appId = process.env.NEXT_PUBLIC_FACEBOOK_APP_ID;
+  const secret = process.env.FACEBOOK_APP_SECRET;
+  if (!appId || !secret) {
+    return syntheticError('ยังไม่ได้ตั้งค่า NEXT_PUBLIC_FACEBOOK_APP_ID / FACEBOOK_APP_SECRET');
+  }
+  return graphGet<{ access_token: string; token_type?: string; expires_in?: number }>('/oauth/access_token', '', {
+    client_id: appId,
+    client_secret: secret,
+    code,
+  });
+}
+
+/**
  * token ใบนี้ยังใช้ได้ไหม หมดอายุเมื่อไหร่ มี scope อะไรบ้าง
  *
  * `debuggable: false` = **ตอบไม่ได้** (ไม่มี app token / token เป็นของแอปอื่น / Graph ปฏิเสธ)
@@ -143,10 +162,21 @@ export async function debugToken(token: string): Promise<{
   expiresAt: string | null;
   scopes: string[];
   appId: string | null;
+  /** 'USER' · 'PAGE' · 'SYSTEM_USER' ฯลฯ ตามที่ Meta ตอบ */
+  type: string | null;
+  /** สิทธิ์รายสินทรัพย์ — `target_ids` = เพจ/บัญชีโฆษณาที่ได้สิทธิ์นั้นจริง (ไม่มี = ทุกอันที่คนนั้นเข้าถึง) */
+  granularScopes: { scope: string; target_ids?: string[] }[];
   error: string | null;
   debuggable: boolean;
 }> {
-  const empty = { isValid: false, expiresAt: null, scopes: [] as string[], appId: null };
+  const empty = {
+    isValid: false,
+    expiresAt: null,
+    scopes: [] as string[],
+    appId: null,
+    type: null,
+    granularScopes: [] as { scope: string; target_ids?: string[] }[],
+  };
   const appToken = appAccessToken();
   if (!appToken) {
     return { ...empty, error: 'ยังไม่ได้ตั้งค่า NEXT_PUBLIC_FACEBOOK_APP_ID / FACEBOOK_APP_SECRET', debuggable: false };
@@ -158,6 +188,8 @@ export async function debugToken(token: string): Promise<{
       expires_at?: number;
       scopes?: string[];
       app_id?: string;
+      type?: string;
+      granular_scopes?: { scope: string; target_ids?: string[] }[];
       error?: { message?: string };
     };
   }>('/debug_token', appToken, { input_token: token });
@@ -175,6 +207,8 @@ export async function debugToken(token: string): Promise<{
     expiresAt,
     scopes: Array.isArray(d.scopes) ? d.scopes : [],
     appId: d.app_id ? String(d.app_id) : null,
+    type: d.type ?? null,
+    granularScopes: Array.isArray(d.granular_scopes) ? d.granular_scopes : [],
     error: d.error?.message ?? null,
     debuggable: true,
   };

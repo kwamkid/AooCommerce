@@ -35,7 +35,8 @@ import Card from '@/components/ui/Card';
 import FormInput from '@/components/ui/FormInput';
 import FormSelect from '@/components/ui/FormSelect';
 import StepNumber from '@/components/ui/StepNumber';
-import { useFacebookSdk } from '@/lib/useFacebookSdk';
+import { useFacebookSdk, FB_LOGIN_CONFIG } from '@/lib/useFacebookSdk';
+import { useIsSuperAdmin } from '@/lib/useIsSuperAdmin';
 import { META_MARKETING_MESSAGES_SCOPES } from '@/lib/ads/meta-ui';
 
 // Lazy-load modals — only needed on edit / after FB OAuth returns pages.
@@ -360,10 +361,7 @@ export default function ChatChannelsPage() {
   }, can(userProfile, 'masterdata.chat_channels'));
 
   // เมนูทดลองของผู้ดูแลระบบ (FB_MARKETING_MESSAGES_SCOPE) — ร้านทั่วไปไม่เห็น
-  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
-  useFetchOnce(() => {
-    apiFetch('/api/superadmin/me').then(r => setIsSuperAdmin(r.ok), () => {});
-  }, can(userProfile, 'masterdata.chat_channels'));
+  const isSuperAdmin = useIsSuperAdmin(can(userProfile, 'masterdata.chat_channels'));
 
   const saveShopeeApp = async () => {
     setShopeeAppSaving(true);
@@ -448,7 +446,8 @@ export default function ChatChannelsPage() {
     fbExtraScopeRef.current = '';
     // .then(ok, err) สองอาร์กิวเมนต์ — ตัวจับ error คุมเฉพาะขาล็อกอิน ไม่กิน error
     // ของ exchangeFbToken (ซึ่งมี try/catch + toast ของตัวเองอยู่แล้ว)
-    fb.login(extraScope ? `${FB_PAGE_SCOPE},${extraScope}` : FB_PAGE_SCOPE).then(exchangeFbToken, (err: unknown) => {
+    // มี config ของ Facebook Login for Business = ใช้ config (สิทธิ์ตั้งใน App Dashboard · เติมรายรอบไม่ได้)
+    fb.login(extraScope ? `${FB_PAGE_SCOPE},${extraScope}` : FB_PAGE_SCOPE, { configId: FB_LOGIN_CONFIG.pages }).then(exchangeFbToken, (err: unknown) => {
       // ล้างเพจที่จองไว้ด้วย ไม่งั้นรอบหน้าที่กด "เชื่อมเพจ" ปกติจะมีเพจติ๊กค้างมาจากรอบที่ล้ม
       reconnectPageIdRef.current = null;
       const message = err instanceof Error ? err.message : '';
@@ -1866,7 +1865,8 @@ export default function ChatChannelsPage() {
                     handleFbLogin();
                   },
                 }] : []),
-                ...(account.platform === 'facebook' && FB_APP_ID && isSuperAdmin ? [{
+                // โหมด config เติมสิทธิ์รายรอบไม่ได้ — ข้อความการตลาดย้ายไปปุ่ม "เชื่อม business" หน้าบัญชีโฆษณา
+                ...(account.platform === 'facebook' && FB_APP_ID && isSuperAdmin && !FB_LOGIN_CONFIG.pages ? [{
                   key: 'reconnect-marketing',
                   label: 'เชื่อมต่อใหม่ + สิทธิ์ข้อความการตลาด',
                   description: 'ทดลอง · เฉพาะผู้ดูแลระบบ',

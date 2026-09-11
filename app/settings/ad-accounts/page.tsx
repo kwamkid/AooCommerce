@@ -21,7 +21,8 @@ import { EmptyCard, LoadingCard, NoPermissionCard } from '@/components/ui/StateC
 import { apiFetch, invalidateApiCache } from '@/lib/api-client';
 import { useAuthGuard } from '@/lib/useAuthGuard';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
-import { useFacebookSdk } from '@/lib/useFacebookSdk';
+import { useFacebookSdk, FB_LOGIN_CONFIG } from '@/lib/useFacebookSdk';
+import { useIsSuperAdmin } from '@/lib/useIsSuperAdmin';
 import { useToast } from '@/lib/toast-context';
 import {
   META_ADS_SCOPES,
@@ -74,6 +75,9 @@ export default function AdAccountsPage() {
   const [pageAlert, setPageAlert] = useState<PageAlert | null>(null);
 
   const [fbLoading, setFbLoading] = useState(false);
+  const [mmLoading, setMmLoading] = useState(false);
+  /** ปุ่มเชื่อม business สำหรับข้อความการตลาด (ทดลอง) เห็นเฉพาะผู้ดูแลระบบ */
+  const isSuperAdmin = useIsSuperAdmin(allowed);
   const [saving, setSaving] = useState(false);
   const [testingId, setTestingId] = useState<string | null>(null);
   const [probeById, setProbeById] = useState<Record<string, AdAccountProbe>>({});
@@ -116,7 +120,7 @@ export default function AdAccountsPage() {
     const reconnectExternalId = reconnectRef.current;
     reconnectRef.current = null;
     try {
-      const shortLivedToken = await fb.login(META_ADS_SCOPES);
+      const shortLivedToken = await fb.login(META_ADS_SCOPES, { configId: FB_LOGIN_CONFIG.ads });
       const res = await apiFetch('/api/ads/oauth/exchange', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -365,6 +369,36 @@ export default function AdAccountsPage() {
     startOauth();
   };
 
+  // ข้อความการตลาด (ทดลอง) — Facebook Login for Business แบบ token System-business: หน้าต่างของ Meta
+  // ให้ร้านเลือกเพจ + บัญชีโฆษณา และยอมรับข้อตกลงข้อความการตลาด (ทางเดียวที่ business ยอมรับได้ ·
+  // ไม่ผ่านขั้นนี้ติด error 2300013) แล้วเซิร์ฟเวอร์แลก code เป็น token
+  const connectMarketingBusiness = async () => {
+    setMmLoading(true);
+    try {
+      const code = await fb.loginForCode(FB_LOGIN_CONFIG.marketing);
+      const res = await apiFetch('/api/meta/marketing-messages/connect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        showToast(typeof data.error === 'string' ? data.error : 'เชื่อม business ไม่สำเร็จ', 'error');
+        return;
+      }
+      const pages = Array.isArray(data.page_ids) ? data.page_ids.length : 0;
+      const ads = Array.isArray(data.ad_account_ids) ? data.ad_account_ids.length : 0;
+      showToast(`เชื่อม business ${data.business?.name || ''} แล้ว · เพจ ${pages} · บัญชีโฆษณา ${ads}`, 'success');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : '';
+      if (message === 'not_ready') showToast('Facebook SDK ยังไม่พร้อม กรุณารอสักครู่', 'error');
+      else if (message === 'denied') showToast('ไม่ได้รับสิทธิ์จาก Facebook', 'error');
+      else showToast('เชื่อม business ไม่สำเร็จ', 'error');
+    } finally {
+      setMmLoading(false);
+    }
+  };
+
   // ─── Render ─────────────────────────────────────────────────────────
 
   if (authLoading) {
@@ -380,15 +414,22 @@ export default function AdAccountsPage() {
   const eventsAccount = accounts.find(a => a.id === eventsModalId) || null;
 
   const headerAction = hasAppId ? (
-    <Button
-      variant="primary"
-      icon={<PlatformIcon id="facebook" size={16} mono />}
-      loading={fbLoading}
-      disabled={!fb.ready}
-      onClick={() => startOauth()}
-    >
-      เชื่อมบัญชีโฆษณา Meta
-    </Button>
+    <>
+      {isSuperAdmin && FB_LOGIN_CONFIG.marketing && (
+        <Button variant="secondary" loading={mmLoading} disabled={!fb.ready} onClick={connectMarketingBusiness}>
+          เชื่อม business (ข้อความการตลาด · ทดลอง)
+        </Button>
+      )}
+      <Button
+        variant="primary"
+        icon={<PlatformIcon id="facebook" size={16} mono />}
+        loading={fbLoading}
+        disabled={!fb.ready}
+        onClick={() => startOauth()}
+      >
+        เชื่อมบัญชีโฆษณา Meta
+      </Button>
+    </>
   ) : (
     <Button variant="primary" onClick={openManual}>กรอกเอง</Button>
   );
