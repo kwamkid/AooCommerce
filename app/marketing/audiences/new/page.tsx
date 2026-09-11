@@ -38,7 +38,7 @@ export default function NewAudiencePage() {
         <PageHeader
           backHref="/marketing/audiences"
           title="สร้างกลุ่มเป้าหมาย"
-          subtitle="เลือกว่าจะหยิบคนจากไหน แล้วแคบลงด้วยเงื่อนไข — ใช้ซ้ำได้ทั้งบรอดแคสต์และโฆษณา Meta"
+          subtitle="เลือกกลุ่มเป้าหมายกับแหล่งที่มา แล้วระบบ sync ไป Meta ให้ทันทีที่สร้าง"
         />
         <Suspense fallback={<LoadingCard />}>
           <CreateForm />

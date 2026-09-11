@@ -6,7 +6,9 @@
 // โฆษณาที่บอกสถานะ + เวลา sync ล่าสุดรายบัญชี (เจ้าของขอ 11 ก.ย. 2026) — กลุ่มที่
 // สร้างไว้แต่ซิงก์ไม่ผ่านคือกลุ่มที่ยิงโฆษณาไม่ได้ ซึ่งมองจากชื่อกลุ่มอย่างเดียวไม่มีทางรู้
 //
-// ยังไม่เชื่อมบัญชีโฆษณาก็ใช้หน้านี้ได้ (กลุ่มใช้ส่งบรอดแคสต์ได้อยู่แล้ว) — บอกไว้ด้วย Alert
+// ยังไม่เชื่อมบัญชีโฆษณาก็สร้างกลุ่มไว้ก่อนได้ — บอกไว้ด้วย Alert
+// · ไม่มีเมนูส่งบรอดแคสต์จากกลุ่ม — หน้าบรอดแคสต์ยังไม่รับกลุ่มจากที่นี่ (เดิมเปิดได้แต่ได้ฟอร์มเปล่า
+//   เจ้าของสั่งถอด 11 ก.ย. 2026 จนกว่าจะทำให้ใช้ได้จริง)
 // **ห้ามบล็อกทั้งหน้า**
 'use client';
 
@@ -20,6 +22,7 @@ import Badge from '@/components/ui/Badge';
 import Alert from '@/components/ui/Alert';
 import Tooltip from '@/components/ui/Tooltip';
 import ChannelBadge from '@/components/ui/ChannelBadge';
+import PlatformIcon from '@/components/ui/PlatformIcon';
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
 import ActionMenu, { type ActionItem } from '@/components/ui/ActionMenu';
 import { LoadingCard, NoPermissionCard } from '@/components/ui/StateCard';
@@ -34,7 +37,7 @@ import { apiFetch, invalidateApiCache } from '@/lib/api-client';
 import { formatNumber, formatThaiDateTime } from '@/lib/utils/format';
 import { audienceLabel, describeAudienceRefine } from '@/lib/broadcast/audience';
 import type { AudienceTemplateKey } from '@/lib/audiences/templates';
-import { Edit2, LayoutTemplate, Loader2, Plus, RefreshCw, Send, Target, Trash2, Users } from 'lucide-react';
+import { Edit2, LayoutTemplate, Loader2, Plus, RefreshCw, Target, Trash2, Users } from 'lucide-react';
 import type { AudienceSyncView, AudienceView, ChatSourceAccount } from './components/types';
 import { isSyncRunning, latestCounts, syncStatusLook } from './components/sync-view';
 
@@ -159,7 +162,7 @@ export default function AudiencesPage() {
   const handleDelete = async (row: AudienceView) => {
     const ok = await confirm({
       title: `ลบกลุ่ม "${row.name}"?`,
-      description: `บรอดแคสต์ที่เคยส่งไม่ได้รับผลกระทบ · Custom Audience ใน Meta (${row.syncs.length} บัญชี)`
+      description: `Custom Audience ใน Meta (${row.syncs.length} บัญชี)`
         + ' จะถูกลบด้วย — โฆษณาที่ใช้กลุ่มนี้อยู่จะหยุดหาคนใหม่',
       variant: 'danger',
       confirmLabel: 'ลบกลุ่ม',
@@ -261,7 +264,7 @@ export default function AudiencesPage() {
       },
     },
     {
-      key: 'meta', label: 'บัญชีโฆษณา Meta', defaultWidth: 250,
+      key: 'meta', label: 'บัญชีโฆษณา', defaultWidth: 250,
       render: (r) => {
         if (r.syncs.length === 0) {
           return <span className="data-muted text-gray-400 dark:text-slate-500">ยังไม่ได้ผูกบัญชีโฆษณา</span>;
@@ -282,9 +285,14 @@ export default function AudiencesPage() {
               const when = syncWhen(s);
               return (
                 <div key={s.id} className="min-w-0">
-                  <p className="data-text text-gray-700 dark:text-slate-300 truncate">
-                    {s.ad_account_name || '-'}
-                  </p>
+                  {/* ไอคอนบอกแพลตฟอร์มของบัญชีโฆษณา (เจ้าของเสนอ 11 ก.ย. 2026) — ตอนนี้มีแต่ Meta ใช้ไอคอน
+                      Facebook · เพิ่ม TikTok Ads เมื่อไหร่ให้ส่ง platform มากับ sync แล้วเลือกไอคอนตามนั้น */}
+                  <span className="flex items-center gap-1.5 min-w-0">
+                    <PlatformIcon id="facebook" size={14} title="Meta" />
+                    <span className="data-text text-gray-700 dark:text-slate-300 truncate">
+                      {s.ad_account_name || '-'}
+                    </span>
+                  </span>
                   {/* "[sync แล้ว] ล่าสุด 11 ก.ย. 08:51" — ป้ายแทนคำว่า sync ในบรรทัดเวลา */}
                   <span className="flex items-center gap-1.5 flex-wrap mt-0.5">
                     {s.status === 'error' && s.error
@@ -302,18 +310,8 @@ export default function AudiencesPage() {
     {
       key: 'actions', label: '', stopPropagation: true, alwaysVisible: true, defaultWidth: 56,
       render: (r) => {
-        const hasLine = r.sources.some(s => s.kind === 'chat' && s.platform === 'line');
         const anySyncing = r.syncs.some(s => s.status === 'syncing');
         const items: ActionItem[] = [
-          {
-            key: 'broadcast',
-            label: 'ส่งบรอดแคสต์หากลุ่มนี้',
-            icon: <Send className="w-4 h-4" />,
-            primary: true,
-            disabled: !hasLine,
-            description: hasLine ? undefined : 'กลุ่มนี้ไม่มีช่องทาง LINE — บรอดแคสต์ส่งได้เฉพาะ LINE',
-            onClick: () => router.push(`/marketing/broadcast/new?audience=${r.id}`),
-          },
           {
             key: 'sync',
             label: 'sync ไป Meta ตอนนี้',
@@ -357,7 +355,7 @@ export default function AudiencesPage() {
         <PageHeader
           icon={<Target />}
           title="กลุ่มเป้าหมาย"
-          subtitle="บันทึกกลุ่มลูกค้าไว้ใช้ซ้ำ — ส่งบรอดแคสต์ หรือ sync ไป Meta เพื่อยิงโฆษณา"
+          subtitle="บันทึกกลุ่มลูกค้าไว้ sync ไป Meta เพื่อยิงโฆษณา · อัปเดตรายชื่อให้เองทุกวัน"
           actions={
             <>
               <Button
@@ -383,7 +381,7 @@ export default function AudiencesPage() {
 
         {adAccountCount === 0 && (
           <Alert tone="info">
-            ยังไม่ได้เชื่อมบัญชีโฆษณา — สร้างกลุ่มและส่งบรอดแคสต์ได้ แต่ sync ไป Meta ยังไม่ได้
+            ยังไม่ได้เชื่อมบัญชีโฆษณา — สร้างกลุ่มไว้ก่อนได้ แต่จะยังไม่ขึ้น Meta จนกว่าจะเชื่อม
             {canManageAdAccounts && (
               <>
                 {' · '}

@@ -13,13 +13,12 @@ import Container from '@/components/ui/Container';
 import PageHeader from '@/components/ui/PageHeader';
 import Button from '@/components/ui/Button';
 import ActionMenu, { type ActionItem } from '@/components/ui/ActionMenu';
-import Tooltip from '@/components/ui/Tooltip';
 import { EmptyCard, LoadingCard, NoPermissionCard } from '@/components/ui/StateCard';
 import { useAuthGuard } from '@/lib/useAuthGuard';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { useToast } from '@/lib/toast-context';
 import { apiFetch, invalidateApiCache } from '@/lib/api-client';
-import { Send, Target, Trash2 } from 'lucide-react';
+import { Target, Trash2 } from 'lucide-react';
 import AudienceForm from '../components/AudienceForm';
 import type { AudienceView } from '../components/types';
 
@@ -55,7 +54,7 @@ export default function EditAudiencePage({ params }: { params: Promise<{ id: str
     if (!audience) return;
     const ok = await confirm({
       title: `ลบกลุ่ม "${audience.name}"?`,
-      description: `บรอดแคสต์ที่เคยส่งไม่ได้รับผลกระทบ · Custom Audience ใน Meta (${audience.syncs.length} บัญชี)`
+      description: `Custom Audience ใน Meta (${audience.syncs.length} บัญชี)`
         + ' จะถูกลบด้วย — โฆษณาที่ใช้กลุ่มนี้อยู่จะหยุดหาคนใหม่',
       variant: 'danger',
       confirmLabel: 'ลบกลุ่ม',
@@ -104,8 +103,6 @@ export default function EditAudiencePage({ params }: { params: Promise<{ id: str
     );
   }
 
-  /** กลุ่มที่ไม่มีห้องแชท LINE ส่งบรอดแคสต์ไม่ได้ — ปุ่มยังอยู่แต่กดไม่ได้พร้อมบอกเหตุผล */
-  const hasLine = audience.sources.some(s => s.kind === 'chat' && s.platform === 'line');
   const menu: ActionItem[] = [{
     key: 'delete',
     label: 'ลบกลุ่ม',
@@ -124,22 +121,7 @@ export default function EditAudiencePage({ params }: { params: Promise<{ id: str
           title={audience.name}
           subtitle={audience.description || 'แก้เงื่อนไขแล้วบันทึก — ทุกบัญชีโฆษณาที่ผูกไว้จะคำนวณส่วนต่างใหม่ในรอบถัดไป'}
           actions={
-            <>
-              <Tooltip
-                text={hasLine ? '' : 'กลุ่มนี้ไม่มีช่องทาง LINE — บรอดแคสต์ส่งได้เฉพาะ LINE'}
-                box="inline-flex"
-              >
-                <Button
-                  variant="secondary"
-                  icon={<Send className="w-4 h-4" />}
-                  disabled={!hasLine}
-                  onClick={() => router.push(`/marketing/broadcast/new?audience=${audience.id}`)}
-                >
-                  ส่งบรอดแคสต์หากลุ่มนี้
-                </Button>
-              </Tooltip>
-              <ActionMenu items={menu} />
-            </>
+            <ActionMenu items={menu} />
           }
         />
         <AudienceForm mode="edit" initial={audience} onAudienceChange={handleAudienceChange} />

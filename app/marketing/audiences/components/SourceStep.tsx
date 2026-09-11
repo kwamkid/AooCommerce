@@ -33,7 +33,7 @@ const INLINE_MAX = 8;
  * บรรทัดรองของการ์ด LINE ที่ติ๊กได้ — ระบบไม่ติ๊ก LINE ให้เอง (ขึ้น Meta ได้น้อยมาก)
  * บรรทัดนี้บอกว่าจะติ๊กเมื่อไหร่ถึงคุ้ม
  */
-const LINE_NOTE = 'เหมาะกับบรอดแคสต์ LINE';
+const LINE_NOTE = 'ขึ้น Meta ได้เฉพาะคนที่ผูกลูกค้าแล้ว';
 
 interface Props {
   accounts: ChatSourceAccount[];
