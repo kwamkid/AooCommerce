@@ -155,6 +155,15 @@ export default function DesignSystemPage() {
               <Link href="/dev/design/broadcast-editor" className="btn btn-md btn-primary">เปิดหน้าลอง</Link>
             </div>
           </Card>
+          <Card className="mt-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="body-text font-medium">ฟอร์มสินค้า (ต้นแบบ)</p>
+                <p className="subtitle-text">การ์ดเดียวจบ · ตัวเลือกพิมพ์ค่าแล้วตารางขึ้นเอง — ลองได้โดยไม่บันทึก ไม่อัปรูป</p>
+              </div>
+              <Link href="/dev/design/product-form" className="btn btn-md btn-primary">เปิดหน้าลอง</Link>
+            </div>
+          </Card>
         </Section>
 
         <Section title="Typography" desc="Global classes — ใช้แทน inline `text-Nxl font-bold text-gray-900` chain">

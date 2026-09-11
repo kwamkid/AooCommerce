@@ -176,12 +176,26 @@ export async function POST(request: NextRequest) {
 
     const productData: ProductData = await request.json();
 
-    // Validate required fields
-    if (!productData.code || !productData.name || !productData.product_type) {
+    // Validate required fields — code may be left empty: the server assigns the next one in
+    // the company's own pattern (RPC next_product_code — P5191 → P5192, AF-040 → AF-041)
+    if (!productData.name || !productData.product_type) {
       return NextResponse.json(
-        { error: 'Missing required fields: code, name, product_type' },
+        { error: 'กรุณากรอกชื่อสินค้าและเลือกประเภทสินค้า' },
         { status: 400 }
       );
+    }
+    productData.code = (productData.code || '').trim();
+    if (!productData.code) {
+      const { data: nextCode, error: codeError } = await supabaseAdmin
+        .rpc('next_product_code', { p_company_id: auth.companyId });
+      if (codeError || !nextCode) {
+        console.error('[products POST] next_product_code failed:', codeError?.message);
+        return NextResponse.json(
+          { error: 'ตั้งรหัสสินค้าอัตโนมัติไม่สำเร็จ กรุณากรอกรหัสสินค้าเอง' },
+          { status: 500 }
+        );
+      }
+      productData.code = nextCode as string;
     }
 
     // Validate based on product type
@@ -219,7 +233,7 @@ export async function POST(request: NextRequest) {
 
     if (existingCode) {
       return NextResponse.json(
-        { error: 'Product code already exists' },
+        { error: `รหัสสินค้า "${productData.code}" มีอยู่แล้ว` },
         { status: 400 }
       );
     }
