@@ -803,27 +803,28 @@ export default function ProductForm({
         }
 
         // Upload staged variation images — in parallel (not sequential)
-        if (result.variations?.length > 0) {
-          const uploadPromises: Promise<void>[] = [];
-
-          for (let i = 0; i < formData.variations.length; i++) {
-            const tempId = formData.variations[i]._tempId;
-            const actualId = result.variations[i]?.id;
-            const imgs = variationImages[tempId];
-            if (actualId && imgs?.some(img => img._stagedFile)) {
-              uploadPromises.push(
-                uploadStagedImages(imgs, newProductId, actualId)
-                  .then(() => {})
-                  .catch(imgError => {
-                    console.error(`Error uploading variation ${i} images:`, imgError);
-                  })
-              );
-            }
-          }
-
-          if (uploadPromises.length > 0) {
-            await Promise.allSettled(uploadPromises);
-          }
+        const stagedTargets: { imgs: ProductImage[] | undefined; variationId: string | undefined }[] =
+          formData.product_type === 'composite'
+            // สินค้าชุด: saved combos keep pictures under their variation id, new ones under the combo key
+            ? ((result.composite_combos || []) as { key: string; variation_id: string }[]).map(c => ({
+                imgs: variationImages[c.variation_id] ?? variationImages[c.key],
+                variationId: c.variation_id,
+              }))
+            : formData.variations.map((v, i) => ({
+                imgs: variationImages[v._tempId],
+                variationId: result.variations?.[i]?.id,
+              }));
+        const uploadPromises = stagedTargets
+          .filter(t => t.variationId && t.imgs?.some(img => img._stagedFile))
+          .map(t =>
+            uploadStagedImages(t.imgs!, newProductId, t.variationId)
+              .then(() => {})
+              .catch(imgError => {
+                console.error(`Error uploading images of variation ${t.variationId}:`, imgError);
+              })
+          );
+        if (uploadPromises.length > 0) {
+          await Promise.allSettled(uploadPromises);
         }
       }
 
@@ -1116,7 +1117,13 @@ export default function ProductForm({
       </div>
 
       {/* Composite Product (สินค้าชุด) */}
-      {formData.product_type === 'composite' && <CompositeEditor editor={composite} />}
+      {formData.product_type === 'composite' && (
+        <CompositeEditor
+          editor={composite}
+          images={variationImages}
+          onImagesChange={(key, imgs) => setVariationImages(prev => ({ ...prev, [key]: imgs }))}
+        />
+      )}
 
       {/* Simple Product Fields */}
       {formData.product_type === 'simple' && (

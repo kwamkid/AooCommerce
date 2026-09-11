@@ -115,6 +115,8 @@ export interface SaveCompositeResult {
   archived: number;
   /** combo variation ids that are part of the product after the save, in slot order */
   variationIds: string[];
+  /** comboKey → variation id of the same combos (lets the form attach pictures of new combos) */
+  combos: { key: string; variation_id: string }[];
 }
 
 interface GeneratedCombo {
@@ -226,7 +228,7 @@ export async function saveCompositeVariations(
     if (ids?.length) existingByKey.set(comboKey(ids), r);
   }
 
-  const result: SaveCompositeResult = { created: 0, updated: 0, archived: 0, variationIds: [] };
+  const result: SaveCompositeResult = { created: 0, updated: 0, archived: 0, variationIds: [], combos: [] };
   const newVariations: Record<string, unknown>[] = [];
   const componentRows: Record<string, unknown>[] = [];
   const unlockedIds: string[] = [];
@@ -271,6 +273,7 @@ export async function saveCompositeVariations(
     }));
     if (!locked) unlockedIds.push(id);
     result.variationIds.push(id);
+    result.combos.push({ key: g.key, variation_id: id });
   }
 
   if (newVariations.length) {

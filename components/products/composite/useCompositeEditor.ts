@@ -10,6 +10,8 @@ import { apiFetch } from '@/lib/api-client';
 import {
   buildCombos,
   comboComponents,
+  comboFallbackImage,
+  componentImageRank,
   comboKey,
   comboLabel,
   comboPrice,
@@ -47,6 +49,10 @@ export interface ComboRow {
   /** price the row will actually carry */
   price: { default_price: number; discount_price: number };
   errors: { price?: string; sku?: string };
+  /** key of its pictures in the form's variation-image state: variation id once saved, combo key before */
+  imageKey: string;
+  /** picture it gets automatically while it has none of its own */
+  fallbackImage: string | null;
 }
 
 type Source = (CompositeProductData & { product_id?: string }) | null | undefined;
@@ -95,10 +101,17 @@ export function useCompositeEditor(source: Source) {
 
   const rows = useMemo<ComboRow[]>(() => {
     if (!allPicked || comboCount === 0 || comboCount > MAX_COMPOSITE_COMBOS) return [];
+    const imageRank = componentImageRank(slots);
     const built = buildCombos(slots).map((picks): ComboRow => {
       const components = comboComponents(picks);
       const key = comboKey(components.map(c => c.variation_id));
       const saved = initial.savedByKey.get(key) ?? null;
+      // same rule as the server (getComboFallbackImages) — current slots, so it follows slot edits
+      const fallbackImage = comboFallbackImage(
+        components.map(c => c.variation_id),
+        imageRank,
+        id => optionById.get(id)?.image_url,
+      ) ?? saved?.fallback_image ?? null;
       const opts = picks.map(p => optionById.get(p.variation_id));
       const autoPrice = comboPrice(components.map(c => {
         const o = optionById.get(c.variation_id);
@@ -128,6 +141,8 @@ export function useCompositeEditor(source: Source) {
           ? { default_price: setting.default_price, discount_price: setting.discount_price }
           : autoPrice,
         errors: {},
+        imageKey: saved?.variation_id || key,
+        fallbackImage,
       };
     });
 

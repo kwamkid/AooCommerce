@@ -17,9 +17,11 @@ interface Props {
   productName: string;
   variations: StorefrontVariation[];
   cover: string | null;
+  /** สินค้าชุด — ส่งไปเลือก/ดูของในชุดที่หน้าสินค้าเสมอ ไม่หยิบใส่ตะกร้าจากการ์ด */
+  composite?: boolean;
 }
 
-export default function QuickAddButton({ shop, productSlug, productName, variations, cover }: Props) {
+export default function QuickAddButton({ shop, productSlug, productName, variations, cover, composite }: Props) {
   const [added, setAdded] = useState(false);
   const btnRef = useRef<HTMLButtonElement>(null);
   const sellable = variations.filter(v => v.in_stock);
@@ -28,12 +30,12 @@ export default function QuickAddButton({ shop, productSlug, productName, variati
     return <span className="sf-quickadd sf-quickadd-off">สินค้าหมด</span>;
   }
 
-  // หลายตัวเลือก → ให้ไปเลือกที่หน้าสินค้า
-  if (sellable.length > 1) {
+  // หลายตัวเลือก หรือสินค้าชุด → ให้ไปเลือกที่หน้าสินค้า
+  if (sellable.length > 1 || composite) {
     return (
       <Link href={storefrontHref(shop, `/p/${productSlug}`)} className="sf-quickadd">
         <SlidersHorizontal strokeWidth={1.75} aria-hidden="true" />
-        เลือกตัวเลือก
+        {variations.length > 1 ? 'เลือกตัวเลือก' : 'ดูรายละเอียด'}
       </Link>
     );
   }

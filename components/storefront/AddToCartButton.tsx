@@ -7,7 +7,10 @@ import Link from 'next/link';
 import { Minus, Plus, Check } from 'lucide-react';
 import { addToCart } from '@/lib/storefront-cart';
 import { flyToCart, findProductImage, FLY_DURATION } from '@/lib/storefront-fly-to-cart';
-import { formatStorePrice, storefrontHref, type StorefrontVariation } from '@/lib/storefront';
+import {
+  formatStorePrice, storefrontHref, SF_VARIATION_IMAGE_EVENT,
+  type StorefrontVariation, type StorefrontOptionGroup,
+} from '@/lib/storefront';
 
 interface Props {
   shop: string;
@@ -15,9 +18,16 @@ interface Props {
   productName: string;
   variations: StorefrontVariation[];
   images: string[];
+  /** สินค้าชุด — มีค่า = เลือกทีละช่อง แทนรายการแบน */
+  optionGroups?: StorefrontOptionGroup[];
 }
 
-export default function AddToCartButton({ shop, productSlug, productName, variations, images }: Props) {
+/** รูปหลักของหน้าเปลี่ยนตามตัวเลือก (GalleryMainImage ฟังอยู่) */
+function announceImage(v: StorefrontVariation) {
+  window.dispatchEvent(new CustomEvent(SF_VARIATION_IMAGE_EVENT, { detail: { image: v.image, label: v.label } }));
+}
+
+export default function AddToCartButton({ shop, productSlug, productName, variations, images, optionGroups }: Props) {
   const sellable = variations.filter(v => v.in_stock);
   const [selectedId, setSelectedId] = useState(sellable[0]?.id || '');
   const [qty, setQty] = useState(1);
@@ -29,6 +39,31 @@ export default function AddToCartButton({ shop, productSlug, productName, variat
   }
 
   const selected = sellable.find(v => v.id === selectedId) || sellable[0];
+  const groups = optionGroups && optionGroups.length > 0 ? optionGroups : null;
+
+  const choose = (v: StorefrontVariation) => {
+    setSelectedId(v.id);
+    setAdded(false);
+    announceImage(v);
+  };
+
+  // ── สินค้าชุด: เลือกทีละช่อง ──
+  const picks = selected.options || {};
+  const matchesOthers = (v: StorefrontVariation, group: string) =>
+    groups!.every(g => g.name === group || v.options?.[g.name] === picks[g.name]);
+
+  const pickValue = (group: string, value: string) => {
+    const withValue = sellable.filter(v => v.options?.[group] === value);
+    // ชุดที่ตรงทุกช่องก่อน · ไม่มี = ช่องอื่นขยับไปค่าแรกที่ใช้ได้ (ไล่ตามลำดับช่อง
+    // คงค่าเดิมไว้ให้มากที่สุด) — variations เรียงตามลำดับตัวเลือกมาจาก server แล้ว
+    let candidates = withValue;
+    for (const g of groups!) {
+      if (g.name === group) continue;
+      const keep = candidates.filter(v => v.options?.[g.name] === picks[g.name]);
+      if (keep.length > 0) candidates = keep;
+    }
+    if (candidates[0]) choose(candidates[0]);
+  };
 
   const handleAdd = () => {
     const flying = flyToCart(findProductImage(btnRef.current));
@@ -48,14 +83,42 @@ export default function AddToCartButton({ shop, productSlug, productName, variat
 
   return (
     <div>
-      {sellable.length > 1 && (
+      {groups ? (
+        groups.map(g => (
+          <div key={g.name} className="sf-option-group">
+            <div className="sf-option-label">
+              {g.name}: <strong>{picks[g.name] || '-'}</strong>
+            </div>
+            <div className="sf-variations" role="group" aria-label={g.name}>
+              {g.values.map(value => {
+                const soldOut = !sellable.some(v => v.options?.[g.name] === value);
+                const available = sellable.some(v => v.options?.[g.name] === value && matchesOthers(v, g.name));
+                const active = picks[g.name] === value;
+                return (
+                  <button
+                    key={value}
+                    type="button"
+                    disabled={!available}
+                    aria-pressed={active}
+                    onClick={() => { if (!active) pickValue(g.name, value); }}
+                    className={`sf-variation ${soldOut ? 'sf-variation-oos' : !available ? 'sf-variation-na' : ''} ${active ? 'sf-variation-active' : ''}`}
+                  >
+                    {value}
+                    {soldOut && ' (หมด)'}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ))
+      ) : sellable.length > 1 && (
         <div className="sf-variations">
           {variations.map(v => (
             <button
               key={v.id}
               type="button"
               disabled={!v.in_stock}
-              onClick={() => { setSelectedId(v.id); setAdded(false); }}
+              onClick={() => choose(v)}
               className={`sf-variation ${!v.in_stock ? 'sf-variation-oos' : ''} ${v.id === selected.id ? 'sf-variation-active' : ''}`}
             >
               {v.label || 'ตัวเลือก'} · {formatStorePrice(v.price)}

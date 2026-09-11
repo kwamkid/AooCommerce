@@ -14,6 +14,7 @@ import {
 import { storefrontUrl, storefrontHref, formatStorePrice } from '@/lib/storefront';
 import { formatSlotTime } from '@/lib/delivery';
 import AddToCartButton from '@/components/storefront/AddToCartButton';
+import GalleryMainImage from '@/components/storefront/GalleryMainImage';
 import UnavailableProduct from '@/components/storefront/UnavailableProduct';
 
 export const revalidate = 300;
@@ -188,12 +189,8 @@ export default async function StorefrontProductPage({ params }: PageProps) {
 
       <div className="sf-detail">
         <div>
-          <div className="sf-gallery-main">
-            {product.images[0] ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={product.images[0]} alt={product.name} />
-            ) : <span className="sf-card-media-empty">ไม่มีรูป</span>}
-          </div>
+          {/* server HTML = รูปแรกของสินค้า · เปลี่ยนตามตัวเลือกหลังลูกค้ากดเลือก */}
+          <GalleryMainImage src={product.images[0] ?? null} alt={product.name} />
           {product.images.length > 1 && (
             <div className="sf-gallery-thumbs">
               {product.images.slice(1, 6).map((src, i) => (
@@ -222,7 +219,22 @@ export default async function StorefrontProductPage({ params }: PageProps) {
             productName={product.name}
             variations={product.variations}
             images={product.images}
+            optionGroups={product.option_groups}
           />
+
+          {/* สินค้าชุด: ตัวเลือกเป็นประโยคเต็มใน server HTML ให้ AI อ้างได้ (ปุ่มเลือกไม่ใช่ประโยค) */}
+          {product.option_groups && (
+            <div className="sf-section">
+              <h2>ตัวเลือกของชุด</h2>
+              <div className="sf-facts">
+                <p>
+                  {`${product.name} เป็นสินค้าชุด เลือกได้ `}
+                  {product.option_groups.map(g => `${g.name} ${g.values.length} แบบ (${g.values.join(', ')})`).join(' และ ')}
+                  {'.'}
+                </p>
+              </div>
+            </div>
+          )}
 
           {product.description && (
             <div className="sf-section">

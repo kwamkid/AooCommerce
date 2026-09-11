@@ -6,7 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
 import { loadComponentInfo, componentOptionLabel } from '@/lib/composite-save';
-import { getCompositeAvailability, getCompositePartsMap } from '@/lib/composite';
+import { getComboFallbackImages, getCompositeAvailability, getCompositePartsMap } from '@/lib/composite';
 import { comboKey, type CompositeSlot } from '@/lib/composite-shared';
 import type { ComponentProduct, SavedCombo } from '@/components/products/composite/types';
 
@@ -202,10 +202,11 @@ export async function GET(
         ? compositeRes.data.composite_slots
         : [];
       const comboIds = (variations as { variation_id: string }[]).map(v => v.variation_id);
-      const [parts, availability, options] = await Promise.all([
+      const [parts, availability, options, fallbacks] = await Promise.all([
         getCompositePartsMap(supabaseAdmin, comboIds),
         getCompositeAvailability(supabaseAdmin, companyId, comboIds),
         loadComponentProducts(companyId, slots.map(s => s.product_id), slots.flatMap(s => s.variation_ids)),
+        getComboFallbackImages(supabaseAdmin, slots, comboIds.filter(cid => !variationImageMap.has(cid))),
       ]);
       const combos: SavedCombo[] = [];
       for (const v of variations) {
@@ -225,6 +226,7 @@ export async function GET(
           components: comps.map(c => ({ variation_id: c.variationId, quantity: c.quantity })),
           quantity: stock?.quantity ?? null,
           available: stock?.available ?? null,
+          fallback_image: fallbacks.get(v.variation_id) ?? null,
         });
       }
       productItem.composite_slots = slots;

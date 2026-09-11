@@ -296,6 +296,11 @@
 
 .sf-variation-active { border-color: var(--sf-primary); box-shadow: inset 0 0 0 1px var(--sf-primary); font-weight: 600; }
 .sf-variation:disabled { cursor: not-allowed; }
+/* สินค้าชุด — ช่องละแถว · ค่าที่ไม่มีคู่กับที่เลือกอยู่ = จาง (ต่างจาก "หมด" ที่ขีดฆ่า) */
+.sf-option-group .sf-variations { margin-bottom: 18px; }
+.sf-option-label { font-size: 14px; color: var(--sf-muted); margin-bottom: 8px; }
+.sf-option-label strong { color: var(--sf-text); font-weight: 600; }
+.sf-variation-na { color: var(--sf-muted); opacity: .55; }
 
 .sf-buy-row { display: flex; gap: 12px; align-items: stretch; flex-wrap: wrap; }
 .sf-qty {

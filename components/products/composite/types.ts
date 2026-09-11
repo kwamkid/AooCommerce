@@ -47,6 +47,8 @@ export interface SavedCombo {
   quantity: number | null;
   /** sets sellable now (on hand − reserved) */
   available: number | null;
+  /** picture it gets automatically while it has none of its own (getComboFallbackImages) */
+  fallback_image?: string | null;
 }
 
 /** Extra fields the edit GET returns for a composite product */

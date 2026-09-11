@@ -10,10 +10,13 @@ import { cache } from 'react';
 import { parseLineLogin } from '@/lib/line-login';
 import { parseGiftCard, type GiftCardSettings } from '@/lib/gift-card';
 import { supabaseAdmin } from '@/lib/supabase-admin';
-import { getCompositeAvailability } from '@/lib/composite';
+import {
+  getCompositeAvailability, getCompositePartsMap, getComboFallbackImages, type CompositePart,
+} from '@/lib/composite';
+import type { CompositeSlot } from '@/lib/composite-shared';
 import {
   parseStorefront, effectivePrice,
-  type StorefrontConfig, type StorefrontProduct, type StorefrontVariation,
+  type StorefrontConfig, type StorefrontProduct, type StorefrontVariation, type StorefrontOptionGroup,
 } from '@/lib/storefront';
 import { parseFeatures, type FeatureFlags } from '@/lib/features';
 
@@ -181,7 +184,11 @@ interface RawVariation {
   discount_price: number | null;
   stock: number | null;
   is_active: boolean;
+  /** combo of a composite product: `{ slot name: picked option }` */
+  attributes?: Record<string, unknown> | null;
 }
+
+const VARIATION_SELECT = 'id, product_id, variation_label, sku, default_price, discount_price, stock, is_active, attributes';
 
 /** variation → public shape. Stock is exposed as a boolean only, never a count. */
 function toPublicVariation(
@@ -202,11 +209,136 @@ function toPublicVariation(
   };
 }
 
+/** What a composite product (สินค้าชุด) needs on top of the normal assembly. */
+interface CompositeExtras {
+  slots: CompositeSlot[];
+  /** combo id → component variations (used to order option values like the slot does) */
+  parts: Map<string, CompositePart[]>;
+  /** picture for combos without an image of their own (built from component images) */
+  fallbackImages: Map<string, string>;
+}
+
+function parseSlots(raw: unknown): CompositeSlot[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.filter((s): s is CompositeSlot => !!s && typeof s === 'object'
+    && typeof (s as CompositeSlot).name === 'string' && (s as CompositeSlot).name.trim() !== ''
+    && Array.isArray((s as CompositeSlot).variation_ids));
+}
+
+function attributesOf(v: RawVariation | undefined): Record<string, string> {
+  const out: Record<string, string> = {};
+  const a = v?.attributes;
+  if (!a || typeof a !== 'object' || Array.isArray(a)) return out;
+  for (const [k, val] of Object.entries(a)) {
+    if (typeof val === 'string' && val.trim()) out[k.trim()] = val.trim();
+  }
+  return out;
+}
+
+/**
+ * One group per slot, values ordered like the slot's options (via each combo's component in that
+ * slot). Returns null when the combos can't drive a picker — a combo missing a slot value, or two
+ * combos with the same picks — so the page falls back to the flat list instead of hiding a combo.
+ */
+function buildOptionGroups(
+  slots: CompositeSlot[],
+  variations: StorefrontVariation[],
+  parts: Map<string, CompositePart[]>,
+): StorefrontOptionGroup[] | null {
+  if (slots.length === 0 || variations.length === 0) return null;
+  const groups: StorefrontOptionGroup[] = [];
+  for (const slot of slots) {
+    const name = slot.name.trim();
+    const rank = new Map<string, number>();       // insertion order = first seen (tie-break)
+    for (const v of variations) {
+      const value = v.options?.[name];
+      if (!value) return null;
+      const idx = (parts.get(v.id) || [])
+        .map(p => slot.variation_ids.indexOf(p.variationId))
+        .filter(i => i >= 0);
+      const r = idx.length ? Math.min(...idx) : Number.MAX_SAFE_INTEGER;
+      rank.set(value, Math.min(rank.get(value) ?? Number.MAX_SAFE_INTEGER, r));
+    }
+    groups.push({ name, values: [...rank.keys()].sort((a, b) => rank.get(a)! - rank.get(b)!) });
+  }
+  const tuples = new Set(variations.map(v => JSON.stringify(groups.map(g => v.options![g.name]))));
+  return tuples.size === variations.length ? groups : null;
+}
+
+/**
+ * Composite product: combo options + fallback pictures + option groups.
+ * Combos are re-ordered to match the picker (slot order, then option order) so "first in-stock
+ * combo" means the same thing on the page as in the data. Slots with a single value are left out
+ * of `option_groups` — nothing to choose, and the cart label still names the value.
+ */
+function applyComposite(product: StorefrontProduct, raw: RawVariation[], extras: CompositeExtras): StorefrontProduct {
+  const rawById = new Map(raw.map(v => [v.id, v]));
+  const slotNames = extras.slots.map(s => s.name.trim());
+  const variations = product.variations.map(v => {
+    const attrs = attributesOf(rawById.get(v.id));
+    return {
+      ...v,
+      image: v.image || extras.fallbackImages.get(v.id) || null,
+      options: Object.fromEntries(slotNames.filter(n => attrs[n]).map(n => [n, attrs[n]])),
+    };
+  });
+
+  const groups = buildOptionGroups(extras.slots, variations, extras.parts);
+  if (groups) {
+    const key = (v: StorefrontVariation) => groups.map(g => g.values.indexOf(v.options![g.name]));
+    variations.sort((a, b) => {
+      const ka = key(a), kb = key(b);
+      for (let i = 0; i < ka.length; i++) if (ka[i] !== kb[i]) return ka[i] - kb[i];
+      return 0;
+    });
+  }
+  const optionGroups = (groups || []).filter(g => g.values.length > 1);
+
+  // ชุดที่ไม่มีรูปของตัวเองเลย ใช้รูปของชุดย่อยแรกเป็นปก (ดีกว่าการ์ด "ไม่มีรูป")
+  const cover = variations.find(v => v.image)?.image;
+  return {
+    ...product,
+    is_composite: true,
+    variations,
+    images: product.images.length || !cover ? product.images : [cover],
+    ...(optionGroups.length ? { option_groups: optionGroups } : {}),
+  };
+}
+
+/**
+ * Loads CompositeExtras for the composite rows among `variations` — one components query for all,
+ * fallback pictures per product (in parallel). Failures degrade to "no extras" rather than
+ * taking the shop page down.
+ */
+async function loadCompositeExtras(
+  rows: { id: string; composite_slots?: unknown }[],
+  variations: RawVariation[],
+  ownImageVariationIds: Set<string>,
+): Promise<Map<string, CompositeExtras>> {
+  const out = new Map<string, CompositeExtras>();
+  if (rows.length === 0) return out;
+  const productIds = new Set(rows.map(r => r.id));
+  const combos = variations.filter(v => v.is_active && productIds.has(v.product_id));
+  if (combos.length === 0) return out;
+
+  const [parts, ...fallbacks] = await Promise.all([
+    getCompositePartsMap(supabaseAdmin, combos.map(v => v.id)).catch(() => new Map<string, CompositePart[]>()),
+    ...rows.map(r => getComboFallbackImages(
+      supabaseAdmin,
+      parseSlots(r.composite_slots),
+      combos.filter(v => v.product_id === r.id && !ownImageVariationIds.has(v.id)).map(v => v.id),
+    ).catch(() => new Map<string, string>())),
+  ]);
+  rows.forEach((r, i) => out.set(r.id, { slots: parseSlots(r.composite_slots), parts, fallbackImages: fallbacks[i] }));
+  return out;
+}
+
 function assembleProduct(
   row: { id: string; slug: string | null; name: string; description: string | null; image: string | null; updated_at: string; category?: { name: string } | null; brand?: { name: string } | null },
   variations: RawVariation[],
   images: { variation_id: string | null; image_url: string }[],
   stockEnabled: boolean,
+  composite?: CompositeExtras,
 ): StorefrontProduct {
   const imageByVariation = new Map<string, string>();
   const productImages: string[] = [];
@@ -225,7 +357,7 @@ function assembleProduct(
   const gallery = [row.image, ...productImages, ...publicVariations.map(v => v.image)]
     .filter((x): x is string => !!x);
 
-  return {
+  const product: StorefrontProduct = {
     id: row.id,
     slug: row.slug || row.id,
     name: row.name,
@@ -239,6 +371,7 @@ function assembleProduct(
     in_stock: publicVariations.some(v => v.in_stock),
     updated_at: row.updated_at,
   };
+  return composite ? applyComposite(product, variations.filter(v => v.is_active), composite) : product;
 }
 
 /**
@@ -259,7 +392,7 @@ async function withComboStock(
 }
 
 const PRODUCT_SELECT = `
-  id, slug, name, description, image, updated_at, is_composite,
+  id, slug, name, description, image, updated_at, is_composite, composite_slots,
   category:product_categories ( name ),
   brand:product_brands ( name )
 `;
@@ -301,7 +434,7 @@ export const getStorefrontCatalog = cache(async (
   const [{ data: variations }, { data: images }] = await Promise.all([
     supabaseAdmin
       .from('product_variations')
-      .select('id, product_id, variation_label, sku, default_price, discount_price, stock, is_active')
+      .select(VARIATION_SELECT)
       .eq('company_id', companyId)
       .in('product_id', ids)
       .is('deleted_at', null),
@@ -313,10 +446,14 @@ export const getStorefrontCatalog = cache(async (
       .order('sort_order', { ascending: true }),
   ]);
 
-  const compositeIds = new Set<string>(filtered.filter(r => r.is_composite).map(r => r.id));
-  const catalogVars = stockEnabled
-    ? await withComboStock(companyId, (variations || []) as RawVariation[], compositeIds)
-    : (variations || []) as RawVariation[];
+  const compositeRows = filtered.filter(r => r.is_composite);
+  const compositeIds = new Set<string>(compositeRows.map(r => r.id));
+  const rawVars = (variations || []) as RawVariation[];
+  const ownImageIds = new Set<string>((images || []).map(i => i.variation_id).filter(Boolean) as string[]);
+  const [catalogVars, compositeExtras] = await Promise.all([
+    stockEnabled ? withComboStock(companyId, rawVars, compositeIds) : Promise.resolve(rawVars),
+    loadCompositeExtras(compositeRows, rawVars, ownImageIds),
+  ]);
   const varsByProduct = new Map<string, RawVariation[]>();
   for (const v of catalogVars) {
     const list = varsByProduct.get(v.product_id) || [];
@@ -331,7 +468,7 @@ export const getStorefrontCatalog = cache(async (
   }
 
   return filtered
-    .map(r => assembleProduct(r, varsByProduct.get(r.id) || [], imgsByProduct.get(r.id) || [], stockEnabled))
+    .map(r => assembleProduct(r, varsByProduct.get(r.id) || [], imgsByProduct.get(r.id) || [], stockEnabled, compositeExtras.get(r.id)))
     // สินค้าที่ไม่มี variation ที่ขายได้เลย ไม่ต้องโชว์ (ราคาเป็น 0 ดูเหมือนของฟรี)
     .filter(p => p.variations.length > 0);
 });
@@ -359,7 +496,7 @@ export const getStorefrontProduct = cache(async (
   const [{ data: variations }, { data: images }] = await Promise.all([
     supabaseAdmin
       .from('product_variations')
-      .select('id, product_id, variation_label, sku, default_price, discount_price, stock, is_active')
+      .select(VARIATION_SELECT)
       .eq('company_id', companyId)
       .eq('product_id', typedRow.id)
       .is('deleted_at', null),
@@ -372,13 +509,20 @@ export const getStorefrontProduct = cache(async (
   ]);
 
   const rawVars = (variations || []) as RawVariation[];
+  const isComposite = !!typedRow.is_composite;
+  const ownImageIds = new Set<string>((images || []).map(i => i.variation_id).filter(Boolean) as string[]);
+  const [productVars, compositeExtras] = await Promise.all([
+    stockEnabled && isComposite
+      ? withComboStock(companyId, rawVars, new Set([typedRow.id as string]))
+      : Promise.resolve(rawVars),
+    isComposite ? loadCompositeExtras([typedRow], rawVars, ownImageIds) : Promise.resolve(new Map<string, CompositeExtras>()),
+  ]);
   const product = assembleProduct(
     typedRow,
-    stockEnabled && typedRow.is_composite
-      ? await withComboStock(companyId, rawVars, new Set([typedRow.id as string]))
-      : rawVars,
+    productVars,
     (images || []).map(i => ({ variation_id: i.variation_id, image_url: i.image_url })),
     stockEnabled,
+    compositeExtras.get(typedRow.id),
   );
   return product.variations.length > 0 ? product : null;
 });

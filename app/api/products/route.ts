@@ -3,7 +3,7 @@ import { NextRequest, NextResponse, after } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
 import { fetchAllRows } from '@/lib/supabase-paging';
 import { validateCompositeSlots, type CompositeSlot } from '@/lib/composite-shared';
-import { saveCompositeVariations, CompositeValidationError, type ComboInput } from '@/lib/composite-save';
+import { saveCompositeVariations, CompositeValidationError, type ComboInput, type SaveCompositeResult } from '@/lib/composite-save';
 
 // Type definitions
 interface ProductData {
@@ -291,9 +291,10 @@ export async function POST(request: NextRequest) {
     // For simple products: create a single variation row
     // For variation products: create multiple variation rows
     // For composite products: one row per combo (lib/composite-save.ts)
+    let compositeResult: SaveCompositeResult | null = null;
     if (isComposite) {
       try {
-        await saveCompositeVariations(supabaseAdmin, {
+        compositeResult = await saveCompositeVariations(supabaseAdmin, {
           companyId: auth.companyId,
           productId: newProduct.id,
           slots: compositeSlots,
@@ -401,7 +402,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       product: { ...newProduct, product_id: newProduct.id },
-      variations: createdVariations || []
+      variations: createdVariations || [],
+      // สินค้าชุด: comboKey → variation id (the form attaches staged combo pictures with it)
+      ...(compositeResult ? { composite_combos: compositeResult.combos } : {}),
     });
   } catch (error) {
     console.error('Server error:', error);
@@ -893,9 +896,10 @@ export async function PUT(request: NextRequest) {
 
     // Composite: save the combos first — validation errors are thrown before any write,
     // so a rejected save leaves the product untouched
+    let compositeResult: SaveCompositeResult | null = null;
     if (hasCompositeSlots) {
       try {
-        await saveCompositeVariations(supabaseAdmin, {
+        compositeResult = await saveCompositeVariations(supabaseAdmin, {
           companyId: auth.companyId,
           productId: id,
           slots: compositeSlots,
@@ -940,6 +944,8 @@ export async function PUT(request: NextRequest) {
         success: true,
         product: { ...data, product_id: id },
         variations: comboRows || [],
+        // comboKey → variation id (the form attaches staged combo pictures with it)
+        ...(compositeResult ? { composite_combos: compositeResult.combos } : {}),
       });
     }
 

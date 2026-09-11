@@ -79,6 +79,37 @@ export function comboPrice(parts: { default_price: number; discount_price: numbe
   return { default_price: def, discount_price: hasDiscount && eff < def ? eff : 0 };
 }
 
+/**
+ * Picture order for a combo without an image of its own: the picked option of the slot with the
+ * most options goes first (seat-fabric colour among 9 tells combos apart better than frame among 2),
+ * then the other slots in that order (ties keep slot order). Returns rank per component variation id.
+ */
+export function componentImageRank(slots: CompositeSlot[]): Map<string, number> {
+  const ranked = slots
+    .map((s, i) => ({ s, i }))
+    .sort((a, b) => b.s.variation_ids.length - a.s.variation_ids.length || a.i - b.i);
+  const rank = new Map<string, number>();
+  ranked.forEach(({ s }, r) => s.variation_ids.forEach(id => { if (!rank.has(id)) rank.set(id, r); }));
+  return rank;
+}
+
+/**
+ * Fallback picture of one combo — first component (by `componentImageRank`) that has a picture.
+ * `imageOf` = the component's variation image, else its product image.
+ */
+export function comboFallbackImage(
+  componentIds: string[],
+  rank: Map<string, number>,
+  imageOf: (variationId: string) => string | null | undefined,
+): string | null {
+  const ordered = [...componentIds].sort((a, b) => (rank.get(a) ?? 99) - (rank.get(b) ?? 99));
+  for (const id of ordered) {
+    const img = imageOf(id);
+    if (img) return img;
+  }
+  return null;
+}
+
 /** Thai error message, or null when the slots are valid. */
 export function validateCompositeSlots(slots: CompositeSlot[]): string | null {
   if (slots.length === 0) return 'เพิ่มส่วนประกอบอย่างน้อย 1 ช่อง';

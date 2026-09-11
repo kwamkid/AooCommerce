@@ -3,6 +3,7 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { comboFallbackImage, componentImageRank, type CompositeSlot } from '@/lib/composite-shared';
 
 export interface CompositePart {
   variationId: string;
@@ -52,6 +53,52 @@ export async function getCompositePartsMap(
     map.set(r.variation_id, list);
   }
   return map;
+}
+
+/**
+ * Picture for combos that have no image of their own — order rule = `componentImageRank()` /
+ * `comboFallbackImage()` in lib/composite-shared.ts (the product form previews with the same rule);
+ * per component: its variation image, else its product image (product_images first, then products.image).
+ * Combos with nothing to show are absent from the map. One composite product per call.
+ */
+export async function getComboFallbackImages(
+  supabase: SupabaseClient,
+  slots: CompositeSlot[],
+  comboIds: string[],
+): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  if (comboIds.length === 0 || slots.length === 0) return out;
+
+  const parts = await getCompositePartsMap(supabase, comboIds);
+  const componentIds = [...new Set([...parts.values()].flat().map(p => p.variationId))];
+  if (componentIds.length === 0) return out;
+
+  const [{ data: varImages }, { data: vars }] = await Promise.all([
+    supabase.from('product_images').select('variation_id, image_url, sort_order').in('variation_id', componentIds).order('sort_order'),
+    supabase.from('product_variations').select('id, product_id').in('id', componentIds),
+  ]);
+  const imageByVariation = new Map<string, string>();
+  for (const r of varImages || []) if (r.variation_id && !imageByVariation.has(r.variation_id)) imageByVariation.set(r.variation_id, r.image_url);
+
+  const productIds = [...new Set((vars || []).map(v => v.product_id))];
+  const productOf = new Map((vars || []).map(v => [v.id, v.product_id]));
+  const [{ data: productImages }, { data: products }] = productIds.length
+    ? await Promise.all([
+        supabase.from('product_images').select('product_id, image_url, sort_order').in('product_id', productIds).is('variation_id', null).order('sort_order'),
+        supabase.from('products').select('id, image').in('id', productIds),
+      ])
+    : [{ data: [] }, { data: [] }];
+  const imageByProduct = new Map<string, string>();
+  for (const r of productImages || []) if (!imageByProduct.has(r.product_id)) imageByProduct.set(r.product_id, r.image_url);
+  for (const p of products || []) if (p.image && !imageByProduct.has(p.id)) imageByProduct.set(p.id, p.image);
+
+  const rank = componentImageRank(slots);
+  const imageOf = (id: string) => imageByVariation.get(id) || imageByProduct.get(productOf.get(id) || '');
+  for (const [comboId, list] of parts) {
+    const img = comboFallbackImage(list.map(p => p.variationId), rank, imageOf);
+    if (img) out.set(comboId, img);
+  }
+  return out;
 }
 
 /**

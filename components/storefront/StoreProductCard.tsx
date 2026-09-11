@@ -50,6 +50,7 @@ export default function StoreProductCard({ product, slug }: { product: Storefron
           productName={product.name}
           variations={product.variations}
           cover={cover ?? null}
+          composite={!!product.is_composite}
         />
       </div>
     </article>

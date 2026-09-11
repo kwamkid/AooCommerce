@@ -6,10 +6,12 @@
  * All state lives in useCompositeEditor (the form owns it so it can validate + build the payload).
  */
 import { useMemo } from 'react';
-import { Plus, Trash2, RefreshCw, Loader2 } from 'lucide-react';
+import { Plus, Trash2, RefreshCw, Loader2, ImagePlus } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
 import Checkbox from '@/components/ui/Checkbox';
+import ImageUploader, { type ProductImage } from '@/components/ui/ImageUploader';
+import { thumbUrl } from '@/lib/image-thumb';
 import Toggle from '@/components/ui/Toggle';
 import FormInput from '@/components/ui/FormInput';
 import NumberInput from '@/components/ui/NumberInput';
@@ -242,12 +244,43 @@ function PriceCell({ row, field, editor }: { row: ComboRow; field: 'default_pric
   return <span className="text-gray-900 dark:text-white">฿{formatPrice(value)}</span>;
 }
 
+/** Per-combo picture — same staged uploader as variation rows; empty = faded preview of the automatic one */
+function ComboImageCell({ row, images, onChange }: {
+  row: ComboRow;
+  images: ProductImage[];
+  onChange: (images: ProductImage[]) => void;
+}) {
+  const fallback = images.length === 0 ? thumbUrl(row.fallbackImage, 160) : undefined;
+  return (
+    <div className="relative w-16 flex-shrink-0">
+      <ImageUploader images={images} onImagesChange={onChange} maxImages={1} compact />
+      {fallback && (
+        <div className="pointer-events-none absolute inset-[2px] overflow-hidden rounded-[10px] bg-white dark:bg-slate-800">
+          <img src={fallback} alt="" className="w-full h-full object-cover opacity-45" />
+          <span className="absolute inset-0 flex items-center justify-center">
+            <ImagePlus className="w-5 h-5 text-gray-600 dark:text-slate-200" />
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function availableText(row: ComboRow) {
   return row.exists && row.saved?.available != null ? formatNumber(row.saved.available) : '—';
 }
 
-function CombosSection({ editor }: { editor: CompositeEditorState }) {
+interface ComboImagesProps {
+  /** the form's variation-image state (keyed by ComboRow.imageKey) */
+  images: Record<string, ProductImage[]>;
+  onImagesChange: (key: string, images: ProductImage[]) => void;
+}
+
+function CombosSection({ editor, images, onImagesChange }: { editor: CompositeEditorState } & ComboImagesProps) {
   const { rows, advanced, isEditing } = editor;
+  const imageCell = (row: ComboRow) => (
+    <ComboImageCell row={row} images={images[row.imageKey] || []} onChange={imgs => onImagesChange(row.imageKey, imgs)} />
+  );
   const allActive = rows.length > 0 && rows.every(r => r.setting.is_active);
 
   return (
@@ -274,6 +307,7 @@ function CombosSection({ editor }: { editor: CompositeEditorState }) {
                   <th className="data-th w-[110px]">
                     <Checkbox checked={allActive} onChange={() => editor.setAllActive(!allActive)} label="เปิดขาย" />
                   </th>
+                  <th className="data-th w-[96px]">รูป</th>
                   <th className="data-th">ชื่อชุดย่อย</th>
                   <th className="data-th w-[220px]">SKU</th>
                   {advanced && <th className="data-th w-[100px]">ตั้งราคาเอง</th>}
@@ -292,6 +326,7 @@ function CombosSection({ editor }: { editor: CompositeEditorState }) {
                         aria-label={`เปิดขาย ${row.label}`}
                       />
                     </td>
+                    <td className="px-4 py-3">{imageCell(row)}</td>
                     <td className="px-4 py-3">
                       <div className={`text-base ${row.setting.is_active ? 'text-gray-900 dark:text-white' : 'text-gray-400 dark:text-slate-500'}`}>
                         {row.label}
@@ -340,8 +375,9 @@ function CombosSection({ editor }: { editor: CompositeEditorState }) {
           <div className="md:hidden divide-y divide-gray-100 dark:divide-slate-700 rounded-lg border border-gray-200 dark:border-slate-700">
             {rows.map(row => (
               <div key={row.key} className="p-3 space-y-3">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
+                <div className="flex items-start gap-3">
+                  {imageCell(row)}
+                  <div className="min-w-0 flex-1">
                     <div className={`text-base font-medium ${row.setting.is_active ? 'text-gray-900 dark:text-white' : 'text-gray-400 dark:text-slate-500'}`}>
                       {row.label}
                     </div>
@@ -387,7 +423,7 @@ function CombosSection({ editor }: { editor: CompositeEditorState }) {
   );
 }
 
-export default function CompositeEditor({ editor }: { editor: CompositeEditorState }) {
+export default function CompositeEditor({ editor, images, onImagesChange }: { editor: CompositeEditorState } & ComboImagesProps) {
   return (
     <div className="space-y-5" data-field="composite">
       <div className={SECTION}>
@@ -408,7 +444,7 @@ export default function CompositeEditor({ editor }: { editor: CompositeEditorSta
         )}
       </div>
 
-      <CombosSection editor={editor} />
+      <CombosSection editor={editor} images={images} onImagesChange={onImagesChange} />
     </div>
   );
 }

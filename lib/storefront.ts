@@ -301,7 +301,24 @@ export interface StorefrontVariation {
   compare_at: number | null;  // ราคาก่อนลด (null = ไม่ได้ลด)
   in_stock: boolean;
   image: string | null;
+  /**
+   * สินค้าชุดเท่านั้น — ค่าที่เลือกในแต่ละช่อง เช่น `{ โครงรถเข็น: 'ดำ', ผ้าเบาะ: 'แดง' }`
+   * (key = ชื่อช่องใน `option_groups`)
+   */
+  options?: Record<string, string>;
 }
+
+/** ช่องให้เลือกของสินค้าชุด (เช่น "ผ้าเบาะ" 9 สี) — ค่าเรียงตามลำดับตัวเลือกในช่อง */
+export interface StorefrontOptionGroup {
+  name: string;
+  values: string[];
+}
+
+/**
+ * หน้าสินค้ายิง event นี้ตอนลูกค้าเลือกตัวเลือก → รูปหลักเปลี่ยนตาม
+ * (detail = `{ image, label }` · image null = กลับไปรูปแรกของสินค้า)
+ */
+export const SF_VARIATION_IMAGE_EVENT = 'sf:variation-image';
 
 export interface StorefrontProduct {
   id: string;
@@ -316,6 +333,13 @@ export interface StorefrontProduct {
   price_max: number;
   in_stock: boolean;
   updated_at: string;
+  /** สินค้าชุด (เลือกหนึ่งตัวจากแต่ละช่อง) — ไม่มี key นี้ = สินค้าปกติ */
+  is_composite?: true;
+  /**
+   * สินค้าชุดเท่านั้น — ช่องที่ลูกค้าต้องเลือก ตามลำดับช่อง · ช่องที่มีค่าเดียวไม่อยู่ในนี้
+   * (ไม่มีอะไรให้เลือก) · ไม่มี key นี้ = ใช้รายการตัวเลือกแบบแบน
+   */
+  option_groups?: StorefrontOptionGroup[];
 }
 
 /** ราคาที่ขายจริง — discount_price > 0 ถือว่ามีส่วนลด (กฎเดิมทั้งระบบ) */
