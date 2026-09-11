@@ -572,7 +572,9 @@ export async function loadAudienceViews(
     }
   }
 
-  const [chatRes, syncRes] = await Promise.all([
+  // ยิงพร้อมกันรอบเดียว — ชื่อบัญชีโฆษณาดึงทั้งบริษัท (มีไม่กี่ใบ) ไม่ต้องรอรู้ก่อนว่า sync อ้างใบไหน
+  // (เดิมเป็นรอบที่สามต่อท้าย หน้ารายการจึงรอ 3 รอบ)
+  const [chatRes, syncRes, adRes] = await Promise.all([
     chatIds.size
       ? supabaseAdmin
           .from('chat_accounts')
@@ -586,6 +588,10 @@ export async function loadAudienceViews(
       .eq('company_id', companyId)
       .in('audience_id', rows.map(r => r.id))
       .order('created_at', { ascending: true }),
+    supabaseAdmin
+      .from('ad_accounts')
+      .select('id, name, external_id')
+      .eq('company_id', companyId),
   ]);
 
   const chatById = new Map(
@@ -593,17 +599,9 @@ export async function loadAudienceViews(
   );
 
   const syncRows = (syncRes.data || []) as unknown as (Omit<AudienceSyncView, 'ad_account_name'> & { audience_id: string })[];
-  const adIds = [...new Set(syncRows.map(s => s.ad_account_id))];
   const adNames = new Map<string, string>();
-  if (adIds.length > 0) {
-    const { data: ads } = await supabaseAdmin
-      .from('ad_accounts')
-      .select('id, name, external_id')
-      .eq('company_id', companyId)
-      .in('id', adIds);
-    for (const a of (ads || []) as { id: string; name: string | null; external_id: string }[]) {
-      adNames.set(a.id, a.name || `act_${a.external_id}`);
-    }
+  for (const a of (adRes.data || []) as { id: string; name: string | null; external_id: string }[]) {
+    adNames.set(a.id, a.name || `act_${a.external_id}`);
   }
 
   const syncsByAudience = new Map<string, AudienceSyncView[]>();

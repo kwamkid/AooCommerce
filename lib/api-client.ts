@@ -38,6 +38,9 @@ const CACHED_GET_PATHS: { match: (url: string) => boolean; ttlMs: number }[] = [
   { match: u => u.startsWith('/api/chat/messages?'), ttlMs: 20_000 },
   // จำนวนผู้รับของทุกกลุ่มในโมดัลเลือกกลุ่ม — ผู้ใช้เปิด/ปิดโมดัลกลับไปมาระหว่างแต่งข้อความ
   { match: u => u.startsWith('/api/broadcasts/audience-counts?'), ttlMs: 60_000 },
+  // รายการกลุ่มเป้าหมาย — กดย้อนกลับมาจากหน้ากลุ่มแล้วขึ้นทันที · ทุกจุดที่เขียน (สร้าง/แก้/ลบ/sync)
+  // เรียก invalidateApiCache('/api/audiences') เอง และหน้ารายการล้างก่อน poll ทุกครั้ง
+  { match: u => u === '/api/audiences', ttlMs: 30_000 },
   // Superadmin permission probe — สิทธิ์ superadmin แทบไม่เปลี่ยน เดินข้ามหน้าไม่ต้อง probe ใหม่
   { match: u => u === '/api/superadmin/me', ttlMs: 60_000 },
   // Composite: categories + brands (+supplier names) + variation_types — invalidated via CACHE_DEPENDENCIES

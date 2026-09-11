@@ -146,7 +146,7 @@ export default function AudienceForm({ mode, initial, templateKey, onAudienceCha
         const [chatRes, tagRes, adRes] = await Promise.all([
           apiFetch('/api/chat-accounts'),
           apiFetch('/api/customers/tags'),
-          apiFetch('/api/ads/accounts'),
+          apiFetch('/api/ads/accounts?lite=1'),
         ]);
 
         // ดึงผู้ติดต่อได้เฉพาะ LINE/Facebook — เกณฑ์อยู่ที่ toChatSourceAccounts ที่เดียว
@@ -433,8 +433,10 @@ export default function AudienceForm({ mode, initial, templateKey, onAudienceCha
         else if (synced) showToast(`สร้างกลุ่มแล้ว · กำลัง sync ไป Meta ${synced.ok} บัญชี`, 'success');
         else showToast('สร้างกลุ่มแล้ว', 'success');
 
-        if (saved) router.push(`/marketing/audiences/${saved.id}`);
-        else router.push('/marketing/audiences');
+        // กลับหน้ารายการ (เจ้าของขอ 11 ก.ย. 2026) — แถวของกลุ่มใหม่เดินสถานะ sync ให้เห็นเอง
+        // เพราะหน้ารายการ poll ตอนมีใบกำลัง sync · ล้าง cache อีกรอบหลังผูกบัญชีโฆษณา
+        invalidateApiCache('/api/audiences');
+        router.push('/marketing/audiences');
       }
     } catch {
       showToast('บันทึกกลุ่มเป้าหมายไม่สำเร็จ', 'error');

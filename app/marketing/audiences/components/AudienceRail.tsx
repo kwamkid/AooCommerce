@@ -1,6 +1,6 @@
 // Path: app/marketing/audiences/components/AudienceRail.tsx
 //
-// แผงขวาของหน้าสร้าง/แก้ไขกลุ่ม — ตัวเลขใหญ่คือ **ส่งขึ้น Meta ได้กี่คน** ส่วนจำนวนที่เข้าเงื่อนไขในระบบ
+// แผงขวาของหน้าสร้าง/แก้ไขกลุ่ม — ตัวเลขใหญ่คือ **ส่งขึ้น Meta ได้กี่คน** ส่วนจำนวนคนในกลุ่มทั้งหมด
 // เป็นบรรทัดรอง
 //
 // ⚠️ ตัวเลขใหญ่ต้องเป็นจำนวนที่ส่งขึ้น Meta ได้ ไม่ใช่ยอดรวม — เดิมโชว์ยอดรวมตัวใหญ่ ("2,166 คน")
@@ -69,7 +69,7 @@ export default function AudienceRail({ preview, loading, error, hint }: Props) {
           <div className="mt-3 space-y-2">
             <ProgressBar value={preview.reachable.any} max={preview.total} size="sm" toneClass="bg-emerald-500" />
             <div className="flex items-start justify-between gap-2">
-              <p className="subtitle-text">เข้าเงื่อนไขในระบบ {formatNumber(preview.total)} คน</p>
+              <p className="subtitle-text">จากคนในกลุ่มทั้งหมด {formatNumber(preview.total)} คน</p>
               <HelpHint align="right">{REACH_HELP}</HelpHint>
             </div>
             {/* คนเดียวมีได้ทั้งเบอร์ อีเมล และ Messenger — สามบรรทัดนี้รวมกันเกินยอดที่ส่งได้ ไม่ใช่บั๊ก */}

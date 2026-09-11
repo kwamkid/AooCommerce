@@ -2,7 +2,8 @@
 //
 // รายการกลุ่มเป้าหมาย — **หน้านี้ต้องตอบว่า "กลุ่มนี้ใช้ได้จริงไหม" ไม่ใช่แค่ "มีกลุ่มนี้อยู่"**
 //
-// จึงมีคอลัมน์ Meta ที่บอกสถานะซิงก์รายบัญชีโฆษณา พร้อมขนาดที่ Meta ประเมิน — กลุ่มที่
+// จึงมีคอลัมน์ "ส่งขึ้น Meta ได้" (คนที่มีตัวจับคู่ในรอบ sync ล่าสุด · จากคนในกลุ่มทั้งหมด) และคอลัมน์บัญชี
+// โฆษณาที่บอกสถานะ + เวลา sync ล่าสุดรายบัญชี (เจ้าของขอ 11 ก.ย. 2026) — กลุ่มที่
 // สร้างไว้แต่ซิงก์ไม่ผ่านคือกลุ่มที่ยิงโฆษณาไม่ได้ ซึ่งมองจากชื่อกลุ่มอย่างเดียวไม่มีทางรู้
 //
 // ยังไม่เชื่อมบัญชีโฆษณาก็ใช้หน้านี้ได้ (กลุ่มใช้ส่งบรอดแคสต์ได้อยู่แล้ว) — บอกไว้ด้วย Alert
@@ -18,7 +19,7 @@ import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
 import Alert from '@/components/ui/Alert';
 import Tooltip from '@/components/ui/Tooltip';
-import PlatformIcon from '@/components/ui/PlatformIcon';
+import ChannelBadge from '@/components/ui/ChannelBadge';
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
 import ActionMenu, { type ActionItem } from '@/components/ui/ActionMenu';
 import { LoadingCard, NoPermissionCard } from '@/components/ui/StateCard';
@@ -35,36 +36,21 @@ import { audienceLabel, describeAudienceRefine } from '@/lib/broadcast/audience'
 import type { AudienceTemplateKey } from '@/lib/audiences/templates';
 import { Edit2, LayoutTemplate, Loader2, Plus, RefreshCw, Send, Target, Trash2, Users } from 'lucide-react';
 import type { AudienceSyncView, AudienceView, ChatSourceAccount } from './components/types';
+import { isSyncRunning, latestCounts, syncStatusLook } from './components/sync-view';
 
 /** ถี่พอให้เห็นว่ากำลังเดิน แต่หยุดเองเมื่อไม่มีใบไหน sync อยู่ (เท่ากับหน้ารายการบรอดแคสต์) */
 const POLL_MS = 4000;
 
-type Tone = 'emerald' | 'amber' | 'red' | 'gray';
+/** poll ได้นานสุดกี่รอบต่อการเริ่มหนึ่งครั้ง (~5 นาที) — ใบที่ค้างนานกว่านั้นไม่ยิงทิ้งไว้ทั้งวัน */
+const POLL_MAX = 75;
 
-function syncBadge(sync: AudienceSyncView): { tone: Tone; label: string; spinning?: boolean } {
-  switch (sync.status) {
-    case 'synced':
-      return { tone: 'emerald', label: `synced ${formatNumber(sync.last_counts?.uploaded ?? 0)}` };
-    case 'syncing':
-      return { tone: 'amber', label: 'กำลัง sync…', spinning: true };
-    case 'error':
-      return { tone: 'red', label: 'sync ไม่สำเร็จ' };
-    case 'tos_required':
-      return { tone: 'amber', label: 'ต้องยอมรับข้อกำหนด' };
-    default:
-      return { tone: 'gray', label: 'รอ sync' };
-  }
-}
+/** แหล่งที่มาที่โชว์ในแถว — เกินนี้โชว์ 2 แล้วย่อที่เหลือเป็น +N รายชื่ออยู่ใน tooltip */
+const SOURCES_SHOWN = 3;
 
-/** บรรทัดรองของแถว Meta — ขนาดที่ Meta ประเมิน · ซิงก์ล่าสุด · อัตโนมัติหรือกดเอง */
-function syncDetail(sync: AudienceSyncView): string {
-  const parts: string[] = [];
-  if (sync.approx_size_lower != null && sync.approx_size_upper != null) {
-    parts.push(`~${formatNumber(sync.approx_size_lower)}–${formatNumber(sync.approx_size_upper)} ที่ Meta`);
-  }
-  if (sync.last_sync_at) parts.push(formatThaiDateTime(sync.last_sync_at));
-  parts.push(sync.auto_sync ? 'อัตโนมัติทุกวัน' : 'manual');
-  return parts.join(' · ');
+/** บรรทัดรองใต้ชื่อบัญชีโฆษณา — sync ล่าสุดเมื่อไหร่ (เจ้าของขอแทน "อัตโนมัติทุกวัน" 11 ก.ย. 2026) */
+function syncWhen(sync: AudienceSyncView): string {
+  const when = sync.last_sync_at ? `sync ล่าสุด ${formatThaiDateTime(sync.last_sync_at)}` : 'ยังไม่เคย sync';
+  return sync.auto_sync ? when : `${when} · ปิด sync อัตโนมัติ`;
 }
 
 export default function AudiencesPage() {
@@ -94,6 +80,8 @@ export default function AudiencesPage() {
 
   const fetchRows = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
+    // silent = โหลดใหม่หลังทำอะไรสักอย่าง / poll — ต้องได้ของสด ไม่ใช่ของใน cache 30 วิ
+    if (silent) invalidateApiCache('/api/audiences');
     try {
       const res = await apiFetch('/api/audiences');
       if (!res.ok) throw new Error('failed');
@@ -115,7 +103,7 @@ export default function AudiencesPage() {
     if (!allowed) return;
     (async () => {
       try {
-        const res = await apiFetch('/api/ads/accounts');
+        const res = await apiFetch('/api/ads/accounts?lite=1');
         // 403 = ไม่มีสิทธิ์ดู ไม่ใช่ "ไม่มีบัญชี" — คงค่า null ไว้ ไม่ต้องชวนไปเชื่อม
         if (!res.ok) return;
         setAdAccountCount(((await res.json()).accounts || []).length);
@@ -130,13 +118,19 @@ export default function AudiencesPage() {
     loadChatSourceAccounts().then(setChatAccounts);
   }, [allowed]);
 
-  // มีใบที่กำลัง sync เท่านั้นถึง poll — จบแล้วหยุดเอง ไม่ยิงถี่ทิ้งไว้ทั้งวัน
-  const syncing = rows.some(r => r.syncs.some(s => s.status === 'syncing'));
+  // มีใบที่กำลัง sync หรือรอคิวที่ใกล้ถึงเวลาเท่านั้นถึง poll — จบแล้วหยุดเอง ไม่ยิงถี่ทิ้งไว้ทั้งวัน
+  // (เดิมดูแค่ 'syncing' ใบที่เพิ่งสร้างซึ่งยังเป็น 'pending' จึงค้างป้าย "รอ sync" จนกดรีเฟรช)
+  const syncing = rows.some(r => r.syncs.some(s => isSyncRunning(s)));
   const fetchRef = useRef(fetchRows);
   fetchRef.current = fetchRows;
   useEffect(() => {
     if (!allowed || !syncing) return;
-    const timer = setInterval(() => fetchRef.current(true), POLL_MS);
+    let ticks = 0;
+    const timer = setInterval(() => {
+      ticks += 1;
+      if (ticks > POLL_MAX) { clearInterval(timer); return; }
+      fetchRef.current(true);
+    }, POLL_MS);
     return () => clearInterval(timer);
   }, [allowed, syncing]);
 
@@ -202,49 +196,75 @@ export default function AudiencesPage() {
       },
     },
     {
-      key: 'sources', label: 'แหล่งที่มา', defaultWidth: 180,
-      render: (r) => (
-        <div className="space-y-0.5">
-          {r.sources.length === 0
-            ? <span className="data-muted text-gray-400 dark:text-slate-500">-</span>
-            : r.sources.map((s, i) => (
-              <span key={`${s.kind}-${s.chat_account_id || i}`} className="flex items-center gap-1.5">
+      key: 'sources', label: 'แหล่งที่มา', defaultWidth: 220,
+      render: (r) => {
+        if (r.sources.length === 0) {
+          return <span className="data-muted text-gray-400 dark:text-slate-500">-</span>;
+        }
+        // ≤3 แหล่งโชว์ครบ · เกินนั้นโชว์ 2 แล้วย่อที่เหลือเป็น +N รายชื่ออยู่ใน tooltip (เจ้าของขอ 11 ก.ย. 2026)
+        const shown = r.sources.length <= SOURCES_SHOWN ? r.sources : r.sources.slice(0, SOURCES_SHOWN - 1);
+        const rest = r.sources.slice(shown.length);
+        return (
+          <div className="space-y-1 min-w-0">
+            {shown.map((s, i) => (
+              <span key={`${s.kind}-${s.chat_account_id || i}`} className="flex items-center gap-2 min-w-0">
                 {s.kind === 'chat' && s.platform
-                  ? <PlatformIcon id={s.platform} size={14} title={s.name} />
-                  : <Users className="w-3.5 h-3.5 text-gray-400 dark:text-slate-500" />}
+                  ? <ChannelBadge channel={{ platform: s.platform, picture_url: s.picture_url ?? null }} size="sm" />
+                  : (
+                    <span className="w-6 h-6 rounded-full bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-slate-300 flex items-center justify-center flex-shrink-0">
+                      <Users className="w-3.5 h-3.5" />
+                    </span>
+                  )}
                 <span className="data-text text-gray-700 dark:text-slate-300 truncate">{s.name}</span>
               </span>
             ))}
-        </div>
-      ),
+            {rest.length > 0 && (
+              <Tooltip text={rest.map(s => s.name).join('\n')}>
+                <Badge tone="gray" size="sm">+{rest.length} แหล่ง</Badge>
+              </Tooltip>
+            )}
+          </div>
+        );
+      },
     },
     {
-      key: 'members', label: 'เข้าเงื่อนไข', defaultWidth: 130,
+      // จำนวนที่ใช้ยิงโฆษณาได้จริง — คำเดียวกับแผงขวาของหน้ากลุ่ม · มาจากรอบ sync ล่าสุด (sync เองทุกวัน)
+      // เดิมโชว์ "เข้าเงื่อนไข" = คนในกลุ่มทั้งหมด เจ้าของถามว่าคืออะไร (11 ก.ย. 2026)
+      key: 'members', label: 'ส่งขึ้น Meta ได้', defaultWidth: 150,
       headerClassName: 'text-right', cellClassName: 'text-right',
-      render: (r) => (
-        <div>
-          {/* ยังไม่เคยนับ = ขีด **ห้ามโชว์ 0** (อ่านว่ากลุ่มนี้ไม่มีใครเลย ซึ่งคนละความหมาย) */}
-          <p className="data-number text-gray-700 dark:text-slate-300">
-            {r.member_count == null ? '—' : formatNumber(r.member_count)}
-          </p>
-          {r.member_count_at && (
+      render: (r) => {
+        const counts = latestCounts(r.syncs);
+        if (!counts) {
+          // ยังไม่เคยนับ **ห้ามโชว์ 0** (อ่านว่ากลุ่มนี้ไม่มีใครเลย ซึ่งคนละความหมาย)
+          return r.syncs.some(s => isSyncRunning(s))
+            ? (
+              <span className="data-muted text-gray-400 dark:text-slate-500 inline-flex items-center gap-1">
+                <Loader2 className="w-3 h-3 animate-spin" />
+                กำลังนับ
+              </span>
+            )
+            : <span className="data-muted text-gray-400 dark:text-slate-500">ยังไม่ได้นับ</span>;
+        }
+        return (
+          <div>
+            <p className="data-number text-gray-700 dark:text-slate-300">{formatNumber(counts.syncable)} คน</p>
             <p className="data-muted text-gray-400 dark:text-slate-500 mt-0.5">
-              นับเมื่อ {formatThaiDateTime(r.member_count_at)}
+              จาก {formatNumber(counts.total)} คนในกลุ่ม
             </p>
-          )}
-        </div>
-      ),
+          </div>
+        );
+      },
     },
     {
-      key: 'meta', label: 'Meta', defaultWidth: 250,
+      key: 'meta', label: 'บัญชีโฆษณา Meta', defaultWidth: 250,
       render: (r) => {
         if (r.syncs.length === 0) {
-          return <span className="data-muted text-gray-400 dark:text-slate-500">ยังไม่ sync</span>;
+          return <span className="data-muted text-gray-400 dark:text-slate-500">ยังไม่ได้ผูกบัญชีโฆษณา</span>;
         }
         return (
           <div className="space-y-1.5">
             {r.syncs.map(s => {
-              const look = syncBadge(s);
+              const look = syncStatusLook(s, { withCount: false });
               const badge = (
                 <Badge
                   tone={look.tone}
@@ -265,7 +285,7 @@ export default function AudiencesPage() {
                     </span>
                   </span>
                   <p className="data-muted text-gray-400 dark:text-slate-500 mt-0.5 break-words">
-                    {syncDetail(s)}
+                    {syncWhen(s)}
                   </p>
                 </div>
               );

@@ -23,35 +23,17 @@ import Tooltip from '@/components/ui/Tooltip';
 import ChannelBadge from '@/components/ui/ChannelBadge';
 import { EmptyCard } from '@/components/ui/StateCard';
 import { useToast } from '@/lib/toast-context';
-import { apiFetch } from '@/lib/api-client';
+import { apiFetch, invalidateApiCache } from '@/lib/api-client';
 import { formatNumber, formatThaiDateTime } from '@/lib/utils/format';
 import { customAudienceTosUrl, type AdAccountView } from '@/lib/ads/meta-ui';
 import { ExternalLink, Loader2, Megaphone, RefreshCw, Settings } from 'lucide-react';
 import type { AudienceSyncView, AudienceView } from './types';
+import { isSyncRunning, syncStatusLook } from './sync-view';
 
 /** ถี่พอให้รู้สึกว่าเดินอยู่ แต่ไม่ถี่จนยิงทิ้งทั้งวัน (เท่ากับหน้ารายการบรอดแคสต์) */
 const POLL_MS = 4000;
 /** เผื่อกลุ่มใหญ่ — เกินนี้ถือว่าเลิกเฝ้า (สถานะจริงยังอ่านได้จากการกดรีเฟรชหน้า) */
 const POLL_MAX = 90;
-
-type Tone = 'emerald' | 'amber' | 'red' | 'gray';
-
-interface StatusLook { tone: Tone; label: string; spinning?: boolean }
-
-function statusLook(sync: AudienceSyncView): StatusLook {
-  switch (sync.status) {
-    case 'synced':
-      return { tone: 'emerald', label: `synced ${formatNumber(sync.last_counts?.uploaded ?? 0)}` };
-    case 'syncing':
-      return { tone: 'amber', label: 'กำลัง sync…', spinning: true };
-    case 'error':
-      return { tone: 'red', label: 'sync ไม่สำเร็จ' };
-    case 'tos_required':
-      return { tone: 'amber', label: 'ต้องยอมรับข้อกำหนด' };
-    default:
-      return { tone: 'gray', label: 'รอ sync' };
-  }
-}
 
 /** บัญชีนี้จัดการกลุ่มเป้าหมายได้ไหม — ไม่ได้ต้องบอกเหตุผลที่ลงมือแก้ได้ */
 function notReadyReason(account: AdAccountView): string | null {
@@ -88,11 +70,13 @@ export default function MetaSyncRows({
   /** เฝ้าผลอยู่ไหม — ตั้งหลังสั่ง sync แล้วปิดเองเมื่อทุกใบนิ่ง (ไม่ poll ทิ้งไว้ตลอด) */
   // เปิดหน้ามาตอนยังวิ่งอยู่ (เพิ่งสร้างกลุ่ม) = เฝ้าต่อเลย ไม่งั้นป้าย "กำลัง sync…" ค้างจนกดรีเฟรช
   const [watching, setWatching] = useState(
-    () => syncs.some(s => s.status === 'syncing' || s.status === 'pending'),
+    () => syncs.some(s => isSyncRunning(s)),
   );
 
   const reload = useCallback(async (): Promise<AudienceView | null> => {
     if (!audienceId) return null;
+    // สถานะเปลี่ยนแล้ว — หน้ารายการต้องเห็นของใหม่ ไม่ใช่ของใน cache 30 วิ
+    invalidateApiCache('/api/audiences');
     try {
       const res = await apiFetch(`/api/audiences/${audienceId}`);
       if (!res.ok) return null;
@@ -114,7 +98,7 @@ export default function MetaSyncRows({
       ticksRef.current += 1;
       const a = await reload();
       const rows = a?.syncs || [];
-      const running = rows.some(s => s.status === 'syncing' || s.status === 'pending');
+      const running = rows.some(s => isSyncRunning(s));
       if (!running || ticksRef.current >= POLL_MAX) {
         setWatching(false);
         if (!running) {
@@ -216,7 +200,7 @@ export default function MetaSyncRows({
           {adAccounts.map(account => {
             const sync = syncs.find(s => s.ad_account_id === account.id);
             const reason = notReadyReason(account);
-            const look = sync ? statusLook(sync) : null;
+            const look = sync ? syncStatusLook(sync) : null;
             const busy = busyId === account.id;
             const approx = sync && sync.approx_size_lower != null && sync.approx_size_upper != null
               ? `~${formatNumber(sync.approx_size_lower)}–${formatNumber(sync.approx_size_upper)} ที่ Meta`

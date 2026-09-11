@@ -52,7 +52,11 @@ export async function GET(request: NextRequest) {
     const rows = [...(await listActiveAdAccounts(auth.companyId))].sort((a, b) =>
       String(b.created_at).localeCompare(String(a.created_at)),
     );
-    const counts = await loadEvents7d(rows.map((r) => r.id));
+    // ?lite=1 = หน้าที่ต้องการแค่รายชื่อ/สถานะ (รายการกลุ่มเป้าหมาย · ฟอร์มกลุ่ม) — ข้ามการนับ event 7 วัน
+    const lite = request.nextUrl.searchParams.get('lite') === '1';
+    const counts: Record<string, { sent: number; failed: number }> = lite
+      ? {}
+      : await loadEvents7d(rows.map((r) => r.id));
 
     return NextResponse.json({
       accounts: rows.map((r) => toAdAccountView(r, { events_7d: counts[r.id] })),
