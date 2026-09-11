@@ -5,7 +5,9 @@ import { NextRequest, NextResponse } from 'next/server';
 // Meta ส่ง referral มาเป็น event แยกซึ่งต้อง subscribe ฟิลด์นี้ ไม่งั้นไม่ได้เลย (ตรวจ 9 ก.ย. 2026: ทั้ง 9 เพจ
 // ไม่มีฟิลด์นี้ → fb_contacts ไม่เคยมี referral จากโฆษณาสักราย ทั้งที่ webhook/หน้าแชทรองรับอยู่แล้ว)
 // ⚠️ เพิ่มฟิลด์ที่นี่แล้วต้องกด "subscribe ใหม่ทุกเพจ" ในหน้าช่องทางแชท หรือรัน resubscribeAll — เพจเดิมไม่อัปเดตเอง
-const SUBSCRIBED_FIELDS = 'messages,messaging_postbacks,message_echoes,messaging_referrals';
+// messaging_optins = ลูกค้ากดรับข่าวสาร (Marketing Messages) → ได้ notification_messages_token · webhook ยังไม่มีตัวรับ
+// (ข้ามเงียบที่ `if (!event.message) continue`) — ทำตัวรับก่อนเปิดปุ่มขอให้ลูกค้ากดรับ
+const SUBSCRIBED_FIELDS = 'messages,messaging_postbacks,message_echoes,messaging_referrals,messaging_optins';
 
 // POST - Subscribe a page to the app's webhook (Messenger + IG)
 // Body: { pageId, pageAccessToken } — single page

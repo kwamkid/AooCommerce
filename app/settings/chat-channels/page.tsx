@@ -60,6 +60,14 @@ interface FbPage {
  */
 const FB_PAGE_SCOPE = 'pages_show_list,pages_messaging,pages_read_engagement,instagram_manage_messages,page_events';
 
+/**
+ * Marketing Messages on Messenger (ทดลอง) — app มีสิทธิ์ 2 ตัวนี้แค่ระดับ Standard = ขอได้เฉพาะบัญชี
+ * ที่มีบทบาทใน app Meta · จึงอยู่ในเมนูของผู้ดูแลระบบเท่านั้น ไม่ปนปุ่มเชื่อมเพจของร้าน ·
+ * ได้ Advanced Access แล้วค่อยย้ายเข้า FB_PAGE_SCOPE · หน้า App Review มีทั้งสองชื่อ
+ * (คำอธิบายเหมือนกัน) ยังไม่รู้ว่า API เช็คตัวไหน จึงขอทั้งคู่
+ */
+const FB_MARKETING_MESSAGES_SCOPE = 'paid_marketing_messages,marketing_messages_messenger';
+
 interface ChatAccount {
   id: string;
   platform: 'line' | 'facebook' | 'shopee' | 'lazada' | 'tiktok';
@@ -305,6 +313,8 @@ export default function ChatChannelsPage() {
   // page_id ของเพจที่กด "เชื่อมต่อใหม่" — พอ Facebook คืนรายชื่อเพจมาแล้วจะติ๊กเพจนี้ให้เลย
   // (ล้างค่าทุกครั้งที่ exchangeFbToken เริ่มทำงาน — รอบถัดไปต้องไม่ติ๊กค้าง)
   const reconnectPageIdRef = useRef<string | null>(null);
+  // สิทธิ์เสริมของรอบล็อกอินถัดไป (เมนูทดลอง) — handleFbLogin อ่านแล้วล้าง
+  const fbExtraScopeRef = useRef('');
 
   useFetchOnce(() => {
     fetchAccounts();
@@ -347,6 +357,12 @@ export default function ChatChannelsPage() {
 
   useFetchOnce(() => {
     loadShopeeApp();
+  }, can(userProfile, 'masterdata.chat_channels'));
+
+  // เมนูทดลองของผู้ดูแลระบบ (FB_MARKETING_MESSAGES_SCOPE) — ร้านทั่วไปไม่เห็น
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  useFetchOnce(() => {
+    apiFetch('/api/superadmin/me').then(r => setIsSuperAdmin(r.ok), () => {});
   }, can(userProfile, 'masterdata.chat_channels'));
 
   const saveShopeeApp = async () => {
@@ -428,9 +444,11 @@ export default function ChatChannelsPage() {
 
   // FB Login — ท่าล็อกอิน (getLoginStatus → logout → login) อยู่ใน useFacebookSdk แล้ว
   const handleFbLogin = useCallback(() => {
+    const extraScope = fbExtraScopeRef.current;
+    fbExtraScopeRef.current = '';
     // .then(ok, err) สองอาร์กิวเมนต์ — ตัวจับ error คุมเฉพาะขาล็อกอิน ไม่กิน error
     // ของ exchangeFbToken (ซึ่งมี try/catch + toast ของตัวเองอยู่แล้ว)
-    fb.login(FB_PAGE_SCOPE).then(exchangeFbToken, (err: unknown) => {
+    fb.login(extraScope ? `${FB_PAGE_SCOPE},${extraScope}` : FB_PAGE_SCOPE).then(exchangeFbToken, (err: unknown) => {
       // ล้างเพจที่จองไว้ด้วย ไม่งั้นรอบหน้าที่กด "เชื่อมเพจ" ปกติจะมีเพจติ๊กค้างมาจากรอบที่ล้ม
       reconnectPageIdRef.current = null;
       const message = err instanceof Error ? err.message : '';
@@ -1839,6 +1857,17 @@ export default function ChatChannelsPage() {
                   icon: <RefreshCw className="w-4 h-4" />,
                   onClick: () => {
                     reconnectPageIdRef.current = (account.credentials.page_id as string) || null;
+                    handleFbLogin();
+                  },
+                }] : []),
+                ...(account.platform === 'facebook' && FB_APP_ID && isSuperAdmin ? [{
+                  key: 'reconnect-marketing',
+                  label: 'เชื่อมต่อใหม่ + สิทธิ์ข้อความการตลาด',
+                  description: 'ทดลอง · เฉพาะผู้ดูแลระบบ',
+                  icon: <RefreshCw className="w-4 h-4" />,
+                  onClick: () => {
+                    reconnectPageIdRef.current = (account.credentials.page_id as string) || null;
+                    fbExtraScopeRef.current = FB_MARKETING_MESSAGES_SCOPE;
                     handleFbLogin();
                   },
                 }] : []),
