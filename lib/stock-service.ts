@@ -9,6 +9,7 @@
  */
 
 import { SupabaseClient } from '@supabase/supabase-js';
+import { getCompositeParts } from '@/lib/composite';
 
 // ===== Types =====
 
@@ -127,6 +128,49 @@ async function logTransaction(
   if (error) throw new Error(`Failed to log transaction: ${error.message}`);
 }
 
+// ===== Composite products (สินค้าชุด) =====
+// A combo variation holds no stock of its own — sold-stock ops (reserve / unreserve / deduct /
+// deductAndUnreserve / return) fan out to its components (qty × pieces per set).
+// Internal ops (receive / adjust / transfer / transit) never see combos: the DB guard
+// `trg_guard_composite_inventory` rejects creating an inventory row for one.
+
+async function forEachComponent<P extends StockOpParams>(
+  params: P,
+  op: (p: P) => Promise<StockOpResult>,
+  opts: { checkAvailable?: boolean } = {},
+): Promise<StockOpResult | null> {
+  const parts = await getCompositeParts(params.supabase, params.variationId, params.companyId);
+  if (!parts) return null;
+
+  const legs = parts.map(part => ({
+    ...params,
+    variationId: part.variationId,
+    qty: params.qty * part.quantity,
+    notes: `${params.notes} · ชิ้นส่วนสินค้าชุด`,
+  }));
+
+  // Check every component before touching any, so a short one never leaves a half-deducted set
+  if (opts.checkAvailable) {
+    for (const leg of legs) {
+      const inv = await getOrCreateInventory(leg.supabase, leg.companyId, leg.warehouseId, leg.variationId);
+      const available = inv.quantity - inv.reserved_quantity;
+      if (leg.qty > available) {
+        throw new InsufficientStockError(leg.variationId, leg.qty, available, inv.quantity, inv.reserved_quantity);
+      }
+    }
+  }
+
+  let balanceAfter = Infinity;
+  let inventoryId = '';
+  for (let i = 0; i < legs.length; i++) {
+    const result = await op(legs[i]);
+    // Sets still possible from this component after the op
+    balanceAfter = Math.min(balanceAfter, Math.floor(result.balanceAfter / parts[i].quantity));
+    if (!inventoryId) inventoryId = result.inventoryId;
+  }
+  return { balanceAfter, inventoryId };
+}
+
 // ===== Public Functions =====
 
 /**
@@ -163,6 +207,12 @@ export async function addStock(params: StockOpParams): Promise<StockOpResult> {
 export async function deductStock(
   params: StockOpParams & { checkAvailable?: boolean },
 ): Promise<StockOpResult> {
+  return (await forEachComponent(params, deductOne, { checkAvailable: params.checkAvailable })) ?? deductOne(params);
+}
+
+async function deductOne(
+  params: StockOpParams & { checkAvailable?: boolean },
+): Promise<StockOpResult> {
   const inv = await getOrCreateInventory(params.supabase, params.companyId, params.warehouseId, params.variationId);
   const available = inv.quantity - inv.reserved_quantity;
 
@@ -196,6 +246,10 @@ export async function deductStock(
  * balance_after = quantity (existing convention)
  */
 export async function reserveStock(params: StockOpParams): Promise<StockOpResult> {
+  return (await forEachComponent(params, reserveOne)) ?? reserveOne(params);
+}
+
+async function reserveOne(params: StockOpParams): Promise<StockOpResult> {
   const inv = await getOrCreateInventory(params.supabase, params.companyId, params.warehouseId, params.variationId);
   const newReserved = inv.reserved_quantity + params.qty;
 
@@ -222,6 +276,10 @@ export async function reserveStock(params: StockOpParams): Promise<StockOpResult
  * balance_after = quantity (existing convention)
  */
 export async function unreserveStock(params: StockOpParams): Promise<StockOpResult> {
+  return (await forEachComponent(params, unreserveOne)) ?? unreserveOne(params);
+}
+
+async function unreserveOne(params: StockOpParams): Promise<StockOpResult> {
   const inv = await getOrCreateInventory(params.supabase, params.companyId, params.warehouseId, params.variationId);
   const newReserved = Math.max(0, inv.reserved_quantity - params.qty);
 
@@ -247,6 +305,10 @@ export async function unreserveStock(params: StockOpParams): Promise<StockOpResu
  * quantity ↑
  */
 export async function returnStock(params: StockOpParams): Promise<StockOpResult> {
+  return (await forEachComponent(params, returnOne)) ?? returnOne(params);
+}
+
+async function returnOne(params: StockOpParams): Promise<StockOpResult> {
   const inv = await getOrCreateInventory(params.supabase, params.companyId, params.warehouseId, params.variationId);
   const newQty = inv.quantity + params.qty;
 
@@ -361,6 +423,12 @@ export async function adjustStock(
  * Default type: 'out', transfers use 'transfer_out'
  */
 export async function deductAndUnreserve(
+  params: StockOpParams & { transactionType?: 'out' | 'transfer_out' },
+): Promise<StockOpResult> {
+  return (await forEachComponent(params, deductAndUnreserveOne)) ?? deductAndUnreserveOne(params);
+}
+
+async function deductAndUnreserveOne(
   params: StockOpParams & { transactionType?: 'out' | 'transfer_out' },
 ): Promise<StockOpResult> {
   const inv = await getOrCreateInventory(params.supabase, params.companyId, params.warehouseId, params.variationId);

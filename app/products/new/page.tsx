@@ -27,10 +27,11 @@ function NewProductContent() {
 
     const loadSourceProduct = async () => {
       try {
-        const response = await apiFetch('/api/products');
-        const data = await response.json();
+        // Same payload as the edit page — carries composite slots/combos for สินค้าชุด
+        const response = await apiFetch(`/api/products/${duplicateId}`);
+        const data = await response.json().catch(() => ({}));
 
-        const found = (data.products || []).find((p: ProductItem) => p.product_id === duplicateId);
+        const found: ProductItem | undefined = response.ok ? data.product : undefined;
         if (!found) {
           setError('ไม่พบสินค้าต้นฉบับ');
           setLoading(false);
@@ -50,6 +51,15 @@ function NewProductContent() {
             variation_id: undefined, // clear ID so it creates new
             sku: '', // must be unique
             barcode: '', // must be unique
+          })),
+          // สินค้าชุด: keep slots + per-combo settings, drop row identity/SKU/stock
+          composite_combos: found.composite_combos?.map(c => ({
+            ...c,
+            variation_id: undefined,
+            sku: null,
+            barcode: null,
+            quantity: null,
+            available: null,
           })),
         };
 

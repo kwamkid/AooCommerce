@@ -12,11 +12,13 @@ async function legacyInventoryQuery(companyId: string, warehouseId: string | nul
       .from('product_variations')
       .select(`
         id, variation_label, sku, barcode, default_price, min_stock, attributes, is_active,
-        product:products!inner(id, code, name, image, is_active, company_id)
+        product:products!inner(id, code, name, image, is_active, company_id, is_composite)
       `)
       .eq('product.company_id', companyId)
       .eq('is_active', true)
-      .eq('product.is_active', true),
+      .eq('product.is_active', true)
+      // combos of a composite product hold no stock (stock lives on the components)
+      .eq('product.is_composite', false),
     (() => {
       let q = supabaseAdmin
         .from('inventory')
@@ -365,6 +367,18 @@ export async function GET(request: NextRequest) {
         available: row.available ?? (row.quantity - row.reserved_quantity),
         updated_at: row.updated_at,
       }));
+    }
+
+    // The summary view / legacy query may list combos of a composite product — they hold
+    // no stock of their own (stock lives on the components), so keep them out of stock lists
+    const { data: compositeProducts } = await supabaseAdmin
+      .from('products')
+      .select('id')
+      .eq('company_id', auth.companyId)
+      .eq('is_composite', true);
+    if (compositeProducts && compositeProducts.length > 0) {
+      const compositeIds = new Set(compositeProducts.map(p => p.id));
+      rawItems = rawItems.filter(r => !compositeIds.has(r.product_id));
     }
 
     let items = rawItems.map(row => {

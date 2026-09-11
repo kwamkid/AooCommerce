@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { checkAuthWithCompany, supabaseAdmin } from '@/lib/supabase-admin';
+import { loadCompositeExportInfo } from '@/lib/bulk/composite-import';
 
 export async function POST(request: NextRequest) {
   try {
@@ -26,8 +27,35 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    const payload = (data || { products: [], shops: [], links: [] }) as {
+      products: { product_id: string; variations: { variation_id: string }[] }[];
+    };
+
+    // Composite products (สินค้าชุด): the RPC labels them 'variation' (variation_label NULL) —
+    // flag them here and attach each combo's component cell + manual-price flag
+    const { compositeProductIds, combos } = await loadCompositeExportInfo(
+      supabaseAdmin,
+      auth.companyId,
+      (payload.products || []).map(p => p.product_id),
+    );
+    if (compositeProductIds.size > 0) {
+      payload.products = payload.products.map(p =>
+        compositeProductIds.has(p.product_id)
+          ? {
+              ...p,
+              is_composite: true,
+              variations: (p.variations || []).map(v => ({
+                ...v,
+                components: combos.get(v.variation_id)?.components || '',
+                price_locked: combos.get(v.variation_id)?.price_locked === true,
+              })),
+            }
+          : p,
+      );
+    }
+
     return NextResponse.json({
-      ...(data || { products: [], shops: [], links: [] }),
+      ...payload,
       can_view_cost: canViewCost,
     });
   } catch (error) {

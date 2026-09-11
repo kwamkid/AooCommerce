@@ -37,9 +37,11 @@ export async function GET(request: NextRequest) {
     // Pull variations + product join (filtered by brand if specified)
     let productQuery = supabaseAdmin
       .from('product_variations')
-      .select('id, product_id, variation_label, sku, barcode, is_active, product:products!inner(id, code, name, is_active, brand_id, brand:product_brands(id, name))')
+      .select('id, product_id, variation_label, sku, barcode, is_active, product:products!inner(id, code, name, is_active, is_composite, brand_id, brand:product_brands(id, name))')
       .eq('company_id', auth.companyId)
-      .eq('is_active', true);
+      .eq('is_active', true)
+      // combos of a composite product hold no stock (stock lives on the components)
+      .eq('product.is_composite', false);
 
     if (brandIds.length > 0) {
       productQuery = productQuery.in('product.brand_id', brandIds);

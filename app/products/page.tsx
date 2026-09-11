@@ -43,6 +43,17 @@ import Toggle from '@/components/ui/Toggle';
 import PageHeader from '@/components/ui/PageHeader';
 import { downloadBlob } from '@/lib/utils/download';
 import { useDebouncedCallback } from '@/lib/useDebounce';
+import { COMPOSITE_COLUMN_HEADER, COMPOSITE_TYPE_LABEL, PRICE_LOCKED_HEADER, PRICE_LOCKED_YES } from '@/lib/bulk/composite-ref';
+
+/** ประเภทสินค้า — table column + mobile card */
+function ProductTypeBadge({ product }: { product: Pick<ProductItem, 'product_type' | 'is_composite'> }) {
+  if (product.is_composite) return <Badge tone="purple" shape="square" size="sm">ชุด</Badge>;
+  return (
+    <Badge tone={product.product_type === 'simple' ? 'blue' : 'amber'} shape="square" size="sm">
+      {product.product_type === 'simple' ? 'ปกติ' : 'ย่อย'}
+    </Badge>
+  );
+}
 
 // Product interface (from API view)
 interface ProductItem {
@@ -53,6 +64,8 @@ interface ProductItem {
   image?: string;
   main_image_url?: string;
   product_type: 'simple' | 'variation';
+  /** สินค้าชุด — combos of other products (product_type stays 'variation') */
+  is_composite?: boolean;
   category_id?: string;
   brand_id?: string;
   is_active: boolean;
@@ -382,7 +395,12 @@ function ProductsPageContent() {
         }),
       });
       const exportData = await exportRes.json();
-      const allProducts: ProductItem[] = exportData.products || [];
+      // Composite products (สินค้าชุด) carry is_composite + per-combo components / price_locked
+      type ExportProduct = ProductItem & {
+        is_composite?: boolean;
+        variations: (ProductItem['variations'][number] & { components?: string; price_locked?: boolean })[];
+      };
+      const allProducts: ExportProduct[] = exportData.products || [];
       // คอลัมน์ "ราคา {ร้าน}" มีแต่ร้าน marketplace — ปิดฟีเจอร์แล้วไฟล์ที่ export
       // ต้องไม่มีคอลัมน์พวกนี้ (ไม่งั้นผู้ใช้เห็นชื่อ Shopee ในไฟล์ทั้งที่ปิดไปแล้ว)
       const activeShops: { id: string; shop_name: string; platform: string }[] =
@@ -409,6 +427,7 @@ function ProductsPageContent() {
         'SKU', 'Barcode', 'ราคาปกติ', 'ราคาขาย',
         ...(canViewCost ? ['ราคาทุน'] : []),
         'สถานะ',
+        COMPOSITE_COLUMN_HEADER, PRICE_LOCKED_HEADER,
       ];
       const shopHeaders = activeShops.map(s => `ราคา ${s.shop_name || s.id}`);
       const headers = [...baseHeaders, ...shopHeaders];
@@ -443,7 +462,8 @@ function ProductsPageContent() {
         });
 
       for (const product of filtered) {
-        const isMulti = product.variations.length > 1;
+        // A composite product is always parent row + one row per combo
+        const isMulti = product.variations.length > 1 || product.is_composite === true;
         if (!isMulti) {
           const v = product.variations[0];
           dataRows.push({
@@ -458,6 +478,7 @@ function ProductsPageContent() {
               v?.default_price ?? 0, v?.discount_price ?? 0,
               ...(canViewCost ? [v?.cost_price ?? 0] : []),
               product.is_active ? 'ใช้งาน' : 'ไม่ใช้งาน',
+              '', '',
               ...getShopPrices(v?.variation_id),
             ],
           });
@@ -469,10 +490,11 @@ function ProductsPageContent() {
             values: [
               product.product_id, '',
               product.code || '', product.name,
-              `สินค้าย่อย (${product.variations.length})`, '',
+              `${product.is_composite ? COMPOSITE_TYPE_LABEL : 'สินค้าย่อย'} (${product.variations.length})`, '',
               '', '', '', '',
               ...(canViewCost ? [''] : []),
               product.is_active ? 'ใช้งาน' : 'ไม่ใช้งาน',
+              '', '',
               ...activeShops.map(() => ''),
             ],
           });
@@ -489,6 +511,7 @@ function ProductsPageContent() {
                 v.default_price ?? 0, v.discount_price ?? 0,
                 ...(canViewCost ? [v.cost_price ?? 0] : []),
                 v.is_active ? 'ใช้งาน' : 'ไม่ใช้งาน',
+                v.components || '', v.price_locked ? PRICE_LOCKED_YES : '',
                 ...getShopPrices(v.variation_id),
               ],
             });
@@ -525,6 +548,8 @@ function ProductsPageContent() {
         { width: 12 }, // ราคาขาย
         ...(canViewCost ? [{ width: 12 }] : []), // ราคาทุน
         { width: 10 }, // สถานะ
+        { width: 36 }, // ส่วนประกอบ (สินค้าชุด)
+        { width: 12 }, // ราคาตั้งเอง
         ...activeShops.map(() => ({ width: 14 })),
       ];
 
@@ -781,15 +806,7 @@ function ProductsPageContent() {
       label: 'ประเภท',
       defaultWidth: 90,
       reorderable: true,
-      render: (product) => (
-        <Badge
-          tone={product.product_type === 'simple' ? 'blue' : 'amber'}
-          shape="square"
-          size="sm"
-        >
-          {product.product_type === 'simple' ? 'ปกติ' : 'ย่อย'}
-        </Badge>
-      ),
+      render: (product) => <ProductTypeBadge product={product} />,
     },
     {
       key: 'status',
@@ -848,13 +865,7 @@ function ProductsPageContent() {
             <p className="text-xs text-gray-400 dark:text-slate-500 font-mono">{product.code}</p>
           </div>
           <div className="flex items-center gap-1.5 flex-shrink-0" onClick={e => e.stopPropagation()}>
-            <Badge
-              tone={product.product_type === 'simple' ? 'blue' : 'amber'}
-              shape="square"
-              size="sm"
-            >
-              {product.product_type === 'simple' ? 'ปกติ' : 'ย่อย'}
-            </Badge>
+            <ProductTypeBadge product={product} />
             <ProductActionMenu
               onEdit={() => window.open(`/products/${product.product_id}/edit`, '_blank')}
               onDuplicate={() => router.push(`/products/new?duplicate=${product.product_id}`)}

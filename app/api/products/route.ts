@@ -2,6 +2,8 @@
 import { NextRequest, NextResponse, after } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
 import { fetchAllRows } from '@/lib/supabase-paging';
+import { validateCompositeSlots, type CompositeSlot } from '@/lib/composite-shared';
+import { saveCompositeVariations, CompositeValidationError, type ComboInput } from '@/lib/composite-save';
 
 // Type definitions
 interface ProductData {
@@ -9,7 +11,7 @@ interface ProductData {
   name: string;
   description?: string;
   image?: string;
-  product_type: 'simple' | 'variation';
+  product_type: 'simple' | 'variation' | 'composite';
   is_active?: boolean;
   selected_variation_types?: string[]; // UUID[] of variation_type IDs
   category_id?: string;
@@ -27,6 +29,66 @@ interface ProductData {
 
   // Variation product fields
   variations?: VariationData[];
+
+  // Composite product (สินค้าชุด) fields
+  composite_slots?: unknown;
+  composite_combos?: unknown;
+}
+
+// ── Composite products (สินค้าชุด) ──────────────────────────────────────────
+
+type LooseRecord = Record<string, unknown>;
+
+/** Coerce the slots from the request body into CompositeSlot[] (bad shapes → caught by validation) */
+function parseCompositeSlots(raw: unknown): CompositeSlot[] {
+  if (!Array.isArray(raw)) return [];
+  return (raw as (LooseRecord | null)[]).map(s => ({
+    key: String(s?.key ?? ''),
+    name: String(s?.name ?? '').trim(),
+    product_id: String(s?.product_id ?? ''),
+    variation_ids: Array.isArray(s?.variation_ids) ? (s.variation_ids as unknown[]).map(v => String(v)).filter(Boolean) : [],
+    quantity: Number(s?.quantity),
+  }));
+}
+
+function parseComboInputs(raw: unknown): ComboInput[] {
+  if (!Array.isArray(raw)) return [];
+  return (raw as (LooseRecord | null)[])
+    .filter((c): c is LooseRecord => !!c && typeof c.key === 'string' && !!c.key)
+    .map(c => ({
+      key: c.key as string,
+      is_active: typeof c.is_active === 'boolean' ? c.is_active : undefined,
+      price_locked: typeof c.price_locked === 'boolean' ? c.price_locked : undefined,
+      default_price: c.default_price != null ? Number(c.default_price) : undefined,
+      discount_price: c.discount_price != null ? Number(c.discount_price) : undefined,
+      sku: c.sku !== undefined ? (c.sku == null ? null : String(c.sku)) : undefined,
+      barcode: c.barcode !== undefined ? (c.barcode == null ? null : String(c.barcode)) : undefined,
+    }));
+}
+
+/** Same rules as the product form, checked before anything is written */
+function compositeInputError(slots: CompositeSlot[], combos: ComboInput[]): string | null {
+  const slotError = validateCompositeSlots(slots);
+  if (slotError) return slotError;
+  for (const c of combos) {
+    if (!c.price_locked) continue;
+    const def = Number(c.default_price) || 0;
+    const disc = Number(c.discount_price) || 0;
+    if (def <= 0) return 'ชุดย่อยที่ตั้งราคาเองต้องมีราคาปกติ';
+    if (disc > 0 && disc >= def) return 'ราคาขายต้องน้อยกว่าราคาปกติ';
+  }
+  return null;
+}
+
+function compositeErrorResponse(err: unknown) {
+  if (err instanceof CompositeValidationError) {
+    return NextResponse.json({ error: err.message }, { status: 400 });
+  }
+  console.error('Composite save error:', err);
+  return NextResponse.json(
+    { error: err instanceof Error ? err.message : 'บันทึกสินค้าชุดไม่สำเร็จ' },
+    { status: 500 }
+  );
 }
 
 interface VariationData {
@@ -139,6 +201,14 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    const isComposite = productData.product_type === 'composite';
+    const compositeSlots = isComposite ? parseCompositeSlots(productData.composite_slots) : [];
+    const compositeCombos = isComposite ? parseComboInputs(productData.composite_combos) : [];
+    if (isComposite) {
+      const inputError = compositeInputError(compositeSlots, compositeCombos);
+      if (inputError) return NextResponse.json({ error: inputError }, { status: 400 });
+    }
+
     // Check if code already exists within this company
     const { data: existingCode } = await supabaseAdmin
       .from('products')
@@ -160,6 +230,11 @@ export async function POST(request: NextRequest) {
     if (productData.product_type === 'simple') {
       if (productData.sku) allSkus.push(productData.sku);
       if (productData.barcode) allBarcodes.push(productData.barcode);
+    } else if (isComposite) {
+      for (const c of compositeCombos) {
+        if (c.sku) allSkus.push(c.sku);
+        if (c.barcode) allBarcodes.push(c.barcode);
+      }
     } else if (productData.variations) {
       for (const v of productData.variations) {
         if (v.sku) allSkus.push(v.sku);
@@ -215,7 +290,35 @@ export async function POST(request: NextRequest) {
     // Create variations for BOTH simple and variation products
     // For simple products: create a single variation row
     // For variation products: create multiple variation rows
-    if (productData.product_type === 'simple') {
+    // For composite products: one row per combo (lib/composite-save.ts)
+    if (isComposite) {
+      try {
+        await saveCompositeVariations(supabaseAdmin, {
+          companyId: auth.companyId,
+          productId: newProduct.id,
+          slots: compositeSlots,
+          combos: compositeCombos,
+        });
+      } catch (err) {
+        if (err instanceof CompositeValidationError) {
+          // Validation errors are thrown before anything is written — nothing references
+          // the new row yet, so drop it (the user can retry with the same code)
+          await supabaseAdmin
+            .from('products')
+            .delete()
+            .eq('id', newProduct.id)
+            .eq('company_id', auth.companyId);
+        } else {
+          // Combos may be partly written (FK history) — never hard-delete, just hide it
+          await supabaseAdmin
+            .from('products')
+            .update({ is_active: false, updated_at: new Date().toISOString() })
+            .eq('id', newProduct.id)
+            .eq('company_id', auth.companyId);
+        }
+        return compositeErrorResponse(err);
+      }
+    } else if (productData.product_type === 'simple') {
       // Simple product: create one variation row
       const { error: variationError } = await supabaseAdmin
         .from('product_variations')
@@ -351,6 +454,9 @@ export async function GET(request: NextRequest) {
     const shopAccountFilter = searchParams.get('shop_account_id');
     // status filter: '' (default) = active only, 'inactive' = only closed, 'all' = both
     const statusFilter = searchParams.get('status') || '';
+    // Stock pickers (receive/issue/transfer/replenish/ship to dept) — combos of a composite
+    // product hold no stock, the DB guard rejects inventory rows for them
+    const excludeComposite = searchParams.get('exclude_composite') === 'true';
 
     // Pagination params
     const page = parseInt(searchParams.get('page') || '1', 10);
@@ -396,6 +502,7 @@ export async function GET(request: NextRequest) {
 
       if (statusFilter === 'inactive') q = q.eq('is_active', false);
       else if (statusFilter !== 'all') q = q.eq('is_active', true);
+      if (excludeComposite) q = q.eq('is_composite', false);
 
       if (sourceFilter) {
         if (sourceFilter === 'shopee') {
@@ -541,6 +648,7 @@ export async function GET(request: NextRequest) {
           description: row.description,
           image: row.image,
           product_type: row.product_type,
+          is_composite: !!row.is_composite,
           selected_variation_types: row.selected_variation_types,
           source: row.source || 'manual',
           category_id: row.category_id || null,
@@ -687,6 +795,33 @@ export async function PUT(request: NextRequest) {
       );
     }
 
+    // Current state — source (Shopee edited flag), variation_label (simple ↔ variation
+    // switch below) and is_composite (สินค้าชุด can't change type in either direction)
+    const { data: currentProduct } = await supabaseAdmin
+      .from('products')
+      .select('source, variation_label, is_composite')
+      .eq('id', id)
+      .eq('company_id', auth.companyId)
+      .maybeSingle();
+
+    if (!currentProduct) {
+      return NextResponse.json({ error: 'Product not found' }, { status: 404 });
+    }
+
+    const isCompositeProduct = !!currentProduct.is_composite;
+    if (body.product_type !== undefined && (body.product_type === 'composite') !== isCompositeProduct) {
+      return NextResponse.json({ error: 'เปลี่ยนประเภทของสินค้าชุดไม่ได้' }, { status: 400 });
+    }
+
+    // Composite: slots are optional (e.g. the list page only toggles is_active)
+    const hasCompositeSlots = isCompositeProduct && body.composite_slots !== undefined;
+    const compositeSlots = hasCompositeSlots ? parseCompositeSlots(body.composite_slots) : [];
+    const compositeCombos = hasCompositeSlots ? parseComboInputs(body.composite_combos) : [];
+    if (hasCompositeSlots) {
+      const inputError = compositeInputError(compositeSlots, compositeCombos);
+      if (inputError) return NextResponse.json({ error: inputError }, { status: 400 });
+    }
+
     // Check if code is being changed and if it already exists
     if (code) {
       const { data: existingCode } = await supabaseAdmin
@@ -710,11 +845,15 @@ export async function PUT(request: NextRequest) {
     const putBarcodes: string[] = [];
     if (body.sku) putSkus.push(body.sku);
     if (body.barcode) putBarcodes.push(body.barcode);
-    if (variations && Array.isArray(variations)) {
+    if (!isCompositeProduct && variations && Array.isArray(variations)) {
       for (const v of variations) {
         if (v.sku) putSkus.push(v.sku);
         if (v.barcode) putBarcodes.push(v.barcode);
       }
+    }
+    for (const c of compositeCombos) {
+      if (c.sku) putSkus.push(c.sku);
+      if (c.barcode) putBarcodes.push(c.barcode);
     }
     if (putSkus.length > 0 || putBarcodes.length > 0) {
       const dupCheck = await checkDuplicateSkuBarcode(auth.companyId, putSkus, putBarcodes, id);
@@ -736,25 +875,35 @@ export async function PUT(request: NextRequest) {
     if (description !== undefined) updateData.description = description || null;
     if (image !== undefined) updateData.image = image || null;
     // For variation_label: empty string should become null (for variation products)
-    if (variation_label !== undefined) {
+    // Composite products own their shape through saveCompositeVariations — never touch it here
+    if (variation_label !== undefined && !isCompositeProduct) {
       updateData.variation_label = variation_label === '' ? null : variation_label;
     }
     if (is_active !== undefined) updateData.is_active = is_active;
-    if (selected_variation_types !== undefined) updateData.selected_variation_types = selected_variation_types;
+    if (selected_variation_types !== undefined && !isCompositeProduct) {
+      updateData.selected_variation_types = selected_variation_types;
+    }
     if (category_id !== undefined) updateData.category_id = category_id || null;
     if (brand_id !== undefined) updateData.brand_id = brand_id || null;
 
     // If product was auto-created from Shopee, mark as edited.
-    // Also fetch variation_label so we can detect simple ↔ variation type switch below.
-    const { data: currentProduct } = await supabaseAdmin
-      .from('products')
-      .select('source, variation_label')
-      .eq('id', id)
-      .eq('company_id', auth.companyId)
-      .single();
-
-    if (currentProduct?.source === 'shopee') {
+    if (currentProduct.source === 'shopee') {
       updateData.source = 'shopee_edited';
+    }
+
+    // Composite: save the combos first — validation errors are thrown before any write,
+    // so a rejected save leaves the product untouched
+    if (hasCompositeSlots) {
+      try {
+        await saveCompositeVariations(supabaseAdmin, {
+          companyId: auth.companyId,
+          productId: id,
+          slots: compositeSlots,
+          combos: compositeCombos,
+        });
+      } catch (err) {
+        return compositeErrorResponse(err);
+      }
     }
 
     // Update main product
@@ -771,6 +920,27 @@ export async function PUT(request: NextRequest) {
         { error: error.message },
         { status: 500 }
       );
+    }
+
+    // Composite products skip the simple/variation branches entirely (combos were saved above)
+    if (isCompositeProduct) {
+      if (hasCompositeSlots) {
+        after(() => import('@/lib/shopee/auto-sync').then(m => m.syncPriceNow(id)));
+      }
+      if (body.name) {
+        after(() => import('@/lib/shopee/auto-sync').then(m => m.syncInfoNow(id, body.name)));
+      }
+      const { data: comboRows } = await supabaseAdmin
+        .from('product_variations')
+        .select('id, variation_label')
+        .eq('product_id', id)
+        .eq('company_id', auth.companyId)
+        .order('created_at', { ascending: true });
+      return NextResponse.json({
+        success: true,
+        product: { ...data, product_id: id },
+        variations: comboRows || [],
+      });
     }
 
     // Determine product type from data.variation_label

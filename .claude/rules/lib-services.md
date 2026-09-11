@@ -12,7 +12,8 @@ paths:
 ## Business Logic Services (`lib/`) — ห้ามเขียน inline
 | Service | ใช้สำหรับ | ห้าม |
 |---|---|---|
-| `stock-service.ts` | addStock · deductStock · reserveStock · transferStock · returnStock · adjustStock · deferStockOp | stock upsert เอง |
+| `stock-service.ts` | addStock · deductStock · reserveStock · transferStock · returnStock · adjustStock · deferStockOp · ชุดย่อยของสินค้าชุด แตกไปตัดที่ชิ้นส่วนเอง | stock upsert เอง · แตกชิ้นส่วนสินค้าชุดเองก่อนเรียก |
+| `composite.ts` · `composite-save.ts` · `composite-shared.ts` | สินค้าชุด: `getCompositeAvailability` (พร้อมขาย) · `getCompositeParts(Map)` · `saveCompositeVariations` (บันทึกชุดย่อยทุกทาง) · `loadComponentInfo` · client-safe `buildCombos` `comboKey` `comboLabel` `comboPrice` `validateCompositeSlots` `isCompositeLine` — กติกาเต็ม `domains/products.md` | คิดพร้อมขาย/ราคาชุดเอง · insert ชุดย่อยเอง |
 | `invoice-service.ts` | insertTaxInvoice · insertReceipt · insertAbbreviatedInvoice · insertDeliveryNote · insertInvoice | auto-issue เอง |
 | `statement-service.ts` | createStatementForReport (ใบวางบิลอัตโนมัติ) | สร้าง statement เอง |
 | `gp-resolver.ts` | resolveGp (NET) · fetchCustomerOrderContext (1 RPC) | คำนวณ GP เอง |

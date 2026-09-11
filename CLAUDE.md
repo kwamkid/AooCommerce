@@ -92,7 +92,7 @@
 | `domains/performance.md` | consolidated endpoints · apiFetch cache · realtime | `lib/api-client.ts` · `app/api/header/**` |
 | `domains/settings-pages.md` | convention หน้า settings | `app/settings/**` |
 | `domains/pdf.md` | template เอกสาร PDF | `lib/*pdf*.ts` |
-| `domains/products.md` | import/export · bulk edit · promotion | `app/products/**` · `lib/bulk/**` |
+| `domains/products.md` | **สินค้าชุด (composite)** · import/export · bulk edit · promotion | `app/products/**` · `lib/bulk/**` · `lib/composite*.ts` |
 
 **เพิ่มความรู้ใหม่** → ลงไฟล์ domain ที่ตรงเรื่อง · ไม่มีไฟล์ที่ตรง = สร้างใหม่ใน `domains/` พร้อม `paths:` แล้วเพิ่มแถวในตารางนี้ · ข้อมูลอ้างอิงยาว ๆ ที่ไม่ใช่กติกา (ผลสำรวจ API · แผนงาน) → `memo/`
 
@@ -178,6 +178,7 @@ products → product_variations (1:N) → product_images (variation-level)
 ```
 - Simple: `variation_label IS NOT NULL`, 1 variation
 - Variable: `variation_label IS NULL`, 2+ variations
+- **สินค้าชุด (composite)**: `products.is_composite` · variation = ชุดย่อยที่ประกอบจากชิ้นส่วน (`product_variation_components`) **ไม่มีสต็อกของตัวเอง** — stock-service แตกไปตัดที่ชิ้นส่วน · ห้ามสร้าง inventory ให้ชุดย่อย (DB กัน) — กติกาเต็ม `.claude/rules/domains/products.md`
 - Image priority: `variation_image > product_image > null`
 - **รูปจิ๋วทุกที่ต้องผ่าน `thumbUrl()` จาก [lib/image-thumb.ts](lib/image-thumb.ts)** (2026-09-07) — Shopee CDN ต่อ `_tn` (190KB→42KB) · Lazada `_120x120q80.jpg` (150KB→6KB) · storage ของเรา → Supabase Image Transformation `render/image` (150KB→2KB, CDN แคช 1 ชม.) · เก็บรูปเดียว 1200px ไม่มีไฟล์ย่อ (ย่อตอนเรียก ไม่เพิ่มพื้นที่) · **Image Transformation เป็นของแผน Pro**: รวม 100 origin images/เดือน เกินคิด $5/1,000 (นับรูปต้นฉบับที่ถูกย่ออย่างน้อยหนึ่งครั้งในเดือน ไม่ใช่จำนวน request) · ห้ามใช้กับอวาตาร์/โลโก้/สลิป/QR/lightbox
 - Variable product: **ห้าม** fallback ไปรูป product ถ้า variation ไม่มีรูป

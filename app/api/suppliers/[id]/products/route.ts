@@ -34,6 +34,8 @@ export async function GET(
       .select('id, code, name, image, brand_id')
       .eq('company_id', auth.companyId)
       .eq('is_active', true)
+      // PO receives stock — combos of a composite product hold none
+      .eq('is_composite', false)
       .in('brand_id', brandIds);
 
     if (!products || products.length === 0) {

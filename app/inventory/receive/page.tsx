@@ -125,7 +125,7 @@ export default function StockReceivePage() {
   const fetchProducts = async () => {
     try {
       setProductsLoading(true);
-      const res = await apiFetch('/api/products');
+      const res = await apiFetch('/api/products?exclude_composite=true');
       if (!res.ok) throw new Error('Failed');
       const result = await res.json();
       const flat: ProductSearchItem[] = [];

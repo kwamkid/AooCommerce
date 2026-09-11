@@ -217,7 +217,8 @@ export default function ReplenishmentForm({ warehouseId, replenishmentId, viewMo
   useEffect(() => {
     {
       setLoadingProducts(true);
-      apiFetch('/api/products?limit=9999&active=true')
+      // สินค้าชุดไม่มีสต็อกของตัวเอง — ส่งไปคลังฝากขายไม่ได้ (DB guard ปฏิเสธ)
+      apiFetch('/api/products?limit=9999&active=true&exclude_composite=true')
         .then(r => r.json())
         .then(result => {
           const flat: ProductSearchItem[] = [];

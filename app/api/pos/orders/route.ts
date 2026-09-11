@@ -5,6 +5,7 @@ import { getStockConfig } from '@/lib/stock-utils';
 import { deductStock } from '@/lib/stock-service';
 import { fetchCostMap } from '@/lib/cost-utils';
 import { computeOrderTotals } from '@/lib/order-totals';
+import { getCompositeAvailability } from '@/lib/composite';
 
 import { normalizePhoneQuery } from '@/lib/numeric-input';
 interface PosItemInput {
@@ -302,16 +303,23 @@ export async function POST(request: NextRequest) {
     // Check stock availability (only when warehouse is assigned)
     const stockConfig = await getStockConfig(auth.companyId);
     if (warehouseId && stockConfig.stockEnabled && !stockConfig.allowOversell) {
+      // Combos (สินค้าชุด) have no inventory row — sellable sets = scarcest component
+      const comboAvail = await getCompositeAvailability(supabaseAdmin, auth.companyId!, items.map(i => i.variation_id), warehouseId);
       for (const item of items) {
-        const { data: inv } = await supabaseAdmin
-          .from('inventory')
-          .select('quantity, reserved_quantity')
-          .eq('warehouse_id', warehouseId)
-          .eq('variation_id', item.variation_id)
-          .eq('company_id', auth.companyId)
-          .single();
-
-        const available = inv ? Number(inv.quantity || 0) - Number(inv.reserved_quantity || 0) : 0;
+        const combo = comboAvail.get(item.variation_id);
+        let available: number;
+        if (combo) {
+          available = combo.available;
+        } else {
+          const { data: inv } = await supabaseAdmin
+            .from('inventory')
+            .select('quantity, reserved_quantity')
+            .eq('warehouse_id', warehouseId)
+            .eq('variation_id', item.variation_id)
+            .eq('company_id', auth.companyId)
+            .single();
+          available = inv ? Number(inv.quantity || 0) - Number(inv.reserved_quantity || 0) : 0;
+        }
         if (available < item.quantity) {
           return NextResponse.json(
             { error: `สต็อก "${item.product_name}" ไม่เพียงพอ (มี ${available}, ต้องการ ${item.quantity})` },

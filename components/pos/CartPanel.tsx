@@ -266,13 +266,14 @@ export default function CartPanel({
                   <div className="mt-2 pt-2 border-t border-gray-100 dark:border-gray-700/50 space-y-1">
                     {item.promotion_components.map((comp, ci) => (
                       <div key={ci} className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                        {/* ส่วนประกอบของสินค้าชุด (ไม่มี promotion_id) — ไม่ใช่ของโปร ไม่ต้องติดป้าย */}
+                        {!!item.promotion_id && <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
                           comp.role === 'gift' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
                           : comp.role === 'discounted' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'
                           : 'bg-gray-100 dark:bg-white/10 text-gray-600 dark:text-gray-400'
                         }`}>
                           {comp.role === 'gift' ? 'แถม' : comp.role === 'discounted' ? 'ลด' : comp.role === 'main' ? 'หลัก' : 'รวม'}
-                        </span>
+                        </span>}
                         <span className="truncate flex-1">{comp.product_name}</span>
                         <span>x{comp.quantity}</span>
                       </div>

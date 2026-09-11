@@ -15,6 +15,10 @@ import {
 } from '@/lib/bulk/parse-template';
 import { addTemplateHeader } from '@/lib/bulk/excel-template';
 import {
+  COMPOSITE_COLUMN_HEADER, COMPOSITE_COLUMN_ALIASES, COMPOSITE_TYPE_LABEL, parseComponentCell,
+} from '@/lib/bulk/composite-ref';
+import { formatPrice } from '@/lib/utils/format';
+import {
   STATUS_COLUMN_HEADER, STATUS_INSTRUCTION,
   STATUS_LABEL_ACTIVE, STATUS_LABEL_INACTIVE, parseStatusValue,
 } from '@/lib/bulk/status-enum';
@@ -50,6 +54,8 @@ interface CreateItem {
   category_name?: string;
   description?: string;
   is_active?: boolean;
+  /** composite product (สินค้าชุด) row: "SKU1 + SKU2×2" — resolved on the server */
+  components?: string;
   __rowNum?: number;
 }
 
@@ -63,6 +69,7 @@ interface ResultRow {
   brand_name?: string;
   category_name?: string;
   error?: string;
+  is_composite?: boolean;
 }
 
 interface RunResponse {
@@ -188,6 +195,7 @@ export default function BulkCreateProductsPage() {
       'ตัวเลือก 1',
       'ประเภทตัวเลือก 2',
       'ตัวเลือก 2',
+      COMPOSITE_COLUMN_HEADER,
       'SKU',
       'Barcode',
       'ราคาปกติ*',
@@ -206,14 +214,15 @@ export default function BulkCreateProductsPage() {
       { text: 'จำเป็นต้องกรอก', required: true },
       { text: 'จำเป็นต้องกรอก', required: true },
       STATUS_INSTRUCTION,
-      '(สินค้าปกติ = 1 แถว / สินค้าย่อย = หลายแถวรหัสเดียวกัน)',
+      '(สินค้าปกติ = 1 แถว / สินค้าย่อย = หลายแถวรหัสเดียวกัน / สินค้าชุด = 1 แถวต่อชุดย่อย)',
       '(สินค้าย่อย: ใส่ชื่อประเภท เช่น สี, ขนาด — เว้นว่างถ้าสินค้าปกติ)',
       '(สินค้าย่อย: ค่าของประเภทตัวเลือก 1 เช่น ขาว, M)',
       '(ถ้าสินค้าย่อยมี 2 ประเภท — เช่น สี + ขนาด)',
       '(ค่าของประเภทตัวเลือก 2)',
+      '(ค่าว่าง = สินค้าปกติ · สินค้าชุด: SKU ส่วนประกอบคั่นด้วย + เช่น MUG-WHT + TS-WM, 2 ชิ้นใส่ ×2 · ไม่ต้องใส่ตัวเลือก/ราคาทุน · ราคาว่าง = รวมราคาส่วนประกอบ, ใส่ราคา = ตั้งราคาเอง)',
       '(ไม่บังคับ)',
       '(ไม่บังคับ)',
-      { text: 'จำเป็นต้องกรอก (ตัวเลข ≥ 0)', required: true },
+      { text: 'จำเป็นต้องกรอก (ตัวเลข ≥ 0 · สินค้าชุดเว้นว่างได้)', required: true },
       '(ค่าว่าง = 0)',
       ...(costInTemplate ? ['(ค่าว่าง = 0)'] : []),
       ...(brandEnabled ? ['(ชื่อต้องตรงในระบบ — ไม่ตรง = error)'] : []),
@@ -222,25 +231,29 @@ export default function BulkCreateProductsPage() {
     ];
     addTemplateHeader(ws, headers, instructions);
 
-    // Samples — 3 patterns:
+    // Samples — 4 patterns:
     //   - Simple product (1 row, no variation types)
     //   - Variable product with 1 variation type (สี)
     //   - Variable product with 2 variation types (สี + ขนาด)
+    //   - Composite product (สินค้าชุด) built from the samples above — 1 row per combo,
+    //     first combo priced automatically, second with a manual price
     const samples: Row[] = [
-      ['P001', 'กางเกงยีนส์ ทรงสลิม', STATUS_LABEL_ACTIVE, 'สินค้าปกติ', '',    '',    '',     '',  'JN-001',  '8850010', 890, 790, ...optionalCols('450', 'Brand A'), 'เสื้อผ้า',     'ทรงตรง กระเป๋าหลัง 2 ใบ'],
-      ['P002', 'แก้วเซรามิก Premium', STATUS_LABEL_ACTIVE, 'สินค้าย่อย', 'สี',  'ขาว', '',     '',  'MUG-WHT', '8850040', 220, 199, ...optionalCols('90',  'Brand C'), 'ของใช้ในบ้าน', ''],
-      ['P002', 'แก้วเซรามิก Premium', STATUS_LABEL_ACTIVE, 'สินค้าย่อย', 'สี',  'ดำ',  '',     '',  'MUG-BLK', '8850041', 220, 199, ...optionalCols('90',  ''),         '',             ''],
-      ['P003', 'เสื้อยืดผู้ชาย คอกลม', STATUS_LABEL_ACTIVE, 'สินค้าย่อย', 'สี',  'ขาว', 'ขนาด', 'M', 'TS-WM',   '8850050', 350, 299, ...optionalCols('180', 'Brand A'), 'เสื้อผ้า',     'เนื้อผ้าคอตตอน 100%'],
-      ['P003', 'เสื้อยืดผู้ชาย คอกลม', STATUS_LABEL_ACTIVE, 'สินค้าย่อย', 'สี',  'ขาว', 'ขนาด', 'L', 'TS-WL',   '8850051', 350, 299, ...optionalCols('180', ''),         '',             ''],
-      ['P003', 'เสื้อยืดผู้ชาย คอกลม', STATUS_LABEL_ACTIVE, 'สินค้าย่อย', 'สี',  'ดำ',  'ขนาด', 'M', 'TS-BM',   '8850052', 350, 299, ...optionalCols('180', ''),         '',             ''],
-      ['P003', 'เสื้อยืดผู้ชาย คอกลม', STATUS_LABEL_ACTIVE, 'สินค้าย่อย', 'สี',  'ดำ',  'ขนาด', 'L', 'TS-BL',   '8850053', 350, 299, ...optionalCols('180', ''),         '',             ''],
+      ['P001', 'กางเกงยีนส์ ทรงสลิม', STATUS_LABEL_ACTIVE, 'สินค้าปกติ', '',    '',    '',     '',  '', 'JN-001',  '8850010', 890, 790, ...optionalCols('450', 'Brand A'), 'เสื้อผ้า',     'ทรงตรง กระเป๋าหลัง 2 ใบ'],
+      ['P002', 'แก้วเซรามิก Premium', STATUS_LABEL_ACTIVE, 'สินค้าย่อย', 'สี',  'ขาว', '',     '',  '', 'MUG-WHT', '8850040', 220, 199, ...optionalCols('90',  'Brand C'), 'ของใช้ในบ้าน', ''],
+      ['P002', 'แก้วเซรามิก Premium', STATUS_LABEL_ACTIVE, 'สินค้าย่อย', 'สี',  'ดำ',  '',     '',  '', 'MUG-BLK', '8850041', 220, 199, ...optionalCols('90',  ''),         '',             ''],
+      ['P003', 'เสื้อยืดผู้ชาย คอกลม', STATUS_LABEL_ACTIVE, 'สินค้าย่อย', 'สี',  'ขาว', 'ขนาด', 'M', '', 'TS-WM',   '8850050', 350, 299, ...optionalCols('180', 'Brand A'), 'เสื้อผ้า',     'เนื้อผ้าคอตตอน 100%'],
+      ['P003', 'เสื้อยืดผู้ชาย คอกลม', STATUS_LABEL_ACTIVE, 'สินค้าย่อย', 'สี',  'ขาว', 'ขนาด', 'L', '', 'TS-WL',   '8850051', 350, 299, ...optionalCols('180', ''),         '',             ''],
+      ['P003', 'เสื้อยืดผู้ชาย คอกลม', STATUS_LABEL_ACTIVE, 'สินค้าย่อย', 'สี',  'ดำ',  'ขนาด', 'M', '', 'TS-BM',   '8850052', 350, 299, ...optionalCols('180', ''),         '',             ''],
+      ['P003', 'เสื้อยืดผู้ชาย คอกลม', STATUS_LABEL_ACTIVE, 'สินค้าย่อย', 'สี',  'ดำ',  'ขนาด', 'L', '', 'TS-BL',   '8850053', 350, 299, ...optionalCols('180', ''),         '',             ''],
+      ['SET01', 'ชุดของขวัญ แก้ว + เสื้อยืด', STATUS_LABEL_ACTIVE, COMPOSITE_TYPE_LABEL, '', '', '', '', 'MUG-WHT + TS-WM', 'SET-W', '', '',  '',  ...optionalCols('', 'Brand A'), 'ของใช้ในบ้าน', 'แก้วเซรามิก 1 ใบ + เสื้อยืด 1 ตัว'],
+      ['SET01', 'ชุดของขวัญ แก้ว + เสื้อยืด', STATUS_LABEL_ACTIVE, COMPOSITE_TYPE_LABEL, '', '', '', '', 'MUG-BLK + TS-BM', 'SET-B', '', 550, '', ...optionalCols('', ''),        '',             ''],
     ];
     samples.forEach(s => {
       const row = ws.addRow(s);
       row.getCell(headers.length).alignment = { wrapText: true, vertical: 'top' };
     });
 
-    const colWidths = [16, 44, 10, 20, 16, 14, 16, 14, 14, 14, 12, 12];
+    const colWidths = [16, 44, 10, 20, 16, 14, 16, 14, 36, 14, 14, 12, 12];
     if (costInTemplate) colWidths.push(12);
     if (brandEnabled) colWidths.push(20);
     colWidths.push(20, 60);
@@ -321,11 +334,21 @@ export default function BulkCreateProductsPage() {
           continue;
         }
 
+        // Composite product (สินค้าชุด) row — variation-label and cost columns are ignored
+        const componentsRaw = getCell(row, ...COMPOSITE_COLUMN_ALIASES);
+        if (componentsRaw) {
+          const { error: componentsError } = parseComponentCell(componentsRaw);
+          if (componentsError) {
+            rowIssues.push(`แถว ${rowNum}: ${componentsError}`);
+            continue;
+          }
+        }
+
         const numericChecks: Array<{ key: string; label: string }> = [
-          { key: 'ราคาปกติ', label: 'ราคาปกติ' },
+          { key: 'ราคาปกติ*', label: 'ราคาปกติ' },
           { key: 'ราคาขาย', label: 'ราคาขาย' },
         ];
-        if (canEditCost && includeCost && hasCostCol) {
+        if (canEditCost && includeCost && hasCostCol && !componentsRaw) {
           numericChecks.push({ key: 'ราคาทุน', label: 'ราคาทุน' });
         }
         let badNumeric = false;
@@ -355,7 +378,10 @@ export default function BulkCreateProductsPage() {
         if (type1 && value1 && value1 !== '-') attributes[type1] = value1;
         if (type2 && value2 && value2 !== '-') attributes[type2] = value2;
 
-        if (Object.keys(attributes).length > 0) {
+        if (componentsRaw) {
+          // Combo label is generated from its components
+          item.components = componentsRaw;
+        } else if (Object.keys(attributes).length > 0) {
           item.attributes = attributes;
           // Build display label from values (e.g. "ขาว / M")
           item.variation_label = Object.values(attributes).join(' / ');
@@ -367,11 +393,11 @@ export default function BulkCreateProductsPage() {
         if (sku) item.sku = sku;
         const barcode = getCell(row, 'Barcode', 'barcode');
         if (barcode) item.barcode = barcode;
-        const def = getCell(row, 'ราคาปกติ', 'default_price', 'price');
+        const def = getCell(row, 'ราคาปกติ*', 'ราคาปกติ', 'default_price', 'price');
         if (def !== '') item.default_price = Number(def);
         const disc = getCell(row, 'ราคาขาย', 'discount_price', 'discount');
         if (disc !== '') item.discount_price = Number(disc);
-        if (canEditCost && includeCost && hasCostCol) {
+        if (canEditCost && includeCost && hasCostCol && !componentsRaw) {
           const cost = getCell(row, 'ราคาทุน', 'cost_price', 'cost');
           if (cost !== '') item.cost_price = Number(cost);
         }
@@ -529,6 +555,10 @@ export default function BulkCreateProductsPage() {
                       — ถ้าไม่ตรง <strong className="text-red-600 dark:text-red-400">แถวนั้นจะ error</strong>{' '}
                       | เว้นว่าง = ไม่มี (สร้างได้ปกติ)
                     </li>
+                    <li>
+                      <strong>{COMPOSITE_TYPE_LABEL}</strong> → 1 แถวต่อชุดย่อย ใส่ SKU ของส่วนประกอบใน column &quot;{COMPOSITE_COLUMN_HEADER}&quot;
+                      คั่นด้วย <code>+</code> (เช่น <code>MUG-WHT + TS-WM</code>, 2 ชิ้นใส่ <code>×2</code>) · ราคาว่าง = รวมราคาส่วนประกอบ
+                    </li>
                     <li>คำอธิบาย: ใส่หลายบรรทัดได้</li>
                     <li>ถ้ารหัสสินค้ามีอยู่แล้ว → แถวนั้นจะ error (ใช้ &quot;แก้ไขข้อมูลพื้นฐาน&quot; แทน)</li>
                   </ul>
@@ -593,6 +623,11 @@ export default function BulkCreateProductsPage() {
                             <td className="px-4 py-3 align-top font-mono text-xs text-gray-500">{r.code}</td>
                             <td className="px-4 py-3 align-top">
                               <div className="text-gray-900 dark:text-white font-medium">{r.name}</div>
+                              {r.is_composite && (
+                                <div className="mt-1">
+                                  <Badge tone="purple" size="sm">{COMPOSITE_TYPE_LABEL} · {r.variation_count ?? variations.length} ชุดย่อย</Badge>
+                                </div>
+                              )}
                               {isError && r.error && (
                                 <div className="text-xs text-red-600 dark:text-red-400 mt-1">⚠ {r.error}</div>
                               )}
@@ -603,7 +638,7 @@ export default function BulkCreateProductsPage() {
                                   {variations.map((v, vi) => (
                                     <li key={vi} className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs">
                                       <span className="text-gray-700 dark:text-slate-300 font-medium min-w-[60px]">
-                                        {v.variation_label || '-'}
+                                        {v.components || v.variation_label || '-'}
                                       </span>
                                       <span className="font-mono text-gray-500">
                                         {v.sku || <span className="text-gray-300">—</span>}
@@ -611,6 +646,11 @@ export default function BulkCreateProductsPage() {
                                       <span className="font-mono text-gray-400">
                                         {v.barcode || <span className="text-gray-300">—</span>}
                                       </span>
+                                      {v.components && (
+                                        <span className="text-gray-500">
+                                          {v.default_price != null ? `ตั้งราคาเอง ฿${formatPrice(v.default_price)}` : 'ราคารวมส่วนประกอบ'}
+                                        </span>
+                                      )}
                                     </li>
                                   ))}
                                 </ul>
@@ -649,6 +689,11 @@ export default function BulkCreateProductsPage() {
                           )}
                         </div>
                         <div className="text-gray-900 dark:text-white font-medium mb-2">{r.name}</div>
+                        {r.is_composite && (
+                          <div className="mb-2">
+                            <Badge tone="purple" size="sm">{COMPOSITE_TYPE_LABEL} · {r.variation_count ?? variations.length} ชุดย่อย</Badge>
+                          </div>
+                        )}
                         {isError && r.error && (
                           <div className="text-xs text-red-600 dark:text-red-400 mb-2">⚠ {r.error}</div>
                         )}
@@ -657,10 +702,15 @@ export default function BulkCreateProductsPage() {
                             {variations.map((v, vi) => (
                               <div key={vi} className="text-xs flex flex-wrap gap-x-2">
                                 <span className="font-medium text-gray-700 dark:text-slate-300">
-                                  {v.variation_label || '-'}
+                                  {v.components || v.variation_label || '-'}
                                 </span>
                                 <span className="font-mono text-gray-500">{v.sku || '—'}</span>
                                 <span className="font-mono text-gray-400">{v.barcode || '—'}</span>
+                                {v.components && (
+                                  <span className="text-gray-500">
+                                    {v.default_price != null ? `ตั้งราคาเอง ฿${formatPrice(v.default_price)}` : 'ราคารวมส่วนประกอบ'}
+                                  </span>
+                                )}
                               </div>
                             ))}
                           </div>

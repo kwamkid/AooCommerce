@@ -28,6 +28,7 @@ import { FullPageLoading } from '@/components/ui/Loading';
 import { thumbUrl } from '@/lib/image-thumb';
 
 import { isValidEmail, EMAIL_INVALID_MESSAGE } from '@/lib/email';
+import { isCompositeLine } from '@/lib/composite-shared';
 interface PromotionComponent {
   variation_id: string;
   product_name: string;
@@ -446,8 +447,8 @@ export default function BillClient({ orderId, initialBill }: { orderId: string; 
                       <div>
                         <div className="font-medium text-base">{productDisplayName({ product_name: item.product_name, variation_label: item.variation_label })}</div>
                         {hasPromo ? (
-                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300 mt-0.5">
-                            โปรโมชั่น ({item.promotion_components!.length} รายการ)
+                          <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium mt-0.5 ${isCompositeLine(item) ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' : 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300'}`}>
+                            {isCompositeLine(item) ? 'ชุดประกอบ' : 'โปรโมชั่น'} ({item.promotion_components!.length} รายการ)
                           </span>
                         ) : item.product_code ? (
                           <div className={`text-sm font-mono ${dark ? 'text-slate-500' : 'text-gray-400'}`}>SKU: {item.product_code}</div>
@@ -485,7 +486,8 @@ export default function BillClient({ orderId, initialBill }: { orderId: string; 
                     <td className={`py-1.5 text-right text-sm pr-4 ${dark ? 'text-slate-500' : 'text-gray-400'}`}>×{comp.quantity}</td>
                     <td></td>
                     <td className={`py-1.5 text-right text-sm ${dark ? 'text-slate-500' : 'text-gray-400'}`}>
-                      {comp.default_price ? `฿${formatNumber(comp.default_price)}` : ''}
+                      {/* ส่วนประกอบของสินค้าชุดไม่มีราคาแยก — ราคาชุดอยู่ที่แถวหลัก */}
+                      {!isCompositeLine(item) && comp.default_price ? `฿${formatNumber(comp.default_price)}` : ''}
                     </td>
                   </tr>
                 ))}
@@ -506,8 +508,8 @@ export default function BillClient({ orderId, initialBill }: { orderId: string; 
                 <div className="flex-1 min-w-0">
                   <div className={`font-medium text-base truncate ${dark ? 'text-white' : 'text-gray-900'}`}>{productDisplayName({ product_name: item.product_name, variation_label: item.variation_label })}</div>
                   {hasPromo ? (
-                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300">
-                      โปรโมชั่น ({item.promotion_components!.length} รายการ)
+                    <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium ${isCompositeLine(item) ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' : 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300'}`}>
+                      {isCompositeLine(item) ? 'ชุดประกอบ' : 'โปรโมชั่น'} ({item.promotion_components!.length} รายการ)
                     </span>
                   ) : item.product_code ? (
                     <div className={`text-sm font-mono ${dark ? 'text-slate-500' : 'text-gray-400'}`}>SKU: {item.product_code}</div>

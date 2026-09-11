@@ -155,14 +155,15 @@ export function isRowEmpty(row: Record<string, string>): boolean {
 
 /**
  * Detect an "instruction/note" row — a row where every non-empty cell is
- * wrapped in parentheses, e.g. "(จำเป็น)", "(ค่าว่าง = 0)". Templates downloaded
- * from our app place such a row right below the header; some users delete it,
- * some don't. This detector lets the parser skip it in either case.
+ * wrapped in parentheses, e.g. "(จำเป็น)", "(ค่าว่าง = 0)", or is a red required
+ * cell ("จำเป็นต้องกรอก …" from `{ text, required: true }` — no parentheses).
+ * Templates downloaded from our app place such a row right below the header;
+ * some users delete it, some don't. This detector lets the parser skip it in either case.
  */
 export function isInstructionRow(row: Record<string, string>): boolean {
   const values = Object.values(row).map(v => (v || '').trim()).filter(v => v.length > 0);
   if (values.length === 0) return false;
-  return values.every(v => /^\(.*\)$/.test(v));
+  return values.every(v => /^\(.*\)$/.test(v) || v.startsWith('จำเป็นต้องกรอก'));
 }
 
 /** Required column descriptor for header validation. */

@@ -16,6 +16,14 @@
 
 ---
 
+## 2026-09-11 — เพิ่มสินค้าผ่าน Excel: ราคาปกติเป็น 0 ทุกแถว + แถวคำอธิบายถูกอ่านเป็นสินค้า · export แก้ราคาได้ไม่เกิน 1,000 แถว
+
+**ที่เกิด**: ตัวอ่านไฟล์ใน [app/products/bulk/create/page.tsx](app/products/bulk/create/page.tsx) · `isInstructionRow()` ใน [lib/bulk/parse-template.ts](lib/bulk/parse-template.ts) · [app/api/products/bulk/price/export/route.ts](app/api/products/bulk/price/export/route.ts)
+**อาการ**: นำเข้า template "เพิ่มสินค้าใหม่" ตามตัวอย่างแล้วราคาปกติเป็น 0 ทุกแถว หรือขึ้น error "ราคาขาย (ค่าว่าง = 0) ไม่ใช่ตัวเลข" ที่แถว 2 · ไฟล์ export แก้ราคาได้สินค้าไม่เกิน 1,000 แถวเงียบ ๆ (เจอระหว่างเพิ่มสินค้าชุด)
+**Root cause**: (1) header จริงของ template คือ `ราคาปกติ*` (ดาว = บังคับกรอก) แต่ตัวอ่านขอ `'ราคาปกติ'` → `getCell` ไม่เจอ = 0 (2) `isInstructionRow()` จำแถวคำอธิบายจาก "ทุกช่องอยู่ในวงเล็บ" แต่ช่องตัวแดง `{ text: 'จำเป็นต้องกรอก', required: true }` ไม่มีวงเล็บ → แถวคำอธิบายถูกอ่านเป็นข้อมูล (3) export ราคา query ตรงไม่แบ่งหน้า → ชนเพดาน 1,000 แถวของ Supabase
+**วิธีแก้**: อ่าน `'ราคาปกติ*'` ก่อนแล้วค่อย fallback ชื่อเดิม · `isInstructionRow()` นับช่องที่ขึ้นต้น "จำเป็นต้องกรอก" เป็นคำอธิบายด้วย (แก้ที่ตัวกลาง ทุก template ได้ผล) · export ราคาผ่าน `fetchAllRows`
+**ป้องกัน regression**: เปลี่ยน header ใน template ต้องค้นชื่อเดียวกันฝั่งตัวอ่านด้วยเสมอ (ชื่อที่มี `*`) · ช่องคำอธิบายแบบใหม่ต้องให้ `isInstructionRow()` รู้จัก · query ที่ต้องได้ครบใช้ `fetchAllRows`
+
 ## 2026-09-11 — หน้ารายการบรอดแคสต์โหลดช้า + "ตอบกลับ" ค้าง 0 ทั้งที่ลูกค้ากดปุ่ม/ตอบด่วนแล้ว
 
 **ที่เกิด**: [app/marketing/broadcast/page.tsx](app/marketing/broadcast/page.tsx) · [app/marketing/broadcast/[id]/page.tsx](app/marketing/broadcast/[id]/page.tsx) · `GET` ใน [app/api/broadcasts/route.ts](app/api/broadcasts/route.ts)

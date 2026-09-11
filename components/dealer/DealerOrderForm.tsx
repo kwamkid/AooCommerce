@@ -197,7 +197,8 @@ export default function DealerOrderForm({
   useEffect(() => {
     if (isEditMode && isReadOnly) { setLoadingProducts(false); return; }
     setLoadingProducts(true);
-    apiFetch('/api/products?limit=9999&active=true')
+    // ใบส่งห้างย้ายสต็อกไปคลังห้าง — สินค้าชุดไม่มีสต็อกของตัวเอง จึงเลือกไม่ได้ (ขายขาดยังขายได้)
+    apiFetch(`/api/products?limit=9999&active=true${isDepartment ? '&exclude_composite=true' : ''}`)
       .then(r => r.json())
       .then(result => {
         const flat: ProductSearchItem[] = [];

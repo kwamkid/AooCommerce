@@ -20,6 +20,7 @@ import {
   buildProductNameStack,
 } from './pdf-utils';
 import { productDisplayName } from './product-display';
+import { isCompositeLine } from './composite-shared';
 
 // Re-export the data interface so callers can use it
 export { type OrderInvoiceData } from './order-invoice-pdf';
@@ -46,6 +47,7 @@ interface AbbreviatedInvoiceItem {
   total: number;
   /** หมายเหตุรายสินค้า (order_items.notes) */
   notes?: string | null;
+  promotion_id?: string | null;
   promotion_name?: string | null;
   promotion_type?: string | null;
   promotion_components?: PromotionComponent[];
@@ -274,7 +276,8 @@ function buildCompactInvoiceContent(
         { text: `${rowNum}`, alignment: 'center', fontSize: 9, margin: [0, 1, 0, 0] },
         {
           text: [
-            { text: item.promotion_name || item.product_name, fontSize: 9, bold: true, color: '#6366f1' },
+            // สินค้าชุด (ไม่ใช่โปร) → ชื่อสินค้า + ชื่อชุดย่อย
+            { text: isCompositeLine(item) && !item.promotion_name ? productDisplayName(item) : (item.promotion_name || item.product_name), fontSize: 9, bold: true, color: '#6366f1' },
           ],
           margin: [0, 1, 0, 0],
         },

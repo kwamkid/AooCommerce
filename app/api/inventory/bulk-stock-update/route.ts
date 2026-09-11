@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
     // Pre-fetch all variations for company
     const { data: allVariations } = await supabaseAdmin
       .from('product_variations')
-      .select('id, product_id, variation_label, sku, barcode, product:products(id, name, company_id)')
+      .select('id, product_id, variation_label, sku, barcode, product:products(id, name, company_id, is_composite)')
       .eq('company_id', auth.companyId);
 
     type VariationRow = {
@@ -77,7 +77,7 @@ export async function POST(request: NextRequest) {
       variation_label: string | null;
       sku: string | null;
       barcode: string | null;
-      product: { id: string; name: string; company_id: string } | null;
+      product: { id: string; name: string; company_id: string; is_composite: boolean | null } | null;
     };
 
     const variations = (allVariations || []) as unknown as VariationRow[];
@@ -124,6 +124,9 @@ export async function POST(request: NextRequest) {
       const variation = byId.get(item.variation_id) || null;
       if (!variation) {
         return { rowNum, warehouse_id: warehouseId, warehouse_name: warehouseName, variation: null, quantity: qty, error: 'ไม่พบ variation_id นี้ในระบบ — ตรวจว่า ID ไม่ถูกแก้' };
+      }
+      if (variation.product?.is_composite) {
+        return { rowNum, warehouse_id: warehouseId, warehouse_name: warehouseName, variation, quantity: qty, error: 'สินค้าชุดไม่มีสต็อกของตัวเอง — ปรับสต็อกที่สินค้าส่วนประกอบแทน' };
       }
       if (item.product_id && item.product_id !== variation.product_id) {
         return { rowNum, warehouse_id: warehouseId, warehouse_name: warehouseName, variation, quantity: qty, error: 'product_id ไม่ตรงกับ variation_id' };

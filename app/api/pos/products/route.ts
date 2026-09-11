@@ -1,6 +1,7 @@
 // Path: app/api/pos/products/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
+import { getCompositeAvailability } from '@/lib/composite';
 
 // GET — Fetch products with per-warehouse stock for POS grid
 export async function GET(request: NextRequest) {
@@ -49,7 +50,7 @@ export async function GET(request: NextRequest) {
           discount_price,
           is_active,
           product:products!inner(
-            id, code, name, image, category_id, is_active
+            id, code, name, image, category_id, is_active, is_composite
           )
         `)
         .eq('company_id', auth.companyId)
@@ -64,14 +65,20 @@ export async function GET(request: NextRequest) {
       // Get stock only if warehouse is specified
       let stock = -1; // -1 = unlimited (no warehouse)
       if (warehouseId) {
-        const { data: inv } = await supabaseAdmin
-          .from('inventory')
-          .select('quantity, reserved_quantity')
-          .eq('warehouse_id', warehouseId)
-          .eq('variation_id', variation.id)
-          .eq('company_id', auth.companyId)
-          .single();
-        stock = inv ? Number(inv.quantity || 0) - Number(inv.reserved_quantity || 0) : 0;
+        if ((variation.product as { is_composite?: boolean } | null)?.is_composite) {
+          // Combo (สินค้าชุด) has no inventory row — sellable sets = scarcest component
+          const combo = (await getCompositeAvailability(supabaseAdmin, auth.companyId, [variation.id], warehouseId)).get(variation.id);
+          stock = combo?.available ?? 0;
+        } else {
+          const { data: inv } = await supabaseAdmin
+            .from('inventory')
+            .select('quantity, reserved_quantity')
+            .eq('warehouse_id', warehouseId)
+            .eq('variation_id', variation.id)
+            .eq('company_id', auth.companyId)
+            .single();
+          stock = inv ? Number(inv.quantity || 0) - Number(inv.reserved_quantity || 0) : 0;
+        }
         const unsettled = await fetchUnsettledMap([variation.id]);
         stock -= unsettled.get(variation.id) || 0;
       }
@@ -111,7 +118,7 @@ export async function GET(request: NextRequest) {
         discount_price,
         is_active,
         product:products!inner(
-          id, code, name, image, category_id, brand_id, is_active
+          id, code, name, image, category_id, brand_id, is_active, is_composite
         )
       `)
       .eq('company_id', auth.companyId)
@@ -160,7 +167,11 @@ export async function GET(request: NextRequest) {
     const stockMap = new Map<string, number>();
     if (warehouseId) {
       const variationIds = variations.map(v => v.id);
-      const [{ data: inventoryData }, unsettledMap] = await Promise.all([
+      // Combos (สินค้าชุด) have no inventory row — sellable sets come from their components
+      const comboIds = variations
+        .filter(v => (v.product as { is_composite?: boolean } | null)?.is_composite)
+        .map(v => v.id);
+      const [{ data: inventoryData }, unsettledMap, comboMap] = await Promise.all([
         supabaseAdmin
           .from('inventory')
           .select('variation_id, quantity, reserved_quantity')
@@ -168,10 +179,14 @@ export async function GET(request: NextRequest) {
           .eq('company_id', auth.companyId)
           .in('variation_id', variationIds),
         fetchUnsettledMap(variationIds),
+        getCompositeAvailability(supabaseAdmin, auth.companyId, comboIds, warehouseId),
       ]);
 
       for (const inv of (inventoryData || [])) {
         stockMap.set(inv.variation_id, Number(inv.quantity || 0) - Number(inv.reserved_quantity || 0));
+      }
+      for (const [vid, combo] of comboMap) {
+        stockMap.set(vid, combo.available);
       }
       for (const [vid, qty] of unsettledMap) {
         stockMap.set(vid, (stockMap.get(vid) || 0) - qty);

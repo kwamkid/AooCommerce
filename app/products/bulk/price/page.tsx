@@ -28,6 +28,7 @@ import IncludeCostToggle from '@/components/bulk/IncludeCostToggle';
 import ProductFilters, { type ProductStatusFilter } from '@/components/products/ProductFilters';
 import Pagination from '@/app/components/Pagination';
 import { addHeaderRow, addInstructionRow } from '@/lib/bulk/excel-template';
+import { COMPOSITE_TYPE_LABEL, PRICE_LOCKED_HEADER } from '@/lib/bulk/composite-ref';
 import { downloadBlob } from '@/lib/utils/download';
 
 import {
@@ -57,6 +58,10 @@ interface ResultRow {
   action: 'updated' | 'unchanged' | 'error';
   changes?: ResultChange[];
   error?: string;
+  /** combo of a composite product (สินค้าชุด) */
+  is_combo?: boolean;
+  /** combo price follows its components now and becomes a manual price with this save */
+  lock_price?: boolean;
   __rowNum?: number;
 }
 interface RunResponse {
@@ -149,6 +154,8 @@ export default function BulkPricePage() {
         default_price: number;
         discount_price: number;
         cost_price: number | null;
+        is_combo?: boolean;
+        price_locked?: boolean;
       };
       const items: ExportItem[] = data.items || [];
       if (items.length === 0) {
@@ -167,14 +174,17 @@ export default function BulkPricePage() {
         'ชื่อสินค้า',
         'ตัวเลือก',
         'SKU',
+        'ประเภท',
         'ราคาปกติ',
         'ราคาขาย',
         ...(costInTemplate ? ['ราคาทุน'] : []),
       ];
+      const FIRST_PRICE_COL = 8;
+      const COST_COL = 10;
       // Header row — manually add to apply green tint to editable price columns
       const headerRow = addHeaderRow(ws, headers);
       headerRow.eachCell((cell, colNum) => {
-        if (colNum >= 7) {
+        if (colNum >= FIRST_PRICE_COL) {
           cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF15803D' } };
         }
       });
@@ -185,9 +195,10 @@ export default function BulkPricePage() {
         '(read-only)',
         '(read-only)',
         '(read-only)',
+        `(read-only · ${COMPOSITE_TYPE_LABEL}: แก้ราคา = เปลี่ยนเป็น${PRICE_LOCKED_HEADER} ไม่ตามราคาส่วนประกอบอีก)`,
         '(ตัวเลข ≥ 0)',
         '(ตัวเลข ≥ 0; 0 = ไม่มีส่วนลด)',
-        ...(costInTemplate ? ['(ตัวเลข ≥ 0)'] : []),
+        ...(costInTemplate ? [`(ตัวเลข ≥ 0 · ${COMPOSITE_TYPE_LABEL}ไม่มีต้นทุนของตัวเอง — ไม่ต้องกรอก)`] : []),
       ];
       addInstructionRow(ws, instructions);
 
@@ -203,10 +214,12 @@ export default function BulkPricePage() {
           it.product_name,
           it.variation_label,
           it.sku,
+          it.is_combo ? `${COMPOSITE_TYPE_LABEL} · ${it.price_locked ? PRICE_LOCKED_HEADER : 'ราคาตามส่วนประกอบ'}` : '',
           it.default_price ?? 0,
           it.discount_price ?? 0,
         ];
-        if (costInTemplate) rowVals.push(it.cost_price ?? 0);
+        // A set has no cost of its own (it comes from its components)
+        if (costInTemplate) rowVals.push(it.is_combo ? '' : (it.cost_price ?? 0));
 
         const row = ws.addRow(rowVals);
 
@@ -217,23 +230,28 @@ export default function BulkPricePage() {
           cell.font = grayFont;
           cell.protection = { locked: true };
         }
-        // Read-only cols 3-6 (display context)
-        for (let c = 3; c <= 6; c++) {
+        // Read-only cols 3-7 (display context)
+        for (let c = 3; c < FIRST_PRICE_COL; c++) {
           const cell = row.getCell(c);
           cell.font = readonlyFont;
           cell.protection = { locked: true };
         }
-        // Editable price cols (7+)
-        const priceEnd = costInTemplate ? 9 : 8;
-        for (let c = 7; c <= priceEnd; c++) {
+        // Editable price cols (8+)
+        const priceEnd = costInTemplate ? COST_COL : COST_COL - 1;
+        for (let c = FIRST_PRICE_COL; c <= priceEnd; c++) {
           const cell = row.getCell(c);
           cell.protection = { locked: false };
           cell.alignment = { horizontal: 'right' };
           cell.numFmt = '#,##0.##';
         }
+        if (costInTemplate && it.is_combo) {
+          const cell = row.getCell(COST_COL);
+          cell.fill = grayFill;
+          cell.protection = { locked: true };
+        }
       }
 
-      const colWidths = [38, 38, 14, 32, 16, 16, 12, 12];
+      const colWidths = [38, 38, 14, 32, 16, 16, 30, 12, 12];
       if (costInTemplate) colWidths.push(12);
       ws.columns = colWidths.map(w => ({ width: w }));
 
@@ -432,6 +450,10 @@ export default function BulkPricePage() {
                     <li>กด <strong>Export สินค้า</strong> → ได้ไฟล์ Excel ทุก variation ตาม filter</li>
                     <li>แก้เฉพาะ column <strong className="text-emerald-700">ราคาปกติ / ราคาขาย{costInTemplate ? ' / ราคาทุน' : ''}</strong> (header สีเขียว)</li>
                     <li>คอลัมน์อื่น read-only (เพื่อ context — ห้ามแก้)</li>
+                    <li>
+                      {COMPOSITE_TYPE_LABEL}: ต้นทุนมาจากส่วนประกอบ (แก้ไม่ได้) · แก้ราคาชุดย่อย = เปลี่ยนเป็น
+                      <strong>{PRICE_LOCKED_HEADER}</strong> ไม่ตามราคาส่วนประกอบอีก
+                    </li>
                     <li>อัพโหลดกลับ → ระบบแสดง preview ก่อนบันทึก</li>
                   </ul>
                   {!canEditCost && (
@@ -506,6 +528,13 @@ export default function BulkPricePage() {
                             <div className="text-xs text-gray-500 dark:text-slate-400">
                               {r.code}{r.variation_label && r.variation_label !== '-' && ` · ${r.variation_label}`}
                             </div>
+                            {r.is_combo && (
+                              <div className="mt-1">
+                                <Badge tone="purple" size="sm">
+                                  {COMPOSITE_TYPE_LABEL}{r.lock_price ? ` · จะเปลี่ยนเป็น${PRICE_LOCKED_HEADER}` : ''}
+                                </Badge>
+                              </div>
+                            )}
                             {r.action === 'error' && r.error && (
                               <div className="text-xs text-red-500 mt-1">แถว {r.__rowNum}: {r.error}</div>
                             )}
@@ -549,6 +578,13 @@ export default function BulkPricePage() {
                         <div className="text-xs text-gray-500 mb-1">ตัวเลือก: {r.variation_label}</div>
                       )}
                       {r.sku && <div className="text-xs font-mono text-gray-500 mb-2">SKU: {r.sku}</div>}
+                      {r.is_combo && (
+                        <div className="mb-2">
+                          <Badge tone="purple" size="sm">
+                            {COMPOSITE_TYPE_LABEL}{r.lock_price ? ` · จะเปลี่ยนเป็น${PRICE_LOCKED_HEADER}` : ''}
+                          </Badge>
+                        </div>
+                      )}
                       {r.action === 'error' && r.error && (
                         <div className="text-xs text-red-500 mb-2">แถว {r.__rowNum}: {r.error}</div>
                       )}

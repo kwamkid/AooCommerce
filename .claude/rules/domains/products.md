@@ -9,10 +9,23 @@ paths:
   - "app/api/promotions/**/*"
   - "lib/promotion-service.ts"
   - "lib/promotions/**/*"
+  - "lib/composite*.ts"
 ---
-# สินค้า — Import/Export · Bulk edit · Promotion
+# สินค้า — สินค้าชุด · Import/Export · Bulk edit · Promotion
 
 > ย้ายมาจาก CLAUDE.md (2026-09-10) · โหลดเองเมื่อ Claude อ่านไฟล์ที่ตรง `paths:` ด้านบน · งานหัวข้อนี้ที่ยังไม่ได้แตะไฟล์เหล่านั้น → `Read` ไฟล์นี้เองก่อนลงมือ
+
+## สินค้าชุด (composite) — ชุดย่อย = variation จริง ไม่มีสต็อกของตัวเอง
+
+**โมเดล**: `products.is_composite` + `composite_slots` (ช่องประกอบ `{key,name,product_id,variation_ids,quantity}`) · ชุดย่อยแต่ละคู่ (เช่น โครงดำ + ผ้าแดง) = แถว `product_variations` ปกติของสินค้าชุด → ออเดอร์ · POS · link marketplace · รายงาน ใช้ของเดิมได้หมด · ชิ้นส่วนอยู่ใน `product_variation_components(variation_id=ชุดย่อย, component_variation_id, quantity=ชิ้นต่อชุด)` · `product_variations.price_locked` = ตั้งราคาเอง
+- **สต็อก**: `lib/stock-service.ts` แตก reserve/unreserve/deduct/deductAndUnreserve/return ไปที่ชิ้นส่วนเอง (`checkAvailable` เช็คครบทุกชิ้นก่อนตัด) · ⛔ ชุดย่อยมีแถว `inventory` ไม่ได้ — trigger `trg_guard_composite_inventory` ปฏิเสธ · พร้อมขาย = RPC `get_composite_availability` (ชิ้นที่เหลือน้อยสุด) ผ่าน `getCompositeAvailability()` · หน้าจัดการสต็อก (รับ/เบิก/โอน/เติมของ/ส่งห้าง/PO/bulk stock) ตัดสินค้าชุดออก (`/api/products?exclude_composite=true` · RPC คลังกรอง `NOT p.is_composite`)
+- **ราคา**: ตั้งต้น = Σ ราคาชิ้นส่วน × จำนวน — trigger `trg_component_price_changed` คำนวณชุดที่ไม่ล็อกใหม่เมื่อราคาชิ้นส่วนเปลี่ยน (`recompute_composite_prices()` = สูตรจริง · `comboPrice()` ใน `lib/composite-shared.ts` = พรีวิว **ต้องตรงกัน**) · แก้ราคาชุดผ่าน Excel ราคา = ล็อกให้อัตโนมัติ
+- **ต้นทุน**: `fetchCostMap()` คืน Σ WAC ชิ้นส่วน — ห้ามเขียน WAC ลงชุดย่อย
+- **บิล/PDF**: trigger `trg_fill_composite_order_components` เติม `order_items.promotion_components` (role `'component'` · `product_name` = "สินค้า - ตัวเลือก") ให้บรรทัดชุดที่ไม่มี `promotion_id` · ⚠️ เซ็ตโปรโมชั่น bundle_set ก็ใช้ role `'component'` — แยกด้วย `isCompositeLine()` (ไม่มี `promotion_id`) เท่านั้น ห้ามดู role · ป้าย "ชุดประกอบ (N รายการ)" · ไม่โชว์ราคาต่อชิ้นส่วน · PDF หัวแถวใช้ `productDisplayName`
+- **บันทึก**: ทุกทาง (ฟอร์ม `/api/products` · Excel) ผ่าน `saveCompositeVariations()` ใน `lib/composite-save.ts` ตัวเดียว — key ชุดย่อย = ชุดชิ้นส่วน (`comboKey`) แก้ช่องแล้วแถวเดิมยังอยู่ · ชุดที่หลุด soft-archive · ตรวจทุกอย่างก่อนเขียน (โยน `CompositeValidationError` ข้อความไทย) · ⛔ เปลี่ยนประเภทเข้า/ออกจากสินค้าชุดไม่ได้ · ห้ามชุดซ้อนชุด (trigger กันด้วย)
+- **ฟอร์ม**: การ์ดประเภทที่ 3 ใน `ProductForm` + `components/products/composite/` (`useCompositeEditor` = state/payload · `CompositeEditor` = UI) · GET `/api/products/[id]` คืน `composite_slots/combos/options` · `?view=component` = สินค้า 1 ตัวพร้อมตัวเลือกให้ช่องประกอบ
+- **Excel**: คอลัมน์ `ส่วนประกอบ (สินค้าชุด)` = `REF + REF×2` (REF = SKU → `รหัสสินค้า/ตัวเลือก` → รหัสสินค้าเดี่ยว) · parse/format ที่ `lib/bulk/composite-ref.ts` · สร้างผ่าน `importCompositeProducts()` (`lib/bulk/composite-import.ts`) หลัง RPC สร้างสินค้าปกติในไฟล์เดียวกันแล้ว · export มี `ราคาตั้งเอง`
+- **ยังไม่ทำ**: ส่งขึ้น/ดึงจาก marketplace (รอ re-flow · Shopee Kit ได้แค่ 1 ชั้น ≤9 ตัวเลือก → ใช้ listing ปกติ 2 ชั้น) — ดู `todo.md`
 
 ## Promotion Module
 

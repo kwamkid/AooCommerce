@@ -21,6 +21,7 @@ import {
   buildProductNameStack,
 } from './pdf-utils';
 import { productDisplayName } from './product-display';
+import { isCompositeLine } from './composite-shared';
 
 // ─── Interfaces ──────────────────────────────────────────
 
@@ -46,6 +47,7 @@ interface FullInvoiceItem {
   total: number;
   /** หมายเหตุรายสินค้า (order_items.notes) */
   notes?: string | null;
+  promotion_id?: string | null;
   promotion_name?: string | null;
   promotion_type?: string | null;
   promotion_components?: PromotionComponent[];
@@ -293,7 +295,8 @@ export async function generateFullInvoicePdf(
         { text: `${rowNum}`, alignment: 'center', fontSize: 11, margin: [0, 2, 0, 0] },
         {
           text: [
-            { text: item.promotion_name || item.product_name, fontSize: 11, bold: true, color: '#6366f1' },
+            // สินค้าชุด (ไม่ใช่โปร) → ชื่อสินค้า + ชื่อชุดย่อย
+            { text: isCompositeLine(item) && !item.promotion_name ? productDisplayName(item) : (item.promotion_name || item.product_name), fontSize: 11, bold: true, color: '#6366f1' },
           ],
           margin: [0, 2, 0, 0],
         },

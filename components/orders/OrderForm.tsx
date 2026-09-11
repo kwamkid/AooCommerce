@@ -562,6 +562,10 @@ export default function OrderForm({
   const [warehouses, setWarehouses] = useState<{ id: string; name: string; code: string; is_default: boolean }[]>([]);
   const [selectedWarehouseId, setSelectedWarehouseId] = useState('');
   const [inventoryMap, setInventoryMap] = useState<Record<string, { quantity: number; reserved_quantity: number; available: number }>>({});
+  // สินค้าชุด (combo) ไม่มีแถว inventory → ไม่อยู่ใน /api/inventory · จำนวนชุดที่ขายได้ถามแยกจาก
+  // /api/products/composite-availability ตาม id ที่กำลังโชว์ (ตะกร้า + ผลค้นหา) · ผูกกับคลังที่ถาม
+  const [comboStock, setComboStock] = useState<{ wh: string; map: Record<string, { quantity: number; reserved_quantity: number; available: number }> }>({ wh: '', map: {} });
+  const comboCheckedRef = useRef<{ wh: string; ids: Set<string> }>({ wh: '', ids: new Set() });
 
 
   // Copy from latest order
@@ -1157,6 +1161,58 @@ export default function OrderForm({
     }
   };
 
+  /**
+   * จำนวนชุดที่ขายได้ของสินค้าชุด — ส่ง id ที่กำลังโชว์ไปถาม ตัวที่ไม่ใช่ชุดจะไม่อยู่ในคำตอบ
+   * id ที่ถามแล้วในคลังนี้ไม่ถามซ้ำ (ยกเว้น `force` ตอนสต็อกส่วนประกอบขยับ)
+   */
+  const fetchComboAvailability = async (warehouseId: string, ids: string[], force = false) => {
+    if (!warehouseId) return;
+    if (comboCheckedRef.current.wh !== warehouseId) comboCheckedRef.current = { wh: warehouseId, ids: new Set() };
+    const seen = comboCheckedRef.current.ids;
+    const todo = [...new Set(ids)].filter(id => id && !id.startsWith('promo_') && (force || !seen.has(id)));
+    if (todo.length === 0) return;
+    todo.forEach(id => seen.add(id));
+    try {
+      const found: Record<string, { quantity: number; reserved_quantity: number; available: number }> = {};
+      for (let i = 0; i < todo.length; i += 200) {
+        const res = await apiFetch(`/api/products/composite-availability?warehouse_id=${warehouseId}&variation_ids=${todo.slice(i, i + 200).join(',')}`);
+        if (!res.ok) throw new Error('composite availability failed');
+        Object.assign(found, (await res.json()).items || {});
+      }
+      setComboStock(prev => ({ wh: warehouseId, map: prev.wh === warehouseId ? { ...prev.map, ...found } : found }));
+    } catch (error) {
+      todo.forEach(id => seen.delete(id)); // ถามใหม่รอบหน้า
+      console.error('Error fetching composite availability:', error);
+    }
+  };
+
+  // สต็อกส่วนประกอบขยับ (realtime) → จำนวนชุดที่รู้อยู่แล้วอาจเปลี่ยน — ถามใหม่รวบเดียว
+  const refreshComboStock = useDebouncedCallback(() => {
+    const ids = comboStock.wh === selectedWarehouseId ? Object.keys(comboStock.map) : [];
+    if (ids.length > 0) fetchComboAvailability(selectedWarehouseId, ids, true);
+  }, 500);
+
+  const comboCandidateKey = useMemo(() => {
+    const ids = new Set<string>();
+    for (const p of products) ids.add(p.id);
+    for (const p of topSellers) ids.add(p.id);
+    for (const p of branchOrders[0]?.products || []) ids.add(p.variation_id);
+    return [...ids].filter(Boolean).sort().join(',');
+  }, [products, topSellers, branchOrders]);
+
+  useEffect(() => {
+    if (!stockEnabled || !selectedWarehouseId || !comboCandidateKey) return;
+    fetchComboAvailability(selectedWarehouseId, comboCandidateKey.split(','));
+  }, [stockEnabled, selectedWarehouseId, comboCandidateKey]);
+
+  /** สต็อกที่ขายได้ต่อ variation ของคลังที่เลือก — รวมสินค้าชุด (ใช้ทั้งเช็คขายเกินและ badge) */
+  const stockByVariation = useMemo(
+    () => (comboStock.wh === selectedWarehouseId && Object.keys(comboStock.map).length > 0
+      ? { ...inventoryMap, ...comboStock.map }
+      : inventoryMap),
+    [inventoryMap, comboStock, selectedWarehouseId],
+  );
+
   // Live inventory updates for the currently-selected warehouse so concurrent
   // sellers in the same company don't oversell. Subscribes to postgres_changes
   // on the inventory row for this warehouse and patches the local map per
@@ -1176,6 +1232,7 @@ export default function OrderForm({
       }, (payload) => {
         const row = (payload.new || payload.old) as { variation_id?: string; quantity?: number; reserved_quantity?: number } | null;
         if (!row?.variation_id) return;
+        refreshComboStock();
         if (payload.eventType === 'DELETE') {
           setInventoryMap(prev => {
             if (!(row.variation_id! in prev)) return prev;
@@ -1198,7 +1255,7 @@ export default function OrderForm({
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [currentCompany?.id, selectedWarehouseId]);
+  }, [currentCompany?.id, selectedWarehouseId, refreshComboStock]);
 
   // Reuse from hook
   const { fillDeliveryFromAddress } = customerPrefill;
@@ -1697,7 +1754,7 @@ export default function OrderForm({
 
     // Stock validation when oversell is not allowed
     if (!allowOversell && stockEnabled && selectedWarehouseId) {
-      const inv = inventoryMap[product.id];
+      const inv = stockByVariation[product.id];
       const available = inv ? inv.available : 0;
       const currentQty = branchOrders[0]?.products.filter(p => p.variation_id === product.id).reduce((s, p) => s + p.quantity, 0) || 0;
 
@@ -1716,7 +1773,7 @@ export default function OrderForm({
     if (existingProductIndex !== -1) {
       // Duplicate → increment quantity (barcode scan behavior)
       if (!allowOversell && stockEnabled && selectedWarehouseId) {
-        const inv = inventoryMap[product.id];
+        const inv = stockByVariation[product.id];
         const available = inv ? inv.available : 0;
         const currentQty = branchOrders[0]?.products.filter(p => p.variation_id === product.id).reduce((s, p) => s + p.quantity, 0) || 0;
         if (currentQty >= available) {
@@ -1770,7 +1827,7 @@ export default function OrderForm({
 
     if (!allowOversell && stockEnabled && selectedWarehouseId) {
       const variationId = branchOrders[0].products[productIndex].variation_id;
-      const inv = inventoryMap[variationId];
+      const inv = stockByVariation[variationId];
       const available = inv ? inv.available : 0;
       const otherQty = branchOrders[0].products.reduce((s, p, pi) =>
         pi === productIndex ? s : (p.variation_id === variationId ? s + p.quantity : s), 0);
@@ -3090,7 +3147,7 @@ export default function OrderForm({
             columns={['qty', 'unit_price', 'discount', 'total']}
             showItemNotes
             stockMap={stockEnabled && selectedWarehouseId
-              ? Object.fromEntries(Object.entries(inventoryMap).map(([k, v]) => [k, v.available]))
+              ? Object.fromEntries(Object.entries(stockByVariation).map(([k, v]) => [k, v.available]))
               : {}}
             showStockInSearch={stockEnabled && !!selectedWarehouseId}
             disableOutOfStock={!allowOversell && stockEnabled && !!selectedWarehouseId}

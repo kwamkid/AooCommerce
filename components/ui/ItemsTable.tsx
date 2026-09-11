@@ -9,6 +9,7 @@ import PostfixInput from '@/components/ui/PostfixInput';
 import NumberInput from '@/components/ui/NumberInput';
 import ProductImageThumb from '@/components/ui/ProductImageThumb';
 import { productDisplayName } from '@/lib/product-display';
+import { isCompositeLine } from '@/lib/composite-shared';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -216,9 +217,19 @@ function RoleBadge({ role }: { role: string }) {
       return <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-400"><Gift className="w-2.5 h-2.5" />แถมฟรี</span>;
     case 'discounted':
       return <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">ราคาพิเศษ</span>;
+    case 'component': // ส่วนประกอบของสินค้าชุด — ไม่มีป้าย
     default:
       return null;
   }
+}
+
+/** ป้ายของแถวที่มีรายการย่อย — สินค้าชุด (ส่วนประกอบ) หรือโปรโมชั่น */
+function ComponentsBadge({ item }: { item: TableItem }) {
+  const count = item.promotion_components?.length ?? 0;
+  if (count === 0) return null;
+  return isCompositeLine(item)
+    ? <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">ชุดประกอบ ({count} รายการ)</span>
+    : <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300">โปรโมชั่น ({count} รายการ)</span>;
 }
 
 // ── Component ──────────────────────────────────────────────────────────────
@@ -385,11 +396,7 @@ export default function ItemsTable({
         <div className={showItemNotes ? 'flex-1 min-w-0' : 'min-w-0'}>
           <p className="text-sm font-medium text-gray-900 dark:text-white line-clamp-2">{name}</p>
           <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
-            {hasPromo && (
-              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300">
-                โปรโมชั่น ({item.promotion_components!.length} รายการ)
-              </span>
-            )}
+            {hasPromo && <ComponentsBadge item={item} />}
             {!hasPromo && sub && <p className="text-xs text-gray-400 dark:text-slate-500 truncate">{sub}</p>}
             {hasStock && <StockBadge qty={stockMap[item.variation_id]} />}
           </div>
@@ -686,7 +693,8 @@ export default function ItemsTable({
                     {hasQtyReceived && <td />}
                     {hasPrice && (
                       <td className="py-2 text-right">
-                        {comp.special_price != null && comp.special_price !== comp.default_price ? (
+                        {/* ส่วนประกอบของสินค้าชุดไม่มีราคาแยก — ราคาชุดอยู่ที่แถวหลัก */}
+                        {isCompositeLine(item) ? null : comp.special_price != null && comp.special_price !== comp.default_price ? (
                           <div>
                             <span className="text-xs text-gray-400 dark:text-slate-500 line-through">฿{fmt(comp.default_price ?? 0)}</span>
                             <span className="text-sm text-primary font-medium ml-1">฿{fmt(comp.special_price)}</span>
@@ -743,9 +751,7 @@ export default function ItemsTable({
                   </p>
                   <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
                     {item.promotion_components && item.promotion_components.length > 0 ? (
-                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300">
-                        โปรโมชั่น ({item.promotion_components.length} รายการ)
-                      </span>
+                      <ComponentsBadge item={item} />
                     ) : (() => {
                       const parts: string[] = [];
                       if (item.sku) parts.push(item.sku);
@@ -947,7 +953,7 @@ export default function ItemsTable({
                       </div>
                       <div className="flex-shrink-0 text-right">
                         <span className="text-sm text-gray-600 dark:text-slate-300">×{comp.quantity}</span>
-                        {comp.special_price != null && comp.special_price !== comp.default_price ? (
+                        {isCompositeLine(item) ? null : comp.special_price != null && comp.special_price !== comp.default_price ? (
                           <div className="flex items-center gap-1">
                             <span className="text-[10px] text-gray-400 line-through">฿{fmt(comp.default_price ?? 0)}</span>
                             <span className="text-xs text-primary font-medium">฿{fmt(comp.special_price)}</span>

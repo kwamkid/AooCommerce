@@ -29,7 +29,8 @@ import {
   countOrderSpecialFlagLines,
   buildOrderSpecialFlagsCard,
 } from './pdf-utils';
-import { cleanVariationLabel } from './product-display';
+import { cleanVariationLabel, productDisplayName } from './product-display';
+import { isCompositeLine } from './composite-shared';
 
 // ─── Interfaces ──────────────────────────────────────────
 
@@ -53,6 +54,7 @@ interface PackingItem {
   sku?: string | null;
   /** หมายเหตุรายสินค้า (order_items.notes) — คนแพ็คต้องเห็น พิมพ์ตัวหนาใต้ชื่อสินค้า */
   notes?: string | null;
+  promotion_id?: string | null;
   promotion_name?: string | null;
   promotion_components?: PackingComponentItem[];
 }
@@ -850,7 +852,8 @@ function buildCompactPackingContent(
       headerRow.push({
         text: [
           { text: '', fontSize: 9 },
-          { text: item.promotion_name || item.product_name, fontSize: 9, bold: true, color: '#6366f1' },
+          // สินค้าชุด (ไม่ใช่โปร) → ชื่อสินค้า + ชื่อชุดย่อย (ตัวนับแถวใน compactPackingParts นับแถว ไม่ใช่บรรทัด — ไม่กระทบ)
+          { text: isCompositeLine(item) && !item.promotion_name ? productDisplayName(item) : (item.promotion_name || item.product_name), fontSize: 9, bold: true, color: '#6366f1' },
           { text: ` (×${item.quantity})`, fontSize: 8, color: '#888888' },
           // หมายเหตุของรายการโปรโมชั่น — ตัวหนา + • ให้คนแพ็คเห็นชัด
           ...(item.notes && item.notes.trim()

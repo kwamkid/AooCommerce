@@ -10,6 +10,7 @@ import { cache } from 'react';
 import { parseLineLogin } from '@/lib/line-login';
 import { parseGiftCard, type GiftCardSettings } from '@/lib/gift-card';
 import { supabaseAdmin } from '@/lib/supabase-admin';
+import { getCompositeAvailability } from '@/lib/composite';
 import {
   parseStorefront, effectivePrice,
   type StorefrontConfig, type StorefrontProduct, type StorefrontVariation,
@@ -173,6 +174,7 @@ export const getStorefrontCompany = cache(async (slug: string): Promise<Storefro
 
 interface RawVariation {
   id: string;
+  product_id: string;
   variation_label: string | null;
   sku: string | null;
   default_price: number;
@@ -239,8 +241,25 @@ function assembleProduct(
   };
 }
 
+/**
+ * Combos of a composite product (สินค้าชุด) hold no stock of their own — their `stock`
+ * becomes the sellable sets across all warehouses (the scarcest component decides).
+ */
+async function withComboStock(
+  companyId: string,
+  variations: RawVariation[],
+  compositeProductIds: Set<string>,
+): Promise<RawVariation[]> {
+  const comboIds = variations.filter(v => compositeProductIds.has(v.product_id)).map(v => v.id);
+  if (comboIds.length === 0) return variations;
+  const avail = await getCompositeAvailability(supabaseAdmin, companyId, comboIds);
+  return variations.map(v => (compositeProductIds.has(v.product_id)
+    ? { ...v, stock: avail.get(v.id)?.available ?? 0 }
+    : v));
+}
+
 const PRODUCT_SELECT = `
-  id, slug, name, description, image, updated_at,
+  id, slug, name, description, image, updated_at, is_composite,
   category:product_categories ( name ),
   brand:product_brands ( name )
 `;
@@ -294,10 +313,14 @@ export const getStorefrontCatalog = cache(async (
       .order('sort_order', { ascending: true }),
   ]);
 
+  const compositeIds = new Set<string>(filtered.filter(r => r.is_composite).map(r => r.id));
+  const catalogVars = stockEnabled
+    ? await withComboStock(companyId, (variations || []) as RawVariation[], compositeIds)
+    : (variations || []) as RawVariation[];
   const varsByProduct = new Map<string, RawVariation[]>();
-  for (const v of variations || []) {
+  for (const v of catalogVars) {
     const list = varsByProduct.get(v.product_id) || [];
-    list.push(v as RawVariation);
+    list.push(v);
     varsByProduct.set(v.product_id, list);
   }
   const imgsByProduct = new Map<string, { variation_id: string | null; image_url: string }[]>();
@@ -348,9 +371,12 @@ export const getStorefrontProduct = cache(async (
       .order('sort_order', { ascending: true }),
   ]);
 
+  const rawVars = (variations || []) as RawVariation[];
   const product = assembleProduct(
     typedRow,
-    (variations || []) as RawVariation[],
+    stockEnabled && typedRow.is_composite
+      ? await withComboStock(companyId, rawVars, new Set([typedRow.id as string]))
+      : rawVars,
     (images || []).map(i => ({ variation_id: i.variation_id, image_url: i.image_url })),
     stockEnabled,
   );

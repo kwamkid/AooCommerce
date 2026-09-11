@@ -17,6 +17,9 @@ import StickyActionBar from '@/components/ui/StickyActionBar';
 import NumberInput from '@/components/ui/NumberInput';
 import Badge from '@/components/ui/Badge';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
+import CompositeEditor from '@/components/products/composite/CompositeEditor';
+import { useCompositeEditor } from '@/components/products/composite/useCompositeEditor';
+import type { CompositeProductData } from '@/components/products/composite/types';
 import {
   Plus,
   Trash2,
@@ -24,8 +27,11 @@ import {
   Check,
   Layers,
   BoxSelect,
+  Boxes,
   ShieldAlert,
 } from 'lucide-react';
+
+type ProductType = 'simple' | 'variation' | 'composite';
 
 interface CategoryOption {
   id: string;
@@ -59,17 +65,19 @@ interface Variation {
   stock: number;
   min_stock: number;
   is_active: boolean;
+  /** composite combos: true = price set by hand */
+  price_locked?: boolean;
 }
 
-// Product interface (from API view)
-export interface ProductItem {
+// Product interface (from API view) — composite fields come from /api/products/[id]
+export interface ProductItem extends CompositeProductData {
   product_id: string;
   code: string;
   name: string;
   description?: string;
   image?: string;
   main_image_url?: string;
-  product_type: 'simple' | 'variation';
+  product_type: ProductType;
   selected_variation_types?: string[];
   is_active: boolean;
   created_at: string;
@@ -92,7 +100,7 @@ interface ProductFormData {
   image: string;
   category_id?: string;
   brand_id?: string;
-  product_type: 'simple' | 'variation';
+  product_type: ProductType;
   is_active: boolean;
   selected_variation_types: string[];
   variation_label: string;
@@ -162,8 +170,14 @@ export default function ProductForm({
 
   // Track the product_type the form was loaded with — used to detect when the
   // user is changing simple ↔ variation in edit mode (needs confirmation).
-  const originalProductType = editingProduct?.product_type;
+  // A duplicate (no product_id) is a new product — nothing saved yet, so no confirmation.
+  const isEditMode = !!editingProduct?.product_id;
+  const originalProductType = isEditMode ? editingProduct?.product_type : undefined;
   const [pendingTypeChange, setPendingTypeChange] = useState<'simple' | 'variation' | null>(null);
+  // สินค้าชุด: chosen only when creating · a saved composite product can't change type (API enforces too)
+  const compositeLocked = originalProductType === 'composite';
+  const compositeCardDisabled = isEditMode && originalProductType !== 'composite';
+  const composite = useCompositeEditor(editingProduct);
 
   // Category & Brand state
   const [categories, setCategories] = useState<CategoryOption[]>([]);
@@ -209,6 +223,27 @@ export default function ProductForm({
       // Edit existing → keep existing code. Duplicate (no product_id) → blank
       // so the user enters the new product's own code manually.
       const useCode = editingProduct.product_id ? editingProduct.code : '';
+      if (editingProduct.product_type === 'composite') {
+        // Combos live in the composite editor (useCompositeEditor) — only basic fields here
+        return {
+          code: useCode,
+          name: editingProduct.name,
+          description: editingProduct.description || '',
+          image: editingProduct.image || '',
+          category_id: (editingProduct as ProductItem & { category_id?: string | null }).category_id || '',
+          brand_id: (editingProduct as ProductItem & { brand_id?: string | null }).brand_id || '',
+          product_type: 'composite',
+          is_active: editingProduct.is_active,
+          selected_variation_types: [],
+          variation_label: '',
+          sku: '',
+          barcode: '',
+          default_price: 0,
+          discount_price: 0,
+          cost_price: 0,
+          variations: []
+        };
+      }
       if (editingProduct.product_type === 'simple') {
         return {
           code: useCode,
@@ -497,7 +532,10 @@ export default function ProductForm({
       errors.code = 'กรุณากรอกรหัสสินค้า';
     }
 
-    if (formData.product_type === 'simple') {
+    if (formData.product_type === 'composite') {
+      const compositeError = composite.validate();
+      if (compositeError) errors.composite = compositeError;
+    } else if (formData.product_type === 'simple') {
       if (formData.default_price <= 0) {
         errors.default_price = 'ราคาต้องมากกว่า 0';
       }
@@ -713,12 +751,25 @@ export default function ProductForm({
 
     try {
       const method = editingProduct?.product_id ? 'PUT' : 'POST';
-      const submitData = {
-        ...formData,
-        variation_label: formData.product_type === 'variation' ? '' : (formData.variation_label.trim() || '-'),
-        // Strip _tempId from variations before sending to API
-        variations: formData.variations.map(({ _tempId, ...rest }) => rest),
-      };
+      const submitData = formData.product_type === 'composite'
+        ? {
+            // สินค้าชุด: basic fields + slots/combos — no price/stock/variation fields
+            code: formData.code,
+            name: formData.name,
+            description: formData.description,
+            image: formData.image,
+            category_id: formData.category_id,
+            brand_id: formData.brand_id,
+            is_active: formData.is_active,
+            product_type: 'composite' as const,
+            ...composite.payload(),
+          }
+        : {
+            ...formData,
+            variation_label: formData.product_type === 'variation' ? '' : (formData.variation_label.trim() || '-'),
+            // Strip _tempId from variations before sending to API
+            variations: formData.variations.map(({ _tempId, ...rest }) => rest),
+          };
       const body = editingProduct?.product_id
         ? { id: editingProduct.product_id, ...submitData }
         : submitData;
@@ -944,12 +995,13 @@ export default function ProductForm({
         <label className="block text-sm font-medium text-gray-600 dark:text-slate-400 mb-3">
           ประเภทสินค้า
         </label>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {/* Simple */}
           <button
             type="button"
+            disabled={compositeLocked}
             onClick={() => {
-              if (formData.product_type === 'simple') return;
+              if (formData.product_type === 'simple' || compositeLocked) return;
               // Edit mode + switching away from the loaded type → confirm first
               if (originalProductType && originalProductType !== 'simple') {
                 setPendingTypeChange('simple');
@@ -960,7 +1012,9 @@ export default function ProductForm({
             className={`relative p-4 rounded-xl border-2 text-left transition-all duration-200 ${
               formData.product_type === 'simple'
                 ? 'border-primary bg-primary/5 shadow-sm'
-                : 'border-gray-200 dark:border-slate-600 hover:border-gray-300 dark:hover:border-slate-500 hover:bg-gray-50 dark:hover:bg-slate-700/50'
+                : compositeLocked
+                  ? 'border-gray-200 dark:border-slate-600 opacity-50 cursor-not-allowed'
+                  : 'border-gray-200 dark:border-slate-600 hover:border-gray-300 dark:hover:border-slate-500 hover:bg-gray-50 dark:hover:bg-slate-700/50'
             }`}
           >
             <div className="flex items-start gap-3">
@@ -986,8 +1040,9 @@ export default function ProductForm({
           {/* Variation */}
           <button
             type="button"
+            disabled={compositeLocked}
             onClick={() => {
-              if (formData.product_type === 'variation') return;
+              if (formData.product_type === 'variation' || compositeLocked) return;
               if (originalProductType && originalProductType !== 'variation') {
                 setPendingTypeChange('variation');
                 return;
@@ -997,7 +1052,9 @@ export default function ProductForm({
             className={`relative p-4 rounded-xl border-2 text-left transition-all duration-200 ${
               formData.product_type === 'variation'
                 ? 'border-primary bg-primary/5 shadow-sm'
-                : 'border-gray-200 dark:border-slate-600 hover:border-gray-300 dark:hover:border-slate-500 hover:bg-gray-50 dark:hover:bg-slate-700/50'
+                : compositeLocked
+                  ? 'border-gray-200 dark:border-slate-600 opacity-50 cursor-not-allowed'
+                  : 'border-gray-200 dark:border-slate-600 hover:border-gray-300 dark:hover:border-slate-500 hover:bg-gray-50 dark:hover:bg-slate-700/50'
             }`}
           >
             <div className="flex items-start gap-3">
@@ -1019,8 +1076,47 @@ export default function ProductForm({
               </div>
             )}
           </button>
+
+          {/* Composite (สินค้าชุด) — only when creating */}
+          <button
+            type="button"
+            disabled={compositeCardDisabled}
+            onClick={() => {
+              if (formData.product_type === 'composite' || compositeCardDisabled) return;
+              setFormData({ ...formData, product_type: 'composite' });
+            }}
+            className={`relative p-4 rounded-xl border-2 text-left transition-all duration-200 ${
+              formData.product_type === 'composite'
+                ? 'border-primary bg-primary/5 shadow-sm'
+                : compositeCardDisabled
+                  ? 'border-gray-200 dark:border-slate-600 opacity-50 cursor-not-allowed'
+                  : 'border-gray-200 dark:border-slate-600 hover:border-gray-300 dark:hover:border-slate-500 hover:bg-gray-50 dark:hover:bg-slate-700/50'
+            }`}
+          >
+            <div className="flex items-start gap-3">
+              <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                formData.product_type === 'composite'
+                  ? 'bg-primary/20 text-[#C0400E]'
+                  : 'bg-gray-100 dark:bg-slate-700 text-gray-400 dark:text-slate-500'
+              }`}>
+                <Boxes className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="font-semibold text-sm text-gray-900 dark:text-white">สินค้าชุด</div>
+                <div className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">ขายหลายชิ้นเป็นชุด ลูกค้าเลือกตัวเลือกของแต่ละชิ้นได้</div>
+              </div>
+            </div>
+            {formData.product_type === 'composite' && (
+              <div className="absolute top-3 right-3 w-5 h-5 bg-primary rounded-full flex items-center justify-center">
+                <Check className="w-3 h-3 text-white" />
+              </div>
+            )}
+          </button>
         </div>
       </div>
+
+      {/* Composite Product (สินค้าชุด) */}
+      {formData.product_type === 'composite' && <CompositeEditor editor={composite} />}
 
       {/* Simple Product Fields */}
       {formData.product_type === 'simple' && (

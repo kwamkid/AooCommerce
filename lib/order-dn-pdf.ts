@@ -18,6 +18,7 @@ import {
   withOriginalAndCopy,
 } from './pdf-utils';
 import { productDisplayName } from '@/lib/product-display';
+import { isCompositeLine } from '@/lib/composite-shared';
 
 const THEME_COLOR = '#b45309';
 
@@ -28,6 +29,7 @@ export interface OrderDnItem {
   quantity: number;
   /** หมายเหตุรายสินค้า (order_items.notes) */
   notes?: string | null;
+  promotion_id?: string | null;
   promotion_name?: string | null;
   promotion_components?: { product_name: string; sku?: string | null; product_code?: string | null; role: string; quantity: number }[];
 }
@@ -155,7 +157,8 @@ export async function generateOrderDnPdf(
         { text: `${rowNum}`, alignment: 'center', fontSize: 10, margin: [0, 1, 0, 0] },
         {
           text: [
-            { text: item.promotion_name || item.product_name, fontSize: 10, bold: true, color: '#6366f1' },
+            // สินค้าชุด (ไม่ใช่โปร) → ชื่อสินค้า + ชื่อชุดย่อย
+            { text: isCompositeLine(item) && !item.promotion_name ? productDisplayName(item) : (item.promotion_name || item.product_name), fontSize: 10, bold: true, color: '#6366f1' },
             { text: ` (x${item.quantity})`, fontSize: 8, color: '#888888' },
           ],
           margin: [0, 1, 0, 1],
