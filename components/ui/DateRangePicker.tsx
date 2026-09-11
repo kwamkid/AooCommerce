@@ -2,7 +2,7 @@
 
 import { useRef, useState, useEffect, useCallback, useMemo } from 'react';
 import { DayPicker, DateRange } from 'react-day-picker';
-import { format, isValid, startOfMonth, endOfMonth, subDays, startOfDay, addMonths, subMonths } from 'date-fns';
+import { format, isValid, isSameDay, isLastDayOfMonth, startOfMonth, endOfMonth, subDays, startOfDay, addMonths, subMonths } from 'date-fns';
 import { Calendar, X, ChevronLeft, ChevronRight } from 'lucide-react';
 
 // Re-export DateValueType so consumers don't need to change imports
@@ -81,7 +81,15 @@ const SHORTCUTS: Shortcut[] = [
 ];
 
 // Shared DayPicker classNames
-const DAY_PICKER_SINGLE_CLASSES = {
+// Two layers per day: the <td> carries the range *band*, the <button> inside is always a
+// circle (selected · hover · today). Every state is a circle so hover never draws a
+// different shape on top of a selected day.
+// State colours target the button with `!` — the button's own text colour beats anything
+// inherited from the <td>, so a td-level text colour would be ignored.
+const DAY_FILLED = '[&>button]:!bg-amber-500 [&>button]:!text-white [&>button]:font-semibold [&>button:hover]:!bg-amber-600';
+const DAY_MUTED = '[&>button]:!text-gray-300 dark:[&>button]:!text-slate-600';
+
+const DAY_PICKER_BASE_CLASSES = {
   months: '',
   month: '',
   month_caption: 'hidden',
@@ -91,44 +99,28 @@ const DAY_PICKER_SINGLE_CLASSES = {
   weekday: 'text-xs font-semibold text-gray-400 dark:text-slate-500 pb-2 w-10 text-center',
   week: '',
   day: 'text-center p-0',
-  day_button: 'w-10 h-10 text-sm rounded-full hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors text-gray-700 dark:text-slate-300 focus:outline-none',
-  // วงแหวนรอบปุ่มด้านใน ไม่ใช่รอบ <td> — ปุ่มเป็น rounded-full อยู่แล้ว ขอบจึงเป็นวงกลมพอดี
-  // ⚠️ ห้ามตั้งสีตัวอักษรตรงนี้ — 'selected' ตั้ง !text-white ไว้ที่ <td> ซึ่งปุ่มรับมาทาง
-  // การสืบทอด แต่สีที่เขียนตรงปุ่มจะชนะการสืบทอดเสมอ พอวันนี้ถูกเลือกด้วยจะกลายเป็น
-  // ตัวอักษรสีเหลืองบนพื้นเหลือง อ่านไม่ออก
+  day_button: 'w-10 h-10 text-sm rounded-full transition-colors text-gray-700 dark:text-slate-300 hover:bg-amber-100 dark:hover:bg-amber-500/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500',
   today: 'font-bold [&>button]:ring-1 [&>button]:ring-inset [&>button]:ring-amber-500',
-  selected: '!bg-amber-500 !text-white !rounded-full hover:!bg-amber-600',
-  outside: 'text-gray-300 dark:text-slate-600',
-  disabled: 'text-gray-300 dark:text-slate-600 cursor-not-allowed',
+  outside: DAY_MUTED,
+  disabled: `${DAY_MUTED} [&>button]:cursor-not-allowed [&>button:hover]:!bg-transparent`,
 };
 
-const DAY_PICKER_RANGE_CLASSES = {
-  months: '',
-  month: '',
-  month_caption: 'hidden',
-  nav: 'hidden',
-  month_grid: 'w-full border-collapse',
-  weekdays: '',
-  weekday: 'text-xs font-semibold text-gray-400 dark:text-slate-500 pb-2 w-10 text-center',
-  week: '',
-  day: 'text-center p-0',
-  day_button: 'w-10 h-10 text-sm rounded-full hover:bg-amber-200 dark:hover:bg-amber-800/40 transition-colors text-gray-700 dark:text-slate-300 focus:outline-none',
-  // วงแหวนรอบปุ่มด้านใน ไม่ใช่รอบ <td> — ปุ่มเป็น rounded-full อยู่แล้ว ขอบจึงเป็นวงกลมพอดี
-  // ⚠️ ห้ามตั้งสีตัวอักษรตรงนี้ — 'selected' ตั้ง !text-white ไว้ที่ <td> ซึ่งปุ่มรับมาทาง
-  // การสืบทอด แต่สีที่เขียนตรงปุ่มจะชนะการสืบทอดเสมอ พอวันนี้ถูกเลือกด้วยจะกลายเป็น
-  // ตัวอักษรสีเหลืองบนพื้นเหลือง อ่านไม่ออก
-  today: 'font-bold [&>button]:ring-1 [&>button]:ring-inset [&>button]:ring-amber-500',
-  selected: '!bg-amber-400 dark:!bg-amber-600 !text-white',
-  range_start: '!bg-amber-500 !text-white !rounded-l-full',
-  range_end: '!bg-amber-500 !text-white !rounded-r-full',
-  range_middle: '!bg-amber-400 dark:!bg-amber-600 !rounded-none !text-white',
-  outside: 'text-gray-300 dark:text-slate-600',
-  disabled: 'text-gray-300 dark:text-slate-600 cursor-not-allowed',
-};
+const DAY_PICKER_SINGLE_CLASSES = { ...DAY_PICKER_BASE_CLASSES, selected: DAY_FILLED };
 
-// Override for hidden outside days — prevents range background from bleeding into adjacent months
-const RANGE_MODIFIERS_CLASSES = {
-  hidden: '[&]:!bg-transparent [&]:dark:!bg-transparent [&]:!text-transparent',
+// Range styling comes from our own modifiers (see rangeModifiers) instead of DayPicker's
+// range_start/range_end so the band can also preview the hovered end date.
+const RANGE_MODIFIER_CLASSES = {
+  // Band = amber-100 strip; endpoints get half a strip so it starts/ends at the circle's centre
+  rangeMiddle: 'bg-amber-100 dark:bg-amber-500/20 [&>button:hover]:bg-amber-200 dark:[&>button:hover]:bg-amber-500/40',
+  rangeFrom: 'bg-[linear-gradient(to_right,transparent_50%,#fef3c7_50%)] dark:bg-[linear-gradient(to_right,transparent_50%,rgb(245_158_11/0.2)_50%)]',
+  rangeTo: 'bg-[linear-gradient(to_left,transparent_50%,#fef3c7_50%)] dark:bg-[linear-gradient(to_left,transparent_50%,rgb(245_158_11/0.2)_50%)]',
+  // Round the band where it wraps to the next week row or month
+  bandCapLeft: 'rounded-l-full',
+  bandCapRight: 'rounded-r-full',
+  rangeEndpoint: DAY_FILLED,
+  rangePreviewEnd: '[&>button]:!bg-amber-200 [&>button]:!text-amber-900 dark:[&>button]:!bg-amber-500/40 dark:[&>button]:!text-white',
+  // Outside days are rendered as empty cells — hide the band behind them too
+  hidden: 'invisible',
 };
 
 // Calendar header component (reusable for left/right panels)
@@ -236,6 +228,31 @@ export default function DateRangePicker({
   // 'idle' = no selection in progress (either empty or complete range)
   // 'start_picked' = start date chosen, waiting for end date
   const [selectionPhase, setSelectionPhase] = useState<'idle' | 'start_picked'>('idle');
+  // Day under the mouse while picking the end date — drives the band preview
+  const [hoverDate, setHoverDate] = useState<Date | null>(null);
+
+  const handleDayHover = useCallback((day: Date) => {
+    if (selectionPhase === 'start_picked') setHoverDate(day);
+  }, [selectionPhase]);
+
+  // Custom modifiers for the range band (classes in RANGE_MODIFIER_CLASSES)
+  const rangeModifiers = useMemo(() => {
+    if (isSingle || !startDate) return undefined;
+    const preview = selectionPhase === 'start_picked' && hoverDate && !isSameDay(hoverDate, startDate) ? hoverDate : null;
+    const other = preview ?? endDate;
+    if (!other || isSameDay(other, startDate)) return { rangeEndpoint: startDate };
+    // Clicking before the start swaps the two (handleDayClick) — preview the same way
+    const [from, to] = other < startDate ? [other, startDate] : [startDate, other];
+    return {
+      rangeEndpoint: preview ? startDate : [from, to],
+      rangePreviewEnd: preview ?? [],
+      rangeFrom: from,
+      rangeTo: to,
+      rangeMiddle: { after: from, before: to },
+      bandCapLeft: (d: Date) => d.getDay() === 0 || d.getDate() === 1,
+      bandCapRight: (d: Date) => d.getDay() === 6 || isLastDayOfMonth(d),
+    };
+  }, [isSingle, startDate, endDate, selectionPhase, hoverDate]);
 
   // Right month for dual calendar
   const rightMonth = useMemo(() => addMonths(displayMonth, 1), [displayMonth]);
@@ -454,7 +471,7 @@ export default function DateRangePicker({
             )}
 
             {/* Calendar area */}
-            <div className="p-3">
+            <div className="p-3" onMouseLeave={() => setHoverDate(null)}>
               {/* Single mode OR Mobile range (1 calendar) */}
               {isSingle ? (
                 <>
@@ -516,8 +533,10 @@ export default function DateRangePicker({
                         hideNavigation
                         showOutsideDays={false}
                         disabled={disabledDays}
-                        classNames={DAY_PICKER_RANGE_CLASSES}
-                        modifiersClassNames={RANGE_MODIFIERS_CLASSES}
+                        classNames={DAY_PICKER_BASE_CLASSES}
+                        modifiers={rangeModifiers}
+                        modifiersClassNames={RANGE_MODIFIER_CLASSES}
+                        onDayMouseEnter={handleDayHover}
                       />
                     ) : (
                       <MonthYearSelector />
@@ -548,8 +567,10 @@ export default function DateRangePicker({
                             hideNavigation
                             showOutsideDays={false}
                             disabled={disabledDays}
-                            classNames={DAY_PICKER_RANGE_CLASSES}
-                            modifiersClassNames={RANGE_MODIFIERS_CLASSES}
+                            classNames={DAY_PICKER_BASE_CLASSES}
+                            modifiers={rangeModifiers}
+                            modifiersClassNames={RANGE_MODIFIER_CLASSES}
+                            onDayMouseEnter={handleDayHover}
                           />
                         </div>
 
@@ -576,8 +597,10 @@ export default function DateRangePicker({
                             hideNavigation
                             showOutsideDays={false}
                             disabled={disabledDays}
-                            classNames={DAY_PICKER_RANGE_CLASSES}
-                            modifiersClassNames={RANGE_MODIFIERS_CLASSES}
+                            classNames={DAY_PICKER_BASE_CLASSES}
+                            modifiers={rangeModifiers}
+                            modifiersClassNames={RANGE_MODIFIER_CLASSES}
+                            onDayMouseEnter={handleDayHover}
                           />
                         </div>
                       </div>
