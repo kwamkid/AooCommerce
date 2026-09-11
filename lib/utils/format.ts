@@ -48,3 +48,25 @@ export function formatThaiDateTime(value: string | Date | null | undefined): str
   return d.toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' })
     + ' ' + d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
 }
+
+/**
+ * วันเวลาแยกเป็นส่วน ๆ ให้วางเป็นช่อง (หน้ารายการที่วันที่ต้องเด่น เช่นกระดาษปฏิทินของบรอดแคสต์)
+ * วันในสัปดาห์เป็นตัวย่ออังกฤษตัวใหญ่ ชุดเดียวกับหัวปฏิทินของ DateRangePicker · null/invalid → null
+ * e.g. → { weekday: 'THU', day: '11', monthYear: 'ก.ย. 2569', time: '08:26' }
+ */
+export function formatDateParts(value: string | Date | null | undefined): {
+  weekday: string;
+  day: string;
+  monthYear: string;
+  time: string;
+} | null {
+  if (!value) return null;
+  const d = value instanceof Date ? value : new Date(value);
+  if (isNaN(d.getTime())) return null;
+  return {
+    weekday: d.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase(),
+    day: String(d.getDate()),
+    monthYear: d.toLocaleDateString('th-TH', { month: 'short', year: 'numeric' }),
+    time: d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }),
+  };
+}

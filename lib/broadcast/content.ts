@@ -604,3 +604,56 @@ export function resolveBroadcastContentKind(
   if (Array.isArray(ids) && ids.length > 0) return 'products';
   return 'announce';
 }
+
+type LineHeroLike = { hero?: { url?: unknown } | null } | null;
+type LineMessageLike = {
+  type?: string;
+  previewImageUrl?: unknown;
+  originalContentUrl?: unknown;
+  contents?: (LineHeroLike & { contents?: LineHeroLike[] }) | null;
+  template?: { thumbnailImageUrl?: unknown; columns?: { thumbnailImageUrl?: unknown }[] } | null;
+} | null;
+
+/**
+ * รูปตัวอย่าง 1 ใบของบรอดแคสต์ (หน้ารายการ) — รูปแรกที่ลูกค้าเห็น: บล็อกรูป · รูปเต็มจอ · การ์ดใบแรกที่มีรูป
+ * · ชนิดเดิมอ่านจากช่องรูปของชนิดนั้น · ใบเก่าที่ไม่มี `content` เดาจาก `messages` ของ LINE
+ * (รูป · hero ของ Flex · รูปของ template) · ใบข้อความล้วน = null (หน้ารายการโชว์ข้อความเฉย ๆ)
+ */
+export function broadcastPreviewImage(
+  content: BroadcastContent | null | undefined,
+  messages: unknown,
+): string | null {
+  const first = (urls: unknown[]): string | null => {
+    for (const u of urls) if (typeof u === 'string' && isHttpsUrl(u)) return u;
+    return null;
+  };
+
+  if (content?.kind) {
+    switch (content.kind) {
+      case 'blocks':
+        return first((content.blocks || []).flatMap(b =>
+          b.type === 'image' || b.type === 'rich' ? [b.image_url]
+            : b.type === 'cards' ? b.cards.map(c => c.image_url)
+              : []));
+      case 'gallery':
+        return first((content.images || []).map(i => i.image_url));
+      case 'products':
+        return first((content.products || []).map(p => p.image_url));
+      default:
+        return first([content.image_url]);
+    }
+  }
+
+  if (!Array.isArray(messages)) return null;
+  for (const m of messages as LineMessageLike[]) {
+    const url = m?.type === 'image'
+      ? first([m.previewImageUrl, m.originalContentUrl])
+      : m?.type === 'flex'
+        ? first([m.contents?.hero?.url, ...(m.contents?.contents || []).map(b => b?.hero?.url)])
+        : m?.type === 'template'
+          ? first([m.template?.thumbnailImageUrl, ...(m.template?.columns || []).map(c => c.thumbnailImageUrl)])
+          : null;
+    if (url) return url;
+  }
+  return null;
+}

@@ -49,7 +49,7 @@ paths:
 | `supabase-paging.ts` `fetchAllRows((from,to) => q.range(from,to))` | เพดาน **1,000 แถว** ตัดเงียบ — query ที่ต้องได้ครบต้องผ่านตัวนี้ (`{count:'exact'}` แล้วยิงหน้าที่เหลือขนาน) · รายการใหญ่ที่ไม่ต้องครบให้ค้นฝั่ง server |
 | `storage-key.ts` `storageSafeName(name)` / `storageKeyFor(name, ext?)` | ทุก path Storage จากชื่อไฟล์ผู้ใช้ — อักขระนอก ASCII = 400 `InvalidKey` ก่อนถึง API (ไม่มี log ให้ไล่) |
 | `image-thumb.ts` `thumbUrl(url, 96\|160\|320)` | รูปย่อตามโฮสต์ (Supabase `render/image` · Shopee `_tn` · Lazada `_{s}x{s}q80.jpg` · อื่นคืนเดิม) · ห้ามใช้กับอวาตาร์/โลโก้/สลิป/QR/lightbox/ImageUploader |
-| `utils/format.ts` | `formatPrice()` `formatNumber()` `formatThaiDate()` `formatThaiDateTime()` — ห้าม `toLocaleDateString('th-TH')` / `toLocaleString` เงินเอง |
+| `utils/format.ts` | `formatPrice()` `formatNumber()` `formatThaiDate()` `formatThaiDateTime()` · `formatDateParts()` (แยก weekday `MON` · วัน · เดือน/ปี · เวลา ให้วางเป็นช่อง) — ห้าม `toLocaleDateString('th-TH')` / `toLocaleString` เงินเอง |
 | `utils/download.ts` `downloadBlob(blob, filename)` | ห้าม `createElement('a')` + `createObjectURL` เอง |
 | `useDebounce.ts` `useDebouncedCallback(fn, delayMs=400)` — เรียกตรง = รอ delay · `.now()` ยิงทันทีและทิ้งรอบที่รอ (ค่าที่ไม่ได้เปลี่ยนรัว ๆ เช่นเลือกบัญชี/กลุ่ม) · `.cancel()` | ห้าม debounce ด้วย setTimeout เอง |
 | `order-draft.ts` | `readOrderDraft` `writeOrderDraft` `clearOrderDraft` `isDraftEmpty` `OrderDraftSnapshot` · key `chat-order-draft:<company>:<contact>` 24 ชม. · เปิดด้วย `draftKey` ของ `OrderForm` · component ห้ามแตะ localStorage เอง · ห้ามเก็บสต็อก/ผลค้นหา/รายการอ้างอิง |

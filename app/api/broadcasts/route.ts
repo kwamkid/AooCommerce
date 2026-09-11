@@ -22,7 +22,7 @@ import { resolveTikTokRecipients } from '@/lib/tiktok/broadcast';
 import {
   blockProductActions,
   broadcastContentPreview,
-  resolveBroadcastContentKind,
+  broadcastPreviewImage,
   validateBroadcastContent,
   normalizeAction,
   type BroadcastAction,
@@ -102,10 +102,18 @@ interface ReplyStatsRow {
 
 /** ใบที่เริ่มส่งแล้ว = มีผลลัพธ์ให้วัด (ตั้งเวลา/ยกเลิก/ล้ม ยังไม่มีอะไรให้นับ) */
 const MEASURABLE_STATUSES = ['sending', 'sent', 'partial'];
-/** ช่วงของ KPI บนหัวหน้ารายการ */
-const SUMMARY_DAYS = 30;
-/** เพดานใบที่เอามาสรุป — ร้านที่ยิงถี่มากไม่ควรทำให้หน้ารายการช้า */
-const SUMMARY_MAX_ROWS = 200;
+
+/**
+ * วันจากตัวเลือกช่วงวัน (`yyyy-MM-dd` ตามเวลาไทย) → เวลา UTC ของเที่ยงคืนวันนั้น (+ `addDays`)
+ * · รูปแบบผิด = null (ไม่กรองฝั่งนั้น) · ตัดมิลลิวินาทีทิ้ง ค่าจะได้ไม่มีจุดปนในตัวกรอง `or` ของ PostgREST
+ */
+function bangkokDayStart(day: string | null, addDays = 0): string | null {
+  if (!day || !/^\d{4}-\d{2}-\d{2}$/.test(day)) return null;
+  const d = new Date(`${day}T00:00:00+07:00`);
+  if (Number.isNaN(d.getTime())) return null;
+  d.setUTCDate(d.getUTCDate() + addDays);
+  return `${d.toISOString().slice(0, 19)}Z`;
+}
 
 /** ตั้งเวลาต้องเผื่อให้ cron (ทุก 5 นาที) หยิบทัน และไม่ให้ตั้งไกลจนลืมว่าตั้งไว้ */
 const SCHEDULE_MIN_MS = 2 * 60_000;
@@ -124,23 +132,54 @@ export async function GET(request: NextRequest) {
     const limit = Math.min(Math.max(Number(searchParams.get('limit')) || 20, 1), 200);
     const offset = Math.max(Number(searchParams.get('offset')) || 0, 0);
 
-    const { data, error, count } = await supabaseAdmin
+    // ช่วงวัน — กรองด้วย "วันที่ส่ง" ตัวเดียวกับที่หน้ารายการโชว์: เวลาเริ่มส่ง → ยังไม่เริ่ม
+    // (ตั้งเวลา/ยกเลิก) ใช้เวลาที่ตั้ง → ไม่มีทั้งคู่ใช้เวลาสร้าง · กรองแค่ created_at ไม่ได้ —
+    // ใบที่สร้าง 31 ส.ค. ตั้งส่ง 1 ก.ย. จะไปโผล่ใน "เดือนที่แล้ว" ทั้งที่หน้ารายการบอกว่าส่ง 1 ก.ย.
+    const from = bangkokDayStart(searchParams.get('date_from'));
+    const to = bangkokDayStart(searchParams.get('date_to'), 1);
+    const filtered = !!(from || to);
+
+    let listQuery = supabaseAdmin
       .from('broadcasts')
       .select('id, platform, chat_account_id, marketplace_account_id, created_by, audience_type, audience_filter, preview, recipient_count, sent_count, failed_count, status, error, scheduled_at, cancelled_at, started_at, finished_at, created_at, content, messages', { count: 'exact' })
-      .eq('company_id', auth.companyId)
-      .order('created_at', { ascending: false })
-      .range(offset, offset + limit - 1);
-    if (error) throw error;
+      .eq('company_id', auth.companyId);
+    if (filtered) {
+      const within = (col: string) =>
+        [from && `${col}.gte.${from}`, to && `${col}.lt.${to}`].filter(Boolean).join(',');
+      listQuery = listQuery.or([
+        `and(${within('started_at')})`,
+        `and(started_at.is.null,scheduled_at.not.is.null,${within('scheduled_at')})`,
+        `and(started_at.is.null,scheduled_at.is.null,${within('created_at')})`,
+      ].join(','));
+    }
 
-    const rows = (data || []) as unknown as BroadcastListRow[];
+    // รอบแรกถามพร้อมกัน: หน้าที่ขอ + มีใบที่ยังส่งไม่จบไหม (= หน้ารายการต้อง poll ต่อ)
+    // ใบที่ "ตั้งเวลาไว้" ไม่นับ — cron เป็นคนหยิบไปส่ง อีกนานกว่าจะขยับ
+    const [listRes, activeRes] = await Promise.all([
+      listQuery.order('created_at', { ascending: false }).range(offset, offset + limit - 1),
+      supabaseAdmin
+        .from('broadcasts')
+        .select('id', { count: 'exact', head: true })
+        .eq('company_id', auth.companyId)
+        .in('status', ['pending', 'sending']),
+    ]);
+    if (listRes.error) throw listRes.error;
 
-    // ชื่อบัญชี + ชื่อผู้ส่ง — บัญชีอยู่คนละตารางตามช่องทาง และ created_by ไม่มี FK
-    // ไป user_profiles จึง embed ไม่ได้ ต้องถามแยก
+    const rows = (listRes.data || []) as unknown as BroadcastListRow[];
+    const total = listRes.count ?? rows.length;
+
+    // รอบสอง (พร้อมกันหมด — ของเดิมถามต่อกันเป็นทอด 4 รอบ):
+    //  · ชื่อบัญชี + ชื่อผู้ส่ง — บัญชีอยู่คนละตารางตามช่องทาง และ created_by ไม่มี FK ไป user_profiles จึง embed ไม่ได้
+    //  · ผลตอบกลับ/สั่งซื้อ — ตามได้เฉพาะช่องทางที่มีห้องแชทของเราเอง
+    //  · ช่วงที่เลือกว่าง → ร้านเคยส่งเลยไหม (ว่างเพราะช่วงวัน ≠ ไม่เคยส่ง — หน้ารายการโชว์คนละแบบ)
     const chatIds = [...new Set(rows.map(r => r.chat_account_id).filter((v): v is string => !!v))];
     const shopIds = [...new Set(rows.map(r => r.marketplace_account_id).filter((v): v is string => !!v))];
     const userIds = [...new Set(rows.map(r => r.created_by).filter((v): v is string => !!v))];
+    const statIds = rows
+      .filter(r => r.chat_account_id && MEASURABLE_STATUSES.includes(r.status))
+      .map(r => r.id);
 
-    const [chatRes, shopRes, usersRes] = await Promise.all([
+    const [chatRes, shopRes, usersRes, statsRes, anyRes] = await Promise.all([
       chatIds.length
         ? supabaseAdmin.from('chat_accounts').select('id, account_name').in('id', chatIds)
         : Promise.resolve({ data: [] as { id: string; account_name: string }[] }),
@@ -150,7 +189,17 @@ export async function GET(request: NextRequest) {
       userIds.length
         ? supabaseAdmin.from('user_profiles').select('id, name').in('id', userIds)
         : Promise.resolve({ data: [] as { id: string; name: string }[] }),
+      statIds.length
+        ? supabaseAdmin.rpc('get_broadcast_reply_stats', { p_company_id: auth.companyId, p_broadcast_ids: statIds })
+        : Promise.resolve({ data: [] as ReplyStatsRow[], error: null }),
+      total === 0 && filtered
+        ? supabaseAdmin.from('broadcasts').select('id', { count: 'exact', head: true }).eq('company_id', auth.companyId)
+        : Promise.resolve({ count: total }),
     ]);
+
+    // ตัวเลขวัดผลอ่านไม่ได้ต้องไม่ทำให้หน้ารายการพัง — ปล่อยเป็น null แล้วรายการยังใช้ได้
+    if (statsRes.error) console.error('[broadcast] get_broadcast_reply_stats:', statsRes.error.message);
+    const statsById = new Map(((statsRes.data || []) as ReplyStatsRow[]).map(s => [s.broadcast_id, s]));
 
     const accountName = new Map<string, string>([
       ...(chatRes.data || []).map(a => [a.id, a.account_name] as [string, string]),
@@ -158,75 +207,12 @@ export async function GET(request: NextRequest) {
     ]);
     const userName = new Map((usersRes.data || []).map(u => [u.id, u.name]));
 
-    // มีใบที่ยังส่งไม่จบ = หน้ารายการต้อง poll ต่อ (ไม่มีก็หยุด ไม่ยิงถี่เปล่า ๆ)
-    // ใบที่ "ตั้งเวลาไว้" ไม่ต้อง poll — cron เป็นคนหยิบไปส่ง อีกนานกว่าจะขยับ
-    const [{ count: activeCount }, { count: scheduledCount }, { data: recentRaw }] = await Promise.all([
-      supabaseAdmin
-        .from('broadcasts')
-        .select('id', { count: 'exact', head: true })
-        .eq('company_id', auth.companyId)
-        .in('status', ['pending', 'sending']),
-      supabaseAdmin
-        .from('broadcasts')
-        .select('id', { count: 'exact', head: true })
-        .eq('company_id', auth.companyId)
-        .eq('status', 'scheduled'),
-      // KPI 30 วันบนหัวหน้ารายการ — นับเฉพาะใบที่ส่งจริงแล้ว
-      supabaseAdmin
-        .from('broadcasts')
-        .select('id, chat_account_id, sent_count')
-        .eq('company_id', auth.companyId)
-        .gte('created_at', new Date(Date.now() - SUMMARY_DAYS * 86_400_000).toISOString())
-        .in('status', MEASURABLE_STATUSES)
-        .order('created_at', { ascending: false })
-        .limit(SUMMARY_MAX_ROWS),
-    ]);
-
-    const recent = (recentRaw || []) as { id: string; chat_account_id: string | null; sent_count: number }[];
-
-    // ผลลัพธ์ (ตอบกลับ/สั่งซื้อ) ตามได้เฉพาะช่องทางที่มีห้องแชทของเราเอง —
-    // ยิง RPC ครั้งเดียวครอบทั้งใบในหน้านี้และใบที่ใช้สรุป 30 วัน (id ซ้ำตัดทิ้ง)
-    const pageStatIds = rows
-      .filter(r => r.chat_account_id && MEASURABLE_STATUSES.includes(r.status))
-      .map(r => r.id);
-    const summaryStatIds = recent.filter(r => r.chat_account_id).map(r => r.id);
-    const statIds = [...new Set([...pageStatIds, ...summaryStatIds])];
-
-    const statsById = new Map<string, ReplyStatsRow>();
-    if (statIds.length > 0) {
-      const { data: statsData, error: statsError } = await supabaseAdmin.rpc('get_broadcast_reply_stats', {
-        p_company_id: auth.companyId,
-        p_broadcast_ids: statIds,
-      });
-      // ตัวเลขวัดผลอ่านไม่ได้ต้องไม่ทำให้หน้ารายการพัง — ปล่อยเป็น null แล้วรายการยังใช้ได้
-      if (statsError) console.error('[broadcast] get_broadcast_reply_stats:', statsError.message);
-      for (const row of (statsData || []) as ReplyStatsRow[]) statsById.set(row.broadcast_id, row);
-    }
-
-    const summary = {
-      days: SUMMARY_DAYS,
-      broadcasts: recent.length,
-      sent_messages: recent.reduce((sum, r) => sum + (Number(r.sent_count) || 0), 0),
-      replied: 0,
-      awaiting: 0,
-      ordered: 0,
-      ordered_amount: 0,
-    };
-    for (const r of summaryStatIds) {
-      const st = statsById.get(r);
-      if (!st) continue;
-      summary.replied += Number(st.replied_count) || 0;
-      summary.awaiting += Number(st.awaiting_count) || 0;
-      summary.ordered += Number(st.ordered_count) || 0;
-      summary.ordered_amount += Number(st.ordered_amount) || 0;
-    }
-
     return NextResponse.json({
       broadcasts: rows.map(({ content, messages, ...r }) => {
         const st = statsById.get(r.id);
         return {
           ...r,
-          content_kind: resolveBroadcastContentKind(content, messages),
+          preview_image: broadcastPreviewImage(content, messages),
           account_name: accountName.get(r.chat_account_id || r.marketplace_account_id || '') || null,
           created_by_name: r.created_by ? userName.get(r.created_by) || null : null,
           stats: st
@@ -239,10 +225,9 @@ export async function GET(request: NextRequest) {
             : null,
         };
       }),
-      total: count ?? rows.length,
-      sending: (activeCount ?? 0) > 0,
-      scheduled: scheduledCount ?? 0,
-      summary,
+      total,
+      has_any: (anyRes.count ?? 0) > 0,
+      sending: (activeRes.count ?? 0) > 0,
     });
   } catch (e) {
     console.error('GET broadcasts error:', e);

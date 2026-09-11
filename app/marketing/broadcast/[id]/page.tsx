@@ -29,6 +29,7 @@ import { EmptyCard, LoadingCard, NoPermissionCard } from '@/components/ui/StateC
 import BroadcastPreview from '@/components/broadcast/BroadcastPreview';
 import { useAuthGuard } from '@/lib/useAuthGuard';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
+import { useLiveRefresh } from '@/lib/useLiveRefresh';
 import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
 import { formatNumber, formatPrice, formatThaiDateTime } from '@/lib/utils/format';
@@ -37,6 +38,7 @@ import type { BroadcastContentKind } from '@/lib/broadcast/platforms';
 import type { BroadcastContent } from '@/lib/broadcast/content';
 import {
   audienceLabel,
+  isBroadcastMeasuring,
   BROADCAST_ATTRIBUTION_DAYS,
   type StoredAudienceFilter,
 } from '@/lib/broadcast/audience';
@@ -172,14 +174,15 @@ export default function BroadcastReportPage() {
     fetchDetail();
   }, [allowed, filter, page, recordsPerPage, fetchDetail]);
 
-  // กำลังส่งอยู่เท่านั้นถึง poll — จบแล้วหยุดเอง
+  // กำลังส่ง = ตัวเลขล็อตขยับทุกไม่กี่วิ · ส่งจบแล้วแต่ยังอยู่ในช่วงวัดผล = ลูกค้าตอบ/สั่งซื้อเข้ามา
+  // เรื่อย ๆ → ดึงใหม่ทุก 30 วิ + ทันทีที่กลับมาที่แท็บ (เปิดค้างไว้แล้วตัวเลขไม่ขยับ = เข้าใจผิดว่าไม่นับ)
   const status = data?.broadcast.status;
-  useEffect(() => {
-    if (!allowed) return;
-    if (status !== 'pending' && status !== 'sending') return;
-    const timer = setInterval(() => fetchDetail(true), 4000);
-    return () => clearInterval(timer);
-  }, [allowed, status, fetchDetail]);
+  useLiveRefresh(() => fetchDetail(true), {
+    enabled: !!allowed && !!data,
+    pollMs: status === 'pending' || status === 'sending'
+      ? 4000
+      : data?.stats && isBroadcastMeasuring(data.broadcast.started_at) ? 30_000 : null,
+  });
 
   const handleCancelSchedule = async () => {
     const ok = await confirm({

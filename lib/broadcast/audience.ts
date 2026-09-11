@@ -18,6 +18,16 @@ import type { BroadcastPlatform } from './platforms';
 /** หน้าต่างวัดผลหลังส่ง (ตอบกลับ / สั่งซื้อ) — ตรงกับ interval '7 days' ใน RPC get_broadcast_reply_stats */
 export const BROADCAST_ATTRIBUTION_DAYS = 7;
 
+/**
+ * ใบนี้ยังอยู่ในช่วงวัดผลไหม — เริ่มส่งแล้วไม่เกิน `BROADCAST_ATTRIBUTION_DAYS` วัน (หน้าต่างเดียวกับ
+ * RPC get_broadcast_reply_stats) · หน้ารายการ/รายงานใช้ตัดสินว่าต้องดึงตัวเลขใหม่เรื่อย ๆ ไหม
+ */
+export function isBroadcastMeasuring(startedAt: string | null | undefined): boolean {
+  if (!startedAt) return false;
+  const t = new Date(startedAt).getTime();
+  return !Number.isNaN(t) && Date.now() - t < BROADCAST_ATTRIBUTION_DAYS * 86_400_000;
+}
+
 export type AudienceGroupKey = 'not_bought' | 'bought' | 'other';
 
 export interface AudienceGroup {
