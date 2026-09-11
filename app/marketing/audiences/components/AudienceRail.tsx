@@ -1,10 +1,14 @@
 // Path: app/marketing/audiences/components/AudienceRail.tsx
 //
-// แผงขวาของหน้าสร้าง/แก้ไขกลุ่ม — "กลุ่มนี้ได้กี่คน และ **sync ขึ้น Meta ได้กี่คน**"
+// แผงขวาของหน้าสร้าง/แก้ไขกลุ่ม — ตัวเลขใหญ่คือ **ส่งขึ้น Meta ได้กี่คน** ส่วนจำนวนที่เข้าเงื่อนไขในระบบ
+// เป็นบรรทัดรอง
 //
-// ⚠️ ตัวเลขที่สำคัญกว่าคือ **จับคู่ได้** ไม่ใช่ยอดรวม: กลุ่ม 1,400 คนที่มีเบอร์/อีเมลแค่ 20 คน
-// อัปขึ้น Meta แล้วได้กลุ่มเล็กจนยิงโฆษณาไม่ได้ (Meta ต้องการราว 100 คนที่จับคู่ติด) —
-// ต้องเห็นตั้งแต่ก่อนกดบันทึก ไม่ใช่ไปเจอตอน sync เสร็จ
+// ⚠️ ตัวเลขใหญ่ต้องเป็นจำนวนที่ส่งขึ้น Meta ได้ ไม่ใช่ยอดรวม — เดิมโชว์ยอดรวมตัวใหญ่ ("2,166 คน")
+// แล้วมีบรรทัดเล็กว่า sync ได้ 5 เจ้าของอ่านแล้วงงว่ากลุ่มมีกี่คนกันแน่ (11 ก.ย. 2026) · หน้านี้มีไว้ยิงโฆษณา
+// คนที่ไม่มีเบอร์/อีเมล/Messenger Meta หาตัวไม่เจอ นับไปก็ไม่ได้ใช้
+// · ต่ำกว่า META_AUDIENCE_MIN_MATCHED ต้องเตือนตั้งแต่ก่อนกดสร้าง ไม่ใช่ไปเจอตอนตั้งโฆษณา
+// · บอกด้วยว่าคนที่ส่งไม่ได้ส่วนใหญ่มาจากไหน (`not_syncable_marketplace`) — ร้านที่ขายผ่าน marketplace
+//   เป็นหลักจะมีคนแบบนี้เกือบทั้งกลุ่ม ไม่บอกแล้วผู้ใช้จะนึกว่าระบบนับผิด
 //
 // กำลังนับ = skeleton ทุกครั้ง รวมตอนเปลี่ยนกลุ่ม/แหล่ง (เจ้าของขอ 11 ก.ย. 2026 · เดิมตัวเลขเก่า
 // จางลงแทน ซึ่งยังอ่านเป็นตัวเลขของเงื่อนไขใหม่ได้) · **ห้ามโชว์ 0** ระหว่างรอ (อ่านว่า "ไม่มีใครเลย")
@@ -17,13 +21,14 @@ import HelpHint from '@/components/ui/HelpHint';
 import { ProgressBar } from '@/components/ui/Chart';
 import { Skeleton, SkeletonText } from '@/components/ui/Skeleton';
 import { formatNumber } from '@/lib/utils/format';
+import { META_AUDIENCE_MIN_MATCHED } from '@/lib/ads/meta-ui';
 import type { AudiencePreview } from './types';
 
-/** ทำไมบางคน sync ไม่ได้ + ทำยังไงถึงจะได้ — บอกวิธีแก้ ไม่ใช่บอกแค่ว่าไม่ได้ */
+/** ทำไมบางคนส่งขึ้น Meta ไม่ได้ + ทำยังไงถึงจะได้ — บอกวิธีแก้ ไม่ใช่บอกแค่ว่าไม่ได้ */
 const REACH_HELP =
-  'Meta จับคู่คนจากเบอร์ อีเมล หรือ Messenger ID เท่านั้น · ผู้ติดต่อ LINE ที่ยังไม่ผูกกับข้อมูลลูกค้า'
-  + 'ไม่มีทั้งสามอย่าง จึง sync ไม่ได้ — ผูกลูกค้าในหน้าแชท (หรือให้ลูกค้าสั่งซื้อผ่านบิล) '
-  + 'แล้วจะ sync ได้ในรอบถัดไป';
+  'Meta หาตัวคนได้จากเบอร์โทร อีเมล หรือ Messenger เท่านั้น · ลูกค้าที่ซื้อผ่าน Shopee, Lazada, TikTok '
+  + 'ไม่มีเบอร์หรืออีเมล เพราะแพลตฟอร์มไม่ส่งมาให้ร้าน · ผู้ติดต่อ LINE ที่ยังไม่ผูกกับข้อมูลลูกค้าก็ไม่มี · '
+  + 'ผูกลูกค้าในหน้าแชท หรือเปิดบิลพร้อมเบอร์โทร แล้วจะส่งขึ้น Meta ได้ในรอบถัดไป';
 
 interface Props {
   preview: AudiencePreview | null;
@@ -48,34 +53,50 @@ export default function AudienceRail({ preview, loading, error, hint }: Props) {
         <p className="subtitle-text">{hint}</p>
       ) : pending ? (
         <div className="space-y-3" aria-busy="true">
+          <Skeleton className="h-4 w-24" />
           <Skeleton className="h-9 w-28" />
           <Skeleton className="h-2 w-full" />
           <SkeletonText lines={3} />
         </div>
       ) : preview ? (
         <div>
+          <p className="subtitle-text">ส่งขึ้น Meta ได้</p>
           <div className="flex items-baseline gap-2">
-            <span className="heading-1 tabular-nums">{formatNumber(preview.total)}</span>
+            <span className="heading-1 tabular-nums">{formatNumber(preview.reachable.any)}</span>
             <span className="subtitle-text">คน</span>
           </div>
 
           <div className="mt-3 space-y-2">
             <ProgressBar value={preview.reachable.any} max={preview.total} size="sm" toneClass="bg-emerald-500" />
             <div className="flex items-start justify-between gap-2">
-              <p className="subtitle-text">
-                sync ไป Meta ได้ {formatNumber(preview.reachable.any)} จาก {formatNumber(preview.total)} คน
-              </p>
+              <p className="subtitle-text">เข้าเงื่อนไขในระบบ {formatNumber(preview.total)} คน</p>
               <HelpHint align="right">{REACH_HELP}</HelpHint>
             </div>
-            {/* คนเดียวมีได้ทั้งเบอร์ อีเมล และ Messenger — สามบรรทัดนี้รวมกันเกิน "sync ได้" ได้ ไม่ใช่บั๊ก */}
+            {/* คนเดียวมีได้ทั้งเบอร์ อีเมล และ Messenger — สามบรรทัดนี้รวมกันเกินยอดที่ส่งได้ ไม่ใช่บั๊ก */}
             <ul className="space-y-0.5">
               <li className="subtitle-text">
                 · มีเบอร์ {formatNumber(preview.reachable.phone)} · มีอีเมล {formatNumber(preview.reachable.email)}
               </li>
               <li className="subtitle-text">· มี Messenger {formatNumber(preview.reachable.psid)}</li>
-              <li className="subtitle-text">· ยัง sync ไม่ได้ {formatNumber(preview.not_syncable)}</li>
+              <li className="subtitle-text">
+                · ไม่มีเบอร์ อีเมล หรือ Messenger {formatNumber(preview.not_syncable)}
+              </li>
             </ul>
+            {/* ไม่มีค่า = ถามไม่ได้ ไม่โชว์บรรทัดนี้ (ห้ามเดา 0) */}
+            {!!preview.not_syncable_marketplace && (
+              <p className="section-desc">
+                ในนี้ {formatNumber(preview.not_syncable_marketplace)} คนซื้อผ่าน Shopee, Lazada, TikTok
+                อย่างเดียว ซึ่งไม่ส่งเบอร์หรืออีเมลของผู้ซื้อมาให้ร้าน
+              </p>
+            )}
           </div>
+
+          {preview.reachable.any < META_AUDIENCE_MIN_MATCHED && (
+            <Alert tone="warning" className="mt-3">
+              ส่งขึ้น Meta ได้ไม่ถึง {formatNumber(META_AUDIENCE_MIN_MATCHED)} คน กลุ่มนี้เล็กเกินกว่าจะยิงโฆษณาได้ ·
+              Meta ต้องจับคู่คนได้ราว {formatNumber(META_AUDIENCE_MIN_MATCHED)} คนขึ้นไป และมักจับคู่ได้ไม่ครบทุกคนที่ส่งไป
+            </Alert>
+          )}
 
           {preview.capped && (
             <Alert tone="warning" className="mt-3">
@@ -89,7 +110,7 @@ export default function AudienceRail({ preview, loading, error, hint }: Props) {
               <p className="field-label">มาจากแหล่งไหนบ้าง</p>
               {preview.by_source.map(s => (
                 <p key={`${s.kind}-${s.platform ?? ''}`} className="subtitle-text">
-                  {s.label} · {formatNumber(s.total)} คน (sync ได้ {formatNumber(s.syncable)})
+                  {s.label} · {formatNumber(s.total)} คน · ส่งขึ้น Meta ได้ {formatNumber(s.syncable)}
                 </p>
               ))}
             </div>

@@ -11,6 +11,12 @@ export const META_ADS_SCOPES = 'ads_management,ads_read,business_management';
 export const META_EVENTS_MANAGER_URL = 'https://business.facebook.com/events_manager2';
 export const META_ADS_MANAGER_URL = 'https://adsmanager.facebook.com';
 
+/**
+ * Custom Audience ที่จับคู่คนได้น้อยกว่านี้ Meta ไม่ส่งโฆษณาให้ — หน้ากลุ่มเป้าหมายเตือนเมื่อจำนวนที่ส่งขึ้น
+ * Meta ได้ (มีเบอร์/อีเมล/Messenger) ต่ำกว่านี้ · ที่จับคู่ติดจริงมักน้อยกว่าที่ส่ง จึงเป็นเกณฑ์ขั้นต่ำ ไม่ใช่รับประกัน
+ */
+export const META_AUDIENCE_MIN_MATCHED = 100;
+
 /** ที่มาของ token — บอกผู้ใช้ว่าต่ออายุยังไง (login ใหม่ vs ไปสร้าง token ใบใหม่เอง) */
 export const TOKEN_SOURCE_LABEL: Record<'oauth' | 'manual', string> = {
   oauth: 'Login Facebook',

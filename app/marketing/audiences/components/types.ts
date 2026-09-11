@@ -82,6 +82,8 @@ export interface AudiencePreview {
   /** จับคู่ได้กี่คน แยกตามตัวจับคู่ — `any` คือตัวที่ตัดสินว่ากลุ่มนี้ยิงโฆษณาได้จริงไหม */
   reachable: { phone: number; email: number; psid: number; any: number };
   not_syncable: number;
+  /** ในคนที่ส่งไม่ได้ มีกี่คนที่ซื้อผ่าน Shopee/Lazada/TikTok อย่างเดียว — ไม่มีค่า = ถามไม่ได้ ห้ามเดา 0 */
+  not_syncable_marketplace?: number;
   /** ชนเพดาน 50,000 คน — ต้องทำให้แคบลงก่อน */
   capped: boolean;
   by_source?: {

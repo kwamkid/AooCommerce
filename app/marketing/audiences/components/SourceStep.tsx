@@ -70,7 +70,7 @@ export default function SourceStep({
         </span>
         <div className="min-w-0">
           <p className="body-text truncate">ลูกค้าในระบบ</p>
-          <p className="subtitle-text">{customersReason || 'ออเดอร์ / POS / หน้าร้าน'}</p>
+          <p className="subtitle-text">{customersReason || 'ออเดอร์ทุกช่องทาง รวม Shopee, Lazada, TikTok'}</p>
         </div>
       </div>
     </Checkbox>
@@ -85,9 +85,10 @@ export default function SourceStep({
         <h2 className="heading-4">
           แหล่งที่มา
           <HelpHint>
-            คนจาก LINE นับรวมในกลุ่มได้ (ส่งบรอดแคสต์ LINE ถึง) แต่ส่งขึ้น Meta ไปยิงโฆษณาไม่ได้
-            เพราะ LINE ไม่ให้เบอร์โทรหรืออีเมล ซึ่ง Meta ต้องใช้หาตัวคน · ส่งได้เมื่อห้องแชทนั้น
-            ผูกกับข้อมูลลูกค้าที่มีเบอร์แล้ว เช่นตอนเปิดบิลจากแชท
+            Meta หาตัวคนได้จากเบอร์โทร อีเมล หรือ Messenger เท่านั้น · คนจาก LINE นับรวมในกลุ่มได้
+            แต่ส่งขึ้น Meta ไม่ได้ เพราะ LINE ไม่ให้เบอร์หรืออีเมล จนกว่าห้องแชทนั้นจะผูกกับลูกค้าที่มีเบอร์
+            เช่นตอนเปิดบิลจากแชท · ลูกค้าที่ซื้อผ่าน Shopee, Lazada, TikTok ก็เหมือนกัน แพลตฟอร์มไม่ส่งเบอร์
+            หรืออีเมลของผู้ซื้อมาให้ร้าน
           </HelpHint>
         </h2>
         <span className="section-desc text-right">

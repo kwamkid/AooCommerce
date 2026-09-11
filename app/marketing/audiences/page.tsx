@@ -219,7 +219,7 @@ export default function AudiencesPage() {
       ),
     },
     {
-      key: 'members', label: 'สมาชิก', defaultWidth: 130,
+      key: 'members', label: 'เข้าเงื่อนไข', defaultWidth: 130,
       headerClassName: 'text-right', cellClassName: 'text-right',
       render: (r) => (
         <div>

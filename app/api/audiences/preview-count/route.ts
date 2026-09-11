@@ -9,6 +9,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { checkAuthWithCompany, can } from '@/lib/supabase-admin';
 import {
   assertSourcesBelongToCompany,
+  countMarketplaceOnlyAmongUnsyncable,
   resolveAudienceMembers,
   validateAudienceDefinition,
   type AudienceSource,
@@ -41,7 +42,11 @@ export async function POST(request: NextRequest) {
     if (ownershipError) return NextResponse.json({ error: ownershipError }, { status: 400 });
 
     const startedAt = Date.now();
-    const { stats } = await resolveAudienceMembers(auth.companyId, parsed.def);
+    const { members, stats } = await resolveAudienceMembers(auth.companyId, parsed.def);
+    // คนที่ส่งไม่ได้ส่วนใหญ่มาจากไหน — ไม่บอกแล้วร้านที่ขายผ่าน marketplace เป็นหลักจะนึกว่าระบบนับผิด
+    const marketplaceOnly = stats.not_syncable > 0
+      ? await countMarketplaceOnlyAmongUnsyncable(auth.companyId, members)
+      : 0;
 
     // นับแยกตาม **ชนิดแหล่ง** (เพจ Facebook · LINE · ลูกค้าในระบบ) ไม่ใช่รายบัญชี — ตอบคำถามว่า
     // "แหล่งไหนส่งคนมากี่คน ขึ้น Meta ได้กี่คน" (เช่นติ๊ก LINE แล้วเห็นว่าขึ้น Meta ได้ 0) และนับ
@@ -80,6 +85,7 @@ export async function POST(request: NextRequest) {
         any: stats.syncable,
       },
       not_syncable: stats.not_syncable,
+      ...(marketplaceOnly != null ? { not_syncable_marketplace: marketplaceOnly } : {}),
       capped: stats.capped,
       ...(bySource ? { by_source: bySource } : {}),
     });

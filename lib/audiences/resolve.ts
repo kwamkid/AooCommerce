@@ -231,6 +231,35 @@ async function loadCustomerIdentities(
   return out;
 }
 
+/**
+ * ในคนที่ส่งขึ้น Meta ไม่ได้ มีกี่คนที่เป็นลูกค้าซึ่งซื้อผ่าน marketplace อย่างเดียว (Shopee · Lazada · TikTok)
+ * — แพลตฟอร์มไม่ส่งเบอร์/อีเมลของผู้ซื้อมาให้ร้าน หน้าจอใช้บอกว่าทำไมส่งไม่ได้ (ร้านที่ขายผ่าน marketplace
+ * เป็นหลักจะเป็นแบบนี้เกือบทั้งกลุ่ม) · นับใน DB รอบเดียวผ่าน RPC `count_marketplace_only_customers`
+ * (เกณฑ์ marketplace ตรงกับ `isMarketplaceOrder()`) · ถามไม่ได้ = null **ห้ามเดา 0**
+ */
+export async function countMarketplaceOnlyAmongUnsyncable(
+  companyId: string,
+  members: AudienceMember[],
+): Promise<number | null> {
+  const ids = [...new Set(
+    members.filter(m => m.customer_id && projectIdentities(m).length === 0).map(m => m.customer_id as string),
+  )];
+  if (ids.length === 0) return 0;
+  let total = 0;
+  for (let i = 0; i < ids.length; i += 5000) {
+    const { data, error } = await supabaseAdmin.rpc('count_marketplace_only_customers', {
+      p_company_id: companyId,
+      p_customer_ids: ids.slice(i, i + 5000),
+    });
+    if (error) {
+      console.error('[audiences] count marketplace-only customers:', error.message);
+      return null;
+    }
+    total += Number(data) || 0;
+  }
+  return total;
+}
+
 /** ลูกค้าที่ติดแท็กชุดนี้ (เฉพาะแท็กของบริษัทนี้) — คืน null เมื่อไม่มีแท็กที่ใช้ได้เลย */
 async function customerIdsWithTags(companyId: string, tagIds: string[]): Promise<Set<string> | null> {
   const { data: ownTags } = await supabaseAdmin
