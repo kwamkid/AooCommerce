@@ -21,6 +21,7 @@ import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
 import Alert from '@/components/ui/Alert';
 import Tooltip from '@/components/ui/Tooltip';
+import HelpHint from '@/components/ui/HelpHint';
 import ChannelBadge from '@/components/ui/ChannelBadge';
 import PlatformIcon from '@/components/ui/PlatformIcon';
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
@@ -39,7 +40,7 @@ import { audienceLabel, describeAudienceRefine } from '@/lib/broadcast/audience'
 import type { AudienceTemplateKey } from '@/lib/audiences/templates';
 import { Edit2, LayoutTemplate, Loader2, Plus, RefreshCw, Target, Trash2, Users } from 'lucide-react';
 import type { AudienceSyncView, AudienceView, ChatSourceAccount } from './components/types';
-import { isSyncRunning, latestCounts, syncStatusLook } from './components/sync-view';
+import { isSyncRunning, latestCounts, reachHelpLines, syncStatusLook } from './components/sync-view';
 
 /** ถี่พอให้เห็นว่ากำลังเดิน แต่หยุดเองเมื่อไม่มีใบไหน sync อยู่ (เท่ากับหน้ารายการบรอดแคสต์) */
 const POLL_MS = 4000;
@@ -258,6 +259,12 @@ export default function AudiencesPage() {
             <p className="data-number text-gray-700 dark:text-slate-300">{formatNumber(counts.syncable)} คน</p>
             <p className="data-muted text-gray-400 dark:text-slate-500 mt-0.5">
               จาก {formatNumber(counts.total)} คนในกลุ่ม
+              {/* แบบเดียวกับการ์ดขนาดกลุ่มในหน้ากลุ่ม · portal เพราะตารางตัดของล้นขอบล่าง */}
+              <HelpHint align="right" portal>
+                {reachHelpLines(counts).map((line, i) => (
+                  <span key={i} className="block mt-1 first:mt-0">{line}</span>
+                ))}
+              </HelpHint>
             </p>
           </div>
         );

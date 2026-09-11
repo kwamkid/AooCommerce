@@ -107,6 +107,7 @@ desktop table + mobile cards (auto / `mobileCardRender`) + pagination (20/50/100
 | ใบกำกับ แสดง / แก้ · สรุปยอด · แท็ก | `TaxInvoiceInfo` · `TaxInvoiceEditModal` · `OrderSummaryBox` · `TagBadge` | สร้างเอง |
 | รูปสินค้าจิ๋ว | `ProductImageThumb` (xs–lg · ย่อผ่าน `thumbUrl()` · กดดูรูปเต็ม) หรือ `<img src={thumbUrl(url, 96\|160\|320)}>` | `<img src={image_url}>` รูปเต็มในกรอบเล็ก |
 | Tooltip | **`Tooltip`** (`text` `position?` `box?` · portal · delay 350ms · มือถือแตะค้าง) · ใส่ `aria-label` คู่เสมอ · ปุ่มที่ disabled ได้ใส่ `box="inline-flex"` (default `display:contents` ไม่มีกล่อง ปุ่ม disabled จึงไม่ยิง pointer event) | `title=""` (มือถือไม่ขึ้น) · tooltip เอง |
+| คำอธิบายยาว กดเปิด (วิธีทำ · ทำไมตัวเลขเป็นแบบนี้) | **`HelpHint`** (`align` · **`portal`** เมื่ออยู่ในตาราง/กล่องที่ตัดของล้น เช่น DataTable — ลอยเหนือหน้า พลิกขึ้นเอง · กดไอคอน/กดในกล่องไม่ทะลุไปกดแถว) | บรรทัดคำอธิบายถาวรยาว ๆ ใต้ช่อง · `Tooltip` กับข้อความยาว (บรรทัดเดียวไม่ตัดคำ) · HelpHint ไม่ใส่ `portal` ในแถวตาราง (โดนตัด) |
 | เตือนเปิดในแอป LINE/FB/IG/TikTok (Google บล็อกล็อกอินใน webview `disallowed_useragent`) | `InAppBrowserNotice` ([components/auth/](../../components/auth/InAppBrowserNotice.tsx)) + `detectInAppBrowser()` · `IN_APP_LABELS` · `withExternalBrowserFlag()` ([lib/in-app-browser.ts](../../lib/in-app-browser.ts) · LINE เปิดเบราว์เซอร์จริงได้ด้วย `openExternalBrowser=1`) · อ่าน UA ผ่าน `useSyncExternalStore` | UA sniff เอง · `useEffect + setState` (lint + hydration mismatch) |
 
 ### Actions

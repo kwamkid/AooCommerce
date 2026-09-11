@@ -43,6 +43,26 @@ export function isSyncRunning(sync: AudienceSyncView, now = Date.now()): boolean
   return !sync.next_sync_at || Date.parse(sync.next_sync_at) <= now + 60_000;
 }
 
+/**
+ * คำอธิบายตัวเลขในคอลัมน์ "ส่งขึ้น Meta ได้" ของหน้ารายการ — ใช้ตัวเลขจริงของแถวนั้น
+ * (เจ้าของถามว่า "358 จาก 898" คืออะไร ใช้ทำอะไรได้ 11 ก.ย. 2026) · บอกทางออกของคนที่ส่งไม่ได้ด้วย
+ */
+export function reachHelpLines(c: { total: number; syncable: number }): string[] {
+  const gap = Math.max(0, c.total - c.syncable);
+  const lines = [
+    `${formatNumber(c.syncable)} คน คือคนที่ Meta หาตัวเจอ เพราะมีเบอร์โทร อีเมล หรือ Messenger`,
+    `${formatNumber(c.total)} คน คือทุกคนที่เข้าเงื่อนไขของกลุ่ม คนเดียวกันจากหลายแหล่งนับครั้งเดียว`,
+  ];
+  if (gap > 0) {
+    lines.push(
+      `อีก ${formatNumber(gap)} คนส่งขึ้น Meta ไม่ได้ เช่นคนจาก LINE ที่ยังไม่ผูกกับข้อมูลลูกค้า `
+      + 'หรือลูกค้าที่ซื้อผ่าน Shopee, Lazada, TikTok · คนจาก LINE ส่งหาทางบรอดแคสต์ LINE แทนได้',
+    );
+  }
+  lines.push('นับใหม่ทุกครั้งที่ sync ซึ่งระบบทำให้เองวันละครั้ง');
+  return lines;
+}
+
 /** ป้ายสถานะ — `withCount: false` เมื่อจำนวนคนมีคอลัมน์ของตัวเองอยู่แล้ว (หน้ารายการ) */
 export function syncStatusLook(sync: AudienceSyncView, opts: { withCount?: boolean } = {}): SyncLook {
   switch (sync.status) {
