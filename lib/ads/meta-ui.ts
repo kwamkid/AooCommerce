@@ -8,6 +8,17 @@
 /** สิทธิ์ที่ต้องขอตอนล็อกอิน Facebook เพื่อจัดการบัญชีโฆษณา — ขาดตัวใดตัวหนึ่ง sync กลุ่มเป้าหมายไม่ได้ */
 export const META_ADS_SCOPES = 'ads_management,ads_read,business_management';
 
+/**
+ * สิทธิ์ของ Marketing Messages on Messenger (ทดลอง) — หน้า App Review มีสองชื่อ คำอธิบายเหมือนกัน
+ * ยังไม่รู้ว่า API เช็คตัวไหน จึงขอทั้งคู่ · Meta ให้สิทธิ์ต่อ "คน" ไม่ใช่ต่อ token — กดอนุญาตครั้งเดียว
+ * token ของทุกเพจที่คนนั้นเชื่อมไว้ได้สิทธิ์ตามหมด
+ */
+export const META_MARKETING_MESSAGES_SCOPES = ['paid_marketing_messages', 'marketing_messages_messenger'];
+
+export function hasMarketingMessagesScope(scopes: readonly string[]): boolean {
+  return META_MARKETING_MESSAGES_SCOPES.some((s) => scopes.includes(s));
+}
+
 export const META_EVENTS_MANAGER_URL = 'https://business.facebook.com/events_manager2';
 export const META_ADS_MANAGER_URL = 'https://adsmanager.facebook.com';
 

@@ -1,5 +1,7 @@
 import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
 import { probeCapiReadiness } from '@/lib/meta/conversions';
+import { debugToken } from '@/lib/meta/ads';
+import { hasMarketingMessagesScope } from '@/lib/ads/meta-ui';
 import { NextRequest, NextResponse } from 'next/server';
 
 // POST - Test chat account connection
@@ -127,6 +129,10 @@ async function testFbConnection(creds: Record<string, unknown>, accountId: strin
     } catch { /* non-critical */ }
   }
 
+  // สิทธิ์ข้อความการตลาด (Marketing Messages) ของ token ใบนี้ → ป้ายบนการ์ดเพจ
+  // ตอบไม่ได้ (debuggable=false: ไม่มี app secret / Graph ปฏิเสธ) = ไม่จด คงค่าเดิมไว้
+  const dbg = await debugToken(token);
+
   // Save page info to credentials (including pictures)
   await supabaseAdmin
     .from('chat_accounts')
@@ -139,6 +145,10 @@ async function testFbConnection(creds: Record<string, unknown>, accountId: strin
         ...(pictureUrl ? { page_picture_url: pictureUrl } : {}),
         ...(igPictureUrl ? { ig_profile_picture_url: igPictureUrl } : {}),
         ...(igUsername ? { ig_username: igUsername } : {}),
+        ...(dbg.debuggable ? {
+          meta_marketing_messages: hasMarketingMessagesScope(dbg.scopes),
+          meta_marketing_checked_at: new Date().toISOString(),
+        } : {}),
       },
       updated_at: new Date().toISOString(),
     })

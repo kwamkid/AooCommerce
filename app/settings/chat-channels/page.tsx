@@ -36,6 +36,7 @@ import FormInput from '@/components/ui/FormInput';
 import FormSelect from '@/components/ui/FormSelect';
 import StepNumber from '@/components/ui/StepNumber';
 import { useFacebookSdk } from '@/lib/useFacebookSdk';
+import { META_MARKETING_MESSAGES_SCOPES } from '@/lib/ads/meta-ui';
 
 // Lazy-load modals — only needed on edit / after FB OAuth returns pages.
 const Modal = dynamic(() => import('@/components/ui/Modal'), { ssr: false });
@@ -61,12 +62,11 @@ interface FbPage {
 const FB_PAGE_SCOPE = 'pages_show_list,pages_messaging,pages_read_engagement,instagram_manage_messages,page_events';
 
 /**
- * Marketing Messages on Messenger (ทดลอง) — app มีสิทธิ์ 2 ตัวนี้แค่ระดับ Standard = ขอได้เฉพาะบัญชี
+ * Marketing Messages on Messenger (ทดลอง) — app มีสิทธิ์แค่ระดับ Standard = ขอได้เฉพาะบัญชี
  * ที่มีบทบาทใน app Meta · จึงอยู่ในเมนูของผู้ดูแลระบบเท่านั้น ไม่ปนปุ่มเชื่อมเพจของร้าน ·
- * ได้ Advanced Access แล้วค่อยย้ายเข้า FB_PAGE_SCOPE · หน้า App Review มีทั้งสองชื่อ
- * (คำอธิบายเหมือนกัน) ยังไม่รู้ว่า API เช็คตัวไหน จึงขอทั้งคู่
+ * ได้ Advanced Access แล้วค่อยย้ายเข้า FB_PAGE_SCOPE
  */
-const FB_MARKETING_MESSAGES_SCOPE = 'paid_marketing_messages,marketing_messages_messenger';
+const FB_MARKETING_MESSAGES_SCOPE = META_MARKETING_MESSAGES_SCOPES.join(',');
 
 interface ChatAccount {
   id: string;
@@ -1795,6 +1795,12 @@ export default function ChatChannelsPage() {
                   </Tooltip>
                 );
               })() : null}
+              {/* ข้อความการตลาด (Marketing Messages · ทดลอง) — "ทดสอบเชื่อมต่อ" จดจาก debug_token ของ token เพจ */}
+              {account.platform === 'facebook' && account.credentials.meta_marketing_messages === true ? (
+                <Tooltip text={`token ของเพจนี้มีสิทธิ์ส่งข้อความการตลาด (Marketing Messages · ทดลอง)${account.credentials.meta_marketing_checked_at ? `\nตรวจเมื่อ ${formatThaiDateTime(account.credentials.meta_marketing_checked_at as string)}` : ''}`}>
+                  <Badge tone="indigo" size="sm">ข้อความการตลาด</Badge>
+                </Tooltip>
+              ) : null}
             </div>
             <div className="flex items-center gap-2 subtitle-text text-gray-500 dark:text-slate-400">
               {account.platform === 'line' ? (
