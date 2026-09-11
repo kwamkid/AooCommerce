@@ -25,6 +25,12 @@ interface Props {
   align?: 'left' | 'right';
   /** วาดคำอธิบายลอยเหนือทั้งหน้า — ใช้ในตาราง/กล่องที่ตัดของล้น · พลิกขึ้นเองเมื่อข้างล่างไม่พอ */
   portal?: boolean;
+  /** ไอคอนของปุ่มเปิดแบบกำหนดเอง (แทนไอคอน ?) — เช่นไอคอนคลังข้างตัวเลขสต็อก */
+  trigger?: React.ReactNode;
+  /** aria-label ของปุ่มเปิด (default "คำอธิบายเพิ่มเติม") — ส่งคู่กับ `trigger` เสมอ */
+  ariaLabel?: string;
+  /** แจ้งเมื่อเปิด/ปิด (ไม่ยิงตอน mount) — เช่นโหลดข้อมูลตอนเปิดครั้งแรก */
+  onOpenChange?: (open: boolean) => void;
 }
 
 /** ความสูงโดยประมาณของกล่องคำอธิบาย — ใช้ตัดสินว่าจะพลิกขึ้นไหม (ตอนกดยังไม่ได้วาด จึงวัดจริงไม่ได้) */
@@ -35,12 +41,23 @@ type Pos = { top?: number; bottom?: number; left?: number; right?: number };
 
 const BOX = 'w-max max-w-[min(280px,70vw)] rounded-lg bg-gray-900 px-3 py-2 text-[13px] font-normal leading-relaxed text-gray-50 shadow-lg';
 
-export default function HelpHint({ children, align = 'left', portal = false }: Props) {
+export default function HelpHint({ children, align = 'left', portal = false, trigger, ariaLabel, onOpenChange }: Props) {
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState<Pos | null>(null);
   const wrapRef = useRef<HTMLSpanElement>(null);
   const popRef = useRef<HTMLSpanElement>(null);
   const id = useId();
+
+  // Notify the caller on every open/close (every path: toggle · outside click ·
+  // Esc · scroll) — skipped until the first open so mount doesn't report "closed".
+  const onOpenChangeRef = useRef(onOpenChange);
+  useEffect(() => { onOpenChangeRef.current = onOpenChange; }, [onOpenChange]);
+  const everOpened = useRef(false);
+  useEffect(() => {
+    if (!open && !everOpened.current) return;
+    everOpened.current = true;
+    onOpenChangeRef.current?.(open);
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -90,7 +107,7 @@ export default function HelpHint({ children, align = 'left', portal = false }: P
     <span ref={wrapRef} className="relative inline-flex align-middle ml-1.5">
       <button
         type="button"
-        aria-label="คำอธิบายเพิ่มเติม"
+        aria-label={ariaLabel ?? 'คำอธิบายเพิ่มเติม'}
         aria-expanded={open}
         aria-controls={id}
         onClick={toggle}
@@ -98,7 +115,7 @@ export default function HelpHint({ children, align = 'left', portal = false }: P
           open ? 'text-primary' : 'text-gray-400 hover:text-primary'
         }`}
       >
-        <HelpCircle className="w-4 h-4" strokeWidth={2} />
+        {trigger ?? <HelpCircle className="w-4 h-4" strokeWidth={2} />}
       </button>
       {open && !portal && (
         <span

@@ -1,7 +1,7 @@
 'use client';
 
-import { type ReactNode, useState, useEffect, useRef, useCallback } from 'react';
-import { Loader2, Package, ArrowUp, ArrowDown, ArrowUpDown, Check, X, GripVertical, RotateCcw } from 'lucide-react';
+import { type ReactNode, Fragment, useState, useEffect, useRef, useCallback } from 'react';
+import { Loader2, Package, ArrowUp, ArrowDown, ArrowUpDown, Check, X, GripVertical, RotateCcw, ChevronRight } from 'lucide-react';
 import {
   DndContext, PointerSensor, useSensor, useSensors, type DragEndEvent,
   closestCenter, MeasuringStrategy,
@@ -65,6 +65,30 @@ export interface DataTableColumn<T> {
   reorderable?: boolean;
   /** Inline cell editing config — click to edit. */
   edit?: EditConfig<T>;
+  /** Horizontal alignment of header + cell content. Legacy `headerClassName`
+   *  containing `text-center` / `text-right` is honoured for the header too. */
+  align?: 'left' | 'center' | 'right';
+  /** This column absorbs the table's leftover width (instead of the last
+   *  column) and is not resizable. Use on the main text column so a narrow
+   *  trailing actions column keeps its declared width. */
+  grow?: boolean;
+}
+
+/** Header flex justification — from `align`, else from legacy headerClassName text-* */
+function headerJustifyClass<T>(col: DataTableColumn<T>): string {
+  if (col.align === 'center') return 'justify-center';
+  if (col.align === 'right') return 'justify-end';
+  const hc = col.headerClassName || '';
+  if (/(^|\s)!?text-center(\s|$)/.test(hc)) return 'justify-center';
+  if (/(^|\s)!?text-right(\s|$)/.test(hc)) return 'justify-end';
+  return '';
+}
+
+/** Text alignment class for `align` (header th + body td) */
+function alignTextClass<T>(col: DataTableColumn<T>): string {
+  if (col.align === 'center') return 'text-center';
+  if (col.align === 'right') return 'text-right';
+  return '';
 }
 
 export interface DataTableProps<T> {
@@ -119,6 +143,12 @@ export interface DataTableProps<T> {
   sortDir?: SortDir;
   /** Called when user clicks a sortable header. Toggles asc → desc → unsort. */
   onSort?: (key: string, dir: SortDir | null) => void;
+
+  // ── Sub-rows (optional) ──
+  /** Child rows shown under a row behind a chevron (collapsed by default).
+   *  Rendered with the same columns; not selectable, not inline-editable.
+   *  Desktop table only — mobile cards render their own via `mobileCardRender`. */
+  getSubRows?: (row: T) => T[] | null | undefined;
 }
 
 // ── Component ──
@@ -149,6 +179,7 @@ export default function DataTable<T>({
   sortBy,
   sortDir,
   onSort,
+  getSubRows,
 }: DataTableProps<T>) {
   // ── Column toggle ──
   const colConfigs: ColumnConfig[] = columns.map(c => ({
@@ -326,6 +357,12 @@ export default function DataTable<T>({
     0,
   );
   const hasUserResized = Object.keys(colWidths).length > 0;
+  /** Column that absorbs the leftover width. Default = the last visible column
+   *  (legacy behaviour); a visible `grow` column takes that role instead so the
+   *  last column keeps its declared/resized width. */
+  const growKey = visibleCols.find(c => c.grow)?.key;
+  const isSlackCol = (col: DataTableColumn<T>, idx: number) =>
+    growKey ? col.key === growKey : idx === visibleCols.length - 1;
   const getColWidth = (col: DataTableColumn<T>): number | string | undefined => {
     if (colWidths[col.key] != null) return colWidths[col.key];
     if (hasUserResized) return col.defaultWidth; // unlikely; snapshot covers it
@@ -363,6 +400,18 @@ export default function DataTable<T>({
     onSelectionChange(next);
   };
 
+  // ── Sub-rows (expand/collapse) ──
+  const hasSubRows = !!getSubRows;
+  const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
+  const toggleExpanded = (id: string) => {
+    setExpanded(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+  const bodyColSpan = visibleCols.length + (hasSelection ? 1 : 0) + (hasSubRows ? 1 : 0);
+
   return (
     <>
       {/* Desktop Table — DndContext mounted on client only (see `mounted` above)
@@ -389,9 +438,11 @@ export default function DataTable<T>({
         // container is narrower → table holds at sum px and overflow-x-auto
         // on the outer div produces a horizontal scrollbar.
         const minTableWidth = visibleCols.reduce((sum, col) => {
-          const w = colWidths[col.key];
+          // A `grow` column's snapshotted px width is just whatever slack it
+          // absorbed — count its declared width so it can shrink back.
+          const w = col.key === growKey ? undefined : colWidths[col.key];
           return sum + (typeof w === 'number' ? w : (col.defaultWidth ?? 100));
-        }, 0) + (hasSelection ? 40 : 0);
+        }, 0) + (hasSelection ? 40 : 0) + (hasSubRows ? 32 : 0);
         return (
       <div className="hidden md:block">
         <div className="overflow-x-auto">
@@ -412,6 +463,7 @@ export default function DataTable<T>({
             <thead className="data-thead">
               <tr ref={headerRowRef}>
                 <SortableContext items={visibleCols.map(c => c.key)} strategy={horizontalListSortingStrategy}>
+                  {hasSubRows && <th className="data-th w-8 !px-0" aria-hidden="true" />}
                   {hasSelection && (
                     <th className="data-th w-10">
                       <input type="checkbox" checked={allSelected} onChange={toggleAll}
@@ -419,17 +471,16 @@ export default function DataTable<T>({
                     </th>
                   )}
                   {visibleCols.map((col, idx) => {
-                    const isLast = idx === visibleCols.length - 1;
+                    const isSlack = isSlackCol(col, idx);
                     return (
                       <SortableHeader
                         key={col.key}
                         col={col}
-                        // Last column: no declared width → absorbs remaining
-                        // space, stays pinned to the right edge. Resizing it
-                        // would conflict with that behaviour, so disable resize
-                        // on the last column entirely.
-                        width={isLast ? undefined : getColWidth(col)}
-                        resizable={col.resizable && !isLast}
+                        // Slack column (last, or the `grow` one): no declared
+                        // width → absorbs remaining space. Resizing it would
+                        // conflict with that behaviour, so it's not resizable.
+                        width={isSlack ? undefined : getColWidth(col)}
+                        resizable={col.resizable && !isSlack}
                         isSorted={sortBy === col.key}
                         sortDir={sortDir}
                         onSortClick={onSort ? () => handleSortClick(col.key) : undefined}
@@ -447,11 +498,11 @@ export default function DataTable<T>({
             </thead>
             <tbody className="data-tbody">
               {loading ? (
-                <tr><td colSpan={visibleCols.length + (hasSelection ? 1 : 0)} className="py-16 text-center">
+                <tr><td colSpan={bodyColSpan} className="py-16 text-center">
                   <Loader2 className="w-6 h-6 text-primary animate-spin mx-auto" />
                 </td></tr>
               ) : data.length === 0 ? (
-                <tr><td colSpan={visibleCols.length + (hasSelection ? 1 : 0)} className="py-16 text-center">
+                <tr><td colSpan={bodyColSpan} className="py-16 text-center">
                   <div className="flex flex-col items-center gap-2">
                     {emptyIcon || <Package className="w-10 h-10 text-gray-300 dark:text-slate-600" />}
                     <p className="text-gray-500 dark:text-slate-400 data-text">{emptyMessage}</p>
@@ -459,12 +510,29 @@ export default function DataTable<T>({
                 </td></tr>
               ) : data.map((row, idx) => {
                 const rowId = getRowId(row);
+                const subRows = getSubRows?.(row) || [];
+                const isOpen = subRows.length > 0 && expanded.has(rowId);
                 return (
+                  <Fragment key={rowId}>
                   <tr
-                    key={rowId}
                     className={`data-tr ${onRowClick ? 'cursor-pointer' : ''} ${rowClassName?.(row) || ''}`}
                     onClick={onRowClick ? () => onRowClick(row) : undefined}
                   >
+                    {hasSubRows && (
+                      <td className="data-td w-8 !px-0 text-center">
+                        {subRows.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); toggleExpanded(rowId); }}
+                            aria-expanded={isOpen}
+                            aria-label={isOpen ? 'ซ่อนตัวเลือก' : 'แสดงตัวเลือก'}
+                            className="inline-flex items-center justify-center w-7 h-7 rounded-md text-gray-400 hover:text-gray-700 hover:bg-gray-100 dark:text-slate-500 dark:hover:text-slate-200 dark:hover:bg-slate-700 transition-colors"
+                          >
+                            <ChevronRight className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-90' : ''}`} />
+                          </button>
+                        )}
+                      </td>
+                    )}
                     {hasSelection && (
                       <td className="data-td w-10" onClick={e => e.stopPropagation()}>
                         <input type="checkbox" checked={selectedIds!.has(rowId)} onChange={() => toggleRow(rowId)}
@@ -477,7 +545,7 @@ export default function DataTable<T>({
                       return (
                         <td
                           key={col.key}
-                          className={`data-td ${col.cellClassName || ''} ${editable && !inEdit ? 'cursor-pointer hover:bg-amber-50 dark:hover:bg-amber-900/10' : ''}`}
+                          className={`data-td ${alignTextClass(col)} ${col.cellClassName || ''} ${editable && !inEdit ? 'cursor-pointer hover:bg-amber-50 dark:hover:bg-amber-900/10' : ''}`}
                           onClick={
                             col.stopPropagation
                               ? (e) => e.stopPropagation()
@@ -494,6 +562,26 @@ export default function DataTable<T>({
                     })}
                     {/* No spacer cell — % header widths handle distribution */}
                   </tr>
+                  {isOpen && subRows.map((sub, subIdx) => (
+                    <tr
+                      key={getRowId(sub)}
+                      className={`data-tr data-tr-sub ${onRowClick ? 'cursor-pointer' : ''} ${rowClassName?.(sub) || ''}`}
+                      onClick={onRowClick ? () => onRowClick(sub) : undefined}
+                    >
+                      <td className="data-td w-8 !px-0" />
+                      {hasSelection && <td className="data-td w-10" />}
+                      {visibleCols.map(col => (
+                        <td
+                          key={col.key}
+                          className={`data-td ${alignTextClass(col)} ${col.cellClassName || ''}`}
+                          onClick={col.stopPropagation ? (e) => e.stopPropagation() : undefined}
+                        >
+                          {col.render(sub, subIdx)}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                  </Fragment>
                 );
               })}
             </tbody>
@@ -533,8 +621,9 @@ export default function DataTable<T>({
         <div className="hidden md:block">
           <div className="data-table-wrap">
             <table className="w-full"><thead className="data-thead"><tr>
+              {hasSubRows && <th className="data-th w-8 !px-0" aria-hidden="true" />}
               {visibleCols.map(col => (
-                <th key={col.key} className={`data-th ${col.headerClassName || ''}`}>{col.label}</th>
+                <th key={col.key} className={`data-th ${alignTextClass(col)} ${col.headerClassName || ''}`}>{col.label}</th>
               ))}
             </tr></thead></table>
           </div>
@@ -628,11 +717,13 @@ function SortableHeader<T>({
       ref={setNodeRef}
       data-col-key={col.key}
       style={style}
-      className={`data-th relative ${col.headerClassName || ''} ${col.sortable && onSortClick ? 'cursor-pointer select-none' : ''}`}
+      className={`data-th relative ${alignTextClass(col)} ${col.headerClassName || ''} ${col.sortable && onSortClick ? 'cursor-pointer select-none' : ''}`}
       onClick={col.sortable && onSortClick ? onSortClick : undefined}
       {...attributes}
     >
-      <div className="flex items-center gap-1">
+      {/* justify-* from `align` / legacy headerClassName text-* — the flex
+          wrapper otherwise ignores text-align and pins the label left. */}
+      <div className={`flex items-center gap-1 ${headerJustifyClass(col)}`}>
         {col.reorderable && (
           // Grip is the ONLY drag activator — keeps the rest of the cell clickable for sort.
           <button

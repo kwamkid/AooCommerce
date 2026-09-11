@@ -705,6 +705,11 @@ input.line-btn-field-secondary::placeholder,
   .data-td {
     @apply px-5 py-3;
   }
+  /* Sub-row (DataTable `getSubRows`) — tinted so it reads as a child of the row
+   * above · `.data-tr:hover` is more specific, so hover stays consistent */
+  .data-tr-sub {
+    @apply bg-gray-50/60 dark:bg-slate-900/30;
+  }
   .data-tfoot {
     @apply bg-gray-100 dark:bg-slate-900;
   }

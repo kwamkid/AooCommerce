@@ -12,7 +12,7 @@ interface BulkActionBarProps {
 }
 
 /**
- * แถบลอยด้านล่างจอตอนเลือกหลายรายการ — "clear all" ซ้าย · ปุ่มของหน้าขวา
+ * แถบลอยด้านล่างจอตอนเลือกหลายรายการ — "ยกเลิกการเลือก" ซ้าย · ปุ่มของหน้าขวา
  *
  * ใช้กับทุกหน้าที่มี checkbox เลือกหลายบิล (แท็บที่ต้องจัดส่ง · กำลังจัดส่ง · จัดของ&ส่ง)
  * เดิมโครงนี้ถูก copy ไว้ในแต่ละแท็บ — แก้ระยะ/สี/z-index ทีต้องไล่แก้ทุกที่
@@ -28,10 +28,11 @@ export default function BulkActionBar({ count, onClear, children }: BulkActionBa
     <div className="fixed bottom-4 left-4 right-4 z-40 pb-safe">
       <div className="max-w-screen-xl mx-auto flex items-center justify-between gap-3 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-lg px-4 py-3">
         <button
+          type="button"
           onClick={onClear}
           className="text-sm text-gray-400 hover:text-gray-600 dark:text-slate-500 dark:hover:text-slate-300 transition-colors flex-shrink-0"
         >
-          clear all
+          ยกเลิกการเลือก
         </button>
         <div className="flex items-center gap-2 flex-wrap justify-end">{children}</div>
       </div>

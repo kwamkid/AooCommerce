@@ -66,12 +66,14 @@ desktop table + mobile cards (auto / `mobileCardRender`) + pagination (20/50/100
   columns={[{ key: 'order_no', label: 'เลขที่', sortable: true, resizable: true, reorderable: true, defaultWidth: 130,
     render: (r) => r.order_no,
     edit: { type: 'number' /* |'text'|'select' */, getValue: (r) => r.value, onSave: async (r, v) => {}, options: [], validate: (v) => null } }]}
-  // คอลัมน์: alwaysVisible (ห้ามซ่อน) · stopPropagation (ช่อง ActionMenu)
+  // คอลัมน์: alwaysVisible (ห้ามซ่อน) · stopPropagation (ช่อง ActionMenu) · align: 'center'|'right' (หัว+ช่องชิดเดียวกัน) · grow (รับที่ว่างแทนคอลัมน์สุดท้าย)
   currentPage={page} totalPages={n} totalRecords={total} recordsPerPage={per} onPageChange={setPage} onRecordsPerPageChange={setPer}
-  sortBy={sortBy} sortDir={sortDir} onSort={(key, dir) => {}} />
+  sortBy={sortBy} sortDir={sortDir} onSort={(key, dir) => {}}
+  getSubRows={(r) => r.children} /* แถวย่อยกดกาง (ปิดไว้ก่อน · ติ๊กเลือกไม่ได้ · คอลัมน์ชุดเดียวกัน) — ตัวอย่าง /products */ />
 ```
 - localStorage `dt-widths:` · `dt-order:` · `col-toggle:{storageKey}` · ปุ่ม ↻ รีเซ็ตทั้ง 3
 - คอลัมน์สุดท้าย auto-flex (resize ไม่ได้ — reorder ออกก่อน) · ความกว้างเริ่มเป็น % แล้วเป็น px หลัง resize ครั้งแรก · min 80px · header `min-width: max-content`
+- **ตารางที่มีคอลัมน์ปุ่มท้าย (จัดการ/สถานะ) ใส่ `grow` ที่คอลัมน์ข้อความหลัก** — ไม่งั้นพอผู้ใช้ลาก resize ครั้งแรก ที่ว่างทั้งหมดไปกองที่คอลัมน์ปุ่ม (⋮ ลอยห่างหัว) · ชิดกลาง/ขวาใช้ `align` (`headerClassName: 'text-center'` เดิมยังทำงาน — แปลงเป็น justify ให้เอง)
 
 ### Form Inputs
 | ต้องการ | ใช้ | ห้าม |
@@ -107,7 +109,7 @@ desktop table + mobile cards (auto / `mobileCardRender`) + pagination (20/50/100
 | ใบกำกับ แสดง / แก้ · สรุปยอด · แท็ก | `TaxInvoiceInfo` · `TaxInvoiceEditModal` · `OrderSummaryBox` · `TagBadge` | สร้างเอง |
 | รูปสินค้าจิ๋ว | `ProductImageThumb` (xs–lg · ย่อผ่าน `thumbUrl()` · กดดูรูปเต็ม) หรือ `<img src={thumbUrl(url, 96\|160\|320)}>` | `<img src={image_url}>` รูปเต็มในกรอบเล็ก |
 | Tooltip | **`Tooltip`** (`text` `position?` `box?` · portal · delay 350ms · มือถือแตะค้าง) · ใส่ `aria-label` คู่เสมอ · ปุ่มที่ disabled ได้ใส่ `box="inline-flex"` (default `display:contents` ไม่มีกล่อง ปุ่ม disabled จึงไม่ยิง pointer event) | `title=""` (มือถือไม่ขึ้น) · tooltip เอง |
-| คำอธิบายยาว กดเปิด (วิธีทำ · ทำไมตัวเลขเป็นแบบนี้) | **`HelpHint`** (`align` · **`portal`** เมื่ออยู่ในตาราง/กล่องที่ตัดของล้น เช่น DataTable — ลอยเหนือหน้า พลิกขึ้นเอง · กดไอคอน/กดในกล่องไม่ทะลุไปกดแถว) | บรรทัดคำอธิบายถาวรยาว ๆ ใต้ช่อง · `Tooltip` กับข้อความยาว (บรรทัดเดียวไม่ตัดคำ) · HelpHint ไม่ใส่ `portal` ในแถวตาราง (โดนตัด) |
+| คำอธิบายยาว กดเปิด (วิธีทำ · ทำไมตัวเลขเป็นแบบนี้) · กล่องข้อมูลเล็กที่โหลดตอนเปิด | **`HelpHint`** (`align` · **`portal`** เมื่ออยู่ในตาราง/กล่องที่ตัดของล้น เช่น DataTable — ลอยเหนือหน้า พลิกขึ้นเอง · กดไอคอน/กดในกล่องไม่ทะลุไปกดแถว · **`trigger`** ไอคอนแทน ? + **`ariaLabel`** · **`onOpenChange`** โหลดข้อมูลตอนเปิด — ตัวอย่างกล่องแยกคลังหน้า `/products`) | บรรทัดคำอธิบายถาวรยาว ๆ ใต้ช่อง · `Tooltip` กับข้อความยาว (บรรทัดเดียวไม่ตัดคำ) · HelpHint ไม่ใส่ `portal` ในแถวตาราง (โดนตัด) |
 | เตือนเปิดในแอป LINE/FB/IG/TikTok (Google บล็อกล็อกอินใน webview `disallowed_useragent`) | `InAppBrowserNotice` ([components/auth/](../../components/auth/InAppBrowserNotice.tsx)) + `detectInAppBrowser()` · `IN_APP_LABELS` · `withExternalBrowserFlag()` ([lib/in-app-browser.ts](../../lib/in-app-browser.ts) · LINE เปิดเบราว์เซอร์จริงได้ด้วย `openExternalBrowser=1`) · อ่าน UA ผ่าน `useSyncExternalStore` | UA sniff เอง · `useEffect + setState` (lint + hydration mismatch) |
 
 ### Actions

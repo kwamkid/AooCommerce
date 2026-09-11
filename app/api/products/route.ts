@@ -416,6 +416,79 @@ export async function POST(request: NextRequest) {
 }
 
 // GET - Get products (with joins)
+type ListVariation = { is_active?: boolean; available?: number };
+type ListProduct = {
+  is_composite?: boolean;
+  variations: ListVariation[];
+  stock_available?: number;
+  stock_combos_in_stock?: number;
+  stock_combos_total?: number;
+};
+
+/**
+ * GET /api/products?view=list — the /products page in ONE round trip: page of products +
+ * variations + images + real stock (table `inventory`, never the stale
+ * product_variations.stock) + status-tab counts + shop filter options, all built by
+ * RPC get_products_list (supabase/migrations/20260911_get_products_list.sql).
+ */
+async function listProductsPage(companyId: string, canViewCost: boolean, sp: URLSearchParams) {
+  const page = Math.max(1, parseInt(sp.get('page') || '1', 10) || 1);
+  const limit = Math.min(500, Math.max(1, parseInt(sp.get('limit') || '20', 10) || 20));
+  const includeStock = sp.get('include_stock') === '1';
+
+  const { data, error } = await supabaseAdmin.rpc('get_products_list', {
+    p_company_id: companyId,
+    p_page: page,
+    p_limit: limit,
+    p_search: sp.get('search') || null,
+    p_category_id: sp.get('category_id') || null,
+    p_brand_id: sp.get('brand_id') || null,
+    p_type: sp.get('type') || null,
+    p_status: sp.get('status') || null,
+    p_shop_account_id: sp.get('shop_account_id') || null,
+    p_warehouse_id: includeStock ? sp.get('warehouse_id') || null : null,
+    p_include_stock: includeStock,
+    p_can_view_cost: canViewCost,
+    p_include_shop_options: sp.has('include_shop_options'),
+  });
+  if (error) {
+    console.error('[products GET view=list] get_products_list failed:', error.message);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  const result = (data || {}) as {
+    total?: number;
+    status_counts?: { active: number; inactive: number; all: number };
+    shop_options?: { id: string; name: string; platform: string; icon?: string | null }[] | null;
+    products?: ListProduct[];
+  };
+  const products = result.products || [];
+
+  // Product-level stock = Σ active variations. Combos of a composite product share
+  // components, so summing them double-counts → "combos in stock / combos" instead.
+  if (includeStock) {
+    for (const p of products) {
+      const active = p.variations.filter(v => v.is_active !== false);
+      if (p.is_composite) {
+        p.stock_combos_total = active.length;
+        p.stock_combos_in_stock = active.filter(v => (v.available ?? 0) > 0).length;
+      } else {
+        p.stock_available = active.reduce((sum, v) => sum + (v.available ?? 0), 0);
+      }
+    }
+  }
+
+  return NextResponse.json({
+    products,
+    total: result.total ?? 0,
+    page,
+    limit,
+    can_view_cost: canViewCost,
+    status_counts: result.status_counts ?? { active: 0, inactive: 0, all: 0 },
+    ...(result.shop_options ? { shopOptions: result.shop_options } : {}),
+  });
+}
+
 export async function GET(request: NextRequest) {
   try {
     const auth = await checkAuthWithCompany(request);
@@ -428,6 +501,13 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
+
+    // /products list page — one RPC (see listProductsPage). Every other caller keeps the
+    // multi-query path below.
+    if (searchParams.get('view') === 'list') {
+      return listProductsPage(auth.companyId, auth.canViewCost === true, searchParams);
+    }
+
     const productId = searchParams.get('id');
 
     // If ID provided, get single product

@@ -16,6 +16,14 @@
 
 ---
 
+## 2026-09-11 — หน้ารายการสินค้า: หัวคอลัมน์ไม่ชิดตามข้อมูล · ปุ่ม "จัดการ" ลอยไกล · ตัวกรองประเภทนับหน้าผิด · ค้นหาช้า (reUI)
+
+**ที่เกิด**: `SortableHeader` ใน [components/ui/DataTable.tsx](components/ui/DataTable.tsx) · [app/products/page.tsx](app/products/page.tsx) · GET ใน [app/api/products/route.ts](app/api/products/route.ts)
+**อาการ**: (1) หัวคอลัมน์ที่ตั้ง `headerClassName: 'text-center'` ยังชิดซ้าย ขณะที่ข้อมูลในช่องชิดกลาง — ทุกหน้า list (28 หน้า) (2) หลังเคยลากปรับความกว้างคอลัมน์ ปุ่ม ⋮ ของ "จัดการ" ไปอยู่กลางช่องกว้าง ๆ ห่างจากหัวมาก (เจ้าของส่งภาพ) (3) เลือกประเภทสินค้าแล้วยอดรวม/จำนวนหน้าเพี้ยน (4) ค้นคำ 4 ตัวอักษรช้า ~115ms ใน DB
+**Root cause**: (1) label ถูกห่อด้วย `<div className="flex">` — text-align ไม่มีผลกับ flex (2) DataTable ให้**คอลัมน์สุดท้าย**ไม่มีความกว้างเพื่อรับที่ว่าง พอ resize แล้วทุกคอลัมน์เป็น px ที่ว่างทั้งหมดจึงไปกองที่ "จัดการ" (3) ตัวกรองประเภทกรองใน client เฉพาะ 20 แถวที่โหลดมา (4) `name OR code OR EXISTS(sku/barcode)` ก้อนเดียว → ใช้ trigram index ไม่ได้ ไล่ทุกสินค้า + sub-query ต่อแถว · และเจอว่า `product_variations.stock` เป็นค่าเก่า (ไม่ตรง `inventory` 763/872 ตัวเลือก)
+**วิธีแก้**: DataTable เพิ่ม `align` + แปลง `headerClassName` เดิมเป็น `justify-*` ให้เอง (ทุกหน้าได้ผลโดยไม่ต้องแก้) · `grow` ให้คอลัมน์หลักรับที่ว่างแทน · `getSubRows` แถวตัวเลือกกดกางได้ · หน้า `/products` ใช้ `storageKey="products-v2"` ทิ้งความกว้างเก่า · `GET /api/products?view=list` เรียก RPC `get_products_list` รอบเดียว (หน้า + ตัวเลือก + รูป + สต็อกจริง + จำนวนแท็บ + ร้านค้า) — ค้นหาเป็น UNION ของ id สองชุดที่ใช้ index ได้ (~14ms) · สต็อกจาก `inventory` ผ่าน `get_variation_stock` · กล่องแยกคลัง `GET /api/products/[id]/stock` · ผลเทียบวิธีเดิม: ลำดับ 50/50 · ตัวเลือก/รูปไม่ตรง 0 · ค้นหาเทียบ brute force ตรงทุกคำ
+**ป้องกัน regression**: หัวคอลัมน์ชิดกลาง/ขวาใช้ `align` · คอลัมน์ข้อความหลักของตารางที่มีคอลัมน์ปุ่มท้ายตารางใส่ `grow` · **ห้ามแสดง `product_variations.stock` / `simple_stock`** (ค่าเก่า) — สต็อกจริงอยู่ที่ `inventory` · ค้นหลายคอลัมน์หลายตารางอย่ารวมเป็น OR+EXISTS ก้อนเดียว ให้แยกชุด id ที่ใช้ index แล้ว UNION · เปลี่ยนพารามิเตอร์ของ RPC ต้อง `drop function` ตัวเก่าก่อน (ไม่งั้นเกิด overload สองตัว)
+
 ## 2026-09-11 — เพิ่มสินค้าผ่าน Excel: ราคาปกติเป็น 0 ทุกแถว + แถวคำอธิบายถูกอ่านเป็นสินค้า · export แก้ราคาได้ไม่เกิน 1,000 แถว
 
 **ที่เกิด**: ตัวอ่านไฟล์ใน [app/products/bulk/create/page.tsx](app/products/bulk/create/page.tsx) · `isInstructionRow()` ใน [lib/bulk/parse-template.ts](lib/bulk/parse-template.ts) · [app/api/products/bulk/price/export/route.ts](app/api/products/bulk/price/export/route.ts)

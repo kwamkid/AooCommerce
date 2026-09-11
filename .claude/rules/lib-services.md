@@ -89,6 +89,8 @@ paths:
 ## API Routes ที่มีแล้ว (ห้ามสร้างซ้ำ)
 - CRUD: `/api/orders` · `/api/dealer-orders` · `/api/department-orders` · `/api/replenishments` (+ `[id]`) · `/api/products` · `/api/customers` · `/api/inventory`
 - **`/api/products/search?q=&limit=`** → `{ items, complete }` (RPC `search_order_products` ~30KB · `/api/products?search=` ยิง DB 3 รอบ ~220KB) คู่ `useServerSearch`
+- **`/api/products?view=list`** (หน้า `/products`) → RPC `get_products_list` รอบเดียว: หน้า + ตัวเลือก + รูป + สต็อกจริง (`include_stock=1` · `warehouse_id`) + `status_counts` + `shopOptions` · ตัวกรอง `type=simple|variation|composite` · caller อื่นของ `/api/products` ยังเป็นทางเดิม · เปลี่ยนพารามิเตอร์ RPC ต้อง `drop function` ตัวเก่าก่อน (ไม่งั้น overload)
+- **สต็อกพร้อมขาย**: RPC `get_variation_stock(company, variation_ids[], warehouse?)` / `get_product_variation_stock(company, product_ids[], warehouse?)` → jsonb `{variation_id: {quantity, available}}` (ชุดย่อยผ่าน `get_composite_availability`) · แยกคลัง `get_variation_stock_by_warehouse` ผ่าน **`GET /api/products/[id]/stock`** · ⛔ ห้ามอ่าน `product_variations.stock` / `simple_stock` (ค่าเก่า ไม่ตรง `inventory`)
 - **`/api/customers/order-context?customer_id=`** — ลูกค้า + ที่อยู่ + brand commission + GP ใน call เดียว
 - **`/api/marketplace/accounts`** (ทุกแพลตฟอร์ม) GET `?platform=shopee|tiktok|lazada|all` · PUT · PATCH `{id, shop_logo}` · DELETE · `/resync` · `/logo`
 - เอกสาร: `/api/consignment/reports` · `/api/department-store/reports` · `/api/statements` · `/api/credit-notes` (PATCH) · `/api/payment-records` · `/api/payment-records/verify` (approve/reject slip)

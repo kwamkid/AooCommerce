@@ -15,6 +15,12 @@ paths:
 
 > ย้ายมาจาก CLAUDE.md (2026-09-10) · โหลดเองเมื่อ Claude อ่านไฟล์ที่ตรง `paths:` ด้านบน · งานหัวข้อนี้ที่ยังไม่ได้แตะไฟล์เหล่านั้น → `Read` ไฟล์นี้เองก่อนลงมือ
 
+## สต็อกที่แสดงในหน้าสินค้า — จาก `inventory` เท่านั้น
+
+- ⛔ **`product_variations.stock` / `min_stock`-คู่-`stock` ใน view `products_with_variations` (`stock`, `simple_stock`) เป็นค่าเก่า** — ไม่ตรง `inventory` 763/872 ตัวเลือก (วัด 2026-09-11) · ห้ามแสดง ห้ามเอาไปคิด (`min_stock` ยังเป็นค่าตั้งที่ใช้ได้)
+- **พร้อมขาย** = Σ `inventory.quantity − reserved_quantity` **ทุกคลัง รวมคลังฝากขายของตัวแทน** (เจ้าของตัดสิน 2026-09-11: "ของยังไม่ถูกขาย ถือว่ายังมี") — กติกาเดียวกับหน้าคลัง `get_inventory_filtered` · เลือกคลังเดียวได้ด้วย `warehouse_id` · RPC `get_variation_stock` (ดู `lib-services.md`)
+- ระดับสินค้า: สินค้ามีตัวเลือก = Σ ตัวเลือกที่เปิด · **สินค้าชุด = "ชุดที่มีของ/ชุดทั้งหมด"** (ชุดย่อยใช้ชิ้นส่วนร่วม รวมกันแล้วนับซ้ำ)
+
 ## สินค้าชุด (composite) — ชุดย่อย = variation จริง ไม่มีสต็อกของตัวเอง
 
 **โมเดล**: `products.is_composite` + `composite_slots` (ช่องประกอบ `{key,name,product_id,variation_ids,quantity}`) · ชุดย่อยแต่ละคู่ (เช่น โครงดำ + ผ้าแดง) = แถว `product_variations` ปกติของสินค้าชุด → ออเดอร์ · POS · link marketplace · รายงาน ใช้ของเดิมได้หมด · ชิ้นส่วนอยู่ใน `product_variation_components(variation_id=ชุดย่อย, component_variation_id, quantity=ชิ้นต่อชุด)` · `product_variations.price_locked` = ตั้งราคาเอง
