@@ -120,6 +120,12 @@ desktop table + mobile cards (auto / `mobileCardRender`) + pagination (20/50/100
 | แถบลอยตอนติ๊กหลายแถว | `BulkActionBar` (`count` `onClear` · ปุ่ม children ต้องเป็น `<Button>` · ซ่อนเมื่อ 0 · `pb-safe`) | copy โครงเอง |
 | แถบบันทึกล่างหน้า form/settings (1 หน้า = 1 ปุ่มบันทึก) | `StickyActionBar` (`onSave` `saving` `dirty?` `disabled?` `onCancel?` `saveLabel?` `extraActions?` `primary?` `inset?`) · ไม่ส่ง `dirty` = ไม่ขึ้นสถานะ · ส่ง = seed baseline จากค่าที่โหลด · `<form>` → `onSave={() => formRef.current?.requestSubmit()}` | save ต่อ section · ใช้ใน Modal footer / list-CRUD ที่มีผลทันที |
 
+### ฟอร์มสินค้า (`components/products/form/`) — ใช้ร่วมกับหน้าลอง `/dev/design/product-form`
+- **`ProductFormCard`** = การ์ดเดียวจบ (สถานะ · ประเภท · รูปเป็นแถบแนวนอน · ชื่อ/รหัส · หมวด/แบรนด์ · ราคา+SKU+บาร์โค้ด+พร้อมขายแถวเดียว · คำอธิบาย) — วาดอย่างเดียว state อยู่ที่ผู้เรียก · **`VariantOptionsEditor`** = ตัวเลือกแบบ Shopee (เลือกชื่อตัวเลือก + พิมพ์ค่า → ตารางแถวละตัวเลือกขึ้นเอง + "ใช้กับทุกแถว") · **`MarketplaceListingCard`** = แท็บร้าน marketplace · **`ProductCodesHelp`** = ปุ่ม ? อธิบาย รหัสสินค้า/SKU/บาร์โค้ด พร้อมรูป
+- กติกาสร้าง/ตัด/ตรวจแถวตัวเลือกอยู่ที่ **[lib/product-variants.ts](../../lib/product-variants.ts)** (`regenerateRows` · `groupsFromRows` · `applyToAll` · `validateOptionGroups` · `validateVariantRows`) — **ห้ามเขียนกติกาแถวตัวเลือกในหน้า** · แถวที่ผู้ใช้ไม่ได้ขอห้ามงอกเอง (สินค้าที่ตัวเลือกไม่ครบตารางมีอยู่จริง)
+- ความกว้างช่อง/สัดส่วนแถวอยู่ในการ์ด (ชื่อ 2 : รหัส 1 · แถวตัวเลข auto-fit) — ช่องที่ซ่อนตามสิทธิ์ (ต้นทุน) หรือตามโหมด (พร้อมขาย) หายไปแล้วแถวต้องยังเต็มความกว้าง
+- เพดานความยาวยึด Shopee: ชื่อสินค้า 120 (ต่ำกว่า 20 = เตือนว่าส่งขึ้น Shopee ไม่ได้ ไม่บล็อก) · ค่าตัวเลือก 20 — ค่าคงที่อยู่ใน `components/products/form/parts.tsx`
+
 ## 2. Order Forms (ห้ามสร้างเพิ่ม)
 - `OrderForm` (`components/orders/OrderForm.tsx`) ลูกค้าปลีก r_retail · `DealerOrderForm` (`components/dealer/DealerOrderForm.tsx`) ตัวแทน/ห้างทุกโหมด — **`mode` prop แยก w_cash/w_credit/c_consign/d_consign ห้ามสร้างฟอร์มแยก** · `ReplenishmentForm` (`components/replenishments/ReplenishmentForm.tsx`) เติมของ
 - `app/orders/components/`: `ActionMenu` · `PaymentModal` · `SplitParcelModal` (แบ่งกล่อง) · `HandoverPickerPanel` (ขนส่งมารับที่ไหน/เมื่อไหร่ ทุก marketplace — ห้ามทำ modal แยกต่อแพลตฟอร์ม) · `TaxInvoiceModal` · `PrintStatusDots` · `OrderCard` (mobile) · `ReadyToShipTab` · `ProcessingTab` · `PrintAfterActionModal`

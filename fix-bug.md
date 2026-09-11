@@ -16,6 +16,14 @@
 
 ---
 
+## 2026-09-12 — ฟอร์มสินค้า: ใส่ราคาขาย ≥ ราคาปกติ แล้วกดบันทึกเงียบ ไม่มีข้อความบอก (+ รื้อฟอร์มใหม่)
+
+**ที่เกิด**: [components/products/ProductForm.tsx](components/products/ProductForm.tsx) — ช่อง "ราคาลด" ของสินค้าปกติและของแต่ละ variation
+**อาการ**: กรอกราคาขายเท่ากับหรือมากกว่าราคาปกติ แล้วกดบันทึก → ไม่มีอะไรเกิดขึ้น ไม่มี error ให้เห็น (ผู้ใช้นึกว่าปุ่มค้าง)
+**Root cause**: `validate()` ตั้ง `errors.discount_price` / `errors['variation.N.discount']` ไว้จริง แต่ช่องราคาลด **ไม่มี `<FieldError>` และไม่มี `data-field`** → ข้อความไม่ถูกวาด และตัวเลื่อนจอไปหา error ตัวแรกก็หาเป้าไม่เจอ (เงื่อนไขเองถูกต้องตามกฎ "ราคาขายต้องน้อยกว่าราคาปกติ" ที่บังคับทั้ง 3 จุดใน CLAUDE.md)
+**วิธีแก้**: รื้อส่วนวาดหน้าจอของฟอร์มไปใช้ `components/products/form/` (ProductFormCard + VariantOptionsEditor) ที่ **ทุกช่องมีที่แสดง error ของตัวเอง** · ตรวจค่าย้ายไป `validateOptionGroups()` / `validateVariantRows()` ใน [lib/product-variants.ts](lib/product-variants.ts) (ทดสอบ 19 เคส) · ตัวเลื่อนจอเลือกเฉพาะ element ที่มองเห็นจริง (`offsetParent !== null`) เพราะตาราง desktop กับการ์ดมือถือมี `data-field` ซ้ำกัน
+**ป้องกัน regression**: ทุก key ที่ `validate()` ตั้ง ต้องมีที่แสดงผลคู่กันเสมอ (ถ้าไม่มีที่แสดง = ผู้ใช้เจอปุ่มบันทึกที่ "กดแล้วไม่มีอะไรเกิดขึ้น") · หน้าไหนมีทั้งตาราง desktop และการ์ดมือถือ อย่า `querySelector` ตัวแรกไปเลย — ตัวแรกอาจเป็นตัวที่ซ่อนอยู่
+
 ## 2026-09-11 — หน้ารายการสินค้า: หัวคอลัมน์ไม่ชิดตามข้อมูล · ปุ่ม "จัดการ" ลอยไกล · ตัวกรองประเภทนับหน้าผิด · ค้นหาช้า (reUI)
 
 **ที่เกิด**: `SortableHeader` ใน [components/ui/DataTable.tsx](components/ui/DataTable.tsx) · [app/products/page.tsx](app/products/page.tsx) · GET ใน [app/api/products/route.ts](app/api/products/route.ts)

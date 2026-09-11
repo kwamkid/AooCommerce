@@ -302,11 +302,9 @@ function CombosSection({ editor, images, onImagesChange }: { editor: CompositeEd
           {/* Desktop */}
           <div className="hidden md:block overflow-x-auto rounded-lg border border-gray-200 dark:border-slate-700">
             <table className="w-full">
+              {/* เรียงคอลัมน์ชุดเดียวกับตารางตัวเลือกสินค้า: รูปหน้าสุด · เปิดขายหลังสุด (12 ก.ย. 2026) */}
               <thead className="data-thead">
                 <tr>
-                  <th className="data-th w-[110px]">
-                    <Checkbox checked={allActive} onChange={() => editor.setAllActive(!allActive)} label="เปิดขาย" />
-                  </th>
                   <th className="data-th w-[96px]">รูป</th>
                   <th className="data-th">ชื่อชุดย่อย</th>
                   <th className="data-th w-[220px]">SKU</th>
@@ -314,18 +312,14 @@ function CombosSection({ editor, images, onImagesChange }: { editor: CompositeEd
                   <th className="data-th w-[150px] text-right">ราคาปกติ</th>
                   <th className="data-th w-[150px] text-right">ราคาขาย</th>
                   <th className="data-th w-[100px] text-right">พร้อมขาย</th>
+                  <th className="data-th w-[110px]">
+                    <Checkbox checked={allActive} onChange={() => editor.setAllActive(!allActive)} label="เปิดขาย" />
+                  </th>
                 </tr>
               </thead>
               <tbody className="data-tbody">
                 {rows.map(row => (
                   <tr key={row.key} className="data-tr align-top">
-                    <td className="px-4 py-3">
-                      <Toggle
-                        checked={row.setting.is_active}
-                        onChange={v => editor.setRow(row.key, { is_active: v })}
-                        aria-label={`เปิดขาย ${row.label}`}
-                      />
-                    </td>
                     <td className="px-4 py-3">{imageCell(row)}</td>
                     <td className="px-4 py-3">
                       <div className={`text-base ${row.setting.is_active ? 'text-gray-900 dark:text-white' : 'text-gray-400 dark:text-slate-500'}`}>
@@ -363,6 +357,15 @@ function CombosSection({ editor, images, onImagesChange }: { editor: CompositeEd
                     <td className="px-4 py-3 text-right">
                       <div className="min-h-[42px] flex items-center justify-end text-gray-900 dark:text-white">
                         {availableText(row)}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="min-h-[42px] flex items-center">
+                        <Toggle
+                          checked={row.setting.is_active}
+                          onChange={v => editor.setRow(row.key, { is_active: v })}
+                          aria-label={`เปิดขาย ${row.label}`}
+                        />
                       </div>
                     </td>
                   </tr>
