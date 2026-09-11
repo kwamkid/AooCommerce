@@ -27,7 +27,7 @@ import Tabs from '@/components/ui/Tabs';
 import FormInput from '@/components/ui/FormInput';
 import FormTextarea from '@/components/ui/FormTextarea';
 import FilterChips, { FILTER_CHIP_PRIMARY_ACTIVE } from '@/components/ui/FilterChips';
-import OptionCards from '@/components/ui/OptionCards';
+import ActionMenu from '@/components/ui/ActionMenu';
 import ChipsInput from '@/components/ui/ChipsInput';
 import MessageComposer from '@/components/ui/MessageComposer';
 import ImageDropzone from '@/components/ui/ImageDropzone';
@@ -45,7 +45,6 @@ import {
   RectangleVertical, Square, Trash2,
 } from 'lucide-react';
 import ActionPicker from './ActionPicker';
-import { BLOCK_MOCKS } from './KindMockups';
 import {
   faceFromProduct, faceOf, measureImageDims, newBlock, newCard, newId, revokeEditorUrls,
   type EditorBlock, type EditorCard, type EditorCardFace, type EditorCardsBlock, type EditorImageBlock,
@@ -81,13 +80,17 @@ const BLOCK_ICONS: Record<BroadcastBlockType, ReactNode> = {
   cards: <GalleryHorizontalEnd className="w-4 h-4" />,
 };
 
-/** ตัวเลือก "+ เพิ่มบล็อก" — มอคห้องแชทบอกหน้าตาของแต่ละชนิด */
-const BLOCK_OPTIONS: { id: BroadcastBlockType; label: string; description: string; preview: ReactNode }[] = [
-  { id: 'text', label: BLOCK_TYPE_LABELS.text, description: 'ข้อความในแชท', preview: BLOCK_MOCKS.text },
-  { id: 'image', label: BLOCK_TYPE_LABELS.image, description: 'รูปในแชทตามปกติ', preview: BLOCK_MOCKS.image },
-  { id: 'rich', label: BLOCK_TYPE_LABELS.rich, description: 'เต็มความกว้าง กดแล้วไปต่อได้', preview: BLOCK_MOCKS.rich },
-  { id: 'cards', label: BLOCK_TYPE_LABELS.cards, description: 'ใบเดียว/หลายใบ ดึงจากสินค้าได้', preview: BLOCK_MOCKS.cards },
-];
+/**
+ * รายการในเมนู "+ เพิ่มบล็อก" — ไอคอน + ชื่อ + คำอธิบายสั้น (เดิมเป็นการ์ดมอคห้องแชท 4 ใบเต็มแถว
+ * เจ้าของขอเปลี่ยนเป็นป๊อปอัปแบบไอคอน 11 ก.ย. 2026) · ไอคอนชุดเดียวกับหัวแถบของบล็อก
+ */
+const BLOCK_TYPES: BroadcastBlockType[] = ['text', 'image', 'rich', 'cards'];
+const BLOCK_DESCRIPTIONS: Record<BroadcastBlockType, string> = {
+  text: 'ข้อความในแชท',
+  image: 'รูปในแชทตามปกติ',
+  rich: 'เต็มความกว้าง กดแล้วไปต่อได้',
+  cards: 'ใบเดียว/หลายใบ ดึงจากสินค้าได้',
+};
 
 /** รูปที่ส่งจริงย่อไม่เกิน 1024 px — เพดานรูปใน Flex ของ LINE (1040 ใน OA Manager เป็นของ imagemap คนละชนิด) */
 const IMAGE_MAX_PX = 1024;
@@ -323,7 +326,7 @@ function CardsEditor({ block, onChange, picker }: {
           {/* กดที่ตัวการ์ดแล้วเกิดอะไร — อยู่ก่อนปุ่ม เพราะเป็นพฤติกรรมพื้นฐานของการ์ด ปุ่มเป็นของเสริมทีหลัง
               (เจ้าของขอ 11 ก.ย. 2026) · Flex ให้ตัวการ์ดกับปุ่มมี action ของตัวเองพร้อมกันได้ */}
           <ActionPicker
-            label="กดการ์ดแล้ว (ไม่บังคับ)"
+            label="เมื่อลูกค้ากดการ์ด (ไม่บังคับ)"
             value={face.tapAction}
             onChange={tapAction => patchFace(selected, { tapAction })}
             {...picker}
@@ -418,10 +421,11 @@ function SortableBlock({ block, index, onChange, onImageChange, onRemove, picker
       />
     );
     editor = block.type === 'image' ? composer : (
-      // สองคอลัมน์: รูปซ้าย · "กดรูปแล้ว" ขวา — แถวเดียวเต็มกว้างเหลือที่ว่างเยอะ (เจ้าของขอ 11 ก.ย. 2026)
+      // สองคอลัมน์: รูปซ้าย · "เมื่อลูกค้ากดรูป" ขวา — แถวเดียวเต็มกว้างเหลือที่ว่างเยอะ (เจ้าของขอ 11 ก.ย. 2026)
+      // ป้ายเดิม "กดรูปแล้ว" อ่านห้วน ไม่รู้ว่าใครกด (เจ้าของขอเปลี่ยน 11 ก.ย. 2026)
       <div className="grid md:grid-cols-2 gap-4 items-start">
         {composer}
-        <ActionPicker label="กดรูปแล้ว" value={block.action} onChange={action => onChange({ ...block, action })} {...picker} />
+        <ActionPicker label="เมื่อลูกค้ากดรูป" value={block.action} onChange={action => onChange({ ...block, action })} {...picker} />
       </div>
     );
   } else {
@@ -536,20 +540,26 @@ export default function BlocksEditor({
           </DndContext>
         ) : list}
 
-        {blocks.length < BLOCKS_MAX ? (
-          <div className={blocks.length > 0 ? 'mt-4' : ''}>
-            <p className="field-label mb-1">+ เพิ่มบล็อก</p>
-            <OptionCards<BroadcastBlockType | ''>
-              value=""
-              onChange={type => { if (type) onBlocksChange(prev => [...prev, newBlock(type)]); }}
-              previewSize="lg"
-              columns={4}
-              options={BLOCK_OPTIONS}
+        <div className={blocks.length > 0 ? 'mt-4' : ''}>
+          {blocks.length < BLOCKS_MAX ? (
+            // ป๊อปอัปเลือกชนิด — เปิดขึ้น/ลงตามที่ว่างของจอ · ชิดซ้ายของปุ่ม (ชิดขวาแล้วล้นขอบซ้ายจอมือถือ)
+            <ActionMenu
+              placement="auto"
+              align="start"
+              triggerClassName="btn btn-md btn-secondary"
+              trigger={<span className="inline-flex items-center gap-2"><Plus className="w-4 h-4" />เพิ่มบล็อก</span>}
+              items={BLOCK_TYPES.map(type => ({
+                key: type,
+                label: BLOCK_TYPE_LABELS[type],
+                description: BLOCK_DESCRIPTIONS[type],
+                icon: BLOCK_ICONS[type],
+                onClick: () => onBlocksChange(prev => [...prev, newBlock(type)]),
+              }))}
             />
-          </div>
-        ) : (
-          <p className="subtitle-text mt-4">ครบ {BLOCKS_MAX} บล็อกแล้ว — เอาบล็อกออกก่อนถ้าจะเปลี่ยน</p>
-        )}
+          ) : (
+            <p className="subtitle-text">ครบ {BLOCKS_MAX} บล็อกแล้ว — เอาบล็อกออกก่อนถ้าจะเปลี่ยน</p>
+          )}
+        </div>
       </Card>
 
       {quickReplyMax > 0 && (

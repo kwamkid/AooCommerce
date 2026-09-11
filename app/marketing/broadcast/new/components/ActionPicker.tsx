@@ -41,7 +41,7 @@ const ACTION_ICONS: Record<BroadcastActionType, ReactNode> = {
 interface Props {
   value: BroadcastAction;
   onChange: (action: BroadcastAction) => void;
-  /** หัวข้อของบล็อก เช่น "กดรูปแล้ว" — ไม่ส่ง = ไม่มีป้าย (ตอนอยู่ในแถวปุ่ม) */
+  /** หัวข้อของบล็อก เช่น "เมื่อลูกค้ากดรูป" — ไม่ส่ง = ไม่มีป้าย (ตอนอยู่ในแถวปุ่ม) */
   label?: string;
   storefrontOpen: boolean;
   productResults: ProductSearchItem[];

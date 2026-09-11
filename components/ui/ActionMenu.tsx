@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { MoreVertical } from 'lucide-react';
+import { useDropUp } from '@/lib/useDropUp';
 
 export interface ActionItem {
   key: string;
@@ -31,29 +32,38 @@ interface ActionMenuProps {
   trigger?: React.ReactNode;
   /** ClassName for the trigger button — required look when using a custom trigger (e.g. "btn btn-md btn-primary") */
   triggerClassName?: string;
-  /** Menu opens above (default — table rows) or below the trigger (header buttons) */
-  placement?: 'top' | 'bottom';
+  /**
+   * Menu opens above (default — table rows) or below the trigger (header buttons)
+   * · `auto` = วัดความสูงเมนูจริง เปิดด้านล่าง เว้นแต่ที่ว่างข้างล่างไม่พอและข้างบนเหลือมากกว่า
+   *   (ปุ่มกลางเนื้อหาที่เลื่อนไปอยู่ตรงไหนของจอก็ได้ เช่น "+ เพิ่มบล็อก" — เมนูปิดเมื่อเลื่อนหน้า
+   *   จึงเลื่อนไปดูส่วนที่ล้นจอไม่ได้)
+   */
+  placement?: 'top' | 'bottom' | 'auto';
+  /**
+   * ขอบเมนูเทียบกับปุ่ม — `end` (ค่าเริ่มต้น) ขอบขวาตรงกัน · `start` ขอบซ้ายตรงกัน
+   * ปุ่มที่อยู่ชิดซ้ายของเนื้อหาต้องใช้ `start` ไม่งั้นเมนูล้นขอบซ้ายจอบนมือถือ
+   */
+  align?: 'start' | 'end';
 }
 
-export default function ActionMenu({ items, trigger, triggerClassName, placement = 'top' }: ActionMenuProps) {
+export default function ActionMenu({ items, trigger, triggerClassName, placement = 'top', align = 'end' }: ActionMenuProps) {
   const [open, setOpen] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
-  const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
-
-  const updatePosition = useCallback(() => {
-    if (!buttonRef.current) return;
-    const rect = buttonRef.current.getBoundingClientRect();
-    // Right-aligned; above the button by default, below for header triggers
-    setMenuPos({
-      top: placement === 'bottom' ? rect.bottom + 4 : rect.top - 4,
-      left: rect.right,
-    });
-  }, [placement]);
+  /** ตำแหน่งปุ่มตอนกดเปิด — เมนูปิดเองเมื่อเลื่อนหน้า จึงไม่ต้องตามตำแหน่งระหว่างเปิด */
+  const [anchor, setAnchor] = useState<DOMRect | null>(null);
+  // auto: วัดความสูงจริงของเมนูก่อน paint (useDropUp แบบ layout) — ไม่เห็นเมนูแวบข้างล่างก่อนพลิกขึ้น
+  const { dropUp: autoUp } = useDropUp(buttonRef, {
+    open: open && placement === 'auto',
+    estimatedHeight: items.length * 40 + 8,
+    dropdownRef: menuRef,
+    margin: 8,
+    requireMoreSpaceAbove: true,
+    layout: true,
+  });
 
   useEffect(() => {
     if (!open) return;
-    updatePosition();
 
     const handleClose = (e: MouseEvent) => {
       if (
@@ -71,28 +81,34 @@ export default function ActionMenu({ items, trigger, triggerClassName, placement
       document.removeEventListener('mousedown', handleClose);
       window.removeEventListener('scroll', handleScroll, true);
     };
-  }, [open, updatePosition]);
+  }, [open]);
 
   if (items.length === 0) return null;
+
+  const up = placement === 'auto' ? autoUp : placement === 'top';
 
   return (
     <>
       <button
         ref={buttonRef}
-        onClick={(e) => { e.stopPropagation(); setOpen(!open); }}
+        onClick={(e) => {
+          e.stopPropagation();
+          if (!open && buttonRef.current) setAnchor(buttonRef.current.getBoundingClientRect());
+          setOpen(!open);
+        }}
         className={triggerClassName ?? 'p-1.5 text-gray-500 hover:text-gray-800 dark:text-slate-400 dark:hover:text-slate-100 transition-colors rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700'}
       >
         {trigger ?? <MoreVertical className="w-4 h-4" />}
       </button>
 
-      {open && menuPos && createPortal(
+      {open && anchor && createPortal(
         <div
           ref={menuRef}
           className="fixed w-max min-w-[11rem] bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg py-1"
           style={{
-            top: menuPos.top,
-            left: menuPos.left,
-            transform: placement === 'bottom' ? 'translateX(-100%)' : 'translate(-100%, -100%)',
+            top: up ? anchor.top - 4 : anchor.bottom + 4,
+            left: align === 'start' ? anchor.left : anchor.right,
+            transform: `translate(${align === 'start' ? '0' : '-100%'}, ${up ? '-100%' : '0'})`,
             zIndex: 9999,
           }}
         >
