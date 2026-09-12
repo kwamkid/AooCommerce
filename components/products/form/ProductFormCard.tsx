@@ -16,7 +16,7 @@
 // สินค้ามีตัวเลือก: parent ส่ง VariantOptionsEditor มาทาง `variantsSlot`
 'use client';
 
-import { useMemo, type ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { BoxSelect, Boxes, Layers, Plus } from 'lucide-react';
 import Card from '@/components/ui/Card';
@@ -28,7 +28,8 @@ import Toggle from '@/components/ui/Toggle';
 import FilterChips, { FILTER_CHIP_PRIMARY_ACTIVE } from '@/components/ui/FilterChips';
 import ImageUploader, { type ProductImage } from '@/components/ui/ImageUploader';
 import ProductCodesHelp from './ProductCodesHelp';
-import PriceReduceInput from './PriceReduceInput';
+import PriceReduceInput, { reduceModeLabel } from './PriceReduceInput';
+import type { ReduceMode } from '@/lib/product-variants';
 import { FieldError, PRODUCT_NAME_MAX, SHOPEE_NAME_MIN, StockText, numberInputClass } from './parts';
 import type {
   BrandOption, CategoryOption, FieldErrors, ProductFormFeatures, ProductFormValues, ProductType,
@@ -166,6 +167,8 @@ export default function ProductFormCard({
   onAddCategory, onAddBrand, onTypeChange, typeDisabled, canViewCost, features, codePlaceholder,
   simpleStock, variantsSlot, compositeNote,
 }: ProductFormCardProps) {
+  // วิธีพิมพ์ช่องลดเหลือ (฿ / % / ลดไป) — ป้ายเปลี่ยนตาม · ไม่ใช่ข้อมูลที่บันทึก
+  const [reduceMode, setReduceMode] = useState<ReduceMode>('price');
   // Flatten the category tree (child rows show "แม่ > ลูก" once picked) — same as the old form
   const categoryOptions = useMemo(() => categories.flatMap(parent =>
     parent.children && parent.children.length > 0
@@ -302,11 +305,13 @@ export default function ProductFormCard({
                 error={errors.default_price}
               />
               <div data-field="discount_price">
-                <FieldLabel>ลดเหลือ (฿)</FieldLabel>
+                <FieldLabel>{reduceModeLabel(reduceMode)}</FieldLabel>
                 <PriceReduceInput
                   value={values.discount_price}
                   basePrice={values.default_price}
                   onChange={n => onChange({ discount_price: n })}
+                  mode={reduceMode}
+                  onModeChange={setReduceMode}
                   error={!!errors.discount_price}
                   showHint={!errors.discount_price}
                   aria-label="ลดเหลือ"

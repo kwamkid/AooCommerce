@@ -5,7 +5,7 @@
  * Section 1 "ส่วนประกอบของชุด" = slots · Section 2 "ชุดย่อย" = one row per combo.
  * All state lives in useCompositeEditor (the form owns it so it can validate + build the payload).
  */
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Plus, Trash2, RefreshCw, Loader2, ImagePlus } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
@@ -15,7 +15,8 @@ import { thumbUrl } from '@/lib/image-thumb';
 import Toggle from '@/components/ui/Toggle';
 import FormInput from '@/components/ui/FormInput';
 import NumberInput from '@/components/ui/NumberInput';
-import PriceReduceInput from '@/components/products/form/PriceReduceInput';
+import PriceReduceInput, { reduceModeLabel } from '@/components/products/form/PriceReduceInput';
+import type { ReduceMode } from '@/lib/product-variants';
 import ProductImageThumb from '@/components/ui/ProductImageThumb';
 import ProductSearchInput, { type ProductSearchItem } from '@/components/ui/ProductSearchInput';
 import { apiFetch } from '@/lib/api-client';
@@ -228,7 +229,11 @@ function RowBadges({ row, isEditing }: { row: ComboRow; isEditing: boolean }) {
   );
 }
 
-function PriceCell({ row, field, editor }: { row: ComboRow; field: 'default_price' | 'discount_price'; editor: CompositeEditorState }) {
+type ReduceModeProps = { reduceMode: ReduceMode; onReduceModeChange: (m: ReduceMode) => void };
+
+function PriceCell({ row, field, editor, reduceMode, onReduceModeChange }: {
+  row: ComboRow; field: 'default_price' | 'discount_price'; editor: CompositeEditorState;
+} & ReduceModeProps) {
   if (row.setting.price_locked) {
     if (field === 'discount_price') {
       return (
@@ -236,11 +241,13 @@ function PriceCell({ row, field, editor }: { row: ComboRow; field: 'default_pric
           value={row.setting.discount_price}
           basePrice={row.setting.default_price}
           onChange={n => editor.setRow(row.key, { discount_price: n })}
+          mode={reduceMode}
+          onModeChange={onReduceModeChange}
           error={!!row.errors.price}
           showHint={!row.errors.price}
           emptyHint=""
           align="right"
-          aria-label="ลดเหลือ"
+          aria-label={reduceModeLabel(reduceMode, false)}
         />
       );
     }
@@ -297,6 +304,10 @@ function CombosSection({ editor, images, onImagesChange }: { editor: CompositeEd
     <ComboImageCell row={row} images={images[row.imageKey] || []} onChange={imgs => onImagesChange(row.imageKey, imgs)} />
   );
   const allActive = rows.length > 0 && rows.every(r => r.setting.is_active);
+  // โหมดช่องลดเหลือใช้ร่วมกันทั้งตาราง (หัวคอลัมน์มีอันเดียว)
+  const [reduceMode, setReduceMode] = useState<ReduceMode>('price');
+  const priceCellProps = { editor, reduceMode, onReduceModeChange: setReduceMode };
+  const reduceLabel = reduceModeLabel(reduceMode, false);
 
   return (
     <div className={SECTION}>
@@ -325,7 +336,7 @@ function CombosSection({ editor, images, onImagesChange }: { editor: CompositeEd
                   <th className="data-th w-[220px]">SKU</th>
                   {advanced && <th className="data-th w-[100px]">ตั้งราคาเอง</th>}
                   <th className="data-th w-[150px] text-right">ราคาปกติ</th>
-                  <th className="data-th w-[190px] text-right">ลดเหลือ</th>
+                  <th className="data-th w-[190px] text-right">{reduceLabel}</th>
                   <th className="data-th w-[100px] text-right">พร้อมขาย</th>
                   <th className="data-th w-[110px]">
                     <Checkbox checked={allActive} onChange={() => editor.setAllActive(!allActive)} label="เปิดขาย" />
@@ -360,12 +371,12 @@ function CombosSection({ editor, images, onImagesChange }: { editor: CompositeEd
                     )}
                     <td className="px-4 py-3 text-right">
                       <div className="min-h-[42px] flex items-center justify-end">
-                        <PriceCell row={row} field="default_price" editor={editor} />
+                        <PriceCell row={row} field="default_price" {...priceCellProps} />
                       </div>
                     </td>
                     <td className="px-4 py-3 text-right">
                       <div className="min-h-[42px] flex items-center justify-end">
-                        <PriceCell row={row} field="discount_price" editor={editor} />
+                        <PriceCell row={row} field="discount_price" {...priceCellProps} />
                       </div>
                       {row.errors.price && <p className={`mt-1 text-base ${ERROR_TEXT}`}>{row.errors.price}</p>}
                     </td>
@@ -420,11 +431,11 @@ function CombosSection({ editor, images, onImagesChange }: { editor: CompositeEd
                 <div className="grid grid-cols-3 gap-3">
                   <div>
                     <div className="helper-text mb-1">ราคาปกติ</div>
-                    <PriceCell row={row} field="default_price" editor={editor} />
+                    <PriceCell row={row} field="default_price" {...priceCellProps} />
                   </div>
                   <div>
-                    <div className="helper-text mb-1">ลดเหลือ</div>
-                    <PriceCell row={row} field="discount_price" editor={editor} />
+                    <div className="helper-text mb-1">{reduceLabel}</div>
+                    <PriceCell row={row} field="discount_price" {...priceCellProps} />
                   </div>
                   <div className="text-right">
                     <div className="helper-text mb-1">พร้อมขาย</div>

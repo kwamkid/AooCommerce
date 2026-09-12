@@ -2,9 +2,11 @@
 //
 // ช่อง "ลดเหลือ" ของฟอร์มสินค้า — กล่องเดียว กดท้ายช่องเลือกว่าจะพิมพ์แบบไหน:
 //   ฿   ลดเหลือ  = พิมพ์ราคาสุดท้าย (ค่าที่เก็บจริง)
-//   %   ลด %     = ระบบคิดราคาจากราคาปกติให้
+//   %   ลด       = ระบบคิดราคาจากราคาปกติให้
 //   −฿  ลดไป     = ราคาปกติ ลบ จำนวนที่พิมพ์
-// ค่าที่ส่งกลับ (`onChange(value)`) เป็น discount_price เสมอ · บรรทัดใต้ช่องบอกผลลัพธ์ให้เช็คสายตา
+// ค่าที่ส่งกลับ (`onChange(value)`) เป็น discount_price เสมอ · โหมดไม่ถูกบันทึก · บรรทัดใต้ช่องบอกผลลัพธ์
+// ป้ายของช่องเปลี่ยนตามโหมด (`reduceModeLabel`) — ผู้เรียกวาดป้ายเอง จึงต้องรู้โหมด: ส่ง `mode` +
+// `onModeChange` (controlled) · ตารางที่มีหัวคอลัมน์เดียวใช้โหมดเดียวร่วมกันทุกแถว
 // ใช้กับ: การ์ดสินค้าปกติ · ตารางตัวเลือก (ต่อแถว + "ใช้กับทุกแถว") · ตารางชุดย่อยของสินค้าชุด
 // ตัวคำนวณอยู่ใน lib/product-variants.ts (`applyReduce` / `reduceSummary`) — ห้ามคิดเองในหน้า
 'use client';
@@ -22,6 +24,15 @@ const MODES: { mode: ReduceMode; short: string; label: string; description: stri
   { mode: 'amount', short: '−฿', label: 'ลดไป (บาท)', description: 'ราคาปกติ ลบ จำนวนที่พิมพ์', icon: <Minus className="w-4 h-4" /> },
 ];
 
+/** ป้ายของช่องตามโหมด — `unit` = ใส่หน่วยในวงเล็บ (ป้ายการ์ด) · ไม่ใส่ = หัวตาราง/ป้ายเล็ก */
+export function reduceModeLabel(mode: ReduceMode, unit = true): string {
+  switch (mode) {
+    case 'price': return unit ? 'ลดเหลือ (฿)' : 'ลดเหลือ';
+    case 'percent': return unit ? 'ลด (%)' : 'ลด %';
+    case 'amount': return unit ? 'ลดไป (฿)' : 'ลดไป';
+  }
+}
+
 interface PriceReduceInputProps {
   /** discount_price ปัจจุบัน · 0 = ไม่มีส่วนลด */
   value: number;
@@ -32,6 +43,9 @@ interface PriceReduceInputProps {
   basePrice?: number;
   /** `value` = discount_price ที่คิดแล้ว · `spec` = สิ่งที่ผู้ใช้พิมพ์ (สำหรับ "ใช้กับทุกแถว") */
   onChange: (value: number, spec: ReduceSpec) => void;
+  /** โหมดจากผู้เรียก (ใช้วาดป้าย / ใช้ร่วมกันทั้งตาราง) — ไม่ส่ง = จำเองในช่อง */
+  mode?: ReduceMode;
+  onModeChange?: (mode: ReduceMode) => void;
   error?: boolean;
   align?: 'left' | 'right';
   'aria-label'?: string;
@@ -48,18 +62,36 @@ export default function PriceReduceInput({
   value,
   basePrice,
   onChange,
+  mode: modeProp,
+  onModeChange,
   error,
   align = 'left',
   'aria-label': ariaLabel = 'ลดเหลือ',
   showHint = true,
   emptyHint = 'ว่าง = ขายราคาปกติ',
 }: PriceReduceInputProps) {
-  const [mode, setMode] = useState<ReduceMode>('price');
+  const [internalMode, setInternalMode] = useState<ReduceMode>('price');
+  const mode = modeProp ?? internalMode;
   // สิ่งที่พิมพ์ในโหมด % / ลดไป (โหมด ฿ ใช้ `value` ตรง ๆ)
   const [draft, setDraft] = useState(0);
 
   const current = MODES.find(m => m.mode === mode)!;
   const summary = basePrice != null ? reduceSummary(basePrice, value) : null;
+
+  // ตัวเลขของโหมดใหม่ที่แปลงจากราคาที่เก็บอยู่ — ราคาไม่เปลี่ยน แค่เปลี่ยนวิธีพิมพ์
+  const draftFor = (m: ReduceMode) => {
+    if (m === 'percent') return summary ? summary.percent : 0;
+    if (m === 'amount') return summary ? summary.amount : 0;
+    return 0;
+  };
+
+  // โหมดเปลี่ยนจากข้างนอก (แถวอื่นในตารางสลับ) → แปลง draft ระหว่าง render
+  // (แบบเดียวกับ NumberInput — กฎ react-hooks/set-state-in-effect ห้าม setState ใน effect)
+  const [prevMode, setPrevMode] = useState(mode);
+  if (mode !== prevMode) {
+    setPrevMode(mode);
+    setDraft(draftFor(mode));
+  }
 
   const handleInput = (n: number) => {
     if (mode === 'price') {
@@ -71,14 +103,13 @@ export default function PriceReduceInput({
     onChange(basePrice != null ? applyReduce(basePrice, spec) : 0, spec);
   };
 
-  // สลับโหมด = แปลงค่าที่มีอยู่ให้เป็นตัวเลขของโหมดใหม่ ราคาที่เก็บไม่เปลี่ยน
   const switchMode = (next: ReduceMode) => {
     if (next === mode) return;
-    setMode(next);
-    let nextDraft = 0;
-    if (next === 'percent') nextDraft = summary ? summary.percent : 0;
-    if (next === 'amount') nextDraft = summary ? summary.amount : 0;
+    const nextDraft = draftFor(next);
+    setInternalMode(next);
     setDraft(nextDraft);
+    setPrevMode(next);
+    onModeChange?.(next);
     onChange(value, { mode: next, input: next === 'price' ? value : nextDraft });
   };
 
