@@ -119,7 +119,9 @@ export default function ProductImageThumb({
     <>
       <button
         type="button"
-        onClick={() => setOpen(true)}
+        // stopPropagation: อยู่ในแถวตารางที่มี onRowClick (เช่น /products เปิดหน้าแก้ไขแท็บใหม่)
+        // ถ้าปล่อยทะลุ กดดูรูปจะเปิด lightbox แล้วเด้งหน้าแก้ไขพร้อมกัน
+        onClick={(e) => { e.stopPropagation(); setOpen(true); }}
         aria-label={`ดูรูป ${alt || 'สินค้า'} ขนาดเต็ม`}
         className={`${frameClass} group cursor-zoom-in`}
       >

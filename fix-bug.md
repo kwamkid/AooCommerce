@@ -16,6 +16,14 @@
 
 ---
 
+## 2026-09-13 — หน้ารายการสินค้า: กดดูรูปแล้วเปิด lightbox + เด้งหน้าแก้ไขแท็บใหม่พร้อมกัน · ฟอร์มสินค้า: รูปจิ๋วครอปรูป 3:4 เป็นสี่เหลี่ยม
+
+**ที่เกิด**: [components/ui/ProductImageThumb.tsx](components/ui/ProductImageThumb.tsx) · [components/ui/ImageLightbox.tsx](components/ui/ImageLightbox.tsx) · [components/ui/ImageUploader.tsx](components/ui/ImageUploader.tsx)
+**อาการ**: (1) หน้า `/products` กดรูปสินค้า → lightbox ขึ้น แต่หน้าแก้ไขก็เปิดแท็บใหม่ด้วย และกดปิด lightbox ก็เปิดอีกรอบ (2) หน้าแก้ไขสินค้า รูปจิ๋วในแถบรูปถูกครอปเป็น 1:1 ทั้งที่รูปจริงเป็น 3:4
+**Root cause**: (1) ปุ่มรูปใน `ProductImageThumb` และ backdrop/ปุ่มปิดของ `ImageLightbox` ไม่ `stopPropagation` — lightbox ถูก render ไว้ในแถวเดียวกับรูปจิ๋ว React ส่ง click ขึ้นตาม tree ไปถึง `onRowClick` ของ DataTable (`openEdit` = `window.open`) (2) `ImageUploader` วาด `<img>` ด้วย `object-cover`
+**วิธีแก้**: หยุด event ที่ปุ่มรูป + backdrop + ปุ่มปิด (ทุกหน้าที่ใช้ของกลาง 2 ตัวนี้ได้ผลพร้อมกัน) · `ImageUploader` ใช้ `object-contain` + พื้นเทาอ่อน (กติกาเดียวกับ `ProductImageThumb`)
+**ป้องกัน regression**: ของกลางที่เปิด overlay จากในแถวที่กดได้ ต้องหยุด event ทั้งตอนเปิดและตอนปิด — portal ก็ไม่ช่วยเพราะ React bubble ตาม component tree ไม่ใช่ DOM · รูปสินค้าจิ๋วทุกที่ใช้ `object-contain` (Shopee รับ 3:4)
+
 ## 2026-09-13 — เปลี่ยนประเภทสินค้า (ปกติ ↔ มีตัวเลือก): ตัวเลือกเก่ายังโผล่ในหน้าคลัง/export · สลับได้ทั้งที่มีสต็อก/ออเดอร์/link
 
 **ที่เกิด**: PUT ใน [app/api/products/route.ts](app/api/products/route.ts) (ช่วง type switch) · [components/products/ProductForm.tsx](components/products/ProductForm.tsx)

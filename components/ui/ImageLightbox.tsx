@@ -28,14 +28,17 @@ export default function ImageLightbox({ src, onClose, alt = 'Image' }: ImageLigh
 
   if (!src) return null;
 
+  // stopPropagation ที่ backdrop/ปุ่มปิด: lightbox ถูก render ไว้ในที่เดียวกับรูปจิ๋ว (ในแถวตาราง/การ์ดที่กดได้)
+  // React ส่ง event ขึ้นตาม tree → กดปิดจะกลายเป็นกดแถว (เปิดหน้าแก้ไข) ถ้าไม่หยุดไว้ตรงนี้
   return (
     <div
       className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70"
-      onClick={onClose}
+      onClick={(e) => { e.stopPropagation(); onClose(); }}
       role="dialog"
     >
       <button
-        onClick={onClose}
+        type="button"
+        onClick={(e) => { e.stopPropagation(); onClose(); }}
         className="absolute top-4 right-4 text-white/80 hover:text-white p-2 rounded-full bg-black/30 hover:bg-black/50 transition-colors z-10"
         aria-label="ปิด"
       >

@@ -390,7 +390,7 @@ export default function ImageUploader({
               onDragEnter={() => handleImageDragEnter(index)}
               onDragEnd={handleImageDragEnd}
               onDragOver={(e) => e.preventDefault()}
-              className={`relative group ${compact ? 'w-full aspect-square' : 'w-20 h-20'} rounded-lg overflow-hidden flex-shrink-0 transition-all duration-150 ${
+              className={`relative group ${compact ? 'w-full aspect-square' : 'w-20 h-20'} rounded-lg overflow-hidden flex-shrink-0 bg-gray-50 dark:bg-slate-700/50 transition-all duration-150 ${
                 dragIndex === index ? 'opacity-40 scale-95' : ''
               } ${dragOverIndex === index ? 'ring-2 ring-primary ring-offset-2' : ''} ${
                 !disabled ? 'cursor-grab active:cursor-grabbing' : ''
@@ -399,7 +399,8 @@ export default function ImageUploader({
               <img
                 src={image.image_url}
                 alt={`รูปที่ ${index + 1}`}
-                className="w-full h-full object-cover cursor-pointer"
+                // object-contain: รูป 3:4 ต้องเห็นครบในกรอบ ไม่ถูกครอปเป็น 1:1 (กติกาเดียวกับ ProductImageThumb)
+                className="w-full h-full object-contain cursor-pointer"
                 draggable={false}
                 onClick={() => setLightboxIndex(index)}
               />
