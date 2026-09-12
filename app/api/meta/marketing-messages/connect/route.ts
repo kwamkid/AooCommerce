@@ -53,32 +53,55 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: message }, { status: 400 });
     }
 
-    // สินทรัพย์ที่ร้านเลือกในหน้าต่างของ Meta — ไม่มี target_ids = สิทธิ์ครอบทุกอันที่เข้าถึง (เก็บเป็นลิสต์ว่าง)
+    // ⚠️ `debug_token` ของ token system-user **ไม่คืน `granular_scopes`** (ลองจริง 13 ก.ย. 2026 ได้ 0/0)
+    // ⇒ ถามรายการสินทรัพย์จาก Graph ตรง ๆ · `/me/accounts` กับ `/me/assigned_pages` ก็ตอบว่างสำหรับ token ชนิดนี้
+    // เพจจึงต้องถามจาก business (`/{business}/owned_pages`)
     const info = await debugToken(token);
-    const grantedIds = (scope: string) => info.granularScopes.find((g) => g.scope === scope)?.target_ids ?? [];
-    const pageIds = grantedIds('pages_messaging');
-    const adAccountIds = grantedIds('ads_management');
+    const me = await graphGet<{ id?: string; name?: string }>('/me', token, { fields: 'id,name' });
 
-    // business ของร้าน — ถามจากบัญชีโฆษณาใบแรก (config บังคับเลือกบัญชีโฆษณา)
-    let business: { id: string; name: string } | null = null;
-    if (adAccountIds[0]) {
-      const r = await graphGet<{ business?: { id?: string; name?: string } }>(`/${actPath(adAccountIds[0])}`, token, {
-        fields: 'business{id,name}',
+    const adRes = await graphGet<{
+      data?: { id?: string; account_id?: string; name?: string; business?: { id?: string; name?: string } }[];
+    }>('/me/adaccounts', token, { fields: 'account_id,name,business{id,name}', limit: '50' });
+    const adRows = adRes.body?.data ?? [];
+    const adAccounts = adRows.map((a) => ({
+      id: actPath(String(a.account_id ?? a.id ?? '')),
+      name: String(a.name ?? ''),
+    }));
+    const businessRaw = adRows.find((a) => a.business?.id)?.business ?? null;
+    const business = businessRaw?.id
+      ? { id: String(businessRaw.id), name: String(businessRaw.name ?? '') }
+      : null;
+
+    // เพจที่ business นี้ถือ — ไว้บอกผู้ใช้ว่าเชื่อมให้ร้านไหน (Meta ไม่บอกว่ารอบนี้ให้สิทธิ์เพจไหนบ้าง)
+    let pages: { id: string; name: string }[] = [];
+    if (business) {
+      const p = await graphGet<{ data?: { id?: string; name?: string }[] }>(`/${business.id}/owned_pages`, token, {
+        fields: 'id,name',
+        limit: '50',
       });
-      if (r.ok && r.body?.business?.id) {
-        business = { id: String(r.body.business.id), name: String(r.body.business.name ?? '') };
-      }
+      pages = (p.body?.data ?? []).map((x) => ({ id: String(x.id ?? ''), name: String(x.name ?? '') }));
     }
 
     const summary = {
       token_type: info.type,
+      system_user: me.body?.id ? { id: String(me.body.id), name: String(me.body.name ?? '') } : null,
       marketing_scope: hasMarketingMessagesScope(info.scopes),
       scopes: info.scopes,
-      page_ids: pageIds,
-      ad_account_ids: adAccountIds,
       business,
+      ad_accounts: adAccounts,
+      pages,
+      ad_account_ids: adAccounts.map((a) => a.id),
+      page_ids: pages.map((p) => p.id),
       expires_at: info.expiresAt,
     };
+
+    // ไม่มีบัญชีโฆษณา = ส่งข้อความการตลาดไม่ได้เลย — บอกตั้งแต่ตอนนี้ ดีกว่าปล่อยให้ไปเจอ error ตอนกดส่ง
+    // (ถาม Meta ไม่สำเร็จไม่นับว่าไม่มี — เก็บ token ไว้ก่อน ค่อยตรวจใหม่รอบหน้า)
+    if (adRes.ok && adAccounts.length === 0) {
+      const message = 'ยังไม่ได้เลือกบัญชีโฆษณาในหน้าต่างของ Facebook — ข้อความการตลาดต้องมีบัญชีโฆษณาที่ผูกบัตรอย่างน้อย 1 บัญชี';
+      await log('error', { error_message: message, response_body: summary });
+      return NextResponse.json({ error: message, ...summary }, { status: 400 });
+    }
 
     const now = new Date().toISOString();
     const { error: saveError } = await supabaseAdmin.from('app_flags').upsert(
