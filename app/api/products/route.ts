@@ -76,7 +76,7 @@ function compositeInputError(slots: CompositeSlot[], combos: ComboInput[]): stri
     const def = Number(c.default_price) || 0;
     const disc = Number(c.discount_price) || 0;
     if (def <= 0) return 'ชุดย่อยที่ตั้งราคาเองต้องมีราคาปกติ';
-    if (disc > 0 && disc >= def) return 'ราคาขายต้องน้อยกว่าราคาปกติ';
+    if (disc > 0 && disc >= def) return 'ราคาลดเหลือต้องน้อยกว่าราคาปกติ';
   }
   return null;
 }

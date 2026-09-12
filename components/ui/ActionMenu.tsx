@@ -91,6 +91,7 @@ export default function ActionMenu({ items, trigger, triggerClassName, placement
     <>
       <button
         ref={buttonRef}
+        type="button"
         onClick={(e) => {
           e.stopPropagation();
           if (!open && buttonRef.current) setAnchor(buttonRef.current.getBoundingClientRect());

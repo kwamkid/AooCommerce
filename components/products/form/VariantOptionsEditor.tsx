@@ -18,8 +18,11 @@ import FormInput from '@/components/ui/FormInput';
 import NumberInput from '@/components/ui/NumberInput';
 import Toggle from '@/components/ui/Toggle';
 import ImageUploader, { type ProductImage } from '@/components/ui/ImageUploader';
-import { MAX_OPTION_GROUPS, MAX_OPTION_VALUES, activeGroupNames, applyToAll } from '@/lib/product-variants';
+import {
+  MAX_OPTION_GROUPS, MAX_OPTION_VALUES, NO_REDUCE, activeGroupNames, applyReduce, applyToAll, type ReduceSpec,
+} from '@/lib/product-variants';
 import ProductCodesHelp from './ProductCodesHelp';
+import PriceReduceInput from './PriceReduceInput';
 import { FieldError, OPTION_VALUE_MAX, StockText, numberInputClass } from './parts';
 import type { FieldErrors, OptionGroup, VariantRow, VariationTypeOption } from './types';
 
@@ -43,8 +46,9 @@ interface VariantOptionsEditorProps {
   groupsError?: string | null;
 }
 
-type BulkState = { default_price: number; discount_price: number; cost_price: number };
-const EMPTY_BULK: BulkState = { default_price: 0, discount_price: 0, cost_price: 0 };
+// discount = สิ่งที่พิมพ์ในช่องลดเหลือ (฿ / % / ลดไป) — คิดเป็นราคาต่อแถวตอนกด "ใช้กับทุกแถว"
+type BulkState = { default_price: number; discount: ReduceSpec; cost_price: number };
+const EMPTY_BULK: BulkState = { default_price: 0, discount: NO_REDUCE, cost_price: 0 };
 
 export default function VariantOptionsEditor({
   groups, onGroupsChange, rows, onRowsChange, variationTypes, onAddVariationType,
@@ -73,11 +77,16 @@ export default function VariantOptionsEditor({
 
   const bulkPatch = {
     ...(bulk.default_price > 0 ? { default_price: bulk.default_price } : {}),
-    ...(bulk.discount_price > 0 ? { discount_price: bulk.discount_price } : {}),
     ...(canViewCost && bulk.cost_price > 0 ? { cost_price: bulk.cost_price } : {}),
   };
+  const hasBulk = Object.keys(bulkPatch).length > 0 || bulk.discount.input > 0;
   const applyBulk = () => {
-    onRowsChange(applyToAll(rows, bulkPatch));
+    let next = applyToAll(rows, bulkPatch);
+    // ลดเหลือ/ลด %/ลดไป คิดต่อแถวจากราคาปกติของแถวนั้น (หลังใช้ราคาปกติใหม่แล้ว)
+    if (bulk.discount.input > 0) {
+      next = next.map(r => ({ ...r, discount_price: applyReduce(r.default_price, bulk.discount) }));
+    }
+    onRowsChange(next);
     setBulk(EMPTY_BULK);
   };
 
@@ -175,14 +184,14 @@ export default function VariantOptionsEditor({
                   className={numberInputClass(false, 'right')}
                 />
               </div>
-              <div className="w-32">
-                <label className="helper-text">ราคาขาย</label>
-                <NumberInput
-                  value={bulk.discount_price}
-                  onChange={n => setBulk(b => ({ ...b, discount_price: n }))}
-                  min={0}
-                  aria-label="ราคาขายทุกแถว"
-                  className={numberInputClass(false, 'right')}
+              <div className="w-44">
+                <label className="helper-text">ลดเหลือ</label>
+                <PriceReduceInput
+                  value={bulk.discount.mode === 'price' ? bulk.discount.input : 0}
+                  onChange={(_, spec) => setBulk(b => ({ ...b, discount: spec }))}
+                  align="right"
+                  aria-label="ลดเหลือทุกแถว"
+                  showHint={false}
                 />
               </div>
               {canViewCost && (
@@ -197,7 +206,7 @@ export default function VariantOptionsEditor({
                   />
                 </div>
               )}
-              <Button variant="secondary" onClick={applyBulk} disabled={Object.keys(bulkPatch).length === 0}>
+              <Button variant="secondary" onClick={applyBulk} disabled={!hasBulk}>
                 ใช้กับทุกแถว
               </Button>
             </div>
@@ -205,13 +214,13 @@ export default function VariantOptionsEditor({
 
           {/* Desktop */}
           <div className="hidden md:block overflow-x-auto rounded-lg border border-gray-200 dark:border-slate-700">
-            <table className="w-full min-w-[760px]">
+            <table className="w-full min-w-[820px]">
               <thead className="data-thead">
                 <tr>
                   <th className="data-th w-[96px]">รูป</th>
                   <th className="data-th">ตัวเลือก</th>
                   <th className="data-th w-[130px] text-right">ราคาปกติ *</th>
-                  <th className="data-th w-[130px] text-right">ราคาขาย</th>
+                  <th className="data-th w-[190px] text-right">ลดเหลือ</th>
                   {canViewCost && <th className="data-th w-[120px] text-right">ต้นทุน</th>}
                   <th className="data-th w-[160px]">
                     <span className="inline-flex items-center gap-1">SKU <ProductCodesHelp focus="sku" /></span>
@@ -254,12 +263,15 @@ export default function VariantOptionsEditor({
                       <FieldError text={err(i, 'price')} />
                     </td>
                     <td className="px-3 py-3" data-field={`variation.${i}.discount`}>
-                      <NumberInput
+                      <PriceReduceInput
                         value={row.discount_price}
+                        basePrice={row.default_price}
                         onChange={n => updateRow(row._tempId, { discount_price: n })}
-                        min={0}
-                        aria-label={`ราคาขาย ${row.variation_label}`}
-                        className={numberInputClass(!!err(i, 'discount'), 'right')}
+                        error={!!err(i, 'discount')}
+                        showHint={!err(i, 'discount')}
+                        emptyHint=""
+                        align="right"
+                        aria-label={`ลดเหลือ ${row.variation_label}`}
                       />
                       <FieldError text={err(i, 'discount')} />
                     </td>
@@ -355,12 +367,16 @@ export default function VariantOptionsEditor({
                     <FieldError text={err(i, 'price')} />
                   </div>
                   <div>
-                    <label className="helper-text">ราคาขาย</label>
-                    <NumberInput
+                    <label className="helper-text">ลดเหลือ</label>
+                    <PriceReduceInput
                       value={row.discount_price}
+                      basePrice={row.default_price}
                       onChange={n => updateRow(row._tempId, { discount_price: n })}
-                      min={0}
-                      className={numberInputClass(!!err(i, 'discount'), 'right')}
+                      error={!!err(i, 'discount')}
+                      showHint={!err(i, 'discount')}
+                      emptyHint=""
+                      align="right"
+                      aria-label={`ลดเหลือ ${row.variation_label}`}
                     />
                     <FieldError text={err(i, 'discount')} />
                   </div>

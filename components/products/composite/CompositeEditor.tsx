@@ -15,6 +15,7 @@ import { thumbUrl } from '@/lib/image-thumb';
 import Toggle from '@/components/ui/Toggle';
 import FormInput from '@/components/ui/FormInput';
 import NumberInput from '@/components/ui/NumberInput';
+import PriceReduceInput from '@/components/products/form/PriceReduceInput';
 import ProductImageThumb from '@/components/ui/ProductImageThumb';
 import ProductSearchInput, { type ProductSearchItem } from '@/components/ui/ProductSearchInput';
 import { apiFetch } from '@/lib/api-client';
@@ -229,12 +230,26 @@ function RowBadges({ row, isEditing }: { row: ComboRow; isEditing: boolean }) {
 
 function PriceCell({ row, field, editor }: { row: ComboRow; field: 'default_price' | 'discount_price'; editor: CompositeEditorState }) {
   if (row.setting.price_locked) {
+    if (field === 'discount_price') {
+      return (
+        <PriceReduceInput
+          value={row.setting.discount_price}
+          basePrice={row.setting.default_price}
+          onChange={n => editor.setRow(row.key, { discount_price: n })}
+          error={!!row.errors.price}
+          showHint={!row.errors.price}
+          emptyHint=""
+          align="right"
+          aria-label="ลดเหลือ"
+        />
+      );
+    }
     return (
       <NumberInput
         value={row.setting[field]}
         min={0}
         onChange={n => editor.setRow(row.key, { [field]: n })}
-        aria-label={field === 'default_price' ? 'ราคาปกติ' : 'ราคาขาย'}
+        aria-label="ราคาปกติ"
         className={`${PRICE_INPUT} ${row.errors.price ? 'border-red-400' : 'border-gray-300 dark:border-slate-600'}`}
       />
     );
@@ -310,7 +325,7 @@ function CombosSection({ editor, images, onImagesChange }: { editor: CompositeEd
                   <th className="data-th w-[220px]">SKU</th>
                   {advanced && <th className="data-th w-[100px]">ตั้งราคาเอง</th>}
                   <th className="data-th w-[150px] text-right">ราคาปกติ</th>
-                  <th className="data-th w-[150px] text-right">ราคาขาย</th>
+                  <th className="data-th w-[190px] text-right">ลดเหลือ</th>
                   <th className="data-th w-[100px] text-right">พร้อมขาย</th>
                   <th className="data-th w-[110px]">
                     <Checkbox checked={allActive} onChange={() => editor.setAllActive(!allActive)} label="เปิดขาย" />
@@ -408,7 +423,7 @@ function CombosSection({ editor, images, onImagesChange }: { editor: CompositeEd
                     <PriceCell row={row} field="default_price" editor={editor} />
                   </div>
                   <div>
-                    <div className="helper-text mb-1">ราคาขาย</div>
+                    <div className="helper-text mb-1">ลดเหลือ</div>
                     <PriceCell row={row} field="discount_price" editor={editor} />
                   </div>
                   <div className="text-right">

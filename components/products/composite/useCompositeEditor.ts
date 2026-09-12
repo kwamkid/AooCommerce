@@ -151,7 +151,7 @@ export function useCompositeEditor(source: Source) {
       if (r.setting.price_locked) {
         const { default_price: def, discount_price: disc } = r.setting;
         if (def <= 0) r.errors.price = 'กรอกราคาปกติ';
-        else if (disc > 0 && disc >= def) r.errors.price = 'ราคาขายต้องน้อยกว่าราคาปกติ';
+        else if (disc > 0 && disc >= def) r.errors.price = 'ราคาลดเหลือต้องน้อยกว่าราคาปกติ';
       }
       const sku = r.setting.sku.trim().toLowerCase();
       if (sku) {

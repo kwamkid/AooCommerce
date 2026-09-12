@@ -148,7 +148,7 @@
 ### Discount price < Default price (บังคับทั่วระบบ)
 - กฎ: `discount_price > 0 AND discount_price >= default_price` → reject. `discount_price = 0` = "ไม่มีส่วนลด" อนุญาตเสมอ
 - บังคับ 3 จุด:
-  1. `ProductForm` UI — inline error "ราคาขายต้องน้อยกว่าราคาปกติ" (simple + per-variation)
+  1. `ProductForm` UI — inline error "ราคาลดเหลือต้องน้อยกว่าราคาปกติ" (simple + per-variation)
   2. `bulk_create_products` RPC — error row, ระบุ variation label
   3. `bulk_update_variation_prices` RPC — เช็ค **FINAL value** (incoming OR existing) catch partial edit
 

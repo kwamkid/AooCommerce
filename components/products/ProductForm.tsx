@@ -434,7 +434,7 @@ export default function ProductForm({
       if (!(values.default_price > 0)) e.default_price = 'ราคาต้องมากกว่า 0';
       // ราคาขาย 0 = ไม่มีส่วนลด (อนุญาต) · ถ้าใส่ต้องน้อยกว่าราคาปกติ
       if (values.discount_price > 0 && values.discount_price >= values.default_price) {
-        e.discount_price = 'ราคาขายต้องน้อยกว่าราคาปกติ';
+        e.discount_price = 'ราคาลดเหลือต้องน้อยกว่าราคาปกติ';
       }
     } else {
       Object.assign(e, validateOptionGroups(groups), validateVariantRows(rows, activeGroupNames(groups)));

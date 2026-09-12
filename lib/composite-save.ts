@@ -195,7 +195,7 @@ export async function saveCompositeVariations(
     const def = Number(input.default_price) || 0;
     const disc = Number(input.discount_price) || 0;
     if (def <= 0) throw new CompositeValidationError(`ชุดย่อย "${g.label}" ต้องมีราคาปกติ`);
-    if (disc > 0 && disc >= def) throw new CompositeValidationError(`ชุดย่อย "${g.label}": ราคาขายต้องน้อยกว่าราคาปกติ`);
+    if (disc > 0 && disc >= def) throw new CompositeValidationError(`ชุดย่อย "${g.label}": ราคาลดเหลือต้องน้อยกว่าราคาปกติ`);
   }
 
   // Product must be marked composite before components are attached (DB guard checks it)

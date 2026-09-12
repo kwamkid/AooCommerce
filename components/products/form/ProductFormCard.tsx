@@ -28,6 +28,7 @@ import Toggle from '@/components/ui/Toggle';
 import FilterChips, { FILTER_CHIP_PRIMARY_ACTIVE } from '@/components/ui/FilterChips';
 import ImageUploader, { type ProductImage } from '@/components/ui/ImageUploader';
 import ProductCodesHelp from './ProductCodesHelp';
+import PriceReduceInput from './PriceReduceInput';
 import { FieldError, PRODUCT_NAME_MAX, SHOPEE_NAME_MIN, StockText, numberInputClass } from './parts';
 import type {
   BrandOption, CategoryOption, FieldErrors, ProductFormFeatures, ProductFormValues, ProductType,
@@ -300,14 +301,18 @@ export default function ProductFormCard({
                 onChange={n => onChange({ default_price: n })}
                 error={errors.default_price}
               />
-              <PriceField
-                field="discount_price"
-                label="ราคาขาย (฿)"
-                value={values.discount_price}
-                onChange={n => onChange({ discount_price: n })}
-                error={errors.discount_price}
-                hint="ว่าง = ขายราคาปกติ"
-              />
+              <div data-field="discount_price">
+                <FieldLabel>ลดเหลือ (฿)</FieldLabel>
+                <PriceReduceInput
+                  value={values.discount_price}
+                  basePrice={values.default_price}
+                  onChange={n => onChange({ discount_price: n })}
+                  error={!!errors.discount_price}
+                  showHint={!errors.discount_price}
+                  aria-label="ลดเหลือ"
+                />
+                <FieldError text={errors.discount_price} />
+              </div>
               {canViewCost && (
                 <PriceField
                   field="cost_price"
