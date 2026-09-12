@@ -16,6 +16,14 @@
 
 ---
 
+## 2026-09-13 — กลุ่มเป้าหมาย: ป้าย "synced 0" · แถวค้าง "รอ sync" · คำอธิบายในตารางโดนขอบตัด
+
+**ที่เกิด**: [app/marketing/audiences/page.tsx](app/marketing/audiences/page.tsx) · [MetaSyncRows.tsx](app/marketing/audiences/components/MetaSyncRows.tsx) · [components/ui/HelpHint.tsx](components/ui/HelpHint.tsx)
+**อาการ**: (1) กลุ่มที่ sync แล้วขึ้นป้าย "synced 0" ทั้งที่กลุ่มบน Meta มีคนครบ (2) สร้างกลุ่มเสร็จ หน้ารายการค้างที่ "รอ sync" และจำนวนเป็น "—" ทั้งที่ sync จบไปแล้วใน 13 วินาที (3) ไอคอน ? ในแถวตารางกางคำอธิบายแล้วโดนขอบตาราง
+**Root cause**: (1) เอา `last_counts.uploaded` ซึ่งเป็น "ยอดที่เพิ่มในรอบนั้น" มาโชว์เป็นขนาดกลุ่ม — รอบที่ไม่มีใครเปลี่ยนจึงเป็น 0 (2) เงื่อนไข poll ดูแค่ `status === 'syncing'` แต่ใบที่เพิ่งผูกเป็น `pending` (3) DataTable ครอบตารางด้วย `overflow-x-auto` ซึ่งตัดแนวตั้งด้วย กล่องแบบ absolute จึงถูกตัด
+**วิธีแก้**: ขนาด = `total − not_syncable` ผ่าน `syncedPeople()`/`latestCounts()` ใน [sync-view.ts](app/marketing/audiences/components/sync-view.ts) (ป้ายสถานะตัวกลางที่หน้ารายการกับแผง Meta ใช้ร่วมกัน) · poll เมื่อ `isSyncRunning()` (syncing หรือ pending ที่ถึงเวลาแล้ว) + เพดาน ~5 นาที · `HelpHint` รับ `portal` วาดลอยเหนือหน้า พลิกขึ้นเองด้วย `shouldDropUp()` และ stopPropagation ไม่ให้ทะลุไปกดแถว
+**ป้องกัน regression**: ตัวเลขที่เป็น "ยอดของรอบนั้น" ห้ามเอาไปโชว์เป็นขนาด · สถานะที่แปลว่ากำลังทำงานมีทั้ง syncing และ pending ให้ใช้ helper ตัวเดียว ห้ามเทียบสตริงเองในหน้า · popover ที่อยู่ในแถวตารางต้องเป็น portal เสมอ
+
 ## 2026-09-12 — ฟอร์มสินค้า: ใส่ราคาขาย ≥ ราคาปกติ แล้วกดบันทึกเงียบ ไม่มีข้อความบอก (+ รื้อฟอร์มใหม่)
 
 **ที่เกิด**: [components/products/ProductForm.tsx](components/products/ProductForm.tsx) — ช่อง "ราคาลด" ของสินค้าปกติและของแต่ละ variation
