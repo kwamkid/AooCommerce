@@ -21,6 +21,12 @@ paths:
 - **พร้อมขาย** = Σ `inventory.quantity − reserved_quantity` **ทุกคลัง รวมคลังฝากขายของตัวแทน** (เจ้าของตัดสิน 2026-09-11: "ของยังไม่ถูกขาย ถือว่ายังมี") — กติกาเดียวกับหน้าคลัง `get_inventory_filtered` · เลือกคลังเดียวได้ด้วย `warehouse_id` · RPC `get_variation_stock` (ดู `lib-services.md`)
 - ระดับสินค้า: สินค้ามีตัวเลือก = Σ ตัวเลือกที่เปิด · **สินค้าชุด = "ชุดที่มีของ/ชุดทั้งหมด"** (ชุดย่อยใช้ชิ้นส่วนร่วม รวมกันแล้วนับซ้ำ)
 
+## เปลี่ยนประเภทสินค้า (ปกติ ↔ มีตัวเลือก) หลังบันทึกแล้ว
+
+- **เปลี่ยนได้** เมื่อไม่มีอะไรอ้างตัวเลือกที่ยังใช้อยู่ — ด่านอยู่ที่ [lib/product-type-change.ts](../../../lib/product-type-change.ts): `getTypeChangeBlockers()` = สต็อก**ยอดไม่เป็นศูนย์** (ร้านที่ไม่ใช้ระบบสต็อกจึงไม่ติด) · `order_items` · `marketplace_product_links` · เป็นชิ้นส่วนของสินค้าชุด → `typeChangeBlockReason()` ข้อความไทย · `GET /api/products/[id]` ส่ง `type_change_blockers` ให้ฟอร์มจางปุ่ม (ไม่ซ่อน) + PUT ตรวจซ้ำ**ก่อน write ตัวแรก** · สินค้าชุดเข้า/ออกไม่ได้เลย
+- **ตอนสลับ** PUT soft-delete ตัวเลือกเดิมทั้งหมด (`deleted_at` **และ** `is_active=false` — RPC คลัง/export กรองด้วย `is_active` อย่างเดียว) + ลบแถว `product_images` รายตัวเลือก (ไฟล์ใน storage ไม่ลบ) · ห้าม hard-delete (`product_variations.id` ถูก FK 19 ตาราง)
+- แถว `deleted_at` ไม่บวม DB (74 แถว / 2.8MB ทั้งตาราง วัด 2026-09-13) — ไม่ต้องกวาด
+
 ## สินค้าชุด (composite) — ชุดย่อย = variation จริง ไม่มีสต็อกของตัวเอง
 
 **โมเดล**: `products.is_composite` + `composite_slots` (ช่องประกอบ `{key,name,product_id,variation_ids,quantity}`) · ชุดย่อยแต่ละคู่ (เช่น โครงดำ + ผ้าแดง) = แถว `product_variations` ปกติของสินค้าชุด → ออเดอร์ · POS · link marketplace · รายงาน ใช้ของเดิมได้หมด · ชิ้นส่วนอยู่ใน `product_variation_components(variation_id=ชุดย่อย, component_variation_id, quantity=ชิ้นต่อชุด)` · `product_variations.price_locked` = ตั้งราคาเอง

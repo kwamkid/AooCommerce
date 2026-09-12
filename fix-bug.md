@@ -16,6 +16,14 @@
 
 ---
 
+## 2026-09-13 — เปลี่ยนประเภทสินค้า (ปกติ ↔ มีตัวเลือก): ตัวเลือกเก่ายังโผล่ในหน้าคลัง/export · สลับได้ทั้งที่มีสต็อก/ออเดอร์/link
+
+**ที่เกิด**: PUT ใน [app/api/products/route.ts](app/api/products/route.ts) (ช่วง type switch) · [components/products/ProductForm.tsx](components/products/ProductForm.tsx)
+**อาการ**: (1) สลับประเภทแล้วตัวเลือกเก่ายังนับอยู่ในหน้าคลังและไฟล์ export (สต็อกผี) (2) สินค้าที่มีของในคลัง / มีออเดอร์ / เชื่อม marketplace อยู่ ก็สลับได้ → ของในคลังไม่มีที่ไป และ push สต็อกยิงไปที่ตัวเลือกที่ตายแล้ว (3) รูปรายตัวเลือกเก่าค้างเป็นแถวกำพร้า
+**Root cause**: (1) ตอนสลับตั้งแค่ `deleted_at` ไม่ตั้ง `is_active=false` แต่ RPC `get_inventory_filtered` / `export_products` กรองด้วย `is_active` อย่างเดียว (74 แถวเก่าใน DB เป็น false เพราะโค้ดรุ่นก่อน) (2) ไม่มีด่านตรวจเลย ทั้งฟอร์มและ API (3) ไม่ได้ลบ `product_images` ของตัวเลือกที่ถูกลบ
+**วิธีแก้**: helper ตัวเดียว [lib/product-type-change.ts](lib/product-type-change.ts) — `getTypeChangeBlockers()` นับสต็อกไม่เป็นศูนย์ · order_items · marketplace_product_links · ชิ้นส่วนของสินค้าชุด ของตัวเลือกที่ยังใช้อยู่ + `typeChangeBlockReason()` แปลงเป็นข้อความไทย · `GET /api/products/[id]` ส่ง `type_change_blockers` → ฟอร์มจางปุ่มประเภทปลายทางพร้อมเหตุผล · PUT ตรวจ**ก่อนเขียนอะไรทั้งสิ้น** (ย้ายการตรวจจับ type switch ขึ้นมาก่อน update products) แล้วตอน archive ตั้ง `is_active=false` คู่กับ `deleted_at` + ลบแถว `product_images` ของตัวเลือกเก่า + response คืนเฉพาะตัวเลือกที่ยังใช้อยู่ · ทดสอบ helper กับ DB จริง 3 เคส (ติดล็อก / ว่าง / ไม่มีตัวเลือก)
+**ป้องกัน regression**: RPC/query ที่กรอง `is_active` ต้องถือว่าแถว `deleted_at` เป็นแถวที่ `is_active=false` ด้วยเสมอ (ตอนนี้ตั้งคู่กันแล้ว) · ด่านตรวจของ API ต้องอยู่ก่อน write ตัวแรก ไม่งั้นปฏิเสธแล้วข้อมูลครึ่งเดียว · ร้านที่ไม่ใช้ระบบสต็อกไม่ติดด่านสต็อกเพราะดู "ยอดไม่เป็นศูนย์" ไม่ใช่ "มีแถว inventory"
+
 ## 2026-09-13 — กลุ่มเป้าหมาย: ป้าย "synced 0" · แถวค้าง "รอ sync" · คำอธิบายในตารางโดนขอบตัด
 
 **ที่เกิด**: [app/marketing/audiences/page.tsx](app/marketing/audiences/page.tsx) · [MetaSyncRows.tsx](app/marketing/audiences/components/MetaSyncRows.tsx) · [components/ui/HelpHint.tsx](components/ui/HelpHint.tsx)

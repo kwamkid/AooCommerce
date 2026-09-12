@@ -22,6 +22,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useFeatures } from '@/lib/features-context';
 import { useToast } from '@/lib/toast-context';
 import { type ProductImage, uploadStagedImages } from '@/components/ui/ImageUploader';
+import { typeChangeBlockReason, type TypeChangeBlockers } from '@/lib/product-type-change';
 import FormSelect from '@/components/ui/FormSelect';
 import FormInput from '@/components/ui/FormInput';
 import Modal from '@/components/ui/Modal';
@@ -83,6 +84,8 @@ export interface ProductItem extends CompositeProductData {
   simple_stock?: number;
   simple_min_stock?: number;
   variations: ApiVariation[];
+  /** from GET /api/products/[id] — non-zero = simple ↔ variation switch is locked */
+  type_change_blockers?: TypeChangeBlockers | null;
 }
 
 export interface FormOptions {
@@ -159,6 +162,10 @@ export default function ProductForm({
   const [pendingTypeChange, setPendingTypeChange] = useState<'simple' | 'variation' | null>(null);
   // สินค้าชุด: เลือกได้ตอนสร้างเท่านั้น · สินค้าชุดที่บันทึกแล้วเปลี่ยนประเภทไม่ได้ (API กันอีกชั้น)
   const compositeLocked = originalProductType === 'composite';
+  // สินค้าที่มีสต็อก/ออเดอร์/link marketplace แล้ว สลับ simple ↔ variation ไม่ได้ (API กันอีกชั้น)
+  const typeBlockReason = isEditMode && !compositeLocked
+    ? typeChangeBlockReason(editingProduct?.type_change_blockers)
+    : null;
   const composite = useCompositeEditor(editingProduct);
 
   // ── master data ──
@@ -352,8 +359,12 @@ export default function ProductForm({
       if (!isEditMode) setFormValues({ product_type: 'composite' });
       return;
     }
-    // Edit mode + switching away from the loaded type → confirm first
+    // Edit mode + switching away from the loaded type → locked, or confirm first
     if (originalProductType && originalProductType !== type) {
+      if (typeBlockReason) {
+        showToast(typeBlockReason, 'error');
+        return;
+      }
       setPendingTypeChange(type);
       return;
     }
@@ -653,10 +664,16 @@ export default function ProductForm({
   };
 
   // ── render ──
-  const typeDisabled = compositeLocked
+  const typeDisabled: Partial<Record<ProductType, string>> | undefined = compositeLocked
     ? { simple: 'สินค้าชุดเปลี่ยนเป็นประเภทอื่นไม่ได้', variation: 'สินค้าชุดเปลี่ยนเป็นประเภทอื่นไม่ได้' }
     : isEditMode
-      ? { composite: 'สินค้าที่บันทึกแล้วเปลี่ยนเป็นสินค้าชุดไม่ได้' }
+      ? {
+          composite: 'สินค้าที่บันทึกแล้วเปลี่ยนเป็นสินค้าชุดไม่ได้',
+          // จางเฉพาะประเภทปลายทาง (ตัวที่เลือกอยู่ต้องยังดูปกติ)
+          ...(typeBlockReason
+            ? { [originalProductType === 'simple' ? 'variation' : 'simple']: typeBlockReason }
+            : {}),
+        }
       : undefined;
 
   return (

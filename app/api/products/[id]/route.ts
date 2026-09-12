@@ -8,6 +8,7 @@ import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
 import { loadComponentInfo, componentOptionLabel } from '@/lib/composite-save';
 import { getComboFallbackImages, getCompositeAvailability, getCompositePartsMap } from '@/lib/composite';
 import { comboKey, type CompositeSlot } from '@/lib/composite-shared';
+import { getTypeChangeBlockers } from '@/lib/product-type-change';
 import type { ComponentProduct, SavedCombo } from '@/components/products/composite/types';
 
 /**
@@ -145,6 +146,10 @@ export async function GET(
     const variationImages: Record<string, any[]> = rpcResult.variation_images || {};
     const isComposite = !!compositeRes.data?.is_composite;
     const priceLocked = new Map((lockRes.data || []).map(r => [r.id, !!r.price_locked]));
+    // simple ↔ variation switch is only allowed while nothing references the live variations
+    const typeChangeBlockers = isComposite
+      ? null
+      : await getTypeChangeBlockers(supabaseAdmin, companyId, (lockRes.data || []).map(r => r.id));
 
     // Determine product_type from variation_label (composite products are flagged separately)
     const productType = isComposite ? 'composite' : product.variation_label ? 'simple' : 'variation';
@@ -177,6 +182,7 @@ export async function GET(
       created_at: product.created_at,
       updated_at: product.updated_at,
       main_image_url: mainImageUrl,
+      type_change_blockers: typeChangeBlockers,
     };
 
     if (productType === 'simple' && variations.length > 0) {

@@ -4,6 +4,7 @@ import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
 import { fetchAllRows } from '@/lib/supabase-paging';
 import { validateCompositeSlots, type CompositeSlot } from '@/lib/composite-shared';
 import { saveCompositeVariations, CompositeValidationError, type ComboInput, type SaveCompositeResult } from '@/lib/composite-save';
+import { getTypeChangeBlockers, typeChangeBlockReason } from '@/lib/product-type-change';
 
 // Type definitions
 interface ProductData {
@@ -910,6 +911,32 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'เปลี่ยนประเภทของสินค้าชุดไม่ได้' }, { status: 400 });
     }
 
+    // simple ↔ variation switch: currentProduct.variation_label is the PREVIOUS
+    // shape (simple = non-null). Refuse while stock / orders / marketplace links /
+    // composite components still reference the live variations — checked BEFORE
+    // any write so a rejected request leaves the product untouched.
+    const prevWasSimple = currentProduct.variation_label !== null && currentProduct.variation_label !== undefined;
+    const nextIsSimple = variation_label !== undefined
+      ? variation_label !== '' && variation_label !== null
+      : prevWasSimple;
+    const typeSwitched = !isCompositeProduct && variation_label !== undefined && prevWasSimple !== nextIsSimple;
+    let liveVariationIds: string[] = [];
+    if (typeSwitched) {
+      const { data: liveRows } = await supabaseAdmin
+        .from('product_variations')
+        .select('id')
+        .eq('product_id', id)
+        .eq('company_id', auth.companyId)
+        .is('deleted_at', null);
+      liveVariationIds = (liveRows || []).map(r => r.id);
+      const blockReason = typeChangeBlockReason(
+        await getTypeChangeBlockers(supabaseAdmin, auth.companyId, liveVariationIds),
+      );
+      if (blockReason) {
+        return NextResponse.json({ error: blockReason }, { status: 400 });
+      }
+    }
+
     // Composite: slots are optional (e.g. the list page only toggles is_active)
     const hasCompositeSlots = isCompositeProduct && body.composite_slots !== undefined;
     const compositeSlots = hasCompositeSlots ? parseCompositeSlots(body.composite_slots) : [];
@@ -1048,29 +1075,26 @@ export async function PUT(request: NextRequest) {
     // Variation product: variation_label is null in products table
     const isSimpleProduct = data.variation_label !== null;
 
-    // Detect type switch (simple ↔ variation). currentProduct (fetched earlier
-    // for source-change tracking) carries the PREVIOUS variation_label, so
-    // comparing against data.variation_label tells us if the user just toggled
-    // type in this request. When type switches, we soft-archive ALL existing
-    // variation rows — variation_id is FK'd by 19 tables (orders, inventory,
-    // reports, snapshots…) so hard-delete would either be rejected by the DB
-    // or cascade-wipe historical rows. Soft-archive preserves history.
-    const prevWasSimple = currentProduct?.variation_label !== null && currentProduct?.variation_label !== undefined;
-    const typeSwitched =
-      variation_label !== undefined &&
-      ((prevWasSimple && !isSimpleProduct) || (!prevWasSimple && isSimpleProduct));
-
-    if (typeSwitched) {
-      // Type-switch: old variations no longer make sense in the new shape.
-      // Mark them deleted (not just paused) — the user is replacing them,
-      // not "pausing for later" — and we never want them to reappear in UI.
+    // Type switch (detected + guarded above, before any write): soft-DELETE every
+    // live variation — variation_id is FK'd by 19 tables (orders, inventory,
+    // reports, snapshots…) so hard-delete would either be rejected by the DB or
+    // cascade-wipe history. is_active=false as well: get_inventory_filtered and
+    // export_products filter by is_active only, so a deleted-but-active row would
+    // still surface there as phantom stock.
+    if (typeSwitched && liveVariationIds.length > 0) {
       const now = new Date().toISOString();
       await supabaseAdmin
         .from('product_variations')
-        .update({ deleted_at: now, updated_at: now })
-        .eq('product_id', id)
-        .eq('company_id', auth.companyId)
-        .is('deleted_at', null);
+        .update({ deleted_at: now, is_active: false, updated_at: now })
+        .in('id', liveVariationIds)
+        .eq('company_id', auth.companyId);
+      // Per-variation pictures belong to the archived shape — drop the rows so
+      // they don't linger as invisible orphans (storage files are swept separately).
+      await supabaseAdmin
+        .from('product_images')
+        .delete()
+        .in('variation_id', liveVariationIds)
+        .eq('company_id', auth.companyId);
     }
 
     if (isSimpleProduct) {
@@ -1233,12 +1257,14 @@ export async function PUT(request: NextRequest) {
       .eq('company_id', auth.companyId)
       .single();
 
-    // Also fetch variations for staged image upload mapping
+    // Also fetch variations for staged image upload mapping (live rows only —
+    // after a type switch the archived ones must not receive staged pictures)
     const { data: updatedVariations } = await supabaseAdmin
       .from('product_variations')
       .select('id, variation_label')
       .eq('product_id', id)
       .eq('company_id', auth.companyId)
+      .is('deleted_at', null)
       .order('created_at', { ascending: true });
 
     return NextResponse.json({
