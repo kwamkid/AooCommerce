@@ -10,15 +10,13 @@ import { checkAuthWithCompany, can } from '@/lib/supabase-admin';
 import {
   assertSourcesBelongToCompany,
   countMarketplaceOnlyAmongUnsyncable,
+  summarizeBySource,
   resolveAudienceMembers,
   validateAudienceDefinition,
   type AudienceSource,
 } from '@/lib/audiences/resolve';
 
 export const maxDuration = 60;
-
-/** เกินนี้แล้วไม่ต้องไปนับแยกรายแหล่งต่อ — ผู้ใช้รออยู่หน้าจอ */
-const BY_SOURCE_BUDGET_MS = 20_000;
 
 /** ป้ายของก้อนแหล่ง — นับรวมตามชนิด ไม่แยกรายบัญชี (เพจ Facebook 7 เพจ = ก้อนเดียว) */
 const GROUP_LABEL: Record<string, string> = {
@@ -41,40 +39,34 @@ export async function POST(request: NextRequest) {
     const ownershipError = await assertSourcesBelongToCompany(auth.companyId, parsed.def);
     if (ownershipError) return NextResponse.json({ error: ownershipError }, { status: 400 });
 
-    const startedAt = Date.now();
     const { members, stats } = await resolveAudienceMembers(auth.companyId, parsed.def);
     // คนที่ส่งไม่ได้ส่วนใหญ่มาจากไหน — ไม่บอกแล้วร้านที่ขายผ่าน marketplace เป็นหลักจะนึกว่าระบบนับผิด
     const marketplaceOnly = stats.not_syncable > 0
       ? await countMarketplaceOnlyAmongUnsyncable(auth.companyId, members)
       : 0;
 
-    // นับแยกตาม **ชนิดแหล่ง** (เพจ Facebook · LINE · ลูกค้าในระบบ) ไม่ใช่รายบัญชี — ตอบคำถามว่า
-    // "แหล่งไหนส่งคนมากี่คน ขึ้น Meta ได้กี่คน" (เช่นติ๊ก LINE แล้วเห็นว่าขึ้น Meta ได้ 0) และนับ
-    // ไม่เกิน 3 รอบเสมอไม่ว่าจะเลือกกี่เพจ · เดิมแยกรายบัญชีแล้วซ่อนทั้งบล็อกเมื่อเลือกเกิน 3 แหล่ง
-    // เจ้าของเลยไม่เห็นว่า LINE ส่งมาเท่าไหร่ (11 ก.ย. 2026)
-    // ผลรวมของแต่ละก้อนอาจมากกว่ายอดรวม เพราะคนเดียวกันอยู่ได้หลายแหล่ง (ตัดซ้ำตอนรวม)
-    const groups = new Map<string, AudienceSource[]>();
+    // นับแยกตามชนิดแหล่ง (เพจ Facebook · LINE · ลูกค้าในระบบ) **จากรายชื่อที่รวมแล้ว**
+    // ตอบว่า "แหล่งไหนเพิ่มคนที่แหล่งอื่นไม่มีกี่คน" ได้ตรง ๆ — ติ๊ก LINE แล้วยอดไม่ขยับเพราะคนพวกนั้น
+    // ถูกนับผ่านลูกค้าในระบบไปแล้ว ต้องอ่านออกจากหน้าจอ ไม่ใช่ให้เดาเอง
+    const accountsPerGroup = new Map<string, number>();
     for (const s of parsed.def.sources) {
       const g = s.kind === 'customers' ? 'customers' : s.platform;
-      groups.set(g, [...(groups.get(g) || []), s]);
+      accountsPerGroup.set(g, (accountsPerGroup.get(g) || 0) + 1);
     }
-    let bySource: { kind: AudienceSource['kind']; platform?: string; label: string; total: number; syncable: number }[] | undefined;
-    if (groups.size > 1 && Date.now() - startedAt < BY_SOURCE_BUDGET_MS) {
-      bySource = [];
-      for (const [group, list] of groups) {
-        // หมดงบกลางทาง = ไม่ส่งบล็อกนี้เลย · ครึ่ง ๆ กลาง ๆ อ่านแล้วเข้าใจผิดว่าแหล่งที่หายไปมี 0 คน
-        if (Date.now() - startedAt > BY_SOURCE_BUDGET_MS) { bySource = undefined; break; }
-        const one = await resolveAudienceMembers(auth.companyId, { ...parsed.def, sources: list });
-        const unit = group === 'facebook' ? 'เพจ' : 'บัญชี';
-        bySource.push({
-          kind: group === 'customers' ? 'customers' : 'chat',
-          ...(group === 'customers' ? {} : { platform: group }),
-          label: `${GROUP_LABEL[group] || group}${group !== 'customers' && list.length > 1 ? ` ${list.length} ${unit}` : ''}`,
-          total: one.stats.total,
-          syncable: one.stats.syncable,
-        });
-      }
-    }
+    const rows = summarizeBySource(members).map(row => {
+      const n = accountsPerGroup.get(row.group) || 0;
+      const unit = row.group === 'facebook' ? 'เพจ' : 'บัญชี';
+      return {
+        kind: (row.group === 'customers' ? 'customers' : 'chat') as AudienceSource['kind'],
+        ...(row.group === 'customers' ? {} : { platform: row.group }),
+        label: `${GROUP_LABEL[row.group] || row.group}${row.group !== 'customers' && n > 1 ? ` ${n} ${unit}` : ''}`,
+        total: row.total,
+        syncable: row.syncable,
+        only: row.only,
+      };
+    });
+    // แหล่งเดียว = บล็อกนี้ไม่บอกอะไรเพิ่มจากยอดรวม
+    const bySource = rows.length > 1 ? rows : undefined;
 
     return NextResponse.json({
       total: stats.total,

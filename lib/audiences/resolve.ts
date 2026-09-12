@@ -50,6 +50,8 @@ export interface AudienceMember {
   psid: string | null;
   phone: string | null;
   email: string | null;
+  /** ก้อนแหล่งที่มีคนนี้ — คนเดียวกันมาได้หลายแหล่ง ใช้ตอบว่าแหล่งไหนเพิ่มคนที่แหล่งอื่นไม่มี */
+  groups: string[];
 }
 
 export interface AudienceStats {
@@ -286,6 +288,8 @@ interface RawMember {
   contact_platform: ChatRecipientPlatform | null;
   page_id: string | null;
   psid: string | null;
+  /** ก้อนแหล่งที่หยิบคนนี้มา ('customers' หรือชื่อแพลตฟอร์มแชท) */
+  group: string;
 }
 
 /** คนจากแหล่ง "ข้อมูลลูกค้าในระบบ" — ไม่ผ่านห้องแชท จึงไม่มี PSID */
@@ -326,7 +330,7 @@ async function resolveCustomerSource(
   const out: RawMember[] = [];
   for (const id of ids) {
     if (stats && !matchesPurchaseBucket(type, stats.get(id), cutoff)) continue;
-    out.push({ customer_id: id, contact_id: null, contact_platform: null, page_id: null, psid: null });
+    out.push({ customer_id: id, contact_id: null, contact_platform: null, page_id: null, psid: null, group: 'customers' });
   }
   return out;
 }
@@ -373,6 +377,7 @@ export async function resolveAudienceMembers(
     for (const r of recipients) {
       const pageId = r.page_id || pageByAccount.get(source.chat_account_id) || null;
       raw.push({
+        group: source.platform,
         customer_id: r.customer_id,
         contact_id: r.contact_id,
         contact_platform: r.platform,
@@ -392,6 +397,7 @@ export async function resolveAudienceMembers(
       : `contact:${r.contact_platform}:${r.contact_id}`;
     const existing = byKey.get(key);
     if (existing) {
+      if (!existing.groups.includes(r.group)) existing.groups.push(r.group);
       // แหล่งหลังเติมของที่แหล่งแรกไม่มี (PSID จากห้องแชท / customer_id จากอีกช่องทาง)
       if (!existing.psid && r.psid) {
         existing.psid = r.psid;
@@ -403,6 +409,7 @@ export async function resolveAudienceMembers(
     }
     if (byKey.size >= AUDIENCE_MEMBER_CAP) { capped = true; break; }
     byKey.set(key, {
+      groups: [r.group],
       key,
       customer_id: r.customer_id,
       contact_id: r.contact_id,
@@ -447,6 +454,29 @@ export async function resolveAudienceMembers(
   }
 
   return { members, stats };
+}
+
+/**
+ * สรุปว่าแต่ละก้อนแหล่งมีคนในกลุ่มกี่คน · ส่งขึ้น Meta ได้กี่คน · และกี่คนที่ **แหล่งอื่นไม่มี**
+ *
+ * คิดจากรายชื่อที่รวมและตัดซ้ำแล้ว จึงไม่ต้องไล่ resolve ทีละแหล่งซ้ำอีก (เดิมเพิ่มอีกสูงสุด 3 รอบ
+ * และได้ตัวเลขที่ซ้อนกันจนผลรวมมากกว่ายอดจริง เจ้าของอ่านแล้วงงว่าติ๊ก LINE แล้วทำไมยอดไม่ขยับ)
+ */
+export function summarizeBySource(
+  members: AudienceMember[],
+): { group: string; total: number; syncable: number; only: number }[] {
+  const out = new Map<string, { group: string; total: number; syncable: number; only: number }>();
+  for (const m of members) {
+    const syncable = projectIdentities(m).length > 0;
+    for (const g of m.groups) {
+      const row = out.get(g) || { group: g, total: 0, syncable: 0, only: 0 };
+      row.total += 1;
+      if (syncable) row.syncable += 1;
+      if (m.groups.length === 1) row.only += 1;
+      out.set(g, row);
+    }
+  }
+  return [...out.values()];
 }
 
 // ─── ตัวจับคู่ที่ส่งให้ Meta ────────────────────────────────────────────

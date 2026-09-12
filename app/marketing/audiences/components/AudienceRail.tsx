@@ -104,15 +104,22 @@ export default function AudienceRail({ preview, loading, error, hint }: Props) {
             </Alert>
           )}
 
-          {/* คนส่วนใหญ่มาจากไหน — ผลรวมของแต่ละแถวอาจมากกว่ายอดรวม เพราะคนเดียวกันอยู่ได้หลายแหล่ง */}
+          {/* คนส่วนใหญ่มาจากไหน + แหล่งไหนเพิ่มคนที่แหล่งอื่นไม่มี (เจ้าของถามว่าติ๊ก LINE แล้วยอดไม่ขยับ 13 ก.ย. 2026) */}
           {!!preview.by_source?.length && (
             <div className="mt-3 pt-3 border-t border-gray-100 dark:border-slate-700 space-y-1">
               <p className="field-label">มาจากแหล่งไหนบ้าง</p>
               {preview.by_source.map(s => (
-                <p key={`${s.kind}-${s.platform ?? ''}`} className="subtitle-text">
-                  {s.label} · {formatNumber(s.total)} คน · ส่งขึ้น Meta ได้ {formatNumber(s.syncable)}
-                </p>
+                <div key={`${s.kind}-${s.platform ?? ''}`}>
+                  <p className="subtitle-text">{s.label} · {formatNumber(s.total)} คน</p>
+                  <p className="section-desc">
+                    ส่งขึ้น Meta ได้ {formatNumber(s.syncable)} · แหล่งอื่นไม่มี {formatNumber(s.only)} คน
+                  </p>
+                </div>
               ))}
+              <p className="section-desc pt-1">
+                คนเดียวกันอยู่ได้หลายแหล่ง ผลรวมของแต่ละแถวจึงมากกว่ายอดรวม · ติ๊กแหล่งที่ &ldquo;แหล่งอื่นไม่มี
+                0 คน&rdquo; ยอดรวมจะไม่ขยับ
+              </p>
             </div>
           )}
         </div>

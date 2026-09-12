@@ -93,6 +93,8 @@ export interface AudiencePreview {
     label: string;
     total: number;
     syncable: number;
+    /** คนที่มีอยู่แหล่งนี้แหล่งเดียว — แหล่งที่เป็น 0 ติ๊กแล้วยอดรวมไม่ขยับ */
+    only: number;
   }[];
 }
 

@@ -22,7 +22,7 @@ import ChannelBadge from '@/components/ui/ChannelBadge';
 import AccountPicker from '@/components/ui/AccountPicker';
 import HelpHint from '@/components/ui/HelpHint';
 import { BROADCAST_PLATFORMS } from '@/lib/broadcast/platforms';
-import { audienceSourceUnsupportedReason } from '@/lib/broadcast/audience';
+import { audienceSourceUnsupportedReason, PURCHASED_AUDIENCE_KEYS } from '@/lib/broadcast/audience';
 import { Users } from 'lucide-react';
 import type { ChatSourceAccount } from './types';
 
@@ -34,6 +34,9 @@ const INLINE_MAX = 8;
  * บรรทัดนี้บอกว่าจะติ๊กเมื่อไหร่ถึงคุ้ม
  */
 const LINE_NOTE = 'ขึ้น Meta ได้เฉพาะคนที่ผูกลูกค้าแล้ว';
+
+/** กลุ่มที่อิงการซื้อ + ติ๊กลูกค้าในระบบแล้ว — แหล่งแชทไม่ได้เพิ่มคน แต่ยังเพิ่มตัวจับคู่ (Messenger) ได้ */
+const COUNTED_NOTE = 'คนที่ซื้อแล้วนับผ่านลูกค้าในระบบไปแล้ว';
 
 interface Props {
   accounts: ChatSourceAccount[];
@@ -113,10 +116,13 @@ export default function SourceStep({
           {accounts.map(a => {
             const reason = audienceSourceUnsupportedReason(a.platform, audienceType);
             const active = chatIds.includes(a.id) && !reason;
+            // กลุ่มที่ตัดสินจากการซื้อ + ติ๊กลูกค้าในระบบอยู่แล้ว = ติ๊กแชทเพิ่มไม่ได้คนใหม่
+            // (เจ้าของติ๊ก LINE แล้วยอดไม่ขยับ 13 ก.ย. 2026 — ต้องบอกไว้ตรงการ์ด ไม่ใช่ให้เดา)
+            const counted = includeCustomers && PURCHASED_AUDIENCE_KEYS.has(audienceType);
             const note = reason
               || (a.platform === 'line'
-                ? `${BROADCAST_PLATFORMS.line.label} · ${LINE_NOTE}`
-                : BROADCAST_PLATFORMS[a.platform].label);
+                ? `${BROADCAST_PLATFORMS.line.label} · ${counted ? COUNTED_NOTE : LINE_NOTE}`
+                : `${BROADCAST_PLATFORMS[a.platform].label}${counted ? ` · ${COUNTED_NOTE}` : ''}`);
             return (
               <Checkbox
                 key={a.id}

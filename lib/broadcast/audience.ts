@@ -267,6 +267,14 @@ export function commonAudienceOptions(platforms: BroadcastPlatform[]): AudienceO
  * (lib/audiences/resolve.ts import ตัวนี้ไปตรวจ definition) · ที่ไม่มีคือกลุ่มที่ต้องรู้ว่า
  * "ใครทักมา" (`contacts` `contacts_pick` `ads_not_bought`) และ `all` ของ LINE
  */
+/**
+ * กลุ่มที่ตัดสินจาก "เคยซื้อ" — คนจากห้องแชทจะเข้าเงื่อนไขได้ต่อเมื่อห้องนั้นผูกกับข้อมูลลูกค้าแล้ว
+ * ⇒ ติ๊กแหล่งแชทเพิ่มตอนที่ติ๊ก "ลูกค้าในระบบ" อยู่แล้ว จะไม่ได้คนใหม่ (นับผ่านลูกค้าไปแล้ว)
+ */
+export const PURCHASED_AUDIENCE_KEYS: ReadonlySet<string> = new Set([
+  'bought', 'bought_within', 'bought_before', 'bought_once',
+]);
+
 export const CUSTOMER_SOURCE_AUDIENCE_KEYS: ReadonlySet<string> = new Set([
   'not_bought', 'bought', 'bought_before', 'bought_within', 'bought_once', 'tags',
 ]);
