@@ -12,7 +12,7 @@ paths:
 
 ## หน้ารายการ (แท็บสินค้าคงคลัง) — RPC `get_inventory_list` รอบเดียวจบ
 
-- `GET /api/inventory?view=list` → RPC `get_inventory_list(company, page, limit, search, warehouse_ids[], category, brand, supplier, status, sort_by, sort_asc)` คืน `{items, total, status_counts}` · **path เดิม** `?warehouse_id=&limit=9999` / `?dealer_id=` ยังใช้โดยฟอร์มรับ/เบิก/โอน/PO/OrderForm 14 จุด (RPC `get_inventory_filtered`) — ห้ามแตะจนกว่าจะย้ายครบ (Phase 4–5)
+- `GET /api/inventory?view=list` → RPC `get_inventory_list(company, page, limit, search, warehouse_ids[], category, brand, supplier, status, sort_by, sort_asc)` คืน `{items, total, status_counts}` · **path เดิม** `?warehouse_id=` / `?dealer_id=` (OrderForm สลับคลัง · ReplenishmentForm · หน้า PO · รายงานตัวแทน/ห้าง · DealerOrderForm) = `inventoryScopeView`: อ่าน `inventory` ของคลังที่ขอทั้งหมดผ่าน `fetchAllRows` รวมต่อตัวเลือก คืนแค่ `variation_id · quantity · reserved_quantity · available · in_transit_quantity` (+ `consign_breakdown` เมื่อเป็นตัวแทน) **ไม่มีข้อมูลสินค้า** · ไม่ส่งทั้งสอง = 400 · RPC `get_inventory_filtered` / `get_inventory_by_warehouse` / view `inventory_summary` ลบแล้ว (Phase 5)
 - **แถว = 1 ตัวเลือก รวมทุกคลังในขอบเขต** (`p_warehouse_ids` null = ทุกคลัง · ตัวแทน = คลัง consignment ทุกใบของลูกค้า) · ตัดสินค้าชุดออก (ชุดย่อยไม่มีสต็อกของตัวเอง) · ตัวเลือกที่ถูกลบ/ปิด และสินค้าปิด ไม่แสดง
 - `by_warehouse` ของแต่ละแถว = **ทุกคลังที่มีของจริง ไม่ตัดตามตัวกรอง** (กล่อง "แยกคลัง" ต้องบอกว่าของอยู่ไหนบ้าง) · `in_transit` มาจากคอลัมน์ `inventory.in_transit_quantity` ที่ stock-service ดูแล ส่วน `in_transit_breakdown` รายตัวแทนมาจากใบเติมของสถานะ `shipped` (สองค่านี้ต่างกันได้เล็กน้อย)
 - **สถานะ** (ตัดสินจากยอดในขอบเขตคลังที่เลือก · `available = quantity − reserved`):
@@ -56,5 +56,5 @@ paths:
 - กรอง/แบ่งหน้า/นับ **ที่ DB เสมอ** — ห้าม `filter()`/`slice()` รายการใน client (เคยทำให้แท็บสถานะกรองแค่ 20 แถวที่โหลด)
 - ตาราง = `DataTable` + `StatusTabs` + `SearchInput`/`FormSelect` · tooltip ตัวเลข = `HelpHint portal` · เมนูแถว = `ActionMenu` · แก้ค่าที่แก้บ่อย (Min) inline ในคอลัมน์ + หลายแถวผ่าน `BulkActionBar`
 - ตัวกรอง/แท็บ/หน้า อยู่ใน URL (`?tab=&q=&wh=&status=&page=` …) — ลิงก์จากแถวสต็อกไปประวัติ = `?tab=history&variation=<id>`
-- เลือกสินค้าในฟอร์ม = `ProductSearchInput` โหมด server (`useServerSearch` + `/api/products/search`) · ยอดคงเหลือของบรรทัดที่เลือกผ่าน `get_variation_stock` — ⛔ ห้าม `?limit=9999` โหลดทั้งคลัง (เพดาน 1,000 แถว)
+- เลือกสินค้าในฟอร์ม = `ProductSearchInput` โหมด server (`useServerSearch` + `/api/products/search`) · ยอดคงเหลือของบรรทัดที่เลือกผ่าน `GET /api/inventory/stock` (`get_variation_stock`) — ⛔ ห้าม `?limit=9999` (route เพิกเฉย limit แล้ว คืนครบผ่าน `fetchAllRows`) · ตารางร้อน (`product_variations` · `inventory` · `products`) ตั้ง autovacuum scale 5% ไว้แล้ว
 - AdjustStockModal รับ `by_warehouse` จากแถว ไม่โหลดคลังเพื่อหายอดตัวเดียว · โพสต์ `POST /api/inventory {warehouse_id, variation_id, new_quantity, notes}`

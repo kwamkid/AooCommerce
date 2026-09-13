@@ -176,7 +176,7 @@ export default function DashboardPage() {
             value={`${stats?.lowStockCount || 0} รายการ`}
             icon={AlertTriangle}
             color="red"
-            onClick={() => router.push('/inventory?low_stock=true')}
+            onClick={() => router.push('/inventory?status=low')}
           />
         )}
       </div>
