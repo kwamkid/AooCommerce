@@ -14,14 +14,16 @@ import {
   type FeatureFlags, PRESET_DEFAULTS, PRESET_LABELS, PRESET_DESCRIPTIONS, detectPreset, type BusinessPreset,
   type DeliveryFieldMode, DELIVERY_FIELD_MODE_LABELS, DELIVERY_FIELD_MODE_HINTS, deliveryFieldMode, deliveryFieldFromMode,
 } from '@/lib/features';
-import { CalendarDays, ShoppingCart, Monitor, Handshake, Tag, Factory, PackageCheck, ChevronDown, ChevronUp, Loader2, CreditCard, Truck, Store, Layers, Users, Warehouse, Building, Lock, MapPin, Clock } from 'lucide-react';
+import { CalendarDays, ShoppingCart, Monitor, Handshake, Tag, Factory, PackageCheck, Loader2, CreditCard, Truck, Store, Layers, Users, Warehouse, Building, Lock, MapPin, Clock } from 'lucide-react';
 import { featureLockReason, type PackageGates } from '@/lib/package-features';
 import FilterChips, { FILTER_CHIP_PRIMARY_ACTIVE, type FilterChip } from '@/components/ui/FilterChips';
 import { type BrandGpRow } from '@/components/customers/BrandGpCommissions';
 import GpOverridePanel from '@/components/customers/GpOverridePanel';
 import Toggle from '@/components/ui/Toggle';
+import Card from '@/components/ui/Card';
+import ToggleCard from '@/components/ui/ToggleCard';
 import NumberInput from '@/components/ui/NumberInput';
-import { LoadingCard, NoPermissionCard } from '@/components/ui/StateCard';
+import { NoPermissionCard } from '@/components/ui/StateCard';
 import StickyActionBar from '@/components/ui/StickyActionBar';
 import { InfoChip } from '@/components/ui/StatusBadge';
 
@@ -300,53 +302,26 @@ export default function FeaturesPage() {
               const hasInlineSettings = feat.key === 'consignment' && isEnabled;
               const hasExpandable = hasInlineSettings;
 
+              // สวิตช์เปลี่ยนแค่ state ในหน้า — บันทึกจริงที่ปุ่มด้านล่าง
               return (
-                <div
+                <ToggleCard
                   key={feat.key}
-                  className={`card card-p-md transition-all ${isEnabled ? 'ring-1 ring-primary/20' : ''} ${isLocked ? 'opacity-70' : ''}`}
+                  icon={feat.icon}
+                  iconClass={isEnabled ? feat.color : 'text-gray-400 dark:text-slate-500'}
+                  title={feat.label}
+                  description={isLocked ? lockReason : feat.description}
+                  badge={isLocked ? (
+                    <InfoChip className="border" colors="bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 border-amber-200 dark:border-amber-900/50" icon={<Lock className="w-3 h-3" />}>ต้องอัปเกรด</InfoChip>
+                  ) : undefined}
+                  checked={isEnabled}
+                  onChange={() => toggleFeature(feat.key)}
+                  disabled={!isOwnerOrAdmin || isLocked}
+                  highlight
+                  className={isLocked ? 'opacity-70' : ''}
+                  open={hasExpandable ? isOpen : undefined}
+                  onOpenChange={hasExpandable ? (v) => setOpenSection(v ? feat.key : null) : undefined}
                 >
-                  {/* Row: icon + label + toggle */}
-                  <div className="flex items-center gap-4">
-                    <div className={`flex-shrink-0 ${isEnabled ? feat.color : 'text-gray-400 dark:text-slate-500'}`}>
-                      {feat.icon}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <p className={`text-base font-medium ${isEnabled ? 'text-gray-900 dark:text-white' : 'text-gray-700 dark:text-slate-300'}`}>
-                          {feat.label}
-                        </p>
-                        {isLocked && (
-                          <InfoChip className="border" colors="bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 border-amber-200 dark:border-amber-900/50" icon={<Lock className="w-3 h-3" />}>ต้องอัปเกรด</InfoChip>
-                        )}
-                      </div>
-                      <p className="text-sm text-gray-500 dark:text-slate-400">
-                        {isLocked ? lockReason : feat.description}
-                      </p>
-                    </div>
-
-                    {/* Expand button (only when enabled + has settings) */}
-                    {hasExpandable && (
-                      <button
-                        type="button"
-                        onClick={() => setOpenSection(isOpen ? null : feat.key)}
-                        className="flex-shrink-0 p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-400 transition-colors"
-                      >
-                        {isOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                      </button>
-                    )}
-
-                    {/* Toggle — local state only, save happens via the "บันทึก" button at the bottom */}
-                    <span title={isLocked ? lockReason : undefined} className="flex-shrink-0">
-                      <Toggle
-                        checked={isEnabled}
-                        onChange={() => toggleFeature(feat.key)}
-                        disabled={!isOwnerOrAdmin || isLocked}
-                      />
-                    </span>
-                  </div>
-
-                  {/* Expandable: consignment settings */}
-                  {hasInlineSettings && isOpen && (
+                  {hasInlineSettings ? (
                     <ConsignmentSettingsPanel
                       settings={consignmentSettings}
                       onChange={(patch) => setConsignmentSettings(prev => ({ ...prev, ...patch }))}
@@ -354,8 +329,8 @@ export default function FeaturesPage() {
                       onBrandGpRowsChange={setBrandGpRows}
                       isOwnerOrAdmin={isOwnerOrAdmin}
                     />
-                  )}
-                </div>
+                  ) : undefined}
+                </ToggleCard>
               );
             })}
 
@@ -371,7 +346,7 @@ export default function FeaturesPage() {
 
               {/* RIGHT: Preset selector — 40% */}
               <div className="sticky top-4 flex flex-col gap-3" style={{ width: '40%', flexShrink: 0 }}>
-                <div className="card card-p-md">
+                <Card>
                   <p className="text-base font-semibold text-gray-900 dark:text-white mb-0.5">รูปแบบธุรกิจ</p>
                   <p className="text-sm text-gray-500 dark:text-slate-400 mb-4">เลือก preset เพื่อตั้งค่า features ทีเดียว หรือปรับแต่งเองทางซ้าย</p>
                   <div className="flex flex-col gap-2">
@@ -423,7 +398,7 @@ export default function FeaturesPage() {
                   {detectPreset(featureFlags) === null && (
                     <p className="mt-3 text-xs text-amber-600 dark:text-amber-400">* ปรับแต่งเอง — ไม่ตรงกับ preset ใดๆ</p>
                   )}
-                </div>
+                </Card>
               </div>
 
             </div>{/* end flex */}
@@ -478,7 +453,8 @@ function ConsignmentSettingsPanel({
   isOwnerOrAdmin: boolean;
 }) {
   return (
-    <div className="mt-4 pt-4 border-t border-gray-100 dark:border-slate-700 space-y-4">
+    // เส้นคั่น + ระยะห่างจากหัวการ์ด เป็นของ ToggleCard แล้ว ที่นี่เหลือแค่ระยะระหว่างบล็อก
+    <div className="space-y-4">
 
       {/* GP% section — default + brand breakdown together */}
       <GpOverridePanel
@@ -642,7 +618,7 @@ function DeliveryFieldsCard({
   };
 
   return (
-    <div className={`card card-p-md transition-all ${anyOn ? 'ring-1 ring-primary/20' : ''}`}>
+    <Card className={`transition-all ${anyOn ? 'ring-1 ring-primary/20' : ''}`}>
       <div className="flex items-center gap-4">
         <div className={`flex-shrink-0 ${anyOn ? 'text-blue-600' : 'text-gray-400 dark:text-slate-500'}`}>
           <Truck className="w-5 h-5" />
@@ -696,6 +672,6 @@ function DeliveryFieldsCard({
           locked={!!zoneLock}
         />
       </div>
-    </div>
+    </Card>
   );
 }
