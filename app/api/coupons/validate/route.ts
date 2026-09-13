@@ -59,6 +59,10 @@ export async function POST(req: NextRequest) {
         name: coupon.name ?? null,
         discount_type: coupon.discount_type,
         discount_value: coupon.discount_value,
+        // ผู้เรียกคิดส่วนลดใหม่เองได้เมื่อตะกร้าเปลี่ยน (ผ่าน computeCouponDiscount ตัวเดียวกัน)
+        // โดยไม่ต้องยิงตรวจซ้ำทุกครั้งที่กด +/− — เซิร์ฟเวอร์ยังตรวจจริงอีกรอบตอนสร้างบิล
+        max_discount: coupon.max_discount,
+        min_spend: coupon.min_spend,
       },
     });
   } catch (err) {

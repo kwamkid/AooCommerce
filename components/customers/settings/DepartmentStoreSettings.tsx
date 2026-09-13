@@ -10,7 +10,7 @@ export default function DepartmentStoreSettings({ saleType }: Props) {
   const isConsignment = saleType === 'consignment';
 
   return (
-    <div className="card border border-purple-200 dark:border-purple-800/50">
+    <div className="card card-p-md border border-purple-200 dark:border-purple-800/50">
       <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white flex items-center gap-2">
         <Store className="w-5 h-5 text-purple-600" />
         ตั้งค่าห้าง

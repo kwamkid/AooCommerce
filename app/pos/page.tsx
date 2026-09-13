@@ -8,6 +8,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { useCompany } from '@/lib/company-context';
+import { useToast } from '@/lib/toast-context';
 import { useAuthGuard } from '@/lib/useAuthGuard';
 import { apiFetch } from '@/lib/api-client';
 import { ArrowLeft, Clock, ListOrdered } from 'lucide-react';
@@ -47,6 +48,7 @@ export default function PosPage() {
   const { allowed, loading: permLoading } = useAuthGuard('pos.sell');
   const { loading: authLoading, userProfile } = useAuth();
   const { currentCompany } = useCompany();
+  const { showToast } = useToast();
 
   const saleScreenRef = useRef<PosSaleScreenHandle>(null);
 
@@ -153,34 +155,39 @@ export default function PosPage() {
           })),
           payments: tenders,
           discount_amount: checkout.orderDiscountAmount,
+          // เซิร์ฟเวอร์ตรวจโค้ดและคิดส่วนลดเองอีกรอบ — ค่าที่ส่งมาข้างบนถูกทับเมื่อมีโค้ด
+          coupon_code: checkout.couponCode,
         }),
       });
 
       const data = await res.json();
-      if (res.ok && data.order) {
-        setCheckout(null);
-
-        // Clear cart immediately after successful payment
-        saleScreenRef.current?.clearCart();
-        setSelectedCustomer(null);
-
-        // Fetch receipt data
-        const receiptRes = await apiFetch(`/api/pos/receipt?order_id=${data.order.id}`);
-        const receiptJson = await receiptRes.json();
-        if (receiptJson.receipt) {
-          // Add change amount from cash tenders
-          const changeAmount = tenders.reduce((s, t) => s + (t.change_amount || 0), 0);
-          setReceiptData({ ...receiptJson.receipt, change_amount: changeAmount });
-        }
-
-        // Refresh session totals
-        const sessRes = await apiFetch('/api/pos/sessions?status=open');
-        const sessData = await sessRes.json();
-        if (sessData.sessions?.[0]) setSession(sessData.sessions[0]);
-
-        // Refresh products (stock changed)
-        saleScreenRef.current?.refreshProducts();
+      if (!res.ok || !data.order) {
+        // เดิมล้มเหลวแล้วเงียบสนิท — โค้ดหมดอายุ/ยอดไม่ถึงขั้นต่ำจะดูเหมือนปุ่มค้าง
+        showToast(data?.error || 'บันทึกการขายไม่สำเร็จ', 'error');
+        return;
       }
+      setCheckout(null);
+
+      // Clear cart immediately after successful payment
+      saleScreenRef.current?.clearCart();
+      setSelectedCustomer(null);
+
+      // Fetch receipt data
+      const receiptRes = await apiFetch(`/api/pos/receipt?order_id=${data.order.id}`);
+      const receiptJson = await receiptRes.json();
+      if (receiptJson.receipt) {
+        // Add change amount from cash tenders
+        const changeAmount = tenders.reduce((s, t) => s + (t.change_amount || 0), 0);
+        setReceiptData({ ...receiptJson.receipt, change_amount: changeAmount });
+      }
+
+      // Refresh session totals
+      const sessRes = await apiFetch('/api/pos/sessions?status=open');
+      const sessData = await sessRes.json();
+      if (sessData.sessions?.[0]) setSession(sessData.sessions[0]);
+
+      // Refresh products (stock changed)
+      saleScreenRef.current?.refreshProducts();
     } catch {}
     setPaymentLoading(false);
   };
@@ -272,6 +279,8 @@ export default function PosPage() {
         onOpenCustomerSearch={() => setShowCustomerSearch(true)}
         onCheckout={setCheckout}
         vatRegistered={currentCompany?.vat_registered || false}
+        couponChannel="pos"
+        customerId={selectedCustomer?.id || null}
       />
 
       {/* Modals */}

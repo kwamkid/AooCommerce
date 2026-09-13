@@ -1,7 +1,7 @@
 // Path: components/pos/CartPanel.tsx
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, type ReactNode } from 'react';
 import { Minus, Plus, Trash2, User, Tag } from 'lucide-react';
 import { formatPrice } from '@/lib/utils/format';
 import Button from '@/components/ui/Button';
@@ -53,6 +53,12 @@ interface CartPanelProps {
   onCheckout: () => void;
   allowOversell: boolean;
   vatRegistered?: boolean;
+  /** แถวคูปอง (ปุ่มใส่โค้ด / โค้ดที่ใช้อยู่) — ผู้เรียกวาดมาให้ · ไม่ส่ง = ช่องทางนี้ใช้คูปองไม่ได้ */
+  couponSlot?: ReactNode;
+  /** ส่วนลดจากคูปอง — **แทนที่** ส่วนลดทั้งบิลที่พิมพ์มือ (เซิร์ฟเวอร์คิดแบบเดียวกัน) */
+  couponDiscount?: number;
+  /** โค้ดที่ใช้อยู่ — โชว์ในแถวส่วนลดให้แคชเชียร์เห็นว่ายอดนี้มาจากโค้ดไหน */
+  couponCode?: string | null;
 }
 
 function getLineTotal(item: CartItem): number {
@@ -162,13 +168,21 @@ export default function CartPanel({
   onCheckout,
   allowOversell,
   vatRegistered = false,
+  couponSlot,
+  couponDiscount = 0,
+  couponCode = null,
 }: CartPanelProps) {
   const itemsSubtotal = items.reduce((s, i) => s + getLineTotal(i), 0);
-  const orderDiscountAmount = orderDiscountType === 'percent'
+  const typedDiscountAmount = orderDiscountType === 'percent'
     ? Math.round(itemsSubtotal * (orderDiscount / 100) * 100) / 100
     : orderDiscount;
+  // มีคูปอง = ยอดของคูปอง **แทนที่** ส่วนลดที่พิมพ์มือ — กติกาเดียวกับ /api/pos/orders
+  // ที่ตรวจโค้ดเองแล้วทับค่าที่ส่งมา · ถ้าบวกกันตรงนี้ จอกับเซิร์ฟเวอร์จะคิดคนละยอด
+  // แล้วแคชเชียร์จะรับเงินผิด
+  const hasCoupon = couponDiscount > 0;
+  const orderDiscountAmount = hasCoupon ? couponDiscount : typedDiscountAmount;
   // ยอดบนตะกร้าต้องเท่ากับยอดที่ /api/pos/orders บันทึก → ใช้สูตรกลางตัวเดียวกัน
-  const { subtotal: subtotalBeforeVAT, vatAmount, totalAmount: totalWithVAT } = computeOrderTotals({
+  const { vatAmount, totalAmount: totalWithVAT } = computeOrderTotals({
     itemsTotal: itemsSubtotal,
     discountAmount: orderDiscountAmount,
     vatRegistered,
@@ -293,6 +307,7 @@ export default function CartPanel({
           <div className="flex items-stretch ml-auto">
             <NumberInput
               value={orderDiscount}
+              disabled={hasCoupon}
               onChange={(n) => {
                 let v = Math.max(0, n);
                 if (orderDiscountType === 'percent') v = Math.min(v, 100);
@@ -300,22 +315,25 @@ export default function CartPanel({
                 onUpdateOrderDiscount(v);
               }}
               placeholder="0"
-              className="w-20 px-2 py-1 bg-gray-50 dark:bg-white/5 border border-gray-300 dark:border-gray-700 rounded-l text-gray-900 dark:text-white text-xs text-right placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-primary"
+              title={hasCoupon ? 'ใช้โค้ดอยู่ — เอาโค้ดออกก่อนถึงจะลดมือได้' : undefined}
+              className="w-20 px-2 py-1 bg-gray-50 dark:bg-white/5 border border-gray-300 dark:border-gray-700 rounded-l text-gray-900 dark:text-white text-xs text-right placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-40 disabled:cursor-not-allowed"
               min="0"
             />
             <button
+              disabled={hasCoupon}
               onClick={() => {
                 const newType = orderDiscountType === 'percent' ? 'amount' : 'percent';
                 onUpdateOrderDiscountType(newType);
                 onUpdateOrderDiscount(0);
               }}
-              className="px-2.5 border border-l-0 border-gray-300 dark:border-gray-700 rounded-r bg-gray-100 dark:bg-white/10 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-white/20 text-xs font-bold min-w-[28px] flex items-center justify-center"
-              title="สลับประเภทส่วนลด"
+              className="px-2.5 border border-l-0 border-gray-300 dark:border-gray-700 rounded-r bg-gray-100 dark:bg-white/10 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-white/20 text-xs font-bold min-w-[28px] flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed"
+              title={hasCoupon ? 'ใช้โค้ดอยู่ — เอาโค้ดออกก่อนถึงจะลดมือได้' : 'สลับประเภทส่วนลด'}
             >
               {orderDiscountType === 'percent' ? '%' : '฿'}
             </button>
           </div>
         </div>
+        {couponSlot}
       </div>
 
       {/* Totals */}
@@ -326,7 +344,9 @@ export default function CartPanel({
         </div>
         {orderDiscountAmount > 0 && (
           <div className="flex justify-between text-sm">
-            <span className="text-gray-500 dark:text-gray-400">ส่วนลด</span>
+            <span className="text-gray-500 dark:text-gray-400">
+              ส่วนลด{hasCoupon && couponCode ? ` (โค้ด ${couponCode})` : ''}
+            </span>
             <span className="text-red-500 dark:text-red-400">-฿{formatPrice(orderDiscountAmount)}</span>
           </div>
         )}

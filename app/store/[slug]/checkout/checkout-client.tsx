@@ -211,6 +211,14 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
+  // โค้ดส่วนลด — ตรวจกับเซิร์ฟเวอร์ก่อนเพื่อให้ลูกค้าเห็นยอดลดในกล่องสรุป
+  // ยอดจริงคิดใหม่ทั้งหมดที่ /api/storefront/checkout ตอนสั่งซื้อเสมอ (ตรงนี้เป็นแค่พรีวิว)
+  // เก็บ subtotal ตอนที่ตรวจผ่านไว้ด้วย — ถ้าตะกร้าเปลี่ยนทีหลัง ส่วนลดที่โชว์จะไม่ใช่ของจริงแล้ว
+  const [couponInput, setCouponInput] = useState('');
+  const [couponApplied, setCouponApplied] = useState<{ code: string; discount: number; subtotal: number } | null>(null);
+  const [couponChecking, setCouponChecking] = useState(false);
+  const [couponError, setCouponError] = useState('');
+
   // ค้นหาตำบล/อำเภอ/จังหวัดจากคำเดียว — กรอกที่อยู่ไทยให้เร็วและถูกต้อง
   const addressSuggestions = useMemo(
     () => (addressQuery.trim().length >= 2 ? searchAddress(addressQuery.trim(), undefined, 8) : []),
@@ -327,7 +335,45 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
   const needsQuote = options?.zone?.needs_quote ?? false;
   const outOfArea = !!options?.zone_required && hasArea && !options?.zone && !loadingOptions;
   const cardFee = cardOn && giftMessage.trim() ? giftCardFee : 0;
-  const total = subtotal + shippingFee + cardFee;
+  const couponStale = !!couponApplied && couponApplied.subtotal !== subtotal;
+  const couponDiscount = couponApplied && !couponStale ? couponApplied.discount : 0;
+  const total = Math.max(0, subtotal + shippingFee + cardFee - couponDiscount);
+
+  const applyCoupon = async () => {
+    const code = couponInput.trim().toUpperCase() || couponApplied?.code || '';
+    if (!code) return;
+    setCouponChecking(true);
+    setCouponError('');
+    try {
+      const res = await fetch('/api/storefront/coupon', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          shop,
+          code,
+          items: lines.map(l => ({ variation_id: l.variation_id, quantity: l.quantity })),
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!data?.ok) {
+        setCouponApplied(null);
+        setCouponError(typeof data?.reason === 'string' ? data.reason : 'ใช้โค้ดนี้ไม่ได้');
+        return;
+      }
+      setCouponApplied({ code: data.code || code, discount: data.discount, subtotal });
+      setCouponInput('');
+    } catch {
+      setCouponError('ตรวจโค้ดไม่สำเร็จ กรุณาลองใหม่');
+    } finally {
+      setCouponChecking(false);
+    }
+  };
+
+  const clearCoupon = () => {
+    setCouponApplied(null);
+    setCouponInput('');
+    setCouponError('');
+  };
 
   const submit = async () => {
     setError('');
@@ -373,6 +419,8 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
           tax_id: taxId,
           tax_branch: taxBranch.trim(),
           tax_address: taxAddress.trim(),
+          // ส่งโค้ดไปแม้ยอดบนจอจะยังไม่อัปเดต — เซิร์ฟเวอร์คิดส่วนลดจากตะกร้าจริงให้อยู่แล้ว
+          coupon_code: couponApplied?.code || '',
         }),
       });
       const data = await res.json();
@@ -764,8 +812,56 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
             </div>
           )}
 
+          {couponDiscount > 0 && couponApplied && (
+            <div className="sf-summary-row">
+              <span>ส่วนลด (โค้ด {couponApplied.code})</span>
+              <span style={{ color: '#dc2626' }}>-{formatStorePrice(couponDiscount)}</span>
+            </div>
+          )}
+
           <div className="sf-summary-row sf-summary-total">
             <span>รวมทั้งสิ้น</span><span>{formatStorePrice(total)}</span>
+          </div>
+
+          {/* โค้ดส่วนลด — ถามทีหลังยอดรวม ลูกค้าที่ไม่มีโค้ดจะได้ไม่รู้สึกว่าพลาดอะไรไป */}
+          <div style={{ marginTop: 10 }}>
+            {couponApplied && !couponStale ? (
+              <div className="sf-summary-row">
+                <span style={{ color: '#059669' }}>ใช้โค้ด {couponApplied.code} แล้ว</span>
+                <button
+                  type="button"
+                  onClick={clearCoupon}
+                  style={{ background: 'none', border: 0, padding: 0, textDecoration: 'underline', cursor: 'pointer', color: 'var(--sf-muted)', fontSize: 14 }}
+                >
+                  เอาออก
+                </button>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input
+                  className="sf-input"
+                  value={couponInput}
+                  onChange={e => { setCouponInput(e.target.value.toUpperCase()); setCouponError(''); }}
+                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); applyCoupon(); } }}
+                  placeholder={couponStale ? couponApplied!.code : 'โค้ดส่วนลด (ถ้ามี)'}
+                  aria-label="โค้ดส่วนลด"
+                  style={{ flex: 1, minWidth: 0 }}
+                />
+                <button
+                  type="button"
+                  className="sf-btn-ghost"
+                  onClick={applyCoupon}
+                  disabled={couponChecking || (!couponInput.trim() && !couponStale)}
+                  style={{ flexShrink: 0, opacity: couponChecking || (!couponInput.trim() && !couponStale) ? 0.5 : 1 }}
+                >
+                  {couponChecking ? 'กำลังตรวจ…' : 'ใช้โค้ด'}
+                </button>
+              </div>
+            )}
+            {couponStale && (
+              <p className="sf-hint">ตะกร้าเปลี่ยนแล้ว — กด “ใช้โค้ด” อีกครั้งเพื่อคิดส่วนลดใหม่</p>
+            )}
+            {couponError && <p className="sf-error">{couponError}</p>}
           </div>
 
           {options?.zone?.free_over != null && !options.zone.free_applied && !needsQuote && (

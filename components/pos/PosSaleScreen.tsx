@@ -11,6 +11,10 @@ import {
 import { ShoppingCart, Package, AlertTriangle, CheckCircle, X } from 'lucide-react';
 import { apiFetch } from '@/lib/api-client';
 import { calculateQtyDiscount, type PromotionTier } from '@/lib/promotions';
+import { computeCouponDiscount, type CouponChannel, type CouponDiscountType } from '@/lib/coupons';
+import { useToast } from '@/lib/toast-context';
+import { formatPrice } from '@/lib/utils/format';
+import Button from '@/components/ui/Button';
 import PromotionSelectModal, { type PromoData, type PromoItemData, type PromotionSelectResult } from '@/components/ui/PromotionSelectModal';
 import ProductGrid, { PosProduct } from './ProductGrid';
 import CategoryTabs from './CategoryTabs';
@@ -28,6 +32,17 @@ export interface CheckoutPayload {
   itemsSubtotal: number;
   orderDiscountAmount: number;
   totalAmount: number;
+  /** โค้ดที่แคชเชียร์กรอก — ส่งต่อให้ API ตรวจและคิดส่วนลดใหม่เอง (null = ไม่ได้ใช้โค้ด) */
+  couponCode: string | null;
+}
+
+/** คูปองที่ตรวจผ่านแล้ว — เก็บกติกาพอให้คิดส่วนลดใหม่เองเมื่อตะกร้าเปลี่ยน */
+interface AppliedCoupon {
+  code: string;
+  discount_type: CouponDiscountType;
+  discount_value: number;
+  max_discount: number | null;
+  min_spend: number;
 }
 
 export interface PosSaleScreenHandle {
@@ -50,12 +65,20 @@ interface PosSaleScreenProps {
   enablePromotions?: boolean;
   /** Extra query params appended to /api/pos/products (e.g. counter_id for stock overlay) */
   extraProductParams?: Record<string, string>;
+  /**
+   * ช่องทางของคูปอง — ไม่ส่ง = ไม่มีช่องกรอกโค้ดเลย
+   * (จอ PC ไม่ส่ง เพราะยอดลง `counter_sales` ไม่ได้สร้างบิลจริง จึงตัดสิทธิ์คูปองไม่ได้)
+   */
+  couponChannel?: CouponChannel;
+  /** ลูกค้าที่เลือกอยู่ — คูปองเฉพาะคนต้องรู้ว่าเป็นของใคร */
+  customerId?: string | null;
 }
 
 const PosSaleScreen = forwardRef<PosSaleScreenHandle, PosSaleScreenProps>(function PosSaleScreen(
-  { warehouseId, topBar, customerName, onOpenCustomerSearch, onCheckout, vatRegistered, enablePromotions = true, extraProductParams },
+  { warehouseId, topBar, customerName, onOpenCustomerSearch, onCheckout, vatRegistered, enablePromotions = true, extraProductParams, couponChannel, customerId = null },
   ref,
 ) {
+  const { showToast } = useToast();
   // Products & Promotions
   const [products, setProducts] = useState<PosProduct[]>([]);
   const [promotions, setPromotions] = useState<any[]>([]);
@@ -71,6 +94,13 @@ const PosSaleScreen = forwardRef<PosSaleScreenHandle, PosSaleScreenProps>(functi
   const [promoModal, setPromoModal] = useState<{ promo: PromoData } | null>(null);
   const [orderDiscount, setOrderDiscount] = useState(0);
   const [orderDiscountType, setOrderDiscountType] = useState<'percent' | 'amount'>('amount');
+
+  // คูปอง — เก็บกติกาของใบที่ตรวจผ่านไว้ แล้วคิดส่วนลดใหม่เองทุกครั้งที่ตะกร้าเปลี่ยน
+  // ด้วยสูตรกลางตัวเดียวกับเซิร์ฟเวอร์ (lib/coupons.ts) จะได้ไม่ต้องยิงตรวจซ้ำทุกครั้งที่กด +/−
+  const [couponOpen, setCouponOpen] = useState(false);
+  const [couponInput, setCouponInput] = useState('');
+  const [couponChecking, setCouponChecking] = useState(false);
+  const [appliedCoupon, setAppliedCoupon] = useState<AppliedCoupon | null>(null);
 
   // Stock config
   const [allowOversell, setAllowOversell] = useState(true);
@@ -443,17 +473,69 @@ const PosSaleScreen = forwardRef<PosSaleScreenHandle, PosSaleScreenProps>(functi
     return sub - sub * ((item.discount_value || 0) / 100);
   };
   const itemsSubtotal = cartItems.reduce((s, i) => s + getLineTotal(i), 0);
-  const orderDiscountAmount = orderDiscountType === 'percent'
+  // เอาของออกหลังใส่โค้ดจนยอดต่ำกว่าขั้นต่ำ → ส่วนลดเป็น 0 ทันทีและขึ้นเตือน
+  // (เซิร์ฟเวอร์จะปฏิเสธด้วยเหตุผลเดียวกันตอนบันทึก — จอต้องไม่โชว์ส่วนลดที่จะไม่ได้จริง)
+  const couponBelowMin = !!appliedCoupon && itemsSubtotal < appliedCoupon.min_spend;
+  const couponDiscount = appliedCoupon && !couponBelowMin
+    ? computeCouponDiscount(appliedCoupon, itemsSubtotal)
+    : 0;
+  const typedDiscountAmount = orderDiscountType === 'percent'
     ? Math.round(itemsSubtotal * (orderDiscount / 100) * 100) / 100
     : orderDiscount;
+  // มีคูปอง = ใช้ยอดคูปองแทนส่วนลดมือ (กติกาเดียวกับ /api/pos/orders)
+  const orderDiscountAmount = couponDiscount > 0 ? couponDiscount : typedDiscountAmount;
   const totalAmount = itemsSubtotal - orderDiscountAmount;
 
   const clearCart = useCallback(() => {
     setCartItems([]);
     setOrderDiscount(0);
     setOrderDiscountType('amount');
+    setAppliedCoupon(null);
+    setCouponInput('');
+    setCouponOpen(false);
     setMobileTab('products');
   }, []);
+
+  const applyCoupon = async () => {
+    const code = couponInput.trim().toUpperCase();
+    if (!code || !couponChannel) return;
+    setCouponChecking(true);
+    try {
+      const res = await apiFetch('/api/coupons/validate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code, itemsTotal: itemsSubtotal, channel: couponChannel, customerId }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ok) {
+        showToast(typeof data.reason === 'string' ? data.reason : 'ใช้โค้ดนี้ไม่ได้', 'error');
+        return;
+      }
+      setAppliedCoupon({
+        code: data.coupon?.code || code,
+        discount_type: data.coupon?.discount_type,
+        discount_value: data.coupon?.discount_value || 0,
+        max_discount: data.coupon?.max_discount ?? null,
+        min_spend: data.coupon?.min_spend || 0,
+      });
+      // โค้ดแทนที่ส่วนลดมือ — ล้างค่าที่พิมพ์ไว้ ไม่ให้ค้างเป็นตัวเลขที่ไม่ถูกใช้
+      setOrderDiscount(0);
+      setOrderDiscountType('amount');
+      setCouponInput('');
+      setCouponOpen(false);
+      showToast(`ใช้โค้ด ${code} ลด ฿${formatPrice(data.discount)}`, 'success');
+    } catch {
+      showToast('ตรวจโค้ดไม่สำเร็จ', 'error');
+    } finally {
+      setCouponChecking(false);
+    }
+  };
+
+  const clearCoupon = () => {
+    setAppliedCoupon(null);
+    setCouponInput('');
+    setCouponOpen(false);
+  };
 
   useImperativeHandle(ref, () => ({
     clearCart,
@@ -526,9 +608,59 @@ const PosSaleScreen = forwardRef<PosSaleScreenHandle, PosSaleScreenProps>(functi
             onUpdateOrderDiscount={setOrderDiscount}
             onUpdateOrderDiscountType={setOrderDiscountType}
             onOpenCustomerSearch={onOpenCustomerSearch}
-            onCheckout={() => onCheckout({ items: cartItems, itemsSubtotal, orderDiscountAmount, totalAmount })}
+            onCheckout={() => onCheckout({
+              items: cartItems,
+              itemsSubtotal,
+              orderDiscountAmount,
+              totalAmount,
+              couponCode: couponDiscount > 0 && appliedCoupon ? appliedCoupon.code : null,
+            })}
             allowOversell={allowOversell}
             vatRegistered={vatRegistered}
+            couponDiscount={couponDiscount}
+            couponCode={appliedCoupon?.code ?? null}
+            couponSlot={!couponChannel ? undefined : appliedCoupon ? (
+              <div className="space-y-1">
+                <div className="flex items-center justify-between gap-2 text-sm">
+                  <span className="text-emerald-600 dark:text-emerald-400 truncate">โค้ด {appliedCoupon.code}</span>
+                  <button
+                    type="button"
+                    onClick={clearCoupon}
+                    className="text-xs text-gray-500 dark:text-gray-400 underline flex-shrink-0"
+                  >
+                    เอาออก
+                  </button>
+                </div>
+                {couponBelowMin && (
+                  <p className="text-xs text-amber-600 dark:text-amber-400">
+                    ยอดยังไม่ถึง ฿{formatPrice(appliedCoupon.min_spend)} — โค้ดนี้ยังใช้ไม่ได้
+                  </p>
+                )}
+              </div>
+            ) : couponOpen ? (
+              <div className="flex gap-2">
+                <input
+                  value={couponInput}
+                  onChange={(e) => setCouponInput(e.target.value.toUpperCase())}
+                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); applyCoupon(); } }}
+                  placeholder="โค้ดส่วนลด"
+                  aria-label="โค้ดส่วนลด"
+                  autoFocus
+                  className="flex-1 min-w-0 px-2 py-1 bg-gray-50 dark:bg-white/5 border border-gray-300 dark:border-gray-700 rounded text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+                <Button size="sm" variant="secondary" onClick={applyCoupon} loading={couponChecking} disabled={!couponInput.trim()}>
+                  ใช้โค้ด
+                </Button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setCouponOpen(true)}
+                className="text-sm text-primary hover:underline"
+              >
+                + ใช้คูปอง
+              </button>
+            )}
           />
         </div>
       </div>
