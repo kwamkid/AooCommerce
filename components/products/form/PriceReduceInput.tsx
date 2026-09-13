@@ -19,6 +19,10 @@ import NumberInput from '@/components/ui/NumberInput';
 import Tooltip from '@/components/ui/Tooltip';
 import { formatPrice } from '@/lib/utils/format';
 import { NO_REDUCE, type ReduceSpec, applyReduce, reduceSummary } from '@/lib/product-variants';
+import { FieldError, numberInputClass } from './parts';
+
+/** กรอบแดงของช่องในกล่อง — หน้าตาเดียวกับช่องฟอร์มสินค้าที่มี error */
+const INPUT_ERROR = numberInputClass(true);
 
 interface PriceReduceInputProps {
   /** discount_price ปัจจุบัน · 0 = ไม่มีส่วนลด */
@@ -85,7 +89,10 @@ export default function PriceReduceInput({
 
   const draftSpec: ReduceSpec = { mode: last, input: last === 'percent' ? pct : amt };
   const preview = hasBase ? applyReduce(base, draftSpec) : 0;
-  const canApply = draftSpec.input > 0 && (!hasBase || base > 0);
+  // ลดเกิน 100% / ลดบาทเกินราคาปกติ = ราคาติดลบหรือฟรี ไม่ใช่ส่วนลด (กติกา discount < default ของทั้งระบบ)
+  const pctError = pct >= 100 ? 'ลดได้ไม่ถึง 100%' : null;
+  const amtError = hasBase && base > 0 && amt >= base ? 'ลดได้ไม่ถึงราคาปกติ' : null;
+  const canApply = draftSpec.input > 0 && (!hasBase || base > 0) && !pctError && !amtError;
   const apply = () => {
     onChange(hasBase ? preview : 0, draftSpec);
     setOpen(false);
@@ -157,11 +164,28 @@ export default function PriceReduceInput({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="field-label">ลด (%)</label>
-              <NumberInput value={pct} onChange={changePct} min={0} max={100} placeholder="0" aria-label="ลดกี่เปอร์เซ็นต์" autoFocus />
+              <NumberInput
+                value={pct}
+                onChange={changePct}
+                min={0}
+                placeholder="0"
+                aria-label="ลดกี่เปอร์เซ็นต์"
+                autoFocus
+                className={pctError ? INPUT_ERROR : undefined}
+              />
+              <FieldError text={pctError} />
             </div>
             <div>
               <label className="field-label">ลดไป (บาท)</label>
-              <NumberInput value={amt} onChange={changeAmt} min={0} placeholder="0" aria-label="ลดไปกี่บาท" />
+              <NumberInput
+                value={amt}
+                onChange={changeAmt}
+                min={0}
+                placeholder="0"
+                aria-label="ลดไปกี่บาท"
+                className={amtError ? INPUT_ERROR : undefined}
+              />
+              <FieldError text={amtError} />
             </div>
           </div>
           {hasBase ? (
