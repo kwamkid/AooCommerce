@@ -80,35 +80,31 @@ function InventoryPageContent() {
           <>
             <Button
               variant="primary"
-              size="sm"
               icon={<ArrowDownToLine className="w-4 h-4" />}
               onClick={() => router.push('/inventory/receive')}
             >
-              <span className="hidden md:inline">รับเข้า</span>
+              รับเข้า
             </Button>
             <Button
               variant="secondary"
-              size="sm"
               icon={<ArrowUpFromLine className="w-4 h-4" />}
               onClick={() => router.push('/inventory/issue')}
             >
-              <span className="hidden md:inline">เบิกออก</span>
+              เบิกออก
             </Button>
             <Button
               variant="secondary"
-              size="sm"
               icon={<ArrowLeftRight className="w-4 h-4" />}
               onClick={() => router.push('/inventory/transfer')}
             >
-              <span className="hidden md:inline">โอนย้าย</span>
+              โอนย้าย
             </Button>
             <Button
               variant="secondary"
-              size="sm"
               icon={<FileSpreadsheet className="w-4 h-4" />}
               onClick={() => router.push('/inventory/bulk-stock-update')}
             >
-              <span className="hidden md:inline">Bulk</span>
+              อัปเดตแบบชุด
             </Button>
           </>
         }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { ChevronDown, Search, Check } from 'lucide-react';
 import { useDropUp } from '@/lib/useDropUp';
@@ -123,6 +123,27 @@ export default function FormSelect({
         width: rect.width,
       }
     : null;
+
+  // กล่องรายการกว้างตามข้อความ (w-max) จึงล้นขอบขวาจอได้เมื่อช่องอยู่ชิดขวา —
+  // วัดหลัง render (ก่อน paint) ถ้าล้นให้ชิดขอบขวาของช่องแทน · แก้ที่ DOM ตรง ๆ ไม่ใช่ state
+  // (กฎ react-hooks/set-state-in-effect ของโปรเจกต์) · วัดใหม่เมื่อพิมพ์ค้นเพราะรายการเปลี่ยนความกว้าง
+  useLayoutEffect(() => {
+    if (!open) return;
+    const dd = dropdownRef.current;
+    const trigger = containerRef.current;
+    if (!dd || !trigger) return;
+    const tr = trigger.getBoundingClientRect();
+    const w = dd.offsetWidth;
+    const edge = 8;
+    const overflowsRight = tr.left + w > window.innerWidth - edge;
+    if (portal) {
+      // portal: ตำแหน่งเป็น fixed left — เลื่อนซ้ายให้พอดีขอบขวาของช่อง (ไม่ต่ำกว่าขอบจอ)
+      dd.style.left = overflowsRight ? `${Math.max(edge, tr.right - w)}px` : `${tr.left}px`;
+    } else {
+      dd.style.left = overflowsRight ? 'auto' : '';
+      dd.style.right = overflowsRight ? '0' : '';
+    }
+  }, [open, portal, search]);
 
   // Close on outside scroll (dropdown would float detached from trigger), but
   // ignore scrolls inside the dropdown's own scrollable list.
