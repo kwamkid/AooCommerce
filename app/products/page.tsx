@@ -968,6 +968,7 @@ function ProductsPageContent() {
           src={row.v.image_url || null}
           alt={row.v.variation_label}
           size="sm"
+          ratio="auto"
           className="mx-auto"
           fallbackIcon={<Package2 className="w-4 h-4 text-gray-400" />}
         />
@@ -976,6 +977,7 @@ function ProductsPageContent() {
           src={row.product.main_image_url || getImageUrl(row.product.image)}
           alt={row.product.name}
           size="lg"
+          ratio="auto"
           fallbackIcon={<Package2 className="w-7 h-7 text-gray-400" />}
         />
       ),
@@ -1152,6 +1154,7 @@ function ProductsPageContent() {
             src={product.main_image_url || getImageUrl(product.image)}
             alt={product.name}
             size="lg"
+            ratio="auto"
             fallbackIcon={<Package2 className="w-6 h-6 text-gray-400" />}
           />
         </div>

@@ -17,7 +17,7 @@ export type ThumbSize = 'xs' | 'sm' | 'md' | 'lg';
  * หน้าร้านออนไลน์ (`storefront.image_ratio`) ใช้ชุดเดียวกันแล้ว (1:1 / 3:4 / auto)
  * — มาตรฐานเดียวทั้งระบบ ไม่ต้องเตรียมรูปคนละชุดสำหรับหน้าร้านกับ marketplace
  */
-export type ThumbRatio = 'square' | 'portrait';
+export type ThumbRatio = 'square' | 'portrait' | 'auto';
 
 const SIZE_CLASS: Record<ThumbRatio, Record<ThumbSize, string>> = {
   square: {
@@ -33,6 +33,22 @@ const SIZE_CLASS: Record<ThumbRatio, Record<ThumbSize, string>> = {
     md: 'w-12 h-16',
     lg: 'w-16 h-[5.333rem]',
   },
+  // auto — กว้างคงที่ สูงตามสัดส่วนจริงของรูป (ไม่มีแถบเทาบน/ล่าง) เพดานสูง = 3:4
+  // ใช้ในตารางรายการสินค้า/สต็อก (เจ้าของขอ 2026-09-13) · แถวสูงไม่เท่ากันได้ ยอมรับ
+  auto: {
+    xs: 'w-8',
+    sm: 'w-10',
+    md: 'w-12',
+    lg: 'w-16',
+  },
+};
+
+/** เพดานความสูงของรูปในโหมด auto (= กว้าง × 4/3 เท่ากรอบ portrait) — สูงกว่านี้ย่อลงให้พอดี */
+const AUTO_IMG_MAX: Record<ThumbSize, string> = {
+  xs: 'max-h-[2.667rem]',
+  sm: 'max-h-[3.333rem]',
+  md: 'max-h-16',
+  lg: 'max-h-[5.333rem]',
 };
 
 const FALLBACK_ICON_CLASS: Record<ThumbSize, string> = {
@@ -95,7 +111,9 @@ export default function ProductImageThumb({
   }
 
   const clickable = !disabled;
-  const frameClass = `relative ${sizeClass} rounded-md overflow-hidden flex-shrink-0 bg-gray-50 dark:bg-slate-700/50 ${className}`;
+  const isAuto = ratio === 'auto';
+  // auto: กรอบไม่มีพื้นเทา (ไม่มีที่ว่างให้เห็น) และไม่มี fixed height — <img> กำหนดความสูงเอง
+  const frameClass = `relative ${sizeClass} rounded-md overflow-hidden flex-shrink-0 ${isAuto ? '' : 'bg-gray-50 dark:bg-slate-700/50'} ${className}`;
   // object-contain ไม่ใช่ cover — รูปแนวตั้งต้องเห็นครบ ไม่ใช่ถูกครอปหัวท้าย
   // ของเก่าบางร้านอาจเป็นสัดส่วนอื่นที่ไม่ใช่ 1:1/3:4 กรอบจึงต้องรับได้โดยไม่ตัดทิ้ง
   const image = (
@@ -104,7 +122,7 @@ export default function ProductImageThumb({
       alt={alt}
       loading="lazy"
       decoding="async"
-      className="w-full h-full object-contain"
+      className={isAuto ? `block w-full h-auto ${AUTO_IMG_MAX[size]} object-contain` : 'w-full h-full object-contain'}
     />
   );
 

@@ -396,6 +396,7 @@ export default function StockTab({ warehouses, onViewHistory }: StockTabProps) {
           src={row.image_url}
           alt={row.product_name}
           size="lg"
+          ratio="auto"
           fallbackIcon={<Package2 className="w-7 h-7 text-gray-400" />}
         />
       ),
@@ -575,6 +576,7 @@ export default function StockTab({ warehouses, onViewHistory }: StockTabProps) {
         src={row.image_url}
         alt={row.product_name}
         size="lg"
+        ratio="auto"
         fallbackIcon={<Package2 className="w-6 h-6 text-gray-400" />}
       />
       <div className="flex-1 min-w-0">
