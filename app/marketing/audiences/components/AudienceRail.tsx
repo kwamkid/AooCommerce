@@ -71,10 +71,13 @@ export default function AudienceRail({ preview, loading, error, hint }: Props) {
           <div className="mt-3 space-y-2">
             <ProgressBar value={preview.reachable.any} max={preview.total} size="sm" toneClass="bg-emerald-500" />
             <div className="flex items-start justify-between gap-2">
-              {/* สรุปบวกลบให้เห็นในบรรทัดเดียว (เจ้าของขอ 13 ก.ย. 2026): ยอดกลุ่ม − ส่งไม่ได้ = ตัวเลขใหญ่ */}
-              <p className="subtitle-text">
-                จากคนในกลุ่มทั้งหมด {formatNumber(preview.total)} คน หักคนที่ส่งไม่ได้{' '}
-                {formatNumber(preview.not_syncable)} คน เหลือ {formatNumber(preview.reachable.any)} คน
+              {/* สรุปเป็นสมการสั้น ๆ ให้เห็น − = เลย (เจ้าของขอ 13 ก.ย. 2026 — ประโยคยาวอ่านช้ากว่า)
+                  คำอธิบายเต็มอยู่บรรทัดล่างกับใน ? แล้ว */}
+              <p className="subtitle-text tabular-nums">
+                ในกลุ่ม {formatNumber(preview.total)} − ส่งไม่ได้ {formatNumber(preview.not_syncable)} ={' '}
+                <span className="font-medium text-gray-700 dark:text-slate-200">
+                  {formatNumber(preview.reachable.any)} คน
+                </span>
               </p>
               <HelpHint align="right">
                 <span className="block">
