@@ -950,10 +950,7 @@ export default function MarketplaceConnections({
                   </Button>
                   <ImportButton
                     disabled={account.connection_status === 'expired'}
-                    onClick={() => {
-                      const name = account.shop_name || `Shop #${account.shop_id}`;
-                      router.push(`/shopee/import?account_id=${account.id}&account_name=${encodeURIComponent(name)}`);
-                    }}
+                    onClick={() => router.push(`/marketplace/import?account=${account.id}`)}
                   >
                     นำเข้าสินค้าจาก Shopee
                   </ImportButton>
@@ -1050,10 +1047,7 @@ export default function MarketplaceConnections({
                   </Button>
                   <ImportButton
                     disabled={account.connection_status === 'expired'}
-                    onClick={() => {
-                      const name = account.shop_name || `Shop #${account.shop_id}`;
-                      router.push(`/tiktok/import?account_id=${account.id}&account_name=${encodeURIComponent(name)}`);
-                    }}
+                    onClick={() => router.push(`/marketplace/import?account=${account.id}`)}
                   >
                     นำเข้าสินค้าจาก TikTok
                   </ImportButton>
@@ -1129,10 +1123,7 @@ export default function MarketplaceConnections({
                   </Button>
                   <ImportButton
                     disabled={account.connection_status === 'expired'}
-                    onClick={() => {
-                      const name = account.shop_name || `Shop #${account.shop_id}`;
-                      router.push(`/lazada/import?account_id=${account.id}&account_name=${encodeURIComponent(name)}`);
-                    }}
+                    onClick={() => router.push(`/marketplace/import?account=${account.id}`)}
                   >
                     นำเข้าสินค้าจาก Lazada
                   </ImportButton>

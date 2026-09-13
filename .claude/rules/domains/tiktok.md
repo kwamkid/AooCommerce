@@ -28,7 +28,7 @@ paths:
 | `api.ts` | API client (signing, OAuth, token management, endpoints) |
 | `sync.ts` | Order sync (manual + polling) + `mapTikTokStatus()` |
 | `webhook-processor.ts` | Webhook order sync (shared with retry) |
-| `product-sync.ts` | **Product import** — `syncProductsFromTikTok()` (ทั้งร้าน) + `upsertTikTokProduct()` (ทีละตัว) |
+| `product-import-adapter.ts` | **Product import** — แปลง `products/search` + `GetProduct` เป็น `MarketplaceImportItem` (ตรรกะจริงอยู่ `lib/marketplace/product-import.ts` · `product-sync.ts` ลบแล้ว) |
 | `errors.ts` | Error translation (TikTok → Thai messages) |
 
 ### TikTok API Routes (`app/api/tiktok/`)
@@ -41,7 +41,7 @@ paths:
 | `/api/tiktok/sync` | Manual sync by account |
 | `/api/tiktok/sync-all` | Cron: sync all active TikTok accounts |
 | `/api/tiktok/sync-order` | Sync single order by ID |
-| `/api/tiktok/products/import` | GET พรีวิวสินค้าในร้าน · POST ดูดเข้าทั้งร้าน (SSE progress) |
+(นำเข้าสินค้าย้ายไป `/api/marketplace/products/import` แล้ว — `/api/tiktok/products/import` ลบ)
 
 ### โลโก้ร้าน TikTok — **ไม่มีใน API ฝั่งขาย** (ยืนยัน 2026-08-30 อย่าไล่ scope ซ้ำ)
 - `/authorization/202309/shops` → cipher/code/id/name/region/seller_type · `/seller/202309/shops` → **id กับ region เท่านั้น** (เปิด scope ได้ก็ไม่มีโลโก้)
@@ -66,12 +66,11 @@ paths:
 7. HMAC-SHA256(APP_SECRET, wrapped_string) → hex lowercase
 ```
 
-### TikTok Product Import (เพิ่ม 2026-08-26)
+### TikTok Product Import (ย้ายเข้าชั้นกลาง 2026-09-13)
 - **ต้อง import ก่อนเปิดรับออเดอร์จริง** — ไม่มีสินค้าในระบบ ออเดอร์ที่เข้ามาจะสร้างสินค้าใหม่ตาม SKU ที่ได้รับจนคลังเละ
-- หน้า [/tiktok/import](../../../app/tiktok/import/page.tsx) (ปุ่มอยู่การ์ดร้านใน `/settings/sales-channels` แท็บ Marketplace) — **นำเข้าทั้งร้านรอบเดียว** ไม่ได้เลือกทีละตัว/แม็ป variation เองเหมือน Shopee (ตั้งใจ — ตัวที่ SKU ตรงจะผูกอัตโนมัติอยู่แล้ว)
-- **ไม่มี batch detail** ต่างจาก Shopee — `GetProduct` ยิงทีละตัว คุม concurrency ด้วย `parallelLimit(..., 3)` · แบ่งหน้าด้วย **`page_token` ไม่ใช่ offset** (ข้ามไปหน้า N ตรงๆ ไม่ได้)
+- หน้า/route/ตรรกะอยู่ที่ชั้นกลาง: [/marketplace/import?account=](../../../app/marketplace/import/page.tsx) + `/api/marketplace/products/import` (ดู `marketplace-core.md`) — TikTok จึงได้ **เลือกทีละตัว · ผูกกับสินค้าเดิม · resume ทั้งร้าน** เท่า Shopee แล้ว
+- **ไม่มี batch detail** ต่างจาก Shopee — `GetProduct` ยิงทีละตัว คุม concurrency ด้วย `parallelLimit(..., 3)` · แบ่งหน้าด้วย **`page_token` ไม่ใช่ offset** (ข้ามไปหน้า N ตรงๆ ไม่ได้ — cursor ของชั้นกลางจึงเป็น opaque string)
 - endpoint ที่ใช้: `POST /product/202502/products/search` (เวอร์ชันล่าสุดของ search) + `GET /product/202309/products/{id}`
-- ลำดับจับคู่เหมือน Shopee เป๊ะ: link เดิม → `products.code` (= seller_sku หรือ `TT-{product_id}`) → ปลุกของที่ soft-delete → สร้างใหม่ · **ของที่ user แก้เองไม่ถูกเขียนทับ** (`source` = `tiktok_edited`/`manual`)
 - **ไม่ต้อง migration** — `products.source` ไม่มี CHECK และคอลัมน์ `platform_*`/`platform_data` ของ `marketplace_product_links` เป็น generic อยู่แล้ว
 - **ยังไม่ทำ**: product-export (ส่งสินค้าขึ้น TikTok), push ราคา/ชื่อสินค้า, deals — Shopee มีครบแล้ว
 

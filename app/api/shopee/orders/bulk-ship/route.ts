@@ -41,7 +41,7 @@ interface BulkShipResult {
 }
 
 // เพดานเวลาของ route + งบเวลาที่ยอมใช้จริง (หยุดเองก่อนโดนตัด แล้วบอกว่าค้างที่ไหน)
-// pattern เดียวกับ product import — ดู lib/lazada/product-sync.ts
+// pattern เดียวกับ product import — ดู lib/marketplace/product-import.ts
 export const maxDuration = 300;
 const TIME_BUDGET_MS = 210_000;
 

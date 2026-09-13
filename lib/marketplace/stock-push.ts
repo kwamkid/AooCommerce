@@ -149,7 +149,7 @@ function dedupeLinks(
  * ⛔ ทุกการเขียนต้องผ่าน `adjustStock` เท่านั้น (DB มี trigger ปฏิเสธการเขียน
  *    `inventory` ตรง ๆ อยู่แล้ว) ไม่งั้นยอดเปลี่ยนโดยไม่มีร่องรอยว่าใครทำ
  */
-async function applyPulledStock(params: {
+export async function applyPulledStock(params: {
   account: StockSyncAccount;
   warehouseId: string;
   stockByVariation: Map<string, number>;

@@ -48,8 +48,13 @@ Shopee ต้องจด app ของตัวเอง** — ออเดอ�
 - ส่วนของ Shopee เหลือแค่ `lib/shopee/stock-adapter.ts` (ทำตาม `StockAdapter` · ลงทะเบียนใน `STOCK_ADAPTERS`) = แปลง link+ยอด → `update_stock` / อ่านยอดจากร้าน · **ห้าม route หรือหน้าเรียก adapter ตรง**
 - Route `/api/shopee/products/push-stock` และ `pull-stock` **ลบแล้ว** → ใช้ `/api/marketplace/products/{push,pull}-stock`
 
+### Product import — ย้ายไปชั้นกลาง + adapter แล้ว (2026-09-13)
+- หน้า/route/ตรรกะอยู่ที่ชั้นกลาง: [/marketplace/import?account=](../../../app/marketplace/import/page.tsx) + `/api/marketplace/products/import` (กติกาเต็ม `marketplace-core.md`) — หน้า `/shopee/import` และ route `/api/shopee/products/import` **ลบแล้ว**
+- ส่วนของ Shopee เหลือแค่ [lib/shopee/product-import-adapter.ts](../../../lib/shopee/product-import-adapter.ts) = `get_item_list` + `get_item_base_info/get_model_list` → `MarketplaceImportItem` · เติม `marketplace_category_cache` ให้ก่อน (ไม่งั้นชื่อหมวดในแถว link ว่าง) · `linkPayload` = คอลัมน์ `shopee_*` + `platform_data`
+- `lib/shopee/product-sync.ts` **ยังอยู่** แต่เหลือ `syncProductsFromShopee()` (bulk sync ฝั่ง ops ที่ `/api/shopee/products/sync`) + push ราคา/ชื่อ/หมวด — ไม่ใช่ทางของปุ่มนำเข้าแล้ว
+
 ### Shopee Shared Helpers (`lib/shopee/product-helpers.ts`)
-- ใช้ร่วมระหว่าง `sync.ts` (order sync) และ `product-sync.ts` (product import)
+- ใช้ร่วมระหว่าง `sync.ts` (order sync) และ `product-sync.ts` (bulk sync) — `buildVariationAttributes` + `getCategoryName` ใช้ใน `product-import-adapter.ts` ด้วย
 - Functions: `getOrCreateVariationTypeIds`, `buildVariationAttributes`, `upsertProductImage`, `upsertProductImages`, `getCategoryName`, `findExistingLink`, `upsertMarketplaceLink`, `tryAutoMatchBySku`, `resolveShopeePrice`, `reactivateProduct`, `backfillSiblingVariations`
 - **ห้ามสร้าง helper ซ้ำ** ใน sync.ts หรือ product-sync.ts — ใช้จาก product-helpers.ts เสมอ
 
@@ -70,7 +75,7 @@ Shopee ต้องจด app ของตัวเอง** — ออเดอ�
 ### Shopee Description Sync + Central Product Upsert (เพิ่มเมื่อ 2026-05-21)
 - **Description**: ดึง description จริงจาก Shopee เก็บใน `products.description` + per-platform ใน `marketplace_product_links.platform_description` (column ใหม่) — ลบ stub `"Shopee Item #..."`
 - **Extended description** (whitelist sellers): flatten text → description, image URLs → `marketplace_product_links.platform_description_images` JSONB (ไม่ปนกับ product_images หลัก)
-- **Central function** `upsertShopeeProduct()` ใน [lib/shopee/product-helpers.ts](../../../lib/shopee/product-helpers.ts) — ใช้ร่วม 3 entry points (UI import / bulk sync / order sync) ผ่าน `backfillSiblingVariations` เสมอ → variations ครบทุกตัว
+- **Central function** `upsertShopeeProduct()` ใน [lib/shopee/product-helpers.ts](../../../lib/shopee/product-helpers.ts) — ใช้ร่วม bulk sync + order sync ผ่าน `backfillSiblingVariations` เสมอ → variations ครบทุกตัว (ปุ่มนำเข้าในหน้าใช้ชั้นกลาง `lib/marketplace/product-import.ts` แทนแล้ว)
 - **Export priority**: `platform_description` (account ปลายทาง) → `products.description` → `product.name`
 - **UI**: textarea per-platform ใน Shopee tab ของ product edit page + thumbnail สำหรับ description images
 

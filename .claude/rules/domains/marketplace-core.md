@@ -138,6 +138,17 @@ worker หยิบทั้งใบที่ `failed` (รวม `next_retry_a
 - ⛔ **ห้ามเขียนโค้ดสต็อกเฉพาะ platform นอก adapter ของมัน** · ⛔ **ห้ามเรียก adapter ตรงจาก route/หน้า** — ผ่าน `pushStockForAccount`/`pullStockForAccount` เสมอ
 - ⚠️ **ร้านที่เพิ่งเชื่อม/ยังไม่เคยตั้งยอดในระบบ ต้องปิด `auto_sync_stock` จนกว่าจะ "ดึงสต็อกจากร้าน" แล้ว** — ไม่งั้นส่ง 0 ไปทับร้าน
 
+### Product import — ชั้นกลาง [lib/marketplace/product-import.ts](../../../lib/marketplace/product-import.ts) + adapter ต่อ platform
+
+- **➕ เพิ่ม platform ใหม่ = สร้าง `lib/<platform>/product-import-adapter.ts` + ลงทะเบียน 1 บรรทัดใน `PRODUCT_IMPORT_ADAPTERS` — ห้าม `switch` ตาม platform ในชั้นกลาง / route / หน้า**
+- [lib/marketplace/product-import-adapter.ts](../../../lib/marketplace/product-import-adapter.ts) = สัญญาเดียวที่ platform ต้องทำตาม: `interface ProductImportAdapter { listApiPath; codePrefix ('SP-'/'LZ-'/'TT-'); listProducts(account, cursor?, pageSize?) → {items, nextCursor?, total?}; fetchDetails?(account, ids); linkPayload(item, model) }` + `MarketplaceImportItem` (รูป normalize: `external_item_id · name · sku · images · models[{external_model_id, name, sku, price, original_price, stock, image, attributes}] · variation_type_names · description · category/brand/weight · raw`) — **`cursor` เป็น opaque string เสมอ** (Shopee/Lazada = offset · TikTok = page_token)
+- ชั้นกลางทำส่วนที่เหมือนกันทั้งหมด: `previewImport(account, {cursor, pageSize, search})` (เติม `linked_product` + `auto_match` = "จะผูกกับ X อัตโนมัติ" จาก SKU — **อ่านอย่างเดียว ห้ามปลุกของที่ลบไว้ตอนแค่ดูรายการ**) · `importItems(account, requests[{external_item_id, action:'create'|'link', target_product_id?}], opts, onProgress)` · `importAllProducts(account, {cursor, timeBudgetMs}, onProgress)` (ทั้งร้าน · งบ 210 วิ คืน `next_cursor`) — ข้างในคือ ลำดับจับคู่ (link เดิม → `products.code` → ปลุกของที่ soft-delete → **สินค้าเดี่ยว**จับ SKU → สร้างใหม่) · รูป · ประเภทตัวเลือก · เคารพ `source = <platform>_edited`/`manual` · upsert link
+- ⛔ **สต็อก**: ห้ามเขียน `product_variations.stock` หรือ `inventory` — ยอดจากร้านเข้าคลังผ่าน `adjustStock` **fill_blank** (เติมเฉพาะช่องที่คลังเราเป็น 0 · กติกาเดียวกับ `applyPulledStock`) `referenceType = `${platform}_sync`` คลังเดียวกับขา push (`resolveAccountWarehouseId`) · action `link` เสร็จแล้วเรียก `syncStockNow(variationIds)` ให้ยอดของเราขึ้นร้าน (ข้ามร้านที่ปิด `auto_sync_stock` ตามกติกาเดิม)
+- Route กลาง: `GET /api/marketplace/products/import?account_id=&cursor=&page_size=&q=` (พรีวิว) · `POST` เดียวกัน `{account_id, items?, all?, cursor?, copy_sku_to_barcode?}` (SSE `started` → `progress {done,total?,item_name,success,error?}` → `done {created,updated,linked,skipped,errors[],next_cursor?}`) · สิทธิ์ `marketplace.sync` · เช็ค `isQuotaBlocked(platform,'product')` → 429 · log `import_products` — **ทุก platform ใช้ route นี้** (`/api/{shopee,lazada,tiktok}/products/import` ลบแล้ว ห้ามสร้างใหม่)
+- หน้าเดียวทุกแพลตฟอร์ม [app/marketplace/import](../../../app/marketplace/import/page.tsx) `?account=<id>` (เลือกทีละตัว/ทั้งหน้า · create/link ด้วย `components/marketplace/ProductPicker` · ชิปกรอง ทั้งหมด/ยังไม่ผูก/ผูกแล้ว · คัดลอก SKU เป็นบาร์โค้ด · "นำเข้าทั้งร้าน" วน `next_cursor`) — ป้าย/ไอคอนมาจาก `MARKETPLACE_PLATFORMS[platform].label` + `PlatformIcon` **ห้ามเขียนเงื่อนไขแยก platform ในหน้า**
+- ค้นหา (`q`) = กรอง**หน้าที่ดึงมา**เท่านั้น — ไม่มี platform ไหนให้ค้นทั้งร้านด้วยคำเดียวกันได้
+- ตัดทิ้งแล้ว: `link_to_variation_mappings` (API เดิมรับแต่ UI ไม่เคยส่ง) — จะทำจริงต้องมี UI แม็ป model→variation ก่อน
+
 ### โควตา / rate limit ทุก marketplace — registry เดียวที่ [lib/marketplace/platforms.ts](../../../lib/marketplace/platforms.ts) (แยก scope 2026-08-29)
 
 - **circuit breaker แยกตาม scope** ไม่ใช่ต่อ platform ทั้งก้อน — scope = **กลุ่ม API ที่ใช้โควตาถังเดียวกัน**: `auth · order · fulfillment · product · inventory · promotion · chat` · flag ใน `app_flags` key `{platform}_quota_exhausted[:{scope}]` (key ไม่มี `:scope` = ทั้ง app, ของเดิมที่ live อยู่ยังใช้ได้)
@@ -183,7 +194,7 @@ const TIME_BUDGET_MS = 210_000;        // งบเวลาจริง — ห
 if (Date.now() - startedAt > TIME_BUDGET_MS) { result.next_offset = i; break; }
 ```
 ผู้เรียกเห็น `next_offset` / `remaining_order_ids` แล้วยิงรอบต่อไป — **cursor อยู่ที่ผู้เรียก แทนที่จะอยู่ใน Redis**
-ตัวอย่าง: [lib/lazada/product-sync.ts](../../../lib/lazada/product-sync.ts) (788 สินค้า) · [settlements/backfill](../../../app/api/marketplace/settlements/backfill/route.ts) (2,364 ออเดอร์ 8 รอบ) · [shopee/orders/bulk-ship](../../../app/api/shopee/orders/bulk-ship/route.ts)
+ตัวอย่าง: [lib/marketplace/product-import.ts](../../../lib/marketplace/product-import.ts) `importAllProducts` (คืน `next_cursor`) · [settlements/backfill](../../../app/api/marketplace/settlements/backfill/route.ts) (2,364 ออเดอร์ 8 รอบ) · [shopee/orders/bulk-ship](../../../app/api/shopee/orders/bulk-ship/route.ts)
 
 **⚠️ queue แก้ "ทำไม่ครบ" แต่ไม่แก้ "ทำแล้วไม่รู้ว่าทำแล้ว"** — ต่อให้มี queue ถ้า worker ตายหลังยิง
 API แพลตฟอร์มสำเร็จแต่ก่อนเขียน DB ก็ยังได้สถานะผิดเหมือนเดิม · งานที่มีผลข้างเคียงข้างนอก
