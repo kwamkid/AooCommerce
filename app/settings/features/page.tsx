@@ -303,7 +303,7 @@ export default function FeaturesPage() {
               return (
                 <div
                   key={feat.key}
-                  className={`card transition-all ${isEnabled ? 'ring-1 ring-primary/20' : ''} ${isLocked ? 'opacity-70' : ''}`}
+                  className={`card card-p-md transition-all ${isEnabled ? 'ring-1 ring-primary/20' : ''} ${isLocked ? 'opacity-70' : ''}`}
                 >
                   {/* Row: icon + label + toggle */}
                   <div className="flex items-center gap-4">
@@ -371,7 +371,7 @@ export default function FeaturesPage() {
 
               {/* RIGHT: Preset selector — 40% */}
               <div className="sticky top-4 flex flex-col gap-3" style={{ width: '40%', flexShrink: 0 }}>
-                <div className="card">
+                <div className="card card-p-md">
                   <p className="text-base font-semibold text-gray-900 dark:text-white mb-0.5">รูปแบบธุรกิจ</p>
                   <p className="text-sm text-gray-500 dark:text-slate-400 mb-4">เลือก preset เพื่อตั้งค่า features ทีเดียว หรือปรับแต่งเองทางซ้าย</p>
                   <div className="flex flex-col gap-2">
@@ -642,7 +642,7 @@ function DeliveryFieldsCard({
   };
 
   return (
-    <div className={`card transition-all ${anyOn ? 'ring-1 ring-primary/20' : ''}`}>
+    <div className={`card card-p-md transition-all ${anyOn ? 'ring-1 ring-primary/20' : ''}`}>
       <div className="flex items-center gap-4">
         <div className={`flex-shrink-0 ${anyOn ? 'text-blue-600' : 'text-gray-400 dark:text-slate-500'}`}>
           <Truck className="w-5 h-5" />
