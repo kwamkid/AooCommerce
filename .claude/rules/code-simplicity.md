@@ -54,7 +54,7 @@ Reference: [/dev/design](../../app/dev/design/page.tsx) (ทุก variant) · [
 ### Global CSS (`app/globals.css`) — แก้หน้าตาที่นี่ที่เดียว ไม่ใช่ className ของ component
 | Group | Classes |
 |---|---|
-| Typography | `.heading-1` (3xl bold · list title) · `.heading-2` (2xl · PageHeader) · `.heading-3` (lg semibold · card) · `.heading-4` · `.body-text` · `.subtitle-text` · `.helper-text` · `.page-subtitle` · `.section-desc` · `.field-label` (16px medium) — ใช้แทน `text-Nxl font-bold …` · ย่อเองบนมือถือ |
+| Typography | `.heading-1` (3xl bold · list title) · `.heading-2` (2xl · PageHeader) · `.heading-3` (lg semibold · card) · `.heading-4` · `.body-text` · `.subtitle-text` · `.helper-text` · `.page-subtitle` · `.section-desc` · `.field-label` (16px medium) — ใช้แทน `text-Nxl font-bold …` · ย่อเองบนมือถือ · **แถวที่วางข้อความสองขนาดไว้ด้วยกัน** (หัวข้อ + ค่าที่เลือก) ใช้ `items-baseline` ไม่ใช่ `items-center` ไม่งั้นตัวเล็กลอยสูงกว่าจนดูไม่กึ่งกลาง |
 | Button / Card / Badge | `.btn` `.btn-{sm/md/lg}` `.btn-{variant}` · `.card` `.card-flat` `.card-p-{sm/md/lg}` · `.badge` `.badge-{sm/md}` `.badge-{pill/square}` `.badge-{tone}` |
 | Modal | `.modal-root` `.modal-backdrop` `.modal-panel` `.modal-header` `.modal-body` `.modal-footer` `.modal-title` `.modal-close-btn` |
 | Table / filter | `.data-table-wrap` `.data-thead` `.data-th` `.data-tbody` `.data-tr` `.data-td` `.data-pagination` · `.data-filter-card` |
