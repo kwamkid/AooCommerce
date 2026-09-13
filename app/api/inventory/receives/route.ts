@@ -1,8 +1,23 @@
 // Path: app/api/inventory/receives/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin, checkAuthWithCompany, isAdminRole, can } from '@/lib/supabase-admin';
-import { getStockConfig } from '@/lib/stock-utils';
+import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
+import { getStockConfig, parseStockDocLines } from '@/lib/stock-utils';
 import { addStock, updateWeightedAverageCost } from '@/lib/stock-service';
+
+/** วันเปล่า `YYYY-MM-DD` → ขอบเขตตามเวลาไทย (ปลายทางเป็น timestamptz) */
+function toBoundary(value: string | null, end: boolean): string | null {
+  if (!value) return null;
+  if (value.includes('T')) return value;
+  return end ? `${value}T23:59:59.999+07:00` : `${value}T00:00:00+07:00`;
+}
+
+/** ค่าที่ผู้ใช้พิมพ์ต้องไม่ทำให้ไวยากรณ์ `or=(…)` ของ PostgREST พัง */
+function safeSearch(value: string | null): string {
+  return (value || '').replace(/[,()\\"']/g, ' ').trim();
+}
+
+/** สถานะที่ต้องมีในแท็บเสมอ แม้จะยังไม่มีเอกสารสักใบ */
+const STATUS_KEYS = ['completed', 'cancelled'];
 
 // GET - List receives or get single
 export async function GET(request: NextRequest) {
@@ -91,40 +106,108 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ receive: data });
     }
 
-    const { data, error } = await supabaseAdmin
+    // ── รายการ: กรอง / นับ / แบ่งหน้า ที่ DB ทั้งหมด ──
+    const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10) || 1);
+    const limit = Math.min(200, Math.max(1, parseInt(searchParams.get('limit') || '20', 10) || 20));
+    const status = searchParams.get('status') || 'all';
+    const warehouseId = searchParams.get('warehouse_id') || '';
+    const createdBy = searchParams.get('created_by') || '';
+    const dateFrom = toBoundary(searchParams.get('date_from'), false);
+    const dateTo = toBoundary(searchParams.get('date_to'), true);
+    const search = safeSearch(searchParams.get('search'));
+    const rangeFrom = (page - 1) * limit;
+
+    let listQuery = supabaseAdmin
       .from('inventory_receives')
       .select(`
         id, receive_number, status, notes, created_at, created_by,
         warehouse:warehouses!inventory_receives_warehouse_id_fkey(id, name, code),
         items:inventory_receive_items(id)
-      `)
-      .eq('company_id', auth.companyId)
-      .order('created_at', { ascending: false });
+      `, { count: 'exact' })
+      .eq('company_id', auth.companyId);
 
-    if (error) {
-      console.error('GET receives DB error:', error.message, error.details, error.hint);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+    // ตัวนับแท็บใช้ตัวกรองชุดเดียวกัน "ยกเว้นสถานะ" — แท็บอื่นถึงจะมีเลขให้เห็น
+    let countQuery = supabaseAdmin
+      .from('inventory_receives')
+      .select('status', { count: 'exact' })
+      .eq('company_id', auth.companyId);
+
+    if (search) {
+      const or = `receive_number.ilike.%${search}%,notes.ilike.%${search}%`;
+      listQuery = listQuery.or(or);
+      countQuery = countQuery.or(or);
+    }
+    if (warehouseId) {
+      listQuery = listQuery.eq('warehouse_id', warehouseId);
+      countQuery = countQuery.eq('warehouse_id', warehouseId);
+    }
+    if (createdBy) {
+      listQuery = listQuery.eq('created_by', createdBy);
+      countQuery = countQuery.eq('created_by', createdBy);
+    }
+    if (dateFrom) {
+      listQuery = listQuery.gte('created_at', dateFrom);
+      countQuery = countQuery.gte('created_at', dateFrom);
+    }
+    if (dateTo) {
+      listQuery = listQuery.lte('created_at', dateTo);
+      countQuery = countQuery.lte('created_at', dateTo);
+    }
+    if (status && status !== 'all') {
+      listQuery = listQuery.eq('status', status);
     }
 
-    // Batch fetch user names for created_by
-    const userIds = [...new Set((data || []).map(r => r.created_by).filter(Boolean))];
+    const [listRes, countRes, creatorRes] = await Promise.all([
+      listQuery.order('created_at', { ascending: false }).range(rangeFrom, rangeFrom + limit - 1),
+      countQuery.range(0, 4999),
+      supabaseAdmin
+        .from('inventory_receives')
+        .select('created_by')
+        .eq('company_id', auth.companyId)
+        .not('created_by', 'is', null)
+        .range(0, 4999),
+    ]);
+
+    if (listRes.error) {
+      console.error('GET receives DB error:', listRes.error.message, listRes.error.details, listRes.error.hint);
+      return NextResponse.json({ error: listRes.error.message }, { status: 500 });
+    }
+
+    const statusCounts: Record<string, number> = { all: countRes.count ?? 0 };
+    for (const key of STATUS_KEYS) statusCounts[key] = 0;
+    for (const row of countRes.data || []) {
+      const key = row.status || 'unknown';
+      statusCounts[key] = (statusCounts[key] || 0) + 1;
+    }
+
+    // รายชื่อผู้ทำรายการของทั้งบริษัท (ตัวเลือกในตัวกรอง) — ใช้ map เดียวกันเติมชื่อให้แถวในหน้าด้วย
+    const creatorIds = [...new Set((creatorRes.data || []).map(r => r.created_by).filter(Boolean) as string[])];
     let userMap: Record<string, { id: string; name: string }> = {};
-    if (userIds.length > 0) {
+    if (creatorIds.length > 0) {
       const { data: profiles } = await supabaseAdmin
         .from('user_profiles')
         .select('id, name')
-        .in('id', userIds);
-      if (profiles) {
-        userMap = Object.fromEntries(profiles.map(p => [p.id, p]));
-      }
+        .in('id', creatorIds);
+      if (profiles) userMap = Object.fromEntries(profiles.map(p => [p.id, p]));
     }
+    const users = creatorIds
+      .map(id => userMap[id])
+      .filter(Boolean)
+      .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'th'));
 
-    const receives = (data || []).map(r => ({
+    const items = (listRes.data || []).map(r => ({
       ...r,
       created_by_user: r.created_by ? userMap[r.created_by] || null : null,
     }));
 
-    return NextResponse.json({ receives });
+    return NextResponse.json({
+      items,
+      total: listRes.count ?? 0,
+      status_counts: statusCounts,
+      users,
+      page,
+      limit,
+    });
   } catch (error) {
     console.error('GET receives error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -153,8 +236,14 @@ export async function POST(request: NextRequest) {
     if (!warehouse_id) {
       return NextResponse.json({ error: 'กรุณาเลือกคลังสินค้า' }, { status: 400 });
     }
-    if (!items || !Array.isArray(items) || items.length === 0) {
-      return NextResponse.json({ error: 'กรุณาเพิ่มสินค้าอย่างน้อย 1 รายการ' }, { status: 400 });
+
+    // ตรวจทุกบรรทัดให้ครบ **ก่อน** สร้างหัวเอกสาร/แตะสต็อก — ไม่งั้นได้ใบรับเข้าครึ่ง ๆ กลาง ๆ
+    const { lines, errors: lineErrors } = parseStockDocLines(items);
+    if (lineErrors.length > 0) {
+      return NextResponse.json(
+        { error: `รายการไม่ถูกต้อง: ${lineErrors.join(' · ')}`, errors: lineErrors },
+        { status: 400 },
+      );
     }
 
     // Verify warehouse
@@ -197,9 +286,10 @@ export async function POST(request: NextRequest) {
     }
 
     const results = [];
-    for (const item of items) {
-      const { variation_id, quantity, unit_cost, notes: itemNotes } = item;
-      if (!variation_id || !quantity || quantity <= 0) continue;
+    for (const line of lines) {
+      const { variation_id, quantity } = line;
+      const unit_cost = Number(line.raw.unit_cost) || 0;
+      const itemNotes = typeof line.raw.notes === 'string' ? line.raw.notes : null;
 
       // Insert item
       const itemInsert: Record<string, unknown> = { receive_id: receive.id, variation_id, quantity, notes: itemNotes || null };
@@ -242,9 +332,8 @@ export async function POST(request: NextRequest) {
 
     // Update PO received quantities if po_id provided
     if (po_id) {
-      for (const item of items) {
-        const { variation_id, quantity: qty } = item;
-        if (!variation_id || !qty || qty <= 0) continue;
+      for (const line of lines) {
+        const { variation_id, quantity: qty } = line;
 
         // Find the PO item and increment received_quantity
         const { data: poItem } = await supabaseAdmin
@@ -277,7 +366,7 @@ export async function POST(request: NextRequest) {
         const poVariationIds = new Set(
           (await supabaseAdmin.from('purchase_order_items').select('variation_id').eq('po_id', po_id)).data?.map(i => i.variation_id) || []
         );
-        const hasExtraItems = items.some(i => i.variation_id && !poVariationIds.has(i.variation_id));
+        const hasExtraItems = lines.some(l => !poVariationIds.has(l.variation_id));
 
         let newPoStatus: string | null = null;
         if (allAtLeast) {

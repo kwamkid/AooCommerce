@@ -30,6 +30,18 @@ paths:
 - refresh อัตโนมัติผ่าน `useLiveRefresh` 30 วิ เฉพาะเมื่อช่วงเวลารวมวันนี้ · ห้าม `setInterval` เอง
 - ดัชนี `idx_inv_tx_company_created (company_id, created_at desc)` ให้เรียงล่าสุดก่อนไม่ต้อง sort ทั้งบริษัท
 
+## รายการเอกสาร 4 หน้า (รับเข้า · เบิกออก · โอนย้าย · PO) — กรอง/นับ/แบ่งหน้าที่ DB (Phase 3 · 2026-09-13)
+
+- route list รับ `page limit search warehouse_id status created_by date_from date_to` (+ `supplier_id` ของ PO) คืน `{items, total, status_counts, users}` · `status_counts` = ตัวกรองเดียวกันยกเว้นสถานะ · `users` = ผู้ทำรายการทั้งหมดของเอกสารประเภทนั้น (ห้าม derive จากหน้าที่โหลด)
+- หน้าใช้ hook กลาง `useDocListParams(basePath, {defaultStatus, extraKeys})` (URL: `q wh status by from to page limit`) + `DocListFilters` (ค้นหา · ช่วงวัน · คลัง · ผู้ทำ · slot `extra`) · ค่าเริ่มต้นช่วงวัน = 30 วันล่าสุด (ไม่เขียนลง URL) · `setParams` ลบ `status` เมื่อเท่ากับ default ของหน้า (โอนย้าย default `pending`)
+- route PO ยังคืนคีย์เดิม `purchase_orders` และไม่ส่ง page/limit = limit 200 (ฟอร์มรับเข้าใช้เติมตัวเลือก PO) — อย่าตัด
+
+## ฟอร์มรับเข้า / เบิกออก / โอนย้าย — `StockDocForm mode` ตัวเดียว (Phase 4 · 2026-09-13)
+
+- `app/inventory/components/StockDocForm.tsx` · หน้า `receive|issue|transfer/page.tsx` เป็น wrapper 8 บรรทัด · เลือกสินค้าด้วย `useServerSearch` + `/api/products/search?exclude_composite=1` (route กรอง `products.is_composite` ให้) · ยอดเฉพาะบรรทัดที่เลือกผ่าน **`GET /api/inventory/stock?variation_ids=&warehouse_id=`** (RPC `get_variation_stock` · `cost` map เฉพาะ `canViewCost` ใช้เติมต้นทุนรับเข้า)
+- POST `receives/issues/transfers` **ตรวจทุกบรรทัดก่อน write ตัวแรก** ผ่าน `parseStockDocLines()` + `checkStockAvailability()` ใน `lib/stock-utils.ts` (ใช้ RPC `get_variation_stock` — อ่าน `inventory` ตรงจะตัดสินสินค้าชุดเป็น 0) → 400 ระบุรายการที่ผิด · โอนย้ายไม่บันทึกบางส่วนอีกแล้ว (เดิมบรรทัดของไม่พอหายเงียบ) · atomic จริงยังไม่ทำ (ต้องย้าย stock-service ลง SQL)
+- route เอกพจน์ `receive/issue/transfer` ลบแล้ว — UI ใช้พหูพจน์เท่านั้น
+
 ## บทเรียนเขียน RPC รายการ (วัดจริง 2026-09-13 บน ABC 6,216 ตัวเลือก)
 
 1. **ต้องเป็น `language plpgsql`** — `language sql` วางแผน query ใหม่ทุกครั้งที่เรียก (12 CTE × หลายตาราง = 500+ ms บนเครื่อง DB นี้) · plpgsql cache plan ต่อ session ของ PostgREST → ครั้งแรก ~500 ms แล้ว 44–69 ms

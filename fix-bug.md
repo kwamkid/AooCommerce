@@ -16,6 +16,14 @@
 
 ---
 
+## 2026-09-13 — คลัง: รายการเอกสารกรองใน client · ฟอร์มรับ/เบิก/โอนโหลดทั้งคลังติดเพดาน 1,000 · โอนย้ายบันทึกบางส่วนเงียบ (Phase 3–4 รื้อโมดูลสต็อก)
+
+**ที่เกิด**: [app/inventory/{receives,issues,transfers,purchase-orders}/page.tsx](app/inventory/receives/page.tsx) · [app/inventory/{receive,issue,transfer}/page.tsx](app/inventory/receive/page.tsx) · POST ใน [app/api/inventory/transfers/route.ts](app/api/inventory/transfers/route.ts)
+**อาการ**: (1) รายการเอกสาร 4 หน้าโหลดทั้งหมดแล้วกรอง/แบ่งหน้าใน client ไม่มีช่วงวันที่ dropdown "ผู้ทำรายการ" มีแค่คนที่อยู่ในหน้าที่โหลด (2) ฟอร์มรับ/เบิก/โอนโหลดสินค้าทั้งร้าน + สต็อกทั้งคลัง `limit=9999` ซึ่ง PostgREST ตัดที่ 1,000 แถวเงียบ ๆ (คลังหลัก ABC 851 แถว ใกล้ตัน) (3) ใบโอนย้ายที่มีบรรทัดของไม่พอ บันทึกเฉพาะบรรทัดที่พอ บรรทัดที่เหลือหายโดยไม่บอก
+**Root cause**: (1) route list ไม่รับตัวกรอง (2) ไม่มีหน้าไหนใช้ `useServerSearch` และไม่มี endpoint ยอดเฉพาะบรรทัด (3) POST loop เรียก stock-service ทีละบรรทัดโดยไม่ตรวจก่อน แล้วเก็บ error ใส่ array ที่ UI ไม่แสดง
+**วิธีแก้**: route list 4 ตัวรับ `page/limit/search/warehouse_id/status/created_by/date_from/date_to` คืน `status_counts` + `users` · hook `useDocListParams` + `DocListFilters` ร่วม 4 หน้า · `StockDocForm` ตัวเดียว 3 โหมด ค้นสินค้าฝั่ง server (`/api/products/search?exclude_composite=1`) + `GET /api/inventory/stock?variation_ids=` · POST ตรวจทุกบรรทัดก่อน write (`parseStockDocLines` + `checkStockAvailability` ใน `lib/stock-utils.ts` ผ่าน RPC `get_variation_stock`) → 400 ระบุรายการ · ลบ route เอกพจน์ 3 ตัวที่ไม่มีใครเรียก
+**ป้องกัน regression**: กติกาใน `.claude/rules/domains/inventory.md` — ห้าม `limit=9999` / กรองรายการใน client · ฟอร์มเลือกสินค้าต้องค้นฝั่ง server · เขียนหลายบรรทัดต้องตรวจครบก่อน write ตัวแรก (atomic จริงยังไม่มี — ถ้า stock-service ล้มกลางทางยังได้ครึ่งใบ จดไว้ในแผน Phase 5)
+
 ## 2026-09-13 — หน้าสต็อก: แท็บสถานะกรองแค่ 20 แถวที่โหลด · badge สต็อกต่ำนับ `quantity <= 5` · RPC ใหม่ช้า 600 ms เพราะ `language sql` (reUI แท็บสินค้าคงคลัง)
 
 **ที่เกิด**: [app/inventory/components/StockTab.tsx](app/inventory/components/StockTab.tsx) · [app/api/inventory/route.ts](app/api/inventory/route.ts) · [app/api/header/summary/route.ts](app/api/header/summary/route.ts) · RPC `get_inventory_list` / `get_low_stock_count`

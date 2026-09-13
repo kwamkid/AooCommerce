@@ -22,6 +22,8 @@ export async function GET(request: NextRequest) {
     const sp = request.nextUrl.searchParams;
     const q = (sp.get('q') || '').trim();
     const limit = Math.max(1, Math.min(200, Number(sp.get('limit') ?? 80) || 80));
+    // ฟอร์มจัดการสต็อก (รับเข้า/เบิกออก/โอนย้าย/PO) ตัดสินค้าชุดออก — ชุดย่อยไม่มีสต็อกของตัวเอง
+    const excludeComposite = sp.get('exclude_composite') === '1';
 
     // คำค้นว่าง = ไม่มีอะไรให้ค้น — ไม่ต้องรบกวน DB
     if (!q) return NextResponse.json({ items: [], complete: true });
@@ -37,10 +39,31 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    const items = data ?? [];
+    const rows = (data ?? []) as { product_id: string }[];
     // `complete` = ผลชุดนี้ครบทุกตัวที่ตรง (ไม่โดน limit ตัด) — client ใช้ตัดสินใจว่า
     // พิมพ์ต่อจากคำเดิมแล้วกรองต่อในเครื่องได้เลย ไม่ต้องยิงใหม่ (ดู lib/useServerSearch.ts)
-    return NextResponse.json({ items, complete: items.length < limit });
+    // ⚠️ คิดจากจำนวนที่ RPC คืน **ก่อน** ตัดสินค้าชุด ไม่งั้นชุดที่ถูกตัดจะทำให้ดูเหมือนผลครบ
+    const complete = rows.length < limit;
+
+    // RPC ไม่ได้คืนธงสินค้าชุด — ถามทีเดียวจาก products ของ product_id ที่ติดมา
+    let items: unknown[] = rows;
+    if (excludeComposite && rows.length > 0) {
+      const productIds = [...new Set(rows.map(r => r.product_id))];
+      const { data: composites, error: compError } = await supabaseAdmin
+        .from('products')
+        .select('id')
+        .eq('company_id', auth.companyId)
+        .eq('is_composite', true)
+        .in('id', productIds);
+      if (compError) {
+        console.error('exclude_composite lookup failed:', compError);
+        return NextResponse.json({ error: compError.message }, { status: 500 });
+      }
+      const compositeIds = new Set((composites ?? []).map(p => p.id));
+      if (compositeIds.size > 0) items = rows.filter(r => !compositeIds.has(r.product_id));
+    }
+
+    return NextResponse.json({ items, complete });
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : 'Internal error';
     return NextResponse.json({ error: message }, { status: 500 });

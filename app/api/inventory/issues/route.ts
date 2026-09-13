@@ -1,8 +1,23 @@
 // Path: app/api/inventory/issues/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin, checkAuthWithCompany, isAdminRole, can } from '@/lib/supabase-admin';
-import { getStockConfig } from '@/lib/stock-utils';
+import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
+import { getStockConfig, parseStockDocLines, checkStockAvailability } from '@/lib/stock-utils';
 import { deductStock, InsufficientStockError } from '@/lib/stock-service';
+
+/** วันเปล่า `YYYY-MM-DD` → ขอบเขตตามเวลาไทย (ปลายทางเป็น timestamptz) */
+function toBoundary(value: string | null, end: boolean): string | null {
+  if (!value) return null;
+  if (value.includes('T')) return value;
+  return end ? `${value}T23:59:59.999+07:00` : `${value}T00:00:00+07:00`;
+}
+
+/** ค่าที่ผู้ใช้พิมพ์ต้องไม่ทำให้ไวยากรณ์ `or=(…)` ของ PostgREST พัง */
+function safeSearch(value: string | null): string {
+  return (value || '').replace(/[,()\\"']/g, ' ').trim();
+}
+
+/** สถานะที่ต้องมีในแท็บเสมอ แม้จะยังไม่มีเอกสารสักใบ */
+const STATUS_KEYS = ['completed', 'cancelled'];
 
 // GET - List issues or get single
 export async function GET(request: NextRequest) {
@@ -47,33 +62,105 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ issue: data });
     }
 
-    const { data, error } = await supabaseAdmin
+    // ── รายการ: กรอง / นับ / แบ่งหน้า ที่ DB ทั้งหมด ──
+    const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10) || 1);
+    const limit = Math.min(200, Math.max(1, parseInt(searchParams.get('limit') || '20', 10) || 20));
+    const status = searchParams.get('status') || 'all';
+    const warehouseId = searchParams.get('warehouse_id') || '';
+    const createdBy = searchParams.get('created_by') || '';
+    const dateFrom = toBoundary(searchParams.get('date_from'), false);
+    const dateTo = toBoundary(searchParams.get('date_to'), true);
+    const search = safeSearch(searchParams.get('search'));
+    const rangeFrom = (page - 1) * limit;
+
+    let listQuery = supabaseAdmin
       .from('inventory_issues')
       .select(`
         id, issue_number, reason, status, notes, created_at, created_by,
         warehouse:warehouses!inventory_issues_warehouse_id_fkey(id, name, code),
         items:inventory_issue_items(id)
-      `)
-      .eq('company_id', auth.companyId)
-      .order('created_at', { ascending: false });
+      `, { count: 'exact' })
+      .eq('company_id', auth.companyId);
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+    // ตัวนับแท็บใช้ตัวกรองชุดเดียวกัน "ยกเว้นสถานะ" — แท็บอื่นถึงจะมีเลขให้เห็น
+    let countQuery = supabaseAdmin
+      .from('inventory_issues')
+      .select('status', { count: 'exact' })
+      .eq('company_id', auth.companyId);
+
+    if (search) {
+      const or = `issue_number.ilike.%${search}%,notes.ilike.%${search}%,reason.ilike.%${search}%`;
+      listQuery = listQuery.or(or);
+      countQuery = countQuery.or(or);
+    }
+    if (warehouseId) {
+      listQuery = listQuery.eq('warehouse_id', warehouseId);
+      countQuery = countQuery.eq('warehouse_id', warehouseId);
+    }
+    if (createdBy) {
+      listQuery = listQuery.eq('created_by', createdBy);
+      countQuery = countQuery.eq('created_by', createdBy);
+    }
+    if (dateFrom) {
+      listQuery = listQuery.gte('created_at', dateFrom);
+      countQuery = countQuery.gte('created_at', dateFrom);
+    }
+    if (dateTo) {
+      listQuery = listQuery.lte('created_at', dateTo);
+      countQuery = countQuery.lte('created_at', dateTo);
+    }
+    if (status && status !== 'all') {
+      listQuery = listQuery.eq('status', status);
     }
 
-    const userIds = [...new Set((data || []).map(r => r.created_by).filter(Boolean))];
+    const [listRes, countRes, creatorRes] = await Promise.all([
+      listQuery.order('created_at', { ascending: false }).range(rangeFrom, rangeFrom + limit - 1),
+      countQuery.range(0, 4999),
+      supabaseAdmin
+        .from('inventory_issues')
+        .select('created_by')
+        .eq('company_id', auth.companyId)
+        .not('created_by', 'is', null)
+        .range(0, 4999),
+    ]);
+
+    if (listRes.error) {
+      console.error('GET issues DB error:', listRes.error.message, listRes.error.details, listRes.error.hint);
+      return NextResponse.json({ error: listRes.error.message }, { status: 500 });
+    }
+
+    const statusCounts: Record<string, number> = { all: countRes.count ?? 0 };
+    for (const key of STATUS_KEYS) statusCounts[key] = 0;
+    for (const row of countRes.data || []) {
+      const key = row.status || 'unknown';
+      statusCounts[key] = (statusCounts[key] || 0) + 1;
+    }
+
+    // รายชื่อผู้ทำรายการของทั้งบริษัท (ตัวเลือกในตัวกรอง) — ใช้ map เดียวกันเติมชื่อให้แถวในหน้าด้วย
+    const creatorIds = [...new Set((creatorRes.data || []).map(r => r.created_by).filter(Boolean) as string[])];
     let userMap: Record<string, { id: string; name: string }> = {};
-    if (userIds.length > 0) {
-      const { data: profiles } = await supabaseAdmin.from('user_profiles').select('id, name').in('id', userIds);
+    if (creatorIds.length > 0) {
+      const { data: profiles } = await supabaseAdmin.from('user_profiles').select('id, name').in('id', creatorIds);
       if (profiles) userMap = Object.fromEntries(profiles.map(p => [p.id, p]));
     }
+    const users = creatorIds
+      .map(id => userMap[id])
+      .filter(Boolean)
+      .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'th'));
 
-    const issues = (data || []).map(r => ({
+    const items = (listRes.data || []).map(r => ({
       ...r,
       created_by_user: r.created_by ? userMap[r.created_by] || null : null,
     }));
 
-    return NextResponse.json({ issues });
+    return NextResponse.json({
+      items,
+      total: listRes.count ?? 0,
+      status_counts: statusCounts,
+      users,
+      page,
+      limit,
+    });
   } catch (error) {
     console.error('GET issues error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -102,8 +189,15 @@ export async function POST(request: NextRequest) {
     if (!warehouse_id) {
       return NextResponse.json({ error: 'กรุณาเลือกคลังสินค้า' }, { status: 400 });
     }
-    if (!items || !Array.isArray(items) || items.length === 0) {
-      return NextResponse.json({ error: 'กรุณาเพิ่มสินค้าอย่างน้อย 1 รายการ' }, { status: 400 });
+
+    // ตรวจทุกบรรทัดให้ครบ **ก่อน** สร้างหัวเอกสาร/ตัดสต็อก — ของเดิมตัดไปเรื่อย ๆ
+    // แล้วค่อยพบว่าบรรทัดท้ายของไม่พอ จบด้วยใบเบิกที่มีของแค่บางรายการ
+    const { lines, errors: lineErrors } = parseStockDocLines(items);
+    if (lineErrors.length > 0) {
+      return NextResponse.json(
+        { error: `รายการไม่ถูกต้อง: ${lineErrors.join(' · ')}`, errors: lineErrors },
+        { status: 400 },
+      );
     }
 
     // Verify warehouse
@@ -117,6 +211,14 @@ export async function POST(request: NextRequest) {
 
     if (!warehouse) {
       return NextResponse.json({ error: 'Warehouse not found' }, { status: 404 });
+    }
+
+    const shortages = await checkStockAvailability(auth.companyId!, warehouse_id, lines);
+    if (shortages.length > 0) {
+      return NextResponse.json(
+        { error: `สต็อกไม่พอเบิก — ${shortages.join(' · ')}`, errors: shortages },
+        { status: 400 },
+      );
     }
 
     // Generate issue number
@@ -145,9 +247,10 @@ export async function POST(request: NextRequest) {
     const results = [];
     const errors: { variation_id: string; error: string }[] = [];
 
-    for (const item of items) {
-      const { variation_id, quantity, reason: itemReason, notes: itemNotes } = item;
-      if (!variation_id || !quantity || quantity <= 0) continue;
+    for (const line of lines) {
+      const { variation_id, quantity } = line;
+      const itemReason = typeof line.raw.reason === 'string' ? line.raw.reason : null;
+      const itemNotes = typeof line.raw.notes === 'string' ? line.raw.notes : null;
 
       const noteText = [itemReason, itemNotes, notes].filter(Boolean).join(' - ') || `เบิกออก ${issueNumber}`;
 

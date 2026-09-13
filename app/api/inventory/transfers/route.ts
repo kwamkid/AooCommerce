@@ -2,8 +2,32 @@
 // Three-step transfer: pending (reserve) → shipping (deduct) → received (add dest)
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany, isAdminRole, can } from '@/lib/supabase-admin';
-import { getStockConfig } from '@/lib/stock-utils';
+import { getStockConfig, parseStockDocLines, checkStockAvailability } from '@/lib/stock-utils';
 import { reserveStock, deductAndUnreserve, transferIn, returnStock, unreserveStock } from '@/lib/stock-service';
+
+/** แถว `inventory_transfer_items` เท่าที่ route นี้ใช้ */
+interface TransferItemRow {
+  id: string;
+  variation_id: string;
+  qty_sent: number;
+  qty_received?: number | null;
+  confirmed_quantity?: number | null;
+}
+
+/** วันเปล่า `YYYY-MM-DD` → ขอบเขตตามเวลาไทย (ปลายทางเป็น timestamptz) */
+function toBoundary(value: string | null, end: boolean): string | null {
+  if (!value) return null;
+  if (value.includes('T')) return value;
+  return end ? `${value}T23:59:59.999+07:00` : `${value}T00:00:00+07:00`;
+}
+
+/** ค่าที่ผู้ใช้พิมพ์ต้องไม่ทำให้ไวยากรณ์ `or=(…)` ของ PostgREST พัง */
+function safeSearch(value: string | null): string {
+  return (value || '').replace(/[,()\\"']/g, ' ').trim();
+}
+
+/** สถานะที่ต้องมีในแท็บเสมอ แม้จะยังไม่มีเอกสารสักใบ */
+const STATUS_KEYS = ['pending', 'shipping', 'pending_confirm', 'received', 'cancelled'];
 
 function canManageWarehouse(roles: string[] | undefined, memberWarehouseIds: string[] | null, warehouseId: string): boolean {
   if (isAdminRole(roles)) return true;
@@ -20,8 +44,6 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
-    const status = searchParams.get('status');
-    const warehouseId = searchParams.get('warehouse_id');
     const transferId = searchParams.get('id');
 
     // Single transfer detail
@@ -64,8 +86,18 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ transfer });
     }
 
-    // List transfers
-    let query = supabaseAdmin
+    // ── รายการ: กรอง / นับ / แบ่งหน้า ที่ DB ทั้งหมด ──
+    const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10) || 1);
+    const limit = Math.min(200, Math.max(1, parseInt(searchParams.get('limit') || '20', 10) || 20));
+    const status = searchParams.get('status') || 'all';
+    const warehouseId = searchParams.get('warehouse_id') || '';
+    const createdBy = searchParams.get('created_by') || '';
+    const dateFrom = toBoundary(searchParams.get('date_from'), false);
+    const dateTo = toBoundary(searchParams.get('date_to'), true);
+    const search = safeSearch(searchParams.get('search'));
+    const rangeFrom = (page - 1) * limit;
+
+    let listQuery = supabaseAdmin
       .from('inventory_transfers')
       .select(`
         id, transfer_number, status, notes, created_at, shipped_at, received_at, created_by, receive_token,
@@ -73,36 +105,90 @@ export async function GET(request: NextRequest) {
         from_warehouse:warehouses!inventory_transfers_from_warehouse_id_fkey(id, name, code),
         to_warehouse:warehouses!inventory_transfers_to_warehouse_id_fkey(id, name, code),
         items:inventory_transfer_items(id)
-      `)
-      .eq('company_id', auth.companyId)
-      .order('created_at', { ascending: false });
+      `, { count: 'exact' })
+      .eq('company_id', auth.companyId);
 
-    if (status) {
-      query = query.eq('status', status);
+    // ตัวนับแท็บใช้ตัวกรองชุดเดียวกัน "ยกเว้นสถานะ" — แท็บอื่นถึงจะมีเลขให้เห็น
+    let countQuery = supabaseAdmin
+      .from('inventory_transfers')
+      .select('status', { count: 'exact' })
+      .eq('company_id', auth.companyId);
+
+    if (search) {
+      const or = `transfer_number.ilike.%${search}%,notes.ilike.%${search}%`;
+      listQuery = listQuery.or(or);
+      countQuery = countQuery.or(or);
     }
+    // คลังหนึ่งใบเกี่ยวข้องได้ทั้งต้นทางและปลายทาง
     if (warehouseId) {
-      query = query.or(`from_warehouse_id.eq.${warehouseId},to_warehouse_id.eq.${warehouseId}`);
+      const whOr = `from_warehouse_id.eq.${warehouseId},to_warehouse_id.eq.${warehouseId}`;
+      listQuery = listQuery.or(whOr);
+      countQuery = countQuery.or(whOr);
+    }
+    if (createdBy) {
+      listQuery = listQuery.eq('created_by', createdBy);
+      countQuery = countQuery.eq('created_by', createdBy);
+    }
+    if (dateFrom) {
+      listQuery = listQuery.gte('created_at', dateFrom);
+      countQuery = countQuery.gte('created_at', dateFrom);
+    }
+    if (dateTo) {
+      listQuery = listQuery.lte('created_at', dateTo);
+      countQuery = countQuery.lte('created_at', dateTo);
+    }
+    if (status && status !== 'all') {
+      listQuery = listQuery.eq('status', status);
     }
 
-    const { data: transfers, error } = await query;
+    const [listRes, countRes, creatorRes] = await Promise.all([
+      listQuery.order('created_at', { ascending: false }).range(rangeFrom, rangeFrom + limit - 1),
+      countQuery.range(0, 4999),
+      supabaseAdmin
+        .from('inventory_transfers')
+        .select('created_by')
+        .eq('company_id', auth.companyId)
+        .not('created_by', 'is', null)
+        .range(0, 4999),
+    ]);
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+    if (listRes.error) {
+      console.error('GET transfers DB error:', listRes.error.message, listRes.error.details, listRes.error.hint);
+      return NextResponse.json({ error: listRes.error.message }, { status: 500 });
     }
 
-    const userIds = [...new Set((transfers || []).map(r => r.created_by).filter(Boolean))];
+    const statusCounts: Record<string, number> = { all: countRes.count ?? 0 };
+    for (const key of STATUS_KEYS) statusCounts[key] = 0;
+    for (const row of countRes.data || []) {
+      const key = row.status || 'unknown';
+      statusCounts[key] = (statusCounts[key] || 0) + 1;
+    }
+
+    // รายชื่อผู้ทำรายการของทั้งบริษัท (ตัวเลือกในตัวกรอง) — ใช้ map เดียวกันเติมชื่อให้แถวในหน้าด้วย
+    const creatorIds = [...new Set((creatorRes.data || []).map(r => r.created_by).filter(Boolean) as string[])];
     let userMap: Record<string, { id: string; name: string }> = {};
-    if (userIds.length > 0) {
-      const { data: profiles } = await supabaseAdmin.from('user_profiles').select('id, name').in('id', userIds);
+    if (creatorIds.length > 0) {
+      const { data: profiles } = await supabaseAdmin.from('user_profiles').select('id, name').in('id', creatorIds);
       if (profiles) userMap = Object.fromEntries(profiles.map(p => [p.id, p]));
     }
+    const users = creatorIds
+      .map(id => userMap[id])
+      .filter(Boolean)
+      .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'th'));
 
-    const result = (transfers || []).map(r => ({
+    const items = (listRes.data || []).map(r => ({
       ...r,
       created_by_user: r.created_by ? userMap[r.created_by] || null : null,
     }));
 
-    return NextResponse.json({ transfers: result });
+    return NextResponse.json({
+      items,
+      total: listRes.count ?? 0,
+      status_counts: statusCounts,
+      users,
+      page,
+      limit,
+    });
   } catch (error) {
     console.error('GET transfers error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -134,8 +220,15 @@ export async function POST(request: NextRequest) {
     if (from_warehouse_id === to_warehouse_id) {
       return NextResponse.json({ error: 'คลังต้นทางและปลายทางต้องไม่เป็นคลังเดียวกัน' }, { status: 400 });
     }
-    if (!items || !Array.isArray(items) || items.length === 0) {
-      return NextResponse.json({ error: 'กรุณาเพิ่มสินค้าอย่างน้อย 1 รายการ' }, { status: 400 });
+
+    // ตรวจทุกบรรทัดให้ครบ **ก่อน** สร้างหัวเอกสาร/จองสต็อก — ของเดิมยอมให้ผ่านแบบบางส่วน
+    // (บรรทัดที่ของไม่พอหายไปเงียบ ๆ ผู้ใช้ได้ใบโอนที่ไม่ตรงกับที่กรอก)
+    const { lines, errors: lineErrors } = parseStockDocLines(items);
+    if (lineErrors.length > 0) {
+      return NextResponse.json(
+        { error: `รายการไม่ถูกต้อง: ${lineErrors.join(' · ')}`, errors: lineErrors },
+        { status: 400 },
+      );
     }
 
     // Check warehouse permission for source warehouse
@@ -159,37 +252,13 @@ export async function POST(request: NextRequest) {
     if (!fromWh.data) return NextResponse.json({ error: 'คลังต้นทางไม่พบ' }, { status: 404 });
     if (!toWh.data) return NextResponse.json({ error: 'คลังปลายทางไม่พบ' }, { status: 404 });
 
-    // Validate stock for all items
-    const errors: { variation_id: string; error: string }[] = [];
-    const validItems: { variation_id: string; quantity: number }[] = [];
-
-    for (const item of items) {
-      const { variation_id, quantity } = item;
-      if (!variation_id || !quantity || quantity <= 0) continue;
-
-      const { data: sourceInv } = await supabaseAdmin
-        .from('inventory')
-        .select('quantity, reserved_quantity')
-        .eq('warehouse_id', from_warehouse_id)
-        .eq('variation_id', variation_id)
-        .single();
-
-      const sourceQty = sourceInv?.quantity || 0;
-      const sourceReserved = sourceInv?.reserved_quantity || 0;
-      const sourceAvailable = sourceQty - sourceReserved;
-
-      if (quantity > sourceAvailable) {
-        errors.push({
-          variation_id,
-          error: `มี ${sourceAvailable} ชิ้นพร้อมโอน (คงเหลือ ${sourceQty}, จอง ${sourceReserved}) แต่ขอโอน ${quantity} ชิ้น`,
-        });
-      } else {
-        validItems.push({ variation_id, quantity });
-      }
-    }
-
-    if (errors.length > 0 && validItems.length === 0) {
-      return NextResponse.json({ error: errors[0].error, errors }, { status: 400 });
+    // ยอดพร้อมโอนในคลังต้นทางต้องพอ **ทุกบรรทัด** ไม่งั้นตีกลับทั้งใบ
+    const shortages = await checkStockAvailability(auth.companyId!, from_warehouse_id, lines);
+    if (shortages.length > 0) {
+      return NextResponse.json(
+        { error: `สต็อกไม่พอโอน — ${shortages.join(' · ')}`, errors: shortages },
+        { status: 400 },
+      );
     }
 
     // Generate transfer number
@@ -219,7 +288,7 @@ export async function POST(request: NextRequest) {
     // Create items and reserve stock at source
     const results: { variation_id: string; qty_sent: number }[] = [];
 
-    for (const item of validItems) {
+    for (const item of lines) {
       // Insert transfer item
       await supabaseAdmin
         .from('inventory_transfer_items')
@@ -250,7 +319,7 @@ export async function POST(request: NextRequest) {
       transfer_id: transfer.id,
       transfer_number: transfer.transfer_number,
       results,
-      errors,
+      errors: [],
     });
   } catch (error) {
     console.error('POST transfers error:', error);
@@ -349,7 +418,7 @@ export async function PUT(request: NextRequest) {
         const { item_id, qty_received } = ri;
         if (qty_received === undefined || qty_received === null) continue;
 
-        const transferItem = transfer.items.find((i: any) => i.id === item_id);
+        const transferItem = (transfer.items as TransferItemRow[]).find(i => i.id === item_id);
         if (!transferItem) continue;
 
         if (qty_received < 0) {
@@ -432,8 +501,8 @@ export async function PUT(request: NextRequest) {
         .select('qty_sent, qty_received, confirmed_quantity')
         .eq('transfer_id', transfer_id);
 
-      const allConfirmed = (allItems || []).every(
-        (i: any) => (i.confirmed_quantity || i.qty_received || 0) >= i.qty_sent
+      const allConfirmed = ((allItems || []) as TransferItemRow[]).every(
+        i => (i.confirmed_quantity || i.qty_received || 0) >= i.qty_sent
       );
 
       await supabaseAdmin
