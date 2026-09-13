@@ -19,7 +19,8 @@ import Modal from '@/components/ui/Modal';
 import FormInput from '@/components/ui/FormInput';
 import SearchInput from '@/components/ui/SearchInput';
 import Checkbox from '@/components/ui/Checkbox';
-import Toggle from '@/components/ui/Toggle';
+import Alert from '@/components/ui/Alert';
+import DateRangePicker, { type DateValueType } from '@/components/ui/DateRangePicker';
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
 import DiscountInput from '@/components/ui/DiscountInput';
 import ActionMenu from '@/components/ui/ActionMenu';
@@ -28,6 +29,7 @@ import { useAuthGuard } from '@/lib/useAuthGuard';
 import { useToast } from '@/lib/toast-context';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { apiFetch } from '@/lib/api-client';
+import { NUMERIC_TEXT_INPUT_PROPS, onNumericChange } from '@/lib/numeric-input';
 import { formatPrice, formatThaiDate } from '@/lib/utils/format';
 import {
   COUPON_CHANNELS,
@@ -65,8 +67,8 @@ interface FormState {
   discountValue: string;
   maxDiscount: string;
   minSpend: string;
-  validFrom: string;
-  validUntil: string;
+  /** ช่วงที่ใช้ได้ — เก็บรูปเดียวกับที่ DateRangePicker ของกลางคืนมา ({startDate, endDate}) */
+  dateRange: DateValueType;
   usageLimitTotal: string;
   usageLimitPerCustomer: string;
   channels: CouponChannel[];
@@ -80,8 +82,7 @@ const EMPTY_FORM: FormState = {
   discountValue: '',
   maxDiscount: '',
   minSpend: '',
-  validFrom: '',
-  validUntil: '',
+  dateRange: null,
   usageLimitTotal: '',
   usageLimitPerCustomer: '',
   channels: [...COUPON_CHANNELS],
@@ -89,6 +90,31 @@ const EMPTY_FORM: FormState = {
 };
 
 const PER_PAGE = 20;
+
+/** DateRangePicker คืนได้ทั้ง Date และ string — API รับ 'yyyy-MM-dd' หรือค่าว่าง */
+function dateStr(v: Date | string | null | undefined): string {
+  if (!v) return '';
+  if (typeof v === 'string') return v.slice(0, 10);
+  return `${v.getFullYear()}-${String(v.getMonth() + 1).padStart(2, '0')}-${String(v.getDate()).padStart(2, '0')}`;
+}
+
+/**
+ * สรุปเป็นประโยคว่าคูปองใบนี้ทำอะไร — คนตั้งคูปองต้องเห็นผลลัพธ์ของตัวเลขที่เพิ่งกรอก
+ * ก่อนกดบันทึก ไม่ใช่ไปรู้ตอนลูกค้าใช้แล้วลดผิด
+ */
+function describeCoupon(f: FormState): string | null {
+  const v = Number(f.discountValue);
+  if (!Number.isFinite(v) || v <= 0) return null;
+
+  const parts: string[] = [f.discountType === 'percent' ? `ลด ${v}%` : `ลด ${formatPrice(v)} บาท`];
+  if (f.discountType === 'percent' && Number(f.maxDiscount) > 0) {
+    parts.push(`ลดได้ไม่เกิน ${formatPrice(Number(f.maxDiscount))} บาท`);
+  }
+  if (Number(f.minSpend) > 0) parts.push(`เมื่อซื้อครบ ${formatPrice(Number(f.minSpend))} บาท`);
+  if (Number(f.usageLimitPerCustomer) > 0) parts.push(`ลูกค้า 1 คนใช้ได้ ${Number(f.usageLimitPerCustomer)} ครั้ง`);
+  if (Number(f.usageLimitTotal) > 0) parts.push(`ทั้งร้านใช้ได้รวม ${Number(f.usageLimitTotal)} ครั้ง`);
+  return parts.join(' · ');
+}
 
 /** สถานะที่ผู้ใช้สนใจจริง เรียงตามลำดับความสำคัญ — ปิดเอง > หมดอายุ > ใช้ครบ > ยังไม่เริ่ม > ใช้ได้ */
 function couponState(c: CouponRow, now = new Date()) {
@@ -167,8 +193,12 @@ export default function CouponsPage() {
       discountValue: String(c.discount_value),
       maxDiscount: c.max_discount == null ? '' : String(c.max_discount),
       minSpend: c.min_spend ? String(c.min_spend) : '',
-      validFrom: c.valid_from ? c.valid_from.slice(0, 10) : '',
-      validUntil: c.valid_until ? c.valid_until.slice(0, 10) : '',
+      dateRange: (c.valid_from || c.valid_until)
+        ? {
+            startDate: c.valid_from ? c.valid_from.slice(0, 10) : null,
+            endDate: c.valid_until ? c.valid_until.slice(0, 10) : null,
+          }
+        : null,
       usageLimitTotal: c.usage_limit_total == null ? '' : String(c.usage_limit_total),
       usageLimitPerCustomer: c.usage_limit_per_customer == null ? '' : String(c.usage_limit_per_customer),
       channels: c.channels?.length ? c.channels : [...COUPON_CHANNELS],
@@ -201,8 +231,8 @@ export default function CouponsPage() {
             name: form.name,
             min_spend: form.minSpend,
             max_discount: form.discountType === 'percent' ? form.maxDiscount : '',
-            valid_from: form.validFrom,
-            valid_until: form.validUntil,
+            valid_from: dateStr(form.dateRange?.startDate),
+            valid_until: dateStr(form.dateRange?.endDate),
             usage_limit_total: form.usageLimitTotal,
             usage_limit_per_customer: form.usageLimitPerCustomer,
             channels: form.channels,
@@ -215,8 +245,8 @@ export default function CouponsPage() {
             discount_value: form.discountValue,
             max_discount: form.discountType === 'percent' ? form.maxDiscount : '',
             min_spend: form.minSpend,
-            valid_from: form.validFrom,
-            valid_until: form.validUntil,
+            valid_from: dateStr(form.dateRange?.startDate),
+            valid_until: dateStr(form.dateRange?.endDate),
             usage_limit_total: form.usageLimitTotal,
             usage_limit_per_customer: form.usageLimitPerCustomer,
             channels: form.channels,
@@ -463,6 +493,8 @@ function CouponFormModal({
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
     setForm((f) => ({ ...f, [key]: value }));
 
+  const summary = describeCoupon(form);
+
   return (
     <Modal
       open={open}
@@ -517,9 +549,9 @@ function CouponFormModal({
             <FormInput
               label="ลดได้สูงสุด"
               value={form.maxDiscount}
-              onChange={(e) => set('maxDiscount', e.target.value)}
+              onChange={onNumericChange((v) => set('maxDiscount', v))}
+              {...NUMERIC_TEXT_INPUT_PROPS}
               postfix="฿"
-              inputMode="decimal"
               placeholder="ไม่จำกัด"
               hint="กันบิลใหญ่โดนลดเกินตั้งใจ"
             />
@@ -531,44 +563,48 @@ function CouponFormModal({
           <FormInput
             label="ซื้อขั้นต่ำ"
             value={form.minSpend}
-            onChange={(e) => set('minSpend', e.target.value)}
+            onChange={onNumericChange((v) => set('minSpend', v))}
+            {...NUMERIC_TEXT_INPUT_PROPS}
             postfix="฿"
-            inputMode="decimal"
             placeholder="ไม่กำหนด"
+            hint="ยอดสินค้าก่อนค่าส่ง"
           />
           <FormInput
-            label="ใช้ได้ทั้งหมด"
-            value={form.usageLimitTotal}
-            onChange={(e) => set('usageLimitTotal', e.target.value)}
-            postfix="ครั้ง"
-            inputMode="numeric"
-            placeholder="ไม่จำกัด"
-          />
-          <FormInput
-            label="ต่อลูกค้า 1 คน"
+            label="ลูกค้า 1 คนใช้ได้"
             value={form.usageLimitPerCustomer}
-            onChange={(e) => set('usageLimitPerCustomer', e.target.value)}
+            onChange={onNumericChange((v) => set('usageLimitPerCustomer', v))}
+            {...NUMERIC_TEXT_INPUT_PROPS}
             postfix="ครั้ง"
-            inputMode="numeric"
             placeholder="ไม่จำกัด"
+            hint="ส่วนใหญ่ใส่ 1"
+          />
+          <FormInput
+            label="ทั้งร้านใช้ได้รวม"
+            value={form.usageLimitTotal}
+            onChange={onNumericChange((v) => set('usageLimitTotal', v))}
+            {...NUMERIC_TEXT_INPUT_PROPS}
+            postfix="ครั้ง"
+            placeholder="ไม่จำกัด"
+            hint="โควตารวมทุกคน"
           />
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <FormInput
-            label="เริ่มใช้ได้"
-            type="date"
-            value={form.validFrom}
-            onChange={(e) => set('validFrom', e.target.value)}
-            hint="เว้นว่าง = ใช้ได้ทันที"
+        {/* สรุปให้เห็นผลของตัวเลขที่เพิ่งกรอก ก่อนกดบันทึก */}
+        {summary && <Alert tone="info">{summary}</Alert>}
+
+        {/* ช่วงที่ใช้ได้ — ช่องเดียวจบ ปฏิทินของกลางกันเลือกวันจบก่อนวันเริ่มให้เอง
+            (เดิมเป็น <input type="date"> สองช่อง ได้ปฏิทินของเบราว์เซอร์ที่เป็นภาษาอังกฤษ) */}
+        <div>
+          <label className="field-label">ช่วงที่ใช้ได้</label>
+          <DateRangePicker
+            value={form.dateRange}
+            onChange={(v) => set('dateRange', v)}
+            placeholder="เว้นว่าง = ใช้ได้ทันที ไม่มีวันหมดอายุ"
+            showShortcuts={false}
           />
-          <FormInput
-            label="ใช้ได้ถึง"
-            type="date"
-            value={form.validUntil}
-            onChange={(e) => set('validUntil', e.target.value)}
-            hint="เว้นว่าง = ไม่มีวันหมดอายุ"
-          />
+          <p className="helper-text mt-1">
+            เว้นว่าง = ใช้ได้ทันทีและไม่มีวันหมดอายุ · วันสุดท้ายยังใช้ได้ทั้งวัน
+          </p>
         </div>
 
         {/* ช่องทาง — marketplace ใช้คูปองไม่ได้ (ยอดมาจากแพลตฟอร์มแล้ว) จึงไม่มีในรายการ */}
@@ -591,14 +627,14 @@ function CouponFormModal({
           </p>
         </div>
 
-        {/* เปิด/ปิด */}
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="font-medium text-gray-900 dark:text-white">เปิดใช้งาน</p>
-            <p className="subtitle-text">ปิดแล้วลูกค้ากรอกโค้ดนี้ไม่ได้ทันที แต่ประวัติการใช้ยังอยู่</p>
-          </div>
-          <Toggle checked={form.isActive} onChange={(v) => set('isActive', v)} />
-        </div>
+        {/* เปิด/ปิด — ในฟอร์มที่กดบันทึกทีเดียวใช้ checkbox ไม่ใช่สวิตช์
+            (สวิตช์ทั้งระบบแปลว่า "มีผลทันทีที่กด") */}
+        <Checkbox checked={form.isActive} onChange={(v) => set('isActive', v)}>
+          <span>
+            <span className="font-medium text-gray-900 dark:text-white">เปิดใช้งานคูปองนี้</span>
+            <span className="subtitle-text block">ปิดไว้ = ลูกค้ากรอกโค้ดไม่ได้ แต่ประวัติการใช้ยังอยู่</span>
+          </span>
+        </Checkbox>
       </div>
     </Modal>
   );
