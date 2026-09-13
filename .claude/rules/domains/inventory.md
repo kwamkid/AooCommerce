@@ -21,6 +21,15 @@ paths:
 - รูปในแถว: รูปตัวเลือก → (สินค้าปกติเท่านั้น) รูปหลัก/`products.image` → **สินค้ามีตัวเลือกไม่ fallback** (กติกาเดียวกับหน้าสินค้า)
 - Badge "สต็อกต่ำ" ใน Sidebar = RPC `get_low_stock_count` = แท็บ `low` เป๊ะ (มีแถว inventory · min>0 · 0 < พร้อมขายรวมทุกคลัง ≤ min · ตัดสินค้าชุด/ตัวที่ถูกลบ) — `api/header/summary` เรียกตัวนี้ ห้ามนับ `quantity <= 5` เอง
 
+## แท็บความเคลื่อนไหว (ยุบ ประวัติ + Monitor แล้ว 2026-09-13) — RPC `get_inventory_transactions`
+
+- `GET /api/inventory/transactions` → RPC รอบเดียวคืน `{items, total, summary}` · `summary` = จำนวน/ยอดต่อประเภท **ในตัวกรองเดียวกันยกเว้นตัวกรองประเภท** (การ์ด 8 ใบเห็นครบและกดเลือกได้) · ตัวกรอง: ช่วงเวลา (bare date → ขอบเขตเวลาไทย +07:00 ใน route) · คลัง/ตัวแทน · ตัวเลือกสินค้า · ประเภทหลายค่า (`types=a,b`) · ที่มา (`reference_type`) · ค้นหา (ชื่อ/รหัส/SKU/บาร์โค้ด/หมายเหตุ)
+- URL: `?tab=movements&from=&to=&wh=&type=&ref=&q=&variation=&label=&page=` · ค่าเริ่มต้นช่วงเวลา = 7 วันล่าสุด (ไม่เขียนลง URL) · มี `variation` = ไม่จำกัดช่วง · `tab=history`/`monitor` เก่า map มาที่นี่
+- `balance_after` = ยอดคงเหลือ**ของคลังนั้น**หลังรายการ ไม่ใช่รวมทุกคลัง (มี HelpHint บอก) · จำนวนแสดงเครื่องหมายตาม `POSITIVE_TYPES`/`NEGATIVE_TYPES` (adjust ใช้เครื่องหมายของค่าเอง)
+- ลิงก์ที่มา: `MOVEMENT_REFERENCE_LINK` ใน `types.ts` (order · replenishment · transfer · receive · issue) — เพิ่ม reference_type ใหม่ต้องเพิ่ม `REFERENCE_TYPE_LABELS` ที่นั่นด้วย
+- refresh อัตโนมัติผ่าน `useLiveRefresh` 30 วิ เฉพาะเมื่อช่วงเวลารวมวันนี้ · ห้าม `setInterval` เอง
+- ดัชนี `idx_inv_tx_company_created (company_id, created_at desc)` ให้เรียงล่าสุดก่อนไม่ต้อง sort ทั้งบริษัท
+
 ## บทเรียนเขียน RPC รายการ (วัดจริง 2026-09-13 บน ABC 6,216 ตัวเลือก)
 
 1. **ต้องเป็น `language plpgsql`** — `language sql` วางแผน query ใหม่ทุกครั้งที่เรียก (12 CTE × หลายตาราง = 500+ ms บนเครื่อง DB นี้) · plpgsql cache plan ต่อ session ของ PostgREST → ครั้งแรก ~500 ms แล้ว 44–69 ms

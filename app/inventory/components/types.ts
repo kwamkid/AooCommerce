@@ -1,5 +1,11 @@
 // Shared types for inventory components
 
+import {
+  ArrowDownToLine, ArrowUpFromLine, ArrowLeftRight, Bookmark, BookmarkX,
+  RotateCcw, Settings2, type LucideIcon,
+} from 'lucide-react';
+import type { BadgeTone } from '@/components/ui/Badge';
+
 export interface WarehouseItem {
   id: string;
   name: string;
@@ -7,7 +13,7 @@ export interface WarehouseItem {
   warehouse_type?: 'internal' | 'consignment';
 }
 
-export type TabKey = 'stock' | 'history' | 'monitor';
+export type TabKey = 'stock' | 'movements';
 
 // ===== Stock Types =====
 export interface ConsignBreakdownItem {
@@ -50,13 +56,6 @@ export interface InventoryItem {
   // In-transit stock (optional — replenishments being shipped)
   in_transit_quantity?: number;
   in_transit_breakdown?: InTransitBreakdownItem[];
-}
-
-export interface ColumnConfig<T extends string> {
-  key: T;
-  label: string;
-  defaultVisible: boolean;
-  alwaysVisible?: boolean;
 }
 
 // ===== Stock list (RPC `get_inventory_list` ผ่าน `/api/inventory?view=list`) =====
@@ -122,42 +121,44 @@ export interface StockRow {
   in_transit_breakdown: StockTransitRow[];
 }
 
-// ===== History Types =====
-export type HistoryColumnKey = 'date' | 'type' | 'image' | 'product' | 'qty' | 'balance' | 'warehouse' | 'reference' | 'user';
-
-export const HISTORY_COLUMN_CONFIGS: ColumnConfig<HistoryColumnKey>[] = [
-  { key: 'date', label: 'วันที่', defaultVisible: true, alwaysVisible: true },
-  { key: 'type', label: 'ประเภท', defaultVisible: true },
-  { key: 'image', label: 'รูป', defaultVisible: true },
-  { key: 'product', label: 'สินค้า', defaultVisible: true },
-  { key: 'qty', label: 'จำนวน', defaultVisible: true },
-  { key: 'balance', label: 'คงเหลือ', defaultVisible: true },
-  { key: 'warehouse', label: 'คลัง', defaultVisible: true },
-  { key: 'reference', label: 'อ้างอิง', defaultVisible: true },
-  { key: 'user', label: 'ผู้ทำรายการ', defaultVisible: true },
-];
-
-export const HISTORY_COLUMNS_STORAGE_KEY = 'inventory-history-visible-columns';
+// ===== Movements (แท็บ "ความเคลื่อนไหว" — RPC `get_inventory_transactions`) =====
+// 1 แถว = 1 รายการใน `inventory_transactions` พร้อมชื่อสินค้า/รูป/คลัง/ผู้ทำ ที่ RPC join มาให้แล้ว
 
 export type TransactionType = 'in' | 'out' | 'transfer_in' | 'transfer_out' | 'reserve' | 'unreserve' | 'adjust' | 'return';
 
-export interface Transaction {
+export interface MovementRow {
   id: string;
   type: TransactionType;
   quantity: number;
+  /** ยอดคงเหลือ **ของคลังนี้** หลังรายการ — ไม่ใช่ยอดรวมทุกคลัง */
   balance_after: number;
   reference_type: string | null;
   reference_id: string | null;
   notes: string | null;
   created_at: string;
+  created_by: string | null;
+  created_by_name: string | null;
+  warehouse_id: string | null;
   warehouse_name: string;
-  warehouse_code: string;
+  warehouse_type: 'internal' | 'consignment' | null;
+  variation_id: string | null;
+  product_id: string | null;
   product_code: string;
   product_name: string;
-  product_image: string | null;
-  sku: string | null;
-  variation_label: string | null;
-  created_by_name: string | null;
+  /** สินค้าปกติ (ตัวเลือกเดียว) — ป้ายตัวเลือกไม่ต้องแสดง */
+  is_simple: boolean;
+  variation_label: string;
+  attributes: Record<string, string> | null;
+  sku: string;
+  /** รูปตัวเลือก → (เฉพาะสินค้าปกติ) รูปสินค้า → null — ห้าม fallback เพิ่มเอง */
+  image_url: string | null;
+}
+
+/** ยอดรวมต่อประเภทในตัวกรองเดียวกัน (ยกเว้นตัวกรองประเภทเอง) — การ์ดสรุปด้านบนของแท็บ */
+export interface MovementSummaryRow {
+  type: TransactionType;
+  count: number;
+  total_qty: number;
 }
 
 export const TYPE_CONFIG: Record<TransactionType, { label: string; bgClass: string; textClass: string }> = {
@@ -174,15 +175,74 @@ export const TYPE_CONFIG: Record<TransactionType, { label: string; bgClass: stri
 export const POSITIVE_TYPES: TransactionType[] = ['in', 'transfer_in', 'return', 'unreserve'];
 export const NEGATIVE_TYPES: TransactionType[] = ['out', 'transfer_out', 'reserve'];
 
+/** ลำดับการ์ดสรุป — คงที่เสมอ ไม่เรียงตามข้อมูลที่มี (ตำแหน่งการ์ดต้องไม่ขยับ) */
+export const MOVEMENT_TYPE_ORDER: TransactionType[] = [
+  'in', 'out', 'transfer_in', 'transfer_out', 'reserve', 'unreserve', 'adjust', 'return',
+];
+
+/** ไอคอนประจำประเภท — เก็บเป็นตัว component (ไฟล์นี้เป็น .ts เขียน JSX ไม่ได้) */
+export const TYPE_ICONS: Record<TransactionType, LucideIcon> = {
+  in: ArrowDownToLine,
+  out: ArrowUpFromLine,
+  transfer_in: ArrowLeftRight,
+  transfer_out: ArrowLeftRight,
+  reserve: Bookmark,
+  unreserve: BookmarkX,
+  adjust: Settings2,
+  return: RotateCcw,
+};
+
+/** สีการ์ดสรุปต่อประเภท */
+export const CARD_STYLES: Record<TransactionType, { bgClass: string; textClass: string; borderClass: string }> = {
+  in: { bgClass: 'bg-green-50 dark:bg-green-900/20', textClass: 'text-green-700 dark:text-green-400', borderClass: 'border-green-200 dark:border-green-800' },
+  out: { bgClass: 'bg-red-50 dark:bg-red-900/20', textClass: 'text-red-700 dark:text-red-400', borderClass: 'border-red-200 dark:border-red-800' },
+  transfer_in: { bgClass: 'bg-blue-50 dark:bg-blue-900/20', textClass: 'text-blue-700 dark:text-blue-400', borderClass: 'border-blue-200 dark:border-blue-800' },
+  transfer_out: { bgClass: 'bg-blue-50 dark:bg-blue-900/20', textClass: 'text-blue-700 dark:text-blue-400', borderClass: 'border-blue-200 dark:border-blue-800' },
+  reserve: { bgClass: 'bg-yellow-50 dark:bg-yellow-900/20', textClass: 'text-yellow-700 dark:text-yellow-400', borderClass: 'border-yellow-200 dark:border-yellow-800' },
+  unreserve: { bgClass: 'bg-gray-50 dark:bg-gray-800/40', textClass: 'text-gray-600 dark:text-gray-400', borderClass: 'border-gray-200 dark:border-gray-700' },
+  adjust: { bgClass: 'bg-purple-50 dark:bg-purple-900/20', textClass: 'text-purple-700 dark:text-purple-400', borderClass: 'border-purple-200 dark:border-purple-800' },
+  return: { bgClass: 'bg-cyan-50 dark:bg-cyan-900/20', textClass: 'text-cyan-700 dark:text-cyan-400', borderClass: 'border-cyan-200 dark:border-cyan-800' },
+};
+
+/** สีป้ายในตาราง — `Badge tone` ตามประเภท */
+export const TYPE_BADGE_TONE: Record<TransactionType, BadgeTone> = {
+  in: 'emerald',
+  out: 'red',
+  transfer_in: 'blue',
+  transfer_out: 'blue',
+  reserve: 'amber',
+  unreserve: 'gray',
+  adjust: 'purple',
+  return: 'emerald',
+};
+
+/** ที่มาของรายการ (`reference_type`) → คำเรียกภาษาไทย */
+export const REFERENCE_TYPE_LABELS: Record<string, string> = {
+  order: 'ออเดอร์',
+  pos_order: 'ขายหน้าร้าน (POS)',
+  replenishment: 'เติมสินค้าตัวแทน',
+  transfer: 'โอนย้าย',
+  receive: 'ใบรับเข้า',
+  issue: 'ใบเบิกออก',
+  manual: 'ปรับปรุงสต๊อก',
+  credit_note: 'ใบลดหนี้',
+  consignment_report: 'รายงานฝากขาย',
+};
+
+/** ลิงก์ไปเอกสารต้นทาง — ที่มาที่ไม่มีหน้าให้เปิดคืน null (แสดงเป็นข้อความเฉย ๆ) */
+export function MOVEMENT_REFERENCE_LINK(type: string | null, id: string | null): string | null {
+  if (!type || !id) return null;
+  switch (type) {
+    case 'order': return `/orders/${id}`;
+    case 'replenishment': return `/replenishments/${id}`;
+    case 'transfer': return `/inventory/transfers/${id}`;
+    case 'receive': return `/inventory/receives/${id}`;
+    case 'issue': return `/inventory/issues/${id}`;
+    default: return null;
+  }
+}
+
 // ===== Helpers =====
-export function formatDate(dateStr: string) {
-  return new Date(dateStr).toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: 'numeric' });
-}
-
-export function formatTime(dateStr: string) {
-  return new Date(dateStr).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
-}
-
 export function formatDateValue(value: Date | string | null | undefined): string {
   if (!value) return '';
   if (typeof value === 'string') return value;

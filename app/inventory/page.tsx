@@ -11,28 +11,28 @@ import { LoadingCard } from '@/components/ui/StateCard';
 import { useFetchOnce } from '@/lib/use-fetch-once';
 import { apiFetch } from '@/lib/api-client';
 import {
-  Package2, Warehouse, ClipboardList, Activity,
+  Package2, Warehouse, Activity,
   ArrowDownToLine, ArrowUpFromLine, ArrowLeftRight, FileSpreadsheet,
 } from 'lucide-react';
 import { WarehouseItem, TabKey } from './components/types';
 import StockTab from './components/StockTab';
-import HistoryTab from './components/HistoryTab';
-import MonitorTab from './components/MonitorTab';
+import MovementsTab from './components/MovementsTab';
 import Tabs from '@/components/ui/Tabs';
 
 /** ตัวกรองของแท็บสต็อก — ต้องถูกทิ้งเมื่อย้ายไปแท็บอื่น ไม่งั้นค้างใน URL แล้วกลับมาเจอผลกรองเดิม */
 const STOCK_PARAMS = ['q', 'wh', 'dealer', 'cat', 'brand', 'sup', 'status', 'sort', 'dir', 'page', 'limit'];
 
+/** ตัวกรองของแท็บความเคลื่อนไหว — ทิ้งเมื่อย้ายกลับไปแท็บสต็อกด้วยเหตุผลเดียวกัน */
+const MOVEMENT_PARAMS = ['from', 'to', 'wh', 'dealer', 'type', 'ref', 'q', 'variation', 'label', 'page', 'limit'];
+
 function InventoryPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
+  // `history` / `monitor` คือชื่อแท็บเดิมก่อนยุบรวม — ลิงก์เก่าที่ผู้ใช้บุ๊กมาร์กไว้ต้องยังเข้าได้
   const tabParam = searchParams.get('tab');
-  const activeTab: TabKey = tabParam === 'history' || tabParam === 'monitor' ? tabParam : 'stock';
-
-  // ตัวกรองประวัติ (มาจากปุ่ม "ประวัติการเคลื่อนไหว" ในแท็บสต็อก) อยู่ใน URL ด้วย
-  const historyVariationId = searchParams.get('variation') || '';
-  const historyProductLabel = searchParams.get('label') || '';
+  const activeTab: TabKey =
+    tabParam === 'movements' || tabParam === 'history' || tabParam === 'monitor' ? 'movements' : 'stock';
 
   const replaceParams = useCallback((mutate: (p: URLSearchParams) => void) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -45,22 +45,17 @@ function InventoryPageContent() {
     replaceParams(p => {
       if (tab === 'stock') p.delete('tab');
       else p.set('tab', tab);
-      if (tab !== 'history') { p.delete('variation'); p.delete('label'); }
-      if (tab !== 'stock') for (const key of STOCK_PARAMS) p.delete(key);
+      for (const key of (tab === 'stock' ? MOVEMENT_PARAMS : STOCK_PARAMS)) p.delete(key);
     });
   }, [replaceParams]);
 
   const viewHistory = useCallback((variationId: string, label: string) => {
     replaceParams(p => {
       for (const key of STOCK_PARAMS) p.delete(key);
-      p.set('tab', 'history');
+      p.set('tab', 'movements');
       p.set('variation', variationId);
       if (label) p.set('label', label); else p.delete('label');
     });
-  }, [replaceParams]);
-
-  const clearHistoryFilter = useCallback(() => {
-    replaceParams(p => { p.delete('variation'); p.delete('label'); });
   }, [replaceParams]);
 
   const [warehouses, setWarehouses] = useState<WarehouseItem[]>([]);
@@ -125,24 +120,15 @@ function InventoryPageContent() {
         onSelect={k => setActiveTab(k as TabKey)}
         tabs={[
           { key: 'stock', label: 'สินค้าคงคลัง', icon: <Warehouse className="w-4 h-4" /> },
-          { key: 'history', label: 'ประวัติ', icon: <ClipboardList className="w-4 h-4" /> },
-          { key: 'monitor', label: 'Monitor', icon: <Activity className="w-4 h-4" /> },
+          { key: 'movements', label: 'ความเคลื่อนไหว', icon: <Activity className="w-4 h-4" /> },
         ]}
       />
 
       {activeTab === 'stock' && (
         <StockTab warehouses={warehouses} onViewHistory={viewHistory} />
       )}
-      {activeTab === 'history' && (
-        <HistoryTab
-          warehouses={warehouses}
-          filterVariationId={historyVariationId}
-          filterProductLabel={historyProductLabel}
-          onFilterCleared={clearHistoryFilter}
-        />
-      )}
-      {activeTab === 'monitor' && (
-        <MonitorTab warehouses={warehouses} />
+      {activeTab === 'movements' && (
+        <MovementsTab warehouses={warehouses} />
       )}
     </Container>
   );

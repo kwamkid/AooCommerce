@@ -2,209 +2,149 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
 import { getStockConfig } from '@/lib/stock-utils';
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function mapTransaction(tx: any, userMap: Record<string, string>) {
-  let varLabel = '';
-  const attrs = tx.attributes ?? tx.variation?.attributes;
-  const variationLabel = tx.variation_label ?? tx.variation?.variation_label;
-  if (attrs && typeof attrs === 'object') {
-    varLabel = Object.values(attrs as Record<string, string>).join(' / ');
-  } else if (variationLabel) {
-    varLabel = variationLabel;
-  }
-
-  return {
-    id: tx.id,
-    type: tx.type,
-    quantity: tx.quantity,
-    balance_after: tx.balance_after,
-    reference_type: tx.reference_type,
-    reference_id: tx.reference_id,
-    notes: tx.notes,
-    created_at: tx.created_at,
-    warehouse_name: tx.warehouse_name ?? tx.warehouse?.name ?? '',
-    warehouse_code: tx.warehouse_code ?? tx.warehouse?.code ?? '',
-    product_code: tx.product_code ?? tx.variation?.product?.code ?? '',
-    product_name: tx.product_name ?? tx.variation?.product?.name ?? '',
-    product_image: tx.product_image ?? null,
-    sku: tx.sku ?? tx.variation?.sku ?? '',
-    variation_label: varLabel,
-    created_by_name: tx.created_by ? (userMap[tx.created_by] || '') : '',
-  };
+/** วันเปล่า `YYYY-MM-DD` → ขอบเขตตามเวลาไทย (ปลายทางเป็น timestamptz) */
+function toBoundary(value: string | null, end: boolean): string | null {
+  if (!value) return null;
+  if (value.includes('T')) return value;
+  return end ? `${value}T23:59:59.999+07:00` : `${value}T00:00:00+07:00`;
 }
 
-// GET - List inventory transactions
+function num(v: unknown): number {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+}
+
+interface RawItem {
+  id: string;
+  type: string;
+  quantity: unknown;
+  balance_after: unknown;
+  reference_type: string | null;
+  reference_id: string | null;
+  notes: string | null;
+  created_at: string;
+  created_by: string | null;
+  created_by_name: string | null;
+  warehouse_id: string | null;
+  warehouse_name: string | null;
+  warehouse_type: string | null;
+  variation_id: string | null;
+  product_id: string | null;
+  product_code: string | null;
+  product_name: string | null;
+  is_simple: boolean | null;
+  variation_label: string | null;
+  attributes: Record<string, string> | null;
+  sku: string | null;
+  image_url: string | null;
+}
+
+interface RawSummary { type: string; count: unknown; total_qty: unknown }
+
+// GET — ความเคลื่อนไหวสต็อก (แท็บ movements ของ /inventory) — RPC รอบเดียวได้ทั้งหน้า + ยอดรวม + การ์ดสรุป
 export async function GET(request: NextRequest) {
   try {
     const auth = await checkAuthWithCompany(request);
     if (!auth.isAuth || !auth.companyId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    const companyId = auth.companyId;
 
-    const { searchParams } = new URL(request.url);
-    const warehouseId = searchParams.get('warehouse_id');
-    const variationId = searchParams.get('variation_id');
-    const type = searchParams.get('type');
-    const search = searchParams.get('search');
-    const dateFrom = searchParams.get('date_from');
-    const dateTo = searchParams.get('date_to');
-    const page = parseInt(searchParams.get('page') || '1', 10);
-    const limit = parseInt(searchParams.get('limit') || '50', 10);
-    const offset = (page - 1) * limit;
-
-    // Try flattened view first
-    let query = supabaseAdmin
-      .from('inventory_transactions_view')
-      .select('*', { count: 'exact' })
-      .eq('company_id', auth.companyId)
-      .order('created_at', { ascending: false });
-
-    if (warehouseId) query = query.eq('warehouse_id', warehouseId);
-    if (variationId) query = query.eq('variation_id', variationId);
-    if (type) query = query.eq('type', type);
-    // Convert bare dates to Bangkok timezone (UTC+7) boundaries
-    if (dateFrom) query = query.gte('created_at', dateFrom.includes('T') ? dateFrom : dateFrom + 'T00:00:00+07:00');
-    if (dateTo) query = query.lte('created_at', dateTo.includes('T') ? dateTo : dateTo + 'T23:59:59.999+07:00');
-
-    if (search) {
-      const s = `%${search}%`;
-      query = query.or(`product_name.ilike.${s},product_code.ilike.${s},sku.ilike.${s},notes.ilike.${s}`);
-    }
-
-    // summary=true → aggregate DB-side (MonitorTab การ์ดสรุป) — ไม่ต้องดึงแถวจริงเลย
-    if (searchParams.get('summary') === 'true') {
-      const stockConfigOnly = await getStockConfig(auth.companyId!);
-      if (!stockConfigOnly.stockEnabled) {
-        return NextResponse.json({ error: 'Stock feature not enabled' }, { status: 403 });
-      }
-      const { data: summary, error: sumError } = await supabaseAdmin.rpc('get_inventory_tx_summary', {
-        p_company_id: auth.companyId,
-        p_date_from: dateFrom ? (dateFrom.includes('T') ? dateFrom : dateFrom + 'T00:00:00+07:00') : new Date(0).toISOString(),
-        p_date_to: dateTo ? (dateTo.includes('T') ? dateTo : dateTo + 'T23:59:59.999+07:00') : new Date().toISOString(),
-        p_warehouse_id: warehouseId || null,
-      });
-      if (sumError) throw sumError;
-      return NextResponse.json({ summary: summary || [] });
-    }
-
-    const [stockConfig, viewResult] = await Promise.all([
-      getStockConfig(auth.companyId!),
-      query.range(offset, offset + limit - 1),
-    ]);
-
+    const stockConfig = await getStockConfig(companyId);
     if (!stockConfig.stockEnabled) {
       return NextResponse.json({ error: 'Stock feature not enabled' }, { status: 403 });
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let data: any[] | null;
-    let count: number | null;
+    const { searchParams } = new URL(request.url);
+    const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10) || 1);
+    const limit = Math.min(200, Math.max(1, parseInt(searchParams.get('limit') || '50', 10) || 50));
+    const warehouseId = searchParams.get('warehouse_id');
+    const dealerId = searchParams.get('dealer_id');
+    const variationId = searchParams.get('variation_id');
+    const referenceType = searchParams.get('reference_type');
+    const search = searchParams.get('search');
+    const dateFrom = toBoundary(searchParams.get('date_from'), false);
+    const dateTo = toBoundary(searchParams.get('date_to'), true);
 
-    if (viewResult.error) {
-      // Fallback: view not available, use legacy join query
-      console.warn('inventory_transactions_view not available, using fallback:', viewResult.error.message);
-      let fallbackQuery = supabaseAdmin
-        .from('inventory_transactions')
-        .select(`
-          id, warehouse_id, variation_id, type, quantity, balance_after,
-          reference_type, reference_id, notes, created_by, created_at,
-          warehouse:warehouses(id, name, code),
-          variation:product_variations(
-            id, variation_label, sku, attributes,
-            product:products(id, code, name)
-          )
-        `, { count: 'exact' })
-        .eq('company_id', auth.companyId)
-        .order('created_at', { ascending: false });
+    const types = (searchParams.get('types') || '')
+      .split(',')
+      .map(t => t.trim())
+      .filter(Boolean);
 
-      if (warehouseId) fallbackQuery = fallbackQuery.eq('warehouse_id', warehouseId);
-      if (variationId) fallbackQuery = fallbackQuery.eq('variation_id', variationId);
-      if (type) fallbackQuery = fallbackQuery.eq('type', type);
-      if (dateFrom) fallbackQuery = fallbackQuery.gte('created_at', dateFrom.includes('T') ? dateFrom : dateFrom + 'T00:00:00+07:00');
-      if (dateTo) fallbackQuery = fallbackQuery.lte('created_at', dateTo.includes('T') ? dateTo : dateTo + 'T23:59:59.999+07:00');
-
-      const fallbackResult = await fallbackQuery.range(offset, offset + limit - 1);
-      if (fallbackResult.error) throw fallbackResult.error;
-
-      // Apply search in JS for fallback
-      let filtered = fallbackResult.data || [];
-      if (search) {
-        const s = search.toLowerCase();
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        filtered = filtered.filter((tx: any) => {
-          const pName = tx.variation?.product?.name || '';
-          const pCode = tx.variation?.product?.code || '';
-          const sku = tx.variation?.sku || '';
-          return pName.toLowerCase().includes(s) ||
-            pCode.toLowerCase().includes(s) ||
-            sku.toLowerCase().includes(s) ||
-            (tx.notes || '').toLowerCase().includes(s);
-        });
+    // ตัวแทน 1 รายมีคลังฝากขายได้หลายใบ — ส่งมาทั้ง dealer + warehouse ให้ dealer ชนะ (เหมือน /api/inventory)
+    let warehouseIds: string[] | null = null;
+    if (dealerId) {
+      const { data: dealerWarehouses } = await supabaseAdmin
+        .from('warehouses')
+        .select('id')
+        .eq('company_id', companyId)
+        .eq('warehouse_type', 'consignment')
+        .eq('customer_id', dealerId);
+      const ids = (dealerWarehouses || []).map(w => w.id);
+      // ตัวแทนที่ยังไม่มีคลัง = ไม่มีความเคลื่อนไหวแน่นอน ไม่ต้องรบกวน DB
+      if (ids.length === 0) {
+        return NextResponse.json({ items: [], total: 0, summary: [], page, limit });
       }
-
-      data = filtered;
-      count = search ? filtered.length : (fallbackResult.count || 0);
-    } else {
-      data = viewResult.data;
-      count = viewResult.count;
+      warehouseIds = ids;
+    } else if (warehouseId) {
+      warehouseIds = [warehouseId];
     }
 
-    // Fetch user profiles + product images in parallel
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const userIds = [...new Set((data || []).map((tx: any) => tx.created_by).filter(Boolean))];
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const variationIds = [...new Set((data || []).map((tx: any) => tx.variation_id).filter(Boolean))];
-
-    const userMap: Record<string, string> = {};
-    const imageMap: Record<string, string> = {};
-
-    const [profilesResult, imagesResult] = await Promise.all([
-      userIds.length > 0
-        ? supabaseAdmin.from('user_profiles').select('id, name').in('id', userIds)
-        : Promise.resolve({ data: null }),
-      variationIds.length > 0
-        ? supabaseAdmin.from('product_images').select('variation_id, image_url').in('variation_id', variationIds).order('sort_order', { ascending: true })
-        : Promise.resolve({ data: null }),
-    ]);
-
-    (profilesResult.data || []).forEach((p: { id: string; name: string }) => {
-      userMap[p.id] = p.name || '';
-    });
-    // First image per variation wins
-    (imagesResult.data || []).forEach((img: { variation_id: string; image_url: string }) => {
-      if (!imageMap[img.variation_id]) imageMap[img.variation_id] = img.image_url;
+    const { data, error } = await supabaseAdmin.rpc('get_inventory_transactions', {
+      p_company_id: companyId,
+      p_page: page,
+      p_limit: limit,
+      p_warehouse_ids: warehouseIds,
+      p_variation_id: variationId || null,
+      p_types: types.length > 0 ? types : null,
+      p_reference_type: referenceType || null,
+      p_search: search || null,
+      p_date_from: dateFrom,
+      p_date_to: dateTo,
     });
 
-    // Also check product.image for variations without product_images
-    if (variationIds.length > 0) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const missingImageVarIds = variationIds.filter((vid: string) => !imageMap[vid]);
-      if (missingImageVarIds.length > 0) {
-        const { data: pvData } = await supabaseAdmin
-          .from('product_variations')
-          .select('id, product:products(image)')
-          .in('id', missingImageVarIds);
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (pvData || []).forEach((pv: any) => {
-          if (pv.product?.image) imageMap[pv.id] = pv.product.image;
-        });
-      }
+    if (error) {
+      console.error('get_inventory_transactions error:', error);
+      return NextResponse.json({ error: error.message || 'Failed to fetch transactions' }, { status: 500 });
     }
 
-    // Attach images to data rows
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (data || []).forEach((tx: any) => {
-      if (tx.variation_id && imageMap[tx.variation_id]) {
-        tx.product_image = imageMap[tx.variation_id];
-      }
-    });
+    const result = (data || {}) as { total?: unknown; summary?: RawSummary[]; items?: RawItem[] };
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const transactions = (data || []).map((tx: any) => mapTransaction(tx, userMap));
+    const items = (result.items || []).map(row => ({
+      id: row.id,
+      type: row.type,
+      quantity: num(row.quantity),
+      balance_after: num(row.balance_after),
+      reference_type: row.reference_type || null,
+      reference_id: row.reference_id || null,
+      notes: row.notes || null,
+      created_at: row.created_at,
+      created_by: row.created_by || null,
+      created_by_name: row.created_by_name || null,
+      warehouse_id: row.warehouse_id || null,
+      warehouse_name: row.warehouse_name || '',
+      warehouse_type: row.warehouse_type || null,
+      variation_id: row.variation_id || null,
+      product_id: row.product_id || null,
+      product_code: row.product_code || '',
+      product_name: row.product_name || '',
+      is_simple: row.is_simple === true,
+      variation_label: row.variation_label || '',
+      attributes: row.attributes || null,
+      sku: row.sku || '',
+      image_url: row.image_url || null,
+    }));
+
+    const summary = (result.summary || []).map(s => ({
+      type: s.type,
+      count: num(s.count),
+      total_qty: num(s.total_qty),
+    }));
 
     return NextResponse.json({
-      transactions,
-      total: count || 0,
+      items,
+      total: num(result.total),
+      summary,
       page,
       limit,
     });
