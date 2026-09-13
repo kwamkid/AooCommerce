@@ -1,45 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
+import { extractBuyer } from '@/lib/marketplace/buyer-adapter';
 
 // ยอดเงินจริงของออเดอร์ marketplace หนึ่งใบ — ให้การ์ด MarketplaceOrderCard อ่าน
 //
 // GET /api/orders/[id]/settlement
-//   → { account, external_order_id, external_status, buyer_note, settlement, lines, can_view_cost }
+//   → { account, external_order_id, external_status, buyer, buyer_note, settlement, lines, can_view_cost }
 //
 // **ไม่ยิง API ของแพลตฟอร์มเลย** — อ่านจาก `marketplace_settlements` ที่ cron/adapter บันทึกไว้
 // อยากดึงของใหม่ใช้ POST /api/marketplace/settlements/sync-order
+//
+// ข้อมูลผู้ซื้อ (ชื่อ · ที่อยู่เท่าที่แพลตฟอร์มยอมบอก · ข้อความจากผู้ซื้อ) แกะผ่าน
+// `getBuyerAdapter(platform)` — **ห้ามไล่เดาชื่อคีย์เองใน route** แต่ละเจ้าเก็บคนละที่
+// และปิดบังคนละฟิลด์ (ดู lib/marketplace/buyer-adapter.ts)
 //
 // ต้นทุน/กำไรถูกถอดออกจาก response เมื่อผู้ใช้ไม่มีสิทธิ์เห็นต้นทุน — ซ่อนแค่ที่ UI
 // ไม่พอ ค่ายังไหลไปถึงเครื่องผู้ใช้อยู่ดี
 
 /** ค่าที่ตัดออกเมื่อไม่มีสิทธิ์เห็นต้นทุน */
 const COST_FIELDS = ['cogs', 'cogs_basis', 'gross_profit'] as const;
-
-/**
- * ข้อความจากผู้ซื้อใน `external_data` — แต่ละเจ้าเก็บคนละคีย์ (note · buyer_message · remark)
- * ไล่ตาม **ชื่อคีย์** ไม่ใช่ตาม platform (ชั้นกลางห้ามรู้จักชื่อ platform) · ดูชั้นบนสุด
- * และชั้นถัดไปหนึ่งชั้น เพราะบางเจ้าเก็บ payload ดิบไว้ใต้ `order`
- */
-const NOTE_KEYS = ['note', 'buyer_message', 'remark', 'buyer_remark', 'buyer_note', 'message'];
-
-function extractBuyerNote(data: unknown): string | null {
-  if (!data || typeof data !== 'object' || Array.isArray(data)) return null;
-  const obj = data as Record<string, unknown>;
-  for (const key of NOTE_KEYS) {
-    const value = obj[key];
-    if (typeof value === 'string' && value.trim()) return value.trim();
-  }
-  for (const value of Object.values(obj)) {
-    if (value && typeof value === 'object' && !Array.isArray(value)) {
-      const nested = value as Record<string, unknown>;
-      for (const key of NOTE_KEYS) {
-        const v = nested[key];
-        if (typeof v === 'string' && v.trim()) return v.trim();
-      }
-    }
-  }
-  return null;
-}
 
 export async function GET(
   request: NextRequest,
@@ -102,11 +81,15 @@ export async function GET(
       if (!canViewCost) for (const f of COST_FIELDS) delete settlement[f];
     }
 
+    const account = accountRes.data ?? null;
+    const buyer = extractBuyer(account?.platform ?? null, order.external_data);
+
     return NextResponse.json({
-      account: accountRes.data ?? null,
+      account,
       external_order_id: order.external_order_sn ?? null,
       external_status: order.external_status ?? null,
-      buyer_note: extractBuyerNote(order.external_data),
+      buyer,
+      buyer_note: buyer.note ?? null,
       settlement,
       lines,
       can_view_cost: canViewCost,

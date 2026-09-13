@@ -8,6 +8,8 @@
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { resolveAccountWarehouseId } from '@/lib/marketplace/warehouse';
 import { newCustomerCode } from '@/lib/customer-code';
+import { ensureBuyerShippingAddress } from '@/lib/marketplace/buyer-address';
+import { lazadaBuyerAdapter } from '@/lib/lazada/buyer-adapter';
 import { ensureVariationImage, upsertProductImage } from '@/lib/marketplace/product-helpers';
 import { sendNewOrderPushById } from '@/lib/push/send';
 import type { OrderImportOptions } from '@/lib/marketplace/order-import';
@@ -775,47 +777,19 @@ async function findOrCreateCustomer(
     isNewCustomer = true;
   }
 
+  // ที่อยู่ผู้ซื้อ — Lazada ปิดบังเกือบทุกช่อง เหลืออำเภอ (`city`) กับรหัสไปรษณีย์
+  // แกะผ่าน buyer adapter (ค่าที่ถูกปิดบัง = null) แล้วเขียนผ่านตัวกลางตัวเดียวของทุกแพลตฟอร์ม
   let shippingAddressId: string | null = null;
   if (addr) {
-    const fullAddress = [addr.address1, addr.address2, addr.address3, addr.address4, addr.address5, addr.city]
-      .filter(Boolean).join(' ');
-
-    const { data: existingAddr } = await supabaseAdmin
-      .from('shipping_addresses')
-      .select('id')
-      .eq('customer_id', customerId)
-      .eq('company_id', companyId)
-      .limit(1)
-      .maybeSingle();
-
-    if (existingAddr) {
-      shippingAddressId = existingAddr.id;
-      await supabaseAdmin
-        .from('shipping_addresses')
-        .update({
-          recipient_name: buyerName,
-          phone: usablePhone || null,
-          address: fullAddress,
-          postal_code: addr.post_code || null,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', existingAddr.id);
-    } else {
-      const { data: newAddr } = await supabaseAdmin
-        .from('shipping_addresses')
-        .insert({
-          company_id: companyId,
-          customer_id: customerId,
-          recipient_name: buyerName,
-          phone: usablePhone || null,
-          address: fullAddress,
-          postal_code: addr.post_code || null,
-          is_default: true,
-        })
-        .select('id')
-        .single();
-      shippingAddressId = newAddr?.id || null;
-    }
+    shippingAddressId = await ensureBuyerShippingAddress({
+      companyId,
+      customerId,
+      buyer: lazadaBuyerAdapter.extract(order),
+      addressName: 'ที่อยู่ Lazada',
+      fallbackContact: buyerName,
+      fallbackPhone: usablePhone || null,
+      logLabel: 'Lazada Sync',
+    });
   }
 
   return { customerId, isNewCustomer, shippingAddressId };

@@ -16,6 +16,17 @@
 
 ---
 
+## 2026-09-14 — Lazada/TikTok เขียน `shipping_addresses` ด้วยคอลัมน์ที่ไม่มีจริง → ออเดอร์ 100% ไม่มีที่อยู่ผู้ซื้อ (ล้มเงียบ)
+
+**ที่เกิด**: [lib/lazada/sync.ts](lib/lazada/sync.ts) `findOrCreateCustomer` · [lib/tiktok/sync.ts](lib/tiktok/sync.ts) `findOrCreateCustomer`
+**อาการ**: ออเดอร์ Lazada 161 ใบ + TikTok 9 ใบ **ทุกใบ** มี `orders.shipping_address_id = null` และลูกค้าที่สร้างจากออเดอร์เหล่านั้นไม่มีที่อยู่สักแถว — หน้า `/orders/[id]` จึงไม่มีที่อยู่ให้ดูเลย ทั้งที่ Lazada บอกอำเภอ+รหัสไปรษณีย์ และ TikTok บอกจังหวัด+อำเภอมาแบบไม่ปิดบัง · ไม่มี error ใน log ไม่มีใครรู้ว่าพัง
+**Root cause**: insert ใส่คอลัมน์ **`recipient_name` กับ `address` ซึ่งไม่มีในตาราง** (ของจริงคือ `contact_person` · `address_line1` และมี `address_name`/`province` เป็น NOT NULL อีก) → PostgREST ตอบ error ทุกครั้ง แต่โค้ด **ไม่ได้รับค่า `error` มาเช็ค** (`const { data: newAddr } = await …`) แล้วใช้ `newAddr?.id || null` ต่อ จึงกลายเป็น "ไม่มีที่อยู่" เงียบ ๆ · Shopee ไม่โดนเพราะ `ensureShippingAddress` เขียนคอลัมน์ถูกมาตั้งแต่แรก (แต่ที่อยู่ของ Shopee ถูกปิดบังหมดจึงคืน undefined ก่อนถึง insert อยู่ดี)
+**วิธีแก้**:
+- ตัวกลางตัวเดียวของทุกแพลตฟอร์ม [lib/marketplace/buyer-address.ts](lib/marketplace/buyer-address.ts) `ensureBuyerShippingAddress()` — เขียนคอลัมน์จริงทั้งชุด · **เช็ค `error` แล้ว `console.error` ทุกครั้ง** · ไม่มีจังหวัด (คอลัมน์ NOT NULL) = คืน null ไม่ยิง insert · แถวที่มีอยู่แล้วเติมเฉพาะช่องที่มีค่าใหม่ (ห้ามทับของที่พนักงานแก้มือด้วย null)
+- ที่มาของค่า = [lib/marketplace/buyer-adapter.ts](lib/marketplace/buyer-adapter.ts) + adapter ต่อแพลตฟอร์ม (`lib/{shopee,lazada,tiktok}/buyer-adapter.ts`) — กติกาเดียว: **ค่าที่ถูกปิดบัง (มี `*`) = null** · Lazada ได้อำเภอจาก `address_shipping.city` (ตัด "/ อังกฤษ" ออก) + จังหวัดเดาจากรหัสไปรษณีย์ผ่าน `thai-address-data` · TikTok ได้จังหวัด/อำเภอจาก `recipient_address.district_info[]` (L1/L2)
+- `GET /api/orders/[id]/settlement` คืน `buyer` ให้หน้า `/orders/[id]` แสดง "เท่าที่แพลตฟอร์มให้มา" และเลิกเดาชื่อคีย์ข้อความผู้ซื้อเองใน route
+**ป้องกัน regression**: ⛔ ห้าม insert/update `shipping_addresses` เองใน `lib/<platform>/sync.ts` อีก — ผ่าน `ensureBuyerShippingAddress()` เท่านั้น · **insert/update ทุกตัวที่ผลลัพธ์มีความหมาย ต้องรับ `error` มาเช็คเสมอ** (`const { data, error } = …`) การละ `error` ทิ้งคือทางเดียวที่ทำให้ "เขียนคอลัมน์ผิดชื่อ" อยู่ได้เป็นเดือนโดยไม่มีใครรู้ · ข้อมูลเก่าไม่ backfill (payload ที่เก็บไว้ก็ถูกปิดบังเท่าเดิม) — ตรวจของใหม่ด้วย `select source, count(*), count(shipping_address_id) from orders where source in ('lazada','tiktok') group by source`
+
 ## 2026-09-13 — ดึงสต็อกจาก Shopee เขียน `inventory` ตรง ไม่ลง log → 360 แถว (12%) ตรวจย้อนหลังไม่ได้
 
 **ที่เกิด**: [lib/shopee/product-sync.ts](lib/shopee/product-sync.ts) `pullStockFromShopee` · [lib/shopee/sync-one-product.ts](lib/shopee/sync-one-product.ts) · [app/api/shopee/products/import/route.ts](app/api/shopee/products/import/route.ts) `importStockFromShopee`

@@ -13,7 +13,9 @@ import NumberInput from '@/components/ui/NumberInput';
 import FormInput from '@/components/ui/FormInput';
 import { LoadingCard } from '@/components/ui/StateCard';
 import OrderForm from '@/components/orders/OrderForm';
-import MarketplaceOrderCard from '@/components/orders/MarketplaceOrderCard';
+import MarketplaceOrderCard, { type SettlementResponse } from '@/components/orders/MarketplaceOrderCard';
+import Alert from '@/components/ui/Alert';
+import PlatformIcon from '@/components/ui/PlatformIcon';
 import TaxInvoiceEditModal, { type TaxInvoiceSnapshot } from '@/components/ui/TaxInvoiceEditModal';
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/lib/toast-context';
@@ -64,6 +66,8 @@ import { generatePackingPdf } from '@/lib/orders-packing-pdf';
 import { generateShippingLabelPdf } from '@/lib/order-shipping-label-pdf';
 import { showPdfPreview } from '@/lib/print-pdf';
 import { isMarketplaceSource } from '@/lib/marketplace/types';
+import { MARKETPLACE_PLATFORMS, type QuotaPlatform } from '@/lib/marketplace/platforms';
+import type { MarketplaceBuyer } from '@/lib/marketplace/buyer-adapter';
 import { PLATFORM_ICONS, getTrackingUrl, getCarrierLabel } from '../components/types';
 import { useCarriers } from '@/lib/carrier-lookup';
 import FormSelect from '@/components/ui/FormSelect';
@@ -131,9 +135,17 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
   const [fullOrderData, setFullOrderData] = useState<any>(null);
   // ออเดอร์นี้ถูกบอกไปที่ไหนบ้าง (dataset ของเพจ / บัญชีโฆษณา) — null = ยังไม่ได้ถาม
   const [adEvents, setAdEvents] = useState<AdEventRow[] | null>(null);
+  // ปุ่ม sync / รับออเดอร์ / ใบปะหน้า ยังเป็นของ Shopee เจ้าเดียว (API ของเจ้าอื่นยังไม่มี)
   const isShopeeOrder = orderSource === 'shopee';
   const isMarketplaceOrder = isMarketplaceSource(orderSource);
   const isPosOrder = orderSource === 'pos';
+  // ป้ายชื่อ/ชื่อหลังบ้านของแพลตฟอร์มมาจากทะเบียนกลางเสมอ — ห้ามพิมพ์ชื่อร้านค้าลงหน้า
+  const marketplacePlatform = MARKETPLACE_PLATFORMS[orderSource as QuotaPlatform] as
+    | (typeof MARKETPLACE_PLATFORMS)[QuotaPlatform]
+    | undefined;
+  const marketplaceLabel = marketplacePlatform?.label || orderSource;
+  // ข้อมูลผู้ซื้อเท่าที่แพลตฟอร์มยอมบอก — มาจาก request เดียวกับการ์ด MarketplaceOrderCard
+  const [marketplaceBuyer, setMarketplaceBuyer] = useState<MarketplaceBuyer | null>(null);
 
   // Print
   const [printMode, setPrintMode] = useState<'order' | 'packing' | null>(null);
@@ -927,11 +939,13 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
                   onClick={() => { copy(orderNumber, 'เลขคำสั่งซื้อ'); }}
                   title="คัดลอกเลขคำสั่งซื้อ"
                 >{orderNumber}</h1>
-                {isShopeeOrder && (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400">
-                    <img src="/marketplace/shopee.svg" alt="Shopee" className="w-3.5 h-3.5" />
-                    Shopee
-                  </span>
+                {isMarketplaceOrder && (
+                  <InfoChip
+                    colors="bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-200"
+                    icon={<PlatformIcon id={orderSource} size={14} title={marketplaceLabel} />}
+                  >
+                    {marketplaceLabel}
+                  </InfoChip>
                 )}
                 {isPosOrder && (
                   <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400">
@@ -1228,12 +1242,12 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
           </div>
         </div>
 
-        {/* Read-only warnings */}
-        {isShopeeOrder && (
-          <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800/40 text-orange-800 dark:text-orange-300 px-4 py-3 rounded-lg text-sm flex items-center gap-2 print:hidden">
-            <img src="/marketplace/shopee.svg" alt="Shopee" className="w-4 h-4" />
-            ออเดอร์จาก Shopee ไม่สามารถแก้ไขได้
-          </div>
+        {/* Read-only warnings — ทุกแพลตฟอร์ม (ป้ายชื่อ/ชื่อหลังบ้านจากทะเบียนกลาง) */}
+        {isMarketplaceOrder && (
+          <Alert tone="warning" className="print:hidden">
+            ออเดอร์จาก {marketplaceLabel} ไม่สามารถแก้ไขได้
+            {marketplacePlatform && ` — แก้ที่ ${marketplacePlatform.sellerCenter}`}
+          </Alert>
         )}
         {!isMarketplaceOrder && (() => {
           const isManualReadOnly = orderStatus !== 'new' || paymentStatus !== 'pending';
@@ -1665,7 +1679,11 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
         {orderStatus !== 'cancelled' && isMarketplaceOrder && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 print:hidden">
             {/* Left: การ์ด marketplace — ร้าน · เลขออเดอร์ · เงินที่ได้รับจริง (ใช้ตัวเดียวกันทุกแพลตฟอร์ม) */}
-            <MarketplaceOrderCard orderId={orderId} />
+            {/* `onLoaded` = ที่อยู่ผู้ซื้อมาจาก request เดียวกับการ์ด (หน้านี้ห้ามยิงซ้ำ) */}
+            <MarketplaceOrderCard
+              orderId={orderId}
+              onLoaded={(d: SettlementResponse) => setMarketplaceBuyer(d.buyer ?? null)}
+            />
 
             {/* Right: Customer Info */}
             <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-5">
@@ -1679,11 +1697,39 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
                   {fullOrderData.customer.phone && (
                     <div className="data-secondary text-gray-600 dark:text-slate-400 pl-6">{fullOrderData.customer.phone}</div>
                   )}
-                  {fullOrderData.delivery_address && (
-                    <div className="data-secondary text-gray-600 dark:text-slate-400 pl-6">
-                      {[fullOrderData.delivery_address, fullOrderData.delivery_district, fullOrderData.delivery_amphoe, fullOrderData.delivery_province, fullOrderData.delivery_postal_code].filter(Boolean).join(' ')}
-                    </div>
-                  )}
+                  {(() => {
+                    // ที่อยู่ของออเดอร์เอง (ถ้ามี) มาก่อนเสมอ — ที่เหลือคือ "เท่าที่แพลตฟอร์มยอมบอก"
+                    const orderAddress = [
+                      fullOrderData.delivery_address, fullOrderData.delivery_district,
+                      fullOrderData.delivery_amphoe, fullOrderData.delivery_province,
+                      fullOrderData.delivery_postal_code,
+                    ].filter(Boolean).join(' ');
+                    if (orderAddress) {
+                      return (
+                        <div className="data-secondary text-gray-600 dark:text-slate-400 pl-6">{orderAddress}</div>
+                      );
+                    }
+                    const partial = [
+                      marketplaceBuyer?.address_line, marketplaceBuyer?.district,
+                      marketplaceBuyer?.amphoe, marketplaceBuyer?.province,
+                      marketplaceBuyer?.postal_code,
+                    ].filter(Boolean).join(' ');
+                    if (partial) {
+                      return (
+                        <div className="pl-6 space-y-1">
+                          <div className="data-secondary text-gray-600 dark:text-slate-400">{partial}</div>
+                          <div className="text-gray-400 dark:text-slate-500">
+                            แพลตฟอร์มปิดบังชื่อ/ที่อยู่เต็ม — แสดงเท่าที่ให้มา
+                          </div>
+                        </div>
+                      );
+                    }
+                    return (
+                      <div className="data-secondary text-gray-400 dark:text-slate-500 pl-6">
+                        แพลตฟอร์มไม่เปิดเผยที่อยู่ผู้ซื้อ
+                      </div>
+                    );
+                  })()}
                 </div>
               ) : (
                 <div className="data-secondary text-gray-400 dark:text-slate-500">ไม่มีข้อมูลลูกค้า</div>

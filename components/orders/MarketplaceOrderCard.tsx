@@ -8,6 +8,12 @@
 //
 // ข้อมูลมาจาก `GET /api/orders/[id]/settlement` (อ่านจาก DB ไม่ยิง API แพลตฟอร์ม)
 // ปุ่ม "ดึงรายการเงิน" ยิง `POST /api/marketplace/settlements/sync-order` แล้วโหลดใหม่
+//
+// การ์ดนี้เป็น **เจ้าของ request เดียวของหน้า** — ข้อมูลผู้ซื้อ (`buyer`) ที่บล็อกลูกค้า
+// ของหน้า `/orders/[id]` ใช้ ส่งออกทาง `onLoaded` ห้ามให้หน้าแม่ยิง `/settlement` ซ้ำ
+//
+// สวิตช์ "ไม่นับส่วนลด" = มองค่าธรรมเนียมเทียบกับ "ยอดหลังหักส่วนลดร้าน" (เงินที่เรา
+// ขายได้จริง) แทนราคาป้าย — จำค่าไว้ต่อเครื่องผู้ใช้ใน localStorage
 
 import { useCallback, useEffect, useState } from 'react';
 import { ChevronDown, Copy, RefreshCw, Wallet } from 'lucide-react';
@@ -15,13 +21,16 @@ import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import HelpHint from '@/components/ui/HelpHint';
 import PlatformIcon from '@/components/ui/PlatformIcon';
+import Toggle from '@/components/ui/Toggle';
 import { InfoChip } from '@/components/ui/StatusBadge';
 import { LoadingCard } from '@/components/ui/StateCard';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
 import { useCopy } from '@/lib/useCopy';
+import { useStableCallback } from '@/lib/useStableCallback';
 import { formatPrice } from '@/lib/utils/format';
 import { MARKETPLACE_PLATFORMS } from '@/lib/marketplace/platforms';
+import type { MarketplaceBuyer } from '@/lib/marketplace/buyer-adapter';
 import {
   FEE_BUCKETS, BUCKET_SIGN, BUCKET_LABELS, BUCKET_HINTS, COGS_BASIS_HINTS,
   type FeeBucket,
@@ -49,10 +58,12 @@ interface SettlementLineRow {
   wht: number | string | null;
 }
 
-interface SettlementResponse {
+export interface SettlementResponse {
   account: { id: string; platform: string | null; shop_name: string | null } | null;
   external_order_id: string | null;
   external_status: string | null;
+  /** ผู้ซื้อเท่าที่แพลตฟอร์มยอมบอก — ช่องที่ถูกปิดบังมาเป็น null แล้ว */
+  buyer: MarketplaceBuyer | null;
   buyer_note: string | null;
   settlement: SettlementRow | null;
   lines: SettlementLineRow[];
@@ -72,10 +83,27 @@ const FEE_DEDUCTION_BUCKETS = FEE_BUCKETS.filter(
   b => BUCKET_SIGN[b] === '-' && b !== 'seller_discount',
 );
 
+/** ช่องที่เป็น "ส่วนลด" — ซ่อนได้ด้วยสวิตช์ "ไม่นับส่วนลด" */
+const DISCOUNT_BUCKETS: FeeBucket[] = ['seller_discount', 'platform_discount', 'platform_subsidy'];
+
+/** จำค่าสวิตช์ต่อเครื่องผู้ใช้ (localStorage อาจอ่าน/เขียนไม่ได้ — ครอบ try/catch เสมอ) */
+const HIDE_DISCOUNTS_KEY = 'mp-card-hide-discounts';
+
 const SIGN_PREFIX: Record<'+' | '-' | '±', string> = { '+': '+', '-': '−', '±': '±' };
 
+/** สัดส่วนของยอดตั้งต้น — ยอดตั้งต้นเป็น 0 = บอกเป็น % ไม่ได้ (ห้ามโชว์ 0.0%) */
+function pctOf(amount: number, base: number): number | null {
+  if (!base) return null;
+  return (Math.abs(amount) / base) * 100;
+}
+
+function PctNote({ pct }: { pct: number | null }) {
+  if (pct === null) return null;
+  return <span className="text-gray-400 dark:text-slate-500">({pct.toFixed(1)}%)</span>;
+}
+
 function AmountRow({
-  label, hint, amount, sign, tone = 'default', strong = false,
+  label, hint, amount, sign, tone = 'default', strong = false, pct = null,
 }: {
   label: string;
   hint?: string;
@@ -83,6 +111,8 @@ function AmountRow({
   sign?: '+' | '-' | '±';
   tone?: 'default' | 'good' | 'bad';
   strong?: boolean;
+  /** % ของยอดขาย — null = ไม่มียอดขายให้เทียบ */
+  pct?: number | null;
 }) {
   const color = tone === 'good'
     ? 'text-emerald-600 dark:text-emerald-400'
@@ -99,32 +129,64 @@ function AmountRow({
         {label}
         {hint && <HelpHint>{hint}</HelpHint>}
       </span>
-      <span className={`${color} tabular-nums whitespace-nowrap`}>
-        {prefix}฿{formatPrice(shown)}
+      <span className="flex items-baseline gap-1.5 whitespace-nowrap">
+        <span className={`${color} tabular-nums`}>
+          {prefix}฿{formatPrice(shown)}
+        </span>
+        <PctNote pct={pct} />
       </span>
     </div>
   );
 }
 
-export default function MarketplaceOrderCard({ orderId }: { orderId: string }) {
+export default function MarketplaceOrderCard({
+  orderId, onLoaded,
+}: {
+  orderId: string;
+  /**
+   * ส่งข้อมูลที่โหลดมาให้หน้าแม่ใช้ต่อ (เช่นบล็อกลูกค้าที่ต้องใช้ `buyer`)
+   * — **มีไว้เพื่อให้ทั้งหน้ายิง `/settlement` แค่ครั้งเดียว** ห้ามให้หน้าแม่ยิงซ้ำเอง
+   */
+  onLoaded?: (data: SettlementResponse) => void;
+}) {
   const { showToast } = useToast();
   const copy = useCopy();
   const [data, setData] = useState<SettlementResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [showLines, setShowLines] = useState(false);
+  const [hideDiscounts, setHideDiscounts] = useState(false);
+
+  // identity คงที่ — ไม่งั้น `load` เปลี่ยนทุก render ของหน้าแม่แล้วยิง API วนไม่จบ
+  const emitLoaded = useStableCallback((payload: SettlementResponse) => { onLoaded?.(payload); });
+
+  // ค่าสวิตช์อ่านหลัง mount (ไม่ใช่ตอน render) — กัน hydration ไม่ตรงกับฝั่ง server
+  useEffect(() => {
+    try {
+      setHideDiscounts(localStorage.getItem(HIDE_DISCOUNTS_KEY) === '1');
+    } catch { /* โหมดส่วนตัว / ปิดการเก็บข้อมูลเว็บ — ใช้ค่าตั้งต้นไป */ }
+  }, []);
+
+  const toggleHideDiscounts = (v: boolean) => {
+    setHideDiscounts(v);
+    try {
+      localStorage.setItem(HIDE_DISCOUNTS_KEY, v ? '1' : '0');
+    } catch { /* เก็บไม่ได้ก็แค่ไม่จำข้ามครั้ง */ }
+  };
 
   const load = useCallback(async () => {
     try {
       const res = await apiFetch(`/api/orders/${orderId}/settlement`);
       if (!res.ok) { setData(null); return; }
-      setData(await res.json());
+      const json: SettlementResponse = await res.json();
+      setData(json);
+      emitLoaded(json);
     } catch {
       setData(null);
     } finally {
       setLoading(false);
     }
-  }, [orderId]);
+  }, [orderId, emitLoaded]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -167,7 +229,11 @@ export default function MarketplaceOrderCard({ orderId }: { orderId: string }) {
   const grossSales = num(s?.gross_sales);
   const netPayout = num(s?.net_payout);
   const feeTotal = FEE_DEDUCTION_BUCKETS.reduce((sum, b) => sum + num(s?.[b]), 0);
-  const feePct = grossSales > 0 ? (feeTotal / grossSales) * 100 : null;
+  const feePct = pctOf(feeTotal, grossSales);
+  // ฐาน "ยอดหลังหักส่วนลดร้าน" — ส่วนลดที่ร้านออกเองไม่เคยเข้ากระเป๋าเรา
+  // จึงเป็นฐานที่ตอบว่า "เงินที่ขายได้จริง โดนแพลตฟอร์มกินไปกี่ %"
+  const afterSellerDiscount = grossSales - num(s?.seller_discount);
+  const feePctAfterDiscount = pctOf(feeTotal, afterSellerDiscount);
   const cogs = s?.cogs == null ? null : num(s.cogs);
   const grossProfit = s?.gross_profit == null ? null : num(s.gross_profit);
   const cogsBasis = (s?.cogs_basis || '') as keyof typeof COGS_BASIS_HINTS;
@@ -222,20 +288,30 @@ export default function MarketplaceOrderCard({ orderId }: { orderId: string }) {
         </div>
       ) : (
         <div className="space-y-3">
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
             <div className="flex items-center gap-2 text-gray-500 dark:text-slate-400">
               <Wallet className="w-4 h-4" />
               <span className="font-medium">เงินที่ได้รับจริง</span>
             </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              icon={<RefreshCw className="w-4 h-4" />}
-              loading={syncing}
-              onClick={handleSync}
-            >
-              ดึงใหม่
-            </Button>
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
+                <span className="text-gray-600 dark:text-slate-300">ไม่นับส่วนลด</span>
+                <Toggle
+                  checked={hideDiscounts}
+                  onChange={toggleHideDiscounts}
+                  aria-label="ไม่นับส่วนลด"
+                />
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                icon={<RefreshCw className="w-4 h-4" />}
+                loading={syncing}
+                onClick={handleSync}
+              >
+                ดึงใหม่
+              </Button>
+            </div>
           </div>
 
           <div className="space-y-2">
@@ -243,17 +319,22 @@ export default function MarketplaceOrderCard({ orderId }: { orderId: string }) {
               label={BUCKET_LABELS.gross_sales}
               hint={BUCKET_HINTS.gross_sales}
               amount={grossSales}
+              pct={pctOf(grossSales, grossSales)}
             />
-            {FEE_BUCKETS.filter(b => b !== 'gross_sales' && num(s[b]) !== 0).map(b => (
-              <AmountRow
-                key={b}
-                label={BUCKET_LABELS[b as FeeBucket]}
-                hint={BUCKET_HINTS[b as FeeBucket]}
-                amount={num(s[b])}
-                sign={BUCKET_SIGN[b as FeeBucket]}
-                tone={BUCKET_SIGN[b as FeeBucket] === '-' ? 'bad' : BUCKET_SIGN[b as FeeBucket] === '+' ? 'good' : 'default'}
-              />
-            ))}
+            {FEE_BUCKETS
+              .filter(b => b !== 'gross_sales' && num(s[b]) !== 0)
+              .filter(b => !(hideDiscounts && DISCOUNT_BUCKETS.includes(b)))
+              .map(b => (
+                <AmountRow
+                  key={b}
+                  label={BUCKET_LABELS[b as FeeBucket]}
+                  hint={BUCKET_HINTS[b as FeeBucket]}
+                  amount={num(s[b])}
+                  sign={BUCKET_SIGN[b as FeeBucket]}
+                  tone={BUCKET_SIGN[b as FeeBucket] === '-' ? 'bad' : BUCKET_SIGN[b as FeeBucket] === '+' ? 'good' : 'default'}
+                  pct={pctOf(num(s[b]), grossSales)}
+                />
+              ))}
 
             <div className="pt-2 border-t border-gray-200 dark:border-slate-600">
               <AmountRow
@@ -261,9 +342,22 @@ export default function MarketplaceOrderCard({ orderId }: { orderId: string }) {
                 amount={netPayout}
                 tone={netPayout < 0 ? 'bad' : 'good'}
                 strong
+                pct={pctOf(netPayout, grossSales)}
               />
             </div>
-            {feePct !== null && (
+            {hideDiscounts && feePctAfterDiscount !== null ? (
+              <div className="text-right text-gray-500 dark:text-slate-400">
+                <span>
+                  แพลตฟอร์มหักจริง ฿{formatPrice(feeTotal)} ({feePctAfterDiscount.toFixed(1)}% ของยอดหลังหักส่วนลดร้าน)
+                </span>
+                {feePct !== null && (
+                  <span className="text-gray-400 dark:text-slate-500"> · {feePct.toFixed(1)}% ของยอดขาย</span>
+                )}
+                <HelpHint align="right">
+                  {`ยอดหลังหักส่วนลดร้าน = ยอดขาย ฿${formatPrice(grossSales)} − ส่วนลดร้าน ฿${formatPrice(num(s.seller_discount))} = ฿${formatPrice(afterSellerDiscount)} · ค่าธรรมเนียมที่แพลตฟอร์มหักไม่รวมส่วนลดที่ร้านออกเอง`}
+                </HelpHint>
+              </div>
+            ) : feePct !== null && (
               <div className="text-right text-gray-500 dark:text-slate-400">
                 ค่าธรรมเนียมรวม ฿{formatPrice(feeTotal)} ({feePct.toFixed(1)}% ของยอดขาย)
               </div>
@@ -277,6 +371,7 @@ export default function MarketplaceOrderCard({ orderId }: { orderId: string }) {
                   amount={cogs}
                   sign="-"
                   tone="bad"
+                  pct={pctOf(cogs, grossSales)}
                 />
                 {grossProfit !== null && (
                   <AmountRow
@@ -284,6 +379,7 @@ export default function MarketplaceOrderCard({ orderId }: { orderId: string }) {
                     amount={grossProfit}
                     tone={grossProfit >= 0 ? 'good' : 'bad'}
                     strong
+                    pct={pctOf(grossProfit, grossSales)}
                   />
                 )}
               </div>
@@ -314,8 +410,11 @@ export default function MarketplaceOrderCard({ orderId }: { orderId: string }) {
                           </span>
                         )}
                       </span>
-                      <span className="text-gray-800 dark:text-slate-200 tabular-nums whitespace-nowrap">
-                        ฿{formatPrice(num(line.amount))}
+                      <span className="flex items-baseline gap-1.5 whitespace-nowrap">
+                        <span className="text-gray-800 dark:text-slate-200 tabular-nums">
+                          ฿{formatPrice(num(line.amount))}
+                        </span>
+                        <PctNote pct={pctOf(num(line.amount), grossSales)} />
                       </span>
                     </div>
                   ))}

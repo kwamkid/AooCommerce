@@ -1,6 +1,8 @@
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { resolveAccountWarehouseId } from '@/lib/marketplace/warehouse';
 import { newCustomerCode } from '@/lib/customer-code';
+import { ensureBuyerShippingAddress } from '@/lib/marketplace/buyer-address';
+import { tiktokBuyerAdapter } from '@/lib/tiktok/buyer-adapter';
 import { ensureVariationImage, upsertProductImage } from '@/lib/marketplace/product-helpers';
 import {
   TikTokAccountRow,
@@ -914,47 +916,19 @@ async function findOrCreateCustomer(
     isNewCustomer = true;
   }
 
-  // Create/update shipping address
+  // ที่อยู่ผู้ซื้อ — TikTok ปิดบังชื่อ/เบอร์/บ้านเลขที่ แต่บอกจังหวัด+อำเภอใน `district_info`
+  // แกะผ่าน buyer adapter (ค่าที่ถูกปิดบัง = null) แล้วเขียนผ่านตัวกลางตัวเดียวของทุกแพลตฟอร์ม
   let shippingAddressId: string | null = null;
   if (addr) {
-    const fullAddress = addr.full_address || [addr.address_line1, addr.address_line2, addr.address_detail].filter(Boolean).join(' ');
-
-    const { data: existingAddr } = await supabaseAdmin
-      .from('shipping_addresses')
-      .select('id')
-      .eq('customer_id', customerId)
-      .eq('company_id', companyId)
-      .limit(1)
-      .maybeSingle();
-
-    if (existingAddr) {
-      shippingAddressId = existingAddr.id;
-      await supabaseAdmin
-        .from('shipping_addresses')
-        .update({
-          recipient_name: buyerName,
-          phone: buyerPhone || null,
-          address: fullAddress,
-          postal_code: addr.postal_code || null,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', existingAddr.id);
-    } else {
-      const { data: newAddr } = await supabaseAdmin
-        .from('shipping_addresses')
-        .insert({
-          company_id: companyId,
-          customer_id: customerId,
-          recipient_name: buyerName,
-          phone: buyerPhone || null,
-          address: fullAddress,
-          postal_code: addr.postal_code || null,
-          is_default: true,
-        })
-        .select('id')
-        .single();
-      shippingAddressId = newAddr?.id || null;
-    }
+    shippingAddressId = await ensureBuyerShippingAddress({
+      companyId,
+      customerId,
+      buyer: tiktokBuyerAdapter.extract(tiktokOrder),
+      addressName: 'ที่อยู่ TikTok',
+      fallbackContact: buyerName,
+      fallbackPhone: buyerPhone || null,
+      logLabel: 'TikTok Sync',
+    });
   }
 
   return { customerId, isNewCustomer, shippingAddressId };
