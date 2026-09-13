@@ -13,7 +13,8 @@ import { supabaseAdmin } from '@/lib/supabase-admin';
 import { sendNewOrderPushById } from '@/lib/push/send';
 import { getStorefrontCompany } from '@/lib/storefront-server';
 import { effectivePrice } from '@/lib/storefront';
-import { splitVatInclusive } from '@/lib/order-totals';
+import { computeOrderTotals, splitVatInclusive } from '@/lib/order-totals';
+import { checkCoupon, normalizeCouponCode, type Coupon } from '@/lib/coupons';
 import {
   resolveZone, resolveDeliveryFee, getSlotAvailability,
   getSlotWindow, buildWindowLabel,
@@ -240,11 +241,47 @@ export async function POST(request: NextRequest) {
   const wantsCard = company.gift_card.enabled && (!!body.gift_card || !!(body.gift_message || '').trim());
   const giftCardFee = wantsCard ? company.gift_card.fee : 0;
 
-  const totalWithVat = itemsSubtotal + shippingFee + giftCardFee;
   const vatRegistered = await supabaseAdmin
     .from('companies').select('vat_registered').eq('id', company.id).single()
     .then(r => r.data?.vat_registered || false);
-  const { subtotal: subtotalBeforeVat, vatAmount } = splitVatInclusive(totalWithVat, vatRegistered);
+
+  // โค้ดส่วนลด — ลูกค้าพิมพ์มา ระบบตรวจเองทั้งหมด (ยอดส่วนลดจาก client ไม่รับเด็ดขาด)
+  // กติกาอยู่ที่ lib/coupons.ts · เหตุผลที่ปฏิเสธบอกลูกค้าตรง ๆ ได้ เพราะเขาเป็นคนกรอกเอง
+  let couponDiscount = 0;
+  let appliedCoupon: { id: string; code: string } | null = null;
+  const couponCode = normalizeCouponCode(String((body as { coupon_code?: string }).coupon_code ?? ''));
+  if (couponCode) {
+    const { data: couponRow } = await supabaseAdmin
+      .from('coupons')
+      .select('id, code, discount_type, discount_value, max_discount, min_spend, valid_from, valid_until, usage_limit_total, usage_limit_per_customer, used_count, customer_id, fb_contact_id, channels, is_active')
+      .eq('company_id', company.id)
+      .eq('code', couponCode)
+      .maybeSingle<Coupon>();
+    if (!couponRow) return NextResponse.json({ error: 'ไม่พบโค้ดส่วนลดนี้' }, { status: 400 });
+
+    const check = checkCoupon({
+      coupon: couponRow,
+      itemsTotal: itemsSubtotal,
+      channel: 'storefront',
+      // ลูกค้าหน้าร้านยังไม่มี customer_id ตอนนี้ (สร้างทีหลัง) — คูปองเฉพาะคนจึงใช้ที่นี่ไม่ได้
+      customerId: null,
+    });
+    if (!check.ok) return NextResponse.json({ error: check.reason }, { status: 400 });
+    couponDiscount = check.discount;
+    appliedCoupon = { id: couponRow.id, code: couponRow.code };
+  }
+
+  const {
+    subtotal: subtotalBeforeVat,
+    vatAmount,
+    totalAmount: totalWithVat,
+  } = computeOrderTotals({
+    itemsTotal: itemsSubtotal,
+    discountAmount: couponDiscount,
+    shippingFee,
+    giftCardFee,
+    vatRegistered,
+  });
 
   const { data: orderNumber, error: numberError } = await supabaseAdmin
     .rpc('generate_order_number', { p_company_id: company.id });
@@ -307,7 +344,8 @@ export async function POST(request: NextRequest) {
       shipping_address_id: shippingAddressId,
       subtotal: subtotalBeforeVat,
       vat_amount: vatAmount,
-      discount_amount: 0,
+      discount_amount: couponDiscount,
+      order_discount_type: couponDiscount > 0 ? 'amount' : null,
       shipping_fee: shippingFee,
       total_amount: totalWithVat,
       payment_status: 'pending',
@@ -353,6 +391,31 @@ export async function POST(request: NextRequest) {
   if (orderError || !order) {
     console.error('[storefront checkout] order insert failed:', orderError);
     return NextResponse.json({ error: 'สร้างคำสั่งซื้อไม่สำเร็จ' }, { status: 500 });
+  }
+
+  // บันทึกการใช้คูปอง — หลังออเดอร์ถูกสร้างจริงเท่านั้น · ล้มตรงนี้ไม่ล้มออเดอร์ (จด log ให้ตามเก็บได้)
+  if (appliedCoupon) {
+    const { error: redeemError } = await supabaseAdmin.from('coupon_redemptions').insert({
+      company_id: company.id,
+      coupon_id: appliedCoupon.id,
+      order_id: order.id,
+      customer_id: customerId,
+      amount: couponDiscount,
+      channel: 'storefront',
+    });
+    if (redeemError) {
+      console.error('[storefront checkout] coupon redeem failed:', { orderId: order.id, error: redeemError.message });
+    } else {
+      const { data: couponCounter } = await supabaseAdmin
+        .from('coupons')
+        .select('used_count')
+        .eq('id', appliedCoupon.id)
+        .maybeSingle<{ used_count: number }>();
+      await supabaseAdmin
+        .from('coupons')
+        .update({ used_count: (couponCounter?.used_count || 0) + 1 })
+        .eq('id', appliedCoupon.id);
+    }
   }
 
   const { error: itemsError } = await supabaseAdmin.from('order_items').insert(
