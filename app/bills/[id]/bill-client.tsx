@@ -321,6 +321,54 @@ export default function BillClient({ orderId, initialBill }: { orderId: string; 
   };
 
 
+  // ─── โค้ดส่วนลด (ลูกค้ากรอกเอง) ─────────────────────────
+  // ยอดเงินคิดใหม่ที่ `/api/bills/coupon` เท่านั้น — หน้าจอโชว์ผลที่เซิร์ฟเวอร์ตอบกลับ
+  // แล้วโหลดบิลใหม่ ไม่คำนวณส่วนลด/VAT เองในหน้านี้
+  const [couponCode, setCouponCode] = useState('');
+  const [couponBusy, setCouponBusy] = useState(false);
+  /** โค้ดที่เพิ่งใช้ในรอบนี้ — ใช้ตัดสินว่าจะโชว์ปุ่มถอดโค้ดไหม (ถอดได้เฉพาะโค้ดที่ลูกค้าใส่เอง) */
+  const [appliedCoupon, setAppliedCoupon] = useState<string | null>(null);
+
+  const handleApplyCoupon = async () => {
+    const code = couponCode.trim();
+    if (!bill || !code) return;
+    setCouponBusy(true);
+    try {
+      const response = await fetch('/api/bills/coupon', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ order_id: bill.id, code }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || 'ใช้โค้ดไม่สำเร็จ');
+      setAppliedCoupon(code);
+      setCouponCode('');
+      showToast('ใช้โค้ดส่วนลดแล้ว', 'success');
+      await fetchBill();
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'ใช้โค้ดไม่สำเร็จ', 'error');
+    } finally {
+      setCouponBusy(false);
+    }
+  };
+
+  const handleRemoveCoupon = async () => {
+    if (!bill) return;
+    setCouponBusy(true);
+    try {
+      const response = await fetch(`/api/bills/coupon?order_id=${bill.id}`, { method: 'DELETE' });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || 'ถอดโค้ดไม่สำเร็จ');
+      setAppliedCoupon(null);
+      showToast('ถอดโค้ดส่วนลดแล้ว', 'success');
+      await fetchBill();
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'ถอดโค้ดไม่สำเร็จ', 'error');
+    } finally {
+      setCouponBusy(false);
+    }
+  };
+
   const handleSubmitPayment = async () => {
     if (!bill) return;
 
@@ -997,8 +1045,43 @@ export default function BillClient({ orderId, initialBill }: { orderId: string; 
               )}
               {bill.discount_amount > 0 && (
                 <div className={`flex justify-between text-sm ${dark ? 'text-slate-400' : 'text-gray-500'}`}>
-                  <span>ส่วนลดรวม</span>
+                  <span>ส่วนลดรวม{appliedCoupon ? ` (${appliedCoupon})` : ''}</span>
                   <span>-{formatPrice(bill.discount_amount)}</span>
+                </div>
+              )}
+
+              {/* โค้ดส่วนลด — ซ่อนตอนพิมพ์ · บิลที่จ่ายหรือปิดแล้วแก้ยอดไม่ได้ (เซิร์ฟเวอร์กันอีกชั้น) */}
+              {bill.payment_status !== 'paid' && bill.order_status !== 'cancelled' && bill.order_status !== 'completed' && (
+                <div className="print:hidden pt-1">
+                  {appliedCoupon ? (
+                    <button
+                      type="button"
+                      onClick={handleRemoveCoupon}
+                      disabled={couponBusy}
+                      className={`text-sm underline disabled:opacity-50 ${dark ? 'text-slate-400' : 'text-gray-500'}`}
+                    >
+                      ถอดโค้ดส่วนลด
+                    </button>
+                  ) : bill.discount_amount > 0 ? null : (
+                    <div className="flex gap-2">
+                      <input
+                        value={couponCode}
+                        onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                        onKeyDown={(e) => { if (e.key === 'Enter') handleApplyCoupon(); }}
+                        placeholder="โค้ดส่วนลด"
+                        aria-label="โค้ดส่วนลด"
+                        className={`flex-1 min-w-0 rounded-lg border px-3 py-2 text-sm ${dark ? 'bg-slate-800 border-slate-600 text-white placeholder-slate-500' : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400'}`}
+                      />
+                      <button
+                        type="button"
+                        onClick={handleApplyCoupon}
+                        disabled={couponBusy || !couponCode.trim()}
+                        className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+                      >
+                        ใช้โค้ด
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
               {bill.vat_registered && (
