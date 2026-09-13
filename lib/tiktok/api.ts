@@ -643,7 +643,13 @@ export interface TikTokSkuDetail {
   price: number;
   /** ราคาก่อนลด (list_price) — 0 = ไม่มี */
   listPrice: number;
+  /** ยอดรวมทุกคลังของ TikTok */
   stock: number;
+  /**
+   * ยอดแยกรายคลังของ TikTok — **ขา push ต้องส่งครบทุกคลังที่ SKU มี**
+   * (ตกไปคลังเดียวจะโดนตีกลับ หรือแย่กว่านั้นคือคลังที่ไม่ได้ส่งถูกตั้งเป็น 0)
+   */
+  inventory: { warehouse_id: string; quantity: number }[];
   /** [{ name: 'สี', value_name: 'แดง' }] */
   salesAttributes: { name: string; value_name: string }[];
   imageUrl: string;
@@ -677,7 +683,17 @@ export interface TikTokProductFullDetail {
 export async function searchProducts(
   creds: TikTokCredentials,
   opts: { pageSize?: number; pageToken?: string; status?: string } = {}
-): Promise<{ products: { id: string; title: string; status: string }[]; nextPageToken?: string; totalCount?: number }> {
+): Promise<{
+  products: {
+    id: string;
+    title: string;
+    status: string;
+    /** response ดิบมี SKU พร้อมยอดรายคลังมาด้วย — ใช้ดึงสต็อกทั้งร้านโดยไม่ต้องยิง detail รายตัว */
+    skus?: { id: string; inventory: { warehouse_id: string; quantity: number }[] }[];
+  }[];
+  nextPageToken?: string;
+  totalCount?: number;
+}> {
   const queryParams: Record<string, string> = {
     page_size: String(opts.pageSize || 100),
   };
@@ -692,10 +708,63 @@ export async function searchProducts(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const data = result.data as any;
   return {
-    products: data?.products || [],
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    products: (data?.products || []).map((p: any) => ({
+      id: String(p.id || ''),
+      title: p.title || '',
+      status: p.status || '',
+      // `skus` ไม่มีในทุกเวอร์ชัน/ทุกร้าน — ปล่อย undefined ให้ผู้เรียกถอยไปยิง detail เอง
+      skus: Array.isArray(p.skus)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ? p.skus.map((s: any) => ({
+            id: String(s.id || ''),
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            inventory: (s.inventory || []).map((inv: any) => ({
+              warehouse_id: String(inv.warehouse_id || ''),
+              quantity: Number(inv.quantity || 0),
+            })),
+          }))
+        : undefined,
+    })),
     nextPageToken: data?.next_page_token || undefined,
     totalCount: data?.total_count,
   };
+}
+
+/**
+ * ตั้งยอดสต็อกของ SKU — `/product/202309/products/{product_id}/inventory/update`
+ *
+ * ⚠️ **ต้องส่งครบทุกคลังที่ SKU นั้นมี** (ละ `warehouse_id` ได้เมื่อร้านมีคลังเดียว)
+ * · SKU ของสินค้าที่สถานะ FREEZE/DELETED อัปเดตไม่ได้
+ * · ล้มรายตัวมาใน `data.errors[]` ทั้งที่ code = 0 → ไม่อ่านตรงนี้ = พังเงียบ
+ */
+export async function updateTikTokInventory(
+  creds: TikTokCredentials,
+  productId: string,
+  skus: { id: string; inventory: { warehouse_id?: string; quantity: number }[] }[]
+): Promise<{ ok: number; errors: string[] }> {
+  const { data, error } = await tiktokApiRequest(
+    creds, 'POST', `/product/202309/products/${productId}/inventory/update`, {}, { skus }
+  );
+  if (error) return { ok: 0, errors: [`Product ${productId}: ${error}`] };
+
+  const payload = data as {
+    errors?: {
+      message?: string;
+      detail?: { sku_id?: string; extra_errors?: { message?: string; warehouse_id?: string }[] };
+    }[];
+  } | null;
+
+  const failed = payload?.errors || [];
+  const errors = failed.map(e => {
+    const extra = (e.detail?.extra_errors || [])
+      .map(x => `${x.warehouse_id ? `คลัง ${x.warehouse_id}: ` : ''}${x.message || ''}`)
+      .filter(Boolean)
+      .join(' · ');
+    return `SKU ${e.detail?.sku_id || '-'}: ${e.message || 'อัปเดตไม่สำเร็จ'}${extra ? ` (${extra})` : ''}`;
+  });
+
+  return { ok: Math.max(0, skus.length - failed.length), errors };
 }
 
 /** TikTok description เป็น HTML — เก็บ text ล้วนไว้ใน products.description */
@@ -745,6 +814,11 @@ export async function getProductDetail(
     // ของหลาย warehouse รวมกันเป็นยอดเดียว (คลังฝั่งเราแยกเอง)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     stock: (s.inventory || []).reduce((sum: number, inv: any) => sum + (inv.quantity || 0), 0),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    inventory: (s.inventory || []).map((inv: any) => ({
+      warehouse_id: String(inv.warehouse_id || ''),
+      quantity: Number(inv.quantity || 0),
+    })),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     salesAttributes: (s.sales_attributes || []).map((a: any) => ({
       name: a.name || '',

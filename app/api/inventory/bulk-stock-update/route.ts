@@ -253,7 +253,7 @@ export async function POST(request: NextRequest) {
     // Trigger Shopee stock auto-sync for touched variations
     if (touchedVariations.size > 0) {
       try {
-        after(() => import('@/lib/shopee/auto-sync').then(m => m.syncStockNow(Array.from(touchedVariations))));
+        after(() => import('@/lib/marketplace/stock-push').then(m => m.syncStockNow(Array.from(touchedVariations))));
       } catch (err) {
         console.error('Shopee sync trigger error:', err);
       }

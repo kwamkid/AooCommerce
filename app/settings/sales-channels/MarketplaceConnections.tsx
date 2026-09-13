@@ -27,6 +27,7 @@ import LoadingOverlay from '@/components/ui/LoadingOverlay';
 import PlatformIcon from '@/components/ui/PlatformIcon';
 import { LoadingCard } from '@/components/ui/StateCard';
 import { formatThaiDateTime } from '@/lib/utils/format';
+import { MARKETPLACE_PLATFORMS } from '@/lib/marketplace/platforms';
 import MarketplaceAccountCard, { SyncRangeSelect } from './MarketplaceAccountCard';
 import type { MarketplaceAccountsState, MarketplaceAccount, MarketplacePlatform } from './useMarketplaceAccounts';
 
@@ -277,18 +278,25 @@ export default function MarketplaceConnections({
     }
   };
 
-  // ดึงยอดสต็อกจาก Shopee ลงคลัง default — ตั้งยอดตั้งต้น (เติมเฉพาะช่องที่ยอด 0)
-  const handlePullStock = async (accountId: string, shopName: string) => {
+  /** ป้ายชื่อแพลตฟอร์มของร้าน — แถว legacy ที่ platform ยังว่าง = Shopee */
+  const platformLabel = (account: MarketplaceAccount) =>
+    MARKETPLACE_PLATFORMS[account.platform || 'shopee'].label;
+
+  // ดึงยอดสต็อกจากร้าน (ทุกแพลตฟอร์ม) ลงคลังของร้านนี้ — ตั้งยอดตั้งต้น (เติมเฉพาะช่องที่ยอด 0)
+  const handlePullStock = async (account: MarketplaceAccount) => {
+    const label = platformLabel(account);
+    const shopName = account.shop_name || `Shop #${account.shop_id}`;
+    const accountId = account.id;
     const ok = await confirm({
-      title: `ดึงสต็อกจาก Shopee — ${shopName}?`,
-      description: 'ระบบจะอ่านยอดคงเหลือทุกสินค้าที่ผูกกับร้านนี้จาก Shopee มาใส่คลังหลัก โดยเติมเฉพาะรายการที่คลังเรายังเป็น 0 — ยอดที่ตั้ง/นับไว้แล้วจะไม่ถูกทับ (ใช้ ~30 API calls ต่อร้าน)',
+      title: `ดึงสต็อกจาก ${label} — ${shopName}?`,
+      description: `ระบบจะอ่านยอดคงเหลือทุกสินค้าที่ผูกกับร้านนี้จาก ${label} มาใส่คลังของร้านนี้ โดยเติมเฉพาะรายการที่คลังเรายังเป็น 0 — ยอดที่ตั้ง/นับไว้แล้วจะไม่ถูกทับ`,
       confirmLabel: 'ดึงสต็อก',
     });
     if (!ok) return;
 
     setSyncingId(accountId);
     try {
-      const res = await apiFetch('/api/shopee/products/pull-stock', {
+      const res = await apiFetch('/api/marketplace/products/pull-stock', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ marketplace_account_id: accountId }),
@@ -705,6 +713,63 @@ export default function MarketplaceConnections({
     );
   };
 
+  /**
+   * สวิตช์ auto-sync ของการ์ดร้าน — ใช้ร่วมทั้ง 3 แพลตฟอร์ม
+   * `productInfo` = การ์ดนั้นมีสวิตช์ชื่อ/ราคาด้วย (ตอนนี้มีแต่ Shopee ที่ push ราคา/ชื่อได้)
+   * บรรทัดอธิบายใต้สวิตช์ใส่เฉพาะแพลตฟอร์มที่เพิ่งเปิดให้ส่งสต็อก (ยังไม่เคยตั้งยอดในระบบ = เสี่ยงส่ง 0 ไปทับร้าน)
+   */
+  const autoSyncToggles = (account: MarketplaceAccount, opts?: { productInfo?: boolean }) => {
+    const productInfo = opts?.productInfo === true;
+    if (!stockEnabled && !productInfo) return null;
+    return (
+      <div className="pt-1 space-y-1">
+        <div className="flex flex-wrap gap-x-6 gap-y-2">
+          {stockEnabled && (
+            <div className="flex items-center gap-2">
+              <Toggle
+                checked={account.auto_sync_stock !== false}
+                onChange={v => handleToggleSync(account.id, 'auto_sync_stock', v)}
+                aria-label="Sync Stock อัตโนมัติ"
+              />
+              <span className="text-xs text-gray-700 dark:text-slate-300">Sync Stock อัตโนมัติ</span>
+            </div>
+          )}
+          {productInfo && (
+            <div className="flex items-center gap-2">
+              <Toggle
+                checked={account.auto_sync_product_info !== false}
+                onChange={v => handleToggleSync(account.id, 'auto_sync_product_info', v)}
+                aria-label="Sync ชื่อ/ราคา อัตโนมัติ"
+              />
+              <span className="text-xs text-gray-700 dark:text-slate-300">Sync ชื่อ/ราคา อัตโนมัติ</span>
+            </div>
+          )}
+        </div>
+        {stockEnabled && !productInfo && (
+          <p className="helper-text">
+            เปิดแล้วทุกครั้งที่สต็อกขยับ ระบบส่งยอดของคลังที่เลือกขึ้นร้าน — ถ้ายังไม่ได้ตั้งยอดในระบบ ให้ดึงสต็อกจากร้านมาก่อน
+          </p>
+        )}
+      </div>
+    );
+  };
+
+  /** ปุ่ม "ดึงสต็อกจาก {platform}" — ปุ่มเดียวกันทั้ง 3 การ์ด */
+  const pullStockButton = (account: MarketplaceAccount) => {
+    if (!stockEnabled) return null;
+    return (
+      <Button
+        variant="secondary"
+        icon={<PackageSearch className="w-4 h-4" />}
+        loading={syncingId === account.id}
+        disabled={account.connection_status === 'expired'}
+        onClick={() => handlePullStock(account)}
+      >
+        ดึงสต็อกจาก {platformLabel(account)}
+      </Button>
+    );
+  };
+
   const handleSelectWarehouse = async (accountId: string, warehouseId: string) => {
     const all = [...shopeeAccounts, ...tiktokAccounts, ...lazadaAccounts];
     const account = all.find(a => a.id === accountId);
@@ -714,11 +779,9 @@ export default function MarketplaceConnections({
 
     // ย้ายคลังของร้านที่ผูกสินค้าไว้แล้ว = ยอดที่ส่งขึ้นร้านจะเปลี่ยนชุดทันที
     // ต้องบอกให้ครบว่าอะไรเปลี่ยนและอะไรไม่เปลี่ยน ก่อนให้กดยืนยัน
-    // มีแต่ Shopee ที่ส่งสต็อกขึ้นร้านได้ตอนนี้ — TikTok/Lazada ยังไม่มี push stock
-    // อย่าสัญญาในข้อความสิ่งที่ทำไม่ได้ และอย่ายิง route ของ Shopee ด้วย account ของ platform อื่น
-    const canPushStock = !account?.platform || account.platform === 'shopee';
-    const linked = canPushStock ? (account?.linked_product_count || 0) : 0;
-    if ((account?.linked_product_count || 0) > 0) {
+    const label = account ? platformLabel(account) : MARKETPLACE_PLATFORMS.shopee.label;
+    const linked = account?.linked_product_count || 0;
+    if (linked > 0) {
       const nameOf = (id: string | null) =>
         id ? (warehouses.find(w => w.id === id)?.name || 'คลังที่เลือก') : `คลังหลัก${defaultWarehouseName ? ` (${defaultWarehouseName})` : ''}`;
       const ok = await confirm({
@@ -726,10 +789,8 @@ export default function MarketplaceConnections({
         description:
           `• ออเดอร์ที่รับมาแล้วยังตัดสต็อกจากคลังเดิม — ระบบจำคลังไว้กับออเดอร์ตั้งแต่ตอนสร้าง จึงไม่กระทบของที่ยังไม่ได้ส่ง\n` +
           `• ออเดอร์ใหม่จะตัดจาก ${nameOf(next)} แทน\n` +
-          (canPushStock
-            ? `• ยอดที่ส่งขึ้นร้านจะกลายเป็นยอดของ ${nameOf(next)} — ถ้าของจริงยังอยู่ที่ ${nameOf(prev)} ต้องโอนย้ายเองที่เมนูคลังสินค้า\n` +
-              `• หลังยืนยัน ระบบจะส่งยอดของคลังใหม่ขึ้นร้านให้ทันที (${linked} สินค้า ใช้โควตา Shopee ${linked} ครั้ง)`
-            : `• ${account?.platform === 'tiktok' ? 'TikTok' : 'Lazada'} ยังไม่รองรับการส่งสต็อกขึ้นร้านจากระบบ — ยอดบนร้านต้องแก้เองที่ Seller Center`),
+          `• ยอดที่ส่งขึ้นร้านจะกลายเป็นยอดของ ${nameOf(next)} — ถ้าของจริงยังอยู่ที่ ${nameOf(prev)} ต้องโอนย้ายเองที่เมนูคลังสินค้า\n` +
+          `• หลังยืนยัน ระบบจะส่งยอดของคลังใหม่ขึ้นร้านให้ทันที (${linked} สินค้า ใช้โควตา ${label} ${linked} ครั้ง)`,
         confirmLabel: 'ย้ายคลัง',
         cancelLabel: 'ยกเลิก',
       });
@@ -754,7 +815,7 @@ export default function MarketplaceConnections({
         let pushedModels = 0;
         let failed = false;
         for (let round = 0; round < 20; round++) {
-          const pushRes = await apiFetch('/api/shopee/products/push-stock', {
+          const pushRes = await apiFetch('/api/marketplace/products/push-stock', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ marketplace_account_id: accountId, cursor }),
@@ -861,26 +922,7 @@ export default function MarketplaceConnections({
                 {warehousePicker(account)}
 
                 {/* Auto-Sync Toggles */}
-                <div className="flex flex-wrap gap-x-6 gap-y-2 pt-1">
-                  {stockEnabled && (
-                    <div className="flex items-center gap-2">
-                      <Toggle
-                        checked={account.auto_sync_stock !== false}
-                        onChange={v => handleToggleSync(account.id, 'auto_sync_stock', v)}
-                        aria-label="Sync Stock อัตโนมัติ"
-                      />
-                      <span className="text-xs text-gray-700 dark:text-slate-300">Sync Stock อัตโนมัติ</span>
-                    </div>
-                  )}
-                  <div className="flex items-center gap-2">
-                    <Toggle
-                      checked={account.auto_sync_product_info !== false}
-                      onChange={v => handleToggleSync(account.id, 'auto_sync_product_info', v)}
-                      aria-label="Sync ชื่อ/ราคา อัตโนมัติ"
-                    />
-                    <span className="text-xs text-gray-700 dark:text-slate-300">Sync ชื่อ/ราคา อัตโนมัติ</span>
-                  </div>
-                </div>
+                {autoSyncToggles(account, { productInfo: true })}
 
                 {/* Sync Controls */}
                 <div className="flex flex-wrap items-center gap-2 pt-1">
@@ -923,17 +965,7 @@ export default function MarketplaceConnections({
                   >
                     เชื่อมต่อใหม่
                   </Button>
-                  {stockEnabled && (
-                    <Button
-                      variant="secondary"
-                      icon={<PackageSearch className="w-4 h-4" />}
-                      loading={isSyncing}
-                      disabled={account.connection_status === 'expired'}
-                      onClick={() => handlePullStock(account.id, account.shop_name || `Shop #${account.shop_id}`)}
-                    >
-                      ดึงสต็อกจาก Shopee
-                    </Button>
-                  )}
+                  {pullStockButton(account)}
                   <ExportButton
                     disabled={account.connection_status === 'expired'}
                     onClick={() => {
@@ -1000,6 +1032,8 @@ export default function MarketplaceConnections({
 
                 {warehousePicker(account)}
 
+                {autoSyncToggles(account)}
+
                 <div className="flex flex-wrap items-center gap-2 pt-1">
                   <SyncRangeSelect
                     value={syncRange[account.id] || 1}
@@ -1023,6 +1057,7 @@ export default function MarketplaceConnections({
                   >
                     นำเข้าสินค้าจาก TikTok
                   </ImportButton>
+                  {pullStockButton(account)}
                   <Button
                     variant="ghost"
                     icon={<Link2 className="w-4 h-4" />}
@@ -1076,6 +1111,8 @@ export default function MarketplaceConnections({
               >
                 {warehousePicker(account)}
 
+                {autoSyncToggles(account)}
+
                 <div className="flex flex-wrap items-center gap-2">
                   <SyncRangeSelect
                     value={syncRange[account.id] || 1}
@@ -1099,6 +1136,7 @@ export default function MarketplaceConnections({
                   >
                     นำเข้าสินค้าจาก Lazada
                   </ImportButton>
+                  {pullStockButton(account)}
                   <Button
                     variant="ghost"
                     icon={<Link2 className="w-4 h-4" />}

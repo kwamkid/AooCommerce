@@ -25,6 +25,7 @@ import {
 import { parallelLimit } from '@/lib/parallel';
 import { fetchCostMap } from '@/lib/cost-utils';
 import { reserveStock as reserveStockService, deductAndUnreserve, returnStock as returnStockService } from '@/lib/stock-service';
+import { pushStockAfterOrderSync } from '@/lib/marketplace/stock-push';
 import { getStockConfig } from '@/lib/stock-utils';
 
 export interface SyncProgressEvent {
@@ -371,6 +372,7 @@ async function updateExistingOrder(
               .from('order_items')
               .select('id, variation_id, quantity')
               .eq('order_id', existing.id);
+            const touched: string[] = [];
             for (const oi of (orderItems || [])) {
               if (!oi.variation_id) continue;
               try {
@@ -384,10 +386,13 @@ async function updateExistingOrder(
                   referenceId: existing.id,
                   notes: `Lazada shipped: ${order.order_id}`,
                 });
+                touched.push(oi.variation_id);
               } catch (stockErr) {
                 console.error(`[Lazada Sync] Stock deduct error for ${order.order_id}:`, stockErr);
               }
             }
+            // ขายที่ร้านนี้แล้วยอดที่ร้านอื่น (ทุก platform) ต้องลดตาม — ร้านต้นทางตัดเองแล้วจึงข้าม
+            await pushStockAfterOrderSync(touched, existing.warehouse_id, account.id);
           }
         } catch (stockErr) {
           console.error(`[Lazada Sync] Stock deduction failed for ${order.order_id}:`, stockErr);
@@ -397,7 +402,7 @@ async function updateExistingOrder(
 
     // คืนสต็อกเมื่อยกเลิก/ตีกลับ
     if ((LAZADA_CANCEL_STATUSES.has(effStatus) || LAZADA_RETURN_STATUSES.has(effStatus)) && existing.warehouse_id) {
-      await returnStockForCancelledOrder(companyId, existing.id, existing.warehouse_id, existing.order_status, String(order.order_id));
+      await returnStockForCancelledOrder(companyId, existing.id, existing.warehouse_id, existing.order_status, String(order.order_id), account.id);
     }
   }
 
@@ -651,6 +656,8 @@ async function createNewOrder(
             });
           }
         }
+        // จอง/ตัดแล้ว "ยอดขายได้" ลดทันที → ร้านอื่นต้องรู้ ไม่งั้นขายซ้ำของชิ้นเดียวกัน
+        const touchedOnCreate = resolvedItems.map(i => i.variation_id).filter(Boolean) as string[];
         // สั่งเข้ามาในสถานะส่งแล้ว → ตัดจริงทันที
         if (LAZADA_SHIPPED_PLUS.has(effStatus)) {
           for (const item of resolvedItems) {
@@ -671,6 +678,7 @@ async function createNewOrder(
             }
           }
         }
+        if (!opts.skipStock) await pushStockAfterOrderSync(touchedOnCreate, warehouseId, account.id);
       }
     } catch (stockErr) {
       console.error(`[Lazada Sync] Stock reservation error for ${order.order_id}:`, stockErr);
@@ -1013,7 +1021,8 @@ async function returnStockForCancelledOrder(
   orderId: string,
   warehouseId: string,
   previousOrderStatus: string,
-  lazadaOrderId: string
+  lazadaOrderId: string,
+  accountId: string
 ) {
   if (!['ready_to_ship', 'processing', 'shipping'].includes(previousOrderStatus)) return;
 
@@ -1026,6 +1035,7 @@ async function returnStockForCancelledOrder(
       .select('id, variation_id, quantity')
       .eq('order_id', orderId);
 
+    const touched: string[] = [];
     for (const oi of (orderItems || [])) {
       if (!oi.variation_id) continue;
       try {
@@ -1039,11 +1049,14 @@ async function returnStockForCancelledOrder(
           referenceId: orderId,
           notes: `Lazada cancelled: ${lazadaOrderId}`,
         });
+        touched.push(oi.variation_id);
       } catch (err) {
         console.error(`[Lazada Sync] Stock return error for ${lazadaOrderId} item ${oi.variation_id}:`, err);
       }
     }
     console.log(`[Lazada Sync] Stock returned for cancelled order ${lazadaOrderId}`);
+    // ของกลับเข้าคลัง → ร้านอื่นต้องเห็นยอดเพิ่มด้วย
+    await pushStockAfterOrderSync(touched, warehouseId, accountId);
   } catch (err) {
     console.error(`[Lazada Sync] Stock return failed for ${lazadaOrderId}:`, err);
   }

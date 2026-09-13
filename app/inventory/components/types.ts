@@ -228,6 +228,8 @@ export const REFERENCE_TYPE_LABELS: Record<string, string> = {
   credit_note: 'ใบลดหนี้',
   consignment_report: 'รายงานฝากขาย',
   shopee_sync: 'ดึงสต็อกจาก Shopee',
+  lazada_sync: 'ดึงสต็อกจาก Lazada',
+  tiktok_sync: 'ดึงสต็อกจาก TikTok',
 };
 
 /** ลิงก์ไปเอกสารต้นทาง — ที่มาที่ไม่มีหน้าให้เปิดคืน null (แสดงเป็นข้อความเฉย ๆ) */

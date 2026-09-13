@@ -9,6 +9,7 @@ import { parallelLimit } from '@/lib/parallel';
 import { sendNewOrderPushById } from '@/lib/push/send';
 import { fetchCostMap } from '@/lib/cost-utils';
 import { reserveStock as reserveStockService, returnStock as returnStockService, unreserveStock as unreserveStockService, deductAndUnreserve } from '@/lib/stock-service';
+import { pushStockAfterOrderSync } from '@/lib/marketplace/stock-push';
 import { getStockConfig } from '@/lib/stock-utils';
 import {
   ShopeeItemInfo,
@@ -690,7 +691,7 @@ function mapBuyerInvoiceToTaxFields(
  * เลื่อนไปก่อน เช่น tracking push แล้วทำให้เงื่อนไขแบบสถานะข้ามการตัดถาวร —
  * เจอจริง 2026-08-28 ดู fix-bug.md) — เรียกซ้ำได้ปลอดภัย ใช้เก็บตกตอน re-sync ด้วย
  */
-async function deductShippedStockOnce(companyId: string, orderId: string, warehouseId: string, orderSn: string) {
+async function deductShippedStockOnce(companyId: string, orderId: string, warehouseId: string, orderSn: string, accountId: string) {
   try {
     const stockConfig = await getStockConfig(companyId);
     if (!stockConfig.stockEnabled) return;
@@ -710,6 +711,7 @@ async function deductShippedStockOnce(companyId: string, orderId: string, wareho
     const alreadyDeducted = new Set((outTx || []).map(t => t.variation_id));
 
     let deducted = 0;
+    const touched: string[] = [];
     for (const oi of orderItems) {
       if (!oi.variation_id || alreadyDeducted.has(oi.variation_id)) continue;
       try {
@@ -724,11 +726,14 @@ async function deductShippedStockOnce(companyId: string, orderId: string, wareho
           notes: `Shopee shipped: ${orderSn}`,
         });
         deducted++;
+        touched.push(oi.variation_id);
       } catch (stockErr) {
         console.error(`[Shopee Sync] Stock deduct error for ${orderSn} item ${oi.variation_id}:`, stockErr);
       }
     }
     if (deducted > 0) console.log(`[Shopee Sync] Stock deducted for ${orderSn} (${deducted} items)`);
+    // ขายที่ร้านนี้แล้วยอดที่ร้านอื่น (ทุก platform) ต้องลดตาม — ร้านต้นทางตัดเองแล้วจึงข้าม
+    await pushStockAfterOrderSync(touched, warehouseId, accountId);
   } catch (stockErr) {
     console.error(`[Shopee Sync] Stock deduction failed for ${orderSn}:`, stockErr);
   }
@@ -879,7 +884,7 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder, 
       // (idempotent จาก transaction จริง — เดิมเช็ค wasPreShip จาก order_status ซึ่งพลาด
       //  ถาวรเมื่อสถานะถูกเส้นอื่นเลื่อนไปก่อน)
       if (['SHIPPED', 'TO_CONFIRM_RECEIVE', 'TO_RETURN', 'COMPLETED'].includes(shopeeOrder.order_status) && existing.warehouse_id) {
-        await deductShippedStockOnce(companyId, existing.id, existing.warehouse_id, shopeeOrder.order_sn);
+        await deductShippedStockOnce(companyId, existing.id, existing.warehouse_id, shopeeOrder.order_sn, account.id);
       }
 
       // Stock return for CANCELLED/IN_CANCEL orders
@@ -890,6 +895,7 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder, 
           existing.warehouse_id,
           existing.order_status,
           shopeeOrder.order_sn,
+          account.id,
         );
       }
 
@@ -1022,6 +1028,7 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder, 
 
       // คลังของร้านนี้ — ไม่ได้เลือกไว้ = คลัง default (ดู lib/marketplace/warehouse.ts)
       const warehouseId = await resolveAccountWarehouseId(account);
+      const reservedVariationIds: string[] = [];
 
       let subtotal = 0;
       for (const item of shopeeOrder.item_list) {
@@ -1081,10 +1088,14 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder, 
         // Reserve stock
         if (matched.variation_id && warehouseId) {
           await reserveStock(companyId, warehouseId, matched.variation_id, qty, existing.id, shopeeOrder.order_sn);
+          reservedVariationIds.push(matched.variation_id);
         }
 
         itemsCreated++;
       }
+
+      // จองแล้ว "ยอดขายได้" ลดทันที → ร้านอื่นต้องรู้ ไม่งั้นขายซ้ำของชิ้นเดียวกัน
+      await pushStockAfterOrderSync(reservedVariationIds, warehouseId, account.id);
 
       // Batch update unit_cost for inserted items
       try {
@@ -1552,6 +1563,8 @@ async function upsertOrder(account: ShopeeAccountRow, shopeeOrder: ShopeeOrder, 
     await Promise.all(stockItems.map(item =>
       reserveStock(companyId, warehouseId!, item.variation_id!, item.qty, order.id, order.order_number)
     ));
+    // จองแล้ว "ยอดขายได้" ลดทันที → ร้านอื่นต้องรู้ ไม่งั้นขายซ้ำของชิ้นเดียวกัน
+    await pushStockAfterOrderSync(stockItems.map(i => i.variation_id!), warehouseId, account.id);
   }
 
   // Create order shipments for each item (same pattern as manual order creation)
@@ -2486,6 +2499,7 @@ async function returnStockForCancelledOrder(
   warehouseId: string,
   previousOrderStatus: string,
   orderSn: string,
+  accountId: string,
 ) {
   try {
     const { data: orderItems } = await supabaseAdmin
@@ -2498,6 +2512,7 @@ async function returnStockForCancelledOrder(
 
     const wasShipped = ['shipping', 'completed'].includes(previousOrderStatus);
     const stockFn = wasShipped ? returnStockService : unreserveStockService;
+    const touched: string[] = [];
 
     for (const oi of orderItems) {
       if (!oi.variation_id) continue;
@@ -2514,10 +2529,13 @@ async function returnStockForCancelledOrder(
             ? `Return stock for cancelled Shopee order ${orderSn}`
             : `Unreserve for cancelled Shopee order ${orderSn}`,
         });
+        touched.push(oi.variation_id);
       } catch (itemErr) {
         console.error(`[Shopee Sync] Stock return error for variation ${oi.variation_id}:`, itemErr);
       }
     }
+    // ของกลับเข้าคลัง → ร้านอื่นต้องเห็นยอดเพิ่มด้วย
+    await pushStockAfterOrderSync(touched, warehouseId, accountId);
   } catch (err) {
     console.error(`[Shopee Sync] Stock return error for order ${orderSn}:`, err);
   }

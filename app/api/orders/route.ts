@@ -1983,7 +1983,7 @@ export async function PUT(request: NextRequest) {
 
         // Auto-sync stock to Shopee
         if (allVarIds.length > 0) {
-          after(() => import('@/lib/shopee/auto-sync').then(m => m.syncStockNow(allVarIds)));
+          after(() => import('@/lib/marketplace/stock-push').then(m => m.syncStockNow(allVarIds)));
         }
 
         // Auto-issue documents for shipped orders (Flow B: TAX/DN, Flow A completed: ABB/REC)
@@ -2806,7 +2806,7 @@ export async function PUT(request: NextRequest) {
                 // Auto-sync stock to Shopee
                 const shippingVarIds = stockItems.map(s => s.variationId);
                 if (shippingVarIds.length > 0) {
-                  after(() => import('@/lib/shopee/auto-sync').then(m => m.syncStockNow(shippingVarIds, [warehouseId])));
+                  after(() => import('@/lib/marketplace/stock-push').then(m => m.syncStockNow(shippingVarIds, [warehouseId])));
                 }
               } else if (newStatus === 'cancelled') {
                 const stockFn = oldStatus === 'shipping' ? returnStock : unreserveStock;
@@ -2826,7 +2826,7 @@ export async function PUT(request: NextRequest) {
                 if (oldStatus === 'shipping') {
                   const cancelVarIds = stockItems.map(s => s.variationId);
                   if (cancelVarIds.length > 0) {
-                    after(() => import('@/lib/shopee/auto-sync').then(m => m.syncStockNow(cancelVarIds, [warehouseId])));
+                    after(() => import('@/lib/marketplace/stock-push').then(m => m.syncStockNow(cancelVarIds, [warehouseId])));
                   }
                 }
               }
@@ -2971,7 +2971,7 @@ export async function DELETE(request: NextRequest) {
           if (oldStatus === 'shipping') {
             const deleteVarIds = stockItems.map(s => s.variationId);
             if (deleteVarIds.length > 0) {
-              after(() => import('@/lib/shopee/auto-sync').then(m => m.syncStockNow(deleteVarIds)));
+              after(() => import('@/lib/marketplace/stock-push').then(m => m.syncStockNow(deleteVarIds)));
             }
           }
         }

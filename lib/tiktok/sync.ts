@@ -14,6 +14,7 @@ import { parallelLimit } from '@/lib/parallel';
 import { sendNewOrderPushById } from '@/lib/push/send';
 import { fetchCostMap } from '@/lib/cost-utils';
 import { reserveStock as reserveStockService, deductAndUnreserve, returnStock as returnStockService } from '@/lib/stock-service';
+import { pushStockAfterOrderSync } from '@/lib/marketplace/stock-push';
 import { getStockConfig } from '@/lib/stock-utils';
 
 // --- Sync Progress ---
@@ -514,6 +515,7 @@ async function updateExistingOrder(
               .from('order_items')
               .select('id, variation_id, quantity')
               .eq('order_id', existing.id);
+            const touched: string[] = [];
             for (const oi of (orderItems || [])) {
               if (!oi.variation_id) continue;
               try {
@@ -527,10 +529,13 @@ async function updateExistingOrder(
                   referenceId: existing.id,
                   notes: `TikTok shipped: ${tiktokOrder.id}`,
                 });
+                touched.push(oi.variation_id);
               } catch (stockErr) {
                 console.error(`[TikTok Sync] Stock deduct error for ${tiktokOrder.id}:`, stockErr);
               }
             }
+            // ขายที่ร้านนี้แล้วยอดที่ร้านอื่น (ทุก platform) ต้องลดตาม — ร้านต้นทางตัดเองแล้วจึงข้าม
+            await pushStockAfterOrderSync(touched, existing.warehouse_id, account.id);
           }
         } catch (stockErr) {
           console.error(`[TikTok Sync] Stock deduction failed for ${tiktokOrder.id}:`, stockErr);
@@ -540,7 +545,7 @@ async function updateExistingOrder(
 
     // Stock return for cancelled orders
     if (tiktokOrder.status === 'CANCELLED' && existing.warehouse_id) {
-      await returnStockForCancelledOrder(companyId, existing.id, existing.warehouse_id, existing.order_status, tiktokOrder.id);
+      await returnStockForCancelledOrder(companyId, existing.id, existing.warehouse_id, existing.order_status, tiktokOrder.id, account.id);
     }
   }
 
@@ -811,6 +816,12 @@ async function createNewOrder(
             });
           }
         }
+        // จองแล้ว "ยอดขายได้" ลดทันที → ร้านอื่นต้องรู้ ไม่งั้นขายซ้ำของชิ้นเดียวกัน
+        await pushStockAfterOrderSync(
+          resolvedItems.map(i => i.variation_id),
+          warehouseId,
+          account.id,
+        );
       }
     } catch (stockErr) {
       console.error(`[TikTok Sync] Stock reservation error for ${tiktokOrder.id}:`, stockErr);
@@ -1146,7 +1157,8 @@ async function returnStockForCancelledOrder(
   orderId: string,
   warehouseId: string,
   previousOrderStatus: string,
-  tiktokOrderId: string
+  tiktokOrderId: string,
+  accountId: string
 ) {
   // Only return stock if order was past the reservation stage
   if (!['ready_to_ship', 'processing', 'shipping'].includes(previousOrderStatus)) return;
@@ -1160,6 +1172,7 @@ async function returnStockForCancelledOrder(
       .select('id, variation_id, quantity')
       .eq('order_id', orderId);
 
+    const touched: string[] = [];
     for (const oi of (orderItems || [])) {
       if (!oi.variation_id) continue;
       try {
@@ -1173,11 +1186,14 @@ async function returnStockForCancelledOrder(
           referenceId: orderId,
           notes: `TikTok cancelled: ${tiktokOrderId}`,
         });
+        touched.push(oi.variation_id);
       } catch (err) {
         console.error(`[TikTok Sync] Stock return error for ${tiktokOrderId} item ${oi.variation_id}:`, err);
       }
     }
     console.log(`[TikTok Sync] Stock returned for cancelled order ${tiktokOrderId}`);
+    // ของกลับเข้าคลัง → ร้านอื่นต้องเห็นยอดเพิ่มด้วย
+    await pushStockAfterOrderSync(touched, warehouseId, accountId);
   } catch (err) {
     console.error(`[TikTok Sync] Stock return failed for ${tiktokOrderId}:`, err);
   }

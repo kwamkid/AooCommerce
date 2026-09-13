@@ -511,6 +511,98 @@ export async function getLazadaProducts(
   return { products: d.products || [], total: Number(d.total_products || 0) };
 }
 
+/**
+ * ItemId จากค่าที่เก็บใน `marketplace_product_links.external_item_id`
+ *
+ * ขา import เก็บ `item_id` (ตัวเลขล้วน) แต่ขา order sync เก็บ `product_id ?? shop_sku`
+ * ซึ่งอาจเป็น **ShopSku** รูป `5917800879_TH-25329016013` — ItemId คือตัวเลขก่อน `_`
+ * (คืน '' เมื่ออ่านไม่ออก — caller ต้องรายงานเป็น error ราย SKU ไม่ใช่ยิงมั่ว)
+ */
+export function lazadaItemIdOf(externalItemId: string | number | null | undefined): string {
+  const raw = String(externalItemId ?? '').trim();
+  const head = raw.split('_')[0];
+  return /^\d+$/.test(head) ? head : '';
+}
+
+function escapeXml(value: string | number): string {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
+/** จำนวน SKU ต่อคอล — doc บอกได้ถึง 50 แต่ "แนะนำ 20" (error 513 ถี่ขึ้นเมื่อเกิน) */
+const LAZADA_STOCK_CHUNK = 20;
+
+export interface LazadaStockUpdateSku {
+  itemId: string;
+  skuId: string;
+  sellerSku?: string;
+  quantity: number;
+}
+
+/**
+ * ตั้งยอดขายได้ของ SKU — `/product/stock/sellable/update`
+ *
+ * payload เป็น **XML ก้อนเดียวส่งเป็น query param** เหมือน param อื่น (`lazadaApiRequest`
+ * ใส่ทุก param ลง query แล้วเซ็นให้อยู่แล้ว) · error ที่ต้องรู้จัก:
+ *   501 = ล้มรายตัว **ต้องอ่าน `detail` ราย SKU** ตัวรหัสเองบอกอะไรไม่ได้
+ *   901 = QPS เต็ม (ตัว client รอแล้วยิงซ้ำให้เองเมื่อแบนสั้น)
+ *   4170 = ช่วงแคมเปญ ลดยอดไม่ได้ (เพิ่มได้อย่างเดียว)
+ */
+export async function updateLazadaSellableStock(
+  creds: LazadaCredentials,
+  skus: LazadaStockUpdateSku[]
+): Promise<{ ok: number; errors: string[] }> {
+  const errors: string[] = [];
+  let ok = 0;
+
+  for (let i = 0; i < skus.length; i += LAZADA_STOCK_CHUNK) {
+    const chunk = skus.slice(i, i + LAZADA_STOCK_CHUNK);
+    const xml =
+      '<Request><Product><Skus>' +
+      chunk.map(s =>
+        '<Sku>' +
+        `<ItemId>${escapeXml(s.itemId)}</ItemId>` +
+        `<SkuId>${escapeXml(s.skuId)}</SkuId>` +
+        (s.sellerSku ? `<SellerSku>${escapeXml(s.sellerSku)}</SellerSku>` : '') +
+        `<SellableQuantity>${Math.max(0, Math.trunc(s.quantity))}</SellableQuantity>` +
+        '</Sku>'
+      ).join('') +
+      '</Skus></Product></Request>';
+
+    const { error, raw } = await lazadaApiRequest(creds, 'POST', '/product/stock/sellable/update', {
+      payload: xml,
+    });
+
+    // `detail` มาได้ทั้งตอนสำเร็จบางส่วนและตอน code 501 — อ่านก่อนเสมอ
+    const detail = (raw?.detail ?? (raw?.data as Record<string, unknown> | undefined)?.detail) as
+      | { sku_id?: string | number; seller_sku?: string; message?: string; success?: string | boolean }[]
+      | undefined;
+    const failedDetails = (detail || []).filter(d =>
+      d && (d.success === false || d.success === 'false' || (!!d.message && d.success === undefined))
+    );
+
+    if (error) {
+      errors.push(
+        failedDetails.length > 0
+          ? failedDetails.map(d => `SKU ${d.sku_id ?? d.seller_sku}: ${d.message || error}`).join('; ')
+          : `SKU ${chunk.map(c => c.skuId).join(',')}: ${error}`
+      );
+      continue;
+    }
+
+    if (failedDetails.length > 0) {
+      errors.push(...failedDetails.map(d => `SKU ${d.sku_id ?? d.seller_sku}: ${d.message || 'อัปเดตไม่สำเร็จ'}`));
+    }
+    ok += chunk.length - failedDetails.length;
+  }
+
+  return { ok, errors };
+}
+
 /** Lazada expects ISO8601 with explicit offset, no milliseconds */
 function toLazadaTime(ms: number): string {
   return new Date(ms).toISOString().replace(/\.\d{3}Z$/, '+00:00');

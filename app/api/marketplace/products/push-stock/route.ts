@@ -1,12 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { checkAuthWithCompany, can, supabaseAdmin } from '@/lib/supabase-admin';
-import { ShopeeAccountRow } from '@/lib/shopee/api';
-import { pushStockToShopee } from '@/lib/shopee/product-sync';
+import { pushStockForAccount } from '@/lib/marketplace/stock-push';
+import { getStockAdapter, stockPlatformLabel } from '@/lib/marketplace/stock-adapter';
+import type { PushStockResult, StockSyncAccount } from '@/lib/marketplace/stock-adapter';
+import { isQuotaBlocked } from '@/lib/marketplace/quota';
+import type { QuotaPlatform } from '@/lib/marketplace/platforms';
 import { logIntegration } from '@/lib/integration-logger';
 
 // ย้ายคลังแล้วส่งยอดทั้งร้าน — ร้านใหญ่ ~300 สินค้า ใช้เวลานาน
 export const maxDuration = 300;
 
+/**
+ * ส่งสต็อกขึ้นร้าน — ทุก platform ที่มี adapter (`lib/marketplace/stock-adapter.ts`)
+ * `product_id` ว่าง = ส่งยอดของทั้งร้าน (ใช้ตอนย้ายคลังที่ผูกไว้ ยอดทั้งร้านต้องเปลี่ยนตาม)
+ */
 export async function POST(request: NextRequest) {
   try {
     const auth = await checkAuthWithCompany(request);
@@ -19,7 +26,6 @@ export async function POST(request: NextRequest) {
     if (!marketplace_account_id) {
       return NextResponse.json({ error: 'Missing marketplace_account_id' }, { status: 400 });
     }
-    // ไม่ส่ง product_id = ส่งยอดของทั้งร้าน (ใช้ตอนย้ายคลังที่ผูกไว้ ยอดทั้งร้านต้องเปลี่ยนตาม)
 
     const { data: account, error: accError } = await supabaseAdmin
       .from('marketplace_accounts')
@@ -32,22 +38,32 @@ export async function POST(request: NextRequest) {
     if (accError || !account) {
       return NextResponse.json({ error: 'Shop not found' }, { status: 404 });
     }
-    // route นี้เซ็นคำขอด้วย partner key ของ Shopee — ส่ง account ของ TikTok/Lazada เข้ามา
-    // จะกลายเป็นยิง Shopee ด้วย token ของ platform อื่น (fail ทุกครั้ง + log ผิด platform)
-    if (account.platform && account.platform !== 'shopee') {
+
+    const platform = account.platform as string;
+    const adapter = getStockAdapter(platform);
+    if (!adapter) {
       return NextResponse.json(
-        { error: `ร้านนี้เป็น ${account.platform} — ยังไม่รองรับการส่งสต็อกขึ้น ${account.platform}` },
+        { error: `ยังไม่รองรับส่งสต็อกขึ้น ${stockPlatformLabel(platform)}` },
         { status: 400 }
       );
     }
 
+    // โควตาของถัง inventory เต็ม = ยิงไปก็ fail ทุกใบ แถมเผาคะแนน success rate ทิ้ง
+    const quota = await isQuotaBlocked(platform as QuotaPlatform, 'inventory');
+    if (quota.blocked) {
+      return NextResponse.json(
+        { error: `โควตา ${stockPlatformLabel(platform)} เต็มชั่วคราว — ลองใหม่หลัง ${quota.until}` },
+        { status: 429 }
+      );
+    }
+
     const startMs = Date.now();
-    let result: { success: boolean; updated_models: number; errors: string[] };
+    let result: PushStockResult;
 
     if (product_id) {
-      result = await pushStockToShopee(account as ShopeeAccountRow, product_id);
+      result = await pushStockForAccount(account as StockSyncAccount, product_id);
     } else {
-      // ทั้งร้าน — ยิงทีละสินค้า คุม concurrency ไว้ 3 กันชน rate limit ของ Shopee
+      // ทั้งร้าน — ยิงทีละสินค้า คุม concurrency ไว้ 3 กันชน rate limit ของแพลตฟอร์ม
       const { data: links } = await supabaseAdmin
         .from('marketplace_product_links')
         .select('product_id')
@@ -64,7 +80,7 @@ export async function POST(request: NextRequest) {
       const { parallelLimit } = await import('@/lib/parallel');
       let done = 0;
       let stoppedAt: number | null = null;
-      const collected: { success: boolean; updated_models: number; errors: string[] }[] = [];
+      const collected: PushStockResult[] = [];
 
       const CHUNK = 15;
       for (let i = 0; i < productIds.length; i += CHUNK) {
@@ -74,7 +90,7 @@ export async function POST(request: NextRequest) {
         }
         const chunk = productIds.slice(i, i + CHUNK);
         const rs = await parallelLimit(chunk, (pid) =>
-          pushStockToShopee(account as ShopeeAccountRow, pid), 3);
+          pushStockForAccount(account as StockSyncAccount, pid), 3);
         collected.push(...rs);
         done += chunk.length;
       }
@@ -99,13 +115,13 @@ export async function POST(request: NextRequest) {
 
     logIntegration({
       company_id: companyId,
-      integration: 'shopee',
+      integration: platform,
       account_id: account.id,
       account_name: account.shop_name,
       direction: 'outgoing',
       action: 'push_stock',
       method: 'POST',
-      api_path: '/api/v2/product/update_stock',
+      api_path: adapter.pushApiPath,
       request_body: { product_id: product_id || 'ทั้งร้าน' },
       response_body: result,
       status: result.success ? 'success' : 'error',

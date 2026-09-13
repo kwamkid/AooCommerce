@@ -573,7 +573,7 @@ export async function POST(request: NextRequest) {
 
       // Auto-sync stock to Shopee if linked
       if (allVariationIds.length > 0) {
-        after(() => import('@/lib/shopee/auto-sync').then(m => m.syncStockNow(allVariationIds, [warehouseId])));
+        after(() => import('@/lib/marketplace/stock-push').then(m => m.syncStockNow(allVariationIds, [warehouseId])));
       }
     }
 

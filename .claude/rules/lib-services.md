@@ -35,6 +35,7 @@ paths:
 | `fee-types.ts` · `settlement.ts` | ช่องกลาง 13 ช่อง + `parseAmount()` (**ห้าม `Number()` กับตัวเลข marketplace** — Lazada มีคอมมา) · `saveSettlement()` + `computeOrderCogs()` (platform ส่ง `NormalizedSettlement`) | bucket ตามชื่อที่ platform เรียก · insert settlement เองใน `lib/<platform>/` |
 | `shop-info.ts` | ชื่อร้าน+โลโก้ `Record<QuotaPlatform, fetcher>` (**เพิ่ม platform = 1 entry**) · กันโลโก้เปิดไม่ได้ด้วย `isReachableImage` | if แยก platform ใน route · ทับโลโก้ด้วย URL ที่ยังไม่เช็ค |
 | `product-helpers.ts` | `getOrCreateVariationTypeIds` · `upsertProductImage(s)` · `reactivateProduct` · `tryAutoMatchBySku` · `findMarketplaceLink` (`platform` default `'shopee'`) | copy ไป `lib/<platform>/` |
+| `stock-push.ts` + `stock-adapter.ts` | สต็อกขึ้น/ลงร้านทุก platform: `syncStockNow(variationIds, changedWarehouseIds?, {excludeAccountId?})` (เรียกใน `after()` ทุกจุดที่สต็อกขยับ) · `pushStockForAccount` · `pullStockForAccount` · `collectPushQuantities` (คลังของร้าน · `quantity − reserved` · `max(0)`) · `referenceType = `${platform}_sync`` · route `POST /api/marketplace/products/push-stock` `{marketplace_account_id, product_id?, cursor?}` + `/pull-stock` `{marketplace_account_id, mode?, dry_run?}` · **เพิ่ม platform = `lib/<platform>/stock-adapter.ts` + 1 บรรทัดใน `STOCK_ADAPTERS`** — กติกาเต็ม `domains/marketplace-core.md` | `switch` ตาม platform ในชั้นกลาง/route/UI · เรียก adapter ตรงจาก route · เปิด `auto_sync_stock` ให้ร้านที่ยังไม่เคยตั้งยอดในระบบ (ส่ง 0 ไปทับร้าน) |
 
 ## Meta / Ads / Audiences
 | ไฟล์ | ใช้สำหรับ | ห้าม |
@@ -86,7 +87,7 @@ paths:
 ## งานเบื้องหลังใน route handler — `after()` เสมอ
 - งานที่ไม่ให้ผู้ใช้รอแต่ต้องทำจริง (push marketplace · noti · ออกเอกสาร) → **`after(() => work())`** (`next/server`) และ `work` ต้อง return promise · ห้าม `work().catch(() => {})` ลอยก่อน `return NextResponse.json()` — Vercel freeze ทันทีที่ response ออก (push stock Shopee ตายเงียบ 3 เดือน เพราะ log ก็ลอยตายไปด้วย)
 - log ที่หายไม่ได้ → `await logIntegrationNow()` · วาง log ชิดจุดยิง API ภายนอก (`shopeeApiRequest` log ให้แล้วผ่าน [lib/shopee/api-log.ts](../../lib/shopee/api-log.ts))
-- `lib/shopee/auto-sync.ts`: ใน route ใช้ `syncStockNow/syncPriceNow/syncInfoNow/syncCategoryNow` (await ได้) · `triggerShopee*Sync` (void) เฉพาะที่ไม่มี request context
+- สต็อก: `syncStockNow` จาก `lib/marketplace/stock-push.ts` (ทุก platform) · ราคา/ชื่อ/หมวดหมู่: `syncPriceNow/syncInfoNow/syncCategoryNow` จาก `lib/shopee/auto-sync.ts` (await ได้) · `triggerShopee*Sync` (void) เฉพาะที่ไม่มี request context
 - field ที่ stamp เฉพาะตอนสำเร็จ (`last_stock_pushed_at`) = สัญญาณจับ "พังเงียบ"
 
 ## API Routes ที่มีแล้ว (ห้ามสร้างซ้ำ)
@@ -96,5 +97,6 @@ paths:
 - **สต็อกพร้อมขาย**: RPC `get_variation_stock(company, variation_ids[], warehouse?)` / `get_product_variation_stock(company, product_ids[], warehouse?)` → jsonb `{variation_id: {quantity, available}}` (ชุดย่อยผ่าน `get_composite_availability`) · แยกคลัง `get_variation_stock_by_warehouse` ผ่าน **`GET /api/products/[id]/stock`** · ⛔ ห้ามอ่าน `product_variations.stock` / `simple_stock` (ค่าเก่า ไม่ตรง `inventory`)
 - **`/api/customers/order-context?customer_id=`** — ลูกค้า + ที่อยู่ + brand commission + GP ใน call เดียว
 - **`/api/marketplace/accounts`** (ทุกแพลตฟอร์ม) GET `?platform=shopee|tiktok|lazada|all` · PUT · PATCH `{id, shop_logo}` · DELETE · `/resync` · `/logo`
+- **`/api/marketplace/products/push-stock`** · **`/pull-stock`** — ส่ง/ดึงสต็อกทั้งร้าน ทุกแพลตฟอร์ม (ของ Shopee เดิมลบแล้ว — ห้ามสร้าง route สต็อกต่อแพลตฟอร์มอีก)
 - เอกสาร: `/api/consignment/reports` · `/api/department-store/reports` · `/api/statements` · `/api/credit-notes` (PATCH) · `/api/payment-records` · `/api/payment-records/verify` (approve/reject slip)
 - Shopee: `/api/shopee/sync` · `/sync-order` · `/orders/shipping-document` · `/products/export` · `/products/import` · `/webhook` · TikTok: `/api/tiktok/oauth/auth-url` · `/oauth/callback` · `/webhook` · `/webhook/retry` · `/sync` · `/sync-all` · `/sync-order`

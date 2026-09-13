@@ -96,6 +96,8 @@ export const MARKETPLACE_PLATFORMS: Record<QuotaPlatform, MarketplacePlatformCon
     scopeRules: [
       ['/customer_service/', 'chat'],
       ['/fulfillment/', 'fulfillment'],
+      // อัปสต็อกอยู่ใต้ /product/ เหมือนกัน — ต้องมาก่อน ไม่งั้นไปนับรวมถังเดียวกับข้อมูลสินค้า
+      ['/inventory/update', 'inventory'],
       ['/product/', 'product'],
       ['/order/', 'order'],
       ['/finance/', 'finance'],
@@ -109,6 +111,9 @@ export const MARKETPLACE_PLATFORMS: Record<QuotaPlatform, MarketplacePlatformCon
     quotaReset: { kind: 'rolling', minutes: 30 },
     scopeRules: [
       ['/im/', 'chat'],
+      // อัปสต็อก/ราคาเป็นคนละถังกับการอ่านข้อมูลสินค้า — ต้องมาก่อนกฎ '/products'
+      ['/product/stock/', 'inventory'],
+      ['/product/price_quantity', 'inventory'],
       ['/products', 'product'],
       ['/finance/', 'finance'],
       // path จัดส่งของ Lazada ขึ้นต้นด้วย /order/ เหมือนกันหมด — ต้องมาก่อนกฎ '/order'

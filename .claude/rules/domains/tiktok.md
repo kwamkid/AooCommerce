@@ -73,5 +73,11 @@ paths:
 - endpoint ที่ใช้: `POST /product/202502/products/search` (เวอร์ชันล่าสุดของ search) + `GET /product/202309/products/{id}`
 - ลำดับจับคู่เหมือน Shopee เป๊ะ: link เดิม → `products.code` (= seller_sku หรือ `TT-{product_id}`) → ปลุกของที่ soft-delete → สร้างใหม่ · **ของที่ user แก้เองไม่ถูกเขียนทับ** (`source` = `tiktok_edited`/`manual`)
 - **ไม่ต้อง migration** — `products.source` ไม่มี CHECK และคอลัมน์ `platform_*`/`platform_data` ของ `marketplace_product_links` เป็น generic อยู่แล้ว
-- **ยังไม่ทำ**: product-export (ส่งสินค้าขึ้น TikTok), push price/stock, deals — Shopee มีครบแล้ว TikTok ยังมีแค่ import
+- **ยังไม่ทำ**: product-export (ส่งสินค้าขึ้น TikTok), push ราคา/ชื่อสินค้า, deals — Shopee มีครบแล้ว
+
+### Stock push/pull TikTok ✅
+- `lib/tiktok/stock-adapter.ts` (ทำตาม `StockAdapter` · เรียกผ่านชั้นกลาง `lib/marketplace/stock-push.ts` เท่านั้น ดู `marketplace-core.md`) — push = `POST /product/202309/products/{product_id}/inventory/update` body `{skus:[{id, inventory:[{warehouse_id, quantity}]}]}` 1 call ต่อสินค้า · อ่าน error ราย SKU จาก `data.errors[]`
+- **ต้องส่งทุกคลังที่ SKU นั้นมี** (ละ `warehouse_id` ได้เมื่อมีคลังเดียว) — warehouse id cache ไว้ที่ `marketplace_product_links.platform_data.tiktok_warehouse_ids` ไม่มีค่อยยิง `GET /product/202309/products/{id}` ครั้งเดียวแล้วเก็บ · **SKU ที่มีหลายคลังบน TikTok ข้าม** (เรายอดเดียว แบ่งให้ไม่ได้) คืนเป็น error ไม่ยิง
+- SKU ของสินค้า FREEZE/DELETED อัปเดตไม่ได้
+- **Pull** อ่าน `skus[].inventory[]` จาก product search/detail แล้วเขียนผ่าน `adjustStock` **`referenceType: 'tiktok_sync'`**
 
