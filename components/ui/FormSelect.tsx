@@ -51,6 +51,9 @@ interface FormSelectProps {
   clearValue?: string;
   /** Render dropdown via portal to escape overflow:hidden containers */
   portal?: boolean;
+  /** กางรายการทันทีที่ mount — ใช้กับช่องที่เพิ่งถูกเปิดขึ้นมาเพื่อให้เลือกโดยเฉพาะ
+   *  (ช่องแก้ค่าในตาราง) ผู้ใช้กดเซลล์แล้วต้องได้เลือกเลย ไม่ใช่กดอีกทีเพื่อกางรายการ */
+  autoOpen?: boolean;
 }
 
 export default function FormSelect({
@@ -66,8 +69,11 @@ export default function FormSelect({
   clearLabel,
   clearValue = '',
   portal = false,
+  autoOpen = false,
 }: FormSelectProps) {
-  const [open, setOpen] = useState(false);
+  // กางตั้งแต่ render แรกเมื่อ autoOpen — ตั้งเป็นค่าเริ่มต้นของ state ไปเลย
+  // ไม่ใช่ setOpen ใน effect (กฎ react-hooks/set-state-in-effect ของโปรเจกต์)
+  const [open, setOpen] = useState(autoOpen);
   const [search, setSearch] = useState('');
   const [highlightIdx, setHighlightIdx] = useState(-1);
   const containerRef = useRef<HTMLDivElement>(null);

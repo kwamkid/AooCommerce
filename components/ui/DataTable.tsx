@@ -14,6 +14,7 @@ import Pagination from '@/app/components/Pagination';
 import ColumnSettingsDropdown from '@/app/components/ColumnSettingsDropdown';
 import { useColumnToggle, type ColumnConfig } from '@/lib/useColumnToggle';
 import { NUMERIC_TEXT_INPUT_PROPS, sanitizeNumericInput } from '@/lib/numeric-input';
+import FormSelect from '@/components/ui/FormSelect';
 
 // ── Types ──
 
@@ -781,24 +782,25 @@ function EditCell<T>({ row, config, onDone }: { row: T; config: EditConfig<T>; o
   const [value, setValue] = useState<string>(initial == null ? '' : String(initial));
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const inputRef = useRef<HTMLInputElement | HTMLSelectElement | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     inputRef.current?.focus();
-    if (inputRef.current && 'select' in inputRef.current) inputRef.current.select();
+    inputRef.current?.select();
   }, []);
 
-  const commit = async () => {
+  // รับค่าที่จะบันทึกเข้ามาตรง ๆ ได้ — dropdown บันทึกทันทีที่เลือก จึงรอ state รอบถัดไปไม่ได้
+  const commit = async (nextValue: string = value) => {
     if (saving) return;
-    const err = config.validate?.(value) || null;
+    const err = config.validate?.(nextValue) || null;
     if (err) { setError(err); return; }
-    if (value === (initial == null ? '' : String(initial))) {
+    if (nextValue === (initial == null ? '' : String(initial))) {
       onDone();
       return;
     }
     setSaving(true);
     try {
-      await config.onSave(row, value);
+      await config.onSave(row, nextValue);
       onDone();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'บันทึกไม่สำเร็จ');
@@ -820,18 +822,23 @@ function EditCell<T>({ row, config, onDone }: { row: T; config: EditConfig<T>; o
   return (
     <div className="flex items-center gap-1">
       {config.type === 'select' ? (
-        <select
-          ref={el => { inputRef.current = el; }}
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          onKeyDown={handleKey}
-          disabled={saving}
-          className={inputClass}
+        // กางรายการทันทีที่เปิดเซลล์ แล้ว "เลือก = บันทึก" — dropdown ในตารางไม่ควรต้องกดยืนยันซ้ำ
+        // Escape ที่ FormSelect กินไปปิดรายการจะมี defaultPrevented ติดมา จึงไม่ปิดโหมดแก้ไขซ้อน
+        // (กดอีกครั้งตอนรายการปิดแล้วถึงจะออกจากโหมดแก้ไข)
+        <div
+          className="flex-1 min-w-0"
+          onKeyDown={(e) => { if (!e.defaultPrevented) handleKey(e); }}
         >
-          {(config.options || []).map(o => (
-            <option key={o.value} value={o.value}>{o.label}</option>
-          ))}
-        </select>
+          <FormSelect
+            size="sm"
+            portal
+            autoOpen
+            disabled={saving}
+            value={value}
+            onChange={(v) => { setValue(v); void commit(v); }}
+            options={(config.options || []).map(o => ({ id: o.value, label: o.label }))}
+          />
+        </div>
       ) : (
         // ช่องตัวเลขเป็น type="text" + inputMode="decimal" กรองผ่าน sanitizeNumericInput —
         // ห้าม type="number" (ล้อเมาส์/แทร็กแพดเปลี่ยนค่าเงียบ ๆ ขณะ focus · กติกาเดียวกับ NumberInput)
@@ -849,15 +856,20 @@ function EditCell<T>({ row, config, onDone }: { row: T; config: EditConfig<T>; o
           className={inputClass}
         />
       )}
-      <button
-        type="button"
-        onClick={(e) => { e.stopPropagation(); void commit(); }}
-        disabled={saving}
-        className="flex-shrink-0 p-1 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 rounded"
-        aria-label="บันทึก"
-      >
-        {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-      </button>
+      {/* dropdown บันทึกเองตอนเลือก จึงไม่มีปุ่มยืนยัน เหลือแค่ตัวหมุนตอนกำลังบันทึก */}
+      {config.type === 'select' ? (
+        saving && <Loader2 className="w-4 h-4 flex-shrink-0 animate-spin text-emerald-600" />
+      ) : (
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); void commit(); }}
+          disabled={saving}
+          className="flex-shrink-0 p-1 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 rounded"
+          aria-label="บันทึก"
+        >
+          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+        </button>
+      )}
       <button
         type="button"
         onClick={(e) => { e.stopPropagation(); cancel(); }}
