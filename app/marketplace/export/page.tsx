@@ -129,8 +129,10 @@ function MarketplaceExportContent() {
   const [bulkConfig, setBulkConfig] = useState<ProductConfig>(EMPTY_CONFIG);
   const [showBulk, setShowBulk] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
-  const [draft, setDraft] = useState(true);
+  // ค่าเริ่มต้น = เปิดขายทันที (เจ้าของไม่อยากเข้าหลังบ้านไปกด publish ซ้ำ) · เปิดสวิตช์เมื่ออยากตรวจก่อน
+  const [draft, setDraft] = useState(false);
   const [brandSupported, setBrandSupported] = useState(false);
+  const [brandNeedsCategory, setBrandNeedsCategory] = useState(false);
 
   // ── ขั้นที่ 3: ส่ง ────────────────────────────────────────────────────────
   const [running, setRunning] = useState(false);
@@ -180,6 +182,7 @@ function MarketplaceExportContent() {
         const res = await apiFetch(`/api/marketplace/products/export/brands?account_id=${accountId}&q=`);
         const data = await res.json();
         setBrandSupported(res.ok && data.supported === true);
+        setBrandNeedsCategory(res.ok && data.needs_category === true);
       } catch {
         setBrandSupported(false);
       }
@@ -309,8 +312,12 @@ function MarketplaceExportContent() {
   const brandSearch = useServerSearch<{ id: string; name: string }>({
     minLength: 1,
     fetch: async (q) => {
+      // คำค้นถูกนำหน้าด้วยหมวด (`<category>|<q>`) เพื่อให้ cache ของ hook แยกตามหมวด
+      const sep = q.indexOf('|');
+      const categoryId = sep >= 0 ? q.slice(0, sep) : '';
+      const text = sep >= 0 ? q.slice(sep + 1) : q;
       const res = await apiFetch(
-        `/api/marketplace/products/export/brands?account_id=${accountId}&q=${encodeURIComponent(q)}`,
+        `/api/marketplace/products/export/brands?account_id=${accountId}&q=${encodeURIComponent(text)}&category_id=${encodeURIComponent(categoryId)}`,
       );
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'ค้นแบรนด์ไม่สำเร็จ');
@@ -601,7 +608,8 @@ function MarketplaceExportContent() {
           <EntitySearchInput
             value={cfg.brandId || ''}
             options={brandSearch.results.map(b => ({ id: b.id, label: b.name }))}
-            onSearchChange={brandSearch.search}
+            onSearchChange={(q) => brandSearch.search(`${cfg.categoryId || ''}|${q}`)}
+            disabled={brandNeedsCategory && !cfg.categoryId}
             loading={brandSearch.loading}
             minSearchLength={1}
             placeholder="ค้นหาแบรนด์..."
@@ -609,6 +617,9 @@ function MarketplaceExportContent() {
             onClear={() => onPick(null, '')}
             selectedDisplay={cfg.brandName ? <span className="body-text">{cfg.brandName}</span> : undefined}
           />
+          {brandNeedsCategory && !cfg.categoryId && (
+            <p className="helper-text text-gray-500 mt-1">เลือกหมวดหมู่ก่อน — รายชื่อแบรนด์ของร้านนี้แยกตามหมวด</p>
+          )}
         </div>
       ) : null
     );
@@ -646,7 +657,7 @@ function MarketplaceExportContent() {
               <div>
                 <p className="body-text">บันทึกเป็นแบบร่าง / ปิดขายไว้ก่อน</p>
                 <p className="helper-text text-gray-500">
-                  ประกาศจะยังไม่เปิดขาย — ตรวจใน {MARKETPLACE_PLATFORMS[platform as keyof typeof MARKETPLACE_PLATFORMS]?.sellerCenter || 'หลังบ้านของร้าน'} แล้วค่อยเปิดขายเอง
+                  ปิดอยู่ = เปิดขายทันทีที่ส่งเสร็จ · เปิด = ประกาศจะยังไม่ขาย ต้องไปเปิดเองใน {MARKETPLACE_PLATFORMS[platform as keyof typeof MARKETPLACE_PLATFORMS]?.sellerCenter || 'หลังบ้านของร้าน'} (ใช้ตอนอยากตรวจก่อน)
                 </p>
               </div>
             </div>

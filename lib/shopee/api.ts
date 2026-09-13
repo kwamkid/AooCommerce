@@ -1581,6 +1581,26 @@ export async function getShopeeCategories(
 }
 
 /**
+ * รายชื่อแบรนด์ของหมวดปลายกิ่ง — `get_brand_list` บังคับระบุ category_id (ทะเบียนแบรนด์แยกตามหมวด)
+ * หน้าละ ≤100 · หน้าถัดไปใช้ `next_offset` ที่ตอบมา ไม่ใช่ offset+page_size
+ */
+export async function getShopeeBrandList(
+  creds: ShopeeCredentials,
+  categoryId: number,
+  offset: number = 0,
+  pageSize: number = 100,
+  language: string = 'TH'
+): Promise<{ data: unknown; error?: string }> {
+  return shopeeApiRequest(creds, 'GET', '/api/v2/product/get_brand_list', {
+    category_id: categoryId,
+    status: 1,
+    offset,
+    page_size: pageSize,
+    language,
+  });
+}
+
+/**
  * Get attributes required for a Shopee category.
  * Only leaf categories can be used when creating items.
  * Tries get_attribute_tree first (newer API), falls back to get_attributes.

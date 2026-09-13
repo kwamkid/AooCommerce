@@ -144,7 +144,13 @@ export interface ProductExportAdapter {
   /** คุณสมบัติที่หมวดนั้นขอ */
   getCategoryAttributes(account: ProductExportAccount, categoryId: string): Promise<MarketplaceAttribute[]>;
   /** ค้นแบรนด์ — ไม่มี = หน้า wizard ซ่อนช่องแบรนด์ของ platform นั้น */
-  searchBrands?(account: ProductExportAccount, query: string): Promise<MarketplaceBrand[]>;
+  searchBrands?(
+    account: ProductExportAccount,
+    query: string,
+    opts?: { categoryId?: string | null },
+  ): Promise<MarketplaceBrand[]>;
+  /** true = ทะเบียนแบรนด์ขึ้นกับหมวด (Shopee) — หน้า wizard ให้เลือกหมวดก่อนถึงค้นได้ */
+  brandsNeedCategory?: boolean;
   /**
    * อัปรูปจาก URL ของเราขึ้นร้าน → id/URL ที่ใช้ใน payload ของแพลตฟอร์มนั้น
    * (throw เมื่ออัปไม่ได้ — ชั้นกลางจะนับเป็นรูปที่ตกไปแล้วไปต่อ)

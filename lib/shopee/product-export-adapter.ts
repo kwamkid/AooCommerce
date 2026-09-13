@@ -18,6 +18,7 @@ import {
   getShopeeLogistics,
   getShopeeCategories,
   getShopeeCategoryAttributes,
+  getShopeeBrandList,
   shopeeApiRequest,
   type ShopeeAccountRow,
   type ShopeeCredentials,
@@ -27,6 +28,7 @@ import type {
   ExportModel,
   ExportPayload,
   MarketplaceAttribute,
+  MarketplaceBrand,
   MarketplaceCategory,
   ProductExportAccount,
   ProductExportAdapter,
@@ -285,8 +287,48 @@ export async function uploadProductImages(
 
 // ── adapter ──────────────────────────────────────────────────────────────────
 
+// ── แบรนด์ (ทะเบียนแยกตามหมวด · แคชต่อหมวด 1 ชม.) ─────────────────────────────
+
+type ShopeeBrand = { brand_id: number; original_brand_name: string; display_brand_name?: string };
+const brandCache = new Map<string, { brands: ShopeeBrand[]; fetched_at: number }>();
+/** หมวดใหญ่มีแบรนด์เป็นหมื่น — ดึงไม่เกิน 30 หน้า (3,000 แบรนด์) ต่อหมวด */
+const BRAND_MAX_PAGES = 30;
+
+async function loadShopeeBrands(creds: ShopeeCredentials, categoryId: string): Promise<ShopeeBrand[]> {
+  const key = `${creds.shop_id}:${categoryId}`;
+  const hit = brandCache.get(key);
+  if (hit && Date.now() - hit.fetched_at < 3600_000) return hit.brands;
+
+  const brands: ShopeeBrand[] = [];
+  let offset = 0;
+  for (let page = 0; page < BRAND_MAX_PAGES; page++) {
+    const { data, error } = await getShopeeBrandList(creds, Number(categoryId), offset, 100);
+    if (error) throw new Error(await translateShopeeError(error));
+    const resp = data as { brand_list?: ShopeeBrand[]; has_next_page?: boolean; next_offset?: number } | null;
+    brands.push(...(resp?.brand_list || []));
+    if (!resp?.has_next_page || resp.next_offset == null) break;
+    offset = resp.next_offset;
+  }
+  brandCache.set(key, { brands, fetched_at: Date.now() });
+  return brands;
+}
+
 export const shopeeProductExportAdapter: ProductExportAdapter = {
   createApiPath: '/api/v2/product/add_item',
+  // Shopee ไม่มีทะเบียนแบรนด์รวม — ต้องรู้หมวดปลายกิ่งก่อนถึงถามได้
+  brandsNeedCategory: true,
+
+  async searchBrands(account, query, opts): Promise<MarketplaceBrand[]> {
+    const categoryId = opts?.categoryId ? String(opts.categoryId) : '';
+    if (!categoryId) return [];
+    const creds = await ensureValidToken(asShopeeAccount(account));
+    const q = query.trim().toLowerCase();
+    const all = await loadShopeeBrands(creds, categoryId);
+    const matched = q
+      ? all.filter(b => (b.display_brand_name || '').toLowerCase().includes(q) || (b.original_brand_name || '').toLowerCase().includes(q))
+      : all;
+    return matched.slice(0, 30).map(b => ({ id: String(b.brand_id), name: b.display_brand_name || b.original_brand_name }));
+  },
 
   async getCategories(account): Promise<MarketplaceCategory[]> {
     const creds = await ensureValidToken(asShopeeAccount(account));
