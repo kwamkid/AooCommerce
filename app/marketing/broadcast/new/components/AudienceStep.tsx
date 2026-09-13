@@ -1,20 +1,23 @@
 // Path: app/marketing/broadcast/new/components/AudienceStep.tsx
 //
-// การ์ด "กลุ่มเป้าหมาย" ของขั้นที่ 1 — เลือกกลุ่ม (ซ้าย) แล้วกรอกของที่กลุ่มนั้นต้องใช้ (ขวา)
+// การ์ด "กลุ่มเป้าหมาย" ของขั้นที่ 1 — ชิปตัวเลือกด้านบน แล้วของที่กลุ่มนั้นต้องกรอกอยู่ใต้ชิป
 //
 // เดิมเป็นโมดัลที่เดินสามขั้น — ผู้ใช้ต้องเปิด/ปิดเพื่อดูว่าตัวเองเลือกอะไรไว้ และจำนวนคน
 // ของแต่ละกลุ่มไม่เคยเห็นพร้อมกันเลย · ตอนนี้กางอยู่ในหน้า เทียบจำนวนได้ทันทีว่ากลุ่มไหนใหญ่แค่ไหน
+//
+// เป็นชิปตัดบรรทัดตั้งแต่ 13 ก.ย. 2026 (เจ้าของขอให้กินพื้นที่น้อยลง) — เดิมเป็นการ์ด radio เรียงลงมา
+// ในคอลัมน์ 280px สูงพันกว่าพิกเซล และคอลัมน์ขวาว่างเปล่าจนกว่าจะเลือก
+// ⛔ สิ่งที่ห้ามหายไม่ว่าจะเปลี่ยนหน้าตายังไง: เห็นทุกตัวเลือกพร้อมกัน · จำนวนคนต่อกลุ่ม ·
+//    ตัวที่เลือกไม่ได้ต้องขึ้นจางพร้อมเหตุผล (ห้ามซ่อน)
 'use client';
 
 import { useState } from 'react';
 import NumberInput from '@/components/ui/NumberInput';
-import Radio from '@/components/ui/Radio';
 import Alert from '@/components/ui/Alert';
 import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
 import FilterChips, { FILTER_CHIP_PRIMARY_ACTIVE } from '@/components/ui/FilterChips';
 import MultiSelectSearch from '@/components/ui/MultiSelectSearch';
-import Tooltip from '@/components/ui/Tooltip';
 import HelpHint from '@/components/ui/HelpHint';
 import EntitySearchInput, { type EntitySearchOption } from '@/components/ui/EntitySearchInput';
 import {
@@ -90,12 +93,12 @@ export default function AudienceStep({
    * ไม่ได้) จึงเห็นขีดเรียงทั้งคอลัมน์โดยไม่รู้ว่าคืออะไร ทั้งที่แผงขวามีตัวเลขจริงอยู่แล้ว
    * (เจ้าของท้วง 11 ก.ย. 2026) · ตัวเลขยังขึ้นตามเดิมเมื่อนับได้ (เลือกช่องทางเดียว)
    */
-  const countOf = (key: string): string | null => {
-    if (disabledOptions?.[key]) return null;
-    if (countsUnavailable) return null;
-    if (countsLoading && !counts) return null;
+  const countOf = (key: string): number | undefined => {
+    if (disabledOptions?.[key]) return undefined;
+    if (countsUnavailable) return undefined;
+    if (countsLoading && !counts) return undefined;
     const n = counts?.counts?.[key];
-    return typeof n === 'number' ? n.toLocaleString() : null;
+    return typeof n === 'number' ? n : undefined;
   };
 
   return (
@@ -110,68 +113,40 @@ export default function AudienceStep({
         )}
       </div>
 
-      {/* คอลัมน์ซ้าย 280px — ชื่อกลุ่มยาวสุด "ทักมาจากโฆษณาแต่ยังไม่ซื้อ" + ตัวเลขท้ายแถว
-          ต้องอยู่บรรทัดเดียว (220px เดิมตัดขึ้นบรรทัดใหม่ — เจ้าของท้วง 11 ก.ย. 2026) */}
-      <div className="grid grid-cols-1 md:grid-cols-[280px_minmax(0,1fr)] gap-4">
-        {/* ── ซ้าย: ตัวเลือกทั้งหมด แบ่งตามเป้าหมายการตลาด ── */}
-        <div className="space-y-3">
-          {AUDIENCE_GROUPS.map(g => {
-            const inGroup = options.filter(o => o.group === g.key);
-            if (inGroup.length === 0) return null;
-            return (
-              <div key={g.key}>
-                <p className="field-label">{g.label}</p>
-                {/* flex+gap (ไม่ใช่ space-y) เพราะแถวที่มีเหตุผลถูกห่อด้วย Tooltip ซึ่งเป็น
-                    display:contents — margin ของ space-y จะไม่มีผลกับมัน แล้วระยะจะหลุดเฉพาะแถวนั้น */}
-                <div className="flex flex-col gap-1">
-                  {inGroup.map(opt => {
-                    const active = opt.key === audience;
-                    const reason = disabledOptions?.[opt.key];
-                    const row = (
-                      <Radio
-                        key={opt.key}
-                        checked={active}
-                        onChange={() => onAudienceChange(opt.key)}
-                        disabled={disabled || !!reason}
-                        className={`choice-card px-2.5 py-2 ${active ? 'choice-card-active' : ''}`}
-                      >
-                        <span className="flex-1 min-w-0 flex items-baseline gap-2">
-                          <span className="body-text">
-                            {opt.label.replace('N วัน', `${days} วัน`)}
-                          </span>
-                          {countOf(opt.key) != null && (
-                            <span className="ml-auto subtitle-text tabular-nums">
-                              {countOf(opt.key)}
-                            </span>
-                          )}
-                        </span>
-                      </Radio>
-                    );
-                    return reason
-                      ? <Tooltip key={opt.key} text={reason}>{row}</Tooltip>
-                      : row;
-                  })}
-                </div>
-              </div>
-            );
-          })}
-        </div>
+      {/* ตัวเลือกทั้งหมดเป็นชิปตัดบรรทัด — หัวกลุ่มอยู่ซ้ายของแถวชิปของกลุ่มนั้น */}
+      <div className="space-y-2.5">
+        {AUDIENCE_GROUPS.map(g => {
+          const inGroup = options.filter(o => o.group === g.key);
+          if (inGroup.length === 0) return null;
+          return (
+            <div key={g.key} className="flex flex-wrap items-center gap-x-3 gap-y-2">
+              <p className="field-label w-24 flex-shrink-0">{g.label}</p>
+              <FilterChips
+                value={audience}
+                onChange={onAudienceChange}
+                disabled={disabled}
+                className="flex-1 min-w-0"
+                chips={inGroup.map(opt => ({
+                  id: opt.key,
+                  label: opt.label.replace('N วัน', `${days} วัน`),
+                  count: countOf(opt.key),
+                  // ตัวที่เลือกไม่ได้: จาง + เหตุผลใน tooltip (FilterChips ทำให้ทั้งคู่)
+                  disabled: !!disabledOptions?.[opt.key],
+                  tooltip: disabledOptions?.[opt.key],
+                  activeClass: FILTER_CHIP_PRIMARY_ACTIVE,
+                }))}
+              />
+            </div>
+          );
+        })}
+      </div>
 
-        {/* ── ขวา: รายละเอียดของตัวเลือกที่เลือก ── */}
-        <div className="md:border-l md:border-gray-100 md:dark:border-slate-700 md:pl-4">
-          {!selected ? (
-            <p className="subtitle-text">เลือกกลุ่มทางซ้ายก่อน</p>
-          ) : (
-            <div className="space-y-4">
-              <div>
-                <p className="body-text font-medium">
-                  {selected.label.replace('N วัน', `${days} วัน`)}
-                </p>
-                {selected.hint && (
-                  <p className="subtitle-text mt-0.5">{selected.hint}</p>
-                )}
-              </div>
-
+      {/* ของที่กลุ่มนั้นต้องกรอก — อยู่ใต้ชิป ไม่ใช่คอลัมน์ขวา จะได้ไม่มีที่ว่างค้างตอนยังไม่เลือก
+          ชื่อกลุ่มไม่ต้องเขียนซ้ำ ชิปที่ถูกเลือกบอกอยู่แล้ว */}
+      {selected && (
+        <div className="mt-4 pt-4 border-t border-gray-100 dark:border-slate-700">
+          <div className="space-y-4">
+            {selected.hint && <p className="subtitle-text">{selected.hint}</p>}
               {selected.needsDays && (
                 <RefineRow
                   label="นับย้อนหลัง"
@@ -295,10 +270,9 @@ export default function AudienceStep({
                   />
                 </div>
               )}
-            </div>
-          )}
+          </div>
         </div>
-      </div>
+      )}
     </Card>
   );
 }
