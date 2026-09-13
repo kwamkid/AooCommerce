@@ -5,6 +5,7 @@ import { getStockConfig } from '@/lib/stock-utils';
 import { deductStock } from '@/lib/stock-service';
 import { fetchCostMap } from '@/lib/cost-utils';
 import { computeOrderTotals } from '@/lib/order-totals';
+import { checkCoupon, normalizeCouponCode, type Coupon } from '@/lib/coupons';
 import { getCompositeAvailability } from '@/lib/composite';
 
 import { normalizePhoneQuery } from '@/lib/numeric-input';
@@ -204,6 +205,7 @@ export async function POST(request: NextRequest) {
       items,
       payments,
       discount_amount: orderDiscountAmount = 0,
+      coupon_code: rawCouponCode,
       notes,
     } = body as {
       pos_session_id: string;
@@ -211,6 +213,7 @@ export async function POST(request: NextRequest) {
       items: PosItemInput[];
       payments: PosTender[];
       discount_amount?: number;
+      coupon_code?: string;
       notes?: string;
     };
 
@@ -281,10 +284,50 @@ export async function POST(request: NextRequest) {
       .single();
     const posVatRegistered = posCompanyInfo?.vat_registered || false;
 
+    // โค้ดส่วนลด — แคชเชียร์กรอกโค้ดของลูกค้า **เซิร์ฟเวอร์ตรวจและคิดเอง** ไม่เชื่อยอดจากหน้าจอ
+    // (กติกาอยู่ที่ lib/coupons.ts ที่เดียว) · มีโค้ด = ใช้ยอดของคูปองแทนส่วนลดที่พิมพ์มา
+    let posDiscountAmount = orderDiscountAmount;
+    let posCoupon: { id: string; discount: number } | null = null;
+    const posCouponCode = normalizeCouponCode(String(rawCouponCode ?? ''));
+    if (posCouponCode) {
+      const { data: couponRow } = await supabaseAdmin
+        .from('coupons')
+        .select('id, code, discount_type, discount_value, max_discount, min_spend, valid_from, valid_until, usage_limit_total, usage_limit_per_customer, used_count, customer_id, fb_contact_id, channels, is_active')
+        .eq('company_id', auth.companyId)
+        .eq('code', posCouponCode)
+        .maybeSingle<Coupon>();
+      if (!couponRow) {
+        return NextResponse.json({ error: `ไม่พบโค้ด ${posCouponCode}` }, { status: 400 });
+      }
+
+      let usedByCustomer = 0;
+      if (customer_id) {
+        const { count } = await supabaseAdmin
+          .from('coupon_redemptions')
+          .select('id', { count: 'exact', head: true })
+          .eq('coupon_id', couponRow.id)
+          .eq('customer_id', customer_id);
+        usedByCustomer = count ?? 0;
+      }
+
+      const posCouponCheck = checkCoupon({
+        coupon: couponRow,
+        itemsTotal: itemsSubtotal,
+        channel: 'pos',
+        customerId: customer_id || null,
+        usedByCustomer,
+      });
+      if (!posCouponCheck.ok) {
+        return NextResponse.json({ error: posCouponCheck.reason }, { status: 400 });
+      }
+      posDiscountAmount = posCouponCheck.discount;
+      posCoupon = { id: couponRow.id, discount: posCouponCheck.discount };
+    }
+
     // VAT calculation (prices are VAT-inclusive if registered, reverse-calculate)
     const { subtotal: subtotalBeforeVAT, vatAmount, totalAmount: totalWithVAT } = computeOrderTotals({
       itemsTotal: itemsSubtotal,
-      discountAmount: orderDiscountAmount,
+      discountAmount: posDiscountAmount,
       vatRegistered: posVatRegistered,
     });
 
@@ -379,7 +422,7 @@ export async function POST(request: NextRequest) {
         customer_id: customer_id || null,
         subtotal: subtotalBeforeVAT,
         vat_amount: vatAmount,
-        discount_amount: orderDiscountAmount,
+        discount_amount: posDiscountAmount,
         total_amount: totalWithVAT,
         payment_method: paymentMethod,
         payment_status: 'paid',
@@ -402,6 +445,31 @@ export async function POST(request: NextRequest) {
     if (orderError) {
       console.error('[POS] Order creation error:', orderError);
       return NextResponse.json({ error: orderError.message }, { status: 400 });
+    }
+
+    // บันทึกการใช้คูปอง — หลังออเดอร์ถูกสร้างจริงเท่านั้น · ล้มตรงนี้ไม่ล้มบิล (เงินรับมาแล้ว)
+    if (posCoupon) {
+      const { error: redeemError } = await supabaseAdmin.from('coupon_redemptions').insert({
+        company_id: auth.companyId,
+        coupon_id: posCoupon.id,
+        order_id: order.id,
+        customer_id: customer_id || null,
+        amount: posCoupon.discount,
+        channel: 'pos',
+      });
+      if (redeemError) {
+        console.error('[POS] coupon redeem failed:', { orderId: order.id, error: redeemError.message });
+      } else {
+        const { data: couponCounter } = await supabaseAdmin
+          .from('coupons')
+          .select('used_count')
+          .eq('id', posCoupon.id)
+          .maybeSingle<{ used_count: number }>();
+        await supabaseAdmin
+          .from('coupons')
+          .update({ used_count: (couponCounter?.used_count || 0) + 1 })
+          .eq('id', posCoupon.id);
+      }
     }
 
     // POS = จ่ายจบหน้าร้านทันที → บอก Meta ว่าปิดการขายได้ (action_source = physical_store
