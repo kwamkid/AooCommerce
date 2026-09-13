@@ -233,12 +233,11 @@ export default function FormSelect({
         const dropdown = (
           <div
             ref={dropdownRef}
+            // ทั้งสองโหมด: กว้างอย่างน้อยเท่าช่อง แล้วขยายตามข้อความยาวสุด (สูงสุด 420px / ขอบจอ)
+            // เดิมโหมดปกติล็อก `left-0 right-0` = เท่าช่องพอดี ชื่อตัวแทน/หมวดยาว ๆ จึงถูกตัดกลางคำ
             className={`bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded-lg shadow-lg overflow-hidden ${
-              portal ? 'fixed z-[9999]' : 'absolute z-40 top-full mt-1 left-0 right-0'
+              portal ? 'fixed z-[9999]' : 'absolute z-40 top-full mt-1 left-0 min-w-full w-max max-w-[min(420px,calc(100vw-16px))]'
             }`}
-            // `minWidth` instead of fixed `width` lets the dropdown grow if its
-            // longest option exceeds the trigger width (prevents truncation like
-            // "7 วันล่า..." when the trigger is auto-sized).
             style={portal && portalPos ? { top: portalPos.top, left: portalPos.left, minWidth: portalPos.width, maxWidth: 'min(420px, calc(100vw - 16px))' } : undefined}
           >
             {/* Search */}
