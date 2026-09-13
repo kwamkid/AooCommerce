@@ -1,7 +1,7 @@
 // Path: components/ui/DiscountPriceInput.tsx
 //
 // ช่อง "ลดเหลือ (฿)" (ของกลาง — ฟอร์มสินค้า · โปรโมชัน) — ช่องหลักเป็นราคาสุดท้ายเสมอ (= discount_price ที่เก็บ)
-// ปุ่ม % ท้ายช่องเปิด popover เล็ก ๆ ให้พิมพ์ "ลด %" หรือ "ลดไป (บาท)" เห็นราคาที่จะได้ กดตกลงแล้ว
+// ปุ่มเครื่องคิดเลขท้ายช่องเปิด popover เล็ก ๆ ให้พิมพ์ "ลด %" หรือ "ลดไป (บาท)" เห็นราคาที่จะได้ กดตกลงแล้ว
 // เขียนลงช่องหลักเลย — ไม่มีโหมดให้จำ เปิดแก้ไขทีหลังก็เห็นเป็นบาทเหมือนเดิม (เจ้าของเคาะ 13 ก.ย. 2026)
 // บรรทัดใต้ช่องบอกว่าราคานี้เท่ากับลดกี่ % / กี่บาท
 //
@@ -11,7 +11,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { Percent } from 'lucide-react';
+import { Calculator } from 'lucide-react';
 import Badge from '@/components/ui/Badge';
 import Button from '@/components/ui/Button';
 import Popover from '@/components/ui/Popover';
@@ -133,7 +133,7 @@ export default function DiscountPriceInput({
             }`}
           />
         )}
-        <Tooltip text="คิดจาก % หรือลดไปกี่บาท" box="inline-flex">
+        <Tooltip text="คิดราคาจาก % หรือลดไปกี่บาท" box="inline-flex">
           <button
             ref={calcBtnRef}
             type="button"
@@ -141,7 +141,7 @@ export default function DiscountPriceInput({
             aria-label={`คำนวณ${ariaLabel}จาก % หรือจำนวนบาท`}
             className="flex items-center px-2.5 h-full border-l border-gray-300 dark:border-slate-600 rounded-r-lg bg-gray-50 dark:bg-slate-600 text-gray-600 dark:text-slate-200 hover:bg-gray-100 hover:text-primary dark:hover:bg-slate-500 transition-colors"
           >
-            <Percent className="w-4 h-4" />
+            <Calculator className="w-4 h-4" />
           </button>
         </Tooltip>
       </div>
