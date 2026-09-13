@@ -1,6 +1,7 @@
 // Path: app/api/products/merge/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
+import { adjustStock } from '@/lib/stock-service';
 
 interface VariationMapping {
   source_variation_id: string;
@@ -132,10 +133,24 @@ async function mergeVariation(
   // 2. inventory: keep master (target) stock, delete source stock
   const { data: sourceInventory } = await supabaseAdmin
     .from('inventory')
-    .select('id, warehouse_id')
+    .select('id, warehouse_id, company_id, quantity, reserved_quantity')
     .eq('variation_id', sourceVarId);
 
   for (const srcInv of sourceInventory || []) {
+    // ยอดของตัวที่ถูกรวมถูกตัดทิ้ง (ยอดตัวหลักเป็นตัวจริง) — ต้องมี log ก่อนลบแถว ไม่ให้สต็อกหายเงียบ ๆ
+    // (log ถูกย้ายไปอยู่กับตัวหลักในข้อ 3 พร้อมหมายเหตุว่ามาจากการรวมสินค้า)
+    if (Number(srcInv.quantity) !== 0 || Number(srcInv.reserved_quantity) !== 0) {
+      await adjustStock({
+        supabase: supabaseAdmin,
+        companyId: srcInv.company_id,
+        warehouseId: srcInv.warehouse_id,
+        variationId: sourceVarId,
+        newQuantity: 0,
+        referenceType: 'manual',
+        referenceId: targetVarId,
+        notes: `รวมสินค้าเข้าตัวหลัก — ยอดของตัวที่ถูกรวม (${Number(srcInv.quantity)} จอง ${Number(srcInv.reserved_quantity)}) ถูกตัดทิ้ง ยอดตัวหลักเป็นตัวจริง`,
+      });
+    }
     // Always delete source inventory — master's stock is the correct one
     await supabaseAdmin.from('inventory').delete().eq('id', srcInv.id);
   }
