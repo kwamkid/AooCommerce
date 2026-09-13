@@ -136,20 +136,25 @@ export default function AudienceStep({
                 <button
                   type="button"
                   onClick={() => setManualGroup(openGroup === g.key ? '' : g.key)}
-                  className="w-full flex items-center gap-2 py-1 text-left"
+                  className="w-full flex items-center gap-2 py-1.5 px-1.5 -mx-1.5 rounded-lg text-left transition-colors hover:bg-gray-50 dark:hover:bg-slate-700/40"
                 >
                   <ChevronDown
-                    className={`w-4 h-4 flex-shrink-0 text-gray-400 dark:text-slate-500 transition-transform ${
+                    className={`w-4 h-4 flex-shrink-0 text-gray-500 dark:text-slate-400 transition-transform ${
                       openGroup === g.key ? '' : '-rotate-90'
                     }`}
                   />
-                  <span className="field-label">{g.label}</span>
-                  {/* ปิดอยู่แต่เลือกไว้ในกลุ่มนี้ = บอกไว้ที่หัวกลุ่ม ไม่ต้องกางดูว่าเลือกอะไร */}
-                  {openGroup !== g.key && selected?.group === g.key && (
-                    <span className="subtitle-text text-primary truncate ml-auto">
-                      {selected.label.replace('N วัน', `${days} วัน`)}
-                    </span>
-                  )}
+                  {/* ป้ายกลุ่มกับชื่อตัวเลือกคนละขนาด — ต้องชิดเส้นฐานเดียวกัน (items-baseline)
+                      ไม่ใช่ items-center ไม่งั้นตัวเล็กลอยสูงกว่า (เจ้าของท้วง 13 ก.ย. 2026) */}
+                  <span className="flex-1 min-w-0 flex items-baseline gap-2">
+                    {/* หัวกลุ่มต้องเด่นกว่าชื่อตัวเลือกในการ์ด — เทาเข้มตัวหนา ไม่ใช่ป้ายช่องกรอกจาง ๆ */}
+                    <span className="heading-4">{g.label}</span>
+                    {/* ปิดอยู่แต่เลือกไว้ในกลุ่มนี้ = บอกไว้ที่หัวกลุ่ม ไม่ต้องกางดูว่าเลือกอะไร */}
+                    {openGroup !== g.key && selected?.group === g.key && (
+                      <span className="subtitle-text text-primary truncate ml-auto">
+                        {selected.label.replace('N วัน', `${days} วัน`)}
+                      </span>
+                    )}
+                  </span>
                 </button>
                 {/* flex+gap (ไม่ใช่ space-y) เพราะแถวที่มีเหตุผลถูกห่อด้วย Tooltip ซึ่งเป็น
                     display:contents — margin ของ space-y จะไม่มีผลกับมัน แล้วระยะจะหลุดเฉพาะแถวนั้น */}
