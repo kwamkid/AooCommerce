@@ -537,6 +537,8 @@ export default function OrderForm({
   const [couponCode, setCouponCode] = useState('');
   const [couponChecking, setCouponChecking] = useState(false);
   const [couponApplied, setCouponApplied] = useState<{ code: string; discount: number } | null>(null);
+  /** กล่องกรอกโค้ดซ่อนไว้ก่อน — บิลส่วนใหญ่ไม่ได้ใช้คูปอง กดปุ่มถึงค่อยกาง */
+  const [couponOpen, setCouponOpen] = useState(false);
 
   const handleApplyCoupon = async () => {
     const code = couponCode.trim().toUpperCase();
@@ -573,6 +575,7 @@ export default function OrderForm({
   const handleClearCoupon = () => {
     setCouponApplied(null);
     setOrderDiscount(0);
+    setCouponOpen(false);
   };
   const [taxInvoiceRequested, setTaxInvoiceRequested] = useState(false);
 
@@ -3402,7 +3405,7 @@ export default function OrderForm({
                       เอาออก
                     </button>
                   </div>
-                ) : (
+                ) : couponOpen ? (
                   <div className="flex gap-2">
                     <input
                       value={couponCode}
@@ -3410,12 +3413,21 @@ export default function OrderForm({
                       onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleApplyCoupon(); } }}
                       placeholder="โค้ดส่วนลด"
                       aria-label="โค้ดส่วนลด"
+                      autoFocus
                       className="flex-1 min-w-0 px-2 py-1.5 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary"
                     />
                     <Button size="sm" variant="secondary" onClick={handleApplyCoupon} loading={couponChecking} disabled={!couponCode.trim()}>
                       ใช้โค้ด
                     </Button>
                   </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setCouponOpen(true)}
+                    className="text-sm text-primary hover:underline"
+                  >
+                    + ใช้คูปอง
+                  </button>
                 )
               )}
             >
