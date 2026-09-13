@@ -152,3 +152,99 @@ export async function saveSettlement(params: SaveSettlementParams): Promise<{ id
 
   return { id: settlement.id };
 }
+
+// ─── ดึงยอดของออเดอร์ใบเดียว (ผู้ใช้กดจากหน้าออเดอร์) ───────────────────────
+
+export type SyncOrderSettlementStatus = 'saved' | 'pending' | 'unsupported' | 'error';
+
+export interface SyncOrderSettlementResult {
+  status: SyncOrderSettlementStatus;
+  message?: string;
+  /** platform ของร้านที่ออเดอร์นี้ผูกอยู่ — ผู้เรียกใช้ทำ log / เช็คโควตา */
+  platform?: string | null;
+  accountId?: string | null;
+}
+
+/**
+ * ถามแพลตฟอร์มว่าออเดอร์ใบนี้ได้เงินเท่าไหร่ แล้วบันทึกผ่าน `saveSettlement()`
+ *
+ * ชั้นกลางตัวนี้ **ไม่รู้จักชื่อ platform เลย** — งานเฉพาะเจ้าอยู่ใน adapter
+ * (`lib/<platform>/settlement-adapter.ts`) ตามทะเบียน `SETTLEMENT_ADAPTERS`
+ *
+ * ผู้เรียกต้องเช็ค `isQuotaBlocked(platform, 'finance')` เองก่อน (route ทำให้แล้ว)
+ * — ตัวนี้ไม่เช็คให้เพราะยังไม่รู้ platform จนกว่าจะโหลดร้านเสร็จ
+ */
+export async function syncOrderSettlement(
+  orderId: string,
+  companyId: string,
+): Promise<SyncOrderSettlementResult> {
+  const { data: order } = await supabaseAdmin
+    .from('orders')
+    .select('id, company_id, external_order_sn, created_at, marketplace_account_id')
+    .eq('id', orderId)
+    .eq('company_id', companyId)
+    .maybeSingle();
+
+  if (!order) return { status: 'error', message: 'ไม่พบออเดอร์นี้' };
+  if (!order.marketplace_account_id) {
+    return { status: 'unsupported', message: 'ออเดอร์นี้ไม่ได้มาจากร้านบนแพลตฟอร์ม' };
+  }
+
+  const { data: account } = await supabaseAdmin
+    .from('marketplace_accounts')
+    .select('*')
+    .eq('id', order.marketplace_account_id)
+    .eq('company_id', companyId)
+    .maybeSingle();
+
+  if (!account) return { status: 'error', message: 'ไม่พบร้านที่ผูกกับออเดอร์นี้' };
+
+  const platform = (account.platform as string | null) ?? null;
+
+  // โหลดทะเบียน adapter แบบ dynamic — ไม่งั้นทุกไฟล์ที่ import `saveSettlement`
+  // (เช่น lib/shopee/sync.ts ที่ webhook ใช้) จะลาก API client ของอีก 2 เจ้าเข้าไปด้วย
+  const { getSettlementAdapter } = await import('./settlement-adapter');
+  const adapter = getSettlementAdapter(platform);
+  if (!adapter) {
+    return { status: 'unsupported', message: 'แพลตฟอร์มนี้ยังดึงยอดเงินรายออเดอร์ไม่ได้', platform, accountId: account.id };
+  }
+
+  if (!order.external_order_sn) {
+    return { status: 'error', message: 'ออเดอร์นี้ไม่มีเลขออเดอร์ของแพลตฟอร์ม', platform, accountId: account.id };
+  }
+
+  let fetched;
+  try {
+    fetched = await adapter.fetchOrderSettlement(account, {
+      id: order.id,
+      company_id: order.company_id,
+      external_order_sn: order.external_order_sn,
+      created_at: order.created_at,
+    });
+  } catch (err) {
+    return {
+      status: 'error',
+      message: err instanceof Error ? err.message : 'ดึงยอดเงินไม่สำเร็จ',
+      platform,
+      accountId: account.id,
+    };
+  }
+
+  // ยังไม่ถึงรอบโอน — **ห้ามบันทึกเป็นแถว ฿0** (รายงานจะอ่านว่าขายแล้วไม่ได้เงิน)
+  if (!fetched || fetched === 'pending') {
+    return { status: 'pending', platform, accountId: account.id };
+  }
+
+  const cogs = (await computeOrderCogs([order.id])).get(order.id) ?? { value: null, basis: null };
+  const saved = await saveSettlement({
+    companyId,
+    orderId: order.id,
+    platform: platform || '',
+    marketplaceAccountId: account.id,
+    normalized: fetched,
+    cogs,
+  });
+
+  if (!saved) return { status: 'error', message: 'บันทึกยอดเงินไม่สำเร็จ', platform, accountId: account.id };
+  return { status: 'saved', platform, accountId: account.id };
+}

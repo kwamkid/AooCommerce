@@ -13,6 +13,7 @@ import NumberInput from '@/components/ui/NumberInput';
 import FormInput from '@/components/ui/FormInput';
 import { LoadingCard } from '@/components/ui/StateCard';
 import OrderForm from '@/components/orders/OrderForm';
+import MarketplaceOrderCard from '@/components/orders/MarketplaceOrderCard';
 import TaxInvoiceEditModal, { type TaxInvoiceSnapshot } from '@/components/ui/TaxInvoiceEditModal';
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/lib/toast-context';
@@ -68,7 +69,6 @@ import { useCarriers } from '@/lib/carrier-lookup';
 import FormSelect from '@/components/ui/FormSelect';
 import StatusBadge, { InfoChip } from '@/components/ui/StatusBadge';
 import { OrderStatusBadge, PaymentStatusBadge } from '@/components/ui/OrderStatusBadge';
-import Badge from '@/components/ui/Badge';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { orderStatusLabel, paymentStatusLabel, getNextOrderStatus } from '@/lib/status-labels';
 import { thumbUrl } from '@/lib/image-thumb';
@@ -162,9 +162,6 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
 
   // Slip preview modal
   const [showSlipModal, setShowSlipModal] = useState(false);
-
-  // Shopee financial details toggle
-  const [showFinancial, setShowFinancial] = useState(false);
 
   // Credit Notes
   const [creditNotes, setCreditNotes] = useState<any[]>([]);
@@ -1667,132 +1664,8 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
         {/* Marketplace Status + Customer — 2-column layout (hidden on print) */}
         {orderStatus !== 'cancelled' && isMarketplaceOrder && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 print:hidden">
-            {/* Left: Status */}
-            <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-5 space-y-4">
-              <div>
-                <div className="text-base font-medium text-gray-500 dark:text-slate-400 uppercase tracking-wide mb-2">สถานะ</div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <OrderStatusBadge status={orderStatus} expired={isExpired} size="md" />
-                  <PaymentStatusBadge status={paymentStatus} size="md" />
-                  <Badge tone="orange" size="sm" icon={<img src="/marketplace/shopee.svg" alt="Shopee" className="w-3.5 h-3.5" />}>Shopee</Badge>
-                </div>
-              </div>
-
-              {/* Buyer's note */}
-              {fullOrderData?.external_data?.note && (
-                <div className="bg-gray-50 dark:bg-slate-700/50 rounded-lg px-3 py-2">
-                  <span className="text-sm text-gray-500 dark:text-slate-400">ข้อความจากผู้ซื้อ:</span>
-                  <p className="text-sm text-gray-700 dark:text-slate-200 mt-0.5">{fullOrderData.external_data.note}</p>
-                </div>
-              )}
-
-              {/* Financial Breakdown (collapsible) */}
-              {(() => {
-                const escrow = fullOrderData?.external_data?.escrow_detail;
-                const orderIncome = escrow?.order_income || escrow;
-                if (!escrow) {
-                  const estShipping = fullOrderData?.external_data?.estimated_shipping_fee;
-                  if (estShipping && estShipping > 0) {
-                    return (
-                      <div className="border-t border-gray-200 dark:border-slate-600 pt-3">
-                        <div className="flex justify-between text-sm text-gray-600 dark:text-slate-300">
-                          <span>ค่าส่ง (ประมาณ)</span>
-                          <span>฿{formatPrice(estShipping)}</span>
-                        </div>
-                      </div>
-                    );
-                  }
-                  return null;
-                }
-
-                const buyerTotal = Number(orderIncome?.buyer_total_amount ?? escrow?.buyer_total_amount ?? 0);
-                const actualShipping = Number(orderIncome?.actual_shipping_fee ?? escrow?.actual_shipping_fee ?? 0);
-                const originalPrice = Number(orderIncome?.original_price ?? escrow?.original_price ?? 0);
-                const voucherSeller = Number(orderIncome?.voucher_from_seller ?? escrow?.voucher_from_seller ?? 0);
-                const voucherShopee = Number(orderIncome?.voucher_from_shopee ?? escrow?.voucher_from_shopee ?? 0);
-                const coins = Number(orderIncome?.coins ?? escrow?.coins ?? 0);
-                const sellerDiscount = Number(orderIncome?.seller_discount ?? escrow?.seller_discount ?? 0);
-                const shopeeDiscount = Number(orderIncome?.shopee_discount ?? escrow?.shopee_discount ?? 0);
-                const commissionFee = Number(orderIncome?.commission_fee ?? escrow?.commission_fee ?? 0);
-                const serviceFee = Number(orderIncome?.service_fee ?? escrow?.service_fee ?? 0);
-                const escrowAmount = Number(orderIncome?.escrow_amount ?? escrow?.escrow_amount ?? 0);
-
-                const itemList = fullOrderData?.external_data?.item_list || [];
-                const sellingPrice = itemList.reduce((sum: number, item: any) => {
-                  const price = item.model_discounted_price || item.model_original_price || 0;
-                  const qty = item.model_quantity_purchased || 1;
-                  return sum + (price * qty);
-                }, 0);
-
-                const basePrice = sellingPrice > 0 ? sellingPrice : originalPrice;
-                const pct = (val: number) => basePrice > 0 ? ((val / basePrice) * 100).toFixed(1) : '0';
-                const totalSellerDiscount = voucherSeller + sellerDiscount;
-                const totalShopeeDiscount = voucherShopee + shopeeDiscount + coins;
-                const totalFees = commissionFee + serviceFee;
-
-                return (
-                  <div className="border-t border-gray-200 dark:border-slate-600 pt-3">
-                    <button
-                      onClick={() => setShowFinancial(!showFinancial)}
-                      className="flex items-center gap-2 text-sm font-medium text-gray-600 dark:text-slate-300 hover:text-gray-800 dark:hover:text-slate-100 transition-colors w-full"
-                    >
-                      <ChevronDown className={`w-4 h-4 transition-transform ${showFinancial ? 'rotate-0' : '-rotate-90'}`} />
-                      <span>รายละเอียดทางการเงิน</span>
-                      <span className="ml-auto text-green-600 dark:text-green-400 font-semibold">฿{formatPrice(escrowAmount)}</span>
-                    </button>
-                    {showFinancial && (
-                      <div className="mt-3 space-y-2 pl-6">
-                        <div className="flex justify-between text-sm font-medium">
-                          <span className="text-gray-600 dark:text-slate-300">ราคาขาย</span>
-                          <span className="text-gray-800 dark:text-slate-200">฿{formatPrice(basePrice)}</span>
-                        </div>
-                        {totalSellerDiscount > 0 && (
-                          <div className="flex justify-between text-sm">
-                            <span className="text-gray-600 dark:text-slate-300">ส่วนลดจากร้าน</span>
-                            <span className="text-red-500 dark:text-red-400">-฿{formatPrice(totalSellerDiscount)} <span className="text-gray-400 dark:text-slate-500">({pct(totalSellerDiscount)}%)</span></span>
-                          </div>
-                        )}
-                        {totalShopeeDiscount > 0 && (
-                          <div className="flex justify-between text-sm">
-                            <span className="text-gray-600 dark:text-slate-300">ส่วนลดจาก Shopee</span>
-                            <span className="text-orange-500 dark:text-orange-400">-฿{formatPrice(totalShopeeDiscount)} <span className="text-gray-400 dark:text-slate-500">({pct(totalShopeeDiscount)}%)</span></span>
-                          </div>
-                        )}
-                        <div className="flex justify-between text-sm pt-1 border-t border-gray-100 dark:border-slate-700">
-                          <span className="text-gray-600 dark:text-slate-300">ยอดที่ผู้ซื้อจ่าย</span>
-                          <span className="text-gray-800 dark:text-slate-200">฿{formatPrice(buyerTotal)}</span>
-                        </div>
-                        {actualShipping > 0 && (
-                          <div className="flex justify-between text-sm">
-                            <span className="text-gray-600 dark:text-slate-300">ค่าส่ง (ผู้ซื้อจ่าย)</span>
-                            <span className="text-gray-800 dark:text-slate-200">฿{formatPrice(actualShipping)}</span>
-                          </div>
-                        )}
-                        {totalFees > 0 && (
-                          <div className="flex justify-between text-sm">
-                            <span className="text-gray-600 dark:text-slate-300">ค่าธรรมเนียม Shopee</span>
-                            <span className="text-red-500 dark:text-red-400">-฿{formatPrice(totalFees)} <span className="text-gray-400 dark:text-slate-500">({pct(totalFees)}%)</span></span>
-                          </div>
-                        )}
-                        <div className="flex justify-between text-base font-semibold pt-2 border-t border-gray-200 dark:border-slate-600">
-                          <span className="text-gray-700 dark:text-slate-200">ยอดที่ได้รับจริง</span>
-                          <span className="text-green-600 dark:text-green-400">฿{formatPrice(escrowAmount)} {basePrice > 0 && <span className="text-sm font-normal text-gray-400 dark:text-slate-500">({(escrowAmount / basePrice * 100).toFixed(1)}%)</span>}</span>
-                        </div>
-                        {basePrice > 0 && (() => {
-                          const totalDeducted = basePrice - escrowAmount;
-                          const deductedPct = (totalDeducted / basePrice * 100).toFixed(1);
-                          return (
-                            <div className="text-xs pt-1 text-right">
-                              <span className="text-gray-400 dark:text-slate-500">ขาย ฿{formatPrice(basePrice)} โดนหักรวม ฿{formatPrice(totalDeducted)} ({deductedPct}%)</span>
-                            </div>
-                          );
-                        })()}
-                      </div>
-                    )}
-                  </div>
-                );
-              })()}
-            </div>
+            {/* Left: การ์ด marketplace — ร้าน · เลขออเดอร์ · เงินที่ได้รับจริง (ใช้ตัวเดียวกันทุกแพลตฟอร์ม) */}
+            <MarketplaceOrderCard orderId={orderId} />
 
             {/* Right: Customer Info */}
             <div className="bg-white dark:bg-slate-800 rounded-xl border border-gray-200 dark:border-slate-700 p-5">

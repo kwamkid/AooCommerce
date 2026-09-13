@@ -3,9 +3,11 @@ paths:
   - "lib/**/*settlement*"
   - "lib/marketplace/fee-types.ts"
   - "app/api/marketplace/settlements/**/*"
+  - "app/api/orders/*/settlement/**/*"
+  - "components/orders/MarketplaceOrderCard.tsx"
   - "lib/beam/transactions.ts"
 ---
-# Settlement — เงินเข้าจริงจาก marketplace (ค่าธรรมเนียม 13 ช่อง)
+# Settlement — เงินเข้าจริงจาก marketplace (ค่าธรรมเนียม 14 ช่อง)
 
 > ย้ายมาจาก CLAUDE.md (2026-09-10) · โหลดเองเมื่อ Claude อ่านไฟล์ที่ตรง `paths:` ด้านบน · งานหัวข้อนี้ที่ยังไม่ได้แตะไฟล์เหล่านั้น → `Read` ไฟล์นี้เองก่อนลงมือ
 
@@ -13,7 +15,7 @@ paths:
 
 ตอบว่า "ขายได้เท่าไหร่ โดนหักอะไรบ้าง เหลือเข้ากระเป๋าจริงเท่าไหร่ กำไรเท่าไหร่" — **ผลสำรวจฟิลด์จริงทั้ง 3 เจ้าอยู่ที่ [memo/settlement-analysis.md](../../../memo/settlement-analysis.md) อ่านก่อนแตะเรื่องนี้เสมอ**
 
-- **ช่องกลาง 13 ช่อง** ใน [lib/marketplace/fee-types.ts](../../../lib/marketplace/fee-types.ts): `gross_sales · seller_discount · platform_discount · commission · payment_fee · service_fee · shipping_cost · affiliate · ads · campaign_fee · tax_withheld · adjustment` (+ `net_payout`) — **ทุกช่องเก็บเป็นบวกเสมอ** ทิศอยู่ที่ความหมายของช่อง ไม่ใช่เครื่องหมาย (แต่ละ platform ใช้ทิศไม่ตรงกัน)
+- **ช่องกลาง 14 ช่อง** ใน [lib/marketplace/fee-types.ts](../../../lib/marketplace/fee-types.ts): `gross_sales · seller_discount · platform_discount · platform_subsidy · commission · payment_fee · service_fee · shipping_cost · affiliate · ads · campaign_fee · tax_withheld · other_fee · adjustment` (+ `net_payout`) — **ทุกช่องเก็บเป็นบวกเสมอ** ทิศอยู่ที่ความหมายของช่อง (`BUCKET_SIGN`) ไม่ใช่เครื่องหมาย (แต่ละ platform ใช้ทิศไม่ตรงกัน) · ป้าย/คำอธิบายไทยของทุกช่อง = `BUCKET_LABELS`/`BUCKET_HINTS` · ความน่าเชื่อของต้นทุน = `COGS_BASIS_HINTS` — **ห้าม map คำพวกนี้ซ้ำในหน้า**
 - **เจอค่าธรรมเนียมชนิดใหม่ → หา bucket ที่ตรงที่สุด ห้ามเพิ่ม bucket ตามชื่อที่ platform เรียก** (สามเจ้ารวมกันมีเป็นร้อยชนิด จะได้รายงานร้อยคอลัมน์ที่เทียบข้าม platform ไม่ได้) · ชื่อจริงไม่หาย อยู่ใน `marketplace_settlement_lines` ทุกบรรทัด
 - **ตาราง**: `marketplace_settlements` (1 แถว = 1 ออเดอร์ · query รายงานจากตัวนี้) + `marketplace_settlement_lines` (บรรทัดดิบตามที่ platform ส่งมา — ตัวที่ทำให้ Lazada ที่เป็น ledger รายบรรทัดลงได้) + `marketplace_account_charges` (ค่าใช้จ่ายที่ไม่ผูกออเดอร์ เช่น Sponsored Affiliates, ค่าโฆษณาที่กรอกเอง)
 - **`gross_profit` เป็น null เมื่อไม่รู้ต้นทุน — ห้าม `coalesce(...,0)` ในรายงาน** ไม่งั้นออเดอร์ที่ไม่มีต้นทุนจะโชว์ margin 100% · `cogs_basis` บอกความน่าเชื่อ (`snapshot` = unit_cost ตอนขายครบ · `mixed`/`wac` = ใช้ WAC ปัจจุบันแทนบางส่วน/ทั้งหมด) · ปัจจุบัน Shopee รู้ต้นทุน 1,156 จาก 2,361 ออเดอร์
@@ -24,11 +26,17 @@ paths:
 - ⚠️ **ค่าคอมของ Shopee คิดจากราคาขายของเรา ไม่ใช่เงินที่ลูกค้าจ่าย** — ยืนยันจากข้อมูลจริง: คอม/ราคาขาย = 13.71% (sd 2.69 คงที่) · คอม/เงินลูกค้าจ่าย = 18.35% (sd 4.12 กระจาย) · แปลว่า Shopee แจกคูปองให้ลูกค้าแต่เก็บค่าคอมจากราคาเต็ม
 - ⚠️ **ส่วนลดรายชิ้นของร้านไม่มีฟิลด์ของตัวเอง** — ซ่อนอยู่ในผลต่าง `order_original_price` (ราคาป้าย) กับ `original_cost_of_goods_sold` (ราคาขายจริง ซึ่งเป็นตัวตั้งต้นของสูตร escrow) · ใช้ราคาป้ายเป็นยอดขายเฉย ๆ = ยอดเกินจริง 8% และมีเงิน "หายไป" อธิบายไม่ได้ 1%
 - **การแมป Shopee กระทบยอดลงศูนย์แล้ว** (2,363 ออเดอร์ ส่วนต่าง 0.00) — เทียบกับสูตร `escrow_amount` ที่เอกสาร Shopee เขียนไว้ · `final_product_protection` **ไม่อยู่ในสูตร** ห้ามนับเป็นค่าใช้จ่าย
+- **ดึงยอดของออเดอร์ใบเดียว = adapter ต่อ platform** ([lib/marketplace/settlement-adapter.ts](../../../lib/marketplace/settlement-adapter.ts)): `interface SettlementAdapter { fetchOrderSettlement(account, order) → NormalizedSettlement | 'pending' | null }` + ทะเบียน `SETTLEMENT_ADAPTERS` + `getSettlementAdapter(platform)` · **เพิ่ม platform = สร้าง `lib/<platform>/settlement-adapter.ts` + 1 บรรทัดในทะเบียน** — ห้าม `switch (platform)` ในชั้นกลาง/route/UI · adapter **ห้ามเขียน DB และห้าม normalize เอง** (เรียก normalizer เดิมของเจ้านั้น) · ยิง API ล้ม = `throw` · ยังไม่ถึงรอบโอน = `'pending'` **ห้ามบันทึกเป็นแถว ฿0**
+- **ชั้นกลาง `syncOrderSettlement(orderId, companyId)`** ใน [lib/marketplace/settlement.ts](../../../lib/marketplace/settlement.ts) → `{status: 'saved'|'pending'|'unsupported'|'error'}` — โหลดออเดอร์+ร้าน → adapter → `saveSettlement` (+ `computeOrderCogs`) · import ทะเบียนแบบ dynamic เพื่อไม่ให้ไฟล์ที่ใช้แค่ `saveSettlement` (เช่น `lib/shopee/sync.ts` ของ webhook) ลาก API client ครบ 3 เจ้า
+- **cron `/settlements/sync` ยังใช้ทางของตัวเองต่อ platform (ไม่ผ่าน adapter)** — เจตนา: Shopee ต้อง `fetchAndSaveEscrowDetail` ที่เก็บ `escrow_detail`/ค่าส่งลงออเดอร์ด้วย · TikTok มี retry 429 + `unmapped_fields` + งบเวลา · Lazada ดึง ledger ทั้งช่วงแล้วแยก `marketplace_account_charges` — ย้ายมาใช้ adapter = เสียพฤติกรรมพวกนี้
+- **UI**: [components/orders/MarketplaceOrderCard.tsx](../../../components/orders/MarketplaceOrderCard.tsx) การ์ดเดียวทุกแพลตฟอร์มบน `/orders/[id]` (ร้าน · เลขออเดอร์ของแพลตฟอร์ม · สถานะดิบ · ข้อความผู้ซื้อ · ช่องเงินที่ไม่เป็น 0 · เงินเข้าจริง · % ค่าธรรมเนียม · ต้นทุน/กำไรเฉพาะคนมีสิทธิ์ · กาง "รายการจากแพลตฟอร์ม") — **ห้าม hardcode ชื่อ platform ในการ์ด** ป้ายมาจาก `MARKETPLACE_PLATFORMS[platform].label`
+  - `GET /api/orders/[id]/settlement` → `{account, external_order_id, external_status, buyer_note, settlement, lines, can_view_cost}` (อ่าน DB ล้วน · ถอด `raw` ทิ้ง · ไม่มีสิทธิ์ต้นทุน = ตัด `cogs`/`cogs_basis`/`gross_profit` ออกจาก response ไม่ใช่ซ่อนที่ UI)
+  - `POST /api/marketplace/settlements/sync-order {order_id}` → `syncOrderSettlement` (เช็ค `isQuotaBlocked(platform,'finance')` ก่อน · สิทธิ์ `marketplace.sync` · log `settlement_sync` action เดียวกับ cron)
 - **2 เส้นทางเก็บข้อมูล**:
   - `POST /api/marketplace/settlements/backfill { platform:'shopee', limit, offset }` — **ไม่ยิง API เลย** แปลงจาก `orders.external_data.escrow_detail` ที่ดูดเก็บไว้แล้ว · **ต้องส่ง `offset` เลื่อนหน้าเอง** ไม่งั้นวนดึงชุดเดิม
   - `POST /api/marketplace/settlements/sync { platform:'shopee'|'lazada'|'tiktok'|'all', days }` · **`GET` = cron รายวัน** (เท่ากับ `all` + 30 วัน — job เดียวครอบทั้ง 3 เจ้า) — ยิง API จริง (เช็ค breaker scope `finance` ก่อนเสมอ) · **ควรตั้ง cron รายวัน** เพราะยอด settlement โผล่หลังออเดอร์จบหลายวัน ไม่ใช่ตอน sync ออเดอร์ · **shopee = ตามเก็บ escrow ของออเดอร์ที่จบแล้วแต่ยังไม่มียอด** (ทางกู้เมื่อพลาดรอบแรก — `/backfill` แปลงได้เฉพาะที่มี escrow อยู่แล้ว)
 - ⚠️ **การดึง escrow ต้อง `await` ห้ามปล่อยลอย** — อยู่ในสายที่วิ่งใน `after()` ปล่อยลอยแล้วโดน freeze ทิ้ง เคยทำให้ 19/482 ออเดอร์ที่จบแล้วไม่มียอดเงินเลย (ดู [fix-bug.md](../../../fix-bug.md) 2026-09-02)
 - **Lazada**: ledger รายบรรทัดต่อ order item — `normalizeLazadaTransactions()` ประกอบเป็นออเดอร์เอง · แมปด้วย **`fee_type` (รหัสตัวเลข) ไม่ใช่ `fee_name`** · แถวที่ไม่มี `order_no` → `marketplace_account_charges`
 - **TikTok**: ⚠️ **การแมปเขียนจากสเปค OAS ยังไม่เคยเจอข้อมูลจริง** — route คืน `unmapped_fields` มาให้ดูว่ามีค่าธรรมเนียมตัวไหนตกหล่น ต้องเช็คตอนดึงชุดแรก · **ยิงทีละใบเฉพาะใบที่ยังไม่มี settlement** (2026-09-08 — ของเดิมยิงทุกใบ 30 วันซ้ำทุกเช้า) · เจอ 429 รอ 5/10 วิ ลองซ้ำก่อน ยังโดนค่อยหยุดรอบ · 429 แบบ `dependent service` = ระบบข้างใน TikTok สะดุด ไม่ใช่โควตาเรา → พักแค่ 1 นาที ไม่ขึ้นป้าย/ไม่ push · มี bulk (`/finance/202309/statements` → `/finance/202501/statements/{id}/statement_transactions` 100 ใบ/หน้า แต่ไม่มี `sku_transactions`) ค่อยย้ายเมื่อยอดถึงหลักร้อยใบ/เดือน
-- **ยังไม่ทำ**: รอบโอนเงิน/กระทบยอดธนาคาร · หน้ารายงาน UI · Shopee AMS (ค่าแอดที่ไม่ได้หักจาก escrow) · แยกทิศทาง `adjustment` (ตอนนี้เก็บค่าสัมบูรณ์ คืนเงินกับเงินชดเชยอยู่ถังเดียวกัน)
+- **ยังไม่ทำ**: รอบโอนเงิน/กระทบยอดธนาคาร · หน้ารายงานรวม (`/reports/marketplace-fees`) · Shopee AMS (ค่าแอดที่ไม่ได้หักจาก escrow) · แยกทิศทาง `adjustment` (ตอนนี้เก็บค่าสัมบูรณ์ คืนเงินกับเงินชดเชยอยู่ถังเดียวกัน)
 

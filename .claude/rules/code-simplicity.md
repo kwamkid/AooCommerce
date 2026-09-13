@@ -130,6 +130,7 @@ desktop table + mobile cards (auto / `mobileCardRender`) + pagination (20/50/100
 
 ## 2. Order Forms (ห้ามสร้างเพิ่ม)
 - `OrderForm` (`components/orders/OrderForm.tsx`) ลูกค้าปลีก r_retail · `DealerOrderForm` (`components/dealer/DealerOrderForm.tsx`) ตัวแทน/ห้างทุกโหมด — **`mode` prop แยก w_cash/w_credit/c_consign/d_consign ห้ามสร้างฟอร์มแยก** · `ReplenishmentForm` (`components/replenishments/ReplenishmentForm.tsx`) เติมของ
+- **`MarketplaceOrderCard`** (`components/orders/`) = การ์ดบน `/orders/[id]` ของออเดอร์จากร้าน marketplace **ทุกแพลตฟอร์ม** (ร้าน · เลขออเดอร์ · สถานะดิบ · เงินที่ได้รับจริงแยกค่าธรรมเนียม · ปุ่มดึงรายการเงิน) — รับแค่ `orderId` แล้วดึงเอง · ห้ามเขียนบล็อกการเงินของแพลตฟอร์มไหนเองในหน้า (กติกาเต็ม `domains/settlement.md`)
 - `app/orders/components/`: `ActionMenu` · `PaymentModal` · `SplitParcelModal` (แบ่งกล่อง) · `HandoverPickerPanel` (ขนส่งมารับที่ไหน/เมื่อไหร่ ทุก marketplace — ห้ามทำ modal แยกต่อแพลตฟอร์ม) · `TaxInvoiceModal` · `PrintStatusDots` · `OrderCard` (mobile) · `ReadyToShipTab` · `ProcessingTab` · `PrintAfterActionModal`
 - List page: copy จาก `/orders/page.tsx` หรือ `/replenishments/page.tsx` · `getFocusAction()` + `getMenuItems()`
 
