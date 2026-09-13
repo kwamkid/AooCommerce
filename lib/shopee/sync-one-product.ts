@@ -26,6 +26,7 @@ import {
 } from '@/lib/shopee/product-sync';
 import { upsertProductImage } from '@/lib/marketplace/product-helpers';
 import { resolveAccountWarehouseId } from '@/lib/marketplace/warehouse';
+import { adjustStock } from '@/lib/stock-service';
 
 export type SyncDirection = 'pull' | 'push';
 export const SYNC_FIELDS = ['image', 'name', 'price', 'stock', 'category'] as const;
@@ -207,15 +208,17 @@ async function pullIntoSystem(
           result.changes.push({ field: 'stock', label: SYNC_FIELD_LABEL.stock, from: `${ourAvailable}`, to: `${shopeeStock}` });
           if (!dryRun) {
             // quantity = ยอด Shopee + reserved → "ยอดขายได้" ตรงกับ Shopee (สมมาตรกับ push)
-            if (inv) {
-              await supabaseAdmin.from('inventory')
-                .update({ quantity: shopeeStock + reserved, updated_at: now }).eq('id', inv.id);
-            } else {
-              await supabaseAdmin.from('inventory').insert({
-                company_id: product.company_id, warehouse_id: wh.id,
-                variation_id: link.variation_id, quantity: shopeeStock, reserved_quantity: 0,
-              });
-            }
+            // ผ่าน stock-service เสมอ → มี log ที่มา 'shopee_sync' (เดิม update/insert ตรง ไม่มีร่องรอย)
+            await adjustStock({
+              supabase: supabaseAdmin,
+              companyId: product.company_id,
+              warehouseId: wh.id,
+              variationId: link.variation_id,
+              newQuantity: shopeeStock + reserved,
+              referenceType: 'shopee_sync',
+              referenceId: String(link.external_item_id ?? itemId),
+              notes: `ดึงสต็อกจาก Shopee item ${itemId} ${ourAvailable} → ${shopeeStock}`,
+            });
           }
         }
       }

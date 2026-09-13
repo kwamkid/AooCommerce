@@ -16,6 +16,14 @@
 
 ---
 
+## 2026-09-13 — ดึงสต็อกจาก Shopee เขียน `inventory` ตรง ไม่ลง log → 360 แถว (12%) ตรวจย้อนหลังไม่ได้
+
+**ที่เกิด**: [lib/shopee/product-sync.ts](lib/shopee/product-sync.ts) `pullStockFromShopee` · [lib/shopee/sync-one-product.ts](lib/shopee/sync-one-product.ts) · [app/api/shopee/products/import/route.ts](app/api/shopee/products/import/route.ts) `importStockFromShopee`
+**อาการ**: ตรวจ "ยอดใน inventory เท่ากับ balance_after ของ log ล่าสุด" พบไม่ตรง 360/3,035 แถว — 341 แถวถูกเขียนพร้อมกันตอน 28 ส.ค. 23:00 (กด pull-stock โหมดทับทั้งหมดหลังนับสต็อก) ไม่มีรายการ "ปรับปรุง" ให้ดูว่าเปลี่ยนจากอะไรเป็นอะไร
+**Root cause**: 3 ทางที่ให้ Shopee ทับเรา (import สินค้า · ปุ่ม pull-stock · sync รายสินค้า) `update/insert inventory` เอง ไม่ผ่าน `lib/stock-service.ts` จึงไม่มี `inventory_transactions`
+**วิธีแก้**: ทั้ง 3 จุดเรียก `adjustStock({ referenceType: 'shopee_sync', notes: 'ดึงสต็อกจาก Shopee … a → b' })` · ป้ายที่มา "ดึงสต็อกจาก Shopee" ในแท็บความเคลื่อนไหว · ทิศทาง sync: เราทับ Shopee อัตโนมัติ (push) · Shopee ทับเราเฉพาะเมื่อคนกดเอง — ยืนยันแล้วไม่มี cron ดึงมาทับ
+**ป้องกัน regression**: ⛔ ห้าม `from('inventory').update/insert` นอก stock-service (grep ต้องเจอแค่ stock-service + ลบตอน merge สินค้า) · ตรวจสุขภาพข้อมูลด้วย query "quantity ≠ balance_after ล่าสุด" เป็นระยะ (ตอนนี้ 360 แถวเดิมยังไม่ตรงเพราะเกิดก่อนแก้ — ไม่ใช่ยอดผิด แค่ไม่มี log; แถวใหม่จากนี้ต้องตรงทั้งหมด)
+
 ## 2026-09-13 — สต็อกหาย 1 ชิ้นเมื่อ webhook "shipped" 2 ออเดอร์มาพร้อมกัน (race ใน stock-service)
 
 **ที่เกิด**: [lib/stock-service.ts](lib/stock-service.ts) ทุก op (`updateInventory` เดิม)

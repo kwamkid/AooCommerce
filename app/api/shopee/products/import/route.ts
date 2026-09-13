@@ -11,6 +11,7 @@ import {
 } from '@/lib/shopee/api';
 import { logIntegration } from '@/lib/integration-logger';
 import { upsertShopeeProduct, getCategoryName } from '@/lib/shopee/product-helpers';
+import { adjustStock } from '@/lib/stock-service';
 
 // GET — List Shopee items (paginated) with linked status
 export async function GET(request: NextRequest) {
@@ -459,24 +460,18 @@ async function importStockFromShopee(companyId: string, variationId: string, sho
     .eq('company_id', companyId)
     .single();
 
-  if (inv) {
-    // Only import if current stock is 0
-    if (inv.quantity === 0) {
-      await supabaseAdmin
-        .from('inventory')
-        .update({ quantity: shopeeStock, updated_at: new Date().toISOString() })
-        .eq('id', inv.id);
-    }
-  } else {
-    await supabaseAdmin
-      .from('inventory')
-      .insert({
-        company_id: companyId,
-        warehouse_id: warehouse.id,
-        variation_id: variationId,
-        quantity: shopeeStock,
-        reserved_quantity: 0,
-      });
-  }
+  // นำเข้าเฉพาะที่ยังไม่มีสต็อก — และต้องผ่าน stock-service เพื่อให้มี log ที่มา 'shopee_sync'
+  // (เดิม update/insert ตรง → ยอดเปลี่ยนโดยไม่มีร่องรอย ตรวจย้อนหลังไม่ได้ · fix-bug.md 2026-09-13)
+  if (inv && Number(inv.quantity) !== 0) return;
+  await adjustStock({
+    supabase: supabaseAdmin,
+    companyId,
+    warehouseId: warehouse.id,
+    variationId,
+    newQuantity: shopeeStock,
+    referenceType: 'shopee_sync',
+    referenceId: variationId,
+    notes: 'นำเข้าสต็อกจาก Shopee ตอน import สินค้า',
+  });
 }
 

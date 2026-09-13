@@ -1,6 +1,7 @@
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { resolveAccountWarehouseId } from '@/lib/marketplace/warehouse';
 import { getStockConfig } from '@/lib/stock-utils';
+import { adjustStock } from '@/lib/stock-service';
 import {
   ensureValidToken,
   getItemList,
@@ -648,19 +649,17 @@ export async function pullStockFromShopee(
       result.changes!.push({ variation_id: variationId, from: ourAvailable, to: shopeeStock });
 
       if (!dryRun) {
-        if (inv) {
-          await supabaseAdmin.from('inventory')
-            .update({ quantity: newQuantity, updated_at: new Date().toISOString() })
-            .eq('id', inv.id);
-        } else {
-          await supabaseAdmin.from('inventory').insert({
-            company_id: companyId,
-            warehouse_id: warehouse.id,
-            variation_id: variationId,
-            quantity: newQuantity,
-            reserved_quantity: 0,
-          });
-        }
+        // ผ่าน stock-service เสมอ → มี log ที่มา 'shopee_sync' (เดิมเขียนตรง 341 แถวเมื่อ 28 ส.ค. ไม่มีร่องรอย)
+        await adjustStock({
+          supabase: supabaseAdmin,
+          companyId,
+          warehouseId: warehouse.id,
+          variationId,
+          newQuantity,
+          referenceType: 'shopee_sync',
+          referenceId: account.id,
+          notes: `ดึงสต็อกจาก Shopee (${mode}) ${ourAvailable} → ${shopeeStock}`,
+        });
       }
 
       if (mode === 'overwrite' && ourAvailable > 0) result.overwritten!++;
