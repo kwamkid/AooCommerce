@@ -19,11 +19,10 @@ import NumberInput from '@/components/ui/NumberInput';
 import Toggle from '@/components/ui/Toggle';
 import ImageUploader, { type ProductImage } from '@/components/ui/ImageUploader';
 import {
-  MAX_OPTION_GROUPS, MAX_OPTION_VALUES, NO_REDUCE, activeGroupNames, applyReduce, applyToAll,
-  type ReduceMode, type ReduceSpec,
+  MAX_OPTION_GROUPS, MAX_OPTION_VALUES, NO_REDUCE, activeGroupNames, applyReduce, applyToAll, type ReduceSpec,
 } from '@/lib/product-variants';
 import ProductCodesHelp from './ProductCodesHelp';
-import PriceReduceInput, { reduceModeLabel } from './PriceReduceInput';
+import PriceReduceInput from './PriceReduceInput';
 import { FieldError, OPTION_VALUE_MAX, StockText, numberInputClass } from './parts';
 import type { FieldErrors, OptionGroup, VariantRow, VariationTypeOption } from './types';
 
@@ -56,13 +55,6 @@ export default function VariantOptionsEditor({
   images, onImagesChange, errors, canViewCost, showStock, groupsError,
 }: VariantOptionsEditorProps) {
   const [bulk, setBulk] = useState<BulkState>(EMPTY_BULK);
-  // โหมดช่องลดเหลือใช้ร่วมกันทั้งตาราง (หัวคอลัมน์มีอันเดียว) — สลับที่แถวไหนก็เปลี่ยนทุกแถว
-  const [reduceMode, setReduceMode] = useState<ReduceMode>('price');
-  const changeReduceMode = (m: ReduceMode) => {
-    setReduceMode(m);
-    setBulk(b => ({ ...b, discount: { mode: m, input: 0 } }));
-  };
-  const reduceLabel = reduceModeLabel(reduceMode, false);
   const groupNames = activeGroupNames(groups);
 
   const setGroup = (i: number, patch: Partial<OptionGroup>) =>
@@ -193,14 +185,13 @@ export default function VariantOptionsEditor({
                 />
               </div>
               <div className="w-44">
-                <label className="helper-text">{reduceLabel}</label>
+                <label className="helper-text">ลดเหลือ</label>
                 <PriceReduceInput
                   value={bulk.discount.mode === 'price' ? bulk.discount.input : 0}
+                  spec={bulk.discount}
                   onChange={(_, spec) => setBulk(b => ({ ...b, discount: spec }))}
-                  mode={reduceMode}
-                  onModeChange={changeReduceMode}
                   align="right"
-                  aria-label={`${reduceLabel}ทุกแถว`}
+                  aria-label="ลดเหลือทุกแถว"
                   showHint={false}
                 />
               </div>
@@ -230,7 +221,7 @@ export default function VariantOptionsEditor({
                   <th className="data-th w-[96px]">รูป</th>
                   <th className="data-th">ตัวเลือก</th>
                   <th className="data-th w-[130px] text-right">ราคาปกติ *</th>
-                  <th className="data-th w-[190px] text-right">{reduceLabel}</th>
+                  <th className="data-th w-[190px] text-right">ลดเหลือ</th>
                   {canViewCost && <th className="data-th w-[120px] text-right">ต้นทุน</th>}
                   <th className="data-th w-[160px]">
                     <span className="inline-flex items-center gap-1">SKU <ProductCodesHelp focus="sku" /></span>
@@ -277,13 +268,11 @@ export default function VariantOptionsEditor({
                         value={row.discount_price}
                         basePrice={row.default_price}
                         onChange={n => updateRow(row._tempId, { discount_price: n })}
-                        mode={reduceMode}
-                        onModeChange={changeReduceMode}
                         error={!!err(i, 'discount')}
                         showHint={!err(i, 'discount')}
                         emptyHint=""
                         align="right"
-                        aria-label={`${reduceLabel} ${row.variation_label}`}
+                        aria-label={`ลดเหลือ ${row.variation_label}`}
                       />
                       <FieldError text={err(i, 'discount')} />
                     </td>
@@ -379,18 +368,16 @@ export default function VariantOptionsEditor({
                     <FieldError text={err(i, 'price')} />
                   </div>
                   <div>
-                    <label className="helper-text">{reduceLabel}</label>
+                    <label className="helper-text">ลดเหลือ</label>
                     <PriceReduceInput
                       value={row.discount_price}
                       basePrice={row.default_price}
                       onChange={n => updateRow(row._tempId, { discount_price: n })}
-                      mode={reduceMode}
-                      onModeChange={changeReduceMode}
                       error={!!err(i, 'discount')}
                       showHint={!err(i, 'discount')}
                       emptyHint=""
                       align="right"
-                      aria-label={`${reduceLabel} ${row.variation_label}`}
+                      aria-label={`ลดเหลือ ${row.variation_label}`}
                     />
                     <FieldError text={err(i, 'discount')} />
                   </div>
