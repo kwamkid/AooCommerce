@@ -1,22 +1,29 @@
 'use client';
 
-import { useState, useRef, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
+import Container from '@/components/ui/Container';
+import Card from '@/components/ui/Card';
 import PageHeader from '@/components/ui/PageHeader';
+import Button from '@/components/ui/Button';
+import Badge from '@/components/ui/Badge';
+import FormInput from '@/components/ui/FormInput';
+import MultiSelectSearch from '@/components/ui/MultiSelectSearch';
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
+import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
+import { LoadingCard, EmptyCard, DoneCard } from '@/components/ui/StateCard';
+import BulkUploadCard from '@/components/bulk/BulkUploadCard';
+import BulkPreviewBar from '@/components/bulk/BulkPreviewBar';
+import BulkErrorModal, { type BulkErrorReport } from '@/components/bulk/BulkErrorModal';
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
-import ConfirmDialog from '@/components/ui/ConfirmDialog';
-import MultiSelectSearch from '@/components/ui/MultiSelectSearch';
-import Button from '@/components/ui/Button';
-import { ExportButton, ImportButton } from '@/components/ui/ExportImportButton';
-import { LoadingCard } from '@/components/ui/StateCard';
-import Badge from '@/components/ui/Badge';
 import { downloadBlob } from '@/lib/utils/download';
+import { formatNumber } from '@/lib/utils/format';
 import {
-  FileSpreadsheet,
-  Check, AlertCircle, Pencil, ArrowRight, ShieldAlert, Star, Warehouse, Tag,
+  Check, AlertCircle, Pencil, ShieldAlert, Star, Tag, Package2,
+  Warehouse as WarehouseIcon,
 } from 'lucide-react';
 
 interface Warehouse {
@@ -60,11 +67,160 @@ interface RunResponse {
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+/** หน้าละ 50 แถว — พรีวิวเป็นข้อมูลที่โหลดมาแล้วทั้งก้อน แบ่งหน้าฝั่ง client */
+const PREVIEW_PAGE_SIZE = 50;
+
+/** ผลลัพธ์ต่อแถว — ใช้ทั้งพรีวิวและหน้าสรุปหลังบันทึก */
+function ResultBadge({ action }: { action: ResultRow['action'] }) {
+  if (action === 'updated') {
+    return <Badge tone="blue" icon={<Pencil className="w-3.5 h-3.5" />}>แก้ไข</Badge>;
+  }
+  if (action === 'error') {
+    return <Badge tone="red" icon={<AlertCircle className="w-3.5 h-3.5" />}>ผิดพลาด</Badge>;
+  }
+  return <Badge tone="gray">ไม่เปลี่ยน</Badge>;
+}
+
+/** ตารางผลลัพธ์ (dry-run และผลจริง) — DataTable + แบ่งหน้าในหน่วยความจำ */
+function ResultTable({ rows, storageKey }: { rows: ResultRow[]; storageKey: string }) {
+  const [page, setPage] = useState(1);
+  const [perPage, setPerPage] = useState(PREVIEW_PAGE_SIZE);
+
+  // ตารางนี้ถูก unmount ทุกครั้งที่เปลี่ยน step (อัพโหลดไฟล์ใหม่ = เริ่มหน้า 1 เอง)
+  // และ safePage กันกรณีชุดข้อมูลสั้นลงกว่าหน้าที่ค้างอยู่
+  const total = rows.length;
+  const totalPages = Math.max(1, Math.ceil(total / perPage));
+  const safePage = Math.min(page, totalPages);
+  const startIdx = (safePage - 1) * perPage;
+  const pageRows = rows.slice(startIdx, startIdx + perPage);
+
+  const columns: DataTableColumn<ResultRow>[] = [
+    {
+      key: 'action',
+      label: 'ผลลัพธ์',
+      alwaysVisible: true,
+      defaultWidth: 130,
+      render: (r) => <ResultBadge action={r.action} />,
+    },
+    {
+      key: 'product',
+      label: 'สินค้า',
+      alwaysVisible: true,
+      grow: true,
+      defaultWidth: 320,
+      render: (r) => (
+        <div>
+          <div className="body-text text-gray-900 dark:text-white">{r.product_name || '-'}</div>
+          {r.variation_label && r.variation_label !== '-' && (
+            <div className="subtitle-text text-gray-400 dark:text-slate-500">{r.variation_label}</div>
+          )}
+          {r.action === 'error' && r.error && (
+            <div className="subtitle-text text-red-500 dark:text-red-400 mt-0.5">
+              แถวที่ {r.rowNum}: {r.error}
+            </div>
+          )}
+        </div>
+      ),
+    },
+    {
+      key: 'warehouse',
+      label: 'คลัง',
+      defaultWidth: 160,
+      resizable: true,
+      reorderable: true,
+      render: (r) => <span className="body-text text-gray-600 dark:text-slate-400">{r.warehouse_name}</span>,
+    },
+    {
+      key: 'sku',
+      label: 'SKU',
+      defaultWidth: 150,
+      resizable: true,
+      reorderable: true,
+      render: (r) => <span className="body-text font-mono text-gray-500 dark:text-slate-400">{r.sku || '-'}</span>,
+    },
+    {
+      key: 'from',
+      label: 'จาก',
+      align: 'right',
+      defaultWidth: 100,
+      render: (r) => (
+        <span className="body-text tabular-nums text-gray-500 dark:text-slate-400">
+          {r.from === undefined || r.from === null ? '-' : formatNumber(r.from)}
+        </span>
+      ),
+    },
+    {
+      key: 'to',
+      label: 'เป็น',
+      align: 'right',
+      defaultWidth: 100,
+      render: (r) => (
+        <span className="body-text tabular-nums font-medium text-emerald-600 dark:text-emerald-400">
+          {r.to === undefined || r.to === null ? '-' : formatNumber(r.to)}
+        </span>
+      ),
+    },
+  ];
+
+  const mobileCardRender = (r: ResultRow) => (
+    <div className="space-y-2">
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex-1 min-w-0">
+          <div className="body-text font-medium text-gray-900 dark:text-white">{r.product_name || '-'}</div>
+          {r.variation_label && r.variation_label !== '-' && (
+            <div className="subtitle-text text-gray-400 dark:text-slate-500">{r.variation_label}</div>
+          )}
+        </div>
+        <div className="flex-shrink-0"><ResultBadge action={r.action} /></div>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <span className="subtitle-text text-gray-500 dark:text-slate-400">{r.warehouse_name}</span>
+        {r.sku && <span className="subtitle-text font-mono text-gray-400 dark:text-slate-500">{r.sku}</span>}
+      </div>
+
+      {r.action === 'error' ? (
+        r.error && (
+          <div className="subtitle-text text-red-500 dark:text-red-400">แถวที่ {r.rowNum}: {r.error}</div>
+        )
+      ) : (
+        <div className="flex items-center gap-2">
+          <span className="body-text tabular-nums text-gray-500 dark:text-slate-400">
+            {r.from === undefined || r.from === null ? '-' : formatNumber(r.from)}
+          </span>
+          <span className="body-text text-gray-400">→</span>
+          <span className="body-text tabular-nums font-medium text-emerald-600 dark:text-emerald-400">
+            {r.to === undefined || r.to === null ? '-' : formatNumber(r.to)}
+          </span>
+        </div>
+      )}
+    </div>
+  );
+
+  return (
+    <DataTable<ResultRow>
+      storageKey={storageKey}
+      columns={columns}
+      data={pageRows}
+      getRowId={(r) => `${r.rowNum}:${r.warehouse_id}:${r.sku}`}
+      mobileCardRender={mobileCardRender}
+      currentPage={safePage}
+      totalPages={totalPages}
+      totalRecords={total}
+      recordsPerPage={perPage}
+      onPageChange={setPage}
+      onRecordsPerPageChange={(limit) => { setPerPage(limit); setPage(1); }}
+      onLimitChange={(limit, p) => { setPerPage(limit); setPage(p); }}
+      emptyMessage="ไม่มีรายการ"
+      emptyIcon={<Package2 className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
+    />
+  );
+}
+
 export default function BulkStockUpdatePage() {
   const router = useRouter();
   const { userProfile } = useAuth();
   const { showToast } = useToast();
-  const fileRef = useRef<HTMLInputElement>(null);
 
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [brands, setBrands] = useState<Brand[]>([]);
@@ -78,6 +234,7 @@ export default function BulkStockUpdatePage() {
   const [dryRun, setDryRun] = useState<RunResponse | null>(null);
   const [finalRun, setFinalRun] = useState<RunResponse | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [errorReport, setErrorReport] = useState<BulkErrorReport | null>(null);
 
   // Load warehouses + brands
   useEffect(() => {
@@ -291,33 +448,44 @@ export default function BulkStockUpdatePage() {
     }
   };
 
-  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
+  const handleFile = async (file: File) => {
     if (!file.name.endsWith('.xlsx') && !file.name.endsWith('.xls')) {
-      showToast('รองรับเฉพาะไฟล์ Excel (.xlsx)', 'error');
-      if (fileRef.current) fileRef.current.value = '';
-      return;
-    }
-
-    const ExcelJS = (await import('exceljs')).default;
-    const wb = new ExcelJS.Workbook();
-    await wb.xlsx.load(await file.arrayBuffer());
-    const ws = wb.worksheets[0];
-    if (!ws) {
-      showToast('ไฟล์ว่างเปล่า', 'error');
+      setErrorReport({
+        headerIssues: [], rowIssues: [],
+        otherIssues: ['รองรับเฉพาะไฟล์ Excel (.xlsx)'],
+      });
       return;
     }
 
     const rows: string[][] = [];
-    ws.eachRow({ includeEmpty: true }, row => {
-      const vals = (row.values as (string | number | null)[]).slice(1).map(v => v === null || v === undefined ? '' : String(v));
-      rows.push(vals);
-    });
+    try {
+      const ExcelJS = (await import('exceljs')).default;
+      const wb = new ExcelJS.Workbook();
+      await wb.xlsx.load(await file.arrayBuffer());
+      const ws = wb.worksheets[0];
+      if (!ws) {
+        setErrorReport({ headerIssues: [], rowIssues: [], otherIssues: ['ไฟล์ว่างเปล่า'] });
+        return;
+      }
+
+      ws.eachRow({ includeEmpty: true }, row => {
+        const vals = (row.values as (string | number | null)[]).slice(1).map(v => v === null || v === undefined ? '' : String(v));
+        rows.push(vals);
+      });
+    } catch (err) {
+      console.error('read file error:', err);
+      setErrorReport({
+        headerIssues: [], rowIssues: [],
+        otherIssues: [`อ่านไฟล์ไม่สำเร็จ: ${err instanceof Error ? err.message : 'unknown'}`],
+      });
+      return;
+    }
 
     if (rows.length < 3) {
-      showToast('ไฟล์ไม่ถูก format — ต้องมีอย่างน้อย 3 แถว (ID row + header + data)', 'error');
+      setErrorReport({
+        headerIssues: [], rowIssues: [],
+        otherIssues: ['ไฟล์ไม่ถูก format — ต้องมีอย่างน้อย 3 แถว (ID row + header + data)'],
+      });
       return;
     }
 
@@ -337,7 +505,10 @@ export default function BulkStockUpdatePage() {
     }
 
     if (colToWarehouse.size === 0) {
-      showToast('ไม่พบ warehouse ID ในไฟล์ — โปรด export ใหม่จากระบบนี้', 'error');
+      setErrorReport({
+        headerIssues: ['ไม่พบ warehouse ID ในไฟล์ — โปรด export ใหม่จากระบบนี้'],
+        rowIssues: [], otherIssues: [],
+      });
       return;
     }
 
@@ -367,7 +538,10 @@ export default function BulkStockUpdatePage() {
     }
 
     if (items.length === 0) {
-      showToast('ไม่พบรายการที่กรอก Stock ใหม่ — ใส่ค่าในคอลัมน์ "Stock ใหม่" อย่างน้อย 1 ช่อง', 'error');
+      setErrorReport({
+        headerIssues: [], rowIssues: [],
+        otherIssues: ['ไม่พบรายการที่กรอก Stock ใหม่ — ใส่ค่าในคอลัมน์ "Stock ใหม่" อย่างน้อย 1 ช่อง'],
+      });
       return;
     }
 
@@ -382,7 +556,10 @@ export default function BulkStockUpdatePage() {
       });
       const data = await res.json();
       if (!res.ok) {
-        showToast(data.error || 'ตรวจสอบไม่สำเร็จ', 'error');
+        setErrorReport({
+          headerIssues: [], rowIssues: [],
+          otherIssues: [data.error || 'ตรวจสอบไม่สำเร็จ'],
+        });
         setStep('upload');
         return;
       }
@@ -390,7 +567,7 @@ export default function BulkStockUpdatePage() {
       setStep('preview');
     } catch (err) {
       console.error('dry-run error:', err);
-      showToast('ตรวจสอบไม่สำเร็จ', 'error');
+      setErrorReport({ headerIssues: [], rowIssues: [], otherIssues: ['ตรวจสอบไม่สำเร็จ'] });
       setStep('upload');
     }
   };
@@ -428,11 +605,28 @@ export default function BulkStockUpdatePage() {
     setParsedItems([]);
     setDryRun(null);
     setFinalRun(null);
-    if (fileRef.current) fileRef.current.value = '';
   };
 
-  const changedResults = dryRun?.results.filter(r => r.action !== 'unchanged') || [];
-  const finalChanged = finalRun?.results.filter(r => r.action !== 'unchanged') || [];
+  const changedResults = useMemo(
+    () => dryRun?.results.filter(r => r.action !== 'unchanged') || [],
+    [dryRun],
+  );
+  const finalChanged = useMemo(
+    () => finalRun?.results.filter(r => r.action !== 'unchanged') || [],
+    [finalRun],
+  );
+
+  /** เปิดรายการข้อผิดพลาดทั้งหมดของ dry-run ในโมดัลเดียว */
+  const showDryRunErrors = () => {
+    if (!dryRun) return;
+    setErrorReport({
+      headerIssues: [],
+      rowIssues: dryRun.results
+        .filter(r => r.action === 'error')
+        .map(r => `แถวที่ ${r.rowNum} · ${r.product_name || '-'} · ${r.warehouse_name}: ${r.error || 'ไม่ทราบสาเหตุ'}`),
+      otherIssues: [],
+    });
+  };
 
   // Per-warehouse breakdown for preview
   const previewByWarehouse = useMemo(() => {
@@ -453,7 +647,7 @@ export default function BulkStockUpdatePage() {
 
   return (
     <Layout>
-      <div className="max-w-5xl mx-auto space-y-6">
+      <Container size="5xl">
         <PageHeader
           backHref="/inventory"
           title="อัพเดท Stock แบบ Bulk"
@@ -463,12 +657,12 @@ export default function BulkStockUpdatePage() {
         {/* Step: Upload */}
         {step === 'upload' && (
           <div className="space-y-4">
-            <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm p-5 space-y-5">
+            <Card className="space-y-5">
               {/* Warehouses multi-select */}
               <div>
-                <label className="block text-base font-medium text-gray-600 dark:text-slate-400 mb-2">
+                <label className="field-label mb-2">
                   เลือกคลัง <span className="text-red-500">*</span>
-                  <span className="ml-2 text-sm text-gray-400">(เลือกได้หลายคลัง — แต่ละคลังจะเป็น 2 คอลัมน์ในไฟล์)</span>
+                  <span className="helper-text ml-2 inline">(เลือกได้หลายคลัง — แต่ละคลังจะเป็น 2 คอลัมน์ในไฟล์)</span>
                 </label>
                 <MultiSelectSearch
                   value={warehouseIds}
@@ -476,15 +670,17 @@ export default function BulkStockUpdatePage() {
                   options={warehouseOptions}
                   placeholder="เลือกคลัง..."
                   searchPlaceholder="ค้นหาคลัง (ชื่อหรือรหัส)..."
-                  icon={<Warehouse className="w-4 h-4" />}
+                  icon={<WarehouseIcon className="w-4 h-4" />}
                 />
               </div>
 
               {/* Brands multi-select */}
               <div>
-                <label className="block text-base font-medium text-gray-600 dark:text-slate-400 mb-2">
+                <label className="field-label mb-2">
                   กรองตามแบรนด์
-                  <span className="ml-2 text-sm text-gray-400">{brandIds.length === 0 ? '(ทุกแบรนด์)' : `(เลือก ${brandIds.length})`}</span>
+                  <span className="helper-text ml-2 inline">
+                    {brandIds.length === 0 ? '(ทุกแบรนด์)' : `(เลือก ${brandIds.length})`}
+                  </span>
                 </label>
                 <MultiSelectSearch
                   value={brandIds}
@@ -498,44 +694,23 @@ export default function BulkStockUpdatePage() {
               </div>
 
               {/* Notes */}
-              <div>
-                <label className="block text-base font-medium text-gray-600 dark:text-slate-400 mb-1.5">หมายเหตุ</label>
-                <input
-                  type="text"
-                  value={notes}
-                  onChange={e => setNotes(e.target.value)}
-                  placeholder="เช่น ตรวจนับประจำเดือน"
-                  className="w-full px-3 py-2 border border-gray-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                />
-              </div>
-            </div>
+              <FormInput
+                label="หมายเหตุ"
+                value={notes}
+                onChange={e => setNotes(e.target.value)}
+                placeholder="เช่น ตรวจนับประจำเดือน"
+              />
+            </Card>
 
-            {/* Upload area */}
-            <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm p-8">
-              <div className="text-center space-y-5">
-                <div className="w-16 h-16 bg-gray-100 dark:bg-slate-700 rounded-full flex items-center justify-center mx-auto">
-                  <FileSpreadsheet className="w-8 h-8 text-gray-400" />
-                </div>
-                <div>
-                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Export → กรอก Stock ใหม่ → อัพโหลดกลับ</h2>
-                  <p className="text-gray-500 dark:text-slate-400 text-sm mt-1">
-                    Mode: <strong>Adjust</strong> — ระบบจะตั้ง Stock เป็นค่าที่กรอก (overwrite)
-                  </p>
-                </div>
-                <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-                  <ExportButton
-                    onClick={handleExport}
-                    loading={exporting}
-                    disabled={warehouseIds.length === 0}
-                  >
-                    Export สินค้า
-                  </ExportButton>
-                  <ImportButton variant="primary" onClick={() => fileRef.current?.click()}>
-                    อัพโหลดไฟล์
-                  </ImportButton>
-                  <input ref={fileRef} type="file" accept=".xlsx,.xls" onChange={handleFile} className="hidden" />
-                </div>
-                <div className="text-left bg-gray-50 dark:bg-slate-700/50 rounded-lg p-4 text-sm text-gray-600 dark:text-slate-400">
+            <BulkUploadCard
+              title="Export → กรอก Stock ใหม่ → อัพโหลดกลับ"
+              subtitle="Mode: Adjust — ระบบจะตั้ง Stock เป็นค่าที่กรอก (overwrite)"
+              accept=".xlsx,.xls"
+              onFile={handleFile}
+              onDownloadTemplate={handleExport}
+              downloadLabel={exporting ? 'กำลัง Export…' : 'Export สินค้า'}
+              help={
+                <>
                   <p className="font-medium text-gray-800 dark:text-slate-300 mb-2">วิธีใช้:</p>
                   <ul className="space-y-1 list-disc list-inside">
                     <li>กด Export → ได้ไฟล์ Excel ของสินค้าในคลังที่เลือก (1 คลัง = 2 คอลัมน์: ปัจจุบัน + ใหม่)</li>
@@ -544,11 +719,11 @@ export default function BulkStockUpdatePage() {
                     <li>ระบบจะ <strong>ตั้ง Stock เป็นค่าที่กรอก</strong> (ไม่ใช่บวกเพิ่ม)</li>
                   </ul>
                   <div className="mt-3 p-2.5 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg text-amber-800 dark:text-amber-300">
-                    <strong>คอลัมน์ ID ถูก lock ไว้</strong> — ห้าม unlock & แก้ ถ้า ID ไม่ตรง แถวนั้นจะถูก skip
+                    <strong>คอลัมน์ ID ถูก lock ไว้</strong> — ห้าม unlock &amp; แก้ ถ้า ID ไม่ตรง แถวนั้นจะถูก skip
                   </div>
-                </div>
-              </div>
-            </div>
+                </>
+              }
+            />
           </div>
         )}
 
@@ -560,160 +735,103 @@ export default function BulkStockUpdatePage() {
         {/* Step: Preview */}
         {step === 'preview' && dryRun && (
           <div className="space-y-4">
-            {/* Summary bar */}
-            <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm p-4">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="flex flex-wrap items-center gap-3 text-sm">
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 rounded-lg font-medium border border-amber-200 dark:border-amber-800">
-                    <ShieldAlert className="w-3.5 h-3.5" /> โปรดตรวจสอบ — Stock เป็นข้อมูลสำคัญ
-                  </span>
+            <BulkPreviewBar
+              title="ตรวจสอบรายการก่อนบันทึก"
+              icon={<ShieldAlert className="w-5 h-5 text-amber-500" />}
+              badges={
+                <>
+                  <Badge tone="amber">Stock เป็นข้อมูลสำคัญ — โปรดตรวจสอบ</Badge>
                   {dryRun.summary.updated > 0 && (
-                    <span className="flex items-center gap-1 px-2.5 py-1 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded-lg font-medium">
-                      <Pencil className="w-3.5 h-3.5" /> อัพเดท {dryRun.summary.updated}
-                    </span>
+                    <Badge tone="blue" icon={<Pencil className="w-3.5 h-3.5" />}>
+                      แก้ไข {dryRun.summary.updated}
+                    </Badge>
                   )}
                   {dryRun.summary.unchanged > 0 && (
-                    <span className="text-gray-400 dark:text-slate-500">ไม่เปลี่ยน {dryRun.summary.unchanged}</span>
+                    <Badge tone="gray">ไม่เปลี่ยน {dryRun.summary.unchanged}</Badge>
                   )}
                   {dryRun.summary.errors > 0 && (
-                    <span className="flex items-center gap-1 px-2.5 py-1 bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-lg font-medium">
-                      <AlertCircle className="w-3.5 h-3.5" /> ข้อผิดพลาด {dryRun.summary.errors}
-                    </span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      icon={<AlertCircle className="w-4 h-4" />}
+                      onClick={showDryRunErrors}
+                      className="text-red-600 dark:text-red-400"
+                    >
+                      ผิดพลาด {dryRun.summary.errors} — ดูทั้งหมด
+                    </Button>
                   )}
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button variant="secondary" onClick={resetAll}>เลือกไฟล์ใหม่</Button>
-                  <Button
-                    disabled={dryRun.summary.updated === 0}
-                    onClick={() => setConfirmOpen(true)}
-                    iconRight={<ArrowRight className="w-4 h-4" />}
-                  >
-                    ยืนยันบันทึก
-                  </Button>
-                </div>
-              </div>
+                </>
+              }
+              confirmLabel="ยืนยันบันทึก"
+              confirmDisabled={dryRun.summary.updated === 0}
+              onConfirm={() => setConfirmOpen(true)}
+              onCancel={resetAll}
+            />
 
-              {/* Per-warehouse breakdown */}
-              {previewByWarehouse.length > 1 && (
-                <div className="mt-3 pt-3 border-t border-gray-100 dark:border-slate-700 flex flex-wrap gap-2">
+            {/* Per-warehouse breakdown */}
+            {previewByWarehouse.length > 1 && (
+              <Card padding="sm">
+                <div className="flex flex-wrap items-center gap-2">
                   {previewByWarehouse.map(w => (
-                    <span key={w.id} className="text-sm px-2.5 py-1 bg-gray-50 dark:bg-slate-700/50 rounded-lg border border-gray-200 dark:border-slate-600">
-                      <strong>{w.name}</strong>:{' '}
-                      <span className="text-blue-600">{w.updated} อัพเดท</span>
-                      {w.errors > 0 && <span className="text-red-600 ml-1">· {w.errors} error</span>}
-                    </span>
+                    <Badge key={w.id} tone={w.errors > 0 ? 'red' : 'blue'} shape="square">
+                      {w.name}: แก้ไข {w.updated}{w.errors > 0 ? ` · ผิดพลาด ${w.errors}` : ''}
+                    </Badge>
                   ))}
                 </div>
-              )}
-            </div>
+              </Card>
+            )}
 
             {changedResults.length > 0 ? (
-              <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm overflow-hidden">
-                <table className="w-full text-sm">
-                  <thead className="data-thead">
-                    <tr>
-                      <th className="data-th w-20">Action</th>
-                      <th className="data-th">สินค้า</th>
-                      <th className="data-th">คลัง</th>
-                      <th className="data-th">SKU</th>
-                      <th className="data-th text-right">จาก</th>
-                      <th className="data-th text-right">เป็น</th>
-                    </tr>
-                  </thead>
-                  <tbody className="data-tbody">
-                    {changedResults.map((r, i) => (
-                      <tr key={i} className="data-tr">
-                        <td className="px-5 py-3">
-                          {r.action === 'updated' && (
-                            <Badge tone="blue" size="sm" icon={<Pencil className="w-3 h-3" />}>อัพเดท</Badge>
-                          )}
-                          {r.action === 'error' && (
-                            <Badge tone="red" size="sm" icon={<AlertCircle className="w-3 h-3" />}>Error</Badge>
-                          )}
-                        </td>
-                        <td className="px-5 py-3">
-                          <div className="text-gray-900 dark:text-white">{r.product_name}</div>
-                          {r.variation_label && r.variation_label !== '-' && (
-                            <div className="text-xs text-gray-400 dark:text-slate-500">{r.variation_label}</div>
-                          )}
-                          {r.action === 'error' && r.error && (
-                            <div className="text-xs text-red-500 mt-0.5">แถวที่ {r.rowNum}: {r.error}</div>
-                          )}
-                        </td>
-                        <td className="px-5 py-3 text-gray-600 dark:text-slate-400">{r.warehouse_name}</td>
-                        <td className="px-5 py-3 font-mono text-xs text-gray-500">{r.sku || '-'}</td>
-                        <td className="px-5 py-3 text-right text-gray-500 dark:text-slate-400">{r.from ?? '-'}</td>
-                        <td className="px-5 py-3 text-right font-medium text-emerald-600">{r.to ?? '-'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <ResultTable rows={changedResults} storageKey="bulk-stock-preview" />
             ) : (
-              <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm p-8 text-center">
-                <Check className="w-12 h-12 text-gray-300 dark:text-slate-600 mx-auto mb-3" />
-                <p className="text-gray-500 dark:text-slate-400">ไม่มีการเปลี่ยนแปลง — ข้อมูลในไฟล์ตรงกับระบบแล้ว</p>
-              </div>
+              <EmptyCard
+                title="ไม่มีการเปลี่ยนแปลง"
+                subtitle="ข้อมูลในไฟล์ตรงกับระบบแล้ว"
+                icon={<Check className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
+              />
             )}
           </div>
         )}
 
         {/* Step: Importing */}
-        {step === 'importing' && (
-          <LoadingCard title="กำลังบันทึก..." />
-        )}
+        {step === 'importing' && <LoadingCard title="กำลังบันทึก..." />}
 
         {/* Step: Done */}
         {step === 'done' && finalRun && (
           <div className="space-y-4">
-            <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm p-8 text-center space-y-4">
-              <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto ${finalRun.summary.errors === 0 ? 'bg-emerald-100 dark:bg-emerald-900/30' : 'bg-amber-100 dark:bg-amber-900/30'}`}>
-                {finalRun.summary.errors === 0
-                  ? <Check className="w-8 h-8 text-emerald-600" />
-                  : <AlertCircle className="w-8 h-8 text-amber-600" />}
-              </div>
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">บันทึกเสร็จสิ้น</h2>
-              <div className="flex flex-wrap items-center justify-center gap-4 text-sm">
-                {finalRun.summary.updated > 0 && <span className="text-blue-600 font-medium">{finalRun.summary.updated} อัพเดท</span>}
-                {finalRun.summary.unchanged > 0 && <span className="text-gray-400">{finalRun.summary.unchanged} ไม่เปลี่ยน</span>}
-                {finalRun.summary.errors > 0 && <span className="text-red-600 font-medium">{finalRun.summary.errors} ล้มเหลว</span>}
-              </div>
-              <div className="flex items-center justify-center gap-3 pt-2">
-                <Button onClick={() => router.push('/inventory')}>ไปหน้า Stock</Button>
-                <Button variant="secondary" onClick={resetAll}>อัพโหลดเพิ่ม</Button>
-              </div>
-            </div>
+            <DoneCard
+              hasErrors={finalRun.summary.errors > 0}
+              title="บันทึกเสร็จสิ้น"
+              summary={
+                <>
+                  {finalRun.summary.updated > 0 && (
+                    <span className="text-blue-600 font-medium">{finalRun.summary.updated} แก้ไข</span>
+                  )}
+                  {finalRun.summary.unchanged > 0 && (
+                    <span className="text-gray-400">{finalRun.summary.unchanged} ไม่เปลี่ยน</span>
+                  )}
+                  {finalRun.summary.errors > 0 && (
+                    <span className="text-red-600 font-medium">{finalRun.summary.errors} ล้มเหลว</span>
+                  )}
+                </>
+              }
+              actions={
+                <>
+                  <Button variant="primary" onClick={() => router.push('/inventory')}>ไปหน้า Stock</Button>
+                  <Button variant="secondary" onClick={resetAll}>อัพโหลดเพิ่ม</Button>
+                </>
+              }
+            />
 
             {finalChanged.length > 0 && (
-              <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm overflow-hidden">
-                <div className="px-5 py-3 border-b border-gray-100 dark:border-slate-700">
-                  <h3 className="font-medium text-gray-900 dark:text-white">รายละเอียด</h3>
-                </div>
-                <div className="divide-y divide-gray-100 dark:divide-slate-700">
-                  {finalChanged.map((r, i) => (
-                    <div key={i} className="px-5 py-3 flex items-center justify-between text-sm">
-                      <div className="flex items-center gap-2">
-                        {r.action === 'updated' && <Pencil className="w-3.5 h-3.5 text-blue-500" />}
-                        {r.action === 'error' && <AlertCircle className="w-3.5 h-3.5 text-red-500" />}
-                        <span className="text-gray-900 dark:text-white">{r.product_name}</span>
-                        {r.variation_label && r.variation_label !== '-' && (
-                          <span className="text-xs text-gray-400">({r.variation_label})</span>
-                        )}
-                        <span className="text-xs text-gray-400">— {r.warehouse_name}</span>
-                      </div>
-                      {r.action === 'error' ? (
-                        <span className="text-red-500 text-xs">{r.error}</span>
-                      ) : (
-                        <span className="text-blue-600 text-xs font-medium">{r.from} → {r.to}</span>
-                      )}
-                    </div>
-                  ))}
-                </div>
+              <div className="space-y-3">
+                <h3 className="heading-3">รายละเอียด</h3>
+                <ResultTable rows={finalChanged} storageKey="bulk-stock-result" />
               </div>
             )}
           </div>
         )}
-      </div>
+      </Container>
 
       {/* Confirm dialog */}
       <ConfirmDialog
@@ -730,6 +848,12 @@ export default function BulkStockUpdatePage() {
         confirmLabel="ยืนยันบันทึก"
         cancelLabel="ตรวจสอบอีกครั้ง"
         variant="primary"
+      />
+
+      <BulkErrorModal
+        report={errorReport}
+        onClose={() => setErrorReport(null)}
+        onDownloadTemplate={handleExport}
       />
     </Layout>
   );
