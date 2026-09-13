@@ -121,7 +121,6 @@ export const CAPABILITIES = {
   'masterdata.delivery':         ADMIN_TIER,    // delivery zones + time slots
   'masterdata.tags':             ADMIN_TIER,    // แท็กลูกค้า/แชท — แก้ชื่อ/สี + ลบ (สร้างใหม่เปิดให้ทุกคนผ่าน quick-add)
   'masterdata.ad_accounts':      ADMIN_TIER,    // บัญชีโฆษณา Meta — ถือ token ยิงโฆษณา/ยิง event การซื้อ จึงให้เฉพาะชั้นผู้บริหาร
-  'masterdata.coupons':          ADMIN_TIER,    // คูปองส่วนลด (โค้ดที่ลูกค้ากรอก) — แตะยอดเงินของบิลโดยตรง
 
   // Chat (กล่องแชทรวมทุกช่องทาง)
   'chat.view':                   [...ADMIN_TIER, 'chat:view'],
@@ -130,6 +129,7 @@ export const CAPABILITIES = {
 
   // Marketing
   'marketing.audiences':         ADMIN_TIER,    // กลุ่มเป้าหมายที่ sync ขึ้น Meta — ส่งข้อมูลลูกค้าออกนอกระบบ จึงเป็นชั้นผู้บริหาร
+  'marketing.coupons':           ADMIN_TIER,    // คูปองส่วนลด (โค้ดที่ลูกค้ากรอก) — แตะยอดเงินของบิลโดยตรง
 
   // Inventory
   'inventory.view':              [...ADMIN_TIER, 'inventory:view'],

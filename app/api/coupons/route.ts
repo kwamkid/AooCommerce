@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
   try {
     const auth = await checkAuthWithCompany(req);
     if (!auth.isAuth || !auth.companyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    if (!can(auth, 'masterdata.coupons')) return NextResponse.json({ error: 'Admin only' }, { status: 403 });
+    if (!can(auth, 'marketing.coupons')) return NextResponse.json({ error: 'Admin only' }, { status: 403 });
 
     const search = normalizeCouponCode(req.nextUrl.searchParams.get('search') || '');
     let query = supabaseAdmin
@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
   try {
     const auth = await checkAuthWithCompany(req);
     if (!auth.isAuth || !auth.companyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    if (!can(auth, 'masterdata.coupons')) return NextResponse.json({ error: 'Admin only' }, { status: 403 });
+    if (!can(auth, 'marketing.coupons')) return NextResponse.json({ error: 'Admin only' }, { status: 403 });
 
     const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
 
@@ -117,7 +117,7 @@ export async function PUT(req: NextRequest) {
   try {
     const auth = await checkAuthWithCompany(req);
     if (!auth.isAuth || !auth.companyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    if (!can(auth, 'masterdata.coupons')) return NextResponse.json({ error: 'Admin only' }, { status: 403 });
+    if (!can(auth, 'marketing.coupons')) return NextResponse.json({ error: 'Admin only' }, { status: 403 });
 
     const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
     const id = String(body.id ?? '');
@@ -157,7 +157,7 @@ export async function DELETE(req: NextRequest) {
   try {
     const auth = await checkAuthWithCompany(req);
     if (!auth.isAuth || !auth.companyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    if (!can(auth, 'masterdata.coupons')) return NextResponse.json({ error: 'Admin only' }, { status: 403 });
+    if (!can(auth, 'marketing.coupons')) return NextResponse.json({ error: 'Admin only' }, { status: 403 });
 
     const id = req.nextUrl.searchParams.get('id') || '';
     if (!id) return NextResponse.json({ error: 'ไม่พบคูปองที่จะลบ' }, { status: 400 });

@@ -54,6 +54,7 @@ import {
   Pencil,
   MapPin,
   Target,
+  Ticket,
 } from 'lucide-react';
 
 interface MenuItem {
@@ -104,6 +105,8 @@ const menuSections: MenuSection[] = [
       { label: 'บรอดแคสต์', href: '/marketing/broadcast', icon: <Megaphone className="w-[18px] h-[18px] flex-shrink-0" />, caps: ['chat.broadcast'] },
       { label: 'กลุ่มเป้าหมาย', href: '/marketing/audiences', icon: <Target className="w-[18px] h-[18px] flex-shrink-0" />, caps: ['marketing.audiences'] },
       { label: 'โปรโมชั่น', href: '/promotions', icon: <Tag className="w-[18px] h-[18px] flex-shrink-0" />, caps: ['product.manage'] },
+      // คูปอง = ลูกค้ากรอกโค้ดเอง · โปรโมชั่น = ลดอัตโนมัติตามเงื่อนไข — คนละเรื่อง วางคู่กันให้หาเจอ
+      { label: 'คูปองส่วนลด', href: '/marketing/coupons', icon: <Ticket className="w-[18px] h-[18px] flex-shrink-0" />, caps: ['marketing.coupons'] },
     ]
   },
   {
