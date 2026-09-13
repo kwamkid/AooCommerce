@@ -16,6 +16,14 @@
 
 ---
 
+## 2026-09-13 — สต็อกหาย 1 ชิ้นเมื่อ webhook "shipped" 2 ออเดอร์มาพร้อมกัน (race ใน stock-service)
+
+**ที่เกิด**: [lib/stock-service.ts](lib/stock-service.ts) ทุก op (`updateInventory` เดิม)
+**อาการ**: เจ้าของเห็นในแท็บความเคลื่อนไหว "เบิกออก −1 · คงคลัง 17" สองแถวติดกันเวลาเดียวกัน (Lazada shipped 2 ออเดอร์ห่างกัน 6 ms) → ของออกจริง 2 ชิ้นแต่คงคลังลดแค่ 1 · ค้นทั้งระบบพบ 7 คู่ / 6 ตัวเลือก ตั้งแต่ มิ.ย. 2026 (สต็อกเกินจริง 7 ชิ้น)
+**Root cause**: อ่านยอด → คำนวณใน JS → `update ... set quantity = <ค่าที่คิดไว้>` — คำขอที่มาพร้อมกันอ่านค่าเดียวกันแล้วเขียนทับกัน (lost update) · การเช็ค "ของพอไหม" ก็เช็คจากยอดที่อ่านก่อนหน้า
+**วิธีแก้**: RPC `apply_inventory_delta(inventory_id, qty, reserved, transit, set_quantity, require_available)` = `update … set quantity = quantity + delta … returning` คำสั่งเดียว (row lock ทำให้คำขอที่ชนกันต่อคิว) · `require_available` ให้ DB เช็คพอไหม ณ ตอน lock ไม่พอ = ไม่อัปเดต → JS โยน `InsufficientStockError` จากยอดที่อ่านใหม่ · stock-service ทุก op ใช้ `applyDelta()` แทน read-modify-write · `balance_after` มาจากค่าที่ DB คืน
+**ป้องกัน regression**: ⛔ ห้าม `update inventory set quantity = <ตัวเลขจาก JS>` ที่ไหนอีก ต้องผ่าน `applyDelta` (delta) หรือ `setQuantity` เฉพาะปรับปรุงสต็อกที่ผู้ใช้ตั้งค่าเอง · การเช็คสต็อกก่อนตัดไม่พอ ต้องเช็คในคำสั่งที่ตัดด้วย · ตรวจย้อนหลังด้วย query "balance_after เท่ากับแถวก่อนหน้าภายใน 2 วิ" (อยู่ใน entry นี้ของ memo) · ยอดที่หายไป 3 ตัวเลือกหลังนับสต็อก 28 ส.ค. รอเจ้าของยืนยันก่อนปรับ
+
 ## 2026-09-13 — คลัง: รายการเอกสารกรองใน client · ฟอร์มรับ/เบิก/โอนโหลดทั้งคลังติดเพดาน 1,000 · โอนย้ายบันทึกบางส่วนเงียบ (Phase 3–4 รื้อโมดูลสต็อก)
 
 **ที่เกิด**: [app/inventory/{receives,issues,transfers,purchase-orders}/page.tsx](app/inventory/receives/page.tsx) · [app/inventory/{receive,issue,transfer}/page.tsx](app/inventory/receive/page.tsx) · POST ใน [app/api/inventory/transfers/route.ts](app/api/inventory/transfers/route.ts)

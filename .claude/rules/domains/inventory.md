@@ -9,6 +9,7 @@ paths:
 # สต็อก / คลังสินค้า — หน้า `/inventory` · RPC · กติกาแสดงผล
 
 > สร้าง 2026-09-13 ตอนรื้อโมดูล (แผนเต็ม `memo/plan-stock-module-2026-09-13.md`) · โหลดเองเมื่อแตะไฟล์ตาม `paths:` · ตัดสต็อกจริงต้องผ่าน `lib/stock-service.ts` เสมอ (ดู `lib-services.md`)
+> ⛔ **ยอดใน `inventory` เปลี่ยนได้ทางเดียวคือ RPC `apply_inventory_delta` (ผ่าน `applyDelta()` ใน stock-service)** — DB บวก/ลบเองในคำสั่งเดียว · ห้าม read-modify-write (เคยทำสต็อกหาย 7 ชิ้นจาก webhook ชนกัน ดู fix-bug.md 2026-09-13) · เช็คของพอต้องใช้ `requireAvailable` ให้ DB เช็คตอน lock
 
 ## หน้ารายการ (แท็บสินค้าคงคลัง) — RPC `get_inventory_list` รอบเดียวจบ
 

@@ -82,16 +82,46 @@ async function getOrCreateInventory(
   return created;
 }
 
-async function updateInventory(
+interface InventoryLevels { quantity: number; reserved_quantity: number; in_transit_quantity: number }
+
+/**
+ * เปลี่ยนยอดแบบ atomic — DB บวก/ลบเองในคำสั่งเดียว (RPC `apply_inventory_delta` · row lock ของ UPDATE)
+ *
+ * ของเดิมอ่านยอด → คิดใน JS → เขียนทับ: Lazada ส่ง "shipped" 2 ออเดอร์ห่างกัน 6 ms ต่างอ่าน 18 แล้ว
+ * ต่างเขียน 17 = ของออก 2 ชิ้นแต่คงคลังลด 1 (พบ 7 คู่ / 6 ตัวเลือก มิ.ย.–ส.ค. 2026) — ดู fix-bug.md 2026-09-13
+ *
+ * `requireAvailable` = ให้ DB เช็ค quantity − reserved ≥ ค่านี้ ณ ตอน lock ด้วย (กัน oversell ตอนชนกัน)
+ * ไม่พอ → คืน null ให้ผู้เรียกโยน InsufficientStockError จากยอดที่อ่านใหม่
+ */
+async function applyDelta(
   supabase: SupabaseClient,
   inventoryId: string,
-  fields: Record<string, number | string>,
-): Promise<void> {
-  const { error } = await supabase
-    .from('inventory')
-    .update({ ...fields, updated_at: new Date().toISOString() })
-    .eq('id', inventoryId);
+  delta: { qty?: number; reserved?: number; transit?: number; setQuantity?: number; requireAvailable?: number },
+): Promise<InventoryLevels | null> {
+  const { data, error } = await supabase.rpc('apply_inventory_delta', {
+    p_inventory_id: inventoryId,
+    p_qty: delta.qty ?? 0,
+    p_reserved: delta.reserved ?? 0,
+    p_transit: delta.transit ?? 0,
+    p_set_quantity: delta.setQuantity ?? null,
+    p_require_available: delta.requireAvailable ?? null,
+  });
   if (error) throw new Error(`Failed to update inventory: ${error.message}`);
+  const row = (Array.isArray(data) ? data[0] : data) as Record<string, unknown> | undefined;
+  if (!row) return null;
+  return {
+    quantity: Number(row.quantity) || 0,
+    reserved_quantity: Number(row.reserved_quantity) || 0,
+    in_transit_quantity: Number(row.in_transit_quantity) || 0,
+  };
+}
+
+/** ยอดล่าสุดตอนที่ DB ปฏิเสธเพราะของไม่พอ — เอาไปใส่ InsufficientStockError ให้ข้อความตรงความจริง */
+async function throwInsufficient(supabase: SupabaseClient, inventoryId: string, variationId: string, requested: number): Promise<never> {
+  const { data } = await supabase.from('inventory').select('quantity, reserved_quantity').eq('id', inventoryId).single();
+  const quantity = Number(data?.quantity) || 0;
+  const reserved = Number(data?.reserved_quantity) || 0;
+  throw new InsufficientStockError(variationId, requested, quantity - reserved, quantity, reserved);
 }
 
 async function logTransaction(
@@ -179,9 +209,9 @@ async function forEachComponent<P extends StockOpParams>(
  */
 export async function addStock(params: StockOpParams): Promise<StockOpResult> {
   const inv = await getOrCreateInventory(params.supabase, params.companyId, params.warehouseId, params.variationId);
-  const newQty = inv.quantity + params.qty;
+  const levels = await applyDelta(params.supabase, inv.id, { qty: params.qty });
+  const newQty = levels?.quantity ?? inv.quantity + params.qty;
 
-  await updateInventory(params.supabase, inv.id, { quantity: newQty });
   await logTransaction(params.supabase, {
     companyId: params.companyId,
     warehouseId: params.warehouseId,
@@ -214,16 +244,13 @@ async function deductOne(
   params: StockOpParams & { checkAvailable?: boolean },
 ): Promise<StockOpResult> {
   const inv = await getOrCreateInventory(params.supabase, params.companyId, params.warehouseId, params.variationId);
-  const available = inv.quantity - inv.reserved_quantity;
-
-  if (params.checkAvailable && params.qty > available) {
-    throw new InsufficientStockError(
-      params.variationId, params.qty, available, inv.quantity, inv.reserved_quantity,
-    );
-  }
-
-  const newQty = inv.quantity - params.qty;
-  await updateInventory(params.supabase, inv.id, { quantity: newQty });
+  // เช็คพอไหมที่ DB ตอน lock (ไม่ใช่จากยอดที่อ่านมาก่อนหน้า ซึ่งอาจเก่าแล้วถ้ามีคำขออื่นแทรก)
+  const levels = await applyDelta(params.supabase, inv.id, {
+    qty: -params.qty,
+    requireAvailable: params.checkAvailable ? params.qty : undefined,
+  });
+  if (!levels) await throwInsufficient(params.supabase, inv.id, params.variationId, params.qty);
+  const newQty = levels!.quantity;
   await logTransaction(params.supabase, {
     companyId: params.companyId,
     warehouseId: params.warehouseId,
@@ -251,23 +278,23 @@ export async function reserveStock(params: StockOpParams): Promise<StockOpResult
 
 async function reserveOne(params: StockOpParams): Promise<StockOpResult> {
   const inv = await getOrCreateInventory(params.supabase, params.companyId, params.warehouseId, params.variationId);
-  const newReserved = inv.reserved_quantity + params.qty;
+  const levels = await applyDelta(params.supabase, inv.id, { reserved: params.qty });
+  const quantityNow = levels?.quantity ?? inv.quantity;
 
-  await updateInventory(params.supabase, inv.id, { reserved_quantity: newReserved });
   await logTransaction(params.supabase, {
     companyId: params.companyId,
     warehouseId: params.warehouseId,
     variationId: params.variationId,
     type: 'reserve',
     quantity: params.qty,
-    balanceAfter: inv.quantity, // convention: balance_after = quantity, not reserved_quantity
+    balanceAfter: quantityNow, // convention: balance_after = quantity, not reserved_quantity
     referenceType: params.referenceType,
     referenceId: params.referenceId,
     notes: params.notes,
     createdBy: params.createdBy,
   });
 
-  return { balanceAfter: inv.quantity, inventoryId: inv.id };
+  return { balanceAfter: quantityNow, inventoryId: inv.id };
 }
 
 /**
@@ -281,23 +308,23 @@ export async function unreserveStock(params: StockOpParams): Promise<StockOpResu
 
 async function unreserveOne(params: StockOpParams): Promise<StockOpResult> {
   const inv = await getOrCreateInventory(params.supabase, params.companyId, params.warehouseId, params.variationId);
-  const newReserved = Math.max(0, inv.reserved_quantity - params.qty);
+  const levels = await applyDelta(params.supabase, inv.id, { reserved: -params.qty }); // DB กันไม่ให้ต่ำกว่า 0
+  const quantityNow = levels?.quantity ?? inv.quantity;
 
-  await updateInventory(params.supabase, inv.id, { reserved_quantity: newReserved });
   await logTransaction(params.supabase, {
     companyId: params.companyId,
     warehouseId: params.warehouseId,
     variationId: params.variationId,
     type: 'unreserve',
     quantity: params.qty,
-    balanceAfter: inv.quantity,
+    balanceAfter: quantityNow,
     referenceType: params.referenceType,
     referenceId: params.referenceId,
     notes: params.notes,
     createdBy: params.createdBy,
   });
 
-  return { balanceAfter: inv.quantity, inventoryId: inv.id };
+  return { balanceAfter: quantityNow, inventoryId: inv.id };
 }
 
 /**
@@ -310,9 +337,9 @@ export async function returnStock(params: StockOpParams): Promise<StockOpResult>
 
 async function returnOne(params: StockOpParams): Promise<StockOpResult> {
   const inv = await getOrCreateInventory(params.supabase, params.companyId, params.warehouseId, params.variationId);
-  const newQty = inv.quantity + params.qty;
+  const levels = await applyDelta(params.supabase, inv.id, { qty: params.qty });
+  const newQty = levels?.quantity ?? inv.quantity + params.qty;
 
-  await updateInventory(params.supabase, inv.id, { quantity: newQty });
   await logTransaction(params.supabase, {
     companyId: params.companyId,
     warehouseId: params.warehouseId,
@@ -338,16 +365,12 @@ export async function transferOut(
   params: StockOpParams & { checkAvailable?: boolean },
 ): Promise<StockOpResult> {
   const inv = await getOrCreateInventory(params.supabase, params.companyId, params.warehouseId, params.variationId);
-  const available = inv.quantity - inv.reserved_quantity;
-
-  if (params.checkAvailable && params.qty > available) {
-    throw new InsufficientStockError(
-      params.variationId, params.qty, available, inv.quantity, inv.reserved_quantity,
-    );
-  }
-
-  const newQty = inv.quantity - params.qty;
-  await updateInventory(params.supabase, inv.id, { quantity: newQty });
+  const levels = await applyDelta(params.supabase, inv.id, {
+    qty: -params.qty,
+    requireAvailable: params.checkAvailable ? params.qty : undefined,
+  });
+  if (!levels) await throwInsufficient(params.supabase, inv.id, params.variationId, params.qty);
+  const newQty = levels!.quantity;
   await logTransaction(params.supabase, {
     companyId: params.companyId,
     warehouseId: params.warehouseId,
@@ -370,9 +393,9 @@ export async function transferOut(
  */
 export async function transferIn(params: StockOpParams): Promise<StockOpResult> {
   const inv = await getOrCreateInventory(params.supabase, params.companyId, params.warehouseId, params.variationId);
-  const newQty = inv.quantity + params.qty;
+  const levels = await applyDelta(params.supabase, inv.id, { qty: params.qty });
+  const newQty = levels?.quantity ?? inv.quantity + params.qty;
 
-  await updateInventory(params.supabase, inv.id, { quantity: newQty });
   await logTransaction(params.supabase, {
     companyId: params.companyId,
     warehouseId: params.warehouseId,
@@ -401,7 +424,7 @@ export async function adjustStock(
 
   if (diff === 0) return { balanceAfter: inv.quantity, inventoryId: inv.id };
 
-  await updateInventory(params.supabase, inv.id, { quantity: params.newQuantity });
+  await applyDelta(params.supabase, inv.id, { setQuantity: params.newQuantity });
   await logTransaction(params.supabase, {
     companyId: params.companyId,
     warehouseId: params.warehouseId,
@@ -432,11 +455,10 @@ async function deductAndUnreserveOne(
   params: StockOpParams & { transactionType?: 'out' | 'transfer_out' },
 ): Promise<StockOpResult> {
   const inv = await getOrCreateInventory(params.supabase, params.companyId, params.warehouseId, params.variationId);
-  const newQty = inv.quantity - params.qty;
-  const newReserved = Math.max(0, inv.reserved_quantity - params.qty);
   const txType = params.transactionType || 'out';
+  const levels = await applyDelta(params.supabase, inv.id, { qty: -params.qty, reserved: -params.qty });
+  const newQty = levels?.quantity ?? inv.quantity - params.qty;
 
-  await updateInventory(params.supabase, inv.id, { quantity: newQty, reserved_quantity: newReserved });
   await logTransaction(params.supabase, {
     companyId: params.companyId,
     warehouseId: params.warehouseId,
@@ -459,15 +481,9 @@ async function deductAndUnreserveOne(
  */
 export async function shipToTransit(params: StockOpParams): Promise<StockOpResult> {
   const inv = await getOrCreateInventory(params.supabase, params.companyId, params.warehouseId, params.variationId);
-  const newQty = inv.quantity - params.qty;
-  const newReserved = Math.max(0, inv.reserved_quantity - params.qty);
-  const newTransit = (inv.in_transit_quantity || 0) + params.qty;
+  const levels = await applyDelta(params.supabase, inv.id, { qty: -params.qty, reserved: -params.qty, transit: params.qty });
+  const newQty = levels?.quantity ?? inv.quantity - params.qty;
 
-  await updateInventory(params.supabase, inv.id, {
-    quantity: newQty,
-    reserved_quantity: newReserved,
-    in_transit_quantity: newTransit,
-  });
   await logTransaction(params.supabase, {
     companyId: params.companyId,
     warehouseId: params.warehouseId,
@@ -503,13 +519,12 @@ export async function receiveFromTransit(params: {
 }): Promise<{ sourceResult: StockOpResult; destResult: StockOpResult }> {
   // Clear in_transit on source
   const srcInv = await getOrCreateInventory(params.supabase, params.companyId, params.sourceWarehouseId, params.variationId);
-  const newTransit = Math.max(0, (srcInv.in_transit_quantity || 0) - params.qty);
-  await updateInventory(params.supabase, srcInv.id, { in_transit_quantity: newTransit });
+  await applyDelta(params.supabase, srcInv.id, { transit: -params.qty });
 
   // Add stock to destination
   const destInv = await getOrCreateInventory(params.supabase, params.companyId, params.destWarehouseId, params.variationId);
-  const newDestQty = destInv.quantity + params.qty;
-  await updateInventory(params.supabase, destInv.id, { quantity: newDestQty });
+  const destLevels = await applyDelta(params.supabase, destInv.id, { qty: params.qty });
+  const newDestQty = destLevels?.quantity ?? destInv.quantity + params.qty;
 
   // Log transaction on destination warehouse
   await logTransaction(params.supabase, {
@@ -537,13 +552,9 @@ export async function receiveFromTransit(params: {
  */
 export async function cancelFromShipped(params: StockOpParams): Promise<StockOpResult> {
   const inv = await getOrCreateInventory(params.supabase, params.companyId, params.warehouseId, params.variationId);
-  const newQty = inv.quantity + params.qty;
-  const newTransit = Math.max(0, (inv.in_transit_quantity || 0) - params.qty);
+  const levels = await applyDelta(params.supabase, inv.id, { qty: params.qty, transit: -params.qty });
+  const newQty = levels?.quantity ?? inv.quantity + params.qty;
 
-  await updateInventory(params.supabase, inv.id, {
-    quantity: newQty,
-    in_transit_quantity: newTransit,
-  });
   await logTransaction(params.supabase, {
     companyId: params.companyId,
     warehouseId: params.warehouseId,
