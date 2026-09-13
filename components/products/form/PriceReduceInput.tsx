@@ -1,7 +1,7 @@
 // Path: components/products/form/PriceReduceInput.tsx
 //
 // ช่อง "ลดเหลือ (฿)" ของฟอร์มสินค้า — ช่องหลักเป็นราคาสุดท้ายเสมอ (= discount_price ที่เก็บ)
-// ปุ่ม % ท้ายช่องเปิดกล่องเล็กให้พิมพ์ "ลด %" หรือ "ลดไป (บาท)" เห็นราคาที่จะได้ กดตกลงแล้ว
+// ปุ่ม % ท้ายช่องเปิด popover เล็ก ๆ ให้พิมพ์ "ลด %" หรือ "ลดไป (บาท)" เห็นราคาที่จะได้ กดตกลงแล้ว
 // เขียนลงช่องหลักเลย — ไม่มีโหมดให้จำ เปิดแก้ไขทีหลังก็เห็นเป็นบาทเหมือนเดิม (เจ้าของเคาะ 13 ก.ย. 2026)
 // บรรทัดใต้ช่องบอกว่าราคานี้เท่ากับลดกี่ % / กี่บาท
 //
@@ -10,11 +10,11 @@
 // ไป `applyReduce()` ต่อแถวเอง · ตัวคำนวณอยู่ใน lib/product-variants.ts — ห้ามคิดเองในหน้า
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Percent } from 'lucide-react';
 import Badge from '@/components/ui/Badge';
 import Button from '@/components/ui/Button';
-import Modal from '@/components/ui/Modal';
+import Popover from '@/components/ui/Popover';
 import NumberInput from '@/components/ui/NumberInput';
 import Tooltip from '@/components/ui/Tooltip';
 import { formatPrice } from '@/lib/utils/format';
@@ -60,6 +60,7 @@ export default function PriceReduceInput({
   emptyHint = 'ว่าง = ขายราคาปกติ',
 }: PriceReduceInputProps) {
   const [open, setOpen] = useState(false);
+  const calcBtnRef = useRef<HTMLButtonElement>(null);
   // ในกล่อง: สองช่องผูกกัน (มีราคาปกติ) · ช่องที่แก้ล่าสุดคือความหมายที่ใช้
   const [pct, setPct] = useState(0);
   const [amt, setAmt] = useState(0);
@@ -94,9 +95,11 @@ export default function PriceReduceInput({
   const amtError = hasBase && base > 0 && amt >= base ? 'ลดได้ไม่ถึงราคาปกติ' : null;
   const canApply = draftSpec.input > 0 && (!hasBase || base > 0) && !pctError && !amtError;
   const apply = () => {
+    if (!canApply) return;
     onChange(hasBase ? preview : 0, draftSpec);
     setOpen(false);
   };
+  const onEnter = (e: React.KeyboardEvent) => { if (e.key === 'Enter') { e.preventDefault(); apply(); } };
 
   let hint: string | null = null;
   if (showHint && hasBase) {
@@ -131,8 +134,9 @@ export default function PriceReduceInput({
         )}
         <Tooltip text="คิดจาก % หรือลดไปกี่บาท" box="inline-flex">
           <button
+            ref={calcBtnRef}
             type="button"
-            onClick={openCalc}
+            onClick={() => (open ? setOpen(false) : openCalc())}
             aria-label={`คำนวณ${ariaLabel}จาก % หรือจำนวนบาท`}
             className="flex items-center px-2.5 h-full border-l border-gray-300 dark:border-slate-600 rounded-r-lg bg-gray-50 dark:bg-slate-600 text-gray-600 dark:text-slate-200 hover:bg-gray-100 hover:text-primary dark:hover:bg-slate-500 transition-colors"
           >
@@ -142,19 +146,8 @@ export default function PriceReduceInput({
       </div>
       {hint && <p className="helper-text mt-1">{hint}</p>}
 
-      <Modal
-        open={open}
-        onClose={() => setOpen(false)}
-        title="คิดราคาลดเหลือ"
-        size="sm"
-        footer={
-          <div className="flex justify-end gap-2 p-4">
-            <Button variant="secondary" onClick={() => setOpen(false)}>ยกเลิก</Button>
-            <Button variant="primary" onClick={apply} disabled={!canApply}>ตกลง</Button>
-          </div>
-        }
-      >
-        <div className="p-5 space-y-4">
+      <Popover open={open} onClose={() => setOpen(false)} anchorRef={calcBtnRef} width={300} ariaLabel="คิดราคาลดเหลือ">
+        <div className="p-3 space-y-3">
           {hasBase && (
             <p className="text-base text-gray-600 dark:text-slate-300">
               ราคาปกติ <span className="font-medium text-gray-900 dark:text-white">฿{formatPrice(base)}</span>
@@ -167,6 +160,7 @@ export default function PriceReduceInput({
               <NumberInput
                 value={pct}
                 onChange={changePct}
+                onKeyDown={onEnter}
                 min={0}
                 placeholder="0"
                 aria-label="ลดกี่เปอร์เซ็นต์"
@@ -180,6 +174,7 @@ export default function PriceReduceInput({
               <NumberInput
                 value={amt}
                 onChange={changeAmt}
+                onKeyDown={onEnter}
                 min={0}
                 placeholder="0"
                 aria-label="ลดไปกี่บาท"
@@ -188,18 +183,24 @@ export default function PriceReduceInput({
               <FieldError text={amtError} />
             </div>
           </div>
-          {hasBase ? (
-            <p className="text-base text-gray-700 dark:text-slate-200">
-              ลดเหลือ{' '}
-              <span className="text-lg font-semibold text-gray-900 dark:text-white">
-                {canApply ? `฿${formatPrice(preview)}` : '—'}
-              </span>
-            </p>
-          ) : (
-            <p className="helper-text">คิดจากราคาปกติของแต่ละแถวตอนกด &quot;ใช้กับทุกแถว&quot;</p>
-          )}
+          <div className="flex items-center justify-between gap-3">
+            {hasBase ? (
+              <p className="text-base text-gray-700 dark:text-slate-200">
+                ลดเหลือ{' '}
+                <span className="text-lg font-semibold text-gray-900 dark:text-white">
+                  {canApply ? `฿${formatPrice(preview)}` : '—'}
+                </span>
+              </p>
+            ) : (
+              <p className="helper-text">คิดจากราคาปกติของแต่ละแถว</p>
+            )}
+            <div className="flex gap-2 flex-shrink-0">
+              <Button variant="secondary" size="sm" onClick={() => setOpen(false)}>ยกเลิก</Button>
+              <Button variant="primary" size="sm" onClick={apply} disabled={!canApply}>ตกลง</Button>
+            </div>
+          </div>
         </div>
-      </Modal>
+      </Popover>
     </div>
   );
 }
