@@ -9,6 +9,7 @@ import { getPromotionComponents } from '@/lib/promotion-service';
 import { fetchCostMap } from '@/lib/cost-utils';
 import { resolveDeliverySnapshot } from '@/lib/delivery-server';
 import { computeOrderTotals, splitVatInclusive } from '@/lib/order-totals';
+import { checkCoupon, normalizeCouponCode, type Coupon } from '@/lib/coupons';
 import { contactBelongsToCompany } from '@/lib/chat/contact-tables';
 
 import { normalizePhone } from '@/lib/numeric-input';
@@ -355,7 +356,45 @@ export async function POST(request: NextRequest) {
       totalShippingFee = Number((orderData as any).shipping_fee) || 0;
     }
 
-    const discountAmount = orderData.discount_amount || 0;
+    // ส่วนลดท้ายบิล — ปกติ staff กรอกเอง · ส่ง `coupon_code` มา = **เซิร์ฟเวอร์ตรวจและคิดให้เอง**
+    // ไม่เชื่อยอดส่วนลดจากหน้าจอ (กติกาอยู่ที่ lib/coupons.ts ที่เดียว)
+    let discountAmount = orderData.discount_amount || 0;
+    let appliedCoupon: { id: string; discount: number } | null = null;
+    const couponCode = normalizeCouponCode(String((orderData as { coupon_code?: string }).coupon_code ?? ''));
+    if (couponCode) {
+      const { data: couponRow } = await supabaseAdmin
+        .from('coupons')
+        .select('id, code, discount_type, discount_value, max_discount, min_spend, valid_from, valid_until, usage_limit_total, usage_limit_per_customer, used_count, customer_id, fb_contact_id, channels, is_active')
+        .eq('company_id', auth.companyId)
+        .eq('code', couponCode)
+        .maybeSingle<Coupon>();
+      if (!couponRow) {
+        return NextResponse.json({ error: `ไม่พบโค้ด ${couponCode}` }, { status: 400 });
+      }
+
+      let usedByCustomer = 0;
+      if (orderData.customer_id) {
+        const { count } = await supabaseAdmin
+          .from('coupon_redemptions')
+          .select('id', { count: 'exact', head: true })
+          .eq('coupon_id', couponRow.id)
+          .eq('customer_id', orderData.customer_id);
+        usedByCustomer = count ?? 0;
+      }
+
+      const couponCheck = checkCoupon({
+        coupon: couponRow,
+        itemsTotal: subtotal,
+        channel: 'chat_order',
+        customerId: orderData.customer_id || null,
+        usedByCustomer,
+      });
+      if (!couponCheck.ok) {
+        return NextResponse.json({ error: couponCheck.reason }, { status: 400 });
+      }
+      discountAmount = couponCheck.discount;
+      appliedCoupon = { id: couponRow.id, discount: couponCheck.discount };
+    }
 
     // Check if company is VAT registered
     const { data: companyInfo } = await supabaseAdmin
@@ -538,6 +577,32 @@ export async function POST(request: NextRequest) {
         { error: orderError.message },
         { status: 400 }
       );
+    }
+
+    // บันทึกการใช้คูปอง — **หลังออเดอร์ถูกสร้างจริงเท่านั้น** · unique (coupon_id, order_id) กันซ้ำ
+    // ล้มตรงนี้ไม่ล้มทั้งบิล (ยอดเงินบันทึกไปแล้ว) — จดไว้ใน log ให้ตามเก็บได้
+    if (appliedCoupon) {
+      const { error: redeemError } = await supabaseAdmin.from('coupon_redemptions').insert({
+        company_id: auth.companyId,
+        coupon_id: appliedCoupon.id,
+        order_id: order.id,
+        customer_id: orderData.customer_id || null,
+        amount: appliedCoupon.discount,
+        channel: 'chat_order',
+      });
+      if (redeemError) {
+        console.error('[orders] coupon redeem failed:', { orderId: order.id, error: redeemError.message });
+      } else {
+        const { data: couponCounter } = await supabaseAdmin
+          .from('coupons')
+          .select('used_count')
+          .eq('id', appliedCoupon.id)
+          .maybeSingle<{ used_count: number }>();
+        await supabaseAdmin
+          .from('coupons')
+          .update({ used_count: (couponCounter?.used_count || 0) + 1 })
+          .eq('id', appliedCoupon.id);
+      }
     }
 
     // Fetch WAC cost map for cost snapshot

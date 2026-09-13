@@ -40,6 +40,9 @@ interface OrderSummaryBoxProps {
   /** Disable inputs (view mode) */
   readOnly?: boolean;
 
+  /** ของที่ต้องอยู่ติดแถวส่วนลด เช่นช่องกรอกโค้ดคูปอง (children อยู่ใต้ยอดรวมสุทธิ) */
+  discountSlot?: ReactNode;
+
   /** Extra content below the total line (e.g. exchange credit) */
   children?: ReactNode;
 }
@@ -57,6 +60,7 @@ export default function OrderSummaryBox({
   onDiscountTypeToggle,
   giftCardFee = 0,
   readOnly = false,
+  discountSlot,
   children,
 }: OrderSummaryBoxProps) {
   const discountAmount = discountType === 'percent'
@@ -147,6 +151,9 @@ export default function OrderSummaryBox({
             )}
           </div>
         )}
+
+        {/* ของที่ต้องอยู่ติดแถวส่วนลด (เช่นช่องกรอกโค้ดคูปอง) — `children` อยู่ใต้ยอดรวมสุทธิ ไกลเกินไป */}
+        {discountSlot}
 
         {/* การ์ดอวยพร — โชว์เมื่อร้านคิดเงินค่าการ์ดจริง ไม่งั้นยอดรวมจะไม่ตรงกับบรรทัดที่เห็น */}
         {giftCardFee > 0 && (

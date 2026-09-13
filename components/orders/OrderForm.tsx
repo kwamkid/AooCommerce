@@ -531,6 +531,49 @@ export default function OrderForm({
   const [internalNotes, setInternalNotes] = useState('');
   const [orderDiscount, setOrderDiscount] = useState(0);
   const [orderDiscountType, setOrderDiscountType] = useState<'percent' | 'amount'>('amount');
+
+  // โค้ดส่วนลด — หน้าจอแค่ถามเซิร์ฟเวอร์ว่าใช้ได้ไหมและลดเท่าไหร่ เพื่อโชว์ยอดให้ staff เห็นก่อนบันทึก
+  // **ตอนบันทึกเซิร์ฟเวอร์ตรวจใหม่เองทั้งหมด** (ส่งไปแค่โค้ด ไม่ส่งยอดส่วนลด)
+  const [couponCode, setCouponCode] = useState('');
+  const [couponChecking, setCouponChecking] = useState(false);
+  const [couponApplied, setCouponApplied] = useState<{ code: string; discount: number } | null>(null);
+
+  const handleApplyCoupon = async () => {
+    const code = couponCode.trim().toUpperCase();
+    if (!code) return;
+    setCouponChecking(true);
+    try {
+      const res = await apiFetch('/api/coupons/validate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          code,
+          itemsTotal,
+          channel: 'chat_order',
+          customerId: selectedCustomer?.id || null,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ok) {
+        showToast(typeof data.reason === 'string' ? data.reason : 'ใช้โค้ดนี้ไม่ได้', 'error');
+        return;
+      }
+      setCouponApplied({ code, discount: data.discount });
+      setOrderDiscountType('amount');
+      setOrderDiscount(data.discount);
+      setCouponCode('');
+      showToast(`ใช้โค้ด ${code} ลด ฿${formatPrice(data.discount)}`, 'success');
+    } catch {
+      showToast('ตรวจโค้ดไม่สำเร็จ', 'error');
+    } finally {
+      setCouponChecking(false);
+    }
+  };
+
+  const handleClearCoupon = () => {
+    setCouponApplied(null);
+    setOrderDiscount(0);
+  };
   const [taxInvoiceRequested, setTaxInvoiceRequested] = useState(false);
 
   // Bill expiry advance settings
@@ -2261,6 +2304,8 @@ export default function OrderForm({
         ...(features.delivery_slot.enabled ? { delivery_slot_id: selectedSlotId || null } : {}),
         discount_amount: calculateOrderDiscount(),
         order_discount_type: orderDiscountType,
+        // ส่งแค่โค้ด — เซิร์ฟเวอร์ตรวจและคิดส่วนลดเองอีกครั้ง แล้วบันทึกประวัติการใช้
+        ...(couponApplied ? { coupon_code: couponApplied.code } : {}),
         notes: notes || undefined,
         internal_notes: internalNotes || undefined,
         // การ์ดอวยพร — ส่งเมื่อร้านเปิดบริการและ staff ติ๊กเท่านั้น
@@ -3349,6 +3394,30 @@ export default function OrderForm({
               onDiscountChange={!isReadOnly ? setOrderDiscount : undefined}
               onDiscountTypeToggle={!isReadOnly ? () => { setOrderDiscountType(orderDiscountType === 'percent' ? 'amount' : 'percent'); setOrderDiscount(0); } : undefined}
               readOnly={isReadOnly}
+              discountSlot={isReadOnly ? undefined : (
+                couponApplied ? (
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-emerald-600 dark:text-emerald-400">โค้ด {couponApplied.code}</span>
+                    <button type="button" onClick={handleClearCoupon} className="text-xs text-gray-500 dark:text-slate-400 underline">
+                      เอาออก
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex gap-2">
+                    <input
+                      value={couponCode}
+                      onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleApplyCoupon(); } }}
+                      placeholder="โค้ดส่วนลด"
+                      aria-label="โค้ดส่วนลด"
+                      className="flex-1 min-w-0 px-2 py-1.5 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary"
+                    />
+                    <Button size="sm" variant="secondary" onClick={handleApplyCoupon} loading={couponChecking} disabled={!couponCode.trim()}>
+                      ใช้โค้ด
+                    </Button>
+                  </div>
+                )
+              )}
             >
               {(() => {
                 const credit = exchangeCreditAmount || storedExchangeCredit || 0;
