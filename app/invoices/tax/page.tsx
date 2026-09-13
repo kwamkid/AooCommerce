@@ -8,7 +8,10 @@ import { LoadingCard } from '@/components/ui/StateCard';
 import PageHeader from '@/components/ui/PageHeader';
 import Link from 'next/link';
 import { apiFetch } from '@/lib/api-client';
-import { FileText, Search, Printer, ExternalLink } from 'lucide-react';
+import { FileText, Printer, ExternalLink } from 'lucide-react';
+import FormSelect from '@/components/ui/FormSelect';
+import SearchInput from '@/components/ui/SearchInput';
+import { getMonthOptions } from '@/lib/month-options';
 import { showPdfPreview } from '@/lib/print-pdf';
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable';
 import { formatThaiDate as formatDate, formatPrice as formatMoney } from '@/lib/utils/format';
@@ -32,19 +35,6 @@ interface Invoice {
   vat_amount: number;
   voided_at: string | null;
   customer: { id: string; name: string } | null;
-}
-
-function getMonthOptions() {
-  const opts: { value: string; label: string }[] = [{ value: '', label: 'ทุกเดือน' }];
-  const now = new Date();
-  for (let i = 0; i < 12; i++) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const label = d.toLocaleDateString('th-TH', { year: 'numeric', month: 'long' });
-    opts.push({ value: `${y}${m}`, label });
-  }
-  return opts;
 }
 
 function getSourceLink(inv: Invoice): { href: string; label: string; subtitle?: string } {
@@ -328,21 +318,16 @@ export default function TaxInvoicesPage() {
         {/* Filters */}
         <div className="data-filter-card">
           <div className="flex items-center gap-2 flex-wrap">
-            <select
+            <FormSelect
               value={month}
-              onChange={e => { setMonth(e.target.value); setPage(1); }}
-              className="h-[42px] px-3 border border-gray-300 dark:border-slate-500 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50"
-            >
-              {monthOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </select>
-            <div className="relative flex-1 min-w-[200px]">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input
-                type="text"
+              onChange={v => { setMonth(v); setPage(1); }}
+              options={monthOptions}
+            />
+            <div className="flex-1 min-w-[200px]">
+              <SearchInput
                 value={search}
-                onChange={e => { setSearch(e.target.value); setPage(1); }}
+                onChange={v => { setSearch(v); setPage(1); }}
                 placeholder="ค้นหาเลขที่, ชื่อ, เลขภาษี..."
-                className="w-full h-[42px] pl-9 pr-3 border border-gray-300 dark:border-slate-500 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
               />
             </div>
           </div>
