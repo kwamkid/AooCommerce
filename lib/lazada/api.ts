@@ -524,7 +524,8 @@ export function lazadaItemIdOf(externalItemId: string | number | null | undefine
   return /^\d+$/.test(head) ? head : '';
 }
 
-function escapeXml(value: string | number): string {
+/** payload ของ Lazada เป็น XML ในพารามิเตอร์เดียว — ทุกค่าต้องผ่านตัวนี้ก่อนเสมอ */
+export function escapeXml(value: string | number): string {
   return String(value)
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')

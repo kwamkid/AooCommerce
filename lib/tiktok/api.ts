@@ -365,6 +365,55 @@ export async function tiktokApiRequest(
   return { data: data.data, request_id: data.request_id };
 }
 
+/**
+ * ยิงแบบ multipart (อัปไฟล์) — ใช้กับ `/product/202309/images/upload`
+ *
+ * ⚠️ **ลายเซ็นของ multipart ไม่เอา body มาต่อ** (กติกาข้อ 5 ของ TikTok: "If not GET
+ * and not multipart, append request BODY") — ต่อ body เข้าไปเมื่อไหร่ได้ `sign` ผิดทันที
+ * และห้ามตั้ง `Content-Type` เอง ต้องปล่อยให้ fetch ใส่ boundary ให้
+ *
+ * @param includeShopCipher endpoint อัปรูปไม่รับ `shop_cipher` — default ไม่ส่ง
+ */
+export async function tiktokMultipartRequest(
+  creds: TikTokCredentials,
+  apiPath: string,
+  form: FormData,
+  opts: { queryParams?: Record<string, string>; includeShopCipher?: boolean } = {}
+): Promise<{ data: unknown; error?: string; request_id?: string }> {
+  const params: Record<string, string> = {
+    app_key: creds.app_key,
+    timestamp: String(Math.floor(Date.now() / 1000)),
+    ...(opts.queryParams || {}),
+  };
+  if (opts.includeShopCipher && creds.shop_cipher) params.shop_cipher = creds.shop_cipher;
+
+  params.sign = generateSign(apiPath, params, undefined, creds.app_secret);
+  const url = `${TIKTOK_API_HOST}${apiPath}?${new URLSearchParams(params).toString()}`;
+
+  const scope = await beginMarketplaceCall('tiktok', apiPath);
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'x-tts-access-token': creds.access_token },
+    body: form,
+  });
+
+  let data: Record<string, unknown>;
+  const text = await res.text();
+  try {
+    data = JSON.parse(text);
+  } catch {
+    console.error(`[TikTok API] ${apiPath} returned non-JSON (${res.status}):`, text.substring(0, 500));
+    return { data: null, error: `TikTok API returned non-JSON response (HTTP ${res.status})` };
+  }
+
+  if (data.code !== 0) {
+    const errMsg = (data.message as string) || `API error code ${data.code}`;
+    reportMarketplaceError('tiktok', scope, errMsg, { httpStatus: res.status });
+    return { data: null, error: errMsg, request_id: data.request_id as string | undefined };
+  }
+  return { data: data.data, request_id: data.request_id as string | undefined };
+}
+
 // --- Convenience API functions ---
 
 /**

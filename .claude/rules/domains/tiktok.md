@@ -72,7 +72,18 @@ paths:
 - **ไม่มี batch detail** ต่างจาก Shopee — `GetProduct` ยิงทีละตัว คุม concurrency ด้วย `parallelLimit(..., 3)` · แบ่งหน้าด้วย **`page_token` ไม่ใช่ offset** (ข้ามไปหน้า N ตรงๆ ไม่ได้ — cursor ของชั้นกลางจึงเป็น opaque string)
 - endpoint ที่ใช้: `POST /product/202502/products/search` (เวอร์ชันล่าสุดของ search) + `GET /product/202309/products/{id}`
 - **ไม่ต้อง migration** — `products.source` ไม่มี CHECK และคอลัมน์ `platform_*`/`platform_data` ของ `marketplace_product_links` เป็น generic อยู่แล้ว
-- **ยังไม่ทำ**: product-export (ส่งสินค้าขึ้น TikTok), push ราคา/ชื่อสินค้า, deals — Shopee มีครบแล้ว
+- **ยังไม่ทำ**: push ราคา/ชื่อสินค้า, deals — Shopee มีครบแล้ว
+
+### TikTok Product Export ✅ (2026-09-13)
+- หน้า/route/ตรรกะอยู่ที่ชั้นกลาง: [/marketplace/export?account=](../../../app/marketplace/export/page.tsx) + `/api/marketplace/products/export` (กติกาเต็ม `marketplace-core.md`) · ส่วนของ TikTok อยู่ที่ [lib/tiktok/product-export-adapter.ts](../../../lib/tiktok/product-export-adapter.ts)
+- สร้างสินค้า `POST /product/202309/products` — **`save_mode: 'AS_DRAFT' | 'LISTING'`** (มีโหมดร่างในตัว ไม่ต้อง deactivate ทีหลัง) · หน้า wizard เปิดสวิตช์ "บันทึกเป็นแบบร่าง" ไว้ให้ TikTok เป็นค่าตั้งต้น
+- **เช็ค `GET /product/202309/prerequisites` ก่อนทุกครั้ง** — ค่าที่คืนมาเป็น **JSON ซ้อนอยู่ใน string** ต้อง `JSON.parse()` อีกชั้นแล้วดู `check_result.is_failed` · ข้อไหนไม่ผ่านต้องบอกเป็นภาษาไทยว่าต้องไปตั้งอะไร (บัญชีธนาคาร · ภาษี · คลัง · ขนส่ง) ไม่ใช่แค่ "ล้มเหลว" · เช็คไม่ได้ ≠ ร้านไม่พร้อม (ปล่อยผ่านแล้วให้ createProduct เป็นคนบอก)
+- **สต็อกผูกกับคลังขายของร้าน** — `GET /logistics/202309/warehouses` เลือก `type === 'SALES_WAREHOUSE' && effect_status === 'ENABLED'` (เอา `is_default` ก่อน) แล้วแคชที่ `marketplace_accounts.metadata.tiktok_warehouse_id` · **merge ก้อน `metadata` เสมอ ห้ามเขียนทับทั้งก้อน** · path `/logistics/` map เป็น scope `fulfillment` ใน `platforms.ts` แล้ว
+- **รูปอัปแบบ multipart** `POST /product/202309/images/upload` (`data` + `use_case: 'MAIN_IMAGE'`) ผ่าน **`tiktokMultipartRequest()`** ใน `lib/tiktok/api.ts` — ⚠️ **ลายเซ็นของ multipart ไม่เอา body มาต่อ** (กติกาข้อ 5) และห้ามตั้ง `Content-Type` เอง · endpoint นี้ไม่รับ `shop_cipher`
+- ตัวเลือกส่งเป็น `skus[].sales_attributes[{name, value_name}]` (ชื่อเอง ≤20 ตัวอักษร) · ราคา `{amount, currency:'THB'}` · `inventory[{warehouse_id, quantity}]` · น้ำหนัก `package_weight {value, unit:'KILOGRAM'}` ≤3 ทศนิยม · ขนาด `package_dimensions {..., unit:'CENTIMETER'}`
+- **ชื่อฟิลด์ที่สเปทสะกดผิดจริง ต้องพิมพ์ตาม**: `is_requried` (GetAttributes — รับทั้งสองชื่อไว้) · `UNAUTHORIEZD` (brand) · `distict` (warehouse address)
+- คุณสมบัติของหมวด: ตัดแถว `type === 'SALES_PROPERTY'` ทิ้ง (นั่นคือตัวเลือกของสินค้า ซึ่งมาจากตัวเลือกของเราอยู่แล้ว) · ค่าที่ผู้ใช้เลือกจากรายการส่งเป็น `values:[{id}]` · ค่าที่พิมพ์เองส่ง `values:[{name}]` (ให้ทั้งคู่ = `id` ชนะ)
+- **ยังไม่ส่ง `category_version`** — สเปกขัดกันเอง (CreateProduct บอก SEA ต้อง `v2` แต่ GetCategories/GetAttributes บอกเฉพาะ US) ใช้ค่า default `v1` ไปก่อน ถ้าเจอปัญหาให้ทดสอบด้วย `tts_open_toolkit` CLI ก่อนเปลี่ยน
 
 ### Stock push/pull TikTok ✅
 - `lib/tiktok/stock-adapter.ts` (ทำตาม `StockAdapter` · เรียกผ่านชั้นกลาง `lib/marketplace/stock-push.ts` เท่านั้น ดู `marketplace-core.md`) — push = `POST /product/202309/products/{product_id}/inventory/update` body `{skus:[{id, inventory:[{warehouse_id, quantity}]}]}` 1 call ต่อสินค้า · อ่าน error ราย SKU จาก `data.errors[]`

@@ -770,6 +770,16 @@ export default function MarketplaceConnections({
     );
   };
 
+  /** ปุ่ม "ส่งสินค้าไป {platform}" — ปุ่มเดียวกันทั้ง 3 การ์ด (หน้า wizard กลาง) */
+  const exportButton = (account: MarketplaceAccount) => (
+    <ExportButton
+      disabled={account.connection_status === 'expired'}
+      onClick={() => router.push(`/marketplace/export?account=${account.id}`)}
+    >
+      ส่งสินค้าไป {platformLabel(account)}
+    </ExportButton>
+  );
+
   const handleSelectWarehouse = async (accountId: string, warehouseId: string) => {
     const all = [...shopeeAccounts, ...tiktokAccounts, ...lazadaAccounts];
     const account = all.find(a => a.id === accountId);
@@ -963,15 +973,7 @@ export default function MarketplaceConnections({
                     เชื่อมต่อใหม่
                   </Button>
                   {pullStockButton(account)}
-                  <ExportButton
-                    disabled={account.connection_status === 'expired'}
-                    onClick={() => {
-                      const name = account.shop_name || `Shop #${account.shop_id}`;
-                      router.push(`/shopee/export?account_id=${account.id}&account_name=${encodeURIComponent(name)}`);
-                    }}
-                  >
-                    ส่งสินค้าไป Shopee
-                  </ExportButton>
+                  {exportButton(account)}
                 </div>
               </MarketplaceAccountCard>
             );
@@ -1052,6 +1054,7 @@ export default function MarketplaceConnections({
                     นำเข้าสินค้าจาก TikTok
                   </ImportButton>
                   {pullStockButton(account)}
+                  {exportButton(account)}
                   <Button
                     variant="ghost"
                     icon={<Link2 className="w-4 h-4" />}
@@ -1128,6 +1131,7 @@ export default function MarketplaceConnections({
                     นำเข้าสินค้าจาก Lazada
                   </ImportButton>
                   {pullStockButton(account)}
+                  {exportButton(account)}
                   <Button
                     variant="ghost"
                     icon={<Link2 className="w-4 h-4" />}

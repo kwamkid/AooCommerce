@@ -11,7 +11,7 @@
 // meta: ตอนดึงสินค้าเข้า เราเก็บแบรนด์ (`shopee_brand_name`) + attributes ของหมวด
 // (`shopee_attributes` — 960 link มีค่าจริง) ไว้ด้วย → แสดงอ่านอย่างเดียว แก้ที่ร้านแล้วซิงค์
 // หมวดหมู่ของแต่ละแพลตฟอร์มต่างกัน → ผู้เรียกส่งตัวเลือกหมวดมาทาง `categorySlot`
-// (หน้าจริง = ShopeeCategoryPicker ที่ค้นข้ามทุกชั้นได้) · ต้นแบบ 12 ก.ย. 2026
+// (หน้าจริง = `components/marketplace/CategoryPicker` ที่ค้นข้ามทุกชั้นได้) · ต้นแบบ 12 ก.ย. 2026
 'use client';
 
 import type { ReactNode } from 'react';

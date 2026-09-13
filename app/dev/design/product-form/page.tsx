@@ -60,7 +60,7 @@ const MOCK_VARIANTS = [
   { value: 'ขาว', price: 219, available: 3 },
 ];
 
-/** Shopee categories of the mock shop (the real tab uses ShopeeCategoryPicker) */
+/** Shopee categories of the mock shop (the real tab uses components/marketplace/CategoryPicker) */
 const MOCK_SHOPEE_CATEGORIES = [
   { id: 'food-fruit', label: 'อาหารและเครื่องดื่ม > ผลไม้สด' },
   { id: 'food-gift', label: 'อาหารและเครื่องดื่ม > กระเช้าของขวัญ' },
@@ -390,7 +390,7 @@ export default function ProductFormPlaygroundPage() {
             description={listing.description}
             onDescriptionChange={v => patchListing({ description: v })}
             categorySlot={
-              // ของจริงคือ ShopeeCategoryPicker (ไล่ทีละชั้น + ค้นข้ามทุกชั้นเมื่อพิมพ์ ≥ 2 ตัว)
+              // ของจริงคือ CategoryPicker (components/marketplace) (ไล่ทีละชั้น + ค้นข้ามทุกชั้นเมื่อพิมพ์ ≥ 2 ตัว)
               // ตัวอย่างนี้บังคับให้มีช่องค้นหาเสมอ (searchThreshold=0) ไม่งั้นตัวเลือก 4 อันจะไม่ขึ้นช่องค้น
               <FormSelect
                 value={listing.category}

@@ -23,11 +23,17 @@ import { useToast } from '@/lib/toast-context';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { ArrowLeft, Loader2, ExternalLink, Unlink2, Package2, Camera, Merge, Search, X, ChevronRight, Trash2, HelpCircle, RefreshCw } from 'lucide-react';
 import FormSelect from '@/components/ui/FormSelect';
-import ShopeeCategoryPicker from '@/components/shopee/ShopeeCategoryPicker';
+import CategoryPicker from '@/components/marketplace/CategoryPicker';
+import { MARKETPLACE_PLATFORMS } from '@/lib/marketplace/platforms';
 import ProductSyncModal from '@/components/marketplace/ProductSyncModal';
 import PostfixInput from '@/components/ui/PostfixInput';
 import Tabs from '@/components/ui/Tabs';
 import { storageSafeName } from '@/lib/storage-key';
+
+/** ป้ายชื่อแพลตฟอร์ม — registry เดียวกับทุกที่ ห้าม map ป้ายซ้ำ */
+function marketplaceLabel(platform: string): string {
+  return MARKETPLACE_PLATFORMS[platform as keyof typeof MARKETPLACE_PLATFORMS]?.label || platform;
+}
 
 interface MarketplaceLink {
   id: string;
@@ -802,7 +808,7 @@ export default function EditProductPage() {
           {/* Platform description — full width textarea */}
           <div>
             <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">
-              คำอธิบายสินค้า ({link.platform === 'shopee' ? 'Shopee' : link.platform})
+              คำอธิบายสินค้า ({marketplaceLabel(link.platform)})
             </label>
             <textarea
               value={platformDescriptionValues[link.id] || ''}
@@ -831,14 +837,15 @@ export default function EditProductPage() {
         <div className="flex flex-col sm:flex-row sm:flex-wrap gap-4">
         <div className="flex-1 min-w-[260px]">
           <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">
-            หมวดหมู่ Shopee
+            หมวดหมู่ {marketplaceLabel(link.platform)}
           </label>
-          <ShopeeCategoryPicker
+          <CategoryPicker
             accountId={link.account_id}
-            value={categoryIdValues[link.id] ?? null}
+            value={categoryIdValues[link.id] != null ? String(categoryIdValues[link.id]) : null}
             categoryName={categoryNameValues[link.id] || ''}
+            platformLabel={marketplaceLabel(link.platform)}
             onChange={(catId, catName) => {
-              setCategoryIdValues(prev => ({ ...prev, [link.id]: catId }));
+              setCategoryIdValues(prev => ({ ...prev, [link.id]: catId ? Number(catId) : null }));
               setCategoryNameValues(prev => ({ ...prev, [link.id]: catName }));
               markDirty(link.id);
             }}
@@ -1065,13 +1072,14 @@ export default function EditProductPage() {
           {/* หมวดหมู่ (ยาวตามชื่อหมวด) คู่กับน้ำหนัก (สั้น) ในแถวเดียว */}
           <div className="flex flex-col sm:flex-row gap-4">
           <div className="flex-1 min-w-0">
-            <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">หมวดหมู่ Shopee</label>
-            <ShopeeCategoryPicker
+            <label className="block text-base font-medium text-gray-700 dark:text-slate-300 mb-1">หมวดหมู่ {marketplaceLabel(firstLink.platform)}</label>
+            <CategoryPicker
               accountId={firstLink.account_id}
-              value={categoryIdValues[firstLink.id] ?? null}
+              value={categoryIdValues[firstLink.id] != null ? String(categoryIdValues[firstLink.id]) : null}
               categoryName={categoryNameValues[firstLink.id] || ''}
+              platformLabel={marketplaceLabel(firstLink.platform)}
               onChange={(catId, catName) => {
-                setCategoryIdValues(prev => ({ ...prev, [firstLink.id]: catId }));
+                setCategoryIdValues(prev => ({ ...prev, [firstLink.id]: catId ? Number(catId) : null }));
                 setCategoryNameValues(prev => ({ ...prev, [firstLink.id]: catName }));
                 markDirty(firstLink.id);
               }}

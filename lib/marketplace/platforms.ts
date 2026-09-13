@@ -96,6 +96,8 @@ export const MARKETPLACE_PLATFORMS: Record<QuotaPlatform, MarketplacePlatformCon
     scopeRules: [
       ['/customer_service/', 'chat'],
       ['/fulfillment/', 'fulfillment'],
+      // รายชื่อคลังของร้าน (ใช้ตอนสร้างสินค้า) อยู่ใต้ /logistics/ — ไม่ map = ตกไป 'all'
+      ['/logistics/', 'fulfillment'],
       // อัปสต็อกอยู่ใต้ /product/ เหมือนกัน — ต้องมาก่อน ไม่งั้นไปนับรวมถังเดียวกับข้อมูลสินค้า
       ['/inventory/update', 'inventory'],
       ['/product/', 'product'],

@@ -1,0 +1,880 @@
+'use client';
+
+// ส่งสินค้าของเราขึ้นร้าน marketplace — **หน้าเดียวทุกแพลตฟอร์ม**
+// (`?account=<id>` · `?product=<id>` = เปิดมาพร้อมเลือกสินค้าตัวนั้นไว้แล้ว)
+//
+// ⛔ ห้ามเขียนเงื่อนไขแยกตาม platform ในหน้านี้ — ป้าย/ไอคอนมาจาก
+//    `MARKETPLACE_PLATFORMS[platform].label` + `PlatformIcon` · ฟอร์มคุณสมบัติสร้างจาก
+//    `/api/marketplace/products/export/attributes` · งานจริงอยู่
+//    `/api/marketplace/products/export` (หน้า `/shopee/export` ลบแล้ว)
+
+import { useState, useEffect, useCallback, useMemo, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import Layout from '@/components/layout/Layout';
+import Container from '@/components/ui/Container';
+import PageHeader from '@/components/ui/PageHeader';
+import Card from '@/components/ui/Card';
+import Alert from '@/components/ui/Alert';
+import Badge from '@/components/ui/Badge';
+import Button from '@/components/ui/Button';
+import Checkbox from '@/components/ui/Checkbox';
+import Toggle from '@/components/ui/Toggle';
+import Stepper from '@/components/ui/Stepper';
+import SearchInput from '@/components/ui/SearchInput';
+import FormSelect from '@/components/ui/FormSelect';
+import FormInput from '@/components/ui/FormInput';
+import PostfixInput from '@/components/ui/PostfixInput';
+import PlatformIcon from '@/components/ui/PlatformIcon';
+import ProductImageThumb from '@/components/ui/ProductImageThumb';
+import MultiSelectSearch from '@/components/ui/MultiSelectSearch';
+import EntitySearchInput from '@/components/ui/EntitySearchInput';
+import { ExportButton } from '@/components/ui/ExportImportButton';
+import { ProgressBar } from '@/components/ui/Chart';
+import { LoadingCard, EmptyCard, DoneCard } from '@/components/ui/StateCard';
+import CategoryPicker from '@/components/marketplace/CategoryPicker';
+import { useToast } from '@/lib/toast-context';
+import { apiFetch } from '@/lib/api-client';
+import { getAccessToken } from '@/lib/auth/session-manager';
+import { useMarketplaceGuard } from '@/lib/useMarketplaceGuard';
+import { useAuthGuard } from '@/lib/useAuthGuard';
+import { useDebouncedCallback } from '@/lib/useDebounce';
+import { useServerSearch } from '@/lib/useServerSearch';
+import { formatPrice } from '@/lib/utils/format';
+import { MARKETPLACE_PLATFORMS } from '@/lib/marketplace/platforms';
+import { ChevronLeft, ChevronRight, Package, Store, Settings2 } from 'lucide-react';
+
+const PAGE_SIZE = 30;
+const BACK_HREF = '/settings/sales-channels?tab=marketplace';
+
+interface ProductRow {
+  product_id: string;
+  code: string;
+  name: string;
+  image: string | null;
+  main_image_url: string | null;
+  product_type: string;
+  is_composite?: boolean;
+  simple_default_price?: number;
+}
+
+interface MarketplaceAttributeOption { id: string; name: string }
+interface MarketplaceAttribute {
+  id: string;
+  name: string;
+  required: boolean;
+  input_type: 'text' | 'select' | 'multi';
+  options: MarketplaceAttributeOption[];
+}
+
+interface ProductConfig {
+  categoryId: string | null;
+  categoryName: string;
+  brandId: string | null;
+  brandName: string;
+  weight: string;
+  length: string;
+  width: string;
+  height: string;
+  attributes: Record<string, string | string[]>;
+}
+
+interface ExportResultRow {
+  success: boolean;
+  product_name: string;
+  external_item_id?: string;
+  already_linked?: boolean;
+  errors: string[];
+  warnings: string[];
+}
+
+type Step = 'select' | 'configure' | 'run';
+
+const EMPTY_CONFIG: ProductConfig = {
+  categoryId: null, categoryName: '', brandId: null, brandName: '',
+  weight: '0.5', length: '', width: '', height: '', attributes: {},
+};
+
+function platformLabel(platform: string): string {
+  return MARKETPLACE_PLATFORMS[platform as keyof typeof MARKETPLACE_PLATFORMS]?.label || 'Marketplace';
+}
+
+function MarketplaceExportContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const { showToast } = useToast();
+  const { allowed: marketplaceOn, checking: checkingMarketplace } = useMarketplaceGuard();
+  const { allowed: canPush, loading: checkingPermission } = useAuthGuard('marketplace.push');
+
+  const accountId = searchParams.get('account') || searchParams.get('account_id') || '';
+  const presetProductId = searchParams.get('product') || '';
+
+  const [platform, setPlatform] = useState('');
+  const [shopName, setShopName] = useState('');
+  const [step, setStep] = useState<Step>('select');
+
+  // ── ขั้นที่ 1: เลือกสินค้า ────────────────────────────────────────────────
+  const [products, setProducts] = useState<ProductRow[]>([]);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+  const [appliedSearch, setAppliedSearch] = useState('');
+  const [linkedIds, setLinkedIds] = useState<Set<string>>(new Set());
+  const [selected, setSelected] = useState<Map<string, ProductRow>>(new Map());
+
+  // ── ขั้นที่ 2: ตั้งค่า ─────────────────────────────────────────────────────
+  const [configs, setConfigs] = useState<Record<string, ProductConfig>>({});
+  const [attributesByCategory, setAttributesByCategory] = useState<Record<string, MarketplaceAttribute[]>>({});
+  const [bulkConfig, setBulkConfig] = useState<ProductConfig>(EMPTY_CONFIG);
+  const [showBulk, setShowBulk] = useState(false);
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const [draft, setDraft] = useState(true);
+  const [brandSupported, setBrandSupported] = useState(false);
+
+  // ── ขั้นที่ 3: ส่ง ────────────────────────────────────────────────────────
+  const [running, setRunning] = useState(false);
+  const [progress, setProgress] = useState<{ done: number; total: number; label: string } | null>(null);
+  const [results, setResults] = useState<ExportResultRow[] | null>(null);
+
+  const label = platform ? platformLabel(platform) : 'Marketplace';
+
+  // ── โหลดข้อมูลร้าน + สินค้าที่ผูกแล้ว ─────────────────────────────────────
+  useEffect(() => {
+    if (!accountId || !marketplaceOn) return;
+    (async () => {
+      try {
+        const res = await apiFetch('/api/marketplace/accounts?platform=all');
+        const data = await res.json();
+        const account = (Array.isArray(data) ? data : []).find((a: { id: string }) => a.id === accountId);
+        if (account) {
+          setPlatform(account.platform || '');
+          setShopName(account.shop_name || '');
+          // Shopee ลงประกาศเปิดขายได้เลยมาแต่ไหนแต่ไร · เจ้าอื่นเพิ่งเปิดใช้ ตั้งร่างไว้ก่อน
+          setDraft(account.platform !== 'shopee');
+        }
+      } catch {
+        // ไม่ใช่เรื่องคอขาดบาดตาย — หัวข้อหน้าจะขึ้นชื่อกลางแทน
+      }
+    })();
+  }, [accountId, marketplaceOn]);
+
+  useEffect(() => {
+    if (!accountId || !marketplaceOn) return;
+    (async () => {
+      try {
+        const res = await apiFetch(`/api/marketplace/links?account_id=${accountId}`);
+        const data = await res.json();
+        setLinkedIds(new Set<string>((data.links || []).map((l: { product_id: string }) => l.product_id)));
+      } catch {
+        // ผูกแล้วก็ยังกันซ้ำที่ฝั่ง server อีกชั้น — ที่นี่แค่ช่วยให้ไม่ต้องเลือกผิด
+      }
+    })();
+  }, [accountId, marketplaceOn]);
+
+  // แพลตฟอร์มไหนมีทะเบียนแบรนด์ให้ค้น — ถามครั้งเดียวแล้วซ่อน/แสดงช่องตามนั้น
+  useEffect(() => {
+    if (!accountId || !platform) return;
+    (async () => {
+      try {
+        const res = await apiFetch(`/api/marketplace/products/export/brands?account_id=${accountId}&q=`);
+        const data = await res.json();
+        setBrandSupported(res.ok && data.supported === true);
+      } catch {
+        setBrandSupported(false);
+      }
+    })();
+  }, [accountId, platform]);
+
+  // ── รายการสินค้าในระบบ ───────────────────────────────────────────────────
+  const loadProducts = useCallback(async (targetPage: number, q: string) => {
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const params = new URLSearchParams({
+        exclude_composite: 'true',
+        status: 'active',
+        page: String(targetPage),
+        limit: String(PAGE_SIZE),
+      });
+      if (q) params.set('search', q);
+      const res = await apiFetch(`/api/products?${params}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'โหลดรายการสินค้าไม่สำเร็จ');
+      setProducts(data.products || []);
+      // `/api/products` คืน `total` (จำนวนแถวทั้งหมด) ไม่ใช่จำนวนหน้า
+      setTotalPages(Math.max(1, Math.ceil((data.total || 0) / PAGE_SIZE)));
+    } catch (e) {
+      setLoadError(e instanceof Error ? e.message : 'โหลดรายการสินค้าไม่สำเร็จ');
+      setProducts([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (marketplaceOn && accountId) loadProducts(1, '');
+  }, [marketplaceOn, accountId, loadProducts]);
+
+  // เปิดหน้ามาจากการ์ดสินค้า → ติ๊กตัวนั้นไว้ให้เลย
+  useEffect(() => {
+    if (!presetProductId || selected.size > 0) return;
+    const hit = products.find(p => p.product_id === presetProductId);
+    if (hit) setSelected(new Map([[hit.product_id, hit]]));
+  }, [presetProductId, products, selected.size]);
+
+  const runSearch = useDebouncedCallback((value: string) => {
+    setAppliedSearch(value);
+    setPage(1);
+    loadProducts(1, value);
+  }, 400);
+
+  const goPage = (target: number) => {
+    setPage(target);
+    loadProducts(target, appliedSearch);
+  };
+
+  const selectable = useMemo(
+    () => products.filter(p => !linkedIds.has(p.product_id) && !p.is_composite),
+    [products, linkedIds],
+  );
+  const allPageSelected = selectable.length > 0 && selectable.every(p => selected.has(p.product_id));
+
+  const toggleOne = (product: ProductRow) => {
+    setSelected(prev => {
+      const next = new Map(prev);
+      if (next.has(product.product_id)) next.delete(product.product_id);
+      else next.set(product.product_id, product);
+      return next;
+    });
+  };
+
+  const toggleAllOnPage = () => {
+    setSelected(prev => {
+      const next = new Map(prev);
+      for (const p of selectable) {
+        if (allPageSelected) next.delete(p.product_id);
+        else next.set(p.product_id, p);
+      }
+      return next;
+    });
+  };
+
+  // ── คุณสมบัติของหมวด ─────────────────────────────────────────────────────
+  const loadAttributes = useCallback(async (categoryId: string) => {
+    if (!categoryId || attributesByCategory[categoryId]) return;
+    try {
+      const res = await apiFetch(
+        `/api/marketplace/products/export/attributes?account_id=${accountId}&category_id=${encodeURIComponent(categoryId)}`,
+      );
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'โหลดคุณสมบัติของหมวดไม่สำเร็จ');
+      setAttributesByCategory(prev => ({ ...prev, [categoryId]: data.attributes || [] }));
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : 'โหลดคุณสมบัติของหมวดไม่สำเร็จ', 'error');
+      setAttributesByCategory(prev => ({ ...prev, [categoryId]: [] }));
+    }
+  }, [accountId, attributesByCategory, showToast]);
+
+  const configOf = (productId: string): ProductConfig => configs[productId] || EMPTY_CONFIG;
+
+  const patchConfig = (productId: string, patch: Partial<ProductConfig>) => {
+    setConfigs(prev => ({ ...prev, [productId]: { ...(prev[productId] || EMPTY_CONFIG), ...patch } }));
+  };
+
+  const applyBulk = () => {
+    setConfigs(prev => {
+      const next = { ...prev };
+      for (const productId of selected.keys()) {
+        const current = next[productId] || EMPTY_CONFIG;
+        next[productId] = {
+          categoryId: bulkConfig.categoryId ?? current.categoryId,
+          categoryName: bulkConfig.categoryId ? bulkConfig.categoryName : current.categoryName,
+          brandId: bulkConfig.brandId ?? current.brandId,
+          brandName: bulkConfig.brandId ? bulkConfig.brandName : current.brandName,
+          weight: bulkConfig.weight || current.weight,
+          length: bulkConfig.length || current.length,
+          width: bulkConfig.width || current.width,
+          height: bulkConfig.height || current.height,
+          attributes: bulkConfig.categoryId ? { ...bulkConfig.attributes } : current.attributes,
+        };
+      }
+      return next;
+    });
+    setShowBulk(false);
+    showToast('ใช้ค่ากับทุกรายการแล้ว', 'success');
+  };
+
+  // ── ค้นแบรนด์ ────────────────────────────────────────────────────────────
+  const brandSearch = useServerSearch<{ id: string; name: string }>({
+    minLength: 1,
+    fetch: async (q) => {
+      const res = await apiFetch(
+        `/api/marketplace/products/export/brands?account_id=${accountId}&q=${encodeURIComponent(q)}`,
+      );
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'ค้นแบรนด์ไม่สำเร็จ');
+      return { rows: data.brands || [], complete: false };
+    },
+  });
+
+  // ── ตรวจก่อนส่ง ──────────────────────────────────────────────────────────
+  const missingConfig = useMemo(() => {
+    const out: string[] = [];
+    for (const [productId, product] of selected) {
+      const cfg = configOf(productId);
+      if (!cfg.categoryId) { out.push(`${product.name}: ยังไม่ได้เลือกหมวดหมู่`); continue; }
+      for (const attr of attributesByCategory[cfg.categoryId] || []) {
+        if (!attr.required) continue;
+        const value = cfg.attributes[attr.id];
+        const filled = Array.isArray(value) ? value.length > 0 : !!String(value ?? '').trim();
+        if (!filled) out.push(`${product.name}: ยังไม่ได้กรอก "${attr.name}"`);
+      }
+    }
+    return out;
+  // configs/attributesByCategory เปลี่ยนแล้วต้องคิดใหม่ — configOf อ่านจาก configs
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected, configs, attributesByCategory]);
+
+  // ── ส่งจริง (SSE) ────────────────────────────────────────────────────────
+  const startExport = async () => {
+    if (missingConfig.length > 0) {
+      showToast(missingConfig[0], 'error');
+      return;
+    }
+
+    const items = [...selected.keys()].map(productId => {
+      const cfg = configOf(productId);
+      const dims = cfg.length && cfg.width && cfg.height
+        ? { length: parseFloat(cfg.length), width: parseFloat(cfg.width), height: parseFloat(cfg.height) }
+        : undefined;
+      return {
+        product_id: productId,
+        config: {
+          category_id: cfg.categoryId,
+          category_name: cfg.categoryName,
+          brand_id: cfg.brandId,
+          brand_name: cfg.brandName,
+          weight: parseFloat(cfg.weight) || 0.5,
+          dimensions: dims,
+          attributes: cfg.attributes,
+        },
+      };
+    });
+
+    setStep('run');
+    setRunning(true);
+    setResults(null);
+    setProgress({ done: 0, total: items.length, label: 'กำลังเริ่ม...' });
+
+    const collected: ExportResultRow[] = [];
+    try {
+      // SSE — apiFetch อ่าน body เป็น json ไม่ได้ ต้องยิง fetch ตรงพร้อมแนบ token เอง
+      const token = await getAccessToken();
+      const res = await fetch('/api/marketplace/products/export', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ account_id: accountId, items, draft }),
+      });
+      if (!res.ok || !res.body) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'เริ่มส่งสินค้าไม่สำเร็จ');
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const chunks = buffer.split('\n\n');
+        buffer = chunks.pop() || '';
+        for (const chunk of chunks) {
+          const line = chunk.trim();
+          if (!line.startsWith('data: ')) continue;
+          const evt = JSON.parse(line.slice(6));
+          if (evt.type === 'progress') {
+            setProgress({
+              done: evt.done,
+              total: evt.total,
+              label: `${evt.success ? 'ส่งแล้ว' : 'ไม่สำเร็จ'}: ${evt.product_name}`,
+            });
+          } else if (evt.type === 'done') {
+            collected.push(...(evt.results || []));
+            if (evt.next_cursor) {
+              collected.push({
+                success: false,
+                product_name: 'ยังส่งไม่ครบ',
+                errors: ['หมดเวลาของรอบนี้ — กด "ส่งต่อ" เพื่อทำรายการที่เหลือ'],
+                warnings: [],
+              });
+            }
+          } else if (evt.type === 'error') {
+            throw new Error(evt.message || 'ส่งสินค้าไม่สำเร็จ');
+          }
+        }
+      }
+      setResults(collected);
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : 'ส่งสินค้าไม่สำเร็จ', 'error');
+      setResults(collected.length > 0 ? collected : null);
+      if (collected.length === 0) setStep('configure');
+    } finally {
+      setRunning(false);
+      setProgress(null);
+    }
+  };
+
+  // ── render ───────────────────────────────────────────────────────────────
+  if (checkingMarketplace || checkingPermission) return <LoadingCard />;
+  if (!marketplaceOn || !canPush) return null;
+
+  if (!accountId) {
+    return (
+      <Container size="5xl">
+        <PageHeader title="ส่งสินค้าขึ้นร้าน" backHref={BACK_HREF} />
+        <Alert tone="danger" title="ไม่ได้ระบุร้าน">
+          เปิดหน้านี้จาก ตั้งค่า &gt; ช่องทางการขาย &gt; เชื่อมต่อ Marketplace แล้วกดปุ่มส่งสินค้าที่การ์ดร้าน
+        </Alert>
+      </Container>
+    );
+  }
+
+  const header = (
+    <PageHeader
+      icon={platform ? <PlatformIcon id={platform} /> : <Store />}
+      title={`ส่งสินค้าขึ้น ${label}`}
+      subtitle={shopName || undefined}
+      backHref={BACK_HREF}
+    />
+  );
+
+  const stepper = (
+    <Stepper
+      ariaLabel="ขั้นตอนส่งสินค้า"
+      onSelect={(key) => { if (!running) setStep(key as Step); }}
+      steps={[
+        { key: 'select', label: 'เลือกสินค้า', state: step === 'select' ? 'current' : 'done' },
+        {
+          key: 'configure',
+          label: 'ตั้งค่า',
+          state: step === 'configure' ? 'current' : step === 'run' ? 'done' : 'todo',
+        },
+        { key: 'run', label: 'ส่งขึ้นร้าน', state: step === 'run' ? 'current' : 'todo' },
+      ]}
+    />
+  );
+
+  // ผลลัพธ์
+  if (step === 'run' && results) {
+    const ok = results.filter(r => r.success);
+    const failed = results.filter(r => !r.success);
+    return (
+      <Container size="5xl">
+        {header}
+        <DoneCard
+          hasErrors={failed.length > 0}
+          title="ส่งสินค้าขึ้นร้านเสร็จแล้ว"
+          summary={
+            <div className="flex flex-wrap justify-center gap-2">
+              <Badge tone="emerald">{ok.length} สำเร็จ</Badge>
+              {failed.length > 0 && <Badge tone="red">{failed.length} ไม่สำเร็จ</Badge>}
+              {draft && <Badge tone="amber">ลงเป็นแบบร่าง / ปิดขายไว้</Badge>}
+            </div>
+          }
+          actions={
+            <div className="flex justify-center gap-3">
+              <Button variant="secondary" onClick={() => {
+                setResults(null);
+                setSelected(new Map());
+                setConfigs({});
+                setStep('select');
+                loadProducts(page, appliedSearch);
+              }}>
+                ส่งสินค้าเพิ่ม
+              </Button>
+              <Button variant="primary" onClick={() => router.push(BACK_HREF)}>กลับหน้าช่องทางการขาย</Button>
+            </div>
+          }
+        />
+        <Card>
+          <h2 className="heading-3 mb-2">ผลลัพธ์รายรายการ</h2>
+          <div className="space-y-2">
+            {results.map((r, i) => (
+              <div key={i} className="inner-panel inner-panel-body">
+                <div className="flex items-center gap-2">
+                  <Badge tone={r.success ? 'emerald' : 'red'}>{r.success ? 'สำเร็จ' : 'ไม่สำเร็จ'}</Badge>
+                  <span className="body-text flex-1 min-w-0 truncate">{r.product_name}</span>
+                  {r.external_item_id && <span className="helper-text text-gray-500">#{r.external_item_id}</span>}
+                </div>
+                {r.errors.map((e, j) => (
+                  <p key={`e${j}`} className="helper-text text-red-600 dark:text-red-400 mt-1">{e}</p>
+                ))}
+                {r.warnings.map((w, j) => (
+                  <p key={`w${j}`} className="helper-text text-amber-600 dark:text-amber-400 mt-1">{w}</p>
+                ))}
+              </div>
+            ))}
+          </div>
+        </Card>
+      </Container>
+    );
+  }
+
+  if (step === 'run') {
+    return (
+      <Container size="5xl">
+        {header}
+        {stepper}
+        <Alert tone="warning" title="อย่าปิดหน้านี้ระหว่างส่งสินค้า">
+          ระบบกำลังอัปโหลดรูปและสร้างประกาศทีละรายการ — ปิดหน้าตอนนี้รายการที่เหลือจะไม่ถูกส่ง
+        </Alert>
+        <Card>
+          <ProgressBar
+            value={progress?.done || 0}
+            max={progress?.total || 1}
+            label={`${progress?.label || 'กำลังส่ง...'} (${progress?.done || 0}/${progress?.total || 0})`}
+          />
+        </Card>
+      </Container>
+    );
+  }
+
+  // ── ขั้นที่ 2: ตั้งค่า ─────────────────────────────────────────────────────
+  if (step === 'configure') {
+    const renderAttributeForm = (categoryId: string | null, cfg: ProductConfig, onChange: (attrs: Record<string, string | string[]>) => void) => {
+      if (!categoryId) return null;
+      const attrs = attributesByCategory[categoryId];
+      if (!attrs) return <p className="helper-text text-gray-500">กำลังโหลดคุณสมบัติของหมวด...</p>;
+      if (attrs.length === 0) return <p className="helper-text text-gray-500">หมวดนี้ไม่มีคุณสมบัติเพิ่มเติมให้กรอก</p>;
+
+      return (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {attrs.map(attr => {
+            const value = cfg.attributes[attr.id];
+            if (attr.input_type === 'multi') {
+              return (
+                <div key={attr.id}>
+                  <label className="field-label">{attr.name}{attr.required && <span className="text-red-500"> *</span>}</label>
+                  <MultiSelectSearch
+                    value={Array.isArray(value) ? value : value ? [String(value)] : []}
+                    onChange={(vals) => onChange({ ...cfg.attributes, [attr.id]: vals })}
+                    options={attr.options.map(o => ({ id: o.id, label: o.name }))}
+                    placeholder={`เลือก${attr.name}`}
+                  />
+                </div>
+              );
+            }
+            if (attr.input_type === 'select') {
+              return (
+                <div key={attr.id}>
+                  <label className="field-label">{attr.name}{attr.required && <span className="text-red-500"> *</span>}</label>
+                  <FormSelect
+                    value={typeof value === 'string' ? value : ''}
+                    onChange={(v) => onChange({ ...cfg.attributes, [attr.id]: v })}
+                    options={attr.options.map(o => ({ id: o.id, label: o.name }))}
+                    clearLabel={`ไม่ระบุ${attr.name}`}
+                    searchThreshold={8}
+                  />
+                </div>
+              );
+            }
+            return (
+              <FormInput
+                key={attr.id}
+                label={attr.name}
+                required={attr.required}
+                value={typeof value === 'string' ? value : ''}
+                onChange={(e) => onChange({ ...cfg.attributes, [attr.id]: e.target.value })}
+              />
+            );
+          })}
+        </div>
+      );
+    };
+
+    const brandField = (cfg: ProductConfig, onPick: (id: string | null, name: string) => void) => (
+      brandSupported ? (
+        <div>
+          <label className="field-label">แบรนด์บนร้าน</label>
+          <EntitySearchInput
+            value={cfg.brandId || ''}
+            options={brandSearch.results.map(b => ({ id: b.id, label: b.name }))}
+            onSearchChange={brandSearch.search}
+            loading={brandSearch.loading}
+            minSearchLength={1}
+            placeholder="ค้นหาแบรนด์..."
+            onChange={(id, option) => onPick(id, option.label)}
+            onClear={() => onPick(null, '')}
+            selectedDisplay={cfg.brandName ? <span className="body-text">{cfg.brandName}</span> : undefined}
+          />
+        </div>
+      ) : null
+    );
+
+    const sizeFields = (cfg: ProductConfig, patch: (p: Partial<ProductConfig>) => void) => (
+      <div className="flex flex-wrap items-end gap-3">
+        <div className="w-28">
+          <label className="field-label">น้ำหนัก</label>
+          <PostfixInput postfix="kg" value={cfg.weight} onChange={(v) => patch({ weight: v })} placeholder="0.5" width="w-full" inputClassName="w-full px-3" />
+        </div>
+        <div className="w-24">
+          <label className="field-label">ยาว</label>
+          <PostfixInput postfix="ซม." value={cfg.length} onChange={(v) => patch({ length: v })} placeholder="10" width="w-full" inputClassName="w-full px-3" />
+        </div>
+        <div className="w-24">
+          <label className="field-label">กว้าง</label>
+          <PostfixInput postfix="ซม." value={cfg.width} onChange={(v) => patch({ width: v })} placeholder="10" width="w-full" inputClassName="w-full px-3" />
+        </div>
+        <div className="w-24">
+          <label className="field-label">สูง</label>
+          <PostfixInput postfix="ซม." value={cfg.height} onChange={(v) => patch({ height: v })} placeholder="10" width="w-full" inputClassName="w-full px-3" />
+        </div>
+      </div>
+    );
+
+    return (
+      <Container size="5xl">
+        {header}
+        {stepper}
+
+        <Card>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <Toggle checked={draft} onChange={setDraft} aria-label="บันทึกเป็นแบบร่าง" />
+              <div>
+                <p className="body-text">บันทึกเป็นแบบร่าง / ปิดขายไว้ก่อน</p>
+                <p className="helper-text text-gray-500">
+                  ประกาศจะยังไม่เปิดขาย — ตรวจใน {MARKETPLACE_PLATFORMS[platform as keyof typeof MARKETPLACE_PLATFORMS]?.sellerCenter || 'หลังบ้านของร้าน'} แล้วค่อยเปิดขายเอง
+                </p>
+              </div>
+            </div>
+            <Button
+              variant={showBulk ? 'primary' : 'secondary'}
+              icon={<Settings2 className="w-4 h-4" />}
+              onClick={() => setShowBulk(!showBulk)}
+            >
+              ใช้กับทุกรายการ
+            </Button>
+          </div>
+        </Card>
+
+        {showBulk && (
+          <Card>
+            <h2 className="heading-3 mb-3">ตั้งค่าเดียวกันให้ทุกรายการ</h2>
+            <div className="space-y-3">
+              <div>
+                <label className="field-label">หมวดหมู่ {label}</label>
+                <CategoryPicker
+                  accountId={accountId}
+                  value={bulkConfig.categoryId}
+                  categoryName={bulkConfig.categoryName}
+                  platformLabel={label}
+                  onChange={(id, name) => {
+                    setBulkConfig(prev => ({ ...prev, categoryId: id, categoryName: name, attributes: {} }));
+                    if (id) loadAttributes(id);
+                  }}
+                />
+              </div>
+              {brandField(bulkConfig, (id, name) => setBulkConfig(prev => ({ ...prev, brandId: id, brandName: name })))}
+              {sizeFields(bulkConfig, (p) => setBulkConfig(prev => ({ ...prev, ...p })))}
+              {renderAttributeForm(bulkConfig.categoryId, bulkConfig, (attributes) => setBulkConfig(prev => ({ ...prev, attributes })))}
+              <div className="flex justify-end gap-3">
+                <Button variant="secondary" onClick={() => setShowBulk(false)}>ยกเลิก</Button>
+                <Button variant="primary" onClick={applyBulk} disabled={!bulkConfig.categoryId && !bulkConfig.weight}>
+                  ใช้กับทุกรายการ ({selected.size})
+                </Button>
+              </div>
+            </div>
+          </Card>
+        )}
+
+        <Card>
+          <h2 className="heading-3 mb-3">ตั้งค่ารายสินค้า ({selected.size})</h2>
+          <div className="space-y-2">
+            {[...selected.values()].map(product => {
+              const cfg = configOf(product.product_id);
+              const open = expanded === product.product_id;
+              return (
+                <div key={product.product_id} className="rounded-lg border border-gray-200 dark:border-slate-700 p-3 space-y-3">
+                  <div className="flex items-start gap-3">
+                    <ProductImageThumb src={product.main_image_url || product.image} alt={product.name} size="sm" fallbackIcon={<Package className="w-5 h-5" />} />
+                    <div className="min-w-0 flex-1">
+                      <div className="body-text truncate">{product.name}</div>
+                      <div className="flex flex-wrap gap-x-2 gap-y-1 mt-0.5">
+                        <span className="helper-text text-gray-500">{product.code}</span>
+                        {product.simple_default_price ? (
+                          <span className="helper-text text-gray-500">{formatPrice(product.simple_default_price)}</span>
+                        ) : null}
+                      </div>
+                    </div>
+                    <Button size="sm" variant="ghost" onClick={() => setExpanded(open ? null : product.product_id)}>
+                      {open ? 'ย่อ' : 'ตั้งค่าเพิ่มเติม'}
+                    </Button>
+                  </div>
+
+                  <div>
+                    <label className="field-label">หมวดหมู่ {label} <span className="text-red-500">*</span></label>
+                    <CategoryPicker
+                      accountId={accountId}
+                      value={cfg.categoryId}
+                      categoryName={cfg.categoryName}
+                      platformLabel={label}
+                      onChange={(id, name) => {
+                        patchConfig(product.product_id, { categoryId: id, categoryName: name, attributes: {} });
+                        if (id) loadAttributes(id);
+                      }}
+                    />
+                  </div>
+
+                  {open && (
+                    <div className="space-y-3 pt-1">
+                      {brandField(cfg, (id, name) => patchConfig(product.product_id, { brandId: id, brandName: name }))}
+                      {sizeFields(cfg, (p) => patchConfig(product.product_id, p))}
+                      {renderAttributeForm(cfg.categoryId, cfg, (attributes) => patchConfig(product.product_id, { attributes }))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+
+        {missingConfig.length > 0 && (
+          <Alert tone="warning" title="ยังตั้งค่าไม่ครบ">
+            <ul className="space-y-1">
+              {missingConfig.slice(0, 8).map((m, i) => <li key={i} className="body-text">{m}</li>)}
+            </ul>
+          </Alert>
+        )}
+
+        <div className="flex justify-end gap-3">
+          <Button variant="secondary" onClick={() => setStep('select')}>ย้อนกลับ</Button>
+          <ExportButton onClick={startExport} disabled={missingConfig.length > 0 || selected.size === 0}>
+            ส่งขึ้น {label} ({selected.size})
+          </ExportButton>
+        </div>
+      </Container>
+    );
+  }
+
+  // ── ขั้นที่ 1: เลือกสินค้า ─────────────────────────────────────────────────
+  return (
+    <Container size="5xl">
+      {header}
+      {stepper}
+
+      <Alert tone="info" title="สินค้าที่ผูกกับร้านนี้แล้วจะไม่แสดง">
+        ระบบสร้างประกาศใหม่ให้เฉพาะสินค้าที่ยังไม่เคยผูกกับร้านนี้ · สินค้าชุด (ประกอบจากชิ้นส่วน) ส่งขึ้นร้านไม่ได้ ·
+        หลังสร้างเสร็จ ระบบจะส่งสต็อกของเราขึ้นร้านให้ทันที
+      </Alert>
+
+      <Card>
+        <div className="space-y-4">
+          <SearchInput
+            value={search}
+            onChange={(v) => { setSearch(v); runSearch(v); }}
+            onSubmit={() => runSearch.now(search)}
+            placeholder="ค้นหาชื่อสินค้า หรือรหัสสินค้า..."
+          />
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <Checkbox
+              checked={allPageSelected}
+              onChange={toggleAllOnPage}
+              disabled={selectable.length === 0}
+              label={`เลือกทั้งหน้า (${selectable.length})`}
+            />
+            <span className="subtitle-text text-gray-500">เลือกไว้ {selected.size} รายการ</span>
+          </div>
+        </div>
+      </Card>
+
+      <Card>
+        {loading ? (
+          <LoadingCard />
+        ) : loadError ? (
+          <Alert tone="danger" title="โหลดรายการไม่สำเร็จ">
+            {loadError}
+            <div className="mt-3">
+              <Button variant="secondary" onClick={() => loadProducts(page, appliedSearch)}>ลองใหม่</Button>
+            </div>
+          </Alert>
+        ) : products.length === 0 ? (
+          <EmptyCard
+            icon={<Package className="w-8 h-8" />}
+            title="ไม่พบสินค้า"
+            subtitle={appliedSearch ? 'ลองเปลี่ยนคำค้น' : 'ยังไม่มีสินค้าในระบบที่ส่งขึ้นร้านได้'}
+          />
+        ) : (
+          <div className="space-y-2">
+            {products.map(product => {
+              const linked = linkedIds.has(product.product_id);
+              const composite = !!product.is_composite;
+              const disabled = linked || composite;
+              const checked = selected.has(product.product_id);
+              return (
+                <div
+                  key={product.product_id}
+                  className={`rounded-lg border p-3 transition-colors ${
+                    checked
+                      ? 'border-primary bg-orange-50/60 dark:bg-orange-950/20'
+                      : 'border-gray-200 dark:border-slate-700'
+                  } ${disabled ? 'opacity-60' : ''}`}
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="pt-1">
+                      <Checkbox checked={checked} onChange={() => toggleOne(product)} disabled={disabled} />
+                    </div>
+                    <ProductImageThumb src={product.main_image_url || product.image} alt={product.name} size="sm" fallbackIcon={<Package className="w-5 h-5" />} />
+                    <div className="min-w-0 flex-1">
+                      <div className="body-text truncate">{product.name}</div>
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-0.5">
+                        <span className="helper-text text-gray-500">{product.code}</span>
+                        {product.simple_default_price ? (
+                          <span className="helper-text text-gray-500">{formatPrice(product.simple_default_price)}</span>
+                        ) : null}
+                        {product.product_type === 'variation' && <Badge tone="blue" size="sm">มีตัวเลือก</Badge>}
+                        {linked && <Badge tone="emerald" size="sm">ผูกกับร้านนี้แล้ว</Badge>}
+                        {composite && <Badge tone="gray" size="sm">สินค้าชุด — ส่งไม่ได้</Badge>}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+
+            {totalPages > 1 && (
+              <div className="flex items-center justify-center gap-4 pt-2">
+                <Button size="sm" variant="secondary" disabled={page <= 1 || loading} onClick={() => goPage(page - 1)} icon={<ChevronLeft className="w-4 h-4" />}>
+                  ก่อนหน้า
+                </Button>
+                <span className="subtitle-text text-gray-500">หน้า {page}/{totalPages}</span>
+                <Button size="sm" variant="secondary" disabled={page >= totalPages || loading} onClick={() => goPage(page + 1)} iconRight={<ChevronRight className="w-4 h-4" />}>
+                  ถัดไป
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
+      </Card>
+
+      <div className="flex justify-end gap-3">
+        <Button variant="secondary" onClick={() => router.push(BACK_HREF)}>ยกเลิก</Button>
+        <Button variant="primary" disabled={selected.size === 0} onClick={() => setStep('configure')} iconRight={<ChevronRight className="w-4 h-4" />}>
+          ถัดไป ({selected.size})
+        </Button>
+      </div>
+    </Container>
+  );
+}
+
+export default function MarketplaceExportPage() {
+  return (
+    <Layout>
+      <Suspense fallback={<LoadingCard />}>
+        <MarketplaceExportContent />
+      </Suspense>
+    </Layout>
+  );
+}

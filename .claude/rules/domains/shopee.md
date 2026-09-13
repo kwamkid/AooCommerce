@@ -53,6 +53,13 @@ Shopee ต้องจด app ของตัวเอง** — ออเดอ�
 - ส่วนของ Shopee เหลือแค่ [lib/shopee/product-import-adapter.ts](../../../lib/shopee/product-import-adapter.ts) = `get_item_list` + `get_item_base_info/get_model_list` → `MarketplaceImportItem` · เติม `marketplace_category_cache` ให้ก่อน (ไม่งั้นชื่อหมวดในแถว link ว่าง) · `linkPayload` = คอลัมน์ `shopee_*` + `platform_data`
 - `lib/shopee/product-sync.ts` **ยังอยู่** แต่เหลือ `syncProductsFromShopee()` (bulk sync ฝั่ง ops ที่ `/api/shopee/products/sync`) + push ราคา/ชื่อ/หมวด — ไม่ใช่ทางของปุ่มนำเข้าแล้ว
 
+### Product export — ย้ายไปชั้นกลาง + adapter แล้ว (2026-09-13)
+- หน้า/route/ตรรกะอยู่ที่ชั้นกลาง: [/marketplace/export?account=](../../../app/marketplace/export/page.tsx) + `/api/marketplace/products/export` (กติกาเต็ม `marketplace-core.md`) — หน้า `/shopee/export` · route `/api/shopee/products/export` · `/api/shopee/categories` · `ShopeeExportModal`/`ShopeeBulkExportModal`/`ShopeeCategoryPicker` **ลบแล้ว**
+- ส่วนของ Shopee เหลือแค่ [lib/shopee/product-export-adapter.ts](../../../lib/shopee/product-export-adapter.ts): ช่องทางขนส่งที่ร้านเปิด (`logistic_info` บังคับตอน `add_item`) · attribute บังคับของหมวด (link เดิม → แคช → API) + **วนเติมตามที่ Shopee บ่นใน `debug_message` สูงสุด 10 รอบ** · tier variation (`add_item` → รอ 5 วิ → `init_tier_variation` → `get_model_list` เอา `model_id` จริง) · `linkPayload` = คอลัมน์ `shopee_*`
+- โหมดแบบร่าง = `item_status: 'UNLIST'` (Shopee ไม่มีสถานะ "ร่าง" จริง) — หน้า wizard **ปิดสวิตช์นี้ไว้ให้ Shopee** ตามพฤติกรรมเดิมที่ลงขายทันที
+- **แบรนด์**: adapter ไม่มี `searchBrands` (Shopee ต้องระบุหมวดก่อนถึงถามรายชื่อแบรนด์ได้) → ช่องแบรนด์ไม่โผล่ในหน้า wizard และส่ง `brand_id: 0` = No Brand เหมือนเดิม
+- [lib/shopee/product-export.ts](../../../lib/shopee/product-export.ts) เหลือเป็นชั้นบางให้ `sync-one-product.ts` (`uploadProductImages`) และ `/api/shopee/deals` (`exportProductToShopee`) — **ห้ามเพิ่มของลงไฟล์นี้**
+
 ### Shopee Shared Helpers (`lib/shopee/product-helpers.ts`)
 - ใช้ร่วมระหว่าง `sync.ts` (order sync) และ `product-sync.ts` (bulk sync) — `buildVariationAttributes` + `getCategoryName` ใช้ใน `product-import-adapter.ts` ด้วย
 - Functions: `getOrCreateVariationTypeIds`, `buildVariationAttributes`, `upsertProductImage`, `upsertProductImages`, `getCategoryName`, `findExistingLink`, `upsertMarketplaceLink`, `tryAutoMatchBySku`, `resolveShopeePrice`, `reactivateProduct`, `backfillSiblingVariations`
