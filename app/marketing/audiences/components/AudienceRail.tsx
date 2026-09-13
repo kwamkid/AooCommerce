@@ -71,7 +71,11 @@ export default function AudienceRail({ preview, loading, error, hint }: Props) {
           <div className="mt-3 space-y-2">
             <ProgressBar value={preview.reachable.any} max={preview.total} size="sm" toneClass="bg-emerald-500" />
             <div className="flex items-start justify-between gap-2">
-              <p className="subtitle-text">จากคนในกลุ่มทั้งหมด {formatNumber(preview.total)} คน</p>
+              {/* สรุปบวกลบให้เห็นในบรรทัดเดียว (เจ้าของขอ 13 ก.ย. 2026): ยอดกลุ่ม − ส่งไม่ได้ = ตัวเลขใหญ่ */}
+              <p className="subtitle-text">
+                จากคนในกลุ่มทั้งหมด {formatNumber(preview.total)} คน หักคนที่ส่งไม่ได้{' '}
+                {formatNumber(preview.not_syncable)} คน เหลือ {formatNumber(preview.reachable.any)} คน
+              </p>
               <HelpHint align="right">
                 <span className="block">
                   ในกลุ่มนี้มีเบอร์ {formatNumber(preview.reachable.phone)} · มีอีเมล{' '}
@@ -84,19 +88,20 @@ export default function AudienceRail({ preview, loading, error, hint }: Props) {
             {/* บรรทัดพวกนี้ต้อง "บวกแล้วลงตัว": เบอร์/อีเมล + Messenger อย่างเดียว = ยอดที่ส่งได้ ·
                 บวกคนที่ส่งไม่ได้ = ยอดในกลุ่ม (เดิมนับซ้อนกันเพราะคนเดียวมีได้ทั้งเบอร์และอีเมล เจ้าของบวก
                 แล้วไม่ได้ยอดจริง 13 ก.ย. 2026) · เลขรายอย่างที่ซ้อนกันย้ายไปอยู่ใน ? แทน */}
-            <ul className="space-y-0.5">
-              <li className="subtitle-text">
-                · จับคู่ด้วยเบอร์หรืออีเมล {formatNumber(preview.reachable.contact)} คน
-              </li>
-              {preview.reachable.psid_only > 0 && (
+            {/* แยกว่าจับคู่ด้วยอะไร — โชว์เฉพาะตอนที่บวกแล้วได้ยอดที่ส่งได้จริง · เซิร์ฟเวอร์รุ่นเก่า
+                (ยังไม่คอมไพล์ใหม่) ไม่ส่งสองค่านี้มา จะได้ไม่ขึ้น "0 คน" ซึ่งขัดกับตัวเลขใหญ่ */}
+            {preview.reachable.contact + preview.reachable.psid_only === preview.reachable.any && (
+              <ul className="space-y-0.5">
                 <li className="subtitle-text">
-                  · จับคู่ด้วย Messenger อย่างเดียว {formatNumber(preview.reachable.psid_only)} คน
+                  · จับคู่ด้วยเบอร์หรืออีเมล {formatNumber(preview.reachable.contact)} คน
                 </li>
-              )}
-              <li className="subtitle-text">
-                · ส่งขึ้น Meta ไม่ได้ {formatNumber(preview.not_syncable)} คน
-              </li>
-            </ul>
+                {preview.reachable.psid_only > 0 && (
+                  <li className="subtitle-text">
+                    · จับคู่ด้วย Messenger อย่างเดียว {formatNumber(preview.reachable.psid_only)} คน
+                  </li>
+                )}
+              </ul>
+            )}
             {/* ไม่มีค่า = ถามไม่ได้ ไม่โชว์บรรทัดนี้ (ห้ามเดา 0) */}
             {!!preview.not_syncable_marketplace && (
               <p className="section-desc">
