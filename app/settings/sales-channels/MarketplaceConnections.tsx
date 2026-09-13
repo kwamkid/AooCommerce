@@ -1088,6 +1088,9 @@ export default function MarketplaceConnections({
                 key={account.id}
                 account={account}
                 title={account.shop_name || `Lazada #${account.shop_id}`}
+                expandable
+                expanded={expandedId === account.id}
+                onToggleExpand={() => setExpandedId(expandedId === account.id ? null : account.id)}
                 onDisconnect={() => handleDisconnect(account.id)}
                 disconnecting={disconnectingId === account.id}
                 avatar={

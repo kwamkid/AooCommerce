@@ -23,7 +23,7 @@ import type {
   StockLink,
   StockSyncAccount,
 } from '@/lib/marketplace/stock-adapter';
-import { logIntegration } from '@/lib/integration-logger';
+import { logIntegrationNow } from '@/lib/integration-logger';
 import { parallelLimit } from '@/lib/parallel';
 
 export type {
@@ -424,7 +424,9 @@ export async function syncStockNow(
       const result = await pushStockForAccount(account as StockSyncAccount, product_id);
       const durationMs = Date.now() - startMs;
 
-      logIntegration({
+      // ต้อง await — งานนี้วิ่งใน after() ปล่อย log ลอยแล้ว Vercel freeze ทิ้งก่อนเขียนเสร็จ
+      // (14 วันก่อน 13 ก.ย. 2026 ไม่มี log auto_push_stock เลยทั้งที่ควรมี)
+      await logIntegrationNow({
         company_id: account.company_id,
         integration: platform,
         account_id: account.id,
