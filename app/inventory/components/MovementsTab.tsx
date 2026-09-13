@@ -218,9 +218,23 @@ export default function MovementsTab({ warehouses }: MovementsTabProps) {
     </Badge>
   );
 
-  /** จำนวนพร้อมเครื่องหมาย — ปรับปรุงใช้เครื่องหมายของค่าที่บันทึกไว้ตามจริง */
+  /** จอง/ปล่อยจอง ไม่แตะยอดคงคลัง — แตะแค่ยอดจอง (พร้อมขาย = คงคลัง − จอง) */
+  const isReserveType = (row: MovementRow) => row.type === 'reserve' || row.type === 'unreserve';
+
+  /**
+   * จำนวนที่เปลี่ยน — ของเข้า/ออกคลังใช้ +/− เขียว/แดง · ปรับปรุงใช้เครื่องหมายของค่าที่บันทึกไว้ ·
+   * จอง/ปล่อยจองไม่ใส่ +/− (เจ้าของทัก 13 ก.ย.: "−1 แต่คงเหลือ 17 เท่าเดิม" อ่านแล้วงง) → "จอง 1" สีอำพัน
+   */
   const signedQty = (row: MovementRow, big = false) => {
     const size = big ? 'text-lg font-bold' : 'font-medium';
+    if (isReserveType(row)) {
+      const reserve = row.type === 'reserve';
+      return (
+        <span className={`tabular-nums whitespace-nowrap ${size} ${reserve ? 'text-amber-600 dark:text-amber-400' : 'text-gray-500 dark:text-slate-400'}`}>
+          {reserve ? 'จอง' : 'ปล่อย'} {formatNumber(Math.abs(row.quantity))}
+        </span>
+      );
+    }
     let sign: string;
     let positive: boolean;
     if (POSITIVE_TYPES.includes(row.type)) { sign = '+'; positive = true; }
@@ -336,21 +350,26 @@ export default function MovementsTab({ warehouses }: MovementsTabProps) {
     },
     {
       key: 'quantity',
-      label: 'จำนวน',
+      label: 'เปลี่ยนแปลง',
       align: 'right',
-      defaultWidth: 100,
+      defaultWidth: 110,
       resizable: true,
       reorderable: true,
       render: (row) => signedQty(row),
     },
     {
       key: 'balance',
-      label: 'คงเหลือ',
+      label: 'คงคลังหลังรายการ',
       align: 'right',
-      defaultWidth: 110,
+      defaultWidth: 150,
       resizable: true,
       reorderable: true,
-      render: (row) => (
+      // จอง/ปล่อยจอง: คงคลังเท่าเดิม — บอกตรง ๆ ในช่อง ไม่ให้ตัวเลขซ้ำ ๆ ดูเหมือนบั๊ก
+      render: (row) => isReserveType(row) ? (
+        <span className="tabular-nums whitespace-nowrap text-gray-400 dark:text-slate-500">
+          {formatNumber(row.balance_after)} <span className="text-sm">(เท่าเดิม)</span>
+        </span>
+      ) : (
         <span className="tabular-nums font-medium text-gray-900 dark:text-white">
           {formatNumber(row.balance_after)}
         </span>
@@ -359,11 +378,11 @@ export default function MovementsTab({ warehouses }: MovementsTabProps) {
     {
       key: 'warehouse',
       label: 'คลัง',
-      defaultWidth: 150,
+      defaultWidth: 200,
       resizable: true,
       reorderable: true,
       render: (row) => (
-        <span className="text-gray-600 dark:text-slate-300 line-clamp-2">{warehouseName(row) || DASH}</span>
+        <span className="text-gray-600 dark:text-slate-300 whitespace-normal break-words">{warehouseName(row) || DASH}</span>
       ),
     },
     {
@@ -442,7 +461,9 @@ export default function MovementsTab({ warehouses }: MovementsTabProps) {
           const active = activeTypes.includes(type);
           const style = CARD_STYLES[type];
           const Icon = TYPE_ICONS[type];
-          const sign = POSITIVE_TYPES.includes(type) ? '+' : NEGATIVE_TYPES.includes(type) ? '−' : '';
+          // จอง/ปล่อยจองไม่ใช่ของเข้า-ออก ไม่ใส่เครื่องหมาย (กติกาเดียวกับคอลัมน์เปลี่ยนแปลง)
+          const sign = type === 'reserve' || type === 'unreserve' ? ''
+            : POSITIVE_TYPES.includes(type) ? '+' : NEGATIVE_TYPES.includes(type) ? '−' : '';
           return (
             <button
               key={type}
@@ -538,8 +559,12 @@ export default function MovementsTab({ warehouses }: MovementsTabProps) {
 
       <div className="flex items-center gap-1">
         <h3 className="heading-3">รายการเคลื่อนไหว</h3>
-        <HelpHint ariaLabel="คำอธิบายคอลัมน์คงเหลือ">
-          ยอดคงเหลือของคลังนี้หลังรายการ ไม่ใช่รวมทุกคลัง
+        <HelpHint ariaLabel="คำอธิบายคอลัมน์เปลี่ยนแปลงและคงคลัง">
+          <div className="space-y-1">
+            <div><strong>เปลี่ยนแปลง</strong> = ของเข้า (+) / ออก (−) จากคลังนี้</div>
+            <div><strong>จอง / ปล่อยจอง</strong> ไม่ทำให้ของเข้าหรือออก คงคลังจึงเท่าเดิม แค่ยอดจองเปลี่ยน · พร้อมขาย = คงคลัง − จอง</div>
+            <div><strong>คงคลังหลังรายการ</strong> = จำนวนของในคลังนี้ (ยังไม่หักจอง) ไม่ใช่รวมทุกคลัง</div>
+          </div>
         </HelpHint>
       </div>
 
@@ -562,7 +587,7 @@ export default function MovementsTab({ warehouses }: MovementsTabProps) {
             </div>
           )}
           <DataTable<MovementRow>
-            storageKey="inventory-movements"
+            storageKey="inventory-movements-v2"
             columns={columns}
             data={rows}
             getRowId={(r) => r.id}
