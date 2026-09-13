@@ -1,25 +1,26 @@
 'use client';
 
-import { useState } from 'react';
-import { useCopy } from '@/lib/useCopy';
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
 import Button from '@/components/ui/Button';
 import Tooltip from '@/components/ui/Tooltip';
 import { useAuth } from '@/lib/auth-context';
+import { useCopy } from '@/lib/useCopy';
 import { useFetchOnce } from '@/lib/use-fetch-once';
 import { useToast } from '@/lib/toast-context';
 import { apiFetch } from '@/lib/api-client';
 import { generateInventoryPdf } from '@/lib/inventory-pdf';
 import { showPdfPreview } from '@/lib/print-pdf';
 import DataTable from '@/components/ui/DataTable';
-import FormSelect from '@/components/ui/FormSelect';
+import StatusTabs from '@/components/ui/StatusTabs';
 import ActionMenu from '@/components/ui/ActionMenu';
-import { LoadingCard } from '@/components/ui/StateCard';
+import { EmptyCard, LoadingCard } from '@/components/ui/StateCard';
 import StatusBadge from '@/components/ui/StatusBadge';
+import DocListFilters, { type DocListUser, type DocListWarehouse } from '../components/DocListFilters';
+import { useDocListParams } from '../components/useDocListParams';
 import {
-  Loader2, ArrowDownToLine, Plus, Warehouse, Eye, Search,
-  Printer, User
+  Loader2, ArrowDownToLine, Plus, Warehouse, Eye, Printer, X,
 } from 'lucide-react';
 
 interface Receive {
@@ -33,53 +34,80 @@ interface Receive {
   items: { id: string }[];
 }
 
+const BREADCRUMBS = [{ label: 'คลังสินค้า', href: '/inventory' }, { label: 'รายการรับเข้า' }];
 
-export default function ReceiveListPage() {
+function ReceiveListContent() {
   const router = useRouter();
   const { userProfile, loading: authLoading } = useAuth();
   const { showToast } = useToast();
   const copy = useCopy();
 
-  const [receives, setReceives] = useState<Receive[]>([]);
+  const {
+    search, warehouseId, status, userId, page, limit,
+    dateRange, effectiveFrom, effectiveTo,
+    hasActiveFilters, depsKey, setParams, clearAll,
+  } = useDocListParams('/inventory/receives');
+
+  const [rows, setRows] = useState<Receive[]>([]);
+  const [total, setTotal] = useState(0);
+  const [counts, setCounts] = useState<Record<string, number>>({});
+  const [users, setUsers] = useState<DocListUser[]>([]);
+  const [warehouses, setWarehouses] = useState<DocListWarehouse[]>([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  const [warehouseFilter, setWarehouseFilter] = useState('');
-  const [userFilter, setUserFilter] = useState('');
-  const [warehouses, setWarehouses] = useState<{ id: string; name: string }[]>([]);
-  const [page, setPage] = useState(1);
-  const [recordsPerPage, setRecordsPerPage] = useState(20);
+  const [fetching, setFetching] = useState(false);
   const [printingId, setPrintingId] = useState<string | null>(null);
 
+  const isAuthReady = !authLoading && !!userProfile;
 
-  useFetchOnce(() => {
-    fetchData();
-    fetchWarehouses();
-  }, !authLoading && !!userProfile);
-
-  const fetchData = async () => {
-    try {
-      setLoading(true);
-      const res = await apiFetch('/api/inventory/receives');
-      if (res.ok) {
-        const data = await res.json();
-        setReceives(data.receives || []);
-      }
-    } catch {
-      showToast('โหลดข้อมูลไม่สำเร็จ', 'error');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchWarehouses = async () => {
+  useFetchOnce(async () => {
     try {
       const res = await apiFetch('/api/warehouses');
       if (res.ok) {
         const data = await res.json();
         setWarehouses(data.warehouses || []);
       }
-    } catch { /* silent */ }
-  };
+    } catch { /* ตัวกรองโหลดไม่ได้ = ไม่ต้องขึ้น error ทั้งหน้า */ }
+  }, isAuthReady);
+
+  const fetchData = useCallback(async (quiet = false) => {
+    if (!quiet) setFetching(true);
+    try {
+      const params = new URLSearchParams({ page: String(page), limit: String(limit), status });
+      if (search) params.set('search', search);
+      if (warehouseId) params.set('warehouse_id', warehouseId);
+      if (userId) params.set('created_by', userId);
+      if (effectiveFrom) params.set('date_from', effectiveFrom);
+      if (effectiveTo) params.set('date_to', effectiveTo);
+
+      const res = await apiFetch(`/api/inventory/receives?${params.toString()}`);
+      if (!res.ok) throw new Error('Failed to fetch');
+      const data = await res.json();
+      setRows(data.items || []);
+      setTotal(data.total || 0);
+      setCounts(data.status_counts || {});
+      setUsers(data.users || []);
+    } catch (error) {
+      console.error('Error fetching receives:', error);
+      if (!quiet) showToast('โหลดข้อมูลไม่สำเร็จ', 'error');
+    } finally {
+      setLoading(false);
+      if (!quiet) setFetching(false);
+    }
+  }, [page, limit, status, search, warehouseId, userId, effectiveFrom, effectiveTo, showToast]);
+
+  // ยิงครั้งแรก + ทุกครั้งที่ค่าใน URL เปลี่ยนจริง (กัน re-render ซ้ำไม่ให้ยิงซ้ำ)
+  const fetchedRef = useRef(false);
+  const prevDepsRef = useRef(depsKey);
+  const fetchRef = useRef(fetchData);
+  useEffect(() => { fetchRef.current = fetchData; }, [fetchData]);
+  useEffect(() => {
+    if (!isAuthReady) return;
+    const changed = prevDepsRef.current !== depsKey;
+    prevDepsRef.current = depsKey;
+    if (fetchedRef.current && !changed) return;
+    fetchedRef.current = true;
+    void fetchRef.current();
+  }, [depsKey, isAuthReady]);
 
   const handlePrint = async (id: string) => {
     setPrintingId(id);
@@ -91,7 +119,7 @@ export default function ReceiveListPage() {
       if (!detail) { showToast('ไม่พบรายการ', 'error'); return; }
       const blob = await generateInventoryPdf({
         type: 'receive',
-        data: { ...detail, doc_number: detail.receive_number }
+        data: { ...detail, doc_number: detail.receive_number },
       });
       showPdfPreview(blob, 'ใบรับสินค้า');
     } catch {
@@ -101,189 +129,179 @@ export default function ReceiveListPage() {
     }
   };
 
-  // Unique users for filter
-  const users = [...new Map(
-    receives.filter(r => r.created_by_user).map(r => [r.created_by_user!.id, r.created_by_user!])
-  ).values()];
-
-  const filtered = receives.filter(r => {
-    if (warehouseFilter && r.warehouse?.id !== warehouseFilter) return false;
-    if (userFilter && r.created_by_user?.id !== userFilter) return false;
-    if (!search) return true;
-    const s = search.toLowerCase();
-    return (
-      r.receive_number.toLowerCase().includes(s) ||
-      r.warehouse?.name.toLowerCase().includes(s) ||
-      r.notes?.toLowerCase().includes(s) ||
-      r.created_by_user?.name.toLowerCase().includes(s)
-    );
-  });
-
-  const totalRecords = filtered.length;
-  const totalPages = Math.ceil(totalRecords / recordsPerPage);
-  const startIdx = (page - 1) * recordsPerPage;
-  const endIdx = Math.min(startIdx + recordsPerPage, totalRecords);
-  const paginated = filtered.slice(startIdx, endIdx);
-
   const formatDate = (d: string) =>
     new Date(d).toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit' });
 
-  if (authLoading || loading) {
-    return (
-      <Layout title="รายการรับเข้า" breadcrumbs={[{ label: 'คลังสินค้า', href: '/inventory' }, { label: 'รายการรับเข้า' }]}>
-        <LoadingCard />
-      </Layout>
-    );
-  }
+  const menuItems = (r: Receive) => [
+    {
+      key: 'view',
+      label: 'ดูรายละเอียด',
+      icon: <Eye className="w-4 h-4" />,
+      onClick: () => router.push(`/inventory/receives/${r.id}`),
+    },
+    {
+      key: 'print',
+      label: 'พิมพ์',
+      icon: printingId === r.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />,
+      onClick: () => handlePrint(r.id),
+      disabled: printingId === r.id,
+    },
+  ];
+
+  const totalPages = Math.max(1, Math.ceil(total / limit));
+
+  if (loading) return <LoadingCard />;
 
   return (
-    <Layout title="รายการรับเข้า" breadcrumbs={[{ label: 'คลังสินค้า', href: '/inventory' }, { label: 'รายการรับเข้า' }]}>
-      <div className="space-y-4">
-        {/* Action Bar */}
-        <div className="flex items-center gap-2">
-          <div className="relative flex-1 min-w-0">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input
-              type="text"
-              value={search}
-              onChange={e => { setSearch(e.target.value); setPage(1); }}
-              placeholder="ค้นหา..."
-              className="w-full h-[42px] pl-9 pr-3 border border-gray-300 dark:border-slate-500 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-slate-400 focus:ring-2 focus:ring-primary/50 focus:border-primary"
-            />
-          </div>
-          {warehouses.length > 1 && (
-            <div className="w-28 md:w-40 flex-shrink-0">
-              <FormSelect
-                value={warehouseFilter}
-                onChange={v => { setWarehouseFilter(v); setPage(1); }}
-                options={warehouses.map(wh => ({ id: wh.id, label: wh.name }))}
-                clearLabel="ทุกคลัง"
-                icon={<Warehouse className="w-4 h-4" />}
-              />
-            </div>
-          )}
-          {users.length > 1 && (
-            <div className="hidden md:block w-40 flex-shrink-0">
-              <FormSelect
-                value={userFilter}
-                onChange={v => { setUserFilter(v); setPage(1); }}
-                options={users.map(u => ({ id: u.id, label: u.name }))}
-                clearLabel="ทุกคน"
-                icon={<User className="w-4 h-4" />}
-              />
-            </div>
-          )}
-          <Button
-            variant="primary"
-            onClick={() => router.push('/inventory/receive')}
-            title="รับเข้าสินค้า"
-            icon={<Plus className="w-4 h-4" />}
-            className="whitespace-nowrap flex-shrink-0"
-          >
-            <span className="hidden md:inline">รับเข้าสินค้า</span>
-          </Button>
-        </div>
+    <div className="space-y-4">
+      <div className="flex items-center justify-end">
+        <Button
+          variant="primary"
+          onClick={() => router.push('/inventory/receive')}
+          icon={<Plus className="w-4 h-4" />}
+          aria-label="รับเข้าสินค้า"
+          className="whitespace-nowrap flex-shrink-0"
+        >
+          <span className="hidden md:inline">รับเข้าสินค้า</span>
+        </Button>
+      </div>
 
-        <DataTable<Receive>
-          storageKey="receives-visible-columns"
-          columns={[
-            {
-              key: 'receiveInfo', label: 'เลขที่', alwaysVisible: true,
-              render: (r) => (
-                <>
-                  <Tooltip text="คัดลอก"><p className="id-text-clickable text-gray-900 dark:text-white" onClick={(e) => { e.stopPropagation(); copy(r.receive_number, 'เลขที่ใบรับ'); }}>{r.receive_number}</p></Tooltip>
-                  <p className="data-timestamp text-gray-400 dark:text-slate-500 mt-0.5">{formatDate(r.created_at)}</p>
-                </>
-              )
-            },
-            {
-              key: 'warehouse', label: 'คลัง',
-              render: (r) => (
-                <div className="flex items-center gap-1.5">
-                  <Warehouse className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+      <StatusTabs
+        activeKey={status}
+        onSelect={(key) => setParams({ status: key })}
+        tabs={[
+          { key: 'all', label: 'ทั้งหมด', count: counts.all ?? 0 },
+          { key: 'completed', label: 'สำเร็จ', count: counts.completed ?? 0, colorKey: 'completed' },
+          { key: 'cancelled', label: 'ยกเลิก', count: counts.cancelled ?? 0 },
+        ]}
+      />
+
+      <DocListFilters
+        search={search}
+        onSearch={(v) => setParams({ q: v || null })}
+        searchPlaceholder="ค้นหาเลขที่ใบรับ, หมายเหตุ..."
+        dateRange={dateRange}
+        onDateRange={(from, to) => setParams({ from: from || null, to: to || null })}
+        warehouses={warehouses}
+        warehouseId={warehouseId}
+        onWarehouse={(v) => setParams({ wh: v || null })}
+        users={users}
+        userId={userId}
+        onUser={(v) => setParams({ by: v || null })}
+        onClear={clearAll}
+        hasActiveFilters={hasActiveFilters}
+      />
+
+      {rows.length === 0 ? (
+        <EmptyCard
+          icon={<ArrowDownToLine className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
+          title={hasActiveFilters ? 'ไม่พบรายการที่ตรงกับตัวกรอง' : 'ยังไม่มีรายการรับเข้า'}
+          subtitle={hasActiveFilters ? 'ลองขยายช่วงวันที่หรือล้างตัวกรอง' : undefined}
+          actions={hasActiveFilters
+            ? <Button variant="secondary" icon={<X className="w-4 h-4" />} onClick={clearAll}>ล้างตัวกรอง</Button>
+            : undefined}
+        />
+      ) : (
+        <div className="relative">
+          {fetching && (
+            <div className="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-white/60 dark:bg-slate-900/60 pointer-events-none">
+              <Loader2 className="w-8 h-8 text-primary animate-spin" />
+            </div>
+          )}
+          <DataTable<Receive>
+            storageKey="receives-visible-columns"
+            columns={[
+              {
+                key: 'receiveInfo', label: 'เลขที่', alwaysVisible: true,
+                render: (r) => (
+                  <>
+                    <Tooltip text="คัดลอก"><p className="id-text-clickable text-gray-900 dark:text-white" onClick={(e) => { e.stopPropagation(); copy(r.receive_number, 'เลขที่ใบรับ'); }}>{r.receive_number}</p></Tooltip>
+                    <p className="data-timestamp text-gray-400 dark:text-slate-500 mt-0.5">{formatDate(r.created_at)}</p>
+                  </>
+                ),
+              },
+              {
+                key: 'warehouse', label: 'คลัง',
+                render: (r) => (
+                  <div className="flex items-center gap-1.5">
+                    <Warehouse className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                    <span className="data-text text-gray-700 dark:text-slate-300">{r.warehouse?.name || '-'}</span>
+                  </div>
+                ),
+              },
+              {
+                key: 'itemCount', label: 'รายการ', headerClassName: 'text-center', cellClassName: 'text-center',
+                render: (r) => <span className="data-text text-gray-700 dark:text-slate-300">{r.items?.length || 0}</span>,
+              },
+              {
+                key: 'status', label: 'สถานะ', headerClassName: 'text-center', cellClassName: 'text-center',
+                render: (r) => <StatusBadge domain="stockDoc" status={r.status} />,
+              },
+              {
+                key: 'notes', label: 'หมายเหตุ', cellClassName: 'max-w-[200px] truncate',
+                render: (r) => <span className="data-secondary text-gray-500 dark:text-slate-400">{r.notes || '-'}</span>,
+              },
+              {
+                key: 'createdBy', label: 'ผู้ทำรายการ',
+                render: (r) => <span className="data-text text-gray-700 dark:text-slate-300">{r.created_by_user?.name || '-'}</span>,
+              },
+              {
+                key: 'actions', label: 'จัดการ', alwaysVisible: true, headerClassName: 'text-center', stopPropagation: true, hideMobile: true,
+                render: (r) => (
+                  <div className="flex items-center justify-center">
+                    <ActionMenu items={menuItems(r)} />
+                  </div>
+                ),
+              },
+            ]}
+            data={rows}
+            loading={false}
+            getRowId={(r) => r.id}
+            onRowClick={(r) => router.push(`/inventory/receives/${r.id}`)}
+            emptyMessage="ไม่พบรายการที่ค้นหา"
+            emptyIcon={<ArrowDownToLine className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
+            currentPage={page}
+            totalPages={totalPages}
+            totalRecords={total}
+            recordsPerPage={limit}
+            onPageChange={(p) => setParams({ page: String(p) })}
+            onRecordsPerPageChange={(l) => setParams({ limit: String(l), page: '1' })}
+            onLimitChange={(l, p) => setParams({ limit: String(l), page: String(p) })}
+            mobileCardRender={(r) => (
+              <>
+                <div className="flex items-center justify-between mb-1.5">
+                  <div>
+                    <Tooltip text="คัดลอก"><span className="id-text-clickable text-gray-900 dark:text-white" onClick={(e) => { e.stopPropagation(); copy(r.receive_number, 'เลขที่ใบรับ'); }}>{r.receive_number}</span></Tooltip>
+                    <p className="data-timestamp text-gray-400 dark:text-slate-500 mt-0.5">{formatDate(r.created_at)}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <StatusBadge domain="stockDoc" status={r.status} />
+                    <ActionMenu items={menuItems(r)} />
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 mb-1">
+                  <Warehouse className="w-3.5 h-3.5 text-gray-400" />
                   <span className="data-text text-gray-700 dark:text-slate-300">{r.warehouse?.name || '-'}</span>
                 </div>
-              )
-            },
-            {
-              key: 'itemCount', label: 'รายการ', headerClassName: 'text-center', cellClassName: 'text-center',
-              render: (r) => <span className="data-text text-gray-700 dark:text-slate-300">{r.items?.length || 0}</span>
-            },
-            {
-              key: 'status', label: 'สถานะ', headerClassName: 'text-center', cellClassName: 'text-center',
-              render: (r) => (
-                <StatusBadge domain="stockDoc" status={r.status} />
-              )
-            },
-            {
-              key: 'notes', label: 'หมายเหตุ', cellClassName: 'max-w-[200px] truncate',
-              render: (r) => <span className="data-secondary text-gray-500 dark:text-slate-400">{r.notes || '-'}</span>
-            },
-            {
-              key: 'createdBy', label: 'ผู้ทำรายการ',
-              render: (r) => <span className="data-text text-gray-700 dark:text-slate-300">{r.created_by_user?.name || '-'}</span>
-            },
-            {
-              key: 'actions', label: 'จัดการ', alwaysVisible: true, headerClassName: 'text-center', stopPropagation: true, hideMobile: true,
-              render: (r) => (
-                <div className="flex items-center justify-center">
-                  <ActionMenu items={[
-                    {
-                      key: 'view',
-                      label: 'ดูรายละเอียด',
-                      icon: <Eye className="w-4 h-4" />,
-                      onClick: () => router.push(`/inventory/receives/${r.id}`)
-                    },
-                    {
-                      key: 'print',
-                      label: 'พิมพ์',
-                      icon: printingId === r.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />,
-                      onClick: () => handlePrint(r.id),
-                      disabled: printingId === r.id
-                    },
-                  ]} />
+                <div className="flex items-center justify-between">
+                  <span className="data-muted text-gray-400 dark:text-slate-500">{r.items?.length || 0} รายการ | {r.created_by_user?.name || '-'}</span>
                 </div>
-              )
-            },
-          ]}
-          data={paginated}
-          loading={false}
-          getRowId={(r) => r.id}
-          onRowClick={(r) => router.push(`/inventory/receives/${r.id}`)}
-          emptyMessage={receives.length === 0 ? 'ยังไม่มีรายการรับเข้า' : 'ไม่พบรายการที่ค้นหา'}
-          emptyIcon={<ArrowDownToLine className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
-          currentPage={page}
-          totalPages={totalPages}
-          totalRecords={totalRecords}
-          recordsPerPage={recordsPerPage}
-          onPageChange={setPage}
-          onRecordsPerPageChange={setRecordsPerPage}
-          mobileCardRender={(r) => (
-            <>
-              <div className="flex items-center justify-between mb-1.5">
-                <div>
-                  <Tooltip text="คัดลอก"><span className="id-text-clickable text-gray-900 dark:text-white" onClick={(e) => { e.stopPropagation(); copy(r.receive_number, 'เลขที่ใบรับ'); }}>{r.receive_number}</span></Tooltip>
-                  <p className="data-timestamp text-gray-400 dark:text-slate-500 mt-0.5">{formatDate(r.created_at)}</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <StatusBadge domain="stockDoc" status={r.status} />
-                  <ActionMenu items={[
-                    { key: 'view', label: 'ดูรายละเอียด', icon: <Eye className="w-4 h-4" />, onClick: () => router.push(`/inventory/receives/${r.id}`) },
-                    { key: 'print', label: 'พิมพ์', icon: <Printer className="w-4 h-4" />, onClick: () => handlePrint(r.id) },
-                  ]} />
-                </div>
-              </div>
-              <div className="flex items-center gap-2 mb-1">
-                <Warehouse className="w-3.5 h-3.5 text-gray-400" />
-                <span className="data-text text-gray-700 dark:text-slate-300">{r.warehouse?.name || '-'}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="data-muted text-gray-400 dark:text-slate-500">{r.items?.length || 0} รายการ | {r.created_by_user?.name || '-'}</span>
-              </div>
-            </>
-          )}
-        />
-      </div>
+              </>
+            )}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function ReceiveListPage() {
+  // ทั้งหน้าอ่าน useSearchParams → ต้องอยู่ใต้ Suspense (กฎ CSR bailout ของ Next 16)
+  return (
+    <Layout title="รายการรับเข้า" breadcrumbs={BREADCRUMBS}>
+      <Suspense fallback={<LoadingCard />}>
+        <ReceiveListContent />
+      </Suspense>
     </Layout>
   );
 }
