@@ -74,6 +74,8 @@ export async function POST(request: NextRequest) {
         phone: stats.with_phone,
         email: stats.with_email,
         psid: stats.with_psid,
+        contact: stats.with_contact,
+        psid_only: stats.psid_only,
         any: stats.syncable,
       },
       not_syncable: stats.not_syncable,

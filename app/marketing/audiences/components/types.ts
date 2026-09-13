@@ -80,7 +80,12 @@ export interface AudienceView {
 export interface AudiencePreview {
   total: number;
   /** จับคู่ได้กี่คน แยกตามตัวจับคู่ — `any` คือตัวที่ตัดสินว่ากลุ่มนี้ยิงโฆษณาได้จริงไหม */
-  reachable: { phone: number; email: number; psid: number; any: number };
+  reachable: {
+    phone: number; email: number; psid: number;
+    /** ชุดที่ไม่ทับกัน — `contact + psid_only = any` และ `any + not_syncable = total` */
+    contact: number; psid_only: number;
+    any: number;
+  };
   not_syncable: number;
   /** ในคนที่ส่งไม่ได้ มีกี่คนที่ซื้อผ่าน Shopee/Lazada/TikTok อย่างเดียว — ไม่มีค่า = ถามไม่ได้ ห้ามเดา 0 */
   not_syncable_marketplace?: number;

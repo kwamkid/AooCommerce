@@ -59,6 +59,10 @@ export interface AudienceStats {
   with_phone: number;
   with_email: number;
   with_psid: number;
+  /** มีเบอร์หรืออีเมล — คู่กับ `psid_only` บวกกันได้ `syncable` พอดี (หน้าจอต้องบวกแล้วลงตัว) */
+  with_contact: number;
+  /** ไม่มีเบอร์/อีเมล แต่มี Messenger — ส่วนที่เพจเติมให้ */
+  psid_only: number;
   /** มีตัวจับคู่อย่างน้อยหนึ่งอย่าง — ที่เหลือส่งให้ Meta ไปก็ไม่มีทางเจอ */
   syncable: number;
   not_syncable: number;
@@ -440,15 +444,23 @@ export async function resolveAudienceMembers(
     with_phone: 0,
     with_email: 0,
     with_psid: 0,
+    with_contact: 0,
+    psid_only: 0,
     syncable: 0,
     not_syncable: 0,
     capped,
   };
   for (const m of members) {
     const ids = projectIdentities(m);
-    if (ids.some(i => i.kind === 'PHONE')) stats.with_phone += 1;
-    if (ids.some(i => i.kind === 'EMAIL')) stats.with_email += 1;
-    if (ids.some(i => i.kind === 'PAGEUID')) stats.with_psid += 1;
+    const hasPhone = ids.some(i => i.kind === 'PHONE');
+    const hasEmail = ids.some(i => i.kind === 'EMAIL');
+    const hasPsid = ids.some(i => i.kind === 'PAGEUID');
+    if (hasPhone) stats.with_phone += 1;
+    if (hasEmail) stats.with_email += 1;
+    if (hasPsid) stats.with_psid += 1;
+    // ชุดที่ไม่ทับกัน: มีเบอร์/อีเมล · มีแต่ Messenger · ไม่มีอะไรเลย — หน้าจอเอาไปบวกให้ลงตัวได้
+    if (hasPhone || hasEmail) stats.with_contact += 1;
+    else if (hasPsid) stats.psid_only += 1;
     if (ids.length > 0) stats.syncable += 1;
     else stats.not_syncable += 1;
   }

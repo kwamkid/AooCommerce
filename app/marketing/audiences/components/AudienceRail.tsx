@@ -72,16 +72,29 @@ export default function AudienceRail({ preview, loading, error, hint }: Props) {
             <ProgressBar value={preview.reachable.any} max={preview.total} size="sm" toneClass="bg-emerald-500" />
             <div className="flex items-start justify-between gap-2">
               <p className="subtitle-text">จากคนในกลุ่มทั้งหมด {formatNumber(preview.total)} คน</p>
-              <HelpHint align="right">{REACH_HELP}</HelpHint>
+              <HelpHint align="right">
+                <span className="block">
+                  ในกลุ่มนี้มีเบอร์ {formatNumber(preview.reachable.phone)} · มีอีเมล{' '}
+                  {formatNumber(preview.reachable.email)} · มี Messenger {formatNumber(preview.reachable.psid)} ·
+                  คนเดียวมีได้หลายอย่าง สามตัวนี้จึงซ้อนกัน
+                </span>
+                <span className="block mt-1">{REACH_HELP}</span>
+              </HelpHint>
             </div>
-            {/* คนเดียวมีได้ทั้งเบอร์ อีเมล และ Messenger — สามบรรทัดนี้รวมกันเกินยอดที่ส่งได้ ไม่ใช่บั๊ก */}
+            {/* บรรทัดพวกนี้ต้อง "บวกแล้วลงตัว": เบอร์/อีเมล + Messenger อย่างเดียว = ยอดที่ส่งได้ ·
+                บวกคนที่ส่งไม่ได้ = ยอดในกลุ่ม (เดิมนับซ้อนกันเพราะคนเดียวมีได้ทั้งเบอร์และอีเมล เจ้าของบวก
+                แล้วไม่ได้ยอดจริง 13 ก.ย. 2026) · เลขรายอย่างที่ซ้อนกันย้ายไปอยู่ใน ? แทน */}
             <ul className="space-y-0.5">
               <li className="subtitle-text">
-                · มีเบอร์ {formatNumber(preview.reachable.phone)} · มีอีเมล {formatNumber(preview.reachable.email)}
+                · จับคู่ด้วยเบอร์หรืออีเมล {formatNumber(preview.reachable.contact)} คน
               </li>
-              <li className="subtitle-text">· มี Messenger {formatNumber(preview.reachable.psid)}</li>
+              {preview.reachable.psid_only > 0 && (
+                <li className="subtitle-text">
+                  · จับคู่ด้วย Messenger อย่างเดียว {formatNumber(preview.reachable.psid_only)} คน
+                </li>
+              )}
               <li className="subtitle-text">
-                · ไม่มีเบอร์ อีเมล หรือ Messenger {formatNumber(preview.not_syncable)}
+                · ส่งขึ้น Meta ไม่ได้ {formatNumber(preview.not_syncable)} คน
               </li>
             </ul>
             {/* ไม่มีค่า = ถามไม่ได้ ไม่โชว์บรรทัดนี้ (ห้ามเดา 0) */}
@@ -127,7 +140,8 @@ export default function AudienceRail({ preview, loading, error, hint }: Props) {
                       ส่งขึ้น Meta ได้ {formatNumber(s.syncable)} ·{' '}
                       {s.only > 0
                         ? `มีเฉพาะแหล่งนี้ ${formatNumber(s.only)} คน`
-                        : 'ทุกคนซ้ำกับแหล่งอื่น'}
+                        /* แหล่งที่ติ๊กแล้วไม่ได้คนเพิ่มต้องสะดุดตา ไม่ใช่สีเทาเหมือนบรรทัดอื่น (เจ้าของขอ) */
+                        : <span className="text-amber-600 dark:text-amber-400">ทุกคนซ้ำกับแหล่งอื่น</span>}
                     </p>
                   </div>
                 </div>
