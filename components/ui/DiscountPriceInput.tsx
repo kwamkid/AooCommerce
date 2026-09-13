@@ -1,13 +1,13 @@
-// Path: components/products/form/PriceReduceInput.tsx
+// Path: components/ui/DiscountPriceInput.tsx
 //
-// ช่อง "ลดเหลือ (฿)" ของฟอร์มสินค้า — ช่องหลักเป็นราคาสุดท้ายเสมอ (= discount_price ที่เก็บ)
+// ช่อง "ลดเหลือ (฿)" (ของกลาง — ฟอร์มสินค้า · โปรโมชัน) — ช่องหลักเป็นราคาสุดท้ายเสมอ (= discount_price ที่เก็บ)
 // ปุ่ม % ท้ายช่องเปิด popover เล็ก ๆ ให้พิมพ์ "ลด %" หรือ "ลดไป (บาท)" เห็นราคาที่จะได้ กดตกลงแล้ว
 // เขียนลงช่องหลักเลย — ไม่มีโหมดให้จำ เปิดแก้ไขทีหลังก็เห็นเป็นบาทเหมือนเดิม (เจ้าของเคาะ 13 ก.ย. 2026)
 // บรรทัดใต้ช่องบอกว่าราคานี้เท่ากับลดกี่ % / กี่บาท
 //
-// ใช้กับ: การ์ดสินค้าปกติ · ตารางตัวเลือก (ต่อแถว + "ใช้กับทุกแถว") · ตารางชุดย่อยของสินค้าชุด
+// ใช้กับ: การ์ดสินค้าปกติ · ตารางตัวเลือก (ต่อแถว + "ใช้กับทุกแถว") · ตารางชุดย่อยของสินค้าชุด · หน้าโปรโมชัน
 // "ใช้กับทุกแถว" ไม่มีราคาปกติเดียว → ส่ง `spec` มาแสดงเป็นเม็ด "ลด 10%" แล้วผู้เรียกเอา spec
-// ไป `applyReduce()` ต่อแถวเอง · ตัวคำนวณอยู่ใน lib/product-variants.ts — ห้ามคิดเองในหน้า
+// ไป `applyReduce()` ต่อแถวเอง · ตัวคำนวณอยู่ใน lib/price-reduce.ts — ห้ามคิดเองในหน้า
 'use client';
 
 import { useRef, useState } from 'react';
@@ -18,13 +18,14 @@ import Popover from '@/components/ui/Popover';
 import NumberInput from '@/components/ui/NumberInput';
 import Tooltip from '@/components/ui/Tooltip';
 import { formatPrice } from '@/lib/utils/format';
-import { NO_REDUCE, type ReduceSpec, applyReduce, reduceSummary } from '@/lib/product-variants';
-import { FieldError, numberInputClass } from './parts';
+import { NO_REDUCE, type ReduceSpec, applyReduce, reduceSummary } from '@/lib/price-reduce';
 
-/** กรอบแดงของช่องในกล่อง — หน้าตาเดียวกับช่องฟอร์มสินค้าที่มี error */
-const INPUT_ERROR = numberInputClass(true);
+/** กรอบแดงของช่องในกล่อง — หน้าตาเดียวกับช่อง NumberInput ปกติ แต่ขอบแดง */
+const INPUT_ERROR = 'w-full h-[42px] px-3 text-base bg-white dark:bg-slate-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-slate-500 rounded-lg border border-red-400 dark:border-red-500 focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-colors';
+const ERROR_TEXT = 'mt-1 text-sm text-red-600 dark:text-red-400';
+const FieldError = ({ text }: { text?: string | null }) => (text ? <p className={ERROR_TEXT}>{text}</p> : null);
 
-interface PriceReduceInputProps {
+interface DiscountPriceInputProps {
   /** discount_price ปัจจุบัน · 0 = ไม่มีส่วนลด */
   value: number;
   /**
@@ -48,7 +49,7 @@ interface PriceReduceInputProps {
 const round2 = (n: number) => Math.round(n * 100) / 100;
 const fmtPercent = (n: number) => String(round2(n));
 
-export default function PriceReduceInput({
+export default function DiscountPriceInput({
   value,
   basePrice,
   spec,
@@ -58,7 +59,7 @@ export default function PriceReduceInput({
   'aria-label': ariaLabel = 'ลดเหลือ',
   showHint = true,
   emptyHint = 'ว่าง = ขายราคาปกติ',
-}: PriceReduceInputProps) {
+}: DiscountPriceInputProps) {
   const [open, setOpen] = useState(false);
   const calcBtnRef = useRef<HTMLButtonElement>(null);
   // ในกล่อง: สองช่องผูกกัน (มีราคาปกติ) · ช่องที่แก้ล่าสุดคือความหมายที่ใช้

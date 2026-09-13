@@ -15,7 +15,7 @@ import { thumbUrl } from '@/lib/image-thumb';
 import Toggle from '@/components/ui/Toggle';
 import FormInput from '@/components/ui/FormInput';
 import NumberInput from '@/components/ui/NumberInput';
-import PriceReduceInput from '@/components/products/form/PriceReduceInput';
+import DiscountPriceInput from '@/components/ui/DiscountPriceInput';
 import ProductImageThumb from '@/components/ui/ProductImageThumb';
 import ProductSearchInput, { type ProductSearchItem } from '@/components/ui/ProductSearchInput';
 import { apiFetch } from '@/lib/api-client';
@@ -232,7 +232,7 @@ function PriceCell({ row, field, editor }: { row: ComboRow; field: 'default_pric
   if (row.setting.price_locked) {
     if (field === 'discount_price') {
       return (
-        <PriceReduceInput
+        <DiscountPriceInput
           value={row.setting.discount_price}
           basePrice={row.setting.default_price}
           onChange={n => editor.setRow(row.key, { discount_price: n })}

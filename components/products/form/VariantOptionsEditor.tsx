@@ -22,7 +22,7 @@ import {
   MAX_OPTION_GROUPS, MAX_OPTION_VALUES, NO_REDUCE, activeGroupNames, applyReduce, applyToAll, type ReduceSpec,
 } from '@/lib/product-variants';
 import ProductCodesHelp from './ProductCodesHelp';
-import PriceReduceInput from './PriceReduceInput';
+import DiscountPriceInput from '@/components/ui/DiscountPriceInput';
 import { FieldError, OPTION_VALUE_MAX, StockText, numberInputClass } from './parts';
 import type { FieldErrors, OptionGroup, VariantRow, VariationTypeOption } from './types';
 
@@ -186,7 +186,7 @@ export default function VariantOptionsEditor({
               </div>
               <div className="w-44">
                 <label className="helper-text">ลดเหลือ</label>
-                <PriceReduceInput
+                <DiscountPriceInput
                   value={bulk.discount.mode === 'price' ? bulk.discount.input : 0}
                   spec={bulk.discount}
                   onChange={(_, spec) => setBulk(b => ({ ...b, discount: spec }))}
@@ -264,7 +264,7 @@ export default function VariantOptionsEditor({
                       <FieldError text={err(i, 'price')} />
                     </td>
                     <td className="px-3 py-3" data-field={`variation.${i}.discount`}>
-                      <PriceReduceInput
+                      <DiscountPriceInput
                         value={row.discount_price}
                         basePrice={row.default_price}
                         onChange={n => updateRow(row._tempId, { discount_price: n })}
@@ -369,7 +369,7 @@ export default function VariantOptionsEditor({
                   </div>
                   <div>
                     <label className="helper-text">ลดเหลือ</label>
-                    <PriceReduceInput
+                    <DiscountPriceInput
                       value={row.discount_price}
                       basePrice={row.default_price}
                       onChange={n => updateRow(row._tempId, { discount_price: n })}
