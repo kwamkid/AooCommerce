@@ -14,7 +14,10 @@ import { showPdfPreview } from '@/lib/print-pdf';
 import { generateStatementPdf } from '@/lib/statement-pdf';
 import { LoadingCard } from '@/components/ui/StateCard';
 import StatusBadge from '@/components/ui/StatusBadge';
-import { NUMERIC_TEXT_INPUT_PROPS, onNumericChange } from '@/lib/numeric-input';
+import Modal from '@/components/ui/Modal';
+import Button from '@/components/ui/Button';
+import FormInput from '@/components/ui/FormInput';
+import DateRangePicker, { type DateValueType } from '@/components/ui/DateRangePicker';
 
 interface StatementDetail {
   id: string;
@@ -468,81 +471,79 @@ export default function StatementDetailPage() {
         </div>
       </div>
 
-      {/* Payment modal */}
-      {showPayModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl p-6 w-full max-w-md mx-4 space-y-4">
-            <h3 className="text-lg font-bold text-gray-900 dark:text-white">บันทึกการชำระเงิน</h3>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">จำนวนเงิน (บาท) *</label>
-                <input
-                  {...NUMERIC_TEXT_INPUT_PROPS}
-                  value={payAmount}
-                  onChange={onNumericChange(setPayAmount)}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-green-500/50"
-                  placeholder="0.00"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">วันที่รับเงิน *</label>
-                <input
-                  type="date"
-                  value={payReceiptDate}
-                  onChange={e => setPayReceiptDate(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-green-500/50"
-                />
-              </div>
-            </div>
+      {/* บันทึกการชำระเงิน — เดิมโมดัลนี้ประกอบเองทั้งใบ (ฉากดำ + <input> ดิบ 5 ช่อง +
+          ปุ่มเขียนคลาสสีเอง) ทั้งที่มีของกลางครบอยู่แล้ว · วันที่รับเงินเคยเป็น
+          <input type="date"> จึงได้ปฏิทินของเบราว์เซอร์ที่เป็นภาษาอังกฤษ */}
+      <Modal
+        open={showPayModal}
+        onClose={() => setShowPayModal(false)}
+        icon={<CreditCard className="w-5 h-5" />}
+        title="บันทึกการชำระเงิน"
+        size="md"
+        footer={
+          <div className="flex justify-end gap-3 px-6 py-4">
+            <Button variant="secondary" onClick={() => setShowPayModal(false)}>ยกเลิก</Button>
+            <Button
+              variant="success"
+              loading={paySubmitting}
+              icon={<CreditCard className="w-4 h-4" />}
+              onClick={handleRecordPayment}
+            >
+              บันทึก
+            </Button>
+          </div>
+        }
+      >
+        <div className="px-6 py-5 space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <FormInput
+              label="จำนวนเงิน"
+              required
+              type="number"
+              value={payAmount}
+              onChange={e => setPayAmount(e.target.value)}
+              postfix="฿"
+              placeholder="0.00"
+            />
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">ช่องทาง</label>
-              <input
-                type="text"
-                value={payMethod}
-                onChange={e => setPayMethod(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-green-500/50"
-                placeholder="เช่น โอนธนาคาร, เช็ค"
+              <label className="field-label">วันที่รับเงิน *</label>
+              <DateRangePicker
+                asSingle
+                useRange={false}
+                value={payReceiptDate ? { startDate: payReceiptDate, endDate: payReceiptDate } : null}
+                onChange={(v: DateValueType) => {
+                  const d = v?.startDate;
+                  setPayReceiptDate(
+                    !d ? '' : typeof d === 'string' ? d.slice(0, 10)
+                      : `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`,
+                  );
+                }}
+                placeholder="เลือกวันที่"
+                showShortcuts={false}
               />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">อ้างอิง</label>
-              <input
-                type="text"
-                value={payRef}
-                onChange={e => setPayRef(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-green-500/50"
-                placeholder="เลขอ้างอิง, เลขเช็ค"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">หมายเหตุ</label>
-              <input
-                type="text"
-                value={payNotes}
-                onChange={e => setPayNotes(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-green-500/50"
-                placeholder="หมายเหตุเพิ่มเติม"
-              />
-            </div>
-            <div className="flex justify-end gap-2 pt-2">
-              <button
-                onClick={() => setShowPayModal(false)}
-                className="px-4 py-2 text-sm text-gray-700 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg"
-              >
-                ยกเลิก
-              </button>
-              <button
-                onClick={handleRecordPayment}
-                disabled={paySubmitting}
-                className="px-4 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 flex items-center gap-1.5"
-              >
-                {paySubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <CreditCard className="w-4 h-4" />}
-                บันทึก
-              </button>
             </div>
           </div>
+
+          <FormInput
+            label="ช่องทาง"
+            value={payMethod}
+            onChange={e => setPayMethod(e.target.value)}
+            placeholder="เช่น โอนธนาคาร, เช็ค"
+          />
+          <FormInput
+            label="อ้างอิง"
+            value={payRef}
+            onChange={e => setPayRef(e.target.value)}
+            placeholder="เลขอ้างอิง, เลขเช็ค"
+          />
+          <FormInput
+            label="หมายเหตุ"
+            value={payNotes}
+            onChange={e => setPayNotes(e.target.value)}
+            placeholder="หมายเหตุเพิ่มเติม"
+          />
         </div>
-      )}
+      </Modal>
     </Layout>
   );
 }
