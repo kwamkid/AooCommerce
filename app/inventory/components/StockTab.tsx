@@ -416,11 +416,11 @@ export default function StockTab({ warehouses, onViewHistory }: StockTabProps) {
             target="_blank"
             rel="noopener noreferrer"
             onClick={e => e.stopPropagation()}
-            className="data-primary text-gray-900 dark:text-white line-clamp-2 hover:text-primary hover:underline"
+            className="data-primary text-base text-gray-900 dark:text-white line-clamp-2 hover:text-primary hover:underline"
           >
             {row.product_name}
           </a>
-          <div className="helper-text text-gray-400 dark:text-slate-500">{subtitleOf(row)}</div>
+          <div className="text-sm text-gray-400 dark:text-slate-500">{subtitleOf(row)}</div>
         </div>
       ),
     },
@@ -591,7 +591,7 @@ export default function StockTab({ warehouses, onViewHistory }: StockTabProps) {
             >
               {row.product_name}
             </a>
-            <p className="helper-text text-gray-400 dark:text-slate-500">{subtitleOf(row)}</p>
+            <p className="text-sm text-gray-400 dark:text-slate-500">{subtitleOf(row)}</p>
           </div>
           <div className="flex-shrink-0"><StatusBadge domain="stockLevel" status={row.status} /></div>
         </div>

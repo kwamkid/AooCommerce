@@ -257,7 +257,7 @@ export default function MovementsTab({ warehouses }: MovementsTabProps) {
             target="_blank"
             rel="noopener noreferrer"
             onClick={e => e.stopPropagation()}
-            className="data-primary text-primary hover:underline"
+            className="data-primary text-base text-primary hover:underline"
           >
             {label}
           </Link>
@@ -265,7 +265,7 @@ export default function MovementsTab({ warehouses }: MovementsTabProps) {
           <span className="text-gray-700 dark:text-slate-300">{label}</span>
         )}
         {row.reference_id && (
-          <div className="helper-text text-gray-400 dark:text-slate-500">
+          <div className="text-sm text-gray-400 dark:text-slate-500">
             #{row.reference_id.slice(-8)}
           </div>
         )}
@@ -290,7 +290,7 @@ export default function MovementsTab({ warehouses }: MovementsTabProps) {
       render: (row) => (
         <div className="whitespace-nowrap">
           <div className="text-gray-900 dark:text-white">{formatThaiDate(row.created_at)}</div>
-          <div className="helper-text text-gray-400 dark:text-slate-500">
+          <div className="text-sm text-gray-400 dark:text-slate-500">
             {new Date(row.created_at).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}
           </div>
         </div>
@@ -329,8 +329,8 @@ export default function MovementsTab({ warehouses }: MovementsTabProps) {
       defaultWidth: 280,
       render: (row) => (
         <div className="min-w-0">
-          {productLink(row, 'data-primary text-gray-900 dark:text-white line-clamp-2 hover:text-primary hover:underline')}
-          <div className="helper-text text-gray-400 dark:text-slate-500 truncate">{subtitleOf(row)}</div>
+          {productLink(row, 'data-primary text-base text-gray-900 dark:text-white line-clamp-2 hover:text-primary hover:underline')}
+          <div className="text-sm text-gray-400 dark:text-slate-500 truncate">{subtitleOf(row)}</div>
         </div>
       ),
     },
@@ -407,7 +407,7 @@ export default function MovementsTab({ warehouses }: MovementsTabProps) {
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1 min-w-0">
             {productLink(row, 'body-text font-semibold text-gray-900 dark:text-white line-clamp-2 hover:text-primary hover:underline')}
-            <p className="helper-text text-gray-400 dark:text-slate-500">{subtitleOf(row)}</p>
+            <p className="text-sm text-gray-400 dark:text-slate-500">{subtitleOf(row)}</p>
           </div>
           <div className="flex-shrink-0 flex flex-col items-end gap-1">
             {typeBadge(row)}
@@ -415,7 +415,7 @@ export default function MovementsTab({ warehouses }: MovementsTabProps) {
           </div>
         </div>
 
-        <div className="mt-2 helper-text text-gray-500 dark:text-slate-400">
+        <div className="mt-2 text-sm text-gray-500 dark:text-slate-400">
           {formatThaiDate(row.created_at)}{' '}
           {new Date(row.created_at).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}
           {warehouseName(row) ? ` · ${warehouseName(row)}` : ''}
@@ -423,7 +423,7 @@ export default function MovementsTab({ warehouses }: MovementsTabProps) {
           {` · คงเหลือ ${formatNumber(row.balance_after)}`}
         </div>
         {row.notes && (
-          <p className="helper-text text-gray-400 dark:text-slate-500 line-clamp-2">{row.notes}</p>
+          <p className="text-sm text-gray-400 dark:text-slate-500 line-clamp-2">{row.notes}</p>
         )}
       </div>
     </div>
