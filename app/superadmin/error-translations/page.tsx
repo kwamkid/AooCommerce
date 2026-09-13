@@ -7,6 +7,7 @@ import { useToast } from '@/lib/toast-context';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { Languages, Plus, Edit2, Trash2, Loader2, X, Download, Search, ToggleLeft, ToggleRight } from 'lucide-react';
 import { LoadingCard } from '@/components/ui/StateCard';
+import FormSelect from '@/components/ui/FormSelect';
 import { NUMERIC_TEXT_INPUT_PROPS, onNumericChange } from '@/lib/numeric-input';
 
 // ─── Types ──────────────────────────────────────────────
@@ -472,15 +473,14 @@ export default function SuperAdminErrorTranslations() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm font-medium text-slate-300 mb-1">หมวด</label>
-                  <select
+                  {/* portal: ช่องอยู่ท้ายโมดัล จอเตี้ยแล้วรายการล้นขอบล่าง — มีแต่โหมด portal ที่พลิกขึ้นให้
+                      (z-9999 ของ portal สูงกว่าโมดัล z-999 อยู่แล้ว จึงไม่โดนบัง) */}
+                  <FormSelect
+                    portal
                     value={form.category}
-                    onChange={e => setForm(prev => ({ ...prev, category: e.target.value }))}
-                    className="w-full px-3 py-2 bg-slate-900 border border-slate-600 rounded-lg text-sm text-white focus:ring-2 focus:ring-violet-500 focus:border-transparent"
-                  >
-                    {CATEGORIES.map(c => (
-                      <option key={c.value} value={c.value}>{c.label}</option>
-                    ))}
-                  </select>
+                    onChange={val => setForm(prev => ({ ...prev, category: val }))}
+                    options={CATEGORIES.map(c => ({ id: c.value, label: c.label }))}
+                  />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-slate-300 mb-1">ลำดับ</label>
