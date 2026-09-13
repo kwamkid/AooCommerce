@@ -35,8 +35,14 @@ const INLINE_MAX = 8;
  */
 const LINE_NOTE = 'ขึ้น Meta ได้เฉพาะคนที่ผูกลูกค้าแล้ว';
 
-/** กลุ่มที่อิงการซื้อ + ติ๊กลูกค้าในระบบแล้ว — แหล่งแชทไม่ได้เพิ่มคน แต่ยังเพิ่มตัวจับคู่ (Messenger) ได้ */
-const COUNTED_NOTE = 'คนที่ซื้อแล้วนับผ่านลูกค้าในระบบไปแล้ว';
+/**
+ * กลุ่มที่อิงการซื้อ + ติ๊กลูกค้าในระบบแล้ว — คนจากแชทที่ซื้อแล้วถูกนับผ่านลูกค้าไปหมดแล้ว
+ * · LINE = ติ๊กแล้วไม่ได้อะไรเลย (ไม่มีทั้งเบอร์ อีเมล Messenger ให้ Meta)
+ * · เพจ = ไม่ได้คนใหม่ แต่ได้ Messenger เป็นตัวจับคู่ให้คนที่ไม่มีเบอร์ จึงยังคุ้มที่จะติ๊ก
+ *   (เจ้าของถามว่า "แล้วจะติ๊ก LINE ไปทำไม" 13 ก.ย. 2026)
+ */
+const LINE_COUNTED_NOTE = 'ติ๊กแล้วไม่ได้เพิ่มใคร คนที่ซื้อแล้วนับผ่านลูกค้าในระบบแล้ว';
+const FB_COUNTED_NOTE = 'ไม่ได้เพิ่มคน แต่เพิ่ม Messenger ให้คนที่ไม่มีเบอร์';
 
 interface Props {
   accounts: ChatSourceAccount[];
@@ -121,8 +127,8 @@ export default function SourceStep({
             const counted = includeCustomers && PURCHASED_AUDIENCE_KEYS.has(audienceType);
             const note = reason
               || (a.platform === 'line'
-                ? `${BROADCAST_PLATFORMS.line.label} · ${counted ? COUNTED_NOTE : LINE_NOTE}`
-                : `${BROADCAST_PLATFORMS[a.platform].label}${counted ? ` · ${COUNTED_NOTE}` : ''}`);
+                ? `${BROADCAST_PLATFORMS.line.label} · ${counted ? LINE_COUNTED_NOTE : LINE_NOTE}`
+                : `${BROADCAST_PLATFORMS[a.platform].label}${counted ? ` · ${FB_COUNTED_NOTE}` : ''}`);
             return (
               <Checkbox
                 key={a.id}

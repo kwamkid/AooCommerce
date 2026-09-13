@@ -20,6 +20,8 @@ import Alert from '@/components/ui/Alert';
 import HelpHint from '@/components/ui/HelpHint';
 import { ProgressBar } from '@/components/ui/Chart';
 import { Skeleton, SkeletonText } from '@/components/ui/Skeleton';
+import PlatformIcon from '@/components/ui/PlatformIcon';
+import { Users } from 'lucide-react';
 import { formatNumber } from '@/lib/utils/format';
 import { META_AUDIENCE_MIN_MATCHED } from '@/lib/ads/meta-ui';
 import type { AudiencePreview } from './types';
@@ -93,14 +95,18 @@ export default function AudienceRail({ preview, loading, error, hint }: Props) {
 
           {preview.reachable.any < META_AUDIENCE_MIN_MATCHED && (
             <Alert tone="warning" className="mt-3">
-              ส่งขึ้น Meta ได้ไม่ถึง {formatNumber(META_AUDIENCE_MIN_MATCHED)} คน กลุ่มนี้เล็กเกินกว่าจะยิงโฆษณาได้ ·
-              Meta ต้องจับคู่คนได้ราว {formatNumber(META_AUDIENCE_MIN_MATCHED)} คนขึ้นไป และมักจับคู่ได้ไม่ครบทุกคนที่ส่งไป
+              {/* แผงนี้แคบ — ข้อความเตือนใช้ขนาดเดียวกับบรรทัดอื่นในการ์ด (เจ้าของขอ 13 ก.ย. 2026) */}
+              <span className="subtitle-text block">
+                ส่งขึ้น Meta ได้ไม่ถึง {formatNumber(META_AUDIENCE_MIN_MATCHED)} คน กลุ่มนี้เล็กเกินกว่าจะยิงโฆษณาได้ ·
+                Meta ต้องจับคู่คนได้ราว {formatNumber(META_AUDIENCE_MIN_MATCHED)} คนขึ้นไป
+                และมักจับคู่ได้ไม่ครบทุกคนที่ส่งไป
+              </span>
             </Alert>
           )}
 
           {preview.capped && (
             <Alert tone="warning" className="mt-3">
-              กลุ่มใหญ่เกิน 50,000 คน — ทำให้แคบลงก่อน
+              <span className="subtitle-text block">กลุ่มใหญ่เกิน 50,000 คน · ทำให้แคบลงก่อน</span>
             </Alert>
           )}
 
@@ -109,16 +115,26 @@ export default function AudienceRail({ preview, loading, error, hint }: Props) {
             <div className="mt-3 pt-3 border-t border-gray-100 dark:border-slate-700 space-y-1">
               <p className="field-label">มาจากแหล่งไหนบ้าง</p>
               {preview.by_source.map(s => (
-                <div key={`${s.kind}-${s.platform ?? ''}`}>
-                  <p className="subtitle-text">{s.label} · {formatNumber(s.total)} คน</p>
-                  <p className="section-desc">
-                    ส่งขึ้น Meta ได้ {formatNumber(s.syncable)} · แหล่งอื่นไม่มี {formatNumber(s.only)} คน
-                  </p>
+                <div key={`${s.kind}-${s.platform ?? ''}`} className="flex items-start gap-2">
+                  <span className="mt-1 flex-shrink-0">
+                    {s.kind === 'chat' && s.platform
+                      ? <PlatformIcon id={s.platform as 'line' | 'facebook'} size={14} title={s.label} />
+                      : <Users className="w-3.5 h-3.5 text-gray-400 dark:text-slate-500" />}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="subtitle-text">{s.label} · {formatNumber(s.total)} คน</p>
+                    <p className="section-desc">
+                      ส่งขึ้น Meta ได้ {formatNumber(s.syncable)} ·{' '}
+                      {s.only > 0
+                        ? `มีเฉพาะแหล่งนี้ ${formatNumber(s.only)} คน`
+                        : 'ทุกคนซ้ำกับแหล่งอื่น'}
+                    </p>
+                  </div>
                 </div>
               ))}
               <p className="section-desc pt-1">
-                คนเดียวกันอยู่ได้หลายแหล่ง ผลรวมของแต่ละแถวจึงมากกว่ายอดรวม · ติ๊กแหล่งที่ &ldquo;แหล่งอื่นไม่มี
-                0 คน&rdquo; ยอดรวมจะไม่ขยับ
+                คนเดียวกันนับครั้งเดียวในยอดรวม แต่ขึ้นในทุกแหล่งที่เจอ ผลรวมของแถวจึงมากกว่ายอดรวม ·
+                แหล่งที่ &ldquo;ทุกคนซ้ำกับแหล่งอื่น&rdquo; ติ๊กแล้วยอดรวมไม่ขยับ
               </p>
             </div>
           )}
