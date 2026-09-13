@@ -16,6 +16,14 @@
 
 ---
 
+## 2026-09-13 — หน้าสต็อก: แท็บสถานะกรองแค่ 20 แถวที่โหลด · badge สต็อกต่ำนับ `quantity <= 5` · RPC ใหม่ช้า 600 ms เพราะ `language sql` (reUI แท็บสินค้าคงคลัง)
+
+**ที่เกิด**: [app/inventory/components/StockTab.tsx](app/inventory/components/StockTab.tsx) · [app/api/inventory/route.ts](app/api/inventory/route.ts) · [app/api/header/summary/route.ts](app/api/header/summary/route.ts) · RPC `get_inventory_list` / `get_low_stock_count`
+**อาการ**: (1) เลือกแท็บ ปกติ/หมด/ติดลบ/ยังไม่มี แล้วเหลือ 2–3 แถวทั้งที่จริงมีหลายร้อย และ pagination หาย (2) badge "สต็อกต่ำ" ใน Sidebar ไม่ตรงกับหน้าสต็อก (3) กรองตามตัวแทน = โหลด 99,999 แถว (4) ไม่รู้ว่าของอยู่คลังไหนถ้าไม่สลับตัวกรองทีละคลัง (5) RPC ใหม่ที่เขียนช้ากว่าตัวเก่า 10 เท่า
+**Root cause**: (1) ตัวกรองสถานะทำใน client กับหน้าที่โหลดมาแล้ว ไม่มีใน RPC (2) summary นับ `inventory.quantity <= 5` hard-code ส่วน `get_low_stock_count` ของเดิมนับเฉพาะ `warehouse_type='default'` ซึ่งไม่มีอยู่จริง (3–4) route ยิง 4 query แล้วประกอบเอง ไม่มียอดต่อคลังในผลลัพธ์ (5) `language sql` วางแผน query ใหม่ทุกครั้ง + อ่านคอลัมน์หนักครบ 6,000 แถว + `in (select … from cte)` ทำ planner seq scan ตารางรูป
+**วิธีแก้**: RPC `get_inventory_list` (plpgsql · แถวแคบ → หน้า → join คอลัมน์หนัก · `= any(array)` · status_counts + by_warehouse + ฝากขาย + กำลังส่งในรอบเดียว · 44–69 ms) · `GET /api/inventory?view=list` (path เดิมคงไว้ 14 caller) · StockTab เขียนใหม่ด้วย `StatusTabs`/`DataTable`/`HelpHint`/`BulkActionBar` · Min แก้ inline + ติ๊กหลายแถว · แท็บ/ตัวกรอง/ประวัติอยู่ใน URL · `get_low_stock_count` = แท็บ `low` เป๊ะ และ summary เรียก RPC นี้ · `DataTable` EditCell เลิก `type="number"` (กติกา NumberInput) · rule ใหม่ `.claude/rules/domains/inventory.md`
+**ป้องกัน regression**: ตัวกรอง/นับ ต้องอยู่ใน RPC เสมอ (ดู inventory.md) · RPC รายการต้อง plpgsql + วัดด้วย `pg_stat_statements` mean ไม่ใช่ explain ครั้งเดียว (เครื่องนี้แกว่ง 4↔150 ms) · badge ใด ๆ ต้องนิยามเดียวกับแท็บที่มันชี้ไป
+
 ## 2026-09-13 — หน้ารายการสินค้า: กดดูรูปแล้วเปิด lightbox + เด้งหน้าแก้ไขแท็บใหม่พร้อมกัน · ฟอร์มสินค้า: รูปจิ๋วครอปรูป 3:4 เป็นสี่เหลี่ยม
 
 **ที่เกิด**: [components/ui/ProductImageThumb.tsx](components/ui/ProductImageThumb.tsx) · [components/ui/ImageLightbox.tsx](components/ui/ImageLightbox.tsx) · [components/ui/ImageUploader.tsx](components/ui/ImageUploader.tsx)

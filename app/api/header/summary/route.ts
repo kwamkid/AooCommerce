@@ -28,13 +28,11 @@ export async function GET(request: NextRequest) {
 
     const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
+    // badge สต็อกต่ำ = นิยามเดียวกับหน้า /inventory (min_stock > 0 และพร้อมขายรวมทุกคลัง ≤ min)
+    // — ของเดิมนับ quantity <= 5 แบบ hard-code เลขจึงไม่ตรงกับหน้าสต็อก
     const lowStockPromise = stockConfig.stockEnabled
-      ? supabaseAdmin
-          .from('inventory')
-          .select('id', { count: 'exact', head: true })
-          .eq('company_id', companyId)
-          .filter('quantity', 'lte', 5)
-      : Promise.resolve({ count: 0 });
+      ? supabaseAdmin.rpc('get_low_stock_count', { p_company_id: companyId })
+      : Promise.resolve({ data: 0 as number | null });
 
     const [
       lineUnreadResult,
@@ -124,7 +122,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       stockConfig,
-      lowStockCount: lowStockResult.count || 0,
+      lowStockCount: Number(lowStockResult.data) || 0,
       chatUnread,
       badgeTotal,
       ordersReadyCount: ordersReadyResult.count || 0,

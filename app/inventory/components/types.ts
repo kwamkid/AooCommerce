@@ -52,8 +52,6 @@ export interface InventoryItem {
   in_transit_breakdown?: InTransitBreakdownItem[];
 }
 
-export type StockColumnKey = 'image' | 'product' | 'quantity' | 'reserved' | 'in_transit' | 'available' | 'consign' | 'min' | 'status' | 'actions';
-
 export interface ColumnConfig<T extends string> {
   key: T;
   label: string;
@@ -61,20 +59,68 @@ export interface ColumnConfig<T extends string> {
   alwaysVisible?: boolean;
 }
 
-export const STOCK_COLUMN_CONFIGS: ColumnConfig<StockColumnKey>[] = [
-  { key: 'image', label: 'รูป', defaultVisible: true },
-  { key: 'product', label: 'ชื่อสินค้า', defaultVisible: true, alwaysVisible: true },
-  { key: 'quantity', label: 'จำนวน', defaultVisible: true },
-  { key: 'reserved', label: 'จอง', defaultVisible: true },
-  { key: 'in_transit', label: 'กำลังส่ง', defaultVisible: true },
-  { key: 'available', label: 'พร้อมขาย', defaultVisible: true },
-  { key: 'consign', label: 'ฝากขาย', defaultVisible: true },
-  { key: 'min', label: 'Min', defaultVisible: false },
-  { key: 'status', label: 'สถานะ', defaultVisible: true },
-  { key: 'actions', label: 'ปรับ', defaultVisible: true, alwaysVisible: true },
-];
+// ===== Stock list (RPC `get_inventory_list` ผ่าน `/api/inventory?view=list`) =====
+// 1 แถว = 1 ตัวเลือกสินค้า รวมยอดของคลังที่กรองไว้ (สินค้าชุดถูกตัดออกที่ RPC แล้ว)
 
-export const STOCK_COLUMNS_STORAGE_KEY = 'inventory-stock-visible-columns';
+export type StockStatus = 'ok' | 'near_low' | 'low' | 'out' | 'negative' | 'none';
+
+export interface StockStatusCounts {
+  all: number;
+  /** ทุกสถานะยกเว้น `none` — ค่าเริ่มต้นของหน้า */
+  stocked: number;
+  ok: number;
+  near_low: number;
+  low: number;
+  out: number;
+  negative: number;
+  none: number;
+}
+
+/** ยอดของตัวเลือกนี้ในคลังหนึ่ง — มาครบทุกคลังที่มีของ ไม่ถูกหั่นตามตัวกรอง */
+export interface StockWarehouseRow {
+  warehouse_id: string;
+  name: string;
+  type: 'internal' | 'consignment';
+  customer_id: string | null;
+  customer_name: string | null;
+  quantity: number;
+  reserved: number;
+  available: number;
+  in_transit: number;
+}
+
+/** ของที่กำลังส่งไปตัวแทน แยกตามตัวแทน */
+export interface StockTransitRow {
+  customer_id: string;
+  customer_name: string;
+  qty: number;
+}
+
+export interface StockRow {
+  variation_id: string;
+  product_id: string;
+  product_code: string;
+  product_name: string;
+  variation_label: string;
+  /** สินค้าปกติ (ตัวเลือกเดียว) — ป้ายตัวเลือกไม่ต้องแสดง */
+  is_simple: boolean;
+  sku: string;
+  barcode: string;
+  attributes: Record<string, string> | null;
+  default_price: number;
+  /** รูปของตัวเลือก → (เฉพาะสินค้าปกติ) รูปสินค้า → null — ห้าม fallback เพิ่มเอง */
+  image_url: string | null;
+  min_stock: number;
+  quantity: number;
+  reserved: number;
+  available: number;
+  in_transit: number;
+  consign_qty: number;
+  status: StockStatus;
+  updated_at: string | null;
+  by_warehouse: StockWarehouseRow[];
+  in_transit_breakdown: StockTransitRow[];
+}
 
 // ===== History Types =====
 export type HistoryColumnKey = 'date' | 'type' | 'image' | 'product' | 'qty' | 'balance' | 'warehouse' | 'reference' | 'user';

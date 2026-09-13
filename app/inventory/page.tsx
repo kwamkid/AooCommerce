@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
-import { useRouter } from 'next/navigation';
+import { useCallback, useState, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Layout from '@/components/layout/Layout';
 import { useAuthGuard } from '@/lib/useAuthGuard';
 import Container from '@/components/ui/Container';
@@ -20,25 +20,50 @@ import HistoryTab from './components/HistoryTab';
 import MonitorTab from './components/MonitorTab';
 import Tabs from '@/components/ui/Tabs';
 
-export default function InventoryPage() {
-  // ด่านสิทธิ์ระดับหน้า — เมนูใน Sidebar ซ่อนให้แล้ว แต่ URL ตรงยังเข้าได้
-  const { allowed, loading: permLoading } = useAuthGuard('inventory.view');
+/** ตัวกรองของแท็บสต็อก — ต้องถูกทิ้งเมื่อย้ายไปแท็บอื่น ไม่งั้นค้างใน URL แล้วกลับมาเจอผลกรองเดิม */
+const STOCK_PARAMS = ['q', 'wh', 'dealer', 'cat', 'brand', 'sup', 'status', 'sort', 'dir', 'page', 'limit'];
+
+function InventoryPageContent() {
   const router = useRouter();
-  const [activeTab, setActiveTabState] = useState<TabKey>('stock');
+  const searchParams = useSearchParams();
 
-  // Read hash on mount (client-only to avoid hydration mismatch)
-  useEffect(() => {
-    const hash = window.location.hash.replace('#', '') as TabKey;
-    if (hash === 'history' || hash === 'monitor') setActiveTabState(hash);
-  }, []);
+  const tabParam = searchParams.get('tab');
+  const activeTab: TabKey = tabParam === 'history' || tabParam === 'monitor' ? tabParam : 'stock';
 
-  const setActiveTab = (tab: TabKey) => {
-    setActiveTabState(tab);
-    window.location.hash = tab === 'stock' ? '' : tab;
-  };
+  // ตัวกรองประวัติ (มาจากปุ่ม "ประวัติการเคลื่อนไหว" ในแท็บสต็อก) อยู่ใน URL ด้วย
+  const historyVariationId = searchParams.get('variation') || '';
+  const historyProductLabel = searchParams.get('label') || '';
+
+  const replaceParams = useCallback((mutate: (p: URLSearchParams) => void) => {
+    const params = new URLSearchParams(searchParams.toString());
+    mutate(params);
+    const qs = params.toString();
+    router.replace(`/inventory${qs ? `?${qs}` : ''}`, { scroll: false });
+  }, [searchParams, router]);
+
+  const setActiveTab = useCallback((tab: TabKey) => {
+    replaceParams(p => {
+      if (tab === 'stock') p.delete('tab');
+      else p.set('tab', tab);
+      if (tab !== 'history') { p.delete('variation'); p.delete('label'); }
+      if (tab !== 'stock') for (const key of STOCK_PARAMS) p.delete(key);
+    });
+  }, [replaceParams]);
+
+  const viewHistory = useCallback((variationId: string, label: string) => {
+    replaceParams(p => {
+      for (const key of STOCK_PARAMS) p.delete(key);
+      p.set('tab', 'history');
+      p.set('variation', variationId);
+      if (label) p.set('label', label); else p.delete('label');
+    });
+  }, [replaceParams]);
+
+  const clearHistoryFilter = useCallback(() => {
+    replaceParams(p => { p.delete('variation'); p.delete('label'); });
+  }, [replaceParams]);
+
   const [warehouses, setWarehouses] = useState<WarehouseItem[]>([]);
-  const [historyVariationId, setHistoryVariationId] = useState('');
-  const [historyProductLabel, setHistoryProductLabel] = useState('');
 
   useFetchOnce(async () => {
     try {
@@ -50,94 +75,92 @@ export default function InventoryPage() {
     } catch { /* silent */ }
   }, true);
 
+  return (
+    <Container size="full">
+      <PageHeader
+        icon={<Package2 />}
+        title="สินค้าคงคลัง"
+        subtitle="จัดการสต็อกสินค้าและดูประวัติการเคลื่อนไหว"
+        actions={
+          <>
+            <Button
+              variant="primary"
+              size="sm"
+              icon={<ArrowDownToLine className="w-4 h-4" />}
+              onClick={() => router.push('/inventory/receive')}
+            >
+              <span className="hidden md:inline">รับเข้า</span>
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              icon={<ArrowUpFromLine className="w-4 h-4" />}
+              onClick={() => router.push('/inventory/issue')}
+            >
+              <span className="hidden md:inline">เบิกออก</span>
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              icon={<ArrowLeftRight className="w-4 h-4" />}
+              onClick={() => router.push('/inventory/transfer')}
+            >
+              <span className="hidden md:inline">โอนย้าย</span>
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              icon={<FileSpreadsheet className="w-4 h-4" />}
+              onClick={() => router.push('/inventory/bulk-stock-update')}
+            >
+              <span className="hidden md:inline">Bulk</span>
+            </Button>
+          </>
+        }
+      />
+
+      <Tabs
+        className="mb-0"
+        activeKey={activeTab}
+        onSelect={k => setActiveTab(k as TabKey)}
+        tabs={[
+          { key: 'stock', label: 'สินค้าคงคลัง', icon: <Warehouse className="w-4 h-4" /> },
+          { key: 'history', label: 'ประวัติ', icon: <ClipboardList className="w-4 h-4" /> },
+          { key: 'monitor', label: 'Monitor', icon: <Activity className="w-4 h-4" /> },
+        ]}
+      />
+
+      {activeTab === 'stock' && (
+        <StockTab warehouses={warehouses} onViewHistory={viewHistory} />
+      )}
+      {activeTab === 'history' && (
+        <HistoryTab
+          warehouses={warehouses}
+          filterVariationId={historyVariationId}
+          filterProductLabel={historyProductLabel}
+          onFilterCleared={clearHistoryFilter}
+        />
+      )}
+      {activeTab === 'monitor' && (
+        <MonitorTab warehouses={warehouses} />
+      )}
+    </Container>
+  );
+}
+
+export default function InventoryPage() {
+  // ด่านสิทธิ์ระดับหน้า — เมนูใน Sidebar ซ่อนให้แล้ว แต่ URL ตรงยังเข้าได้
+  const { allowed, loading: permLoading } = useAuthGuard('inventory.view');
+
   if (permLoading) return <Layout><LoadingCard /></Layout>;
   if (!allowed) return null;   // กำลังเด้งไป /dashboard
 
+  // ทั้งหน้าอ่าน useSearchParams → ต้องอยู่ใต้ Suspense (กฎ CSR bailout ของ Next 16)
   return (
     <Layout>
-      <Container size="full">
-        <PageHeader
-          icon={<Package2 />}
-          title="สินค้าคงคลัง"
-          subtitle="จัดการสต็อกสินค้าและดูประวัติการเคลื่อนไหว"
-          actions={
-            <>
-              <Button
-                variant="primary"
-                size="sm"
-                icon={<ArrowDownToLine className="w-4 h-4" />}
-                onClick={() => router.push('/inventory/receive')}
-                title="รับเข้า"
-              >
-                <span className="hidden md:inline">รับเข้า</span>
-              </Button>
-              <Button
-                variant="secondary"
-                size="sm"
-                icon={<ArrowUpFromLine className="w-4 h-4" />}
-                onClick={() => router.push('/inventory/issue')}
-                title="เบิกออก"
-              >
-                <span className="hidden md:inline">เบิกออก</span>
-              </Button>
-              <Button
-                variant="secondary"
-                size="sm"
-                icon={<ArrowLeftRight className="w-4 h-4" />}
-                onClick={() => router.push('/inventory/transfer')}
-                title="โอนย้าย"
-              >
-                <span className="hidden md:inline">โอนย้าย</span>
-              </Button>
-              <Button
-                variant="secondary"
-                size="sm"
-                icon={<FileSpreadsheet className="w-4 h-4" />}
-                onClick={() => router.push('/inventory/bulk-stock-update')}
-                title="อัพเดท Stock แบบ Bulk"
-              >
-                <span className="hidden md:inline">Bulk</span>
-              </Button>
-            </>
-          }
-        />
-
-        <Tabs
-          className="mb-0"
-          activeKey={activeTab}
-          onSelect={k => setActiveTab(k as TabKey)}
-          tabs={[
-            { key: 'stock', label: 'สินค้าคงคลัง', icon: <Warehouse className="w-4 h-4" /> },
-            { key: 'history', label: 'ประวัติ', icon: <ClipboardList className="w-4 h-4" /> },
-            { key: 'monitor', label: 'Monitor', icon: <Activity className="w-4 h-4" /> },
-          ]}
-        />
-
-        {/* Tab Content */}
-        {activeTab === 'stock' && (
-          <Suspense fallback={<LoadingCard />}>
-            <StockTab
-              warehouses={warehouses}
-              onViewHistory={(variationId, productLabel) => {
-                setHistoryVariationId(variationId);
-                setHistoryProductLabel(productLabel);
-                setActiveTab('history');
-              }}
-            />
-          </Suspense>
-        )}
-        {activeTab === 'history' && (
-          <HistoryTab
-            warehouses={warehouses}
-            filterVariationId={historyVariationId}
-            filterProductLabel={historyProductLabel}
-            onFilterCleared={() => { setHistoryVariationId(''); setHistoryProductLabel(''); }}
-          />
-        )}
-        {activeTab === 'monitor' && (
-          <MonitorTab warehouses={warehouses} />
-        )}
-      </Container>
+      <Suspense fallback={<Container size="full"><LoadingCard /></Container>}>
+        <InventoryPageContent />
+      </Suspense>
     </Layout>
   );
 }

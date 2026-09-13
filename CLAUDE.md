@@ -93,6 +93,7 @@
 | `domains/settings-pages.md` | convention หน้า settings | `app/settings/**` |
 | `domains/pdf.md` | template เอกสาร PDF | `lib/*pdf*.ts` |
 | `domains/products.md` | **สินค้าชุด (composite)** · import/export · bulk edit · promotion | `app/products/**` · `lib/bulk/**` · `lib/composite*.ts` |
+| `domains/inventory.md` | หน้า `/inventory` · RPC `get_inventory_list` · สถานะสต็อก · บทเรียนเขียน RPC รายการ · กติกา UI โมดูลสต็อก | `app/inventory/**` · `app/api/inventory/**` · `lib/stock-service.ts` |
 
 **เพิ่มความรู้ใหม่** → ลงไฟล์ domain ที่ตรงเรื่อง · ไม่มีไฟล์ที่ตรง = สร้างใหม่ใน `domains/` พร้อม `paths:` แล้วเพิ่มแถวในตารางนี้ · ข้อมูลอ้างอิงยาว ๆ ที่ไม่ใช่กติกา (ผลสำรวจ API · แผนงาน) → `memo/`
 

@@ -185,6 +185,7 @@ const transfer: Domain = {
 /** ระดับสต็อกของสินค้าในคลัง (ไม่ใช่สถานะของเอกสาร แต่เป็นป้ายบอกสภาพที่ผู้ใช้อ่านทุกวัน) */
 const stockLevel: Domain = {
   none:     s('ยังไม่มี', 'off'),
+  negative: s('ติดลบ', 'late'),
   out:      s('หมด', 'late'),
   low:      s('ต่ำ', 'partial'),
   near_low: s('ใกล้หมด', 'partial'),

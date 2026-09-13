@@ -1,35 +1,111 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import {
+  ClipboardList, Loader2, Package2, Pencil, SquarePen, Warehouse, X,
+} from 'lucide-react';
+import DataTable, { type DataTableColumn, type SortDir } from '@/components/ui/DataTable';
+import StatusTabs from '@/components/ui/StatusTabs';
+import SearchInput from '@/components/ui/SearchInput';
+import FormSelect from '@/components/ui/FormSelect';
+import Button from '@/components/ui/Button';
+import NumberInput from '@/components/ui/NumberInput';
+import BulkActionBar from '@/components/ui/BulkActionBar';
+import HelpHint from '@/components/ui/HelpHint';
+import StatusBadge from '@/components/ui/StatusBadge';
+import ProductImageThumb from '@/components/ui/ProductImageThumb';
+import ActionMenu from '@/components/ui/ActionMenu';
+import Tooltip from '@/components/ui/Tooltip';
+import { EmptyCard, LoadingCard } from '@/components/ui/StateCard';
 import { apiFetch } from '@/lib/api-client';
 import { useToast } from '@/lib/toast-context';
 import { useFeatures } from '@/lib/features-context';
-import { Loader2, Search, Package2, Pencil, Eye, EyeOff, ClipboardList, Warehouse, FilterX, Layers } from 'lucide-react';
-import FormSelect from '@/components/ui/FormSelect';
-import NumberInput from '@/components/ui/NumberInput';
-import StatusBadge from '@/components/ui/StatusBadge';
-import { LoadingCard } from '@/components/ui/StateCard';
-import ColumnSettingsDropdown from '@/app/components/ColumnSettingsDropdown';
-import Pagination from '@/app/components/Pagination';
+import { useDebouncedCallback } from '@/lib/useDebounce';
+import { useConfirmDialog } from '@/lib/useConfirmDialog';
+import { formatNumber } from '@/lib/utils/format';
+import { cleanVariationLabel } from '@/lib/product-display';
 import AdjustStockModal from './AdjustStockModal';
-import SaveButton from '@/components/ui/SaveButton';
-import ProductImageThumb from '@/components/ui/ProductImageThumb';
-import { NUMERIC_TEXT_INPUT_PROPS, onNumericChange } from '@/lib/numeric-input';
-import {
-  InventoryItem, WarehouseItem, StockColumnKey,
-  STOCK_COLUMN_CONFIGS, STOCK_COLUMNS_STORAGE_KEY,
-  getVariationLabel, getProductDisplayName, getProductSubtitle,
-  ConsignBreakdownItem, InTransitBreakdownItem,
+import type {
+  StockRow, StockStatusCounts, StockTransitRow, StockWarehouseRow, WarehouseItem,
 } from './types';
-
-interface FilterOption { id: string; label: string; subtitle?: string }
-
-type StockFilterValue = 'all' | 'normal' | 'low' | 'out' | 'negative' | 'empty';
 
 interface StockTabProps {
   warehouses: WarehouseItem[];
   onViewHistory?: (variationId: string, productLabel: string) => void;
+}
+
+interface FilterOption { id: string; label: string; subtitle?: string }
+
+/** คีย์คอลัมน์ที่เรียงได้ → ชื่อที่ RPC รู้จัก */
+const SORT_MAP: Record<string, string> = {
+  product: 'name',
+  quantity: 'quantity',
+  available: 'available',
+  min: 'min_stock',
+  updated: 'updated',
+};
+
+const DEFAULT_SORT = 'product';
+const DEFAULT_STATUS = 'stocked';
+
+const DASH = <span className="text-gray-400 dark:text-slate-500">-</span>;
+
+/** เนื้อในกล่อง HelpHint — พื้นเข้ม ตัวหนังสือสว่าง */
+function WarehouseBreakdown({ rows }: { rows: StockWarehouseRow[] }) {
+  return (
+    <div className="min-w-[240px] space-y-1.5">
+      <div className="font-semibold text-white">แยกตามคลัง</div>
+      {rows.length === 0 ? (
+        <div className="text-gray-300">ไม่มีของในคลังใด</div>
+      ) : (
+        <ul className="space-y-2">
+          {rows.map(w => (
+            <li key={w.warehouse_id} className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <div>{w.name}</div>
+                {w.type === 'consignment' && (
+                  <div className="text-gray-400">
+                    {w.customer_name ? `${w.customer_name} · ฝากขาย` : 'ฝากขาย'}
+                  </div>
+                )}
+              </div>
+              <div className="text-right whitespace-nowrap tabular-nums">
+                <div><span className="font-semibold">{formatNumber(w.available)}</span> พร้อมขาย</div>
+                <div className="text-gray-400">
+                  จำนวน {formatNumber(w.quantity)} · จอง {formatNumber(w.reserved)}
+                </div>
+                {w.in_transit > 0 && (
+                  <div className="text-gray-400">กำลังส่ง {formatNumber(w.in_transit)}</div>
+                )}
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/** รายชื่อ + จำนวน (ใช้กับ กำลังส่ง / ฝากขาย) */
+function QtyList({ title, rows, empty }: { title: string; rows: { key: string; name: string; qty: number }[]; empty: string }) {
+  return (
+    <div className="min-w-[200px] space-y-1.5">
+      <div className="font-semibold text-white">{title}</div>
+      {rows.length === 0 ? (
+        <div className="text-gray-300">{empty}</div>
+      ) : (
+        <ul className="space-y-1">
+          {rows.map(r => (
+            <li key={r.key} className="flex items-center justify-between gap-4">
+              <span className="truncate">{r.name}</span>
+              <span className="font-semibold tabular-nums flex-shrink-0">{formatNumber(r.qty)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
 }
 
 export default function StockTab({ warehouses, onViewHistory }: StockTabProps) {
@@ -37,408 +113,583 @@ export default function StockTab({ warehouses, onViewHistory }: StockTabProps) {
   const searchParams = useSearchParams();
   const { showToast } = useToast();
   const { features } = useFeatures();
+  const { confirmDialog, confirm } = useConfirmDialog();
 
-  // Read filters from URL search params (persistent across refresh)
+  // ── สถานะทั้งหมดอยู่ใน URL (refresh / ปุ่มย้อนกลับแล้วยังอยู่ที่เดิม) ──
   const search = searchParams.get('q') || '';
-  const warehouse = searchParams.get('wh') || '';
-  const stockFilter = (searchParams.get('stock') || 'all') as StockFilterValue;
-  const hideEmpty = searchParams.get('hide_empty') === '1';
+  const warehouseFilter = searchParams.get('wh') || '';
+  const dealerFilter = searchParams.get('dealer') || '';
   const categoryFilter = searchParams.get('cat') || '';
   const brandFilter = searchParams.get('brand') || '';
   const supplierFilter = searchParams.get('sup') || '';
-  const dealerFilter = searchParams.get('dealer') || '';
-  const page = parseInt(searchParams.get('page') || '1', 10);
-  const recordsPerPage = parseInt(searchParams.get('limit') || '20', 10);
+  const status = searchParams.get('status') || DEFAULT_STATUS;
+  const sortKey = searchParams.get('sort') || DEFAULT_SORT;
+  const sortDir = (searchParams.get('dir') === 'desc' ? 'desc' : 'asc') as SortDir;
+  const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10) || 1);
+  const recordsPerPage = parseInt(searchParams.get('limit') || '20', 10) || 20;
 
-  // Helper to update URL params without full page reload
   const setParams = useCallback((updates: Record<string, string | null>) => {
     const params = new URLSearchParams(searchParams.toString());
+    const defaults: Record<string, string> = {
+      q: '', wh: '', dealer: '', cat: '', brand: '', sup: '',
+      status: DEFAULT_STATUS, sort: DEFAULT_SORT, dir: 'asc', page: '1', limit: '20',
+    };
     for (const [key, val] of Object.entries(updates)) {
-      if (val === null || val === '' || val === 'all' || val === '0') {
-        params.delete(key);
-      } else {
-        params.set(key, val);
-      }
+      if (val === null || val === '' || val === defaults[key]) params.delete(key);
+      else params.set(key, val);
     }
-    // Always reset to page 1 when any filter changes (except page itself)
-    if (!('page' in updates)) {
-      params.delete('page');
-    }
+    // เปลี่ยนตัวกรองแล้วต้องกลับหน้า 1 เสมอ (ยกเว้นตอนสั่งเปลี่ยนหน้าเอง)
+    if (!('page' in updates)) params.delete('page');
     const qs = params.toString();
     router.replace(`/inventory${qs ? `?${qs}` : ''}`, { scroll: false });
   }, [searchParams, router]);
 
-  // Check if any filter is active
-  const hasActiveFilters = search || warehouse || stockFilter !== 'all' || hideEmpty || categoryFilter || brandFilter || supplierFilter || dealerFilter;
+  const hasActiveFilters = !!(search || warehouseFilter || dealerFilter || categoryFilter || brandFilter || supplierFilter);
 
   const clearAllFilters = () => {
-    router.replace('/inventory', { scroll: false });
+    setParams({ q: null, wh: null, dealer: null, cat: null, brand: null, sup: null });
   };
 
-  // Debounced search
+  // ── ช่องค้นหา (พิมพ์เห็นทันที · ยิง 400ms หลังหยุดพิมพ์) ──
   const [searchInput, setSearchInput] = useState(search);
-  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   useEffect(() => { setSearchInput(search); }, [search]);
-
-  const handleSearchInput = (val: string) => {
+  const debouncedSearch = useDebouncedCallback((val: string) => setParams({ q: val }), 400);
+  const handleSearchChange = (val: string) => {
     setSearchInput(val);
-    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
-    searchTimeoutRef.current = setTimeout(() => {
-      setParams({ q: val || null });
-    }, 500);
+    if (!val) { debouncedSearch.cancel(); setParams({ q: null }); return; }
+    debouncedSearch(val);
   };
 
-  // Data state
-  const [loading, setLoading] = useState(true);
-  const [items, setItems] = useState<InventoryItem[]>([]);
+  // ── ข้อมูล ──
+  const [rows, setRows] = useState<StockRow[]>([]);
   const [total, setTotal] = useState(0);
-  const [lowStockCount, setLowStockCount] = useState(0);
-  const [loadTime, setLoadTime] = useState<number | null>(null);
+  const [counts, setCounts] = useState<StockStatusCounts | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [fetching, setFetching] = useState(false);
 
-  // Filter options
+  // ── ตัวเลือกของตัวกรอง ──
   const [categories, setCategories] = useState<FilterOption[]>([]);
   const [brands, setBrands] = useState<FilterOption[]>([]);
   const [suppliers, setSuppliers] = useState<FilterOption[]>([]);
   const [dealers, setDealers] = useState<FilterOption[]>([]);
 
-  // Fetch filter options once
   const filtersFetchedRef = useRef(false);
   useEffect(() => {
     if (filtersFetchedRef.current) return;
     filtersFetchedRef.current = true;
-    const fetchFilters = async () => {
+    (async () => {
       try {
         const res = await apiFetch('/api/products/form-options');
         if (!res.ok) return;
         const data = await res.json();
-        // Categories: flatten parent+children
         const cats: FilterOption[] = [];
         for (const parent of (data.categories || [])) {
           cats.push({ id: parent.id, label: parent.name });
-          if (parent.children) {
-            for (const child of parent.children) {
-              cats.push({ id: child.id, label: child.name, subtitle: parent.name });
-            }
+          for (const child of (parent.children || [])) {
+            cats.push({ id: child.id, label: child.name, subtitle: parent.name });
           }
         }
         setCategories(cats);
-        // Brands
         setBrands((data.brands || []).map((b: { id: string; name: string }) => ({ id: b.id, label: b.name })));
-        // Suppliers (unique from brands)
         const supMap = new Map<string, string>();
         for (const b of (data.brands || [])) {
           if (b.supplier?.id) supMap.set(b.supplier.id, b.supplier.name);
         }
-        setSuppliers(Array.from(supMap, ([id, name]) => ({ id, label: name })));
-      } catch { /* ignore */ }
-    };
-    fetchFilters();
+        setSuppliers(Array.from(supMap, ([id, label]) => ({ id, label })));
+      } catch { /* ตัวกรองโหลดไม่ได้ = ไม่ต้องขึ้น error ทั้งหน้า */ }
+    })();
   }, []);
 
-  // Fetch consignment dealers separately — needs features to be loaded first
   const dealersFetchedRef = useRef(false);
   useEffect(() => {
     if (!features.consignment || dealersFetchedRef.current) return;
     dealersFetchedRef.current = true;
-    apiFetch('/api/customers?type=consignment_dealer&limit=200')
-      .then(res => res.ok ? res.json() : null)
-      .then(data => {
-        if (data) setDealers((data.customers || []).map((c: { id: string; name: string }) => ({ id: c.id, label: c.name })));
-      })
-      .catch(() => { /* ignore */ });
+    (async () => {
+      try {
+        const res = await apiFetch('/api/customers?type=consignment_dealer&limit=200');
+        if (!res.ok) return;
+        const data = await res.json();
+        setDealers((data.customers || []).map((c: { id: string; name: string }) => ({ id: c.id, label: c.name })));
+      } catch { /* เงียบ */ }
+    })();
   }, [features.consignment]);
 
-  // Column toggle
-  const [visibleColumns, setVisibleColumns] = useState<Set<StockColumnKey>>(() => {
-    if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem(STOCK_COLUMNS_STORAGE_KEY);
-      if (stored) {
-        try { return new Set(JSON.parse(stored) as StockColumnKey[]); } catch { /* defaults */ }
-      }
-    }
-    return new Set(STOCK_COLUMN_CONFIGS.filter(c => c.defaultVisible).map(c => c.key));
-  });
-
-
-
-  // Adjust modal
-  const [adjustItem, setAdjustItem] = useState<InventoryItem | null>(null);
-
-  // Min stock edit mode
-  const [minStockEditMode, setMinStockEditMode] = useState(false);
-  const [minStockEdits, setMinStockEdits] = useState<Record<string, number>>({});
-  const [minStockOriginals, setMinStockOriginals] = useState<Record<string, number>>({});
-  const [bulkMinValue, setBulkMinValue] = useState('');
-  const [minStockSaving, setMinStockSaving] = useState(false);
-  const [bulkAllLoading, setBulkAllLoading] = useState(false);
-
-  const enterMinStockEditMode = () => {
-    setMinStockEditMode(true);
-    const edits: Record<string, number> = {};
-    const originals: Record<string, number> = {};
-    items.forEach(item => {
-      edits[item.variation_id] = item.min_stock ?? 0;
-      originals[item.variation_id] = item.min_stock ?? 0;
-    });
-    setMinStockEdits(edits);
-    setMinStockOriginals(originals);
-    setBulkMinValue('');
-    // Force min column visible
-    if (!visibleColumns.has('min')) {
-      setVisibleColumns(prev => {
-        const next = new Set(prev);
-        next.add('min');
-        localStorage.setItem(STOCK_COLUMNS_STORAGE_KEY, JSON.stringify([...next]));
-        return next;
-      });
-    }
-  };
-
-  const exitMinStockEditMode = () => {
-    setMinStockEditMode(false);
-    setMinStockEdits({});
-    setMinStockOriginals({});
-    setBulkMinValue('');
-  };
-
-  const applyBulkMinStock = () => {
-    const val = parseInt(bulkMinValue, 10);
-    if (isNaN(val) || val < 0) return;
-    setMinStockEdits(prev => {
-      const next = { ...prev };
-      for (const key of Object.keys(next)) next[key] = val;
-      return next;
-    });
-  };
-
-  const applyBulkMinStockAll = async () => {
-    const val = parseInt(bulkMinValue, 10);
-    if (isNaN(val) || val < 0) {
-      showToast('กรุณาใส่ค่า min stock ก่อน', 'error');
-      return;
-    }
-    setBulkAllLoading(true);
+  // ── โหลดรายการ — 1 request ต่อการเปลี่ยนตัวกรองหนึ่งครั้ง ──
+  const fetchData = useCallback(async (quiet = false) => {
+    if (!quiet) setFetching(true);
     try {
-      const res = await apiFetch('/api/inventory/min-stock', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ all: true, min_stock: val }),
+      const params = new URLSearchParams({
+        view: 'list',
+        page: String(page),
+        limit: String(recordsPerPage),
+        status,
+        sort_by: SORT_MAP[sortKey] || 'name',
+        sort_asc: sortDir === 'desc' ? '0' : '1',
       });
-      if (!res.ok) throw new Error('Failed');
-      const data = await res.json();
-      showToast(`ตั้ง Min Stock = ${val} ทุกรายการสำเร็จ (${data.updated} รายการ)`, 'success');
-      exitMinStockEditMode();
-      fetchInventory();
-    } catch {
-      showToast('บันทึกไม่สำเร็จ', 'error');
-    } finally {
-      setBulkAllLoading(false);
-    }
-  };
-
-  const handleMinStockChange = (variationId: string, value: string) => {
-    const val = value === '' ? 0 : parseInt(value, 10);
-    if (isNaN(val) || val < 0) return;
-    setMinStockEdits(prev => ({ ...prev, [variationId]: val }));
-  };
-
-  const saveMinStock = async () => {
-    const changedItems = Object.entries(minStockEdits)
-      .filter(([vid, val]) => val !== (minStockOriginals[vid] ?? 0))
-      .map(([variation_id, min_stock]) => ({ variation_id, min_stock }));
-
-    if (changedItems.length === 0) {
-      showToast('ไม่มีรายการที่เปลี่ยนแปลง', 'error');
-      return;
-    }
-
-    setMinStockSaving(true);
-    try {
-      const res = await apiFetch('/api/inventory/min-stock', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items: changedItems }),
-      });
-      if (!res.ok) throw new Error('Failed');
-      showToast(`บันทึก Min Stock สำเร็จ (${changedItems.length} รายการ)`, 'success');
-      exitMinStockEditMode();
-      fetchInventory();
-    } catch {
-      showToast('บันทึกไม่สำเร็จ', 'error');
-    } finally {
-      setMinStockSaving(false);
-    }
-  };
-
-  // Populate edits when page changes in edit mode
-  useEffect(() => {
-    if (!minStockEditMode) return;
-    setMinStockEdits(prev => {
-      const next = { ...prev };
-      for (const item of items) {
-        if (!(item.variation_id in next)) next[item.variation_id] = item.min_stock ?? 0;
-      }
-      return next;
-    });
-    setMinStockOriginals(prev => {
-      const next = { ...prev };
-      for (const item of items) {
-        if (!(item.variation_id in next)) next[item.variation_id] = item.min_stock ?? 0;
-      }
-      return next;
-    });
-  }, [items, minStockEditMode]);
-
-  const toggleColumn = (key: StockColumnKey) => {
-    const config = STOCK_COLUMN_CONFIGS.find(c => c.key === key);
-    if (config?.alwaysVisible) return;
-    if (minStockEditMode && key === 'min') return; // Prevent hiding min column during edit
-    setVisibleColumns(prev => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key); else next.add(key);
-      localStorage.setItem(STOCK_COLUMNS_STORAGE_KEY, JSON.stringify([...next]));
-      return next;
-    });
-  };
-
-  const fetchInventory = async () => {
-    setLoading(true);
-    const t0 = Date.now();
-    try {
-      const params = new URLSearchParams();
-      params.set('page', String(page));
-      params.set('limit', String(recordsPerPage));
-      if (warehouse) params.set('warehouse_id', warehouse);
       if (search) params.set('search', search);
-      if (stockFilter === 'low') params.set('low_stock', 'true');
+      if (dealerFilter) params.set('dealer_id', dealerFilter);
+      else if (warehouseFilter) params.set('warehouse_id', warehouseFilter);
       if (categoryFilter) params.set('category_id', categoryFilter);
       if (brandFilter) params.set('brand_id', brandFilter);
       if (supplierFilter) params.set('supplier_id', supplierFilter);
-      if (dealerFilter) params.set('dealer_id', dealerFilter);
 
       const res = await apiFetch(`/api/inventory?${params.toString()}`);
       if (!res.ok) throw new Error('Failed to fetch');
       const data = await res.json();
-      setItems(data.items || []);
+      setRows(data.items || []);
       setTotal(data.total || 0);
-      setLowStockCount(data.lowStockCount || 0);
-      setLoadTime((Date.now() - t0) / 1000);
+      setCounts(data.status_counts ?? null);
     } catch (error) {
-      console.error('Error fetching inventory:', error);
-      showToast('โหลดข้อมูลไม่สำเร็จ', 'error');
-      setLoadTime(null);
+      console.error('Error fetching inventory list:', error);
+      if (!quiet) showToast('โหลดข้อมูลไม่สำเร็จ', 'error');
     } finally {
       setLoading(false);
+      if (!quiet) setFetching(false);
+    }
+  }, [page, recordsPerPage, status, sortKey, sortDir, search, dealerFilter, warehouseFilter, categoryFilter, brandFilter, supplierFilter, showToast]);
+
+  // ยิงครั้งแรก + ทุกครั้งที่ค่าใน URL เปลี่ยนจริง (กัน re-render ซ้ำไม่ให้ยิงซ้ำ)
+  const depsKey = `${page}|${recordsPerPage}|${status}|${sortKey}|${sortDir}|${search}|${warehouseFilter}|${dealerFilter}|${categoryFilter}|${brandFilter}|${supplierFilter}`;
+  const fetchedRef = useRef(false);
+  const prevDepsRef = useRef(depsKey);
+  const fetchRef = useRef(fetchData);
+  useEffect(() => { fetchRef.current = fetchData; }, [fetchData]);
+  useEffect(() => {
+    const changed = prevDepsRef.current !== depsKey;
+    prevDepsRef.current = depsKey;
+    if (fetchedRef.current && !changed) return;
+    fetchedRef.current = true;
+    void fetchRef.current();
+  }, [depsKey]);
+
+  // ── เลือกหลายรายการ ──
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
+  useEffect(() => { setSelectedIds(new Set()); }, [depsKey]);
+
+  const [bulkMin, setBulkMin] = useState(0);
+  const [bulkSaving, setBulkSaving] = useState(false);
+  const [bulkAllSaving, setBulkAllSaving] = useState(false);
+
+  const saveMinStock = async (items: { variation_id: string; min_stock: number }[]) => {
+    const res = await apiFetch('/api/inventory/min-stock', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'บันทึกไม่สำเร็จ');
     }
   };
 
-  // Fetch when URL params change
-  const depsKey = `${page}-${recordsPerPage}-${warehouse}-${search}-${stockFilter}-${categoryFilter}-${brandFilter}-${supplierFilter}-${dealerFilter}`;
-  const fetchedRef = useRef(false);
-  const prevDepsRef = useRef(depsKey);
-
-  useEffect(() => {
-    const depsChanged = prevDepsRef.current !== depsKey;
-    prevDepsRef.current = depsKey;
-
-    if (fetchedRef.current && !depsChanged) return;
-    fetchedRef.current = true;
-    fetchInventory();
-  }, [depsKey]);
-
-  const openAdjustModal = (item: InventoryItem) => {
-    setAdjustItem(item);
+  const handleBulkMin = async () => {
+    if (selectedIds.size === 0) return;
+    if (bulkMin < 0) { showToast('Min Stock ต้องไม่ติดลบ', 'error'); return; }
+    setBulkSaving(true);
+    try {
+      await saveMinStock([...selectedIds].map(id => ({ variation_id: id, min_stock: bulkMin })));
+      showToast(`ตั้ง Min Stock = ${formatNumber(bulkMin)} ให้ ${selectedIds.size} รายการสำเร็จ`, 'success');
+      setSelectedIds(new Set());
+      await fetchData(true);
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'บันทึกไม่สำเร็จ', 'error');
+    } finally {
+      setBulkSaving(false);
+    }
   };
 
-  const getInitialWarehouseId = () => {
-    if (warehouse) return warehouse;
+  const handleBulkMinAll = async () => {
+    if (bulkMin < 0) { showToast('Min Stock ต้องไม่ติดลบ', 'error'); return; }
+    const ok = await confirm({
+      title: `ตั้ง Min Stock = ${formatNumber(bulkMin)} ให้สินค้าทุกรายการ?`,
+      description: 'มีผลกับสินค้าทุกตัวเลือกในร้าน ไม่ใช่เฉพาะที่เลือกไว้',
+    });
+    if (!ok) return;
+    setBulkAllSaving(true);
+    try {
+      const res = await apiFetch('/api/inventory/min-stock', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ all: true, min_stock: bulkMin }),
+      });
+      if (!res.ok) throw new Error('บันทึกไม่สำเร็จ');
+      const data = await res.json();
+      showToast(`ตั้ง Min Stock = ${formatNumber(bulkMin)} ทุกรายการสำเร็จ (${formatNumber(data.updated ?? 0)} รายการ)`, 'success');
+      setSelectedIds(new Set());
+      await fetchData(true);
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'บันทึกไม่สำเร็จ', 'error');
+    } finally {
+      setBulkAllSaving(false);
+    }
+  };
+
+  // ── ปรับสต็อก ──
+  const [adjustRow, setAdjustRow] = useState<StockRow | null>(null);
+
+  const initialWarehouseFor = (row: StockRow) => {
+    if (warehouseFilter) return warehouseFilter;
     if (warehouses.length === 1) return warehouses[0].id;
-    return '';
+    const internal = row.by_warehouse.find(w => w.type === 'internal');
+    return internal?.warehouse_id || '';
   };
 
-  // Display — apply client-side filters
-  const displayedItems = items.filter(item => {
-    if (hideEmpty && item.quantity <= 0 && item.reserved_quantity <= 0) return false;
-    if (stockFilter === 'normal' && (item.is_out_of_stock || item.is_low_stock || item.available < 0)) return false;
-    if (stockFilter === 'out' && !item.is_out_of_stock) return false;
-    if (stockFilter === 'negative' && item.available >= 0) return false;
-    if (stockFilter === 'empty' && !(item.quantity === 0 && item.reserved_quantity === 0)) return false;
-    return true;
-  });
-  const hasClientFilter = hideEmpty || (stockFilter !== 'all' && stockFilter !== 'low');
-  const effectiveTotal = hasClientFilter ? displayedItems.length : total;
-  const totalPages = hasClientFilter ? 1 : Math.ceil(total / recordsPerPage);
-  const startIdx = hasClientFilter ? 0 : (page - 1) * recordsPerPage;
-  const endIdx = hasClientFilter ? displayedItems.length : Math.min(startIdx + displayedItems.length, total);
+  const openProduct = (productId: string) => window.open(`/products/${productId}/edit`, '_blank');
 
-  function stockLevelOf(item: InventoryItem) {
-    if (item.quantity === 0 && item.reserved_quantity === 0) return 'none';
-    if (item.is_out_of_stock) return 'out';
-    if (item.is_low_stock) return 'low';
-    if (item.min_stock > 0 && item.available <= item.min_stock * 1.5) return 'near_low';
-    return 'ok';
-  }
+  // ── ตัวเลือกคลัง: คลังในบริษัทก่อน แล้วค่อยคลังของตัวแทน ──
+  const warehouseOptions = useMemo(() => [
+    ...warehouses.filter(w => w.warehouse_type !== 'consignment').map(w => ({ id: w.id, label: w.name })),
+    ...warehouses.filter(w => w.warehouse_type === 'consignment').map(w => ({ id: w.id, label: `[ตัวแทน] ${w.name}` })),
+  ], [warehouses]);
 
-  function getStockBadge(item: InventoryItem) {
-    return <StatusBadge domain="stockLevel" status={stockLevelOf(item)} />;
-  }
+  const subtitleOf = (row: StockRow) => {
+    const parts: string[] = [];
+    if (row.product_code) parts.push(row.product_code);
+    if (row.sku && row.sku !== row.product_code) parts.push(`SKU: ${row.sku}`);
+    if (!row.is_simple) {
+      const label = cleanVariationLabel({
+        variation_label: row.variation_label,
+        sku: row.sku,
+        barcode: row.barcode,
+        product_code: row.product_code,
+        attributes: row.attributes,
+      });
+      if (label) parts.push(label);
+    }
+    return parts.join(' · ');
+  };
+
+  const labelOf = (row: StockRow) => {
+    const sub = row.is_simple ? '' : cleanVariationLabel({
+      variation_label: row.variation_label,
+      sku: row.sku,
+      barcode: row.barcode,
+      product_code: row.product_code,
+      attributes: row.attributes,
+    });
+    return sub ? `${row.product_name} - ${sub}` : row.product_name;
+  };
+
+  const transitRowsOf = (row: StockRow) => (row.in_transit_breakdown as StockTransitRow[]).map(t => ({
+    key: t.customer_id, name: t.customer_name, qty: t.qty,
+  }));
+
+  const consignRowsOf = (row: StockRow) => row.by_warehouse
+    .filter(w => w.type === 'consignment')
+    .map(w => ({ key: w.warehouse_id, name: w.customer_name || w.name, qty: w.quantity }));
+
+  /** แก้ Min แล้วเขียนทับแถวในหน้าทันที จากนั้นดึงใหม่เงียบ ๆ ให้สถานะ/ตัวนับตรง */
+  const patchMinStock = (variationId: string, value: number) => {
+    setRows(prev => prev.map(r => r.variation_id === variationId ? { ...r, min_stock: value } : r));
+  };
+
+  const columns: DataTableColumn<StockRow>[] = [
+    {
+      key: 'image',
+      label: 'รูป',
+      defaultWidth: 72,
+      hideMobile: true,
+      headerClassName: '!px-1',
+      cellClassName: '!px-1 !py-1.5',
+      render: (row) => (
+        <ProductImageThumb
+          src={row.image_url}
+          alt={row.product_name}
+          size="lg"
+          fallbackIcon={<Package2 className="w-7 h-7 text-gray-400" />}
+        />
+      ),
+    },
+    {
+      key: 'product',
+      label: 'ชื่อสินค้า',
+      alwaysVisible: true,
+      grow: true,
+      defaultWidth: 320,
+      sortable: true,
+      reorderable: true,
+      render: (row) => (
+        <div>
+          <a
+            href={`/products/${row.product_id}/edit`}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={e => e.stopPropagation()}
+            className="data-primary text-gray-900 dark:text-white line-clamp-2 hover:text-primary hover:underline"
+          >
+            {row.product_name}
+          </a>
+          <div className="helper-text text-gray-400 dark:text-slate-500">{subtitleOf(row)}</div>
+        </div>
+      ),
+    },
+    {
+      key: 'quantity',
+      label: 'จำนวน',
+      align: 'right',
+      defaultWidth: 100,
+      sortable: true,
+      resizable: true,
+      reorderable: true,
+      render: (row) => <span className="tabular-nums">{formatNumber(row.quantity)}</span>,
+    },
+    {
+      key: 'reserved',
+      label: 'จอง',
+      align: 'right',
+      defaultWidth: 90,
+      resizable: true,
+      reorderable: true,
+      render: (row) => row.reserved > 0
+        ? <span className="tabular-nums text-amber-600 dark:text-amber-400">{formatNumber(row.reserved)}</span>
+        : DASH,
+    },
+    {
+      key: 'available',
+      label: 'พร้อมขาย',
+      align: 'right',
+      defaultWidth: 130,
+      sortable: true,
+      resizable: true,
+      reorderable: true,
+      render: (row) => (
+        <span className="inline-flex items-center justify-end whitespace-nowrap">
+          <span className="tabular-nums font-semibold">{formatNumber(row.available)}</span>
+          <HelpHint
+            portal
+            align="right"
+            ariaLabel="ดูแยกตามคลัง"
+            trigger={<Warehouse className="w-4 h-4" />}
+          >
+            <WarehouseBreakdown rows={row.by_warehouse} />
+          </HelpHint>
+        </span>
+      ),
+    },
+    ...(features.consignment ? [{
+      key: 'in_transit',
+      label: 'กำลังส่ง',
+      align: 'right' as const,
+      defaultWidth: 110,
+      resizable: true,
+      reorderable: true,
+      render: (row: StockRow) => row.in_transit > 0 ? (
+        <span className="inline-flex items-center justify-end whitespace-nowrap">
+          <span className="tabular-nums font-medium text-blue-600 dark:text-blue-400">{formatNumber(row.in_transit)}</span>
+          <HelpHint portal align="right" ariaLabel="ดูรายตัวแทน" trigger={<Warehouse className="w-4 h-4" />}>
+            <QtyList title="กำลังส่งไปตัวแทน" rows={transitRowsOf(row)} empty="ไม่มีของกำลังส่ง" />
+          </HelpHint>
+        </span>
+      ) : DASH,
+    }] : []),
+    ...(features.consignment ? [{
+      key: 'consign',
+      label: 'ฝากขาย',
+      align: 'right' as const,
+      defaultWidth: 110,
+      resizable: true,
+      reorderable: true,
+      render: (row: StockRow) => row.consign_qty > 0 ? (
+        <span className="inline-flex items-center justify-end whitespace-nowrap">
+          <span className="tabular-nums font-medium text-purple-600 dark:text-purple-400">{formatNumber(row.consign_qty)}</span>
+          <HelpHint portal align="right" ariaLabel="ดูรายตัวแทน" trigger={<Warehouse className="w-4 h-4" />}>
+            <QtyList title="ฝากขายที่ตัวแทน" rows={consignRowsOf(row)} empty="ไม่มีของฝากขาย" />
+          </HelpHint>
+        </span>
+      ) : DASH,
+    }] : []),
+    {
+      key: 'min',
+      label: 'Min',
+      align: 'right',
+      defaultWidth: 90,
+      sortable: true,
+      resizable: true,
+      reorderable: true,
+      render: (row) => row.min_stock > 0
+        ? <span className="tabular-nums text-gray-500 dark:text-slate-400">{formatNumber(row.min_stock)}</span>
+        : DASH,
+      edit: {
+        type: 'number',
+        getValue: (row) => row.min_stock,
+        validate: (v) => (Number(v) < 0 ? 'ต้องไม่ติดลบ' : null),
+        onSave: async (row, v) => {
+          const value = Math.floor(Number(v) || 0);
+          await saveMinStock([{ variation_id: row.variation_id, min_stock: value }]);
+          patchMinStock(row.variation_id, value);
+          void fetchData(true);
+        },
+      },
+    },
+    {
+      key: 'status',
+      label: 'สถานะ',
+      align: 'center',
+      defaultWidth: 110,
+      reorderable: true,
+      render: (row) => <StatusBadge domain="stockLevel" status={row.status} />,
+    },
+    {
+      key: 'actions',
+      label: 'จัดการ',
+      alwaysVisible: true,
+      stopPropagation: true,
+      align: 'center',
+      defaultWidth: 150,
+      render: (row) => (
+        <div className="flex items-center justify-center gap-1">
+          <Button
+            variant="secondary"
+            size="sm"
+            icon={<Pencil className="w-4 h-4" />}
+            onClick={() => setAdjustRow(row)}
+            aria-label="ปรับสต็อก"
+          >
+            <span className="hidden lg:inline">ปรับสต็อก</span>
+          </Button>
+          <ActionMenu
+            placement="auto"
+            items={[
+              {
+                key: 'history',
+                label: 'ประวัติการเคลื่อนไหว',
+                icon: <ClipboardList className="w-3.5 h-3.5" />,
+                onClick: () => onViewHistory?.(row.variation_id, labelOf(row)),
+              },
+              {
+                key: 'edit',
+                label: 'แก้ไขสินค้า',
+                icon: <SquarePen className="w-3.5 h-3.5" />,
+                onClick: () => openProduct(row.product_id),
+              },
+            ]}
+          />
+        </div>
+      ),
+    },
+  ];
+
+  const mobileCardRender = (row: StockRow) => (
+    <div className="flex gap-3">
+      <ProductImageThumb
+        src={row.image_url}
+        alt={row.product_name}
+        size="lg"
+        fallbackIcon={<Package2 className="w-6 h-6 text-gray-400" />}
+      />
+      <div className="flex-1 min-w-0">
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex-1 min-w-0">
+            <a
+              href={`/products/${row.product_id}/edit`}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={e => e.stopPropagation()}
+              className="body-text font-semibold text-gray-900 dark:text-white line-clamp-2 hover:text-primary hover:underline"
+            >
+              {row.product_name}
+            </a>
+            <p className="helper-text text-gray-400 dark:text-slate-500">{subtitleOf(row)}</p>
+          </div>
+          <div className="flex-shrink-0"><StatusBadge domain="stockLevel" status={row.status} /></div>
+        </div>
+
+        <div className="mt-2 grid grid-cols-3 gap-2 text-center">
+          <div>
+            <p className="helper-text text-gray-400 dark:text-slate-500">จำนวน</p>
+            <p className="text-base font-medium text-gray-900 dark:text-white tabular-nums">{formatNumber(row.quantity)}</p>
+          </div>
+          <div>
+            <p className="helper-text text-gray-400 dark:text-slate-500">จอง</p>
+            <p className={`text-base font-medium tabular-nums ${row.reserved > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-gray-300 dark:text-slate-600'}`}>
+              {row.reserved > 0 ? formatNumber(row.reserved) : '-'}
+            </p>
+          </div>
+          <div>
+            <p className="helper-text text-gray-400 dark:text-slate-500">พร้อมขาย</p>
+            <p className="text-base font-bold text-gray-900 dark:text-white tabular-nums">{formatNumber(row.available)}</p>
+          </div>
+        </div>
+
+        <div className="mt-3 flex items-center gap-2" onClick={e => e.stopPropagation()}>
+          <Button
+            variant="secondary"
+            size="sm"
+            icon={<Pencil className="w-4 h-4" />}
+            onClick={() => setAdjustRow(row)}
+            className="flex-1 justify-center"
+          >
+            ปรับสต็อก
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            icon={<ClipboardList className="w-4 h-4" />}
+            onClick={() => onViewHistory?.(row.variation_id, labelOf(row))}
+            className="flex-1 justify-center"
+          >
+            ประวัติ
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+
+  const totalPages = Math.max(1, Math.ceil(total / recordsPerPage));
 
   return (
     <>
-      {/* Filters */}
-      <div className="data-filter-card space-y-2">
-        <div className="flex items-center gap-2">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input
-              type="text"
+      <StatusTabs
+        activeKey={status}
+        onSelect={(key) => setParams({ status: key })}
+        tabs={[
+          { key: 'stocked', label: 'มีสต็อก', colorKey: 'all', count: counts?.stocked },
+          { key: 'ok', label: 'ปกติ', colorKey: 'completed', count: counts?.ok },
+          { key: 'near_low', label: 'ใกล้หมด', colorKey: 'partially_paid', count: counts?.near_low },
+          { key: 'low', label: 'ต่ำกว่า Min', colorKey: 'ready_to_ship', count: counts?.low },
+          { key: 'out', label: 'หมด', colorKey: 'overdue', count: counts?.out },
+          { key: 'negative', label: 'ติดลบ', colorKey: 'overdue', count: counts?.negative },
+          { key: 'none', label: 'ยังไม่มีสต็อก', colorKey: 'cancelled', count: counts?.none },
+        ]}
+      />
+
+      {/* ตัวกรอง */}
+      <div className="data-filter-card">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="w-full md:flex-1 md:min-w-[220px]">
+            <SearchInput
               value={searchInput}
-              onChange={e => handleSearchInput(e.target.value)}
-              placeholder="ค้นหาชื่อ, รหัส, SKU..."
-              className="w-full h-[42px] pl-9 pr-3 border border-gray-300 dark:border-slate-500 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
+              onChange={handleSearchChange}
+              placeholder="ค้นหาชื่อ, รหัส, SKU, บาร์โค้ด..."
             />
           </div>
           {warehouses.length > 1 && (
-            <div className="w-48">
+            <div className="w-full md:w-48">
               <FormSelect
-                value={warehouse}
+                value={warehouseFilter}
                 onChange={v => setParams({ wh: v || null, dealer: null })}
-                options={[
-                  ...warehouses.filter(wh => wh.warehouse_type !== 'consignment').map(wh => ({ id: wh.id, label: wh.name })),
-                  ...warehouses.filter(wh => wh.warehouse_type === 'consignment').map(wh => ({ id: wh.id, label: `[ตัวแทน] ${wh.name}` })),
-                ]}
+                options={warehouseOptions}
                 clearLabel="ทุกคลัง"
+                placeholder="คลัง"
                 icon={<Warehouse className="w-4 h-4" />}
-                searchThreshold={7}
+                searchPlaceholder="ค้นหาคลัง..."
               />
             </div>
           )}
-          <button
-            onClick={() => setParams({ hide_empty: hideEmpty ? null : '1' })}
-            className={`h-[42px] px-2.5 border rounded-lg transition-colors flex items-center ${
-              hideEmpty
-                ? 'border-primary bg-primary/10 text-primary'
-                : 'border-gray-300 dark:border-slate-500 text-gray-400 dark:text-slate-400 hover:bg-gray-50 dark:hover:bg-slate-700/50'
-            }`}
-            title={hideEmpty ? 'แสดงสินค้าหมด/ว่าง' : 'ซ่อนสินค้าหมด/ว่าง'}
-          >
-            {hideEmpty ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-          </button>
-          {!minStockEditMode && (
-            <button
-              onClick={enterMinStockEditMode}
-              className="h-[42px] px-3 border border-gray-300 dark:border-slate-500 text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700/50 rounded-lg transition-colors flex items-center gap-1.5 text-sm font-medium whitespace-nowrap"
-              title="ตั้ง Min Stock"
-            >
-              <Layers className="w-4 h-4" />
-              Min Stock
-            </button>
+          {features.consignment && dealers.length > 0 && (
+            <div className="w-full md:w-44">
+              <FormSelect
+                value={dealerFilter}
+                onChange={v => setParams({ dealer: v || null, wh: null })}
+                options={dealers}
+                clearLabel="ทุกตัวแทน"
+                placeholder="ตัวแทน"
+                searchPlaceholder="ค้นหาตัวแทน..."
+              />
+            </div>
           )}
-        </div>
-        {/* Category / Brand / Supplier filters */}
-        <div className="flex items-center gap-2 flex-wrap">
           {categories.length > 0 && (
-            <div className="w-[calc(50%-0.25rem)] sm:w-40">
+            <div className="w-full md:w-44">
               <FormSelect
                 value={categoryFilter}
                 onChange={v => setParams({ cat: v || null })}
@@ -450,7 +701,7 @@ export default function StockTab({ warehouses, onViewHistory }: StockTabProps) {
             </div>
           )}
           {features.product_brand && brands.length > 0 && (
-            <div className="w-[calc(50%-0.25rem)] sm:w-40">
+            <div className="w-full md:w-44">
               <FormSelect
                 value={brandFilter}
                 onChange={v => setParams({ brand: v || null })}
@@ -462,7 +713,7 @@ export default function StockTab({ warehouses, onViewHistory }: StockTabProps) {
             </div>
           )}
           {suppliers.length > 0 && (
-            <div className="w-[calc(50%-0.25rem)] sm:w-40">
+            <div className="w-full md:w-44">
               <FormSelect
                 value={supplierFilter}
                 onChange={v => setParams({ sup: v || null })}
@@ -473,388 +724,93 @@ export default function StockTab({ warehouses, onViewHistory }: StockTabProps) {
               />
             </div>
           )}
-          {/* Clear all filters */}
           {hasActiveFilters && (
-            <button
-              onClick={clearAllFilters}
-              className="flex items-center gap-1 px-2.5 py-2 text-xs font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-            >
-              <FilterX className="w-3.5 h-3.5" />
-              ล้างตัวกรอง
-            </button>
+            <Tooltip text="ล้างตัวกรอง">
+              <Button
+                variant="ghost"
+                icon={<X className="w-4 h-4" />}
+                onClick={clearAllFilters}
+                aria-label="ล้างตัวกรอง"
+              >
+                <span className="hidden md:inline">ล้างตัวกรอง</span>
+              </Button>
+            </Tooltip>
           )}
-        </div>
-        <div className="flex items-center gap-1.5 flex-wrap">
-          {([
-            { value: 'all', label: 'ทั้งหมด' },
-            { value: 'normal', label: 'ปกติ' },
-            { value: 'low', label: `ต่ำกว่า Min${lowStockCount > 0 ? ` (${lowStockCount})` : ''}` },
-            { value: 'out', label: 'หมด' },
-            { value: 'negative', label: 'ติดลบ' },
-            { value: 'empty', label: 'ยังไม่มี stock' },
-          ] as const).map(opt => (
-            <button
-              key={opt.value}
-              onClick={() => setParams({ stock: opt.value === 'all' ? null : opt.value })}
-              className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
-                stockFilter === opt.value
-                  ? 'bg-primary text-white'
-                  : 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600'
-              }`}
-            >
-              {opt.label}
-            </button>
-          ))}
         </div>
       </div>
 
-      {/* Min Stock Edit Bar */}
-      {minStockEditMode && (
-        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg px-4 py-3 flex items-center justify-between gap-4 flex-wrap">
-          <div className="flex items-center gap-2 flex-1 min-w-[250px]">
-            <span className="text-sm font-medium text-amber-800 dark:text-amber-300 whitespace-nowrap">ตั้ง min stock ทุกรายการเป็น:</span>
-            <input
-              {...NUMERIC_TEXT_INPUT_PROPS}
-              value={bulkMinValue}
-              onChange={onNumericChange(setBulkMinValue)}
-              onKeyDown={e => e.key === 'Enter' && applyBulkMinStock()}
-              className="w-24 h-9 px-3 border border-amber-300 dark:border-amber-700 rounded-lg text-sm text-right bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-amber-400"
-              placeholder="0"
-            />
-            <button
-              onClick={applyBulkMinStock}
-              className="h-9 px-3 text-sm font-medium text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/40 hover:bg-amber-200 dark:hover:bg-amber-900/60 border border-amber-300 dark:border-amber-700 rounded-lg transition-colors whitespace-nowrap"
-            >
-              ใช้ทั้งหน้า
-            </button>
-            <button
-              onClick={applyBulkMinStockAll}
-              disabled={bulkAllLoading}
-              className="h-9 px-3 text-sm font-medium text-white bg-amber-600 hover:bg-amber-700 rounded-lg transition-colors whitespace-nowrap disabled:opacity-50 flex items-center gap-1.5"
-            >
-              {bulkAllLoading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-              ใช้ทุกรายการ
-            </button>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={exitMinStockEditMode}
-              className="h-9 px-4 text-sm font-medium text-gray-600 dark:text-slate-300 bg-white dark:bg-slate-700 border border-gray-300 dark:border-slate-500 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-600 transition-colors"
-            >
-              ยกเลิก
-            </button>
-            <SaveButton onClick={saveMinStock} loading={minStockSaving} />
-          </div>
-        </div>
-      )}
-
-      {/* Table */}
       {loading ? (
         <LoadingCard />
-      ) : displayedItems.length === 0 ? (
-        <div className="text-center py-16">
-          <Package2 className="w-12 h-12 text-gray-300 dark:text-slate-600 mx-auto mb-3" />
-          <p className="text-gray-500 dark:text-slate-400 text-sm">
-            {hasActiveFilters ? 'ไม่พบสินค้าที่ตรงกับตัวกรอง' : 'ยังไม่มีสินค้า กรุณาเพิ่มสินค้าก่อน'}
-          </p>
-        </div>
+      ) : rows.length === 0 ? (
+        <EmptyCard
+          icon={<Package2 className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
+          title={hasActiveFilters ? 'ไม่พบสินค้าที่ตรงกับตัวกรอง' : 'ยังไม่มีสินค้าในแท็บนี้'}
+          subtitle={hasActiveFilters ? 'ลองล้างตัวกรองแล้วค้นใหม่' : undefined}
+          actions={hasActiveFilters
+            ? <Button variant="secondary" icon={<X className="w-4 h-4" />} onClick={clearAllFilters}>ล้างตัวกรอง</Button>
+            : undefined}
+        />
       ) : (
-        <div className="data-table-wrap hidden md:block">
-          <div className="overflow-x-auto">
-            <table className="data-table-fixed">
-              <thead className="data-thead">
-                <tr>
-                  {visibleColumns.has('image') && <th className="data-th !pl-4 !pr-1" style={{ width: '80px', minWidth: '80px' }}>รูป</th>}
-                  {visibleColumns.has('product') && <th className="data-th !px-2" style={{ minWidth: '240px' }}>ชื่อสินค้า</th>}
-                  {visibleColumns.has('quantity') && <th className="data-th text-right">จำนวน</th>}
-                  {visibleColumns.has('reserved') && <th className="data-th text-right">จอง</th>}
-                  {visibleColumns.has('in_transit') && features.consignment && <th className="data-th text-right" title="สินค้ากำลังจัดส่งไปตัวแทน">กำลังส่ง</th>}
-                  {visibleColumns.has('available') && <th className="data-th text-right">พร้อมขาย</th>}
-                  {visibleColumns.has('consign') && features.consignment && <th className="data-th text-right" title="สต๊อกที่อยู่กับตัวแทนฝากขาย">ฝากขาย</th>}
-                  {visibleColumns.has('min') && <th className="data-th text-right">Min</th>}
-                  {visibleColumns.has('status') && <th className="data-th text-center" style={{ minWidth: '80px' }}>สถานะ</th>}
-                  {visibleColumns.has('actions') && <th className="data-th text-center w-20"></th>}
-                </tr>
-              </thead>
-              <tbody className="data-tbody">
-                {displayedItems.map(item => {
-                  const displayName = getProductDisplayName(item);
-                  return (
-                    <tr key={item.id} className="data-tr">
-                      {visibleColumns.has('image') && (
-                        <td className="pl-4 pr-1 py-1.5 whitespace-nowrap" style={{ width: '80px', minWidth: '80px' }}>
-                          <ProductImageThumb
-                            src={item.product_image}
-                            alt={displayName}
-                            size="lg"
-                            fallbackIcon={<Package2 className="w-7 h-7 text-gray-400" />}
-                          />
-                        </td>
-                      )}
-                      {visibleColumns.has('product') && (
-                        <td className="px-2 py-2">
-                          <a
-                            href={`/products/${item.product_id}/edit`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            onClick={e => e.stopPropagation()}
-                            className="data-primary text-gray-900 dark:text-white line-clamp-2 hover:text-[#F4511E] hover:underline cursor-pointer"
-                            title="เปิดแก้ไขสินค้าในแท็บใหม่"
-                          >
-                            {displayName}
-                          </a>
-                          <div className="data-secondary text-gray-400 dark:text-slate-500">{getProductSubtitle(item)}</div>
-                        </td>
-                      )}
-                      {visibleColumns.has('quantity') && (
-                        <td className="px-6 py-4 text-right text-sm font-medium text-gray-900 dark:text-white">{item.quantity.toLocaleString()}</td>
-                      )}
-                      {visibleColumns.has('reserved') && (
-                        <td className="px-6 py-4 text-right text-sm text-amber-600 dark:text-amber-400">{item.reserved_quantity > 0 ? item.reserved_quantity.toLocaleString() : '-'}</td>
-                      )}
-                      {visibleColumns.has('in_transit') && features.consignment && (
-                        <td className="px-6 py-4 text-right text-sm">
-                          {(item.in_transit_quantity ?? 0) > 0 ? (
-                            <div className="group relative inline-block">
-                              <span className="font-medium text-blue-600 dark:text-blue-400 cursor-default">
-                                {(item.in_transit_quantity ?? 0).toLocaleString()}
-                              </span>
-                              {(item.in_transit_breakdown?.length ?? 0) > 0 && (
-                                <div className="absolute right-0 bottom-full mb-1.5 hidden group-hover:block z-50 min-w-[180px] bg-gray-900 dark:bg-slate-700 text-white text-xs rounded-lg p-2.5 shadow-xl pointer-events-none">
-                                  <div className="font-medium mb-1.5 text-gray-300">กำลังส่งไปตัวแทน</div>
-                                  {(item.in_transit_breakdown as InTransitBreakdownItem[]).map(b => (
-                                    <div key={b.customer_id} className="flex justify-between gap-3">
-                                      <span className="truncate text-gray-200">{b.customer_name}</span>
-                                      <span className="font-bold flex-shrink-0">{b.qty.toLocaleString()}</span>
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          ) : (
-                            <span className="text-gray-300 dark:text-slate-600">-</span>
-                          )}
-                        </td>
-                      )}
-                      {visibleColumns.has('available') && (
-                        <td className="px-6 py-4 text-right text-sm font-medium text-gray-900 dark:text-white">{item.available.toLocaleString()}</td>
-                      )}
-                      {visibleColumns.has('consign') && features.consignment && (
-                        <td className="px-6 py-4 text-right text-sm">
-                          {(item.consign_qty ?? 0) > 0 ? (
-                            <div className="group relative inline-block">
-                              <span className="font-medium text-purple-600 dark:text-purple-400 cursor-default">
-                                {(item.consign_qty ?? 0).toLocaleString()}
-                              </span>
-                              {/* Tooltip breakdown per dealer */}
-                              {(item.consign_breakdown?.length ?? 0) > 0 && (
-                                <div className="absolute right-0 bottom-full mb-1.5 hidden group-hover:block z-50 min-w-[180px] bg-gray-900 dark:bg-slate-700 text-white text-xs rounded-lg p-2.5 shadow-xl pointer-events-none">
-                                  <div className="font-medium mb-1.5 text-gray-300">ฝากขายที่ตัวแทน</div>
-                                  {(item.consign_breakdown as ConsignBreakdownItem[]).map(b => (
-                                    <div key={b.customer_id} className="flex justify-between gap-3">
-                                      <span className="truncate text-gray-200">{b.customer_name}</span>
-                                      <span className="font-bold flex-shrink-0">{b.qty.toLocaleString()}</span>
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          ) : (
-                            <span className="text-gray-300 dark:text-slate-600">-</span>
-                          )}
-                        </td>
-                      )}
-                      {visibleColumns.has('min') && (
-                        <td className="px-3 py-2 text-right text-sm text-gray-500 dark:text-slate-400">
-                          {minStockEditMode ? (
-                            <NumberInput
-                              min="0"
-                              value={minStockEdits[item.variation_id] ?? item.min_stock ?? 0}
-                              onChange={(n) => handleMinStockChange(item.variation_id, String(n))}
-                              className="w-20 h-8 px-2 text-right text-sm border border-gray-300 dark:border-slate-500 rounded-md bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-amber-400 focus:border-amber-400"
-                            />
-                          ) : (
-                            item.min_stock > 0 ? item.min_stock.toLocaleString() : '-'
-                          )}
-                        </td>
-                      )}
-                      {visibleColumns.has('status') && (
-                        <td className="px-6 py-4 text-center whitespace-nowrap">{getStockBadge(item)}</td>
-                      )}
-                      {visibleColumns.has('actions') && (
-                        <td className="px-6 py-4 text-center">
-                          {!minStockEditMode && (
-                            <div className="flex items-center justify-center gap-1">
-                              <button
-                                onClick={() => openAdjustModal(item)}
-                                className="p-1.5 text-gray-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"
-                                title="ปรับ stock"
-                              >
-                                <Pencil className="w-4 h-4" />
-                              </button>
-                              <button
-                                onClick={() => onViewHistory?.(item.variation_id, displayName)}
-                                className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
-                                title="ดูประวัติ"
-                              >
-                                <ClipboardList className="w-4 h-4" />
-                              </button>
-                            </div>
-                          )}
-                        </td>
-                      )}
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-
-          <Pagination
+        <div className="relative">
+          {fetching && (
+            <div className="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-white/60 dark:bg-slate-900/60 pointer-events-none">
+              <Loader2 className="w-8 h-8 text-primary animate-spin" />
+            </div>
+          )}
+          <DataTable<StockRow>
+            storageKey="inventory-v2"
+            columns={columns}
+            data={rows}
+            getRowId={(r) => r.variation_id}
+            selectedIds={selectedIds}
+            onSelectionChange={setSelectedIds}
+            mobileCardRender={mobileCardRender}
+            sortBy={sortKey}
+            sortDir={sortDir}
+            onSort={(key, dir) => setParams(dir === null
+              ? { sort: null, dir: null }
+              : { sort: key, dir })}
             currentPage={page}
             totalPages={totalPages}
-            totalRecords={effectiveTotal}
-            startIdx={startIdx}
-            endIdx={endIdx}
+            totalRecords={total}
             recordsPerPage={recordsPerPage}
-            setRecordsPerPage={v => setParams({ limit: String(v) })}
-            setPage={v => setParams({ page: v > 1 ? String(v) : null })}
-            onLimitChange={limit => setParams({ limit: String(limit) })}
-            loadTime={loadTime}
-          >
-            <ColumnSettingsDropdown
-              configs={STOCK_COLUMN_CONFIGS}
-              visible={visibleColumns}
-              toggle={toggleColumn}
-              buttonClassName="p-1.5 text-gray-400 dark:text-slate-500 hover:text-gray-600 dark:hover:text-slate-300 transition-colors"
-              dropUp
-            />
-          </Pagination>
-        </div>
-      )}
-
-      {/* Mobile Cards */}
-      {!loading && displayedItems.length > 0 && (
-        <div className="md:hidden bg-white dark:bg-slate-800 rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden">
-          <div className="divide-y divide-gray-100 dark:divide-slate-700">
-            {displayedItems.map(item => {
-              const displayName = getProductDisplayName(item);
-              return (
-                <div key={item.id} className="p-4">
-                  <div className="flex gap-3">
-                    {/* Image */}
-                    <ProductImageThumb
-                      src={item.product_image}
-                      alt={getProductDisplayName(item)}
-                      size="lg"
-                      fallbackIcon={<Package2 className="w-6 h-6 text-gray-400" />}
-                    />
-
-                    {/* Info */}
-                    <div className="flex-1 min-w-0">
-                      {/* Row 1: Name + Status */}
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex-1 min-w-0">
-                          <a
-                            href={`/products/${item.product_id}/edit`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            onClick={e => e.stopPropagation()}
-                            className="font-semibold text-gray-900 dark:text-white text-[15px] line-clamp-2 hover:text-[#F4511E] hover:underline cursor-pointer block"
-                            title="เปิดแก้ไขสินค้าในแท็บใหม่"
-                          >
-                            {displayName}
-                          </a>
-                          <p className="text-xs text-gray-400 dark:text-slate-500">{getProductSubtitle(item)}</p>
-                        </div>
-                        <div className="flex-shrink-0">{getStockBadge(item)}</div>
-                      </div>
-
-                      {/* Row 2: Stock numbers */}
-                      <div className="mt-2 grid grid-cols-3 gap-2 text-center">
-                        <div>
-                          <p className="text-xs text-gray-400 dark:text-slate-500">จำนวน</p>
-                          <p className="text-sm font-medium text-gray-900 dark:text-white">{item.quantity.toLocaleString()}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-gray-400 dark:text-slate-500">จอง</p>
-                          <p className={`text-sm font-medium ${item.reserved_quantity > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-gray-300 dark:text-slate-600'}`}>
-                            {item.reserved_quantity > 0 ? item.reserved_quantity.toLocaleString() : '-'}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-gray-400 dark:text-slate-500">พร้อมขาย</p>
-                          <p className="text-sm font-bold text-gray-900 dark:text-white">{item.available.toLocaleString()}</p>
-                        </div>
-                      </div>
-
-                      {/* Row 3: Actions */}
-                      <div className="mt-2 flex items-center justify-between">
-                        <div className="flex items-center gap-2 text-xs text-gray-400 dark:text-slate-500">
-                          {minStockEditMode ? (
-                            <div className="flex items-center gap-1">
-                              <span>Min:</span>
-                              <NumberInput
-                                min="0"
-                                value={minStockEdits[item.variation_id] ?? item.min_stock ?? 0}
-                                onChange={(n) => handleMinStockChange(item.variation_id, String(n))}
-                                className="w-16 h-7 px-2 text-right text-xs border border-gray-300 dark:border-slate-500 rounded bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-amber-400"
-                              />
-                            </div>
-                          ) : (
-                            item.min_stock > 0 && <span>Min: {item.min_stock}</span>
-                          )}
-                        </div>
-                        {!minStockEditMode && (
-                          <div className="flex items-center gap-1">
-                            <button
-                              onClick={() => openAdjustModal(item)}
-                              className="p-1.5 text-gray-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"
-                              title="ปรับ stock"
-                            >
-                              <Pencil className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => onViewHistory?.(item.variation_id, displayName)}
-                              className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
-                              title="ดูประวัติ"
-                            >
-                              <ClipboardList className="w-4 h-4" />
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-          <Pagination
-            currentPage={page}
-            totalPages={totalPages}
-            totalRecords={effectiveTotal}
-            startIdx={startIdx}
-            endIdx={endIdx}
-            recordsPerPage={recordsPerPage}
-            setRecordsPerPage={v => setParams({ limit: String(v) })}
-            setPage={v => setParams({ page: v > 1 ? String(v) : null })}
-            onLimitChange={limit => setParams({ limit: String(limit) })}
-            loadTime={loadTime}
+            onPageChange={(p) => setParams({ page: String(p) })}
+            onRecordsPerPageChange={(l) => setParams({ limit: String(l), page: '1' })}
+            onLimitChange={(l, p) => setParams({ limit: String(l), page: String(p) })}
+            emptyMessage="ไม่พบสินค้า"
+            emptyIcon={<Package2 className="w-12 h-12 text-gray-300 dark:text-slate-600" />}
           />
         </div>
       )}
 
-      {/* Adjust Modal */}
-      {adjustItem && (
+      <BulkActionBar count={selectedIds.size} onClear={() => setSelectedIds(new Set())}>
+        <NumberInput
+          min="0"
+          value={bulkMin}
+          onChange={setBulkMin}
+          placeholder="Min"
+          aria-label="ค่า Min Stock"
+          className="w-28 form-control-md px-3 text-right bg-white dark:bg-slate-700 text-gray-900 dark:text-white rounded-lg border border-gray-300 dark:border-slate-600 focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary"
+        />
+        <Button variant="primary" loading={bulkSaving} onClick={handleBulkMin}>
+          ตั้ง Min Stock ให้ {selectedIds.size} รายการ
+        </Button>
+        <Button variant="secondary" loading={bulkAllSaving} onClick={handleBulkMinAll}>
+          ตั้งทุกรายการ…
+        </Button>
+      </BulkActionBar>
+
+      {adjustRow && (
         <AdjustStockModal
-          item={adjustItem}
+          row={adjustRow}
           warehouses={warehouses}
-          initialWarehouseId={getInitialWarehouseId()}
-          onClose={() => setAdjustItem(null)}
-          onSaved={() => { setAdjustItem(null); fetchInventory(); }}
+          initialWarehouseId={initialWarehouseFor(adjustRow)}
+          onClose={() => setAdjustRow(null)}
+          onSaved={() => { setAdjustRow(null); void fetchData(true); }}
         />
       )}
+
+      {confirmDialog}
     </>
   );
 }

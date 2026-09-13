@@ -13,6 +13,7 @@ import { CSS } from '@dnd-kit/utilities';
 import Pagination from '@/app/components/Pagination';
 import ColumnSettingsDropdown from '@/app/components/ColumnSettingsDropdown';
 import { useColumnToggle, type ColumnConfig } from '@/lib/useColumnToggle';
+import { NUMERIC_TEXT_INPUT_PROPS, sanitizeNumericInput } from '@/lib/numeric-input';
 
 // ── Types ──
 
@@ -832,11 +833,17 @@ function EditCell<T>({ row, config, onDone }: { row: T; config: EditConfig<T>; o
           ))}
         </select>
       ) : (
+        // ช่องตัวเลขเป็น type="text" + inputMode="decimal" กรองผ่าน sanitizeNumericInput —
+        // ห้าม type="number" (ล้อเมาส์/แทร็กแพดเปลี่ยนค่าเงียบ ๆ ขณะ focus · กติกาเดียวกับ NumberInput)
         <input
           ref={el => { inputRef.current = el; }}
-          type={config.type === 'number' ? 'number' : 'text'}
+          {...(config.type === 'number' ? NUMERIC_TEXT_INPUT_PROPS : { type: 'text' as const })}
           value={value}
-          onChange={(e) => setValue(e.target.value)}
+          onChange={(e) => {
+            if (config.type !== 'number') { setValue(e.target.value); return; }
+            const next = sanitizeNumericInput(e.target.value, { allowNegative: true });
+            if (next !== null) setValue(next);
+          }}
           onKeyDown={handleKey}
           disabled={saving}
           className={inputClass}
