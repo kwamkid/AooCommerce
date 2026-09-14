@@ -267,6 +267,72 @@
 
 .sf-empty { color: var(--sf-muted); padding: 48px 0; text-align: center; }
 
+/* ── จำนวนรายการ + แบ่งหน้า ── */
+.sf-count {
+  color: var(--sf-muted);
+  font-size: 14px;
+  margin: 0 0 12px;
+  text-align: right;
+}
+
+.sf-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 32px 0 8px;
+}
+.sf-pagination-list {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.sf-pagination-num,
+.sf-pagination-step,
+.sf-pagination-gap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  /* นิ้วต้องกดโดนบนมือถือ — ขั้นต่ำ 40px ทั้งกว้างและสูง */
+  min-width: 40px;
+  min-height: 40px;
+  padding: 0 12px;
+  border-radius: var(--sf-radius);
+  font-size: 15px;
+  text-decoration: none;
+  color: var(--sf-text);
+}
+.sf-pagination-num,
+.sf-pagination-step {
+  border: 1px solid var(--sf-border);
+  background: var(--sf-bg);
+}
+.sf-pagination-num:hover,
+.sf-pagination-step:hover { border-color: var(--sf-primary); color: var(--sf-primary); }
+.sf-pagination-current,
+.sf-pagination-current:hover {
+  background: var(--sf-primary);
+  border-color: var(--sf-primary);
+  color: var(--sf-primary-contrast);
+  font-weight: 700;
+  cursor: default;
+}
+.sf-pagination-gap { color: var(--sf-muted); min-width: 24px; padding: 0 4px; }
+.sf-pagination-disabled {
+  color: var(--sf-muted);
+  opacity: .5;
+  cursor: default;
+}
+@container (max-width: 600px) {
+  .sf-pagination-step { padding: 0 10px; font-size: 14px; }
+  .sf-pagination-num { padding: 0 8px; }
+}
+
 /* หน้าร้านเป็นโทนสว่างเสมอ ไม่ตามธีมของเครื่องลูกค้า
    เพราะร้านเลือกสีแบรนด์/สีปุ่ม/แถบหัวร้านโดยดูจากพรีวิวบนพื้นสว่าง
    ถ้าพื้นหลังพลิกเป็นมืดตามเครื่องของคนเข้าชม สีที่อุตส่าห์จูนไว้ก็ใช้ไม่ได้จริง

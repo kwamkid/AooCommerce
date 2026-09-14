@@ -11,12 +11,14 @@ import { parseLineLogin } from '@/lib/line-login';
 import { parseGiftCard, type GiftCardSettings } from '@/lib/gift-card';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import {
-  getCompositeAvailability, getCompositePartsMap, getComboFallbackImages, type CompositePart,
+  getCompositePartsMap, getComboFallbackImages, type CompositePart,
 } from '@/lib/composite';
 import type { CompositeSlot } from '@/lib/composite-shared';
+import { fetchAllRows } from '@/lib/supabase-paging';
 import {
-  parseStorefront, effectivePrice,
-  type StorefrontConfig, type StorefrontProduct, type StorefrontVariation, type StorefrontOptionGroup,
+  parseStorefront, effectivePrice, STOREFRONT_PAGE_SIZE,
+  type StorefrontConfig, type StorefrontProduct, type StorefrontSort,
+  type StorefrontVariation, type StorefrontOptionGroup,
 } from '@/lib/storefront';
 import { parseFeatures, type FeatureFlags } from '@/lib/features';
 
@@ -182,19 +184,46 @@ interface RawVariation {
   sku: string | null;
   default_price: number;
   discount_price: number | null;
-  stock: number | null;
   is_active: boolean;
   /** combo of a composite product: `{ slot name: picked option }` */
   attributes?: Record<string, unknown> | null;
 }
 
-const VARIATION_SELECT = 'id, product_id, variation_label, sku, default_price, discount_price, stock, is_active, attributes';
+// ⛔ ไม่มีคอลัมน์ `stock` โดยตั้งใจ — ดู fetchAvailability() ว่าทำไมห้ามอ่าน
+const VARIATION_SELECT = 'id, product_id, variation_label, sku, default_price, discount_price, is_active, attributes';
+
+/**
+ * พร้อมขายจริงของแต่ละตัวเลือก — **ผ่าน RPC `get_variation_stock` เท่านั้น**
+ *
+ * ⛔ ห้ามกลับไปอ่าน `product_variations.stock` เด็ดขาด: คอลัมน์นั้นไม่มีใครอัปเดตแล้ว
+ * (stock-service เขียนลงตาราง `inventory` และไม่มี trigger ย้อนกลับ) — ตอนหน้าร้าน
+ * ยังอ่านคอลัมน์นี้ ร้าน ABC มีตัวเลือกที่ `stock > 0` แค่ 7 ตัวจาก 6,216 ทั้งที่ของจริง
+ * ใน `inventory` (quantity − reserved > 0) มี 675 ตัว → หน้าร้านขึ้น "สินค้าหมดชั่วคราว"
+ * เกือบทั้งร้านทั้งที่มีของ (ดู fix-bug.md 2026-09-14)
+ *
+ * RPC ครอบสินค้าชุด (composite) ให้แล้วผ่าน `get_composite_availability` ข้างใน
+ * จึงไม่ต้องคำนวณชุดย่อยแยกอีก
+ */
+async function fetchAvailability(companyId: string, variationIds: string[]): Promise<Map<string, number>> {
+  const out = new Map<string, number>();
+  if (variationIds.length === 0) return out;
+  const { data, error } = await supabaseAdmin.rpc('get_variation_stock', {
+    p_company_id: companyId,
+    p_variation_ids: variationIds,
+  });
+  if (error || !data) return out;
+  for (const [id, v] of Object.entries(data as Record<string, { available?: number | string }>)) {
+    out.set(id, Number(v?.available) || 0);
+  }
+  return out;
+}
 
 /** variation → public shape. Stock is exposed as a boolean only, never a count. */
 function toPublicVariation(
   v: RawVariation,
   imageByVariation: Map<string, string>,
   stockEnabled: boolean,
+  available: Map<string, number>,
 ): StorefrontVariation {
   const { price, compare_at } = effectivePrice(v.default_price, v.discount_price);
   return {
@@ -204,7 +233,7 @@ function toPublicVariation(
     price,
     compare_at,
     // ร้านที่ไม่ได้ใช้ระบบคลัง ถือว่าพร้อมขายเสมอ — ไม่งั้นทั้งร้านขึ้น "สินค้าหมด"
-    in_stock: stockEnabled ? (v.stock ?? 0) > 0 : true,
+    in_stock: stockEnabled ? (available.get(v.id) ?? 0) > 0 : true,
     image: imageByVariation.get(v.id) || null,
   };
 }
@@ -338,6 +367,7 @@ function assembleProduct(
   variations: RawVariation[],
   images: { variation_id: string | null; image_url: string }[],
   stockEnabled: boolean,
+  available: Map<string, number>,
   composite?: CompositeExtras,
 ): StorefrontProduct {
   const imageByVariation = new Map<string, string>();
@@ -350,7 +380,8 @@ function assembleProduct(
     }
   }
 
-  const publicVariations = variations.filter(v => v.is_active).map(v => toPublicVariation(v, imageByVariation, stockEnabled));
+  const publicVariations = variations.filter(v => v.is_active)
+    .map(v => toPublicVariation(v, imageByVariation, stockEnabled, available));
   const prices = publicVariations.map(v => v.price);
 
   // Product-level gallery first, then any variation-specific images (dedup).
@@ -374,103 +405,172 @@ function assembleProduct(
   return composite ? applyComposite(product, variations.filter(v => v.is_active), composite) : product;
 }
 
-/**
- * Combos of a composite product (สินค้าชุด) hold no stock of their own — their `stock`
- * becomes the sellable sets across all warehouses (the scarcest component decides).
- */
-async function withComboStock(
-  companyId: string,
-  variations: RawVariation[],
-  compositeProductIds: Set<string>,
-): Promise<RawVariation[]> {
-  const comboIds = variations.filter(v => compositeProductIds.has(v.product_id)).map(v => v.id);
-  if (comboIds.length === 0) return variations;
-  const avail = await getCompositeAvailability(supabaseAdmin, companyId, comboIds);
-  return variations.map(v => (compositeProductIds.has(v.product_id)
-    ? { ...v, stock: avail.get(v.id)?.available ?? 0 }
-    : v));
-}
-
 const PRODUCT_SELECT = `
   id, slug, name, description, image, updated_at, is_composite, composite_slots,
   category:product_categories ( name ),
   brand:product_brands ( name )
 `;
 
-export interface CatalogFilter {
+export interface CatalogOptions {
+  /** ชื่อหมวด (ตรงตัว) — เทียบกับ product_categories.name เหมือนเดิม */
   category?: string;
   search?: string;
-  limit?: number;
+  /** หน้าที่ 1, 2, 3 … (ค่าเพี้ยน = 1) */
+  page?: number;
+  pageSize?: number;
+  sort?: StorefrontSort;
+  /** ซ่อนสินค้าที่ไม่มีของ — มีผลเฉพาะร้านที่เปิดระบบคลัง (stockEnabled) */
+  hideOutOfStock?: boolean;
+  /** ซ่อนสินค้าที่ไม่มีรูปเลย (ทั้ง products.image และ product_images) */
+  hideNoImage?: boolean;
 }
 
-/** Public catalog — active + storefront_visible products only. */
-export const getStorefrontCatalog = cache(async (
+export interface CatalogPage {
+  products: StorefrontProduct[];
+  /** จำนวนสินค้าทั้งหมดหลังกรอง (ก่อนแบ่งหน้า) */
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+/**
+ * ตัวเลือกที่มาจาก config ของร้าน — **ทุก caller ต้องใช้ชุดเดียวกัน** รวมทั้ง
+ * sitemap.xml กับ llms.txt ด้วย: ไม่ควรพา crawler ไปหน้าที่ลูกค้าหาไม่เจอในรายการ
+ */
+export function catalogOptionsFor(
+  company: Pick<StorefrontCompany, 'config' | 'features'>,
+): Pick<CatalogOptions, 'sort' | 'hideOutOfStock' | 'hideNoImage'> {
+  return {
+    sort: company.config.sort_by,
+    hideOutOfStock: company.features.stock && !company.config.show_out_of_stock,
+    hideNoImage: !company.config.show_without_image,
+  };
+}
+
+/** `.in(...)` ยาวเกินไปกลายเป็น URL ที่ยิงไม่ผ่าน — แบ่งเป็นก้อนแล้วยิงขนาน */
+const DETAIL_CHUNK = 100;
+
+function chunk<T>(arr: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+  return out;
+}
+
+/**
+ * ประกอบสินค้าเต็มรูปจาก id ที่ RPC เลือกมาให้ — **คงลำดับตาม `ids`**
+ * (RPC เป็นคนตัดสินการเรียงตาม cfg.sort_by แล้ว ห้ามเรียงชื่อทับทีหลัง)
+ */
+async function assembleCatalog(
   companyId: string,
-  filter: CatalogFilter = {},
-  stockEnabled = false,
-): Promise<StorefrontProduct[]> => {
-  let query = supabaseAdmin
-    .from('products')
-    .select(PRODUCT_SELECT)
-    .eq('company_id', companyId)
-    .eq('is_active', true)
-    .eq('storefront_visible', true)
-    .order('name', { ascending: true })
-    .limit(filter.limit ?? 200);
+  ids: string[],
+  stockEnabled: boolean,
+): Promise<StorefrontProduct[]> {
+  const groups = chunk(ids, DETAIL_CHUNK);
+  const parts = await Promise.all(groups.map(async g => {
+    const [products, variations, images] = await Promise.all([
+      supabaseAdmin.from('products').select(PRODUCT_SELECT).eq('company_id', companyId).in('id', g),
+      // หน้าใหญ่ (sitemap) ตัวเลือก/รูปทะลุเพดาน 1,000 แถวของ PostgREST ได้ → fetchAllRows
+      fetchAllRows<RawVariation>((from, to) => supabaseAdmin
+        .from('product_variations')
+        .select(VARIATION_SELECT)
+        .eq('company_id', companyId)
+        .in('product_id', g)
+        .is('deleted_at', null)
+        .range(from, to)),
+      fetchAllRows<{ product_id: string; variation_id: string | null; image_url: string }>((from, to) => supabaseAdmin
+        .from('product_images')
+        .select('product_id, variation_id, image_url, sort_order')
+        .eq('company_id', companyId)
+        .in('product_id', g)
+        .order('sort_order', { ascending: true })
+        .range(from, to)),
+    ]);
+    return {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      rows: (products.data || []) as any[],
+      variations: variations.rows,
+      images: images.rows,
+    };
+  }));
 
-  if (filter.search) query = query.ilike('name', `%${filter.search}%`);
+  const rows = parts.flatMap(p => p.rows);
+  if (rows.length === 0) return [];
+  const rawVars = parts.flatMap(p => p.variations);
+  const images = parts.flatMap(p => p.images);
 
-  const { data: rows } = await query;
-  if (!rows || rows.length === 0) return [];
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const typedRows = rows as any[];
-  const filtered = filter.category
-    ? typedRows.filter(r => r.category?.name === filter.category)
-    : typedRows;
-  if (filtered.length === 0) return [];
-
-  const ids = filtered.map(r => r.id);
-  const [{ data: variations }, { data: images }] = await Promise.all([
-    supabaseAdmin
-      .from('product_variations')
-      .select(VARIATION_SELECT)
-      .eq('company_id', companyId)
-      .in('product_id', ids)
-      .is('deleted_at', null),
-    supabaseAdmin
-      .from('product_images')
-      .select('product_id, variation_id, image_url, sort_order')
-      .eq('company_id', companyId)
-      .in('product_id', ids)
-      .order('sort_order', { ascending: true }),
-  ]);
-
-  const compositeRows = filtered.filter(r => r.is_composite);
-  const compositeIds = new Set<string>(compositeRows.map(r => r.id));
-  const rawVars = (variations || []) as RawVariation[];
-  const ownImageIds = new Set<string>((images || []).map(i => i.variation_id).filter(Boolean) as string[]);
-  const [catalogVars, compositeExtras] = await Promise.all([
-    stockEnabled ? withComboStock(companyId, rawVars, compositeIds) : Promise.resolve(rawVars),
+  const compositeRows = rows.filter(r => r.is_composite);
+  const ownImageIds = new Set<string>(images.map(i => i.variation_id).filter(Boolean) as string[]);
+  const [available, compositeExtras] = await Promise.all([
+    stockEnabled
+      ? fetchAvailability(companyId, rawVars.filter(v => v.is_active).map(v => v.id))
+      : Promise.resolve(new Map<string, number>()),
     loadCompositeExtras(compositeRows, rawVars, ownImageIds),
   ]);
+
   const varsByProduct = new Map<string, RawVariation[]>();
-  for (const v of catalogVars) {
+  for (const v of rawVars) {
     const list = varsByProduct.get(v.product_id) || [];
     list.push(v);
     varsByProduct.set(v.product_id, list);
   }
   const imgsByProduct = new Map<string, { variation_id: string | null; image_url: string }[]>();
-  for (const i of images || []) {
+  for (const i of images) {
     const list = imgsByProduct.get(i.product_id) || [];
     list.push({ variation_id: i.variation_id, image_url: i.image_url });
     imgsByProduct.set(i.product_id, list);
   }
 
-  return filtered
-    .map(r => assembleProduct(r, varsByProduct.get(r.id) || [], imgsByProduct.get(r.id) || [], stockEnabled, compositeExtras.get(r.id)))
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const byId = new Map<string, any>(rows.map(r => [r.id as string, r]));
+  return ids
+    .map(id => byId.get(id))
+    .filter(Boolean)
+    .map(r => assembleProduct(
+      r,
+      varsByProduct.get(r.id) || [],
+      imgsByProduct.get(r.id) || [],
+      stockEnabled,
+      available,
+      compositeExtras.get(r.id),
+    ))
     // สินค้าที่ไม่มี variation ที่ขายได้เลย ไม่ต้องโชว์ (ราคาเป็น 0 ดูเหมือนของฟรี)
     .filter(p => p.variations.length > 0);
+}
+
+/**
+ * Public catalog — active + storefront_visible products only.
+ *
+ * กรอง/เรียง/แบ่งหน้า **ที่ DB เสมอ** ผ่าน RPC `get_storefront_catalog`
+ * (เดิมดึง 200 แถวแรกตามชื่อแล้วกรองหมวดใน JS — ร้านที่มีสินค้าหลายพันตัว
+ * ลูกค้าเห็นแค่ 200 ตัวแรก) · เงื่อนไข "ขึ้นหน้าร้านได้" ใน RPC ต้องตรงกับ
+ * `getStorefrontProduct` เป๊ะ ไม่งั้นลิงก์ในรายการพาไปหน้า 404
+ */
+export const getStorefrontCatalog = cache(async (
+  companyId: string,
+  options: CatalogOptions = {},
+  stockEnabled = false,
+): Promise<CatalogPage> => {
+  const pageSize = Math.max(1, Math.floor(options.pageSize ?? STOREFRONT_PAGE_SIZE));
+  const page = Math.max(1, Math.floor(options.page ?? 1));
+
+  const { data, error } = await supabaseAdmin.rpc('get_storefront_catalog', {
+    p_company_id: companyId,
+    p_category: options.category || null,
+    p_search: options.search || null,
+    p_sort: options.sort || 'name',
+    p_stock_enabled: stockEnabled,
+    p_hide_out_of_stock: !!options.hideOutOfStock,
+    p_hide_no_image: !!options.hideNoImage,
+    p_limit: pageSize,
+    p_offset: (page - 1) * pageSize,
+  });
+
+  const picked = (data || []) as { id: string; total_count: number | string }[];
+  if (error || picked.length === 0) return { products: [], total: 0, page, pageSize };
+
+  const total = Number(picked[0].total_count) || picked.length;
+  const products = await assembleCatalog(companyId, picked.map(r => r.id), stockEnabled);
+  return { products, total, page, pageSize };
 });
 
 /** Single product by slug (falls back to id so old links keep working). */
@@ -511,17 +611,19 @@ export const getStorefrontProduct = cache(async (
   const rawVars = (variations || []) as RawVariation[];
   const isComposite = !!typedRow.is_composite;
   const ownImageIds = new Set<string>((images || []).map(i => i.variation_id).filter(Boolean) as string[]);
-  const [productVars, compositeExtras] = await Promise.all([
-    stockEnabled && isComposite
-      ? withComboStock(companyId, rawVars, new Set([typedRow.id as string]))
-      : Promise.resolve(rawVars),
+  // สต็อกมาจาก RPC เท่านั้น (ครอบสินค้าชุดให้แล้ว) — ห้ามอ่านคอลัมน์ stock
+  const [available, compositeExtras] = await Promise.all([
+    stockEnabled
+      ? fetchAvailability(companyId, rawVars.filter(v => v.is_active).map(v => v.id))
+      : Promise.resolve(new Map<string, number>()),
     isComposite ? loadCompositeExtras([typedRow], rawVars, ownImageIds) : Promise.resolve(new Map<string, CompositeExtras>()),
   ]);
   const product = assembleProduct(
     typedRow,
-    productVars,
+    rawVars,
     (images || []).map(i => ({ variation_id: i.variation_id, image_url: i.image_url })),
     stockEnabled,
+    available,
     compositeExtras.get(typedRow.id),
   );
   return product.variations.length > 0 ? product : null;

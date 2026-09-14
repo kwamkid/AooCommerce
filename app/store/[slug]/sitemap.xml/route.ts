@@ -3,8 +3,13 @@
 // URLs always use the configured public domain; without one there is nothing
 // worth submitting, so we return 404 rather than a sitemap of unindexable URLs.
 import { NextResponse } from 'next/server';
-import { getStorefrontCompany, getStorefrontCatalog } from '@/lib/storefront-server';
-import { storefrontUrl } from '@/lib/storefront';
+import { getStorefrontCompany, getStorefrontCatalog, catalogOptionsFor } from '@/lib/storefront-server';
+import { storefrontUrl, type StorefrontProduct } from '@/lib/storefront';
+
+/** เพดานจำนวน URL สินค้าใน sitemap เดียว (ยังไม่ได้แตก sitemap index) */
+const SITEMAP_MAX = 5000;
+/** ขนาดหน้าที่ใช้ไล่ catalog — ใหญ่พอให้รอบน้อย เล็กพอให้ `.in(...)` ไม่บวม */
+const SITEMAP_PAGE = 500;
 
 export const revalidate = 3600;
 
@@ -23,7 +28,19 @@ export async function GET(
   }
 
   const cfg = company.config;
-  const products = await getStorefrontCatalog(company.id, { limit: 5000 }, company.features.stock);
+  // ซ่อนตาม config เดียวกับหน้ารายการ — ไม่ควรพา crawler ไปหน้าที่ลูกค้าหาไม่เจอในร้าน
+  const opts = catalogOptionsFor(company);
+  const products: StorefrontProduct[] = [];
+  for (let page = 1; products.length < SITEMAP_MAX; page++) {
+    const result = await getStorefrontCatalog(
+      company.id,
+      { ...opts, page, pageSize: SITEMAP_PAGE },
+      company.features.stock,
+    );
+    products.push(...result.products);
+    if (result.products.length === 0 || page * SITEMAP_PAGE >= result.total) break;
+  }
+  products.length = Math.min(products.length, SITEMAP_MAX);
 
   const entries = [
     { loc: storefrontUrl(cfg, slug), priority: '1.0', lastmod: null as string | null },

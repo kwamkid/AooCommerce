@@ -5,7 +5,7 @@
 // hand-written marketing copy that can drift from what the system charges.
 import { NextResponse } from 'next/server';
 import {
-  getStorefrontCompany, getStorefrontCatalog,
+  getStorefrontCompany, getStorefrontCatalog, catalogOptionsFor,
   getStorefrontCategories, getStorefrontDelivery,
 } from '@/lib/storefront-server';
 import { storefrontUrl, formatStorePrice } from '@/lib/storefront';
@@ -27,11 +27,17 @@ export async function GET(
   }
 
   const shopName = cfg.display_name || company.name;
-  const [products, categories, { zones, slots }] = await Promise.all([
-    getStorefrontCatalog(company.id, { limit: 100 }, company.features.stock),
+  const [catalog, categories, { zones, slots }] = await Promise.all([
+    // ซ่อนตาม config เดียวกับหน้ารายการ (สินค้าหมด/ไม่มีรูป) — AI ไม่ควรอ้างของที่ลูกค้าหาไม่เจอ
+    getStorefrontCatalog(
+      company.id,
+      { ...catalogOptionsFor(company), page: 1, pageSize: 100 },
+      company.features.stock,
+    ),
     getStorefrontCategories(company.id),
     getStorefrontDelivery(company.id),
   ]);
+  const products = catalog.products;
 
   const L: string[] = [];
   L.push(`# ${shopName}`, '');

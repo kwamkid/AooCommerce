@@ -9,7 +9,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import {
   getStorefrontCompany, getStorefrontProduct, getStorefrontDelivery,
-  getDiscontinuedProduct, getStorefrontCatalog,
+  getDiscontinuedProduct, getStorefrontCatalog, catalogOptionsFor,
 } from '@/lib/storefront-server';
 import { storefrontUrl, storefrontHref, formatStorePrice } from '@/lib/storefront';
 import { formatSlotTime } from '@/lib/delivery';
@@ -23,8 +23,18 @@ interface PageProps {
   params: Promise<{ slug: string; product: string }>;
 }
 
+/**
+ * slug สินค้าเป็น unicode ไทยได้ (`products.slug` เก็บไทยตรง ๆ เหมือน URL ของ Google/Wikipedia)
+ * แต่ path segment ที่ Next ส่งมาใน params ยังเป็น `%E0%B8…` — ต้องถอดก่อนเอาไปค้น
+ * ไม่งั้นสินค้าชื่อไทยทั้งร้านเปิดไม่ได้ (2026-09-14) · ค่าที่ถอดไม่ได้ (เช่น `%` เดี่ยว ๆ) ใช้ค่าดิบ
+ */
+function decodeSlug(raw: string): string {
+  try { return decodeURIComponent(raw); } catch { return raw; }
+}
+
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
-  const { slug, product: productSlug } = await params;
+  const { slug, product: rawProduct } = await params;
+  const productSlug = decodeSlug(rawProduct);
   const company = await getStorefrontCompany(slug);
   if (!company) return { title: 'ไม่พบร้านนี้', robots: { index: false, follow: false } };
 
@@ -64,7 +74,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 }
 
 export default async function StorefrontProductPage({ params }: PageProps) {
-  const { slug, product: productSlug } = await params;
+  const { slug, product: rawProduct } = await params;
+  const productSlug = decodeSlug(rawProduct);
   const company = await getStorefrontCompany(slug);
   if (!company) return null;   // layout แสดงหน้า 'ไม่พบร้านนี้' ให้แล้ว
 
@@ -72,12 +83,13 @@ export default async function StorefrontProductPage({ params }: PageProps) {
   if (!product) {
     const gone = await getDiscontinuedProduct(company.id, productSlug);
     // ดึงของที่ยังขายอยู่มาแนะนำ — หมวดเดิมก่อน ถ้าไม่มีก็ทั้งร้าน
+    const opts = { ...catalogOptionsFor(company), page: 1, pageSize: 8 };
     const sameCategory = gone?.category
-      ? await getStorefrontCatalog(company.id, { category: gone.category, limit: 8 }, company.features.stock)
+      ? (await getStorefrontCatalog(company.id, { ...opts, category: gone.category }, company.features.stock)).products
       : [];
     const suggestions = sameCategory.length > 0
       ? sameCategory
-      : (await getStorefrontCatalog(company.id, { limit: 8 }, company.features.stock));
+      : (await getStorefrontCatalog(company.id, opts, company.features.stock)).products;
     return (
       <UnavailableProduct
         shop={slug}

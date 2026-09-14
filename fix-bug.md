@@ -16,6 +16,22 @@
 
 ---
 
+## 2026-09-14 — หน้าสินค้าของหน้าร้านที่ slug เป็นภาษาไทย เปิดไม่ได้ทั้งหมด ("ไม่พบสินค้า")
+
+**ที่เกิด**: [app/store/[slug]/p/[product]/page.tsx](app/store/[slug]/p/[product]/page.tsx) `generateMetadata` + page body
+**อาการ**: `/store/abcthebaby/p/gb-รถเข็นเด็ก-pockit-all-city` ขึ้น "ไม่พบสินค้าที่คุณค้นหา" ทั้งที่เปิดด้วย UUID เดียวกันได้ปกติ · ร้านที่สินค้าชื่อไทยเกือบทั้งร้าน = ลิงก์จากหน้ารายการพาไปหน้าไม่พบเกือบทุกตัว
+**Root cause**: `products.slug` เก็บ unicode ไทยตรง ๆ (ตั้งใจ — URL อ่านออกแบบ Google/Wikipedia) แต่ path segment ที่ Next ส่งมาใน `params.product` ยังเป็น percent-encoded (`gb-%E0%B8%A3…`) แล้วโค้ดเอาไปเทียบ `eq('slug', …)` ตรง ๆ จึงไม่เจอ · `?q=` ภาษาไทยไม่เป็นเพราะ searchParams ถูก decode ให้
+**วิธีแก้**: `decodeSlug()` (decodeURIComponent ครอบ try/catch) ก่อนส่งเข้า `getStorefrontProduct`/`getDiscontinuedProduct` ทั้งสองจุด
+**ป้องกัน regression**: segment ไดนามิกตัวใหม่ที่รับค่า unicode (slug ไทย · ชื่อหมวด) ต้อง decode ก่อนใช้เสมอ · ทดสอบด้วยสินค้าชื่อไทยจริง ไม่ใช่แค่ slug ASCII
+
+## 2026-09-14 — หน้าร้านอ่าน `product_variations.stock` ที่ไม่มีใครอัปเดต → ขึ้น "สินค้าหมด" เกือบทั้งร้าน
+
+**ที่เกิด**: [lib/storefront-server.ts](lib/storefront-server.ts) `toPublicVariation()` (select `stock` ใน `VARIATION_SELECT`) — มีผลทั้ง `/store/[slug]`, `/store/[slug]/p/[product]`, `llms.txt`
+**อาการ**: ร้านที่เปิดระบบคลัง (`features.stock`) หน้าร้านขึ้นป้าย "สินค้าหมดชั่วคราว" และปุ่มสั่งซื้อกดไม่ได้เกือบทั้งร้าน ทั้งที่ในคลังมีของ · วัดบน ABC the Baby: ตัวเลือกที่ `product_variations.stock > 0` มีแค่ **7 ตัวจาก 6,216** แต่ที่มีของจริงใน `inventory` (`sum(quantity − reserved) > 0`) มี **675 ตัว**
+**Root cause**: `product_variations.stock` เป็นคอลัมน์ค้างจากระบบเก่า — `lib/stock-service.ts` เขียนยอดลงตาราง `inventory` อย่างเดียวและ**ไม่มี trigger sync กลับ** คอลัมน์นี้จึงค้างอยู่ที่ค่าตอนนำเข้าสินค้าครั้งแรก · กติกา "⛔ ห้ามอ่าน `product_variations.stock`" มีใน `.claude/rules/lib-services.md` อยู่แล้ว แต่หน้าร้านเขียนก่อนกติกานั้น
+**วิธีแก้**: ตัด `stock` ออกจาก `VARIATION_SELECT` แล้วดึงยอดพร้อมขายผ่าน RPC **`get_variation_stock(p_company_id, p_variation_ids)`** ครั้งเดียวต่อหน้า (`fetchAvailability()`) → `in_stock = available > 0` · RPC ครอบสินค้าชุดให้แล้วผ่าน `get_composite_availability` จึงลบ `withComboStock()` ที่เคยคิดชุดย่อยแยกทิ้งได้ · RPC ใหม่ `get_storefront_catalog` ก็กรอง "มีของ" จาก `inventory` ตัวเดียวกัน (config `show_out_of_stock`)
+**ป้องกัน regression**: ⛔ **ห้ามเอา `stock` / `simple_stock` กลับเข้า select ของหน้าร้าน** — สต็อกหน้าร้านมีทางเดียวคือ `get_variation_stock` (มี comment เตือนคร่อม `fetchAvailability()` ไว้แล้ว) · ร้านที่ไม่เปิดระบบคลังยังถือว่าพร้อมขายเสมอ (`stockEnabled=false` → `in_stock=true`) ห้ามให้ตกไปเป็น 0 · ตรวจซ้ำด้วย `select count(*) filter (where stock>0), count(*) from product_variations where company_id=…` เทียบกับยอดจาก `inventory` — ต่างกันมาก = ปกติ ไม่ใช่สัญญาณบั๊ก
+
 ## 2026-09-14 — Lazada/TikTok เขียน `shipping_addresses` ด้วยคอลัมน์ที่ไม่มีจริง → ออเดอร์ 100% ไม่มีที่อยู่ผู้ซื้อ (ล้มเงียบ)
 
 **ที่เกิด**: [lib/lazada/sync.ts](lib/lazada/sync.ts) `findOrCreateCustomer` · [lib/tiktok/sync.ts](lib/tiktok/sync.ts) `findOrCreateCustomer`

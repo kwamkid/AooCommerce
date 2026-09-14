@@ -44,6 +44,14 @@ paths:
 - **`StorefrontCompany.slug` = slug สาธารณะที่ใช้ประกอบลิงก์ทุกที่** (sitemap · canonical · llms.txt) ไม่ใช่ `companies.slug` ดิบ — ใช้ตัวดิบจะได้ URL ที่พาไปคนละหน้า
 - `companies.slug` **ไม่มีช่องแก้ใน UI** (สร้างอัตโนมัติจากชื่อบริษัทตอนสมัคร) และไม่ต้องแก้แล้ว — อยากได้ URL สวยให้ตั้ง `storefront_slug` แทน · ที่เคยแก้ `ampstark`→`abcthebaby` เป็นการ UPDATE ตรงที่ DB
 
+**หน้ารายการสินค้า — แบ่งหน้า/เรียง/กรองที่ DB** (2026-09-14)
+- RPC **`get_storefront_catalog(p_company_id, p_category, p_search, p_sort, p_stock_enabled, p_hide_out_of_stock, p_hide_no_image, p_limit, p_offset)`** → `(id, total_count)` — คืนแค่ id ของหน้านั้น แล้ว `getStorefrontCatalog()` ไปประกอบรายละเอียดเฉพาะ id นั้น **ตามลำดับที่ RPC ให้มา** (ห้ามเรียงชื่อทับ)
+- ⛔ **เงื่อนไข "ขึ้นหน้าร้านได้" ใน RPC ต้องตรงกับ `getStorefrontProduct()` เป๊ะ** (`is_active` + `storefront_visible` + มี variation ที่ `is_active and deleted_at is null`) — ต่างกันเมื่อไหร่ = ลิงก์ในรายการพาไปหน้า 404
+- แบ่งหน้า `STOREFRONT_PAGE_SIZE = 24` · `?page=N` (หน้า 1 ไม่ใส่) · `StorePagination` **ทุกลิงก์ต้องคง `cat` และ `q` เดิม** · หน้า >1 มี canonical ของตัวเอง (`?page=N`) + title ต่อท้าย " — หน้า N"
+- h1: หน้าแรก = "สินค้าทั้งหมด" (ชื่อร้านอยู่ที่หัวร้านแล้ว ห้ามซ้ำ) · หน้าหมวด = ชื่อหมวด · หน้าค้นหา = ผลการค้นหา
+- ⛔ **สต็อกหน้าร้านมาจาก RPC `get_variation_stock` เท่านั้น — ห้ามอ่าน `product_variations.stock`** (คอลัมน์ค้าง ไม่มีใครอัปเดต ดู fix-bug.md 2026-09-14) · ร้านที่ไม่เปิดระบบคลังถือว่าพร้อมขายเสมอ
+- config `show_out_of_stock` (มีผลเฉพาะเมื่อเปิดระบบคลัง) · `show_without_image` · `sort_by` ส่งผ่าน **`catalogOptionsFor(company)`** ทุก caller — **รวม `sitemap.xml` และ `llms.txt` ด้วย** (ไม่พา crawler ไปหน้าที่ลูกค้าหาไม่เจอในรายการ)
+
 **ตะกร้า + checkout** (เพิ่ม 2026-08-18)
 - **ตะกร้าอยู่ใน localStorage ของโดเมนที่ผู้ใช้ยืนอยู่** ([lib/storefront-cart.ts](../../../lib/storefront-cart.ts)) — **ห้ามย้ายไป cookie ของโดเมน aoo** เพราะตอนฝังใน WordPress ลูกค้าจะกลายเป็น third-party cookie → Safari ITP บล็อก → ตะกร้าหาย (เหตุผลเดียวกับที่ไม่เลือก iframe) · ยังไม่แตะ DB จนกดยืนยัน
 - **`/api/storefront/checkout` = public write path — ถือว่าทุก field เป็นของปลอม**: company มาจาก shop slug ไม่ใช่ body · **อ่านราคา/ชื่อใหม่จาก DB ทั้งหมด ไม่เชื่อตัวเลขจาก client** · variation ต้อง active + storefront_visible + เป็นของ company นี้ · ค่าส่งคำนวณใหม่จาก zone · เช็ค slot availability ซ้ำฝั่ง server (อาจเต็มระหว่างลูกค้ากรอกฟอร์ม → 409) · rate limit ต่อ IP · items insert fail = rollback order ทิ้ง
