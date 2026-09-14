@@ -42,6 +42,8 @@ export interface VariantRowCore {
   discount_price: number;
   cost_price: number;
   is_active: boolean;
+  /** ตัวตั้งต้นของหน้าร้าน — ได้ตัวเดียวต่อสินค้า · แถวที่ปิดขายเป็นไม่ได้ */
+  is_default?: boolean;
 }
 
 type Attrs = Record<string, string>;
@@ -306,11 +308,35 @@ export function regenerateRows<R extends VariantRowCore>(
 
 type BulkPatch = Partial<Pick<VariantRowCore, 'default_price' | 'discount_price' | 'cost_price' | 'is_active'>>;
 
+/** แถวที่ปิดขายเป็นตัวตั้งต้นไม่ได้ — ปลดธงให้เอง (invariant: is_default ⟹ is_active) */
+const clearDefaultIfInactive = <R extends VariantRowCore>(r: R): R =>
+  r.is_active || !r.is_default ? r : { ...r, is_default: false };
+
 /** Bulk fill — only the fields present in `patch` */
 export function applyToAll<R extends VariantRowCore>(rows: R[], patch: BulkPatch): R[] {
   const defined = Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined)) as BulkPatch;
   if (Object.keys(defined).length === 0) return rows;
-  return rows.map(r => ({ ...r, ...defined }));
+  return rows.map(r => clearDefaultIfInactive({ ...r, ...defined }));
+}
+
+/** แก้ค่าในแถวเดียว — ปิดขายแล้วปลดธง "ตั้งต้น" ให้เอง */
+export function patchRow<R extends VariantRowCore>(rows: R[], tempId: string, patch: Partial<R>): R[] {
+  return rows.map(r => (r._tempId === tempId ? clearDefaultIfInactive({ ...r, ...patch }) : r));
+}
+
+/**
+ * ตั้ง/ยกเลิกตัวตั้งต้นของหน้าร้าน — เลือกได้ทีละแถว
+ * กดแถวที่เป็นอยู่แล้วซ้ำ = ยกเลิก (สินค้านั้นกลับไปไม่มีตัวตั้งต้น)
+ * แถวที่ปิดขายอยู่ตั้งไม่ได้ (คืน rows เดิม)
+ */
+export function setDefaultRow<R extends VariantRowCore>(rows: R[], tempId: string): R[] {
+  const target = rows.find(r => r._tempId === tempId);
+  if (!target || !target.is_active) return rows;
+  const turnOn = !target.is_default;
+  return rows.map(r => {
+    const next = turnOn && r._tempId === tempId;
+    return !!r.is_default === next ? r : { ...r, is_default: next };
+  });
 }
 
 // ตัวคำนวณ "ลดเหลือ" (ReduceSpec · applyReduce · reduceSummary) ย้ายไป lib/price-reduce.ts —

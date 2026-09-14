@@ -27,6 +27,15 @@ paths:
 - **ตอนสลับ** PUT soft-delete ตัวเลือกเดิมทั้งหมด (`deleted_at` **และ** `is_active=false` — RPC คลัง/export กรองด้วย `is_active` อย่างเดียว) + ลบแถว `product_images` รายตัวเลือก (ไฟล์ใน storage ไม่ลบ) · ห้าม hard-delete (`product_variations.id` ถูก FK 19 ตาราง)
 - แถว `deleted_at` ไม่บวม DB (74 แถว / 2.8MB ทั้งตาราง วัด 2026-09-13) — ไม่ต้องกวาด
 
+## ตัวเลือกตั้งต้นของหน้าร้าน — `product_variations.is_default`
+
+- ร้านตั้งเองที่**แถวตัวเลือกในฟอร์มสินค้า** (คอลัมน์ "ตั้งต้น" ใน `VariantOptionsEditor` · radio กดซ้ำ = ยกเลิก) — **1 ตัวต่อสินค้า** บังคับที่ DB ด้วย partial unique index `product_variations_one_default_per_product` (`(product_id) where is_default and deleted_at is null`)
+- **ไม่ตั้ง = หน้าร้านเลือกเองตามกติกา 3 ชั้น** (ตั้งแล้วแต่ของหมดก็ตกชั้น) — ดู `domains/storefront.md`
+- **invariant: `is_default` ⟹ `is_active`** — ตัวที่ปิดขายเป็นตัวตั้งต้นไม่ได้ (ฟอร์ม disable + ปลดธงให้เองเมื่อปิดขาย · `/api/products` ปัดเป็น false ให้อีกชั้น · ส่งมาเกิน 1 ตัว = 400)
+- ⛔ **เส้นที่เขียน `product_variations` แล้วไม่ได้ส่ง `is_default` มา ต้องไม่ทับธงนี้** (อัปเดตเฉพาะ field ที่ส่งมา) — ไม่งั้นร้านตั้งไว้แล้วหายตอนแก้ราคา/ซิงค์ marketplace · เส้นที่ไล่แล้ว: `/api/products` POST/PUT (PUT ปลดธงเก่าทั้งสินค้าก่อน แล้วค่อยตั้งตัวใหม่ — ไม่งั้นชน unique index) · RPC `bulk_update_variation_prices` / `recompute_composite_prices` / `update_weighted_average_cost` (อัปเดตเป็นคอลัมน์ ไม่แตะ) · `lib/composite-save.ts` · import/ซิงค์ marketplace (อัปเดตเป็นคอลัมน์)
+- ⛔ **soft-archive ต้องปลดธงเสมอ** (`is_active:false` และ/หรือ `deleted_at`) — index กรองแค่ `deleted_at is null` ไม่ได้กรอง `is_active` · จุดที่ทำแล้ว: type-switch + soft-delete แถว + DELETE สินค้า ใน `/api/products` · `merge/route.ts` (archive **และ move** — ย้าย variation ข้ามสินค้าจะชนธงของปลายทาง) · `composite-save.ts`
+- ห้าม backfill ให้สินค้าเก่า — ยัดให้ทุกตัวแล้วแยกไม่ออกว่าอันไหนร้านตั้งเอง
+
 ## สินค้าชุด (composite) — ชุดย่อย = variation จริง ไม่มีสต็อกของตัวเอง
 
 **โมเดล**: `products.is_composite` + `composite_slots` (ช่องประกอบ `{key,name,product_id,variation_ids,quantity}`) · ชุดย่อยแต่ละคู่ (เช่น โครงดำ + ผ้าแดง) = แถว `product_variations` ปกติของสินค้าชุด → ออเดอร์ · POS · link marketplace · รายงาน ใช้ของเดิมได้หมด · ชิ้นส่วนอยู่ใน `product_variation_components(variation_id=ชุดย่อย, component_variation_id, quantity=ชิ้นต่อชุด)` · `product_variations.price_locked` = ตั้งราคาเอง

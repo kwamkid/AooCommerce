@@ -57,6 +57,8 @@ interface ApiVariation {
   stock: number;
   min_stock: number;
   is_active: boolean;
+  /** ตัวตั้งต้นของหน้าร้าน (1 ตัวต่อสินค้า) */
+  is_default?: boolean;
   /** composite combos: true = price set by hand */
   price_locked?: boolean;
 }
@@ -121,6 +123,7 @@ const toRow = (v: ApiVariation): VariantRow => ({
   discount_price: v.discount_price,
   cost_price: v.cost_price || 0,
   is_active: v.is_active,
+  is_default: !!v.is_default,
 });
 
 /** New generated row — copies the sibling's prices (same values in the other groups) */
@@ -134,6 +137,8 @@ const newRow = (attributes: Record<string, string>, template?: VariantRow): Vari
   discount_price: template?.discount_price ?? 0,
   cost_price: template?.cost_price ?? 0,
   is_active: true,
+  // ตัวตั้งต้นไม่ copy จากแถวต้นแบบ — มีได้ตัวเดียวต่อสินค้า
+  is_default: false,
 });
 
 export default function ProductForm({

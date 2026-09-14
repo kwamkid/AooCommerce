@@ -52,6 +52,14 @@ paths:
 - ⛔ **สต็อกหน้าร้านมาจาก RPC `get_variation_stock` เท่านั้น — ห้ามอ่าน `product_variations.stock`** (คอลัมน์ค้าง ไม่มีใครอัปเดต ดู fix-bug.md 2026-09-14) · ร้านที่ไม่เปิดระบบคลังถือว่าพร้อมขายเสมอ
 - config `show_out_of_stock` (มีผลเฉพาะเมื่อเปิดระบบคลัง) · `show_without_image` · `sort_by` ส่งผ่าน **`catalogOptionsFor(company)`** ทุก caller — **รวม `sitemap.xml` และ `llms.txt` ด้วย** (ไม่พา crawler ไปหน้าที่ลูกค้าหาไม่เจอในรายการ)
 
+**ตัวเลือกที่ถูกเลือกให้ตอนเปิดหน้าสินค้า — กติกา 3 ชั้น ที่เดียว**
+- `pickDefaultVariation()` ใน [lib/storefront-server.ts](../../../lib/storefront-server.ts) = **ความจริงเดียว** — ใช้ทั้ง `AddToCartButton` (ผ่าน `StorefrontProduct.default_variation_id`) และลำดับ swatch · ⛔ ห้ามเขียนกติกาซ้ำในหน้า/การ์ด ไม่งั้นการ์ดกับหน้าสินค้าเลือกคนละตัว
+- ลำดับ: 1) ตัวที่ร้านตั้ง `product_variations.is_default` ไว้**และมีของ** → 2) ตัวที่**ขายดีที่สุด**ในบรรดาตัวที่มีของ → 3) ตัวแรกที่มีของ
+- "ขายดี" มาจาก RPC **`get_variation_sales(company, variation_ids[], days=90)`** ผ่าน `fetchVariationSales()` — **นิยามต้องตรงกับ CTE `sold` ของ `get_storefront_catalog`** (ไม่นับ `order_status='cancelled'` · ย้อน 90 วันจาก `orders.created_at` · filter `company_id`) ไม่งั้น "ขายดี" มีสองความหมาย
+- ⛔ ยิง**ครั้งเดียวต่อหน้า** (รวม variation ของทุกสินค้าในหน้า เหมือน `fetchAvailability()`) · ตัดสินค้าที่มีตัวเลือกเดียวทิ้งก่อนยิง (`multiOptionVariationIds`) — ห้ามยิงต่อสินค้า
+- `buildSwatches()` ยก**ค่าของตัวที่ถูกเลือก**ขึ้นเป็นอันแรก (swatch โชว์แค่ 6 อันแรก) · ⛔ **ที่เหลือคงลำดับเดิม (`created_at`) ห้ามเรียงทั้งแถวตามยอดขาย** — ลำดับจะขยับเองเรื่อย ๆ ลูกค้าที่กลับมาดูซ้ำจะงง
+- สินค้าชุดไม่เข้ากติกานี้ — มี `option_groups` เลือกทีละช่องของตัวเอง
+
 **ตะกร้า + checkout** (เพิ่ม 2026-08-18)
 - **ตะกร้าอยู่ใน localStorage ของโดเมนที่ผู้ใช้ยืนอยู่** ([lib/storefront-cart.ts](../../../lib/storefront-cart.ts)) — **ห้ามย้ายไป cookie ของโดเมน aoo** เพราะตอนฝังใน WordPress ลูกค้าจะกลายเป็น third-party cookie → Safari ITP บล็อก → ตะกร้าหาย (เหตุผลเดียวกับที่ไม่เลือก iframe) · ยังไม่แตะ DB จนกดยืนยัน
 - **`/api/storefront/checkout` = public write path — ถือว่าทุก field เป็นของปลอม**: company มาจาก shop slug ไม่ใช่ body · **อ่านราคา/ชื่อใหม่จาก DB ทั้งหมด ไม่เชื่อตัวเลขจาก client** · variation ต้อง active + storefront_visible + เป็นของ company นี้ · ค่าส่งคำนวณใหม่จาก zone · เช็ค slot availability ซ้ำฝั่ง server (อาจเต็มระหว่างลูกค้ากรอกฟอร์ม → 409) · rate limit ต่อ IP · items insert fail = rollback order ทิ้ง

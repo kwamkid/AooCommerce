@@ -348,6 +348,12 @@ export interface StorefrontVariation {
   in_stock: boolean;
   image: string | null;
   /**
+   * ร้านตั้งตัวนี้เป็น "ตัวตั้งต้น" ไว้ (`product_variations.is_default`) — มีได้ตัวเดียวต่อสินค้า
+   * ใส่ key เฉพาะตัวที่เป็น · ตัวที่หน้าสินค้าเลือกให้จริงอยู่ที่ `StorefrontProduct.default_variation_id`
+   * (ตัวตั้งต้นที่ของหมดจะไม่ถูกเลือก)
+   */
+  is_default?: true;
+  /**
    * สินค้าชุดเท่านั้น — ค่าที่เลือกในแต่ละช่อง เช่น `{ โครงรถเข็น: 'ดำ', ผ้าเบาะ: 'แดง' }`
    * (key = ชื่อช่องใน `option_groups`)
    */
@@ -394,6 +400,13 @@ export interface StorefrontProduct {
   price_max: number;
   in_stock: boolean;
   updated_at: string;
+  /**
+   * ตัวเลือกที่หน้าสินค้าเลือกให้ตอนเปิด + ตัวที่ขึ้นก่อนในแถว swatch
+   * กติกา 3 ชั้น (`pickDefaultVariation()` ใน storefront-server.ts — ที่เดียวของทั้งระบบ):
+   * ร้านตั้ง `is_default` ไว้และมีของ → ขายดีที่สุดใน 90 วันในบรรดาตัวที่มีของ → ตัวแรกที่มีของ
+   * ไม่มี key นี้ = ของหมดทั้งสินค้า (หรือเป็นสินค้าชุดซึ่งเลือกทีละช่องเอง)
+   */
+  default_variation_id?: string;
   /** สินค้าชุด (เลือกหนึ่งตัวจากแต่ละช่อง) — ไม่มี key นี้ = สินค้าปกติ */
   is_composite?: true;
   /**

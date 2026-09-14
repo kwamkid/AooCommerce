@@ -17,9 +17,13 @@ import FormSelect from '@/components/ui/FormSelect';
 import FormInput from '@/components/ui/FormInput';
 import NumberInput from '@/components/ui/NumberInput';
 import Toggle from '@/components/ui/Toggle';
+import Radio from '@/components/ui/Radio';
+import Tooltip from '@/components/ui/Tooltip';
+import HelpHint from '@/components/ui/HelpHint';
 import ImageUploader, { type ProductImage } from '@/components/ui/ImageUploader';
 import {
-  MAX_OPTION_GROUPS, MAX_OPTION_VALUES, NO_REDUCE, activeGroupNames, applyReduce, applyToAll, type ReduceSpec,
+  MAX_OPTION_GROUPS, MAX_OPTION_VALUES, NO_REDUCE, activeGroupNames, applyReduce, applyToAll,
+  patchRow, setDefaultRow, type ReduceSpec,
 } from '@/lib/product-variants';
 import ProductCodesHelp from './ProductCodesHelp';
 import DiscountPriceInput from '@/components/ui/DiscountPriceInput';
@@ -50,6 +54,27 @@ interface VariantOptionsEditorProps {
 type BulkState = { default_price: number; discount: ReduceSpec; cost_price: number };
 const EMPTY_BULK: BulkState = { default_price: 0, discount: NO_REDUCE, cost_price: 0 };
 
+const DEFAULT_OFF_REASON = 'ตัวเลือกที่ปิดขายอยู่ ตั้งเป็นตัวตั้งต้นไม่ได้';
+
+/** ปุ่มเลือก "ตัวตั้งต้น" ของแถว — เลือกได้ทีละแถว · กดแถวที่เลือกอยู่ซ้ำ = ยกเลิก */
+function DefaultPicker({ row, onPick, withLabel }: {
+  row: VariantRow;
+  onPick: (tempId: string) => void;
+  withLabel?: boolean;
+}) {
+  return (
+    <Tooltip text={row.is_active ? '' : DEFAULT_OFF_REASON}>
+      <Radio
+        checked={!!row.is_default}
+        onChange={() => onPick(row._tempId)}
+        disabled={!row.is_active}
+        label={withLabel ? 'ตั้งต้น' : undefined}
+        className={withLabel ? undefined : 'justify-center'}
+      />
+    </Tooltip>
+  );
+}
+
 export default function VariantOptionsEditor({
   groups, onGroupsChange, rows, onRowsChange, variationTypes, onAddVariationType,
   images, onImagesChange, errors, canViewCost, showStock, groupsError,
@@ -72,8 +97,10 @@ export default function VariantOptionsEditor({
         && !groups.some((g, k) => k !== i && g.typeId === t.id))
       .map(t => ({ id: t.id, label: t.name }));
 
+  // กติกาแถว (ปิดขายแล้วปลดธงตั้งต้น · ตั้งต้นได้ตัวเดียว) อยู่ที่ lib/product-variants.ts
   const updateRow = (tempId: string, patch: Partial<VariantRow>) =>
-    onRowsChange(rows.map(r => (r._tempId === tempId ? { ...r, ...patch } : r)));
+    onRowsChange(patchRow(rows, tempId, patch));
+  const toggleDefault = (tempId: string) => onRowsChange(setDefaultRow(rows, tempId));
 
   const bulkPatch = {
     ...(bulk.default_price > 0 ? { default_price: bulk.default_price } : {}),
@@ -215,7 +242,7 @@ export default function VariantOptionsEditor({
 
           {/* Desktop */}
           <div className="hidden md:block overflow-x-auto rounded-lg border border-gray-200 dark:border-slate-700">
-            <table className="w-full min-w-[820px]">
+            <table className="w-full min-w-[892px]">
               <thead className="data-thead">
                 <tr>
                   <th className="data-th w-[96px]">รูป</th>
@@ -231,6 +258,15 @@ export default function VariantOptionsEditor({
                   </th>
                   {showStock && <th className="data-th w-[96px] text-right">พร้อมขาย</th>}
                   <th className="data-th w-[84px] text-center">เปิดขาย</th>
+                  <th className="data-th w-[72px] text-center">
+                    <span className="inline-flex items-center gap-1">
+                      ตั้งต้น
+                      <HelpHint portal align="right">
+                        ตัวที่ลูกค้าเห็นถูกเลือกไว้ให้ตอนเปิดหน้าสินค้าบนหน้าร้าน<br />
+                        ไม่ตั้ง = ใช้ตัวที่ขายดีที่สุด ถ้ายังไม่เคยขายก็ใช้ตัวแรกที่มีของ
+                      </HelpHint>
+                    </span>
+                  </th>
                 </tr>
               </thead>
               <tbody className="data-tbody">
@@ -319,6 +355,11 @@ export default function VariantOptionsEditor({
                         />
                       </div>
                     </td>
+                    <td className="px-3 py-3">
+                      <div className="h-[42px] flex items-center justify-center">
+                        <DefaultPicker row={row} onPick={toggleDefault} />
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -350,11 +391,14 @@ export default function VariantOptionsEditor({
                     )}
                     <FieldError text={attrError(i)} />
                   </div>
-                  <Toggle
-                    checked={row.is_active}
-                    onChange={v => updateRow(row._tempId, { is_active: v })}
-                    aria-label={`เปิดขาย ${row.variation_label}`}
-                  />
+                  <div className="flex flex-col items-center gap-2">
+                    <Toggle
+                      checked={row.is_active}
+                      onChange={v => updateRow(row._tempId, { is_active: v })}
+                      aria-label={`เปิดขาย ${row.variation_label}`}
+                    />
+                    <DefaultPicker row={row} onPick={toggleDefault} withLabel />
+                  </div>
                 </div>
                 <div className={`grid gap-3 ${canViewCost ? 'grid-cols-3' : 'grid-cols-2'}`}>
                   <div>

@@ -185,12 +185,14 @@ interface RawVariation {
   default_price: number;
   discount_price: number | null;
   is_active: boolean;
+  /** ร้านตั้งไว้ว่าเป็นตัวตั้งต้นของสินค้านี้ (ได้ตัวเดียวต่อสินค้า) */
+  is_default?: boolean | null;
   /** `{ ชื่อตัวเลือก: ค่า }` — สินค้าปกติ เช่น `{ สี: 'แดง' }` · สินค้าชุด = `{ ชื่อช่อง: ตัวเลือกที่เลือก }` */
   attributes?: Record<string, unknown> | null;
 }
 
 // ⛔ ไม่มีคอลัมน์ `stock` โดยตั้งใจ — ดู fetchAvailability() ว่าทำไมห้ามอ่าน
-const VARIATION_SELECT = 'id, product_id, variation_label, sku, default_price, discount_price, is_active, attributes';
+const VARIATION_SELECT = 'id, product_id, variation_label, sku, default_price, discount_price, is_active, is_default, attributes';
 
 /**
  * พร้อมขายจริงของแต่ละตัวเลือก — **ผ่าน RPC `get_variation_stock` เท่านั้น**
@@ -218,6 +220,55 @@ async function fetchAvailability(companyId: string, variationIds: string[]): Pro
   return out;
 }
 
+/**
+ * ยอดขายต่อ "ตัวเลือก" ใน 90 วันล่าสุด — ใช้เลือกตัวตั้งต้นเมื่อร้านไม่ได้ตั้ง `is_default` ไว้
+ *
+ * ⚠️ นิยาม "ขายดี" ต้องเป็นชุดเดียวกับ sort `best_selling` ของหน้ารายการ — ทั้งคู่จึงนับแบบเดียวกัน
+ * (ไม่นับออเดอร์ที่ยกเลิก · ย้อนหลัง 90 วันจาก `orders.created_at` · filter `company_id`)
+ * ผ่าน RPC `get_variation_sales` เพื่อไม่ลากแถว `order_items` ดิบข้ามเน็ตเวิร์ก
+ *
+ * ⛔ ยิง **ครั้งเดียวต่อหน้า** (รวม variation ของทุกสินค้าในหน้า) เหมือน fetchAvailability()
+ * — หน้ารายการมี 20 สินค้า ยิงต่อสินค้าคือ 20 รอบ
+ */
+async function fetchVariationSales(companyId: string, variationIds: string[]): Promise<Map<string, number>> {
+  const out = new Map<string, number>();
+  if (variationIds.length === 0) return out;
+  const { data, error } = await supabaseAdmin.rpc('get_variation_sales', {
+    p_company_id: companyId,
+    p_variation_ids: variationIds,
+  });
+  if (error || !data) return out;
+  for (const [id, qty] of Object.entries(data as Record<string, number | string>)) {
+    out.set(id, Number(qty) || 0);
+  }
+  return out;
+}
+
+/**
+ * ตัวเลือกที่ต้องถูกเลือกไว้ให้ตอนลูกค้าเปิดหน้าสินค้า — **กติกาเดียวของทั้งหน้าสินค้าและแถว swatch**
+ * (เขียนซ้ำที่อื่น = การ์ดในหน้ารายการกับหน้าสินค้าจะเลือกคนละตัว)
+ *
+ * 1. ตัวที่ร้านตั้ง `is_default` ไว้ **และมีของ**
+ * 2. ตัวที่ขายดีที่สุดในบรรดาตัวที่มีของ (90 วัน)
+ * 3. ตัวแรกที่มีของ (กติกาเดิม — ใช้เมื่อสินค้ายังไม่เคยขายเลย หรือยอดเท่ากันหมด)
+ */
+function pickDefaultVariation(
+  variations: StorefrontVariation[],
+  sales: Map<string, number>,
+): StorefrontVariation | null {
+  const sellable = variations.filter(v => v.in_stock);
+  if (sellable.length === 0) return null;
+  const flagged = sellable.find(v => v.is_default);
+  if (flagged) return flagged;
+  let best = sellable[0];
+  let bestQty = sales.get(best.id) ?? 0;
+  for (const v of sellable) {
+    const qty = sales.get(v.id) ?? 0;
+    if (qty > bestQty) { best = v; bestQty = qty; }
+  }
+  return best;
+}
+
 /** variation → public shape. Stock is exposed as a boolean only, never a count. */
 function toPublicVariation(
   v: RawVariation,
@@ -235,6 +286,7 @@ function toPublicVariation(
     // ร้านที่ไม่ได้ใช้ระบบคลัง ถือว่าพร้อมขายเสมอ — ไม่งั้นทั้งร้านขึ้น "สินค้าหมด"
     in_stock: stockEnabled ? (available.get(v.id) ?? 0) > 0 : true,
     image: imageByVariation.get(v.id) || null,
+    ...(v.is_default ? { is_default: true as const } : {}),
   };
 }
 
@@ -377,6 +429,8 @@ async function loadCompositeExtras(
 function buildSwatches(
   activeVars: RawVariation[],
   imageByVariation: Map<string, string>,
+  /** ตัวที่หน้าสินค้าเลือกให้ (pickDefaultVariation) — ค่าของมันต้องขึ้นก่อน แถวโชว์แค่ 6 อันแรก */
+  defaultVariationId?: string,
 ): { name: string; items: StorefrontSwatch[] } | null {
   // สินค้าตัวเลือกเดียว = ไม่มีอะไรให้เลือก (สินค้าแบบ simple ก็เข้าทางนี้)
   if (activeVars.length < 2) return null;
@@ -395,6 +449,19 @@ function buildSwatches(
     if (image && !imageByValue.has(value)) imageByValue.set(value, { image, variation_id: v.id });
   });
 
+  // ค่าของตัวที่ถูกเลือกขึ้นเป็นอันแรก · ที่เหลือคงลำดับเดิม (created_at)
+  // ⛔ ห้ามเรียงทั้งแถวตามยอดขาย — ลำดับจะขยับเองเรื่อย ๆ ลูกค้าที่กลับมาดูซ้ำจะงง
+  const defaultIndex = activeVars.findIndex(v => v.id === defaultVariationId);
+  if (defaultIndex >= 0) {
+    const defaultValue = (firstName ? withAttrs[defaultIndex][firstName] : '')
+      || (activeVars[defaultIndex].variation_label || '').trim();
+    const at = order.indexOf(defaultValue);
+    if (at > 0) {
+      order.splice(at, 1);
+      order.unshift(defaultValue);
+    }
+  }
+
   const items: StorefrontSwatch[] = order
     .filter(value => imageByValue.has(value))
     .map(value => ({ value, ...imageByValue.get(value)! }));
@@ -408,6 +475,7 @@ function assembleProduct(
   images: { variation_id: string | null; image_url: string }[],
   stockEnabled: boolean,
   available: Map<string, number>,
+  sales: Map<string, number>,
   composite?: CompositeExtras,
 ): StorefrontProduct {
   const imageByVariation = new Map<string, string>();
@@ -444,8 +512,10 @@ function assembleProduct(
   };
   if (composite) return applyComposite(product, variations.filter(v => v.is_active), composite);
 
-  // สินค้าปกติเท่านั้น — สินค้าชุดมี option_groups ของตัวเองอยู่แล้ว
-  const swatches = buildSwatches(variations.filter(v => v.is_active), imageByVariation);
+  // สินค้าปกติเท่านั้น — สินค้าชุดมี option_groups ของตัวเองอยู่แล้ว (เลือกทีละช่อง)
+  const picked = pickDefaultVariation(publicVariations, sales);
+  if (picked) product.default_variation_id = picked.id;
+  const swatches = buildSwatches(variations.filter(v => v.is_active), imageByVariation, picked?.id);
   return swatches ? { ...product, swatches } : product;
 }
 
@@ -493,6 +563,23 @@ export function catalogOptionsFor(
 
 /** `.in(...)` ยาวเกินไปกลายเป็น URL ที่ยิงไม่ผ่าน — แบ่งเป็นก้อนแล้วยิงขนาน */
 const DETAIL_CHUNK = 100;
+
+/**
+ * variation ที่ "มีอะไรให้เลือก" เท่านั้น — สินค้าที่เปิดขายตัวเลือกเดียวไม่ต้องรู้ยอดขาย
+ * (ตัดของที่ไม่ต้องใช้ทิ้งก่อนยิง RPC — sitemap ประกอบทีเดียวเป็นพัน ๆ สินค้า)
+ */
+function multiOptionVariationIds(vars: RawVariation[]): string[] {
+  const byProduct = new Map<string, string[]>();
+  for (const v of vars) {
+    if (!v.is_active) continue;
+    const list = byProduct.get(v.product_id) || [];
+    list.push(v.id);
+    byProduct.set(v.product_id, list);
+  }
+  const out: string[] = [];
+  for (const list of byProduct.values()) if (list.length > 1) out.push(...list);
+  return out;
+}
 
 function chunk<T>(arr: T[], size: number): T[][] {
   const out: T[][] = [];
@@ -548,10 +635,12 @@ async function assembleCatalog(
 
   const compositeRows = rows.filter(r => r.is_composite);
   const ownImageIds = new Set<string>(images.map(i => i.variation_id).filter(Boolean) as string[]);
-  const [available, compositeExtras] = await Promise.all([
+  const [available, sales, compositeExtras] = await Promise.all([
     stockEnabled
       ? fetchAvailability(companyId, rawVars.filter(v => v.is_active).map(v => v.id))
       : Promise.resolve(new Map<string, number>()),
+    // ยอดขายต่อตัวเลือก — ยิงรอบเดียวรวมทุกสินค้าในหน้า
+    fetchVariationSales(companyId, multiOptionVariationIds(rawVars)),
     loadCompositeExtras(compositeRows, rawVars, ownImageIds),
   ]);
 
@@ -579,6 +668,7 @@ async function assembleCatalog(
       imgsByProduct.get(r.id) || [],
       stockEnabled,
       available,
+      sales,
       compositeExtras.get(r.id),
     ))
     // สินค้าที่ไม่มี variation ที่ขายได้เลย ไม่ต้องโชว์ (ราคาเป็น 0 ดูเหมือนของฟรี)
@@ -661,10 +751,11 @@ export const getStorefrontProduct = cache(async (
   const isComposite = !!typedRow.is_composite;
   const ownImageIds = new Set<string>((images || []).map(i => i.variation_id).filter(Boolean) as string[]);
   // สต็อกมาจาก RPC เท่านั้น (ครอบสินค้าชุดให้แล้ว) — ห้ามอ่านคอลัมน์ stock
-  const [available, compositeExtras] = await Promise.all([
+  const [available, sales, compositeExtras] = await Promise.all([
     stockEnabled
       ? fetchAvailability(companyId, rawVars.filter(v => v.is_active).map(v => v.id))
       : Promise.resolve(new Map<string, number>()),
+    isComposite ? Promise.resolve(new Map<string, number>()) : fetchVariationSales(companyId, multiOptionVariationIds(rawVars)),
     isComposite ? loadCompositeExtras([typedRow], rawVars, ownImageIds) : Promise.resolve(new Map<string, CompositeExtras>()),
   ]);
   const product = assembleProduct(
@@ -673,6 +764,7 @@ export const getStorefrontProduct = cache(async (
     (images || []).map(i => ({ variation_id: i.variation_id, image_url: i.image_url })),
     stockEnabled,
     available,
+    sales,
     compositeExtras.get(typedRow.id),
   );
   return product.variations.length > 0 ? product : null;

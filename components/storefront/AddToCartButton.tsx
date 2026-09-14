@@ -19,6 +19,12 @@ interface Props {
   productName: string;
   variations: StorefrontVariation[];
   images: string[];
+  /**
+   * ตัวเลือกที่ต้องถูกเลือกไว้ให้ตอนเปิดหน้า — server เป็นคนตัดสิน
+   * (`pickDefaultVariation()` ใน lib/storefront-server.ts: ร้านตั้งเอง → ขายดีสุด → ตัวแรกที่มีของ)
+   * ไม่ส่งมา/ของหมดแล้ว = ตกไปใช้ตัวแรกที่มีของ
+   */
+  defaultVariationId?: string;
   /** สินค้าชุด — มีค่า = เลือกทีละช่อง แทนรายการแบน */
   optionGroups?: StorefrontOptionGroup[];
 }
@@ -28,9 +34,12 @@ function announceImage(v: StorefrontVariation) {
   window.dispatchEvent(new CustomEvent(SF_VARIATION_IMAGE_EVENT, { detail: { image: v.image, label: v.label } }));
 }
 
-export default function AddToCartButton({ shop, productSlug, productName, variations, images, optionGroups }: Props) {
+export default function AddToCartButton({
+  shop, productSlug, productName, variations, images, defaultVariationId, optionGroups,
+}: Props) {
   const sellable = variations.filter(v => v.in_stock);
-  const [selectedId, setSelectedId] = useState(sellable[0]?.id || '');
+  const preselected = sellable.find(v => v.id === defaultVariationId) || sellable[0];
+  const [selectedId, setSelectedId] = useState(preselected?.id || '');
   const [qty, setQty] = useState(1);
   const [added, setAdded] = useState(false);
   const btnRef = useRef<HTMLButtonElement>(null);

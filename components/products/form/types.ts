@@ -40,6 +40,8 @@ export interface VariantRow {
   discount_price: number;
   cost_price: number;
   is_active: boolean;
+  /** ตัวตั้งต้นของหน้าร้าน — ได้ตัวเดียวต่อสินค้า · แถวที่ปิดขายเป็นไม่ได้ */
+  is_default?: boolean;
   /** sellable stock (Σ available across warehouses) — edit mode only, never sent */
   available?: number;
 }

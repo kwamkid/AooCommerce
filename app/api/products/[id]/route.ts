@@ -121,7 +121,7 @@ export async function GET(
         .maybeSingle(),
       supabaseAdmin
         .from('product_variations')
-        .select('id, price_locked')
+        .select('id, price_locked, is_default')
         .eq('product_id', id)
         .eq('company_id', companyId)
         .is('deleted_at', null),
@@ -146,6 +146,8 @@ export async function GET(
     const variationImages: Record<string, any[]> = rpcResult.variation_images || {};
     const isComposite = !!compositeRes.data?.is_composite;
     const priceLocked = new Map((lockRes.data || []).map(r => [r.id, !!r.price_locked]));
+    // ตัวตั้งต้นของหน้าร้าน — RPC get_product_for_edit ไม่ได้คืนมา จึงอ่านคู่กับ price_locked
+    const isDefault = new Map((lockRes.data || []).map(r => [r.id, !!r.is_default]));
     // simple ↔ variation switch is only allowed while nothing references the live variations
     const typeChangeBlockers = isComposite
       ? null
@@ -200,6 +202,7 @@ export async function GET(
     productItem.variations = variations.map((v: any) => ({
       ...v,
       price_locked: priceLocked.get(v.variation_id) ?? false,
+      is_default: isDefault.get(v.variation_id) ?? false,
       image_url: variationImageMap.get(v.variation_id) || null,
     }));
 

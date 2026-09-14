@@ -231,6 +231,7 @@ export default async function StorefrontProductPage({ params }: PageProps) {
             productName={product.name}
             variations={product.variations}
             images={product.images}
+            defaultVariationId={product.default_variation_id}
             optionGroups={product.option_groups}
           />
 

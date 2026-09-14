@@ -291,7 +291,7 @@ export async function saveCompositeVariations(
   const keptIds = new Set(result.variationIds);
   const toArchive = (existingRows || []).filter(r => !keptIds.has(r.id) && r.is_active).map(r => r.id);
   if (toArchive.length) {
-    const { error } = await supabase.from('product_variations').update({ is_active: false }).in('id', toArchive);
+    const { error } = await supabase.from('product_variations').update({ is_active: false, is_default: false }).in('id', toArchive);
     if (error) throw new Error(`Failed to archive combos: ${error.message}`);
     result.archived = toArchive.length;
   }

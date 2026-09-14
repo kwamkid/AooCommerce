@@ -103,7 +103,27 @@ interface VariationData {
   stock?: number;
   min_stock?: number;
   is_active?: boolean;
+  /** ตัวตั้งต้นของหน้าร้าน — ได้ 1 ตัวต่อสินค้า · ไม่ส่งมา = ไม่แตะของเดิม */
+  is_default?: boolean;
   attributes?: Record<string, string>; // e.g. {"ความจุ": "250ml", "รูปทรง": "ขวดกลม"}
+}
+
+/**
+ * ตัวเลือก "ตั้งต้น" ของหน้าร้าน — ได้ไม่เกิน 1 ตัวต่อสินค้า (DB มี partial unique index กันอีกชั้น)
+ * แก้ค่าใน `variations` ให้เอง: ตัวที่ปิดขาย (`is_active=false`) ส่ง `is_default=true` มา = ปัดเป็น false
+ * คืนข้อความ error ภาษาไทยเมื่อส่งมาเกิน 1 ตัว · ตัวที่ไม่ส่ง `is_default` มาเลย = ไม่แตะของเดิม
+ */
+function normalizeVariationDefaults(variations: VariationData[]): string | null {
+  let found = false;
+  for (const v of variations) {
+    if (v.is_default === undefined) continue;
+    const active = v.is_active !== undefined ? v.is_active : true;
+    if (v.is_default && !active) v.is_default = false;
+    if (!v.is_default) continue;
+    if (found) return 'ตั้งตัวเลือกตั้งต้นได้ตัวเดียวต่อสินค้า';
+    found = true;
+  }
+  return null;
 }
 
 // Helper: compute display name from attributes
@@ -214,6 +234,8 @@ export async function POST(request: NextRequest) {
           { status: 400 }
         );
       }
+      const defaultError = normalizeVariationDefaults(productData.variations);
+      if (defaultError) return NextResponse.json({ error: defaultError }, { status: 400 });
     }
 
     const isComposite = productData.product_type === 'composite';
@@ -382,6 +404,7 @@ export async function POST(request: NextRequest) {
         stock: v.stock || 0,
         min_stock: v.min_stock || 0,
         is_active: v.is_active !== undefined ? v.is_active : true,
+        is_default: v.is_default === true,
         attributes: v.attributes || null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
@@ -893,6 +916,12 @@ export async function PUT(request: NextRequest) {
       );
     }
 
+    // ตัวตั้งต้นของหน้าร้าน — ตรวจก่อน write ตัวแรก (เกิน 1 ตัว = ปฏิเสธทั้งคำขอ)
+    if (Array.isArray(variations)) {
+      const defaultError = normalizeVariationDefaults(variations as VariationData[]);
+      if (defaultError) return NextResponse.json({ error: defaultError }, { status: 400 });
+    }
+
     // Current state — source (Shopee edited flag), variation_label (simple ↔ variation
     // switch below) and is_composite (สินค้าชุด can't change type in either direction)
     const { data: currentProduct } = await supabaseAdmin
@@ -1085,7 +1114,8 @@ export async function PUT(request: NextRequest) {
       const now = new Date().toISOString();
       await supabaseAdmin
         .from('product_variations')
-        .update({ deleted_at: now, is_active: false, updated_at: now })
+        // ปลดธงตัวตั้งต้นด้วย — invariant: is_default ⟹ ยังขายอยู่
+        .update({ deleted_at: now, is_active: false, is_default: false, updated_at: now })
         .in('id', liveVariationIds)
         .eq('company_id', auth.companyId);
       // Per-variation pictures belong to the archived shape — drop the rows so
@@ -1183,9 +1213,21 @@ export async function PUT(request: NextRequest) {
           const now = new Date().toISOString();
           await supabaseAdmin
             .from('product_variations')
-            .update({ deleted_at: now, updated_at: now })
+            .update({ deleted_at: now, is_default: false, updated_at: now })
             .in('id', toDelete)
             .eq('company_id', auth.companyId);
+        }
+
+        // ตัวตั้งต้นย้ายแถวได้ — ต้องปลดของเดิมก่อน ไม่งั้น unique index
+        // (product_id) where is_default จะเด้งตอนอัปเดตแถวใหม่ก่อนแถวเก่า
+        const sendsDefault = variations.some((v: VariationData) => v.is_default !== undefined);
+        if (sendsDefault) {
+          await supabaseAdmin
+            .from('product_variations')
+            .update({ is_default: false })
+            .eq('product_id', id)
+            .eq('company_id', auth.companyId)
+            .eq('is_default', true);
         }
 
         // Update or insert variations
@@ -1209,6 +1251,8 @@ export async function PUT(request: NextRequest) {
                 stock: variation.stock || 0,
                 min_stock: variation.min_stock || 0,
                 is_active: variation.is_active !== undefined ? variation.is_active : true,
+                // ไม่ส่ง is_default มา = ไม่แตะของเดิม (เส้นอื่นที่ไม่รู้จักธงนี้ต้องไม่ล้างทิ้ง)
+                ...(variation.is_default !== undefined ? { is_default: !!variation.is_default } : {}),
                 attributes: variation.attributes || null,
                 updated_at: new Date().toISOString()
               })
@@ -1230,6 +1274,7 @@ export async function PUT(request: NextRequest) {
                 stock: variation.stock || 0,
                 min_stock: variation.min_stock || 0,
                 is_active: variation.is_active !== undefined ? variation.is_active : true,
+                is_default: variation.is_default === true,
                 attributes: variation.attributes || null,
                 created_at: new Date().toISOString(),
                 updated_at: new Date().toISOString()
@@ -1331,7 +1376,7 @@ export async function DELETE(request: NextRequest) {
     // ones, they should stay deleted even if the product is reactivated later.
     await supabaseAdmin
       .from('product_variations')
-      .update({ is_active: false, updated_at: now })
+      .update({ is_active: false, is_default: false, updated_at: now })
       .in('product_id', productIds)
       .eq('company_id', auth.companyId)
       .is('deleted_at', null);

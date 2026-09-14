@@ -97,7 +97,8 @@ export async function POST(request: NextRequest) {
 
     await supabaseAdmin
       .from('product_variations')
-      .update({ is_active: false, updated_at: now })
+      // ปลดธงตัวตั้งต้นของหน้าร้านด้วย — ตัวที่ไม่ขายแล้วเป็นตัวตั้งต้นไม่ได้
+      .update({ is_active: false, is_default: false, updated_at: now })
       .eq('product_id', source_product_id);
 
     return NextResponse.json({
@@ -194,7 +195,7 @@ async function mergeVariation(
   // 9. Soft-delete source variation
   await supabaseAdmin
     .from('product_variations')
-    .update({ is_active: false, updated_at: now })
+    .update({ is_active: false, is_default: false, updated_at: now })
     .eq('id', sourceVarId);
 }
 
@@ -206,10 +207,10 @@ async function moveVariation(
   targetProductId: string,
   now: string
 ) {
-  // Move the variation itself
+  // Move the variation itself — ปลดธงตัวตั้งต้นทิ้ง ไม่งั้นชนกับตัวตั้งต้นของสินค้าปลายทาง
   await supabaseAdmin
     .from('product_variations')
-    .update({ product_id: targetProductId, updated_at: now })
+    .update({ product_id: targetProductId, is_default: false, updated_at: now })
     .eq('id', sourceVarId);
 
   // Update product_id references
