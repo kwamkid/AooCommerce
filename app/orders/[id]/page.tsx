@@ -21,7 +21,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/lib/toast-context';
 import { useFeatures } from '@/lib/features-context';
 import { apiFetch } from '@/lib/api-client';
-import { formatPrice, formatThaiDateTime } from '@/lib/utils/format';
+import { formatPrice, formatThaiDate, formatThaiDateTime } from '@/lib/utils/format';
 import { summarizeBeamRaw } from '@/lib/beam/labels';
 import Tooltip from '@/components/ui/Tooltip';
 import type { AdEventRow } from '@/lib/ads/meta-ui';
@@ -963,13 +963,11 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
                   <OrderStatusBadge status="cancelled" expired={isExpired} size="md" />
                 )}
               </div>
-              {features.delivery_date.enabled && orderDate && (
-                <p className="text-sm text-gray-500 mt-0.5">
-                  เปิดบิล {new Date(orderDate + 'T00:00:00').toLocaleDateString('th-TH', {
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric'
-                  })}
+              {/* วันที่เปิดบิลเป็นข้อมูลพื้นฐานของทุกออเดอร์ — ห้ามผูกกับฟีเจอร์ "วันกำหนดส่ง"
+                  (คนละเรื่องกัน · ร้าน ecommerce ปิดฟีเจอร์นั้นแล้ววันที่หายทั้งบรรทัด) */}
+              {orderDate && (
+                <p className="subtitle-text mt-0.5">
+                  เปิดบิล {formatThaiDate(orderDate)}
                 </p>
               )}
               {isPosOrder && receiptNumber && (
