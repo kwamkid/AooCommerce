@@ -212,6 +212,8 @@ function UnifiedChatPageContent() {
   const [nicknameEditing, setNicknameEditing] = useState(false);
   const [nicknameDraft, setNicknameDraft] = useState('');
   const [nicknameSaving, setNicknameSaving] = useState(false);
+  /** กำลังส่งการ์ดชวนรับข่าวสาร (เฉพาะ Facebook) — ปุ่มในแถบเครื่องมือของกล่องพิมพ์ */
+  const [optinSending, setOptinSending] = useState(false);
   /**
    * ไฟล์แนบที่ "รอส่ง" — ลากวาง / กดเลือกไฟล์ / รูปของข้อความสำเร็จรูป มากองรวมกันที่นี่
    * แล้วส่งตอนกด Enter หรือปุ่มส่ง · เจ้าของขอให้ได้เห็นก่อน (ลากผิด ลากเกิน อยากลบบางรูป)
@@ -2350,6 +2352,31 @@ function UnifiedChatPageContent() {
     }
   };
 
+  /**
+   * ชวนลูกค้ากดรับข่าวสาร (Facebook เท่านั้น) — ส่งการ์ดให้ลูกค้ากดเอง แล้วเขาจะอยู่ในรายชื่อ
+   * ที่บรอดแคสต์ถึงได้แม้พ้นกรอบ 24 ชม.
+   * ⚠️ ตัวกรอบเวลา API เป็นคนตัดสิน ไม่ใช่หน้าจอ — `last_message_at` ของห้องขยับตอนแอดมิน
+   * ตอบด้วย จึงใช้บอก "ลูกค้าทักล่าสุด" ไม่ได้ (route ไปนับข้อความขาเข้าจริง)
+   * สำเนาที่ส่งแล้วเข้ามาทาง realtime เหมือนข้อความอื่น ไม่ต้องสั่งโหลดซ้ำ
+   */
+  const sendOptinInvite = async () => {
+    if (!selectedContact || optinSending) return;
+    setOptinSending(true);
+    try {
+      const res = await apiFetch(`/api/chat/contacts/${selectedContact.id}/optin-invite`, { method: 'POST' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        showToast(typeof data.error === 'string' ? data.error : 'ส่งคำชวนไม่สำเร็จ', 'error');
+        return;
+      }
+      showToast('ส่งการ์ดชวนรับข่าวสารแล้ว — รอลูกค้ากดรับ', 'success');
+    } catch {
+      showToast('ส่งคำชวนไม่สำเร็จ', 'error');
+    } finally {
+      setOptinSending(false);
+    }
+  };
+
   // Helper to render customer profile content
   const renderCustomerProfile = () => {
     if (!selectedContact) return null;
@@ -3250,6 +3277,16 @@ function UnifiedChatPageContent() {
                       />
                     )}
                   </div>
+                  {/* ชวนรับข่าวสาร — ขึ้นเฉพาะ Facebook · Meta ให้ส่งได้เฉพาะตอนที่ลูกค้าเพิ่งทักมา
+                      (API ตอบเหตุผลกลับมาเองเมื่อพ้นกรอบ — ปุ่มจึงไม่เดาสถานะให้ผิด) */}
+                  {selectedContact?.platform === 'facebook' && (
+                    <Tooltip text="ชวนลูกค้ากดรับข่าวสาร — ส่งได้เฉพาะตอนที่ลูกค้าเพิ่งทักมา" box="inline-flex">
+                      <button onClick={sendOptinInvite} disabled={optinSending} aria-label="ชวนรับข่าวสาร"
+                        className="p-2 rounded-full text-gray-500 hover:text-primary hover:bg-gray-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                        <Megaphone className={`w-5 h-5 ${optinSending ? 'animate-pulse' : ''}`} />
+                      </button>
+                    </Tooltip>
+                  )}
                   <input ref={inputRef} type="text" value={newMessage} onChange={(e) => handleComposerChange(e.target.value)}
                     onKeyDown={(e) => { if (handleComposerSavedReplyKey(e)) return; if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
                     onPaste={handleComposerPaste}

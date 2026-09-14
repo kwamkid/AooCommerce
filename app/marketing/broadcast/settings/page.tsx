@@ -35,6 +35,24 @@ const DEFAULT_BUDGET_BAHT = 100;
 /** ราคาต่อข้อความยังไม่รู้ค่าจริง (ยังไม่มี spend กลับมาจาก Meta) — ใช้ประมาณไว้คำนวณงบก่อน */
 const ASSUMED_COST_PER_MESSAGE = 2;
 
+/** ค่าที่ผู้ใช้กำลังแก้ของเพจหนึ่ง (ยังไม่บันทึก) */
+interface PageDraft {
+  adAccountId: string;
+  budgetBaht: number;
+  /** การ์ดชวนรับข่าวสาร — แอดมินกดส่งเองจากห้องแชท (ได้เฉพาะในกรอบ 24 ชม.) */
+  optinTitle: string;
+  optinImage: string;
+  optinFrequency: string;
+}
+
+const EMPTY_DRAFT: PageDraft = {
+  adAccountId: '',
+  budgetBaht: DEFAULT_BUDGET_BAHT,
+  optinTitle: '',
+  optinImage: '',
+  optinFrequency: 'WEEKLY',
+};
+
 interface PageAccount {
   id: string;
   account_name: string;
@@ -66,7 +84,7 @@ export default function BroadcastSettingsPage() {
   const [adAccounts, setAdAccounts] = useState<AdAccountOption[]>([]);
   const [loading, setLoading] = useState(true);
   /** ค่าที่ผู้ใช้กำลังแก้ต่อเพจ (ยังไม่บันทึก) */
-  const [draft, setDraft] = useState<Record<string, { adAccountId: string; budgetBaht: number }>>({});
+  const [draft, setDraft] = useState<Record<string, PageDraft>>({});
   const [saving, setSaving] = useState<string | null>(null);
   const [subs, setSubs] = useState<Record<string, SubscriberInfo | 'loading' | 'error'>>({});
 
@@ -90,13 +108,16 @@ export default function BroadcastSettingsPage() {
       setAdAccounts(list);
 
       // ตั้งค่าเดิมของแต่ละเพจเป็นค่าเริ่มต้นของฟอร์ม
-      const next: Record<string, { adAccountId: string; budgetBaht: number }> = {};
+      const next: Record<string, PageDraft> = {};
       for (const p of fbPages) {
         const c = p.credentials || {};
         const satang = Number(c[BROADCAST_SETUP_KEYS.dailyBudget] ?? 0);
         next[p.id] = {
           adAccountId: String(c[BROADCAST_SETUP_KEYS.adAccountId] ?? ''),
           budgetBaht: satang > 0 ? satang / 100 : DEFAULT_BUDGET_BAHT,
+          optinTitle: String(c[BROADCAST_SETUP_KEYS.optinTitle] ?? ''),
+          optinImage: String(c[BROADCAST_SETUP_KEYS.optinImage] ?? ''),
+          optinFrequency: String(c[BROADCAST_SETUP_KEYS.optinFrequency] ?? 'WEEKLY'),
         };
       }
       setDraft(next);
@@ -144,6 +165,9 @@ export default function BroadcastSettingsPage() {
           credentials: {
             [BROADCAST_SETUP_KEYS.adAccountId]: d.adAccountId,
             [BROADCAST_SETUP_KEYS.dailyBudget]: Math.round(d.budgetBaht * 100),
+            [BROADCAST_SETUP_KEYS.optinTitle]: d.optinTitle.trim().slice(0, 65),
+            [BROADCAST_SETUP_KEYS.optinImage]: d.optinImage.trim(),
+            [BROADCAST_SETUP_KEYS.optinFrequency]: d.optinFrequency,
           },
         }),
       });
@@ -201,7 +225,7 @@ export default function BroadcastSettingsPage() {
         ) : (
           <div className="space-y-4">
             {pages.map(page => {
-              const d = draft[page.id] || { adAccountId: '', budgetBaht: DEFAULT_BUDGET_BAHT };
+              const d = draft[page.id] || EMPTY_DRAFT;
               const sub = subs[page.id];
               const subInfo = typeof sub === 'object' ? sub : null;
               // งบที่ "ควรตั้ง" คิดจากคนที่ส่งถึงได้จริง — ร้านคิดเป็นจำนวนคน ไม่ใช่ยอดเงิน
@@ -264,6 +288,45 @@ export default function BroadcastSettingsPage() {
                         </button>
                       )}
                     </div>
+                  </div>
+
+                  {/* การ์ดชวนรับข่าวสาร — แอดมินกดส่งเองจากห้องแชท (ปุ่มในกล่องพิมพ์)
+                      ⚠️ Meta ให้ส่งได้เฉพาะในกรอบ 24 ชม. นับจากลูกค้าทักล่าสุด · 1 ครั้ง/สัปดาห์/คน */}
+                  <div className="mt-4 pt-4 border-t border-gray-100 dark:border-slate-700">
+                    <p className="field-label flex items-center gap-1 mb-2">
+                      การ์ดชวนรับข่าวสาร
+                      <HelpHint>
+                        แอดมินกดส่งการ์ดนี้จากห้องแชทเพื่อชวนลูกค้ากดรับข่าวสาร — กดแล้วลูกค้าจะอยู่ใน
+                        รายชื่อที่ส่งบรอดแคสต์ถึงได้ · Facebook ให้ส่งคำชวนเฉพาะตอนที่ลูกค้าทักมาภายใน
+                        24 ชั่วโมง และส่งซ้ำได้สัปดาห์ละครั้ง
+                      </HelpHint>
+                    </p>
+                    <div className="grid sm:grid-cols-2 gap-3">
+                      <input
+                        className="w-full px-3 form-control-md bg-white dark:bg-slate-700 text-gray-900 dark:text-white placeholder-gray-400 rounded-lg border border-gray-300 dark:border-slate-600 focus:outline-none focus:ring-2 focus:ring-primary/40"
+                        value={d.optinTitle}
+                        maxLength={65}
+                        onChange={e => setDraft(s => ({ ...s, [page.id]: { ...d, optinTitle: e.target.value } }))}
+                        placeholder={`รับข่าวสารและโปรโมชันจาก ${page.account_name}`.slice(0, 65)}
+                        aria-label="หัวข้อบนการ์ดชวนรับข่าวสาร"
+                      />
+                      <FormSelect
+                        value={d.optinFrequency}
+                        onChange={v => setDraft(s => ({ ...s, [page.id]: { ...d, optinFrequency: v } }))}
+                        options={[
+                          { id: 'DAILY', label: 'ทุกวัน', subtitle: 'ถี่ที่สุด — ลูกค้าอาจรู้สึกถูกรบกวน' },
+                          { id: 'WEEKLY', label: 'ทุกสัปดาห์', subtitle: 'แนะนำ' },
+                          { id: 'MONTHLY', label: 'ทุกเดือน', subtitle: 'ห่างจนลูกค้าอาจลืมว่าสมัครไว้' },
+                        ]}
+                      />
+                    </div>
+                    <input
+                      className="mt-3 w-full px-3 form-control-md bg-white dark:bg-slate-700 text-gray-900 dark:text-white placeholder-gray-400 rounded-lg border border-gray-300 dark:border-slate-600 focus:outline-none focus:ring-2 focus:ring-primary/40"
+                      value={d.optinImage}
+                      onChange={e => setDraft(s => ({ ...s, [page.id]: { ...d, optinImage: e.target.value } }))}
+                      placeholder="ลิงก์รูปจัตุรัสบนการ์ด (ไม่ใส่ = การ์ดข้อความล้วน)"
+                      aria-label="รูปบนการ์ดชวนรับข่าวสาร"
+                    />
                   </div>
 
                   {/* ผู้สมัคร — ถามสดจาก Meta เพราะรายชื่ออยู่ที่เขา ไม่ใช่ของเรา */}

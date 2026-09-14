@@ -285,6 +285,12 @@ export const BROADCAST_SETUP_KEYS = {
   adAccountId: 'broadcast_ad_account_id',
   /** งบต่อวันของแคมเปญ หน่วย **สตางค์** (Meta รับหน่วยย่อยของสกุลเงิน — 10000 = 100 บาท) */
   dailyBudget: 'broadcast_daily_budget',
+  /** หัวข้อบนการ์ดชวนรับข่าวสาร (≤65 ตัวอักษรตามที่ Meta รับ) */
+  optinTitle: 'broadcast_optin_title',
+  /** รูปบนการ์ดชวนรับข่าวสาร (จัตุรัส) — ไม่ใส่ = การ์ดข้อความล้วน */
+  optinImage: 'broadcast_optin_image',
+  /** ความถี่ที่ขอจากลูกค้า: DAILY | WEEKLY | MONTHLY */
+  optinFrequency: 'broadcast_optin_frequency',
 } as const;
 
 /**
