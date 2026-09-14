@@ -5,8 +5,8 @@ import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
 import {
   parseStorefront,
   storefrontSlugLockRemainingDays,
-  STOREFRONT_SLUG_LOCK_DAYS, STOREFRONT_SLUG_RE, STOREFRONT_SLUG_RULE,
-  type StorefrontConfig,
+  STOREFRONT_SLUG_LOCK_DAYS, STOREFRONT_SLUG_RE, STOREFRONT_SLUG_RULE, STOREFRONT_SORTS,
+  type StorefrontConfig, type StorefrontSort,
 } from '@/lib/storefront';
 
 export async function GET(request: NextRequest) {
@@ -173,6 +173,9 @@ export async function PUT(request: NextRequest) {
     contact_phone: (body.contact_phone ?? current.contact_phone).trim(),
     contact_email: (body.contact_email ?? current.contact_email).trim(),
     contact_address: (body.contact_address ?? current.contact_address).trim(),
+    show_out_of_stock: body.show_out_of_stock ?? current.show_out_of_stock,
+    show_without_image: body.show_without_image ?? current.show_without_image,
+    sort_by: STOREFRONT_SORTS.includes(body.sort_by as StorefrontSort) ? body.sort_by! : current.sort_by,
   };
 
   const { error } = await supabaseAdmin

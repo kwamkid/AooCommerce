@@ -109,7 +109,32 @@ export interface StorefrontConfig {
   contact_phone: string;
   contact_email: string;
   contact_address: string;
+  // ── การแสดงสินค้า (เพิ่ม 2026-09-14) ──
+  /** แสดงสินค้าที่สต็อกหมดด้วย (ขึ้นป้าย "สินค้าหมดชั่วคราว") — false = ซ่อนจากทุกหน้ารายการ · มีผลเฉพาะร้านที่เปิดระบบคลัง */
+  show_out_of_stock: boolean;
+  /** แสดงสินค้าที่ยังไม่มีรูปด้วย — false = ซ่อนจนกว่าจะใส่รูป (หน้าสินค้าตรง ๆ ยังเปิดได้) */
+  show_without_image: boolean;
+  /**
+   * ลำดับสินค้าในหน้ารายการ
+   *  name         = ชื่อ ก→ฮ (ค่าเดิมก่อนมีตัวเลือกนี้)
+   *  best_selling = ขายดี (ยอดขาย 90 วันล่าสุดจาก order_items ไม่นับที่ยกเลิก) · ที่ไม่มียอดต่อท้ายตามชื่อ
+   *  newest       = สินค้าใหม่ก่อน (products.created_at)
+   *  price_asc / price_desc = ราคาต่ำสุดของสินค้า (ราคาหลังลด)
+   */
+  sort_by: StorefrontSort;
 }
+
+export type StorefrontSort = 'name' | 'best_selling' | 'newest' | 'price_asc' | 'price_desc';
+export const STOREFRONT_SORTS: StorefrontSort[] = ['name', 'best_selling', 'newest', 'price_asc', 'price_desc'];
+export const STOREFRONT_SORT_LABELS: Record<StorefrontSort, string> = {
+  best_selling: 'ขายดี',
+  newest: 'ใหม่ล่าสุด',
+  price_asc: 'ราคาต่ำ → สูง',
+  price_desc: 'ราคาสูง → ต่ำ',
+  name: 'ชื่อสินค้า ก → ฮ',
+};
+/** จำนวนสินค้าต่อหน้าในหน้ารายการ — หาร 2/3/4 คอลัมน์ลงตัว แถวสุดท้ายไม่ขาด */
+export const STOREFRONT_PAGE_SIZE = 24;
 
 export const DEFAULT_STOREFRONT: StorefrontConfig = {
   enabled: false,
@@ -134,6 +159,9 @@ export const DEFAULT_STOREFRONT: StorefrontConfig = {
   contact_phone: '',
   contact_email: '',
   contact_address: '',
+  show_out_of_stock: true,
+  show_without_image: true,
+  sort_by: 'name',
 };
 
 /**
@@ -197,6 +225,9 @@ export function parseStorefront(settings: Record<string, unknown> | null | undef
     // ค่าที่ไม่รู้จักตกไป default — ไม่ปล่อยให้หลุดไปเป็น CSS var ที่ undefined
     image_ratio: normalizeRatio(stored.image_ratio),
     announcement: stored.announcement ?? DEFAULT_STOREFRONT.announcement,
+    show_out_of_stock: stored.show_out_of_stock ?? DEFAULT_STOREFRONT.show_out_of_stock,
+    show_without_image: stored.show_without_image ?? DEFAULT_STOREFRONT.show_without_image,
+    sort_by: STOREFRONT_SORTS.includes(stored.sort_by as StorefrontSort) ? stored.sort_by as StorefrontSort : DEFAULT_STOREFRONT.sort_by,
   };
 }
 
