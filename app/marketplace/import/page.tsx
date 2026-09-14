@@ -35,7 +35,8 @@ import { MARKETPLACE_PLATFORMS } from '@/lib/marketplace/platforms';
 import { ChevronLeft, ChevronRight, Link2, Package, Plus, Store } from 'lucide-react';
 
 const PAGE_SIZE = 20;
-const BACK_HREF = '/settings/sales-channels?tab=marketplace';
+// กลับไปที่แท็บงานซิงค์ (ที่มาของ wizard นี้) ไม่ใช่แท็บร้าน — การ์ดร้านไม่มีปุ่มพวกนี้แล้ว
+const BACK_HREF = '/settings/sales-channels#sync';
 
 interface PreviewModel {
   external_model_id: string;

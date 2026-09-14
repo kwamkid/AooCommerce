@@ -7,7 +7,7 @@
 
 import { ReactNode } from 'react';
 import { CheckCircle2, AlertTriangle, XCircle, ChevronDown, ChevronUp, Package, Trash2 } from 'lucide-react';
-import ActionMenu from '@/components/ui/ActionMenu';
+import ActionMenu, { type ActionItem } from '@/components/ui/ActionMenu';
 import FormSelect from '@/components/ui/FormSelect';
 import type { MarketplaceAccount } from './useMarketplaceAccounts';
 
@@ -71,13 +71,15 @@ interface MarketplaceAccountCardProps {
   onToggleExpand?: () => void;
   onDisconnect: () => void;
   disconnecting?: boolean;
+  /** รายการเพิ่มในเมนู ⋮ (เชื่อมต่อใหม่ ฯลฯ) — งานที่นาน ๆ ทำที ไม่ควรเป็นปุ่มลอยบนการ์ด */
+  menuItems?: ActionItem[];
   /** เนื้อหาการ์ด (รายละเอียด/toggle/ปุ่ม sync) — expandable=true จะโชว์เฉพาะตอนกางออก */
   children?: ReactNode;
 }
 
 export default function MarketplaceAccountCard({
   account, avatar, title, titleExtra, showProductCount,
-  expandable, expanded, onToggleExpand, onDisconnect, disconnecting, children,
+  expandable, expanded, onToggleExpand, onDisconnect, disconnecting, menuItems, children,
 }: MarketplaceAccountCardProps) {
   const bodyVisible = expandable ? expanded : true;
   return (
@@ -118,14 +120,18 @@ export default function MarketplaceAccountCard({
               ไม่ใช่ถังขยะแดงลอยอยู่ข้างนอกให้กดพลาดได้ */}
           <ActionMenu
             placement="bottom"
-            items={[{
-              key: 'disconnect',
-              label: disconnecting ? 'กำลังยกเลิก…' : 'ยกเลิกการเชื่อมต่อ',
-              icon: <Trash2 className="w-4 h-4" />,
-              danger: true,
-              disabled: disconnecting,
-              onClick: onDisconnect,
-            }]}
+            items={[
+              ...(menuItems || []),
+              {
+                key: 'disconnect',
+                label: disconnecting ? 'กำลังยกเลิก…' : 'ยกเลิกการเชื่อมต่อ',
+                icon: <Trash2 className="w-4 h-4" />,
+                danger: true,
+                dividerBefore: (menuItems?.length || 0) > 0,
+                disabled: disconnecting,
+                onClick: onDisconnect,
+              },
+            ]}
           />
         </div>
       </div>

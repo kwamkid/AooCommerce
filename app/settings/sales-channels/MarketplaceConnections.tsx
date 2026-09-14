@@ -4,17 +4,15 @@
 // (ย้ายมาจาก /settings/integrations เดิม — path เก่า redirect มาที่นี่)
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { useToast } from '@/lib/toast-context';
 import { useFeatures } from '@/lib/features-context';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
 import { apiFetch } from '@/lib/api-client';
 import Tooltip from '@/components/ui/Tooltip';
-import { ChevronDown, Clock, ImagePlus, Link2, Loader2, PackageSearch, RefreshCw, RotateCw, ShoppingBag, Trash2, Warehouse } from 'lucide-react';
+import { ChevronDown, Clock, ImagePlus, Link2, Loader2, RefreshCw, RotateCw, Settings2, ShoppingBag, Trash2, Warehouse } from 'lucide-react';
 import Button from '@/components/ui/Button';
 import FormSelect from '@/components/ui/FormSelect';
-import { ExportButton, ImportButton } from '@/components/ui/ExportImportButton';
 import Alert from '@/components/ui/Alert';
 import Badge from '@/components/ui/Badge';
 import MarketplaceQuotaPausedAlert from '@/components/ui/MarketplaceQuotaPausedAlert';
@@ -28,7 +26,11 @@ import PlatformIcon from '@/components/ui/PlatformIcon';
 import { LoadingCard } from '@/components/ui/StateCard';
 import { formatThaiDateTime } from '@/lib/utils/format';
 import { MARKETPLACE_PLATFORMS } from '@/lib/marketplace/platforms';
+import type { ActionItem } from '@/components/ui/ActionMenu';
+import { marketplaceOnboardingSteps, nextOnboardingStep, onboardingIncomplete } from '@/lib/marketplace/onboarding';
 import MarketplaceAccountCard, { SyncRangeSelect } from './MarketplaceAccountCard';
+import MarketplaceOnboardingModal from './MarketplaceOnboardingModal';
+import { pushStockAllRequest } from './stock-actions';
 import type { MarketplaceAccountsState, MarketplaceAccount, MarketplacePlatform } from './useMarketplaceAccounts';
 
 interface MarketplaceConnectionsProps {
@@ -45,7 +47,6 @@ interface MarketplaceConnectionsProps {
 export default function MarketplaceConnections({
   activePlatform, onPlatformChange, setConnecting, accounts,
 }: MarketplaceConnectionsProps) {
-  const router = useRouter();
   const { userProfile } = useAuth();
   const { showToast } = useToast();
   // แพ็กเกจที่ไม่มีระบบคลัง = ไม่ต้องโชว์อะไรที่เกี่ยวกับสต็อกเลย (server ก็ปฏิเสธอยู่แล้ว)
@@ -72,6 +73,10 @@ export default function MarketplaceConnections({
     } | null
   >(null);
   const [logoFile, setLogoFile] = useState<File | null>(null);
+  // โมดัล "เริ่มใช้งานร้านนี้" — เปิดเองหลังเชื่อมต่อสำเร็จ และเปิดซ้ำได้จากปุ่มบนการ์ด
+  const [onboardingId, setOnboardingId] = useState<string | null>(null);
+  // เพิ่งกลับจาก OAuth ของ platform ไหน — รอ refetch เสร็จค่อยรู้ว่าจะชวนตั้งร้านใบไหน
+  const [justConnected, setJustConnected] = useState<MarketplacePlatform | null>(null);
   const [savingLogo, setSavingLogo] = useState(false);
   const [linkingProfile, setLinkingProfile] = useState(false);
   const [syncProgress, setSyncProgress] = useState<number>(0); // 0-100
@@ -85,10 +90,12 @@ export default function MarketplaceConnections({
     if (params.get('shopee') === 'connected') {
       showToast('เชื่อมต่อ Shopee สำเร็จ', 'success');
       refetch();
+      setJustConnected('shopee');
       window.history.replaceState({}, '', cleanUrl);
     } else if (params.get('tiktok') === 'connected') {
       showToast('เชื่อมต่อ TikTok Shop สำเร็จ', 'success');
       refetch();
+      setJustConnected('tiktok');
       onPlatformChange('tiktok');
       // ขาแชทต่อให้เองใน callback แล้ว (ไม่มี dialog ถามคั่น) — มาถึงตรงนี้ได้
       // แปลว่าไม่ต้องต่อแชท เหลือแค่ชวนดึงโลโก้จากบัญชี TikTok
@@ -98,6 +105,7 @@ export default function MarketplaceConnections({
     } else if (params.get('success') === 'lazada_connected') {
       showToast('เชื่อมต่อ Lazada สำเร็จ', 'success');
       refetch();
+      setJustConnected('lazada');
       onPlatformChange('lazada');
       window.history.replaceState({}, '', cleanUrl);
     } else if (params.get('tiktok_profile')) {
@@ -278,41 +286,72 @@ export default function MarketplaceConnections({
     }
   };
 
+  /**
+   * เพิ่งเชื่อมร้านเสร็จ → ชวนตั้งค่าต่อทันที
+   * เลือกร้านใบล่าสุดของแพลตฟอร์มนั้น**ที่ยังตั้งไม่ครบ** — เชื่อมใหม่ร้านเดิมที่ตั้งครบแล้ว
+   * ไม่ต้องเด้งอะไรมากวน (รอ refetch ให้ข้อมูลมาถึงก่อน ไม่งั้นได้ร้านชุดเก่า)
+   */
+  useEffect(() => {
+    if (!justConnected) return;
+    const list =
+      justConnected === 'shopee' ? shopeeAccounts
+      : justConnected === 'tiktok' ? tiktokAccounts
+      : lazadaAccounts;
+    if (list.length === 0) return;
+    const target = [...list]
+      .sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''))
+      .find(a => onboardingIncomplete(marketplaceOnboardingSteps(a, { stockEnabled })));
+    setJustConnected(null);
+    if (target) setOnboardingId(target.id);
+  }, [justConnected, shopeeAccounts, tiktokAccounts, lazadaAccounts, stockEnabled]);
+
+  const onboardingAccount =
+    [...shopeeAccounts, ...tiktokAccounts, ...lazadaAccounts].find(a => a.id === onboardingId) || null;
+
+  /**
+   * แถบ "ร้านนี้ยังตั้งไม่ครบ" บนการ์ด — ลำดับขั้นอยู่ที่ lib/marketplace/onboarding.ts
+   * ตั้งครบแล้วไม่โชว์อะไรเลย (การ์ดที่เรียบร้อยแล้วไม่ต้องมีเสียงรบกวน)
+   */
+  const onboardingBanner = (account: MarketplaceAccount) => {
+    const steps = marketplaceOnboardingSteps(account, { stockEnabled });
+    if (!onboardingIncomplete(steps)) return null;
+    const risky = steps.find(s => s.warning);
+    const next = nextOnboardingStep(steps);
+    return (
+      <Alert tone={risky ? 'warning' : 'info'}>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <span>
+            {risky
+              ? 'เปิดซิงค์สต็อกอัตโนมัติไว้ทั้งที่ยังไม่ได้ตั้งยอดตั้งต้น — เสี่ยงส่งยอด 0 ไปทับของบนร้าน'
+              : `ร้านนี้ยังตั้งไม่ครบ — ขั้นต่อไป: ${next?.label}`}
+          </span>
+          <Button
+            variant="secondary"
+            size="sm"
+            icon={<Settings2 className="w-4 h-4" />}
+            onClick={() => setOnboardingId(account.id)}
+          >
+            ตั้งค่าร้านนี้
+          </Button>
+        </div>
+      </Alert>
+    );
+  };
+
+  /** รายการในเมนู ⋮ ของการ์ด — งานที่นาน ๆ ทำที ไม่ควรเป็นปุ่มลอยให้กดพลาด */
+  const cardMenuItems = (platform: MarketplacePlatform): ActionItem[] => [
+    {
+      key: 'reconnect',
+      label: 'เชื่อมต่อใหม่',
+      description: 'ขอสิทธิ์ใหม่จากแพลตฟอร์ม — ใช้เมื่อเปิด scope เพิ่มหรือ token หมดอายุ',
+      icon: <Link2 className="w-4 h-4" />,
+      onClick: () => handleReconnect(platform),
+    },
+  ];
+
   /** ป้ายชื่อแพลตฟอร์มของร้าน — แถว legacy ที่ platform ยังว่าง = Shopee */
   const platformLabel = (account: MarketplaceAccount) =>
     MARKETPLACE_PLATFORMS[account.platform || 'shopee'].label;
-
-  // ดึงยอดสต็อกจากร้าน (ทุกแพลตฟอร์ม) ลงคลังของร้านนี้ — ตั้งยอดตั้งต้น (เติมเฉพาะช่องที่ยอด 0)
-  const handlePullStock = async (account: MarketplaceAccount) => {
-    const label = platformLabel(account);
-    const shopName = account.shop_name || `Shop #${account.shop_id}`;
-    const accountId = account.id;
-    const ok = await confirm({
-      title: `ดึงสต็อกจาก ${label} — ${shopName}?`,
-      description: `ระบบจะอ่านยอดคงเหลือทุกสินค้าที่ผูกกับร้านนี้จาก ${label} มาใส่คลังของร้านนี้ โดยเติมเฉพาะรายการที่คลังเรายังเป็น 0 — ยอดที่ตั้ง/นับไว้แล้วจะไม่ถูกทับ`,
-      confirmLabel: 'ดึงสต็อก',
-    });
-    if (!ok) return;
-
-    setSyncingId(accountId);
-    try {
-      const res = await apiFetch('/api/marketplace/products/pull-stock', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ marketplace_account_id: accountId }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        showToast(data.error || data.errors?.[0] || 'ดึงสต็อกไม่สำเร็จ', 'error');
-        return;
-      }
-      showToast(`ดึงสต็อกสำเร็จ — เติมให้ ${data.filled} รายการ (ข้าม ${data.skipped_nonzero} รายการที่มียอดอยู่แล้ว)`, 'success');
-    } catch {
-      showToast('ดึงสต็อกไม่สำเร็จ', 'error');
-    } finally {
-      setSyncingId(null);
-    }
-  };
 
   const handleSyncIncomplete = async (accountId: string) => {
     setSyncingId(accountId);
@@ -754,32 +793,6 @@ export default function MarketplaceConnections({
     );
   };
 
-  /** ปุ่ม "ดึงสต็อกจาก {platform}" — ปุ่มเดียวกันทั้ง 3 การ์ด */
-  const pullStockButton = (account: MarketplaceAccount) => {
-    if (!stockEnabled) return null;
-    return (
-      <Button
-        variant="secondary"
-        icon={<PackageSearch className="w-4 h-4" />}
-        loading={syncingId === account.id}
-        disabled={account.connection_status === 'expired'}
-        onClick={() => handlePullStock(account)}
-      >
-        ดึงสต็อกจาก {platformLabel(account)}
-      </Button>
-    );
-  };
-
-  /** ปุ่ม "ส่งสินค้าไป {platform}" — ปุ่มเดียวกันทั้ง 3 การ์ด (หน้า wizard กลาง) */
-  const exportButton = (account: MarketplaceAccount) => (
-    <ExportButton
-      disabled={account.connection_status === 'expired'}
-      onClick={() => router.push(`/marketplace/export?account=${account.id}`)}
-    >
-      ส่งสินค้าไป {platformLabel(account)}
-    </ExportButton>
-  );
-
   const handleSelectWarehouse = async (accountId: string, warehouseId: string) => {
     const all = [...shopeeAccounts, ...tiktokAccounts, ...lazadaAccounts];
     const account = all.find(a => a.id === accountId);
@@ -819,30 +832,14 @@ export default function MarketplaceConnections({
         showToast('เปลี่ยนคลังไม่สำเร็จ', 'error');
       } else if (linked > 0) {
         // ส่งยอดของคลังใหม่ขึ้นร้านทันที ไม่งั้นร้านจะโชว์ยอดของคลังเดิมค้างไว้
+        // (ลูป cursor ของร้านใหญ่อยู่ใน stock-actions.ts — ใช้ตัวเดียวกับแท็บซิงค์และโมดัลต้อนรับ)
         showToast(`บันทึกคลังแล้ว — กำลังส่งยอดของคลังใหม่ขึ้นร้าน (${linked} สินค้า)`);
-        // ร้านใหญ่ยิงไม่จบใน request เดียว — route คืน next_cursor มาให้ทำต่อ
-        let cursor: number | undefined;
-        let pushedModels = 0;
-        let failed = false;
-        for (let round = 0; round < 20; round++) {
-          const pushRes = await apiFetch('/api/marketplace/products/push-stock', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ marketplace_account_id: accountId, cursor }),
-          });
-          const pushData = await pushRes.json().catch(() => ({}));
-          if (!pushRes.ok) { failed = true; break; }
-          pushedModels += pushData.updated_models || 0;
-          if (!pushData.partial) { failed = !pushData.success; break; }
-          cursor = pushData.next_cursor;
-          showToast(pushData.message || `กำลังส่ง... (${pushData.done}/${pushData.total})`);
-        }
+        const pushed = await pushStockAllRequest(accountId, msg => showToast(msg));
         showToast(
-          failed
-            ? 'บันทึกคลังแล้ว แต่ส่งยอดขึ้นร้านไม่ครบ — กดซิงค์ซ้ำได้ที่หน้าสินค้า'
-            : `ส่งยอดขึ้นร้านครบแล้ว (${pushedModels} รายการ)`,
-          failed ? 'error' : 'success'
+          pushed.ok ? pushed.message : `บันทึกคลังแล้ว แต่${pushed.message}`,
+          pushed.ok ? 'success' : 'error'
         );
+        if (pushed.ok) refetch();
       } else {
         showToast('บันทึกคลังของร้านนี้แล้ว');
       }
@@ -903,6 +900,7 @@ export default function MarketplaceConnections({
                 onToggleExpand={() => setExpandedId(expandedId === account.id ? null : account.id)}
                 onDisconnect={() => handleDisconnect(account.id)}
                 disconnecting={disconnectingId === account.id}
+                menuItems={cardMenuItems('shopee')}
                 avatar={
                   <Tooltip
                     text={(account.metadata?.shop_logo as string) ? 'เปลี่ยนโลโก้ร้าน' : 'ใส่โลโก้ร้าน'}
@@ -928,6 +926,8 @@ export default function MarketplaceConnections({
                   </span>
                   <span>เชื่อมต่อเมื่อ: {formatThaiDateTime(account.created_at)}</span>
                 </div>
+
+                {onboardingBanner(account)}
 
                 {warehousePicker(account)}
 
@@ -958,22 +958,6 @@ export default function MarketplaceConnections({
                   >
                     Sync สถานะค้าง
                   </Button>
-                  <ImportButton
-                    disabled={account.connection_status === 'expired'}
-                    onClick={() => router.push(`/marketplace/import?account=${account.id}`)}
-                  >
-                    นำเข้าสินค้าจาก Shopee
-                  </ImportButton>
-                  <Button
-                    variant="ghost"
-                    icon={<Link2 className="w-4 h-4" />}
-                    onClick={() => handleReconnect('shopee')}
-                    title="ขอสิทธิ์ใหม่จากแพลตฟอร์ม — ใช้เมื่อเปิด scope เพิ่มหรือ token หมดอายุ"
-                  >
-                    เชื่อมต่อใหม่
-                  </Button>
-                  {pullStockButton(account)}
-                  {exportButton(account)}
                 </div>
               </MarketplaceAccountCard>
             );
@@ -1004,6 +988,7 @@ export default function MarketplaceConnections({
                 onToggleExpand={() => setExpandedId(expandedId === account.id ? null : account.id)}
                 onDisconnect={() => handleDisconnect(account.id)}
                 disconnecting={disconnectingId === account.id}
+                menuItems={cardMenuItems('tiktok')}
                 avatar={
                   <Tooltip
                     text={(account.metadata?.shop_logo as string) ? 'เปลี่ยนโลโก้ร้าน' : 'ใส่โลโก้ร้าน'}
@@ -1029,6 +1014,8 @@ export default function MarketplaceConnections({
                   <span>เชื่อมต่อเมื่อ: {formatThaiDateTime(account.created_at)}</span>
                 </div>
 
+                {onboardingBanner(account)}
+
                 {warehousePicker(account)}
 
                 {autoSyncToggles(account)}
@@ -1046,22 +1033,6 @@ export default function MarketplaceConnections({
                     onClick={() => handleSimpleSync('tiktok', account.id)}
                   >
                     {isSyncing ? 'กำลัง Sync...' : 'Sync Now'}
-                  </Button>
-                  <ImportButton
-                    disabled={account.connection_status === 'expired'}
-                    onClick={() => router.push(`/marketplace/import?account=${account.id}`)}
-                  >
-                    นำเข้าสินค้าจาก TikTok
-                  </ImportButton>
-                  {pullStockButton(account)}
-                  {exportButton(account)}
-                  <Button
-                    variant="ghost"
-                    icon={<Link2 className="w-4 h-4" />}
-                    onClick={() => handleReconnect('tiktok')}
-                    title="ขอสิทธิ์ใหม่จากแพลตฟอร์ม — ใช้เมื่อเปิด scope เพิ่มหรือ token หมดอายุ"
-                  >
-                    เชื่อมต่อใหม่
                   </Button>
                 </div>
               </MarketplaceAccountCard>
@@ -1093,6 +1064,7 @@ export default function MarketplaceConnections({
                 onToggleExpand={() => setExpandedId(expandedId === account.id ? null : account.id)}
                 onDisconnect={() => handleDisconnect(account.id)}
                 disconnecting={disconnectingId === account.id}
+                menuItems={cardMenuItems('lazada')}
                 avatar={
                   <Tooltip
                     text={(account.metadata?.shop_logo as string) ? 'เปลี่ยนโลโก้ร้าน' : 'ใส่โลโก้ร้าน'}
@@ -1109,6 +1081,8 @@ export default function MarketplaceConnections({
                 </Tooltip>
                 }
               >
+                {onboardingBanner(account)}
+
                 {warehousePicker(account)}
 
                 {autoSyncToggles(account)}
@@ -1126,22 +1100,6 @@ export default function MarketplaceConnections({
                     onClick={() => handleSimpleSync('lazada', account.id)}
                   >
                     {isSyncing ? 'กำลัง Sync...' : 'Sync Now'}
-                  </Button>
-                  <ImportButton
-                    disabled={account.connection_status === 'expired'}
-                    onClick={() => router.push(`/marketplace/import?account=${account.id}`)}
-                  >
-                    นำเข้าสินค้าจาก Lazada
-                  </ImportButton>
-                  {pullStockButton(account)}
-                  {exportButton(account)}
-                  <Button
-                    variant="ghost"
-                    icon={<Link2 className="w-4 h-4" />}
-                    onClick={() => handleReconnect('lazada')}
-                    title="ขอสิทธิ์ใหม่จากแพลตฟอร์ม — ใช้เมื่อเปิด scope เพิ่มหรือ token หมดอายุ"
-                  >
-                    เชื่อมต่อใหม่
                   </Button>
                 </div>
               </MarketplaceAccountCard>
@@ -1251,6 +1209,12 @@ export default function MarketplaceConnections({
       </Modal>
 
       {confirmDialog}
+
+      <MarketplaceOnboardingModal
+        account={onboardingAccount}
+        onClose={() => setOnboardingId(null)}
+        onChanged={refetch}
+      />
     </div>
   );
 }

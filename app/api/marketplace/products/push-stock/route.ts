@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { checkAuthWithCompany, can, supabaseAdmin } from '@/lib/supabase-admin';
-import { pushStockForAccount } from '@/lib/marketplace/stock-push';
+import { pushStockForAccount, markStockInitialized } from '@/lib/marketplace/stock-push';
 import { getStockAdapter, stockPlatformLabel } from '@/lib/marketplace/stock-adapter';
 import type { PushStockResult, StockSyncAccount } from '@/lib/marketplace/stock-adapter';
 import { isQuotaBlocked } from '@/lib/marketplace/quota';
@@ -112,6 +112,12 @@ export async function POST(request: NextRequest) {
       }
     }
     const durationMs = Date.now() - startMs;
+
+    // ส่งยอด**ทั้งร้าน**จบครบ = ร้านนี้ถือว่าตั้งยอดตั้งต้นแล้ว (ขั้น 2 ของลำดับต้อนรับ)
+    // ส่งทีละสินค้า (product_id) ไม่นับ — เป็นการซิงค์ประจำวัน ไม่ใช่การตั้งยอดทั้งร้าน
+    if (!product_id && result.success) {
+      await markStockInitialized(account as { id: string; metadata?: Record<string, unknown> | null });
+    }
 
     logIntegration({
       company_id: companyId,

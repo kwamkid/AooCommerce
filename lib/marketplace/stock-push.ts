@@ -468,3 +468,18 @@ export async function pushStockAfterOrderSync(
     console.error('[Stock Push] กระจายยอดหลัง order sync ไม่สำเร็จ:', err);
   }
 }
+
+/**
+ * ประทับว่าร้านนี้ "ตั้งยอดสต็อกตั้งต้นแล้ว" — ขั้นที่ 2 ของลำดับต้อนรับ
+ * (`lib/marketplace/onboarding.ts` เป็นคนอ่าน · route ดึง/ส่งสต็อก **ทั้งร้าน** เป็นคนเรียก)
+ *
+ * เขียนทับเวลาล่าสุดเสมอ ไม่ใช่เขียนครั้งเดียว — ตั้งยอดใหม่ทีหลัง (ย้ายคลัง · นับสต็อกรอบใหม่)
+ * ก็ยังอยากรู้ว่าครั้งล่าสุดคือเมื่อไหร่
+ */
+export async function markStockInitialized(account: { id: string; metadata?: Record<string, unknown> | null }) {
+  const { error } = await supabaseAdmin
+    .from('marketplace_accounts')
+    .update({ metadata: { ...(account.metadata || {}), stock_initialized_at: new Date().toISOString() } })
+    .eq('id', account.id);
+  if (error) console.error('markStockInitialized failed:', error.message);
+}

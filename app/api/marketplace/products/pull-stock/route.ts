@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { checkAuthWithCompany, can, supabaseAdmin } from '@/lib/supabase-admin';
-import { pullStockForAccount } from '@/lib/marketplace/stock-push';
+import { pullStockForAccount, markStockInitialized } from '@/lib/marketplace/stock-push';
 import { getStockAdapter, stockPlatformLabel } from '@/lib/marketplace/stock-adapter';
 import type { PullStockMode, StockSyncAccount } from '@/lib/marketplace/stock-adapter';
 import { isQuotaBlocked } from '@/lib/marketplace/quota';
@@ -61,6 +61,11 @@ export async function POST(request: NextRequest) {
       mode: mode as PullStockMode | undefined,
       dryRun: dry_run === true,
     });
+
+    // ดึงจริง (ไม่ใช่ dry run) และผ่าน = ร้านนี้ถือว่าตั้งยอดตั้งต้นแล้ว (ขั้น 2 ของลำดับต้อนรับ)
+    if (result.success && dry_run !== true) {
+      await markStockInitialized(account as { id: string; metadata?: Record<string, unknown> | null });
+    }
 
     logIntegration({
       company_id: companyId,

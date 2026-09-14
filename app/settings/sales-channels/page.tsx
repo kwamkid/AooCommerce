@@ -30,12 +30,16 @@ import Tabs from '@/components/ui/Tabs';
 import { useFeatures } from '@/lib/features-context';
 import { isMarketplacePlatform } from '@/lib/marketplace-platforms';
 import { useMarketplaceAccounts, type MarketplacePlatform } from './useMarketplaceAccounts';
-import { Link as LinkIcon, Loader2, Lock, MessageCircle, Pencil, Plus, SlidersHorizontal, Star, Tag, Trash2 } from 'lucide-react';
+import { Link as LinkIcon, Loader2, Lock, MessageCircle, Pencil, Plus, RefreshCw, SlidersHorizontal, Star, Tag, Trash2 } from 'lucide-react';
 import dynamic from 'next/dynamic';
 
 // Lazy chunk — โค้ดแท็บ marketplace โหลดเฉพาะตอนผู้ใช้กดแท็บจริง
 // (data ก็ fetch ตอน mount อยู่แล้ว — แบบนี้ทั้ง JS และ data เป็น lazy คู่กัน)
 const MarketplaceConnections = dynamic(() => import('./MarketplaceConnections'), {
+  ssr: false,
+  loading: () => <LoadingCard />,
+});
+const MarketplaceSyncHub = dynamic(() => import('./MarketplaceSyncHub'), {
   ssr: false,
   loading: () => <LoadingCard />,
 });
@@ -66,8 +70,10 @@ type ModalMode = 'create' | 'edit' | null;
 
 // แท็บ = ช่องทาง (โครงเดียวกับหน้า ช่องทาง Chat): ตั้งค่าเอง · FB/IG · LINE · Shopee · Lazada · TikTok
 // FB กับ IG รวมแท็บเดียว — เพจ FB ที่ผูก IG คือบัญชีเดียวกัน แถวไหนมีแค่ IG ก็โชว์ไอคอน IG อย่างเดียว
-type ChannelTab = 'manual' | 'facebook' | 'line' | MarketplacePlatform;
-const CHANNEL_TABS: ChannelTab[] = ['manual', 'facebook', 'line', 'shopee', 'lazada', 'tiktok'];
+// 'sync' = แท็บงานซิงค์ (นำเข้า/ส่งสินค้า · ดึง/ส่งสต็อก) — ไม่ใช่ช่องทาง แต่เป็นงานที่ทำ
+// กับร้านที่เชื่อมไว้แล้ว วางไว้ท้ายสุดเพราะต้องมีร้านก่อนถึงจะมีอะไรให้ทำ
+type ChannelTab = 'manual' | 'facebook' | 'line' | 'sync' | MarketplacePlatform;
+const CHANNEL_TABS: ChannelTab[] = ['manual', 'facebook', 'line', 'shopee', 'lazada', 'tiktok', 'sync'];
 const isMarketplaceTab = (t: ChannelTab): t is MarketplacePlatform =>
   t === 'shopee' || t === 'lazada' || t === 'tiktok';
 
@@ -166,8 +172,10 @@ export default function SalesChannelsPage() {
   // (พฤติกรรมเดียวกับที่เมนู Marketplace เดิมถูกซ่อนจาก Sidebar ตอนปิด feature)
   const marketplaceTabVisible = features.marketplace_sync && can(userProfile, 'settings.access');
   // แท็บ marketplace ที่มองไม่เห็น (ปิด feature) → ตกไปแท็บตั้งค่าเอง
-  const effectiveTab: ChannelTab = isMarketplaceTab(activeTab) && !marketplaceTabVisible ? 'manual' : activeTab;
+  const effectiveTab: ChannelTab =
+    (isMarketplaceTab(activeTab) || activeTab === 'sync') && !marketplaceTabVisible ? 'manual' : activeTab;
   const showMarketplace = isMarketplaceTab(effectiveTab);
+  const showSyncHub = effectiveTab === 'sync';
   const channelTab: 'manual' | 'facebook' | 'line' =
     effectiveTab === 'facebook' || effectiveTab === 'line' ? effectiveTab : 'manual';
   // ร้าน marketplace ทุกแพลตฟอร์มดึงครั้งเดียวที่นี่ — ตัวเลขบนแท็บต้องรู้ตั้งแต่ก่อนเปิดแท็บนั้น
@@ -616,6 +624,8 @@ export default function SalesChannelsPage() {
           actions={
             /* ปุ่มหลักของแท็บที่เปิดอยู่ — บรรทัดเดียวกับ title เหมือนหน้า ช่องทาง Chat
                ไอคอนแพลตฟอร์มบนปุ่ม primary ใช้ mono (สีเดียวตามตัวหนังสือ) โลโก้สีแบรนด์เต็มตัวจะตีกับพื้นส้ม */
+            /* แท็บงานซิงค์ไม่มีปุ่มหลัก — งานเลือกจากการ์ดในแท็บเอง */
+            effectiveTab === 'sync' ? null :
             effectiveTab === 'manual' ? (
               <Button variant="primary" icon={<Plus className="w-5 h-5" />} onClick={() => openCreate('')}>
                 เพิ่มช่องทาง
@@ -690,10 +700,13 @@ export default function SalesChannelsPage() {
             { key: 'shopee', label: 'Shopee', icon: <PlatformIcon id="shopee" size={16} />, count: mpAccounts.shopee.length || undefined, activeColorClass: 'border-shopee text-shopee', hidden: !marketplaceTabVisible },
             { key: 'lazada', label: 'Lazada', icon: <PlatformIcon id="lazada" size={16} />, count: mpAccounts.lazada.length || undefined, activeColorClass: 'border-[#0F146E] text-[#0F146E] dark:border-blue-400 dark:text-blue-400', hidden: !marketplaceTabVisible },
             { key: 'tiktok', label: 'TikTok', icon: <PlatformIcon id="tiktok" size={16} />, count: mpAccounts.tiktok.length || undefined, activeColorClass: 'border-[#161823] text-[#161823] dark:border-slate-300 dark:text-slate-300', hidden: !marketplaceTabVisible },
+            { key: 'sync', label: 'ซิงค์สินค้า & สต็อก', icon: <RefreshCw className="w-4 h-4" />, hidden: !marketplaceTabVisible },
           ]}
         />
 
-        {showMarketplace ? (
+        {showSyncHub ? (
+          <MarketplaceSyncHub accounts={mpAccounts} />
+        ) : showMarketplace ? (
           <MarketplaceConnections
             activePlatform={effectiveTab as MarketplacePlatform}
             onPlatformChange={setActiveTab}
