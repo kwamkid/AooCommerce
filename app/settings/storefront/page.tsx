@@ -265,7 +265,7 @@ export default function StorefrontSettingsPage() {
   /** ผลเช็คชื่อลิงก์แบบสด — ให้ตัดสินใจได้ก่อนกดบันทึก ไม่ใช่รู้ตอนโดนปฏิเสธ */
   const [slugStatus, setSlugStatus] = useState<'idle' | 'checking' | 'available' | 'current' | 'taken' | 'invalid'>('idle');
   const [slugMessage, setSlugMessage] = useState('');
-  /** >0 = เปลี่ยนไม่ได้ ต้องรออีกกี่วัน (ล็อกทำงานเฉพาะตอนร้านเปิดอยู่) */
+  /** >0 = เปลี่ยนไม่ได้ ต้องรออีกกี่วัน (ล็อกทุกกรณีหลังเปลี่ยนชื่อ) */
   const [slugLockDaysLeft, setSlugLockDaysLeft] = useState(0);
   /**
    * ช่องชื่อลิงก์เปิดให้พิมพ์อยู่ไหม — ร้านที่มีชื่อลิงก์แล้วช่องจะล็อกไว้ ต้องกด "แก้ไข" ก่อน
@@ -578,7 +578,7 @@ export default function StorefrontSettingsPage() {
                   ) : undefined
                 }
               />
-              {slugEditing && slug && cfg.enabled && (
+              {slugEditing && slug && (
                 <p className="helper-text text-amber-700 dark:text-amber-500 mt-1.5">
                   บันทึกชื่อใหม่แล้วจะเปลี่ยนอีกครั้งได้ในอีก {STOREFRONT_SLUG_LOCK_DAYS} วัน — ลิงก์เก่าที่ส่งไปหาลูกค้าแล้วจะเปิดไม่ได้ทันที
                 </p>

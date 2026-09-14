@@ -27,10 +27,8 @@ export async function GET(request: NextRequest) {
     storefront_slug: data?.storefront_slug || '',
     /** ใช้เป็น "ค่าที่แนะนำ" ตอนยังไม่เคยตั้งเท่านั้น — ไม่ได้เป็นทางถอยของ URL แล้ว */
     suggested_slug: data?.slug || '',
-    // ล็อกนับเฉพาะตอนร้านเปิดอยู่ — ยังไม่เปิด = ยังไม่มีลิงก์ไหนอยู่ข้างนอก แก้ได้อิสระ
-    slug_lock_days_left: parseStorefront((data?.settings as Record<string, unknown>) || {}).enabled
-      ? storefrontSlugLockRemainingDays(data?.storefront_slug_changed_at ?? null)
-      : 0,
+    // ล็อกทุกกรณีหลังเปลี่ยนชื่อ ไม่ว่าร้านเปิดหรือปิดอยู่ (2026-09-14)
+    slug_lock_days_left: storefrontSlugLockRemainingDays(data?.storefront_slug_changed_at ?? null),
     // ใช้ในพรีวิว + เป็น placeholder ของช่องที่ปล่อยว่างแล้วตกไปใช้ของบริษัท
     company_name: data?.name || '',
     company_phone: data?.phone || '',
@@ -100,10 +98,11 @@ export async function PUT(request: NextRequest) {
       storefrontSlug = raw;
     }
 
-    // กติกาล็อก STOREFRONT_SLUG_LOCK_DAYS วัน — **นับเฉพาะการเปลี่ยนที่เกิดตอนร้านเปิดอยู่**
-    // ปิดร้านอยู่ = ยังไม่มีลิงก์ไหนอยู่ข้างนอก แก้คำที่พิมพ์ผิดได้อิสระและไม่ stamp เวลา
-    // (stamp ตอนปิดร้านด้วย จะกลายเป็นเปิดร้านปุ๊บติดล็อกทันทีทั้งที่ยังไม่เคยส่งลิงก์ให้ใคร)
-    if (storefrontSlug !== (own?.storefront_slug ?? null) && wasEnabled) {
+    // กติกาล็อก STOREFRONT_SLUG_LOCK_DAYS วัน — **ทุกกรณี ไม่ว่าร้านเปิดหรือปิดอยู่** (2026-09-14
+    // เดิมนับเฉพาะตอนเปิด แต่เจ้าของต้องการให้แก้แล้วแก้ซ้ำทันทีไม่ได้เสมอ)
+    // ตั้งชื่อครั้งแรก (จากว่าง) ไม่นับเป็นการ "แก้" — ยังไม่มีชื่อเดิมให้เสีย จึงไม่ stamp
+    const previousSlug = own?.storefront_slug ?? null;
+    if (previousSlug && storefrontSlug !== previousSlug) {
       const daysLeft = storefrontSlugLockRemainingDays(own?.storefront_slug_changed_at ?? null);
       if (daysLeft > 0) {
         return NextResponse.json({

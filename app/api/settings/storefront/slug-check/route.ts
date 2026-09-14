@@ -5,7 +5,6 @@
 // `companies.slug` ไม่เกี่ยวกับ URL หน้าร้านแล้ว
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
-import { parseStorefront } from '@/lib/storefront';
 import {
   STOREFRONT_SLUG_LOCK_DAYS, STOREFRONT_SLUG_RE, STOREFRONT_SLUG_RULE, storefrontSlugLockRemainingDays,
 } from '@/lib/storefront';
@@ -20,14 +19,12 @@ export async function GET(request: NextRequest) {
 
   const { data: own } = await supabaseAdmin
     .from('companies')
-    .select('storefront_slug, storefront_slug_changed_at, settings')
+    .select('storefront_slug, storefront_slug_changed_at')
     .eq('id', auth.companyId)
     .single();
 
-  const enabled = parseStorefront((own?.settings as Record<string, unknown>) || {}).enabled;
-  const lockDaysLeft = enabled
-    ? storefrontSlugLockRemainingDays(own?.storefront_slug_changed_at ?? null)
-    : 0;
+  // ล็อกทุกกรณีหลังเปลี่ยนชื่อ ไม่ว่าร้านเปิดหรือปิด (2026-09-14)
+  const lockDaysLeft = storefrontSlugLockRemainingDays(own?.storefront_slug_changed_at ?? null);
 
   // ยังไม่พิมพ์อะไร = ยังไม่มีอะไรให้ตัดสิน
   if (!raw) {
