@@ -85,6 +85,18 @@ export interface BroadcastPlatformInfo {
   status: BroadcastPlatformStatus;
   /** ข้อจำกัด/สิ่งที่ต้องทำก่อน — ขึ้นบนการ์ด และเป็นข้อความ error ของ API ด้วย */
   reason?: string;
+  /**
+   * ช่องทางนี้ต้องตั้งค่า **รายบัญชี** ก่อนถึงจะส่งได้ — ไม่ใช่สวิตช์เดียวคุมทั้งแพลตฟอร์ม
+   *
+   * Facebook เป็นเจ้าแรกที่เป็นแบบนี้: ข้อความการตลาดคิดเงินต่อข้อความและส่งผ่าน
+   * **บัญชีโฆษณา** เพจที่ยังไม่ผูกบัญชีโฆษณา/ยังไม่ตั้งงบจึงส่งไม่ได้ แม้โค้ดฝั่งเราพร้อมแล้ว
+   * ⇒ เพจที่ยังไม่ตั้งค่าต้องขึ้นในลิสต์แบบ **กดไม่ได้ พร้อมทางไปตั้งค่า** (ห้ามซ่อน)
+   */
+  needsAccountSetup?: boolean;
+  /** หน้าไปตั้งค่าเมื่อ `needsAccountSetup` */
+  setupHref?: string;
+  /** สิ่งที่ต้องทำก่อนใช้บัญชีนี้ — ขึ้นใต้ชื่อบัญชีที่ยังไม่พร้อม */
+  setupHint?: string;
 }
 
 export const BROADCAST_PLATFORMS: Record<BroadcastPlatform, BroadcastPlatformInfo> = {
@@ -159,20 +171,31 @@ export const BROADCAST_PLATFORMS: Record<BroadcastPlatform, BroadcastPlatformInf
     reason: 'Shopee ไม่มี API บรอดแคสต์ (Chat Broadcast มีเฉพาะให้กดเองใน Seller Center) — ผ่าน API ส่งได้ทีละห้องเฉพาะห้องที่ลูกค้าทักมาแล้ว เรายังไม่ได้ต่อ',
   },
 
-  // กรอบ 24 ชม. ของ Meta — นอกกรอบ API ปฏิเสธเอง เหลือแค่ message tag ที่ห้ามเนื้อหาโปรโมชัน
-  // และไม่มี endpoint ส่งเป็นชุด ต้องยิงทีละ PSID
+  // ⚠️ กรอบ 24 ชม. **ไม่ใช่เพดานของช่องทางนี้อีกแล้ว** (แก้ 2026-09-14 หลังยิงของจริงสำเร็จ)
+  // Marketing Message API ส่งหาคนที่ "กดรับข่าวสาร" ได้ตลอด ไม่ต้องอยู่ในกรอบ 24 ชม.
+  //   • รายชื่อผู้สมัคร: GET /{page_id}/notification_message_tokens (Meta เก็บให้ ไม่ต้องมีตารางของเรา)
+  //   • ส่ง: POST act_<AD_ACCOUNT_ID>/messages ด้วย system user token + subscription_token
+  //     (message_id = id ที่ POST act_<id>/message_campaign คืนมา)
+  //   • เพดานจริง: 1 ข้อความ/12 ชม./คน — ดูได้จาก `next_eligible_time_for_paid_messaging` ของแต่ละคน
+  //   • **เสียเงินต่อข้อความที่ส่งถึงเครื่องจริง** จึงต้องผูกบัญชีโฆษณา + ตั้งงบก่อน (needsAccountSetup)
+  //   • แคมเปญที่สร้างใหม่ใช้เวลาเตรียมก่อนส่งได้ — วัดจริง 139 นาที (23 นาทียังไม่พร้อม)
+  // ของเดิมที่เขียนว่า "ต้องภายใน 24 ชม. · ไม่มีปุ่ม" เป็นข้อมูลของ Send API ธรรมดา คนละท่อกัน
   facebook: {
     id: 'facebook',
     label: 'Facebook',
     kind: 'bulk_dm',
-    // ตัวเลขนี้ ยังไม่ยืนยันกับของจริง — ยืนยันตอนต่อ API จริง
+    // ยืนยันกับของจริงแล้ว (14 ก.ย. 2026): generic template รูป + หัวข้อ + คำอธิบาย + ปุ่มลิงก์
+    // ตัวเลขความยาวเป็นเพดานของ generic template (title/subtitle 80 · ปุ่ม 3 · การ์ดเลื่อน 10)
     compose: {
-      bodyMax: 2000, image: true,
-      kinds: ['announce'], buttonsMax: 0, productsMax: 0, quickReplyMax: 0, imagesMax: 0,
+      titleMax: 80, bodyMax: 80, image: true,
+      kinds: ['blocks', 'announce'],
+      buttonsMax: 3, productsMax: 0, quickReplyMax: 0, imagesMax: 10,
     },
-    audience: 'คนที่ทักมาภายใน 24 ชม. ล่าสุด',
-    status: 'possible',
-    reason: 'Meta ให้ส่งได้เฉพาะภายใน 24 ชม. นับจากลูกค้าทักล่าสุด — เลยกรอบนั้น API ปฏิเสธเอง (message tag ที่เหลือห้ามเนื้อหาโปรโมชัน) เรายังไม่ได้ต่อ',
+    audience: 'คนที่กดรับข่าวสารบน Messenger — ส่งได้ 1 ข้อความ/12 ชม./คน',
+    status: 'ready',
+    needsAccountSetup: true,
+    setupHref: '/marketing/broadcast/settings',
+    setupHint: 'ต้องผูกบัญชีโฆษณาและตั้งงบของเพจนี้ก่อน (ข้อความการตลาดคิดเงินต่อข้อความ)',
   },
 
   instagram: {
@@ -229,7 +252,54 @@ export function isBroadcastPlatform(value: unknown): value is BroadcastPlatform 
   return typeof value === 'string' && value in BROADCAST_PLATFORMS;
 }
 
-/** ส่งผ่านช่องทางนี้ได้จริงหรือยัง — ใช้ทั้งหน้าจอ (ปุ่มกดได้ไหม) และ API (รับ request ไหม) */
+/**
+ * ช่องทางนี้ต่อเสร็จแล้วหรือยัง — ระดับ **แพลตฟอร์ม** (โค้ดฝั่งเราพร้อมไหม)
+ *
+ * ⚠️ ผ่านด่านนี้ไม่ได้แปลว่าทุกบัญชีส่งได้ — ช่องทางที่ `needsAccountSetup` (Facebook)
+ * ต้องผ่าน `canBroadcastFromAccount()` อีกชั้น เพราะความพร้อมเป็นราย **เพจ** ไม่ใช่รายแพลตฟอร์ม
+ */
 export function canBroadcastVia(platform: BroadcastPlatform): boolean {
   return BROADCAST_PLATFORMS[platform].status === 'ready';
+}
+
+/** บัญชีที่ต้องตั้งค่ารายใบก่อนส่งได้ — ยังไม่ตั้ง = ยังไม่พร้อม */
+export interface BroadcastAccountReadiness {
+  platform: BroadcastPlatform;
+  /** ตั้งค่าครบแล้วไหม (Facebook: ผูกบัญชีโฆษณา + ตั้งงบของเพจแล้ว) */
+  broadcast_ready?: boolean | null;
+}
+
+/**
+ * บัญชีใบนี้ส่งได้จริงไหม — **หน้าจอกับ API ต้องถามตัวนี้ตัวเดียวกัน**
+ * ไม่งั้นหน้าจอให้ติ๊กเพจที่ API จะปฏิเสธทีหลัง (หรือกลับกัน — ซ่อนเพจที่ส่งได้อยู่แล้ว)
+ */
+export function canBroadcastFromAccount(account: BroadcastAccountReadiness): boolean {
+  if (!canBroadcastVia(account.platform)) return false;
+  if (!BROADCAST_PLATFORMS[account.platform].needsAccountSetup) return true;
+  return account.broadcast_ready === true;
+}
+
+/** คีย์ใน `chat_accounts.credentials` ที่เก็บการตั้งค่าบรอดแคสต์ของเพจ (ตั้งที่ setupHref) */
+export const BROADCAST_SETUP_KEYS = {
+  /** บัญชีโฆษณาที่ใช้ส่ง — `ad_accounts.external_id` (ตัวเลขล้วน ไม่มี `act_`) */
+  adAccountId: 'broadcast_ad_account_id',
+  /** งบต่อวันของแคมเปญ หน่วย **สตางค์** (Meta รับหน่วยย่อยของสกุลเงิน — 10000 = 100 บาท) */
+  dailyBudget: 'broadcast_daily_budget',
+} as const;
+
+/**
+ * บัญชีนี้ตั้งค่าบรอดแคสต์ครบหรือยัง — อ่านจาก `chat_accounts.credentials`
+ *
+ * **กติกาเดียวที่ทั้ง API และหน้าจอใช้** — ห้ามเขียนเงื่อนไขนี้ซ้ำที่อื่น ไม่งั้นหน้าจอกับ API
+ * จะตอบคนละอย่าง (หน้าจอให้ติ๊กเพจที่ API ปฏิเสธ หรือซ่อนเพจที่ส่งได้อยู่แล้ว)
+ */
+export function isBroadcastReadyFromCredentials(
+  platform: BroadcastPlatform,
+  credentials: Record<string, unknown> | null | undefined,
+): boolean {
+  if (!BROADCAST_PLATFORMS[platform].needsAccountSetup) return true;
+  const c = credentials || {};
+  const adAccountId = c[BROADCAST_SETUP_KEYS.adAccountId];
+  const budget = Number(c[BROADCAST_SETUP_KEYS.dailyBudget] ?? 0);
+  return typeof adAccountId === 'string' && adAccountId.trim().length > 0 && budget > 0;
 }

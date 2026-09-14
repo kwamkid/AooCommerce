@@ -7,6 +7,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Alert from '@/components/ui/Alert';
@@ -19,6 +20,7 @@ import {
   BROADCAST_PLATFORMS,
   BROADCAST_PLATFORM_LIST,
   canBroadcastVia,
+  canBroadcastFromAccount,
 } from '@/lib/broadcast/platforms';
 import type { BroadcastAccount } from './types';
 
@@ -65,21 +67,33 @@ export default function ChannelStep({ accounts, loading, value, onChange, disabl
         <div className="grid sm:grid-cols-2 gap-2">
           {accounts.map(a => {
             const active = value.includes(a.id);
+            const ready = canBroadcastFromAccount(a);
+            const info = BROADCAST_PLATFORMS[a.platform];
             return (
               <Checkbox
                 key={a.id}
-                checked={active}
+                checked={active && ready}
                 onChange={() => toggle(a.id)}
-                disabled={disabled}
-                className={`choice-card px-3 py-2.5 ${active ? 'choice-card-active' : ''}`}
+                disabled={disabled || !ready}
+                className={`choice-card px-3 py-2.5 ${active && ready ? 'choice-card-active' : ''} ${!ready ? 'opacity-60' : ''}`}
               >
                 <div className="flex items-center gap-2.5 min-w-0 flex-1">
                   <ChannelBadge channel={{ platform: a.platform, picture_url: a.picture_url }} size="md" />
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <p className="body-text truncate">{a.name}</p>
-                    <p className="subtitle-text">
-                      {BROADCAST_PLATFORMS[a.platform].label}
-                    </p>
+                    {/* ยังตั้งค่าไม่ครบ = บอกว่าต้องทำอะไร + ทางไปทำ ไม่ใช่แค่ทำให้กดไม่ได้เฉย ๆ */}
+                    {ready ? (
+                      <p className="subtitle-text">{info.label}</p>
+                    ) : (
+                      <p className="subtitle-text text-amber-600 dark:text-amber-400">
+                        {info.setupHint || 'ยังตั้งค่าไม่ครบ'}
+                        {info.setupHref && (
+                          <Link href={info.setupHref} className="ml-1 underline" onClick={e => e.stopPropagation()}>
+                            ตั้งค่า
+                          </Link>
+                        )}
+                      </p>
+                    )}
                   </div>
                 </div>
               </Checkbox>
@@ -88,13 +102,20 @@ export default function ChannelStep({ accounts, loading, value, onChange, disabl
         </div>
       ) : (
         <AccountPicker
-          accounts={accounts.map(a => ({
-            id: a.id,
-            platform: a.platform,
-            name: a.name,
-            picture_url: a.picture_url,
-            badge: BROADCAST_PLATFORMS[a.platform].label,
-          }))}
+          accounts={accounts.map(a => {
+            const ready = canBroadcastFromAccount(a);
+            const info = BROADCAST_PLATFORMS[a.platform];
+            return {
+              id: a.id,
+              platform: a.platform,
+              name: a.name,
+              picture_url: a.picture_url,
+              badge: info.label,
+              // โชว์แต่กดไม่ได้ พร้อมเหตุผล — กติกาเดียวกับการ์ดแบบ inline ข้างบน
+              disabled: !ready,
+              disabledReason: ready ? undefined : (info.setupHint || 'ยังตั้งค่าไม่ครบ'),
+            };
+          })}
           value={value}
           onChange={onChange}
           disabled={disabled}

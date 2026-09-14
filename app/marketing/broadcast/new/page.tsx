@@ -231,7 +231,15 @@ export default function NewBroadcastPage() {
           for (const a of data.accounts || []) {
             if (a.is_active && isBroadcastPlatform(a.platform) && canBroadcastVia(a.platform)) {
               // API คืน picture_url ที่ผ่าน resolveAccountPicture() มาแล้ว (รูป OA/เพจ/ร้าน)
-              list.push({ id: a.id, platform: a.platform, name: a.account_name, picture_url: a.picture_url ?? null });
+              // เพจที่ยังตั้งค่าไม่ครบก็ใส่ลิสต์ด้วย — ChannelStep โชว์แบบติ๊กไม่ได้พร้อมทางไปตั้งค่า
+              // (ซ่อนทิ้งแล้วผู้ใช้จะถามว่าทำไมเพจหายไป เหมือนที่เคยถามเรื่อง Shopee)
+              list.push({
+                id: a.id,
+                platform: a.platform,
+                name: a.account_name,
+                picture_url: a.picture_url ?? null,
+                broadcast_ready: a.broadcast_ready !== false,
+              });
             }
           }
         }

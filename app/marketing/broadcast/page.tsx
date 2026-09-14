@@ -479,9 +479,16 @@ export default function BroadcastListPage() {
           title="บรอดแคสต์"
           subtitle="ส่งข้อความหาลูกค้าหลายคนพร้อมกัน — ทุกใบถูกบันทึกไว้ในห้องแชทของลูกค้าด้วย"
           actions={
-            <Button variant="primary" icon={<Plus className="w-4 h-4" />} onClick={() => router.push('/marketing/broadcast/new')}>
-              สร้างบรอดแคสต์
-            </Button>
+            <>
+              {/* เพจ Facebook ต้องตั้งค่าบัญชีโฆษณา+งบก่อนถึงจะเลือกเป็นช่องทางได้ — ต้องมีทางเข้าจากที่นี่
+                  ไม่งั้นเข้าถึงได้ทางเดียวคือลิงก์เล็ก ๆ ใต้เพจที่ยังไม่พร้อมในหน้าสร้าง */}
+              <Button variant="secondary" onClick={() => router.push('/marketing/broadcast/settings')}>
+                ตั้งค่า
+              </Button>
+              <Button variant="primary" icon={<Plus className="w-4 h-4" />} onClick={() => router.push('/marketing/broadcast/new')}>
+                สร้างบรอดแคสต์
+              </Button>
+            </>
           }
         />
 

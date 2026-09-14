@@ -15,6 +15,8 @@ import {
   removeSalesChannelForChatAccount,
 } from '@/lib/sales-channels-sync';
 import { isChatAppConfigured as isLazadaChatAppConfigured } from '@/lib/lazada/api';
+// ธง "ตั้งค่าบรอดแคสต์ของเพจนี้ครบหรือยัง" — กติกาเดียวกับที่หน้าจอและ API บรอดแคสต์ใช้
+import { isBroadcastPlatform, isBroadcastReadyFromCredentials } from '@/lib/broadcast/platforms';
 
 // GET - List chat accounts
 export async function GET(request: NextRequest) {
@@ -85,6 +87,10 @@ export async function GET(request: NextRequest) {
       health_status: account.health_status ?? null,
       health_detail: account.health_detail ?? null,
       health_checked_at: account.health_checked_at ?? null,
+      // ตั้งค่าบรอดแคสต์ครบหรือยัง — คิดจาก credentials **ก่อน** ถูก mask (ค่าจริงไม่หลุดออกไป
+      // เพราะส่งออกแค่ true/false) · ช่องทางที่ไม่ต้องตั้งค่ารายบัญชีจะเป็น true เสมอ
+      broadcast_ready: isBroadcastPlatform(account.platform)
+        && isBroadcastReadyFromCredentials(account.platform, account.credentials as Record<string, unknown> | null),
     }));
 
     return NextResponse.json({ accounts });

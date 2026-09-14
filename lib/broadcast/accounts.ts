@@ -8,7 +8,10 @@
 
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { getChatAccount } from '@/lib/chat-config';
-import { BROADCAST_PLATFORMS, canBroadcastVia, type BroadcastPlatform } from './platforms';
+import {
+  BROADCAST_PLATFORMS, canBroadcastVia, canBroadcastFromAccount,
+  isBroadcastReadyFromCredentials, type BroadcastPlatform,
+} from './platforms';
 
 export interface BroadcastTarget {
   platform: BroadcastPlatform;
@@ -57,6 +60,19 @@ export async function resolveBroadcastTarget(
   if (!account || account.company_id !== companyId || account.platform !== platform || !account.is_active) {
     return { error: `ไม่พบช่องทาง ${BROADCAST_PLATFORMS[platform].label} นี้ หรือถูกปิดอยู่` };
   }
+
+  // ช่องทางที่ตั้งค่าเป็นราย **บัญชี** (Facebook — ข้อความการตลาดคิดเงินต่อข้อความ)
+  // เพจที่ยังไม่ผูกบัญชีโฆษณา/ยังไม่ตั้งงบ ส่งไม่ได้ · เช็คด้วยกติกาตัวเดียวกับหน้าจอ
+  if (!canBroadcastFromAccount({
+    platform,
+    broadcast_ready: isBroadcastReadyFromCredentials(platform, account.credentials as Record<string, unknown> | null),
+  })) {
+    return {
+      error: BROADCAST_PLATFORMS[platform].setupHint
+        || `ต้องตั้งค่า ${BROADCAST_PLATFORMS[platform].label} ของช่องทางนี้ก่อนจึงจะส่งได้`,
+    };
+  }
+
   return {
     target: {
       platform,
