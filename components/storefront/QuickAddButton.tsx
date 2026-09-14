@@ -31,7 +31,12 @@ export default function QuickAddButton({ shop, productSlug, productName, variati
   }
 
   // หลายตัวเลือก หรือสินค้าชุด → ให้ไปเลือกที่หน้าสินค้า
-  if (sellable.length > 1 || composite) {
+  //
+  // ⚠️ นับจาก `variations` (ตัวเลือกทั้งหมด) ไม่ใช่ `sellable` (เฉพาะที่มีของ) —
+  // ของเดิมนับจากที่มีของ สินค้าที่มี 4 ลายแต่เหลือของลายเดียวจึงขึ้นปุ่ม
+  // "หยิบใส่ตะกร้า" แล้วยัดลายนั้นให้เงียบ ๆ ทั้งที่การ์ดโชว์ช่วงราคาหลายลาย
+  // (เจอ 2026-09-15 · สินค้า SP-4928989836) — ลูกค้าต้องเห็นว่ามีให้เลือกเสมอ
+  if (variations.length > 1 || composite) {
     return (
       <Link href={storefrontHref(shop, `/p/${productSlug}`)} className="sf-quickadd">
         <SlidersHorizontal strokeWidth={1.75} aria-hidden="true" />

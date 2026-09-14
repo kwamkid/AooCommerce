@@ -112,7 +112,10 @@ export default function AddToCartButton({ shop, productSlug, productName, variat
             </div>
           </div>
         ))
-      ) : sellable.length > 1 && (
+      ) : variations.length > 1 && (
+        /* นับตัวเลือกทั้งหมด ไม่ใช่เฉพาะที่มีของ — ปุ่มด้านล่าง disabled + ต่อท้าย "(หมด)"
+           ให้อยู่แล้ว · ของเดิมนับเฉพาะที่มีของ พอเหลือของตัวเลือกเดียวรายการหายทั้งแผง
+           ลูกค้าเห็นแค่ช่วงราคาแต่ไม่รู้ว่ากำลังซื้อแบบไหน (เจอ 2026-09-15) */
         <div className="sf-variations">
           {variations.map(v => (
             <button
