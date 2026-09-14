@@ -249,7 +249,11 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
       }
     } catch (err) {
       console.error('Error fetching order:', err);
-      setError('ไม่สามารถโหลดข้อมูลคำสั่งซื้อได้');
+      // จอตายที่ทำอะไรต่อไม่ได้ = ทางตัน — พากลับหน้ารายการให้เลย พร้อมบอกเหตุที่พบบ่อยสุด
+      // (เปิดลิงก์ของบริษัทอื่นอยู่ · ออเดอร์ถูกลบ) · setError ไว้เป็นตาข่ายรับเผื่อ redirect ไม่ทำงาน
+      setError('ไม่พบคำสั่งซื้อนี้');
+      showToast('ไม่พบคำสั่งซื้อนี้ — อาจถูกลบ หรือกำลังดูอยู่คนละบริษัท', 'error');
+      router.replace('/orders');
     } finally {
       setLoading(false);
     }
@@ -908,9 +912,10 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
     return (
       <Layout>
         <Container size="full">
-          <div className="text-center py-12">
-            <div className="text-red-600 mb-4">{error}</div>
-            <Button variant="ghost" onClick={() => router.push('/orders')}>
+          <div className="text-center py-12 space-y-3">
+            <div className="body-text text-gray-700 dark:text-slate-200">{error}</div>
+            <div className="subtitle-text">กำลังพากลับไปหน้ารายการคำสั่งซื้อ</div>
+            <Button variant="primary" onClick={() => router.replace('/orders')}>
               กลับไปหน้ารายการคำสั่งซื้อ
             </Button>
           </div>

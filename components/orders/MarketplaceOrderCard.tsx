@@ -31,7 +31,7 @@ import { formatPrice } from '@/lib/utils/format';
 import { MARKETPLACE_PLATFORMS } from '@/lib/marketplace/platforms';
 import type { MarketplaceBuyer } from '@/lib/marketplace/buyer-adapter';
 import {
-  FEE_GROUPS, BUCKET_SIGN, BUCKET_LABELS, BUCKET_HINTS, COGS_BASIS_HINTS,
+  FEE_GROUPS, ADS_TOPUP_GROUP, BUCKET_SIGN, BUCKET_LABELS, BUCKET_HINTS, COGS_BASIS_HINTS,
   type FeeBucket,
 } from '@/lib/marketplace/fee-types';
 
@@ -210,15 +210,25 @@ export default function MarketplaceOrderCard({
     const v = num(s?.[b]);
     return BUCKET_SIGN[b] === '-' ? -v : BUCKET_SIGN[b] === '+' ? v : 0; // ± ไม่รู้ทิศ ไม่รวมในยอดกลุ่ม
   };
-  const groups = FEE_GROUPS
-    .map(g => ({
-      ...g,
-      rows: g.buckets.filter(b => num(s?.[b]) !== 0),
-      total: g.buckets.reduce((sum, b) => sum + signed(b), 0), // ติดลบ = เสีย
-    }))
-    .filter(g => g.rows.length > 0);
-  const takenByPlatform = soldPrice - netPayout; // ทุกอย่างที่ไม่ถึงกระเป๋า (สุทธิหลังเงินช่วยจ่าย)
+  // บางแพลตฟอร์ม (Shopee) หักยอดโอนไปเติมกระเป๋าโฆษณาของร้านเอง — เงินยังเป็นของร้าน
+  // ไม่ใช่ค่าธรรมเนียม จึงต้องแยกออกมาเป็นกลุ่มของตัวเอง · ธงอยู่ที่ registry ห้าม if ชื่อ platform
+  const adsIsTopUp = MARKETPLACE_PLATFORMS[platform as keyof typeof MARKETPLACE_PLATFORMS]?.adsIsWalletTopUp === true;
+  const adsTopUp = adsIsTopUp ? num(s?.ads) : 0;
+  const buildGroup = (g: { key: string; label: string; hint: string; buckets: FeeBucket[] }) => ({
+    ...g,
+    rows: g.buckets.filter(b => num(s?.[b]) !== 0),
+    total: g.buckets.reduce((sum, b) => sum + signed(b), 0), // ติดลบ = เสีย
+  });
+  const groups = [
+    ...FEE_GROUPS.map(g => buildGroup(
+      adsIsTopUp ? { ...g, buckets: g.buckets.filter(b => b !== 'ads') } : g,
+    )),
+    ...(adsTopUp !== 0 ? [buildGroup(ADS_TOPUP_GROUP)] : []),
+  ].filter(g => g.rows.length > 0);
+  // "แพลตฟอร์มเก็บไป" = เงินที่ไม่ถึงเราและไม่ใช่ของเราแล้ว — เงินเติมแอดยังเป็นของร้านจึงถูกหักออก
+  const takenByPlatform = soldPrice - netPayout - adsTopUp;
   const takenPct = pctOf(takenByPlatform, soldPrice);
+  const adsTopUpPct = pctOf(adsTopUp, soldPrice);
   const keepPct = pctOf(netPayout, soldPrice);
   const groupPct = (g: { total: number }) => pctOf(g.total, soldPrice);
   const cogs = s?.cogs == null ? null : num(s.cogs);
@@ -413,7 +423,7 @@ export default function MarketplaceOrderCard({
           {takenPct !== null && keepPct !== null && (
             <div className="inner-panel px-4 py-3 space-y-1">
               <div className="flex items-baseline justify-between gap-3">
-                <span className="text-gray-700 dark:text-slate-200 font-medium">แพลตฟอร์มเก็บไปทั้งหมด</span>
+                <span className="text-gray-700 dark:text-slate-200 font-medium">แพลตฟอร์มเก็บไปจริง</span>
                 <span className="text-red-500 dark:text-red-400 font-semibold tabular-nums whitespace-nowrap">
                   ฿{formatPrice(takenByPlatform)} ({takenPct.toFixed(1)}%)
                 </span>
@@ -421,6 +431,17 @@ export default function MarketplaceOrderCard({
               <div className="text-gray-500 dark:text-slate-400">
                 {groups.map(g => `${g.label.replace(/ \(.*\)$/, '')} ${Math.abs(groupPct(g) ?? 0).toFixed(1)}%`).join(' · ')}
               </div>
+              {adsTopUpPct !== null && adsTopUp !== 0 && (
+                <div className="flex items-baseline justify-between gap-3 text-gray-600 dark:text-slate-300">
+                  <span className="flex items-center">
+                    {ADS_TOPUP_GROUP.label} (เงินยังเป็นของร้าน)
+                    <HelpHint>{ADS_TOPUP_GROUP.hint}</HelpHint>
+                  </span>
+                  <span className="tabular-nums whitespace-nowrap">
+                    ฿{formatPrice(adsTopUp)} ({adsTopUpPct.toFixed(1)}%)
+                  </span>
+                </div>
+              )}
               <div className="text-gray-700 dark:text-slate-200">
                 เหลือเข้ากระเป๋า <span className="font-semibold text-emerald-600 dark:text-emerald-400">{keepPct.toFixed(1)}%</span> ของราคาที่ขายได้ (ก่อนหักต้นทุนสินค้า)
                 <HelpHint>

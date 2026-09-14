@@ -65,6 +65,16 @@ export interface MarketplacePlatformConfig {
    * ไม่ใส่เลย = ไม่หน่วง (พฤติกรรมเดิม) · ใส่เมื่อ platform นั้นเคยชนลิมิตจริงเท่านั้น
    */
   minGapMs?: Partial<Record<QuotaTarget | 'default', number>>;
+  /**
+   * true = ช่อง `ads` ของ platform นี้ **ไม่ใช่ค่าธรรมเนียมที่หายไป** แต่เป็นการหักยอดโอน
+   * ไปเติมเครดิตโฆษณาของร้าน (เงินยังเป็นของร้าน ยังไม่ถูกใช้จนกว่าจะยิงแอด)
+   * — Shopee: `ads_escrow_top_up_fee_or_technical_support_fee` ตามสัดส่วนที่ร้านตั้งไว้
+   *   (พิสูจน์แล้ว: `/ads/get_shop_toggle_info` → auto_top_up ตรงกับร้านที่มียอดหักเป๊ะ 6/6 ร้าน)
+   * — Lazada/TikTok: ไม่ตั้ง เพราะเป็นค่าแอดที่ใช้ไปแล้วจริง
+   * ⇒ รายงานต้องแยกก้อนนี้ออกจาก "แพลตฟอร์มเก็บไปทั้งหมด" · **ห้าม `switch (platform)` ในหน้า
+   *   ให้อ่านธงนี้แทน** (เพิ่ม platform ใหม่ที่ทำแบบเดียวกันก็แค่ตั้งธงตรงนี้)
+   */
+  adsIsWalletTopUp?: boolean;
 }
 
 export const MARKETPLACE_PLATFORMS: Record<QuotaPlatform, MarketplacePlatformConfig> = {
@@ -88,6 +98,7 @@ export const MARKETPLACE_PLATFORMS: Record<QuotaPlatform, MarketplacePlatformCon
       ['/merchant/', 'auth'],
     ],
     // bulk sync ใช้ parallelLimit คุมอยู่แล้ว + ยังไม่มีหลักฐานว่าชนเพราะยิงถี่ → ไม่หน่วง
+    adsIsWalletTopUp: true,
   },
   tiktok: {
     label: 'TikTok Shop',

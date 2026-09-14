@@ -92,6 +92,18 @@ export const FEE_GROUPS: { key: string; label: string; hint: string; buckets: Fe
   },
 ];
 
+/**
+ * กลุ่มพิเศษของ platform ที่ตั้ง `adsIsWalletTopUp` (ดู `MARKETPLACE_PLATFORMS`)
+ * — ยอดนี้หักจากเงินโอนจริง (net_payout ลดลงจริง) แต่ **ไม่ใช่เงินที่แพลตฟอร์มเก็บไป**
+ *   จึงต้องแยกออกจากยอด "แพลตฟอร์มเก็บไปทั้งหมด" ไม่งั้นต้นทุนจะดูสูงเกินจริงตอนตั้งราคา
+ */
+export const ADS_TOPUP_GROUP = {
+  key: 'ads_topup',
+  label: 'เติมเครดิตโฆษณา',
+  hint: 'ร้านตั้งให้หักจากยอดขายไปเติมกระเป๋าโฆษณาอัตโนมัติ · เงินยังเป็นของร้าน (อยู่ในเครดิตโฆษณา) ยังไม่ถูกใช้จนกว่าจะยิงแอดจริง จึงไม่นับเป็นเงินที่แพลตฟอร์มเก็บไป',
+  buckets: ['ads'] as FeeBucket[],
+};
+
 export const BUCKET_LABELS: Record<FeeBucket | 'net_payout' | 'cogs' | 'gross_profit', string> = {
   gross_sales: 'ยอดขาย',
   seller_discount: 'ส่วนลดร้าน',
