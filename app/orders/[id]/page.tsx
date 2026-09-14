@@ -1692,10 +1692,10 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
                 <div className="space-y-2">
                   <div className="flex items-center gap-2">
                     <CheckCircle className="w-4 h-4 text-primary flex-shrink-0" />
-                    <span className="data-primary text-gray-900 dark:text-slate-200">{fullOrderData.customer.name}</span>
+                    <span className="body-text font-medium">{fullOrderData.customer.name}</span>
                   </div>
                   {fullOrderData.customer.phone && (
-                    <div className="data-secondary text-gray-600 dark:text-slate-400 pl-6">{fullOrderData.customer.phone}</div>
+                    <div className="subtitle-text pl-6">{fullOrderData.customer.phone}</div>
                   )}
                   {(() => {
                     // ที่อยู่ของออเดอร์เอง (ถ้ามี) มาก่อนเสมอ — ที่เหลือคือ "เท่าที่แพลตฟอร์มยอมบอก"
@@ -1706,7 +1706,7 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
                     ].filter(Boolean).join(' ');
                     if (orderAddress) {
                       return (
-                        <div className="data-secondary text-gray-600 dark:text-slate-400 pl-6">{orderAddress}</div>
+                        <div className="subtitle-text pl-6">{orderAddress}</div>
                       );
                     }
                     const partial = [
@@ -1717,31 +1717,31 @@ export default function OrderDetailPage({ overrideBackUrl }: { overrideBackUrl?:
                     if (partial) {
                       return (
                         <div className="pl-6 space-y-1">
-                          <div className="data-secondary text-gray-600 dark:text-slate-400">{partial}</div>
-                          <div className="text-gray-400 dark:text-slate-500">
+                          <div className="subtitle-text">{partial}</div>
+                          <div className="helper-text">
                             แพลตฟอร์มปิดบังชื่อ/ที่อยู่เต็ม — แสดงเท่าที่ให้มา
                           </div>
                         </div>
                       );
                     }
                     return (
-                      <div className="data-secondary text-gray-400 dark:text-slate-500 pl-6">
+                      <div className="helper-text pl-6">
                         แพลตฟอร์มไม่เปิดเผยที่อยู่ผู้ซื้อ
                       </div>
                     );
                   })()}
                 </div>
               ) : (
-                <div className="data-secondary text-gray-400 dark:text-slate-500">ไม่มีข้อมูลลูกค้า</div>
+                <div className="subtitle-text">ไม่มีข้อมูลลูกค้า</div>
               )}
               {fullOrderData?.tax_invoice_requested && (
                 <div className="mt-3 pt-3 border-t border-gray-200 dark:border-slate-600 space-y-1.5">
                   <span className="text-xs font-medium text-primary bg-orange-50 dark:bg-orange-900/30 px-2 py-0.5 rounded">ขอใบกำกับภาษี</span>
                   {fullOrderData.tax_invoice_name && (
-                    <div className="data-text text-gray-700 dark:text-slate-300">{fullOrderData.tax_invoice_name}</div>
+                    <div className="subtitle-text">{fullOrderData.tax_invoice_name}</div>
                   )}
                   {fullOrderData.tax_invoice_tax_id && (
-                    <div className="data-secondary text-gray-500 dark:text-slate-400">เลขผู้เสียภาษี: {fullOrderData.tax_invoice_tax_id}</div>
+                    <div className="helper-text">เลขผู้เสียภาษี: {fullOrderData.tax_invoice_tax_id}</div>
                   )}
                 </div>
               )}
