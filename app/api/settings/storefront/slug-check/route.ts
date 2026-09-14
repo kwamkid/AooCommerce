@@ -6,9 +6,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuthWithCompany } from '@/lib/supabase-admin';
 import { parseStorefront } from '@/lib/storefront';
-import { STOREFRONT_SLUG_LOCK_DAYS, storefrontSlugLockRemainingDays } from '@/lib/storefront';
-
-const SLUG = /^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$/;
+import {
+  STOREFRONT_SLUG_LOCK_DAYS, STOREFRONT_SLUG_RE, STOREFRONT_SLUG_RULE, storefrontSlugLockRemainingDays,
+} from '@/lib/storefront';
 
 export async function GET(request: NextRequest) {
   const auth = await checkAuthWithCompany(request);
@@ -37,10 +37,10 @@ export async function GET(request: NextRequest) {
   if (raw === own?.storefront_slug) {
     return NextResponse.json({ status: 'current', lock_days_left: lockDaysLeft, lock_days: STOREFRONT_SLUG_LOCK_DAYS });
   }
-  if (!SLUG.test(raw)) {
+  if (!STOREFRONT_SLUG_RE.test(raw)) {
     return NextResponse.json({
       status: 'invalid',
-      message: 'ใช้ได้เฉพาะ a-z 0-9 และขีดกลาง ยาว 3–40 ตัว ห้ามขึ้นหรือลงท้ายด้วยขีด',
+      message: STOREFRONT_SLUG_RULE,
       lock_days_left: lockDaysLeft, lock_days: STOREFRONT_SLUG_LOCK_DAYS,
     });
   }

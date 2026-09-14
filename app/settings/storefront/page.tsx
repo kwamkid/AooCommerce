@@ -21,6 +21,7 @@ import { apiFetch } from '@/lib/api-client';
 import {
   DEFAULT_STOREFRONT, storefrontCssVars, storefrontRootClasses,
   readableTextColor, relativeLuminance,
+  STOREFRONT_SLUG_LOCK_DAYS, STOREFRONT_SLUG_MAX, STOREFRONT_SLUG_RULE,
   type StorefrontConfig, type StorefrontProduct,
 } from '@/lib/storefront';
 import StoreHeader from '@/components/storefront/StoreHeader';
@@ -266,6 +267,11 @@ export default function StorefrontSettingsPage() {
   const [slugMessage, setSlugMessage] = useState('');
   /** >0 = เปลี่ยนไม่ได้ ต้องรออีกกี่วัน (ล็อกทำงานเฉพาะตอนร้านเปิดอยู่) */
   const [slugLockDaysLeft, setSlugLockDaysLeft] = useState(0);
+  /**
+   * ช่องชื่อลิงก์เปิดให้พิมพ์อยู่ไหม — ร้านที่มีชื่อลิงก์แล้วช่องจะล็อกไว้ ต้องกด "แก้ไข" ก่อน
+   * (เปลี่ยนแล้วลิงก์เก่าตายทั้งชุด ไม่ควรแก้ได้ด้วยการเผลอพิมพ์) · ยังไม่เคยตั้ง = เปิดให้เลย
+   */
+  const [slugEditing, setSlugEditing] = useState(false);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [companyName, setCompanyName] = useState('');
   const [companyPhone, setCompanyPhone] = useState('');
@@ -302,6 +308,7 @@ export default function StorefrontSettingsPage() {
         setSuggestedSlug(data.suggested_slug || '');
         // ยังไม่เคยตั้ง = เติมค่าที่แนะนำไว้ให้ก่อน ผู้ใช้แก้ได้ก่อนกดบันทึก
         if (!data.storefront_slug && data.suggested_slug) setStorefrontSlug(data.suggested_slug);
+        setSlugEditing(!data.storefront_slug);
         setSlugLockDaysLeft(data.slug_lock_days_left || 0);
         setLogoUrl(data.logo_url || null);
         setCompanyName(data.company_name || '');
@@ -364,7 +371,9 @@ export default function StorefrontSettingsPage() {
       // slug ที่ใช้จริงเปลี่ยนตามที่เพิ่งบันทึก — ลิงก์ตัวอย่างต้องอัปเดตทันที
       setSlug(data.storefront_slug || '');
       setStorefrontSlug(data.storefront_slug || '');
-      // ล็อก 30 วันเริ่มนับตอนนี้ถ้าเพิ่งเปลี่ยนจริง — ถามค่าจริงกลับมาแทนที่จะเดาเอง
+      setSlugEditing(!data.storefront_slug);
+      setSlugStatus('idle');
+      // ล็อกเริ่มนับตอนนี้ถ้าเพิ่งเปลี่ยนจริง — ถามค่าจริงกลับมาแทนที่จะเดาเอง
       apiFetch('/api/settings/storefront/slug-check?slug=')
         .then(r => r.ok ? r.json() : null)
         .then(d => { if (d) setSlugLockDaysLeft(d.lock_days_left || 0); })
@@ -504,8 +513,10 @@ export default function StorefrontSettingsPage() {
               </p>
               <FormInput
                 label="ชื่อลิงก์"
+                containerClassName="max-w-sm"
                 value={storefrontSlug}
-                disabled={slugLockDaysLeft > 0}
+                disabled={!slugEditing}
+                maxLength={STOREFRONT_SLUG_MAX}
                 onChange={(e) => {
                   const v = e.target.value.toLowerCase();
                   setStorefrontSlug(v);
@@ -514,28 +525,60 @@ export default function StorefrontSettingsPage() {
                 }}
                 placeholder="เช่น babyshop"
                 required
+                autoComplete="off"
+                spellCheck={false}
                 error={slugStatus === 'taken' ? 'ชื่อนี้มีร้านอื่นใช้อยู่แล้ว' : slugStatus === 'invalid' ? slugMessage : undefined}
                 hint={
-                  slugLockDaysLeft > 0
-                    ? `เปลี่ยนได้อีกครั้งในอีก ${slugLockDaysLeft} วัน`
-                    : slugStatus === 'available'
+                  slugEditing
+                    ? (slugStatus === 'available'
                       ? 'ชื่อนี้ว่าง ใช้ได้เลย'
                       : slugStatus === 'current'
-                        ? 'ชื่อที่ใช้อยู่ตอนนี้'
-                        : suggestedSlug && storefrontSlug === suggestedSlug
-                      ? 'ค่าที่แนะนำจากชื่อบริษัท — แก้เป็นชื่อร้านได้เลย'
-                      : 'ตัวเล็ก ตัวเลข และขีดกลาง 3–40 ตัว'
+                        ? 'ชื่อเดิม ไม่มีอะไรเปลี่ยน'
+                        : suggestedSlug && storefrontSlug === suggestedSlug && !slug
+                          ? 'ค่าที่แนะนำจากชื่อบริษัท — แก้เป็นชื่อร้านได้เลย'
+                          : `${STOREFRONT_SLUG_RULE} (${storefrontSlug.length}/${STOREFRONT_SLUG_MAX})`)
+                    : slugLockDaysLeft > 0
+                      ? `เพิ่งเปลี่ยนไป — เปลี่ยนได้อีกครั้งในอีก ${slugLockDaysLeft} วัน`
+                      : `กด "แก้ไข" เพื่อเปลี่ยน · เปลี่ยนได้ครั้งเดียวทุก ${STOREFRONT_SLUG_LOCK_DAYS} วัน`
                 }
                 postfix={
-                  slugStatus === 'checking' ? <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
-                    : slugStatus === 'available' || slugStatus === 'current' ? <Check className="w-4 h-4 text-emerald-600" />
-                      : slugStatus === 'taken' || slugStatus === 'invalid' ? <X className="w-4 h-4 text-red-500" />
-                        : undefined
+                  slugEditing ? (
+                    // ชื่อเดิม (current) ไม่ต้องมีไอคอน — ไม่ได้เปลี่ยนอะไรจึงไม่มีอะไรให้ยืนยัน
+                    <span className="flex items-center gap-2">
+                      {slugStatus === 'checking' ? <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
+                        : slugStatus === 'available' ? <Check className="w-4 h-4 text-emerald-600" />
+                          : slugStatus === 'taken' || slugStatus === 'invalid' ? <X className="w-4 h-4 text-red-500" />
+                            : null}
+                      {slug && (
+                        <button
+                          type="button"
+                          className="text-sm font-medium text-gray-600 hover:text-gray-900 dark:text-slate-300 dark:hover:text-white"
+                          onClick={() => {
+                            debouncedCheckSlug.cancel();
+                            setStorefrontSlug(slug);
+                            setSlugStatus('idle');
+                            setSlugMessage('');
+                            setSlugEditing(false);
+                          }}
+                        >
+                          ยกเลิก
+                        </button>
+                      )}
+                    </span>
+                  ) : slugLockDaysLeft === 0 ? (
+                    <button
+                      type="button"
+                      className="text-sm font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400"
+                      onClick={() => setSlugEditing(true)}
+                    >
+                      แก้ไข
+                    </button>
+                  ) : undefined
                 }
               />
-              {slugLockDaysLeft === 0 && cfg.enabled && (
+              {slugEditing && slug && cfg.enabled && (
                 <p className="helper-text text-amber-700 dark:text-amber-500 mt-1.5">
-                  เปลี่ยนได้ครั้งเดียวทุก 30 วัน — ลิงก์เก่าที่ส่งไปหาลูกค้าแล้วจะเปิดไม่ได้ทันที
+                  บันทึกชื่อใหม่แล้วจะเปลี่ยนอีกครั้งได้ในอีก {STOREFRONT_SLUG_LOCK_DAYS} วัน — ลิงก์เก่าที่ส่งไปหาลูกค้าแล้วจะเปิดไม่ได้ทันที
                 </p>
               )}
               <p className="section-desc mt-2 break-all">

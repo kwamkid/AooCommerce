@@ -5,6 +5,7 @@ import { supabaseAdmin, checkAuthWithCompany, can } from '@/lib/supabase-admin';
 import {
   parseStorefront,
   storefrontSlugLockRemainingDays,
+  STOREFRONT_SLUG_LOCK_DAYS, STOREFRONT_SLUG_RE, STOREFRONT_SLUG_RULE,
   type StorefrontConfig,
 } from '@/lib/storefront';
 
@@ -50,8 +51,6 @@ const RATIO = new Set(['1:1', '3:4', 'auto']);
 const LOGO = new Set(['logo_name', 'logo_only', 'name_only']);
 const BTN = new Set(['solid', 'outline', 'soft']);
 const HEX = /^#[0-9a-f]{6}$/i;
-/** slug ในลิงก์ที่ลูกค้าเห็น — ตัวเล็ก ตัวเลข ขีดกลาง 3–40 ตัว ห้ามขึ้น/ลงท้ายด้วยขีด */
-const SLUG = /^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$/;
 
 export async function PUT(request: NextRequest) {
   const auth = await checkAuthWithCompany(request);
@@ -86,11 +85,8 @@ export async function PUT(request: NextRequest) {
 
     if (!raw) {
       storefrontSlug = null;
-    } else if (!SLUG.test(raw)) {
-      return NextResponse.json(
-        { error: 'ชื่อลิงก์ใช้ได้เฉพาะ a-z 0-9 และขีดกลาง ยาว 3–40 ตัว และห้ามขึ้นหรือลงท้ายด้วยขีด' },
-        { status: 400 },
-      );
+    } else if (!STOREFRONT_SLUG_RE.test(raw)) {
+      return NextResponse.json({ error: `ชื่อลิงก์${STOREFRONT_SLUG_RULE}` }, { status: 400 });
     } else {
       const { data: clash } = await supabaseAdmin
         .from('companies')
@@ -104,14 +100,14 @@ export async function PUT(request: NextRequest) {
       storefrontSlug = raw;
     }
 
-    // กติกา 30 วัน — **นับเฉพาะการเปลี่ยนที่เกิดตอนร้านเปิดอยู่**
+    // กติกาล็อก STOREFRONT_SLUG_LOCK_DAYS วัน — **นับเฉพาะการเปลี่ยนที่เกิดตอนร้านเปิดอยู่**
     // ปิดร้านอยู่ = ยังไม่มีลิงก์ไหนอยู่ข้างนอก แก้คำที่พิมพ์ผิดได้อิสระและไม่ stamp เวลา
     // (stamp ตอนปิดร้านด้วย จะกลายเป็นเปิดร้านปุ๊บติดล็อกทันทีทั้งที่ยังไม่เคยส่งลิงก์ให้ใคร)
     if (storefrontSlug !== (own?.storefront_slug ?? null) && wasEnabled) {
       const daysLeft = storefrontSlugLockRemainingDays(own?.storefront_slug_changed_at ?? null);
       if (daysLeft > 0) {
         return NextResponse.json({
-          error: `เปลี่ยนชื่อลิงก์ได้ครั้งเดียวทุก 30 วัน — เปลี่ยนได้อีกครั้งในอีก ${daysLeft} วัน`,
+          error: `เปลี่ยนชื่อลิงก์ได้ครั้งเดียวทุก ${STOREFRONT_SLUG_LOCK_DAYS} วัน — เปลี่ยนได้อีกครั้งในอีก ${daysLeft} วัน`,
         }, { status: 400 });
       }
       slugChangedAt = new Date().toISOString();
