@@ -520,6 +520,10 @@ async function assembleCatalog(
         .eq('company_id', companyId)
         .in('product_id', g)
         .is('deleted_at', null)
+        // ⚠️ ต้องมี order เสมอ — ไม่ใส่ = Postgres คืนลำดับไหนก็ได้ แล้ว "ตัวเลือกแรก"
+        // (ตัวที่ถูกเลือกให้ตอนเปิดหน้าสินค้า + ลำดับ swatch) เปลี่ยนไปมาเองระหว่างรีเฟรช
+        // ตารางยังไม่มีคอลัมน์ลำดับที่ร้านตั้งเอง จึงยึดลำดับที่ถูกเพิ่มเข้าระบบ
+        .order('created_at', { ascending: true })
         .range(from, to)),
       fetchAllRows<{ product_id: string; variation_id: string | null; image_url: string }>((from, to) => supabaseAdmin
         .from('product_images')
@@ -643,7 +647,8 @@ export const getStorefrontProduct = cache(async (
       .select(VARIATION_SELECT)
       .eq('company_id', companyId)
       .eq('product_id', typedRow.id)
-      .is('deleted_at', null),
+      .is('deleted_at', null)
+      .order('created_at', { ascending: true }),
     supabaseAdmin
       .from('product_images')
       .select('product_id, variation_id, image_url, sort_order')

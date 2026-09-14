@@ -12,8 +12,8 @@ import Link from 'next/link';
 import { thumbUrl } from '@/lib/image-thumb';
 import type { StorefrontSwatch } from '@/lib/storefront';
 
-/** เกินจากนี้ยุบเป็นชิป +N (กดไปเลือกต่อที่หน้าสินค้า) */
-const MAX_SWATCHES = 5;
+/** เกินจากนี้ยุบเป็นชิป +N (กดไปเลือกต่อที่หน้าสินค้า) — พอดีความกว้างการ์ด */
+const MAX_SWATCHES = 6;
 
 interface Props {
   swatches: { name: string; items: StorefrontSwatch[] };
