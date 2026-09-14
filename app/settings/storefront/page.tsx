@@ -518,7 +518,9 @@ export default function StorefrontSettingsPage() {
                 disabled={!slugEditing}
                 maxLength={STOREFRONT_SLUG_MAX}
                 onChange={(e) => {
-                  const v = e.target.value.toLowerCase();
+                  // กรองตั้งแต่ตอนพิมพ์ — ตัวที่ใช้ไม่ได้ (พิมพ์ใหญ่ · จุด · เว้นวรรค · ไทย)
+                  // ไม่ต้องโผล่ให้เห็นแล้วค่อยโดนเตือน · เว้นวรรคกลายเป็นขีดกลางให้เลย
+                  const v = e.target.value.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
                   setStorefrontSlug(v);
                   setSlugStatus(v.trim() ? 'checking' : 'idle');
                   debouncedCheckSlug(v);
