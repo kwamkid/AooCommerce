@@ -176,7 +176,7 @@
 
 .sf-card-body { padding: 12px 14px 16px; display: flex; flex-direction: column; gap: 4px; flex: 1; }
 .sf-card-cat { font-size: 12px; color: var(--sf-muted); }
-.sf-card-name { font-size: 15px; font-weight: 600; line-height: 1.4; }
+.sf-card-name { font-size: 15px; font-weight: 400; line-height: 1.4; }   /* regular — เจ้าของไม่เอาตัวหนา (2026-09-14) */
 .sf-card-price { margin-top: auto; padding-top: 8px; font-size: 16px; font-weight: 700; }
 .sf-card-compare { font-size: 13px; font-weight: 400; color: var(--sf-muted); text-decoration: line-through; margin-left: 6px; }
 .sf-oos { font-size: 13px; color: var(--sf-muted); font-weight: 500; }
@@ -597,6 +597,10 @@
   border: 1px solid var(--sf-cta); border-radius: calc(var(--sf-radius) / 1.5);
   background: var(--sf-cta); color: var(--sf-cta-contrast);
   font-size: 14px; font-weight: 600; font-family: inherit;
+  /* ล็อกความสูงให้เท่ากันทั้ง <button> (หยิบใส่ตะกร้า — ข้อความอยู่ใน .sf-quickadd-face
+     line-height 1.2) และ <a> (เลือกตัวเลือก — ข้อความตรง ๆ ได้ line-height ของหน้า)
+     ไม่งั้นสองปุ่มบนแถวเดียวกันสูงไม่เท่ากัน */
+  line-height: 1.2; min-height: 40px; box-sizing: border-box;
   cursor: pointer; text-decoration: none;
   transition: filter .15s ease, background .15s ease, border-color .15s ease, color .15s ease;
 }
