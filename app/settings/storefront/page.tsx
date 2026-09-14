@@ -11,6 +11,8 @@ import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Toggle from '@/components/ui/Toggle';
 import FormInput from '@/components/ui/FormInput';
+import FormSelect from '@/components/ui/FormSelect';
+import Checkbox from '@/components/ui/Checkbox';
 import Alert from '@/components/ui/Alert';
 import { LoadingCard, NoPermissionCard } from '@/components/ui/StateCard';
 import { useToast } from '@/lib/toast-context';
@@ -22,7 +24,8 @@ import {
   DEFAULT_STOREFRONT, storefrontCssVars, storefrontRootClasses,
   readableTextColor, relativeLuminance,
   STOREFRONT_SLUG_LOCK_DAYS, STOREFRONT_SLUG_MAX, STOREFRONT_SLUG_RULE,
-  type StorefrontConfig, type StorefrontProduct,
+  STOREFRONT_SORTS, STOREFRONT_SORT_LABELS,
+  type StorefrontConfig, type StorefrontProduct, type StorefrontSort,
 } from '@/lib/storefront';
 import StoreHeader from '@/components/storefront/StoreHeader';
 import StoreProductCard from '@/components/storefront/StoreProductCard';
@@ -33,7 +36,7 @@ import StickyActionBar from '@/components/ui/StickyActionBar';
 import CopyField from '@/components/ui/CopyField';
 import { useCompany } from '@/lib/company-context';
 import OptionCards from '@/components/ui/OptionCards';
-import { Check, Loader2, X } from 'lucide-react';
+import { Check, ChevronDown, Loader2, X } from 'lucide-react';
 import { ExternalLink, Globe, KeyRound, Palette, Plus, Store } from 'lucide-react';
 import Tabs from '@/components/ui/Tabs';
 
@@ -287,6 +290,9 @@ export default function StorefrontSettingsPage() {
   const dirty = JSON.stringify(cfg) !== JSON.stringify(loadedRef.current);
   const [lineCred, setLineCred] = useState({ channel_id: '', channel_secret: '', configured: false });
   const [savingLine, setSavingLine] = useState(false);
+  /** การ์ด LINE กางอยู่ไหม — ร้านที่ยังไม่เปิด LINE ไม่ต้องเห็นช่อง Channel รกตา
+   *  (ตั้งค่าเริ่มต้นตาม line_login ที่โหลดมา) */
+  const [lineOpen, setLineOpen] = useState(false);
   const [origin, setOrigin] = useState('');
   useEffect(() => { setOrigin(window.location.origin); }, []);
   const [device, setDevice] = useState<'mobile' | 'desktop'>('mobile');
@@ -303,6 +309,7 @@ export default function StorefrontSettingsPage() {
         const data = await res.json();
         setCfg(data.storefront);
         loadedRef.current = data.storefront;
+        setLineOpen(!!data.storefront.line_login);
         setSlug(data.slug || '');
         setStorefrontSlug(data.storefront_slug || '');
         setSuggestedSlug(data.suggested_slug || '');
@@ -591,6 +598,34 @@ export default function StorefrontSettingsPage() {
             </Card>
 
             <Card padding="md">
+              <p className="heading-4 mb-1">การแสดงสินค้า</p>
+              <p className="section-desc mb-4">ควบคุมว่าสินค้าแบบไหนขึ้นในหน้ารายการของหน้าร้าน</p>
+              <div className="space-y-4">
+                <div>
+                  <Checkbox
+                    checked={cfg.show_out_of_stock}
+                    onChange={(v) => patch({ show_out_of_stock: v })}
+                    label="แสดงสินค้าที่สต็อกหมดด้วย"
+                  />
+                  <p className="helper-text text-gray-500 mt-1 ml-7">
+                    ติ๊กออก = ซ่อนจากหน้ารายการจนกว่าจะมีของ (เปิดจากลิงก์ตรงยังได้)
+                    <br />มีผลเฉพาะร้านที่เปิดระบบคลังสินค้า
+                  </p>
+                </div>
+                <div>
+                  <Checkbox
+                    checked={cfg.show_without_image}
+                    onChange={(v) => patch({ show_without_image: v })}
+                    label="แสดงสินค้าที่ยังไม่มีรูปด้วย"
+                  />
+                  <p className="helper-text text-gray-500 mt-1 ml-7">
+                    ติ๊กออก = ซ่อนจนกว่าจะใส่รูปสินค้า
+                  </p>
+                </div>
+              </div>
+            </Card>
+
+            <Card padding="md">
               <p className="heading-4 mb-1">ข้อมูลติดต่อท้ายหน้าร้าน</p>
               <p className="section-desc mb-4">
                 เว้นว่างไว้ = ใช้ของบริษัท (แก้ข้อมูลบริษัทแล้วหน้าร้านตามให้เอง) —
@@ -624,22 +659,60 @@ export default function StorefrontSettingsPage() {
 
             {tab === 'login' && (<>
             <Card padding="md">
-              <p className="heading-4 mb-1">Google</p>
+              <div className="flex items-center justify-between gap-4 mb-1">
+                <p className="heading-4">Google</p>
+                {/* สวิตช์ล็อกเปิด — ให้เห็นว่าอยู่ระนาบเดียวกับ LINE ว่าอันไหนเปิดอยู่ ไม่ใช่ปุ่มที่กดได้ */}
+                <Toggle
+                  checked
+                  disabled
+                  aria-label="Google เปิดใช้งานเสมอ"
+                  onChange={() => {}}
+                />
+              </div>
               <p className="section-desc">
-                เปิดใช้งานอยู่แล้วทุกร้าน ไม่ต้องตั้งค่าอะไร — ลูกค้ากดเข้าสู่ระบบด้วย Google
-                ได้ทันทีในหน้าชำระเงินและหน้าบัญชี
+                เปิดใช้งานเสมอ ปิดไม่ได้ — ลูกค้าเข้าสู่ระบบด้วย Google ได้ทันทีในหน้าชำระเงินและหน้าบัญชี
               </p>
             </Card>
 
             <Card padding="md">
-              <div className="flex items-center justify-between gap-4 mb-1">
-                <p className="heading-4">LINE</p>
-                <Toggle
-                  checked={cfg.line_login}
-                  onChange={(v) => patch({ line_login: v })}
-                  aria-label="เปิดให้เข้าสู่ระบบด้วย LINE"
-                />
+              {/* ทั้งแถวหัวการ์ดกดพับ/กางได้ — สวิตช์กันคลิกไม่ให้ทะลุไปพับการ์ด */}
+              <div
+                role="button"
+                tabIndex={0}
+                aria-expanded={lineOpen}
+                onClick={() => setLineOpen(o => !o)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setLineOpen(o => !o); }
+                }}
+                className="flex items-center justify-between gap-4 mb-1 cursor-pointer select-none"
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <p className="heading-4">LINE</p>
+                  <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${lineOpen ? 'rotate-180' : ''}`} />
+                </div>
+                <span onClick={(e) => e.stopPropagation()}>
+                  <Toggle
+                    checked={cfg.line_login}
+                    onChange={(v) => {
+                      patch({ line_login: v });
+                      if (v) setLineOpen(true);
+                    }}
+                    aria-label="เปิดให้เข้าสู่ระบบด้วย LINE"
+                  />
+                </span>
               </div>
+
+              {!lineOpen && (
+                <p className="section-desc">
+                  {!cfg.line_login
+                    ? 'ปิดอยู่ — กดเพื่อตั้งค่า Channel'
+                    : lineCred.configured
+                      ? 'เปิดอยู่ · Channel พร้อมแล้ว'
+                      : 'เปิดอยู่ · ยังกรอก Channel ไม่ครบ'}
+                </p>
+              )}
+
+              {lineOpen && (<>
               <p className="section-desc mb-4">
                 ปุ่ม LINE จะขึ้นเฉพาะเมื่อเปิดสวิตช์นี้ <strong>และกรอก Channel ครบแล้ว</strong>
               </p>
@@ -687,6 +760,7 @@ export default function StorefrontSettingsPage() {
                   <li>คัดลอก Channel ID และ Channel Secret มากรอกด้านบน</li>
                 </ol>
               </div>
+              </>)}
             </Card>
             </>)}
 
@@ -859,6 +933,16 @@ export default function StorefrontSettingsPage() {
                       { id: 'masonry' as const, label: 'ก่ออิฐ', description: 'ไม่มีช่องว่าง · เรียงลงคอลัมน์', preview: <MasonryPreview /> },
                     ]}
                   />
+
+                  <div className="sm:col-span-2 max-w-sm">
+                    <label className="field-label">การเรียงสินค้า</label>
+                    <FormSelect
+                      value={cfg.sort_by}
+                      onChange={(v) => patch({ sort_by: v as StorefrontSort })}
+                      options={STOREFRONT_SORTS.map(s => ({ id: s, label: STOREFRONT_SORT_LABELS[s] }))}
+                    />
+                    <p className="helper-text text-gray-500 mt-1.5">ขายดี = ยอดขาย 90 วันล่าสุด</p>
+                  </div>
 
                   <p className="helper-text text-gray-500 sm:col-span-2">
                     สัดส่วนรูปเป็นการครอบตอนแสดงผลเท่านั้น — ไฟล์รูปที่อัปโหลดไว้ไม่ถูกแก้ เปลี่ยนกลับได้ตลอด
