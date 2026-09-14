@@ -142,6 +142,8 @@ export default function MarketplaceOrderCard({
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [showLines, setShowLines] = useState(false);
+  // กลุ่มค่าธรรมเนียมที่กางดูรายละเอียดอยู่ — ปิดไว้ก่อน เห็นแค่ยอดรวมต่อกลุ่ม (ตัวเลขย่อยทำให้บวกกันงง)
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
   // identity คงที่ — ไม่งั้น `load` เปลี่ยนทุก render ของหน้าแม่แล้วยิง API วนไม่จบ
   const emitLoaded = useStableCallback((payload: SettlementResponse) => { onLoaded?.(payload); });
 
@@ -335,16 +337,30 @@ export default function MarketplaceOrderCard({
           {/* ค่าธรรมเนียมเป็นกลุ่ม — หัวกลุ่มบอกยอดรวม + % ของราคาที่ขายได้ */}
           {groups.map(g => (
             <div key={g.key} className="space-y-1.5 pt-2 border-t border-gray-200 dark:border-slate-600">
-              <AmountRow
-                label={g.label}
-                hint={g.hint}
-                amount={g.total}
-                sign={g.total < 0 ? '-' : g.total > 0 ? '+' : undefined}
-                tone={g.total < 0 ? 'bad' : g.total > 0 ? 'good' : 'default'}
-                pct={groupPct(g)}
-                strong
-              />
-              <div className="pl-4 space-y-1.5">
+              <div className="flex items-baseline gap-1">
+                <button
+                  type="button"
+                  onClick={() => setOpenGroups(prev => ({ ...prev, [g.key]: !prev[g.key] }))}
+                  className="text-gray-400 dark:text-slate-500 hover:text-gray-700 dark:hover:text-slate-200 transition-colors"
+                  aria-label={openGroups[g.key] ? `ซ่อนรายละเอียด ${g.label}` : `ดูรายละเอียด ${g.label}`}
+                  aria-expanded={!!openGroups[g.key]}
+                >
+                  <ChevronDown className={`w-4 h-4 transition-transform ${openGroups[g.key] ? 'rotate-0' : '-rotate-90'}`} />
+                </button>
+                <div className="flex-1 min-w-0">
+                  <AmountRow
+                    label={g.label}
+                    hint={g.hint}
+                    amount={g.total}
+                    sign={g.total < 0 ? '-' : g.total > 0 ? '+' : undefined}
+                    tone={g.total < 0 ? 'bad' : g.total > 0 ? 'good' : 'default'}
+                    pct={groupPct(g)}
+                    strong
+                  />
+                </div>
+              </div>
+              {openGroups[g.key] && (
+              <div className="pl-9 space-y-1.5">
                 {g.rows.map(b => (
                   <AmountRow
                     key={b}
@@ -358,6 +374,7 @@ export default function MarketplaceOrderCard({
                   />
                 ))}
               </div>
+              )}
             </div>
           ))}
 
