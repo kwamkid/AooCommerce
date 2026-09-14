@@ -55,6 +55,15 @@ export interface AudienceOption {
   needsTags?: boolean;
   /** ต้องเลือกรายชื่อต่อ */
   needsPick?: boolean;
+  /**
+   * ใช้ได้เฉพาะตอน **ส่งบรอดแคสต์** — ห้ามโผล่ในหน้ากลุ่มเป้าหมายโฆษณา
+   *
+   * ทะเบียนนี้ใช้ร่วมสองงาน: เลือกผู้รับบรอดแคสต์ **และ** สร้างกลุ่มเป้าหมายที่ sync ขึ้น Meta
+   * บางกลุ่มมีความหมายเฉพาะกับการส่ง เช่น "คนที่กดรับข่าวสาร" ซึ่ง Meta ให้แค่ PSID + โทเค็นส่ง
+   * เอาไปทำ Custom Audience ไม่ได้ — ติดธงนี้แล้ว `audienceBehaviorOptions()` กับ
+   * `audienceSourceSupports()` จะกรองออกให้เอง
+   */
+  broadcastOnly?: boolean;
 }
 
 /**
@@ -165,6 +174,14 @@ export const AUDIENCE_OPTIONS: Partial<Record<BroadcastPlatform, AudienceOption[
       label: 'เลือกรายคน',
       hint: 'ใช้ทดสอบส่งหาตัวเองก่อนยิงจริง หรือส่งกลุ่มเล็กเฉพาะกิจ',
       needsPick: true,
+    },
+    {
+      // ผู้รับกลุ่มนี้ **ไม่ได้มาจากห้องแชทของเรา** — รายชื่ออยู่ที่ Meta (notification_message_tokens)
+      // จึงไม่มีตัวกรองซ้อน (แท็ก/ประวัติซื้อ ใช้กับกลุ่มนี้ไม่ได้) และใช้ได้เฉพาะตอนส่ง
+      key: 'subscribers', group: 'other',
+      label: 'คนที่กดรับข่าวสาร',
+      hint: 'ส่งได้แม้พ้นกรอบ 24 ชม. · คนละ 1 ข้อความต่อ 12 ชั่วโมง · คิดเงินต่อข้อความ',
+      broadcastOnly: true,
     },
   ],
   tiktok: [
@@ -289,7 +306,8 @@ export type AudienceSourceKind = 'line' | 'facebook' | 'customers';
 export function audienceSourceSupports(kind: AudienceSourceKind, audienceType: string): boolean {
   if (!audienceType) return false;
   if (kind === 'customers') return CUSTOMER_SOURCE_AUDIENCE_KEYS.has(audienceType);
-  return (AUDIENCE_OPTIONS[kind] || []).some(o => o.key === audienceType);
+  // กลุ่มที่มีไว้ส่งอย่างเดียว (คนกดรับข่าวสาร) ตอบ "กลุ่มเป้าหมาย" ไม่ได้ — ไม่มีทางแปลงเป็น Custom Audience
+  return (AUDIENCE_OPTIONS[kind] || []).some(o => o.key === audienceType && !o.broadcastOnly);
 }
 
 /** เหตุผลสั้น ๆ ที่แหล่งนี้ตอบกลุ่มไม่ได้ — วางใต้ชื่อแหล่งที่ขึ้นจาง · `null` = ตอบได้ */
@@ -322,6 +340,8 @@ export function audienceBehaviorOptions(available: AudienceSourceKind[]): {
   // facebook ก่อน — "ทักมาจากโฆษณา" จะอยู่ถัดจาก "ยังไม่เคยซื้อ" ในหมวดเดียวกัน
   for (const p of ['facebook', 'line'] as const) {
     for (const o of AUDIENCE_OPTIONS[p] || []) {
+      // กลุ่มที่มีไว้ส่งบรอดแคสต์อย่างเดียว ไม่ใช่ตัวเลือกของกลุ่มเป้าหมายโฆษณา
+      if (o.broadcastOnly) continue;
       if (seen.has(o.key)) continue;
       seen.add(o.key);
       options.push(o);

@@ -6,6 +6,7 @@
 
 import { runLineBroadcast } from '@/lib/line/broadcast';
 import { runTikTokBroadcast } from '@/lib/tiktok/broadcast';
+import { runFacebookBroadcast } from '@/lib/facebook/broadcast';
 import { BROADCAST_PLATFORMS, type BroadcastPlatform } from './platforms';
 import { supabaseAdmin } from '@/lib/supabase-admin';
 
@@ -16,6 +17,10 @@ export async function runBroadcast(id: string, platform: BroadcastPlatform): Pro
   }
   if (platform === 'tiktok') {
     await runTikTokBroadcast(id);
+    return;
+  }
+  if (platform === 'facebook') {
+    await runFacebookBroadcast(id);
     return;
   }
 

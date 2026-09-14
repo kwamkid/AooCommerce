@@ -92,10 +92,18 @@ export function audienceSourceLabel(s: AudienceSource): string {
   return s.platform === 'line' ? 'ห้องแชท LINE' : 'ห้องแชท Facebook';
 }
 
-/** คีย์กลุ่มที่แหล่งนี้ตอบได้ */
+/**
+ * คีย์กลุ่มที่แหล่งนี้ตอบได้
+ *
+ * ⚠️ กลุ่มที่ติด `broadcastOnly` (เช่น "คนที่กดรับข่าวสาร" ของ Messenger) ตัดทิ้งที่นี่ด้วย —
+ * หน้าจอซ่อนตัวเลือกให้แล้วผ่าน `audienceBehaviorOptions()` แต่ API ต้องกันเองอีกชั้น
+ * ไม่งั้นยิง definition ตรง ๆ ก็ยังสร้างกลุ่มเป้าหมายจากกลุ่มที่แปลงเป็น Custom Audience ไม่ได้
+ */
 function keysForSource(s: AudienceSource): ReadonlySet<string> {
   if (s.kind === 'customers') return CUSTOMER_AUDIENCE_KEYS;
-  return new Set((AUDIENCE_OPTIONS[s.platform] || []).map(o => o.key));
+  return new Set(
+    (AUDIENCE_OPTIONS[s.platform] || []).filter(o => !o.broadcastOnly).map(o => o.key),
+  );
 }
 
 // ─── ตรวจรูปของ definition ────────────────────────────────────────────

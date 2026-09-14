@@ -47,6 +47,8 @@ const AUDIENCE_BY_PLATFORM: Record<string, string[]> = {
     'not_bought', 'bought', 'bought_within', 'bought_before', 'bought_once',
   ],
   tiktok: ['buyers_365d', 'tags'],
+  // Facebook มีกลุ่มเดียว — รายชื่อผู้สมัครอยู่ที่ Meta ไม่ใช่ห้องแชทของเรา
+  facebook: ['subscribers'],
 };
 
 /** เก็บเฉพาะตัวกรองที่กลุ่มนั้นใช้จริง — เก็บทั้งก้อนแล้วอ่านย้อนหลังจะแยกไม่ออกว่าอันไหนมีผล */
