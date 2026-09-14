@@ -104,6 +104,13 @@ export async function upsertProductImage(
 ): Promise<void> {
   if (!imageUrl) return;
   try {
+    // รูปของตัวเลือกต้องรู้สินค้าแม่ด้วยเสมอ — หน้าร้าน/ฟอร์มดึงรูปด้วย product_id
+    // ผู้เรียกฝั่ง import เคยส่ง null มา (2026-09-14 พบ 520 แถว) ทำให้รูปตัวเลือกหายจากหน้าร้าน
+    if (!productId && variationId) {
+      const { data: v } = await supabaseAdmin
+        .from('product_variations').select('product_id').eq('id', variationId).maybeSingle();
+      productId = v?.product_id ?? null;
+    }
     let query = supabaseAdmin.from('product_images').select('id, sort_order').eq('image_url', imageUrl).eq('company_id', companyId);
     if (productId) query = query.eq('product_id', productId);
     if (variationId) query = query.eq('variation_id', variationId);

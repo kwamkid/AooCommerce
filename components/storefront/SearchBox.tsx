@@ -80,6 +80,17 @@ export default function SearchBox({ shop }: { shop: string }) {
               placeholder="ค้นหาสินค้า..."
               aria-label="ค้นหาสินค้า"
             />
+            {value && (
+              /* ล้างคำที่พิมพ์ทั้งหมด (ไม่ปิดกล่อง ไม่ยิงค้นหา) — คนละปุ่มกับ X บนหัวร้านที่ปิดกล่อง */
+              <button
+                type="button"
+                className="sf-search-clear"
+                onClick={() => { setValue(''); inputRef.current?.focus(); }}
+                aria-label="ล้างคำค้นหา"
+              >
+                <X strokeWidth={2} aria-hidden="true" />
+              </button>
+            )}
             <button
               type="submit"
               className="sf-search-go"
