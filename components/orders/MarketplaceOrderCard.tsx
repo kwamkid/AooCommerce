@@ -160,7 +160,8 @@ export default function MarketplaceOrderCard({
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [showLines, setShowLines] = useState(false);
-  const [hideDiscounts, setHideDiscounts] = useState(false);
+  // ค่าตั้งต้น = ไม่นับส่วนลด (เจ้าของถาม "ส่วนลดร้านไม่ควรรวม" — มุมมองปกติควรเป็นแบบนี้)
+  const [hideDiscounts, setHideDiscounts] = useState(true);
 
   // identity คงที่ — ไม่งั้น `load` เปลี่ยนทุก render ของหน้าแม่แล้วยิง API วนไม่จบ
   const emitLoaded = useStableCallback((payload: SettlementResponse) => { onLoaded?.(payload); });
@@ -168,7 +169,8 @@ export default function MarketplaceOrderCard({
   // ค่าสวิตช์อ่านหลัง mount (ไม่ใช่ตอน render) — กัน hydration ไม่ตรงกับฝั่ง server
   useEffect(() => {
     try {
-      setHideDiscounts(localStorage.getItem(HIDE_DISCOUNTS_KEY) === '1');
+      const stored = localStorage.getItem(HIDE_DISCOUNTS_KEY);
+      if (stored !== null) setHideDiscounts(stored === '1');
     } catch { /* โหมดส่วนตัว / ปิดการเก็บข้อมูลเว็บ — ใช้ค่าตั้งต้นไป */ }
   }, []);
 
