@@ -10,6 +10,7 @@ import StoreHeader from '@/components/storefront/StoreHeader';
 import type { NavLink } from '@/components/storefront/MobileNav';
 import ShopUnavailable from '@/components/storefront/ShopUnavailable';
 import '@/components/storefront/storefront.css';
+import '@/components/storefront/storefront-skeleton.css';
 
 export default async function StoreLayout({
   children,

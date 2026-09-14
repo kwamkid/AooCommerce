@@ -1,10 +1,12 @@
 // Path: app/store/[slug]/page.tsx
 // Storefront catalog — SSR + ISR so Google/AI crawlers get real HTML (they
 // mostly don't run JS) and Core Web Vitals stay fast.
+import { Suspense } from 'react';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import {
   getStorefrontCompany, getStorefrontCatalog, getClosedStorefront, catalogOptionsFor,
+  type StorefrontCompany,
 } from '@/lib/storefront-server';
 import {
   storefrontUrl, storefrontHref, STOREFRONT_PAGE_SIZE,
@@ -12,6 +14,7 @@ import {
 } from '@/lib/storefront';
 import StoreProductCard from '@/components/storefront/StoreProductCard';
 import StorePagination from '@/components/storefront/StorePagination';
+import CatalogSkeleton from '@/components/storefront/CatalogSkeleton';
 
 export const revalidate = 300;
 
@@ -70,13 +73,21 @@ export async function generateMetadata({ params, searchParams }: PageProps): Pro
 }
 
 
-export default async function StorefrontCatalogPage({ params, searchParams }: PageProps) {
-  const { slug } = await params;
-  const { cat, q, page: pageParam } = await searchParams;
-  const company = await getStorefrontCompany(slug);
-  if (!company) return null;   // layout แสดงหน้า 'ไม่พบร้านนี้' ให้แล้ว
-
-  const page = parsePage(pageParam);
+/**
+ * ส่วนที่ต้องรอ getStorefrontCatalog() (RPC + ประกอบข้อมูล 200–600ms)
+ * แยกออกมาเพื่อให้ห่อ <Suspense> ได้ — Next จะส่ง skeleton ออกไปทันทีตอน
+ * navigate แล้ว stream ผลจริงตามมา (ก่อนหน้านี้หน้าค้างนิ่งจนผลมาถึง
+ * เพราะ loading.tsx ไม่ทำงานเมื่อเปลี่ยนแค่ searchParams ใน segment เดิม)
+ */
+async function CatalogResults({
+  company, slug, cat, q, page,
+}: {
+  company: StorefrontCompany;
+  slug: string;
+  cat?: string;
+  q?: string;
+  page: number;
+}) {
   const { products, total, pageSize } = await getStorefrontCatalog(
     company.id,
     { ...catalogOptionsFor(company), category: cat, search: q, page, pageSize: STOREFRONT_PAGE_SIZE },
@@ -103,23 +114,21 @@ export default async function StorefrontCatalogPage({ params, searchParams }: Pa
   };
 
   return (
-    <div className="sf-container">
+    <>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(itemListLd) }}
       />
 
-      {/* หน้าแรกไม่มีหัวข้อ/คำโปรย — ชื่อร้านอยู่ที่หัวร้านแล้ว คำโปรยอยู่ใน <title>/description
-          ให้ Google (เจ้าของสั่ง 2026-09-14) · หน้าหมวด/ค้นหายังมีหัวข้อไว้บอกว่ากำลังดูอะไร */}
-      {(q || cat) && (
+      {/* หัวข้อของหน้าค้นหาอยู่ตรงนี้เพราะบรรทัด "พบ N รายการ" ต้องรอยอดรวมจริง
+          (หน้าหมวดไม่ต้องรอ จึงวาดไว้นอก Suspense แล้ว) */}
+      {q && (
         <div className="sf-hero">
-          <h1>{q ? `ผลการค้นหา "${q}"` : cat}</h1>
-          {q && (
-            <p>
-              พบ {total.toLocaleString('th-TH')} รายการ{' '}
-              <Link href={storefrontHref(slug)} className="sf-footer-link">ล้างคำค้นหา</Link>
-            </p>
-          )}
+          <h1>{`ผลการค้นหา "${q}"`}</h1>
+          <p>
+            พบ {total.toLocaleString('th-TH')} รายการ{' '}
+            <Link href={storefrontHref(slug)} className="sf-footer-link">ล้างคำค้นหา</Link>
+          </p>
         </div>
       )}
 
@@ -144,6 +153,35 @@ export default async function StorefrontCatalogPage({ params, searchParams }: Pa
           <StorePagination slug={slug} page={page} totalPages={totalPages} cat={cat} q={q} />
         </>
       )}
+    </>
+  );
+}
+
+
+export default async function StorefrontCatalogPage({ params, searchParams }: PageProps) {
+  const { slug } = await params;
+  const { cat, q, page: pageParam } = await searchParams;
+  const company = await getStorefrontCompany(slug);
+  if (!company) return null;   // layout แสดงหน้า 'ไม่พบร้านนี้' ให้แล้ว
+
+  const page = parsePage(pageParam);
+
+  return (
+    <div className="sf-container">
+      {/* หน้าแรกไม่มีหัวข้อ/คำโปรย — ชื่อร้านอยู่ที่หัวร้านแล้ว คำโปรยอยู่ใน <title>/description
+          ให้ Google (เจ้าของสั่ง 2026-09-14) · หน้าหมวดมีหัวข้อไว้บอกว่ากำลังดูอะไร และ
+          ไม่ต้องรอข้อมูล จึงอยู่นอก Suspense (เห็นทันทีที่กด) · หน้าค้นหาอยู่ใน CatalogResults */}
+      {cat && !q && (
+        <div className="sf-hero">
+          <h1>{cat}</h1>
+        </div>
+      )}
+
+      {/* key เปลี่ยนตาม searchParams = Suspense boundary ใหม่ทุกครั้งที่กรอง/ค้น/เปลี่ยนหน้า
+          → ผู้ใช้เห็น skeleton ทันที แทนที่จะนั่งมองหน้าเดิมค้างจนผลใหม่มาถึง */}
+      <Suspense key={`${cat ?? ''}|${q ?? ''}|${page}`} fallback={<CatalogSkeleton />}>
+        <CatalogResults company={company} slug={slug} cat={cat} q={q} page={page} />
+      </Suspense>
     </div>
   );
 }

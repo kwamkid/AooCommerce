@@ -3,14 +3,17 @@
 // URL that can be shared and bookmarked (not client-only filter state).
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useTransition } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Search, X } from 'lucide-react';
+import { Search, X, Loader2 } from 'lucide-react';
 import { storefrontHref } from '@/lib/storefront';
 
 export default function SearchBox({ shop }: { shop: string }) {
   const router = useRouter();
   const params = useSearchParams();
+  // หน้ารายการเป็น SSR — กด "ค้นหา" แล้วต้องรอ 200–600ms ก่อนหน้าจะเปลี่ยน
+  // useTransition ทำให้รู้ว่ายังเดินทางอยู่ จะได้ขึ้นสถานะที่ปุ่มแทนที่จะนิ่งสนิท
+  const [isPending, startTransition] = useTransition();
   const activeQuery = params.get('q') || '';
 
   // เปิดค้างไว้ถ้ากำลังดูผลค้นหาอยู่ — ผู้ใช้จะได้เห็นว่าค้นด้วยคำอะไร
@@ -37,13 +40,15 @@ export default function SearchBox({ shop }: { shop: string }) {
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     const q = value.trim();
-    router.push(q ? `${storefrontHref(shop)}?q=${encodeURIComponent(q)}` : storefrontHref(shop));
+    startTransition(() => {
+      router.push(q ? `${storefrontHref(shop)}?q=${encodeURIComponent(q)}` : storefrontHref(shop));
+    });
   };
 
   const close = () => {
     setOpen(false);
     setValue('');
-    if (activeQuery) router.push(storefrontHref(shop));
+    if (activeQuery) startTransition(() => router.push(storefrontHref(shop)));
   };
 
   return (
@@ -75,7 +80,15 @@ export default function SearchBox({ shop }: { shop: string }) {
               placeholder="ค้นหาสินค้า..."
               aria-label="ค้นหาสินค้า"
             />
-            <button type="submit" className="sf-search-go">ค้นหา</button>
+            <button
+              type="submit"
+              className="sf-search-go"
+              disabled={isPending}
+              aria-busy={isPending}
+            >
+              {isPending && <Loader2 className="sf-skel-spin" strokeWidth={2} aria-hidden="true" />}
+              ค้นหา
+            </button>
           </form>
         </div>
       )}
