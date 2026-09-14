@@ -10,14 +10,23 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-export default async function CheckoutPage({ params }: { params: Promise<{ slug: string }> }) {
+export default async function CheckoutPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ slug: string }>;
+  // ?coupon= มาจากปุ่มในบรอดแคสต์/ข้อความการตลาด — ลูกค้ากดแล้วได้โค้ดติดมาเลย ไม่ต้องจำไปพิมพ์เอง
+  searchParams: Promise<{ coupon?: string }>;
+}) {
   const { slug } = await params;
+  const { coupon } = await searchParams;
   const company = await getStorefrontCompany(slug);
   if (!company) return null;   // layout แสดงหน้า 'ไม่พบร้านนี้' ให้แล้ว
 
   return (
     <CheckoutClient
       shop={slug}
+      initialCoupon={typeof coupon === 'string' ? coupon.trim().toUpperCase().replace(/\s+/g, '').slice(0, 40) : ''}
       giftCard={company.gift_card.enabled}
       giftCardFee={company.gift_card.fee}
       lineLogin={company.config.line_login && !!company.line_login_channel_id}

@@ -26,15 +26,17 @@ import {
   type BroadcastActionType,
   type BroadcastProductCard,
 } from '@/lib/broadcast/content';
-import { Link2, MessageSquare, Package, Trash2 } from 'lucide-react';
+import { Link2, MessageSquare, Package, Ticket, Trash2 } from 'lucide-react';
 
 /**
  * ไอคอนประจำชนิด action — อยู่ที่ component ไม่ใช่ทะเบียนกลาง (lib ไม่ import lucide)
  * ชุดเดียวกับที่อื่นในระบบ: ลิงก์ = Link2 · สินค้า = Package · ข้อความ = MessageSquare
+ * · คูปอง = Ticket (ตัวเดียวกับเมนูคูปองส่วนลดใน Sidebar)
  */
 const ACTION_ICONS: Record<BroadcastActionType, ReactNode> = {
   url: <Link2 className="w-4 h-4" />,
   product: <Package className="w-4 h-4" />,
+  coupon: <Ticket className="w-4 h-4" />,
   message: <MessageSquare className="w-4 h-4" />,
 };
 
@@ -58,6 +60,12 @@ function tooltipFor(type: BroadcastActionType, storefrontOpen: boolean): string 
     return storefrontOpen
       ? 'เปิดหน้าสินค้าในหน้าร้านออนไลน์ของร้าน — ค้นจากคลัง'
       : 'ต้องเปิดหน้าร้านออนไลน์ก่อน (ตั้งค่า › หน้าร้านออนไลน์)';
+  }
+  if (type === 'coupon') {
+    // คูปองใช้ได้แม้ยังไม่เปิดหน้าร้าน (ตกไปเป็นข้อความเข้าห้องแชท) จึงไม่ปิดชิปเหมือน "สินค้า"
+    return storefrontOpen
+      ? 'เปิดหน้าร้านพร้อมใส่โค้ดให้อัตโนมัติ — ลูกค้าช็อปต่อได้เลย ไม่ต้องจำโค้ดไปพิมพ์เอง'
+      : 'ยังไม่เปิดหน้าร้านออนไลน์ — กดแล้วจะส่งโค้ดเข้าห้องแชทให้แอดมินปิดการขายต่อ';
   }
   return 'ข้อความถูกส่งเข้าห้องแชทเหมือนลูกค้าพิมพ์เอง — แบบเดียวกับปุ่มตอบเร็ว';
 }
@@ -97,6 +105,16 @@ export default function ActionPicker({
               disabled={disabled}
               placeholder="https://…"
               aria-label="ลิงก์ที่จะเปิด"
+            />
+          )}
+          {value.type === 'coupon' && (
+            // เก็บเป็นตัวพิมพ์ใหญ่ตั้งแต่พิมพ์ — โค้ดใน DB เป็นตัวพิมพ์ใหญ่เสมอ (lib/coupons.ts)
+            <FormInput
+              value={value.code}
+              onChange={e => onChange({ type: 'coupon', code: e.target.value.toUpperCase() })}
+              disabled={disabled}
+              placeholder="เช่น WELCOME50"
+              aria-label="โค้ดคูปองที่จะให้ใช้"
             />
           )}
           {value.type === 'product' && (value.product ? (

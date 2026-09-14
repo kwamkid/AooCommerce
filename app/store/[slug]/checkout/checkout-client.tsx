@@ -56,6 +56,11 @@ interface Props {
   giftCardFee: number;
   lineLogin: boolean;
   lineChannelId: string;
+  /**
+   * โค้ดคูปองที่ติดมากับลิงก์ (`?coupon=`) — เติมในช่องให้แล้ว**กดใช้ให้เลย**
+   * จุดที่คนหลุดมากที่สุดของการแจกคูปองคือต้องจำโค้ดไปพิมพ์เอง
+   */
+  initialCoupon?: string;
 }
 
 /** ข้อมูลลูกค้าที่ผูกกับบัญชีที่ล็อกอินอยู่ (จาก /api/storefront/me) */
@@ -76,7 +81,7 @@ function toISO(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEnabled, dateRequired, slotRequired, giftCard, giftCardFee, lineLogin, lineChannelId }: Props) {
+export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEnabled, dateRequired, slotRequired, giftCard, giftCardFee, lineLogin, lineChannelId, initialCoupon = '' }: Props) {
   const router = useRouter();
   const { lines, subtotal, hydrated } = useCart(shop);
 
@@ -214,7 +219,9 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
   // โค้ดส่วนลด — ตรวจกับเซิร์ฟเวอร์ก่อนเพื่อให้ลูกค้าเห็นยอดลดในกล่องสรุป
   // ยอดจริงคิดใหม่ทั้งหมดที่ /api/storefront/checkout ตอนสั่งซื้อเสมอ (ตรงนี้เป็นแค่พรีวิว)
   // เก็บ subtotal ตอนที่ตรวจผ่านไว้ด้วย — ถ้าตะกร้าเปลี่ยนทีหลัง ส่วนลดที่โชว์จะไม่ใช่ของจริงแล้ว
-  const [couponInput, setCouponInput] = useState('');
+  const [couponInput, setCouponInput] = useState(initialCoupon);
+  /** โค้ดจากลิงก์กดใช้ให้อัตโนมัติครั้งเดียว — ต้องรอตะกร้าโหลดเสร็จก่อน ไม่งั้นยอดเป็น 0 แล้วโดนปฏิเสธ */
+  const autoCouponRef = useRef(false);
   const [couponApplied, setCouponApplied] = useState<{ code: string; discount: number; subtotal: number } | null>(null);
   const [couponChecking, setCouponChecking] = useState(false);
   const [couponError, setCouponError] = useState('');
@@ -368,6 +375,16 @@ export default function CheckoutClient({ shop, zoneEnabled, slotEnabled, dateEna
       setCouponChecking(false);
     }
   };
+
+  // โค้ดที่ติดมากับลิงก์ (?coupon=) — กดใช้ให้เลยเมื่อตะกร้าโหลดเสร็จ ยิงครั้งเดียวพอ
+  // (ผู้ใช้ยังกด "เอาออก" หรือพิมพ์โค้ดอื่นทับได้ตามปกติ — ref กันแค่การยิงซ้ำอัตโนมัติ)
+  useEffect(() => {
+    if (autoCouponRef.current) return;
+    if (!initialCoupon || !hydrated || lines.length === 0) return;
+    autoCouponRef.current = true;
+    void applyCoupon();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialCoupon, hydrated, lines.length]);
 
   const clearCoupon = () => {
     setCouponApplied(null);

@@ -57,16 +57,23 @@ export const ACTION_MESSAGE_MAX = 300;
  * เพิ่มแบบใหม่ (เช่น คัดลอกโค้ดคูปอง = clipboard action ของ LINE · โทร = uri tel:) = เพิ่ม 1 ชนิดที่นี่
  * + 1 case ใน `lineActionFor()` + 1 ช่องกรอกใน ActionPicker — ทุกจุดที่กดได้ได้ตัวเลือกใหม่พร้อมกัน
  */
-export type BroadcastActionType = 'url' | 'product' | 'message';
+export type BroadcastActionType = 'url' | 'product' | 'message' | 'coupon';
 export type BroadcastAction =
   | { type: 'url'; url: string }
   | { type: 'product'; product: BroadcastProductCard | null }
-  | { type: 'message'; text: string };
+  | { type: 'message'; text: string }
+  /**
+   * coupon = เปิดหน้าร้านออนไลน์ **พร้อมใส่โค้ดให้อัตโนมัติ** — ลูกค้ากดแล้วช็อปต่อได้เลย
+   * ไม่ต้องจำโค้ดไปพิมพ์เอง (จุดที่คนหลุดมากที่สุดของการแจกคูปอง)
+   * `url` API เติมให้ตอนสร้างใบจาก slug ของร้าน + โค้ด — หน้าจอไม่ต้องรู้จัก URL ของหน้าร้าน
+   */
+  | { type: 'coupon'; code: string; url?: string };
 
-export const ACTION_TYPES: BroadcastActionType[] = ['url', 'product', 'message'];
+export const ACTION_TYPES: BroadcastActionType[] = ['url', 'product', 'coupon', 'message'];
 export const ACTION_LABELS: Record<BroadcastActionType, string> = {
   url: 'เปิดลิงก์',
   product: 'ไปที่สินค้า',
+  coupon: 'ใช้คูปอง',
   message: 'ส่งข้อความกลับ',
 };
 /**
@@ -76,6 +83,7 @@ export const ACTION_LABELS: Record<BroadcastActionType, string> = {
 export const ACTION_SHORT_LABELS: Record<BroadcastActionType, string> = {
   url: 'ลิงก์',
   product: 'สินค้า',
+  coupon: 'คูปอง',
   message: 'ข้อความ',
 };
 
@@ -83,6 +91,7 @@ export const ACTION_SHORT_LABELS: Record<BroadcastActionType, string> = {
 export function emptyAction(type: BroadcastActionType = 'url'): BroadcastAction {
   if (type === 'product') return { type, product: null };
   if (type === 'message') return { type, text: '' };
+  if (type === 'coupon') return { type, code: '' };
   return { type: 'url', url: '' };
 }
 export const EMPTY_ACTION: BroadcastAction = emptyAction('url');
@@ -92,6 +101,7 @@ export function isActionEmpty(action: BroadcastAction | null | undefined): boole
   if (!action) return true;
   if (action.type === 'product') return !action.product;
   if (action.type === 'message') return !action.text.trim();
+  if (action.type === 'coupon') return !action.code.trim();
   return !action.url.trim();
 }
 
@@ -103,12 +113,21 @@ export function normalizeAction(
   raw: unknown,
   productMapper: (raw: unknown) => BroadcastProductCard = r => r as BroadcastProductCard,
 ): BroadcastAction | null {
-  const r = raw as { type?: unknown; url?: unknown; product?: unknown; text?: unknown } | null | undefined;
+  const r = raw as {
+    type?: unknown; url?: unknown; product?: unknown; text?: unknown; code?: unknown;
+  } | null | undefined;
   if (!r || typeof r !== 'object') return null;
   if (r.type === 'url') return { type: 'url', url: typeof r.url === 'string' ? r.url.trim() : '' };
   if (r.type === 'product') return { type: 'product', product: r.product ? productMapper(r.product) : null };
   if (r.type === 'message') {
     return { type: 'message', text: typeof r.text === 'string' ? r.text.trim().slice(0, ACTION_MESSAGE_MAX) : '' };
+  }
+  if (r.type === 'coupon') {
+    // โค้ดเก็บเป็นตัวพิมพ์ใหญ่เสมอ — กติกาเดียวกับ normalizeCouponCode ของ lib/coupons.ts
+    // (ที่นี่ import ไม่ได้เพราะไฟล์นี้ต้อง client-safe และไม่ผูกโดเมนคูปอง)
+    const code = typeof r.code === 'string' ? r.code.trim().toUpperCase().replace(/\s+/g, '') : '';
+    const url = typeof r.url === 'string' && r.url.trim() ? r.url.trim() : undefined;
+    return { type: 'coupon', code, ...(url ? { url } : {}) };
   }
   return null;
 }
@@ -126,6 +145,12 @@ export function validateAction(action: BroadcastAction | null | undefined, subje
     if (action.product.url && !isHttpsUrl(action.product.url)) return 'ลิงก์ของสินค้าต้องเป็น https';
     return null;
   }
+  if (action.type === 'coupon') {
+    if (!action.code.trim()) return `ใส่โค้ดคูปองที่จะให้ใช้เมื่อ${subject}`;
+    // url เติมโดย API ตอนสร้างใบ — ถ้ามีมาแล้วต้องเป็น https เหมือนลิงก์อื่น
+    if (action.url && !isHttpsUrl(action.url)) return 'ลิงก์หน้าร้านต้องเป็น https';
+    return null;
+  }
   const text = action.text.trim();
   if (!text) return `ใส่ข้อความที่จะส่งกลับเมื่อ${subject}`;
   if (text.length > ACTION_MESSAGE_MAX) return `ข้อความที่ส่งกลับยาวเกิน ${ACTION_MESSAGE_MAX} ตัวอักษร`;
@@ -137,6 +162,7 @@ export function actionSummary(action: BroadcastAction | null | undefined): strin
   if (!action || isActionEmpty(action)) return '';
   if (action.type === 'product') return action.product?.name || '';
   if (action.type === 'message') return `ส่ง "${action.text.trim()}"`;
+  if (action.type === 'coupon') return `โค้ด ${action.code.trim()}`;
   try {
     return new URL(action.url.trim()).hostname;
   } catch {
@@ -231,6 +257,29 @@ export function blockProductActions(
   const out: Extract<BroadcastAction, { type: 'product' }>[] = [];
   const take = (a: BroadcastAction | null | undefined) => {
     if (a && a.type === 'product' && a.product) out.push(a);
+  };
+  for (const b of blocks) {
+    if (b.type === 'rich') take(b.action);
+    if (b.type === 'cards') {
+      for (const c of b.cards) {
+        take(c.tap_action);
+        for (const btn of c.buttons) take(btn.action);
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * เหมือน `blockProductActions` แต่เก็บชนิด "คูปอง" — API เติมลิงก์หน้าร้าน + โค้ดให้ทุกจุดทีเดียว
+ * (ต้องไล่เก็บให้ครบทุกที่ที่กดได้ ไม่งั้นปุ่มบางใบจะตกไปเป็นข้อความทั้งที่ร้านเปิดหน้าร้านแล้ว)
+ */
+export function blockCouponActions(
+  blocks: BroadcastBlock[],
+): Extract<BroadcastAction, { type: 'coupon' }>[] {
+  const out: Extract<BroadcastAction, { type: 'coupon' }>[] = [];
+  const take = (a: BroadcastAction | null | undefined) => {
+    if (a && a.type === 'coupon' && a.code.trim()) out.push(a);
   };
   for (const b of blocks) {
     if (b.type === 'rich') take(b.action);

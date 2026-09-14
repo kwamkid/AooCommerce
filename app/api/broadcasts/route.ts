@@ -20,6 +20,7 @@ import {
 } from '@/lib/line/broadcast';
 import { resolveTikTokRecipients } from '@/lib/tiktok/broadcast';
 import {
+  blockCouponActions,
   blockProductActions,
   broadcastContentPreview,
   broadcastPreviewImage,
@@ -33,7 +34,7 @@ import {
   type BroadcastProductCard,
   type BroadcastGalleryImage,
 } from '@/lib/broadcast/content';
-import { fillStorefrontProductLinks } from '@/lib/broadcast/product-links';
+import { fillStorefrontCouponLinks, fillStorefrontProductLinks } from '@/lib/broadcast/product-links';
 import { resolveAccountPicture } from '@/lib/chat/account-picture';
 
 // ส่งจริงเกิดใน after() ของ POST — ต้องให้ฟังก์ชันอยู่ได้นานพอที่จะไล่ล็อตจนจบ
@@ -443,6 +444,22 @@ export async function POST(request: NextRequest) {
     if ((content.products || []).length > 0) {
       content.products = await fillStorefrontProductLinks(auth.companyId, content.products || []);
     }
+
+    // ปุ่ม "ใช้คูปอง" ทุกจุด — เติมลิงก์หน้าร้าน + โค้ด ให้ลูกค้ากดแล้วช็อปต่อได้ทันทีโดยไม่ต้องจำโค้ด
+    // ⚠️ เติมไม่ได้ = ไม่ปฏิเสธใบ (ต่างจาก "ไปที่สินค้า") — ร้านที่ยังไม่เปิดหน้าร้านก็ยังแจกคูปองได้
+    // ปุ่มจะตกไปเป็นข้อความ "ขอใช้โค้ด …" เข้าห้องแชทให้แอดมินปิดการขายต่อ
+    const couponActions: Extract<BroadcastAction, { type: 'coupon' }>[] = [];
+    if (content.kind === 'poster' && content.tap_action?.type === 'coupon') {
+      couponActions.push(content.tap_action);
+    }
+    for (const b of content.buttons || []) {
+      if (b.action?.type === 'coupon') couponActions.push(b.action);
+    }
+    for (const img of content.images || []) {
+      if (img.action?.type === 'coupon') couponActions.push(img.action);
+    }
+    if (content.kind === 'blocks') couponActions.push(...blockCouponActions(content.blocks || []));
+    if (couponActions.length > 0) await fillStorefrontCouponLinks(auth.companyId, couponActions);
 
     let messages: unknown;
     let recipientCount: number;

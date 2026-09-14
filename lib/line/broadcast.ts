@@ -382,6 +382,14 @@ function lineActionFor(action: BroadcastAction | null, label: string): LineActio
     if (!text) throw new Error('ยังไม่ได้ใส่ข้อความที่จะส่งกลับ');
     return { type: 'message', label: lbl, text };
   }
+  if (action.type === 'coupon') {
+    // มีลิงก์หน้าร้าน (API เติมให้ตอนสร้างใบ) = เปิดหน้าร้านพร้อมใส่โค้ดให้เลย
+    if (action.url) return { type: 'uri', label: lbl, uri: action.url };
+    // ร้านยังไม่เปิดหน้าร้านออนไลน์ — ยังแจกคูปองได้ ให้โค้ดเข้าห้องแชทแล้วแอดมินปิดการขายต่อ
+    const code = action.code.trim();
+    if (!code) throw new Error('ยังไม่ได้ใส่โค้ดคูปอง');
+    return { type: 'message', label: lbl, text: `ขอใช้โค้ด ${code}`.slice(0, ACTION_MESSAGE_MAX) };
+  }
   const url = action.url.trim();
   if (!/^https:\/\//i.test(url)) throw new Error('ลิงก์ต้องเป็น https');
   return { type: 'uri', label: lbl, uri: url };

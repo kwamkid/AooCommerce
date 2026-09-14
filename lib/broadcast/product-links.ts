@@ -13,7 +13,7 @@
 
 import { supabaseAdmin } from '@/lib/supabase-admin';
 import { parseStorefront, storefrontUrl } from '@/lib/storefront';
-import type { BroadcastProductCard } from './content';
+import type { BroadcastAction, BroadcastProductCard } from './content';
 
 /**
  * โฮสต์สาธารณะของระบบ — ลิงก์ที่ส่งออกไปกับข้อความต้องเป็น URL เต็มเสมอ
@@ -76,4 +76,38 @@ export async function fillStorefrontProductLinks(
       ? { ...p, url: linkById.get(p.product_id) as string }
       : p
   ));
+}
+
+/**
+ * เติมลิงก์ "เปิดหน้าร้านพร้อมใส่โค้ดให้เลย" ให้ปุ่มชนิดคูปอง — แก้ค่าใน action ที่ส่งมาเลย
+ *
+ * ทำไมต้องมี: จุดที่ลูกค้าหลุดมากที่สุดของการแจกคูปองคือ**ต้องจำโค้ดไปพิมพ์เอง**
+ * ลิงก์นี้พาไปหน้าร้านพร้อม `?coupon=` ซึ่งหน้า checkout เติมให้ในช่องและกดใช้ให้อัตโนมัติ
+ *
+ * ⚠️ ต่างจากลิงก์สินค้า: **เติมไม่ได้ไม่ใช่ข้อผิดพลาด** — ร้านที่ยังไม่เปิดหน้าร้านออนไลน์
+ * ก็ยังแจกคูปองได้ ปุ่มจะตกไปเป็นข้อความเข้าห้องแชทให้แอดมินปิดการขายต่อ (lineActionFor)
+ */
+export async function fillStorefrontCouponLinks(
+  companyId: string,
+  actions: Extract<BroadcastAction, { type: 'coupon' }>[],
+): Promise<void> {
+  // ห้ามทับลิงก์ที่ผู้ใช้ใส่เอง — กติกาเดียวกับลิงก์สินค้า
+  const pending = actions.filter(a => !a.url && a.code.trim());
+  if (pending.length === 0) return;
+
+  const { data: company } = await supabaseAdmin
+    .from('companies')
+    .select('settings, storefront_slug')
+    .eq('id', companyId)
+    .maybeSingle();
+
+  const slug = ((company?.storefront_slug as string | null) || '').trim();
+  const cfg = parseStorefront(company?.settings as Record<string, unknown> | null);
+  if (!cfg.enabled || !slug) return;
+
+  const base = absolute(storefrontUrl(cfg, slug, ''));
+  const joiner = base.includes('?') ? '&' : '?';
+  for (const a of pending) {
+    a.url = `${base}${joiner}coupon=${encodeURIComponent(a.code.trim())}`;
+  }
 }
