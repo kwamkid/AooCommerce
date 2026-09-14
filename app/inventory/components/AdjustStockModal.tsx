@@ -57,7 +57,10 @@ export default function AdjustStockModal({ row, warehouses, initialWarehouseId, 
   const [note, setNote] = useState('');
   const [saving, setSaving] = useState(false);
 
-  const currentQty = row.by_warehouse.find(w => w.warehouse_id === warehouseId)?.quantity ?? 0;
+  const currentWh = row.by_warehouse.find(w => w.warehouse_id === warehouseId);
+  const currentQty = currentWh?.quantity ?? 0;
+  const currentReserved = currentWh?.reserved ?? 0;
+  const currentAvailable = currentWh?.available ?? currentQty - currentReserved;
   const diff = newQty - currentQty;
 
   // คลังในบริษัทก่อน แล้วค่อยคลังฝากขายของตัวแทน — ชุดเดียวกับตัวกรองในหน้ารายการ
@@ -157,11 +160,31 @@ export default function AdjustStockModal({ row, warehouses, initialWarehouseId, 
 
         {warehouseId && (
           <>
-            <div className="flex items-baseline justify-between inner-panel inner-panel-body">
-              <span className="body-text text-gray-600 dark:text-slate-300">ยอดปัจจุบันในคลังนี้</span>
-              <span className="text-lg font-bold text-gray-900 dark:text-white tabular-nums">
-                {formatNumber(currentQty)}
-              </span>
+            {/* ช่องนี้ปรับ "ของที่มีอยู่จริง" (quantity) ไม่ใช่ "พร้อมขาย" —
+                หน้ารายการโชว์พร้อมขาย (quantity − จอง) ซึ่งเป็นคนละเลข เคยทำให้งงว่า
+                ข้างนอกขึ้น -1 แต่เปิดเข้ามาเห็น 16 · จึงต้องโชว์ทั้งสามเลขให้ครบตรงนี้ */}
+            <div className="inner-panel inner-panel-body space-y-1">
+              <div className="flex items-baseline justify-between">
+                <span className="body-text text-gray-600 dark:text-slate-300">ของที่มีอยู่จริงในคลังนี้</span>
+                <span className="text-lg font-bold text-gray-900 dark:text-white tabular-nums">
+                  {formatNumber(currentQty)}
+                </span>
+              </div>
+              <div className="flex items-baseline justify-between subtitle-text">
+                <span>จอง (ติดออเดอร์)</span>
+                <span className="tabular-nums">{formatNumber(currentReserved)}</span>
+              </div>
+              <div className="flex items-baseline justify-between subtitle-text">
+                <span>พร้อมขาย</span>
+                <span className={`tabular-nums ${currentAvailable < 0 ? 'text-red-500 dark:text-red-400 font-medium' : ''}`}>
+                  {formatNumber(currentAvailable)}
+                </span>
+              </div>
+              {currentAvailable < 0 && (
+                <p className="helper-text text-red-500 dark:text-red-400">
+                  ยอดจองมากกว่าของที่มี — มักเกิดจากออเดอร์ที่ยกเลิกแล้วแต่ยังไม่คืนยอดจอง
+                </p>
+              )}
             </div>
 
             <div>
