@@ -47,8 +47,8 @@ paths:
 **หน้ารายการสินค้า — แบ่งหน้า/เรียง/กรองที่ DB** (2026-09-14)
 - RPC **`get_storefront_catalog(p_company_id, p_category, p_search, p_sort, p_stock_enabled, p_hide_out_of_stock, p_hide_no_image, p_limit, p_offset)`** → `(id, total_count)` — คืนแค่ id ของหน้านั้น แล้ว `getStorefrontCatalog()` ไปประกอบรายละเอียดเฉพาะ id นั้น **ตามลำดับที่ RPC ให้มา** (ห้ามเรียงชื่อทับ)
 - ⛔ **เงื่อนไข "ขึ้นหน้าร้านได้" ใน RPC ต้องตรงกับ `getStorefrontProduct()` เป๊ะ** (`is_active` + `storefront_visible` + มี variation ที่ `is_active and deleted_at is null`) — ต่างกันเมื่อไหร่ = ลิงก์ในรายการพาไปหน้า 404
-- แบ่งหน้า `STOREFRONT_PAGE_SIZE = 24` · `?page=N` (หน้า 1 ไม่ใส่) · `StorePagination` **ทุกลิงก์ต้องคง `cat` และ `q` เดิม** · หน้า >1 มี canonical ของตัวเอง (`?page=N`) + title ต่อท้าย " — หน้า N"
-- h1: หน้าแรก = "สินค้าทั้งหมด" (ชื่อร้านอยู่ที่หัวร้านแล้ว ห้ามซ้ำ) · หน้าหมวด = ชื่อหมวด · หน้าค้นหา = ผลการค้นหา
+- แบ่งหน้า `STOREFRONT_PAGE_SIZE = 20` · `?page=N` (หน้า 1 ไม่ใส่) · `StorePagination` **ทุกลิงก์ต้องคง `cat` และ `q` เดิม** · หน้า >1 มี canonical ของตัวเอง (`?page=N`) + title ต่อท้าย " — หน้า N"
+- **หน้าแรกไม่มี h1/คำโปรย** (เจ้าของสั่ง 2026-09-14 — ชื่อร้านอยู่ที่หัวร้าน คำโปรยอยู่ใน `<title>`/description พอ · ห้ามเอากลับมา) · หน้าหมวด h1 = ชื่อหมวด · หน้าค้นหา h1 = ผลการค้นหา
 - ⛔ **สต็อกหน้าร้านมาจาก RPC `get_variation_stock` เท่านั้น — ห้ามอ่าน `product_variations.stock`** (คอลัมน์ค้าง ไม่มีใครอัปเดต ดู fix-bug.md 2026-09-14) · ร้านที่ไม่เปิดระบบคลังถือว่าพร้อมขายเสมอ
 - config `show_out_of_stock` (มีผลเฉพาะเมื่อเปิดระบบคลัง) · `show_without_image` · `sort_by` ส่งผ่าน **`catalogOptionsFor(company)`** ทุก caller — **รวม `sitemap.xml` และ `llms.txt` ด้วย** (ไม่พา crawler ไปหน้าที่ลูกค้าหาไม่เจอในรายการ)
 

@@ -133,8 +133,8 @@ export const STOREFRONT_SORT_LABELS: Record<StorefrontSort, string> = {
   price_desc: 'ราคาสูง → ต่ำ',
   name: 'ชื่อสินค้า ก → ฮ',
 };
-/** จำนวนสินค้าต่อหน้าในหน้ารายการ — หาร 2/3/4 คอลัมน์ลงตัว แถวสุดท้ายไม่ขาด */
-export const STOREFRONT_PAGE_SIZE = 24;
+/** จำนวนสินค้าต่อหน้าในหน้ารายการ (เจ้าของเลือก 20 · 2026-09-14) */
+export const STOREFRONT_PAGE_SIZE = 20;
 
 export const DEFAULT_STOREFRONT: StorefrontConfig = {
   enabled: false,

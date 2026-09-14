@@ -109,20 +109,19 @@ export default async function StorefrontCatalogPage({ params, searchParams }: Pa
         dangerouslySetInnerHTML={{ __html: JSON.stringify(itemListLd) }}
       />
 
-      <div className="sf-hero">
-        {/* หน้าแรกใช้ "สินค้าทั้งหมด" (ตรงกับชื่อลิงก์ในเมนู) — ชื่อร้านอยู่ที่หัวร้านแล้ว
-            เอามาเป็น h1 ซ้ำอีกรอบไม่ได้บอกอะไรเพิ่ม */}
-        <h1>{q ? `ผลการค้นหา "${q}"` : cat || 'สินค้าทั้งหมด'}</h1>
-        {q ? (
-          <p>
-            พบ {total.toLocaleString('th-TH')} รายการ{' '}
-            <Link href={storefrontHref(slug)} className="sf-footer-link">ล้างคำค้นหา</Link>
-          </p>
-        ) : (
-          /* คำโปรยเป็นประโยคเต็ม — หน้า grid เปล่า ๆ ถือเป็น thin content */
-          <p>{cfg.tagline || company.description || `เลือกซื้อสินค้าจาก ${shopName} จัดส่งถึงบ้าน`}</p>
-        )}
-      </div>
+      {/* หน้าแรกไม่มีหัวข้อ/คำโปรย — ชื่อร้านอยู่ที่หัวร้านแล้ว คำโปรยอยู่ใน <title>/description
+          ให้ Google (เจ้าของสั่ง 2026-09-14) · หน้าหมวด/ค้นหายังมีหัวข้อไว้บอกว่ากำลังดูอะไร */}
+      {(q || cat) && (
+        <div className="sf-hero">
+          <h1>{q ? `ผลการค้นหา "${q}"` : cat}</h1>
+          {q && (
+            <p>
+              พบ {total.toLocaleString('th-TH')} รายการ{' '}
+              <Link href={storefrontHref(slug)} className="sf-footer-link">ล้างคำค้นหา</Link>
+            </p>
+          )}
+        </div>
+      )}
 
       {products.length === 0 ? (
         <p className="sf-empty">
