@@ -51,6 +51,41 @@ export const BUCKET_SIGN: Record<FeeBucket, '+' | '-' | '±'> = {
   adjustment: '±',
 };
 
+/**
+ * กลุ่มของช่องค่าธรรมเนียม — มุม "ตั้งราคา": อะไรโดนเก็บทุกออเดอร์ · อะไรจ่ายเฉพาะที่ร้านเลือกใช้
+ * · `platform`  = เก็บทุกใบ ตามหมวด/วิธีจ่าย → ต้องเผื่อในราคาเสมอ
+ * · `marketing` = affiliate/โฆษณา/แคมเปญ → จ่ายเฉพาะออเดอร์ที่มาจากช่องนั้น
+ * · `shipping`  = ค่าส่งที่ร้านรับ หักเงินที่แพลตฟอร์มช่วยจ่าย (เป็นบาทต่อกล่อง ไม่ใช่ % ของราคา)
+ * · `other`     = ค่าธรรมเนียมอื่น / ปรับยอด
+ * ส่วนลด (`seller_discount` · `platform_discount`) ไม่อยู่ในกลุ่มไหน — ไม่ใช่เงินที่แพลตฟอร์มเก็บจากเรา
+ */
+export const FEE_GROUPS: { key: string; label: string; hint: string; buckets: FeeBucket[] }[] = [
+  {
+    key: 'platform',
+    label: 'ค่าธรรมเนียมแพลตฟอร์ม (เก็บทุกออเดอร์)',
+    hint: 'ค่าคอมตามหมวด + ค่าธรรมเนียมชำระเงิน + ค่าบริการ + ภาษีหัก ณ ที่จ่าย — โดนทุกใบ ใช้ % นี้เผื่อในราคาขายเสมอ',
+    buckets: ['commission', 'payment_fee', 'service_fee', 'tax_withheld'],
+  },
+  {
+    key: 'marketing',
+    label: 'การตลาดที่ร้านเลือกใช้',
+    hint: 'ส่วนแบ่งนักขาย · โฆษณา · ค่าแคมเปญ — จ่ายเฉพาะออเดอร์ที่มาจากช่องทางนั้น ถ้าไม่เข้าร่วมก็ไม่โดน',
+    buckets: ['affiliate', 'ads', 'campaign_fee'],
+  },
+  {
+    key: 'shipping',
+    label: 'ค่าส่งสุทธิ',
+    hint: 'ค่าส่งที่ร้านรับผิดชอบ หักเงินที่แพลตฟอร์มช่วยจ่าย — คิดเป็นบาทต่อกล่อง ไม่ผูกกับราคาสินค้า',
+    buckets: ['shipping_cost', 'platform_subsidy'],
+  },
+  {
+    key: 'other',
+    label: 'อื่น ๆ / ปรับยอด',
+    hint: 'ค่าธรรมเนียมที่จัดกลุ่มไม่ได้ และรายการปรับยอด/คืนของ',
+    buckets: ['other_fee', 'adjustment'],
+  },
+];
+
 export const BUCKET_LABELS: Record<FeeBucket | 'net_payout' | 'cogs' | 'gross_profit', string> = {
   gross_sales: 'ยอดขาย',
   seller_discount: 'ส่วนลดร้าน',

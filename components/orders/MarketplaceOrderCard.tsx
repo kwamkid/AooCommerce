@@ -21,7 +21,6 @@ import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import HelpHint from '@/components/ui/HelpHint';
 import PlatformIcon from '@/components/ui/PlatformIcon';
-import Toggle from '@/components/ui/Toggle';
 import { InfoChip } from '@/components/ui/StatusBadge';
 import { LoadingCard } from '@/components/ui/StateCard';
 import { apiFetch } from '@/lib/api-client';
@@ -32,7 +31,7 @@ import { formatPrice } from '@/lib/utils/format';
 import { MARKETPLACE_PLATFORMS } from '@/lib/marketplace/platforms';
 import type { MarketplaceBuyer } from '@/lib/marketplace/buyer-adapter';
 import {
-  FEE_BUCKETS, BUCKET_SIGN, BUCKET_LABELS, BUCKET_HINTS, COGS_BASIS_HINTS,
+  FEE_GROUPS, BUCKET_SIGN, BUCKET_LABELS, BUCKET_HINTS, COGS_BASIS_HINTS,
   type FeeBucket,
 } from '@/lib/marketplace/fee-types';
 
@@ -75,25 +74,6 @@ const num = (v: unknown): number => {
   return Number.isFinite(n) ? n : 0;
 };
 
-/**
- * ค่าธรรมเนียมที่แพลตฟอร์มหักเรา = ทุกช่องที่ทิศเป็น `-` **ยกเว้นส่วนลดร้าน**
- * (ส่วนลดที่ร้านออกเองไม่ใช่ค่าธรรมเนียม เอามารวมแล้ว % จะดูสูงเกินจริง)
- */
-const FEE_DEDUCTION_BUCKETS = FEE_BUCKETS.filter(
-  b => BUCKET_SIGN[b] === '-' && b !== 'seller_discount',
-);
-
-/**
- * ช่องที่ "ไม่ใช่เงินที่แพลตฟอร์มหักเรา" — สวิตช์ "ไม่นับส่วนลด" เอาออกจากการคิด
- * · ส่วนลดร้าน = ร้านลดเอง (ถอดออกจากฐาน ไม่ใช่ค่าธรรมเนียม)
- * · ส่วนลดที่แพลตฟอร์มออกให้ = แพลตฟอร์มจ่ายแทนลูกค้า ไม่กระทบเงินเรา (แค่ข้อมูล)
- * ส่วน "เงินที่แพลตฟอร์มช่วยจ่าย" ยังโชว์ เพราะมันหักลบกับค่าธรรมเนียมจริง
- */
-const DISCOUNT_BUCKETS: FeeBucket[] = ['seller_discount', 'platform_discount'];
-
-/** จำค่าสวิตช์ต่อเครื่องผู้ใช้ (localStorage อาจอ่าน/เขียนไม่ได้ — ครอบ try/catch เสมอ) */
-const HIDE_DISCOUNTS_KEY = 'mp-card-hide-discounts';
-
 const SIGN_PREFIX: Record<'+' | '-' | '±', string> = { '+': '+', '-': '−', '±': '±' };
 
 /** สัดส่วนของยอดตั้งต้น — ยอดตั้งต้นเป็น 0 = บอกเป็น % ไม่ได้ (ห้ามโชว์ 0.0%) */
@@ -108,7 +88,7 @@ function PctNote({ pct }: { pct: number | null }) {
 }
 
 function AmountRow({
-  label, hint, amount, sign, tone = 'default', strong = false, pct = null,
+  label, hint, amount, sign, tone = 'default', strong = false, pct = null, muted = false,
 }: {
   label: string;
   hint?: string;
@@ -116,8 +96,10 @@ function AmountRow({
   sign?: '+' | '-' | '±';
   tone?: 'default' | 'good' | 'bad';
   strong?: boolean;
-  /** % ของยอดขาย — null = ไม่มียอดขายให้เทียบ */
+  /** % ของราคาที่ขายได้ — null = ไม่มียอดให้เทียบ */
   pct?: number | null;
+  /** บรรทัดลูกในกลุ่ม / ข้อมูลประกอบ — จางลง */
+  muted?: boolean;
 }) {
   const color = tone === 'good'
     ? 'text-emerald-600 dark:text-emerald-400'
@@ -129,7 +111,7 @@ function AmountRow({
   const shown = Math.abs(amount);
   const prefix = sign ? SIGN_PREFIX[sign] : (amount < 0 ? '−' : '');
   return (
-    <div className={`flex items-baseline justify-between gap-3 ${strong ? 'font-semibold' : ''}`}>
+    <div className={`flex items-baseline justify-between gap-3 ${strong ? 'font-semibold' : ''} ${muted ? 'opacity-80' : ''}`}>
       <span className="text-gray-600 dark:text-slate-300 flex items-center">
         {label}
         {hint && <HelpHint>{hint}</HelpHint>}
@@ -160,26 +142,8 @@ export default function MarketplaceOrderCard({
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [showLines, setShowLines] = useState(false);
-  // ค่าตั้งต้น = ไม่นับส่วนลด (เจ้าของถาม "ส่วนลดร้านไม่ควรรวม" — มุมมองปกติควรเป็นแบบนี้)
-  const [hideDiscounts, setHideDiscounts] = useState(true);
-
   // identity คงที่ — ไม่งั้น `load` เปลี่ยนทุก render ของหน้าแม่แล้วยิง API วนไม่จบ
   const emitLoaded = useStableCallback((payload: SettlementResponse) => { onLoaded?.(payload); });
-
-  // ค่าสวิตช์อ่านหลัง mount (ไม่ใช่ตอน render) — กัน hydration ไม่ตรงกับฝั่ง server
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem(HIDE_DISCOUNTS_KEY);
-      if (stored !== null) setHideDiscounts(stored === '1');
-    } catch { /* โหมดส่วนตัว / ปิดการเก็บข้อมูลเว็บ — ใช้ค่าตั้งต้นไป */ }
-  }, []);
-
-  const toggleHideDiscounts = (v: boolean) => {
-    setHideDiscounts(v);
-    try {
-      localStorage.setItem(HIDE_DISCOUNTS_KEY, v ? '1' : '0');
-    } catch { /* เก็บไม่ได้ก็แค่ไม่จำข้ามครั้ง */ }
-  };
 
   const load = useCallback(async () => {
     try {
@@ -235,18 +199,26 @@ export default function MarketplaceOrderCard({
   const s = data.settlement;
   const grossSales = num(s?.gross_sales);
   const netPayout = num(s?.net_payout);
-  const feeTotal = FEE_DEDUCTION_BUCKETS.reduce((sum, b) => sum + num(s?.[b]), 0);
-  const feePct = pctOf(feeTotal, grossSales);
-  // ฐาน "ยอดหลังหักส่วนลดร้าน" — ส่วนลดที่ร้านออกเองไม่เคยเข้ากระเป๋าเรา
-  // จึงเป็นฐานที่ตอบว่า "เงินที่ขายได้จริง โดนแพลตฟอร์มกินไปกี่ %"
   const sellerDiscount = num(s?.seller_discount);
-  const afterSellerDiscount = grossSales - sellerDiscount;
-  // "แพลตฟอร์มหักจริง" = ยอดที่ร้านขายได้จริง − เงินที่เข้ากระเป๋า
-  // (ค่าธรรมเนียมทุกช่อง หักลบด้วยเงินที่แพลตฟอร์มช่วยจ่าย/ชดเชย — ตัวเลขเดียวที่ตอบว่าเสียไปเท่าไหร่)
-  const realDeduction = afterSellerDiscount - netPayout;
-  const realDeductionPct = pctOf(realDeduction, afterSellerDiscount);
-  // ฐานของ % ทุกบรรทัด: ปกติ = ยอดขาย · ไม่นับส่วนลด = ยอดหลังหักส่วนลดร้าน
-  const pctBase = hideDiscounts ? afterSellerDiscount : grossSales;
+  const platformDiscount = num(s?.platform_discount);
+  // ฐานเดียวของ % ทุกบรรทัด = ราคาที่ขายได้จริง (ราคาป้าย − ส่วนลดที่ร้านลดเอง)
+  // ค่าธรรมเนียมของแพลตฟอร์มคิดจากราคานี้ (ตรวจแล้ว: ค่าธรรมเนียมชำระเงิน Lazada = 3% + VAT = 3.21% ของฐานนี้พอดี)
+  const soldPrice = grossSales - sellerDiscount;
+  const signed = (b: FeeBucket) => {
+    const v = num(s?.[b]);
+    return BUCKET_SIGN[b] === '-' ? -v : BUCKET_SIGN[b] === '+' ? v : 0; // ± ไม่รู้ทิศ ไม่รวมในยอดกลุ่ม
+  };
+  const groups = FEE_GROUPS
+    .map(g => ({
+      ...g,
+      rows: g.buckets.filter(b => num(s?.[b]) !== 0),
+      total: g.buckets.reduce((sum, b) => sum + signed(b), 0), // ติดลบ = เสีย
+    }))
+    .filter(g => g.rows.length > 0);
+  const takenByPlatform = soldPrice - netPayout; // ทุกอย่างที่ไม่ถึงกระเป๋า (สุทธิหลังเงินช่วยจ่าย)
+  const takenPct = pctOf(takenByPlatform, soldPrice);
+  const keepPct = pctOf(netPayout, soldPrice);
+  const groupPct = (g: { total: number }) => pctOf(g.total, soldPrice);
   const cogs = s?.cogs == null ? null : num(s.cogs);
   const grossProfit = s?.gross_profit == null ? null : num(s.gross_profit);
   const cogsBasis = (s?.cogs_basis || '') as keyof typeof COGS_BASIS_HINTS;
@@ -306,91 +278,106 @@ export default function MarketplaceOrderCard({
               <Wallet className="w-4 h-4" />
               <span className="font-medium">เงินที่ได้รับจริง</span>
             </div>
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2">
-                <span className="text-gray-600 dark:text-slate-300">ไม่นับส่วนลด</span>
-                <Toggle
-                  checked={hideDiscounts}
-                  onChange={toggleHideDiscounts}
-                  aria-label="ไม่นับส่วนลด"
-                />
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                icon={<RefreshCw className="w-4 h-4" />}
-                loading={syncing}
-                onClick={handleSync}
-              >
-                ดึงใหม่
-              </Button>
-            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              icon={<RefreshCw className="w-4 h-4" />}
+              loading={syncing}
+              onClick={handleSync}
+            >
+              ดึงใหม่
+            </Button>
           </div>
 
+          {/* ฐาน: ราคาป้าย − ส่วนลดร้าน = ราคาที่ขายได้ (100%) */}
           <div className="space-y-2">
-            {hideDiscounts && sellerDiscount > 0 ? (
-              <AmountRow
-                label="ยอดหลังหักส่วนลดร้าน"
-                hint={`ยอดขาย ฿${formatPrice(grossSales)} − ส่วนลดร้าน ฿${formatPrice(sellerDiscount)} — เงินที่ร้านขายได้จริง ใช้เป็นฐานคิด % ทุกบรรทัด`}
-                amount={afterSellerDiscount}
-                pct={pctOf(afterSellerDiscount, pctBase)}
-              />
+            {sellerDiscount !== 0 || platformDiscount !== 0 ? (
+              <>
+                <AmountRow label="ราคาป้าย" hint={BUCKET_HINTS.gross_sales} amount={grossSales} />
+                {sellerDiscount !== 0 && (
+                  <AmountRow
+                    label={BUCKET_LABELS.seller_discount}
+                    hint={`${BUCKET_HINTS.seller_discount} — ร้านลดเอง ไม่ใช่เงินที่แพลตฟอร์มเก็บ จึงไม่นับเป็นค่าธรรมเนียม`}
+                    amount={sellerDiscount}
+                    sign="-"
+                  />
+                )}
+                {platformDiscount !== 0 && (
+                  <AmountRow
+                    label={BUCKET_LABELS.platform_discount}
+                    hint={`${BUCKET_HINTS.platform_discount} — ไม่กระทบเงินที่เราได้ แสดงไว้ให้รู้ว่าลูกค้าจ่ายจริงเท่าไหร่`}
+                    amount={platformDiscount}
+                    sign="±"
+                    muted
+                  />
+                )}
+                <div className="pt-2 border-t border-gray-200 dark:border-slate-600">
+                  <AmountRow
+                    label="ราคาที่ขายได้"
+                    hint="ราคาป้าย − ส่วนลดร้าน = เงินที่ร้านขายได้จริง · ค่าธรรมเนียมของแพลตฟอร์มคิดจากยอดนี้ % ทุกบรรทัดจึงเทียบกับยอดนี้"
+                    amount={soldPrice}
+                    pct={pctOf(soldPrice, soldPrice)}
+                    strong
+                  />
+                </div>
+              </>
             ) : (
               <AmountRow
-                label={BUCKET_LABELS.gross_sales}
+                label="ราคาที่ขายได้"
                 hint={BUCKET_HINTS.gross_sales}
-                amount={grossSales}
-                pct={pctOf(grossSales, pctBase)}
-              />
-            )}
-            {FEE_BUCKETS
-              .filter(b => b !== 'gross_sales' && num(s[b]) !== 0)
-              .filter(b => !(hideDiscounts && DISCOUNT_BUCKETS.includes(b)))
-              .map(b => (
-                <AmountRow
-                  key={b}
-                  label={BUCKET_LABELS[b as FeeBucket]}
-                  hint={BUCKET_HINTS[b as FeeBucket]}
-                  amount={num(s[b])}
-                  sign={BUCKET_SIGN[b as FeeBucket]}
-                  tone={BUCKET_SIGN[b as FeeBucket] === '-' ? 'bad' : BUCKET_SIGN[b as FeeBucket] === '+' ? 'good' : 'default'}
-                  pct={pctOf(num(s[b]), pctBase)}
-                />
-              ))}
-
-            <div className="pt-2 border-t border-gray-200 dark:border-slate-600">
-              <AmountRow
-                label={BUCKET_LABELS.net_payout}
-                amount={netPayout}
-                tone={netPayout < 0 ? 'bad' : 'good'}
+                amount={soldPrice}
+                pct={pctOf(soldPrice, soldPrice)}
                 strong
-                pct={pctOf(netPayout, pctBase)}
               />
-            </div>
-            {hideDiscounts && realDeductionPct !== null ? (
-              <div className="text-right text-gray-500 dark:text-slate-400">
-                <span className="font-medium text-red-500 dark:text-red-400">
-                  แพลตฟอร์มหักจริง ฿{formatPrice(realDeduction)} ({realDeductionPct.toFixed(1)}%)
-                </span>
-                <HelpHint align="right">
-                  {`หักจริง = ยอดหลังหักส่วนลดร้าน ฿${formatPrice(afterSellerDiscount)} − เงินเข้าจริง ฿${formatPrice(netPayout)} · คือค่าธรรมเนียมทุกช่อง (฿${formatPrice(feeTotal)}) หักลบเงินที่แพลตฟอร์มช่วยจ่าย/ชดเชยแล้ว · ส่วนลดที่ร้านลดเองและส่วนลดที่แพลตฟอร์มออกให้ไม่ถูกนับ`}
-                </HelpHint>
-              </div>
-            ) : feePct !== null && (
-              <div className="text-right text-gray-500 dark:text-slate-400">
-                ค่าธรรมเนียมรวม ฿{formatPrice(feeTotal)} ({feePct.toFixed(1)}% ของยอดขาย)
-              </div>
             )}
+          </div>
 
+          {/* ค่าธรรมเนียมเป็นกลุ่ม — หัวกลุ่มบอกยอดรวม + % ของราคาที่ขายได้ */}
+          {groups.map(g => (
+            <div key={g.key} className="space-y-1.5 pt-2 border-t border-gray-200 dark:border-slate-600">
+              <AmountRow
+                label={g.label}
+                hint={g.hint}
+                amount={g.total}
+                sign={g.total < 0 ? '-' : g.total > 0 ? '+' : undefined}
+                tone={g.total < 0 ? 'bad' : g.total > 0 ? 'good' : 'default'}
+                pct={groupPct(g)}
+                strong
+              />
+              <div className="pl-4 space-y-1.5">
+                {g.rows.map(b => (
+                  <AmountRow
+                    key={b}
+                    label={BUCKET_LABELS[b]}
+                    hint={BUCKET_HINTS[b]}
+                    amount={num(s[b])}
+                    sign={BUCKET_SIGN[b]}
+                    tone={BUCKET_SIGN[b] === '-' ? 'bad' : BUCKET_SIGN[b] === '+' ? 'good' : 'default'}
+                    pct={pctOf(num(s[b]), soldPrice)}
+                    muted
+                  />
+                ))}
+              </div>
+            </div>
+          ))}
+
+          <div className="pt-2 border-t border-gray-200 dark:border-slate-600 space-y-2">
+            <AmountRow
+              label={BUCKET_LABELS.net_payout}
+              amount={netPayout}
+              tone={netPayout < 0 ? 'bad' : 'good'}
+              strong
+              pct={keepPct}
+            />
             {data.can_view_cost && cogs !== null && (
-              <div className="pt-2 border-t border-gray-200 dark:border-slate-600 space-y-2">
+              <>
                 <AmountRow
                   label={BUCKET_LABELS.cogs}
                   hint={COGS_BASIS_HINTS[cogsBasis]}
                   amount={cogs}
                   sign="-"
                   tone="bad"
-                  pct={pctOf(cogs, grossSales)}
+                  pct={pctOf(cogs, soldPrice)}
                 />
                 {grossProfit !== null && (
                   <AmountRow
@@ -398,12 +385,33 @@ export default function MarketplaceOrderCard({
                     amount={grossProfit}
                     tone={grossProfit >= 0 ? 'good' : 'bad'}
                     strong
-                    pct={pctOf(grossProfit, grossSales)}
+                    pct={pctOf(grossProfit, soldPrice)}
                   />
                 )}
-              </div>
+              </>
             )}
           </div>
+
+          {/* สรุปสำหรับตั้งราคา — ตัวเลขที่ต้องเผื่อ */}
+          {takenPct !== null && keepPct !== null && (
+            <div className="inner-panel px-4 py-3 space-y-1">
+              <div className="flex items-baseline justify-between gap-3">
+                <span className="text-gray-700 dark:text-slate-200 font-medium">แพลตฟอร์มเก็บไปทั้งหมด</span>
+                <span className="text-red-500 dark:text-red-400 font-semibold tabular-nums whitespace-nowrap">
+                  ฿{formatPrice(takenByPlatform)} ({takenPct.toFixed(1)}%)
+                </span>
+              </div>
+              <div className="text-gray-500 dark:text-slate-400">
+                {groups.map(g => `${g.label.replace(/ \(.*\)$/, '')} ${Math.abs(groupPct(g) ?? 0).toFixed(1)}%`).join(' · ')}
+              </div>
+              <div className="text-gray-700 dark:text-slate-200">
+                เหลือเข้ากระเป๋า <span className="font-semibold text-emerald-600 dark:text-emerald-400">{keepPct.toFixed(1)}%</span> ของราคาที่ขายได้ (ก่อนหักต้นทุนสินค้า)
+                <HelpHint>
+                  {`ตั้งราคาให้เผื่อค่าธรรมเนียมแพลตฟอร์ม (กลุ่มแรก) เสมอ เพราะโดนทุกออเดอร์ · การตลาดเผื่อเฉพาะสินค้าที่เข้าร่วม affiliate/โฆษณา/แคมเปญ · ค่าส่งคิดเป็นบาทต่อกล่อง ยิ่งราคาสินค้าต่ำ % ยิ่งสูง · ส่วนลดที่ร้านลดเองไม่ถูกนับเป็นค่าธรรมเนียม (ราคาที่ขายได้หักไปแล้ว)`}
+                </HelpHint>
+              </div>
+            </div>
+          )}
 
           {/* รายการดิบตามที่แพลตฟอร์มเรียก — หลักฐานย้อนกลับของยอดข้างบน */}
           {data.lines.length > 0 && (
@@ -433,7 +441,7 @@ export default function MarketplaceOrderCard({
                         <span className="text-gray-800 dark:text-slate-200 tabular-nums">
                           ฿{formatPrice(num(line.amount))}
                         </span>
-                        <PctNote pct={pctOf(num(line.amount), grossSales)} />
+                        <PctNote pct={pctOf(num(line.amount), soldPrice)} />
                       </span>
                     </div>
                   ))}
