@@ -354,6 +354,21 @@ export interface StorefrontVariation {
   options?: Record<string, string>;
 }
 
+/**
+ * รูปจิ๋วของ "ตัวเลือกแรก" บนการ์ดสินค้า (เช่น สีแดง/สีดำ)
+ *
+ * ⚠️ ไม่มีตารางใหม่ — มาจาก **รูปต่อตัวเลือกที่มีอยู่แล้ว** (`product_images.variation_id`
+ * ที่ฟอร์มสินค้าอัปได้ 1 รูปต่อแถวตัวเลือก) จับกลุ่มตามค่าของตัวเลือกแรก
+ * แล้วหยิบรูปของ variation ตัวแรกในกลุ่มที่มีรูปของตัวเอง
+ */
+export interface StorefrontSwatch {
+  /** ค่าของตัวเลือก เช่น 'แดง' */
+  value: string;
+  image: string;
+  /** variation ที่เป็นเจ้าของรูปนี้ (ใช้เลือกให้ตรงตัวตอนกดที่การ์ด) */
+  variation_id: string;
+}
+
 /** ช่องให้เลือกของสินค้าชุด (เช่น "ผ้าเบาะ" 9 สี) — ค่าเรียงตามลำดับตัวเลือกในช่อง */
 export interface StorefrontOptionGroup {
   name: string;
@@ -386,6 +401,12 @@ export interface StorefrontProduct {
    * (ไม่มีอะไรให้เลือก) · ไม่มี key นี้ = ใช้รายการตัวเลือกแบบแบน
    */
   option_groups?: StorefrontOptionGroup[];
+  /**
+   * ตัวเลือกแรกพร้อมรูปจิ๋ว — การ์ดในหน้ารายการเอาไปทำแถว swatch (กดแล้วรูปใหญ่สลับ)
+   * ไม่มี key นี้ = ไม่แสดงแถว swatch (สินค้าชิ้นเดียว · ไม่มี attributes · ไม่มีรูปต่อตัวเลือก
+   * · สินค้าชุดซึ่งมี `option_groups` ของตัวเองอยู่แล้ว)
+   */
+  swatches?: { name: string; items: StorefrontSwatch[] };
 }
 
 /** ราคาที่ขายจริง — discount_price > 0 ถือว่ามีส่วนลด (กฎเดิมทั้งระบบ) */

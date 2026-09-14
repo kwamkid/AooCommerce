@@ -135,6 +135,7 @@
 .sf-layout-editorial .sf-card-name { font-size: 17px; }
 .sf-layout-editorial .sf-card-price { font-size: 18px; }
 .sf-layout-editorial .sf-card-foot { padding: 0 18px 18px; }
+.sf-layout-editorial .sf-swatches { padding: 12px 18px 0; }
 
 @container (max-width: 640px) {
   /* auto-fill ที่ 200px บนจอแคบจะเหลือ 1 คอลัมน์ — บังคับ 2 ให้เลื่อนดูได้ไวขึ้น */
@@ -181,6 +182,35 @@
 .sf-card-compare { font-size: 13px; font-weight: 400; color: var(--sf-muted); text-decoration: line-through; margin-left: 6px; }
 .sf-oos { font-size: 13px; color: var(--sf-muted); font-weight: 500; }
 
+/* ── swatch ตัวเลือกบนการ์ด (สี/ลาย) ──────────────────────────────
+   มาจากรูปต่อตัวเลือกที่ร้านอัปไว้แล้ว — การ์ดที่ไม่มีตัวเลือกพร้อมรูป
+   ไม่มี element พวกนี้เลย หน้าตาเท่าเดิมเป๊ะ */
+.sf-card-media-link { display: block; text-decoration: none; color: inherit; }
+.sf-swatches {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 6px;
+  padding: 10px 14px 0;
+}
+.sf-swatch {
+  width: 28px; height: 28px; padding: 0;
+  border: 1px solid var(--sf-border);
+  border-radius: calc(var(--sf-radius) / 2.5);
+  background: var(--sf-surface);
+  overflow: hidden; cursor: pointer; flex: none;
+  line-height: 0;                       /* กันช่องว่างใต้รูปดันกรอบสูงเกิน */
+}
+.sf-swatch img { width: 100%; height: 100%; object-fit: cover; }
+.sf-swatch:hover { border-color: var(--sf-primary); }
+.sf-swatch-on { border-color: var(--sf-primary); box-shadow: inset 0 0 0 1px var(--sf-primary); }
+.sf-swatch-more {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 28px; height: 28px; padding: 0 6px;
+  border: 1px solid var(--sf-border);
+  border-radius: calc(var(--sf-radius) / 2.5);
+  font-size: 12px; color: var(--sf-muted); text-decoration: none;
+}
+.sf-swatch-more:hover { border-color: var(--sf-primary); color: var(--sf-text); }
+@container (max-width: 640px) { .sf-swatches { padding: 8px 11px 0; } }
+
 /* ── product detail ── */
 .sf-detail { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 40px; }
 @container (max-width: 860px) { .sf-detail { grid-template-columns: 1fr; gap: 24px; } }
@@ -219,6 +249,13 @@
   background: var(--sf-bg);
 }
 .sf-variation-oos { color: var(--sf-muted); text-decoration: line-through; }
+/* ปุ่มตัวเลือกที่มีรูปของตัวเอง — รูปจิ๋วซ้าย ข้อความขวา */
+.sf-variation-with-thumb { display: inline-flex; align-items: center; gap: 8px; padding-left: 7px; }
+.sf-variation-thumb {
+  width: 24px; height: 24px; flex: none;
+  border-radius: calc(var(--sf-radius) / 3);
+  object-fit: cover; background: var(--sf-surface);
+}
 
 .sf-cta {
   display: inline-flex;

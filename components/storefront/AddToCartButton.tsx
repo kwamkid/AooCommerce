@@ -6,6 +6,7 @@ import { useRef, useState } from 'react';
 import Link from 'next/link';
 import { Minus, Plus, Check } from 'lucide-react';
 import { addToCart } from '@/lib/storefront-cart';
+import { thumbUrl } from '@/lib/image-thumb';
 import { flyToCart, findProductImage, FLY_DURATION } from '@/lib/storefront-fly-to-cart';
 import {
   formatStorePrice, storefrontHref, SF_VARIATION_IMAGE_EVENT,
@@ -119,10 +120,17 @@ export default function AddToCartButton({ shop, productSlug, productName, variat
               type="button"
               disabled={!v.in_stock}
               onClick={() => choose(v)}
-              className={`sf-variation ${!v.in_stock ? 'sf-variation-oos' : ''} ${v.id === selected.id ? 'sf-variation-active' : ''}`}
+              className={`sf-variation ${v.image ? 'sf-variation-with-thumb' : ''} ${!v.in_stock ? 'sf-variation-oos' : ''} ${v.id === selected.id ? 'sf-variation-active' : ''}`}
             >
-              {v.label || 'ตัวเลือก'} · {formatStorePrice(v.price)}
-              {!v.in_stock && ' (หมด)'}
+              {/* รูปต่อตัวเลือก (ถ้าร้านอัปไว้) — เลือกสีจากรูปง่ายกว่าอ่านชื่อสี */}
+              {v.image && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img className="sf-variation-thumb" src={thumbUrl(v.image, 96)} alt="" loading="lazy" />
+              )}
+              <span>
+                {v.label || 'ตัวเลือก'} · {formatStorePrice(v.price)}
+                {!v.in_stock && ' (หมด)'}
+              </span>
             </button>
           ))}
         </div>

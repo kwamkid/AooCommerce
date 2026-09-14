@@ -18,7 +18,7 @@ import { fetchAllRows } from '@/lib/supabase-paging';
 import {
   parseStorefront, effectivePrice, STOREFRONT_PAGE_SIZE,
   type StorefrontConfig, type StorefrontProduct, type StorefrontSort,
-  type StorefrontVariation, type StorefrontOptionGroup,
+  type StorefrontVariation, type StorefrontOptionGroup, type StorefrontSwatch,
 } from '@/lib/storefront';
 import { parseFeatures, type FeatureFlags } from '@/lib/features';
 
@@ -185,7 +185,7 @@ interface RawVariation {
   default_price: number;
   discount_price: number | null;
   is_active: boolean;
-  /** combo of a composite product: `{ slot name: picked option }` */
+  /** `{ ชื่อตัวเลือก: ค่า }` — สินค้าปกติ เช่น `{ สี: 'แดง' }` · สินค้าชุด = `{ ชื่อช่อง: ตัวเลือกที่เลือก }` */
   attributes?: Record<string, unknown> | null;
 }
 
@@ -362,6 +362,46 @@ async function loadCompositeExtras(
   return out;
 }
 
+/**
+ * แถว swatch ของ "ตัวเลือกแรก" บนการ์ดสินค้า — **ไม่มี query เพิ่ม**
+ * ใช้ของที่ประกอบอยู่แล้วใน assembleProduct: `attributes` ของ variation + รูปต่อตัวเลือก
+ *
+ * "ตัวเลือกแรก" = key แรกของ `attributes` ของ variation ตัวแรกที่มี attributes —
+ * ไม่ได้ใช้ `products.selected_variation_types` เพราะมันเก็บเป็น **id ของ variation_types**
+ * (ตรวจของจริงแล้ว) ส่วน key ใน attributes เป็น **ชื่อ** จึงต้องยิง query เพิ่มเพื่อ map
+ * ซึ่งไม่คุ้มกับการเดา key แรกที่ตรงกันอยู่แล้วในทางปฏิบัติ
+ *
+ * variation เก่าที่ไม่มี attributes ใช้ `variation_label` เป็นค่าแทน
+ * ค่าที่ไม่มี variation ตัวไหนมีรูปของตัวเองเลย = ไม่เอาเข้าแถว (swatch ต้องมีรูป)
+ */
+function buildSwatches(
+  activeVars: RawVariation[],
+  imageByVariation: Map<string, string>,
+): { name: string; items: StorefrontSwatch[] } | null {
+  // สินค้าตัวเลือกเดียว = ไม่มีอะไรให้เลือก (สินค้าแบบ simple ก็เข้าทางนี้)
+  if (activeVars.length < 2) return null;
+
+  const withAttrs = activeVars.map(v => attributesOf(v));
+  const firstName = withAttrs.map(a => Object.keys(a)[0]).find(k => !!k) || '';
+
+  // ค่าของตัวเลือกแรก → variation ตัวแรกในกลุ่มที่มีรูปของตัวเอง (คงลำดับเดิม)
+  const imageByValue = new Map<string, { image: string; variation_id: string }>();
+  const order: string[] = [];
+  activeVars.forEach((v, i) => {
+    const value = (firstName ? withAttrs[i][firstName] : '') || (v.variation_label || '').trim();
+    if (!value) return;
+    if (!order.includes(value)) order.push(value);
+    const image = imageByVariation.get(v.id);
+    if (image && !imageByValue.has(value)) imageByValue.set(value, { image, variation_id: v.id });
+  });
+
+  const items: StorefrontSwatch[] = order
+    .filter(value => imageByValue.has(value))
+    .map(value => ({ value, ...imageByValue.get(value)! }));
+  if (items.length === 0) return null;
+  return { name: firstName || 'ตัวเลือก', items };
+}
+
 function assembleProduct(
   row: { id: string; slug: string | null; name: string; description: string | null; image: string | null; updated_at: string; category?: { name: string } | null; brand?: { name: string } | null },
   variations: RawVariation[],
@@ -402,7 +442,11 @@ function assembleProduct(
     in_stock: publicVariations.some(v => v.in_stock),
     updated_at: row.updated_at,
   };
-  return composite ? applyComposite(product, variations.filter(v => v.is_active), composite) : product;
+  if (composite) return applyComposite(product, variations.filter(v => v.is_active), composite);
+
+  // สินค้าปกติเท่านั้น — สินค้าชุดมี option_groups ของตัวเองอยู่แล้ว
+  const swatches = buildSwatches(variations.filter(v => v.is_active), imageByVariation);
+  return swatches ? { ...product, swatches } : product;
 }
 
 const PRODUCT_SELECT = `

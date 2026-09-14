@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, checkAuth } from '@/lib/supabase-admin';
+import { defaultVariationTypeRows } from '@/lib/variation-types-defaults';
 
 // GET - List user's companies
 export async function GET(request: NextRequest) {
@@ -160,13 +161,8 @@ export async function POST(request: NextRequest) {
     });
 
     // Seed default variation types (kept here — not exposed in wizard)
-    const variationTypes = [
-      { name: 'ความจุ', sort_order: 1, company_id: company.id },
-      { name: 'รูปทรง', sort_order: 2, company_id: company.id },
-      { name: 'สี', sort_order: 3, company_id: company.id },
-      { name: 'ไซซ์', sort_order: 4, company_id: company.id },
-    ];
-    await supabaseAdmin.from('variation_types').insert(variationTypes);
+    // รายชื่อ + ลำดับอยู่ที่ lib/variation-types-defaults.ts ที่เดียว (client ก็ import ได้)
+    await supabaseAdmin.from('variation_types').insert(defaultVariationTypeRows(company.id));
 
     // payment_channels, warehouses, carriers, business_channels are seeded by
     // the onboarding wizard at /onboarding/setup based on user choices.
