@@ -1,6 +1,7 @@
 'use client';
 
-// แท็บ "ซิงค์สินค้า & สต็อก" ของหน้า /settings/sales-channels
+// หน้าต่าง "ซิงค์สินค้า & สต็อก" — เปิดจากปุ่มบนหัวหน้า /settings/sales-channels
+// (ข้างปุ่มเชื่อมต่อร้าน)
 //
 // ทำไมแยกออกมาจากการ์ดร้าน: เดิมทุกงาน (นำเข้าสินค้า · ส่งสินค้าขึ้นร้าน · ดึงสต็อก)
 // เป็นปุ่มอยู่บนการ์ดของทุกร้าน — ร้านเดียวมีได้หลายสิบใบ กลายเป็นกำแพงปุ่มที่เจ้าของ
@@ -16,7 +17,6 @@ import { Download, PackageSearch, Upload, UploadCloud } from 'lucide-react';
 import { useToast } from '@/lib/toast-context';
 import { useFeatures } from '@/lib/features-context';
 import { useConfirmDialog } from '@/lib/useConfirmDialog';
-import Card from '@/components/ui/Card';
 import Alert from '@/components/ui/Alert';
 import ChannelBadge from '@/components/ui/ChannelBadge';
 import LoadingOverlay from '@/components/ui/LoadingOverlay';
@@ -76,9 +76,11 @@ const JOBS: JobDef[] = [
 
 interface Props {
   accounts: MarketplaceAccountsState;
+  /** งานที่พาไป wizard คนละหน้า — ให้ผู้เรียกปิดหน้าต่างก่อนออกจากหน้านี้ */
+  onNavigate?: () => void;
 }
 
-export default function MarketplaceSyncHub({ accounts }: Props) {
+export default function MarketplaceSyncHub({ accounts, onNavigate }: Props) {
   const router = useRouter();
   const { showToast } = useToast();
   const { gates } = useFeatures();
@@ -144,8 +146,8 @@ export default function MarketplaceSyncHub({ accounts }: Props) {
   };
 
   const pickAccount = (account: MarketplaceAccount, def: JobDef) => {
-    if (def.key === 'import') { router.push(`/marketplace/import?account=${account.id}`); return; }
-    if (def.key === 'export') { router.push(`/marketplace/export?account=${account.id}`); return; }
+    if (def.key === 'import') { onNavigate?.(); router.push(`/marketplace/import?account=${account.id}`); return; }
+    if (def.key === 'export') { onNavigate?.(); router.push(`/marketplace/export?account=${account.id}`); return; }
     if (def.key === 'pull_stock') { runPullStock(account); return; }
     runPushStock(account);
   };
@@ -155,10 +157,9 @@ export default function MarketplaceSyncHub({ accounts }: Props) {
       {confirmDialog}
       <LoadingOverlay isOpen={running !== null} title={running?.title || ''} message={running?.message} />
 
-      <div>
-        <h3 className="heading-3 mb-1">เลือกงานที่จะทำ</h3>
-        <p className="helper-text">งานที่ไปแตะข้อมูลจริงอยู่ที่นี่ทั้งหมด — การ์ดร้านในแท็บอื่นเหลือไว้ดูสถานะกับตั้งค่า</p>
-      </div>
+      <p className="helper-text">
+        เลือกงานก่อน แล้วค่อยเลือกร้าน — งานที่ไปแตะข้อมูลจริงอยู่ที่นี่ทั้งหมด การ์ดร้านเหลือไว้ดูสถานะกับตั้งค่า
+      </p>
 
       <div className="grid gap-3 sm:grid-cols-2">
         {jobs.map(def => (
@@ -180,48 +181,48 @@ export default function MarketplaceSyncHub({ accounts }: Props) {
       </div>
 
       {activeJob && (
-        <Card>
-          <h3 className="heading-3 mb-1">{activeJob.label} — เลือกร้าน</h3>
-          <p className="helper-text mb-4">{activeJob.description}</p>
-
-          {loading ? (
-            <LoadingCard />
-          ) : allAccounts.length === 0 ? (
-            <EmptyCard title="ยังไม่ได้เชื่อมต่อร้าน marketplace" subtitle="เชื่อมต่อร้านที่แท็บของแพลตฟอร์มก่อน แล้วกลับมาที่นี่" />
-          ) : (
-            <div className="space-y-2">
-              {allAccounts.map(account => {
-                const reason = blockedReason(account, activeJob);
-                return (
-                  <button
-                    key={account.id}
-                    type="button"
-                    disabled={reason !== null}
-                    onClick={() => pickAccount(account, activeJob)}
-                    className={`choice-card w-full p-3 text-left flex items-center gap-3 ${
-                      reason ? 'opacity-60 cursor-not-allowed' : 'hover:bg-gray-50 dark:hover:bg-slate-700/40'
-                    }`}
-                  >
-                    <ChannelBadge channel={{ platform: platformOf(account), picture_url: account.metadata?.shop_logo as string | undefined }} size="md" />
-                    <span className="min-w-0 flex-1">
-                      <span className="block body-text font-medium truncate">{shopName(account)}</span>
-                      <span className="block helper-text">
-                        {reason || `${platformLabel(account)} · ผูกสินค้าไว้ ${account.linked_product_count} รายการ`}
+        <div className="inner-panel">
+          <div className="inner-panel-head">{activeJob.label} — เลือกร้าน</div>
+          <div className="inner-panel-body space-y-3">
+            {loading ? (
+              <LoadingCard />
+            ) : allAccounts.length === 0 ? (
+              <EmptyCard title="ยังไม่ได้เชื่อมต่อร้าน marketplace" subtitle="เชื่อมต่อร้านที่แท็บของแพลตฟอร์มก่อน แล้วกลับมาที่นี่" />
+            ) : (
+              <div className="space-y-2">
+                {allAccounts.map(account => {
+                  const reason = blockedReason(account, activeJob);
+                  return (
+                    <button
+                      key={account.id}
+                      type="button"
+                      disabled={reason !== null}
+                      onClick={() => pickAccount(account, activeJob)}
+                      className={`choice-card w-full p-3 text-left flex items-center gap-3 ${
+                        reason ? 'opacity-60 cursor-not-allowed' : 'hover:bg-gray-50 dark:hover:bg-slate-700/40'
+                      }`}
+                    >
+                      <ChannelBadge channel={{ platform: platformOf(account), picture_url: account.metadata?.shop_logo as string | undefined }} size="md" />
+                      <span className="min-w-0 flex-1">
+                        <span className="block body-text font-medium truncate">{shopName(account)}</span>
+                        <span className="block helper-text">
+                          {reason || `${platformLabel(account)} · ผูกสินค้าไว้ ${account.linked_product_count} รายการ`}
+                        </span>
                       </span>
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          )}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
 
-          {activeJob.key === 'push_stock' && (
-            <Alert tone="warning" className="mt-4">
-              ส่งสต็อกขึ้นร้านคือการเอายอดในระบบไปทับของบนร้าน — ร้านที่ยังไม่เคยตั้งยอดในระบบจะถูกทับด้วยเลข 0
-              ให้ทำ &quot;ดึงสต็อกจากร้าน&quot; ก่อนเสมอ
-            </Alert>
-          )}
-        </Card>
+            {activeJob.key === 'push_stock' && (
+              <Alert tone="warning">
+                ส่งสต็อกขึ้นร้านคือการเอายอดในระบบไปทับของบนร้าน — ร้านที่ยังไม่เคยตั้งยอดในระบบจะถูกทับด้วยเลข 0
+                ให้ทำ &quot;ดึงสต็อกจากร้าน&quot; ก่อนเสมอ
+              </Alert>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );

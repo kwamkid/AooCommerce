@@ -70,10 +70,8 @@ type ModalMode = 'create' | 'edit' | null;
 
 // แท็บ = ช่องทาง (โครงเดียวกับหน้า ช่องทาง Chat): ตั้งค่าเอง · FB/IG · LINE · Shopee · Lazada · TikTok
 // FB กับ IG รวมแท็บเดียว — เพจ FB ที่ผูก IG คือบัญชีเดียวกัน แถวไหนมีแค่ IG ก็โชว์ไอคอน IG อย่างเดียว
-// 'sync' = แท็บงานซิงค์ (นำเข้า/ส่งสินค้า · ดึง/ส่งสต็อก) — ไม่ใช่ช่องทาง แต่เป็นงานที่ทำ
-// กับร้านที่เชื่อมไว้แล้ว วางไว้ท้ายสุดเพราะต้องมีร้านก่อนถึงจะมีอะไรให้ทำ
-type ChannelTab = 'manual' | 'facebook' | 'line' | 'sync' | MarketplacePlatform;
-const CHANNEL_TABS: ChannelTab[] = ['manual', 'facebook', 'line', 'shopee', 'lazada', 'tiktok', 'sync'];
+type ChannelTab = 'manual' | 'facebook' | 'line' | MarketplacePlatform;
+const CHANNEL_TABS: ChannelTab[] = ['manual', 'facebook', 'line', 'shopee', 'lazada', 'tiktok'];
 const isMarketplaceTab = (t: ChannelTab): t is MarketplacePlatform =>
   t === 'shopee' || t === 'lazada' || t === 'tiktok';
 
@@ -140,6 +138,7 @@ export default function SalesChannelsPage() {
   );
   // ปุ่ม "เชื่อมต่อร้าน X" ของแท็บ marketplace อยู่บน PageHeader — loading จึงเป็น state ของหน้านี้
   const [mpConnecting, setMpConnecting] = useState(false);
+  const [syncHubOpen, setSyncHubOpen] = useState(false);
   // ตั้ง app แบบ seller ไว้หรือยัง — ไม่ตั้ง = ซ่อนปุ่ม "เชื่อมผ่าน app ของร้าน" ไปเลย
   const [shopeeSellerAppAvailable, setShopeeSellerAppAvailable] = useState(false);
   // sandbox = ปุ่มพาไป login ของ sandbox ต้องใช้บัญชี test shop ไม่ใช่บัญชีร้านจริง
@@ -172,10 +171,8 @@ export default function SalesChannelsPage() {
   // (พฤติกรรมเดียวกับที่เมนู Marketplace เดิมถูกซ่อนจาก Sidebar ตอนปิด feature)
   const marketplaceTabVisible = features.marketplace_sync && can(userProfile, 'settings.access');
   // แท็บ marketplace ที่มองไม่เห็น (ปิด feature) → ตกไปแท็บตั้งค่าเอง
-  const effectiveTab: ChannelTab =
-    (isMarketplaceTab(activeTab) || activeTab === 'sync') && !marketplaceTabVisible ? 'manual' : activeTab;
+  const effectiveTab: ChannelTab = isMarketplaceTab(activeTab) && !marketplaceTabVisible ? 'manual' : activeTab;
   const showMarketplace = isMarketplaceTab(effectiveTab);
-  const showSyncHub = effectiveTab === 'sync';
   const channelTab: 'manual' | 'facebook' | 'line' =
     effectiveTab === 'facebook' || effectiveTab === 'line' ? effectiveTab : 'manual';
   // ร้าน marketplace ทุกแพลตฟอร์มดึงครั้งเดียวที่นี่ — ตัวเลขบนแท็บต้องรู้ตั้งแต่ก่อนเปิดแท็บนั้น
@@ -624,8 +621,6 @@ export default function SalesChannelsPage() {
           actions={
             /* ปุ่มหลักของแท็บที่เปิดอยู่ — บรรทัดเดียวกับ title เหมือนหน้า ช่องทาง Chat
                ไอคอนแพลตฟอร์มบนปุ่ม primary ใช้ mono (สีเดียวตามตัวหนังสือ) โลโก้สีแบรนด์เต็มตัวจะตีกับพื้นส้ม */
-            /* แท็บงานซิงค์ไม่มีปุ่มหลัก — งานเลือกจากการ์ดในแท็บเอง */
-            effectiveTab === 'sync' ? null :
             effectiveTab === 'manual' ? (
               <Button variant="primary" icon={<Plus className="w-5 h-5" />} onClick={() => openCreate('')}>
                 เพิ่มช่องทาง
@@ -639,7 +634,18 @@ export default function SalesChannelsPage() {
               <Button variant="primary" icon={<PlatformIcon id="line" size={16} mono />} onClick={() => confirmConnectChat('line')}>
                 เชื่อม LINE OA
               </Button>
-            ) : effectiveTab === 'shopee' ? (
+            ) : (
+              <>
+                {/* งานที่ไปแตะข้อมูลจริง (นำเข้า/ส่งสินค้า · ดึง/ส่งสต็อก) อยู่หลังปุ่มนี้ทั้งหมด
+                    — เดิมเป็นปุ่มเรียงอยู่บนการ์ดของทุกร้านจนไม่มีใครกล้ากด */}
+                <Button
+                  variant="secondary"
+                  icon={<RefreshCw className="w-5 h-5" />}
+                  onClick={() => setSyncHubOpen(true)}
+                >
+                  ซิงค์สินค้า &amp; สต็อก
+                </Button>
+                {effectiveTab === 'shopee' ? (
               /* Shopee มี 2 ทางเชื่อม (app กลางของระบบ / app ที่บริษัทจดเอง — แชทได้) จึงเป็นเมนู
                  ทางที่สองโชว์เสมอ: บริษัทยังไม่ได้เพิ่ม app ของตัวเองก็บอกตรง ๆ แทนที่จะหายไป
                  เฉย ๆ แล้วคนไปกดเชื่อมผ่าน app กลางแทน (เกิดจริง 5 ก.ย. 2026)
@@ -684,6 +690,8 @@ export default function SalesChannelsPage() {
               >
                 {effectiveTab === 'tiktok' ? 'เชื่อมต่อ TikTok Shop' : 'เชื่อมต่อร้าน Lazada'}
               </Button>
+                )}
+              </>
             )
           }
         />
@@ -700,13 +708,10 @@ export default function SalesChannelsPage() {
             { key: 'shopee', label: 'Shopee', icon: <PlatformIcon id="shopee" size={16} />, count: mpAccounts.shopee.length || undefined, activeColorClass: 'border-shopee text-shopee', hidden: !marketplaceTabVisible },
             { key: 'lazada', label: 'Lazada', icon: <PlatformIcon id="lazada" size={16} />, count: mpAccounts.lazada.length || undefined, activeColorClass: 'border-[#0F146E] text-[#0F146E] dark:border-blue-400 dark:text-blue-400', hidden: !marketplaceTabVisible },
             { key: 'tiktok', label: 'TikTok', icon: <PlatformIcon id="tiktok" size={16} />, count: mpAccounts.tiktok.length || undefined, activeColorClass: 'border-[#161823] text-[#161823] dark:border-slate-300 dark:text-slate-300', hidden: !marketplaceTabVisible },
-            { key: 'sync', label: 'ซิงค์สินค้า & สต็อก', icon: <RefreshCw className="w-4 h-4" />, hidden: !marketplaceTabVisible },
           ]}
         />
 
-        {showSyncHub ? (
-          <MarketplaceSyncHub accounts={mpAccounts} />
-        ) : showMarketplace ? (
+        {showMarketplace ? (
           <MarketplaceConnections
             activePlatform={effectiveTab as MarketplacePlatform}
             onPlatformChange={setActiveTab}
@@ -768,6 +773,24 @@ export default function SalesChannelsPage() {
         />
           </>
         )}
+
+        {/* งานซิงค์ — เปิดจากปุ่มบนหัวหน้า ไม่ใช่ปุ่มบนการ์ดของทุกร้าน */}
+        <Modal
+          open={syncHubOpen}
+          onClose={() => setSyncHubOpen(false)}
+          title="ซิงค์สินค้า &amp; สต็อก"
+          icon={<RefreshCw className="w-5 h-5" />}
+          size="2xl"
+          footer={
+            <div className="modal-footer px-6 py-4 flex justify-end gap-2">
+              <Button variant="secondary" onClick={() => setSyncHubOpen(false)}>ปิด</Button>
+            </div>
+          }
+        >
+          <div className="px-6 py-5">
+            <MarketplaceSyncHub accounts={mpAccounts} onNavigate={() => setSyncHubOpen(false)} />
+          </div>
+        </Modal>
 
         {/* Modal */}
         <Modal
