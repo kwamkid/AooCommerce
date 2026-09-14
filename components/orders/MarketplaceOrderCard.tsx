@@ -83,8 +83,13 @@ const FEE_DEDUCTION_BUCKETS = FEE_BUCKETS.filter(
   b => BUCKET_SIGN[b] === '-' && b !== 'seller_discount',
 );
 
-/** ช่องที่เป็น "ส่วนลด" — ซ่อนได้ด้วยสวิตช์ "ไม่นับส่วนลด" */
-const DISCOUNT_BUCKETS: FeeBucket[] = ['seller_discount', 'platform_discount', 'platform_subsidy'];
+/**
+ * ช่องที่ "ไม่ใช่เงินที่แพลตฟอร์มหักเรา" — สวิตช์ "ไม่นับส่วนลด" เอาออกจากการคิด
+ * · ส่วนลดร้าน = ร้านลดเอง (ถอดออกจากฐาน ไม่ใช่ค่าธรรมเนียม)
+ * · ส่วนลดที่แพลตฟอร์มออกให้ = แพลตฟอร์มจ่ายแทนลูกค้า ไม่กระทบเงินเรา (แค่ข้อมูล)
+ * ส่วน "เงินที่แพลตฟอร์มช่วยจ่าย" ยังโชว์ เพราะมันหักลบกับค่าธรรมเนียมจริง
+ */
+const DISCOUNT_BUCKETS: FeeBucket[] = ['seller_discount', 'platform_discount'];
 
 /** จำค่าสวิตช์ต่อเครื่องผู้ใช้ (localStorage อาจอ่าน/เขียนไม่ได้ — ครอบ try/catch เสมอ) */
 const HIDE_DISCOUNTS_KEY = 'mp-card-hide-discounts';
@@ -232,8 +237,14 @@ export default function MarketplaceOrderCard({
   const feePct = pctOf(feeTotal, grossSales);
   // ฐาน "ยอดหลังหักส่วนลดร้าน" — ส่วนลดที่ร้านออกเองไม่เคยเข้ากระเป๋าเรา
   // จึงเป็นฐานที่ตอบว่า "เงินที่ขายได้จริง โดนแพลตฟอร์มกินไปกี่ %"
-  const afterSellerDiscount = grossSales - num(s?.seller_discount);
-  const feePctAfterDiscount = pctOf(feeTotal, afterSellerDiscount);
+  const sellerDiscount = num(s?.seller_discount);
+  const afterSellerDiscount = grossSales - sellerDiscount;
+  // "แพลตฟอร์มหักจริง" = ยอดที่ร้านขายได้จริง − เงินที่เข้ากระเป๋า
+  // (ค่าธรรมเนียมทุกช่อง หักลบด้วยเงินที่แพลตฟอร์มช่วยจ่าย/ชดเชย — ตัวเลขเดียวที่ตอบว่าเสียไปเท่าไหร่)
+  const realDeduction = afterSellerDiscount - netPayout;
+  const realDeductionPct = pctOf(realDeduction, afterSellerDiscount);
+  // ฐานของ % ทุกบรรทัด: ปกติ = ยอดขาย · ไม่นับส่วนลด = ยอดหลังหักส่วนลดร้าน
+  const pctBase = hideDiscounts ? afterSellerDiscount : grossSales;
   const cogs = s?.cogs == null ? null : num(s.cogs);
   const grossProfit = s?.gross_profit == null ? null : num(s.gross_profit);
   const cogsBasis = (s?.cogs_basis || '') as keyof typeof COGS_BASIS_HINTS;
@@ -315,12 +326,21 @@ export default function MarketplaceOrderCard({
           </div>
 
           <div className="space-y-2">
-            <AmountRow
-              label={BUCKET_LABELS.gross_sales}
-              hint={BUCKET_HINTS.gross_sales}
-              amount={grossSales}
-              pct={pctOf(grossSales, grossSales)}
-            />
+            {hideDiscounts && sellerDiscount > 0 ? (
+              <AmountRow
+                label="ยอดหลังหักส่วนลดร้าน"
+                hint={`ยอดขาย ฿${formatPrice(grossSales)} − ส่วนลดร้าน ฿${formatPrice(sellerDiscount)} — เงินที่ร้านขายได้จริง ใช้เป็นฐานคิด % ทุกบรรทัด`}
+                amount={afterSellerDiscount}
+                pct={pctOf(afterSellerDiscount, pctBase)}
+              />
+            ) : (
+              <AmountRow
+                label={BUCKET_LABELS.gross_sales}
+                hint={BUCKET_HINTS.gross_sales}
+                amount={grossSales}
+                pct={pctOf(grossSales, pctBase)}
+              />
+            )}
             {FEE_BUCKETS
               .filter(b => b !== 'gross_sales' && num(s[b]) !== 0)
               .filter(b => !(hideDiscounts && DISCOUNT_BUCKETS.includes(b)))
@@ -332,7 +352,7 @@ export default function MarketplaceOrderCard({
                   amount={num(s[b])}
                   sign={BUCKET_SIGN[b as FeeBucket]}
                   tone={BUCKET_SIGN[b as FeeBucket] === '-' ? 'bad' : BUCKET_SIGN[b as FeeBucket] === '+' ? 'good' : 'default'}
-                  pct={pctOf(num(s[b]), grossSales)}
+                  pct={pctOf(num(s[b]), pctBase)}
                 />
               ))}
 
@@ -342,19 +362,16 @@ export default function MarketplaceOrderCard({
                 amount={netPayout}
                 tone={netPayout < 0 ? 'bad' : 'good'}
                 strong
-                pct={pctOf(netPayout, grossSales)}
+                pct={pctOf(netPayout, pctBase)}
               />
             </div>
-            {hideDiscounts && feePctAfterDiscount !== null ? (
+            {hideDiscounts && realDeductionPct !== null ? (
               <div className="text-right text-gray-500 dark:text-slate-400">
-                <span>
-                  แพลตฟอร์มหักจริง ฿{formatPrice(feeTotal)} ({feePctAfterDiscount.toFixed(1)}% ของยอดหลังหักส่วนลดร้าน)
+                <span className="font-medium text-red-500 dark:text-red-400">
+                  แพลตฟอร์มหักจริง ฿{formatPrice(realDeduction)} ({realDeductionPct.toFixed(1)}%)
                 </span>
-                {feePct !== null && (
-                  <span className="text-gray-400 dark:text-slate-500"> · {feePct.toFixed(1)}% ของยอดขาย</span>
-                )}
                 <HelpHint align="right">
-                  {`ยอดหลังหักส่วนลดร้าน = ยอดขาย ฿${formatPrice(grossSales)} − ส่วนลดร้าน ฿${formatPrice(num(s.seller_discount))} = ฿${formatPrice(afterSellerDiscount)} · ค่าธรรมเนียมที่แพลตฟอร์มหักไม่รวมส่วนลดที่ร้านออกเอง`}
+                  {`หักจริง = ยอดหลังหักส่วนลดร้าน ฿${formatPrice(afterSellerDiscount)} − เงินเข้าจริง ฿${formatPrice(netPayout)} · คือค่าธรรมเนียมทุกช่อง (฿${formatPrice(feeTotal)}) หักลบเงินที่แพลตฟอร์มช่วยจ่าย/ชดเชยแล้ว · ส่วนลดที่ร้านลดเองและส่วนลดที่แพลตฟอร์มออกให้ไม่ถูกนับ`}
                 </HelpHint>
               </div>
             ) : feePct !== null && (
