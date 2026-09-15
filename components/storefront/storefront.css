@@ -213,10 +213,20 @@
 
 /* ── product detail ── */
 .sf-detail { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 40px; }
-@container (max-width: 860px) { .sf-detail { grid-template-columns: 1fr; gap: 24px; } }
+/* ⚠️ ต้องเป็น minmax(0, 1fr) ไม่ใช่ 1fr — `1fr` เท่ากับ minmax(auto, 1fr) ซึ่งไม่ยอม
+   แคบกว่าเนื้อหาข้างใน พอในคอลัมน์มีรางรูปแนวนอน (แกลเลอรี) ความกว้างรวมของทุกใบ
+   จะดันคอลัมน์จนทั้งหน้าล้นจอมือถือ */
+@container (max-width: 860px) { .sf-detail { grid-template-columns: minmax(0, 1fr); gap: 24px; } }
 
 /* แถวรูปจิ๋ว — สไตล์ปุ่มอยู่ในบล็อก "แกลเลอรีหน้าสินค้า" ท้ายไฟล์ */
-.sf-gallery-thumbs { display: flex; gap: 8px; margin-top: 10px; }
+.sf-gallery-thumbs {
+  display: flex; gap: 8px; margin-top: 10px;
+  /* โชว์ครบทุกใบแล้ว (เดิมตัดที่ 5 ใบจึงห่อบรรทัดได้) — เลื่อนแนวนอนแทนการห่อ
+     ไม่งั้นรูปจิ๋ว 25 ใบจะดันหน้าให้ล้นจอ */
+  min-width: 0; overflow-x: auto; scroll-snap-type: x proximity;
+  scrollbar-width: none; -webkit-overflow-scrolling: touch;
+}
+.sf-gallery-thumbs::-webkit-scrollbar { display: none; }
 
 .sf-detail h1 { font-size: 26px; font-weight: 700; line-height: 1.4; margin: 0 0 6px; }
 .sf-detail-meta { color: var(--sf-muted); font-size: 14px; margin-bottom: 16px; }
@@ -1224,9 +1234,12 @@
   background: var(--sf-surface);
   display: flex; align-items: center; justify-content: center;
 }
-.sf-gallery-frame { position: relative; }
+/* min-width: 0 ทุกชั้นตั้งแต่กรอบนอกถึงใบ — ไม่มีตัวไหนยอมยุบ รางจะดันหน้าให้ล้นจอ */
+.sf-gallery { min-width: 0; }
+.sf-gallery-frame { position: relative; min-width: 0; }
 .sf-gallery-track {
   display: flex;
+  min-width: 0;
   overflow-x: auto;
   scroll-snap-type: x mandatory;
   scroll-behavior: smooth;
@@ -1240,6 +1253,7 @@
 .sf-gallery-track::-webkit-scrollbar { display: none; }
 .sf-gallery-slide {
   flex: 0 0 100%;
+  min-width: 0;
   height: 100%;
   scroll-snap-align: center;
   display: flex; align-items: center; justify-content: center;
@@ -1277,7 +1291,7 @@
 .sf-gallery-thumbs { overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
 .sf-gallery-thumbs::-webkit-scrollbar { display: none; }
 .sf-gallery-thumb {
-  flex: 0 0 auto; width: 66px; height: 66px; padding: 0;
+  flex: 0 0 auto; scroll-snap-align: start; width: 66px; height: 66px; padding: 0;
   line-height: 0; cursor: pointer; overflow: hidden;
   border: 1px solid var(--sf-border);
   border-radius: calc(var(--sf-radius) / 2);
