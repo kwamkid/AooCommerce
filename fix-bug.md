@@ -16,6 +16,14 @@
 
 ---
 
+## 2026-09-15 — Production build ล้มที่ Lazada backfill เพราะ buyer adapters import วนกัน
+
+**ที่เกิด**: `/api/lazada/orders/backfill` ระหว่าง Next.js production build (prerender/page data)
+**อาการ**: TypeScript และ compile ผ่าน แต่โหลด route แล้วขึ้น `ReferenceError: Cannot access ... before initialization` ที่ `lazadaBuyerAdapter`
+**Root cause**: `lib/marketplace/buyer-adapter.ts` import adapter ทั้งสามเพื่อลงทะเบียน ส่วน adapter กลับ import runtime helpers จาก registry เดียวกัน; เมื่อเข้า graph จาก Lazada จะอ่าน const adapter ก่อน initialization (ESM temporal dead zone)
+**วิธีแก้**: ย้าย contracts, EMPTY_BUYER และ pure helpers ไป `lib/marketplace/buyer-shared.ts` ที่ไม่ import platform; adapter ทุกตัวอ้าง leaf module นี้ ส่วน registry re-export ชื่อเดิมให้ consumer เดิมใช้งานต่อได้
+**ป้องกัน regression**: Platform adapters ห้าม import runtime value จาก registry ที่ลงทะเบียนตัวเอง; รัน native ESM import test จากทุก entry point (`node --test scripts/tests/buyer-adapter-imports.test.cjs`) และ `npm run build` ไม่ใช่ตรวจ TypeScript อย่างเดียว
+
 ## 2026-09-15 — หน้าแก้ไขสินค้าเปิดแท็บซ้ำ และบันทึกแล้วทำตัวกรองรายการหาย
 
 **ที่เกิด**: `app/products/page.tsx`, `app/products/new/page.tsx`, `app/products/[id]/edit/page.tsx`, `components/products/ProductForm.tsx`

@@ -7,7 +7,7 @@
 import {
   asRecord, plainText, unmasked,
   type BuyerAdapter, type MarketplaceBuyer,
-} from '@/lib/marketplace/buyer-adapter';
+} from '@/lib/marketplace/buyer-shared';
 
 export const shopeeBuyerAdapter: BuyerAdapter = {
   extract(externalData: unknown): MarketplaceBuyer {

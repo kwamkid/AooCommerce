@@ -9,7 +9,7 @@
 import {
   asRecord, plainText, unmasked,
   type BuyerAdapter, type MarketplaceBuyer,
-} from '@/lib/marketplace/buyer-adapter';
+} from '@/lib/marketplace/buyer-shared';
 
 /** หยิบชื่อพื้นที่ตามชั้น (`L1` = จังหวัด · `L2` = อำเภอ · `L3` = ตำบล) */
 function levelName(districtInfo: unknown, level: string): string | null {

@@ -10,7 +10,7 @@
 import {
   asRecord, plainText, unmasked,
   type BuyerAdapter, type MarketplaceBuyer,
-} from '@/lib/marketplace/buyer-adapter';
+} from '@/lib/marketplace/buyer-shared';
 import { buildAddressIndex } from '@/lib/thai-address-data';
 
 const THAI_CHARS = /[\u0E00-\u0E7F]/;
