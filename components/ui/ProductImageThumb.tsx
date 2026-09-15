@@ -103,8 +103,12 @@ export default function ProductImageThumb({
   const sizeClass = SIZE_CLASS[ratio][size];
 
   if (!src) {
+    // `auto` intentionally has no fixed height so a real image can keep its
+    // natural ratio. A placeholder has no natural dimensions, so using the
+    // auto class lets a table cell stretch it into a wide rectangle.
+    const fallbackSizeClass = ratio === 'auto' ? SIZE_CLASS.square[size] : sizeClass;
     return (
-      <div className={`${sizeClass} rounded-md bg-gray-100 dark:bg-slate-700 flex items-center justify-center flex-shrink-0 ${className}`}>
+      <div className={`${fallbackSizeClass} rounded-md bg-gray-100 dark:bg-slate-700 flex items-center justify-center flex-shrink-0 ${className}`}>
         {fallbackIcon ?? <Package className={`${FALLBACK_ICON_CLASS[size]} text-gray-400 dark:text-slate-500`} />}
       </div>
     );

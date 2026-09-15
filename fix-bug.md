@@ -16,6 +16,14 @@
 
 ---
 
+## 2026-09-15 — Placeholder สินค้าไม่มีรูปในตารางถูกยืดเป็นสี่เหลี่ยมผืนผ้า
+
+**ที่เกิด**: [components/ui/ProductImageThumb.tsx](components/ui/ProductImageThumb.tsx) เมื่อใช้ `ratio="auto"` ในหน้ารายการสินค้าและสต็อก
+**อาการ**: สินค้าที่ไม่มีรูปแสดงพื้นหลังไอคอนเป็นแถบแนวนอน แทนกรอบรูปอัตราส่วน 1:1
+**Root cause**: ขนาดของโหมด `auto` กำหนดเฉพาะความกว้างเพื่อให้รูปจริงสูงตามสัดส่วน แต่ placeholder ไม่มี intrinsic size จึงถูกความสูงของพื้นที่ตารางยืดออก
+**วิธีแก้**: เมื่อไม่มี `src` ให้ placeholder ของโหมด `auto` ใช้ขนาด `square` ของ size เดียวกันเสมอ ส่วนรูปจริงยังคงรักษาสัดส่วนเดิม
+**ป้องกัน regression**: Placeholder ที่ไม่มีข้อมูลกำหนดสัดส่วนของตัวเองต้องมีทั้ง width และ height; อย่านำกรอบ auto-height ของรูปจริงมาใช้กับ empty state
+
 ## 2026-09-15 — Production build ล้มที่ Lazada backfill เพราะ buyer adapters import วนกัน
 
 **ที่เกิด**: `/api/lazada/orders/backfill` ระหว่าง Next.js production build (prerender/page data)
