@@ -81,6 +81,22 @@ export interface FbMessagingEvent {
     title?: string;
     payload?: string;
   };
+  /**
+   * ลูกค้ากดปุ่มบนการ์ดชวนรับข่าวสาร (webhook field `messaging_optins`)
+   * ⛔ `notification_messages_token` ห้ามเก็บลงฐานข้อมูลเรา — รายชื่อผู้สมัครอยู่ที่ Meta
+   * (ถามผ่าน `GET /{page_id}/notification_message_tokens` เมื่อจะส่งจริง)
+   */
+  optin?: {
+    type?: string;
+    payload?: string;
+    title?: string;
+    notification_messages_token?: string;
+    notification_messages_frequency?: string;
+    /** 'STOP_NOTIFICATIONS' = กดเลิกรับ · 'RESUME_NOTIFICATIONS' = กลับมารับ */
+    notification_messages_status?: string;
+    token_expiry_timestamp?: number;
+    user_token_status?: string;
+  };
   // Facebook/Instagram referral (from ads, shops, etc.)
   referral?: {
     source?: string;      // 'MESSENGER' | 'ADS' | 'SHORTLINK' | 'CUSTOMER_CHAT_PLUGIN'
@@ -873,6 +889,62 @@ export class FacebookChatService {
       accountName,
       chatAccountId,
     });
+  }
+
+  /**
+   * ลูกค้ากด "รับข่าวสาร" / "เลิกรับ" บนการ์ดที่เราส่งไป (`messaging_optins`)
+   *
+   * ทำไมต้องจดลงฐานข้อมูลเราด้วยทั้งที่รายชื่อจริงอยู่ที่ Meta: ตัวกวาดอัตโนมัติต้องคัด
+   * คนที่กดรับแล้วออกจากหลักพันห้องในคำถามเดียว จะยิง Graph ถามรายคนไม่ไหว
+   * (ยังต้อง reconcile กับ Meta เป็นระยะอยู่ดี เพราะ webhook พลาดได้ และลูกค้ากดรับ
+   * จากการ์ดที่ Meta ส่งเองก็ได้)
+   *
+   * ⛔ ไม่แตะ `last_message_at` / `unread_count` และไม่ยิง push — การกดปุ่มไม่ใช่บทสนทนา
+   * ที่ต้องมีคนตอบ ถ้าดัน `last_message_at` ตรรกะ "ห้องนี้เงียบแล้ว" ของตัวกวาดจะพัง
+   */
+  async saveOptinEvent(
+    contact: { id: string; display_name?: string | null },
+    event: FbMessagingEvent,
+    companyId: string,
+  ) {
+    const optin = event.optin!;
+    const stopped = optin.notification_messages_status === 'STOP_NOTIFICATIONS';
+    const at = new Date(event.timestamp || Date.now()).toISOString();
+
+    const { error } = await supabaseAdmin.from('fb_messages').insert({
+      company_id: companyId,
+      fb_contact_id: contact.id,
+      direction: 'incoming',
+      message_type: 'system',
+      content: stopped ? '[เลิกรับข่าวสาร]' : '[กดรับข่าวสารแล้ว]',
+      // เก็บทุกอย่าง **ยกเว้น token** (ความลับของ Meta ห้ามมีสำเนาฝั่งเรา)
+      raw_message: {
+        system_event: stopped ? 'optin_unsubscribed' : 'optin_subscribed',
+        optin: {
+          type: optin.type,
+          title: optin.title,
+          payload: optin.payload,
+          frequency: optin.notification_messages_frequency,
+          status: optin.notification_messages_status,
+        },
+      },
+      received_at: at,
+      created_at: at,
+    });
+    if (error) {
+      console.error('Failed to save FB optin event:', error);
+      return;
+    }
+
+    await supabaseAdmin
+      .from('fb_contacts')
+      .update({
+        optin_status: stopped ? 'unsubscribed' : 'subscribed',
+        optin_status_at: at,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', contact.id)
+      .eq('company_id', companyId);
   }
 
   private async parseMessageContent(

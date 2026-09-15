@@ -66,6 +66,11 @@ export async function settleGatewayPayment(opts: {
     // ตัวมันเองไม่ throw และกันยิงซ้ำที่ orders.meta_purchase_sent_at — เรียก await ได้ทั้งจาก webhook และ cron
     const { dispatchConversion } = await import('@/lib/ads/dispatch');
     await dispatchConversion({ event: 'Purchase', orderId: opts.record.order_id }).catch(() => null);
+
+    // บิลจากห้องแชท Facebook ที่เพิ่งจ่ายผ่าน Beam → ชวนกดรับข่าวสารต่อทันที
+    // (ไม่ throw อยู่แล้ว · webhook กับ reconcile เรียกซ้อนกันได้ กุญแจ order:<id> กันส่งซ้ำให้)
+    const { inviteAfterSale } = await import('@/lib/facebook/optin-invite');
+    await inviteAfterSale(opts.record.order_id);
   }
   return result;
 }

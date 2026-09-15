@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { ExternalLink, Headset, Info, Package, Receipt, Store, Ticket, UserMinus, UserPlus } from 'lucide-react';
+import { BellOff, BellRing, ExternalLink, Headset, Info, Package, Receipt, Store, Ticket, UserMinus, UserPlus } from 'lucide-react';
 import { ChatMessage } from '@/app/chat/lib/chatTypes';
 import { linkify } from './SharedRenderers';
 import Badge from '@/components/ui/Badge';
@@ -259,7 +259,10 @@ const CHIP_MAX_CHARS = 60;
 const SYSTEM_EVENT_ICONS: Record<string, typeof Info> = {
   faq_liveagent: Headset,
   member_joined: UserPlus,
-  member_left: UserMinus
+  member_left: UserMinus,
+  // ลูกค้ากดปุ่มบนการ์ดชวนรับข่าวสาร (Facebook) — แอดมินต้องเห็นว่าใครรับ/เลิกรับแล้ว
+  optin_subscribed: BellRing,
+  optin_unsubscribed: BellOff
 };
 
 export function SystemEventChip({ msg }: RendererProps) {

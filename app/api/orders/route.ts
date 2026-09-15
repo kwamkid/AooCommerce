@@ -1021,6 +1021,7 @@ export async function POST(request: NextRequest) {
             // เครดิตเปลี่ยนสินค้าคลุมทั้งบิล → ออเดอร์เป็น paid ตั้งแต่ตอนสร้าง ต้องบอก Meta ด้วย
             if (updateFields.payment_status === 'paid') {
               after(() => import('@/lib/ads/dispatch').then(m => m.dispatchConversion({ event: 'Purchase', orderId: order.id })).catch(() => null));
+              after(() => import('@/lib/facebook/optin-invite').then(m => m.inviteAfterSale(order.id)).catch(() => null));
             }
           }
         }
@@ -1618,6 +1619,7 @@ export async function PUT(request: NextRequest) {
           // สลิปผ่าน = ออเดอร์ชำระแล้ว → บอก Meta ทีละใบ (ทั้ง dataset ของเพจและของบัญชีโฆษณา)
           for (const row of updated || []) {
             after(() => import('@/lib/ads/dispatch').then(m => m.dispatchConversion({ event: 'Purchase', orderId: row.id })).catch(() => null));
+            after(() => import('@/lib/facebook/optin-invite').then(m => m.inviteAfterSale(row.id)).catch(() => null));
           }
 
           // Also mark payment records as verified
@@ -2663,6 +2665,9 @@ export async function PUT(request: NextRequest) {
       // (จับคู่ด้วยเบอร์/อีเมล ⇒ บิล POS/หน้าร้าน/LINE ก็นับ) · กันยิงซ้ำและล้มเงียบเสมอ
       if (body.payment_status === 'paid') {
         after(() => import('@/lib/ads/dispatch').then(m => m.dispatchConversion({ event: 'Purchase', orderId: id })).catch(() => null));
+        // ปิดการขายจากห้องแชท Facebook → ชวนลูกค้ากดรับข่าวสาร (ตัวมันเองเช็คเองว่าบิลนี้
+        // มาจากห้องแชทไหม และกันส่งซ้ำด้วยกุญแจ order:<id> ที่ระดับฐานข้อมูล)
+        after(() => import('@/lib/facebook/optin-invite').then(m => m.inviteAfterSale(id)).catch(() => null));
       }
 
       // Auto-sync delivery info to shipping_addresses if customer exists

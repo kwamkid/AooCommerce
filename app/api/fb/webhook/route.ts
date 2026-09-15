@@ -134,6 +134,19 @@ export async function POST(request: NextRequest) {
           continue;
         }
 
+        // ลูกค้ากด "รับข่าวสาร" / "เลิกรับ" บนการ์ดที่เราส่งไป (messaging_optins)
+        // ⚠️ ต้องอยู่**ก่อน** บรรทัดข้ามข้างล่าง — ของเดิม event นี้ตกหายตรงนั้นทั้งที่
+        // subscribe field ไว้แล้ว (app/api/fb/oauth/subscribe-webhook/route.ts)
+        if (event.optin) {
+          const senderId = event.sender.id;
+          if (isInstagram && senderId === entryId) continue;
+          if (!isInstagram && senderId === pageId) continue;
+
+          const contact = await fbService.getOrCreateContact(senderId, pageId, pageAccessToken, companyId, chatAccountId, isInstagram);
+          if (contact) await fbService.saveOptinEvent(contact, event, companyId);
+          continue;
+        }
+
         // reaction / read / delivery ฯลฯ — ไม่มีอะไรให้บันทึก ข้ามไปเงียบ ๆ ห้าม throw
         if (!event.message) continue;
 

@@ -285,11 +285,16 @@ export const BROADCAST_SETUP_KEYS = {
   adAccountId: 'broadcast_ad_account_id',
   /** งบต่อวันของแคมเปญ หน่วย **สตางค์** (Meta รับหน่วยย่อยของสกุลเงิน — 10000 = 100 บาท) */
   dailyBudget: 'broadcast_daily_budget',
-  /** หัวข้อบนการ์ดชวนรับข่าวสาร (≤65 ตัวอักษรตามที่ Meta รับ) */
+  /**
+   * การ์ดชวนรับข่าวสารทั้ง 3 สถานการณ์ในก้อนเดียว (jsonb) — โครงอยู่ที่ `lib/broadcast/optin.ts`
+   * ก้อนเดียวเพราะ PUT merge แบบ shallow ต่อ top-level key ⇒ แทนที่ทั้งชุดแบบ atomic
+   */
+  optin: 'broadcast_optin',
+  /** @deprecated รุ่นแรก (ชุดเดียว) — `readOptinConfig()` ยังอ่านเป็น fallback ของ manual */
   optinTitle: 'broadcast_optin_title',
-  /** รูปบนการ์ดชวนรับข่าวสาร (จัตุรัส) — ไม่ใส่ = การ์ดข้อความล้วน */
+  /** @deprecated รุ่นแรก */
   optinImage: 'broadcast_optin_image',
-  /** ความถี่ที่ขอจากลูกค้า: DAILY | WEEKLY | MONTHLY */
+  /** @deprecated รุ่นแรก */
   optinFrequency: 'broadcast_optin_frequency',
 } as const;
 

@@ -18,6 +18,8 @@ import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
 import Alert from '@/components/ui/Alert';
 import FormSelect from '@/components/ui/FormSelect';
+import FormInput from '@/components/ui/FormInput';
+import Toggle from '@/components/ui/Toggle';
 import NumberInput from '@/components/ui/NumberInput';
 import ChannelBadge from '@/components/ui/ChannelBadge';
 import HelpHint from '@/components/ui/HelpHint';
@@ -28,6 +30,10 @@ import { useFetchOnce } from '@/lib/use-fetch-once';
 import { apiFetch, invalidateApiCache } from '@/lib/api-client';
 import { formatPrice, formatThaiDateTime } from '@/lib/utils/format';
 import { BROADCAST_PLATFORMS, BROADCAST_SETUP_KEYS } from '@/lib/broadcast/platforms';
+import {
+  readOptinConfig, validateOptinConfig, OPTIN_TRIGGERS, OPTIN_TITLE_MAX,
+  type OptinConfig, type OptinScenario, type OptinTrigger,
+} from '@/lib/broadcast/optin';
 
 /** งบที่ Meta ยอมรับต่ำสุดเท่าที่ยิงจริงแล้วผ่าน — 1 บาทถูกปฏิเสธ (Invalid parameter) */
 const MIN_BUDGET_BAHT = 35;
@@ -39,19 +45,22 @@ const ASSUMED_COST_PER_MESSAGE = 2;
 interface PageDraft {
   adAccountId: string;
   budgetBaht: number;
-  /** การ์ดชวนรับข่าวสาร — แอดมินกดส่งเองจากห้องแชท (ได้เฉพาะในกรอบ 24 ชม.) */
-  optinTitle: string;
-  optinImage: string;
-  optinFrequency: string;
+  /** การ์ดชวนรับข่าวสารทั้ง 3 สถานการณ์ — โครงอยู่ที่ lib/broadcast/optin.ts */
+  optin: OptinConfig;
 }
 
 const EMPTY_DRAFT: PageDraft = {
   adAccountId: '',
   budgetBaht: DEFAULT_BUDGET_BAHT,
-  optinTitle: '',
-  optinImage: '',
-  optinFrequency: 'WEEKLY',
+  optin: readOptinConfig(null),
 };
+
+/** ช่วง "เงียบแล้ว" ที่ให้เลือก — ทุกตัวมี**ขอบบน** เสมอ (ดูเหตุผลใน validateOptinConfig) */
+const QUIET_WINDOWS = [
+  { id: '15-45', label: '15–45 นาที', subtitle: 'ไวที่สุด — ลูกค้ายังจำบทสนทนาได้' },
+  { id: '30-60', label: '30–60 นาที', subtitle: 'แนะนำ' },
+  { id: '60-180', label: '1–3 ชั่วโมง', subtitle: 'ห่างขึ้น เหมาะกับร้านที่ลูกค้าคิดนาน' },
+];
 
 interface PageAccount {
   id: string;
@@ -115,9 +124,8 @@ export default function BroadcastSettingsPage() {
         next[p.id] = {
           adAccountId: String(c[BROADCAST_SETUP_KEYS.adAccountId] ?? ''),
           budgetBaht: satang > 0 ? satang / 100 : DEFAULT_BUDGET_BAHT,
-          optinTitle: String(c[BROADCAST_SETUP_KEYS.optinTitle] ?? ''),
-          optinImage: String(c[BROADCAST_SETUP_KEYS.optinImage] ?? ''),
-          optinFrequency: String(c[BROADCAST_SETUP_KEYS.optinFrequency] ?? 'WEEKLY'),
+          // เติม default ให้ครบเสมอ + อ่านค่ารุ่นแรก (ชุดเดียว) เป็น fallback ของ manual
+          optin: readOptinConfig(c, p.account_name),
         };
       }
       setDraft(next);
@@ -154,6 +162,8 @@ export default function BroadcastSettingsPage() {
       showToast(`งบต่อวันต้องไม่ต่ำกว่า ${MIN_BUDGET_BAHT} บาท (Meta ปฏิเสธงบที่ต่ำกว่านี้)`, 'error');
       return;
     }
+    const optinError = validateOptinConfig(d.optin);
+    if (optinError) { showToast(optinError, 'error'); return; }
     setSaving(page.id);
     try {
       const res = await apiFetch('/api/chat-accounts', {
@@ -165,9 +175,9 @@ export default function BroadcastSettingsPage() {
           credentials: {
             [BROADCAST_SETUP_KEYS.adAccountId]: d.adAccountId,
             [BROADCAST_SETUP_KEYS.dailyBudget]: Math.round(d.budgetBaht * 100),
-            [BROADCAST_SETUP_KEYS.optinTitle]: d.optinTitle.trim().slice(0, 65),
-            [BROADCAST_SETUP_KEYS.optinImage]: d.optinImage.trim(),
-            [BROADCAST_SETUP_KEYS.optinFrequency]: d.optinFrequency,
+            // ⚠️ ส่ง**ก้อนเต็ม**เสมอ — PUT merge แบบ shallow ต่อ top-level key
+            // ส่งไม่ครบ = ค่าที่เหลือหายทั้งชุด (ไม่ใช่คงของเดิมไว้)
+            [BROADCAST_SETUP_KEYS.optin]: d.optin,
           },
         }),
       });
@@ -185,6 +195,16 @@ export default function BroadcastSettingsPage() {
       setSaving(null);
     }
   };
+
+  /** แก้ค่าร่วมของการ์ดชวน (ถามซ้ำทุกกี่วัน · กี่ครั้ง · ช่วงเงียบ) */
+  const updateOptin = (pageId: string, patch: Partial<OptinConfig>) =>
+    setDraft(s => (s[pageId] ? { ...s, [pageId]: { ...s[pageId], optin: { ...s[pageId].optin, ...patch } } } : s));
+
+  /** แก้ข้อความของสถานการณ์เดียว */
+  const updateScenario = (pageId: string, trigger: OptinTrigger, patch: Partial<OptinScenario>) =>
+    setDraft(s => (s[pageId]
+      ? { ...s, [pageId]: { ...s[pageId], optin: { ...s[pageId].optin, [trigger]: { ...s[pageId].optin[trigger], ...patch } } } }
+      : s));
 
   if (permLoading || loading) {
     return <Layout><Container size="4xl"><LoadingCard /></Container></Layout>;
@@ -290,43 +310,114 @@ export default function BroadcastSettingsPage() {
                     </div>
                   </div>
 
-                  {/* การ์ดชวนรับข่าวสาร — แอดมินกดส่งเองจากห้องแชท (ปุ่มในกล่องพิมพ์)
+                  {/* การ์ดชวนรับข่าวสาร — ตั้งข้อความแยกตาม "จังหวะที่ส่ง"
                       ⚠️ Meta ให้ส่งได้เฉพาะในกรอบ 24 ชม. นับจากลูกค้าทักล่าสุด · 1 ครั้ง/สัปดาห์/คน */}
                   <div className="mt-4 pt-4 border-t border-gray-100 dark:border-slate-700">
                     <p className="field-label flex items-center gap-1 mb-2">
                       การ์ดชวนรับข่าวสาร
                       <HelpHint>
-                        แอดมินกดส่งการ์ดนี้จากห้องแชทเพื่อชวนลูกค้ากดรับข่าวสาร — กดแล้วลูกค้าจะอยู่ใน
-                        รายชื่อที่ส่งบรอดแคสต์ถึงได้ · Facebook ให้ส่งคำชวนเฉพาะตอนที่ลูกค้าทักมาภายใน
-                        24 ชั่วโมง และส่งซ้ำได้สัปดาห์ละครั้ง
+                        ลูกค้าที่กดรับข่าวสารคือกลุ่มเดียวที่ส่งบรอดแคสต์ถึงได้แม้พ้นกรอบ 24 ชั่วโมง ·
+                        Facebook ให้ส่งคำชวนเฉพาะตอนที่ลูกค้าทักมาภายใน 24 ชั่วโมง และขอซ้ำได้สัปดาห์ละครั้ง
                       </HelpHint>
                     </p>
-                    <div className="grid sm:grid-cols-2 gap-3">
-                      <input
-                        className="w-full px-3 form-control-md bg-white dark:bg-slate-700 text-gray-900 dark:text-white placeholder-gray-400 rounded-lg border border-gray-300 dark:border-slate-600 focus:outline-none focus:ring-2 focus:ring-primary/40"
-                        value={d.optinTitle}
-                        maxLength={65}
-                        onChange={e => setDraft(s => ({ ...s, [page.id]: { ...d, optinTitle: e.target.value } }))}
-                        placeholder={`รับข่าวสารและโปรโมชันจาก ${page.account_name}`.slice(0, 65)}
-                        aria-label="หัวข้อบนการ์ดชวนรับข่าวสาร"
-                      />
-                      <FormSelect
-                        value={d.optinFrequency}
-                        onChange={v => setDraft(s => ({ ...s, [page.id]: { ...d, optinFrequency: v } }))}
-                        options={[
-                          { id: 'DAILY', label: 'ทุกวัน', subtitle: 'ถี่ที่สุด — ลูกค้าอาจรู้สึกถูกรบกวน' },
-                          { id: 'WEEKLY', label: 'ทุกสัปดาห์', subtitle: 'แนะนำ' },
-                          { id: 'MONTHLY', label: 'ทุกเดือน', subtitle: 'ห่างจนลูกค้าอาจลืมว่าสมัครไว้' },
-                        ]}
-                      />
+
+                    <Alert tone="warning" title="ข้อความของแต่ละจังหวะต้องไม่เหมือนกัน">
+                      คนที่เพิ่งจ่ายเงินไปแล้วมาเจอ &quot;ลด 5%&quot; จะรู้สึกว่าเมื่อกี้ซื้อแพงไป —
+                      หลังปิดการขายให้ใช้แนว &quot;ติดตามของใหม่&quot; ส่วนคนที่ยังไม่ซื้อค่อยใช้ส่วนลดดึงกลับ
+                    </Alert>
+
+                    {(['manual', 'after_sale', 'quiet'] as OptinTrigger[]).map(trigger => {
+                      const sc = d.optin[trigger];
+                      const info = OPTIN_TRIGGERS[trigger];
+                      return (
+                        <div key={trigger} className="inner-panel mt-3">
+                          <div className="inner-panel-head flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="body-text font-medium">{info.label}</p>
+                              <p className="subtitle-text">{info.description}</p>
+                            </div>
+                            {trigger === 'manual' ? (
+                              <Badge tone="gray" size="sm">เปิดอยู่เสมอ</Badge>
+                            ) : (
+                              <Toggle
+                                checked={sc.enabled}
+                                onChange={v => updateScenario(page.id, trigger, { enabled: v })}
+                                aria-label={`เปิดการชวน${info.label}`}
+                              />
+                            )}
+                          </div>
+                          <div className="inner-panel-body grid sm:grid-cols-2 gap-3">
+                            <FormInput
+                              label="หัวข้อบนการ์ด"
+                              value={sc.title}
+                              maxLength={OPTIN_TITLE_MAX}
+                              onChange={e => updateScenario(page.id, trigger, { title: e.target.value })}
+                              placeholder={info.defaultTitle(page.account_name || 'ร้าน')}
+                            />
+                            <div>
+                              <label className="field-label block mb-1">ความถี่ที่ขอจากลูกค้า</label>
+                              <FormSelect
+                                value={sc.frequency}
+                                onChange={v => updateScenario(page.id, trigger, { frequency: v as OptinScenario['frequency'] })}
+                                options={[
+                                  { id: 'DAILY', label: 'ทุกวัน', subtitle: 'ถี่ที่สุด — ลูกค้าอาจรู้สึกถูกรบกวน' },
+                                  { id: 'WEEKLY', label: 'ทุกสัปดาห์', subtitle: 'แนะนำ' },
+                                  { id: 'MONTHLY', label: 'ทุกเดือน', subtitle: 'ห่างจนลูกค้าอาจลืมว่าสมัครไว้' },
+                                ]}
+                              />
+                            </div>
+                            <div className="sm:col-span-2">
+                              <FormInput
+                                label="ลิงก์รูปบนการ์ด (จัตุรัส)"
+                                value={sc.image_url}
+                                onChange={e => updateScenario(page.id, trigger, { image_url: e.target.value })}
+                                placeholder="ไม่ใส่ = การ์ดข้อความล้วน"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                    {/* กติการ่วมของทั้ง 3 สถานการณ์ */}
+                    <div className="grid sm:grid-cols-3 gap-3 mt-3">
+                      <div>
+                        <label className="field-label flex items-center gap-1 mb-1">
+                          ถามซ้ำได้ทุก
+                          <HelpHint>Facebook ให้ขอซ้ำได้สัปดาห์ละครั้ง — ตั้งถี่กว่านี้ไม่ได้</HelpHint>
+                        </label>
+                        <FormSelect
+                          value={String(d.optin.reask_days)}
+                          onChange={v => updateOptin(page.id, { reask_days: Number(v) })}
+                          options={[7, 14, 30, 60, 90].map(n => ({ id: String(n), label: `${n} วัน` }))}
+                        />
+                      </div>
+                      <div>
+                        <label className="field-label block mb-1">ถามคนเดิมได้ไม่เกิน</label>
+                        <FormSelect
+                          value={String(d.optin.max_asks)}
+                          onChange={v => updateOptin(page.id, { max_asks: Number(v) })}
+                          options={[1, 2, 3, 5].map(n => ({ id: String(n), label: `${n} ครั้ง` }))}
+                        />
+                      </div>
+                      <div>
+                        <label className="field-label flex items-center gap-1 mb-1">
+                          ช่วงที่ถือว่าคุยจบ
+                          <HelpHint>
+                            นับจากข้อความล่าสุดของลูกค้า และส่งเฉพาะห้องที่แอดมินตอบไปแล้ว —
+                            ห้องที่ลูกค้ายังถามค้างอยู่จะไม่ถูกขัดจังหวะ
+                          </HelpHint>
+                        </label>
+                        <FormSelect
+                          value={`${d.optin.quiet_min_minutes}-${d.optin.quiet_max_minutes}`}
+                          onChange={v => {
+                            const [min, max] = v.split('-').map(Number);
+                            updateOptin(page.id, { quiet_min_minutes: min, quiet_max_minutes: max });
+                          }}
+                          options={QUIET_WINDOWS}
+                        />
+                      </div>
                     </div>
-                    <input
-                      className="mt-3 w-full px-3 form-control-md bg-white dark:bg-slate-700 text-gray-900 dark:text-white placeholder-gray-400 rounded-lg border border-gray-300 dark:border-slate-600 focus:outline-none focus:ring-2 focus:ring-primary/40"
-                      value={d.optinImage}
-                      onChange={e => setDraft(s => ({ ...s, [page.id]: { ...d, optinImage: e.target.value } }))}
-                      placeholder="ลิงก์รูปจัตุรัสบนการ์ด (ไม่ใส่ = การ์ดข้อความล้วน)"
-                      aria-label="รูปบนการ์ดชวนรับข่าวสาร"
-                    />
                   </div>
 
                   {/* ผู้สมัคร — ถามสดจาก Meta เพราะรายชื่ออยู่ที่เขา ไม่ใช่ของเรา */}
