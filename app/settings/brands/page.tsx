@@ -245,7 +245,7 @@ function BrandsPageInner() {
 
   const actionItems = (brand: BrandItem): ActionItem[] => [
     {
-      key: 'products', label: 'จัดการสินค้าในแบรนด์', icon: <PackageSearch className="w-4 h-4" />,
+      key: 'products', label: 'สินค้าในแบรนด์', description: 'เพิ่มหรือนำสินค้าออกจากแบรนด์', icon: <PackageSearch className="w-4 h-4" />,
       onClick: () => router.push(`/settings/brands/${brand.id}`), primary: true,
     },
     { key: 'edit', label: 'แก้ไขแบรนด์', icon: <Edit2 className="w-4 h-4" />, onClick: () => openEditModal(brand) },
@@ -258,27 +258,24 @@ function BrandsPageInner() {
 
   const columns: DataTableColumn<BrandItem>[] = [
     {
-      key: 'name', label: 'แบรนด์', alwaysVisible: true, grow: true, defaultWidth: 600,
+      key: 'name', label: 'แบรนด์', alwaysVisible: true, grow: true, defaultWidth: 260,
       render: brand => (
         <div className="flex items-center gap-3">
           <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary"><Award className="w-4 h-4" /></span>
-          <div className="min-w-0">
-            <Link href={`/settings/brands/${brand.id}`} className="data-primary block truncate hover:text-primary">{brand.name}</Link>
-            <p className="page-subtitle">จัดการสินค้าในแบรนด์</p>
-          </div>
+          <Link href={`/settings/brands/${brand.id}`} className="data-primary block min-w-0 truncate hover:text-primary">{brand.name}</Link>
         </div>
       ),
     },
     ...(features.supplier ? [{
-      key: 'supplier', label: 'Supplier', defaultWidth: 260,
+      key: 'supplier', label: 'Supplier', defaultWidth: 320,
       render: (brand: BrandItem) => brand.supplier ? (
         <div className="flex items-center gap-2"><Factory className="w-4 h-4 text-gray-400" /><span>{brand.supplier.name}</span></div>
       ) : <span className="data-secondary text-gray-400">ยังไม่ผูก Supplier</span>,
     }] : []),
     ...(features.consignment ? [{
-      key: 'gp', label: 'GP เริ่มต้น', defaultWidth: 180,
+      key: 'gp', label: 'GP ฝากขาย', defaultWidth: 180,
       render: (brand: BrandItem) => brand.default_gp_rate == null
-        ? <Badge tone="gray">ตามค่าเริ่มต้นบริษัท</Badge>
+        ? <Badge tone="gray" title="ใช้ค่า GP ฝากขายกลางที่ตั้งไว้ในบริษัท">ใช้ GP กลาง</Badge>
         : <Badge tone="blue">{brand.default_gp_rate}%</Badge>,
     }, {
       key: 'gp-base', label: 'คิด GP จาก', defaultWidth: 150,
@@ -304,11 +301,13 @@ function BrandsPageInner() {
   return (
     <Layout>
       <Container size="full">
-        <PageHeader icon={<Award />} title="แบรนด์" subtitle={`จัดการแบรนด์ Supplier และค่า GP เริ่มต้น รวม ${brands.length} แบรนด์`}
+        <PageHeader icon={<Award />} title="แบรนด์" subtitle={`กำหนด Supplier และ GP ฝากขายของแต่ละแบรนด์ รวม ${brands.length} แบรนด์`}
           actions={<Button variant="primary" icon={<Plus className="w-4 h-4" />} onClick={() => setAddModalOpen(true)}>เพิ่มแบรนด์</Button>} />
         <div className="data-filter-card">
           <div className="flex items-center gap-3">
-            <SearchInput value={searchInput} onChange={handleSearchChange} placeholder="ค้นหาแบรนด์หรือ Supplier..." className="min-w-0 flex-1 md:max-w-96" />
+            <div className="min-w-0 flex-1">
+              <SearchInput value={searchInput} onChange={handleSearchChange} placeholder="ค้นหาแบรนด์หรือ Supplier..." className="w-full" />
+            </div>
             <Badge tone="orange">{brands.length} แบรนด์</Badge>
           </div>
         </div>
@@ -325,7 +324,7 @@ function BrandsPageInner() {
               <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary"><Award className="w-5 h-5" /></span>
               <div className="min-w-0 flex-1">
                 <Link href={`/settings/brands/${brand.id}`} className="data-primary block truncate hover:text-primary">{brand.name}</Link>
-                <p className="page-subtitle truncate">{features.supplier ? brand.supplier?.name || 'ยังไม่ผูก Supplier' : 'จัดการสินค้าในแบรนด์'}</p>
+                {features.supplier && <p className="page-subtitle truncate">{brand.supplier?.name || 'ยังไม่ผูก Supplier'}</p>}
               </div>
               {features.consignment && brand.default_gp_rate != null && <Badge tone="blue">GP {brand.default_gp_rate}%</Badge>}
               {renderActions(brand)}
@@ -335,16 +334,18 @@ function BrandsPageInner() {
       </Container>
 
       <Modal open={addModalOpen} onClose={closeAddModal} title="เพิ่มแบรนด์" icon={<Award className="w-5 h-5 text-primary" />} size="md"
-        footer={<div className="flex justify-end gap-2"><Button variant="secondary" onClick={closeAddModal} disabled={saving}>ยกเลิก</Button><SaveButton onClick={handleAdd} loading={saving} /></div>}
+        footer={<div className="flex justify-end gap-2 px-6 py-4"><Button variant="secondary" onClick={closeAddModal} disabled={saving}>ยกเลิก</Button><SaveButton onClick={handleAdd} loading={saving} /></div>}
       >
-        <FormInput label="ชื่อแบรนด์" required value={addName} onChange={event => setAddName(event.target.value)}
-          onKeyDown={event => { if (event.key === 'Enter') void handleAdd(); }} placeholder="เช่น Nike, Samsung" autoFocus />
+        <div className="px-6 py-5">
+          <FormInput label="ชื่อแบรนด์" required value={addName} onChange={event => setAddName(event.target.value)}
+            onKeyDown={event => { if (event.key === 'Enter') void handleAdd(); }} placeholder="เช่น Nike, Samsung" autoFocus />
+        </div>
       </Modal>
 
       <Modal open={Boolean(editingBrand)} onClose={closeEditModal} title="แก้ไขแบรนด์" icon={<Edit2 className="w-5 h-5 text-primary" />} size="lg"
-        footer={<div className="flex justify-end gap-2"><Button variant="secondary" onClick={closeEditModal} disabled={saving}>ยกเลิก</Button><SaveButton onClick={handleSaveEdit} loading={saving} /></div>}
+        footer={<div className="flex justify-end gap-2 px-6 py-4"><Button variant="secondary" onClick={closeEditModal} disabled={saving}>ยกเลิก</Button><SaveButton onClick={handleSaveEdit} loading={saving} /></div>}
       >
-        <div className="space-y-4">
+        <div className="space-y-5 px-6 py-5">
           <FormInput label="ชื่อแบรนด์" required value={editingName} onChange={event => setEditingName(event.target.value)} autoFocus />
           {features.supplier && (
             <div>
@@ -359,8 +360,8 @@ function BrandsPageInner() {
           )}
           {features.consignment && (
             <div className="grid gap-4 md:grid-cols-2">
-              <FormInput label="GP เริ่มต้น" type="number" min={0} max={100} postfix="%" value={editingGpRate}
-                onChange={event => setEditingGpRate(event.target.value)} hint="เว้นว่างเพื่อใช้ค่าของบริษัท" />
+              <FormInput label="GP ฝากขายของแบรนด์" type="number" min={0} max={100} postfix="%" value={editingGpRate}
+                onChange={event => setEditingGpRate(event.target.value)} hint="เว้นว่างเพื่อใช้ GP ฝากขายกลางของบริษัท" />
               <div>
                 <label className="form-label">คิด GP จากราคา</label>
                 <FormSelect value={editingGpBase} onChange={value => setEditingGpBase(value as 'retail' | 'discounted')}

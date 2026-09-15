@@ -16,6 +16,14 @@
 
 ---
 
+## 2026-09-16 — Modal ชิดขอบและตารางแบรนด์ดันเมนูแถวออกนอกจอ
+
+**ที่เกิด**: [app/settings/categories/page.tsx](app/settings/categories/page.tsx), [app/settings/brands/page.tsx](app/settings/brands/page.tsx)
+**อาการ**: ฟอร์มและปุ่มใน Modal ชิดขอบต่างจาก Modal อื่น; คอลัมน์ชื่อแบรนด์กว้างเกินจน ActionMenu หลุดไปด้านขวา; ข้อความ “จัดการสินค้าในแบรนด์” ซ้ำทุกแถวและคำว่า “ตามค่าเริ่มต้นบริษัท” ไม่อธิบายว่าเป็นค่า GP ใด
+**Root cause**: ผู้เรียก `Modal` ไม่ใส่ body/footer padding ตาม composition กลาง และ `defaultWidth` ของชื่อแบรนด์ตั้งไว้ 600px; copy ในตารางนำชื่อ action และศัพท์ภายในมาแสดงโดยไม่มีบริบท
+**วิธีแก้**: ใส่ `px-6 py-5` ให้ modal body และ `px-6 py-4` ให้ footer ทั้งสองหน้า; ลดสัดส่วนชื่อแบรนด์และจัดความกว้างคอลัมน์ใหม่ให้เมนูอยู่ขวาสุด; ตัด subtitle ซ้ำ เปลี่ยนเป็น “GP ฝากขาย”/“ใช้ GP กลาง” พร้อม tooltip และเปลี่ยน action เป็น “สินค้าในแบรนด์” พร้อมคำอธิบาย; ให้ search wrapper ขยายเต็มพื้นที่ก่อนถึง badge จำนวน
+**ป้องกัน regression**: Modal ที่ใช้ shared `Modal` ต้องใส่ spacing ที่ content/footer ตาม template เพราะ component จัดเฉพาะโครง shell; ตารางที่มีหลายคอลัมน์ต้องตรวจ ActionMenu ที่ viewport จริงและห้ามให้ผลรวม `defaultWidth` เกินพื้นที่ใช้งานโดยไม่จำเป็น
+
 ## 2026-09-15 — หน้าหมวดหมู่และแบรนด์อ่านยากและใช้ controls เขียนซ้ำ
 
 **ที่เกิด**: [app/settings/categories/page.tsx](app/settings/categories/page.tsx), [app/settings/brands/page.tsx](app/settings/brands/page.tsx)

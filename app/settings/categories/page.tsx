@@ -301,10 +301,12 @@ function CategoriesPage() {
         />
         <div className="data-filter-card">
           <div className="flex items-center gap-3">
-            <SearchInput value={searchInput} onChange={handleSearchChange} placeholder="ค้นหาหมวดหมู่หรือหมวดย่อย..." className="min-w-0 flex-1 md:max-w-96" />
+            <div className="min-w-0 flex-1">
+              <SearchInput value={searchInput} onChange={handleSearchChange} placeholder="ค้นหาหมวดหมู่หรือหมวดย่อย..." className="w-full" />
+            </div>
             <div className="flex flex-shrink-0 items-center gap-2">
-            <Badge tone="orange">{parentCount} หมวดหลัก</Badge>
-            <Badge tone="gray">{childCount} หมวดย่อย</Badge>
+              <Badge tone="orange">{parentCount} หมวดหลัก</Badge>
+              <Badge tone="gray">{childCount} หมวดย่อย</Badge>
             </div>
           </div>
         </div>
@@ -352,9 +354,9 @@ function CategoriesPage() {
 
       <Modal open={addModalOpen} onClose={closeAddModal} title={addParentId ? 'เพิ่มหมวดย่อย' : 'เพิ่มหมวดหมู่'}
         icon={<Tag className="w-5 h-5 text-primary" />} size="md"
-        footer={<div className="flex justify-end gap-2"><Button variant="secondary" onClick={closeAddModal} disabled={saving}>ยกเลิก</Button><SaveButton onClick={handleAdd} loading={saving} /></div>}
+        footer={<div className="flex justify-end gap-2 px-6 py-4"><Button variant="secondary" onClick={closeAddModal} disabled={saving}>ยกเลิก</Button><SaveButton onClick={handleAdd} loading={saving} /></div>}
       >
-        <div className="space-y-4">
+        <div className="space-y-5 px-6 py-5">
           <FormInput label="ชื่อหมวดหมู่" required value={addName} onChange={event => setAddName(event.target.value)}
             onKeyDown={event => { if (event.key === 'Enter') void handleAdd(); }} placeholder="เช่น เครื่องดื่ม, อาหาร" autoFocus />
           <div>
@@ -369,10 +371,12 @@ function CategoriesPage() {
 
       <Modal open={Boolean(editingCategory)} onClose={closeEditModal} title="แก้ไขชื่อหมวดหมู่"
         icon={<Edit2 className="w-5 h-5 text-primary" />} size="md"
-        footer={<div className="flex justify-end gap-2"><Button variant="secondary" onClick={closeEditModal} disabled={saving}>ยกเลิก</Button><SaveButton onClick={handleSaveEdit} loading={saving} /></div>}
+        footer={<div className="flex justify-end gap-2 px-6 py-4"><Button variant="secondary" onClick={closeEditModal} disabled={saving}>ยกเลิก</Button><SaveButton onClick={handleSaveEdit} loading={saving} /></div>}
       >
-        <FormInput label="ชื่อหมวดหมู่" required value={editingName} onChange={event => setEditingName(event.target.value)}
-          onKeyDown={event => { if (event.key === 'Enter') void handleSaveEdit(); }} autoFocus />
+        <div className="px-6 py-5">
+          <FormInput label="ชื่อหมวดหมู่" required value={editingName} onChange={event => setEditingName(event.target.value)}
+            onKeyDown={event => { if (event.key === 'Enter') void handleSaveEdit(); }} autoFocus />
+        </div>
       </Modal>
       {confirmDialog}
     </Layout>
