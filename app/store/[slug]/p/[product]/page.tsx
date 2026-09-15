@@ -11,7 +11,9 @@ import {
   getStorefrontCompany, getStorefrontProduct, getStorefrontDelivery,
   getDiscontinuedProduct, getStorefrontCatalog, catalogOptionsFor,
 } from '@/lib/storefront-server';
-import { storefrontUrl, storefrontHref, formatStorePrice } from '@/lib/storefront';
+import {
+  storefrontUrl, storefrontHref, formatStorePrice, storefrontCssVars, storefrontRootClasses,
+} from '@/lib/storefront';
 import { formatSlotTime } from '@/lib/delivery';
 import AddToCartButton from '@/components/storefront/AddToCartButton';
 import ProductGallery from '@/components/storefront/ProductGallery';
@@ -225,6 +227,10 @@ export default async function StorefrontProductPage({ params }: PageProps) {
             images={product.images}
             defaultVariationId={product.default_variation_id}
             optionGroups={product.option_groups}
+            /* ธีมสำหรับแถบซื้อล่างจอบนมือถือ ซึ่งอยู่นอก .sf-root (portal) จึงสืบทอด
+               token/คลาสธีมจาก layout ไม่ได้ — ส่งชุดเดียวกับที่ layout ใส่ให้ .sf-root */
+            themeClasses={storefrontRootClasses(cfg).filter(c => c !== 'sf-root')}
+            themeVars={storefrontCssVars(cfg)}
           />
 
           {/* สินค้าชุด: ตัวเลือกเป็นประโยคเต็มใน server HTML ให้ AI อ้างได้ (ปุ่มเลือกไม่ใช่ประโยค) */}

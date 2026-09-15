@@ -6,8 +6,10 @@
    (--sf-primary / --sf-primary-contrast / --sf-radius) so changing a company's
    theme never means touching component code. */
 
-.sf-root {
-  container-type: inline-size;   /* จุดอ้างอิงของ @container ทุกอันในไฟล์นี้ */
+/* token ของธีมแยกไว้ที่ .sf-theme ด้วย — แถบซื้อล่างจอ (มือถือ) ถูก portal ออกไป
+   ไว้ที่ <body> เพื่อให้ position:fixed ยึด viewport ได้ จึงอยู่นอก .sf-root และ
+   ต้องหยิบ token ชุดเดียวกันไปใช้ โดยไม่รับ container/flex/100vh ของ .sf-root มาด้วย */
+.sf-root, .sf-theme {
   --sf-bg: #ffffff;
   --sf-surface: #f8fafc;
   --sf-border: #e5e7eb;
@@ -20,14 +22,17 @@
   --sf-img-ratio: 1 / 1;
   --sf-header-bg: var(--sf-bg);
   --sf-header-fg: var(--sf-text);
+  font-size: 16px;
+  line-height: 1.6;
+}
 
+.sf-root {
+  container-type: inline-size;   /* จุดอ้างอิงของ @container ทุกอันในไฟล์นี้ */
   background: var(--sf-bg);
   color: var(--sf-text);
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  font-size: 16px;
-  line-height: 1.6;
 }
 
 .sf-container {
@@ -1330,4 +1335,75 @@
   .sf-cta { padding: 12px 18px; font-size: 15px; }
   .sf-section { margin-top: 22px; }
   .sf-section h2 { font-size: 17px; }
+}
+
+/* ── มือถือ: แถบซื้อติดขอบล่างจอ ─────────────────────────────────────
+   แถบถูก portal ออกไปไว้ที่ <body> (ดู StoreBuyBar.tsx) เพราะ .sf-root มี
+   container-type ซึ่งบังคับ layout containment — position:fixed ของลูกหลานจะยึดกับ
+   .sf-root ไม่ใช่ viewport · อยู่นอกคอนเทนเนอร์แล้ว @container จึงใช้ไม่ได้ ต้องใช้ @media
+   ⚠️ แถวซื้อในเนื้อหน้ากับแถบนี้ต้องใช้ตัววัดเดียวกัน (viewport 640px) เป๊ะ ๆ —
+   ถ้าฝั่งหนึ่งเป็น @container อีกฝั่งเป็น @media จะมีช่วงความกว้างที่ซ่อนทั้งคู่
+   แล้วหน้าสินค้าจะไม่เหลือปุ่มซื้อเลย */
+.sf-buybar { display: none; }
+
+@media (max-width: 640px) {
+  .sf-buy-row-inline { display: none; }
+
+  .sf-buybar {
+    position: fixed;
+    left: 0; right: 0; bottom: 0;
+    z-index: 50;
+    display: flex;
+    align-items: stretch;
+    gap: 8px;
+    padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+    background: var(--sf-bg);
+    color: var(--sf-text);
+    border-top: 1px solid var(--sf-border);
+    box-shadow: 0 -4px 18px rgba(15, 23, 42, .10);
+  }
+  /* เนื้อหาหน้าต้องไม่โดนแถบทับ — คลาสนี้ StoreBuyBar ติดที่ <body> ให้เฉพาะตอนมีแถบ
+     หน้าอื่นที่ไม่มีแถบจึงไม่โดนดันเปล่า ๆ
+     66px = ความสูงแถบพอดี (padding 10 + ตัวควบคุม 46 + padding 10) — ให้แถบทับที่ว่าง
+     นี้เป๊ะ ๆ ไม่งั้นจะเห็นแถบพื้นหลังของ <body> (สีของแอป ไม่ใช่สีร้าน) โผล่ใต้ footer
+     ตอนเลื่อนสุด · แก้ความสูงแถบเมื่อไหร่ต้องแก้ตัวเลขนี้ด้วย */
+  body.sf-has-buybar { padding-bottom: calc(66px + env(safe-area-inset-bottom)); }
+
+  /* ทางเข้าตะกร้าในแถบ — ไอคอน + ตัวเลขจำนวน (คำว่า "ตะกร้า" ตัดออก ที่แคบ) */
+  .sf-buybar .sf-cart-link {
+    flex: none;
+    justify-content: center;
+    min-width: 48px;
+    min-height: 46px;
+    padding: 0 10px;
+    border: 1px solid var(--sf-border);
+    border-radius: var(--sf-radius);
+  }
+  .sf-buybar .sf-cart-text { display: none; }
+
+  /* แตะได้ ≥44px ทุกปุ่ม (ปุ่มจำนวนของแถบไม่ย่อลงเหมือนแถวในเนื้อหน้า) */
+  .sf-buybar .sf-qty { flex: none; }
+  .sf-buybar .sf-qty button { width: 44px; height: 46px; }
+  .sf-buybar .sf-qty span { min-width: 30px; }
+
+  /* ปุ่มหยิบใส่ตะกร้ากินความกว้างที่เหลือทั้งหมด (ทับ min-width ของ .sf-cta-add) */
+  .sf-buybar .sf-cta {
+    flex: 1;
+    min-width: 0;
+    min-height: 46px;
+    padding: 10px 12px;
+    font-size: 15px;
+    overflow: hidden;
+  }
+  .sf-buybar .sf-cta-face { white-space: nowrap; }
+}
+
+/* จอแคบมาก (iPhone SE ≤360px) — บีบกล่องจำนวนลงเพื่อให้ยอดในปุ่มยังอยู่ครบบรรทัดเดียว
+   (ความสูงยังเท่าเดิม แตะไม่พลาด) */
+@media (max-width: 360px) {
+  .sf-buybar { gap: 6px; padding-left: 10px; padding-right: 10px; }
+  .sf-buybar .sf-cta { font-size: 14px; padding: 10px 8px; }
+  .sf-buybar .sf-qty button { width: 40px; }
+  .sf-buybar .sf-qty span { min-width: 26px; }
+  .sf-buybar .sf-cart-link { min-width: 44px; padding: 0 8px; }
 }

@@ -8,6 +8,8 @@ import { Minus, Plus, Check } from 'lucide-react';
 import { addToCart } from '@/lib/storefront-cart';
 import { thumbUrl } from '@/lib/image-thumb';
 import { flyToCart, findProductImage, FLY_DURATION } from '@/lib/storefront-fly-to-cart';
+import StoreBuyBar from './StoreBuyBar';
+import CartBadge from './CartBadge';
 import {
   formatStorePrice, storefrontHref, SF_VARIATION_IMAGE_EVENT,
   type StorefrontVariation, type StorefrontOptionGroup,
@@ -27,6 +29,12 @@ interface Props {
   defaultVariationId?: string;
   /** สินค้าชุด — มีค่า = เลือกทีละช่อง แทนรายการแบน */
   optionGroups?: StorefrontOptionGroup[];
+  /**
+   * ธีมของร้านสำหรับแถบซื้อล่างจอบนมือถือ — แถบถูก portal ออกไปนอก `.sf-root`
+   * จึงไม่ได้รับ token/คลาสธีมทางการสืบทอด ต้องส่งมาให้ตรง ๆ (ดู StoreBuyBar.tsx)
+   */
+  themeClasses: string[];
+  themeVars: Record<string, string>;
 }
 
 /** รูปหลักของหน้าเปลี่ยนตามตัวเลือก (ProductGallery ฟังอยู่ แล้วเลื่อนไปใบนั้น) */
@@ -36,6 +44,7 @@ function announceImage(v: StorefrontVariation) {
 
 export default function AddToCartButton({
   shop, productSlug, productName, variations, images, defaultVariationId, optionGroups,
+  themeClasses, themeVars,
 }: Props) {
   const sellable = variations.filter(v => v.in_stock);
   const preselected = sellable.find(v => v.id === defaultVariationId) || sellable[0];
@@ -45,7 +54,19 @@ export default function AddToCartButton({
   const btnRef = useRef<HTMLButtonElement>(null);
 
   if (sellable.length === 0) {
-    return <button type="button" className="sf-cta" disabled>สินค้าหมดชั่วคราว</button>;
+    // ของหมดทุกตัวเลือก — แถบล่างจอยังมีไว้ให้กดกลับไปตะกร้าได้ (ปุ่มซื้อกดไม่ได้)
+    const soldOut = (
+      <button type="button" className="sf-cta" disabled>สินค้าหมดชั่วคราว</button>
+    );
+    return (
+      <div>
+        <div className="sf-buy-row sf-buy-row-inline">{soldOut}</div>
+        <StoreBuyBar themeClasses={themeClasses} themeVars={themeVars}>
+          <CartBadge shop={shop} />
+          {soldOut}
+        </StoreBuyBar>
+      </div>
+    );
   }
 
   const selected = sellable.find(v => v.id === selectedId) || sellable[0];
@@ -75,8 +96,18 @@ export default function AddToCartButton({
     if (candidates[0]) choose(candidates[0]);
   };
 
+  /**
+   * รูปที่จะให้บินเข้าตะกร้า — `findProductImage` ไต่ DOM ขึ้นไปหา `.sf-detail`
+   * จากปุ่ม จึงใช้ ref ของปุ่มในเนื้อหน้าเสมอ (ปุ่มยังอยู่ใน DOM แม้ถูกซ่อนด้วย CSS
+   * บนมือถือ — `closest()` ไม่สนใจ display) · ปุ่มในแถบล่างจออยู่นอก `.sf-root`
+   * ผ่าน portal จึงไต่ไม่เจอ ต้องมาทางนี้ · ทางถอยสุดท้ายคือหาแกลเลอรีจาก document ตรง ๆ
+   */
+  const flyingImage = () =>
+    findProductImage(btnRef.current)
+    || document.querySelector<HTMLImageElement>('.sf-gallery-current img');
+
   const handleAdd = () => {
-    const flying = flyToCart(findProductImage(btnRef.current));
+    const flying = flyToCart(flyingImage());
     setAdded(true);
     window.setTimeout(() => setAdded(false), FLY_DURATION + 900);
     const commit = () => addToCart(shop, {
@@ -90,6 +121,32 @@ export default function AddToCartButton({
     if (flying) window.setTimeout(commit, FLY_DURATION - 120);
     else commit();
   };
+
+  /**
+   * กล่องจำนวน + ปุ่มหยิบใส่ตะกร้า — วาดสองที่ (ในเนื้อหน้า + แถบล่างจอบนมือถือ)
+   * โดยใช้ state ชุดเดียวกัน · CSS ซ่อนตัวที่ไม่ใช้ตามความกว้างจอ จึงเห็นทีละชุดเสมอ
+   */
+  const buyControls = (inBar: boolean) => (
+    <>
+      <div className="sf-qty" role="group" aria-label="จำนวน">
+        <button type="button" onClick={() => { setQty(q => Math.max(1, q - 1)); setAdded(false); }} aria-label="ลดจำนวน"><Minus strokeWidth={2} aria-hidden="true" /></button>
+        <span aria-live="polite">{qty}</span>
+        <button type="button" onClick={() => { setQty(q => Math.min(99, q + 1)); setAdded(false); }} aria-label="เพิ่มจำนวน"><Plus strokeWidth={2} aria-hidden="true" /></button>
+      </div>
+      <button
+        ref={inBar ? undefined : btnRef}
+        type="button"
+        className={`sf-cta sf-cta-add ${added ? 'sf-cta-added' : ''}`}
+        onClick={handleAdd}
+      >
+        <span className="sf-cta-face" key={added ? 'done' : 'idle'}>
+          {added
+            ? <><Check strokeWidth={2.2} aria-hidden="true" />เพิ่มลงตะกร้าแล้ว</>
+            : <>หยิบใส่ตะกร้า · {formatStorePrice(selected.price * qty)}</>}
+        </span>
+      </button>
+    </>
+  );
 
   return (
     <div>
@@ -148,25 +205,14 @@ export default function AddToCartButton({
         </div>
       )}
 
-      <div className="sf-buy-row">
-        <div className="sf-qty" role="group" aria-label="จำนวน">
-          <button type="button" onClick={() => { setQty(q => Math.max(1, q - 1)); setAdded(false); }} aria-label="ลดจำนวน"><Minus strokeWidth={2} aria-hidden="true" /></button>
-          <span aria-live="polite">{qty}</span>
-          <button type="button" onClick={() => { setQty(q => Math.min(99, q + 1)); setAdded(false); }} aria-label="เพิ่มจำนวน"><Plus strokeWidth={2} aria-hidden="true" /></button>
-        </div>
-        <button
-          ref={btnRef}
-          type="button"
-          className={`sf-cta sf-cta-add ${added ? 'sf-cta-added' : ''}`}
-          onClick={handleAdd}
-        >
-          <span className="sf-cta-face" key={added ? 'done' : 'idle'}>
-            {added
-              ? <><Check strokeWidth={2.2} aria-hidden="true" />เพิ่มลงตะกร้าแล้ว</>
-              : <>หยิบใส่ตะกร้า · {formatStorePrice(selected.price * qty)}</>}
-          </span>
-        </button>
-      </div>
+      {/* แถวซื้อในเนื้อหน้า — render เสมอ (SSR ต้องไม่ว่าง) แล้วค่อยซ่อนด้วย CSS บนมือถือ */}
+      <div className="sf-buy-row sf-buy-row-inline">{buyControls(false)}</div>
+
+      {/* มือถือ: แถบเดียวกันติดขอบล่างจอ พร้อมทางเข้าตะกร้า เพราะไอคอนบนหัวร้านหลบตอนเลื่อน */}
+      <StoreBuyBar themeClasses={themeClasses} themeVars={themeVars}>
+        <CartBadge shop={shop} />
+        {buyControls(true)}
+      </StoreBuyBar>
 
       {added && (
         <p className="sf-added sf-fade-up">

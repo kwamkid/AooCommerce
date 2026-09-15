@@ -26,18 +26,36 @@ export function findProductImage(button: Element | null): HTMLImageElement | nul
 }
 
 /**
+ * ทางเข้าตะกร้าที่อยู่ในจอจริง ๆ — มีได้หลายที่ (ไอคอนบนหัวร้าน · แถบซื้อล่างจอบนมือถือ)
+ * เลือกตัวที่เห็นอยู่ ไม่งั้น animation จะพุ่งไปยังตัวที่ถูกซ่อนหรือเลื่อนพ้นจอไปแล้ว
+ */
+function visibleCartTarget(): Element | null {
+  const targets = Array.from(document.querySelectorAll('[data-sf-cart-target]'));
+  const inView = targets.filter(el => {
+    const r = el.getBoundingClientRect();
+    if (r.width === 0 || r.height === 0) return false;
+    return r.bottom > 0 && r.top < window.innerHeight && r.right > 0 && r.left < window.innerWidth;
+  });
+  // ไม่มีตัวไหนอยู่ในจอ = ไม่เล่น (บินไปที่ที่ลูกค้าไม่เห็น ไม่ได้บอกอะไร)
+  return inView[0] ?? null;
+}
+
+/**
  * ยิง animation. คืน true ถ้าเล่นจริง (false = ปิด motion / หาอะไรไม่เจอ)
  * ตัวเรียกไม่ต้อง cleanup — util เก็บกวาด clone เองเมื่อจบหรือถูกขัดจังหวะ
  */
 export function flyToCart(image: HTMLImageElement | null): boolean {
   if (!image || prefersReducedMotion()) return false;
 
-  const target = document.querySelector('[data-sf-cart-target]');
+  // หน้าสินค้าบนมือถือมีทางเข้าตะกร้า 2 ที่ (หัวร้าน + แถบซื้อล่างจอ) — ต้องเล็ง
+  // ตัวที่ "มองเห็นอยู่จริง" ไม่ใช่ตัวแรกใน DOM · หัวร้านแบบหลบตอนเลื่อนลงจะเลื่อน
+  // พ้นจอไป ถ้าเล็งตัวนั้นรูปจะบินขึ้นไปหายนอกจอโดยลูกค้าไม่เห็นว่าของเข้าตะกร้า
+  const target = visibleCartTarget();
   if (!target) return false;
 
   const from = image.getBoundingClientRect();
   const to = target.getBoundingClientRect();
-  if (from.width === 0 || to.width === 0) return false;   // ซ่อนอยู่ ไม่ต้องเล่น
+  if (from.width === 0) return false;   // รูปต้นทางซ่อนอยู่ ไม่ต้องเล่น
 
   // 1) ต้นฉบับแค่ "หรี่" ลงแล้วคืนสภาพ — ห้ามย่อขนาด เพราะรูปอยู่ในกรอบ
   //    overflow:hidden การย่อจะเผยพื้นหลังกรอบออกมาเป็นขอบสี่เหลี่ยมรอบรูป
